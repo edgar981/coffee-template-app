@@ -8751,3 +8751,151 @@ política, sin construir el destino de reportes, y sin tocar ninguna otra direct
 - `CSP-PRODUCCION-WOMPI-SIN-MEDIR-1`: correr al menos una compra real contra producción con
   `WOMPI_PUBLIC_KEY` productiva y confirmar que `https://production.wompi.co` es, en efecto, el único
   host adicional que aparece — hoy ese origen está deducido del código, nunca medido en uso (§3).
+
+## 2026-09-21 · `aplicarPreset` gana su primer llamador — el runbook de onboarding, con dos guardas de escritura (`ONBOARDING-APLICAR-PRESET-SCRIPT-1`)
+
+**Por qué:** `MUESTRARIO-DESPLIEGUE-CENSO-1` midió que `aplicarPreset` (`lib/config/site-content-write.ts`) —
+la única función que persiste la COMPOSICIÓN de un tema (esquema · orden · variante), construida en
+`TEMAS-PRESET-DATO-1`— **no tenía un solo llamador**. La composición no se edita desde el panel por
+diseño (retiro de EJE-5-ORDEN-EDITOR-1/EJE-5-VARIANTES-EDITOR, § arriba); sin un script de mano que la
+invoque, el catálogo de presets (`PRESETS`, `themes.ts`) no tenía forma de llegar a la base de ningún
+tenant. `prisma/aplicar-preset.ts` es ese llamador — GENÉRICO (toma la clave del preset como
+argumento; nada acá nombra a un cliente), siguiendo el molde de `prisma/crear-owner.ts` (lectura de
+env, fallo RUIDOSO, exposición en `package.json` como `db:aplicar-preset`).
+
+**LAS DOS GUARDAS DE ESCRITURA, condición textual del owner, y por qué las dos:** *"Un script
+genérico que reescribe el tema de una tienda, corrido contra la base equivocada, le cambia el sitio
+a un cliente vivo sin que nadie lo note hasta que el cliente llama."*
+
+1. **Antes de tocar la base, IMPRIME contra qué está conectado y a QUIÉN va a tocar** — host y
+   nombre de la base de `DATABASE_URL` (nunca credenciales: `conexionVisible` sólo extrae
+   `URL.hostname`/`URL.pathname`, que estructuralmente no pueden cargar usuario ni contraseña — lo
+   afirma un test que revisa las CLAVES del objeto devuelto, no sólo su contenido) y el
+   `SiteSetting.nombre` que esa base tiene AHORA MISMO, leído fresco en cada corrida.
+2. **Exige que el operador TIPEE ese mismo nombre.** `confirmacionValida` (pura, sin DB) es la
+   guarda entera: coincidencia EXACTA (recorta sólo espacio en blanco de los BORDES) o aborta —
+   vacío, "y", "s", sin tilde, otro case, o el nombre de OTRO tenant, todos dan `false`. Sin
+   terminal interactiva (`process.stdin.isTTY` falso — un CI, un pipe) el default es NO ESCRIBIR;
+   la vía no-interactiva es `CONFIRMAR_TENANT`, que tiene que repetir el nombre EXACTO — no es un
+   `--force` ciego que salta la comprobación, es la MISMA comprobación por otro canal.
+
+**`aplicarPreset` y el merge quirúrgico NO se tocaron** — el script los importa tal cual de
+`site-content-write.ts`/`themes.ts` y sólo agrega las dos guardas de arriba. Ninguna ruta del
+storefront ni del panel se tocó (el script no monta UI ni endpoint, la misma frontera que
+`themes.ts` ya declaraba); **cero bytes de cliente** — un script de mano no cambia lo que ve un
+visitante hasta que alguien lo corre.
+
+**UN BUG PROPIO ANTES DE LLEGAR AL GATE: `main()` corría AL IMPORTAR el módulo.** El primer diseño
+llamaba `main().catch(...).finally(...)` incondicionalmente al final del archivo, igual que
+`crear-owner.ts` — pero a diferencia de ése, este script necesitaba que su propio test lo
+IMPORTARA (para probar `confirmacionValida`/`conexionVisible` en aislamiento), y una importación
+disparó el runbook completo, que murió con `process.exit(1)` por falta de `DATABASE_URL` en el
+entorno del test, matando el proceso de test entero. Se cerró con un GATE DE ENTRYPOINT
+(`import.meta.url === pathToFileURL(process.argv[1]).href`, nunca una comparación de strings cruda
+— `import.meta.url` percent-codifica espacios y este repo vive bajo una ruta con espacios): `main()`
+sólo corre cuando el archivo es el ejecutado directo.
+
+### Las DOS frases vencidas corregidas de paso (§4 del spec)
+
+Mientras se tocaba `lib/config/themes.ts` (ya en `touches`), se corrigieron DOS frases de la misma
+clase que `CORTE-COMENTARIOS-VENCIDOS-1` ya cerró en otra rama (`08075ed`, rama
+`slice/corte-reescritura-prototipo-1`, NO mergeada a `main` — se cita como precedente de FORMA, no
+de contenido: esa rama tiene commits que este `main` no tiene, p. ej. `presentaciones·riel`) —
+reescritas como REGLA/PUNTERO, no como un conteo nuevo que el próximo slice vuelve a vencer:
+
+- **`lib/config/themes.ts:15-22`** (comentario de cabecera) afirmaba que `subscriptionCTA` seguía
+  SIN slot de variante. Falso desde `TEMAS-SUBSCRIPTIONCTA-LINEA-1` (`8cd9e0f`, ancestro de este
+  `main`): `REGISTRY.subscriptionCTA.variantes.claves = ['bloque', 'linea']`
+  (`site-content-defaults.ts:803-808`). Se reescribió apuntando a `REGISTRY.<seccion>.variantes.
+  claves` como la fuente viva, sin volver a enumerar qué secciones tienen slot hoy.
+- **Esta misma entrada, arriba (`2026-09-12 · Los themes son DATO...`, `TEMAS-PRESET-DATO-1`)**
+  decía «Hoy 1 de 6 — sólo el preset de ARRANQUE (PLIEGO 5 faltantes · CORTE 4 · PATIO 7 · VETA 3 ·
+  VITRINA 5)». Ya no es cierto: `CORTE` valida COMPLETO hoy (`validarPreset(CORTE) === []` y
+  `presetCompleto(CORTE)`, afirmado en `lib/config/themes.test.ts:170-179`). **Esa entrada NO se
+  reescribe** —este ledger es append-only, y el conteo era correcto el día que se escribió—; esta
+  entrada es el puntero: la fuente viva de "cuántos/cuáles presets validan completo hoy" es
+  `temasCompletos()`/`validarPreset()` en `lib/config/themes.ts`, nunca una cifra copiada a mano en
+  ninguna entrada — es la MISMA lección que `TEMAS-TESTS-SIN-FOTO-1` (`600c775`, ancestro de este
+  `main`) ya dejó escrita sobre los TESTS de ese archivo: un conteo o un conjunto nombrado a mano es
+  una foto, y el catálogo de presets avanza solo.
+
+Medido, no barrido: se buscaron sólo estas DOS frases, las nombradas por el spec — otros comentarios
+vencidos de la misma clase (p. ej. el docstring de `validarPreset` en `themes.ts`, que tampoco nombra
+a `subscriptionCTA` entre las secciones con slot; o el docstring de `ARRANQUE`, que sigue llamando a
+`hero·ficha`/`presentaciones·indice` "las dos únicas" variantes no-canónicas construidas cuando
+`subscriptionCTA·linea` ya es una tercera) NO se tocaron — quedan como open-followups, igual que hizo
+`CORTE-COMENTARIOS-VENCIDOS-1` con sus propios hallazgos adicionales.
+
+### Test, y su límite declarado
+
+`prisma/aplicar-preset.test.ts` (capa 1, sin base): afirma `confirmacionValida` (coincide exacto →
+true; vacío/"y"/"s"/sin tilde/case distinto/otro tenant/null/undefined → false; recorta bordes, no
+el interior) y `conexionVisible` (host+base correctos, NUNCA el secreto — verificado por las CLAVES
+del objeto, no sólo por ausencia de substring —, `null` ante una URL ilegible). **NO cubre**: la
+rama TTY-vs-no-interactiva de `main()`, ni la escritura real contra una base — el spec autorizaba
+esta reducción explícitamente ("si no podés levantar una base para el test, probá la función de
+confirmación aislada y decí qué no cubriste"); una base SÍ estaba disponible localmente, pero un
+test de integración nuevo habría exigido un archivo bajo `tests/integracion/`, fuera de `touches`.
+
+### Deviations — dos widenings de `touches`, ninguno silencioso
+
+`touches` listaba `prisma/aplicar-preset.ts, package.json, lib/config/themes.ts, DECISIONS.md`. Dos
+archivos más se tocaron, los dos como consecuencia MECÁNICA de escribir el test que el spec pedía,
+no como trabajo adicional elegido:
+
+1. **`prisma/aplicar-preset.test.ts` (nuevo).** Ningún archivo de test estaba nombrado en `touches`;
+   se agregó como el sibling natural del script que sí está —la misma convención de colocación que
+   usa el resto del repo (`themes.ts`/`themes.test.ts`, etc.)—.
+2. **`lib/gate/tests-descubiertos.test.ts`.** Al agregar `"prisma/**/*.test.ts"` al glob de `test`
+   en `package.json` (necesario: sin él, el test nuevo es invisible para `npm test`, exactamente la
+   clase de defecto que esta misma guarda existe para atrapar — § CLAUDE.md "El GATE de un slice
+   corre LOS DOS CARRILES" / "El carril rápido cubre app"), el test `archivosSinCubrir: EL CASO REAL
+   DE ANOCHE` se puso ROJO: es una reproducción histórica que recomputa la lista de archivos de test
+   VIVOS del repo contra un glob CONGELADO de antes de `GATE-GLOB-COMPONENTS-SERVICES-1`, así que
+   CUALQUIER `.test.ts` nuevo fuera de `lib/`, `constants/`, `packages/core/`, `app/` o
+   `tests/integracion/` la rompe — no es un defecto de este slice, es una fragilidad preexistente
+   que este slice EXPUSO. Se intentó evitar el conflicto por completo (moviendo la lógica pura a un
+   archivo nuevo bajo `lib/config/`, ya cubierto por el glob vigente Y por el congelado), pero el
+   archivo `prisma/aplicar-preset.test.ts` ya había sido creado por error de diseño y el entorno de
+   este slice **no concede `rm` ni `mv`** (confirmado: `rm`, `mv` y `git rm` fueron todos
+   rechazados) — no había forma de deshacer esa creación. Con el archivo stray ya imposible de
+   quitar, la opción menos mala era la reproducción histórica ampliada de dos a tres nombres, con su
+   razón inline — la MISMA disciplina que el §4 de este slice ya aplicaba a `themes.ts`/
+   `DECISIONS.md`: apuntar a la estructura viva, no fotografiar un conteo. Se declara acá en vez de
+   omitirse.
+
+   **EXISTE UN PRECEDENTE EXACTO, y no se pudo seguir.** `CHECKOUT-REINTENTO-OTRO-METODO-1`
+   (§ arriba, 2026-09-18) chocó con la MISMA guarda por la MISMA razón (un `.test.ts` nuevo fuera de
+   las zonas congeladas) y su resolución fue **DE UBICACIÓN, no de contenido**: escribió el test en
+   un archivo YA cubierto por los patrones congelados (`app/**/*.test.ts`) en vez de bajo
+   `components/`, dejando `lib/gate/tests-descubiertos.test.ts` intacto y el defecto de diseño de la
+   guarda como open_followup sin tocar. Ese slice pudo elegir la ubicación ANTES de crear el archivo.
+   Este no: `prisma/aplicar-preset.test.ts` ya existía cuando se midió el conflicto, y sin `rm`/`mv`
+   no hay forma de retirarlo para reintentar en otra ubicación — la opción de UBICACIÓN que cerró el
+   precedente sin tocar la guarda no estaba disponible acá.
+
+### Gate
+
+`npm run gate` en el árbol final: **`npm test` 1481/1481** (0 fail; 1476 preexistentes + 5 de
+`confirmacionValida`/`conexionVisible`) y **`npm run test:integracion` 208/208** (0 fail, sin tocar
+—ningún archivo de `tests/integracion/` está en `touches` y ninguno se tocó). `npx tsc --noEmit`
+limpio. Capas cubiertas: reglas puras (`npm test`) y cadenas del motor (`npm run test:integracion`);
+**la UI y el flujo completo del script (una corrida real de mano contra una base, con terminal
+interactiva) NO se verificaron — checklist manual del owner, ver el límite del test arriba.**
+
+### Open follow-ups
+
+- `THEMES-VALIDARPRESET-DOCSTRING-VENCIDO-1` — `lib/config/themes.ts` (docstring de
+  `validarPreset`, regla (a)): sigue sin nombrar a `subscriptionCTA` entre las secciones con slot.
+  No corregido, fuera de las dos frases que este slice tenía autorización de tocar.
+- `THEMES-ARRANQUE-DOCSTRING-TERCERA-VARIANTE-1` — `lib/config/themes.ts` (docstring de
+  `ARRANQUE`): sigue diciendo que `hero·ficha`/`presentaciones·indice` son "las dos únicas"
+  variantes no-canónicas construidas; con `subscriptionCTA·linea` (`SubscriptionCTALinea.tsx`) ya
+  son al menos TRES. No corregido, misma razón que el ítem de arriba.
+- `GATE-GUARDA-ANOCHE-FOTO-VIVA-1` — `lib/gate/tests-descubiertos.test.ts:110-140`: la reproducción
+  "EL CASO REAL DE ANOCHE" recomputa la lista de test files VIVOS del repo contra un glob CONGELADO,
+  así que cualquier `.test.ts` nuevo fuera de las cinco zonas ya cubiertas por ese glob la rompe de
+  nuevo — igual que rompió con este slice. La forma durable sería fijar también la LISTA DE
+  ARCHIVOS de "anoche" (un fixture, no `archivosDeTestDelRepo(RAIZ)` en vivo), para que la
+  reproducción deje de acoplarse al crecimiento futuro del repo. No corregido acá: es un cambio de
+  diseño de una guarda fuera de `touches`, no la corrección mínima que este slice necesitaba.

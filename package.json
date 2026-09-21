@@ -11,10 +11,11 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\" \"constants/**/*.test.ts\" \"packages/core/**/*.test.ts\" \"app/**/*.test.ts\" \"components/**/*.test.ts\" \"services/**/*.test.ts\"",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\" \"constants/**/*.test.ts\" \"packages/core/**/*.test.ts\" \"app/**/*.test.ts\" \"components/**/*.test.ts\" \"services/**/*.test.ts\" \"prisma/**/*.test.ts\"",
     "postinstall": "npm run generate -w @duna/core",
     "db:seed": "tsx prisma/seed.ts",
     "db:crear-owner": "tsx prisma/crear-owner.ts",
+    "db:aplicar-preset": "tsx prisma/aplicar-preset.ts",
     "test:integracion": "bash scripts/test-integracion.sh",
     "gate": "npm test && npm run test:integracion"
   },

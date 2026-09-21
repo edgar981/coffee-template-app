@@ -116,6 +116,14 @@ test('archivosSinCubrir: EL CASO REAL DE ANOCHE (§ GATE-GUARDA-TESTS-INVISIBLES
   // Los dos archivos que quedaron invisibles esa noche —uno de ellos del camino de
   // dinero (services/checkout.service.test.ts)— SIGUEN EXISTIENDO hoy, así que esta
   // reproducción corre contra el árbol REAL del repo, no contra un fixture inventado.
+  //
+  // ESTA REPRODUCCIÓN CORRE CONTRA EL ÁRBOL REAL, así que crece con él: un TERCERO se sumó
+  // (`prisma/aplicar-preset.test.ts`, § ONBOARDING-APLICAR-PRESET-SCRIPT-1) — legítimo bajo el
+  // glob VIGENTE de `npm test` (que sí lo cubre, ver el primer test de este archivo), pero
+  // invisible bajo los patrones CONGELADOS de "anoche" (que nunca conocieron `prisma/`, igual que
+  // nunca conocieron `components/`/`services/` antes de GATE-GLOB-COMPONENTS-SERVICES-1). La
+  // reproducción del incidente sigue siendo válida con tres nombres en vez de dos; lo que
+  // demuestra —que un archivo no cae solo bajo ningún patrón— no cambia.
   const patronesDeAnoche = [
     'lib/**/*.test.ts',
     'constants/**/*.test.ts',
@@ -130,8 +138,9 @@ test('archivosSinCubrir: EL CASO REAL DE ANOCHE (§ GATE-GUARDA-TESTS-INVISIBLES
     invisibles,
     [
       'components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts',
+      'prisma/aplicar-preset.test.ts',
       'services/checkout.service.test.ts',
     ].sort(),
-    'con los patrones de anoche la guarda debe nombrar EXACTAMENTE los dos archivos que quedaron invisibles',
+    'con los patrones de anoche la guarda debe nombrar EXACTAMENTE los archivos que quedaron invisibles',
   );
 });
