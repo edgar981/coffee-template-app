@@ -14,12 +14,12 @@ import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda } from '@/lib/config/site-content-defaults';
 
 export default function StoreNav() {
-  const { nombre } = useSiteSettings();
+  const { nombre, tagline } = useSiteSettings();
   // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
   // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
   // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
   const content = useSiteContent();
-  const { paginas, esquemas, tema, orden } = content;
+  const { paginas, esquemas, tema, orden, cromo } = content;
   const links = [
     { label: 'Tienda', path: '/tienda' },
     // Suscripciones y Nosotros son CAPACIDADES apagables: su link aparece sólo si la página está viva
@@ -69,26 +69,55 @@ export default function StoreNav() {
   // es, el nav cae a SÓLIDO desde el primer render, sin importar scroll ni esquema.
   const primera = resolverOrden(orden)[0];
   const t = tratamientoNav(primera, varianteDeBanda(content, primera), esquemas, tema.fondo, tema.tinta, tema.acento);
-  const navFlotando = isHome && !scrolled && t.flotante;
-  const navClaro = navFlotando && t.textoClaro;
+  // `cromo.navTinta` (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): declaración OPCIONAL del preset — el nav es
+  // una banda `--sf-tinta` SÓLIDA SIEMPRE, sin importar home/scroll. `false` (todo tenant salvo el
+  // que lo declare, § CORTE en themes.ts) → el `tratamientoNav`/`navFlotando` de HOY, exacto, sin
+  // tocar. `true` BYPASSA el floating por completo: nunca transparente, nunca cae a la tarjeta clara
+  // del scroll de hoy — reusa `navClaro` para el resto de la fila (link/ícono/logo), como la banda
+  // oscura flotante ya hacía.
+  const navBandaTinta = cromo.navTinta;
+  const navFlotando = !navBandaTinta && isHome && !scrolled && t.flotante;
+  const navClaro = navBandaTinta || (navFlotando && t.textoClaro);
 
-  const navBg = navFlotando
-    ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
-    : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
+  const navBg = navBandaTinta
+    ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
+    : navFlotando
+      ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
+      : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
 
   const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+  // El logo del nav (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): `cromo.navSubtitulo` exhibe el `tagline`
+  // bajo el nombre (REUSA `Logo.subtitle`, que ya existe para el footer, § Logo.tsx) — `false` (el
+  // default) → `subtitle` queda `undefined` y `Logo` renderiza EXACTAMENTE su rama de siempre.
+  const logoLink = (
+    <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
+      {/* Cream lockup over the transparent hero, espresso once scrolled */}
+      <Logo
+        nombre={nombre}
+        variant={navClaro ? 'dark' : 'light'}
+        conMark={STOREFRONT_TIENE_MARK}
+        subtitle={cromo.navSubtitulo ? tagline : undefined}
+      />
+    </Link>
+  );
 
   return (
     <>
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
-            {/* Logo */}
-            <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
-              {/* Cream lockup over the transparent hero, espresso once scrolled */}
-              <Logo nombre={nombre} variant={navClaro ? 'dark' : 'light'} conMark={STOREFRONT_TIENE_MARK} />
-            </Link>
+            {/* Logo (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): el badge de `cromo.navBadge` sólo envuelve el
+                logo en un flex propio cuando HAY texto — vacío (el default) deja `logoLink` como
+                único hijo, sin un <div> extra alrededor, byte-idéntico a hoy. */}
+            {cromo.navBadge ? (
+              <div className="flex items-center gap-3">
+                {logoLink}
+                <span className={`hidden sm:inline-flex items-center px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
+                  {cromo.navBadge}
+                </span>
+              </div>
+            ) : logoLink}
 
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
@@ -133,7 +162,8 @@ export default function StoreNav() {
         </div>
       </header>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu — `cromo.navTinta` NO lo toca: el spec de CROMO-NAV-FOOTER-TEMATIZABLE-1 acota
+          la superficie al header fijo (banda/logo/sub-encabezado/badge), no al drawer móvil. */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-[var(--sf-tarjeta)] shadow-lg sf-divisor-b border-[var(--sf-linea)]">

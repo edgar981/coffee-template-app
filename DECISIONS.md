@@ -10231,3 +10231,197 @@ sitios byte-idénticos — cero cambio). `AWAITING_APPROVAL`.
 
 Ninguno nuevo. `PALETA-HOVER-TEXTO-SOBRE-SUPERFICIE-1` (arriba) sigue abierto, sin tocar por este
 slice.
+
+## 2026-09-21 — El cromo del nav (banda tinta, logo serif claro, sub-encabezado y badge de cosecha) pasa a ser una declaración del PRESET, en una meta APARTE de la paleta (`CROMO-NAV-FOOTER-TEMATIZABLE-1`)
+
+**El programa (owner, "se parece al prototipo", 2026-09-21):** punto 1a, el cromo tematizable —
+contestar la pregunta nav-superficie-vs-cromo-fijo y construir. Contestada: **el nav pasa a ser una
+SUPERFICIE DECLARADA POR EL PRESET**, aditiva, con default = el `tratamientoNav` de hoy exacto.
+
+### Las CUATRO piezas y su default
+
+| pieza | mecanismo | dónde vive | default (todo tenant salvo CORTE) |
+| --- | --- | --- | --- |
+| banda tinta sólida | `content.cromo.navTinta: boolean` | `SiteContentData.cromo` (meta nueva) | `false` → `tratamientoNav`/`navFlotando` de HOY, sin tocar |
+| logotipo serif claro | GRATIS — `Logo` ya lee `--sf-fuente-titulo` (`.font-display`) y su color por `variant` | `components/storefront/Logo.tsx` (sin cambio de mecanismo) | `variant='light'` mientras `navClaro` sea `false` |
+| sub-encabezado (tagline bajo el nombre) | `content.cromo.navSubtitulo: boolean` → `StoreNav` pasa `subtitle={tagline}` a `Logo` sólo si es `true` | `SiteContentData.cromo` + `Logo.subtitle` (prop YA existente, reusada) | `false` → `subtitle` queda `undefined`, `Logo` renderiza su rama de siempre |
+| badge de cosecha | `content.cromo.navBadge: string` | `SiteContentData.cromo` | `''` → no se renderiza |
+
+Las tres viven en `content.cromo` (`CromoContent`, `site-content-defaults.ts`), una meta NUEVA —
+gemela de `paginas`/`tema`, dominio CERRADO de 3 claves fijas—, **NO dentro de `content.tema`**: el
+guardar/publicar de la PALETA (`guardarTemaBorrador`/`palette-schema.ts`, los dos **fuera de
+`touches:`** de este slice) escribe `borrador.tema` con SÓLO 5 claves
+(fondo/tinta/acento/fuentePar/forma) y al publicar reemplaza `content.tema` ENTERO — si los tres ejes
+del cromo vivieran ahí, el día que un operador de un tenant con preset CORTE guarde un color/una
+fuente desde `/admin/tienda`, publicar el tema los resetearía en silencio a `false`/`''`. Meta aparte
+= ese flujo nunca los toca. Confirmado leyendo `site-content-write.ts` (`guardarBorrador`/
+`publicarSeccion`/`descartarSeccion`/`setPaginaVisible`/`aplicarPreset`): **los cinco** hacen spread
+sobre `content`/`borrador` y sólo reemplazan la clave que tocan — ninguno reconstruye el objeto
+completo, así que una clave nueva (`cromo`) es segura de nacimiento contra los cinco.
+
+Sólo `mergePresetEnContent` (`themes.ts`) escribe `content.cromo`, con `preset.navTinta`/
+`navSubtitulo`/`navBadge` — tres campos OPCIONALES nuevos en `PresetTema`, MISMA familia aditiva que
+`origenTexto`/`origenAccion` (`TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`): ausentes en un preset =
+`content.cromo` byte-idéntico al de hoy. De los 6 presets del catálogo, **sólo CORTE** los declara.
+
+### La banda tinta — bypassa el floating, no lo parametriza
+
+`tratamientoNav`/`bandaEsOscura`/`bandaUniforme` (`esquema-style.ts`) **no se tocaron** (archivo
+fuera de `touches:`). `cromo.navTinta` en `StoreNav.tsx` corta ANTES de esa cadena:
+
+```
+navBandaTinta = cromo.navTinta                                     // false por defecto
+navFlotando   = !navBandaTinta && isHome && !scrolled && t.flotante // false → idéntico a hoy
+navClaro      = navBandaTinta || (navFlotando && t.textoClaro)      // false → idéntico a hoy
+navBg         = navBandaTinta ? 'bg-[var(--sf-tinta)] …' : (navFlotando ? … : … /* idéntico a hoy */)
+```
+
+Con `navBandaTinta=false` las tres líneas se reducen ALGEBRAICAMENTE a la expresión de antes de este
+slice (`!false && X` = `X`; `false || Y` = `Y`; la rama `navBandaTinta ?` nunca se toma) — no es una
+afirmación de intención, es sustitución directa de valores. Con `navBandaTinta=true` (CORTE) el nav
+es **SIEMPRE** `bg-[var(--sf-tinta)]` con `navClaro=true` (texto/logo claros), sin importar
+scroll/home — la simplificación que pidió el spec de este slice ("el prototipo lo quiere banda tinta
+sólida siempre") en vez de replicar la transición transparente→sólida del prototipo (`.is-solid` al
+cruzar `scrollY>80`, `.is-opaque` estático en `producto.html` — medido en `js/app.js:280-286` y
+`producto.html:19`).
+
+### Medido contra el prototipo, pieza por pieza
+
+| pieza | prototipo (medido) | CORTE ahora | veredicto |
+| --- | --- | --- | --- |
+| banda | `--surface-inverse` = `#102407` (`ds/colors.css:43`), lienzo del header sólido | `--sf-tinta` = `raices.tinta` de CORTE = `#102407` | **calza exacto** |
+| logotipo — fuente | `--font-display: var(--font-serif)` (`ds/typography.css:4`) → `--font-serif: "Roboto Serif"…` (`:2`) | `--sf-fuente-titulo` = `'Roboto Serif'` (par `'prensa'`, ya declarado por `CORTE-REESCRITURA-PROTOTIPO-1`) | **calza exacto** (gratis, mecanismo previo) |
+| logotipo — color | `--text-on-inverse` = `#fdfbf7` (`ds/colors.css:51`) | `--sf-sobre` = `#ffffff` (default GLOBAL de `app/globals.css:106`, no derivado de raíces — `derivarPaleta` no emite una clave `sobre`, sólo `sobre-tinta`/`sobre-superficie`/etc., § `palette-derive.ts`) | **NO calza exacto** — blanco puro vs. crema casi-blanco; MISMO token que ya usa el footer hoy, no una regresión de este slice |
+| sub-encabezado | `.wordmark small`: `color:var(--text-on-inverse-muted)` (`#afb4a7`), `font-family:var(--font-ui)` (sans) | reusa el estilo YA existente de `Logo.subtitle` (footer): `text-[var(--sf-tostado-5)]` (`#ba9c7b`), `font-display` (serif), tamaño bajado a 11px (el del prototipo) | **texto/posición calzan; color y familia NO** — el spec pidió "REUSA el tagline que ya existe", no inventar un tercer tratamiento tipográfico |
+| badge | `.badge`: `background:var(--accent-sale)` (`#f5b36a`), `color:var(--text-heading)` (`#102407`), `font-family:var(--font-ui)`, uppercase 11px | chip translúcido `bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]` (o su opuesto en tinta cruda si `navClaro` fuera falso), uppercase 10px, sin `font-ui` propio | **texto exacto ("Cosecha 2026"), tratamiento visual simplificado** — sin primitiva de chip en `touches:`, se reusó el patrón translúcido `bg-[var(--sf-sobre)]/10` que YA existe en `StoreFooter.tsx:72,90` (los botones sociales), no una superficie inventada |
+
+Las tres columnas "NO calza exacto" son divergencias MEDIDAS y reportadas, no descuidos: ninguna
+requería tocar un archivo fuera de `touches:` para cerrarse del todo (tocar `--sf-sobre`/agregar una
+primitiva de chip sí lo habría hecho), y el spec fue prescriptivo sólo en la pieza 1 (banda + color
+"que ya usa el nav" = `--sf-sobre`, el token EXISTENTE, no uno nuevo).
+
+### Byte-identidad de Nayoli — cómo se probó, no sólo se afirmó
+
+1. **Datos**: `resolverSiteContent({}).cromo` y `DEFAULTS.cromo` deepEqual
+   `{ navTinta:false, navSubtitulo:false, navBadge:'' }` (`cromo-tematizable.test.ts`).
+2. **Catálogo**: los 5 presets que no son CORTE no declaran los tres campos (`undefined`, no
+   `false`/`''`) y `mergePresetEnContent(…, preset).cromo` da el default de hoy para los cinco
+   (`cromo-tematizable.test.ts`).
+3. **Componente `Logo`** — el ÚNICO de los tres tocados que se puede renderizar de verdad sin
+   contexto de ruteo (`StoreNav` usa `usePathname()`, que fuera de un árbol real de Next.js devuelve
+   `null` y revienta en `pathname.startsWith(...)` — medido con `renderToStaticMarkup` antes de
+   escribir el test, `.scratch/try-storenav.ts`, no versionado; es la MISMA frontera que ya documenta
+   el repo para `*.test.tsx`/jsdom, § CLAUDE.md). `renderToStaticMarkup(<Logo nombre="Café Nayoli"/>)`
+   da:
+   `<div class="flex items-center gap-2.5"><span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span></div>`
+   — **carácter por carácter** el mismo string que produce `git show HEAD:components/storefront/
+   Logo.tsx` (comparado a mano; la rama sin `subtitle` del componente no cambió un carácter). Afirmado
+   con `assert.equal` (no `assert.ok(includes(...))`) en `cromo-tematizable.test.ts`.
+4. **`StoreNav`/`logoLink`/el badge — por equivalencia algebraica de código** (§ arriba: las tres
+   líneas se reducen a la expresión de antes cuando `navBandaTinta=false`) más el hecho medido en (1)
+   de que `navBandaTinta` es SIEMPRE `false` para todo tenant que no declare `cromo.navTinta`. El
+   badge usa el mismo patrón (`{cromo.navBadge ? <div…> : logoLink}` — con `navBadge=''`, la rama
+   `logoLink` es EXACTAMENTE el `<Link>` que ya estaba, extraído a una variable sin tocar sus props
+   salvo `subtitle={undefined}`, que es equivalente a no pasar la prop).
+5. **`StoreFooter.tsx` no se tocó** (aparece en `touches:` pero el diff no lo usa): ya renderiza una
+   banda `bg-[var(--sf-tinta)]` sólida SIEMPRE, para todo tenant, con el tagline exhibido
+   incondicionalmente (`stacked subtitle={settings.tagline}`) — el prototipo pinta su `<footer>` con
+   el MISMO `--surface-inverse` (`css/app.css:633`), así que el footer YA cumplía el estándar de CORTE
+   sin necesitar ningún eje nuevo. Verificado por lectura, no por render (no hay nada que cambiar).
+
+### `site-content-schema.ts` — `cromo` entra DEFENSIVO, gemelo de `esquemas`/`orden`/`variantesBandas`
+
+`siteContentEditableSchema` gana `cromo: cromoEditableSchema.optional()` (3 claves,
+todas `.optional()`, SOFT como el resto del schema). **Ningún write actual lo necesita** —sólo
+`aplicarPreset` (`themes.ts`) escribe `content.cromo`, y ese camino es DIRECTO a Prisma, sin pasar
+por este schema, igual que `esquemas`/`orden`/`variantesBandas`—. Se agregó por la MISMA razón que
+esas tres: "para que un futuro write general no la STRIPPEE en silencio" (§65-B, el bug real que
+motivó declarar metas sin editor). `tema` es la única meta comparable que NO sigue este patrón, y
+por una razón distinta —tiene su PROPIO endpoint (`/api/site-content/tema` + `palette-schema.ts`,
+los dos fuera de `touches:`)—, así que no es el precedente a copiar acá.
+
+### `SeccionKey`/`REGISTRY` — por qué no hizo falta declarar `cromo` como sección
+
+`cromo` se sumó al `Exclude<keyof SiteContentData, …>` de `SeccionKey` (junto a `paginas`/`tema`/
+`esquemas`/`orden`/`variantesBandas`) — sin esto, `Record<SeccionKey, SeccionDef>` (el tipo de
+`REGISTRY`) habría exigido una entrada `cromo` y el build habría fallado. Confirmado con
+`npx tsc --noEmit` (limpio) y `npx next build` (`✓ Compiled successfully`, sin `db:deploy` — se corrió
+`next build` directo para no tocar la base de `.env` con una migración que este slice no trae).
+
+### Por qué `resolverCromo` es una función nueva y no un parámetro de `resolverTema`
+
+`resolverTema` (`site-content-defaults.test.ts`) tiene SEIS asserts `deepEqual` que enumeran las
+SIETE claves exactas de `TemaContent` de hoy (`fondo`/`tinta`/`acento`/`fuentePar`/`forma`/
+`origenTexto`/`origenAccion`) — ese archivo de test **no está en `touches:`** de este slice. Sumar
+`navTinta`/`navSubtitulo`/`navBadge` al objeto que devuelve `resolverTema` habría roto las seis
+aserciones (un `deepEqual` no perdona una clave de más), y arreglarlas habría exigido tocar un
+archivo fuera del `touches:` aprobado. Verificado ANTES de escribir el código (`grep` de esas seis
+líneas), no después: es la razón por la que las tres piezas nacieron en `content.cromo` y no en
+`content.tema` — la meta aparte no sólo es más segura para el flujo de publicar (§ arriba), también
+es la única forma de no ensanchar el diff fuera de lo aprobado.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1535/1535**, 0 fail — sube de 1517 (el piso citado por
+  `PALETA-MIGRAR-ACENTO-TINTA-1`) por los 18 tests nuevos de `cromo-tematizable.test.ts` (14 de
+  datos/`Logo` + 4 del schema editable).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail en la corrida
+  final — mismo piso que el slice anterior (este slice no tocó ningún archivo con test de
+  integración propio). **Una corrida intermedia** (tras agregar `cromoEditableSchema`, antes de la
+  final) dio 207/208: falló `wompi-reconciliador.test.ts` → "CONCURRENCIA: webhook y reconciliador
+  procesando el MISMO evento A LA VEZ" — un test de CARRERA de un subsistema que este slice no toca
+  (Wompi/reconciliación de pagos, cero archivos en común con `touches:`). Re-corrido sin tocar nada,
+  pasó verde. Es el MISMO test y la misma clase de flake que `ONBOARDING-APLICAR-PRESET-SCRIPT-2` ya
+  registró en `main` como "fallo intermitente no relacionado" (commit `8a3b0ab`, aún no mergeado a
+  esta rama) — no una regresión de este diff.
+- **`npx tsc --noEmit`**: limpio, sin salida (corrido dos veces, antes y después de sumar
+  `cromoEditableSchema`).
+- **`npx next build`**: `✓ Compiled successfully`, TypeScript y las 51 páginas estáticas/dinámicas
+  generadas sin error (corrido dos veces, mismo resultado las dos).
+- **`npx eslint` sobre los 6 archivos tocados/nuevos**: sin salida (limpio).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, programa "se parece al prototipo", 2026-09-21, punto 1a —
+contestar nav-superficie-vs-cromo-fijo Y construir). `lib/config/site-content-schema.ts` y
+`lib/config/site-content-defaults.ts` están en la frase canónica de Tier 1; `components/storefront/`
+entra por el subárbol ya ganado (bytes del visitante); `lib/config/themes.ts` entra por el mismo
+precedente de la rama (`CORTE-ESQUEMAS-INVERTIDOS-1` y las demás CORTE-* de esta rama, ya aprobadas
+Tier 1 sobre el mismo archivo).
+
+Contra MERGE POLICY A: **sin schema/migración** (ningún archivo de `packages/core/prisma/` —
+`site-content-schema.ts`/`site-content-defaults.ts` son TypeScript de dominio, no el schema de
+Prisma), **sin contrato cross-repo**, pero **SÍ bytes de cliente** — el mirador (`?tema=CORTE`,
+`app/(storefront)/page.tsx`, sin gate de sesión) sirve el nav en banda tinta con el sub-encabezado y
+el badge sobre la ruta pública `/`. `customer_bytes.changed: true`.
+`customer_bytes.strings: ["Cosecha 2026"]` — el ÚNICO texto NUEVO (el badge de CORTE); el
+sub-encabezado no es un texto nuevo, es el `tagline` que el FOOTER ya muestra hoy, exhibido también
+en el nav cuando el preset lo declara. Para Nayoli (ningún preset aplicado) los tres ejes quedan en
+su default y no hay bytes que cambien — probado en las cinco vías de arriba, no sólo afirmado.
+`AWAITING_APPROVAL`.
+
+### Deviations
+
+Ninguna del spec en el MECANISMO (nav-superficie por preset, tagline reusado, badge como dato SOFT).
+Una decisión de FORMA no dictada por el spec: la meta nueva se llamó `content.cromo` (no
+`content.tema`) — medida y justificada arriba (§ el flujo de publicar la paleta la habría
+resucitado en `false`/`''` en silencio), no una preferencia de nombre.
+
+### Open follow-ups
+
+- `CROMO-NAV-SOBRE-BLANCO-PURO-1` — `app/globals.css:106` (`--sf-sobre: #ffffff`), el texto/logo
+  claro sobre la banda tinta usa blanco PURO en vez del crema casi-blanco del prototipo
+  (`--text-on-inverse: #fdfbf7`). No es una regresión de este slice —el footer ya usa el MISMO token
+  hoy— pero es la brecha que impide que la banda calce exacto contra el prototipo. Tocar
+  `--sf-sobre` (o derivarlo de las raíces, como `sobre-tinta`) está fuera de `touches:` de este
+  slice. Disparador: el próximo gate del owner mirando la banda tinta de cerca.
+- `CROMO-SUBENCABEZADO-BADGE-ESTILO-PROTOTIPO-1` — el sub-encabezado y el badge REUSAN estilos ya
+  existentes en vez de calzar el color/familia/chip exactos del prototipo (§ la tabla de arriba,
+  columnas "NO calza exacto"). El spec pidió "reusar" y "seguir el patrón de un campo existente", no
+  una primitiva de chip nueva; si el owner quiere el calce exacto, es una decisión de diseño aparte
+  (una primitiva de badge, o tocar `--sf-tostado-5`), no una corrección de este slice.
+- `CROMO-MOBILE-DRAWER-SIN-TINTA-1` — el drawer móvil de `StoreNav.tsx` (`bg-[var(--sf-tarjeta)]`)
+  no sigue a `cromo.navTinta`: sigue claro aunque el header fijo sea banda tinta. El spec acotó la
+  superficie al header fijo (banda/logo/sub-encabezado/badge); el drawer es una superficie de
+  chrome más que el prototipo no describe con el mismo detalle. Disparador: si el próximo gate del
+  owner lo nota como inconsistente al abrir el menú en angosto.

@@ -86,6 +86,13 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * uno de los otros cinco presets). Nace de un acento que es COLOR DE ACCIÓN puro (CORTE, rojo): un
  * acento así no sirve como fuente de texto de lectura ni como tono cálido de botón, así que el
  * preset lo dice explícitamente en vez de que el motor lo asuma para TODOS los clientes.
+ *
+ * `navTinta`/`navSubtitulo`/`navBadge` (§ CROMO-NAV-FOOTER-TEMATIZABLE-1, OPCIONALES) — los 3 ejes
+ * de `CromoContent` (`site-content-defaults.ts`), MISMA familia aditiva que `origenTexto`/
+ * `origenAccion`: AUSENTE en un preset = el comportamiento de HOY, byte a byte (`tratamientoNav`
+ * deriva el nav; sin sub-encabezado; sin badge). Van a su PROPIA meta (`content.cromo`), no a
+ * `content.tema` — ver el docstring de `CromoContent` para el porqué (el guardar/publicar de la
+ * paleta reemplaza `tema` entero y los resetearía en silencio si vivieran ahí).
  */
 export interface PresetTema {
   clave: string;
@@ -98,6 +105,9 @@ export interface PresetTema {
   orden: readonly string[];
   origenTexto?: OrigenTexto;
   origenAccion?: OrigenAccion;
+  navTinta?: boolean;
+  navSubtitulo?: boolean;
+  navBadge?: string;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -208,10 +218,12 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  *
  * INVARIANTE (la promesa del runbook): NUNCA toca un texto ni una imagen del dueño. Sólo escribe
  * `tema` (raíces + par + forma + los dos ejes de origen de § TEMAS-ROLES-DECLARADOS-POR-EL-
- * PRESET-1, reemplazado entero — son composición, no contenido), `esquemas`,
- * `orden` y `variantesBandas` (reemplazados enteros, por la misma razón), y el campo `variante`
- * DENTRO de cada sección afectada — preservando cualquier otro campo que esa sección ya tuviera
- * (`{ ...prev, variante }`). Ninguna otra clave de `content` se toca.
+ * PRESET-1, reemplazado entero — son composición, no contenido), `cromo` (§ CROMO-NAV-FOOTER-
+ * TEMATIZABLE-1, los 3 ejes de chrome de nav/footer, reemplazado entero por la misma razón —
+ * composición, no contenido, y META APARTE de `tema` a propósito, ver el docstring de
+ * `CromoContent`), `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
+ * razón), y el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
+ * que esa sección ya tuviera (`{ ...prev, variante }`). Ninguna otra clave de `content` se toca.
  *
  * `preset.variantes` mezcla DOS destinos bajo una sola clave plana (TEMAS-P1-FEATURED-VARIANTES-1):
  * una entrada cuya clave ES una `SeccionKey` (tiene entrada en el REGISTRY) va DENTRO de esa sección
@@ -242,6 +254,14 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     // falta para escribir un `TemaContent` completo (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
     origenTexto: preset.origenTexto ?? null,
     origenAccion: preset.origenAccion ?? null,
+  };
+  // `cromo` (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): meta APARTE de `tema` — ver el docstring de
+  // `CromoContent` para el porqué (el guardar/publicar de la paleta reemplaza `tema` entero y
+  // resetearía estos 3 ejes en silencio si vivieran ahí).
+  out.cromo = {
+    navTinta: preset.navTinta ?? false,
+    navSubtitulo: preset.navSubtitulo ?? false,
+    navBadge: preset.navBadge ?? '',
   };
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
@@ -405,6 +425,19 @@ export const CORTE: PresetTema = {
                           // del prototipo (`docs/prototipos/cafeone/ds/colors.css:48`) ES la tinta.
   origenAccion: 'acento', // el fondo de la acción primaria (hoy `tostado`) nace del ACENTO crudo —
                           // el `--action-primary` real del prototipo (`colors.css:59`).
+  // navTinta/navSubtitulo/navBadge (§ CROMO-NAV-FOOTER-TEMATIZABLE-1) — MEDIDOS contra el
+  // prototipo, no inventados. El `.site-header` pinta `--surface-inverse` (el MISMO verde-tinta
+  // que ya es `raices.tinta` de CORTE) apenas deja de flotar transparente sobre una banda uniforme
+  // clara (`.is-solid`/`.is-opaque`, `css/app.css:188-191`); acá se declara SÓLIDA SIEMPRE — la
+  // simplificación pedida por el spec de este slice (§1: "el prototipo lo quiere banda tinta
+  // sólida siempre"), en vez de replicar la transición transparente→sólida al detalle. El wordmark
+  // trae su sub-encabezado (`.wordmark small`, `index.html:23`, "San Adolfo · Huila") y el primer
+  // `nav-item` su badge de cosecha (`.badge`, `index.html:32`, "Cosecha 2026") — `navBadge` lleva
+  // ese texto EXACTO como el valor de MUESTRARIO de este preset (§ el docstring de
+  // `CromoContent.navBadge`: es dato del tenant, no un año horneado en el componente).
+  navTinta: true,
+  navSubtitulo: true,
+  navBadge: 'Cosecha 2026',
 };
 
 export const PATIO: PresetTema = {

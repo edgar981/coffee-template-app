@@ -233,6 +233,21 @@ const ordenEditableSchema = z.array(z.enum(BANDA_IDS)).refine(
 // (`resolverVariantesBandas`) ya es la red que descarta lo que no encaje.
 const variantesBandasEditableSchema = z.record(z.string(), z.string());
 
+// META de CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): banda-tinta del nav / sub-encabezado / badge de
+// cosecha — dominio CERRADO de 3 claves fijas, gemela de `paginasEditableSchema` en FORMA (no
+// key-agnóstica como `esquemas`/`variantesBandas`). NO es una sección —tampoco pasa por el flujo
+// borrador/publicar—; se declara acá SÓLO para que un futuro write general no la STRIPPEE en
+// silencio (§ #65-B), como `esquemas`/`orden`/`variantesBandas`. HOY no hay editor que la escriba
+// —sólo `aplicarPreset` (`themes.ts`), directo sobre `content` publicado, sin pasar por este
+// schema—. Va en su PROPIA meta y no dentro de `tema` a propósito: ver el docstring de
+// `CromoContent` (`site-content-defaults.ts`) para el porqué (el guardar/publicar de la PALETA,
+// `palette-schema.ts`, reemplaza `content.tema` entero y resetearía estos 3 ejes en silencio).
+const cromoEditableSchema = z.object({
+  navTinta: z.boolean().optional(),
+  navSubtitulo: z.boolean().optional(),
+  navBadge: z.string().optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
@@ -245,6 +260,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
+  cromo: cromoEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),

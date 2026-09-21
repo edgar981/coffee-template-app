@@ -324,6 +324,37 @@ export interface TemaContent {
   origenAccion: OrigenAccion | null;
 }
 
+// META de CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): los ejes de CHROME del nav/footer que hoy
+// DERIVAN de `tratamientoNav`/el token de siempre, pero que un preset puede declarar distinto —
+// misma familia ADITIVA que `origenTexto`/`origenAccion` (arriba): AUSENTE/`false`/`''` = el
+// comportamiento de HOY, byte a byte. Va en su PROPIA meta, NO dentro de `tema`, a propósito:
+// `guardarTemaBorrador`/`paletaEditableSchema` (`site-content-write.ts`/`palette-schema.ts` — los
+// DOS fuera de `touches` de este slice) escriben `borrador.tema` con SÓLO 5 claves
+// (fondo/tinta/acento/fuentePar/forma) y al PUBLICAR reemplazan `content.tema` ENTERO — si estos
+// tres ejes vivieran ahí, el día que un operador guarde un color/fuente desde el panel de un
+// tenant con preset CORTE, publicar el tema los resetearía en silencio a `false`/`''`. Como meta
+// APARTE (nunca tocada por ese flujo), quedan seguros — dominio CERRADO (3 claves fijas), como
+// `paginas`, no abierto como `esquemas`.
+export interface CromoContent {
+  // ¿El nav es una banda `--sf-tinta` SÓLIDA SIEMPRE (nunca transparente-flotante, nunca cae a la
+  // superficie clara del scroll de hoy)? `false` = el `tratamientoNav` de HOY, byte-idéntico
+  // (§ esquema-style.ts). Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `preset.navTinta`; de los 6 presets del catálogo, sólo CORTE lo declara `true` (medido contra
+  // el prototipo — `--surface-inverse` del `.site-header`, § themes.ts).
+  navTinta: boolean;
+  // ¿El nav exhibe `SiteSetting.tagline` bajo el nombre (el sub-encabezado del wordmark, como el
+  // `<small>` del prototipo)? `false` = HOY: el nav no muestra sub-encabezado (byte-idéntico) — el
+  // FOOTER ya exhibe el tagline SIEMPRE, sin gate (`StoreFooter.tsx`, stacked), y este eje no lo
+  // toca. Sólo `mergePresetEnContent` lo escribe.
+  navSubtitulo: boolean;
+  // El texto del badge junto al wordmark del nav («Cosecha 2026» en el prototipo, junto a su
+  // primer `nav-item`). Vacío = no se renderiza (byte-idéntico). ES DATO DEL TENANT, no un año
+  // horneado en el componente que lo pinta: CORTE lo declara como su valor de MUESTRARIO (medido
+  // contra el prototipo); un tenant real cambiaría el texto por el suyo el día que este eje sea
+  // editable desde el panel — hoy, como el resto de esta meta, sólo lo escribe el preset.
+  navBadge: string;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
@@ -337,6 +368,7 @@ export interface SiteContentData {
   suscripcionFaq: SuscripcionFaqContent;
   paginas: PaginasContent;
   tema: TemaContent;
+  cromo: CromoContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -609,6 +641,14 @@ export const DEFAULTS: SiteContentData = {
     origenTexto: null, // texto/texto-suave/acento-texto nacen del acento — el default byte-idéntico
     origenAccion: null, // la acción primaria pinta con `tostado` — el default byte-idéntico
   },
+  // CROMO por defecto (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): los 3 ejes en su valor de HOY —el nav
+  // deriva de `tratamientoNav`, sin sub-encabezado, sin badge— → byte-idéntico sin depender de una
+  // fila. Sólo un preset (`mergePresetEnContent`) los escribe distinto.
+  cromo: {
+    navTinta: false,
+    navSubtitulo: false,
+    navBadge: '',
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -705,10 +745,10 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `esquemas`, `orden`
-// y `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas; las cinco metas quedan
-// fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
+// `esquemas`, `orden` y `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas;
+// las seis metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -1059,6 +1099,10 @@ export function resolverSiteContent(
   out.paginas = resolverPaginas(raw.paginas, defaultsBase.paginas);
   // TEMA (meta, no sección): las 3 raíces de paleta, resueltas aparte del loop igual que `paginas`.
   out.tema = resolverTema(raw.tema, defaultsBase.tema);
+  // CROMO (meta, no sección, § CROMO-NAV-FOOTER-TEMATIZABLE-1): los 3 ejes de chrome de nav/footer,
+  // resueltos aparte del loop y aparte de `tema` —dominio CERRADO (3 claves fijas) igual que
+  // `paginas`, nunca tocado por el guardar/publicar de la PALETA (§ el docstring de `CromoContent`).
+  out.cromo = resolverCromo(raw.cromo, defaultsBase.cromo);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -1118,6 +1162,33 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
     forma: resolverForma(st['forma']),
     origenTexto: st['origenTexto'] === 'tinta' ? 'tinta' : null,
     origenAccion: st['origenAccion'] === 'acento' ? 'acento' : null,
+  };
+}
+
+// Resuelve el CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1), gemelo de `resolverPaginas`: dominio
+// CERRADO de 3 claves FIJAS (a diferencia de `resolverEsquemas`/`resolverVariantesBandas`, que son
+// key-agnósticas). Cada clave sale del guardado sólo si es del TIPO correcto (boolean/string); si
+// no —ausente, basura—, cae al default (que siempre es el byte-idéntico de HOY:
+// `false`/`false`/`''`). SOFT, nunca lanza.
+export function resolverCromo(stored: unknown, defaults: unknown): CromoContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const bool = (k: string): boolean => {
+    const sv = st[k];
+    if (typeof sv === 'boolean') return sv;
+    const dv = def[k];
+    return typeof dv === 'boolean' ? dv : false;
+  };
+  const str = (k: string): string => {
+    const sv = st[k];
+    if (typeof sv === 'string') return sv;
+    const dv = def[k];
+    return typeof dv === 'string' ? dv : '';
+  };
+  return {
+    navTinta: bool('navTinta'),
+    navSubtitulo: bool('navSubtitulo'),
+    navBadge: str('navBadge'),
   };
 }
 

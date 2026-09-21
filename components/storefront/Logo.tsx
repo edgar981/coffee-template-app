@@ -18,6 +18,9 @@
 //   <Logo nombre={settings.nombre} conMark={STOREFRONT_TIENE_MARK} />                — lockup del nav
 //   <Logo nombre={settings.nombre} variant="dark" conMark={…} />                     — sobre fondo espresso
 //   <Logo nombre={settings.nombre} stacked subtitle={settings.tagline} conMark={…} /> — footer
+//   <Logo nombre={settings.nombre} subtitle={settings.tagline} conMark={…} />          — nav con
+//     sub-encabezado (§ CROMO-NAV-FOOTER-TEMATIZABLE-1, opt-in por `content.cromo.navSubtitulo`,
+//     lo decide el CONSUMIDOR — Logo no gatea nada, sólo pinta si `subtitle` llega)
 
 import { cn } from "@duna/core/utils";
 
@@ -89,6 +92,22 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
             <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // El sub-encabezado (§ CROMO-NAV-FOOTER-TEMATIZABLE-1) reusa el MISMO `subtitle` prop que ya
+  // exhibe el footer en `stacked` — sólo agrega DÓNDE se puede ver, no un mecanismo nuevo. AUSENTE
+  // (todo tenant salvo el que declare el eje, § StoreNav) → la rama de abajo es BYTE-IDÉNTICA al
+  // `<span>` único de siempre, sin el `<span>` envolvente extra.
+  if (subtitle) {
+    return (
+      <div className={cn("flex items-center gap-2.5", className)}>
+        {conMark && <LogoMark className="h-7 w-7" cherry={cherry} />}
+        <span className="flex flex-col leading-none">
+          <span className={cn("font-display text-[22px] leading-none", wordmark)}>{nombre}</span>
+          <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+        </span>
       </div>
     );
   }
