@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { planesDeSuscripcion, planesDelTeaser, gridColsTeaser } from "@/lib/storefront/planes-suscripcion";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
@@ -23,9 +24,13 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // (`plan.destacado`, el `destacadoSlot` de la sección), no del `i===1` hardcodeado de antes. El href del
 // CTA es estructura (`/suscripciones`), sólo el label es editable.
 export default function SubscriptionCTABloque({ style }: { style?: React.CSSProperties } = {}) {
-  const { subscriptionCTA, suscripcionPlanes } = useSiteContent();
+  const { subscriptionCTA, suscripcionPlanes, tema } = useSiteContent();
   const preview = useIsPreview();
   const planesTeaser = planesDelTeaser(planesDeSuscripcion(suscripcionPlanes));
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h2, que sigue rindiendo exactamente `text-4xl` (2.25rem, fijo, medido) —
+  // byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   const beneficios = [
     subscriptionCTA.bullet1,
@@ -64,7 +69,7 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
               {subscriptionCTA.eyebrow && (
                 <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
               )}
-              <h2 className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4">{subscriptionCTA.titulo}</h2>
+              <h2 className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4" style={displayL ? { fontSize: displayL } : undefined}>{subscriptionCTA.titulo}</h2>
               <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
               <div className="space-y-3 mb-8">
                 {beneficios.map((b, i) => (

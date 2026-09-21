@@ -13,6 +13,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE "MEDIA" (§ eje 5, EJE-5-VARIANTES-HERO, TEMAS-HERO-MEDIA-1; SIN TARJETA desde
 // HERO-MEDIA-SIN-TARJETA-1) — la TERCERA composición: donde curtina y ficha tratan la foto/video como
@@ -87,8 +88,16 @@ import { fadeUp } from "@/lib/animation";
 // prioridad alta (§ HERO-VIDEO-POSTER-PRIORIDAD-1). Ver el razonamiento completo en HeroCurtina.tsx —
 // no se repite acá una tercera vez.
 export default function HeroMedia({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, paginas } = useSiteContent();
+  const { hero, paginas, tema } = useSiteContent();
   const preview = useIsPreview();
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: la clase de hoy del h1
+  // (`text-4xl sm:text-5xl lg:text-6xl` = 2.25rem/3rem/3.75rem) es la que la doctrina de este slice
+  // cita como "el hero". CORTE (`hero: 'media'`) es el ÚNICO preset del catálogo que usa esta
+  // variante y el ÚNICO que declara `escalaDisplay: 'amplia'`, así que este es el único hero que hoy
+  // se ve ENORME en el mirador; los otros dos (Curtina/Ficha) heredan el mismo mecanismo por si algún
+  // preset futuro combina otra variante con esta escala. `undefined` sin escala declarada → NO se
+  // toca el `style`, byte-idéntico.
+  const displayXl = fontSizeDisplay(tema.escalaDisplay, 'xl');
   // Idéntico a curtina/ficha: el 2º CTA se oculta si suscripciones está apagada.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
 
@@ -166,6 +175,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
           <motion.h1
             variants={fadeUp}
             className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
+            style={displayXl ? { fontSize: displayXl } : undefined}
           >
             {hero.titulo}
             {hero.tituloEnfasis && (

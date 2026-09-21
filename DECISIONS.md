@@ -10622,3 +10622,171 @@ real exige el `Record` completo) sería peor que dejarlo intacto y decir por qu�
   igual que antes de este slice, y de que un menú editado (etiqueta/orden/CTA) se ve correctamente.
   No se ejecutó en esta sesión (§ arriba, "La verificación en NAVEGADOR real queda fuera de este
   slice"). Disparador: el próximo gate visual del owner sobre esta rama.
+
+## 2026-09-21 — Un preset puede declarar la ESCALA de sus titulares de display — 12 componentes, override opcional vía inline style, default = los tamaños de HOY (`TEMAS-ESCALA-DISPLAY-1`)
+
+**El defecto, medido** (§ `CORTE-ESQUEMAS-INVERTIDOS-1`, y re-medido acá contra el código real): el
+prototipo declara su escala de display en `docs/prototipos/cafeone/ds/typography.css:10-11` (=
+`css/tokens.css:99-100`) — `--text-display-xl:clamp(72px,9vw,168px)` para el titular del hero,
+`--text-display-l:clamp(48px,5vw,76px)` para los titulares de sección, `--text-display-m:40px` —
+mientras que los titulares del storefront son clases Tailwind FIJAS horneadas en cada componente,
+mucho más chicas. El owner: *"los titulares del prototipo son ENORMES; medí sus tamaños reales y
+llevalos al preset."*
+
+### LA MEDICIÓN, componente por componente — no hay una sola base que replicar
+
+Doce componentes de `components/storefront/home/` rinden un titular de display; ninguno comparte
+base con otro fuera de su propia familia de variantes. Medido contra `node_modules/tailwindcss/
+theme.css` (`--text-3xl:1.875rem`, `--text-4xl:2.25rem`, `--text-5xl:3rem`, `--text-6xl:3.75rem`,
+`--text-7xl:4.5rem`), no asumido:
+
+| componente | rol | clase Tailwind de HOY | rem | qué preset lo DECLARA (`variantes`, `themes.ts`) |
+| --- | --- | --- | --- | --- |
+| `HeroCurtina` | hero (h1) | `text-5xl sm:text-6xl lg:text-7xl` | 3/3.75/4.5rem | canónica — Nayoli (sin preset); declarado explícito por VETA |
+| `HeroFicha` | hero (h1) | `text-4xl sm:text-5xl lg:text-6xl` | 2.25/3/3.75rem | ARRANQUE, VITRINA |
+| `HeroMedia` | hero (h1) | `text-4xl sm:text-5xl lg:text-6xl` | 2.25/3/3.75rem | **CORTE** |
+| `FeaturedProductsCuadricula` | sección (h2) | `text-3xl sm:text-4xl` | 1.875/2.25rem | canónica — Nayoli (sin preset); ningún preset la declara explícito |
+| `FeaturedProductsGrilla` | sección (h2) | `text-3xl sm:text-4xl` | 1.875/2.25rem | **CORTE**, PATIO, VITRINA |
+| `BrandStoryColumnas` | sección (h2) | `text-4xl sm:text-5xl` | 2.25/3rem | canónica — Nayoli (sin preset); declarado explícito por PATIO |
+| `BrandStoryCentrada` | sección (h2) | `text-4xl sm:text-5xl` | 2.25/3rem | **CORTE** |
+| `GrindChooserMosaico` | sección (h2) | `text-3xl sm:text-4xl` | 1.875/2.25rem | canónica — Nayoli (sin preset); ningún preset la declara explícito |
+| `GrindChooserIndice` | sección (h2) | `text-3xl sm:text-4xl` | 1.875/2.25rem | ARRANQUE, VETA, VITRINA |
+| `GrindChooserRiel` | sección (h2) | `text-3xl sm:text-4xl` | 1.875/2.25rem | **CORTE** |
+| `SubscriptionCTABloque` | sección (h2) | `text-4xl` (fijo) | 2.25rem | canónica — Nayoli (sin preset); ningún preset la declara explícito |
+| `TestimonialSection` | sección (h2) | `text-3xl` (fijo) | 1.875rem | única (sin variantes) — todo preset y Nayoli |
+
+**El "quién lo usa" de arriba es lo que el `PresetTema` DECLARA, no necesariamente lo que RENDERIZA
+hoy.** `contenidoConPresetDeVista` (`theme-mirador.ts`) ignora un preset entero si `validarPreset`
+lo marca incompleto — hoy sólo **ARRANQUE y CORTE validan completo** (`themes.test.ts`); PLIEGO/
+PATIO/VETA/VITRINA declaran variantes (algunas inválidas, como `hero:'marquesina'`/`'collage'`, que
+ni siquiera tienen componente) pero el mirador los ignora enteros y cae al content publicado
+(Nayoli, canónica) — así que hoy, en la práctica, sólo tres presets pueden hacer que un visitante
+del mirador vea otra cosa que la canónica: **ARRANQUE** (hero·ficha, presentaciones·índice) y
+**CORTE** (los cinco no-canónicos de la tabla). No cambia el argumento de esta sección —las bases
+siguen siendo distintas entre sí, midan lo que midan hoy los presets incompletos— pero corrige la
+columna para que no se lea como "esto renderiza" cuando en 4 de 6 casos no renderiza nada todavía.
+
+**Excluido, medido y reportado, no disimulado: `SubscriptionCTALinea` (la variante de `subscriptionCTA`
+que CORTE usa).** Su h2 es `text-xl sm:text-2xl` (1.25/1.5rem) — un orden de magnitud más chico que
+"display" y sin análogo en el prototipo: `.cta-strip` (`index.html:311-318`, la banda pre-footer más
+cercana en posición) **no tiene NINGÚN titular**, sólo dos botones sobre una foto con degradado. Meter
+un `display-l` de 48-76px en un h2 que hoy mide 20-24px habría sido inventar una escala que el
+prototipo no pide para esa pieza. Queda fuera de esta escala; si algún día se le agrega un titular
+propio, es su propia decisión de contenido, no de esta escala.
+
+### EL MECANISMO — por qué NO es una variable CSS `:root` emitida desde el layout
+
+El patrón ya establecido para paleta/fuentes/forma (`cssPaleta`/`cssFuentes`/`cssForma`, emitidos por
+`app/(storefront)/layout.tsx`) funciona porque esos tres ejes tienen UN default compartido por TODO
+el storefront. La escala de display **no puede usar ese patrón**: la tabla de arriba tiene TRES bases
+de hero distintas y CUATRO bases de sección distintas. Una sola variable `:root` con un default por
+breakpoint sólo puede representar UNA de esas bases — forzarla habría MOVIDO el hero de Nayoli
+(`HeroCurtina`, 3/3.75/4.5rem) al tamaño de `HeroFicha`/`HeroMedia` (2.25/3/3.75rem), o viceversa: el
+defecto opuesto al que este slice existe para evitar. Se midió y descartó ANTES de escribir código —
+no se intentó y se revirtió.
+
+**LA SALIDA: `lib/config/escala-display.ts`, puro, con UNA función.** `fontSizeDisplay(escala, rol)`
+devuelve `undefined` sin escala declarada (la señal de "no toques el `style`") o el `clamp(...)`
+medido del prototipo con `'amplia'`. Cada uno de los 12 componentes:
+
+1. lee `tema.escalaDisplay` de `useSiteContent()` (ya inyectado por el `SiteContentProvider` de
+   siempre — sin fetch nuevo, sin provider nuevo);
+2. calcula `fontSizeDisplay(tema.escalaDisplay, 'xl'|'l')`;
+3. aplica `style={valor ? { fontSize: valor } : undefined}` en el h1/h2, **sin tocar su className**.
+
+Sin escala, `style` es `undefined` → React no emite el atributo → el DOM es BYTE-IDÉNTICO a antes de
+este slice (verificado por render, no supuesto — ver el gate). Con `'amplia'`, el inline style gana
+por especificidad sobre las clases Tailwind que el elemento conserva intactas.
+
+**`escalaDisplay` vive en `content.tema`** (`TemaContent`, `site-content-defaults.ts`), MISMA familia
+aditiva que `origenTexto`/`origenAccion`/`fuentePar`/`forma`: `null` = ausente = el default de HOY.
+Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con el valor del `PresetTema`; de los 6 presets
+del catálogo, sólo CORTE declara `escalaDisplay: 'amplia'`. No se agregó a `paletaEditableSchema`
+(el PUT del panel) — mismo criterio que `origenTexto`/`origenAccion`: no hay campo en el editor del
+panel para esto todavía, así que ni Nayoli ni ningún tenant real puede escribirlo por accidente.
+
+### `app/(storefront)/layout.tsx` y `theme-mirador.ts` — en `touches`, y NO SE TOCARON
+
+El spec los listaba como puntos de touch esperados (el patrón de paleta/fuentes/forma los toca a los
+tres). No hicieron falta: el mirador `?tema=CORTE` (`app/(storefront)/page.tsx`, gateado a
+`esDespliegueDemo()`) ya monta un `<SiteContentProvider value={content}>` LOCAL con el `content`
+mergeado con el preset (`content !== contentPublicado` → provider anidado, código YA existente,
+`CORTE-MIRADOR-EJES-COMPLETOS-1`) — así que cualquier componente que llame `useSiteContent()` dentro
+de `bandas` YA lee `tema.escalaDisplay` correcto sin que este slice mueva una línea de `page.tsx` ni
+de `layout.tsx`. Verificado por EJECUCIÓN (los tests de WIRING de abajo montan `HeroSection`/
+`GrindChooser` con `tema.escalaDisplay` puesto directo en el `SiteContentProvider`, el mismo mecanismo
+que el mirador usa en producción).
+
+### El gate — afirmado por RENDER, no sólo por la función pura
+
+El spec pedía la invariante probada por el font-size RESULTANTE. `lib/config/escala-display.test.ts`
+tiene DOS capas:
+
+1. **La función pura** (`fontSizeDisplay`/`resolverEscalaDisplay`): `null` → `undefined` en los dos
+   roles; `'amplia'` → los dos `clamp(...)` exactos del prototipo; `resolverEscalaDisplay` SOFT sobre
+   basura/ausente/tipo equivocado.
+2. **El WIRING, por `renderToStaticMarkup`** (mismo mecanismo sin jsdom que ya usa
+   `site-content-defaults.test.ts` para `GrindChooser`, y `cromo-tematizable.test.ts` para `Logo`):
+   monta `HeroSection`/`GrindChooser` —los DISPATCHERS reales de `page.tsx`, no una copia— con
+   `tema.escalaDisplay` en `null` y en `'amplia'`, y afirma sobre el HTML producido:
+   - sin escala, el h1/h2 **NO lleva ningún atributo `style` con `font-size`** (byte-idéntico);
+   - con `'amplia'`, el h1/h2 lleva `style="...font-size:clamp(72px, 9vw, 168px)..."` (hero) o
+     `clamp(48px, 5vw, 76px)` (sección) — EXACTO, no aproximado.
+   - Se afirmó con `HeroCurtina` (la canónica/Nayoli) Y `HeroMedia` (la de CORTE): el MISMO clamp
+     aplica a las dos variantes — es un eje de ESCALA, no de variante.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1584/1584**, 0 fail. Piso citado por `CROMO-MENU-COMO-DATO-1`:
+  1572. Este slice suma 12 tests nuevos: **9** en `lib/config/escala-display.test.ts` (6 de la
+  función pura + 3 de WIRING por render), **2** en `themes.test.ts` (CORTE declara `escalaDisplay`;
+  `mergePresetEnContent` lo escribe) y **1** en `site-content-defaults.test.ts` (`resolverTema`) —
+  1572 + 12 = 1584, cuadra (contado con `grep -c "^test("` sobre cada archivo).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  piso anterior; este slice no toca `packages/core/`, `tests/integracion/` ni ninguna migración
+  (verificado: `git status --porcelain` no lista ningún archivo de esos árboles).
+- **`npx tsc --noEmit`**: limpio.
+- **`npx next build`**: `✓ Compiled successfully` (65s en frío, 6.7s en la corrida final cacheada),
+  TypeScript limpio, 51 rutas generadas, exit 0.
+- **`npx eslint`** sobre los 18 archivos tocados/nuevos: limpio, con UNA excepción PRE-EXISTENTE y
+  fuera de `touches` real de este slice — `react/no-children-prop` en `lib/config/
+  site-content-defaults.test.ts:823,827` (el helper `renderGrindChooser`, ajeno a este diff, medido
+  con `git diff --stat` antes de tocar nada). El mismo patrón en mi propio archivo nuevo
+  (`escala-display.test.ts`) se intentó resolver con la forma de 3 argumentos de `createElement`, y
+  ESO rompió `tsc` (`SiteContentProvider` tipa `children` como prop REQUERIDA, y `createElement` con
+  el 3er argumento no la satisface para TypeScript) — se revirtió a la forma con `children` como
+  prop, aceptando el mismo trade-off que ya acepta el precedente.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, "se parece al prototipo", 2026-09-21, punto 2: "los titulares del
+prototipo son ENORMES; medí sus tamaños reales y llevalos al preset"). `lib/config/` está en la
+frase canónica de Tier 1; `components/storefront/` entra por el subárbol ya ganado (bytes del
+visitante).
+
+Contra MERGE POLICY A: **sin schema/migración** (ningún archivo de `packages/core/prisma/`, medido
+por `git status --porcelain`), **sin contrato cross-repo**, pero **SÍ bytes de cliente** —
+`app/(storefront)/page.tsx` sirve la ruta pública `/`, y con `?tema=CORTE` (fuera de producción real,
+`esDespliegueDemo()`) el h1/h2 de esa respuesta cambia de tamaño. `customer_bytes.changed: true`.
+`customer_bytes.strings: []` — cambian bytes COMPILADOS (un atributo `style` de font-size), ningún
+texto visible nuevo; para Nayoli y los 5 presets sin `escalaDisplay`, CERO bytes cambian (afirmado
+por render, § arriba). La rama entera (`slice/corte-reescritura-prototipo-1`) ya venía
+`AWAITING_APPROVAL` por los slices anteriores que tocan `components/storefront/home/`; este slice
+individual también clasifica `AWAITING_APPROVAL` por cuenta propia.
+
+### Deviations
+
+Ninguna del spec en el MODELO ni el mecanismo (una función pura, `null`=hoy, `'amplia'`=el clamp del
+prototipo, probado por render). La única desviación es de SUPERFICIE TOCADA: `app/(storefront)/
+layout.tsx` estaba en `touches:` (el patrón de paleta/fuentes/forma lo tocaría) y **no se tocó** —
+medido y explicado arriba (§ "layout.tsx y theme-mirador.ts — en touches, y NO SE TOCARON"): el
+mirador ya resuelve `tema.escalaDisplay` correcto vía el `SiteContentProvider` local que
+`CORTE-MIRADOR-EJES-COMPLETOS-1` construyó, así que agregar un `<style>` más habría sido
+infraestructura sin consumidor.
+
+### Open follow-ups
+
+Ninguno nuevo. La duda sopesada y dejada abierta sobre `subscriptionCTA` en `CORTE-ESQUEMAS-
+INVERTIDOS-1` (`CORTE-SUBSCRIPTIONCTA-ESQUEMA-DUDA-1`) sigue viva por su cuenta, sin relación con
+este slice — la exclusión de `SubscriptionCTALinea` de esta escala (§ arriba) es una medición nueva
+(tamaño y ausencia de análogo en el prototipo), no la misma duda.

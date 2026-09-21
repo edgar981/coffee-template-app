@@ -8,6 +8,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefront/presentaciones";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE CANÓNICA (§ eje 5e): "¿Cómo tomas tu café?" en cortinas fotográficas — el GrindChooser
 // de SIEMPRE, extraído VERBATIM al separar el mecanismo de variantes del dispatcher (`GrindChooser.tsx`).
@@ -21,11 +22,15 @@ import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefro
 // prop → alt genérico (irrelevante en un preview). Mismo patrón que NosotrosGaleria (§ el {negocio}
 // del fallback llega por PROP).
 export default function GrindChooserMosaico({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
-  const { presentaciones } = useSiteContent();
+  const { presentaciones, tema } = useSiteContent();
   const preview = useIsPreview();
 
   const tarjetas = tarjetasDePresentaciones(presentaciones);
   const gridCols = gridColsPresentaciones(tarjetas.length);
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h2, que sigue rindiendo exactamente `text-3xl sm:text-4xl` (1.875rem/2.25rem,
+  // medido) — byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
@@ -46,7 +51,7 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
           {presentaciones.eyebrow && (
             <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
           )}
-          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{presentaciones.titulo}</h2>
+          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
         </motion.div>
         <div className={`grid grid-cols-1 ${gridCols} gap-6`}>
           {tarjetas.map((op, i) => (

@@ -9,6 +9,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -73,12 +74,17 @@ import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
 // índice (§ GrindChooserMosaico): se monta también en la vista previa del panel, sin el
 // `SiteSettingsProvider` del storefront.
 export default function GrindChooserRiel({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
-  const { presentaciones } = useSiteContent();
+  const { presentaciones, tema } = useSiteContent();
   const preview = useIsPreview();
   const trackRef = useRef<HTMLDivElement>(null);
   const [estado, setEstado] = useState({ puedeAtras: false, puedeAdelante: false });
 
   const tarjetas = tarjetasDePresentaciones(presentaciones);
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`presentaciones:
+  // 'riel'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
+  // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
+  // `text-3xl sm:text-4xl` (1.875rem/2.25rem, medido) — byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   useEffect(() => {
     const track = trackRef.current;
@@ -125,7 +131,7 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             {presentaciones.eyebrow && (
               <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
             )}
-            <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{presentaciones.titulo}</h2>
+            <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
           </motion.div>
           {/* Ocultos en móvil (como `.car-nav` del prototipo bajo 640px): el touch-scroll ya cubre ese
               caso, y dos botones de 44px compitiendo con el pulgar no suman nada ahí. */}

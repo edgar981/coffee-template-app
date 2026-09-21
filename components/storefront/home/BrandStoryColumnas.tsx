@@ -5,6 +5,7 @@ import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
 // texto de un lado, collage 2×2 de cuatro imágenes fijas del otro — el BrandStory de SIEMPRE,
@@ -19,8 +20,12 @@ const IMAGENES = [
 ] as const;
 
 export default function BrandStoryColumnas({ style }: { style?: React.CSSProperties } = {}) {
-  const { brandStory } = useSiteContent();
+  const { brandStory, tema } = useSiteContent();
   const preview = useIsPreview();
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h2, que sigue rindiendo exactamente `text-4xl sm:text-5xl` (2.25rem/3rem, medido) —
+  // byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   // En la VISTA PREVIA del panel, las entradas por `whileInView` quedarían INVISIBLES: dentro del
   // contenedor escalado (`transform: scale`) la intersección con el viewport no llega. Se cambia
@@ -53,7 +58,10 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
                 {brandStory.eyebrow}
               </p>
             )}
-            <h2 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre-banda,white)] leading-tight mb-6">
+            <h2
+              className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre-banda,white)] leading-tight mb-6"
+              style={displayL ? { fontSize: displayL } : undefined}
+            >
               {brandStory.titulo}
             </h2>
             <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-6 text-base">

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE "CENTRADA" (§ CORTE-BRANDSTORY-COLLAGE-1, MEDIDA contra la sección `.historia` de
 // `docs/prototipos/cafeone/index.html:250-273` + `css/app.css:561-578`). El BrandStory de siempre
@@ -39,8 +40,13 @@ const IMAGENES = [
 ] as const;
 
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
-  const { brandStory } = useSiteContent();
+  const { brandStory, tema } = useSiteContent();
   const preview = useIsPreview();
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`brandStory:
+  // 'centrada'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
+  // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
+  // `text-4xl sm:text-5xl` (2.25rem/3rem, medido) — byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   // Mismo switch que `BrandStoryColumnas` (§ ahí, el razonamiento completo): en la vista previa
   // escalada del panel, `whileInView` no dispara —la intersección con el viewport no llega dentro
@@ -64,7 +70,10 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
               {brandStory.eyebrow}
             </p>
           )}
-          <h2 className="font-playfair text-4xl leading-tight text-[var(--sf-sobre-banda,white)] sm:text-5xl">
+          <h2
+            className="font-playfair text-4xl leading-tight text-[var(--sf-sobre-banda,white)] sm:text-5xl"
+            style={displayL ? { fontSize: displayL } : undefined}
+          >
             {brandStory.titulo}
           </h2>
         </motion.div>

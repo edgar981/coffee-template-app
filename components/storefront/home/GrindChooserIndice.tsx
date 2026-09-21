@@ -7,6 +7,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE "ÍNDICE" (§ eje 5e): de dos cortinas oscuras gemelas a un índice — filas numeradas,
 // encabezado alineado a la izquierda, foto chica al margen y divisor entre ítems. Ya no hay texto
@@ -25,10 +26,14 @@ import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
 // (§ GrindChooserMosaico): se monta también en la vista previa del panel, sin el SiteSettingsProvider
 // del storefront.
 export default function GrindChooserIndice({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
-  const { presentaciones } = useSiteContent();
+  const { presentaciones, tema } = useSiteContent();
   const preview = useIsPreview();
 
   const tarjetas = tarjetasDePresentaciones(presentaciones);
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h2, que sigue rindiendo exactamente `text-3xl sm:text-4xl` (1.875rem/2.25rem,
+  // medido) — byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
@@ -46,7 +51,7 @@ export default function GrindChooserIndice({ negocio, style }: { negocio?: strin
           {presentaciones.eyebrow && (
             <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
           )}
-          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{presentaciones.titulo}</h2>
+          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
         </motion.div>
 
         <div className="divide-y divide-[var(--sf-linea)] border-t border-[var(--sf-linea)]">

@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import ProductCard from "../ProductCard";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
@@ -28,6 +30,13 @@ export default function FeaturedProductsGrilla({ style }: { style?: React.CSSPro
   // malla simplemente muestra las que hay (`.slice` sobre un array corto devuelve lo que existe; el
   // grid CSS no deja celdas vacías por un `.map` más corto).
   const featured = catalog.slice(0, 6);
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`featured:
+  // 'grilla'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
+  // 'amplia'`, así que este es el h2 real que el mirador de CORTE muestra ENORME. `undefined` sin
+  // escala declarada → NO se toca el `style`, que sigue rindiendo `text-3xl sm:text-4xl`
+  // (1.875rem/2.25rem, medido) — byte-idéntico.
+  const { tema } = useSiteContent();
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
@@ -38,7 +47,7 @@ export default function FeaturedProductsGrilla({ style }: { style?: React.CSSPro
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
             <div>
               <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">Selección del mes</h2>
+              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>Selección del mes</h2>
             </div>
             <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))] hover:text-[var(--sf-acento-3)] transition-colors">
               Ver todo <ArrowRight className="w-4 h-4" />

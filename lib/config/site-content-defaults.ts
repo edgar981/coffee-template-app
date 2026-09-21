@@ -9,6 +9,7 @@
 import { resolverFuentePar, type ClaveFuentePar } from './fuentes';
 import { resolverForma, type ClaveForma } from './formas';
 import type { EsquemaId, OrigenTexto, OrigenAccion } from './palette-derive';
+import { resolverEscalaDisplay, type ClaveEscalaDisplay } from './escala-display';
 
 // Alias con el vocabulario de esta capa (§ eje 5b, mitad B — el EFECTO en el home). Es EL MISMO
 // tipo que `EsquemaId` de `palette-derive.ts` (el MOTOR ya lo declaró): 'crema' | 'superficie' |
@@ -364,6 +365,14 @@ export interface TemaContent {
   // valor del `PresetTema` aplicado — y de los 6 presets del catálogo, sólo CORTE los declara.
   origenTexto: OrigenTexto | null;
   origenAccion: OrigenAccion | null;
+  // LA ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1, `lib/config/escala-display.ts`). `null` = el
+  // comportamiento de HOY, byte a byte (cada titular de display sigue rindiendo su clase Tailwind
+  // fija de siempre — 12 componentes distintos, ni una base compartida entre ellos, § el docstring
+  // de `escala-display.ts` sobre por qué esto NO es una variable CSS `:root` con un solo default).
+  // MISMA familia aditiva que `origenTexto`/`origenAccion`: sólo `mergePresetEnContent` (`themes.ts`)
+  // lo escribe, con el valor del `PresetTema` aplicado — de los 6 presets del catálogo, sólo CORTE
+  // declara `'amplia'`.
+  escalaDisplay: ClaveEscalaDisplay | null;
 }
 
 // META de CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): los ejes de CHROME del nav/footer que hoy
@@ -697,6 +706,7 @@ export const DEFAULTS: SiteContentData = {
     forma: null,       // Suave (radios de hoy) — el default byte-idéntico
     origenTexto: null, // texto/texto-suave/acento-texto nacen del acento — el default byte-idéntico
     origenAccion: null, // la acción primaria pinta con `tostado` — el default byte-idéntico
+    escalaDisplay: null, // cada titular de display sigue su clase Tailwind de hoy — byte-idéntico
   },
   // CROMO por defecto (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): los 3 ejes en su valor de HOY —el nav
   // deriva de `tratamientoNav`, sin sub-encabezado, sin badge— → byte-idéntico sin depender de una
@@ -1240,6 +1250,11 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
     forma: resolverForma(st['forma']),
     origenTexto: st['origenTexto'] === 'tinta' ? 'tinta' : null,
     origenAccion: st['origenAccion'] === 'acento' ? 'acento' : null,
+    // escalaDisplay (§ TEMAS-ESCALA-DISPLAY-1): SOFT, misma familia — `resolverEscalaDisplay`
+    // hace el mismo trabajo que el chequeo inline de arriba (sólo el único miembro del set cerrado
+    // sobrevive), extraído a función porque `fontSizeDisplay` necesita el mismo tipo y las dos
+    // viven en `escala-display.ts` para que un test puro las afirme sin tocar este archivo.
+    escalaDisplay: resolverEscalaDisplay(st['escalaDisplay']),
   };
 }
 

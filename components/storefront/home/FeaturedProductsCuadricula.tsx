@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import ProductCard from "../ProductCard";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE CANÓNICA (§ TEMAS-FEATURED-GRILLA-1): la fila de 4 de SIEMPRE, extraída VERBATIM al
 // separar el mecanismo de variantes del dispatcher (`FeaturedProducts.tsx`) — mismo movimiento que
@@ -22,6 +24,11 @@ export default function FeaturedProductsCuadricula({ style }: { style?: React.CS
   }, []);
 
   const featured = catalog.slice(0, 4);
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h2, que sigue rindiendo exactamente `text-3xl sm:text-4xl` (1.875rem/2.25rem,
+  // medido) — byte-idéntico.
+  const { tema } = useSiteContent();
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
@@ -32,7 +39,7 @@ export default function FeaturedProductsCuadricula({ style }: { style?: React.CS
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
             <div>
               <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">Selección del mes</h2>
+              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>Selección del mes</h2>
             </div>
             <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))] hover:text-[var(--sf-acento-3)] transition-colors">
               Ver todo <ArrowRight className="w-4 h-4" />

@@ -13,6 +13,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE "FICHA" (§ eje 5, EJE-5-VARIANTES-HERO): deja de ser una cortina fotográfica y pasa a
 // ser una FICHA PARTIDA — tipografía en TINTA sobre CREMA, foto a sangre a la derecha SIN degradado
@@ -33,8 +34,12 @@ import { fadeUp } from "@/lib/animation";
 // desktop (`lg:flex-row-reverse`) el orden visual se invierte (texto a la izquierda, imagen a la
 // derecha) sin reordenar el DOM.
 export default function HeroFicha({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, paginas } = useSiteContent();
+  const { hero, paginas, tema } = useSiteContent();
   const preview = useIsPreview();
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h1, que sigue rindiendo exactamente `text-4xl sm:text-5xl lg:text-6xl` (2.25rem/3rem/
+  // 3.75rem, medido) — byte-idéntico. Ver HeroCurtina.tsx para el razonamiento completo.
+  const displayXl = fontSizeDisplay(tema.escalaDisplay, 'xl');
   // Idéntico a la curtina (§ HeroCurtina.tsx): el 2º CTA se oculta si suscripciones está apagada.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
 
@@ -121,6 +126,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
           <motion.h1
             variants={fadeUp}
             className="font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-5xl lg:text-6xl"
+            style={displayXl ? { fontSize: displayXl } : undefined}
           >
             {hero.titulo}
             {hero.tituloEnfasis && (

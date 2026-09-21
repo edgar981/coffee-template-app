@@ -12,6 +12,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -29,8 +30,14 @@ const fadeUp = {
 // los opcionales vacíos (eyebrow, el énfasis del titular, el 2º CTA). Hero es `ocultable:false`
 // → siempre se renderiza. Los destinos de los CTA son ESTRUCTURA (`HERO_HREFS`), no editables.
 export default function HeroCurtina({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, paginas } = useSiteContent();
+  const { hero, paginas, tema } = useSiteContent();
   const preview = useIsPreview();
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h1, que sigue rindiendo exactamente `text-5xl sm:text-6xl lg:text-7xl` (3rem/3.75rem/
+  // 4.5rem, medido) — byte-idéntico. Con `tema.escalaDisplay` declarado (hoy sólo CORTE), pisa esas
+  // clases con el `clamp(...)` del prototipo vía inline style (gana por especificidad, sin tocar la
+  // className).
+  const displayXl = fontSizeDisplay(tema.escalaDisplay, 'xl');
   // El 2º CTA del hero apunta a /suscripciones (`HERO_HREFS.secundario`, estructura). Si la capacidad
   // de suscripciones está apagada (§ paginas.suscripciones, Backlog #49), se OCULTA —igual que el link
   // del nav/footer y el bloque de la home—: un CTA "Suscripción Mensual" a una página que redirige
@@ -177,6 +184,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
           <motion.h1
             variants={fadeUp}
             className="mb-6 font-playfair text-5xl leading-[1.08] text-[var(--sf-sobre-banda,white)] sm:text-6xl lg:text-7xl"
+            style={displayXl ? { fontSize: displayXl } : undefined}
           >
             {hero.titulo}
             {hero.tituloEnfasis && (

@@ -207,6 +207,26 @@ test('mergePresetEnContent(_, CORTE): el tema resultante lleva los dos ejes decl
   }
 });
 
+test('CORTE es el ÚNICO preset del catálogo que declara escalaDisplay (§ TEMAS-ESCALA-DISPLAY-1)', () => {
+  assert.equal(CORTE.escalaDisplay, 'amplia');
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.escalaDisplay, undefined, `${preset.clave} no debería declarar escalaDisplay`);
+  }
+});
+
+test('mergePresetEnContent(_, CORTE): el tema resultante lleva escalaDisplay:"amplia"; los demás presets escriben null', () => {
+  const conCorte = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const temaCorte = conCorte.tema as Record<string, unknown>;
+  assert.equal(temaCorte.escalaDisplay, 'amplia');
+
+  for (const preset of [PLIEGO, PATIO, VETA, VITRINA, ARRANQUE]) {
+    const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, preset);
+    const tema = despues.tema as Record<string, unknown>;
+    assert.equal(tema.escalaDisplay, null, `${preset.clave} debe escribir escalaDisplay:null`);
+  }
+});
+
 test('presentaciones: la clave nueva "riel" (CORTE-PRESENTACIONES-RIEL-1) SÍ pasa la validación — no genera faltante de variante', () => {
   // Preset sintético: ARRANQUE (el único completo con datos sintéticos, § arriba) + un pedido de
   // presentaciones·riel. Nada más cambia, así que si esto sigue completo, la clave es real —
@@ -354,6 +374,8 @@ test('el merge quirúrgico REEMPLAZA tema/esquemas/orden/variantesBandas enteros
     // default, byte-idéntico).
     origenTexto: null,
     origenAccion: null,
+    // ARRANQUE tampoco declara escalaDisplay (§ TEMAS-ESCALA-DISPLAY-1) → null, misma familia.
+    escalaDisplay: null,
   });
   assert.deepEqual(despues.esquemas, { featured: 'crema', subscriptionCTA: 'acento' });
   assert.deepEqual(despues.orden, ARRANQUE.orden);

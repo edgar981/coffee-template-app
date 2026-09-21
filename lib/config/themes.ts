@@ -48,6 +48,7 @@ import {
   type SeccionDef, type BandaId, type ClaveEsquema,
 } from './site-content-defaults';
 import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
+import type { ClaveEscalaDisplay } from './escala-display';
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -93,6 +94,13 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * deriva el nav; sin sub-encabezado; sin badge). Van a su PROPIA meta (`content.cromo`), no a
  * `content.tema` — ver el docstring de `CromoContent` para el porqué (el guardar/publicar de la
  * paleta reemplaza `tema` entero y los resetearía en silencio si vivieran ahí).
+ *
+ * `escalaDisplay` (§ TEMAS-ESCALA-DISPLAY-1, OPCIONAL, `lib/config/escala-display.ts`) — la ESCALA
+ * de los titulares de DISPLAY (el h1 del hero, el h2 de cada banda de sección). AUSENTE en un
+ * preset = `null` = el comportamiento de HOY, byte a byte: cada titular sigue rindiendo su propia
+ * clase Tailwind fija (que difiere de un componente a otro — no hay una base común, § el docstring
+ * de `escala-display.ts`). Va DENTRO de `content.tema`, no en una meta aparte como `cromo`: es un
+ * eje TIPOGRÁFICO, la misma familia que `fuentePar`/`forma`, que ya viven ahí.
  */
 export interface PresetTema {
   clave: string;
@@ -108,6 +116,7 @@ export interface PresetTema {
   navTinta?: boolean;
   navSubtitulo?: boolean;
   navBadge?: string;
+  escalaDisplay?: ClaveEscalaDisplay;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -254,6 +263,8 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     // falta para escribir un `TemaContent` completo (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
     origenTexto: preset.origenTexto ?? null,
     origenAccion: preset.origenAccion ?? null,
+    // AUSENTE en el preset → null (el default, byte-idéntico) — § TEMAS-ESCALA-DISPLAY-1.
+    escalaDisplay: preset.escalaDisplay ?? null,
   };
   // `cromo` (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): meta APARTE de `tema` — ver el docstring de
   // `CromoContent` para el porqué (el guardar/publicar de la paleta reemplaza `tema` entero y
@@ -438,6 +449,16 @@ export const CORTE: PresetTema = {
   navTinta: true,
   navSubtitulo: true,
   navBadge: 'Cosecha 2026',
+  // escalaDisplay (§ TEMAS-ESCALA-DISPLAY-1) — el owner: «los titulares del prototipo son
+  // ENORMES; medí sus tamaños reales y llevalos al preset». Medido contra `docs/prototipos/
+  // cafeone/ds/typography.css:10-11`: `--text-display-xl:clamp(72px,9vw,168px)` (el titular del
+  // hero) y `--text-display-l:clamp(48px,5vw,76px)` (los cuatro `h2.display-l` de sección:
+  // `spot-h`/`pres-h`/`hist-h`/`orig-h`, `index.html:166,231,253,288` — el prototipo usa LA MISMA
+  // clave para las cuatro, así que CORTE hace lo mismo con sus propias bandas: featured,
+  // brandStory, presentaciones, subscriptionCTA, testimonials). CORTE es el ÚNICO de los seis
+  // presets que lo declara — los otros cinco quedan exactamente como estaban, byte a byte (§ el
+  // test de `escala-display.test.ts` que afirma `null` → sin override).
+  escalaDisplay: 'amplia',
 };
 
 export const PATIO: PresetTema = {

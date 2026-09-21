@@ -6,6 +6,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // "Lo que dicen nuestros clientes" — la 1ª sección REPEATER: encabezado (eyebrow/titulo) + una LISTA
 // de testimonios leída de SiteContent. Cada ítem: name/text (requeridos, vienen resueltos), city y
@@ -16,11 +17,15 @@ import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 // retiraron del CÓDIGO (§ SiteContent — el repeater). La sección sigue existiendo — vuelve con testimonios REALES cuando
 // el owner los cargue como dato por el editor.
 export default function TestimonialSection({ style }: { style?: React.CSSProperties } = {}) {
-  const { testimonials } = useSiteContent();
+  const { testimonials, tema } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.testimonials, testimonials)) return null;
 
   const { eyebrow, titulo, items } = testimonials;
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
+  // `style` del h2, que sigue rindiendo exactamente `text-3xl` (1.875rem, fijo, medido) —
+  // byte-idéntico.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
@@ -37,7 +42,7 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
                 como fallback (§ eje 5b, home-2). Las tarjetas de testimonio de abajo NO se tocan:
                 su texto va sobre `--sf-tarjeta`. */}
             {eyebrow && <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
-            <h2 className="text-3xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{titulo}</h2>
+            <h2 className="text-3xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{titulo}</h2>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {items.map((t, i) => {
