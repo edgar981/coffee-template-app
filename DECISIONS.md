@@ -11435,6 +11435,13 @@ CORTE), así que `customer_bytes.changed = true`. `stopped_on: [customer-bytes]`
 
 ### Open follow-ups
 
-- Ninguno nuevo. Los dos que este slice cierra (`SPOTLIGHT-STALE-ASSERTS-1`,
-  `SPOTLIGHT-ESCALADISPLAY-1`, ambos de `SPOTLIGHT-CABLEADO-HOME-1`) quedan resueltos por el diff de
-  arriba, no re-abiertos.
+- Los dos que este slice cierra (`SPOTLIGHT-STALE-ASSERTS-1`, `SPOTLIGHT-ESCALADISPLAY-1`, ambos de
+  `SPOTLIGHT-CABLEADO-HOME-1`) quedan resueltos por el diff de arriba, no re-abiertos.
+- `SPOTLIGHT-ESCALADISPLAY-RENDER-TEST-1` — falta un test que RENDERICE el `h2` de `Spotlight` con
+  `producto` resuelto y `escalaDisplay: 'amplia'`, y afirme el `style` con el `clamp` de `CLAMP_L`.
+  Hoy `spotlight-cableado.test.ts` (fuera de `touches:` de este slice) documenta que
+  `renderToStaticMarkup` nunca ejecuta el `useEffect` que carga el catálogo, así que `producto` es
+  SIEMPRE `null` y el componente entero rinde vacío antes de llegar al `h2` — hace falta mockear
+  `fetch`/`getCatalog` (infraestructura de test nueva) para poder montarlo con un producto real.
+  `why_not_now`: fuera de `touches:` de `SPOTLIGHT-CIERRE-1` (sólo `site-content-defaults.test.ts` y
+  `theme-mirador.test.ts` eran los archivos de test en alcance; `spotlight-cableado.test.ts` no).
