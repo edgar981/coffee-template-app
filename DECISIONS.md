@@ -10790,3 +10790,176 @@ Ninguno nuevo. La duda sopesada y dejada abierta sobre `subscriptionCTA` en `COR
 INVERTIDOS-1` (`CORTE-SUBSCRIPTIONCTA-ESQUEMA-DUDA-1`) sigue viva por su cuenta, sin relación con
 este slice — la exclusión de `SubscriptionCTALinea` de esta escala (§ arriba) es una medición nueva
 (tamaño y ausencia de análogo en el prototipo), no la misma duda.
+
+## 2026-09-21 — Tres agregados chicos al hero-media del prototipo — CTAs ocultables, frase al pie como dato, cue animado "Desliza" (`TEMAS-HERO-MEDIA-AGREGADOS-1`) — AWAITING_APPROVAL
+
+**El programa (owner, "se parece al prototipo", 2026-09-21), punto 3:** `docs/prototipos/cafeone/
+index.html:122-138` (`.hero-media`) tiene TRES cosas que `HeroMedia.tsx` (la variante `media` del
+hero, hoy sólo usada por CORTE — § TEMAS-HERO-MEDIA-1) no tenía: **sin botones** (el prototipo no
+lleva CTAs en el hero), una **frase al pie** (`.hero-caption`, «Hay algo profundamente meditativo en
+preparar un café cultivado a 1.600 msnm.») y un **cue animado de scroll** (`.scroll-cue`, una línea
+vertical con un segmento que la recorre + la etiqueta «Desliza»). El video del hero es contenido que
+carga el owner aparte — no es de este slice. Los tres, **OPT-IN con default = el hero-media de HOY,
+byte-idéntico**.
+
+### El modelo — tres campos nuevos en `HeroContent`, un mecanismo genérico para el par de booleanos
+
+`HeroContent` (`lib/config/site-content-defaults.ts`) gana tres campos, EXCLUSIVOS de la variante
+`media` (curtina/ficha no los leen — afirmado por render, § el gate):
+
+| campo | tipo | default | qué es |
+| --- | --- | --- | --- |
+| `ctasVisibles` | booleano | `true` | apaga los DOS CTA a la vez (no uno sí y otro no — el prototipo trata "sin botones" como un bloque) |
+| `fraseAlPie` | `campos.opcional` | `''` | el `.hero-caption` del prototipo, como DATO del tenant — vacío se OMITE, nunca un texto de relleno |
+| `cueDesliza` | booleano | `false` | el `.scroll-cue` del prototipo, "Desliza" |
+
+`fraseAlPie` es un `campos.opcional` más — el mecanismo ya existía (`eyebrow`/`tituloEnfasis`, misma
+regla de "opcional presente-aunque-vacío se respeta, ausente cae al default"). **`ctasVisibles`/
+`cueDesliza` SON NUEVOS: el resolver (`resolverSiteContent`) no tenía forma de resolver un campo
+BOOLEANO de SECCIÓN que no fuera `visible`.** Se generalizó con `SeccionDef.booleanos?: string[]` —
+gemelo de `escalares` (que generalizó los strings clampados, § HERO-VIDEO-COMO-DATO-1) pero para
+true/false: el loop del resolver ganó una tercera rama,
+
+```ts
+if (def.booleanos) {
+  for (const campo of def.booleanos) {
+    if (typeof storedSec[campo] === 'boolean') sec[campo] = storedSec[campo];
+  }
+}
+```
+
+MISMO mecanismo que ya usaba `storedSec.visible` (sólo un booleano EXPLÍCITO guardado
+sobreescribe el default que `sec` ya trae por el `{ ...defaults }` inicial) — sin esto, cada
+booleano de sección nuevo habría exigido un `if (key === 'hero')` hardcodeado en el loop, el mismo
+hardcoding que `escalares` existe para evitar del lado de los strings. `REGISTRY.hero.booleanos =
+['ctasVisibles', 'cueDesliza']`.
+
+Los tres SOBREVIVEN al parse (`heroEditableSchema`, `lib/config/site-content-schema.ts`) — sin
+declararlos, zod los STRIPPEARÍA en silencio al guardar (§ #65-B, la misma trampa que ya mordió a
+Presentaciones). `DEFAULTS.hero` los declara en su valor de HOY.
+
+### `HeroMedia.tsx` — dónde vive cada agregado
+
+- **(a) CTAs ocultables**: el `motion.div` de los dos `<Link>` (primario + secundario) quedó
+  envuelto en `{hero.ctasVisibles && (...)}`. Los dos desaparecen JUNTOS — es un solo flag, no dos.
+- **(b) Frase al pie**: un `<p>` nuevo, SIN animación de entrada (vive fuera del `motion.div` que
+  hace el stagger del bloque de texto — es un elemento aparte al pie de la sección, como el cue),
+  alineado a la derecha con `max-w-[34ch]` — verbatim el layout del `.hero-caption` del prototipo
+  (`margin-left:auto;max-width:34ch;text-align:right`). Se omite por completo si `fraseAlPie` está
+  vacía (el default).
+- **(c) Cue "Desliza"**: un `<div data-hero-cue="desliza">` posicionado absoluto bottom-left de la
+  sección (gemelo del `.scroll-cue` del prototipo, `position:absolute;left:var(--page-gutter);
+  bottom:var(--space-12)`), con una línea vertical (`h-14 w-px`, overflow hidden) y un
+  `motion.span` que la recorre + la etiqueta "Desliza" debajo. **Se OMITE en preview** (`!preview`),
+  mismo criterio que el indicador "Scroll" de `HeroCurtina.tsx`: scrollear no significa nada dentro
+  de un marco de vista previa.
+
+**REDUCED MOTION — SIN GUARD PROPIO, el mecanismo COMÚN.** El segmento anima `y` (un
+`motion.span`, `animate={{ y: ['-100%', '220%'] }}`) — un valor de TRANSFORM, no `top`/`left`. Es
+justamente lo que `ReducedMotionProvider` (`lib/animation.ts`, `MotionConfig
+reducedMotion="user"`, montado UNA vez en `app/(storefront)/layout.tsx` sobre TODO el árbol del
+storefront) congela: con la preferencia del sistema activa, toda animación de un `motion.*` que
+toque `x`/`y`/`scale`/`rotate` se fija al valor final EN EL ACTO, `repeat: Infinity` incluido — el
+segmento queda VISIBLE, quieto en su posición final, nunca desaparece. **No se escribió un segundo
+`useReducedMotion()` local** para el cue (el componente ya usa ese hook, pero para la decisión de
+reproducir el VIDEO de fondo — otro dato, otro propósito): el spec lo pedía explícito ("no inventes
+un guard propio") y el mecanismo elegido (`y`, no `top`) es el que hace que el guard COMÚN alcance
+sin escribir uno.
+
+### La comparación MEDIDA — qué gana el hero-media que antes no, contra el prototipo
+
+**Byte-identidad, por render (no supuesta):** se capturó el `HeroMedia.tsx` de ANTES de este slice
+(el árbol en HEAD) en un archivo aparte fuera de `touches:` (`.scratch/`, no versionado) y se
+renderizaron los DOS —el original y el nuevo, vía el dispatcher real `HeroSection`, con
+`DEFAULTS.hero` sin tocar— con `renderToStaticMarkup`. **El HTML es carácter por carácter IDÉNTICO**
+(`htmlNueva === htmlOriginal` → `true`). Es la prueba más fuerte que se pudo montar sin comprometer
+`touches:`: no una comparación estructural (2 `<a>`, sin `data-hero-cue`) sino una igualdad de
+STRING completa. El test que queda EN el repo (`lib/config/hero-agregados.test.ts`, no puede
+importar del scratch no versionado) repite la mitad estructural de esa prueba —2 `<a>`, ausencia de
+`data-hero-cue`/"Desliza"— más el resto de la matriz.
+
+Lo que el hero-media MUESTRA hoy, que antes no podía, cuando los tres agregados se ENCIENDEN
+(afirmado por render, `lib/config/hero-agregados.test.ts`):
+
+| agregado | prototipo | `HeroMedia` con el flag encendido |
+| --- | --- | --- |
+| (a) sin CTAs | el hero no lleva botones | `ctasVisibles:false` → CERO `<a>` en la sección (antes SIEMPRE 2) |
+| (b) frase al pie | `.hero-caption`, texto a la derecha, ≤34ch | `fraseAlPie:'…'` → el `<p>` aparece, texto exacto, alineado a la derecha |
+| (c) cue "Desliza" | `.scroll-cue`, línea + segmento animado + etiqueta | `cueDesliza:true` (fuera de preview) → `data-hero-cue="desliza"` + `<span>Desliza</span>` |
+
+### EL LÍMITE DE `touches:` — CORTE (el muestrario) NO enciende los tres agregados en este slice
+
+**`lib/config/themes.ts` NO está en `touches:` de este slice**, y es donde vive el objeto `CORTE`
+(`PresetTema`) que hoy declara `variantes.hero: 'media'` pero NO fija `ctasVisibles`/`fraseAlPie`/
+`cueDesliza` — los presets sólo escriben ejes de TEMA/CHROME (`variantes`, `esquemas`,
+`origenTexto`/`origenAccion`, `navTinta`/`navSubtitulo`/`navBadge`, `escalaDisplay`), nunca campos
+de CONTENIDO de sección (`hero.titulo`, `hero.eyebrow`, …) — y estos tres son campos de contenido.
+**Así que el mirador `?tema=CORTE` NO muestra ninguno de los tres agregados tras este slice**: la
+CAPACIDAD existe (§ arriba, probada por render), pero nadie la enciende todavía. Encenderla en el
+muestrario —para que el punto 3 del programa se vea completo en `?tema=CORTE`, no sólo en un test—
+es un slice APARTE que toque `lib/config/themes.ts` (y, si el owner quiere la frase real del
+prototipo en el muestrario, decidir su TEXTO — es dato del tenant, no algo que este slice deba
+inventar). No se ensanchó `touches:` para resolverlo acá.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1597/1597**, 0 fail. Piso citado por `TEMAS-ESCALA-DISPLAY-1`:
+  1584. Este slice suma **13** tests nuevos en `lib/config/hero-agregados.test.ts` — 1584 + 13 =
+  1597, cuadra (contado con `grep -c "^test("` sobre el archivo).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  piso anterior; este slice no toca `packages/core/`, `tests/integracion/` ni ninguna migración
+  (verificado: `git status --porcelain` no lista ningún archivo de esos árboles).
+- **`npx tsc --noEmit`**: limpio.
+- **`npx next build`**: `✓ Compiled successfully` (6.0s en la corrida final cacheada), TypeScript
+  limpio, exit 0.
+- **`npx eslint`** sobre los 4 archivos tocados/nuevos: limpio salvo **DOS instancias del mismo
+  trade-off YA ACEPTADO** por `TEMAS-ESCALA-DISPLAY-1` (`react/no-children-prop` en `lib/config/
+  hero-agregados.test.ts:80,84`, el helper `renderHeroMedia`) — la forma de 3 argumentos de
+  `createElement` rompe `tsc` (`SiteContentProvider` tipa `children` como prop REQUERIDA), así que
+  se usa `children` como prop, el mismo trade-off que ya tienen `site-content-defaults.test.ts:823,
+  827` y `escala-display.test.ts:98` (verificado: `npx eslint` sobre esos dos archivos da el MISMO
+  error, pre-existente y ajeno a este diff).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, "se parece al prototipo", 2026-09-21, punto 3). `lib/config/`
+está en la frase canónica de Tier 1 (`site-content-schema.ts`/`site-content-defaults.ts`
+nombrados); `components/storefront/` entra por el subárbol ya ganado (bytes del visitante).
+
+Contra MERGE POLICY A: **sin schema/migración** (ningún archivo de `packages/core/prisma/`, medido
+por `git status --porcelain`), **sin contrato cross-repo**. **`customer_bytes.changed: true`** — a
+nivel de RAMA, no de este commit en aislado: `app/(storefront)/page.tsx` sirve la ruta pública `/`,
+la rama entera (`slice/corte-reescritura-prototipo-1`) ya venía `AWAITING_APPROVAL` por los slices
+anteriores que tocan `components/storefront/home/` y SÍ cambian bytes servidos (p. ej.
+`TEMAS-ESCALA-DISPLAY-1`, el `style` de font-size del h1 con `?tema=CORTE`). **Este commit
+individual, medido por su cuenta, no cambia UN SOLO byte servido hoy** —ni a Nayoli (variante
+`curtina`) ni al mirador de CORTE (variante `media`, pero sin `themes.ts` tocado los tres campos
+nuevos quedan en su default, byte-idéntico, § arriba)—, pero la clasificación es de la rama, y la
+rama sigue cambiando bytes de cliente por sus commits previos. `customer_bytes.strings: []` — este
+commit no introduce ningún texto visible nuevo en ningún camino alcanzable hoy (§ el límite de
+`touches:` arriba: CORTE no enciende nada). Este slice individual clasifica `AWAITING_APPROVAL` por
+cuenta propia, mismo criterio que los anteriores de esta rama.
+
+### Deviations
+
+Ninguna en el MODELO ni en el mecanismo (tres campos, dos con un mecanismo genérico nuevo
+—`SeccionDef.booleanos`—, uno con el mecanismo `campos.opcional` ya existente; los tres OPT-IN,
+default = hoy, probado por render y por diff carácter-a-carácter contra el HeroMedia.tsx previo).
+
+La única desviación es de EXPECTATIVA vs. `touches:`: el spec (§4) pide "la comparación MEDIDA: qué
+muestra el hero del MUESTRARIO que antes no" — una frase que asume que el mirador de CORTE
+efectivamente muestra los tres agregados tras este slice. **Medido: no los muestra**, porque
+encenderlos exige `lib/config/themes.ts` (el objeto `CORTE`), que NO está en `touches:` de este
+slice. Se reportó la comparación contra `HeroMedia` con los flags encendidos A MANO (vía render en
+el test, no vía el preset) en vez de ensanchar `touches:` sobre la marcha — § "EL LÍMITE DE
+`touches:`" arriba tiene el razonamiento completo y el open follow-up que sigue lo nombra.
+
+### Open follow-ups
+
+- **`TEMAS-HERO-MEDIA-CORTE-ENCIENDE-AGREGADOS-1`** — qué: que el preset `CORTE`
+  (`lib/config/themes.ts`) fije `ctasVisibles:false`/`cueDesliza:true` (y, si el owner quiere la
+  frase real del prototipo en el muestrario, `fraseAlPie` con su texto) para que `?tema=CORTE`
+  muestre los tres agregados de este slice en vivo, no sólo en el test. Por qué no ahora: `themes.ts`
+  no está en `touches:` de `TEMAS-HERO-MEDIA-AGREGADOS-1`, y el texto de `fraseAlPie` es una
+  decisión de CONTENIDO (dato del tenant/muestrario) que este slice no debía inventar sobre la
+  marcha.

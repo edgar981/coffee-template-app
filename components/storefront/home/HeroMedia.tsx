@@ -21,9 +21,10 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // mitad de la pantalla), acá la media ES la superficie dominante: llena la sección A OPACIDAD PLENA,
 // sin atenuar, y el texto vive DIRECTO sobre ella, al pie, alineado a la izquierda — sin tarjeta.
 //
-// MISMOS SIETE CAMPOS DE CONTENIDO que curtina/ficha (eyebrow, titulo, tituloEnfasis, subtitulo, los
-// dos CTA, imagen/imagenTipo/imagenPoster) — no se agrega dato nuevo. Mismos destinos de CTA
-// (`HERO_HREFS`, estructura).
+// LOS MISMOS SIETE CAMPOS DE CONTENIDO que curtina/ficha (eyebrow, titulo, tituloEnfasis, subtitulo,
+// los dos CTA, imagen/imagenTipo/imagenPoster) — mismos destinos de CTA (`HERO_HREFS`, estructura).
+// TRES CAMPOS MÁS, EXCLUSIVOS DE ESTA VARIANTE (§ TEMAS-HERO-MEDIA-AGREGADOS-1, más abajo):
+// `ctasVisibles`/`fraseAlPie`/`cueDesliza` — curtina y ficha no los leen.
 //
 // LA TARJETA SE RETIRÓ POR DECISIÓN DEL OWNER (2026-09-19, HERO-MEDIA-SIN-TARJETA-1): «la tarjeta es
 // lo que hace que nuestro hero se lea como plantilla y el del prototipo como editorial». El
@@ -77,9 +78,19 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // tramo medio, donde el gradiente pasa por transparente— queda SIN atenuar: ahí sigue siendo cierto
 // que "la media domina".
 //
-// SIN INDICADOR DE SCROLL: la ficha (una de las dos variantes que ya existen) tampoco lo lleva —no es
-// una capacidad nueva que esta variante retira, es un elemento que YA es opcional entre las
-// variantes—.
+// INDICADOR DE SCROLL — OPT-IN (§ TEMAS-HERO-MEDIA-AGREGADOS-1): hasta este slice ninguna variante
+// lo llevaba acá (la ficha tampoco lo tiene, y sigue sin tenerlo — no es una capacidad que ESA
+// variante retira). El de HeroCurtina.tsx ("Scroll", con bote infinito en `y`) es OTRO elemento,
+// SIEMPRE encendido, sin dato detrás — no se reusa ni se generaliza: el cue de acá es el
+// `.scroll-cue` del PROTOTIPO ("Desliza", una línea con un segmento que la recorre), dato del
+// tenant (`hero.cueDesliza`, default `false` = byte-idéntico a HOY), ver el bloque de campos abajo.
+//
+// LOS TRES AGREGADOS DEL PROTOTIPO QUE HeroMedia GANA ACÁ (§ TEMAS-HERO-MEDIA-AGREGADOS-1,
+// `docs/prototipos/cafeone/index.html:122-138`): CTAs ocultables (`hero.ctasVisibles`), la frase al
+// pie como dato (`hero.fraseAlPie`, el `.hero-caption` del prototipo) y el cue animado de "Desliza"
+// (`hero.cueDesliza`, el `.scroll-cue`). LOS TRES OPT-IN, default = el hero-media de HOY — el modelo
+// y sus defaults viven en `site-content-defaults.ts` (§ docstring de `HeroContent`); ver el bloque
+// JSX de cada uno más abajo para el mecanismo de render y de reduced-motion.
 //
 // VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1) y REDUCED MOTION: MISMA mecánica que HeroCurtina.tsx/
 // HeroFicha.tsx (misma sección `hero`, distinto layout) — `imagenTipo` ya clampado por el resolver,
@@ -193,30 +204,75 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             {hero.subtitulo}
           </motion.p>
 
-          <motion.div
-            variants={fadeUp}
-            className="flex flex-wrap gap-4"
-          >
-            <Link
-              href={HERO_HREFS.primario}
-              className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+          {/* CTAs OCULTABLES (§ TEMAS-HERO-MEDIA-AGREGADOS-1, agregado a). Default `true` = los dos
+              botones de HOY, byte-idéntico. El prototipo no lleva botones en el hero; acá se apagan
+              LOS DOS JUNTOS (no uno sí y otro no) — el mismo bloque, no dos flags. */}
+          {hero.ctasVisibles && (
+            <motion.div
+              variants={fadeUp}
+              className="flex flex-wrap gap-4"
             >
-              {hero.ctaPrimarioLabel}
-
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-
-            {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
               <Link
-                href={HERO_HREFS.secundario}
-                className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                href={HERO_HREFS.primario}
+                className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
               >
-                {hero.ctaSecundarioLabel}
+                {hero.ctaPrimarioLabel}
+
+                <ArrowRight className="h-4 w-4" />
               </Link>
-            )}
-          </motion.div>
+
+              {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
+                <Link
+                  href={HERO_HREFS.secundario}
+                  className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                >
+                  {hero.ctaSecundarioLabel}
+                </Link>
+              )}
+            </motion.div>
+          )}
         </motion.div>
+
+        {/* FRASE AL PIE, como DATO (§ TEMAS-HERO-MEDIA-AGREGADOS-1, agregado b). El `.hero-caption`
+            del prototipo (`margin-left:auto;max-width:34ch;text-align:right`, index.html:133-136) —
+            vacío por defecto → SE OMITE (byte-idéntico). Sin animación de entrada a propósito: vive
+            FUERA del `motion.div` de arriba (no comparte su stagger), como un elemento aparte al pie
+            de la sección — igual que el cue, abajo. */}
+        {hero.fraseAlPie && (
+          <p className="mt-8 ml-auto max-w-[34ch] text-right text-sm leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
+            {hero.fraseAlPie}
+          </p>
+        )}
       </div>
+
+      {/* CUE ANIMADO "DESLIZA" (§ TEMAS-HERO-MEDIA-AGREGADOS-1, agregado c). El `.scroll-cue` del
+          prototipo (index.html:137): una línea vertical con un segmento que la recorre + la
+          etiqueta. Default `false` = SIN cue (byte-idéntico a hoy). Se OMITE en preview, mismo
+          criterio que el indicador de HeroCurtina.tsx: "scrollear" no significa nada dentro de un
+          marco de vista previa.
+          REDUCED MOTION: el segmento anima `y` (un TRANSFORM) con un `motion.span`, así que
+          `ReducedMotionProvider` (`lib/animation.ts`, `MotionConfig reducedMotion="user"`, montado
+          en `app/(storefront)/layout.tsx` sobre TODO el árbol del storefront) lo CONGELA solo bajo
+          `prefers-reduced-motion` — salto instantáneo al valor final, sin el `repeat: Infinity` —
+          visible pero sin animar, nunca desaparece. No se agrega ningún guard propio acá: es el
+          MISMO mecanismo que ya apaga el bote de la flecha de HeroCurtina.tsx (§ el docstring de
+          `ReducedMotionProvider`). */}
+      {hero.cueDesliza && !preview && (
+        <div
+          data-hero-cue="desliza"
+          className="absolute bottom-8 left-4 z-10 flex flex-col items-start gap-3 sm:bottom-10 sm:left-6 lg:bottom-12 lg:left-8 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+        >
+          <div className="relative h-14 w-px overflow-hidden bg-[var(--sf-linea-sobre,white)]/30">
+            <motion.span
+              aria-hidden="true"
+              className="absolute inset-x-0 top-0 h-1/2 w-full bg-[var(--sf-sobre-banda,white)]"
+              animate={{ y: ['-100%', '220%'] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </div>
+          <span className="text-xs font-medium uppercase tracking-[0.2em]">Desliza</span>
+        </div>
+      )}
     </section>
   );
 }

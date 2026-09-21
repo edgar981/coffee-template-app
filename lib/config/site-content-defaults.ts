@@ -43,6 +43,29 @@ export interface HeroContent {
   // 'ficha'. Escalar de SECCIÓN —como `visible`—, no un `campos`: no lo toca el loop
   // requerido/opcional del resolver. Gemela de `presentaciones.variante` (§ eje 5e).
   variante: string;
+  // TRES AGREGADOS del hero-media del prototipo que HeroMedia no tenía (§ TEMAS-HERO-MEDIA-
+  // AGREGADOS-1, `docs/prototipos/cafeone/index.html:122-138` — `.hero-caption`/`.scroll-cue`).
+  // Los TRES son OPT-IN con default = el hero-media de HOY (byte-idéntico): un tenant sin preset
+  // (Nayoli incluida, que además usa `curtina` no `media`) no ve ni un byte nuevo.
+  //
+  // `ctasVisibles` (booleano, default `true` = los dos CTA de HOY). El prototipo no lleva botones
+  // en el hero; acá se generaliza como un APAGADOR de los dos juntos —el prototipo trata "sin
+  // botones" como un bloque, no un botón sí y el otro no— para que un preset que quiera esa lectura
+  // minimalista no tenga que apagar cada CTA por separado.
+  ctasVisibles: boolean;
+  // `fraseAlPie` (string, OPCIONAL — como `eyebrow`/`tituloEnfasis`: default `''` → SE OMITE, no
+  // cae a ningún texto de relleno). Es el `.hero-caption` del prototipo («Hay algo profundamente
+  // meditativo en preparar un café cultivado a 1.600 msnm.», index.html:134-136) vuelto DATO del
+  // tenant — nunca un literal horneado en el componente.
+  fraseAlPie: string;
+  // `cueDesliza` (booleano, default `false` = SIN cue, el hero-media de HOY). El `.scroll-cue` del
+  // prototipo (index.html:137: línea vertical con un segmento que la recorre + la etiqueta
+  // "Desliza"). Gemelo de `ctasVisibles` en mecánica (booleano de sección, § `SeccionDef.
+  // booleanos` abajo); su animación vive en `HeroMedia.tsx` sobre un `motion.span` con un valor de
+  // TRANSFORM (`y`) para que `ReducedMotionProvider` (`lib/animation.ts`, `MotionConfig
+  // reducedMotion="user"`, montado en `app/(storefront)/layout.tsx`) la congele bajo
+  // `prefers-reduced-motion` SIN que este archivo ni el componente inventen un guard propio.
+  cueDesliza: boolean;
 }
 
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
@@ -545,6 +568,12 @@ export const DEFAULTS: SiteContentData = {
     imagenPoster: '',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
     variante: 'curtina',
+    // Los TRES agregados (§ TEMAS-HERO-MEDIA-AGREGADOS-1): default = el hero-media de HOY, byte a
+    // byte — `ctasVisibles: true` (los dos CTA de siempre), `fraseAlPie: ''` (se omite, § `campos`
+    // arriba), `cueDesliza: false` (sin cue).
+    ctasVisibles: true,
+    fraseAlPie: '',
+    cueDesliza: false,
   },
   brandStory: {
     visible: true,
@@ -806,6 +835,13 @@ export interface SeccionDef {
    *  reemplaza a `variantes` —esa ranura sigue siendo la composición de la sección—; esto es para
    *  escalares nuevos que no son la composición. */
   escalares?: Record<string, VariantesDef>;
+  /** Campos BOOLEANOS de sección ADICIONALES a `visible` (§ TEMAS-HERO-MEDIA-AGREGADOS-1). MISMO
+   *  mecanismo que `visible` (abajo, en `storedSec.visible`): sólo se sobreescriben con un
+   *  booleano EXPLÍCITO guardado — ausente, `null` o basura → el default de la sección. Gemelo de
+   *  `escalares`, pero para un flag true/false en vez de un set cerrado de strings: sin esto, cada
+   *  nuevo campo booleano de sección exigiría un `if (key === 'hero')` hardcodeado en el loop, el
+   *  mismo hardcoding que `escalares` existe para evitar del lado de los strings clampados. */
+  booleanos?: string[];
   campos: Record<string, CampoTipo>;
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
@@ -846,6 +882,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.
     escalares: { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } },
+    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1): los DOS agregados de mecánica true/false del
+    // hero-media del prototipo — `ctasVisibles` (apaga los dos CTA a la vez) y `cueDesliza` (el
+    // indicador de scroll animado). El tercer agregado (`fraseAlPie`) es un `campos` normal, abajo.
+    booleanos: ['ctasVisibles', 'cueDesliza'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -859,6 +899,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // póster) es del `.refine()` de `heroEditableSchema`, no de este mapa requerido/opcional —el
       // mapa no puede expresar "requerido SI OTRO CAMPO vale X".
       imagenPoster: 'opcional',
+      // OPCIONAL (§ TEMAS-HERO-MEDIA-AGREGADOS-1): vacío → SE OMITE, no cae a ningún texto de
+      // relleno — el `.hero-caption` del prototipo es dato del tenant, nunca un default inventado
+      // (misma regla que `eyebrow`/`tituloEnfasis`, § "la frontera fina de defaults-como-fallback").
+      fraseAlPie: 'opcional',
     },
   },
   brandStory: {
@@ -1176,6 +1220,17 @@ export function resolverSiteContent(
     if (def.escalares) {
       for (const [campo, escalarDef] of Object.entries(def.escalares)) {
         sec[campo] = resolverVariante(escalarDef, storedSec[campo]);
+      }
+    }
+
+    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1): campos true/false ADICIONALES a `visible`, por
+    // NOMBRE — mismo mecanismo que `storedSec.visible` arriba (sólo un booleano EXPLÍCITO
+    // sobreescribe; ausente/basura deja el default, que `sec` ya trae por el `{ ...defaults }`
+    // inicial). Hoy sólo `hero.ctasVisibles`/`hero.cueDesliza`; genérico para el próximo booleano
+    // de sección que aparezca.
+    if (def.booleanos) {
+      for (const campo of def.booleanos) {
+        if (typeof storedSec[campo] === 'boolean') sec[campo] = storedSec[campo];
       }
     }
 

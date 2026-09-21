@@ -30,6 +30,13 @@ const heroEditableSchema = z.object({
   // VACÍO cuando `imagenTipo === 'video'` — ver ese comentario para el porqué de esta única regla
   // DURA en un schema que es SOFT a propósito en todo lo demás.
   imagenPoster: z.string().optional(),
+  // Los TRES agregados del hero-media del prototipo (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ver el
+  // docstring de `HeroContent` en site-content-defaults.ts). Los DOS booleanos SOBREVIVEN al parse
+  // igual que `visible` — sin declararlos, zod los STRIPPEARÍA al guardar (§ #65-B); `fraseAlPie`
+  // es un string opcional más, como `eyebrow`.
+  ctasVisibles: z.boolean().optional(),
+  fraseAlPie: z.string().optional(),
+  cueDesliza: z.boolean().optional(),
 }).refine(
   // LA ÚNICA REGLA DURA de este schema (§ HERO-VIDEO-COMO-DATO-1, decisión del owner). NO exige que
   // `imagenPoster` ESTÉ —un hero de IMAGEN sigue pasando con todo vacío, como siempre—: exige que
