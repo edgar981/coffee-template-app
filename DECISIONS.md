@@ -8995,15 +8995,17 @@ funciones puras aisladas", no más.
   nuevos de `aplicar-preset-guardas.test.ts`, medido: `npm test` corrido sobre el árbol final, dos
   veces — antes y después de la corrección de cita de §arriba, las dos en 1484/1484).
 - **`npx tsc --noEmit`**: limpio, sin salida, en las dos corridas.
-- **`npm run test:integracion`** (Postgres 14.20 efímero): **208/208** en la corrida final. La
-  PRIMERA corrida (antes de la corrección de cita) dio **207/208** — un solo fallo en
+- **`npm run test:integracion`** (Postgres 14.20 efímero): **208/208** en la corrida FINAL (la que
+  cierra este slice). Se corrió CUATRO veces en total durante esta sesión, sin cambiar una línea de
+  código entre corridas (sólo commits de `DECISIONS.md` entre medio): 207/208, 208/208, 207/208,
+  208/208 — 2 de 4 fallaron, siempre el MISMO caso:
   `tests/integracion/wompi-reconciliador.test.ts`, test `'CONCURRENCIA: webhook y reconciliador
-  procesando el MISMO evento A LA VEZ'`, un archivo que este slice NO toca ni importa (verificado:
+  procesando el MISMO evento A LA VEZ'`. Un archivo que este slice NO toca ni importa (verificado:
   sus imports son `@duna/core/orders`, `@duna/core/notifications`, `@/constants/automations`,
   `@/lib/pagos/wompi-firma`, `@/app/api/webhooks/wompi/route`, `./fixtures` — ninguno en `touches`).
-  Re-corrida INMEDIATA sobre el MISMO árbol (sin tocar una línea) dio 208/208 — la carrera que ese
-  test ejercita (`Promise.all` de dos escritores concurrentes bajo lock) es intermitente por
-  naturaleza, y no es atribuible a este diff. Ver `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKY-1` abajo.
+  La carrera que ese test ejercita (`Promise.all` de dos escritores concurrentes bajo lock) es
+  intermitente por naturaleza (~50% de las corridas de esta sesión), y no es atribuible a este diff.
+  Ver `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKY-1` abajo.
 
 ### Deviations
 
