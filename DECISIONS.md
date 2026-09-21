@@ -10963,3 +10963,213 @@ el test, no vía el preset) en vez de ensanchar `touches:` sobre la marcha — �
   no está en `touches:` de `TEMAS-HERO-MEDIA-AGREGADOS-1`, y el texto de `fraseAlPie` es una
   decisión de CONTENIDO (dato del tenant/muestrario) que este slice no debía inventar sobre la
   marcha.
+
+## 2026-09-21 — La banda SPOTLIGHT: un producto pineado, con su selector de molienda, notas y carrito REUSADOS — el MODELO completo; el CABLEADO en la home queda RULING_NEEDED (`SPOTLIGHT-BANDA-1`)
+
+**El programa (owner, "se parece al prototipo", 2026-09-21), punto 4**, con el censo
+`SPOTLIGHT-CAPACIDAD-CENSO-1` cerrado (11 figuras, árbol `31ef742ea9f7`) y las tres decisiones ya
+tomadas: el pin es PUNTERO, no copia; el tamaño se resuelve como enlace a la otra talla, no como
+variante agrupada (Backlog #62 no se dispara); y la banda reemplaza a la lista plana de productos
+("Selección del mes", `featured`) en los presets que la elijan.
+
+### EL MODELO — todo dentro de `touches:`
+
+`SiteContentData.spotlight` (`SpotlightContent`, `lib/config/site-content-defaults.ts`) es una
+SECCIÓN de verdad en `REGISTRY` (pasa por el flujo borrador/publicar de siempre, como
+`presentaciones`/`menu`), con seis campos:
+
+| campo | tipo | default | qué es |
+| --- | --- | --- | --- |
+| `visible` | booleano | **`false`** | ver "LA ÚNICA SECCIÓN QUE NACE OFF", abajo |
+| `eyebrow`/`titulo`/`badge` | opcional | `''` | los TRES campos editoriales de la banda (antetítulo, título, insignia) |
+| `productoSlug` | opcional | `''` | EL PIN — el puntero al producto que la banda muestra |
+| `otroTamanoSlug` | opcional | `''` | el SEGUNDO puntero — el enlace a la otra talla (otro producto) |
+
+**`productoSlug`/`otroTamanoSlug` son PUNTEROS, nunca copias** (medido, § el censo, "la decisión es
+PUNTERO no copia"): nombre, descripción, notas de cata, precio e imagen se LEEN del `Product` vivo
+en cada render (`productoSpotlight`, abajo) — copiarlos mentiría en silencio el día que el producto
+cambie, la misma familia de defecto que ya cerró el rating fabricado y la cuenta bancaria horneada
+(§ CLAUDE.md).
+
+**`productoSpotlight`/`productoOtraTalla` resuelven los DOS bordes que el censo pidió medir, sin
+inventar un tercero:**
+
+- **PIN A NADA** (el `productoSlug` no matchea ningún producto — se borró, o nunca se configuró):
+  `productoSpotlight` cae al PRIMER producto del catálogo vivo, nunca a un componente roto — el
+  MISMO patrón que el destino inexistente de Presentaciones (`categoria1/2`, § el destino es
+  DATO): se declara un fallback, no se esconde el bloque a medias.
+- **CATÁLOGO VACÍO** (cero productos): `productoSpotlight` devuelve `null` y el componente se
+  AUTO-OCULTA (hide-on-empty, el patrón de Testimonios/la Galería) — nunca un spotlight vacío.
+- **DETECCIÓN DE PIN RANCIO en el panel** (`avisosDeConfiguracion`, el precedente que hoy sólo
+  cubre `categoria1..4`): **NO se extendió.** `lib/config/avisos-configuracion.ts` no está en
+  `touches:`, y con la banda sin cablear en `orden` (§ abajo) un aviso sobre un campo que ningún
+  tenant puede encender todavía sería una guarda sin caso real que gatear. Queda como follow-up
+  nombrado (§ abajo), no forzado.
+
+**`otroTamanoSlug` NO cae a ningún fallback** (`productoOtraTalla`): un slug vacío o que no matchea
+significa "no hay otra talla que ofrecer", y el control simplemente se omite — mismo criterio que
+`menuCtaHref` (preferir callar a un link roto). Su LABEL no es un campo aparte: se deriva de
+`Product.peso_gramos` del producto resuelto (el MISMO campo que el detalle ya usa para su chip
+"Tamaño") — un campo de texto libre para "250 g"/"500 g" sería una TERCERA copia del mismo hecho
+que el producto ya declara.
+
+**LA ÚNICA SECCIÓN QUE NACE OFF (`visible:false`).** Las nueve secciones ocultables que ya existen
+nacen `true`; `spotlight` es la primera excepción, y tiene un motivo MECÁNICO, no estético:
+`resolverOrden` completa el `orden` resuelto de CUALQUIER tenant con TODA banda que exista en
+`BANDA_IDS`, sin condición y sin que un tenant pueda pedir que falte una — es la garantía,
+documentada en su propio docstring, de que "ninguna banda se cae del home por un orden corrupto".
+El día que `spotlight` se sume a `BANDA_IDS` (§ el bloqueo medido, abajo), esa MISMA garantía
+haría que la banda apareciera en el orden resuelto de TODO tenant sin que nadie la haya pedido —
+Nayoli incluida, con su catálogo real de 4 productos, mostrando el primero por el fallback de
+`productoSpotlight`. Nacer OFF es lo único que evita eso; es el mismo mecanismo que ya usan los
+repeaters vacíos (Testimonios, la Galería) para no encenderse solos, expresado como un booleano en
+vez de un array vacío porque acá el dato no es una lista.
+
+`spotlightEditableSchema` (`lib/config/site-content-schema.ts`) declara los seis campos —si no,
+zod los STRIPPEARÍA al guardar (§ #65-B, la trampa que ya mordió a Presentaciones)—; el test
+DERIVADO de `site-content-schema.test.ts` ("todo campo del MODELO está en el schema editable") lo
+confirma sin tocar ese archivo, que no está en `touches:`.
+
+### EL COMPONENTE — construido, reusa VERBATIM, pero HOY NO SE ALCANZA DESDE NINGÚN PRESET
+
+`components/storefront/home/Spotlight.tsx` arma la ficha del producto pineado: el selector de
+molienda (`moliendasDisponibles`/`moliendaAceptada` de `@duna/core/moliendas-opciones` — el MISMO
+módulo que ya comparten ProductCard, el detalle y el servidor, sin una segunda implementación),
+las notas de cata (`producto.notasCata`, el mismo patrón de chips que el detalle), el tamaño como
+enlace a la otra talla, el precio (`formatCOP`) y "Agregar al carrito" con el `addItem` de
+`useCartStore` — el mismo helper, sin un carrito paralelo. Compila limpio (`tsc --noEmit`, `next
+build`) y está listo para montarse el día que la RULING de abajo se resuelva.
+
+### RULING_NEEDED — el cableado en la home rompe la compilación fuera de `touches:`
+
+**El hallazgo, MEDIDO antes de decidir, no supuesto** (mismo protocolo que ya usó
+`CROMO-MENU-COMO-DATO-1` con `VistaTiendaEnVivo.tsx`): se agregó `'spotlight'` a `BANDA_IDS`
+(`lib/config/site-content-defaults.ts`) y se corrió `npx tsc --noEmit`:
+
+```
+app/(storefront)/page.tsx(91,9): error TS2741: Property 'spotlight' is missing in type
+'{ hero: …; trustBadges: …; featured: …; brandStory: …; presentaciones: …; subscriptionCTA: …;
+testimonials: … }' but required in type 'Record<"hero" | "trustBadges" | "featured" | "spotlight" |
+"brandStory" | "presentaciones" | "subscriptionCTA" | "testimonials", (style: CSSProperties) =>
+ReactNode>'.
+```
+
+Un solo error, confinado a `app/(storefront)/page.tsx:91` (`npx tsc --noEmit | wc -l` → 1) — la
+constante `BANDAS: Record<BandaId, …>` de esa página es EXHAUSTIVA, igual que el `Record<SeccionVista,
+ComponentType>` que bloqueó al menú, sólo que ahora en la ruta del STOREFRONT, no del panel. El
+cambio se REVIRTIÓ antes de escribir nada más (`git status --short` limpio, verificado).
+
+**Y hay un SEGUNDO hallazgo, más profundo que el primero, que sobreviviría aunque `page.tsx`
+entrara a `touches:`.** `resolverOrden` no tiene forma de REMOVER una banda: complete el `orden`
+que sea, SIEMPRE agrega al final cualquier `BandaId` conocido que falte. Medido contra el catálogo
+real de presets (`npx tsx -e "…validarPreset/temasCompletos…"`):
+
+```
+CORTE COMPLETO
+temasCompletos: [ 'CORTE', 'ARRANQUE' ]
+```
+
+**`CORTE` es COMPLETO y está VIVO hoy** — `?tema=CORTE` lo aplica de verdad en cualquier despliegue
+demo, con efecto visible (`contenidoConPresetDeVista` sólo actúa sobre presets completos). Si este
+slice hubiera reescrito el `orden` de CORTE quitando `'featured'` para poner `'spotlight'` en su
+lugar, `resolverOrden` habría vuelto a agregar `'featured'` al final de todos modos (es un
+`BandaId` conocido que el preset "no menciona" no es lo mismo que "pide que falte") — CORTE habría
+terminado mostrando la banda spotlight ARRIBA **y** la vieja grilla "Selección del mes" abajo,
+justo lo contrario de "reemplaza la lista plana". Peor: si en cambio se hubiera escrito
+`'spotlight'` en el `orden` de CORTE SIN sumarlo a `BANDA_IDS`, `validarPreset` lo habría marcado
+INCOMPLETO (regla `orden`, "no existe en BANDA_IDS") — **regresión de un tema que hoy funciona** a
+uno que `contenidoConPresetDeVista` ignora en silencio.
+
+**La pregunta, en una frase:** ¿`spotlight` entra al sistema como banda INDEPENDIENTE y
+reordenable (lo que el spec pide literal, "sumada a `BANDA_IDS`"; exige tocar
+`app/(storefront)/page.tsx`, fuera de `touches:`, y decidir si `resolverOrden` gana la capacidad de
+REMOVER una banda — un cambio con blast radius sobre los 6 presets y sus tests), o entra como una
+VARIANTE MÁS de la banda estructural `featured` ya existente (`VARIANTES_ESTRUCTURALES.featured`,
+como `'grilla'` en `TEMAS-FEATURED-GRILLA-1` — cabe entero en `components/storefront/home/`, no
+toca `page.tsx` ni `resolverOrden`, pero deja de ser una banda independiente-reordenable, que es lo
+que el spec pidió literal)?
+
+- **Opción A — banda independiente** (lo que el spec pide). Consecuencia medida: `page.tsx` fuera
+  de `touches:` (TS2741, arriba) + una decisión aparte sobre si `resolverOrden` gana "remover", sin
+  la cual CORTE mostraría spotlight Y la vieja grilla a la vez.
+- **Opción B — variante de `featured`.** Consecuencia: CERO archivos fuera de `touches:`, CERO
+  regresión de CORTE (su `orden` no cambia, sólo `variantesBandas.featured` pasaría de `'grilla'` a
+  `'spotlight'`) — pero `spotlight` deja de ser una banda con posición propia en `orden`: queda
+  atada a dondequiera que `'featured'` esté, y una futura variante DE VERDAD del grid clásico
+  (`'tabla'`, la que pide PLIEGO) competiría por el mismo slot de composición.
+- **Opción C — este slice, tal cual.** El modelo (`SpotlightContent`, `REGISTRY.spotlight`,
+  `DEFAULTS.spotlight` naciendo OFF), el schema (`spotlightEditableSchema`, sin strip silencioso) y
+  el componente (`Spotlight.tsx`, reuso verbatim del selector/carrito/notas, tamaño como enlace)
+  quedan completos y compilando; el campo YA es editable por el `PUT`/`POST` genéricos de
+  `/api/site-content` (no gateados por sección, § el mismo razonamiento que dejó `menu` editable
+  sin panel). Lo que falta es CÓMO se monta en la home.
+
+**Bloqueado:** que `?tema=CORTE` muestre spotlight en vivo, y que cualquier tenant pueda verla.
+
+**Hecho de todos modos, y no depende de la ruling:** el modelo completo (`SpotlightContent`,
+`REGISTRY.spotlight`, `DEFAULTS.spotlight`, `productoSpotlight`, `productoOtraTalla`), el schema
+(`spotlightEditableSchema`), el componente (`Spotlight.tsx`, compilando, sin montar), y 12 tests
+nuevos en `lib/config/spotlight-banda.test.ts` (los cuatro requeridos por el spec — pin rinde el
+producto vivo, pin-a-nada no rompe, catálogo vacío auto-oculta, Nayoli byte-idéntica por render — y
+ocho más que fijan las variantes de cada borde).
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1609/1609**, 0 fail — sube de 1597 (piso citado por
+  `TEMAS-ESCALA-DISPLAY-1`) por los 12 tests nuevos de `spotlight-banda.test.ts` (1597 + 12 = 1609,
+  cuadra).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2, vía `npm run gate`): **208/208**,
+  0 fail — idéntico al piso anterior; este slice no toca `packages/core/`, `tests/integracion/` ni
+  ninguna migración (`git status --porcelain` no lista ningún archivo de esos árboles).
+- **`npx tsc --noEmit`**: limpio (además del experimento reversible con `BANDA_IDS`, revertido
+  antes de escribir nada más — § RULING_NEEDED, arriba).
+- **`npx next build`**: `✓ Compiled successfully` (6.9s), TypeScript limpio, todas las rutas
+  generadas sin error.
+- **`npx eslint`** sobre los 4 archivos tocados/nuevos: limpio salvo **UN warning heredado**
+  (`react-hooks/set-state-in-effect` en `Spotlight.tsx:52`) — el MISMO patrón, verificado línea a
+  línea, que ya trae `app/(storefront)/tienda/[slug]/page.tsx:74` (el archivo del que se reusó el
+  mecanismo de preselección de molienda). No es un defecto nuevo: es el trade-off ya aceptado del
+  código que este slice reusa verbatim.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, "se parece al prototipo", 2026-09-21, punto 4, sobre el censo
+`SPOTLIGHT-CAPACIDAD-CENSO-1`). `lib/config/site-content-schema.ts` y `lib/config/
+site-content-defaults.ts` están en la frase canónica de Tier 1; `components/storefront/` entra por
+el subárbol ya ganado (bytes del visitante).
+
+Verdicto: **`RULING_NEEDED`** — no hay diff que clasificar contra MERGE POLICY A todavía, porque el
+obstáculo es previo a esa pregunta: qué FORMA toma `spotlight` en el sistema de bandas es una
+decisión de producto/arquitectura, no una de esta sesión. `customer_bytes.changed` se reporta en
+`true` por prudencia (REGISTRY/DEFAULTS se importan enteros desde componentes cliente del
+storefront ya alcanzables, así que el bundle compilado crece unos bytes aunque ningún texto nuevo
+se vuelva visible — `strings: []`, el mismo criterio que ya usó `CROMO-MENU-COMO-DATO-1`).
+
+### Deviations
+
+Ninguna del MODELO, el schema, ni el componente (mecanismo exacto al spec: pin como puntero,
+fallback declarado en pin-a-nada, hide-on-empty en catálogo vacío, tamaño como enlace, reuso
+verbatim del selector/carrito). La desviación es de ALCANCE: `lib/config/themes.ts` **quedó SIN
+TOCAR**, aunque estaba en `touches:` esperando que hospedara el cableado de CORTE. Escribirlo de
+todos modos —con `'spotlight'` en el `orden` de CORTE sin sumarlo a `BANDA_IDS`— habría regresado
+un tema HOY completo y vivo (`?tema=CORTE`) a uno incompleto que el mirador ignora en silencio (§
+el segundo hallazgo, arriba); no se hizo por "cumplir la letra" del `touches:`, medido antes de
+decidir.
+
+### Open follow-ups
+
+- `SPOTLIGHT-CABLEADO-HOME-1` — conectar `spotlight` a la home (Opción A o B, § RULING_NEEDED) una
+  vez el owner elija. Si es la Opción A, incluye la decisión aparte sobre si `resolverOrden` gana
+  la capacidad de REMOVER una banda del `orden` (blast radius sobre los 6 presets y sus tests). No
+  se prioriza a sí mismo — depende de la ruling de arriba.
+- `SPOTLIGHT-PIN-RANCIO-AVISO-1` — extender `avisosDeConfiguracion` (`lib/config/
+  avisos-configuracion.ts`, fuera de `touches:` de este slice) para detectar un `productoSlug`/
+  `otroTamanoSlug` que ya no resuelve, una vez `SPOTLIGHT-CABLEADO-HOME-1` haga que algún tenant
+  pueda encender la sección de verdad. Sin cableado, un aviso sobre un campo inalcanzable no tiene
+  caso real que gatear.
+- `SPOTLIGHT-PANEL-EDITOR-1` — el formulario de `/admin/tienda` para editar `eyebrow`/`titulo`/
+  `badge`/los dos punteros (patrón `CROMO-MENU-PANEL-EDITOR-1`: `components/admin/
+  tienda-secciones.ts`/`VistaTiendaEnVivo.tsx`, fuera de `touches:`, con el mismo obstáculo de
+  `SeccionVista` exhaustivo). No depende de `SPOTLIGHT-CABLEADO-HOME-1` para EXISTIR como dato
+  editable (el `PUT`/`POST` genéricos ya lo aceptan), pero sin cableado en la home no hay vista
+  previa que mostrar.

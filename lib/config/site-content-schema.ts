@@ -87,6 +87,23 @@ const presentacionesEditableSchema = z.object({
   variante: z.string().optional(),
 });
 
+// SPOTLIGHT (§ SPOTLIGHT-BANDA-1, ver el docstring de `SpotlightContent` en
+// site-content-defaults.ts): un producto PINEADO. `productoSlug`/`otroTamanoSlug` son los DOS
+// PUNTEROS (nunca nombre/precio/notas copiados) — `z.string()` sin `z.enum`, porque validan
+// contra el catálogo VIVO en tiempo de LECTURA (`productoSpotlight`/`productoOtraTalla`), no
+// contra un set fijo al guardar: un pin que apunta a un producto borrado DESPUÉS de guardarse
+// tiene que seguir siendo un valor válido del schema — el "pin a nada" cae al fallback declarado
+// en el render, no se rechaza al escribir (mismo criterio que `categoria1/2` de Presentaciones).
+// Todo opcional/SOFT, como el resto.
+const spotlightEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  badge: z.string().optional(),
+  productoSlug: z.string().optional(),
+  otroTamanoSlug: z.string().optional(),
+});
+
 // SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite
 // vacíos y el componente los junta con `.filter` (hasta 4, sin hueco). `ctaLabel` editable; el href
 // es estructura. Todo opcional/SOFT, como los otros.
@@ -291,6 +308,7 @@ export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   presentaciones: presentacionesEditableSchema.optional(),
+  spotlight: spotlightEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
   testimonials: testimonialsEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),

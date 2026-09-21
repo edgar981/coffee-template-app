@@ -127,6 +127,42 @@ export interface PresentacionesContent {
   variante: string;
 }
 
+// LA BANDA SPOTLIGHT (§ SPOTLIGHT-BANDA-1) — un solo producto PINEADO, del muestrario del
+// prototipo («Un solo origen, cuidado de principio a fin.»). Reemplaza a la lista plana de
+// productos («Selección del mes», `FeaturedProducts`/`featured`) en los presets que la elijan.
+//
+// `productoSlug` es EL PIN — un PUNTERO al `Product` vivo (§ SPOTLIGHT-CAPACIDAD-CENSO-1, medido:
+// "la decisión es PUNTERO no copia"), NUNCA una copia de su nombre/descripción/notas/precio/
+// imagen: copiarlos mentiría en silencio el día que el producto cambie, algo que la doctrina de
+// este repo ya prohibió dos veces (el rating fabricado, la cuenta bancaria horneada). Todo lo
+// demás que la banda muestra se LEE del producto pineado en cada render —`productoSpotlight`,
+// abajo, es quien resuelve el puntero contra el catálogo—. `otroTamanoSlug` es un SEGUNDO puntero,
+// opcional: el eje "tamaño" del prototipo (que ahí cambia precio/imagen EN EL LUGAR) NO se modela
+// como variante agrupada —eso es Backlog #62, un proyecto transversal que una banda del
+// muestrario no dispara—, así que se resuelve como un ENLACE a la OTRA talla (otro producto, otro
+// slug), igual que el destino de Presentaciones (`categoria1/2`, § el destino es DATO).
+//
+// SECCIÓN OCULTABLE que NACE OFF (`visible:false`), a diferencia de TODAS las demás secciones
+// ocultables del REGISTRY (que nacen `true`) — es la ÚNICA excepción, y tiene un motivo mecánico,
+// no estético: `resolverOrden` (abajo) SIEMPRE completa el `orden` resuelto de CUALQUIER tenant
+// con TODA banda que exista en `BANDA_IDS`, sin condición y sin que un tenant pueda pedir que
+// falte una — es la garantía que hace que "ninguna banda se caiga del home por un orden
+// corrupto" (§ su docstring). El día que `spotlight` se sume a `BANDA_IDS` (§ el bloqueo medido en
+// DECISIONS.md, SPOTLIGHT-BANDA-1 — hoy TODAVÍA NO es miembro, precisamente por esto), esa misma
+// garantía haría que la banda apareciera en el orden resuelto de TODO tenant, Nayoli incluida, sin
+// que nadie la haya pedido — nacer OFF es lo que hace que su sola presencia en el orden no alcance
+// para mostrarla. Es el mismo mecanismo que ya usan los repeaters vacíos (Testimonios, la
+// Galería) para no encender solos en ningún tenant, expresado como un booleano en vez de un array
+// vacío porque acá el dato no es una lista.
+export interface SpotlightContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  badge: string;
+  productoSlug: string;
+  otroTamanoSlug: string;
+}
+
 // SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
 // del CTA (su href es ESTRUCTURA, `/suscripciones`, no editable). Sección de SOLO TEXTO —sin
 // imágenes—. Los bullets son `bullet1..4` OPCIONALES: el componente los junta con un `.filter` que
@@ -433,6 +469,7 @@ export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
   presentaciones: PresentacionesContent;
+  spotlight: SpotlightContent;
   subscriptionCTA: SubscriptionCTAContent;
   testimonials: TestimonialsContent;
   nosotrosHistoria: NosotrosHistoriaContent;
@@ -611,6 +648,22 @@ export const DEFAULTS: SiteContentData = {
     label4: '', copy4: '', imagen4: '', categoria4: '',
     // La canónica (§ eje 5e): Nayoli queda byte-idéntica al mosaico de hoy.
     variante: 'mosaico',
+  },
+  // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1, ver el docstring de `SpotlightContent`). NACE OFF
+  // (`visible:false`) — la ÚNICA sección ocultable con este default — porque `spotlight` TODAVÍA
+  // no es miembro de `BANDA_IDS` (§ el bloqueo medido en DECISIONS.md); el día que lo sea, nacer
+  // OFF es lo único que evita que su sola presencia en el `orden` resuelto encienda la banda para
+  // CUALQUIER tenant que no la pidió, Nayoli incluida (`resolverOrden` completa siempre con TODA
+  // banda conocida, sin excepción). Sin pin (`productoSlug`/`otroTamanoSlug` vacíos): sin efecto
+  // mientras la sección esté OFF, y el día que se encienda cae al PRIMER producto del catálogo
+  // (§ `productoSpotlight`).
+  spotlight: {
+    visible: false,
+    eyebrow: '',
+    titulo: '',
+    badge: '',
+    productoSlug: '',
+    otroTamanoSlug: '',
   },
   subscriptionCTA: {
     visible: true,
@@ -962,6 +1015,23 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       copy4: 'opcional',
       imagen4: 'opcional',
       categoria4: 'opcional',
+    },
+  },
+  // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1, ver el docstring de `SpotlightContent`). `ocultable:
+  // true`, sin `variantes` (una sola composición — ficha del producto pineado + selector de
+  // molienda + notas de cata + carrito, § Spotlight.tsx) y sin `imagenes`: el contenido visual
+  // (la portada) se LEE del `Product` pineado en cada render, nunca se sube acá — el pin es
+  // puntero, no copia. Los cuatro campos son EDITORIALES puros; `productoSlug`/`otroTamanoSlug`
+  // son los DOS punteros (§ el destino es DATO, igual que `categoria1/2` de Presentaciones).
+  spotlight: {
+    label: 'Destacado',
+    ocultable: true,
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'opcional',
+      badge: 'opcional',
+      productoSlug: 'opcional',
+      otroTamanoSlug: 'opcional',
     },
   },
   subscriptionCTA: {
@@ -1554,4 +1624,35 @@ export function seccionEsVisible(def: SeccionDef, sec: object): boolean {
  */
 export function faqSuscripcionesVisible(content: SiteContentData): boolean {
   return content.paginas.suscripciones.visible && seccionEsVisible(REGISTRY.suscripcionFaq, content.suscripcionFaq);
+}
+
+/**
+ * El PIN de SPOTLIGHT resuelto contra un catálogo (§ SPOTLIGHT-BANDA-1, ver el docstring de
+ * `SpotlightContent`): el producto que la banda muestra. GENÉRICO —pide sólo un `slug`, no
+ * importa `Product`— para que este módulo de CONFIG no dependa del tipo de dominio del catálogo;
+ * el llamador real (`components/storefront/home/Spotlight.tsx`) lo instancia con `Product[]`.
+ *
+ * Dos casos SIN romper (§ SPOTLIGHT-CAPACIDAD-CENSO-1, "la decisión es PUNTERO, no copia"):
+ *  · el `slug` no está vacío pero no matchea NINGÚN producto (se borró, o nunca existió) — la
+ *    banda cae al PRIMER producto del catálogo VIVO, nunca a un componente roto. Mismo patrón
+ *    que el destino inexistente de Presentaciones (`categoriasDelCatalogo`/`hrefCategoria`): se
+ *    declara un fallback, no se esconde el bloque a medias.
+ *  · el catálogo está VACÍO — no hay NADA que mostrar, ni el fallback tiene sentido: `null`
+ *    (hide-on-empty, gemelo de un repeater con `items: []`).
+ */
+export function productoSpotlight<T extends { slug: string }>(catalog: readonly T[], slug: string): T | null {
+  if (catalog.length === 0) return null;
+  return catalog.find((p) => p.slug === slug) ?? catalog[0];
+}
+
+/**
+ * El producto de "la OTRA talla" (§ SPOTLIGHT-BANDA-1, el eje tamaño como ENLACE, no como
+ * variante agrupada — Backlog #62 no se dispara, § SPOTLIGHT-CAPACIDAD-CENSO-1). A diferencia de
+ * `productoSpotlight`, NO cae a ningún fallback: un `slug` vacío o que no matchea ningún producto
+ * significa "no hay otra talla que ofrecer", y el componente simplemente OMITE el control — mismo
+ * criterio que `menuCtaHref` (preferir callar a un link roto, no inventar un destino).
+ */
+export function productoOtraTalla<T extends { slug: string }>(catalog: readonly T[], slug: string): T | null {
+  if (!slug) return null;
+  return catalog.find((p) => p.slug === slug) ?? null;
 }
