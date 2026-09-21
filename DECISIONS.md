@@ -11445,3 +11445,129 @@ CORTE), así que `customer_bytes.changed = true`. `stopped_on: [customer-bytes]`
   `fetch`/`getCatalog` (infraestructura de test nueva) para poder montarlo con un producto real.
   `why_not_now`: fuera de `touches:` de `SPOTLIGHT-CIERRE-1` (sólo `site-content-defaults.test.ts` y
   `theme-mirador.test.ts` eran los archivos de test en alcance; `spotlight-cableado.test.ts` no).
+
+## 2026-09-21 — El collage de `centrada` gana el scroll-scrub real: `useScroll`+`useTransform`, con el gate de movimiento reducido no-negociable (`TEMAS-BRANDSTORY-DIRECCION-ARTE-1`)
+
+`CORTE-BRANDSTORY-COLLAGE-1` había dejado escrito, en el propio comentario de
+`BrandStoryCentrada.tsx`, que el prototipo resuelve la inclinación/superposición del collage EN
+FUNCIÓN DEL PROGRESO DE SCROLL de la sección (`docs/prototipos/cafeone/js/app.js:183-203`, `FSA.scrub`
+— consumido por el collage en `js/home.js:284-301`) y que se aproximaba con una entrada
+`whileInView` porque "un motor de scroll-scrub propio que este repo no tiene". Este slice construye
+ese motor y lo cablea, SÓLO en `centrada` (CORTE).
+
+### LA COMPARACIÓN MEDIDA — prototipo vs. lo que este slice construye
+
+- **El prototipo** (`js/home.js:284-301`): `FSA.scrub(collage, fn)` registra un callback que corre en
+  cada scroll/resize (rAF-throttled, `js/app.js:188-203`) con el progreso `p = (vh - r.top) / (r.height
+  + vh)` del contenedor del collage — 0 cuando el elemento entra por el borde inferior del viewport, 1
+  cuando termina de salir por el superior. El collage recorta ese progreso a una ventana
+  `t = clamp((p - 0.15) / 0.5, 0, 1)` y, por figura, interpola `rotate = from[i]·(1-t)` (con 3 figuras
+  en el prototipo, nuestro modelo tiene 4 — cardinalidad ya documentada como diferencia deliberada
+  desde `CORTE-BRANDSTORY-COLLAGE-1`).
+- **Este slice**: `useProgresoAcomodo` (`lib/animation.ts`) envuelve `useScroll({ target, offset:
+  ["start end", "end start"] })` + `useTransform(scrollYProgress, [0.15, 0.65], [0, 1], { clamp: true
+  })` — el MISMO rango 0→1 (`"start end"→"end start"` es la semántica estándar de framer-motion para
+  "el target cruza el viewport completo", equivalente a la fórmula de `FSA.scrub`) y el MISMO umbral
+  `[0.15, 0.65]` (medido de `js/home.js:291`, exportado como `UMBRAL_ACOMODO` para que el test lo
+  verifique contra el número real, no un duplicado a mano). `transformAcomodo` (pura, sin React)
+  reproduce `rot = rotarInicial·(1-t)` más un asiento vertical (`y = asientoInicialPx·(1-t)`) que
+  reusa el `y:16` que la aproximación por `whileInView` YA usaba — no se inventa una magnitud nueva.
+  `rotarInicial` por figura reusa el mismo array `IMAGENES[].rotar` (-4, 3, -3, 4) que ya vivía en el
+  archivo.
+- **Lo que NO se replicó, y por qué**: el prototipo también traslada horizontalmente cada figura
+  (`spread=[-70,0,70]` para sus 3 figuras) para separar el "apilado" superpuesto a medida que
+  acomoda. Con 4 figuras (cardinalidad ya distinta del prototipo) no hay un `spread` MEDIDO que
+  reusar sin inventar una magnitud nueva — la superposición de nuestra variante ya la da el layout
+  ESTÁTICO (offset vertical alternado + `gap` chico entre tarjetas, sin tocar), así que el scrub se
+  limitó al eje que SÍ tiene un número reusable (rotación + asiento vertical). Es una simplificación
+  deliberada del alcance, no un olvido — reportada acá para que quien la revise la vea.
+- **Tampoco se replicó** el `@media (max-width:640px){ .collage figure{transform:none!important} }`
+  del prototipo (el scrub se apaga en mobile angosto, layout de columna). Nuestro layout en mobile ya
+  difiere del prototipo (`w-[42%]` en fila, no columna apilada — otra diferencia ya heredada de
+  `CORTE-BRANDSTORY-COLLAGE-1`), así que replicar el apagado por breakpoint habría exigido un
+  mecanismo CSS `!important` contra un estilo inline de MotionValue (posible, pero no pedido por el
+  spec) — se deja igual en todos los anchos. Simplificación declarada, no defecto.
+
+### EL MOTOR — `lib/animation.ts`
+
+`UMBRAL_ACOMODO` (constante), `transformAcomodo` (función pura) y `useProgresoAcomodo` (hook) se
+agregan junto a `fadeUp`/`ReducedMotionProvider`, sin tocarlos. `transformAcomodo` es la pieza
+DELIBERADAMENTE separada de React: es lo único que este carril (sin navegador, sin jsdom) puede
+afirmar por EJECUCIÓN sobre el cálculo del scrub.
+
+### EL GATE DE MOVIMIENTO REDUCIDO — por qué hace falta un guard PROPIO acá, y no en el cue del hero
+
+`ReducedMotionProvider` (`MotionConfig reducedMotion="user"`, ya en `lib/animation.ts` desde
+`STOREFRONT-REDUCED-MOTION-1`) congela animaciones DECLARATIVAS —`animate`/`whileInView`/`variants`—
+disparadas por `.start()` (medido en `node_modules/motion-dom/dist/cjs/index.js:3784-3785`,
+`animateMotionValue` dentro del path de `.start()`). Un valor derivado directo de scroll vía
+`useScroll`+`useTransform`, bindeado al `style` de un `motion.div`, NO pasa por `.start()` — se
+actualiza síncronamente en cada render vía `useCombineMotionValues` (`node_modules/framer-motion/
+dist/cjs/index.js:747-763`) y por suscripción a cambios del `scrollYProgress` — así que ese provider
+NO lo alcanza. Por eso `BrandStoryCentrada.tsx` sí necesita su propio `useReducedMotion()` (el mismo
+hook que ya usan `HeroCurtina`/`HeroMedia`/`NosotrosGaleria` para decisiones que el provider no
+cubre), a diferencia del cue del hero (`hero-agregados.test.ts`, § "no debe leer la variable
+`reduce`"), que SÍ está cubierto porque anima `y` vía `animate={{ y: [...] }}` declarativo.
+
+`estatico = preview || !!reduce` colapsa las DOS razones por las que el collage no puede depender del
+scroll real: movimiento reducido, y la vista previa del editor (que renderiza dentro de un contenedor
+escalado sin scroll de verdad — mismo criterio que el resto de la variante). Con `estatico`,
+`transformAcomodo` devuelve `'none'` siempre, sin importar el progreso — el collage ACOMODADO, quieto,
+legible.
+
+### LO QUE ESTE CARRIL PUDO VERIFICAR, Y LO QUE NO (dicho explícitamente, como pide el spec)
+
+- **SÍ, por ejecución**: la matemática pura de `transformAcomodo` (los 4 primeros tests de
+  `historia-direccion-arte.test.ts`); que `UMBRAL_ACOMODO` reproduce los números medidos del
+  prototipo; que el CABLEADO por render (`renderToStaticMarkup`, sin jsdom) produce las 4 figuras en
+  su transform de ARRANQUE (inclinado) sin el gate estático, y en `transform:none` con el gate
+  estático activado vía `preview=true` — el mismo código que activa `reduce=true` (`estatico =
+  preview || !!reduce`), así que ejercer una rama prueba la otra; y que `BrandStoryColumnas` no
+  importa ninguna pieza del motor nuevo (fuente leída) ni cambió su render (smoke test).
+- **NO, sin navegador**: que `prefers-reduced-motion` resuelva `true` en tiempo real (depende de
+  `matchMedia`, inexistente en este carril de `node:test`), y el movimiento EN SÍ — que la rotación se
+  vea animarse con el scroll real. Ambos quedan para el muestrario visual del owner (`?tema=CORTE`,
+  scrollear `#nuestra-historia`, y repetir con `prefers-reduced-motion: reduce` activado en devtools).
+
+### LA INVARIANTE — `columnas` (Nayoli) intacta
+
+`BrandStoryColumnas.tsx` no se tocó: cero líneas en el diff (verificado con `git diff --stat`, abajo)
+y afirmado en el test por lectura de fuente (no importa `useProgresoAcomodo`/`transformAcomodo`/
+`useScroll`/`useReducedMotion`, y su único import de `lib/animation` sigue siendo `{ fadeUp }`) más un
+smoke-render que confirma que el cambio ADITIVO en `lib/animation.ts` no le rompió nada.
+
+### Gate
+
+`npm test`: **1633/1633**, 0 fail (1624 del piso de `SPOTLIGHT-CIERRE-1` + 9 tests nuevos de
+`historia-direccion-arte.test.ts`, cero quitados). `npm run test:integracion`: **208/208**, 0 fail —
+idéntico al piso, sin tocar `packages/core/` ni `tests/integracion/`. `npx tsc --noEmit`: limpio.
+`npx next build`: `✓ Compiled successfully`, `/` sigue `ƒ` (dinámica, sin cambio de esa naturaleza),
+todas las rutas generadas sin error.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, punto 5 del programa "se-parece", 2026-09-21). Los tres archivos
+tocados están en `touches:` del spec y dentro de la frase canónica de Tier 1
+(`components/storefront/` por el subárbol de bytes del visitante). `BrandStoryCentrada.tsx` cambia
+CÓMO se mueve el collage que un visitante bajo el preset CORTE ve —comportamiento nuevo, no sólo un
+número—, así que `customer_bytes.changed = true`. `stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`
+por protocolo: el worker no mergea.
+
+### Deviations
+
+1. **El `spread` horizontal del prototipo (superposición que se separa) NO se replicó** — con 4
+   figuras (cardinalidad ya distinta de las 3 del prototipo, decisión heredada) no hay una magnitud
+   MEDIDA que reusar sin inventar un número; el scrub se limita a rotación + asiento vertical
+   (magnitudes reusadas de `IMAGENES[].rotar` y el `y:16` de la aproximación anterior). La
+   superposición visual la sigue dando el layout estático (offset + gap), sin tocar.
+2. **El apagado del scrub en mobile angosto (`@media max-width:640px` del prototipo) NO se
+   replicó** — nuestro layout mobile ya difiere del prototipo desde `CORTE-BRANDSTORY-COLLAGE-1`, y
+   el spec no lo pidió explícitamente. El scrub queda activo en todos los anchos.
+
+### Open follow-ups
+
+- `TEMAS-BRANDSTORY-SPREAD-HORIZONTAL-1` — si el owner, mirando el muestrario, encuentra que falta la
+  separación horizontal del prototipo (las figuras hoy sólo rotan/asientan, no se trasladan en X),
+  definir un `spread` propio para 4 figuras (no derivable del prototipo de 3) es su propia decisión de
+  dirección de arte. `why_not_now`: sin un número medido que reusar, inventarlo dentro de este slice
+  habría sido exactamente lo que el spec pide evitar ("no inventado con texto fijo").

@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useRef } from "react";
+import { motion, useReducedMotion, useTransform } from "framer-motion";
 import Image from "next/image";
-import { fadeUp } from "@/lib/animation";
+import { fadeUp, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
@@ -27,11 +28,29 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 //      campo de link/label para esta sección —ni la canónica `BrandStoryColumnas` lo tiene: la home
 //      lleva el ANZUELO, sin CTA propio (§ site-content-defaults.ts, "LA PÁGINA /nosotros")—. Agregar
 //      uno sería escritura de esquema, fuera de este slice. Se construye SIN el botón.
-//   2. El PARALLAX de scroll del prototipo (`js/home.js:284-301`, `FSA.scrub`): cada figura rota y se
-//      desplaza en función del progreso de scroll de la sección, vía un motor de scroll-scrub propio
-//      que este repo no tiene. Se aproxima con una entrada en CAPAS por `whileInView` (framer-motion,
-//      ya en uso en el resto del storefront) — asienta con una leve rotación que se endereza al
-//      entrar en vista, sin el motor de scrub continuo del prototipo.
+//
+// EL PARALLAX DE SCROLL (§ TEMAS-BRANDSTORY-DIRECCION-ARTE-1, cierra el punto 2 de arriba, que
+// hasta este slice decía que el motor "este repo no tiene"): `js/home.js:284-301` (`FSA.scrub`)
+// resuelve la inclinación/superposición del collage EN FUNCIÓN DEL PROGRESO DE SCROLL de la
+// sección, no de un disparo único. Ahora el collage usa el motor real
+// (`useProgresoAcomodo`/`transformAcomodo`, `lib/animation.ts`) sobre `useScroll`+`useTransform`
+// —el mismo mecanismo de movimiento que ya trae el repo, no un listener propio—: cada figura
+// arranca inclinada (`rotar`) y con un asiento vertical (`ASIENTO_ACOMODO_PX`, el mismo `y:16` que
+// la aproximación anterior por `whileInView` ya usaba) y SE ACOMODA —rotación y asiento a 0— a
+// medida que el visitante scrollea la sección, no al entrar una vez en el viewport.
+//
+// MOVIMIENTO REDUCIDO, NO NEGOCIABLE: con `prefers-reduced-motion` (o en la VISTA PREVIA del editor,
+// que tampoco puede scrollear de verdad — mismo criterio que el resto de esta variante, § el switch
+// `preview` de abajo) el collage rinde su estado ACOMODADO final, QUIETO, sin importar el scroll —
+// `transformAcomodo(…, estatico=true)` siempre `'none'`—. `useReducedMotion()` es el DETECTOR —el
+// mismo hook que ya usan `HeroCurtina`/`HeroMedia`/`NosotrosGaleria` para decisiones que
+// `MotionConfig reducedMotion="user"` (§ `ReducedMotionProvider`, `lib/animation.ts`) no cubre: ese
+// provider sólo congela animaciones DECLARATIVAS (`animate`/`whileInView`/variants) disparadas por
+// `.start()`; un valor de scroll ligado directo vía `useScroll`+`useTransform` no pasa por ahí —no
+// hay `.start()` que interceptar—, así que el guard acá SÍ hace falta (a diferencia del cue del
+// hero, § `hero-agregados.test.ts`, que no necesita uno propio).
+const ASIENTO_ACOMODO_PX = 16;
+
 const IMAGENES = [
   { campo: "imagen1", alt: "Una taza de café servida sobre una mesa de madera, con granos alrededor", offset: "", rotar: -4 },
   { campo: "imagen2", alt: "Cerezas de café secándose extendidas sobre una malla", offset: "sm:mt-8", rotar: 3 },
@@ -52,6 +71,23 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
   // escalada del panel, `whileInView` no dispara —la intersección con el viewport no llega dentro
   // del contenedor con `transform: scale`—, así que se cambia a `animate` con `initial={false}`:
   // el elemento descansa en su estado visible desde el primer render.
+
+  // EL COLLAGE: scroll-scrub real, con el gate de movimiento reducido (§ el comentario de arriba).
+  // `estatico` cubre las DOS razones por las que este collage no puede depender del scroll: la
+  // preferencia del visitante, y la vista previa del editor (que tampoco scrollea de verdad).
+  const reduce = useReducedMotion();
+  const estatico = preview || !!reduce;
+  const collageRef = useRef<HTMLDivElement>(null);
+  const progreso = useProgresoAcomodo(collageRef);
+  // Cuatro llamadas EXPLÍCITAS, una por imagen — `IMAGENES` es un literal de longitud fija (4), así
+  // que el número de hooks no varía entre renders; llamarlas dentro de un `.map()` sí lo haría
+  // (inseguro para React aunque acá el largo nunca cambiaría en la práctica).
+  const transformImg1 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[0].rotar, ASIENTO_ACOMODO_PX, p, estatico));
+  const transformImg2 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[1].rotar, ASIENTO_ACOMODO_PX, p, estatico));
+  const transformImg3 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[2].rotar, ASIENTO_ACOMODO_PX, p, estatico));
+  const transformImg4 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[3].rotar, ASIENTO_ACOMODO_PX, p, estatico));
+  const transformsPorImagen = [transformImg1, transformImg2, transformImg3, transformImg4];
+
   return (
     <section id="nuestra-historia" className="overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] py-24" style={style}>
       <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
@@ -78,17 +114,17 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
           </h2>
         </motion.div>
 
-        {/* El collage A LO ANCHO — cuatro figuras en fila, con offset vertical alternado y una leve
-            rotación que se endereza al entrar en vista (§ el hallazgo del parallax, arriba). */}
-        <div className="mt-16 mb-16 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {IMAGENES.map(({ campo, alt, offset, rotar }, i) => (
+        {/* El collage A LO ANCHO — cuatro figuras en fila, con offset vertical alternado (estático,
+            del layout) y un `transform` scrubbed por scroll (§ el comentario de arriba): cada
+            figura arranca inclinada y se ACOMODA a medida que la sección cruza el viewport, salvo
+            `estatico` (movimiento reducido / vista previa), donde queda siempre en su estado final.
+            SIEMPRE visible (opacity 1): el prototipo nunca desvanece estas figuras, sólo las
+            rota/asienta. */}
+        <div ref={collageRef} className="mt-16 mb-16 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+          {IMAGENES.map(({ campo, alt, offset }, i) => (
             <motion.div
               key={campo}
-              initial={preview ? false : { opacity: 0, rotate: rotar, y: 16 }}
-              animate={preview ? { opacity: 1, rotate: 0, y: 0 } : undefined}
-              whileInView={preview ? undefined : { opacity: 1, rotate: 0, y: 0 }}
-              viewport={preview ? undefined : { once: true }}
-              transition={preview ? undefined : { duration: 0.6, delay: i * 0.08 }}
+              style={{ transform: transformsPorImagen[i] }}
               className={`relative aspect-[3/4] w-[42%] overflow-hidden rounded-2xl shadow-xl sm:w-40 lg:w-52 ${offset}`}
             >
               <Image
