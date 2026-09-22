@@ -112,10 +112,6 @@ test('archivosSinCubrir: EL CASO REAL DE ANOCHE (§ GATE-GUARDA-TESTS-INVISIBLES
   // GATE-GLOB-COMPONENTS-SERVICES-1 (commit 2f8c205) — verificados contra
   // `git show 2f8c205^:package.json`: SIN "components/**/*.test.ts" ni
   // "services/**/*.test.ts". El patrón de integración no cambió.
-  //
-  // Los dos archivos que quedaron invisibles esa noche —uno de ellos del camino de
-  // dinero (services/checkout.service.test.ts)— SIGUEN EXISTIENDO hoy, así que esta
-  // reproducción corre contra el árbol REAL del repo, no contra un fixture inventado.
   const patronesDeAnoche = [
     'lib/**/*.test.ts',
     'constants/**/*.test.ts',
@@ -123,15 +119,40 @@ test('archivosSinCubrir: EL CASO REAL DE ANOCHE (§ GATE-GUARDA-TESTS-INVISIBLES
     'app/**/*.test.ts',
     'tests/integracion/**/*.test.ts',
   ];
-  const archivos = archivosDeTestDelRepo(RAIZ);
-  const invisibles = archivosSinCubrir(archivos, patronesDeAnoche).sort();
+
+  // Los dos archivos que quedaron invisibles esa noche —uno de ellos del camino de
+  // dinero (services/checkout.service.test.ts)—. Se afirma que TODAVÍA EXISTEN en el
+  // árbol REAL del repo (si alguno se borrara, la reproducción perdería su caso real
+  // y pasaría en falso — por un motivo que no es el que este caso existe para probar);
+  // no un fixture inventado.
+  //
+  // GATE-TESTS-DESCUBIERTOS-CONGELADO-1: antes, este caso corría archivosSinCubrir
+  // contra `archivosDeTestDelRepo(RAIZ)` completo —TODO archivo *.test.ts del
+  // repositorio, una lista que CRECE con cada test nuevo que el repo gana en
+  // CUALQUIER directorio— y afirmaba `deepEqual` contra esta lista de DOS nombres
+  // congelada. Un test nuevo agregado en un directorio que "patronesDeAnoche" no
+  // cubre (por diseño: ese array nunca cambia) se sumaba a los invisibles aunque los
+  // patrones de HOY sí lo cubrieran, y rompía esta igualdad por una razón ajena a lo
+  // que el caso prueba — el incidente que motiva este slice. La entrada ahora es
+  // SOLO estos dos archivos, no el árbol completo: la igualdad queda entre dos
+  // arrays de tamaño fijo y ya no puede reaccionar a un archivo nuevo en otro lugar.
+  const archivosDeAnoche = [
+    'components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts',
+    'services/checkout.service.test.ts',
+  ];
+  const archivosReales = new Set(archivosDeTestDelRepo(RAIZ));
+  for (const archivo of archivosDeAnoche) {
+    assert.ok(
+      archivosReales.has(archivo),
+      `el archivo histórico "${archivo}" ya no existe en el repo — la reproducción perdió su caso real`,
+    );
+  }
+
+  const invisibles = archivosSinCubrir(archivosDeAnoche, patronesDeAnoche).sort();
 
   assert.deepEqual(
     invisibles,
-    [
-      'components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts',
-      'services/checkout.service.test.ts',
-    ].sort(),
-    'con los patrones de anoche la guarda debe nombrar EXACTAMENTE los dos archivos que quedaron invisibles',
+    archivosDeAnoche.slice().sort(),
+    'con los patrones de anoche, los DOS archivos históricos deben seguir quedando invisibles',
   );
 });
