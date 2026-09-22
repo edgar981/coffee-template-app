@@ -47,16 +47,46 @@ export interface HeroContent {
 // TrustBadges (la franja de garantías bajo el hero): CUATRO textos de cardinalidad FIJA, uno por
 // ícono (§ CONTENIDO-CAFE-A-DATO-B-1). Antes eran literales horneados en `TrustBadges.tsx`
 // —café-shape en los cuatro—; pasan a SECCIÓN editable, campos planos `requerido` (nunca menos de
-// cuatro: la franja es 4 columnas fijas, § el componente). Los ÍCONOS (Leaf/Coffee/Truck/Shield)
-// siguen ESTRUCTURALES —por posición, en el componente—: esta tanda mueve el TEXTO, no el ícono
-// (fuera de alcance; el ícono "Coffee" queda como deuda café-shape visual, anotada aparte).
-// `ocultable:false` como el hero: la franja siempre se muestra, sin toggle en el editor.
+// cuatro: la franja es 4 columnas fijas, § el componente). `ocultable:false` como el hero: la franja
+// siempre se muestra, sin toggle en el editor.
+//
+// LOS ÍCONOS SON DATO TAMBIÉN (§ CONTENIDO-CAFE-A-DATO-B-EXT-1, cierra `CONTENIDO-CAFE-ICONO-
+// COFFEE-1`): `badgeNIcono` guarda un NOMBRE de un SET CERRADO (`NombreIconoBadge`,
+// `components/storefront/badge-iconos.ts` — el mapa nombre→lucide, declarado UNA vez), no un
+// componente lucide. Son OPCIONALES con default `''` A PROPÓSITO, no `escalares`/`resolverVariante`
+// (§ hero.variante): ese mecanismo exige un miembro NOMBRADO del set cerrado como canónica, y con
+// CUATRO campos de icono en esta sección más TRES en `productoBadges` (abajo), un solo nombre
+// canónico repetido violaría el catcher de duplicados exactos de `site-content-defaults.test.ts`
+// (`DEFAULTS: ningún texto… se repite EXACTO entre campos distintos`). `''` no cuenta como duplicado
+// (el catcher lo excluye, igual que las rutas de imagen) y el RENDER (`iconoBadge('')`) ya cae al
+// ícono NEUTRO — el clamp real vive ahí, no en el resolver de SiteContent.
 export interface TrustBadgesContent {
   visible: boolean;
   badge1: string;
+  badge1Icono: string;
   badge2: string;
+  badge2Icono: string;
   badge3: string;
+  badge3Icono: string;
   badge4: string;
+  badge4Icono: string;
+}
+
+// Los badges de la FICHA de producto ("Envío a todo Colombia · Gratis…", "Garantía de frescura…",
+// "Tostado dentro de los 7 días…" — § CONTENIDO-CAFE-A-DATO-B-EXT-1, cierra `CONTENIDO-CAFE-TIENDA-
+// SLUG-TRUSTBADGES-1`). Vivían como un array LITERAL en `app/(storefront)/tienda/[slug]/page.tsx`,
+// distinto y aparte de `TrustBadges`/`content.trustBadges` — mismo defecto café-shape, otra
+// superficie. TRES textos de cardinalidad FIJA (la ficha es 3 filas fijas), gemela EXACTA de
+// `TrustBadgesContent` en forma: `badgeNIcono` opcional, default `''`, mismo motivo (arriba).
+// `ocultable:false`: la ficha de producto siempre muestra sus tres garantías, sin toggle.
+export interface ProductoBadgesContent {
+  visible: boolean;
+  badge1: string;
+  badge1Icono: string;
+  badge2: string;
+  badge2Icono: string;
+  badge3: string;
+  badge3Icono: string;
 }
 
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
@@ -356,6 +386,7 @@ export interface MicrocopyContent {
 export interface SiteContentData {
   hero: HeroContent;
   trustBadges: TrustBadgesContent;
+  productoBadges: ProductoBadgesContent;
   brandStory: BrandStoryContent;
   presentaciones: PresentacionesContent;
   subscriptionCTA: SubscriptionCTAContent;
@@ -496,12 +527,23 @@ export const DEFAULTS: SiteContentData = {
   // DEFAULT NEUTRO (§ CONTENIDO-CAFE-A-DATO-B-1, opción B del owner): genérico, sin mención de café
   // ni de ningún rubro — el café real de Nayoli entra por el SEMBRADO (`prisma/sembrar-copy-
   // nayoli.ts`), no por acá. TERMINOS_PROHIBIDOS (site-content-defaults.test.ts) verde.
+  // `badgeNIcono` en `''` (§ CONTENIDO-CAFE-A-DATO-B-EXT-1): el render (`iconoBadge('')`) cae al
+  // ícono NEUTRO, nunca a `Coffee`. El sembrado de Nayoli pone los nombres reales.
   trustBadges: {
     visible: true,
-    badge1: 'Origen 100% verificado',
-    badge2: 'Calidad revisada cada semana',
-    badge3: 'Envío a todo el país',
-    badge4: 'Garantía de satisfacción',
+    badge1: 'Origen 100% verificado', badge1Icono: '',
+    badge2: 'Calidad revisada cada semana', badge2Icono: '',
+    badge3: 'Envío a todo el país', badge3Icono: '',
+    badge4: 'Garantía de satisfacción', badge4Icono: '',
+  },
+  // DEFAULT NEUTRO (§ CONTENIDO-CAFE-A-DATO-B-EXT-1): las tres garantías de la ficha de producto, sin
+  // mención de café ni de ningún rubro (ni "Colombia", ni un monto fijo de envío gratis — esos eran
+  // detalles del negocio real de Nayoli). El café real entra por el SEMBRADO, como trustBadges.
+  productoBadges: {
+    visible: true,
+    badge1: 'Envío disponible a todo el país', badge1Icono: '',
+    badge2: 'Garantía de cambios y devoluciones', badge2Icono: '',
+    badge3: 'Revisión de calidad antes de cada envío', badge3Icono: '',
   },
   brandStory: {
     visible: true,
@@ -807,12 +849,30 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   trustBadges: {
     label: 'Confianza',
     ocultable: false,
-    // Sin `imagenes`: los cuatro íconos son ESTRUCTURA (por posición, en el componente), no blobs.
+    // Sin `imagenes`: los íconos son un NOMBRE de un set cerrado (§ badge-iconos.ts), no un blob.
+    // `badgeNIcono` opcional, default `''` (§ TrustBadgesContent, arriba): el render clampa.
     campos: {
       badge1: 'requerido',
+      badge1Icono: 'opcional',
       badge2: 'requerido',
+      badge2Icono: 'opcional',
       badge3: 'requerido',
+      badge3Icono: 'opcional',
       badge4: 'requerido',
+      badge4Icono: 'opcional',
+    },
+  },
+  productoBadges: {
+    label: 'Confianza (ficha de producto)',
+    ocultable: false,
+    // Gemela de `trustBadges`: sin `imagenes`, `badgeNIcono` opcional con default `''`.
+    campos: {
+      badge1: 'requerido',
+      badge1Icono: 'opcional',
+      badge2: 'requerido',
+      badge2Icono: 'opcional',
+      badge3: 'requerido',
+      badge3Icono: 'opcional',
     },
   },
   brandStory: {

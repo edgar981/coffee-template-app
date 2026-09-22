@@ -8,6 +8,14 @@
 // `DEFAULTS.trustBadges`/`DEFAULTS.microcopy`). Este script es lo que le devuelve a NAYOLI su copy
 // café real, como DATO — nunca vuelve a vivir en el código.
 //
+// EXTENDIDO en § CONTENIDO-CAFE-A-DATO-B-EXT-1 con los DOS últimos reductos café, para que el
+// sembrado sobre la base viva de Nayoli sea UNA sola corrida: los ÍCONOS de `TrustBadges`
+// (`badgeNIcono`, antes ESTRUCTURA por posición — Leaf/Coffee/Truck/Shield — ahora DATO, un NOMBRE
+// del set cerrado de `components/storefront/badge-iconos.ts`) y la SEXTA superficie que la tanda B-1
+// dejó fuera de alcance a propósito (`CONTENIDO-CAFE-TIENDA-SLUG-TRUSTBADGES-1`): los TRES badges de
+// la ficha de producto (`productoBadges`, texto + ícono), que vivían como un array literal aparte en
+// `app/(storefront)/tienda/[slug]/page.tsx`.
+//
 // LAS DOS GUARDAS DE ESCRITURA, MISMO MOLDE que `prisma/aplicar-preset.ts` (el precedente exacto:
 // un script genérico que reescribe contenido de una tienda, corrido contra la base equivocada, le
 // cambia el sitio a un cliente vivo sin que nadie lo note hasta que llama):
@@ -21,10 +29,11 @@
 //      no es un `--force` ciego, es la MISMA comprobación por otro canal.
 //
 // IDEMPOTENTE: correrlo dos veces deja el MISMO estado — `mergeCopyNayoliEnContent` es una función
-// PURA del `content` actual + las 10 cadenas fijas, sin acumular (mismo criterio que
-// `mergePresetEnContent`/`aplicarPreset`). Sólo toca `trustBadges` y `microcopy`; el resto de
-// `content` (hero, brandStory, tema, orden…) queda intacto — el spread preserva cualquier otro
-// campo que esas dos secciones ya tuvieran (p. ej. `trustBadges.visible`, si algún día se edita).
+// PURA del `content` actual + las cadenas/nombres fijos, sin acumular (mismo criterio que
+// `mergePresetEnContent`/`aplicarPreset`). Sólo toca `trustBadges`, `productoBadges` y `microcopy`;
+// el resto de `content` (hero, brandStory, tema, orden…) queda intacto — el spread preserva
+// cualquier otro campo que esas tres secciones ya tuvieran (p. ej. `trustBadges.visible`, si algún
+// día se edita).
 //
 // Uso (necesita DATABASE_URL del entorno — tsx no carga .env solo):
 //   npx tsx --env-file=.env prisma/sembrar-copy-nayoli.ts
@@ -44,14 +53,23 @@ import { pathToFileURL } from "node:url";
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
-// Las DIEZ cadenas que este slice sacó de los componentes, BYTE A BYTE (el copy real de Nayoli,
-// medido contra el código antes de este slice — § el asiento en DECISIONS.md).
+// Las VEINTE cadenas que este slice + su extensión sacaron de los componentes, BYTE A BYTE (el
+// copy real de Nayoli, medido contra el código antes de tocarlo — § el asiento en DECISIONS.md).
+// Los `badgeNIcono` son NOMBRES del set cerrado de `components/storefront/badge-iconos.ts`
+// (`NOMBRES_ICONO_BADGE`), no texto libre: el orden Leaf/Coffee/Truck/Shield de `TrustBadges.tsx`
+// (antes ESTRUCTURA por posición) y Truck/RotateCcw/CheckCircle de la ficha de producto (antes un
+// array literal en `[slug]/page.tsx`), preservado byte a byte.
 export const COPY_NAYOLI = {
   trustBadges: {
-    badge1: "Origen 100% colombiano",
-    badge2: "Tostado artesanal semanal",
-    badge3: "Envío a todo el país",
-    badge4: "Garantía de frescura",
+    badge1: "Origen 100% colombiano", badge1Icono: "leaf",
+    badge2: "Tostado artesanal semanal", badge2Icono: "coffee",
+    badge3: "Envío a todo el país", badge3Icono: "truck",
+    badge4: "Garantía de frescura", badge4Icono: "shield",
+  },
+  productoBadges: {
+    badge1: "Envío a todo Colombia · Gratis +$150.000", badge1Icono: "truck",
+    badge2: "Garantía de frescura de 30 días", badge2Icono: "rotate",
+    badge3: "Tostado dentro de los 7 días previos al envío", badge3Icono: "check",
   },
   microcopy: {
     navBuscarPlaceholder: "Buscar café, origen, categoría...",
@@ -65,18 +83,20 @@ export const COPY_NAYOLI = {
 
 /**
  * EL MERGE QUIRÚRGICO, puro (§ precedente `mergePresetEnContent`, themes.ts). Sólo reemplaza los
- * campos de TEXTO de `trustBadges`/`microcopy`; preserva cualquier otro campo que esas dos
- * secciones ya tuvieran (p. ej. `trustBadges.visible` si algún día se edita) y CUALQUIER otra
- * sección de `content` (hero, brandStory, tema, orden…), intacta. Aplicarlo dos veces sobre su
- * propio resultado da el MISMO `content` — no acumula, no duplica.
+ * campos de TEXTO/ÍCONO de `trustBadges`/`productoBadges`/`microcopy`; preserva cualquier otro
+ * campo que esas tres secciones ya tuvieran (p. ej. `trustBadges.visible` si algún día se edita) y
+ * CUALQUIER otra sección de `content` (hero, brandStory, tema, orden…), intacta. Aplicarlo dos
+ * veces sobre su propio resultado da el MISMO `content` — no acumula, no duplica.
  */
 export function mergeCopyNayoliEnContent(content: unknown): Record<string, unknown> {
   const c = esObj(content) ? content : {};
   const trustBadgesPrevio = esObj(c.trustBadges) ? c.trustBadges : {};
+  const productoBadgesPrevio = esObj(c.productoBadges) ? c.productoBadges : {};
   const microcopyPrevio = esObj(c.microcopy) ? c.microcopy : {};
   return {
     ...c,
     trustBadges: { ...trustBadgesPrevio, ...COPY_NAYOLI.trustBadges },
+    productoBadges: { ...productoBadgesPrevio, ...COPY_NAYOLI.productoBadges },
     microcopy: { ...microcopyPrevio, ...COPY_NAYOLI.microcopy },
   };
 }
@@ -141,7 +161,10 @@ async function main() {
   }
 
   console.log(`→ Vas a sembrar el copy café de Nayoli sobre: ${settings.nombre}`);
-  console.log("→ Secciones afectadas: trustBadges (4 textos), microcopy (6 textos) — 10 cadenas en total.");
+  console.log(
+    "→ Secciones afectadas: trustBadges (4 textos + 4 íconos), productoBadges (3 textos + 3 íconos), " +
+      "microcopy (6 textos) — 20 cadenas en total.",
+  );
 
   const desdeEnv = process.env.CONFIRMAR_TENANT;
   let valorIngresado: string;
@@ -174,8 +197,8 @@ async function main() {
 }
 
 // GATE DE ENTRYPOINT (mismo mecanismo que `prisma/aplicar-preset.ts`): `main()` sólo corre cuando
-// este archivo es el ejecutado directo, nunca cuando `lib/config/copy-b.test.ts` importa
-// `mergeCopyNayoliEnContent`/`confirmacionValida`/`conexionVisible` para probarlas en aislamiento.
+// este archivo es el ejecutado directo, nunca cuando `lib/config/copy-b.test.ts`/`copy-b-ext.test.ts`
+// importan `mergeCopyNayoliEnContent`/`confirmacionValida`/`conexionVisible` para probarlas en aislamiento.
 // Comparación por `pathToFileURL`, no por string crudo: `import.meta.url` percent-codifica espacios
 // (este repo vive bajo una ruta con espacios) y `process.argv[1]` no.
 const esEntryPoint = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;

@@ -43,15 +43,34 @@ const heroEditableSchema = z.object({
   { message: 'Un hero de video necesita un póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenPoster'] },
 );
 
-// TrustBadges (§ CONTENIDO-CAFE-A-DATO-B-1): cuatro textos de cardinalidad FIJA, uno por ícono
-// (los íconos son estructura, no se editan). Todo opcional/SOFT, como el resto: el resolver aplica
-// el default NEUTRO a lo que venga vacío.
+// TrustBadges (§ CONTENIDO-CAFE-A-DATO-B-1, íconos extendidos en § CONTENIDO-CAFE-A-DATO-B-EXT-1):
+// cuatro textos de cardinalidad FIJA + su ícono (`badgeNIcono`, un NOMBRE de un set cerrado —
+// `components/storefront/badge-iconos.ts`—, NO un componente). Todo opcional/SOFT, como el resto:
+// el resolver aplica el default NEUTRO (`''`) a lo que venga vacío; el CLAMP al set cerrado lo hace
+// el RENDER (`iconoBadge`), no este schema — `z.string()` porque, igual que `variante`, es sólo el
+// TIPO lo que se valida acá.
 const trustBadgesEditableSchema = z.object({
   visible: z.boolean().optional(),
   badge1: z.string().optional(),
+  badge1Icono: z.string().optional(),
   badge2: z.string().optional(),
+  badge2Icono: z.string().optional(),
   badge3: z.string().optional(),
+  badge3Icono: z.string().optional(),
   badge4: z.string().optional(),
+  badge4Icono: z.string().optional(),
+});
+
+// Los badges de la FICHA de producto (§ CONTENIDO-CAFE-A-DATO-B-EXT-1). Gemela EXACTA de
+// `trustBadgesEditableSchema`: TRES textos de cardinalidad FIJA + su ícono, mismo molde SOFT.
+const productoBadgesEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  badge1: z.string().optional(),
+  badge1Icono: z.string().optional(),
+  badge2: z.string().optional(),
+  badge2Icono: z.string().optional(),
+  badge3: z.string().optional(),
+  badge3Icono: z.string().optional(),
 });
 
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
@@ -261,6 +280,7 @@ const variantesBandasEditableSchema = z.record(z.string(), z.string());
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   trustBadges: trustBadgesEditableSchema.optional(),
+  productoBadges: productoBadgesEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   presentaciones: presentacionesEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),

@@ -11,9 +11,6 @@ import {
   Minus,
   Plus,
   Heart,
-  Truck,
-  RotateCcw,
-  CheckCircle,
 } from "lucide-react";
 
 import { motion } from "framer-motion";
@@ -31,6 +28,8 @@ import { formatCOP } from "@duna/core/utils";
 import { TOSTION_LABELS } from "@/constants/roast-levels";
 import Chip from "@/components/storefront/ProductChip";
 import { galeriaCompleta } from "@duna/core/product-gallery";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { iconoBadge } from "@/components/storefront/badge-iconos";
 
 interface ProductPageProps {
   params: Promise<{
@@ -42,6 +41,10 @@ export default function ProductPage({
   params,
 }: ProductPageProps) {
   const { slug } = use(params);
+
+  // Los badges de garantías de la ficha (§ CONTENIDO-CAFE-A-DATO-B-EXT-1, cierra `CONTENIDO-CAFE-
+  // TIENDA-SLUG-TRUSTBADGES-1`): antes un array literal café-shape; ahora DATO, gemelo de TrustBadges.
+  const { productoBadges } = useSiteContent();
 
   // Fuente única: catálogo público desde la DB (memoizado en lib/api).
   const [catalog, setCatalog] = useState<Product[] | null>(null);
@@ -364,11 +367,18 @@ export default function ProductPage({
 
               {/* Shipping Perks */}
               <div className="flex flex-col gap-2 pt-2">
-                {[{ icon: Truck, text: 'Envío a todo Colombia · Gratis +$150.000' }, { icon: RotateCcw, text: 'Garantía de frescura de 30 días' }, { icon: CheckCircle, text: 'Tostado dentro de los 7 días previos al envío' }].map(({ icon: Icon, text }) => (
-                  <div key={text} className="flex items-center gap-2 text-xs text-[var(--sf-texto)]">
-                    <Icon className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0" /> {text}
-                  </div>
-                ))}
+                {[
+                  { text: productoBadges.badge1, icono: productoBadges.badge1Icono },
+                  { text: productoBadges.badge2, icono: productoBadges.badge2Icono },
+                  { text: productoBadges.badge3, icono: productoBadges.badge3Icono },
+                ].map(({ text, icono }) => {
+                  const Icon = iconoBadge(icono);
+                  return (
+                    <div key={text} className="flex items-center gap-2 text-xs text-[var(--sf-texto)]">
+                      <Icon className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0" /> {text}
+                    </div>
+                  );
+                })}
               </div>
             </div>
         </div>

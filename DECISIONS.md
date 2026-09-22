@@ -9048,3 +9048,211 @@ campo del MODELO está en el schema editable" — la regresión de #65-B, que ha
   Este slice es una SEGUNDA excepción de la misma forma —cinco superficies más, cerradas antes del
   disparador general, por decisión puntual del owner (B sobre A)— y § 63 no la nombra todavía. Es
   trabajo de doctrina, fuera de `touches:` (que no incluye `CLAUDE.md`).
+
+## 2026-09-22 · Los DOS últimos reductos café pasan a DATO — íconos incluidos; el sembrado sigue SIN correr (`CONTENIDO-CAFE-A-DATO-B-EXT-1`)
+
+**Por qué:** el owner (2026-09-22) pidió meter los dos hallazgos que `CONTENIDO-CAFE-A-DATO-B-1`
+dejó como open follow-ups DENTRO de la misma tanda, no como una tanda propia: cada neutralización
+diferida obliga a OTRO sembrado sobre la base viva de Nayoli, con su propia ronda de capturas del
+owner. Una corrida que lo cubre todo cuesta menos que tres. **Cierra `CONTENIDO-CAFE-TIENDA-SLUG-
+TRUSTBADGES-1`** (la sexta franja de garantías, aparte de `TrustBadges`, que B-1 dejó fuera de
+alcance a propósito) **y `CONTENIDO-CAFE-ICONO-COFFEE-1`** (el ícono `Coffee` seguía siendo
+ESTRUCTURA fija por posición, delatando la vertical aunque el texto ya fuera neutro).
+
+### 1 · Los dos reductos, medidos contra el código antes de tocarlo
+
+| Reducto | Archivo | Qué era |
+| --- | --- | --- |
+| (A) Badges de la ficha | `app/(storefront)/tienda/[slug]/page.tsx:367` | Array LITERAL de 3 `{icon, text}` — "Envío a todo Colombia · Gratis +$150.000" (Truck), "Garantía de frescura de 30 días" (RotateCcw), "Tostado dentro de los 7 días previos al envío" (CheckCircle) |
+| (B) Íconos de TrustBadges | `components/storefront/home/TrustBadges.tsx` | `const ICONOS = [Leaf, Coffee, Truck, Shield]`, ESTRUCTURA por posición — el texto ya era dato (B-1), el ícono no |
+
+Los TRES textos de (A) confirmados byte a byte contra la fuente antes de moverlos (coinciden con lo
+que el open follow-up de B-1 ya citaba).
+
+### 2 · El modelo: `productoBadges` gemela de `trustBadges`; el ícono es un NOMBRE, no un componente
+
+**`productoBadges` entra como SECCIÓN nueva** (`SiteContentData`/`REGISTRY`/`DEFAULTS`), gemela
+EXACTA de `trustBadges` en forma: TRES campos de texto `requerido` (cardinalidad FIJA — la ficha es
+3 filas fijas), `ocultable:false` (la ficha siempre muestra sus tres garantías, sin toggle en el
+editor). Entra al loop genérico de `resolverSiteContent` sin tocar una línea de esa función —el
+mismo mecanismo que ya dejó `trustBadges` listo en B-1—.
+
+**El ÍCONO se modela como `badgeNIcono: string`, campo `opcional` con DEFAULT `''`, NO por el
+mecanismo `escalares`/`resolverVariante` que ya usan `hero.variante`/`hero.imagenTipo`.** Es una
+DESVIACIÓN del patrón obvio que el spec sugería ("mapa nombre→lucide... como HERO_HREFS"), y vale
+explicar el porqué porque no es evidente hasta que se mide contra el código:
+
+- `resolverVariante` exige que el DEFAULT sea un miembro NOMBRADO del set cerrado (`def.canonica`,
+  un string real como `'curtina'`). Con CUATRO campos de ícono en `trustBadges` + TRES en
+  `productoBadges` = 7 slots, un solo nombre canónico repetido 7 veces en `DEFAULTS` colisiona con
+  `site-content-defaults.test.ts` → `'DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre
+  campos distintos'` — un test GENÉRICO, fuera de `touches:`, que camina `DEFAULTS` completo y
+  falla ante cualquier string no-vacío repetido en más de un path.
+- Intentarlo con SIETE nombres canónicos DISTINTOS (uno por slot, todos "neutrales") reintroduce el
+  problema por la puerta de atrás: para que sean 7 strings distintos y ninguno sea café, hacen falta
+  7 miembros no-café en el set cerrado — y con sólo 6 miembros totales (leaf/coffee/truck/shield/
+  rotate/check), completar 7 DEFAULTS únicos sin repetir NINGUNO fuerza a usar TAMBIÉN `'leaf'` o
+  `'coffee'` como default en algún slot — exactamente lo que el spec pide evitar (el DEFAULT antes
+  de cualquier dato no puede delatar la vertical). Agrandar el set cerrado con íconos neutros de
+  relleno (star/sparkle/clock…) sólo para llenar 7 defaults distintos es complejidad sin producto
+  real detrás.
+- `''` **resuelve las dos restricciones a la vez**: el catcher de duplicados EXCLUYE explícitamente
+  la cadena vacía (`if (val.trim() === '' ...) continue`, igual que ya excluye las rutas de imagen),
+  y `campos: 'opcional'` no entra al catcher de `REQUERIDO_VACIO_PERMITIDO` (ese test sólo audita
+  campos `requerido`). El CLAMP real —"un nombre fuera del set cae al neutro, nunca a error"— se
+  mueve al RENDER (`iconoBadge('')` → `BadgeCheck`), que es donde vive de todos modos la decisión
+  de QUÉ ES un ícono válido (el modelo de `SiteContent` es PURO, sin React).
+
+**El mapa nombre→lucide SÍ se declara UNA VEZ**, tal como pide el spec — sólo que vive en
+`components/storefront/badge-iconos.ts` (nuevo), no en `lib/config/site-content-defaults.ts`: ese
+archivo es PURO (su propio encabezado lo dice: "sin prisma, sin server-only"), y el mapa necesita
+`lucide-react` (componentes React), así que va donde vive el render — el mismo criterio que separa
+`lib/config/fuentes.ts` (CSS puro) de sus consumidores en `components/`. `NOMBRES_ICONO_BADGE` (el
+set cerrado, 6 nombres: `leaf|coffee|truck|shield|rotate|check`) y `iconoBadge(nombre)` (la función
+que clampa, `nunca lanza`) son las DOS exportaciones; `TrustBadges.tsx` y `[slug]/page.tsx` importan
+la MISMA función — no pueden divergir sobre qué ícono corresponde a qué nombre.
+
+**El schema (`site-content-schema.ts`) queda SOFT, como el resto**: `badgeNIcono: z.string()
+.optional()`, sin `z.enum` — el clamp real vive en el render, no en la escritura; es el mismo
+criterio que ya aplica `hero.variante`/`presentaciones.categoriaN` (`z.string()` porque el resolver/
+render son quienes deciden qué es válido, el schema sólo valida el TIPO).
+
+### 3 · El sembrado — extendido, MISMAS guardas, sigue SIN correr
+
+`prisma/sembrar-copy-nayoli.ts` se EXTENDIÓ (no se reescribió): `COPY_NAYOLI` gana `productoBadges`
+(3 textos + 3 nombres de ícono) y los 4 `badgeNIcono` de `trustBadges` (preservando el orden
+Leaf→Coffee→Truck→Shield de siempre, ahora como nombres `leaf/coffee/truck/shield`);
+`mergeCopyNayoliEnContent` gana una tercera rama de merge quirúrgico (`productoBadges`), con el
+MISMO patrón preservar-lo-ajeno que ya tenían `trustBadges`/`microcopy`. Las DOS guardas de
+escritura (imprimir host+base+nombre del tenant, exigir confirmación exacta) no se tocaron —siguen
+intactas, sin abrir una segunda vía—.
+
+**LA LISTA COMPLETA Y FINAL de lo que este sembrado va a escribir, UNA sola corrida, para que el
+owner apruebe correrla:**
+
+**`trustBadges` (4 badges · 8 campos):**
+1. `badge1` = `"Origen 100% colombiano"`
+2. `badge1Icono` = `"leaf"`
+3. `badge2` = `"Tostado artesanal semanal"`
+4. `badge2Icono` = `"coffee"`
+5. `badge3` = `"Envío a todo el país"`
+6. `badge3Icono` = `"truck"`
+7. `badge4` = `"Garantía de frescura"`
+8. `badge4Icono` = `"shield"`
+
+**`productoBadges` (3 badges · 6 campos):**
+9. `badge1` = `"Envío a todo Colombia · Gratis +$150.000"`
+10. `badge1Icono` = `"truck"`
+11. `badge2` = `"Garantía de frescura de 30 días"`
+12. `badge2Icono` = `"rotate"`
+13. `badge3` = `"Tostado dentro de los 7 días previos al envío"`
+14. `badge3Icono` = `"check"`
+
+**`microcopy` (6 campos, SIN cambios respecto de B-1):**
+15. `navBuscarPlaceholder` = `"Buscar café, origen, categoría..."`
+16. `tiendaSubtitulo` = `"Origen colombiano"`
+17. `tiendaBuscarPlaceholder` = `"Buscar café..."`
+18. `carritoVacioTexto` = `"Explora nuestros productos y agrega tu café favorito."`
+19. `rastreoPagadoDesc` = `"Hemos confirmado tu pago y preparamos tu café."`
+20. `rastreoEntregadoDesc` = `"Pedido entregado. ¡Disfruta tu café!"`
+
+**VEINTE cadenas en total** (14 nuevas de esta tanda + las 6 de `microcopy` que B-1 ya dejó
+guardadas y sin tocar). `console.log` de `main()` actualizado para nombrar las tres secciones y el
+total.
+
+**ESTE SCRIPT SIGUE SIN CORRERSE.** La aprobación del owner sobre este slice autoriza la ESCRITURA
+del código (los defaults neutros de las dos secciones + la extensión del sembrado), NUNCA el MERGE
+de la rama ni correr el sembrado — los dos son pasos del OWNER, después de este slice.
+
+### 4 · La invariante, probada EN MEMORIA (`lib/config/copy-b-ext.test.ts`, 14 tests, verde)
+
+Extiende `copy-b.test.ts` (que sigue intacto y sigue verde, sin tocarlo) con las dos superficies
+nuevas:
+
+- **TERMINOS_PROHIBIDOS** sobre `DEFAULTS.trustBadges` (con sus 4 campos de ícono) y
+  `DEFAULTS.productoBadges`: neutro, sin café ni Nayoli.
+- **El set cerrado de íconos**: `iconoBadge('leaf'|'coffee'|'truck'|'shield'|'rotate'|'check')`
+  resuelve al componente lucide correcto (igualdad REFERENCIAL contra el import directo de
+  `lucide-react`, no una inspección de HTML); `iconoBadge('')` (el default), un nombre BASURA
+  (`'taza-humeante'`), el nombre del COMPONENTE en vez del nombre del dato (`'Coffee'` con mayúscula
+  — no es un miembro del set, que usa `'coffee'`), `undefined` y `null` caen TODOS al neutro
+  (`BadgeCheck`), sin lanzar.
+- **Capa de datos**: `resolverSiteContent(undefined)` da `DEFAULTS.trustBadges`/
+  `DEFAULTS.productoBadges` exactos, con los 4/3 `badgeNIcono` en `''`;
+  `resolverSiteContent(mergeCopyNayoliEnContent({}))` da `{visible:true, ...COPY_NAYOLI.trustBadges}`
+  / `{visible:true, ...COPY_NAYOLI.productoBadges}` exactos (deep-equal, texto Y nombre de ícono).
+- **Render EN MEMORIA de `TrustBadges` — el ÍCONO EFECTIVAMENTE RENDERIZADO, no sólo el texto**:
+  se extrae con regex el `class="lucide lucide-<nombre>"` real del HTML (`renderToStaticMarkup`) y
+  se afirma la secuencia completa. Sin `content`: las CUATRO franjas rinden `lucide-badge-check`
+  (nunca `lucide-coffee`). Con el sembrado simulado: `lucide-leaf, lucide-coffee, lucide-truck,
+  lucide-shield`, en el orden badge1→4 — el mismo orden que el `TrustBadges.tsx` de ANTES de este
+  slice tenía hardcodeado por posición, ahora reproducido por dato.
+- **Reproducción de `[slug]/page.tsx` (mismo ALCANCE declarado que /tienda y /rastrear-pedido en
+  copy-b.test.ts)**: el archivo usa `use(params)` + `getCatalog()` (fetch real), no renderizable
+  bare sin un mock de router/red que este repo no instala. Se reproduce la expresión EXACTA del
+  bloque "Shipping Perks" (el mismo `.map` con `iconoBadge`) como función pura y se renderiza EN
+  MEMORIA: sin sembrado, las tres frases neutras con ícono `lucide-badge-check`; con el sembrado,
+  las tres frases de Nayoli byte a byte con `lucide-truck, lucide-rotate-ccw,
+  lucide-circle-check-big` — el nombre de clase real de `CheckCircle` en `lucide-react@1.16.0` (se
+  MIDIÓ, no se asumió: `CheckCircle` no renderiza `lucide-check`, sino `lucide-circle-check-big`; el
+  NOMBRE del dato sigue siendo `'check'`, que es lo que importa para el set cerrado — la clase CSS
+  es un detalle de implementación del componente).
+- **Idempotencia y preservación**: `mergeCopyNayoliEnContent` aplicado dos veces sobre las TRES
+  secciones (trustBadges/productoBadges/microcopy) da el mismo resultado; preserva `visible` y
+  cualquier campo ajeno que esas secciones ya tuvieran.
+- **Completitud del sembrado**: `COPY_NAYOLI.trustBadges` tiene exactamente 8 valores,
+  `COPY_NAYOLI.productoBadges` exactamente 6, ninguno vacío; los 7 nombres de ícono sembrados son
+  TODOS miembros reales de `NOMBRES_ICONO_BADGE` (nunca basura escrita a la base).
+
+### Gate
+
+`npm run typecheck` limpio (0 errores). `npm run gate` sobre el árbol final:
+
+| Carril | Resultado |
+| --- | --- |
+| `npm test` (capa 1) | **1505/1505** (1491 de B-1 + 14 nuevos de `copy-b-ext.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208**, sin cambio — este slice no toca schema, migraciones ni ninguna cadena del motor |
+
+Se corrieron también, antes del gate completo, los archivos existentes que el cambio de modelo
+podía romper (`copy-b.test.ts`, `site-content-defaults.test.ts` — incluida `'todo campo del MODELO
+está en el schema editable'`, la regresión de #65-B que habría fallado si `productoBadges` o los
+`badgeNIcono` se declaraban en `REGISTRY` sin su entrada en `siteContentEditableSchema` —,
+`site-content-schema.test.ts`, `site-content-blobs.test.ts`, `themes.test.ts`): **todos verdes antes
+del gate completo**, cero regresión.
+
+### Deviations
+
+- **El ícono NO usa `escalares`/`resolverVariante`** (el patrón que `hero.variante`/`hero.imagenTipo`
+  ya establecían, y el que el spec sugería con la analogía a `HERO_HREFS`). Medido ANTES de escribir
+  el modelo: ese mecanismo exige un nombre canónico real por slot, y con 7 slots de ícono eso
+  colisiona con el catcher de duplicados exactos de `site-content-defaults.test.ts` (fuera de
+  `touches:`, no se puede editar) o fuerza a usar `'leaf'`/`'coffee'` como default en algún slot (lo
+  que el spec pide evitar). Se usó `campos: 'opcional'` con default `''` en su lugar —el clamp real
+  se hace en el RENDER (`iconoBadge`), no en el resolver de contenido— que cumple la MISMA garantía
+  observable ("un nombre fuera del set cae al neutro, nunca a error") sin la colisión. Ver §2 para
+  el razonamiento completo.
+- **`lucide-react@1.16.0` renderiza `CheckCircle` como `lucide-circle-check-big`**, no
+  `lucide-check` (medido, no asumido) — el test de la reproducción de `[slug]/page.tsx` lo afirma
+  con el nombre de clase REAL, no con el que un lector asumiría por el nombre del componente.
+
+### Open follow-ups
+
+- **`CONTENIDO-CAFE-TIENDA-SLUG-TRUSTBADGES-1` — CERRADO.** Los tres badges de la ficha de producto
+  pasaron a `productoBadges`, DATO con default neutro.
+- **`CONTENIDO-CAFE-ICONO-COFFEE-1` — CERRADO.** El ícono `Coffee` dejó de ser estructura por
+  posición en `TrustBadges.tsx`; es DATO (`badgeNIcono`), con default neutro (`''` → `BadgeCheck`,
+  nunca `Coffee`).
+- `CLAUDE-MD-PUNTERO-VENCIDO-SITE-CONTENT-DEFAULTS-411-1` (abierto por B-1): el puntero de línea a
+  `lib/config/site-content-defaults.ts:411` en `CLAUDE.md:1900` sigue vencido, y este slice lo corre
+  AÚN MÁS lejos (insertó ~110 líneas nuevas antes de ese punto: las interfaces `TrustBadgesContent`
+  extendida + `ProductoBadgesContent`, la clave `productoBadges` en `SiteContentData`, y sus entradas
+  en `DEFAULTS`/`REGISTRY`). La AFIRMACIÓN sigue siendo cierta (`hero.titulo` sigue siendo "Productos
+  que cuentan", sin café ni Nayoli); sólo el número de línea del puntero se alejó más. No se corrige
+  acá —`CLAUDE.md` está fuera de `touches:`—, se deja anotado para que quien lo toque la próxima vez
+  tenga la medición fresca.
+- Grep de `CLAUDE.md` contra todo lo que este diff cambió (`TrustBadges`, `trustBadges`,
+  `productoBadges`, `CONTENIDO-CAFE-*`, `sembrar-copy-nayoli`, `badge-iconos`): CERO apariciones,
+  salvo `/tienda/[slug]` en § Backlog #59 ("Los ATRIBUTOS café del producto"), que describe los
+  Chips de ficha técnica (`origen`/`variedad`/`proceso`/`tostado`/`notas`/`molienda`, columnas reales
+  de `Product`) — una superficie DISTINTA de la que este slice tocó (el bloque "Shipping Perks", sin
+  relación con esos atributos). La sentencia de #59 sigue siendo cierta sin cambios.

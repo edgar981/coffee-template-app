@@ -1,16 +1,7 @@
 "use client";
 
-import {
-  Leaf,
-  Coffee,
-  Truck,
-  Shield,
-} from "lucide-react";
-
 import { DEFAULTS, type TrustBadgesContent } from "@/lib/config/site-content-defaults";
-
-// Los ÍCONOS son ESTRUCTURA fija por posición (§ REGISTRY.trustBadges): sólo el TEXTO es dato.
-const ICONOS = [Leaf, Coffee, Truck, Shield] as const;
+import { iconoBadge } from "@/components/storefront/badge-iconos";
 
 // El ícono y el label se apoyan DIRECTO en el fondo de la banda (`--sf-banda`, crema por defecto) —
 // NO están dentro de una tarjeta —, así que van `--sf-sobre-banda` con el literal de hoy como
@@ -25,14 +16,19 @@ const ICONOS = [Leaf, Coffee, Truck, Shield] as const;
 // providers). Sin prop (ese caso) cae al DEFAULT NEUTRO — inerte, no navegable, no importa qué diga.
 export default function TrustBadges({ style, content }: { style?: React.CSSProperties; content?: TrustBadgesContent }) {
   const c = content ?? DEFAULTS.trustBadges;
-  const BADGES = [c.badge1, c.badge2, c.badge3, c.badge4];
+  const BADGES = [
+    { text: c.badge1, icono: c.badge1Icono },
+    { text: c.badge2, icono: c.badge2Icono },
+    { text: c.badge3, icono: c.badge3Icono },
+    { text: c.badge4, icono: c.badge4Icono },
+  ];
   return (
     <section className="sf-divisor-y border-[var(--sf-linea)] bg-[var(--sf-banda,var(--sf-fondo))] py-6" style={style}>
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
           {BADGES.map(
-            (text, i) => {
-              const Icon = ICONOS[i];
+            ({ text, icono }, i) => {
+              const Icon = iconoBadge(icono);
               return (
                 <div
                   key={i}
