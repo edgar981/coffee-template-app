@@ -19,6 +19,35 @@ import { useCartStore } from "@/lib/cartStore";
 import { formatCOP } from "@duna/core/utils";
 import { freeShippingThreshold } from "@duna/core/shipping-config";
 
+// CartTitulo y CartCTA no dependen de useCartStore (el título es fijo; el CTA recibe su onClick por
+// prop) a propósito: § CROMO-CARRITO-TEMATIZADO-1 -- useCartStore es un CONTEXT que revienta sin
+// CartProvider, así que el carril (sin jsdom, sin árbol de Next real) no puede montar <CartDrawer />
+// entero. Extraídos, el carril afirma por RENDER que el título usa la fuente de TÍTULO
+// (`font-playfair` -> `--sf-fuente-titulo`) y el CTA el token de ACCIÓN (`--sf-accion`), sin mockear
+// nada.
+
+export function CartTitulo() {
+  return (
+    <h2 className="font-playfair font-semibold text-[var(--sf-tinta)]">
+      Tu Carrito
+    </h2>
+  );
+}
+
+export function CartCTA({ onClick }: { onClick: () => void }) {
+  return (
+    <Link
+      href="/checkout"
+      onClick={onClick}
+      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] py-3.5 text-sm font-semibold text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tostado-4)]"
+    >
+      Ir al Checkout
+
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  );
+}
+
 export default function CartDrawer() {
   const {
     items,
@@ -69,9 +98,7 @@ export default function CartDrawer() {
               <div className="flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />
 
-                <h2 className="font-semibold text-[var(--sf-tinta)]">
-                  Tu Carrito
-                </h2>
+                <CartTitulo />
 
                 {items.length > 0 && (
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sf-acento)] text-xs text-[var(--sf-acento-txt)]">
@@ -224,15 +251,7 @@ export default function CartDrawer() {
                   </div>
                 </div>
 
-                <Link
-                  href="/checkout"
-                  onClick={closeCart}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-tinta)] py-3.5 text-sm font-semibold text-[var(--sf-sobre)] transition-colors hover:bg-[var(--sf-tinta-2)]"
-                >
-                  Ir al Checkout
-
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                <CartCTA onClick={closeCart} />
 
                 <button
                   onClick={closeCart}

@@ -12463,3 +12463,158 @@ efímera propia, nunca `.env` ni `development`/`production`.
   Aprobado por el owner como estándar del programa (§ `approval-reason` del spec). Este asiento lo
   deja escrito; actualizar cualquier spec-template EXTERNO a este repo (si existe uno en el
   protocolo orquestador) queda fuera del alcance de este slice — no hay tal archivo en `touches:`.
+
+## 2026-09-22 — El carrito consume el tema del tenant: título en la fuente de TÍTULO, CTA en el token de ACCIÓN — global, con captura antes/después de Nayoli y del muestrario (`CROMO-CARRITO-TEMATIZADO-1`)
+
+### Qué cambia, en una frase
+
+`components/storefront/CartDrawer.tsx` tenía los DOS últimos huecos medidos por `CROMO-GLOBAL-
+CENSO-1` (el `observed-report` de este slice): el título («Tu Carrito») usaba `.font-semibold` a
+secas — la fuente de CUERPO, sin rol de fuente — y el CTA («Ir al Checkout») pintaba
+`bg-[var(--sf-tinta)]`/`text-[var(--sf-sobre)]` — el color de TINTA, no el de ACCIÓN. Los dos
+pasan a `font-playfair` (→ `var(--sf-fuente-titulo, 'Playfair Display', serif)`) y a
+`bg-[var(--sf-accion,var(--sf-tostado))]`/`text-[var(--sf-tinta)]`/`hover:bg-[var(--sf-tostado-4)]`
+— EXACTAMENTE el mismo patrón que ya usa el CTA primario de Hero (`HeroCurtina`/`HeroFicha`/
+`HeroMedia`). Es GLOBAL: cambia el carrito de TODOS los tenants, Nayoli incluida — el owner lo
+aprobó viéndolo (§ la captura, abajo), no a ciegas.
+
+### `CartTitulo`/`CartCTA` se EXTRAJERON para que el carril pueda afirmarlo por RENDER
+
+`useCartStore` (`lib/cartStore.tsx`, **fuera de `touches:` de este slice**) es un `useContext` con
+`throw` duro sin `CartProvider` (§ CLAUDE.md, "Montar un componente en OTRO árbol de providers no
+lo atrapa ni tsc ni el build"), y `CartProvider` no tiene forma de sembrar `items`/`isOpen` desde
+afuera — nace vacío y cerrado, sin prop de siembra. Montar `<CartDrawer />` completo en el carril
+(sin jsdom, sin árbol de Next real) es por tanto inalcanzable: se necesitaría mockear el módulo
+(`node:test`'s `mock.module` exige `--experimental-test-module-mocks`, una bandera que `npm test`
+no lleva) o instalar `react-test-renderer` (dependencia nueva) — las dos fuera de lo que este
+slice puede tocar.
+
+La salida: `CartTitulo` (el `<h2>`, fijo, sin dependencia de contexto) y `CartCTA` (el `<Link>`,
+recibe su `onClick` por prop en vez de leerlo de `useCartStore`) se extrajeron como componentes
+con nombre propio, EXPORTADOS, dentro del mismo `CartDrawer.tsx` — mismo marcado, mismas clases,
+mismo texto; `CartDrawer` los consume donde antes tenía el JSX inline. `lib/config/cromo-carrito.
+test.ts` los renderiza con `renderToStaticMarkup` (el mismo mecanismo que ya usa `cromo-
+tematizable.test.ts` para `Logo`) y afirma por HTML real: el `<h2>` sale con `font-playfair`
+primero en la lista de clases, el `<a>` con `--sf-accion`/`--sf-tinta`/`--sf-tostado-4` y SIN
+`--sf-tinta)]`/`--sf-sobre)]`/`--sf-tinta-2)]`. 5 tests, los 5 verdes, corridos dentro de `npm run
+gate` (1718/1718 + 208/208, ver § el gate, abajo).
+
+### El arnés oficial NO soporta abrir un drawer — se extendió por FUERA de `touches:`, en `.scratch/`
+
+`scripts/capturar-seccion.sh`/`.ts` (§ `ARNES-CAPTURA-SECCION-1`) navega y hace `screenshot`; no
+tiene noción de click. El spec preveía exactamente este caso ("si el arnés no soporta abrir un
+drawer, extendelo mínimamente… y decilo"), pero **ni `scripts/capturar-seccion.ts` ni `.sh` están
+en `touches:` de este slice** — y la regla del dispatcher es explícita: un archivo fuera de
+`touches:` no queda cubierto por la aprobación, y no se amplía el alcance por cuenta propia.
+
+La resolución: `.scratch/capturar-carrito.{sh,ts}` (gitignoreado, throwaway) REUSA las piezas del
+arnés oficial —`scripts/postgres-efimero.sh` vía `source`, el MISMO `aplicarPreset` (`lib/config/
+site-content-write.ts`), Playwright instalado AISLADO en el mismo `.arnes-tooling/playwright/`—
+sin tocar el archivo compartido. Queda como **open follow-up** (abajo) que alguien con `scripts/
+capturar-seccion.ts` en su `touches:` le sume soporte de click nativo, para que el próximo slice
+sobre un componente interactivo no tenga que repetir este rodeo.
+
+### Lo que el rodeo destapó, y que no estaba en el guion
+
+1. **`next dev` en este entorno no sirve para esta clase de verificación.** Con `next dev
+   --webpack`, la página recargaba sola cada ~30-40 s (medido: el mensaje de React DevTools
+   repitiéndose en consola) y en NINGUNA de esas cargas el `useEffect` de `FeaturedProductsCuadricula`
+   llegó a disparar `getCatalog()` (medido: `window.performance.getEntriesByType('resource')` daba
+   `[]` para `/api/*`, aun con `routeWebSocket` cortando el WS de HMR y 90 s de polling por
+   `count()`). Es la MISMA familia que CLAUDE.md ya documenta para la propagación de contenido
+   ("dev engaña sobre el modo de render"), un peldaño más abajo: acá dev ni completa la HIDRATACIÓN
+   de un client component below-the-fold. La salida fue `next build` + `next start` (producción
+   real, sin HMR): ahí el catálogo cargó y el botón "Agregar" apareció de inmediato, sin reintentos.
+   **Queda como candidato a nota nueva de CLAUDE.md** (fuera de `touches:` — `CLAUDE.md` no está en
+   la lista de este slice), no se escribe acá.
+2. **CORTE con `featured: 'spotlight'` no ofrece NINGÚN botón "Agregar" en la home** si el producto
+   pineado por el preset no existe en la base (el arnés siembra un único producto mínimo, de id
+   propio). La solución para las tres capturas fue navegar a `/tienda` (el catálogo completo vía
+   `ProductCard`, ajeno a la variante de `featured`) en vez de `/`.
+
+### EL HALLAZGO QUE SOBREVIVE A ESTE SLICE: `--sf-accion` de CORTE mide TAN, no ROJO
+
+`lib/config/themes.ts:551` declara `CORTE.origenAccion = 'acento'` (el fondo de la acción primaria
+nace del ACENTO crudo, `#a70004`, medido contra el prototipo real — `docs/prototipos/cafeone/`, el
+botón "FINALIZAR COMPRA" del carrito del prototipo es rojo oscuro, capturado en
+`.capturas/carrito-cromo-tematizado/prototipo.png`). `mergePresetEnContent` (mismo archivo, ~l.297)
+sí persiste `content.tema.origenAccion: 'acento'` al aplicar el preset — verificado leyendo el
+código, no supuesto.
+
+Pero el valor MEDIDO en el navegador, con el preset CORTE aplicado de verdad (`aplicarPreset`,
+capturado con Chromium real sobre `next start`), es `--sf-accion: #d8a378` — un tostado claro, NO
+el acento rojo — y el CTA del carrito sale tostado en la captura (`app-corte.png`), no rojo. El
+badge de cantidad ("1"), que lee `--sf-acento` (un token DISTINTO, no `--sf-accion`), sí sale rojo
+en la misma captura — así que el acento crudo SÍ llega a la paleta; lo que no llega es la
+derivación específica de `--sf-accion` vía `origenAccion`.
+
+**Esto contradice lo que el spec de este slice afirmaba** ("CTA rojo de acción, `--sf-accion` =
+`#a70004`") — una aserción que el spec no midió contra el navegador, sólo contra el código de
+`themes.ts`. La medición real (browser, con el preset aplicado) gana sobre esa aserción, y se
+reporta como `kind: measured`, no `ledger_claim`. **No se investigó más** — `lib/config/palette-
+derive.ts`, `lib/config/palette-style.ts` y el loader que arma `--sf-accion` en tiempo de render NO
+están en `touches:` de este slice, y diagnosticar por qué `origenAccion` no llega hasta la CSS var
+sería escribir código fuera del alcance aprobado. Queda como open follow-up con la evidencia
+(los tres PNG + `valores.json` en `.capturas/carrito-cromo-tematizado/`) para quien tenga esos
+archivos en su `touches:`.
+
+### Las capturas — con el owner, antes de fusionar cualquier cosa
+
+Corridas contra `next build` + `next start` real, Postgres efímero propio (`.scratch/capturar-
+carrito.sh`, puerto 55441/base `captura_carrito`, el MISMO mecanismo de `postgres-efimero.sh` que
+usa el gate), Chromium headless real (Playwright, instalado aislado). Las tres viven en
+`.capturas/carrito-cromo-tematizado/` (gitignoreado):
+
+- **`app-nayoli-antes.png`** — `CartDrawer.tsx` restaurado a `HEAD` (antes de este slice, byte a
+  byte contra `git show HEAD:…`, salvo el newline final): título sans-serif (`Inter, sans-serif`),
+  CTA fondo `rgb(26, 15, 8)` (`--sf-tinta`) con texto blanco.
+- **`app-nayoli-despues.png`** — el diff de este slice, sin preset (Nayoli, la que corre hoy en
+  producción): título `"Playfair Display", serif`, CTA fondo `rgb(212, 169, 122)` (`--sf-accion`
+  con fallback a `--sf-tostado`, byte-idéntico al valor que Nayoli ya tenía como `--sf-tostado`) con
+  texto `rgb(26, 15, 8)` (`--sf-tinta`).
+- **`app-corte.png`** — el mismo diff, con el preset CORTE aplicado: título `"Roboto Serif", serif`
+  (matching exacto con `--sf-fuente-titulo: 'Roboto Serif', serif`), CTA fondo `rgb(216, 163, 120)`
+  (`--sf-accion` medido — § el hallazgo, arriba, NO el rojo esperado) con texto `rgb(16, 36, 7)`.
+- **`prototipo.png`** — `docs/prototipos/cafeone/index.html`, el carrito real del prototipo, al
+  lado: título serif, CTA "FINALIZAR COMPRA" rojo oscuro, para comparar contra `app-corte.png`.
+- **`valores.json`** — los tres registros completos (los `--sf-*` de `:root` + los computados por
+  elemento) en un solo archivo.
+
+**Qué se ve distinto en el carrito de Nayoli** (para que el owner lo apruebe viéndolo, no a
+ciegas): el título pasa de una tipografía de cuerpo (Inter) a la serif de marca (Playfair Display,
+la misma que ya usan todos los `<h2>` del storefront); el botón "Ir al Checkout" pasa de un fondo
+oscuro (tinta, `#1a0f08`) con texto claro a un fondo cálido (tostado/acento, `#d4a97a`) con texto
+oscuro — el mismo tratamiento que ya tienen los CTA primarios del hero. Ningún otro elemento del
+carrito cambia.
+
+### El gate
+
+`npm run gate` corrido en la tree final (los dos carriles): **1718/1718** (capa 1, `npm test`,
+incluidos los 5 tests nuevos de `lib/config/cromo-carrito.test.ts`) + **208/208** (capa 2, `npm run
+test:integracion`, Postgres efímero del gate — puerto 55432, no el 55441 del arnés de captura).
+Cero fallos. `tsc --noEmit` y `eslint` limpios sobre los dos archivos tocados.
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `components/storefront/CartDrawer.tsx` (el fix global + la extracción `CartTitulo`/
+`CartCTA`), `lib/config/cromo-carrito.test.ts` (nuevo), este asiento. `.scratch/capturar-carrito.
+{sh,ts,tsx}` NO se commitean (gitignoreados) — viven en el disco de quien corrió el slice, no en el
+repo. `scripts/capturar-seccion.{sh,ts}` NO se tocaron, a propósito (§ arriba).
+
+### Open follow-ups
+
+- **`CROMO-CAPTURA-ARNES-CLICK-1`** — `scripts/capturar-seccion.ts` no soporta abrir un drawer
+  (click antes del screenshot). `.scratch/capturar-carrito.ts` lo resolvió por fuera, sin tocar el
+  archivo compartido (fuera de `touches:` de este slice). El próximo slice sobre un componente
+  interactivo repite el rodeo si nadie lo suma al arnés oficial.
+- **`CROMO-CORTE-ACCION-TOSTADO-1`** — `--sf-accion` con el preset CORTE mide `#d8a378` (tostado)
+  en vez del `#a70004` (rojo) que `CORTE.origenAccion = 'acento'` (`lib/config/themes.ts:551`)
+  declara, medido en navegador real contra `next start` (§ el hallazgo, arriba). El acento crudo SÍ
+  llega a la paleta (el badge de cantidad sale rojo); la derivación específica de `--sf-accion` vía
+  `origenAccion` no. `lib/config/palette-derive.ts`/`palette-style.ts` no están en `touches:` de
+  este slice. Evidencia: `.capturas/carrito-cromo-tematizado/{app-corte.png,prototipo.png,
+  valores.json}`.
+- **`CROMO-DEV-HIDRATACION-SPA-1`** — `next dev --webpack` en este entorno no completa la
+  hidratación de un client component below-the-fold (§ arriba, punto 1): candidato a nota nueva de
+  CLAUDE.md sobre el alcance de "dev engaña" — no se escribió porque `CLAUDE.md` no está en
+  `touches:` de este slice.
