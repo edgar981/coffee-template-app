@@ -1,4 +1,4 @@
-// scripts/capturar-seccion.ts — § ARNES-CAPTURA-SECCION-1.
+// scripts/capturar-seccion.ts — § ARNES-CAPTURA-SECCION-1, § ARNES-INVOCABLE-POR-NPM-1.
 //
 // LA MITAD "APLICACIÓN" DEL ARNÉS DE CAPTURA. `scripts/capturar-seccion.sh` (el entrypoint) ya
 // levantó el Postgres efímero, lo migró y exportó DATABASE_URL/DIRECT_DATABASE_URL antes de
@@ -7,15 +7,24 @@
 //   1. aplica el preset pedido sobre la base efímera (`aplicarPreset`, el MISMO runbook que
 //      `prisma/aplicar-preset.ts` usa en producción — no se reescribe el merge quirúrgico);
 //   2. levanta `next dev --webpack` contra esa base;
-//   3. abre Chromium headless (instalado AISLADO, § abajo — nunca como dependencia del repo) y
-//      captura cada ruta del storefront pedida, imprimiendo los valores computados de las CSS
-//      custom properties de tema que esa sección usa;
+//   3. abre Chromium headless (instalado AISLADO, § abajo — nunca como dependencia del repo),
+//      captura cada ruta del storefront pedida — para una captura por SELECTOR, primero scrollea
+//      el elemento al viewport y espera a que su opacidad computada asiente (§ ARNES-INVOCABLE-
+//      POR-NPM-1, cierra `CROMO-ARNES-STAGGER-ANIMACION-1`: sin esto, un elemento envuelto en
+//      `whileInView`/`staggerChildren` de framer-motion sale semi-transparente en el PNG aunque el
+//      color CSS ya esté cableado) — e imprime los valores computados de las CSS custom
+//      properties de tema que esa sección usa;
 //   4. captura la sección correspondiente del prototipo (`docs/prototipos/cafeone/`), lado a lado;
 //   5. apaga `next dev` y deja que `capturar-seccion.sh` se encargue de apagar Postgres.
 //
 // EMPAQUETA LO QUE `WORKER-CAPTURA-HEADLESS-CENSO-1` YA PROBÓ A MANO (navegador headless + base
 // efímera + app real + screenshot real): este archivo no inventa un mecanismo nuevo, ensambla los
 // mismos cuatro pasos en un comando reusable.
+//
+// INVOCACIÓN CANÓNICA: `npm run capturar:seccion -- <flags>` (§ ARNES-INVOCABLE-POR-NPM-1) — corre
+// bajo el tope `npm` que el dispatch de un worker YA concede, sin pedir una aprobación de `bash
+// <script>.sh` que en modo no interactivo nadie puede dar. `bash scripts/capturar-seccion.sh
+// <flags>` sigue funcionando igual para quien corra esto fuera del dispatch (una terminal humana).
 //
 // ─── PLAYWRIGHT ES UNA HERRAMIENTA AISLADA, NUNCA UNA DEPENDENCIA DEL REPO ──────────────────────
 // `touches:` de este slice no incluye `package.json` ni `package-lock.json`, y aunque lo
@@ -70,7 +79,12 @@ interface PlaywrightPage {
   goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
   screenshot(opts: { path: string; fullPage?: boolean }): Promise<Buffer>;
   locator(selector: string): PlaywrightLocator;
-  evaluate<T>(fn: (vars: string[]) => T, arg: string[]): Promise<T>;
+  evaluate<T, Arg = undefined>(fn: (arg: Arg) => T, arg: Arg): Promise<T>;
+  waitForFunction(
+    fn: (arg: string) => boolean,
+    arg: string,
+    opts?: { timeout?: number; polling?: number | "raf" },
+  ): Promise<unknown>;
   waitForTimeout(ms: number): Promise<void>;
   close(): Promise<void>;
 }
@@ -280,6 +294,59 @@ async function esperarListo(url: string, timeoutMs: number): Promise<void> {
   throw new Error(`${url} no respondió en ${timeoutMs}ms (último error: ${String(ultimoError)})`);
 }
 
+// ─── Esperar a que asiente una animación de entrada (framer-motion) antes de capturar ────────────
+//
+// § ARNES-INVOCABLE-POR-NPM-1, cierra `CROMO-ARNES-STAGGER-ANIMACION-1`: un elemento envuelto en
+// `whileInView`/`staggerChildren` (el CTA de Suscripción, el hero con stagger de ARRANQUE, …)
+// arranca en opacidad 0 y sólo llega a 1 cuando su `IntersectionObserver` dispara Y la transición
+// termina. Sin esto, el arnés capturaba el elemento a mitad de transición — el valor CSS
+// computado de `:root` ya era correcto, pero el PNG salía semi-transparente (medido en
+// `CROMO-EJES-PALETA-AL-RENDER-1`: el promedio de color del botón daba el fondo de la banda, no el
+// del botón). Se scrollea el elemento al centro del viewport (dispara la intersección) y se
+// espera, con TOPE, a que su opacidad computada asiente — nunca cuelga: una animación que no
+// asienta en el tope se captura igual, con una advertencia por consola, para que un `motion` roto
+// no pueda trabar el arnés entero.
+//
+// LA OPACIDAD SE REVISA POR LA CADENA DE ANCESTROS, NO SÓLO DEL ELEMENTO — MEDIDO, no supuesto: el
+// `motion.div` que framer-motion anima con `initial="hidden"`/`whileInView="visible"` casi siempre
+// es un ANCESTRO del selector que un slice pide capturar (el CTA de Suscripción, p. ej., es un
+// `<a>` DENTRO del `motion.div` que trae la opacidad 0→1), y `getComputedStyle(el).opacity` del
+// propio `<a>` da SIEMPRE "1" — el CSS `opacity` no es heredado como valor computado; lo que se ve
+// transparente en pantalla es la COMPOSICIÓN visual de los ancestros, no una propiedad del nodo
+// hoja. Chequear sólo el nodo hoja resuelve el `waitForFunction` de inmediato y el PNG sigue
+// saliendo semi-transparente — se verificó EN LA PRIMERA CORRIDA de este arnés contra el CTA real
+// (centro del PNG: rgb(253,251,247), el fondo de la página, no el rojo `#a70004` del acento) antes
+// de corregir esto. El chequeo camina el elemento Y cada ancestro hasta `<html>`.
+const TIMEOUT_ASENTAMIENTO_MS = 4000;
+
+async function esperarAsentamiento(page: PlaywrightPage, selector: string): Promise<void> {
+  await page.evaluate<void, string>((sel) => {
+    document.querySelector(sel)?.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+  }, selector);
+  const asentada = await page
+    .waitForFunction(
+      (sel) => {
+        let nodo: Element | null = document.querySelector(sel);
+        if (!nodo) return true; // el selector no resuelve — no le compete a esta espera, `waitFor` ya lo cubrió antes
+        while (nodo) {
+          const opacidad = parseFloat(getComputedStyle(nodo).opacity);
+          if (!Number.isNaN(opacidad) && opacidad < 0.98) return false;
+          nodo = nodo.parentElement;
+        }
+        return true;
+      },
+      selector,
+      { timeout: TIMEOUT_ASENTAMIENTO_MS, polling: 100 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  if (!asentada) {
+    console.log(
+      `  ⚠ "${selector}" no asentó su opacidad en ${TIMEOUT_ASENTAMIENTO_MS}ms — se captura igual (§ CROMO-ARNES-STAGGER-ANIMACION-1)`,
+    );
+  }
+}
+
 function puertoLibre(puerto: number): Promise<boolean> {
   return new Promise((res) => {
     const probe = createServer();
@@ -401,6 +468,7 @@ async function main(): Promise<void> {
         if (selectorApp) {
           const loc = page.locator(selectorApp);
           await loc.waitFor({ timeout: 10_000 });
+          await esperarAsentamiento(page, selectorApp);
           await loc.screenshot({ path: appPng });
         } else {
           await page.screenshot({ path: appPng, fullPage: true });
@@ -423,6 +491,7 @@ async function main(): Promise<void> {
         if (selectorProto) {
           const loc = page.locator(selectorProto);
           await loc.waitFor({ timeout: 10_000 });
+          await esperarAsentamiento(page, selectorProto);
           await loc.screenshot({ path: protoPng });
         } else {
           await page.screenshot({ path: protoPng, fullPage: true });

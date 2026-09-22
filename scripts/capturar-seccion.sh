@@ -14,7 +14,18 @@
 # del prototipo + los valores computados — en vez de decir "completo" sin mostrar nada
 # (aprobación del owner, 2026-09-22, § ARNES-CAPTURA-SECCION-1 en DECISIONS.md).
 #
-# Uso:
+# INVOCACIÓN CANÓNICA — `npm run capturar:seccion -- <flags>` (§ ARNES-INVOCABLE-POR-NPM-1): un
+# worker despachado sólo tiene concedido `node`/`npm`/`npx` como comando de TOPE; `bash
+# scripts/capturar-seccion.sh` pide una aprobación de `bash` que en modo no interactivo nadie puede
+# dar. El `npm run` de abajo corre este MISMO script sin reimplementar nada — el permiso gatea el
+# comando de tope, no lo que ese comando lanza por dentro.
+#
+#   npm run capturar:seccion -- --preset CORTE \
+#     --ruta / --selector-app "#hero" \
+#     --prototipo index.html --selector-prototipo ".hero" \
+#     --nombre hero
+#
+# Invocación directa (fuera de un dispatch, con `bash` disponible — equivalente byte a byte):
 #   scripts/capturar-seccion.sh --preset CORTE \
 #     --ruta / --selector-app "#hero" \
 #     --prototipo index.html --selector-prototipo ".hero" \

@@ -17,7 +17,8 @@
     "db:crear-owner": "tsx prisma/crear-owner.ts",
     "db:aplicar-preset": "tsx prisma/aplicar-preset.ts",
     "test:integracion": "bash scripts/test-integracion.sh",
-    "gate": "npm test && npm run test:integracion"
+    "gate": "npm test && npm run test:integracion",
+    "capturar:seccion": "bash scripts/capturar-seccion.sh"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
