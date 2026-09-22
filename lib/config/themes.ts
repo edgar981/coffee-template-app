@@ -111,6 +111,10 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * variante: encender la banda sin poder tocar su copy es lo que hace que el mirador de un preset la
  * muestre con el contenido que YA hubiera en `content.origen` (los DEFAULTS, para un tenant sin
  * fila propia como Nayoli).
+ *
+ * `bandaMarquesinaVisible` (§ MARQUESINA-BANDA-1, OPCIONAL) — GEMELO exacto de `bandaOrigenVisible`,
+ * para la banda `marquesina` (la sección `.marquee` del prototipo, § `MarquesinaContent`). AUSENTE
+ * = el comportamiento de HOY, byte a byte (`content.marquesina.visible` sigue en `false`).
  */
 export interface PresetTema {
   clave: string;
@@ -128,6 +132,7 @@ export interface PresetTema {
   navBadge?: string;
   escalaDisplay?: ClaveEscalaDisplay;
   bandaOrigenVisible?: boolean;
+  bandaMarquesinaVisible?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -337,6 +342,15 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     out.origen = { ...prevOrigen, visible: true };
   }
 
+  // MARQUESINA (§ MARQUESINA-BANDA-1) — GEMELO EXACTO del bloque de `origen` de arriba, misma razón
+  // mecánica: `marquesina` nace `visible:false` y `orden` es universal (`ORDEN_DEFAULT =
+  // [...BANDA_IDS]` alimenta también a ARRANQUE/VITRINA/PATIO), así que la señal es el booleano
+  // DEDICADO `preset.bandaMarquesinaVisible`, ausente en todo preset salvo CORTE.
+  if (preset.bandaMarquesinaVisible && registro.marquesina) {
+    const prevMarquesina = esObj(out.marquesina) ? out.marquesina : {};
+    out.marquesina = { ...prevMarquesina, visible: true };
+  }
+
   return out;
 }
 
@@ -534,6 +548,15 @@ export const CORTE: PresetTema = {
   // bandaOrigenVisible (§ ORIGEN-BANDA-1) — ver el docstring del campo en `PresetTema`, arriba.
   // CORTE es hoy el ÚNICO preset que la declara; los otros cinco no tocan `content.origen`.
   bandaOrigenVisible: true,
+  // bandaMarquesinaVisible (§ MARQUESINA-BANDA-1) — GEMELO de `bandaOrigenVisible`, arriba. La
+  // marquesina hereda su POSICIÓN 2ª (justo tras `hero`) del `orden: ORDEN_DEFAULT` de abajo, SIN
+  // necesidad de un array explícito acá — mismo mecanismo que ya usa `origen` para su posición.
+  // NINGÚN esquema propio en `esquemas` (abajo): su fondo lo da su propia canónica OSCURA
+  // (`BANDAS_OSCURAS`, `bg-[var(--sf-banda,var(--sf-tinta))]`), igual que `hero` —el prototipo pinta
+  // `.marquee{background:var(--green-900)}` bajo la foto velada, la MISMA raíz `tinta` que ya
+  // gobierna esa canónica—, así que asignarle un esquema sería una segunda fuente de verdad
+  // discrepando con la que ya la pinta bien.
+  bandaMarquesinaVisible: true,
 };
 
 export const PATIO: PresetTema = {

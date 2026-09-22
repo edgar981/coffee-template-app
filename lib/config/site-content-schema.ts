@@ -50,6 +50,18 @@ const heroEditableSchema = z.object({
   { message: 'Un hero de video necesita un póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenPoster'] },
 );
 
+// MARQUESINA (§ MARQUESINA-BANDA-1): texto del loop + foto de fondo + el pin del producto de la
+// tarjeta flotante (`productoSlug`, MISMO patrón que `spotlightEditableSchema.productoSlug` —
+// `z.string()` sin `z.enum`, valida contra el catálogo VIVO en tiempo de LECTURA, no al guardar).
+// Todo opcional/SOFT: el resolver aplica el default a `texto`/`imagen` (requeridos) y omite
+// `productoSlug` vacío (opcional).
+const marquesinaEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  texto: z.string().optional(),
+  imagen: z.string().optional(),
+  productoSlug: z.string().optional(),
+});
+
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
 // es la primera sección ocultable. Todo opcional/SOFT, como el hero: el resolver decide.
 // `variante` (§ eje 5e, TEMAS-P2-BRANDSTORY-1): la COMPOSICIÓN de la sección ('columnas', hoy la
@@ -327,6 +339,7 @@ const menuEditableSchema = z.object({
 
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
+  marquesina: marquesinaEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   origen: origenEditableSchema.optional(),
   presentaciones: presentacionesEditableSchema.optional(),

@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import HeroSection from "@/components/storefront/home/HeroSection";
+import Marquesina from "@/components/storefront/home/Marquesina";
 import TrustBadges from "@/components/storefront/home/TrustBadges";
 import FeaturedProducts from "@/components/storefront/home/FeaturedProducts";
 import BrandStory from "@/components/storefront/home/BrandStory";
@@ -32,12 +33,13 @@ import { esDespliegueDemo } from "@/next.config";
 // hoy>)` → byte-idéntico. `getSiteContent` es React.cache, así que dedupe con la lectura del layout.
 //
 // EL ORDEN (§ eje 5, parte c) se resuelve en `content.orden` y decide en qué SECUENCIA se montan las
-// 8 bandas (7 hasta § ORIGEN-BANDA-1, que sumó `origen`) — antes JSX fijo, ahora un `.map` sobre
-// `resolverOrden(orden)` (SIEMPRE las 8, completo por construcción). `BANDAS` es el registro
-// bandaId→render: GrindChooser (id 'presentaciones') es la ÚNICA banda con un prop extra
-// (`negocio`); las demás sólo toman `style`. Sin fila, `orden` resuelve al orden de HOY → mismo
-// árbol que el JSX fijo de ayer → byte-idéntico. `origen` NACE `visible:false` (§ su docstring en
-// `OrigenContent`, site-content-defaults.ts), así que aunque siempre ocupe un slot en `orden`,
+// 9 bandas (7 hasta § ORIGEN-BANDA-1, que sumó `origen`; 9 hasta § MARQUESINA-BANDA-1, que sumó
+// `marquesina`, 2ª tras `hero`) — antes JSX fijo, ahora un `.map` sobre `resolverOrden(orden)`
+// (SIEMPRE las 9, completo por construcción). `BANDAS` es el registro bandaId→render: GrindChooser
+// (id 'presentaciones') es la ÚNICA banda con un prop extra (`negocio`); las demás sólo toman
+// `style`. Sin fila, `orden` resuelve al orden de HOY → mismo árbol que el JSX fijo de ayer →
+// byte-idéntico. `origen`/`marquesina` NACEN `visible:false` (§ sus docstrings en `OrigenContent`/
+// `MarquesinaContent`, site-content-defaults.ts), así que aunque siempre ocupen un slot en `orden`,
 // Nayoli (sin fila propia) sigue sin montar un solo nodo suyo — la byte-identidad no depende de
 // que la banda esté fuera de la secuencia, depende de su propio gate de visibilidad. Newsletter
 // queda FUERA del registro y de `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en
@@ -96,6 +98,7 @@ export default async function Home({
 
   const BANDAS: Record<BandaId, (style: React.CSSProperties) => React.ReactNode> = {
     hero: (style) => <HeroSection style={style} />,
+    marquesina: (style) => <Marquesina style={style} />,
     trustBadges: (style) => <TrustBadges style={style} />,
     featured: (style) => <FeaturedProducts style={style} />,
     brandStory: (style) => <BrandStory style={style} />,

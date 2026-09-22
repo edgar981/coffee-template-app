@@ -55,6 +55,46 @@ export function useProgresoAcomodo(target: RefObject<HTMLElement | null>) {
   return useTransform(scrollYProgress, [UMBRAL_ACOMODO.desde, UMBRAL_ACOMODO.hasta], [0, 1], { clamp: true });
 }
 
+// ── EL LOOP DE LA MARQUESINA — texto y tarjeta scrubbed por scroll, § MARQUESINA-BANDA-1 ──────────
+//
+// El prototipo (`docs/prototipos/cafeone/js/home.js:259-282`) mueve DOS piezas con el MISMO
+// progreso crudo de scroll de la sección `.marquee` (`FSA.scrub(marquee, fn)`, sin la ventana
+// [0.15,0.65] que `UMBRAL_ACOMODO` recorta para el collage de brandStory — acá el `p` que cada
+// callback recibe es el CRUDO 0..1 de `js/app.js:190-197`, sin mapear):
+//   · el TEXTO en loop se traslada horizontalmente: `travel = innerWidth*1.6`,
+//     `track.style.transform = translate(-p*travel, -50%)` (`js/home.js:269-271`);
+//   · la TARJETA flotante escala y rota, con su PROPIO recorte interno del mismo `p`:
+//     `t = clamp((p-0.12)/0.45, 0, 1)`, `scale = 0.85+0.15*t`, `rot = -4+4*t` (`js/home.js:274-279`).
+//
+// `useProgresoScroll` es el progreso CRUDO —gemelo de `useProgresoAcomodo` pero SIN el mapeo a
+// `UMBRAL_ACOMODO`—, mismo `useScroll`/offset, ninguna instancia nueva del motor.
+export function useProgresoScroll(target: RefObject<HTMLElement | null>) {
+  const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] });
+  return scrollYProgress;
+}
+
+// `transformMarquesinaTexto` reproduce, PURA y sin React, `js/home.js:269-271`. `estatico` (§ el
+// mismo gate que `transformAcomodo`: `prefers-reduced-motion` o la vista previa del editor) deja el
+// texto QUIETO —sin el desplazamiento horizontal, pero centrado verticalmente, legible— en vez de
+// congelado a medio camino de un recorrido que nunca avanza.
+export function transformMarquesinaTexto(progreso: number, travelPx: number, estatico: boolean): string {
+  if (estatico) return "translateY(-50%)";
+  const p = Math.max(0, Math.min(1, progreso));
+  return `translate(${(-p * travelPx).toFixed(1)}px, -50%)`;
+}
+
+// `transformMarquesinaTarjeta` reproduce, PURA y sin React, `js/home.js:274-279`. `estatico` rinde
+// el estado YA ACOMODADO de la tarjeta (escala 1, sin rotar) — el mismo criterio que
+// `transformAcomodo(…, estatico=true)` devuelve `'none'` en vez del arranque a medio inclinar.
+export function transformMarquesinaTarjeta(progreso: number, estatico: boolean): string {
+  if (estatico) return "none";
+  const p = Math.max(0, Math.min(1, progreso));
+  const t = Math.max(0, Math.min(1, (p - 0.12) / 0.45));
+  const scale = 0.85 + 0.15 * t;
+  const rot = -4 + 4 * t;
+  return `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
+}
+
 // ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────
 //
 // El prototipo (`docs/prototipos/cafeone/js/home.js:311-332`) anima sus tres estadísticas

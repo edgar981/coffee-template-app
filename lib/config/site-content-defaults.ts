@@ -68,6 +68,43 @@ export interface HeroContent {
   cueDesliza: boolean;
 }
 
+// LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
+// de fondo velada con overlay oscuro, un LOOP de texto a gran escala que se desplaza con el scroll
+// de la sección, y una tarjeta de producto flotante que escala/rota con el mismo progreso. Es la
+// SEGUNDA sección del home en el prototipo (`docs/prototipos/cafeone/index.html:141-157`, entre
+// `.hero` y `.spotlight`), y aparece UNA sola vez.
+//
+// ES BANDA PROPIA, NO UNA VARIANTE — a diferencia de `spotlight` (variante de `featured`), la
+// marquesina COEXISTE con el hero y con `featured`/`spotlight`: son tres secciones distintas del
+// prototipo, así que necesita su propio slot en `BANDA_IDS`, como `origen` (§ ORIGEN-BANDA-1).
+//
+// NACE OFF (`visible:false`, ver `DEFAULTS.marquesina` abajo), MISMA razón mecánica que `origen`:
+// `resolverOrden` completa el orden de TODO tenant con TODA banda de `BANDA_IDS`, sin condición —
+// estar en la lista no alcanza para mostrarse. Sin el `false`, Nayoli (o cualquier tenant sin fila
+// propia) vería la banda aparecer sola, sin que nadie la haya pedido.
+//
+// `texto` es la FRASE del loop — el `.marquee-track` del prototipo repite el mismo texto dos veces
+// para el efecto de cinta continua («Café fresco de San Adolfo — Huila — Colombia —»); acá es UN
+// campo de dato del tenant (REQUERIDO, con default GENÉRICO — nunca la frase del prototipo, misma
+// razón que `origen.titulo`/`.lede`: `mergePresetEnContent` jamás escribe texto de sección, así que
+// el ÚNICO texto que CORTE podría mostrar es este default, y una frase de origen geográfico
+// («San Adolfo, Huila») sería una afirmación FALSA sobre el negocio de quien encienda la banda —la
+// misma familia que el rating fabricado que se borró, § El RATING fabricado se BORRÓ, CLAUDE.md).
+//
+// `imagen` es la foto de fondo (REQUERIDA, reusa un asset estático existente — la banda nace OFF,
+// sin urgencia de una foto propia, mismo criterio que `origen.imagen1/2`).
+//
+// `productoSlug` es el PIN de la tarjeta flotante — el MISMO mecanismo que `SpotlightContent.
+// productoSlug` (§ su docstring, arriba en este archivo, para el porqué completo: puntero, nunca
+// copia de nombre/precio/imagen). OPCIONAL: sin pin, la tarjeta simplemente no se muestra (hide-on-
+// empty de UN elemento, no de la sección — el texto del loop no depende del producto).
+export interface MarquesinaContent {
+  visible: boolean;
+  texto: string;
+  imagen: string;
+  productoSlug: string;
+}
+
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
 // imágenes FIJAS (mismo tamaño, el offset lo da la POSICIÓN, no el contenido). El h2 es UN
 // campo —el salto de línea es estético, no énfasis— así que NO lleva el `tituloEnfasis` del
@@ -533,6 +570,7 @@ export interface CromoContent {
 
 export interface SiteContentData {
   hero: HeroContent;
+  marquesina: MarquesinaContent;
   brandStory: BrandStoryContent;
   origen: OrigenContent;
   presentaciones: PresentacionesContent;
@@ -572,16 +610,16 @@ export type EsquemasContent = Record<string, ClaveEsquema>;
 export type VariantesBandasContent = Record<string, string>;
 
 // META de ORDEN (§ eje 5, parte c — el orden de las bandas del home como DATO). A diferencia de
-// `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 8 ids de banda
-// que hoy monta `app/(storefront)/page.tsx` (7 hasta § ORIGEN-BANDA-1, que sumó `origen` — ver su
-// docstring en `OrigenContent`, arriba, para por qué SÍ entra a esta lista a diferencia de
-// `spotlight`). `BANDA_IDS` es la ÚNICA lista de esos ids —
+// `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 9 ids de banda
+// que hoy monta `app/(storefront)/page.tsx` (7 hasta § ORIGEN-BANDA-1, que sumó `origen`; 9 hasta
+// § MARQUESINA-BANDA-1, que sumó `marquesina` — ver su docstring en `MarquesinaContent`, arriba,
+// para el porqué de su posición 2ª, justo tras `hero`). `BANDA_IDS` es la ÚNICA lista de esos ids —
 // `site-content-schema.ts` la importa para su `z.enum` en vez de declarar una segunda—, y ya está
 // en el ORDEN DEFAULT de hoy, así que `[...BANDA_IDS]` sirve directo como default. Newsletter
 // (`newsletter`) queda FUERA: sigue oculta/comentada en v1 (§ page.tsx) y no se renderiza, así que
 // no es un id reordenable — agregarla es el día que se reactive esa sección.
 export const BANDA_IDS = [
-  'hero', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials',
+  'hero', 'marquesina', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials',
 ] as const;
 export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = BandaId[];
@@ -601,6 +639,8 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 //   hero            → var(--sf-tinta)      (HeroCurtina.tsx, variante 'curtina') → OSCURA
 //                     var(--sf-fondo)      (HeroFicha.tsx, variante 'ficha')     → clara
 //                     var(--sf-tinta)      (HeroMedia.tsx, variante 'media')     → OSCURA
+//   marquesina      → var(--sf-tinta)      (Marquesina.tsx)         → OSCURA (§ MARQUESINA-BANDA-1;
+//                     foto de fondo velada con overlay — el mismo rol que el velo de HeroMedia.tsx)
 //   brandStory      → var(--sf-tinta)      (BrandStory.tsx)         → OSCURA
 //   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
 //   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
@@ -621,7 +661,7 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // el punto de entrada real para cualquier consumidor, porque es la única función que sabe bifurcar
 // por variante. Las demás bandas de este set no varían con su variante hoy (ninguna otra sección
 // declara `variantes` que cambie su fondo canónico) y siguen resolviendo por `BANDAS_OSCURAS` a secas.
-export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'brandStory', 'subscriptionCTA']);
+export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'marquesina', 'brandStory', 'subscriptionCTA']);
 
 /** La darkness CANÓNICA (sin esquema) de una banda, dependiente de su VARIANTE cuando la
  *  tiene. Hoy sólo el HERO: 'curtina' y 'media' (§ TEMAS-HERO-MEDIA-1) son OSCURAS (fondo
@@ -681,6 +721,30 @@ export const DEFAULTS: SiteContentData = {
     ctasVisibles: true,
     fraseAlPie: '',
     cueDesliza: false,
+  },
+  // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
+  // NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`: `resolverOrden` completa
+  // el orden de TODO tenant con TODA banda de `BANDA_IDS`, sin condición — estar en la lista no
+  // alcanza para mostrarse.
+  //
+  // EL TEXTO ES GENÉRICO A PROPÓSITO, no el «Café fresco de San Adolfo — Huila — Colombia» del
+  // prototipo (§ MARQUESINA-BANDA-CENSO-1): `mergePresetEnContent` JAMÁS escribe texto de sección,
+  // así que el ÚNICO texto que CORTE podría mostrar bajo `?tema=CORTE` es ESTE default — una frase
+  // de origen geográfico concreto en un default COMPARTIDO por TODO tenant sería un dato FABRICADO
+  // sobre ese negocio, la misma familia que el rating fabricado que se borró (§ El RATING fabricado
+  // se BORRÓ, CLAUDE.md). El test `DEFAULTS: ningún campo de TEXTO menciona café…` (§ CONTENIDO-
+  // NEUTRALIZAR-1) camina TODO `DEFAULTS` sin excepción por sección, así que un texto café-shape acá
+  // lo haría fallar igual que en cualquier otra.
+  //
+  // `imagen` reusa un asset estático existente (`brandStory.imagen4`) — la banda nace OFF, así que
+  // no hay urgencia de una foto propia (mismo criterio que `origen.imagen1/2` reusando imágenes de
+  // brandStory). `productoSlug` vacío: sin pin, la tarjeta flotante simplemente no se muestra
+  // (§ `productoSpotlight`, el MISMO mecanismo que ya resuelve el pin de `spotlight`).
+  marquesina: {
+    visible: false,
+    texto: 'Calidad que se nota en cada entrega',
+    imagen: '/images/historia-4-v1.jpg',
+    productoSlug: '',
   },
   brandStory: {
     visible: true,
@@ -1074,6 +1138,19 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // relleno — el `.hero-caption` del prototipo es dato del tenant, nunca un default inventado
       // (misma regla que `eyebrow`/`tituloEnfasis`, § "la frontera fina de defaults-como-fallback").
       fraseAlPie: 'opcional',
+    },
+  },
+  // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
+  // `ocultable: true`, sin `variantes` (una sola composición). `productoSlug` es OPCIONAL —sin pin
+  // la tarjeta flotante no se muestra, el texto del loop no depende de ella—.
+  marquesina: {
+    label: 'Marquesina',
+    ocultable: true,
+    imagenes: ['imagen'],
+    campos: {
+      texto: 'requerido',
+      imagen: 'requerido',
+      productoSlug: 'opcional',
     },
   },
   brandStory: {

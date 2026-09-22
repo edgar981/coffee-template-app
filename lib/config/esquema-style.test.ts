@@ -216,8 +216,8 @@ test('bandaEsOscura: CADA banda del home, SIN esquema y SIN variante, da exactam
   }
 });
 
-test('bandaEsOscura: las bandas OSCURAS canónicas son exactamente hero/brandStory/subscriptionCTA (el resto, claras)', () => {
-  assert.deepEqual([...BANDAS_OSCURAS].sort(), ['brandStory', 'hero', 'subscriptionCTA']);
+test('bandaEsOscura: las bandas OSCURAS canónicas son exactamente hero/marquesina/brandStory/subscriptionCTA (el resto, claras)', () => {
+  assert.deepEqual([...BANDAS_OSCURAS].sort(), ['brandStory', 'hero', 'marquesina', 'subscriptionCTA']);
   for (const bandaId of BANDA_IDS) {
     if (!BANDAS_OSCURAS.has(bandaId)) assert.equal(bandaEsOscura(bandaId, undefined, {}, null, null, null), false);
   }
