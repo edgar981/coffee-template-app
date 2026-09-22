@@ -1,0 +1,475 @@
+// scripts/capturar-seccion.ts — § ARNES-CAPTURA-SECCION-1.
+//
+// LA MITAD "APLICACIÓN" DEL ARNÉS DE CAPTURA. `scripts/capturar-seccion.sh` (el entrypoint) ya
+// levantó el Postgres efímero, lo migró y exportó DATABASE_URL/DIRECT_DATABASE_URL antes de
+// invocar este archivo — acá NO se toca ninguna base que no sea esa. Este script:
+//
+//   1. aplica el preset pedido sobre la base efímera (`aplicarPreset`, el MISMO runbook que
+//      `prisma/aplicar-preset.ts` usa en producción — no se reescribe el merge quirúrgico);
+//   2. levanta `next dev --webpack` contra esa base;
+//   3. abre Chromium headless (instalado AISLADO, § abajo — nunca como dependencia del repo) y
+//      captura cada ruta del storefront pedida, imprimiendo los valores computados de las CSS
+//      custom properties de tema que esa sección usa;
+//   4. captura la sección correspondiente del prototipo (`docs/prototipos/cafeone/`), lado a lado;
+//   5. apaga `next dev` y deja que `capturar-seccion.sh` se encargue de apagar Postgres.
+//
+// EMPAQUETA LO QUE `WORKER-CAPTURA-HEADLESS-CENSO-1` YA PROBÓ A MANO (navegador headless + base
+// efímera + app real + screenshot real): este archivo no inventa un mecanismo nuevo, ensambla los
+// mismos cuatro pasos en un comando reusable.
+//
+// ─── PLAYWRIGHT ES UNA HERRAMIENTA AISLADA, NUNCA UNA DEPENDENCIA DEL REPO ──────────────────────
+// `touches:` de este slice no incluye `package.json` ni `package-lock.json`, y aunque lo
+// incluyera: un arnés de CAPTURA no tiene por qué inflar el árbol de dependencias de la app que
+// audita. Playwright se instala con `npm install --prefix <dir> playwright` — un `--prefix`
+// arma un `package.json`/`node_modules` PROPIOS en `<dir>`, sin tocar los del repo (verificado:
+// `git status` queda limpio después). El `<dir>` es `.arnes-tooling/playwright/`, gitignoreado
+// y PERSISTENTE entre corridas (no se reinstala si ya está) — así el costo de red/descarga se
+// paga UNA vez por máquina, no una vez por slice. Se importa con `createRequire` apuntado a ESE
+// `package.json`, nunca con un `import 'playwright'` estático — eso mantendría `playwright`
+// resoluble para `tsc`/`eslint` sólo si viviera en el `node_modules` del repo, que es justo lo
+// que este diseño evita.
+//
+// PRERREQUISITO (igual que Postgres en `scripts/test-integracion.sh`): red la PRIMERA vez que
+// corre en una máquina nueva (descarga el paquete `playwright` + el binario de Chromium, unos
+// cientos de MB). Ya cacheado, es rápido — es la medición de `WORKER-CAPTURA-HEADLESS-CENSO-1`.
+//
+// LÍMITE DECLARADO: este script asume que NINGÚN `npm run dev` real está corriendo sobre el mismo
+// checkout — `next dev` comparte el `.next/` del repo (no hay forma de darle un `distDir` propio
+// sin tocar `next.config.ts`, fuera de `touches:`). Es la misma precondición que ya rige el gate
+// visual (§ PRECONDICIÓN, CLAUDE.md): un solo dev server a la vez.
+import { parseArgs } from "node:util";
+import { createRequire } from "node:module";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { extname, join, resolve, dirname, normalize, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PROTOTIPO_DIR = join(RAIZ, "docs", "prototipos", "cafeone");
+const TOOLING_DIR = join(RAIZ, ".arnes-tooling", "playwright");
+const CAPTURAS_DIR = join(RAIZ, ".capturas");
+
+// El matiz del owner, impreso EN CADA CORRIDA (§ ARNES-CAPTURA-SECCION-1, punto 2 del spec): una
+// guarda que no dice lo que NO cubre se lee como si cubriera todo.
+const BANNER = [
+  "─".repeat(78),
+  "ESTA CAPTURA PRUEBA QUE EL TEMA SE APLICÓ Y LA BANDA RENDERIZA.",
+  "NO PRUEBA QUE SE VEA BIEN. El gate de gusto es del owner.",
+  "─".repeat(78),
+].join("\n");
+
+const VARS_TEMA_POR_DEFECTO = ["--sf-fondo", "--sf-tinta", "--sf-acento"];
+
+// ─── Mínimo de tipos que este script usa de Playwright — evita `import 'playwright'` estático
+// (§ arriba) sin caer en `any` suelto por el repo (el lint del template trata `no-explicit-any`
+// como señal real, § eslint.config.mjs). No es la superficie completa del SDK, sólo la que se
+// invoca acá.
+interface PlaywrightPage {
+  goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
+  screenshot(opts: { path: string; fullPage?: boolean }): Promise<Buffer>;
+  locator(selector: string): PlaywrightLocator;
+  evaluate<T>(fn: (vars: string[]) => T, arg: string[]): Promise<T>;
+  waitForTimeout(ms: number): Promise<void>;
+  close(): Promise<void>;
+}
+interface PlaywrightLocator {
+  screenshot(opts: { path: string }): Promise<Buffer>;
+  waitFor(opts?: { timeout?: number }): Promise<void>;
+}
+interface PlaywrightBrowser {
+  newPage(opts?: { viewport?: { width: number; height: number } }): Promise<PlaywrightPage>;
+  close(): Promise<void>;
+}
+interface PlaywrightModule {
+  chromium: { launch(opts?: { headless?: boolean }): Promise<PlaywrightBrowser> };
+}
+
+function cargarPlaywright(): PlaywrightModule {
+  const pkgJson = join(TOOLING_DIR, "package.json");
+  if (!existsSync(pkgJson)) {
+    console.log(`▸ Playwright no está instalado (aislado) — instalando en ${TOOLING_DIR}…`);
+    mkdirSync(TOOLING_DIR, { recursive: true });
+    // SIN --save-exact/--no-package-lock: --prefix ya arma un árbol propio, aislado del repo
+    // (verificado con git status limpio en ARNES-CAPTURA-SECCION-1).
+    const r = spawnSync("npm", ["install", "--prefix", TOOLING_DIR, "playwright"], {
+      stdio: "inherit",
+      cwd: RAIZ,
+    });
+    if (r.status !== 0) {
+      throw new Error("No se pudo instalar Playwright de forma aislada — ver la salida de npm arriba.");
+    }
+  }
+  const cliJs = join(TOOLING_DIR, "node_modules", "playwright", "cli.js");
+  console.log("▸ Verificando Chromium (npx-less, vía la instalación aislada)…");
+  const instalado = spawnSync(process.execPath, [cliJs, "install", "chromium"], {
+    stdio: "inherit",
+    cwd: RAIZ,
+  });
+  if (instalado.status !== 0) {
+    throw new Error("No se pudo instalar/verificar el binario de Chromium.");
+  }
+  const req = createRequire(pkgJson);
+  return req("playwright") as PlaywrightModule;
+}
+
+// ─── CLI ──────────────────────────────────────────────────────────────────────────────────────
+interface Opciones {
+  preset: string;
+  rutas: string[];
+  selectoresApp: (string | undefined)[];
+  prototipos: string[];
+  selectoresPrototipo: (string | undefined)[];
+  nombre: string;
+  varsExtra: string[];
+  puertoApp: number;
+}
+
+function ayuda(): string {
+  return `
+Uso:
+  node --import tsx scripts/capturar-seccion.ts --preset <CLAVE> \\
+    --ruta <path-storefront> --prototipo <archivo-bajo-docs/prototipos/cafeone> \\
+    [--selector-app <css>] [--selector-prototipo <css>] \\
+    [--nombre <slug-de-salida>] [--var <--custom-property>] [--puerto-app <n>]
+
+--ruta y --prototipo son REQUERIDOS, repetibles, y se emparejan POR ÍNDICE (la
+1ª --ruta con el 1º --prototipo, etc.) — deben venir en la misma cantidad.
+--selector-app / --selector-prototipo son OPCIONALES y también se emparejan por
+índice; sin selector para un índice dado, esa captura es de PÁGINA COMPLETA.
+--var agrega una CSS custom property más a la lista impresa (el default ya
+incluye --sf-fondo, --sf-tinta, --sf-acento).
+
+Ejemplo:
+  node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
+    --ruta / --selector-app "#hero" \\
+    --prototipo index.html --selector-prototipo ".hero" \\
+    --nombre hero
+`.trim();
+}
+
+function parseCli(argv: string[]): Opciones {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      preset: { type: "string" },
+      ruta: { type: "string", multiple: true },
+      "selector-app": { type: "string", multiple: true },
+      prototipo: { type: "string", multiple: true },
+      "selector-prototipo": { type: "string", multiple: true },
+      nombre: { type: "string" },
+      var: { type: "string", multiple: true },
+      "puerto-app": { type: "string" },
+      ayuda: { type: "boolean" },
+      help: { type: "boolean" },
+    },
+    allowPositionals: false,
+  });
+
+  if (values.ayuda || values.help) {
+    console.log(ayuda());
+    process.exit(0);
+  }
+
+  const preset = values.preset;
+  const rutas = values.ruta ?? [];
+  const prototipos = values.prototipo ?? [];
+  if (!preset) {
+    throw new Error(`Falta --preset.\n\n${ayuda()}`);
+  }
+  if (rutas.length === 0 || prototipos.length === 0) {
+    throw new Error(`Hacen falta --ruta y --prototipo (al menos uno de cada uno).\n\n${ayuda()}`);
+  }
+  if (rutas.length !== prototipos.length) {
+    throw new Error(
+      `--ruta (${rutas.length}) y --prototipo (${prototipos.length}) tienen que venir en la MISMA cantidad — se emparejan por índice.`,
+    );
+  }
+  const selectoresAppIn = values["selector-app"] ?? [];
+  const selectoresProtoIn = values["selector-prototipo"] ?? [];
+  if (selectoresAppIn.length > 0 && selectoresAppIn.length !== rutas.length) {
+    throw new Error(`--selector-app, si se pasa, tiene que venir una vez por --ruta (${rutas.length}).`);
+  }
+  if (selectoresProtoIn.length > 0 && selectoresProtoIn.length !== prototipos.length) {
+    throw new Error(`--selector-prototipo, si se pasa, tiene que venir una vez por --prototipo (${prototipos.length}).`);
+  }
+
+  return {
+    preset,
+    rutas,
+    selectoresApp: rutas.map((_, i) => selectoresAppIn[i]),
+    prototipos,
+    selectoresPrototipo: prototipos.map((_, i) => selectoresProtoIn[i]),
+    nombre: values.nombre ?? `${preset.toLowerCase()}-${Date.now()}`,
+    varsExtra: values.var ?? [],
+    puertoApp: values["puerto-app"] ? Number(values["puerto-app"]) : 3477,
+  };
+}
+
+// ─── El servidor estático del prototipo, con el parche de `assets/` ─────────────────────────────
+//
+// HALLAZGO (§ ARNES-CAPTURA-SECCION-1, medido — no arreglado, porque `docs/` no está en
+// `touches:`): `index.html` y `producto.html` referencian `assets/css/…` y `assets/js/…`, pero el
+// árbol real de este repo NO tiene carpeta `assets/` — los archivos viven en `css/`, `js/`, `ds/`
+// directo bajo `docs/prototipos/cafeone/` (confirmado: `find docs/prototipos/cafeone -type d` da
+// sólo esos tres). Servido tal cual, el prototipo cargaría SIN estilos — una captura inútil para
+// comparar contra la app. Este servidor reescribe `/assets/<algo>` → `/<algo>` AL SERVIR, sin
+// tocar los `.html` del prototipo. Ver DECISIONS.md, § ARNES-CAPTURA-SECCION-1, para el
+// seguimiento (alguien con `docs/` en su `touches:` decide si el fix real va en el HTML).
+const TIPOS_MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".mp4": "video/mp4",
+};
+
+function servirPrototipo(request: IncomingMessage, response: ServerResponse): void {
+  const url = new URL(request.url ?? "/", "http://127.0.0.1");
+  let pathname = decodeURIComponent(url.pathname);
+  // El parche: `assets/x` no existe, el archivo real es `x` (§ el hallazgo, arriba).
+  pathname = pathname.replace(/^\/assets\//, "/");
+  if (pathname === "/") pathname = "/index.html";
+
+  const destino = normalize(join(PROTOTIPO_DIR, pathname));
+  // No salir de PROTOTIPO_DIR — ni por accidente (un selector/ruta mal armado no debe poder leer
+  // fuera de la carpeta del prototipo).
+  if (!destino.startsWith(PROTOTIPO_DIR + sep) && destino !== PROTOTIPO_DIR) {
+    response.writeHead(403).end("Fuera de docs/prototipos/cafeone/");
+    return;
+  }
+  if (!existsSync(destino)) {
+    response.writeHead(404).end(`No existe: ${pathname}`);
+    return;
+  }
+  const tipo = TIPOS_MIME[extname(destino).toLowerCase()] ?? "application/octet-stream";
+  response.writeHead(200, { "Content-Type": tipo });
+  response.end(readFileSync(destino));
+}
+
+async function levantarServidorPrototipo(): Promise<{ puerto: number; cerrar: () => Promise<void> }> {
+  const server = createServer(servirPrototipo);
+  await new Promise<void>((res) => server.listen(0, "127.0.0.1", res));
+  const puerto = (server.address() as AddressInfo).port;
+  return {
+    puerto,
+    cerrar: () => new Promise<void>((res) => server.close(() => res())),
+  };
+}
+
+// ─── Esperar a que un puerto HTTP responda ───────────────────────────────────────────────────────
+async function esperarListo(url: string, timeoutMs: number): Promise<void> {
+  const limite = Date.now() + timeoutMs;
+  let ultimoError: unknown;
+  while (Date.now() < limite) {
+    try {
+      await fetch(url);
+      return;
+    } catch (e) {
+      ultimoError = e;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  throw new Error(`${url} no respondió en ${timeoutMs}ms (último error: ${String(ultimoError)})`);
+}
+
+function puertoLibre(puerto: number): Promise<boolean> {
+  return new Promise((res) => {
+    const probe = createServer();
+    probe.once("error", () => res(false));
+    probe.listen(puerto, "127.0.0.1", () => probe.close(() => res(true)));
+  });
+}
+
+// ─── `next dev` contra la base efímera (DATABASE_URL ya está en el entorno) ──────────────────────
+function arrancarNextDev(puerto: number): ChildProcess {
+  return spawn(
+    "npx",
+    ["next", "dev", "--webpack", "-p", String(puerto)],
+    {
+      cwd: RAIZ,
+      env: {
+        ...process.env,
+        PORT: String(puerto),
+        // Dummies defensivos: el storefront no importa lib/auth (verificado — proxy.ts sólo
+        // gatea /admin(.*) y el layout del storefront no lo importa), pero si algo transitivo
+        // llegara a leerlos, que sea un valor inerte y no el `.env` real del checkout.
+        BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "arnes-captura-secreto-inerte",
+        BETTER_AUTH_URL: `http://127.0.0.1:${puerto}`,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+}
+
+async function detenerProceso(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.killed) return;
+  await new Promise<void>((res) => {
+    child.once("exit", () => res());
+    child.kill("SIGTERM");
+    // `next dev` a veces tarda en soltar el puerto; si a los 5s sigue vivo, KILL.
+    setTimeout(() => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    }, 5000);
+  });
+}
+
+// ─── main ─────────────────────────────────────────────────────────────────────────────────────
+async function main(): Promise<void> {
+  console.log(BANNER);
+  const opciones = parseCli(process.argv.slice(2));
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      "Falta DATABASE_URL en el entorno — este script se corre a través de scripts/capturar-seccion.sh, " +
+        "que levanta el Postgres efímero y lo exporta ANTES de llamar acá. No correrlo suelto.",
+    );
+  }
+
+  console.log(`▸ Aplicando el preset «${opciones.preset}» sobre la base efímera…`);
+  const { aplicarPreset, PresetIncompletoError } = await import("../lib/config/site-content-write");
+  const { PRESETS } = await import("../lib/config/themes");
+  const preset = PRESETS.find((p) => p.clave === opciones.preset);
+  if (!preset) {
+    throw new Error(`Preset «${opciones.preset}» desconocido. Catálogo: ${PRESETS.map((p) => p.clave).join(", ")}`);
+  }
+  try {
+    await aplicarPreset(preset);
+  } catch (e) {
+    if (e instanceof PresetIncompletoError) {
+      throw new Error(`El preset «${opciones.preset}» está incompleto — no se puede aplicar: ${e.message}`);
+    }
+    throw e;
+  }
+  console.log(`✔ Preset «${opciones.preset}» aplicado.`);
+
+  if (!(await puertoLibre(opciones.puertoApp))) {
+    throw new Error(
+      `El puerto ${opciones.puertoApp} está ocupado — ¿hay un \`npm run dev\` corriendo? ` +
+        `Este arnés no puede compartirlo (usa --puerto-app para elegir otro).`,
+    );
+  }
+
+  mkdirSync(CAPTURAS_DIR, { recursive: true });
+  const salidaDir = join(CAPTURAS_DIR, opciones.nombre);
+  mkdirSync(salidaDir, { recursive: true });
+
+  const playwright = cargarPlaywright();
+
+  console.log(`▸ Arrancando \`next dev\` en :${opciones.puertoApp}…`);
+  const appProc = arrancarNextDev(opciones.puertoApp);
+  let salidaApp = "";
+  appProc.stdout?.on("data", (d) => (salidaApp += String(d)));
+  appProc.stderr?.on("data", (d) => (salidaApp += String(d)));
+
+  const servidorProto = await levantarServidorPrototipo();
+
+  const registro: Record<string, unknown> = {
+    preset: opciones.preset,
+    generadoEn: new Date().toISOString(),
+    capturas: [] as unknown[],
+  };
+
+  try {
+    await esperarListo(`http://127.0.0.1:${opciones.puertoApp}/`, 90_000).catch((e) => {
+      throw new Error(`\`next dev\` no respondió a tiempo: ${e}\n\n── stdout/stderr ──\n${salidaApp}`);
+    });
+    console.log("✔ `next dev` responde.");
+
+    const browser = await playwright.chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+      for (let i = 0; i < opciones.rutas.length; i++) {
+        const ruta = opciones.rutas[i];
+        const selectorApp = opciones.selectoresApp[i];
+        const prototipo = opciones.prototipos[i];
+        const selectorProto = opciones.selectoresPrototipo[i];
+
+        console.log(`▸ [${i}] app ${ruta}${selectorApp ? ` (${selectorApp})` : " (página completa)"}`);
+        await page.goto(`http://127.0.0.1:${opciones.puertoApp}${ruta}`, { waitUntil: "networkidle", timeout: 30_000 });
+        await page.waitForTimeout(300); // margen corto para animaciones de entrada / fuentes
+
+        const appPng = join(salidaDir, `app-${i}.png`);
+        if (selectorApp) {
+          const loc = page.locator(selectorApp);
+          await loc.waitFor({ timeout: 10_000 });
+          await loc.screenshot({ path: appPng });
+        } else {
+          await page.screenshot({ path: appPng, fullPage: true });
+        }
+
+        const varsAPedir = [...VARS_TEMA_POR_DEFECTO, ...opciones.varsExtra];
+        const valores = await page.evaluate((vars: string[]) => {
+          const raiz = getComputedStyle(document.documentElement);
+          const out: Record<string, string> = {};
+          for (const v of vars) out[v] = raiz.getPropertyValue(v).trim();
+          return out;
+        }, varsAPedir);
+        console.log(`  valores computados (${ruta}):`, valores);
+
+        console.log(`▸ [${i}] prototipo ${prototipo}${selectorProto ? ` (${selectorProto})` : " (página completa)"}`);
+        await page.goto(`http://127.0.0.1:${servidorProto.puerto}/${prototipo}`, { waitUntil: "networkidle", timeout: 30_000 });
+        await page.waitForTimeout(300);
+
+        const protoPng = join(salidaDir, `prototipo-${i}.png`);
+        if (selectorProto) {
+          const loc = page.locator(selectorProto);
+          await loc.waitFor({ timeout: 10_000 });
+          await loc.screenshot({ path: protoPng });
+        } else {
+          await page.screenshot({ path: protoPng, fullPage: true });
+        }
+
+        (registro.capturas as unknown[]).push({
+          indice: i,
+          ruta,
+          selectorApp: selectorApp ?? null,
+          appPng,
+          prototipo,
+          selectorPrototipo: selectorProto ?? null,
+          protoPng,
+          valoresComputados: valores,
+        });
+      }
+
+      await page.close();
+    } finally {
+      await browser.close();
+    }
+  } finally {
+    await servidorProto.cerrar();
+    await detenerProceso(appProc);
+  }
+
+  const leeme = [
+    BANNER,
+    "",
+    `Preset: ${opciones.preset}`,
+    `Generado: ${String(registro.generadoEn)}`,
+    "",
+    ...(registro.capturas as Array<Record<string, unknown>>).map(
+      (c) =>
+        `[${c.indice}] app-${c.indice}.png (${c.ruta}${c.selectorApp ? `, ${c.selectorApp}` : ""}) ` +
+        `↔ prototipo-${c.indice}.png (${c.prototipo}${c.selectorPrototipo ? `, ${c.selectorPrototipo}` : ""})\n` +
+        `    valores: ${JSON.stringify(c.valoresComputados)}`,
+    ),
+  ].join("\n");
+  writeFileSync(join(salidaDir, "LEEME.txt"), leeme + "\n");
+  writeFileSync(join(salidaDir, "valores.json"), JSON.stringify(registro, null, 2) + "\n");
+
+  console.log(`\n✔ Capturas en ${salidaDir}`);
+  console.log(BANNER);
+}
+
+main().catch((e) => {
+  console.error("❌ capturar-seccion falló:", e instanceof Error ? e.message : e);
+  process.exit(1);
+});

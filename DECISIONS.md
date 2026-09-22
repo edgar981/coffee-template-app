@@ -12271,3 +12271,195 @@ intacta.
 Ninguno nuevo. El follow-up de verificación en navegador (`CROMO-MENU-CAPA3-1`) y la deuda de
 ESLint (`ESLINT-REACT-HOOKS-REFS-DEUDA-1`) ya están registrados por slices anteriores de esta
 rama y no cambian con este.
+
+## 2026-09-22 — El arnés de captura: preset aplicado + `next dev` + Chromium headless, la app al lado del prototipo (`ARNES-CAPTURA-SECCION-1`)
+
+### Qué construye, en una frase
+
+`scripts/capturar-seccion.sh` (levanta Postgres efímero + migra) + `scripts/capturar-seccion.ts`
+(aplica el preset pedido, levanta `next dev` contra esa base, y con Chromium headless captura la
+ruta del storefront pedida Y la sección correspondiente del prototipo, PNG junto a PNG, imprimiendo
+los valores CSS computados que prueban el cableado). No inventa un mecanismo nuevo: empaqueta los
+cuatro pasos que `WORKER-CAPTURA-HEADLESS-CENSO-1` (el `observed-report` de este slice) ya probó a
+mano — Postgres efímero, `aplicarPreset` directo, `next dev`, `page.screenshot` real.
+
+### El bootstrap de Postgres se REUSA, no se reescribe — extraído a `postgres-efimero.sh`
+
+El spec pedía explícitamente "Reusá el bootstrap de la Postgres efímera del gate
+(`scripts/test-integracion.sh`), no lo reescribas". La única forma de reusar sin duplicar el
+`initdb`/`pg_ctl`/`trap` a mano en un segundo archivo es EXTRAER: `scripts/postgres-efimero.sh` es
+esa extracción — una función `pg_efimero_arriba <puerto> <base>` con el MISMO cuerpo que tenía
+`test-integracion.sh` (mismo `-k ''`, mismo `--auth=trust`, mismo trap `EXIT INT TERM`), ahora
+parametrizada. `test-integracion.sh` quedó refactorizado a `source` + una llamada; su
+comportamiento NO cambió — se verificó corriendo `npm run test:integracion` ANTES de escribir el
+resto del arnés (208/208, idéntico a la corrida de referencia) para no construir sobre un gate roto
+sin saberlo.
+
+`capturar-seccion.sh` usa la MISMA función con puerto (55434) y base (`captura`) DISTINTOS de los
+del gate (55432/`integracion`) — para que el arnés y `npm run test:integracion` puedan correr uno
+al lado del otro sin pisarse el puerto.
+
+### Playwright vive AISLADO — nunca como dependencia del repo
+
+`touches:` de este slice no incluye `package.json` ni `package-lock.json`. Se evaluaron dos rutas
+para que Playwright fuera resoluble desde el script y las dos primeras SE DESCARTARON, midiendo:
+
+- `npm install --no-save --no-package-lock playwright` (sin `--prefix`) SÍ deja `git status`
+  limpio, pero **reescribe 197 paquetes del `node_modules` del repo** (medido: `added 25, removed
+  26, changed 197`) porque ignorar el lockfile fuerza a npm a re-resolver TODO el árbol contra el
+  registro — deriva de versiones fuera de lo que el lockfile fija, con riesgo real para cualquier
+  `npm test`/`npm run gate` que corra después en la misma máquina sin un `npm ci` de por medio. Se
+  restauró con `npm ci` (700 paquetes, matching el lockfile) antes de seguir.
+- `npx --yes -p playwright node -e "require.resolve('playwright')"` fallaba: `npx -p` no exporta
+  `NODE_PATH` al proceso hijo (medido: `process.env.NODE_PATH` da `undefined` dentro de ese
+  spawn), así que un `node`/`tsx` separado no puede resolver el paquete que `npx` acaba de traer.
+
+Lo que SÍ funciona, y es lo que el arnés usa: `npm install --prefix .arnes-tooling/playwright
+playwright` — `--prefix` arma un `package.json`/`node_modules` PROPIOS en ese directorio, sin
+tocar los del repo (`git status` limpio, verificado). El script lo importa con
+`createRequire(join(TOOLING_DIR, 'package.json'))('playwright')` — nunca con un `import
+'playwright'` estático, que dejaría el símbolo sin resolver para `tsc`/`eslint` (el paquete no
+vive en el `node_modules` que esas herramientas miran). Chromium se instala con el CLI de esa
+MISMA instalación aislada (`node .../playwright/cli.js install chromium`), nunca vía `npx
+playwright` suelto — así versión del paquete y versión del binario no pueden divergir.
+`.arnes-tooling/` es PERSISTENTE entre corridas (no se reinstala si ya está): el costo de red se
+paga una vez por máquina, no una vez por slice — es lo que sostiene el "~10s/slice" del censo
+después del primer uso.
+
+### HALLAZGO, no arreglado (`docs/` no está en `touches:`): el prototipo referencia `assets/` que no existe
+
+Al armar el servidor estático para capturar la sección del prototipo, `index.html` y
+`producto.html` (`docs/prototipos/cafeone/`) resultaron referenciar `assets/css/tokens.css`,
+`assets/css/app.css`, `assets/js/app.js`, `assets/js/home.js` (o `producto.js`) — pero el árbol
+real del repo **no tiene carpeta `assets/`**: los archivos viven en `css/`, `js/`, `ds/` directo
+bajo `docs/prototipos/cafeone/` (medido: `find docs/prototipos/cafeone -type d` da sólo esos tres;
+`docs/prototipos/cafeone/assets` no existe). Servido tal cual (p. ej. con el
+`python3 -m http.server 4321` que el propio `README.md` del prototipo recomienda), el prototipo
+carga SIN estilos ni scripts — una captura inútil para comparar contra la app.
+
+Nadie lo había notado porque los slices anteriores que citan el prototipo (`docs/prototipos/
+cafeone/css/app.css:8`, etc., en varias entradas de este mismo libro) leían el CONTENIDO de los
+`.css` directamente para extraer tokens — nunca abrieron el `.html` en un navegador. Este es el
+primer slice que sí lo hace, y por eso lo destapa.
+
+**No se arregló en el HTML** (`docs/` no está en `touches:` de este slice). El servidor estático
+propio del arnés (`servirPrototipo`, `scripts/capturar-seccion.ts`) reescribe `/assets/<algo>` →
+`/<algo>` AL SERVIR, sin tocar ningún `.html` — verificado por ejecución: la captura de
+`docs/prototipos/cafeone/index.html` sale con el fondo verde oscuro, la tipografía Roboto
+Serif/Hanken Grotesk y el botón "COMPRAR" en rojo del design system (§ captura adjunta abajo), no
+la página sin estilos que daría sin el parche. Queda como open follow-up para quien tenga `docs/`
+en su `touches:`.
+
+### El matiz del owner, impreso en CADA corrida (no en un README aparte)
+
+```
+──────────────────────────────────────────────────────────────────────────────
+ESTA CAPTURA PRUEBA QUE EL TEMA SE APLICÓ Y LA BANDA RENDERIZA.
+NO PRUEBA QUE SE VEA BIEN. El gate de gusto es del owner.
+──────────────────────────────────────────────────────────────────────────────
+```
+
+Va en el banner de consola (al principio Y al final de cada corrida) y en el `LEEME.txt` que el
+arnés escribe junto a cada captura — una guarda que no dice lo que NO cubre se lee como si
+cubriera todo (§ CLAUDE.md, la misma lección que ya escribió `§ Todo DialogContent lleva
+DialogDescription` con otra guarda).
+
+### Verificado EJECUTANDO, dos veces, no una sola forma
+
+**Corrida 1** — página completa: `bash scripts/capturar-seccion.sh --preset CORTE --ruta / --prototipo index.html --nombre smoke-home`. Produjo `.capturas/smoke-home/app-0.png` (2.627.695
+bytes) y `.capturas/smoke-home/prototipo-0.png` (340.658 bytes), ambos inspeccionados: la app sale
+con fondo `#fdfbf7`, header/footer en verde oscuro, tipografía serif en el titular ("Calidad que se
+nota"), y la sección de historia en composición CENTRADA (4 fotos del collage, inclinadas) — la
+`brandStory: 'centrada'` que el preset CORTE declara; el prototipo sale con su nav real, sus
+tarjetas de presentaciones y su footer, con estilos aplicados (confirma el parche de `assets/`).
+Valores computados sobre `document.documentElement`:
+
+```json
+{"--sf-fondo":"#fdfbf7","--sf-tinta":"#102407","--sf-acento":"#a70004"}
+```
+
+**Corrida 2** — selector de elemento: mismo comando + `--selector-app "main section:nth-of-type(1)"
+--selector-prototipo ".hero"` → `.capturas/smoke-hero-selector/{app,prototipo}-0.png`, cada uno
+recortado a SOLO esa sección (verificado por inspección: el PNG de la app es el hero de 1280×818,
+no la página de 1280×4466 completa). De paso, la PRIMERA versión de este comando (con el selector
+`section:nth-of-type(1)` sin acotar a `main`) falló limpio con el error de "strict mode" de
+Playwright (dos `<section>` en la página — el hero y la región `aria-live` de notificaciones),
+confirmando que la ruta de error del arnés también funciona, no sólo la feliz.
+
+Las dos corridas se limpiaron después (`.capturas/` es gitignoreado; no quedan en el árbol).
+
+### DEVIATION medida contra la propia cita del spec — CORTE cambió de acento desde el censo
+
+El campo `externo` del spec cita, de `WORKER-CAPTURA-HEADLESS-CENSO-1`: *"getComputedStyle de
+`--sf-acento` devolvió `#a3643a`, el acento exacto de CORTE"*. Esta corrida, sobre el HEAD actual
+de esta rama, midió `#a70004` — **no coincide**. No es un defecto del arnés: `lib/config/
+themes.ts:433` (comentario del propio preset) documenta que CORTE fue REESCRITO contra el
+prototipo real en `CORTE-REESCRITURA-PROTOTIPO-1` (un slice anterior de ESTA MISMA rama), y que
+`#a3643a` era justamente uno de "los valores viejos… que no salían de ninguna medición". El censo
+midió un `CORTE` de un checkout anterior a esa reescritura; el arnés, corriendo contra el código
+real de hoy, capturó el valor VIGENTE (`#a70004`, que además coincide exacto con
+`raices.acento` en `themes.ts` y con `--action-primary` del prototipo, ambos leídos del código). La
+medición gana sobre la cita del spec — se reporta, no se reconcilia en contra de la medición.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1713/1713**, 0 fail.
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — corrido DOS
+  veces: una vez justo después de extraer `postgres-efimero.sh` (para aislar que el refactor no
+  rompiera nada antes de construir el resto), y una vez más sobre el árbol final.
+- **`npx tsc --noEmit`**: limpio (incluye `scripts/capturar-seccion.ts` — el `createRequire('playwright')`
+  no dispara resolución de módulo para `tsc`, a diferencia de un `import` estático).
+- **`npx eslint scripts/capturar-seccion.ts`**: limpio, sin hallazgos. (`scripts/*.sh` no lo cubre
+  ESLint — son bash, no TypeScript.)
+- **`npx next build`**: compiló sin error; la tabla de rutas salió completa. Este slice no toca
+  `app/` ni `components/`, así que no se esperaba ni se encontró cambio en el árbol de rutas.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (spec), `approved: yes` (owner, `approval-reason` cita `WORKER-CAPTURA-HEADLESS-CENSO-1`).
+El diff de ESTE commit (`scripts/postgres-efimero.sh`, `scripts/capturar-seccion.sh`,
+`scripts/capturar-seccion.ts`, el refactor de `scripts/test-integracion.sh`, `.gitignore`,
+`DECISIONS.md`) es TOOLING de desarrollo: no toca `schema.prisma`, ninguna migración, ningún
+archivo de `app/(storefront)/` ni `components/storefront/`, ningún contrato cross-repo. `strings:
+[]` para este commit — no agrega ni cambia un solo string que un visitante vea; el único texto
+nuevo (el banner, el `LEEME.txt`) lo lee un WORKER en su terminal, nunca un cliente.
+
+**`customer_bytes.changed = true` DE TODOS MODOS — EL EJE ES LA RAMA, NO EL COMMIT** (mismo criterio
+que los asientos anteriores de esta rama, incluido el inmediatamente anterior): `slice/corte-
+reescritura-prototipo-1` ya aterriza bytes visibles de commits previos (CTAs del hero, cue
+"Desliza", bandas Origen/Marquesina, el menú del nav, la reescritura completa de CORTE contra el
+prototipo). Ese hecho no lo cambia este commit, pero el MERGE seguiría siendo el de la rama entera.
+
+`stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`, por protocolo — igual que el asiento anterior:
+el worker no mergea ni corre nada contra una base real; el arnés en sí SÓLO tocó una Postgres
+efímera propia, nunca `.env` ni `development`/`production`.
+
+### Deviations
+
+1. **El bootstrap de Postgres se extrajo (`postgres-efimero.sh`) en vez de duplicarse.** El spec
+   decía "reusá, no reescribas"; la única forma de cumplir eso sin copiar 35 líneas de bash a mano
+   en un segundo archivo era extraer una función compartida. Se verificó que la extracción no
+   cambió el comportamiento de `test-integracion.sh` (208/208 antes y después) ANTES de construir
+   el resto del arnés sobre ella.
+2. **`--sf-acento` no coincide con el valor que cita el spec** (`#a3643a` vs. el `#a70004` medido) —
+   medido contra el código de `themes.ts`, es CORTE el que cambió (reescritura de una tanda
+   anterior de esta misma rama), no un defecto del arnés. Detallado arriba.
+3. **El prototipo tiene rutas `assets/` rotas** — hallazgo nuevo, no arreglado (fuera de
+   `touches:`), compensado con un rewrite en el servidor propio del arnés. Detallado arriba y en
+   el open follow-up.
+
+### Open follow-ups
+
+- **`id: ARNES-PROTOTIPO-ASSETS-PREFIX-1`** — **qué**: `docs/prototipos/cafeone/index.html` y
+  `producto.html` referencian `assets/css/…` y `assets/js/…`, pero esos archivos viven en `css/` y
+  `js/` (sin el prefijo `assets/`) — el prototipo se ve SIN ESTILOS si se abre directo en un
+  navegador o se sirve con un servidor estático genérico (incluido el `python3 -m http.server 4321`
+  que el propio `README.md` del prototipo recomienda). **por qué no ahora**: `docs/` no está en el
+  `touches:` de este slice; el arnés lo compensa reescribiendo `/assets/<algo>` → `/<algo>` en su
+  propio servidor, pero eso sólo cubre a QUIEN usa el arnés — cualquier otro consumidor del
+  prototipo (el propio `README.md`, o abrir el `.html` a mano) lo sigue viendo roto.
+- **De acá en más, todo slice visual corre este arnés y adjunta: su captura de la app + la sección
+  del prototipo + los valores CSS computados — en vez de reportar "completo" sin mostrar nada.**
+  Aprobado por el owner como estándar del programa (§ `approval-reason` del spec). Este asiento lo
+  deja escrito; actualizar cualquier spec-template EXTERNO a este repo (si existe uno en el
+  protocolo orquestador) queda fuera del alcance de este slice — no hay tal archivo en `touches:`.

@@ -60,3 +60,14 @@ next-env.d.ts
 
 # Mapa de los repos de Carlos — material de la sesión de asesoría, no del producto.
 /CARTOGRAFIA-DUNA.md
+
+# El arnés de captura (§ ARNES-CAPTURA-SECCION-1, scripts/capturar-seccion.sh): las capturas de
+# cada corrida (PNG + valores computados) NUNCA se commitean — son evidencia de un momento, no
+# artefacto del producto. Adjuntarlas a un slice es pegarlas en el reporte, no versionarlas.
+/.capturas/
+
+# Playwright, instalado AISLADO del árbol de dependencias del repo (npm --prefix), para que el
+# arnés de captura no tenga que declarar Playwright como dependencia de la app que audita.
+# Persistente entre corridas (no se reinstala si ya está) — el costo de red se paga una vez por
+# máquina, no una vez por slice.
+/.arnes-tooling/

@@ -14,6 +14,12 @@
 # apagado, y entonces `npm run test:integracion` falla pidiendo que abras Docker
 # Desktop. El binario de Homebrew arranca en ~1 s sin depender de nada más.
 #
+# EL BOOTSTRAP DEL CLUSTER (prerequisito, puerto ocupado, datadir, trap de
+# teardown, `initdb`/`pg_ctl`/`CREATE DATABASE`) SE MUDÓ A `postgres-efimero.sh`
+# (§ ARNES-CAPTURA-SECCION-1): el arnés de captura de secciones necesita el MISMO
+# mecanismo y el spec pidió reusarlo, no reescribirlo. Esta extracción no cambia
+# el comportamiento de este script — mismo puerto, misma base, mismo trap.
+#
 set -euo pipefail
 
 # Puerto PROPIO: 5432 suele tener un Postgres de desarrollo escuchando, y
@@ -22,51 +28,8 @@ PUERTO=55432
 BASE=integracion
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# ─── Prerequisito, con el remedio en la misma línea ──────────────────────────
-if ! command -v initdb >/dev/null 2>&1 || ! command -v pg_ctl >/dev/null 2>&1; then
-  echo "✗ Falta Postgres. Instálalo con:  brew install postgresql@14  (y añade su bin al PATH)" >&2
-  exit 1
-fi
-
-if (exec 3<>"/dev/tcp/127.0.0.1/${PUERTO}") 2>/dev/null; then
-  exec 3<&- 2>/dev/null || true
-  echo "✗ El puerto ${PUERTO} está ocupado — probablemente quedó un cluster de una corrida anterior." >&2
-  echo "  Ciérralo con:  pg_ctl -D <su datadir> stop -m immediate" >&2
-  exit 1
-fi
-
-DATADIR="$(mktemp -d)/pg"
-LOG="${DATADIR}.log"
-
-# ─── Teardown en TRAP ────────────────────────────────────────────────────────
-# En `trap ... EXIT` y no al final del script a propósito: un test que revienta,
-# un Ctrl-C o un `set -e` disparado dejarían el cluster corriendo y el puerto
-# ocupado, y la corrida siguiente fallaría por una razón que no es la suya.
-teardown() {
-  local code=$?
-  if [ -d "$DATADIR" ]; then
-    pg_ctl -D "$DATADIR" stop -m immediate >/dev/null 2>&1 || true
-  fi
-  rm -rf "$(dirname "$DATADIR")" "$LOG"
-  exit $code
-}
-trap teardown EXIT INT TERM
-
-# ─── Cluster efímero ─────────────────────────────────────────────────────────
-echo "▸ Levantando Postgres efímero en :${PUERTO}…"
-initdb -D "$DATADIR" -U postgres --auth=trust >/dev/null
-
-# `-k ''` DESACTIVA el socket unix y deja solo TCP. No es preferencia: el
-# datadir vive bajo un temp cuyo path supera los 103 bytes que Postgres admite
-# para un socket unix, y el arranque falla con "socket path is too long".
-pg_ctl -D "$DATADIR" -o "-p ${PUERTO} -k '' -h 127.0.0.1" -l "$LOG" -w start >/dev/null
-
-export DATABASE_URL="postgresql://postgres@127.0.0.1:${PUERTO}/${BASE}"
-# El CLI de Prisma lee DIRECT_DATABASE_URL (ver prisma.config.ts). Acá son la
-# misma: no hay pooler que esquivar.
-export DIRECT_DATABASE_URL="$DATABASE_URL"
-
-psql "postgresql://postgres@127.0.0.1:${PUERTO}/postgres" -q -c "CREATE DATABASE ${BASE};"
+source "$RAIZ/scripts/postgres-efimero.sh"
+pg_efimero_arriba "$PUERTO" "$BASE"
 
 echo "▸ Aplicando migraciones…"
 cd "$RAIZ"
