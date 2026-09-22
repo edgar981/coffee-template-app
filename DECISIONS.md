@@ -12173,6 +12173,8 @@ la `RULING_NEEDED` anterior) siguen intactos.
   6→1") queda desactualizado por este slice: con `MenuSeccion` sumando su propio GET, el número real
   de fetches independientes en `/admin/tienda` es 3, no 2. No corregido acá — `CLAUDE.md` no está en
   `touches:` de este slice.
-- La deuda de ESLint `react-hooks/refs` (§ Gate, arriba) — repo-wide, pre-existente, sin id de
-  slice ni entrada en CLAUDE.md; anotada acá para que no se pierda. `why_not_now`: arreglarla toca
+- `ESLINT-REACT-HOOKS-REFS-DEUDA-1` — la deuda de ESLint `react-hooks/refs` (§ Gate, arriba):
+  repo-wide, pre-existente (medido: `PaletaSeccion.tsx`, `TiendaSeccionEditor.tsx`, y ahora
+  `MenuSeccion.tsx` por reproducir el mismo patrón mandado), sin override en `eslint.config.mjs` a
+  diferencia de `react-hooks/set-state-in-effect`. No corregida acá — arreglarla toca
   `PaletaSeccion.tsx`/`TiendaSeccionEditor.tsx`, fuera de `touches:` de este slice.
