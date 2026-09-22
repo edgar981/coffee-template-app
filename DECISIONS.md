@@ -11780,3 +11780,171 @@ ocultos por hide-on-empty — no llegan a verse hasta que alguien cargue un dato
   desarrollo? `why_not_now`: es una decisión de alcance de `mergePresetEnContent` (afecta a las 7
   secciones existentes, no sólo la nueva) o una operación de datos sobre una base compartida — ninguna
   de las dos es una escritura de código de este slice.
+
+## 2026-09-21 — La banda MARQUESINA nace en `BANDA_IDS`, apagada, 2ª tras `hero`, con el motor de scroll y el pin de spotlight REUSADOS (`MARQUESINA-BANDA-1`)
+
+Construye la banda `.marquee` del prototipo (`docs/prototipos/cafeone/index.html:141-157`) medida por
+`MARQUESINA-BANDA-CENSO-1`: tres capas — foto de fondo velada con overlay verde oscuro, un LOOP de
+texto a gran escala que se desplaza con el scroll, y una tarjeta de producto flotante que escala/rota
+con el mismo progreso. Es la SEGUNDA sección del home en el prototipo (entre `.hero` y `.spotlight`) y
+aparece una sola vez. El owner aprobó el punto 8 del programa "se-parece" (2026-09-21) sobre ese censo:
+banda nueva que coexiste (no reemplaza a `featured`/`spotlight`), tarjeta = el PIN de spotlight
+REUSADO, texto del loop = campo de la banda.
+
+### EL MODELO — `BANDA_IDS` pasa de 8 a 9, `marquesina` entra 2ª, justo tras `hero`
+
+`BANDA_IDS`/`ORDEN_DEFAULT` (`lib/config/site-content-defaults.ts`) ganan `'marquesina'` — a
+diferencia de `origen` (que entró ENTRE `brandStory` y `presentaciones`), ésta entra al PRINCIPIO de
+la lista, entre `'hero'` y `'trustBadges'`, porque el prototipo la pone inmediatamente después del
+hero. `SiteContentData` gana `marquesina: MarquesinaContent` (`{visible, texto, imagen,
+productoSlug}`); el REGISTRY declara la sección `ocultable:true`, sin `variantes`, sin `repeater`,
+con `imagenes:['imagen']`. `site-content-schema.ts` gana `marquesinaEditableSchema`, todo
+opcional/SOFT como el resto (el resolver decide default-vs-omit).
+
+**NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`/`spotlight`**: `resolverOrden`
+completa el orden de TODO tenant con TODA banda de `BANDA_IDS`, sin condición — estar en la lista no
+alcanza para mostrarse, sólo decide DÓNDE renderiza SI se muestra. Sin el `false`, Nayoli (y cualquier
+tenant sin fila propia) vería la banda aparecer sola.
+
+**`marquesina` se suma también a `BANDAS_OSCURAS`** (`['hero', 'marquesina', 'brandStory',
+'subscriptionCTA']`): su fondo canónico es la foto velada con overlay de tinta —el mismo rol que ya
+cumple el velo de `HeroMedia.tsx`—, así que no necesita un esquema propio en ningún preset para verse
+oscura (§ abajo, "CÓMO SE ENCIENDE").
+
+### CÓMO SE ENCIENDE — `PresetTema.bandaMarquesinaVisible`, GEMELO exacto de `bandaOrigenVisible`
+
+Misma señal dedicada que ya usa `origen`, por el mismo motivo medido en `ORIGEN-BANDA-1`: "estar en
+`preset.orden`" no puede ser la señal, porque `ORDEN_DEFAULT = [...BANDA_IDS]` alimenta también a
+ARRANQUE/VITRINA/PATIO (los tres usan el spread sin reordenar), así que los tres habrían encendido
+`marquesina` sin haberlo pedido. `mergePresetEnContent` (`themes.ts`) consume
+`preset.bandaMarquesinaVisible` como una CUARTA excepción —gemela de la que enciende
+`spotlight.visible`/`origen.visible`—: `if (preset.bandaMarquesinaVisible && registro.marquesina)
+out.marquesina = {...prevMarquesina, visible:true}`. Preserva cualquier copy/pin que el dueño ya
+hubiera puesto. Sólo CORTE lo declara.
+
+**CORTE NO le asigna esquema propio** (a diferencia de `origen: 'crema'`): su fondo lo da la canónica
+OSCURA de `BANDAS_OSCURAS` —igual que `hero`, que tampoco lleva esquema en CORTE—, así que asignarle
+uno sería una segunda fuente de verdad discrepando con la que ya la pinta bien (`bg-[var(--sf-banda,
+var(--sf-tinta))]`, la MISMA raíz `tinta` que el prototipo pinta en `.marquee{background:
+var(--green-900)}`).
+
+### EL TEXTO DEL LOOP — el mismo catcher que ya atrapó el defecto de `origen`
+
+Igual que `ORIGEN-BANDA-1` corrigió su primer borrador ANTES de comprometerlo, acá el copy del loop
+se escribió genérico desde el principio: `DEFAULTS.marquesina.texto = 'Calidad que se nota en cada
+entrega'`, NUNCA «Café fresco de San Adolfo — Huila — Colombia» del prototipo.
+`mergePresetEnContent` jamás escribe texto de sección —sólo enciende `visible`—, así que el ÚNICO
+texto que CORTE puede mostrar es este default; una frase de origen geográfico concreto en un default
+COMPARTIDO por TODO tenant sería un dato FABRICADO sobre el negocio de quien encienda la banda, la
+misma familia que el rating fabricado que se borró (§ El RATING fabricado se BORRÓ, CLAUDE.md). El
+test `DEFAULTS: ningún campo de TEXTO menciona café…` (§ CONTENIDO-NEUTRALIZAR-1) lo confirma sin
+excepción por sección.
+
+### EL PIN DE LA TARJETA — `productoSpotlight` REUSADO, no una segunda implementación
+
+`Product.bestseller`/`Product.badge` existen sin un solo lector (medido: `MARQUESINA-BANDA-CENSO-1`)
+— no hay "producto destacado" en el modelo. La tarjeta flotante reusa `productoSpotlight` (§ su
+docstring en `site-content-defaults.ts`, ya genérico — no depende de `SpotlightContent`): un slug que
+matchea resuelve al producto vivo; un slug roto o vacío cae al PRIMER producto del catálogo; un
+catálogo VACÍO da `null` (hide-on-empty). `Marquesina.tsx` sólo renderiza la tarjeta si `producto` no
+es `null` — es hide-on-empty de UN ELEMENTO, no de la sección: el texto del loop no depende del pin.
+Cero copia de nombre/precio/imagen del producto: `imagenPortada(producto.imagen)` los lee en cada
+render, igual que `Spotlight.tsx`.
+
+### EL SCROLL — el motor de `TEMAS-BRANDSTORY-DIRECCION-ARTE-1`, extendido con dos funciones puras
+
+`lib/animation.ts` gana `useProgresoScroll` (gemelo de `useProgresoAcomodo` pero SIN el mapeo a
+`UMBRAL_ACOMODO` — acá el progreso que cada callback necesita es el CRUDO 0..1, igual que
+`FSA.scrub` se lo pasa a sus callbacks en `js/home.js:259-282`, sin la ventana [0.15,0.65] que sólo
+usa el collage de brandStory) y dos funciones puras: `transformMarquesinaTexto` (reproduce
+`translate(-p*travel, -50%)`, `js/home.js:269-271`) y `transformMarquesinaTarjeta` (reproduce el
+recorte interno `t=clamp((p-0.12)/0.45,0,1)` + `scale=0.85+0.15*t` + `rot=-4+4*t`,
+`js/home.js:274-279`). Las dos se afirman en `node:test` sin navegador, mismo criterio que
+`transformAcomodo`.
+
+`travelPx` (cuánto se desplaza el texto: `window.innerWidth*1.6`) se mide en un `useEffect` tras
+montar —SSR no tiene `window`— con un fallback de 1600px que sólo se usa en preview/movimiento
+reducido, donde el travel no aplica (`estatico` fuerza `translateY(-50%)` sin desplazamiento).
+
+**MOVIMIENTO REDUCIDO, mismo gate que `BrandStoryCentrada`/`Origen`**: `estatico = preview ||
+!!useReducedMotion()`. El texto rinde `translateY(-50%)` (centrado, quieto, legible — nunca a medio
+camino de un recorrido que no avanza); la tarjeta rinde `'none'` (su estado YA acomodado: escala 1,
+sin rotar).
+
+### LA COMPARACIÓN MEDIDA — Nayoli byte-idéntica, `?tema=CORTE` como 2ª banda, reduced-motion — por `renderToStaticMarkup`, EN MEMORIA
+
+Verificado exclusivamente con `renderToStaticMarkup` sobre contenido armado en memoria
+(`resolverSiteContent({})`, `contenidoConPresetDeVista(nayoli, 'CORTE')`) — SIN levantar el dev
+server, SIN `.env`, SIN consultar la base (regla dura de este slice, distinta de la verificación por
+artefacto/producción que usó `ORIGEN-BANDA-1`).
+
+| medición | resultado |
+| --- | --- |
+| Nayoli (`resolverSiteContent({})`, sin fila) | `renderToStaticMarkup` de `<Marquesina>` da `''` — ni un nodo |
+| `?tema=CORTE` sobre Nayoli | `content.marquesina.visible === true`; `content.orden[0] === 'hero'`, `content.orden[1] === 'marquesina'` |
+| `?tema=CORTE`, el render | incluye el texto de `DEFAULTS.marquesina.texto` dos veces (el loop) + una 3ª vez en el `aria-label` de la sección; SIN tarjeta flotante (catálogo vacío en este carril — mismo comportamiento ya aceptado para `featured·spotlight` y `origen`) |
+| reduced-motion (proxy: `PreviewProvider`) | el texto rinde `style="transform:translateY(-50%)"` — sin ningún `translate(- Npx...)`; la tarjeta no rindió (sin pin) |
+| sin el gate estático (SSR, progreso=0) | el texto rinde `style="transform:translate(0.0px, -50%)"` — arranca sin desplazamiento, nunca a medio camino |
+| tipado | `BANDAS: Record<BandaId, ...>` en `page.tsx` es un tipo EXHAUSTIVO — `tsc` habría fallado si `'marquesina'` no tuviera entrada en el mapa de render; `npx tsc --noEmit` corrió limpio |
+
+### EL DEFECTO ATRAPADO ANTES DE ESCRIBIRLO
+
+El primer borrador de `DEFAULTS.marquesina.texto` iba a ser el copy literal del prototipo («Café
+fresco de San Adolfo — Huila — Colombia»), razonado como "es sólo la frase de una cinta decorativa,
+no una afirmación como los datos de `origen`". Revisado contra el ARGUMENTO del catcher de
+`CONTENIDO-NEUTRALIZAR-1` (no sólo su regex) antes de comprometerse: sigue siendo una afirmación
+sobre EL ORIGEN GEOGRÁFICO del negocio, la misma clase de dato que el rating fabricado — se corrigió
+a copy genérico antes de escribir una sola línea de DEFAULTS.
+
+### Gate
+
+`npm test`: **1689/1689**, 0 fail (1659 del piso de `ORIGEN-BANDA-1` + 30 tests nuevos: 9 en
+`lib/animation.test.ts` + 21 en `lib/config/marquesina-banda.test.ts`, cero quitados — los tests de
+`resolverOrden`/`ORDEN_DEFAULT`/`BANDAS_OSCURAS` en `site-content-defaults.test.ts`/
+`esquema-style.test.ts` se ACTUALIZARON in-place, no se sumaron). `npm run test:integracion`:
+**208/208**, 0 fail — idéntico al piso, sin tocar `packages/core/` ni `tests/integracion/`.
+`npx tsc --noEmit`: limpio. `npm run build`: `✓ Compiled successfully`, `/` sigue `ƒ` (dinámica).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, punto 8 del programa "se-parece", 2026-09-21, sobre el censo
+`MARQUESINA-BANDA-CENSO-1`). Los archivos tocados —`app/(storefront)/page.tsx`,
+`components/storefront/home/Marquesina.tsx` (nuevo)— caen en la frase canónica de Tier 1
+(`app/(storefront)/` archivo suelto listado; `components/storefront/` subárbol completo, §
+CLAUDE.md). `lib/config/*` y `lib/animation.ts` están en `touches:` pero fuera de la lista Tier 1
+literal —se escriben igual, porque el gate de Tier 1 protege por SUPERFICIE tocada en el diff
+completo, no exige que cada archivo individual esté en la lista.
+
+**`customer_bytes.changed = true`**: la RAMA (no el commit) aterriza contenido nuevo, visible bajo
+`?tema=CORTE` —copy genérico de la banda MARQUESINA, un loop de texto animado, una tarjeta de
+producto—, alcanzable en cualquier despliegue no-producción (`esDespliegueDemo()`). `stopped_on:
+[customer-bytes]` → `AWAITING_APPROVAL` por protocolo: el worker no mergea. `strings` (lo nuevo que
+un humano vería bajo CORTE): "Calidad que se nota en cada entrega" (repetido en el loop y en el
+`aria-label` de la sección).
+
+### Deviations
+
+1. **El copy de `DEFAULTS.marquesina.texto` NO es el del prototipo** (§ arriba, "El defecto atrapado
+   antes de escribirlo") — genérico en vez de "San Adolfo, Huila, Colombia", por la razón medida
+   contra `CONTENIDO-NEUTRALIZAR-1` (misma familia que `ORIGEN-BANDA-1`). Consecuencia: bajo
+   `?tema=CORTE` la banda se ve MENOS parecida al prototipo en su TEXTO (aunque sí en su forma:
+   fondo velado, escala del loop, tarjeta flotante).
+2. **La verificación NO usó `npm run build && npm start` + curl contra una base real**, a diferencia
+   de `ORIGEN-BANDA-1` — este slice llegó con la regla dura explícita de verificar SÓLO por
+   `renderToStaticMarkup` en memoria, sin `.env` ni base. La tabla de "LA COMPARACIÓN MEDIDA" de
+   arriba es el reemplazo exacto, medido por ejecución de los mismos módulos puros que consume la
+   ruta real (`resolverSiteContent`, `contenidoConPresetDeVista`, el propio componente).
+
+### Open follow-ups
+
+- `MARQUESINA-BANDA-PANEL-1` — el panel de `/admin/tienda` no gana editor para `marquesina` (§3 del
+  spec: "el panel puede quedar para follow-up"). Sin él, la banda sólo puede encenderse vía el
+  mirador CORTE o escribiendo la fila de `SiteContent` a mano; el owner no tiene UI para cargar el
+  texto del loop, la foto de fondo, ni el pin del producto de un tenant real. `why_not_now`:
+  explícitamente fuera de `touches:` de este slice.
+- `MARQUESINA-BANDA-COPY-PROTOTIPO-1` — gemelo de `ORIGEN-BANDA-COPY-PROTOTIPO-1`: si el owner,
+  mirando el muestrario, quiere que `?tema=CORTE` muestre el copy REAL del prototipo, hace falta la
+  MISMA decisión de producto que ese follow-up ya nombra (un mecanismo de copy de MUESTRARIO, o
+  cargar el dato a mano en la fila de Nayoli). `why_not_now`: decisión de alcance de
+  `mergePresetEnContent` (afecta a las 9 bandas existentes, no sólo la nueva) o una operación de
+  datos sobre una base compartida — ninguna de las dos es una escritura de código de este slice.
