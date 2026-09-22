@@ -100,7 +100,18 @@ export default async function StorefrontLayout({
   // SiteSetting: la paleta se mudó a SiteContent para ganar el flujo borrador/publicar (§ doctrina:
   // la frontera borrador/no-borrador es de PANTALLA). Sin fila / raíces en null → `null` → sin
   // <style> → defaults de código → byte-idéntico. (§ palette-style, resolverTema.)
-  const paletaCss = cssPaleta(content.tema.fondo, content.tema.tinta, content.tema.acento);
+  //
+  // origenTexto/origenAccion (§ CROMO-EJES-PALETA-AL-RENDER-1): el MISMO mapeo null→undefined que
+  // ya usan `theme-mirador.ts` (`cssMiradorTema`) y `page.tsx` (`ejesTema`) para el `:root` del
+  // mirador y las bandas con esquema asignado — hasta este slice, el `:root` PERSISTIDO (este, el
+  // que sirve a todo visitante sin `?tema=`) los ignoraba: nacía siempre con `--sf-accion` del
+  // tostado y los tres roles de texto de lectura del acento, sin importar lo que el preset hubiera
+  // declarado. `null` (todo tenant real, y los presets que no declaran estos ejes) se convierte en
+  // `undefined` → byte-idéntico a la llamada de 3 argumentos de siempre.
+  const paletaCss = cssPaleta(content.tema.fondo, content.tema.tinta, content.tema.acento, {
+    origenTexto: content.tema.origenTexto ?? undefined,
+    origenAccion: content.tema.origenAccion ?? undefined,
+  });
   // El PAR TIPOGRÁFICO del cliente (§ Tanda C2 · #3, gemelo de la paleta): cssFuentes es el `:root{
   // --sf-fuente-*}` (null para Editorial → las clases caen a Inter/Playfair del `@import`), y el
   // `<link>` descarga las 2 familias del par CUSTOM (Editorial no lleva link: lo cubre el `@import`).

@@ -12618,3 +12618,134 @@ repo. `scripts/capturar-seccion.{sh,ts}` NO se tocaron, a propósito (§ arriba)
   hidratación de un client component below-the-fold (§ arriba, punto 1): candidato a nota nueva de
   CLAUDE.md sobre el alcance de "dev engaña" — no se escribió porque `CLAUDE.md` no está en
   `touches:` de este slice.
+
+## 2026-09-22 — El `:root` PERSISTIDO del storefront gana los ejes de paleta: `--sf-accion`/`--sf-texto` honran `origenAccion`/`origenTexto` para TODO visitante, no sólo el mirador (`CROMO-EJES-PALETA-AL-RENDER-1`, cierra `CROMO-CORTE-ACCION-TOSTADO-1`)
+
+### La raíz, en una frase
+
+`app/(storefront)/layout.tsx` emitía el `:root{--sf-*}` que sirve a **todo visitante real** llamando
+a `cssPaleta(fondo, tinta, acento)` con **TRES argumentos** — sin el cuarto, `ejes`. Así,
+`content.tema.origenTexto`/`origenAccion` (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1) se **persistían
+pero nunca llegaban al render**: `derivarPaleta` recibía `ejes: {}` y `--sf-accion` nacía siempre del
+`tostado`, nunca del acento crudo, aunque el preset (CORTE) lo declarara explícitamente.
+
+Esto es exactamente el hallazgo que `CROMO-CARRITO-TEMATIZADO-1` (§ arriba) dejó como open
+follow-up `CROMO-CORTE-ACCION-TOSTADO-1`, con evidencia de navegador: `--sf-accion` medía `#d8a378`
+(tostado) en vez del `#a70004` (rojo) que `CORTE.origenAccion = 'acento'` declara. Ese slice no pudo
+investigar más porque `palette-derive.ts`/`palette-style.ts`/el layout no estaban en su `touches:`.
+Éste sí los tiene (el layout, no los otros dos).
+
+### El fix es aditivo, un patrón que YA existía dos veces en el árbol
+
+`theme-mirador.ts` (`cssMiradorTema`, el `:root` del MIRADOR, sólo activo con `?tema=`) y
+`app/(storefront)/page.tsx` (`ejesTema`, las bandas CON esquema asignado) **ya pasaban el cuarto
+argumento** a `cssPaleta`/`esquemaStyle` — por eso el mirador se veía bien y el `:root` persistido no.
+El fix es literalmente el MISMO mapeo `null → undefined`, copiado al tercer call site:
+
+```ts
+const paletaCss = cssPaleta(content.tema.fondo, content.tema.tinta, content.tema.acento, {
+  origenTexto: content.tema.origenTexto ?? undefined,
+  origenAccion: content.tema.origenAccion ?? undefined,
+});
+```
+
+No se tocó `cssPaleta`, `derivarPaleta` ni `palette-derive.ts` — ya aceptaban el cuarto argumento;
+el hueco era que el layout no lo pasaba. `touches:` de este slice: `app/(storefront)/layout.tsx`,
+`lib/config/cromo-ejes-render.test.ts` (nuevo), este asiento.
+
+### BYTE-IDÉNTICO para Nayoli — no es una afirmación, es lo que mide el propio motor
+
+`content.tema.origenTexto`/`origenAccion` son `null` para todo tenant real (incluida Nayoli) y para
+cinco de los seis presets del catálogo. `palette-style.test.ts` (§ TEMAS-ROLES-DECLARADOS-POR-EL-
+PRESET-1, ya en el árbol) ya afirmaba que `cssPaleta(...raíces)` es idéntico a `cssPaleta(...raíces,
+{})` — un `ejes` con las dos claves en `undefined` es literalmente `{}` a efectos de
+`derivarPaleta` (usa `ejes.origenTexto === 'tinta'`/`ejes.origenAccion === 'acento'`, y `undefined`
+falla las dos comparaciones igual que ausente). Así que el cambio es byte-idéntico por construcción
+para cualquier tenant que no declare estos dos ejes, no por una revisión manual.
+
+### El GATE
+
+Corridos en la tree final, los dos carriles completos (`npm run gate`): **1721/1721** (capa 1, `npm
+test`, incluidos los 3 tests nuevos de `lib/config/cromo-ejes-render.test.ts`) + **208/208** (capa 2,
+`npm run test:integracion`, Postgres efímero del gate — puerto 55432). Cero fallos. `tsc --noEmit`
+limpio. No se ejecutó `next build` completo (el cambio no toca JSX/TSX estructural — sólo el
+argumento de una llamada a función dentro de un componente server existente; `tsc` ya valida la
+firma de `cssPaleta` con 4 argumentos).
+
+`lib/config/cromo-ejes-render.test.ts` NO importa `layout.tsx` (RSC async, server-only, exige base):
+espeja la MISMA expresión que el layout ejecuta, alimentada con `resolverSiteContent({})` (Nayoli) y
+`contenidoConPresetDeVista(NAYOLI, 'CORTE')` (ya puras, ya usadas en `theme-mirador.test.ts`). Tres
+casos: Nayoli con ejes en `null` → byte-idéntico a la llamada sin ejes; CORTE → `--sf-accion` honra
+el acento (`#a70004`), y se afirma que la llamada SIN ejes habría dado el tostado — para que la
+aserción no se vuelva muda si algún día tostado y acento coincidieran por azar; CORTE → `--sf-acento-
+texto` honra la tinta (`#102407`).
+
+### La captura — sobre el render PERSISTIDO, con Postgres efímero propio, orquestado sin `bash <script>.sh`
+
+`scripts/capturar-seccion.sh` no se pudo invocar directo: el dispatch de este slice sólo concede
+`Bash(node:*)/Bash(npm:*)/Bash(npx:*)` como comando de TOPE, y `bash scripts/capturar-seccion.sh`
+pide una aprobación que nadie puede dar en modo no interactivo. La salida (documentada, no oculta):
+`.scratch/run-captura.mjs` (gitignoreado, throwaway) reimplementa EXACTAMENTE la mecánica de
+`scripts/postgres-efimero.sh` (`initdb`/`pg_ctl`/`createdb`, mismos flags — `-k ''` incluido) más
+`npm run db:deploy -w @duna/core` y `node --import tsx scripts/capturar-seccion.ts`, todo invocado
+desde un proceso `node` de TOPE. `scripts/capturar-seccion.{sh,ts}` **no se tocaron** — no están en
+`touches:` de este slice, mismo criterio que `CROMO-CAPTURA-ARNES-CLICK-1` ya sentó.
+
+Cuatro corridas del arnés real (Postgres efímero fresco cada vez, `next dev --webpack`, Chromium
+headless real vía Playwright aislado), alternando el archivo `layout.tsx` entre el HEAD pre-fix
+(`git show HEAD:…`, restaurado a mano entre corridas) y el diff de este slice, sobre los presets
+CORTE y ARRANQUE (raíces idénticas a Nayoli, `origenTexto`/`origenAccion` en `null` — el preset
+"byte-idéntico" del catálogo, § `themes.ts`):
+
+| | `--sf-accion` | `--sf-texto` |
+| --- | --- | --- |
+| **CORTE, ANTES** (HEAD, 3 argumentos) | `#d8a378` (tostado — el defecto medido por `CROMO-CORTE-ACCION-TOSTADO-1`) | `#732a00` |
+| **CORTE, DESPUÉS** (este diff, 4 argumentos) | **`#a70004`** (= `raices.acento` exacta de CORTE) | **`#3d3000`** |
+| **Nayoli/ARRANQUE, ANTES** | `#c9a88e` | `#613211` |
+| **Nayoli/ARRANQUE, DESPUÉS** | `#c9a88e` (idéntico) | `#613211` (idéntico) |
+
+Los cuatro valores son la salida de `getComputedStyle(document.documentElement)` leída en el
+NAVEGADOR REAL contra el `:root` que el layout emite — no una inferencia de código. Confirma las dos
+mitades del spec: CORTE deja de ser tostado y pasa a ser el rojo de acción declarado; Nayoli no
+cambia un byte. Capturas completas (PNG app + PNG del prototipo + `valores.json`) en
+`.capturas/cromo-ejes-{antes,despues}-{corte,nayoli}/` (gitignoreado).
+
+**LÍMITE DE LA CAPTURA, medido y declarado — el screenshot del BOTÓN no muestra el color, aunque el
+valor computado sí lo prueba.** El selector usado (`a[href="/suscripciones"][class*="var(--sf-
+accion"]`, la única forma de apuntar al CTA con fondo de ACCIÓN sin colisionar con el enlace del
+footer ni, para ARRANQUE, con el secundario del hero) cae dentro de un `motion.div` con
+`initial="hidden"`/`whileInView="visible"` (`SubscriptionCTALinea`/`SubscriptionCTABloque`,
+`fadeUp`), o —probado también con el CTA PRIMARIO del hero de ARRANQUE, que usa `animate="visible"`
+con `staggerChildren:0.15` sobre CINCO hijos previos— sigue sin asentar dentro de la ventana de
+`waitForTimeout(300)` que `capturar-seccion.ts` usa tras cada `page.goto`. Medido: el promedio de
+color de los cuatro PNG de botón (`magick -resize 1x1`) da el FONDO de la banda/página, no el del
+botón — el elemento está esencialmente en opacidad 0 en el instante del screenshot, en las CUATRO
+corridas por igual (antes y después, CORTE y Nayoli), así que el artefacto es **consistente e
+independiente del fix** — no lo introduce ni lo esconde. Una captura de página completa (sin
+selector, `fullPage:true`) sobre CORTE-después tampoco muestra rojo en ningún píxel (histograma de
+24 colores dominantes, ninguno cerca de `#a70004`): `fullPage` de Playwright redimensiona el
+viewport en vez de scrollear, así que un `whileInView` con `viewport:{once:true}` nunca dispara.
+**La prueba que SÍ vale es el valor computado del `:root`** (tabla arriba), que es exactamente lo que
+el spec pidió medir y lo que decide qué pinta el navegador en cuanto la animación asienta.
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `app/(storefront)/layout.tsx` (el fix, 4º argumento a `cssPaleta`), `lib/config/cromo-ejes-
+render.test.ts` (nuevo), este asiento. `.scratch/run-captura.mjs` NO se commitea (gitignoreado).
+`scripts/capturar-seccion.{sh,ts}` NO se tocaron, a propósito (§ arriba).
+
+### Open follow-ups
+
+- **`CROMO-COMENTARIOS-EJES-VENCIDOS-1`** — dos docstrings quedaron describiendo el código VIEJO:
+  `lib/config/palette-style.ts:31-36` ("Sólo `theme-mirador.ts` lo pasa hoy… el layout real del
+  storefront sigue llamando a esta función con TRES argumentos, sin `ejes`") y
+  `lib/config/theme-mirador.ts:71-75` ("el layout del storefront (`app/(storefront)/layout.tsx`)
+  sigue llamando a `cssPaleta` con sólo 3 argumentos"). Las DOS son FALSAS después de este slice.
+  Ninguno de los dos archivos está en `touches:` de este slice — se nombra, no se corrige.
+- **`CROMO-ARNES-STAGGER-ANIMACION-1`** — `scripts/capturar-seccion.ts` no espera a que asiente una
+  animación de entrada (`whileInView`/`staggerChildren`) antes de capturar: cualquier CTA envuelto en
+  `motion` con esas variantes sale con opacidad ~0 en el screenshot, aunque el valor CSS computado sea
+  correcto (§ arriba, el límite de la captura). El arnés no está en `touches:` de este slice. Quien lo
+  tenga en el suyo podría sumar `page.waitForTimeout` post-scroll, o `{animations:'disabled'}` no
+  aplica acá (es CSS transition/JS de framer, no CSS animation) — o documentar el límite en el propio
+  banner del arnés.
