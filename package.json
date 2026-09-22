@@ -15,6 +15,7 @@
     "postinstall": "npm run generate -w @duna/core",
     "db:seed": "tsx prisma/seed.ts",
     "db:crear-owner": "tsx prisma/crear-owner.ts",
+    "db:aplicar-preset": "tsx prisma/aplicar-preset.ts",
     "test:integracion": "bash scripts/test-integracion.sh",
     "gate": "npm test && npm run test:integracion"
   },

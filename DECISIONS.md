@@ -12178,3 +12178,96 @@ la `RULING_NEEDED` anterior) siguen intactos.
   `MenuSeccion.tsx` por reproducir el mismo patrón mandado), sin override en `eslint.config.mjs` a
   diferencia de `react-hooks/set-state-in-effect`. No corregida acá — arreglarla toca
   `PaletaSeccion.tsx`/`TiendaSeccionEditor.tsx`, fuera de `touches:` de este slice.
+
+## 2026-09-22 — `aplicar-preset.ts` llega a la rama de CORTE, para poder persistir el preset nuevo (`ONBOARDING-APLICAR-PRESET-EN-CORTE-1`)
+
+### El problema — el script y el preset nuevo vivían en ramas distintas
+
+`CORTE-ESQUEMAS-INVERTIDOS-1` (§ observed-report de este slice) midió que el muestrario se ve con
+el tema por defecto porque CORTE no está PERSISTIDO en su base: `aplicarPreset`
+(`lib/config/site-content-write.ts`) es el único mecanismo de escritura, pero su ÚNICO llamador —
+`prisma/aplicar-preset.ts` — nació en `ONBOARDING-APLICAR-PRESET-SCRIPT-2`, una rama que arrancó
+de un punto ANTERIOR a toda la reescritura de CORTE contra el prototipo (`CORTE-REESCRITURA-
+PROTOTIPO-1` en adelante): el `CORTE` que esa rama conoce es el viejo, sin `navTinta`/
+`escalaDisplay`/`bandaOrigenVisible`. El owner necesita correr el script desde un checkout que
+tenga **las dos cosas a la vez**: el script, y el preset con los campos nuevos. Ninguna rama
+existente las tenía juntas.
+
+### Lo que se hizo — COPIA VERBATIM, no una reescritura
+
+`git checkout origin/slice/onboarding-aplicar-preset-script-2 -- prisma/aplicar-preset.ts
+lib/config/aplicar-preset-guardas.test.ts` trae los dos archivos byte-a-byte a esta rama, sin
+tocar una línea. El script importa `PRESETS`/`PresetTema` de `lib/config/themes` y
+`aplicarPreset`/`PresetIncompletoError` de `lib/config/site-content-write` — los CUATRO ya existen
+en esta rama, con la MISMA firma (`aplicarPreset(preset: PresetTema): Promise<void>`), así que el
+script compila sin ajustar nada. `lib/config/themes.ts` (donde vive el preset CORTE nuevo) **no se
+tocó**: el script sólo lo LEE. Se sumó `"db:aplicar-preset": "tsx prisma/aplicar-preset.ts"` a
+`package.json`, mismo patrón que `db:crear-owner`, copiado literal de la rama origen.
+
+### La verificación que importa — que ESTA rama lea el CORTE nuevo
+
+Afirmado EN MEMORIA, sin `.env` ni base — `npx tsx -e` importando `PRESETS` de
+`lib/config/themes.ts` en esta rama y leyendo `PRESETS.find(p => p.clave === 'CORTE')`:
+
+```
+{"navTinta":true,"escalaDisplay":"amplia","bandaOrigenVisible":true}
+```
+
+Los tres campos que `ONBOARDING-APLICAR-PRESET-EN-CORTE-1` pedía verificar están presentes y con
+los valores que las tandas `CROMO-NAV-FOOTER-TEMATIZABLE-1` / `TEMAS-ESCALA-DISPLAY-1` /
+`ORIGEN-BANDA-1` dejaron en CORTE — no la CORTE vieja que `SCRIPT-2` traía. `presetPorClave` (la
+función interna del script que hace exactamente este lookup) no está exportada, así que la
+verificación se hizo contra la MISMA fuente que ella lee (`PRESETS`), no contra una reimplementación.
+No se agregó un archivo de test nuevo para esto — el `touches:` del slice no declara uno, y
+`lib/config/aplicar-preset-guardas.test.ts` viajó COPIADO VERBATIM (no se le agregó un caso para no
+convertir la "copia tal cual" del §0 en una reescritura).
+
+### El comando que el owner corre — no se ejecutó
+
+`npx tsx --env-file=<entorno-del-muestrario> prisma/aplicar-preset.ts CORTE` (o
+`CONFIRMAR_TENANT="<nombre exacto>" npx tsx --env-file=... prisma/aplicar-preset.ts CORTE` sin
+terminal interactiva). Este slice NO lo corrió — `exec: no` en el spec, y la aprobación autoriza
+la escritura de los archivos a esta rama, nunca correr el script ni mergear.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1713/1713**, 0 fail — incluye los 8 tests de
+  `aplicar-preset-guardas.test.ts` copiados con el script.
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — sin
+  cambio; este slice no toca `packages/core/`, `tests/integracion/` ni ninguna migración.
+- **`npx tsc --noEmit`**: limpio.
+- **`npx next build`**: compiló sin error; `prisma/aplicar-preset.ts` es tooling fuera de `app/`,
+  no genera ruta.
+- **`npx eslint prisma/aplicar-preset.ts lib/config/aplicar-preset-guardas.test.ts`**: limpio, sin
+  hallazgos.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (spec), `approved: yes` (owner). El diff (`prisma/aplicar-preset.ts`,
+`lib/config/aplicar-preset-guardas.test.ts`, `package.json`, `DECISIONS.md`) es TOOLING de
+onboarding — no toca `schema.prisma`, ninguna migración, ni un solo archivo de `app/(storefront)/`
+ni `components/storefront/`. Contra MERGE POLICY A: sin schema/migración propio (el script LEE la
+base existente, no la migra), sin contrato cross-repo, y sin bytes de cliente propios de este
+commit — `prisma/aplicar-preset.ts` no se sirve al navegador.
+
+**`customer_bytes.changed = true` DE TODOS MODOS — EL EJE ES LA RAMA, NO EL COMMIT** (mismo
+criterio que los cuatro asientos anteriores de esta rama): `slice/corte-reescritura-prototipo-1` ya
+aterriza bytes visibles bajo `?tema=CORTE` desde commits anteriores (CTAs del hero, cue "Desliza",
+bandas Origen/Marquesina, el menú del nav). `strings: []` para este commit — no introduce ningún
+string nuevo que un visitante vea; es tooling de servidor que ni siquiera corrió.
+
+`stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`, por protocolo: el worker no mergea ni corre
+el script.
+
+### Deviations
+
+Ninguna. `presetPorClave` (función interna del script, no exportada) no se pudo probar por
+importación directa; se verificó su MISMA fuente (`PRESETS.find`) en su lugar, que es
+equivalente y no exige exportar nada del script copiado — mantiene la copia verbatim del §0
+intacta.
+
+### Open follow-ups
+
+Ninguno nuevo. El follow-up de verificación en navegador (`CROMO-MENU-CAPA3-1`) y la deuda de
+ESLint (`ESLINT-REACT-HOOKS-REFS-DEUDA-1`) ya están registrados por slices anteriores de esta
+rama y no cambian con este.
