@@ -91,6 +91,72 @@ export interface BrandStoryContent {
   variante: string;
 }
 
+// LA BANDA ORIGEN (§ ORIGEN-BANDA-1, medido: ORIGEN-BANDA-CENSO-1) — grid de 2 fotos + copy
+// (antetítulo/título/lede) + una LISTA de 4 pares dato EDITORIALES A NIVEL FINCA (Altitud/Variedad/
+// Proceso/Cosecha en el prototipo — NUNCA leídos de `Product`; es texto del dueño sobre el origen del
+// negocio, no una ficha de producto) + 3 CONTADORES ANIMADOS (numero+etiqueta, § el CONTADOR en
+// `lib/animation.ts`).
+//
+// A DIFERENCIA DE `spotlight` (que se quedó FUERA de `BANDA_IDS` porque es una VARIANTE de
+// `featured`, no una banda propia, § el docstring de `SpotlightContent`), `origen` ES miembro de
+// `BANDA_IDS`: coexiste con `brandStory` (la Historia) en vez de reemplazarla —son dos secciones
+// distintas del prototipo, `#origen` y `#nuestra-historia`—, así que necesita su PROPIA posición en
+// la secuencia del home, no un slot de variante prestado.
+//
+// NACE OFF (`visible:false`, ver DEFAULTS.origen abajo) por la MISMA razón MECÁNICA que hizo nacer a
+// spotlight apagado mientras estuvo fuera de `BANDA_IDS`: `resolverOrden` completa el orden de TODO
+// tenant con TODA banda de `BANDA_IDS`, sin condición — estar en la lista no alcanza para mostrarse,
+// sólo decide DÓNDE renderiza SI se muestra. `visible:false` es lo único que impide que la sola
+// presencia en `orden` encienda la banda para Nayoli (o cualquier tenant) sin que nadie la haya
+// pedido. CORTE es hoy el ÚNICO preset que la enciende, vía `PresetTema.bandaOrigenVisible` (§
+// `mergePresetEnContent`, themes.ts) — NUNCA vía membresía en `orden`: ese campo no puede ser la
+// señal, porque `ORDEN_DEFAULT = [...BANDA_IDS]` alimenta también a ARRANQUE/VITRINA/PATIO (los tres
+// usan el spread), así que "estar en el orden resuelto" es universal, no exclusivo de CORTE.
+//
+// LOS 4 PARES DATO Y LOS 3 STATS SON CARDINALIDAD FIJA (mismo patrón que `suscripcionPasos`: slot +
+// subcampos, campos planos — no un repeater, por la misma razón que Presentaciones: un repeater no
+// puede dar defaults byte-idénticos, § La BIFURCACIÓN de cardinalidad, CLAUDE.md). PERO el LABEL y
+// el VALOR de cada par NO comparten obligatoriedad, y es DELIBERADO:
+//
+//   · `dato1..4Label` son REQUERIDOS — son nombres de CATEGORÍA genéricos ("Origen", "Selección"…),
+//     no una afirmación verificable, así que un default siempre puede tener uno razonable.
+//   · `dato1..4Valor` y los `statNumeroN`/`statEtiquetaN` son OPCIONALES, vacíos por defecto — cada
+//     uno es una AFIRMACIÓN FACTUAL sobre ESTE negocio (una altitud, un conteo, un número de años),
+//     y `mergePresetEnContent` (themes.ts) JAMÁS escribe texto de sección — sólo enciende `visible`
+//     (igual que con `spotlight.visible`) —, así que el ÚNICO valor que CORTE podría mostrar es el
+//     DEFAULT. Inventar un número («1.600 msnm», «52 años») en un DEFAULT COMPARTIDO por TODO
+//     tenant sin fila propia sería fabricar un dato — la misma familia que el rating fabricado que
+//     se borró (§ El RATING fabricado se BORRÓ, CLAUDE.md) y que el precio vacío de
+//     `SuscripcionPlanesContent` ya evita («el precio es TEXTO OPCIONAL... un precio inventado sería
+//     dato falso en la ruta del dinero» — acá el dato no es dinero, pero es la MISMA clase de
+//     afirmación no verificable). Vacío se OMITE (§ `Origen.tsx`: una fila de dato sin valor, o un
+//     contador sin número, no se renderiza) — nunca un placeholder inventado.
+//
+// Consecuencia medida y aceptada: bajo `?tema=CORTE`, sin panel todavía para cargar datos reales
+// (§3 del spec de este slice — el panel queda de follow-up), la lista de datos y los contadores
+// rinden VACÍOS (sólo el copy de cabecera se ve) — el MISMO comportamiento que ya tiene
+// `featured·spotlight` bajo CORTE hoy (sin catálogo real, Spotlight rinde vacío, § spotlight-
+// cableado.test.ts): una banda ENCENDIDA por el preset pero sin dato real que mostrar aún.
+export interface OrigenContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  lede: string;
+  imagen1: string;
+  imagen2: string;
+  dato1Label: string; dato1Valor: string;
+  dato2Label: string; dato2Valor: string;
+  dato3Label: string; dato3Valor: string;
+  dato4Label: string; dato4Valor: string;
+  // `statNumeroN` es TEXTO, no number — guarda el valor final tal como se muestra («1600»), y el
+  // componente (`OrigenContador`, dentro de `Origen.tsx`) lo parsea para animar el count-up. Mismo
+  // criterio que `precio` de `SuscripcionPlanesContent`: el formato es del cliente, no del sistema.
+  // Vacío → el contador se OMITE (junto a su etiqueta), como cualquier otro par opcional de arriba.
+  statNumero1: string; statEtiqueta1: string;
+  statNumero2: string; statEtiqueta2: string;
+  statNumero3: string; statEtiqueta3: string;
+}
+
 // Presentaciones ("¿Cómo tomas tu café?"): de 2 a 4 tarjetas de presentación. Cardinalidad VARIABLE
 // pero con campos PLANOS, NO un repeater —un repeater no puede dar defaults byte-idénticos
 // (`resolverItems` → `[]` sin fila, invariante #44)—. La variable se expresa como **2 slots REQUERIDOS
@@ -468,6 +534,7 @@ export interface CromoContent {
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
+  origen: OrigenContent;
   presentaciones: PresentacionesContent;
   spotlight: SpotlightContent;
   subscriptionCTA: SubscriptionCTAContent;
@@ -505,14 +572,16 @@ export type EsquemasContent = Record<string, ClaveEsquema>;
 export type VariantesBandasContent = Record<string, string>;
 
 // META de ORDEN (§ eje 5, parte c — el orden de las bandas del home como DATO). A diferencia de
-// `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 7 ids de banda
-// que hoy monta `app/(storefront)/page.tsx`. `BANDA_IDS` es la ÚNICA lista de esos ids —
+// `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 8 ids de banda
+// que hoy monta `app/(storefront)/page.tsx` (7 hasta § ORIGEN-BANDA-1, que sumó `origen` — ver su
+// docstring en `OrigenContent`, arriba, para por qué SÍ entra a esta lista a diferencia de
+// `spotlight`). `BANDA_IDS` es la ÚNICA lista de esos ids —
 // `site-content-schema.ts` la importa para su `z.enum` en vez de declarar una segunda—, y ya está
 // en el ORDEN DEFAULT de hoy, así que `[...BANDA_IDS]` sirve directo como default. Newsletter
 // (`newsletter`) queda FUERA: sigue oculta/comentada en v1 (§ page.tsx) y no se renderiza, así que
 // no es un id reordenable — agregarla es el día que se reactive esa sección.
 export const BANDA_IDS = [
-  'hero', 'trustBadges', 'featured', 'brandStory', 'presentaciones', 'subscriptionCTA', 'testimonials',
+  'hero', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials',
 ] as const;
 export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = BandaId[];
@@ -536,6 +605,7 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 //   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
 //   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
 //   featured        → var(--sf-fondo)      (FeaturedProducts.tsx)   → clara
+//   origen          → var(--sf-fondo)      (Origen.tsx)             → clara (§ ORIGEN-BANDA-1)
 //   presentaciones  → var(--sf-fondo)      (GrindChooser.tsx)       → clara
 //   testimonials    → var(--sf-fondo)      (TestimonialSection.tsx) → clara
 //   (newsletter     → var(--sf-superficie) (Newsletter.tsx), oculta v1 — no en BANDA_IDS, no aplica)
@@ -626,6 +696,45 @@ export const DEFAULTS: SiteContentData = {
     imagen4: '/images/historia-4-v1.jpg',
     // La canónica (§ eje 5e, TEMAS-P2-BRANDSTORY-1): Nayoli queda byte-idéntica al collage de hoy.
     variante: 'columnas',
+  },
+  // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, ver el docstring de `OrigenContent` arriba). NACE OFF
+  // (`visible:false`) — igual que spotlight nació OFF mientras estuvo fuera de `BANDA_IDS`, por la
+  // MISMA razón mecánica: `resolverOrden` completa el orden de TODO tenant con TODA banda de
+  // `BANDA_IDS`, así que estar en la lista no alcanza para mostrarse. Sin este `false`, Nayoli (y
+  // cualquier tenant sin fila propia) vería la banda aparecer sola.
+  //
+  // EL COPY ES GENÉRICO A PROPÓSITO —igual que `hero`/`brandStory`/`presentaciones` tras
+  // CONTENIDO-NEUTRALIZAR-N—, aunque el prototipo que motivó esta banda (`docs/prototipos/cafeone/`,
+  // § ORIGEN-BANDA-CENSO-1) sea 100% café (Altitud/Variedad/Proceso/Cosecha, msnm, hectáreas). El
+  // test `DEFAULTS: ningún campo de TEXTO menciona café…` (abajo en este archivo, § CONTENIDO-
+  // NEUTRALIZAR-1) camina TODO `DEFAULTS` sin excepciones por sección, así que un texto café-shape
+  // acá lo haría fallar igual que en cualquier otra — no hay exención para "banda nueva".
+  //
+  // LOS VALORES de los 4 pares dato y los 3 stats nacen VACÍOS, no genéricos-con-número-inventado, y
+  // es la MISMA razón que ya vacía `precio` en `SuscripcionPlanesContent`: `mergePresetEnContent`
+  // JAMÁS escribe texto de sección (sólo `visible`), así que el ÚNICO valor que CORTE podría mostrar
+  // bajo `?tema=CORTE` es ESTE default — y una cifra («52 años», «1.600 msnm») en un default
+  // COMPARTIDO por TODO tenant sería un dato fabricado sobre ESE negocio, la misma familia que el
+  // rating fabricado que se borró (§ El RATING fabricado se BORRÓ, CLAUDE.md). Los LABELS sí llevan
+  // default —son categorías, no una afirmación verificable— y las VALORES vacíos se OMITEN en el
+  // render (`Origen.tsx`), como cualquier campo opcional vacío del sistema.
+  origen: {
+    visible: false,
+    eyebrow: 'El origen',
+    titulo: 'Detrás de cada producto hay un origen real',
+    lede:
+      'Cada producto que ofrecemos nace en un lugar concreto, con personas que lo hacen posible. Contamos esa historia para que sepas exactamente de dónde viene lo que te llega.',
+    // Reusa assets estáticos existentes (§ brandStory.imagen2/imagen3) en vez de introducir un asset
+    // nuevo: la banda nace OFF, así que no hay urgencia de una foto propia.
+    imagen1: '/images/historia-2-v1.jpg',
+    imagen2: '/images/historia-3-v1.jpg',
+    dato1Label: 'Ubicación', dato1Valor: '',
+    dato2Label: 'Selección', dato2Valor: '',
+    dato3Label: 'Cuidado', dato3Valor: '',
+    dato4Label: 'Disponibilidad', dato4Valor: '',
+    statNumero1: '', statEtiqueta1: '',
+    statNumero2: '', statEtiqueta2: '',
+    statNumero3: '', statEtiqueta3: '',
   },
   // Los literales que hoy viven en GrindChooser (OPCIONES + el encabezado). Byte a byte: sin fila de
   // SiteContent, la home queda IDÉNTICA (§ el test de byte-idéntico). Las imágenes son paths /public
@@ -990,6 +1099,33 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       imagen2: 'requerido',
       imagen3: 'requerido',
       imagen4: 'requerido',
+    },
+  },
+  // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, ver el docstring de `OrigenContent` arriba). `ocultable:
+  // true`, sin `variantes` (una sola composición: grid de 2 fotos + copy + la lista de datos + los
+  // 3 contadores). Los 4 pares dato y los 3 stats son cardinalidad FIJA —mismo patrón que
+  // `suscripcionPasos` (slots fijos, campos planos)—, pero el LABEL y el VALOR de cada par NO
+  // comparten obligatoriedad: los LABELS son requeridos (categorías, no una afirmación verificable,
+  // § el docstring de `OrigenContent` para el porqué completo); los VALORES —y los dos campos de
+  // cada stat— son OPCIONALES, vacío se OMITE en el render (criterio análogo al de las tarjetas 3-4
+  // de Presentaciones, sólo que acá el gate es "tiene valor", no "título O imagen").
+  origen: {
+    label: 'Origen',
+    ocultable: true,
+    imagenes: ['imagen1', 'imagen2'],
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+      lede: 'requerido',
+      imagen1: 'requerido',
+      imagen2: 'requerido',
+      dato1Label: 'requerido', dato1Valor: 'opcional',
+      dato2Label: 'requerido', dato2Valor: 'opcional',
+      dato3Label: 'requerido', dato3Valor: 'opcional',
+      dato4Label: 'requerido', dato4Valor: 'opcional',
+      statNumero1: 'opcional', statEtiqueta1: 'opcional',
+      statNumero2: 'opcional', statEtiqueta2: 'opcional',
+      statNumero3: 'opcional', statEtiqueta3: 'opcional',
     },
   },
   presentaciones: {

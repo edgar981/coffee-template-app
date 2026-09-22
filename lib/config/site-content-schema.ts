@@ -68,6 +68,27 @@ const brandStoryEditableSchema = z.object({
   variante: z.string().optional(),
 });
 
+// ORIGEN (§ ORIGEN-BANDA-1): grid de 2 fotos + copy + 4 pares dato (label/valor) + 3 contadores
+// (numero/etiqueta) — cardinalidad FIJA, campos PLANOS, patrón `suscripcionPasosEditableSchema`
+// (abajo). Todo opcional/SOFT: el resolver aplica el default a cada campo REQUERIDO (§ REGISTRY.origen,
+// site-content-defaults.ts). `statNumeroN` es `z.string()`, no número — mismo criterio que `precio`
+// de suscripcionPlanes, el sistema no valida ni formatea el texto que el dueño escribe.
+const origenEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  lede: z.string().optional(),
+  imagen1: z.string().optional(),
+  imagen2: z.string().optional(),
+  dato1Label: z.string().optional(), dato1Valor: z.string().optional(),
+  dato2Label: z.string().optional(), dato2Valor: z.string().optional(),
+  dato3Label: z.string().optional(), dato3Valor: z.string().optional(),
+  dato4Label: z.string().optional(), dato4Valor: z.string().optional(),
+  statNumero1: z.string().optional(), statEtiqueta1: z.string().optional(),
+  statNumero2: z.string().optional(), statEtiqueta2: z.string().optional(),
+  statNumero3: z.string().optional(), statEtiqueta3: z.string().optional(),
+});
+
 // Presentaciones: cardinalidad VARIABLE 2-4 con campos PLANOS (no repeater). Cada tarjeta: label +
 // copy + imagen + CATEGORIA (el destino, § el destino de Presentaciones es DATO). TODOS los campos
 // deben declararse o zod los STRIPPEA EN SILENCIO al guardar —era el bug #65-B: el schema quedó
@@ -307,6 +328,7 @@ const menuEditableSchema = z.object({
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
+  origen: origenEditableSchema.optional(),
   presentaciones: presentacionesEditableSchema.optional(),
   spotlight: spotlightEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),

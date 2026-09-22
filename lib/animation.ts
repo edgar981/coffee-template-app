@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, type ReactNode, type RefObject } from "react";
+import { createElement, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { MotionConfig, useScroll, useTransform } from "framer-motion";
 
 // fadeUp — la variante compartida de entrada (opacity 0→1, y 24→0) que usan las
@@ -53,6 +53,81 @@ export function transformAcomodo(
 export function useProgresoAcomodo(target: RefObject<HTMLElement | null>) {
   const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] });
   return useTransform(scrollYProgress, [UMBRAL_ACOMODO.desde, UMBRAL_ACOMODO.hasta], [0, 1], { clamp: true });
+}
+
+// ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────
+//
+// El prototipo (`docs/prototipos/cafeone/js/home.js:311-332`) anima sus tres estadísticas
+// ("1.600 msnm promedio", "12 hectáreas sembradas", "52 años de tradición") con un IntersectionObserver
+// que dispara UNA vez al 40% visible y un loop de `requestAnimationFrame` de 1100ms con ease-out
+// cúbica. Medido: ORIGEN-BANDA-CENSO-1 — el repo no tenía precedente de esto (cero
+// `requestAnimationFrame`/CountUp antes de este slice).
+export const DURACION_CONTADOR_MS = 1100;
+
+// `valorContador` reproduce, PURA y sin React, el cálculo de `js/home.js:320-327`
+// (`k = min(1,(now-t0)/dur)`, `eased = 1-(1-k)^3`, valor = destino*eased). Separada del hook por el
+// MISMO criterio que `transformAcomodo`: poder testearla en `node:test` sin navegador.
+export function valorContador(destino: number, progreso: number): number {
+  const k = Math.max(0, Math.min(1, progreso));
+  const eased = 1 - Math.pow(1 - k, 3);
+  return destino * eased;
+}
+
+export interface ContadorAnimado {
+  ref: RefObject<HTMLElement | null>;
+  valor: number;
+}
+
+// `useContadorAnimado` — monta `valorContador` sobre un IntersectionObserver (dispara UNA vez, al
+// 40% visible, como el prototipo) + un loop de rAF sobre `DURACION_CONTADOR_MS`.
+//
+// `estatico` es el GATE ÚNICO, decidido por el llamador — MISMO criterio que `estatico` de
+// `transformAcomodo`/`BrandStoryCentrada` (`preview || !!useReducedMotion()`): con `estatico=true`
+// el valor nace YA en `destino`, sin observer ni rAF. Dos razones lo piden, ninguna nueva en este
+// repo: `prefers-reduced-motion` (ni "a medio contar" bajo esa preferencia, un número que salta de
+// golpe a su valor final ya ES la lectura correcta — no hay equivalente a "acomodado y quieto" para
+// un contador, el número simplemente no cuenta), y la VISTA PREVIA del editor de `/admin/tienda`
+// (`useIsPreview`, el patrón que `BrandStory`/`GrindChooser`/`Spotlight` ya siguen): dentro de
+// `EscalaDesktop` (`transform:scale`) un `IntersectionObserver` puede no disparar — medido:
+// ORIGEN-BANDA-CENSO-1 —, así que el preview no puede depender de él para mostrar un número.
+export function useContadorAnimado(destino: number, estatico: boolean): ContadorAnimado {
+  const ref = useRef<HTMLElement | null>(null);
+  const [valor, setValor] = useState(estatico ? destino : 0);
+  const disparado = useRef(false);
+
+  useEffect(() => {
+    if (estatico) {
+      setValor(destino);
+      return;
+    }
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setValor(destino);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting || disparado.current) return;
+          disparado.current = true;
+          io.unobserve(entry.target);
+          const t0 = performance.now();
+          const paso = (now: number) => {
+            const progreso = (now - t0) / DURACION_CONTADOR_MS;
+            setValor(valorContador(destino, progreso));
+            if (progreso < 1) requestAnimationFrame(paso);
+          };
+          requestAnimationFrame(paso);
+        });
+      },
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destino, estatico]);
+
+  return { ref, valor };
 }
 
 // ReducedMotionProvider — STOREFRONT-REDUCED-MOTION-1 (2026-09-12).

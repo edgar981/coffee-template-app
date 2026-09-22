@@ -3,6 +3,7 @@ import HeroSection from "@/components/storefront/home/HeroSection";
 import TrustBadges from "@/components/storefront/home/TrustBadges";
 import FeaturedProducts from "@/components/storefront/home/FeaturedProducts";
 import BrandStory from "@/components/storefront/home/BrandStory";
+import Origen from "@/components/storefront/home/Origen";
 import GrindChooser from "@/components/storefront/home/GrindChooser";
 import SubscriptionCTA from "@/components/storefront/home/SubscriptionCTA";
 import TestimonialSection from "@/components/storefront/home/TestimonialSection";
@@ -31,11 +32,16 @@ import { esDespliegueDemo } from "@/next.config";
 // hoy>)` → byte-idéntico. `getSiteContent` es React.cache, así que dedupe con la lectura del layout.
 //
 // EL ORDEN (§ eje 5, parte c) se resuelve en `content.orden` y decide en qué SECUENCIA se montan las
-// 7 bandas — antes JSX fijo, ahora un `.map` sobre `resolverOrden(orden)` (SIEMPRE las 7, completo por
-// construcción). `BANDAS` es el registro bandaId→render: GrindChooser (id 'presentaciones') es la
-// ÚNICA banda con un prop extra (`negocio`); las demás sólo toman `style`. Sin fila, `orden` resuelve
-// al orden de HOY → mismo árbol que el JSX fijo de ayer → byte-idéntico. Newsletter queda FUERA del
-// registro y de `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en `orden`.
+// 8 bandas (7 hasta § ORIGEN-BANDA-1, que sumó `origen`) — antes JSX fijo, ahora un `.map` sobre
+// `resolverOrden(orden)` (SIEMPRE las 8, completo por construcción). `BANDAS` es el registro
+// bandaId→render: GrindChooser (id 'presentaciones') es la ÚNICA banda con un prop extra
+// (`negocio`); las demás sólo toman `style`. Sin fila, `orden` resuelve al orden de HOY → mismo
+// árbol que el JSX fijo de ayer → byte-idéntico. `origen` NACE `visible:false` (§ su docstring en
+// `OrigenContent`, site-content-defaults.ts), así que aunque siempre ocupe un slot en `orden`,
+// Nayoli (sin fila propia) sigue sin montar un solo nodo suyo — la byte-identidad no depende de
+// que la banda esté fuera de la secuencia, depende de su propio gate de visibilidad. Newsletter
+// queda FUERA del registro y de `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en
+// `orden`.
 //
 // EL MIRADOR DE `?tema=CLAVE` (§ TEMAS-MIRADOR-PRESET-1). `aplicarPreset` (`site-content-write.ts`)
 // PERSISTE un preset y no tiene llamador — no hay forma de MIRAR una variante nueva sin mover al
@@ -93,6 +99,7 @@ export default async function Home({
     trustBadges: (style) => <TrustBadges style={style} />,
     featured: (style) => <FeaturedProducts style={style} />,
     brandStory: (style) => <BrandStory style={style} />,
+    origen: (style) => <Origen style={style} />,
     presentaciones: (style) => <GrindChooser negocio={nombre} style={style} />,
     subscriptionCTA: (style) => <SubscriptionCTA style={style} />,
     testimonials: (style) => <TestimonialSection style={style} />,

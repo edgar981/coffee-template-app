@@ -101,6 +101,16 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * clase Tailwind fija (que difiere de un componente a otro — no hay una base común, § el docstring
  * de `escala-display.ts`). Va DENTRO de `content.tema`, no en una meta aparte como `cromo`: es un
  * eje TIPOGRÁFICO, la misma familia que `fuentePar`/`forma`, que ya viven ahí.
+ *
+ * `bandaOrigenVisible` (§ ORIGEN-BANDA-1, OPCIONAL) — NO CONFUNDIR con `origenTexto`/`origenAccion`
+ * de arriba (esos son la raíz de PALETA de la que nace el texto de lectura/la acción primaria; esto
+ * es la banda `origen` del home, la sección "El origen" del prototipo). AUSENTE = el comportamiento
+ * de HOY, byte a byte (`content.origen.visible` sigue en `false`, § DEFAULTS.origen,
+ * site-content-defaults.ts). `mergePresetEnContent` NUNCA escribe texto/imagen de la sección —sólo
+ * este booleano—, exactamente como ya hace con `spotlight.visible` cuando `featured` elige esa
+ * variante: encender la banda sin poder tocar su copy es lo que hace que el mirador de un preset la
+ * muestre con el contenido que YA hubiera en `content.origen` (los DEFAULTS, para un tenant sin
+ * fila propia como Nayoli).
  */
 export interface PresetTema {
   clave: string;
@@ -117,6 +127,7 @@ export interface PresetTema {
   navSubtitulo?: boolean;
   navBadge?: string;
   escalaDisplay?: ClaveEscalaDisplay;
+  bandaOrigenVisible?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -310,6 +321,22 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     out.spotlight = { ...prevSpotlight, visible: true };
   }
 
+  // ORIGEN (§ ORIGEN-BANDA-1) — GEMELO del exception de spotlight de arriba, pero para una banda
+  // PROPIA en `BANDA_IDS`, no una variante de `featured`. `origen` nace `visible:false`
+  // (§ DEFAULTS.origen, site-content-defaults.ts) por la MISMA razón mecánica que spotlight nació
+  // OFF mientras estuvo fuera de `BANDA_IDS`: estar en la lista no alcanza para mostrarse.
+  //
+  // LA SEÑAL NO PUEDE SER "está en `preset.orden`" — a diferencia de spotlight (cuya señal, la
+  // VARIANTE elegida, es exclusiva del preset que la pide), `orden` es universal: `ORDEN_DEFAULT =
+  // [...BANDA_IDS]` alimenta también a ARRANQUE/VITRINA/PATIO (los tres lo usan tal cual, § abajo),
+  // así que CUALQUIER preset que use el default tendría 'origen' en su `orden` resuelto sin haberlo
+  // pedido. La señal es el booleano DEDICADO `preset.bandaOrigenVisible` — AUSENTE en TODO preset
+  // salvo CORTE, así que ARRANQUE/VITRINA/PATIO no tocan `content.origen` en absoluto.
+  if (preset.bandaOrigenVisible && registro.origen) {
+    const prevOrigen = esObj(out.origen) ? out.origen : {};
+    out.origen = { ...prevOrigen, visible: true };
+  }
+
   return out;
 }
 
@@ -447,14 +474,23 @@ export const CORTE: PresetTema = {
   //     testimonials/pie, igual que el cta-strip antes del pie) y se descartó: es evidencia de
   //     posición, no un lienzo sólido medido, y el estándar del owner es tinta PUNTUAL (nav, footer)
   //     — se prefiere la lectura conservadora. Queda como duda abierta, no una decisión ciega.
+  //   origen (§ ORIGEN-BANDA-1) → `#origen` es `class="section"` SIN override de fondo
+  //     (index.html:276), MISMO caso que `presentaciones·riel` arriba (el body ya es
+  //     `--surface-page`) — 'crema'.
   esquemas: {
     trustBadges: 'crema',
     featured: 'crema',
     brandStory: 'superficie',
+    origen: 'crema',
     presentaciones: 'crema',
     subscriptionCTA: 'crema',
   },
   // «usa el default de hoy, sin reordenar» (§2) — el mismo ORDEN_DEFAULT que ya usa Nayoli.
+  // `origen` (§ ORIGEN-BANDA-1) hereda su POSICIÓN de este spread (queda tras `brandStory`, § el
+  // orden de `BANDA_IDS`) SIN necesidad de escribir un array explícito acá — su VISIBILIDAD es un
+  // eje aparte, `bandaOrigenVisible` (abajo), porque `ORDEN_DEFAULT` también alimenta a
+  // ARRANQUE/VITRINA/PATIO y "estar en el orden" no puede ser la señal de "se muestra" (§ el
+  // comentario de `mergePresetEnContent` sobre esta misma distinción).
   orden: ORDEN_DEFAULT,
   // origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, DECISIONS.md) — el defecto
   // que el owner reportó gateando este mirador contra el prototipo, y que `CORTE-ESQUEMAS-
@@ -485,13 +521,19 @@ export const CORTE: PresetTema = {
   // escalaDisplay (§ TEMAS-ESCALA-DISPLAY-1) — el owner: «los titulares del prototipo son
   // ENORMES; medí sus tamaños reales y llevalos al preset». Medido contra `docs/prototipos/
   // cafeone/ds/typography.css:10-11`: `--text-display-xl:clamp(72px,9vw,168px)` (el titular del
-  // hero) y `--text-display-l:clamp(48px,5vw,76px)` (los cuatro `h2.display-l` de sección:
+  // hero) y `--text-display-l:clamp(48px,5vw,76px)` (los CINCO `h2.display-l` de sección:
   // `spot-h`/`pres-h`/`hist-h`/`orig-h`, `index.html:166,231,253,288` — el prototipo usa LA MISMA
-  // clave para las cuatro, así que CORTE hace lo mismo con sus propias bandas: featured,
-  // brandStory, presentaciones, subscriptionCTA, testimonials). CORTE es el ÚNICO de los seis
-  // presets que lo declara — los otros cinco quedan exactamente como estaban, byte a byte (§ el
-  // test de `escala-display.test.ts` que afirma `null` → sin override).
+  // clave para las cinco, así que CORTE hace lo mismo con sus propias bandas: featured,
+  // brandStory, presentaciones, subscriptionCTA, testimonials. `origen` (§ ORIGEN-BANDA-1) es la
+  // SEXTA que lee este eje —`Origen.tsx` llama `fontSizeDisplay(tema.escalaDisplay,'l')`, mismo
+  // mecanismo, corresponde a `orig-h` del prototipo—, sumada tras la construcción de la banda; esta
+  // lista de nombres describía 5 consumidores cuando `origen` todavía no existía). CORTE es el
+  // ÚNICO de los seis presets que lo declara — los otros cinco quedan exactamente como estaban,
+  // byte a byte (§ el test de `escala-display.test.ts` que afirma `null` → sin override).
   escalaDisplay: 'amplia',
+  // bandaOrigenVisible (§ ORIGEN-BANDA-1) — ver el docstring del campo en `PresetTema`, arriba.
+  // CORTE es hoy el ÚNICO preset que la declara; los otros cinco no tocan `content.origen`.
+  bandaOrigenVisible: true,
 };
 
 export const PATIO: PresetTema = {
