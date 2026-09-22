@@ -46,6 +46,12 @@
 // ESTE SCRIPT NO SE CORRIÓ TODAVÍA. La aprobación del owner sobre este slice autoriza la ESCRITURA
 // del código (los defaults neutros + este script), nunca el MERGE de la rama ni correr el sembrado
 // — los dos son pasos del OWNER, después de este slice (§ el orden: sembrado → verificación → merge).
+//
+// § CONTENIDO-CAFE-SEED-READBACK-1 (owner, 2026-09-22): tras escribir, `main()` vuelve a LEER
+// `SiteContent` de la base — no la variable que se acaba de construir en memoria — e imprime las
+// VEINTE cadenas (texto + nombre de ícono) que quedaron efectivamente guardadas, agrupadas por
+// sección, contra lo aprobado (`COPY_NAYOLI`). La verificación del sembrado es contra el DATO, no
+// contra la pantalla: las capturas visuales del gate son un paso APARTE, después del merge.
 
 import prisma from "@duna/core";
 import * as readline from "node:readline/promises";
@@ -99,6 +105,49 @@ export function mergeCopyNayoliEnContent(content: unknown): Record<string, unkno
     productoBadges: { ...productoBadgesPrevio, ...COPY_NAYOLI.productoBadges },
     microcopy: { ...microcopyPrevio, ...COPY_NAYOLI.microcopy },
   };
+}
+
+/**
+ * EL READ-BACK, puro (§ CONTENIDO-CAFE-SEED-READBACK-1). Arma las líneas que prueban qué quedó
+ * EFECTIVAMENTE escrito: recibe el `content` recién RE-LEÍDO de la base (no la variable que este
+ * script construyó en memoria) y lo compara, campo por campo, contra `COPY_NAYOLI` — lo aprobado.
+ * No imprime nada; `main()` hace `console.log` de cada línea. Una discrepancia se marca EN LA MISMA
+ * LÍNEA del campo (⚠️), no en un resumen aparte al final, para que no se pueda pasar por alto
+ * escaneando rápido el volcado.
+ */
+export function formatearLecturaDeVuelta(contentLeido: unknown): string[] {
+  const c = esObj(contentLeido) ? contentLeido : {};
+  const secciones: Array<[string, Record<string, string>]> = [
+    ["trustBadges", COPY_NAYOLI.trustBadges],
+    ["productoBadges", COPY_NAYOLI.productoBadges],
+    ["microcopy", COPY_NAYOLI.microcopy],
+  ];
+
+  const lineas: string[] = ["", "=== LEÍDO DE VUELTA DE LA BASE — verificá contra lo aprobado ==="];
+  let discrepancias = 0;
+
+  for (const [nombreSeccion, esperado] of secciones) {
+    lineas.push(`\n[${nombreSeccion}]`);
+    const seccionLeida = esObj(c[nombreSeccion]) ? c[nombreSeccion] : {};
+    for (const campo of Object.keys(esperado)) {
+      const valorLeido = (seccionLeida as Record<string, unknown>)[campo];
+      const valorEsperado = esperado[campo];
+      const coincide = valorLeido === valorEsperado;
+      if (!coincide) discrepancias++;
+      lineas.push(
+        `  ${campo} = ${JSON.stringify(valorLeido)}` +
+          (coincide ? "" : `  ⚠️ DISCREPANCIA — se esperaba ${JSON.stringify(valorEsperado)}`),
+      );
+    }
+  }
+
+  lineas.push("");
+  lineas.push(
+    discrepancias === 0
+      ? "✅ Las 20 cadenas leídas de la base coinciden byte a byte con lo aprobado."
+      : `⚠️ ${discrepancias} cadena(s) leídas de la base NO COINCIDEN con lo aprobado — revisar arriba antes de dar el sembrado por bueno.`,
+  );
+  return lineas;
 }
 
 function fallar(mensaje: string): never {
@@ -194,6 +243,12 @@ async function main() {
   });
 
   console.log(`✅ Copy café sembrado sobre «${settings.nombre}».`);
+
+  // EL READ-BACK (§ CONTENIDO-CAFE-SEED-READBACK-1): re-LEE la fila recién escrita — no reusa
+  // `nuevoContent`, que sólo prueba lo que este proceso QUISO escribir — y vuelca las 20 cadenas
+  // contra lo aprobado. Es la prueba de que el dato aterrizó, no una repetición de la intención.
+  const filaLeida = await prisma.siteContent.findUniqueOrThrow({ where: { id: "default" } });
+  for (const linea of formatearLecturaDeVuelta(filaLeida.content)) console.log(linea);
 }
 
 // GATE DE ENTRYPOINT (mismo mecanismo que `prisma/aplicar-preset.ts`): `main()` sólo corre cuando

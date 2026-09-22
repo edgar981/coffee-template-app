@@ -9256,3 +9256,53 @@ del gate completo**, cero regresión.
   Chips de ficha técnica (`origen`/`variedad`/`proceso`/`tostado`/`notas`/`molienda`, columnas reales
   de `Product`) — una superficie DISTINTA de la que este slice tocó (el bloque "Shipping Perks", sin
   relación con esos atributos). La sentencia de #59 sigue siendo cierta sin cambios.
+
+## 2026-09-22 · El sembrado LEE DE VUELTA lo que escribió — la verificación es contra el dato, no contra la pantalla (`CONTENIDO-CAFE-SEED-READBACK-1`)
+
+**Por qué:** el owner corrigió el plan de verificación de `CONTENIDO-CAFE-A-DATO-B-EXT-1`: capturas
+antes/después del sembrado están vacías hoy, porque los defaults de café todavía viven en el código en
+esta rama sin mergear — no hay pantalla que fotografiar todavía. La prueba de que el sembrado hizo lo
+que dice es el READ-BACK del dato: releer `SiteContent` de la base después de escribir, e imprimir lo
+que efectivamente quedó. Las capturas visuales del gate del owner son un paso APARTE, después del merge.
+
+`prisma/sembrar-copy-nayoli.ts` escribía sus veinte cadenas (`upsert`) y terminaba ahí — la única
+"prueba" de que el sembrado funcionó era el mensaje `✅ Copy café sembrado sobre «…».`, que no lee nada,
+sólo confirma que el `upsert` no lanzó.
+
+### Qué se agregó
+
+- **`formatearLecturaDeVuelta(contentLeido: unknown): string[]`** — función PURA que recibe el
+  `content` y arma las líneas del volcado: encabezado `=== LEÍDO DE VUELTA DE LA BASE — verificá contra
+  lo aprobado ===`, las tres secciones (`trustBadges`, `productoBadges`, `microcopy`) con sus 20 campos,
+  cada uno como `campo = valor`, y un cierre que cuenta discrepancias. Si el valor leído no coincide con
+  `COPY_NAYOLI` (lo aprobado), la línea del campo lleva `⚠️ DISCREPANCIA — se esperaba …` PEGADA a ese
+  mismo campo — no en un resumen aparte al final, para que no se pueda pasar por alto escaneando rápido
+  un volcado de 20 líneas.
+- **`main()` re-LEE la fila después del `upsert`** (`prisma.siteContent.findUniqueOrThrow`), no reusa
+  `nuevoContent` (la variable que el propio proceso construyó en memoria antes de escribir): leer la
+  variable sólo probaría la intención, no lo que la base tiene. El `console.log` de cada línea corre
+  DESPUÉS del mensaje de éxito, en la MISMA corrida — no es un paso separado ni condicional a nada.
+
+### Lo que NO se tocó
+
+Las dos guardas de escritura (host/tenant visible, confirmación exacta del nombre del tenant vía TTY o
+`CONFIRMAR_TENANT`) y la idempotencia de `mergeCopyNayoliEnContent` — intactas. El read-back corre
+DESPUÉS de que la escritura ya se confirmó; no cambia cuándo ni si el script escribe.
+
+**ESTE SCRIPT SIGUE SIN CORRERSE.** La aprobación de este slice autoriza la ESCRITURA del código (el
+read-back), nunca correr el sembrado ni mergear la rama — eso sigue siendo del owner.
+
+### Gate
+
+`npm run typecheck`: limpio, 0 errores. `npm run gate` sobre el árbol final:
+
+| Carril | Resultado |
+| --- | --- |
+| `npm test` (capa 1) | **1505/1505** — sin cambio (el read-back no tiene test propio: `prisma/` y `DECISIONS.md` son el único `touches:` de este slice) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — sin cambio, este slice no toca schema ni ninguna cadena del motor |
+
+### Open follow-ups
+
+- Ninguno nuevo. El read-back es la pieza que faltaba para que el PRÓXIMO paso —el owner corriendo el
+  script contra la base de Nayoli— tenga, en la misma corrida, la prueba de que las 20 cadenas
+  aterrizaron.
