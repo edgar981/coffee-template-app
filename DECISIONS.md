@@ -12742,10 +12742,152 @@ render.test.ts` (nuevo), este asiento. `.scratch/run-captura.mjs` NO se commitea
   `lib/config/theme-mirador.ts:71-75` ("el layout del storefront (`app/(storefront)/layout.tsx`)
   sigue llamando a `cssPaleta` con sólo 3 argumentos"). Las DOS son FALSAS después de este slice.
   Ninguno de los dos archivos está en `touches:` de este slice — se nombra, no se corrige.
-- **`CROMO-ARNES-STAGGER-ANIMACION-1`** — `scripts/capturar-seccion.ts` no espera a que asiente una
-  animación de entrada (`whileInView`/`staggerChildren`) antes de capturar: cualquier CTA envuelto en
-  `motion` con esas variantes sale con opacidad ~0 en el screenshot, aunque el valor CSS computado sea
-  correcto (§ arriba, el límite de la captura). El arnés no está en `touches:` de este slice. Quien lo
-  tenga en el suyo podría sumar `page.waitForTimeout` post-scroll, o `{animations:'disabled'}` no
-  aplica acá (es CSS transition/JS de framer, no CSS animation) — o documentar el límite en el propio
-  banner del arnés.
+- **`CROMO-ARNES-STAGGER-ANIMACION-1`** — CERRADO por `ARNES-INVOCABLE-POR-NPM-1` (§ abajo).
+
+## 2026-09-22 — El arnés gana entrypoint `npm run capturar:seccion`, y `esperarAsentamiento` cierra `CROMO-ARNES-STAGGER-ANIMACION-1` (`ARNES-INVOCABLE-POR-NPM-1`)
+
+### Qué construye, en una frase
+
+`package.json` gana `"capturar:seccion": "bash scripts/capturar-seccion.sh"` — así CUALQUIER
+worker invoca el arnés (§ `ARNES-CAPTURA-SECCION-1`) bajo el tope `npm` que el dispatch YA concede,
+sin pedir una aprobación de `bash <script>.sh` que en modo no interactivo nadie puede dar. Y
+`scripts/capturar-seccion.ts` gana `esperarAsentamiento()`: antes de capturar un elemento por
+SELECTOR, lo scrollea al viewport y espera (con tope, no bloqueante) a que su opacidad COMPUESTA —el
+propio nodo Y toda su cadena de ancestros— asiente, cerrando `CROMO-ARNES-STAGGER-ANIMACION-1` (el
+open follow-up que `CROMO-EJES-PALETA-AL-RENDER-1` dejó: un CTA envuelto en `whileInView`/
+`staggerChildren` salía semi-transparente en el PNG aunque el color CSS ya estuviera cableado).
+
+### La elección: entrypoint `npm run`, no tocar el tope de permisos
+
+El owner delegó la elección ("decidí vos cuál: entrypoint npm/node o tope de permisos, por donde
+midas más barato"). Se midió UNA sola vía porque la otra no es de este slice: ampliar el tope de
+permisos del dispatch es una decisión de INFRAESTRUCTURA del protocolo orquestador (fuera de
+`touches:`, fuera del alcance de un worker que corre DENTRO de ese dispatch — no puede auto-
+concederse más permiso), mientras que un script de `package.json` es exactamente el tipo de cambio
+que este `touches:` ya autoriza. La ecuación de costo es asimétrica: una línea en `package.json` vs.
+una propuesta de cambio al protocolo que ni este slice puede aprobar ni ejecutar. **`npm run
+capturar:seccion -- <flags>` corre BAJO el tope `npm` ya concedido — el permiso gatea el comando de
+TOPE, no lo que ese comando lanza por dentro** (el propio `.sh` ya hacía `node --import tsx …`; el
+workaround de `CROMO-EJES-PALETA-AL-RENDER-1` con un `node` de tope lanzando Postgres ya lo había
+probado en la otra dirección).
+
+**Verificado por ejecución, no supuesto:** `npm run capturar:seccion -- --ayuda` (bajo el Bash tool,
+sin ningún tope de `bash` directo) arrancó Postgres efímero, migró, y llegó a
+`capturar-seccion.ts` con `--ayuda` — imprimió el mismo texto de ayuda que la invocación directa, y
+salió 0 sin dejar el cluster de Postgres corriendo (verificado: `ps aux | grep postgres.*55434` da
+vacío después). El reenvío de flags con `--` funciona.
+
+### `esperarAsentamiento` — LA OPACIDAD SE REVISA POR LA CADENA DE ANCESTROS, medido en dos vueltas
+
+**Primera versión (INCORRECTA, medida y corregida ANTES de comitear):** chequear sólo
+`getComputedStyle(elementoDelSelector).opacity`. Falló silenciosamente rápido —el `waitForFunction`
+resolvía en el primer poll— porque el `motion.div` que framer-motion anima con
+`initial="hidden"`/`whileInView="visible"` es un ANCESTRO del selector típico (el CTA de
+Suscripción es un `<a>` DENTRO de ese div), y el `opacity` computado del propio `<a>` da SIEMPRE
+"1": CSS `opacity` no se hereda como valor computado, así que un nodo hoja nunca refleja la
+transparencia visual que le imponen sus ancestros. Se verificó por ejecución contra el CTA real de
+Suscripción (preset CORTE, selector `a[href="/suscripciones"][class*="var(--sf-accion"]`): el PNG
+capturado con la versión ingenua dio, decodificando el PNG a mano (`zlib.inflateSync` + unfilter
+manual — sin librería, el repo no trae un decoder de PNG), centro `rgb(253,251,247)` — el fondo
+CREMA de la página, no el rojo `#a70004` del acento.
+
+**Segunda versión (la que se comitea):** el chequeo camina el nodo del selector Y CADA ancestro
+hasta `<html>`, exigiendo que TODOS tengan `opacity >= 0.98`. Con esto, `esperarAsentamiento`
+detecta correctamente que la animación sigue en tránsito (en vez de dar un falso "ya está" al
+instante) y, si el tope de 4 s se cumple sin asentar, lo ADVIERTE por consola en vez de fallar
+silencioso — exactamente lo que el spec pedía ("si no asienta, capturá igual y anotalo, no
+cuelgues").
+
+### El dogfood revela DOS hechos distintos — y el segundo NO es un defecto de este slice
+
+Corriendo `npm run capturar:seccion -- --preset CORTE --ruta / --selector-app
+'a[href="/suscripciones"][class*="var(--sf-accion"]' --prototipo index.html --selector-prototipo
+".hero" --nombre arnes-invocable-dogfood --var=--sf-accion` contra el arnés REAL (que usa `next dev
+--webpack`, sin tocar `arrancarNextDev`), el mecanismo SIEMPRE reportó
+`⚠ "..." no asentó su opacidad en 4000ms` — verificado también con el tope subido a 15000ms
+(descartando que fuera sólo lento): la cadena de ancestros quedó CLAVADA en
+`style="opacity:0;transform:translateY(24px)"` en el `motion.div` de `SubscriptionCTALinea` (el
+preset CORTE eligió la variante `linea`, no `bloque`) durante los 15 s completos, sin moverse un
+milisegundo.
+
+**Esto es `CROMO-DEV-HIDRATACION-SPA-1`** (el open follow-up de `CROMO-CARRITO-TEMATIZADO-1`, aún
+sin nota en CLAUDE.md porque ese archivo no estaba en el `touches:` de aquel slice): `next dev
+--webpack` en ESTE sandbox no completa la hidratación de un componente cliente below-the-fold, así
+que el `useEffect` que arma el `IntersectionObserver` de `whileInView` nunca se registra — no es que
+la animación tarde, es que el efecto de React que la dispara nunca corre. **No es un defecto de
+`esperarAsentamiento`**: es la primera vez que algo lo MIDE explícitamente contra el mecanismo de
+espera (antes sólo se había medido contra un `useEffect` de fetch, en otro componente).
+
+**La prueba de que el mecanismo SÍ funciona cuando el entorno coopera** (`.scratch/
+verificar-build.mjs`, throwaway, gitignoreado — reimplementa el bootstrap de Postgres a mano en
+Node por la MISMA razón que `.scratch/run-captura.mjs` de `CROMO-EJES-PALETA-AL-RENDER-1`: el tope
+de este dispatch no concede `bash <script>.sh`): corriendo el MISMO `esperarAsentamiento` (copiado
+verbatim) contra `next build && next start` (sin la variable de hidratación de `next dev`), el
+`waitForFunction` resolvió `asentada: true`, y el PNG capturado dio, decodificado a mano, **centro
+`rgb(167,0,4)` = `#a70004` EXACTO** — el rojo de acción de CORTE, byte a byte. El promedio de todo
+el botón (161×45, incluye antialiasing de bordes redondeados) dio `#a2090b`, a distancia de
+redondeo del centro exacto. La imagen (`.capturas/verificacion-build-boton.png`, no comiteada) se
+inspeccionó visualmente: botón rojo sólido, texto "Ver los planes →" legible.
+
+### LA CLASE que el owner pidió anotar
+
+*"Una capacidad aprobada que el ejecutante no puede invocar no existe para él"* — hermana de *"un
+arreglo que no llega a `main` no existe para los slices nuevos"*. El arnés estaba aprobado como
+ESTÁNDAR del programa desde `ARNES-CAPTURA-SECCION-1`, y aun así el primer worker que lo necesitó
+(`CROMO-CARRITO-TEMATIZADO-1`) no pudo invocarlo — tuvo que reimplementarlo en `.scratch/`. La
+aprobación vivía en DECISIONS.md; la INVOCABILIDAD vivía en un tope de permisos que nadie había
+verificado contra el estándar recién aprobado. Una doctrina escrita y un mecanismo que nadie puede
+ejecutar es la misma familia que "una guarda escrita y nunca invocada" (§ CLAUDE.md, `Todo
+DialogContent lleva DialogDescription`) y que "una entrada escrita en una lista no es una entrada EN
+la lista" (§ CLAUDE.md, Tier 1) — se PARECE a estar cubierto, y no lo está, hasta que alguien
+verifica que el camino de invocación real funciona.
+
+### Gate
+
+`npm run gate` corrido en la tree final (los dos carriles): **1721/1721** (capa 1, `npm test`) +
+**208/208** (capa 2, `npm run test:integracion`, Postgres efímero del gate, puerto 55432). Cero
+fallos. Números IDÉNTICOS al floor de `CROMO-EJES-PALETA-AL-RENDER-1` (el HEAD sobre el que este
+slice partió) — consistente con que el diff de este slice no toca ningún archivo bajo los globs del
+carril rápido (`lib/**`, `constants/**`, `packages/core/**`, `app/**`, `components/**`,
+`services/**`) ni ninguna tabla que el carril de integración ejercite. `npx tsc --noEmit` limpio
+(incluye el nuevo `waitForFunction` tipado y el `evaluate<T, Arg>` generalizado). `npx eslint
+scripts/capturar-seccion.ts` limpio. No se corrió `next build` de la app — el diff no toca JSX/TSX
+(sí se corrió `next build` DENTRO de `.scratch/verificar-build.mjs`, como parte del dogfood, no
+como gate).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 2` (spec). El diff de ESTE commit (`package.json`, `scripts/capturar-seccion.sh`,
+`scripts/capturar-seccion.ts`, este asiento) es TOOLING de desarrollo: no toca `schema.prisma`,
+ninguna migración, ningún archivo de `app/(storefront)/` ni `components/storefront/`, ningún
+contrato cross-repo. `strings: []` para este commit — ningún texto nuevo que un visitante vea (el
+banner de consola y la advertencia de opacidad las lee un worker en su terminal).
+
+**`customer_bytes.changed = true` DE TODOS MODOS — EL EJE ES LA RAMA, NO EL COMMIT** (mismo criterio
+que los tres asientos anteriores de esta rama): `slice/corte-reescritura-prototipo-1` ya aterriza
+bytes visibles de commits previos (CTAs del hero, cue "Desliza", bandas Origen/Marquesina, el menú
+del nav, la reescritura completa de CORTE, el carrito tematizado). Ese hecho no lo cambia este
+commit, pero el MERGE seguiría siendo el de la rama entera.
+
+`stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`, por protocolo (y por instrucción explícita del
+dispatch de este slice) — igual que los tres asientos anteriores: el worker no mergea ni corre nada
+contra una base real; las dos corridas del arnés (la real y la de verificación) sólo tocaron
+Postgres efímeros propios, nunca `.env` ni `development`/`production`.
+
+### Deviations
+
+Ninguna respecto del spec. La interpretación de "esperar a que su opacidad computada llegue a 1"
+como "la cadena de ancestros, no sólo el nodo" no contradice al spec —el spec no especificaba cuál
+nodo—, y se llegó a ella MIDIENDO (§ arriba, la primera versión ingenua medida y descartada antes de
+comitear), no adivinando.
+
+### Open follow-ups
+
+- **`CROMO-DEV-HIDRATACION-SPA-1`** — REFORZADO, no nuevo (ya lo dejó `CROMO-CARRITO-TEMATIZADO-1`).
+  Esta vez medido contra `whileInView`, no sólo contra un `useEffect` de fetch: con el tope subido a
+  15 s, la opacidad de `SubscriptionCTALinea` quedó CLAVADA en 0 los 15 s completos bajo `next dev
+  --webpack` en este sandbox — cero movimiento, no una transición lenta. `esperarAsentamiento`
+  detecta esto correctamente (advierte, no cuelga, no miente) y `.scratch/verificar-build.mjs`
+  confirmó que el MISMO mecanismo, contra `next build`+`next start`, sí asienta y captura el color
+  exacto (`#a70004`, centro del PNG). `CLAUDE.md` sigue sin la nota — no está en `touches:` de este
+  slice.
