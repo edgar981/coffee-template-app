@@ -1,16 +1,21 @@
 import { Suspense } from 'react';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
+import MenuSeccion from '@/components/admin/MenuSeccion';
 import TiendaPaginas from '@/components/admin/TiendaPaginas';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
 // El contenido EDITORIAL del storefront. Distinto de Configuración, que edita la IDENTIDAD del
-// negocio (§ negocio≠tienda). Dos ejes en la pantalla:
+// negocio (§ negocio≠tienda). Tres ejes en la pantalla:
 //   · COLORES (`PaletaSeccion`) — la PIEL de todo el storefront, store-wide, va ARRIBA del selector
 //     de página porque no pertenece a una página (§ content.tema, clave no-sección);
-//   · las SECCIONES agrupadas por PÁGINA (`TiendaPaginas`, Home · Nosotros) — cada una con su vista
-//     previa en vivo + read↔edit + autoguardado.
-// Los DOS adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
+//   · MENÚ (`MenuSeccion`, § CROMO-MENU-PANEL-EDITOR-1) — el mismo cromo TRANSVERSAL que la paleta
+//     (el nav aparece en toda página), así que va junto a ella y no dentro de una pestaña de
+//     `TiendaPaginas`. Editor BESPOKE sin vista previa en vivo (patrón `PaletaSeccion`, no
+//     `TiendaSeccionEditor` — la RULING de `CROMO-MENU-COMO-DATO-1`);
+//   · las SECCIONES agrupadas por PÁGINA (`TiendaPaginas`, Home · Nosotros · Suscripciones) — cada
+//     una con su vista previa en vivo + read↔edit + autoguardado.
+// Los TRES adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
 export default function Tienda() {
   return (
     <div>
@@ -26,7 +31,14 @@ export default function Tienda() {
           FUERA del control de página. La simetría del modelo (`content.tema` es clave no-sección). */}
       <PaletaSeccion />
 
-      {/* Separador entre lo store-wide (colores) y lo per-página (secciones). */}
+      {/* Separador entre las dos piezas store-wide (colores · menú). */}
+      <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
+
+      {/* MENÚ — store-wide, junto a Colores: el nav es cromo transversal, no contenido de una
+          página (§ MenuSeccion, el porqué de "sin vista previa"). */}
+      <MenuSeccion />
+
+      {/* Separador entre lo store-wide (colores · menú) y lo per-página (secciones). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
       {/* <Suspense> porque TiendaPaginas usa `useSearchParams` (deep-link del aviso de config,

@@ -12031,3 +12031,148 @@ desde `TEMAS-HERO-MEDIA-AGREGADOS-1`; lo único que faltaba era la siembra por p
 
 Ninguno nuevo. `MARQUESINA-BANDA-COPY-PROTOTIPO-1` (arriba) ya cubre, en general, la decisión de un
 mecanismo de copy de MUESTRARIO — `hero.fraseAlPie` bajo CORTE es el mismo caso, no uno nuevo.
+
+## 2026-09-21 — El editor del menú del nav: BESPOKE, sin vista previa, patrón `PaletaSeccion` (`CROMO-MENU-PANEL-EDITOR-1`)
+
+**El programa (owner, "se parece al prototipo", 2026-09-21, punto 1b), sobre la `RULING_NEEDED` de
+`CROMO-MENU-COMO-DATO-1`:** el modelo del menú del nav —etiquetas editables sobre el set CERRADO de
+tres ítems, orden por tres campos escalares, un CTA opcional sobre un set cerrado de destinos, con
+default = el menú de HOY, byte-idéntico— ya estaba construido y probado (37 tests en
+`lib/config/menu-como-dato.test.ts`); lo que faltaba era la SUPERFICIE de edición del panel, y esa
+sesión paró en `RULING_NEEDED` porque el único archivo por donde un menú entra al pipeline genérico
+de vista previa en vivo (`components/admin/tienda-secciones.ts` + `VistaTiendaEnVivo.tsx`) queda
+fuera de `touches:` y romper su `Record<SeccionVista, ComponentType>` EXHAUSTIVO exigía además
+resolver que `StoreNav` necesita `CartProvider`/`SiteSettingsProvider` del storefront que ese árbol
+no monta. El owner falló la **opción 2**: editor BESPOKE, sin vista previa en vivo, patrón
+`PaletaSeccion` — el mismo que ya resuelve `tema` (store-wide, sin vista de una sola sección).
+
+### EL COMPONENTE — `components/admin/MenuSeccion.tsx`, mismo esqueleto que `PaletaSeccion`
+
+Read↔edit + autoguardado del borrador + Publicar/Descartar + el indicador de estado +
+`beforeunload` sólo en error — el MISMO esqueleto que `PaletaSeccion`, sin nada de lo que ese
+componente tiene y este NO necesita: sin escala/regleta/`EscalaDesktop`, sin `Dialog` de "Ampliar",
+sin fragmento del storefront montado. La lectura es un párrafo de texto ("Tienda · Suscripciones ·
+Nosotros"), no una miniatura — no hay preview que miniaturizar.
+
+**LA ESCRITURA VA POR EL CAMINO GENÉRICO, NO POR UNO PROPIO — a diferencia de `tema`.**
+`PaletaSeccion` tiene su propio endpoint (`/api/site-content/tema`) porque `tema` es una clave
+NO-SECCIÓN (META, como `paginas`); `menu` SÍ es una sección de `REGISTRY` (§ `CROMO-MENU-COMO-
+DATO-1`), así que usa el MISMO PUT/POST de `/api/site-content` que `TiendaSeccionEditor` usa para
+cada sección (`guardarBorrador`/`publicarSeccion`/`descartarSeccion` ya lo aceptan, sin tocar el
+endpoint ni el schema). El GET también es el genérico (`d.contenido.menu` + `d.sinPublicar.menu`) —
+`MenuSeccion` hace su PROPIO fetch, como `PaletaSeccion`, y no se sumó a la carga compartida de
+`TiendaPaginas` (§ CLAUDE.md, "La CASCADA de /admin/tienda — el fetch 5→1") porque no es una de sus
+secciones agrupadas por página. **Esto sube a TRES el número de fetches independientes de
+`/admin/tienda`** (TiendaPaginas compartido + PaletaSeccion propio + MenuSeccion propio) — CLAUDE.md
+dice hoy "Neto en la home: 6→2, no 6→1" (§ mecánico, abajo); ese número queda desactualizado por
+este slice, y se deja anotado en vez de corregido (CLAUDE.md no está en `touches:`).
+
+### EL REORDEN ES POR SWAP — el estado inválido queda IMPOSIBLE, no rechazado después
+
+Tres `<select>` nativos (uno por posición, patrón `destacadoSlot` — § Controles de formulario, el
+select es NATIVO) sobre las tres opciones fijas. Elegir un ítem que YA ocupa otra posición no
+produce un duplicado que el `.refine()` de `menuEditableSchema` rechazaría con un 400 al guardar:
+`intercambiarPosicionMenu` (`lib/config/menu-editor.ts`, NUEVO, puro, capa 1) intercambia esa otra
+posición con el valor que la elegida tenía. El resultado es SIEMPRE una permutación de
+`MENU_ITEM_IDS` — afirmado con una prueba que recorre las 6 permutaciones de partida × las 3
+posiciones × los 3 valores posibles (54 combinaciones) y comprueba que el resultado, aplicado,
+sigue siendo una permutación válida.
+
+**La etiqueta de cada opción de reorden es el label EN VIVO del form** (`etiquetaOpcionMenu`, mismo
+archivo), no el id técnico ('tienda'/'suscripciones'/'nosotros'): si el dueño ya renombró "Tienda" a
+"Nuestro café", la opción de reorden dice "Nuestro café" — nunca una opción muda si el label
+editable está vacío (cae al nombre canónico).
+
+Las dos funciones viven en `lib/config/menu-editor.ts` (NUEVO archivo, no en `site-content-
+defaults.ts`, que declara el DATO y su resolución de LECTURA, no la conducta de un formulario
+concreto; ni inline en el componente, '.tsx' sin jsdom para testear — § CLAUDE.md), para poder
+afirmarlas en capa 1: `lib/config/menu-editor.test.ts`, 7 tests.
+
+### LA INVARIANTE DEL OWNER — no re-verificada, HEREDADA del modelo ya probado
+
+> El menú es DATO y el default de Nayoli = sus tres ítems actuales, byte-idénticos.
+
+Esta invariante la prueba `menu-como-dato.test.ts` (slice anterior) contra la CAPA DE DATOS
+(`itemsDeMenu`/`menuCtaHref` sobre `resolverSiteContent({})`), y este slice NO LA TOCA: no cambia
+el modelo, el resolver, el schema, ni `StoreNav.tsx`. Un dueño que abre `/admin/tienda` y no toca el
+bloque "Menú del nav" no escribe nada — el borrador sólo se ensucia con un `onChange` del operador
+(`cambiar`), y sin uno el `PUT` nunca se dispara (`useAutoguardado.marcarSucio` no se llama al
+montar). Lo que el dueño PUEDE editar desde este bloque: la ETIQUETA de cada uno de los tres
+ítems, el ORDEN de los tres, y un CTA opcional (texto + destino del set cerrado). Lo que NO puede
+editar: el DESTINO de cada ítem conocido (`/tienda`/`/suscripciones`/`/nosotros`, estructura fija) —
+el selector de posición nunca ofrece una ruta libre, sólo permuta los tres ids conocidos.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1705/1705**, 0 fail. Piso citado por `TEMAS-HERO-TOGGLES-
+  PRESET-1`: 1698. Este slice suma 7 tests nuevos en `lib/config/menu-editor.test.ts`.
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  piso; este slice no toca `packages/core/`, `tests/integracion/` ni ninguna migración (verificado:
+  `git status --porcelain` no lista ningún archivo de esos árboles).
+- **`npx tsc --noEmit`**: limpio.
+- **`npx next build`**: `✓ Compiled successfully in 6.1s`, TypeScript limpio, todas las rutas
+  generadas sin error, `/admin/tienda` sigue `ƒ` (dinámica, sin cambio).
+- **`npx eslint`** sobre los 4 archivos tocados/nuevos: **UN error PRE-EXISTENTE reproducido, no
+  introducido** — `react-hooks/refs` en `MenuSeccion.tsx` (`formRef.current = form`, el MISMO
+  patrón de sincronización de ref-durante-render que ya usa `PaletaSeccion.tsx` línea a línea, el
+  componente que este slice tiene mandato de seguir como patrón). Medido ANTES de escribir código
+  que este error YA existe, sin tocar nada, en `PaletaSeccion.tsx` (3 apariciones) y
+  `TiendaSeccionEditor.tsx` (varias) — dos archivos que este slice NO toca (`npx eslint components`
+  da 16 apariciones de `react-hooks/refs` en 3 archivos: los dos de arriba + `MenuSeccion.tsx`) —
+  así que es deuda de ESLint PRE-EXISTENTE y repo-wide (`react-hooks/refs`, de `eslint-config-next/
+  core-web-vitals`, SIN override en `eslint.config.mjs` — a diferencia de `react-hooks/set-state-
+  in-effect`, que SÍ está bajado a warning con su propia nota escrita). Reproducirlo en el archivo
+  nuevo es la consecuencia de seguir el patrón mandado por el owner (`PaletaSeccion`); inventar un
+  mecanismo de sincronización distinto sólo para este archivo habría dejado una pieza divergiendo
+  del resto del panel sin arreglar nada (el error sigue sin corregir en las otras dos). El warning
+  `react-hooks/set-state-in-effect` en la carga inicial (`useEffect(() => { cargar(true); },
+  [cargar])`) es el MISMO patrón ya aceptado y bajado a warning en todo el panel (§
+  eslint.config.mjs, "Accepted pattern: mount-effect data fetching").
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (spec), `approved: yes` (owner, "se parece al prototipo", 2026-09-21, punto 1b, sobre el
+observed-report `CROMO-MENU-COMO-DATO-1`). El diff de ESTE commit (`components/admin/
+MenuSeccion.tsx`, `lib/config/menu-editor.ts`, `lib/config/menu-editor.test.ts`, `app/(admin)/
+admin/tienda/page.tsx`) NO toca ningún archivo de la lista canónica de Tier 1 de CLAUDE.md ni
+`components/storefront/`: es ADMIN-ONLY — no toca el modelo (`site-content-defaults.ts`/`site-
+content-schema.ts`), el schema, ni `StoreNav.tsx`.
+
+Contra MERGE POLICY A, el COMMIT en sí: sin schema/migración, sin contrato cross-repo, y **sin
+bytes de cliente propios** (el HTML que sirve el storefront no cambia una letra: `MenuSeccion.tsx`
+es admin-only y el modelo/render que ya sirven `/` no se tocan).
+
+**`customer_bytes.changed = true` DE TODOS MODOS — EL EJE ES LA RAMA, NO EL COMMIT** (mismo criterio
+que ya aplicaron, en esta misma rama, `MARQUESINA-BANDA-1`/`ORIGEN-BANDA-1`/`TEMAS-HERO-TOGGLES-
+PRESET-1`): la rama `slice/corte-reescritura-prototipo-1` YA aterriza cambios visibles bajo
+`?tema=CORTE` (los CTA del hero, el cue "Desliza", la banda Origen, la banda Marquesina) desde
+commits ANTERIORES a éste. Un cierre que sólo toca admin sobre una rama que ya cambió el
+storefront declara `changed: true` igual. `strings: []` para ESTE commit — el string nuevo que un
+visitante vería (bajo `?tema=CORTE`, o si el dueño publica un menú editado) no lo introduce este
+slice; los strings visibles de la rama los introdujeron los commits citados arriba, ya declarados
+en sus propios asientos.
+
+`stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`, por protocolo: el worker no mergea.
+
+### Deviations
+
+Ninguna. El componente, la escritura por el camino genérico, y el reorden por swap son exactamente
+lo que el spec pedía (editor a medida, sin vista previa, patrón `PaletaSeccion`, sobre el PUT/
+guardar del contenido ya expuesto). Ningún archivo fuera de `touches:` (`components/admin/`, `app/
+(admin)/admin/tienda/page.tsx`, `lib/config/`, `DECISIONS.md`) se tocó — en particular,
+`components/admin/tienda-secciones.ts` y `components/admin/VistaTiendaEnVivo.tsx` (el obstáculo de
+la `RULING_NEEDED` anterior) siguen intactos.
+
+### Open follow-ups
+
+- `CROMO-MENU-CAPA3-1` (abierto por `CROMO-MENU-COMO-DATO-1`, SIGUE ABIERTO) — verificación en
+  navegador real (capa 3) de que el menú de Nayoli se ve igual que antes, y de que un menú editado
+  (etiqueta/orden/CTA) se ve correctamente. Ahora hay una superficie real desde la que el owner
+  puede editar y publicar un menú para probarlo — antes sólo existía el `PUT`/`POST` crudo.
+- `CLAUDE-MD-FETCH-HOME-TIENDA-DESACTUALIZADO-1` — CLAUDE.md:2778-2779 ("Neto en la home: 6→2, no
+  6→1") queda desactualizado por este slice: con `MenuSeccion` sumando su propio GET, el número real
+  de fetches independientes en `/admin/tienda` es 3, no 2. No corregido acá — `CLAUDE.md` no está en
+  `touches:` de este slice.
+- La deuda de ESLint `react-hooks/refs` (§ Gate, arriba) — repo-wide, pre-existente, sin id de
+  slice ni entrada en CLAUDE.md; anotada acá para que no se pierda. `why_not_now`: arreglarla toca
+  `PaletaSeccion.tsx`/`TiendaSeccionEditor.tsx`, fuera de `touches:` de este slice.
