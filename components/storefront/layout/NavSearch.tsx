@@ -26,6 +26,7 @@ import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { categoriasDelCatalogo } from "@/lib/productos/categorias";
 import { buscarProductos } from "@/lib/productos/buscar";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 
 import { formatCOP } from "@duna/core/utils";
 
@@ -39,6 +40,7 @@ export default function NavSearch({
   isOpen,
   onClose,
 }: NavSearchProps) {
+  const { microcopy } = useSiteContent();
   const [query, setQuery] =
     useState("");
 
@@ -143,7 +145,7 @@ export default function NavSearch({
                       e.target.value
                     )
                   }
-                  placeholder="Buscar café, origen, categoría..."
+                  placeholder={microcopy.navBuscarPlaceholder}
                   className="w-full rounded-2xl sf-borde border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-4 pl-12 pr-14 text-sm text-[var(--sf-tinta)] outline-none transition-all focus:border-[var(--sf-acento)] focus:ring-4 focus:ring-[var(--sf-acento)]/10"
                 />
 

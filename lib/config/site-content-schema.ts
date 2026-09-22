@@ -43,6 +43,17 @@ const heroEditableSchema = z.object({
   { message: 'Un hero de video necesita un póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenPoster'] },
 );
 
+// TrustBadges (§ CONTENIDO-CAFE-A-DATO-B-1): cuatro textos de cardinalidad FIJA, uno por ícono
+// (los íconos son estructura, no se editan). Todo opcional/SOFT, como el resto: el resolver aplica
+// el default NEUTRO a lo que venga vacío.
+const trustBadgesEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  badge1: z.string().optional(),
+  badge2: z.string().optional(),
+  badge3: z.string().optional(),
+  badge4: z.string().optional(),
+});
+
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
 // es la primera sección ocultable. Todo opcional/SOFT, como el hero: el resolver decide.
 // `variante` (§ eje 5e, TEMAS-P2-BRANDSTORY-1): la COMPOSICIÓN de la sección ('columnas', hoy la
@@ -200,6 +211,20 @@ const paginasEditableSchema = z.object({
   nosotros: z.object({ visible: z.boolean().optional() }).optional(),
 });
 
+// META de MICROCOPY (§ CONTENIDO-CAFE-A-DATO-B-1): las frases de chrome (buscador del nav, /tienda,
+// el vacío del carrito, /rastrear-pedido). NO es una sección —tampoco pasa por el flujo borrador/
+// publicar—; se declara acá SÓLO para que un futuro write general no la STRIPPEE en silencio
+// (§ #65-B), igual que `esquemas`/`orden`/`variantesBandas` — HOY no hay editor que la escriba (la
+// puebla el sembrado, `prisma/sembrar-copy-nayoli.ts`, directo sobre la fila).
+const microcopyEditableSchema = z.object({
+  navBuscarPlaceholder: z.string().optional(),
+  tiendaSubtitulo: z.string().optional(),
+  tiendaBuscarPlaceholder: z.string().optional(),
+  carritoVacioTexto: z.string().optional(),
+  rastreoPagadoDesc: z.string().optional(),
+  rastreoEntregadoDesc: z.string().optional(),
+});
+
 // META de esquemas (§ eje 5b, mitad B): el mapa banda→esquema. NO es una sección —tampoco pasa por
 // el flujo borrador/publicar—; se declara acá SÓLO para que un futuro write general no la STRIPPEE
 // en silencio (§ #65-B). HOY no hay editor que la escriba (SIN PICKER, decisión del owner): se
@@ -235,6 +260,7 @@ const variantesBandasEditableSchema = z.record(z.string(), z.string());
 
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
+  trustBadges: trustBadgesEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   presentaciones: presentacionesEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
@@ -245,6 +271,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
+  microcopy: microcopyEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),

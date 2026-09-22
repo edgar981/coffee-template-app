@@ -18,8 +18,10 @@ import {
 import { useCartStore } from "@/lib/cartStore";
 import { formatCOP } from "@duna/core/utils";
 import { freeShippingThreshold } from "@duna/core/shipping-config";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 
 export default function CartDrawer() {
+  const { microcopy } = useSiteContent();
   const {
     items,
     isOpen,
@@ -101,7 +103,7 @@ export default function CartDrawer() {
                   </p>
 
                   <p className="mb-6 text-sm text-[var(--sf-texto-suave)]">
-                    Explora nuestros productos y agrega tu café favorito.
+                    {microcopy.carritoVacioTexto}
                   </p>
 
                   <button

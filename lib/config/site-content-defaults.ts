@@ -44,6 +44,21 @@ export interface HeroContent {
   variante: string;
 }
 
+// TrustBadges (la franja de garantías bajo el hero): CUATRO textos de cardinalidad FIJA, uno por
+// ícono (§ CONTENIDO-CAFE-A-DATO-B-1). Antes eran literales horneados en `TrustBadges.tsx`
+// —café-shape en los cuatro—; pasan a SECCIÓN editable, campos planos `requerido` (nunca menos de
+// cuatro: la franja es 4 columnas fijas, § el componente). Los ÍCONOS (Leaf/Coffee/Truck/Shield)
+// siguen ESTRUCTURALES —por posición, en el componente—: esta tanda mueve el TEXTO, no el ícono
+// (fuera de alcance; el ícono "Coffee" queda como deuda café-shape visual, anotada aparte).
+// `ocultable:false` como el hero: la franja siempre se muestra, sin toggle en el editor.
+export interface TrustBadgesContent {
+  visible: boolean;
+  badge1: string;
+  badge2: string;
+  badge3: string;
+  badge4: string;
+}
+
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
 // imágenes FIJAS (mismo tamaño, el offset lo da la POSICIÓN, no el contenido). El h2 es UN
 // campo —el salto de línea es estético, no énfasis— así que NO lleva el `tituloEnfasis` del
@@ -316,8 +331,31 @@ export interface TemaContent {
   forma: ClaveForma | null;
 }
 
+// META de MICROCOPY (§ CONTENIDO-CAFE-A-DATO-B-1): las frases de CHROME que antes eran literales
+// horneados fuera de cualquier sección —el placeholder del buscador del nav, el subtítulo y el
+// placeholder de /tienda, el vacío del carrito, y las dos frases de /rastrear-pedido—. NO es una
+// sección (no lleva `campos` ni `visible`, no la resuelve el loop de secciones ni aparece en
+// `SeccionKey`): no hay UNA pantalla del storefront donde vivan juntas para poder mostrarlas/
+// ocultarlas como bloque, así que un toggle de sección no tendría sentido — es la MISMA razón por
+// la que `tema` es clave no-sección. Resuelta aparte (`resolverMicrocopy`), gemela de `resolverTema`
+// en forma: cada campo es texto simple, string-o-default (nunca lanza). SIN editor en esta tanda
+// (fuera de `touches:`): el owner la puebla por el sembrado (`prisma/sembrar-copy-nayoli.ts`), no
+// por el panel — un editor es follow-up.
+export interface MicrocopyContent {
+  navBuscarPlaceholder: string;
+  // El subtítulo de /tienda ("· {texto}" junto al conteo de productos). Su default NEUTRO es VACÍO
+  // a propósito —no hay frase genérica que sirva a cualquier vertical sin sonar a relleno—, y el
+  // componente omite el " · " entero cuando está vacío (nunca un separador colgando).
+  tiendaSubtitulo: string;
+  tiendaBuscarPlaceholder: string;
+  carritoVacioTexto: string;
+  rastreoPagadoDesc: string;
+  rastreoEntregadoDesc: string;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
+  trustBadges: TrustBadgesContent;
   brandStory: BrandStoryContent;
   presentaciones: PresentacionesContent;
   subscriptionCTA: SubscriptionCTAContent;
@@ -329,6 +367,7 @@ export interface SiteContentData {
   suscripcionFaq: SuscripcionFaqContent;
   paginas: PaginasContent;
   tema: TemaContent;
+  microcopy: MicrocopyContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -453,6 +492,16 @@ export const DEFAULTS: SiteContentData = {
     imagenPoster: '',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
     variante: 'curtina',
+  },
+  // DEFAULT NEUTRO (§ CONTENIDO-CAFE-A-DATO-B-1, opción B del owner): genérico, sin mención de café
+  // ni de ningún rubro — el café real de Nayoli entra por el SEMBRADO (`prisma/sembrar-copy-
+  // nayoli.ts`), no por acá. TERMINOS_PROHIBIDOS (site-content-defaults.test.ts) verde.
+  trustBadges: {
+    visible: true,
+    badge1: 'Origen 100% verificado',
+    badge2: 'Calidad revisada cada semana',
+    badge3: 'Envío a todo el país',
+    badge4: 'Garantía de satisfacción',
   },
   brandStory: {
     visible: true,
@@ -599,6 +648,17 @@ export const DEFAULTS: SiteContentData = {
     fuentePar: null,   // Editorial (Inter/Playfair) — el default byte-idéntico
     forma: null,       // Suave (radios de hoy) — el default byte-idéntico
   },
+  // MICROCOPY por defecto (§ CONTENIDO-CAFE-A-DATO-B-1): NEUTRO, sin café — el café real de Nayoli
+  // entra por el sembrado. `tiendaSubtitulo` nace VACÍO (§ MicrocopyContent, arriba): sin frase
+  // genérica de relleno, el componente omite el " · " entero.
+  microcopy: {
+    navBuscarPlaceholder: 'Buscar productos, categoría...',
+    tiendaSubtitulo: '',
+    tiendaBuscarPlaceholder: 'Buscar productos...',
+    carritoVacioTexto: 'Explora nuestros productos y agrega tus favoritos.',
+    rastreoPagadoDesc: 'Hemos confirmado tu pago y estamos alistando tu pedido.',
+    rastreoEntregadoDesc: 'Pedido entregado. ¡Gracias por tu compra!',
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -695,10 +755,10 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `esquemas`, `orden`
-// y `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas; las cinco metas quedan
-// fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `microcopy`,
+// `esquemas`, `orden` y `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas; las
+// seis metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'microcopy' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -742,6 +802,17 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // póster) es del `.refine()` de `heroEditableSchema`, no de este mapa requerido/opcional —el
       // mapa no puede expresar "requerido SI OTRO CAMPO vale X".
       imagenPoster: 'opcional',
+    },
+  },
+  trustBadges: {
+    label: 'Confianza',
+    ocultable: false,
+    // Sin `imagenes`: los cuatro íconos son ESTRUCTURA (por posición, en el componente), no blobs.
+    campos: {
+      badge1: 'requerido',
+      badge2: 'requerido',
+      badge3: 'requerido',
+      badge4: 'requerido',
     },
   },
   brandStory: {
@@ -1046,6 +1117,10 @@ export function resolverSiteContent(
   out.paginas = resolverPaginas(raw.paginas, defaultsBase.paginas);
   // TEMA (meta, no sección): las 3 raíces de paleta, resueltas aparte del loop igual que `paginas`.
   out.tema = resolverTema(raw.tema, defaultsBase.tema);
+  // MICROCOPY (meta, no sección, § CONTENIDO-CAFE-A-DATO-B-1): las frases de chrome, resueltas
+  // aparte del loop igual que `paginas`/`tema` — dominio CERRADO (los 6 campos del default), como
+  // `paginas`, no key-agnóstico como `esquemas`.
+  out.microcopy = resolverMicrocopy(raw.microcopy, defaultsBase.microcopy);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -1099,6 +1174,31 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
     fuentePar: resolverFuentePar(st['fuentePar']),
     forma: resolverForma(st['forma']),
   };
+}
+
+// Resuelve el MICROCOPY (§ CONTENIDO-CAFE-A-DATO-B-1), gemela de `resolverPaginas`/`resolverTema`:
+// dominio CERRADO (los 6 campos de `MicrocopyContent`), no key-agnóstico. Cada campo es un string
+// simple: no vacío del guardado → se usa; si no, el default. SOFT, nunca lanza. A diferencia de
+// `resolverSiteContent` (requerido/opcional por campo), acá los 6 campos resuelven IGUAL —
+// string-o-default—: `tiendaSubtitulo` no necesita la distinción porque su propio default YA es
+// vacío (§ MicrocopyContent), así que "vacío cae al default" y "vacío se omite" dan el mismo
+// resultado para ese campo.
+const CAMPOS_MICROCOPY = [
+  'navBuscarPlaceholder', 'tiendaSubtitulo', 'tiendaBuscarPlaceholder',
+  'carritoVacioTexto', 'rastreoPagadoDesc', 'rastreoEntregadoDesc',
+] as const;
+export function resolverMicrocopy(stored: unknown, defaults: unknown): MicrocopyContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const campo = (k: string): string => {
+    const sv = st[k];
+    if (typeof sv === 'string' && sv.trim() !== '') return sv;
+    const dv = def[k];
+    return typeof dv === 'string' ? dv : '';
+  };
+  const out = {} as MicrocopyContent;
+  for (const k of CAMPOS_MICROCOPY) out[k] = campo(k);
+  return out;
 }
 
 const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento']);

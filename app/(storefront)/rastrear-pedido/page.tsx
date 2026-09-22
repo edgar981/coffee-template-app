@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 
 import { useSearchParams } from "next/navigation";
 
@@ -13,6 +13,8 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCOP } from '@duna/core/utils';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import type { MicrocopyContent } from '@/lib/config/site-content-defaults';
 
 interface TimelineStep {
   estado: string;
@@ -25,14 +27,18 @@ interface TimelineStep {
 }
 
 // The timeline stitches BOTH models: steps 0–1 come from Order.status (payment),
-// steps 2–4 from Shipping.status (fulfillment).
-const TIMELINE: TimelineStep[] = [
-  { estado: 'recibido',   label: 'Pedido recibido', desc: 'Tu orden ha sido registrada en nuestro sistema.', icon: Package },
-  { estado: 'pagado',     label: 'Pago confirmado', desc: 'Hemos confirmado tu pago y preparamos tu café.', icon: CheckCircle },
-  { estado: 'preparando', label: 'Preparando', desc: 'Tu pedido está siendo empacado con mucho cariño.', icon: Coffee },
-  { estado: 'en_ruta',    label: 'En ruta', desc: 'Tu pedido está en camino. ¡Pronto llegará!', icon: Truck },
-  { estado: 'entregado',  label: 'Entregado', desc: 'Pedido entregado. ¡Disfruta tu café!', icon: CheckCircle },
-];
+// steps 2–4 from Shipping.status (fulfillment). Sólo los pasos 'pagado' y 'entregado' leen su
+// `desc` de MICROCOPY (§ CONTENIDO-CAFE-A-DATO-B-1) — eran las dos frases café-shape del censo; las
+// otras tres no mencionan café y quedan fuera de alcance.
+function buildTimeline(microcopy: MicrocopyContent): TimelineStep[] {
+  return [
+    { estado: 'recibido',   label: 'Pedido recibido', desc: 'Tu orden ha sido registrada en nuestro sistema.', icon: Package },
+    { estado: 'pagado',     label: 'Pago confirmado', desc: microcopy.rastreoPagadoDesc, icon: CheckCircle },
+    { estado: 'preparando', label: 'Preparando', desc: 'Tu pedido está siendo empacado con mucho cariño.', icon: Coffee },
+    { estado: 'en_ruta',    label: 'En ruta', desc: 'Tu pedido está en camino. ¡Pronto llegará!', icon: Truck },
+    { estado: 'entregado',  label: 'Entregado', desc: microcopy.rastreoEntregadoDesc, icon: CheckCircle },
+  ];
+}
 
 // Combine payment (Order.status) and fulfillment (Shipping.status) into a single
 // linear index. Cancelado and Fallido are handled separately (non-linear). A
@@ -52,6 +58,8 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 
 function OrderTrackingInner() {
+  const { microcopy } = useSiteContent();
+  const TIMELINE = useMemo(() => buildTimeline(microcopy), [microcopy]);
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');

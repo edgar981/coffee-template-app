@@ -8,6 +8,7 @@ import { getCatalog } from '@/lib/api/products';
 import { categoriasDelCatalogo, catalogoTieneTostado } from '@/lib/productos/categorias';
 import { useSearchParams } from 'next/navigation';
 import {Product, RoastLevel} from '@/types/product';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 
 
 const SORTBY = [
@@ -18,6 +19,7 @@ const SORTBY = [
 ];
 
 function ShopInner() {
+  const { microcopy } = useSiteContent();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
   // La categoría es texto libre (la taxonomía se DERIVA del catálogo, § categorias): el estado es
@@ -101,7 +103,7 @@ function ShopInner() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
               <h1 className="text-4xl font-playfair text-[var(--sf-tinta)] mb-2">Nuestra Tienda</h1>
-              <p className="text-[var(--sf-texto)] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`} · Origen colombiano</p>
+              <p className="text-[var(--sf-texto)] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`}{microcopy.tiendaSubtitulo && ` · ${microcopy.tiendaSubtitulo}`}</p>
             </motion.div>
           </div>
         </div>
@@ -113,7 +115,7 @@ function ShopInner() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--sf-tostado-3)]" />
               <input
                 type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar café..."
+                placeholder={microcopy.tiendaBuscarPlaceholder}
                 className="w-full pl-9 pr-4 py-2.5 bg-[var(--sf-tarjeta)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 text-[var(--sf-tinta)]"
               />
             </div>

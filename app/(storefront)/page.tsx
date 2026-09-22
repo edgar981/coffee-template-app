@@ -68,7 +68,7 @@ export default async function Home({
 
   const BANDAS: Record<BandaId, (style: React.CSSProperties) => React.ReactNode> = {
     hero: (style) => <HeroSection style={style} />,
-    trustBadges: (style) => <TrustBadges style={style} />,
+    trustBadges: (style) => <TrustBadges style={style} content={content.trustBadges} />,
     featured: (style) => <FeaturedProducts style={style} />,
     brandStory: (style) => <BrandStory style={style} />,
     presentaciones: (style) => <GrindChooser negocio={nombre} style={style} />,

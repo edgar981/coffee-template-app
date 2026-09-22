@@ -8869,3 +8869,182 @@ lo estuvo, así que se usó la vía alternativa de Node descrita en §4 en vez d
 
 Ninguno nuevo. Esta tanda no encontró patrones faltantes en el gate ni deuda adicional en el módulo de
 la guarda.
+
+## 2026-09-22 · El copy café de CINCO superficies pasa a DATO, con default NEUTRO — opción B, el sembrado NO se corrió (`CONTENIDO-CAFE-A-DATO-B-1`)
+
+**Por qué:** el owner eligió la opción B (2026-09-21, revirtiendo la A) sobre el copy horneado de cinco
+superficies que § 63 de `CLAUDE.md` ya nombraba como café-shape pendiente (el CTA de Presentaciones,
+que la doctrina cierra aparte, y "todo el microcopy" del storefront): un default de café es un defecto
+para la vertical restaurante (Toscana, § `TOSCANA-CENSO-CORRECCION-1`, 2026-09-16), y una lista de
+excepciones por vertical crece de a un caso — la razón que la opción A (mantener café como default +
+una lista de overrides) no resuelve. **B es: default NEUTRO en el código, y el copy REAL de Nayoli
+vuelve como DATO sembrado**, nunca vuelto a vivir en el código.
+
+### 0 · La cita del spec que no se pudo verificar completa, y lo que SÍ se verificó
+
+El spec citaba `observed-report: MUESTRARIO-DESPLIEGUE-CENSO-1`. Medido ANTES de escribir código:
+`grep -n "MUESTRARIO-DESPLIEGUE-CENSO-1" DECISIONS.md` (sobre el árbol de `main`) da CERO — el censo no
+tiene su propio asiento en esta rama. **No es la misma clase que `WOMPI-CHECKOUT-INTENTOS-CENSO-1`**
+(medida como INEXISTENTE en ningún lado, § `WOMPI-B-ASIENTO-CORRECCION-BUNDLE-1`): el id SÍ es real y
+está citado por trabajo verificable — `prisma/aplicar-preset.ts` (rama `slice/onboarding-aplicar-
+preset-script-1`, aún sin mergear a `main`) dice textualmente *"sin él, `aplicarPreset` no tenía un
+solo llamador (`MUESTRARIO-DESPLIEGUE-CENSO-1`)"* — un hallazgo DISTINTO del que este spec usa. Es
+consistente con el patrón que el propio `CLAUDE.md` documenta (`ORCH-CENSO-SIN-TABLA-1`): un censo
+`writes:no` puede no dejar su propio commit, y sus hallazgos sólo sobreviven cuando otro slice los cita
+al escribir. El hallazgo específico de ESTE spec (las cinco superficies, las 9-10 cadenas) no se pudo
+confirmar contra un asiento propio del censo — se procedió sobre la base MEDIBLE en el repo: § 63 de
+`CLAUDE.md` ya nombraba esta clase de defecto como pendiente, y un grep directo confirmó que las cinco
+superficies seguían horneadas en café (abajo, §1). Se declara la brecha en vez de omitirla.
+
+### 1 · Las cinco superficies, medidas contra el código antes de tocarlo
+
+| Superficie | Archivo | Campo(s) |
+| --- | --- | --- |
+| TrustBadges (4 franjas) | `components/storefront/home/TrustBadges.tsx` | badge1..4 |
+| Buscador del nav | `components/storefront/layout/NavSearch.tsx` | placeholder |
+| Subtítulo de /tienda | `app/(storefront)/tienda/page.tsx` | "· Origen colombiano" |
+| Buscador de /tienda | `app/(storefront)/tienda/page.tsx` | placeholder |
+| Carrito vacío | `components/storefront/CartDrawer.tsx` | el texto del estado vacío |
+| /rastrear-pedido | `app/(storefront)/rastrear-pedido/page.tsx` | **DOS** frases: `pagado` y `entregado` del timeline |
+
+**El censo del spec decía "9 o 10, medí cuál es el que el censo marcó".** Medido: `/rastrear-pedido`
+tiene DOS descripciones café-shape en su `TIMELINE` (`'Hemos confirmado tu pago y preparamos tu
+café.'` y `'Pedido entregado. ¡Disfruta tu café!'`), no una — **son DIEZ cadenas, no nueve**.
+
+**UNA SEXTA aparición se encontró y NO se tocó, a propósito.**
+`app/(storefront)/tienda/[slug]/page.tsx:367` tiene una franja de garantías CASI idéntica a
+`TrustBadges` —"Envío a todo Colombia · Gratis +$150.000", "Garantía de frescura de 30 días", "Tostado
+dentro de los 7 días previos al envío"— pero es un array LITERAL DISTINTO, no una lectura de
+`TrustBadges`/`content.trustBadges`. El spec enumera CINCO superficies y ésta no es una de ellas; se
+deja fuera de `touches:` y se anota como open follow-up (abajo).
+
+### 2 · El modelo: `trustBadges` pasa a SECCIÓN; el resto a la meta `microcopy`
+
+**`trustBadges` es la PRIMERA vez que una banda ESTRUCTURAL (§ `BANDA_IDS`, ya listaba `trustBadges`
+desde antes de este slice) gana una sección real en `SiteContentData`.** Hasta ahora sólo `featured`
+y `trustBadges` eran bandas sin sección — la doctrina de `VARIANTES_ESTRUCTURALES` documenta por qué
+`trustBadges` se dejaba AFUERA de esa tabla específica (sin preset que pida su variante), pero esa
+tabla es sobre COMPOSICIÓN, no sobre TEXTO — no hay conflicto: `trustBadges` gana `campos` (4 textos)
+sin ganar `variantes`. `REGISTRY.trustBadges = { label: 'Confianza', ocultable: false, campos:
+{ badge1..4: 'requerido' } }`, cardinalidad FIJA de 4 (la franja es 4 columnas fijas; los 4 ÍCONOS
+—Leaf/Coffee/Truck/Shield— siguen ESTRUCTURALES, fuera de alcance: el spec pedía mover TEXTO, no
+íconos — anotado como open follow-up, el ícono "Coffee" es visualmente café-shape para cualquier
+vertical).
+
+**Las otras cinco cadenas (nav, /tienda ×2, carrito, rastreo ×2 = 6 campos en total) NO caben en
+ninguna sección real**: no hay UNA pantalla del storefront donde vivan juntas para un toggle de
+sección con sentido. Se agregó una SEXTA clave meta —`microcopy: MicrocopyContent`, gemela de
+`paginas`/`tema` (EXCLUIDA de `SeccionKey`, resuelta aparte del loop con `resolverMicrocopy`, dominio
+CERRADO como `paginas`, no key-agnóstico como `esquemas`)— con sus 6 campos, string-o-default. SIN
+editor en esta tanda (fuera de `touches:`, que no incluye `components/admin/`): el owner la puebla por
+el sembrado, no por el panel — un editor es su propio follow-up.
+
+`tiendaSubtitulo` es el único de los 6 con un matiz: su default NEUTRO es **VACÍO**, no una frase
+genérica de relleno (no hay una frase de origen que sirva a cualquier vertical sin sonar a relleno). El
+componente omite el `" · "` entero cuando está vacío — verificado: `resolverSiteContent` no necesita
+distinguir requerido/opcional para este campo porque su propio default YA es vacío, así que las dos
+semánticas dan el mismo resultado.
+
+**`microcopy` se agregó a `siteContentEditableSchema`** (§ #65-B, la misma razón que `esquemas`/
+`orden`/`variantesBandas`: sin declarar, un futuro write general la STRIPPEARÍA en silencio) — pero
+NO como `tema` (que tiene su propia ruta dedicada y por eso se excluye del schema general): `microcopy`
+no tiene ruta propia todavía, así que sigue el molde de las metas SIN editor.
+
+### 3 · El sembrado — guardado, con las DOS guardas, IDEMPOTENTE, y **NO SE CORRIÓ**
+
+`prisma/sembrar-copy-nayoli.ts`, mismo molde que `prisma/aplicar-preset.ts` (que vive en una rama sin
+mergear a la base de ésta — se DUPLICARON sus dos funciones puras pequeñas, `conexionVisible` y
+`confirmacionValida`, en vez de importarlas, porque no hay de dónde importarlas sin salir de
+`touches:`):
+
+1. **Imprime** host + nombre de la base (nunca credenciales — `conexionVisible` sólo puede devolver
+   `hostname`/`pathname`, estructuralmente no puede cargar usuario/contraseña) y el `SiteSetting.nombre`
+   actual, ANTES de escribir.
+2. **Exige** que el operador tipee ese nombre exacto (`confirmacionValida`, coincidencia exacta,
+   recorta sólo bordes); sin terminal interactiva, `CONFIRMAR_TENANT` es la única vía, y por defecto
+   NO ESCRIBE.
+
+**`mergeCopyNayoliEnContent` es la parte pura, IDEMPOTENTE**: aplicada dos veces da el mismo `content`
+(afirmado en el test); preserva CUALQUIER otro campo de `content` (hero, tema, orden…) y cualquier otro
+campo de `trustBadges`/`microcopy` que ya existiera (p. ej. `trustBadges.visible` si algún día se
+edita) — sólo pisa los 10 textos. Expuesto en `package.json` como `db:sembrar-copy-nayoli`.
+
+**ESTE SCRIPT NO SE CORRIÓ.** La aprobación del owner autoriza la ESCRITURA de este código, nunca
+correr el sembrado ni mergear esta rama — los dos son pasos DEL OWNER, después de este slice.
+
+### 4 · La invariante, probada EN MEMORIA (sin DB, sin archivo de entorno)
+
+`lib/config/copy-b.test.ts`, 15 tests, verde:
+
+- **Capa de datos**: `resolverSiteContent(undefined)` da `DEFAULTS.trustBadges`/`DEFAULTS.microcopy`
+  (neutro, exacto); `resolverSiteContent(mergeCopyNayoliEnContent({}))` da `COPY_NAYOLI.trustBadges`/
+  `COPY_NAYOLI.microcopy` (café de Nayoli, exacto — deep-equal, no substring).
+- **Render EN MEMORIA, `renderToStaticMarkup`, dos componentes REALES**: `TrustBadges` (su `content`
+  llega por PROP —no por `useSiteContent()`—, porque se monta también en
+  `components/admin/PaletaSeccion.tsx` FUERA del árbol del storefront, sin `SiteContentProvider`, que
+  LANZARÍA; mismo patrón que el `negocio` de `GrindChooser`) y `NavSearch` (dentro de
+  `SiteContentProvider`, `isOpen` es prop externa). Los dos renderizan el texto NEUTRO sin dato y el
+  café EXACTO con el sembrado simulado.
+- **ALCANCE DECLARADO, no omitido**: `/tienda` y `/rastrear-pedido` usan `useSearchParams()` (exige
+  contexto de router de Next que ningún test de este repo mockea hoy — ni el precedente,
+  `lib/storefront/planes-suscripcion-componente.test.ts`); `CartDrawer` gatea TODO su contenido con
+  `isOpen`, estado INTERNO de un Context no exportado (`lib/cartStore.tsx`, fuera de `touches:`), así
+  que no se puede forzar desde afuera sin tocar ese archivo. Para estas tres, la invariante se probó en
+  la CAPA DE DATOS (el `microcopy` completo, deep-equal) — la interpolación en esos tres archivos es
+  DIRECTA (`{microcopy.campo}` / `placeholder={microcopy.campo}`), y para el subtítulo de /tienda (el
+  único con una rama condicional) se reprodujo la EXACTA expresión del archivo como función pura,
+  afirmando el caso vacío (sin "· " colgando) y el caso café (byte-idéntico a hoy).
+- **Guarda del sembrado**: `confirmacionValida` con el nombre exacto → confirma; con cualquier otra
+  cosa (vacío, "y", "s", otro nombre, otro case, `undefined`, `null`) → NO confirma. `conexionVisible`
+  extrae host/base y jamás credenciales (afirmado por las CLAVES del objeto, no sólo ausencia de
+  substring).
+- **Idempotencia**: `mergeCopyNayoliEnContent` dos veces = una vez; preserva secciones/campos ajenos.
+
+### 5 · Un defecto propio de TypeScript, encontrado y arreglado
+
+`TrustBadges({ style, content }: {...} = {})` — el default `= {}` que ya traía el código original (para
+que `<TrustBadges />` sin props no reviente si se llamara como función pelada) rompía la resolución de
+overloads de `React.createElement(TrustBadges, { content })` en TS 5 / React 19 (`TS2769: No overload
+matches this call`), cayendo al overload genérico que no reconoce `content`. Se retiró el `= {}`: JSX
+sigue aceptando `<TrustBadges />` sin props porque las dos son opcionales en el TIPO (no depende del
+default de runtime), y `React.createElement`/React mismo normalizan a `{}` cuando no se pasa props —
+verificado con `npm run typecheck` limpio y con el test de PaletaSeccion (`<TrustBadges />` a secas)
+pasando el gate completo.
+
+### Gate
+
+`npm run typecheck` limpio (0 errores). `npm run gate` sobre el árbol final: `npm test` **1491/1491**
++ `npm run test:integracion` **208/208** — los dos carriles, cero fallos. `lib/config/copy-b.test.ts`
+(15 tests, nuevo) y las dos suites existentes tocadas por el modelo
+(`lib/config/site-content-defaults.test.ts`, `lib/config/site-content-schema.test.ts`, incluida "todo
+campo del MODELO está en el schema editable" — la regresión de #65-B, que habría fallado si
+`trustBadges` se declaraba en `REGISTRY` sin su entrada en `siteContentEditableSchema`) verdes.
+
+### Deviations
+
+- **El `observed-report` citado no tiene asiento propio verificable** (§0) — se declaró la brecha y se
+  procedió sobre la medición directa del código + § 63 de `CLAUDE.md`, no sobre la cita.
+- **El conteo es 10, no 9** (§1) — `/rastrear-pedido` tiene DOS frases café-shape, no una.
+- **`prisma/aplicar-preset.ts` no se importó** (§3) — vive en una rama sin mergear; sus dos funciones
+  puras chicas se duplicaron con la misma firma y el mismo comportamiento, en vez de depender de un
+  archivo que no existe en la base de este slice.
+
+### Open follow-ups
+
+- `CONTENIDO-CAFE-TIENDA-SLUG-TRUSTBADGES-1`: `app/(storefront)/tienda/[slug]/page.tsx:367` tiene una
+  SEGUNDA franja de garantías café-shape (Envío/Garantía de frescura/Tostado), literal y separada de
+  `TrustBadges`/`content.trustBadges`. Fuera de las cinco superficies que este slice tenía aprobadas;
+  entra a la próxima ronda de #63 si el owner la pide.
+- `CONTENIDO-CAFE-ICONO-COFFEE-1`: el ícono `Coffee` (lucide) de `TrustBadges.tsx` (posición 2) sigue
+  siendo visualmente café-shape para cualquier vertical no-café, aunque el TEXTO ya sea neutro. Fuera
+  de alcance (el spec pedía mover texto, no íconos).
+- `CLAUDE-MD-PUNTERO-VENCIDO-SITE-CONTENT-DEFAULTS-411-1`: `CLAUDE.md:1900` cita
+  `lib/config/site-content-defaults.ts:411` para `hero.titulo`; tras este slice esa línea es 482 (el
+  código nuevo se insertó antes). La AFIRMACIÓN sigue siendo cierta (`hero.titulo` sigue siendo
+  "Productos que cuentan", sin café ni Nayoli); sólo el PUNTERO de línea quedó desactualizado.
+- `CLAUDE-MD-63-CIERRE-PARCIAL-1`: § 63 de `CLAUDE.md` ("COPY café-shape del storefront") describe su
+  disparador como "el primer cliente no-café FIRMADO" y ya documenta UNA excepción que cerró antes de
+  ese disparador (la FAQ de /suscripciones, "no comparte disparador... se resolvió por su cuenta").
+  Este slice es una SEGUNDA excepción de la misma forma —cinco superficies más, cerradas antes del
+  disparador general, por decisión puntual del owner (B sobre A)— y § 63 no la nombra todavía. Es
+  trabajo de doctrina, fuera de `touches:` (que no incluye `CLAUDE.md`).
