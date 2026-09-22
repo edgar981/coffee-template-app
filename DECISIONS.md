@@ -11589,3 +11589,194 @@ por protocolo: el worker no mergea.
   definir un `spread` propio para 4 figuras (no derivable del prototipo de 3) es su propia decisión de
   dirección de arte. `why_not_now`: sin un número medido que reusar, inventarlo dentro de este slice
   habría sido exactamente lo que el spec pide evitar ("no inventado con texto fijo").
+
+## 2026-09-21 — La banda ORIGEN nace en `BANDA_IDS` (no una variante), apagada, con contador animado nuevo en el repo (`ORIGEN-BANDA-1`)
+
+Construye la banda `#origen` del prototipo (`docs/prototipos/cafeone/index.html:275-310`) medida por
+`ORIGEN-BANDA-CENSO-1`: grid de 2 fotos + copy + una lista de 4 pares dato editoriales a nivel finca +
+3 contadores animados. A diferencia de `spotlight` (§ `SPOTLIGHT-BANDA-1`, que se quedó fuera de
+`BANDA_IDS` porque es una VARIANTE de `featured`), `origen` ES una banda propia: coexiste con
+`brandStory` (la Historia) en vez de reemplazarla, así que necesita su propio slot en la secuencia del
+home — el punto 7 del programa "se-parece" que el owner aprobó (2026-09-21) lo autorizaba
+explícitamente como "banda nueva".
+
+### EL MODELO — `BANDA_IDS` pasa de 7 a 8, `origen` entra entre `brandStory` y `presentaciones`
+
+`BANDA_IDS`/`ORDEN_DEFAULT` (`lib/config/site-content-defaults.ts`) ganan `'origen'`; `SiteContentData`
+gana `origen: OrigenContent`; el REGISTRY declara la sección `ocultable:true`, sin `variantes`, con
+`imagenes:['imagen1','imagen2']` (para el borrado de blobs por diff). `site-content-schema.ts` gana
+`origenEditableSchema`, todo opcional/SOFT como el resto (el resolver decide default-vs-omit).
+
+**NACE OFF (`visible:false`) por la MISMA razón mecánica que hizo nacer a `spotlight` apagado
+mientras estaba fuera de `BANDA_IDS`**: `resolverOrden` completa el orden de TODO tenant con TODA
+banda de `BANDA_IDS`, sin condición — estar en la lista no alcanza para mostrarse, sólo decide DÓNDE
+renderiza SI se muestra. Sin el `false`, Nayoli (y cualquier tenant sin fila propia) vería la banda
+aparecer sola, sin que nadie la haya pedido.
+
+### CÓMO SE ENCIENDE — `PresetTema.bandaOrigenVisible`, NO la membresía en `orden`
+
+La primera idea evaluada y descartada: que "estar en `preset.orden`" fuera la señal de "CORTE la
+pide". Se midió por qué NO alcanza: `ORDEN_DEFAULT = [...BANDA_IDS]` la alimentan también ARRANQUE,
+VITRINA y PATIO (los tres usan el spread tal cual, sin reordenar) — con esa regla, los TRES habrían
+encendido `origen` sin haberlo pedido, exactamente la fuga que `visible:false` existe para cerrar. La
+señal real es un campo DEDICADO en `PresetTema` (`bandaOrigenVisible?: boolean`, ausente en los otros
+cinco presets), consumido por `mergePresetEnContent` (`themes.ts`) como una TERCERA excepción —GEMELA
+de la que ya enciende `spotlight.visible` cuando `featured` elige esa variante—: `if
+(preset.bandaOrigenVisible && registro.origen) out.origen = {...prevOrigen, visible:true}`. Preserva
+cualquier copy/dato que el dueño ya hubiera puesto (mismo `{...prev, visible:true}` que spotlight).
+Sólo CORTE lo declara.
+
+**Nombrado `bandaOrigenVisible`, no `origenVisible`, a propósito**: `PresetTema` YA tenía
+`origenTexto`/`origenAccion` (un concepto de PALETA sin relación —de dónde nace el texto de lectura y
+la acción primaria—, § `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`); `origenVisible` al lado de esos dos
+habría leído como el mismo eje. El prefijo `banda` lo desambigua.
+
+CORTE también gana `esquemas.origen:'crema'` (misma lectura que `presentaciones`: `#origen` es
+`class="section"` sin override de fondo en el prototipo, el body ya es `--surface-page`) y su
+comentario de `escalaDisplay` se actualizó — `Origen.tsx` es la SEXTA banda que lee
+`fontSizeDisplay(tema.escalaDisplay,'l')`, no la quinta que el comentario viejo contaba.
+
+### EL DEFECTO ATRAPADO ANTES DE ESCRIBIRLO — un catcher que ya existía para esto
+
+El primer borrador de `DEFAULTS.origen` usaba el copy LITERAL del prototipo («Cultivado a mano en las
+montañas de San Adolfo, Huila.», «1.500 – 1.800 msnm», «Caturra y Colombia»…), razonado como
+"muestrario de CORTE, igual que `navBadge:'Cosecha 2026'`". El test
+`DEFAULTS: ningún campo de TEXTO menciona café…` (`site-content-defaults.test.ts`,
+§ `CONTENIDO-NEUTRALIZAR-1`) HABRÍA pasado igual —ese copy concreto no usaba ninguna de las palabras
+baneadas por el regex—, pero el propio comentario del catcher ya lo anticipaba: *"un catcher angosto
+deja pasar el mismo defecto con otra palabra"*. Revisado contra el ARGUMENTO del catcher (no sólo su
+regex), se corrigió ANTES de comprometerse: `mergePresetEnContent` nunca escribe texto de sección —
+sólo enciende `visible`—, así que el ÚNICO lugar de donde sale el copy que CORTE muestra es
+`DEFAULTS.origen`, y un default COMPARTIDO por TODO tenant con una cifra concreta («52 años de
+tradición», «12 hectáreas sembradas») sería un dato FABRICADO sobre el negocio de quien sea que
+encienda la banda — la misma familia que el rating fabricado que se borró (§ El RATING fabricado se
+BORRÓ).
+
+**La resolución, y por qué no es sólo "borrar los números"**: los 4 `dato*Label` (categorías —
+"Ubicación", "Selección", "Cuidado", "Disponibilidad"— no son una afirmación verificable) se quedan
+REQUERIDOS con default genérico; los 4 `dato*Valor` y los 6 campos de los 3 stats pasan a OPCIONALES,
+vacíos por defecto. `Origen.tsx` OMITE cada par/stat sin valor (y el `<dl>`/el grid de stats ENTEROS
+si ninguno tiene dato — un contenedor con su borde superior y nada adentro se leería como roto, no
+como "sin datos todavía"). Consecuencia MEDIDA y aceptada: bajo `?tema=CORTE`, sin panel para cargar
+datos reales (§3 del spec — el panel queda de follow-up), la lista y los contadores rinden vacíos; sólo
+el copy de cabecera (eyebrow/título/lede, genérico) se ve. Es el MISMO comportamiento que
+`featured·spotlight` ya tiene hoy sin catálogo real (`Spotlight` rinde vacío, § `spotlight-cableado.
+test.ts`) — una banda ENCENDIDA por el preset sin dato real que mostrar aún, no una regresión nueva.
+
+### EL CONTADOR — primer `requestAnimationFrame` del repo, con el gate `estatico` ya establecido
+
+Medido: `ORIGEN-BANDA-CENSO-1` — cero `requestAnimationFrame`/CountUp en el repo antes de este slice.
+`lib/animation.ts` gana `DURACION_CONTADOR_MS` (1100, medido de `docs/prototipos/cafeone/js/
+home.js:321`), `valorContador` (pura: ease-out cúbica `1-(1-k)^3` sobre el progreso, MISMO cálculo que
+`js/home.js:320-327`) y `useContadorAnimado` (hook: `IntersectionObserver` al 40% visible, dispara UNA
+vez, + un loop de `requestAnimationFrame` de `DURACION_CONTADOR_MS`).
+
+`estatico` es el MISMO patrón que `BrandStoryCentrada` fijó para el scroll-scrub
+(`TEMAS-BRANDSTORY-DIRECCION-ARTE-1`, arriba): `preview || !!useReducedMotion()`. Dos razones
+colapsan al mismo booleano — `prefers-reduced-motion` (un contador que salta de golpe a su valor
+final ES la lectura correcta bajo esa preferencia, no hay equivalente a "acomodado y quieto") y la
+VISTA PREVIA del editor (`EscalaDesktop`, `transform:scale`: un `IntersectionObserver` dentro de un
+contenedor escalado puede no disparar, medido: `ORIGEN-BANDA-CENSO-1`). Con `estatico=true` el valor
+nace YA en su destino, sin observer ni rAF.
+
+**La validación de "es un número" NO despoja caracteres y parsea lo que quede** — la primera versión
+sí lo hacía (`Number(valor.replace(/[^0-9.-]/g,''))`), y un test propio la atrapó fallando: `"N/D"`
+despojado da `""`, y `Number('')` es `0` — un CERO FABRICADO, la clase exacta de dato que este
+componente existe para no mostrar. Se corrigió a `/^-?\d+$/.test(valor.trim())`: el string ENTERO
+tiene que ser dígitos, o se muestra literal (nunca un resto parseado a medias).
+
+### LO QUE ESTE CARRIL PUDO VERIFICAR, Y LO QUE NO
+
+- **SÍ, por ejecución**: la matemática pura de `valorContador` (`lib/animation.test.ts`, 5 tests,
+  incluida la convergencia exacta a `destino` en `progreso=1` y el acotado a `[0,1]`); el modelo
+  completo (REGISTRY/DEFAULTS/BANDA_IDS) y el gate de visibilidad (`origen-banda.test.ts`); el CABLEADO
+  del preset (CORTE enciende `visible`, PATIO no la toca, `validarPreset(CORTE)` sigue `[]`); el render
+  por `renderToStaticMarkup` (sin jsdom) — la invariante de Nayoli (banda vacía, ni un nodo), el
+  hide-on-empty por par/stat, y el PROXY de movimiento reducido (`PreviewProvider`, mismo criterio que
+  `historia-direccion-arte.test.ts`: las dos razones colapsan al mismo `estatico`, así que ejercer una
+  prueba la otra) — con preview el contador nace en su valor final formateado (`"1.600"`), sin preview
+  arranca en `"0"` (sin scroll/observer real en este carril).
+- **NO, sin navegador**: que `prefers-reduced-motion` resuelva `true` en tiempo real (`matchMedia`
+  inexistente en `node:test`), y el movimiento EN SÍ — que el número efectivamente CUENTE al entrar en
+  vista. Ambos quedan para el muestrario visual del owner.
+
+### LA COMPARACIÓN MEDIDA — `?tema=CORTE` vs. el default, verificada por ARTEFACTO (modo producción)
+
+`npm run build && npm start`, con las DOS rutas curleadas por `node`+`fetch` (`cache:'no-store'`).
+**Primer intento, con un discriminador FLOJO**: buscar el título de origen como substring crudo en el
+HTML dio `true` para LAS DOS rutas (default y CORTE) — parecía que la banda se mostraba siempre. Es el
+MISMO modo de falla que CLAUDE.md ya documenta para el símbolo reubicado (§ GATE DE CAPA 3, "el grep
+del símbolo viejo tiene que usar algo que el cambio BORRE, no algo que REUBIQUE"): el substring
+matcheaba el `content` serializado como PROP del `SiteContentProvider` cliente (`"origen":
+{"visible":false,"eyebrow":"El origen","titulo":"Detrás de cada producto…"` — datos que SIEMPRE viajan
+al cliente para hidratación, visible o no), no el DOM visible. Corregido a un discriminador que exige
+que el texto esté DENTRO de un `<h2>` renderizado:
+
+| ruta | `<h2>` con el título de origen | `<dl>` (lista de datos) |
+| --- | --- | --- |
+| `/` (default, sin fila propia de Nayoli) | **0** | — |
+| `/?tema=CORTE` | **1** | ausente (§ arriba, valores vacíos por defecto) |
+
+Los dos totales de `<h2>` en la página dan **4** en ambas rutas — CORTE pierde el `<h2>` de
+`featured·cuadricula` ("Selección del mes", reemplazado por `Spotlight` sin catálogo real → sin `h2`
+propio) y gana el de `origen`, coincidencia de conteo, no de contenido. Confirmado también contra la
+fuente cruda: `"origen":{"visible":false...}` aparece LITERAL en el payload de `/` (la fila real de
+Nayoli, `SiteContent.updatedAt: 2026-09-16`, no tiene clave `origen` — verificado con una lectura RAW
+de la fila vía Prisma — así que cae al DEFAULT, que es `false`).
+
+### Gate
+
+`npm test`: **1659/1659**, 0 fail (1633 del piso de `TEMAS-BRANDSTORY-DIRECCION-ARTE-1` + 26 tests
+nuevos: 6 en `lib/animation.test.ts` + 20 en `lib/config/origen-banda.test.ts`, cero quitados — los 7
+tests de `resolverOrden`/`ORDEN_DEFAULT` en `site-content-defaults.test.ts` se ACTUALIZARON in-place,
+no se sumaron). `npm run test:integracion`: **208/208**, 0 fail — idéntico al piso, sin tocar
+`packages/core/` ni `tests/integracion/`. `npx tsc --noEmit`: limpio. `npm run build`: `✓ Compiled
+successfully`, `/` sigue `ƒ` (dinámica). Verificación de artefacto/producción: § arriba.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, punto 7 del programa "se-parece", 2026-09-21, sobre el censo
+`ORIGEN-BANDA-CENSO-1`). Los archivos tocados —`app/(storefront)/page.tsx`,
+`components/storefront/home/Origen.tsx` (nuevo)— caen en la frase canónica de Tier 1
+(`app/(storefront)/` archivo suelto listado; `components/storefront/` subárbol completo, § CLAUDE.md).
+`lib/config/*` y `lib/animation.ts` están en `touches:` pero fuera de la lista Tier 1 literal —se
+escriben igual, porque el gate de Tier 1 protege por SUPERFICIE tocada en el diff completo, no exige
+que cada archivo individual esté en la lista.
+
+**`customer_bytes.changed = true`**: la RAMA (no el commit) aterriza contenido nuevo, visible bajo
+`?tema=CORTE` —copy genérico de la banda ORIGEN, un contador animado nuevo—, alcanzable en cualquier
+despliegue no-producción (`esDespliegueDemo()`). `stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`
+por protocolo: el worker no mergea. `strings` (lo nuevo que un humano vería bajo CORTE): "El origen",
+"Detrás de cada producto hay un origen real", "Cada producto que ofrecemos nace en un lugar concreto,
+con personas que lo hacen posible. Contamos esa historia para que sepas exactamente de dónde viene lo
+que te llega.", y los 4 labels "Ubicación"/"Selección"/"Cuidado"/"Disponibilidad" (sin valor, hoy
+ocultos por hide-on-empty — no llegan a verse hasta que alguien cargue un dato).
+
+### Deviations
+
+1. **El copy de `DEFAULTS.origen` NO es el del prototipo** (§ arriba, "El defecto atrapado antes de
+   escribirlo") — genérico en vez de "San Adolfo, Huila", por la razón medida contra
+   `CONTENIDO-NEUTRALIZAR-1` y el precio vacío de `SuscripcionPlanesContent`. Consecuencia: bajo
+   `?tema=CORTE` la banda se ve MENOS parecida al prototipo que `brandStory·centrada`/
+   `presentaciones·riel` (que sí heredan la LAYOUT exacta del prototipo, aunque tampoco su copy) —
+   sólo el copy de cabecera se ve, sin datos ni contadores, hasta que exista el panel (§3 del spec) o
+   el owner cargue datos a mano en la fila de Nayoli.
+2. **Los 4 `dato*Valor` y los 6 campos de stat son OPCIONALES**, no REQUERIDOS como el spec sugería al
+   citar el patrón `suscripcionPasos` (slots fijos, "dos campos planos") — medido que ese patrón asume
+   contenido NO-factual (pasos de un flujo, no cifras del negocio); acá el label y el valor de cada
+   par no comparten obligatoriedad, por la misma razón del punto 1.
+
+### Open follow-ups
+
+- `ORIGEN-BANDA-PANEL-1` — el panel de `/admin/tienda` no gana editor para `origen` (§3 del spec: "el
+  panel puede quedar para follow-up"). Sin él, la banda sólo puede encenderse vía el mirador CORTE o
+  escribiendo la fila de `SiteContent` a mano; el owner no tiene UI para cargar los 4 datos ni los 3
+  números de un tenant real. `why_not_now`: explícitamente fuera de `touches:` de este slice.
+- `ORIGEN-BANDA-COPY-PROTOTIPO-1` — si el owner, mirando el muestrario, quiere que `?tema=CORTE`
+  muestre el copy REAL del prototipo (San Adolfo, Huila, los 4 datos, los 3 contadores con cifra),
+  hace falta una decisión de producto: ¿un mecanismo nuevo que permita que un preset cargue copy de
+  MUESTRARIO sin que cuente como "contenido del dueño" (hoy `mergePresetEnContent` lo prohíbe para
+  TODA sección, no sólo `origen`), o cargar esos datos a mano en la fila de Nayoli en la base de
+  desarrollo? `why_not_now`: es una decisión de alcance de `mergePresetEnContent` (afecta a las 7
+  secciones existentes, no sólo la nueva) o una operación de datos sobre una base compartida — ninguna
+  de las dos es una escritura de código de este slice.
