@@ -70,9 +70,12 @@ export function cssMiradorTema(
   const { fondo, tinta, acento, fuentePar, forma, origenTexto, origenAccion } = content.tema;
   // origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1): pasan a `cssPaleta` tal
   // cual — `null` (el default de TODO tenant real y de los otros 5 presets) se convierte en
-  // `undefined`, que es lo que `derivarPaleta` entiende como "sin declarar". Es el ÚNICO punto de
-  // la cadena real donde estos dos campos de `content.tema` llegan a tener efecto: el layout del
-  // storefront (`app/(storefront)/layout.tsx`) sigue llamando a `cssPaleta` con sólo 3 argumentos.
+  // `undefined`, que es lo que `derivarPaleta` entiende como "sin declarar". Hasta
+  // `CROMO-EJES-PALETA-AL-RENDER-1` este era el ÚNICO punto de la cadena real donde estos dos
+  // campos de `content.tema` llegaban a tener efecto; ese slice hizo que el layout del storefront
+  // (`app/(storefront)/layout.tsx`) los honre también, con el MISMO mapeo null→undefined, para el
+  // `:root` PERSISTIDO que sirve a todo visitante — acá siguen pasando para el `:root` del
+  // MIRADOR (`?tema=`).
   return {
     paletaCss: cssPaleta(fondo, tinta, acento, {
       origenTexto: origenTexto ?? undefined,

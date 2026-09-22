@@ -13045,12 +13045,7 @@ render.test.ts` (nuevo), este asiento. `.scratch/run-captura.mjs` NO se commitea
 
 ### Open follow-ups
 
-- **`CROMO-COMENTARIOS-EJES-VENCIDOS-1`** — dos docstrings quedaron describiendo el código VIEJO:
-  `lib/config/palette-style.ts:31-36` ("Sólo `theme-mirador.ts` lo pasa hoy… el layout real del
-  storefront sigue llamando a esta función con TRES argumentos, sin `ejes`") y
-  `lib/config/theme-mirador.ts:71-75` ("el layout del storefront (`app/(storefront)/layout.tsx`)
-  sigue llamando a `cssPaleta` con sólo 3 argumentos"). Las DOS son FALSAS después de este slice.
-  Ninguno de los dos archivos está en `touches:` de este slice — se nombra, no se corrige.
+- **`CROMO-COMENTARIOS-EJES-VENCIDOS-1`** — CERRADO por este mismo id (§ abajo).
 - **`CROMO-ARNES-STAGGER-ANIMACION-1`** — CERRADO por `ARNES-INVOCABLE-POR-NPM-1` (§ abajo).
 
 ## 2026-09-22 — El arnés gana entrypoint `npm run capturar:seccion`, y `esperarAsentamiento` cierra `CROMO-ARNES-STAGGER-ANIMACION-1` (`ARNES-INVOCABLE-POR-NPM-1`)
@@ -13317,3 +13312,71 @@ lo estuvo, así que se usó la vía alternativa de Node descrita en §4 en vez d
 
 Ninguno nuevo. Esta tanda no encontró patrones faltantes en el gate ni deuda adicional en el módulo de
 la guarda.
+
+## 2026-09-22 — Dos docstrings vencidos por `CROMO-EJES-PALETA-AL-RENDER-1` quedan al día (`CROMO-COMENTARIOS-EJES-VENCIDOS-1`)
+
+### Qué estaba vencido
+
+`CROMO-EJES-PALETA-AL-RENDER-1` hizo que `app/(storefront)/layout.tsx` pase `ejes` (el cuarto
+argumento, `origenTexto`/`origenAccion`) a `cssPaleta` para el `:root` PERSISTIDO. Dos docstrings
+—escritos precisamente para diagnosticar el defecto que ese slice arregló— quedaron describiendo el
+código VIEJO y hoy afirman lo CONTRARIO de lo que el código hace:
+
+- `lib/config/palette-style.ts:31-36` (docstring de `cssPaleta`) decía *"Sólo `theme-mirador.ts` lo
+  pasa hoy … el layout real del storefront sigue llamando a esta función con TRES argumentos, sin
+  `ejes`"*.
+- `lib/config/theme-mirador.ts:71-75` (comentario junto a la llamada a `cssPaleta` dentro de
+  `cssMiradorTema`) decía que ese punto era *"el ÚNICO … el layout del storefront … sigue llamando a
+  `cssPaleta` con sólo 3 argumentos"*.
+
+Las dos son falsas desde ese slice: el layout SÍ pasa `ejes` desde entonces.
+
+### El fix es SÓLO-COMENTARIO
+
+Se reescribieron los dos bloques para decir la verdad de HOY —los DOS call sites reales de
+`cssPaleta` (el layout, para el `:root` persistido de todo visitante; `theme-mirador.ts`
+`cssMiradorTema`, para el `:root` del mirador con `?tema=`) pasan `ejes`— conservando el porqué que
+SIGUE vigente: `ejes` es opcional y aditivo, y `null`/`undefined` en `origenTexto`/`origenAccion` —el
+default de todo tenant real y de 5 de los 6 presets del catálogo— da lo mismo de siempre.
+
+**No se tocó una sola línea ejecutable.** El `git diff` de este slice son sólo líneas de comentario
+(`//` y `*`); las firmas de función, el cuerpo de `cssPaleta` y el de `cssMiradorTema` quedan
+byte-idénticos. `touches:` de este slice: `lib/config/palette-style.ts`, `lib/config/theme-
+mirador.ts`, este asiento.
+
+### DESVIACIÓN medida contra el spec — no son "TRES call sites", son DOS
+
+El spec de este slice pedía escribir que "los TRES call sites (el layout del storefront, `theme-
+mirador.ts` y `app/(storefront)/page.tsx`) pasan `ejes`". Medido con grep sobre todo el árbol
+(`grep -rn "cssPaleta(" --include="*.ts" --include="*.tsx" .`): sólo HAY DOS invocaciones de
+`cssPaleta` — `app/(storefront)/layout.tsx:111` y `lib/config/theme-mirador.ts:77` (dentro de
+`cssMiradorTema`). `app/(storefront)/page.tsx` NO llama a `cssPaleta`: invoca `cssMiradorTema` (que
+internamente sí llama a `cssPaleta`) para el `<style>` del mirador, y usa el mismo mapeo
+`null → undefined` de `origenTexto`/`origenAccion` para llamar a `esquemaStyle` (otra función,
+`§ esquema-style.ts`) al pintar las bandas con esquema asignado — no a `cssPaleta`. Los docstrings se
+escribieron con la cuenta MEDIDA (DOS call sites de `cssPaleta`, con `page.tsx` nombrado como quien
+invoca al segundo indirectamente para el mirador), no con la cuenta que el spec proponía.
+
+### Gate
+
+Ambos carriles corridos sobre el árbol final: `npm test` (capa 1) **1721/1721**, `npm run
+test:integracion` (capa 2, Postgres efímero) **208/208** — cero fallos, idéntico al floor que
+`CROMO-EJES-PALETA-AL-RENDER-1` dejó medido (mismo HEAD de partida, sin drift). `npx tsc --noEmit`
+limpio. No se corrió `next build`: el diff no toca una sola línea de código ejecutable, sólo
+comentarios — no hay artefacto nuevo que compilar. Ningún test nuevo: no hay comportamiento nuevo que
+afirmar.
+
+### Cierra
+
+`CROMO-COMENTARIOS-EJES-VENCIDOS-1`, el open follow-up que `CROMO-EJES-PALETA-AL-RENDER-1` dejó
+nombrado y sin corregir (§ arriba, su propia entrada de Open follow-ups ya actualizada a "CERRADO").
+
+### Deviations
+
+La del §"DESVIACIÓN medida" arriba: el spec afirmaba TRES call sites de `cssPaleta`; medido, son DOS
+(`page.tsx` llega al segundo indirectamente vía `cssMiradorTema`, no lo llama directo). Se escribió
+la cuenta medida, no la del spec.
+
+### Open follow-ups
+
+Ninguno nuevo.

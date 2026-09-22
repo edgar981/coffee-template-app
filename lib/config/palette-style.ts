@@ -29,11 +29,12 @@ let memo: { clave: string; css: string } | null = null;
  * seguros para un `<style>`—; el write ya rechazó cualquier basura (§ palette-schema).
  *
  * `ejes` (§ `EjesPaleta`, `palette-derive.ts`, TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1) es OPCIONAL
- * y ADITIVO: ausente = el comportamiento de siempre. Sólo `theme-mirador.ts` lo pasa hoy, con lo
- * que el preset (CORTE) declaró en `content.tema.origenTexto`/`origenAccion` — el layout real del
- * storefront sigue llamando a esta función con TRES argumentos, sin `ejes`, y da lo mismo de
- * siempre porque ningún tenant real declara estos dos campos (§ TemaContent, site-content-
- * defaults.ts).
+ * y ADITIVO: ausente = el comportamiento de siempre. Desde `CROMO-EJES-PALETA-AL-RENDER-1` los DOS
+ * call sites reales lo pasan: el layout del storefront (`app/(storefront)/layout.tsx`), para el
+ * `:root` PERSISTIDO que sirve a TODO visitante, y `theme-mirador.ts` (`cssMiradorTema`), para el
+ * `:root` del MIRADOR (`?tema=`, invocado desde `app/(storefront)/page.tsx`). `null`/`undefined`
+ * en `origenTexto`/`origenAccion` — el default de TODO tenant real y de 5 de los 6 presets del
+ * catálogo (§ TemaContent, site-content-defaults.ts) — da lo mismo de siempre.
  */
 export function cssPaleta(
   fondo: string | null,
