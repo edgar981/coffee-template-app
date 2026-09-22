@@ -115,6 +115,18 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * `bandaMarquesinaVisible` (§ MARQUESINA-BANDA-1, OPCIONAL) — GEMELO exacto de `bandaOrigenVisible`,
  * para la banda `marquesina` (la sección `.marquee` del prototipo, § `MarquesinaContent`). AUSENTE
  * = el comportamiento de HOY, byte a byte (`content.marquesina.visible` sigue en `false`).
+ *
+ * `heroCtasVisibles`/`heroCueDesliza` (§ TEMAS-HERO-TOGGLES-PRESET-1, OPCIONALES) — NO CONFUNDIR con
+ * `bandaOrigenVisible`/`bandaMarquesinaVisible` de arriba (esos ENCIENDEN una banda ENTERA de
+ * `BANDA_IDS`); estos dos son los DOS BOOLEANOS que `REGISTRY.hero.booleanos` ya declara DENTRO de
+ * la sección `hero` (`ctasVisibles`/`cueDesliza`, § TEMAS-HERO-MEDIA-AGREGADOS-1) — `hero` ya existe
+ * y ya se muestra en TODO tenant; lo que faltaba era que un preset pudiera apagar sus CTA y encender
+ * su cue "Desliza" sin depender de que el panel del cliente los toque. AUSENTE en un preset = el
+ * comportamiento de HOY, byte a byte (`content.hero.ctasVisibles` sigue resolviendo a `true`,
+ * `content.hero.cueDesliza` a `false` — los defaults que `resolverSiteContent` ya aplica). La FRASE
+ * al pie (`hero.fraseAlPie`) NO tiene su gemelo acá a propósito: es CONTENIDO del tenant (un texto,
+ * no una composición), así que ningún preset la siembra — mismo criterio que `mergePresetEnContent`
+ * nunca escribe el `titulo`/`lede` de `origen` o el `texto` de `marquesina`.
  */
 export interface PresetTema {
   clave: string;
@@ -133,6 +145,8 @@ export interface PresetTema {
   escalaDisplay?: ClaveEscalaDisplay;
   bandaOrigenVisible?: boolean;
   bandaMarquesinaVisible?: boolean;
+  heroCtasVisibles?: boolean;
+  heroCueDesliza?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -351,6 +365,23 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     out.marquesina = { ...prevMarquesina, visible: true };
   }
 
+  // HERO TOGGLES (§ TEMAS-HERO-TOGGLES-PRESET-1) — GEMELO de la escritura de `variante` en el loop
+  // de `preset.variantes` de arriba, no de los bloques de banda de arriba: `hero` YA es una sección
+  // del REGISTRY (siempre se muestra), así que acá no hay nada que "encender" — sólo dos booleanos
+  // DENTRO de la sección que se escriben SÓLO si el preset los declara explícitamente, preservando
+  // el resto de `content.hero` (`variante` incluida, si el mismo preset la pidió arriba) con
+  // `{ ...prevHero, … }`. AUSENTE en el preset → no se toca ninguna de las dos claves, y el resolver
+  // aplica su propio default (`true`/`false`) — el mismo mecanismo que ya deja `fraseAlPie` (CONTENIDO,
+  // nunca escrita por un preset) intacta.
+  if ((typeof preset.heroCtasVisibles === 'boolean' || typeof preset.heroCueDesliza === 'boolean') && registro.hero) {
+    const prevHero = esObj(out.hero) ? out.hero : {};
+    out.hero = {
+      ...prevHero,
+      ...(typeof preset.heroCtasVisibles === 'boolean' ? { ctasVisibles: preset.heroCtasVisibles } : {}),
+      ...(typeof preset.heroCueDesliza === 'boolean' ? { cueDesliza: preset.heroCueDesliza } : {}),
+    };
+  }
+
   return out;
 }
 
@@ -557,6 +588,17 @@ export const CORTE: PresetTema = {
   // gobierna esa canónica—, así que asignarle un esquema sería una segunda fuente de verdad
   // discrepando con la que ya la pinta bien.
   bandaMarquesinaVisible: true,
+  // heroCtasVisibles/heroCueDesliza (§ TEMAS-HERO-TOGGLES-PRESET-1) — MEDIDO contra el prototipo
+  // (`docs/prototipos/cafeone/index.html:122-138`): `.hero-media` no lleva ningún `.btn` (a
+  // diferencia de `.hero-media .hero-inner`, que sólo trae el eyebrow/título/párrafo/caption) y SÍ
+  // trae `.scroll-cue` con la etiqueta "Desliza" (`index.html:135-137`). `TEMAS-HERO-MEDIA-
+  // AGREGADOS-1` construyó los dos campos como booleanos de CONTENIDO (default = el hero de HOY,
+  // dos CTA visibles y sin cue) pero ese slice no tocó `themes.ts`, así que CORTE los heredaba en su
+  // default — el mirador mostraba botones que el prototipo no tiene y ningún cue. CORTE es hoy el
+  // ÚNICO preset que declara los dos; los otros cinco no tocan `content.hero.ctasVisibles`/
+  // `cueDesliza` (§ el test de `hero-toggles-preset.test.ts` que lo afirma).
+  heroCtasVisibles: false,
+  heroCueDesliza: true,
 };
 
 export const PATIO: PresetTema = {

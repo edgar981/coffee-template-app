@@ -11948,3 +11948,86 @@ un humano vería bajo CORTE): "Calidad que se nota en cada entrega" (repetido en
   cargar el dato a mano en la fila de Nayoli). `why_not_now`: decisión de alcance de
   `mergePresetEnContent` (afecta a las 9 bandas existentes, no sólo la nueva) o una operación de
   datos sobre una base compartida — ninguna de las dos es una escritura de código de este slice.
+
+## 2026-09-21 — CORTE enciende los toggles del hero-media (sin botones, cue "Desliza") a nivel PRESET (`TEMAS-HERO-TOGGLES-PRESET-1`)
+
+`TEMAS-HERO-MEDIA-AGREGADOS-1` construyó los tres agregados del hero-media
+(`hero.ctasVisibles`/`hero.fraseAlPie`/`hero.cueDesliza`) como campos de CONTENIDO, byte-idénticos
+por defecto — pero ese slice no tocó `themes.ts`: `CORTE` seguía sin declararlos, así que el mirador
+`?tema=CORTE` mostraba los dos CTA del hero-media (que `docs/prototipos/cafeone/index.html:122-138`
+NO tiene) y ningún cue "Desliza" (que el prototipo SÍ tiene, `.scroll-cue`). El owner aprobó
+(2026-09-21) "hero -> toggles a preset: sí".
+
+### EL PATRÓN — GEMELO de `bandaOrigenVisible`, pero DENTRO de una sección que ya existe
+
+`ORIGEN-BANDA-1` fijó el patrón para que un PRESET siembre un campo de contenido: un campo opcional
+del `PresetTema`, consumido por `mergePresetEnContent`, que sólo escribe si el preset lo declara
+explícitamente — AUSENTE en los otros cinco presets = byte-idéntico a HOY. Este slice lo reusa sin
+modificarlo, con una diferencia de destino: `bandaOrigenVisible`/`bandaMarquesinaVisible` ENCIENDEN
+una banda ENTERA de `BANDA_IDS` (`content.<banda>.visible`); `heroCtasVisibles`/`heroCueDesliza` no
+encienden nada — `hero` es `ocultable:false`, siempre se muestra — son dos BOOLEANOS DENTRO de una
+sección que ya existe. `mergePresetEnContent` los escribe en el MISMO bloque que la sección `hero`
+—`{ ...prevHero, ...(según declare cada uno) }`—, después del loop que ya escribe `hero.variante`
+cuando el preset pide una variante de hero, así que las dos escrituras (variante y toggles) conviven
+sobre la misma sección sin pisarse: afirmado en `lib/config/hero-toggles-preset.test.ts`
+("preservando lo demás de la sección").
+
+CORTE es hoy el ÚNICO preset del catálogo que declara `heroCtasVisibles: false` / `heroCueDesliza:
+true`; los otros cinco (PLIEGO, PATIO, VETA, VITRINA, ARRANQUE) no tocan ninguna de las dos claves —
+afirmado iterando `PRESETS` y comprobando que `mergePresetEnContent` no agrega las claves a una
+sección que no las tenía.
+
+### LA FRASE AL PIE QUEDA CONTENIDO — ningún preset la siembra
+
+`hero.fraseAlPie` (el tercer agregado de `TEMAS-HERO-MEDIA-AGREGADOS-1`) NO tiene su gemelo en
+`PresetTema`, a propósito: es un TEXTO del tenant, no una composición — la misma frontera que ya
+separa `mergePresetEnContent` de nunca escribir el `titulo`/`lede` de `origen` o el `texto` de
+`marquesina`. Bajo `?tema=CORTE` sigue resolviendo al default de HOY (`''`, se omite), y el `?tema=`
+muestrario para el owner es el mismo mecanismo — el prototipo trae su frase real
+(`docs/prototipos/cafeone/index.html:132`, ".hero-caption"), pero cargarla es una decisión de dato
+del tenant (o un mecanismo de copy de MUESTRARIO), no de este preset.
+
+### LA COMPARACIÓN MEDIDA — `?tema=CORTE` vs. el default, por `renderToStaticMarkup` EN MEMORIA
+
+Regla dura de este slice (igual que `MARQUESINA-BANDA-1`): sin dev server, sin `.env`, sin base.
+`resolverSiteContent({})` (Nayoli, sin fila) + `contenidoConPresetDeVista(nayoli, 'CORTE')`.
+
+| medición | resultado |
+| --- | --- |
+| sin `?tema=` (Nayoli) | `hero.ctasVisibles === true`, `hero.cueDesliza === false` — el render trae los DOS `<a>` de CTA y ningún `data-hero-cue` |
+| `?tema=CORTE` | `hero.variante === 'media'`, `hero.ctasVisibles === false`, `hero.cueDesliza === true` — el render trae CERO `<a>` de CTA y `data-hero-cue="desliza"` + `<span>Desliza</span>` |
+| `?tema=CORTE`, `hero.fraseAlPie` | igual a Nayoli (`''`), no tocada — ningún preset la siembra |
+| copy/imagen ya cargado por un tenant (`titulo`/`eyebrow` sintéticos) | se preservan intactos bajo `?tema=CORTE`; sólo cambian `variante`/`ctasVisibles`/`cueDesliza` |
+
+### Gate
+
+`npm test`: **1698/1698**, 0 fail (1689 del piso de `MARQUESINA-BANDA-1` + 9 tests nuevos en
+`lib/config/hero-toggles-preset.test.ts`, cero quitados — `themes.test.ts`/`hero-agregados.test.ts`/
+`theme-mirador.test.ts` corridos aparte no quedaron stale, 0 cambios). `npm run test:integracion`:
+**208/208**, 0 fail — idéntico al piso, sin tocar `packages/core/` ni `tests/integracion/`. `npx tsc
+--noEmit`: limpio. `npm run build`: `✓ Compiled successfully in 6.6s`, `/` sigue `ƒ` (dinámica).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (spec), `approved: yes` (owner, 2026-09-21, "hero -> toggles a preset: sí", sobre el
+observed-report `TEMAS-HERO-MEDIA-AGREGADOS-1`). El diff (`lib/config/themes.ts` +
+`lib/config/hero-toggles-preset.test.ts`) NO toca ningún archivo de la lista Tier 1 de CLAUDE.md (no
+hay `app/api/`, `packages/core/src/`, ni schema) — fuera de la superficie protegida por dinero.
+
+**`customer_bytes.changed = true`**: la RAMA (no el commit) aterriza un cambio VISIBLE bajo
+`?tema=CORTE` en cualquier despliegue no-producción (`esDespliegueDemo()`) — los dos CTA del hero
+desaparecen y aparece el cue "Desliza". `stopped_on: [customer-bytes]` → `AWAITING_APPROVAL` por
+protocolo: el worker no mergea. `strings` (lo que un humano vería bajo CORTE, nuevo en esta rama):
+la etiqueta "Desliza" del cue; ningún string nuevo de CTA (se ocultan, no se renombran).
+
+### Deviations
+
+Ninguna. El patrón de `ORIGEN-BANDA-1` se reusó sin ajustes; no hubo un defecto propio que atrapar
+antes de escribir (a diferencia de `ORIGEN-BANDA-1`/`MARQUESINA-BANDA-1`, donde el copy por defecto
+fue el punto de fricción) — acá los dos campos y sus defaults ya existían, completos y correctos,
+desde `TEMAS-HERO-MEDIA-AGREGADOS-1`; lo único que faltaba era la siembra por preset.
+
+### Open follow-ups
+
+Ninguno nuevo. `MARQUESINA-BANDA-COPY-PROTOTIPO-1` (arriba) ya cubre, en general, la decisión de un
+mecanismo de copy de MUESTRARIO — `hero.fraseAlPie` bajo CORTE es el mismo caso, no uno nuevo.
