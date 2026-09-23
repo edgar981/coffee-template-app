@@ -39,6 +39,8 @@ const MENU_HOY: Omit<MenuContent, 'visible'> = {
   posicion3: 'nosotros',
   ctaLabel: '',
   ctaDestino: '',
+  badgeItem: '',
+  badgeTexto: '',
 };
 
 const LINKS_HOY = [
@@ -63,10 +65,10 @@ test('DEFAULTS.menu es el menú de HOY: labels de hoy, orden de hoy, CTA apagado
   assert.deepEqual(DEFAULTS.menu, { visible: true, ...MENU_HOY });
 });
 
-test('REGISTRY.menu: ocultable:false (como el hero — no se apaga entero) y los 8 campos declarados', () => {
+test('REGISTRY.menu: ocultable:false (como el hero — no se apaga entero) y los 10 campos declarados', () => {
   assert.equal(REGISTRY.menu.ocultable, false);
   assert.deepEqual(Object.keys(REGISTRY.menu.campos).sort(), [
-    'ctaDestino', 'ctaLabel', 'labelNosotros', 'labelSuscripciones', 'labelTienda',
+    'badgeItem', 'badgeTexto', 'ctaDestino', 'ctaLabel', 'labelNosotros', 'labelSuscripciones', 'labelTienda',
     'posicion1', 'posicion2', 'posicion3',
   ]);
 });

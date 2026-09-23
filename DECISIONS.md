@@ -14924,3 +14924,36 @@ slice sigue ese precedente en vez de la instrucción del dispatch, para no intro
 convención de verdicto para el mismo escenario dentro de la misma cadena — y lo deja escrito acá,
 en vez de decidirlo en silencio. En cualquiera de los dos casos (`GATE_RED` o `AWAITING_APPROVAL`)
 la consecuencia práctica es la misma: no hay merge, el diff queda en la rama para revisión.
+
+## 2026-09-23 — `menu-como-dato.test.ts` puesto al día con `badgeItem`/`badgeTexto`, cierra el GATE_RED heredado (`CORTE-BADGE-MENU-TEST-STALE-1`)
+
+**El defecto:** `CORTE-BADGE-COSECHA-EN-MENU-1` (`577d8b8`) sumó `badgeItem`/`badgeTexto` (default
+`''`) a `DEFAULTS.menu`/`REGISTRY.menu.campos` (`MenuContent`) sin tener
+`lib/config/menu-como-dato.test.ts` en su `touches:` — el archivo ya existía desde
+`CROMO-MENU-COMO-DATO-1` y afirma la forma EXACTA de `DEFAULTS.menu` por `deepEqual` y la lista de
+claves de `REGISTRY.menu.campos` por `Object.keys(...).sort()`. Las dos aserciones quedaron STALE
+(sin las dos claves nuevas) y el gate venía en rojo desde ese commit, arrastrado sin agravar por
+`CORTE-HERO-TITULAR-OCULTABLE-1` y `CORTE-HERO-PIE-POSICION-1`.
+
+**El fix:** sólo las dos aserciones. `MENU_HOY` (el literal de comparación) gana `badgeItem: ''` y
+`badgeTexto: ''`; la lista de claves esperada de `REGISTRY.menu.campos` gana `'badgeItem'` y
+`'badgeTexto'` (orden alfabético, como el resto), y el título de ese test pasa de "los 8 campos
+declarados" a "los 10 campos declarados" — el número que la propia aserción cuenta, mismo test, no
+scope nuevo. El modelo NO se tocó: `badgeItem`/`badgeTexto` con default `''` ya eran correctos y
+byte-idénticos (gateados por `corte-badge-menu.test.ts`, § `CORTE-BADGE-COSECHA-EN-MENU-1`); esto
+era estrictamente el test desactualizado, dominio del orquestador por `approval-reason`.
+
+**El gate — corrido completo sobre el árbol final:**
+
+| carril | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1844/1844** — verde, sin ninguna falla |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde |
+| `lib/config/menu-como-dato.test.ts` (el archivo tocado) | 37/37 — las DOS que fallaban ahora pasan, las 35 restantes intactas |
+
+**Verdicto: el gate cierra en VERDE.** Con eso el GATE_RED heredado por la cadena (c)/(d) queda
+cerrado; este slice para en `AWAITING_APPROVAL` por instrucción del dispatch (nunca mergea), no
+por un gate rojo — el commit queda en la rama a la espera del merge gateado del orquestador.
+
+`touches:` — `lib/config/menu-como-dato.test.ts` (las dos aserciones), este asiento. Nada más: no
+se tocó `site-content-defaults.ts` ni ningún otro archivo del modelo.
