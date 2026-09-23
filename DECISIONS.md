@@ -14957,3 +14957,95 @@ por un gate rojo — el commit queda en la rama a la espera del merge gateado de
 
 `touches:` — `lib/config/menu-como-dato.test.ts` (las dos aserciones), este asiento. Nada más: no
 se tocó `site-content-defaults.ts` ni ningún otro archivo del modelo.
+
+## 2026-09-23 — La banda de insignias de confianza gana `content.trustBadges.visible` — SE APAGA, NO SE BORRA (`CORTE-TRUSTBADGES-OCULTABLE-1`)
+
+**Elección:** `TrustBadges` (la franja "Origen 100% colombiano · Tostado artesanal semanal · Envío
+a todo el país · Garantía de frescura") gana un campo de dato, `content.trustBadges.visible`
+(default `true`), con el MISMO mecanismo que `origen`/`marquesina`: el componente lee
+`useSiteContent()` y `seccionEsVisible(REGISTRY.trustBadges, trustBadges)` decide si devuelve
+`null`. Las cuatro insignias (ícono + texto) SIGUEN siendo el array `BADGES`, código — este slice
+no las vuelve editables, sólo agrega el interruptor de apagado.
+
+**Lo que ESTO CAMBIA de clasificación, y por qué es correcto:** `trustBadges` ya era miembro de
+`BANDA_IDS` (posición 3ª, tras `marquesina`) desde antes de este slice, pero como banda
+ESTRUCTURAL SIN SECCIÓN — igual que `featured` hoy—: el componente se montaba SIEMPRE, sin gate,
+sin entrada en `SiteContentData` ni en el REGISTRY. Con este campo pasa a ser una sección de
+pleno derecho (gana entrada en `SiteContentData`, `REGISTRY.trustBadges` con `campos: {}`, y su
+`z.object` en `siteContentEditableSchema`). Verificado que esto NO rompe ningún consumidor
+genérico que itera `Object.keys(REGISTRY)` (`site-content-defaults.test.ts`,
+`site-content-schema.test.ts`, `site-content-read.ts`): todos son genéricos por diseño y una
+sección con `campos: {}` y sin `imagenes`/`repeater`/`variantes` pasa sus guardas sin caso
+especial. Gate completo corrido sobre el árbol final — sin regresiones (§ abajo).
+
+**Default `true` = HOY, byte a byte:** la banda se montaba siempre en `app/(storefront)/page.tsx`
+(sin condición) antes de este slice, así que `visible:true` sin fila deja a Nayoli (y cualquier
+tenant sin fila propia) exactamente como estaba. Byte-identidad verificada por EJECUCIÓN, no sólo
+por inspección: se renderizó la fuente ANTERIOR a este slice (`git show HEAD:…TrustBadges.tsx`,
+componente sin gate) y la fuente NUEVA con `resolverSiteContent({})` (sin fila) bajo
+`renderToStaticMarkup`, y las dos cadenas HTML dieron **idénticas** (3244 bytes, `EQUAL: true`).
+
+### EL LANDMINE MEDIDO, fuera de `touches:` — `components/admin/PaletaSeccion.tsx`
+
+`PaletaSeccion.tsx` (`FragmentoTienda`, la vista previa de la paleta de colores en
+`/admin/tienda`) monta `<TrustBadges />` DIRECTO, documentado en su propio comentario como
+"`TrustBadges` estático" — SIN `SiteContentProvider`. A `ProductCard`, la otra pieza real que esa
+misma vista monta, SÍ le arma un `CartProvider` local porque `useCartStore()` también hace throw
+sin su provider (§ CLAUDE.md, "Montar un componente en OTRO árbol de providers no lo atrapa ni
+tsc ni el build"); `TrustBadges` no tenía ese problema porque, hasta este slice, no leía ningún
+contexto.
+
+Con `useSiteContent()` agregado (este slice), esa MISMA vista previa de paleta hará **throw** en
+vez de mostrar la franja de insignias — `useSiteContent()` es fail-loud por diseño ("eso es un bug
+de montaje", CLAUDE.md). El fix simétrico existe y está ya en el propio archivo como precedente
+(el `CartProvider` de `ProductCard`): montar un `SiteContentProvider` LOCAL alrededor de
+`<TrustBadges />` en `FragmentoTienda`, con `{ ...DEFAULTS, trustBadges: { visible: true } }` (o el
+`DEFAULTS` completo) — la muestra de paleta no necesita reflejar el toggle real, sólo no reventar.
+
+**Por qué no se corrigió acá:** `PaletaSeccion.tsx` NO está en `touches:` de este slice
+(`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`,
+`components/storefront/home/TrustBadges.tsx`, `lib/config/corte-trustbadges.test.ts`,
+`DECISIONS.md`), y el protocolo del slice prohíbe ensanchar `touches:` por cuenta propia. Se
+verificó que el carril automatizado NO lo atrapa: los componentes `.tsx` no tienen test (CLAUDE.md,
+"el glob NO incluye `*.test.tsx`: los tests de COMPONENTE necesitan jsdom, que el repo no tiene"),
+así que esta regresión sólo se ve en el gate visual manual del owner sobre `/admin/tienda` — no en
+`npm run gate`.
+
+**Follow-up coined:** `CORTE-TRUSTBADGES-PALETA-PROVIDER-1` — montar un `SiteContentProvider`
+local alrededor de `<TrustBadges />` en `FragmentoTienda` (`components/admin/PaletaSeccion.tsx`),
+mismo patrón que el `CartProvider` que ya envuelve a `ProductCard` ahí mismo. **Bloqueante para el
+gate visual de `/admin/tienda`** antes de que este cambio llegue a producción: sin el fix, abrir el
+editor de paleta hace throw en vez de mostrar la vista previa.
+
+### El gate — corrido completo sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1853/1853** — verde (1844 heredados + 9 nuevos de `corte-trustbadges.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | primera corrida: **207/208**, 1 falla en `tests/integracion/wompi-reconciliador.test.ts` ("CONCURRENCIA: webhook y reconciliador… A LA VEZ") — archivo y código AJENOS a este diff (`git diff --stat` toca sólo `site-content-defaults.ts`/`site-content-schema.ts`/`TrustBadges.tsx`); repetida en limpio: **208/208**, verde — la falla era del propio test de concurrencia (timing), no de este cambio |
+| `npx tsc --noEmit` | limpio |
+| `npx eslint` (los 4 archivos tocados) | 2 errores `react/no-children-prop` en `corte-trustbadges.test.ts` — el MISMO patrón pre-existente de `React.createElement(Provider, {value, children: …})` que ya traen `marquesina-banda.test.ts` (2) y `corte-hero-pie.test.ts` (1), fuera de `touches:`, verificado ahí; `TrustBadges.tsx`/`site-content-defaults.ts`/`site-content-schema.ts` limpios; `lint` no es parte de `gate` (`package.json`) |
+| `npx next build` | `✓ Compiled successfully`; `/` sigue `ƒ` (dinámica) |
+| `lib/config/corte-trustbadges.test.ts` (nuevo, 9 casos) | 9/9 |
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts` (`TrustBadgesContent`, `SiteContentData.trustBadges`,
+`DEFAULTS.trustBadges`, `REGISTRY.trustBadges`, y el ajuste de tres comentarios adyacentes que la
+promoción de `trustBadges` a sección dejaba desactualizados — `bandaUniforme`/`varianteDeBanda`/
+`VARIANTES_ESTRUCTURALES`, todos dentro del mismo archivo tocado), `lib/config/site-content-
+schema.ts` (`trustBadgesEditableSchema`), `components/storefront/home/TrustBadges.tsx` (el gate),
+`lib/config/corte-trustbadges.test.ts` (nuevo, 9 casos), este asiento. `app/(storefront)/page.tsx`
+**NO se tocó** — no hacía falta: el gate de visibilidad vive en el componente, como en
+`origen`/`marquesina` (CLAUDE.md, "El gate de visibilidad vive ACÁ… no en `page.tsx`"), y
+`page.tsx` ya renderiza `TrustBadges` a través de la misma `<SiteContentProvider>` del layout.
+
+### Verdicto
+
+**El gate cierra en VERDE** sobre el árbol final (1853/1853 + 208/208, confirmado en corrida
+limpia). Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` de todas formas —
+nunca mergea—: el diff sí toca bytes que el visitante puede llegar a ver (el toggle apaga una
+banda del storefront si el owner lo usa, aunque el default deje a todo tenant sin fila
+byte-idéntico hoy), así que cae del lado de "customer-bytes" de la política A. El commit queda en
+la rama a la espera del merge gateado del orquestador, que debe conocer el landmine de
+`PaletaSeccion.tsx` (§ arriba) antes de dar por cerrado el gate visual de `/admin/tienda`.

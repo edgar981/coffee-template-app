@@ -7,6 +7,9 @@ import {
   Shield,
 } from "lucide-react";
 
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+
 const BADGES = [
   {
     icon: Leaf,
@@ -34,7 +37,15 @@ const BADGES = [
 // fallback (§ eje 5b, home-2): sin esquema asignado, byte-idéntico (acento-texto/acento-2); con un
 // esquema —medido el peor caso, `acento`— pasaban de 1.00:1/2.04:1 (el ícono literalmente se fundía
 // con el fondo) a ≥4.5:1.
+//
+// EL INTERRUPTOR (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de `TrustBadgesContent`,
+// site-content-defaults.ts): MISMO mecanismo que Marquesina/Origen — se lee `content.trustBadges` y
+// `seccionEsVisible` decide si la sección se apaga (`null`). SE APAGA, NO SE BORRA: el array
+// `BADGES` de arriba sigue siendo estructura de código; sólo el "¿se muestra?" es dato.
 export default function TrustBadges({ style }: { style?: React.CSSProperties } = {}) {
+  const { trustBadges } = useSiteContent();
+  if (!seccionEsVisible(REGISTRY.trustBadges, trustBadges)) return null;
+
   return (
     <section className="sf-divisor-y border-[var(--sf-linea)] bg-[var(--sf-banda,var(--sf-fondo))] py-6" style={style}>
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">

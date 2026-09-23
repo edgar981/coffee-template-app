@@ -66,6 +66,13 @@ const marquesinaEditableSchema = z.object({
   productoSlug: z.string().optional(),
 });
 
+// LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
+// `TrustBadgesContent` en site-content-defaults.ts): el ÚNICO campo es el interruptor de dato,
+// `visible` — las cuatro insignias siguen siendo el array `BADGES` del componente, no dato editable.
+const trustBadgesEditableSchema = z.object({
+  visible: z.boolean().optional(),
+});
+
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
 // es la primera sección ocultable. Todo opcional/SOFT, como el hero: el resolver decide.
 // `variante` (§ eje 5e, TEMAS-P2-BRANDSTORY-1): la COMPOSICIÓN de la sección ('columnas', hoy la
@@ -386,6 +393,7 @@ const menuEditableSchema = z.object({
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   marquesina: marquesinaEditableSchema.optional(),
+  trustBadges: trustBadgesEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   origen: origenEditableSchema.optional(),
   presentaciones: presentacionesEditableSchema.optional(),

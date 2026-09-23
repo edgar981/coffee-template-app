@@ -119,6 +119,36 @@ export interface MarquesinaContent {
   productoSlug: string;
 }
 
+// LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1) — ya era MIEMBRO de
+// `BANDA_IDS` desde antes de este slice (ocupa su posición 3ª, tras `marquesina`), pero como banda
+// ESTRUCTURAL sin sección propia (§ el comentario histórico de `BANDA_IDS`, hoy corregido): el
+// componente (`TrustBadges.tsx`) renderizaba SIEMPRE, sin gate, y sus cuatro insignias vivían como
+// un array `BADGES` fijo en el componente. Este slice le da UN campo, `visible` — GANA sección
+// propia en `SiteContentData`/REGISTRY recién ahora—, con el MISMO mecanismo que `origen`/
+// `marquesina`: el componente lee `content.trustBadges.visible` con `useSiteContent()` y
+// `seccionEsVisible(REGISTRY.trustBadges, trustBadges)` decide si devuelve `null`.
+//
+// SE APAGA, NO SE BORRA: apagar la banda no toca el array `BADGES` del componente — sigue siendo
+// ESTRUCTURA de código, no dato editable; esta sección es sólo el interruptor. Ampliar las cuatro
+// insignias a DATO (texto/ícono editables) es una decisión aparte, no la de este slice.
+//
+// DEFAULT `true` = HOY, byte a byte: la banda se monta siempre hoy (`app/(storefront)/page.tsx`,
+// sin condición), así que `visible:true` sin fila es lo que deja a Nayoli (y cualquier tenant sin
+// fila propia) exactamente como está.
+//
+// OJO, LANDMINE MEDIDO Y NO CERRADO POR ESTE SLICE (fuera de `touches:`): `components/admin/
+// PaletaSeccion.tsx` (`FragmentoTienda`) monta `<TrustBadges />` DIRECTO, documentado como
+// "TrustBadges estático", SIN `SiteContentProvider` — a diferencia de `ProductCard`, a quien esa
+// misma pieza SÍ le monta un `CartProvider` local porque `useCartStore()` también haría throw sin
+// su provider (§ CLAUDE.md, "Montar un componente en OTRO árbol de providers no lo atrapa ni tsc ni
+// el build"). Con `useSiteContent()` agregado acá, esa vista previa de paleta hará throw en vez de
+// mostrar la franja. El fix simétrico (montar un `SiteContentProvider` LOCAL ahí, como ya se hace
+// con `CartProvider`) toca un archivo fuera de `touches:` de este slice y queda como follow-up
+// (§ DECISIONS.md, CORTE-TRUSTBADGES-OCULTABLE-1).
+export interface TrustBadgesContent {
+  visible: boolean;
+}
+
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
 // imágenes FIJAS (mismo tamaño, el offset lo da la POSICIÓN, no el contenido). El h2 es UN
 // campo —el salto de línea es estético, no énfasis— así que NO lleva el `tituloEnfasis` del
@@ -709,6 +739,7 @@ export interface NavWordmarkContent {
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
+  trustBadges: TrustBadgesContent;
   brandStory: BrandStoryContent;
   origen: OrigenContent;
   presentaciones: PresentacionesContent;
@@ -821,17 +852,19 @@ export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolea
  *  (`VariantesDef.noUniformes`), no un esquema: un esquema no parte ni une una banda, así que la
  *  uniformidad es puro LAYOUT sin otra fuente con la que discrepar (a diferencia de la darkness,
  *  que SÍ tiene fuente dinámica —el esquema— y por eso se computa en `bandaEsOscura`, nunca se
- *  declara). Lookup SEGURO: `bandaId` puede no ser una `SeccionKey` (trustBadges/featured son
- *  bandas ESTRUCTURALES, sin sección en `SiteContentData`) — sin `variantes` declaradas, uniforme
- *  por default. */
+ *  declara). Lookup SEGURO: `bandaId` puede no ser una `SeccionKey` (`featured` es banda
+ *  ESTRUCTURAL, sin sección en `SiteContentData`; `trustBadges` SÍ es sección desde
+ *  § CORTE-TRUSTBADGES-OCULTABLE-1, pero sin `variantes` propias) — sin `variantes` declaradas,
+ *  uniforme por default en cualquiera de los dos casos. */
 export function bandaUniforme(bandaId: BandaId, variante?: string): boolean {
   const def = (REGISTRY as Record<string, SeccionDef | undefined>)[bandaId];
   const nu = def?.variantes?.noUniformes;
   return !(nu && variante !== undefined && nu.includes(variante));
 }
 
-/** La variante resuelta de una banda, o undefined si la banda no es una sección con variante
- *  (p.ej. trustBadges/featured son bandas ESTRUCTURALES, sin sección en SiteContentData). */
+/** La variante resuelta de una banda, o undefined si la banda no es una sección con variante —ni
+ *  `featured` (banda ESTRUCTURAL, sin sección en SiteContentData) ni `trustBadges` (sección desde
+ *  § CORTE-TRUSTBADGES-OCULTABLE-1, pero sin campo `variante`) tienen una. */
 export function varianteDeBanda(content: SiteContentData, bandaId: BandaId): string | undefined {
   const sec = (content as unknown as Record<string, unknown>)[bandaId];
   return sec && typeof sec === 'object' && 'variante' in sec
@@ -891,6 +924,13 @@ export const DEFAULTS: SiteContentData = {
     texto: 'Calidad que se nota en cada entrega',
     imagen: '/images/historia-4-v1.jpg',
     productoSlug: '',
+  },
+  // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
+  // `TrustBadgesContent` arriba). `visible: true` = HOY, byte a byte: la banda se monta siempre hoy
+  // (`app/(storefront)/page.tsx`, sin condición) — a diferencia de `marquesina`/`origen`, que nacen
+  // OFF porque su capacidad es NUEVA, ésta ya estaba encendida para todo tenant antes de este slice.
+  trustBadges: {
+    visible: true,
   },
   brandStory: {
     visible: true,
@@ -1327,6 +1367,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       productoSlug: 'opcional',
     },
   },
+  // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
+  // `TrustBadgesContent` arriba). `ocultable: true`: es el ÚNICO campo editable de esta sección —
+  // las cuatro insignias (ícono + texto) SIGUEN siendo el array `BADGES` del componente, no
+  // `campos` de esta sección; `campos: {}` porque no hay ningún otro dato que el resolver deba
+  // completar/omitir.
+  trustBadges: {
+    label: 'Confianza',
+    ocultable: true,
+    campos: {},
+  },
   brandStory: {
     label: 'Historia',
     ocultable: true,
@@ -1589,20 +1639,23 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
 };
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.
-// variantes` para bandas que NO son `SeccionKey` —`featured`/`trustBadges`, sin entrada en
-// `SiteContentData` ni en el REGISTRY (§ `bandaUniforme`, arriba)—. Sin esta tabla, un preset que
-// pide `featured·X` no tiene DÓNDE declarar la variante: `validarPreset` (themes.ts) rechazaba
-// TODO pedido de featured con "no declara variantes en el REGISTRY", sin distinguir "la composición
-// pedida no existe" de "la banda no tiene slot" — el mismo defecto que `TEMAS-P2-BRANDSTORY-1` ya
-// cerró del lado de las secciones. Medido contra `themes.ts` antes de este slice
-// (`TEMAS-P1-BANDAS-ESTRUCTURALES-FORMA-1`): las CINCO entregas del diseño piden una variante de
-// `featured` y ninguna tiene dónde resolverse.
+// variantes` para bandas que NO son `SeccionKey` —hoy sólo `featured`, sin entrada en
+// `SiteContentData` ni en el REGISTRY (§ `bandaUniforme`, arriba); `trustBadges` SÍ ganó sección
+// desde § CORTE-TRUSTBADGES-OCULTABLE-1, pero eso no la suma acá — ver el porqué abajo—. Sin esta
+// tabla, un preset que pide `featured·X` no tiene DÓNDE declarar la variante: `validarPreset`
+// (themes.ts) rechazaba TODO pedido de featured con "no declara variantes en el REGISTRY", sin
+// distinguir "la composición pedida no existe" de "la banda no tiene slot" — el mismo defecto que
+// `TEMAS-P2-BRANDSTORY-1` ya cerró del lado de las secciones. Medido contra `themes.ts` antes de
+// este slice (`TEMAS-P1-BANDAS-ESTRUCTURALES-FORMA-1`): las CINCO entregas del diseño piden una
+// variante de `featured` y ninguna tiene dónde resolverse.
 //
-// SÓLO `featured` HOY. `trustBadges` se deja AFUERA A PROPÓSITO (decisión del owner): ningún preset
-// del catálogo (§ themes.ts, PRESETS) pide una variante de `trustBadges` —vive sólo en los mapas de
-// `esquemas`/`orden`, nunca en `variantes`—, así que declarar un slot que nadie consume sería
-// CAPACIDAD MUERTA: la simetría con `featured` no es razón para abrirlo. Cuando un theme lo pida,
-// entra con su variante real en el mismo commit que la construye.
+// SÓLO `featured` HOY. `trustBadges` se deja AFUERA A PROPÓSITO (decisión del owner) — y con sección
+// propia (§ CORTE-TRUSTBADGES-OCULTABLE-1) la razón sigue siendo la MISMA, no una de "sin dónde
+// declarar": ningún preset del catálogo (§ themes.ts, PRESETS) pide una variante de `trustBadges` —
+// vive sólo en los mapas de `esquemas`/`orden`, nunca en `variantes`, y su sección no declara
+// `REGISTRY.trustBadges.variantes`—, así que declarar un slot que nadie consume sería CAPACIDAD
+// MUERTA: la simetría con `featured` no es razón para abrirlo. Cuando un theme lo pida, entra con su
+// variante real en el mismo commit que la construye.
 //
 // `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProductsCuadricula.tsx`
 // (medida en su fuente, antes de TEMAS-FEATURED-GRILLA-1 vivía en `FeaturedProducts.tsx` sin
