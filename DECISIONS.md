@@ -16067,3 +16067,213 @@ anteriores (§ CLAUDE.md "EL EJE ES LA RAMA, NO EL COMMIT"). Este commit en part
 ni bytes nuevos — es un cast de tipos y una línea de `package.json` —, pero la clasificación es de la
 rama completa, no del commit suelto. El commit queda en la rama a la espera del merge gateado del
 orquestador.
+
+## 2026-09-23 — La sección "Encabezado" del panel: logo, sub-encabezado, color y tratamiento del nav (`PANEL-EDITOR-ENCABEZADO-1`)
+
+**Origen:** item 2 (de 8) del programa "el panel refleja la tienda" (orden del owner, 2026-09-23),
+sobre `PANEL-REFLEJA-TIENDA-CHEQUEO-1`. Cierra cuatro entradas de `PENDIENTE_PANEL`
+(`lib/config/panel-controles.ts`): `navWordmark.activo`, `cromo.navSubtitulo`, `cromo.navTinta`,
+`navTratamiento.activo` — dos de los tres campos de `PANEL-EDITOR-CROMO-1` y dos de los cuatro de
+`PANEL-EDITOR-CHROME-METAS-1` (§ la tabla de follow-ups de `PANEL-REFLEJA-TIENDA-CHEQUEO-1`, arriba).
+
+### Por qué el slice ganó su PROPIA ruta
+
+Los cuatro campos viven bajo TRES claves META (`cromo`, `navWordmark`, `navTratamiento`) que
+`SeccionKey` EXCLUYE del REGISTRY a propósito (`site-content-defaults.ts`, la línea del `Exclude<...>`
+sobre `SiteContentData`). Medido antes de escribir nada: el PUT genérico de `/api/site-content` SÍ
+acepta guardarlas al BORRADOR (`siteContentEditableSchema` ya las declara `.optional()`), pero el
+POST publicar/descartar del mismo route las RECHAZA con 400 — su gate `seccion in REGISTRY`
+(`app/api/site-content/route.ts:88`) exige que la clave sea una sección real. Sin ruta propia, el
+botón "Publicar" de una sección bespoke sobre estos campos fallaría SIEMPRE, y un test que sólo
+renderizara el componente no lo vería (un botón que promete publicar y siempre da 400 se ve idéntico
+a uno que funciona, hasta que alguien lo aprieta).
+
+El único precedente de una meta no-sección con flujo borrador/publicar es `tema`
+(`app/api/site-content/tema/route.ts`): su propia ruta, reusando las funciones key-agnósticas del
+write (`guardarBorrador`/`publicarSeccion`/`descartarSeccion`), sin tocar el route genérico ni su
+gate. `app/api/site-content/encabezado/route.ts` copia ese patrón para TRES metas en vez de una:
+
+- **PUT** valida con `siteContentEditableSchema.pick({ cromo: true, navWordmark: true,
+  navTratamiento: true })` — el MISMO schema del route genérico, acotado. El `.pick()` no es
+  cosmético: sin él, esta ruta aceptaría (y escribiría) cualquiera de las 22 claves del schema
+  completo — una segunda puerta genérica con otro nombre, exactamente lo que el gate `seccion in
+  REGISTRY` del route genérico existe para impedir del otro lado. Verificado con un script aparte
+  contra el zod real instalado (4.4.3): `.pick()` sobre un `z.object` strippea toda clave fuera del
+  pick, incluidas las de nivel superior no declaradas (`hero`, etc.) — no sólo las del pick mismo.
+- **POST `{accion}`** publica/descarta las TRES metas, una por una, con `publicarSeccion(meta)`/
+  `descartarSeccion(meta)` (key-agnósticas). **NO ATÓMICO, por decisión**: es la MISMA tolerancia que
+  `site-content-write.ts` ya acepta para el race guardar↔publicar de una sección — un operador humano
+  no alcanza la ventana de milisegundos entre dos escrituras, y un fallo a mitad de camino (dos de
+  tres metas publicadas) es visible en el editor (la píldora "Sin publicar" seguiría prendida para la
+  meta que falló) y recuperable reintentando "Publicar", no un libro contable corrompido. Una
+  publicación atómica de las tres sería una extensión de `site-content-write.ts` — no se tocó ese
+  archivo, no está en `touches:`.
+
+`lib/config/site-content-read.ts` gana `sinPublicar.encabezado` (`readSiteContentParaEditor`), GEMELO
+de `sinPublicar.tema`: prende si CUALQUIERA de las tres metas está en el borrador — el operador edita
+las tres juntas, así que la píldora es una sola.
+
+### La sección — `EncabezadoSeccion.tsx`, patrón `PaletaSeccion`/`MenuSeccion`
+
+Bespoke, NO `TiendaSeccionEditor`: los cuatro switches viven en claves que `SeccionKey` excluye, así
+que `TiendaSeccionEditor` no tiene una `SeccionConfig` que renderizar para ellas. Montada en
+`/admin/tienda` junto a Colores y el Menú (las tres son cromo transversal), SIN vista previa en vivo
+—misma razón que `MenuSeccion`: el nav real del storefront (`StoreNav`) importa
+`useCartStore`/`useSiteSettings`, que LANZAN fuera de su árbol de providers (§ CLAUDE.md, "Montar un
+componente en OTRO árbol de providers")—. El resumen de lectura es texto, como en `MenuSeccion`.
+
+Los cuatro controles, con su etiqueta para el dueño (no "chrome"):
+
+| control | campo | efecto |
+| --- | --- | --- |
+| Logo | `navWordmark.activo` | estilo del wordmark apilado (nombre+sub) — sólo se nota con el sub-encabezado encendido |
+| Sub-encabezado | `cromo.navSubtitulo` | muestra el eslogan bajo el nombre, en el nav |
+| Color del encabezado | `cromo.navTinta` | el estado sólido del nav en tinta, no la tarjeta clara de hoy |
+| Tratamiento del menú | `navTratamiento.activo` | los links del menú en mayúscula + tracking |
+
+Default = lo que ya trae `content.*` (el preset lo sembró vía `mergePresetEnContent`); el dueño lo
+overridea con el switch — mismo principio que `PANEL-EDITOR-HERO-TOGGLES-1`.
+
+**`cromo.navBadge` NO tiene control acá, deliberado.** El badge de cosecha se mudó al ítem de menú
+(`CORTE-BADGE-COSECHA-EN-MENU-1`); su control real es `menu.badgeItem`/`badgeTexto` en
+`MenuSeccion.tsx` (ya exento, cierra `PANEL-EDITOR-MENU-BADGE-1`). Pero `cromo` es UN objeto de TRES
+claves y el write reemplaza la clave `cromo` ENTERA al guardar/publicar (spread por clave top-level,
+no merge por sub-campo, § `site-content-write.ts`) — así que `EncabezadoSeccion` LEE el `navBadge`
+vigente en cada `GET /api/site-content` y lo REENVÍA tal cual en cada PUT, sin exponer un control
+para él. Omitirlo lo borraría en silencio la primera vez que el dueño tocara cualquiera de los otros
+tres switches. Probado contra Postgres real (§ el test, abajo): `aplicarPreset(CORTE)` deja
+`navBadge:'Cosecha 2026'`, y publicar el Encabezado tras tocar sólo `navTinta` lo conserva intacto.
+
+**`gatePorCampo`/`campoAtenuado` (§ `PANEL-EDITOR-HERO-TOGGLES-1`) NO se importan, y es correcto que
+no se usen**: ese mecanismo atenúa OTROS campos de TEXTO que un interruptor gatea DENTRO de la MISMA
+`SeccionConfig` (`CampoBooleano.gatedFields`); acá los cuatro switches son ejes independientes sin
+ningún campo de texto que atenuar, y `EncabezadoSeccion` no es una `SeccionConfig` de
+`TiendaSeccionEditor`. Por la misma razón, **`TiendaSeccionEditor.tsx` y
+`components/admin/tienda-secciones.ts` no se tocaron** — estaban en `touches:` para el caso de que el
+montaje lo necesitara (el spec lo dejaba explícito: "si no lo necesita, dejalo y decilo en el
+asiento"); no lo necesitó.
+
+### El guard — `lib/config/panel-controles.ts`
+
+`CONTROLADOS_ENCABEZADO_SECCION` (declaración explícita, mismo patrón que
+`CONTROLADOS_MENU_SECCION`/`CONTROLADOS_PALETA_SECCION`) suma los cuatro campos a
+`camposControladosPorPanel()`. En `PENDIENTE_PANEL`:
+
+- Se BORRARON las cuatro entradas que este slice cierra: `cromo.navTinta`, `cromo.navSubtitulo`,
+  `navTratamiento.activo`, `navWordmark.activo`.
+- `cromo.navBadge` **se QUEDA, con la razón reescrita**: pasa de "sólo mergePresetEnContent lo
+  escribe" a "superseded por el badge del ítem de menú — cromo.navBadge queda dormido, sin editor
+  propio, sólo reenviado por `EncabezadoSeccion.tsx`", y su `cierra` pasa de `PANEL-EDITOR-CROMO-1`
+  (que ya no tiene sentido como grupo — sus otros dos campos se cerraron acá) a
+  `PANEL-EDITOR-MENU-BADGE-1` (donde vive el control real del badge). NO se le da un control nuevo a
+  un campo muerto — es la instrucción explícita del owner en el approval-reason de este slice.
+- `volverArriba.visible`/`rielSocial.visible` (los otros dos de `PANEL-EDITOR-CHROME-METAS-1`) NO se
+  tocan — son "Detalles del sitio", fuera de este slice, con su propio disparador futuro.
+
+`huecosDelPanel()` (con exenciones) sigue en `[]` — verde.
+
+### `panel-controles.test.ts` — DOS aserciones vueltas FALSAS, corregidas (fuera de `touches:`, precedente ya sentado en esta rama)
+
+Dos calibraciones "SIN exenciones" quedaron falsas por construcción, exactamente el mismo modo de
+falla que `PANEL-EDITOR-HERO-TOGGLES-1` ya resolvió en este mismo archivo:
+
+- `'calibración: SIN exenciones, el chequeo marca cromo.navSubtitulo (el caso que el owner pidió
+  verificar)'` — ahora CONTROLADO, así que `huecosDelPanel({conExenciones:false})` ya NO lo incluye.
+  Reemplazada por un comentario `CERRADO por PANEL-EDITOR-ENCABEZADO-1`, mismo tratamiento textual que
+  el `CERRADO por PANEL-EDITOR-HERO-TOGGLES-1` que ya convivía en el archivo.
+- `'calibración: SIN exenciones, el chequeo marca las cuatro metas de chrome'` — dos de las cuatro
+  (`navWordmark.activo`, `navTratamiento.activo`) están CONTROLADAS ahora. Reescrita a **"las DOS
+  metas de chrome que siguen sin editor"**, afirmando sólo `volverArriba.visible`/`rielSocial.visible`.
+
+Ninguna de las dos era un defecto del chequeo — es el chequeo funcionando: el hueco que medían ya no
+existe. La calibración GENERAL ("marca EXACTAMENTE el conjunto de `PENDIENTE_PANEL`") sigue viva y
+por construcción ya no incluye estos campos. `panel-controles.test.ts` no está en `touches:` de este
+slice, pero corregir una aserción que el propio diff vuelve literalmente falsa es el MISMO precedente
+que `PANEL-EDITOR-HERO-TOGGLES-1` ya sentó en esta rama (commit `bedaad5`: "panel-controles.test.ts
+(fuera de touches) tenía una aserción vuelta falsa por este cambio, corregida") — no ampliar el
+alcance del diff, sino no dejar el gate mintiendo sobre lo que mide.
+
+### El test — `tests/integracion/panel-encabezado.test.ts` (5 casos), y una DESVIACIÓN DE UBICACIÓN medida
+
+**DESVIACIÓN:** `touches:` nombraba `lib/config/panel-encabezado.test.ts`. Medido antes de escribirlo:
+ese path cae bajo el glob DB-FREE del carril rápido (`"lib/**/*.test.ts"`, `package.json`, script
+`test`) — el ÚNICO glob que `scripts/test-integracion.sh` recorre es `"tests/integracion/**/*.test.ts"`
+(`node --import tsx --test --test-concurrency=1 "tests/integracion/**/*.test.ts"`). Un test que hable
+con Postgres real en `lib/config/` rompería `npm test` (capa 1, sin base) para TODOS — la MISMA regla
+que CLAUDE.md ya declara para `app/` (§ "El carril rápido cubre `app/`": "Un test de `app/` que
+necesite Postgres real va a `tests/integracion/`, no co-ubicado con la ruta — si no, rompe el carril
+rápido para todos"), aplicada acá a `lib/` en vez de `app/`. La medición gana sobre la instrucción: el
+archivo vive en `tests/integracion/panel-encabezado.test.ts`, no en el path que `touches:` nombraba.
+
+El test corre la MISMA secuencia que la ruta (parsear con el schema real, acotado con `.pick()` como
+la ruta → `guardarBorrador` → `publicarSeccion`/`descartarSeccion` de las tres metas → releer con
+`readSiteContent`/`readSiteContentParaEditor`), contra Postgres real — un test de render no vería el
+400 del gate `seccion in REGISTRY` que motivó toda la ruta. Cinco casos:
+
+1. guardar → las tres metas quedan en el BORRADOR y `sinPublicar.encabezado` es `true`; lo PUBLICADO
+   no cambia.
+2. publicar → `content.{cromo,navWordmark,navTratamiento}` quedan actualizadas Y el borrador de las
+   tres queda limpio (`sinPublicar.encabezado` vuelve a `false`).
+3. descartar → el borrador se limpia SIN tocar lo YA publicado.
+4. default del preset → `aplicarPreset(CORTE)` (el único de los 6 presets del catálogo que enciende
+   los cuatro ejes, medido contra `lib/config/themes.ts`) deja los cuatro en `true` — lo que
+   `EncabezadoSeccion.tsx` leería al abrir por primera vez sobre ese tenant.
+5. publicar el Encabezado NO borra `cromo.navBadge` puesto por un preset — la garantía de reenvío,
+   probada contra Postgres real (no sólo argumentada en un comentario).
+
+`validarPreset(CORTE)` sigue devolviendo `[]` (verificado con el archivo de doctrina existente,
+`cromo-tematizable.test.ts` — fuera de `touches:`, no tocado): aplicar `CORTE` en el test no revienta
+por completitud.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1912/1912** — verde (−1 respecto al piso de `266727c`: se retiró UNA calibración vuelta falsa, sin reemplazo, mismo tratamiento que `PANEL-EDITOR-HERO-TOGGLES-1`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **213/213** — verde (+5: los cinco casos nuevos de `panel-encabezado.test.ts`) |
+
+Reconciliado contra el piso citado por el dispatch/commit anterior (`266727c`:
+"gate: tsc 0 errores + 1913/1913 + 208/208"): las dos diferencias (1913→1912, 208→213) están
+explicadas enteras por este diff — ninguna es drift sin explicación.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/rutas que este diff tocó: `EncabezadoSeccion`, `cromo.navSubtitulo`, `cromo.navTinta`,
+`navWordmark.activo`, `navTratamiento.activo`, `sinPublicar.encabezado`, `PENDIENTE_PANEL`,
+`app/api/site-content/encabezado`, `/admin/tienda`, `TiendaSeccionEditor`, `MenuSeccion`,
+`site-content-read.ts`. Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones** de
+`EncabezadoSeccion`, `navSubtitulo`, `navTinta`, `navWordmark`, `navTratamiento`, `PENDIENTE_PANEL`,
+`MenuSeccion`, ni de ningún id `CROMO-*`/`CORTE-BADGE-COSECHA-EN-MENU-*`/`PANEL-EDITOR-*` — terreno
+nuevo, la doctrina de esta área vive en `site-content-defaults.ts`/`themes.ts`/`DECISIONS.md`, no en
+`CLAUDE.md` todavía. `TiendaSeccionEditor` sí aparece (4 líneas, describiendo el patrón general de
+bloques del editor genérico) y `/admin/tienda` no aparece como ruta literal; ninguna de esas menciones
+describe el comportamiento de `cromo`/`navWordmark`/`navTratamiento` ni se vuelve falsa por este diff
+— este slice no tocó el editor genérico ni sus bloques. `site-content-read.ts` no aparece en
+CLAUDE.md. Nada en `CLAUDE.md` nombra lo que este diff cambió; no hay nada que corregir ahí.
+
+### `touches:` — lo que se escribió (y lo que NO)
+
+Escrito: `app/api/site-content/encabezado/route.ts` (nuevo), `components/admin/EncabezadoSeccion.tsx`
+(nuevo), `app/(admin)/admin/tienda/page.tsx`, `lib/config/panel-controles.ts`,
+`lib/config/site-content-read.ts`, este asiento (`DECISIONS.md`).
+
+Fuera de la letra de `touches:`, con su justificación arriba: `lib/config/panel-controles.test.ts`
+(dos aserciones vueltas falsas, precedente ya sentado) y `tests/integracion/panel-encabezado.test.ts`
+en vez de `lib/config/panel-encabezado.test.ts` (el path nombrado por `touches:` rompería el carril
+rápido; la medición gana).
+
+No tocado, deliberadamente, aunque estaba en `touches:`: `components/admin/tienda-secciones.ts`,
+`components/admin/TiendaSeccionEditor.tsx` — el montaje no los necesitó (§ arriba).
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1912/1912 + 213/213). Por instrucción del dispatch,
+este slice PARA en `AWAITING_APPROVAL` y NO mergea. Clasifica además por sí mismo contra la política
+de merge A: agrega bytes que el DUEÑO lee en el panel (los cuatro labels y sus hints, el título
+"Encabezado", los toasts de publicar/descartar) — `customer-bytes` en el sentido amplio de CLAUDE.md
+("Any byte a customer, operator or owner reads"), además de heredar la clasificación de la RAMA
+(`slice/corte-reescritura-prototipo-1`, que ya toca bytes de storefront por commits anteriores, § "EL
+EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
+espera del merge gateado del orquestador, y de la revisión de copy del owner que el spec ya anticipa
+("el owner lo revisa en su pasada").

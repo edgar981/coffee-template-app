@@ -1,21 +1,27 @@
 import { Suspense } from 'react';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import MenuSeccion from '@/components/admin/MenuSeccion';
+import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
 import TiendaPaginas from '@/components/admin/TiendaPaginas';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
 // El contenido EDITORIAL del storefront. Distinto de Configuración, que edita la IDENTIDAD del
-// negocio (§ negocio≠tienda). Tres ejes en la pantalla:
+// negocio (§ negocio≠tienda). Cuatro ejes en la pantalla:
 //   · COLORES (`PaletaSeccion`) — la PIEL de todo el storefront, store-wide, va ARRIBA del selector
 //     de página porque no pertenece a una página (§ content.tema, clave no-sección);
 //   · MENÚ (`MenuSeccion`, § CROMO-MENU-PANEL-EDITOR-1) — el mismo cromo TRANSVERSAL que la paleta
 //     (el nav aparece en toda página), así que va junto a ella y no dentro de una pestaña de
 //     `TiendaPaginas`. Editor BESPOKE sin vista previa en vivo (patrón `PaletaSeccion`, no
 //     `TiendaSeccionEditor` — la RULING de `CROMO-MENU-COMO-DATO-1`);
+//   · ENCABEZADO (`EncabezadoSeccion`, § PANEL-EDITOR-ENCABEZADO-1) — logo, sub-encabezado, color y
+//     tratamiento del nav: TRES metas no-sección (`cromo`, `navWordmark`, `navTratamiento`) con su
+//     propia ruta de publicar/descartar (patrón `tema`). Mismo cromo TRANSVERSAL que Colores y
+//     Menú, sin vista previa en vivo (misma razón que `MenuSeccion`: el nav real del storefront
+//     LANZA fuera de su árbol de providers);
 //   · las SECCIONES agrupadas por PÁGINA (`TiendaPaginas`, Home · Nosotros · Suscripciones) — cada
 //     una con su vista previa en vivo + read↔edit + autoguardado.
-// Los TRES adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
+// Las CUATRO adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
 export default function Tienda() {
   return (
     <div>
@@ -38,7 +44,14 @@ export default function Tienda() {
           página (§ MenuSeccion, el porqué de "sin vista previa"). */}
       <MenuSeccion />
 
-      {/* Separador entre lo store-wide (colores · menú) y lo per-página (secciones). */}
+      {/* Separador entre las piezas store-wide (colores · menú · encabezado). */}
+      <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
+
+      {/* ENCABEZADO — store-wide, junto a Colores y Menú: logo, sub-encabezado, color y tratamiento
+          del nav (§ EncabezadoSeccion, PANEL-EDITOR-ENCABEZADO-1). */}
+      <EncabezadoSeccion />
+
+      {/* Separador entre lo store-wide (colores · menú · encabezado) y lo per-página (secciones). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
       {/* <Suspense> porque TiendaPaginas usa `useSearchParams` (deep-link del aviso de config,

@@ -67,10 +67,14 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // fallar cuando nazca uno sin panel? ... CALIBRACIÓN: el chequeo DEBE marcar el sub-encabezado
 // (cromo.navSubtitulo); si no lo marca, está mal calibrado."
 
-test('calibración: SIN exenciones, el chequeo marca cromo.navSubtitulo (el caso que el owner pidió verificar)', () => {
-  const huecos = huecosDelPanel({ conExenciones: false });
-  assert.ok(huecos.includes('cromo.navSubtitulo'), 'el chequeo está MAL CALIBRADO — no atrapa el sub-encabezado');
-});
+// CERRADO por PANEL-EDITOR-ENCABEZADO-1: este test afirmaba que SIN exenciones el chequeo marcaba
+// `cromo.navSubtitulo` como hueco — la calibración del owner que motivó su entrada en
+// `PENDIENTE_PANEL` (§ PANEL-REFLEJA-TIENDA-CHEQUEO-1). Ese slice le dio control
+// (`EncabezadoSeccion.tsx`), así que hoy está CONTROLADO y la aserción sería FALSA — no un defecto
+// del chequeo, es el chequeo funcionando: el hueco que medía ya no existe. Misma familia que el
+// CERRADO de `hero.titularVisible`/`hero.subtituloVisible` por PANEL-EDITOR-HERO-TOGGLES-1, abajo. La
+// calibración GENERAL sigue viva en "marca EXACTAMENTE el conjunto de PENDIENTE_PANEL", que por
+// construcción ya no incluye este campo.
 
 // CERRADO por PANEL-EDITOR-HERO-TOGGLES-1: este test afirmaba que SIN exenciones el chequeo marcaba
 // `hero.titularVisible`/`hero.subtituloVisible` como huecos — la calibración original que motivó su
@@ -87,12 +91,14 @@ test('calibración: SIN exenciones, el chequeo marca el badge del menú', () => 
   assert.ok(huecos.includes('menu.badgeTexto'));
 });
 
-test('calibración: SIN exenciones, el chequeo marca las cuatro metas de chrome', () => {
+// AJUSTADO por PANEL-EDITOR-ENCABEZADO-1: el título decía "las cuatro metas de chrome" cuando eran
+// `volverArriba.visible`/`rielSocial.visible`/`navTratamiento.activo`/`navWordmark.activo`. Ese
+// slice le dio control a las DOS últimas (`EncabezadoSeccion.tsx`), así que hoy sólo quedan DOS sin
+// controlar — la aserción sobre las otras dos sería FALSA, misma familia que el CERRADO de arriba.
+test('calibración: SIN exenciones, el chequeo marca las DOS metas de chrome que siguen sin editor', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
-  assert.ok(huecos.includes('navWordmark.activo'));
   assert.ok(huecos.includes('volverArriba.visible'));
   assert.ok(huecos.includes('rielSocial.visible'));
-  assert.ok(huecos.includes('navTratamiento.activo'));
 });
 
 test('calibración: SIN exenciones, el chequeo marca trustBadges.visible', () => {

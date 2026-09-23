@@ -31,5 +31,11 @@ export async function readSiteContentParaEditor(): Promise<{
   // `tema` (la paleta) NO está en el REGISTRY —es clave no-sección, como `paginas`— pero también se
   // borronea: su píldora "Sin publicar" y sus botones Publicar/Descartar salen de este mismo flag.
   sinPublicar.tema = 'tema' in borrador;
+  // EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1): TRES metas no-sección (`cromo`, `navWordmark`,
+  // `navTratamiento`) editadas como UNA sola sección del panel (`EncabezadoSeccion.tsx`, con su
+  // propia ruta de publicar/descartar, `/api/site-content/encabezado`, patrón `tema/route.ts`). La
+  // píldora "Sin publicar" se prende si CUALQUIERA de las tres está en el borrador — el operador
+  // edita las tres juntas, así que el flag es UNO solo, gemelo del de `tema`.
+  sinPublicar.encabezado = 'cromo' in borrador || 'navWordmark' in borrador || 'navTratamiento' in borrador;
   return { contenido, sinPublicar };
 }

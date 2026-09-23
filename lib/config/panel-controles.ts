@@ -160,9 +160,22 @@ const CONTROLADOS_PALETA_SECCION = ['tema.fondo', 'tema.tinta', 'tema.acento', '
  *  encendido/apagado de cada página apagable. */
 const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscripciones.visible'];
 
+/** DECLARACIÓN EXPLÍCITA de lo que `EncabezadoSeccion.tsx` controla (§ PANEL-EDITOR-ENCABEZADO-1):
+ *  `cromo`/`navWordmark`/`navTratamiento` NO son secciones del REGISTRY (§ el docstring de
+ *  `CONTROLADOS_PALETA_SECCION`, misma familia que `tema`), así que tienen su propia ruta de
+ *  publicar/descartar (`/api/site-content/encabezado`) y se declaran acá, leídas de su código: los
+ *  cuatro switches — logo (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`), color del
+ *  nav (`cromo.navTinta`) y tratamiento del nav (`navTratamiento.activo`). NO controla
+ *  `cromo.navBadge` (§ PENDIENTE_PANEL, abajo — superseded por el badge del ítem de menú, que sí
+ *  tiene control en `MenuSeccion.tsx`). */
+const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo'];
+
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {
-  return [...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS].sort();
+  return [
+    ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_PALETA_SECCION,
+    ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
+  ].sort();
 }
 
 // ─── LADO C: la ÚNICA lista a mano — PENDIENTE-PANEL, decreciente ─────────────────────────────────
@@ -259,18 +272,20 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   { campo: 'tema.origenAccion', razon: 'Sólo mergePresetEnContent lo escribe; sin campo en paletaEditableSchema ni en PaletaSeccion', cierra: 'PANEL-EDITOR-TEMA-EJES-1' },
   { campo: 'tema.escalaDisplay', razon: 'Sólo mergePresetEnContent lo escribe; sin campo en paletaEditableSchema ni en PaletaSeccion', cierra: 'PANEL-EDITOR-TEMA-EJES-1' },
 
-  // CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): las tres claves, ninguna con control. `navSubtitulo` es
-  // el sub-encabezado que la calibración del owner exige ver marcado sin exención.
-  { campo: 'cromo.navTinta', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel (cromo-tematizable.test.ts fija su forma, no un editor)', cierra: 'PANEL-EDITOR-CROMO-1' },
-  { campo: 'cromo.navSubtitulo', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CROMO-1' },
-  { campo: 'cromo.navBadge', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CROMO-1' },
+  // CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): `navTinta`/`navSubtitulo` ya tienen control
+  // (`EncabezadoSeccion.tsx`, § PANEL-EDITOR-ENCABEZADO-1 — cierra su entrada acá). `navBadge` queda
+  // DORMIDO, no cerrado por ese slice: el badge de cosecha se mudó al ítem de menú
+  // (§ CORTE-BADGE-COSECHA-EN-MENU-1) y su control real es `menu.badgeItem`/`badgeTexto`
+  // (exentos abajo, cierra PANEL-EDITOR-MENU-BADGE-1) — `cromo.navBadge` no va a tener su PROPIO
+  // editor; queda como campo sin escritor del panel, reenviado tal cual por `EncabezadoSeccion` para
+  // no perderlo en cada guardado (§ el docstring de ese componente).
+  { campo: 'cromo.navBadge', razon: 'Superseded por el badge del ítem de menú (§ CORTE-BADGE-COSECHA-EN-MENU-1) — el control real es menu.badgeItem/badgeTexto; cromo.navBadge queda dormido, sin editor propio, sólo reenviado por EncabezadoSeccion.tsx', cierra: 'PANEL-EDITOR-MENU-BADGE-1' },
 
-  // Las CUATRO metas de chrome gemelas de cromo (§ CROMO-VOLVER-ARRIBA-1, CROMO-RIEL-SOCIAL-1,
-  // CROMO-NAV-TRATAMIENTO-1, CORTE-LOGO-APILADO-1) — todas "sólo mergePresetEnContent lo escribe".
+  // Las DOS metas de chrome que NO entran en este slice (§ PANEL-EDITOR-ENCABEZADO-1, "LOS QUE NO
+  // VAN": son "Detalles del sitio", otro slice). `navTratamiento.activo`/`navWordmark.activo` ya
+  // tienen control (`EncabezadoSeccion.tsx` — cierran acá, salieron de este grupo).
   { campo: 'volverArriba.visible', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CHROME-METAS-1' },
   { campo: 'rielSocial.visible', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CHROME-METAS-1' },
-  { campo: 'navTratamiento.activo', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CHROME-METAS-1' },
-  { campo: 'navWordmark.activo', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CHROME-METAS-1' },
 ];
 
 // ─── EL CHEQUEO ─────────────────────────────────────────────────────────────────────────────────────
