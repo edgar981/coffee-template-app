@@ -14576,9 +14576,19 @@ declara ahí). El loop de `links.map` en el `<nav>` de ESCRITORIO (`hidden lg:fl
 sin `l.badge`, el `<Link>` desnudo de siempre (byte-idéntico); con `l.badge`, un `<span>` sibling
 —como `.nav-item .badge` del prototipo, no anidado dentro del link— con el estilo MEDIDO de `.badge`
 (`docs/prototipos/cafeone/css/app.css:151-157`: 11px, bold, mayúscula, `letter-spacing:.085em`
-—`tokens.css:128`—, `padding:5px 9px`, `border-radius:2px` —`tokens.css:164`, calza `rounded-sm` de
-Tailwind—) con TOKENS del tema (`--sf-sobre`/`--sf-tinta` según `navClaro`, el MISMO par que ya
-usaba el badge del logo y que usa el CTA del menú), no los literales del prototipo.
+—`tokens.css:128`—, `padding:5px 9px`, `border-radius:2px` —`tokens.css:164`—) con TOKENS del tema
+(`--sf-sobre`/`--sf-tinta` según `navClaro`, el MISMO par que ya usaba el badge del logo y que usa
+el CTA del menú), no los literales del prototipo.
+
+**`rounded-[2px]`, NO `rounded-sm` — medido, no asumido.** El primer intento usó `rounded-sm` de
+Tailwind creyendo que calzaba los 2px del prototipo. Falso: `app/globals.css:119` REDEFINE
+`--radius-sm: calc(var(--radius) - 4px)` con `--radius:0.75rem` (`globals.css:280`, el `:root` que
+alcanza al storefront) → `--radius-sm` = **8px**, no 2px. Y el eje `forma` del storefront
+(`lib/config/forma-style.ts:14`, comentario propio: *"NO tocar `--radius-lg/md/sm`: ésos son del
+panel… y no se emiten acá"*) sólo pisa `--radius-3xl/2xl/xl` — así que ni siquiera `forma:'recta'`
+de CORTE (radios en 0, § el docstring de `CORTE.forma`, `themes.ts`) corrige el valor: `rounded-sm`
+habría dado 8px en CUALQUIER tenant. Se corrigió a `rounded-[2px]` (valor arbitrario, el único
+camino a los 2px medidos) antes de cerrar el slice.
 
 **El badge NO se agrega al drawer móvil** (el segundo `links.map`, dentro de `AnimatePresence`): es
 la forma más simple de replicar `@media (max-width:1280px){.nav-item .badge{display:none}}`

@@ -154,11 +154,16 @@ export default function StoreNav() {
                 // (`docs/prototipos/cafeone/css/app.css:151-157`, `tokens.css:128,164`: 11px, bold,
                 // mayúscula, tracking .085em, padding 5px/9px, radio 2px) con TOKENS del tema (no los
                 // literales del prototipo) — mismo par `navClaro` que ya usaba el badge del logo y
-                // que usa el CTA del menú (abajo).
+                // que usa el CTA del menú (abajo). `rounded-[2px]`, NO `rounded-sm`: en este repo
+                // `--radius-sm` (globals.css:119) es `var(--radius) - 4px` = 8px (12px de `--radius`
+                // menos 4), NO el 2px de Tailwind — y el eje `forma` del storefront (`forma-style.ts`)
+                // sólo pisa `--radius-3xl/2xl/xl`, nunca `--radius-lg/md/sm` (comentario propio de ese
+                // archivo: "ésos son del panel"), así que `rounded-sm` daría 8px incluso con CORTE. El
+                // valor arbitrario es el único camino a los 2px medidos.
                 return (
                   <span key={l.path} className="inline-flex items-center gap-2">
                     <Link href={l.path} className={linkClassName}>{l.label}</Link>
-                    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-sm ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
+                    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
                       {l.badge}
                     </span>
                   </span>
