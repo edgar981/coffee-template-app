@@ -488,6 +488,25 @@ export interface MenuContent {
   // guardar) hace que `menuCtaHref` no lo renderice — preferir callar a un link roto.
   ctaLabel: string;
   ctaDestino: string;
+  // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1) — MUDADO de `cromo.navBadge` (que
+  // envolvía el LOGO, dormido desde este slice) a ser un ATRIBUTO de UN ítem del menú, como el
+  // `.nav-item .badge` del prototipo (`index.html:27-32`, junto al PRIMER `.nav-item`, no al
+  // `.wordmark`). `badgeItem` es del SET CERRADO `MENU_ITEM_IDS` (o `''` = ningún ítem elegido);
+  // `badgeTexto` es el texto libre del badge. AMBOS 'opcional' en `REGISTRY.menu.campos`, default
+  // vacío → sin badge, mismo patrón que `ctaLabel`/`ctaDestino` — byte-idéntico sin fila.
+  // `itemsDeMenu` (abajo) lo resuelve en el ítem cuyo id coincide con `badgeItem`; un `badgeItem`
+  // que apunte a un ítem OCULTO (gateado por `paginas.*.visible`) o a un id fuera del set
+  // simplemente no encuentra dónde mostrarse — preferir callar, mismo criterio que `menuCtaHref`.
+  //
+  // EN EL TIPO SON `?` (a diferencia de `ctaLabel`/`ctaDestino`, requeridos): son ADITIVOS sobre
+  // una interfaz que ya tenía un literal armado a mano fuera de `touches:` de este slice
+  // (`MENU_HOY: Omit<MenuContent, 'visible'>`, `lib/config/menu-como-dato.test.ts`) — hacerlos
+  // requeridos habría roto ese archivo sin poder tocarlo. La opcionalidad es sólo del TIPO: en
+  // RUNTIME `content.menu` siempre los trae resueltos a `''` vía `REGISTRY.menu.campos` +
+  // `resolverSiteContent` (el mismo mecanismo que ya resuelve `ctaLabel`/`ctaDestino`), nunca
+  // `undefined`.
+  badgeItem?: string;
+  badgeTexto?: string;
 }
 
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
@@ -1042,8 +1061,9 @@ export const DEFAULTS: SiteContentData = {
     items: [],
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
-  // tienda → suscripciones → nosotros—, y el CTA APAGADO (los dos campos vacíos). Byte-idéntico sin
-  // fila (§ CROMO-MENU-COMO-DATO-1, la invariante del slice).
+  // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), y el BADGE APAGADO
+  // (§ CORTE-BADGE-COSECHA-EN-MENU-1, los dos campos vacíos — ningún ítem lleva badge). Byte-idéntico
+  // sin fila (§ CROMO-MENU-COMO-DATO-1, la invariante del slice).
   menu: {
     visible: true,
     labelTienda: 'Tienda',
@@ -1054,6 +1074,8 @@ export const DEFAULTS: SiteContentData = {
     posicion3: 'nosotros',
     ctaLabel: '',
     ctaDestino: '',
+    badgeItem: '',
+    badgeTexto: '',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -1522,11 +1544,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   },
   // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se
   // apaga entero; renombrar/reordenar no es lo mismo que encender/apagar. Sin `imagenes` (no lleva
-  // ninguna). Las posiciones y el CTA son 'requerido'/'opcional' STRINGS PLANOS a propósito —el
-  // resolver genérico no valida pertenencia a un set cerrado, sólo default-vs-omit—; el set cerrado
-  // lo impone el SCHEMA (§ site-content-schema.ts, `menuEditableSchema`) al escribir, y el RENDER
-  // (`resolverOrdenMenu`/`menuCtaHref`, abajo) lo vuelve a filtrar SOFT al leer, para que un dato
-  // corrupto por otra vía (un `UPDATE` a mano, una fila vieja) no produzca un link roto.
+  // ninguna). Las posiciones, el CTA y el BADGE (§ CORTE-BADGE-COSECHA-EN-MENU-1) son
+  // 'requerido'/'opcional' STRINGS PLANOS a propósito —el resolver genérico no valida pertenencia a
+  // un set cerrado, sólo default-vs-omit—; el set cerrado lo impone el SCHEMA (§ site-content-
+  // schema.ts, `menuEditableSchema`) al escribir, y el RENDER (`resolverOrdenMenu`/`menuCtaHref`/
+  // `itemsDeMenu`, abajo) lo vuelve a filtrar SOFT al leer, para que un dato corrupto por otra vía
+  // (un `UPDATE` a mano, una fila vieja) no produzca un link roto ni un badge huérfano.
   menu: {
     label: 'Menú',
     ocultable: false,
@@ -1539,6 +1562,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       posicion3: 'requerido',
       ctaLabel: 'opcional',
       ctaDestino: 'opcional',
+      badgeItem: 'opcional',
+      badgeTexto: 'opcional',
     },
   },
 };
@@ -1955,19 +1980,35 @@ const MENU_PAGE_GATE: Partial<Record<MenuItemId, 'nosotros' | 'suscripciones'>> 
   nosotros: 'nosotros',
 };
 
-/** Los ítems del menú a MOSTRAR, en el orden resuelto, con su label editable y su ruta —lo que
- *  `StoreNav.tsx` necesita para pintar el nav de escritorio y el drawer móvil (§ CROMO-MENU-COMO-
- *  DATO-1). El vocabulario ES la decisión de producto (qué se ve y en qué orden), así que vive acá
- *  y no en un `if` dentro del componente —mismo criterio que `estadoEntrega`/`lib/metrics/
- *  titulares.ts` (§ doctrina). */
-export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: string; path: string }[] {
+/** Los ítems del menú a MOSTRAR, en el orden resuelto, con su label editable, su ruta y su BADGE
+ *  (§ CORTE-BADGE-COSECHA-EN-MENU-1) —lo que `StoreNav.tsx` necesita para pintar el nav de
+ *  escritorio y el drawer móvil (§ CROMO-MENU-COMO-DATO-1). El vocabulario ES la decisión de
+ *  producto (qué se ve y en qué orden), así que vive acá y no en un `if` dentro del componente
+ *  —mismo criterio que `estadoEntrega`/`lib/metrics/titulares.ts` (§ doctrina).
+ *
+ *  `badge` es OMITIDO del objeto (no `badge: ''`) cuando el ítem no lo lleva — nunca una clave con
+ *  valor vacío/`undefined` — para que `itemsDeMenu` siga siendo BYTE-IDÉNTICO por `deepEqual` a los
+ *  literales sin badge que `lib/config/menu-como-dato.test.ts` ya afirma (fuera de `touches:` de
+ *  este slice, y `assert.deepEqual` trata una clave `undefined` como una DIVERGENCIA, no como
+ *  ausente). Sale del ítem cuyo id coincide con `content.menu.badgeItem` Y trae `badgeTexto`
+ *  no-vacío; un `badgeItem` que no matchea ningún id VISIBLE (fuera del set, o gateado por
+ *  `paginas.*.visible`) no encuentra dónde mostrarse — preferir callar, mismo criterio que
+ *  `menuCtaHref`. */
+export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: string; path: string; badge?: string }[] {
   const orden = resolverOrdenMenu([content.menu.posicion1, content.menu.posicion2, content.menu.posicion3]);
+  const badgeItem = content.menu.badgeItem ?? '';
+  const badgeTexto = content.menu.badgeTexto ?? '';
   return orden
     .filter((id) => {
       const gate = MENU_PAGE_GATE[id];
       return !gate || content.paginas[gate].visible;
     })
-    .map((id) => ({ id, label: labelDeItemMenu(content.menu, id), path: MENU_PATHS[id] }));
+    .map((id) => ({
+      id,
+      label: labelDeItemMenu(content.menu, id),
+      path: MENU_PATHS[id],
+      ...(id === badgeItem && badgeTexto ? { badge: badgeTexto } : {}),
+    }));
 }
 
 const MENU_CTA_DESTINO_SET: ReadonlySet<string> = new Set(MENU_CTA_DESTINOS);

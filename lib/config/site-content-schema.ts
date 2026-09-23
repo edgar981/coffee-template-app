@@ -349,14 +349,16 @@ const navWordmarkEditableSchema = z.object({
 // zod descarta lo no declarado, y un campo del modelo sin su entrada acá se STRIPPEA en silencio al
 // guardar (§65-B).
 //
-// `posicion1/2/3` y `ctaDestino` son del WRITE ESTRICTO sobre sus DOS sets cerrados
-// (`MENU_ITEM_IDS`/`MENU_CTA_DESTINOS`, la MISMA lista que lee el render en `site-content-
-// defaults.ts` — declarada una vez, sin una segunda copia que pueda desincronizarse) — mismo
-// criterio que `ordenEditableSchema`/`esquemasEditableSchema`: el WRITE puede ser más estricto que
-// el LOADER (`resolverOrdenMenu`/`menuCtaHref`, que absorben basura SOFT para no romper una lectura
-// ya guardada). `z.literal('')` convive con el enum porque el campo puede llegar vacío —posición
-// SIN elegir (el resolver la completa con la canónica) o CTA APAGADO (`ctaDestino` sin `ctaLabel`)—
-// y un enum solo no acepta la cadena vacía.
+// `posicion1/2/3`, `ctaDestino` y `badgeItem` (§ CORTE-BADGE-COSECHA-EN-MENU-1) son del WRITE
+// ESTRICTO sobre sus DOS sets cerrados (`MENU_ITEM_IDS`/`MENU_CTA_DESTINOS`, la MISMA lista que lee
+// el render en `site-content-defaults.ts` — declarada una vez, sin una segunda copia que pueda
+// desincronizarse) — mismo criterio que `ordenEditableSchema`/`esquemasEditableSchema`: el WRITE
+// puede ser más estricto que el LOADER (`resolverOrdenMenu`/`menuCtaHref`/`itemsDeMenu`, que
+// absorben basura SOFT para no romper una lectura ya guardada). `z.literal('')` convive con el enum
+// porque el campo puede llegar vacío —posición SIN elegir (el resolver la completa con la
+// canónica), CTA APAGADO (`ctaDestino` sin `ctaLabel`) o BADGE APAGADO (`badgeItem` sin
+// `badgeTexto`)— y un enum solo no acepta la cadena vacía. `badgeTexto` es texto libre, como
+// `ctaLabel`.
 const menuEditableSchema = z.object({
   visible: z.boolean().optional(),
   labelTienda: z.string().optional(),
@@ -367,6 +369,8 @@ const menuEditableSchema = z.object({
   posicion3: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
   ctaLabel: z.string().optional(),
   ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  badgeItem: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
+  badgeTexto: z.string().optional(),
 }).refine(
   (v) => {
     const vals = [v.posicion1, v.posicion2, v.posicion3].filter((x) => !!x);

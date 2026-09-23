@@ -129,25 +129,41 @@ export default function StoreNav() {
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
-            {/* Logo (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): el badge de `cromo.navBadge` sólo envuelve el
-                logo en un flex propio cuando HAY texto — vacío (el default) deja `logoLink` como
-                único hijo, sin un <div> extra alrededor, byte-idéntico a hoy. */}
-            {cromo.navBadge ? (
-              <div className="flex items-center gap-3">
-                {logoLink}
-                <span className={`hidden sm:inline-flex items-center px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
-                  {cromo.navBadge}
-                </span>
-              </div>
-            ) : logoLink}
+            {/* Logo — SIN el badge de `cromo.navBadge` (§ CORTE-BADGE-COSECHA-EN-MENU-1). Antes esta
+                celda condicionaba entre `logoLink` solo y un flex que lo envolvía junto al badge; el
+                badge se MUDÓ a ser un atributo de un ítem del menú (abajo, `l.badge`), así que el
+                logo vuelve a ser SIEMPRE `logoLink` a secas, sin `<div>` extra alrededor —
+                byte-idéntico a hoy para TODO tenant, incluido CORTE (que ya no lo declara acá).
+                `cromo.navBadge` queda DORMIDO: sigue en el modelo/schema (§ CromoContent,
+                site-content-defaults.ts), pero ningún componente lo lee. */}
+            {logoLink}
 
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
-              {links.map(l => (
-                <Link key={l.path} href={l.path} className={`text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`}>
-                  {l.label}
-                </Link>
-              ))}
+              {links.map(l => {
+                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`;
+                if (!l.badge) {
+                  return <Link key={l.path} href={l.path} className={linkClassName}>{l.label}</Link>;
+                }
+                // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1) va JUNTO al link de SU ítem,
+                // como el `.nav-item .badge` del prototipo (`index.html:27-32`) — sibling del link,
+                // no anidado adentro. El `<span>` envolvente sólo aparece para el ítem CON badge
+                // (`l.badge` es `undefined` para todo tenant salvo CORTE, § itemsDeMenu): los demás
+                // ítems, y TODO tenant sin badge, siguen renderizando el `<Link>` desnudo de la rama
+                // de arriba, byte-idéntico a hoy. Estilo MEDIDO contra `.badge`
+                // (`docs/prototipos/cafeone/css/app.css:151-157`, `tokens.css:128,164`: 11px, bold,
+                // mayúscula, tracking .085em, padding 5px/9px, radio 2px) con TOKENS del tema (no los
+                // literales del prototipo) — mismo par `navClaro` que ya usaba el badge del logo y
+                // que usa el CTA del menú (abajo).
+                return (
+                  <span key={l.path} className="inline-flex items-center gap-2">
+                    <Link href={l.path} className={linkClassName}>{l.label}</Link>
+                    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-sm ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
+                      {l.badge}
+                    </span>
+                  </span>
+                );
+              })}
               {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1): apagado por defecto (`ctaHref` null), así
                   que Nayoli no gana nada acá. Se pinta como ACCIÓN —un botón, no un link plano—,
                   tomando la FORMA del bloque `/cuenta` muerto de más abajo (pill con fondo de tinte),

@@ -14514,3 +14514,176 @@ arriba existe precisamente para que no hiciera falta. La rama `stacked` de `Logo
 CORTE ve (el wordmark del nav cambia de forma visual). La aprobación del owner (`approved-by:
 owner`, en el spec) cubre la ESCRITURA de este diff, no el merge — el merge lo hace el orquestador
 tras su propia re-clasificación, como dicta el protocolo.
+
+## 2026-09-23 — El badge de cosecha deja de envolver el LOGO y pasa a ser un atributo de un ÍTEM del menú; `cromo.navBadge` queda DORMIDO, no vaciado — DESVÍO medido (`CORTE-BADGE-COSECHA-EN-MENU-1`)
+
+Eslabón (c) de los seis que salieron de `CROMO-GLOBAL-CENSO-1`. El prototipo
+(`docs/prototipos/cafeone/index.html:27-32`) pone "Cosecha 2026" como `<span class="badge">` DENTRO
+del PRIMER `.nav-item` ("Nuestro café"), sibling del link, NO envolviendo el `.wordmark`. Hoy
+`CORTE.navBadge` (`themes.ts:676` antes de este slice) lo envolvía el LOGO vía `cromo.navBadge`
+(§ CROMO-NAV-FOOTER-TEMATIZABLE-1). El owner clasificó el menú como DATO que el dueño llena por el
+panel (§ CROMO-MENU-COMO-DATO-1) — así que el badge, como atributo de un ítem del menú, es dato del
+owner también.
+
+### El modelo: `MenuContent` gana `badgeItem`/`badgeTexto`, dentro de la SECCIÓN `menu`
+
+`badgeItem: string` (del set cerrado `MENU_ITEM_IDS`, o `''` = ningún ítem elegido) y
+`badgeTexto: string` (texto libre) — ambos declarados `'opcional'` en `REGISTRY.menu.campos`
+(mismo patrón que `ctaLabel`/`ctaDestino`, § CROMO-MENU-COMO-DATO-1), con default vacío en
+`DEFAULTS.menu`. **A diferencia de `cromo`/`volverArriba`/`rielSocial`/`navTratamiento`/
+`navWordmark` (metas APARTE, reemplazadas ENTERAS por `mergePresetEnContent`), `menu` YA ES UNA
+SECCIÓN de verdad** (pasa por el flujo borrador/publicar, § REGISTRY.menu) — así que estos dos
+campos viven DENTRO de `content.menu`, resueltos por el loop genérico de `resolverSiteContent`
+(`sec[campo] = campo in storedSec ? (val ?? '') : defaults[campo]`, la rama `opcional`), NO por un
+resolver de meta aparte.
+
+`itemsDeMenu` (`site-content-defaults.ts`) resuelve el badge en el ítem cuyo id coincide con
+`content.menu.badgeItem`, y SÓLO si `badgeTexto` no está vacío:
+
+```ts
+.map((id) => ({
+  id, label: labelDeItemMenu(content.menu, id), path: MENU_PATHS[id],
+  ...(id === badgeItem && badgeTexto ? { badge: badgeTexto } : {}),
+}));
+```
+
+**La clave `badge` se OMITE del objeto cuando no hay badge — nunca `badge: ''` ni `badge: undefined`.**
+Es la propiedad que hace el cambio BYTE-IDÉNTICO por `deepEqual`: `assert.deepEqual({a:1,b:undefined},
+{a:1})` FALLA en Node (medido antes de escribir el resolver, `node -e` con `assert.deepEqual`) — una
+clave con valor vacío/`undefined` es una DIVERGENCIA estructural, no una ausencia. `itemsDeMenu`
+pinta exactamente lo que pintaba antes para todo tenant que no configure el badge.
+
+Un `badgeItem` que apunta a un id fuera del set cerrado, o a un ítem OCULTO (gateado por
+`paginas.*.visible`), simplemente no encuentra dónde mostrarse — preferir callar, mismo criterio que
+`menuCtaHref`. El schema (`menuEditableSchema`, `site-content-schema.ts`) valida `badgeItem` contra
+el mismo set cerrado `MENU_ITEM_IDS` que `posicion1/2/3` (WRITE estricto); `badgeTexto` como texto
+libre, gemelo de `ctaLabel`.
+
+**Los campos son `?` (opcionales) en el TIPO `MenuContent`, a diferencia de `ctaLabel`/`ctaDestino`
+(requeridos).** Es un desvío deliberado del patrón hermano, y la razón es medida, no estética:
+`lib/config/menu-como-dato.test.ts` (FUERA de `touches:` de este slice) declara
+`MENU_HOY: Omit<MenuContent, 'visible'>` como objeto armado a mano SIN estos dos campos — si fueran
+requeridos, `tsc --noEmit` habría fallado sobre un archivo que no se puede tocar. La opcionalidad es
+SÓLO del tipo: en runtime `content.menu` los trae SIEMPRE resueltos a `''` vía
+`REGISTRY.menu.campos` + `resolverSiteContent`, igual que `ctaLabel`/`ctaDestino` — nunca
+`undefined`. `npx tsc --noEmit`: limpio con este ajuste.
+
+### El render: `StoreNav.tsx` — el badge sale junto al LINK de su ítem, sólo en escritorio
+
+La celda del logo perdió su condicional (`cromo.navBadge ? <div>...</div> : logoLink`) y vuelve a
+ser `{logoLink}` a secas, SIEMPRE — byte-idéntico para todo tenant, incluido CORTE (que ya no lo
+declara ahí). El loop de `links.map` en el `<nav>` de ESCRITORIO (`hidden lg:flex`) gana una rama:
+sin `l.badge`, el `<Link>` desnudo de siempre (byte-idéntico); con `l.badge`, un `<span>` sibling
+—como `.nav-item .badge` del prototipo, no anidado dentro del link— con el estilo MEDIDO de `.badge`
+(`docs/prototipos/cafeone/css/app.css:151-157`: 11px, bold, mayúscula, `letter-spacing:.085em`
+—`tokens.css:128`—, `padding:5px 9px`, `border-radius:2px` —`tokens.css:164`, calza `rounded-sm` de
+Tailwind—) con TOKENS del tema (`--sf-sobre`/`--sf-tinta` según `navClaro`, el MISMO par que ya
+usaba el badge del logo y que usa el CTA del menú), no los literales del prototipo.
+
+**El badge NO se agrega al drawer móvil** (el segundo `links.map`, dentro de `AnimatePresence`): es
+la forma más simple de replicar `@media (max-width:1280px){.nav-item .badge{display:none}}`
+(`css/app.css:967-970`) sin una media query nueva — el badge sólo vive donde el `<nav>` de
+escritorio ya vive (`hidden lg:flex`, breakpoint 1024, más estricto que el 1280 del prototipo; se
+acepta la diferencia de umbral porque el efecto —el badge no aparece en angosto— es el que el
+prototipo pide, y el repo no tiene precedente de replicar un breakpoint ajeno pixel a pixel).
+
+### CORTE: `menuBadgeItem: 'tienda'`, `menuBadgeTexto: 'Cosecha 2026'`
+
+`PresetTema` gana `menuBadgeItem?: MenuItemId` y `menuBadgeTexto?: string`. `mergePresetEnContent`
+los escribe DENTRO de `content.menu` con el mismo mecanismo `{ ...prevMenu, … }` que
+`heroCtasVisibles`/`heroCueDesliza` ya usan para `content.hero` (preserva labels/posiciones/CTA que
+la sección ya tuviera) — GEMELO exacto del bloque "HERO TOGGLES", no del patrón de metas-reemplazadas
+enteras. CORTE declara `menuBadgeItem: 'tienda'` — el primer `.nav-item` del prototipo ("Nuestro
+café") corresponde en nuestro set cerrado a `'tienda'` (`MENU_PATHS.tienda === '/tienda'`) — y
+`menuBadgeTexto: 'Cosecha 2026'`, el MISMO texto exacto que antes llevaba `navBadge`.
+
+### EL DESVÍO, medido: `CORTE.navBadge` se DEJA en `'Cosecha 2026'`, NO se vacía
+
+El spec pedía literal: *"Poné `CORTE.navBadge` en vacío (themes.ts) para que el logo no lo
+muestre."* Antes de escribirlo, se midió `lib/config/cromo-tematizable.test.ts` (FUERA de
+`touches:` de este slice) y afirma, en DOS sitios:
+
+```ts
+// línea 81
+assert.equal(CORTE.navBadge, 'Cosecha 2026');
+// línea 93
+assert.deepEqual(out.cromo, { navTinta: true, navSubtitulo: true, navBadge: 'Cosecha 2026' });
+```
+
+Vaciar `CORTE.navBadge` rompía las dos, sin poder tocar el archivo. **La medición contra el test
+existente gana sobre la instrucción del spec** (§ CLAUDE.md, "cuando una medición contradice la
+instrucción, la medición gana"): el objetivo real —"el logo no lo muestre"— se logra por CONSTRUCCIÓN
+quitando el LECTOR (§ arriba, la celda del logo ya no consulta `cromo.navBadge` en absoluto, para
+ningún valor), no por vaciar el dato. `CORTE.navBadge` queda declarado, con su valor de siempre, sin
+ningún componente que lo lea — DORMIDO en el sentido exacto que el spec pedía para el campo
+(`CromoContent.navBadge`), sólo que también aplicado a `PresetTema.navBadge`/`CORTE.navBadge`, que
+el spec no distinguía del campo del modelo. `cromo-tematizable.test.ts` corre limpio, sin tocarlo
+(22/22 de ese archivo, verificado).
+
+`cromo.navBadge` (`CromoContent`) queda como CANDIDATO A RETIRO — no retirado en este slice, para no
+ensanchar el alcance (instrucción explícita del spec).
+
+### EL GATE_RED, medido: `lib/config/menu-como-dato.test.ts` (FUERA de `touches:`) — DOS assertions exhaustivas rotas por construcción, no por defecto
+
+Hecho, no evitable dentro de `touches:`: agregar `badgeItem`/`badgeTexto` a `REGISTRY.menu.campos` y
+a `DEFAULTS.menu` es estructuralmente necesario para que el modelo funcione (sin la entrada en
+`campos`, el loop genérico de `resolverSiteContent` NUNCA copiaría el dato guardado — el badge
+resolvería siempre a `''` sin importar lo que el dueño guardara, matando la capacidad de raíz). Esa
+misma adición rompe DOS assertions EXHAUSTIVAS de `lib/config/menu-como-dato.test.ts` (no declarado
+en `touches:` de este slice), medidas — no supuestas — corriendo el archivo:
+
+```
+✖ DEFAULTS.menu es el menú de HOY: labels de hoy, orden de hoy, CTA apagado
+  actual trae + badgeItem:'', + badgeTexto:'' que `{ visible:true, ...MENU_HOY }` no declara
+✖ REGISTRY.menu: ocultable:false … y los 8 campos declarados
+  Object.keys(REGISTRY.menu.campos).sort() da 10 claves, no 8
+```
+
+Se evaluó una alternativa que NO tocara `REGISTRY.menu.campos` (usar el mecanismo `def.escalares`,
+que ya existe para valores clampados a un set cerrado sin pasar por `campos`) y se descartó:
+`badgeTexto` es TEXTO LIBRE, no un valor de un set — `escalares` no lo puede resolver, e inventar un
+CUARTO mecanismo de resolución sólo para esquivar un test fuera de `touches:` habría sido
+sobre-ingeniería peor que el desvío que evita.
+
+**No se tocó `lib/config/menu-como-dato.test.ts`**, por instrucción explícita del protocolo ("YOUR
+DIFF MUST STAY INSIDE `touches:`... do not widen it yourself"). Es la ÚNICA rotura en TODA la
+suite — medida, no estimada:
+
+| corrida | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1823/1825** — 2 fallas, ambas en `menu-como-dato.test.ts:63,68` |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin relación con este slice |
+| `npx tsc --noEmit` | limpio |
+| `npx eslint` (los 5 archivos tocados) | limpio |
+| `npx next build` | `✓ Compiled successfully`; `/` sigue `ƒ` (dinámica) |
+| `lib/config/corte-badge-menu.test.ts` (nuevo, 22 casos) | 22/22 |
+| `lib/config/cromo-tematizable.test.ts` (fuera de touches, verificando el desvío de arriba) | 22/22, sin tocar |
+
+**Recomendación para quien reclasifique este diff:** las dos assertions rotas son un CONTEO
+literal (`Object.keys(...).sort()`) y un `deepEqual` de forma completa — actualizarlas a incluir
+`badgeItem`/`badgeTexto` es mecánico, de una línea cada una, y no cambia ningún comportamiento que
+ese archivo verifica (sus otros ~30 tests, sobre `itemsDeMenu`/`resolverOrdenMenu`/`menuCtaHref`/el
+schema, corren limpios contra este diff — verificado). Sumar `lib/config/menu-como-dato.test.ts` a
+`touches:` y re-correr el gate es la vía más corta a COMPLETE.
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts` (`MenuContent.badgeItem/badgeTexto`, `DEFAULTS.menu`,
+`REGISTRY.menu.campos`, `itemsDeMenu`), `lib/config/site-content-schema.ts` (`menuEditableSchema`),
+`lib/config/themes.ts` (`PresetTema.menuBadgeItem/menuBadgeTexto`, el bloque "MENU BADGE" en
+`mergePresetEnContent`, `CORTE.menuBadgeItem/menuBadgeTexto`, `CORTE.navBadge` sin cambio de VALOR
+— sólo de comentario, § el desvío arriba), `components/storefront/layout/StoreNav.tsx` (la celda
+del logo sin condicional, el badge por-ítem en el `<nav>` de escritorio), `lib/config/corte-badge-
+menu.test.ts` (nuevo), este asiento. `cromo`/`CromoContent`/`cromoEditableSchema`/
+`cromo-tematizable.test.ts` **NO se tocaron** (verificado limpio). `lib/config/menu-como-dato.test.ts`
+**NO se tocó** — es el GATE_RED de arriba, deliberado, no un olvido.
+
+### Verdicto
+
+**GATE_RED** — no `AWAITING_APPROVAL`: el gate completo (`npm run gate` — `npm test` primero, que ya
+falla) no cierra en verde sobre el árbol final, por la rotura estructural de arriba. Aparte, y
+también cierto: el diff SÍ cambia bytes que el visitante de un storefront con preset CORTE ve (el
+badge deja el logo y aparece junto a "Tienda" en el nav) — habría fallado además la condición
+"customer-bytes" de la política A si el gate hubiera cerrado verde. La aprobación del owner
+(`approved-by: owner`, en el spec) cubre la ESCRITURA de este diff, no el merge, que en cualquier
+caso no procede con el gate en rojo.

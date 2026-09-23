@@ -45,7 +45,7 @@ import { CLAVES_FUENTES, type ClaveFuentePar, resolverFuentePar } from './fuente
 import { CLAVES_FORMAS, type ClaveForma, resolverForma } from './formas';
 import {
   REGISTRY, BANDA_IDS, ORDEN_DEFAULT, VARIANTES_ESTRUCTURALES,
-  type SeccionDef, type BandaId, type ClaveEsquema,
+  type SeccionDef, type BandaId, type ClaveEsquema, type MenuItemId,
 } from './site-content-defaults';
 import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
 import type { ClaveEscalaDisplay } from './escala-display';
@@ -160,6 +160,18 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * LINKS del nav (`.nav-link`), éste el WORDMARK (`.wordmark`), dos elementos del prototipo con sus
  * propios valores medidos — ver el docstring de `NavWordmarkContent` en `site-content-defaults.ts`).
  * CORTE es hoy el ÚNICO preset que lo declara.
+ *
+ * `menuBadgeItem`/`menuBadgeTexto` (§ CORTE-BADGE-COSECHA-EN-MENU-1, OPCIONALES) — el badge de
+ * cosecha del prototipo (`.nav-item .badge`, `index.html:27-32`), MUDADO de `navBadge` (arriba, que
+ * envolvía el LOGO) a ser un ATRIBUTO de UN ítem del menú (`MenuContent.badgeItem`/`.badgeTexto`,
+ * `site-content-defaults.ts`). A diferencia de `navTinta`/`navSubtitulo`/`navBadge` (una META
+ * aparte, `content.cromo`, reemplazada ENTERA), `menu` YA es una SECCIÓN de verdad (§ REGISTRY.menu)
+ * — así que estos dos campos se ESCRIBEN DENTRO de `content.menu`, preservando labels/posiciones/CTA
+ * que la sección ya tuviera, con el mismo mecanismo `{ ...prevMenu, … }` que `heroCtasVisibles`/
+ * `heroCueDesliza` (arriba) ya usan para `content.hero`. AUSENTE en un preset = no se toca ninguna
+ * de las dos claves (el resolver aplica su propio default, `''` = sin badge). CORTE es hoy el ÚNICO
+ * preset que los declara; `navBadge` queda DORMIDO (declarado, sin lector en `StoreNav.tsx` desde
+ * este slice) — candidato a retiro, no retirado acá (§ el porqué en `StoreNav.tsx`).
  */
 export interface PresetTema {
   clave: string;
@@ -184,6 +196,8 @@ export interface PresetTema {
   rielSocialVisible?: boolean;
   navTratamientoActivo?: boolean;
   navWordmarkActivo?: boolean;
+  menuBadgeItem?: MenuItemId;
+  menuBadgeTexto?: string;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -456,6 +470,24 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     };
   }
 
+  // MENU BADGE (§ CORTE-BADGE-COSECHA-EN-MENU-1) — GEMELO EXACTO de HERO TOGGLES, arriba: `menu` YA
+  // es una sección del REGISTRY (siempre se muestra), así que acá no hay nada que "encender" — sólo
+  // dos campos DENTRO de la sección que se escriben SÓLO si el preset los declara explícitamente,
+  // preservando el resto de `content.menu` (labels/posiciones/CTA) con `{ ...prevMenu, … }`. AUSENTE
+  // en el preset → no se toca ninguna de las dos claves, y el resolver aplica su propio default
+  // (`''` = sin badge) — el mismo mecanismo que ya deja `labelTienda`/`ctaLabel` (CONTENIDO, nunca
+  // escritos por un preset) intactos. El badge deja de envolver el LOGO (`cromo.navBadge`, que CORTE
+  // sigue declarando pero que `StoreNav.tsx` ya no lee, § el docstring de esa sección) y pasa a ser
+  // este atributo del ítem del menú.
+  if ((typeof preset.menuBadgeItem === 'string' || typeof preset.menuBadgeTexto === 'string') && registro.menu) {
+    const prevMenu = esObj(out.menu) ? out.menu : {};
+    out.menu = {
+      ...prevMenu,
+      ...(typeof preset.menuBadgeItem === 'string' ? { badgeItem: preset.menuBadgeItem } : {}),
+      ...(typeof preset.menuBadgeTexto === 'string' ? { badgeTexto: preset.menuBadgeTexto } : {}),
+    };
+  }
+
   return out;
 }
 
@@ -635,13 +667,31 @@ export const CORTE: PresetTema = {
   // sólido (tinta, no la tarjeta clara de los otros temas); el floating lo decide `tratamientoNav`
   // igual que para cualquier tema — CORTE lo hereda porque su hero (`variantes.hero:'media'`, abajo)
   // es oscuro y uniforme, sin esquema asignado a 'hero'. El wordmark trae su sub-encabezado
-  // (`.wordmark small`, `index.html:23`, "San Adolfo · Huila") y el primer `nav-item` su badge de
-  // cosecha (`.badge`, `index.html:32`, "Cosecha 2026") — `navBadge` lleva ese texto EXACTO como el
-  // valor de MUESTRARIO de este preset (§ el docstring de `CromoContent.navBadge`: es dato del
-  // tenant, no un año horneado en el componente).
+  // (`.wordmark small`, `index.html:23`, "San Adolfo · Huila").
+  //
+  // `navBadge` SIGUE DECLARADO, PERO DORMIDO (§ CORTE-BADGE-COSECHA-EN-MENU-1) — `StoreNav.tsx` ya
+  // no lo lee para envolver el LOGO (§ el docstring de esa sección). Se DEJA en `'Cosecha 2026'`, sin
+  // vaciarlo, a propósito: `cromo-tematizable.test.ts` (FUERA de `touches:` de este slice) afirma
+  // `CORTE.navBadge === 'Cosecha 2026'` Y `mergePresetEnContent(_, CORTE).cromo.navBadge ===
+  // 'Cosecha 2026'` — vaciarlo habría roto ese archivo sin poder tocarlo (el spec de este slice pedía
+  // "poné `CORTE.navBadge` en vacío"; la medición contra el test existente gana, § CLAUDE.md "cuando
+  // una medición contradice la instrucción, la medición gana" — DESVÍO, reportado en el asiento de
+  // este slice). El campo queda como candidato a retiro (junto con `CromoContent.navBadge`), no
+  // retirado acá.
   navTinta: true,
   navSubtitulo: true,
   navBadge: 'Cosecha 2026',
+  // menuBadgeItem/menuBadgeTexto (§ CORTE-BADGE-COSECHA-EN-MENU-1) — el badge de cosecha del
+  // prototipo (`.badge`, `index.html:32`, "Cosecha 2026") junto al PRIMER `.nav-item`
+  // ("Nuestro café", `index.html:27-32`) — el ítem que en nuestro set cerrado corresponde a
+  // `'tienda'` (`MENU_PATHS.tienda === '/tienda'`, § site-content-defaults.ts). ÉSTE es hoy el
+  // mecanismo VIVO del badge: `itemsDeMenu` lo resuelve en el ítem cuyo id coincide con
+  // `menuBadgeItem`, y `StoreNav.tsx` lo pinta junto a ese link. `menuBadgeTexto` lleva el MISMO
+  // texto exacto que antes llevaba `navBadge` (arriba) — el valor de MUESTRARIO de este preset
+  // (§ el docstring de `MenuContent.badgeItem`/`.badgeTexto`: es dato del tenant, no un año horneado
+  // en el componente).
+  menuBadgeItem: 'tienda',
+  menuBadgeTexto: 'Cosecha 2026',
   // escalaDisplay (§ TEMAS-ESCALA-DISPLAY-1) — el owner: «los titulares del prototipo son
   // ENORMES; medí sus tamaños reales y llevalos al preset». Medido contra `docs/prototipos/
   // cafeone/ds/typography.css:10-11`: `--text-display-xl:clamp(72px,9vw,168px)` (el titular del
