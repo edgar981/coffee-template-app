@@ -14792,7 +14792,7 @@ siguen presentes, sin cambiar de mensaje ni de conteo:
 | `npx eslint` (los 6 archivos tocados) | 3 errores `react/no-children-prop`, TODOS pre-existentes en el mismo patrón `React.createElement(Provider, {value, children: …})` que ya usa `hero-toggles-preset.test.ts` (fuera de `touches:`, sin tocar; medido: mismo error ahí) — ninguno introducido por este diff, y `lint` no es parte de `gate` (`package.json`) |
 | `npx next build` | `✓ Compiled successfully`; `/` sigue `ƒ` (dinámica) |
 | `lib/config/corte-hero-titular.test.ts` (nuevo, 14 casos) | 14/14 |
-| `lib/config/hero-toggles-preset.test.ts` (fuera de touches, verificando que el eslabón previo sigue intacto) | 6/6, sin tocar |
+| `lib/config/hero-toggles-preset.test.ts` (fuera de touches, verificando que el eslabón previo sigue intacto) | 9/9, sin tocar |
 | `lib/config/hero-agregados.test.ts` (FUERA de touches, 1 línea corregida — § el desvío arriba) | 13/13 |
 | `lib/config/site-content-schema.test.ts` ("todo campo del MODELO está en el schema editable") | verde — confirma que `titularVisible`/`subtituloVisible` están declarados en el schema, no strippeados |
 
