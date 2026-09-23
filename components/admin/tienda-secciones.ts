@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+export type SeccionVista = 'hero' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -213,6 +213,56 @@ const BRAND_STORY: SeccionConfig = {
   bloques: [
     { tipo: 'collage', titulo: 'Fotos (así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2'] },
+  ],
+};
+
+// La banda ORIGEN (§ ORIGEN-BANDA-1, § el docstring de `OrigenContent` en site-content-defaults.ts):
+// grid de 2 fotos + copy (eyebrow/título/lede) + 4 pares dato label+valor (editoriales A NIVEL FINCA,
+// NUNCA leídos de `Product`) + 3 contadores animados número+etiqueta. Cardinalidad FIJA — mismo
+// patrón que `suscripcionPasos`/`suscripcionPlanes`: campos PLANOS, no repeater.
+// `ocultable: true` — la banda nace OFF (`DEFAULTS.origen.visible: false`, § el porqué MECÁNICO en su
+// docstring: `resolverOrden` completa el orden de TODO tenant con toda banda de `BANDA_IDS` sin
+// condición, así que nacer OFF es lo único que impide que la sola membresía la encienda sola) y el
+// dueño la enciende cuando tenga datos reales que mostrar.
+// Los LABELS de los 4 datos son REQUERIDOS (categorías genéricas, siempre tienen un default
+// razonable); los VALORES y los dos campos de cada cifra son OPCIONALES (afirmaciones factuales sobre
+// ESTE negocio — un default inventado sería un dato fabricado, § el docstring de `OrigenContent`):
+// vacío se OMITE en el render, nunca un placeholder inventado.
+const ORIGEN: SeccionConfig = {
+  seccion: 'origen',
+  pagina: 'home',
+  titulo: 'Origen',
+  ocultable: true,
+  imagenes: [
+    { name: 'imagen1', label: 'Imagen 1' },
+    { name: 'imagen2', label: 'Imagen 2' },
+  ],
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'lede',    label: 'Párrafo',        textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'dato1Label', label: 'Nombre del dato 1', hint: 'La categoría de este dato, p. ej. "Ubicación". Vacío: se usa el texto por defecto.' },
+    { name: 'dato1Valor', label: 'Valor del dato 1',  opcional: true, hint: 'El valor de este dato, p. ej. "Supatá, Cundinamarca". Vacío: no se muestra.' },
+    { name: 'dato2Label', label: 'Nombre del dato 2', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'dato2Valor', label: 'Valor del dato 2',  opcional: true, hint: 'Vacío: no se muestra.' },
+    { name: 'dato3Label', label: 'Nombre del dato 3', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'dato3Valor', label: 'Valor del dato 3',  opcional: true, hint: 'Vacío: no se muestra.' },
+    { name: 'dato4Label', label: 'Nombre del dato 4', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'dato4Valor', label: 'Valor del dato 4',  opcional: true, hint: 'Vacío: no se muestra.' },
+    { name: 'statNumero1',   label: 'Número 1',   opcional: true, hint: 'El número final del contador, p. ej. "1600". Vacío: no se muestra.' },
+    { name: 'statEtiqueta1', label: 'Etiqueta 1', opcional: true, hint: 'Lo que acompaña al número, p. ej. "msnm". Vacío: no se muestra.' },
+    { name: 'statNumero2',   label: 'Número 2',   opcional: true, hint: 'Vacío: no se muestra.' },
+    { name: 'statEtiqueta2', label: 'Etiqueta 2', opcional: true, hint: 'Vacío: no se muestra.' },
+    { name: 'statNumero3',   label: 'Número 3',   opcional: true, hint: 'Vacío: no se muestra.' },
+    { name: 'statEtiqueta3', label: 'Etiqueta 3', opcional: true, hint: 'Vacío: no se muestra.' },
+  ],
+  // BLOQUES: fotos+copy · los 4 datos · las 3 cifras — tres piezas separadas para que el panel no sea
+  // una lista plana de 19 campos (cada `tipo:'seccion'` sólo AGRUPA campos que ya están en `campos`/
+  // `imagenes`, doctrina de la derivación — no crea dato nuevo).
+  bloques: [
+    { tipo: 'seccion', imagenes: ['imagen1', 'imagen2'], campos: ['eyebrow', 'titulo', 'lede'] },
+    { tipo: 'seccion', campos: ['dato1Label', 'dato1Valor', 'dato2Label', 'dato2Valor', 'dato3Label', 'dato3Valor', 'dato4Label', 'dato4Valor'] },
+    { tipo: 'seccion', campos: ['statNumero1', 'statEtiqueta1', 'statNumero2', 'statEtiqueta2', 'statNumero3', 'statEtiqueta3'] },
   ],
 };
 
@@ -512,9 +562,13 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
 // el editor las agrupa por `pagina` en pestañas.
 //
+// ORIGEN va entre BRAND_STORY y PRESENTACIONES porque ASÍ está en `BANDA_IDS`/`ORDEN_DEFAULT`
+// (site-content-defaults.ts: '...brandStory, origen, presentaciones...') — a diferencia de spotlight
+// (abajo), origen SÍ es miembro de `BANDA_IDS` y sí tiene una posición real en la home que replicar.
+//
 // SPOTLIGHT va AL FINAL del grupo `home`, no intercalada entre las demás: a diferencia de
-// hero/brandStory/presentaciones/subscriptionCTA/testimonials, todavía no está montada en el orden
-// real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, § SPOTLIGHT-BANDA-1) — no hay
-// una posición "correcta" que replicar, así que se agrega al final para no sugerir un orden que el
+// hero/brandStory/origen/presentaciones/subscriptionCTA/testimonials, todavía no está montada en el
+// orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, § SPOTLIGHT-BANDA-1) — no
+// hay una posición "correcta" que replicar, así que se agrega al final para no sugerir un orden que el
 // storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

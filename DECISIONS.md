@@ -16646,3 +16646,173 @@ RAMA (`slice/corte-reescritura-prototipo-1`, que ya toca bytes de storefront por
 § "EL EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
 espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
 ("Copy del panel: el owner lo revisa en su pasada").
+
+## 2026-09-23 — La sección "Origen" completa en el panel (`PANEL-EDITOR-ORIGEN-1`)
+
+**Origen:** item 5 (de 8) del programa "el panel refleja la tienda" (orden del owner, 2026-09-23),
+sobre `PANEL-REFLEJA-TIENDA-CHEQUEO-1`. El owner: *"5. Origen."* — sin la restricción de alcance que
+llevó el item 4 (spotlight, "sólo el pin"): acá entra la sección ENTERA — copy, las dos fotos, los
+cuatro datos y las tres cifras, más su visibilidad.
+
+### Por qué SIN ruta propia — `origen` YA es sección del REGISTRY
+
+Como `spotlight` y `menu`, `origen` es una sección real (`SeccionKey` la incluye) y su schema de
+escritura (`origenEditableSchema`, `lib/config/site-content-schema.ts:102-116`) YA declaraba los 20
+campos —los 19 de contenido más `visible`— como opcionales, verificado ANTES de escribir nada
+(§ el mapeo `origen: origenEditableSchema.optional()` en `siteContentEditableSchema`, línea 401). El
+camino de persistencia (PUT/POST genéricos de `/api/site-content`) ya funcionaba de punta a punta
+para `origen`; lo único que faltaba era el CONTROL — que `SECCIONES_TIENDA` incluyera una entrada
+para la sección. Ningún archivo de persistencia (`site-content-defaults.ts`, `site-content-schema.ts`,
+`site-content-write.ts`, ninguna ruta) se tocó, tal como el spec lo pedía explícitamente ("NO cambies
+DEFAULTS.origen, ni el schema, ni el REGISTRY").
+
+### La `SeccionConfig` — `ORIGEN` en `tienda-secciones.ts`
+
+- **`ocultable: true`**: a diferencia de spotlight (que dejó el toggle fuera por alcance explícito),
+  este slice SÍ expone `visible` — la banda nace OFF (`DEFAULTS.origen.visible: false`) y el dueño la
+  enciende cuando tenga datos reales.
+- **Los 19 campos de contenido, TODOS declarados**: `eyebrow`/`titulo`/`lede` (texto), `imagen1`/
+  `imagen2` (imágenes), los cuatro pares `datoNLabel`/`datoNValor`, y los tres pares `statNumeroN`/
+  `statEtiquetaN` — coincide campo por campo con `REGISTRY.origen.campos` (site-content-defaults.ts:
+  1440-1453): los labels de los datos REQUERIDOS sin `opcional`, el resto (valores de dato, números y
+  etiquetas de cifra, `eyebrow`) con `opcional: true` — la misma semántica requerido/opcional que el
+  resolver ya aplica (label siempre tiene default; valor vacío se omite). `camposDeSeccionEditor` no
+  distingue por esa bandera al derivar el lado controlado (sólo por NOMBRE de campo), así que esto es
+  fidelidad de copy/hint, no una condición del guard.
+- **TRES bloques `tipo:'seccion'`, ninguno inventado** (`BloqueConfig` ya declara sólo
+  `seccion`/`tarjeta`/`lista`/`collage` — no se agregó un cuarto tipo): fotos+copy · los 4 datos · las
+  3 cifras. Cada uno se envuelve en su propia pieza (`.admin-bloque`, § `TiendaSeccionEditor.tsx:907-
+  919`) aunque `renderBloqueSeccion` no pinte un encabezado propio (§ su comentario, "Sin encabezados
+  de grupo") — la caja separada alcanza para que 19 campos no se lean como una lista plana, que es lo
+  que el spec pedía sin inventar un tipo de bloque nuevo. Cada bloque sólo AGRUPA campos que ya viven
+  en `campos`/`imagenes` (doctrina de la derivación, § el comentario de cabecera de `BloqueConfig`).
+- **Posición en `SECCIONES_TIENDA`: entre `BRAND_STORY` y `PRESENTACIONES`**, no al final como
+  spotlight. A diferencia de spotlight, `origen` SÍ es miembro de `BANDA_IDS`/`ORDEN_DEFAULT`
+  (site-content-defaults.ts:813: `'...brandStory, origen, presentaciones...'`), así que SÍ hay una
+  posición real de la home que replicar — ponerla al final habría sugerido un orden que el storefront
+  no tiene.
+
+### `components/admin/VistaTiendaEnVivo.tsx` — DENTRO de `touches:`, sin desviación
+
+A diferencia del slice del spotlight (donde este archivo fue una desviación medida fuera de la lista
+declarada), este spec YA lo incluía en `touches:` — la consecuencia mecánica de sumar `'origen'` a
+`SeccionVista` (agregar `ORIGEN` a `SECCIONES_TIENDA` exige que tipe) sobre el
+`Record<SeccionVista, ComponentType>` exhaustivo de `COMPONENTES` (línea 44) está prevista de
+antemano, no descubierta al tocar el código. Se agregó `import Origen from
+'@/components/storefront/home/Origen'` y la entrada `origen: Origen` — `Origen.tsx` toma sólo `style`
+opcional (con default `{}`), igual que `Spotlight`, así que es asignable a `ComponentType` sin cast.
+
+### El guard — `lib/config/panel-controles.ts`
+
+- Las veinte entradas `origen.*` (`visible` + los 19 campos) se RETIRARON de `PENDIENTE_PANEL` —
+  control real ya existe vía `CONTROLADOS_GENERICOS` (`camposDeSeccionEditor(ORIGEN)`, derivado de
+  `config.campos`+`config.imagenes`+`visible`, sin necesidad de leer los bloques porque ORIGEN no
+  declara ningún bloque `tipo:'lista'` con slots fuera de `campos`).
+- El comentario de cabecera de `PENDIENTE_PANEL` (la medición de `PANEL-REFLEJA-TIENDA-CHEQUEO-1`,
+  2026-09-23) que decía "origen — ninguna está en SECCIONES_TIENDA" se dejó como medición histórica y
+  se le sumó una nota que aclara el cierre COMPLETO (a diferencia del cierre PARCIAL de spotlight) —
+  no se reescribió el resto, mismo tratamiento que `PANEL-EDITOR-SPOTLIGHT-PIN-1` le dio a su propia
+  entrada.
+
+`huecosDelPanel()` (con exenciones) sigue en `[]` — verde.
+
+### `lib/config/panel-controles.test.ts` — DECLARADO en `touches:`, NO TOCADO
+
+Ninguna aserción de calibración de ese archivo nombra un campo `origen.*` por su nombre — a
+diferencia de `cromo.navSubtitulo`/los toggles del hero/el badge del menú, el owner nunca citó un
+campo de `origen` como calibración explícita en el spec original de `PANEL-REFLEJA-TIENDA-CHEQUEO-1`
+(esa medición SÍ nombró la sección como hueco en su prosa, pero no fijó un `huecos.includes('origen.
+…')` en el test). El único test que la mencionaba indirectamente es el general de la línea 119
+("marca EXACTAMENTE el conjunto de `PENDIENTE_PANEL`"), que se AUTO-DERIVA de `PENDIENTE_PANEL` en
+tiempo de ejecución y sigue verde sin ningún cambio de texto — confirmado corriendo la suite (abajo).
+Mismo precedente que `PANEL-EDITOR-SPOTLIGHT-PIN-1` dejó para el mismo archivo.
+
+### El test — `tests/integracion/origen.test.ts` (2 casos)
+
+Igual patrón que `spotlight-pin.test.ts` (`origen` es sección real del REGISTRY, camino GENÉRICO):
+`siteContentEditableSchema.parse({origen:...})` (donde zod strippearía cualquier campo no declarado —
+`origenEditableSchema` ya los declara todos, sin cambios de este slice) → `guardarBorrador` →
+`publicarSeccion('origen')` → releer con `readSiteContent` (lo que `Origen.tsx` resuelve).
+
+1. Un subconjunto REPRESENTATIVO —`visible`, un texto (`titulo`), una foto (`imagen1`), un par
+   dato label+valor (`dato1Label`/`dato1Valor`) y un par cifra número+etiqueta (`statNumero1`/
+   `statEtiqueta1`)— sobrevive el viaje completo, y el borrador de la sección queda limpio
+   (`readSiteContentParaEditor().sinPublicar.origen === false`).
+2. Sin fila (base recién limpiada), `origen` resuelve byte-idéntico a `DEFAULTS.origen` — el default
+   sigue siendo `visible: false` ("nace OFF"), sin que este slice lo haya tocado.
+
+Co-ubicado en `tests/integracion/` (no `lib/`) por la misma regla ya medida en las tres entradas
+anteriores de esta rama ("El carril rápido cubre `app/`", aplicada a `lib/`): habla con Postgres real.
+El `touches:` de este slice ya lo nombraba así — sin desviación de ubicación.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1911/1911** — sin cambio (ningún archivo de `lib/**` ganó ni perdió un `test()`; `panel-controles.test.ts` no se tocó, § arriba) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **219/219** — verde (+2: los dos casos nuevos de `origen.test.ts`) |
+
+Primera corrida de capa 2: 218/219, con `wompi-reconciliador.test.ts` → "CONCURRENCIA: webhook y
+reconciliador procesando el MISMO evento A LA VEZ" fallando (`resultadoWebhook.motivo` fuera del set
+esperado). Re-corrida limpia sobre el MISMO árbol, sin tocar nada: 219/219 — confirma que es la misma
+clase de no-determinismo ya documentada en `bedaad5` ("1 fallo no-determinista de
+wompi-reconciliador.test.ts en la primera corrida, ajeno a este diff"); este slice no tocó ningún
+archivo de `packages/core/src/pagos/` ni de wompi.
+
+Reconciliado contra el piso del commit inmediatamente anterior (`f7618bc`, `PANEL-EDITOR-SPOTLIGHT-
+PIN-1`): su mensaje de commit no cita números de gate, pero su propio asiento en este archivo
+(§ arriba, "El gate — corrido sobre el árbol final") reporta **1911/1911 + 217/217** como el resultado
+sobre su árbol final — ése es el piso correcto contra el que reconciliar, no una cifra del mensaje de
+commit. `tsc` sigue en 0, capa 1 sin cambio (1911/1911), y la diferencia en capa 2 (217→219) la
+explican íntegramente los dos casos nuevos de `origen.test.ts` — ninguna es drift sin explicación.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `SeccionVista`, `SECCIONES_TIENDA`, `ORIGEN` (la config),
+`origen.eyebrow/titulo/lede/imagen1/imagen2/dato1..4Label/dato1..4Valor/statNumero1..3/
+statEtiqueta1..3/visible`, `PENDIENTE_PANEL`, `VistaTiendaEnVivo`, `COMPONENTES`, `Origen` (el
+componente storefront), `tienda-secciones`, `panel-controles`. Grepeados uno por uno contra
+`CLAUDE.md`:
+
+| símbolo | hits | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `SeccionVista`, `Origen`, `origen` (como símbolo de código), `PENDIENTE_PANEL`, `panel-controles`, `COMPONENTES`, `ORIGEN-BANDA-1`, `OrigenContent` | 0 | — (no hay frase que corregir; CLAUDE.md no documenta esta banda en absoluto — vive en `site-content-defaults.ts`/`DECISIONS.md`, mismo hallazgo que las tres entradas anteriores de esta rama) |
+| `SECCIONES_TIENDA` | 1 (línea 2853, "`TiendaPaginas` agrupa `SECCIONES_TIENDA` por…") | NO — describe el mecanismo de agrupación por página, no una lista cerrada de secciones |
+| `VistaTiendaEnVivo` | 5 (líneas 56, 471, 2583, 2611, 2757) | NO — describen el MECANISMO (componentes reales, escala, provider local, costo del render), no un inventario cerrado de qué `seccion` mapea a qué componente |
+| `tienda-secciones` | 1 (línea 2949, la pestaña de Suscripciones) | NO — sobre el patrón de páginas apagables, no sobre el contenido de `SECCIONES_TIENDA` |
+
+Ninguna sentencia de `CLAUDE.md` nombra `origen`/`ORIGEN`/la banda Origen ni un conteo de secciones de
+`SECCIONES_TIENDA` — la doctrina de esta área sigue viviendo en `site-content-defaults.ts`/
+`tienda-secciones.ts`/`DECISIONS.md`, mismo hallazgo que las cuatro entradas anteriores de esta rama.
+
+### Pointer STALE encontrado, NO corregido (fuera de `touches:`) — `PANEL-REFLEJA-TIENDA-CHEQUEO-1`
+
+La propia entrada `PANEL-REFLEJA-TIENDA-CHEQUEO-1` (arriba, § "Follow-ups coined") lista en su tabla
+`PANEL-EDITOR-ORIGEN-1 | los 18 campos de origen` — el conteo real, medido en este slice contra
+`OrigenContent`/`REGISTRY.origen.campos`/`PENDIENTE_PANEL` (antes de este diff), era **20** (19 de
+contenido + `visible`), no 18. Es una imprecisión de esa medición histórica, PRE-EXISTENTE a este
+slice (no algo que este diff vuelva falso — ya era falso). No se corrige acá: esa tabla pertenece al
+asiento de otro slice ya cerrado, y corregirla está fuera de `touches:` de este spec. Se registra
+como `open_followups` (`DECISIONS-STALE-COUNT-ORIGEN-CHEQUEO-1`, coined).
+
+### `touches:` — lo que se escribió
+
+`components/admin/tienda-secciones.ts`, `components/admin/VistaTiendaEnVivo.tsx`,
+`lib/config/panel-controles.ts`, `tests/integracion/origen.test.ts`, este asiento (`DECISIONS.md`) —
+cinco de los seis declarados, tocados. **`lib/config/panel-controles.test.ts` (declarado en
+`touches:`) NO SE TOCÓ**, por la razón medida en su propia sección arriba. Ningún archivo fuera de los
+seis declarados se tocó — a diferencia de `PANEL-EDITOR-SPOTLIGHT-PIN-1`, este spec ya incluía
+`VistaTiendaEnVivo.tsx` en su lista, así que no hubo desviación de alcance.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1911/1911 + 219/219, reconciliado). Por instrucción
+del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea. Clasifica por sí mismo contra la
+política de merge A: agrega bytes que el DUEÑO lee en el panel (el título "Origen", las 19 etiquetas
+de campo y sus hints) — `customer-bytes` en el sentido amplio de CLAUDE.md ("Any byte a customer,
+operator or owner reads"), además de heredar la clasificación de la RAMA
+(`slice/corte-reescritura-prototipo-1`, que ya toca bytes de storefront por commits anteriores,
+§ "EL EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
+espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
+("Copy del panel: el owner lo revisa en su pasada").

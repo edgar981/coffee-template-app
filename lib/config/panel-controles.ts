@@ -196,7 +196,9 @@ export interface ExencionPendiente {
 // menú). Al derivar el chequeo de verdad aparecieron CUATRO SECCIONES ENTERAS sin ningún editor
 // (`marquesina`, `trustBadges`, `origen`, `spotlight` — ninguna estaba en `SECCIONES_TIENDA` a esa
 // fecha; `spotlight` ganó su PIN por `PANEL-EDITOR-SPOTLIGHT-PIN-1`, sus otros cuatro campos siguen
-// sin editor, § PENDIENTE_PANEL abajo — esta frase queda como medición histórica, no re-medida), el eje
+// sin editor; `origen` ganó su `SeccionConfig` COMPLETA por `PANEL-EDITOR-ORIGEN-1` — ninguna entrada
+// suya queda en `PENDIENTE_PANEL` — § PENDIENTE_PANEL abajo; esta frase queda como medición histórica,
+// no re-medida), el eje
 // `variante`/`escalares` completo (ninguna de las 4 secciones que lo declaran tiene control alguno del
 // lado del panel — ni siquiera `TiendaSeccionEditor` sabe leer `config.variantes`), y DOS campos
 // declarados en `REGISTRY.<seccion>.campos` pero ausentes del `config` que el editor real usa —
@@ -234,27 +236,9 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // interruptor, y ni ése tiene control — PaletaSeccion monta el componente para PREVIEW, no lo edita.
   { campo: 'trustBadges.visible', razon: 'Sección entera ausente de SECCIONES_TIENDA — PaletaSeccion sólo la monta para vista previa, no la edita', cierra: 'PANEL-EDITOR-TRUSTBADGES-VISIBLE-1' },
 
-  // La banda ORIGEN (§ ORIGEN-BANDA-1): sección completa en REGISTRY, ausente de SECCIONES_TIENDA.
-  { campo: 'origen.visible', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.eyebrow', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.titulo', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.lede', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.imagen1', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.imagen2', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato1Label', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato1Valor', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato2Label', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato2Valor', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato3Label', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato3Valor', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato4Label', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.dato4Valor', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.statNumero1', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.statEtiqueta1', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.statNumero2', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.statEtiqueta2', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.statNumero3', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
-  { campo: 'origen.statEtiqueta3', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
+  // CERRADO por PANEL-EDITOR-ORIGEN-1: `origen` ganó su `SeccionConfig` (ORIGEN en tienda-secciones.ts,
+  // con las 19 entradas de campos + el toggle `visible`) — las veinte entradas de exención de esta
+  // sección se retiraron de acá.
 
   // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1). CERRADO PARCIAL por PANEL-EDITOR-SPOTLIGHT-PIN-1: el
   // PIN (`productoSlug`/`otroTamanoSlug`) ya tiene control (`SPOTLIGHT` en `SECCIONES_TIENDA`, §

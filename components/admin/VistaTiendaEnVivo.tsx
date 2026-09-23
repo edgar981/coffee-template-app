@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import BrandStory from '@/components/storefront/home/BrandStory';
+import Origen from '@/components/storefront/home/Origen';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
@@ -44,6 +45,12 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 const COMPONENTES: Record<SeccionVista, ComponentType> = {
   hero: HeroSection,
   brandStory: BrandStory,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-ORIGEN-1 (mismo patrón que 'spotlight' arriba,
+  // § el asiento de PANEL-EDITOR-SPOTLIGHT-PIN-1): sumar `'origen'` a `SeccionVista` para que ORIGEN
+  // pueda entrar a `SECCIONES_TIENDA` vuelve este `Record<SeccionVista, ComponentType>`
+  // NO-exhaustivo sin esta línea. Origen toma sólo `style` opcional (con default `{}`, igual que
+  // Spotlight) → asignable a `ComponentType`.
+  origen: Origen,
   // GrindChooser toma `negocio` opcional para el alt (identidad); en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType, como NosotrosGaleria.
   presentaciones: GrindChooser,
