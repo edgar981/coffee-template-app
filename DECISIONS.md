@@ -13593,3 +13593,99 @@ correcto — el arnés lo prueba.
   `detenerProceso` (mata sólo al `npx` de tope, no al árbol) no cubre — mecanismo SIN CAMBIOS en
   este slice, así que no es una regresión de este diff, pero sí algo que este dogfood, al
   verificar más a fondo que los anteriores, sí llegó a medir.
+
+## 2026-09-23 — `detenerProceso` mata el ÁRBOL, no sólo el `npx` de tope (`ARNES-NEXT-START-PROCESO-HUERFANO-1`)
+
+**Cierra `ARNES-NEXT-START-PROCESO-HUERFANO-1`**, medido y dejado abierto por
+`CROMO-DEV-HIDRATACION-SPA-1` (§ arriba, el apéndice del dogfood).
+
+### La causa, medida contra la fuente de Next — NO es "next start forkea next-server"
+
+El texto original del hallazgo decía "el hijo `next-server`". Verificado contra
+`node_modules/next/dist/cli/next-start.js` y `node_modules/next/dist/server/lib/start-server.js`:
+**`next start` NO hace `fork`/`spawn` de un proceso nuevo** — llama a `startServer(...)` DENTRO de
+su propio proceso, y esa función simplemente hace `process.title = "next-server (v…)"` (mismo
+mecanismo bajo `next dev`, que también se renombra así — confirmado leyendo la línea). El árbol
+real es **este script → `npx` (el `child` que `spawn` devuelve) → el binario `next` resuelto por
+`npx` como HIJO de `npx`**, y ES ESE HIJO el que se renombra a `next-server`. `detenerProceso`
+mataba únicamente el PID del `npx` de tope: `npx` muere, su hijo (`next`, ya con el título
+`next-server`) se REPARENTA a init y sigue sirviendo el puerto — un huérfano por corrida, tal como
+`CROMO-DEV-HIDRATACION-SPA-1` lo midió por `ps`, aunque el mecanismo exacto no fuera "next start
+forkea", sino "npx forkea y next se renombra".
+
+No cambia el arreglo: sea cual sea el eslabón que forkea, la salida es la misma — matar sólo el PID
+de tope dejaba huérfano al resto del árbol.
+
+### El arreglo — `detached: true` + matar el GRUPO, no el PID suelto
+
+`arrancarNextStart` (`scripts/capturar-seccion.ts`) ahora lanza `npx` con `detached: true`: en
+POSIX eso lo vuelve LÍDER de un grupo de procesos NUEVO (`pgid === su propio pid`). Ningún eslabón
+de la cadena (`npx` → `next` renombrado → lo que `next` levante) se desprende de ese grupo por su
+cuenta, así que el grupo entero queda alcanzable con UNA señal dirigida al **PID NEGATIVO**
+(`process.kill(-pid, señal)`, la convención POSIX para "todo el grupo"). `detenerProceso` se
+reescribió para mandar la escalera SIGTERM→SIGKILL (que ya existía, sin cambiar sus tiempos: 5s de
+margen) contra `-pid` en vez de contra `child` solo, con `try/catch` (ESRCH → el grupo ya no existe,
+cae al `child.kill` de siempre como red).
+
+**Cada corrida arranca su PROPIO grupo** (pgid = pid del `npx` de ESA invocación de `spawn`), así
+que esto nunca puede alcanzar a un proceso de otro checkout ni de otra corrida — confirmado en el
+dogfood de abajo, donde un `next-server` de OTRO repo (`duna-website`, un `npm run dev` ajeno del
+propio Mac) convivió sin verse tocado.
+
+Nada más cambió: el arranque de la captura (`construirNext`, el orden preset→build→start, el resto
+de `main`) sigue igual — el spec pedía tocar sólo cómo se DETIENE.
+
+### El dogfood — DOS corridas consecutivas, cero huérfanos, evidencia por `ps`
+
+Invocado por el entrypoint canónico (`npm run capturar:seccion -- …`, § `ARNES-INVOCABLE-POR-NPM-1`),
+reusando el MISMO CTA y las MISMAS dos configuraciones (con preset CORTE y sin preset) que el
+apéndice de `CROMO-DEV-HIDRATACION-SPA-1` ya había usado para medir el defecto — mismo terreno,
+antes y después del fix.
+
+**ANTES de la corrida 1** (`pgrep -fl next-server`):
+```
+20108 next-server (v16.2.6) NVM_INC=/Users/edgarnavarro/.nvm/versions/node/v24.14.0/include/node
+```
+Un único `next-server`, y resultó ser de OTRO repo por completo — verificado con `pgrep -fl next`
+ampliado: `20107 node .../duna-website/node_modules/.bin/next dev` es su padre. No es un residuo de
+este arnés; es un `npm run dev` del propio Mac, ajeno al checkout de este slice.
+
+**Corrida 1 — preset CORTE:**
+```
+npm run capturar:seccion -- --preset CORTE --ruta / \
+  --selector-app 'a[href="/suscripciones"][class*="var(--sf-accion"]' \
+  --prototipo index.html --selector-prototipo ".hero" \
+  --nombre arnes-huerfano-dogfood --var=--sf-accion
+```
+`next build` terminó, `next start` respondió, la captura corrió y el proceso salió con
+`[exited with code 0]`. **Después de la corrida** (`pgrep -fl "next-server|next start|npx next"`):
+sólo el PID 20108 de `duna-website` seguía ahí — CERO procesos nuevos. Puerto 3477 verificado LIBRE
+con un servidor de sondeo Node propio (`net.createServer().listen(3477, …)`, sin `lsof`).
+
+**Corrida 2 — sin `--preset`** (la config "Nayoli", § arriba), lanzada inmediatamente después:
+```
+npm run capturar:seccion -- --ruta / \
+  --selector-app 'a[href="/suscripciones"][class*="var(--sf-accion"]' \
+  --prototipo index.html --selector-prototipo ".hero" \
+  --nombre arnes-huerfano-dogfood-2 --var=--sf-accion
+```
+**A MITAD de esta corrida**, con `next start` ya respondiendo (verificado leyendo el log en vivo:
+`✔ \`next start\` responde.` seguido de la captura del selector), `pgrep -fl "next-server"` seguía
+mostrando SÓLO el PID 20108 ajeno — ningún `next-server` nuevo apareció bajo ese patrón mientras la
+app de este slice servía el puerto, lo que descarta que el fix esté simplemente "tapando" el
+síntoma con timing en vez de resolver el árbol. `[exited with code 0]` al terminar. **Después**:
+mismo `pgrep -fl next` ampliado — sólo `duna-website` (20107/20108/…), CERO nuevos. Puerto 3477
+LIBRE de nuevo con el mismo sondeo.
+
+**Contraste con el estado que `CROMO-DEV-HIDRATACION-SPA-1` había medido** (una corrida, un
+`next-server` huérfano quedando vivo): dos corridas de este dogfood, CERO huérfanos acumulados, el
+puerto siempre libre al terminar, y un proceso de otro repo demostrablemente intacto de por medio.
+
+### Una herramienta nueva encuentra sus defectos USÁNDOSE, no revisándose
+
+Palabras del owner en la aprobación: el arnés se probó a sí mismo CUATRO veces en esta cadena —
+invocable por npm (`ARNES-INVOCABLE-POR-NPM-1`) → la animación asienta (`CROMO-ARNES-STAGGER-
+ANIMACION-1`) → el color es el del componente, no el del fondo (`CROMO-DEV-HIDRATACION-SPA-1`) →
+el árbol de procesos no deja huérfano (este slice) — y las cuatro veces el defecto lo destapó
+CORRERLO, no leer el código. Por eso el estándar (este arnés) se termina ANTES de que la cadena
+visual que depende de él (volver-arriba, riel social, carrito) empiece a usarlo, no durante.

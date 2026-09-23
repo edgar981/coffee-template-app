@@ -409,6 +409,23 @@ function construirNext(puerto: number): void {
 }
 
 // ─── `next start` (la build de arriba, servida) contra la base efímera ──────────────────────────
+//
+// § ARNES-NEXT-START-PROCESO-HUERFANO-1: MEDIDO en el dogfood de `CROMO-DEV-HIDRATACION-SPA-1` que
+// el proceso que sirve el puerto NO es este `child` — `npx` resuelve y lanza `next`, que a su vez
+// termina corriendo como un `next-server (v…)` (el binario se renombra vía `process.title`, ver
+// `next/dist/server/lib/start-server.js`) en un proceso HIJO de éste, no en el proceso mismo que
+// `spawn` devuelve. Matar sólo `child` (como hacía `detenerProceso` antes) mata al padre; el
+// `next-server` que de verdad tiene el puerto abierto se REPARENTA a init y queda HUÉRFANO,
+// reteniendo el puerto — uno por corrida.
+//
+// EL ARREGLO: `detached: true` hace de ESTE hijo el LÍDER de un grupo de procesos NUEVO
+// (pgid === su propio pid). Ningún paso de la cadena (`npx` → `next` → `next-server`) se
+// desprende de ese grupo por su cuenta — nada acá llama `setsid`/`detached` de nuevo—, así que
+// TODO el árbol queda en el mismo grupo y `detenerProceso` lo mata de una sola señal, dirigida al
+// PID NEGATIVO (`process.kill(-pid, …)`, la convención POSIX para "todo el grupo", no un PID
+// suelto). Cada corrida arranca su PROPIO grupo (pgid = pid del `npx` de ESA corrida), así que
+// esto nunca alcanza a un `next-server` de otro checkout u otra corrida — sólo al árbol que este
+// `arrancarNextStart` acaba de lanzar.
 function arrancarNextStart(puerto: number): ChildProcess {
   return spawn(
     "npx",
@@ -417,18 +434,36 @@ function arrancarNextStart(puerto: number): ChildProcess {
       cwd: RAIZ,
       env: entornoApp(puerto),
       stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
     },
   );
 }
 
 async function detenerProceso(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.killed) return;
+  const pid = child.pid;
+  // Manda la señal al GRUPO (§ arriba), no al PID suelto — así alcanza también al `next-server`
+  // huérfano. Si el grupo ya no existe (ESRCH — todo el árbol salió solo entre el chequeo y acá),
+  // cae al `child.kill` de siempre como red; cualquier otro error también cae ahí.
+  const matarArbol = (señal: NodeJS.Signals) => {
+    if (pid === undefined) {
+      child.kill(señal);
+      return;
+    }
+    try {
+      process.kill(-pid, señal);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ESRCH") child.kill(señal);
+    }
+  };
   await new Promise<void>((res) => {
     child.once("exit", () => res());
-    child.kill("SIGTERM");
-    // `next start` a veces tarda en soltar el puerto; si a los 5s sigue vivo, KILL.
+    matarArbol("SIGTERM");
+    // `next start` a veces tarda en soltar el puerto; si a los 5s el padre sigue vivo, KILL al
+    // árbol entero (no sólo al padre — el huérfano que este fix cierra no reacciona a un KILL
+    // dirigido sólo al PID que ya no lo controla).
     setTimeout(() => {
-      if (child.exitCode === null) child.kill("SIGKILL");
+      if (child.exitCode === null) matarArbol("SIGKILL");
     }, 5000);
   });
 }
