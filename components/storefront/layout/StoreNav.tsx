@@ -21,7 +21,7 @@ export default function StoreNav() {
   // ningún tenant lo edita— `links` es EXACTAMENTE el array de hoy: label/path de las tres rutas, en
   // el mismo orden. El CTA (`menuCtaHref`) nace apagado (`null`) hasta que el dueño lo configure.
   const content = useSiteContent();
-  const { esquemas, tema, orden, cromo, navTratamiento } = content;
+  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
 
@@ -105,6 +105,12 @@ export default function StoreNav() {
   // El logo del nav (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): `cromo.navSubtitulo` exhibe el `tagline`
   // bajo el nombre (REUSA `Logo.subtitle`, que ya existe para el footer, § Logo.tsx) — `false` (el
   // default) → `subtitle` queda `undefined` y `Logo` renderiza EXACTAMENTE su rama de siempre.
+  //
+  // `navWordmark.activo` (§ CORTE-LOGO-APILADO-1): el ESTILO del wordmark apilado —mayúscula+
+  // tracking+tamaño en el nombre, sans muted sin itálica en el sub, § el docstring de
+  // `NavWordmarkContent`—, DISTINTO de `navTratamiento.activo` (arriba, que trata los LINKS del
+  // nav). `false` (todo tenant salvo CORTE) → `Logo` ignora la prop (default `false`) y su rama
+  // `subtitle` renderiza EXACTAMENTE como siempre.
   const logoLink = (
     <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
       {/* Cream lockup over the transparent hero, espresso once scrolled */}
@@ -113,6 +119,7 @@ export default function StoreNav() {
         variant={navClaro ? 'dark' : 'light'}
         conMark={STOREFRONT_TIENE_MARK}
         subtitle={cromo.navSubtitulo ? tagline : undefined}
+        wordmarkTratado={navWordmark.activo}
       />
     </Link>
   );

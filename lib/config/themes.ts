@@ -150,6 +150,16 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * nuevo—, pero no puede compartir objeto con `cromo` por la restricción de `touches:` medida contra
  * `cromo-tematizable.test.ts`, ver el docstring de `NavTratamientoContent` en
  * `site-content-defaults.ts`). CORTE es hoy el ÚNICO preset que lo declara.
+ *
+ * `navWordmarkActivo` (§ CORTE-LOGO-APILADO-1, OPCIONAL) — ¿el wordmark apilado del nav (rama
+ * `subtitle` de `Logo.tsx`, ya encendida por `navSubtitulo`) calza el `.wordmark`/`.wordmark small`
+ * del prototipo (nombre en mayúscula+tracking+tamaño mayor, sub en la sans del cuerpo muted sin
+ * itálica)? AUSENTE = el comportamiento de HOY, byte a byte (nombre sin mayúscula a 22px, sub
+ * `font-display` itálico `--sf-tostado-5`). Escribe `content.navWordmark.activo`
+ * (`NavWordmarkContent`, meta PROPIA — NO es el mismo eje que `navTratamientoActivo`: aquél trata los
+ * LINKS del nav (`.nav-link`), éste el WORDMARK (`.wordmark`), dos elementos del prototipo con sus
+ * propios valores medidos — ver el docstring de `NavWordmarkContent` en `site-content-defaults.ts`).
+ * CORTE es hoy el ÚNICO preset que lo declara.
  */
 export interface PresetTema {
   clave: string;
@@ -173,6 +183,7 @@ export interface PresetTema {
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
   navTratamientoActivo?: boolean;
+  navWordmarkActivo?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -293,6 +304,9 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, el tratamiento tipográfico de los links del nav,
  * reemplazado entero por la misma razón — META PROPIA, aparte de `cromo`/`volverArriba`/
  * `rielSocial`, ver el docstring de `NavTratamientoContent`),
+ * `navWordmark` (§ CORTE-LOGO-APILADO-1, el tratamiento tipográfico del wordmark apilado del nav,
+ * reemplazado entero por la misma razón — META PROPIA, aparte de `cromo`/`volverArriba`/
+ * `rielSocial`/`navTratamiento`, ver el docstring de `NavWordmarkContent`),
  * `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
  * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
  * que esa sección ya tuviera (`{ ...prev, variante }`) — y, SÓLO cuando la variante resultante de
@@ -360,6 +374,12 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // de este slice).
   out.navTratamiento = {
     activo: preset.navTratamientoActivo ?? false,
+  };
+  // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
+  // `rielSocial` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para el porqué (no es
+  // el mismo eje que `navTratamiento`: aquél trata los links del nav, éste el wordmark apilado).
+  out.navWordmark = {
+    activo: preset.navWordmarkActivo ?? false,
   };
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
@@ -684,6 +704,18 @@ export const CORTE: PresetTema = {
   // conserva. CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
   // `content.navTratamiento`.
   navTratamientoActivo: true,
+  // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
+  // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
+  // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,
+  // `text-transform:uppercase`; `.wordmark small` (`app.css:206-207`) declara
+  // `font-family:var(--font-ui)` (la sans del par — `font-inter` acá, NO `font-display`),
+  // `font-size:11px` (ya cubierto por el `text-[11px]` de HOY, sin cambio),
+  // `letter-spacing:var(--tracking-eyebrow)` (= `.11em`, `tokens.css:127`), `color:var(--text-on-
+  // inverse-muted)`, `margin-top:4px`, `font-weight:var(--weight-regular)` (400) — SIN itálica. El
+  // apilado (nombre+sub) YA EXISTE (rama `subtitle` de `Logo.tsx`, encendida por `navSubtitulo`
+  // arriba, § CROMO-NAV-FOOTER-TEMATIZABLE-1); este eje sólo cambia el ESTILO de esa rama. CORTE es
+  // hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan `content.navWordmark`.
+  navWordmarkActivo: true,
 };
 
 export const PATIO: PresetTema = {

@@ -646,6 +646,33 @@ export interface NavTratamientoContent {
   activo: boolean;
 }
 
+// META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
+// `NavTratamientoContent` (arriba): AUSENTE/`false` = el comportamiento de HOY, byte a byte. NO se
+// fusiona con `NavTratamientoContent` a pesar de sonar a la misma familia ("tratamiento del nav"):
+// `NavTratamientoContent.activo` es un eje NARROW, ya CERRADO y afirmado por
+// `cromo-nav-tratamiento.test.ts` (FUERA de `touches:` de este slice) como "¿los LINKS del nav llevan
+// mayúscula+tracking+peso?" — un elemento del DOM distinto (`.nav-link`), con sus PROPIOS valores
+// medidos (`.06em`, sans del par). El wordmark apilado (`.wordmark`/`.wordmark small` del prototipo,
+// `docs/prototipos/cafeone/css/app.css:199-207`) es OTRO elemento con SUS PROPIOS valores medidos
+// (`.01em` en el nombre, `.11em` en el sub, el sub en SANS sin itálica) — reusar `activo` de
+// `NavTratamientoContent` para las dos cosas habría hecho que un preset futuro que quisiera SÓLO uno
+// de los dos ejes no pudiera, y habría obligado a re-redactar el docstring/test ya cerrados de ESE
+// eje para que dijeran algo que no midieron. Meta NUEVA y PROPIA, no un 2º campo de `navTratamiento`.
+export interface NavWordmarkContent {
+  // ¿El wordmark apilado del nav (nombre + sub-encabezado, rama `subtitle` de `Logo.tsx` — el apilado
+  // YA EXISTE, gateado por `cromo.navSubtitulo`; esto es sólo el ESTILO) calza el `.wordmark`/
+  // `.wordmark small` del prototipo? MEDIDO contra `docs/prototipos/cafeone/css/app.css:199-207`: el
+  // NOMBRE gana mayúscula + `letter-spacing:.01em` + tamaño mayor (30px, el prototipo), en la MISMA
+  // fuente de título (serif) que ya usa; el SUB pasa de `font-display` itálico `--sf-tostado-5` a la
+  // SANS del cuerpo (`.font-inter`, = `--font-ui` del prototipo), muted, `letter-spacing:.11em`
+  // (`--tracking-eyebrow`), `margin-top:4px`, peso regular, SIN itálica. `false` = HOY: el nombre va
+  // `font-display text-[22px]` sin mayúscula ni tracking, y el sub `font-display text-[11px] italic
+  // text-[var(--sf-tostado-5)]` — byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo
+  // escribe, con `preset.navWordmarkActivo`; de los 6 presets del catálogo, sólo CORTE lo declara
+  // `true`.
+  activo: boolean;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
@@ -667,6 +694,7 @@ export interface SiteContentData {
   volverArriba: VolverArribaContent;
   rielSocial: RielSocialContent;
   navTratamiento: NavTratamientoContent;
+  navWordmark: NavWordmarkContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -1076,6 +1104,12 @@ export const DEFAULTS: SiteContentData = {
   navTratamiento: {
     activo: false,
   },
+  // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
+  // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
+  // `mergePresetEnContent`.
+  navWordmark: {
+    activo: false,
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -1181,10 +1215,10 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `navTratamiento`, `esquemas`, `orden` y `variantesBandas`, que no
-// son secciones). El REGISTRY las cubre a todas; las nueve metas quedan fuera a propósito —cada una
-// se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `esquemas`, `orden` y
+// `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas; las diez metas quedan
+// fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'navWordmark' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -1658,6 +1692,11 @@ export function resolverSiteContent(
   // CERRADO propio, 1 clave) por el motivo del docstring de `NavTratamientoContent` — no comparte
   // contrato con ninguna de las tres.
   out.navTratamiento = resolverNavTratamiento(raw.navTratamiento, defaultsBase.navTratamiento);
+  // TRATAMIENTO DEL WORDMARK APILADO (meta, no sección, § CORTE-LOGO-APILADO-1): ¿el nombre+sub del
+  // wordmark apilado del nav calzan el `.wordmark`/`.wordmark small` del prototipo?, resuelto aparte
+  // de `cromo`/`volverArriba`/`rielSocial`/`navTratamiento` (dominio CERRADO propio, 1 clave) por el
+  // motivo del docstring de `NavWordmarkContent` — no comparte contrato con ninguna de las cuatro.
+  out.navWordmark = resolverNavWordmark(raw.navWordmark, defaultsBase.navWordmark);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -1781,6 +1820,19 @@ export function resolverRielSocial(stored: unknown, defaults: unknown): RielSoci
 // `NavTratamientoContent` para el porqué de que no comparta objeto con `cromo`, `volverArriba` ni
 // `rielSocial`.
 export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavTratamientoContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const sv = st['activo'];
+  if (typeof sv === 'boolean') return { activo: sv };
+  const dv = def['activo'];
+  return { activo: typeof dv === 'boolean' ? dv : false };
+}
+
+// Resuelve el TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1), gemelo de
+// `resolverNavTratamiento` en FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el
+// docstring de `NavWordmarkContent` para el porqué de que no comparta objeto con `cromo`,
+// `volverArriba`, `rielSocial` ni `navTratamiento`.
+export function resolverNavWordmark(stored: unknown, defaults: unknown): NavWordmarkContent {
   const st = esObj(stored) ? stored : {};
   const def = esObj(defaults) ? defaults : {};
   const sv = st['activo'];

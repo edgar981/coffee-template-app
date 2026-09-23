@@ -21,6 +21,10 @@
 //   <Logo nombre={settings.nombre} subtitle={settings.tagline} conMark={…} />          — nav con
 //     sub-encabezado (§ CROMO-NAV-FOOTER-TEMATIZABLE-1, opt-in por `content.cromo.navSubtitulo`,
 //     lo decide el CONSUMIDOR — Logo no gatea nada, sólo pinta si `subtitle` llega)
+//   <Logo nombre={…} subtitle={…} wordmarkTratado={content.navWordmark.activo} />      — nav con el
+//     ESTILO del `.wordmark`/`.wordmark small` del prototipo (§ CORTE-LOGO-APILADO-1, opt-in por
+//     `content.navWordmark.activo` — sólo ajusta la rama `subtitle`, ya apilada; NO toca `stacked`
+//     (el footer), que sigue exactamente igual)
 
 import { cn } from "@duna/core/utils";
 
@@ -72,9 +76,14 @@ type LogoProps = {
       consumidores pasan `STOREFRONT_TIENE_MARK`. Sin mark, el lockup es sólo el wordmark, sin hueco
       (el `gap` de flex sólo separa ENTRE hijos → con un solo hijo no deja espacio de sobra). */
   conMark?: boolean;
+  /** ¿El wordmark apilado (rama `subtitle`, abajo) calza el `.wordmark`/`.wordmark small` del
+      prototipo? OPT-IN por preset (§ CORTE-LOGO-APILADO-1): DEFAULT false = el ESTILO de HOY, byte a
+      byte. Los consumidores pasan `content.navWordmark.activo`. Sólo afecta la rama `subtitle`; NO
+      toca `stacked` (el footer). */
+  wordmarkTratado?: boolean;
 };
 
-export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false }: LogoProps) {
+export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false }: LogoProps) {
   // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
   // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
   // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
@@ -100,13 +109,31 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   // exhibe el footer en `stacked` — sólo agrega DÓNDE se puede ver, no un mecanismo nuevo. AUSENTE
   // (todo tenant salvo el que declare el eje, § StoreNav) → la rama de abajo es BYTE-IDÉNTICA al
   // `<span>` único de siempre, sin el `<span>` envolvente extra.
+  //
+  // `wordmarkTratado` (§ CORTE-LOGO-APILADO-1) calza el `.wordmark`/`.wordmark small` del prototipo:
+  // el NOMBRE gana mayúscula + tracking `.01em` + 30px (el tamaño medido del prototipo, en vez del
+  // `text-[22px]` de HOY); el SUB pasa de `font-display` itálico `--sf-tostado-5` a la sans del
+  // cuerpo (`.font-inter` = `--font-ui`), tracking `.11em` (`--tracking-eyebrow`), `mt-1` (4px,
+  // antes `mt-0.5`), peso regular, SIN itálica. El color del sub reusa el MISMO token ya resuelto
+  // para el nombre (`wordmark`, arriba — ya garantiza el contraste correcto por `variant`) atenuado
+  // al 60%: el "muted" del `.wordmark small` (`--text-on-inverse-muted`) sin inventar un token
+  // nuevo. `false` (todo tenant salvo CORTE) → la rama de abajo es BYTE-IDÉNTICA a la de siempre.
   if (subtitle) {
     return (
       <div className={cn("flex items-center gap-2.5", className)}>
         {conMark && <LogoMark className="h-7 w-7" cherry={cherry} />}
         <span className="flex flex-col leading-none">
-          <span className={cn("font-display text-[22px] leading-none", wordmark)}>{nombre}</span>
-          <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+          <span className={cn(
+            wordmarkTratado
+              ? "font-display uppercase tracking-[0.01em] text-[30px] leading-none"
+              : "font-display text-[22px] leading-none",
+            wordmark,
+          )}>{nombre}</span>
+          <span className={
+            wordmarkTratado
+              ? cn("mt-1 font-inter font-normal tracking-[0.11em] text-[11px]", `${wordmark}/60`)
+              : "mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]"
+          }>{subtitle}</span>
         </span>
       </div>
     );

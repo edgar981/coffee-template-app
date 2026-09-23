@@ -14404,3 +14404,113 @@ CORTE ve (el nav pasa de sólido-siempre a transparente-sobre-el-hero) — falla
 "customer-bytes" de la política A. La aprobación del owner (`approved-by: owner`, en el spec) cubre
 la ESCRITURA de este diff, no el merge — el merge lo hace el orquestador tras su propia
 re-clasificación, como dicta el protocolo.
+
+## 2026-09-23 — El wordmark apilado del nav calza el ESTILO del `.wordmark`/`.wordmark small` del prototipo, en su PROPIA meta — NO reusando `navTratamiento` (`CORTE-LOGO-APILADO-1`)
+
+Eslabón (b) de los seis que salieron de `CROMO-GLOBAL-CENSO-1`. El APILADO del wordmark (nombre +
+sub-encabezado, rama `subtitle` de `Logo.tsx`) YA EXISTÍA —`cromo.navSubtitulo`, § CROMO-NAV-FOOTER-
+TEMATIZABLE-1, lo enciende— así que el trabajo de este slice no fue montarlo: fue su ESTILO, que
+hoy no calza el `.wordmark`/`.wordmark small` del prototipo.
+
+### Qué se midió, contra el prototipo
+
+`docs/prototipos/cafeone/css/app.css:199-207`:
+
+```
+.wordmark{
+  font-family:var(--font-display);font-size:30px;font-weight:var(--weight-medium);
+  letter-spacing:.01em;text-transform:uppercase;text-decoration:none;
+  color:var(--text-on-inverse);line-height:1;white-space:nowrap;…
+}
+.wordmark small{display:block;font-size:11px;font-family:var(--font-ui);
+  letter-spacing:var(--tracking-eyebrow);color:var(--text-on-inverse-muted);
+  margin-top:4px;font-weight:var(--weight-regular)}
+```
+
+`--font-display` es la MISMA serif del par (sin cambio); `--font-ui` es la SANS del cuerpo
+(`--font-inter` acá); `--tracking-eyebrow:.11em` (`tokens.css:127`); `--weight-regular:400`. Contra
+el código de HOY (`Logo.tsx`, rama `subtitle`): el nombre iba `font-display text-[22px]` SIN
+mayúscula ni tracking; el sub iba `font-display text-[11px] italic text-[var(--sf-tostado-5)]` — un
+color HORNEADO fijo, la fuente de TÍTULO (no la sans) y en ITÁLICA, exactamente lo contrario de lo
+que el prototipo pide.
+
+### La decisión de MODELO: meta PROPIA (`content.navWordmark`), NO un 2º eje de `navTratamiento`
+
+El spec autorizaba reusar `navTratamiento.activo` "si encaja". Medido contra su propio contrato: NO
+encaja. `NavTratamientoContent.activo` es un eje ya CERRADO y afirmado por
+`cromo-nav-tratamiento.test.ts` (FUERA de `touches:` de este slice) como "¿los LINKS del nav
+(`.nav-link`) llevan mayúscula + `.06em` + peso, sobre la sans del par?" — un elemento del DOM
+DISTINTO (`.nav-link`, no `.wordmark`), con SUS PROPIOS valores medidos (`.06em`, no `.01em`/`.11em`;
+sin cambio de familia en ninguno de los dos textos, mientras que acá el SUB sí cambia de familia,
+serif→sans). Reusar el mismo booleano para las dos cosas habría atado, para SIEMPRE, el tratamiento
+de los links al del wordmark — un preset futuro que quisiera sólo uno de los dos no podría — y habría
+dejado el docstring/test ya cerrados de `NavTratamientoContent` describiendo un eje que ahora hace
+más de lo que dice medir.
+
+La salida es la MISMA forma que los cuatro eslabones anteriores de esta cadena
+(`volverArriba`/`rielSocial`/`navTratamiento`): una meta NUEVA y PROPIA —`NavWordmarkContent`
+(`{ activo: boolean }`), `content.navWordmark`, `resolverNavWordmark` (gemelo de
+`resolverNavTratamiento` en forma, SOFT, dominio cerrado de 1 clave), `navWordmarkEditableSchema`
+(gemelo de `navTratamientoEditableSchema`), y `PresetTema.navWordmarkActivo` escribiendo
+`out.navWordmark` en `mergePresetEnContent` — REEMPLAZADO ENTERO, mismo criterio que
+`cromo`/`volverArriba`/`rielSocial`/`navTratamiento`. `SeccionKey` sumó `'navWordmark'` a su
+exclusión (diez metas, no nueve). CORTE es hoy el único preset que declara `navWordmarkActivo:true`.
+
+### El componente: `Logo` gana `wordmarkTratado`, sólo toca la rama `subtitle`
+
+`components/storefront/Logo.tsx` gana la prop opcional `wordmarkTratado` (default `false`). Sólo
+ajusta el interior de la rama `if (subtitle)` — la ÚNICA rama apilada del nav; la rama `stacked`
+(el footer) NO se toca, ni de forma ni de estilo, y quedó afirmado por render:
+
+- **Nombre**, tratado: `font-display uppercase tracking-[0.01em] text-[30px] leading-none` + el
+  MISMO color que ya resolvía `variant` (sin tocar esa lógica de contraste).
+- **Sub**, tratado: `font-inter font-normal tracking-[0.11em] text-[11px] mt-1` + el color del
+  nombre ATENUADO al 60% (`${wordmark}/60`) — el "muted" del `--text-on-inverse-muted` del
+  prototipo, SIN inventar un token nuevo (el repo no tiene un `--sf-sobre-tinta-suave`; la opacidad
+  vía `/NN` es el patrón ya establecido en todo el storefront para "muted sobre banda oscura",
+  `StoreFooter.tsx`/`StoreNav.tsx`, `text-[var(--sf-sobre)]/50`/`/60`/`/80`).
+- `false` (todo tenant salvo CORTE, y el `Logo` SIN `subtitle`/con `stacked`): la rama produce el
+  MISMO HTML de siempre — confirmado por `renderToStaticMarkup`, no supuesto.
+
+`StoreNav.tsx` pasa `wordmarkTratado={content.navWordmark.activo}` al `logoLink`, junto al
+`navSubtitulo` ya existente — dos props independientes del mismo componente, uno decide SI hay
+sub-encabezado, el otro CÓMO se ve.
+
+### El gate
+
+**Test** (`lib/config/corte-logo-apilado.test.ts`, 21 casos, capa 1, nuevo): `resolverNavWordmark`
+(4 casos, gemelos de `resolverNavTratamiento`); `DEFAULTS`/`resolverSiteContent({})` byte-idénticos
+sin fila; el catálogo (CORTE declara `true`, los otros 5 NO declaran — ausente, no `false`);
+`validarPreset(CORTE)` sigue `[]`; `mergePresetEnContent` (CORTE escribe `activo:true`, los otros 5
+escriben el HOY byte-idéntico); el mirador (`contenidoConPresetDeVista`); `siteContentEditableSchema`
+(parse válido/rechazo de tipo/ausente); y SEIS render tests con `renderToStaticMarkup` que miden el
+HTML real de `Logo` — sin tratamiento (byte-idéntico, cadena exacta), con tratamiento en
+`variant="light"` (cadena exacta), con tratamiento en `variant="dark"` (el estado real del nav de
+CORTE — su `navTinta:true` deja al nav SIEMPRE en variant="dark", floating o sólido), sin `subtitle`
+(el flag no tiene rama que tocar), y `stacked` (el footer, sin cambio, cadena exacta).
+
+`npm test`: **1803/1803** (capa 1, sin base — 1782 del commit anterior + 21 de este slice).
+`npm run test:integracion`: **208/208** (capa 2, Postgres efímero, sin cambio — este slice no toca
+ningún camino de escritura). `npm run gate` completo: verde, una sola corrida sobre el árbol final.
+`npx tsc --noEmit`: limpio.
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `lib/config/themes.ts` (`PresetTema.navWordmarkActivo`, el bloque `out.navWordmark` en
+`mergePresetEnContent`, `CORTE.navWordmarkActivo: true`), `lib/config/site-content-defaults.ts`
+(`NavWordmarkContent`, `SiteContentData.navWordmark`, `SeccionKey` ampliado a diez metas,
+`DEFAULTS.navWordmark`, `resolverNavWordmark`, el `out.navWordmark` de `resolverSiteContent`),
+`lib/config/site-content-schema.ts` (`navWordmarkEditableSchema`, sumado a
+`siteContentEditableSchema`), `components/storefront/Logo.tsx` (`wordmarkTratado`, sólo la rama
+`subtitle`), `components/storefront/layout/StoreNav.tsx` (el pass-through
+`wordmarkTratado={content.navWordmark.activo}` al `logoLink`), `lib/config/corte-logo-apilado.test.ts`
+(nuevo), este asiento. `cromo`/`CromoContent`/`cromoEditableSchema`/`cromo-tematizable.test.ts`,
+`volverArriba`/`rielSocial` y sus tests, y `navTratamiento`/`NavTratamientoContent`/
+`navTratamientoEditableSchema`/`cromo-nav-tratamiento.test.ts` **NO se tocaron** — la decisión de
+arriba existe precisamente para que no hiciera falta. La rama `stacked` de `Logo.tsx` (el footer)
+**NO se tocó** (§ arriba, verificado por render).
+
+**AWAITING_APPROVAL, no merge:** el cambio altera bytes que el visitante de un storefront con preset
+CORTE ve (el wordmark del nav cambia de forma visual). La aprobación del owner (`approved-by:
+owner`, en el spec) cubre la ESCRITURA de este diff, no el merge — el merge lo hace el orquestador
+tras su propia re-clasificación, como dicta el protocolo.
