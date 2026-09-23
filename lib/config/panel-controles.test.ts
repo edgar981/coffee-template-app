@@ -85,11 +85,15 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // construcción ya no incluye estos dos. Su reemplazo específico —que el mecanismo de atenuación
 // funciona— vive en `lib/config/panel-hero-toggles.test.ts`.
 
-test('calibración: SIN exenciones, el chequeo marca el badge del menú', () => {
-  const huecos = huecosDelPanel({ conExenciones: false });
-  assert.ok(huecos.includes('menu.badgeItem'));
-  assert.ok(huecos.includes('menu.badgeTexto'));
-});
+// CERRADO por PANEL-EDITOR-MENU-BADGE-1: este test afirmaba que SIN exenciones el chequeo marcaba
+// `menu.badgeItem`/`badgeTexto` como huecos — la calibración original que motivó su entrada en
+// `PENDIENTE_PANEL`. Ese slice les dio control (`CONTROLADOS_MENU_SECCION`, § panel-controles.ts —
+// el select del ítem con badge + su texto, atenuado sin ítem elegido, en `MenuSeccion.tsx`), así que
+// hoy están CONTROLADOS y la aserción de arriba sería FALSA — no un defecto del chequeo, es el
+// chequeo funcionando: el hueco que medía ya no existe. Misma familia que los dos CERRADO de arriba.
+// La calibración GENERAL sigue viva en "marca EXACTAMENTE el conjunto de PENDIENTE_PANEL", que por
+// construcción ya no incluye estos dos. Su reemplazo específico —que el control persiste de verdad—
+// vive en `tests/integracion/menu-badge.test.ts`.
 
 // AJUSTADO por PANEL-EDITOR-ENCABEZADO-1: el título decía "las cuatro metas de chrome" cuando eran
 // `volverArriba.visible`/`rielSocial.visible`/`navTratamiento.activo`/`navWordmark.activo`. Ese

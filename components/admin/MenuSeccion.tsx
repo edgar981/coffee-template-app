@@ -149,6 +149,7 @@ export default function MenuSeccion() {
   const ctaDestinoPresente = (MENU_CTA_DESTINOS as readonly string[]).includes(form.ctaDestino);
   const ctaCompleto = ctaLabelPresente && ctaDestinoPresente;
   const ctaAMedias = ctaLabelPresente !== ctaDestinoPresente; // uno presente sin el otro
+  const badgeTextoAtenuado = (form.badgeItem ?? '') === ''; // sin ítem elegido, el texto no se muestra
 
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
@@ -286,6 +287,37 @@ export default function MenuSeccion() {
                   ⚠ Falta {ctaLabelPresente ? 'el destino' : 'el texto'} — el botón no se muestra hasta completar los dos.
                 </p>
               )}
+            </div>
+
+            {/* EL BADGE (§ CORTE-BADGE-COSECHA-EN-MENU-1) — qué ítem lo lleva y su texto. `badgeItem`
+                es del SET CERRADO `MENU_ITEM_IDS` + "Ninguno" (`''`, el default byte-idéntico: sin
+                badge); `badgeTexto` es texto libre. Sin ítem elegido, el texto no hace nada —se
+                muestra ATENUADO (mismo tratamiento visual que un campo gateado por un interruptor
+                apagado, § gatePorCampo/campoAtenuado en tienda-secciones.ts), el dato se conserva
+                editable para cuando se elija un ítem. */}
+            <div className="duna-field">
+              <label className="duna-field__label" htmlFor="menu-badge-item">Ítem con badge (opcional)</label>
+              <select
+                id="menu-badge-item" className="duna-input duna-select"
+                value={form.badgeItem ?? ''}
+                onChange={(e) => cambiar({ badgeItem: e.target.value })}
+              >
+                <option value="">Ninguno</option>
+                {MENU_ITEM_IDS.map((id) => <option key={id} value={id}>{etiquetaOpcionMenu(form, id)}</option>)}
+              </select>
+              <p className="duna-field__hint">Ninguno: no se muestra ningún badge.</p>
+            </div>
+            <div className="duna-field" style={badgeTextoAtenuado ? { opacity: 0.6 } : undefined}>
+              <label className="duna-field__label" htmlFor="menu-badge-texto">Texto del badge</label>
+              <input
+                id="menu-badge-texto" className="duna-input"
+                value={form.badgeTexto ?? ''}
+                onChange={(e) => cambiar({ badgeTexto: e.target.value })}
+                placeholder="Ej. Cosecha 2026"
+              />
+              <p className="duna-field__hint">
+                {badgeTextoAtenuado ? 'Elige un ítem arriba para que este texto se muestre.' : 'Vacío: no se muestra ningún badge.'}
+              </p>
             </div>
           </div>
         </div>

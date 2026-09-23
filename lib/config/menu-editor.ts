@@ -27,9 +27,11 @@ export const CAMPO_LABEL_MENU: Record<MenuItemId, CampoLabelMenu> = {
   nosotros: 'labelNosotros',
 };
 
-/** La etiqueta de una OPCIÓN de posición en el editor: el label EN VIVO que el dueño está
- *  tecleando para ese ítem, o su nombre canónico si aún está vacío — nunca una opción muda (un
- *  `<option>` con texto '' es indistinguible de las otras dos). */
+/** La etiqueta de una OPCIÓN de ítem en el editor: el label EN VIVO que el dueño está tecleando
+ *  para ese ítem, o su nombre canónico si aún está vacío — nunca una opción muda (un `<option>`
+ *  con texto '' es indistinguible de las otras dos). La usan los TRES selects de posición Y el
+ *  select del ítem con badge (§ PANEL-EDITOR-MENU-BADGE-1, `MenuSeccion.tsx`) — misma pregunta
+ *  ("¿cómo se llama este ítem, en vivo?"), dos sitios que la hacen. */
 export function etiquetaOpcionMenu(form: Pick<MenuContent, CampoLabelMenu>, id: MenuItemId): string {
   const v = form[CAMPO_LABEL_MENU[id]].trim();
   return v || ETIQUETA_CANONICA_MENU[id];

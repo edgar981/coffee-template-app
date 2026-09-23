@@ -139,13 +139,15 @@ const CONTROLADOS_GENERICOS: string[] = SECCIONES_TIENDA.flatMap(camposDeSeccion
 
 /** DECLARACIÓN EXPLÍCITA de lo que `MenuSeccion.tsx` controla (`menu` NO pasa por `TiendaSeccionEditor`,
  *  § CROMO-MENU-PANEL-EDITOR-1) — leído de su código: las tres etiquetas (`labelTienda`,
- *  `labelSuscripciones`, `labelNosotros`), las tres posiciones de orden, y el CTA (`ctaLabel`,
- *  `ctaDestino`). NO controla `menu.badgeItem`/`badgeTexto` (§ PENDIENTE_PANEL, abajo). `menu.visible`
- *  no aplica — `REGISTRY.menu.ocultable` es `false`, así que no entra al lado "leído" (§ arriba). */
+ *  `labelSuscripciones`, `labelNosotros`), las tres posiciones de orden, el CTA (`ctaLabel`,
+ *  `ctaDestino`) y el BADGE (`badgeItem`, `badgeTexto` — § PANEL-EDITOR-MENU-BADGE-1: el select del
+ *  ítem con badge + su texto, con `badgeTexto` atenuado sin ítem elegido). `menu.visible` no aplica —
+ *  `REGISTRY.menu.ocultable` es `false`, así que no entra al lado "leído" (§ arriba). */
 const CONTROLADOS_MENU_SECCION = [
   'menu.labelTienda', 'menu.labelSuscripciones', 'menu.labelNosotros',
   'menu.posicion1', 'menu.posicion2', 'menu.posicion3',
   'menu.ctaLabel', 'menu.ctaDestino',
+  'menu.badgeItem', 'menu.badgeTexto',
 ];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `PaletaSeccion.tsx` controla (`tema` no es sección del REGISTRY,
@@ -260,10 +262,9 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   { campo: 'spotlight.productoSlug', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
   { campo: 'spotlight.otroTamanoSlug', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
 
-  // El badge del menú (§ CORTE-BADGE-COSECHA-EN-MENU-1): declarado en REGISTRY.menu.campos (opcional),
-  // MenuSeccion.tsx no lo renderiza — calibración del owner (debe verse sin exención).
-  { campo: 'menu.badgeItem', razon: 'Declarado en REGISTRY.menu.campos; MenuSeccion.tsx no lo renderiza', cierra: 'PANEL-EDITOR-MENU-BADGE-1' },
-  { campo: 'menu.badgeTexto', razon: 'Declarado en REGISTRY.menu.campos; MenuSeccion.tsx no lo renderiza', cierra: 'PANEL-EDITOR-MENU-BADGE-1' },
+  // CERRADO por PANEL-EDITOR-MENU-BADGE-1: `menu.badgeItem`/`badgeTexto` (§ CORTE-BADGE-COSECHA-EN-
+  // MENU-1) ya tienen control en `MenuSeccion.tsx` (§ CONTROLADOS_MENU_SECCION, arriba) — sus dos
+  // entradas de exención se retiraron de acá.
 
   // Los DOS ejes aditivos de tema + la escala de display (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1,
   // TEMAS-ESCALA-DISPLAY-1) — ya documentado en el propio `TemaContent`: "NINGÚN escritor real los
@@ -273,13 +274,15 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   { campo: 'tema.escalaDisplay', razon: 'Sólo mergePresetEnContent lo escribe; sin campo en paletaEditableSchema ni en PaletaSeccion', cierra: 'PANEL-EDITOR-TEMA-EJES-1' },
 
   // CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): `navTinta`/`navSubtitulo` ya tienen control
-  // (`EncabezadoSeccion.tsx`, § PANEL-EDITOR-ENCABEZADO-1 — cierra su entrada acá). `navBadge` queda
-  // DORMIDO, no cerrado por ese slice: el badge de cosecha se mudó al ítem de menú
-  // (§ CORTE-BADGE-COSECHA-EN-MENU-1) y su control real es `menu.badgeItem`/`badgeTexto`
-  // (exentos abajo, cierra PANEL-EDITOR-MENU-BADGE-1) — `cromo.navBadge` no va a tener su PROPIO
-  // editor; queda como campo sin escritor del panel, reenviado tal cual por `EncabezadoSeccion` para
-  // no perderlo en cada guardado (§ el docstring de ese componente).
-  { campo: 'cromo.navBadge', razon: 'Superseded por el badge del ítem de menú (§ CORTE-BADGE-COSECHA-EN-MENU-1) — el control real es menu.badgeItem/badgeTexto; cromo.navBadge queda dormido, sin editor propio, sólo reenviado por EncabezadoSeccion.tsx', cierra: 'PANEL-EDITOR-MENU-BADGE-1' },
+  // (`EncabezadoSeccion.tsx`, § PANEL-EDITOR-ENCABEZADO-1 — cierra su entrada acá). `navBadge` sigue
+  // DORMIDO — el badge de cosecha se mudó al ítem de menú (§ CORTE-BADGE-COSECHA-EN-MENU-1) y su
+  // control real, `menu.badgeItem`/`badgeTexto`, YA ESTÁ CONTROLADO (§ PANEL-EDITOR-MENU-BADGE-1,
+  // CONTROLADOS_MENU_SECCION arriba — ese slice cerró SU par de exenciones, no ésta). `cromo.navBadge`
+  // no va a tener su PROPIO editor: queda como campo sin escritor del panel, reenviado tal cual por
+  // `EncabezadoSeccion` para no perderlo en cada guardado (§ el docstring de ese componente). Su
+  // salida es RETIRARLO del modelo —ya no lo lee ningún render (§ `itemsDeMenu` reemplazó su único
+  // consumidor)—, no darle un editor propio; `cierra` apunta a ese retiro, coined por este slice.
+  { campo: 'cromo.navBadge', razon: 'Dormido: su único consumidor real (el badge del nav) lo reemplazó menu.badgeItem/badgeTexto, ya controlado; cromo.navBadge queda sin editor propio, sólo reenviado por EncabezadoSeccion.tsx', cierra: 'CROMO-NAVBADGE-RETIRO-1' },
 
   // Las DOS metas de chrome que NO entran en este slice (§ PANEL-EDITOR-ENCABEZADO-1, "LOS QUE NO
   // VAN": son "Detalles del sitio", otro slice). `navTratamiento.activo`/`navWordmark.activo` ya

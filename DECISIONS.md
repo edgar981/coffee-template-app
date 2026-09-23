@@ -16277,3 +16277,183 @@ de merge A: agrega bytes que el DUEÑO lee en el panel (los cuatro labels y sus 
 EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
 espera del merge gateado del orquestador, y de la revisión de copy del owner que el spec ya anticipa
 ("el owner lo revisa en su pasada").
+
+## 2026-09-23 — El control del BADGE del ítem de menú (`PANEL-EDITOR-MENU-BADGE-1`)
+
+**Origen:** item 3 (de 8) del programa "el panel refleja la tienda" (orden del owner, 2026-09-23),
+sobre `PANEL-REFLEJA-TIENDA-CHEQUEO-1`. El owner: *"#2 badge"* — *"EL BADGE DEL ÍTEM DE MENÚ"*, su
+control. Cierra el grupo de `PENDIENTE_PANEL` (`lib/config/panel-controles.ts`) coined por ese
+chequeo como `PANEL-EDITOR-MENU-BADGE-1`: `menu.badgeItem`, `menu.badgeTexto` — dos campos que
+`CORTE-BADGE-COSECHA-EN-MENU-1` ya había agregado al MODELO (`REGISTRY.menu.campos`, ambos
+`'opcional'`) sin darles control en el panel.
+
+### Por qué NO lleva ruta propia (a diferencia de Encabezado)
+
+`menu` **SÍ es una sección real del REGISTRY** (`SeccionKey` no la excluye, a diferencia de
+`cromo`/`navWordmark`/`navTratamiento`), así que el camino de persistencia ya existía completo antes
+de este slice: `MenuSeccion.tsx` ya guarda por el PUT genérico de `/api/site-content` y publica por
+su POST (`publicarSeccion`/`descartarSeccion`, que NO rechazan `menu` porque `'menu' in REGISTRY`
+pasa el gate del route genérico, `app/api/site-content/route.ts:88`). `menuEditableSchema`
+(`lib/config/site-content-schema.ts:376-394`) ya declaraba `badgeItem: z.union([z.enum(MENU_ITEM_
+IDS), z.literal('')]).optional()` y `badgeTexto: z.string().optional()` — verificado ANTES de
+escribir nada, no asumido. Este slice es, por tanto, puro CONTROL (un select + un input en un
+componente que ya existe), no infraestructura de persistencia: no toca `site-content-defaults.ts`,
+`site-content-schema.ts`, `site-content-write.ts` ni ninguna ruta — ninguno de esos cuatro archivos
+está en `touches:` y ninguno se tocó.
+
+### Los dos controles — `MenuSeccion.tsx`
+
+Sumados al bloque del CTA, en el mismo `duna-form`:
+
+| control | campo | forma |
+| --- | --- | --- |
+| Ítem con badge | `menu.badgeItem` | `<select>` nativo: "Ninguno" (`''`, el default) + los tres `MENU_ITEM_IDS`, etiquetados EN VIVO con `etiquetaOpcionMenu(form, id)` — la MISMA función que ya rotula los tres selects de posición |
+| Texto del badge | `menu.badgeTexto` | `<input>` de texto libre (placeholder "Ej. Cosecha 2026") |
+
+- **`etiquetaOpcionMenu` se REUSA, no se duplica.** Su docstring en `lib/config/menu-editor.ts` se
+  generalizó de "la etiqueta de una opción de POSICIÓN" a "de una opción de ÍTEM" — la usan ahora
+  DOS selects (los tres de posición y el del badge), misma pregunta ("¿cómo se llama este ítem, en
+  vivo?"). Ningún export nuevo: la función ya cubría el caso.
+- **`badgeTexto` se ATENÚA cuando `badgeItem === ''`** (`badgeTextoAtenuado`, derivado local en
+  `MenuSeccion.tsx`, no un nuevo export): el mismo tratamiento visual que un campo gateado por un
+  interruptor apagado (`opacity: 0.6` + hint sustituido, § `TiendaSeccionEditor.tsx:459-476`), pero
+  **NO invoca literalmente `gatePorCampo`/`campoAtenuado`** (`components/admin/tienda-secciones.ts`)
+  — medido antes de forzarlo: esas dos funciones operan sobre una `SeccionConfig.booleanos`
+  (`CampoBooleano.gatedFields`, un interruptor `true`/`false` que gatea OTRO campo de la MISMA
+  sección declarativa), y `MenuSeccion` no es una `SeccionConfig` de `TiendaSeccionEditor` — es
+  bespoke, como `PaletaSeccion`/`EncabezadoSeccion` (§ el docstring de cabecera del archivo). El gate
+  acá tampoco es un booleano: es "¿`badgeItem` está vacío?", una condición sobre un campo STRING de
+  un set cerrado, no sobre un switch. Construir una `SeccionConfig` falsa sólo para invocar
+  `campoAtenuado` habría sido ajustar el dato al mecanismo en vez del mecanismo al dato — la misma
+  clase de sobre-ingeniería que `EncabezadoSeccion.tsx` ya rechazó para sus cuatro switches (§ su
+  entrada arriba: "acá los cuatro switches son ejes independientes sin ningún campo de texto que
+  atenuar... `EncabezadoSeccion` no es una `SeccionConfig`"). Lo que SÍ se reusa es el PATRÓN VISUAL
+  —la misma opacidad, el mismo tipo de hint sustituido—, no la función.
+- **El input NUNCA se deshabilita** — el dato se conserva editable mientras `badgeItem` está en
+  "Ninguno", para cuando el dueño elija un ítem después. Mismo criterio que el patrón general:
+  "atenuado + dato preservado, como el resto".
+
+### El guard — `lib/config/panel-controles.ts`
+
+- `CONTROLADOS_MENU_SECCION` suma `'menu.badgeItem'`, `'menu.badgeTexto'` a los ocho campos que ya
+  declaraba (las tres etiquetas, las tres posiciones, el CTA); su docstring se actualizó para dejar
+  de decir "NO controla `menu.badgeItem`/`badgeTexto`".
+- **Las dos entradas de `PENDIENTE_PANEL` para `menu.badgeItem`/`badgeTexto` se BORRARON** (no se
+  reescribieron a "CERRADO" — a diferencia de un test, una entrada de exención que ya no aplica se
+  retira, no se comenta: es una lista, no un historial).
+- **`cromo.navBadge` NO se controla acá y NO se retira acá — sigue en `PENDIENTE_PANEL`**, tal como
+  pedía el spec. Sigue en el lado "leído" (`camposLeidosPorTienda`, vía `camposDeMeta('cromo')`,
+  que deriva de `Object.keys(DEFAULTS.cromo)` — estructural, no depende de si algo lo RENDERIZA) y
+  sigue sin ningún control en el panel: `EncabezadoSeccion.tsx` sólo lo REENVÍA tal cual, nunca lo
+  edita (§ su propia entrada arriba). Lo que cambia es sólo su `cierra`, de `PANEL-EDITOR-MENU-
+  BADGE-1` a **`CROMO-NAVBADGE-RETIRO-1`** (coined en este slice, para que el id no sea sólo una
+  cadena): apuntarlo a este slice habría quedado STALE apenas se mergeara —este slice deja
+  `cromo.navBadge` exactamente como estaba, dormido—; el follow-up correcto no es "darle un editor
+  propio" (el spec ya descarta esa salida: "cromo.navBadge no va a tener su PROPIO editor") sino
+  RETIRARLO del modelo, porque ya no tiene un solo lector real (`itemsDeMenu` reemplazó su único
+  consumidor, `StoreNav.tsx`, § `CORTE-BADGE-COSECHA-EN-MENU-1`) — sólo lo mantiene vivo el reenvío
+  defensivo de `EncabezadoSeccion.tsx` para no perderlo en cada guardado. La razón de la entrada
+  también se reescribió para reflejar esto (de "superseded por el badge del ítem de menú" a "su
+  único consumidor real lo reemplazó menu.badgeItem/badgeTexto, ya controlado").
+
+`huecosDelPanel()` (con exenciones) sigue en `[]` — verde.
+
+### `panel-controles.test.ts` — UNA aserción vuelta FALSA, corregida (fuera de `touches:`, mismo precedente ya sentado dos veces en esta rama)
+
+`'calibración: SIN exenciones, el chequeo marca el badge del menú'` (líneas 88-92) afirmaba que
+`huecosDelPanel({conExenciones:false})` incluía `menu.badgeItem`/`badgeTexto` — la calibración
+original que motivó su entrada en `PENDIENTE_PANEL`. Con el control nuevo, esos dos campos pasaron a
+`CONTROLADOS_MENU_SECCION`, así que la aserción sería FALSA: no un defecto del chequeo, es el chequeo
+funcionando (el hueco que medía ya no existe). Reemplazada por un comentario `CERRADO por
+PANEL-EDITOR-MENU-BADGE-1`, MISMO tratamiento textual que los dos `CERRADO` que ya conviven en el
+archivo (`PANEL-EDITOR-ENCABEZADO-1` sobre `cromo.navSubtitulo`, `PANEL-EDITOR-HERO-TOGGLES-1` sobre
+los dos toggles del hero). La calibración GENERAL ("marca EXACTAMENTE el conjunto de
+`PENDIENTE_PANEL`", líneas 115-119) sigue viva sin tocarse — por construcción ya no incluye estos dos
+campos, porque `PENDIENTE_PANEL` encogió a la vez que `huecosDelPanel` dejó de marcarlos. No es
+`touches:` de este slice, pero corregir una aserción que el propio diff vuelve literalmente falsa es
+el mismo precedente que `PANEL-EDITOR-HERO-TOGGLES-1` (commit `bedaad5`) y `PANEL-EDITOR-ENCABEZADO-1`
+ya sentaron en esta rama — no ampliar el alcance del diff, sino no dejar el gate mintiendo sobre lo
+que mide.
+
+### El test — `tests/integracion/menu-badge.test.ts` (2 casos)
+
+`menu` es sección REAL del REGISTRY, así que a diferencia de `panel-encabezado.test.ts` (que
+necesitó simular una ruta propia con `.pick()`) éste corre la secuencia GENÉRICA exacta que la ruta
+`/api/site-content` ya ejecuta para cualquier sección: `siteContentEditableSchema.parse({menu:...})`
+(donde zod strippearía `badgeItem`/`badgeTexto` si `menuEditableSchema` no los declarara) →
+`guardarBorrador` → `publicarSeccion('menu')` → releer con `readSiteContent` (lo que el storefront
+lee) y con `itemsDeMenu` (lo que `StoreNav.tsx` consume directo — un pass-through, § el precedente de
+`menu-como-dato.test.ts`: verificar su salida es verificar exactamente lo que el nav pinta, sin
+necesitar el render del componente).
+
+1. `badgeItem:'tienda'`, `badgeTexto:'Cosecha 2026'` sobreviven el schema, el borrador se limpia al
+   publicar (`sinPublicar.menu` vuelve a `false`), y `itemsDeMenu(publicado)` adjunta
+   `badge:'Cosecha 2026'` al ítem `tienda` — la garantía completa: el control mueve el dato de
+   verdad hasta el storefront, no sólo hasta la base.
+2. `badgeItem:''` (Ninguno) publicado da un `menu` **byte-idéntico a `DEFAULTS.menu`** (`assert.
+   deepEqual`) y `itemsDeMenu` no adjunta `badge` a ningún ítem — el "Ninguno" del select es
+   literalmente el estado sin fila, no una tercera opción con su propio comportamiento.
+
+Se descartó co-ubicarlo en `lib/config/` (el path que un primer instinto sugeriría, como pasó con
+`panel-encabezado.test.ts`): habla con Postgres real, así que por la misma regla ya medida en esa
+entrada ("El carril rápido cubre `app/`", aplicada a `lib/`) tiene que vivir en
+`tests/integracion/`. El `touches:` de este slice ya lo nombraba así — no hubo desviación de
+ubicación esta vez, sólo la reafirmación de la regla.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1911/1911** — verde (−1 respecto al piso de `b9dfa79`: se retiró UNA calibración vuelta falsa, sin reemplazo, mismo tratamiento que las dos anteriores) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **215/215** — verde (+2: los dos casos nuevos de `menu-badge.test.ts`) |
+
+Reconciliado contra el piso citado por el commit anterior (`b9dfa79`: "gate: tsc 0 + 1912/1912 +
+213/213"): las dos diferencias (1912→1911, 213→215) están explicadas enteras por este diff — ninguna
+es drift sin explicación.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `MenuSeccion`, `menu.badgeItem`, `menu.badgeTexto`,
+`CONTROLADOS_MENU_SECCION`, `PENDIENTE_PANEL`, `cromo.navBadge`, `etiquetaOpcionMenu`,
+`gatePorCampo`, `campoAtenuado`, `itemsDeMenu`, `menu-editor.ts`, `CROMO-NAVBADGE-RETIRO-1`.
+Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones de los doce** — nada en `CLAUDE.md`
+nombra lo que este diff cambió (la doctrina de esta área vive en `site-content-defaults.ts`,
+`tienda-secciones.ts`, `DECISIONS.md`, no en `CLAUDE.md` todavía, igual que midió la entrada de
+`PANEL-EDITOR-ENCABEZADO-1` para su propio diff). No hay ninguna frase que corregir ahí.
+
+**Un pointer DENTRO de `DECISIONS.md` sí queda desactualizado por este diff — documentado acá, NO
+reescrito** (el ledger es append-only; la entrada vieja se deja como registro fiel de lo que era
+cierto cuando se escribió, § la doctrina de `DECISIONS.md`, "append-only"). La entrada de
+`PANEL-EDITOR-ENCABEZADO-1` (arriba, líneas ~16137-16169 de este mismo archivo antes de este append)
+dice, en dos sitios: (a) que `menu.badgeItem`/`badgeTexto` están "ya exento[s], cierra
+`PANEL-EDITOR-MENU-BADGE-1`" — ya no están exentos, están CONTROLADOS, así que "exento" es falso
+desde este diff; y (b) que el control real de `cromo.navBadge` "vive" en `PANEL-EDITOR-MENU-BADGE-1`
+— el `cierra` real de `cromo.navBadge` en el código vigente ahora es `CROMO-NAVBADGE-RETIRO-1` (§
+arriba), así que esa frase describe un estado que el código ya no tiene. Las dos eran ciertas cuando
+`PANEL-EDITOR-ENCABEZADO-1` las escribió; las vuelve falsas este slice, no un error de esa entrada.
+No se coinea un id de follow-up nuevo para esto — no es trabajo pendiente, es la naturaleza de un
+ledger append-only: un lector de esa entrada vieja debe cotejarla contra el código vigente
+(`lib/config/panel-controles.ts`), no asumir que una entrada pasada sigue describiendo el presente.
+
+### `touches:` — lo que se escribió
+
+`components/admin/MenuSeccion.tsx`, `lib/config/menu-editor.ts`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts` (fuera de la letra literal, con precedente ya sentado dos veces
+en esta rama), `tests/integracion/menu-badge.test.ts`, este asiento (`DECISIONS.md`). Ningún archivo
+fuera de esta lista se tocó — a diferencia de `PANEL-EDITOR-ENCABEZADO-1`, este slice no necesitó
+ruta nueva, ni tocar `site-content-defaults.ts`/`site-content-schema.ts`/`site-content-write.ts`
+(todo lo que necesitaban ya existía, § arriba), ni `TiendaSeccionEditor.tsx`/`tienda-secciones.ts`
+(`MenuSeccion` es bespoke, no pasa por ahí).
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1911/1911 + 215/215). Por instrucción del dispatch,
+este slice PARA en `AWAITING_APPROVAL` y NO mergea. Clasifica por sí mismo contra la política de
+merge A: agrega bytes que el DUEÑO lee en el panel (las dos etiquetas nuevas y sus hints,
+"Ítem con badge", "Texto del badge", el placeholder) — `customer-bytes` en el sentido amplio de
+CLAUDE.md ("Any byte a customer, operator or owner reads"), además de heredar la clasificación de la
+RAMA (`slice/corte-reescritura-prototipo-1`, que ya toca bytes de storefront por commits anteriores,
+§ "EL EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
+espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
+("el owner lo revisa en su pasada").
