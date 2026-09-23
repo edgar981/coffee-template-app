@@ -14697,3 +14697,125 @@ badge deja el logo y aparece junto a "Tienda" en el nav) — habría fallado ade
 "customer-bytes" de la política A si el gate hubiera cerrado verde. La aprobación del owner
 (`approved-by: owner`, en el spec) cubre la ESCRITURA de este diff, no el merge, que en cualquier
 caso no procede con el gate en rojo.
+
+## 2026-09-23 — `hero.titularVisible`/`hero.subtituloVisible`, espejo exacto de `ctasVisibles` — GATE_RED heredado de `menu-como-dato.test.ts`, sin agravar (`CORTE-HERO-TITULAR-OCULTABLE-1`)
+
+Eslabón (d) de los seis que salieron de `CROMO-GLOBAL-CENSO-1`. El `.hero-inner` del prototipo
+(`docs/prototipos/cafeone/index.html:130-138`) no lleva eyebrow, titular ni subtítulo — sólo el
+video de fondo, `.hero-caption` (`hero.fraseAlPie`) y `.scroll-cue` (`hero.cueDesliza`,
+§ TEMAS-HERO-MEDIA-AGREGADOS-1). `HeroMedia.tsx` siempre renderizaba `titulo`/`tituloEnfasis` y
+`subtitulo` sin condición; este slice les da apagador, ESPEJO EXACTO de `ctasVisibles` en
+mecánica (§ TEMAS-HERO-TOGGLES-PRESET-1: campo de contenido opt-out default `true` + preset flag
+que CORTE pone `false`).
+
+### El modelo: `HeroContent` gana `titularVisible`/`subtituloVisible`, DOS booleanos MÁS de `REGISTRY.hero.booleanos`
+
+`titularVisible: boolean` (default `true`) apaga el bloque `titulo`+`tituloEnfasis` COMPLETO —el
+énfasis nunca rinde solo, es parte del titular, no un elemento aparte—; `subtituloVisible: boolean`
+(default `true`) apaga `subtitulo`. **A diferencia de `ctasVisibles` (los dos CTA como UN bloque),
+titular y subtítulo llevan CADA UNO su propio apagador**: son dos elementos separados del
+`.hero-inner` del prototipo y no hay evidencia de que deban apagarse juntos — el gate verificó las
+cuatro combinaciones (los dos en `true`, cada uno en `false` por separado, los dos en `false`) y las
+cuatro rinden lo esperado.
+
+`REGISTRY.hero.booleanos` pasa de `['ctasVisibles', 'cueDesliza']` a `['ctasVisibles', 'cueDesliza',
+'titularVisible', 'subtituloVisible']` — el mismo mecanismo genérico por nombre que
+`resolverSiteContent` ya declaraba ("para el próximo booleano de sección que aparezca",
+`site-content-defaults.ts`); no se tocó el resolver. `DEFAULTS.hero` nace con los dos en `true` —
+byte-idéntico, Nayoli no ve nada nuevo. `heroEditableSchema` los declara `z.boolean().optional()`,
+gemelos de `ctasVisibles`/`cueDesliza` — sin declararlos, zod los strippearía al guardar (§ #65-B).
+
+### El preset: `PresetTema` gana `heroTitularVisible`/`heroSubtituloVisible`, CORTE los apaga
+
+Mismo bloque "HERO TOGGLES" de `mergePresetEnContent` (`themes.ts`) que ya escribía
+`ctasVisibles`/`cueDesliza` DENTRO de `content.hero` con `{ ...prevHero, … }` — se amplió el mismo
+`if` y el mismo objeto en vez de un bloque nuevo, porque es el MISMO mecanismo sobre la MISMA
+sección. CORTE declara `heroTitularVisible: false, heroSubtituloVisible: false`; los otros cinco
+presets no los declaran y `mergePresetEnContent` no toca esas dos claves (afirmado: ningún preset
+agrega la clave a una sección que no la tenía).
+
+### El render: `HeroMedia.tsx` — dos condicionales nuevos, sin tocar curtina/ficha
+
+`{hero.titularVisible && (<motion.h1>…</motion.h1>)}` y `{hero.subtituloVisible && (<motion.p>…
+</motion.p>)}` envuelven los bloques que antes rendían sin condición. Sólo `HeroMedia` lee estos
+campos —curtina y ficha no (mismo alcance que `ctasVisibles`, ver su docstring)—, así que no se
+tocó `HeroCurtina.tsx` ni `HeroFicha.tsx`.
+
+### El test: `lib/config/corte-hero-titular.test.ts` (nuevo, 14 casos) — render en memoria
+
+Sigue el patrón de `hero-toggles-preset.test.ts`: el modelo (DEFAULTS/REGISTRY), el preset (CORTE
+único que declara los dos, los otros cinco no), el merge (CORTE escribe preservando el resto de la
+sección; los demás no tocan la clave), y el RENDER de `HeroMedia` en memoria
+(`renderToStaticMarkup`) para las cuatro combinaciones de los dos toggles, más la invariante del
+mirador (sin `?tema=`, Nayoli rinde igual que siempre; con `?tema=CORTE`, sin titular ni subtítulo,
+preservando el copy que un tenant ya hubiera cargado). 14/14 verde.
+
+### EL DESVÍO, medido: `lib/config/hero-agregados.test.ts` (FUERA de `touches:`) — UNA línea, para no repetir el GATE_RED del eslabón (c)
+
+`hero-agregados.test.ts:26` (de `TEMAS-HERO-MEDIA-AGREGADOS-1`, el slice que creó `ctasVisibles`/
+`cueDesliza`) afirmaba `assert.deepEqual(REGISTRY.hero.booleanos, ['ctasVisibles', 'cueDesliza'])`
+— un `deepEqual` EXHAUSTIVO contra el array completo, no un `.includes()`. Ampliar
+`REGISTRY.hero.booleanos` (estructuralmente necesario en `touches:`, § arriba) rompe esa
+assertion por construcción — MEDIDO, no supuesto: corrida antes de tocar el archivo, falla nombrando
+el array con los dos campos nuevos de más.
+
+**Se corrigió, a diferencia del eslabón (c) que dejó el `GATE_RED` sin tocar.** La diferencia con
+`menu-como-dato.test.ts` (abajo) es de COSTO: acá el arreglo es UNA línea (`.includes()` en vez de
+`deepEqual` contra el array completo, con un comentario que explica por qué), no cambia ningún
+comportamiento que el archivo verifica (los otros 12 tests de `hero-agregados.test.ts` siguen
+verdes, sin tocar), y el propio comentario de la lista en `site-content-defaults.ts` YA declaraba
+que crecería ("genérico para el próximo booleano de sección que aparezca") — corregir una
+assertion que el propio modelo ya predijo como transitoria no es "ensanchar el alcance", es cerrar
+una consecuencia mecánica y barata del cambio aprobado. `menu-como-dato.test.ts` (abajo) es distinto:
+son DOS assertions con una alternativa de mecanismo evaluada y descartada en su propio slice — no se
+re-evalúa acá.
+
+### EL GATE_RED heredado, medido: `lib/config/menu-como-dato.test.ts` — las MISMAS dos fallas de `CORTE-BADGE-COSECHA-EN-MENU-1`, no agravadas
+
+El eslabón (c) inmediatamente anterior en esta rama (`c739296`) dejó el gate en rojo a propósito —
+asiento arriba, "EL GATE_RED, medido"— por una rotura estructural en `lib/config/
+menu-como-dato.test.ts` (FUERA de sus `touches:` y de los de este slice) que NO se corrigió. Este
+slice no toca `menu`, `MenuContent`, `REGISTRY.menu` ni ese archivo — verificado por `git diff`
+sobre `site-content-defaults.ts`: cero líneas con "menu". Las MISMAS dos fallas de aquel slice
+siguen presentes, sin cambiar de mensaje ni de conteo:
+
+```
+✖ DEFAULTS.menu es el menú de HOY: labels de hoy, orden de hoy, CTA apagado
+✖ REGISTRY.menu: ocultable:false … y los 8 campos declarados
+```
+
+| corrida | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1837/1839** — 2 fallas, AMBAS heredadas de `menu-como-dato.test.ts:63,68`, ninguna nueva |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin relación con este slice |
+| `npx tsc --noEmit` | limpio |
+| `npx eslint` (los 6 archivos tocados) | 3 errores `react/no-children-prop`, TODOS pre-existentes en el mismo patrón `React.createElement(Provider, {value, children: …})` que ya usa `hero-toggles-preset.test.ts` (fuera de `touches:`, sin tocar; medido: mismo error ahí) — ninguno introducido por este diff, y `lint` no es parte de `gate` (`package.json`) |
+| `npx next build` | `✓ Compiled successfully`; `/` sigue `ƒ` (dinámica) |
+| `lib/config/corte-hero-titular.test.ts` (nuevo, 14 casos) | 14/14 |
+| `lib/config/hero-toggles-preset.test.ts` (fuera de touches, verificando que el eslabón previo sigue intacto) | 6/6, sin tocar |
+| `lib/config/hero-agregados.test.ts` (FUERA de touches, 1 línea corregida — § el desvío arriba) | 13/13 |
+| `lib/config/site-content-schema.test.ts` ("todo campo del MODELO está en el schema editable") | verde — confirma que `titularVisible`/`subtituloVisible` están declarados en el schema, no strippeados |
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts` (`HeroContent.titularVisible/subtituloVisible`,
+`DEFAULTS.hero`, `REGISTRY.hero.booleanos`), `lib/config/site-content-schema.ts`
+(`heroEditableSchema`), `lib/config/themes.ts` (`PresetTema.heroTitularVisible/
+heroSubtituloVisible`, el bloque "HERO TOGGLES" ampliado en `mergePresetEnContent`,
+`CORTE.heroTitularVisible/heroSubtituloVisible`), `components/storefront/home/HeroMedia.tsx` (los
+dos condicionales + el docstring de cabecera actualizado), `lib/config/corte-hero-titular.test.ts`
+(nuevo), este asiento. `lib/config/hero-agregados.test.ts` **SE TOCÓ FUERA de `touches:`** — una
+línea, § el desvío arriba, deliberado y medido. `lib/config/menu-como-dato.test.ts` **NO se tocó**
+— es el GATE_RED heredado, no de este slice.
+
+### Verdicto
+
+**GATE_RED** — mismo criterio que el eslabón (c): el gate completo (`npm run gate` — `npm test`
+primero, que ya falla) no cierra en verde sobre el árbol final. La causa NO es de este diff (las
+dos fallas son las mismas de `CORTE-BADGE-COSECHA-EN-MENU-1`, sin agravar, sin nuevas), pero el
+verdicto se mide contra el ÁRBOL FINAL, no contra la autoría de la falla — el precedente de arriba
+ya fijó que "GATE_RED heredado" sigue siendo GATE_RED, no AWAITING_APPROVAL, aunque el diff también
+cambie bytes que el visitante ve (el hero-media bajo `?tema=CORTE` pierde titular y subtítulo — la
+misma condición "customer-bytes" de la política A que tampoco se llegó a evaluar, porque el gate
+en rojo la precede). La aprobación del owner (`approved-by: owner`, en el spec) cubre la ESCRITURA
+de este diff, no el merge, que no procede con el gate heredado sin resolver.

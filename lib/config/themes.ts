@@ -128,6 +128,15 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * no una composición), así que ningún preset la siembra — mismo criterio que `mergePresetEnContent`
  * nunca escribe el `titulo`/`lede` de `origen` o el `texto` de `marquesina`.
  *
+ * `heroTitularVisible`/`heroSubtituloVisible` (§ CORTE-HERO-TITULAR-OCULTABLE-1, OPCIONALES) —
+ * ESPEJO EXACTO de `heroCtasVisibles`/`heroCueDesliza` arriba, mismo mecanismo, DOS booleanos MÁS
+ * de `REGISTRY.hero.booleanos` (`titularVisible`/`subtituloVisible`, § TEMAS-HERO-MEDIA-AGREGADOS-1
+ * ampliado). AUSENTE en un preset = el comportamiento de HOY, byte a byte
+ * (`content.hero.titularVisible`/`subtituloVisible` siguen resolviendo a `true`). El `.hero-inner`
+ * del prototipo (`docs/prototipos/cafeone/index.html:130-138`) no lleva eyebrow, titular ni
+ * subtítulo — sólo el video de fondo, `.hero-caption` (`fraseAlPie`) y `.scroll-cue`
+ * (`cueDesliza`) — así que CORTE apaga los dos.
+ *
  * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
  * arriba" (gemelo del `.to-top` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
  * storefront no tiene este chrome, `BackToTop.tsx` rinde `null`). Escribe `content.volverArriba.
@@ -192,6 +201,8 @@ export interface PresetTema {
   bandaMarquesinaVisible?: boolean;
   heroCtasVisibles?: boolean;
   heroCueDesliza?: boolean;
+  heroTitularVisible?: boolean;
+  heroSubtituloVisible?: boolean;
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
   navTratamientoActivo?: boolean;
@@ -461,12 +472,18 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // `{ ...prevHero, … }`. AUSENTE en el preset → no se toca ninguna de las dos claves, y el resolver
   // aplica su propio default (`true`/`false`) — el mismo mecanismo que ya deja `fraseAlPie` (CONTENIDO,
   // nunca escrita por un preset) intacta.
-  if ((typeof preset.heroCtasVisibles === 'boolean' || typeof preset.heroCueDesliza === 'boolean') && registro.hero) {
+  if ((typeof preset.heroCtasVisibles === 'boolean' || typeof preset.heroCueDesliza === 'boolean'
+      || typeof preset.heroTitularVisible === 'boolean' || typeof preset.heroSubtituloVisible === 'boolean')
+      && registro.hero) {
     const prevHero = esObj(out.hero) ? out.hero : {};
     out.hero = {
       ...prevHero,
       ...(typeof preset.heroCtasVisibles === 'boolean' ? { ctasVisibles: preset.heroCtasVisibles } : {}),
       ...(typeof preset.heroCueDesliza === 'boolean' ? { cueDesliza: preset.heroCueDesliza } : {}),
+      // DOS MÁS (§ CORTE-HERO-TITULAR-OCULTABLE-1), mismo mecanismo: escriben SÓLO si el preset los
+      // declara explícitamente.
+      ...(typeof preset.heroTitularVisible === 'boolean' ? { titularVisible: preset.heroTitularVisible } : {}),
+      ...(typeof preset.heroSubtituloVisible === 'boolean' ? { subtituloVisible: preset.heroSubtituloVisible } : {}),
     };
   }
 
@@ -728,6 +745,12 @@ export const CORTE: PresetTema = {
   // `cueDesliza` (§ el test de `hero-toggles-preset.test.ts` que lo afirma).
   heroCtasVisibles: false,
   heroCueDesliza: true,
+  // heroTitularVisible/heroSubtituloVisible (§ CORTE-HERO-TITULAR-OCULTABLE-1) — MEDIDO contra el
+  // prototipo (`docs/prototipos/cafeone/index.html:130-138`): `.hero-inner` no lleva eyebrow,
+  // titular ni subtítulo, sólo `.hero-caption`/`.scroll-cue`. CORTE es hoy el ÚNICO preset que
+  // declara los dos; los otros cinco no tocan `content.hero.titularVisible`/`subtituloVisible`.
+  heroTitularVisible: false,
+  heroSubtituloVisible: false,
   // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
   // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija
   // abajo-derecha que pinta `background:var(--action-primary)` — el MISMO rol que ya mapea

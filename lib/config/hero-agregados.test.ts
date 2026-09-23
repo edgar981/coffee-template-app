@@ -22,8 +22,14 @@ import { siteContentEditableSchema } from './site-content-schema';
 
 // ─── EL MODELO PURO — REGISTRY/DEFAULTS/resolver ────────────────────────────────────────────────
 
-test('REGISTRY.hero declara los DOS booleanos nuevos, y `fraseAlPie` como campo opcional', () => {
-  assert.deepEqual(REGISTRY.hero.booleanos, ['ctasVisibles', 'cueDesliza']);
+test('REGISTRY.hero declara los DOS booleanos de esta tanda, y `fraseAlPie` como campo opcional', () => {
+  // `.includes`, no `deepEqual` contra el array completo: § CORTE-HERO-TITULAR-OCULTABLE-1 sumó
+  // `titularVisible`/`subtituloVisible` al MISMO `booleanos` — el comentario de esa lista en
+  // `site-content-defaults.ts` ya lo declara genérico ("para el próximo booleano de sección que
+  // aparezca"), así que esta invariante afirma que los DOS de esta tanda siguen ahí, no que sean
+  // los únicos.
+  assert.ok(REGISTRY.hero.booleanos?.includes('ctasVisibles'));
+  assert.ok(REGISTRY.hero.booleanos?.includes('cueDesliza'));
   assert.equal(REGISTRY.hero.campos.fraseAlPie, 'opcional');
 });
 

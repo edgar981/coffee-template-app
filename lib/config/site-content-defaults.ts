@@ -66,6 +66,20 @@ export interface HeroContent {
   // reducedMotion="user"`, montado en `app/(storefront)/layout.tsx`) la congele bajo
   // `prefers-reduced-motion` SIN que este archivo ni el componente inventen un guard propio.
   cueDesliza: boolean;
+  // DOS TOGGLES MÁS, ESPEJO EXACTO de `ctasVisibles` en mecánica (§ CORTE-HERO-TITULAR-OCULTABLE-1):
+  // el `.hero-inner` del prototipo (index.html:130-138) no lleva NI eyebrow/titular NI subtítulo —
+  // sólo `.hero-caption` (`fraseAlPie`, arriba) y `.scroll-cue` (`cueDesliza`, arriba). `ctasVisibles`
+  // apaga los dos CTA como UN bloque; éstos apagan el TITULAR (`titulo`+`tituloEnfasis`, un solo
+  // bloque — el énfasis es parte del titular, no un elemento aparte) y el SUBTÍTULO cada uno con su
+  // PROPIO apagador: a diferencia de los CTA (que el prototipo trata como un bloque único), titular y
+  // subtítulo son dos elementos separados del `.hero-inner` y no hay evidencia de que deban apagarse
+  // juntos.
+  //
+  // `titularVisible` (booleano, default `true` = el titular de HOY, `titulo`+`tituloEnfasis` juntos).
+  // SÓLO `HeroMedia` lo lee — curtina y ficha no (mismo alcance que `ctasVisibles`, ver arriba).
+  titularVisible: boolean;
+  // `subtituloVisible` (booleano, default `true` = el `subtitulo` de HOY). SÓLO `HeroMedia` lo lee.
+  subtituloVisible: boolean;
 }
 
 // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
@@ -849,6 +863,10 @@ export const DEFAULTS: SiteContentData = {
     ctasVisibles: true,
     fraseAlPie: '',
     cueDesliza: false,
+    // Los DOS toggles nuevos (§ CORTE-HERO-TITULAR-OCULTABLE-1): default `true` = el hero de HOY
+    // byte a byte, titular y subtítulo visibles.
+    titularVisible: true,
+    subtituloVisible: true,
   },
   // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
   // NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`: `resolverOrden` completa
@@ -1271,10 +1289,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.
     escalares: { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } },
-    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1): los DOS agregados de mecánica true/false del
-    // hero-media del prototipo — `ctasVisibles` (apaga los dos CTA a la vez) y `cueDesliza` (el
-    // indicador de scroll animado). El tercer agregado (`fraseAlPie`) es un `campos` normal, abajo.
-    booleanos: ['ctasVisibles', 'cueDesliza'],
+    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1): los
+    // CUATRO agregados de mecánica true/false del hero-media del prototipo — `ctasVisibles` (apaga
+    // los dos CTA a la vez), `cueDesliza` (el indicador de scroll animado), `titularVisible` (el
+    // bloque `titulo`+`tituloEnfasis`) y `subtituloVisible` (el `subtitulo`), estos dos últimos cada
+    // uno su propio apagador. El quinto agregado (`fraseAlPie`) es un `campos` normal, abajo.
+    booleanos: ['ctasVisibles', 'cueDesliza', 'titularVisible', 'subtituloVisible'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

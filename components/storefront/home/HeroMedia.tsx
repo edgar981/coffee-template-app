@@ -23,8 +23,9 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 //
 // LOS MISMOS SIETE CAMPOS DE CONTENIDO que curtina/ficha (eyebrow, titulo, tituloEnfasis, subtitulo,
 // los dos CTA, imagen/imagenTipo/imagenPoster) — mismos destinos de CTA (`HERO_HREFS`, estructura).
-// TRES CAMPOS MÁS, EXCLUSIVOS DE ESTA VARIANTE (§ TEMAS-HERO-MEDIA-AGREGADOS-1, más abajo):
-// `ctasVisibles`/`fraseAlPie`/`cueDesliza` — curtina y ficha no los leen.
+// CINCO CAMPOS MÁS, EXCLUSIVOS DE ESTA VARIANTE (§ TEMAS-HERO-MEDIA-AGREGADOS-1,
+// § CORTE-HERO-TITULAR-OCULTABLE-1, más abajo): `ctasVisibles`/`fraseAlPie`/`cueDesliza`/
+// `titularVisible`/`subtituloVisible` — curtina y ficha no los leen.
 //
 // LA TARJETA SE RETIRÓ POR DECISIÓN DEL OWNER (2026-09-19, HERO-MEDIA-SIN-TARJETA-1): «la tarjeta es
 // lo que hace que nuestro hero se lea como plantilla y el del prototipo como editorial». El
@@ -183,26 +184,35 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             </motion.p>
           )}
 
-          <motion.h1
-            variants={fadeUp}
-            className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
-            style={displayXl ? { fontSize: displayXl } : undefined}
-          >
-            {hero.titulo}
-            {hero.tituloEnfasis && (
-              <>
-                <br />
-                <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">{hero.tituloEnfasis}</em>
-              </>
-            )}
-          </motion.h1>
+          {/* TITULAR OCULTABLE (§ CORTE-HERO-TITULAR-OCULTABLE-1, espejo de `ctasVisibles`). Default
+              `true` = el titular de HOY, byte-idéntico. `titulo`+`tituloEnfasis` son UN bloque —
+              el énfasis nunca rinde solo. */}
+          {hero.titularVisible && (
+            <motion.h1
+              variants={fadeUp}
+              className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
+              style={displayXl ? { fontSize: displayXl } : undefined}
+            >
+              {hero.titulo}
+              {hero.tituloEnfasis && (
+                <>
+                  <br />
+                  <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">{hero.tituloEnfasis}</em>
+                </>
+              )}
+            </motion.h1>
+          )}
 
-          <motion.p
-            variants={fadeUp}
-            className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
-          >
-            {hero.subtitulo}
-          </motion.p>
+          {/* SUBTÍTULO OCULTABLE (§ CORTE-HERO-TITULAR-OCULTABLE-1, espejo de `ctasVisibles`, apagador
+              PROPIO — independiente de `titularVisible`). Default `true` = el subtítulo de HOY. */}
+          {hero.subtituloVisible && (
+            <motion.p
+              variants={fadeUp}
+              className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+            >
+              {hero.subtitulo}
+            </motion.p>
+          )}
 
           {/* CTAs OCULTABLES (§ TEMAS-HERO-MEDIA-AGREGADOS-1, agregado a). Default `true` = los dos
               botones de HOY, byte-idéntico. El prototipo no lleva botones en el hero; acá se apagan

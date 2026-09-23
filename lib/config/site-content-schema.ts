@@ -37,6 +37,10 @@ const heroEditableSchema = z.object({
   ctasVisibles: z.boolean().optional(),
   fraseAlPie: z.string().optional(),
   cueDesliza: z.boolean().optional(),
+  // DOS TOGGLES MÁS (§ CORTE-HERO-TITULAR-OCULTABLE-1), espejo exacto de `ctasVisibles`/`cueDesliza`
+  // arriba: sin declararlos, zod los STRIPPEARÍA al guardar (§ #65-B).
+  titularVisible: z.boolean().optional(),
+  subtituloVisible: z.boolean().optional(),
 }).refine(
   // LA ÚNICA REGLA DURA de este schema (§ HERO-VIDEO-COMO-DATO-1, decisión del owner). NO exige que
   // `imagenPoster` ESTÉ —un hero de IMAGEN sigue pasando con todo vacío, como siempre—: exige que
