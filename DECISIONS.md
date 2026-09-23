@@ -15645,3 +15645,164 @@ marquesina bajo `?tema=CORTE` (de `/70` a `/80` sobre `--sf-tinta`, para coincid
 un byte de storefront, aunque hoy sólo alcanzable por el mirador fuera de producción real
 (`esDespliegueDemo()`). Cae del lado de "customer-bytes" de la política A, mismo criterio que el
 resto de esta rama. El commit queda en la rama a la espera del merge gateado del orquestador.
+
+---
+
+## 2026-09-23 — El chequeo DERIVADO "todo campo de contenido que la tienda lee tiene su control en el panel" (`PANEL-REFLEJA-TIENDA-CHEQUEO-1`)
+
+**Origen:** #4 de la ronda "el panel no refleja la tienda" (2026-09-23, sobre `CROMO-GLOBAL-CENSO-1`).
+El owner: *"¿puede un test derivar 'todo campo de contenido que la tienda LEE tiene su control en el
+panel' y fallar cuando nazca uno sin panel? Medí el costo. Si es barato, las instancias de hoy se
+arreglan bajo esa guarda."* Y la regla permanente: *"un slice que agrega un campo de contenido a la
+tienda entrega su control en el panel en el MISMO commit, sin excepción."*
+
+### La forma del chequeo — `lib/config/panel-controles.ts`
+
+Tres listas, y sólo UNA está escrita a mano:
+
+1. **`camposLeidosPorTienda()`** — DERIVADA de `REGISTRY` (site-content-defaults.ts): para cada
+   `SeccionKey`, `campos` + `booleanos` + (`'variante'` si declara `variantes`) + las claves de
+   `escalares` + (`'visible'` si `ocultable`); más los campos de ítem de cada `repeater.campos`
+   (ALCANCE: sólo los campos STRING requerido/opcional, mismo límite ya declarado por
+   `site-content-schema.test.ts` para el mismo mecanismo). Más las SIETE claves NO-sección de forma
+   fija (`paginas`, `tema`, `cromo`, `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`),
+   leídas de `DEFAULTS` en runtime. `esquemas`/`orden`/`variantesBandas` NUNCA entran: no son
+   exentas por lista, son estructuralmente inenumerables — `Record<string,X>` de dominio abierto
+   (`esquemas`/`variantesBandas`) o un array de reordenamiento (`orden`), sin "campos" que listar.
+   Se componen en el onboarding (decisión del owner ya asentada, § los docstrings de
+   `EsquemasContent`/`OrdenContent`/`VariantesBandasContent`).
+2. **`camposControladosPorPanel()`** — DERIVADA de dos fuentes: (a) las diez secciones de
+   `SECCIONES_TIENDA` (`components/admin/tienda-secciones.ts`) que `TiendaSeccionEditor` renderiza
+   genéricamente — `config.campos` + `config.imagenes` + (`visible` si `config.ocultable`) +
+   `config.repeater.campos` + los `slots` de todo bloque `{tipo:'lista'}` en `config.bloques` (esta
+   última fuente hizo falta: `suscripcionPlanes.benN_M` — los beneficios de cada plan — están
+   declarados SÓLO en `bloques`, no en `config.campos`, tal como el propio comentario de
+   `SUSCRIPCION_PLANES` lo dice); (b) una declaración EXPLÍCITA por editor BESPOKE
+   (`MenuSeccion`→8 campos de `menu`, `PaletaSeccion`→5 campos de `tema`, `TiendaPaginas`→2 toggles
+   de `paginas`), leída del código de cada uno — `menu` y `tema` no pasan por `TiendaSeccionEditor`
+   (§ CROMO-MENU-PANEL-EDITOR-1), así que no hay un `config` declarativo del que derivar
+   automáticamente lo que cubren.
+3. **`PENDIENTE_PANEL`** — la ÚNICA lista a mano, DECRECIENTE por construcción: cada entrada nombra
+   un `campo`, su `razon` (casi siempre "sólo `mergePresetEnContent` lo escribe") y el `cierra` (el
+   id del slice que le dará su editor). Dos tests de higiene la mantienen honesta: una entrada que
+   nombra un campo que ya no existe en `camposLeidosPorTienda()` falla (exención rancia), y una
+   entrada de un campo que YA está en `camposControladosPorPanel()` también falla (la lista debía
+   haber encogido y no lo hizo).
+
+El gate del chequeo (`huecosDelPanel()`, con exenciones) da **`[]`** — VERDE. `huecosDelPanel({
+conExenciones: false })` — la CALIBRACIÓN — da exactamente el conjunto de `PENDIENTE_PANEL`, ni un
+campo más ni uno menos (afirmado en el test, deepEqual contra `PENDIENTE_PANEL.map(e => e.campo)`).
+
+### LA CALIBRACIÓN — corrida sin exenciones, tal como el owner la pidió
+
+El owner exigió verificar explícitamente que el chequeo atrapa `cromo.navSubtitulo` (el
+sub-encabezado) sin exención — si no lo atrapa, está mal calibrado. Medido, sin exenciones
+(`huecosDelPanel({conExenciones:false})`), **55 campos**, incluyendo los que el owner nombró:
+
+```
+cromo.navSubtitulo, hero.titularVisible, hero.subtituloVisible,
+menu.badgeItem, menu.badgeTexto,
+navWordmark.activo, volverArriba.visible, rielSocial.visible, navTratamiento.activo,
+trustBadges.visible
+```
+
+La lista completa (55, ordenada) vive en `PENDIENTE_PANEL` (`lib/config/panel-controles.ts`) y en el
+reporte de cierre de este slice.
+
+### DESVIACIÓN MEDIDA — el spec citaba un puñado; la realidad tiene 55
+
+El spec (con base en `CROMO-GLOBAL-CENSO-1`) describía los huecos como "las metas de chrome
+(navWordmark/volverArriba/rielSocial/navTratamiento/trustBadges/cromo), los toggles del hero
+(titularVisible/subtituloVisible), y el badge del menú" — un conjunto de ~15 campos. Al DERIVAR el
+chequeo de verdad (no al construir una lista que calzara con esa estimación) aparecieron, medidos
+contra el código:
+
+- **CUATRO secciones enteras sin editor**: `marquesina` (4 campos), `trustBadges` (1),
+  `origen` (18), `spotlight` (6) — ninguna está en `SECCIONES_TIENDA`. `origen` y `spotlight` en
+  particular no habían sido nombradas por el spec; son bandas completas del prototipo CORTE con cero
+  superficie de edición.
+- **El eje `variante`/`escalares` completo**: `hero.variante`, `hero.imagenTipo`,
+  `brandStory.variante`, `presentaciones.variante`, `subscriptionCTA.variante` — ninguna sección con
+  `variantes`/`escalares` declarado en REGISTRY tiene control alguno; `TiendaSeccionEditor` no lee
+  `config.variantes` en absoluto.
+- **Dos campos declarados en REGISTRY.hero.campos pero ausentes del `config` real** del editor:
+  `hero.imagenPoster` (ausente de `HERO.imagenes`) y `hero.fraseAlPie` (ausente de `HERO.campos`,
+  pese a que su propio docstring dice "es un `campos` normal, abajo") — el mismo patrón de
+  "declarado en un lado, no en el otro" que ya mordió en C1/§65-B (`site-content-schema.ts` STRIPPEA
+  lo no declarado).
+
+Es la misma familia de lección que atraviesa CLAUDE.md una y otra vez (el tripwire protege contra la
+INSTRUCCIÓN, no sólo contra el terreno): el spec no estaba mal escrito, estaba basado en una
+medición previa (`CROMO-GLOBAL-CENSO-1`) que no había DERIVADO el chequeo, sólo estimado su forma. Se
+declara la lista completa, sin recortarla para calzar con la estimación — recortarla habría
+reproducido exactamente el defecto que este chequeo existe para prevenir (una exención que no
+refleja el código real).
+
+### Follow-ups coined (cada uno cierra un grupo de `PENDIENTE_PANEL`)
+
+| id | campos que cierra |
+| --- | --- |
+| `PANEL-EDITOR-HERO-VIDEO-1` | `hero.imagenTipo`, `hero.imagenPoster` |
+| `PANEL-EDITOR-HERO-TOGGLES-1` | `hero.ctasVisibles`, `hero.cueDesliza`, `hero.titularVisible`, `hero.subtituloVisible`, `hero.alturaLlena` |
+| `PANEL-EDITOR-HERO-FRASE-AL-PIE-1` | `hero.fraseAlPie` |
+| `PANEL-EDITOR-VARIANTES-COMPOSICION-1` | `hero.variante`, `brandStory.variante`, `presentaciones.variante`, `subscriptionCTA.variante` |
+| `PANEL-EDITOR-MARQUESINA-1` | los 4 campos de `marquesina` |
+| `PANEL-EDITOR-TRUSTBADGES-VISIBLE-1` | `trustBadges.visible` |
+| `PANEL-EDITOR-ORIGEN-1` | los 18 campos de `origen` |
+| `PANEL-EDITOR-SPOTLIGHT-1` | los 6 campos de `spotlight` |
+| `PANEL-EDITOR-MENU-BADGE-1` | `menu.badgeItem`, `menu.badgeTexto` |
+| `PANEL-EDITOR-TEMA-EJES-1` | `tema.origenTexto`, `tema.origenAccion`, `tema.escalaDisplay` |
+| `PANEL-EDITOR-CROMO-1` | `cromo.navTinta`, `cromo.navSubtitulo`, `cromo.navBadge` |
+| `PANEL-EDITOR-CHROME-METAS-1` | `volverArriba.visible`, `rielSocial.visible`, `navTratamiento.activo`, `navWordmark.activo` |
+
+Ninguno de estos slices se ejecutó en esta tanda — son las entradas que `PENDIENTE_PANEL` cita como
+`cierra`, y quedan aquí para que el id no sea sólo una cadena dentro de un archivo de código.
+
+### El test — `lib/config/panel-controles.test.ts` (17 casos)
+
+Cubre: el núcleo puro `camposFaltantes` visto FALLAR con un campo sintético ni-controlado-ni-exento
+(la prueba de que el mecanismo funciona, sin depender de poder mutar `REGISTRY` en un test); el gate
+real en verde; los dos tests de higiene de `PENDIENTE_PANEL` (sin fantasmas, sin entradas ya
+controladas); la calibración completa (cada campo que el owner nombró, más la igualdad exacta contra
+`PENDIENTE_PANEL`); y que `esquemas`/`orden`/`variantesBandas` nunca entran al lado "leído".
+
+### El gate — corrido completo sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1900/1900** — verde (1883 heredados + 17 nuevos de `panel-controles.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin regresión |
+
+Reconciliado contra el piso citado por el dispatch anterior (`CORTE-MARQUESINA-VELO-1`: "1883/1883 +
+208/208") — la diferencia (+17 en capa 1) la explica enteramente el archivo de test nuevo de este
+slice; ningún otro número se movió.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+`grep` de los símbolos que este diff introdujo (`panel-controles`, `camposLeidosPorTienda`,
+`camposControladosPorPanel`, `PENDIENTE_PANEL`, `huecosDelPanel`, `PANEL-REFLEJA-TIENDA`,
+`CROMO-GLOBAL-CENSO`, `fraseAlPie`, `imagenPoster`) contra `CLAUDE.md`:
+
+- **CERO apariciones** de todos, salvo `SECCIONES_TIENDA` (una, en § "El editor GANA un selector de
+  página, SIN GATE" — describe que `TiendaPaginas` agrupa `SECCIONES_TIENDA` por página; este slice
+  sólo LEE `SECCIONES_TIENDA`, no la modifica, así que esa frase sigue siendo verdad).
+- Nada en la doctrina describe el mecanismo que este slice construyó — es terreno nuevo, no una
+  frase existente que este diff pudiera volver falsa.
+
+### `touches:` — lo que se escribió
+
+`lib/config/panel-controles.ts` (nuevo), `lib/config/panel-controles.test.ts` (nuevo), este asiento.
+Ningún archivo fuera de `touches:` se tocó — en particular, NINGÚN editor (`MenuSeccion.tsx`,
+`PaletaSeccion.tsx`, `TiendaPaginas.tsx`, `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`) se
+modificó: lo que este slice hizo fue LEERLOS para declarar, no construir, ninguno de los once
+follow-ups que `PENDIENTE_PANEL` cita.
+
+### Verdicto
+
+**El gate cierra en VERDE** (1900/1900 + 208/208). Por instrucción del dispatch, este slice PARA en
+`AWAITING_APPROVAL` — nunca mergea: la RAMA (`slice/corte-reescritura-prototipo-1`) toca bytes que el
+visitante puede ver (heredado de commits anteriores de la rama); este commit en particular NO toca
+ningún archivo del storefront ni cambia ningún byte visible — es puramente un chequeo interno del
+panel —, pero la clasificación de política A es de la RAMA completa contra su base, no del commit
+suelto (§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"). El commit queda en la rama a la espera del
+merge gateado del orquestador.
