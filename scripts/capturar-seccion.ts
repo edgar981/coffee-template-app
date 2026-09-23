@@ -64,7 +64,47 @@
 // repo (no hay forma de darle un `distDir` propio sin tocar `next.config.ts`, fuera de
 // `touches:`), así que un `next dev` concurrente vería su artefacto reescrito a mitad de corrida.
 // Es la misma precondición que ya rige el gate visual (§ PRECONDICIÓN, CLAUDE.md): un solo
-// servidor de desarrollo/build a la vez sobre el checkout.
+// servidor de desarrollo/build a la vez sobre el checkout. Esto NO aplica al modo `--url` de abajo
+// (no toca `.next/`, no arranca ningún servidor local para la app).
+//
+// ─── MODO `--url`: EL MUESTRARIO YA DESPLEGADO, NO UNA BASE FRESCA (§ ARNES-CAPTURA-MUESTRARIO-
+// REAL-1) ─────────────────────────────────────────────────────────────────────────────────────
+// Con `--url <URL>` este script SALTEA TODO LO DE ARRIBA — Postgres efímero, preset, `next
+// build`/`next start` — y navega Playwright DIRECTO contra la URL dada (el muestrario en
+// producción/preview de Vercel). Es una bifurcación ADITIVA: sin `--url` el comportamiento es
+// EXACTAMENTE el de siempre (§ arriba). `--url` y `--preset` son MUTUAMENTE EXCLUYENTES — no hay
+// base local que un preset pudiera tocar cuando el destino es una URL ya servida. Sin `--ruta`,
+// el modo `--url` asume una única ruta implícita (`/`) — el ejemplo canónico de este modo no
+// repite `--ruta /` porque la URL ya la trae.
+//
+// LA TRAMPA DE DEPLOYMENT PROTECTION SE MIDE AL NAVEGAR, NUNCA SE ASUME. Un deployment de Vercel
+// con Deployment Protection encendida responde 401 o redirige al SSO de Vercel
+// (`vercel.com/login`/`sso-api`) — un headless que reciba eso y siga capturando estaría
+// screenshoteando una pantalla de login, no el muestrario. `verificarSinProteccion` (abajo) lee el
+// `Response` que el propio `page.goto` ya devuelve tras cada navegación en modo `--url` y PARA la
+// corrida entera (sin escribir ni un PNG) si detecta cualquiera de las dos señales. Si la
+// navegación da 200, sigue — medido así contra el muestrario real de este repo antes de escribir
+// esto (`fetch` desde Node: status 200, sin redirect). Este script NUNCA hardcodea un token de
+// bypass (`x-vercel-protection-bypass`) — si la protección está encendida, apagarla o pasarle un
+// bypass al arnés es decisión del owner, no de este script.
+//
+// TRES CAPACIDADES NUEVAS, LAS TRES OPERACIONES ESTÁNDAR DE PLAYWRIGHT — cierran los límites a/b/c
+// que la cadena `CROMO-VOLVER-ARRIBA-1`/`CROMO-RIEL-SOCIAL-1`/`CROMO-NAV-TRATAMIENTO-1` midió y
+// dejó como open followups (`CROMO-CAPTURA-ARNES-SCROLL-FIJO-1`, `-VIEWPORT-FIJO-1`,
+// `-ESTILO-ELEMENTO-1`), y funcionan en LOS DOS MODOS (con o sin `--url`) porque son capacidades
+// genéricas del arnés, no exclusivas del modo URL:
+//   - `--scroll <px>` — `window.scrollTo(0, px)` tras cada navegación (app Y prototipo), antes de
+//     capturar: revela chrome fijo-por-scroll (el botón "volver arriba", que sólo aparece con
+//     `scrollY > innerHeight`, § `components/storefront/BackToTop.tsx`).
+//   - `--ancho <px>` / `--alto <px>` — el viewport de Playwright ya NO está hardcodeado a
+//     1280×900: revela chrome fijo-por-ancho (el riel social, `min-width:1560px`).
+//   - `--estilo-elemento <propiedad>` (repetible) — además de los `--var` de `:root`, imprime
+//     `getComputedStyle(nodo)[propiedad]` del NODO que `--selector-app`/`--selector-prototipo` ya
+//     localizó — no sólo custom properties de `:root`. El default
+//     (`PROPS_ESTILO_ELEMENTO_POR_DEFECTO`, abajo) ya cubre `text-transform`/`letter-spacing`/
+//     `font-weight`/`font-family`/`color`/`position` — el set que `CROMO-NAV-TRATAMIENTO-1` tuvo
+//     que verificar por el rodeo (screenshot + grep del artefacto compilado) porque este mecanismo
+//     no existía todavía.
 import { parseArgs } from "node:util";
 import { createRequire } from "node:module";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -90,12 +130,29 @@ const BANNER = [
 
 const VARS_TEMA_POR_DEFECTO = ["--sf-fondo", "--sf-tinta", "--sf-acento"];
 
+// § ARNES-CAPTURA-MUESTRARIO-REAL-1 — el set por defecto de propiedades DIRECTAS del nodo
+// seleccionado (no custom properties de `:root`, § `--var`/VARS_TEMA_POR_DEFECTO arriba). Cubre
+// exactamente lo que un tratamiento tipográfico como el de `CROMO-NAV-TRATAMIENTO-1` necesita
+// verificar y que hasta ahora sólo se podía leer por el rodeo (grep del artefacto compilado).
+const PROPS_ESTILO_ELEMENTO_POR_DEFECTO = [
+  "text-transform",
+  "letter-spacing",
+  "font-weight",
+  "font-family",
+  "color",
+  "position",
+];
+
 // ─── Mínimo de tipos que este script usa de Playwright — evita `import 'playwright'` estático
 // (§ arriba) sin caer en `any` suelto por el repo (el lint del template trata `no-explicit-any`
 // como señal real, § eslint.config.mjs). No es la superficie completa del SDK, sólo la que se
 // invoca acá.
+interface PlaywrightResponse {
+  status(): number;
+  url(): string;
+}
 interface PlaywrightPage {
-  goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
+  goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<PlaywrightResponse | null>;
   screenshot(opts: { path: string; fullPage?: boolean }): Promise<Buffer>;
   locator(selector: string): PlaywrightLocator;
   evaluate<T, Arg = undefined>(fn: (arg: Arg) => T, arg: Arg): Promise<T>;
@@ -150,6 +207,7 @@ function cargarPlaywright(): PlaywrightModule {
 // ─── CLI ──────────────────────────────────────────────────────────────────────────────────────
 interface Opciones {
   preset: string | undefined;
+  url: string | undefined;
   rutas: string[];
   selectoresApp: (string | undefined)[];
   prototipos: string[];
@@ -157,31 +215,66 @@ interface Opciones {
   nombre: string;
   varsExtra: string[];
   puertoApp: number;
+  scrollPx: number | undefined;
+  anchoPx: number;
+  altoPx: number;
+  estiloElementoExtra: string[];
 }
 
 function ayuda(): string {
   return `
-Uso:
+Uso (modo base fresca — Postgres efímero + \`next build\`/\`next start\`):
   node --import tsx scripts/capturar-seccion.ts [--preset <CLAVE>] \\
     --ruta <path-storefront> --prototipo <archivo-bajo-docs/prototipos/cafeone> \\
     [--selector-app <css>] [--selector-prototipo <css>] \\
-    [--nombre <slug-de-salida>] [--var <--custom-property>] [--puerto-app <n>]
+    [--nombre <slug-de-salida>] [--var <--custom-property>] [--puerto-app <n>] \\
+    [--scroll <px>] [--ancho <px>] [--alto <px>] [--estilo-elemento <propiedad>]
 
---ruta y --prototipo son REQUERIDOS, repetibles, y se emparejan POR ÍNDICE (la
-1ª --ruta con el 1º --prototipo, etc.) — deben venir en la misma cantidad.
+Uso (modo --url — el muestrario YA DESPLEGADO, § ARNES-CAPTURA-MUESTRARIO-REAL-1):
+  node --import tsx scripts/capturar-seccion.ts --url <URL> \\
+    [--ruta <path>] --prototipo <archivo-bajo-docs/prototipos/cafeone> \\
+    [--selector-app <css>] [--selector-prototipo <css>] [--nombre <slug-de-salida>] \\
+    [--scroll <px>] [--ancho <px>] [--alto <px>] [--estilo-elemento <propiedad>]
+
+--ruta y --prototipo se emparejan POR ÍNDICE (la 1ª --ruta con el 1º --prototipo,
+etc.) — deben venir en la misma cantidad. --prototipo es SIEMPRE requerido.
+--ruta es requerido EN MODO BASE FRESCA; en modo --url es OPCIONAL y, si se
+omite, se asume una única ruta implícita ("/") — la URL ya trae el destino.
 --selector-app / --selector-prototipo son OPCIONALES y también se emparejan por
 índice; sin selector para un índice dado, esa captura es de PÁGINA COMPLETA.
---preset es OPCIONAL: sin él, la base efímera NO se toca (queda tal cual migró,
-sin fila de SiteContent → los defaults del código) — es cómo se captura el
-estado "sin preset" para comparar contra un preset aplicado.
---var agrega una CSS custom property más a la lista impresa (el default ya
-incluye --sf-fondo, --sf-tinta, --sf-acento).
+--preset es OPCIONAL y sólo válido en modo base fresca (mutuamente excluyente
+con --url — no hay base local que un preset pudiera tocar contra una URL ya
+servida): sin él, la base efímera NO se toca (queda tal cual migró, sin fila de
+SiteContent → los defaults del código) — es cómo se captura el estado "sin
+preset" para comparar contra un preset aplicado.
+--url activa el modo que navega la URL YA DESPLEGADA (producción o preview de
+Vercel) en vez de levantar Postgres efímero + build/start locales. Mide la
+trampa de Deployment Protection AL NAVEGAR: si la respuesta es 401 o redirige
+al SSO de Vercel, PARA sin capturar nada — no hardcodea ningún bypass.
+--var agrega una CSS custom property más a la lista impresa desde \`:root\`
+(el default ya incluye --sf-fondo, --sf-tinta, --sf-acento).
+--scroll hace window.scrollTo(0, px) tras cada navegación (app y prototipo),
+antes de capturar — revela chrome fijo-por-SCROLL (el botón "volver arriba").
+--ancho / --alto fijan el viewport de Playwright (default 1280×900 si no se
+pasan) — revela chrome fijo-por-ANCHO (el riel social, min-width:1560px).
+--estilo-elemento agrega una propiedad CSS más a las que se leen con
+getComputedStyle DEL NODO seleccionado (no de :root) — repetible. El default ya
+incluye text-transform, letter-spacing, font-weight, font-family, color,
+position. Sólo se reporta cuando hay --selector-app/--selector-prototipo (un
+nodo necesita un selector para existir).
 
-Ejemplo:
+Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
     --ruta / --selector-app "#hero" \\
     --prototipo index.html --selector-prototipo ".hero" \\
     --nombre hero
+
+Ejemplo (--url, el muestrario real):
+  node --import tsx scripts/capturar-seccion.ts \\
+    --url https://coffee-template-app-onix.vercel.app/ \\
+    --selector-app "header nav a" \\
+    --prototipo index.html --selector-prototipo ".nav-link" \\
+    --nombre muestrario-nav
 `.trim();
 }
 
@@ -190,6 +283,7 @@ function parseCli(argv: string[]): Opciones {
     args: argv,
     options: {
       preset: { type: "string" },
+      url: { type: "string" },
       ruta: { type: "string", multiple: true },
       "selector-app": { type: "string", multiple: true },
       prototipo: { type: "string", multiple: true },
@@ -197,6 +291,10 @@ function parseCli(argv: string[]): Opciones {
       nombre: { type: "string" },
       var: { type: "string", multiple: true },
       "puerto-app": { type: "string" },
+      scroll: { type: "string" },
+      ancho: { type: "string" },
+      alto: { type: "string" },
+      "estilo-elemento": { type: "string", multiple: true },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -209,7 +307,17 @@ function parseCli(argv: string[]): Opciones {
   }
 
   const preset = values.preset;
-  const rutas = values.ruta ?? [];
+  const url = values.url;
+  if (url && preset) {
+    throw new Error(
+      `--url y --preset son mutuamente excluyentes: --url navega el muestrario YA DESPLEGADO — no ` +
+        `hay base local que un preset pudiera tocar. Corré sin --url si necesitás aplicar un preset.\n\n${ayuda()}`,
+    );
+  }
+
+  // En modo --url, sin --ruta se asume una única ruta implícita ("/") — la URL ya trae el
+  // destino (§ ARNES-CAPTURA-MUESTRARIO-REAL-1, el ejemplo canónico del modo no repite --ruta /).
+  const rutas = values.ruta ?? (url ? ["/"] : []);
   const prototipos = values.prototipo ?? [];
   if (rutas.length === 0 || prototipos.length === 0) {
     throw new Error(`Hacen falta --ruta y --prototipo (al menos uno de cada uno).\n\n${ayuda()}`);
@@ -230,13 +338,20 @@ function parseCli(argv: string[]): Opciones {
 
   return {
     preset,
+    url,
     rutas,
     selectoresApp: rutas.map((_, i) => selectoresAppIn[i]),
     prototipos,
     selectoresPrototipo: prototipos.map((_, i) => selectoresProtoIn[i]),
-    nombre: values.nombre ?? `${preset ? preset.toLowerCase() : "sin-preset"}-${Date.now()}`,
+    nombre:
+      values.nombre ??
+      (url ? `muestrario-real-${Date.now()}` : `${preset ? preset.toLowerCase() : "sin-preset"}-${Date.now()}`),
     varsExtra: values.var ?? [],
     puertoApp: values["puerto-app"] ? Number(values["puerto-app"]) : 3477,
+    scrollPx: values.scroll !== undefined ? Number(values.scroll) : undefined,
+    anchoPx: values.ancho ? Number(values.ancho) : 1280,
+    altoPx: values.alto ? Number(values.alto) : 900,
+    estiloElementoExtra: values["estilo-elemento"] ?? [],
   };
 }
 
@@ -366,6 +481,53 @@ async function esperarAsentamiento(page: PlaywrightPage, selector: string): Prom
   }
 }
 
+// ─── La trampa de Deployment Protection, medida al navegar (§ ARNES-CAPTURA-MUESTRARIO-REAL-1) ──
+//
+// Sólo se llama en modo `--url`: en modo base fresca la navegación es siempre a 127.0.0.1, que
+// nunca puede estar protegida por Vercel. Un 401 es la señal directa; una redirección al dominio
+// de SSO de Vercel (`vercel.com/login` o `vercel.com/sso-api`, las dos rutas que Vercel usa para
+// el flujo de autenticación de Deployment Protection) es la señal indirecta — Playwright sigue los
+// redirects por defecto, así que `response.url()` ya refleja el destino final. PARA la corrida
+// entera ANTES de escribir un solo PNG: capturar una pantalla de login no es "capturar con una
+// advertencia", es dogfoodear sobre el dato equivocado.
+function verificarSinProteccion(response: PlaywrightResponse | null, urlIntentada: string): void {
+  const status = response?.status() ?? 0;
+  const urlFinal = response?.url() ?? urlIntentada;
+  const esSso = /vercel\.com\/(login|sso-api)/i.test(urlFinal);
+  if (status === 401 || esSso) {
+    throw new Error(
+      `Deployment Protection detectada navegando ${urlIntentada} (status ${status}, destino final ` +
+        `${urlFinal}) — PARANDO, no se captura nada. El owner decide si apaga la protección del ` +
+        `deployment o si el arnés debe pasar el bypass (x-vercel-protection-bypass); este script no ` +
+        `hardcodea ningún token.`,
+    );
+  }
+}
+
+// ─── El computed style DEL NODO (no de :root), § ARNES-CAPTURA-MUESTRARIO-REAL-1 ────────────────
+// Cierra `CROMO-CAPTURA-ARNES-ESTILO-ELEMENTO-1`: además de las custom properties que `--var` lee
+// de `document.documentElement`, esto lee propiedades DIRECTAS del nodo que el selector ya
+// localizó — `text-transform`/`letter-spacing`/`font-weight`/… no son heredables como valor
+// computado desde `:root`, así que sólo se pueden leer del elemento mismo.
+async function leerEstiloElemento(
+  page: PlaywrightPage,
+  selector: string,
+  propsExtra: string[],
+): Promise<Record<string, string> | null> {
+  const props = [...PROPS_ESTILO_ELEMENTO_POR_DEFECTO, ...propsExtra];
+  return page.evaluate<Record<string, string> | null, { sel: string; props: string[] }>(
+    (arg) => {
+      const nodo = document.querySelector(arg.sel);
+      if (!nodo) return null;
+      const cs = getComputedStyle(nodo);
+      const out: Record<string, string> = {};
+      for (const p of arg.props) out[p] = cs.getPropertyValue(p);
+      return out;
+    },
+    { sel: selector, props },
+  );
+}
+
 function puertoLibre(puerto: number): Promise<boolean> {
   return new Promise((res) => {
     const probe = createServer();
@@ -472,79 +634,100 @@ async function detenerProceso(child: ChildProcess): Promise<void> {
 async function main(): Promise<void> {
   console.log(BANNER);
   const opciones = parseCli(process.argv.slice(2));
+  const modoUrl = opciones.url !== undefined;
 
-  if (!process.env.DATABASE_URL) {
-    throw new Error(
-      "Falta DATABASE_URL en el entorno — este script se corre a través de scripts/capturar-seccion.sh, " +
-        "que levanta el Postgres efímero y lo exporta ANTES de llamar acá. No correrlo suelto.",
-    );
-  }
-
-  // El preset se aplica ANTES de `next build` (cinturón-y-tirantes: el storefront es
-  // force-dynamic, § cabecera del archivo — ninguna ruta capturada hornea contenido de build,
-  // pero aplicar antes es correcto de todos modos y no cuesta nada extra).
-  if (opciones.preset) {
-    console.log(`▸ Aplicando el preset «${opciones.preset}» sobre la base efímera…`);
-    const { aplicarPreset, PresetIncompletoError } = await import("../lib/config/site-content-write");
-    const { PRESETS } = await import("../lib/config/themes");
-    const preset = PRESETS.find((p) => p.clave === opciones.preset);
-    if (!preset) {
-      throw new Error(`Preset «${opciones.preset}» desconocido. Catálogo: ${PRESETS.map((p) => p.clave).join(", ")}`);
-    }
-    try {
-      await aplicarPreset(preset);
-    } catch (e) {
-      if (e instanceof PresetIncompletoError) {
-        throw new Error(`El preset «${opciones.preset}» está incompleto — no se puede aplicar: ${e.message}`);
-      }
-      throw e;
-    }
-    console.log(`✔ Preset «${opciones.preset}» aplicado.`);
-  } else {
+  if (modoUrl) {
     console.log(
-      "▸ Sin --preset: la base efímera NO se toca (queda tal cual migró, sin fila de SiteContent → " +
-        "los defaults del código).",
+      `▸ Modo --url (§ ARNES-CAPTURA-MUESTRARIO-REAL-1): capturando el muestrario YA DESPLEGADO en ` +
+        `${opciones.url} — sin Postgres efímero, sin \`next build\`/\`next start\` locales.`,
     );
-  }
+  } else {
+    if (!process.env.DATABASE_URL) {
+      throw new Error(
+        "Falta DATABASE_URL en el entorno — este script se corre a través de scripts/capturar-seccion.sh, " +
+          "que levanta el Postgres efímero y lo exporta ANTES de llamar acá. No correrlo suelto.",
+      );
+    }
 
-  if (!(await puertoLibre(opciones.puertoApp))) {
-    throw new Error(
-      `El puerto ${opciones.puertoApp} está ocupado — ¿hay un \`npm run dev\` corriendo? ` +
-        `Este arnés no puede compartirlo (usa --puerto-app para elegir otro).`,
-    );
-  }
+    // El preset se aplica ANTES de `next build` (cinturón-y-tirantes: el storefront es
+    // force-dynamic, § cabecera del archivo — ninguna ruta capturada hornea contenido de build,
+    // pero aplicar antes es correcto de todos modos y no cuesta nada extra).
+    if (opciones.preset) {
+      console.log(`▸ Aplicando el preset «${opciones.preset}» sobre la base efímera…`);
+      const { aplicarPreset, PresetIncompletoError } = await import("../lib/config/site-content-write");
+      const { PRESETS } = await import("../lib/config/themes");
+      const preset = PRESETS.find((p) => p.clave === opciones.preset);
+      if (!preset) {
+        throw new Error(`Preset «${opciones.preset}» desconocido. Catálogo: ${PRESETS.map((p) => p.clave).join(", ")}`);
+      }
+      try {
+        await aplicarPreset(preset);
+      } catch (e) {
+        if (e instanceof PresetIncompletoError) {
+          throw new Error(`El preset «${opciones.preset}» está incompleto — no se puede aplicar: ${e.message}`);
+        }
+        throw e;
+      }
+      console.log(`✔ Preset «${opciones.preset}» aplicado.`);
+    } else {
+      console.log(
+        "▸ Sin --preset: la base efímera NO se toca (queda tal cual migró, sin fila de SiteContent → " +
+          "los defaults del código).",
+      );
+    }
 
-  construirNext(opciones.puertoApp);
+    if (!(await puertoLibre(opciones.puertoApp))) {
+      throw new Error(
+        `El puerto ${opciones.puertoApp} está ocupado — ¿hay un \`npm run dev\` corriendo? ` +
+          `Este arnés no puede compartirlo (usa --puerto-app para elegir otro).`,
+      );
+    }
+
+    construirNext(opciones.puertoApp);
+  }
 
   mkdirSync(CAPTURAS_DIR, { recursive: true });
   const salidaDir = join(CAPTURAS_DIR, opciones.nombre);
   mkdirSync(salidaDir, { recursive: true });
 
   const playwright = cargarPlaywright();
+  // Local const para que TS lo estreche a `number` dentro del `if` de abajo, en las dos
+  // navegaciones — `opciones.scrollPx` es `number | undefined` y no se narrowea de forma fiable
+  // a través de un `await` intermedio si se lee como propiedad en cada sitio.
+  const scrollPx = opciones.scrollPx;
 
-  console.log(`▸ Arrancando \`next start\` (la build de arriba) en :${opciones.puertoApp}…`);
-  const appProc = arrancarNextStart(opciones.puertoApp);
+  // El origen de la app: la URL viva (modo --url) o el `next start` local (modo base fresca).
+  const origenApp = modoUrl ? (opciones.url as string).replace(/\/+$/, "") : `http://127.0.0.1:${opciones.puertoApp}`;
+
+  let appProc: ChildProcess | undefined;
   let salidaApp = "";
-  appProc.stdout?.on("data", (d) => (salidaApp += String(d)));
-  appProc.stderr?.on("data", (d) => (salidaApp += String(d)));
+  if (!modoUrl) {
+    console.log(`▸ Arrancando \`next start\` (la build de arriba) en :${opciones.puertoApp}…`);
+    appProc = arrancarNextStart(opciones.puertoApp);
+    appProc.stdout?.on("data", (d) => (salidaApp += String(d)));
+    appProc.stderr?.on("data", (d) => (salidaApp += String(d)));
+  }
 
   const servidorProto = await levantarServidorPrototipo();
 
   const registro: Record<string, unknown> = {
     preset: opciones.preset ?? null,
+    url: opciones.url ?? null,
     generadoEn: new Date().toISOString(),
     capturas: [] as unknown[],
   };
 
   try {
-    await esperarListo(`http://127.0.0.1:${opciones.puertoApp}/`, 90_000).catch((e) => {
-      throw new Error(`\`next start\` no respondió a tiempo: ${e}\n\n── stdout/stderr ──\n${salidaApp}`);
-    });
-    console.log("✔ `next start` responde.");
+    if (!modoUrl) {
+      await esperarListo(`${origenApp}/`, 90_000).catch((e) => {
+        throw new Error(`\`next start\` no respondió a tiempo: ${e}\n\n── stdout/stderr ──\n${salidaApp}`);
+      });
+      console.log("✔ `next start` responde.");
+    }
 
     const browser = await playwright.chromium.launch({ headless: true });
     try {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const page = await browser.newPage({ viewport: { width: opciones.anchoPx, height: opciones.altoPx } });
 
       for (let i = 0; i < opciones.rutas.length; i++) {
         const ruta = opciones.rutas[i];
@@ -552,15 +735,26 @@ async function main(): Promise<void> {
         const prototipo = opciones.prototipos[i];
         const selectorProto = opciones.selectoresPrototipo[i];
 
-        console.log(`▸ [${i}] app ${ruta}${selectorApp ? ` (${selectorApp})` : " (página completa)"}`);
-        await page.goto(`http://127.0.0.1:${opciones.puertoApp}${ruta}`, { waitUntil: "networkidle", timeout: 30_000 });
+        const urlApp = `${origenApp}${ruta}`;
+        console.log(`▸ [${i}] app ${urlApp}${selectorApp ? ` (${selectorApp})` : " (página completa)"}`);
+        const respuestaApp = await page.goto(urlApp, { waitUntil: "networkidle", timeout: 30_000 });
+        if (modoUrl) {
+          // La trampa se mide ACÁ, antes de escribir un solo PNG (§ ARNES-CAPTURA-MUESTRARIO-REAL-1).
+          verificarSinProteccion(respuestaApp, urlApp);
+        }
         await page.waitForTimeout(300); // margen corto para animaciones de entrada / fuentes
+        if (scrollPx !== undefined) {
+          await page.evaluate((y: number) => window.scrollTo(0, y), scrollPx);
+          await page.waitForTimeout(300); // margen para que el chrome fijo-por-scroll reaccione
+        }
 
         const appPng = join(salidaDir, `app-${i}.png`);
+        let estiloElementoApp: Record<string, string> | null = null;
         if (selectorApp) {
           const loc = page.locator(selectorApp);
           await loc.waitFor({ timeout: 10_000 });
           await esperarAsentamiento(page, selectorApp);
+          estiloElementoApp = await leerEstiloElemento(page, selectorApp, opciones.estiloElementoExtra);
           await loc.screenshot({ path: appPng });
         } else {
           await page.screenshot({ path: appPng, fullPage: true });
@@ -573,30 +767,40 @@ async function main(): Promise<void> {
           for (const v of vars) out[v] = raiz.getPropertyValue(v).trim();
           return out;
         }, varsAPedir);
-        console.log(`  valores computados (${ruta}):`, valores);
+        console.log(`  valores computados de :root (${ruta}):`, valores);
+        if (estiloElementoApp) console.log(`  estilo computado del nodo (${selectorApp}):`, estiloElementoApp);
 
         console.log(`▸ [${i}] prototipo ${prototipo}${selectorProto ? ` (${selectorProto})` : " (página completa)"}`);
         await page.goto(`http://127.0.0.1:${servidorProto.puerto}/${prototipo}`, { waitUntil: "networkidle", timeout: 30_000 });
         await page.waitForTimeout(300);
+        if (scrollPx !== undefined) {
+          await page.evaluate((y: number) => window.scrollTo(0, y), scrollPx);
+          await page.waitForTimeout(300);
+        }
 
         const protoPng = join(salidaDir, `prototipo-${i}.png`);
+        let estiloElementoProto: Record<string, string> | null = null;
         if (selectorProto) {
           const loc = page.locator(selectorProto);
           await loc.waitFor({ timeout: 10_000 });
           await esperarAsentamiento(page, selectorProto);
+          estiloElementoProto = await leerEstiloElemento(page, selectorProto, opciones.estiloElementoExtra);
           await loc.screenshot({ path: protoPng });
         } else {
           await page.screenshot({ path: protoPng, fullPage: true });
         }
+        if (estiloElementoProto) console.log(`  estilo computado del nodo (${selectorProto}):`, estiloElementoProto);
 
         (registro.capturas as unknown[]).push({
           indice: i,
           ruta,
           selectorApp: selectorApp ?? null,
           appPng,
+          estiloElementoApp,
           prototipo,
           selectorPrototipo: selectorProto ?? null,
           protoPng,
+          estiloElementoPrototipo: estiloElementoProto,
           valoresComputados: valores,
         });
       }
@@ -607,20 +811,23 @@ async function main(): Promise<void> {
     }
   } finally {
     await servidorProto.cerrar();
-    await detenerProceso(appProc);
+    if (appProc) await detenerProceso(appProc);
   }
 
   const leeme = [
     BANNER,
     "",
-    `Preset: ${opciones.preset ?? "(ninguno — base sin tocar)"}`,
+    modoUrl ? `URL: ${String(opciones.url)}` : `Preset: ${opciones.preset ?? "(ninguno — base sin tocar)"}`,
+    `Viewport: ${opciones.anchoPx}×${opciones.altoPx}${opciones.scrollPx !== undefined ? ` · scroll ${opciones.scrollPx}px` : ""}`,
     `Generado: ${String(registro.generadoEn)}`,
     "",
     ...(registro.capturas as Array<Record<string, unknown>>).map(
       (c) =>
         `[${c.indice}] app-${c.indice}.png (${c.ruta}${c.selectorApp ? `, ${c.selectorApp}` : ""}) ` +
         `↔ prototipo-${c.indice}.png (${c.prototipo}${c.selectorPrototipo ? `, ${c.selectorPrototipo}` : ""})\n` +
-        `    valores: ${JSON.stringify(c.valoresComputados)}`,
+        `    valores :root: ${JSON.stringify(c.valoresComputados)}` +
+        (c.estiloElementoApp ? `\n    estilo nodo app: ${JSON.stringify(c.estiloElementoApp)}` : "") +
+        (c.estiloElementoPrototipo ? `\n    estilo nodo prototipo: ${JSON.stringify(c.estiloElementoPrototipo)}` : ""),
     ),
   ].join("\n");
   writeFileSync(join(salidaDir, "LEEME.txt"), leeme + "\n");

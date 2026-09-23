@@ -14188,3 +14188,150 @@ el CTA del menú de `StoreNav.tsx` **NO se tocaron** (§ arriba, alcance). `scri
 - **Cierra la cadena visual** volver-arriba → riel social → nav. Los tres eslabones quedan
   `AWAITING_APPROVAL` sobre `slice/corte-reescritura-prototipo-1`, sin mergear — el owner mira las
   tres capturas juntas en su pasada visual (§ el spec de este slice, último párrafo).
+
+## 2026-09-23 — El arnés gana el modo `--url`: navega el muestrario YA DESPLEGADO, cierra los tres límites a/b/c medidos por la cadena visual (`ARNES-CAPTURA-MUESTRARIO-REAL-1`)
+
+Prerrequisito de la cadena de los ocho que sigue: el owner ordenó (2026-09-23) que cada uno de los
+ocho eslabones futuros capture contra el MUESTRARIO REAL — no una base fresca. Este slice construye
+ese modo y, de paso, cierra los tres open followups que la cadena volver-arriba → riel social → nav
+dejó abiertos sobre `scripts/capturar-seccion.ts`: `CROMO-CAPTURA-ARNES-SCROLL-FIJO-1` (a),
+`CROMO-CAPTURA-ARNES-VIEWPORT-FIJO-1` (b), `CROMO-CAPTURA-ARNES-ESTILO-ELEMENTO-1` (c).
+
+**Nota sobre el nombre `ARNES-SCROLL-VIEWPORT-GETCOMPUTED-1`** (el spec pide "pliega
+`ARNES-SCROLL-VIEWPORT-GETCOMPUTED-1`" al cerrar): ese id **no existe en ningún lugar del
+repositorio** — `grep -rn "GETCOMPUTED" DECISIONS.md CLAUDE.md` y `find . -iname "*arnes-captura*"`
+dan cero coincidencias, y no hay un `docs/arnes-captura-muestrario-real.md` seateado acá. Se lee
+como la instrucción de NO abrir un slice separado para scroll+viewport+getComputedStyle — que es
+exactamente lo que este asiento hace, plegando los tres en `ARNES-CAPTURA-MUESTRARIO-REAL-1` — no
+como una referencia a una entrada existente que hubiera que editar. Se documenta por transparencia
+(§ el protocolo: "si re-medís algo que el spec afirmó y difiere, es una deviation").
+
+### Qué se construyó
+
+**`--url <URL>`** — bifurcación ADITIVA en `capturar-seccion.ts`/`.sh`: sin `--url`, el arnés se
+comporta EXACTAMENTE como antes (Postgres efímero + preset + `next build`/`next start`); con
+`--url`, saltea TODO eso — Playwright navega la URL dada directo, sin tocar `DATABASE_URL` ni
+levantar ningún servidor local para la app. `capturar-seccion.sh` detecta el flag
+POSICIONALMENTE en `"$@"`, ANTES de tocar Postgres, y si aparece invoca `capturar-seccion.ts`
+directo. `--url` y `--preset` son MUTUAMENTE EXCLUYENTES (error explícito si vienen juntos: no hay
+base local que un preset pudiera tocar contra una URL ya servida). Sin `--ruta`, el modo `--url`
+asume una única ruta implícita (`"/"`) — así el ejemplo del propio spec (`--url … --selector-app
+"header nav a" --prototipo index.html …`, sin `--ruta`) resuelve sin error.
+
+**La trampa de Deployment Protection se MIDE al navegar, nunca se asume.** `verificarSinProteccion`
+lee el `Response` que el propio `page.goto` devuelve en cada navegación de modo `--url`: si
+`status()===401` o la URL final matchea `vercel\.com\/(login|sso-api)` (Playwright sigue redirects
+por defecto, así que `response.url()` ya refleja el destino), PARA la corrida entera ANTES de
+escribir un solo PNG. El mensaje nombra la decisión pendiente (apagar la protección o pasarle un
+bypass al arnés) como del OWNER — este script no hardcodea ningún token
+`x-vercel-protection-bypass`.
+
+**Medido, no asumido, contra el muestrario real de este repo** (`node -e 'fetch(...)'`, antes de
+escribir una línea de código): `https://coffee-template-app-onix.vercel.app/` responde **200**,
+sin redirect a SSO. El camino "para y reporta" del `approval-reason` no se ejerció contra un caso
+real — quedó implementado y sin poder demostrarse en este repo porque no hay ningún deployment
+protegido a mano para probarlo; se verificó por LECTURA del código (`verificarSinProteccion` corre
+antes de cualquier `screenshot`/`writeFileSync`, y `main().catch` no deja escapar un `throw` suyo
+sin exit(1)).
+
+**Las tres capacidades — operaciones estándar de Playwright, funcionan en LOS DOS MODOS** (no son
+exclusivas de `--url`: son capacidades genéricas del arnés que la cadena anterior midió como
+faltantes):
+
+- **`--scroll <px>`** — `window.scrollTo(0, px)` tras cada navegación (app Y prototipo), con un
+  margen de 300ms para que el chrome fijo-por-scroll reaccione, ANTES de localizar el selector.
+  Cierra `CROMO-CAPTURA-ARNES-SCROLL-FIJO-1`.
+- **`--ancho <px>` / `--alto <px>`** — el viewport de Playwright dejó de estar hardcodeado a
+  1280×900 dentro de `main()`; ahora son opcionales con ese mismo default. Cierra
+  `CROMO-CAPTURA-ARNES-VIEWPORT-FIJO-1`.
+- **`--estilo-elemento <propiedad>`** (repetible) — `leerEstiloElemento` corre
+  `getComputedStyle(nodo)[propiedad]` sobre el NODO que `--selector-app`/`--selector-prototipo` ya
+  localizó (no `:root`), con un default de seis propiedades
+  (`PROPS_ESTILO_ELEMENTO_POR_DEFECTO = text-transform, letter-spacing, font-weight, font-family,
+  color, position`) — exactamente el set que `CROMO-NAV-TRATAMIENTO-1` tuvo que leer por el rodeo
+  (grep del artefacto compilado) porque este mecanismo no existía. Sólo se reporta cuando hay
+  selector (un nodo necesita uno para existir); se imprime por consola y viaja en
+  `valores.json`/`LEEME.txt` junto a los `--var` de siempre. Cierra
+  `CROMO-CAPTURA-ARNES-ESTILO-ELEMENTO-1`.
+
+### El dogfood — el nav del muestrario REAL, con `getComputedStyle` del NODO
+
+Comando corrido (§ el spec, sección 1), con una DEVIATION medida antes de reportar verde (abajo):
+
+```
+npm run capturar:seccion -- --url https://coffee-template-app-onix.vercel.app/ \
+  --selector-app "header nav a:nth-of-type(1)" \
+  --prototipo index.html --selector-prototipo 'a.nav-link[href="#historia"]' \
+  --nombre muestrario-nav
+```
+
+**Resultado, medido por ejecución — la prueba que `CROMO-NAV-TRATAMIENTO-1` no pudo dar (su propio
+open followup lo dice: "el arnés no tiene mecanismo para imprimir esto"):**
+
+```
+valores computados de :root (/): { --sf-fondo: #fdfbf7, --sf-tinta: #102407, --sf-acento: #a70004 }
+estilo computado del nodo (header nav a:nth-of-type(1)):
+  text-transform: uppercase
+  letter-spacing: 0.84px      (= .06em a 14px, el tamaño del link)
+  font-weight: 400
+  font-family: Figtree, sans-serif
+  color: oklab(0.999994 0.0000455677 0.0000200868 / 0.8)
+  position: static
+```
+
+Los tres ejes que `CROMO-NAV-TRATAMIENTO-1` midió indirectamente por el artefacto compilado
+(`uppercase`, `.06em`≈`0.84px`, `400`) están AHORA confirmados contra el NODO real del muestrario
+YA DESPLEGADO, no contra el CSS compilado local. El screenshot del link (`app-0.png`) muestra
+"TIENDA" en mayúscula sobre la banda `--sf-tinta`, visualmente equivalente a "LA FINCA" del
+prototipo (`prototipo-0.png`, mismo tratamiento). Las capturas y `valores.json`/`LEEME.txt` quedan
+en `.capturas/muestrario-nav/` (gitignoreado, § `.gitignore:67`).
+
+**DEVIATION registrada:** el spec pedía literal `--selector-app "header nav a"` /
+`--selector-prototipo ".nav-link"`. Medido al correr: los DOS son AMBIGUOS bajo el modo estricto de
+Playwright — `header nav a` resuelve a 3 elementos (Tienda/Suscripciones/Nosotros) en el muestrario
+real (el nav vivo tiene más links que cuando se escribió el spec), y `.nav-link` resuelve a 4 en
+`index.html` (el botón "Nuestro café" + 3 anchors). `locator.waitFor()` de Playwright **lanza** en
+vez de tomar el primero — `main().catch` corta la corrida entera sin escribir un PNG, el mismo modo
+de falla que ya documentó `CROMO-RIEL-SOCIAL-1` para un `waitFor` que nunca resuelve. Se corrigió
+con los MISMOS selectores que `CROMO-NAV-TRATAMIENTO-1` ya había medido y usado para este propósito
+exacto (`header nav a:nth-of-type(1)` / `a.nav-link[href="#historia"]`, ambos ya citados en su
+propio asiento) — no se inventó un selector nuevo, se usó el que la medición anterior ya había
+validado. No se tocó el comportamiento de `locator()`/`waitFor()` del arnés: ambigüedad de selector
+es un error del CALLER, no algo que el arnés deba resolver en silencio con `.first()` (silenciarlo
+ocultaría selectores mal escritos en slices futuros).
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `scripts/capturar-seccion.ts` (el modo `--url` completo: `Opciones.url`/`.scrollPx`/
+`.anchoPx`/`.altoPx`/`.estiloElementoExtra`, `parseCli` con la exclusión mutua y el default de
+`--ruta`, `PlaywrightResponse`, `PROPS_ESTILO_ELEMENTO_POR_DEFECTO`, `verificarSinProteccion`,
+`leerEstiloElemento`, la bifurcación completa de `main()`, `ayuda()` actualizada, cabecera del
+archivo ampliada), `scripts/capturar-seccion.sh` (la detección posicional de `--url` antes de
+Postgres, comentarios actualizados), este asiento. **`package.json` NO se tocó** — la invocación
+sigue siendo `npm run capturar:seccion -- <flags>`, el script ya existente. Ningún archivo de
+`lib/`, `components/`, `app/` se tocó — el arnés no es parte del árbol que `next build` empaqueta.
+
+### El gate
+
+`npx tsc --noEmit`: limpio. `npx eslint scripts/capturar-seccion.ts`: limpio (0 warnings/errores).
+`npm run gate` en la tree final: **1772/1772** capa 1 (~4.5s) + **208/208** capa 2 (Postgres
+efímero, ~14.7s) — verde. **Nota de reconciliación:** la PRIMERA corrida de `npm run gate` en esta
+sesión dio 207/208 (un fallo en
+`tests/integracion/wompi-reconciliador.test.ts` → "CONCURRENCIA: webhook y reconciliador
+procesando el MISMO evento A LA VEZ") — un test de RACE real entre dos transacciones concurrentes,
+sensible a timing. Re-correr `npm run test:integracion` solo, dos veces más, dio 208/208 las dos
+veces. El diff de este slice no toca `packages/core/src/pagos/` ni ningún archivo relacionado con
+Wompi/reconciliación — el fallo es flakiness pre-existente del test de concurrencia, no una
+regresión de este cambio. Se reporta la corrida FINAL (verde, reconciliada) como el gate del
+slice.
+
+### Lo que queda abierto — `CROMO-CAPTURA-ARNES-SITESETTING-VACIA-1` NO se cierra acá
+
+El modo `--url` resuelve el problema de raíz para cualquier chrome que dependa de `SiteSetting`
+(nombre, whatsapp, instagram): al navegar el muestrario YA DESPLEGADO, `SiteSetting` es la fila
+REAL de esa base, no el INSERT neutro de la migración — no hace falta sembrarla. Pero el modo BASE
+FRESCA (sin `--url`) sigue exactamente como `CROMO-RIEL-SOCIAL-1` lo dejó: `capturar-seccion.sh`
+sigue corriendo sólo `db:deploy`, nunca `db:seed`, así que una captura de base fresca del riel
+social (o de cualquier chrome que lea `SiteSetting`) sigue sin datos sociales. `--url` es la vía de
+escape para la cadena de los ocho (que captura contra el muestrario real, no contra una base
+fresca), no un fix del modo base fresca — ese followup se queda abierto, sin tocar.
