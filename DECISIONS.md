@@ -13380,3 +13380,124 @@ la cuenta medida, no la del spec.
 ### Open follow-ups
 
 Ninguno nuevo.
+
+## 2026-09-22 — El arnés sirve con `next build`+`next start`, no `next dev`: la hidratación corre y el PNG muestra el color del COMPONENTE (`CROMO-DEV-HIDRATACION-SPA-1`)
+
+### Qué construye, en una frase
+
+`scripts/capturar-seccion.ts` deja de levantar `next dev --webpack` y en su lugar construye la app
+UNA VEZ (`next build`) y la sirve con `next start -p <puerto>`. Es el fix que `ARNES-INVOCABLE-
+POR-NPM-1` (§ arriba) ya había PROTOTIPADO en un throwaway (`.scratch/verificar-build.mjs`,
+gitignoreado, nunca comiteado) y medido contra el CTA real de Suscripción: el mismo
+`esperarAsentamiento`, contra build+start, asentaba y capturaba `#a70004` exacto. Este slice lo
+vuelve el comportamiento REAL del arnés — el que cualquier worker invoca por `npm run
+capturar:seccion` —, no un experimento aparte.
+
+### El hueco que arregla
+
+Bajo `next dev --webpack`, en este sandbox, el `useEffect` que arma el `IntersectionObserver` de
+una animación `whileInView`/`staggerChildren` de framer-motion NUNCA CORRE — no es que la
+animación tarde, es que el efecto de React que la dispara no se registra —, así que el componente
+queda en opacidad 0 para siempre y el PNG sale con el color del FONDO, no el del componente.
+`esperarAsentamiento` (§ `ARNES-INVOCABLE-POR-NPM-1`) ya DETECTA esto correctamente —advierte por
+consola, no cuelga, no miente— pero no lo CIERRA: la captura sigue saliendo con el color
+equivocado aunque el arnés no falle. Este slice cierra el hueco en la fuente (sirviendo con
+build+start, la hidratación corre de verdad), no en el síntoma.
+
+### `--preset` se hizo OPCIONAL — la captura "sin preset" (informalmente "Nayoli")
+
+Antes `--preset` era requerido. Sin él, la base efímera queda TAL CUAL migró (sin fila de
+`SiteContent`), así que `cssPaleta` (`lib/config/palette-style.ts`) devuelve `null` y el
+storefront cae a los defaults de código en `app/globals.css` — el estado que este arnés y sus
+dogfoods llaman informalmente "Nayoli" (no hay un preset `NAYOLI` en el catálogo: `PRESETS` en
+`lib/config/themes.ts` declara `PLIEGO`, `CORTE`, `PATIO`, `VETA`, `VITRINA`, `ARRANQUE` — ninguno
+así). Hacerlo opcional es lo que permite capturar ESE estado y compararlo contra un preset
+aplicado, sin inventar un preset que no existe. `parseCli` ya no exige `--preset`; `nombre` cae a
+`sin-preset-<timestamp>` si no se pasa ni `--nombre` ni `--preset`.
+
+### MEDIDO: el storefront es `force-dynamic` — el orden preset-antes-de-build es cinturón-y-tirantes, no una necesidad
+
+El spec pedía: medir si alguna ruta capturada se genera ESTÁTICA en `next build` (lo que
+hornearía el contenido del momento de la build) o confirmar por medición que la ruta es dinámica.
+
+**Medido:** `app/(storefront)/layout.tsx:30` declara `export const dynamic = 'force-dynamic'`
+sobre el layout que envuelve TODO el grupo de rutas `(storefront)`, y ninguna página bajo ese
+grupo declara su propio `export const dynamic` que pudiera pisarlo (`grep -rn "export const
+dynamic" "app/(storefront)/"` da UNA sola coincidencia — la del layout). Next.js propaga la config
+de segmento de un layout a sus hijos salvo que un hijo la sobreescriba; acá ninguno lo hace, así
+que TODA ruta del storefront se sirve por request, releyendo `SiteSetting`/`SiteContent` de la
+base en cada carga — la doctrina ya lo documenta (§ "La propagación al storefront — el storefront
+es DINÁMICO", CLAUDE.md) y el `next build` del dogfood (§ abajo) lo re-confirma por el símbolo de
+ruta (`ƒ`, no `○`/`●`) en la tabla que el propio build imprime.
+
+**Consecuencia:** el orden preset→build NO es una necesidad medida para ESTE storefront — sería
+necesario sólo si alguna ruta capturada dejara de ser dinámica en el futuro. Se mantiene de todos
+modos (preset antes de `next build`, en `main()`) porque es correcto sin condición y no cuesta
+nada extra: es la salida cinturón-y-tirantes que el spec pedía, elegida DESPUÉS de medir que no
+hacía falta, no en lugar de medir.
+
+### Los cuidados del spec, verificados
+
+- `capturar-seccion.sh` ya corre `npm run --silent db:deploy -w @duna/core` ANTES de invocar el
+  `.ts`; `construirNext()` llama `next build` DIRECTO, sin repetir `db:deploy`.
+- `entornoApp(puerto)` se extrajo como el entorno COMPARTIDO entre `next build` y `next start`
+  (antes sólo `arrancarNextDev` armaba ese objeto, y `next build` no lo recibía en absoluto). Los
+  dummies de `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` ahora cubren también el build: `next build`
+  recorre ("Collecting page data") las rutas de admin/API que SÍ importan `lib/auth.ts`, a
+  diferencia de `next dev`, que sólo compila on-demand lo que se visita.
+- El "LÍMITE DECLARADO" del header se actualizó: antes decía que `next dev` COMPARTE `.next/` con
+  cualquier dev server real corriendo en paralelo; ahora dice que `next build` SOBREESCRIBE ese
+  mismo `.next/` — la forma más fuerte del mismo límite (un dev server concurrente vería su
+  artefacto reescrito a mitad de corrida, no sólo compartido con otra lectura).
+- Ningún `npm run dev` real quedó corriendo antes de este slice ni de su dogfood (verificado antes
+  de cada corrida de `next build`/`next start`: `puertoLibre` sobre el puerto del arnés, y el
+  gate corrido por separado no toca `.next/` de la app — `npm test`/`test:integracion` no invocan
+  `next build` ni `next dev`).
+
+### `touches:` — lo que se escribió
+
+`scripts/capturar-seccion.ts` (build+start; `entornoApp`/`construirNext`/`arrancarNextStart`
+reemplazan a `arrancarNextDev`; `--preset` opcional), `scripts/capturar-seccion.sh` (comentarios),
+este asiento. Nada más — el `touches:` del spec no incluye `package.json` y no hizo falta tocarlo:
+`"capturar:seccion": "bash scripts/capturar-seccion.sh"` ya reenvía flags al `.sh`, que ya reenvía
+al `.ts`.
+
+### Gate
+
+`npm run gate` corrido en la tree final (los dos carriles), ANTES del dogfood: **1721/1721**
+(capa 1, `npm test`) + **208/208** (capa 2, `npm run test:integracion`, Postgres efímero del
+gate). Cero fallos — IDÉNTICO al floor que `ARNES-INVOCABLE-POR-NPM-1` dejó medido: consistente
+con que el diff no toca ningún archivo bajo los globs de ninguno de los dos carriles (`lib/**`,
+`constants/**`, `packages/core/**`, `app/**`, `components/**`, `services/**` para capa 1; ninguna
+tabla para capa 2 — el diff es sólo `scripts/` + este `.md`). `npx tsc --noEmit` limpio. `npx
+eslint scripts/capturar-seccion.ts` limpio (el `.sh` no tiene config de eslint — el mismo warning
+inerte de siempre, no un error).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 2` (spec). El diff de este commit (`scripts/capturar-seccion.ts`,
+`scripts/capturar-seccion.sh`, este asiento) es TOOLING de desarrollo: no toca `schema.prisma`,
+ninguna migración, ningún archivo de `app/(storefront)/` ni `components/storefront/`, ningún
+contrato cross-repo. `strings: []` para este commit — el banner y los mensajes de consola los lee
+un worker en su terminal, no un visitante.
+
+`customer_bytes.changed = true` DE TODOS MODOS — EL EJE ES LA RAMA, NO EL COMMIT (mismo criterio
+que los asientos anteriores de esta rama, `ARNES-CAPTURA-SECCION-1` y `ARNES-INVOCABLE-POR-NPM-1`
+incluidos): `slice/corte-reescritura-prototipo-1` ya aterriza bytes visibles de commits previos
+(CTAs del hero, cue "Desliza", bandas Origen/Marquesina, el menú del nav, la reescritura completa
+de CORTE, el carrito tematizado). Este commit no cambia ese hecho.
+
+`stopped_on: [customer-bytes]` → `AWAITING_APPROVAL`, por protocolo e instrucción explícita del
+dispatch — el worker no mergea ni corre nada contra una base real; el arnés (§ dogfood, abajo)
+sólo toca Postgres efímeros propios (puerto/base dedicados, `pg_efimero_arriba`), nunca `.env` ni
+`development`/`production`.
+
+### Deviations
+
+Ninguna respecto del spec.
+
+### Open follow-ups
+
+- **El fix real del `assets/` del prototipo** (§ `ARNES-CAPTURA-SECCION-1`, ya anotado) sigue
+  abierto — no es de este slice, `docs/` no está en su `touches:`.
+- El dogfood (§ abajo, apéndice de esta misma entrada) documenta su propia evidencia.

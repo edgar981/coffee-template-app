@@ -1,21 +1,38 @@
-// scripts/capturar-seccion.ts — § ARNES-CAPTURA-SECCION-1, § ARNES-INVOCABLE-POR-NPM-1.
+// scripts/capturar-seccion.ts — § ARNES-CAPTURA-SECCION-1, § ARNES-INVOCABLE-POR-NPM-1,
+// § CROMO-DEV-HIDRATACION-SPA-1.
 //
 // LA MITAD "APLICACIÓN" DEL ARNÉS DE CAPTURA. `scripts/capturar-seccion.sh` (el entrypoint) ya
 // levantó el Postgres efímero, lo migró y exportó DATABASE_URL/DIRECT_DATABASE_URL antes de
 // invocar este archivo — acá NO se toca ninguna base que no sea esa. Este script:
 //
 //   1. aplica el preset pedido sobre la base efímera (`aplicarPreset`, el MISMO runbook que
-//      `prisma/aplicar-preset.ts` usa en producción — no se reescribe el merge quirúrgico);
-//   2. levanta `next dev --webpack` contra esa base;
+//      `prisma/aplicar-preset.ts` usa en producción — no se reescribe el merge quirúrgico); sin
+//      `--preset` (opcional, § parseCli) NO toca la base y se captura tal cual queda tras migrar
+//      (sin fila de `SiteContent` → los defaults del código, el estado que este arnés llama
+//      informalmente "Nayoli" en sus dogfoods, § DECISIONS.md);
+//   2. construye la app UNA VEZ (`next build`) y la SIRVE con `next start` — NUNCA `next dev`
+//      (§ CROMO-DEV-HIDRATACION-SPA-1: medido que bajo `next dev --webpack`, en este sandbox, el
+//      `useEffect` que arma el `IntersectionObserver` de una animación `whileInView`/
+//      `staggerChildren` de framer-motion NUNCA CORRE — no es que la animación tarde, es que el
+//      efecto de React que la dispara no se registra —, así que el componente queda en opacidad 0
+//      para siempre y el PNG sale con el color del FONDO, no el del componente. La build de
+//      producción sí hidrata: el mismo mecanismo, contra `next build`+`next start`, asienta y
+//      captura el color exacto del componente);
 //   3. abre Chromium headless (instalado AISLADO, § abajo — nunca como dependencia del repo),
 //      captura cada ruta del storefront pedida — para una captura por SELECTOR, primero scrollea
 //      el elemento al viewport y espera a que su opacidad computada asiente (§ ARNES-INVOCABLE-
-//      POR-NPM-1, cierra `CROMO-ARNES-STAGGER-ANIMACION-1`: sin esto, un elemento envuelto en
-//      `whileInView`/`staggerChildren` de framer-motion sale semi-transparente en el PNG aunque el
-//      color CSS ya esté cableado) — e imprime los valores computados de las CSS custom
-//      properties de tema que esa sección usa;
+//      POR-NPM-1, cierra `CROMO-ARNES-STAGGER-ANIMACION-1`: con la build de producción el efecto SÍ
+//      corre, pero la transición sigue tomando un instante — esta espera es para ESO, no para el
+//      hueco de `next dev` que el paso 2 ya cierra) — e imprime los valores computados de las CSS
+//      custom properties de tema que esa sección usa;
 //   4. captura la sección correspondiente del prototipo (`docs/prototipos/cafeone/`), lado a lado;
-//   5. apaga `next dev` y deja que `capturar-seccion.sh` se encargue de apagar Postgres.
+//   5. apaga `next start` y deja que `capturar-seccion.sh` se encargue de apagar Postgres.
+//
+// EL ORDEN preset-ANTES-de-build (paso 1 antes del paso 2) es CINTURÓN-Y-TIRANTES, no una
+// necesidad medida: el storefront entero es `force-dynamic` (medido: `app/(storefront)/
+// layout.tsx:30` — cada request re-lee SiteSetting/SiteContent de la base, `next build` no hornea
+// ninguna ruta del storefront con el contenido del momento de la build). Aplicar el preset antes
+// es correcto de todos modos, y sigue siéndolo si una ruta futura dejara de ser dinámica.
 //
 // EMPAQUETA LO QUE `WORKER-CAPTURA-HEADLESS-CENSO-1` YA PROBÓ A MANO (navegador headless + base
 // efímera + app real + screenshot real): este archivo no inventa un mecanismo nuevo, ensambla los
@@ -42,10 +59,12 @@
 // corre en una máquina nueva (descarga el paquete `playwright` + el binario de Chromium, unos
 // cientos de MB). Ya cacheado, es rápido — es la medición de `WORKER-CAPTURA-HEADLESS-CENSO-1`.
 //
-// LÍMITE DECLARADO: este script asume que NINGÚN `npm run dev` real está corriendo sobre el mismo
-// checkout — `next dev` comparte el `.next/` del repo (no hay forma de darle un `distDir` propio
-// sin tocar `next.config.ts`, fuera de `touches:`). Es la misma precondición que ya rige el gate
-// visual (§ PRECONDICIÓN, CLAUDE.md): un solo dev server a la vez.
+// LÍMITE DECLARADO: este script asume que NINGÚN `npm run dev` real (ni otra corrida de este
+// mismo arnés) está corriendo sobre el mismo checkout — `next build` SOBREESCRIBE el `.next/` del
+// repo (no hay forma de darle un `distDir` propio sin tocar `next.config.ts`, fuera de
+// `touches:`), así que un `next dev` concurrente vería su artefacto reescrito a mitad de corrida.
+// Es la misma precondición que ya rige el gate visual (§ PRECONDICIÓN, CLAUDE.md): un solo
+// servidor de desarrollo/build a la vez sobre el checkout.
 import { parseArgs } from "node:util";
 import { createRequire } from "node:module";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -130,7 +149,7 @@ function cargarPlaywright(): PlaywrightModule {
 
 // ─── CLI ──────────────────────────────────────────────────────────────────────────────────────
 interface Opciones {
-  preset: string;
+  preset: string | undefined;
   rutas: string[];
   selectoresApp: (string | undefined)[];
   prototipos: string[];
@@ -143,7 +162,7 @@ interface Opciones {
 function ayuda(): string {
   return `
 Uso:
-  node --import tsx scripts/capturar-seccion.ts --preset <CLAVE> \\
+  node --import tsx scripts/capturar-seccion.ts [--preset <CLAVE>] \\
     --ruta <path-storefront> --prototipo <archivo-bajo-docs/prototipos/cafeone> \\
     [--selector-app <css>] [--selector-prototipo <css>] \\
     [--nombre <slug-de-salida>] [--var <--custom-property>] [--puerto-app <n>]
@@ -152,6 +171,9 @@ Uso:
 1ª --ruta con el 1º --prototipo, etc.) — deben venir en la misma cantidad.
 --selector-app / --selector-prototipo son OPCIONALES y también se emparejan por
 índice; sin selector para un índice dado, esa captura es de PÁGINA COMPLETA.
+--preset es OPCIONAL: sin él, la base efímera NO se toca (queda tal cual migró,
+sin fila de SiteContent → los defaults del código) — es cómo se captura el
+estado "sin preset" para comparar contra un preset aplicado.
 --var agrega una CSS custom property más a la lista impresa (el default ya
 incluye --sf-fondo, --sf-tinta, --sf-acento).
 
@@ -189,9 +211,6 @@ function parseCli(argv: string[]): Opciones {
   const preset = values.preset;
   const rutas = values.ruta ?? [];
   const prototipos = values.prototipo ?? [];
-  if (!preset) {
-    throw new Error(`Falta --preset.\n\n${ayuda()}`);
-  }
   if (rutas.length === 0 || prototipos.length === 0) {
     throw new Error(`Hacen falta --ruta y --prototipo (al menos uno de cada uno).\n\n${ayuda()}`);
   }
@@ -215,7 +234,7 @@ function parseCli(argv: string[]): Opciones {
     selectoresApp: rutas.map((_, i) => selectoresAppIn[i]),
     prototipos,
     selectoresPrototipo: prototipos.map((_, i) => selectoresProtoIn[i]),
-    nombre: values.nombre ?? `${preset.toLowerCase()}-${Date.now()}`,
+    nombre: values.nombre ?? `${preset ? preset.toLowerCase() : "sin-preset"}-${Date.now()}`,
     varsExtra: values.var ?? [],
     puertoApp: values["puerto-app"] ? Number(values["puerto-app"]) : 3477,
   };
@@ -355,22 +374,48 @@ function puertoLibre(puerto: number): Promise<boolean> {
   });
 }
 
-// ─── `next dev` contra la base efímera (DATABASE_URL ya está en el entorno) ──────────────────────
-function arrancarNextDev(puerto: number): ChildProcess {
+// ─── El entorno que comparten `next build` y `next start` (DATABASE_URL ya está en el proceso) ──
+function entornoApp(puerto: number): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PORT: String(puerto),
+    // Dummies defensivos: el storefront no importa lib/auth (verificado — proxy.ts sólo
+    // gatea /admin(.*) y el layout del storefront no lo importa), pero `next build` SÍ recorre
+    // (para "Collecting page data") las rutas de admin/API que sí lo importan — si algo
+    // transitivo llegara a leer estos valores al construir o al servir, que sea un dummy inerte
+    // y no el `.env` real del checkout.
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "arnes-captura-secreto-inerte",
+    BETTER_AUTH_URL: `http://127.0.0.1:${puerto}`,
+  };
+}
+
+// ─── `next build` UNA VEZ, bloqueante — § CROMO-DEV-HIDRATACION-SPA-1 (arriba, cabecera) ────────
+function construirNext(puerto: number): void {
+  console.log("▸ Construyendo la app (`next build`, una vez — puede tardar más que un arranque de `next dev`)…");
+  const r = spawnSync("npx", ["next", "build"], {
+    cwd: RAIZ,
+    env: entornoApp(puerto),
+    stdio: "inherit",
+  });
+  if (r.status !== 0) {
+    throw new Error(
+      "`next build` falló (ver la salida arriba) — el arnés no puede capturar sin una build de " +
+        "producción: bajo `next dev` los efectos de React que disparan una animación de entrada " +
+        "no corren en este sandbox (§ CROMO-DEV-HIDRATACION-SPA-1) y la captura saldría con el " +
+        "color del fondo, no el del componente.",
+    );
+  }
+  console.log("✔ `next build` terminó.");
+}
+
+// ─── `next start` (la build de arriba, servida) contra la base efímera ──────────────────────────
+function arrancarNextStart(puerto: number): ChildProcess {
   return spawn(
     "npx",
-    ["next", "dev", "--webpack", "-p", String(puerto)],
+    ["next", "start", "-p", String(puerto)],
     {
       cwd: RAIZ,
-      env: {
-        ...process.env,
-        PORT: String(puerto),
-        // Dummies defensivos: el storefront no importa lib/auth (verificado — proxy.ts sólo
-        // gatea /admin(.*) y el layout del storefront no lo importa), pero si algo transitivo
-        // llegara a leerlos, que sea un valor inerte y no el `.env` real del checkout.
-        BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "arnes-captura-secreto-inerte",
-        BETTER_AUTH_URL: `http://127.0.0.1:${puerto}`,
-      },
+      env: entornoApp(puerto),
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -381,7 +426,7 @@ async function detenerProceso(child: ChildProcess): Promise<void> {
   await new Promise<void>((res) => {
     child.once("exit", () => res());
     child.kill("SIGTERM");
-    // `next dev` a veces tarda en soltar el puerto; si a los 5s sigue vivo, KILL.
+    // `next start` a veces tarda en soltar el puerto; si a los 5s sigue vivo, KILL.
     setTimeout(() => {
       if (child.exitCode === null) child.kill("SIGKILL");
     }, 5000);
@@ -400,22 +445,32 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log(`▸ Aplicando el preset «${opciones.preset}» sobre la base efímera…`);
-  const { aplicarPreset, PresetIncompletoError } = await import("../lib/config/site-content-write");
-  const { PRESETS } = await import("../lib/config/themes");
-  const preset = PRESETS.find((p) => p.clave === opciones.preset);
-  if (!preset) {
-    throw new Error(`Preset «${opciones.preset}» desconocido. Catálogo: ${PRESETS.map((p) => p.clave).join(", ")}`);
-  }
-  try {
-    await aplicarPreset(preset);
-  } catch (e) {
-    if (e instanceof PresetIncompletoError) {
-      throw new Error(`El preset «${opciones.preset}» está incompleto — no se puede aplicar: ${e.message}`);
+  // El preset se aplica ANTES de `next build` (cinturón-y-tirantes: el storefront es
+  // force-dynamic, § cabecera del archivo — ninguna ruta capturada hornea contenido de build,
+  // pero aplicar antes es correcto de todos modos y no cuesta nada extra).
+  if (opciones.preset) {
+    console.log(`▸ Aplicando el preset «${opciones.preset}» sobre la base efímera…`);
+    const { aplicarPreset, PresetIncompletoError } = await import("../lib/config/site-content-write");
+    const { PRESETS } = await import("../lib/config/themes");
+    const preset = PRESETS.find((p) => p.clave === opciones.preset);
+    if (!preset) {
+      throw new Error(`Preset «${opciones.preset}» desconocido. Catálogo: ${PRESETS.map((p) => p.clave).join(", ")}`);
     }
-    throw e;
+    try {
+      await aplicarPreset(preset);
+    } catch (e) {
+      if (e instanceof PresetIncompletoError) {
+        throw new Error(`El preset «${opciones.preset}» está incompleto — no se puede aplicar: ${e.message}`);
+      }
+      throw e;
+    }
+    console.log(`✔ Preset «${opciones.preset}» aplicado.`);
+  } else {
+    console.log(
+      "▸ Sin --preset: la base efímera NO se toca (queda tal cual migró, sin fila de SiteContent → " +
+        "los defaults del código).",
+    );
   }
-  console.log(`✔ Preset «${opciones.preset}» aplicado.`);
 
   if (!(await puertoLibre(opciones.puertoApp))) {
     throw new Error(
@@ -424,14 +479,16 @@ async function main(): Promise<void> {
     );
   }
 
+  construirNext(opciones.puertoApp);
+
   mkdirSync(CAPTURAS_DIR, { recursive: true });
   const salidaDir = join(CAPTURAS_DIR, opciones.nombre);
   mkdirSync(salidaDir, { recursive: true });
 
   const playwright = cargarPlaywright();
 
-  console.log(`▸ Arrancando \`next dev\` en :${opciones.puertoApp}…`);
-  const appProc = arrancarNextDev(opciones.puertoApp);
+  console.log(`▸ Arrancando \`next start\` (la build de arriba) en :${opciones.puertoApp}…`);
+  const appProc = arrancarNextStart(opciones.puertoApp);
   let salidaApp = "";
   appProc.stdout?.on("data", (d) => (salidaApp += String(d)));
   appProc.stderr?.on("data", (d) => (salidaApp += String(d)));
@@ -439,16 +496,16 @@ async function main(): Promise<void> {
   const servidorProto = await levantarServidorPrototipo();
 
   const registro: Record<string, unknown> = {
-    preset: opciones.preset,
+    preset: opciones.preset ?? null,
     generadoEn: new Date().toISOString(),
     capturas: [] as unknown[],
   };
 
   try {
     await esperarListo(`http://127.0.0.1:${opciones.puertoApp}/`, 90_000).catch((e) => {
-      throw new Error(`\`next dev\` no respondió a tiempo: ${e}\n\n── stdout/stderr ──\n${salidaApp}`);
+      throw new Error(`\`next start\` no respondió a tiempo: ${e}\n\n── stdout/stderr ──\n${salidaApp}`);
     });
-    console.log("✔ `next dev` responde.");
+    console.log("✔ `next start` responde.");
 
     const browser = await playwright.chromium.launch({ headless: true });
     try {
@@ -521,7 +578,7 @@ async function main(): Promise<void> {
   const leeme = [
     BANNER,
     "",
-    `Preset: ${opciones.preset}`,
+    `Preset: ${opciones.preset ?? "(ninguno — base sin tocar)"}`,
     `Generado: ${String(registro.generadoEn)}`,
     "",
     ...(registro.capturas as Array<Record<string, unknown>>).map(

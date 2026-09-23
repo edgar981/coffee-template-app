@@ -2,9 +2,12 @@
 #
 # EL ARNÉS DE CAPTURA (§ ARNES-CAPTURA-SECCION-1) — empaqueta lo que
 # WORKER-CAPTURA-HEADLESS-CENSO-1 ya probó a mano: Postgres efímero (el MISMO mecanismo del
-# gate, `postgres-efimero.sh`) + un preset aplicado + `next dev` contra esa base + Chromium
-# headless capturando la ruta del storefront Y la sección correspondiente del prototipo, lado a
-# lado, con los valores CSS computados impresos.
+# gate, `postgres-efimero.sh`) + un preset aplicado + `next build` UNA VEZ + `next start` contra
+# esa base (NUNCA `next dev` — § CROMO-DEV-HIDRATACION-SPA-1: bajo `next dev`, en este sandbox,
+# los efectos de React que disparan una animación de entrada nunca corren, y la captura sale con
+# el color del fondo en vez del color del componente) + Chromium headless capturando la ruta del
+# storefront Y la sección correspondiente del prototipo, lado a lado, con los valores CSS
+# computados impresos.
 #
 # ESTA CAPTURA PRUEBA QUE EL TEMA SE APLICÓ Y LA BANDA RENDERIZA. NO PRUEBA QUE SE VEA BIEN. El
 # gate de gusto es del owner. (el script de abajo repite esto en su propio banner — acá para
@@ -37,7 +40,10 @@
 #   - Postgres local, igual que `scripts/test-integracion.sh` (brew install postgresql@14).
 #   - Red la PRIMERA vez en una máquina nueva (Playwright + Chromium se instalan AISLADOS, nunca
 #     como dependencia del repo — § capturar-seccion.ts). Ya cacheados, no hace falta red.
-#   - Ningún `npm run dev` real corriendo sobre este mismo checkout (comparten `.next/`).
+#   - Ningún `npm run dev` real (ni otra corrida de este arnés) corriendo sobre este mismo
+#     checkout — `next build` SOBREESCRIBE `.next/`, que todos comparten.
+#   - Este script tarda más que antes: ahora corre `next build` completo (§ arriba), no sólo
+#     arranca `next dev` — normal, no es un cuelgue.
 set -euo pipefail
 
 # Puerto y base PROPIOS, DISTINTOS de los del gate (55432/integracion): para que
@@ -53,7 +59,8 @@ echo "▸ Aplicando migraciones…"
 cd "$RAIZ"
 npm run --silent db:deploy -w @duna/core >/dev/null
 
-# El resto —aplicar el preset, levantar `next dev`, Playwright, apagar `next dev`— vive en TS
-# porque necesita child_process/fetch/un servidor HTTP chico, no porque bash no alcance: es la
-# misma frontera que `test-integracion.sh` ya traza contra `node --import tsx --test`.
+# El resto —aplicar el preset, `next build`, levantar `next start`, Playwright, apagar
+# `next start`— vive en TS porque necesita child_process/fetch/un servidor HTTP chico, no porque
+# bash no alcance: es la misma frontera que `test-integracion.sh` ya traza contra
+# `node --import tsx --test`.
 node --import tsx "$RAIZ/scripts/capturar-seccion.ts" "$@"
