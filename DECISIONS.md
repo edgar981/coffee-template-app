@@ -13501,3 +13501,95 @@ Ninguna respecto del spec.
 - **El fix real del `assets/` del prototipo** (§ `ARNES-CAPTURA-SECCION-1`, ya anotado) sigue
   abierto — no es de este slice, `docs/` no está en su `touches:`.
 - El dogfood (§ abajo, apéndice de esta misma entrada) documenta su propia evidencia.
+- **`ARNES-NEXT-START-PROCESO-HUERFANO-1`** — MEDIDO, no arreglado (§ el apéndice del dogfood,
+  abajo): tras el dogfood queda un `next-server` HUÉRFANO por corrida (`detenerProceso` mata al
+  `npx` de tope, no al `next-server` que ese árbol forkea). No bloquea (el puerto queda libre para
+  la corrida siguiente), pero es una fuga real de proceso/memoria por invocación. El mecanismo de
+  matanza (`spawn`+SIGTERM/SIGKILL sobre el `npx` de tope) NO CAMBIÓ en este slice — regía igual
+  bajo `next dev`—, así que no es un defecto NUEVO de este diff, y arreglarlo (matar el ÁRBOL de
+  procesos, no sólo el de tope) es una tanda propia del arnés, fuera de este `touches:`.
+
+## APÉNDICE — dogfood de `CROMO-DEV-HIDRATACION-SPA-1`: la captura ahora muestra el color del COMPONENTE, no el del fondo
+
+Corrido DESPUÉS del commit de código de arriba (gate ya verde), invocando el arnés por su entrypoint
+canónico (`npm run capturar:seccion -- …`, § `ARNES-INVOCABLE-POR-NPM-1`) — dos corridas, sobre el
+MISMO CTA que `ARNES-INVOCABLE-POR-NPM-1` había medido en OPACIDAD 0 bajo `next dev`
+(`a[href="/suscripciones"][class*="var(--sf-accion"]`, el `<a>` de `SubscriptionCTALinea` DENTRO
+del `motion.div` que framer-motion anima).
+
+### Corrida 1 — preset CORTE
+
+```
+npm run capturar:seccion -- --preset CORTE --ruta / \
+  --selector-app 'a[href="/suscripciones"][class*="var(--sf-accion"]' \
+  --prototipo index.html --selector-prototipo ".hero" \
+  --nombre cromo-dev-hidratacion-corte --var=--sf-accion
+```
+
+- **`next build` imprimió `ƒ /`** en la tabla de rutas (no `○`/`●`) — RE-CONFIRMA por ejecución,
+  con el build real de este dogfood, la medición estática del §"MEDIDO: el storefront es
+  force-dynamic" de arriba (que partió de leer `layout.tsx:30`): la ruta capturada es DINÁMICA.
+- **CERO advertencias `⚠ "..." no asentó su opacidad`** en la salida (a diferencia de la corrida de
+  `ARNES-INVOCABLE-POR-NPM-1`, que SIEMPRE la imprimía, incluso con el tope subido a 15 s): el
+  efecto de React corrió y la animación asentó dentro de los 4 s del tope.
+- **Valores computados de `:root`:** `--sf-fondo:#fdfbf7 --sf-tinta:#102407 --sf-acento:#a70004
+  --sf-accion:#a70004` (el preset CORTE sí aplicó).
+- **El PNG del botón (161×45), decodificado a mano** (`zlib.inflateSync` + unfilter manual de los
+  cinco filtros PNG — sin librería, el repo no trae un decoder; el mismo método que
+  `ARNES-INVOCABLE-POR-NPM-1` ya usó): **centro `rgb(167,0,4) = #a70004` EXACTO** — el rojo de
+  acción de CORTE, byte a byte contra el valor computado de `--sf-accion`. Promedio de todo el
+  botón (incluye antialiasing de bordes redondeados): `#a2090b`, a distancia de redondeo del
+  centro. **Contraste directo con el resultado bajo `next dev`** (mismo CTA, mismo preset, medido
+  en `ARNES-INVOCABLE-POR-NPM-1`): centro `rgb(253,251,247)` — el fondo CREMA de la página, no el
+  botón. La captura pasó de mostrar el FONDO a mostrar el COMPONENTE.
+
+### Corrida 2 — sin `--preset` ("Nayoli": los defaults del código, sin fila de SiteContent)
+
+```
+npm run capturar:seccion -- --ruta / \
+  --selector-app 'a[href="/suscripciones"][class*="var(--sf-accion"]' \
+  --prototipo index.html --selector-prototipo ".hero" \
+  --nombre cromo-dev-hidratacion-nayoli --var=--sf-accion
+```
+
+- `next build` volvió a imprimir `ƒ /` (mismo build, misma tabla de rutas — consistente).
+- Cero advertencias de asentamiento, igual que la corrida 1.
+- **Valores computados de `:root`:** `--sf-fondo:#faf7f4 --sf-tinta:#1a0f08 --sf-acento:#8b4513
+  --sf-accion:""` (vacío: sin preset, `cssPaleta` devolvió `null`, no hay `:root{--sf-*}` inyectado
+  — el storefront cae a los literales de `app/globals.css`). El botón usa
+  `bg-[var(--sf-accion,var(--sf-tostado))]`, así que cae al FALLBACK `--sf-tostado`.
+- **El PNG del botón (184×53), decodificado igual:** un punto sobre el BORDE del botón (5,26),
+  lejos del texto, dio **`#d4a97a` EXACTO** — el valor literal de `--sf-tostado` en
+  `app/globals.css:88`, byte a byte. El centro (26,15) cayó sobre una letra del texto del botón
+  (`#1a0f08`, el color de texto `--sf-tinta`) — por eso se reporta el punto de BORDE, no el centro,
+  para este botón más ancho que el de CORTE (el promedio de toda la caja, `#be966c`, es la mezcla
+  tostado+texto+antialiasing, consistente con ninguno de los dos siendo el fondo). Ninguno de los
+  tres puntos —borde, centro, promedio— es el crema de fondo (`#faf7f4`) ni un semi-transparente
+  hacia él: el componente pintó su color real, no el del fondo detrás suyo.
+
+### Lo que esto cierra
+
+Las DOS corridas, sobre el ARNÉS REAL que cualquier worker invoca (no un throwaway), confirman lo
+que `.scratch/verificar-build.mjs` (de `ARNES-INVOCABLE-POR-NPM-1`, nunca comiteado) había
+prototipado: bajo build+start la hidratación corre, el efecto de `whileInView` se registra, y
+`esperarAsentamiento` ve la opacidad asentar de verdad — el PNG muestra el COLOR DEL COMPONENTE,
+distinto según el preset/estado de la base, nunca el color del fondo. `CROMO-DEV-HIDRATACION-
+SPA-1` queda CERRADO: el estándar que los próximos slices visuales (volver-arriba, riel social,
+carrito) van a usar ya no depende de que el owner mire con su propio ojo si el color "parece"
+correcto — el arnés lo prueba.
+
+### Housekeeping verificado tras el dogfood
+
+- **Postgres efímero: limpio.** `ps aux | grep postgres` tras las dos corridas no muestra ningún
+  proceso en el puerto 55434 (sólo el Postgres.app del propio Mac, en 5432, preexistente y
+  ajeno). El `trap` de `postgres-efimero.sh` funcionó en las dos corridas.
+- **Puerto de la app: libre.** Verificado con un servidor Node de sondeo propio (`net.createServer
+  ().listen(3477, …)` — no hace falta `lsof`, fuera del tope de este dispatch): 3477 quedó LIBRE
+  después de la segunda corrida, así que una tercera invocación no chocaría.
+- **`next-server` huérfano — MEDIDO, ver `ARNES-NEXT-START-PROCESO-HUERFANO-1`** (§ Open
+  follow-ups, arriba): quedó UN proceso `next-server` vivo tras la corrida 1 (PID observado con
+  `ps aux`, sin `lsof`/`kill` en el tope del dispatch para investigar/limpiarlo más). No bloquea
+  (el puerto quedó libre igual), pero es una fuga real que el mecanismo actual de
+  `detenerProceso` (mata sólo al `npx` de tope, no al árbol) no cubre — mecanismo SIN CAMBIOS en
+  este slice, así que no es una regresión de este diff, pero sí algo que este dogfood, al
+  verificar más a fondo que los anteriores, sí llegó a medir.
