@@ -15028,6 +15028,24 @@ editor de paleta hace throw en vez de mostrar la vista previa.
 | `npx next build` | `✓ Compiled successfully`; `/` sigue `ƒ` (dinámica) |
 | `lib/config/corte-trustbadges.test.ts` (nuevo, 9 casos) | 9/9 |
 
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md — un hallazgo, no de este diff
+
+`grep` de los símbolos/rutas que este diff tocó (`site-content-defaults.ts`, `site-content-
+schema.ts`, `TrustBadges.tsx`, `seccionEsVisible`, `useSiteContent`, `REGISTRY`, `DEFAULTS`,
+`trustBadges`) contra CLAUDE.md: ninguna frase queda falsa por ESTE cambio. `TrustBadges`/
+`trustBadges` no aparecen en CLAUDE.md (cero menciones); la clasificación "banda ESTRUCTURAL sin
+sección" que sí describía a `trustBadges` vivía sólo en comentarios de código
+(`site-content-defaults.ts`, actualizados en este mismo diff), nunca en CLAUDE.md.
+
+**Un hallazgo lateral, YA VENCIDO antes de este slice, no causado por él:** CLAUDE.md:1903 cita
+`lib/config/site-content-defaults.ts:411` para `hero.titulo`. Medido en `HEAD~1` (el commit previo
+a este slice): la línea real ya era **847**, no 411 — la cita estaba desactualizada por ediciones
+de slices anteriores, sin relación con `trustBadges`. Este diff, al insertar contenido más arriba
+en el archivo, la desplaza más lejos: hoy es **880**. `CLAUDE.md` NO está en `touches:` de este
+slice, así que no se corrige acá — queda nombrado para que el próximo slice que SÍ toque CLAUDE.md
+la actualice (o, mejor, la reemplace por una referencia sin número de línea, como hacen la mayoría
+de las citas vecinas).
+
 ### `touches:` — lo que se escribió
 
 `lib/config/site-content-defaults.ts` (`TrustBadgesContent`, `SiteContentData.trustBadges`,
