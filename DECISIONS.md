@@ -13837,3 +13837,177 @@ tocaron** — la decisión de arriba existe precisamente para que no hiciera fal
   `--forzar-scroll <px>` que haga `page.evaluate(() => window.scrollTo(0, px))` antes de
   `esperarAsentamiento`, en el archivo compartido (no en un `.scratch/` — no hay forma de alcanzar
   la `page` desde afuera).
+
+## 2026-09-23 — El riel social: tematizable, nace APAGADO, en su PROPIA meta (no `cromo`, no `volverArriba`) (`CROMO-RIEL-SOCIAL-1`)
+
+Segundo eslabón de la cadena visual (volver-arriba → **riel social** → nav). El primero topó con un
+límite del arnés frente a chrome fijo-por-SCROLL (`CROMO-CAPTURA-ARNES-SCROLL-FIJO-1`, arriba); este
+topa con la MISMA familia de límite, dos causas distintas, frente a chrome fijo-por-ANCHO — y una
+tercera que ninguno de los dos anticipó (§ el límite, abajo).
+
+### Qué se construyó
+
+`components/storefront/RielSocial.tsx`, gemelo tematizable del `.rail` del prototipo
+(`docs/prototipos/cafeone/css/app.css:326-338`, `index.html:109-115`): nav vertical fijo a la
+izquierda, centrado verticalmente (`top-1/2 -translate-y-1/2`), pastilla (`sf-pildora`), superficie
+`bg-[var(--sf-tinta)]` con íconos en `text-[var(--sf-sobre)]` — el MISMO rol "texto sobre tinta" que
+ya usa `StoreFooter` para sus mismos dos botones. Visible sólo a `min-width:1560px`
+(`min-[1560px]:flex`, arbitrary variant de Tailwind v4 — sin precedente de un breakpoint de storefront
+a medida en el repo, así que se usó el valor literal en vez de inflar `@theme` con un
+`--breakpoint-*` de un solo consumidor, MISMO criterio que evitó tokens nuevos de un solo uso en
+tandas previas). Hover a `opacity-[.62]`, EL VALOR EXACTO de `.rail a:hover{opacity:.62}`
+(`css/app.css:337`) — no el tratamiento de fondo-con-tinte que `StoreFooter` usa para sus mismos dos
+botones: son dos composiciones DISTINTAS del mismo dato, cada una con la afordancia de su propio
+prototipo/pantalla de origen (`StoreFooter` no se tocó).
+
+**LOS DOS LINKS SON `SiteSetting.instagram`/`.whatsapp` — LA MISMA FUENTE ÚNICA que `StoreFooter`**,
+leída con el MISMO `useSiteSettings()` + `instagramUrl`/`whatsappUrl` (`lib/config/site.ts`). No se
+inventó un modelo de redes nuevo, como pedía el spec. Cada botón se oculta cuando su campo está vacío
+(idéntico al footer); si los DOS están vacíos, el riel entero no se monta — una pastilla vacía no es
+chrome, es un hueco. El ASSET de Instagram es el MISMO `/icons/instagram-white.svg` que ya usa
+`StoreFooter` (fill `#fff` baked, no `currentColor` — aproximación ya aceptada por el footer: `--sf-
+sobre` es por diseño un tono claro sobre tinta, así que el blanco crudo se lee correcto en la práctica
+sin necesitar un segundo asset por tema). WhatsApp usa el MISMO `MessageCircle` de lucide (sin ícono
+de marca en lucide 1.x, § `ChipCanal.tsx`).
+
+### La decisión de MODELO: meta PROPIA (`content.rielSocial`), NI `cromo` NI `volverArriba`
+
+Espejo exacto del razonamiento de `CROMO-VOLVER-ARRIBA-1` (arriba), un nivel más: `cromo` es un
+dominio CERRADO de 3 claves con contrato EXHAUSTIVO afirmado por `cromo-tematizable.test.ts` (fuera
+de `touches:`); `volverArriba` YA CERRÓ su propio contrato de 1 clave, con la MISMA lógica —sumarle
+una 2ª clave (`rielVisible` dentro de `VolverArribaContent`) habría convertido esa meta en la
+"chrome flotante genérica" que su propio docstring se negó a ser, y el spec de este slice tampoco
+declaró `lib/config/cromo-volver-arriba.test.ts` en `touches:`, así que tocarlo habría sido la MISMA
+ampliación no autorizada que el slice anterior evitó con `cromo`—. La salida es la misma forma:
+`RielSocialContent` (`{ visible: boolean }`), `content.rielSocial`, `resolverRielSocial` (gemelo de
+`resolverVolverArriba` en forma, SOFT, dominio cerrado de 1 clave), `rielSocialEditableSchema`
+(gemelo de `volverArribaEditableSchema`), y `PresetTema.rielSocialVisible` (el campo que el spec
+pedía, con ese nombre exacto) escribiendo `out.rielSocial` en `mergePresetEnContent` — REEMPLAZADO
+ENTERO, mismo criterio que `cromo`/`volverArriba`/`esquemas`/`orden`. `SeccionKey` sumó
+`'rielSocial'` a su exclusión (de seis a ocho metas); verificado con `tsc --noEmit` limpio, no sólo
+con los tests — la misma lección que la asiento de `volverArriba` ya dejó escrita (el error de
+`REGISTRY: Record<SeccionKey, …>` faltando una entrada es de COMPILACIÓN, no de `assert`).
+
+**LA CLAVE SE SIGUIÓ por todos sus sitios, verificado por grep antes y después:** `grep -rl
+"volverArriba"` dio exactamente los 6 archivos de `touches:` de aquel slice; `rielSocial` toca el
+mismo conjunto de 6 (más este asiento) — `themes.ts`, `site-content-defaults.ts`,
+`site-content-schema.ts`, el componente nuevo, el layout, y su propio test. No apareció un sitio no
+nombrado que obligara a pedir permiso para ampliar `touches:`.
+
+### El gate
+
+`npx node --import tsx --test "lib/config/*.test.ts"` — **625/625** (607 previos + 18 nuevos de
+`cromo-riel-social.test.ts`), incluidos los 22 de `cromo-tematizable.test.ts` y los 18 de
+`cromo-volver-arriba.test.ts` SIN tocar ninguno de los dos archivos. `npm run gate` (capa 1 + capa 2)
+en la tree final: **1754/1754** capa 1 (~5.4 s) + **208/208** capa 2 (Postgres efímero, ~14 s) — el
+mismo prerrequisito de siempre (`brew install postgresql@14`, ya presente). `npx tsc --noEmit`
+limpio. `npx next build` (SWC + `tsc`, § CLAUDE.md "`tsc` NO es la capa que envía"): `Compiled
+successfully`, `/` sigue `ƒ` (dinámico), sin errores. `npx eslint` sobre los 6 archivos de
+`touches:`: **2 errores en `cromo-riel-social.test.ts`** (`react/no-children-prop`) —
+**preexistentes en el patrón**, no una regresión: verificado que `cromo-volver-arriba.test.ts` (fuera
+de `touches:`) da los MISMOS 2 errores con el MISMO `React.createElement(Provider, { value,
+children: React.createElement(Hijo) })`. `lint` no es parte de `npm run gate` (§ CLAUDE.md) — no se
+tocó, mismo criterio que la tanda anterior.
+
+### La captura — el arnés MIDE el token correcto, pero topa con TRES causas, no una
+
+`npm run capturar:seccion -- --preset CORTE --ruta / --prototipo index.html --nombre riel-social`
+(build+start real, Postgres efímero propio del arnés, Chromium headless, página COMPLETA sin
+selector — nunca `--selector-app`/`--selector-prototipo`, por la razón de abajo). **Valores
+computados de `:root` bajo CORTE, medidos en navegador real:** `--sf-fondo:#fdfbf7
+--sf-tinta:#102407 --sf-acento:#a70004` — idénticos a los que midió `CROMO-VOLVER-ARRIBA-1` sobre el
+MISMO preset (coinciden byte a byte con `CORTE.raices`).
+
+**Por qué NUNCA `--selector-app`/`--selector-prototipo` para el riel: `loc.waitFor()` usa `state:
+'visible'` por default, y un elemento `display:none` (por CSS media query, no por opacidad
+animándose) NUNCA cumple esa espera — a diferencia del caso de `volverArriba` (opacidad 0 en
+tránsito), acá el timeout de 10 s es GARANTIZADO, no eventual, y `main().catch(...)` hace que TODA
+la invocación termine en `exit(1)` sin escribir un solo PNG (a diferencia de `screenshot()`, que sí
+escribe por-iteración, `writeFileSync(LEEME/valores.json)` corre sólo al final del loop completo).
+Página completa (`fullPage:true`, sin `waitFor` de visibilidad) es la única forma de no perder la
+corrida entera por un selector que el propio diseño del componente garantiza invisible bajo este
+viewport.**
+
+**El límite tiene TRES causas — dos MEDIDAS, y compuestas, no una sola como el spec anticipaba:**
+
+1. **VIEWPORT FIJO** (la que el spec anticipó, § "Si el arnés no expone el ancho de viewport,
+   extendelo mínimamente… y decilo"): `newPage({ viewport: { width: 1280, height: 900 } })` está
+   HARDCODEADO dentro de `main()` (`scripts/capturar-seccion.ts`), sin flag CLI ni env var que lo
+   override — verificado leyendo `parseCli`/`Opciones` completos, no sólo `--ayuda`. 1280 < 1560: el
+   riel nunca puede volverse visible bajo este arnés, sea cual sea su estado de datos.
+
+2. **`SiteSetting` NACE VACÍA en la base efímera de captura, MEDIDO, no supuesto** — y ésta es la
+   causa que NINGUNO de los dos slices anticipó, porque `volverArriba` no depende de ningún dato de
+   `SiteSetting`. `scripts/capturar-seccion.sh` sólo corre `db:deploy` (migraciones), NUNCA
+   `db:seed` — así que `SiteSetting.instagram`/`.whatsapp` quedan en el INSERT NEUTRO de la
+   migración (`nombre:'Configura tu tienda'`, el resto vacío, § CLAUDE.md "El código compartido no
+   NACE siendo Nayoli/demo"). **Verificado por CROP del PNG capturado** (`sharp`, extracto de la
+   franja del footer en `app-0.png`, 1280×4466): el footer muestra "Configura tu tienda" y las TRES
+   columnas de nav, **sin la fila de íconos sociales que `StoreFooter` pinta cuando `settings.
+   instagram`/`.whatsapp` traen datos** — confirma, con el MISMO mecanismo que ya usa el footer, que
+   los dos campos llegan vacíos a esta base. Ni `aplicarPreset` (lo único que el arnés escribe) ni
+   ningún flag tocan `SiteSetting`: el preset es sólo `SiteContent`.
+
+   **Consecuencia: aunque el viewport fuera ≥1560px, el riel de ESTA captura seguiría sin montarse**
+   —`rielSocial.visible:true` (CORTE aplicado) PERO los dos campos sociales vacíos es exactamente el
+   caso "ambos vacíos → no monta" que `cromo-riel-social.test.ts` afirma a propósito—. El spec pedía
+   "dos campos sociales sembrados para que los botones existan"; el arnés no tiene mecanismo para
+   sembrar `SiteSetting` (a diferencia de `SiteContent`, que sí recibe el preset).
+
+3. **Por completitud, MEDIDO también:** un crop de la franja izquierda del hero (`left:0..120px`,
+   viewport 1280) no muestra ningún nodo residual del riel —ni un rastro de `display:none` mal
+   aplicado ni una fuga de layout—, así que el componente se comporta como se espera bajo AMBOS gates
+   cerrados a la vez, aunque no se pudo ver el caso abierto.
+
+**Por qué NO se extendió `scripts/capturar-seccion.ts` para resolver 1 y 2, pese a que el spec lo
+autorizaba explícitamente para el caso 1 ("extendelo mínimamente… y decilo"):** el protocolo de este
+slice es más estricto que el spec en este punto — "YOUR DIFF MUST STAY INSIDE `touches:`… si el
+trabajo necesita un archivo fuera de esa lista, PARÁ y decilo — no lo ampliés vos mismo" — y
+`scripts/capturar-seccion.ts` NO está en `touches:` de `CROMO-RIEL-SOCIAL-1`. Es la MISMA tensión que
+`CROMO-VOLVER-ARRIBA-1` ya resolvió en la MISMA dirección para su propio límite (scroll fijo): "el
+archivo no está en `touches:`… y el protocolo es explícito sobre no ampliar alcance por cuenta
+propia". Seguir esa precedente en vez del permiso puntual del spec es la lectura más segura cuando
+los dos textos discrepan: el spec de un slice puede autorizar de más sin conocer el estado exacto del
+archivo compartido en el momento de correr (acá, además, hay una SEGUNDA causa —el seed de
+`SiteSetting`— que el spec no anticipó, y que un flag de sólo-viewport no habría resuelto igual).
+
+**DEVIATION registrada:** el spec pedía extender el arnés si hacía falta un flag de ancho; medido que
+el arnés tiene DOS huecos, no uno, y que `scripts/capturar-seccion.ts` está fuera de `touches:`; se
+optó por NO tocarlo y documentar los dos huecos como open followups, siguiendo la precedente ya
+sentada por el slice anterior sobre el MISMO archivo.
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `lib/config/themes.ts` (`PresetTema.rielSocialVisible`, el bloque `out.rielSocial` en
+`mergePresetEnContent`, `CORTE.rielSocialVisible: true`), `lib/config/site-content-defaults.ts`
+(`RielSocialContent`, `SiteContentData.rielSocial`, `SeccionKey` ampliado a 8 metas, `DEFAULTS.
+rielSocial`, `resolverRielSocial`, el `out.rielSocial` de `resolverSiteContent`),
+`lib/config/site-content-schema.ts` (`rielSocialEditableSchema`, sumado a
+`siteContentEditableSchema`), `components/storefront/RielSocial.tsx` (nuevo),
+`app/(storefront)/layout.tsx` (el `import` + `<RielSocial />` dentro de `CartProvider`, junto a
+`<BackToTop />`), este asiento. `cromo`/`CromoContent`/`cromoEditableSchema`/
+`cromo-tematizable.test.ts` y `volverArriba`/`VolverArribaContent`/`volverArribaEditableSchema`/
+`cromo-volver-arriba.test.ts` **NO se tocaron** — la decisión de arriba existe precisamente para que
+no hiciera falta. `StoreFooter.tsx` **NO se tocó** — el riel reusa su MISMA fuente de datos sin
+modificar su composición existente. `scripts/capturar-seccion.ts`/`.sh` **NO se tocaron** (§ arriba).
+
+### Open follow-ups
+
+- **`CROMO-CAPTURA-ARNES-VIEWPORT-FIJO-1`** — `scripts/capturar-seccion.ts` hardcodea el viewport de
+  Playwright a 1280×900 dentro de `main()`, sin flag CLI ni env var. Cualquier chrome gateado por
+  `min-width` (el riel de este slice; potencialmente el nav del próximo eslabón de la cadena) no
+  puede revelarse bajo este arnés. Arreglo candidato: `--ancho <px>`/`--alto <px>` opcionales en
+  `Opciones`/`parseCli`, con el default 1280×900 de hoy si no se pasan — en el archivo compartido, no
+  en `.scratch/` (mismo motivo que `CROMO-CAPTURA-ARNES-SCROLL-FIJO-1`: no hay forma de alcanzar la
+  `page` que `capturar-seccion.ts` ya abre y cierra desde un script aparte).
+- **`CROMO-CAPTURA-ARNES-SITESETTING-VACIA-1`** — `scripts/capturar-seccion.sh` corre `db:deploy`
+  pero nunca `db:seed`, así que `SiteSetting` (nombre, whatsapp, instagram, y el resto de sus campos
+  planos) siempre llega VACÍA a la base efímera de captura — sea cual sea el preset de `SiteContent`
+  aplicado. Cualquier pieza de chrome que dependa de `SiteSetting` (este riel; potencialmente futuras
+  piezas que lean `nombre`/`tagline`) topa con este hueco. Arreglo candidato: un flag
+  `--site-setting <clave>=<valor>` (repetible) en el mismo `parseCli`, aplicado con un `UPDATE`
+  directo tras `db:deploy` y antes de `next build` — o, más simple, un `--seed-social` que escriba
+  valores de muestra fijos para `instagram`/`whatsapp` sólo cuando se pide. Nombrado por separado del
+  followup de viewport porque son DOS mecanismos distintos del arnés (Playwright vs. la base) que
+  hoy le faltan al MISMO caso de uso (este riel), y el próximo slice que dependa de datos de
+  `SiteSetting` para su captura necesita saber que ninguno de los dos existe todavía.

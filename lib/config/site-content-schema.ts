@@ -314,6 +314,15 @@ const volverArribaEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
+// META de RIEL SOCIAL (§ CROMO-RIEL-SOCIAL-1): MISMA forma que `volverArribaEditableSchema` (dominio
+// CERRADO, NO sección, NO pasa por borrador/publicar, se declara SÓLO para que un futuro write
+// general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
+// `RielSocialContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
+// `cromo` ni con `volverArriba`. HOY no hay editor que la escriba —sólo `aplicarPreset` (`themes.ts`).
+const rielSocialEditableSchema = z.object({
+  visible: z.boolean().optional(),
+});
+
 // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). A diferencia de `cromo`/`esquemas`/`orden` de arriba,
 // ESTA sí es una SECCIÓN de verdad (pasa por el flujo borrador/publicar de siempre, § REGISTRY.menu
 // en site-content-defaults.ts) — se declara acá por la MISMA razón que todas las demás secciones:
@@ -364,6 +373,7 @@ export const siteContentEditableSchema = z.object({
   paginas: paginasEditableSchema.optional(),
   cromo: cromoEditableSchema.optional(),
   volverArriba: volverArribaEditableSchema.optional(),
+  rielSocial: rielSocialEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),

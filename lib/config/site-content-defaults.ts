@@ -589,6 +589,27 @@ export interface VolverArribaContent {
   visible: boolean;
 }
 
+// META de RIEL SOCIAL (§ CROMO-RIEL-SOCIAL-1) — MISMA forma y MISMO porqué que `VolverArribaContent`
+// (arriba): chrome que un preset puede encender, AUSENTE/`false` = el comportamiento de HOY, byte a
+// byte (el storefront no tiene riel social — sólo links en el footer), y NO fusionada en `cromo`
+// (dominio CERRADO de 3 claves con contrato EXHAUSTIVO afirmado por `cromo-tematizable.test.ts`,
+// fuera de `touches:` de este slice) ni en `VolverArribaContent` (dominio cerrado de 1 clave con SU
+// PROPIO contrato, gemelo de `cromo` en forma — sumarle una 2ª clave lo convertiría en la meta
+// compartida que `VolverArribaContent` explícitamente se negó a ser). Decide si un COMPONENTE ENTERO
+// se monta (`RielSocial.tsx`), la misma naturaleza que `volverArriba`, no un ajuste de un chrome ya
+// montado — así que necesita su propio lugar, meta nueva, no un campo de otra meta ya declarada.
+export interface RielSocialContent {
+  // ¿Se monta el riel social fijo a la izquierda (gemelo del `.rail` del prototipo,
+  // `docs/prototipos/cafeone/css/app.css:326-338`)? `false` = HOY: el storefront no tiene este
+  // chrome — `RielSocial.tsx` (`components/storefront/`) rinde `null`, byte-idéntico. Sólo
+  // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.rielSocialVisible`; de los 6
+  // presets del catálogo, sólo CORTE lo declara `true`. Los DOS links del riel (instagram/whatsapp)
+  // NO son parte de esta meta — salen de `SiteSetting` (la MISMA fuente única que ya usa
+  // `StoreFooter`), cada uno oculto cuando su campo está vacío; esta meta sólo decide si el RIEL
+  // como composición existe, no qué contiene.
+  visible: boolean;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
@@ -608,6 +629,7 @@ export interface SiteContentData {
   tema: TemaContent;
   cromo: CromoContent;
   volverArriba: VolverArribaContent;
+  rielSocial: RielSocialContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -1007,6 +1029,11 @@ export const DEFAULTS: SiteContentData = {
   volverArriba: {
     visible: false,
   },
+  // RIEL SOCIAL por defecto (§ CROMO-RIEL-SOCIAL-1): sin riel → byte-idéntico sin depender de una
+  // fila (`RielSocial.tsx` rinde `null`). Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  rielSocial: {
+    visible: false,
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -1112,10 +1139,10 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `volverArriba`, `esquemas`, `orden` y `variantesBandas`, que no son secciones). El REGISTRY las
-// cubre a todas; las siete metas quedan fuera a propósito —cada una se resuelve aparte del loop de
-// secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// `volverArriba`, `rielSocial`, `esquemas`, `orden` y `variantesBandas`, que no son secciones). El
+// REGISTRY las cubre a todas; las ocho metas quedan fuera a propósito —cada una se resuelve aparte
+// del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -1580,6 +1607,10 @@ export function resolverSiteContent(
   // resuelto aparte de `cromo` (dominio CERRADO propio, 1 clave) por el motivo del docstring de
   // `VolverArribaContent` — no comparte contrato con `cromo`.
   out.volverArriba = resolverVolverArriba(raw.volverArriba, defaultsBase.volverArriba);
+  // RIEL SOCIAL (meta, no sección, § CROMO-RIEL-SOCIAL-1): ¿se monta el riel fijo a la izquierda?,
+  // resuelto aparte de `cromo`/`volverArriba` (dominio CERRADO propio, 1 clave) por el motivo del
+  // docstring de `RielSocialContent` — no comparte contrato con ninguna de las dos.
+  out.rielSocial = resolverRielSocial(raw.rielSocial, defaultsBase.rielSocial);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -1678,6 +1709,18 @@ export function resolverCromo(stored: unknown, defaults: unknown): CromoContent 
 // CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el docstring de `VolverArribaContent` para el
 // porqué de que no comparta objeto con `cromo`.
 export function resolverVolverArriba(stored: unknown, defaults: unknown): VolverArribaContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const sv = st['visible'];
+  if (typeof sv === 'boolean') return { visible: sv };
+  const dv = def['visible'];
+  return { visible: typeof dv === 'boolean' ? dv : false };
+}
+
+// Resuelve RIEL SOCIAL (§ CROMO-RIEL-SOCIAL-1), gemelo de `resolverVolverArriba` en FORMA (dominio
+// CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el docstring de `RielSocialContent` para el
+// porqué de que no comparta objeto con `cromo` ni con `volverArriba`.
+export function resolverRielSocial(stored: unknown, defaults: unknown): RielSocialContent {
   const st = esObj(stored) ? stored : {};
   const def = esObj(defaults) ? defaults : {};
   const sv = st['visible'];

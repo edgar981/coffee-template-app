@@ -134,6 +134,12 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * visible` (`VolverArribaContent`, meta PROPIA — ver su docstring en `site-content-defaults.ts` para
  * el porqué de que NO comparta objeto con `navTinta`/`navSubtitulo`/`navBadge`). CORTE es hoy el
  * ÚNICO preset que lo declara.
+ *
+ * `rielSocialVisible` (§ CROMO-RIEL-SOCIAL-1, OPCIONAL) — ¿se monta el riel social fijo a la
+ * izquierda (gemelo del `.rail` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
+ * storefront no tiene este chrome, `RielSocial.tsx` rinde `null`). Escribe `content.rielSocial.
+ * visible` (`RielSocialContent`, meta PROPIA — MISMA razón que `volverArribaVisible`: no comparte
+ * objeto ni con `cromo` ni con `volverArriba`). CORTE es hoy el ÚNICO preset que lo declara.
  */
 export interface PresetTema {
   clave: string;
@@ -155,6 +161,7 @@ export interface PresetTema {
   heroCtasVisibles?: boolean;
   heroCueDesliza?: boolean;
   volverArribaVisible?: boolean;
+  rielSocialVisible?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -270,6 +277,8 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * composición, no contenido, y META APARTE de `tema` a propósito, ver el docstring de
  * `CromoContent`), `volverArriba` (§ CROMO-VOLVER-ARRIBA-1, el botón flotante, reemplazado entero
  * por la misma razón — META PROPIA, aparte de `cromo`, ver el docstring de `VolverArribaContent`),
+ * `rielSocial` (§ CROMO-RIEL-SOCIAL-1, el riel social, reemplazado entero por la misma razón — META
+ * PROPIA, aparte de `cromo` y de `volverArriba`, ver el docstring de `RielSocialContent`),
  * `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
  * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
  * que esa sección ya tuviera (`{ ...prev, variante }`) — y, SÓLO cuando la variante resultante de
@@ -322,6 +331,13 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // afirmado por `cromo-tematizable.test.ts`).
   out.volverArriba = {
     visible: preset.volverArribaVisible ?? false,
+  };
+  // `rielSocial` (§ CROMO-RIEL-SOCIAL-1): meta PROPIA, aparte de `cromo` Y de `volverArriba` — ver
+  // el docstring de `RielSocialContent` para el porqué (MISMA razón que `volverArriba`: no comparte
+  // el contrato exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`; y no se
+  // fusiona con `volverArriba` porque ese dominio ya cerró SU propio contrato de 1 clave).
+  out.rielSocial = {
+    visible: preset.rielSocialVisible ?? false,
   };
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
@@ -623,6 +639,12 @@ export const CORTE: PresetTema = {
   // `body.drawer-open` (`css/app.css:352`, el carrito abierto). CORTE es hoy el ÚNICO preset del
   // catálogo que lo declara; los otros cinco no tocan `content.volverArriba`.
   volverArribaVisible: true,
+  // rielSocialVisible (§ CROMO-RIEL-SOCIAL-1) — MEDIDO contra el prototipo: `.rail`
+  // (`docs/prototipos/cafeone/index.html:109`, `css/app.css:326-338`) es un nav vertical fijo a la
+  // izquierda con `background:var(--surface-inverse)` — la superficie-inversa del tema, `--sf-tinta`
+  // acá — visible sólo `@media (min-width:1560px)` (`css/app.css:339`). CORTE es hoy el ÚNICO preset
+  // del catálogo que lo declara; los otros cinco no tocan `content.rielSocial`.
+  rielSocialVisible: true,
 };
 
 export const PATIO: PresetTema = {

@@ -5,6 +5,7 @@ import StoreNav from "@/components/storefront/layout/StoreNav";
 import StoreFooter from "@/components/storefront/StoreFooter";
 import CartDrawer from "@/components/storefront/CartDrawer";
 import BackToTop from "@/components/storefront/BackToTop";
+import RielSocial from "@/components/storefront/RielSocial";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
 import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvider";
@@ -151,6 +152,10 @@ export default async function StorefrontLayout({
                     — decide su propio silencio adentro por `content.volverArriba.visible`
                     (AUSENTE/false → `null`, byte-idéntico). */}
                 <BackToTop />
+                {/* RielSocial (§ CROMO-RIEL-SOCIAL-1): MISMO mecanismo que BackToTop, montado SIEMPRE
+                    — decide su propio silencio adentro por `content.rielSocial.visible` (AUSENTE/false
+                    → `null`, byte-idéntico) y por si `SiteSetting.instagram`/`.whatsapp` están vacíos. */}
+                <RielSocial />
               </div>
             </CartProvider>
           </SiteContentProvider>
