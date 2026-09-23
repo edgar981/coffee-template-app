@@ -14335,3 +14335,72 @@ sigue corriendo sólo `db:deploy`, nunca `db:seed`, así que una captura de base
 social (o de cualquier chrome que lea `SiteSetting`) sigue sin datos sociales. `--url` es la vía de
 escape para la cadena de los ocho (que captura contra el muestrario real, no contra una base
 fresca), no un fix del modo base fresca — ese followup se queda abierto, sin tocar.
+
+## 2026-09-23 — CORTE-NAV-TRANSPARENTE-HERO-1: `navTinta` resemantizado — "sólido siempre" era una lectura equivocada del prototipo
+
+**El conflicto:** `cromo.navTinta:true` (CORTE) forzaba el nav a una banda `--sf-tinta` SÓLIDA SIEMPRE
+— nunca transparente, nunca cae a la tarjeta clara del scroll de hoy. El target del prototipo
+(`docs/prototipos/cafeone/css/app.css:172-191`, `.site-header{background:transparent}` +
+`.site-header.is-solid{background:var(--surface-inverse)}`) es lo CONTRARIO: flota transparente
+sobre el hero y sólo cae a sólido AL SCROLLEAR. El comentario que declaró `navTinta:true` en
+`CROMO-NAV-FOOTER-TEMATIZABLE-1` medía bien el COLOR (`--surface-inverse` = `--sf-tinta`) y mal el
+EJE: leyó el estado sólido y asumió que era el único, sin notar la regla base `background:transparent`.
+
+**MEDIDO ANTES de tocar el mecanismo** (§0 del spec): el hero de CORTE (`variantes.hero:'media'`,
+sin esquema asignado a la banda `hero` en `CORTE.esquemas`) es OSCURO (`bandaOscuraCanonica('hero',
+'media') === true`) y UNIFORME (`bandaUniforme('hero','media') === true` — sólo `'ficha'` no lo es).
+El floating transparente del prototipo asume exactamente esa forma de hero (dark, a sangre, un solo
+tono); CORTE la cumple, así que no hizo falta parar a pedir un ruling de producto.
+
+**Elección de mecanismo:** RESEMANTIZAR `navTinta:true` en vez de sumar un flag nuevo. Antes decidía
+"¿el nav bypassa el floating por completo?"; ahora decide sólo "¿de qué color es el estado SÓLIDO del
+nav (tinta, en vez de la tarjeta clara de siempre)?" — el floating en sí lo sigue decidiendo
+`tratamientoNav` (`esquema-style.ts`, SIN TOCAR) para cualquier valor del campo. Se descartó un flag
+nuevo (p. ej. `navSolidoAlScroll`) porque `navTinta` ya era la única declaración de este eje del
+catálogo y las dos lecturas ("bypassa" / "define el color del sólido") describen el MISMO chrome —
+sumar un segundo campo habría dejado dos ejes gobernando la misma banda sin necesidad, la misma
+familia de riesgo que `§39 Dos voces para el mismo umbral` ya documenta para otro par de campos.
+
+**El cambio, en `StoreNav.tsx`:**
+```
+// antes: navBandaTinta bypassaba el floating (navFlotando = !navBandaTinta && isHome && !scrolled && t.flotante)
+// ahora:
+const navFlotando = isHome && !scrolled && t.flotante;
+const navClaro = navFlotando ? t.textoClaro : navBandaTinta;
+const navBg = navFlotando
+  ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
+  : navBandaTinta
+    ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
+    : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
+```
+Por sustitución algebraica, con `navBandaTinta` fijo en `false` (todo tenant salvo CORTE) las tres
+expresiones colapsan EXACTAMENTE a las de antes de este slice — afirmado en el carril con
+`estadoNavViejo` (la fórmula previa, duplicada literal) contra `estadoNav` (la nueva), para Nayoli y
+los 5 presets no-CORTE, en las 4 combinaciones `isHome × scrolled`.
+
+**Los otros dos archivos tocados** (`themes.ts`, `site-content-defaults.ts`) sólo corrigen la
+DOCUMENTACIÓN del campo (los dos comentarios que afirmaban "sólido siempre" quedaban FALSOS con el
+cambio de semántica) — ningún dato ni ninguna otra función se tocó ahí.
+
+**Test** (`lib/config/corte-nav-transparente.test.ts`, 10 casos, capa 1 — sigue el patrón ya
+establecido en `cromo-tematizable.test.ts`/`cromo-nav-tratamiento.test.ts` de NO renderizar
+`StoreNav.tsx` directo — `usePathname()` revienta fuera de un árbol de Next real —, sino duplicar su
+CAPA DE DATOS y renderizar con `renderToStaticMarkup` la mitad que sí se puede, `Logo`): la
+precondición del hero (oscuro+uniforme); CORTE sin scroll → transparente con texto claro; CORTE
+scrolleado y CORTE fuera de home → sólido `--sf-tinta`; Nayoli y los 5 presets no-CORTE → la fórmula
+nueva es byte-idéntica a la vieja en las 4 combinaciones de estado; CORTE sigue siendo el único
+preset que declara `navTinta:true`; y tres casos de `Logo` real confirmando el wordmark claro/oscuro
+en cada estado.
+
+Regla: § no hay sección propia en CLAUDE.md para este eje — la doctrina de `navTinta` vive en el
+docstring de `CromoContent.navTinta` (`site-content-defaults.ts`) y en el comentario de
+`CORTE.navTinta` (`themes.ts`), ambos actualizados en este slice.
+
+**Gate:** `npm test` 1782/1782 (capa 1, sin base) + `npm run test:integracion` 208/208 (capa 2,
+Postgres efímero) — verde, una sola corrida sobre el árbol final. `npx tsc --noEmit`: limpio.
+
+**AWAITING_APPROVAL, no merge:** el cambio altera bytes que el visitante de un storefront con preset
+CORTE ve (el nav pasa de sólido-siempre a transparente-sobre-el-hero) — falla la condición
+"customer-bytes" de la política A. La aprobación del owner (`approved-by: owner`, en el spec) cubre
+la ESCRITURA de este diff, no el merge — el merge lo hace el orquestador tras su propia
+re-clasificación, como dicta el protocolo.

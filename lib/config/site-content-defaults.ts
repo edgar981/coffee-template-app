@@ -549,11 +549,15 @@ export interface TemaContent {
 // APARTE (nunca tocada por ese flujo), quedan seguros — dominio CERRADO (3 claves fijas), como
 // `paginas`, no abierto como `esquemas`.
 export interface CromoContent {
-  // ¿El nav es una banda `--sf-tinta` SÓLIDA SIEMPRE (nunca transparente-flotante, nunca cae a la
-  // superficie clara del scroll de hoy)? `false` = el `tratamientoNav` de HOY, byte-idéntico
-  // (§ esquema-style.ts). Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
-  // `preset.navTinta`; de los 6 presets del catálogo, sólo CORTE lo declara `true` (medido contra
-  // el prototipo — `--surface-inverse` del `.site-header`, § themes.ts).
+  // ¿El estado SÓLIDO del nav (al scrollear, o cuando la banda sobre la que flota no admite
+  // transparencia) es `--sf-tinta` en vez de la tarjeta clara de siempre? (§ CORTE-NAV-TRANSPARENTE-
+  // HERO-1, resemantizado — antes decía "banda SÓLIDA SIEMPRE, nunca transparente-flotante": esa
+  // lectura medía mal el prototipo, cuyo `.site-header` SÍ flota transparente sobre el hero y sólo
+  // cae a `--surface-inverse` al scrollear, § `.is-solid`, `css/app.css:172-191`). El floating en sí
+  // lo sigue decidiendo `tratamientoNav` (§ esquema-style.ts) para CUALQUIER valor de este campo —
+  // `navTinta` sólo cambia el COLOR del estado sólido. `false` = el `tratamientoNav` de HOY,
+  // byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.navTinta`; de
+  // los 6 presets del catálogo, sólo CORTE lo declara `true`.
   navTinta: boolean;
   // ¿El nav exhibe `SiteSetting.tagline` bajo el nombre (el sub-encabezado del wordmark, como el
   // `<small>` del prototipo)? `false` = HOY: el nav no muestra sub-encabezado (byte-idéntico) — el

@@ -66,20 +66,30 @@ export default function StoreNav() {
   // es, el nav cae a SÓLIDO desde el primer render, sin importar scroll ni esquema.
   const primera = resolverOrden(orden)[0];
   const t = tratamientoNav(primera, varianteDeBanda(content, primera), esquemas, tema.fondo, tema.tinta, tema.acento);
-  // `cromo.navTinta` (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): declaración OPCIONAL del preset — el nav es
-  // una banda `--sf-tinta` SÓLIDA SIEMPRE, sin importar home/scroll. `false` (todo tenant salvo el
-  // que lo declare, § CORTE en themes.ts) → el `tratamientoNav`/`navFlotando` de HOY, exacto, sin
-  // tocar. `true` BYPASSA el floating por completo: nunca transparente, nunca cae a la tarjeta clara
-  // del scroll de hoy — reusa `navClaro` para el resto de la fila (link/ícono/logo), como la banda
-  // oscura flotante ya hacía.
+  // `cromo.navTinta` (§ CORTE-NAV-TRANSPARENTE-HERO-1, resemantizado — antes CROMO-NAV-FOOTER-
+  // TEMATIZABLE-1 lo declaraba "banda SÓLIDA SIEMPRE, nunca transparente"). El prototipo
+  // (`docs/prototipos/cafeone/css/app.css:172-191`, `.site-header`) hace lo CONTRARIO de esa lectura
+  // vieja: flota TRANSPARENTE sobre el hero y sólo cae a `--surface-inverse` (nuestra `--sf-tinta`)
+  // AL SCROLLEAR (`.is-solid`) — nunca "sólida siempre". El eje que SÍ es fijo en el prototipo es el
+  // color del ESTADO SÓLIDO: `--sf-tinta`, no la tarjeta clara que el resto de los temas usa al
+  // scrollear. Por eso `navBandaTinta` deja de forzar `navFlotando=false` y pasa a describir SÓLO
+  // el color de la superficie SÓLIDA (tinta en vez de tarjeta); el floating lo decide `tratamientoNav`
+  // igual que para cualquier otro tema — CORTE lo hereda porque su hero (`variantes.hero:'media'`,
+  // § themes.ts) es OSCURO y UNIFORME (`bandaOscuraCanonica`/`bandaUniforme`, sin esquema asignado a
+  // 'hero' en `CORTE.esquemas`), la misma banda que ya flota transparente con texto claro para
+  // cualquier tema sin `navTinta`.
+  // `false` (todo tenant salvo CORTE) → BYTE-IDÉNTICO: `navBandaTinta` nunca es true, así que
+  // `navFlotando`/`navClaro`/`navBg` resuelven EXACTAMENTE la misma rama de siempre (verificado por
+  // sustitución algebraica: con `navBandaTinta` fijo en `false`, las tres expresiones de abajo
+  // colapsan a las de antes de este slice).
   const navBandaTinta = cromo.navTinta;
-  const navFlotando = !navBandaTinta && isHome && !scrolled && t.flotante;
-  const navClaro = navBandaTinta || (navFlotando && t.textoClaro);
+  const navFlotando = isHome && !scrolled && t.flotante;
+  const navClaro = navFlotando ? t.textoClaro : navBandaTinta;
 
-  const navBg = navBandaTinta
-    ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
-    : navFlotando
-      ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
+  const navBg = navFlotando
+    ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
+    : navBandaTinta
+      ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
       : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
 
   // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links

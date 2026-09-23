@@ -604,16 +604,21 @@ export const CORTE: PresetTema = {
                           // del prototipo (`docs/prototipos/cafeone/ds/colors.css:48`) ES la tinta.
   origenAccion: 'acento', // el fondo de la acción primaria (hoy `tostado`) nace del ACENTO crudo —
                           // el `--action-primary` real del prototipo (`colors.css:59`).
-  // navTinta/navSubtitulo/navBadge (§ CROMO-NAV-FOOTER-TEMATIZABLE-1) — MEDIDOS contra el
-  // prototipo, no inventados. El `.site-header` pinta `--surface-inverse` (el MISMO verde-tinta
-  // que ya es `raices.tinta` de CORTE) apenas deja de flotar transparente sobre una banda uniforme
-  // clara (`.is-solid`/`.is-opaque`, `css/app.css:188-191`); acá se declara SÓLIDA SIEMPRE — la
-  // simplificación pedida por el spec de este slice (§1: "el prototipo lo quiere banda tinta
-  // sólida siempre"), en vez de replicar la transición transparente→sólida al detalle. El wordmark
-  // trae su sub-encabezado (`.wordmark small`, `index.html:23`, "San Adolfo · Huila") y el primer
-  // `nav-item` su badge de cosecha (`.badge`, `index.html:32`, "Cosecha 2026") — `navBadge` lleva
-  // ese texto EXACTO como el valor de MUESTRARIO de este preset (§ el docstring de
-  // `CromoContent.navBadge`: es dato del tenant, no un año horneado en el componente).
+  // navTinta/navSubtitulo/navBadge (§ CROMO-NAV-FOOTER-TEMATIZABLE-1, `navTinta` RESEMANTIZADO en
+  // CORTE-NAV-TRANSPARENTE-HERO-1) — MEDIDOS contra el prototipo, no inventados. El `.site-header`
+  // (`css/app.css:172-191`) flota TRANSPARENTE sobre el hero (`background:transparent`) y sólo pinta
+  // `--surface-inverse` (el MISMO verde-tinta que ya es `raices.tinta` de CORTE) AL SCROLLEAR
+  // (`.is-solid`) — nunca sólida siempre. La lectura anterior de este comentario ("se declara SÓLIDA
+  // SIEMPRE, la simplificación pedida por el spec de este slice") medía mal el prototipo: leyó
+  // `--surface-inverse` en el estado sólido y asumió que era el ÚNICO estado, sin notar el
+  // `background:transparent` de la regla base. `navTinta:true` hoy declara sólo el COLOR del estado
+  // sólido (tinta, no la tarjeta clara de los otros temas); el floating lo decide `tratamientoNav`
+  // igual que para cualquier tema — CORTE lo hereda porque su hero (`variantes.hero:'media'`, abajo)
+  // es oscuro y uniforme, sin esquema asignado a 'hero'. El wordmark trae su sub-encabezado
+  // (`.wordmark small`, `index.html:23`, "San Adolfo · Huila") y el primer `nav-item` su badge de
+  // cosecha (`.badge`, `index.html:32`, "Cosecha 2026") — `navBadge` lleva ese texto EXACTO como el
+  // valor de MUESTRARIO de este preset (§ el docstring de `CromoContent.navBadge`: es dato del
+  // tenant, no un año horneado en el componente).
   navTinta: true,
   navSubtitulo: true,
   navBadge: 'Cosecha 2026',
