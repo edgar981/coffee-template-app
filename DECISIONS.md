@@ -15973,3 +15973,97 @@ panel — las etiquetas de los cinco switches, "Mostrar titular" etc. — aunque
 storefront, § CLAUDE.md "EL EJE ES LA RAMA, NO EL COMMIT" ya fijaba que la clasificación es de la
 rama completa, no del commit suelto). El commit queda en la rama a la espera del merge gateado del
 orquestador. El copy nuevo del panel queda para la pasada del owner, como pidió el spec.
+
+## 2026-09-23 — El cast roto de `panel-controles.ts` tumbaba el deploy; el gate no corría `typecheck` y por eso nunca lo cazó (`PANEL-CONTROLES-TIPO-Y-GATE-TYPECHECK-1`)
+
+**Origen:** el owner reportó el deploy roto (2026-09-23): `Type error: Conversion of type '...' to
+type 'Record<string, unknown>' ... panel-controles.ts:94`. El asiento de `PANEL-EDITOR-HERO-TOGGLES-1`
+(§ arriba) ya había MEDIDO ese mismo error como "1 error preexistente… `tsc` no es parte de `npm run
+gate`" — la línea 94 venía de `PANEL-REFLEJA-TIENDA-CHEQUEO-1` (`camposDeMeta`, el cast de una unión
+de seis tipos de meta-contenido a `Record<string, unknown>` para poder iterar sus claves en runtime) y
+había quedado registrada como deuda conocida, sin que ningún slice posterior la tocara ni la agravara.
+
+### El síntoma
+
+`const obj = DEFAULTS[meta] as Record<string, unknown>` — TS2352: la unión
+`TemaContent | CromoContent | VolverArribaContent | RielSocialContent | NavTratamientoContent |
+NavWordmarkContent` no tiene índice de firma `string`, así que TS rechaza el cast directo (no hay
+overlap suficiente). El fix es el que el propio mensaje de error sugiere: pasar por `unknown` primero
+(`as unknown as Record<string, unknown>`), la forma seguridad-mínima ya usada en el repo para este
+patrón exacto — castear una unión de tipos concretos a un índice-firma cuando el llamador sólo
+necesita iterar `Object.keys()`. **No se tocó la lógica**, sólo el cast. Verificado con `npx tsc
+--noEmit`: quedó limpio (era el único error del árbol).
+
+### La clase — el gate gana `typecheck`
+
+El gate (`package.json`) era `npm test && npm run test:integracion`. `npm test` corre por
+`node --import tsx --test`, y **tsx borra los tipos sin chequearlos** — un `.ts` con un type error
+pasa el carril completo en verde. Nada en el gate corría `tsc`; el script `typecheck` existía SUELTO
+(`tsc --noEmit`), sin que ningún flujo lo invocara. Por eso este error vivió DOS slices como "deuda
+conocida" sin bloquear nada, hasta que `next build` —la única capa que sí typechequea antes de esta
+tanda— lo cazó en el deploy real. Es la MISMA familia que ya tiene nombre en CLAUDE.md ("un test que
+el gate no corre es documentación", § GATE-DOS-CARRILES-1 / § El carril rápido cubre `app/`): acá no
+es un test fuera de un glob, es un CARRIL ENTERO (`tsc --noEmit`) que existía como script y nunca se
+invocaba desde el punto que se declara "el gate".
+
+**El fix:** `"gate": "npm run typecheck && npm test && npm run test:integracion"` — typecheck
+PRIMERO, por ser el más barato (segundos) y fallar rápido antes de levantar Postgres efímero para
+`test:integracion`. No se tocaron `test` ni `test:integracion`.
+
+**Lo que esto NO reemplaza:** `next build` (SWC) sigue siendo la autoridad para JSX/TSX — un JSX que
+`tsc` acepta puede seguir rompiendo el build (§ CLAUDE.md, "`tsc` NO es la capa que envía"). Este
+cambio cierra el hueco de los type errors de `.ts` puro que ni `tsx` (capa 1) ni `next build` (que
+sólo corre en el deploy, no en el gate de un slice) atrapaban ANTES del deploy.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (nuevo, primero en `npm run gate`) | **0 errores** — limpio |
+| `npm test` (capa 1, sin base) | **1913/1913** — verde, sin cambio (ningún test se agregó ni se retiró) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde |
+
+Reconciliado contra el piso del asiento anterior (`PANEL-EDITOR-HERO-TOGGLES-1`: "1913/1913 + 208/208,
+capa 2 reconciliada en la corrida limpia" + "1 error preexistente en `panel-controles.ts:94`"): capa 1
+y capa 2 quedan IDÉNTICAS (ningún test tocado por este diff); el único cambio es el tsc, que pasa de
+"1 error, fuera del gate" a "0 errores, dentro del gate" — exactamente lo que este slice existe para
+producir.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/rutas que este diff tocó: `lib/config/panel-controles.ts` (línea 94, el cast), `package.json`
+(script `gate`).
+
+- `panel-controles.ts` (referenciado en el asiento de `PANEL-EDITOR-HERO-TOGGLES-1`, arriba, y en
+  `PANEL-REFLEJA-TIENDA-CHEQUEO-1`, más arriba aún): ninguna de las dos menciones describe la línea 94
+  como "correcta" o "sin deuda" — la de `PANEL-EDITOR-HERO-TOGGLES-1` la nombra explícitamente como el
+  "1 error preexistente" que ESTE slice cierra. Ninguna frase se vuelve falsa; una queda RESUELTA (el
+  error que describía ya no existe), lo cual no es lo mismo que falsa.
+- `gate`/`npm run gate`/`test:integracion`: CLAUDE.md tiene una sección entera (§ El GATE de un slice
+  corre LOS DOS CARRILES — `npm run gate`) que describe el gate como "primero `npm test` (capa 1, sin
+  base, ~4 s), después `npm run test:integracion` (capa 2, Postgres efímero)". Esa frase se vuelve
+  PARCIALMENTE INCOMPLETA por este diff: el gate ahora corre TRES pasos (typecheck → test →
+  integración), no dos. La sección no dice "sólo dos carriles para siempre" — dice "los DOS carriles"
+  en oposición histórica a cuando sólo corría uno (`npm test` suelto) — pero la enumeración literal
+  ("primero…, después…") ya no describe el orden completo del script real. Anotado como
+  `PANEL-CONTROLES-TIPO-Y-GATE-TYPECHECK-CLAUDEMD-STALE-1` en `open_followups`: actualizar esa sección
+  para nombrar los TRES pasos es un cambio de doctrina (CLAUDE.md), fuera de `touches:` de este slice
+  (`lib/config/panel-controles.ts, package.json, DECISIONS.md`).
+- `typecheck`/`tsc --noEmit`: CLAUDE.md ya tenía una sección (§ `tsc` NO es la capa que envía) que dice
+  "un `tsc` verde no prueba que el artefacto compile" — sigue siendo cierto; este diff no lo contradice,
+  sólo agrega que ahora `tsc` SÍ corre antes del deploy (cosa distinta de "basta con `tsc`").
+
+### `touches:` — lo que se escribió
+
+`lib/config/panel-controles.ts` (una línea: el cast), `package.json` (una línea: el script `gate`),
+este asiento. Ningún otro archivo se tocó.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1913/1913 + 208/208). Por instrucción del dispatch,
+este slice PARA en `AWAITING_APPROVAL` — nunca mergea: hereda la clasificación de la RAMA
+(`slice/corte-reescritura-prototipo-1`), que ya toca bytes visibles al operador del panel por commits
+anteriores (§ CLAUDE.md "EL EJE ES LA RAMA, NO EL COMMIT"). Este commit en particular no agrega copy
+ni bytes nuevos — es un cast de tipos y una línea de `package.json` —, pero la clasificación es de la
+rama completa, no del commit suelto. El commit queda en la rama a la espera del merge gateado del
+orquestador.

@@ -17,7 +17,7 @@
     "db:crear-owner": "tsx prisma/crear-owner.ts",
     "db:aplicar-preset": "tsx prisma/aplicar-preset.ts",
     "test:integracion": "bash scripts/test-integracion.sh",
-    "gate": "npm test && npm run test:integracion",
+    "gate": "npm run typecheck && npm test && npm run test:integracion",
     "capturar:seccion": "bash scripts/capturar-seccion.sh"
   },
   "dependencies": {

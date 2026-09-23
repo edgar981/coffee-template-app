@@ -91,7 +91,7 @@ function camposDeMeta(meta: MetaConCampos): string[] {
   if (meta === 'paginas') {
     return Object.keys(DEFAULTS.paginas).sort().map((p) => `paginas.${p}.visible`);
   }
-  const obj = DEFAULTS[meta] as Record<string, unknown>;
+  const obj = DEFAULTS[meta] as unknown as Record<string, unknown>;
   return Object.keys(obj).sort().map((c) => `${meta}.${c}`);
 }
 
