@@ -21,7 +21,7 @@ export default function StoreNav() {
   // ningún tenant lo edita— `links` es EXACTAMENTE el array de hoy: label/path de las tres rutas, en
   // el mismo orden. El CTA (`menuCtaHref`) nace apagado (`null`) hasta que el dueño lo configure.
   const content = useSiteContent();
-  const { esquemas, tema, orden, cromo } = content;
+  const { esquemas, tema, orden, cromo, navTratamiento } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
 
@@ -82,6 +82,14 @@ export default function StoreNav() {
       ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
       : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
 
+  // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links
+  // del nav llevan mayúscula + tracking del prototipo + un peso, sobre la MISMA sans del par (SIN
+  // tercera familia: no se toca `font-family`, sólo `text-transform`/`letter-spacing`/`font-weight`).
+  // `false` (todo tenant salvo el que lo declare, § CORTE en themes.ts) → `font-medium` de HOY,
+  // exacto, sin mayúscula ni tracking. El tamaño (`text-sm`) es el mismo en las dos ramas — ya es el
+  // body-s del prototipo, no cambia con el tratamiento.
+  const navLinkTratamiento = navTratamiento.activo ? 'uppercase tracking-[0.06em] font-normal' : 'font-medium';
+
   const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   // El logo del nav (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): `cromo.navSubtitulo` exhibe el `tagline`
@@ -119,14 +127,17 @@ export default function StoreNav() {
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
               {links.map(l => (
-                <Link key={l.path} href={l.path} className={`text-sm font-medium transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`}>
+                <Link key={l.path} href={l.path} className={`text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`}>
                   {l.label}
                 </Link>
               ))}
               {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1): apagado por defecto (`ctaHref` null), así
                   que Nayoli no gana nada acá. Se pinta como ACCIÓN —un botón, no un link plano—,
                   tomando la FORMA del bloque `/cuenta` muerto de más abajo (pill con fondo de tinte),
-                  no su destino ni su contenido. */}
+                  no su destino ni su contenido. `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1)
+                  NO lo toca: el `.nav` del prototipo (`docs/prototipos/cafeone/index.html:26-37`)
+                  sólo contiene `.nav-link` de navegación, sin CTA propio — esta pieza es dato
+                  nuestro sin análogo medido, así que queda fuera del alcance de este slice. */}
               {ctaHref && (
                 <Link
                   href={ctaHref}
@@ -172,7 +183,11 @@ export default function StoreNav() {
       </header>
 
       {/* Mobile Menu — `cromo.navTinta` NO lo toca: el spec de CROMO-NAV-FOOTER-TEMATIZABLE-1 acota
-          la superficie al header fijo (banda/logo/sub-encabezado/badge), no al drawer móvil. */}
+          la superficie al header fijo (banda/logo/sub-encabezado/badge), no al drawer móvil.
+          `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1) TAMPOCO lo toca, misma acotación: el
+          `.nav-link` medido contra el prototipo es el link del header DESKTOP, siempre visible sin
+          scroll ni interacción (§ el arnés de captura); el drawer móvil es otra composición
+          (colores/spacing propios) que ese spec no nombra. */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-[var(--sf-tarjeta)] shadow-lg sf-divisor-b border-[var(--sf-linea)]">

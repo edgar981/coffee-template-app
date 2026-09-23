@@ -323,6 +323,16 @@ const rielSocialEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
+// META de TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1): MISMA forma que `rielSocialEditableSchema`
+// (dominio CERRADO, NO sección, NO pasa por borrador/publicar, se declara SÓLO para que un futuro
+// write general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
+// `NavTratamientoContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
+// `cromo`, `volverArriba` ni `rielSocial`. HOY no hay editor que la escriba —sólo `aplicarPreset`
+// (`themes.ts`).
+const navTratamientoEditableSchema = z.object({
+  activo: z.boolean().optional(),
+});
+
 // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). A diferencia de `cromo`/`esquemas`/`orden` de arriba,
 // ESTA sí es una SECCIÓN de verdad (pasa por el flujo borrador/publicar de siempre, § REGISTRY.menu
 // en site-content-defaults.ts) — se declara acá por la MISMA razón que todas las demás secciones:
@@ -374,6 +384,7 @@ export const siteContentEditableSchema = z.object({
   cromo: cromoEditableSchema.optional(),
   volverArriba: volverArribaEditableSchema.optional(),
   rielSocial: rielSocialEditableSchema.optional(),
+  navTratamiento: navTratamientoEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),

@@ -610,6 +610,38 @@ export interface RielSocialContent {
   visible: boolean;
 }
 
+// META de TRATAMIENTO TIPOGRÁFICO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1) — MISMA forma y MISMO porqué
+// que `VolverArribaContent`/`RielSocialContent` (arriba): AUSENTE/`false` = el comportamiento de
+// HOY, byte a byte. NO fusionada en `CromoContent` a pesar de ser, en NATURALEZA, la misma familia
+// que `navTinta`/`navSubtitulo`/`navBadge` —AJUSTA un chrome que YA está SIEMPRE montado (el nav),
+// no decide si un componente entero se monta (a diferencia de `volverArriba`/`rielSocial`)—: se
+// midió la consecuencia de sumarle una 4ª clave a `cromo` contra el árbol completo, no sólo contra
+// este archivo, y `lib/config/cromo-tematizable.test.ts` (FUERA de `touches:` de este slice) afirma
+// la forma EXHAUSTIVA de `cromo` con `assert.deepEqual` contra literales de 3 claves —en
+// COMPILACIÓN (falta la propiedad del tipo en `CROMO_HOY: CromoContent = {...}`) antes incluso de
+// llegar a un `assert` en runtime—. Ampliar ese archivo para que acepte una 4ª clave habría sido la
+// ampliación de alcance no autorizada que el protocolo de este slice prohíbe hacer por cuenta
+// propia (mismo razonamiento, palabra por palabra, que ya cerró `CROMO-VOLVER-ARRIBA-1` y
+// `CROMO-RIEL-SOCIAL-1` sobre esta MISMA restricción — ver sus asientos en `DECISIONS.md`). Por eso
+// esta meta es NUEVA y PROPIA, no un 4º campo de `cromo`, aunque conceptualmente "quisiera" vivir
+// ahí: es una decisión de ALCANCE, no de dominio.
+//
+// NO CONFUNDIR con la función `tratamientoNav` (`lib/config/esquema-style.ts`): esa decide si el
+// nav FLOTA transparente sobre la banda y de qué color va su texto (un eje de POSICIÓN/CONTRASTE,
+// calculado en cada render). Esto es un eje TIPOGRÁFICO declarado por el PRESET —mayúscula +
+// tracking del prototipo + un peso, sobre la MISMA sans del par (§ `PresetTema.navTratamientoActivo`,
+// `themes.ts`)— que no interactúa con aquélla.
+export interface NavTratamientoContent {
+  // ¿Los links del nav llevan el tratamiento tipográfico del `.nav-link` del prototipo (mayúscula +
+  // `letter-spacing:var(--tracking-nav)` = `.06em` + peso regular, MEDIDO contra
+  // `docs/prototipos/cafeone/css/app.css:212-217`/`tokens.css:129` — el prototipo no declara
+  // `font-weight` en `.nav-link`, así que hereda el 400/regular del `body`, § el asiento de este
+  // slice)? `false` = HOY: los links del nav van `text-sm font-medium`, sin mayúscula ni tracking,
+  // byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `preset.navTratamientoActivo`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
+  activo: boolean;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
@@ -630,6 +662,7 @@ export interface SiteContentData {
   cromo: CromoContent;
   volverArriba: VolverArribaContent;
   rielSocial: RielSocialContent;
+  navTratamiento: NavTratamientoContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -1034,6 +1067,11 @@ export const DEFAULTS: SiteContentData = {
   rielSocial: {
     visible: false,
   },
+  // TRATAMIENTO DEL NAV por defecto (§ CROMO-NAV-TRATAMIENTO-1): sin mayúscula/tracking → el
+  // `text-sm font-medium` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  navTratamiento: {
+    activo: false,
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -1139,10 +1177,10 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `esquemas`, `orden` y `variantesBandas`, que no son secciones). El
-// REGISTRY las cubre a todas; las ocho metas quedan fuera a propósito —cada una se resuelve aparte
-// del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// `volverArriba`, `rielSocial`, `navTratamiento`, `esquemas`, `orden` y `variantesBandas`, que no
+// son secciones). El REGISTRY las cubre a todas; las nueve metas quedan fuera a propósito —cada una
+// se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -1611,6 +1649,11 @@ export function resolverSiteContent(
   // resuelto aparte de `cromo`/`volverArriba` (dominio CERRADO propio, 1 clave) por el motivo del
   // docstring de `RielSocialContent` — no comparte contrato con ninguna de las dos.
   out.rielSocial = resolverRielSocial(raw.rielSocial, defaultsBase.rielSocial);
+  // TRATAMIENTO DEL NAV (meta, no sección, § CROMO-NAV-TRATAMIENTO-1): ¿los links del nav llevan
+  // mayúscula+tracking+peso?, resuelto aparte de `cromo`/`volverArriba`/`rielSocial` (dominio
+  // CERRADO propio, 1 clave) por el motivo del docstring de `NavTratamientoContent` — no comparte
+  // contrato con ninguna de las tres.
+  out.navTratamiento = resolverNavTratamiento(raw.navTratamiento, defaultsBase.navTratamiento);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -1727,6 +1770,19 @@ export function resolverRielSocial(stored: unknown, defaults: unknown): RielSoci
   if (typeof sv === 'boolean') return { visible: sv };
   const dv = def['visible'];
   return { visible: typeof dv === 'boolean' ? dv : false };
+}
+
+// Resuelve el TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1), gemelo de `resolverRielSocial` en
+// FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el docstring de
+// `NavTratamientoContent` para el porqué de que no comparta objeto con `cromo`, `volverArriba` ni
+// `rielSocial`.
+export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavTratamientoContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const sv = st['activo'];
+  if (typeof sv === 'boolean') return { activo: sv };
+  const dv = def['activo'];
+  return { activo: typeof dv === 'boolean' ? dv : false };
 }
 
 const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento']);

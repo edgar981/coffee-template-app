@@ -140,6 +140,16 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * storefront no tiene este chrome, `RielSocial.tsx` rinde `null`). Escribe `content.rielSocial.
  * visible` (`RielSocialContent`, meta PROPIA — MISMA razón que `volverArribaVisible`: no comparte
  * objeto ni con `cromo` ni con `volverArriba`). CORTE es hoy el ÚNICO preset que lo declara.
+ *
+ * `navTratamientoActivo` (§ CROMO-NAV-TRATAMIENTO-1, OPCIONAL) — ¿los links del nav llevan el
+ * tratamiento tipográfico del `.nav-link` del prototipo (mayúscula + tracking + un peso, sobre la
+ * MISMA sans del par — NO una tercera familia)? AUSENTE = el comportamiento de HOY, byte a byte
+ * (`text-sm font-medium`, sin mayúscula ni tracking). Escribe `content.navTratamiento.activo`
+ * (`NavTratamientoContent`, meta PROPIA — MISMA razón que `volverArribaVisible`/`rielSocialVisible`:
+ * conceptualmente es la misma familia que `navTinta` —ajusta un chrome ya montado, no monta uno
+ * nuevo—, pero no puede compartir objeto con `cromo` por la restricción de `touches:` medida contra
+ * `cromo-tematizable.test.ts`, ver el docstring de `NavTratamientoContent` en
+ * `site-content-defaults.ts`). CORTE es hoy el ÚNICO preset que lo declara.
  */
 export interface PresetTema {
   clave: string;
@@ -162,6 +172,7 @@ export interface PresetTema {
   heroCueDesliza?: boolean;
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
+  navTratamientoActivo?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -279,6 +290,9 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * por la misma razón — META PROPIA, aparte de `cromo`, ver el docstring de `VolverArribaContent`),
  * `rielSocial` (§ CROMO-RIEL-SOCIAL-1, el riel social, reemplazado entero por la misma razón — META
  * PROPIA, aparte de `cromo` y de `volverArriba`, ver el docstring de `RielSocialContent`),
+ * `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, el tratamiento tipográfico de los links del nav,
+ * reemplazado entero por la misma razón — META PROPIA, aparte de `cromo`/`volverArriba`/
+ * `rielSocial`, ver el docstring de `NavTratamientoContent`),
  * `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
  * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
  * que esa sección ya tuviera (`{ ...prev, variante }`) — y, SÓLO cuando la variante resultante de
@@ -338,6 +352,14 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // fusiona con `volverArriba` porque ese dominio ya cerró SU propio contrato de 1 clave).
   out.rielSocial = {
     visible: preset.rielSocialVisible ?? false,
+  };
+  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1): meta PROPIA, aparte de `cromo`, `volverArriba` Y
+  // `rielSocial` — ver el docstring de `NavTratamientoContent` para el porqué (conceptualmente es la
+  // misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato
+  // exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:`
+  // de este slice).
+  out.navTratamiento = {
+    activo: preset.navTratamientoActivo ?? false,
   };
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
@@ -645,6 +667,18 @@ export const CORTE: PresetTema = {
   // acá — visible sólo `@media (min-width:1560px)` (`css/app.css:339`). CORTE es hoy el ÚNICO preset
   // del catálogo que lo declara; los otros cinco no tocan `content.rielSocial`.
   rielSocialVisible: true,
+  // navTratamientoActivo (§ CROMO-NAV-TRATAMIENTO-1) — MEDIDO contra el prototipo: `.nav-link`
+  // (`docs/prototipos/cafeone/css/app.css:212-217`) declara `font-family:var(--font-ui)` (=
+  // `--font-sans`, LA SANS del par — NO una tercera familia; `--font-ui` mide igual a `--font-body`,
+  // `tokens.css:95-96`), `text-transform:uppercase`, `letter-spacing:var(--tracking-nav)` (=
+  // `.06em`, `tokens.css:129`) y `font-size:var(--text-body-s)` (ya cubierto por el `text-sm` de
+  // HOY, sin cambio). El PESO: `.nav-link` NO declara `font-weight` propio —ni `.site-header` ni
+  // `.header-bar`, sus ancestros, lo hacen tampoco (`app.css:173-210`)— así que hereda el del
+  // `body` (`app.css:21-28`), que TAMPOCO lo declara → el default del navegador, `400`/regular. Por
+  // eso el tratamiento reemplaza el `font-medium` (500) de HOY por `font-normal` (400), no lo
+  // conserva. CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
+  // `content.navTratamiento`.
+  navTratamientoActivo: true,
 };
 
 export const PATIO: PresetTema = {

@@ -14011,3 +14011,180 @@ modificar su composición existente. `scripts/capturar-seccion.ts`/`.sh` **NO se
   followup de viewport porque son DOS mecanismos distintos del arnés (Playwright vs. la base) que
   hoy le faltan al MISMO caso de uso (este riel), y el próximo slice que dependa de datos de
   `SiteSetting` para su captura necesita saber que ninguno de los dos existe todavía.
+
+## 2026-09-23 — El nav gana un TRATAMIENTO tipográfico (mayúscula + tracking + peso, sobre la MISMA sans del par), en su PROPIA meta — NO un 4º campo de `cromo` (`CROMO-NAV-TRATAMIENTO-1`)
+
+Tercer y último eslabón de la cadena visual (volver-arriba → riel social → **nav**). Los dos
+anteriores midieron límites del ARNÉS de captura (scroll fijo, ancho fijo + `SiteSetting` vacía);
+éste mide un límite del MODELO — la misma restricción que ya obligó a `volverArriba`/`rielSocial` a
+vivir fuera de `cromo`, ahora topada por un eje que, a diferencia de esos dos, SÍ pertenece
+conceptualmente a `cromo` (ajusta un chrome ya montado, como `navTinta`) y aun así no puede vivir ahí.
+
+### Qué se construyó
+
+Los links del nav desktop (`StoreNav.tsx`, `header nav a` dentro del `<nav>` `hidden lg:flex`)
+ganan, cuando el preset lo enciende, el tratamiento del `.nav-link` del prototipo: **mayúscula +
+`letter-spacing:.06em` + peso REGULAR (400)**, sobre la MISMA sans del par (`--font-ui`, § abajo —
+NUNCA una tercera familia). Medido contra `docs/prototipos/cafeone/css/app.css:212-217` y
+`tokens.css:129` (`--tracking-nav:.06em`):
+
+- `font-family:var(--font-ui)` — y `--font-ui:var(--font-sans)` === `--font-body`
+  (`tokens.css:95-96`): el `.nav-link` usa la MISMA sans que el resto del cuerpo, no un tercer rol
+  tipográfico. Nuestro sistema ya cumple esto por construcción (StoreNav no fija `font-family`, hereda
+  `--sf-fuente-cuerpo` del `:root`), así que este eje NO toca `font-family` en absoluto — sólo
+  `text-transform`/`letter-spacing`/`font-weight`.
+- **El PESO es el hallazgo que el spec pedía medir, y NO es el que el nav ya tenía puesto.**
+  `.nav-link` no declara `font-weight` propio, y tampoco lo declaran sus ancestros (`.site-header`,
+  `.header-bar`, `app.css:173-210`) ni el `body` (`app.css:21-28`) — hereda el default del navegador,
+  **400/regular**. El nav de HOY usa `font-medium` (500). El tratamiento por tanto **reemplaza**
+  `font-medium` por `font-normal`, no lo conserva — grepeado en el artefacto compilado (no supuesto):
+  `.font-normal{font-weight:var(--font-weight-normal)}` / `--font-weight-normal:400` contra
+  `.font-medium{...}` / `--font-weight-medium:500` (`.next/static/chunks/*.css`, tras `next build`).
+- El TAMAÑO (`text-sm`) no se toca — el spec ya lo daba por igual al body-s del prototipo, y así es.
+- **Alcance: SÓLO el nav DESKTOP** (`header nav a`, el `.nav-link` real del prototipo —
+  `docs/prototipos/cafeone/index.html:26-37` confirma que ese `.nav` sólo contiene los 4 `.nav-item`
+  de navegación, sin CTA propio). El drawer MÓVIL (otra composición, otros colores, `--sf-acento-2`)
+  y el CTA del menú (§ CROMO-MENU-COMO-DATO-1, dato nuestro sin análogo en el prototipo) quedan
+  FUERA a propósito — el spec autorizaba dejarlos afuera "si dudás", y acá la duda tiene medición:
+  ninguno de los dos es el `.nav-link` que el spec pide tratar. Anotado en el código, no sólo acá.
+
+### La decisión de MODELO: meta PROPIA (`content.navTratamiento`), NO un 4º campo de `cromo`
+
+El spec pedía literal: *"Campo opcional en `cromo` (junto a navTinta) ... plumealo por el MISMO
+camino que `navTinta`"*. Se midió la consecuencia de eso ANTES de escribir una línea, y la
+consecuencia es una violación de `touches:`, no una preferencia de estilo:
+
+`lib/config/cromo-tematizable.test.ts` (FUERA de `touches:` de este slice) afirma la forma
+EXHAUSTIVA de `cromo` con `assert.deepEqual` contra literales de EXACTAMENTE 3 claves —
+`CROMO_HOY: CromoContent = { navTinta: false, navSubtitulo: false, navBadge: '' }`, y lo mismo sobre
+`DEFAULTS.cromo`, `resolverSiteContent({}).cromo`, y **cada** `mergePresetEnContent(...).cromo`
+(incluido el de CORTE, línea 91-94: `assert.deepEqual(out.cromo, { navTinta: true, navSubtitulo:
+true, navBadge: 'Cosecha 2026' })`, exactamente 3 claves). Confirmado por EJECUCIÓN, no sólo por
+lectura: `node -e "assert.deepEqual({a:1,b:2,c:3},{a:1,b:2})"` falla — `assert.deepEqual` compara el
+CONJUNTO de claves, no sólo las presentes en el literal esperado. Una 4ª clave real en `CromoContent`
+—cualquier valor, en cualquier preset que la encienda— rompe la línea 93 sin remedio: no hay forma de
+que CORTE encienda un 4º eje dentro de `cromo` y ese `assert.deepEqual` siga pasando. (Antes incluso
+de eso, con la 4ª clave declarada NO-opcional en el tipo, `CROMO_HOY` ya rompe en COMPILACIÓN por
+faltarle la propiedad — el mismo hallazgo, una capa más temprano, que ya cerró `CROMO-VOLVER-ARRIBA-1`.)
+
+Es la MISMA restricción, palabra por palabra, que ya sacó a `volverArriba` (§ CROMO-VOLVER-ARRIBA-1)
+y a `rielSocial` (§ CROMO-RIEL-SOCIAL-1) de `cromo` — **con una diferencia que vale la pena marcar**:
+esos dos ejes NO pertenecían a `cromo` por NATURALEZA (deciden si un COMPONENTE ENTERO se monta,
+`volverArriba`/`rielSocial`, la misma distinción que ya separa `bandaOrigenVisible`/
+`bandaMarquesinaVisible` de `navTinta`); `navTratamiento` SÍ pertenece por naturaleza —AJUSTA un
+chrome que YA está siempre montado (el nav), la MISMA familia exacta que `navTinta`/`navSubtitulo`/
+`navBadge`— y aun así no puede vivir ahí. La restricción de `touches:` le gana a la afinidad
+conceptual: el protocolo de este slice es explícito ("YOUR DIFF MUST STAY INSIDE `touches:`… si el
+trabajo necesita un archivo fuera de esa lista, PARÁ y decilo — no lo ampliés vos mismo") y ampliar
+`cromo-tematizable.test.ts` para aceptar una 4ª clave habría sido exactamente esa ampliación no
+autorizada.
+
+La salida es la MISMA que la de los dos eslabones anteriores: una meta NUEVA y PROPIA —
+`NavTratamientoContent` (`{ activo: boolean }`), `content.navTratamiento`, `resolverNavTratamiento`
+(gemelo de `resolverRielSocial` en forma, SOFT, dominio cerrado de 1 clave), `navTratamientoEditableSchema`
+(gemelo de `rielSocialEditableSchema`), y `PresetTema.navTratamientoActivo` (el campo con el nombre
+que el spec pedía, en espíritu) escribiendo `out.navTratamiento` en `mergePresetEnContent` —
+REEMPLAZADO ENTERO, mismo criterio que `cromo`/`volverArriba`/`rielSocial`. `SeccionKey` sumó
+`'navTratamiento'` a su exclusión (nueve metas, no ocho).
+
+**DEVIATION registrada:** el spec pedía el campo DENTRO de `cromo`; medido que eso rompe un test
+fuera de `touches:` sin remedio posible (no es una elección de implementación, es una imposibilidad
+mecánica una vez que CORTE enciende el eje); se construyó en una meta propia siguiendo la precedente
+YA SENTADA dos veces en esta misma rama sobre esta misma restricción. `cromo`/`CromoContent`/
+`cromoEditableSchema`/`cromo-tematizable.test.ts` **NO se tocaron**.
+
+### El gate
+
+`npm test`: **1772/1772** (capa 1, incluidos los 18 de `cromo-tematizable.test.ts` SIN tocar ese
+archivo, y los 19 de `site-content-schema.test.ts` — el derivado modelo⊆schema de §65-B sigue en
+verde). `npm run test:integracion`: **208/208** (capa 2, Postgres efímero). `npm run gate` completo:
+**verde**. `npx tsc --noEmit`: limpio. `npx next build`: limpio, `/` sigue `ƒ` (dinámico).
+
+### La captura — un error de método real, corregido: `?tema=` NO llega al nav
+
+Primer intento: capturar Nayoli (`/`) y CORTE (`/?tema=CORTE`) en una sola corrida del arnés, sin
+`--preset` — el mirador de `?tema=` (`theme-mirador.ts`) es de sólo lectura y no escribe la base, así
+que parecía más simple que el `--preset` que usaron los dos eslabones anteriores. **Los dos
+screenshots salieron IDÉNTICOS en tratamiento** ("Tienda" mixed-case en los dos), lo que no
+cuadraba con `cromo-nav-tratamiento.test.ts` pasando en verde (`navTratamiento.activo` SÍ da `true`
+bajo `contenidoConPresetDeVista(nayoli, 'CORTE')`, afirmado por test).
+
+**La causa, medida leyendo `app/(storefront)/layout.tsx`:** `StoreNav` se monta en el LAYOUT
+(`<SiteContentProvider value={content}>`, línea 141, con `content = await getSiteContent()` — el
+PUBLICADO, sin `searchParams`), no en `page.tsx`. El mirador de `?tema=` sólo existe DENTRO de
+`page.tsx` (`app/(storefront)/page.tsx:80-84`, comentario propio: *"`searchParams` sólo existe en
+`page.tsx` — un Layout NO lo recibe, por diseño de Next"*) y sólo afecta las BANDAS que ese archivo
+renderiza (hero, brandStory, …), nunca el chrome del layout (nav, footer, BackToTop, RielSocial).
+**`?tema=CORTE` es la herramienta correcta para mirar una banda del home; es la herramienta
+EQUIVOCADA para mirar el nav** — y es la MISMA razón, medida ahora en el sentido inverso, por la que
+`CROMO-VOLVER-ARRIBA-1`/`CROMO-RIEL-SOCIAL-1` usaron `--preset CORTE` (que sí escribe la base que el
+layout lee) para capturar SU chrome. Se repitió la captura con `--preset CORTE`, la vía correcta:
+
+```
+npm run capturar:seccion -- --ruta "/" --prototipo index.html \
+  --selector-app "header nav a:nth-of-type(1)" --selector-prototipo 'a.nav-link[href="#historia"]' \
+  --nombre nav-tratamiento-nayoli
+npm run capturar:seccion -- --preset CORTE --ruta "/" --prototipo index.html \
+  --selector-app "header nav a:nth-of-type(1)" --selector-prototipo 'a.nav-link[href="#historia"]' \
+  --nombre nav-tratamiento-corte
+```
+
+**Valores computados de `:root`, medidos en navegador real:** Nayoli (sin preset) —
+`--sf-fondo:#faf7f4 --sf-tinta:#1a0f08 --sf-acento:#8b4513`, los defaults de código, sin fila; CORTE
+(`--preset CORTE`) — `--sf-fondo:#fdfbf7 --sf-tinta:#102407 --sf-acento:#a70004`, byte a byte contra
+`CORTE.raices` (`themes.ts`). Las capturas: `app-0.png` (Nayoli) muestra "Tienda" mixed-case sobre
+chrome claro/transparente — BYTE-IDÉNTICO al nav de siempre; `app-1.png`/`app-0.png` de la corrida
+CORTE muestra **"TIENDA" en mayúscula** sobre la banda `--sf-tinta` sólida (confirma también
+`cromo.navTinta:true`, ya cerrado en `CROMO-NAV-FOOTER-TEMATIZABLE-1`), visualmente equivalente al
+`prototipo-0.png` capturado en la misma corrida ("LA FINCA", mayúscula, misma banda oscura).
+
+**El valor computado de `text-transform`/`letter-spacing`/`font-weight` del link NO sale del arnés**
+(§ el límite, abajo) — se leyó del ARTEFACTO COMPILADO (`.next/static/chunks/*.css`, tras el mismo
+`next build`, § CLAUDE.md "grepear el artefacto, no la fuente"), no de un `getComputedStyle` en
+navegador: `.uppercase{text-transform:uppercase}`, `.tracking-\[0\.06em\]{letter-spacing:.06em}`,
+`.font-normal{font-weight:var(--font-weight-normal)}` con `--font-weight-normal:400` — los TRES
+declarados exactamente por las clases que `navLinkTratamiento` inyecta. `font-family` no aparece en
+ninguna de las tres reglas — confirma por el ARTEFACTO, no sólo por lectura del código, que el
+tratamiento no toca la familia.
+
+**El límite, medido, no supuesto:** `scripts/capturar-seccion.ts` (`getComputedStyle`,
+línea ~571) sólo lee custom properties de `:root` (`document.documentElement`) para lo que `--var`
+pide — nunca el computed style del ELEMENTO seleccionado (`text-transform`/`letter-spacing`/
+`font-weight` de un link no son custom properties, son propiedades CSS directas de un nodo que no es
+`:root`). El arnés no tiene mecanismo para imprimirlas. `scripts/capturar-seccion.ts` NO está en
+`touches:` de este slice, así que no se extendió — el screenshot + el grep del artefacto compilado
+cubren la misma pregunta por otra vía, sin ampliar alcance por cuenta propia (§ el mismo criterio que
+ya aplicó `CROMO-RIEL-SOCIAL-1` sobre este mismo archivo).
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `lib/config/themes.ts` (`PresetTema.navTratamientoActivo`, el bloque `out.navTratamiento`
+en `mergePresetEnContent`, `CORTE.navTratamientoActivo: true`), `lib/config/site-content-defaults.ts`
+(`NavTratamientoContent`, `SiteContentData.navTratamiento`, `SeccionKey` ampliado a nueve metas,
+`DEFAULTS.navTratamiento`, `resolverNavTratamiento`, el `out.navTratamiento` de
+`resolverSiteContent`), `lib/config/site-content-schema.ts` (`navTratamientoEditableSchema`, sumado
+a `siteContentEditableSchema`), `components/storefront/layout/StoreNav.tsx` (el pass-through
+`navLinkTratamiento` sobre los links del nav desktop), `lib/config/cromo-nav-tratamiento.test.ts`
+(nuevo), este asiento. `cromo`/`CromoContent`/`cromoEditableSchema`/`cromo-tematizable.test.ts`,
+`volverArriba`/`VolverArribaContent`/`volverArribaEditableSchema`/`cromo-volver-arriba.test.ts`, y
+`rielSocial`/`RielSocialContent`/`rielSocialEditableSchema`/`cromo-riel-social.test.ts` **NO se
+tocaron** — la decisión de arriba existe precisamente para que no hiciera falta. El drawer móvil y
+el CTA del menú de `StoreNav.tsx` **NO se tocaron** (§ arriba, alcance). `scripts/capturar-seccion.ts`/
+`.sh` **NO se tocaron** (§ arriba).
+
+### Open follow-ups
+
+- **`CROMO-CAPTURA-ARNES-ESTILO-ELEMENTO-1`** — `scripts/capturar-seccion.ts` sólo puede imprimir
+  custom properties de `:root` (`--var`); no tiene mecanismo para imprimir el computed style
+  (`text-transform`/`letter-spacing`/`font-weight`/`font-family`) del ELEMENTO seleccionado por
+  `--selector-app`/`--selector-prototipo`. Cualquier slice futuro de TRATAMIENTO TIPOGRÁFICO (no de
+  color/paleta) topa con el mismo hueco y necesita el mismo rodeo —screenshot + grep del CSS
+  compilado— hasta que se resuelva. Arreglo candidato: además de los `--var` de `:root`, un flag
+  `--estilo-elemento <propiedad>` (repetible) que llame `getComputedStyle(nodo)[propiedad]` sobre el
+  nodo YA localizado por el selector, en el mismo punto donde hoy sólo se lee `document.
+  documentElement` — en el archivo compartido, no en `.scratch/` (mismo motivo que
+  `CROMO-CAPTURA-ARNES-SCROLL-FIJO-1`/`CROMO-CAPTURA-ARNES-VIEWPORT-FIJO-1`: no hay forma de
+  alcanzar la `page` que `capturar-seccion.ts` ya abre y cierra desde un script aparte).
+- **Cierra la cadena visual** volver-arriba → riel social → nav. Los tres eslabones quedan
+  `AWAITING_APPROVAL` sobre `slice/corte-reescritura-prototipo-1`, sin mergear — el owner mira las
+  tres capturas juntas en su pasada visual (§ el spec de este slice, último párrafo).
