@@ -15367,3 +15367,130 @@ visitante puede ver, y este commit en particular cambia el ALTO del hero-media b
 producción real (§ el docstring de cabecera de `HeroMedia.tsx`: `esDespliegueDemo()`). Cae del lado
 de "customer-bytes" de la política A, mismo criterio que el resto de esta rama. El commit queda en
 la rama a la espera del merge gateado del orquestador.
+
+## 2026-09-23 — Captura de scroll hero→marquesina→siguiente-banda, prototipo vs muestrario: NINGUNO de los dos usa `position:sticky` — la continuidad es de COLOR, no de mecanismo (`CORTE-MARQUESINA-SCROLL-CAPTURA-1`)
+
+Aprobado como ítem #3 de la ronda de gate visual del owner (2026-09-23), citando `CROMO-GLOBAL-
+CENSO-1` como `observed-report`. El owner, tras el ítem #2 (`CORTE-HERO-VIEWPORT-LLENO-1`): *"(f)
+mediste la ESTRUCTURA del prototipo (sección aparte), no su COMPORTAMIENTO al hacer scroll. Una
+sección separada con sticky o con fondo continuo se ve como parte del hero, que es lo que veo en el
+prototipo. Ahora el arnés hace scroll: capturá el prototipo y el muestrario en 3-4 posiciones de
+scroll entre el hero y la siguiente banda, lado a lado, y ahí decidimos. NO construyas nada de (f)
+antes de eso."* Este slice SOLO captura y observa — no construye nada de (f), que queda dentro de
+`BANDAS-SIN-PANEL-1`.
+
+### DEVIATION medida antes de escribir un solo PNG: el arnés existente NO puede producir lo que este
+### slice pide, y por eso NO se tocó `scripts/capturar-seccion.ts`
+
+`touches:` de este slice declara únicamente `DECISIONS.md`. El spec (§0) autoriza en prosa
+"extendé el arnés lo mínimo y decilo" si el lado del prototipo no soporta scroll — pero el
+protocolo del dispatch es más estricto que la prosa del spec: el diff tiene que quedarse DENTRO de
+`touches:`, y un archivo no declarado no está cubierto por la aprobación, así que la salida no es
+ensanchar `touches:` por cuenta propia sino encontrar una forma de cumplir el objetivo SIN tocar
+ningún archivo trackeado fuera de `DECISIONS.md`.
+
+**Medido, no supuesto, antes de decidir cómo capturar:** `scripts/capturar-seccion.ts`, sin
+`--selector-app`/`--selector-prototipo`, saca la captura de página completa con
+`page.screenshot({ fullPage: true })` — y ESE modo **ignora la posición de scroll para la
+composición de la imagen**: dos capturas del muestrario real tomadas tras `window.scrollTo(0, 0)`
+y `window.scrollTo(0, 1500)` dieron el **mismo alto exacto, 1280×4466** (medido leyendo los bytes
+16-24 del IHDR del PNG), y sus tamaños en bytes casi idénticos (2.402.689 vs 2.398.769 — la
+diferencia es el frame del video del hero avanzando entre una captura y la otra, no la
+composición). Es decir: `--scroll` en el modo sin selector sólo sirve para revelar chrome
+JS-reactivo (el botón "volver arriba", el caso que motivó el flag), **no para recortar el
+viewport a una posición de scroll dada** — que es exactamente lo que "3-4 posiciones de scroll,
+lado a lado" necesita. Con `fullPage: false` (viewport-only, sin tocar el arnés — el default de
+`page.screenshot()` sin ese flag), las mismas dos posiciones SÍ difieren: 1280×900 los dos, pero
+1.283.956 vs 533.927 bytes — contenido distinto de verdad.
+
+**La salida: un script AD-HOC en `.scratch/` (gitignoreado, no trackeado, no es un archivo del
+repo), que reusa la MISMA instalación aislada de Playwright que ya dejó
+`ARNES-CAPTURA-MUESTRARIO-REAL-1` en `.arnes-tooling/playwright/` y el MISMO patrón de servidor
+estático para `docs/prototipos/cafeone/` que `servirPrototipo` del arnés (parche `/assets/`→`/`,
+guarda de traversal).** No se instaló ninguna dependencia nueva, no se tocó `package.json`, no se
+tocó `scripts/capturar-seccion.ts`. `git status --porcelain` tras generar las 8 capturas: **vacío**
+— nada trackeado cambió salvo este asiento. La limitación real del arnés existente (fullPage
+ignora scroll en modo página completa) queda anotada para quien decida si vale la pena cerrarla
+como un `CROMO-CAPTURA-ARNES-*` más; no se cierra acá porque no está en `touches:`.
+
+### Las posiciones de scroll — por FASE, no por píxel crudo
+
+El prototipo y el muestrario tienen geometrías absolutas distintas (medido, viewport 1280×900):
+
+| | hero (top, alto) | banda/marquesina (top, alto) | siguiente (top) |
+|---|---|---|---|
+| **Prototipo** (`section.hero` / `section.marquee` / `#producto`) | 12, 876 | 888, 738 | 1626 |
+| **Muestrario** (`?tema=CORTE`, `main>section:nth-child(1/2/3)`) | 0, 828 | 828, 630 | 1458 |
+
+Usar el MISMO scroll crudo en los dos habría comparado fases distintas de cada transición. Se
+calcularon 4 paradas por FASE, derivadas de la geometría de CADA lado (fórmula: `A` tope de hero
+`y=0`; `B` transición hero→banda, `y=heroBottom-450`; `C` medio de la banda, `y=bandaTop+bandaAlto/
+2-450`; `D` transición banda→siguiente, `y=siguienteTop-450`) — prototipo: 0, 438, 807, 1176;
+muestrario: 0, 378, 693, 1008. Las 8 capturas (`*-A/B/C/D-*.png`, viewport-only) + `geometria.json`
+quedan en `.capturas/marquesina-scroll-captura/` (gitignoreado).
+
+**El muestrario se navegó con `?tema=CORTE`** (el mirador de `TEMAS-MIRADOR-PRESET-1`, § `app/
+(storefront)/page.tsx`): medido con `fetch` antes de capturar que `marquesina.visible` nace `false`
+por defecto (`MARQUESINA-BANDA-1`) y que el mirador SÍ enciende la banda en este despliegue (3
+apariciones de "marquesina"/su `aria-label` en el HTML con `?tema=CORTE` contra 0 sin el query) —
+sin esto, el muestrario no habría tenido banda que capturar.
+
+### LO OBSERVADO — la pregunta de (f), medida contra las 8 capturas y la geometría
+
+**Ninguno de los dos usa `position: sticky` ni `position: fixed` en la banda.** Medido con
+`getComputedStyle`: `.hero`/`.marquee` del prototipo son `position: relative` los dos;
+`main>section:nth-child(1/2)` del muestrario son `position: relative` los dos también. Los dos
+lados resuelven en **NORMAL FLOW** — la banda no se pinea sobre el hero ni lo tapa: al scrollear,
+el hero se va y la banda ocupa su lugar en el documento (confirmado en las capturas B/C: el
+contenido de la banda sube y el header —éste sí `position:fixed`, es chrome, no la banda— es lo
+único que queda quieto).
+
+**La sensación de "una sola superficie" en la transición hero→banda es de COLOR, no de mecanismo,
+y es MÁS FUERTE en el prototipo:**
+- **Prototipo**: `.hero{background:var(--green-900)}` y `.marquee{background:var(--green-900)}` —
+  el MISMO valor de color plano en las dos reglas (medido: `rgb(16,36,7)` en las dos, por
+  `getComputedStyle`). `heroBottom` (888) == `bandaTop` (888), sin hueco. La captura B lo muestra:
+  no hay ninguna línea ni cambio de tono en el punto donde el hero termina y el marquee empieza —
+  sólo el contenido (texto/tarjeta del marquee) aparece sobre el mismo verde.
+- **Muestrario**: `Marquesina.tsx` NO comparte una superficie de color con `HeroMedia` — cada uno
+  pinta SU PROPIA imagen de fondo (el video/poster del hero; `marquesina.imagen`, una foto
+  DISTINTA) con su propio velo (`bg-[var(--sf-tinta)]/70` en la marquesina). Como los dos veos
+  derivan del MISMO token (`--sf-tinta`), el tono general es parecido (verde oscuro en ambos, según
+  la captura B) — pero la textura de fondo SÍ cambia visiblemente en el punto de corte (de las
+  cerezas nítidas del hero a follaje desenfocado de la marquesina, captura B): es una continuidad
+  de TONO aproximada, no la superficie IDÉNTICA que logra el prototipo con un solo color plano
+  compartido.
+
+**La transición banda→siguiente es un SEAM DURO en los dos lados, sin diferencia notable.** Captura
+D: el prototipo pasa de verde oscuro a crema (`#producto`) en una línea neta; el muestrario pasa de
+verde oscuro a la franja clara de TrustBadges en una línea igual de neta. Ninguno de los dos suaviza
+esa transición ni la solapa.
+
+**La diferencia concreta, como dato para la decisión del owner — NO construida acá:** si el
+objetivo es que el muestrario se vea como el prototipo en la transición hero→marquesina, lo que
+falta no es un mecanismo de scroll (los dos ya son normal-flow, ninguno necesita volverse sticky
+para parecerse) — es que hero y marquesina COMPARTAN una superficie de color plano igual de
+literal a la del prototipo (mismo `background` sólido en las dos secciones, en vez de dos imágenes
+distintas con el mismo velo aplicado por separado). Eso es contenido de (f); este slice no lo
+toca.
+
+### El gate
+
+Sin cambios de código: `npm test` — **1875/1875** (capa 1, sin cambios desde `86851bd`). `npm run
+test:integracion` — **208/208** (capa 2, Postgres efímero). Reconciliado contra el piso del commit
+anterior (`86851bd`, mismas cifras) — coherente, porque el diff de este slice no toca ningún
+archivo que ese piso ejercite. `git status --porcelain`: vacío antes del `git add` de este asiento
+(las 8 capturas + `geometria.json` + los dos scripts ad-hoc de `.scratch/` están gitignoreados y no
+aparecen).
+
+### Verdicto
+
+Este slice sólo escribe `DECISIONS.md` (un asiento) — no toca schema, no toca bytes de cliente ni
+de dueño (las capturas y el script ad-hoc son gitignoreados, nunca llegan a un deploy), no toca un
+contrato cross-repo. Por criterio de merge policy A, cerraría `COMPLETE`. **Por instrucción del
+dispatch** (`exec: no`, "PARÁS EN `AWAITING_APPROVAL`. NO MERGEES"), este slice para en
+`AWAITING_APPROVAL` igual — la RAMA (`slice/corte-reescritura-prototipo-1`) sigue acumulando
+commits que tocan bytes de storefront en slices anteriores, y el propio protocolo de esta ronda de
+gate visual pide que cada ítem quede a la espera del merge gateado del orquestador, no que un
+worker decida mergear porque SU propio commit es inocuo. El commit de este asiento queda en la
+rama junto a los anteriores.
