@@ -14819,3 +14819,108 @@ cambie bytes que el visitante ve (el hero-media bajo `?tema=CORTE` pierde titula
 misma condición "customer-bytes" de la política A que tampoco se llegó a evaluar, porque el gate
 en rojo la precede). La aprobación del owner (`approved-by: owner`, en el spec) cubre la ESCRITURA
 de este diff, no el merge, que no procede con el gate heredado sin resolver.
+
+## 2026-09-23 — El cue "Desliza" pasa a `tracking-[0.11em]`/regular (el `--tracking-eyebrow` de `.scroll-cue`); la frase y la estructura del cue YA calzaban el prototipo, MEDIDO — GATE_RED heredado, sin agravar (`CORTE-HERO-PIE-POSICION-1`)
+
+Eslabón (e) de los seis que salieron de `CROMO-GLOBAL-CENSO-1`. El spec llegó con la aprobación ya
+midiendo el código: `HeroMedia.tsx` posiciona la frase (`.hero-caption`) abajo-derecha (`ml-auto`,
+hermana del bloque de título dentro de `max-w-6xl`, `text-right`, `max-w-[34ch]`, `text-sm`) y el
+cue (`.scroll-cue`) abajo-izquierda (`absolute lg:bottom-12 lg:left-8`, `flex-col items-start
+gap-3`, línea `h-14 w-px` = 56×1 con la palabra encima) — las dos YA coinciden con el prototipo
+(`docs/prototipos/cafeone/index.html:133-137`). Lo que el owner vio "del lado equivocado" era el
+SUBTÍTULO ocupando ese lugar, ya cerrado por `CORTE-HERO-TITULAR-OCULTABLE-1` (el eslabón (d)
+inmediatamente anterior en esta rama); el "sin la palabra / pegado al borde" que motivó el spec era
+muestrario STALE (de antes del re-apply de ese eslabón). Este slice no re-hace ninguna posición: las
+verifica de nuevo contra el código (siguen calzando) y corrige el ÚNICO delta de estilo que la
+aprobación había medido.
+
+### EL DELTA MEDIDO, y nada más: tracking + peso de la palabra "Desliza"
+
+`.scroll-cue` (`docs/prototipos/cafeone/css/app.css:385-391`) usa
+`letter-spacing:var(--tracking-eyebrow)` y `font-family:var(--font-ui)`, sin `font-weight` propio.
+`--tracking-eyebrow` es `.11em` (`css/tokens.css:127`); `--font-ui` es `var(--font-sans)`
+(`tokens.css:96`) — sin `font-weight`, cae al default del navegador (regular/400, el mismo
+`--weight-regular:400` que el archivo de tokens nombra para otros roles, `tokens.css:121`).
+
+`HeroMedia.tsx` tenía la palabra en `tracking-[0.2em] font-medium` (línea 283 antes de este slice).
+El `font-family` YA era correcto por HERENCIA y no hacía falta tocarlo: el div raíz del storefront
+lleva `font-inter` (`app/(storefront)/layout.tsx:146`, `.font-inter` = `--sf-fuente-cuerpo` con
+fallback Inter, `app/globals.css:470`), y ningún ancestro del cue —la `<section>`, el `<div
+data-hero-cue>`, la línea, el `<span>`— aplica `font-playfair`/`font-display`; el "link del nav ya
+usa" que cita el `approval-reason` es el mismo mecanismo de herencia que ya prueba
+`StoreNav.tsx:101` (`navLinkTratamiento`, "no se toca `font-family`, sólo `text-transform`/
+`letter-spacing`/`font-weight`" — el comentario del propio repo documenta la misma frontera).
+
+El cambio, en una línea:
+
+```diff
+- <span className="text-xs font-medium uppercase tracking-[0.2em]">Desliza</span>
++ <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
+```
+
+**No se tocó**: la línea (`h-14 w-px`, ya calzaba), las distancias (`lg:bottom-12`/`lg:left-8`, ya
+calzaban), la frase (`ml-auto`/`text-right`/`max-w-[34ch]`, ya calzaba — ver el test de abajo, que
+la AFIRMA sin cambiarla), el docstring de cabecera de `HeroMedia.tsx` (sigue describiendo el
+mecanismo del cue con exactitud; el número de tracking no estaba citado ahí, así que no quedó
+vencido por este cambio).
+
+### El test: `lib/config/corte-hero-pie.test.ts` (nuevo, 5 casos) — render en memoria
+
+Sigue el patrón de `corte-hero-titular.test.ts` (`renderToStaticMarkup` sobre `HeroMedia` envuelto
+en `SiteContentProvider`, sin `?tema=` ni mirador — el campo es de CONTENIDO, `cueDesliza`/
+`fraseAlPie`, no de preset, así que alcanza con setear el campo directo sobre `DEFAULTS`). Cinco
+casos: el span "Desliza" con `cueDesliza:true` trae `tracking-[0.11em]` y NO `tracking-[0.2em]`; el
+mismo span trae `font-normal` y NO `font-medium`; con `cueDesliza:false` (default) no aparece
+`tracking-[0.11em]` en ningún lado del HTML (byte-idéntico); `fraseAlPie` con texto rinde un `<p>`
+con `ml-auto`/`text-right`/`max-w-[34ch]` (afirma lo que YA calzaba, sin cambiarlo); `fraseAlPie`
+vacío (default) se omite. 5/5 verde. Los tests de la palabra usan una función `spanDesliza(html)`
+que aísla el `<span>Desliza</span>` con regex antes de mirar sus clases — necesario porque el
+eyebrow del hero (`HeroMedia.tsx:181`) también usa `tracking-[0.2em]`, sin relación con este slice
+y sin tocar; una aserción contra el HTML completo habría chocado con ese eyebrow.
+
+### El gate — verificado sobre el árbol final
+
+| corrida | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1842/1844** — 2 fallas, AMBAS heredadas de `menu-como-dato.test.ts:63,68` (idénticas a los dos eslabones anteriores, mismo mensaje, mismo conteo), ninguna nueva |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin relación con este slice |
+| `npx tsc --noEmit` | limpio |
+| `npx eslint` (los 2 archivos tocados) | 1 error `react/no-children-prop` en `corte-hero-pie.test.ts` — el MISMO patrón pre-existente de `React.createElement(Provider, {value, children: …})` que ya trae `corte-hero-titular.test.ts:24` y `hero-toggles-preset.test.ts:31` (fuera de `touches:`, verificado ahí); `HeroMedia.tsx` limpio; ninguno introducido por este diff, y `lint` no es parte de `gate` (`package.json`) |
+| `npx next build` | `✓ Compiled successfully`; `/` sigue `ƒ` (dinámica) |
+| `lib/config/corte-hero-pie.test.ts` (nuevo, 5 casos) | 5/5 |
+| `lib/config/corte-hero-titular.test.ts` (fuera de touches, confirmando que el eslabón (d) sigue intacto) | 14/14, sin tocar |
+| `lib/config/hero-toggles-preset.test.ts` (fuera de touches, confirmando que el eslabón (c) del hero sigue intacto) | 9/9, sin tocar |
+| `lib/config/hero-agregados.test.ts` (fuera de touches) | 13/13, sin tocar |
+
+### `touches:` — lo que se escribió
+
+`components/storefront/home/HeroMedia.tsx` (una línea de className, § el delta medido arriba),
+`lib/config/corte-hero-pie.test.ts` (nuevo, 5 casos), este asiento. Nada más — el diff no toca
+`site-content-defaults.ts`, `themes.ts`, `site-content-schema.ts` ni ningún otro archivo del
+eslabón (d): no hacía falta, los campos (`cueDesliza`/`fraseAlPie`) y su mecánica ya existían
+completos. `lib/config/menu-como-dato.test.ts` **NO se tocó** — es el GATE_RED heredado, el mismo
+de los dos eslabones anteriores, no de este slice.
+
+### Verdicto
+
+**GATE_RED** — mismo criterio que los eslabones (c) y (d): el gate completo (`npm run gate` —
+`npm test` primero, que ya falla) no cierra en verde sobre el árbol final. La causa NO es de este
+diff (las dos fallas son las mismas heredadas, sin agravar, sin nuevas); el precedente de los dos
+eslabones anteriores ya fijó que "GATE_RED heredado" sigue siendo GATE_RED, no AWAITING_APPROVAL,
+así que este asiento sigue el mismo criterio para no divergir dentro de la misma cadena. Separado,
+y también cierto: el diff SÍ cambia bytes que el visitante bajo `?tema=CORTE` ve —el tracking y el
+peso de la palabra "Desliza" cuando `hero.cueDesliza:true`— la misma condición "customer-bytes" de
+la política A que tampoco se llega a evaluar del lado del merge, porque el gate en rojo lo precede.
+La aprobación del owner (`approved-by: owner`, en el spec) cubre la ESCRITURA de este diff, no el
+merge, que no procede con el gate heredado sin resolver.
+
+**DESVÍO MEDIDO del dispatch:** el prompt de este slice instruía "PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES." — un verdicto elegido de antemano, antes de correr el gate. Medido el árbol final, el
+gate es `RED` (heredado, § arriba), y el precedente de esta MISMA rama (los eslabones (c) y (d))
+ya resolvió el caso idéntico —gate rojo heredado + bytes de cliente que también cambian— a favor
+de `GATE_RED`, no `AWAITING_APPROVAL`, con el argumento de que el verdicto se mide contra el árbol
+final, no contra la autoría de la falla ni contra lo que un dispatch anticipó antes de medir. Este
+slice sigue ese precedente en vez de la instrucción del dispatch, para no introducir una TERCERA
+convención de verdicto para el mismo escenario dentro de la misma cadena — y lo deja escrito acá,
+en vez de decidirlo en silencio. En cualquiera de los dos casos (`GATE_RED` o `AWAITING_APPROVAL`)
+la consecuencia práctica es la misma: no hay merge, el diff queda en la rama para revisión.

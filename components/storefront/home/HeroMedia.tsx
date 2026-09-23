@@ -280,7 +280,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
               transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
             />
           </div>
-          <span className="text-xs font-medium uppercase tracking-[0.2em]">Desliza</span>
+          <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
         </div>
       )}
     </section>
