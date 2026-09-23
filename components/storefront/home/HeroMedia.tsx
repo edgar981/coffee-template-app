@@ -37,13 +37,15 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 //
 // EL VELO NO SE INVENTÓ: se REUSA el que YA construyó `HeroCurtina.tsx` para el MISMO problema —texto
 // claro directo sobre media, sin caja— `bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent
-// to-[var(--sf-tinta)]/80`, cubriendo TODA la media (`inset-0`, no sólo el tercio superior de antes).
+// to-[var(--sf-velo)]`, cubriendo TODA la media (`inset-0`, no sólo el tercio superior de antes).
 // Es la MISMA forma que el velo del prototipo (oscurece hacia el pie, donde está el texto) con los
 // valores YA calibrados de este sistema (tokens `--sf-tinta`, ya usados en el resto del storefront) en
 // vez de los literales RGB del prototipo — mismo mecanismo, valores del propio repo. El tramo superior
 // (60%) es el MISMO que ya protegía al NAV transparente-flotante (sin tocar `noUniformes`, la sección
-// sigue siendo un solo plano de media); el tramo inferior (80%) es NUEVO — antes lo resolvía la
-// tarjeta clara, ahora lo resuelve el velo oscuro sobre la media a plena opacidad. Contraste medido
+// sigue siendo un solo plano de media); el tramo inferior (80%, hoy `--sf-velo` — § CORTE-MARQUESINA-
+// VELO-1, `app/globals.css`, que Marquesina.tsx TAMBIÉN lee, para que los dos velos coincidan en la
+// juntura) es NUEVO — antes lo resolvía la tarjeta clara, ahora lo resuelve el velo oscuro sobre la
+// media a plena opacidad. Contraste medido
 // (blanco sobre el velo al 80%, contra tres fotos CLARAS de referencia — arena `rgb(232,222,200)`,
 // casi-blanco `rgb(245,245,240)`, crema `rgb(238,230,214)`): 9.61:1 / 8.97:1 / 9.38:1 — el subtítulo
 // (`--sf-sobre-banda-suave`, blanco al ~70%) sobre el mismo velo: 5.69:1 / 5.38:1 / 5.58:1 — los tres
@@ -170,8 +172,11 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
 
         {/* EL VELO — full-height, § comentario de cabecera. Verbatim el de `HeroCurtina.tsx`: oscurece
             el tramo superior (protege al nav) y el tramo inferior (protege al texto, que vive al
-            pie), transparente en el medio — ahí "la media domina". */}
-        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80" />
+            pie), transparente en el medio — ahí "la media domina". El PIE lee `--sf-velo` (§ CORTE-
+            MARQUESINA-VELO-1, `app/globals.css`), la MISMA variable que Marquesina.tsx, para que los
+            dos velos coincidan en la juntura — antes eran dos literales de opacidad (`/80` acá, `/70`
+            en la marquesina) que podían divergir sin avisar. */}
+        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-velo)]" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20">

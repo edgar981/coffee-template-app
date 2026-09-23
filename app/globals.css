@@ -67,6 +67,20 @@
   --sf-tinta:        #1a0f08;   /* texto principal + fondos oscuros + gradientes (+#1e150e) */
   --sf-tinta-2:      #2d1a0e;   /* near-negro cálido (gradiente) */
 
+  /* --sf-velo (§ CORTE-MARQUESINA-VELO-1) — el velo oscuro que el PIE del gradiente de HeroMedia
+     (`to-[...]`) y el fondo de Marquesina comparten, para que la juntura entre las dos secciones se
+     lea como UNA sola superficie continua, no una costura. Antes cada archivo horneaba su propio
+     modificador de opacidad sobre `--sf-tinta` (`/80` en el hero, `/70` en la marquesina — DOS
+     literales del mismo origen que podían divergir sin que nada lo notara); ahora los dos leen ESTA
+     variable, así que si `--sf-tinta` cambia (paleta custom de un tenant) o un preset nuevo enciende
+     la marquesina con otro esquema, los dos velos se mueven juntos por construcción.
+     El valor (80%) es el que HeroMedia YA usaba en su pie — la marquesina, que hoy usa `/70`, pasa a
+     coincidir con el hero, no al revés. `color-mix(in oklab, ...)` es la MISMA fórmula que Tailwind
+     v4 genera para un modificador de opacidad (`/NN`) sobre un color arbitrario — verificado contra
+     `node_modules/tailwindcss/dist/lib.js` (`color-mix(in oklab, ${e} ${r}, transparent)`) — así que
+     el pie del hero queda BYTE-IDÉNTICO a hoy: mismo color, mismo cálculo, sólo que ahora nombrado. */
+  --sf-velo:         color-mix(in oklab, var(--sf-tinta) 80%, transparent);
+
   /* ACENTO family — marrones cálidos + tostados */
   --sf-acento:       #8b4513;   /* el acento de marca — SUPERFICIE (botón/badge/borde/ring/ícono) */
   /* EL ACENTO SE PARTE en dos por USO: crudo para superficie (arriba) y con PISO DE

@@ -79,7 +79,12 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
     >
       <div className="absolute inset-0">
         <Image src={marquesina.imagen} alt="" fill sizes="100vw" className="object-cover opacity-55" />
-        <div className="absolute inset-0 bg-[var(--sf-tinta)]/70" />
+        {/* EL VELO lee `--sf-velo` (§ CORTE-MARQUESINA-VELO-1, `app/globals.css`), la MISMA variable
+            que el PIE del velo de HeroMedia.tsx, para que la banda se lea continua con el hero justo
+            arriba — una sola superficie oscura, sin costura. Antes era un literal propio (`/70`,
+            distinto del `/80` del hero) que ya derivaba de `--sf-tinta` pero no coincidía con el
+            hero; ahora los dos VALEN lo mismo porque LEEN lo mismo. */}
+        <div className="absolute inset-0 bg-[var(--sf-velo)]" />
       </div>
 
       {/* EL LOOP — decorativo (el texto accesible vive en el `aria-label` de la sección); se repite

@@ -15494,3 +15494,154 @@ commits que tocan bytes de storefront en slices anteriores, y el propio protocol
 gate visual pide que cada ítem quede a la espera del merge gateado del orquestador, no que un
 worker decida mergear porque SU propio commit es inocuo. El commit de este asiento queda en la
 rama junto a los anteriores.
+
+## 2026-09-23 — El velo de la marquesina y el PIE del velo del hero leen la MISMA variable derivada (`--sf-velo`) — antes divergían (`/70` vs `/80`) (`CORTE-MARQUESINA-VELO-1`)
+
+Aprobado como ítem #4 de la ronda de gate visual del owner (2026-09-23), citando
+`CORTE-MARQUESINA-SCROLL-CAPTURA-1` (`observed-report`, el commit inmediatamente anterior de esta
+rama) como el diagnóstico previo. Ese slice observó, sin construir nada: *"cada uno pinta SU PROPIA
+imagen de fondo... con su propio velo (`bg-[var(--sf-tinta)]/70` en la marquesina). Como los dos
+velos derivan del MISMO token (`--sf-tinta`), el tono general es parecido... pero la textura de
+fondo SÍ cambia visiblemente en el punto de corte... es una continuidad de TONO aproximada, no la
+superficie IDÉNTICA que logra el prototipo."* El owner: *"el velo de la marquesina y el del hero
+salen del MISMO origen — no copies `rgba(16,36,7,.7)`, es la tinta al 70%; derivalo del token, que
+los dos velos lean la misma variable. Si se hornea, el día que cambie la paleta o que otro preset
+encienda la banda, dejan de coincidir."*
+
+### El diagnóstico previo YA estaba en lo correcto sobre una cosa: el velo de la marquesina NO estaba horneado
+
+`Marquesina.tsx:82` (antes de este slice) era `bg-[var(--sf-tinta)]/70` — SÍ leía el token, no un
+`rgba` literal copiado del prototipo. Lo que faltaba no era "derivar del token" (ya lo hacía): era
+que el hero y la marquesina, siendo DOS literales de opacidad sobre el MISMO token (`/70` y `/80`),
+podían divergir sin que nada lo notara — y de hecho divergían, que es exactamente lo que la captura
+de scroll vio como "la textura cambia en el punto de corte". Este asiento lo corrige por
+CONSTRUCCIÓN: los dos pasan a leer la MISMA variable, no dos expresiones del mismo origen.
+
+### `--sf-velo`, derivada de `--sf-tinta`, declarada en `app/globals.css`
+
+Dentro de la familia TINTA del bloque `@theme` (junto a `--sf-tinta`/`--sf-tinta-2`, el sitio donde
+ya viven los tokens de los que ésta deriva):
+
+```css
+--sf-velo: color-mix(in oklab, var(--sf-tinta) 80%, transparent);
+```
+
+- **El valor (80%) es el que HeroMedia YA usaba en su pie** (`to-[var(--sf-tinta)]/80`) — la
+  marquesina (que usaba `/70`) pasa a coincidir con el hero, no al revés. Es la lectura correcta del
+  pedido del owner: "que los dos velos lean la misma variable" fija el VALOR una sola vez, y ese
+  valor tiene que ser el que ya define el pie del hero (el que protege el texto sobre la media a
+  opacidad plena) — cambiarlo habría movido el contraste medido del propio hero (§ el docstring de
+  cabecera de `HeroMedia.tsx`: 9.61:1/8.97:1/9.38:1 contra tres fotos claras de referencia).
+- **`color-mix(in oklab, ...)` no es una fórmula inventada: es la MISMA que Tailwind v4 genera para
+  un modificador de opacidad (`/NN`) sobre un color arbitrario.** Verificado contra el artefacto
+  instalado, no supuesto: `grep -o "color-mix(in [a-z]*,[^)]*)" node_modules/tailwindcss/dist/lib.js`
+  devuelve el template `color-mix(in oklab, ${e} ${r}, transparent)`. O sea que
+  `to-[var(--sf-tinta)]/80` y `color-mix(in oklab, var(--sf-tinta) 80%, transparent)` son, byte a
+  byte, la MISMA fórmula con el mismo porcentaje — sustituir uno por el otro no mueve el color
+  RESUELTO en el navegador, sólo le pone nombre. Es lo que sostiene la byte-identidad del hero: no
+  hay una aserción visual que la pruebe en este carril (§ el límite de verificación, abajo), pero la
+  equivalencia algebraica de las dos expresiones sí es medible, y se midió.
+- **Es UNA fuente, no dos.** Si `--sf-tinta` cambia (paleta custom de un tenant, vía el motor de
+  `palette-derive.ts`) o un preset nuevo enciende la marquesina con otro esquema, los dos velos se
+  mueven juntos por construcción — nadie tiene que acordarse de tocar los dos archivos. Es la misma
+  garantía que ya provee `--sf-banda`/`--sf-sobre-banda` (§ `esquema-style.ts`) para otros pares de
+  tokens compartidos entre secciones, aplicada acá a un caso que hoy sólo tenía DOS literales
+  gemelos, no una variable.
+
+### Los dos consumidores — un cambio de UNA palabra cada uno
+
+- **`HeroMedia.tsx`**: `to-[var(--sf-tinta)]/80` → `to-[var(--sf-velo)]`, en el ÚNICO `<div>` del
+  velo full-height (§ HERO-MEDIA-SIN-TARJETA-1). El tramo superior del gradiente (`from-[var(--sf-
+  tinta)]/60`, que protege el nav) NO se tocó — sólo el PIE, que es la mitad que la marquesina
+  necesita para coincidir.
+- **`Marquesina.tsx`**: `bg-[var(--sf-tinta)]/70` → `bg-[var(--sf-velo)]`, en el `<div>` del velo
+  sobre la foto de fondo (§ MARQUESINA-BANDA-1).
+- Los dos comentarios de cabecera que citaban el literal viejo (`to-[var(--sf-tinta)]/80` en el
+  docstring de `HeroMedia.tsx`) se actualizaron para no dejar una cita muerta apuntando a una clase
+  que ya no existe en el código — la misma disciplina que el chequeo mecánico de abajo aplica contra
+  CLAUDE.md, aplicada acá contra el propio comentario del archivo que se estaba editando.
+
+### El test: `lib/config/corte-marquesina-velo.test.ts` (nuevo, 8 casos) — render en memoria
+
+Sigue el patrón de `corte-hero-viewport.test.ts`/`marquesina-banda.test.ts` (`renderToStaticMarkup`,
+sin jsdom). Pero acá el patrón habitual de "verificar la clase CSS emitida" no alcanza para afirmar
+byte-identidad, y el archivo lo dice en su propio encabezado: `renderToStaticMarkup` expone el
+className LITERAL, no el color RESUELTO — ninguna capa de este carril compila CSS ni evalúa
+`color-mix()`. El className del hero SÍ CAMBIA a propósito (`to-[var(--sf-tinta)]/80` →
+`to-[var(--sf-velo)]`), así que comparar el HTML byte a byte contra el de ayer daría un falso
+NEGATIVO de esta tanda. La afirmación de byte-identidad se arma en DOS partes:
+
+1. **La declaración de `--sf-velo` en `app/globals.css`** se lee con regex (mismo patrón que
+   `leerVarCssRaiz` de `palette-derive.test.ts`) y se compara contra el string EXACTO
+   `'color-mix(in oklab, var(--sf-tinta) 80%, transparent)'` — la fórmula que Tailwind ya genera
+   para `/80`, medida contra el artefacto instalado (arriba). Si alguien cambiara el porcentaje o la
+   función, este test lo delata sin necesitar un navegador.
+2. **Las dos superficies referencian el MISMO token, una sola vez cada una** (`var(--sf-velo)`
+   aparece exactamente 1 vez en el HTML del hero y 1 vez en el de la marquesina) — la parte que SÍ
+   se puede afirmar por render: que no son dos nombres parecidos, es el mismo.
+
+El resto de los 8 casos cubre lo de siempre: el tramo superior del gradiente del hero sin tocar,
+que Nayoli (sin fila, sin preset) sigue sin renderizar la marquesina, que PATIO (que no declara
+`bandaMarquesinaVisible`) no cambia, y que bajo `?tema=CORTE` las dos superficies coinciden en
+`--sf-velo`. 8/8 verde.
+
+### El gate — corrido completo sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1883/1883** — verde (1875 heredados + 8 nuevos de `corte-marquesina-velo.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin regresión |
+| `lib/config/corte-marquesina-velo.test.ts` (nuevo, aislado) | 8/8 |
+
+Reconciliado contra el piso citado por el dispatch (`CORTE-MARQUESINA-SCROLL-CAPTURA-1`: "gate
+1875/1875 + 208/208") — la diferencia (+8 en capa 1) la explica enteramente el archivo de test
+nuevo de este slice; ningún otro número se movió.
+
+### LÍMITE DE VERIFICACIÓN, declarado para que no se confunda con omisión
+
+Este carril no compila Tailwind ni evalúa CSS: no hay una aserción que renderice el color final en
+un navegador y confirme que el pie del hero se ve IGUAL que ayer. Lo que sostiene la byte-identidad
+es la equivalencia algebraica medida contra el artefacto de Tailwind instalado (§ arriba), no una
+captura de pantalla. Verificar que la juntura hero→marquesina se vea continua bajo `?tema=CORTE` —
+la pregunta de PRODUCTO que este slice responde— es gate visual del owner (capa 3), no de este
+carril.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+`grep` de los símbolos que este diff tocó (`sf-velo`, `HeroMedia`, `Marquesina`, `sf-tinta`,
+`color-mix`, `globals.css`) contra `CLAUDE.md`:
+
+- **`sf-velo`**, **`HeroMedia`**, **`Marquesina`**, **`color-mix`**: CERO apariciones. Nada en la
+  doctrina nombra lo que este diff tocó.
+- **`sf-tinta`**: UNA aparición (§ "El logo subido se RESPETA"): *"Logo oscuro que desaparecería
+  sobre el HERO → WORDMARK de fallback... El hero es oscuro (`bg-[var(--sf-tinta)]`...)"*. Es sobre
+  el FONDO del hero como superficie (para decidir si un logo oscuro se pierde encima), no sobre el
+  velo/gradiente que este slice tocó — no la falsea.
+- **`globals.css`**: seis apariciones, todas sobre OTRAS secciones del archivo (el motor de paleta
+  de `SiteContent`, el chrome del admin, el breakpoint `--duna`, fuentes) — ninguna describe la
+  familia TINTA ni el bloque donde vive `--sf-velo`. No la falsea ninguna.
+
+Sin follow-up coined: ninguna sentencia de la doctrina describe el mecanismo que este slice cambió,
+así que no hay nada que quedara falso.
+
+### `touches:` — lo que se escribió
+
+`app/globals.css` (`--sf-velo`, dentro de la familia TINTA del `@theme`), `components/storefront/
+home/HeroMedia.tsx` (el PIE del velo + su comentario de cabecera y su comentario inline),
+`components/storefront/home/Marquesina.tsx` (el velo + su comentario inline),
+`lib/config/corte-marquesina-velo.test.ts` (nuevo), este asiento. Ningún archivo fuera de
+`touches:` se tocó — en particular, `HeroCurtina.tsx` tiene el MISMO gradiente literal
+(`from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80`) pero no está en `touches:` y
+no se tocó: es OTRA variante de hero, sin marquesina que pueda coincidir con ella (§ el docstring de
+cabecera de `HeroMedia.tsx`: CORTE es el único preset que usa `variante:'media'`), así que no forma
+parte de la juntura que este slice arregla.
+
+### Verdicto
+
+**El gate cierra en VERDE** (1883/1883 + 208/208). Por instrucción del dispatch, este slice PARA en
+`AWAITING_APPROVAL` — nunca mergea: la RAMA (`slice/corte-reescritura-prototipo-1`) toca bytes que
+el visitante puede ver, y este commit en particular cambia el color RESUELTO del velo de la
+marquesina bajo `?tema=CORTE` (de `/70` a `/80` sobre `--sf-tinta`, para coincidir con el hero) —
+un byte de storefront, aunque hoy sólo alcanzable por el mirador fuera de producción real
+(`esDespliegueDemo()`). Cae del lado de "customer-bytes" de la política A, mismo criterio que el
+resto de esta rama. El commit queda en la rama a la espera del merge gateado del orquestador.
