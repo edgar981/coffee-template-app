@@ -130,8 +130,18 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
     else v.pause();
   }, [reproducir]);
 
+  // ALTURA LLENA (§ CORTE-HERO-VIEWPORT-LLENO-1, OPCIONAL, default `false`). `min-h-[92vh]` de HOY
+  // SIEMPRE deja un resto visible de la banda siguiente (la marquesina asomando debajo), sea cual sea
+  // el viewport — no es un caso borde, es la forma del valor. `100svh` (small viewport height,
+  // ESTÁTICA) es la unidad que llena el viewport COMPLETO en móvil SIN saltar: a diferencia de `100vh`
+  // (la altura CON la barra de navegación OCULTA — recorta el fondo cuando la barra está visible, la
+  // causa exacta del "cortado") y de `100dvh` (dinámica — REDIMENSIONA, y por tanto salta, al
+  // aparecer/desaparecer la barra), `100svh` mide siempre contra el viewport más chico posible: llena
+  // sin cortar y sin saltar. AUSENTE/`false` → byte-idéntico a HOY.
+  const alturaClase = hero.alturaLlena ? 'min-h-[100svh]' : 'min-h-[92vh]';
+
   return (
-    <section className="relative flex min-h-[92vh] items-end overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
+    <section className={`relative flex ${alturaClase} items-end overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`} style={style}>
       <div className="absolute inset-0">
         {esVideo ? (
           <video

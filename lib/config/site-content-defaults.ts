@@ -80,6 +80,18 @@ export interface HeroContent {
   titularVisible: boolean;
   // `subtituloVisible` (booleano, default `true` = el `subtitulo` de HOY). SÓLO `HeroMedia` lo lee.
   subtituloVisible: boolean;
+  // `alturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1, booleano, default `false` = `min-h-[92vh]` de HOY,
+  // byte-idéntico). El owner, gateando `?tema=CORTE` contra el prototipo (2026-09-23): «el hero no
+  // llena la pantalla: termina antes del borde inferior y asoma debajo la foto velada de la
+  // marquesina». `92vh` deja SIEMPRE un resto visible de la banda siguiente, sea cual sea el alto de
+  // viewport — no es un caso borde, es la forma del valor. `true` cambia la unidad a `100svh`
+  // (small viewport height, ESTÁTICA): llena el viewport completo con la barra de navegación del
+  // móvil VISIBLE, sin saltar cuando la barra aparece/desaparece (a diferencia de `100vh`, que en
+  // móvil es la altura CON la barra oculta y por tanto recorta el fondo cuando la barra está
+  // visible — la causa exacta del "cortado" que el owner reportó) ni cortar (a diferencia de `100dvh`,
+  // que SÍ es exacta pero REDIMENSIONA — y por tanto salta — al togglear la barra). SÓLO `HeroMedia`
+  // lo lee — curtina y ficha no (mismo alcance que `titularVisible`/`ctasVisibles`, arriba).
+  alturaLlena: boolean;
 }
 
 // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
@@ -900,6 +912,9 @@ export const DEFAULTS: SiteContentData = {
     // byte a byte, titular y subtítulo visibles.
     titularVisible: true,
     subtituloVisible: true,
+    // `alturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1): default `false` = `min-h-[92vh]` de HOY,
+    // byte-idéntico.
+    alturaLlena: false,
   },
   // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
   // NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`: `resolverOrden` completa
@@ -1329,12 +1344,14 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.
     escalares: { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } },
-    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1): los
-    // CUATRO agregados de mecánica true/false del hero-media del prototipo — `ctasVisibles` (apaga
-    // los dos CTA a la vez), `cueDesliza` (el indicador de scroll animado), `titularVisible` (el
-    // bloque `titulo`+`tituloEnfasis`) y `subtituloVisible` (el `subtitulo`), estos dos últimos cada
-    // uno su propio apagador. El quinto agregado (`fraseAlPie`) es un `campos` normal, abajo.
-    booleanos: ['ctasVisibles', 'cueDesliza', 'titularVisible', 'subtituloVisible'],
+    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1 y en
+    // § CORTE-HERO-VIEWPORT-LLENO-1): los CINCO agregados de mecánica true/false del hero-media del
+    // prototipo — `ctasVisibles` (apaga los dos CTA a la vez), `cueDesliza` (el indicador de scroll
+    // animado), `titularVisible` (el bloque `titulo`+`tituloEnfasis`) y `subtituloVisible` (el
+    // `subtitulo`), estos dos últimos cada uno su propio apagador, y `alturaLlena` (§ el docstring de
+    // `HeroContent.alturaLlena`: `100svh` en vez de `min-h-[92vh]`). El sexto agregado (`fraseAlPie`)
+    // es un `campos` normal, abajo.
+    booleanos: ['ctasVisibles', 'cueDesliza', 'titularVisible', 'subtituloVisible', 'alturaLlena'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

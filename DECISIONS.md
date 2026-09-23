@@ -15240,3 +15240,130 @@ carga y la vista previa de paleta muestra la franja de garantías (el texto de `
 cambiar en este diff) donde antes no mostraba nada. Cae del lado de "customer-bytes" de la política
 A, igual que el resto de la rama. El commit queda en la rama a la espera del merge gateado del
 orquestador.
+
+## 2026-09-23 — `hero.alturaLlena`: el hero-media de CORTE ocupa el viewport COMPLETO en `100svh`, no `min-h-[92vh]` (`CORTE-HERO-VIEWPORT-LLENO-1`)
+
+Aprobado como ítem #2 de la ronda de gate visual del owner (2026-09-23), citando el `CROMO-GLOBAL-
+CENSO-1` (`observed-report`) como el diagnóstico previo. El owner, gateando `?tema=CORTE`: *"EL HERO
+NO LLENA LA PANTALLA: termina antes del borde inferior y asoma debajo la foto velada de la
+marquesina — ese es el cortado. En el prototipo el hero ocupa el viewport completo. Con CORTE,
+altura de viewport (con la unidad que no salta en móvil)."*
+
+`HeroMedia.tsx:134` (antes de este slice) usaba `min-h-[92vh]` sin condición: por construcción SIEMPRE
+deja un 8% del viewport visible debajo, donde asoma la banda siguiente (la marquesina, `visible:true`
+bajo CORTE, § MARQUESINA-BANDA-1) — no es un caso borde de una resolución particular, es la forma del
+valor. MEDIDO contra el prototipo (`docs/prototipos/cafeone/css/app.css:358-362`): `.hero` es
+`height:calc(100vh - (var(--frame-gap) * 2))` con `min-height:640px` — el viewport COMPLETO, no un
+92% fijo.
+
+### La unidad: por qué `100svh` y no `100vh` ni `100dvh`
+
+El owner nombró la restricción exacta ("que no salta en móvil"), así que la elección de unidad no es
+libre:
+
+- **`100vh` CORTA en móvil.** Es la altura del viewport con la barra de navegación del móvil OCULTA;
+  cuando la barra está VISIBLE (el estado inicial, antes de scrollear), el `100vh` sigue midiendo
+  contra el viewport SIN la barra y el fondo se recorta por abajo — la causa exacta del "cortado" que
+  el owner reportó, sólo que agravada (0% de margen, en vez del 8% que ya dejaba `92vh`).
+- **`100dvh` (dynamic viewport height) es EXACTA pero SALTA.** Se REDIMENSIONA en vivo cada vez que la
+  barra del móvil aparece/desaparece (al scrollear) — es justo el salto que el criterio prohíbe.
+- **`100svh` (small viewport height) es ESTÁTICA.** Mide siempre contra el viewport MÁS CHICO posible
+  (con la barra visible) y NO se recalcula al scrollear — llena el viewport completo desde el primer
+  render, sin cortar (a diferencia de `100vh`) y sin saltar (a diferencia de `100dvh`). Es la unidad
+  que satisface las dos mitades del criterio a la vez.
+
+### El modelo: `HeroContent` gana `alturaLlena`, UN booleano MÁS de `REGISTRY.hero.booleanos`
+
+Mismo mecanismo exacto que `titularVisible`/`subtituloVisible`/`ctasVisibles`/`cueDesliza`
+(§ CORTE-HERO-TITULAR-OCULTABLE-1, TEMAS-HERO-MEDIA-AGREGADOS-1): campo de CONTENIDO opt-in, default
+`false` = `min-h-[92vh]` de HOY, byte-idéntico. `REGISTRY.hero.booleanos` pasa de `['ctasVisibles',
+'cueDesliza', 'titularVisible', 'subtituloVisible']` a agregar `'alturaLlena'` — el mecanismo genérico
+por nombre que `resolverSiteContent` ya declaraba, sin tocar el resolver. `heroEditableSchema` declara
+`alturaLlena: z.boolean().optional()`, gemelo de los cuatro anteriores — sin declararlo, zod lo
+strippearía al guardar (§ #65-B).
+
+### El preset: `PresetTema` gana `heroAlturaLlena`, CORTE lo enciende
+
+Mismo bloque "HERO TOGGLES" de `mergePresetEnContent` (`themes.ts`) que ya escribía los cuatro
+booleanos anteriores DENTRO de `content.hero` con `{ ...prevHero, … }` — se amplió el mismo `if` (un
+quinto `typeof … === 'boolean'` en la condición) y el mismo objeto (un quinto spread condicional), en
+vez de un bloque nuevo: es el MISMO mecanismo sobre la MISMA sección. CORTE declara
+`heroAlturaLlena: true`; los otros cinco presets no lo declaran y `mergePresetEnContent` no toca esa
+clave (afirmado: ningún preset agrega la clave a una sección que no la tenía).
+
+### El render: `HeroMedia.tsx` — la clase pasa a derivarse, sin tocar curtina/ficha
+
+`const alturaClase = hero.alturaLlena ? 'min-h-[100svh]' : 'min-h-[92vh]';`, interpolada en el
+`className` del `<section>` raíz. Sólo `HeroMedia` lee este campo —curtina y ficha no (mismo alcance
+que los cuatro booleanos anteriores)—, así que no se tocó `HeroCurtina.tsx` ni `HeroFicha.tsx` (los
+dos siguen en `min-h-[92vh]` sin condición, sin campo que lo apague — no lo pide el spec y ninguno de
+los cinco presets que no son CORTE usa la variante `media`).
+
+### El test: `lib/config/corte-hero-viewport.test.ts` (nuevo, 12 casos) — render en memoria
+
+Sigue el patrón de `corte-hero-titular.test.ts`: el modelo (DEFAULTS/REGISTRY), el preset (CORTE
+único que declara `heroAlturaLlena`, los otros cinco no), el merge (CORTE escribe preservando el
+resto de la sección; los demás no tocan la clave), y el RENDER de `HeroMedia` en memoria
+(`renderToStaticMarkup`), verificando la CLASE CSS emitida (`min-h-[100svh]` presente y
+`min-h-[92vh]` ausente, y viceversa) en vez de texto — es lo único que este toggle cambia, no hay
+contenido que aparezca u omita. Más la invariante del mirador (sin `?tema=`, Nayoli rinde
+`min-h-[92vh]`; con `?tema=CORTE`, `min-h-[100svh]`, preservando el copy que un tenant ya hubiera
+cargado). 12/12 verde.
+
+### El gate — corrido completo sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1875/1875** — verde (1863 heredados + 12 nuevos de `corte-hero-viewport.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin regresión |
+| `lib/config/corte-hero-viewport.test.ts` (nuevo, aislado) | 12/12 |
+| `lib/config/site-content-schema.test.ts`, `lib/config/hero-toggles-preset.test.ts`, `lib/config/corte-hero-titular.test.ts` (fuera de `touches:`, verificando que los eslabones previos siguen intactos) | 42/42, sin tocar ninguno |
+| `lib/config/admin-tienda-preset.test.ts` (fuera de `touches:`, el preview de `/admin/tienda` con los 6 presets) | 10/10, sin tocar |
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+`grep` de los símbolos/rutas que este diff tocó (`HeroMedia`, `92vh`, `site-content-defaults.ts`,
+`site-content-schema.ts`, `themes.ts`, `HeroContent`, `PresetTema`, `alturaLlena`, `CORTE`,
+`REGISTRY.hero`) contra CLAUDE.md:
+
+- **`HeroMedia` (el nombre del componente)**: cero apariciones literales en CLAUDE.md.
+- **`92vh`**: UNA aparición, § "El editor de la tienda dibuja por BLOQUES" → "LA PANTALLA — vista
+  previa EN VIVO": *"El `92vh` del hero resuelve contra el viewport REAL del admin (~800px fijo) →
+  proporcional POR CONSTRUCCIÓN."* Es sobre la vista previa EN VIVO de `/admin/tienda`
+  (`VistaTiendaEnVivo`), que monta `HeroSection` con `<SiteContentProvider value={{ ...DEFAULTS,
+  hero: form }}>` — el contenido REAL del tenant, nunca un preset aplicado (`aplicarPreset` no tiene
+  llamador en producción, § el docstring de cabecera de `HeroMedia.tsx`). NO SE VUELVE FALSA: sigue
+  describiendo el caso general (todo tenant sin `alturaLlena:true` persistido, que hoy es TODO
+  tenant real — no hay UI de editor que escriba ese campo, sólo el preset CORTE vía runbook manual);
+  la excepción que este slice introduce (`alturaLlena:true` → `100svh`) no es alcanzable desde ese
+  editor hoy, así que la frase sigue midiendo lo que mide.
+- **`site-content-defaults.ts`/`site-content-schema.ts`/`themes.ts`/`HeroContent`/`PresetTema`**: las
+  apariciones existentes son sobre otros campos de esos mismos archivos (`presentacionesEditableSchema`,
+  la lista Tier 1, `site-content-schema.test.ts`) — ninguna sentencia describe el CONTENIDO de
+  `HeroContent`/`PresetTema` de forma que este campo nuevo pudiera falsear.
+- **`CORTE`**: sin apariciones sobre el preset `CORTE` de `themes.ts` (las que aparecen son
+  `CORTE-BRANDSTORY-COLLAGE-1`/`CORTE-...` como IDs de slice, y "El CORTE es ENVIADO + FALLIDO" — un
+  homónimo del historial de automatizaciones, sin relación).
+- **`REGISTRY.hero`**: sin apariciones literales.
+
+Sin follow-up coined: la única sentencia potencialmente afectada (el `92vh` del preview admin) se
+verificó VERDADERA contra el estado actual del repo, no sólo plausible.
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts` (`HeroContent.alturaLlena`, `DEFAULTS.hero.alturaLlena`,
+`REGISTRY.hero.booleanos`), `lib/config/site-content-schema.ts` (`heroEditableSchema.alturaLlena`),
+`lib/config/themes.ts` (`PresetTema.heroAlturaLlena` + su docstring, el bloque "HERO TOGGLES"
+ampliado en `mergePresetEnContent`, `CORTE.heroAlturaLlena`), `components/storefront/home/
+HeroMedia.tsx` (la clase derivada + su comentario), `lib/config/corte-hero-viewport.test.ts` (nuevo),
+este asiento. Ningún archivo fuera de `touches:` se tocó.
+
+### Verdicto
+
+**El gate cierra en VERDE** (1875/1875 + 208/208). Por instrucción del dispatch, este slice PARA en
+`AWAITING_APPROVAL` de todas formas — nunca mergea: la RAMA (no sólo este commit) toca bytes que el
+visitante puede ver, y este commit en particular cambia el ALTO del hero-media bajo `?tema=CORTE`
+(de `92vh` a `100svh`) — un byte de storefront, aunque hoy sólo alcanzable por el mirador fuera de
+producción real (§ el docstring de cabecera de `HeroMedia.tsx`: `esDespliegueDemo()`). Cae del lado
+de "customer-bytes" de la política A, mismo criterio que el resto de esta rama. El commit queda en
+la rama a la espera del merge gateado del orquestador.

@@ -137,6 +137,14 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * subtítulo — sólo el video de fondo, `.hero-caption` (`fraseAlPie`) y `.scroll-cue`
  * (`cueDesliza`) — así que CORTE apaga los dos.
  *
+ * `heroAlturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1, OPCIONAL) — UN booleano MÁS de
+ * `REGISTRY.hero.booleanos` (`alturaLlena`, ver el docstring de `HeroContent.alturaLlena` en
+ * `site-content-defaults.ts` para la unidad de viewport y por qué). AUSENTE en un preset = el
+ * comportamiento de HOY, byte a byte (`content.hero.alturaLlena` sigue resolviendo a `false`,
+ * `min-h-[92vh]`). El `.hero` del prototipo (`docs/prototipos/cafeone/css/app.css:358-362`) es
+ * `height:calc(100vh - (var(--frame-gap) * 2))` con `min-height:640px` — ocupa el viewport
+ * COMPLETO, no un 92% de él —, así que CORTE lo enciende.
+ *
  * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
  * arriba" (gemelo del `.to-top` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
  * storefront no tiene este chrome, `BackToTop.tsx` rinde `null`). Escribe `content.volverArriba.
@@ -203,6 +211,7 @@ export interface PresetTema {
   heroCueDesliza?: boolean;
   heroTitularVisible?: boolean;
   heroSubtituloVisible?: boolean;
+  heroAlturaLlena?: boolean;
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
   navTratamientoActivo?: boolean;
@@ -473,7 +482,8 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // aplica su propio default (`true`/`false`) — el mismo mecanismo que ya deja `fraseAlPie` (CONTENIDO,
   // nunca escrita por un preset) intacta.
   if ((typeof preset.heroCtasVisibles === 'boolean' || typeof preset.heroCueDesliza === 'boolean'
-      || typeof preset.heroTitularVisible === 'boolean' || typeof preset.heroSubtituloVisible === 'boolean')
+      || typeof preset.heroTitularVisible === 'boolean' || typeof preset.heroSubtituloVisible === 'boolean'
+      || typeof preset.heroAlturaLlena === 'boolean')
       && registro.hero) {
     const prevHero = esObj(out.hero) ? out.hero : {};
     out.hero = {
@@ -484,6 +494,8 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
       // declara explícitamente.
       ...(typeof preset.heroTitularVisible === 'boolean' ? { titularVisible: preset.heroTitularVisible } : {}),
       ...(typeof preset.heroSubtituloVisible === 'boolean' ? { subtituloVisible: preset.heroSubtituloVisible } : {}),
+      // UNO MÁS (§ CORTE-HERO-VIEWPORT-LLENO-1), mismo mecanismo.
+      ...(typeof preset.heroAlturaLlena === 'boolean' ? { alturaLlena: preset.heroAlturaLlena } : {}),
     };
   }
 
@@ -751,6 +763,13 @@ export const CORTE: PresetTema = {
   // declara los dos; los otros cinco no tocan `content.hero.titularVisible`/`subtituloVisible`.
   heroTitularVisible: false,
   heroSubtituloVisible: false,
+  // heroAlturaLlena (§ CORTE-HERO-VIEWPORT-LLENO-1) — MEDIDO contra el prototipo: `.hero`
+  // (`docs/prototipos/cafeone/css/app.css:358-362`) es `height:calc(100vh - (var(--frame-gap) * 2))`
+  // con `min-height:640px` — el viewport COMPLETO, no un 92% fijo. El owner, gateando `?tema=CORTE`
+  // (2026-09-23): «el hero no llena la pantalla: termina antes del borde inferior y asoma debajo la
+  // foto velada de la marquesina». CORTE es hoy el ÚNICO preset que lo declara; los otros cinco no
+  // tocan `content.hero.alturaLlena`.
+  heroAlturaLlena: true,
   // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
   // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija
   // abajo-derecha que pinta `background:var(--action-primary)` — el MISMO rol que ya mapea
