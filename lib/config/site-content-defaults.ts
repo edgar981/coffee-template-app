@@ -91,6 +91,12 @@ export interface HeroContent {
   // visible — la causa exacta del "cortado" que el owner reportó) ni cortar (a diferencia de `100dvh`,
   // que SÍ es exacta pero REDIMENSIONA — y por tanto salta — al togglear la barra). SÓLO `HeroMedia`
   // lo lee — curtina y ficha no (mismo alcance que `titularVisible`/`ctasVisibles`, arriba).
+  //
+  // LOS CINCO CAMPOS DE ARRIBA (`ctasVisibles`, `cueDesliza`, `titularVisible`, `subtituloVisible`,
+  // `alturaLlena`) YA TIENEN CONTROL EN EL PANEL (§ PANEL-EDITOR-HERO-TOGGLES-1): el modelo/resolver/
+  // defaults de este archivo NO cambiaron —el preset sigue siendo el que los siembra—, sólo ganaron un
+  // switch en `HERO.booleanos` (`components/admin/tienda-secciones.ts`) con el mismo valor como punto
+  // de partida. Antes, sólo `mergePresetEnContent` los escribía.
   alturaLlena: boolean;
 }
 

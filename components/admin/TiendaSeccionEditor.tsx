@@ -11,7 +11,8 @@ import PosterScrubber from '@/components/admin/PosterScrubber';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
-import type { SeccionConfig, CampoTexto, CampoImagen } from '@/components/admin/tienda-secciones';
+import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano } from '@/components/admin/tienda-secciones';
+import { gatePorCampo } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -389,6 +390,10 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }
 
   const subiendo = subida.subiendo;
+  // El mapa de atenuación (§ PANEL-EDITOR-HERO-TOGGLES-1, item 1 — el PATRÓN GENERAL, reusable por
+  // todo editor): qué campo de texto está gateado por qué interruptor de esta sección. Puro y barato
+  // (arrays chicos), se recalcula por render — no vale un useMemo para esto.
+  const gates = gatePorCampo(config);
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
   // `oculta` = el TOGGLE apagado (para el badge "Oculta"). `repeaterVacio` = una lista sin ítems, que
@@ -444,8 +449,14 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     const opciones = campo.opcionesDinamicas === 'destaquePlanes'
       ? opcionesDestaque(form as unknown as SuscripcionPlanesContent)
       : campo.opciones;
+    // ATENUACIÓN (§ el patrón general, item 1): un campo gateado por un interruptor de sección
+    // APAGADO no se esconde ni queda editable-sin-nota — se atenúa, con la nota de abajo. El dato
+    // SIGUE editable (el input no se deshabilita): apagar el interruptor no debe impedir prepararlo
+    // para cuando el dueño lo vuelva a encender, o para otro tema que sí lo muestre.
+    const nombreGate = gates.get(campo.name);
+    const atenuado = nombreGate !== undefined && form[nombreGate] === false;
     return (
-      <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
+      <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`} style={atenuado ? { opacity: 0.6 } : undefined}>
         <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
         {campo.categoria ? (
           <CategoriaCombobox id={id} value={value} categorias={categorias}
@@ -460,12 +471,42 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         ) : (
           <input id={id} className="duna-input" value={value} onChange={set(campo.name)} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         )}
+        {atenuado && (
+          <p className="duna-field__hint" role="status" style={{ marginBottom: 0 }}>Este tema no lo muestra.</p>
+        )}
         {destinoInexistente && (
           <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
             Ningún producto tiene la categoría «{value}» todavía — la tarjeta no traerá resultados.
           </p>
         )}
         <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+      </div>
+    );
+  };
+
+  // UN INTERRUPTOR de sección (§ CampoBooleano) — switch, mismo patrón visual que el toggle de
+  // visibilidad de abajo (`config.ocultable`), pero gatea UNA capacidad en vez de la sección entera.
+  // El valor inicial ya lo trae el form (sembrado del preset, o del default si el preset no lo tocó —
+  // `resolverSiteContent` resuelve todo booleano declarado a un valor real): el preset pone el punto
+  // de partida, el dueño lo overridea con el switch.
+  const renderBooleano = (campo: CampoBooleano) => {
+    const on = form[campo.name] !== false;
+    return (
+      <div key={campo.name}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label={campo.label}
+            onClick={() => cambiar({ [campo.name]: !on })}
+            className={`duna-switch${on ? ' is-on' : ''}`}
+          >
+            <span className="duna-switch__thumb" />
+          </button>
+          <span className="duna-field__label" style={{ margin: 0 }}>{campo.label}</span>
+        </div>
+        {campo.hint && <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{campo.hint}</p>}
       </div>
     );
   };
@@ -850,6 +891,16 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   </div>
                   {/* Sin hint: el operador apaga y ve el resultado en la vista en vivo. El label + el
                       switch bastan (mismo criterio que el toggle de página). */}
+                </div>
+              )}
+
+              {/* Los INTERRUPTORES de sección (§ CampoBooleano, PANEL-EDITOR-HERO-TOGGLES-1) — una
+                  pieza con todos los de esta sección, aparte del toggle de visibilidad de arriba. */}
+              {config.booleanos && config.booleanos.length > 0 && (
+                <div className="admin-bloque">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
+                    {config.booleanos.map(renderBooleano)}
+                  </div>
                 </div>
               )}
 

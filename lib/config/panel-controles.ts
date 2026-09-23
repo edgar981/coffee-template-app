@@ -30,7 +30,8 @@
 // EL LADO "CONTROLADO POR EL PANEL" se deriva de DOS fuentes, porque hay DOS mecanismos de edición:
 //  1. Las diez secciones de `SECCIONES_TIENDA` (tienda-secciones.ts) que `TiendaSeccionEditor` renderiza
 //     GENÉRICAMENTE: se deriva de `config.campos` + `config.imagenes` + (`visible` si `config.ocultable`)
-//     + `config.repeater.campos`, para cada una.
+//     + `config.booleanos` (los interruptores de sección, § PANEL-EDITOR-HERO-TOGGLES-1) +
+//     `config.repeater.campos`, para cada una.
 //  2. Los editores BESPOKE (`MenuSeccion`, `PaletaSeccion`, `TiendaPaginas`) — `menu`, `tema` y `paginas`
 //     NO pasan por `TiendaSeccionEditor` (§ CROMO-MENU-PANEL-EDITOR-1: `menu` tiene sección en el
 //     REGISTRY, pero su editor es su propio componente; `tema` ni siquiera es sección del REGISTRY).
@@ -107,8 +108,9 @@ export function camposLeidosPorTienda(): string[] {
 // ─── LADO B: lo que el panel CONTROLA ──────────────────────────────────────────────────────────────
 
 /** Lo que `TiendaSeccionEditor` renderiza para UNA sección de `SECCIONES_TIENDA` (tienda-secciones.ts):
- *  `config.campos` + `config.imagenes` + (`visible` si `config.ocultable`) + `config.repeater.campos`
- *  + los `slots` de todo bloque `tipo:'lista'` en `config.bloques`. Esta ÚLTIMA fuente es necesaria y
+ *  `config.campos` + `config.imagenes` + (`visible` si `config.ocultable`) + `config.booleanos` (los
+ *  interruptores de sección, § PANEL-EDITOR-HERO-TOGGLES-1) + `config.repeater.campos` + los `slots`
+ *  de todo bloque `tipo:'lista'` en `config.bloques`. Esta ÚLTIMA fuente es necesaria y
  *  no redundante: los campos `benN_M` de `suscripcionPlanes` (los beneficios de cada plan) están
  *  declarados SÓLO en `bloques` (`{tipo:'lista', slots:[...]}`), no en `config.campos` — el propio
  *  comentario de `SUSCRIPCION_PLANES` en tienda-secciones.ts lo dice: "Los benN_* NO llevan
@@ -123,6 +125,7 @@ function camposDeSeccionEditor(config: SeccionConfig): string[] {
   for (const c of config.campos) campos.add(c.name);
   for (const im of config.imagenes) campos.add(im.name);
   if (config.ocultable) campos.add('visible');
+  for (const b of config.booleanos ?? []) campos.add(b.name);
   for (const bloque of config.bloques ?? []) {
     if (bloque.tipo === 'lista') for (const slot of bloque.slots) campos.add(slot);
   }
@@ -196,15 +199,6 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // (su propio docstring dice "es un `campos` normal, abajo") pero ausente de HERO.campos en
   // tienda-secciones.ts — el `.hero-caption` del prototipo no tiene por dónde escribirse hoy.
   { campo: 'hero.fraseAlPie', razon: 'Declarado en REGISTRY.hero.campos como campo normal; ausente de HERO.campos en tienda-secciones.ts', cierra: 'PANEL-EDITOR-HERO-FRASE-AL-PIE-1' },
-
-  // Los CINCO booleanos agregados del hero-media (§ TEMAS-HERO-MEDIA-AGREGADOS-1 y sus ampliaciones):
-  // ninguno tiene control — sólo el preset los enciende. `titularVisible`/`subtituloVisible` son los
-  // dos que la calibración del owner exige ver marcados sin exenciones (§ el reporte de este slice).
-  { campo: 'hero.ctasVisibles', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-HERO-TOGGLES-1' },
-  { campo: 'hero.cueDesliza', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-HERO-TOGGLES-1' },
-  { campo: 'hero.titularVisible', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-HERO-TOGGLES-1' },
-  { campo: 'hero.subtituloVisible', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-HERO-TOGGLES-1' },
-  { campo: 'hero.alturaLlena', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-HERO-TOGGLES-1' },
 
   // El eje `variante` (composición de sección, § eje 5/5e): las CUATRO secciones que lo declaran no
   // tienen ningún control — ni `TiendaSeccionEditor` sabe leer `config.variantes` hoy.

@@ -15806,3 +15806,170 @@ ningún archivo del storefront ni cambia ningún byte visible — es puramente u
 panel —, pero la clasificación de política A es de la RAMA completa contra su base, no del commit
 suelto (§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"). El commit queda en la rama a la espera del
 merge gateado del orquestador.
+
+## 2026-09-23 — Los cinco interruptores del hero pasan a CONTROLES del panel, y nace el patrón general de ATENUACIÓN reusable (`PANEL-EDITOR-HERO-TOGGLES-1`)
+
+**Origen:** ítem 1 de 8 del programa "el panel refleja la tienda" (owner, 2026-09-23), sobre el
+chequeo derivado de `PANEL-REFLEJA-TIENDA-CHEQUEO-1` (§ arriba). El owner: *"los interruptores del
+hero (mostrar titular, mostrar subtítulo) pasan a ser controles del panel con el valor del preset
+como default. Así el dueño decide, y el preset sólo pone el punto de partida."* Y el segundo
+mandato, más ancho que el hero: *"EL PANEL RESPETA EL PRESET ACTIVO. Si el tema no renderiza un
+campo (titular y subtítulo con CORTE), el panel no lo muestra como editable sin efecto: lo marca
+'Este tema no lo muestra' y lo deja visible pero atenuado — el dato sigue ahí si el dueño cambia de
+tema."* Va PRIMERO de los ocho "porque es el patrón que heredan todos los grupos siguientes; hacerlo
+después obliga a retocar cada editor."
+
+### Lo que se construyó
+
+**Los cinco campos** (`hero.ctasVisibles`, `hero.cueDesliza`, `hero.titularVisible`,
+`hero.subtituloVisible`, `hero.alturaLlena`) pasan de "sólo `mergePresetEnContent` los escribe" a
+switches del editor, declarados en `HERO.booleanos` (`components/admin/tienda-secciones.ts`) — un
+campo NUEVO de `SeccionConfig`, `CampoBooleano[]`. El valor que el switch muestra al abrir ES el que
+ya trae `content.hero.*` (sembrado por el preset, o el default si el preset no lo tocó vía
+`resolverSiteContent`): el preset pone el punto de partida, el dueño lo overridea. No se tocó el
+modelo (`HeroContent`, `lib/config/site-content-defaults.ts`), el resolver, ni los seis presets — el
+único cambio es que ahora HAY un control de panel para un dato que ya existía.
+
+**El patrón general de atenuación (item 1 del spec), REUSABLE, no un caso especial del hero:** un
+campo GATEADO por un interruptor apagado no se esconde ni queda editable-sin-nota — se muestra
+ATENUADO (`opacity: 0.6` + la nota "Este tema no lo muestra"), y sigue editable. El mecanismo son DOS
+funciones PURAS en `tienda-secciones.ts` (mismo archivo que declara `SeccionConfig`, para que
+cualquier sección declare su `booleanos` sin importar de un tercer sitio):
+
+- **`gatePorCampo(config)`** — deriva, de `config.booleanos[].gatedFields`, el mapa
+  NOMBRE-DE-CAMPO → NOMBRE-DEL-INTERRUPTOR-QUE-LO-GATEA. Es la razón de que el mecanismo sea
+  REUSABLE sin tocar cada `CampoTexto`: la relación de gateo vive UNA vez, en el interruptor
+  (`CampoBooleano.gatedFields`), no repartida como un `gatedBy` en cada campo de texto que gatea.
+- **`campoAtenuado(config, nombreCampo, form)`** — `true` si el campo está gateado Y su interruptor
+  está exactamente `false` en `form` (ausente/`true` = encendido, mismo criterio que `visible`).
+  `form` ya es el contenido RESUELTO (`resolverSiteContent`), así que un booleano declarado en
+  `REGISTRY` siempre llega como boolean real, nunca `undefined` — no hace falta un tercer estado.
+
+`TiendaSeccionEditor.tsx` las consume: `renderCampo` calcula `campoAtenuado` por campo y aplica el
+estilo + la nota; un nuevo `renderBooleano` dibuja el switch (mismo patrón visual que el toggle de
+visibilidad `config.ocultable` que ya existía — `role="switch"` + `.duna-switch`/`.duna-switch__thumb`
++ `aria-checked`/`aria-label`), y una pieza `admin-bloque` nueva lista todos los `config.booleanos`
+de la sección, justo después del toggle de visibilidad y antes de los bloques de campos.
+
+**El mapeo de gateo en HERO**, el único consumidor hoy:
+
+| interruptor | gatea | efecto apagado |
+| --- | --- | --- |
+| `titularVisible` | `titulo`, `tituloEnfasis` | los dos, como UN bloque (el énfasis nunca rinde solo) |
+| `subtituloVisible` | `subtitulo` | apagador PROPIO, independiente de `titularVisible` |
+| `ctasVisibles` | `ctaPrimarioLabel`, `ctaSecundarioLabel` | los dos botones, como UN bloque |
+| `cueDesliza` | *(ninguno)* | controla presentación (la línea "Desliza"), sin texto propio |
+| `alturaLlena` | *(ninguno)* | controla presentación (el alto del viewport), sin texto propio |
+
+Coincide con lo que `HeroMedia.tsx` ya hacía (`{hero.titularVisible && (…)}` envolviendo
+`titulo`+`tituloEnfasis` como un solo bloque, etc.) — el gateo del editor no inventa una relación
+nueva, documenta la que el componente ya tenía.
+
+### `PENDIENTE_PANEL` — el grupo se cierra, el guard sigue verde
+
+`camposDeSeccionEditor` (`lib/config/panel-controles.ts`) suma `config.booleanos` a las fuentes que
+derivan LADO B ("lo que el panel controla"): con eso, `hero.ctasVisibles`/`cueDesliza`/
+`titularVisible`/`subtituloVisible`/`alturaLlena` entran solos a `camposControladosPorPanel()`, sin
+tocar `camposLeidosPorTienda()` (LADO A, que ya los tenía vía `REGISTRY.hero.booleanos`, § el
+comentario de `camposDeSeccion`). Se retiraron las cinco entradas correspondientes de
+`PENDIENTE_PANEL` — LADO A y LADO B se encuentran solos, sin exención; `huecosDelPanel()` sigue en
+`[]`.
+
+### El test — `lib/config/panel-hero-toggles.test.ts` (14 casos, en memoria)
+
+Sin jsdom (el repo no lo tiene, § CLAUDE.md), así que prueba el CONFIG y las dos funciones puras que
+`TiendaSeccionEditor` consume, no el JSX en sí — igual que el resto de la suite de esta familia.
+Cubre: `HERO.booleanos` declara los cinco nombres exactos; los cinco quedan controlados y fuera de
+`PENDIENTE_PANEL`; `huecosDelPanel()` sigue en `[]`; `gatePorCampo(HERO)` mapea correctamente los
+tres pares campo↔interruptor (y que `eyebrow` no está en el mapa, y que `cueDesliza`/`alturaLlena` no
+aparecen como valores); `campoAtenuado` en sus seis combinaciones (apagado → atenúa, encendido → no,
+ausente → no, los dos campos de un mismo gate se atenúan juntos, un gate no cruza a otro campo, un
+campo no-gateado nunca se atenúa aunque todo lo demás esté apagado); y que el campo gateado SIGUE
+declarado en `HERO.campos` sin condición — el config nunca lo retira, la garantía de que "no se
+esconde" empieza en la declaración. El test declara su propio LÍMITE: sin jsdom no puede afirmar que
+el `<input>` real queda sin `disabled` en el DOM — eso es capa 3 (gate visual del owner).
+
+### DESVIACIÓN — la ruta de `touches:` no existía; se usó la real
+
+El spec listaba `lib/tienda/tienda-secciones.ts`. Medido: ese archivo/directorio NO existe —
+`lib/tienda/` sólo tiene `bloques.ts`, `puente-tarjetas.ts`, `lista-plana.ts` (los resolvedores
+puros); la config de secciones que el spec describe ("el tipo de control BOOLEANO... la config del
+hero en tienda-secciones.ts") vive en `components/admin/tienda-secciones.ts` — el mismo archivo que
+`panel-controles.ts` ya importa (`import { SECCIONES_TIENDA, type SeccionConfig } from
+'@/components/admin/tienda-secciones'`) y que la doctrina de `panel-controles.ts` nombra
+explícitamente como la fuente de `SECCIONES_TIENDA`. Se editó `components/admin/tienda-secciones.ts`
+—el archivo real, mismo basename, sólo el directorio del spec estaba mal— y no se creó ningún archivo
+en `lib/tienda/`. La medición (existencia del path) ganó sobre la instrucción escrita.
+
+### DESVIACIÓN — un test fuera de `touches:` quedó FALSO por este cambio; se corrigió
+
+`lib/config/panel-controles.test.ts` no está en `touches:`, pero uno de sus casos —"calibración: SIN
+exenciones, el chequeo marca los DOS toggles del hero" (líneas 75-79 antes de este slice)— afirmaba
+exactamente el hueco que este slice existe para cerrar: que `huecosDelPanel({conExenciones:false})`
+incluyera `hero.titularVisible`/`hero.subtituloVisible`. Tras controlar los cinco campos, esa
+aserción es FALSA — no un defecto del chequeo (que sigue calibrado, medido: el test de igualdad
+exacta contra `PENDIENTE_PANEL` dos líneas más abajo sigue pasando, porque ambos lados encogieron
+juntos), sino la prueba de que el chequeo funciona: el hueco que medía ya no existe. Dejarlo sin
+tocar habría puesto el gate en ROJO por un cambio que el propio spec pide ("el guard debe seguir
+dando [] (verde)... si al sacarlas el guard se pone rojo, arreglá eso") — así que se reemplazó la
+aserción por un comentario que documenta el cierre y apunta al reemplazo específico
+(`panel-hero-toggles.test.ts`). Ningún otro archivo fuera de `touches:` se tocó.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npm test` (capa 1, sin base) | **1913/1913** — verde (1900 heredados + 14 de `panel-hero-toggles.test.ts` − 1 retirado de `panel-controles.test.ts`) |
+| `npx tsc --noEmit` | **1 error preexistente** (`panel-controles.ts:94`, `camposDeMeta`, un `as Record<string,unknown>` sobre una unión de tipos de meta — BYTE-IDÉNTICO en `git show HEAD`, este diff no lo toca ni lo agrava; `tsc` no es parte de `npm run gate`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **207/208 → 208/208 en la re-corrida completa** — el único fallo (`wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador... A LA VEZ") es un test de carrera real entre dos operaciones async; el diff de este slice no toca `packages/core/src/pagos/`, `app/api/webhooks/wompi/`, ni ningún archivo de pagos — la re-corrida COMPLETA (no sólo el test que falló) dio 208/208 limpio, confirmando que el primer fallo fue no-determinismo del test de carrera, no una regresión de este slice |
+
+Reconciliado contra el piso citado por el dispatch (`PANEL-REFLEJA-TIENDA-CHEQUEO-1`: "1900/1900 +
+208/208", commit `5f37945`) — la diferencia en capa 1 (+13 neto: +14 nuevos, −1 retirado) la explica
+enteramente el diff de este slice; capa 2 reconcilia en la corrida limpia.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/rutas que este diff introdujo o tocó: `components/admin/tienda-secciones.ts`,
+`components/admin/TiendaSeccionEditor.tsx`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `lib/config/site-content-defaults.ts`, `CampoBooleano`,
+`gatePorCampo`, `campoAtenuado`, `renderBooleano`, `HERO.booleanos`, `PANEL-EDITOR-HERO-TOGGLES-1`.
+
+- `CampoBooleano`/`gatePorCampo`/`campoAtenuado`/`renderBooleano`/`HERO.booleanos`/
+  `PANEL-EDITOR-HERO-TOGGLES-1`: **CERO apariciones** en CLAUDE.md — terreno nuevo, nada que este
+  diff pudiera volver falso.
+- `panel-controles`/`PENDIENTE_PANEL`/`huecosDelPanel`/`PANEL-REFLEJA-TIENDA`: **CERO** — el
+  mecanismo del chequeo (construido por la tanda anterior) tampoco está descrito en la doctrina.
+- `site-content-defaults.ts` (11 apariciones): todas describen el modelo/REGISTRY/DEFAULTS en
+  general, o listan el archivo como superficie Tier 1 (línea 39) — este slice NO tocó el modelo, el
+  resolver ni ningún preset, sólo agregó un comentario de documentación al `HeroContent` existente;
+  ninguna frase se vuelve falsa.
+- `TiendaSeccionEditor` (7 apariciones): todas describen su arquitectura general (contrato de
+  borrador, "dibuja por BLOQUES", el puente vista→formulario, el uploader compartido, `categoriasListas`
+  como prop) — ninguna la contradice este diff. La pieza de `config.booleanos` se renderiza FUERA de
+  los bloques, con el mismo precedente que ya tenía el toggle `config.ocultable` (que tampoco pasa
+  por bloques) desde antes de este slice — no es una excepción nueva a "dibuja por bloques", es la
+  misma que ya existía.
+- `SECCIONES_TIENDA` (1 aparición, § "El editor GANA un selector de página, SIN GATE"): describe que
+  `TiendaPaginas` agrupa `SECCIONES_TIENDA` por página — este slice no tocó `TiendaPaginas` ni el
+  agrupamiento; sigue siendo verdad.
+
+### `touches:` — lo que se escribió
+
+`components/admin/tienda-secciones.ts` (ruta real, el spec citaba `lib/tienda/tienda-secciones.ts`,
+inexistente — § DESVIACIÓN arriba), `components/admin/TiendaSeccionEditor.tsx`,
+`lib/config/panel-controles.ts`, `lib/config/site-content-defaults.ts` (comentario, sin cambio de
+modelo — superficie Tier 1, cubierta por la aprobación del owner citada en el dispatch),
+`lib/config/panel-hero-toggles.test.ts` (nuevo), este asiento. FUERA de `touches:`:
+`lib/config/panel-controles.test.ts` (una aserción vuelta falsa por este mismo cambio, § DESVIACIÓN
+arriba — no ampliación de alcance, corrección de un efecto directo).
+
+### Verdicto
+
+**El gate cierra en VERDE** (1913/1913 + 208/208, capa 2 reconciliada en la corrida limpia). Por
+instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` — nunca mergea: la RAMA
+(`slice/corte-reescritura-prototipo-1`) toca bytes que el visitante puede ver (heredado de commits
+anteriores de la rama, y por su propia naturaleza ESTE commit SÍ agrega copy nuevo visible en el
+panel — las etiquetas de los cinco switches, "Mostrar titular" etc. — aunque el panel no sea
+storefront, § CLAUDE.md "EL EJE ES LA RAMA, NO EL COMMIT" ya fijaba que la clasificación es de la
+rama completa, no del commit suelto). El commit queda en la rama a la espera del merge gateado del
+orquestador. El copy nuevo del panel queda para la pasada del owner, como pidió el spec.

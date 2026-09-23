@@ -40,6 +40,18 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
 export type CampoImagen = { name: string; label: string };
 
+// UN CAMPO BOOLEANO (switch) — el interruptor de UNA CAPACIDAD de la sección, distinto del toggle
+// `SeccionConfig.ocultable` (que apaga la sección ENTERA). `gatedFields` declara qué campos de
+// `campos`/`imagenes` de la MISMA sección este interruptor GATEA: cuando está apagado, esos campos
+// NO se esconden ni quedan editables-sin-efecto — se muestran ATENUADOS, con la nota "Este tema no
+// lo muestra" (§ PANEL-EDITOR-HERO-TOGGLES-1, el PATRÓN GENERAL que hereda todo editor futuro —
+// mecanismo puro, § `gatePorCampo`/`campoAtenuado` abajo). Ausente/vacío = el booleano no gatea
+// ningún campo de texto (como `cueDesliza`/`alturaLlena`: controlan la PRESENTACIÓN del hero, sin
+// texto propio que atenuar). El valor INICIAL del switch lo trae el form ya sembrado —el preset lo
+// escribió vía `mergePresetEnContent`, o cae al default de `DEFAULTS` si el preset no lo tocó—: el
+// preset pone el punto de partida, el dueño lo overridea con el switch.
+export type CampoBooleano = { name: string; label: string; hint?: string; gatedFields?: string[] };
+
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
 // campo concreto): texto / textarea / rating / imagen. `resumen` es el ROL del campo en el renglón
 // colapsado —principal (título) y detalle (fragmento)—, así el editor arma el resumen sin saber qué
@@ -105,6 +117,10 @@ export interface SeccionConfig {
   imagenes: CampoImagen[];
   /** Si la sección expone el toggle de visibilidad (§ REGISTRY.ocultable). El hero es false. */
   ocultable: boolean;
+  /** Los INTERRUPTORES (switches) de sección — capacidades que se prenden/apagan, aparte del toggle
+   *  de visibilidad de TODA la sección (`ocultable`). Ausente = sin interruptores (la mayoría de las
+   *  secciones hoy). § `CampoBooleano` para el mecanismo de atenuación que cada uno puede activar. */
+  booleanos?: CampoBooleano[];
   /** Presente → sección de LISTA: la cáscara renderiza el RepeaterEditor para este array de ítems,
    *  además de los `campos` planos de sección. */
   repeater?: RepeaterConfig;
@@ -113,11 +129,56 @@ export interface SeccionConfig {
   bloques?: BloqueConfig[];
 }
 
+// ── EL PATRÓN GENERAL DE ATENUACIÓN (§ PANEL-EDITOR-HERO-TOGGLES-1, item 1) — REUSABLE por todo
+// editor, no un caso especial del hero. Un campo GATEADO por un interruptor de sección
+// (`CampoBooleano.gatedFields`) que está APAGADO no se esconde ni queda editable-sin-efecto: se
+// muestra ATENUADO, con la nota "Este tema no lo muestra" — el dato sigue ahí, editable, para cuando
+// el dueño prenda el interruptor o cambie de tema. Dos funciones PURAS, sin JSX: `TiendaSeccionEditor`
+// las consume para decidir el render; un test en memoria las prueba sin montar React
+// (§ panel-hero-toggles.test.ts).
+
+/** El mapa NOMBRE-DE-CAMPO → NOMBRE-DEL-INTERRUPTOR-QUE-LO-GATEA, derivado de `config.booleanos`. Un
+ *  campo ausente de este mapa no está gateado por ningún interruptor de esta sección. */
+export function gatePorCampo(config: SeccionConfig): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const b of config.booleanos ?? []) {
+    for (const f of b.gatedFields ?? []) m.set(f, b.name);
+  }
+  return m;
+}
+
+/** `true` si `nombreCampo` está gateado por un interruptor de `config` Y ese interruptor está
+ *  APAGADO en `form` (exactamente `false` — ausente/`true` = encendido, mismo criterio que
+ *  `visible`). `form` es el contenido YA RESUELTO (`resolverSiteContent`), así que un booleano
+ *  declarado en `REGISTRY` siempre llega como `true`/`false` real, nunca `undefined`. */
+export function campoAtenuado(config: SeccionConfig, nombreCampo: string, form: Record<string, unknown>): boolean {
+  const nombreGate = gatePorCampo(config).get(nombreCampo);
+  return nombreGate !== undefined && form[nombreGate] === false;
+}
+
 const HERO: SeccionConfig = {
   seccion: 'hero',
   pagina: 'home',
   titulo: 'Hero de la home',
   ocultable: false,
+  // LOS CINCO INTERRUPTORES del hero-media (§ TEMAS-HERO-MEDIA-AGREGADOS-1,
+  // CORTE-HERO-TITULAR-OCULTABLE-1, CORTE-HERO-VIEWPORT-LLENO-1): antes SÓLO el preset los escribía
+  // (§ PANEL-EDITOR-HERO-TOGGLES-1, cierra su grupo de `PENDIENTE_PANEL`). El valor que el switch
+  // muestra al abrir es el que YA trae `content.hero.*` —sembrado por el preset, o el default si el
+  // preset no lo tocó—: el preset pone el punto de partida, el dueño lo overridea con el switch.
+  // `titularVisible`/`subtituloVisible`/`ctasVisibles` GATEAN sus campos de texto (`gatedFields`,
+  // § CampoBooleano) — apagados, esos campos siguen editables pero se muestran ATENUADOS; `cueDesliza`/
+  // `alturaLlena` no gatean ningún campo: controlan presentación del hero-media, sin texto propio.
+  // SÓLO tienen efecto visible con `hero.variante === 'media'` (curtina/ficha no los leen, § HeroMedia.
+  // tsx) — ese eje (`variante`) sigue sin control de panel, es su propio hueco, PANEL-EDITOR-VARIANTES-
+  // COMPOSICION-1, fuera del alcance de este slice.
+  booleanos: [
+    { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque.', gatedFields: ['titulo', 'tituloEnfasis'] },
+    { name: 'subtituloVisible', label: 'Mostrar subtítulo',   gatedFields: ['subtitulo'] },
+    { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos.', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
+    { name: 'cueDesliza',       label: 'Mostrar el indicador "Desliza"', hint: 'La línea animada al pie que invita a bajar, con la etiqueta "Desliza".' },
+    { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto del viewport, en vez de dejar asomar el siguiente bloque.' },
+  ],
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
   campos: [
     { name: 'eyebrow',            label: 'Línea superior',      opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
