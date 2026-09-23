@@ -13689,3 +13689,151 @@ ANIMACION-1`) → el color es el del componente, no el del fondo (`CROMO-DEV-HID
 el árbol de procesos no deja huérfano (este slice) — y las cuatro veces el defecto lo destapó
 CORRERLO, no leer el código. Por eso el estándar (este arnés) se termina ANTES de que la cadena
 visual que depende de él (volver-arriba, riel social, carrito) empiece a usarlo, no durante.
+
+## 2026-09-23 — El botón "volver arriba": tematizable, nace APAGADO, en su PROPIA meta (no dentro de `cromo`) (`CROMO-VOLVER-ARRIBA-1`)
+
+Primer eslabón de la cadena visual anunciada en `ARNES-CAPTURA-SECCION-1`/`CROMO-DEV-HIDRATACION-
+SPA-1` (volver-arriba → riel social → nav) que efectivamente USA el arnés — y el primero en topar
+con su límite (§ abajo).
+
+### Qué se construyó
+
+`components/storefront/BackToTop.tsx`, gemelo tematizable del `.to-top` del prototipo
+(`docs/prototipos/cafeone/css/app.css:340-353`, `js/app.js:356-365`): pastilla fija abajo-derecha,
+44×44, `sf-pildora`, fondo `bg-[var(--sf-accion,var(--sf-tostado))]` + ícono
+`text-[var(--sf-tinta)]` — el MISMO par que ya visten los 5 CTA primarios del storefront
+(HeroCurtina/HeroFicha/HeroMedia/SubscriptionCTABloque/SubscriptionCTALinea). Aparece con
+`window.scrollY > window.innerHeight` (el umbral REAL del prototipo, no los `> 20` de `StoreNav`
+—ese decide un cambio de FONDO del nav; acá se monta un control flotante nuevo que no debe competir
+con el hero recién visto—) y se oculta con `useCartStore().isOpen` (gemelo de `body.drawer-open
+.to-top{opacity:0}`). Movimiento reducido vía `ReducedMotionProvider`/`MotionConfig
+reducedMotion="user"` (§ CLAUDE.md, `lib/animation.ts`) — sin `@media` propio. Montado SIEMPRE
+desde `app/(storefront)/layout.tsx` (como StoreNav/StoreFooter/CartDrawer), decide su propio
+silencio adentro — el mismo mecanismo que `Marquesina`/`Origen`.
+
+**El token `--sf-accion-texto` que el spec nombraba NO EXISTE en este sistema.** Se verificó contra
+el código (no contra la instrucción, § CLAUDE.md "El tripwire protege contra la instrucción"): los
+5 CTA primarios usan `text-[var(--sf-tinta)]` sobre `bg-[var(--sf-accion,…)]`, literal, no un token
+"sobre-acción" dedicado. El prototipo llama a ese rol `--text-on-accent` (`css/app.css:342`); en
+este sistema ese rol ya lo cumple `--sf-tinta`. Se reusó el par REAL, documentado en el propio
+componente, en vez de inventar un token que el resto del CTA primario no usa.
+
+### La decisión de MODELO: meta PROPIA (`content.volverArriba`), no un 4º campo de `cromo`
+
+El spec pedía "gemelo de `bandaOrigenVisible`/`navTinta`", y la lectura más directa habría sido
+sumar una 4ª clave a `CromoContent` (`navTinta`/`navSubtitulo`/`navBadge`). **Se descartó al medir
+la consecuencia contra el árbol completo, no sólo contra `site-content-defaults.ts`:**
+`lib/config/cromo-tematizable.test.ts` (FUERA de `touches:` de este slice) afirma la forma
+EXHAUSTIVA de `cromo` con `assert.deepEqual` contra literales de 3 claves —`CROMO_HOY: CromoContent
+= { navTinta: false, navSubtitulo: false, navBadge: '' }`, y lo mismo sobre `DEFAULTS.cromo`,
+`resolverSiteContent({}).cromo` y cada `mergePresetEnContent(...).cromo`—. Una 4ª clave real en
+`CromoContent` rompe ese literal en **compilación** (falta la propiedad del tipo) antes incluso de
+llegar a un `assert` en runtime.
+
+El protocolo de este slice es explícito: *"YOUR DIFF MUST STAY INSIDE `touches:`… si el trabajo
+necesita un archivo fuera de esa lista, PARÁ y decilo — no lo ampliés vos mismo."* Ampliar
+`cromo-tematizable.test.ts` para que acepte la 4ª clave habría sido exactamente esa ampliación no
+autorizada. La salida no fue "romper el test y reportarlo" ni "tocar el archivo igual": fue separar
+el eje en su PROPIA meta —`VolverArribaContent` (`{ visible: boolean }`), `content.volverArriba`,
+`resolverVolverArriba` (gemelo de `resolverCromo` en forma, SOFT, dominio cerrado de 1 clave),
+`volverArribaEditableSchema` (gemelo de `cromoEditableSchema`), y `PresetTema.volverArribaVisible`
+(el campo que el spec pedía, con ese nombre exacto) escribiendo `out.volverArriba` en
+`mergePresetEnContent` — REEMPLAZADO ENTERO, mismo criterio que `cromo`/`esquemas`/`orden`.
+
+Hay además una razón de FONDO, no sólo de alcance, documentada en el código: `navTinta`/
+`navSubtitulo`/`navBadge` AJUSTAN un chrome que YA está SIEMPRE montado (el nav); `volverArriba`
+decide si un COMPONENTE ENTERO se monta — la misma distinción que ya separa
+`bandaOrigenVisible`/`bandaMarquesinaVisible` (encienden una banda entera) de `navTinta` (ajusta una
+que ya existe). No podía vivir DENTRO de una sección existente como esos dos `bandaX`, porque
+"volver arriba" no es una banda del home (sin entrada en REGISTRY, sin competir por posición en
+`orden`) — necesitaba su propio lugar, y ese lugar es una meta nueva, no un cuarto campo de `cromo`.
+
+`SeccionKey` (`Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | …>`) tuvo que sumar
+`'volverArriba'` a su lista de exclusión — sin eso, TypeScript la habría tratado como una sección
+más y `REGISTRY: Record<SeccionKey, SeccionDef>` habría exigido una entrada `volverArriba` que no
+existe (error de compilación, no detectado por ningún `assert`). Encontrado corriendo `tsc`, no
+leyendo el tipo.
+
+**Verificado, no supuesto:** `npm --import tsx --test "lib/config/*.test.ts"` corrido tras el
+cambio — **607/607**, incluidos los 22 tests de `cromo-tematizable.test.ts` sin tocar ese archivo.
+
+### El gate
+
+`npm run gate` (capa 1 + capa 2) corrido en la tree final: ver la cifra en el reporte de este
+slice (`gate.figures`/`gate.wall_seconds`, medido, no transcrito acá para no duplicar una cifra que
+puede volver a correr). `npx next build` (SWC + `tsc`, § CLAUDE.md "tsc NO es la capa que envía")
+limpio: `/` sigue `ƒ` (dinámico), sin errores. `npx eslint` sobre los 6 archivos de `touches:`: 2
+errores en `cromo-volver-arriba.test.ts` (`react/no-children-prop`) — **preexistentes en el
+patrón**, no una regresión: `marquesina-banda.test.ts` (3) y `hero-toggles-preset.test.ts` (1) usan
+el MISMO `React.createElement(Provider, { value, children: React.createElement(Hijo) })` y fallan
+la misma regla. `lint` no es parte de `npm run gate` (§ CLAUDE.md, "El GATE de un slice corre LOS
+DOS CARRILES") — no se tocó por estar fuera del contrato del gate y del patrón ya establecido.
+
+### La captura — el arnés MIDE el token correcto, pero no puede REVELAR un chrome fijo por scroll
+
+`npm run capturar:seccion -- --preset CORTE --ruta / --selector-app "button[aria-label='Volver
+arriba']" --prototipo index.html --nombre volver-arriba` (build+start real, Postgres efímero
+propio del arnés, Chromium headless). **Valores computados de `:root` bajo CORTE, medidos en
+navegador real:** `--sf-fondo:#fdfbf7 --sf-tinta:#102407 --sf-acento:#a70004` — coinciden byte a
+byte con `CORTE.raices` (`themes.ts`). Como `CORTE.origenAccion === 'acento'`, `--sf-accion` deriva
+directo del acento crudo (§ `CROMO-EJES-PALETA-AL-RENDER-1`, ya cerrado — a diferencia de
+`CROMO-CORTE-ACCION-TOSTADO-1`, que midió `--sf-accion` en tostado ANTES de ese fix): el botón usa
+el rojo `#a70004` que el spec pedía, confirmado por la cadena de código + el valor medido de
+`--sf-acento`, aunque no por un recorte a color del botón mismo (§ el límite, abajo).
+
+**El límite, medido en DOS corridas, no supuesto:** el mecanismo de asentamiento del arnés
+(`esperarAsentamiento`, § `CROMO-ARNES-STAGGER-ANIMACION-1`) hace `scrollIntoView({block:'center'})`
+sobre el selector pedido para disparar la animación de entrada. Para un elemento `position:fixed`,
+eso es un NO-OP: el navegador no necesita mover el scroll del documento para que un elemento fijo
+"entre en vista", porque ya está siempre dentro del viewport por definición. `window.scrollY` nunca
+cruza `window.innerHeight`, `visible` nunca pasa a `true`, y la opacidad del botón se queda en 0.
+
+- **Corrida 1** (`--selector-prototipo ".to-top"`): el lado APP capturó (con la advertencia de
+  opacidad esperada) pero el lado PROTOTIPO **falló** — `locator.waitFor` (default `state:
+  'visible'`) dio timeout a los 10s: `.to-top` del prototipo real TAMPOCO se revela sin scroll real
+  (su propio `js/app.js:361` exige el mismo `window.scrollY > window.innerHeight`). Esto no es un
+  defecto de este componente: es el MISMO mecanismo, fallando IGUAL en la referencia — evidencia de
+  que el límite es del arnés frente a esta CLASE de chrome (fijo, gateado por scroll), no de
+  `BackToTop.tsx`.
+- **Corrida 2** (sin `--selector-prototipo`, página completa del lado prototipo, para no pisar el
+  `waitFor` de arriba): terminó sin error. El PNG del botón (`app-0.png`, decodificado a simple
+  vista) sale **verde oscuro** — no transparente-hacia-crema ni rojo—: a opacidad 0, el recorte del
+  locator muestra lo que hay DETRÁS del botón en su posición de pantalla sin scrollear, que en la
+  primera pantalla de CORTE (hero variante `media`, banda oscura) es la tinta `#102407` del hero,
+  no el fondo de página. Confirma la hipótesis (opacity:0 nunca asienta) con el PIXEL real, no sólo
+  con la advertencia de consola.
+
+**Por qué no se amplió `scripts/capturar-seccion.ts` para resolver esto:** el archivo no está en
+`touches:` de este slice, y el protocolo es explícito sobre no ampliar alcance por cuenta propia —
+mismo criterio que `CROMO-CARRITO-TEMATIZADO-1` aplicó cuando el arnés no soportaba abrir un
+drawer (resuelto por fuera, en `.scratch/`, sin tocar el archivo compartido). Acá no hay siquiera un
+rodeo de `.scratch/` disponible: forzar un scroll real exigiría inyectar `page.mouse.wheel(...)` o
+`page.evaluate(() => window.scrollTo(...))` DENTRO del propio bucle de captura, que vive en el
+archivo compartido — extenderlo en un script aparte no puede alcanzar la `page` que
+`capturar-seccion.ts` ya abrió y cerró.
+
+Queda como open follow-up (abajo), para que **riel social** y **nav** —los próximos dos eslabones
+de la cadena— sepan de antemano si su propio chrome es fijo-por-scroll (mismo límite) o
+in-flow/intersección (cubierto hoy).
+
+### `touches:` — lo que se escribió y lo que NO
+
+Escrito: `lib/config/themes.ts` (`PresetTema.volverArribaVisible`, el bloque `out.volverArriba` en
+`mergePresetEnContent`, `CORTE.volverArribaVisible: true`), `lib/config/site-content-defaults.ts`
+(`VolverArribaContent`, `SiteContentData.volverArriba`, `SeccionKey` ampliado, `DEFAULTS.
+volverArriba`, `resolverVolverArriba`, el `out.volverArriba` de `resolverSiteContent`),
+`lib/config/site-content-schema.ts` (`volverArribaEditableSchema`, sumado a
+`siteContentEditableSchema`), `components/storefront/BackToTop.tsx` (nuevo),
+`app/(storefront)/layout.tsx` (el `import` + `<BackToTop />` dentro de `CartProvider`), este
+asiento. `cromo`/`CromoContent`/`cromoEditableSchema`/`cromo-tematizable.test.ts` **NO se
+tocaron** — la decisión de arriba existe precisamente para que no hiciera falta.
+
+### Open follow-ups
+
+- **`CROMO-CAPTURA-ARNES-SCROLL-FIJO-1`** — `scripts/capturar-seccion.ts` no puede revelar un
+  chrome `position:fixed` gateado por scroll real (medido en las dos corridas de arriba, en la app
+  Y en el prototipo de referencia). El próximo slice de la cadena (riel social, nav) que dependa de
+  scroll real para su estado visible topa con el mismo límite. Arreglo candidato: un flag
+  `--forzar-scroll <px>` que haga `page.evaluate(() => window.scrollTo(0, px))` antes de
+  `esperarAsentamiento`, en el archivo compartido (no en un `.scratch/` — no hay forma de alcanzar
+  la `page` desde afuera).

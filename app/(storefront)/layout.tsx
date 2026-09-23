@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import StoreNav from "@/components/storefront/layout/StoreNav";
 import StoreFooter from "@/components/storefront/StoreFooter";
 import CartDrawer from "@/components/storefront/CartDrawer";
+import BackToTop from "@/components/storefront/BackToTop";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
 import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvider";
@@ -146,6 +147,10 @@ export default async function StorefrontLayout({
                 <main>{children}</main>
                 <StoreFooter />
                 <CartDrawer />
+                {/* BackToTop (§ CROMO-VOLVER-ARRIBA-1): montado SIEMPRE, como sus hermanos de arriba
+                    — decide su propio silencio adentro por `content.volverArriba.visible`
+                    (AUSENTE/false → `null`, byte-idéntico). */}
+                <BackToTop />
               </div>
             </CartProvider>
           </SiteContentProvider>

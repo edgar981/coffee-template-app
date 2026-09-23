@@ -298,11 +298,20 @@ const variantesBandasEditableSchema = z.record(z.string(), z.string());
 // —sólo `aplicarPreset` (`themes.ts`), directo sobre `content` publicado, sin pasar por este
 // schema—. Va en su PROPIA meta y no dentro de `tema` a propósito: ver el docstring de
 // `CromoContent` (`site-content-defaults.ts`) para el porqué (el guardar/publicar de la PALETA,
-// `palette-schema.ts`, reemplaza `content.tema` entero y resetearía estos 3 ejes en silencio).
+// `palette-schema.ts`, reemplaza `content.tema` entero y resetearía estos tres ejes en silencio).
 const cromoEditableSchema = z.object({
   navTinta: z.boolean().optional(),
   navSubtitulo: z.boolean().optional(),
   navBadge: z.string().optional(),
+});
+
+// META de VOLVER ARRIBA (§ CROMO-VOLVER-ARRIBA-1): gemela de `cromoEditableSchema` en FORMA (dominio
+// CERRADO, NO sección, NO pasa por borrador/publicar, se declara SÓLO para que un futuro write
+// general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
+// `VolverArribaContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
+// `cromo`. HOY no hay editor que la escriba —sólo `aplicarPreset` (`themes.ts`).
+const volverArribaEditableSchema = z.object({
+  visible: z.boolean().optional(),
 });
 
 // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). A diferencia de `cromo`/`esquemas`/`orden` de arriba,
@@ -354,6 +363,7 @@ export const siteContentEditableSchema = z.object({
   menu: menuEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   cromo: cromoEditableSchema.optional(),
+  volverArriba: volverArribaEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),

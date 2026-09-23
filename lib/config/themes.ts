@@ -127,6 +127,13 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * al pie (`hero.fraseAlPie`) NO tiene su gemelo acá a propósito: es CONTENIDO del tenant (un texto,
  * no una composición), así que ningún preset la siembra — mismo criterio que `mergePresetEnContent`
  * nunca escribe el `titulo`/`lede` de `origen` o el `texto` de `marquesina`.
+ *
+ * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
+ * arriba" (gemelo del `.to-top` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
+ * storefront no tiene este chrome, `BackToTop.tsx` rinde `null`). Escribe `content.volverArriba.
+ * visible` (`VolverArribaContent`, meta PROPIA — ver su docstring en `site-content-defaults.ts` para
+ * el porqué de que NO comparta objeto con `navTinta`/`navSubtitulo`/`navBadge`). CORTE es hoy el
+ * ÚNICO preset que lo declara.
  */
 export interface PresetTema {
   clave: string;
@@ -147,6 +154,7 @@ export interface PresetTema {
   bandaMarquesinaVisible?: boolean;
   heroCtasVisibles?: boolean;
   heroCueDesliza?: boolean;
+  volverArribaVisible?: boolean;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -260,7 +268,9 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * PRESET-1, reemplazado entero — son composición, no contenido), `cromo` (§ CROMO-NAV-FOOTER-
  * TEMATIZABLE-1, los 3 ejes de chrome de nav/footer, reemplazado entero por la misma razón —
  * composición, no contenido, y META APARTE de `tema` a propósito, ver el docstring de
- * `CromoContent`), `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
+ * `CromoContent`), `volverArriba` (§ CROMO-VOLVER-ARRIBA-1, el botón flotante, reemplazado entero
+ * por la misma razón — META PROPIA, aparte de `cromo`, ver el docstring de `VolverArribaContent`),
+ * `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
  * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
  * que esa sección ya tuviera (`{ ...prev, variante }`) — y, SÓLO cuando la variante resultante de
  * `featured` es 'spotlight' (§ SPOTLIGHT-CABLEADO-HOME-1), el campo `visible` DENTRO de
@@ -306,6 +316,12 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     navTinta: preset.navTinta ?? false,
     navSubtitulo: preset.navSubtitulo ?? false,
     navBadge: preset.navBadge ?? '',
+  };
+  // `volverArriba` (§ CROMO-VOLVER-ARRIBA-1): meta PROPIA, aparte de `cromo` — ver el docstring de
+  // `VolverArribaContent` para el porqué (no comparte el contrato exhaustivo de 3 claves de `cromo`,
+  // afirmado por `cromo-tematizable.test.ts`).
+  out.volverArriba = {
+    visible: preset.volverArribaVisible ?? false,
   };
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
@@ -599,6 +615,14 @@ export const CORTE: PresetTema = {
   // `cueDesliza` (§ el test de `hero-toggles-preset.test.ts` que lo afirma).
   heroCtasVisibles: false,
   heroCueDesliza: true,
+  // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
+  // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija
+  // abajo-derecha que pinta `background:var(--action-primary)` — el MISMO rol que ya mapea
+  // `raices.acento` de CORTE (§ el comentario de `raices`, arriba) — y aparece tras
+  // `window.scrollY > window.innerHeight` (`js/app.js:361`), ocultándose con
+  // `body.drawer-open` (`css/app.css:352`, el carrito abierto). CORTE es hoy el ÚNICO preset del
+  // catálogo que lo declara; los otros cinco no tocan `content.volverArriba`.
+  volverArribaVisible: true,
 };
 
 export const PATIO: PresetTema = {

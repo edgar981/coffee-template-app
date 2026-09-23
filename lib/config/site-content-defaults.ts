@@ -568,6 +568,27 @@ export interface CromoContent {
   navBadge: string;
 }
 
+// META de VOLVER ARRIBA (§ CROMO-VOLVER-ARRIBA-1) — GEMELA de `CromoContent` en INTENCIÓN (chrome
+// del storefront que un preset puede encender, AUSENTE/`false` = el comportamiento de HOY, byte a
+// byte) pero NO fusionada en `CromoContent`, a propósito: `cromo` ya es un dominio CERRADO de 3
+// claves con un contrato EXHAUSTIVO afirmado por `cromo-tematizable.test.ts` (fuera de `touches` de
+// este slice — no se le agrega una 4ª clave a mitad de tanda). Y hay una razón de FONDO, no sólo de
+// alcance: `navTinta`/`navSubtitulo`/`navBadge` AJUSTAN un chrome que YA está SIEMPRE montado (el
+// nav); esto decide si un COMPONENTE ENTERO se monta (`BackToTop.tsx`) — la misma distinción que ya
+// separa `bandaOrigenVisible`/`bandaMarquesinaVisible` (encienden una banda ENTERA) de `navTinta`
+// (ajusta una que ya existe). No puede vivir DENTRO de una sección existente como esos dos bandaX,
+// porque "volver arriba" no es una banda del home (sin entrada en REGISTRY, sin competir por
+// posición en `orden`) — así que, como `bandaOrigenVisible`, necesita su propio lugar; a diferencia
+// de esos dos, ese lugar es una meta nueva, no un campo `visible` de una sección ya declarada.
+export interface VolverArribaContent {
+  // ¿Se monta el botón flotante "volver arriba" (gemelo del `.to-top` del prototipo,
+  // `docs/prototipos/cafeone/css/app.css:340-353`)? `false` = HOY: el storefront no tiene este
+  // chrome — `BackToTop.tsx` (`components/storefront/`) rinde `null`, byte-idéntico. Sólo
+  // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.volverArribaVisible`; de los 6
+  // presets del catálogo, sólo CORTE lo declara `true`.
+  visible: boolean;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
@@ -586,6 +607,7 @@ export interface SiteContentData {
   paginas: PaginasContent;
   tema: TemaContent;
   cromo: CromoContent;
+  volverArriba: VolverArribaContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -979,6 +1001,12 @@ export const DEFAULTS: SiteContentData = {
     navSubtitulo: false,
     navBadge: '',
   },
+  // VOLVER ARRIBA por defecto (§ CROMO-VOLVER-ARRIBA-1): sin botón flotante → byte-idéntico sin
+  // depender de una fila (`BackToTop.tsx` rinde `null`). Sólo CORTE lo enciende, vía
+  // `mergePresetEnContent`.
+  volverArriba: {
+    visible: false,
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -1084,9 +1112,10 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `esquemas`, `orden` y `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas;
-// las seis metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// `volverArriba`, `esquemas`, `orden` y `variantesBandas`, que no son secciones). El REGISTRY las
+// cubre a todas; las siete metas quedan fuera a propósito —cada una se resuelve aparte del loop de
+// secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -1547,6 +1576,10 @@ export function resolverSiteContent(
   // resueltos aparte del loop y aparte de `tema` —dominio CERRADO (3 claves fijas) igual que
   // `paginas`, nunca tocado por el guardar/publicar de la PALETA (§ el docstring de `CromoContent`).
   out.cromo = resolverCromo(raw.cromo, defaultsBase.cromo);
+  // VOLVER ARRIBA (meta, no sección, § CROMO-VOLVER-ARRIBA-1): ¿se monta el botón flotante?,
+  // resuelto aparte de `cromo` (dominio CERRADO propio, 1 clave) por el motivo del docstring de
+  // `VolverArribaContent` — no comparte contrato con `cromo`.
+  out.volverArriba = resolverVolverArriba(raw.volverArriba, defaultsBase.volverArriba);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -1639,6 +1672,18 @@ export function resolverCromo(stored: unknown, defaults: unknown): CromoContent 
     navSubtitulo: bool('navSubtitulo'),
     navBadge: str('navBadge'),
   };
+}
+
+// Resuelve VOLVER ARRIBA (§ CROMO-VOLVER-ARRIBA-1), gemelo de `resolverCromo` en FORMA (dominio
+// CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el docstring de `VolverArribaContent` para el
+// porqué de que no comparta objeto con `cromo`.
+export function resolverVolverArriba(stored: unknown, defaults: unknown): VolverArribaContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const sv = st['visible'];
+  if (typeof sv === 'boolean') return { visible: sv };
+  const dv = def['visible'];
+  return { visible: typeof dv === 'boolean' ? dv : false };
 }
 
 const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento']);
