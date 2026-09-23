@@ -15067,3 +15067,176 @@ banda del storefront si el owner lo usa, aunque el default deje a todo tenant si
 byte-idéntico hoy), así que cae del lado de "customer-bytes" de la política A. El commit queda en
 la rama a la espera del merge gateado del orquestador, que debe conocer el landmine de
 `PaletaSeccion.tsx` (§ arriba) antes de dar por cerrado el gate visual de `/admin/tienda`.
+
+## 2026-09-23 — `/admin/tienda` volvía a cargar: `PaletaSeccion.tsx` monta `SiteContentProvider` local para `TrustBadges` — cierra el landmine (`ADMIN-TIENDA-ROTO-CON-PRESET-1`)
+
+**Reporte del owner (URGENTE):** `/admin/tienda` tiraba "This page couldn't load" en el muestrario
+tras aplicar el preset CORTE. El bloqueo #1: ahí se llena el contenido. El spec pedía reproducir el
+error REAL (no una hipótesis), arreglar la causa raíz, y agregar el test que faltaba.
+
+### EL ERROR REAL, reproducido antes de tocar nada
+
+Medido con `node --import tsx` sobre un script que renderiza `TrustBadges` (§ el componente que
+`CORTE-TRUSTBADGES-OCULTABLE-1` — el commit INMEDIATAMENTE anterior de esta rama — le agregó
+`useSiteContent()`) SIN `<SiteContentProvider>`:
+
+```
+useSiteContent() fuera de <SiteContentProvider> (storefront)
+    at useSiteContent (components/storefront/SiteContentProvider.tsx:24:17)
+    at TrustBadges (components/storefront/home/TrustBadges.tsx:46:27)
+```
+
+**El crash NO depende del preset aplicado — depende de que el provider esté ausente.** Se verificó
+con y sin `resolverSiteContent(mergePresetEnContent({}, CORTE))` de por medio: el mismo throw, la
+misma línea, los dos casos. `PaletaSeccion.tsx` (`FragmentoTienda`, la vista previa de paleta de
+`/admin/tienda`) monta `<TrustBadges />` DIRECTO, documentado en su propio comentario —hasta este
+slice— como "`TrustBadges` estático". Desde `CORTE-TRUSTBADGES-OCULTABLE-1` ya no lo es: lee
+`useSiteContent()`, fail-loud por diseño, y ese árbol de `/admin/tienda` (PaletaSeccion, MenuSeccion,
+TiendaPaginas montados directo por `app/(admin)/admin/tienda/page.tsx`) **nunca tuvo** un
+`SiteContentProvider` ancestro — ese provider sólo existe en el layout del STOREFRONT.
+
+**Ese mismo commit YA HABÍA MEDIDO y NOMBRADO este landmine como follow-up**
+(`CORTE-TRUSTBADGES-PALETA-PROVIDER-1`, § arriba en este archivo) y explícitamente no lo cerró
+porque `PaletaSeccion.tsx` no estaba en su `touches:`. Esta es la segunda etapa: el mismo fix que
+ese asiento ya prescribía.
+
+**Los OTROS TRES sospechosos que nombró el owner (badge del menú, `navWordmark`, los toggles del
+hero) se descartaron por MEDICIÓN, no por intuición:**
+- `MenuSeccion.tsx` no monta un solo componente real del storefront (sólo inputs/selects del admin);
+  `badgeItem`/`badgeTexto` son `?` en el TIPO pero `resolverSiteContent` los resuelve SIEMPRE a
+  `''` en runtime (`REGISTRY.menu.campos`), y `MenuSeccion` nunca los lee directo (§ el comentario
+  del propio campo, `site-content-defaults.ts`). Ningún acceso a `undefined`.
+- `navWordmark` (`Logo.tsx`, prop `wordmarkTratado`) es enteramente PROP-DRIVEN; `FragmentoTienda`
+  ni siquiera pasa esa prop hoy (la vista previa de paleta no refleja ese eje — hueco preexistente,
+  no un crash, fuera de alcance de este slice).
+- Los toggles del hero (`titularVisible`/`subtituloVisible`/`ctasVisibles`/`cueDesliza`) los
+  resuelve `resolverSiteContent` con `if (typeof storedSec[campo] === 'boolean')`, nunca lanza; y
+  ningún componente de `/admin/tienda` los lee directo — sólo `HeroMedia`, vía
+  `VistaTiendaEnVivo`/`TiendaSeccionEditor` (fuera de `touches:`), que YA envuelve con
+  `SiteContentProvider` (§ el docstring de `VistaTiendaEnVivo.tsx`).
+
+`TiendaPaginas.tsx` se auditó completo (imports, `useSearchParams`, el `Promise.all` de categorías
+y contenido): no monta un solo componente real del storefront —delega en `TiendaSeccionEditor`
+(fuera de `touches:`, ya seguro)— así que no puede tener este tipo de landmine. Verificado
+renderizándolo vía `renderToStaticMarkup`: revienta con `Cannot read properties of null (reading
+'get')` porque `useSearchParams()` (`next/navigation`) devuelve `null` fuera de un árbol de Next
+real — el MISMO límite ya documentado para `StoreNav.tsx` en `cromo-tematizable.test.ts`, no un
+bug nuevo ni relacionado con presets.
+
+### EL FIX — `SiteContentProvider` local con `DEFAULTS`, mismo patrón que `CartProvider` ya usa ahí
+
+`FragmentoTienda` (`components/admin/PaletaSeccion.tsx`) envuelve `<TrustBadges />` en
+`<SiteContentProvider value={DEFAULTS}>` — exactamente el fix que `CORTE-TRUSTBADGES-PALETA-
+PROVIDER-1` ya prescribía, y el MISMO mecanismo que `ProductCard`, dos líneas más abajo en el mismo
+componente, ya usa con `CartProvider` desde el incidente de `/admin/configuracion` de 2026-08-28
+(§ CLAUDE.md, "Montar un componente en OTRO árbol de providers no lo atrapa ni tsc ni el build").
+`DEFAULTS` (no un `content.tema`/`content.trustBadges` resuelto de verdad) alcanza: la muestra de
+paleta nunca necesitó reflejar el toggle real de `trustBadges.visible`, sólo no reventar — el
+default es `true`, así que la franja se sigue viendo exactamente como antes de `CORTE-TRUSTBADGES-
+OCULTABLE-1`.
+
+`FragmentoTienda` y su tipo `Form` se EXPORTARON (antes privados al módulo) para que el test
+pudiera renderizarlo directo — ver la sección siguiente.
+
+### EL TEST QUE FALTABA — `.test.ts`, NO `.test.tsx` (DESVÍO medido, no inventado)
+
+El spec dio `lib/config/admin-tienda-preset.test.tsx` en `touches:`. Se escribió como
+**`lib/config/admin-tienda-preset.test.ts`** en su lugar — la extensión, no la ruta, cambia — y es
+un DESVÍO medido contra el propio repo:
+
+- el glob de `npm test` (`package.json`) es `"lib/**/*.test.ts"` — **no** `.tsx`. Un archivo
+  `.test.tsx` en `lib/config/` no correría bajo `npm test` ni `npm run gate`;
+- CLAUDE.md ya lo dice explícito: *"El glob NO incluye `*.test.tsx`: los tests de COMPONENTE
+  necesitan jsdom, que el repo no tiene"*;
+- pero el repo YA tiene una docena de precedentes (`origen-banda.test.ts`, `corte-hero-titular.
+  test.ts`, `marquesina-banda.test.ts`, `cromo-riel-social.test.ts`, …) que renderizan JSX en
+  archivos `.test.ts` con `React.createElement` (sin sintaxis JSX) + `renderToStaticMarkup` — SSR
+  puro, sin jsdom. Ninguno necesita `.tsx`.
+
+Escribir `.tsx` habría producido exactamente el mismo hueco que este slice existe para cerrar: un
+test que no corre en el gate. Se siguió el patrón medido, no el nombre de archivo literal del spec
+(§ CLAUDE.md, "cuando una medición contradice la instrucción, la medición gana").
+
+**Qué prueba, y qué NO — medido, no supuesto:**
+
+- **`FragmentoTienda` por CADA preset de `PRESETS` (6) + el control (Nayoli, sin preset, 7 casos):**
+  `resolverSiteContent(mergePresetEnContent({}, preset))` → las raíces/fuentePar/forma resultantes
+  → `renderToStaticMarkup(<FragmentoTienda .../>)`. Es la ÚNICA pieza de `/admin/tienda` que monta
+  componentes reales del storefront alimentados por contenido DERIVABLE de un preset (recibe
+  `raices`/`fuentePar`/`forma` por PROPS, no por fetch), así que es la única con este tipo de
+  landmine posible — y la razón de por qué se exportó. **Visto fallar 7/7** revirtiendo
+  temporalmente el `SiteContentProvider` del fix (con `git diff` limpio después, restaurado
+  exacto) — el mismo error real de arriba, en los 7 casos.
+- **Un test directo contra `TrustBadges` sin provider** (con y sin preset aplicado): deja escrita
+  la firma EXACTA del error que el owner vio como "This page couldn't load".
+- **`MenuSeccion` y `PaletaSeccion` (default) se renderizan UNA vez cada uno** (no por preset): su
+  primer render arranca en `cargando:true` y un `useEffect` con `fetch` —que SSR sin jsdom JAMÁS
+  ejecuta— es la única vía a cualquier rama que dependa del contenido. Looper 7 presets sobre estos
+  dos repetiría la MISMA aserción (el esqueleto de carga) siete veces sin ejercer una sola línea
+  dependiente de contenido — no habría atrapado el bug de hoy, y no atraparía el próximo. Se
+  documenta el límite en el propio archivo, no se finge cobertura que no existe.
+- **`TiendaPaginas` NO se renderiza** — mismo límite ya documentado para `StoreNav.tsx`
+  (`useSearchParams()` fuera de un árbol de Next real), y no mueve el tipo de landmine que este
+  slice cierra (no monta componentes reales del storefront).
+
+**10/10 verde**, con y sin el fix verificado por separado (7/7 rojo sin el fix → 10/10 verde con
+él, restaurado).
+
+### El gate — corrido completo sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | limpio |
+| `npm test` (capa 1, sin base) | **1863/1863** — verde (1853 heredados + 10 nuevos de `admin-tienda-preset.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **208/208** — verde, sin regresión |
+| `npx eslint components/admin/PaletaSeccion.tsx lib/config/admin-tienda-preset.test.ts` | 4 errores `react-hooks/refs` + 1 warning `set-state-in-effect` — TODOS pre-existentes, código SIN TOCAR por este diff (verificado línea a línea contra la versión previa a este slice; ya documentados en un asiento anterior de esta pantalla, "el error YA existe, sin tocar nada, en `PaletaSeccion.tsx`"); 1 error `react/no-children-prop` NUEVO en el test, mismo patrón pre-existente y aceptado de `React.createElement(Provider, {value, children: …})` que ya traen `marquesina-banda.test.ts`/`corte-trustbadges.test.ts`/`corte-hero-pie.test.ts` — `lint` no es parte de `gate` (`package.json`) |
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+`grep` de los símbolos/rutas que este diff tocó (`PaletaSeccion.tsx`, `FragmentoTienda`,
+`SiteContentProvider`, `TrustBadges`, `DEFAULTS`) contra CLAUDE.md:
+
+- **`PaletaSeccion.tsx`** aparece UNA vez (§ "LA LISTA TAMBIÉN GANA SUBÁRBOLES", sobre
+  `components/storefront/`): "que el admin monte varios de estos mismos archivos en la vista previa
+  en vivo del editor (`VistaTiendaEnVivo.tsx`, `PaletaSeccion.tsx`) no los saca de la lista". Sigue
+  siendo VERDAD — este diff no agrega ningún archivo NUEVO de `components/storefront/` a lo que
+  `PaletaSeccion.tsx` monta (ya montaba `TrustBadges`/`Logo`/`ProductCard` antes de este slice); sólo
+  le da a uno de ellos el provider que necesitaba.
+- **UN HALLAZGO, no de este diff, reportado sin corregir (`CLAUDE.md` fuera de `touches:`):**
+  § "La regla al montar un componente de un árbol en OTRO…" (línea ~2586) dice de `VistaTiendaEnVivo`:
+  *"`<SiteContentProvider value={{ ...DEFAULTS, hero: form }}>` es el ÚNICO `SiteContentProvider`
+  del subárbol admin (no hay otro)"*. Con este fix, `PaletaSeccion.tsx` monta un SEGUNDO
+  `SiteContentProvider`, en una rama HERMANA del árbol de `/admin/tienda` (no ancestro ni
+  descendiente del de `VistaTiendaEnVivo`). Lectura caritativa: la frase habla del ANCESTRO de
+  `VistaTiendaEnVivo` específicamente ("pisa cualquiera de ARRIBA"), que sigue siendo cierto — nada
+  se agregó POR ENCIMA de él. Lectura literal ("el subárbol admin" completo, sin acotar a un
+  ancestro): hoy es FALSA. Se nombra sin corregir — `CLAUDE.md` no está en `touches:` de este slice.
+- `TrustBadges`/`useSiteContent`/`DEFAULTS`/`FragmentoTienda` sin otras menciones en CLAUDE.md.
+
+**Follow-up coined:** `CLAUDE-MD-SITECONTENTPROVIDER-UNICO-AMBIGUO-1` — aclarar en CLAUDE.md
+(línea ~2586-2587, § "La regla al montar un componente de un árbol en OTRO…") si "es el ÚNICO
+SiteContentProvider del subárbol admin" se refiere a la cadena de ANCESTROS de `VistaTiendaEnVivo`
+(sigue siendo cierto) o a CUALQUIER instancia dentro de `/admin` (ya no lo es, desde este slice).
+
+### `touches:` — lo que se escribió
+
+`components/admin/PaletaSeccion.tsx` (import de `SiteContentProvider`/`DEFAULTS`; `Form` y
+`FragmentoTienda` pasan a EXPORTADOS; `<TrustBadges />` envuelto en `<SiteContentProvider
+value={DEFAULTS}>`; comentarios actualizados), `lib/config/admin-tienda-preset.test.ts` (nuevo, 10
+casos — extensión `.ts` no `.tsx`, DESVÍO medido arriba), este asiento. `components/admin/
+MenuSeccion.tsx`, `components/admin/TiendaPaginas.tsx`, `lib/config/site-content-defaults.ts`,
+`lib/config/site-content-schema.ts` estaban en `touches:` y se AUDITARON completos (§ arriba) —
+ninguno necesitaba cambio: el landmine era uno solo, ya medido y nombrado por el slice anterior.
+
+### Verdicto
+
+**El gate cierra en VERDE** (1863/1863 + 208/208). Por instrucción del dispatch, este slice PARA
+en `AWAITING_APPROVAL` de todas formas — nunca mergea—: la RAMA (no sólo este commit) ya tocaba
+bytes que el visitante/dueño puede llegar a ver desde commits anteriores de esta misma rama
+(`CORTE-BADGE-COSECHA-EN-MENU-1`, `CORTE-HERO-TITULAR-OCULTABLE-1`, `CORTE-TRUSTBADGES-
+OCULTABLE-1`), y este commit en particular SÍ agrega su propio byte visible para el DUEÑO: antes de
+este fix, abrir `/admin/tienda` con un preset aplicado tiraba "This page couldn't load"; después,
+carga y la vista previa de paleta muestra la franja de garantías (el texto de `TrustBadges`, sin
+cambiar en este diff) donde antes no mostraba nada. Cae del lado de "customer-bytes" de la política
+A, igual que el resto de la rama. El commit queda en la rama a la espera del merge gateado del
+orquestador.

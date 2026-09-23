@@ -9,6 +9,8 @@ import ProductCard from '@/components/storefront/ProductCard';
 import { Logo } from '@/components/storefront/Logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import TrustBadges from '@/components/storefront/home/TrustBadges';
+import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
@@ -64,7 +66,10 @@ const BASES: { label: string; fondo: string; tinta: string }[] = [
   { label: 'Pizarra', fondo: '#f5f6f7', tinta: '#191a1c' },
 ];
 
-interface Form { fondo: string; tinta: string; acento: string }
+// EXPORTADO (junto con `FragmentoTienda`, abajo) para que `admin-tienda-preset.test.ts` pueda
+// renderizarlo directo, sin pasar por el fetch/estado `cargando` del componente por defecto — el
+// mismo motivo que exporta `FragmentoTienda`, ver su docstring.
+export interface Form { fondo: string; tinta: string; acento: string }
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
@@ -127,10 +132,22 @@ const PRODUCTOS_MUESTRA: Product[] = [
  *  Layout de ESCRITORIO interno (`max-w-6xl` centrado, TrustBadges en sus 4 columnas a 1280,
  *  tarjetas en `repeat(3,1fr)`): a 1280 se ve natural, no dos tarjetas gigantes escaladas.
  *
- *  Qué se monta sin fetch (censo del gate): `Logo` por PROP sin providers; `TrustBadges` estático;
- *  `StoreNav` quedó FUERA (3 providers + chrome inerte). `ProductCard` sólo necesita `CartProvider`
- *  local e inerte (§ Las tres capas — montar un componente en otro árbol de providers). */
-function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
+ *  Qué se monta sin fetch (censo del gate): `Logo` por PROP sin providers; `TrustBadges` YA NO es
+ *  estático (§ CORTE-TRUSTBADGES-OCULTABLE-1: lee `useSiteContent()`) — necesita el MISMO tipo de
+ *  provider local que `ProductCard` (abajo); `StoreNav` quedó FUERA (3 providers + chrome inerte).
+ *  `ProductCard` sólo necesita `CartProvider` local e inerte, y `TrustBadges` un `SiteContentProvider`
+ *  local con `DEFAULTS` (§ Las tres capas — montar un componente en otro árbol de providers; landmine
+ *  medido y cerrado por `ADMIN-TIENDA-ROTO-CON-PRESET-1`, DECISIONS.md). `DEFAULTS` alcanza: la muestra
+ *  de paleta no necesita reflejar el toggle real de `trustBadges.visible`, sólo no reventar — el
+ *  default es `true`, así que la franja se sigue viendo como hasta ahora.
+ *
+ *  EXPORTADO (§ ADMIN-TIENDA-ROTO-CON-PRESET-1) para que `admin-tienda-preset.test.ts` pueda
+ *  renderizarlo DIRECTO, con las raíces/fuente/forma que resulten de cada preset del catálogo — es
+ *  la ÚNICA pieza de `/admin/tienda` que monta componentes REALES del storefront alimentados por
+ *  contenido derivable de un preset, así que es la única con este tipo de landmine posible. El
+ *  componente por DEFECTO (`PaletaSeccion`) no se puede renderizar así: arranca en `cargando` y
+ *  sólo llega a montar esto tras un `fetch` que un render SSR (sin jsdom, § CLAUDE.md) no ejecuta. */
+export function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
   const p = derivarPaleta(raices);
   // Las vars de COLOR (derivadas) + las de FUENTE (del par elegido) + las de FORMA (radios). Una forma
   // CUSTOM setea `--radius-3xl/2xl/xl` → las clases `rounded-*` de los componentes reales las leen; Suave
@@ -144,8 +161,12 @@ function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: Form; n
       <div className="mx-auto max-w-6xl px-6 py-4">
         <Logo nombre={nombre} conMark={STOREFRONT_TIENE_MARK} />
       </div>
-      {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas) */}
-      <TrustBadges />
+      {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas). Provider
+          LOCAL con DEFAULTS: `TrustBadges` lee `useSiteContent()` desde CORTE-TRUSTBADGES-OCULTABLE-1
+          y este árbol no cuelga del layout del storefront (§ el docstring de arriba). */}
+      <SiteContentProvider value={DEFAULTS}>
+        <TrustBadges />
+      </SiteContentProvider>
       {/* Tres tarjetas reales en fila de escritorio, bajo un CartProvider local inerte */}
       <CartProvider>
         <div className="mx-auto max-w-6xl px-6 py-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
