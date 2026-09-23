@@ -6,6 +6,7 @@ import BrandStory from '@/components/storefront/home/BrandStory';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
+import Spotlight from '@/components/storefront/home/Spotlight';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
@@ -48,6 +49,17 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   presentaciones: GrindChooser,
   subscriptionCTA: SubscriptionCTA,
   testimonials: TestimonialSection,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-SPOTLIGHT-PIN-1 (fuera de su `touches:`
+  // declarado, § el asiento de ese slice en DECISIONS.md): agregar `'spotlight'` a `SeccionVista`
+  // (tienda-secciones.ts) para que la sección "Destacado" pueda entrar a `SECCIONES_TIENDA` vuelve
+  // este `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea — `tsc` lo rechaza, y sin
+  // ella en runtime `COMPONENTES['spotlight']` sería `undefined` y `<Comp />` reventaría el editor al
+  // abrir "Destacado". Spotlight toma sólo `style` opcional (con default `{}`) → asignable a
+  // `ComponentType`, mismo patrón que `NosotrosGaleria`/`SuscripcionPlanes` arriba. Con
+  // `spotlight.visible` en `false` (el default; este slice no expone el toggle) el componente
+  // devuelve `null` — la vista previa queda en blanco, no rota (§ el docstring de `SPOTLIGHT` en
+  // tienda-secciones.ts).
+  spotlight: Spotlight,
   nosotrosHistoria: NosotrosHistoria,
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.

@@ -16136,7 +16136,10 @@ overridea con el switch — mismo principio que `PANEL-EDITOR-HERO-TOGGLES-1`.
 
 **`cromo.navBadge` NO tiene control acá, deliberado.** El badge de cosecha se mudó al ítem de menú
 (`CORTE-BADGE-COSECHA-EN-MENU-1`); su control real es `menu.badgeItem`/`badgeTexto` en
-`MenuSeccion.tsx` (ya exento, cierra `PANEL-EDITOR-MENU-BADGE-1`). Pero `cromo` es UN objeto de TRES
+`MenuSeccion.tsx` (ya exento, cierra `PANEL-EDITOR-MENU-BADGE-1`) **[SUPERADO — `PANEL-EDITOR-MENU-
+BADGE-1` (`3a3d3dd`) le dio control real a `menu.badgeItem`/`badgeTexto`; ya NO están exentos, están
+CONTROLADOS. § el append de `PANEL-EDITOR-SPOTLIGHT-PIN-1`, 2026-09-23, `DECISIONS-STALE-POINTER-
+MENU-BADGE-1`]**. Pero `cromo` es UN objeto de TRES
 claves y el write reemplaza la clave `cromo` ENTERA al guardar/publicar (spread por clave top-level,
 no merge por sub-campo, § `site-content-write.ts`) — así que `EncabezadoSeccion` LEE el `navBadge`
 vigente en cada `GET /api/site-content` y lo REENVÍA tal cual en cada PUT, sin exponer un control
@@ -16165,8 +16168,12 @@ asiento"); no lo necesitó.
   escribe" a "superseded por el badge del ítem de menú — cromo.navBadge queda dormido, sin editor
   propio, sólo reenviado por `EncabezadoSeccion.tsx`", y su `cierra` pasa de `PANEL-EDITOR-CROMO-1`
   (que ya no tiene sentido como grupo — sus otros dos campos se cerraron acá) a
-  `PANEL-EDITOR-MENU-BADGE-1` (donde vive el control real del badge). NO se le da un control nuevo a
-  un campo muerto — es la instrucción explícita del owner en el approval-reason de este slice.
+  `PANEL-EDITOR-MENU-BADGE-1` (donde vive el control real del badge) **[SUPERADO — el `cierra`
+  vigente en el código para `cromo.navBadge` es `CROMO-NAVBADGE-RETIRO-1`, no `PANEL-EDITOR-MENU-
+  BADGE-1` (§ ese slice, `3a3d3dd`, re-apuntó la entrada al retiro del campo). § el append de
+  `PANEL-EDITOR-SPOTLIGHT-PIN-1`, 2026-09-23, `DECISIONS-STALE-POINTER-MENU-BADGE-1`]**. NO se le da
+  un control nuevo a un campo muerto — es la instrucción explícita del owner en el approval-reason de
+  este slice.
 - `volverArriba.visible`/`rielSocial.visible` (los otros dos de `PANEL-EDITOR-CHROME-METAS-1`) NO se
   tocan — son "Detalles del sitio", fuera de este slice, con su propio disparador futuro.
 
@@ -16457,3 +16464,185 @@ RAMA (`slice/corte-reescritura-prototipo-1`, que ya toca bytes de storefront por
 § "EL EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
 espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
 ("el owner lo revisa en su pasada").
+
+## 2026-09-23 — El PIN del spotlight: `productoSlug`/`otroTamanoSlug` en el panel (`PANEL-EDITOR-SPOTLIGHT-PIN-1`)
+
+**Origen:** item 4 (de 8) del programa "el panel refleja la tienda" (orden del owner, 2026-09-23),
+sobre `PANEL-REFLEJA-TIENDA-CHEQUEO-1`. El owner: *"4. Pin del spotlight."* — con **ALCANCE
+EXPLÍCITO: "solo esos"**: sólo los dos punteros al catálogo. `eyebrow`/`titulo`/`badge` del spotlight
+NO entran a este slice.
+
+### Por qué SIN ruta propia — `spotlight` YA es sección del REGISTRY
+
+A diferencia de Encabezado (`cromo`/`navWordmark`/`navTratamiento`, ninguno sección del REGISTRY) y
+como `menu`, `spotlight` SÍ es una sección real (`SeccionKey` la incluye), y su schema de escritura
+(`spotlightEditableSchema`, `lib/config/site-content-schema.ts:145-151`) YA declaraba los seis
+campos —incluidos `productoSlug`/`otroTamanoSlug`— como `z.string().optional()`, verificado ANTES de
+escribir nada (§ el mapeo `spotlight: spotlightEditableSchema.optional()` en
+`siteContentEditableSchema`, línea 403). El camino de persistencia (PUT/POST genéricos de
+`/api/site-content`) ya funcionaba de punta a punta para `spotlight`; lo único que faltaba era el
+CONTROL — que `SECCIONES_TIENDA` incluyera una entrada para la sección. Ningún archivo de
+persistencia (`site-content-defaults.ts`, `site-content-schema.ts`, `site-content-write.ts`, ninguna
+ruta) se tocó.
+
+### La `SeccionConfig` — `SPOTLIGHT` en `tienda-secciones.ts`
+
+- **`ocultable: false` A PROPÓSITO**: no expone el toggle `visible`. `camposDeSeccionEditor` sólo
+  suma `visible` al lado controlado cuando `config.ocultable` es `true` (§ panel-controles.ts);
+  haciéndolo `true` este slice controlaría un campo fuera del alcance pedido ("solo el pin"). Efecto
+  secundario ACEPTADO, no arreglado: mientras `spotlight.visible` siga en `false` (el default —
+  "nace OFF", § `SpotlightContent`), `Spotlight.tsx` sigue devolviendo `null` en la vista previa en
+  vivo del editor, y como `oculta` en `TiendaSeccionEditor.tsx` (`const oculta = config.ocultable &&
+  form.visible === false`) también depende de `config.ocultable`, el pane queda en BLANCO sin el
+  aviso muted "No se muestra en la tienda" que otras secciones ocultas sí muestran. Arreglarlo
+  exigiría o exponer `visible` (fuera de alcance) o tocar `TiendaSeccionEditor.tsx` (un tercer archivo
+  fuera de `touches:`, más invasivo que el ya necesario abajo) — se deja como limitación conocida.
+- Los dos campos (`productoSlug`, `otroTamanoSlug`) son TEXTO LIBRE, **no `categoria: true`** (ese
+  modificador monta el `CategoriaCombobox` contra las categorías reales del catálogo — otro dominio).
+  Coincide con la decisión ya escrita en `spotlightEditableSchema`: el pin valida contra el catálogo
+  VIVO en LECTURA (`productoSpotlight`/`productoOtraTalla`), nunca contra un set fijo al guardar — un
+  pin a un producto borrado después de guardarse sigue siendo un valor válido del schema.
+- **Sin `imagenes`**: el contenido visual se LEE del `Product` pineado en cada render (§ el docstring
+  de `SpotlightContent`, site-content-defaults.ts) — nunca se sube acá.
+- **Posición en `SECCIONES_TIENDA`: AL FINAL del grupo `home`.** `spotlight` sigue sin ser miembro de
+  `BANDA_IDS` (§ SPOTLIGHT-BANDA-1) — no hay una posición "correcta" en el orden real de la home que
+  replicar, así que agregarla al final no sugiere un orden que el storefront no tiene hoy.
+
+### DESVIACIÓN MEDIDA — `components/admin/VistaTiendaEnVivo.tsx`, fuera de `touches:` (implementación, no test)
+
+**No declarado en el spec.** Medido ANTES de tocarlo, no asumido: `TiendaSeccionEditor.tsx` —la
+cáscara genérica que TODA sección de `SECCIONES_TIENDA` usa, sin excepción— monta
+`<VistaTiendaEnVivo seccion={seccion} valor={form} .../>` incondicionalmente (tres call sites:
+`TiendaSeccionEditor.tsx:767,859,863`), y ese componente indexa un
+`COMPONENTES: Record<SeccionVista, ComponentType>` EXHAUSTIVO por `seccion`. Agregar `'spotlight'` a
+la unión `SeccionVista` (necesario para que `SPOTLIGHT.seccion: 'spotlight'` tipe) sin agregar la
+entrada correspondiente en `COMPONENTES`:
+- rompe `tsc --noEmit` (el `Record` deja de ser exhaustivo), y
+- si se sorteara con un cast (`as unknown as SeccionVista`, sin tocar el tipo), `COMPONENTES
+  ['spotlight']` sería `undefined` en RUNTIME y `<Comp />` reventaría el editor al abrir "Destacado"
+  —un crash real en `/admin/tienda`, no un defecto teórico—.
+
+No hay forma de entregar "el pin en el editor genérico" (lo que el spec pide explícitamente: "mismo
+shape que HERO/BRAND_STORY... metela en el array SECCIONES_TIENDA") sin esta consecuencia mecánica.
+Se hizo el toque MÍNIMO —un `import` + una entrada de una línea (`spotlight: Spotlight`, el
+componente storefront REAL que ya existe y ya compila, § `components/storefront/home/Spotlight.tsx`,
+construido en una tanda anterior)—, documentado en el propio código y acá. Precedente ya sentado DOS
+veces en esta rama para "un archivo fuera de `touches:` tocado por consecuencia necesaria del diff,
+no por ampliación de alcance" (`bedaad5`, `b9dfa79`) — la diferencia es que esas dos veces el archivo
+era un TEST (`panel-controles.test.ts`) y ésta es una IMPLEMENTACIÓN; el mismo principio aplica: no
+dejar el árbol roto (tsc rojo o un crash de runtime) por respetar la letra de una lista que el spec
+no midió contra esta consecuencia. **Riesgo medido como bajo**: una línea de mapeo hacia un
+componente storefront YA EXISTENTE y ya usado en producción (aunque hoy `spotlight` no esté montado
+en la home real, § SPOTLIGHT-BANDA-1) — sin schema, sin bytes de CLIENTE nuevos (el componente no
+cambia), sin contrato cross-repo.
+
+### El guard — `lib/config/panel-controles.ts`
+
+- Las dos entradas `spotlight.productoSlug`/`spotlight.otroTamanoSlug` se RETIRARON de
+  `PENDIENTE_PANEL` (control real ya existe, § arriba; `CONTROLADOS_GENERICOS` las deriva solo, vía
+  `camposDeSeccionEditor(SPOTLIGHT)`).
+- Las cuatro restantes (`visible`/`eyebrow`/`titulo`/`badge`) se RE-APUNTARON: `cierra` pasó de
+  `PANEL-EDITOR-SPOTLIGHT-1` a **`PANEL-EDITOR-SPOTLIGHT-RESTO-1`** (coined en este slice) —
+  apuntarlas al id de ESTE slice habría quedado STALE apenas mergeara, porque este slice no las
+  cierra (mismo criterio que `CROMO-NAVBADGE-RETIRO-1` en `PANEL-EDITOR-MENU-BADGE-1`).
+- El comentario de cabecera de `PENDIENTE_PANEL` (la medición de `PANEL-REFLEJA-TIENDA-CHEQUEO-1`,
+  2026-09-23) que decía "spotlight — ninguna está en SECCIONES_TIENDA" se dejó como medición
+  histórica y se le sumó una nota que aclara el cierre parcial — no se reescribió el resto.
+
+`huecosDelPanel()` (con exenciones) sigue en `[]` — verde.
+
+### `DECISIONS-STALE-POINTER-MENU-BADGE-1` — CERRADO (de paso, pedido por el spec)
+
+Dos frases de la entrada `PANEL-EDITOR-ENCABEZADO-1` (arriba, líneas ~16137-16172 de este archivo
+antes de este append) habían quedado falsas por `PANEL-EDITOR-MENU-BADGE-1` (`3a3d3dd`), sin que ese
+slice las corrigiera en el sitio (eligió documentar la staleness sólo en su propio append, § su
+propia entrada, "No se coinea un id de follow-up nuevo para esto"). Este spec pidió explícitamente
+cerrarlas con una anotación in-place, distinto del tratamiento anterior: **(a)** "su control real es
+`menu.badgeItem`/`badgeTexto`... (ya exento, cierra `PANEL-EDITOR-MENU-BADGE-1`)" — ya NO exento,
+CONTROLADO; **(b)** "su `cierra` pasa de `PANEL-EDITOR-CROMO-1`... a `PANEL-EDITOR-MENU-BADGE-1`
+(donde vive el control real del badge)" — el `cierra` vigente en el código es
+`CROMO-NAVBADGE-RETIRO-1`, no `PANEL-EDITOR-MENU-BADGE-1`. Las dos se anotaron **in-place con un
+bracket `[SUPERADO — …]`** que conserva el texto original completo (nada se borró ni se reescribió) y
+apunta a este append como la fuente de la corrección — la lectura literal de "Corregí esas dos frases
+con una nota breve... no borres el registro histórico" del spec, que es un tratamiento MÁS FUERTE que
+el "append-only puro" que `PANEL-EDITOR-MENU-BADGE-1` había elegido para el mismo hecho.
+
+### El test — `tests/integracion/spotlight-pin.test.ts` (2 casos)
+
+Igual patrón que `menu-badge.test.ts` (`spotlight` es sección real del REGISTRY, camino GENÉRICO):
+`siteContentEditableSchema.parse({spotlight:...})` (donde zod strippearía `productoSlug`/
+`otroTamanoSlug` si `spotlightEditableSchema` no los declarara — YA los declara, sin cambios de este
+slice) → `guardarBorrador` → `publicarSeccion('spotlight')` → releer con `readSiteContent` (lo que
+`Spotlight.tsx` resuelve con `productoSpotlight`/`productoOtraTalla`).
+
+1. `productoSlug`/`otroTamanoSlug` sobreviven el viaje completo (`publicado.spotlight.productoSlug`/
+   `.otroTamanoSlug`) y el borrador queda limpio (`readSiteContentParaEditor().sinPublicar.spotlight
+   === false`).
+2. Los dos vacíos publican un `spotlight` byte-idéntico a `DEFAULTS.spotlight` (`assert.deepEqual`),
+   incluido `visible` en `false` — el default de "nace OFF" no se toca por este slice.
+
+Co-ubicado en `tests/integracion/` (no `lib/`) por la misma regla ya medida en la entrada de
+`PANEL-EDITOR-ENCABEZADO-1`/`PANEL-EDITOR-MENU-BADGE-1` ("El carril rápido cubre `app/`", aplicada a
+`lib/`): habla con Postgres real. El `touches:` de este slice ya lo nombraba así — sin desviación de
+ubicación.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1911/1911** — sin cambio (ningún archivo de `lib/**` ganó un `test()` nuevo ni perdió uno; `panel-controles.test.ts` no se tocó, § `touches:` abajo) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **217/217** — verde (+2: los dos casos nuevos de `spotlight-pin.test.ts`) |
+
+Reconciliado contra el piso citado por el commit anterior (`3a3d3dd`: "gate: tsc 0 + 1911/1911 +
+215/215"): la única diferencia (215→217) la explican íntegramente los dos casos nuevos — ninguna es
+drift sin explicación.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `SeccionVista`, `SECCIONES_TIENDA`, `SPOTLIGHT` (la config),
+`spotlight.productoSlug`, `spotlight.otroTamanoSlug`, `PENDIENTE_PANEL`, `VistaTiendaEnVivo`,
+`COMPONENTES`, `Spotlight` (el componente storefront), `TiendaSeccionEditor`, `tienda-secciones`,
+`panel-controles`. Grepeados uno por uno contra `CLAUDE.md`:
+
+| símbolo | hits | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `SeccionVista`, `Spotlight`, `spotlight`, `PENDIENTE_PANEL`, `panel-controles`, `COMPONENTES`, `productoSlug`, `otroTamanoSlug` | 0 | — (no hay frase que corregir) |
+| `SECCIONES_TIENDA` | 1 (línea 2853, "`TiendaPaginas` agrupa `SECCIONES_TIENDA` por…") | NO — describe el mecanismo de agrupación por página, no una lista cerrada de secciones |
+| `VistaTiendaEnVivo` | 5 (líneas 56, 471, 2583, 2611, 2757) | NO — describen el MECANISMO (componentes reales, escala, provider local, costo del render), no un inventario cerrado de qué `seccion` mapea a qué componente |
+| `tienda-secciones` | 1 (línea 2949, la pestaña de Suscripciones) | NO — sobre el patrón de páginas apagables, no sobre el contenido de `SECCIONES_TIENDA` |
+| `TiendaSeccionEditor` | 6 (líneas 2236, 2358, 2688, 2728, 2907, 4308) | NO — bloques, uploader compartido, combobox de categoría: mecanismos que este diff no toca |
+
+Ninguna sentencia de `CLAUDE.md` nombra `spotlight`, `SPOTLIGHT`, ni un conteo de secciones de
+`SECCIONES_TIENDA` (no hay "diez secciones" ni similar) — la doctrina de esta área sigue viviendo en
+`site-content-defaults.ts`/`tienda-secciones.ts`/`DECISIONS.md`, no en `CLAUDE.md`, mismo hallazgo
+que las dos entradas anteriores de esta rama.
+
+### `touches:` — lo que se escribió (y lo que excedió)
+
+`components/admin/tienda-secciones.ts`, `lib/config/panel-controles.ts`,
+`tests/integracion/spotlight-pin.test.ts`, este asiento (`DECISIONS.md`) — cuatro de los cinco
+declarados, tocados. **`lib/config/panel-controles.test.ts` (declarado en `touches:`) NO SE TOCÓ**:
+a diferencia de `navSubtitulo`/los toggles del hero/el badge del menú, ninguno de los seis campos de
+`spotlight` tenía una aserción de calibración DEDICADA (`huecos.includes('spotlight.…')`) que este
+diff volviera falsa — el único test que los mencionaba indirectamente es el general de la línea 119
+("marca EXACTAMENTE el conjunto de `PENDIENTE_PANEL`"), que se AUTO-DERIVA de `PENDIENTE_PANEL` en
+tiempo de ejecución y por tanto sigue verde sin ningún cambio de texto. Estaba en `touches:` para el
+caso de que hiciera falta (mismo precedente que `PANEL-EDITOR-ENCABEZADO-1` dejó `TiendaSeccionEditor.
+tsx`/`tienda-secciones.ts` en su lista "por si el montaje lo necesitaba"); no hizo falta, y se declara
+acá en vez de tocarlo sin necesidad. **`components/admin/VistaTiendaEnVivo.tsx` se tocó FUERA de la
+lista** — DESVIACIÓN MEDIDA, documentada en su propia sección arriba, necesaria para que el diff no
+dejara `tsc` rojo ni un crash de runtime al abrir la sección "Destacado". Ningún otro archivo fuera de
+estos seis (los cinco declarados + el uno excedido) se tocó.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1911/1911 + 217/217). Por instrucción del dispatch,
+este slice PARA en `AWAITING_APPROVAL` y NO mergea. Clasifica por sí mismo contra la política de
+merge A: agrega bytes que el DUEÑO lee en el panel (el título "Destacado", las dos etiquetas
+"Producto destacado"/"Otro tamaño (opcional)" y sus hints) — `customer-bytes` en el sentido amplio de
+CLAUDE.md ("Any byte a customer, operator or owner reads"), además de heredar la clasificación de la
+RAMA (`slice/corte-reescritura-prototipo-1`, que ya toca bytes de storefront por commits anteriores,
+§ "EL EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
+espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
+("Copy del panel: el owner lo revisa en su pasada").

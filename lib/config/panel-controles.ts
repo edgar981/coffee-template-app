@@ -194,7 +194,9 @@ export interface ExencionPendiente {
 // Medido contra el código real (2026-09-23), no contra lo que este slice ASUMÍA al arrancar: el spec
 // citaba un puñado de huecos (las 4 metas de chrome + cromo + los dos toggles del hero + el badge del
 // menú). Al derivar el chequeo de verdad aparecieron CUATRO SECCIONES ENTERAS sin ningún editor
-// (`marquesina`, `trustBadges`, `origen`, `spotlight` — ninguna está en `SECCIONES_TIENDA`), el eje
+// (`marquesina`, `trustBadges`, `origen`, `spotlight` — ninguna estaba en `SECCIONES_TIENDA` a esa
+// fecha; `spotlight` ganó su PIN por `PANEL-EDITOR-SPOTLIGHT-PIN-1`, sus otros cuatro campos siguen
+// sin editor, § PENDIENTE_PANEL abajo — esta frase queda como medición histórica, no re-medida), el eje
 // `variante`/`escalares` completo (ninguna de las 4 secciones que lo declaran tiene control alguno del
 // lado del panel — ni siquiera `TiendaSeccionEditor` sabe leer `config.variantes`), y DOS campos
 // declarados en `REGISTRY.<seccion>.campos` pero ausentes del `config` que el editor real usa —
@@ -254,13 +256,17 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   { campo: 'origen.statNumero3', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
   { campo: 'origen.statEtiqueta3', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-ORIGEN-1' },
 
-  // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1): sección completa en REGISTRY, ausente de SECCIONES_TIENDA.
-  { campo: 'spotlight.visible', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
-  { campo: 'spotlight.eyebrow', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
-  { campo: 'spotlight.titulo', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
-  { campo: 'spotlight.badge', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
-  { campo: 'spotlight.productoSlug', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
-  { campo: 'spotlight.otroTamanoSlug', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-1' },
+  // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1). CERRADO PARCIAL por PANEL-EDITOR-SPOTLIGHT-PIN-1: el
+  // PIN (`productoSlug`/`otroTamanoSlug`) ya tiene control (`SPOTLIGHT` en `SECCIONES_TIENDA`, §
+  // `CONTROLADOS_GENERICOS`) — sus dos entradas se retiraron de acá. Los otros CUATRO campos
+  // (`visible`/`eyebrow`/`titulo`/`badge`) siguen SIN editor — alcance explícito del owner para ese
+  // slice ("Pin del spotlight", "solo esos") — y su `cierra` se re-apunta de `PANEL-EDITOR-
+  // SPOTLIGHT-1` a `PANEL-EDITOR-SPOTLIGHT-RESTO-1` (coined por ese slice) para que no quede
+  // apuntando a un id que no los va a cerrar.
+  { campo: 'spotlight.visible', razon: 'Sección sin toggle en el editor (SPOTLIGHT.ocultable:false a propósito) — fuera del alcance "sólo el pin"', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
+  { campo: 'spotlight.eyebrow', razon: 'Fuera del alcance "sólo el pin" de PANEL-EDITOR-SPOTLIGHT-PIN-1 — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
+  { campo: 'spotlight.titulo', razon: 'Fuera del alcance "sólo el pin" de PANEL-EDITOR-SPOTLIGHT-PIN-1 — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
+  { campo: 'spotlight.badge', razon: 'Fuera del alcance "sólo el pin" de PANEL-EDITOR-SPOTLIGHT-PIN-1 — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
 
   // CERRADO por PANEL-EDITOR-MENU-BADGE-1: `menu.badgeItem`/`badgeTexto` (§ CORTE-BADGE-COSECHA-EN-
   // MENU-1) ya tienen control en `MenuSeccion.tsx` (§ CONTROLADOS_MENU_SECCION, arriba) — sus dos

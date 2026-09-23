@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -317,6 +317,41 @@ const TESTIMONIOS: SeccionConfig = {
   },
 };
 
+// La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1, § SpotlightContent en site-content-defaults.ts): un solo
+// producto PINEADO. ESTE SLICE (PANEL-EDITOR-SPOTLIGHT-PIN-1) SÓLO ENTREGA EL PIN — los dos punteros
+// al catálogo (`productoSlug`/`otroTamanoSlug`) — por alcance explícito del owner ("Pin del
+// spotlight", "ALCANCE: solo esos"). `eyebrow`/`titulo`/`badge` NO entran acá (siguen exentos en
+// `PENDIENTE_PANEL`, re-apuntados a `PANEL-EDITOR-SPOTLIGHT-RESTO-1`).
+//
+// `ocultable: false` A PROPÓSITO — no es que la sección no se pueda ocultar (`REGISTRY.spotlight.
+// ocultable` es `true`), es que este EDITOR no expone el toggle: `camposDeSeccionEditor` sólo suma
+// `visible` a lo controlado cuando `config.ocultable` es `true` (§ panel-controles.ts), así que
+// hacerlo `true` acá controlaría un campo que el owner no pidió en este slice. Efecto secundario
+// aceptado: `Spotlight.tsx` sigue devolviendo `null` en la vista previa en vivo mientras
+// `spotlight.visible` siga en `false` (el default, § "nace OFF") — un pane en blanco sin el aviso
+// muted "No se muestra en la tienda" (ese aviso depende de `config.ocultable`, § TiendaSeccionEditor.
+// tsx `oculta`), porque el toggle que lo dispara vive fuera de este slice.
+//
+// SIN `imagenes`: el contenido visual (la portada) se LEE del `Product` pineado en cada render —el
+// pin es puntero, no copia (§ el docstring de `SpotlightContent`)—, nunca se sube acá.
+//
+// Los dos campos son TEXTO LIBRE, no `categoria: true` — ese modificador es para el combobox de
+// categorías reales (§ CategoriaCombobox); un slug de producto valida contra el catálogo VIVO en
+// LECTURA (`productoSpotlight`/`productoOtraTalla`), nunca contra un set fijo al guardar (§
+// `spotlightEditableSchema`, site-content-schema.ts) — un pin a un producto borrado después de
+// guardarse sigue siendo un valor válido del schema.
+const SPOTLIGHT: SeccionConfig = {
+  seccion: 'spotlight',
+  pagina: 'home',
+  titulo: 'Destacado',
+  ocultable: false,
+  imagenes: [],
+  campos: [
+    { name: 'productoSlug', label: 'Producto destacado', opcional: true, hint: 'El slug del producto que se destaca en la banda; se importa por CSV y podés ajustarlo acá. Vacío: la banda no muestra nada.' },
+    { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, hint: 'El mismo café en otra presentación, si aplica — se muestra como un enlace a esa otra talla. Vacío: no se muestra.' },
+  ],
+};
+
 // La página /nosotros: la historia larga (sólo texto; la galería variable es su propia sección,
 // tanda 2). `ocultable:false` — el ocultar es a nivel de PÁGINA (el toggle de encender/apagar), no
 // de esta sección.
@@ -476,4 +511,10 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
 // /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
 // el editor las agrupa por `pagina` en pestañas.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+//
+// SPOTLIGHT va AL FINAL del grupo `home`, no intercalada entre las demás: a diferencia de
+// hero/brandStory/presentaciones/subscriptionCTA/testimonials, todavía no está montada en el orden
+// real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, § SPOTLIGHT-BANDA-1) — no hay
+// una posición "correcta" que replicar, así que se agrega al final para no sugerir un orden que el
+// storefront no tiene hoy.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
