@@ -17731,3 +17731,196 @@ pero la rama que aterrizaría sobre `main` sigue cargando los de antes. `custome
 en la rama a la espera del merge gateado del orquestador — y del veredicto del owner sobre si el diff
 medido arriba (mismo color/layout computado, bytes distintos) es aceptable como "byte-idéntico" en el
 sentido que pidió.
+
+---
+
+## 2026-09-24 — Nayoli visualmente idéntica, MEDIDA: captura headless en claro + diff de píxeles (`VERIFICAR-NAYOLI-VISUAL-1`)
+
+Pedido del owner (2026-09-24), textual: *"'Nayoli visualmente idéntico, medido' = captura headless en
+claro forzado de TODAS las rutas públicas de Nayoli (home, catálogo, producto, checkout, /nosotros,
+/suscripciones, y cada variante de ProductCard que Nayoli renderiza), main contra la rama, con diff de
+píxeles. Esperado: cero diferencias salvo antialiasing, y cada píxel distinto se reporta, no se juzga.
+Si la tienda responde a prefers-color-scheme, repite en oscuro."* Es la VARA GEMELA de
+`VERIFICAR-NAYOLI-BYTE-1` (bytes de HTML/CSS) — ésta mide el RESULTADO VISUAL. Se construyó
+`scripts/verificar-nayoli-visual.ts` (+ `npm run verificar:nayoli:visual`, **NO** sumado a `pre-merge`
+— el spec sólo pidió el script npm, y la guarda automática de color es su propio follow-up,
+`GUARDA-COLOR-NAYOLI-1`) y se CORRIÓ tres veces contra el árbol real.
+
+### Medido antes de escribir el arnés: ¿responde a `prefers-color-scheme`?
+
+`grep -rn "prefers-color-scheme"` sobre el repo da sólo 3 apariciones, las 3 en
+`app/(admin)/layout.tsx` (los `theme-color` del PANEL, no del storefront) y un comentario de
+`app/globals.css` sobre la estrategia de next-themes (no una media query real). `grep -rn "dark:"
+app/(storefront)/ components/storefront/` da CERO. Y `components/theme/StorefrontThemeProvider.tsx`
+monta `forcedTheme="light"` con su propio comentario ("light-only, sin toggle"). **CLARO FORZADO
+alcanza** — no se repitió en oscuro; el storefront no tiene ese estado.
+
+### Metodología
+
+1. **Mismo arnés base que `VERIFICAR-NAYOLI-BYTE-1`**: Postgres efímero propio (puerto/base
+   distintos — 55439/`verificarnayolivisual`, para correr al lado de los otros tres arneses sin
+   pisarse), `migrate deploy` + `prisma/seed.ts` UNA vez, `git worktree add --detach` de `main`
+   (mismo symlink de `node_modules` + borrado de `packages/core`/`design-system` propios del
+   worktree, mismo razonamiento ya medido en esa entrada — no repetido acá), `next build` + `next
+   start` SECUENCIAL por árbol (puertos 3493/3494).
+2. **5 productos sintéticos sembrados por SQL crudo (`psql`), DESPUÉS del seed canónico**: leyendo
+   `components/storefront/ProductCard.tsx`, el catálogo real de Nayoli (4 productos) NO ejercita
+   todos sus estados — los 4 tienen imagen, notas no vacías, `disponible=true`, y
+   `decidirMolienda` siempre resuelve a `'automatica'` (nunca `'eleccion'` ni `'agotada'`). Los 5
+   sintéticos cubren: sin imagen, agotado (`stock=0`, "Agotado"/sin botón), sin notas (array
+   vacío — la columna es `String[] @default([])`, no puede ser `null`), badge+`bestseller=false`
+   (color `--sf-tostado`, que el catálogo real no ejercita), molienda `'eleccion'` (2 disponibles)
+   y molienda `'agotada'` (0 disponibles con stock>0). `createdAt` posterior (default `now()`) para
+   no entrar en los primeros 4 de `FeaturedProductsCuadricula` (`catalog.slice(0,4)`) — la home
+   sigue mostrando los 4 de siempre.
+3. **Chromium headless AISLADO** (`.arnes-tooling/playwright`, MISMO mecanismo y directorio que
+   `capturar-seccion.ts` — reusó la instalación ya cacheada). `newPage({ colorScheme: 'light' })`.
+4. **6 rutas** (`/`, `/tienda`, `/tienda/cafe-nayoli-grano-250g`, `/checkout`, `/nosotros`,
+   `/suscripciones`) capturadas de PÁGINA COMPLETA, más **2 recortes en HOVER** (una card en modo
+   `'automatica'` —ícono `ShoppingBag`— y una en `'eleccion'` —ícono `SlidersHorizontal`—,
+   localizadas por `a[href="/tienda/<slug>"]`, no por clase CSS).
+5. **Settle: scroll completo de la página (dispara los `IntersectionObserver` de `whileInView`) +
+   espera FIJA de 1800ms + `page.screenshot({ fullPage: true, animations: 'disabled' })`.** Un poll
+   de opacidad por-elemento (como `esperarAsentamiento` de `capturar-seccion.ts`) NO generaliza a
+   una captura de página completa: `ProductCard.tsx` tiene un botón con `opacity-0` PERMANENTE en
+   reposo (sin hover), así que un poll ciego lo marcaría "nunca asienta" en cada ruta.
+6. **`pixelmatch` (agregado a `package.json`/`package-lock.json` — dependencia real del repo, a
+   diferencia de Playwright)**, DOS pasadas: `includeAA:false` (consciente de antialiasing, el
+   número que decide "¿hay diferencia?") e `includeAA:true` (crudo, el conteo sin filtrar que el
+   owner pidió explícito). Dimensiones distintas entre main/rama se reportan como hallazgo
+   estructural aparte, sin forzar una comparación pixel a pixel que mentiría.
+
+### Resultado MEDIDO — TRES corridas, Nayoli sin preset, main vs. rama
+
+| ruta / captura | total px | corrida 1 | corrida 2 | corrida 3 |
+| --- | --- | --- | --- | --- |
+| `/` (home) | 4.631.040 | **161** (crudo 169) | **0** | **160** (crudo 168) |
+| `/tienda` | 2.433.280 | 0 | 0 | 0 |
+| `/tienda/cafe-nayoli-grano-250g` | 2.535.680 | 0 | 0 | 0 |
+| `/checkout` | 1.152.000 | 0 | 0 | 0 |
+| `/nosotros` | 1.152.000 | 0 | 0 | 0 |
+| `/suscripciones` | 2.144.000 | 0 | 0 | 0 |
+| hover `'automatica'` | 98.298 | 0 | 0 | 0 |
+| hover `'eleccion'` | 102.616 | 0 | 0 (crudo 5, filtrado por AA) | 0 |
+
+Conteo consciente de antialiasing (`includeAA:false`); "crudo" sólo donde distinto de 0.
+
+**7 de 8 capturas dieron CERO en las TRES corridas, sin excepción**: `/tienda`, el detalle de
+producto, `/checkout`, `/nosotros`, `/suscripciones`, y los dos hovers de `ProductCard` (los
+estados de imagen ausente, badge no-bestseller, sin notas, agotado, `'eleccion'`/`'agotada'` de
+molienda quedan todos cubiertos por `/tienda`, que dio 0/2.433.280 las tres veces).
+
+**`/` (home) es INTERMITENTE: 2 de 3 corridas midieron ~160 px de diferencia (0,0035% de la
+página), 1 dio cero.** Rastreado pixel a pixel (corrida 3, caja real `[614,730]–[665,751]`): los
+160 píxeles marcados caen exactamente sobre el indicador **"Scroll"** del hero
+(`components/storefront/home/HeroCurtina.tsx:233-240`), que anima `animate={{ y: [0, 8, 0] }},
+transition={{ duration: 2, repeat: Infinity }}` — un **LOOP INFINITO sin estado final**. Un settle
+temporal por definición espera a que una animación TERMINE; una que se repite para siempre no
+tiene ese punto, así que la captura cae en una fase distinta del ciclo de 2s según cuánto haya
+tardado el harness completo (build+start+navegar+scrollear) entre corridas — es RUIDO DE TIMING
+de la metodología de captura, no una diferencia de código entre `main` y la rama. Confirmado
+visualmente: los recortes de la región (`recorte-main.png`/`recorte-rama.png`, en
+`.scratch/`, no comprometidos) muestran el MISMO texto "SCROLL" con la MISMA composición; sólo
+varía el glyph-rendering en el instante exacto del ciclo de bob capturado.
+
+**Un bug propio se encontró y se corrigió en el camino** (§ Deviations): la primera implementación
+de la caja del diff (`cajaDiff`) leía el canal ALFA de la imagen de diff de `pixelmatch` para
+ubicar los píxeles marcados — pero `pixelmatch` escribe alfa 255 en TODO pixel del output
+(matcheado o no; los matcheados reciben una versión en gris atenuado, § `drawGrayPixel` en su
+fuente), así que esa lectura devolvía SIEMPRE la caja completa de la imagen. Detectado comparando
+la corrida 1 (caja `[0,0]–[1279,3617]`, sospechosamente igual al tamaño total) contra un análisis
+directo de los píxeles del PNG de diff. Se corrigió para comparar el COLOR exacto contra
+`diffColor` (rojo puro, fijado explícito en las opciones en vez de depender del default de la
+librería) — la corrida 3, con el fix, dio la caja real y acotada de arriba. El CONTEO
+(161/169, 160/168) nunca estuvo mal: sale directo del valor de retorno de `pixelmatch`, no de la
+imagen de diff.
+
+### Límites declarados
+
+- **La intermitencia de `/` NO se "arregló" a propósito.** El spec es explícito: *"cada píxel
+  distinto se reporta, no se juzga ni se esconde… no algo que 'arregles' acá"*. Forzar el fin de
+  una animación en loop infinito (p. ej. inyectando CSS que la detenga) habría sido "arreglar" la
+  metodología ocultando un componente real del hero, con el riesgo de esconder una diferencia
+  FUTURA legítima en ese mismo punto. Se documenta la causa con precisión (archivo, línea, la
+  prop `transition.repeat:Infinity` exacta) para que el owner —o quien re-corra esto— no tenga que
+  re-diagnosticarla.
+- **Sólo 1 slug de detalle de producto** (`cafe-nayoli-grano-250g`, el mismo que
+  `VERIFICAR-NAYOLI-BYTE-1`) — no se capturó el detalle de cada producto sintético. Los estados de
+  `ProductCard` que exercita el detalle (la sección "También te puede gustar") ya quedan
+  ejercitados vía `/tienda`, que los muestra TODOS a la vez.
+- **`animations:'disabled'` de Playwright cubre CSS/WAAPI, no `requestAnimationFrame` puro** de
+  framer-motion — es justo la brecha que el hallazgo de arriba mide en carne propia.
+- **La fixture fija NO se commitea en este slice** (§ Deviations) — sólo el directorio scaffold.
+
+### Deviations
+
+1. **La fixture fija (PNG de `main`) NO se commiteó**, pese a que el texto del spec sugiere
+   "commitearla" y ofrece elegir el formato. `touches:` de este slice sólo nombra
+   `tests/visual/nayoli/.gitkeep` — ningún `.png` ni otro nombre bajo ese directorio. Se
+   priorizó `touches:` (el campo que fijó el tier y que la aprobación del owner tiene delante)
+   sobre el texto prosa del spec, siguiendo la regla explícita del dispatch ("YOUR DIFF MUST STAY
+   INSIDE touches… do not widen it yourself"). El directorio se creó con SÓLO su `.gitkeep`; las
+   capturas/diffs reales de cada corrida viven en `.scratch/verificar-nayoli-visual/` (gitignored).
+   Follow-up con `touches` propio: `VERIFICAR-NAYOLI-VISUAL-FIXTURE-COMMIT-1`.
+2. **Bug propio en `cajaDiff` (detección de la ubicación del diff por canal alfa) encontrado y
+   corregido dentro de esta misma tanda** — ver arriba. No estaba en el spec ni se planeó de
+   antemano; se midió al notar que la caja reportada en la corrida 1 cubría exactamente el tamaño
+   total de la imagen.
+3. **El resultado NO fue "cero diferencias" de punta a punta** — el spec esperaba eso, pero
+   también pide medir y reportar el resultado real. Se corrió TRES veces (no una) al notar que la
+   primera corrida con diff y la segunda sin diff eran inconsistentes entre sí sobre el MISMO par
+   de árboles — desviación del método implícito de "una corrida basta" para poder caracterizar la
+   intermitencia en vez de reportar un resultado potencialmente no-representativo.
+4. **`@types/pixelmatch` se instaló y se retiró en la misma tanda.** `pixelmatch@7` ships sus
+   propios tipos ESM (`node_modules/pixelmatch/index.d.ts`, `export default`); TS los prefirió
+   sobre `@types/pixelmatch` (CJS `export =`, resuelto para una major anterior) y el paquete de
+   tipos separado quedó sin uso real — se desinstaló para no dejar una dependencia muerta.
+   `@types/pngjs` SÍ se quedó: `pngjs` no trae sus propios tipos.
+
+### `touches:` — lo que se escribió
+
+`scripts/verificar-nayoli-visual.ts` (nuevo, 783 líneas), `package.json` (script
+`verificar:nayoli:visual`, **sin** sumar a `pre-merge`), `package-lock.json` (`pixelmatch`,
+`pngjs`, `@types/pngjs` como devDependencies), `tests/visual/nayoli/.gitkeep` (nuevo, directorio
+scaffold), este asiento. Los cinco declarados en `touches:`, todos tocados; nada más. El worktree
+(`.scratch/verificar-nayoli-visual-main/`), las capturas/diffs (`.scratch/verificar-nayoli-visual/`)
+y los scripts de análisis puntual (`.scratch/analizar-diff-home*.mjs`) son gitignored y no aparecen
+en `git status`.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `verificar-nayoli-visual`/`verificar:nayoli:visual`,
+`pixelmatch`, `pngjs`, `tests/visual`, `pre-merge`, `HeroCurtina` (nombrada en un COMENTARIO nuevo,
+el archivo en sí NO se modificó). Grepeados uno por uno:
+
+| símbolo | hits en CLAUDE.md | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `verificar-nayoli-visual`, `verificar:nayoli:visual` | 0 | — (herramienta nueva, no documentada ahí) |
+| `pixelmatch`, `pngjs` | 0 | — |
+| `tests/visual` | 0 | — |
+| `pre-merge` | 0 | — (este diff NO lo toca, a diferencia de `VERIFICAR-NAYOLI-BYTE-1`) |
+| `HeroCurtina` | 1 (línea 51, § Tier 1 — subárboles, listando `components/storefront/home/HeroCurtina.tsx` como ejemplo de variante en ese subárbol) | NO — el archivo sigue exactamente donde esa frase dice que vive; este diff sólo lo NOMBRA en un comentario de otro archivo, no lo edita |
+
+**Nada en CLAUDE.md nombra lo que este diff cambió de forma que quede falso.**
+
+### Verdicto
+
+**Gate VERDE en el árbol final**: `npx tsc --noEmit` → 0 errores; `npm test` → **1916/1916**, 0
+fail; `npm run test:integracion` → **228/228**, 0 fail — reconciliado contra el piso de
+`3386392` ("tsc 0 + 1916/1916 + 228/228"), sin diferencia: ninguno de los archivos tocados cae
+bajo los globs de `npm test` ni bajo `tests/integracion/`.
+
+`npm run verificar:nayoli:visual` CORRIÓ tres veces sobre el árbol final: 2/3 con exit 1 (diff
+real más allá de antialiasing en `/`, caracterizado arriba — un loop infinito de la propia
+metodología de captura, no una diferencia de código) y 1/3 con exit 0. Es el comportamiento
+correcto de la herramienta — mide y reporta, no decide. Ninguna de las tres es "el gate" del
+slice (typecheck+test+test:integracion, verde en las tres); es la MEDICIÓN que el owner pidió, y
+su resultado (7/8 capturas robustamente idénticas, 1/8 intermitente y con causa identificada y
+ajena al código de la rama) es un HALLAZGO para el owner, no un fallo de esta tanda.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea.
+`stopped_on: [customer-bytes]` — heredado de la rama (§ el mismo eje que cerró
+`VERIFICAR-NAYOLI-BYTE-1`): este commit, por su cuenta, no agrega bytes de
+cliente/operador/dueño (es tooling de verificación), pero la rama que aterrizaría sobre `main`
+sigue cargando los de antes. El commit queda en la rama a la espera del merge gateado del
+orquestador y del veredicto del owner sobre la intermitencia medida en `/`.
