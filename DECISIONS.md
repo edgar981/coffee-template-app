@@ -16816,3 +16816,181 @@ operator or owner reads"), además de heredar la clasificación de la RAMA
 § "EL EJE ES LA RAMA, NO EL COMMIT"). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
 espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
 ("Copy del panel: el owner lo revisa en su pasada").
+
+## 2026-09-24 — Nuestra Historia gana el esquema `neutro` (gris frío, calibrado contra el prototipo) y su collage pasa de 4 fotos fijas a 1-4 (`CORTE-HISTORIA-COLOR-FOTOS-1`)
+
+**Origen:** item 6 (de 8) del programa "el panel refleja la tienda" / #3 de la lista del owner
+(2026-09-23): *"NUESTRA HISTORIA — color gris frío... Fotos: lista de 1 a 4."* Dos cambios sobre la
+misma sección (brandStory), aprobados juntos: el ESQUEMA de color y la CARDINALIDAD del collage.
+
+### Cierra `CORTE-SUPERFICIE-MATIZ-TIBIO-1` — el open follow-up que `CORTE-ESQUEMAS-INVERTIDOS-1` dejó nombrado
+
+`CORTE-ESQUEMAS-INVERTIDOS-1` (2026-09-19) ya había medido el defecto y decidido NO arreglarlo esa
+tanda: asignarle a `brandStory` el esquema `'superficie'` (RECETA, `mezclar(fondo, acento, 0.09)`)
+da `#f3eadb` — un cream TIBIO, porque `superficie` deriva siempre hacia el ACENTO del cliente
+(rojo, en CORTE) — contra el `#f0f0ec` GRIS FRÍO que el prototipo mide en `.historia`
+(`--surface-page-cool`, `css/tokens.css:57`). Quedó escrito, con su propio id y su propio
+disparador: *"si el próximo gate del owner marca a `brandStory` como 'todavía no calza'... tocar
+el motor está fuera de `touches:` de ese slice."* El owner lo marcó, y este slice es la respuesta:
+un QUINTO esquema (`neutro`), no un ajuste al peso de `superficie` (que serviría a Nayoli/otros
+presets y no es lo que se pidió).
+
+### La receta OKLCH — mezclar el fondo hacia la TINTA, no hacia el acento
+
+`derivarEsquema('neutro', raices)` (`palette-derive.ts`) deriva la superficie como
+`mezclar(raices.fondo, raices.tinta, PESO_NEUTRO)` — la MISMA mecánica OKLCH que ya usa `superficie`
+en la RECETA (`mezclar`, `w`), la raíz OPUESTA: `superficie` se enfría/calienta mezclando con el
+ACENTO (color de marca/acción); `neutro` se enfría mezclando con la TINTA. Como el `fondo` de CORTE
+ya es casi acromático (croma≈0.0057 en OKLCH), un peso chico basta para mover L/H apenas y terminar
+con un croma igual de casi-nulo — sin un paso de "bajar croma" aparte.
+
+**Calibración, medida contra el MOTOR REAL, no contra el cálculo a mano del owner:** el owner había
+estimado `#fdfbf7`·95% + `#102407`·5% (RGB CRUDO) ≈ `#f1f0eb`, y avisó que el motor podía dar otro
+valor. Se corrió `mezclar(fondo, tinta, w)` en OKLCH sobre las raíces de CORTE, barriendo `w` en
+pasos de 0.1pp: **el mínimo de distancia OKLab al objetivo (`#f0f0ec`) cae en w=4.5%, dando `#f2f0ea`**
+(ΔOKLab≈0.00356); el 5% del owner da `#f1eee9` (ΔOKLab≈0.00530) — más lejos, porque su cuenta usaba
+RGB lineal en vez de la mezcla perceptual OKLCH que el motor realmente ejecuta. `PESO_NEUTRO = 0.045`
+queda fijo en `palette-derive.ts`, como una constante de la RECETA (mismo trato que el `0.09` de
+`superficie`) — no específica de CORTE: cualquier tenant que asigne `neutro` a una banda obtiene la
+misma mecánica sobre SU fondo/tinta.
+
+**Confirmado de punta a punta con el ARNÉS** (`npm run capturar:seccion -- --preset CORTE --ruta /
+--selector-app "#nuestra-historia" --prototipo index.html --selector-prototipo ".historia"
+--estilo-elemento background-color --nombre historia-neutro`, Postgres efímero + `next build` +
+`next start` + Chromium headless, el mismo runbook de producción): el `background-color` computado
+de `#nuestra-historia` en la app real, con CORTE aplicado, es **`rgb(242, 240, 234)` = `#f2f0ea`
+EXACTO** al hex calibrado; el `.historia` del prototipo mide **`rgb(240, 240, 236)` = `#f0f0ec`
+EXACTO** al objetivo citado (confirma que el valor CSS-fuente y el computado del prototipo
+coinciden). Distancia final entre los dos: máx. 2 por canal (de 255) — el más cerca que un mix de
+dos colores puede llegar sin tocar las raíces de CORTE, que quedan fuera de `touches:`.
+
+`CORTE.esquemas.brandStory` pasa de `'superficie'` a `'neutro'` (`themes.ts`). El resto de la
+paleta de `neutro` (texto/texto-suave/acento-texto/tarjeta/sobre/…) deriva por el mecanismo GENÉRICO
+que ya usan `crema`/`superficie` (superficie CLARA → `dir:'oscurecer'`, piso de contraste sobre el
+rol de texto) — sin reglas nuevas: sólo la superficie es la novedad, y `derivarEsquema` la trata
+como una CLARA más.
+
+### El esquema `neutro` es un QUINTO valor del set cerrado, en los CUATRO lugares que lo listan
+
+`EsquemaId` (`palette-derive.ts`), `ESQUEMA_IDS` (`site-content-defaults.ts`),
+`esquemasEditableSchema` (`site-content-schema.ts`), `ESQUEMAS_VALIDOS` (`themes.ts`) — las cuatro
+listas ganaron `'neutro'`, sin consolidarlas en una sola (esa consolidación la propone el propio
+comentario de `ESQUEMAS_VALIDOS` para "el día que se toque el archivo por OTRA razón"; esta tanda lo
+toca por la MISMA razón — sumar `neutro` — así que la precondición de la nota no se cumple y la
+duplicación se queda como estaba). `esquema-style.ts` es genérico (llama `derivarEsquema(id)`, sin
+un switch exhaustivo) y no necesitó ningún cambio — confirmado leyéndolo antes de tocar nada.
+
+### El collage pasa de 4 fotos FIJAS a 1-4 — `imagen1` requerida, `imagen2/3/4` opcionales
+
+`REGISTRY.brandStory.campos` (`site-content-defaults.ts`): `imagen1` se queda `'requerido'` (mínimo
+una foto — vacía cae al default); `imagen2`/`imagen3`/`imagen4` pasan a `'opcional'` (vacías se
+OMITEN, nunca rellenadas por el resolver — el mismo criterio que ya usa `presentaciones` para sus
+slots 3-4, § CLAUDE.md "La BIFURCACIÓN de cardinalidad").
+
+`BrandStoryCentrada.tsx` y `BrandStoryColumnas.tsx` filtran a las imágenes CON VALOR antes de
+renderizar. **El cuidado de HOOKS, en `BrandStoryCentrada`:** el collage llama CUATRO
+`useTransform` explícitos (uno por imagen, para el scroll-scrub del parallax) — filtrar la lista
+ANTES de esos hooks variaría su conteo entre renders (regla de hooks de React, inseguro). Se
+mantienen las CUATRO llamadas siempre, calculadas sobre el array `IMAGENES` completo; sólo el
+`.map` de RENDER, después de los hooks, filtra por `!!brandStory[campo]` — preservando el índice
+original (0-3) para leer el `transform` que le corresponde a cada imagen, incluso cuando una
+opcional del medio queda vacía y la posición visible ya no coincide con el slot. `BrandStoryColumnas`
+no tiene este problema (sin hooks por imagen) — su grid pasa a 1 columna cuando queda una sola foto.
+
+**Byte-identidad de Nayoli, verificada de dos formas:** (1) `DEFAULTS.brandStory` trae las 4 fotos
+de Nayoli llenas, así que el filtro `!!brandStory[campo]` las deja pasar TODAS, en el MISMO orden —
+mismo DOM, mismo grid; (2) el carril nuevo (`tests/integracion/brandstory-fotos.test.ts`) lo afirma
+de punta a punta: sin fila guardada, `readSiteContent().brandStory` resuelve las 4 fotos del default;
+y los tests existentes de render (`lib/config/historia-direccion-arte.test.ts`, que rinden con
+`DEFAULTS` completo) siguieron en verde SIN tocarlos — sus aserciones ("las 4 figuras del collage
+rinden...") sólo pueden seguir pasando si el filtro no descarta ninguna con las 4 llenas.
+
+`components/admin/tienda-secciones.ts` (config `BRAND_STORY`): los labels de `imagen2/3/4` ganan el
+sufijo "(opcional)"; el título del bloque `collage` pasa de "Fotos (así se ubican en la tienda)" a
+"Fotos (1 a 4 — así se ubican en la tienda)". Copy, no mecanismo — el owner lo revisa en su pasada,
+como el resto del programa "el panel refleja la tienda".
+
+### Deviation — `lib/config/site-content-defaults.test.ts`, fuera de `touches:`, corregido
+
+Dos tests de ese archivo afirmaban la semántica VIEJA de brandStory ("las 4 imágenes son
+requeridas") y se volvieron falsos por el cambio de REGISTRY.brandStory.campos de este mismo spec —
+no por un error de este diff, sino por la CONSECUENCIA DIRECTA e inevitable de implementar la
+Sección 2 del spec tal como estaba escrita. Es el mismo patrón ya aceptado en esta rama
+(`PANEL-EDITOR-ENCABEZADO-1`: *"panel-controles.test.ts (fuera de touches) con 2 aserciones vueltas
+falsas, corregidas"*; `PANEL-EDITOR-MENU-BADGE-1`: *"con 1 calibración vuelta falsa, corregida"*):
+se corrige el archivo con el MISMO alcance que la calibración que rompió, no más.
+
+- `'REGISTRY.brandStory.imagenes lista los 4 campos de imagen, y los 4 son requeridos'` —
+  reescrito a `'... imagen1 requerido, imagen2/3/4 opcionales'`: afirma la nueva partición campo por
+  campo, en vez de "los 4 son requeridos" (ahora falso para 3 de los 4).
+- `'brandStory REQUERIDO vacío → default (titulo, parrafo1, las 4 imágenes)'` — el caso `imagen3`
+  vacía ya NO cae al default (es opcional, presente-pero-vacío se respeta); se acotó el test a los
+  campos que SIGUEN siendo requeridos (`titulo`/`parrafo1`/`imagen1`) y el caso `imagen3` se movió al
+  test de OPCIONAL (que ya cubría `eyebrow`/`parrafo2`), sumándole `imagen2/3/4` a las dos direcciones
+  (presente-vacío → se respeta; ausente → cae al default).
+
+Ningún otro archivo fuera de `touches:` necesitó tocarse: se grepeó `brandStory` en TODOS los
+`*.test.ts`/`*.test.tsx` del repo (9 archivos) y los 7 restantes usan las 4 imágenes SIEMPRE LLENAS
+en sus fixtures (`A1`..`A4`, o `DEFAULTS` completo) — ninguno ejercita el caso vacío que este slice
+introduce, así que ninguno se rompe.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1916/1916** — +5 (los tests nuevos de `neutro` en `palette-derive.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **222/222** — +3 (los tres casos nuevos de `brandstory-fotos.test.ts`) |
+
+Reconciliado contra el piso del commit inmediatamente anterior (`1172bb4`,
+`PANEL-EDITOR-ORIGEN-1`): su asiento reporta **1911/1911 + 219/219** como el resultado sobre su
+árbol final. `tsc` sigue en 0; la diferencia en capa 1 (1911→1916) la explican íntegramente los 5
+`test()` nuevos de `palette-derive.test.ts`; la diferencia en capa 2 (219→222) la explican
+íntegramente los 3 `test()` nuevos de `brandstory-fotos.test.ts` — ninguna es drift sin explicación.
+Corrida DOS VECES la suite de integración (incluye pruebas de concurrencia con margen de
+no-determinismo documentado en tandas anteriores): las dos, 222/222 verde, sin el fallo aislado que
+`PANEL-EDITOR-ORIGEN-1` reportó y descartó como ajeno.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `EsquemaId`, `derivarEsquema`, `PESO_NEUTRO`, `ClaveEsquema`,
+`ESQUEMA_IDS`, `ESQUEMAS_VALIDOS`, `esquemasEditableSchema`, `REGISTRY.brandStory.campos`,
+`CORTE.esquemas.brandStory`, `BrandStoryCentrada`, `BrandStoryColumnas`, `BRAND_STORY` (config del
+panel), `brandstory-fotos.test.ts`. Grepeados uno por uno contra `CLAUDE.md`:
+
+| símbolo | hits | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `EsquemaId`, `derivarEsquema`, `PESO_NEUTRO`, `ClaveEsquema`, `ESQUEMA_IDS`, `ESQUEMAS_VALIDOS`, `esquemasEditableSchema`, `BrandStoryCentrada`, `BrandStoryColumnas` | 0 | — (CLAUDE.md no documenta el motor de paleta ni los componentes de brandStory por nombre de símbolo; esa doctrina vive en los propios archivos y en `DECISIONS.md`) |
+| `brandStory` | 13 | **SÍ, UNA** (abajo) |
+
+**`CLAUDE.md:2355`** — *"brandStory (Historia, `ocultable:true`, 4 imágenes fijas)"*, dentro de
+"ÉSTAS FUERON LAS PRIMERAS SECCIONES EDITABLES" (§ Config del contenido, la descripción histórica de
+las 4 secciones que abrieron el sistema). Era VERDAD cuando se escribió (2026-08-25) y **queda FALSA
+por este diff**: `imagen2/3/4` dejaron de ser fijas. Las otras 12 apariciones de `brandStory` en
+`CLAUDE.md` no se ven afectadas — describen el CAMPO (`imagen1..4`, estable), la variante
+`centrada`/`columnas`, el aspect-ratio de sus tiles, o el mecanismo de subida a Blob, ninguno
+atado a la cardinalidad fija. `CLAUDE.md` no está en `touches:` de este slice — no se corrige acá;
+se registra como `open_followups` (`DECISIONS-STALE-BRANDSTORY-4FIJAS-1`, coined: qué es falso —
+la frase "4 imágenes fijas"—, la línea —2355—, por qué no ahora — fuera de `touches:`).
+
+### `touches:` — lo que se escribió
+
+`lib/config/palette-derive.ts`, `lib/config/palette-derive.test.ts`, `lib/config/site-content-defaults.ts`,
+`lib/config/site-content-schema.ts`, `lib/config/themes.ts`, `components/storefront/home/BrandStoryCentrada.tsx`,
+`components/storefront/home/BrandStoryColumnas.tsx`, `components/admin/tienda-secciones.ts`,
+`tests/integracion/brandstory-fotos.test.ts`, este asiento (`DECISIONS.md`) — los diez declarados,
+tocados. **Una desviación**: `lib/config/site-content-defaults.test.ts` (fuera de `touches:`),
+corregido por la razón medida arriba (§ Deviation). Ningún otro archivo fuera de los diez declarados
+se tocó.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1916/1916 + 222/222, reconciliado, corrido dos veces
+sin fallos). Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea.
+Clasifica por sí mismo contra la política de merge A: cambia el COLOR de una banda del storefront que
+sirve la ruta pública `/` bajo `?tema=CORTE` (el mirador) y la cardinalidad de su collage de fotos —
+`customer_bytes.changed: true` (bytes que un visitante/dueño ve), además de heredar la clasificación
+de la RAMA (`slice/corte-reescritura-prototipo-1`, `AWAITING_APPROVAL` por los slices anteriores que
+tocan `components/storefront/home/`). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
+espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
+("Copy del panel: el owner lo revisa en su pasada").

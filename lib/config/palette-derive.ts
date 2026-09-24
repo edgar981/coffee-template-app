@@ -380,9 +380,13 @@ export function derivarPaleta(raices: RaicesPaleta, ejes: EjesPaleta = {}): Pale
 
 // ── LOS ESQUEMAS (§ eje 5b) ──────────────────────────────────────────────────
 // Un esquema es la superficie sobre la que vive una BANDA de la tienda (una tarjeta, un hero,
-// un CTA) — set CERRADO de cuatro. `crema` es el default de hoy; los otros tres cambian la
-// superficie base y, con ella, la DIRECCIÓN del piso de contraste de los roles de texto.
-export type EsquemaId = 'crema' | 'superficie' | 'oscuro' | 'acento';
+// un CTA) — set CERRADO de cinco. `crema` es el default de hoy; `superficie`/`oscuro`/`acento`
+// cambian la superficie base y, con ella, la DIRECCIÓN del piso de contraste de los roles de
+// texto. `neutro` (§ CORTE-HISTORIA-COLOR-FOTOS-1, DECISIONS.md) es una QUINTA superficie CLARA:
+// el fondo mezclado un poco hacia la TINTA en vez de hacia el acento —croma casi nulo, más FRÍA
+// que la calidez de `superficie`—, para una banda que necesita separarse apenas de la página sin
+// el tibio del acento. Ver `PESO_NEUTRO`, más abajo, para la receta y su calibración.
+export type EsquemaId = 'crema' | 'superficie' | 'oscuro' | 'acento' | 'neutro';
 
 // ── TEXTO SOBRE UNA BANDA OSCURA: reusa un candidato CLARO, no re-florea el oscuro ──────────
 // Florear `texto`/`texto-suave` (mezclas OSCURAS de acento/tinta, hechas para leerse sobre el
@@ -432,18 +436,36 @@ function sobreTarjetaDe(tarjeta: string, tinta: string): string {
   return pisoContraste(candidato, tarjeta, 4.5);
 }
 
+// PESO_NEUTRO (§ CORTE-HISTORIA-COLOR-FOTOS-1): el esquema `neutro` (arriba, `EsquemaId`) mezcla el
+// fondo hacia la TINTA —no hacia el acento, que es lo que hace `superficie` (RECETA, w=0.09)—: la
+// misma mecánica (`mezclar`, OKLCH), la raíz opuesta. Como el fondo YA es de croma casi nulo, un peso
+// chico basta para mantener L y H apenas movidos y terminar con un croma igual de casi-nulo, sin bajar
+// croma aparte (§ el docstring de `EsquemaId`, arriba, y la receta del owner: mantener L/H del rol,
+// limitar C — acá se logra con el propio peso de la mezcla, no con un paso extra de croma).
+//
+// CALIBRADO corriendo el motor real (`mezclar`) sobre las raíces de CORTE (`fondo:#fdfbf7`,
+// `tinta:#102407`) contra el objetivo MEDIDO del prototipo (`docs/prototipos/cafeone/`, `.historia`,
+// `--surface-page-cool` = #f0f0ec, `css/tokens.css:57`): barriendo el peso en pasos de 0.1pp,
+// **4.5% da `#f2f0ea`**, el más cercano en distancia OKLab (ΔOKLab≈0.0036) — el cálculo a mano del
+// owner (95%/5% sobre RGB CRUDO, no OKLCH) daba `#f1eee9` (ΔOKLab≈0.0053), algo más lejos. Peso
+// CONSTANTE, no específico de CORTE — mismo trato que el 0.09 de `superficie` en la RECETA: cualquier
+// tenant que asigne `neutro` a una banda obtiene la MISMA mecánica, con SU fondo/tinta.
+const PESO_NEUTRO = 0.045;
+
 /**
  * Deriva el set de tokens `--sf-*` de UN ESQUEMA, de las MISMAS 3 raíces (cero color nuevo).
  * `crema` es EXACTO al output de `derivarPaleta` de hoy —byte-idéntico, es literalmente el
- * mismo objeto—. Los otros tres reusan `mezclar` y la `RECETA` INTACTAS: lo único que cambia
- * es la SUPERFICIE base (`superficie` → la superficie ya derivada; `oscuro` → la raíz tinta;
- * `acento` → la raíz acento) y, con ella, la dirección del piso —derivada automáticamente por
- * `pisoContraste` de la luminancia de esa superficie (§ `direccionDePiso`)—. `acento-texto` se
- * re-florea de siempre (el rol oscuro, anclado a la NUEVA superficie). `texto`/`texto-suave`
- * se re-florean igual sobre una superficie CLARA (`crema` ya se resolvió arriba; sólo queda
- * `superficie`); sobre una OSCURA (`oscuro`, siempre; `acento` sólo si el acento del cliente es
- * de verdad oscuro, § TEMAS-P6-MOTOR-1 — `dir` decide por ALCANCE REAL, no por el id del esquema)
- * reusan un candidato claro en vez de re-florear el oscuro (§ `textoClaroSobreOscuro`, arriba).
+ * mismo objeto—. Los otros cuatro reusan `mezclar` y la `RECETA` INTACTAS: lo único que cambia
+ * es la SUPERFICIE base (`superficie` → la superficie ya derivada; `neutro` → el fondo mezclado
+ * `PESO_NEUTRO` hacia la TINTA, arriba; `oscuro` → la raíz tinta; `acento` → la raíz acento) y,
+ * con ella, la dirección del piso —derivada automáticamente por `pisoContraste` de la luminancia
+ * de esa superficie (§ `direccionDePiso`)—. `acento-texto` se re-florea de siempre (el rol
+ * oscuro, anclado a la NUEVA superficie). `texto`/`texto-suave` se re-florean igual sobre una
+ * superficie CLARA (`crema` ya se resolvió arriba; quedan `superficie`/`neutro`, las dos claras
+ * por construcción); sobre una OSCURA (`oscuro`, siempre; `acento` sólo si el acento del cliente
+ * es de verdad oscuro, § TEMAS-P6-MOTOR-1 — `dir` decide por ALCANCE REAL, no por el id del
+ * esquema) reusan un candidato claro en vez de re-florear el oscuro (§ `textoClaroSobreOscuro`,
+ * arriba).
  * Un acento de luminancia MEDIA (ni claramente claro ni oscuro, p.ej. `#c8662b`) puede caer del
  * lado CLARO (`dir === 'oscurecer'`) pese a llamarse esquema "acento": es correcto, porque ahí es
  * donde el texto oscuro sí alcanza más contraste que uno claro. `tarjeta`/`sobre` se re-derivan de
@@ -455,7 +477,8 @@ function sobreTarjetaDe(tarjeta: string, tinta: string): string {
  * texto/ícono que se apoya DIRECTO en el fondo de la banda (no en una tarjeta). Sirven para eso
  * SIN cambio: ya están floreados contra `superficie` —la banda MISMA, no la tarjeta (que es
  * ~10% distinta)— y el test de abajo («los 4 esquemas dan texto/texto-suave/acento-texto ≥4.5:1
- * contra su propia superficie») ya lo prueba. `--sf-sobre` NO sirve para ese caso: está floreado
+ * contra su propia superficie») ya lo prueba (más `neutro`, cubierto por su propio test — mismo
+ * mecanismo, sin ampliar ese array). `--sf-sobre` NO sirve para ese caso: está floreado
  * contra la TARJETA, y con 'crema' la tarjeta es blanco fijo mientras la banda es clara —1.07:1,
  * medido— así que reusarlo ahí repetiría el hueco que home-2 cierra.
  *
@@ -465,7 +488,7 @@ function sobreTarjetaDe(tarjeta: string, tinta: string): string {
  * es OPCIONAL y ADITIVO, igual que en `derivarPaleta`: ausente/`{}` reproduce EXACTAMENTE el
  * comportamiento de siempre. NO hay una segunda regla de origen acá — `ejes` se PASA tal cual a
  * `derivarPaleta` para `base`, y `texto`/`texto-suave`/`acento-texto` heredan el origen declarado
- * SOLOS: las tres ramas de abajo (crema, y las dos de superficie no-crema) re-floreán esos roles a
+ * SOLOS: las ramas de abajo (crema, y las cuatro de superficie no-crema) re-floreán esos roles a
  * partir de `base['acento-texto']`/`base['texto']`/`base['tostado']`/`base['acento-txt']`, que YA
  * traen el origen aplicado (mismo mecanismo que el comentario de `derivarPaleta` describe para
  * `sobre-tarjeta-suave`). Antes de este parámetro, una banda CON esquema asignado (§ esquema-style.ts)
@@ -477,7 +500,10 @@ export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId, ejes: EjesPa
   const base = derivarPaleta(raices, ejes);
   if (id === 'crema') return base;
 
-  const superficie = id === 'superficie' ? base.superficie : id === 'oscuro' ? raices.tinta : raices.acento;
+  const superficie =
+    id === 'superficie' ? base.superficie :
+    id === 'neutro' ? mezclar(raices.fondo, raices.tinta, PESO_NEUTRO) :
+    id === 'oscuro' ? raices.tinta : raices.acento;
   const dir = direccionDePiso(superficie);
   const out: PaletaDerivada = { ...base, fondo: superficie };
   out['acento-texto'] = pisoContraste(base['acento-texto'], superficie, 4.5, dir);
@@ -485,8 +511,9 @@ export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId, ejes: EjesPa
     out['texto'] = textoClaroSobreOscuro(base, superficie, dir);
     out['texto-suave'] = pisoContraste(base['tostado-3'], superficie, 4.5, dir);
   } else {
-    // Superficie CLARA (crema ya salió arriba; sólo queda `superficie`): el mecanismo de
-    // siempre — el rol oscuro ya contrasta o se florea un poco más oscuro. Sin cambios.
+    // Superficie CLARA (crema ya salió arriba; quedan `superficie`/`neutro`, las dos claras por
+    // construcción): el mecanismo de siempre — el rol oscuro ya contrasta o se florea un poco más
+    // oscuro. Sin cambios.
     out['texto'] = pisoContraste(base['texto'], superficie, 4.5, dir);
     out['texto-suave'] = pisoContraste(base['texto-suave'], superficie, 4.5, dir);
   }

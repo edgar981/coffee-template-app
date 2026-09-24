@@ -146,30 +146,40 @@ test('el loader compone mezclar→resolver: el hero del borrador se ve resuelto'
   assert.equal(r.hero.subtitulo, DEFAULTS.hero.subtitulo); // borrador pisó la sección entera → subtitulo ausente → default
 });
 
-// ── BrandStory (2ª sección: h2 un campo, 2 párrafos, 4 imágenes fijas, ocultable) ─────
+// ── BrandStory (2ª sección: h2 un campo, 2 párrafos, 1 a 4 imágenes, ocultable) ─────
+// § CORTE-HISTORIA-COLOR-FOTOS-1: `imagen1` es la ÚNICA imagen REQUERIDA (mínimo una foto);
+// `imagen2/3/4` pasaron a OPCIONALES (antes las 4 eran requeridas — el collage era rígido). Las
+// pruebas de abajo se reescribieron para reflejar la nueva partición: los tests REQUERIDO cubren
+// sólo lo que sigue siendo requerido; los OPCIONAL suman imagen2/3/4 al mismo patrón que
+// eyebrow/parrafo2.
 
 test('brandStory: sin nada guardado → todos los defaults', () => {
   assert.deepEqual(resolverSiteContent({}).brandStory, DEFAULTS.brandStory);
 });
 
-test('brandStory REQUERIDO vacío → default (titulo, parrafo1, las 4 imágenes)', () => {
-  const r = resolverSiteContent({ brandStory: { titulo: '', parrafo1: '   ', imagen1: '', imagen3: '' } });
+test('brandStory REQUERIDO vacío → default (titulo, parrafo1, imagen1)', () => {
+  const r = resolverSiteContent({ brandStory: { titulo: '', parrafo1: '   ', imagen1: '' } });
   assert.equal(r.brandStory.titulo, DEFAULTS.brandStory.titulo);
   assert.equal(r.brandStory.parrafo1, DEFAULTS.brandStory.parrafo1);
   assert.equal(r.brandStory.imagen1, DEFAULTS.brandStory.imagen1);
-  assert.equal(r.brandStory.imagen3, DEFAULTS.brandStory.imagen3);
 });
 
-test('brandStory OPCIONAL presente-pero-vacío → "" (eyebrow y parrafo2 se omiten en el render)', () => {
-  const r = resolverSiteContent({ brandStory: { eyebrow: '', parrafo2: '' } });
+test('brandStory OPCIONAL presente-pero-vacío → "" (eyebrow, parrafo2, imagen2/3/4 se omiten en el render, § CORTE-HISTORIA-COLOR-FOTOS-1)', () => {
+  const r = resolverSiteContent({ brandStory: { eyebrow: '', parrafo2: '', imagen2: '', imagen3: '', imagen4: '' } });
   assert.equal(r.brandStory.eyebrow, '');
   assert.equal(r.brandStory.parrafo2, '');
+  assert.equal(r.brandStory.imagen2, '');
+  assert.equal(r.brandStory.imagen3, '');
+  assert.equal(r.brandStory.imagen4, '');
 });
 
 test('brandStory OPCIONAL ausente → default (el editor lo pre-llena)', () => {
   const r = resolverSiteContent({ brandStory: { titulo: 'x' } });
   assert.equal(r.brandStory.eyebrow, DEFAULTS.brandStory.eyebrow);
   assert.equal(r.brandStory.parrafo2, DEFAULTS.brandStory.parrafo2);
+  assert.equal(r.brandStory.imagen2, DEFAULTS.brandStory.imagen2);
+  assert.equal(r.brandStory.imagen3, DEFAULTS.brandStory.imagen3);
+  assert.equal(r.brandStory.imagen4, DEFAULTS.brandStory.imagen4);
 });
 
 test('resolver una sección NO pisa la otra (hero y brandStory coexisten)', () => {
@@ -186,12 +196,14 @@ test('brandStory es OCULTABLE de verdad: visible:false lo oculta; visible:true/a
   assert.equal(seccionEsVisible(def, {}), true);
 });
 
-test('REGISTRY.brandStory.imagenes lista los 4 campos de imagen, y los 4 son requeridos', () => {
+test('REGISTRY.brandStory.imagenes lista los 4 campos de imagen — imagen1 requerido, imagen2/3/4 opcionales (§ CORTE-HISTORIA-COLOR-FOTOS-1)', () => {
   // Tripwire para el borrado de blobs (commit 3): si alguien agrega/renombra una imagen y olvida
-  // `imagenes`, el diff dejaría de cubrirla. Y las 4 deben ser requeridas (collage rígido).
+  // `imagenes`, el diff dejaría de cubrirla. La cardinalidad pasó de "4 fijas" a "1 a 4": sólo
+  // imagen1 sigue requerida (mínimo una foto); imagen2/3/4 son opcionales (vacías se omiten).
   assert.deepEqual(REGISTRY.brandStory.imagenes, ['imagen1', 'imagen2', 'imagen3', 'imagen4']);
-  for (const f of REGISTRY.brandStory.imagenes!) {
-    assert.equal(REGISTRY.brandStory.campos[f], 'requerido');
+  assert.equal(REGISTRY.brandStory.campos.imagen1, 'requerido');
+  for (const f of ['imagen2', 'imagen3', 'imagen4'] as const) {
+    assert.equal(REGISTRY.brandStory.campos[f], 'opcional');
   }
 });
 

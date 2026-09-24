@@ -8,10 +8,15 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
-// texto de un lado, collage 2×2 de cuatro imágenes fijas del otro — el BrandStory de SIEMPRE,
-// extraído VERBATIM al separar el mecanismo de variantes del dispatcher (`BrandStory.tsx`). El gate
-// de visibilidad (`seccionEsVisible`) vive en el DISPATCHER, no acá — esta variante asume que ya se
-// decidió mostrarla.
+// texto de un lado, collage del otro — el BrandStory de SIEMPRE, extraído VERBATIM al separar el
+// mecanismo de variantes del dispatcher (`BrandStory.tsx`). El gate de visibilidad
+// (`seccionEsVisible`) vive en el DISPATCHER, no acá — esta variante asume que ya se decidió
+// mostrarla.
+//
+// CARDINALIDAD 1 A 4 (§ CORTE-HISTORIA-COLOR-FOTOS-1): `imagen1` REQUERIDA; `imagen2/3/4`
+// OPCIONALES (§ REGISTRY.brandStory.campos) — vacías se OMITEN, no se rellenan con el default. Se
+// rinde sólo lo que tiene valor; el grid pasa a 1 columna cuando queda una sola foto (el default de
+// Nayoli, con las 4 llenas, sigue siendo el 2×2 de siempre — byte-idéntico).
 const IMAGENES = [
   { campo: "imagen1", alt: "Una taza de café servida sobre una mesa de madera, con granos alrededor", offset: "" },
   { campo: "imagen2", alt: "Cerezas de café secándose extendidas sobre una malla", offset: "mt-8" },
@@ -26,6 +31,11 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
   // `style` del h2, que sigue rindiendo exactamente `text-4xl sm:text-5xl` (2.25rem/3rem, medido) —
   // byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+
+  // Las imágenes CON VALOR — `imagen1` siempre (requerida); `imagen2/3/4` sólo si el dueño las
+  // llenó (§ el comentario de cabecera, arriba). Con las cuatro llenas (Nayoli) da la lista
+  // completa en el MISMO orden, así que el `.map` de abajo rinde EXACTO lo de siempre.
+  const imagenesLlenas = IMAGENES.filter(({ campo }) => !!brandStory[campo]);
 
   // En la VISTA PREVIA del panel, las entradas por `whileInView` quedarían INVISIBLES: dentro del
   // contenedor escalado (`transform: scale`) la intersección con el viewport no llega. Se cambia
@@ -79,9 +89,9 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
             whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
             viewport={preview ? undefined : { once: true }}
             transition={preview ? undefined : { duration: 0.6 }}
-            className="grid grid-cols-2 gap-4"
+            className={`grid gap-4 ${imagenesLlenas.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
           >
-            {IMAGENES.map(({ campo, alt, offset }) => (
+            {imagenesLlenas.map(({ campo, alt, offset }) => (
               <div key={campo} className={`relative h-48 overflow-hidden rounded-2xl ${offset}`}>
                 <Image
                   src={brandStory[campo]}

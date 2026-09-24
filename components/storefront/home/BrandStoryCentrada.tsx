@@ -16,12 +16,19 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // mismo gate de visibilidad en el DISPATCHER (`BrandStory.tsx`) — lo que cambia es de qué esqueleto
 // está hecha la banda.
 //
-// LA CARDINALIDAD DIFIERE DEL PROTOTIPO, A PROPÓSITO: el `.collage` del prototipo dibuja TRES
-// figuras; nuestro modelo (`BrandStoryContent`) sólo tiene CUATRO imágenes (`imagen1..4`), las
-// mismas que ya usa `BrandStoryColumnas` — no se inventa un quinto campo ni se descarta una de las
-// cuatro para calzar el número del prototipo. Las CUATRO se muestran en fila, alternando el offset
-// vertical (mismos valores que ya usa `BrandStoryColumnas` para su 2×2 — no se inventa una escala
-// nueva) para reproducir el escalonado del prototipo con la cardinalidad que el modelo sí tiene.
+// LA CARDINALIDAD ES 1 A 4 (§ CORTE-HISTORIA-COLOR-FOTOS-1), no fija en cuatro: `imagen1` es
+// REQUERIDA (mínimo una foto); `imagen2/3/4` son OPCIONALES (§ REGISTRY.brandStory.campos,
+// site-content-defaults.ts) — vacías se OMITEN, nunca rellenadas por el resolver. Se rinden sólo
+// las imágenes con VALOR; el collage (`flex-wrap`+`justify-center`, abajo) se reacomoda solo con
+// las que haya, sin cambio de layout. Con las cuatro llenas (Nayoli) el resultado es EXACTO al de
+// antes: las CUATRO en fila, alternando el offset vertical (mismos valores que ya usa
+// `BrandStoryColumnas` para su 2×2 — no se inventa una escala nueva) para reproducir el
+// escalonado del prototipo con la cardinalidad que el modelo tiene.
+//
+// LOS HOOKS SE LLAMAN SIEMPRE LOS CUATRO, SIN IMPORTAR CUÁNTAS IMÁGENES SE RINDAN: `IMAGENES` es
+// un literal de longitud fija (4) y los cuatro `useTransform` (abajo) se calculan siempre; sólo el
+// `.map` de RENDER filtra por valor no-vacío. Filtrar ANTES de llamar a los hooks violaría las
+// reglas de hooks de React (el conteo variaría entre renders).
 //
 // LO QUE EL PROTOTIPO TIENE Y ESTA VARIANTE NO PUEDE EXPRESAR (medido, no improvisado con texto fijo):
 //   1. El CTA "Nuestra historia" → #origen (`index.html:270`). `BrandStoryContent` no declara ningún
@@ -87,6 +94,12 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
   const transformImg3 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[2].rotar, ASIENTO_ACOMODO_PX, p, estatico));
   const transformImg4 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[3].rotar, ASIENTO_ACOMODO_PX, p, estatico));
   const transformsPorImagen = [transformImg1, transformImg2, transformImg3, transformImg4];
+  // Las imágenes CON VALOR, preservando el índice original (0..3) para leer su `transform` ya
+  // calculado arriba — la posición en la lista VISIBLE no es la posición en `IMAGENES` cuando una
+  // opcional queda vacía (§ el comentario de cabecera, arriba).
+  const imagenesLlenas = IMAGENES
+    .map((img, i) => ({ ...img, i }))
+    .filter(({ campo }) => !!brandStory[campo]);
 
   return (
     <section id="nuestra-historia" className="overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] py-24" style={style}>
@@ -121,7 +134,7 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
             SIEMPRE visible (opacity 1): el prototipo nunca desvanece estas figuras, sólo las
             rota/asienta. */}
         <div ref={collageRef} className="mt-16 mb-16 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {IMAGENES.map(({ campo, alt, offset }, i) => (
+          {imagenesLlenas.map(({ campo, alt, offset, i }) => (
             <motion.div
               key={campo}
               style={{ transform: transformsPorImagen[i] }}

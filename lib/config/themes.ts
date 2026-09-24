@@ -52,14 +52,13 @@ import type { ClaveEscalaDisplay } from './escala-display';
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-// Duplicado LITERAL, y a propósito documentado: el set de 4 esquemas ya vive como `ESQUEMA_IDS` en
-// `site-content-defaults.ts`, pero esa constante NO está exportada y ese archivo NO está en
-// `touches` de este slice (§ NO SE TOCA — el REGISTRY, el schema). Agregar el export ahí sería
-// ensanchar el diff fuera de lo aprobado; se acepta esta única lista corta, gemela del tipo
-// `ClaveEsquema` (= `EsquemaId` de `palette-derive.ts`), como la excepción que confirma la regla
-// «derivada, no una segunda lista» — el día que se toque ese archivo por otra razón, se exporta y
-// esta lista se reemplaza por el import.
-const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscuro', 'acento'];
+// Duplicado LITERAL, y a propósito documentado: el set de 5 esquemas (§ CORTE-HISTORIA-COLOR-
+// FOTOS-1, `neutro`) ya vive como `ESQUEMA_IDS` en `site-content-defaults.ts`, pero esa constante
+// NO está exportada. Se acepta esta única lista corta, gemela del tipo `ClaveEsquema` (=
+// `EsquemaId` de `palette-derive.ts`), como la excepción que confirma la regla «derivada, no una
+// segunda lista» — el día que se toque ese archivo por otra razón que exija exportarla, esta lista
+// se reemplaza por el import.
+const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscuro', 'acento', 'neutro'];
 
 /**
  * Un PRESET de theme: los seis ejes que `SiteContent` sabe guardar, tal como los declaró el diseño.
@@ -637,9 +636,13 @@ export const CORTE: PresetTema = {
   //     composición) — `background:var(--surface-page)` (css/app.css:436) — 'crema'.
   //   brandStory·centrada → `.historia` (index.html:250), `background:var(--surface-page-cool)`
   //     (css/app.css:564) — una superficie APENAS distinta de la página, ni la página exacta ni la
-  //     tinta — 'superficie' (deriva a #f3eadb con las raíces de CORTE, medido con `derivarEsquema`;
-  //     el prototipo da #f0f0ec — misma FAMILIA de "superficie apenas distinta", no puede calzar
-  //     exacto sin tocar las raíces, fuera de `touches` de este slice).
+  //     tinta — 'neutro' (§ CORTE-HISTORIA-COLOR-FOTOS-1, DECISIONS.md, la re-medida que reemplazó
+  //     esta asignación). 'superficie' (el tibio de 9% acento) daba #f3eadb — otra FAMILIA que el
+  //     gris frío `--surface-page-cool` del prototipo (#f0f0ec): un mix hacia el acento (rojo en
+  //     CORTE) no puede dar frío, sea cual sea el peso. `neutro` mezcla el fondo hacia la TINTA en
+  //     vez del acento —la QUINTA superficie del set, construida en este slice— y da #f2f0ea,
+  //     calibrado corriendo el motor real contra el objetivo medido (§ `PESO_NEUTRO`,
+  //     `palette-derive.ts`).
   //   presentaciones·riel → `#presentaciones` es `class="section"` SIN override de fondo
   //     (index.html:226); el body ya es `--surface-page` (css/app.css:43) — 'crema' (antes
   //     'superficie', que la distinguía de la página sin que el prototipo lo pida; sólo
@@ -660,7 +663,7 @@ export const CORTE: PresetTema = {
   esquemas: {
     trustBadges: 'crema',
     featured: 'crema',
-    brandStory: 'superficie',
+    brandStory: 'neutro',
     origen: 'crema',
     presentaciones: 'crema',
     subscriptionCTA: 'crema',

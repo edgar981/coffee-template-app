@@ -195,13 +195,15 @@ const BRAND_STORY: SeccionConfig = {
   pagina: 'home',
   titulo: 'Nuestra Historia',
   ocultable: true,
-  // El collage 2×2 del storefront: imagen1 arriba-izq, imagen2 arriba-der, imagen3 abajo-izq,
-  // imagen4 abajo-der. Las cuatro son requeridas (el collage es rígido; vacío → default).
+  // El collage del storefront (§ CORTE-HISTORIA-COLOR-FOTOS-1): 1 a 4 fotos — imagen1 arriba-izq
+  // REQUERIDA (mínimo una); imagen2 arriba-der, imagen3 abajo-izq, imagen4 abajo-der OPCIONALES
+  // (vacías no se muestran, el collage se reacomoda con las que haya). Las posiciones son las de la
+  // composición con las CUATRO llenas; con menos, el collage simplemente tiene menos piezas.
   imagenes: [
     { name: 'imagen1', label: 'Imagen 1 · arriba izquierda' },
-    { name: 'imagen2', label: 'Imagen 2 · arriba derecha' },
-    { name: 'imagen3', label: 'Imagen 3 · abajo izquierda' },
-    { name: 'imagen4', label: 'Imagen 4 · abajo derecha' },
+    { name: 'imagen2', label: 'Imagen 2 · arriba derecha (opcional)' },
+    { name: 'imagen3', label: 'Imagen 3 · abajo izquierda (opcional)' },
+    { name: 'imagen4', label: 'Imagen 4 · abajo derecha (opcional)' },
   ],
   campos: [
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
@@ -209,9 +211,9 @@ const BRAND_STORY: SeccionConfig = {
     { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
   ],
-  // BLOQUES: el COLLAGE 2×2 (la posición de cada foto se ve en el grid, como en la tienda) + el texto.
+  // BLOQUES: el COLLAGE (la posición de cada foto se ve en el grid, como en la tienda) + el texto.
   bloques: [
-    { tipo: 'collage', titulo: 'Fotos (así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
+    { tipo: 'collage', titulo: 'Fotos (1 a 4 — así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2'] },
   ],
 };

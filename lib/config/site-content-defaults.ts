@@ -13,8 +13,8 @@ import { resolverEscalaDisplay, type ClaveEscalaDisplay } from './escala-display
 
 // Alias con el vocabulario de esta capa (§ eje 5b, mitad B — el EFECTO en el home). Es EL MISMO
 // tipo que `EsquemaId` de `palette-derive.ts` (el MOTOR ya lo declaró): 'crema' | 'superficie' |
-// 'oscuro' | 'acento'. No se redeclara — un segundo set cerrado es cómo diverge del que el motor
-// realmente deriva.
+// 'oscuro' | 'acento' | 'neutro' (§ CORTE-HISTORIA-COLOR-FOTOS-1). No se redeclara — un segundo
+// set cerrado es cómo diverge del que el motor realmente deriva.
 export type ClaveEsquema = EsquemaId;
 
 export interface HeroContent {
@@ -1414,15 +1414,20 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // `noUniformes`: NO en NINGUNA de las dos — la banda es de un solo tono sólido
     // (`bg-[var(--sf-banda,var(--sf-tinta))]`) en las dos composiciones, nunca bi-tonal.
     variantes: { claves: ['columnas', 'centrada'], canonica: 'columnas' },
+    // CARDINALIDAD VARIABLE 1-4 (§ CORTE-HISTORIA-COLOR-FOTOS-1): `imagen1` REQUERIDO (mínimo una
+    // foto — vacía cae al default); `imagen2/3/4` OPCIONALES (vacías se OMITEN, el collage se
+    // reacomoda con las que haya — ambos componentes de variante filtran por valor no-vacío). Con
+    // las cuatro llenas (Nayoli, y todo tenant que no las vacíe) el resultado es el collage de
+    // SIEMPRE, byte-idéntico — el mismo criterio OR/opcional que ya usa `presentaciones` (§ ahí).
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
       parrafo1: 'requerido',
       parrafo2: 'opcional',
       imagen1: 'requerido',
-      imagen2: 'requerido',
-      imagen3: 'requerido',
-      imagen4: 'requerido',
+      imagen2: 'opcional',
+      imagen3: 'opcional',
+      imagen4: 'opcional',
     },
   },
   // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, ver el docstring de `OrigenContent` arriba). `ocultable:
@@ -1962,16 +1967,16 @@ export function resolverNavWordmark(stored: unknown, defaults: unknown): NavWord
   return { activo: typeof dv === 'boolean' ? dv : false };
 }
 
-const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento']);
+const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento', 'neutro']);
 
 /**
  * Resuelve el mapa banda→esquema (§ eje 5b), gemelo de `resolverPaginas`/`resolverTema` pero
  * KEY-AGNÓSTICO: aquellas enumeran un set FIJO de páginas/raíces conocido de antemano por su
  * `defaults`; acá el set de bandaIds es ABIERTO —cualquier sección del home puede tener una
  * entrada—, así que se itera el GUARDADO, no un `def` fijo. Cada valor se valida contra el set
- * CERRADO de 4 esquemas; basura (o una clave ausente) NI SIQUIERA aparece en el resultado — es lo
- * que hace que el consumidor la lea como "sin override" (cae a su token canónico de hoy, § el
- * mecanismo de byte-identidad). SOFT, nunca lanza.
+ * CERRADO de 5 esquemas (§ CORTE-HISTORIA-COLOR-FOTOS-1, `neutro`); basura (o una clave ausente)
+ * NI SIQUIERA aparece en el resultado — es lo que hace que el consumidor la lea como "sin
+ * override" (cae a su token canónico de hoy, § el mecanismo de byte-identidad). SOFT, nunca lanza.
  */
 export function resolverEsquemas(stored: unknown): EsquemasContent {
   const st = esObj(stored) ? stored : {};
@@ -1985,7 +1990,7 @@ export function resolverEsquemas(stored: unknown): EsquemasContent {
 /**
  * Resuelve el mapa bandaId→variante de BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1), gemelo
  * EXACTO de `resolverEsquemas`: KEY-AGNÓSTICO (cualquier bandaId puede tener entrada, se itera el
- * GUARDADO). A diferencia de `resolverEsquemas` (un set CERRADO único de 4 esquemas para toda banda),
+ * GUARDADO). A diferencia de `resolverEsquemas` (un set CERRADO único de 5 esquemas para toda banda),
  * acá el set de claves válidas es POR-BANDA (`VARIANTES_ESTRUCTURALES[banda].claves`) — como el set
  * de una sección normal es por-sección (`SeccionDef.variantes.claves`). Basura, una banda sin entrada
  * en `VARIANTES_ESTRUCTURALES`, o una clave fuera de su set: NI SIQUIERA aparece en el resultado — la

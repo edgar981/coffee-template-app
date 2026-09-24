@@ -179,7 +179,10 @@ test('derivarEsquema: contraste por esquema, medido contra Nayoli — cerca de l
   // Tolerancia generosa (±0.3) porque el piso avanza en pasos discretos de L y no siempre puede
   // pisar el número exacto — la meta es ACERCARSE, no calzar al centavo (el piso de 4.5 SÍ es
   // exacto, y ya lo cubre el test de arriba).
-  const FIGURAS: Record<EsquemaId, { texto: number; textoSuave: number }> = {
+  // Acotado a los 4 esquemas de siempre (no `Record<EsquemaId,…>`: con `neutro` sumado al tipo,
+  // ese Record exigiría también su fila, y las figuras de `neutro` se afirman en su propio test,
+  // § CORTE-HISTORIA-COLOR-FOTOS-1 abajo).
+  const FIGURAS: Record<'crema' | 'superficie' | 'oscuro' | 'acento', { texto: number; textoSuave: number }> = {
     crema: { texto: 9.97, textoSuave: 7.70 },
     superficie: { texto: 8.71, textoSuave: 6.73 },
     oscuro: { texto: 8.49, textoSuave: 4.52 },
@@ -558,5 +561,61 @@ test('`--sf-tostado-3` (ESTÁTICO, app/globals.css) pasa AA contra superficie/fo
       contraste(tostado3, hex) >= 4.5,
       `tostado-3/${nombre} debía pasar AA (fue ${contraste(tostado3, hex).toFixed(3)})`,
     );
+  }
+});
+
+// ── §CORTE-HISTORIA-COLOR-FOTOS-1 — el esquema `neutro`: mezcla el fondo hacia la TINTA (no el
+// acento), calibrado contra el prototipo `.historia` (`--surface-page-cool` = #f0f0ec) ────────────
+
+function hexRgb(hex: string): [number, number, number] {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+/** Distancia MÁXIMA por canal (0-255) entre dos hex — sólo para afirmar "cerca" en este test; NO
+ *  es la métrica de la calibración real (hecha en OKLab, § el asiento de esta tanda en
+ *  DECISIONS.md). Sirve para que el test no dependa de reimplementar OKLab acá. */
+function maxCanalDelta(a: string, b: string): number {
+  const [r1, g1, b1] = hexRgb(a), [r2, g2, b2] = hexRgb(b);
+  return Math.max(Math.abs(r1 - r2), Math.abs(g1 - g2), Math.abs(b1 - b2));
+}
+
+test('derivarEsquema("neutro", CORTE): calibrado a #f2f0ea, cerca del objetivo medido del prototipo #f0f0ec (§ PESO_NEUTRO)', () => {
+  const p = derivarEsquema(CORTE_RAICES, 'neutro');
+  assert.equal(p.fondo, '#f2f0ea', 'la superficie neutro de CORTE debe ser el hex calibrado');
+  assert.ok(
+    maxCanalDelta(p.fondo, '#f0f0ec') <= 8,
+    `demasiado lejos del objetivo del prototipo (fue ${p.fondo} contra #f0f0ec)`,
+  );
+});
+
+test('derivarEsquema("neutro", …): mezcla el fondo hacia la TINTA, no hacia el acento — cambiar el acento NO mueve la superficie', () => {
+  const conOtroAcento: RaicesPaleta = { ...CORTE_RAICES, acento: '#00ff00' };
+  const p1 = derivarEsquema(CORTE_RAICES, 'neutro');
+  const p2 = derivarEsquema(conOtroAcento, 'neutro');
+  assert.equal(p1.fondo, p2.fondo, 'la superficie neutro no debe depender del acento');
+});
+
+test('derivarEsquema("neutro", …): SÍ depende de la tinta — cambiarla mueve la superficie', () => {
+  const conOtraTinta: RaicesPaleta = { ...CORTE_RAICES, tinta: '#003300' };
+  const p1 = derivarEsquema(CORTE_RAICES, 'neutro');
+  const p2 = derivarEsquema(conOtraTinta, 'neutro');
+  assert.notEqual(p1.fondo, p2.fondo, 'la superficie neutro debe moverse si la tinta cambia');
+});
+
+test('derivarEsquema("neutro", …): la superficie es EXACTAMENTE `mezclar(fondo, tinta, 0.045)` — la receta declarada, no un valor mágico', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarEsquema(raices, 'neutro');
+    assert.equal(p.fondo, mezclar(raices.fondo, raices.tinta, 0.045));
+  }
+});
+
+test('derivarEsquema("neutro", …): texto/texto-suave/acento-texto pasan AA (≥4.5:1) contra su propia superficie, en 4 raíces — mismo mecanismo que los otros esquemas claros, sin reglas nuevas', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarEsquema(raices, 'neutro');
+    for (const rol of ['texto', 'texto-suave', 'acento-texto'] as const) {
+      assert.ok(
+        contraste(p[rol], p.fondo) >= 4.5,
+        `neutro.${rol} debe pasar AA sobre su superficie (fue ${contraste(p[rol], p.fondo).toFixed(2)})`,
+      );
+    }
   }
 });
