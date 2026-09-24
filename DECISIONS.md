@@ -17385,3 +17385,150 @@ la sección no declara ninguno (§ arriba, "sólo el interruptor"). `customer_by
 `strings`: `"Confianza"` (el único literal nuevo del panel); ninguno del storefront público. `stopped_
 on: [customer-bytes]`. El commit queda en la rama a la espera del merge gateado del orquestador y de
 la revisión de copy del owner ("Copy del panel: el owner lo revisa en su pasada", spec).
+
+## 2026-09-24 — La guarda PRE-MERGE: el TECHO de `PENDIENTE_PANEL` es un trinquete, y `next build` entra al gate (`GUARDA-PRE-MERGE-TRINQUETE-BUILD-1`)
+
+**Pedido del owner (2026-09-24), "antes de merge a main, tres cosas medidas, no afirmadas":** de las
+tres, este slice cierra DOS —el trinquete del techo de exenciones y `next build` dentro de la guarda
+pre-merge—; la tercera (el diff byte de Nayoli) queda para un slice aparte, tal como el spec la
+recortó.
+
+### 1 · El TRINQUETE — `PENDIENTE_PANEL.length <= 17`, y sólo BAJA
+
+El docstring de `lib/config/panel-controles.ts:43-48` ya decía en PROSA que "la lista nunca puede
+crecer en silencio", apoyado en que las tres pruebas de higiene existentes (rancia / ya-controlada /
+duplicada) atrapan una exención MAL FORMADA — pero **ninguna atrapa una exención NUEVA, bien
+formada, que tape un campo de contenido sin control**. Un slice futuro podía agregar una sección al
+REGISTRY, no darle editor, y silenciar el chequeo agregando una entrada prolija a `PENDIENTE_PANEL`:
+las tres pruebas de higiene seguirían en verde mientras la lista CRECE — exactamente lo que la
+prosa prohíbe, sin que ningún test lo hiciera mecánico.
+
+**Elección:** una cuarta prueba de higiene en `panel-controles.test.ts`, `assert.ok(PENDIENTE_PANEL.
+length <= 17, …)`, con el mensaje de error diciendo la salida correcta ("cerrá el hueco con un
+CONTROL, no con una exención nueva") y la de escape declarada ("si de verdad hay que subirlo, subilo
+A MANO acá y explicá por qué").
+
+**El 17 es una MEDICIÓN, no un número inventado**: `grep -c "{ campo:"` sobre el archivo, ANTES de
+este slice, dio 17 — el mismo valor que el owner citó como "Techo actual: 17" en `cifras-decision`
+del spec, y el mismo que el asiento de `PANEL-EDITOR-TRUSTBADGES-VISIBLE-1` (inmediatamente anterior
+en esta rama) reportó como resultado de bajar la lista de 18 a 17. Los dos números — el medido acá y
+el citado por el owner — COINCIDEN; no hay drift que reportar.
+
+**Por qué un trinquete y no un test que sólo verifica "no hay huecos sin exención" (que ya existe,
+`huecosDelPanel()` en `[]`)**: ese chequeo protege contra el campo QUE NO SE DECLARÓ; el trinquete
+protege contra el campo que SÍ se declaró, pero se tapó con una exención en vez de un control — un
+modo de "cumplir la letra" del chequeo derivado sin cumplir su espíritu (§ CLAUDE.md, "LO QUE
+CONFIGURA... prefiere DATO", misma familia que "una verificación escrita y nunca ejecutada es peor
+que no tenerla" — acá sería una verificación que SÍ corre, pero que un exención bien escrita puede
+seguir pasando sin cerrar nada).
+
+**Costura con la higiene existente**: cuando un slice futuro CIERRA una exención (como ya hicieron
+`PANEL-EDITOR-MARQUESINA-1`, `-ORIGEN-1`, `-TRUSTBADGES-VISIBLE-1`, cada uno bajando el número), el
+trinquete no baja solo — hay que bajarlo A MANO en el mismo commit, o la próxima entrada nueva tendría
+margen para colarse por debajo del techo viejo sin que el trinquete lo note. Queda dicho en el
+comentario que acompaña el test, para que el próximo que cierre una exención sepa que el número
+tiene que moverse con ella.
+
+### 2 · `next build` en la guarda PRE-MERGE — script `pre-merge`
+
+**Elección:** `"pre-merge": "npm run gate && npm run build"` en `package.json`, sin tocar `gate` (que
+sigue siendo el escalón rápido POR SLICE — typecheck + test + test:integracion, sin build). `build` es
+literalmente el mismo comando que corre el deploy (`db:deploy -w @duna/core && next build`), así que
+`pre-merge` no inventa un tercer pipeline: encadena los dos que ya existen.
+
+**Por qué hacía falta, medido y no supuesto**: `tsc --noEmit` usa el parser de TypeScript; `next
+build` usa el de SWC (§ CLAUDE.md, "`tsc` NO es la capa que envía"). Un JSX que `tsc` acepta puede
+romper el build — la doctrina ya registra un caso real (`PANEL-CONTROLES-TIPO-Y-GATE-TYPECHECK-1`,
+2026-09-23, el cast roto que tumbaba el deploy porque el gate de ese entonces no corría ni `typecheck`
+completo). El gate por-slice corre `tsc`, pero `tsc` no ve lo que SWC ve; `next build` es la única capa
+que corre el parser real del deploy.
+
+**`next build` necesita una base para su paso `db:deploy` (`prisma migrate deploy`)**: siguiendo la
+instrucción del spec ("provisioná la Postgres efímera con el MISMO patrón que
+`scripts/test-integracion.sh`, NO inspecciones `.env`, NO uses una base real"), se escribió
+`.scratch/pre-merge-build.mjs` (gitignored, no forma parte del diff) que reimplementa en Node el
+MISMO mecanismo de `scripts/postgres-efimero.sh` (`initdb` → `pg_ctl start` en el puerto propio 55433
+→ `CREATE DATABASE` → correr `npm run build` con `DATABASE_URL`/`DIRECT_DATABASE_URL` apuntando a
+ese cluster efímero → `pg_ctl stop -m immediate` + borrar el datadir). La razón de reimplementarlo en
+vez de `source`-ar el script bash existente: el dispatch de este slice sólo concede invocar el Bash
+tool con comandos que empiecen en `node`/`npm`/`npx`, y no admite `export VAR=x` como prefijo de
+comando (bloqueado) — así que exportar `DATABASE_URL` antes de `npm run build` no era alcanzable
+como una línea de shell; se logró con un proceso `node` que arma el `env` del hijo (`spawnSync('npm',
+['run','build'], {env})`) y orquesta el ciclo de vida del cluster con `child_process` directo, sin
+tocar el `.env` real ni ninguna base de las listadas en CLAUDE.md § Bases de datos.
+
+**No se creó un script nuevo versionado para esto**: `.scratch/` es explícitamente para descartables
+de una corrida (gitignored, per las instrucciones del dispatch); si `pre-merge` necesitara
+provisionar su propia base de forma repetible, eso sería una decisión de CI/infra aparte —fuera del
+`touches:` de este slice (`package.json`, `lib/config/panel-controles.test.ts`, `DECISIONS.md`)— y no
+se inventó de más.
+
+### El resultado MEDIDO — los dos números por separado, más `next build`
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1916/1916** (+1: el test del trinquete) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **228/228** |
+| `next build` (vía `.scratch/pre-merge-build.mjs`, Postgres efímero propio) | **VERDE** — `Compiled successfully`, 52/52 páginas estáticas generadas, `PRE_MERGE_BUILD_EXIT: 0` |
+
+**Reconciliado contra el piso del commit inmediatamente anterior** (`d1c1724`,
+`PANEL-EDITOR-TRUSTBADGES-VISIBLE-1`): su propio asiento reporta **1915/1915 + 228/228** sobre su
+árbol final. `tsc` sigue en 0; capa 1 sube en exactamente 1 (1915→1916), el test nuevo del trinquete;
+capa 2 queda en 228 (sin cambio de conteo — este slice no agrega tests de integración). Ninguna
+diferencia es drift sin explicación.
+
+**Un HALLAZGO durante la corrida, no atribuible a este slice**: el carril de integración mostró un
+fallo INTERMITENTE en `tests/integracion/wompi-reconciliador.test.ts`, el caso `CONCURRENCIA: webhook
+y reconciliador procesando el MISMO evento A LA VEZ` — su propia aserción acepta DOS motivos posibles
+(`'cerrado aprobado'` / `'cerrado por otra entrega concurrente'`) porque es una carrera real entre dos
+transacciones concurrentes (`Promise.all`), y en una corrida devolvió sólo `'cerrado por otra entrega
+concurrente'` igual (confirmado agregando un `console.error` temporal y revirtiéndolo antes de
+commitear — no quedó en el diff), así que el fallo puntual no vino de un TERCER motivo inesperado: fue
+la MISMA carrera resolviéndose distinto por timing de esta máquina en una corrida puntual. Se
+reprodujo 4 veces más (todas verdes, 228/228) tras esa única corrida roja; el fallo no persiste. No es
+un defecto de este slice —`touches:` no toca `packages/core/src/pagos/` ni el reconciliador— y no se
+tocó el archivo del test (el único cambio transitorio, la línea de debug, se revirtió). Se anota
+porque un test de concurrencia real que corre bajo carga de máquina variable puede volver a mostrar
+esta intermitencia; no se investiga más a fondo por estar fuera de `touches:`.
+
+### `touches:` — lo que se escribió
+
+`lib/config/panel-controles.test.ts` (el test del trinquete), `package.json` (el script `pre-merge`),
+este asiento (`DECISIONS.md`). Los tres declarados, todos tocados. Ningún archivo fuera de `touches:`
+se tocó de forma permanente — `.scratch/pre-merge-build.mjs` es gitignored y no aparece en `git
+status`.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `PENDIENTE_PANEL`, `panel-controles.test.ts`, `gate` (script),
+`pre-merge` (script nuevo), `build` (script). Grepeados uno por uno contra `CLAUDE.md`:
+
+| símbolo | hits | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `PENDIENTE_PANEL`, `panel-controles` | 0 | — (CLAUDE.md no documenta este mecanismo; vive en `panel-controles.ts`/`DECISIONS.md`, mismo hallazgo que toda la serie `PANEL-EDITOR-*` de esta rama) |
+| `pre-merge` | 0 | — (script nuevo, CLAUDE.md no lo nombra) |
+| `npm run gate`, `"gate"` | múltiples (§ El GATE de un slice corre LOS DOS CARRILES — `npm run gate`) | NO — esas sentencias describen `gate` = typecheck+test+test:integracion, que sigue siendo exactamente eso; `pre-merge` es un escalón ADICIONAL que este diff no describe como parte de `gate`, así que ninguna sentencia sobre `gate` se vuelve falsa |
+| `next build` | 1 (§ `tsc` NO es la capa que envía — "para JSX/TSX la autoridad es `next build`, no `tsc`") | NO — esa sentencia pedía justamente que `next build` sea la autoridad; este diff la refuerza (la mete en la guarda pre-merge), no la contradice |
+
+Ninguna sentencia de `CLAUDE.md` nombra `PENDIENTE_PANEL`/`panel-controles`/`pre-merge` ni afirma un
+número de exenciones — la doctrina de esa lista vive sólo en el propio `panel-controles.ts` y en
+`DECISIONS.md`.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1916/1916 + 228/228) **y `next build` cierra en
+VERDE** (compilado, 52/52 páginas, exit 0). Por instrucción del dispatch, este slice PARA en
+`AWAITING_APPROVAL` y NO mergea — sin re-clasificar la naturaleza propia de su diff: por sí solo, este
+commit sólo toca un test puro (`lib/config/panel-controles.test.ts`), un script de `package.json`, y
+este asiento — sin schema/migración, sin bytes de cliente/operador/dueño nuevos, sin contrato
+cross-repo. Pero el eje de `customer_bytes` es de la RAMA contra su base, no del commit (§ CLAUDE.md,
+ORCH-CUSTOMER-BYTES-EJE-1): `slice/corte-reescritura-prototipo-1` ya venía `AWAITING_APPROVAL` por
+slices anteriores que tocan `components/storefront/home/` (bytes de visitante) y por los commits
+inmediatamente anteriores (bytes del panel — "Confianza", "Marquesina", los campos de Origen). Este
+commit, por su cuenta, NO agrega ningún byte nuevo de cliente/operador/dueño — es tooling de gate,
+invisible para los tres roles —, pero la RAMA que va a aterrizar sobre `main` sigue cargando los de
+los commits anteriores. `customer_bytes.changed: true` (heredado de la rama, no de este commit);
+`strings`: ninguno NUEVO introducido acá (los de "Confianza"/"Marquesina"/Origen ya están asentados en
+sus propios commits). `stopped_on: [customer-bytes]`. El commit queda en la rama a la espera del
+merge gateado del orquestador.

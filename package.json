@@ -18,6 +18,7 @@
     "db:aplicar-preset": "tsx prisma/aplicar-preset.ts",
     "test:integracion": "bash scripts/test-integracion.sh",
     "gate": "npm run typecheck && npm test && npm run test:integracion",
+    "pre-merge": "npm run gate && npm run build",
     "capturar:seccion": "bash scripts/capturar-seccion.sh"
   },
   "dependencies": {

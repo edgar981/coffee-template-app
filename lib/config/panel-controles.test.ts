@@ -62,6 +62,26 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
   }
 });
 
+// EL TRINQUETE (§ GUARDA-PRE-MERGE-TRINQUETE-BUILD-1, pedido del owner 2026-09-24): las tres pruebas
+// de arriba atrapan una exención MAL FORMADA (rancia, ya controlada, duplicada, sin razón/cierra) —
+// pero NINGUNA atrapa una exención NUEVA que esté bien formada. Un slice futuro podría agregar un
+// campo de contenido SIN control y taparlo con una exención nueva, prolijamente escrita, y las tres
+// pruebas de higiene seguirían en verde mientras PENDIENTE_PANEL CRECE — exactamente lo que el
+// docstring de panel-controles.ts:46 prohíbe en prosa ("la lista nunca puede crecer en silencio").
+// Este test es lo que hace esa prosa MECÁNICA: el TECHO es un TRINQUETE, sólo BAJA. Cuando un slice
+// cierra exenciones (como hicieron PANEL-EDITOR-MARQUESINA-1, -TRUSTBADGES-VISIBLE-1, -ORIGEN-1, cada
+// uno bajando PENDIENTE_PANEL), baja el número de acá A MANO en el MISMO commit; nunca sube en
+// silencio. El valor de hoy (17) es el largo actual medido por el owner — la aserción pasa hoy porque
+// coincide; el día que alguien la vea fallar, la respuesta es cerrar el hueco con un CONTROL, no subir
+// el techo.
+test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
+  assert.ok(
+    PENDIENTE_PANEL.length <= 17,
+    `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
+      `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
+  );
+});
+
 // ─── LA CALIBRACIÓN del owner (§ el spec de este slice) ────────────────────────────────────────────
 // "puede un test derivar 'todo campo de contenido que la tienda LEE tiene su control en el panel' y
 // fallar cuando nazca uno sin panel? ... CALIBRACIÓN: el chequeo DEBE marcar el sub-encabezado
