@@ -18113,7 +18113,10 @@ self-run del guard), cada una en su propio cluster Postgres efímero.
    (`fuentes.ts`, `formas.ts`), no 5 (sin sus `-style.ts` ni `palette-style.ts`/
    `palette-schema.ts`/`theme-mirador.ts`) — juicio propio sobre una frase ambigua del spec, NO
    una re-medición pedida. Documentado como posible gap, no corregido (ampliar la lista es
-   decisión de contenido, no de `touches`).
+   decisión de contenido, no de `touches`). Id: **`GUARDA-COLOR-SISTEMA-LISTA-GAP-1`** — un
+   slice que cambie SÓLO `palette-style.ts`/`fuentes-style.ts`/`forma-style.ts`/
+   `palette-schema.ts`/`theme-mirador.ts` NO dispara la guarda hoy, pese a que esos archivos
+   emiten el CSS o validan lo que `palette-derive.ts`/`themes.ts` calculan.
 
 ### Hallazgo fuera de `touches` — NO corregido, reportado
 
@@ -18133,7 +18136,11 @@ valores reales sobre la fila") — cierto para la base PERSISTENTE de Nayoli (qu
 para cualquier base FRESCA construida vía `migrate deploy`+`seed.ts` desde cero, que es
 justamente el método que el propio párrafo de al lado describe para el carril de integración
 ("aplica TODAS las migraciones… en un Postgres fresco"). Fuera de `touches:` de este slice
-(tocar `prisma/seed.ts` no está autorizado) — se reporta, no se corrige.
+(tocar `prisma/seed.ts` no está autorizado) — se reporta, no se corrige. Id:
+**`SEED-SITESETTING-UPSERT-NOOP-1`** — cualquier base fresca (los 4 arneses de esta familia y el
+carril de integración) nace con `SiteSetting.nombre='Configura tu tienda'`, no `'Café Nayoli'`,
+hasta que alguien corrija `update: {}` en `prisma/seed.ts` o acepte la doctrina como estaba mal
+escrita.
 
 ### `touches:` — lo que se escribió
 
