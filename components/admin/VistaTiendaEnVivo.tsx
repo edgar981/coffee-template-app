@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import Marquesina from '@/components/storefront/home/Marquesina';
+import TrustBadges from '@/components/storefront/home/TrustBadges';
 import BrandStory from '@/components/storefront/home/BrandStory';
 import Origen from '@/components/storefront/home/Origen';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
@@ -55,6 +56,16 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   // default; la banda nace OFF) el componente devuelve `null` — la vista previa queda en blanco, no
   // rota (§ el docstring de `MARQUESINA` en tienda-secciones.ts, mismo caso que `SPOTLIGHT`).
   marquesina: Marquesina,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-TRUSTBADGES-VISIBLE-1 (mismo patrón que
+  // 'marquesina'/'origen'/'spotlight' arriba): sumar `'trustBadges'` a `SeccionVista` (tienda-
+  // secciones.ts) para que la sección "Confianza" pueda entrar a `SECCIONES_TIENDA` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea — `tsc` lo rechaza, y sin ella
+  // en runtime `COMPONENTES['trustBadges']` sería `undefined` y `<Comp />` reventaría el editor al
+  // abrir "Confianza". `TrustBadges` toma sólo `style` opcional (con default `{}`) → asignable a
+  // `ComponentType`, mismo patrón que `Spotlight`/`Origen`. Con `trustBadges.visible` en `true` (el
+  // default; la banda ya se monta hoy sin condición) la vista previa muestra las cuatro insignias
+  // desde el primer render.
+  trustBadges: TrustBadges,
   brandStory: BrandStory,
   // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-ORIGEN-1 (mismo patrón que 'spotlight' arriba,
   // § el asiento de PANEL-EDITOR-SPOTLIGHT-PIN-1): sumar `'origen'` a `SeccionVista` para que ORIGEN

@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'marquesina' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -222,6 +222,44 @@ const MARQUESINA: SeccionConfig = {
     { name: 'texto', label: 'Texto del loop', hint: 'La frase que se repite desplazándose por la banda, p. ej. una línea de marca. Vacío: se usa el texto por defecto.' },
     { name: 'productoSlug', label: 'Producto destacado (opcional)', opcional: true, hint: 'El slug del producto que aparece en la tarjeta flotante. Vacío: la tarjeta no se muestra.' },
   ],
+};
+
+// La banda de INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, § el docstring de
+// `TrustBadgesContent` en site-content-defaults.ts). ÚLTIMO ítem (8 de 8) del programa "el panel
+// refleja la tienda" (orden del owner, 2026-09-24): "los badges de confianza NO van [en Detalles del
+// sitio]: van CON las secciones del home" — por eso entra a `SECCIONES_TIENDA`, no a un formulario
+// aparte.
+//
+// SU ÚNICO CAMPO ES EL TOGGLE (`REGISTRY.trustBadges.campos: {}` — vacío A PROPÓSITO): las cuatro
+// insignias (ícono + texto) siguen siendo el array `BADGES` fijo de `TrustBadges.tsx`, estructura de
+// código, no dato editable; ampliarlas a dato editable es una decisión aparte, no la de este slice.
+// `ocultable: true`, `campos: []`, `imagenes: []` — no hay NADA más que declarar; el editor genérico
+// (`TiendaSeccionEditor`) ya sabe pintar una sección que sólo trae el switch "Mostrar en la tienda"
+// (§ ORIGEN/SPOTLIGHT, que tampoco declaran campos gateados por su propio toggle).
+//
+// SIN HINT junto al switch, y es una DESVIACIÓN del spec medida antes de escribir código: el spec
+// pedía un texto explicando qué apaga el interruptor ("Las insignias —pago seguro, envío, etc.— se
+// muestran u ocultan; su contenido es fijo"), pero `TiendaSeccionEditor.tsx` (fuera de `touches:` de
+// este slice) renderiza el switch de `ocultable` SIN ranura de hint, por diseño ya asentado ("Sin
+// hint: el operador apaga y ve el resultado en la vista en vivo... mismo criterio que el toggle de
+// página", § su propio comentario junto al switch) — el mismo trato que recibe TODA sección
+// `ocultable`, incluida ésta. `SeccionConfig` no tiene un campo de descripción de sección para
+// adjuntar ese texto sin tocar el renderer. La explicación queda en este comentario, para quien lea
+// el código; el copy visible en el panel es sólo el título "Confianza" + el switch — igual que Origen
+// y Spotlight.
+//
+// VA justo TRAS MARQUESINA porque ASÍ está en `BANDA_IDS`/`ORDEN_DEFAULT` (site-content-defaults.ts:
+// '...hero, marquesina, trustBadges, featured, brandStory...') — es BANDA PROPIA con posición real en
+// la home; `featured` queda entre medio sin editor propio (banda ESTRUCTURAL sin sección, § su
+// docstring en site-content-defaults.ts), así que el editor la salta igual que ya salteaba
+// `trustBadges` para llegar de MARQUESINA a BRAND_STORY antes de este slice.
+const TRUSTBADGES: SeccionConfig = {
+  seccion: 'trustBadges',
+  pagina: 'home',
+  titulo: 'Confianza',
+  ocultable: true,
+  imagenes: [],
+  campos: [],
 };
 
 const BRAND_STORY: SeccionConfig = {
@@ -601,9 +639,13 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // MARQUESINA va justo TRAS HERO porque ASÍ está en `BANDA_IDS`/`ORDEN_DEFAULT` (site-content-
 // defaults.ts: '...hero, marquesina, trustBadges, featured, brandStory...') — es BANDA PROPIA, no
 // variante (§ el docstring de `MarquesinaContent`), y tiene una posición real en la home que
-// replicar; `trustBadges`/`featured` quedan entre medio sin editor propio (`trustBadges` no es
-// SeccionVista hoy; `featured`/`spotlight` es variante, § abajo), así que el editor las salta igual
-// que ya salteaba `trustBadges`/`featured` para llegar de HERO a BRAND_STORY antes de este slice.
+// replicar; `featured` queda entre medio sin editor propio (banda ESTRUCTURAL sin sección propia, §
+// su docstring en site-content-defaults.ts), así que el editor la salta igual que ya la salteaba
+// antes de este slice.
+//
+// TRUSTBADGES va justo TRAS MARQUESINA por la MISMA razón (§ su propio docstring, arriba) — desde
+// PANEL-EDITOR-TRUSTBADGES-VISIBLE-1 ya ES `SeccionVista` y tiene su `SeccionConfig`, así que deja de
+// ser uno de los saltos de la frase anterior.
 //
 // ORIGEN va entre BRAND_STORY y PRESENTACIONES porque ASÍ está en `BANDA_IDS`/`ORDEN_DEFAULT`
 // (site-content-defaults.ts: '...brandStory, origen, presentaciones...') — a diferencia de spotlight
@@ -614,4 +656,4 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // montada en el orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, §
 // SPOTLIGHT-BANDA-1) — no hay una posición "correcta" que replicar, así que se agrega al final para
 // no sugerir un orden que el storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

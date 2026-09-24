@@ -230,9 +230,11 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // tienda-secciones.ts, con `texto`/`productoSlug`/`imagen` + el toggle `visible`) — las cuatro
   // entradas de exención de esta sección se retiraron de acá.
 
-  // TRUST BADGES (§ CORTE-TRUSTBADGES-OCULTABLE-1): su ÚNICO campo (`campos: {}` en REGISTRY) es el
-  // interruptor, y ni ése tiene control — PaletaSeccion monta el componente para PREVIEW, no lo edita.
-  { campo: 'trustBadges.visible', razon: 'Sección entera ausente de SECCIONES_TIENDA — PaletaSeccion sólo la monta para vista previa, no la edita', cierra: 'PANEL-EDITOR-TRUSTBADGES-VISIBLE-1' },
+  // CERRADO por PANEL-EDITOR-TRUSTBADGES-VISIBLE-1: `trustBadges` ganó su `SeccionConfig`
+  // (TRUSTBADGES en tienda-secciones.ts, sólo el toggle `visible` — las cuatro insignias siguen
+  // siendo el array `BADGES` fijo del componente, `REGISTRY.trustBadges.campos` sigue en `{}`) — su
+  // única entrada de exención se retiró de acá. Es el ÚLTIMO (8 de 8) de los ítems del programa "el
+  // panel refleja la tienda" (orden del owner, 2026-09-24).
 
   // CERRADO por PANEL-EDITOR-ORIGEN-1: `origen` ganó su `SeccionConfig` (ORIGEN en tienda-secciones.ts,
   // con las 19 entradas de campos + el toggle `visible`) — las veinte entradas de exención de esta

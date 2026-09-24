@@ -105,10 +105,14 @@ test('calibración: SIN exenciones, el chequeo marca las DOS metas de chrome que
   assert.ok(huecos.includes('rielSocial.visible'));
 });
 
-test('calibración: SIN exenciones, el chequeo marca trustBadges.visible', () => {
-  const huecos = huecosDelPanel({ conExenciones: false });
-  assert.ok(huecos.includes('trustBadges.visible'));
-});
+// CERRADO por PANEL-EDITOR-TRUSTBADGES-VISIBLE-1: este test afirmaba que SIN exenciones el chequeo
+// marcaba `trustBadges.visible` como hueco — la calibración original que motivó su entrada en
+// `PENDIENTE_PANEL`. Ese slice le dio control (`TRUSTBADGES` en `SECCIONES_TIENDA`, § tienda-
+// secciones.ts), así que hoy está CONTROLADO y la aserción de arriba sería FALSA — no un defecto del
+// chequeo, es el chequeo funcionando: el hueco que medía ya no existe. Misma familia que los CERRADO
+// de arriba. La calibración GENERAL sigue viva en "marca EXACTAMENTE el conjunto de PENDIENTE_PANEL",
+// que por construcción ya no incluye este campo. Su reemplazo específico —que el toggle persiste de
+// verdad— vive en `tests/integracion/trustbadges.test.ts`.
 
 test('calibración: los beneficios de los planes de suscripción SÍ están controlados (vía el bloque `lista`, no vía `campos`)', () => {
   const controlados = camposControladosPorPanel();

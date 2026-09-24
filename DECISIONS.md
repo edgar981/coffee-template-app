@@ -17186,3 +17186,202 @@ changed: true`; `strings`: los cuatro literales de arriba (labels+hints de la nu
 panel); ninguno del storefront público. `stopped_on: [customer-bytes]`. El commit queda en la rama a
 la espera del merge gateado del orquestador y de la revisión de copy del owner ("Copy del panel: el
 owner lo revisa en su pasada", spec).
+
+## 2026-09-24 — La sección "Confianza" en el panel (`PANEL-EDITOR-TRUSTBADGES-VISIBLE-1`)
+
+**Origen:** item 8 (de 8, el ÚLTIMO) del programa "el panel refleja la tienda" (orden del owner,
+2026-09-24): *"8. Badges de confianza."* — con la precisión de dónde viven: *"los badges de confianza
+NO van [en Detalles del sitio]: van CON las secciones del home."* `trustBadges` es sección del
+REGISTRY con campos VACÍOS (sólo `visible`) → el único hueco del guard es `trustBadges.visible`
+(§ `PANEL-REFLEJA-TIENDA-CHEQUEO-1`), agregado por `CORTE-TRUSTBADGES-OCULTABLE-1` sin control. Con
+este slice, los OCHO ítems del programa quedan cerrados.
+
+### Por qué SÓLO el interruptor — `REGISTRY.trustBadges.campos` es `{}`, a propósito
+
+`trustBadges` ya es sección real del REGISTRY desde `CORTE-TRUSTBADGES-OCULTABLE-1`
+(`site-content-defaults.ts:953-955` para `DEFAULTS`, `:1394-1399` para el `REGISTRY`): `ocultable:
+true`, `campos: {}`. Las cuatro insignias (ícono + texto) siguen siendo el array `BADGES` FIJO de
+`components/storefront/home/TrustBadges.tsx` — estructura de código, no dato editable; ese slice lo
+declara explícito en su propio docstring ("SE APAGA, NO SE BORRA... ampliar las cuatro insignias a
+DATO... es una decisión aparte"). Verificado ANTES de escribir nada: `trustBadgesEditableSchema`
+(`site-content-schema.ts:75-77`) sólo declara `visible`, y el camino de persistencia (PUT/POST
+genéricos de `/api/site-content`) ya funciona de punta a punta — como con `marquesina`/`origen`,
+faltaba únicamente el CONTROL en `tienda-secciones.ts`. Ningún archivo de persistencia
+(`site-content-defaults.ts`, `site-content-schema.ts`, `site-content-write.ts`, ninguna ruta) se
+tocó.
+
+### La `SeccionConfig` — `TRUSTBADGES` en `tienda-secciones.ts`
+
+- **`ocultable: true`, `campos: []`, `imagenes: []`** — no hay NADA más que declarar. El editor
+  genérico (`TiendaSeccionEditor.tsx`) ya sabe pintar una sección sin campos ni imágenes: el switch
+  "Mostrar en la tienda" (gateado por `config.ocultable`) es la ÚNICA pieza que renderiza para esta
+  sección; ningún bloque `tipo:'seccion'` derivado por defecto (imagen+campos) tiene nada que mostrar
+  porque las dos listas están vacías — se verificó corriendo `bloques.test.ts` (`for (const config of
+  SECCIONES_TIENDA)`, "sin bloques → un bloque `seccion` derivado con todas las imágenes y campos")
+  con `TRUSTBADGES` incluido: pasa (283/283), no lanza sobre listas vacías.
+- **Posición en `SECCIONES_TIENDA`: justo TRAS `MARQUESINA`, antes de `BRAND_STORY`** — `trustBadges`
+  ES miembro de `BANDA_IDS`/`ORDEN_DEFAULT` (`site-content-defaults.ts:813`: `'hero', 'marquesina',
+  'trustBadges', 'featured', 'brandStory'...`), en su 3ª posición real, así que hay una posición real
+  de la home que replicar (mismo criterio que ya fijó `MARQUESINA`/`ORIGEN`). `featured` queda entre
+  medio sin editor propio (banda ESTRUCTURAL sin sección, ya documentado en su propio docstring), así
+  que el editor sigue saltándola.
+- El comentario de ordenamiento de `SECCIONES_TIENDA` (que hasta este slice decía *"`trustBadges`/
+  `featured` quedan entre medio sin editor propio (`trustBadges` no es `SeccionVista` hoy...)"*) se
+  actualizó IN-PLACE: ya no es cierto que `trustBadges` no sea `SeccionVista`, así que la frase que
+  este mismo diff volvía falsa se corrigió como parte del propio cambio (no un follow-up — es el
+  archivo que este slice edita, describiendo el mecanismo que este slice cambia).
+
+### La DESVIACIÓN medida: el "hint" que el spec pedía junto al switch NO es renderable sin salir de `touches:`
+
+El spec pedía: *"agregá un `hint` que lo explique: 'Las insignias —pago seguro, envío, etc.— se
+muestran u ocultan; su contenido es fijo'. El owner revisa ese copy."* Medido ANTES de escribir
+código, leyendo `components/admin/TiendaSeccionEditor.tsx` (fuera de `touches:` de este slice):
+
+- El switch "Mostrar en la tienda" (el que gatea `config.ocultable`, líneas ~877-895) se renderiza
+  SIN ninguna ranura de hint — el propio comentario del archivo lo dice: *"Sin hint: el operador apaga
+  y ve el resultado en la vista en vivo. El label + el switch bastan (mismo criterio que el toggle de
+  página)."* Es el trato que reciben TODAS las secciones `ocultable` hoy (`ORIGEN`, `SPOTLIGHT` con su
+  variante `false`, etc.), no un hueco de esta sección en particular.
+- `SeccionConfig` (la interfaz, `tienda-secciones.ts:111-130`) no declara ningún campo de
+  descripción/nota A NIVEL DE SECCIÓN — sólo `CampoTexto.hint` (por campo) y `BloqueConfig.hint` (sólo
+  el bloque `'lista'`). No hay una ranura serializable donde adjuntar el texto del spec sin (a) crear
+  un `CampoTexto` FALSO que no corresponda a ningún campo real de `trustBadgesEditableSchema` —lo que
+  `TiendaSeccionEditor` renderizaría como un input editable, escribiría en el form, y el schema
+  strippearía silenciosamente al guardar (la misma clase de bug que §65-B, `site-content-schema.ts`
+  STRIPPEA lo no declarado)— o (b) tocar `TiendaSeccionEditor.tsx` para darle una ranura nueva al
+  `ocultable` genérico, afectando las demás ~9 secciones que ya lo usan.
+
+Ninguna de las dos rutas cabe dentro de `touches:` (`components/admin/tienda-secciones.ts`,
+`components/admin/VistaTiendaEnVivo.tsx`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `tests/integracion/trustbadges.test.ts`, `DECISIONS.md`) sin
+inventar un campo fantasma o ensanchar el diff a un archivo no declarado. **La medición gana sobre la
+instrucción** (§ CLAUDE.md, El TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN): la explicación del porqué
+queda como comentario de código sobre `const TRUSTBADGES` (§ arriba, "la explicación en este
+comentario, para quien lea el código"), y lo que el owner ve en el panel es el título "Confianza" + el
+switch "Mostrar en la tienda" — igual que `ORIGEN`/`SPOTLIGHT` sin campos gateados propios. Dar hint al
+switch de `ocultable` es follow-up, coined **`PANEL-EDITOR-OCULTABLE-HINT-1`** (§ abajo), no de este
+slice.
+
+### `components/admin/VistaTiendaEnVivo.tsx` — DENTRO de `touches:`, sin desviación
+
+Igual que `PANEL-EDITOR-MARQUESINA-1`/`PANEL-EDITOR-ORIGEN-1`: el spec YA lo incluía en `touches:` —
+la consecuencia mecánica de sumar `'trustBadges'` a `SeccionVista` sobre el `Record<SeccionVista,
+ComponentType>` exhaustivo de `COMPONENTES` estaba prevista de antemano. Se agregó `import TrustBadges
+from '@/components/storefront/home/TrustBadges'` y la entrada `trustBadges: TrustBadges` —
+`TrustBadges.tsx` toma sólo `style` opcional (con default `{}`), igual que `Spotlight`/`Origen`/
+`Marquesina`, así que es asignable a `ComponentType` sin cast. Con `trustBadges.visible` en `true` (el
+default — la banda YA se monta hoy sin condición) la vista previa muestra las cuatro insignias desde
+el primer render, sin el caso "pane en blanco" que sí tienen `SPOTLIGHT`/`MARQUESINA` con sus defaults
+en `false`.
+
+### El guard — `lib/config/panel-controles.ts`
+
+La única entrada `trustBadges.visible` se RETIRÓ de `PENDIENTE_PANEL` — control real ya existe vía
+`CONTROLADOS_GENERICOS` (`camposDeSeccionEditor(TRUSTBADGES)`, que suma `visible` porque
+`config.ocultable` es `true`). `huecosDelPanel()` (con exenciones) sigue en `[]` — verde.
+
+**El conteo, medido con `grep -c "^  { campo: '" lib/config/panel-controles.ts`:** el commit de HEAD
+(`d834239`, `PANEL-EDITOR-MARQUESINA-1`) reporta "22 -> 18" en su propio mensaje; medido AHORA, ANTES
+de este slice, el mismo grep da **18** (coincide). Tras retirar la única entrada `trustBadges.visible`,
+el grep da **17**. **`PENDIENTE_PANEL` pasa de 18 a 17 entradas.**
+
+### `lib/config/panel-controles.test.ts` — la calibración se volvió falsa, se cerró (dentro de `touches:`)
+
+El test `'calibración: SIN exenciones, el chequeo marca trustBadges.visible'` (línea 108, antes de
+este slice) afirmaba que `huecosDelPanel({conExenciones:false})` incluía `'trustBadges.visible'`. Con
+`TRUSTBADGES` ahora controlado vía `CONTROLADOS_GENERICOS`, ese campo deja de ser un hueco —la
+aserción `assert.ok(huecos.includes('trustBadges.visible'))` pasaría a FALSA— así que se reemplazó por
+un bloque `CERRADO por PANEL-EDITOR-TRUSTBADGES-VISIBLE-1`, mismo tratamiento que ya recibieron las
+calibraciones de `cromo.navSubtitulo`, `hero.titularVisible`/`hero.subtituloVisible` y
+`menu.badgeItem`/`badgeTexto` en el mismo archivo. La calibración GENERAL ("marca EXACTAMENTE el
+conjunto de `PENDIENTE_PANEL`") sigue viva y se AUTO-DERIVA del array — no necesitó tocarse, y sigue
+verde con el conteo nuevo (17).
+
+### El test — `tests/integracion/trustbadges.test.ts` (3 casos)
+
+Mismo patrón que `marquesina.test.ts`/`origen.test.ts` (`trustBadges` es sección real del REGISTRY,
+camino GENÉRICO): `siteContentEditableSchema.parse({trustBadges:...})` → `guardarBorrador` →
+`publicarSeccion('trustBadges')` → releer con `readSiteContent` (lo que `TrustBadges.tsx` resuelve).
+
+1. `visible:false` sobrevive el viaje completo (borrador → publicar → releer), la sección se apagaría
+   en el storefront, y el borrador de la sección queda limpio
+   (`readSiteContentParaEditor().sinPublicar.trustBadges === false`).
+2. `visible:true` (tras haber quedado en `false`) vuelve a mostrar la sección — el interruptor viaja
+   en las dos direcciones, no sólo apagando.
+3. Sin fila, `trustBadges` resuelve byte-idéntico a `DEFAULTS.trustBadges` — el default sigue siendo
+   `visible: true` ("nace HOY", byte a byte con el comportamiento de antes de `CORTE-TRUSTBADGES-
+   OCULTABLE-1`), sin que este slice lo haya tocado.
+
+Co-ubicado en `tests/integracion/` (no `lib/`), habla con Postgres real — el `touches:` de este slice
+ya lo nombraba así.
+
+### Follow-up coined
+
+| id | qué queda |
+| --- | --- |
+| `PANEL-EDITOR-OCULTABLE-HINT-1` | Darle una ranura de HINT/nota al switch genérico de `config.ocultable` en `TiendaSeccionEditor.tsx` (hoy "sin hint" por diseño para TODA sección `ocultable`) — el copy que el spec de `PANEL-EDITOR-TRUSTBADGES-VISIBLE-1` pedía para "Confianza" ("Las insignias —pago seguro, envío, etc.— se muestran u ocultan; su contenido es fijo") queda documentado como comentario de código, no visible en el panel, hasta que exista esa ranura. |
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `SeccionVista`, `TRUSTBADGES` (la config nueva), `trustBadges.visible`,
+`SECCIONES_TIENDA`, `VistaTiendaEnVivo`, `COMPONENTES`, `TrustBadges` (el componente storefront, ya
+existía, no se editó), `tienda-secciones`, `panel-controles`, `PENDIENTE_PANEL`. Grepeados uno por uno
+contra `CLAUDE.md`:
+
+| símbolo | hits | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `trustBadges`, `TrustBadges`, `TRUSTBADGES`, `SeccionVista`, `PENDIENTE_PANEL`, `panel-controles`, `COMPONENTES`, `tienda-secciones` | 0 | — (CLAUDE.md no documenta esta banda ni el mecanismo del panel-controles en absoluto; vive en `site-content-defaults.ts`/`tienda-secciones.ts`/`DECISIONS.md`, mismo hallazgo que las cuatro entradas anteriores de esta rama) |
+| `SECCIONES_TIENDA` | 1 (línea 2853, "`TiendaPaginas` agrupa `SECCIONES_TIENDA` por…") | NO — describe el mecanismo de agrupación por página, no una lista cerrada de secciones |
+| `VistaTiendaEnVivo` | 5 (líneas 56, 471, 2583, 2611, 2757) | NO — describen el MECANISMO (componentes reales, escala, provider local, costo del render), no un inventario cerrado de qué `seccion` mapea a qué componente |
+
+Ninguna sentencia de `CLAUDE.md` nombra `trustBadges`/`TrustBadges`/la banda de insignias ni un
+conteo de secciones de `SECCIONES_TIENDA` — la doctrina de esta área sigue viviendo en
+`site-content-defaults.ts`/`tienda-secciones.ts`/`DECISIONS.md`, mismo hallazgo que las cuatro
+entradas anteriores de esta rama (spotlight, origen, menú-badge, marquesina).
+
+### Pointer histórico NO corregido (fuera de `touches:`) — `PANEL-REFLEJA-TIENDA-CHEQUEO-1`
+
+La tabla de follow-ups de `PANEL-REFLEJA-TIENDA-CHEQUEO-1` (§ arriba, "`PANEL-EDITOR-TRUSTBADGES-
+VISIBLE-1` | `trustBadges.visible`") queda como registro HISTÓRICO de lo que ese slice dejó pendiente
+en su propia tanda (2026-09-23) — no se reescribe al cerrarse, mismo tratamiento que ya recibieron las
+filas de `origen`/`spotlight`/`marquesina` en esa misma tabla tras sus propios cierres. No es una
+frase falsa: no afirma "sigue pendiente hoy", sólo nombra qué campo cierra ese id — y hoy lo cierra.
+
+### `touches:` — lo que se escribió
+
+`components/admin/tienda-secciones.ts`, `components/admin/VistaTiendaEnVivo.tsx`,
+`lib/config/panel-controles.ts`, `lib/config/panel-controles.test.ts`,
+`tests/integracion/trustbadges.test.ts`, este asiento (`DECISIONS.md`) — los seis declarados, todos
+tocados. Ningún archivo fuera de `touches:` se tocó.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1915/1915** (−1: la calibración de `trustBadges.visible` se cerró a comentario, § arriba) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **228/228** (+3: los tres casos nuevos de `trustbadges.test.ts`) |
+
+Reconciliado contra el piso del commit inmediatamente anterior (`d834239`,
+`PANEL-EDITOR-MARQUESINA-1`): su propio asiento reporta **1916/1916 + 225/225** como el resultado
+sobre su árbol final (confirmado también en el mensaje de ese commit). `tsc` sigue en 0; capa 1 baja
+en exactamente 1 (1916→1915), la calibración cerrada de `panel-controles.test.ts`; capa 2 sube en
+exactamente 3 (225→228), los tres casos nuevos de `trustbadges.test.ts` — ninguna diferencia es drift
+sin explicación.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1915/1915 + 228/228). Por instrucción del dispatch,
+este slice PARA en `AWAITING_APPROVAL` y NO mergea. Clasificación contra la política de merge A: este
+commit, por sí solo, sólo toca CONFIG del editor admin (`components/admin/`), su guard puro
+(`lib/config/panel-controles.ts` + su test) y un test de integración — sin schema/migración, sin
+contrato cross-repo. Pero el eje de `customer_bytes` es de la RAMA contra su base, no del commit
+(§ CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1): `slice/corte-reescritura-prototipo-1` ya venía
+`AWAITING_APPROVAL` por slices anteriores que tocan `components/storefront/home/` (bytes de
+visitante) y por el commit inmediatamente anterior (bytes del panel), y este commit SUMA, de su
+propio lado, un literal nuevo visible para el OPERADOR/DUEÑO dentro de `/admin/tienda`: el título de
+sección "Confianza" (`TRUSTBADGES.titulo`, `tienda-secciones.ts`) — sin labels/hints de campo, porque
+la sección no declara ninguno (§ arriba, "sólo el interruptor"). `customer_bytes.changed: true`;
+`strings`: `"Confianza"` (el único literal nuevo del panel); ninguno del storefront público. `stopped_
+on: [customer-bytes]`. El commit queda en la rama a la espera del merge gateado del orquestador y de
+la revisión de copy del owner ("Copy del panel: el owner lo revisa en su pasada", spec).
