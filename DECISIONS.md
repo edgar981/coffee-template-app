@@ -16994,3 +16994,195 @@ de la RAMA (`slice/corte-reescritura-prototipo-1`, `AWAITING_APPROVAL` por los s
 tocan `components/storefront/home/`). `stopped_on: [customer-bytes]`. El commit queda en la rama a la
 espera del merge gateado del orquestador y de la revisión de copy del owner que el spec ya anticipa
 ("Copy del panel: el owner lo revisa en su pasada").
+
+## 2026-09-24 — La sección "Marquesina" en el panel (`PANEL-EDITOR-MARQUESINA-1`)
+
+**Origen:** item 7 (de 8) del programa "el panel refleja la tienda" (orden del owner, 2026-09-24),
+sobre `PANEL-REFLEJA-TIENDA-CHEQUEO-1`. El owner: *"el ítem 7 es SOLO el panel de la marquesina.
+Controles para texto, imagen, productoSlug y visible, con el mismo patrón que origen/spotlight. No
+toca tokens ni preset."* — alcance acotado explícitamente al panel; el velo (`--sf-velo`) queda
+fuera.
+
+### Por qué SIN ruta propia — `marquesina` YA es sección del REGISTRY, y el velo YA es rol compartido
+
+Como `origen`/`spotlight`/`menu`, `marquesina` es sección real (`SeccionKey` la incluye) y su schema
+de escritura (`marquesinaEditableSchema`, `lib/config/site-content-schema.ts:65-70`) YA declaraba
+los tres campos de contenido (`texto`/`imagen`/`productoSlug`) más `visible`, todos opcionales,
+verificado ANTES de escribir nada (§ el mapeo `marquesina: marquesinaEditableSchema.optional()` en
+`siteContentEditableSchema`, línea 399). El camino de persistencia (PUT/POST genéricos de
+`/api/site-content`) ya funcionaba de punta a punta; lo único que faltaba era el CONTROL. Ningún
+archivo de persistencia (`site-content-defaults.ts`, `site-content-schema.ts`,
+`site-content-write.ts`, ninguna ruta) se tocó, tal como el spec lo pedía explícitamente.
+
+**El velo tampoco necesitó trabajo**: verificado por lectura ANTES de tocar nada —
+`Marquesina.tsx:82-87` lee `bg-[var(--sf-velo)]`, la MISMA variable que el pie del velo de
+`HeroMedia.tsx:179` (`--sf-velo`, definida en `globals.css:82` como `color-mix(in oklab, var(--sf-
+tinta) 80%, transparent)`)—, así que el rol ya era compartido con el hero antes de este slice. Cero
+líneas tocadas de tema/preset.
+
+### La `SeccionConfig` — `MARQUESINA` en `tienda-secciones.ts`
+
+- **`ocultable: true`**: expone `visible` — la banda nace OFF (`DEFAULTS.marquesina.visible: false`)
+  y el dueño la enciende cuando tenga su propia frase e imagen.
+- **Los tres campos de contenido**: `texto` (requerido, hint "Vacío: se usa el texto por defecto."),
+  `imagen` (imagen de fondo), `productoSlug` (opcional, MISMO mecanismo puntero-al-catálogo que
+  `spotlight.productoSlug` — sin pin, la tarjeta flotante simplemente no se muestra, hide-on-empty de
+  UN elemento). Coincide campo por campo con `REGISTRY.marquesina.campos`
+  (`site-content-defaults.ts:1387-1391`).
+- **SIN `bloques` declarados** (a diferencia de `ORIGEN`/`PRESENTACIONES`): tres campos alcanzan para
+  el bloque `tipo:'seccion'` derivado por defecto (imagen + texto + productoSlug) — mismo criterio
+  que `SPOTLIGHT`, que tampoco declara bloques propios por ser una sección chica.
+- **Posición en `SECCIONES_TIENDA`: justo TRAS `HERO`, antes de `BRAND_STORY`** — no al final como
+  `spotlight`. A diferencia de spotlight, `marquesina` SÍ es miembro de `BANDA_IDS`/`ORDEN_DEFAULT`
+  (`site-content-defaults.ts:813`: `'hero', 'marquesina', 'trustBadges', 'featured', 'brandStory',
+  'origen', 'presentaciones'...`), así que SÍ hay una posición real de la home que replicar; el
+  editor ya saltaba `trustBadges`/`featured` (sin `SeccionVista` propia) para llegar de HERO a
+  BRAND_STORY, y sigue saltándolos igual con MARQUESINA intercalada.
+
+### `components/admin/VistaTiendaEnVivo.tsx` — DENTRO de `touches:`, sin desviación
+
+Igual que `PANEL-EDITOR-ORIGEN-1` (y a diferencia del slice del spotlight, donde este archivo fue
+desviación medida): este spec YA lo incluía en `touches:` — la consecuencia mecánica de sumar
+`'marquesina'` a `SeccionVista` sobre el `Record<SeccionVista, ComponentType>` exhaustivo de
+`COMPONENTES` estaba prevista de antemano. Se agregó `import Marquesina from
+'@/components/storefront/home/Marquesina'` y la entrada `marquesina: Marquesina` — `Marquesina.tsx`
+toma sólo `style` opcional (con default `{}`), igual que `Spotlight`/`Origen`, así que es asignable a
+`ComponentType` sin cast. Con `marquesina.visible` en `false` (el default) el componente devuelve
+`null` en la vista previa — el mismo caso ya documentado para `SPOTLIGHT` (pane en blanco, sin el
+aviso muted, porque `SPOTLIGHT.ocultable` también es `false`; acá `MARQUESINA.ocultable` es `true`,
+así que SÍ lleva el aviso muted "No se muestra en la tienda" cuando está apagada — sin el hueco que
+spotlight dejó).
+
+### El guard — `lib/config/panel-controles.ts`
+
+Las cuatro entradas `marquesina.*` (`visible`/`texto`/`imagen`/`productoSlug`) se RETIRARON de
+`PENDIENTE_PANEL` — control real ya existe vía `CONTROLADOS_GENERICOS`
+(`camposDeSeccionEditor(MARQUESINA)`). **`PENDIENTE_PANEL` pasa de 22 a 18 entradas** (medido con
+`grep -c "^  { campo:" lib/config/panel-controles.ts`, antes y después). `huecosDelPanel()` (con
+exenciones) sigue en `[]` — verde. `lib/config/panel-controles.test.ts` (declarado en `touches:`) NO
+TOCADO: ninguna calibración nombraba un campo `marquesina.*` por su nombre — el único test que lo
+cubría indirectamente es el general ("marca EXACTAMENTE el conjunto de `PENDIENTE_PANEL`"), que se
+AUTO-DERIVA del array en tiempo de ejecución y sigue verde sin cambio de texto. Mismo precedente que
+`PANEL-EDITOR-ORIGEN-1`/`PANEL-EDITOR-SPOTLIGHT-PIN-1` dejaron para el mismo archivo.
+
+### El test — `tests/integracion/marquesina.test.ts` (3 casos)
+
+Mismo patrón que `origen.test.ts`/`spotlight-pin.test.ts` (`marquesina` es sección real del
+REGISTRY, camino GENÉRICO): `siteContentEditableSchema.parse({marquesina:...})` → `guardarBorrador`
+→ `publicarSeccion('marquesina')` → releer con `readSiteContent` (lo que `Marquesina.tsx` resuelve).
+
+1. `texto`+`imagen`+`productoSlug`+`visible` sobreviven el viaje completo, y el borrador de la
+   sección queda limpio (`readSiteContentParaEditor().sinPublicar.marquesina === false`).
+2. `productoSlug` vacío se OMITE (queda `''`) — el pin cae a nada y la tarjeta flotante no se
+   muestra, sin afectar el texto del loop (hide-on-empty de UN elemento, no de la sección).
+3. Sin fila, `marquesina` resuelve byte-idéntico a `DEFAULTS.marquesina` — el default sigue siendo
+   `visible: false` ("nace OFF"), sin que este slice lo haya tocado.
+
+Co-ubicado en `tests/integracion/` (no `lib/`), habla con Postgres real — el `touches:` de este
+slice ya lo nombraba así.
+
+### La captura de la juntura hero→marquesina (§3 del spec, deliverable, NO arreglado acá)
+
+**MEDIDO PRIMERO, por lectura del HTML servido**: el muestrario desplegado
+(`https://coffee-template-app-onix.vercel.app/`) SÍ muestra la marquesina — `marquesina.visible` es
+`true` en su `SiteContent` publicado (confirmado buscando el `aria-label="Calidad que se nota en
+cada entrega"`, el texto DEFAULT, en el HTML servido — un slice anterior de esta rama la encendió
+para verificación visual, no éste). El hero del muestrario corre con `variante: 'media'`
+(`min-h-[100svh]`, con vídeo), no la curtina canónica — otra evidencia de que este despliegue trae
+contenido publicado de una tanda previa, no el default de Nayoli.
+
+**Capturado con el arnés** (`npm run capturar:seccion -- --url ... --nombre
+juntura-hero-marquesina`), DOS pares (`main > section:nth-of-type(1)` = hero completo /
+`main > section:nth-of-type(2)` = marquesina completa, contra `.hero`/`.marquee` del prototipo — el
+arnés recorta al bounding-box del selector, no a una región de scroll arbitraria; no hay un nodo
+DOM que envuelva sólo la juntura de dos `<section>` hermanas, así que la aproximación más fiel que
+el arnés permite es la sección completa de cada lado, cuyo BORDE (inferior de hero / superior de
+marquesina) ES la costura):
+
+- `.capturas/juntura-hero-marquesina/app-0.png` (1280×900, hero — el borde INFERIOR es la costura)
+- `.capturas/juntura-hero-marquesina/app-1.png` (1280×630, marquesina — el borde SUPERIOR es la
+  costura)
+- `.capturas/juntura-hero-marquesina/prototipo-0.png` (1256×876, `.hero`)
+- `.capturas/juntura-hero-marquesina/prototipo-1.png` (1256×738, `.marquee`)
+- `.capturas/juntura-hero-marquesina/valores.json` (los `--sf-*` computados y el estilo del nodo)
+
+**Medido, visto (Read del PNG):** las dos bandas del muestrario comparten el MISMO fondo
+(`bg-[var(--sf-banda,var(--sf-tinta))]`, `--sf-tinta: #102407`), así que no hay salto de color
+duro en la costura — ambas fotos (distintas, con velo oscuro) rematan en tonos verde-oscuro
+similares; no se observa una línea/franja visualmente discontinua en los bordes capturados. El
+prototipo NO renderizó el vídeo del hero en el headless (fondo plano oscuro sin frame visible) ni la
+imagen de fondo del `.marquee` (`farm-sorting-tarp.png` no cargó en la captura) — limitación del
+arnés/headless, no del código de esta app. El muestrario NO tiene producto pineado
+(`marquesina.productoSlug` vacío en lo publicado), así que su marquesina no muestra la tarjeta
+flotante que sí aparece en el prototipo — diferencia de DATO, no de mecanismo (el control nuevo de
+este slice es justamente lo que permite pinearlo).
+
+**NO SE ARREGLA NADA ACÁ** — es evidencia para que Edgar decida si la costura es un defecto; este
+slice se cierra sin tocar tokens/preset/velo, tal como el alcance lo pedía. Los PNG NO se commitean
+(`.capturas/` gitignored, § `.gitignore:67`); las rutas de arriba son locales al checkout donde
+corrió este slice.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `SeccionVista`, `MARQUESINA` (la config), `marquesina.texto/
+imagen/productoSlug/visible`, `SECCIONES_TIENDA`, `VistaTiendaEnVivo`, `COMPONENTES`, `Marquesina`
+(el componente storefront), `tienda-secciones`, `panel-controles`, `PENDIENTE_PANEL`. Grepeados uno
+por uno contra `CLAUDE.md`:
+
+| símbolo | hits | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `marquesina` (minúscula, símbolo de código), `Marquesina`, `MARQUESINA`, `SeccionVista`, `PENDIENTE_PANEL`, `panel-controles`, `COMPONENTES` | 0 | — (CLAUDE.md no documenta esta banda en absoluto; vive en `site-content-defaults.ts`/`tienda-secciones.ts`/`DECISIONS.md`, mismo hallazgo que las tres entradas anteriores de esta rama) |
+| `SECCIONES_TIENDA` | 1 (línea 2853, "`TiendaPaginas` agrupa `SECCIONES_TIENDA` por…") | NO — describe el mecanismo de agrupación por página, no una lista cerrada de secciones |
+| `VistaTiendaEnVivo` | 5 (líneas 56, 471, 2583, 2611, 2757) | NO — describen el MECANISMO (componentes reales, escala, provider local, costo del render), no un inventario cerrado de qué `seccion` mapea a qué componente |
+| `tienda-secciones` | 1 (línea 2949, la pestaña de Suscripciones) | NO — sobre el patrón de páginas apagables, no sobre el contenido de `SECCIONES_TIENDA` |
+
+Ninguna sentencia de `CLAUDE.md` nombra `marquesina`/`MARQUESINA`/la banda Marquesina ni un conteo de
+secciones de `SECCIONES_TIENDA` — la doctrina de esta área sigue viviendo en
+`site-content-defaults.ts`/`tienda-secciones.ts`/`DECISIONS.md`, mismo hallazgo que las cuatro
+entradas anteriores de esta rama (spotlight, origen, menú-badge, brandStory-fotos).
+
+### Pointer histórico NO corregido (fuera de `touches:`) — `PANEL-REFLEJA-TIENDA-CHEQUEO-1`
+
+La tabla de follow-ups de `PANEL-REFLEJA-TIENDA-CHEQUEO-1` (§ arriba, "`PANEL-EDITOR-MARQUESINA-1` |
+los 4 campos de `marquesina`") queda como registro HISTÓRICO de lo que ese slice dejó pendiente en
+su propia tanda (2026-09-23) — no se reescribe al cerrarse, mismo tratamiento que ya recibieron las
+filas de `origen`/`spotlight` en esa misma tabla tras sus propios cierres. No es una frase falsa: no
+afirma "sigue pendiente hoy", sólo nombra qué campos cierra ese id — y hoy los cierra.
+
+### `touches:` — lo que se escribió
+
+`components/admin/tienda-secciones.ts`, `components/admin/VistaTiendaEnVivo.tsx`,
+`lib/config/panel-controles.ts`, `tests/integracion/marquesina.test.ts`, este asiento
+(`DECISIONS.md`) — los seis declarados (`lib/config/panel-controles.test.ts` NO tocado, § arriba, es
+también declarado pero no requería edición), tocados. Ningún archivo fuera de `touches:` se tocó.
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **1916/1916** — sin cambio (ningún archivo de `lib/**` ganó ni perdió un `test()`; `panel-controles.test.ts` no se tocó) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **225/225** — verde (+3: los tres casos nuevos de `marquesina.test.ts`) |
+
+Reconciliado contra el piso del commit inmediatamente anterior (`cdb02be`,
+`CORTE-HISTORIA-COLOR-FOTOS-1`): su propio asiento reporta **1916/1916 + 222/222** como el resultado
+sobre su árbol final. `tsc` sigue en 0, capa 1 sin cambio (1916/1916), y la diferencia en capa 2
+(222→225) la explican íntegramente los tres casos nuevos de `marquesina.test.ts` — ninguna es drift
+sin explicación.
+
+### Verdicto
+
+**El gate cierra en VERDE** (0 errores de tsc + 1916/1916 + 225/225). Por instrucción del dispatch,
+este slice PARA en `AWAITING_APPROVAL` y NO mergea. Clasificación contra la política de merge A: este
+commit, por sí solo, sólo toca CONFIG del editor admin (`components/admin/`) y su guard puro
+(`lib/config/panel-controles.ts`) — sin schema/migración, sin ruta cross-repo. Pero el eje de
+`customer_bytes` es de la RAMA contra su base, no del commit (§ CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1
+citado en el dispatch): `slice/corte-reescritura-prototipo-1` ya venía `AWAITING_APPROVAL` por
+slices anteriores que tocan `components/storefront/home/` (bytes de visitante), y este commit SUMA,
+de su propio lado, texto nuevo visible para el OPERADOR/DUEÑO dentro de `/admin/tienda` (el título de
+sección "Marquesina", las etiquetas "Texto del loop"/"Imagen de fondo"/"Producto destacado
+(opcional)" y sus hints — bytes que el owner lee, no el visitante de la tienda). `customer_bytes.
+changed: true`; `strings`: los cuatro literales de arriba (labels+hints de la nueva sección del
+panel); ninguno del storefront público. `stopped_on: [customer-bytes]`. El commit queda en la rama a
+la espera del merge gateado del orquestador y de la revisión de copy del owner ("Copy del panel: el
+owner lo revisa en su pasada", spec).

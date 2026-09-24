@@ -226,11 +226,9 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   { campo: 'presentaciones.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-1' },
   { campo: 'subscriptionCTA.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-1' },
 
-  // La banda MARQUESINA (§ MARQUESINA-BANDA-1): sección completa en REGISTRY, ausente de SECCIONES_TIENDA.
-  { campo: 'marquesina.visible', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-MARQUESINA-1' },
-  { campo: 'marquesina.texto', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-MARQUESINA-1' },
-  { campo: 'marquesina.imagen', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-MARQUESINA-1' },
-  { campo: 'marquesina.productoSlug', razon: 'Sección entera ausente de SECCIONES_TIENDA — sin editor', cierra: 'PANEL-EDITOR-MARQUESINA-1' },
+  // CERRADO por PANEL-EDITOR-MARQUESINA-1: `marquesina` ganó su `SeccionConfig` (MARQUESINA en
+  // tienda-secciones.ts, con `texto`/`productoSlug`/`imagen` + el toggle `visible`) — las cuatro
+  // entradas de exención de esta sección se retiraron de acá.
 
   // TRUST BADGES (§ CORTE-TRUSTBADGES-OCULTABLE-1): su ÚNICO campo (`campos: {}` en REGISTRY) es el
   // interruptor, y ni ése tiene control — PaletaSeccion monta el componente para PREVIEW, no lo edita.

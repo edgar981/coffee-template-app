@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+export type SeccionVista = 'hero' | 'marquesina' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -187,6 +187,40 @@ const HERO: SeccionConfig = {
     { name: 'subtitulo',          label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'ctaPrimarioLabel',   label: 'Botón principal',     hint: 'Su destino es /tienda (fijo). Vacío: se usa el texto por defecto.' },
     { name: 'ctaSecundarioLabel', label: 'Botón secundario',    opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
+  ],
+};
+
+// La banda MARQUESINA (§ MARQUESINA-BANDA-1, § el docstring de `MarquesinaContent` en
+// site-content-defaults.ts): foto de fondo velada + un texto en loop + el pin opcional de la tarjeta
+// flotante. ALCANCE DE ESTE SLICE (PANEL-EDITOR-MARQUESINA-1, orden del owner, item 7 de 8 del
+// programa "el panel refleja la tienda"): SOLO el panel — texto, imagen, productoSlug y visible, con
+// el MISMO patrón que origen/spotlight. NO toca tokens ni preset: `marquesina` YA ES sección del
+// REGISTRY (su schema declara los tres campos + `visible`), así que el route genérico de secciones
+// ya la guarda y publica — este slice sólo la vuelve CONTROLADA declarándola acá.
+//
+// EL VELO (`--sf-velo`) NO se toca — fuera de alcance por decisión del owner. Ya es un rol DERIVADO
+// de `--sf-tinta`, compartido con el pie del velo de HeroMedia (`globals.css`, `color-mix(in oklab,
+// var(--sf-tinta) 80%, transparent)`, § Marquesina.tsx:87), así que no hay trabajo de tema pendiente
+// acá: el fondo/velo sigue el mismo mecanismo de siempre, sin campo editable propio.
+//
+// `ocultable: true` — la banda nace OFF (`DEFAULTS.marquesina.visible: false`); el dueño la enciende
+// cuando tenga su propia frase e imagen. SIN `bloques`: tres campos alcanzan para el bloque `seccion`
+// derivado por defecto (imagen + texto + productoSlug), mismo criterio que SPOTLIGHT (sin bloques
+// propios, sección chica).
+//
+// `productoSlug` es el PIN de la tarjeta flotante — MISMO mecanismo que `spotlight.productoSlug`
+// (puntero al catálogo, texto libre, validado en LECTURA contra el catálogo vivo — nunca contra un
+// set fijo al guardar, § el docstring de `MarquesinaContent`/`SpotlightContent`). OPCIONAL: sin pin
+// la tarjeta simplemente no se muestra (hide-on-empty de UN elemento, no de la sección entera).
+const MARQUESINA: SeccionConfig = {
+  seccion: 'marquesina',
+  pagina: 'home',
+  titulo: 'Marquesina',
+  ocultable: true,
+  imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
+  campos: [
+    { name: 'texto', label: 'Texto del loop', hint: 'La frase que se repite desplazándose por la banda, p. ej. una línea de marca. Vacío: se usa el texto por defecto.' },
+    { name: 'productoSlug', label: 'Producto destacado (opcional)', opcional: true, hint: 'El slug del producto que aparece en la tarjeta flotante. Vacío: la tarjeta no se muestra.' },
   ],
 };
 
@@ -564,13 +598,20 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
 // el editor las agrupa por `pagina` en pestañas.
 //
+// MARQUESINA va justo TRAS HERO porque ASÍ está en `BANDA_IDS`/`ORDEN_DEFAULT` (site-content-
+// defaults.ts: '...hero, marquesina, trustBadges, featured, brandStory...') — es BANDA PROPIA, no
+// variante (§ el docstring de `MarquesinaContent`), y tiene una posición real en la home que
+// replicar; `trustBadges`/`featured` quedan entre medio sin editor propio (`trustBadges` no es
+// SeccionVista hoy; `featured`/`spotlight` es variante, § abajo), así que el editor las salta igual
+// que ya salteaba `trustBadges`/`featured` para llegar de HERO a BRAND_STORY antes de este slice.
+//
 // ORIGEN va entre BRAND_STORY y PRESENTACIONES porque ASÍ está en `BANDA_IDS`/`ORDEN_DEFAULT`
 // (site-content-defaults.ts: '...brandStory, origen, presentaciones...') — a diferencia de spotlight
 // (abajo), origen SÍ es miembro de `BANDA_IDS` y sí tiene una posición real en la home que replicar.
 //
 // SPOTLIGHT va AL FINAL del grupo `home`, no intercalada entre las demás: a diferencia de
-// hero/brandStory/origen/presentaciones/subscriptionCTA/testimonials, todavía no está montada en el
-// orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, § SPOTLIGHT-BANDA-1) — no
-// hay una posición "correcta" que replicar, así que se agrega al final para no sugerir un orden que el
-// storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+// hero/marquesina/brandStory/origen/presentaciones/subscriptionCTA/testimonials, todavía no está
+// montada en el orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, §
+// SPOTLIGHT-BANDA-1) — no hay una posición "correcta" que replicar, así que se agrega al final para
+// no sugerir un orden que el storefront no tiene hoy.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

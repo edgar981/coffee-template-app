@@ -2,6 +2,7 @@
 
 import type { ComponentType } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
+import Marquesina from '@/components/storefront/home/Marquesina';
 import BrandStory from '@/components/storefront/home/BrandStory';
 import Origen from '@/components/storefront/home/Origen';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
@@ -44,6 +45,16 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 
 const COMPONENTES: Record<SeccionVista, ComponentType> = {
   hero: HeroSection,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-MARQUESINA-1 (mismo patrón que 'origen'/
+  // 'spotlight' abajo, § sus asientos en DECISIONS.md): sumar `'marquesina'` a `SeccionVista`
+  // (tienda-secciones.ts) para que la sección "Marquesina" pueda entrar a `SECCIONES_TIENDA` vuelve
+  // este `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea — `tsc` lo rechaza, y sin
+  // ella en runtime `COMPONENTES['marquesina']` sería `undefined` y `<Comp />` reventaría el editor
+  // al abrir "Marquesina". `Marquesina` toma sólo `style` opcional (con default `{}`) → asignable a
+  // `ComponentType`, mismo patrón que `Spotlight`/`Origen`. Con `marquesina.visible` en `false` (el
+  // default; la banda nace OFF) el componente devuelve `null` — la vista previa queda en blanco, no
+  // rota (§ el docstring de `MARQUESINA` en tienda-secciones.ts, mismo caso que `SPOTLIGHT`).
+  marquesina: Marquesina,
   brandStory: BrandStory,
   // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-ORIGEN-1 (mismo patrón que 'spotlight' arriba,
   // § el asiento de PANEL-EDITOR-SPOTLIGHT-PIN-1): sumar `'origen'` a `SeccionVista` para que ORIGEN
