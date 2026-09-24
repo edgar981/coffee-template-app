@@ -17924,3 +17924,258 @@ Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO merge
 cliente/operador/dueño (es tooling de verificación), pero la rama que aterrizaría sobre `main`
 sigue cargando los de antes. El commit queda en la rama a la espera del merge gateado del
 orquestador y del veredicto del owner sobre la intermitencia medida en `/`.
+
+## 2026-09-24 — La vara pasa a PERMANENTE: fixture fijo + guarda automática de color (`GUARDA-COLOR-NAYOLI-1`)
+
+Pedido del owner (2026-09-24), textual: *"Permanente: Nayoli entra al arnés como fixture fijo.
+Todo slice futuro que toque tokens, roles o presets corre el diff de Nayoli en la guarda. La
+regla pasa de 'byte-idéntico' a 'visualmente idéntico, medido en cada slice que toque el sistema
+de color'."* Cierra los dos refinamientos que `VERIFICAR-NAYOLI-VISUAL-1` había dejado abiertos
+—fixture no commiteada, captura sin congelar— y construye la guarda que los consume.
+
+### 1 · Captura DETERMINISTA — el método elegido y por qué los otros dos no servían
+
+`scripts/verificar-nayoli-visual.ts` ganó `activarModoDeterminista(page)`: congela
+`requestAnimationFrame`/`performance.now()` a un valor CONSTANTE (`1000`), inyectado vía
+`page.addInitScript` (corre ANTES de cualquier script de la página, en CADA navegación del
+`BrowserContext`). Con "ahora" fijo, `elapsed = ahora − inicio` da SIEMPRE 0 para cualquier
+animación JS-RAF-driven de framer-motion — el loop `y:[0,8,0], repeat:Infinity` del scroll-cue
+de `HeroCurtina.tsx` (§ el ruido de `VERIFICAR-NAYOLI-VISUAL-1`, ~160px intermitente) queda
+pinneado en su primer keyframe desde el primer frame, sin depender de cuándo en tiempo real
+montó el componente. El `requestAnimationFrame` NATIVO se sigue llamando (el navegador sigue
+pintando); sólo se falsea el TIMESTAMP que recibe el callback.
+
+**Las otras dos opciones que el dispatch permitía medir, descartadas con su motivo:**
+`MotionGlobalConfig.skipAnimations=true` exige que la APP lo invoque —ningún componente está en
+`touches` de esta tanda—; `animations:'disabled'` de Playwright YA estaba activo desde
+`VERIFICAR-NAYOLI-VISUAL-1` y NO alcanzaba —opera sobre `document.getAnimations()`, que sólo ve
+Web Animations NATIVAS (CSS/WAAPI), y el scroll-cue se probó JS-RAF-driven precisamente porque
+ese flag no lo tocaba (medido en esa tanda: ~160px pese al flag activo)—.
+
+**Riesgo evaluado antes de aplicarlo:** ¿congelar `now()` rompe las entradas `whileInView`
+(fade-up de las bandas) que el scroll-completo-y-espera existe para revelar? Medido que NO: las
+7 rutas restantes ya daban 0px SIN este freeze (el scroll+espera real ya las asentaba), lo que
+indica que corren vía Web Animations nativas (insensibles al freeze de JS) o completan antes de
+que la página quede quieta — el freeze sólo tiene efecto OBSERVABLE sobre el loop RAF-driven que
+`animations:'disabled'` ya no alcanzaba. Confirmado por inspección visual directa de la captura
+resultante (home renderiza completa: hero, badges, grilla, banda de historia, presentaciones,
+suscripción, footer — nada quedó en su estado inicial oculto).
+
+**Bug propio corregido de paso:** el `transition-duration:0s` cinturón-y-tirantes vivía en un
+`addStyleTag` llamado UNA vez tras `newPage()`, ANTES del primer `goto()`. `addStyleTag` inyecta
+en el documento ACTUAL y no sobrevive una navegación (confirmado contra los tipos de
+Playwright: "injected into frame", sin la garantía de reinyección-por-navegación que
+`addInitScript` sí documenta) — así que ese CSS nunca aplicaba a ninguna de las 6 rutas
+capturadas. Se movió al mismo `addInitScript`.
+
+**Prueba de determinismo (sin rebuild, dos capturas en la MISMA corrida de servidor):** las 8
+capturas (6 rutas + 2 hovers) dieron **0px en las DOS pasadas**, incluida `ruta-home` — la que
+antes era intermitente. Repetido en la corrida final (tras el fix de §2, abajo): **0px otra vez
+en las 8**.
+
+### 2 · Bug propio encontrado por el propio arnés: `createdAt` de los sintéticos, timezone + empates
+
+**El hallazgo que casi pasa desapercibido.** El self-run de `guarda:color` contra el fixture
+recién escrito (misma rama, mismo código, DOS clusters Postgres efímeros SEPARADOS — uno para el
+fixture, otro para el guard) NO daba 0px: `ruta-home` y `ruta-tienda` diferían en
+**14655/4631040 px** (misma caja, mismo tamaño en las dos rutas) y `ruta-producto` en
+**44650/2535680 px** — nada que ver con color.
+
+**Diagnóstico, sin rebuild** (Postgres efímero aislado, migrate+seed+sintéticos, `psql` directo):
+
+```
+slug                       | createdAt                | (vía)
+verificar-visual-sin-imagen| 2026-09-24 16:43:28.357   | psql (CURRENT_TIMESTAMP, sesión local)
+verificar-visual-agotado   | 2026-09-24 16:43:28.357   | ← EMPATE al milisegundo
+verificar-visual-*         | 2026-09-24 16:43:28.358   | ← TRES en el mismo milisegundo
+cafe-nayoli-grano-250g     | 2026-09-24 21:43:28.088   | Prisma (@default(now()), sesión propia)
+```
+
+**Los 5 sintéticos "ganaban" a los 4 canónicos por 5 HORAS**, pese a insertarse minutos después
+en tiempo real. `Product.createdAt` es `TIMESTAMP(3)` SIN zona horaria (columna `timestamp
+without time zone`): `CURRENT_TIMESTAMP` se graba tal cual la ve la SESIÓN que ejecuta el
+INSERT, y `psql` (cluster efímero en `America/Bogota`, § `levantarPostgres`) y el cliente de
+Prisma no comparten esa sesión ni, evidentemente, la misma referencia horaria. Con
+`orderBy:{createdAt:'asc'}` (`/api/catalog`) los 5 sintéticos ordenaban COMO SI fueran más
+viejos, y `catalog.slice(0,4)` (`FeaturedProductsCuadricula`) mostraba los sintéticos en la home
+en vez de los 4 canónicos — exactamente lo que el comentario original de
+`sembrarEstadosProductCard` (`VERIFICAR-NAYOLI-VISUAL-1`) prometía que NO iba a pasar, y **nunca
+se había verificado por ejecución** (esa tanda comparó main-vs-rama sobre la MISMA base ya
+sembrada, donde el defecto es invisible porque afecta a los dos árboles por igual). Y los
+empates al milisegundo, sin desempate garantizado por Postgres entre dos clusters efímeros
+DISTINTOS, eran la causa directa de la flakiness del guard.
+
+**Fix, en `sqlProductoSintetico`** (`scripts/verificar-nayoli-visual.ts`): `createdAt` EXPLÍCITO,
+un literal `TIMESTAMP '2099-01-01 00:00:00.000' + (orden × INTERVAL '1 second')`, con `orden`
+0..4 por producto. Ni depende de qué sesión evalúa "ahora" (elimina el mismatch de huso) ni dos
+filas pueden empatar (el segundo entero decide, no el milisegundo de ejecución real). Re-medido
+tras el fix, mismo diagnóstico sin rebuild:
+
+```
+cafe-nayoli-grano-250g            | 2026-09-24 21:45:18.583
+cafe-nayoli-molido-250g           | 2026-09-24 21:45:18.586
+cafe-nayoli-grano-500g            | 2026-09-24 21:45:18.588
+cafe-nayoli-molido-500g           | 2026-09-24 21:45:18.590
+verificar-visual-sin-imagen       | 2099-01-01 00:00:00
+verificar-visual-agotado          | 2099-01-01 00:00:01
+verificar-visual-sin-notas        | 2099-01-01 00:00:02
+verificar-visual-eleccion         | 2099-01-01 00:00:03
+verificar-visual-agotada-molienda | 2099-01-01 00:00:04
+```
+
+Fixture regenerado (build completo, determinismo re-confirmado 0px en las 8 capturas) y
+verificado visualmente: "Selección del mes" en `ruta-home.png` ahora muestra los 4 productos
+canónicos ("Café Nayoli — En grano 250 g" / "Molido 250 g" / "En grano 500 g" / "Molido 500 g",
+badges "Más vendido"/"Ahorra más"), no los sintéticos.
+
+**El self-run de `guarda:color`, repetido contra el fixture corregido, en un TERCER cluster
+Postgres efímero separado, dio 0/8 — las 8 capturas IDÉNTICAS**, confirmando que el fix cierra la
+flakiness de raíz (no fue casualidad de una corrida).
+
+### 3 · Bug propio #2: `pathToFileURL`, no `file://${argv[1]}` — el guard nunca corría
+
+Segundo bug encontrado ANTES de la primera build real: el guard de entrypoint
+(`import.meta.url === `file://${process.argv[1]}``, copiado del patrón estándar de Node) daba
+SIEMPRE `false` en este repo, porque el path vive bajo `.../All Projects/coffee-template-app`
+—CON ESPACIO—, y `import.meta.url` codifica ese espacio como `%20` mientras `process.argv[1]` es
+la ruta CRUDA del filesystem. La primera corrida de `--generar-fixture` salió con **exit 0 y
+CERO output** — `main()` nunca se detectó como entrypoint y nunca corrió. Fix:
+`pathToFileURL(process.argv[1]).href`, que aplica la MISMA codificación que `import.meta.url` —
+confirmado con un script mínimo antes de aplicar el fix a los dos archivos (`verificar-nayoli-
+visual.ts` y `guarda-color.ts`, que comparten el mismo patrón).
+
+### 4 · La guarda automática — `scripts/guarda-color.ts`
+
+- **`SISTEMA_DE_COLOR`**: 8 archivos, un lugar nombrado, comentario por-entrada —
+  `lib/config/palette-derive.ts`, `lib/config/themes.ts`, `app/globals.css`,
+  `lib/config/esquema-style.ts`, `lib/config/site-content-defaults.ts`,
+  `lib/config/site-content-schema.ts`, `lib/config/fuentes.ts`, `lib/config/formas.ts`. Los 6
+  primeros son los que el spec nombró textual; "los catálogos de fuente/forma" se interpretó
+  como `fuentes.ts`+`formas.ts` (los catálogos mismos), NO sus siblings `-style.ts`
+  (`fuentes-style.ts`, `forma-style.ts`, `palette-style.ts`) ni `palette-schema.ts`/
+  `theme-mirador.ts` — una interpretación deliberadamente LITERAL del spec, documentada como
+  posible gap en `open_followups` (§ abajo).
+- **`archivosCambiados('main')`**: `git merge-base HEAD main` + `git diff --name-only
+  <base>..HEAD` — TODA la rama contra `main`, no sólo el último commit (una rama de varios
+  slices puede tocar color temprano y no en el último).
+- **Intersección VACÍA → `exit 0` sin Postgres ni Playwright ni build** — costo de milisegundos
+  para un slice que no toca color. Validado sin build: `archivosCambiados('HEAD')` (diff contra
+  sí mismo) da `[]`, intersección `[]`.
+- **Intersección NO vacía → build+start de la rama ACTUAL (puertos/base propios: 55440/3495/
+  `guardacolor`, para correr al lado de los otros tres arneses), captura determinista de las
+  mismas 6 rutas + 2 hovers, diff contra `tests/visual/nayoli/*.png`.** `exit 1` con reporte por
+  ruta si algo difiere más allá de antialiasing.
+- **Medido contra la rama real** (ésta, que SÍ toca color — 6 de los 8 archivos del sistema): el
+  guard detectó los 6 correctamente, corrió el pipeline completo, y dio **0/8 IDÉNTICO** contra
+  el fixture (tras el fix de §2).
+- **Calibración — inyectar `--sf-fondo:#ff00ff` sobre la home y diffear contra el fixture**:
+  **991088/4631040 px** (primera corrida) y **968605/4608000 px** (tras regenerar el fixture) —
+  ambas confirman que el pipeline SÍ atrapa un cambio de color real; no es un guard que siempre
+  da verde.
+- **`guarda:color` se sumó a `pre-merge`** (`npm run gate && npm run build && npm run
+  verificar:nayoli && npm run guarda:color`), no a `gate`: cuando se dispara, hace su propio
+  build completo (~minutos), y `gate` existe para ser el carril RÁPIDO que un dev corre seguido
+  (§ CLAUDE.md, "El GATE de un slice corre LOS DOS CARRILES"). `pre-merge` ya asume build
+  completo y Postgres/Playwright disponibles — mismo precedente que `verificar:nayoli`.
+
+### 5 · La doctrina que esta tanda instaura
+
+**La regla pasa de "Nayoli byte-idéntico" (VERIFICAR-NAYOLI-BYTE-1) a "Nayoli VISUALMENTE
+idéntico, MEDIDO en cada slice que toca el sistema de color".** El diff de bytes no es la vara
+—un fallback de CSS custom property puede resolver al MISMO color con bytes distintos, medido en
+VERIFICAR-NAYOLI-BYTE-1: 3 rutas con diff de bytes y 0 con efecto visual—; la vara es el PÍXEL,
+medido con el mismo arnés que ya existía, ahora determinista y con fixture fijo.
+
+### El fixture — qué se commitea
+
+`tests/visual/nayoli/*.png`: 8 archivos (6 rutas + 2 hovers), **3.0 MB total**. Viewport
+1280×900, `fullPage: true`, claro forzado (`colorScheme:'light'`, § el storefront está
+`forcedTheme='light'` — medido en `VERIFICAR-NAYOLI-VISUAL-1`, no se repitió acá). El fixture
+sale del ÁRBOL ACTUAL, no de `main` — autorizado por el `externo` del dispatch
+(`NAYOLI_IDENTICA_VISUAL`, § VERIFICAR-NAYOLI-VISUAL-1: "la rama mide visualmente idéntica a
+main… no hace falta rebuildear main sólo para eso"), así que esta tanda **NO** construyó el
+worktree de `main` en ningún momento — sólo la rama, tres veces (dos generaciones de fixture, un
+self-run del guard), cada una en su propio cluster Postgres efímero.
+
+### Deviations
+
+1. **Se regeneró el fixture UNA SEGUNDA VEZ** (build completo, no una edición manual) al
+   descubrir el bug de `createdAt`/timezone en §2 — el spec pedía "una sola build", pero un
+   fixture con el orden de catálogo roto (mostrando productos sintéticos en vez de los 4
+   canónicos) habría sido un fixture INCORRECTO desde el día uno, y el propio self-run lo
+   demostró con 3 rutas divergentes que NO eran sobre color. Corregir la causa (dentro de
+   `touches:`, en `verificar-nayoli-visual.ts`) y regenerar era más barato y más correcto que
+   commitear un fixture sabido-roto con una nota de "no confíes en esto".
+2. **`pathToFileURL` en vez de `file://${argv[1]}`** para el guard de entrypoint — no estaba en
+   el spec, encontrado midiendo (exit 0 + cero output en la primera corrida) antes de gastar la
+   build real en algo que no iba a hacer nada.
+3. **La lista `SISTEMA_DE_COLOR` interpreta "catálogos de fuente/forma" como 2 archivos**
+   (`fuentes.ts`, `formas.ts`), no 5 (sin sus `-style.ts` ni `palette-style.ts`/
+   `palette-schema.ts`/`theme-mirador.ts`) — juicio propio sobre una frase ambigua del spec, NO
+   una re-medición pedida. Documentado como posible gap, no corregido (ampliar la lista es
+   decisión de contenido, no de `touches`).
+
+### Hallazgo fuera de `touches` — NO corregido, reportado
+
+**`prisma/seed.ts`'s `SiteSetting.upsert` con `update: {}` NUNCA aplica `create:{nombre:'Café
+Nayoli',…}` sobre una base fresca** (migrate deploy + seed.ts, exactamente el patrón que usan
+los CUATRO arneses de esta familia — `verificar-nayoli.ts`, `verificar-nayoli-visual.ts`,
+`guarda-color.ts`, y `test-integracion.sh`): la migración `20260824120000_add_site_setting`
+inserta la fila NEUTRA (`nombre:'Configura tu tienda'`) primero, y el upsert del seed encuentra
+la fila YA EXISTE → `update:{}` (no-op) → "Café Nayoli" nunca se escribe. Medido en las capturas
+de esta tanda (el header dice "Configura tu tienda", no "Café Nayoli") y confirmado en el propio
+log del carril de integración de este gate: *"Gracias por comprar en Configura tu tienda."* en
+un test de notificaciones que pasó igual (✔) porque no afirma el nombre del negocio.
+
+**Esto contradice CLAUDE.md línea 4494-4495** ("La DEMO de Nayoli no cambia: su seed upserta los
+valores reales sobre la fila") — cierto para la base PERSISTENTE de Nayoli (que ya tenía
+'Café Nayoli' de cuando la migración original —antes de editarse a neutra— corrió), pero FALSO
+para cualquier base FRESCA construida vía `migrate deploy`+`seed.ts` desde cero, que es
+justamente el método que el propio párrafo de al lado describe para el carril de integración
+("aplica TODAS las migraciones… en un Postgres fresco"). Fuera de `touches:` de este slice
+(tocar `prisma/seed.ts` no está autorizado) — se reporta, no se corrige.
+
+### `touches:` — lo que se escribió
+
+`scripts/verificar-nayoli-visual.ts` (modificado: modo determinista, exports compartidos, modo
+`--generar-fixture`, fix de `createdAt` de los sintéticos, fix de `pathToFileURL`),
+`scripts/guarda-color.ts` (nuevo), `package.json` (script `guarda:color` + sumado a
+`pre-merge`), `tests/visual/nayoli/*.png` (8 archivos nuevos, 3.0 MB), este asiento. Sin cambios
+a `package-lock.json` (pixelmatch/pngjs ya estaban instalados desde `VERIFICAR-NAYOLI-VISUAL-1`,
+ninguna dependencia nueva).
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó directamente: `verificar-nayoli-visual.ts`, `guarda-color.ts`
+(nuevo, sin apariciones previas), `guarda:color`, `pre-merge`, `tests/visual/nayoli`,
+`pixelmatch`, `pngjs`. Grepeados uno por uno contra CLAUDE.md (no DECISIONS.md):
+
+| símbolo | hits en CLAUDE.md | ¿alguno queda falso? |
+| --- | --- | --- |
+| `verificar-nayoli-visual`, `guarda-color`, `guarda:color` | 0 | — (herramientas no documentadas ahí) |
+| `pre-merge` | 0 | — |
+| `tests/visual` | 0 | — |
+| `pixelmatch`, `pngjs` | 0 | — |
+
+**Nada en CLAUDE.md nombra lo que este diff cambió directamente.** El único hallazgo relevante
+(`Configura tu tienda`/`SiteSetting.upsert`, § arriba) es ADYACENTE — lo destapó esta tanda al
+correr el arnés, pero vive en un archivo (`prisma/seed.ts`) que este diff NO toca.
+
+### Verdicto
+
+**Gate VERDE en el árbol final**: `npx tsc --noEmit` → 0 errores; `npm test` → **1916/1916**, 0
+fail; `npm run test:integracion` → **228/228**, 0 fail — reconciliado contra el piso de
+`3386392`/`ee9ff70` ("tsc 0 + 1916/1916 + 228/228"), sin diferencia: ninguno de los archivos
+tocados por este diff cae bajo los globs de `npm test` ni bajo `tests/integracion/`.
+
+`npm run guarda:color` CORRIÓ tres veces sobre el árbol final, en clusters Postgres efímeros
+separados cada vez: la 1ª (fixture roto por el bug de §2) dio `exit 1` con 3 rutas divergentes
+—hallazgo real, no ruido—; la 2ª y 3ª (tras el fix, fixture regenerado) dieron `exit 0` con
+0/8 IDÉNTICO. La calibración (override de `--sf-fondo`) confirmó en ambas generaciones del
+fixture que el pipeline SÍ atrapa un cambio real (≠0px, cientos de miles de píxeles).
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea.
+`stopped_on: [customer-bytes]` — heredado de la rama, mismo eje que los dos asientos anteriores
+de esta familia: este commit, por su cuenta, no agrega bytes de cliente/operador/dueño (es
+tooling de verificación + un fixture de test), pero la rama que aterrizaría sobre `main` sigue
+cargando los de antes. El commit queda en la rama a la espera del merge gateado del orquestador.

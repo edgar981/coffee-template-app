@@ -39,10 +39,13 @@
 //      resuelven `decidirMolienda` a `'automatica'` (una sola opción disponible) — nunca `'eleccion'`
 //      ni `'agotada'`. Sin sembrar más, "cada estado visual de ProductCard que Nayoli renderiza"
 //      sería sólo un subconjunto. Los 5 sintéticos se insertan por SQL crudo (vía `psql`, no
-//      Prisma) DESPUÉS del seed canónico — con `createdAt` posterior (el default `now()` de la
-//      columna alcanza, sin tocarlo) para que NO entren en los primeros 4 de
-//      `FeaturedProductsCuadricula` (`catalog.slice(0, 4)`, home) y la home siga mostrando
-//      exactamente los 4 de siempre — no se contamina una superficie que no hacía falta tocar.
+//      Prisma) DESPUÉS del seed canónico — con `createdAt` EXPLÍCITO (§ GUARDA-COLOR-NAYOLI-1,
+//      `sqlProductoSintetico`: el default `now()` de la columna NO alcanzaba — medido, contradice
+//      lo que esta línea afirmaba desde VERIFICAR-NAYOLI-VISUAL-1 — un mismatch de huso horario
+//      entre la sesión de `psql` y la de Prisma hacía que los 5 sintéticos GANARAN por 5 horas a
+//      los 4 canónicos) para que NO entren en los primeros 4 de `FeaturedProductsCuadricula`
+//      (`catalog.slice(0, 4)`, home) y la home siga mostrando exactamente los 4 de siempre — no se
+//      contamina una superficie que no hacía falta tocar.
 //   3. Chromium headless AISLADO (Playwright instalado con `npm install --prefix
 //      .arnes-tooling/playwright`, el MISMO mecanismo y el MISMO directorio persistente que
 //      `capturar-seccion.ts` — reusa la instalación si ya está cacheada; `touches:` de este slice
@@ -112,19 +115,53 @@
 // (capa 3) — mide píxeles, no gusto. Nayoli es "los defaults, sin preset" — no se aplica ningún
 // preset de `themes.ts`.
 //
-// ─── DESVIACIÓN DECLARADA: LA FIXTURE FIJA NO SE COMMITEA EN ESTE SLICE ─────────────────────────
-// El spec de esta tanda dice, textual: "dejá las capturas de main como fixture fijo… decidí vos si
-// las commiteás como PNG o como firma compacta". PERO `touches:` de este slice sólo nombra
+// ─── § GUARDA-COLOR-NAYOLI-1 — CERRÓ LOS DOS REFINAMIENTOS DE ARRIBA ────────────────────────────
+// La "DESVIACIÓN DECLARADA" de abajo (fixture no commiteada) y el ruido de timing del punto 5
+// (scroll-cue en loop) quedan CERRADOS por esta tanda, no por la que sigue:
+//
+//   (a) CAPTURA DETERMINISTA (§ `activarRelojCongelado`, abajo): congela
+//       `requestAnimationFrame`/`performance.now()` a un valor CONSTANTE vía `page.addInitScript`
+//       — con "ahora" fijo, todo cálculo `elapsed = ahora − inicio` de framer-motion da SIEMPRE 0,
+//       así que el loop `y:[0,8,0], repeat:Infinity` del scroll-cue (§ punto 5, arriba) queda
+//       pinneado en su PRIMER keyframe desde el primer frame, sin depender de CUÁNDO en tiempo
+//       real montó el componente. Se descartaron las otras dos opciones que el dispatch permitía
+//       medir: `MotionGlobalConfig.skipAnimations=true` exige que la APP lo invoque (ningún
+//       componente está en `touches` de esta tanda); `animations:'disabled'` de Playwright YA
+//       estaba activo (línea de `capturarRutaCompleta`) y NO alcanzaba — opera sobre
+//       `document.getAnimations()`, que sólo ve Web Animations NATIVAS (CSS/WAAPI), y el scroll-
+//       cue se prueba JS-RAF-driven precisamente porque ese flag no lo tocaba (medido en
+//       VERIFICAR-NAYOLI-VISUAL-1, 3 corridas, ~160px intermitente pese al flag activo).
+//       RIESGO EVALUADO: ¿congelar `now()` rompe las entradas `whileInView` (fade-up) que el
+//       scroll-completo-y-espera existe para revelar? Medido que NO: las 7 rutas restantes YA
+//       daban 0px SIN este freeze (scroll+espera real ya las asentaba), lo que indica que corren
+//       vía Web Animations nativas (insensibles al freeze de JS, driven por el reloj del
+//       compositor) o completan antes de que la página quede quieta — el freeze sólo tiene efecto
+//       OBSERVABLE sobre el loop RAF-driven que ya sabíamos que `animations:'disabled'` no
+//       alcanzaba. Confirmado por inspección visual de la captura resultante (§ asiento).
+//   (b) EL "cinturón-y-tirantes" de `transition-duration:0s` (antes un `addStyleTag` suelto tras
+//       `newPage()`) SE MOVIÓ AL MISMO `addInitScript`: `addStyleTag` inyecta en el documento
+//       ACTUAL y NO sobrevive una navegación (`page.goto`) — confirmado contra los tipos de
+//       Playwright ("Raw CSS content to be injected into FRAME", sin la garantía de
+//       reinyección-en-cada-navegación que `addInitScript` sí documenta explícitamente: "Whenever
+//       the page is navigated"). El `addStyleTag` original, llamado UNA vez sobre `about:blank`
+//       antes del primer `goto()` del loop de rutas, se perdía en la primera navegación y nunca
+//       aplicaba a ninguna de las 6 rutas capturadas — bug preexistente, corregido de paso porque
+//       cae dentro del mismo mecanismo que esta tanda ya está tocando.
+//   (c) LA FIXTURE FIJA SE COMMITEA (§ tests/visual/nayoli/*.png): el `touches` de
+//       GUARDA-COLOR-NAYOLI-1 SÍ nombra `tests/visual/nayoli/` sin acotar a `.gitkeep`, así que la
+//       restricción que forzó la desviación de abajo ya no aplica. El modo `--generar-fixture` de
+//       `main()` (al final del archivo) escribe ahí.
+//
+// ─── DESVIACIÓN HISTÓRICA (VERIFICAR-NAYOLI-VISUAL-1): LA FIXTURE FIJA NO SE COMMITEABA ─────────
+// El spec de esa tanda decía, textual: "dejá las capturas de main como fixture fijo… decidí vos si
+// las commiteás como PNG o como firma compacta". PERO `touches:` de esa tanda sólo nombraba
 // `tests/visual/nayoli/.gitkeep` bajo ese directorio — ningún archivo `.png` ni ningún otro nombre.
 // El contrato del dispatch es tajante: "YOUR DIFF MUST STAY INSIDE touches… If the work turns out
 // to need a file outside it, stop and say so — do not widen it yourself." Entre el texto del spec
-// (que sugiere commitear) y el campo `touches` (que sólo autoriza el `.gitkeep`), gana `touches` —
-// es el campo que el validador usó para fijar el tier y que la aprobación del owner tiene delante.
-// Así que: este slice crea el directorio `tests/visual/nayoli/` con SÓLO su `.gitkeep` (scaffold),
-// y la herramienta escribe sus capturas/diffs reales en `.scratch/verificar-nayoli-visual/`
-// (gitignoreado, nunca en el árbol versionado) — nunca deja un PNG suelto bajo `tests/visual/`.
-// Comprometer la fixture real (PNG o firma compacta) queda como follow-up con `touches` propio:
-// `VERIFICAR-NAYOLI-VISUAL-FIXTURE-COMMIT-1`.
+// (que sugiere commitear) y el campo `touches` (que sólo autorizaba el `.gitkeep`), ganó `touches`.
+// Esa tanda creó el directorio `tests/visual/nayoli/` con SÓLO su `.gitkeep` (scaffold), y dejó el
+// commit de la fixture real como follow-up (`VERIFICAR-NAYOLI-VISUAL-FIXTURE-COMMIT-1`) — el que
+// esta tanda, GUARDA-COLOR-NAYOLI-1, cierra en (c) arriba.
 import { spawnSync, spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import {
@@ -138,35 +175,40 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createServer } from "node:net";
 
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
 
-const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
+export const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SALIDA_DIR = join(RAIZ, ".scratch", "verificar-nayoli-visual");
 const CAPTURAS_DIR = join(SALIDA_DIR, "capturas");
 const DIFF_DIR = join(SALIDA_DIR, "diffs");
 const TOOLING_DIR = join(RAIZ, ".arnes-tooling", "playwright");
 
+// El fixture fijo que GUARDA-COLOR-NAYOLI-1 commitea — mismo directorio que lee `guarda-color.ts`.
+export const FIXTURE_DIR = join(RAIZ, "tests", "visual", "nayoli");
+
 // Puertos y base PROPIOS — distintos de test-integracion.sh (55432), capturar-seccion.sh
 // (55434/3477) y verificar-nayoli.ts (55438/3491/3492), para poder correr los cuatro arneses uno
-// al lado del otro sin pisarse.
+// al lado del otro sin pisarse. `guarda-color.ts` usa los SUYOS propios (55440/3495), declarados
+// en ese archivo — nunca corre a la vez que éste, pero comparten el mismo mecanismo de "puerto
+// propio" para poder correr en paralelo si alguna vez hiciera falta.
 const PUERTO_PG = 55439;
 const BASE_PG = "verificarnayolivisual";
 const PUERTO_MAIN = 3493;
 const PUERTO_RAMA = 3494;
-const ANCHO_VIEWPORT = 1280;
-const ALTO_VIEWPORT = 900;
+export const ANCHO_VIEWPORT = 1280;
+export const ALTO_VIEWPORT = 900;
 
 const WORKTREE_MAIN = join(RAIZ, ".scratch", "verificar-nayoli-visual-main");
 
 // El producto canónico del seed (§ prisma/seed-products.ts), slug ESTABLE en main y en la rama.
-const SLUG_PRODUCTO = "cafe-nayoli-grano-250g";
-const SLUG_ELECCION = "verificar-visual-eleccion";
+export const SLUG_PRODUCTO = "cafe-nayoli-grano-250g";
+export const SLUG_ELECCION = "verificar-visual-eleccion";
 
-const RUTAS: { path: string; nombre: string }[] = [
+export const RUTAS: { path: string; nombre: string }[] = [
   { path: "/", nombre: "home" },
   { path: "/tienda", nombre: "tienda" },
   { path: `/tienda/${SLUG_PRODUCTO}`, nombre: "producto" },
@@ -175,9 +217,17 @@ const RUTAS: { path: string; nombre: string }[] = [
   { path: "/suscripciones", nombre: "suscripciones" },
 ];
 
+// Los NOMBRES de fixture, en el mismo orden que `RUTAS` + los 2 hovers — la única lista que
+// `guarda-color.ts` necesita para saber qué archivos leer de `FIXTURE_DIR`.
+export const CLAVES_FIXTURE: string[] = [
+  ...RUTAS.map((r) => `ruta-${r.nombre}`),
+  "hover-automatica",
+  "hover-eleccion",
+];
+
 // ─── Postgres efímero — MISMO mecanismo que verificar-nayoli.ts (reimplementado acá porque
 // `touches:` de este slice no incluye un `.sh` compartido) ───────────────────────────────────────
-interface PgEfimero {
+export interface PgEfimero {
   databaseUrl: string;
   detener(): void;
 }
@@ -190,7 +240,7 @@ function puertoLibre(puerto: number): Promise<boolean> {
   });
 }
 
-async function levantarPostgres(puerto: number, base: string): Promise<PgEfimero> {
+export async function levantarPostgres(puerto: number, base: string): Promise<PgEfimero> {
   for (const bin of ["initdb", "pg_ctl", "psql"]) {
     const chequeo = spawnSync("which", [bin]);
     if (chequeo.status !== 0) {
@@ -232,7 +282,7 @@ async function levantarPostgres(puerto: number, base: string): Promise<PgEfimero
   };
 }
 
-function migrarYSembrar(env: NodeJS.ProcessEnv): void {
+export function migrarYSembrar(env: NodeJS.ProcessEnv): void {
   console.log("▸ Aplicando migraciones (una vez, sirve a los dos árboles)…");
   let r = spawnSync("npm", ["run", "--silent", "db:deploy", "-w", "@duna/core"], { cwd: RAIZ, env, stdio: "inherit" });
   if (r.status !== 0) throw new Error("migrate deploy falló.");
@@ -248,6 +298,30 @@ function migrarYSembrar(env: NodeJS.ProcessEnv): void {
 // (el cliente generado lee `process.env.DATABASE_URL` al construirse — `packages/core/client.ts` —
 // y una importación ESM estática se evalúa ANTES de que este script pueda fijar esa env var).
 // `id` = `slug` en los 5, legible y sin colisión con los `cuid()` del seed canónico.
+// `createdAt` EXPLÍCITO — § GUARDA-COLOR-NAYOLI-1, bug propio encontrado y corregido acá.
+// Ya NO se deja al default de columna (`now()`/`CURRENT_TIMESTAMP`). MEDIDO (diagnóstico directo
+// contra una base descartable, sin build): con el default, los 5 sintéticos (insertados por
+// `psql -f`, SESIÓN PROPIA) caían en `2026-09-24 16:43:28.35x`, y los 4 canónicos (insertados por
+// `prisma.product.upsert`, SESIÓN de Prisma) en `2026-09-24 21:43:28.0xx` — **5 HORAS DE
+// DIFERENCIA, sintéticos "antes"** — pese a que los sintéticos se insertan DESPUÉS en tiempo real.
+// La columna es `TIMESTAMP(3)` SIN zona horaria: `CURRENT_TIMESTAMP` se graba tal cual la ve la
+// SESIÓN, y `psql` (con el cluster efímero en `America/Bogota`, § `levantarPostgres`) y el cliente
+// de Prisma no comparten esa sesión ni, evidentemente, la misma referencia horaria — así que
+// `ORDER BY "createdAt" ASC` (`/api/catalog`) ponía los 5 sintéticos COMO SI fueran más viejos que
+// los 4 canónicos, y `catalog.slice(0,4)` (`FeaturedProductsCuadricula`) mostraba los sintéticos en
+// vez de los 4 de siempre — exactamente lo que el comentario original de esta función prometía que
+// NO iba a pasar. Y por si esto solo no bastara: 2 pares de los 5 sintéticos EMPATABAN al
+// milisegundo (`.357`/`.357`, `.358`/`.358`/`.358`) — un empate que Postgres no garantiza resolver
+// igual entre dos corridas (dos clusters efímeros DISTINTOS, § GUARDA-COLOR-NAYOLI-1: el fixture y
+// el guard corren en clusters separados), y que produjo el hallazgo original de este slice: un
+// "self-run" del guard contra su propio fixture (misma rama, mismo código) NO daba 0px — 3 rutas
+// con diffs de miles de píxeles en la zona de la grilla de productos, nada que ver con color.
+//
+// LA CORRECCIÓN: `createdAt` EXPLÍCITO, un literal fijo en el año 2099 + `orden` SEGUNDOS —
+// ni depende de qué sesión evalúa "ahora" (elimina el mismatch de huso horario) ni dos filas
+// pueden empatar (el segundo entero, no el milisegundo de ejecución, decide el orden). 2099 está
+// muy por delante de cualquier `now()` real (Prisma o `psql`, en cualquier huso), así que los 5
+// sintéticos quedan DESPUÉS de los 4 canónicos por construcción, no por suerte de timing.
 function sqlProductoSintetico(p: {
   id: string;
   nombre: string;
@@ -258,21 +332,23 @@ function sqlProductoSintetico(p: {
   badge: string | null;
   stock: number;
   moliendas: { nombre: string; metodo: string; disponible: boolean }[];
+  orden: number;
 }): string {
   const notasSql = `ARRAY[${p.notas.map((n) => `'${n.replace(/'/g, "''")}'`).join(", ")}]::text[]`;
   const badgeSql = p.badge === null ? "NULL" : `'${p.badge.replace(/'/g, "''")}'`;
   const moliendasJson = JSON.stringify(p.moliendas).replace(/'/g, "''");
   const descripcion = `Producto sintético de VERIFICAR-NAYOLI-VISUAL-1 — ejercita un estado de ProductCard que el catálogo canónico de Nayoli no cubre.`;
+  const createdAtSql = `TIMESTAMP '2099-01-01 00:00:00.000' + (${p.orden} * INTERVAL '1 second')`;
   return `
-INSERT INTO "Product" (id, nombre, slug, categoria, descripcion, precio, costo, stock, activo, imagen, notas, bestseller, badge, "moliendasOpciones", "updatedAt")
+INSERT INTO "Product" (id, nombre, slug, categoria, descripcion, precio, costo, stock, activo, imagen, notas, bestseller, badge, "moliendasOpciones", "createdAt", "updatedAt")
 VALUES (
   '${p.id}', '${p.nombre.replace(/'/g, "''")}', '${p.id}', '${p.categoria}', '${descripcion}',
   20000, 14000, ${p.stock}, true, '${p.imagen}', ${notasSql}, ${p.bestseller}, ${badgeSql},
-  '${moliendasJson}'::jsonb, now()
+  '${moliendasJson}'::jsonb, ${createdAtSql}, ${createdAtSql}
 );`;
 }
 
-function sembrarEstadosProductCard(databaseUrl: string): void {
+export function sembrarEstadosProductCard(databaseUrl: string): void {
   console.log("▸ Sembrando 5 productos sintéticos — los estados de ProductCard que Nayoli no cubre…");
   const automatica = [{ nombre: "Grano entero", metodo: "Muele en casa a tu gusto", disponible: true }];
   const eleccion = [
@@ -296,6 +372,7 @@ function sembrarEstadosProductCard(databaseUrl: string): void {
       badge: null,
       stock: 10,
       moliendas: automatica,
+      orden: 0,
     }),
     // Agotado (`stock=0` → `disponible=false` en /api/catalog → etiqueta "Agotado", sin botón) +
     // badge presente CON `bestseller=false` (color `--sf-tostado`, el que el catálogo canónico no
@@ -310,6 +387,7 @@ function sembrarEstadosProductCard(databaseUrl: string): void {
       badge: "Edición limitada",
       stock: 0,
       moliendas: automatica,
+      orden: 1,
     }),
     // Sin notas de cata (`notas` no puede ser NULL — la columna es `String[] @default([])` — así
     // que "sin ellas" es un array VACÍO, el estado real que la base puede producir) + badge CON
@@ -324,6 +402,7 @@ function sembrarEstadosProductCard(databaseUrl: string): void {
       badge: "Oferta",
       stock: 10,
       moliendas: automatica,
+      orden: 2,
     }),
     // `decidirMolienda` → 'eleccion' (2 disponibles): ícono SlidersHorizontal en vez de
     // ShoppingBag, sólo visible en hover (§ cabecera, punto 7).
@@ -337,6 +416,7 @@ function sembrarEstadosProductCard(databaseUrl: string): void {
       badge: null,
       stock: 10,
       moliendas: eleccion,
+      orden: 3,
     }),
     // `decidirMolienda` → 'agotada' (declara opciones, ninguna disponible): `product.disponible`
     // sigue en `true` (hay stock), así que el botón se muestra igual que 'automatica' — la única
@@ -351,6 +431,7 @@ function sembrarEstadosProductCard(databaseUrl: string): void {
       badge: null,
       stock: 10,
       moliendas: agotadaMolienda,
+      orden: 4,
     }),
   ].join("\n");
 
@@ -386,7 +467,7 @@ function quitarWorktreeMain(): void {
 }
 
 // ─── Build + start de un árbol — MISMO mecanismo que verificar-nayoli.ts ────────────────────────
-function entornoArbol(puerto: number, databaseUrl: string): NodeJS.ProcessEnv {
+export function entornoArbol(puerto: number, databaseUrl: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     PORT: String(puerto),
@@ -397,14 +478,14 @@ function entornoArbol(puerto: number, databaseUrl: string): NodeJS.ProcessEnv {
   };
 }
 
-function construir(cwd: string, env: NodeJS.ProcessEnv, etiqueta: string): void {
+export function construir(cwd: string, env: NodeJS.ProcessEnv, etiqueta: string): void {
   console.log(`▸ [${etiqueta}] next build…`);
   const r = spawnSync("npx", ["next", "build"], { cwd, env, stdio: "inherit" });
   if (r.status !== 0) throw new Error(`[${etiqueta}] next build falló.`);
   console.log(`✔ [${etiqueta}] build listo.`);
 }
 
-function arrancar(cwd: string, env: NodeJS.ProcessEnv, puerto: number): ChildProcess {
+export function arrancar(cwd: string, env: NodeJS.ProcessEnv, puerto: number): ChildProcess {
   return spawn("npx", ["next", "start", "-p", String(puerto)], {
     cwd,
     env,
@@ -413,7 +494,7 @@ function arrancar(cwd: string, env: NodeJS.ProcessEnv, puerto: number): ChildPro
   });
 }
 
-async function detener(child: ChildProcess): Promise<void> {
+export async function detener(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.killed) return;
   const pid = child.pid;
   const matarArbol = (señal: NodeJS.Signals) => {
@@ -433,7 +514,7 @@ async function detener(child: ChildProcess): Promise<void> {
   });
 }
 
-async function esperarListo(url: string, timeoutMs: number): Promise<void> {
+export async function esperarListo(url: string, timeoutMs: number): Promise<void> {
   const limite = Date.now() + timeoutMs;
   let ultimoError: unknown;
   while (Date.now() < limite) {
@@ -451,35 +532,36 @@ async function esperarListo(url: string, timeoutMs: number): Promise<void> {
 // ─── Playwright AISLADO — MISMO mecanismo que capturar-seccion.ts (§ su cabecera): nunca una
 // dependencia del repo, instalado con --prefix en un directorio gitignoreado y persistente entre
 // corridas. Reusa la instalación de capturar-seccion.ts si ya está cacheada (mismo TOOLING_DIR). ─
-interface PlaywrightResponse {
+export interface PlaywrightResponse {
   status(): number;
 }
-interface PlaywrightLocator {
+export interface PlaywrightLocator {
   screenshot(opts: { path: string }): Promise<Buffer>;
   hover(opts?: { timeout?: number }): Promise<void>;
   waitFor(opts?: { timeout?: number }): Promise<void>;
 }
-interface PlaywrightPage {
+export interface PlaywrightPage {
   goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<PlaywrightResponse | null>;
   screenshot(opts: { path: string; fullPage?: boolean; animations?: "disabled" | "allow" }): Promise<Buffer>;
   locator(selector: string): PlaywrightLocator;
   evaluate<T, Arg = undefined>(fn: (arg: Arg) => T, arg: Arg): Promise<T>;
   addStyleTag(opts: { content: string }): Promise<unknown>;
+  addInitScript(opts: { content: string }): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   close(): Promise<void>;
 }
-interface PlaywrightBrowser {
+export interface PlaywrightBrowser {
   newPage(opts?: {
     viewport?: { width: number; height: number };
     colorScheme?: "light" | "dark" | "no-preference";
   }): Promise<PlaywrightPage>;
   close(): Promise<void>;
 }
-interface PlaywrightModule {
+export interface PlaywrightModule {
   chromium: { launch(opts?: { headless?: boolean }): Promise<PlaywrightBrowser> };
 }
 
-function cargarPlaywright(): PlaywrightModule {
+export function cargarPlaywright(): PlaywrightModule {
   const pkgJson = join(TOOLING_DIR, "package.json");
   if (!existsSync(pkgJson)) {
     console.log(`▸ Playwright no está instalado (aislado) — instalando en ${TOOLING_DIR}…`);
@@ -503,6 +585,50 @@ function cargarPlaywright(): PlaywrightModule {
   }
   const req = createRequire(pkgJson);
   return req("playwright") as PlaywrightModule;
+}
+
+// ─── MODO DETERMINISTA — congela el reloj de animación (§ GUARDA-COLOR-NAYOLI-1, punto (a)) ─────
+// `requestAnimationFrame`/`performance.now()` quedan FIJOS a un valor CONSTANTE, inyectados vía
+// `page.addInitScript` — corre ANTES de cualquier script de la página, en CADA navegación de este
+// `BrowserContext` (a diferencia de `addStyleTag`, que sólo alcanza al documento actual — por eso
+// el `transition-duration:0s` cinturón-y-tirantes también se movió acá, § punto (b) del asiento de
+// cabecera). Con "ahora" fijo, `elapsed = ahora − inicio` da SIEMPRE 0 para cualquier animación
+// JS-RAF-driven de framer-motion — el loop del scroll-cue (`HeroCurtina.tsx`, `y:[0,8,0],
+// repeat:Infinity`) queda pinneado en su primer keyframe, desde el primer frame, sin depender de
+// CUÁNDO en tiempo real montó el componente. Se sigue llamando al `requestAnimationFrame` NATIVO
+// (el navegador sigue pintando) — sólo se falsea el TIMESTAMP que recibe el callback.
+const RELOJ_CONGELADO_MS = 1_000;
+
+export async function activarModoDeterminista(page: PlaywrightPage): Promise<void> {
+  await page.addInitScript({
+    content: `
+      (function () {
+        var FIJO = ${RELOJ_CONGELADO_MS};
+        var rafReal = window.requestAnimationFrame.bind(window);
+        window.requestAnimationFrame = function (cb) {
+          return rafReal(function () { cb(FIJO); });
+        };
+        try {
+          Object.defineProperty(window.performance, "now", {
+            value: function () { return FIJO; },
+            configurable: true,
+          });
+        } catch (e) {
+          window.performance.now = function () { return FIJO; };
+        }
+        function inyectarCss() {
+          var s = document.createElement("style");
+          s.textContent = "*,*::before,*::after{transition-duration:0s!important;transition-delay:0s!important;}";
+          (document.head || document.documentElement).appendChild(s);
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", inyectarCss);
+        } else {
+          inyectarCss();
+        }
+      })();
+    `,
+  });
 }
 
 // ─── Scroll completo + settle temporal (§ cabecera, puntos 4-5) ─────────────────────────────────
@@ -540,25 +666,24 @@ async function capturarCardEnHover(page: PlaywrightPage, origen: string, slug: s
   await card.screenshot({ path: destino });
 }
 
-interface CapturaArbol {
+export interface CapturaArbol {
   rutas: Record<string, string>;
   hoverAutomatica: string;
   hoverEleccion: string;
 }
 
-async function capturarArbol(browser: PlaywrightBrowser, origen: string, etiqueta: string, dir: string): Promise<CapturaArbol> {
+export async function capturarArbol(browser: PlaywrightBrowser, origen: string, etiqueta: string, dir: string): Promise<CapturaArbol> {
   mkdirSync(dir, { recursive: true });
   const page = await browser.newPage({
     viewport: { width: ANCHO_VIEWPORT, height: ALTO_VIEWPORT },
     colorScheme: "light",
   });
-  // `animations: 'disabled'` en `page.screenshot` ya inmoviliza CSS/WAAPI; esta hoja adicional
-  // apaga además las transiciones NATIVAS de Tailwind que la card usa fuera del path de framer-
-  // motion (`transition-all duration-300`, `transition-opacity`), cinturón-y-tirantes sobre el
-  // settle temporal de arriba.
-  await page.addStyleTag({
-    content: "*, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; }",
-  });
+  // `animations:'disabled'` en `page.screenshot` ya inmoviliza CSS/WAAPI nativo; el modo
+  // determinista (§ arriba) cierra lo que ESE flag no alcanza — el loop RAF-driven del scroll-cue
+  // — Y lleva el `transition-duration:0s` de las transiciones nativas de Tailwind DENTRO del
+  // `addInitScript`, así sobrevive cada navegación (`addStyleTag` no lo hacía, § asiento de
+  // cabecera, punto (b)).
+  await activarModoDeterminista(page);
   const rutas: Record<string, string> = {};
   for (const { path, nombre } of RUTAS) {
     console.log(`  [${etiqueta}] GET ${path} (captura de página completa)…`);
@@ -597,7 +722,7 @@ async function buildStartCapturar(cwd: string, puerto: number, databaseUrl: stri
 }
 
 // ─── Diff de píxeles ─────────────────────────────────────────────────────────────────────────
-interface ResultadoDiff {
+export interface ResultadoDiff {
   clave: string;
   identico: boolean;
   dimensionesDistintas: { main: string; rama: string } | null;
@@ -607,7 +732,7 @@ interface ResultadoDiff {
   cajaDiff: { x0: number; y0: number; x1: number; y1: number } | null;
 }
 
-function compararPng(pathMain: string, pathRama: string, clave: string, diffOutPath: string): ResultadoDiff {
+export function compararPng(pathMain: string, pathRama: string, clave: string, diffOutPath: string): ResultadoDiff {
   const bufA = readFileSync(pathMain);
   const bufB = readFileSync(pathRama);
   const pngA = PNG.sync.read(bufA);
@@ -688,8 +813,144 @@ function compararPng(pathMain: string, pathRama: string, clave: string, diffOutP
   };
 }
 
+// ─── `--generar-fixture` — GUARDA-COLOR-NAYOLI-1, § el fixture, del árbol ACTUAL ────────────────
+// Construye y arranca SÓLO la rama actual (§0 del dispatch: "no hace falta rebuildear main sólo
+// para eso" — la rama ya se midió visualmente idéntica a main, § VERIFICAR-NAYOLI-VISUAL-1), la
+// captura DOS VECES en modo determinista (prueba de determinismo: las dos deben dar 0px), copia la
+// primera tanda a `tests/visual/nayoli/` como fixture fijo, y calibra el pipeline de diff inyectando
+// un override de `--sf-fondo` sobre la home ya capturada — debe dar ≠0px, o el diff no atrapa nada.
+function rutaDeClave(captura: CapturaArbol, clave: string): string {
+  if (clave === "hover-automatica") return captura.hoverAutomatica;
+  if (clave === "hover-eleccion") return captura.hoverEleccion;
+  const nombre = clave.replace(/^ruta-/, "");
+  const ruta = captura.rutas[nombre];
+  if (!ruta) throw new Error(`Clave de fixture desconocida: ${clave}`);
+  return ruta;
+}
+
+async function generarFixture(): Promise<void> {
+  console.log("─".repeat(78));
+  console.log("GUARDA-COLOR-NAYOLI-1 — generando el fixture fijo desde el árbol ACTUAL");
+  console.log("(una sola build; NO se rebuildea main — § externo NAYOLI_IDENTICA_VISUAL).");
+  console.log("─".repeat(78));
+
+  mkdirSync(SALIDA_DIR, { recursive: true });
+  mkdirSync(FIXTURE_DIR, { recursive: true });
+  const playwright = cargarPlaywright();
+
+  const pg = await levantarPostgres(PUERTO_PG, BASE_PG);
+  try {
+    const envMigra = {
+      ...process.env,
+      DATABASE_URL: pg.databaseUrl,
+      DIRECT_DATABASE_URL: pg.databaseUrl,
+      BETTER_AUTH_SECRET: "verificar-nayoli-visual-secreto-inerte-0123456789",
+      BETTER_AUTH_URL: `http://127.0.0.1:${PUERTO_RAMA}`,
+    };
+    migrarYSembrar(envMigra);
+    sembrarEstadosProductCard(pg.databaseUrl);
+
+    const env = entornoArbol(PUERTO_RAMA, pg.databaseUrl);
+    construir(RAIZ, env, "fixture");
+    console.log(`▸ [fixture] next start en :${PUERTO_RAMA}…`);
+    const child = arrancar(RAIZ, env, PUERTO_RAMA);
+    let salida = "";
+    child.stdout?.on("data", (d) => (salida += String(d)));
+    child.stderr?.on("data", (d) => (salida += String(d)));
+    const origen = `http://127.0.0.1:${PUERTO_RAMA}`;
+    try {
+      await esperarListo(`${origen}/`, 90_000).catch((e) => {
+        throw new Error(`[fixture] next start no respondió a tiempo: ${e}\n\n── stdout/stderr ──\n${salida}`);
+      });
+      console.log("✔ [fixture] next start responde.");
+
+      const browser = await playwright.chromium.launch({ headless: true });
+      try {
+        console.log("▸ Captura #1 (se convierte en la fixture)…");
+        const captura1 = await capturarArbol(browser, origen, "fixture-1", join(SALIDA_DIR, "fixture-1"));
+        console.log("▸ Captura #2 (prueba de determinismo — misma corrida de servidor, página nueva)…");
+        const captura2 = await capturarArbol(browser, origen, "fixture-2", join(SALIDA_DIR, "fixture-2"));
+
+        console.log("\n" + "─".repeat(78));
+        console.log("PRUEBA DE DETERMINISMO — misma árbol, 2 capturas, modo determinista activo:");
+        console.log("─".repeat(78));
+        let determinista = true;
+        for (const clave of CLAVES_FIXTURE) {
+          const pA = rutaDeClave(captura1, clave);
+          const pB = rutaDeClave(captura2, clave);
+          const r = compararPng(pA, pB, clave, join(SALIDA_DIR, "diffs-determinismo", `${clave}.png`));
+          if (r.dimensionesDistintas) {
+            determinista = false;
+            console.log(`  ${clave} → TAMAÑOS DISTINTOS entre las 2 capturas — inesperado.`);
+          } else if (r.identico) {
+            console.log(`  ${clave} → 0/${r.totalPixeles} px (determinista)`);
+          } else {
+            determinista = false;
+            console.log(`  ${clave} → DIFIERE entre las 2 capturas: ${r.pixelesDistintosConscienteAA}/${r.totalPixeles} px — el freeze NO eliminó el ruido.`);
+          }
+        }
+
+        console.log("\n▸ Copiando la captura #1 a " + FIXTURE_DIR + " (fixture fijo, se commitea)…");
+        for (const clave of CLAVES_FIXTURE) {
+          const origenPng = rutaDeClave(captura1, clave);
+          const destinoPng = join(FIXTURE_DIR, `${clave}.png`);
+          writeFileSync(destinoPng, readFileSync(origenPng));
+          console.log(`  ✔ ${clave}.png`);
+        }
+
+        // ── Calibración: inyectar un override de --sf-fondo y diffear contra el fixture recién
+        // escrito. Debe dar ≠0px — si diera 0, el pipeline de captura+diff no está atrapando nada.
+        console.log("\n" + "─".repeat(78));
+        console.log("CALIBRACIÓN — override de --sf-fondo sobre la home, diff contra el fixture:");
+        console.log("─".repeat(78));
+        const pageCalib = await browser.newPage({
+          viewport: { width: ANCHO_VIEWPORT, height: ALTO_VIEWPORT },
+          colorScheme: "light",
+        });
+        await activarModoDeterminista(pageCalib);
+        await pageCalib.goto(`${origen}/`, { waitUntil: "networkidle", timeout: 30_000 });
+        await pageCalib.addStyleTag({ content: ":root{--sf-fondo:#ff00ff !important;}" });
+        await scrollearYAsentar(pageCalib);
+        const destinoCalib = join(SALIDA_DIR, "calibracion-home.png");
+        await pageCalib.screenshot({ path: destinoCalib, fullPage: true, animations: "disabled" });
+        await pageCalib.close();
+        const rCalib = compararPng(join(FIXTURE_DIR, "ruta-home.png"), destinoCalib, "calibracion:ruta-home", join(SALIDA_DIR, "diffs-calibracion", "ruta-home.png"));
+        let calibracionOk: boolean;
+        if (rCalib.dimensionesDistintas) {
+          calibracionOk = false;
+          console.log("  ✗ tamaños distintos — no se pudo calibrar.");
+        } else if (rCalib.identico) {
+          calibracionOk = false;
+          console.log("  ✗ 0 px de diferencia — la calibración debía dar ≠0. El pipeline NO está atrapando el cambio inyectado.");
+        } else {
+          calibracionOk = true;
+          console.log(`  ✔ DIFIERE, como se esperaba: ${rCalib.pixelesDistintosConscienteAA}/${rCalib.totalPixeles} px (consciente de AA) — el pipeline atrapa un cambio de color real.`);
+        }
+
+        console.log("\n" + "─".repeat(78));
+        if (determinista && calibracionOk) {
+          console.log("✔ Fixture escrito, determinismo confirmado (0px en las 2 corridas), calibración confirma que el pipeline atrapa un cambio (≠0px).");
+          process.exitCode = 0;
+        } else {
+          console.log("✗ Algo no midió lo esperado — ver arriba antes de confiar en el fixture recién escrito.");
+          process.exitCode = 1;
+        }
+      } finally {
+        await browser.close();
+      }
+    } finally {
+      await detener(child);
+    }
+  } finally {
+    pg.detener();
+  }
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
+  if (process.argv.includes("--generar-fixture")) {
+    return generarFixture();
+  }
   console.log("─".repeat(78));
   console.log("VERIFICAR-NAYOLI-VISUAL-1 — captura headless en claro forzado, main vs. rama,");
   console.log("diff de píxeles de las rutas públicas de Nayoli + cada estado de ProductCard.");
@@ -777,7 +1038,29 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  console.error("❌ verificar-nayoli-visual falló:", e instanceof Error ? e.stack ?? e.message : e);
-  process.exitCode = 1;
-});
+// Sólo corre `main()` cuando este archivo es el ENTRYPOINT (invocado directo, `tsx
+// scripts/verificar-nayoli-visual.ts`) — `guarda-color.ts` (§ GUARDA-COLOR-NAYOLI-1) IMPORTA varias
+// funciones de este módulo, y sin esta guarda ese import dispararía el `main()` completo (build de
+// main + rama) como efecto secundario de cargar el archivo.
+//
+// `pathToFileURL`, NO una concatenación `file://${...}` a mano: el repo vive bajo una ruta CON
+// ESPACIO ("All Projects"), y `import.meta.url` codifica ese espacio como `%20` mientras
+// `process.argv[1]` es la ruta CRUDA del filesystem — la concatenación nunca matchea y la guarda
+// quedaba SIEMPRE en `false`, silenciando el `main()` incluso invocado directo (medido: la primera
+// corrida de `--generar-fixture` salió con exit 0 y CERO output — el entrypoint nunca se detectó
+// como tal). `pathToFileURL(...).href` aplica la MISMA codificación que `import.meta.url`, así que
+// las dos cadenas coinciden byte a byte.
+const esEntrypoint = (() => {
+  try {
+    return import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
+  } catch {
+    return false;
+  }
+})();
+
+if (esEntrypoint) {
+  main().catch((e) => {
+    console.error("❌ verificar-nayoli-visual falló:", e instanceof Error ? e.stack ?? e.message : e);
+    process.exitCode = 1;
+  });
+}
