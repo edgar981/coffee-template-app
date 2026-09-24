@@ -18,8 +18,9 @@
     "db:aplicar-preset": "tsx prisma/aplicar-preset.ts",
     "test:integracion": "bash scripts/test-integracion.sh",
     "gate": "npm run typecheck && npm test && npm run test:integracion",
-    "pre-merge": "npm run gate && npm run build",
-    "capturar:seccion": "bash scripts/capturar-seccion.sh"
+    "pre-merge": "npm run gate && npm run build && npm run verificar:nayoli",
+    "capturar:seccion": "bash scripts/capturar-seccion.sh",
+    "verificar:nayoli": "tsx scripts/verificar-nayoli.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

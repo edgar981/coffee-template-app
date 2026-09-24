@@ -17532,3 +17532,202 @@ los commits anteriores. `customer_bytes.changed: true` (heredado de la rama, no 
 `strings`: ninguno NUEVO introducido acá (los de "Confianza"/"Marquesina"/Origen ya están asentados en
 sus propios commits). `stopped_on: [customer-bytes]`. El commit queda en la rama a la espera del
 merge gateado del orquestador.
+
+## 2026-09-24 — Nayoli byte-idéntica, MEDIDA: build de main vs. la rama + diff HTML/CSS (`VERIFICAR-NAYOLI-BYTE-1`)
+
+Pedido del owner (2026-09-24), textual: *"antes de merge a main, tres cosas medidas, no afirmadas:
+Nayoli byte-idéntico, medido: build de main y de la rama con la config de Nayoli, y diff del HTML
+renderizado y del CSS generado de sus rutas públicas (home, catálogo, producto, checkout). Resultado
+esperado: diff vacío. 'Por construcción' no cuenta como prueba."* Se construyó `scripts/
+verificar-nayoli.ts` (+ `npm run verificar:nayoli`, sumado a `pre-merge`) y se CORRIÓ contra el árbol
+real. **El resultado NO fue el vacío esperado — y eso es exactamente lo que este slice existe para
+descubrir en vez de asumir.**
+
+### Metodología
+
+1. **Postgres efímero PROPIO**, reimplementado DENTRO de `verificar-nayoli.ts` (no en un `.sh`):
+   `touches:` de este slice es sólo ese archivo + `package.json` + este asiento, así que no hay
+   `verificar-nayoli.sh` que crear. Mismo mecanismo que `scripts/postgres-efimero.sh` (cluster en un
+   temp dir, `-k ''`, puerto propio — 55438, distinto de 55432/55434 ya usados).
+2. **`migrate deploy` + `prisma/seed.ts` UNA sola vez**, sirviendo a los DOS árboles: medido
+   (`git diff main..HEAD --stat -- packages/core/prisma/` y `-- prisma/seed.ts`) que el schema y el
+   seed son IDÉNTICOS entre `main` y la rama — cero archivos con diff. El seed siembra el
+   `SiteSetting` real de Nayoli (nombre, tagline, whatsapp…) y NO siembra `SiteContent`, así que el
+   storefront resuelve contra los DEFAULTS del código — el estado que el resto de la rama ya llama
+   informalmente "Nayoli sin preset" (§ `capturar-seccion.ts`). El producto sembrado por
+   `seed-products.ts` da un slug ESTABLE (`cafe-nayoli-grano-250g`), también sin diff entre ramas.
+3. **`git worktree add --detach .scratch/… main`** para construir `main` sin tocar el checkout de la
+   rama. `node_modules` se SYMLINKEA desde la rama al worktree (medido: cero diff de dependencias
+   entre las dos ramas, sólo scripts nuevos en `package.json`) — ahorra el `npm install`. **`packages/
+   core` y `packages/design-system` del checkout PROPIO del worktree se BORRAN, sin reemplazo**: medido
+   que ni symlinkear sólo `src/generated/prisma` ni symlinkear la carpeta `packages/core` ENTERA
+   alcanzan — en los dos casos `tsc` (el paso "Running TypeScript" de `next build`) trata al mismo tipo
+   de Prisma como DOS módulos nominalmente distintos (uno alcanzado por `<worktree>/packages/core/…`,
+   que el `include: ["**/*.ts"]` de tsconfig escanea como archivo RAÍZ del proyecto con su propia
+   identidad, y otro por `<worktree>/node_modules/@duna/core` → realpath → `RAIZ/packages/core`), y
+   el build falla con `Type 'AggregateOrder[P][P]' is not assignable to type '…'`. Borrar la carpeta
+   por completo deja UNA sola ruta de acceso (vía `node_modules/@duna/core`, que ya resuelve a
+   `RAIZ/packages/core`) — verificado por grep que nada bajo `app/`, `components/`, `lib/`, `services/`,
+   `constants/` importa `packages/core`/`design-system` por ruta relativa; todo pasa por el specifier
+   `@duna/*`.
+4. **`next build` + `next start`, SECUENCIAL, un puerto propio por árbol** (3491 main, 3492 rama): sin
+   necesidad de dos servidores vivos a la vez para cuatro GETs anónimos.
+5. **`fetch()` PLANO** de `/`, `/tienda`, `/tienda/cafe-nayoli-grano-250g`, `/checkout` — sin
+   Playwright. El storefront es `force-dynamic`; lo que un `fetch` anónimo recibe ES el HTML que Next
+   generó server-side.
+6. **Normalización, MEDIDA antes de comprometerse** (no adivinada): se corrieron DOS builds
+   independientes de la MISMA rama (sin tocar código entre medio) y se diffearon sus salidas para
+   separar "ruido de build" de "diferencia de fuente". Resultado: TODO el ruido vivía en dos sitios —
+   (a) los bloques `<script>…</script>` (el payload RSC/Flight de React: sus IDs de módulo internos de
+   Turbopack — el número que sigue a `f:I[` — NO son estables entre invocaciones separadas de `next
+   build` sobre el MISMO código, medido reconstruyendo dos veces y viendo esos números cambiar; los
+   `<script src=…>` de chunks SÍ tienen nombre estable, medido, pero eso queda fuera de alcance —el
+   spec no pide diffear JS—); (b) el ORDEN de los hijos directos de `<head>` (medido: la MISMA build,
+   corrida dos veces, ubicó `<meta name="theme-color">` en una posición distinta de `<head>` cada
+   vez — streaming/hoisting de metadata de React 19, no depende del código). Con SÓLO retirar los
+   `<script>`/`<link as="script"/modulepreload">` y ORDENAR alfabéticamente los hijos de `<head>`, dos
+   builds independientes de la MISMA rama dieron HTML normalizado **IDÉNTICO** en las 4 rutas — esa es
+   la evidencia de que la normalización no esconde nada más.
+7. **CSS**: las 4 rutas enlazan el MISMO único archivo CSS global (un solo `<link rel="stylesheet">`
+   por HTML, mismo href en las 4, medido) — se descarga su contenido de cada árbol y se compara.
+8. **Diff con `diff -u`** (binario del sistema, sin agregar dependencia npm) sobre archivos
+   temporales normalizados, con `.scratch/verificar-nayoli-reporte/` como respaldo.
+
+### Resultado MEDIDO — main vs. la rama, Nayoli sin preset
+
+| ruta | HTML normalizado | qué cambió |
+| --- | --- | --- |
+| `/` | **DIFIERE** (4 regiones) | hash de CSS (1) + `bg-[var(--sf-tostado)]` → `bg-[var(--sf-accion,var(--sf-tostado))]` ×2 + orden de clases `grid-cols-2 gap-4` → `gap-4 grid-cols-2` (1) |
+| `/tienda` | **DIFIERE** (3 regiones) | hash de CSS (1) + `text-[var(--sf-tinta)]`→`text-[var(--sf-sobre-superficie,var(--sf-tinta))]` y `text-[var(--sf-texto)]`→`text-[var(--sf-sobre-superficie,var(--sf-texto))]` (2) |
+| `/tienda/cafe-nayoli-grano-250g` | **DIFIERE** (1 región) | sólo el hash de CSS |
+| `/checkout` | **DIFIERE** (1 región) | sólo el hash de CSS |
+| CSS (el único bundle global) | **DIFIERE** | 1341 reglas IDÉNTICAS en ambos; 79 reglas SÓLO en la rama (nuevas); 7 "sólo en main" son en su mayoría el MISMO selector re-agrupado (`.shrink{…}`→`.flex-shrink,.shrink{…}`), salvo UNA regla real (`text-[var(--sf-sobre-tarjeta-suave,var(--sf-texto))]`) ausente en la rama — ver Deviations |
+
+**NINGÚN diff quedó vacío.** El owner tenía razón en rechazar "por construcción": el pedido era medir,
+y medido, Nayoli **no es** byte-idéntica en crudo — pero cada diferencia SOBREVIVIENTE se caracterizó
+contra el CSS RESUELTO, no sólo contra el string de la clase:
+
+- **El hash del CSS cambia en las 4 rutas** (`0~89.~leo-5_5.css` en main → `05qhnsef8-f_d.css` en la
+  rama) — es CONSECUENCIA, no causa: el contenido del bundle CAMBIÓ (79 reglas nuevas, ver abajo), así
+  que Turbopack recalcula el hash. **Efecto visual: NINGUNO** — el nombre del archivo no es parte de lo
+  que un visitante ve.
+- **`bg-[var(--sf-accion,var(--sf-tostado))]` (home, región del brandStory) es un token NUEVO con
+  fallback**, medido cero apariciones en el CSS de main y 1+ en la rama. Sin `--sf-accion` inyectado
+  para Nayoli (raíces null, ninguna familia de paleta custom activa), el `var(…, fallback)` resuelve
+  a `var(--sf-tostado)` — **el MISMO valor computado que main pintaba directo**. Misma familia que
+  `PALETA-MIGRAR-ACENTO-TINTA-1`/`TEMAS-P6-FAMILIAS-1` (§ CLAUDE.md): un token se ENSANCHA con un
+  fallback para que un tenant futuro con paleta lo pueda sobreescribir, sin mover el píxel de Nayoli.
+  **Efecto visual para Nayoli: NINGUNO** (mismo color resuelto).
+- **`text-[var(--sf-sobre-superficie,var(--sf-texto))]` y su gemelo `-suave` (en `/tienda`) son el
+  MISMO patrón documentado**: `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1` (§ CLAUDE.md, citado en el
+  propio `app/(storefront)/checkout/page.tsx`) — el token viejo queda de fallback, y sin `content.tema`
+  el nuevo token no se inyecta. **Efecto visual para Nayoli: NINGUNO.**
+- **El orden de clases `grid-cols-2 gap-4` ↔ `gap-4 grid-cols-2` (home) es una permutación de
+  utilidades Tailwind que no se solapan** (`grid-template-columns` vs. `gap`, propiedades CSS
+  distintas) — el orden dentro de `class="…"` no afecta el cascade cuando las utilidades no compiten
+  por la misma propiedad. **Efecto visual: NINGUNO.**
+- **Las 79 reglas CSS nuevas son ADITIVAS**: clases de los ~20 componentes nuevos de esta rama (Origen,
+  Marquesina, Spotlight, BrandStoryCentrada/Columnas, GrindChooserRiel, RielSocial, BackToTop…),
+  ninguno de los cuales renderiza para Nayoli en las 4 rutas medidas (confirmado: el HTML de esas rutas
+  no cambió de ESTRUCTURA, sólo de clases-con-fallback). Tailwind JIT escanea TODO el código fuente, no
+  sólo lo que se ejecuta — el bundle CSS crece con capacidad nueva aunque esa capacidad esté apagada
+  por default. **Efecto visual para Nayoli: NINGUNO** (reglas sin selector correspondiente en el HTML
+  de esas 4 rutas).
+
+**Conclusión medida: Nayoli es visualmente/computacionalmente idéntica en las 4 rutas —mismo color,
+mismo layout, misma estructura— pero NO es byte-idéntica en crudo.** El owner pidió medir el diff
+REAL y reportarlo tal cual; éste es. La pregunta de si "byte-idéntico" significaba bytes literales o
+resultado computado es del owner, no de este slice — se deja explícita, no se resuelve acá.
+
+### Qué se normalizó (lista completa, para que el "no vacío" de arriba no se lea como ruido barrido de más)
+
+- Bloques `<script>…</script>` completos (payload RSC/Flight con IDs de módulo no-deterministas,
+  medido) — retirados de LOS DOS lados antes de comparar.
+- `<link rel="preload" as="script">` y `<link rel="modulepreload">` (precarga de esos mismos chunks).
+- Orden de los hijos directos de `<head>` (ordenados alfabéticamente) — el CONTENIDO de cada tag no se
+  tocó, sólo la posición.
+- **NO se normalizó nada más**: no hubo buildId visible fuera de `<script>`, no hubo nonces de CSP en
+  el HTML (la CSP de `/checkout` es un header, no bytes del documento), no hubo timestamps. Medido, no
+  asumido — dos builds idénticas de la MISMA rama dieron cero diferencias adicionales tras estas dos
+  reglas.
+
+### Límites declarados
+
+- **`/tienda` y `/tienda/[slug]` son `"use client"` y cargan el catálogo vía fetch DEL NAVEGADOR**
+  (`getCatalog()`, `lib/api/products`) — medido leyendo el HTML capturado: ambas rutas muestran su
+  estado INICIAL/"Cargando" (0 productos, "Sin resultados") en el `fetch()` anónimo, porque el
+  catálogo real llega después de hidratar. Esto es correcto para lo que se pidió —"el HTML
+  renderizado" es exactamente lo que Next sirve antes de cualquier JS del cliente—, pero significa que
+  esta medición NO ejercita el catálogo poblado ni la ficha de producto hidratada. Ampliar a eso
+  exigiría un navegador real (Playwright, como `capturar-seccion.ts`), fuera del método pedido
+  (fetch + diff de bytes).
+- **`/checkout` con carrito vacío es la ÚNICA rama alcanzable sin JS** (retorna temprano, "Tu carrito
+  está vacío") — medido por lectura del diff de fuente entre main y la rama (`git diff main..HEAD --
+  "app/(storefront)/checkout/page.tsx"`): las 32 líneas que cambiaron viven TODAS dentro de la rama
+  `confirmation`/`step===1` (post-creación de orden), inalcanzable con carrito vacío. La medición
+  confirma esto por ejecución: el HTML de `/checkout` en las 4 rutas es idéntico salvo el hash de CSS.
+- **El CSS es un bundle GLOBAL, no por-ruta**: la comparación mide el ÚNICO archivo que las 4 rutas
+  enlazan, así que incluye reglas de secciones/páginas no muestreadas (`/nosotros`, `/suscripciones`,
+  variantes ocultas). La regla `text-[var(--sf-sobre-tarjeta-suave,var(--sf-texto))]` que desapareció
+  del bundle (§ Deviations) no aparece en el HTML de ninguna de las 4 rutas medidas (grep, 0 en las 8
+  capturas) — no se puede afirmar con este método si algún componente FUERA de las 4 rutas la seguía
+  necesitando.
+
+### Deviations
+
+1. **`packages/core`/`design-system` del worktree se BORRAN, no se symlinkean** — la primera versión
+   del script symlinkeaba sólo `src/generated/prisma` (falló: `Cannot find module`), la segunda
+   symlinkeaba la carpeta `packages/core` entera (falló distinto: dos identidades de módulo para el
+   mismo tipo de Prisma, `AggregateOrder[P][P] is not assignable`). Ninguna de las dos estaba prevista
+   en el spec; la solución que funcionó (borrar, verificado por grep que nada importa por ruta
+   relativa) se midió en el camino, no se planeó de antemano.
+2. **El resultado NO fue "diff vacío"** — el spec decía "resultado esperado: diff vacío" pero también
+   "'por construcción' no cuenta como prueba" y "reportá el diff REAL, sea vacío o no". Se siguió la
+   instrucción de MEDIR, no la expectativa: el diff real tiene contenido, caracterizado arriba línea
+   por línea contra el efecto visual para Nayoli.
+
+### `touches:` — lo que se escribió
+
+`scripts/verificar-nayoli.ts` (nuevo), `package.json` (script `verificar:nayoli` + sumado a
+`pre-merge`), este asiento. Los tres declarados, todos tocados. Nada fuera de `touches:` quedó
+modificado de forma permanente: `.scratch/verificar-nayoli-reporte/`, `.scratch/verificar-nayoli-main/`
+(el worktree, removido en el `finally` del script) y el resto de `.scratch/` son gitignored y no
+aparecen en `git status`.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `verificar-nayoli.ts`/`verificar:nayoli`, `pre-merge` (ya existía,
+se le sumó un paso), `gate`. Grepeados uno por uno:
+
+| símbolo | hits en CLAUDE.md | ¿alguno queda falso por este diff? |
+| --- | --- | --- |
+| `verificar-nayoli`, `verificar:nayoli` | 0 | — (herramienta nueva, CLAUDE.md no la nombra) |
+| `pre-merge` | 0 | — (CLAUDE.md no documenta ese script; vive sólo en `package.json` y en el asiento de `GUARDA-PRE-MERGE-TRINQUETE-BUILD-1`) |
+| `npm run gate`, `"gate"` | múltiples (§ El GATE de un slice corre LOS DOS CARRILES) | NO — `gate` sigue siendo exactamente typecheck+test+test:integracion; este diff no lo toca, sólo agrega un paso a `pre-merge`, que CLAUDE.md no describe |
+
+**Nada en CLAUDE.md nombra lo que este diff cambió** — ninguna sentencia se vuelve falsa.
+
+### Verdicto
+
+**Gate VERDE en el árbol final**: `npx tsc --noEmit` → 0 errores; `npm test` → **1916/1916**, 0 fail;
+`npm run test:integracion` → **228/228**, 0 fail — reconciliado contra el piso del commit anterior
+(`05a9b86`: "tsc 0 + 1916/1916 + 228/228"), sin diferencia: ninguno de los dos archivos tocados cae
+bajo los globs de `npm test` (`scripts/**` no está en la lista) ni bajo `tests/integracion/`, así que
+el piso se mantiene intacto por construcción y se reconfirmó corriéndolo completo.
+
+`npm run verificar:nayoli` CORRIÓ sobre el árbol final y terminó con **exit 1** (diferencias reales
+tras normalizar, caracterizadas arriba) — es el comportamiento correcto de la herramienta: reporta lo
+que mide, no lo que se esperaba. Ese exit code NO es el gate del slice (typecheck+test+test:integracion,
+verde); es la MEDICIÓN que el owner pidió, y su resultado es un HALLAZGO para el owner, no un fallo de
+esta tanda.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea. El eje de
+`customer_bytes` es de la RAMA contra su base (§ CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1): heredado de
+los commits anteriores de `slice/corte-reescritura-prototipo-1` (bytes de visitante en `components/
+storefront/home/`, bytes de panel en "Confianza"/"Marquesina"/Origen). Este commit, por su cuenta, NO
+agrega bytes de cliente/operador/dueño — es tooling de verificación, invisible para los tres roles —,
+pero la rama que aterrizaría sobre `main` sigue cargando los de antes. `customer_bytes.changed: true`
+(heredado); `strings`: ninguno nuevo introducido acá. `stopped_on: [customer-bytes]`. El commit queda
+en la rama a la espera del merge gateado del orquestador — y del veredicto del owner sobre si el diff
+medido arriba (mismo color/layout computado, bytes distintos) es aceptable como "byte-idéntico" en el
+sentido que pidió.
