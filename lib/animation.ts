@@ -170,6 +170,94 @@ export function useContadorAnimado(destino: number, estatico: boolean): Contador
   return { ref, valor };
 }
 
+// ── EL ÍNDICE CENTRADO DE UN RIEL — item resaltado en scroll horizontal, MUESTRARIO-RIEL-ACTIVO-1 ──
+//
+// El prototipo resalta la tarjeta CENTRADA del riel de Presentaciones (`.pres-card.is-active`,
+// `docs/prototipos/cafeone/js/home.js:113-125`, `centreIndex()`/`markActive()`): sobre el MISMO
+// scroll horizontal que ya desplaza el riel, busca qué hijo tiene su centro más cerca del centro
+// visible del contenedor, y alterna una clase. Esa capacidad NO tenía dónde vivir:
+// `useProgresoScroll`/`useProgresoAcomodo` (arriba) miden el progreso de una SECCIÓN contra el
+// VIEWPORT (`useScroll` de framer-motion, con `offset: ["start end", "end start"]"`), no la
+// posición de un ITEM dentro de un contenedor con `overflow-x` PROPIO — son ejes distintos
+// (vertical-de-página vs horizontal-de-riel) y `useScroll` no resuelve el segundo sin un target por
+// item, que es justo la "segunda fuente de estado" que `GrindChooserRiel.tsx` descartaba antes de
+// este slice por no tener dónde construirse sin duplicar el scroll.
+//
+// `indiceCentrado` reproduce, PURA y sin React, el cálculo de `centreIndex()`: dado el
+// `scrollLeft`/`clientWidth` del contenedor y la geometría (`offsetLeft`/`offsetWidth`) de sus hijos
+// DIRECTOS, devuelve el índice cuyo centro está más cerca del centro visible. `null` con cero
+// hijos — sin item no hay "centrado", y forzar un 0 mentiría (el hijo 0 no existe). Separada del
+// hook por el MISMO criterio que `transformAcomodo`/`valorContador`: poder testearla en `node:test`
+// sin navegador.
+export function indiceCentrado(
+  scrollLeft: number,
+  clientWidth: number,
+  hijos: readonly { offsetLeft: number; offsetWidth: number }[],
+): number | null {
+  if (hijos.length === 0) return null;
+  const medio = scrollLeft + clientWidth / 2;
+  let mejor = 0;
+  let mejorDistancia = Infinity;
+  hijos.forEach((hijo, i) => {
+    const distancia = Math.abs(hijo.offsetLeft + hijo.offsetWidth / 2 - medio);
+    if (distancia < mejorDistancia) {
+      mejorDistancia = distancia;
+      mejor = i;
+    }
+  });
+  return mejor;
+}
+
+// `useIndiceCentrado` — monta `indiceCentrado` sobre el scroll REAL del contenedor: lee
+// `scrollLeft`/`clientWidth` del propio `target` y `offsetLeft`/`offsetWidth` de sus HIJOS DIRECTOS
+// (`target.children`) en cada evento de scroll y en cada resize — la MISMA fuente que ya desplaza
+// el riel (`track.scrollBy`/el `overflow-x-auto` nativo en `GrindChooserRiel.tsx`), nunca un índice
+// paralelo. Es DERIVADO, no un estado que alguien más tenga que mantener sincronizado.
+//
+// Throttled a UN `requestAnimationFrame` por ráfaga de eventos de scroll — el mismo patrón que
+// `js/home.js:137-139` (`rail.addEventListener('scroll', () => requestAnimationFrame(markActive))`):
+// medir la geometría de cada hijo en CADA evento de scroll (que dispara docenas de veces por
+// segundo durante un gesto) es el costo que el comentario retirado de `GrindChooserRiel.tsx` seguía
+// señalando; con el throttle, a lo sumo una medición por frame pintado.
+//
+// `null` mientras no hay `target` montado o mientras no corrió la primera medición (SSR) — el mismo
+// "estado seguro, nada prometido todavía" que ya usan `puedeAtras`/`puedeAdelante` en el consumidor:
+// no resalta ninguna tarjeta hasta saber cuál está centrada de verdad.
+export function useIndiceCentrado(target: RefObject<HTMLElement | null>, cuenta: number): number | null {
+  const [indice, setIndice] = useState<number | null>(null);
+  const rafId = useRef<number | null>(null);
+
+  useEffect(() => {
+    const el = target.current;
+    if (!el) return;
+    function medir() {
+      rafId.current = null;
+      const t = target.current;
+      if (!t) return;
+      const hijos = Array.from(t.children) as HTMLElement[];
+      setIndice(indiceCentrado(t.scrollLeft, t.clientWidth, hijos));
+    }
+    function alScrollear() {
+      if (rafId.current !== null) return;
+      rafId.current = requestAnimationFrame(medir);
+    }
+    medir();
+    el.addEventListener("scroll", alScrollear, { passive: true });
+    window.addEventListener("resize", medir);
+    return () => {
+      el.removeEventListener("scroll", alScrollear);
+      window.removeEventListener("resize", medir);
+      if (rafId.current !== null) cancelAnimationFrame(rafId.current);
+    };
+    // Recalcula si cambia la CUENTA de hijos (borrador del editor agregando/quitando una tarjeta):
+    // el ancho del riel puede cambiar sin que el usuario haya scrolleado todavía — mismo motivo que
+    // el `[tarjetas.length]` del efecto de `puedeAtras`/`puedeAdelante` en `GrindChooserRiel.tsx`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cuenta]);
+
+  return indice;
+}
+
 // ReducedMotionProvider — STOREFRONT-REDUCED-MOTION-1 (2026-09-12).
 //
 // EL DEFECTO: las ~21 animaciones de entrada del storefront (censadas en

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { fadeUp } from "@/lib/animation";
+import { fadeUp, useIndiceCentrado } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
@@ -53,16 +53,20 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 //      PRODUCTO (vista rápida, agregar al carrito de UNA variante concreta). Las tarjetas de esta
 //      sección son enlaces a CATEGORÍA (`TarjetaPresentacion.href`, vía `hrefCategoria`), no a un
 //      producto puntual — no hay "esa" variante que agregar. Se omiten.
-//   2. El resaltado de la tarjeta CENTRADA (`.pres-card.is-active`, opacidad/escala vía
-//      `centreIndex`/`markActive` en `js/home.js:113-125`): exige rastrear qué tarjeta está al medio
-//      del viewport en cada frame de scroll. No es necesario para que el riel sea usable ni para que
-//      se lea como riel (la cabecera partida + el desplazamiento + los controles ya lo hacen); se deja
-//      fuera para no sumar una segunda fuente de estado sobre el mismo scroll. Todas las tarjetas se
-//      muestran a opacidad/escala plena.
-//   3. El arrastre con el mouse (`pointerdown`/`pointermove`, `js/home.js:150-175`): el `overflow-x-
+//   2. El arrastre con el mouse (`pointerdown`/`pointermove`, `js/home.js:150-175`): el `overflow-x-
 //      auto` nativo ya da drag por touch/trackpad y una barra de scroll utilizable; emular arrastre de
 //      mouse es una capa de JS que el desplazamiento nativo no necesita para ser usable.
 //
+// EL RESALTADO DE LA TARJETA CENTRADA (`.pres-card.is-active`, § MUESTRARIO-RIEL-ACTIVO-1) YA NO
+// ESTÁ FUERA — el comentario de este archivo lo descartaba porque construirlo habría exigido "una
+// segunda fuente de estado sobre el mismo scroll" y esa capacidad no existía en `lib/animation.ts`.
+// Ahora existe (`useIndiceCentrado`, abajo): DERIVA el índice centrado del scroll REAL del propio
+// `trackRef` — el mismo elemento que ya desplazan los botones y el `overflow-x-auto` nativo —, así
+// que sigue sin haber un índice paralelo que sincronizar. La tarjeta activa gana la
+// opacidad/escala de `.pres-card.is-active` (`css/app.css:520-525`); las demás quedan dimmed, igual
+// que el prototipo. Bajo 640px el prototipo APAGA el resaltado (`css/app.css:1010`,
+// `.pres-card,.pres-card.is-active{opacity:1;transform:none}`) — acá se reproduce dejando el
+// resaltado detrás de `sm:`, la MISMA cabecera de breakpoint que ya oculta los controles de avance.
 // LA TARJETA NO LLEVA "Ver café {label}" — a DIFERENCIA del mosaico, A PROPÓSITO. El mosaico repite
 // ese texto (§ CLAUDE.md, "COPY café-shape del storefront", Backlog #63: "Ver café {label}" es una
 // FAMILIA de copy café-shape, no un literal suelto) porque su tarjeta es una tile grande con una sola
@@ -82,6 +86,7 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
   const [estado, setEstado] = useState({ puedeAtras: false, puedeAdelante: false });
 
   const tarjetas = tarjetasDePresentaciones(presentaciones);
+  const indiceActivo = useIndiceCentrado(trackRef, tarjetas.length);
   const ctaHref = resolverCtaSeccion(presentaciones.ctaLabel, presentaciones.ctaDestino, paginas);
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`presentaciones:
   // 'riel'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
@@ -185,7 +190,20 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
           className="grind-riel-track flex gap-6 overflow-x-auto snap-x snap-mandatory pb-2"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {tarjetas.map((op, i) => (
+          {tarjetas.map((op, i) => {
+            // El resaltado (§ MUESTRARIO-RIEL-ACTIVO-1) va en el `<Link>`, no en el `motion.div` —
+            // framer-motion escribe `opacity`/`transform` INLINE sobre el `motion.div` al resolver
+            // `fadeUp` (mayor especificidad que cualquier clase), así que una clase de opacidad/
+            // escala puesta ahí quedaría pisada por esa animación de entrada. El `<Link>` es un
+            // elemento distinto: su propio `transform`/`opacity` compone con el del padre sin
+            // pelear por la misma propiedad inline.
+            //
+            // `indiceActivo === null` (sin medir todavía, SSR/primer render) es el estado SEGURO
+            // —igual que `puedeAtras`/`puedeAdelante` arrancan deshabilitados—: ninguna tarjeta se
+            // marca ni resaltada ni dimmed hasta saber cuál está centrada de verdad.
+            const resaltada = indiceActivo !== null && indiceActivo === i;
+            const dimmed = indiceActivo !== null && indiceActivo !== i;
+            return (
             <motion.div
               key={i}
               initial={preview ? false : "hidden"}
@@ -198,7 +216,13 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             >
               {/* `data-sf-tarjeta`: marcador INERTE del slot (1-4) para el puente vista→formulario del
                   editor (§ Backlog #46), gemelo del mosaico y el índice. Sólo en preview. */}
-              <Link href={op.href} data-sf-tarjeta={preview ? op.slot : undefined} className="group block">
+              <Link
+                href={op.href}
+                data-sf-tarjeta={preview ? op.slot : undefined}
+                className={`group block opacity-100 scale-100 transition-[opacity,transform] duration-500 ease-out ${
+                  resaltada ? "sm:scale-[1.06]" : dimmed ? "sm:opacity-[.62] sm:scale-[.96]" : ""
+                }`}
+              >
                 <div className="relative aspect-[3/4] overflow-hidden rounded-3xl bg-[var(--sf-linea)]">
                   {/* Imagen condicional (criterio OR, § tarjetasDePresentaciones): sin foto se ve el
                       hueco de marca `--sf-linea`, nunca un `<img src="">` roto. */}
@@ -218,7 +242,8 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
                 </div>
               </Link>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

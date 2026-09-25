@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { MotionConfig } from 'framer-motion';
 import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
-  transformMarquesinaTexto, transformMarquesinaTarjeta,
+  transformMarquesinaTexto, transformMarquesinaTarjeta, indiceCentrado,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -118,4 +118,56 @@ test('transformMarquesinaTarjeta: el recorte interno [0.12, 0.57] deja la tarjet
 test('transformMarquesinaTarjeta: progreso se acota a [0,1] — fuera de rango no sobre-escala ni invierte', () => {
   assert.equal(transformMarquesinaTarjeta(-0.5, false), transformMarquesinaTarjeta(0, false));
   assert.equal(transformMarquesinaTarjeta(1.5, false), transformMarquesinaTarjeta(1, false));
+});
+
+// ── EL ÍNDICE CENTRADO DE UN RIEL (§ MUESTRARIO-RIEL-ACTIVO-1) — sin React, sin navegador ─────────
+// Reproduce `centreIndex()` de `docs/prototipos/cafeone/js/home.js:113-119`. El hook
+// (`useIndiceCentrado`, sobre eventos de scroll/resize del contenedor real) no se puede afirmar
+// acá sin DOM real — mismo criterio que `useProgresoAcomodo`/`useProgresoScroll`/
+// `useContadorAnimado`, que tampoco se testean en este archivo; su cableado en
+// `GrindChooserRiel.tsx` es capa 3 (gate visual).
+//
+// Fixture: tres tarjetas de 300px con 16px de gap — `offsetLeft` 0, 316, 632 — mismas proporciones
+// que el riel real (`w-[clamp(260px,26vw,360px)]` + `gap-6`).
+const TARJETAS_FIXTURE = [
+  { offsetLeft: 0, offsetWidth: 300 },
+  { offsetLeft: 316, offsetWidth: 300 },
+  { offsetLeft: 632, offsetWidth: 300 },
+];
+
+test('indiceCentrado: contenedor VACÍO (sin hijos) da null — no hay "centrado" que afirmar', () => {
+  assert.equal(indiceCentrado(0, 300, []), null);
+  assert.equal(indiceCentrado(999, 999, []), null, 'null incluso con scroll/ancho arbitrarios');
+});
+
+test('indiceCentrado: UN SOLO hijo siempre es el centrado, sin importar scroll/ancho', () => {
+  const unHijo = [{ offsetLeft: 40, offsetWidth: 300 }];
+  assert.equal(indiceCentrado(0, 300, unHijo), 0);
+  assert.equal(indiceCentrado(500, 120, unHijo), 0, 'un solo candidato gana aunque el scroll lo aleje del centro medido');
+  assert.equal(indiceCentrado(-50, 0, unHijo), 0, 'geometría degenerada (ancho 0) no rompe: sigue habiendo un único hijo');
+});
+
+test('indiceCentrado: scrollLeft=0 (extremo izquierdo) centra el PRIMER hijo', () => {
+  assert.equal(indiceCentrado(0, 300, TARJETAS_FIXTURE), 0);
+});
+
+test('indiceCentrado: scrollLeft en el medio centra el hijo del MEDIO', () => {
+  // medio visible = scrollLeft + clientWidth/2 = 316 + 150 = 466 = centro exacto del hijo 1
+  assert.equal(indiceCentrado(316, 300, TARJETAS_FIXTURE), 1);
+});
+
+test('indiceCentrado: scrollLeft en el extremo derecho (scrollWidth - clientWidth) centra el ÚLTIMO hijo', () => {
+  // scrollWidth = 632 + 300 = 932; scroll máximo = 932 - 300 = 632
+  assert.equal(indiceCentrado(632, 300, TARJETAS_FIXTURE), 2);
+});
+
+test('indiceCentrado: en un empate exacto de distancia, gana el índice MENOR (el primero que el recorrido encuentra)', () => {
+  // medio = 158: a 158px del centro del hijo 0 (150) y del hijo 1 (466) — no es el caso real, se
+  // arma el empate a mano para fijar el criterio de desempate sin depender de la fixture de arriba.
+  const dosHijos = [
+    { offsetLeft: 0, offsetWidth: 100 },   // centro 50
+    { offsetLeft: 100, offsetWidth: 100 }, // centro 150
+  ];
+  // medio = 100 → distancia al hijo 0 = |50-100| = 50; al hijo 1 = |150-100| = 50 → empate
+  assert.equal(indiceCentrado(100, 0, dosHijos), 0, 'empate exacto: gana el primero, no el último');
 });

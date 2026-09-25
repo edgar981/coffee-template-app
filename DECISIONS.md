@@ -21939,3 +21939,140 @@ ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, 
 merge sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no
 mergea y hereda además la clasificación de la RAMA completa (`slice/corte-reescritura-prototipo-1`,
 ya `AWAITING_APPROVAL` por slices anteriores que tocan bytes de visitante).
+
+## 2026-09-25 — El índice centrado de un riel, y el resaltado de Presentaciones (`MUESTRARIO-RIEL-ACTIVO-1`)
+
+**Origen:** `CENSO-MUESTRARIO-1` midió, en Presentaciones, que el prototipo resalta la tarjeta
+CENTRADA del riel (`.pres-card.is-active`, `docs/prototipos/cafeone/js/home.js:113-125`) y que
+NINGÚN mecanismo del repo derivaba esa posición. `GrindChooserRiel.tsx` ya lo había dejado afuera
+—por DECISIÓN, no descuido— con un comentario propio explicando por qué: construirlo habría exigido
+"una segunda fuente de estado sobre el mismo scroll", y esa capacidad de base no existía. El owner
+ordenó (2026-09-25) construir toda la lista del censo sin parar; el norte —construir con la base, y
+engrosarla donde no alcance— vuelve actual justo este caso, así que el comentario que descartaba la
+capacidad quedó desactualizado y se reescribió (no se borró: ahora explica por qué YA NO aplica).
+
+### La capacidad — `indiceCentrado`/`useIndiceCentrado`, en `lib/animation.ts`
+
+`useProgresoScroll`/`useProgresoAcomodo` (el motor de scroll-scrub que ya vive en ese archivo) miden
+el progreso de una SECCIÓN contra el VIEWPORT (`useScroll` de framer-motion con `offset`), un eje
+VERTICAL-de-página. Lo que faltaba era el eje distinto: la posición de un ITEM dentro de un
+contenedor con `overflow-x` PROPIO — HORIZONTAL-de-riel. `useScroll` no resuelve ese segundo eje sin
+un target por item, que es justo el costo que el comentario original de `GrindChooserRiel.tsx`
+rehusaba pagar.
+
+- **`indiceCentrado(scrollLeft, clientWidth, hijos)` es PURA**, sin React: reproduce
+  `centreIndex()` del prototipo (`scrollLeft + clientWidth/2` como centro visible; el hijo cuyo
+  `offsetLeft + offsetWidth/2` está más cerca gana). `null` con cero hijos — sin item no hay
+  "centrado" que afirmar, y forzar un `0` mentiría (el hijo 0 no existe). En un empate exacto gana
+  el índice MENOR (primero que el `forEach` encuentra, por el `<` estricto) — comportamiento fijado
+  con test, no accidental.
+- **`useIndiceCentrado(target, cuenta)` DERIVA del scroll REAL del contenedor** —
+  `target.scrollLeft`/`clientWidth` + `offsetLeft`/`offsetWidth` de `target.children` — nunca de un
+  índice paralelo: es el MISMO `trackRef` que ya desplazan los botones y el `overflow-x-auto`
+  nativo. Ninguna segunda fuente de verdad, que era el riesgo que el comentario viejo nombraba.
+- **EL COSTO: throttle a UN `requestAnimationFrame` por ráfaga de scroll**, el mismo patrón que
+  `js/home.js:137-139` (`rail.addEventListener('scroll', () => rAF(markActive))`). Sin el throttle,
+  medir la geometría de cada hijo en CADA evento de scroll —que dispara docenas de veces por
+  segundo durante un gesto— es exactamente el costo que el comentario retirado señalaba. Recalcula
+  también en `resize` y cuando cambia `cuenta` (el número de tarjetas puede variar por el borrador
+  del editor sin que el usuario haya scrolleado todavía) — mismo motivo que ya usa el efecto de
+  `puedeAtras`/`puedeAdelante` de `GrindChooserRiel.tsx` para su propio `[tarjetas.length]`.
+  `null` mientras no hay `target` montado o no corrió la primera medición (SSR) — el mismo "estado
+  seguro, nada prometido todavía" que ya usan `puedeAtras`/`puedeAdelante`.
+
+### El consumidor — `GrindChooserRiel.tsx`, sólo esta variante
+
+El resaltado se aplica en el `<Link>` de cada tarjeta, NO en el `motion.div` que lo envuelve:
+framer-motion escribe `opacity`/`transform` INLINE al resolver `fadeUp` (mayor especificidad que
+cualquier clase), así que una clase de opacidad/escala puesta en el `motion.div` quedaría pisada por
+esa animación de entrada. El `<Link>` es un elemento DISTINTO — su `transform`/`opacity` compone con
+el del padre sin pelear por la misma propiedad inline.
+
+- **Los valores son los medidos del prototipo** (`css/app.css:520-525`): resting `opacity:.62
+  transform:scale(.96)`, activa `opacity:1 transform:scale(1.06)`.
+- **Bajo 640px el prototipo APAGA el resaltado** (`css/app.css:1010`,
+  `.pres-card,.pres-card.is-active{opacity:1;transform:none}`) — se reproduce con las clases de
+  resaltado detrás de `sm:`, la MISMA cabecera de breakpoint que ya oculta los controles de avance
+  en este componente. La base (sin prefijo) es siempre `opacity-100 scale-100`.
+- **`indiceActivo === null`** (sin medir todavía) no marca ninguna tarjeta ni resaltada ni dimmed —
+  el estado seguro.
+- **Las otras dos variantes (`mosaico`, `indice`) NO se tocaron.** Ni un import, ni una línea.
+
+### El gate
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2099/2099** — verde (+6, los seis tests nuevos de `indiceCentrado` en `lib/animation.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde, SIN cambio de conteo (este slice no tocó `tests/integracion/`) |
+
+Reconciliado contra el piso citado por el commit anterior (`643fbf0`: "Gate verde (tsc 0, 2093/2093,
+237/237)"): capa 1 sube en exactamente +6, explicado entero por los tests nuevos de este slice; capa
+2 queda IDÉNTICA — ninguna diferencia es drift sin explicación.
+
+### Por qué el diff visual NO corrió
+
+El spec pedía MEDIR qué variante de `presentaciones` resuelve Nayoli antes de decidir si el diff
+visual (`npm run verificar:nayoli:visual`) aplica. Medido: `site-content-defaults.ts:1763` declara
+`variantes: { claves: ['mosaico', 'indice', 'riel'], canonica: 'mosaico' }` — la canónica (la que
+resuelve sin preset, o sea Nayoli) es `'mosaico'`. Grepeado el catálogo completo de presets
+(`themes.ts`): `presentaciones: 'riel'` aparece UNA sola vez, en `CORTE` (`themes.ts:757`); ningún
+otro preset —y por tanto Nayoli, que no aplica ninguno— toca `GrindChooserRiel`. Confirmada la
+afirmación del spec, no se corrió el diff: no mide nada sobre un componente que Nayoli no monta, y
+cuesta dos builds completos (`main` + esta rama) para un resultado que ya se sabe 0px sin haberlo
+corrido — sería medir la ausencia de cambio en un archivo que no cambió para Nayoli, no evidencia de
+que el cambio en `GrindChooserRiel` sea correcto.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `indiceCentrado`, `useIndiceCentrado`,
+`lib/animation.ts`, `GrindChooserRiel.tsx`, `MUESTRARIO-RIEL-ACTIVO-1`. Grepeados uno por uno:
+
+- `indiceCentrado`, `useIndiceCentrado`, `MUESTRARIO-RIEL-ACTIVO-1` — **CERO apariciones** en
+  `CLAUDE.md`. Nada que corregir.
+- `GrindChooserRiel` — **CERO apariciones** (el componente vive sólo en el propio código y en
+  `DECISIONS.md`; `CLAUDE.md` no lo nombra).
+- `useProgresoScroll`/`lib/animation` — **CERO apariciones** (el motor de scroll vive documentado
+  dentro del propio archivo, no en `CLAUDE.md`).
+
+Ningún hallazgo de `open_followups` sale de este chequeo — nada en `CLAUDE.md` quedó falso.
+
+### `touches:` — lo que se escribió
+
+`lib/animation.ts`, `lib/animation.test.ts`, `components/storefront/home/GrindChooserRiel.tsx`, este
+asiento (`DECISIONS.md`). Todo dentro de la letra de `touches:` — sin desviación de alcance.
+
+### `open_followups`
+
+Ninguno. La capacidad quedó completa (función pura + hook + consumidor + tests); no queda un borde
+declarado y sin resolver.
+
+### `customer_bytes`
+
+`changed: true`. La RAMA gana bytes de VISITANTE: con `presentaciones.variante = 'riel'` (hoy sólo
+el preset `CORTE`), las tarjetas del riel que no están centradas se atenúan (`opacity:.62
+scale:.96`) mientras la centrada se agranda (`scale:1.06`) al desplazarse, desde `sm` (≥640px).
+Nayoli no lo ve —usa `mosaico`, § arriba, medido—, pero es la RAMA la que se juzga
+(§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), y la rama ya incluye `CORTE` con el resto del
+muestrario.
+
+`strings`: ninguno — no se agregó ni cambió texto visible; el cambio es puramente de
+opacidad/escala sobre tarjetas ya existentes.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin tocar `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El único dato nuevo (`indiceActivo`) es estado de React derivado en el cliente,
+nunca persistido.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores, `npm test` 2099/2099, `npm run
+test:integracion` 237/237, sin flakes), commiteado en `slice/corte-reescritura-prototipo-1`. El diff
+falla `customer-bytes` (la RAMA gana un resaltado visual para el visitante en el riel de
+Presentaciones, gateado a `CORTE`). `schema` y `cross-repo-contract` NO aplican.
+`stopped_on: [customer-bytes]`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente del gate del orquestador — este
+slice, por instrucción del dispatch, no mergea y hereda además la clasificación de la RAMA completa
+(`slice/corte-reescritura-prototipo-1`, ya `AWAITING_APPROVAL` por slices anteriores que tocan bytes
+de visitante).
