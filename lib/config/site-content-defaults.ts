@@ -816,9 +816,10 @@ export interface CromoContent {
 export interface VolverArribaContent {
   // ¿Se monta el botón flotante "volver arriba" (gemelo del `.to-top` del prototipo,
   // `docs/prototipos/cafeone/css/app.css:340-353`)? `false` = HOY: el storefront no tiene este
-  // chrome — `BackToTop.tsx` (`components/storefront/`) rinde `null`, byte-idéntico. Sólo
-  // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.volverArribaVisible`; de los 6
-  // presets del catálogo, sólo CORTE lo declara `true`.
+  // chrome — `BackToTop.tsx` (`components/storefront/`) rinde `null`, byte-idéntico. Lo escribe
+  // `mergePresetEnContent` (`themes.ts`, con `preset.volverArribaVisible` — de los 6 presets del
+  // catálogo, sólo CORTE lo declara `true`) Y el dueño, desde el panel (§ PANEL-DETALLES-SITIO-1,
+  // `DetallesSitioSeccion.tsx`, sección "Detalles del sitio").
   visible: boolean;
 }
 
@@ -834,9 +835,10 @@ export interface VolverArribaContent {
 export interface RielSocialContent {
   // ¿Se monta el riel social fijo a la izquierda (gemelo del `.rail` del prototipo,
   // `docs/prototipos/cafeone/css/app.css:326-338`)? `false` = HOY: el storefront no tiene este
-  // chrome — `RielSocial.tsx` (`components/storefront/`) rinde `null`, byte-idéntico. Sólo
-  // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.rielSocialVisible`; de los 6
-  // presets del catálogo, sólo CORTE lo declara `true`. Los DOS links del riel (instagram/whatsapp)
+  // chrome — `RielSocial.tsx` (`components/storefront/`) rinde `null`, byte-idéntico. Lo escribe
+  // `mergePresetEnContent` (`themes.ts`, con `preset.rielSocialVisible` — de los 6 presets del
+  // catálogo, sólo CORTE lo declara `true`) Y el dueño, desde el panel (§ PANEL-DETALLES-SITIO-1,
+  // `DetallesSitioSeccion.tsx`, sección "Detalles del sitio"). Los DOS links del riel (instagram/whatsapp)
   // NO son parte de esta meta — salen de `SiteSetting` (la MISMA fuente única que ya usa
   // `StoreFooter`), cada uno oculto cuando su campo está vacío; esta meta sólo decide si el RIEL
   // como composición existe, no qué contiene.

@@ -346,19 +346,22 @@ const cromoEditableSchema = z.object({
 });
 
 // META de VOLVER ARRIBA (§ CROMO-VOLVER-ARRIBA-1): gemela de `cromoEditableSchema` en FORMA (dominio
-// CERRADO, NO sección, NO pasa por borrador/publicar, se declara SÓLO para que un futuro write
-// general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
-// `VolverArribaContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
-// `cromo`. HOY no hay editor que la escriba —sólo `aplicarPreset` (`themes.ts`).
+// CERRADO, NO sección, NO pasa por el flujo borrador/publicar del route GENÉRICO —tiene su PROPIA
+// ruta, § PANEL-DETALLES-SITIO-1— se declara acá SÓLO para que un futuro write general no la STRIPPEE
+// en silencio, § #65-B) pero meta PROPIA — ver el docstring de `VolverArribaContent`
+// (`site-content-defaults.ts`) para el porqué de que no comparta objeto con `cromo`. TIENE editor
+// (§ PANEL-DETALLES-SITIO-1): `DetallesSitioSeccion.tsx`, vía `/api/site-content/detalles`
+// (`.pick({volverArriba: true, rielSocial: true})` sobre ESTE schema, patrón `tema`/`encabezado`).
 const volverArribaEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
 // META de RIEL SOCIAL (§ CROMO-RIEL-SOCIAL-1): MISMA forma que `volverArribaEditableSchema` (dominio
-// CERRADO, NO sección, NO pasa por borrador/publicar, se declara SÓLO para que un futuro write
-// general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
-// `RielSocialContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
-// `cromo` ni con `volverArriba`. HOY no hay editor que la escriba —sólo `aplicarPreset` (`themes.ts`).
+// CERRADO, NO sección, NO pasa por el flujo borrador/publicar del route GENÉRICO —propia ruta,
+// § PANEL-DETALLES-SITIO-1—, se declara acá SÓLO para que un futuro write general no la STRIPPEE en
+// silencio, § #65-B) pero meta PROPIA — ver el docstring de `RielSocialContent`
+// (`site-content-defaults.ts`) para el porqué de que no comparta objeto con `cromo` ni con
+// `volverArriba`. TIENE editor (§ PANEL-DETALLES-SITIO-1), MISMO camino que `volverArriba` arriba.
 const rielSocialEditableSchema = z.object({
   visible: z.boolean().optional(),
 });

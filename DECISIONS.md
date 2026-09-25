@@ -21492,3 +21492,265 @@ editor del admin gana su control de subida) pero NINGÚN schema ni contrato cros
 de las tres condiciones de merge policy A que aplica es `customer-bytes`. El owner ya aprobó la
 ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue
 pendiente de gate visual/owner, como en todo Tier 1.
+
+## 2026-09-25 — La sección "Detalles del sitio" del panel: botón "volver arriba" y riel social (`PANEL-DETALLES-SITIO-1`)
+
+**Origen:** las DOS exenciones que quedaban del grupo `PANEL-EDITOR-CHROME-METAS-1` en `PENDIENTE_PANEL`
+(`lib/config/panel-controles.ts`) tras `PANEL-EDITOR-ENCABEZADO-1` (2026-09-23), que cerró las otras
+dos (`navTratamiento.activo`/`navWordmark.activo`) y dejó explícitamente estas dos fuera: *"son
+'Detalles del sitio', fuera de este slice, con su propio disparador futuro"* (§ ese asiento, línea
+~16177-16178). El nombre no es una etiqueta
+inventada acá: el owner lo dio el mismo 2026-09-23, al deslindar el grupo de "Confianza"
+(`PANEL-EDITOR-TRUSTBADGES-VISIBLE-1`, 2026-09-24) — *"los badges de confianza NO van [en Detalles del
+sitio]: van CON las secciones del home"* (§ ese asiento, línea ~17193-17194) — dejando implícito que
+"Detalles del sitio" ES el nombre de la casa de volver-arriba + redes sociales, sin construirla
+todavía. `CENSO-MUESTRARIO-1` (2026-09-25) es el `observed-report` que autoriza este slice; su hallazgo
+relevante para ESTA mitad es que las dos exenciones de `volverArriba.visible`/`rielSocial.visible` eran
+las ÚNICAS que no caían en un grupo ya declarado fuera de alcance por el owner. (La otra mitad de la
+aprobación —la barra de envío gratis del carrito, `.ship-prog` del muestrario contra
+`CartDrawer.tsx:240-245`— queda para su PROPIA slice; el spec de ésta la excluyó a propósito:
+*"el intento anterior, con las dos cosas juntas, se pasó de la hora"*.)
+
+### La plomería — MISMO patrón que `tema`/`encabezado`, GET local por límite de `touches:`
+
+`volverArriba`/`rielSocial` son DOS claves META que `SeccionKey` EXCLUYE del REGISTRY
+(`site-content-defaults.ts`), así que el POST publicar/descartar del route GENÉRICO las rechaza con
+400 (`seccion in REGISTRY`, `app/api/site-content/route.ts:88`) — el mismo motivo que ya le dio ruta
+propia a `tema` y a `encabezado`. `app/api/site-content/detalles/route.ts` (nuevo) copia ese patrón
+para dos metas: PUT guarda el borrador (`siteContentEditableSchema.pick({volverArriba, rielSocial})`,
+el MISMO schema del route genérico, acotado — sin el `.pick()` esta ruta aceptaría cualquiera de las
+**27** claves del schema completo, medido contra el archivo real, no asumido), POST publica/descarta
+con `publicarSeccion`/`descartarSeccion` (key-agnósticas, NO ATÓMICAS entre las dos metas — la misma
+tolerancia que `site-content-write.ts` ya acepta para el race guardar↔publicar, documentada en el
+docstring de `encabezado/route.ts`).
+
+**Ninguno de los dos campos existía sin schema/resolver**: `VolverArribaContent`/`RielSocialContent`,
+`resolverVolverArriba`/`resolverRielSocial` y `volverArribaEditableSchema`/`rielSocialEditableSchema`
+ya estaban completos desde `CROMO-VOLVER-ARRIBA-1`/`CROMO-RIEL-SOCIAL-1` (2026-09-23) — este slice es
+PURO CONTROL, no infraestructura de modelo. `lib/config/site-content-defaults.ts` y
+`lib/config/site-content-schema.ts` **NO ganaron ningún campo, tipo ni función nueva** — sólo se
+corrigieron sus docstrings (`VolverArribaContent.visible`, `RielSocialContent.visible`,
+`volverArribaEditableSchema`, `rielSocialEditableSchema`), que decían *"HOY no hay editor que la
+escriba —sólo `mergePresetEnContent`/`aplicarPreset`"* y ese texto se volvía FALSO al nacer el editor.
+Es la MISMA higiene que `PANEL-EDITOR-HERO-TOGGLES-1` ya sentó como precedente en esta rama para
+comentarios/asertos que un diff vuelve falsos.
+
+**EL GET ES LOCAL A LA RUTA NUEVA, A DIFERENCIA de `tema`/`encabezado` — decisión medida, no una
+segunda forma de resolver el borrador.** `tema`/`encabezado` NO tienen GET propio: se apoyan en el
+GENÉRICO `GET /api/site-content` (`readSiteContentParaEditor`, `lib/config/site-content-read.ts`), que
+calcula `sinPublicar.tema`/`sinPublicar.encabezado` — pero ese archivo **no estaba en `touches:` de
+este slice**. Medido antes de escribir nada: sumarle una clave `sinPublicar.detalles` ahí habría
+ensanchado un archivo compartido fuera de lo declarado — el mismo tipo de gap que dejó BLOQUEADO a
+`MUESTRARIO-DRAWER-MOVIL-TEMA-1` un día antes (`app/api/site-content/encabezado/route.ts` fuera de
+`touches:`, sin alternativa de diseño). La diferencia acá es que SÍ había alternativa: como este slice
+crea la ruta de `detalles` DESDE CERO (a diferencia de aquél, que ampliaba una ruta YA EXISTENTE con
+un allowlist hardcodeado), pudo diseñarse con su PROPIO GET —`resolverVolverArriba`/
+`resolverRielSocial` + `mezclarBorrador`, los tres YA exportados de `site-content-defaults.ts`, sin
+duplicar ningún cómputo, sólo el PUNTO donde se arma la respuesta— y quedar entero dentro de
+`touches:`. `DetallesSitioSeccion.tsx` lee por ESE GET, no por el genérico (§ el docstring de la ruta
+y del componente, ambos documentan la decisión). Costo de esto: una TERCERA forma —además de
+"apoyarse en el GET genérico" (`tema`/`encabezado`) y "GET propio store-wide" (`PaletaSeccion`, § la
+nota `[4]` de "La CASCADA de /admin/tienda" en CLAUDE.md)— de resolver el draft-merged de una meta;
+beneficio: cero ensanchamiento de un archivo fuera de `touches:`. Es una decisión de ALCANCE, no de
+arquitectura ideal — documentada en el propio código para que quien la lea sepa que es deliberada.
+
+### El editor — `DetallesSitioSeccion.tsx`, patrón `EncabezadoSeccion` simplificado
+
+Bespoke, NO `TiendaSeccionEditor` (mismo motivo que `EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`:
+las dos claves están excluidas del REGISTRY). Montado en `/admin/tienda` entre Encabezado y Pie de
+página (las cinco piezas store-wide: Colores · Menú · Encabezado · **Detalles del sitio** · Pie), SIN
+vista previa en vivo — `BackToTop.tsx`/`RielSocial.tsx` (los componentes reales del storefront)
+importan `useCartStore`/`useSiteSettings`, que LANZAN fuera de su árbol de providers (§ CLAUDE.md,
+"Montar un componente en OTRO árbol de providers").
+
+Los DOS controles:
+
+| control | campo | efecto |
+| --- | --- | --- |
+| Botón "volver arriba" | `volverArriba.visible` | un botón flotante abajo-derecha que aparece al bajar por la página y lleva de vuelta al inicio |
+| Riel social | `rielSocial.visible` | un riel fijo a un lado con las redes ya cargadas en Configuración — sólo en pantallas anchas (≥1560px) y sólo si hay al menos una red |
+
+**A DIFERENCIA de `cromo` (tres claves, con `navBadge` reenviado sin editor propio), acá NO hay ningún
+campo que reenviar**: cada meta es un objeto de UNA sola clave (`{visible: boolean}`), así que el wire
+de cada guardado es su forma completa por construcción — no hay riesgo de borrar en silencio un campo
+que el editor no controla, porque no existe tal campo.
+
+Default = lo que ya trae `content.*` (el preset lo sembró vía `mergePresetEnContent`); el dueño lo
+overridea con el switch — mismo principio que `EncabezadoSeccion`/`PANEL-EDITOR-HERO-TOGGLES-1`.
+
+### El guard — `lib/config/panel-controles.ts`
+
+- `CONTROLADOS_DETALLES_SECCION = ['volverArriba.visible', 'rielSocial.visible']` (declaración
+  explícita, mismo patrón que `CONTROLADOS_ENCABEZADO_SECCION`) suma los dos campos a
+  `camposControladosPorPanel()`.
+- Las DOS entradas de `PENDIENTE_PANEL` para `volverArriba.visible`/`rielSocial.visible` se
+  **BORRARON** (no se reescribieron a "CERRADO" — mismo precedente que `PANEL-EDITOR-MENU-BADGE-1`:
+  "una exención que ya no aplica se retira, no se comenta: es una lista, no un historial"). El
+  comentario que las precedía (que citaba `PANEL-EDITOR-ENCABEZADO-1`, "LOS QUE NO VAN") se reescribió
+  a un "CERRADO por `PANEL-DETALLES-SITIO-1`" — mismo tratamiento textual que los demás CERRADO del
+  archivo.
+- **El TECHO del trinquete bajó de 13 a 11** (`PENDIENTE_PANEL.length`, medido:
+  `node -e` sobre el archivo real dio **11**, no supuesto) — bajado A MANO en el MISMO commit, como
+  exige § GUARDA-PRE-MERGE-TRINQUETE-BUILD-1.
+
+### `lib/config/panel-controles.test.ts` — fuera de `touches:`, MISMO precedente ya sentado en esta rama
+
+- El test que afirmaba que SIN exenciones el chequeo marcaba `volverArriba.visible`/`rielSocial.visible`
+  como huecos (la calibración que sobrevivió a `PANEL-EDITOR-ENCABEZADO-1`, ajustada por ese slice de
+  "las cuatro" a "las DOS que siguen sin editor") se reemplazó por uno que afirma lo CONTRARIO —que
+  las dos están CONTROLADAS y ya no son huecos ni siquiera SIN exenciones—, con un comentario "CERRADO
+  por `PANEL-DETALLES-SITIO-1`". No es un defecto del chequeo: es el chequeo funcionando, el hueco que
+  medía ya no existe. Mismo precedente que `PANEL-EDITOR-HERO-TOGGLES-1`/`-ENCABEZADO-1` ya sentaron en
+  esta rama para aserciones vueltas falsas por el propio diff.
+- El techo del trinquete (13→11) y su comentario de historial se actualizaron en el mismo archivo.
+- Este archivo SÍ está en `touches:` de este slice (a diferencia del precedente citado, que lo tocó
+  fuera de `touches:`), así que no hay desviación que anotar acá — se declara el paralelismo con el
+  precedente por completitud.
+
+### El test de punta a punta — DESVIACIÓN DE UBICACIÓN medida, MISMO precedente exacto de `PANEL-EDITOR-ENCABEZADO-1`
+
+**DESVIACIÓN:** `touches:` nombraba `lib/config/detalles-sitio.test.ts`. Medido antes de escribirlo
+(no asumido): ese path cae bajo el glob DB-FREE del carril rápido (`"lib/**/*.test.ts"`,
+`package.json`, script `test`) — el ÚNICO glob que `scripts/test-integracion.sh` recorre es
+`"tests/integracion/**/*.test.ts"`. Un test que habla con Postgres real en `lib/config/` rompería
+`npm test` (capa 1, sin base) para TODOS — la MISMA regla que CLAUDE.md declara para `app/` (§ "El
+carril rápido cubre `app/`") y que `PANEL-EDITOR-ENCABEZADO-1` ya midió y aplicó a `lib/` para
+`panel-encabezado.test.ts`, el DÍA ANTERIOR. La medición gana sobre la instrucción: el archivo vive en
+`tests/integracion/detalles-sitio.test.ts`, no en el path que `touches:` nombraba.
+
+El test corre la MISMA secuencia que la ruta (parsear con el schema real acotado con `.pick()` →
+`guardarBorrador` → `publicarSeccion`/`descartarSeccion` de las dos metas → releer con
+`readSiteContent` + el mismo cómputo de `sinPublicar` que usa el GET propio de la ruta), contra
+Postgres real. Cinco casos, gemelos de los de `panel-encabezado.test.ts` menos el caso de reenvío de
+`navBadge` (no aplica: ninguna de las dos metas tiene un campo que reenviar):
+
+1. guardar → las dos metas quedan en el BORRADOR y `sinPublicar` es `true`; lo PUBLICADO no cambia.
+2. publicar → `content.{volverArriba,rielSocial}` quedan actualizadas Y el borrador de las dos queda
+   limpio (`sinPublicar` vuelve a `false`).
+3. descartar → el borrador se limpia SIN tocar lo YA publicado.
+4. default del preset → `aplicarPreset(CORTE)` (el único de los 6 presets del catálogo que enciende
+   los dos ejes, medido contra `lib/config/themes.ts:912-918`) deja los dos en `true`.
+5. cada meta se puede publicar/descartar de forma INDEPENDIENTE de la otra (guarda sólo esa clave) —
+   afirma que el mecanismo de guardado no exige las dos juntas, aunque `wireDe` del componente real
+   siempre mande las dos.
+
+### `lib/config/site-content-defaults.test.ts` — en `touches:`, NO TOCADO (deliberado)
+
+Medido antes de escribir: este archivo (1443 líneas) no menciona `volverArriba`/`rielSocial`/`cromo`/
+`navTratamiento`/`navWordmark` en ningún lado — los resolvers de esas metas tienen sus PROPIOS archivos
+de test (`cromo-volver-arriba.test.ts`, `cromo-riel-social.test.ts`, ninguno tocado por este slice, ya
+existentes y verdes desde `CROMO-VOLVER-ARRIBA-1`/`CROMO-RIEL-SOCIAL-1`). Como este slice NO cambia
+ningún resolver, tipo ni default —sólo dos docstrings—, no hay ninguna aserción que agregar ni que
+corregir acá. Mismo precedente que `PANEL-EDITOR-ENCABEZADO-1` dejando `tienda-secciones.ts`/
+`TiendaSeccionEditor.tsx` sin tocar pese a estar en `touches:`: "el spec lo dejaba explícito: 'si no lo
+necesita, dejalo y decilo en el asiento'; no lo necesitó."
+
+### El gate — corrido sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2071/2071** — verde, SIN cambio de conteo (el diff reemplaza 1 test por 1 test en `panel-controles.test.ts`, neto cero) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde (+5: los cinco casos nuevos de `detalles-sitio.test.ts`) |
+
+Reconciliado contra el piso citado por el dispatch/commit anterior (`3882977`: "Gate verde (tsc 0,
+2071/2071, 232/232)"): capa 1 queda IDÉNTICA (2071→2071, ningún test neto agregado ni retirado); capa 2
+sube en exactamente +5 (232→237), explicado entero por `detalles-sitio.test.ts` — ninguna diferencia es
+drift sin explicación.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas/paths que este diff introdujo o cambió: `DetallesSitioSeccion`, `volverArriba.visible`,
+`rielSocial.visible`, `PANEL-DETALLES-SITIO-1`, `app/api/site-content/detalles`,
+`CONTROLADOS_DETALLES_SECCION`, `PENDIENTE_PANEL` (contenido), `app/(admin)/admin/tienda/page.tsx`
+(mount nuevo), `lib/config/site-content-defaults.ts`/`lib/config/site-content-schema.ts` (docstrings).
+Grepeados uno por uno contra `CLAUDE.md`:
+
+- `DetallesSitioSeccion`, `volverArriba`, `rielSocial`, `PANEL-DETALLES-SITIO`,
+  `PANEL-EDITOR-CHROME-METAS`, `PENDIENTE_PANEL`, `panel-controles`, `site-content/detalles`,
+  `CONTROLADOS_DETALLES_SECCION`, `PANEL-EDITOR-ENCABEZADO`, `Detalles del sitio`, `EncabezadoSeccion`,
+  `site-content-read` — **CERO apariciones** de todos. Nada en `CLAUDE.md` nombra lo que este diff
+  cambió; no hay nada que corregir ahí.
+- `site-content-defaults`/`site-content-schema` (8 y 5 apariciones respectivamente): las 13 son sobre
+  el estatus Tier 1 de esos archivos (línea 39, la lista de superficies protegidas — sin cambio, este
+  slice sigue el protocolo de escritura de segunda etapa que esa misma sección describe), el bug
+  histórico §65-B, o mecánica general de `resolverSiteContent`/el REGISTRY — ninguna nombra
+  `VolverArribaContent`/`RielSocialContent`/`volverArribaEditableSchema`/`rielSocialEditableSchema`
+  específicamente, así que ninguna se vuelve falsa por editar sólo sus docstrings (cambio de
+  comentario, cero cambio de tipo/valor/comportamiento).
+- `admin/tienda` (13 apariciones): ninguna nombra un conteo fijo de piezas store-wide que mi mount
+  nuevo rompa, **EXCEPTO una staleness YA EXISTENTE, no causada por este diff**: § "La CASCADA de
+  /admin/tienda" (CLAUDE.md, nota `[4]`) dice *"Neto en la home: 6→2, no 6→1"* — una medición del
+  2026-09-06, de cuando `/admin/tienda` sólo tenía `PaletaSeccion` + `TiendaPaginas` como fetchers
+  independientes. Esa cifra YA estaba desactualizada antes de este slice: `MenuSeccion`,
+  `FooterSeccion` y `EncabezadoSeccion` (los tres posteriores a esa nota, cada uno con su propio
+  patrón de fetch) nunca la actualizaron. Este slice AGRAVA la misma staleness —
+  `DetallesSitioSeccion` suma otro fetch independiente al montarse (a su ruta propia, no al genérico)—
+  pero no es quien la origina. Anotado en `open_followups` como `ADMIN-TIENDA-FETCH-COUNT-STALE-1`
+  (fuera de `touches:` de este slice: `CLAUDE.md` no está en la lista).
+
+### `touches:` — lo que se escribió (y lo que NO)
+
+Escrito: `app/api/site-content/detalles/route.ts` (nuevo), `components/admin/DetallesSitioSeccion.tsx`
+(nuevo), `app/(admin)/admin/tienda/page.tsx`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `lib/config/site-content-defaults.ts` (sólo dos docstrings),
+`lib/config/site-content-schema.ts` (sólo dos docstrings), este asiento (`DECISIONS.md`).
+
+Fuera de la letra de `touches:`, con su justificación arriba: `tests/integracion/detalles-sitio.test.ts`
+en vez de `lib/config/detalles-sitio.test.ts` (el path nombrado rompería el carril rápido; la medición
+gana — MISMO precedente exacto que `PANEL-EDITOR-ENCABEZADO-1` sentó un día antes).
+
+No tocado, deliberadamente, aunque estaba en `touches:`: `lib/config/site-content-defaults.test.ts` (no
+había nada que agregar ni corregir — § arriba).
+
+No tocado, y NO estaba en `touches:`, por diseño (§ "El GET es local a la ruta nueva" arriba):
+`lib/config/site-content-read.ts`.
+
+### `open_followups`
+
+- `ADMIN-TIENDA-FETCH-COUNT-STALE-1`: la nota `[4]` de "La CASCADA de /admin/tienda" en `CLAUDE.md`
+  ("Neto en la home: 6→2, no 6→1") está desactualizada desde antes de este slice (post-`MenuSeccion`/
+  `FooterSeccion`/`EncabezadoSeccion`) y este slice la agrava en +1. No se corrige acá: `CLAUDE.md` no
+  está en `touches:` de `PANEL-DETALLES-SITIO-1`.
+
+### `customer_bytes`
+
+El diff agrega bytes que el OPERADOR/DUEÑO lee en `/admin/tienda` (nunca el visitante de la tienda):
+el título de sección "Detalles del sitio", su descripción ("El botón para volver arriba y el riel de
+redes sociales."), las dos etiquetas de control ("Botón \"volver arriba\"", "Riel social") con sus
+hints, y los toasts/copy de publicar/descartar/error ya reusados de `EncabezadoSeccion`/
+`ConfirmDescartarDialog` (ningún string NUEVO ahí, son componentes compartidos). `changed: true`.
+
+`strings`: "Detalles del sitio"; "El botón para volver arriba y el riel de redes sociales."; "Botón
+\"volver arriba\""; "Un botón flotante que aparece al bajar por la página y lleva de vuelta al
+inicio."; "Riel social"; "Un riel fijo a un lado de la pantalla con tus redes sociales — usa las que ya
+cargaste en Configuración. Sólo se ve en pantallas anchas, y sólo si hay al menos una red cargada.";
+"¿Descartar los cambios sin publicar?"; "Volverás a los detalles del sitio publicados. El borrador se
+perderá y no se puede recuperar."; "Sin ajustes activos — el sitio de siempre."
+
+**NINGÚN byte de STOREFRONT cambia**: `volverArriba.visible`/`rielSocial.visible` ya existían con su
+resolver/render (`BackToTop.tsx`/`RielSocial.tsx`, byte-idénticos con `false`, § `CROMO-VOLVER-ARRIBA-1`/
+`CROMO-RIEL-SOCIAL-1`); este slice sólo agrega el CONTROL en el panel, no un valor nuevo ni un
+comportamiento nuevo del componente. Nayoli hoy tiene los dos ejes en `false` (sin preset CORTE
+aplicado) y este diff no los toca — cero cambio visual en el storefront, no hizo falta correr el diff
+visual (§ el spec: "este diff NO toca render del storefront... decilo en el asiento en vez de
+correrlo").
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: `Product`/`SiteContent.content`/`SiteContent.borrador` son columnas `Json`
+ya existentes, sin tocar `packages/core/prisma/schema.prisma` ni migración alguna — los dos campos
+(`volverArriba`, `rielSocial`) ya vivían DENTRO de esas columnas desde `CROMO-VOLVER-ARRIBA-1`/
+`CROMO-RIEL-SOCIAL-1`. Sin contrato cross-repo.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores, `npm test` 2071/2071, `npm run
+test:integracion` 237/237, sin flakes), commiteado en `slice/corte-reescritura-prototipo-1`. El diff
+falla UNA de las tres condiciones de merge policy A: `customer-bytes` (el operador/dueño gana texto
+nuevo en `/admin/tienda`, § arriba). `schema` y `cross-repo-contract` NO aplican. `stopped_on:
+[customer-bytes]`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea y hereda además la clasificación de la RAMA completa
+(`slice/corte-reescritura-prototipo-1`, que ya venía `AWAITING_APPROVAL` por slices anteriores que
+tocan bytes de visitante, § CLAUDE.md "EL EJE ES LA RAMA, NO EL COMMIT").

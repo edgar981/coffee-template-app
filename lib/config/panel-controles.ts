@@ -209,11 +209,20 @@ const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscrip
  *  el badge del ítem de menú, que sí tiene control en `MenuSeccion.tsx`). */
 const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navDrawerMovil.variante'];
 
+/** DECLARACIÓN EXPLÍCITA de lo que `DetallesSitioSeccion.tsx` controla (§ PANEL-DETALLES-SITIO-1):
+ *  `volverArriba`/`rielSocial` NO son secciones del REGISTRY (§ el docstring de
+ *  `CONTROLADOS_ENCABEZADO_SECCION`, misma familia), así que tienen su propia ruta de publicar/
+ *  descartar (`/api/site-content/detalles`) y se declaran acá, leídas de su código: los DOS switches
+ *  — el botón "volver arriba" (`volverArriba.visible`) y el riel social (`rielSocial.visible`). Cierra
+ *  las dos últimas entradas del grupo `PANEL-EDITOR-CHROME-METAS-1` en `PENDIENTE_PANEL`. */
+const CONTROLADOS_DETALLES_SECCION = ['volverArriba.visible', 'rielSocial.visible'];
+
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {
   return [
     ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_FOOTER_SECCION,
     ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
+    ...CONTROLADOS_DETALLES_SECCION,
   ].sort();
 }
 
@@ -304,11 +313,10 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // consumidor)—, no darle un editor propio; `cierra` apunta a ese retiro, coined por este slice.
   { campo: 'cromo.navBadge', razon: 'Dormido: su único consumidor real (el badge del nav) lo reemplazó menu.badgeItem/badgeTexto, ya controlado; cromo.navBadge queda sin editor propio, sólo reenviado por EncabezadoSeccion.tsx', cierra: 'CROMO-NAVBADGE-RETIRO-1' },
 
-  // Las DOS metas de chrome que NO entran en este slice (§ PANEL-EDITOR-ENCABEZADO-1, "LOS QUE NO
-  // VAN": son "Detalles del sitio", otro slice). `navTratamiento.activo`/`navWordmark.activo` ya
-  // tienen control (`EncabezadoSeccion.tsx` — cierran acá, salieron de este grupo).
-  { campo: 'volverArriba.visible', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CHROME-METAS-1' },
-  { campo: 'rielSocial.visible', razon: 'Sólo mergePresetEnContent lo escribe; sin control en el panel', cierra: 'PANEL-EDITOR-CHROME-METAS-1' },
+  // CERRADO por PANEL-DETALLES-SITIO-1: las DOS metas de chrome que `PANEL-EDITOR-ENCABEZADO-1` dejó
+  // fuera a propósito ("son 'Detalles del sitio', fuera de este slice, con su propio disparador
+  // futuro") ya tienen control (`DetallesSitioSeccion.tsx`, § CONTROLADOS_DETALLES_SECCION arriba) —
+  // las dos entradas del grupo `PANEL-EDITOR-CHROME-METAS-1` se retiraron de acá.
 ];
 
 // ─── EL CHEQUEO ─────────────────────────────────────────────────────────────────────────────────────

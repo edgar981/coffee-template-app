@@ -69,15 +69,16 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // pruebas de higiene seguirían en verde mientras PENDIENTE_PANEL CRECE — exactamente lo que el
 // docstring de panel-controles.ts:46 prohíbe en prosa ("la lista nunca puede crecer en silencio").
 // Este test es lo que hace esa prosa MECÁNICA: el TECHO es un TRINQUETE, sólo BAJA. Cuando un slice
-// cierra exenciones (como hicieron PANEL-EDITOR-MARQUESINA-1, -TRUSTBADGES-VISIBLE-1, -ORIGEN-1, y
+// cierra exenciones (como hicieron PANEL-EDITOR-MARQUESINA-1, -TRUSTBADGES-VISIBLE-1, -ORIGEN-1,
 // PANEL-EDITOR-SPOTLIGHT-RESTO-1 — bajándolo de 17 a 13, cerrando `spotlight.visible`/`.eyebrow`/
-// `.titulo`/`.badge` —, cada uno bajando PENDIENTE_PANEL), baja el número de acá A MANO en el MISMO
-// commit; nunca sube en silencio. El valor de hoy (13) es el largo actual medido — la aserción pasa
-// hoy porque coincide; el día que alguien la vea fallar, la respuesta es cerrar el hueco con un
-// CONTROL, no subir el techo.
+// `.titulo`/`.badge` —, y PANEL-DETALLES-SITIO-1 — bajándolo de 13 a 11, cerrando
+// `volverArriba.visible`/`rielSocial.visible` —, cada uno bajando PENDIENTE_PANEL), baja el número de
+// acá A MANO en el MISMO commit; nunca sube en silencio. El valor de hoy (11) es el largo actual
+// medido (`PENDIENTE_PANEL.length`) — la aserción pasa hoy porque coincide; el día que alguien la vea
+// fallar, la respuesta es cerrar el hueco con un CONTROL, no subir el techo.
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 13,
+    PENDIENTE_PANEL.length <= 11,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );
@@ -116,14 +117,22 @@ test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por enc
 // construcción ya no incluye estos dos. Su reemplazo específico —que el control persiste de verdad—
 // vive en `tests/integracion/menu-badge.test.ts`.
 
-// AJUSTADO por PANEL-EDITOR-ENCABEZADO-1: el título decía "las cuatro metas de chrome" cuando eran
-// `volverArriba.visible`/`rielSocial.visible`/`navTratamiento.activo`/`navWordmark.activo`. Ese
-// slice le dio control a las DOS últimas (`EncabezadoSeccion.tsx`), así que hoy sólo quedan DOS sin
-// controlar — la aserción sobre las otras dos sería FALSA, misma familia que el CERRADO de arriba.
-test('calibración: SIN exenciones, el chequeo marca las DOS metas de chrome que siguen sin editor', () => {
+// CERRADO por PANEL-DETALLES-SITIO-1: este test (AJUSTADO antes por PANEL-EDITOR-ENCABEZADO-1, que
+// bajó el título de "las cuatro metas de chrome" a "las DOS que siguen sin editor") afirmaba que SIN
+// exenciones el chequeo marcaba `volverArriba.visible`/`rielSocial.visible` como huecos — la
+// calibración que quedó viva tras cerrar `navTratamiento.activo`/`navWordmark.activo`. Este slice les
+// dio control (`DetallesSitioSeccion.tsx`, § CONTROLADOS_DETALLES_SECCION arriba), así que hoy están
+// CONTROLADOS y la aserción de arriba sería FALSA — no un defecto del chequeo, es el chequeo
+// funcionando: el hueco que medía ya no existe. Misma familia que los CERRADO de arriba. La
+// calibración GENERAL sigue viva en "marca EXACTAMENTE el conjunto de PENDIENTE_PANEL", que por
+// construcción ya no incluye estos dos.
+test('volverArriba.visible/rielSocial.visible: CONTROLADOS por DetallesSitioSeccion.tsx — ya no son huecos ni siquiera SIN exenciones', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('volverArriba.visible'));
+  assert.ok(controlados.includes('rielSocial.visible'));
   const huecos = huecosDelPanel({ conExenciones: false });
-  assert.ok(huecos.includes('volverArriba.visible'));
-  assert.ok(huecos.includes('rielSocial.visible'));
+  assert.ok(!huecos.includes('volverArriba.visible'));
+  assert.ok(!huecos.includes('rielSocial.visible'));
 });
 
 // § MUESTRARIO-DRAWER-MOVIL-TEMA-1: `navDrawerMovil.variante` gana su control EN EL MISMO commit que
