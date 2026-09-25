@@ -20783,3 +20783,230 @@ diff agrega una capacidad de cara al visitante (el mega-menu del nav) sin tocar 
 contrato cross-repo — la única de las tres condiciones de merge policy A que aplica es
 `customer-bytes`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA
 ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner, como en todo Tier 1.
+
+## 2026-09-25 — `MUESTRARIO-DRAWER-MOVIL-TEMA-1` — BLOQUEADO: la capacidad se construyó ENTERA y verificada (gate verde + Nayoli visual 0px), pero el CONTROL DE PANEL real (no una exención) necesita UN archivo fuera de `touches:` — mismo patrón que `MUESTRARIO-FOOTER-TEMA-1`, ahora del lado de la PERSISTENCIA del editor bespoke, no de su montaje
+
+### Lo que se construyó, completo y verificado
+
+El drawer de navegación MÓVIL entra al sistema de temas con su propia meta, `content.navDrawerMovil`
+(`NavDrawerMovilContent { variante: 'dropdown' | 'pantallaCompleta' }`) — MISMA forma que
+`navTratamiento`/`navWordmark` (booleano de un ajuste sobre un elemento ya montado) pero con
+VARIANTE en vez de booleano, porque las dos composiciones son FORMAS ENTERAS distintas del mismo
+elemento (dropdown angosto `motion.div` bajo el header vs. pantalla completa con cabecera propia),
+igual criterio que `hero.variante`/`brandStory.variante`. `'dropdown'` es la canónica —byte-idéntica
+a HOY—; `'pantallaCompleta'` es la composición del prototipo, MEDIDA contra
+`docs/prototipos/cafeone/css/app.css:300-321` e `index.html:93-106`: panel `fixed inset-3` (12px,
+`--frame-gap`), `rounded-[14px]` (`--frame-radius`), fondo `--sf-tinta` (la MISMA raíz que
+`--surface-inverse`), cabecera propia (wordmark 30px uppercase tracking `.01em` serif + botón cerrar,
+`mb-10` = 40px `--space-10`) y links con entrada ESCALONADA (`--i`, `animation-delay:calc(var(--i,0)
+* 60ms + 80ms)`, `420ms` `cubic-bezier(.22,.61,.36,1)` = `--ease-out`, opacity 0→1 +
+`translateY(14px)`→0). `cromo`/`navTratamiento`/`navWordmark` NO se tocaron —sus docstrings ya
+declaraban que no gobiernan el drawer, y eso sigue siendo cierto (afirmado por ejecución en
+`cromo-tematizable.test.ts`: `cromo` sigue siendo EXACTAMENTE 3 claves pese al eje nuevo de CORTE)—.
+
+`StoreNav.tsx` despacha por `navDrawerMovil.variante`: la rama `'dropdown'` es el JSX de HOY
+verbatim (byte a byte, cero cambios); la rama `'pantallaCompleta'` es la composición nueva, con TODOS
+los ítems de hoy conservados (links + CTA + Rastrear Pedido) — sólo cambia la composición que los
+pinta. La entrada escalonada usa `motion.div`/`variants`/`custom` — el MISMO mecanismo DECLARATIVO
+que el dropdown ya usa (`initial`/`animate`/`exit`) — así que `MotionConfig reducedMotion="user"`
+(`ReducedMotionProvider`, `lib/animation.ts`, montado en `app/(storefront)/layout.tsx`) la congela
+SOLA bajo `prefers-reduced-motion`, sin un guard `useReducedMotion()` propio: ese provider intercepta
+cualquier animación disparada por `.start()` (declarativa), a diferencia de
+`useProgresoAcomodo`/`useScroll`+`useTransform` de `BrandStoryCentrada`, que SÍ necesitan el hook
+explícito porque un valor de scroll ligado directo no pasa por `.start()`. Es la MISMA distinción que
+ya deja escrita `lib/animation.ts` para el resto del repo — no una excepción nueva.
+
+El eje se declaró en las TRES capas de dato del sistema: `site-content-defaults.ts` (interfaz +
+resolver `resolverNavDrawerMovil`, dominio cerrado de 2 valores con la MISMA validación por-set que
+`origenTexto`/`origenAccion` de `resolverTema` — no un booleano) + DEFAULTS (`'dropdown'`) +
+`SeccionKey` (exclusión, ahora DOCE metas); `site-content-schema.ts` (`navDrawerMovilEditableSchema`,
+`z.enum(['dropdown','pantallaCompleta']).optional()`, declarado SÓLO para que un futuro write general
+no la STRIPPEE en silencio, § #65-B — el MISMO motivo que ya declara `cromo`/`navTratamiento` pese a
+"HOY no hay editor que la escriba", § esos docstrings); `themes.ts` (`PresetTema.navDrawerMovilVariante`,
+CORTE lo declara `'pantallaCompleta'` con su docstring medido, `mergePresetEnContent` lo fusiona por
+ruta como los otros cuatro ejes de chrome).
+
+`panel-controles.ts` ganó el campo al lado LEÍDO (`METAS_CON_CAMPOS`, ahora OCHO) Y al lado
+CONTROLADO (`CONTROLADOS_ENCABEZADO_SECCION`, un 5º switch — "¿pantalla completa?", ON/OFF sobre el
+set cerrado de 2, la UI correcta para un dominio de 2 miembros). `huecosDelPanel()` da `[]`; el techo
+del trinquete (`PENDIENTE_PANEL.length <= 13`) NO se tocó — sigue en 13, CERO entradas nuevas, tal
+como el spec ordenaba ("el techo del trinquete NO sube"). `EncabezadoSeccion.tsx` ganó el 5º control
+—`Form.drawerMovil`/`Wire.navDrawerMovil`, con `wireDe` traduciendo el booleano del form al string
+del dato en el borde—, patrón `MenuSeccion`/`PaletaSeccion`: no pasa por `TiendaSeccionEditor`, sin
+vista previa en vivo (misma razón que las otras cuatro: el nav real importa `useCartStore`/
+`useSiteSettings`, que lanzan fuera de su árbol de providers).
+
+Con los DOS archivos sumados FUERA de `touches:` (§ el bloqueo, abajo) para poder medir el gate con
+precisión, sobre el árbol completo:
+
+- `npx tsc --noEmit -p tsconfig.json` → **0 errores**.
+- `npm test` → **2040/2040**, 0 fail (piso heredado de `a036931`: 2017/2017; +23 tests nuevos: 21 de
+  `lib/config/drawer-movil.test.ts` —nuevo, el archivo de `touches:`—, +1 de `panel-controles.test.ts`
+  —control positivo, gemelo del ya existente para navTratamiento/navWordmark—, +1 de
+  `cromo-tematizable.test.ts` —confirma por ejecución que `cromo` sigue en 3 claves—).
+- `npm run test:integracion` → **232/232** (piso heredado: 231/231; +1 test nuevo en
+  `tests/integracion/panel-encabezado.test.ts` —el drawer móvil se publica/descarta de forma
+  independiente de los otros tres ejes—, y los CINCO tests preexistentes de ese archivo actualizados
+  para incluir la 4ª meta en sus bodies, § el bloqueo).
+- `npm run verificar:nayoli:visual` → **0px de diferencia en las 6 rutas + los 2 hovers**
+  (home/tienda/producto/checkout/nosotros/suscripciones, hover-automática, hover-elección) — el
+  fixture captura a `ANCHO_VIEWPORT=1280` (`scripts/verificar-nayoli-visual.ts:202`), DESKTOP: el
+  drawer móvil vive detrás de `lg:hidden` y no se ejerce a ese ancho. **LÍMITE DE LA VERIFICACIÓN,
+  DECLARADO, no licencia para no medir** (§ el spec de este slice lo pide explícito): el 0px confirma
+  que Nayoli (canónica, `'dropdown'`) no cambió en NINGUNA superficie que el fixture SÍ mide —no
+  confirma la composición `'pantallaCompleta'` en sí, que no tiene forma de aparecer en un tenant sin
+  preset CORTE aplicado ni en un viewport de escritorio.
+
+### El bloqueo, MEDIDO: la ruta dedicada del Encabezado necesita su propio `.pick()`/lista ampliados, y ESE archivo no está en `touches:`
+
+El spec ordenaba, correctamente, que el control fuera REAL (`huecosDelPanel()` en `[]`, "el techo del
+trinquete NO sube" — nunca una exención). Medido ANTES de dar por bueno el control: `cromo`/
+`navWordmark`/`navTratamiento` NO son secciones del REGISTRY (`SeccionKey` las excluye a propósito, §
+el docstring de cada meta), así que el route GENÉRICO de `/api/site-content` no puede publicar/
+descartarlas —su gate `seccion in REGISTRY` (`app/api/site-content/route.ts:88`) las rechaza con
+400— y por eso EncabezadoSeccion.tsx habla con su PROPIA ruta dedicada,
+`app/api/site-content/encabezado/route.ts`, que reimplementa el patrón de `tema/route.ts` con DOS
+piezas hardcodeadas a las metas de ESE momento:
+
+```ts
+const encabezadoEditableSchema = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true });
+const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento'] as const;
+```
+
+`.pick()` de zod construye un `ZodObject` que SÓLO conoce esas tres claves; con el body real que
+`wireDe` arma (las CUATRO metas completas, incluida `navDrawerMovil`), `encabezadoEditableSchema.
+safeParse(...)` STRIPPEA la cuarta EN SILENCIO —ni error, ni warning— y `guardarBorrador(parsed.data)`
+nunca ve `navDrawerMovil`: el switch del panel movería el estado de React, pero el PUT jamás lo
+persistiría. Confirmado leyendo el código, no supuesto: es EXACTAMENTE el defecto que
+`§65-B` (`site-content-schema.ts`, "el schema editable STRIPPEA lo no declarado") documenta como el
+peor tipo de brecha — un control que SE VE andar y en silencio no guarda nada, indistinguible de uno
+que funciona hasta que el dueño recarga la página y ve el switch vuelto a apagar. Y para PUBLICAR/
+DESCARTAR, `POST` recorre `METAS_ENCABEZADO` a mano —sin ese 4º elemento, `navDrawerMovil` nunca sale
+del borrador hacia lo publicado ni al revés—.
+
+`site-content-write.ts` (`guardarBorrador`/`publicarSeccion`/`descartarSeccion`) es TOTALMENTE
+key-agnóstico —recibe el string de la clave y hace spread/delete por esa clave, sin lista propia,
+confirmado leyendo su código— así que NO necesita tocarse; el gate `seccion in REGISTRY` vive SÓLO en
+el route GENÉRICO (`app/api/site-content/route.ts`), que tampoco puede usarse para esta meta porque
+`navDrawerMovil` está deliberadamente EXCLUIDA de `SeccionKey`/REGISTRY (es la forma correcta, §
+arriba — no el defecto). El ÚNICO archivo que necesita el nuevo nombre de clave para que el control
+sea REAL es `app/api/site-content/encabezado/route.ts`, y no está en `touches:` de este slice.
+
+Se midió también la superficie de un TERCER archivo, no estrictamente necesario para que el gate
+pase en verde pero sí para que la referencia construida no quede con un espejo desincronizado:
+`tests/integracion/panel-encabezado.test.ts` reimplementa a mano el MISMO `.pick()`/lista
+(`ENCABEZADO_SCHEMA`/`METAS_ENCABEZADO`, líneas 30-31 de ese archivo) para simular la ruta contra
+Postgres real — su propio docstring dice por qué existe así ("simula EXACTAMENTE el PUT/POST de la
+ruta"). Dejarlo con 3 claves mientras la ruta real gana una 4ª lo habría dejado probando una versión
+vieja de sí mismo, exactamente la clase de defecto que ESE archivo existe para prevenir del lado del
+componente — así que se actualizó igual, para que el build de referencia (§ abajo) sea coherente de
+punta a punta, aunque tampoco esté en `touches:`.
+
+### Por qué se para acá, y por qué no se dodgeó de otra forma
+
+Mismo argumento que `MUESTRARIO-FOOTER-TEMA-1`: el protocolo del despacho es explícito — "si el
+trabajo necesita un archivo fuera de `touches`, parás y lo decís — no lo ensanchás vos". La
+diferencia con ESE bloqueo es la CAPA: ahí faltaba el MONTAJE de un editor bespoke nuevo en el árbol
+de React (`page.tsx` + el propio componente, dos archivos NUEVOS); acá el editor bespoke YA EXISTE Y
+YA ESTÁ MONTADO (`EncabezadoSeccion.tsx` se importa y renderiza en `app/(admin)/admin/tienda/page.tsx`
+desde `PANEL-EDITOR-ENCABEZADO-1`, verificado por grep antes de escribir código) — lo que falta es que
+su ÚNICA ruta de persistencia reconozca la 4ª clave. Es un gap más chico (un archivo estructuralmente
+imprescindible, uno más de higiene) pero de la MISMA familia: código nuevo que compila, pasa el gate
+ESTÁTICO (`huecosDelPanel()` da `[]` con sólo declarar `CONTROLADOS_ENCABEZADO_SECCION`, sin que el
+guard verifique si el WRITE real lo persiste — medido: se corrió con el control declarado y la ruta
+SIN tocar, y el chequeo estático seguía en verde) y sin embargo no hace lo que promete en producción.
+
+Se evaluó NO construir el control y dejar sólo el modelo (defaults/schema/themes/StoreNav, los
+`touches:` reales) — se descartó por la misma razón que el bloqueo anterior: el spec es explícito
+("su control en el editor del Encabezado... EN EL MISMO commit"), y entregar el modelo sin control
+real habría sido la mina inerte que `PENDIENTE_PANEL`/`huecosDelPanel()` existen para prohibir, CON EL
+AGRAVANTE de que acá el camino "declarar el control sin que la ruta lo acepte" es el MÁS peligroso de
+los dos que este repo ya vio: ni el guard automatizado (chequeo estático) ni el gate visual del owner
+—que no toca el panel salvo que se le pida— lo habrían detectado; sólo un `tests/integracion/
+panel-encabezado.test.ts` actualizado lo hizo, y ESE archivo tampoco estaba en `touches:`.
+
+### Lo que sigue — para quien re-despache esto (`MUESTRARIO-DRAWER-MOVIL-PLUMBING-1`)
+
+El follow-up se coina como `MUESTRARIO-DRAWER-MOVIL-PLUMBING-1`: el archivo estructuralmente
+imprescindible, ya identificado con su cambio EXACTO —
+
+1. `app/api/site-content/encabezado/route.ts` — dos líneas: `encabezadoEditableSchema` gana
+   `navDrawerMovil: true` en el `.pick()`; `METAS_ENCABEZADO` gana `'navDrawerMovil'` al final del
+   array. El docstring de cabecera se actualiza de "cuatro ejes... TRES claves META" a "cinco
+   ejes... CUATRO claves META" (el mismo ajuste que ya recibieron `EncabezadoSeccion.tsx`/
+   `panel-controles.ts` en `touches:`).
+
+Y, para que la referencia quede coherente de punta a punta (no estructuralmente imprescindible para
+el gate, pero si se omite el archivo queda documentando una versión vieja de la ruta real):
+
+2. `tests/integracion/panel-encabezado.test.ts` — `ENCABEZADO_SCHEMA`/`METAS_ENCABEZADO` ganan la 4ª
+   clave; los cinco tests existentes incluyen `navDrawerMovil` en sus bodies; un sexto test nuevo
+   afirma que el drawer se puede publicar/descartar de forma independiente de los otros tres ejes.
+
+Ensanchar `touches:` a estos dos (el primero obligatorio, el segundo por completitud) es lo mínimo
+necesario; no se detectó un tercero (medido: `tsc` limpio y `npm test`/`npm run test:integracion` en
+verde con sólo estos dos sumados a los nueve de `touches:` + el archivo nuevo). Con ellos, el resto
+del diseño de este asiento (§ arriba, "Lo que se construyó") se puede re-aplicar sin re-abrir ninguna
+decisión — está completo, sólo sin commitear.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — el árbol final es IDÉNTICO a `a036931`
+(verificado: `git status --porcelain` sin salida, y `git rev-parse HEAD^{tree}` =
+`git rev-parse a036931^{tree}` = `12510f10b9daf44f2d42e6584fe7def93d39e9b0`, la MISMA identidad de
+árbol, no un re-diff que "probablemente" coincide). Los DIEZ archivos de `touches:` con permiso de
+escritura del spec (`site-content-defaults.ts`, `site-content-schema.ts`, `themes.ts`,
+`StoreNav.tsx`, `EncabezadoSeccion.tsx`, `panel-controles.ts`, `panel-controles.test.ts`,
+`cromo-tematizable.test.ts`, `site-content-defaults.test.ts` —sin cambios: medido que ninguna de sus
+aserciones exhaustivas necesitaba tocarse, § abajo—, `drawer-movil.test.ts`) quedan sin un solo byte
+modificado en este commit. El build completo se hizo en un commit intermedio (`54d3452`, "WIP full
+build for measurement") que luego se sacó de la rama con `git switch -C
+slice/corte-reescritura-prototipo-1 a036931` —mismo mecanismo que `f29b467`/`59a2893`/`b575d64` ya
+usaron antes en esta rama—; `54d3452` queda como commit COLGANTE (alcanzable por SHA, no por ninguna
+rama) con la implementación completa de referencia para quien re-despache esto. Su árbol
+(`git rev-parse 54d3452^{tree}` = `9adc5272f5cf5c6a4bb1827907037595a41bbcbb`) es la prueba de que el
+diff medido (gate verde arriba) es el mismo que queda disponible para reaplicar.
+
+**`lib/config/site-content-defaults.test.ts` NO se tocó, y es una medición, no un olvido:** los
+walkers genéricos de ese archivo (`walkStrings` sobre `DEFAULTS`, usados por el test de términos
+prohibidos y el de duplicados de texto) recorren `navDrawerMovil` automáticamente sin declaración
+nueva; `'dropdown'`/`'pantallaCompleta'` no colisionan con ningún valor existente (grepeado antes de
+escribir el resolver) ni matchean el regex de términos café/Nayoli. Ningún test de `Object.keys(
+DEFAULTS)` exhaustivo existe en ese archivo (grepeado). El patrón se confirmó contra el precedente:
+`navTratamiento`/`navWordmark` (slices anteriores) TAMPOCO tocaron este archivo — cada meta de chrome
+tiene su propio test dedicado (`cromo-nav-tratamiento.test.ts`, `corte-logo-apilado.test.ts`), nunca
+una entrada acá.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md` — sin hallazgos (el código real no cambió en este commit)
+
+Símbolos/paths que este diff habría cambiado si se hubiera commiteado: `NavDrawerMovilContent`,
+`ClaveDrawerMovil`, `resolverNavDrawerMovil`, `SiteContentData.navDrawerMovil`, `SeccionKey`
+(exclusión ampliada a doce), `navDrawerMovilEditableSchema`, `PresetTema.navDrawerMovilVariante`,
+`CORTE.navDrawerMovilVariante`, `mergePresetEnContent`, `StoreNav.tsx` (el bloque "Mobile Menu"),
+`EncabezadoSeccion.tsx` (`Form.drawerMovil`/`Wire.navDrawerMovil`/`CONTROLES`), `panel-controles.ts`
+(`METAS_CON_CAMPOS`/`CONTROLADOS_ENCABEZADO_SECCION`), y —fuera de `touches:`—
+`app/api/site-content/encabezado/route.ts` (`encabezadoEditableSchema`/`METAS_ENCABEZADO`).
+
+Grep de cada uno contra `CLAUDE.md`: **CERO resultados**, en los dos sentidos —ni los símbolos nuevos
+(`navDrawerMovil`, `NavDrawerMovilContent`, `ClaveDrawerMovil`) ni los componentes/archivos tocados
+(`EncabezadoSeccion`, `StoreNav.tsx`, `panel-controles`, `mergePresetEnContent`,
+`app/api/site-content/encabezado`)—. `CLAUDE.md` documenta la doctrina operativa de este repo
+(gates, capas de verificación, patrones de admin) pero NO el sistema de temas/muestrario/presets
+(`CORTE`, `PresetTema`, `SiteContentData`, el editor de `/admin/tienda`): esa documentación vive
+enteramente en `DECISIONS.md`, no en `CLAUDE.md`. **Nada en `CLAUDE.md` nombra lo que este diff
+cambia** — no hay ninguna sentencia que revisar por falsedad, prospectiva o no, porque no hay ninguna
+sentencia que hable del tema. Y como el código no se commiteó (§ arriba), esto es en cualquier caso
+un chequeo sobre lo que el re-despacho VA a producir, no sobre el árbol trackeado de hoy.
+
+### Verdicto
+
+**BLOCKED.** El modelo, el resolver, el schema defensivo, el render del storefront y la declaración
+del control en el panel están COMPLETOS y verificados (gate verde: tsc 0, `npm test` 2040/2040,
+`npm run test:integracion` 232/232, Nayoli visual 0px en 6 rutas + 2 hovers, con el LÍMITE de
+viewport-desktop declarado) — lo que falta es que la ÚNICA ruta de persistencia del Encabezado
+reconozca la 4ª clave, y ese archivo (`app/api/site-content/encabezado/route.ts`) no está en
+`touches:` de este slice. Cero commits en la rama; el árbol queda IDÉNTICO a `a036931` (identidad de
+árbol probada, no un re-diff). El build completo, verificado, queda en el commit colgante `54d3452`
+para que `MUESTRARIO-DRAWER-MOVIL-PLUMBING-1` lo reaplique byte a byte con `touches:` ensanchado a
+`app/api/site-content/encabezado/route.ts` (obligatorio) y `tests/integracion/
+panel-encabezado.test.ts` (por completitud del espejo).
