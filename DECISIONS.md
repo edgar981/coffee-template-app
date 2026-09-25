@@ -20106,3 +20106,268 @@ No aplica `cross-repo-contract`. `stopped_on: [schema, customer-bytes]`.
 cliente (riel/footer del storefront) — las dos condiciones que el propio spec ya anticipaba con
 `tier: 1`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA,
 NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner, como en todo Tier 1.
+
+## 2026-09-25 — `MUESTRARIO-FOOTER-TEMA-1` — BLOQUEADO: la capacidad se construyó ENTERA y verificada (gate verde + Nayoli visual 0px), pero DOS archivos fuera de `touches:` eran estructuralmente necesarios — mismo patrón que `MUESTRARIO-BANDA-APAGABLE-1`/`MUESTRARIO-SECCION-CTA-1`/`MUESTRARIO-REDES-ADICIONALES-1`, ahora del lado del MONTAJE del editor, no del modelo
+
+### Lo que se construyó, completo y verificado
+
+El pie de página deja de vivir 100% en código (`siteConfig.footerNav`/`legalNav`, `lib/config/
+site.ts`) y pasa a ser SECCIÓN del REGISTRY — el MISMO precedente que `menu` (§ CROMO-MENU-COMO-
+DATO-1): sección SIN ser BANDA (no entra a `BANDA_IDS`/`ORDEN_DEFAULT` — el pie se renderiza en el
+LAYOUT, en toda página, no en el orden del home) pero SÍ `SeccionKey` (campos, publica por el route
+genérico de `/api/site-content`, control de panel).
+
+`FooterContent` (`lib/config/site-content-defaults.ts`): `visible` (siempre `true`, `ocultable:
+false` — chrome de layout, como `menu`), `variante` ('franjas' la canónica — el pie de HOY,
+verbatim; 'apilado' la del muestrario), tres encabezados de columna (`columnaTienda`/`columnaAyuda`/
+`columnaEmpresa`), cinco etiquetas de enlace (`linkTienda`/`linkSuscripciones`/`linkRastrearPedido`/
+`linkPreguntasFrecuentes`/`linkNuestraHistoria`) y `items: FooterLegalItem[]` (el REPEATER de la fila
+legal, cardinalidad variable desde CERO — mismo criterio que testimonios/FAQ, § #44). **Los HREFS de
+las 5 columnas son ESTRUCTURA, no dato** — mismo criterio que `HERO_HREFS`/`menu.ctaDestino`: rutas
+reales del storefront, y el filtrado por página visible (que YA existía) compara contra esos
+literales; sólo la ETIQUETA es campo editable. `columnasDeFooter` (misma archivo, PURA) arma las tres
+columnas aplicando ese filtrado — es lo que `StoreFooter.tsx` pinta, sin necesitar su render (mismo
+patrón que `itemsDeMenu`/`menuCtaHref`), y lo que `footer-tema.test.ts` afirma sin jsdom.
+
+**`variante` se llamó 'franjas', no 'columnas'** (el nombre obvio): `brandStory.variante` ya usa
+'columnas' como SU canónica, y `site-content-defaults.test.ts` tiene un catcher de duplicados
+(CONTENIDO-NEUTRALIZAR-2) que trata cualquier string repetido en `DEFAULTS` como colisión — aunque
+sea una clave interna que nunca se renderiza. Se evitó pedir una exención por un token que no es
+contenido visible, renombrando en vez de expandir `DUPLICADO_PERMITIDO`. Sí hizo falta expandir esa
+lista en TRES casos reales: 'Nuestra Historia' (`footer.linkNuestraHistoria`, el texto EXACTO que
+`siteConfig.footerNav.empresa[0].label` ya tenía, coincide con `brandStory.eyebrow`), 'Tienda'
+(`footer.columnaTienda`, el `<h4>` hardcodeado de siempre, coincide con `menu.labelTienda`) y
+'Suscripciones' (`footer.linkSuscripciones`, coincide con `menu.labelSuscripciones`) — los tres
+preservan el texto que ya existía antes de este slice; cambiarlos para esquivar el collator habría
+roto el byte-idéntico que el slice exige. `DUPLICADO_PERMITIDO` documenta el porqué de cada uno.
+
+`REGISTRY.footer.repeater.itemsKey` se declaró `'items'`, NO `'legales'` (el nombre obvio para "la
+fila legal"): `camposDeItemsRepeater` (`panel-controles.ts`) hardcodea el segmento literal `.items.`
+en la ruta derivada en vez de leer `itemsKey` —funciona hoy porque LOS TRES repeaters existentes
+(`testimonials`, `nosotrosGaleria`, `suscripcionFaq`) usan `'items'`—, así que un `itemsKey` distinto
+habría desalineado la ruta que ese chequeo reporta de la ruta real del dato. Seguir la convención
+existente lo evita sin tocar `panel-controles.ts` más de lo necesario; `FooterContent.items` lleva un
+comentario explicando por qué no se llama `legales`.
+
+`StoreFooter.tsx` se reescribió con DOS componentes de variante (`FooterColumnas` la canónica —JSX
+BYTE-IDÉNTICO al de antes, sólo cambiando de dónde salen los textos; `FooterApilado` la del
+muestrario —marca arriba a ancho completo + tagline, columnas debajo, medida contra
+`docs/prototipos/cafeone/index.html:322+` **sin** el formulario de newsletter ni la tarjeta de mapa,
+fuera de alcance por el spec) despachados por `footer.variante` dentro del MISMO archivo (no en
+componentes separados como hero/brandStory: `touches:` de este slice sólo listaba un archivo de
+render). `lib/config/site.ts` perdió `NavLink`/`footerNav`/`legalNav`/`siteConfig` enteros — quedaron
+vacíos tras el traslado, y dejarlos habría sido la doble-lista que ya mordió dos veces en este repo
+(`CATEGORIAS ≠ CATEGORIA_LABELS`, `presentacionesEditableSchema` congelado).
+
+**EL CONTROL DE PANEL, EN EL MISMO COMMIT (regla permanente del spec):** `footer` NO pasa por
+`TiendaSeccionEditor`/`SECCIONES_TIENDA` — es un editor BESPOKE, `components/admin/FooterSeccion.tsx`
+(nuevo, patrón `MenuSeccion.tsx` byte por byte: mismo autoguardado, mismo PUT/POST genérico de
+`/api/site-content`, sin vista previa en vivo), reusando `RepeaterEditor` (ya genérico, sin imágenes
+declaradas → sin uploader) para la lista de enlaces legales. `panel-controles.ts` ganó
+`CONTROLADOS_FOOTER_SECCION` (las 11 rutas: 3 encabezados + 5 etiquetas + `variante` +
+`items.label`/`items.href`) — el **PORQUÉ es bespoke, no genérico, es el hallazgo de este bloqueo**
+(§ abajo). `huecosDelPanel()` (el guard automatizado) da `[]`; el techo del trinquete
+(`PENDIENTE_PANEL.length <= 13`) no se tocó — sigue en 13, ninguna entrada nueva.
+
+### El bloqueo, MEDIDO: `TiendaSeccionEditor`/`VistaTiendaEnVivo` no son el camino, y el MONTAJE del bespoke tampoco está en `touches:`
+
+El spec instruía "Sumá la `SeccionConfig` del footer... si el editor genérico no puede expresar...
+usá el mecanismo que el repo ya tenga... si ninguno calza, PARÁ y reportá" — leído como "usá
+`SECCIONES_TIENDA`/`TiendaSeccionEditor`, el camino genérico". Antes de escribir una sola línea de
+UI se midió si ese camino es viable, y NO lo es, por una razón ya escrita en el propio repo para el
+caso GEMELO: `components/admin/MenuSeccion.tsx` (líneas 18-26) documenta que `menu` es bespoke
+**a propósito**, porque `TiendaSeccionEditor` renderiza SIEMPRE `<VistaTiendaEnVivo seccion={seccion}
+valor={form} />` (líneas 767/859/863 de ese archivo, sin condición), y `VistaTiendaEnVivo.tsx` monta
+cada sección en `const COMPONENTES: Record<SeccionVista, ComponentType> = {...}` — un `Record`
+EXHAUSTIVO sobre la unión `SeccionVista`. Agregar `'footer'` a `SeccionVista` (necesario para que
+`footer` entre a `SECCIONES_TIENDA` con tipos, ya que `SeccionConfig.seccion: SeccionVista`) OBLIGA
+a `tsc` a exigir una entrada `footer: <algo>` en ese Record — confirmado agregándolo: `tsc` marcó
+exactamente el error TS2739 que la doctrina de `MenuSeccion.tsx` predice. Y esa entrada no puede ser
+`StoreFooter` sin más: `StoreFooter.tsx` llama `useSiteSettings()` (línea 65 de la versión nueva),
+que `VistaTiendaEnVivo.tsx` NO provee (sólo envuelve `SiteContentProvider` + `PreviewProvider`) —
+montarlo ahí **LANZA en runtime** ("useSiteSettings() fuera de <SiteSettingsProvider>"), el MISMO
+modo de falla que `MenuSeccion.tsx` ya midió para `StoreNav` (`useCartStore`/`useSiteSettings`) y que
+CLAUDE.md documenta como categoría general ("Montar un componente en OTRO árbol de providers no lo
+atrapa ni `tsc` ni el build"). El archivo que haría falta tocar para resolver esto —agregar un
+`SiteSettingsProvider` a `VistaTiendaEnVivo.tsx` con settings por defecto/vacíos, y decidir qué
+pasarle— es `components/admin/VistaTiendaEnVivo.tsx`, **fuera de `touches:`** de este slice, y es un
+cambio de ALCANCE mayor que este slice (afecta la vista previa de TODAS las secciones, no sólo
+footer) — no algo para decidir de paso.
+
+Se evaluó el camino BESPOKE (patrón `MenuSeccion`/`PaletaSeccion`) para esquivar exactamente ese
+problema —y es el camino correcto, dado que `footer` comparte la MISMA característica que `menu`
+(cromo transversal cuyo componente real necesita `useSiteSettings()`)—. Se construyó
+`components/admin/FooterSeccion.tsx` (nuevo) siguiendo `MenuSeccion.tsx` línea por línea en su
+mecánica. Pero **el bespoke tampoco es gratis dentro de `touches:`**: los TRES editores bespoke que
+ya existen (`MenuSeccion`, `PaletaSeccion`, `EncabezadoSeccion`) se MONTAN a mano en
+`app/(admin)/admin/tienda/page.tsx` —no hay ningún mecanismo derivado que los descubra solos, a
+diferencia de `SECCIONES_TIENDA`/`TiendaPaginas`—, y ese archivo **tampoco está en `touches:`** de
+este slice. Sin montarlo ahí, `FooterSeccion.tsx` compilaría, pasaría `huecosDelPanel()` (que sólo
+lee la declaración de `CONTROLADOS_FOOTER_SECCION`, no si el componente es alcanzable — medido:
+el guard automatizado dio `[]` ANTES de tocar `page.tsx`, con el componente todavía inalcanzable),
+y sería código MUERTO — la misma ambigüedad que "§ Backlog #68" prohíbe explícitamente ("código
+muerto se BORRA o se CABLEA, nunca se deja AMBIGUO"), y el mismo defecto que la doctrina de este
+repo llama "una verificación escrita y nunca ejecutada es peor que no tenerla" aplicado al panel de
+control en vez de a un `DialogDescription`.
+
+Se construyeron los DOS archivos igual —`app/(admin)/admin/tienda/page.tsx` (18 líneas: el import +
+el montaje + el comentario de cabecera actualizado de "Cuatro ejes" a "Cinco ejes") y
+`components/admin/FooterSeccion.tsx` (nuevo, ~250 líneas)— para medir el resto del gate con
+precisión (mismo protocolo "build fully, verify, revert, document" de los tres bloqueos anteriores
+en esta rama). Con los NUEVE archivos sumados (7 de `touches:` + 2 fuera), el gate completo, medido
+sobre el árbol con el diff entero aplicado:
+
+- `npx tsc --noEmit -p tsconfig.json` → **0 errores**.
+- `npm test` → **1988/1988**, 0 fail (piso heredado de `858bd3b`: 1974/1974; +14 tests nuevos de
+  `lib/config/footer-tema.test.ts`, el único archivo de test NUEVO del diff).
+- `npm run test:integracion` → **231/231**, verde — sin migración nueva en este slice (el modelo de
+  footer vive en `SiteContent.content`, JSON, sin columna propia), así que el piso de integración no
+  se movió; se re-corrió igual para confirmar que nada del cableado del panel lo rompió.
+- `npm run verificar:nayoli:visual` → **0px de diferencia en las 6 rutas + los 2 hovers**
+  (home/tienda/producto/checkout/nosotros/suscripciones, hover-automática, hover-elección) —
+  confirma por EJECUCIÓN que el traslado de `footerNav`/`legalNav` a `content.footer` (con la
+  variante canónica 'franjas') preserva byte a byte lo que Nayoli mostraba, y que el JSX de
+  `FooterColumnas` es EXACTO al `StoreFooter.tsx` de antes.
+
+### Por qué se para acá, y por qué no se dodgeó de otra forma
+
+Mismo argumento que los tres bloqueos anteriores en esta rama: el protocolo del despacho es
+explícito — "si el trabajo necesita un archivo fuera de `touches`, parás y lo decís — no lo
+ensanchás vos". La diferencia con `MUESTRARIO-SECCION-CTA-1`/`MUESTRARIO-REDES-ADICIONALES-1` (que
+tropezaron con fixtures de test que un default nuevo desincronizaba, o con plomería de LECTURA/
+ESCRITURA del dato) es la CAPA: acá el modelo, el schema, el resolver, el render del storefront y
+la ESCRITURA del panel (el PUT/POST genérico) están COMPLETOS y funcionan solos — lo que falta es
+el MONTAJE del editor en el árbol de React que decide qué se ve en `/admin/tienda`, y ese árbol
+vive en un archivo (`page.tsx`) que ningún mecanismo deriva. Se evaluó dejar `FooterSeccion.tsx`
+sin commitear (como los otros seis archivos con permiso de escritura) y commitear sólo el modelo
+(los 7 archivos de `touches:`, sin el control de panel) — se descartó por la MISMA razón que los
+bloqueos anteriores: el spec es explícito ("El campo nuevo trae su control, EN EL MISMO commit"),
+y entregar el modelo sin control real sería la mina inerte que `PENDIENTE_PANEL`/`huecosDelPanel()`
+existen para prohibir — con el agravante de que, a diferencia de una simple exención declarada, acá
+el guard automatizado NO lo habría detectado (declarar `CONTROLADOS_FOOTER_SECCION` sin montar el
+componente pasa el chequeo igual, § arriba) — habría sido la clase de brecha MÁS peligrosa de las
+dos: una que ni el propio mecanismo de detección ve.
+
+### Lo que sigue — para quien re-despache esto (`MUESTRARIO-FOOTER-TEMA-PLUMBING-1`)
+
+El follow-up se coina como `MUESTRARIO-FOOTER-TEMA-PLUMBING-1`: los DOS archivos, ya identificados
+con su cambio exacto —
+
+1. `components/admin/FooterSeccion.tsx` — archivo NUEVO completo (editor bespoke, patrón
+   `MenuSeccion.tsx`: autoguardado vía `useAutoguardado`, PUT/POST genérico de `/api/site-content`
+   con `seccion: 'footer'`, `RepeaterEditor` para `items` sin uploader, `ConfirmDescartarDialog`
+   para el descarte).
+2. `app/(admin)/admin/tienda/page.tsx` — import de `FooterSeccion` + `<FooterSeccion />` montado
+   junto a `EncabezadoSeccion` (tras un `<hr>` más), y el comentario de cabecera actualizado de
+   "Cuatro ejes" a "Cinco ejes" nombrando el porqué del footer bespoke.
+
+Ensanchar `touches:` a estos dos es lo mínimo necesario; no se detectó un tercero (medido: `tsc`
+limpio y `npm test` 1988/1988 con sólo estos dos sumados a los siete de `touches:`). Con ellos, el
+resto del diseño de este asiento (§ arriba, "Lo que se construyó") se puede re-aplicar sin re-abrir
+ninguna decisión — está completo, sólo sin commitear.
+
+**Una decisión de PRODUCTO que este asiento no tomó porque el spec no la pedía, y que el
+re-despacho debería decidir explícitamente:** ¿la vista previa en vivo de `footer` (mostrar el pie
+real mientras se edita, como hero/brandStory/etc.) vale lo suficiente para justificar la tanda
+aparte de agregar `SiteSettingsProvider` a `VistaTiendaEnVivo.tsx`? Este asiento entrega SIN vista
+previa (patrón `menu`), que es la salida MÁS BARATA y la que el spec no contradice ("los otros
+ejes... sin vista previa en vivo" ya es el precedente aceptado en esa misma pantalla); si el owner
+la quiere, es una tanda propia que toca `VistaTiendaEnVivo.tsx` para las DOS secciones transversales
+a la vez (menú Y pie), no sólo footer.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — el árbol final es IDÉNTICO a `858bd3b`
+(verificado: `git status --porcelain` sin salida, `npx tsc --noEmit` limpio, `npm test`
+**1974/1974** —el piso heredado, re-medido sobre el árbol final, no asumido del mensaje del commit
+anterior—). Los siete archivos con permiso de escritura del spec (`site-content-defaults.ts`,
+`site-content-schema.ts`, `site.ts`, `StoreFooter.tsx`, `panel-controles.ts`,
+`site-content-defaults.test.ts`, `footer-tema.test.ts`) quedan sin un solo byte modificado en este
+commit. El build completo se hizo en un commit intermedio (`f29b467`, "WIP full build for
+measurement") que luego se sacó de la rama con `git switch -C slice/corte-reescritura-prototipo-1
+858bd3b` —mismo mecanismo que `59a2893`/`b575d64` ya usaron dos veces en esta rama—; `f29b467`
+queda como commit COLGANTE (alcanzable por SHA, no por ninguna rama) con la implementación completa
+de referencia para quien re-despache esto. Su árbol (`git rev-parse f29b467^{tree}` =
+`c1145f85613b403eb9f7e86605fafd0fbf07f263`) es la prueba de que el diff no cambió entre la medición
+del gate y este commit.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md` — hallazgos, ninguno arreglado (fuera de `touches:`, y además el código real no cambió en este commit)
+
+Símbolos/paths que este diff habría cambiado si se hubiera commiteado: `FooterContent`,
+`REGISTRY.footer`, `DEFAULTS.footer`, `columnasDeFooter`, `siteConfig`/`NavLink`/`footerNav`/
+`legalNav` (RETIRADOS de `lib/config/site.ts`), `StoreFooter.tsx`, `FooterSeccion.tsx`. Como el
+código NO se commiteó (§ arriba), nada de esto existe todavía en el árbol trackeado — pero el
+chequeo se corre igual, sobre lo que el diff HABRÍA hecho, porque es exactamente lo que el
+re-despacho va a producir y `CLAUDE.md` no se actualiza solo cuando eso pase.
+
+- **Grep de `footerNav` en `CLAUDE.md`: OCHO resultados** (líneas 1793/1796/1801/2064/2938/3176/
+  4230-4231/4519-4521). Cada uno queda DUDOSO en cuanto el diff aterrice —no arreglado, `CLAUDE.md`
+  no está en `touches:`—:
+  - **Línea 2064, "### Qué QUEDA en `siteConfig`" → "Sólo lo ESTRUCTURADO: `footerNav` y
+    `legalNav`"**: FALSO tras el diff. `siteConfig` queda VACÍO (footerNav/legalNav eran lo único
+    que quedaba, § el propio título de esa sección); la sección entera pasa a describir un objeto
+    que ya no existe.
+  - **Línea 2938 (§ La SUSCRIPCIÓN es una capacidad APAGABLE), "el FOOTER (`StoreFooter` filtra
+    `footerNav.tienda`)"**: FALSO tras el diff — el filtrado lo hace `columnasDeFooter` sobre
+    `content.footer`, no `StoreFooter` sobre `footerNav.tienda` directo. El HECHO que describe (la
+    entrada a /suscripciones se oculta cuando la capacidad está apagada) SIGUE siendo cierto — el
+    diff preserva esa lógica en `columnasDeFooter`—; sólo el MECANISMO citado es el viejo.
+  - **Línea 3176-3177 (§ Datos de negocio editables, "Lo que QUEDA post-multitenant"), "los
+    ESTRUCTURADOS que quedan (`footerNav`, `legalNav`): son editores ricos... siguen en `siteConfig`
+    (código) hasta que valga la pena"**: FALSO tras el diff — ya no quedan en `siteConfig`; el
+    "hasta que valga la pena" se resolvió por este slice, antes del multitenant.
+  - **Líneas 1793-1801 (§ Backlog #60, `footerNav` → editable)**: la PREMISA queda falsa
+    ("`footerNav` es ESTRUCTURA estática que `StoreFooter` lee sin tocar el catálogo") — ya no hay
+    `footerNav`, y las ETIQUETAS de las 5 columnas SÍ son dato editable tras este diff. **El ÍTEM
+    #60 EN SÍ NO SE CIERRA**: lo que #60 pide es un selector de CATEGORÍAS REALES del catálogo
+    derivado para agregar atajos nuevos —un `footerNav` con destinos LIBRES sobre el catálogo—, y
+    este slice deja los HREFS de las 5 columnas existentes como ESTRUCTURA fija, exactamente la
+    forma que #60 dice "NO" (`"labels editables, destinos fijos" — eso dejaría el destino
+    apuntando a una categoría que el cliente puede renombrar`). #60 sigue vivo, con su premisa
+    vencida.
+  - **Líneas 4230-4231 y 4519-4521 (§ Mejoras post-multitenant / TANDA C CERRADA)**: mismo defecto
+    que 3176-3177 — "quedando sólo `footerNav`/`legalNav` (editores ricos, post-multitenant)" y
+    "footerNav perdió sus 2 atajos... footerNav editable → #60" dan por sentado que footerNav sigue
+    en código; deja de ser cierto.
+- **Grep de `siteConfig` en `CLAUDE.md`: 9 resultados**, de los cuales **3 relevantes a ESTE diff**
+  (los otros 6 —líneas 1933/1979/2073/5287/7624— describen campos YA retirados de `siteConfig`
+  antes de este slice, ninguno tocado acá): línea 2062 (el título de sección, cubierto arriba),
+  línea 3158 ("### Datos de negocio editables — `siteConfig` → `SiteSetting`", el título de sección
+  sigue siendo válido como DESCRIPCIÓN del movimiento histórico, no afectado), y línea 7614
+  (§ Prerequisitos de go-live de WhatsApp, "`reactivacion_cliente`... Conecta con las páginas
+  legales pendientes — ver `siteConfig.legalNav`, hoy vacío") — **FALSO tras el diff**:
+  `siteConfig.legalNav` no existe; el array vacío equivalente es `DEFAULTS.footer.items` (`[]`).
+- **Grep de `StoreFooter` en `CLAUDE.md`**: además de la línea 2938 ya cubierta, el resto de las
+  menciones (Config del negocio, Identidad, RielSocial, la subida directa a Blob) describen
+  contratos que este diff PRESERVA sin cambio (el wordmark/tagline siguen viniendo de
+  `SiteSetting` vía el mismo provider, el riel social es un componente aparte no tocado) — siguen
+  siendo ciertas.
+
+No se propone un `open_followups` con id nuevo para estas ocho líneas: son la MISMA clase de
+staleness que el `MUESTRARIO-REDES-ADICIONALES-1` de arriba ya nombró para sus propias dos líneas
+(2067, 2044) — corregirlas es trabajo de doctrina, no de este slice, y CLAUDE.md no está en
+`touches:`. Quedan escritas acá para que quien actualice `CLAUDE.md` (o re-despache este slice)
+las tenga localizadas sin releer el archivo entero.
+
+### `open_followups`
+
+- **`MUESTRARIO-FOOTER-TEMA-PLUMBING-1`** (coined arriba) — los DOS archivos de montaje
+  (`app/(admin)/admin/tienda/page.tsx`, `components/admin/FooterSeccion.tsx`), con su cambio
+  exacto ya medido. `why_not_now`: fuera de `touches:` de este slice; el diseño ya está completo y
+  verificado en verde en el commit colgante `f29b467`.
+- **La decisión de vista previa en vivo para `footer`/`menu`** (§ arriba, "Una decisión de
+  PRODUCTO"): si el owner la quiere, es tanda aparte sobre `VistaTiendaEnVivo.tsx` — no se resolvió
+  acá porque el spec no la pedía.
+- **Backlog #60 sigue vivo** (CLAUDE.md, líneas 1793-1801): este slice NO lo cierra — deja los
+  hrefs de columna como estructura, que es la forma que #60 explícitamente rechaza para su propio
+  alcance (atajos de categoría con destino libre). Su premisa escrita sí queda vencida (§ arriba).
+
+### Verdicto
+
+**BLOCKED.** El commit `f29b467` (dangling, no en ninguna rama) contiene la implementación completa
+y verificada a la espera de que el orquestador ensanche `touches:` a los dos archivos nombrados
+arriba (`app/(admin)/admin/tienda/page.tsx`, `components/admin/FooterSeccion.tsx`) antes de que
+este slice pueda re-intentarse. El piso heredado de `858bd3b` (tsc 0, `npm test` **1974/1974**,
+`npm run test:integracion` **231/231** —los tres re-medidos sobre el árbol final tras el `switch
+-C`, no asumidos del mensaje del commit anterior—) sigue siendo válido — ningún archivo de código
+cambió entre ese commit y éste.
