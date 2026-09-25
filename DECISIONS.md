@@ -22459,3 +22459,180 @@ merge sigue pendiente del gate del orquestador. **Cierra `HIGIENE-SEED-Y-DOCTRIN
 `MUESTRARIO-CTA-BANNER-FOTO-DOCTRINA-SOLO-TEXTO-1` (doctrina corregida). **DEVIACIÓN del dispatch:**
 el contexto del spec afirmaba "El Backlog #60 quedó construido" — medido y es FALSO (§2, arriba);
 #60 se deja ABIERTO, con su premisa corregida.
+
+## 2026-09-25 — La lista de "sistema de color" de la guarda visual pasa de a-mano a DERIVADA (`GUARDA-COLOR-SISTEMA-LISTA-GAP-1`)
+
+**Ledger-id:** `GUARDA-COLOR-SISTEMA-LISTA-GAP-1`. **Repo:** coffee-template-app. **Base:** `main`
+(policy: current-main). **`writes:` yes.** **`touches:`** `scripts/guarda-color.ts`,
+`lib/config/guarda-color-lista.test.ts`, `DECISIONS.md`. **Observed-report:** `CENSO-MUESTRARIO-1`.
+**Continúa la rama** `slice/corte-reescritura-prototipo-1`. **Aprobado por el owner** (hueco medido
+por `GUARDA-COLOR-NAYOLI-1` al construir la guarda original — "LA APROBACION AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE").
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `d3b99b7` (`slice/corte-reescritura-prototipo-1`) — **medido** (`git
+  status`, `git log --oneline -3`).
+- `main` local === `origin/main` === `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` — **medido** (`git
+  rev-parse main origin/main`).
+- `scripts/guarda-color.ts` existía con `SISTEMA_DE_COLOR` como array literal de 8 entradas
+  (`palette-derive.ts`, `themes.ts`, `app/globals.css`, `esquema-style.ts`,
+  `site-content-defaults.ts`, `site-content-schema.ts`, `fuentes.ts`, `formas.ts`) — **medido**
+  (lectura completa del archivo).
+- `lib/config/guarda-color-lista.test.ts` NO existía — **medido** (`ls` con error de "No such
+  file").
+- Los cinco archivos del hueco (`palette-style.ts`, `fuentes-style.ts`, `forma-style.ts`,
+  `palette-schema.ts`, `theme-mirador.ts`) existen todos en `lib/config/` — **medido**.
+- Cero consumidores de `archivosDelSistemaDeColor`/`interseccionSistemaColor`/`SISTEMA_DE_COLOR`
+  fuera de `scripts/guarda-color.ts` mismo — **medido** (`grep -rln` contra todo el repo, sin
+  `node_modules`) — así que la firma de estas funciones era libre de cambiar sin romper otro
+  consumidor.
+
+### El mecanismo elegido, y por qué NO es "cinco nombres más"
+
+Agregar los cinco archivos del hueco a mano habría arreglado el síntoma medido y dejado el defecto:
+la próxima vez que nazca un archivo de tema/color, vuelve a quedar afuera EN SILENCIO — la guarda no
+avisa cuando no corre. El repo ya resolvió este anti-patrón una vez, con el mismo argumento:
+`lib/config/panel-controles.ts` existe porque "no es una lista a mano de 'campos vs. controles' —
+eso es exactamente el problema" (§ `PANEL-REFLEJA-TIENDA-CHEQUEO-1`).
+
+**Se probó primero la derivación "obvia" y midió que NO alcanza — dos intentos descartados, con la
+medición que los mató:**
+
+1. **Grep literal de `--sf-` en el cuerpo del archivo.** Falla en las DOS direcciones: matchea
+   `forma-style.ts` por un COMENTARIO que sólo lo MENCIONA (no emite `--sf-*`, emite `--radius-*`) y
+   NO matchea `palette-schema.ts` ni `theme-mirador.ts` (cero ocurrencias literales de la cadena en
+   ninguno de los dos) — dos de los cinco huecos exactos que había que cerrar. Medido con
+   `grep -Hn -- '--sf-' lib/config/forma-style.ts lib/config/palette-schema.ts
+   lib/config/theme-mirador.ts`.
+2. **Cierre TRANSITIVO de imports desde `app/(storefront)/layout.tsx` + `page.tsx`, restringido a
+   `lib/config/`.** Cierra el motor y los cinco huecos, PERO `site-content-defaults.ts` es un HUB que
+   también importan `menu-editor.ts`, `panel-controles.ts`, `avisos-configuracion.ts` y los tres
+   `site-content-{blobs,read,write}.ts`/`site-content.ts` — por razones que no tienen nada que ver
+   con color (tipos de menú, de banda, de blobs). Medido con un grafo de imports construido a mano
+   (`node -e` con un BFS sobre `lib/config/*.ts`, seedeado en `{palette-derive.ts, fuentes.ts,
+   formas.ts}`): el cierre transitivo da **20 archivos**, contra los 12 reales del censo. Además esta
+   ruta (layout+page) NUNCA alcanza a `palette-schema.ts` (vive en el camino de ESCRITURA — el PUT que
+   valida el tema —, no en el de LECTURA/render) sin agregar una segunda raíz.
+
+**El mecanismo que se quedó: importa DIRECTAMENTE uno de los TRES archivos-raíz del motor.** Se
+identificaron `palette-derive.ts`, `fuentes.ts`, `formas.ts` como los ÚNICOS tres archivos de
+`lib/config/` con CERO imports relativos dentro del propio directorio (hoja del árbol, medido con el
+mismo grafo). Un archivo entra al sistema si tiene un `import`/`export ... from` relativo que nombra
+directamente a uno de los tres. Esto:
+- SÍ alcanza a los 5 del hueco (los cinco importan directamente al menos una raíz, verificado archivo
+  por archivo en el reporte de abajo);
+- NO explota por el hub, porque cortar en UN SALTO impide que `site-content-defaults.ts` arrastre a
+  sus propios importadores no-relacionados-con-color.
+
+**Lo que este mecanismo NO alcanza, y las DOS anclas declaradas que lo completan** (la "lista chica
+de excepciones" que el spec permite cuando la derivación perfecta es cara/ambigua):
+- **`app/globals.css`** — no es un módulo TS, no puede aparecer en un grafo de imports de `import
+  ... from`. Ya estaba en la lista vieja por la misma razón.
+- **`lib/config/site-content-schema.ts`** — valida `esquemas` (`esquemasEditableSchema`, el mapa
+  banda→esquema que `esquema-style.ts` consume) al guardar, pero su único import relativo es
+  `site-content-defaults.ts` (por `BANDA_IDS`/`MENU_ITEM_IDS`/`MENU_CTA_DESTINOS`, ninguno nombra a
+  la raíz) — dos saltos, no uno. Alcanzarlo con la regla derivada exigiría también alcanzar a los
+  siete hub-consumers no-relacionados. Se declara con su razón en el propio código
+  (`ANCLAS_DECLARADAS`, `scripts/guarda-color.ts`).
+
+**Extra no pedido, aceptado deliberadamente: `lib/config/email-colors.ts`.** Importa
+`palette-derive.ts` DIRECTAMENTE (deriva los 6 colores de los correos de la misma paleta, § CLAUDE.md
+"Los COLORES de los correos DERIVAN de la paleta") y por tanto cumple la MISMA propiedad que los
+demás miembros del conjunto, aunque tocarlo no puede mover un píxel del STOREFRONT (los correos son
+otra superficie que esta guarda no captura — false positive, nunca false negative). No se excluyó a
+mano: hacerlo habría sido, otra vez, una lista de excepciones a mantener. El costo es correr el
+harness visual completo de más si algún slice futuro edita SOLO ese archivo — aceptado, la dirección
+seguro es la barata (correr de más, nunca dejar de correr).
+
+### La calibración — los dos lados, medidos
+
+**(a) El conjunto derivado CONTIENE el conjunto conocido.** `archivosDelSistemaDeColor()` da
+EXACTAMENTE 14 rutas: los 7 que ya estaban en la lista vieja + los 5 del hueco medido +
+`email-colors.ts` (arriba). Afirmado con `assert.deepEqual` contra el array exacto en
+`lib/config/guarda-color-lista.test.ts`, y con dos tests nombrados por separado (el subconjunto
+"ya estaban" y el subconjunto "hueco medido", éste el que motivó el slice).
+
+**(b) El conjunto derivado NO engorda.** Cuatro tests negativos, cada uno con su motivo:
+- `lib/config/site-settings-schema.ts` (identidad del negocio — nombre/tagline/whatsapp — sin
+  ningún import a la raíz de tema) queda AFUERA;
+- los siete hub-consumers no-relacionados (`menu-editor.ts`, `panel-controles.ts`,
+  `avisos-configuracion.ts`, `site-content-{blobs,read,write}.ts`, `site-content.ts`) quedan AFUERA
+  — es la prueba directa de que el corte-en-un-salto sí evita la explosión que el cierre transitivo
+  (intento #2, arriba) medía en 20;
+- `lib/checkout/metodos-pago.ts` y `packages/core/src/orders.ts` (otro dominio del repo entero)
+  quedan AFUERA por CONSTRUCCIÓN — la búsqueda nunca sale de `lib/config/`;
+- el conjunto derivado (14) es menos de la mitad del universo real de `lib/config/*.ts` (medido:
+  `archivosLibConfig().length` > 20 hoy) — una guarda de sanidad contra que la derivación explote a
+  "casi todo el directorio" sin que nadie lo note.
+
+**El caso "sin intersección" sigue saliendo sin renderizar** — comportamiento NO tocado
+(`interseccionSistemaColor`/`archivosCambiados`/el fast-exit de `main()` con `process.exitCode = 0`
+antes de `levantarPostgres`/`cargarPlaywright` quedan intactos), afirmado con tres tests puros sobre
+`interseccionSistemaColor` (cambiados ajenos → `[]`; uno del hueco medido → dispara; lista vacía →
+`[]`).
+
+### Lo que NO se tocó, a propósito
+
+Ni el fixture (`tests/visual/nayoli/`), ni el umbral de antialiasing de `compararPng`, ni el modo
+determinista del arnés, ni el comportamiento de `archivosCambiados`/`main()` más allá de qué archivo
+alimenta `interseccionSistemaColor`. Este slice es SOLO qué dispara la guarda — el spec lo pide
+explícito y el diff lo cumple: cero líneas tocadas fuera de la sección `SISTEMA_DE_COLOR` →
+`sistemaDeColorDerivado()` y el `import` de `readFileSync`/`readdirSync`.
+
+### El GATE
+
+- `npx tsc --noEmit`: **0 errores**.
+- `npm test`: **2128/2128** (2114 previos + 14 de `lib/config/guarda-color-lista.test.ts`).
+- `npm run test:integracion`: **237/237** (sin cambio — este slice no toca el carril).
+- **Diff visual NO corrido**, como pide el spec ("este diff no toca render"). Se intentó correr
+  `node --import tsx scripts/guarda-color.ts` contra la rama real como verificación adicional y se
+  abortó a los 30s: la RAMA (`slice/corte-reescritura-prototipo-1` completa, no este commit) SÍ toca
+  el sistema de color derivado —`app/globals.css`, `palette-derive.ts`, `palette-style.ts`,
+  `site-content-defaults.ts`, `site-content-schema.ts`, `theme-mirador.ts`, `themes.ts`,
+  `esquema-style.ts` aparecen en `git diff --name-only` contra `main` por los slices ANTERIORES de
+  esta rama (Footer, Mega-menu, Drawer móvil, CTA-banner-foto, etc.), así que el guard arrancó el
+  harness completo (Postgres+Playwright+build) de verdad — comportamiento CORRECTO del guard, no un
+  fallo de este slice, y no algo que este slice deba absorber (ya lo habría disparado la lista VIEJA,
+  que también incluía la mayoría de esos archivos). Se detuvo la tarea en background
+  (`TaskStop`) sin dejar procesos de Postgres/Playwright colgados — verificado con `ps aux` tras
+  detenerla.
+
+### `open_followups`
+
+Ninguno coined por este slice.
+
+### `customer_bytes`
+
+`changed: true` — heredado de la RAMA (§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), NO de este
+commit. Este commit, aislado, es tooling de CI/desarrollo puro (un script de guarda + su test): no
+hay una sola línea de código de producto, ni un string nuevo que un cliente/operador/dueño pueda
+leer. `strings`: ninguno nuevo — todo el texto agregado es comentarios de código y mensajes de
+assert de test, internos.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma` ni migración; sin
+contrato cross-repo.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff cambió: `scripts/guarda-color.ts` (la constante `SISTEMA_DE_COLOR` pasó
+de literal a computada; funciones nuevas `sistemaDeColorDerivado`/`importadoresDirectosDeRaices`/
+`archivosLibConfig`), `lib/config/guarda-color-lista.test.ts` (nuevo). Grepeados contra `CLAUDE.md`:
+`grep -n "guarda-color\|SISTEMA_DE_COLOR\|guarda:color"` da **CERO** resultados, y
+`grep -n "guarda-color.ts\|panel-controles.ts"` también da **CERO** — ningún nombre de archivo, de
+función ni de constante que este diff tocó aparece en `CLAUDE.md`. Nada que corregir ni que declarar
+falso: la doctrina no nombra lo que este diff cambió.
+
+### Verdicto
+
+**AWAITING_APPROVAL**, por herencia de la clasificación de la RAMA (`slice/corte-reescritura-
+prototipo-1`, ya `AWAITING_APPROVAL` por slices anteriores que tocan bytes de visitante —
+§ `customer_bytes`, arriba). Gate verde en el árbol final: `npx tsc --noEmit` 0 errores; `npm test`
+2128/2128 (2114 previos + 14 nuevos); `npm run test:integracion` 237/237 (sin cambio), commiteado en
+`slice/corte-reescritura-prototipo-1`. **El diff visual NO se corrió** (el spec lo pide explícito;
+este diff no toca render — sólo qué dispara el guard que SÍ lo corre). `schema` y
+`cross-repo-contract` NO aplican; `stopped_on: [customer-bytes]` (heredado de la rama). El owner ya
+aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el
+merge sigue pendiente del gate del orquestador. **Cierra `GUARDA-COLOR-SISTEMA-LISTA-GAP-1`.**

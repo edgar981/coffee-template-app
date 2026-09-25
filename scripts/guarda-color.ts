@@ -36,7 +36,7 @@
 // 55434/3477; verificar-nayoli.ts: 55438/3491/3492; verificar-nayoli-visual.ts: 55439/3493/3494) —
 // puede correr al lado de cualquiera de ellos sin pisarse.
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -62,22 +62,142 @@ const PUERTO_PG = 55440;
 const BASE_PG = "guardacolor";
 const PUERTO_APP = 3495;
 
-// ─── EL SISTEMA DE COLOR — un lugar nombrado, un motivo por entrada ─────────────────────────────
-// Lo que un archivo de esta lista cambia puede mover un PÍXEL de Nayoli sin preset. La lista NO
-// es "todo lo que menciona un color" — es lo que participa en la CADENA que resuelve `--sf-*` (o
-// lo que declara los defaults/schema que esa cadena consume) para un despliegue SIN preset. Vence
-// igual que el resto de las listas de este repo (§ CLAUDE.md, "ESTA LISTA VENCE") — re-medir
-// contra el código, no contra el nombre.
-const SISTEMA_DE_COLOR: { ruta: string; motivo: string }[] = [
-  { ruta: "lib/config/palette-derive.ts", motivo: "el motor: deriva las ~32 tintas del storefront desde las 3 raíces (fondo·tinta·acento)" },
-  { ruta: "lib/config/themes.ts", motivo: "el catálogo de PRESETS (temas completos por-cliente) y su merge sobre content" },
-  { ruta: "app/globals.css", motivo: "los defaults --sf-* que Nayoli usa SIN preset (§ byte-idéntico/visualmente-idéntico)" },
-  { ruta: "lib/config/esquema-style.ts", motivo: "emite el CSS del eje ESQUEMA — rol distinto de la paleta, mismo storefront" },
-  { ruta: "lib/config/site-content-defaults.ts", motivo: "los defaults de content.tema/ejes/esquemas — lo que Nayoli resuelve sin fila en SiteContent" },
-  { ruta: "lib/config/site-content-schema.ts", motivo: "valida tema/esquemas al guardar — un schema más laxo/estricto cambia qué llega a pintarse" },
-  { ruta: "lib/config/fuentes.ts", motivo: "catálogo de pares tipográficos del storefront" },
-  { ruta: "lib/config/formas.ts", motivo: "catálogo de presets de FORMA (radios, bordes) del storefront" },
+// ─── EL SISTEMA DE COLOR — DERIVADO, no una lista a mano (§ GUARDA-COLOR-SISTEMA-LISTA-GAP-1) ──────
+//
+// `GUARDA-COLOR-NAYOLI-1` (arriba) escribió esta lista A MANO, y eso es EXACTAMENTE el anti-patrón
+// que este repo ya resolvió una vez: `lib/config/panel-controles.ts` existe porque "una lista a mano
+// de 'campos vs. controles' — eso es exactamente el problema" (§ su propio docstring,
+// PANEL-REFLEJA-TIENDA-CHEQUEO-1). Medido al construir esta guarda (`GUARDA-COLOR-NAYOLI-1`): la lista
+// a mano dejaba AFUERA `palette-style.ts`, `fuentes-style.ts`, `forma-style.ts`, `palette-schema.ts` y
+// `theme-mirador.ts` — cinco archivos que SÍ mueven un píxel de Nayoli sin preset, en silencio, porque
+// nadie los agregó a la lista. Este bloque reemplaza la lista por un conjunto DERIVADO.
+//
+// EL MECANISMO: TRES archivos de `lib/config/` son el MOTOR — `palette-derive.ts` (deriva las tintas
+// del storefront desde las 3 raíces), `fuentes.ts` (el catálogo de pares tipográficos) y `formas.ts`
+// (el catálogo de radios/formas) — los ÚNICOS tres del directorio que declaran datos crudos de tema
+// SIN importar ningún otro archivo de `lib/config/` (verificado: los tres tienen CERO imports
+// relativos dentro del directorio — son la hoja del árbol, no un nodo intermedio). Un archivo de
+// `lib/config/` entra al sistema si IMPORTA DIRECTAMENTE a uno de esos tres.
+//
+// "DIRECTAMENTE", no "transitivamente a través de cualquier archivo": `site-content-defaults.ts` es un
+// HUB que también importan `menu-editor.ts`, `panel-controles.ts`, `avisos-configuracion.ts` y los
+// tres `site-content-{blobs,read,write}.ts`/`site-content.ts` — por razones que NO tienen nada que ver
+// con color (tipos de menú, de banda, de blobs). Medido: un cierre TRANSITIVO sin cortar en el hub
+// arrastra 20 archivos de `lib/config/`, contra los 12 reales que el censo del owner midió — la misma
+// clase de sobre-alcance que "engorda hasta todo el repo". Cortar en "importa DIRECTAMENTE la raíz" es
+// la frontera que separa a los NUEVE consumidores reales del motor de los siete que sólo pasan por el
+// hub por otro motivo.
+//
+// `email-colors.ts` entra por esta regla y NO era parte del hueco medido por el owner: importa
+// `palette-derive.ts` de verdad (deriva los 6 colores de los correos de la MISMA paleta, § Los
+// COLORES de los correos DERIVAN de la paleta). Tocarlo no puede mover un píxel del STOREFRONT — los
+// correos son otra superficie, que esta guarda no captura — pero cumple la MISMA propiedad que todos
+// los demás miembros: importa el motor directamente. Queda adentro a propósito: correr el diff visual
+// de más una vez que un slice edite email-colors.ts es más barato que mantener una segunda regla para
+// excluirlo, y esa segunda regla sería otra vez una lista a mano de excepciones.
+//
+// DOS ANCLAS DECLARADAS — la ÚNICA parte a mano que queda, chica y con su razón, porque la propiedad
+// de arriba no las alcanza (§ ANCLAS_DECLARADAS, abajo):
+//   - `app/globals.css` no es un módulo TS: no puede aparecer en un grafo de imports construido a
+//     partir de `import ... from`. Es el archivo de los defaults `--sf-*` que Nayoli usa SIN preset.
+//   - `lib/config/site-content-schema.ts` valida `esquemas` (`esquemasEditableSchema`, el mapa
+//     banda→esquema que `esquema-style.ts` consume) al guardar, pero su ÚNICO import relativo es
+//     `site-content-defaults.ts` (por `BANDA_IDS`/`MENU_ITEM_IDS`/`MENU_CTA_DESTINOS`, ninguno nombra
+//     al motor) — la regla de "importa DIRECTAMENTE la raíz" no lo alcanza sin TAMBIÉN alcanzar a los
+//     siete hub-consumers de arriba. Se declara acá, con su razón, en vez de forzar la regla derivada
+//     a tragarse el hub entero por un solo archivo.
+//
+// CALIBRACIÓN (§ `lib/config/guarda-color-lista.test.ts`): el conjunto derivado CONTIENE los 12 del
+// censo (7 que ya estaban en la lista vieja + 5 del hueco medido) y NO contiene un archivo ajeno al
+// color — `lib/orders.ts`, `lib/checkout/*`, `lib/pagos/*` quedan afuera por CONSTRUCCIÓN: la búsqueda
+// está acotada a `lib/config/`, nunca al resto del repo. Vence igual que el resto de las listas de este
+// repo (§ CLAUDE.md, "ESTA LISTA VENCE") si el día de mañana el motor deja de tener exactamente estos
+// TRES archivos-raíz — re-medir contra el código, no contra este comentario.
+
+/** Los TRES archivos-raíz del motor de tema — hoja del árbol de imports de `lib/config/` (cero
+ *  imports relativos dentro del directorio). Es la ÚNICA lista a mano que decide QUIÉN es "la raíz";
+ *  todo lo demás se deriva de acá. */
+const RAICES_MOTOR = ["palette-derive.ts", "fuentes.ts", "formas.ts"] as const;
+
+/** Las DOS anclas declaradas — lo que la propiedad derivada no puede alcanzar, con su razón (§ el
+ *  comentario de cabecera de este bloque). Lista chica, y CADA entrada dice por qué está acá en vez
+ *  de derivarse. */
+const ANCLAS_DECLARADAS: { ruta: string; motivo: string }[] = [
+  {
+    ruta: "app/globals.css",
+    motivo: "los defaults --sf-* que Nayoli usa SIN preset — no es un módulo TS, no entra al grafo de imports",
+  },
+  {
+    ruta: "lib/config/site-content-schema.ts",
+    motivo:
+      "valida `esquemas` (banda→esquema) al guardar, el eje que esquema-style.ts consume — su único import relativo es site-content-defaults.ts (el hub), no un archivo-raíz directo",
+  },
 ];
+
+const LIB_CONFIG_DIR = join(RAIZ, "lib", "config");
+
+// `import` o `export ... from` relativos (`./archivo`), incluidos los que abren en una línea y cierran
+// varias después (`[^;]` matchea saltos de línea igual que cualquier char, sin necesitar el flag `s`).
+const IMPORT_O_EXPORT_RELATIVO = /^(?:import|export)[^;]*from\s+["'](\.[^"']+)["'];?/gm;
+
+/** Los specifiers `./archivo` que UN archivo de `lib/config/` importa (o re-exporta), normalizados a
+ *  nombre de archivo con extensión `.ts` — para comparar contra `RAICES_MOTOR` sin resolver módulos de
+ *  verdad (barato: un `readFileSync` + una regex, nada de TS compiler API). */
+function importsRelativosDe(archivo: string): string[] {
+  const src = readFileSync(join(LIB_CONFIG_DIR, archivo), "utf8");
+  IMPORT_O_EXPORT_RELATIVO.lastIndex = 0;
+  const specs = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = IMPORT_O_EXPORT_RELATIVO.exec(src))) {
+    const spec = m[1];
+    if (!spec.startsWith("./")) continue;
+    specs.add(`${spec.slice(2).replace(/\.(ts|tsx|js)$/, "")}.ts`);
+  }
+  return [...specs];
+}
+
+/** Todo `.ts` de `lib/config/`, sin sus tests — el universo sobre el que corre la derivación. */
+export function archivosLibConfig(): string[] {
+  return readdirSync(LIB_CONFIG_DIR)
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+    .sort();
+}
+
+/** Los archivos de `lib/config/` (sin los `RAICES_MOTOR` mismos) que importan DIRECTAMENTE uno de
+ *  ellos — el primer salto desde la raíz, nunca a través de un hub. */
+export function importadoresDirectosDeRaices(): { ruta: string; motivo: string }[] {
+  const raices = new Set<string>(RAICES_MOTOR);
+  const resultado: { ruta: string; motivo: string }[] = [];
+  for (const archivo of archivosLibConfig()) {
+    if (raices.has(archivo)) continue;
+    const importados = importsRelativosDe(archivo).filter((d) => raices.has(d));
+    if (importados.length === 0) continue;
+    resultado.push({
+      ruta: `lib/config/${archivo}`,
+      motivo: `importa directamente ${importados.map((r) => `lib/config/${r}`).join(" y ")}`,
+    });
+  }
+  return resultado;
+}
+
+/** Descripciones fijas de los tres archivos-raíz, conservadas de la lista vieja (§ arriba: son las
+ *  únicas tres entradas cuyo motivo no se puede derivar de "a quién importan" — son la raíz). */
+const MOTIVO_RAIZ: Record<(typeof RAICES_MOTOR)[number], string> = {
+  "palette-derive.ts": "el motor: deriva las ~32 tintas del storefront desde las 3 raíces (fondo·tinta·acento)",
+  "fuentes.ts": "catálogo de pares tipográficos del storefront",
+  "formas.ts": "catálogo de presets de FORMA (radios, bordes) del storefront",
+};
+
+/** El conjunto DERIVADO completo: los tres archivos-raíz + quien los importa directamente + las dos
+ *  anclas declaradas. Único punto que `main()` y el gate consultan — nunca una lista a mano. */
+export function sistemaDeColorDerivado(): { ruta: string; motivo: string }[] {
+  const raices = RAICES_MOTOR.map((r) => ({ ruta: `lib/config/${r}`, motivo: MOTIVO_RAIZ[r] }));
+  return [...raices, ...importadoresDirectosDeRaices(), ...ANCLAS_DECLARADAS].sort((a, b) =>
+    a.ruta.localeCompare(b.ruta),
+  );
+}
+
+const SISTEMA_DE_COLOR: { ruta: string; motivo: string }[] = sistemaDeColorDerivado();
 
 export function archivosDelSistemaDeColor(): string[] {
   return SISTEMA_DE_COLOR.map((e) => e.ruta);
