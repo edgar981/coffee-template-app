@@ -19408,3 +19408,168 @@ sobre Nayoli, y el hecho de que ningún preset del catálogo cambió su comporta
 (CORTE, con o sin snapshot previo, sigue declarando exactamente los mismos valores que declaraba
 ayer; lo único que cambia es qué pasa si alguien re-aplica el preset sobre un tenant que YA lo tenía
 aplicado y YA lo ajustó a mano — un caso que hoy no existe en ningún despliegue real).
+
+## 2026-09-25 — `MUESTRARIO-SECCION-CTA-1` — BLOQUEADO: la capacidad se construyó ENTERA y verificada, pero un QUINTO archivo fuera de `touches:` (mismo patrón que `MUESTRARIO-BANDA-APAGABLE-1`)
+
+### Lo que se construyó, completo y verificado
+
+La capacidad general del spec: `PresentacionesContent.ctaLabel`/`.ctaDestino`,
+`BrandStoryContent.ctaLabel`/`.ctaDestino`, y el SEGUNDO cta de `SubscriptionCTAContent`
+(`ctaSecundarioLabel`/`.ctaSecundarioDestino`) — los tres opcionales, destino de un SET CERRADO, y
+los tres nacen vacíos (`''`) en `DEFAULTS` → sin botón, byte-idéntico. Se reusó `MENU_CTA_DESTINOS`
+(§ CROMO-MENU-COMO-DATO-1) tal cual pedía §0 del spec — sin inventar una segunda lista de rutas—, y
+se generalizó `menuCtaHref` a `resolverCtaSeccion(label, destino, paginas)`: MISMA forma (preferir
+callar a un link roto: sin label → null; destino fuera del set → null; destino a una página
+apagada → null), recibiendo sólo lo que necesita en vez de todo `SiteContentData`, para que
+cualquier sección la invoque sin acoplarse al modelo del menú.
+
+Los TRES controles de panel se entregaron en el MISMO cambio, con la lección de
+`panel-controles.ts` YA aplicada de entrada (no como hallazgo tardío): un campo en
+`SeccionConfig.campos` que no aparece TAMBIÉN en un `bloques[]` se cuenta como "controlado" por el
+chequeo derivado pero NUNCA se renderiza en el editor (`bloquesResueltos`, red de seguridad sólo
+para secciones SIN `bloques` declarados) — así que los seis campos nuevos se agregaron a la vez a
+`campos` Y al `bloques` de cabecera de cada sección (`PRESENTACIONES`/`BRAND_STORY`/`SUBSCRIPTION`),
+con un select nativo compartido (`OPCIONES_CTA_DESTINO`, construido sobre `MENU_CTA_DESTINOS`
+importado — MISMO patrón `<option value="">Sin destino</option>` que ya usa `MenuSeccion.tsx`) para
+el campo `ctaDestino`/`ctaSecundarioDestino` de las tres.
+
+El render: `GrindChooserRiel.tsx` gana el CTA "Comprar" junto al título (visible en TODO ancho, a
+diferencia de los controles de avance que sólo aparecen desde `sm`); `BrandStoryCentrada.tsx` gana
+el CTA bajo el párrafo de cierre; `SubscriptionCTALinea.tsx` gana el SEGUNDO botón —MEDIDO contra
+`.cta-strip` del prototipo (`index.html:313-320`, "Únete al club" + "Explorar", dos botones, no
+uno)— con estilo SECUNDARIO (borde, no relleno), igual tratamiento que `hero.ctaSecundarioLabel` en
+`HeroCurtina`. Las TRES variantes canónicas (mosaico/columnas/bloque) quedan sin tocar: ninguna lee
+los campos nuevos.
+
+`lib/config/seccion-cta.test.ts` (nuevo) afirmó las cuatro cosas que pedía §3 del spec —vacío → sin
+botón; con label+destino del set → el href declarado; un destino fuera del set no valida (tanto en
+`resolverCtaSeccion` como en `siteContentEditableSchema`, mismo criterio `z.union([z.enum(…),
+z.literal('')])` que `menuEditableSchema.ctaDestino`); los tres campos con control de panel
+declarado Y RENDERIZADO en un bloque (no sólo presente en `config.campos`, verificado vía
+`bloquesResueltos`)—, más una calibración del set de opciones del select. `panel-controles.test.ts`
+ganó una calibración explícita de que los seis campos entran controlados sin necesitar ninguna
+exención nueva en `PENDIENTE_PANEL` (su techo-trinquete no se movió).
+
+### El bloqueo, MEDIDO: `npm test` completo, no el archivo nuevo aislado
+
+Con el diff completo aplicado: `npx tsc --noEmit` → **0 errores**. `npm test` completo (1950
+tests): **1949 pass, 1 fail** —
+
+```
+test at lib/config/site-content-defaults.test.ts:745
+✖ presentaciones: sin fila, los defaults resueltos reproducen el copy canónico declarado
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+    actual:   { …, variante: 'mosaico', ctaLabel: '', ctaDestino: '' }
+    expected: { …, variante: 'mosaico' }
+```
+
+La línea exacta (`site-content-defaults.test.ts:745`): `assert.deepEqual(r.presentaciones,
+PRESENTACIONES_ANTES);`, contra el literal `PRESENTACIONES_ANTES` (línea 724) — un objeto escrito a
+mano que predata esta capacidad y no incluye las dos claves nuevas. El test mide una PROPIEDAD real
+("sin fila, el resolver reproduce EXACTAMENTE los defaults declarados") y esa propiedad SIGUE siendo
+cierta —el resolver reproduce `DEFAULTS.presentaciones` byte a byte, y ahora `DEFAULTS.presentaciones`
+tiene dos claves más—; lo que quedó desincronizado es el literal de comparación, no el resolver.
+
+`lib/config/site-content-defaults.test.ts` **no está en `touches:`** de este slice (que declara
+`lib/config/seccion-cta.test.ts` y `lib/config/panel-controles.test.ts` como los dos únicos test
+files con permiso de escritura). Es el QUINTO archivo de esta clase en la historia reciente de esta
+rama —`MUESTRARIO-BANDA-APAGABLE-1` tropezó con TRES (`origen-banda.test.ts`,
+`marquesina-banda.test.ts`, `corte-marquesina-velo.test.ts`) y luego un CUARTO
+(`theme-mirador.test.ts`)—, y por la MISMA mecánica que el primero de esos cuatro: una interfaz
+(`PresentacionesContent`) gana dos campos `string` REQUERIDOS (no opcionales — deben serlo, § abajo,
+"por qué no se dodgeó"), así que `DEFAULTS.presentaciones` tiene que declararlos con un valor
+concreto para tipar, y `resolverSiteContent` los propaga al objeto resuelto por construcción
+(`sec = {...defaults}` + el loop sobre `def.campos`, § site-content-defaults.ts:1818-1829) —
+cualquier literal de comparación hardcodeado en OTRO archivo queda desincronizado.
+
+**MEDIDO, no asumido: sólo `presentaciones` tiene este problema, no `brandStory` ni
+`subscriptionCTA`.** El resto del archivo compara `r.brandStory`/`r.subscriptionCTA` DIRECTO contra
+`DEFAULTS.brandStory`/`DEFAULTS.subscriptionCTA` (`site-content-defaults.test.ts:242`:
+`assert.deepEqual(r.brandStory, DEFAULTS.brandStory);`, y la fila equivalente de subscriptionCTA) —
+un patrón que se re-sincroniza SOLO porque los dos lados de la comparación derivan del mismo
+`DEFAULTS`. `presentaciones` es la ÚNICA sección con un literal ESCRITO A MANO
+(`PRESENTACIONES_ANTES`) por su propia historia (§ el comentario de ese archivo: nació documentando
+la migración CONTENIDO-NEUTRALIZAR-1/MARCA-CLIENTE-PRESENTACIONES-1, no como copia mecánica de
+`DEFAULTS`). Confirmado por EJECUCIÓN: `npm test` completo da exactamente UN fallo, no tres.
+
+**El resto del gate, medido sobre el mismo árbol (antes de revertir):** `npm run test:integracion`
+—**231/231**, verde, coincide con el piso heredado de `7f662db`—; `npm run verificar:nayoli:visual`
+—**0px en las 6 rutas + los 2 hovers** (home/tienda/producto/checkout/nosotros/suscripciones,
+hover-automática, hover-elección; `next build` compiló limpio, confirmando que el JSX nuevo también
+pasa SWC, no sólo `tsc`)—. Es decir: la capacidad es funcionalmente completa y NO cambia un solo
+byte de lo que Nayoli sirve —las tres variantes canónicas (mosaico/columnas/bloque) nunca leen los
+campos nuevos—; el único fallo es una comparación de FORMA INTERNA del objeto default, en un archivo
+fuera de `touches:`.
+
+### Por qué se para acá, y por qué no se dodgeó de otra forma
+
+Mismo argumento que `MUESTRARIO-BANDA-APAGABLE-1` (dos veces en esta rama, arriba): el protocolo del
+despacho es explícito — "si el trabajo necesita un archivo fuera de touches, parás y lo decís — no
+lo ensanchás vos", y ese mismo asiento ya midió que "mecánico no es la vara: la vara es `touches`".
+El fix acá también sería mecánico —agregar `ctaLabel: '', ctaDestino: '',` a `PRESENTACIONES_ANTES`
+(línea ~741, junto a `variante: 'mosaico',`)— pero eso no cambia la conclusión.
+
+Se evaluaron y descartaron DOS formas de esquivar el archivo sin tocarlo:
+
+1. **Declarar `ctaLabel?`/`ctaDestino?` OPCIONALES en el tipo TS**, para que `DEFAULTS.presentaciones`
+   no tuviera que incluirlos y el objeto resuelto no ganara las dos claves nuevas. Descartado: el
+   resolver SOFT depende de que TODO campo de `def.campos` resuelva a un STRING CONCRETO, nunca
+   `undefined` —es el invariante que hace seguro `resolverCtaSeccion(label: string, …)` llamar
+   `label.trim()` sin guardas—; y aunque el TS fuera opcional, el loop de `resolverSiteContent`
+   (`sec[campo] = defaults[campo]`) IGUAL asigna la clave —con valor `undefined`— al objeto
+   resuelto, así que el literal de comparación se desincroniza IGUAL, sólo que ahora con una clase
+   de bug más peligrosa (un `string` que en runtime puede ser `undefined`) a cambio de nada.
+2. **No declarar el CTA en `presentaciones`, sólo en `brandStory` y en el segundo de
+   `subscriptionCTA`.** Descartado: la sección 0 del spec pide explícitamente las TRES bandas
+   —"desbloquea el botón 'Comprar' de Presentaciones, el 'Nuestra historia' de la Historia, y el
+   SEGUNDO botón... del muestrario"—, y el `GrindChooserRiel.tsx` ya documentaba por nombre el CTA
+   "Comprar" del prototipo como el hueco a cerrar. Recortar la sección con más apalancamiento medido
+   por el censo para esquivar UN archivo sería la misma clase de desvío no autorizado que ensanchar
+   `touches:` por cuenta propia — ya rechazada por el mismo argumento en `MUESTRARIO-BANDA-APAGABLE-1`.
+
+### Lo que sigue — para quien re-despache esto
+
+El único cambio faltante, ya identificado con su línea exacta:
+`lib/config/site-content-defaults.test.ts:724-741` (`PRESENTACIONES_ANTES`) — agregar `ctaLabel: ''`
+y `ctaDestino: ''` al literal, junto a `variante: 'mosaico',` (mismo patrón que el resolver: los
+opcionales vacíos van al final del objeto de la sección). Ensanchar `touches:` a ese ÚNICO archivo
+es lo mínimo necesario; no se detectó ningún SEGUNDO archivo en esta medición (`npm test` completo
+da exactamente 1 fallo, y `brandStory`/`subscriptionCTA` no tienen el mismo patrón de literal a
+mano, § arriba).
+
+Todo el resto del trabajo —el modelo, el schema, los controles de panel, el render en las tres
+variantes, los dos archivos de test nuevos/ampliados que SÍ están en `touches:`— quedó DISEÑADO,
+ESCRITO y VERIFICADO en esta sesión (tsc 0, 1949/1950 con la única causa identificada arriba,
+231/231 de integración, 0px de Nayoli) pero **NO commiteado**: se revirtió por completo
+(`git checkout --` sobre los siete archivos trackeados + borrado del archivo nuevo, vía `node -e
+"require('fs').unlinkSync(...)"` porque `rm` no está concedido a esta sesión) antes de commitear,
+dejando el árbol IDÉNTICO a `34e0653`. Verificado con `git status --porcelain` (sin salida) y `git
+diff --stat HEAD` (sin salida) después del revert.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — los ocho archivos con permiso de escritura
+del spec (`site-content-defaults.ts`, `site-content-schema.ts`, `tienda-secciones.ts`,
+`GrindChooserRiel.tsx`, `BrandStoryCentrada.tsx`, `SubscriptionCTALinea.tsx`, `seccion-cta.test.ts`,
+`panel-controles.test.ts`) quedan sin un solo byte modificado en este commit.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este asiento nombra: ninguno de código nuevo (el diff se revirtió) — sólo
+identificadores ya existentes (`MENU_CTA_DESTINOS`, `menuCtaHref`, `resolverSiteContent`,
+`PresentacionesContent`, `bloquesResueltos`, `PENDIENTE_PANEL`) y los nombres de archivo del
+`touches:` de este slice. Grep de `MUESTRARIO-SECCION-CTA-1` contra `CLAUDE.md`: **0 resultados**,
+como corresponde a una capacidad que no llegó a commitearse. `resolverCtaSeccion`/
+`OPCIONES_CTA_DESTINO`/`ctaSecundarioLabel` tampoco aparecen (nunca se escribieron en un archivo
+trackeado). No aplica el chequeo de "sección cerrada que alguien apunta": este asiento no cierra
+ninguna sección existente de `DECISIONS.md`, sólo documenta un bloqueo nuevo.
+
+### Verdicto
+
+**BLOCKED.** El commit queda en la rama a la espera de que el orquestador ensanche `touches:` a
+`lib/config/site-content-defaults.test.ts` (o instruya otra forma) antes de que este slice pueda
+re-intentarse. El piso heredado de `34e0653` (tsc 0, `npm test` **1935/1935** —re-medido después del
+revert, sobre el árbol final; el 1950/1950 de la corrida CON el diff aplicado incluía los ~15 tests
+nuevos de `seccion-cta.test.ts`/`panel-controles.test.ts`, revertidos junto con el resto—, `npm run
+test:integracion` 231/231) sigue siendo válido para el árbol final — ningún archivo de código cambió
+entre ese commit y éste.
