@@ -21374,8 +21374,12 @@ campo (`imagen: ''`, que `sanitizeOpciones` omite al guardar); no borra el blob.
 
 **El guard del panel NO aplica, como el spec anticipaba.** `huecosDelPanel()`
 (`lib/config/panel-controles.ts`) escanea campos de `SiteContent`, no de `Product`; este campo no
-entra a su barrido. Verificado: `PENDIENTE_PANEL.length` sigue en su valor de antes de este slice
-— el techo del trinquete no se movió, porque no había nada que mover.
+entra a su barrido. Medido (`node --import tsx -e "import('./lib/config/panel-controles.ts')
+.then(m => console.log(m.PENDIENTE_PANEL.length))"`, sobre el árbol final de este slice):
+`PENDIENTE_PANEL.length` da **13** — el mismo valor que el despacho anterior de esta tanda ya
+citaba (§ arriba, `MUESTRARIO-CTA-BANNER-FOTO-1`), y no podía ser otro: este diff no toca
+`lib/config/panel-controles.ts` ni ningún archivo de `SiteContent`. El techo del trinquete no se
+movió, porque no había nada que mover.
 
 ### El gate, medido sobre EL ÁRBOL FINAL de este despacho
 
