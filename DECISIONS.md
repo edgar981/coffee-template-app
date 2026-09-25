@@ -19245,7 +19245,12 @@ que ocurre hoy — un tenant corre un preset fijo desde el onboarding, nunca dos
 DISTINTO sobre un tenant que YA afinó campos a mano podría sobreescribirlos si el preset nuevo
 declara, por coincidencia, el mismo valor que el snapshot recordaba — scopear el snapshot por preset
 es la salida el día que el dueño componga de verdad, y no se construye acá (hoy sigue sin ocurrir,
-misma guarda que el asiento de `TEMAS-PRESET-DATO-1` ya nombraba).
+misma guarda que el asiento de `TEMAS-PRESET-DATO-1` ya nombraba). Se abre
+`REAPPLY-SNAPSHOT-SCOPE-POR-PRESET-1` como seguimiento nombrado: el día que un tenant pueda recibir
+más de un preset distinto en su vida (multitenant self-serve, § el eje que motivó esta aprobación),
+el snapshot pasa de `ruta→valor` a `ruta→{preset, valor}` para que un cambio de preset no confunda
+"el dueño lo tocó" con "otro preset lo declaró distinto". No antes: hoy no hay ningún tenant que
+reciba dos presets.
 
 **Ningún camino de escritura del panel ni el REGISTRY se tocó** (mandato del spec, verificado): el
 diff es sólo `mergePresetEnContent` (el motor), su fusión, y las declaraciones de la meta nueva
