@@ -1433,12 +1433,15 @@ que el ex-`Product.agotado` (columna inerte, dropeada en el #10), pero peor: el 
   override de `route.ts:69`), no la columna.
 - **Escrituras de runtime: CERO.** `customer.create` (route.ts:96-108) no la incluye ni por spread; el
   PATCH tampoco. Cae al `@default(0)`.
-- **La toca sólo el SEED:** `prisma/seed.ts:269` desde `lib/mock/customers.ts` (plomería de demo).
+- **La toca sólo el SEED:** `prisma/seed.ts` (línea del `total_compras:` en el upsert de
+  `MOCK_CUSTOMERS` — el número de línea corrido no se cita más acá, § HIGIENE-SEED-Y-DOCTRINA-1,
+  2026-09-25: el crecimiento del comentario de `SiteSetting` en ese mismo archivo ya movió este
+  puntero una vez) desde `lib/mock/customers.ts` (plomería de demo).
 - **El campo/tipo del API homónimo (= `paidTotalByCustomer`) es OTRA cosa** y se queda; `types/customer.ts:21`
   es ESE campo, no la columna.
 
-Si algún día SÍ se dropea: las tres (schema + `seed.ts:269` + `lib/mock`) van JUNTAS o el seed rompe; no
-necesita expand/contract (nadie la lee).
+Si algún día SÍ se dropea: las tres (schema + el upsert de `MOCK_CUSTOMERS` en `seed.ts` + `lib/mock`) van
+JUNTAS o el seed rompe; no necesita expand/contract (nadie la lee).
 
 ### 39. Dos voces para el mismo umbral: `def.disparador` (diálogo) y `def.frase` (tarjeta)
 
@@ -1792,8 +1795,21 @@ vertical).
 
 ### 60. `footerNav` → editable — atajos de categoría en el footer
 
+**LA PREMISA DE ABAJO VENCIÓ (§ HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25), EL ÍTEM NO.**
+`footerNav` DEJÓ de ser "ESTRUCTURA estática que `StoreFooter` lee sin tocar el catálogo":
+`MUESTRARIO-FOOTER-TEMA-1` lo movió a `content.footer` (SiteContent, editable en `/admin/tienda`,
+§ Qué QUEDA en `siteConfig`). Pero lo que se construyó es exactamente el patrón que este ítem
+**advierte como insuficiente**: labels editables con `href` FIJO (`HREF_FOOTER_TIENDA` y
+hermanos, constantes) para los enlaces genéricos (Tienda/Suscripciones/Rastrear pedido/FAQ/
+Nuestra Historia), más un repeater `items` de `{label, href}` con href LIBRE — ninguno de los dos
+es "un selector de categorías REALES del catálogo derivado". Medido contra
+`lib/config/site-content-defaults.ts` (`REGISTRY.footer`) y `columnasDeFooter`
+(`lib/config/site-content-defaults.ts`): cero referencia al catálogo de productos. **El ítem
+sigue abierto, por la misma razón original** — un cliente que quiera atajos de categoría real
+sigue sin poder pedirlos sin renombrar categorías a mano en el repeater de href libre.
+
 C3 BORRÓ los 2 atajos de categoría café del footer (`lib/config/site.ts`, "Café en Grano"/"Café
-Molido" → `?cat=…`): `footerNav` es ESTRUCTURA estática que `StoreFooter` lee sin tocar el
+Molido" → `?cat=…`): `footerNav` era ESTRUCTURA estática que `StoreFooter` leía sin tocar el
 catálogo, así que derivar links de categoría exigiría pasarle el catálogo al footer —y un literal
 café en el footer de un cliente no-café es peor que no tenerlo—. Quedó con "Todos los productos" +
 "Suscripciones".
@@ -2061,11 +2077,20 @@ primarios compitiendo (§ un solo primario sólido por vista).
 
 ### Qué QUEDA en `siteConfig`
 
+**VENCIDO (§ HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25): `footerNav`/`legalNav` YA NO viven acá.**
+`MUESTRARIO-FOOTER-TEMA-1` los retiró de `siteConfig` y los movió al REGISTRY de `SiteContent`
+(`content.footer`, § El REPEATER — la plataforma / § MUESTRARIO-FOOTER-TEMA-1 en el código):
+los encabezados de columna y las etiquetas de sus enlaces son DATO editable en `/admin/tienda`,
+con un repeater `items` para enlaces legales/extra. `lib/config/site.ts` ya no exporta
+`footerNav` ni `legalNav`. Lo que sigue de esta sección describe el estado ANTERIOR a esa tanda;
+se deja como registro y no se reescribe entero.
+
 Sólo lo ESTRUCTURADO: `footerNav` y `legalNav` (los lee StoreFooter). Y las FUNCIONES puras
 —`whatsappUrl`, `formatWhatsappDisplay`, `instagramUrl`— que no son datos de tenant. Todo lo demás
 (`brand`, `contacto`, los planos de `tienda`, **y `tienda.emailColors`**) se retiró. `whatsappUrl`
 recibe el número (una sola fuente: `SiteSetting.whatsapp`); `formatWhatsappDisplay` DERIVA el display
-del número, sin un segundo campo que pudiera divergir.
+del número, sin un segundo campo que pudiera divergir. Las FUNCIONES puras se quedan en
+`lib/config/site.ts`; lo que se fue con `footerNav`/`legalNav` es sólo la estructura de datos.
 
 ### Los COLORES de los correos DERIVAN de la paleta (C2 · #4a)
 
@@ -2353,8 +2378,12 @@ sintético (deja la mecánica lista para las secciones que faltan, aunque el her
 **ÉSTAS FUERON LAS PRIMERAS SECCIONES EDITABLES** (el REGISTRY completo vive en
 `lib/config/site-content-defaults.ts` y hoy declara más que estas cuatro): hero (portada,
 `ocultable:false`), brandStory (Historia, `ocultable:true`, 4 imágenes fijas), **subscriptionCTA**
-(Suscripción, `ocultable:true`, **solo texto**), y **testimonials** (Testimonios, `ocultable:true`,
-la 1ª sección **REPEATER**). Suscripción es la más simple —casi enteramente datos sobre la cáscara
+(Suscripción, `ocultable:true`, **solo texto** al nacer), y **testimonials** (Testimonios, `ocultable:true`,
+la 1ª sección **REPEATER**). **"Solo texto" VENCIÓ (§ HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25):
+`subscriptionCTA` ganó `imagenFondo` (§ MUESTRARIO-CTA-BANNER-FOTO-1, fondo sólido si vacío,
+byte-idéntico) y `ctaSecundarioLabel`/`ctaSecundarioDestino` (§ MUESTRARIO-SECCION-CTA-1, un
+segundo botón opcional) después de que este párrafo se escribió — describía la sección tal como
+nació, no como es hoy.** Suscripción es la más simple —casi enteramente datos sobre la cáscara
 genérica (`TiendaSeccionEditor`)— y aporta dos cosas al modelo:
 - **Bullets OPCIONALES como repeater-pobre**: `bullet1..4` opcionales que el componente junta con un
   `.filter` → "hasta 4 sin hueco" (vaciar uno cierra la lista), sin arrastrar el repeater real (que la
@@ -2539,7 +2568,9 @@ schema era el único eslabón congelado—.
   etapa `'subiendo'|'guardando'` de `ProductFormModal`. Compone dos patrones, no inventa.
 - **Rail: "Tienda" SUELTO** (sin `seccion`) tras Crecimiento. Un grupo de un ítem es un
   encabezado que no agrupa (regla del owner). **Semilla de un grupo "Tienda"** cuando exista una
-  2ª pantalla de storefront-admin (las páginas legales, § `legalNav` vacío). RESERVA de gate: un
+  2ª pantalla de storefront-admin (las páginas legales — `legalNav` YA NO existe como tal; hoy es
+  el repeater `footer.items`, § HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25, y § Qué QUEDA en
+  `siteConfig`). RESERVA de gate: un
   ítem suelto tras dos grupos etiquetados puede leerse como sobrante ("Hoy" funciona porque va
   primero); si no cuadra, la salida es el grupo de un ítem. El conteo del tripwire de
   `admin-titulo` pasó 8→9 a propósito.
@@ -2935,7 +2966,9 @@ pero puede no vender suscripciones) las apaga sin tocar código.
 - **[1] ES UNA CAPACIDAD APAGABLE, y gatea CINCO superficies JUNTAS.** `content.paginas.suscripciones.visible`
   (default ENCENDIDA, patrón /nosotros — clave meta, `resolverPaginas` key-agnóstico). Apagada, ocultan el
   enlace a /suscripciones las CINCO: la RUTA (redirect 307, `page.tsx` server + `Contenido.tsx` cliente,
-  como /nosotros), el NAV (`StoreNav`), el FOOTER (`StoreFooter` filtra `footerNav.tienda`), el CTA de la
+  como /nosotros), el NAV (`StoreNav`), el FOOTER (`StoreFooter` filtra el enlace de Suscripciones vía
+  `columnasDeFooter` — `footerNav.tienda` YA NO EXISTE como símbolo, § HIGIENE-SEED-Y-DOCTRINA-1,
+  2026-09-25; misma lógica de filtrado, hoy sobre `content.footer`), el CTA de la
   HOME (`SubscriptionCTA`), y el **2º CTA del HERO** (`HeroSection`, `HERO_HREFS.secundario`). **LA QUINTA
   APARECIÓ VERIFICANDO POR EJECUCIÓN, NO LEYENDO:** el censo por lectura dio CUATRO; cargar la home con el
   flag apagado mostró un "Suscripción Mensual" vivo hacia una página que redirige. Es la lección de método
@@ -3163,6 +3196,12 @@ en `SiteSetting` (base) y se editan en **Configuración**. La implementación co
 —modelo, loaders, providers, pre-auth, editor, retiro de ADMIN_EMAIL— está en
 **§ Config del negocio — `SiteSetting` (los planos editables)**.
 
+**`instagram` VENCIÓ como "se edita en Configuración" (§ HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25):**
+`MUESTRARIO-REDES-ADICIONALES-1` congeló la columna `instagram` — `DatosNegocioSeccion.tsx` la
+re-envía tal cual sin control propio, y la red "instagram" se edita ahora en el bloque "Redes
+sociales" (`redes[]`, § abajo), no en el campo plano. La columna SIGUE viva en `SiteSetting`
+(sin dropear), pero ya no es lo que Configuración deja tocar.
+
 **Se APARTÓ de la doctrina previa a propósito** (owner): esta sección decía "NO se
 adelanta hasta el acuerdo de esquema con Carlos". El owner decidió construir el editable
 AHORA, con la forma que **NO fija** la arquitectura multi-tenant: fila única
@@ -3173,7 +3212,11 @@ tenancy.
 **Lo que QUEDA post-multitenant:**
 - el **`tenant_id` / multi-schema**: la fila `default` pasa a una por tenant, scopeada; el
   loader gana el `storeId`. Es el único cambio de esquema, y es el que va con Carlos.
-- los **ESTRUCTURADOS que quedan** (`footerNav`, `legalNav`): son editores ricos, no inputs de
+- **VENCIDO (§ HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25): `footerNav`/`legalNav` YA NO son un
+  "editor rico pendiente" — `MUESTRARIO-FOOTER-TEMA-1` los adelantó, con la misma forma
+  key-agnóstica que el resto de `SiteContent` (§ Qué QUEDA en `siteConfig`, arriba). Bullet
+  original, dejado como registro:** los **ESTRUCTURADOS que quedan** (`footerNav`, `legalNav`):
+  son editores ricos, no inputs de
   texto — siguen en `siteConfig` (código) hasta que valga la pena. (`emailColors` ya NO está acá: se
   retiró en C2 y DERIVA de la paleta, § Los COLORES de los correos DERIVAN de la paleta.)
 - el resto del inventario de tenant (§ Identidad, el title/description de la raíz) sigue en código;
@@ -4491,8 +4534,22 @@ es NEUTRO; lo por-despliegue es DATO (SiteSetting) o env, nunca un literal de Na
 - **El INSERT de `SiteSetting` de la migración es NEUTRO** (`nombre='Configura tu tienda'`, el
   resto vacío), no "Café Nayoli". El loader es HARD (`findUniqueOrThrow`), así que la fila DEBE
   existir — pero sus valores son placeholder: `nombre` se lee como "falta configurar" (wordmark +
-  pestaña + manifest), y un WhatsApp/Instagram placeholder sería un dato FALSO publicado. La DEMO
-  de Nayoli no cambia: su seed upserta los valores reales sobre la fila. **Se editó la migración
+  pestaña + manifest), y un WhatsApp/Instagram placeholder sería un dato FALSO publicado.
+  **CORREGIDO (§ HIGIENE-SEED-Y-DOCTRINA-1, 2026-09-25): el seed NO es el mecanismo que le da a la
+  demo su identidad — esta frase decía "su seed upserta los valores reales sobre la fila", y era
+  falso para CUALQUIER base fresca** (`migrate deploy` + `seed.ts` desde cero — exactamente el
+  método que el carril de integración usa, § abajo): `prisma/seed.ts` hace `siteSetting.upsert({
+  update: {}, … })`, y sobre una base ya migrada la fila YA EXISTE (la inserta esta misma
+  migración, en el mismo INSERT que crea la tabla) → `update: {}` es la rama que SIEMPRE corre y
+  el `create` nunca se alcanza. La base PERSISTENTE de Nayoli (dev/preview/producción) conserva
+  "Café Nayoli" por una razón DISTINTA: esa fila ya existía con esos valores desde ANTES de que
+  esta migración se editara a neutra (ver el párrafo de abajo) — el seed no la escribió, la
+  encontró. El `create` del seed llevaba el literal 'Café Nayoli' hardcodeado, inalcanzable en el
+  flujo normal y contradictorio con esta misma doctrina; se alineó a los mismos valores neutros
+  que este INSERT (§ `SEED-SITESETTING-UPSERT-NOOP-1`, `DECISIONS.md`), para que la única rama
+  donde `create` podría llegar a correr (una fila borrada a mano y re-sembrada) no reintroduzca un
+  literal de Nayoli. `lib/config/seed-sitesetting.test.ts` deriva ambos y falla si divergen.
+  **Se editó la migración
   YA APLICADA a propósito** (el porqué vive DENTRO del SQL): una migración NUEVA correría también
   sobre Nayoli y PISARÍA su config real —no distingue "fresco" de "editado"—; `migrate deploy`
   salta lo ya aplicado, así que Nayoli/dev quedan intactos. Verificado: el carril de integración
@@ -4519,6 +4576,13 @@ antes quedó OBSOLETO —ahora existe—); y de `lib/config/site.ts` los **email
 (§ El inyector de marca), quedando sólo `footerNav`/`legalNav` (editores ricos, post-multitenant). El
 **import de catálogo** (TANDA B) ya se abrió (§ El import de catálogo). Lo que queda café-shape es de
 CLIENTE, no de template: #59 (ficha del producto), #60 (footerNav), #63 (copy), #65 (defectos dormidos).
+
+**"quedando sólo `footerNav`/`legalNav` (editores ricos, post-multitenant)" VENCIÓ (`MUESTRARIO-
+FOOTER-TEMA-1`, 2026-09-25, § HIGIENE-SEED-Y-DOCTRINA-1)**: `MUESTRARIO-FOOTER-TEMA-1` los adelantó de `siteConfig` a
+`SiteContent` sin esperar al multi-tenant (§ Qué QUEDA en `siteConfig`, arriba). La frase describía el
+estado del 2026-09-05 correctamente cuando se escribió; una tanda de OTRO subsistema la volvió falsa,
+sin que nadie tocara este párrafo — el mismo modo de falla que § Backlog técnico ya documenta para
+frases prospectivas.
 
 ### LO QUE CONFIGURA A UN TENANT PREFIERE DATO SOBRE ENV/CÓDIGO — regla de rumbo
 
@@ -7611,7 +7675,9 @@ en `payload`. Antes de conectar el adaptador real:
   la única plantilla MARKETING (las otras son UTILITY): exige opt-in previo
   y tiene otro costo; categorizarla UTILITY para saltarse el opt-in es la
   causa #1 de suspensión de plantillas. Conecta con las páginas legales
-  pendientes (Ley 1581) — ver `siteConfig.legalNav`, hoy vacío.
+  pendientes (Ley 1581) — `siteConfig.legalNav` YA NO EXISTE (§ HIGIENE-SEED-Y-DOCTRINA-1,
+  2026-09-25); el repeater equivalente hoy es `content.footer.items` (§ Qué QUEDA en
+  `siteConfig`), vacío por defecto (`items: []`).
 - **PRECONDICIÓN de brand (Fase A, 2026-08-09) — antes de activar cualquier
   automatización `email` + `audiencia: 'cliente'`, PARAMETRIZAR su canal con
   `brand`, igual que se hizo con notifications en Fase A.** Hoy el canal email de

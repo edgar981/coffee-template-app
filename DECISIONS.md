@@ -22259,3 +22259,203 @@ clasificación de la RAMA completa (`slice/corte-reescritura-prototipo-1`, ya `A
 por slices anteriores que tocan bytes de visitante). Cierra `MUESTRARIO-FOOTER-TARJETA-IMAGEN-1` y,
 con ella, la parte CONSTRUIBLE de `MUESTRARIO-FOOTER-TEMA-1`; el newsletter queda pendiente de una
 decisión de producto del owner (§ Origen, arriba).
+
+## 2026-09-25 — Higiene del seed y la doctrina que esta rama volvió falsa (`HIGIENE-SEED-Y-DOCTRINA-1`)
+
+**Ledger-id:** `HIGIENE-SEED-Y-DOCTRINA-1`. **Repo:** coffee-template-app. **Base:** `main` (policy:
+current-main). **`writes:` yes.** **`touches:`** `prisma/seed.ts`, `CLAUDE.md`,
+`lib/config/seed-sitesetting.test.ts`, `DECISIONS.md`. **Observed-report:** `CENSO-MUESTRARIO-1`.
+**Continúa la rama** `slice/corte-reescritura-prototipo-1`. **Aprobado por el owner**
+(`SEED-SITESETTING-UPSERT-NOOP-1` — hallado por `GUARDA-COLOR-NAYOLI-1`, confirmado por lectura: el
+nombre neutro es lo correcto para multi-tenant; "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL
+MERGE").
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `990df5a` (`slice/corte-reescritura-prototipo-1`), coincide con
+  `continues-branch` — **medido** (`git status`, `git log --oneline -5`).
+- `prisma/seed.ts`'s `siteSetting.upsert` usaba `update: {}` + `create: { nombre: 'Café Nayoli', … }`
+  — **medido** (`grep -n siteSetting prisma/seed.ts`, luego lectura completa del bloque).
+- La migración `20260824120000_add_site_setting` inserta la fila con valores NEUTROS
+  (`nombre='Configura tu tienda'`, el resto `''`) en el mismo `INSERT` que crea la tabla — **medido**
+  (lectura de `packages/core/prisma/migrations/20260824120000_add_site_setting/migration.sql`).
+- Ningún test importa `prisma/seed.ts` ni depende del literal `'Café Nayoli'` de ese `create` —
+  **medido**: `grep -rln "from.*prisma/seed" . --include="*.ts"` da CERO (fuera del propio
+  `seed.ts`); `grep -rn "Café Nayoli"` en el repo da 83 apariciones (`.ts`/`.tsx`), todas datos de
+  fixture sueltos
+  (nombres de producto, ejemplos de test) o el `<title>` de `app/layout.tsx` — ninguna lee el `create`
+  de `siteSetting.upsert`. El carril de integración usa fixtures propios, NUNCA `seed.ts` (doctrina
+  ya escrita, § El carril de integración, "Fixtures propios, NO `prisma/seed.ts`").
+
+### §1 — El seed: se sacó el literal de Nayoli
+
+**El defecto, confirmado:** sobre CUALQUIER base ya migrada (dev, preview, producción, y el carril
+de integración, que aplica todas las migraciones desde cero) la fila `SiteSetting` YA EXISTE cuando
+`prisma.siteSetting.upsert` corre — la insertó la migración. `update: {}` es entonces la rama que
+SIEMPRE se ejecuta, y el `create` con `nombre: 'Café Nayoli'` nunca se alcanza. El literal era, a la
+vez, INALCANZABLE en el flujo normal y una CONTRADICCIÓN de la doctrina de neutralidad (§ CLAUDE.md,
+"El código compartido no NACE siendo Nayoli/demo") en la única rama donde sí podría llegar a correr
+algún día (una fila borrada a mano, re-sembrada).
+
+**Por qué Nayoli conserva "Café Nayoli" de todos modos — el mecanismo real, no el que la doctrina
+describía:** la base persistente de Nayoli (dev/preview/producción) ya tenía esa fila con esos
+valores desde ANTES de que la migración `20260824120000` se EDITARA a neutra (el propio comentario
+de esa migración lo dice: "cierto para la base PERSISTENTE de Nayoli... que ya tenía 'Café Nayoli'
+de cuando la migración original —antes de editarse a neutra— corrió"). El seed nunca escribió esos
+valores; los encontró. Confirmado también por el log del propio carril de integración de una tanda
+anterior: *"Gracias por comprar en Configura tu tienda."* — el nombre neutro, en una base fresca.
+
+**El fix:** el `create` de `siteSetting.upsert` queda alineado a los MISMOS valores neutros que el
+`INSERT` de la migración (`nombre:'Configura tu tienda'`, `tagline`/`descripcionFooter`/`whatsapp`/
+`instagram`/`emailRemitente` en `''`). `metodosPago` NO se tocó: no es un dato de identidad de Nayoli
+(sin número ni cuenta bancaria, ya era el mismo punto de partida operativo que cualquier despliegue
+nuevo necesita para que el checkout tenga ≥1 método), y la migración de esa columna es POSTERIOR
+(`20260910120000_site_setting_metodos_pago`) — el `INSERT` de `20260824120000` no la declara, así
+que no hay valor de esa migración contra el cual alinear. `update: {}` NO se tocó (su intención —no
+pisar ediciones de dev en un re-seed— sigue siendo correcta).
+
+### `lib/config/seed-sitesetting.test.ts` — DERIVADO, no una tercera lista a mano
+
+Tres tests, capa 1 (sin base, sin importar `prisma/seed.ts` — su `main()` corre al importar el
+módulo y necesita una base real, inapropiado para un test puro): leen `prisma/seed.ts` y la
+migración como TEXTO (mismo patrón que `footer-tema.test.ts` acotando el cuerpo de
+`FooterColumnas`), extraen los valores por posición/regex, y comparan.
+
+1. El `create` de seed.ts declara los MISMOS valores que el `INSERT` de la migración (para
+   `id`/`nombre`/`tagline`/`descripcionFooter`/`whatsapp`/`instagram`/`emailRemitente`).
+2. La migración inserta la fila NEUTRA que la doctrina describe (no "Café Nayoli").
+3. `update` sigue siendo el objeto vacío `{}`.
+
+Los tres corridos en aislamiento ANTES del gate completo: 3/3 verdes (`npx tsx --test
+lib/config/seed-sitesetting.test.ts`, 185.5ms). Por construcción, el test 1 habría fallado contra el
+código viejo (`'Café Nayoli'` ≠ `'Configura tu tienda'`) — no se revirtió el fix para verlo fallar
+literalmente (el fix es de una línea de datos, no de lógica; el riesgo de falso-verde es bajo y el
+propio test 2, que lee SÓLO la migración, ya prueba que el discriminador no es tautológico).
+
+### §2 — La doctrina que esta rama volvió falsa
+
+**Hallazgo de partida (ya identificado por el dispatch), confirmado por lectura:** `CLAUDE.md:4495`
+(numeración pre-slice) decía *"La DEMO de Nayoli no cambia: su seed upserta los valores reales sobre
+la fila"* — falso para cualquier base fresca, por la misma razón de §1. Corregido con una nota
+`VENCIÓ`/`CORREGIDO` que explica el mecanismo real (la fila persistente de Nayoli ya traía esos
+valores desde antes de la edición de la migración; el seed no es el escritor).
+
+**El footer y `subscriptionCTA` — ya localizados por slices previos de esta misma rama, con
+`open_followups` coined y sin cerrar por estar `CLAUDE.md` fuera de `touches:` en aquel momento:**
+
+- **`MUESTRARIO-FOOTER-TEMA-DOCTRINA-STALE-1`** (coined en `MUESTRARIO-FOOTER-TEMA-1`, CERRADO
+  acá): OCHO líneas de `CLAUDE.md` describían `footerNav`/`legalNav` como estructura fija en
+  `siteConfig` ("editores ricos, post-multitenant") — falso desde que `MUESTRARIO-FOOTER-TEMA-1` los
+  movió a `content.footer` (SiteContent, editable en `/admin/tienda`). Corregidas las ocho, cada una
+  con una nota `VENCIDO`/`VENCIÓ` que preserva el texto histórico y explica qué cambió:
+  § Qué QUEDA en `siteConfig` (la que listaba footerNav/legalNav como estructurados-en-código);
+  § Datos de negocio editables (el bullet "los ESTRUCTURADOS que quedan"); § El editor y el rail
+  (`legalNav` vacío → hoy `footer.items`); § La SUSCRIPCIÓN es una capacidad APAGABLE
+  (`footerNav.tienda` como símbolo → hoy `columnasDeFooter`); § TANDA C CERRADA (dos apariciones,
+  la del bullet de `emailColors` y la mención en la lista café-shape); y el `siteConfig.legalNav`
+  del prerequisito de WhatsApp marketing (Ley 1581).
+- **`MUESTRARIO-CTA-BANNER-FOTO-DOCTRINA-SOLO-TEXTO-1`** (coined en `MUESTRARIO-CTA-BANNER-FOTO-1`,
+  CERRADO acá): `CLAUDE.md` describía `subscriptionCTA` como "solo texto" — falso desde que esa
+  sección ganó `imagenFondo` (`MUESTRARIO-CTA-BANNER-FOTO-1`) y `ctaSecundarioLabel`/
+  `ctaSecundarioDestino` (`MUESTRARIO-SECCION-CTA-1`). Corregida con nota que aclara que la frase
+  describía la sección "al nacer", no como es hoy.
+
+**Hallazgo NUEVO de este slice, no coined por nadie antes** (bajo "lista de redes",
+§ HIGIENE-SEED-Y-DOCTRINA-1): `CLAUDE.md` (§ Datos de negocio editables) listaba `instagram` entre
+los campos que "se editan en Configuración". Falso desde `MUESTRARIO-REDES-ADICIONALES-1`: la
+columna `instagram` quedó CONGELADA — `DatosNegocioSeccion.tsx` la re-envía sin control propio, y la
+red "instagram" se edita ahora en el bloque "Redes sociales" (`redes[]`), no en el campo plano.
+Confirmado por lectura del código (`components/admin/DatosNegocioSeccion.tsx:61-64`, comentario
+explícito: "la columna quedó CONGELADA... se re-envía tal cual estaba, nunca editada acá"). Corregido
+con nota.
+
+**Backlog #60 — MEDIDO Y NO CERRADO, contra la premisa del dispatch.** El dispatch afirmaba "el
+Backlog #60 quedó construido". **Medido y es FALSO:** `REGISTRY.footer` (`lib/config/
+site-content-defaults.ts`) da labels editables con `href` FIJO (`HREF_FOOTER_TIENDA` y hermanos,
+constantes) para los enlaces genéricos, más un repeater `items` de `{label, href}` con `href` LIBRE
+— ninguno de los dos es "un selector de categorías REALES del catálogo derivado", que es
+LITERALMENTE lo que el propio texto de #60 dice que NO alcanza ("NO 'labels editables, destinos
+fijos'... sino un selector de categorías REALES"). `columnasDeFooter` (mismo archivo) no referencia
+el catálogo de productos en absoluto. **El ítem sigue abierto.** Se corrigió la PREMISA de #60 (que
+describía `footerNav` como "ESTRUCTURA estática que StoreFooter lee sin tocar el catálogo" — ya no
+es estática, es SiteContent) sin cerrar el ítem, porque la premisa venció pero la necesidad no se
+satisfizo. Esto es una DESVIACIÓN del dispatch: la instrucción decía "El Backlog #60 quedó
+construido" como parte del contexto §2; la medición contra el código lo contradice, y la medición
+gana (protocolo del slice: "cuando una instrucción conflictúa con lo que medís, la medición gana").
+
+**Búsqueda de las OTRAS capacidades nombradas por el dispatch** (bandasVisibles, snapshot de preset,
+CTA de sección, mega-menú, drawer móvil, "Detalles del sitio"): `grep -n` de cada término contra
+`CLAUDE.md` da CERO resultados para todos — ninguno de esos símbolos/conceptos aparece en la
+doctrina, así que no hay ninguna frase "no editable"/"queda para el multi-tenant" que corregir sobre
+ellos. Búsqueda hecha, nada que reportar.
+
+**Staleness introducida por el PROPIO diff de este slice, hallada en el chequeo mecánico final:**
+`CLAUDE.md` citaba `prisma/seed.ts:269` (dos veces, § el ex-Backlog #38/`total_compras`) apuntando al
+upsert de `MOCK_CUSTOMERS`; el comentario nuevo del bloque `SiteSetting` (14 líneas netas agregadas
+antes de ese punto) corrió esa línea a 294. Corregido: se retiró el número de línea citado y se
+reemplazó por una descripción posicional, con nota de que este mismo slice movió el puntero una vez
+— para no repetir el patrón.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff cambió directamente: `prisma.siteSetting.upsert` (los VALORES del
+`create`, no su forma), `lib/config/seed-sitesetting.test.ts` (nuevo). Grepeados contra `CLAUDE.md`:
+las únicas apariciones de `seed.ts`/`siteSetting.upsert` son las que ESTE MISMO slice edita (§2,
+arriba) — no quedó ninguna sin revisar. `seed-sitesetting.test.ts` no tiene apariciones previas (es
+nuevo). El resto de las menciones de `prisma/seed.ts` en `CLAUDE.md` (§ Fixtures propios NO
+`prisma/seed.ts`; § La toca sólo el SEED / total_compras, corregida arriba; § LA FILA LA GARANTIZA LA
+MIGRACIÓN, no el seed, que ahora es MÁS cierta tras el fix, no menos; § Editar el SEED no cambia una
+base ya sembrada) se leyeron una por una y siguen siendo ciertas tal cual están escritas.
+
+### CHEQUEO DEL DOCUMENTO — secciones/ids que este diff tocó, contra quién apunta a ellos
+
+`grep -n` de `MUESTRARIO-FOOTER-TEMA-DOCTRINA-STALE-1`, `MUESTRARIO-CTA-BANNER-FOTO-DOCTRINA-
+SOLO-TEXTO-1` y `SEED-SITESETTING-UPSERT-NOOP-1` contra `DECISIONS.md` completo: cada id aparece
+SÓLO donde se coined (la fila de `open_followups` que lo define) — ningún otro asiento apunta a
+ellos esperando que sigan abiertos. Cerrarlos acá no deja un pointer huérfano.
+
+### `open_followups`
+
+- **`MUESTRARIO-FOOTER-TEMA-COMENTARIOS-STALE-1`** (coined por `MUESTRARIO-FOOTER-TEMA-1`) **sigue
+  abierto, sin tocar por este slice**: tres comentarios en CÓDIGO (`constants/admin-nav.ts:55`,
+  `components/admin/DatosNegocioSeccion.tsx:29`, `lib/config/site-settings-read.ts:8`) siguen
+  citando `footerNav`/`legalNav` como si vivieran en `siteConfig`. `why_not_now`: ninguno de los
+  tres archivos está en `touches:` de este slice.
+- **Backlog #60 sigue vivo** (§ arriba) — no se cierra acá; su premisa se corrigió, la necesidad
+  (selector de categorías reales del catálogo en el footer) sigue sin construirse.
+
+### `customer_bytes`
+
+`changed: true` — por la RAMA, no por este commit. **Este commit, aislado, no cambia ni un byte que
+un cliente, operador o dueño lea en producción**: `prisma/seed.ts` es tooling de desarrollo/demo (no
+corre en producción, § CLAUDE.md "En PRODUCCIÓN la crea la MIGRACIÓN, el seed no corre allá"), y
+sobre CUALQUIER base ya migrada el `create` que este commit edita sigue siendo inalcanzable
+(`update: {}` gana siempre) — o sea que ni siquiera en `development`/preview este commit cambia el
+valor que una fila real muestra. `CLAUDE.md`, `DECISIONS.md` y el test nuevo son internos. Pero
+`slice/corte-reescritura-prototipo-1` (la RAMA contra `main`) YA incluye bytes de cliente de slices
+anteriores (Footer, Mega-menu, Drawer móvil, CTA-banner-foto, Riel activo, Carrito-barra-envío) —
+§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT". `strings`: ninguno NUEVO en este commit; los strings
+visibles de la rama ya están documentados en los asientos de los commits que los introdujeron.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica a este commit: sin cambios a `packages/core/prisma/schema.prisma` ni
+migración nueva; sin contrato cross-repo.
+
+### Verdicto
+
+**AWAITING_APPROVAL**, por instrucción explícita del dispatch y por herencia de la clasificación de
+la RAMA (`slice/corte-reescritura-prototipo-1`, ya `AWAITING_APPROVAL` por slices anteriores que
+tocan bytes de visitante — § `customer_bytes`, arriba). Gate verde en el árbol final: `npx tsc
+--noEmit` 0 errores; `npm test` 2114/2114 (2111 previos + 3 nuevos de `seed-sitesetting.test.ts`);
+`npm run test:integracion` 237/237 (sin cambio — este slice no agrega tests de carril), commiteado en
+`slice/corte-reescritura-prototipo-1`. **El diff visual NO se corrió**: este commit no toca render
+del storefront (§ el spec lo declara explícito; confirmado — el único código tocado es el `create`
+de `siteSetting.upsert`, que además es inalcanzable sobre cualquier base migrada). `schema` y
+`cross-repo-contract` NO aplican; `stopped_on: [customer-bytes]` (heredado de la rama). El owner ya
+aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el
+merge sigue pendiente del gate del orquestador. **Cierra `HIGIENE-SEED-Y-DOCTRINA-1` y
+`SEED-SITESETTING-UPSERT-NOOP-1`.** Cierra también `MUESTRARIO-FOOTER-TEMA-DOCTRINA-STALE-1` y
+`MUESTRARIO-CTA-BANNER-FOTO-DOCTRINA-SOLO-TEXTO-1` (doctrina corregida). **DEVIACIÓN del dispatch:**
+el contexto del spec afirmaba "El Backlog #60 quedó construido" — medido y es FALSO (§2, arriba);
+#60 se deja ABIERTO, con su premisa corregida.

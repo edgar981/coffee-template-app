@@ -233,25 +233,40 @@ async function main() {
 
   // SiteSetting — la fila singleton de config del negocio (fase 1 multi-tenant). En
   // PRODUCCIÓN la crea la MIGRACIÓN (el seed no corre allá); esto es para resets de dev.
-  // Valores HARDCODEADOS (no de `siteConfig`) a propósito: coinciden con el INSERT de la
-  // migración y sobreviven al retiro de los campos planos de `siteConfig` (commit 7).
-  // `update: {}` = idempotente, no pisa ediciones de dev en un re-seed.
+  // `update: {}` = idempotente, no pisa ediciones de dev en un re-seed — y en la PRÁCTICA es
+  // la rama que SIEMPRE corre: la migración `20260824120000_add_site_setting` inserta la fila
+  // en el mismo INSERT que crea la tabla, así que sobre cualquier base ya migrada (dev, preview,
+  // producción, y el carril de integración, que aplica todas las migraciones desde cero) la fila
+  // YA EXISTE cuando este upsert corre, y `create` nunca se alcanza (§ SEED-SITESETTING-UPSERT-
+  // NOOP-1, `DECISIONS.md`).
+  //
+  // `create` queda alineado a los MISMOS valores NEUTROS que la migración inserta
+  // (`nombre:'Configura tu tienda'`, el resto vacío) — antes tenía "Café Nayoli" hardcodeado,
+  // que contradecía la propia doctrina de neutralidad (§ CLAUDE.md, "El código compartido no
+  // NACE siendo Nayoli/demo") en la única rama donde SÍ podría ejecutarse: una base cuya fila
+  // fue borrada a mano y se re-siembra. Ese literal nunca fue alcanzable en el flujo normal
+  // (migrate deploy + seed), así que no era la fuente de los valores reales de Nayoli en ninguna
+  // base persistente — esa fila ya traía "Café Nayoli" desde ANTES de que la migración se
+  // editara a neutra (§ el comentario de esa migración). El seed no es, y nunca fue, el
+  // mecanismo que le da a la demo su identidad.
   //
   // `metodosPago` (§ PAGOS-METODOS-MODELO-1): los CUATRO de siempre, tal como los dejaban los
-  // defaults viejos antes de esta tanda — nequi/daviplata/transferencia SIN datos (nada
+  // defaults viejos antes de esa tanda — nequi/daviplata/transferencia SIN datos (nada
   // inventado: el seed nunca trajo cuenta bancaria ni número de pago móvil propios) y efectivo
-  // completo (no pide datos). Bre-B NO se siembra — nadie lo tenía.
+  // completo (no pide datos). Bre-B NO se siembra — nadie lo tenía. No es un valor de identidad
+  // de Nayoli (no hay número ni cuenta), así que se queda: es el mismo punto de partida operativo
+  // que cualquier despliegue nuevo necesita para que el checkout tenga al menos un método.
   await prisma.siteSetting.upsert({
     where:  { id: 'default' },
     update: {},
     create: {
       id:                'default',
-      nombre:            'Café Nayoli',
-      tagline:           'Supatá · Cundinamarca',
-      descripcionFooter: 'Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.',
-      whatsapp:          '+573155766064',
-      instagram:         'cafenayoliorigen',
-      emailRemitente:    'Café Nayoli <pedidos@mail.duna.solutions>',
+      nombre:            'Configura tu tienda',
+      tagline:           '',
+      descripcionFooter: '',
+      whatsapp:          '',
+      instagram:         '',
+      emailRemitente:    '',
       metodosPago: [
         { tipo: 'nequi', datos: { numero: '' } },
         { tipo: 'daviplata', datos: { numero: '' } },
