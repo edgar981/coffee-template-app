@@ -240,17 +240,10 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // con las 19 entradas de campos + el toggle `visible`) — las veinte entradas de exención de esta
   // sección se retiraron de acá.
 
-  // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1). CERRADO PARCIAL por PANEL-EDITOR-SPOTLIGHT-PIN-1: el
-  // PIN (`productoSlug`/`otroTamanoSlug`) ya tiene control (`SPOTLIGHT` en `SECCIONES_TIENDA`, §
-  // `CONTROLADOS_GENERICOS`) — sus dos entradas se retiraron de acá. Los otros CUATRO campos
-  // (`visible`/`eyebrow`/`titulo`/`badge`) siguen SIN editor — alcance explícito del owner para ese
-  // slice ("Pin del spotlight", "solo esos") — y su `cierra` se re-apunta de `PANEL-EDITOR-
-  // SPOTLIGHT-1` a `PANEL-EDITOR-SPOTLIGHT-RESTO-1` (coined por ese slice) para que no quede
-  // apuntando a un id que no los va a cerrar.
-  { campo: 'spotlight.visible', razon: 'Sección sin toggle en el editor (SPOTLIGHT.ocultable:false a propósito) — fuera del alcance "sólo el pin"', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
-  { campo: 'spotlight.eyebrow', razon: 'Fuera del alcance "sólo el pin" de PANEL-EDITOR-SPOTLIGHT-PIN-1 — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
-  { campo: 'spotlight.titulo', razon: 'Fuera del alcance "sólo el pin" de PANEL-EDITOR-SPOTLIGHT-PIN-1 — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
-  { campo: 'spotlight.badge', razon: 'Fuera del alcance "sólo el pin" de PANEL-EDITOR-SPOTLIGHT-PIN-1 — sin editor', cierra: 'PANEL-EDITOR-SPOTLIGHT-RESTO-1' },
+  // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1). CERRADO ENTERO por PANEL-EDITOR-SPOTLIGHT-PIN-1
+  // (`productoSlug`/`otroTamanoSlug`) + PANEL-EDITOR-SPOTLIGHT-RESTO-1 (`visible`/`eyebrow`/
+  // `titulo`/`badge`, ahora en `SPOTLIGHT.campos`/`.ocultable` de tienda-secciones.ts) — las seis
+  // entradas de esta sección se retiraron de acá.
 
   // CERRADO por PANEL-EDITOR-MENU-BADGE-1: `menu.badgeItem`/`badgeTexto` (§ CORTE-BADGE-COSECHA-EN-
   // MENU-1) ya tienen control en `MenuSeccion.tsx` (§ CONTROLADOS_MENU_SECCION, arriba) — sus dos

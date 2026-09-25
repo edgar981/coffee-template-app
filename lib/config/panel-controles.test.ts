@@ -69,14 +69,15 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // pruebas de higiene seguirían en verde mientras PENDIENTE_PANEL CRECE — exactamente lo que el
 // docstring de panel-controles.ts:46 prohíbe en prosa ("la lista nunca puede crecer en silencio").
 // Este test es lo que hace esa prosa MECÁNICA: el TECHO es un TRINQUETE, sólo BAJA. Cuando un slice
-// cierra exenciones (como hicieron PANEL-EDITOR-MARQUESINA-1, -TRUSTBADGES-VISIBLE-1, -ORIGEN-1, cada
-// uno bajando PENDIENTE_PANEL), baja el número de acá A MANO en el MISMO commit; nunca sube en
-// silencio. El valor de hoy (17) es el largo actual medido por el owner — la aserción pasa hoy porque
-// coincide; el día que alguien la vea fallar, la respuesta es cerrar el hueco con un CONTROL, no subir
-// el techo.
+// cierra exenciones (como hicieron PANEL-EDITOR-MARQUESINA-1, -TRUSTBADGES-VISIBLE-1, -ORIGEN-1, y
+// PANEL-EDITOR-SPOTLIGHT-RESTO-1 — bajándolo de 17 a 13, cerrando `spotlight.visible`/`.eyebrow`/
+// `.titulo`/`.badge` —, cada uno bajando PENDIENTE_PANEL), baja el número de acá A MANO en el MISMO
+// commit; nunca sube en silencio. El valor de hoy (13) es el largo actual medido — la aserción pasa
+// hoy porque coincide; el día que alguien la vea fallar, la respuesta es cerrar el hueco con un
+// CONTROL, no subir el techo.
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 17,
+    PENDIENTE_PANEL.length <= 13,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );

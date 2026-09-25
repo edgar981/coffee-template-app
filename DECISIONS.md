@@ -18186,3 +18186,130 @@ Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO merge
 de esta familia: este commit, por su cuenta, no agrega bytes de cliente/operador/dueño (es
 tooling de verificación + un fixture de test), pero la rama que aterrizaría sobre `main` sigue
 cargando los de antes. El commit queda en la rama a la espera del merge gateado del orquestador.
+
+## 2026-09-25 — El RESTO del spotlight: eyebrow/titulo/badge/visible en el panel (`PANEL-EDITOR-SPOTLIGHT-RESTO-1`)
+
+**Origen:** el owner reencuadró la prioridad hacia "CORTE se parezca al muestrario" (2026-09-25).
+Medido contra el prototipo: `.spotlight` (`docs/prototipos/cafeone/index.html:160-166`) muestra
+`<p class="eyebrow">Nuestro café</p>` y un `<h2>` titular ("Un solo origen,<br>cuidado de principio<br>
+a fin."); `components/storefront/home/Spotlight.tsx` ya lee `spotlight.eyebrow`/`.titulo`/`.badge` de
+`SiteContent` desde `PANEL-EDITOR-SPOTLIGHT-PIN-1`, pero ese slice entregó SÓLO el pin
+(`productoSlug`/`otroTamanoSlug`) por alcance explícito del owner — las cuatro entradas
+`spotlight.visible`/`.eyebrow`/`.titulo`/`.badge` quedaron exentas en `PENDIENTE_PANEL`, re-apuntadas
+a este id. Sin control, el dueño no podía escribir ese texto desde el panel.
+
+### La `SeccionConfig` — `SPOTLIGHT` en `tienda-secciones.ts`
+
+- **`ocultable: true`** (era `false` a propósito, § el docstring viejo de `SPOTLIGHT`): el switch
+  "Mostrar en la tienda" ya lo renderiza el editor genérico (gateado a `config.ocultable`), así que no
+  hizo falta tocar `TiendaSeccionEditor.tsx`.
+- **Tres campos nuevos, `eyebrow`/`titulo`/`badge`, TODOS OPCIONALES** (como ya los declaraba
+  `REGISTRY.spotlight.campos` — sin cambios ahí) — puestos ANTES de `productoSlug`/`otroTamanoSlug` en
+  el array `campos`: `SPOTLIGHT` no declara `bloques`, así que `bloquesResueltos` (§ `lib/tienda/
+  bloques.ts`) cae al bloque `seccion` único que rinde `campos` EN EL ORDEN DEL ARRAY — el orden del
+  array ES el orden visual, y el texto va arriba en la banda (el prototipo lo pinta antes de la tarjeta
+  del producto).
+- Ningún archivo de persistencia se tocó: `SpotlightContent`, `DEFAULTS.spotlight`,
+  `REGISTRY.spotlight` y `spotlightEditableSchema` YA declaraban los cinco campos desde
+  `PANEL-EDITOR-SPOTLIGHT-PIN-1` — sólo faltaba el CONTROL en `tienda-secciones.ts`, mismo patrón que
+  `PANEL-EDITOR-MARQUESINA-1`/`-ORIGEN-1`/`-TRUSTBADGES-VISIBLE-1`.
+- El docstring de `SPOTLIGHT` se reescribió in-place: ya no dice "ESTE SLICE SÓLO ENTREGA EL PIN" —
+  documenta el alcance de LOS DOS slices (PIN + RESTO) y el porqué del orden de `campos`.
+
+### El guard — `lib/config/panel-controles.ts`
+
+Las cuatro entradas `spotlight.visible`/`.eyebrow`/`.titulo`/`.badge` se RETIRARON de
+`PENDIENTE_PANEL` (control real ya existe vía `CONTROLADOS_GENERICOS`, `camposDeSeccionEditor
+(SPOTLIGHT)` suma `visible` porque `config.ocultable` es `true`). Con las dos del pin ya retiradas por
+`PANEL-EDITOR-SPOTLIGHT-PIN-1`, las SEIS entradas de la sección `spotlight` quedan cerradas — cero
+huecos de esta sección en `PENDIENTE_PANEL`. `huecosDelPanel()` (con exenciones) sigue en `[]`.
+
+**El conteo, medido con `grep -c "campo: '" lib/config/panel-controles.ts`:** 17 antes de este slice
+(coincide con el techo del trinquete, § abajo) → **13** después. `PENDIENTE_PANEL` pasa de 17 a 13
+entradas.
+
+### `lib/config/panel-controles.test.ts` — el TRINQUETE baja de 17 a 13, en el MISMO commit
+
+Doctrina del trinquete (§ `GUARDA-PRE-MERGE-TRINQUETE-BUILD-1`, CLAUDE.md): el techo sólo BAJA, y lo
+baja a mano el slice que cierra las exenciones, en el mismo commit — dejarlo en 17 habría aflojado la
+guarda en silencio (un `PENDIENTE_PANEL` de 13 seguiría pasando `<= 17`, sin que nada lo notara). Se
+bajó a **13** y se actualizó el comentario que documenta la cadena de slices que fueron bajando el
+techo, sumando este.
+
+Ninguna otra calibración de ese archivo nombraba `spotlight.*` (la calibración "marca EXACTAMENTE el
+conjunto de `PENDIENTE_PANEL`" se AUTO-DERIVA del array, así que no necesitó tocarse; la calibración de
+las dos metas de chrome tampoco las nombraba).
+
+### El test — `tests/integracion/spotlight-resto.test.ts` (3 casos)
+
+Gemelo de `spotlight-pin.test.ts` (mismo camino GENÉRICO: `siteContentEditableSchema.parse` →
+`guardarBorrador` → `publicarSeccion('spotlight')` → releer con `readSiteContent`):
+
+1. `eyebrow`/`titulo`/`badge` sobreviven borrador→publicar→releer, y el borrador de la sección queda
+   limpio (`readSiteContentParaEditor().sinPublicar.spotlight === false`).
+2. El interruptor `visible` viaja por el mismo camino (`true` sobrevive el viaje completo).
+3. Los tres campos de texto vacíos publican `spotlight` byte-idéntico a `DEFAULTS.spotlight` (`visible`
+   sigue en `false`, el default "nace OFF" no se tocó).
+
+Co-ubicado en `tests/integracion/` (habla con Postgres real) — el `touches:` de este slice ya lo
+nombraba así.
+
+### HALLAZGO medido, reportado sin construir: el `<h2>` colapsa los saltos de línea duros del prototipo
+
+El spec pidió medir y reportar, no arreglar. El `<h2>` del prototipo trae saltos de línea DUROS
+(`<br>`, `docs/prototipos/cafeone/index.html:166`: "Un solo origen,<br>cuidado de principio<br>a
+fin."). `spotlight.titulo` es un `string` plano, y `Spotlight.tsx:94` lo rinde
+`<h2 className="text-3xl sm:text-4xl font-playfair ...">{spotlight.titulo}</h2>` — SIN
+`whitespace-pre-line` ni ningún tratamiento de blanco. Un `\n` tecleado en el panel (el `<textarea>`
+que renderizaría este campo si se marcara `textarea: true` — hoy NO lo está, es un input de una línea)
+llegaría al DOM como texto con salto de línea literal, pero el navegador COLAPSA saltos de línea sin
+`white-space: pre-line/pre-wrap/pre` a un espacio simple: el titular NO puede calzar el partido en tres
+líneas del prototipo desde el panel, hoy. Es una DESVIACIÓN del alcance byte-a-byte que el owner pidió
+("que CORTE se parezca al muestrario") — no una regresión de este slice: el campo `titulo` no existía
+en el panel antes de este slice, así que no había ningún camino, roto o no, para escribirlo.
+Follow-up coined: **`PANEL-EDITOR-SPOTLIGHT-TITULO-SALTOS-1`** — decidir si `spotlight.titulo` gana
+`textarea: true` + `whitespace-pre-line` en el render (mismo patrón que cualquier textarea multilínea
+del panel), o si el titular de tres líneas es estructura fija del prototipo que no se replica byte a
+byte. Es una decisión de PRODUCTO (cómo se modela un campo multilínea en una banda que hoy es
+input-de-una-línea en todas las demás secciones), no una que este slice deba tomar de paso.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `SPOTLIGHT` (la config, `tienda-secciones.ts`), `spotlight.eyebrow`/
+`.titulo`/`.badge`/`.visible`, `PENDIENTE_PANEL`, `panel-controles.ts`, `panel-controles.test.ts`,
+`tests/integracion/spotlight-resto.test.ts`. Grepeados uno por uno contra `CLAUDE.md`:
+
+| símbolo | hits en CLAUDE.md | ¿alguno queda falso? |
+| --- | --- | --- |
+| `SPOTLIGHT` / `spotlight` (cualquier caso) | 0 | — |
+| `PENDIENTE_PANEL` | 0 | — |
+| `panel-controles` | 0 | — |
+| `tienda-secciones` | 1 (línea ~2949, sobre `paginas.suscripciones` y el render genérico de página) | No — habla del mecanismo de PÁGINAS (`PAGINAS`/`TogglePagina`), un eje distinto del que este diff toca (campos de una sección, no páginas); el diff no lo alcanza. |
+
+**Nada en CLAUDE.md nombra la banda SPOTLIGHT, sus campos, ni `panel-controles.ts`.** La única entrada
+adyacente (`tienda-secciones`) documenta un mecanismo que este diff no cambió.
+
+### Pointer dentro de DECISIONS.md — verificado, no corregido (no hace falta)
+
+`PANEL-EDITOR-SPOTLIGHT-RESTO-1` ya aparecía citado, predictivamente, en la entrada de
+`PANEL-EDITOR-SPOTLIGHT-PIN-1` (§ arriba, "El guard — lib/config/panel-controles.ts": *"las cuatro
+restantes... se RE-APUNTARON: cierra pasó de PANEL-EDITOR-SPOTLIGHT-1 a PANEL-EDITOR-SPOTLIGHT-RESTO-1
+(coined en este slice) — apuntarlas al id de ESTE slice habría quedado STALE apenas mergeara, porque
+este slice no las cierra"*). Esa frase describe correctamente lo que PASÓ en `PANEL-EDITOR-SPOTLIGHT-
+PIN-1` (tiempo pasado, sobre SÍ MISMO) y sigue siendo cierta después de este diff — no quedó falsa,
+así que no se tocó. Este append es lo que la cierra: las cuatro entradas que esa frase re-apuntaba a
+este id quedan, con este commit, controladas.
+
+### Verdicto
+
+**Gate VERDE en el árbol final**: `npx tsc --noEmit` → 0 errores; `npm test` → **1916/1916**, 0 fail
+(sin cambio — este slice no agregó tests de capa 1); `npm run test:integracion` → **231/231**, 0 fail
+— reconciliado contra el piso de `e7cc029`/`5405725` ("tsc 0 + 1916/1916 + 228/228"): el +3 de
+integración es exactamente `spotlight-resto.test.ts` (3 casos nuevos), sin otra diferencia.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea.
+`stopped_on: [customer-bytes]`: la RAMA agrega bytes que el dueño lee — tres campos de texto nuevos
+("Línea superior", "Titular", "Etiqueta sobre la imagen") + el interruptor "Mostrar en la tienda" en la
+sección "Destacado" de `/admin/tienda` — sobre la base de la familia `stopped_on:[customer-bytes]` que
+ya cargaba la rama (§ los asientos anteriores de esta familia). El commit queda en la rama a la espera
+del merge gateado del orquestador.

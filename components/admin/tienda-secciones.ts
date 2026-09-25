@@ -442,35 +442,47 @@ const TESTIMONIOS: SeccionConfig = {
 };
 
 // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1, § SpotlightContent en site-content-defaults.ts): un solo
-// producto PINEADO. ESTE SLICE (PANEL-EDITOR-SPOTLIGHT-PIN-1) SÓLO ENTREGA EL PIN — los dos punteros
-// al catálogo (`productoSlug`/`otroTamanoSlug`) — por alcance explícito del owner ("Pin del
-// spotlight", "ALCANCE: solo esos"). `eyebrow`/`titulo`/`badge` NO entran acá (siguen exentos en
-// `PENDIENTE_PANEL`, re-apuntados a `PANEL-EDITOR-SPOTLIGHT-RESTO-1`).
+// producto PINEADO. PANEL-EDITOR-SPOTLIGHT-PIN-1 entregó SÓLO el pin — los dos punteros al catálogo
+// (`productoSlug`/`otroTamanoSlug`) — por alcance explícito del owner ("Pin del spotlight",
+// "ALCANCE: solo esos"); `eyebrow`/`titulo`/`badge` quedaron exentos en `PENDIENTE_PANEL`.
+// PANEL-EDITOR-SPOTLIGHT-RESTO-1 cierra el resto: los tres campos de TEXTO que el prototipo muestra
+// en `.spotlight` (docs/prototipos/cafeone/index.html) — `eyebrow` ("Nuestro café"), `titulo` (el
+// `<h2>`) y `badge` (la etiqueta sobre la tarjeta del producto) — y el toggle `visible`. Van ANTES
+// de los dos campos del pin en `campos` porque el texto se lee arriba en la banda (sin `bloques`
+// declarados, `bloquesResueltos` cae al bloque `seccion` único que rinde `campos` EN ORDEN — el
+// orden del array ES el orden visual, § lib/tienda/bloques.ts).
 //
-// `ocultable: false` A PROPÓSITO — no es que la sección no se pueda ocultar (`REGISTRY.spotlight.
-// ocultable` es `true`), es que este EDITOR no expone el toggle: `camposDeSeccionEditor` sólo suma
-// `visible` a lo controlado cuando `config.ocultable` es `true` (§ panel-controles.ts), así que
-// hacerlo `true` acá controlaría un campo que el owner no pidió en este slice. Efecto secundario
-// aceptado: `Spotlight.tsx` sigue devolviendo `null` en la vista previa en vivo mientras
-// `spotlight.visible` siga en `false` (el default, § "nace OFF") — un pane en blanco sin el aviso
-// muted "No se muestra en la tienda" (ese aviso depende de `config.ocultable`, § TiendaSeccionEditor.
-// tsx `oculta`), porque el toggle que lo dispara vive fuera de este slice.
+// LOS TRES SON OPCIONALES, como en `REGISTRY.spotlight.campos` — vacío se OMITE, no cae a un
+// default de copy (§ CLAUDE.md, "la frontera fina de defaults-como-fallback": opcional vacío es una
+// elección legítima de ocultar, no una ausencia a rellenar). `Spotlight.tsx` ya renderiza los tres
+// condicionalmente (`spotlight.eyebrow &&`, `spotlight.titulo &&`, `spotlight.badge &&`), así que
+// "vacío no se muestra" ya era el comportamiento; lo que faltaba era el control para escribirlos.
+//
+// `ocultable: true` — ahora sí: `camposDeSeccionEditor` suma `visible` a lo controlado cuando
+// `config.ocultable` es `true` (§ panel-controles.ts), así que el interruptor de la sección aparece
+// en el editor y cierra `spotlight.visible` en `PENDIENTE_PANEL`. Efecto colateral que se destraba de
+// paso: `Spotlight.tsx` en la vista previa en vivo deja de quedar en blanco sin explicación cuando
+// `spotlight.visible` es `false` (el default, § "nace OFF") — ahora `TiendaSeccionEditor` puede
+// pintar el aviso muted "No se muestra en la tienda" (`oculta`, gateado a `config.ocultable`).
 //
 // SIN `imagenes`: el contenido visual (la portada) se LEE del `Product` pineado en cada render —el
 // pin es puntero, no copia (§ el docstring de `SpotlightContent`)—, nunca se sube acá.
 //
-// Los dos campos son TEXTO LIBRE, no `categoria: true` — ese modificador es para el combobox de
-// categorías reales (§ CategoriaCombobox); un slug de producto valida contra el catálogo VIVO en
-// LECTURA (`productoSpotlight`/`productoOtraTalla`), nunca contra un set fijo al guardar (§
-// `spotlightEditableSchema`, site-content-schema.ts) — un pin a un producto borrado después de
-// guardarse sigue siendo un valor válido del schema.
+// Los dos campos del pin siguen siendo TEXTO LIBRE, no `categoria: true` — ese modificador es para
+// el combobox de categorías reales (§ CategoriaCombobox); un slug de producto valida contra el
+// catálogo VIVO en LECTURA (`productoSpotlight`/`productoOtraTalla`), nunca contra un set fijo al
+// guardar (§ `spotlightEditableSchema`, site-content-schema.ts) — un pin a un producto borrado
+// después de guardarse sigue siendo un valor válido del schema.
 const SPOTLIGHT: SeccionConfig = {
   seccion: 'spotlight',
   pagina: 'home',
   titulo: 'Destacado',
-  ocultable: false,
+  ocultable: true,
   imagenes: [],
   campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
+    { name: 'titulo', label: 'Titular', opcional: true, hint: 'El titular de la banda destacada. Vacío: no se muestra.' },
+    { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
     { name: 'productoSlug', label: 'Producto destacado', opcional: true, hint: 'El slug del producto que se destaca en la banda; se importa por CSV y podés ajustarlo acá. Vacío: la banda no muestra nada.' },
     { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, hint: 'El mismo café en otra presentación, si aplica — se muestra como un enlace a esa otra talla. Vacío: no se muestra.' },
   ],
