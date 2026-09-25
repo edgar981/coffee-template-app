@@ -207,7 +207,7 @@ test('REGISTRY.brandStory.imagenes lista los 4 campos de imagen — imagen1 requ
   }
 });
 
-// ── SubscriptionCTA (3ª sección: solo texto, hasta 4 bullets opcionales, ocultable) ─────
+// ── SubscriptionCTA (3ª sección: hasta 4 bullets opcionales, una imagen de fondo opcional, ocultable) ─────
 
 test('subscriptionCTA: sin nada guardado → todos los defaults', () => {
   assert.deepEqual(resolverSiteContent({}).subscriptionCTA, DEFAULTS.subscriptionCTA);
@@ -242,10 +242,21 @@ test('resolver: subscriptionCTA NO pisa a hero ni a brandStory', () => {
   assert.deepEqual(r.brandStory, DEFAULTS.brandStory);
 });
 
-test('subscriptionCTA es OCULTABLE y NO tiene imagenes (sección de solo texto)', () => {
+test('subscriptionCTA.imagenFondo: sin nada guardado → "" (fondo sólido, byte-idéntico)', () => {
+  assert.equal(DEFAULTS.subscriptionCTA.imagenFondo, '');
+  assert.equal(resolverSiteContent({}).subscriptionCTA.imagenFondo, '');
+});
+
+test('subscriptionCTA.imagenFondo OPCIONAL: un valor guardado se respeta', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { imagenFondo: 'https://blob/foto.jpg' } });
+  assert.equal(r.subscriptionCTA.imagenFondo, 'https://blob/foto.jpg');
+});
+
+test('subscriptionCTA es OCULTABLE y tiene UNA imagen OPCIONAL (imagenFondo, § MUESTRARIO-CTA-BANNER-FOTO-1)', () => {
   const def = REGISTRY.subscriptionCTA;
   assert.equal(def.ocultable, true);
-  assert.equal(def.imagenes, undefined); // sin imágenes → no toca el borrado de blobs
+  assert.deepEqual(def.imagenes, ['imagenFondo']); // nombrada, para que el borrado de blobs la vea
+  assert.equal(def.campos.imagenFondo, 'opcional');
   assert.equal(seccionEsVisible(def, { visible: false }), false);
   assert.equal(seccionEsVisible(def, { visible: true }), true);
 });

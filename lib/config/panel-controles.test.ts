@@ -168,6 +168,17 @@ test('calibración: el CTA de sección (Presentaciones/Historia/2º de Suscripci
   assert.ok(!pendientes.has('subscriptionCTA.ctaSecundarioLabel'));
 });
 
+// § MUESTRARIO-CTA-BANNER-FOTO-1: `subscriptionCTA` ganó su ÚNICA imagen (`imagenFondo`, opcional —
+// vacío = fondo sólido de hoy, sólo la variante 'linea' la lee) con control DE ENTRADA (`SUBSCRIPTION.
+// imagenes` en tienda-secciones.ts), no como hallazgo tardío. El trinquete de PENDIENTE_PANEL (13) no
+// se mueve.
+test('calibración: subscriptionCTA.imagenFondo está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('subscriptionCTA.imagenFondo'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('subscriptionCTA.imagenFondo'));
+});
+
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
   const esperado = PENDIENTE_PANEL.map((e) => e.campo).sort();

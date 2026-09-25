@@ -21152,3 +21152,137 @@ móvil del storefront gana una segunda composición y su edición desde el panel
 ni contrato cross-repo — la única de las tres condiciones de merge policy A que aplica es
 `customer-bytes`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA
 ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner, como en todo Tier 1.
+
+## 2026-09-25 — `MUESTRARIO-CTA-BANNER-FOTO-1` — CONSTRUIDO: `subscriptionCTA` gana una imagen de fondo opcional (foto a sangre + velo degradado + parallax), sólo en la variante "linea"
+
+### La capacidad, componiendo lo que ya existe — cero piezas nuevas de motor
+
+`SubscriptionCTAContent` gana `imagenFondo: string` (vacío por default, Nayoli incluida). Cierra
+la fila de `CENSO-MUESTRARIO-1` (Tabla 7, línea ~18608): *"Foto de fondo a sangre completa con
+`data-parallax`… `SubscriptionCTAContent` es SOLO TEXTO por diseño"*. Como el spec lo exigía,
+**ninguna pieza nueva del motor**:
+
+- **El VELO reusa `--sf-velo`** (`app/globals.css`), el MISMO token que `Marquesina.tsx`/
+  `HeroMedia.tsx` ya usan para velar una foto — nunca un `rgba(...)` inventado. El degradado es de
+  **DOS paradas**, no las tres de `HeroMedia.tsx` (`from-tinta/60 via-transparent to-velo`):
+  medido que esa `via-transparent` deja CERO protección a medio camino, correcto ahí porque el
+  texto vive en el PIE de un hero de viewport completo — acá el contenido va CENTRADO en una
+  franja corta (`py-8`), y un hueco transparente a mitad de camino caería justo donde vive el
+  texto. Se omite ese stop; el degradado corre entre los MISMOS DOS extremos que `HeroMedia.tsx`
+  ya calibró y midió (`--sf-tinta`/60 → `--sf-velo`), así que el piso de protección en TODA la
+  franja es el 60% que ese docstring ya midió en 4.68:1–5.32:1 sobre tres fotos claras de
+  referencia (AA, ≥4.5:1) — nunca por debajo. No se re-corrió una medición de contraste propia:
+  se cita la ya hecha, porque el peor caso de este degradado es EXACTAMENTE ese stop.
+- **El PARALLAX reusa `useProgresoScroll`** (`lib/animation.ts`), el MISMO hook que `Marquesina.tsx`
+  ya monta para su scroll-scrub — sin tocar ese archivo (fuera de `touches:`). La transformación
+  `translateY((p-0.5)*-10%)` (medida contra `[data-parallax]`, `docs/prototipos/cafeone/
+  js/home.js:303-307`) se calcula INLINE en `SubscriptionCTALinea.tsx`, una sola línea — no
+  ameritaba una función nueva en `lib/animation.ts`. La caja de la imagen se extiende 6%
+  arriba/abajo (`top-[-6%] bottom-[-6%]`, gemela del `height:118%` de `.cta-strip img` del
+  prototipo) para que el `translateY` de ±5% de su propio alto nunca exponga un borde vacío.
+- **MOVIMIENTO REDUCIDO, mismo gate que Marquesina/BrandStoryCentrada/Origen**: `estatico`
+  (preview del editor, o `prefers-reduced-motion`) deja el parallax en `0%`, sin desplazamiento —
+  nunca a medio camino de un recorrido que no avanza.
+- **`SubscriptionCTABloque` (la variante canónica, la de Nayoli) NO se tocó** — verificado por
+  lectura y por un test que grepea su fuente (`cta-banner-foto.test.ts`, "NO importa ni lee
+  imagenFondo"): cero líneas cambiadas.
+
+### La declaración de BLOB — para que el borrado de blobs no deje huérfano un fondo reemplazado
+
+`REGISTRY.subscriptionCTA.imagenes = ['imagenFondo']` (antes `[]`, "sección de solo texto") y el
+bloque de encabezado (`SUBSCRIPTION.bloques[0]`) gana `imagenes: ['imagenFondo']` junto a sus
+campos — mismo razonamiento que el docstring de `hero.imagenPoster` ya deja escrito: sin nombrar
+el campo acá, `imagenesDe` (`site-content-blobs.ts`) nunca lo vería, y una foto reemplazada
+quedaría huérfana en el storage para siempre. `imagenFondo` es OPCIONAL en `REGISTRY.subscriptionCTA
+.campos` (vacío → fondo sólido, nunca un default fabricado) y en `subscriptionCTAEditableSchema`
+(string opcional, como `hero.imagen`). El control de panel es DE ENTRADA (`SUBSCRIPTION.imagenes`
+en `tienda-secciones.ts`, el mismo widget de subida que el resto de secciones): `huecosDelPanel()`
+sigue en `[]` y `PENDIENTE_PANEL.length` sigue en **13** — el techo del trinquete NO subió.
+
+### El gate, medido sobre EL ÁRBOL FINAL de este despacho
+
+- `npx tsc --noEmit -p tsconfig.json` → **0 errores**.
+- `npm test` → **2054/2054**, 0 fail (2040 + 14 nuevos: 11 en `cta-banner-foto.test.ts`, 1 en
+  `panel-controles.test.ts`, 2 en `site-content-defaults.test.ts`).
+- `npm run test:integracion` → primera corrida **231/232** (1 fallo: `CONCURRENCIA: webhook y
+  reconciliador procesando el MISMO evento A LA VEZ`, `tests/integracion/
+  wompi-reconciliador.test.ts:2` — archivo AJENO a `touches:` de este slice, sobre el eje de pagos
+  Wompi, sin relación con `subscriptionCTA`). Re-corrida completa **232/232**, verde — el mismo
+  flake de timing en concurrencia que los despachos anteriores de esta tanda ya vienen
+  documentando, no una regresión de este diff.
+- `npm run verificar:nayoli:visual` → **0px de diferencia en las 6 rutas + los 2 hovers**
+  (home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros
+  0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870) —
+  MEDIDO sobre el build de producción de esta rama. Nayoli usa `subscriptionCTA.variante:'bloque'`
+  (la canónica, sin `imagenFondo`), así que ni la rama de imagen de `SubscriptionCTALinea.tsx` ni
+  el campo nuevo se ejercitan en su render — el 0px confirma que la home de Nayoli no cambió un
+  solo píxel, no que la variante "linea" con foto se haya visto en un navegador real.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md` — UN HALLAZGO
+
+Símbolos/paths que este diff cambió: `imagenFondo`, `SubscriptionCTAContent`,
+`subscriptionCTAEditableSchema`, `REGISTRY.subscriptionCTA` (`.imagenes`/`.campos.imagenFondo`),
+la config `SUBSCRIPTION` de `tienda-secciones.ts`, `SubscriptionCTALinea.tsx`.
+
+- Grep de los símbolos nuevos (`imagenFondo`, `SubscriptionCTAContent`,
+  `subscriptionCTAEditableSchema`) en `CLAUDE.md`: **CERO resultados** para los tres.
+- Grep de `SubscriptionCTALinea`/`SubscriptionCTABloque`: **CERO resultados**.
+- Grep de `subscriptionCTA`/`SubscriptionCTA` (el símbolo padre, ya existente): **CINCO
+  apariciones** (líneas 2355-2356, 2427, 2501, 2939, 2943). Cuatro describen el gate de página
+  (`paginas.suscripciones.visible`), el toggle de sección, o citan `subscriptionCTA` como ejemplo
+  de "campos planos" con defaults byte-idénticos (`imagenFondo` TAMBIÉN lo es: cardinalidad fija,
+  opcional, default vacío) — ninguna de esas cuatro queda falsa.
+  **LA QUINTA SÍ QUEDA FALSA:** línea 2356, *"**subscriptionCTA** (Suscripción, `ocultable:true`,
+  **solo texto**)"* — la sección YA NO es "solo texto": tiene una imagen de fondo opcional
+  (`imagenFondo`), aunque la variante canónica (`bloque`, la de Nayoli) no la lea. La frase
+  describía las CUATRO primeras secciones editables en el momento en que se escribió (2026-08-25,
+  antes de que existiera la variante "linea" o esta capacidad) y no distingue por variante — así
+  que hoy es una afirmación FALSA sobre el REGISTRY, no sólo desactualizada. **No se edita**:
+  `CLAUDE.md` no está en `touches:` de este slice, y corregir doctrina fuera del alcance declarado
+  es exactamente lo que el protocolo de esta sesión prohíbe. Se deja como `open_followup` (abajo,
+  `MUESTRARIO-CTA-BANNER-FOTO-DOCTRINA-SOLO-TEXTO-1`).
+
+### CHEQUEO DEL DOCUMENTO — `MUESTRARIO-CTA-BANNER-FOTO-1` contra `DECISIONS.md`
+
+`grep -n "MUESTRARIO-CTA-BANNER-FOTO-1" DECISIONS.md` da dos apariciones previas, las dos en
+`CENSO-MUESTRARIO-1` (2026-09-25): la fila de la Tabla 7 (línea ~18608, "**(C)**
+`MUESTRARIO-CTA-BANNER-FOTO-1`") y la fila de la Tabla de capacidades (línea ~18704, "**1**
+(«Únete al club»)"). **Las dos filas del censo NO se editan** — mismo precedente que
+`MUESTRARIO-REDES-ADICIONALES-1`/`MUESTRARIO-FOOTER-TEMA-1`/`MUESTRARIO-MEGA-MENU-1` ya sentaron:
+el censo es una foto histórica ("(C)" queda escrito aunque la capacidad ya se haya construido), y
+este mismo asiento es el pointer que un lector futuro necesita.
+
+### Merge policy A — por qué éste PARA en `AWAITING_APPROVAL`
+
+El diff falla UNA de las tres condiciones:
+
+- **`customer-bytes`**: `SubscriptionCTALinea.tsx` gana una rama de render nueva (imagen de fondo
+  + velo + parallax) — capacidad nueva de cara al visitante, aunque para Nayoli hoy sea
+  byte-idéntica (MEDIDO, 0px, § arriba, porque Nayoli usa la variante `bloque` sin `imagenFondo`).
+  La RAMA (no el commit) ya venía cambiando bytes de cliente en slices anteriores de esta misma
+  tanda (Footer, Mega-menu, Drawer móvil).
+- **`schema`**: NO aplica — el campo vive en `SiteContent.content` (JSON ya existente, mismo
+  mecanismo que `hero.imagen`), sin tocar `packages/core/prisma/schema.prisma` ni migración
+  alguna.
+- **`cross-repo-contract`**: NO aplica.
+
+`stopped_on: [customer-bytes]`.
+
+### `open_followups`
+
+- **`MUESTRARIO-CTA-BANNER-FOTO-DOCTRINA-SOLO-TEXTO-1`** — `CLAUDE.md:2356` afirma que
+  `subscriptionCTA` es "solo texto"; este slice le agregó una imagen de fondo opcional
+  (`imagenFondo`), así que la frase queda falsa. No se corrige acá: `CLAUDE.md` no está en
+  `touches:` de este slice.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (tsc 0, `npm test` 2054/2054, `npm run test:integracion`
+232/232 tras confirmar que el primer 231/232 fue el mismo flake ajeno en
+`wompi-reconciliador.test.ts` que los despachos anteriores de esta tanda ya documentan, Nayoli
+visual 0px medido en 6 rutas + 2 hovers), commiteado en `slice/corte-reescritura-prototipo-1`. El
+diff toca bytes de cliente (`SubscriptionCTALinea.tsx` gana una rama de render con imagen de
+fondo) pero NINGÚN schema ni contrato cross-repo — la única de las tres condiciones de merge
+policy A que aplica es `customer-bytes`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA
+APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner,
+como en todo Tier 1.

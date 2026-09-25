@@ -376,6 +376,15 @@ export interface SubscriptionCTAContent {
   // lo toca el loop requerido/opcional del resolver. Gemela de `hero.variante`/`brandStory.variante`/
   // `presentaciones.variante`.
   variante: string;
+  // La IMAGEN DE FONDO OPCIONAL de la franja (§ MUESTRARIO-CTA-BANNER-FOTO-1, MEDIDO contra
+  // `.cta-strip` del prototipo, `docs/prototipos/cafeone/index.html:312-320` — foto a sangre completa
+  // + velo degradado + parallax `[data-parallax]`, `js/home.js:303-307`). Vacío (default, Nayoli
+  // incluida) = el fondo SÓLIDO de hoy, byte-idéntico. La lee SÓLO la variante 'linea'
+  // (§ SubscriptionCTALinea.tsx) — `SubscriptionCTABloque` (la canónica) NO la lee, no se toca. El
+  // velo reusa `--sf-velo` (el MISMO token que Marquesina/HeroMedia, `app/globals.css`, NO un rgba
+  // nuevo) y el parallax reusa `useProgresoScroll` (`lib/animation.ts`, el motor de scroll-scrub que
+  // ya usa Marquesina) — ninguna pieza nueva del motor de scroll.
+  imagenFondo: string;
 }
 
 // Testimonios ("Lo que dicen nuestros clientes"): la PRIMERA sección REPEATER — un encabezado de
@@ -1257,6 +1266,8 @@ export const DEFAULTS: SiteContentData = {
     ctaSecundarioDestino: '',
     // La canónica (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): Nayoli queda byte-idéntica al bloque de hoy.
     variante: 'bloque',
+    // Vacío → fondo SÓLIDO, byte-idéntico (§ MUESTRARIO-CTA-BANNER-FOTO-1).
+    imagenFondo: '',
   },
   testimonials: {
     visible: true,
@@ -1765,8 +1776,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // presentaciones. `noUniformes`: NO — las dos composiciones se apoyan en el fondo SÓLIDO de la
     // banda (`bg-[var(--sf-banda,var(--sf-tinta-2))]`), ninguna es bi-tonal.
     variantes: { claves: ['bloque', 'linea'], canonica: 'bloque' },
-    // Sin `imagenes`: sección de solo texto. Los bullets son OPCIONALES → vaciarlos los omite (el
-    // componente los junta con `.filter`), así que dan "hasta 4" sin hueco, no "4 slots fijos".
+    // `imagenFondo` (§ MUESTRARIO-CTA-BANNER-FOTO-1): el ÚNICO blob de esta sección — antes era
+    // "solo texto" (`imagenes: []`); ahora nombra el campo para que el borrado de blobs
+    // (`imagenesDe`, site-content-blobs.ts) lo vea y no deje huérfano un fondo reemplazado. Los
+    // bullets son OPCIONALES → vaciarlos los omite (el componente los junta con `.filter`), así que
+    // dan "hasta 4" sin hueco, no "4 slots fijos".
+    imagenes: ['imagenFondo'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -1779,6 +1794,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // El SEGUNDO CTA (§ MUESTRARIO-SECCION-CTA-1): AMBOS opcionales, vacío = sin segundo botón.
       ctaSecundarioLabel: 'opcional',
       ctaSecundarioDestino: 'opcional',
+      // OPCIONAL — vacío = fondo sólido de hoy (§ el docstring de `SubscriptionCTAContent.imagenFondo`).
+      imagenFondo: 'opcional',
     },
   },
   testimonials: {

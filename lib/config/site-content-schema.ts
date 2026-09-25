@@ -159,9 +159,10 @@ const spotlightEditableSchema = z.object({
   otroTamanoSlug: z.string().optional(),
 });
 
-// SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite
-// vacíos y el componente los junta con `.filter` (hasta 4, sin hueco). `ctaLabel` editable; el href
-// es estructura. Todo opcional/SOFT, como los otros.
+// SubscriptionCTA: antes "solo texto"; gana UNA imagen OPCIONAL (§ MUESTRARIO-CTA-BANNER-FOTO-1,
+// `imagenFondo` — sólo la variante 'linea' la lee, vacío = fondo sólido de hoy). `bullet1..4`
+// opcionales — el resolver los omite vacíos y el componente los junta con `.filter` (hasta 4, sin
+// hueco). `ctaLabel` editable; el href es estructura. Todo opcional/SOFT, como los otros.
 // `variante` (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): la COMPOSICIÓN de la sección
 // ('bloque'|'linea'); `z.string()` porque el set de claves es por-sección y el resolver SOFT
 // (`resolverVariante`) la clampa a la canónica — gemela de `hero.variante`/`presentaciones.variante`.
@@ -180,6 +181,8 @@ const subscriptionCTAEditableSchema = z.object({
   ctaSecundarioLabel: z.string().optional(),
   ctaSecundarioDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   variante: z.string().optional(),
+  // Path estático o URL de Blob — el modelo acepta ambos, como `hero.imagen`. Vacío = sin fondo.
+  imagenFondo: z.string().optional(),
 });
 
 // Testimonios: sección repeater. Encabezado (eyebrow/titulo) + un ARRAY de ítems. Cada ítem SOFT:

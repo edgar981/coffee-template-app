@@ -412,7 +412,9 @@ const SUBSCRIPTION: SeccionConfig = {
   pagina: 'home',
   titulo: 'Suscripción',
   ocultable: true,
-  imagenes: [], // sección de solo texto
+  // `imagenFondo` (§ MUESTRARIO-CTA-BANNER-FOTO-1): el fondo OPCIONAL de la franja — sólo la
+  // variante 'linea' la rinde (foto a sangre + velo + parallax); vacío = fondo sólido de hoy.
+  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)' }],
   // Los beneficios son campos PLANOS `bullet1..4`; los BLOQUES los presentan como una LISTA (abajo). El
   // CTA lleva label editable; su destino (/suscripciones) es estructura.
   campos: [
@@ -429,10 +431,11 @@ const SUBSCRIPTION: SeccionConfig = {
     { name: 'ctaSecundarioLabel',   label: 'Segundo botón',           opcional: true, hint: 'Vacío: no se muestra ningún segundo botón.' },
     { name: 'ctaSecundarioDestino', label: 'Segundo botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el segundo botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
-  // BLOQUES: encabezado + la LISTA de beneficios + los botones. Los beneficios pasan de 4 inputs fijos a
-  // una lista plana que se cierra sin huecos (rule 2 · § lista-plana).
+  // BLOQUES: encabezado (con la imagen de fondo, § MUESTRARIO-CTA-BANNER-FOTO-1) + la LISTA de
+  // beneficios + los botones. Los beneficios pasan de 4 inputs fijos a una lista plana que se cierra
+  // sin huecos (rule 2 · § lista-plana).
   bloques: [
-    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'subtitulo'] },
+    { tipo: 'seccion', imagenes: ['imagenFondo'], campos: ['eyebrow', 'titulo', 'subtitulo'] },
     { tipo: 'lista', slots: ['bullet1', 'bullet2', 'bullet3', 'bullet4'], itemLabel: 'beneficio', hint: 'Hasta 4. La lista se cierra sin huecos.' },
     { tipo: 'seccion', campos: ['ctaLabel', 'ctaSecundarioLabel', 'ctaSecundarioDestino'] },
   ],
