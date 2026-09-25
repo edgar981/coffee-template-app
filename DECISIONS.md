@@ -19739,3 +19739,197 @@ QUÉ se bloqueó esa vez; este asiento es su continuación, no su corrección.
 
 **`stopped_on: ["customer-bytes"]`. Verdicto: AWAITING_APPROVAL** — el diff queda commiteado en la rama,
 sin mergear, a la espera del owner.
+
+## 2026-09-25 — `MUESTRARIO-REDES-ADICIONALES-1` — BLOQUEADO: la capacidad se construyó ENTERA y verificada, pero SEIS archivos fuera de `touches:` eran estructuralmente necesarios (2 plomería, 4 fixtures) — mismo patrón que `MUESTRARIO-BANDA-APAGABLE-1`/`MUESTRARIO-SECCION-CTA-1`, un nivel más profundo
+
+### Lo que se construyó, completo y verificado
+
+El patrón `metodosPago` (`SiteSetting.metodosPago`, `20260910120000_site_setting_metodos_pago`)
+replicado para las redes sociales: `SiteSetting.redes Json @default("[]")`, migración
+`20260925120000_site_setting_redes` con BACKFILL desde `instagram`/`whatsapp` en la MISMA migración
+(orden `[instagram, whatsapp]` — el mismo orden en que `RielSocial`/`StoreFooter` ya pintaban los dos
+botones—, omitiendo la columna vacía; las dos columnas viejas NO se dropean, quedan como marcha atrás
+barata y `whatsapp` además SIGUE siendo la fuente activa de otros consumos —checkout, `lib/config/
+telefono.ts`, automatizaciones—, ninguno de esos archivos tocado). `lib/config/site.ts` ganó
+`RedSocialTipo` (set cerrado: instagram·whatsapp·facebook·x·pinterest), `REDES_SOCIALES_ORDEN`,
+`parseRedesSociales` (SOFT, gemela de `parseMetodosPago`) y `urlDeRedSocial` (compone con
+`instagramUrl`/`whatsappUrl` para esos dos tipos; usa `valor` tal cual —ya URL completa— para el
+resto). `lib/config/site-settings-schema.ts` ganó `redSocialSchema` + `redes: z.array(...)` (SIN
+refine de "al menos una" — `[]` es legítimo, el riel ya se oculta solo) y relajó `instagram` de
+`min(1)` a sólo `trim()`: el criterio pedido por el spec —"que no se pueda quedar sin ninguna vía de
+contacto"— lo sigue garantizando `whatsapp`, que YA era obligatorio por regex antes de este slice y
+no se tocó; relajar `instagram` no abre ese hueco, sólo deja de fingir que Instagram era la vía de
+contacto cuando en realidad WhatsApp siempre lo fue. `RielSocial.tsx` y `StoreFooter.tsx` pasan de
+leer `settings.instagram`/`.whatsapp` directo a iterar `settings.redes` (`urlDeRedSocial` +
+`REDES_SOCIALES_ORDEN`); el ASSET es por-tipo —Instagram con el SVG propio, WhatsApp con
+`MessageCircle` de lucide, **Facebook/X/Pinterest SIN asset** (verificado: no existe SVG propio en
+`public/icons/`, y lucide 1.16.0 no trae Facebook/Twitter/Pinterest —`x.mjs` es el glifo genérico de
+cerrar, no el logo de X—), así que esas tres rinden sin ícono, tal como el spec autorizaba ("no
+inventes un SVG — rendé esa red sin ícono... el asset es decisión del owner"). El bloque "📱
+WhatsApp" de la columna Empresa del footer —contacto de negocio, no un ítem de esta lista— sigue
+leyendo `settings.whatsapp` directo, sin tocar. `DatosNegocioSeccion.tsx` ganó un bloque "Redes
+sociales" (lista plana, "+ Agregar red social" con menú de los tipos faltantes, Quitar con Deshacer
+—mismo patrón que Pagos, sin la confirmación previa de Pagos porque quitar una red nunca revierte un
+cobro—) y perdió el campo Instagram dedicado de "Contacto" (Instagram pasó a ser una red más de la
+lista nueva, no un campo aparte).
+
+### El bloqueo, MEDIDO: `npx tsc --noEmit` con el diff completo aplicado
+
+Antes de escribir una sola línea de consumidor, la investigación por LECTURA ya había identificado
+que `SiteSettings` (la interfaz que `useSiteSettings()` expone a `RielSocial`/`StoreFooter`/
+`DatosNegocioSeccion`) vive en `lib/config/site-settings-read.ts` —**fuera de `touches:`**— y que
+`app/api/site-settings/route.ts` —**fuera de `touches:`**— escribe el PATCH con un objeto `data:
+{...}` que enumera cada campo A MANO, sin un mecanismo que reenvíe lo que el schema no nombra
+explícitamente ahí. Sin tocar esos dos, el feature es estructuralmente inalcanzable: el panel no
+podría persistir `redes` (silenciosamente descartado por el `data:{}` del route, la MISMA trampa que
+"§ El schema editable STRIPPEA lo no declarado" pero un nivel más abajo —acá no es zod quien
+strippea, es el objeto de Prisma escrito a mano—) y el storefront no podría leerlo (`SiteSettings`
+no tendría el campo). `app/(storefront)/layout.tsx` y `app/(admin)/admin/layout.tsx` SÍ están limpios
+—pasan `settings` entero por prop sin tocar sus campos, así que no necesitan cambio—, confirmado
+leyendo los dos antes de tocar nada.
+
+Se construyeron los DOS archivos de plomería igual (para medir el resto del gate con precisión, § el
+protocolo de `MUESTRARIO-SECCION-CTA-1`/`03b2d21`: "build fully, verify, revert, document"), y
+`npx tsc --noEmit` sobre el diff de 8 archivos (los 6 de `touches:` con escritura + los 2 de
+plomería) destapó, tras `npm run generate -w @duna/core` (el Prisma Client necesitaba regenerarse
+para conocer la columna nueva), **CUATRO archivos MÁS**, todos fuera de `touches:`, con error
+TS2741 ("Property 'redes' is missing… but required in type 'SiteSettings'"):
+
+```
+lib/config/admin-tienda-preset.test.ts(57,7)
+lib/config/avisos-configuracion.test.ts(43,7)
+lib/config/cromo-riel-social.test.ts(27,7)
+```
+
+Los tres construyen un literal `SiteSettings` completo (dos de ellos con un comentario EXPLÍCITO
+—`avisos-configuracion.test.ts:41-42`: "el fixture se declara COMPLETO para que agregar un campo al
+tipo rompa acá y no en silencio"— confirmando que ROMPER es el comportamiento INTENCIONAL de esos
+fixtures ante un campo nuevo, no un descuido). Para `admin-tienda-preset.test.ts` y
+`avisos-configuracion.test.ts` el fix es de UNA línea (`redes: [],` junto a `metodosPago:`); medido
+agregándola, `tsc` limpia esos dos.
+
+`lib/config/cromo-riel-social.test.ts` es distinto: no es sólo el tipo, son ONCE tests que afirman
+el render de `RielSocial` construyendo `settings.instagram`/`.whatsapp` DIRECTO (`SETTINGS_BASE`,
+`SETTINGS_CON_LOS_DOS`, y las dos variantes "SOLO instagram"/"SOLO whatsapp") — exactamente el
+comportamiento que este slice reemplaza por `settings.redes`. Medido rescribiendo el archivo completo
+(fixtures a `redes: [...]`, las dos variantes "SOLO X" a `redes: [{tipo:'X', valor:...}]`): las ONCE
+aserciones pasan sin cambiar su INTENCIÓN (mismo botón, mismo aria-label, mismo conteo), sólo su
+FUENTE de datos.
+
+Con esos tres corregidos, `tsc` seguía dando **UN QUINTO** archivo fuera de `touches:`:
+
+```
+lib/pagos/metodos-pasarela.test.ts(602,7)  — el test "el servidor ACEPTA un tipo que el checkout
+                                               sabe dibujar y es cobrable (NEQUI)" pasaba false donde
+                                               esperaba true
+```
+
+Causa: `payloadDeSiteSettings` (línea 593) arma el payload que `siteSettingsEditableSchema.safeParse`
+recibe, SIN `redes` — con `redes` ahora requerido por el schema (§ arriba), el parse falla por campo
+faltante, no por la razón que el test de verdad quiere ejercitar. **Efecto colateral más grave que
+los cuatro anteriores**: los DOS tests hermanos de "RECHAZA" (PSE, BANCOLOMBIA, líneas 607/612)
+seguían en VERDE con el fix pendiente — no porque el rechazo funcionara, sino porque CUALQUIER
+payload sin `redes` falla el parse, enmascarando si la lógica que el test dice ejercitar corrió
+alguna vez. Es la familia "una verificación que da verde por la razón equivocada es peor que
+ninguna" (§ CLAUDE.md, la medición que se atrapa a sí misma / el discriminador que mide contra lo
+nominal). Fix medido: `redes: [],` en el mismo objeto — una línea.
+
+**Con los SEIS archivos fuera de `touches:` sumados** (2 de plomería estructural + 4 de fixture),
+el gate completo, medido sobre el árbol con el diff entero aplicado:
+
+- `npx tsc --noEmit -p tsconfig.json` → **0 errores**.
+- `npm test` → **1974/1974**, 0 fail (piso heredado de `4641d04`: 1962/1962; +12 tests nuevos de
+  `lib/config/redes-sociales.test.ts`, el único archivo NUEVO del diff).
+- `npm run test:integracion` → **231/231**, verde — corre TODAS las migraciones (incluida
+  `20260925120000_site_setting_redes`) contra un Postgres efímero real, así que esta cifra confirma
+  que el SQL de backfill aplica limpio, no sólo que compila.
+- `npm run verificar:nayoli:visual` → **0px de diferencia en las 6 rutas + los 2 hovers**
+  (home/tienda/producto/checkout/nosotros/suscripciones, hover-automática, hover-elección) —
+  confirma por EJECUCIÓN, no por lectura del test, que el backfill preserva el orden
+  `[instagram, whatsapp]` que el riel/footer ya pintaban y que Nayoli queda pixel-idéntica.
+
+### Por qué se para acá, y por qué no se dodgeó de otra forma
+
+Mismo argumento que `MUESTRARIO-BANDA-APAGABLE-1`/`MUESTRARIO-SECCION-CTA-1` (arriba, dos veces en
+esta rama): el protocolo del despacho es explícito — "si el trabajo necesita un archivo fuera de
+`touches`, parás y lo decís — no lo ensanchás vos". La diferencia con esos dos casos es la CLASE de
+archivo: ahí eran fixtures de test que un default nuevo desincronizaba; acá DOS de los seis
+(`site-settings-read.ts`, `app/api/site-settings/route.ts`) no son fixtures — son la PLOMERÍA sin la
+cual `redes` es una columna que nadie escribe y nadie lee, el mismo defecto que la doctrina de este
+repo llama "mina inerte" cuando lo mide en una columna (`Product.agotado`/`Customer.activo`,
+§ CLAUDE.md). Se evaluó NO tocarlos y dejar sólo el modelo (schema + migración + `site.ts` +
+`redes-sociales.test.ts`, los 4 archivos que SÍ compilan solos) como una entrega parcial dentro de
+`touches:` — se descartó: una columna que el PATCH nunca escribe y que ningún loader proyecta es
+peor que no tener la columna, porque parece construida y no hace nada; es exactamente la ambigüedad
+que "§ Backlog #68" (código muerto de suscripción) existe para prohibir ("código muerto se BORRA o
+se CABLEA, nunca se deja AMBIGUO").
+
+### Lo que sigue — para quien re-despache esto (`MUESTRARIO-REDES-ADICIONALES-PLUMBING-1`)
+
+El follow-up se coina como `MUESTRARIO-REDES-ADICIONALES-PLUMBING-1`: los SEIS archivos, ya
+identificados con su fix exacto —
+
+1. `lib/config/site-settings-read.ts` — `SiteSettings.redes: RedSocialGuardada[]` + `redes:
+   parseRedesSociales(s.redes)` en `readSiteSettings`. ESTRUCTURAL, no opcional.
+2. `app/api/site-settings/route.ts` — `redes: d.redes,` en el `data: {...}` del PATCH. ESTRUCTURAL,
+   no opcional.
+3. `lib/config/admin-tienda-preset.test.ts:66` — `redes: [],` junto a `metodosPago: [],`. Una línea.
+4. `lib/config/avisos-configuracion.test.ts:47` — `redes: [],` junto a `metodosPago: METODOS_SANOS,`.
+   Una línea.
+5. `lib/config/cromo-riel-social.test.ts` — reescribir `SETTINGS_BASE`/`SETTINGS_CON_LOS_DOS` y las
+   dos variantes "SOLO X" a `redes: [...]`; las ONCE aserciones se conservan tal cual.
+6. `lib/pagos/metodos-pasarela.test.ts:595` — `redes: [],` en `payloadDeSiteSettings`. Una línea.
+
+Ensanchar `touches:` a estos seis es lo mínimo necesario; no se detectó un séptimo (medido: `tsc`
+limpio y `npm test` 1974/1974 tras los seis). Con ellos sumados, el resto del diseño de este asiento
+(§ arriba, "Lo que se construyó") se puede re-aplicar sin re-abrir ninguna decisión — está completo,
+sólo sin commitear.
+
+**Dos preguntas de PRODUCTO que NO se resolvieron en este slice porque no hacía falta para llegar al
+bloqueo, y que el re-despacho debería decidir explícitamente (no asumir):**
+
+- **¿El asset de Facebook/X/Pinterest lo provee el owner antes del re-despacho, o el re-despacho
+  entrega los tres sin ícono?** Este asiento entregó "sin ícono" porque el spec lo autorizaba
+  explícitamente como salida válida ("rendé esa red sin ícono o PARÁ y reportá cuál falta"); se
+  reporta acá, no se para por esto.
+- **¿La columna `instagram` congelada (ya no editable desde el panel, sólo backfill) es aceptable
+  permanentemente, o necesita su propio retiro (código y dato) como `pagoMovilNumero`/las 4 de
+  banco en `metodosPago`?** Este asiento la dejó congelada siguiendo el precedente al pie de la
+  letra; no se decidió un disparador de retiro porque el spec no lo pidió.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — el árbol final es IDÉNTICO a `4641d04`
+(verificado: `git status --porcelain` sin salida, `npx tsc --noEmit` limpio, `npm test`
+**1962/1962** —el piso heredado, re-medido sobre el árbol final, no asumido del mensaje del commit
+anterior—). Los ocho archivos con permiso de escritura del spec (`schema.prisma`, `site.ts`,
+`site-settings-schema.ts`, `RielSocial.tsx`, `StoreFooter.tsx`, `DatosNegocioSeccion.tsx`,
+`redes-sociales.test.ts`) quedan sin un solo byte modificado en este commit. El build completo se
+hizo en un commit intermedio (`59a2893`, "WIP full build for measurement") que luego se sacó de la
+rama con `git switch -C slice/corte-reescritura-prototipo-1 4641d04` —`git checkout <ref> -- .` NO
+sirve para esto: sólo actualiza paths que EXISTEN en `<ref>`, nunca borra un path ausente ahí aunque
+esté trackeado en el commit actual, así que dejaba vivos los dos archivos nuevos (`redes-sociales.
+test.ts`, la migración) pese a no aparecer como diff—; `59a2893` queda como commit COLGANTE
+(alcanzable por SHA, no por ninguna rama) con la implementación completa de referencia para quien
+re-despache esto.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este asiento nombra: ninguno de código nuevo llegó a un archivo trackeado (el
+diff se revirtió) — sólo identificadores que habrían sido nuevos si se hubiera commiteado
+(`RedSocialTipo`, `parseRedesSociales`, `urlDeRedSocial`, `REDES_SOCIALES_ORDEN`, `redSocialSchema`,
+`SiteSetting.redes`) y el propio ledger-id. Grep de cada uno contra `CLAUDE.md`: **0 resultados**
+cada uno — esperado, ninguno existe en el repo todavía. `SiteSetting.whatsapp`/`.instagram` (los dos
+campos que este slice iba a re-propósitar) siguen documentados en `CLAUDE.md` exactamente como hoy
+—"§ Config del negocio — SiteSetting", el modelo de fila única, editable en Configuración—, y ese
+texto sigue siendo CIERTO: el árbol final no cambió ni una columna ni un byte del editor. No aplica
+el chequeo de "sección cerrada que alguien apunta": este asiento no cierra ninguna sección existente
+de `DECISIONS.md`, sólo documenta un bloqueo nuevo.
+
+### Verdicto
+
+**BLOCKED.** El commit queda en la rama a la espera de que el orquestador ensanche `touches:` a los
+seis archivos nombrados arriba (o instruya otra forma) antes de que este slice pueda re-intentarse.
+El piso heredado de `4641d04` (tsc 0, `npm test` **1962/1962**, `npm run test:integracion` **231/231**
+—ambos re-medidos sobre el árbol final tras el revert, no asumidos del mensaje del commit anterior—)
+sigue siendo válido — ningún archivo de código cambió entre ese commit y éste.
