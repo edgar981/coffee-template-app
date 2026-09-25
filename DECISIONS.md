@@ -20760,10 +20760,11 @@ El diff falla UNA de las tres condiciones:
 
 ### `open_followups`
 
-- **La limitación de destinos frente al prototipo** (§ arriba, "Los DESTINOS") queda documentada
-  pero no resuelta: si el owner quiere que el panel apunte a un producto puntual o a una sección
-  de página, hace falta un mecanismo de destino más amplio que `MENU_CTA_DESTINOS` — decisión de
-  producto, no de este slice.
+- **`MUESTRARIO-MEGA-MENU-DESTINO-AMPLIADO-1`** (coined acá) — la limitación de destinos frente al
+  prototipo (§ arriba, "Los DESTINOS") queda documentada pero no resuelta: si el owner quiere que
+  el panel apunte a un producto puntual o a una sección de página, hace falta un mecanismo de
+  destino más amplio que `MENU_CTA_DESTINOS`. `why_not_now`: decisión de producto, no de este
+  slice — el spec instruyó explícitamente PARAR y reportar en vez de inventar un destino nuevo.
 - **`CROMO-MENU-CAPA3-1`** (abierto por `CROMO-MENU-COMO-DATO-1`, línea ~12477, SIGUE ABIERTO):
   la verificación de capa 3 en navegador real ahora incluye, de yapa, el panel desplegable nuevo
   — no se amplía su alcance formalmente acá, pero quien lo ejecute debería mirarlo.
