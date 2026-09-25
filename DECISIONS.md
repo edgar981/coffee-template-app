@@ -19527,15 +19527,17 @@ Se evaluaron y descartaron DOS formas de esquivar el archivo sin tocarlo:
    por el censo para esquivar UN archivo sería la misma clase de desvío no autorizado que ensanchar
    `touches:` por cuenta propia — ya rechazada por el mismo argumento en `MUESTRARIO-BANDA-APAGABLE-1`.
 
-### Lo que sigue — para quien re-despache esto
+### Lo que sigue — para quien re-despache esto (`MUESTRARIO-SECCION-CTA-FIXTURE-1`)
 
-El único cambio faltante, ya identificado con su línea exacta:
-`lib/config/site-content-defaults.test.ts:724-741` (`PRESENTACIONES_ANTES`) — agregar `ctaLabel: ''`
-y `ctaDestino: ''` al literal, junto a `variante: 'mosaico',` (mismo patrón que el resolver: los
-opcionales vacíos van al final del objeto de la sección). Ensanchar `touches:` a ese ÚNICO archivo
-es lo mínimo necesario; no se detectó ningún SEGUNDO archivo en esta medición (`npm test` completo
-da exactamente 1 fallo, y `brandStory`/`subscriptionCTA` no tienen el mismo patrón de literal a
-mano, § arriba).
+El follow-up se coina como `MUESTRARIO-SECCION-CTA-FIXTURE-1`: el único cambio faltante, ya
+identificado con su línea exacta — `lib/config/site-content-defaults.test.ts:724-741`
+(`PRESENTACIONES_ANTES`) — agregar `ctaLabel: ''` y `ctaDestino: ''` al literal, junto a
+`variante: 'mosaico',` (mismo patrón que el resolver: los opcionales vacíos van al final del objeto
+de la sección). Ensanchar `touches:` a ese ÚNICO archivo es lo mínimo necesario; no se detectó
+ningún SEGUNDO archivo en esta medición (`npm test` completo da exactamente 1 fallo, y
+`brandStory`/`subscriptionCTA` no tienen el mismo patrón de literal a mano, § arriba). Con ese
+único archivo sumado a `touches:`, el resto del diseño de este asiento (§ arriba, "Lo que se
+construyó") se puede re-aplicar sin re-abrir ninguna decisión — está completo, sólo sin commitear.
 
 Todo el resto del trabajo —el modelo, el schema, los controles de panel, el render en las tres
 variantes, los dos archivos de test nuevos/ampliados que SÍ están en `touches:`— quedó DISEÑADO,
