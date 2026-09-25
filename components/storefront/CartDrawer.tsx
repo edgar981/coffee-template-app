@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { useCartStore } from "@/lib/cartStore";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { formatCOP } from "@duna/core/utils";
 import { freeShippingThreshold } from "@duna/core/shipping-config";
 
@@ -25,6 +26,65 @@ import { freeShippingThreshold } from "@duna/core/shipping-config";
 // entero. Extraídos, el carril afirma por RENDER que el título usa la fuente de TÍTULO
 // (`font-playfair` -> `--sf-fuente-titulo`) y el CTA el token de ACCIÓN (`--sf-accion`), sin mockear
 // nada.
+//
+// FraseEnvioGratis/progresoEnvioGratis/BarraEnvioGratis (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1) son la
+// MISMA extracción por la MISMA razón: ninguna depende de useCartStore/useSiteContent -- reciben
+// `subtotal`/`threshold`/`belowFreeShipping` por prop -- así que el carril las afirma por
+// renderToStaticMarkup sin montar <CartDrawer/> entero. Gemelas de `.ship-prog`/`.ship-bar` del
+// muestrario (`docs/prototipos/cafeone/index.html:409-411`, `css/app.css:731-736`,
+// `js/app.js:398-405`), gateadas por `content.carritoEnvio.visible` -- AUSENTE/`false` = HOY
+// (`FraseEnvioGratis`, byte-idéntica a la frase condicional de siempre); sólo CORTE la enciende
+// (`themes.ts`).
+
+export interface ProgresoEnvioGratis {
+  pct: number;
+  mensaje: string;
+}
+
+// Puro: el porcentaje de avance y el mensaje que muestra la barra. `threshold === null` (el umbral
+// sin configurar) es el MISMO criterio que ya gobierna la frase de HOY (`belowFreeShipping` nace
+// `false` en ese caso) -- no se muestra nada. `Math.max(4, …)` es del muestrario (`js/app.js:404`):
+// un progreso real pero bajo (p.ej. 2%) sería invisible como barra sin un piso.
+export function progresoEnvioGratis(subtotal: number, threshold: number | null): ProgresoEnvioGratis | null {
+  if (threshold === null) return null;
+  if (subtotal >= threshold) return { pct: 100, mensaje: "Tienes envío gratis" };
+  return {
+    pct: Math.max(4, (subtotal / threshold) * 100),
+    mensaje: `Te faltan ${formatCOP(threshold - subtotal)} para envío gratis`,
+  };
+}
+
+// LA FRASE DE HOY, byte-idéntica -- extraída tal cual del footer de abajo para que las dos ramas
+// (frase | barra) sean intercambiables por prop y cada una se afirme por separado en el carril.
+export function FraseEnvioGratis({ belowFreeShipping, threshold }: { belowFreeShipping: boolean; threshold: number | null }) {
+  if (!belowFreeShipping) return null;
+  return (
+    <p className="text-xs text-[var(--sf-texto-suave)]">
+      Envío gratis en pedidos mayores a{" "}
+      {formatCOP(threshold!)}
+    </p>
+  );
+}
+
+// LA PIEZA VISUAL del muestrario: mensaje + barra que se llena. El relleno usa `--sf-accion` (con
+// fallback a `--sf-tostado`, byte-idéntico para Nayoli) -- el MISMO token que ya pinta el botón
+// "volver arriba" (`BackToTop.tsx`) y el CTA de este mismo carrito (arriba, `CartCTA`) -- NUNCA un
+// literal (§ la lección de `CORTE-MARQUESINA-VELO-1`: un color que duplica un token diverge solo).
+export function BarraEnvioGratis({ subtotal, threshold }: { subtotal: number; threshold: number | null }) {
+  const progreso = progresoEnvioGratis(subtotal, threshold);
+  if (!progreso) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-[var(--sf-texto-suave)]">{progreso.mensaje}</p>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--sf-superficie)]">
+        <div
+          className="h-full rounded-full bg-[var(--sf-accion,var(--sf-tostado))] transition-all duration-500"
+          style={{ width: `${progreso.pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function CartTitulo() {
   return (
@@ -57,6 +117,7 @@ export default function CartDrawer() {
     updateQuantity,
     subtotal,
   } = useCartStore();
+  const { carritoEnvio } = useSiteContent();
 
   // El costo de envío depende de la dirección; se calcula en el checkout. Aquí
   // solo mostramos el subtotal (el total real lo recalcula el servidor).
@@ -237,11 +298,10 @@ export default function CartDrawer() {
                     </span>
                   </div>
 
-                  {belowFreeShipping && (
-                    <p className="text-xs text-[var(--sf-texto-suave)]">
-                      Envío gratis en pedidos mayores a{" "}
-                      {formatCOP(freeShippingThreshold!)}
-                    </p>
+                  {carritoEnvio.visible ? (
+                    <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} />
+                  ) : (
+                    <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
                   )}
 
                   <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">

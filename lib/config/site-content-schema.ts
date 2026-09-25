@@ -351,7 +351,8 @@ const cromoEditableSchema = z.object({
 // en silencio, § #65-B) pero meta PROPIA — ver el docstring de `VolverArribaContent`
 // (`site-content-defaults.ts`) para el porqué de que no comparta objeto con `cromo`. TIENE editor
 // (§ PANEL-DETALLES-SITIO-1): `DetallesSitioSeccion.tsx`, vía `/api/site-content/detalles`
-// (`.pick({volverArriba: true, rielSocial: true})` sobre ESTE schema, patrón `tema`/`encabezado`).
+// (`.pick({volverArriba: true, rielSocial: true, carritoEnvio: true})` sobre ESTE schema, patrón
+// `tema`/`encabezado`).
 const volverArribaEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
@@ -363,6 +364,17 @@ const volverArribaEditableSchema = z.object({
 // (`site-content-defaults.ts`) para el porqué de que no comparta objeto con `cromo` ni con
 // `volverArriba`. TIENE editor (§ PANEL-DETALLES-SITIO-1), MISMO camino que `volverArriba` arriba.
 const rielSocialEditableSchema = z.object({
+  visible: z.boolean().optional(),
+});
+
+// META de BARRA DE ENVÍO GRATIS DEL CARRITO (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1): MISMA forma que
+// `rielSocialEditableSchema` (dominio CERRADO, NO sección, NO pasa por el flujo borrador/publicar
+// del route GENÉRICO —tiene su PROPIA ruta, § PANEL-DETALLES-SITIO-1—, se declara acá SÓLO para que
+// un futuro write general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring
+// de `CarritoEnvioContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto
+// con `cromo`, `volverArriba` ni `rielSocial`. TIENE editor (§ PANEL-DETALLES-SITIO-1,
+// `DetallesSitioSeccion.tsx`), MISMO camino que `volverArriba`/`rielSocial` arriba.
+const carritoEnvioEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
@@ -503,6 +515,7 @@ export const siteContentEditableSchema = z.object({
   cromo: cromoEditableSchema.optional(),
   volverArriba: volverArribaEditableSchema.optional(),
   rielSocial: rielSocialEditableSchema.optional(),
+  carritoEnvio: carritoEnvioEditableSchema.optional(),
   navTratamiento: navTratamientoEditableSchema.optional(),
   navWordmark: navWordmarkEditableSchema.optional(),
   navDrawerMovil: navDrawerMovilEditableSchema.optional(),

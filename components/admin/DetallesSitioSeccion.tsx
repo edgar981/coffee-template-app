@@ -10,16 +10,21 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 //
 // § PANEL-DETALLES-SITIO-1: el nombre que el owner le dio (2026-09-23) a "volver arriba y redes
 // sociales" — los DOS ejes de chrome que `PANEL-EDITOR-ENCABEZADO-1` dejó explícitamente FUERA de su
-// alcance ("son 'Detalles del sitio', fuera de este slice, con su propio disparador futuro"). Cierra
+// alcance ("son 'Detalles del sitio', fuera de este slice, con su propio disparador futuro"). Cerró
 // las DOS últimas entradas del grupo `PANEL-EDITOR-CHROME-METAS-1` en `PENDIENTE_PANEL`
 // (`lib/config/panel-controles.ts`): `volverArriba.visible`, `rielSocial.visible`.
 //
-// PATRÓN `EncabezadoSeccion`/`PaletaSeccion`/`MenuSeccion`, NO `TiendaSeccionEditor`: los dos switches
-// viven en DOS claves META que `SeccionKey` EXCLUYE del REGISTRY (`volverArriba`, `rielSocial`,
-// § site-content-defaults.ts) — no son una sección, así que `TiendaSeccionEditor` no tiene forma de
-// montarlas, y el route GENÉRICO de contenido rechaza publicarlas/descartarlas (`seccion in REGISTRY`,
-// § app/api/site-content/route.ts:88). Por eso tienen su PROPIA ruta
-// (`/api/site-content/detalles`, patrón `tema`/`encabezado`).
+// § MUESTRARIO-CARRITO-BARRA-ENVIO-1 sumó un TERCER switch a esta MISMA sección: la barra de
+// progreso de envío gratis del carrito (`carritoEnvio.visible`). No cerró ninguna entrada de
+// `PENDIENTE_PANEL` —nace YA controlada, nunca pasó por ahí— así que el techo del trinquete
+// (`lib/config/panel-controles.test.ts`) no bajó por este cambio.
+//
+// PATRÓN `EncabezadoSeccion`/`PaletaSeccion`/`MenuSeccion`, NO `TiendaSeccionEditor`: los tres
+// switches viven en TRES claves META que `SeccionKey` EXCLUYE del REGISTRY (`volverArriba`,
+// `rielSocial`, `carritoEnvio`, § site-content-defaults.ts) — no son una sección, así que
+// `TiendaSeccionEditor` no tiene forma de montarlas, y el route GENÉRICO de contenido rechaza
+// publicarlas/descartarlas (`seccion in REGISTRY`, § app/api/site-content/route.ts:88). Por eso
+// tienen su PROPIA ruta (`/api/site-content/detalles`, patrón `tema`/`encabezado`).
 //
 // A DIFERENCIA de `EncabezadoSeccion` (que lee por el GET GENÉRICO `/api/site-content`, con
 // `sinPublicar.encabezado` calculado en `lib/config/site-content-read.ts`), esta sección lee por el
@@ -33,23 +38,27 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 // campo que reenviar: el wire de cada meta es su forma COMPLETA por construcción.
 //
 // SIN VISTA PREVIA EN VIVO (mismo motivo que `EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`): los
-// dos componentes reales del storefront (`BackToTop`, `RielSocial`) importan hooks
-// (`useCartStore`/`useSiteSettings`) que LANZAN fuera de su árbol de providers (§ CLAUDE.md, "Montar
-// un componente en OTRO árbol de providers"). El resumen de lectura es TEXTO, como en esas tres.
+// TRES componentes reales del storefront (`BackToTop`, `RielSocial`, el pie de `CartDrawer`)
+// importan hooks (`useCartStore`/`useSiteSettings`/`useSiteContent`) que LANZAN fuera de su árbol de
+// providers (§ CLAUDE.md, "Montar un componente en OTRO árbol de providers"). El resumen de lectura
+// es TEXTO, como en esas tres.
 
 interface Form {
   volverArriba: boolean; // volverArriba.visible
   rielSocial: boolean;   // rielSocial.visible
+  carritoEnvio: boolean; // carritoEnvio.visible
 }
 
 interface Wire {
   volverArriba: { visible: boolean };
   rielSocial: { visible: boolean };
+  carritoEnvio: { visible: boolean };
 }
 
 const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
   { name: 'volverArriba', label: 'Botón "volver arriba"', hint: 'Un botón flotante que aparece al bajar por la página y lleva de vuelta al inicio.' },
   { name: 'rielSocial', label: 'Riel social', hint: 'Un riel fijo a un lado de la pantalla con tus redes sociales — usa las que ya cargaste en Configuración. Sólo se ve en pantallas anchas, y sólo si hay al menos una red cargada.' },
+  { name: 'carritoEnvio', label: 'Barra de progreso de envío gratis', hint: 'En el carrito, muestra una barra que se llena a medida que el cliente se acerca al envío gratis, en vez del texto fijo de siempre.' },
 ];
 
 export default function DetallesSitioSeccion() {
@@ -64,11 +73,12 @@ export default function DetallesSitioSeccion() {
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
 
-  // El WIRE que viaja al PUT: las dos metas COMPLETAS — cada una un objeto de una sola clave, así que
-  // no hay nada que reenviar sin editar (a diferencia de `cromo.navBadge` en `EncabezadoSeccion`).
+  // El WIRE que viaja al PUT: las tres metas COMPLETAS — cada una un objeto de una sola clave, así
+  // que no hay nada que reenviar sin editar (a diferencia de `cromo.navBadge` en `EncabezadoSeccion`).
   const wireDe = (f: Form): Wire => ({
     volverArriba: { visible: f.volverArriba },
     rielSocial: { visible: f.rielSocial },
+    carritoEnvio: { visible: f.carritoEnvio },
   });
 
   const guardarDetalles = useCallback(async (w: Wire) => {
@@ -89,10 +99,12 @@ export default function DetallesSitioSeccion() {
       const contenido = (d.contenido ?? {}) as {
         volverArriba?: { visible?: unknown };
         rielSocial?: { visible?: unknown };
+        carritoEnvio?: { visible?: unknown };
       };
       setForm({
         volverArriba: !!contenido.volverArriba?.visible,
         rielSocial: !!contenido.rielSocial?.visible,
+        carritoEnvio: !!contenido.carritoEnvio?.visible,
       });
       setHayBorrador(!!d.sinPublicar);
       if (inicial) setCargando(false);

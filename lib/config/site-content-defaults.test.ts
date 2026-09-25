@@ -43,6 +43,21 @@ test('sin nada guardado → todos los defaults del hero', () => {
   assert.deepEqual(r.hero, DEFAULTS.hero);
 });
 
+// § MUESTRARIO-CARRITO-BARRA-ENVIO-1: `carritoEnvio` (meta, no sección) queda cableada dentro de
+// `resolverSiteContent` como `volverArriba`/`rielSocial` -- sin fila, byte-idéntica al default (sin
+// la barra visual); con un valor guardado, ese valor sobrevive. El resto del comportamiento de la
+// meta (el resolver en sí, la ruta, el control del panel, el preset) se afirma en
+// `lib/config/detalles-sitio.test.ts`; esto es sólo el CABLEADO dentro de este archivo.
+test('sin nada guardado → carritoEnvio.visible cae al default (false, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.carritoEnvio, DEFAULTS.carritoEnvio);
+});
+
+test('carritoEnvio.visible guardado explícito sobrevive la resolución completa', () => {
+  const r = resolverSiteContent({ carritoEnvio: { visible: true } });
+  assert.equal(r.carritoEnvio.visible, true);
+});
+
 test('sin nada guardado y entrada basura (null / string / array) → defaults, no lanza', () => {
   for (const basura of [null, undefined, 'x', 42, [], { hero: 'no-obj' }]) {
     assert.deepEqual(resolverSiteContent(basura).hero, DEFAULTS.hero);

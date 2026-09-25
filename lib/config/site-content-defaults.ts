@@ -845,6 +845,33 @@ export interface RielSocialContent {
   visible: boolean;
 }
 
+// META de BARRA DE ENVÍO GRATIS DEL CARRITO (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1) — MISMA forma y
+// MISMO porqué que `VolverArribaContent`/`RielSocialContent` (arriba): chrome que un preset puede
+// encender, AUSENTE/`false` = el comportamiento de HOY, byte a byte (el carrito muestra sólo la
+// frase condicional "Envío gratis en pedidos mayores a $X", `CartDrawer.tsx`), y NO fusionada en
+// `cromo` (dominio CERRADO de 3 claves con contrato EXHAUSTIVO afirmado por
+// `cromo-tematizable.test.ts`, fuera de `touches:` de este slice) ni en `VolverArribaContent`/
+// `RielSocialContent` (cada uno dominio CERRADO propio de 1 clave, MISMA razón que esos dos entre
+// sí: sumarle una 2ª clave los convertiría en la meta compartida que ambos se negaron a ser).
+// A DIFERENCIA de `volverArriba`/`rielSocial` (que deciden si un COMPONENTE ENTERO se monta), ésta
+// decide entre DOS PRESENTACIONES de un elemento que YA está SIEMPRE montado (el pie del carrito) —
+// la misma distinción de naturaleza que separa `navTinta` (ajusta un chrome ya montado) de
+// `bandaOrigenVisible` (enciende una banda entera) — pero, igual que esos dos ejes de encendido, no
+// tiene sección del REGISTRY donde vivir (el carrito no es contenido de `SiteContentData`), así que
+// necesita su propio lugar: una meta nueva, no un campo de otra ya declarada.
+export interface CarritoEnvioContent {
+  // ¿El pie del carrito rinde la BARRA DE PROGRESO visual hacia el envío gratis (gemela de
+  // `.ship-prog`/`.ship-bar` del muestrario, `docs/prototipos/cafeone/index.html:409-411`,
+  // `css/app.css:731-736`, `js/app.js:398-405`: mensaje dinámico + una barra que se llena según
+  // `subtotal/freeShippingThreshold`, "Tienes envío gratis" al llegar al 100%)? `false` = HOY: el
+  // carrito muestra sólo la frase condicional de siempre cuando falta para el umbral, y nada cuando
+  // ya se alcanzó — byte-idéntico (`CartDrawer.tsx`, la rama `FraseEnvioGratis`). Lo escribe
+  // `mergePresetEnContent` (`themes.ts`, con `preset.carritoEnvioVisible` — de los 6 presets del
+  // catálogo, sólo CORTE lo declara `true`) Y el dueño, desde el panel (§ PANEL-DETALLES-SITIO-1,
+  // `DetallesSitioSeccion.tsx`, sección "Detalles del sitio").
+  visible: boolean;
+}
+
 // META de TRATAMIENTO TIPOGRÁFICO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1) — MISMA forma y MISMO porqué
 // que `VolverArribaContent`/`RielSocialContent` (arriba): AUSENTE/`false` = el comportamiento de
 // HOY, byte a byte. NO fusionada en `CromoContent` a pesar de ser, en NATURALEZA, la misma familia
@@ -953,6 +980,7 @@ export interface SiteContentData {
   cromo: CromoContent;
   volverArriba: VolverArribaContent;
   rielSocial: RielSocialContent;
+  carritoEnvio: CarritoEnvioContent;
   navTratamiento: NavTratamientoContent;
   navWordmark: NavWordmarkContent;
   navDrawerMovil: NavDrawerMovilContent;
@@ -1443,6 +1471,12 @@ export const DEFAULTS: SiteContentData = {
   rielSocial: {
     visible: false,
   },
+  // BARRA DE ENVÍO GRATIS DEL CARRITO por defecto (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1): sin barra →
+  // el carrito muestra sólo la frase condicional de siempre, byte-idéntico (`CartDrawer.tsx`, la
+  // rama `FraseEnvioGratis`). Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  carritoEnvio: {
+    visible: false,
+  },
   // TRATAMIENTO DEL NAV por defecto (§ CROMO-NAV-TRATAMIENTO-1): sin mayúscula/tracking → el
   // `text-sm font-medium` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   navTratamiento: {
@@ -1573,7 +1607,7 @@ export interface SeccionDef {
 // `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `navDrawerMovil`, `esquemas`,
 // `orden`, `variantesBandas` y `presetSnapshot`, que no son secciones). El REGISTRY las cubre a
 // todas; las doce metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'carritoEnvio' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -2136,6 +2170,11 @@ export function resolverSiteContent(
   // resuelto aparte de `cromo`/`volverArriba` (dominio CERRADO propio, 1 clave) por el motivo del
   // docstring de `RielSocialContent` — no comparte contrato con ninguna de las dos.
   out.rielSocial = resolverRielSocial(raw.rielSocial, defaultsBase.rielSocial);
+  // BARRA DE ENVÍO GRATIS DEL CARRITO (meta, no sección, § MUESTRARIO-CARRITO-BARRA-ENVIO-1): ¿el
+  // pie del carrito rinde la barra visual en vez de la frase de siempre?, resuelto aparte de
+  // `cromo`/`volverArriba`/`rielSocial` (dominio CERRADO propio, 1 clave) por el motivo del
+  // docstring de `CarritoEnvioContent` — no comparte contrato con ninguna de las tres.
+  out.carritoEnvio = resolverCarritoEnvio(raw.carritoEnvio, defaultsBase.carritoEnvio);
   // TRATAMIENTO DEL NAV (meta, no sección, § CROMO-NAV-TRATAMIENTO-1): ¿los links del nav llevan
   // mayúscula+tracking+peso?, resuelto aparte de `cromo`/`volverArriba`/`rielSocial` (dominio
   // CERRADO propio, 1 clave) por el motivo del docstring de `NavTratamientoContent` — no comparte
@@ -2265,6 +2304,19 @@ export function resolverVolverArriba(stored: unknown, defaults: unknown): Volver
 // CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el docstring de `RielSocialContent` para el
 // porqué de que no comparta objeto con `cromo` ni con `volverArriba`.
 export function resolverRielSocial(stored: unknown, defaults: unknown): RielSocialContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const sv = st['visible'];
+  if (typeof sv === 'boolean') return { visible: sv };
+  const dv = def['visible'];
+  return { visible: typeof dv === 'boolean' ? dv : false };
+}
+
+// Resuelve la BARRA DE ENVÍO GRATIS DEL CARRITO (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1), gemelo de
+// `resolverRielSocial` en FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el
+// docstring de `CarritoEnvioContent` para el porqué de que no comparta objeto con `cromo`,
+// `volverArriba` ni `rielSocial`.
+export function resolverCarritoEnvio(stored: unknown, defaults: unknown): CarritoEnvioContent {
   const st = esObj(stored) ? stored : {};
   const def = esObj(defaults) ? defaults : {};
   const sv = st['visible'];

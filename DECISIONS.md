@@ -21754,3 +21754,188 @@ ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente del gate del orquestador �
 instrucción del dispatch, no mergea y hereda además la clasificación de la RAMA completa
 (`slice/corte-reescritura-prototipo-1`, que ya venía `AWAITING_APPROVAL` por slices anteriores que
 tocan bytes de visitante, § CLAUDE.md "EL EJE ES LA RAMA, NO EL COMMIT").
+
+## 2026-09-25 — La barra de progreso de envío gratis del carrito (`MUESTRARIO-CARRITO-BARRA-ENVIO-1`)
+
+**Origen:** la mitad de `MUESTRARIO-CARRITO-CHROME-1` (§ Tabla 7, `CENSO-MUESTRARIO-1`) que
+`PANEL-DETALLES-SITIO-1` dejó explícitamente afuera —*"el intento anterior, con las dos cosas
+juntas, se pasó de la hora"*—: el muestrario (`.ship-prog`/`.ship-bar`,
+`docs/prototipos/cafeone/index.html:409-411`, `css/app.css:731-736`, `js/app.js:398-405`) muestra
+una barra que se llena hacia el envío gratis; `CartDrawer.tsx:240-245` sólo mostraba una frase
+condicional. El dato (`subtotal`, `freeShippingThreshold`) ya existía; faltaba la pieza visual y su
+gate de tema. El panel de utilidades (nota del pedido / código de descuento) que el censo nombraba
+junto a esta barra **NO entra**: no hay dato ni en `useCartStore` ni en el checkout — es modelo y
+flujo, no presentación —, y queda coined como `MUESTRARIO-CARRITO-UTILIDADES-1` (§ `open_followups`).
+
+### La pieza — gateada por una meta booleana, MISMA forma que `volverArriba`/`rielSocial`
+
+`content.carritoEnvio` (`CarritoEnvioContent`, `{visible: boolean}`) es la TERCERA meta de la
+familia que `PANEL-DETALLES-SITIO-1` abrió: dominio CERRADO de 1 clave, no fusionada en `cromo`
+(contrato exhaustivo de 3 claves, `cromo-tematizable.test.ts`, fuera de `touches:`) ni en
+`VolverArribaContent`/`RielSocialContent` (cada uno ya cerró SU propio contrato de 1 clave). A
+diferencia de esas dos —que deciden si un COMPONENTE ENTERO se monta—, ésta decide entre DOS
+PRESENTACIONES de un elemento que YA está siempre montado (el pie del carrito): la misma distinción
+de naturaleza que separa `navTinta` (ajusta un chrome ya montado) de `bandaOrigenVisible` (enciende
+una banda entera) — pero, igual que esos dos ejes de encendido, sin sección del REGISTRY donde
+vivir, así que necesita su propio lugar.
+
+- **AUSENTE/`false` = HOY, byte a byte**: `CartDrawer` rinde la frase de siempre (`FraseEnvioGratis`,
+  extraída TAL CUAL del JSX inline que reemplaza, byte-idéntica). Sólo CORTE la enciende
+  (`themes.ts`, `carritoEnvioVisible: true` — el ÚNICO de los 6 presets del catálogo que la
+  declara), y el dueño desde el panel (§ abajo).
+- **`progresoEnvioGratis(subtotal, threshold)` es la mitad PURA** (`CartDrawer.tsx`): `threshold ===
+  null` (el umbral sin configurar) → `null`, MISMO criterio que ya gobierna la frase de hoy
+  (`belowFreeShipping` nace `false` en ese caso); `subtotal >= threshold` → `{pct:100, mensaje:
+  "Tienes envío gratis"}` (el estado que la frase de hoy NUNCA mostraba — hoy simplemente
+  desaparece al alcanzar el umbral); si no, `{pct: subtotal/threshold*100 con piso 4, mensaje: "Te
+  faltan $X para envío gratis"}` — el piso de 4 es del propio muestrario (`js/app.js:404`,
+  `Math.max(4, …)`): un progreso real pero bajo (2%) sería invisible como barra sin un piso.
+- **El relleno sale de `--sf-accion`** (con fallback a `--sf-tostado`, byte-idéntico para Nayoli) —
+  el MISMO token que ya pinta el botón "volver arriba" (`BackToTop.tsx`) y el CTA de este mismo
+  carrito (`CartCTA`, en el mismo archivo) — NUNCA un literal (§ la lección de
+  `CORTE-MARQUESINA-VELO-1`: un color que duplica un token diverge solo). Medido contra el
+  prototipo: `.ship-bar i` pinta `var(--red-700)` (`#860b0c`), que en `ds/colors.css` resulta ser
+  `--action-primary-hover`, no `--action-primary` (`#a70004`, el que sí mapea `raices.acento`) — no
+  hay contraparte exacta de ese matiz "hover" en nuestro sistema de tokens, así que se usó el token
+  de ACCIÓN base (el mismo rol, no el mismo hex) en vez de hornear un tercer literal sin nombre.
+- **`FraseEnvioGratis`/`BarraEnvioGratis` se extrajeron SIN hooks**, por la MISMA razón que
+  `CartTitulo`/`CartCTA` (`§ CROMO-CARRITO-TEMATIZADO-1`): `useCartStore`/`useSiteContent` son
+  CONTEXTS con throw duro sin sus providers, así que el carril (sin jsdom, sin árbol de Next real)
+  no puede montar `<CartDrawer/>` entero. Las dos reciben `subtotal`/`threshold`/
+  `belowFreeShipping` por PROP y se afirman por `renderToStaticMarkup`, sin mockear nada.
+
+### El control — en "Detalles del sitio", TERCER switch, nace YA controlado
+
+`DetallesSitioSeccion.tsx` gana un tercer switch ("Barra de progreso de envío gratis"), MISMO patrón
+que los otros dos (un objeto de una sola clave, wire completo, sin nada que reenviar).
+`app/api/site-content/detalles/route.ts` generaliza su mecanismo GET/PUT/POST de DOS a TRES metas
+—`METAS_DETALLES`, el `.pick()` de `detallesEditableSchema` y la respuesta del GET crecen en una
+clave— sin cambiar de FORMA: el patrón ya era "N metas cerradas de 1 clave", no una segunda mitad
+paralela por meta.
+
+**`carritoEnvio.visible` nace YA CONTROLADO — nunca pasó por `PENDIENTE_PANEL`**, a diferencia de
+`volverArriba.visible`/`rielSocial.visible` (que sí pasaron un tiempo sin editor). Mismo patrón que
+`navDrawerMovil.variante` (`MUESTRARIO-DRAWER-MOVIL-TEMA-1`) y los CTA/imagen de las tandas
+recientes del muestrario: el campo y su control entran en el MISMO commit. `huecosDelPanel()` sigue
+en `[]` y **el techo del trinquete NO sube** (11, `panel-controles.test.ts:81`): el campo nuevo
+trae su control, así que no necesita exención.
+
+### El gate
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2093/2093** — verde (+22: 19 en `detalles-sitio.test.ts` nuevo, +2 en `site-content-defaults.test.ts`, +1 en `panel-controles.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde, SIN cambio de conteo (este slice no agregó ningún test bajo `tests/integracion/`) |
+
+Reconciliado contra el piso citado por el commit anterior (`e1dfaf7`: "Gate verde (tsc 0, 2071/2071,
+237/237)"): capa 1 sube en exactamente +22, explicado entero por los tres archivos de test de este
+slice; capa 2 queda IDÉNTICA (237→237) — ninguna diferencia es drift sin explicación.
+
+`lib/config/detalles-sitio.test.ts` (nombrado en `touches:`) SÍ pudo escribirse tal cual se llamaba
+—a diferencia de `PANEL-DETALLES-SITIO-1`, que tuvo que desviarse a `tests/integracion/` porque su
+prueba hablaba con Postgres real (`guardarBorrador`/`publicarSeccion` vía Prisma)—: la verificación
+de ESTA pieza (el resolver SOFT, el schema, el control del panel, el preset, y las dos piezas de
+`CartDrawer` sin hooks) es enteramente pura, así que cae dentro del glob DB-FREE del carril rápido
+sin romperlo. **No hay desviación de ubicación que reportar en este slice.**
+
+### El diff visual — Nayoli byte-idéntica
+
+`npm run verificar:nayoli:visual` (main vs. esta rama, 6 rutas + 2 hovers, claro forzado, reloj
+congelado): **CERO diferencias, en las 6 rutas Y los 2 hovers** (home 0/4.608.000px, tienda
+0/2.433.280px, producto 0/2.535.680px, checkout 0/1.152.000px, nosotros 0/1.152.000px,
+suscripciones 0/2.144.000px, hover:automatica 0/98.298px, hover:eleccion 0/102.870px — 0 tanto
+"consciente de antialiasing" como en el conteo CRUDO, las dos varas que el arnés corre).
+
+**LÍMITE DECLARADO, medido contra el propio arnés antes de correrlo**: `CartDrawer` sólo renderiza
+su contenido cuando `isOpen` es `true` (`{isOpen && (<>…</>)}`, `CartDrawer.tsx:134`), y el arnés
+(`scripts/verificar-nayoli-visual.ts`) captura `/`, `/tienda`, `/tienda/<slug>`, `/checkout`,
+`/nosotros`, `/suscripciones` y dos hovers de `ProductCard` — ninguno abre el carrito. Así que el
+diff de píxeles NO ejercita la pieza que este slice construyó (la barra vive detrás de un clic que
+el arnés no da); un resultado en 0px no es evidencia de que `BarraEnvioGratis`/`FraseEnvioGratis`
+sean byte-idénticas en pantalla, sólo de que el resto del storefront no cambió. La evidencia real de
+byte-identidad para ESTA pieza es la extracción 1:1 del markup (§ arriba, "SIN hooks") + el test de
+`FraseEnvioGratis` que compara el HTML renderizado contra el `<p>` exacto que reemplaza — no el diff
+visual. Anotado como LÍMITE, no dado por cubierto.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `carritoEnvio`, `CarritoEnvioContent`,
+`resolverCarritoEnvio`, `carritoEnvioVisible`, `carritoEnvioEditableSchema`, `progresoEnvioGratis`,
+`FraseEnvioGratis`, `BarraEnvioGratis`, `MUESTRARIO-CARRITO-BARRA-ENVIO-1`,
+`CONTROLADOS_DETALLES_SECCION` (contenido), `METAS_CON_CAMPOS` (contenido),
+`app/api/site-content/detalles/route.ts` (mecanismo generalizado a 3 metas). Grepeados uno por uno
+contra `CLAUDE.md`:
+
+- `carritoEnvio`, `CarritoEnvioContent`, `progresoEnvioGratis`, `FraseEnvioGratis`,
+  `BarraEnvioGratis`, `MUESTRARIO-CARRITO-BARRA-ENVIO`, `CONTROLADOS_DETALLES_SECCION`,
+  `METAS_CON_CAMPOS`, `site-content/detalles` — **CERO apariciones** de todos. Nada en `CLAUDE.md`
+  nombra lo que este diff cambió; no hay nada que corregir ahí.
+- `CartDrawer.tsx` (1 aparición, § "El costo de estimación del margen…" no — verificado: CERO
+  apariciones reales de la cadena `CartDrawer` en `CLAUDE.md`).
+- `site-content-defaults`/`site-content-schema`/`panel-controles` (múltiples apariciones): todas
+  sobre el estatus Tier 1 de esos archivos (la lista de superficies protegidas, sin cambio — este
+  slice sigue el protocolo de segunda etapa que esa sección describe), el bug histórico §65-B (que
+  este slice CUMPLE, no contradice: `carritoEnvio` SÍ se declaró en el schema, § arriba), o mecánica
+  general de `resolverSiteContent`/`huecosDelPanel` — ninguna nombra una meta o conteo específico
+  que este diff vuelva falso.
+- `verificar:nayoli:visual`/`verificar-nayoli-visual` — **CERO apariciones** en `CLAUDE.md` (el
+  script y su doctrina viven en su propio encabezado, no en `CLAUDE.md`).
+
+Ningún hallazgo de `open_followups` sale de este chequeo — nada en `CLAUDE.md` quedó falso.
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`, `lib/config/themes.ts`,
+`app/api/site-content/detalles/route.ts`, `components/admin/DetallesSitioSeccion.tsx`,
+`components/storefront/CartDrawer.tsx`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `lib/config/site-content-defaults.test.ts` (dos tests de
+cableado), `lib/config/detalles-sitio.test.ts` (nuevo), este asiento (`DECISIONS.md`). Todo dentro
+de la letra de `touches:` — sin desviación de alcance.
+
+### `open_followups`
+
+- `MUESTRARIO-CARRITO-UTILIDADES-1`: el panel de utilidades del carrito (nota del pedido / código de
+  descuento) que `CENSO-MUESTRARIO-1` nombraba junto a esta barra bajo `MUESTRARIO-CARRITO-CHROME-1`.
+  No entra acá: no hay dato ni en `useCartStore` ni en el checkout — es modelo y flujo nuevos (una
+  nota de texto libre por pedido, y/o un código de descuento con su validación), no una pieza de
+  presentación sobre un dato que ya existe. Necesita su propia decisión de modelo antes de construirse.
+- `CENSO-MUESTRARIO-CARRITO-CHROME-STALE-1`: las dos filas de `CENSO-MUESTRARIO-1` que nombran
+  `MUESTRARIO-CARRITO-CHROME-1` (DECISIONS.md:18655 y :18707) describen la barra Y el panel de
+  utilidades como UN solo ítem pendiente ("falta la pieza de presentación"). Este slice cerró la
+  MITAD (la barra); la otra mitad quedó re-etiquetada acá como `MUESTRARIO-CARRITO-UTILIDADES-1`
+  (arriba), pero esas dos filas del censo siguen leyéndose como si nada se hubiera resuelto. No se
+  corrige acá: reescribir el censo de `CENSO-MUESTRARIO-1` es un cambio a un documento de OTRO
+  slice, fuera de lo que éste pidió escribir (el spec pidió sumar un asiento propio, no enmendar la
+  tabla del censo).
+
+### `customer_bytes`
+
+`changed: true`. La RAMA gana bytes de VISITANTE: con `carritoEnvio.visible` encendido (hoy sólo
+CORTE), el pie del carrito muestra una barra de progreso + un mensaje dinámico ("Te faltan $X para
+envío gratis" / "Tienes envío gratis") en vez de la frase fija de siempre. Nayoli no lo ve —la meta
+nace `false`, ningún preset de Nayoli la enciende—, pero es la RAMA la que se juzga
+(§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), y la rama ya incluye CORTE con el resto del
+muestrario. También gana bytes de OPERADOR/DUEÑO: el tercer switch en "Detalles del sitio" ("Barra
+de progreso de envío gratis" + su hint).
+
+`strings`: "Te faltan {monto} para envío gratis"; "Tienes envío gratis"; "Barra de progreso de envío
+gratis"; "En el carrito, muestra una barra que se llena a medida que el cliente se acerca al envío
+gratis, en vez del texto fijo de siempre."
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: `SiteContent.content`/`SiteContent.borrador` son columnas `Json` ya
+existentes — `carritoEnvio` es una clave más dentro de esas columnas, sin tocar
+`packages/core/prisma/schema.prisma` ni migración alguna. Sin contrato cross-repo.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores, `npm test` 2093/2093, `npm run
+test:integracion` 237/237, sin flakes), commiteado en `slice/corte-reescritura-prototipo-1`. El diff
+falla `customer-bytes` (la RAMA gana una capacidad visual para el visitante, gateada, más el control
+del operador). `schema` y `cross-repo-contract` NO aplican. `stopped_on: [customer-bytes]`. El owner
+ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el
+merge sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no
+mergea y hereda además la clasificación de la RAMA completa (`slice/corte-reescritura-prototipo-1`,
+ya `AWAITING_APPROVAL` por slices anteriores que tocan bytes de visitante).

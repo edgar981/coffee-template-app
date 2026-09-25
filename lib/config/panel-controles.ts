@@ -15,9 +15,9 @@
 // `booleanos` + (`variante` si la sección declara `variantes`) + las claves de `escalares` +
 // (`visible` si la sección es `ocultable`) — es exactamente el inventario que `resolverSiteContent`
 // ya usa para decidir qué escribe cada sección; no es un segundo inventario paralelo, es leer el que
-// ya gobierna el resolver. Más las OCHO claves NO-sección con forma fija (`paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `navDrawerMovil`), leídas de
-// `DEFAULTS` en runtime.
+// ya gobierna el resolver. Más las NUEVE claves NO-sección con forma fija (`paginas`, `tema`, `cromo`,
+// `volverArriba`, `rielSocial`, `carritoEnvio`, `navTratamiento`, `navWordmark`, `navDrawerMovil`),
+// leídas de `DEFAULTS` en runtime.
 //
 // LO QUE QUEDA AFUERA A PROPÓSITO — `esquemas`, `orden`, `variantesBandas`, `presetSnapshot` — NO por
 // una lista de excepciones, sino porque NUNCA ENTRAN al lado "leído": son dominio ABIERTO (`esquemas`/
@@ -56,9 +56,9 @@ import { SECCIONES_TIENDA, type SeccionConfig } from '@/components/admin/tienda-
 
 // ─── LADO A: lo que la tienda LEE ──────────────────────────────────────────────────────────────────
 
-/** Las OCHO claves NO-sección con forma FIJA (un objeto con campos nombrados, no un `Record` abierto).
+/** Las NUEVE claves NO-sección con forma FIJA (un objeto con campos nombrados, no un `Record` abierto).
  *  `esquemas`/`orden`/`variantesBandas` NO están acá — dominio abierto, § el comentario de cabecera. */
-const METAS_CON_CAMPOS = ['paginas', 'tema', 'cromo', 'volverArriba', 'rielSocial', 'navTratamiento', 'navWordmark', 'navDrawerMovil'] as const;
+const METAS_CON_CAMPOS = ['paginas', 'tema', 'cromo', 'volverArriba', 'rielSocial', 'carritoEnvio', 'navTratamiento', 'navWordmark', 'navDrawerMovil'] as const;
 type MetaConCampos = (typeof METAS_CON_CAMPOS)[number];
 
 /** Los campos que `resolverSiteContent`/el escritor resuelven para UNA sección, derivados de su
@@ -209,13 +209,16 @@ const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscrip
  *  el badge del ítem de menú, que sí tiene control en `MenuSeccion.tsx`). */
 const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navDrawerMovil.variante'];
 
-/** DECLARACIÓN EXPLÍCITA de lo que `DetallesSitioSeccion.tsx` controla (§ PANEL-DETALLES-SITIO-1):
- *  `volverArriba`/`rielSocial` NO son secciones del REGISTRY (§ el docstring de
- *  `CONTROLADOS_ENCABEZADO_SECCION`, misma familia), así que tienen su propia ruta de publicar/
- *  descartar (`/api/site-content/detalles`) y se declaran acá, leídas de su código: los DOS switches
- *  — el botón "volver arriba" (`volverArriba.visible`) y el riel social (`rielSocial.visible`). Cierra
- *  las dos últimas entradas del grupo `PANEL-EDITOR-CHROME-METAS-1` en `PENDIENTE_PANEL`. */
-const CONTROLADOS_DETALLES_SECCION = ['volverArriba.visible', 'rielSocial.visible'];
+/** DECLARACIÓN EXPLÍCITA de lo que `DetallesSitioSeccion.tsx` controla (§ PANEL-DETALLES-SITIO-1,
+ *  ampliado por § MUESTRARIO-CARRITO-BARRA-ENVIO-1): `volverArriba`/`rielSocial`/`carritoEnvio` NO
+ *  son secciones del REGISTRY (§ el docstring de `CONTROLADOS_ENCABEZADO_SECCION`, misma familia),
+ *  así que tienen su propia ruta de publicar/descartar (`/api/site-content/detalles`) y se declaran
+ *  acá, leídas de su código: los TRES switches — el botón "volver arriba" (`volverArriba.visible`),
+ *  el riel social (`rielSocial.visible`) y la barra de progreso de envío gratis del carrito
+ *  (`carritoEnvio.visible`). Cerró las dos últimas entradas del grupo `PANEL-EDITOR-CHROME-METAS-1`
+ *  en `PENDIENTE_PANEL`; `carritoEnvio` nace CON control (nunca pasó por `PENDIENTE_PANEL`), así que
+ *  no cierra ninguna entrada — sólo suma una tercera clave a esta declaración. */
+const CONTROLADOS_DETALLES_SECCION = ['volverArriba.visible', 'rielSocial.visible', 'carritoEnvio.visible'];
 
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {

@@ -192,6 +192,14 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * visible` (`RielSocialContent`, meta PROPIA — MISMA razón que `volverArribaVisible`: no comparte
  * objeto ni con `cromo` ni con `volverArriba`). CORTE es hoy el ÚNICO preset que lo declara.
  *
+ * `carritoEnvioVisible` (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1, OPCIONAL) — ¿el pie del carrito rinde
+ * la barra de progreso visual hacia el envío gratis (gemela de `.ship-prog`/`.ship-bar` del
+ * prototipo, `docs/prototipos/cafeone/index.html:409-411`)? AUSENTE = el comportamiento de HOY,
+ * byte a byte (el carrito muestra sólo la frase condicional de siempre, `CartDrawer.tsx`). Escribe
+ * `content.carritoEnvio.visible` (`CarritoEnvioContent`, meta PROPIA — MISMA razón que
+ * `volverArribaVisible`/`rielSocialVisible`: no comparte objeto ni con `cromo`, `volverArriba` ni
+ * `rielSocial`). CORTE es hoy el ÚNICO preset que lo declara.
+ *
  * `navTratamientoActivo` (§ CROMO-NAV-TRATAMIENTO-1, OPCIONAL) — ¿los links del nav llevan el
  * tratamiento tipográfico del `.nav-link` del prototipo (mayúscula + tracking + un peso, sobre la
  * MISMA sans del par — NO una tercera familia)? AUSENTE = el comportamiento de HOY, byte a byte
@@ -258,6 +266,7 @@ export interface PresetTema {
   heroAlturaLlena?: boolean;
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
+  carritoEnvioVisible?: boolean;
   navTratamientoActivo?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
@@ -423,11 +432,14 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * propósito, ver el docstring de `CromoContent`), `volverArriba` (§ CROMO-VOLVER-ARRIBA-1, el botón
  * flotante — META PROPIA, aparte de `cromo`, ver el docstring de `VolverArribaContent`),
  * `rielSocial` (§ CROMO-RIEL-SOCIAL-1, el riel social — META PROPIA, aparte de `cromo` y de
- * `volverArriba`, ver el docstring de `RielSocialContent`), `navTratamiento` (§ CROMO-NAV-
- * TRATAMIENTO-1, el tratamiento tipográfico de los links del nav — META PROPIA, aparte de
- * `cromo`/`volverArriba`/`rielSocial`, ver el docstring de `NavTratamientoContent`), `navWordmark`
+ * `volverArriba`, ver el docstring de `RielSocialContent`), `carritoEnvio` (§ MUESTRARIO-CARRITO-
+ * BARRA-ENVIO-1, la barra de envío gratis del carrito — META PROPIA, aparte de `cromo`,
+ * `volverArriba` y `rielSocial`, ver el docstring de `CarritoEnvioContent`), `navTratamiento`
+ * (§ CROMO-NAV-TRATAMIENTO-1, el tratamiento tipográfico de los links del nav — META PROPIA, aparte
+ * de `cromo`/`volverArriba`/`rielSocial`/`carritoEnvio`, ver el docstring de
+ * `NavTratamientoContent`), `navWordmark`
  * (§ CORTE-LOGO-APILADO-1, el tratamiento tipográfico del wordmark apilado del nav — META PROPIA,
- * aparte de `cromo`/`volverArriba`/`rielSocial`/`navTratamiento`, ver el docstring de
+ * aparte de `cromo`/`volverArriba`/`rielSocial`/`carritoEnvio`/`navTratamiento`, ver el docstring de
  * `NavWordmarkContent`), `esquemas`, `orden` y `variantesBandas` (fusionados como BLOB, § arriba),
  * el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo que esa
  * sección ya tuviera (`{ ...prev, variante }`) —, el campo `visible` DENTRO de cada banda que
@@ -517,17 +529,26 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   out.rielSocial = {
     visible: fusionar('rielSocial.visible', preset.rielSocialVisible ?? false),
   };
-  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1): meta PROPIA, aparte de `cromo`, `volverArriba` Y
-  // `rielSocial` — ver el docstring de `NavTratamientoContent` para el porqué (conceptualmente es la
-  // misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato
-  // exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:`
-  // de este slice).
+  // `carritoEnvio` (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1): meta PROPIA, aparte de `cromo`,
+  // `volverArriba` Y `rielSocial` — ver el docstring de `CarritoEnvioContent` para el porqué (MISMA
+  // razón que `volverArriba`/`rielSocial`: no comparte el contrato exhaustivo de 3 claves de
+  // `cromo`, afirmado por `cromo-tematizable.test.ts`; y no se fusiona con ninguna de las otras dos
+  // porque cada una ya cerró SU propio contrato de 1 clave).
+  out.carritoEnvio = {
+    visible: fusionar('carritoEnvio.visible', preset.carritoEnvioVisible ?? false),
+  };
+  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
+  // `rielSocial` Y `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué
+  // (conceptualmente es la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede
+  // compartir el contrato exhaustivo de 3 claves de `cromo`, afirmado por
+  // `cromo-tematizable.test.ts`, FUERA de `touches:` de este slice).
   out.navTratamiento = {
     activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
-  // `rielSocial` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para el porqué (no es
-  // el mismo eje que `navTratamiento`: aquél trata los links del nav, éste el wordmark apilado).
+  // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
+  // el porqué (no es el mismo eje que `navTratamiento`: aquél trata los links del nav, éste el
+  // wordmark apilado).
   out.navWordmark = {
     activo: fusionar('navWordmark.activo', preset.navWordmarkActivo ?? false),
   };
@@ -916,6 +937,13 @@ export const CORTE: PresetTema = {
   // acá — visible sólo `@media (min-width:1560px)` (`css/app.css:339`). CORTE es hoy el ÚNICO preset
   // del catálogo que lo declara; los otros cinco no tocan `content.rielSocial`.
   rielSocialVisible: true,
+  // carritoEnvioVisible (§ MUESTRARIO-CARRITO-BARRA-ENVIO-1) — MEDIDO contra el prototipo:
+  // `.ship-prog`/`.ship-bar` (`docs/prototipos/cafeone/index.html:409-411`,
+  // `css/app.css:731-736`) es el mensaje + barra de progreso hacia el envío gratis que reemplaza a
+  // la frase estática de HOY dentro del cajón del carrito (`.drawer-body`, la MISMA superficie que
+  // ya viste `raices.tinta`/`navTinta` de CORTE). CORTE es hoy el ÚNICO preset del catálogo que lo
+  // declara; los otros cinco no tocan `content.carritoEnvio`.
+  carritoEnvioVisible: true,
   // navTratamientoActivo (§ CROMO-NAV-TRATAMIENTO-1) — MEDIDO contra el prototipo: `.nav-link`
   // (`docs/prototipos/cafeone/css/app.css:212-217`) declara `font-family:var(--font-ui)` (=
   // `--font-sans`, LA SANS del par — NO una tercera familia; `--font-ui` mide igual a `--font-body`,
