@@ -41,6 +41,23 @@ const MENU_HOY: Omit<MenuContent, 'visible'> = {
   ctaDestino: '',
   badgeItem: '',
   badgeTexto: '',
+  // El PANEL desplegable (§ MUESTRARIO-MEGA-MENU-1) — apagado, como el CTA y el badge de arriba.
+  panelItem: '',
+  panelIntro: '',
+  panelIntroCtaLabel: '',
+  panelIntroCtaDestino: '',
+  panelCol1Titulo: '',
+  panelCol1Link1Etiqueta: '', panelCol1Link1Nota: '', panelCol1Link1Destino: '',
+  panelCol1Link2Etiqueta: '', panelCol1Link2Nota: '', panelCol1Link2Destino: '',
+  panelCol1Link3Etiqueta: '', panelCol1Link3Nota: '', panelCol1Link3Destino: '',
+  panelCol2Titulo: '',
+  panelCol2Link1Etiqueta: '', panelCol2Link1Nota: '', panelCol2Link1Destino: '',
+  panelCol2Link2Etiqueta: '', panelCol2Link2Nota: '', panelCol2Link2Destino: '',
+  panelCol2Link3Etiqueta: '', panelCol2Link3Nota: '', panelCol2Link3Destino: '',
+  panelTarjetaImagen: '',
+  panelTarjetaTitulo: '',
+  panelTarjetaCtaLabel: '',
+  panelTarjetaCtaDestino: '',
 };
 
 const LINKS_HOY = [
@@ -65,10 +82,20 @@ test('DEFAULTS.menu es el menú de HOY: labels de hoy, orden de hoy, CTA apagado
   assert.deepEqual(DEFAULTS.menu, { visible: true, ...MENU_HOY });
 });
 
-test('REGISTRY.menu: ocultable:false (como el hero — no se apaga entero) y los 10 campos declarados', () => {
+test('REGISTRY.menu: ocultable:false (como el hero — no se apaga entero) y los 10 campos de HOY + los 28 del panel (§ MUESTRARIO-MEGA-MENU-1)', () => {
   assert.equal(REGISTRY.menu.ocultable, false);
   assert.deepEqual(Object.keys(REGISTRY.menu.campos).sort(), [
     'badgeItem', 'badgeTexto', 'ctaDestino', 'ctaLabel', 'labelNosotros', 'labelSuscripciones', 'labelTienda',
+    'panelCol1Link1Destino', 'panelCol1Link1Etiqueta', 'panelCol1Link1Nota',
+    'panelCol1Link2Destino', 'panelCol1Link2Etiqueta', 'panelCol1Link2Nota',
+    'panelCol1Link3Destino', 'panelCol1Link3Etiqueta', 'panelCol1Link3Nota',
+    'panelCol1Titulo',
+    'panelCol2Link1Destino', 'panelCol2Link1Etiqueta', 'panelCol2Link1Nota',
+    'panelCol2Link2Destino', 'panelCol2Link2Etiqueta', 'panelCol2Link2Nota',
+    'panelCol2Link3Destino', 'panelCol2Link3Etiqueta', 'panelCol2Link3Nota',
+    'panelCol2Titulo',
+    'panelIntro', 'panelIntroCtaDestino', 'panelIntroCtaLabel', 'panelItem',
+    'panelTarjetaCtaDestino', 'panelTarjetaCtaLabel', 'panelTarjetaImagen', 'panelTarjetaTitulo',
     'posicion1', 'posicion2', 'posicion3',
   ]);
 });

@@ -592,6 +592,62 @@ export interface MenuContent {
   // `undefined`.
   badgeItem?: string;
   badgeTexto?: string;
+
+  // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el prototipo
+  // (`docs/prototipos/cafeone/index.html:57-89`, `#mega-cafe`): intro (copy + CTA), DOS columnas de
+  // sub-enlaces, una tarjeta promocional (imagen + título + CTA). UN panel a la vez, atado a UN
+  // ítem — MISMO patrón que `badgeItem`: `panelItem` es del SET CERRADO `MENU_ITEM_IDS` (o `''` =
+  // ningún ítem lleva panel, el default byte-idéntico). Campos PLANOS, no un objeto anidado — mismo
+  // criterio que `suscripcionPlanes` (nombreN/benN_M): el resolver genérico (`REGISTRY.menu.campos`)
+  // sólo sabe default-vs-omitir por CAMPO STRING de primer nivel, no recorrer un árbol; anidar habría
+  // exigido un mecanismo nuevo que el resto del modelo no tiene.
+  //
+  // LOS DESTINOS (`panelIntroCtaDestino`, cada `*Destino` de columna, `panelTarjetaCtaDestino`) son
+  // del MISMO set cerrado `MENU_CTA_DESTINOS` que `ctaDestino` arriba — el prototipo apunta sus
+  // columnas a variantes de producto (`producto.html?p=Molido&t=250`) y a anclas de la propia página
+  // (`#historia`), NINGUNA expresable en el set cerrado de hoy: un destino de texto libre se rompe
+  // solo (§ por qué se retiró `PRESENTACIONES_HREFS`), así que ese detalle del prototipo NO se
+  // reproduce — el panel apunta a rutas reales (`/tienda`, `/suscripciones`, `/nosotros`), no a
+  // productos puntuales ni anclas. Declarado en el asiento de este slice.
+  //
+  // Cada ENLACE de columna lleva además `nota` (el texto secundario que el prototipo muestra al lado
+  // del label — ahí un precio; acá TEXTO del dueño, nunca un dato derivado del catálogo — ver
+  // `resolverEnlacePanel`, más abajo).
+  //
+  // TODOS opcionales (`?`), como `badgeItem`/`badgeTexto`: son ADITIVOS sobre una interfaz que ya
+  // tenía un literal armado a mano fuera de `touches:` de este slice (`MENU_HOY`, § arriba). En
+  // RUNTIME siempre resuelven a `''` vía `REGISTRY.menu.campos` + `resolverSiteContent`, nunca
+  // `undefined`.
+  panelItem?: string;
+  panelIntro?: string;
+  panelIntroCtaLabel?: string;
+  panelIntroCtaDestino?: string;
+  panelCol1Titulo?: string;
+  panelCol1Link1Etiqueta?: string;
+  panelCol1Link1Nota?: string;
+  panelCol1Link1Destino?: string;
+  panelCol1Link2Etiqueta?: string;
+  panelCol1Link2Nota?: string;
+  panelCol1Link2Destino?: string;
+  panelCol1Link3Etiqueta?: string;
+  panelCol1Link3Nota?: string;
+  panelCol1Link3Destino?: string;
+  panelCol2Titulo?: string;
+  panelCol2Link1Etiqueta?: string;
+  panelCol2Link1Nota?: string;
+  panelCol2Link1Destino?: string;
+  panelCol2Link2Etiqueta?: string;
+  panelCol2Link2Nota?: string;
+  panelCol2Link2Destino?: string;
+  panelCol2Link3Etiqueta?: string;
+  panelCol2Link3Nota?: string;
+  panelCol2Link3Destino?: string;
+  // La imagen de la TARJETA promocional — el ÚNICO blob del menú (§ REGISTRY.menu.imagenes, abajo:
+  // sin nombrarlo ahí, un reemplazo dejaría el blob viejo huérfano para siempre).
+  panelTarjetaImagen?: string;
+  panelTarjetaTitulo?: string;
+  panelTarjetaCtaLabel?: string;
+  panelTarjetaCtaDestino?: string;
 }
 
 // Un enlace legal del pie (§ MUESTRARIO-FOOTER-TEMA-1, `items` de `FooterContent` abajo). A
@@ -1248,9 +1304,11 @@ export const DEFAULTS: SiteContentData = {
     items: [],
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
-  // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), y el BADGE APAGADO
-  // (§ CORTE-BADGE-COSECHA-EN-MENU-1, los dos campos vacíos — ningún ítem lleva badge). Byte-idéntico
-  // sin fila (§ CROMO-MENU-COMO-DATO-1, la invariante del slice).
+  // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), el BADGE APAGADO
+  // (§ CORTE-BADGE-COSECHA-EN-MENU-1, los dos campos vacíos — ningún ítem lleva badge), y el PANEL
+  // APAGADO (§ MUESTRARIO-MEGA-MENU-1, `panelItem: ''` — ningún ítem lleva panel; los 27 campos
+  // restantes del panel vacíos). Byte-idéntico sin fila (§ CROMO-MENU-COMO-DATO-1, la invariante del
+  // slice).
   menu: {
     visible: true,
     labelTienda: 'Tienda',
@@ -1263,6 +1321,22 @@ export const DEFAULTS: SiteContentData = {
     ctaDestino: '',
     badgeItem: '',
     badgeTexto: '',
+    panelItem: '',
+    panelIntro: '',
+    panelIntroCtaLabel: '',
+    panelIntroCtaDestino: '',
+    panelCol1Titulo: '',
+    panelCol1Link1Etiqueta: '', panelCol1Link1Nota: '', panelCol1Link1Destino: '',
+    panelCol1Link2Etiqueta: '', panelCol1Link2Nota: '', panelCol1Link2Destino: '',
+    panelCol1Link3Etiqueta: '', panelCol1Link3Nota: '', panelCol1Link3Destino: '',
+    panelCol2Titulo: '',
+    panelCol2Link1Etiqueta: '', panelCol2Link1Nota: '', panelCol2Link1Destino: '',
+    panelCol2Link2Etiqueta: '', panelCol2Link2Nota: '', panelCol2Link2Destino: '',
+    panelCol2Link3Etiqueta: '', panelCol2Link3Nota: '', panelCol2Link3Destino: '',
+    panelTarjetaImagen: '',
+    panelTarjetaTitulo: '',
+    panelTarjetaCtaLabel: '',
+    panelTarjetaCtaDestino: '',
   },
   // El PIE por defecto: los encabezados y las etiquetas de HOY (`siteConfig.footerNav`, antes de este
   // slice), variante canónica 'franjas' (NO 'columnas' — ese nombre ya lo usa `brandStory.variante`
@@ -1784,16 +1858,24 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     },
   },
   // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se
-  // apaga entero; renombrar/reordenar no es lo mismo que encender/apagar. Sin `imagenes` (no lleva
-  // ninguna). Las posiciones, el CTA y el BADGE (§ CORTE-BADGE-COSECHA-EN-MENU-1) son
-  // 'requerido'/'opcional' STRINGS PLANOS a propósito —el resolver genérico no valida pertenencia a
-  // un set cerrado, sólo default-vs-omit—; el set cerrado lo impone el SCHEMA (§ site-content-
-  // schema.ts, `menuEditableSchema`) al escribir, y el RENDER (`resolverOrdenMenu`/`menuCtaHref`/
-  // `itemsDeMenu`, abajo) lo vuelve a filtrar SOFT al leer, para que un dato corrupto por otra vía
-  // (un `UPDATE` a mano, una fila vieja) no produzca un link roto ni un badge huérfano.
+  // apaga entero; renombrar/reordenar no es lo mismo que encender/apagar. Las posiciones, el CTA y
+  // el BADGE (§ CORTE-BADGE-COSECHA-EN-MENU-1) son 'requerido'/'opcional' STRINGS PLANOS a propósito
+  // —el resolver genérico no valida pertenencia a un set cerrado, sólo default-vs-omit—; el set
+  // cerrado lo impone el SCHEMA (§ site-content-schema.ts, `menuEditableSchema`) al escribir, y el
+  // RENDER (`resolverOrdenMenu`/`menuCtaHref`/`itemsDeMenu`, abajo) lo vuelve a filtrar SOFT al
+  // leer, para que un dato corrupto por otra vía (un `UPDATE` a mano, una fila vieja) no produzca un
+  // link roto ni un badge huérfano.
+  //
+  // EL PANEL (§ MUESTRARIO-MEGA-MENU-1): 28 campos más (`panelItem` + sus 27), TODOS 'opcional' — un panel vacío/a-medias
+  // se OMITE entero (`panelDeMenuItem`, abajo prefiere callar a un desplegable vacío), nunca cae a
+  // un default inventado. `imagenes: ['panelTarjetaImagen']` —el ÚNICO blob del menú— para que el
+  // borrado de blobs reemplazados (`imagenesDe`, site-content-blobs.ts) lo vea: sin nombrarlo acá,
+  // reemplazar la imagen de la tarjeta dejaría el blob viejo huérfano para siempre (mismo mecanismo
+  // que `hero.imagenPoster`).
   menu: {
     label: 'Menú',
     ocultable: false,
+    imagenes: ['panelTarjetaImagen'],
     campos: {
       labelTienda: 'requerido',
       labelSuscripciones: 'requerido',
@@ -1805,6 +1887,22 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       ctaDestino: 'opcional',
       badgeItem: 'opcional',
       badgeTexto: 'opcional',
+      panelItem: 'opcional',
+      panelIntro: 'opcional',
+      panelIntroCtaLabel: 'opcional',
+      panelIntroCtaDestino: 'opcional',
+      panelCol1Titulo: 'opcional',
+      panelCol1Link1Etiqueta: 'opcional', panelCol1Link1Nota: 'opcional', panelCol1Link1Destino: 'opcional',
+      panelCol1Link2Etiqueta: 'opcional', panelCol1Link2Nota: 'opcional', panelCol1Link2Destino: 'opcional',
+      panelCol1Link3Etiqueta: 'opcional', panelCol1Link3Nota: 'opcional', panelCol1Link3Destino: 'opcional',
+      panelCol2Titulo: 'opcional',
+      panelCol2Link1Etiqueta: 'opcional', panelCol2Link1Nota: 'opcional', panelCol2Link1Destino: 'opcional',
+      panelCol2Link2Etiqueta: 'opcional', panelCol2Link2Nota: 'opcional', panelCol2Link2Destino: 'opcional',
+      panelCol2Link3Etiqueta: 'opcional', panelCol2Link3Nota: 'opcional', panelCol2Link3Destino: 'opcional',
+      panelTarjetaImagen: 'opcional',
+      panelTarjetaTitulo: 'opcional',
+      panelTarjetaCtaLabel: 'opcional',
+      panelTarjetaCtaDestino: 'opcional',
     },
   },
   // EL PIE DE PÁGINA (§ MUESTRARIO-FOOTER-TEMA-1, § el docstring de `FooterContent` arriba). MISMO
@@ -2286,8 +2384,16 @@ const MENU_PAGE_GATE: Partial<Record<MenuItemId, 'nosotros' | 'suscripciones'>> 
  *  ausente). Sale del ítem cuyo id coincide con `content.menu.badgeItem` Y trae `badgeTexto`
  *  no-vacío; un `badgeItem` que no matchea ningún id VISIBLE (fuera del set, o gateado por
  *  `paginas.*.visible`) no encuentra dónde mostrarse — preferir callar, mismo criterio que
- *  `menuCtaHref`. */
-export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: string; path: string; badge?: string }[] {
+ *  `menuCtaHref`.
+ *
+ *  `panel` (§ MUESTRARIO-MEGA-MENU-1) sigue el MISMO criterio de omisión que `badge`: ausente
+ *  (nunca `panel: undefined`) para todo ítem sin panel — `panelDeMenuItem` ya devuelve `null` para
+ *  TODOS los ids cuando `content.menu.panelItem` está vacío (el default), así que ningún tenant sin
+ *  editar gana la clave — BYTE-IDÉNTICO por `deepEqual`, misma garantía que `badge`. Se resuelve
+ *  DESPUÉS del filtro por página: un `panelItem` que apunte a un id ya excluido por
+ *  `paginas.*.visible` nunca llega a `panelDeMenuItem`, así que tampoco puede sacar el panel de un
+ *  ítem que no se muestra. */
+export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: string; path: string; badge?: string; panel?: MenuPanel }[] {
   const orden = resolverOrdenMenu([content.menu.posicion1, content.menu.posicion2, content.menu.posicion3]);
   const badgeItem = content.menu.badgeItem ?? '';
   const badgeTexto = content.menu.badgeTexto ?? '';
@@ -2296,12 +2402,16 @@ export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: 
       const gate = MENU_PAGE_GATE[id];
       return !gate || content.paginas[gate].visible;
     })
-    .map((id) => ({
-      id,
-      label: labelDeItemMenu(content.menu, id),
-      path: MENU_PATHS[id],
-      ...(id === badgeItem && badgeTexto ? { badge: badgeTexto } : {}),
-    }));
+    .map((id) => {
+      const panel = panelDeMenuItem(content, id);
+      return {
+        id,
+        label: labelDeItemMenu(content.menu, id),
+        path: MENU_PATHS[id],
+        ...(id === badgeItem && badgeTexto ? { badge: badgeTexto } : {}),
+        ...(panel ? { panel } : {}),
+      };
+    });
 }
 
 const MENU_CTA_DESTINO_SET: ReadonlySet<string> = new Set(MENU_CTA_DESTINOS);
@@ -2325,6 +2435,87 @@ export function resolverCtaSeccion(label: string, destino: string, paginas: Pagi
 /** El href del CTA del menú — caso particular de `resolverCtaSeccion` sobre `content.menu`. */
 export function menuCtaHref(content: SiteContentData): string | null {
   return resolverCtaSeccion(content.menu.ctaLabel, content.menu.ctaDestino, content.paginas);
+}
+
+// ─── El PANEL desplegable del menú (mega-menu, § MUESTRARIO-MEGA-MENU-1) ────────────────────────
+
+/** Un enlace de columna del panel, o `null` si no debe mostrarse. MISMO criterio que
+ *  `resolverCtaSeccion` (sin etiqueta, destino fuera del set cerrado, o página apagada → `null`,
+ *  preferir callar a un link roto), con un campo más: `nota`, el texto secundario que el prototipo
+ *  muestra al lado del label (ahí un precio de producto; acá TEXTO del dueño — nunca un dato
+ *  derivado del catálogo, no se deriva ningún precio acá). */
+export interface MenuPanelEnlace { etiqueta: string; nota: string; destino: string; }
+
+function resolverEnlacePanel(etiqueta: string, nota: string, destino: string, paginas: PaginasContent): MenuPanelEnlace | null {
+  const href = resolverCtaSeccion(etiqueta, destino, paginas);
+  if (href === null) return null;
+  return { etiqueta, nota, destino: href };
+}
+
+/** Una columna del panel, o `null` si no debe mostrarse: sin título Y sin ningún enlace vivo —
+ *  MISMO criterio OR que Presentaciones 2-4 (título O contenido, § CLAUDE.md "El criterio es OR, no
+ *  AND"), aplicado acá a "título O algún enlace" en vez de "título O imagen". Los enlaces muertos
+ *  (sin etiqueta, o con destino inválido) se OMITEN de la lista, nunca dejan un hueco. */
+export interface MenuPanelColumna { titulo: string; enlaces: MenuPanelEnlace[]; }
+
+function resolverColumnaPanel(titulo: string, enlaces: (MenuPanelEnlace | null)[]): MenuPanelColumna | null {
+  const vivos = enlaces.filter((e): e is MenuPanelEnlace => e !== null);
+  if (titulo.trim() === '' && vivos.length === 0) return null;
+  return { titulo, enlaces: vivos };
+}
+
+/** El panel completo de UN ítem: intro (copy + CTA), columnas de sub-enlaces, tarjeta promocional
+ *  (imagen + título + CTA) — medido contra el prototipo (`docs/prototipos/cafeone/index.html:57-89`,
+ *  `#mega-cafe`). */
+export interface MenuPanel {
+  intro: string;
+  introCtaHref: string | null;
+  introCtaLabel: string;
+  columnas: MenuPanelColumna[];
+  tarjetaImagen: string;
+  tarjetaTitulo: string;
+  tarjetaCtaHref: string | null;
+  tarjetaCtaLabel: string;
+}
+
+/** El panel de un ítem, o `null` si no lleva uno — UN panel a la vez, atado a `content.menu.panelItem`
+ *  (SET CERRADO `MENU_ITEM_IDS`, MISMO patrón que `badgeItem`/`itemsDeMenu`). Devuelve `null` también
+ *  cuando el panel está a MEDIAS/VACÍO (ningún campo con contenido real): preferir callar a un
+ *  desplegable sin nada adentro, mismo criterio que el resto de esta sección — vacío = el ítem sigue
+ *  siendo un link plano. */
+export function panelDeMenuItem(content: SiteContentData, id: MenuItemId): MenuPanel | null {
+  const m = content.menu;
+  if ((m.panelItem ?? '') !== id) return null;
+
+  const columnas = [
+    resolverColumnaPanel(m.panelCol1Titulo ?? '', [
+      resolverEnlacePanel(m.panelCol1Link1Etiqueta ?? '', m.panelCol1Link1Nota ?? '', m.panelCol1Link1Destino ?? '', content.paginas),
+      resolverEnlacePanel(m.panelCol1Link2Etiqueta ?? '', m.panelCol1Link2Nota ?? '', m.panelCol1Link2Destino ?? '', content.paginas),
+      resolverEnlacePanel(m.panelCol1Link3Etiqueta ?? '', m.panelCol1Link3Nota ?? '', m.panelCol1Link3Destino ?? '', content.paginas),
+    ]),
+    resolverColumnaPanel(m.panelCol2Titulo ?? '', [
+      resolverEnlacePanel(m.panelCol2Link1Etiqueta ?? '', m.panelCol2Link1Nota ?? '', m.panelCol2Link1Destino ?? '', content.paginas),
+      resolverEnlacePanel(m.panelCol2Link2Etiqueta ?? '', m.panelCol2Link2Nota ?? '', m.panelCol2Link2Destino ?? '', content.paginas),
+      resolverEnlacePanel(m.panelCol2Link3Etiqueta ?? '', m.panelCol2Link3Nota ?? '', m.panelCol2Link3Destino ?? '', content.paginas),
+    ]),
+  ].filter((c): c is MenuPanelColumna => c !== null);
+
+  const intro = m.panelIntro ?? '';
+  const tarjetaImagen = m.panelTarjetaImagen ?? '';
+  const tarjetaTitulo = m.panelTarjetaTitulo ?? '';
+  const hayContenido = intro.trim() !== '' || columnas.length > 0 || tarjetaImagen.trim() !== '' || tarjetaTitulo.trim() !== '';
+  if (!hayContenido) return null;
+
+  return {
+    intro,
+    introCtaHref: resolverCtaSeccion(m.panelIntroCtaLabel ?? '', m.panelIntroCtaDestino ?? '', content.paginas),
+    introCtaLabel: m.panelIntroCtaLabel ?? '',
+    columnas,
+    tarjetaImagen,
+    tarjetaTitulo,
+    tarjetaCtaHref: resolverCtaSeccion(m.panelTarjetaCtaLabel ?? '', m.panelTarjetaCtaDestino ?? '', content.paginas),
+    tarjetaCtaLabel: m.panelTarjetaCtaLabel ?? '',
+  };
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

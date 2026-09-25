@@ -408,6 +408,29 @@ const menuEditableSchema = z.object({
   ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   badgeItem: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
   badgeTexto: z.string().optional(),
+  // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — 28 campos más (`panelItem` + sus 27), TODOS opcionales,
+  // como el resto de este schema SOFT. `panelItem` es del MISMO set cerrado `MENU_ITEM_IDS` que
+  // `badgeItem` — un panel atado a un id fuera del set queda inalcanzable, no rechazado, § el
+  // resolver SOFT `panelDeMenuItem`. Cada `*Destino` (intro, los seis enlaces de columna, la
+  // tarjeta) es del MISMO set cerrado `MENU_CTA_DESTINOS` que `ctaDestino` arriba — mismo criterio
+  // que `brandStoryEditableSchema.ctaDestino`/`presentacionesEditableSchema.ctaDestino`: el WRITE es
+  // más estricto que el loader SOFT.
+  panelItem: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
+  panelIntro: z.string().optional(),
+  panelIntroCtaLabel: z.string().optional(),
+  panelIntroCtaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelCol1Titulo: z.string().optional(),
+  panelCol1Link1Etiqueta: z.string().optional(), panelCol1Link1Nota: z.string().optional(), panelCol1Link1Destino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelCol1Link2Etiqueta: z.string().optional(), panelCol1Link2Nota: z.string().optional(), panelCol1Link2Destino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelCol1Link3Etiqueta: z.string().optional(), panelCol1Link3Nota: z.string().optional(), panelCol1Link3Destino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelCol2Titulo: z.string().optional(),
+  panelCol2Link1Etiqueta: z.string().optional(), panelCol2Link1Nota: z.string().optional(), panelCol2Link1Destino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelCol2Link2Etiqueta: z.string().optional(), panelCol2Link2Nota: z.string().optional(), panelCol2Link2Destino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelCol2Link3Etiqueta: z.string().optional(), panelCol2Link3Nota: z.string().optional(), panelCol2Link3Destino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  panelTarjetaImagen: z.string().optional(),
+  panelTarjetaTitulo: z.string().optional(),
+  panelTarjetaCtaLabel: z.string().optional(),
+  panelTarjetaCtaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
 }).refine(
   (v) => {
     const vals = [v.posicion1, v.posicion2, v.posicion3].filter((x) => !!x);

@@ -143,14 +143,28 @@ const CONTROLADOS_GENERICOS: string[] = SECCIONES_TIENDA.flatMap(camposDeSeccion
 /** DECLARACIÓN EXPLÍCITA de lo que `MenuSeccion.tsx` controla (`menu` NO pasa por `TiendaSeccionEditor`,
  *  § CROMO-MENU-PANEL-EDITOR-1) — leído de su código: las tres etiquetas (`labelTienda`,
  *  `labelSuscripciones`, `labelNosotros`), las tres posiciones de orden, el CTA (`ctaLabel`,
- *  `ctaDestino`) y el BADGE (`badgeItem`, `badgeTexto` — § PANEL-EDITOR-MENU-BADGE-1: el select del
- *  ítem con badge + su texto, con `badgeTexto` atenuado sin ítem elegido). `menu.visible` no aplica —
- *  `REGISTRY.menu.ocultable` es `false`, así que no entra al lado "leído" (§ arriba). */
+ *  `ctaDestino`), el BADGE (`badgeItem`, `badgeTexto` — § PANEL-EDITOR-MENU-BADGE-1: el select del
+ *  ítem con badge + su texto, con `badgeTexto` atenuado sin ítem elegido), y el PANEL DESPLEGABLE
+ *  (§ MUESTRARIO-MEGA-MENU-1: el select del ítem con panel + sus 27 campos —intro/CTA, las dos
+ *  columnas de hasta 3 enlaces, la tarjeta—, atenuados sin ítem elegido, mismo tratamiento que el
+ *  badge). `menu.visible` no aplica — `REGISTRY.menu.ocultable` es `false`, así que no entra al lado
+ *  "leído" (§ arriba). */
 const CONTROLADOS_MENU_SECCION = [
   'menu.labelTienda', 'menu.labelSuscripciones', 'menu.labelNosotros',
   'menu.posicion1', 'menu.posicion2', 'menu.posicion3',
   'menu.ctaLabel', 'menu.ctaDestino',
   'menu.badgeItem', 'menu.badgeTexto',
+  'menu.panelItem',
+  'menu.panelIntro', 'menu.panelIntroCtaLabel', 'menu.panelIntroCtaDestino',
+  'menu.panelCol1Titulo',
+  'menu.panelCol1Link1Etiqueta', 'menu.panelCol1Link1Nota', 'menu.panelCol1Link1Destino',
+  'menu.panelCol1Link2Etiqueta', 'menu.panelCol1Link2Nota', 'menu.panelCol1Link2Destino',
+  'menu.panelCol1Link3Etiqueta', 'menu.panelCol1Link3Nota', 'menu.panelCol1Link3Destino',
+  'menu.panelCol2Titulo',
+  'menu.panelCol2Link1Etiqueta', 'menu.panelCol2Link1Nota', 'menu.panelCol2Link1Destino',
+  'menu.panelCol2Link2Etiqueta', 'menu.panelCol2Link2Nota', 'menu.panelCol2Link2Destino',
+  'menu.panelCol2Link3Etiqueta', 'menu.panelCol2Link3Nota', 'menu.panelCol2Link3Destino',
+  'menu.panelTarjetaImagen', 'menu.panelTarjetaTitulo', 'menu.panelTarjetaCtaLabel', 'menu.panelTarjetaCtaDestino',
 ];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `FooterSeccion.tsx` controla (`footer` NO pasa por

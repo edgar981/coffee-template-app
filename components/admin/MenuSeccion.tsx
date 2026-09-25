@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { ChangeEvent } from 'react';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
+import { Pencil, Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
+import BarraProgreso from '@/components/admin/BarraProgreso';
+import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import { MENU_ITEM_IDS, MENU_CTA_DESTINOS, resolverOrdenMenu, type MenuContent, type MenuItemId } from '@/lib/config/site-content-defaults';
-import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, type CampoPosicionMenu } from '@/lib/config/menu-editor';
+import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, parAMedias, type CampoPosicionMenu } from '@/lib/config/menu-editor';
+import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 // ─── Bloque MENÚ DEL NAV — vive en /admin/tienda, editor BESPOKE SIN vista previa ────────────────
 //
@@ -40,10 +44,41 @@ import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, type Ca
 // lib/config/menu-editor.ts). El estado resultante es SIEMPRE una permutación válida de
 // `MENU_ITEM_IDS` — el 400 del `.refine()` de `menuEditableSchema` (dos posiciones con el mismo
 // ítem) queda IMPOSIBLE de producir desde este editor, no rechazado después de intentarlo.
+//
+// EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) sigue el MISMO patrón que el BADGE:
+// `panelItem` elige QUÉ ítem lo lleva (set cerrado `MENU_ITEM_IDS` + "Ninguno" = sin panel, el
+// default byte-idéntico); sus 27 campos (intro+CTA, dos columnas de hasta 3 enlaces, la tarjeta) se
+// atenúan sin ítem elegido, mismo tratamiento visual que `badgeTexto`. La imagen de la tarjeta sube
+// por `useSubidaImagen` (§ el uploader compartido de la cáscara) — es el ÚNICO campo-imagen de este
+// bloque, así que no hace falta el `subiendoCampo` que rastrea TiendaSeccionEditor entre varios.
 
 type Form = MenuContent;
 
 const POSICIONES: readonly CampoPosicionMenu[] = ['posicion1', 'posicion2', 'posicion3'];
+
+// Las DOS columnas del panel, cada una con su título y hasta TRES enlaces — declarado como datos
+// para recorrer con `.map` en vez de escribir el mismo bloque de campos seis veces (dos columnas ×
+// tres enlaces). Los nombres son las claves REALES de `MenuContent` (§ site-content-defaults.ts).
+interface CampoEnlacePanel { etiqueta: keyof Form; nota: keyof Form; destino: keyof Form; }
+interface CampoColumnaPanel { titulo: keyof Form; enlaces: CampoEnlacePanel[]; }
+const COLUMNAS_PANEL: readonly CampoColumnaPanel[] = [
+  {
+    titulo: 'panelCol1Titulo',
+    enlaces: [
+      { etiqueta: 'panelCol1Link1Etiqueta', nota: 'panelCol1Link1Nota', destino: 'panelCol1Link1Destino' },
+      { etiqueta: 'panelCol1Link2Etiqueta', nota: 'panelCol1Link2Nota', destino: 'panelCol1Link2Destino' },
+      { etiqueta: 'panelCol1Link3Etiqueta', nota: 'panelCol1Link3Nota', destino: 'panelCol1Link3Destino' },
+    ],
+  },
+  {
+    titulo: 'panelCol2Titulo',
+    enlaces: [
+      { etiqueta: 'panelCol2Link1Etiqueta', nota: 'panelCol2Link1Nota', destino: 'panelCol2Link1Destino' },
+      { etiqueta: 'panelCol2Link2Etiqueta', nota: 'panelCol2Link2Nota', destino: 'panelCol2Link2Destino' },
+      { etiqueta: 'panelCol2Link3Etiqueta', nota: 'panelCol2Link3Nota', destino: 'panelCol2Link3Destino' },
+    ],
+  },
+];
 
 export default function MenuSeccion() {
   const [cargando, setCargando]           = useState(true);
@@ -54,8 +89,13 @@ export default function MenuSeccion() {
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [procesando, setProcesando]       = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const [errorImagenPanel, setErrorImagenPanel] = useState<string | null>(null);
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
+
+  // El uploader de la imagen de la tarjeta promocional (§ MUESTRARIO-MEGA-MENU-1) — el mismo hook
+  // compartido que la cáscara y el repeater (§ useSubidaImagen.ts), un `<input>` propio, `subiendo`.
+  const subidaImagen = useSubidaImagen({ onError: setErrorImagenPanel });
 
   // AUTOGUARDADO del borrador — la MISMA máquina que las secciones (§ useAutoguardado), pero el PUT
   // va por el endpoint GENÉRICO de contenido (`menu` es una sección de REGISTRY), no por uno propio.
@@ -106,6 +146,21 @@ export default function MenuSeccion() {
 
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
 
+  // Helpers GENÉRICOS para los 27 campos planos del panel (§ MUESTRARIO-MEGA-MENU-1): leer/escribir
+  // por CLAVE, en vez de repetir `form.panelX ?? ''` / `cambiar({panelX: …})` a mano en cada campo.
+  const valorCampo = (campo: keyof Form): string => (formRef.current?.[campo] as string | undefined) ?? '';
+  const setCampo = (campo: keyof Form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    cambiar({ [campo]: e.target.value } as Partial<Form>);
+
+  // El destino de un enlace del panel (intro, cada enlace de columna, la tarjeta) es del MISMO SET
+  // CERRADO `MENU_CTA_DESTINOS` que el CTA del menú — un `<select>` nativo, repetido seis veces.
+  const renderDestino = (campo: keyof Form, id: string) => (
+    <select id={id} className="duna-input duna-select" value={valorCampo(campo)} onChange={setCampo(campo)}>
+      <option value="">Sin destino</option>
+      {MENU_CTA_DESTINOS.map((d) => <option key={d} value={d}>{d}</option>)}
+    </select>
+  );
+
   // Publicar / Descartar el borrador de esta sección (POST /api/site-content, el mismo camino que
   // TiendaSeccionEditor usa para cada sección).
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
@@ -148,8 +203,11 @@ export default function MenuSeccion() {
   const ctaLabelPresente = form.ctaLabel.trim() !== '';
   const ctaDestinoPresente = (MENU_CTA_DESTINOS as readonly string[]).includes(form.ctaDestino);
   const ctaCompleto = ctaLabelPresente && ctaDestinoPresente;
-  const ctaAMedias = ctaLabelPresente !== ctaDestinoPresente; // uno presente sin el otro
+  const ctaAMedias = parAMedias(form.ctaLabel, form.ctaDestino);
   const badgeTextoAtenuado = (form.badgeItem ?? '') === ''; // sin ítem elegido, el texto no se muestra
+  const panelAtenuado = (form.panelItem ?? '') === ''; // sin ítem elegido, el panel no se muestra
+  const panelIntroCtaAMedias = parAMedias(form.panelIntroCtaLabel ?? '', form.panelIntroCtaDestino ?? '');
+  const panelTarjetaCtaAMedias = parAMedias(form.panelTarjetaCtaLabel ?? '', form.panelTarjetaCtaDestino ?? '');
 
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
@@ -319,6 +377,143 @@ export default function MenuSeccion() {
                 {badgeTextoAtenuado ? 'Elige un ítem arriba para que este texto se muestre.' : 'Vacío: no se muestra ningún badge.'}
               </p>
             </div>
+
+            {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el
+                prototipo (docs/prototipos/cafeone/index.html:57-89, #mega-cafe): copy introductorio
+                + su CTA, DOS columnas de sub-enlaces, una tarjeta promocional. MISMO patrón que el
+                badge de arriba: `panelItem` elige QUÉ ítem lo lleva (set cerrado `MENU_ITEM_IDS` +
+                "Ninguno" = sin panel, el default byte-idéntico); el resto se ATENÚA sin ítem
+                elegido, el dato se conserva editable para cuando se elija uno. Vacío/a-medias
+                (§ `panelDeMenuItem`) el ítem sigue siendo un enlace simple — preferir callar a un
+                desplegable sin nada adentro. */}
+            <div className="duna-field">
+              <label className="duna-field__label" htmlFor="menu-panel-item">Ítem con panel desplegable (opcional)</label>
+              <select
+                id="menu-panel-item" className="duna-input duna-select"
+                value={form.panelItem ?? ''}
+                onChange={(e) => cambiar({ panelItem: e.target.value })}
+              >
+                <option value="">Ninguno</option>
+                {MENU_ITEM_IDS.map((id) => <option key={id} value={id}>{etiquetaOpcionMenu(form, id)}</option>)}
+              </select>
+              <p className="duna-field__hint">Ninguno: el ítem sigue siendo un enlace simple, sin desplegable.</p>
+            </div>
+
+            <div style={panelAtenuado ? { opacity: 0.6 } : undefined}>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="menu-panel-intro">Texto introductorio</label>
+                <textarea
+                  id="menu-panel-intro" className="duna-input" rows={2}
+                  value={form.panelIntro ?? ''} onChange={setCampo('panelIntro')}
+                />
+                <p className="duna-field__hint">Vacío: no se muestra ningún texto.</p>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--duna-space-3)', flexWrap: 'wrap' }}>
+                <div className="duna-field" style={{ flex: '1 1 200px' }}>
+                  <label className="duna-field__label" htmlFor="menu-panel-intro-cta-label">Botón del texto introductorio</label>
+                  <input
+                    id="menu-panel-intro-cta-label" className="duna-input"
+                    value={form.panelIntroCtaLabel ?? ''} onChange={setCampo('panelIntroCtaLabel')}
+                    placeholder="Ej. Ver producto"
+                  />
+                </div>
+                <div className="duna-field" style={{ flex: '1 1 160px' }}>
+                  <label className="duna-field__label" htmlFor="menu-panel-intro-cta-destino">Destino del botón</label>
+                  {renderDestino('panelIntroCtaDestino', 'menu-panel-intro-cta-destino')}
+                </div>
+              </div>
+              {panelIntroCtaAMedias && (
+                <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)' }}>
+                  ⚠ Falta {(form.panelIntroCtaLabel ?? '').trim() !== '' ? 'el destino' : 'el texto'} — el botón no se muestra hasta completar los dos.
+                </p>
+              )}
+
+              {/* LAS DOS COLUMNAS de sub-enlaces (§ COLUMNAS_PANEL, arriba). Cada enlace vacío de
+                  etiqueta simplemente no se muestra (§ `resolverEnlacePanel`) — no hace falta un
+                  botón "Agregar"/"Quitar": los TRES slots por columna ya están ahí, como los
+                  bullets de Suscripción. */}
+              {COLUMNAS_PANEL.map((col, i) => (
+                <div key={col.titulo} style={{ marginTop: 'var(--duna-space-4)' }}>
+                  <div className="duna-field">
+                    <label className="duna-field__label" htmlFor={`menu-${col.titulo}`}>{`Columna ${i + 1} — encabezado`}</label>
+                    <input id={`menu-${col.titulo}`} className="duna-input" value={valorCampo(col.titulo)} onChange={setCampo(col.titulo)} />
+                  </div>
+                  {col.enlaces.map((en, j) => (
+                    <div key={en.etiqueta} style={{ display: 'flex', gap: 'var(--duna-space-3)', flexWrap: 'wrap', marginTop: 'var(--duna-space-2)' }}>
+                      <div className="duna-field" style={{ flex: '1 1 160px' }}>
+                        <label className="duna-field__label" htmlFor={`menu-${en.etiqueta}`}>{`Enlace ${j + 1} — etiqueta`}</label>
+                        <input id={`menu-${en.etiqueta}`} className="duna-input" value={valorCampo(en.etiqueta)} onChange={setCampo(en.etiqueta)} />
+                      </div>
+                      <div className="duna-field" style={{ flex: '1 1 120px' }}>
+                        <label className="duna-field__label" htmlFor={`menu-${en.nota}`}>Nota (opcional)</label>
+                        <input id={`menu-${en.nota}`} className="duna-input" value={valorCampo(en.nota)} onChange={setCampo(en.nota)} />
+                      </div>
+                      <div className="duna-field" style={{ flex: '1 1 140px' }}>
+                        <label className="duna-field__label" htmlFor={`menu-${en.destino}`}>Destino</label>
+                        {renderDestino(en.destino, `menu-${en.destino}`)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* LA TARJETA promocional: imagen + título + CTA. Misma miniatura + botón "Subir" que
+                  usan hero/brandStory (§ TiendaSeccionEditor.tsx, `renderMiniatura`) — sin "Por
+                  defecto": no hay una imagen de fábrica para una tarjeta que hoy nadie declara. */}
+              <div className="duna-field" style={{ marginTop: 'var(--duna-space-4)' }}>
+                <span className="duna-field__label">Tarjeta promocional — imagen</span>
+                <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-1)' }}>
+                  <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
+                    {form.panelTarjetaImagen
+                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={form.panelTarjetaImagen} alt="" />
+                      : <ImageIcon aria-hidden width={20} height={20} />}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => subidaImagen.pedir((url) => cambiar({ panelTarjetaImagen: url }))}
+                      className="duna-btn duna-btn--secondary duna-btn--sm"
+                      disabled={subidaImagen.subiendo}
+                    >
+                      <Upload /> {form.panelTarjetaImagen ? 'Cambiar' : 'Subir imagen'}
+                    </button>
+                    <span className="duna-field__hint" style={{ margin: 0 }}>
+                      {subidaImagen.subiendo ? `Subiendo… ${subidaImagen.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+                    </span>
+                    {subidaImagen.subiendo && <BarraProgreso pct={subidaImagen.progreso ?? 0} />}
+                    {errorImagenPanel && <p className="duna-field__error" role="alert">{errorImagenPanel}</p>}
+                  </div>
+                </div>
+              </div>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="menu-panel-tarjeta-titulo">Tarjeta promocional — título</label>
+                <input id="menu-panel-tarjeta-titulo" className="duna-input" value={form.panelTarjetaTitulo ?? ''} onChange={setCampo('panelTarjetaTitulo')} />
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--duna-space-3)', flexWrap: 'wrap' }}>
+                <div className="duna-field" style={{ flex: '1 1 200px' }}>
+                  <label className="duna-field__label" htmlFor="menu-panel-tarjeta-cta-label">Tarjeta promocional — botón</label>
+                  <input
+                    id="menu-panel-tarjeta-cta-label" className="duna-input"
+                    value={form.panelTarjetaCtaLabel ?? ''} onChange={setCampo('panelTarjetaCtaLabel')}
+                    placeholder="Ej. Explorar"
+                  />
+                </div>
+                <div className="duna-field" style={{ flex: '1 1 160px' }}>
+                  <label className="duna-field__label" htmlFor="menu-panel-tarjeta-cta-destino">Destino del botón</label>
+                  {renderDestino('panelTarjetaCtaDestino', 'menu-panel-tarjeta-cta-destino')}
+                </div>
+              </div>
+              {panelTarjetaCtaAMedias && (
+                <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)' }}>
+                  ⚠ Falta {(form.panelTarjetaCtaLabel ?? '').trim() !== '' ? 'el destino' : 'el texto'} — el botón no se muestra hasta completar los dos.
+                </p>
+              )}
+              <p className="duna-field__hint">
+                {panelAtenuado ? 'Elige un ítem arriba para que este panel se muestre.' : 'El panel se muestra cuando tenga al menos un texto, un enlace o la tarjeta completos.'}
+              </p>
+            </div>
+
+            <input ref={subidaImagen.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subidaImagen.alElegir} hidden disabled={subidaImagen.subiendo} />
           </div>
         </div>
       )}

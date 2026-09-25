@@ -20573,3 +20573,212 @@ una segunda composición y su edición desde el panel) pero NINGÚN schema ni co
 la única de las tres condiciones de merge policy A que aplica es `customer-bytes`. El owner ya
 aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el
 merge sigue pendiente de gate visual/owner, como en todo Tier 1.
+
+## 2026-09-25 — `MUESTRARIO-MEGA-MENU-1` — CONSTRUIDO: el ítem del menú gana un panel desplegable (mega-menu), reusando `resolverCtaSeccion` para sus tres CTAs
+
+**Ledger-id:** `MUESTRARIO-MEGA-MENU-1`. **Repo:** coffee-template-app. **Base:** `main` (policy
+`current-main`) vía `slice/corte-reescritura-prototipo-1`, continuación directa de
+`MUESTRARIO-FOOTER-TEMA-1` (`b1a091b`) — sin divergencia (`git merge-base HEAD main` = `main`).
+
+### La capacidad, medida contra el prototipo
+
+`docs/prototipos/cafeone/index.html:57-89` (`#mega-cafe`, el panel del ítem "Nuestro café"):
+`.mega-intro` (`<h2>` + `<p>` + un botón), `.mega-cols` con DOS `.mega-col` (un `eyebrow` +
+enlaces `.menu-link` con un `<span>` de nota al lado) y una `.promo` (imagen + `<h3>` + botón).
+`MenuContent` (`site-content-defaults.ts`) ganó **28 campos planos** por ítem del menú —
+`panelItem` (SET CERRADO `MENU_ITEM_IDS`, mismo patrón que `badgeItem`: UN panel a la vez, atado
+a UN ítem) + `panelIntro`/`panelIntroCtaLabel`/`panelIntroCtaDestino` + dos columnas
+(`panelCol{1,2}Titulo` + hasta 3 enlaces `Etiqueta`/`Nota`/`Destino` cada una) +
+`panelTarjetaImagen`/`Titulo`/`CtaLabel`/`CtaDestino`. Todos `'opcional'` en `REGISTRY.menu.campos`
+— un panel vacío/a-medias (`panelDeMenuItem`, `site-content-defaults.ts`) resuelve a `null` y el
+ítem sigue siendo el `<Link>` desnudo de hoy: preferir callar a un desplegable sin nada adentro,
+mismo criterio que `menuCtaHref`/`itemsDeMenu.badge`.
+
+**Por qué campos PLANOS y no un array anidado**: el mecanismo `repeater` del REGISTRY
+(`itemsKey`+`campos` de UN nivel) no expresa columnas-de-enlaces (dos niveles de lista), y
+`camposDeSeccion`/`panel-controles.ts` sólo derivan de `Object.keys(def.campos)` de primer nivel
+— el mismo motivo por el que `suscripcionPlanes` (4 slots × nombre/descripcion/precio/4
+beneficios) ya es plano. Anidar habría exigido un mecanismo de derivación nuevo, fuera de
+`touches:`.
+
+### Los DESTINOS — el set cerrado gana sobre la fidelidad al prototipo, medido y reportado
+
+Los enlaces del prototipo apuntan a variantes de producto (`producto.html?p=Molido&t=250`) y a
+anclas de la propia página (`#historia`, `#origen`). **Ninguno de los dos es expresable en
+`MENU_CTA_DESTINOS`** (`['/tienda', '/suscripciones', '/nosotros']`, el mismo set cerrado que ya
+rige el CTA del menú y el CTA de sección, § `MUESTRARIO-SECCION-CTA-1`) — un destino de texto
+libre se rompe solo en cuanto el catálogo cambia (§ CLAUDE.md, "por qué se retiró
+`PRESENTACIONES_HREFS`"). Siguiendo la instrucción explícita del spec ("si el muestrario pide
+apuntar a un producto puntual y el set cerrado no lo expresa, PARÁ y reportá"): **no se
+inventó** un destino nuevo. Cada `*Destino` (intro, los seis enlaces de columna, la tarjeta) es
+del MISMO set cerrado que `ctaDestino`; un destino fuera de él (`resolverEnlacePanel`/
+`resolverCtaSeccion`) se resuelve a `null` y ese enlace/CTA no se muestra — nunca un link roto.
+Consecuencia medida: con el set de hoy, el panel sólo puede apuntar a las tres rutas del propio
+storefront, nunca a un producto o una sección de una página — una limitación real frente al
+prototipo, declarada, no disimulada.
+
+### `resolverCtaSeccion` REUSADO para las TRES CTAs — cierra un INCIERTO de `CENSO-MUESTRARIO-1`
+
+`CENSO-MUESTRARIO-1` (línea ~18717) dejó abierto: *"¿la tarjeta promocional necesita su propio
+slot de imagen dentro del menú, o el grid 2×2 de la mega-columna reusa
+`MUESTRARIO-SECCION-CTA-1`?"* — medido al construir: el CTA de la tarjeta y el de la intro
+**reusan `resolverCtaSeccion` DIRECTO**, la misma función pura que `menuCtaHref` y los CTAs de
+`brandStory`/`presentaciones`/`subscriptionCTA` ya usan — no se escribió una segunda función. Lo
+que SÍ es nuevo, y el INCIERTO no lo cubría, es la IMAGEN: `panelTarjetaImagen` es un campo-blob
+propio del menú (no reusa ningún slot de `presentaciones`/`brandStory`), porque la tarjeta del
+mega-menu es una pieza de OTRA sección (el menú, chrome transversal) — nombrar un campo de otra
+sección desde acá habría acoplado dos secciones del REGISTRY que hoy son independientes.
+`REGISTRY.menu.imagenes = ['panelTarjetaImagen']` para que `imagenesDe` (site-content-blobs.ts)
+borre el blob reemplazado — sin nombrarlo, un blob viejo de la tarjeta quedaría huérfano para
+siempre (mismo mecanismo que `hero.imagenPoster`).
+
+### El RENDER — un `<button>`, no un `<Link>`, medido contra el markup del prototipo
+
+`components/storefront/layout/StoreNav.tsx`: el ítem `l.panel` (ausente para todo tenant sin
+`panelItem`, así que esta rama nunca se ejercita en Nayoli — verificado por el 0px de abajo) se
+pinta como `<button aria-expanded aria-controls onClick={toggle}>` — MEDIDO contra
+`index.html:28-31`: `.nav-link` de "Nuestro café" es un `<button data-menu>`, no un `<a>`; el
+ítem no navega directo, sus CTAs internos sí. `panelAbierto` guarda el `MenuItemId` (no un
+boolean): un panel a la vez, como su fuente. Se cierra con Escape (`keydown` global) y con un
+backdrop (`fixed inset-0 z-40`, `onClick`) — el MISMO patrón que `NavSearch.tsx` (§ el spec, "el
+patrón del repo para menús"); también se cierra al cambiar de ruta (`useEffect` sobre
+`pathname`). El panel se posiciona `absolute left-0 top-full w-full` como HIJO de
+`div.max-w-6xl` (`position: static`, no crea containing block) — MISMO mecanismo que ya usa
+`NavSearch` para ser full-width contra el `<header>` `fixed`, no contra el contenedor angosto.
+
+**Un ítem puede llevar badge Y panel a la vez** (`badgeSpan` se extrajo a una función para no
+duplicar su markup una tercera vez — antes vivía inline en la rama con-badge, ahora la comparten
+la rama con-badge y la rama con-panel-y-badge).
+
+### El drawer MÓVIL — fuera de alcance, sin tocar una línea
+
+Per spec §1: el drawer móvil (`AnimatePresence` al final de `StoreNav.tsx`, `links.map` propio)
+**no se tocó**. Un ítem con panel sigue renderizando ahí exactamente el `<Link href={l.path}>`
+de siempre — `l.panel` simplemente no se lee en esa rama. Verificado por lectura del diff: cero
+líneas cambiadas en ese bloque.
+
+### El CONTROL — editor bespoke, mismo commit, sin subir el techo del trinquete
+
+`components/admin/MenuSeccion.tsx` gana la sección "Panel desplegable": un select `panelItem`
+(mismo patrón que el select `badgeItem` ya existente) + los 27 campos restantes, ATENUADOS
+(`opacity: 0.6`) sin ítem elegido — mismo tratamiento visual que `badgeTexto`. Las dos columnas
+se recorren con `.map` sobre `COLUMNAS_PANEL` (un array de claves `keyof MenuContent`, declarado
+como dato) en vez de escribir el mismo bloque de 3 campos × 3 enlaces a mano seis veces. La
+imagen de la tarjeta sube por `useSubidaImagen` (el mismo hook compartido que
+`TiendaSeccionEditor`/`RepeaterEditor`), con el mismo par miniatura-`.duna-tile` + botón +
+`BarraProgreso` que `renderMiniatura` de `TiendaSeccionEditor.tsx` — sin "Por defecto" (no hay
+imagen de fábrica para una tarjeta que hoy nadie declara).
+
+`lib/config/menu-editor.ts` ganó `parAMedias(a, b)` — generaliza el `ctaLabelPresente !==
+ctaDestinoPresente` que ya vivía inline en `MenuSeccion.tsx` para el CTA del menú; se reusa
+ahora TRES veces (CTA del menú, CTA de intro del panel, CTA de la tarjeta) en vez de repetir la
+misma comparación. `lib/config/menu-editor.test.ts` (fuera de `touches:`) no se tocó — la función
+nueva se afirma en `mega-menu.test.ts` en vez de tocar ese archivo.
+
+`lib/config/panel-controles.ts`: los 28 campos nuevos entraron a `CONTROLADOS_MENU_SECCION`
+(declaración explícita de lo que `MenuSeccion.tsx` controla) EN EL MISMO COMMIT que entraron a
+`REGISTRY.menu.campos` (lo que la tienda lee) — **`huecosDelPanel()` da `[]`, `PENDIENTE_PANEL`
+sigue en 13** (el techo del trinquete, § `GUARDA-PRE-MERGE-TRINQUETE-BUILD-1`, NO sube).
+Verificado: `panel-controles.test.ts` corre sin tocarse y sus 16 tests pasan, incluida la
+calibración "SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL" — los
+28 campos nuevos no aparecen ahí porque están controlados, no exentos.
+
+### Gate
+
+- **`npm run typecheck`**: 0 errores.
+- **`npm test`**: **2017/2017** (subió de 1988 a 2017 — los 29 tests nuevos de
+  `lib/config/mega-menu.test.ts`, medido: `grep -c '^test(' lib/config/mega-menu.test.ts` = 29).
+  `menu-como-dato.test.ts` (37 tests, sin cambio de conteo — sólo se editaron dos asserts
+  existentes: `MENU_HOY` con los 28 campos nuevos en `''`, y la lista de 38 claves de
+  `REGISTRY.menu.campos`) y `corte-badge-menu.test.ts` (sin ningún cambio — el badge sigue
+  resolviendo igual, verificado corriendo el archivo) pasan intactos.
+- **`npm run test:integracion`**: **231/231**, sin cambio (este slice no tocó ningún camino de
+  escritura server-side nuevo que necesite el carril de Postgres — el panel es SOFT, resuelto en
+  el loader existente `resolverSiteContent`/`GET /api/site-content`, y el PUT/POST son los
+  genéricos que `menu` ya usaba antes de este slice).
+- **Nayoli visual — `npm run verificar:nayoli:visual`, MEDIDO, no reusado de un commit anterior**
+  (esta rama SÍ cambia `StoreNav.tsx`, a diferencia de `MUESTRARIO-FOOTER-TEMA-1` que pudo
+  reconciliar por identidad de árbol): **0px en las 6 rutas + los 2 hovers**, cero diferencias
+  salvo antialiasing —
+  `home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros
+  0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870`.
+  Confirma que la rama `l.panel` de `StoreNav.tsx` —la única línea de renderizado nuevo que
+  Nayoli podría ejercitar— nunca se activa sin `panelItem` configurado.
+
+### CHEQUEO MECÁNICO — grep de los símbolos que este diff cambió, contra `CLAUDE.md`
+
+Symbols/paths tocados: `MenuContent`, `MenuSeccion.tsx`, `StoreNav.tsx`, `panel-controles.ts`
+(`PENDIENTE_PANEL`/`CONTROLADOS_MENU_SECCION`/`camposLeidosPorTienda`/`huecosDelPanel`),
+`menu-editor.ts`, `REGISTRY.menu`, `MENU_CTA_DESTINOS`, `MENU_ITEM_IDS`, `itemsDeMenu`,
+`menuEditableSchema`, `badgeItem`/`badgeTexto`, `useSubidaImagen`, `site-content-schema.ts`,
+`site-content-defaults.ts`.
+
+- `grep -n "MenuSeccion\|panel-controles\|menu-editor\|itemsDeMenu\|menuEditableSchema\|MENU_CTA_DESTINOS\|MENU_ITEM_IDS\|REGISTRY\.menu\|badgeItem\|PENDIENTE_PANEL\|CONTROLADOS_MENU_SECCION\|camposLeidosPorTienda\|huecosDelPanel\|MenuContent\|mega-menu\|StoreNav\|useSubidaImagen" CLAUDE.md` → **CERO resultados** para todos salvo `StoreNav` (4 líneas: 2841, 2938, 4438, 4456) y `useSubidaImagen` (4 líneas: 2382, 2875, 2906, 3745); más las dos entradas del Tier 1 (`site-content-schema.ts`/`site-content-defaults.ts` en la lista de superficies protegidas, línea 39, buscadas aparte).
+- **`StoreNav` (líneas 2841, 2938, 4438, 4456)**: las cuatro describen que `StoreNav` es
+  `'use client'` dentro de `SiteContentProvider`, que el NAV es una de las superficies que la
+  capacidad "apagable" gatea, y cómo `Logo`/el mark llegan por prop — ninguna afirma nada sobre
+  la CARDINALIDAD de `links` ni sobre qué puede renderizar cada ítem. Mi diff no las vuelve
+  falsas.
+- **`useSubidaImagen` (líneas 2382, 2875, 2906, 3745)**: describen el hook compartido y sus
+  consumidores como "la cáscara y el RepeaterEditor" / "5 sitios". `MenuSeccion.tsx` es un SEXTO
+  consumidor y ninguna de las cuatro líneas afirma un conteo cerrado de consumidores ("5 sitios"
+  en la línea 3745 se refiere a la migración histórica de `uploadImagen`→`subirDirecto`, un hecho
+  pasado, no una lista viva) — no se vuelven falsas, pero quedan **desactualizadas por omisión**;
+  no se editan, `CLAUDE.md` no está en `touches:`.
+- **Línea 39 (Tier 1, `lib/config/site-content-schema.ts`/`site-content-defaults.ts` en la
+  lista)**: sigue siendo cierta — los dos archivos siguen siendo la superficie protegida, y este
+  slice es exactamente la segunda etapa (escritura tras `observed-report: CENSO-MUESTRARIO-1` +
+  `approved-by: owner`) que esa doctrina exige.
+- **Ninguna sentencia de CLAUDE.md queda falsa por este diff.**
+
+### CHEQUEO DEL DOCUMENTO — `MUESTRARIO-MEGA-MENU-1` contra `DECISIONS.md`
+
+`grep -n "MUESTRARIO-MEGA-MENU-1" DECISIONS.md` da tres apariciones previas, las tres en
+`CENSO-MUESTRARIO-1` (2026-09-25): la fila de la Tabla de bandas (línea ~18626, "**(C)**
+`MUESTRARIO-MEGA-MENU-1`"), la fila de la Tabla de capacidades (línea ~18703, "#4 ... 1 (Chrome:
+Nav), muy visible") y el INCIERTO sobre el reuso de `MUESTRARIO-SECCION-CTA-1` (línea ~18719,
+cerrado arriba). **Las dos filas del censo NO se editan** — mismo precedente que
+`MUESTRARIO-REDES-ADICIONALES-1` ya sentó (línea ~20065-20070) y `MUESTRARIO-SECCION-CTA-1` antes
+de ése: el censo es una foto histórica ("(C)" queda escrito aunque la capacidad ya se haya
+construido), el asiento de cierre es la fuente de verdad, y el pointer que un lector futuro
+necesita es este mismo párrafo, no una edición retroactiva del censo.
+
+### Merge policy A — por qué éste PARA en `AWAITING_APPROVAL`, sólo por `customer-bytes`
+
+El diff falla UNA de las tres condiciones:
+
+- **`customer-bytes`**: `StoreNav.tsx` gana una rama de render nueva (`l.panel` → `<button>` +
+  el desplegable) — capacidad nueva de cara al visitante, aunque para Nayoli hoy sea
+  byte-idéntica (MEDIDO, 0px, § arriba). La RAMA (no el commit) ya venía cambiando bytes de
+  cliente en slices anteriores de esta misma tanda.
+- **`schema`**: NO aplica — el panel vive en `SiteContent.content` (JSON ya existente, mismo
+  mecanismo que `menu.badgeItem`), sin tocar `packages/core/prisma/schema.prisma` ni migración
+  alguna.
+- **`cross-repo-contract`**: NO aplica.
+
+`stopped_on: [customer-bytes]`.
+
+### `open_followups`
+
+- **La limitación de destinos frente al prototipo** (§ arriba, "Los DESTINOS") queda documentada
+  pero no resuelta: si el owner quiere que el panel apunte a un producto puntual o a una sección
+  de página, hace falta un mecanismo de destino más amplio que `MENU_CTA_DESTINOS` — decisión de
+  producto, no de este slice.
+- **`CROMO-MENU-CAPA3-1`** (abierto por `CROMO-MENU-COMO-DATO-1`, línea ~12477, SIGUE ABIERTO):
+  la verificación de capa 3 en navegador real ahora incluye, de yapa, el panel desplegable nuevo
+  — no se amplía su alcance formalmente acá, pero quien lo ejecute debería mirarlo.
+- **`MUESTRARIO-MEGA-MENU-USESUBIDAIMAGEN-SEXTO-CONSUMIDOR-1`** (coined acá) — CLAUDE.md
+  (líneas 2382/2875/2906/3745) describe a `useSubidaImagen` con conteos de consumidores que no
+  incluyen a `MenuSeccion.tsx` (el sexto). `why_not_now`: ninguna de las cuatro líneas queda
+  estrictamente FALSA (§ CHEQUEO MECÁNICO, arriba) y `CLAUDE.md` no está en `touches:` de este
+  slice.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (tsc 0, `npm test` 2017/2017, `npm run test:integracion`
+231/231, los tres re-medidos sobre el árbol final de ESTE commit; Nayoli visual 0px MEDIDO en
+las 6 rutas + 2 hovers, no reusado), commiteado en `slice/corte-reescritura-prototipo-1`. El
+diff agrega una capacidad de cara al visitante (el mega-menu del nav) sin tocar schema ni
+contrato cross-repo — la única de las tres condiciones de merge policy A que aplica es
+`customer-bytes`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner, como en todo Tier 1.

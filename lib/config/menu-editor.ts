@@ -37,6 +37,15 @@ export function etiquetaOpcionMenu(form: Pick<MenuContent, CampoLabelMenu>, id: 
   return v || ETIQUETA_CANONICA_MENU[id];
 }
 
+/** Un PAR label+destino (el CTA del menú, el CTA de intro del panel, el CTA de la tarjeta, § MUESTRARIO-
+ *  MEGA-MENU-1) está A MEDIAS cuando exactamente UNO de los dos trae texto — el otro caso donde el
+ *  botón no se muestra (§ `resolverCtaSeccion`) pero no es porque el dueño lo dejó apagado a propósito.
+ *  Generaliza el `ctaLabelPresente !== ctaDestinoPresente` que ya vivía inline en `MenuSeccion.tsx` para
+ *  el CTA del menú, para no repetir la misma comparación tres veces (menú, intro del panel, tarjeta). */
+export function parAMedias(a: string, b: string): boolean {
+  return (a.trim() !== '') !== (b.trim() !== '');
+}
+
 /** Reordenar por SWAP: elegir un ítem para una posición JAMÁS puede dejar dos posiciones con el
  *  mismo ítem — `menuEditableSchema` lo rechazaría con un 400 al guardar (§ site-content-schema.ts,
  *  el `.refine()` de posiciones únicas)—, así que si el ítem elegido YA ocupaba otra posición, esa

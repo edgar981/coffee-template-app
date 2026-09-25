@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Menu, X, Search } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search, ChevronDown } from 'lucide-react';
 import { useCartStore } from '@/lib/cartStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavSearch from './NavSearch';
@@ -11,7 +12,7 @@ import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
-import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref } from '@/lib/config/site-content-defaults';
+import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
 
 export default function StoreNav() {
   const { nombre, tagline } = useSiteSettings();
@@ -20,6 +21,8 @@ export default function StoreNav() {
   // `paginas.*.visible`, SIN CAMBIO (renombrar no es encender). Con `content.menu` en su default —
   // ningún tenant lo edita— `links` es EXACTAMENTE el array de hoy: label/path de las tres rutas, en
   // el mismo orden. El CTA (`menuCtaHref`) nace apagado (`null`) hasta que el dueño lo configure.
+  // Cada ítem puede llevar además un `panel` (§ MUESTRARIO-MEGA-MENU-1) — AUSENTE para todo tenant
+  // que no lo declare (Nayoli), así que el `.map` de abajo sigue byte-idéntico sin tocar nada.
   const content = useSiteContent();
   const { esquemas, tema, orden, cromo, navTratamiento, navWordmark } = content;
   const links = itemsDeMenu(content);
@@ -28,9 +31,25 @@ export default function StoreNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // EL PANEL DESPLEGABLE (§ MUESTRARIO-MEGA-MENU-1): UN ítem a la vez (`panelAbierto` guarda su id,
+  // no un boolean), como su fuente (`content.menu.panelItem`). Se cierra con Escape y con el
+  // backdrop — MISMO patrón que `NavSearch` (§ ese componente, "el patrón del repo para menús") — y
+  // al cambiar de ruta (un enlace de adentro navegó).
+  const [panelAbierto, setPanelAbierto] = useState<MenuItemId | null>(null);
   const { count, openCart } = useCartStore();
   const pathname = usePathname();
   const isHome = pathname === '/';
+
+  useEffect(() => { setPanelAbierto(null); }, [pathname]);
+
+  useEffect(() => {
+    if (!panelAbierto) return;
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanelAbierto(null); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [panelAbierto]);
+
+  const itemPanel = links.find((l) => l.id === panelAbierto)?.panel ?? null;
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
@@ -102,6 +121,16 @@ export default function StoreNav() {
 
   const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+
+  // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1), extraído a una función: el ítem CON PANEL
+  // (§ MUESTRARIO-MEGA-MENU-1) también puede llevar badge, así que la misma pieza tiene que colgar
+  // tanto de un `<Link>` como del `<button>` que abre el panel — sin extraerla, el markup se
+  // duplicaría una tercera vez.
+  const badgeSpan = (texto: string) => (
+    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
+      {texto}
+    </span>
+  );
   // El logo del nav (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): `cromo.navSubtitulo` exhibe el `tagline`
   // bajo el nombre (REUSA `Logo.subtitle`, que ya existe para el footer, § Logo.tsx) — `false` (el
   // default) → `subtitle` queda `undefined` y `Logo` renderiza EXACTAMENTE su rama de siempre.
@@ -142,6 +171,34 @@ export default function StoreNav() {
             <nav className="relative hidden lg:flex items-center gap-8">
               {links.map(l => {
                 const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`;
+                // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1): un ítem CON panel es un
+                // BOTÓN que abre/cierra el desplegable — nunca navega directo. Medido contra el
+                // prototipo (`docs/prototipos/cafeone/index.html:28-31`): `.nav-link` de "Nuestro café"
+                // es un `<button data-menu aria-expanded aria-controls>`, no un `<a>` — el ítem no tiene
+                // destino propio, sus CTAs internos sí. `l.panel` está AUSENTE para todo tenant que no
+                // declare `panelItem` (Nayoli), así que esta rama nunca se ejercita ahí — byte-idéntico.
+                if (l.panel) {
+                  const abierto = panelAbierto === l.id;
+                  const trigger = (
+                    <button
+                      type="button"
+                      aria-expanded={abierto}
+                      aria-controls={`mega-${l.id}`}
+                      onClick={() => setPanelAbierto(abierto ? null : l.id)}
+                      className={`${linkClassName} inline-flex items-center gap-1 cursor-pointer`}
+                    >
+                      {l.label}
+                      <ChevronDown aria-hidden className={`w-4 h-4 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+                    </button>
+                  );
+                  if (!l.badge) return <span key={l.path}>{trigger}</span>;
+                  return (
+                    <span key={l.path} className="inline-flex items-center gap-2">
+                      {trigger}
+                      {badgeSpan(l.badge)}
+                    </span>
+                  );
+                }
                 if (!l.badge) {
                   return <Link key={l.path} href={l.path} className={linkClassName}>{l.label}</Link>;
                 }
@@ -163,9 +220,7 @@ export default function StoreNav() {
                 return (
                   <span key={l.path} className="inline-flex items-center gap-2">
                     <Link href={l.path} className={linkClassName}>{l.label}</Link>
-                    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
-                      {l.badge}
-                    </span>
+                    {badgeSpan(l.badge)}
                   </span>
                 );
               })}
@@ -192,6 +247,105 @@ export default function StoreNav() {
     setSearchOpen(false)
   }
 />
+
+            {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el
+                prototipo (`docs/prototipos/cafeone/index.html:57-89`, `#mega-cafe`): intro (copy +
+                CTA), dos columnas de sub-enlaces, una tarjeta promocional. MISMO patrón de
+                backdrop+Escape que `NavSearch` (arriba); posicionado FULL-WIDTH relativo al
+                `<header>` (`fixed`), como `NavSearch` — es hijo de este `div.max-w-6xl` (`position:
+                static`, no crea containing block), así que `absolute left-0 w-full` resuelve contra
+                el header, no contra este contenedor angosto. `itemPanel` es `null` para todo tenant
+                sin panel declarado → esta rama nunca se monta ahí. */}
+            <AnimatePresence>
+              {itemPanel && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    onClick={() => setPanelAbierto(null)}
+                    className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                  />
+                  <motion.div
+                    id={`mega-${panelAbierto}`}
+                    initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute left-0 top-full z-50 w-full sf-divisor-t border-[var(--sf-linea)] bg-[var(--sf-tarjeta)] shadow-2xl"
+                  >
+                    <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,260px)_1fr] lg:px-8">
+                      <div>
+                        {itemPanel.intro && <p className="text-sm text-[var(--sf-texto)]">{itemPanel.intro}</p>}
+                        {itemPanel.introCtaHref && (
+                          <Link
+                            href={itemPanel.introCtaHref}
+                            onClick={() => setPanelAbierto(null)}
+                            className="mt-4 inline-flex items-center rounded-full bg-[var(--sf-acento)]/10 px-4 py-2 text-sm font-medium text-[var(--sf-acento-4)] transition-colors hover:bg-[var(--sf-acento)]/20"
+                          >
+                            {itemPanel.introCtaLabel}
+                          </Link>
+                        )}
+                      </div>
+                      <div className="grid gap-8 sm:grid-cols-3">
+                        {itemPanel.columnas.map((col, i) => (
+                          <div key={i}>
+                            {col.titulo && <p className="text-xs uppercase tracking-wide text-[var(--sf-texto-suave)]">{col.titulo}</p>}
+                            <div className="mt-3 flex flex-col gap-2">
+                              {col.enlaces.map((en, j) => (
+                                <Link
+                                  key={j}
+                                  href={en.destino}
+                                  onClick={() => setPanelAbierto(null)}
+                                  className="flex items-center justify-between gap-3 text-sm text-[var(--sf-texto)] transition-colors hover:text-[var(--sf-tinta)]"
+                                >
+                                  <span>{en.etiqueta}</span>
+                                  {en.nota && <span className="text-[var(--sf-texto-suave)]">{en.nota}</span>}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {(itemPanel.tarjetaImagen || itemPanel.tarjetaTitulo) && (
+                          itemPanel.tarjetaCtaHref ? (
+                            <Link
+                              href={itemPanel.tarjetaCtaHref}
+                              onClick={() => setPanelAbierto(null)}
+                              className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--sf-superficie)]"
+                            >
+                              {itemPanel.tarjetaImagen && (
+                                <Image
+                                  src={itemPanel.tarjetaImagen}
+                                  alt=""
+                                  fill
+                                  sizes="280px"
+                                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                                />
+                              )}
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                                {itemPanel.tarjetaTitulo && <h3 className="text-sm font-medium text-white">{itemPanel.tarjetaTitulo}</h3>}
+                                {itemPanel.tarjetaCtaLabel && (
+                                  <span className="mt-2 inline-flex items-center rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white">
+                                    {itemPanel.tarjetaCtaLabel}
+                                  </span>
+                                )}
+                              </div>
+                            </Link>
+                          ) : (
+                            <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--sf-superficie)]">
+                              {itemPanel.tarjetaImagen && (
+                                <Image src={itemPanel.tarjetaImagen} alt="" fill sizes="280px" className="object-cover" />
+                              )}
+                              {itemPanel.tarjetaTitulo && (
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                                  <h3 className="text-sm font-medium text-white">{itemPanel.tarjetaTitulo}</h3>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
             {/* Actions */}
             <div className="flex items-center gap-2">
