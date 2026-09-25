@@ -18501,3 +18501,265 @@ sección coined (`PANEL-EDITOR-SPOTLIGHT-TITULO-SALTOS-1`), que ahora está resu
 `textarea: true` y el render ganó `whitespace-pre-line`, la primera opción que esa sección planteaba
 ("decidir si `spotlight.titulo` gana `textarea: true`... o si el titular... no se replica byte a
 byte") — el owner, vía la aprobación de este slice, eligió la primera.
+
+## 2026-09-25 — Censo del muestrario: qué puede expresar la base hoy, banda por banda (`CENSO-MUESTRARIO-1`)
+
+**MEDICIÓN, no construcción.** Se recorrió `docs/prototipos/cafeone/index.html` (471 líneas) banda por
+banda, en orden, y se clasificó cada elemento contra el REGISTRY/DEFAULTS de `lib/config/
+site-content-defaults.ts` (2231 líneas), el preset `CORTE` de `lib/config/themes.ts` (928 líneas) y los
+componentes de `components/storefront/`. `producto.html` (385 líneas) **NO** entra — se nombra como
+segunda pasada (§ Fuera de alcance, abajo). No se tocó código; este asiento es el único artefacto de la
+slice.
+
+**El punto de partida es que la base YA es mucho más madura de lo que "CORTE se ve como Nayoli con otros
+colores" hace pensar**: hero, marquesina, origen y sus contadores animados, y el collage con parallax de
+brandStory·centrada ya están MEDIDOS byte a byte contra el prototipo y reproducen su comportamiento real
+(scroll-scrub, no un `whileInView` de una sola vez). Las brechas reales están concentradas en tres
+lugares: (1) una CAPACIDAD que ninguna sección tiene — un CTA propio —, (2) el CHROME que nunca entró al
+sistema de temas (mega-menú, footer, drawer móvil, carrito), y (3) piezas visuales sin analogía en el
+modelo de datos actual (imagen por variante, banner con parallax).
+
+### Categorías
+
+- **(A)** la base puede y CORTE ya lo declara — nada que hacer.
+- **(B)** la base puede (el mecanismo existe, es dato del tenant), pero CORTE no lo declara — es
+  declarar, no construir.
+- **(C)** la base no puede expresarlo — hace falta una capacidad nueva. Cada (C) lleva un ledger-id
+  coined.
+
+### Tabla 1 — HERO (`index.html:122-139`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Video de fondo a sangre completa + poster | (A) | `hero.imagenTipo:'video'` + `imagenPoster` (`HeroContent`, site-content-defaults.ts:29-41); CORTE usa `variantes.hero:'media'` (themes.ts:614) |
+| Frase corta bajo el título (`.hero-caption`) | (A) | `hero.fraseAlPie` (site-content-defaults.ts:56-60); CORTE no la declara (queda vacía, hide-on-empty) |
+| Cue de scroll "Desliza" | (A) | `hero.cueDesliza`; CORTE: `heroCueDesliza:true` (themes.ts:762) |
+| Sin titular/subtítulo/CTAs, sólo `.hero-caption`+cue | (A) | `titularVisible`/`subtituloVisible`/`ctasVisibles`; CORTE los apaga los tres (themes.ts:761,767-768) |
+| Viewport completo (`calc(100vh - frame-gap*2)`, min 640px) | (A) | `hero.alturaLlena`; CORTE: `heroAlturaLlena:true` (themes.ts:775) |
+
+**Veredicto de la banda: 5/5 (A).** Ningún hueco medido.
+
+### Tabla 2 — MARQUEE (`index.html:141-157`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Foto de fondo velada + loop de texto que se desplaza con el scroll de la sección | (A) | `Marquesina.tsx:66-99`, `useProgresoScroll`+`transformMarquesinaTexto` (`lib/animation.ts`) — reproduce el `FSA.scrub` del prototipo (`js/app.js:190-197`), no un `whileInView` de una vez |
+| Tarjeta de producto flotante que escala/rota con el mismo progreso | (A) | `transformMarquesinaTarjeta`, pin por `marquesina.productoSlug` → `productoSpotlight` (puntero, no copia) |
+| `prefers-reduced-motion` dejando el texto quieto y la tarjeta sin transformar | (A) | `Marquesina.tsx:52-53`, mismo criterio que BrandStoryCentrada |
+
+**Veredicto de la banda: 3/3 (A).**
+
+### Tabla 3 — SPOTLIGHT / "Producto insignia" (`index.html:159-223`, `id="producto"`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Badge de cosecha sobre la imagen | (A) | `spotlight.badge` |
+| Notas de cata como chips | (A) | lee `producto.notasCata` en vivo (`Spotlight.tsx:124-133`) |
+| Selector Molido/En grano ↔ nuestro selector de molienda | (A) | `moliendasDisponibles`/`moliendaAceptada` (`@duna/core/moliendas-opciones`), el MISMO módulo que ProductCard/detalle/servidor |
+| Selector de Tamaño (250g/500g) que cambia precio/imagen EN EL LUGAR | (B)/(C), ver abajo | nuestro "tamaño" es un ENLACE a otro producto (`otroTamanoSlug`), no un swap en sitio — decisión ya tomada (§ SpotlightContent, site-content-defaults.ts:304-308) porque agrupar variantes es Backlog #62 |
+| El `.bag-card` cambia de IMAGEN (mockup) según la presentación elegida, con `.stage-nav` prev/next | **(C)** `MUESTRARIO-VARIANTE-IMAGEN-1` | `MoliendaOpcion` (`packages/core/src/moliendas-opciones.ts:31-34`) sólo tiene `{nombre, metodo, disponible}` — **ninguna opción de variante puede llevar su propia imagen**. Sin ese campo, elegir "En grano" nunca puede cambiar el mockup mostrado; hoy el spotlight muestra siempre `producto.imagen` fija. Relacionado con Backlog #62 (variantes agrupadas) pero es un recorte MÁS CHICO: sólo imagen-por-opción, no stock por combinación. |
+| "Agregar al carrito" | (A) | mismo `addItem` de `useCartStore`, sin una segunda implementación |
+
+**Veredicto de la banda: 4 (A), 1 (B/decisión ya tomada), 1 (C).**
+
+### Tabla 4 — PRESENTACIONES (`index.html:225-247`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Riel horizontal con scroll nativo + botones prev/next que deshabilitan solos | (A) | `GrindChooserRiel.tsx`, `overflow-x-auto`+`scroll-snap`, medido contra `css/app.css:508-559`+`js/home.js:90-190`; CORTE: `variantes.presentaciones:'riel'` (themes.ts:617) |
+| Cabecera partida (título de un lado, controles del otro) | (A) | `GrindChooserRiel.tsx:120-158` |
+| Título de sección en tamaño "display-l" (clamp 48-76px) | (A) | `tema.escalaDisplay:'amplia'` (themes.ts:739) → `fontSizeDisplay` |
+| Cardinalidad 2-4 tarjetas | (A) | `PresentacionesContent` slots 1-2 requeridos + 3-4 opcionales (site-content-defaults.ts:266-293) |
+| El botón "Comprar" de `.pres-head` (`index.html:233`) | **(C)** `MUESTRARIO-SECCION-CTA-1` | `PresentacionesContent` no declara NINGÚN campo de link/label para la sección — confirmado también en `presentacionesEditableSchema` (site-content-schema.ts:126-135, sin `ctaLabel`/`ctaHref`). Ya reportado por nombre en el código (`GrindChooserRiel.tsx:40-47`), sin construirse — no es hallazgo nuevo de este censo, pero se re-confirma vigente. |
+| Resaltado de la tarjeta CENTRADA del riel (`.pres-card.is-active`, `js/home.js:113-125`) | **(C)** `MUESTRARIO-RIEL-ACTIVO-1` | Ningún mecanismo del repo deriva "qué ítem está centrado en un contenedor con scroll horizontal propio" — `useProgresoScroll` (usado por Marquesina) da el progreso de una SECCIÓN completa contra el viewport, no la posición relativa de un ítem dentro de un riel. Sería una segunda fuente de estado sobre el mismo scroll (§ el propio comentario de `GrindChooserRiel.tsx:54-59` que lo dejó fuera A PROPÓSITO — decisión, no descuido, pero la capacidad de base sigue sin existir). |
+| Acciones rápidas (ojo/carrito) sobre cada tarjeta | fuera de alcance | las tarjetas son enlaces a CATEGORÍA, no a un producto puntual — no hay "esa" variante que agregar; no es una capacidad de tema, es una diferencia de qué representa la tarjeta |
+| Arrastre con mouse (`pointerdown`/`pointermove`) | fuera de alcance | decisión ya tomada: el `overflow-x-auto` nativo ya da drag por touch/trackpad |
+
+**Veredicto de la banda: 4 (A), 2 (C), 2 fuera de alcance (decisiones ya tomadas, no huecos).**
+
+### Tabla 5 — HISTORIA / brandStory (`index.html:249-273`, `id="historia"`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Eyebrow+título centrados, collage a lo ancho debajo, párrafo cerrando | (A) | `BrandStoryCentrada.tsx`; CORTE: `variantes.brandStory:'centrada'` (themes.ts:616) |
+| Collage con inclinación/asiento que se ACOMODA con el scroll (`FSA.scrub`, `js/home.js:284-301`) | (A) | `useProgresoAcomodo`/`transformAcomodo` (`lib/animation.ts`), scroll-scrub real, no un disparo único |
+| 3 fotos en el collage (el prototipo trae 3, no 4) | (A) | cardinalidad 1-4 con `imagen1` requerida + `imagen2/3/4` opcionales (§ CORTE-HISTORIA-COLOR-FOTOS-1); Nayoli (con las 4 llenas) no se rompe |
+| Superficie `--surface-page-cool` (un gris frío, ni la página ni la tinta) | (A) | esquema `'neutro'` construido para esta banda (§ CORTE-HISTORIA-COLOR-FOTOS-1, themes.ts:637-645) |
+| El CTA "Nuestra historia" → `#origen` (`index.html:270`) | **(C)** `MUESTRARIO-SECCION-CTA-1` (misma capacidad que en Presentaciones) | `BrandStoryContent` no declara ningún campo de link/label; confirmado en `brandStoryEditableSchema` (site-content-schema.ts:84-95). Reportado por nombre en `BrandStoryCentrada.tsx:33-37`, no construido. |
+
+**Veredicto de la banda: 4 (A), 1 (C) — la MISMA capacidad que Presentaciones.**
+
+### Tabla 6 — ORIGEN (`index.html:275-310`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Grid de 2 fotos + copy (eyebrow/título/lede) | (A) | `OrigenContent` (site-content-defaults.ts:239-257); CORTE: `bandaOrigenVisible:true` (themes.ts:742) |
+| Lista de 4 pares dato editoriales (Altitud/Variedad/Proceso/Cosecha) | (A) | `dato1..4Label/Valor`, opcionales, se omiten vacíos |
+| 3 contadores animados (cuentan de 0 al valor final al entrar en vista) | (A) | `OrigenContador` (`Origen.tsx:48-62`), `useContadorAnimado` (`lib/animation.ts`); un valor no numérico se muestra literal, nunca fabrica un cero |
+| Título en tamaño "display-l" | (A) | `tema.escalaDisplay:'amplia'`, mismo mecanismo que Presentaciones/BrandStory/Spotlight |
+
+**Veredicto de la banda: 4/4 (A).** La banda con MÁS fidelidad medida de todo el censo, sin huecos.
+
+### Tabla 7 — "ÚNETE AL CLUB" / `.cta-strip` (`index.html:312-320`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Franja de texto (gancho+título+un botón) | (A) | `SubscriptionCTALinea.tsx`; CORTE: `variantes.subscriptionCTA:'linea'` (themes.ts:618) |
+| Foto de fondo a sangre completa con `data-parallax` | **(C)** `MUESTRARIO-CTA-BANNER-FOTO-1` | Ninguna sección fuera del hero puede declarar una imagen de fondo — `SubscriptionCTAContent` (site-content-defaults.ts:339-356) es SOLO TEXTO por diseño ("Sección de SOLO TEXTO —sin imágenes—"). El análogo más cercano medido (`variante:'linea'`) es un color sólido (`--sf-tinta-2`), sin imagen ni parallax — ya reportado y descartado A PROPÓSITO en `themes.ts:652-659` ("se prefiere la lectura conservadora... duda abierta, no una decisión ciega") |
+| Overlay degradado teñido sobre la foto (`--protect-grad`) | **(C)** (mismo id, es la contraparte de la imagen) | sin imagen no hay overlay que teñir |
+| DOS botones on-light ("Únete al club" + "Explorar") | **(C)** `MUESTRARIO-SECCION-CTA-1` (extensión) | `SubscriptionCTAContent.ctaLabel` es UN solo botón con href FIJO a `/suscripciones` (por diseño, no editable); el prototipo pide un SEGUNDO CTA a un destino distinto (`#origen`/`producto.html`) — ningún campo lo declara |
+
+**Veredicto de la banda: 1 (A), 3 aristas de 2 capacidades (C).** Es la banda con MENOS fidelidad visual
+del censo: el color/texto está resuelto, pero la identidad visual del prototipo (foto+parallax+overlay)
+no tiene análogo.
+
+### Tabla 8 — CHROME: NAV (`index.html:19-115`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Wordmark apilado (nombre + sub "San Adolfo · Huila") con tratamiento tipográfico propio | (A) | `cromo.navSubtitulo` + `navWordmark.activo` (§ CORTE-LOGO-APILADO-1); CORTE los declara `true` |
+| Links en mayúscula+tracking+peso sobre la misma sans | (A) | `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1) |
+| Nav transparente sobre el hero, sólido `--sf-tinta` al scrollear | (A) | `cromo.navTinta` + `tratamientoNav` (§ CORTE-NAV-TRANSPARENTE-HERO-1) |
+| Badge "Cosecha 2026" junto al primer ítem del menú | (A) | `menu.badgeItem`/`badgeTexto` (§ CORTE-BADGE-COSECHA-EN-MENU-1) |
+| Cart badge con conteo, oculto en 0 | (A) | `StoreNav.tsx:201-208`, mismo mecanismo del prototipo |
+| Icono de búsqueda que abre un overlay con resultados reales del catálogo + sugerencias derivadas | (A), superior al prototipo | `NavSearch.tsx` — el prototipo trae sólo un `<input>` estático sin datos; nuestra implementación ya resuelve contra el catálogo vivo, categorías derivadas, y navegación por teclado (Esc) |
+| Ítem de menú "Nuestro café" con `data-menu` que abre un **mega-menú**: panel de ancho completo con intro (copy + CTA), DOS columnas de sub-enlaces, y una tarjeta promocional con imagen (`index.html:57-89`) | **(C)** `MUESTRARIO-MEGA-MENU-1` | `MenuContent` (site-content-defaults.ts:539-572) es un set CERRADO de 3 ítems PLANOS (label/orden/CTA único/badge) — no hay concepto de sub-ítems, panel desplegable, columnas de enlaces, ni tarjeta promocional con imagen dentro del menú. `StoreNav.tsx` renderiza `<Link>`s desnudos, sin ningún `data-menu`/dropdown. |
+| Selector de país/moneda "Colombia (COP $)" con chevron | **(C)** `MUESTRARIO-LOCALE-SWITCHER-1` | No existe ningún campo de locale/moneda en `SiteSetting` ni `SiteContent` — ni siquiera como texto fijo del chrome. Grep de `locale\|moneda\|currency` contra `site-content-defaults.ts`/`themes.ts`/`StoreNav.tsx`: 0 resultados relacionados con el chrome del nav. |
+| Ícono "Mi cuenta" | fuera de alcance | ya trackeado como feature de producto sin construir (`StoreNav.tsx:209-214`, "v1: /cuenta link hidden — restore when account feature ships"); no es una capacidad de TEMA, es una página que no existe todavía |
+| Drawer móvil de pantalla completa: cabecera con wordmark+botón cerrar, links con entrada escalonada (`--i`) | **(C)** `MUESTRARIO-DRAWER-MOVIL-TEMA-1` | `cromo.navTinta`/`navTratamiento.activo` declaran EXPLÍCITAMENTE que no tocan el drawer móvil (site-content-defaults.ts:223-228, "el drawer móvil es otra composición... que ese spec no nombra"). Nuestro `StoreNav.tsx:229-253` es un dropdown simple (`motion.div` con `AnimatePresence`), no un drawer de pantalla completa; ningún campo de `SiteContentData` puede pedir esa forma. |
+| Riel social lateral fijo (5 redes: Facebook/X/Pinterest/Instagram/WhatsApp) | **(C)** `MUESTRARIO-REDES-ADICIONALES-1` (ver también Tabla 9 — Footer, mismo hueco) | `RielSocial.tsx` (§ CROMO-RIEL-SOCIAL-1) sólo pinta Instagram/WhatsApp — la MISMA fuente de `SiteSetting`, que no declara Facebook/X/Pinterest. La visibilidad de la banda entera SÍ es (A) (`rielSocialVisible`); lo que falta es el DATO de más redes. |
+
+**Veredicto del chrome NAV: 6 (A, dos superando al prototipo), 4 (C), 1 fuera de alcance.**
+
+### Tabla 9 — CHROME: FOOTER (`index.html:322-395`)
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Marca + tagline + newsletter + mapa, luego 3 columnas (Tienda/Nosotros/Escríbenos), luego barra inferior | **(C)** `MUESTRARIO-FOOTER-TEMA-1` | El footer entero está FUERA del sistema de SiteContent/REGISTRY: `StoreFooter.tsx:24` lee `footerNav`/`legalNav` de `siteConfig` (código fijo, no `SiteContentData`) — "son ESTRUCTURADOS y se quedan en código (v1)" (comentario propio del archivo). Ningún preset puede declarar una estructura de footer distinta a la de 4 columnas fija (`StoreFooter.tsx:43`, brand/tienda/ayuda/empresa). |
+| Formulario de newsletter (email + checkbox de consentimiento + estado "¡Gracias!") EMBEBIDO en el pie | **(C)** (mismo id, arriba) | Existe `Newsletter.tsx` (28 líneas) pero es una SECCIÓN de home independiente, NUNCA montada (fuera de `BANDA_IDS`, "sigue oculta/comentada en v1"), sin dato de `SiteContent` (form hardcodeado, sin checkbox de consentimiento, sin estado de éxito) y NUNCA vive dentro del footer. El footer real no tiene ningún formulario. |
+| Tarjeta de mapa (SVG estático con marcador) | **(C)** (mismo id) | No existe ningún concepto de "ubicación"/mapa en `SiteSetting` ni `SiteContent`; `StoreFooter.tsx` no tiene slot para eso |
+| Redes sociales del footer (Facebook/X/Pinterest/Instagram/WhatsApp) | **(C)** `MUESTRARIO-REDES-ADICIONALES-1` | `StoreFooter.tsx:66-94` sólo pinta Instagram/WhatsApp desde `SiteSetting` — mismo hueco que el riel (Tabla 8) |
+| Bottom bar con copyright + link legal + "Colombia (COP $)" | (A) parcial | copyright+legal ya existen (`legalNav`, `StoreFooter.tsx:197-209`); el locale es el mismo hueco de Tabla 8 |
+
+**Veredicto del chrome FOOTER: 0 (A) puro (1 parcial), 4 aristas de 2 capacidades (C).** Es, junto con
+"Únete al club", la superficie con MENOS fidelidad posible del censo: el footer nunca entró al sistema
+de temas.
+
+### Tabla 10 — FLOTANTES
+
+| qué muestra el prototipo | categoría | qué falta / qué declarar |
+| --- | --- | --- |
+| Botón "volver arriba" tras 1 viewport de scroll, oculto con el carrito abierto | (A) | `BackToTop.tsx`, umbral y ocultamiento EXACTOS al prototipo (`js/app.js:361`, `css/app.css:352`); CORTE: `volverArribaVisible:true` |
+| Riel social lateral (≥1560px) | (A) parcial (ver Tabla 8 — redes) | `RielSocial.tsx`; `rielSocialVisible:true` en CORTE |
+| Cajón de carrito: items, cantidad, subtotal, CTA a checkout | (A) | `CartDrawer.tsx` |
+| Barra de progreso visual hacia envío gratis (`.ship-prog`, `<i data-ship-bar>` que se llena) | **(C)** `MUESTRARIO-CARRITO-CHROME-1` | `CartDrawer.tsx:240-245` sólo muestra una frase condicional ("Envío gratis en pedidos mayores a $X") cuando `belowFreeShipping` — no hay barra visual ni mensaje que cambie según cuánto falta. El dato (`subtotal`/`freeShippingThreshold`) ya existe; falta la PIEZA de presentación, y ningún campo de tema la gobierna. |
+| Panel de utilidades: nota del pedido + código de descuento (paneles expandibles) | **(C)** (mismo id, arriba) | `CartDrawer.tsx` no tiene ningún campo de nota ni de código de descuento — ni en el carrito (`useCartStore`) ni en el checkout se ve un `data-util` equivalente |
+
+**Veredicto de FLOTANTES: 2 (A), 1 (A) parcial, 2 aristas de 1 capacidad (C).**
+
+### RESUMEN — conteo por banda
+
+| banda | (A) | (B) | (C) |
+| --- | --- | --- | --- |
+| Hero | 5 | 0 | 0 |
+| Marquee | 3 | 0 | 0 |
+| Spotlight | 4 | 1* | 1 |
+| Presentaciones | 4 | 0 | 2 |
+| Historia | 4 | 0 | 1 |
+| Origen | 4 | 0 | 0 |
+| "Únete al club" | 1 | 0 | 2** |
+| Chrome: Nav | 6 | 0 | 4 |
+| Chrome: Footer | 0 (+1 parcial) | 0 | 2** |
+| Flotantes | 2 (+1 parcial) | 0 | 1** |
+| **TOTAL medido** | **33 (+2 parciales)** | **1** | **13 (7 capacidades distintas)** |
+
+\* El selector de tamaño de Spotlight es una decisión de producto ya tomada (enlace a otro producto en
+vez de swap agrupado, § Backlog #62), no un hueco sin decidir — se cuenta aparte de los (C) reales.
+\*\* Cada capacidad (C) aparece en más de una fila de esta tabla cuando afecta más de una banda; el conteo
+de "13" es de AFIRMACIONES individuales en las tablas de arriba, no de capacidades distintas (son 7,
+listadas abajo). No se incluye en esta tabla el ejemplo de orden de bandas (§ abajo), que es (B) puro y
+no aparece dentro de ninguna banda individual — es un eje transversal.
+
+**Un hallazgo (B) transversal, dado ya calibrado por el orquestador y verificado acá:** el ORDEN de
+bandas de CORTE es el default (`orden: ORDEN_DEFAULT`, themes.ts:677 → `[...BANDA_IDS]`,
+site-content-defaults.ts:812-817) y el orden real del prototipo es OTRO. `BANDA_IDS` pone
+`brandStory`+`origen` ANTES de `presentaciones`; el prototipo (`index.html`: `#producto` en 160,
+`#presentaciones` en 226, `#historia` en 250, `#origen` en 276) pone `presentaciones` INMEDIATAMENTE
+después de spotlight, y recién después `historia`+`origen`. Además `trustBadges` (3ª banda del
+`ORDEN_DEFAULT`, entre `marquesina` y `featured`) no tiene ningún análogo en el prototipo y HOY se
+sigue mostrando igual bajo CORTE (ver el siguiente punto) — así que la secuencia real que un visitante
+ve bajo `?tema=CORTE` es `hero → marquesina → trustBadges → spotlight → brandStory → origen →
+presentaciones → subscriptionCTA`, que difiere del prototipo en DOS ejes a la vez (una banda de más, y
+presentaciones corrida). Arreglo: declarar `orden` explícito en `CORTE` (el mecanismo YA existe,
+`resolverOrden` + `PresetTema.orden`) — es (B), no requiere ninguna capacidad nueva.
+
+### Las capacidades (C), ordenadas por cuántas bandas del muestrario desbloquean
+
+| # | ledger-id | bandas que desbloquea | qué habría que poder declarar (en términos generales) |
+| --- | --- | --- | --- |
+| 1 | `MUESTRARIO-SECCION-CTA-1` | **3**: Presentaciones, Historia, "Únete al club" (2º CTA) | Cualquier sección de contenido (no sólo hero/subscriptionCTA) puede declarar un CTA propio opcional: `ctaLabel` + un destino de un SET CERRADO de rutas conocidas (mismo patrón que `HERO_HREFS`/`MENU_CTA_DESTINOS`), vacío = sin botón. |
+| 2 | `MUESTRARIO-REDES-ADICIONALES-1` | **2**: Chrome:Nav (riel social), Chrome:Footer | `SiteSetting` puede declarar más de dos redes sociales (hoy sólo instagram/whatsapp) — un set abierto o cerrado-pero-ampliable de {red, url}, consumido por AMBAS composiciones (riel y footer) desde la MISMA fuente, como ya ocurre con las dos actuales. |
+| 3 | `MUESTRARIO-FOOTER-TEMA-1` | **1** (Chrome:Footer), pero agrupa 3 piezas | El FOOTER puede entrar al sistema de SiteContent/REGISTRY (hoy es 100% código, `siteConfig.footerNav`): un preset debe poder declarar su composición (columnas vs. marca+newsletter+mapa+columnas), si lleva un formulario de newsletter embebido, y si lleva una tarjeta de ubicación/mapa. |
+| 4 | `MUESTRARIO-MEGA-MENU-1` | **1** (Chrome:Nav), muy visible | El menú del nav puede declarar, por ítem, un panel desplegable (mega-menú) con: copy introductorio, columnas de sub-enlaces, y una tarjeta promocional (imagen+título+CTA) — hoy `MenuContent` sólo admite 3 ítems planos. |
+| 5 | `MUESTRARIO-CTA-BANNER-FOTO-1` | **1** ("Únete al club") | Una sección puede declarar una imagen de fondo a sangre completa con overlay degradado y scroll-parallax — hoy sólo el HERO tiene `imagen`+`imagenTipo`; cualquier otra sección (`subscriptionCTA` incluida) es SOLO TEXTO por diseño. |
+| 6 | `MUESTRARIO-VARIANTE-IMAGEN-1` | **1** (Spotlight) | Una opción de variante de producto (`MoliendaOpcion`) puede llevar su propia imagen, para que elegir una opción cambie el mockup mostrado sin navegar a otro producto. |
+| 7 | `MUESTRARIO-DRAWER-MOVIL-TEMA-1` | **1** (Chrome:Nav, móvil) | El drawer de navegación móvil puede ser objeto de un eje de tema (hoy `cromo`/`navTratamiento` declaran explícitamente que NO lo tocan) — una composición de pantalla completa con cabecera propia, en vez del dropdown simple de hoy. |
+| 8 | `MUESTRARIO-CARRITO-CHROME-1` | **1** (Flotantes: carrito) | El carrito puede llevar una barra de progreso visual hacia el envío gratis y un panel de utilidades (nota del pedido / código de descuento) — el dato ya existe (`subtotal`, `freeShippingThreshold`); falta la pieza de presentación y su gate de tema. |
+| 9 | `MUESTRARIO-RIEL-ACTIVO-1` | **1** (Presentaciones, polish) | Un contenedor con scroll horizontal propio puede derivar "cuál ítem está centrado/activo" para resaltarlo — hoy sólo existe progreso de scroll de SECCIÓN completa (`useProgresoScroll`), no de un ítem dentro de un riel. |
+| 10 | `MUESTRARIO-BANDA-APAGABLE-1` | **0 bandas nombradas hoy** (afecta a `trustBadges`, banda sin análogo en el prototipo), pero es la capacidad más GENERAL | Ya calibrado por el orquestador: ningún preset puede apagar una banda que nace `visible:true` (trustBadges/featured/brandStory/presentaciones/subscriptionCTA/testimonials) — sólo existen encendedores puntuales para las DOS bandas que nacen `false` (origen/marquesina). Sin esto, CORTE muestra una banda (trustBadges) que el prototipo no tiene, y ningún preset futuro puede pedir "esta banda no existe para mí" salvo que alguien le agregue, banda por banda, su propio booleano dedicado — no escala. |
+
+### INCIERTOS
+
+- **¿El `.badge` del prototipo junto a "Cosecha 2026" es un patrón reusable (badge-por-ítem-de-menú) o
+  un caso único?** `menu.badgeItem`/`badgeTexto` ya lo resuelve para UN ítem (§ CORTE-BADGE-COSECHA-EN-
+  MENU-1) — no se midió si el prototipo esperaría más de un badge simultáneo en otro ítem; con un solo
+  caso en el muestrario no hay evidencia para decidir si el límite "un badge, un ítem" alcanza.
+- **El grid 2×2 de imágenes de la mega-columna** (`.mega-col` del prototipo, `index.html:67-87`) podría
+  reusar `MUESTRARIO-SECCION-CTA-1` (la tarjeta promo es imagen+título+CTA) en vez de ser parte
+  exclusiva de `MUESTRARIO-MEGA-MENU-1` — no se pudo determinar sin construir un mega-menú real si las
+  dos capacidades se solapan o si la tarjeta promocional necesita su propio slot de imagen dentro del
+  menú (harían falta las dos, mega-menú Y CTA-de-sección, compuestas).
+- **El costo de `MUESTRARIO-VARIANTE-IMAGEN-1` contra Backlog #62 ya existente**: no se midió si
+  conviene resolverlo como un campo aislado (`imagenOpcion` en `MoliendaOpcion`) o si eso crea una
+  divergencia con el proyecto transversal de variantes agrupadas (#62) que después haya que
+  reconciliar — el costo de ESE camino no se estimó, sólo se confirmó que hoy no existe ninguno de
+  los dos.
+
+### Fuera de alcance — `producto.html` (segunda pasada)
+
+`producto.html` (385 líneas) es la página de detalle del prototipo — comparte `assets/css` con
+`index.html` pero tiene su propia composición (galería de producto, selector, tabs de descripción,
+posiblemente productos relacionados) que este censo NO recorrió, por instrucción explícita del spec.
+Queda como follow-up (`CENSO-MUESTRARIO-PRODUCTO-1`, abajo) contra `app/(storefront)/tienda/[slug]/
+page.tsx`.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — verificado con `git status`/`git diff` antes
+de commitear: el único archivo en el diff es `DECISIONS.md`.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: ninguno de código — el único archivo es `DECISIONS.md`, y la sección
+que se agrega no retitula ni cierra ninguna sección existente de ese archivo (es un append puro al
+final). Grep de los identificadores nuevos (`CENSO-MUESTRARIO-1`, y los 10 ledger-ids coined) contra
+`CLAUDE.md`: cero resultados — son ids nuevos, no podían aparecer. No aplica el chequeo de "sección
+cerrada que alguien apunta", porque este asiento no cierra ninguna sección previa de `DECISIONS.md` ni
+de `CLAUDE.md`.
+
+### Verdicto
+
+**MEDICIÓN completa, sin código tocado.** No hay gate de tests que correr (spec: "surface: MEDICIÓN, no
+construcción... NO hay gate de tests"); se verificó por `git status`/`git diff` que el único archivo
+modificado es `DECISIONS.md`, así que el piso de gate reportado por el commit inmediatamente anterior en
+esta rama (`ae2a568`: tsc 0 errores, `npm test` 1923/1923, `npm run test:integracion` 231/231) sigue
+siendo válido para el árbol final sin necesidad de re-correrlo — ningún archivo de código cambió entre
+ese commit y éste.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea. `stopped_on:
+[customer-bytes]`: la RAMA (contra `main`, no sólo este commit) ya trae bytes que el dueño lee desde el
+commit `CORTE-TITULARES-SALTOS-DE-LINEA-1` — el campo "Titular" de Destacado y el campo "Título" de
+Presentaciones en `/admin/tienda` pasan de `<input>` a `<textarea>`, con hints que explican que un salto
+de línea se respeta en la tienda. Ese cambio visible lo introdujo un commit ANTERIOR de esta misma rama,
+no éste: este commit no agrega ni quita ningún byte visible, sólo un asiento de medición en
+`DECISIONS.md`. El commit queda en la rama a la espera del merge gateado del orquestador.
