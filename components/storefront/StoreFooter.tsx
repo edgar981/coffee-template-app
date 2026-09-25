@@ -244,49 +244,84 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa }: VariantPro
 }
 
 // VARIANTE 'apilado' — LA DEL MUESTRARIO (§ MUESTRARIO-FOOTER-TEMA-1, medida contra
-// `docs/prototipos/cafeone/index.html:322+`, SIN el formulario de newsletter ni la tarjeta de mapa
-// —fuera de alcance de este slice, § el spec—): la marca (wordmark apilado + tagline) ocupa el
-// ANCHO COMPLETO arriba, y las columnas de enlaces se acomodan DEBAJO en una fila — la misma
-// relación "marca arriba, contenido debajo" del `.footer-mark`/`.footer-top`/`.footer-cols` del
-// prototipo, con el mismo DATO que la canónica (nada nuevo que mantener sincronizado).
+// `docs/prototipos/cafeone/index.html:322+`, SIN el formulario de newsletter —fuera de alcance,
+// § el spec de MUESTRARIO-FOOTER-TARJETA-IMAGEN-1: requiere modelo, endpoint y registro de
+// consentimiento, es FEATURE no tema—): la marca (wordmark apilado + tagline) ocupa el ANCHO
+// COMPLETO arriba, y las columnas de enlaces se acomodan DEBAJO en una fila — la misma relación
+// "marca arriba, contenido debajo" del `.footer-mark`/`.footer-top`/`.footer-cols` del prototipo,
+// con el mismo DATO que la canónica (nada nuevo que mantener sincronizado).
+//
+// LA TARJETA DE IMAGEN opcional (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1) — en el muestrario es el
+// MAPA con marcador (`.map-card`/`.map-cap` del prototipo, líneas 348-361), pero es una imagen que
+// el dueño SUBE, no una integración de mapas. `tieneTarjeta` gatea sobre `footer.tarjetaImagen`
+// SOLO (mismo criterio que `SubscriptionCTALinea.tieneImagenFondo`): vacía → el layout de siempre,
+// SIN wrapper de grid extra (byte-idéntico); con imagen, la marca pasa a la columna izquierda de un
+// grid `1.1fr 1fr` (§ `.footer-top` del prototipo) y la tarjeta ocupa la derecha. `tarjetaTexto`
+// SOLO, sin `tarjetaImagen`, NO rinde nada — sería un pie de foto flotando sobre nada.
 function FooterApilado({ settings, footer, tienda, ayuda, empresa }: VariantProps) {
   const columnas: { titulo: string; links: { label: string; href: string }[] }[] = [
     { titulo: footer.columnaTienda, links: tienda },
     { titulo: footer.columnaAyuda, links: ayuda },
     ...(empresa.length > 0 ? [{ titulo: footer.columnaEmpresa, links: empresa }] : []),
   ];
+  const tieneTarjeta = footer.tarjetaImagen.trim() !== "";
+
+  const marca = (
+    <>
+      <Logo
+        nombre={settings.nombre}
+        variant="dark"
+        stacked
+        subtitle={settings.tagline}
+        conMark={STOREFRONT_TIENE_MARK}
+        className="items-start [&>div]:items-start"
+      />
+      <p className="mt-4 max-w-[40ch] text-base leading-relaxed text-[var(--sf-sobre)]/50">
+        {settings.descripcionFooter}
+      </p>
+      <div className="mt-6 flex gap-3">
+        {settings.redes.map((red) => (
+          <a
+            key={red.tipo}
+            href={urlDeRedSocial(red)}
+            target="_blank"
+            rel="noopener"
+            aria-label={`${LABEL_RED_FOOTER[red.tipo]} de ${settings.nombre}`}
+            className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
+          >
+            {iconoDeRedFooter(red)}
+          </a>
+        ))}
+      </div>
+    </>
+  );
 
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
         {/* La marca ocupa el ancho completo arriba (§ `.footer-mark`/`.footer-top .tag` del
-            prototipo) — mismo `Logo`/`descripcionFooter` que la canónica, sólo reordenado. */}
+            prototipo) — mismo `Logo`/`descripcionFooter` que la canónica, sólo reordenado. Con
+            tarjeta, comparte fila con ella (§ `.footer-top` del prototipo, grid 1.1fr/1fr). */}
         <div className="border-b border-white/10 pb-10">
-          <Logo
-            nombre={settings.nombre}
-            variant="dark"
-            stacked
-            subtitle={settings.tagline}
-            conMark={STOREFRONT_TIENE_MARK}
-            className="items-start [&>div]:items-start"
-          />
-          <p className="mt-4 max-w-[40ch] text-base leading-relaxed text-[var(--sf-sobre)]/50">
-            {settings.descripcionFooter}
-          </p>
-          <div className="mt-6 flex gap-3">
-            {settings.redes.map((red) => (
-              <a
-                key={red.tipo}
-                href={urlDeRedSocial(red)}
-                target="_blank"
-                rel="noopener"
-                aria-label={`${LABEL_RED_FOOTER[red.tipo]} de ${settings.nombre}`}
-                className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
-              >
-                {iconoDeRedFooter(red)}
-              </a>
-            ))}
-          </div>
+          {tieneTarjeta ? (
+            <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-start">
+              <div>{marca}</div>
+              <div className="relative min-h-[300px] overflow-hidden sf-radio-lg">
+                <Image
+                  src={footer.tarjetaImagen}
+                  alt={footer.tarjetaTexto || ""}
+                  fill
+                  sizes="(min-width: 1024px) 480px, 100vw"
+                  className="object-cover"
+                />
+                {footer.tarjetaTexto && (
+                  <p className="absolute bottom-4 left-4 bg-[var(--sf-tarjeta)] px-3 py-1.5 text-xs text-[var(--sf-sobre-tarjeta,var(--sf-tinta))]">
+                    {footer.tarjetaTexto}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : marca}
         </div>
 
         {/* Las columnas debajo (§ `.footer-cols` del prototipo) — mismo dato que la canónica; el

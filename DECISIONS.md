@@ -22076,3 +22076,186 @@ AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente del gate del o
 slice, por instrucción del dispatch, no mergea y hereda además la clasificación de la RAMA completa
 (`slice/corte-reescritura-prototipo-1`, ya `AWAITING_APPROVAL` por slices anteriores que tocan bytes
 de visitante).
+
+## 2026-09-25 — La tarjeta de imagen opcional del pie (`MUESTRARIO-FOOTER-TARJETA-IMAGEN-1`)
+
+**Origen:** `CENSO-MUESTRARIO-1` nombró la tarjeta de mapa como una de las tres piezas de
+`MUESTRARIO-FOOTER-TEMA-1`; ese slice construyó el dato del pie (encabezados, enlaces, la variante
+'apilado') y dejó la tarjeta de mapa y el newsletter para después, con el descargo escrito en el
+propio código (`FooterContent`/`FooterApilado`, "fuera de alcance de este slice"). El owner ordenó
+(2026-09-25) construir toda la lista del censo sin parar. **El newsletter NO se construye** —exige
+modelo (dirección de correo por cliente), endpoint y registro de consentimiento: es FEATURE, no
+tema, y queda como decisión de producto para el owner (no coined acá: no hay un slice pendiente que
+nombrar, sólo la ausencia declarada)—. La tarjeta de imagen SÍ es presentación pura y se cierra acá.
+
+### La pieza — GENÉRICA, no una integración de mapas
+
+En el muestrario, la tarjeta de imagen es el mapa con marcador (`.map-card`/`.map-cap`,
+`docs/prototipos/cafeone/index.html:348-361`). El campo que se construyó es **una imagen que el
+dueño SUBE**, con un pie de texto — NO Google Maps, Mapbox ni un iframe. Un proveedor de mapas es un
+SERVICIO EXTERNO con su propia clave y su propio costo; eso es una decisión de producto que este
+slice no toma, y el spec lo dijo explícito ("si creés que hace falta un proveedor, PARÁ y reportá").
+Lo que se construyó generaliza limpio: cualquier cliente puede subir una foto de su local, su
+finca o su equipo con una leyenda — el mapa es sólo el primer uso.
+
+- `FooterContent` gana `tarjetaImagen: string` y `tarjetaTexto: string` (§ site-content-defaults.ts),
+  ambos `opcional` en `REGISTRY.footer.campos` — vacía = sin tarjeta, byte-idéntica al pie de hoy
+  (el resolver genérico ya trata "opcional vacío" como "se omite", mismo criterio que
+  `subscriptionCTA.imagenFondo`).
+- `REGISTRY.footer.imagenes = ['tarjetaImagen']` — es un BLOB. Sin nombrarlo ahí, el borrado de
+  blobs reemplazados (`imagenesDe`, `site-content-blobs.ts`) nunca la vería, y reemplazar la foto
+  dejaría el blob viejo HUÉRFANO en el storage para siempre — el mismo mecanismo (y el mismo
+  argumento) que ya cubre `hero.imagenPoster`/`menu.panelTarjetaImagen`.
+- `footerEditableSchema` (site-content-schema.ts) gana los dos campos SOFT: sin ellos, zod los
+  strippea en silencio al guardar (§ el bug histórico §65-B que esa doctrina documenta) — el pipeline
+  genérico de `PUT /api/site-content` ya los acepta sin tocar el route (confirmado antes de escribir:
+  el footer publica por el route genérico, sin allowlist propia de metas).
+- **Sólo la lee la variante 'apilado'.** `FooterApilado` (`StoreFooter.tsx`) gatea sobre
+  `footer.tarjetaImagen.trim() !== ""` (mismo criterio que `SubscriptionCTALinea.tieneImagenFondo`):
+  vacía → el layout de siempre, sin wrapper de grid extra (la marca se extrajo a una constante `marca`
+  reusada en las dos ramas, para que la rama vacía sea EXACTAMENTE el JSX de antes, no un wrapper
+  colapsado); con imagen, la marca pasa a la columna izquierda de un grid `1.1fr 1fr` (§ `.footer-top`
+  del prototipo) y la tarjeta —`<Image fill>` + un pie en `bg-[var(--sf-tarjeta)]`, el mismo par
+  tarjeta/texto-sobre-tarjeta que ya usa `ProductCard`— ocupa la derecha. `FooterColumnas` (la
+  canónica) **no importa ni lee estos dos campos en absoluto** — no hay un flag que consultar para
+  "no mostrarla", el código simplemente no los nombra (afirmado por grep del cuerpo de la función,
+  § el gate).
+- **`tarjetaTexto` SOLO, sin `tarjetaImagen`, no rinde nada** — sería un pie de foto flotando sobre
+  nada. La gate es sólo sobre la imagen; con imagen y sin texto, la imagen rinde igual (un mapa sin
+  leyenda es un mapa igual).
+
+### El control — `FooterSeccion.tsx`, DE ENTRADA, mismo uploader que el menú
+
+El mismo uploader compartido de la cáscara (`useSubidaImagen`, `carpeta:'contenido'`) que
+`MenuSeccion.tsx` usa para `panelTarjetaImagen`: miniatura + botón "Subir imagen"/"Cambiar" +
+barra de progreso + error inline, y un input de texto para el pie. Sin vista previa propia —mismo
+argumento que el resto del editor del pie: `StoreFooter` importa `useSiteSettings()` del
+storefront, que LANZA fuera de su árbol de providers, así que el pipeline genérico de vista previa
+en vivo no puede montarlo sin tocar `VistaTiendaEnVivo.tsx` (fuera de `touches:`).
+
+`footer.tarjetaImagen`/`.tarjetaTexto` entran a `CONTROLADOS_FOOTER_SECCION` (panel-controles.ts)
+en el MISMO commit que los suma a `REGISTRY.footer.campos`/`.imagenes` — nunca pasan por
+`PENDIENTE_PANEL`. `huecosDelPanel()` sigue en `[]` y **el techo del trinquete NO sube** (11,
+`panel-controles.test.ts:81`): el campo nuevo trae su control consigo.
+
+### El gate
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2111/2111** — verde (+12: 11 en `footer-tema.test.ts`, +1 en `panel-controles.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde en la segunda corrida; la primera corrida dio 236/237 con `wompi-reconciliador.test.ts` → "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ" fallando, un test de RACE REAL sobre Postgres, en un archivo fuera de `touches:` y sin relación con `site-content`/footer. Re-corrida completa del carril, sin tocar nada: 237/237. Es el mismo patrón que la doctrina de este repo ya nombra para un test que depende del reloj o de timing — se reporta como flake medido, no se re-corre selectivamente hasta que dé verde (se re-corrió el carril COMPLETO, no sólo ese archivo). |
+
+Reconciliado contra el piso citado por el commit anterior (`842f0a4`: "tsc 0, 2099/2099 +6, 237/237"):
+capa 1 sube en exactamente +12, explicado entero por los dos archivos de test de este slice; capa 2
+cierra en 237/237 tras la re-corrida — ninguna diferencia sin explicación.
+
+### El diff visual — Nayoli byte-idéntica, CERO límite declarado esta vez
+
+`npm run verificar:nayoli:visual` (main vs. esta rama, 6 rutas + 2 hovers, claro forzado): **CERO
+diferencias, en las 6 rutas Y los 2 hovers** (home 0/4.608.000px, tienda 0/2.433.280px, producto
+0/2.535.680px, checkout 0/1.152.000px, nosotros 0/1.152.000px, suscripciones 0/2.144.000px,
+hover:automatica 0/98.298px, hover:eleccion 0/102.870px — 0 tanto "consciente de antialiasing" como
+en el conteo CRUDO).
+
+A diferencia de `MUESTRARIO-CARRITO-BARRA-ENVIO-1` (cuya pieza vivía detrás de un clic que el arnés
+no da), esta pieza vive en el PIE DE PÁGINA, que el arnés captura íntegro en TODAS las rutas
+(`waitUntil:'networkidle'` + scroll completo) — así que el 0px sí ejercita la ausencia de la tarjeta
+en las seis rutas. Nayoli usa `footer.variante:'franjas'` (la canónica) y `tarjetaImagen:''` (el
+default), así que el arnés no dibuja la tarjeta ni por variante ni por dato — doble byte-identidad,
+no una sola. No hay límite declarado que anotar.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `FooterContent.tarjetaImagen`,
+`FooterContent.tarjetaTexto`, `REGISTRY.footer.imagenes`, `footerEditableSchema` (dos campos),
+`CONTROLADOS_FOOTER_SECCION` (dos entradas), `FooterSeccion.tsx` (el uploader), `FooterApilado`
+(§ StoreFooter.tsx), `MUESTRARIO-FOOTER-TARJETA-IMAGEN-1`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- `tarjetaImagen`, `tarjetaTexto`, `MUESTRARIO-FOOTER-TARJETA-IMAGEN` — **CERO apariciones** de los
+  tres. Nada en `CLAUDE.md` nombra lo que este diff cambió; no hay nada que corregir ahí.
+- `FooterApilado`, `FooterColumnas`, `FooterSeccion` — **CERO apariciones** en `CLAUDE.md` (el
+  patrón vive en `MUESTRARIO-FOOTER-TEMA-1`, dentro de `DECISIONS.md`, no en la doctrina).
+- `site-content-defaults`/`site-content-schema`/`panel-controles` (múltiples apariciones): todas
+  sobre el estatus Tier 1 de esos archivos (la lista de superficies protegidas, sin cambio — este
+  slice sigue el protocolo de segunda etapa que esa sección describe) o mecánica general de
+  `resolverSiteContent`/`huecosDelPanel`/`PENDIENTE_PANEL` — ninguna nombra un conteo o un campo
+  específico que este diff vuelva falso. El techo del trinquete (11) que `CLAUDE.md` no cita
+  directamente pero `panel-controles.test.ts` sí (§ el gate arriba) sigue siendo 11: no hay mención
+  numérica en `CLAUDE.md` que este diff pudiera envejecer.
+- `verificar:nayoli:visual` — **CERO apariciones** en `CLAUDE.md` (el script y su doctrina viven en
+  su propio encabezado, no en `CLAUDE.md`).
+
+Ningún hallazgo de `open_followups` sale de este chequeo — nada en `CLAUDE.md` quedó falso.
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`,
+`components/admin/FooterSeccion.tsx`, `components/storefront/StoreFooter.tsx`,
+`lib/config/panel-controles.ts`, `lib/config/panel-controles.test.ts`,
+`lib/config/site-content-defaults.test.ts` (sin cambio: el catcher de duplicados/requeridos-vacíos
+ya cubre los campos nuevos por derivación, sin tocar el archivo — verificado corriéndolo, verde),
+`lib/config/footer-tema.test.ts`, este asiento (`DECISIONS.md`). Todo dentro de la letra de
+`touches:` — sin desviación de alcance.
+
+**NOTA sobre `site-content-defaults.test.ts`:** el spec lo listaba en `touches:` y este slice no lo
+tocó. Se verificó ANTES de decidir no tocarlo: el catcher de duplicados excluye strings vacíos
+(`val.trim() === ''`), y los dos campos nuevos nacen vacíos — no colisionan con nada. El catcher de
+"requerido vacío" sólo recorre campos `'requerido'`, y los dos son `'opcional'` — no aplica. Correr
+la suite completa (§ el gate arriba, 2111/2111) es la evidencia de que no hacía falta editarlo; no
+se abrió el archivo para no ensuciar un `touches:` con un cambio que no hacía falta.
+
+### `open_followups`
+
+El newsletter (§ Origen, arriba) NO se coined como ID porque no hay slice que nombrar todavía — es
+una decisión de producto pendiente del owner, no una pieza técnica con forma conocida (falta
+decidir: ¿un servicio de email marketing externo, una tabla propia de suscriptores, ambos?). Cuando
+el owner decida la forma, ESE momento es cuando corresponde coinear el id.
+
+- `CENSO-MUESTRARIO-FOOTER-STALE-1`: la fila de `CENSO-MUESTRARIO-1` que nombra
+  `MUESTRARIO-FOOTER-TEMA-1` (DECISIONS.md:18702) describe TRES piezas agrupadas bajo esa capacidad
+  — la composición del footer, el newsletter, y "una tarjeta de ubicación/mapa" — como si las tres
+  siguieran pendientes. `MUESTRARIO-FOOTER-TEMA-1` ya había cerrado la primera (la composición,
+  columnas/apilado); este slice cierra la tercera (la tarjeta). Sólo el newsletter queda de las tres,
+  y la fila del censo no lo distingue — sigue leyéndose como si nada se hubiera resuelto desde que se
+  escribió. Mismo patrón que `CENSO-MUESTRARIO-CARRITO-CHROME-STALE-1` (§ `MUESTRARIO-CARRITO-BARRA-
+  ENVIO-1`, arriba): no se corrige acá — reescribir la tabla de `CENSO-MUESTRARIO-1` es un documento
+  de OTRO slice, fuera de lo que éste pidió escribir (el spec pidió sumar un asiento propio, no
+  enmendar el censo).
+
+### `customer_bytes`
+
+`changed: true`. La RAMA gana bytes de VISITANTE: con `footer.variante = 'apilado'` (hoy sólo el
+preset `CORTE`) Y `footer.tarjetaImagen` no vacío, el pie de página muestra una tarjeta de imagen
+con pie de texto junto a la marca. Nayoli no lo ve —usa `'franjas'` y `tarjetaImagen: ''`, las dos
+condiciones en su contra a la vez (§ el diff visual, arriba)—, pero es la RAMA la que se juzga
+(§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), y la rama ya incluye `CORTE` con el resto del
+muestrario. También gana bytes de OPERADOR/DUEÑO: el bloque "Tarjeta de imagen (opcional)" en el
+editor del pie (`/admin/tienda`), con su botón de subida y su campo de pie de texto.
+
+`strings`: "Tarjeta de imagen (opcional)"; "Sólo se ve con la composición "Marca arriba, columnas
+debajo". Vacía: no se muestra."; "Tarjeta de imagen — pie de texto"; "Ej. "San Adolfo, Huila".
+Vacío: sin pie de texto." — las cuatro son copy del EDITOR (dueño/operador), no del storefront: el
+storefront no gana ningún string nuevo, sólo re-usa el que el dueño escriba en `tarjetaTexto`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: `SiteContent.content`/`SiteContent.borrador` son columnas `Json` ya
+existentes — `tarjetaImagen`/`tarjetaTexto` son dos claves más dentro del objeto `footer` de esas
+columnas, sin tocar `packages/core/prisma/schema.prisma` ni migración alguna. Sin contrato
+cross-repo.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores, `npm test` 2111/2111, `npm run
+test:integracion` 237/237 tras re-corrida — el único fallo de la primera corrida fue un flake de
+concurrencia real en un archivo fuera de `touches:`), commiteado en
+`slice/corte-reescritura-prototipo-1`. El diff falla `customer-bytes` (la RAMA gana una tarjeta de
+imagen visual para el visitante, gateada a variante+dato, más el control del operador). `schema` y
+`cross-repo-contract` NO aplican. `stopped_on: [customer-bytes]`. El owner ya aprobó la ESCRITURA
+(`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente
+del gate del orquestador — este slice, por instrucción del dispatch, no mergea y hereda además la
+clasificación de la RAMA completa (`slice/corte-reescritura-prototipo-1`, ya `AWAITING_APPROVAL`
+por slices anteriores que tocan bytes de visitante). Cierra `MUESTRARIO-FOOTER-TARJETA-IMAGEN-1` y,
+con ella, la parte CONSTRUIBLE de `MUESTRARIO-FOOTER-TEMA-1`; el newsletter queda pendiente de una
+decisión de producto del owner (§ Origen, arriba).

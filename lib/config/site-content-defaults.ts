@@ -708,6 +708,23 @@ export interface FooterContent {
   linkPreguntasFrecuentes: string;
   // "Nuestra Historia" → /nosotros (oculto si `paginas.nosotros.visible` es false).
   linkNuestraHistoria: string;
+  // LA TARJETA DE IMAGEN OPCIONAL (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1, la última pieza construible
+  // de MUESTRARIO-FOOTER-TEMA-1): en el muestrario es el MAPA con marcador (`docs/prototipos/cafeone/
+  // index.html:348-361`, `.map-card`/`.map-cap`), pero el campo es GENÉRICO — una imagen que el dueño
+  // SUBE, no una integración de proveedor de mapas (Google Maps/Mapbox/un iframe serían un SERVICIO
+  // EXTERNO, con su clave y su costo — decisión de producto que este slice no toma). `tarjetaImagen`
+  // ENTRA en `REGISTRY.footer.imagenes` (§ abajo) — es un BLOB: sin nombrarlo ahí, el borrado de blobs
+  // reemplazados (`imagenesDe`, site-content-blobs.ts) nunca la vería y una imagen reemplazada
+  // quedaría HUÉRFANA en el storage para siempre (mismo mecanismo que `hero.imagenPoster`/
+  // `menu.panelTarjetaImagen`, arriba). AMBOS campos son `opcional` — vacía = SIN tarjeta, byte-
+  // idéntico al pie de hoy; un `tarjetaTexto` sin `tarjetaImagen` tampoco se muestra (sería un pie de
+  // foto flotando sobre nada) — la gate vive en el consumidor (`StoreFooter.tsx`, `FooterApilado`).
+  // SÓLO LA LEE la variante 'apilado' (la del muestrario): la canónica ('franjas', `FooterColumnas`)
+  // NO importa estos dos campos en absoluto — no hay un flag que consultar para "no mostrarla", el
+  // componente de la canónica simplemente no los referencia (mismo patrón que `subscriptionCTA.
+  // imagenFondo`, que sólo lee `SubscriptionCTALinea`, nunca `SubscriptionCTABloque`).
+  tarjetaImagen: string;
+  tarjetaTexto: string;
   // La fila legal del pie (§ Backlog, páginas legales pendientes de redacción) — REPEATER, cardinalidad
   // VARIABLE que empieza en CERO (mismo criterio que testimonios/FAQ, § #44: sin defaults fabricados).
   // Vacío → la fila legal no se muestra, byte-idéntico a `siteConfig.legalNav` de hoy (`[]`). El campo
@@ -1425,6 +1442,8 @@ export const DEFAULTS: SiteContentData = {
     linkRastrearPedido: 'Rastrear Pedido',
     linkPreguntasFrecuentes: 'Preguntas Frecuentes',
     linkNuestraHistoria: 'Nuestra Historia',
+    tarjetaImagen: '',
+    tarjetaTexto: '',
     items: [],
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
@@ -1994,14 +2013,20 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   },
   // EL PIE DE PÁGINA (§ MUESTRARIO-FOOTER-TEMA-1, § el docstring de `FooterContent` arriba). MISMO
   // precedente que `menu`: `ocultable:false` — el pie no se apaga entero, es chrome del layout, como
-  // el menú. Sin `imagenes` (no lleva ninguna: la marca la resuelve `SiteSetting`, sin blob propio).
-  // Los 8 campos planos son 'requerido' STRINGS a propósito —el resolver genérico no valida
+  // el menú. Los 8 campos planos son 'requerido' STRINGS a propósito —el resolver genérico no valida
   // pertenencia a un set cerrado, sólo default-vs-omit—; el HREF de cada uno es ESTRUCTURA fija en
   // `StoreFooter.tsx`, no dato (§ el docstring de `FooterContent`). `items` es el REPEATER de la
   // fila legal, cardinalidad variable desde CERO (como testimonios/FAQ).
+  //
+  // `imagenes: ['tarjetaImagen']` (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1) — el ÚNICO blob del pie
+  // (la marca sigue sin blob propio, la resuelve `SiteSetting`): sin nombrarlo acá, el borrado de
+  // blobs reemplazados (`imagenesDe`, site-content-blobs.ts) nunca lo vería y reemplazar la foto
+  // dejaría el blob viejo HUÉRFANO para siempre. `tarjetaImagen`/`tarjetaTexto` son `opcional` —
+  // vacía = sin tarjeta, byte-idéntica al pie de hoy (§ el docstring de `FooterContent`).
   footer: {
     label: 'Pie de página',
     ocultable: false,
+    imagenes: ['tarjetaImagen'],
     variantes: { claves: ['franjas', 'apilado'], canonica: 'franjas' },
     campos: {
       columnaTienda: 'requerido',
@@ -2012,6 +2037,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       linkRastrearPedido: 'requerido',
       linkPreguntasFrecuentes: 'requerido',
       linkNuestraHistoria: 'requerido',
+      tarjetaImagen: 'opcional',
+      tarjetaTexto: 'opcional',
     },
     repeater: {
       itemsKey: 'items',

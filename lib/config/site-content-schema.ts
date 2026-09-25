@@ -491,6 +491,10 @@ const footerEditableSchema = z.object({
   linkRastrearPedido: z.string().optional(),
   linkPreguntasFrecuentes: z.string().optional(),
   linkNuestraHistoria: z.string().optional(),
+  // La tarjeta de imagen opcional (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1) — `tarjetaImagen`/
+  // `tarjetaTexto`, ambos SOFT como el resto de la sección; vacía = sin tarjeta.
+  tarjetaImagen: z.string().optional(),
+  tarjetaTexto: z.string().optional(),
   items: z.array(footerLegalItemSchema).optional(),
 });
 

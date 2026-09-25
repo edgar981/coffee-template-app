@@ -198,6 +198,19 @@ test('calibración: subscriptionCTA.imagenFondo está controlado, sin exención 
   assert.ok(!pendientes.has('subscriptionCTA.imagenFondo'));
 });
 
+// § MUESTRARIO-FOOTER-TARJETA-IMAGEN-1: `footer` gana su tarjeta de imagen opcional
+// (`tarjetaImagen`/`tarjetaTexto` — en el muestrario, el mapa con marcador; NO una integración de
+// mapas) con control DE ENTRADA (`CONTROLADOS_FOOTER_SECCION`, § panel-controles.ts), no como
+// hallazgo tardío. El trinquete de PENDIENTE_PANEL (11) no se mueve.
+test('calibración: footer.tarjetaImagen/.tarjetaTexto están controlados, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('footer.tarjetaImagen'));
+  assert.ok(controlados.includes('footer.tarjetaTexto'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('footer.tarjetaImagen'));
+  assert.ok(!pendientes.has('footer.tarjetaTexto'));
+});
+
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
   const esperado = PENDIENTE_PANEL.map((e) => e.campo).sort();

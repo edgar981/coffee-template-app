@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
+import { Pencil, Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
+import BarraProgreso from '@/components/admin/BarraProgreso';
+import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { FooterContent } from '@/lib/config/site-content-defaults';
+import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 // ─── Bloque PIE DE PÁGINA — vive en /admin/tienda, editor BESPOKE SIN vista previa ─────────────
 //
@@ -26,6 +29,11 @@ import type { FooterContent } from '@/lib/config/site-content-defaults';
 //
 // SIN VISTA PREVIA (mismo argumento que Menú): el pie es cromo transversal (aparece en TODA
 // página), no contenido de una página. El resumen de lectura es TEXTO, no una miniatura.
+//
+// LA TARJETA DE IMAGEN (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1, la última pieza CONSTRUIBLE de
+// MUESTRARIO-FOOTER-TEMA-1 — el newsletter queda pendiente de una decisión de producto del owner,
+// § el docstring de `FooterContent`): mismo uploader compartido que `MenuSeccion.tsx`
+// (`useSubidaImagen`, `carpeta:'contenido'`), sin vista previa propia por la misma razón de arriba.
 
 type Form = FooterContent;
 
@@ -43,8 +51,13 @@ export default function FooterSeccion() {
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [procesando, setProcesando]       = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const [errorImagenTarjeta, setErrorImagenTarjeta] = useState<string | null>(null);
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
+
+  // El uploader COMPARTIDO de la cáscara (§ useSubidaImagen), el mismo que `MenuSeccion.tsx` usa
+  // para `panelTarjetaImagen` — sube DIRECTO a Blob, `carpeta:'contenido'`.
+  const subidaImagen = useSubidaImagen({ onError: setErrorImagenTarjeta });
 
   // AUTOGUARDADO del borrador — la MISMA máquina que las secciones (§ useAutoguardado), pero el PUT
   // va por el endpoint GENÉRICO de contenido (`footer` es una sección de REGISTRY).
@@ -247,6 +260,44 @@ export default function FooterSeccion() {
               <p className="duna-field__hint">Va a /nosotros (se oculta si esa página está apagada). Vacío: se usa el texto por defecto.</p>
             </div>
 
+            {/* LA TARJETA DE IMAGEN opcional (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1): en el muestrario
+                es el mapa con marcador — una imagen que el dueño SUBE, no un proveedor de mapas.
+                Sólo la muestra la composición "Marca arriba, columnas debajo"; vacía = sin tarjeta.
+                Misma miniatura + botón "Subir" que la tarjeta promocional del menú (§ MenuSeccion.tsx). */}
+            <div className="duna-field">
+              <span className="duna-field__label">Tarjeta de imagen (opcional)</span>
+              <p className="duna-field__hint" style={{ marginTop: 0 }}>
+                Sólo se ve con la composición &quot;Marca arriba, columnas debajo&quot;. Vacía: no se muestra.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-2)' }}>
+                <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
+                  {form.tarjetaImagen
+                    ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={form.tarjetaImagen} alt="" />
+                    : <ImageIcon aria-hidden width={20} height={20} />}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => subidaImagen.pedir((url) => cambiar({ tarjetaImagen: url }))}
+                    className="duna-btn duna-btn--secondary duna-btn--sm"
+                    disabled={subidaImagen.subiendo}
+                  >
+                    <Upload /> {form.tarjetaImagen ? 'Cambiar' : 'Subir imagen'}
+                  </button>
+                  <span className="duna-field__hint" style={{ margin: 0 }}>
+                    {subidaImagen.subiendo ? `Subiendo… ${subidaImagen.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+                  </span>
+                  {subidaImagen.subiendo && <BarraProgreso pct={subidaImagen.progreso ?? 0} />}
+                  {errorImagenTarjeta && <p className="duna-field__error" role="alert">{errorImagenTarjeta}</p>}
+                </div>
+              </div>
+            </div>
+            <div className="duna-field">
+              <label className="duna-field__label" htmlFor="footer-tarjeta-texto">Tarjeta de imagen — pie de texto</label>
+              <input id="footer-tarjeta-texto" className="duna-input" value={form.tarjetaTexto} onChange={(e) => cambiar({ tarjetaTexto: e.target.value })} />
+              <p className="duna-field__hint">Ej. &quot;San Adolfo, Huila&quot;. Vacío: sin pie de texto.</p>
+            </div>
+
             <div>
               <span className="duna-field__label">Enlaces legales (opcional)</span>
               <RepeaterEditor
@@ -257,6 +308,8 @@ export default function FooterSeccion() {
                 onChange={cambiarItems}
               />
             </div>
+
+            <input ref={subidaImagen.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subidaImagen.alElegir} hidden disabled={subidaImagen.subiendo} />
           </div>
         </div>
       )}

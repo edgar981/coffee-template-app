@@ -175,12 +175,16 @@ const CONTROLADOS_MENU_SECCION = [
  *  del storefront, que LANZA fuera de su árbol de providers — igual que `StoreNav` con `menu`. Un
  *  editor BESPOKE, patrón `MenuSeccion`/`PaletaSeccion`, evita tocar `VistaTiendaEnVivo.tsx`) —
  *  leído de su código: los tres encabezados de columna, las cinco etiquetas de enlace y la
- *  variante de composición, más los dos campos del ítem del repeater de la fila legal.
- *  `footer.visible` no aplica — `REGISTRY.footer.ocultable` es `false` (§ arriba). */
+ *  variante de composición, más los dos campos del ítem del repeater de la fila legal, y —
+ *  desde § MUESTRARIO-FOOTER-TARJETA-IMAGEN-1, controlados DE ENTRADA, en el mismo commit que
+ *  los suma a `REGISTRY.footer.campos`/`.imagenes` — la tarjeta de imagen opcional
+ *  (`tarjetaImagen`/`tarjetaTexto`). `footer.visible` no aplica — `REGISTRY.footer.ocultable`
+ *  es `false` (§ arriba). */
 const CONTROLADOS_FOOTER_SECCION = [
   'footer.columnaTienda', 'footer.columnaAyuda', 'footer.columnaEmpresa',
   'footer.linkTienda', 'footer.linkSuscripciones', 'footer.linkRastrearPedido',
   'footer.linkPreguntasFrecuentes', 'footer.linkNuestraHistoria',
+  'footer.tarjetaImagen', 'footer.tarjetaTexto',
   'footer.variante',
   'footer.items.label', 'footer.items.href',
 ];
