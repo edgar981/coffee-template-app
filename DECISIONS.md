@@ -18847,3 +18847,132 @@ necesidad de re-correrlo — ningún archivo de código cambió entre ese commit
 
 El commit queda en la rama a la espera de una decisión del orquestador sobre `touches:` (ensancharlo a
 los tres archivos de test, o instruir otra forma) antes de que este slice pueda re-intentarse.
+
+## 2026-09-25 — `MUESTRARIO-BANDA-APAGABLE-1`, SEGUNDO INTENTO — BLOQUEADO de nuevo, un CUARTO archivo
+## fuera de `touches:` esta vez, y por una razón DISTINTA del primer bloqueo
+
+### El re-despacho, y lo que trajo resuelto
+
+El `touches:` se ensanchó exactamente como pedía "Lo que sigue" del asiento de arriba: a
+`lib/config/themes.ts, lib/config/themes.test.ts, lib/config/origen-banda.test.ts,
+lib/config/marquesina-banda.test.ts, lib/config/corte-marquesina-velo.test.ts, DECISIONS.md`. Con eso,
+la migración de los dos flags viejos (`bandaOrigenVisible`/`bandaMarquesinaVisible` → el mapa general
+`bandasVisibles`) se completó sin problema: los CINCO asertos que el primer intento había medido como
+rotos (`origen-banda.test.ts:187,209`, `marquesina-banda.test.ts:137,159`,
+`corte-marquesina-velo.test.ts:108`) se migraron mecánicamente —`CORTE.bandaOrigenVisible` →
+`CORTE.bandasVisibles?.origen`, mismo patrón para `bandaMarquesinaVisible`/`marquesina` y para
+`PATIO.*` (`=== undefined`)— y `tsc --noEmit` corrió LIMPIO (0 errores) contra los 5 archivos tocados.
+Construida además la capacidad general completa: `PresetTema.bandasVisibles?: Partial<Record<BandaId,
+boolean>>`, la regla nueva `(e)` de `validarPreset` (regla `'bandaVisible'`, nombra la clave que no es
+`BandaId`), el loop genérico en `mergePresetEnContent` que reemplazó los dos bloques ORIGEN/MARQUESINA
+dedicados, y la secuencia real de CORTE (`orden: ['hero','marquesina','featured','presentaciones',
+'brandStory','origen','subscriptionCTA']` + `bandasVisibles: { origen: true, marquesina: true,
+trustBadges: false, testimonials: false }`, verificado que las dos apagadas son `ocultable:true` en
+el REGISTRY antes de apagarlas). Los 6 tests nuevos que pedía el spec (§3 a-d, más dos de refuerzo)
+se escribieron en `themes.test.ts` y los 81 tests del grupo de 4 archivos (`themes.test.ts` +
+`origen-banda.test.ts` + `marquesina-banda.test.ts` + `corte-marquesina-velo.test.ts`) pasaron en
+verde de forma aislada (`node --import tsx --test` sobre los 4).
+
+### El bloqueo, MEDIDO: `npm test` completo, no aislado
+
+Corriendo el carril COMPLETO (`npm test`, 1928 tests) con el diff aplicado: **1927 pass, 1 fail**.
+
+```
+test at lib/config/theme-mirador.test.ts:2:2312
+✖ CORTE no toca ningún texto/imagen del dueño — sólo tema/esquemas/orden/variantesBandas/variante
+  AssertionError: Expected values to be strictly deep-equal:
+    actual:   { visible: false, eyebrow: 'Testimonios', titulo: 'Lo que dicen nuestros clientes', items: [] }
+    expected: { visible: true,  eyebrow: 'Testimonios', titulo: 'Lo que dicen nuestros clientes', items: [] }
+      at TestContext.<anonymous> (lib/config/theme-mirador.test.ts:45:10)
+```
+
+La línea exacta (`theme-mirador.test.ts:45`): `assert.deepEqual(out.testimonials,
+DEFECTO.testimonials);`, dentro de `test('CORTE no toca ningún texto/imagen del dueño — sólo
+tema/esquemas/orden/variantesBandas/variante', …)`. Ese test afirmaba, HASTA este slice, que
+`content.testimonials` era una de las claves que CORTE NUNCA tocaba —cierto mientras CORTE sólo
+encendía `origen`/`marquesina` y jamás apagaba nada—. Con `CORTE.bandasVisibles.testimonials: false`
+(§ MUESTRARIO-BANDA-APAGABLE-1, sección 1 del spec: "apaga las bandas que el prototipo no tiene —
+trustBadges, testimonials"), `mergePresetEnContent` AHORA sí escribe `testimonials.visible: false` —
+comportamiento CORRECTO y DELIBERADO, exactamente lo que el spec pide—, así que la afirmación del test
+queda FALSA.
+
+`lib/config/theme-mirador.test.ts` **NO está en `touches:`** de este re-despacho (que sólo ensanchó a
+los TRES archivos que el primer bloqueo había medido — origen/marquesina, ninguno de los dos sobre
+`testimonials`/`trustBadges`). Es un CUARTO archivo, y por una MECÁNICA distinta del primer bloqueo:
+aquél rompía por la MIGRACIÓN de los dos flags viejos (`bandaOrigenVisible`/`bandaMarquesinaVisible`,
+sección 0 del spec); éste rompe por la COMPOSICIÓN NUEVA de CORTE apagando `trustBadges`/`testimonials`
+(sección 1 del spec) — una capacidad que el primer despacho nunca ejerció (CORTE nunca había apagado
+nada antes de este slice) y que por tanto el primer censo de bloqueo (`grep -rln
+"bandaOrigenVisible\|bandaMarquesinaVisible"`) no podía haber encontrado: el símbolo que rompe acá
+(`testimonials`/`bandasVisibles`) es distinto del que se buscó entonces.
+
+**Censo de otros archivos con el mismo riesgo (para que el próximo re-despacho no lo vuelva a medir a
+mano):** `grep -rl "CORTE" --include="*.test.ts" lib/config/ | xargs grep -l "testimonials\|trustBadges"`
+da SEIS archivos —`corte-trustbadges.test.ts`, `escala-display.test.ts`, `esquema-style.test.ts`,
+`site-content-defaults.test.ts`, `theme-mirador.test.ts`, `themes.test.ts` (éste último SÍ en
+`touches:`)—; de los cinco restantes, sólo `theme-mirador.test.ts` combina `CORTE` con una aserción
+sobre `testimonials`/`trustBadges` (verificado: `grep -n "CORTE" <archivo> | grep -i
+"testimonial\|trustbadge"` da vacío en los otros cuatro — sus menciones de `CORTE` son de OTRO eje,
+p. ej. `escala-display.test.ts` prueba `CORTE.escalaDisplay`, no bandas). La corrida completa de
+`npm test` (1928 tests) lo confirma por EJECUCIÓN, no por censo: exactamente UN fallo.
+
+### Por qué se para acá otra vez, y no se corrige el archivo
+
+Mismo argumento que el primer bloqueo, aplicado al archivo nuevo: `theme-mirador.test.ts` no está en
+`touches:`, y el protocolo del despacho es explícito — "si el trabajo necesita un archivo fuera de
+touches, parás y lo decís — no lo ensanchás vos". El fix sería mecánico (cambiar la línea 45 a
+`assert.deepEqual(out.testimonials, { ...DEFECTO.testimonials, visible: false });`, mismo patrón que
+ya se aplicó a los cinco asertos del primer bloqueo), pero "mecánico" no es la vara: la vara es
+`touches:`, y este archivo no está declarado.
+
+Tampoco se descartó la mitad del mandato para evitar el archivo (p. ej. dejar `CORTE.bandasVisibles`
+sólo con `origen`/`marquesina` encendidos, sin apagar `trustBadges`/`testimonials`): la sección 1 del
+spec pide explícitamente que CORTE "apaga las bandas que el prototipo no tiene", y el test (d) que el
+spec pide en la sección 3 ("CORTE resuelve la secuencia del prototipo y deja apagadas las dos que no
+van") exige exactamente ese comportamiento. Entregar la capacidad general sin ejercerla en CORTE habría
+sido cumplir la letra de la sección 0 e incumplir la sección 1 — un recorte de alcance no pedido, la
+misma clase de desvío no autorizado que ensanchar `touches:` por cuenta propia.
+
+### Lo que sigue — para quien re-dispatche esto
+
+El único cambio faltante, ya identificado: `theme-mirador.test.ts:45` —
+`assert.deepEqual(out.testimonials, DEFECTO.testimonials);` → `assert.deepEqual(out.testimonials, {
+...DEFECTO.testimonials, visible: false });` (o una reformulación equivalente que documente que CORTE
+ahora SÍ apaga `testimonials`, con su comentario actualizado — la línea 40-41 de ese archivo, el
+docstring de cabecera, dice "trae sus variantes de banda sin tocar ningún texto/imagen del dueño", que
+sigue siendo cierto para `testimonials` —`visible` es composición, no contenido/texto—, pero el nombre
+del test ("no toca ningún texto/imagen… sólo tema/esquemas/orden/variantesBandas/variante") ya no
+nombra a `bandasVisibles`/`visible` entre lo que SÍ toca, y convendría que el próximo lo actualice
+también). Ensanchar `touches:` a `lib/config/theme-mirador.test.ts` es lo mínimo necesario; no se
+detectó ningún QUINTO archivo en esta medición.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — el diff completo de `themes.ts` +
+`themes.test.ts` + los tres archivos de test migrados se construyó, se verificó verde de forma aislada
+(81/81) y se corrió el carril completo (1927/1928, el 1 fallo siendo el de `theme-mirador.test.ts`
+arriba) — y luego se REVIRTIÓ por completo (`git checkout --`) antes de commitear, dejando el árbol
+IDÉNTICO al commit anterior (`1411c0d`). Verificado con `git status --short` y `git diff --stat`
+después del checkout: sin salida, cero archivos de código en el diff. `lib/config/themes.ts`,
+`lib/config/themes.test.ts`, `lib/config/origen-banda.test.ts`, `lib/config/marquesina-banda.test.ts` y
+`lib/config/corte-marquesina-velo.test.ts` (los cinco miembros de `touches:` con escritura) quedan sin
+un solo byte modificado en este commit.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: ninguno de código — el único archivo es `DECISIONS.md`, append puro
+al final, no retitula ni cierra ninguna sección existente. Grep del identificador
+(`MUESTRARIO-BANDA-APAGABLE-1`) contra `CLAUDE.md`: cero resultados. No aplica el chequeo de "sección
+cerrada que alguien apunta".
+
+### Verdicto
+
+**BLOCKED.** No se corrió `npm run test:integracion` ni `guarda:color`: con el código revertido no hay
+nada nuevo que gatear más allá de lo ya medido arriba (`npm test` completo, 1927/1928, con el único
+fallo fuera de `touches:` explicado), y el piso heredado del commit anterior en esta rama (`1411c0d`,
+heredado de `e48ad29`/`ae2a568`: tsc 0 errores, `npm test` 1923/1923, `npm run test:integracion`
+231/231) sigue siendo válido para el árbol final — ningún archivo de código cambió entre ese commit y
+éste.
+
+El commit queda en la rama a la espera de una decisión del orquestador sobre `touches:` (ensancharlo a
+`lib/config/theme-mirador.test.ts`, o instruir otra forma) antes de que este slice pueda re-intentarse.
