@@ -32,6 +32,14 @@ export interface MoliendaOpcion {
   nombre: string;
   metodo: string;
   disponible: boolean;
+  /**
+   * Imagen PROPIA de esta opción, OPCIONAL (§ MUESTRARIO-VARIANTE-IMAGEN-1). Vacía o
+   * ausente = se muestra `producto.imagen`, el comportamiento de hoy — ninguna
+   * función de arriba (`normalizarOpciones`, `decidirMolienda`, `moliendaAceptada`…)
+   * la lee ni cambia de comportamiento por ella; sólo la lee `imagenDeMolienda`, al
+   * final del archivo. No se migra el schema: la columna ya es Json.
+   */
+  imagen?: string;
 }
 
 /**
@@ -131,6 +139,12 @@ export function moliendaAceptada(raw: unknown, molienda: string | null | undefin
  * que una fila a medias desapareciera al guardar sin que nadie lo dijera, y el
  * operador la daría por creada. Una lista de opciones no es una lista de URLs:
  * cada fila es una decisión, no un adjunto.
+ *
+ * `imagen` se recorta igual que `metodo` pero, a diferencia de `nombre`/`metodo`,
+ * SE OMITE de la fila cuando queda vacía (en vez de persistir `imagen: ''`): así
+ * una lista guardada antes de este campo, o una opción sin foto propia, sigue
+ * siendo la misma forma exacta de siempre — nada nuevo que un `deepEqual` viejo
+ * tuviera que aprender a ignorar. Vacío es AUSENCIA, no un valor.
  */
 export function sanitizeOpciones(valor: unknown): MoliendaOpcion[] {
   if (!Array.isArray(valor)) return [];
@@ -138,10 +152,12 @@ export function sanitizeOpciones(valor: unknown): MoliendaOpcion[] {
   for (const item of valor) {
     if (!item || typeof item !== 'object') continue;
     const o = item as Record<string, unknown>;
+    const imagen = typeof o.imagen === 'string' ? o.imagen.trim() : '';
     salida.push({
       nombre:     typeof o.nombre === 'string' ? o.nombre.trim() : '',
       metodo:     typeof o.metodo === 'string' ? o.metodo.trim() : '',
       disponible: Boolean(o.disponible),
+      ...(imagen ? { imagen } : {}),
     });
   }
   return salida;
@@ -267,4 +283,33 @@ export function revisarEdicion(
       indices: p.indices.map(i => indicesVivos[i]),
     })),
   };
+}
+
+// ─── El MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1) ──────────────────────────
+// Una opción puede llevar su propia foto para que elegirla cambie el mockup
+// mostrado SIN navegar a otro producto (el `.bag-card` del prototipo). Es un
+// recorte del Backlog #62 (variantes agrupadas con stock por combinación) —
+// SÓLO la imagen, nada de cardinalidad ni de stock por variante.
+
+/**
+ * La imagen a mostrar para una molienda elegida: la propia de la opción si la
+ * declaró, si no la del producto — el comportamiento de hoy. `null`/`undefined`
+ * en `molienda` (nada elegido, o el producto no pide molienda) cae directo a
+ * `imagenProducto`, sin buscar. Un `imagen` que no sea string no-vacío se trata
+ * como AUSENTE, el mismo criterio permisivo del resto del módulo: un dato
+ * corrupto en la columna Json no puede romper el render, sólo perder el swap.
+ *
+ * Vive junto al resto de la regla del cliente para que cualquier consumidor
+ * futuro de la selección (hoy sólo `Spotlight.tsx`) decida igual sin reinventar
+ * el fallback.
+ */
+export function imagenDeMolienda(
+  raw: unknown,
+  molienda: string | null | undefined,
+  imagenProducto: string,
+): string {
+  if (!molienda) return imagenProducto;
+  const opcion = normalizarOpciones(raw).find(o => o?.nombre === molienda);
+  const imagen = opcion?.imagen;
+  return typeof imagen === 'string' && imagen.trim() ? imagen : imagenProducto;
 }

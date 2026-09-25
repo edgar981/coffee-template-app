@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   decidirMolienda, moliendaAceptada, moliendasDisponibles, moliendaPorDefecto,
   agregableDirecto, normalizarOpciones, sanitizeOpciones, validarOpciones,
-  opcionesVivas, revisarEdicion,
+  opcionesVivas, revisarEdicion, imagenDeMolienda,
 } from './moliendas-opciones';
 
 // Estos tests existen por un bug de go-live, no por cobertura: había DOS formas de
@@ -291,4 +291,87 @@ test('todo lo que pasa el validador es guardable y comprable', () => {
     assert.ok(disponibles.length > 0);
     for (const o of disponibles) assert.equal(moliendaAceptada(opciones, o.nombre), true);
   }
+});
+
+// ─── El MUESTRARIO: `imagen` por opción ──────────────────────────────────────
+// Recorte del Backlog #62 (§ MUESTRARIO-VARIANTE-IMAGEN-1): SÓLO la imagen que
+// el spotlight muestra al elegir una opción, nada de cardinalidad ni de stock
+// por variante. La columna ya es Json — el campo es opcional dentro de ella,
+// sin migración.
+
+const IMG_MEDIA = 'https://blob.example/productos/molido-media.jpg';
+
+test('sanitizeOpciones: `imagen` se recorta y se persiste cuando viene', () => {
+  const sucio = [{ nombre: 'Media', metodo: 'Filtro', disponible: true, imagen: `  ${IMG_MEDIA}  ` }];
+  assert.deepEqual(sanitizeOpciones(sucio), [
+    { nombre: 'Media', metodo: 'Filtro', disponible: true, imagen: IMG_MEDIA },
+  ]);
+});
+
+test('sanitizeOpciones: `imagen` vacía, en blanco o de tipo raro se OMITE — no se persiste como \'\'', () => {
+  for (const imagen of ['', '   ', 42, null, undefined, {}]) {
+    const salida = sanitizeOpciones([{ nombre: 'Media', metodo: 'Filtro', disponible: true, imagen }]);
+    assert.deepEqual(salida, [{ nombre: 'Media', metodo: 'Filtro', disponible: true }]);
+    assert.ok(!('imagen' in salida[0]));
+  }
+});
+
+test('sanitizeOpciones: una fila SIN el campo `imagen` sigue dando la forma de siempre (compat hacia atrás)', () => {
+  assert.deepEqual(
+    sanitizeOpciones([{ nombre: 'Media', metodo: 'Filtro', disponible: true }]),
+    [{ nombre: 'Media', metodo: 'Filtro', disponible: true }],
+  );
+});
+
+test('imagenDeMolienda: opción elegida con imagen propia → esa imagen', () => {
+  const opciones = [
+    { nombre: 'Gruesa', metodo: 'Prensa', disponible: true },
+    { nombre: 'Media', metodo: 'Filtro', disponible: true, imagen: IMG_MEDIA },
+  ];
+  assert.equal(imagenDeMolienda(opciones, 'Media', '/images/producto.webp'), IMG_MEDIA);
+});
+
+test('imagenDeMolienda: opción elegida SIN imagen propia → cae a la del producto (el comportamiento de hoy)', () => {
+  assert.equal(imagenDeMolienda(MOLIDO, 'Media', '/images/producto.webp'), '/images/producto.webp');
+});
+
+test('imagenDeMolienda: sin molienda elegida (null/undefined) → la del producto, sin buscar', () => {
+  const opciones = [{ nombre: 'Media', metodo: 'Filtro', disponible: true, imagen: IMG_MEDIA }];
+  assert.equal(imagenDeMolienda(opciones, null, '/images/producto.webp'), '/images/producto.webp');
+  assert.equal(imagenDeMolienda(opciones, undefined, '/images/producto.webp'), '/images/producto.webp');
+});
+
+test('imagenDeMolienda: una molienda que no matchea ninguna opción → la del producto', () => {
+  const opciones = [{ nombre: 'Media', metodo: 'Filtro', disponible: true, imagen: IMG_MEDIA }];
+  assert.equal(imagenDeMolienda(opciones, 'Turca', '/images/producto.webp'), '/images/producto.webp');
+});
+
+test('imagenDeMolienda: `imagen` corrupta (no string, o en blanco) no rompe — cae a la del producto', () => {
+  for (const imagen of [42, {}, '   ']) {
+    const opciones = [{ nombre: 'Media', metodo: 'Filtro', disponible: true, imagen }];
+    assert.equal(imagenDeMolienda(opciones, 'Media', '/images/producto.webp'), '/images/producto.webp');
+  }
+});
+
+test('imagenDeMolienda: un `raw` degradado (no array) no rompe — cae a la del producto', () => {
+  for (const raw of [null, undefined, {}, 'x', 7]) {
+    assert.equal(imagenDeMolienda(raw, 'Media', '/images/producto.webp'), '/images/producto.webp');
+  }
+});
+
+test('el campo `imagen` NO cambia el comportamiento de ninguna función existente', () => {
+  // El recorte es SÓLO el swap del mockup: la cardinalidad, la elegibilidad y la
+  // aceptación del servidor tienen que ser IDÉNTICAS con o sin la foto.
+  const conImagen = MOLIDO.map((o) => (o.nombre === 'Media' ? { ...o, imagen: IMG_MEDIA } : o));
+  assert.deepEqual(decidirMolienda(conImagen), decidirMolienda(MOLIDO));
+  assert.equal(agregableDirecto(conImagen), agregableDirecto(MOLIDO));
+  assert.equal(moliendaPorDefecto(conImagen), moliendaPorDefecto(MOLIDO));
+  assert.deepEqual(
+    moliendasDisponibles(conImagen).map(o => o.nombre),
+    moliendasDisponibles(MOLIDO).map(o => o.nombre),
+  );
+  for (const o of MOLIDO) {
+    assert.equal(moliendaAceptada(conImagen, o.nombre), moliendaAceptada(MOLIDO, o.nombre));
+  }
+  assert.deepEqual(validarOpciones(conImagen), validarOpciones(MOLIDO));
 });

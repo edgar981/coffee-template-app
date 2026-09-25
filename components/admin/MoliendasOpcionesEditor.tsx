@@ -1,7 +1,11 @@
 'use client';
 
-import { Plus, Undo2, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Plus, Undo2, Upload, X } from 'lucide-react';
 import { opcionesVivas, type MoliendaOpcion, type ProblemaOpciones } from '@duna/core/moliendas-opciones';
+import { subirDirecto } from '@/lib/api/upload';
+import { ACCEPT_IMAGENES, MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
+import BarraProgreso from '@/components/admin/BarraProgreso';
 
 // ─── Opciones de molienda para el cliente ────────────────────────────────────
 // La UI que faltaba: el tipo prometía "el admin activa nuevas moliendas con
@@ -35,6 +39,26 @@ import { opcionesVivas, type MoliendaOpcion, type ProblemaOpciones } from '@duna
 // el interruptor de una fila y así lo enseñó la pantalla vieja; convertirlo en
 // casilla sería rediseñar mientras se migra. Un `<button>` responde a Enter y
 // Espacio sin un handler de teclado escrito a mano.
+//
+// ── LA IMAGEN DEL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1) ───────────────
+//
+// Cada fila puede llevar su propia foto: es lo que hace que el spotlight de la
+// home cambie de mockup al elegir una presentación, sin navegar a otro producto
+// (§ Spotlight.tsx). Vacío = la imagen del producto, el comportamiento de hoy —
+// no es un campo que haya que llenar.
+//
+// EL UPLOADER ES PROPIO DE ESTE EDITOR, no el `useSubidaImagen` que usa la cáscara
+// de SiteContent (`carpeta:'contenido'`, otro namespace del store): esto es una
+// imagen de PRODUCTO, así que sube con la MISMA primitiva y la MISMA carpeta que
+// la portada y la galería del propio modal (`subirDirecto`, `carpeta:'productos'`,
+// § ProductFormModal.tsx) — no se inventa un tercer mecanismo, se reusa el que ya
+// firma esas subidas. La diferencia con la portada/galería es de MOMENTO, no de
+// primitiva: aquéllas se suben recién al Guardar (SUBIR→GUARDAR, en lote); ésta
+// sube AL ELEGIR el archivo, como en el editor de contenido — este componente no
+// tiene forma de enterarse de cuándo el modal padre va a guardar, así que subir
+// inmediato y guardar la URL en `onChange` es lo único que no exige ensanchar el
+// contrato del padre. Un blob subido y luego descartado (el operador cierra sin
+// guardar) es basura barata, la misma que ya acepta el resto del admin.
 
 interface Props {
   opciones: MoliendaOpcion[];
@@ -69,6 +93,57 @@ export function MoliendasOpcionesEditor({
   // Agregar APENDIZA — nunca reordena ni reindexa, que es lo que mantiene válidos
   // los índices de `quitadas` mientras el modal está abierto.
   const agregar = () => onChange([...opciones, { nombre: '', metodo: '', disponible: true }]);
+
+  // ── La imagen del muestrario, por fila ──────────────────────────────────────
+  // Un solo <input file> compartido (el patrón de la galería del propio modal:
+  // `filaObjetivoRef` recuerda QUÉ fila lo abrió, como `galeriaInputRef` recordaba
+  // el picker). `subiendoIndex` es GLOBAL a propósito —bloquea el botón de las
+  // DEMÁS filas mientras una sube— para no tener que mostrar dos barras de
+  // progreso peleando por la atención a la vez; la fila que sube es la única que
+  // pinta la suya.
+  const inputImagenRef = useRef<HTMLInputElement>(null);
+  const filaObjetivoRef = useRef<number | null>(null);
+  const [subiendoIndex, setSubiendoIndex] = useState<number | null>(null);
+  const [progreso, setProgreso] = useState<number | null>(null);
+  const [errorImagen, setErrorImagen] = useState<string | null>(null);
+
+  const pedirImagen = (i: number) => {
+    filaObjetivoRef.current = i;
+    inputImagenRef.current?.click();
+  };
+
+  const alElegirImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite volver a elegir el mismo archivo
+    const i = filaObjetivoRef.current;
+    filaObjetivoRef.current = null;
+    if (!file || i == null) return;
+
+    if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
+      setErrorImagen(`"${file.name}": formato no admitido. Usa JPG, PNG o WebP.`);
+      return;
+    }
+    if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
+      setErrorImagen(`"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`);
+      return;
+    }
+    setErrorImagen(null);
+    setSubiendoIndex(i);
+    setProgreso(0);
+    try {
+      const { url } = await subirDirecto(file, { carpeta: 'productos', onProgress: setProgreso });
+      actualizar(i, { imagen: url });
+    } catch (err) {
+      setErrorImagen(err instanceof Error ? err.message : 'No se pudo subir la imagen. Reintenta.');
+    } finally {
+      setSubiendoIndex(null);
+      setProgreso(null);
+    }
+  };
+
+  // Quitar sólo limpia el campo — el blob queda huérfano (basura barata), como el
+  // resto del admin: nada en esta pantalla borra blobs del store.
+  const quitarImagen = (i: number) => actualizar(i, { imagen: '' });
 
   return (
     <div style={{ gridColumn: '1 / -1' }}>
@@ -125,6 +200,45 @@ export function MoliendasOpcionesEditor({
                     placeholder="Filtro / Greca tradicional"
                   />
                 </div>
+                {/* La foto del muestrario: OPCIONAL, y sube al ELEGIR el archivo, no al
+                    Guardar (§ el docstring de arriba). Vacío = la imagen del producto. */}
+                <div className="duna-field" style={{ minWidth: '150px', flexShrink: 0 }}>
+                  <span className="duna-field__label">Imagen del muestrario (opcional)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+                    {opcion.imagen && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={opcion.imagen}
+                        alt=""
+                        style={{
+                          width: '36px', height: '36px', objectFit: 'cover', flexShrink: 0,
+                          borderRadius: 'var(--duna-r-s)', border: '1px solid var(--duna-border)',
+                          ...tachado,
+                        }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      className="duna-btn duna-btn--ghost duna-btn--sm"
+                      onClick={() => pedirImagen(i)}
+                      disabled={disabled || quitada || subiendoIndex !== null}
+                    >
+                      <Upload /> {subiendoIndex === i ? `${progreso ?? 0}%` : opcion.imagen ? 'Cambiar' : 'Subir'}
+                    </button>
+                    {opcion.imagen && !quitada && (
+                      <button
+                        type="button"
+                        className="duna-btn duna-btn--ghost duna-btn--sm"
+                        onClick={() => quitarImagen(i)}
+                        disabled={disabled || subiendoIndex !== null}
+                        aria-label={`Quitar la imagen de ${etiqueta}`}
+                      >
+                        <X />
+                      </button>
+                    )}
+                  </div>
+                  {subiendoIndex === i && <BarraProgreso pct={progreso ?? 0} />}
+                </div>
                 {/* El toggle es la decisión real de esta pantalla: `disponible` es lo
                     que el storefront cuenta para decidir card vs. detalle. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexShrink: 0, paddingBottom: 'var(--duna-space-2)' }}>
@@ -169,6 +283,16 @@ export function MoliendasOpcionesEditor({
         </div>
       )}
 
+      {/* Compartido por las filas — el objetivo lo dice `filaObjetivoRef`, no un input por fila. */}
+      <input
+        ref={inputImagenRef}
+        type="file"
+        accept={ACCEPT_IMAGENES}
+        onChange={alElegirImagen}
+        hidden
+        disabled={subiendoIndex !== null}
+      />
+
       <button
         type="button"
         className="duna-btn duna-btn--secondary duna-btn--sm"
@@ -183,8 +307,12 @@ export function MoliendasOpcionesEditor({
           toggle y el comportamiento de la tienda cambia sin que nada lo anuncie. */}
       <p className="duna-caption" style={{ marginTop: 'var(--duna-space-2)' }}>
         Con una sola molienda disponible, la tarjeta de la tienda agrega directo; con
-        varias, lleva al detalle para elegir.
+        varias, lleva al detalle para elegir. La imagen del muestrario cambia el mockup
+        de la banda destacada de la tienda al elegir esa presentación — sin foto propia,
+        se sigue mostrando la del producto.
       </p>
+
+      {errorImagen && <p className="duna-field__error" style={{ marginTop: 'var(--duna-space-1)' }}>{errorImagen}</p>}
 
       {problemas.length > 0 && (
         <ul style={{ margin: 'var(--duna-space-1) 0 0', paddingLeft: 'var(--duna-space-4)' }}>

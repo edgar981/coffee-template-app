@@ -21286,3 +21286,205 @@ fondo) pero NINGÚN schema ni contrato cross-repo — la única de las tres cond
 policy A que aplica es `customer-bytes`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA
 APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner,
 como en todo Tier 1.
+
+## 2026-09-25 — `MUESTRARIO-VARIANTE-IMAGEN-1` — CONSTRUIDO: una opción de molienda gana una imagen PROPIA (`MoliendaOpcion.imagen`), y el spotlight la usa para el swap del mockup
+
+### El recorte, contra el Backlog #62 — cierra la pregunta que `CENSO-MUESTRARIO-1` había dejado abierta
+
+Cierra la fila de `CENSO-MUESTRARIO-1` (Tabla 7, línea ~18560): *"El `.bag-card` cambia de IMAGEN
+(mockup) según la presentación elegida… `MoliendaOpcion` sólo tiene `{nombre, metodo,
+disponible}` — ninguna opción de variante puede llevar su propia imagen"*. Ese mismo censo dejó
+una pregunta sin medir (línea ~18722): *"no se midió si conviene resolverlo como un campo
+aislado… o si eso crea una divergencia con el proyecto transversal de variantes agrupadas (#62)
+que después haya que reconciliar"*. **Medido al construirlo: NO hay divergencia que reconciliar.**
+El campo aislado (`MoliendaOpcion.imagen?: string`, dentro de la MISMA columna `Json` que ya
+existe) es puramente ADITIVO y no toca cardinalidad, stock ni checkout — el día que el #62
+construya variantes agrupadas con stock por combinación, este campo sigue siendo exactamente lo
+que es hoy (la foto de una opción), sin que nada de lo que el #62 vaya a tocar (el modelo de
+stock, las DOS puertas de escritura, el descuento atómico al despacho, el checkout) tenga que
+leerlo ni reconciliarlo. El spec de este slice ya lo declaraba explícito ("Esto NO es el Backlog
+#62… es el recorte mínimo") y la construcción lo confirma: cero superficie compartida con lo que
+#62 tocaría.
+
+### `packages/core/src/moliendas-opciones.ts` — el campo, permisivo, y `imagenDeMolienda`
+
+- **`MoliendaOpcion.imagen?: string`** — OPCIONAL dentro de la columna Json que YA existe: **SIN
+  migración**, como pedía el spec. Ninguna función de lectura existente (`normalizarOpciones`,
+  `decidirMolienda`, `moliendasDisponibles`, `agregableDirecto`, `moliendaPorDefecto`,
+  `moliendaAceptada`) lo lee ni cambia de comportamiento por su presencia — afirmado con un test
+  que compara el resultado de las CINCO, con y sin `imagen`, línea por línea (`moliendas-opciones
+  .test.ts`, "el campo `imagen` NO cambia el comportamiento de ninguna función existente").
+- **`sanitizeOpciones` gana `imagen`, pero la OMITE cuando queda vacía** (en vez de persistir
+  `imagen: ''`): así una lista guardada ANTES de este campo, o una opción sin foto propia, sigue
+  produciendo la MISMA forma exacta de objeto que antes — ningún `deepEqual` de los 29 tests
+  preexistentes tuvo que tocarse. Vacío es AUSENCIA, no un valor — el mismo principio que ya regía
+  el resto del módulo, aplicado al campo nuevo.
+- **`imagenDeMolienda(raw, molienda, imagenProducto)`** — la nueva función: la imagen de la
+  opción elegida si la declaró, si no `imagenProducto` (el comportamiento de hoy). `null`/
+  `undefined` en `molienda` cae directo sin buscar; un `imagen` que no sea string no-vacío
+  (dato corrupto en el Json) se trata como AUSENTE — el mismo criterio permisivo del resto del
+  archivo: un dato mal formado no puede romper el render, sólo perder el swap. Vive junto al
+  resto de la regla del cliente, no en el componente, para que cualquier consumidor futuro de la
+  selección decida igual sin reinventar el fallback.
+- **10 tests nuevos en `moliendas-opciones.test.ts`** (29 → 39, medido: `git show HEAD:packages/
+  core/src/moliendas-opciones.test.ts | grep -c "^test("` da 29 sobre el árbol previo a este
+  slice): `sanitizeOpciones` con `imagen` presente/vacía-en-blanco-de-tipo-raro/ausente (3
+  tests), y `imagenDeMolienda` en sus seis casos (con foto propia, sin ella, sin molienda elegida,
+  molienda que no matchea, `imagen` corrupta, `raw` degradado no-array), más el test que compara
+  las cinco funciones existentes con y sin el campo.
+
+### `components/storefront/home/Spotlight.tsx` — el swap, sin mover el layout
+
+El `src` de la imagen principal pasó de `imagenPortada(producto.imagen)` a
+`imagenPortada(imagenDeMolienda(producto.moliendasOpciones, molienda, producto.imagen ?? ''))`.
+Mismo `<Image fill className="object-cover">` sobre el MISMO contenedor `aspect-square`: el swap
+cambia el `src`, nunca el layout ni el tamaño de la caja — cuidado explícito del spec ("cambiar la
+fuente de la imagen no debe saltar ni re-medir la tarjeta"), cumplido por construcción (ningún
+`style`/clase del contenedor se tocó). `imagenPortada` sigue siendo el ÚNICO fallback a
+placeholder — la composición no lo reemplaza, lo envuelve.
+
+**`lib/config/variante-imagen.test.ts` (nuevo, 7 tests)** afirma la composición EXACTA que el
+componente usa (`imagenPortada(imagenDeMolienda(...))`), no sólo `imagenDeMolienda` sola —
+mismo criterio que `spotlight-banda.test.ts` ya sienta para este componente ('use client' +
+framer-motion + next/image, sin jsdom en el repo: se afirma lo que decide QUÉ se muestra antes de
+que el componente pinte un nodo). El caso NAYOLI BYTE-IDÉNTICO —el catálogo real, sin `imagen` en
+ninguna opción, sigue mostrando siempre `producto.imagen`— es uno de los siete, y lo reconfirma el
+gate visual (abajo).
+
+### `components/admin/MoliendasOpcionesEditor.tsx` — el control, con SU PROPIO uploader
+
+Cada fila gana una miniatura + "Subir"/"Cambiar" + "Quitar", con `BarraProgreso` pegada al botón
+que disparó la subida (mismo patrón que el resto del admin, § "El PROGRESO va PEGADO AL BOTÓN, no
+en un sticky"). Decisión de mecanismo, porque **`touches:` de este slice NO incluye
+`ProductFormModal.tsx`**: el uploader NO es el `useSubidaImagen` compartido de la cáscara de
+SiteContent (`carpeta:'contenido'`, otro namespace del store — y de todos modos ese hook vive
+fuera de `touches:`), ni tampoco se ensanchó el contrato de `ProductFormModal` con nuevas props
+(`pedirImagen`/`subiendo`/`progreso`, el patrón de `RepeaterEditor`) — eso habría exigido tocar un
+archivo fuera del alcance declarado.
+
+En su lugar, el editor sube DIRECTO con la MISMA primitiva que ya firma la portada y la galería
+del propio modal (`subirDirecto`, `carpeta:'productos'`, `constants/upload.ts` para
+tipos/tope) — no se inventa un tercer mecanismo. La diferencia con la portada/galería es de
+MOMENTO, no de primitiva: aquéllas suben recién al Guardar (SUBIR→GUARDAR, en lote, orquestado
+por `ProductFormModal`); ésta sube AL ELEGIR el archivo, porque el componente no tiene forma de
+enterarse de cuándo el padre va a guardar. Un blob subido y luego descartado (el operador cierra
+el modal sin guardar) queda huérfano — basura barata, la misma que ya acepta el resto del admin
+(§ la portada/galería del propio modal, § el borrado de blobs). Quitar la imagen sólo limpia el
+campo (`imagen: ''`, que `sanitizeOpciones` omite al guardar); no borra el blob.
+
+**El guard del panel NO aplica, como el spec anticipaba.** `huecosDelPanel()`
+(`lib/config/panel-controles.ts`) escanea campos de `SiteContent`, no de `Product`; este campo no
+entra a su barrido. Verificado: `PENDIENTE_PANEL.length` sigue en su valor de antes de este slice
+— el techo del trinquete no se movió, porque no había nada que mover.
+
+### El gate, medido sobre EL ÁRBOL FINAL de este despacho
+
+- `npm run typecheck` (`tsc --noEmit`) → **0 errores**. Sin tocar `types/product.ts` (fuera de
+  `touches:`): su propia copia de `MoliendaOpcion` (una segunda declaración, ya preexistente al
+  eje domain/vista del Monorepo) no gana `imagen` — no hizo falta, porque toda ruta de escritura
+  (`sanitizeOpciones(valor: unknown)`, `imagenDeMolienda(raw: unknown, …)`) recibe el dato como
+  `unknown`, y el `moliendas` de `ProductFormModal` ya tipaba con el `MoliendaOpcion` de
+  `@duna/core/moliendas-opciones` (no con el de `types/product.ts`) desde antes de este slice.
+- `npm test` → **2071/2071**, 0 fail (2054 + 17 nuevos: 10 en `moliendas-opciones.test.ts`, 7 en
+  `variante-imagen.test.ts` — cuadra exacto: 2054 + 10 + 7 = 2071).
+- `npm run test:integracion` → **232/232**, verde en una sola corrida (sin el flake de
+  `wompi-reconciliador.test.ts` que los despachos anteriores de esta tanda venían documentando).
+- `npm run verificar:nayoli:visual` → **0px de diferencia en las 6 rutas + los 2 hovers**
+  (home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros
+  0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870) —
+  MEDIDO sobre el build de producción de esta rama. El catálogo canónico de Nayoli no declara
+  `imagen` en ninguna opción de molienda, así que `imagenDeMolienda` siempre cae a
+  `producto.imagen` — el 0px confirma que ni el swap del Spotlight ni el editor del admin (que no
+  se ejercita en las capturas del storefront) movieron un solo píxel de la tienda de Nayoli.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff cambió: `MoliendaOpcion.imagen`, `imagenDeMolienda`,
+`sanitizeOpciones` (comportamiento extendido), `MoliendasOpcionesEditor.tsx`, `Spotlight.tsx`,
+`packages/core/src/moliendas-opciones.ts`.
+
+- Grep de `MoliendaOpcion` en `CLAUDE.md`: **CERO resultados** (el tipo no se nombra por su
+  nombre TypeScript en ningún lado del documento).
+- Grep de `imagenDeMolienda`: **CERO resultados** (función nueva, no podía estar).
+- Grep de `sanitizeOpciones`: **DOS apariciones**, ambas en "§ Opciones de molienda — el editor
+  del admin" (`CLAUDE.md:4042`, `:4056`). La primera ("Las reglas de escritura son puras…
+  `sanitizeOpciones` + `validarOpciones`… Son tres: nombre no vacío; único por producto…; y al
+  menos una disponible") sigue TRUE: `imagen` no es una de esas tres reglas —no hay validación
+  sobre ella, es puro passthrough opcional— así que "son tres" no queda falseado. La segunda
+  ("`sanitizeOpciones` NO descarta las filas sin nombre… las conserva para que `validarOpciones`
+  las REPORTE") sigue TRUE: el cambio de esta tanda es sobre el campo `imagen` de una fila, no
+  sobre si la fila se conserva.
+- Grep de `moliendasOpciones` (minúscula, el campo del modelo): **TRES apariciones** además de la
+  de la sección de arriba —`CLAUDE.md:1777` (§ Backlog #59, "la ficha entera es café-shape";
+  `imagen` no agrega vocabulario café, sigue TRUE), `:4061` y `:4076` (el PATCH parcial y "renombrar
+  no reescribe historia"; ninguna de las dos habla del campo `imagen`, siguen TRUE).
+- Grep de `Spotlight`: **CERO resultados** — el componente nunca entró a la doctrina de
+  `CLAUDE.md` (vive documentado en `DECISIONS.md`, `SPOTLIGHT-BANDA-1`/`SPOTLIGHT-CABLEADO-HOME-1`).
+- Grep de `imagenPortada`: **UNA aparición** (`CLAUDE.md:4317`, "es el ÚNICO fallback — carrito,
+  buscador, checkout y el hero del detalle lo usan"). Sigue TRUE en su forma literal (sigue siendo
+  el único fallback a placeholder — mi composición lo ENVUELVE, no lo reemplaza) y no es una lista
+  cerrada de consumidores que mi cambio contradiga (Spotlight ya lo usaba desde antes de este
+  slice, sin estar nombrado ahí).
+- Grep de `BarraProgreso`: **UNA aparición** (`CLAUDE.md:3755`, "El PROGRESO va PEGADO AL BOTÓN…
+  va pegada al botón que disparó la subida"). Mi uso la SIGUE, no la contradice.
+- **HALLAZGO, no causado por este diff:** `CLAUDE.md:4037` cita el módulo como `lib/moliendas
+  -opciones.ts` — ruta que YA NO EXISTE (el módulo vive en `packages/core/src/moliendas-opciones
+  .ts`, y la línea 39 del propio `CLAUDE.md`, la lista Tier 1, ya usa la ruta correcta). Es drift
+  PRE-EXISTENTE a este slice — el módulo se movió a `packages/core/` en una tanda anterior sin que
+  esta mención puntual se actualizara — no algo que mi diff vuelva falso. No se edita (`CLAUDE.md`
+  no está en `touches:`); se deja anotado para que quede escrito, sin coinear un `open_followup`
+  nuevo porque no es una consecuencia de este cambio.
+- **CERO sentencias de `CLAUDE.md` quedan falsas por este diff.**
+
+### CHEQUEO DEL DOCUMENTO — `MUESTRARIO-VARIANTE-IMAGEN-1` contra `DECISIONS.md`
+
+`grep -n "MUESTRARIO-VARIANTE-IMAGEN-1" DECISIONS.md` da tres apariciones previas, las tres en
+`CENSO-MUESTRARIO-1` (2026-09-25): la fila de la Tabla 7 (línea ~18560), la fila de la Tabla de
+capacidades (línea ~18705, "**6** (Spotlight)"), y el bullet de costo-vs-#62 (línea ~18722,
+citado arriba). **Las tres NO se editan** — mismo precedente que las tandas anteriores de esta
+sesión (Redes adicionales, Footer tema, Mega-menú, CTA banner foto) ya sentaron: el censo es una
+foto histórica, y este mismo asiento nuevo es el pointer que responde la pregunta que el bullet de
+costo dejaba abierta.
+
+### Merge policy A — por qué éste PARA en `AWAITING_APPROVAL`
+
+El diff falla UNA de las tres condiciones:
+
+- **`customer-bytes`**: la RAMA (no el commit) gana una capacidad nueva de cara al visitante — el
+  spotlight puede mostrar una imagen distinta según la presentación elegida — aunque para Nayoli
+  hoy sea byte-idéntica (MEDIDO, 0px, § arriba, porque su catálogo no declara `imagen` en ninguna
+  opción). Y el editor del admin agrega bytes que un OPERADOR lee: la etiqueta "Imagen del
+  muestrario (opcional)", los botones "Subir"/"Cambiar"/"Quitar", la línea de ayuda extendida, y
+  los mensajes de error de formato/tamaño — todos nuevos, ninguno existía antes de este slice.
+- **`schema`**: NO aplica — el campo vive DENTRO de la columna `Json` que ya existe
+  (`Product.moliendasOpciones`), sin tocar `packages/core/prisma/schema.prisma` ni migración
+  alguna, como el spec explícitamente pedía verificar.
+- **`cross-repo-contract`**: NO aplica.
+
+`stopped_on: [customer-bytes]`.
+
+`customer_bytes.strings` (lo nuevo que un operador VE, para que el owner sepa qué mirar sin leer
+el diff): "Imagen del muestrario (opcional)" (label del campo); "Subir" / "Cambiar" (botón,
+dinámico según haya o no imagen); "Quitar la imagen de {molienda}" (nombre accesible del botón de
+quitar); la línea de ayuda ampliada ("…La imagen del muestrario cambia el mockup de la banda
+destacada de la tienda al elegir esa presentación — sin foto propia, se sigue mostrando la del
+producto."); y los dos mensajes de error de formato/tamaño de archivo. Del lado del storefront:
+NINGÚN string nuevo — el swap es de imagen (`src`), no de texto.
+
+### `open_followups`
+
+Ninguno nuevo. La pregunta de costo que `CENSO-MUESTRARIO-1` había dejado abierta
+(campo aislado vs. divergencia con el Backlog #62) queda MEDIDA y CERRADA por este mismo slice
+(§ arriba, "El recorte, contra el Backlog #62"): no hace falta un follow-up, la respuesta es que
+no hay divergencia que reconciliar.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npm run typecheck` 0 errores, `npm test` 2071/2071, `npm run
+test:integracion` 232/232 en una sola corrida sin flakes, Nayoli visual 0px medido en 6 rutas + 2
+hovers), commiteado en `slice/corte-reescritura-prototipo-1`. El diff toca bytes de cliente (la
+RAMA gana la capacidad del swap de imagen por opción en el spotlight) y bytes de operador (el
+editor del admin gana su control de subida) pero NINGÚN schema ni contrato cross-repo — la única
+de las tres condiciones de merge policy A que aplica es `customer-bytes`. El owner ya aprobó la
+ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el merge sigue
+pendiente de gate visual/owner, como en todo Tier 1.

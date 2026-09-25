@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { useCartStore } from "@/lib/cartStore";
-import { moliendasDisponibles, moliendaAceptada } from "@duna/core/moliendas-opciones";
+import { moliendasDisponibles, moliendaAceptada, imagenDeMolienda } from "@duna/core/moliendas-opciones";
 import { formatCOP } from "@duna/core/utils";
 import { imagenPortada } from "@/lib/producto-imagen";
 import { fadeUp } from "@/lib/animation";
@@ -108,8 +108,13 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             {spotlight.badge && (
               <span className="absolute top-4 left-4 z-10 text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora sf-badge">{spotlight.badge}</span>
             )}
+            {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1) — si la opción elegida declaró su
+                propia imagen, el mockup cambia a esa foto SIN navegar a otro producto; sin ella,
+                sigue mostrando `producto.imagen` (el comportamiento de hoy). `imagenDeMolienda`
+                decide CUÁL; `imagenPortada` sigue siendo el único fallback a placeholder. `fill` +
+                `object-cover` sobre el MISMO contenedor: el swap cambia el `src`, nunca el layout. */}
             <Image
-              src={imagenPortada(producto.imagen)}
+              src={imagenPortada(imagenDeMolienda(producto.moliendasOpciones, molienda, producto.imagen ?? ''))}
               alt={producto.nombre}
               fill
               sizes="(max-width: 1024px) 100vw, 50vw"
