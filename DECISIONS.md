@@ -18763,3 +18763,87 @@ Presentaciones en `/admin/tienda` pasan de `<input>` a `<textarea>`, con hints q
 de línea se respeta en la tienda. Ese cambio visible lo introdujo un commit ANTERIOR de esta misma rama,
 no éste: este commit no agrega ni quita ningún byte visible, sólo un asiento de medición en
 `DECISIONS.md`. El commit queda en la rama a la espera del merge gateado del orquestador.
+
+## 2026-09-25 — `MUESTRARIO-BANDA-APAGABLE-1` — BLOQUEADO antes de escribir código: migrar los dos flags viejos rompe 3 archivos de test fuera de `touches:`
+
+### El pedido
+
+El spec pedía construir `bandasVisibles?: Partial<Record<BandaId, boolean>>` en `PresetTema` — la
+capacidad GENERAL de encender/apagar cualquier banda — y **"MIGRÁ los dos flags viejos a la forma
+nueva"**: retirar `bandaOrigenVisible`/`bandaMarquesinaVisible` (§ ORIGEN-BANDA-1, § MARQUESINA-BANDA-1)
+de `PresetTema`, reemplazándolos por entradas de `bandasVisibles`. El `surface` de la aprobación lo dice
+literal: "Reemplaza los flags ad-hoc `bandaOrigenVisible`/`bandaMarquesinaVisible`... por un mapa
+`bandasVisibles`" — no es opcional, es lo que define la capacidad.
+
+El mismo párrafo trae la guarda explícita: **"Si migrarlos rompe algo que no esperabas, PARÁ y reportá
+en vez de dejar los dos mecanismos conviviendo — dos formas de decir lo mismo es la deuda que este
+slice viene a borrar."**
+
+### El bloqueo, MEDIDO
+
+`grep -rln "bandaOrigenVisible\|bandaMarquesinaVisible" --include="*.ts" .` (antes de tocar nada) da
+SEIS archivos: `themes.ts` (en `touches:`), `site-content-defaults.ts` (sólo comentarios/docstring, sin
+acceso al campo), `hero-toggles-preset.test.ts` (sólo un comentario), y **TRES archivos de test FUERA
+de `touches:` con accesos DIRECTOS al campo, en objetos tipados `PresetTema`**:
+
+- `lib/config/origen-banda.test.ts:187` — `assert.equal(CORTE.bandaOrigenVisible, true);`
+- `lib/config/origen-banda.test.ts:209` — `assert.equal(PATIO.bandaOrigenVisible, undefined);`
+- `lib/config/marquesina-banda.test.ts:137` — `assert.equal(CORTE.bandaMarquesinaVisible, true);`
+- `lib/config/marquesina-banda.test.ts:159` — `assert.equal(PATIO.bandaMarquesinaVisible, undefined);`
+- `lib/config/corte-marquesina-velo.test.ts:108` — `assert.equal(PATIO.bandaMarquesinaVisible, undefined);`
+
+Retirar los dos campos de `PresetTema` (como pide "MIGRÁ") rompe estos CINCO asertos en DOS capas: (1)
+`tsc` — acceder a una propiedad que ya no existe en el tipo `PresetTema` es un error de compilación, no
+sólo un aserto en rojo; (2) aunque compilara, los tres asertos sobre `CORTE.*` fallarían en runtime
+(`undefined !== true`). Los dos asertos sobre `PATIO.*` (`=== undefined`) seguirían pasando por
+casualidad — PATIO nunca declaró estos campos —, pero eso no evita el error de tipo en las mismas líneas.
+
+`touches:` de este slice es `lib/config/themes.ts, lib/config/themes.test.ts, DECISIONS.md`. Los tres
+archivos que rompen NO están ahí. El propio spec sólo pedía verificar "que ningún OTRO PRESET los use"
+(dentro de `themes.ts`) — verificado, cierto, ningún otro preset del catálogo los declara —, pero no
+anticipaba que tres suites de test AJENAS a `themes.ts` leyeran esos campos directamente sobre los
+objetos `CORTE`/`PATIO` exportados. Es exactamente "algo que no se esperaba".
+
+### Por qué se para acá, y no se rodea
+
+Se evaluó una alternativa que se queda DENTRO de `touches:` — declarar `bandaOrigenVisible`/
+`bandaMarquesinaVisible` como GETTERS computados desde `bandasVisibles` en el objeto `CORTE` (una sola
+fuente de verdad, sin poder divergir, con los nombres viejos como vista de lectura para los tres tests
+ajenos) — y se descartó: no es lo que el spec pidió ("retirar/reemplazar" los campos, no darles un
+alias), agrega una forma (getters en un objeto que hoy es dato plano) que nadie pidió, y el propio spec
+fue explícito en preferir PARAR a inventar una forma de convivencia. Rodearlo habría sido exactamente
+la "deuda" que la instrucción nombra por su nombre.
+
+La otra alternativa — tocar los tres archivos de test igual, fuera de `touches:` — la prohíbe el
+protocolo del dispatch ("si el trabajo necesita un archivo fuera de touches, parás y lo decís — no lo
+ensanchás vos").
+
+### Lo que sigue — para quien re-dispatche esto
+
+Los cinco asertos son mecánicos de migrar (cada uno cambia `CORTE.bandaOrigenVisible` →
+`CORTE.bandasVisibles?.origen` / `CORTE.bandaMarquesinaVisible` → `CORTE.bandasVisibles?.marquesina`,
+mismo patrón para `PATIO.*`), pero ESO es una decisión de alcance (ensanchar `touches:` a los tres
+archivos), no una decisión técnica — no se toma acá.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — verificado con `git status`/`git diff` antes
+de commitear: el único archivo en el diff es `DECISIONS.md`. `lib/config/themes.ts` y
+`lib/config/themes.test.ts` (los otros dos miembros de `touches:`) quedan sin un solo byte modificado.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: ninguno de código — el único archivo es `DECISIONS.md`, y la sección
+que se agrega es un append puro al final, no retitula ni cierra ninguna sección existente. Grep del
+identificador nuevo (`MUESTRARIO-BANDA-APAGABLE-1`) contra `CLAUDE.md`: cero resultados. No aplica el
+chequeo de "sección cerrada que alguien apunta".
+
+### Verdicto
+
+**BLOCKED.** No se corrió el gate completo: no hay código nuevo que gatear, y el piso de gate reportado
+por el commit inmediatamente anterior en esta rama (`e48ad29`, heredado de `ae2a568`: tsc 0 errores,
+`npm test` 1923/1923, `npm run test:integracion` 231/231) sigue siendo válido para el árbol final sin
+necesidad de re-correrlo — ningún archivo de código cambió entre ese commit y éste.
+
+El commit queda en la rama a la espera de una decisión del orquestador sobre `touches:` (ensancharlo a
+los tres archivos de test, o instruir otra forma) antes de que este slice pueda re-intentarse.
