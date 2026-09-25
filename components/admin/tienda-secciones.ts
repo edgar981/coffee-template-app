@@ -361,7 +361,7 @@ const PRESENTACIONES: SeccionConfig = {
   // tarjeta (§ bloques, abajo). El hint de los slots 3-4 encuadra la pieza opcional.
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
-    { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'titulo',  label: 'Título', textarea: true, hint: 'Un salto de línea acá se respeta en la tienda. Vacío: se usa el texto por defecto.' },
     { name: 'label1',     label: 'Nombre',      hint: 'Ej. "Presentación Clásica". Vacío: se usa el texto por defecto.' },
     { name: 'copy1',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'categoria1', label: 'Presentación 1 · lleva a', categoria: true, tituloDe: 'label1', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
@@ -481,7 +481,7 @@ const SPOTLIGHT: SeccionConfig = {
   imagenes: [],
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
-    { name: 'titulo', label: 'Titular', opcional: true, hint: 'El titular de la banda destacada. Vacío: no se muestra.' },
+    { name: 'titulo', label: 'Titular', opcional: true, textarea: true, hint: 'El titular de la banda destacada. Un salto de línea acá se respeta en la tienda. Vacío: no se muestra.' },
     { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
     { name: 'productoSlug', label: 'Producto destacado', opcional: true, hint: 'El slug del producto que se destaca en la banda; se importa por CSV y podés ajustarlo acá. Vacío: la banda no muestra nada.' },
     { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, hint: 'El mismo café en otra presentación, si aplica — se muestra como un enlace a esa otra talla. Vacío: no se muestra.' },

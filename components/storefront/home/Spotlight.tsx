@@ -91,7 +91,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{spotlight.eyebrow}</p>
             )}
             {spotlight.titulo && (
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{spotlight.titulo}</h2>
+              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{spotlight.titulo}</h2>
             )}
           </motion.div>
         )}

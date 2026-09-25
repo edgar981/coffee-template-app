@@ -131,7 +131,7 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             {presentaciones.eyebrow && (
               <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
             )}
-            <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
+            <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
           </motion.div>
           {/* Ocultos en móvil (como `.car-nav` del prototipo bajo 640px): el touch-scroll ya cubre ese
               caso, y dos botones de 44px compitiendo con el pulgar no suman nada ahí. */}
