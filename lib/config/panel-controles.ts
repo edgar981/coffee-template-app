@@ -153,6 +153,23 @@ const CONTROLADOS_MENU_SECCION = [
   'menu.badgeItem', 'menu.badgeTexto',
 ];
 
+/** DECLARACIÓN EXPLÍCITA de lo que `FooterSeccion.tsx` controla (`footer` NO pasa por
+ *  `TiendaSeccionEditor`, MISMO precedente que `menu` — § CROMO-MENU-PANEL-EDITOR-1: el pipeline
+ *  genérico de vista previa en vivo (`VistaTiendaEnVivo`) monta cada sección en un
+ *  `Record<SeccionVista, ComponentType>` EXHAUSTIVO, y `StoreFooter` importa `useSiteSettings()`
+ *  del storefront, que LANZA fuera de su árbol de providers — igual que `StoreNav` con `menu`. Un
+ *  editor BESPOKE, patrón `MenuSeccion`/`PaletaSeccion`, evita tocar `VistaTiendaEnVivo.tsx`) —
+ *  leído de su código: los tres encabezados de columna, las cinco etiquetas de enlace y la
+ *  variante de composición, más los dos campos del ítem del repeater de la fila legal.
+ *  `footer.visible` no aplica — `REGISTRY.footer.ocultable` es `false` (§ arriba). */
+const CONTROLADOS_FOOTER_SECCION = [
+  'footer.columnaTienda', 'footer.columnaAyuda', 'footer.columnaEmpresa',
+  'footer.linkTienda', 'footer.linkSuscripciones', 'footer.linkRastrearPedido',
+  'footer.linkPreguntasFrecuentes', 'footer.linkNuestraHistoria',
+  'footer.variante',
+  'footer.items.label', 'footer.items.href',
+];
+
 /** DECLARACIÓN EXPLÍCITA de lo que `PaletaSeccion.tsx` controla (`tema` no es sección del REGISTRY,
  *  § el docstring de `TemaContent`) — leído de su código: las tres raíces de paleta, el par tipográfico
  *  y la forma. NO controla `origenTexto`/`origenAccion`/`escalaDisplay` (§ PENDIENTE_PANEL, abajo — y ya
@@ -178,8 +195,8 @@ const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitul
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {
   return [
-    ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_PALETA_SECCION,
-    ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
+    ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_FOOTER_SECCION,
+    ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
   ].sort();
 }
 

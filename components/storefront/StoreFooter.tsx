@@ -10,7 +10,6 @@ import {
 import { Logo } from "@/components/storefront/Logo";
 import { STOREFRONT_TIENE_MARK } from "@/lib/config/storefront-marca";
 import {
-  siteConfig,
   whatsappUrl,
   formatWhatsappDisplay,
   urlDeRedSocial,
@@ -18,17 +17,22 @@ import {
 } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
-import { faqSuscripcionesVisible } from "@/lib/config/site-content-defaults";
+import { columnasDeFooter, type FooterContent } from "@/lib/config/site-content-defaults";
 
-// `footerNav`/`legalNav` son ESTRUCTURADOS y se quedan en código (v1). La marca viene de
-// SiteSetting vía el provider (una sola fuente).
-const { footerNav, legalNav } = siteConfig;
+// EL PIE DE PÁGINA como SECCIÓN del REGISTRY (§ MUESTRARIO-FOOTER-TEMA-1). Antes `footerNav`/
+// `legalNav` vivían en `siteConfig` (código fijo, cero fidelidad de preset posible); hoy los
+// encabezados de columna y las etiquetas de sus enlaces son DATO (`content.footer`), con una
+// VARIANTE de composición (`content.footer.variante`: 'franjas' la de HOY, 'apilado' la del
+// muestrario). La marca/tagline SIGUE saliendo de `SiteSetting` (sin cambio, § useSiteSettings
+// abajo) — lo único que cambia entre variantes es CÓMO se compone, no de dónde sale.
+//
+// LAS TRES COLUMNAS (con sus hrefs de ESTRUCTURA y el filtrado por página visible) se arman en
+// `columnasDeFooter` (site-content-defaults.ts, PURA — capa 1 la prueba sin jsdom).
 
 // LOS BOTONES SOCIALES SALEN DE `settings.redes` (§ MUESTRARIO-REDES-ADICIONALES-1) — la MISMA
-// fuente que `RielSocial` (`lib/config/site.ts`, `parseRedesSociales`/`urlDeRedSocial`). Reemplaza
-// la lectura directa de `settings.instagram`/`.whatsapp` de este bloque; el "📱 WhatsApp" de la
-// columna Empresa (más abajo) sigue leyendo `settings.whatsapp` DIRECTO — es contacto de negocio,
-// no un ícono de esta lista, y esa columna no se tocó.
+// fuente que `RielSocial` (`lib/config/site.ts`, `parseRedesSociales`/`urlDeRedSocial`). El
+// "📱 WhatsApp" de la columna Empresa (más abajo) sigue leyendo `settings.whatsapp` DIRECTO — es
+// contacto de negocio, no un ícono de esta lista.
 //
 // El ASSET es por-tipo, igual que en `RielSocial`: Instagram con el SVG propio, WhatsApp con
 // `MessageCircle` de lucide, Facebook/X/Pinterest SIN asset (no existe ni en el repo ni en lucide
@@ -60,17 +64,27 @@ const LABEL_RED_FOOTER: Record<RedSocialGuardada["tipo"], string> = {
 export default function StoreFooter() {
   const settings = useSiteSettings();
   const content = useSiteContent();
-  // La entrada a /nosotros se OCULTA cuando la página está apagada (§ paginas.nosotros). La columna
-  // "Empresa" no queda vacía —lleva el bloque de WhatsApp aparte del link—.
-  const { paginas } = content;
-  const empresa = footerNav.empresa.filter((l) => l.href !== "/nosotros" || paginas.nosotros.visible);
-  // La entrada a /suscripciones se OCULTA cuando la capacidad está apagada (§ paginas.suscripciones,
-  // Backlog #49). La columna "Tienda" no queda vacía —lleva "Todos los productos" aparte—.
-  const tienda = footerNav.tienda.filter((l) => l.href !== "/suscripciones" || paginas.suscripciones.visible);
-  // La entrada a /preguntas-frecuentes se OCULTA cuando esa página no tiene nada que mostrar
-  // (§ SUSCRIPCIONES-FAQ-DATO-1, faqSuscripcionesVisible — MISMA condición que la ruta). La columna
-  // "Ayuda" no queda vacía —le queda "Rastrear Pedido"—.
-  const ayuda = footerNav.ayuda.filter((l) => l.href !== "/preguntas-frecuentes" || faqSuscripcionesVisible(content));
+  const { footer } = content;
+  const { tienda, ayuda, empresa } = columnasDeFooter(content);
+
+  return footer.variante === "apilado"
+    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} />
+    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} />;
+}
+
+type SettingsFooter = ReturnType<typeof useSiteSettings>;
+
+interface VariantProps {
+  settings: SettingsFooter;
+  footer: FooterContent;
+  tienda: { label: string; href: string }[];
+  ayuda: { label: string; href: string }[];
+  empresa: { label: string; href: string }[];
+}
+
+// VARIANTE 'franjas' — LA CANÓNICA: el pie de HOY, VERBATIM (byte-idéntico a antes de este slice;
+// sólo cambió DE DÓNDE salen los textos — de `siteConfig.footerNav`/`legalNav` a `content.footer`).
+function FooterColumnas({ settings, footer, tienda, ayuda, empresa }: VariantProps) {
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
@@ -114,7 +128,7 @@ export default function StoreFooter() {
           {/* Tienda */}
           <div>
             <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
-              Tienda
+              {footer.columnaTienda}
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
@@ -134,7 +148,7 @@ export default function StoreFooter() {
           {/* Ayuda */}
           <div>
             <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
-              Ayuda
+              {footer.columnaAyuda}
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
@@ -168,7 +182,7 @@ export default function StoreFooter() {
           {/* Empresa */}
           <div>
             <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
-              Empresa
+              {footer.columnaEmpresa}
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
@@ -210,9 +224,124 @@ export default function StoreFooter() {
             Todos los derechos reservados.
           </p>
 
-          {legalNav.length > 0 && (
+          {footer.items.length > 0 && (
             <div className="flex gap-4">
-              {legalNav.map((link) => (
+              {footer.items.map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className="transition-colors hover:text-[var(--sf-sobre)]/60"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// VARIANTE 'apilado' — LA DEL MUESTRARIO (§ MUESTRARIO-FOOTER-TEMA-1, medida contra
+// `docs/prototipos/cafeone/index.html:322+`, SIN el formulario de newsletter ni la tarjeta de mapa
+// —fuera de alcance de este slice, § el spec—): la marca (wordmark apilado + tagline) ocupa el
+// ANCHO COMPLETO arriba, y las columnas de enlaces se acomodan DEBAJO en una fila — la misma
+// relación "marca arriba, contenido debajo" del `.footer-mark`/`.footer-top`/`.footer-cols` del
+// prototipo, con el mismo DATO que la canónica (nada nuevo que mantener sincronizado).
+function FooterApilado({ settings, footer, tienda, ayuda, empresa }: VariantProps) {
+  const columnas: { titulo: string; links: { label: string; href: string }[] }[] = [
+    { titulo: footer.columnaTienda, links: tienda },
+    { titulo: footer.columnaAyuda, links: ayuda },
+    ...(empresa.length > 0 ? [{ titulo: footer.columnaEmpresa, links: empresa }] : []),
+  ];
+
+  return (
+    <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+        {/* La marca ocupa el ancho completo arriba (§ `.footer-mark`/`.footer-top .tag` del
+            prototipo) — mismo `Logo`/`descripcionFooter` que la canónica, sólo reordenado. */}
+        <div className="border-b border-white/10 pb-10">
+          <Logo
+            nombre={settings.nombre}
+            variant="dark"
+            stacked
+            subtitle={settings.tagline}
+            conMark={STOREFRONT_TIENE_MARK}
+            className="items-start [&>div]:items-start"
+          />
+          <p className="mt-4 max-w-[40ch] text-base leading-relaxed text-[var(--sf-sobre)]/50">
+            {settings.descripcionFooter}
+          </p>
+          <div className="mt-6 flex gap-3">
+            {settings.redes.map((red) => (
+              <a
+                key={red.tipo}
+                href={urlDeRedSocial(red)}
+                target="_blank"
+                rel="noopener"
+                aria-label={`${LABEL_RED_FOOTER[red.tipo]} de ${settings.nombre}`}
+                className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
+              >
+                {iconoDeRedFooter(red)}
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* Las columnas debajo (§ `.footer-cols` del prototipo) — mismo dato que la canónica; el
+            WhatsApp de contacto se cuelga de la última columna, como en `FooterColumnas`. */}
+        <div className="grid grid-cols-1 gap-10 pt-10 sm:grid-cols-3">
+          {columnas.map((col) => (
+            <div key={col.titulo}>
+              <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">{col.titulo}</h4>
+              <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
+                {col.links.map((link) => {
+                  const external = link.href.startsWith("http");
+                  return (
+                    <li key={link.label}>
+                      {external ? (
+                        <a href={link.href} target="_blank" rel="noopener" className="transition-colors hover:text-[var(--sf-tostado)]">
+                          {link.label}
+                        </a>
+                      ) : (
+                        <Link href={link.href} className="transition-colors hover:text-[var(--sf-tostado)]">
+                          {link.label}
+                        </Link>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {settings.whatsapp && (
+            <div className="text-sm text-[var(--sf-sobre)]/50">
+              <p>📱 WhatsApp</p>
+              <a
+                href={whatsappUrl(settings.whatsapp)}
+                target="_blank"
+                rel="noopener"
+                className="text-[var(--sf-tostado)] hover:text-[var(--sf-tostado-6)]"
+              >
+                {formatWhatsappDisplay(settings.whatsapp)}
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Bar — idéntica a la canónica. */}
+      <div className="sf-divisor-t border-white/10">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row sm:px-6 lg:px-8">
+          <p>
+            © 2026 {settings.nombre}.
+            Todos los derechos reservados.
+          </p>
+
+          {footer.items.length > 0 && (
+            <div className="flex gap-4">
+              {footer.items.map((link) => (
                 <Link
                   key={link.label}
                   href={link.href}

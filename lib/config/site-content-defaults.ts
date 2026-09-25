@@ -594,6 +594,66 @@ export interface MenuContent {
   badgeTexto?: string;
 }
 
+// Un enlace legal del pie (§ MUESTRARIO-FOOTER-TEMA-1, `items` de `FooterContent` abajo). A
+// diferencia de los enlaces de columna (`linkTienda`/`linkSuscripciones`/…, hrefs FIJOS por
+// identidad — § el docstring de `FooterContent`), una página legal ("Política de privacidad",
+// "Términos") no tiene una ruta estructural que el código ya conozca: el dueño la redacta y la
+// publica donde quiera, así que acá SÍ hace falta el par completo {label, href} como dato.
+export interface FooterLegalItem {
+  label: string;
+  href: string;
+}
+
+// EL PIE DE PÁGINA como SECCIÓN del REGISTRY (§ MUESTRARIO-FOOTER-TEMA-1), MISMO precedente que
+// `menu` (arriba): sección SIN ser BANDA — no entra a `BANDA_IDS`/`ORDEN_DEFAULT` (el pie se
+// renderiza en el LAYOUT, en toda página, no en el orden del home) pero SÍ es `SeccionKey` (tiene
+// `campos`, publica por el route genérico de `/api/site-content`, tiene control de panel).
+//
+// LO QUE PASA A SER DATO (medido contra `StoreFooter.tsx` de HOY y contra el pie del prototipo,
+// `docs/prototipos/cafeone/index.html:322+`): los ENCABEZADOS de columna y las ETIQUETAS de sus
+// enlaces, que hoy salían de `siteConfig.footerNav` (código fijo) — la marca/tagline YA es dato
+// (viene de `SiteSetting.nombre`/`.tagline`/`.descripcionFooter` vía `useSiteSettings()`, sin
+// tocar); lo que cambia para la marca es sólo su COMPOSICIÓN dentro de cada variante, no su fuente.
+//
+// LOS HREFS DE LAS 5 COLUMNAS SON ESTRUCTURA, NO DATO — mismo criterio que `HERO_HREFS`/
+// `ctaDestino` de menú: son rutas REALES del storefront (`/tienda`, `/suscripciones`, …) y el
+// FILTRADO por página visible (`StoreFooter.tsx`, hoy líneas 66-73) compara contra esos hrefs
+// literales; si el href fuera dato libre, ese filtro se rompería en cuanto alguien lo editara. Sólo
+// la ETIQUETA (el texto visible) es campo editable — el enlace SIGUE yendo al mismo sitio.
+export interface FooterContent {
+  visible: boolean;
+  // La VARIANTE de composición (§ eje 5e): 'franjas' es la canónica —el pie de HOY, verbatim, cuatro
+  // columnas lado a lado— (NO 'columnas': ese nombre ya lo usa `brandStory.variante` como su propia
+  // canónica, y el catcher de duplicados de DEFAULTS trata cualquier string repetido como colisión,
+  // así que se evita pedir una excepción por un token que no es contenido visible); 'apilado' es la
+  // del muestrario —marca arriba, tagline, columnas debajo, MEDIDA contra
+  // `docs/prototipos/cafeone/index.html:322+` SIN el formulario de newsletter ni la tarjeta de mapa
+  // (§ MUESTRARIO-FOOTER-TEMA-1, fuera de alcance de este slice — quedan para su propia tanda).
+  variante: string;
+  columnaTienda: string;
+  columnaAyuda: string;
+  columnaEmpresa: string;
+  // "Todos los productos" → /tienda (siempre visible).
+  linkTienda: string;
+  // "Suscripciones" → /suscripciones (oculto si `paginas.suscripciones.visible` es false).
+  linkSuscripciones: string;
+  // "Rastrear Pedido" → /rastrear-pedido (siempre visible).
+  linkRastrearPedido: string;
+  // "Preguntas Frecuentes" → /preguntas-frecuentes (oculto si `faqSuscripcionesVisible` es false).
+  linkPreguntasFrecuentes: string;
+  // "Nuestra Historia" → /nosotros (oculto si `paginas.nosotros.visible` es false).
+  linkNuestraHistoria: string;
+  // La fila legal del pie (§ Backlog, páginas legales pendientes de redacción) — REPEATER, cardinalidad
+  // VARIABLE que empieza en CERO (mismo criterio que testimonios/FAQ, § #44: sin defaults fabricados).
+  // Vacío → la fila legal no se muestra, byte-idéntico a `siteConfig.legalNav` de hoy (`[]`). El campo
+  // se llama `items` (no `legales`) por CONVENCIÓN — el mismo nombre que usan TODOS los repeaters de
+  // este archivo (`testimonials.items`, `nosotrosGaleria.items`, `suscripcionFaq.items`):
+  // `camposDeItemsRepeater` (panel-controles.ts) hardcodea el segmento `.items.` en la ruta derivada
+  // en vez de leer `itemsKey`, así que un `itemsKey` distinto de `'items'` desalinea la ruta que ese
+  // chequeo reporta de la ruta real del dato — seguir la convención lo evita.
+  items: FooterLegalItem[];
+}
+
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
 // ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
 // /nosotros y /suscripciones son CAPACIDADES apagables (la home no se apaga). `suscripciones`
@@ -793,6 +853,7 @@ export interface SiteContentData {
   suscripcionPasos: SuscripcionPasosContent;
   suscripcionFaq: SuscripcionFaqContent;
   menu: MenuContent;
+  footer: FooterContent;
   paginas: PaginasContent;
   tema: TemaContent;
   cromo: CromoContent;
@@ -1202,6 +1263,26 @@ export const DEFAULTS: SiteContentData = {
     ctaDestino: '',
     badgeItem: '',
     badgeTexto: '',
+  },
+  // El PIE por defecto: los encabezados y las etiquetas de HOY (`siteConfig.footerNav`, antes de este
+  // slice), variante canónica 'franjas' (NO 'columnas' — ese nombre ya lo usa `brandStory.variante`
+  // como canónica de OTRA sección; el catcher de duplicados de DEFAULTS, `site-content-defaults.
+  // test.ts`, trata cualquier string repetido como colisión, así que la clave interna se renombró
+  // para no pedir una excepción por un token que ni siquiera es contenido visible), sin legales
+  // (`siteConfig.legalNav` era `[]`). Byte-idéntico sin fila (§ MUESTRARIO-FOOTER-TEMA-1, la
+  // invariante del slice) — el nombre de la clave no se renderiza nunca, sólo decide el dispatcher.
+  footer: {
+    visible: true,
+    variante: 'franjas',
+    columnaTienda: 'Tienda',
+    columnaAyuda: 'Ayuda',
+    columnaEmpresa: 'Empresa',
+    linkTienda: 'Todos los productos',
+    linkSuscripciones: 'Suscripciones',
+    linkRastrearPedido: 'Rastrear Pedido',
+    linkPreguntasFrecuentes: 'Preguntas Frecuentes',
+    linkNuestraHistoria: 'Nuestra Historia',
+    items: [],
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -1724,6 +1805,35 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       ctaDestino: 'opcional',
       badgeItem: 'opcional',
       badgeTexto: 'opcional',
+    },
+  },
+  // EL PIE DE PÁGINA (§ MUESTRARIO-FOOTER-TEMA-1, § el docstring de `FooterContent` arriba). MISMO
+  // precedente que `menu`: `ocultable:false` — el pie no se apaga entero, es chrome del layout, como
+  // el menú. Sin `imagenes` (no lleva ninguna: la marca la resuelve `SiteSetting`, sin blob propio).
+  // Los 8 campos planos son 'requerido' STRINGS a propósito —el resolver genérico no valida
+  // pertenencia a un set cerrado, sólo default-vs-omit—; el HREF de cada uno es ESTRUCTURA fija en
+  // `StoreFooter.tsx`, no dato (§ el docstring de `FooterContent`). `items` es el REPEATER de la
+  // fila legal, cardinalidad variable desde CERO (como testimonios/FAQ).
+  footer: {
+    label: 'Pie de página',
+    ocultable: false,
+    variantes: { claves: ['franjas', 'apilado'], canonica: 'franjas' },
+    campos: {
+      columnaTienda: 'requerido',
+      columnaAyuda: 'requerido',
+      columnaEmpresa: 'requerido',
+      linkTienda: 'requerido',
+      linkSuscripciones: 'requerido',
+      linkRastrearPedido: 'requerido',
+      linkPreguntasFrecuentes: 'requerido',
+      linkNuestraHistoria: 'requerido',
+    },
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        label: 'requerido',
+        href: 'requerido',
+      },
     },
   },
 };
@@ -2288,6 +2398,48 @@ export function seccionEsVisible(def: SeccionDef, sec: object): boolean {
  */
 export function faqSuscripcionesVisible(content: SiteContentData): boolean {
   return content.paginas.suscripciones.visible && seccionEsVisible(REGISTRY.suscripcionFaq, content.suscripcionFaq);
+}
+
+// LOS HREFS DE LAS 5 COLUMNAS DEL PIE SON ESTRUCTURA (§ el docstring de `FooterContent`, arriba):
+// rutas reales del storefront, nunca dato libre.
+const HREF_FOOTER_TIENDA = '/tienda';
+const HREF_FOOTER_SUSCRIPCIONES = '/suscripciones';
+const HREF_FOOTER_RASTREAR_PEDIDO = '/rastrear-pedido';
+const HREF_FOOTER_PREGUNTAS_FRECUENTES = '/preguntas-frecuentes';
+const HREF_FOOTER_NUESTRA_HISTORIA = '/nosotros';
+
+export interface FooterLinkColumnas {
+  tienda: { label: string; href: string }[];
+  ayuda: { label: string; href: string }[];
+  empresa: { label: string; href: string }[];
+}
+
+/**
+ * Arma las TRES columnas de enlaces del pie desde `content.footer` (§ MUESTRARIO-FOOTER-TEMA-1),
+ * PURA — capa 1, sin componente/jsdom, por la MISMA razón que `itemsDeMenu`/`menuCtaHref`: es
+ * exactamente lo que `StoreFooter.tsx` pinta, sin necesitar su render. Aplica el MISMO filtrado por
+ * página visible que existía antes del slice (lógica, no dato): "Suscripciones" se oculta si esa
+ * página está apagada, "Preguntas Frecuentes" si la FAQ está vacía, "Nuestra Historia" si /nosotros
+ * está apagada. Ninguna columna queda vacía — cada una tiene al menos un enlace que NUNCA se oculta
+ * (Todos los productos · Rastrear Pedido); "Empresa" es la única que PUEDE quedar vacía (su único
+ * enlace es condicional), y el consumidor decide qué hacer con eso (§ `StoreFooter.tsx`).
+ */
+export function columnasDeFooter(content: SiteContentData): FooterLinkColumnas {
+  const { footer, paginas } = content;
+  const faqVisible = faqSuscripcionesVisible(content);
+  return {
+    tienda: [
+      { label: footer.linkTienda, href: HREF_FOOTER_TIENDA },
+      ...(paginas.suscripciones.visible ? [{ label: footer.linkSuscripciones, href: HREF_FOOTER_SUSCRIPCIONES }] : []),
+    ],
+    ayuda: [
+      { label: footer.linkRastrearPedido, href: HREF_FOOTER_RASTREAR_PEDIDO },
+      ...(faqVisible ? [{ label: footer.linkPreguntasFrecuentes, href: HREF_FOOTER_PREGUNTAS_FRECUENTES }] : []),
+    ],
+    empresa: [
+      ...(paginas.nosotros.visible ? [{ label: footer.linkNuestraHistoria, href: HREF_FOOTER_NUESTRA_HISTORIA }] : []),
+    ],
+  };
 }
 
 /**

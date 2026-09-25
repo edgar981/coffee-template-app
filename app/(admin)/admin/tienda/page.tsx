@@ -1,13 +1,14 @@
 import { Suspense } from 'react';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import MenuSeccion from '@/components/admin/MenuSeccion';
+import FooterSeccion from '@/components/admin/FooterSeccion';
 import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
 import TiendaPaginas from '@/components/admin/TiendaPaginas';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
 // El contenido EDITORIAL del storefront. Distinto de Configuración, que edita la IDENTIDAD del
-// negocio (§ negocio≠tienda). Cuatro ejes en la pantalla:
+// negocio (§ negocio≠tienda). Cinco ejes en la pantalla:
 //   · COLORES (`PaletaSeccion`) — la PIEL de todo el storefront, store-wide, va ARRIBA del selector
 //     de página porque no pertenece a una página (§ content.tema, clave no-sección);
 //   · MENÚ (`MenuSeccion`, § CROMO-MENU-PANEL-EDITOR-1) — el mismo cromo TRANSVERSAL que la paleta
@@ -19,9 +20,13 @@ import TiendaPaginas from '@/components/admin/TiendaPaginas';
 //     propia ruta de publicar/descartar (patrón `tema`). Mismo cromo TRANSVERSAL que Colores y
 //     Menú, sin vista previa en vivo (misma razón que `MenuSeccion`: el nav real del storefront
 //     LANZA fuera de su árbol de providers);
+//   · PIE DE PÁGINA (`FooterSeccion`, § MUESTRARIO-FOOTER-TEMA-1) — el mismo cromo TRANSVERSAL que
+//     Menú (el pie aparece en toda página, vía el layout). Editor BESPOKE sin vista previa en vivo,
+//     MISMO porqué que `MenuSeccion`: `StoreFooter` importa `useSiteSettings()` del storefront, que
+//     LANZA fuera de su árbol de providers;
 //   · las SECCIONES agrupadas por PÁGINA (`TiendaPaginas`, Home · Nosotros · Suscripciones) — cada
 //     una con su vista previa en vivo + read↔edit + autoguardado.
-// Las CUATRO adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
+// Las CINCO adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
 export default function Tienda() {
   return (
     <div>
@@ -51,7 +56,14 @@ export default function Tienda() {
           del nav (§ EncabezadoSeccion, PANEL-EDITOR-ENCABEZADO-1). */}
       <EncabezadoSeccion />
 
-      {/* Separador entre lo store-wide (colores · menú · encabezado) y lo per-página (secciones). */}
+      {/* Separador entre las piezas store-wide (colores · menú · encabezado · pie). */}
+      <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
+
+      {/* PIE DE PÁGINA — store-wide, junto a Colores/Menú/Encabezado: el pie es cromo transversal, no
+          contenido de una página (§ FooterSeccion, MUESTRARIO-FOOTER-TEMA-1, mismo porqué que Menú). */}
+      <FooterSeccion />
+
+      {/* Separador entre lo store-wide (colores · menú · encabezado · pie) y lo per-página (secciones). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
       {/* <Suspense> porque TiendaPaginas usa `useSearchParams` (deep-link del aviso de config,

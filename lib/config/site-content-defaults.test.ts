@@ -1317,14 +1317,29 @@ test('DEFAULTS: ningún campo de TEXTO menciona café, Nayoli, ni asume manufact
 // Éste es el regression-catcher: camina `DEFAULTS` tal como existe (no enumera campos a mano) y
 // falla si un valor de texto no-vacío se repite, salvo la excepción declarada.
 //
-// LA ÚNICA EXCEPCIÓN AL COLLATOR: 'Suscripción Mensual' en hero.ctaSecundarioLabel (el CTA del home)
+// LA PRIMERA EXCEPCIÓN AL COLLATOR: 'Suscripción Mensual' en hero.ctaSecundarioLabel (el CTA del home)
 // y suscripcionPlanes.eyebrow (el kicker de la página a la que ese CTA lleva). No es el defecto que
 // el owner señaló —un párrafo idéntico narrando la misma historia dos veces—: es un botón y el
 // título de SU destino diciendo lo mismo, que es la consistencia de nomenclatura esperada de
 // cualquier link (un botón "Ver Catálogo" que lleve a una página titulada "Catálogo" no es un
 // duplicado a resolver). Declarada explícita para que un futuro cambio de cualquiera de los dos la
 // vea y decida a propósito, no la pierda en un refactor.
-const DUPLICADO_PERMITIDO = new Set(['Suscripción Mensual']);
+//
+// TRES MÁS (§ MUESTRARIO-FOOTER-TEMA-1): al mudar `siteConfig.footerNav` (código fijo) a
+// `REGISTRY.footer` (dato), los VALORES que ya existían ahí — literales que ESTABAN en la fuente
+// vieja, no inventados por este slice — coinciden con otros defaults por la misma razón que
+// 'Suscripción Mensual': un enlace/encabezado y el nombre de lo que nombra. 'Nuestra Historia' es
+// el link del footer a /nosotros (`footer.linkNuestraHistoria`, ya era ese texto en
+// `siteConfig.footerNav.empresa`) Y el kicker de la sección que teje esa misma historia en la home
+// (`brandStory.eyebrow`) — la MISMA idea contada dos veces, con la MISMA palabra, es justo la
+// consistencia de vocabulario que un visitante espera, no el defecto que el owner señaló (un
+// párrafo completo repetido). 'Tienda' y 'Suscripciones' son el encabezado/enlace del footer
+// (`footer.columnaTienda`/`footer.linkSuscripciones`) coincidiendo con las MISMAS etiquetas del
+// menú de navegación (`menu.labelTienda`/`.labelSuscripciones`) — el pie y el nav usando la MISMA
+// palabra para la MISMA sección es coherencia de nomenclatura, no duplicación de contenido. Las
+// tres preservan el texto EXACTO que `siteConfig.footerNav`/el JSX hardcodeado ya tenían: cambiar
+// alguna para esquivar el collator habría roto el byte-idéntico que el slice exige.
+const DUPLICADO_PERMITIDO = new Set(['Suscripción Mensual', 'Nuestra Historia', 'Tienda', 'Suscripciones']);
 
 test('DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre campos distintos — salvo el CTA↔destino declarado', () => {
   const rutasDeImagen = valoresDeCamposImagen();

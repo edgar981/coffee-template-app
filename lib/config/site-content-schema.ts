@@ -416,6 +416,32 @@ const menuEditableSchema = z.object({
   { message: 'menu: un ítem no puede ocupar dos posiciones a la vez', path: ['posicion1'] },
 );
 
+// EL PIE DE PÁGINA (§ MUESTRARIO-FOOTER-TEMA-1, ver el docstring de `FooterContent` en
+// site-content-defaults.ts): sección de verdad (pasa por el flujo borrador/publicar de siempre, §
+// REGISTRY.footer) — se declara acá por la MISMA razón que todas las demás secciones: zod descarta
+// lo no declarado, y un campo del modelo sin su entrada acá se STRIPPEA en silencio al guardar
+// (§65-B). `variante` es `z.string()` porque el set de claves es por-sección y el resolver SOFT
+// (`resolverVariante`) la clampa a la canónica — gemela de `hero.variante`/`presentaciones.variante`.
+// `items` es el repeater de la fila legal; cada ítem SOFT (loader SOFT, la validación de
+// requeridos es del editor, como testimonios/FAQ).
+const footerLegalItemSchema = z.object({
+  label: z.string().optional(),
+  href: z.string().optional(),
+});
+const footerEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  variante: z.string().optional(),
+  columnaTienda: z.string().optional(),
+  columnaAyuda: z.string().optional(),
+  columnaEmpresa: z.string().optional(),
+  linkTienda: z.string().optional(),
+  linkSuscripciones: z.string().optional(),
+  linkRastrearPedido: z.string().optional(),
+  linkPreguntasFrecuentes: z.string().optional(),
+  linkNuestraHistoria: z.string().optional(),
+  items: z.array(footerLegalItemSchema).optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   marquesina: marquesinaEditableSchema.optional(),
@@ -432,6 +458,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   menu: menuEditableSchema.optional(),
+  footer: footerEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   cromo: cromoEditableSchema.optional(),
   volverArriba: volverArribaEditableSchema.optional(),
