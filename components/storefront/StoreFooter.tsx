@@ -12,16 +12,50 @@ import { STOREFRONT_TIENE_MARK } from "@/lib/config/storefront-marca";
 import {
   siteConfig,
   whatsappUrl,
-  instagramUrl,
   formatWhatsappDisplay,
+  urlDeRedSocial,
+  type RedSocialGuardada,
 } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { faqSuscripcionesVisible } from "@/lib/config/site-content-defaults";
 
-// `footerNav`/`legalNav` son ESTRUCTURADOS y se quedan en código (v1). La marca, el
-// whatsapp y el instagram vienen de SiteSetting vía el provider (una sola fuente).
+// `footerNav`/`legalNav` son ESTRUCTURADOS y se quedan en código (v1). La marca viene de
+// SiteSetting vía el provider (una sola fuente).
 const { footerNav, legalNav } = siteConfig;
+
+// LOS BOTONES SOCIALES SALEN DE `settings.redes` (§ MUESTRARIO-REDES-ADICIONALES-1) — la MISMA
+// fuente que `RielSocial` (`lib/config/site.ts`, `parseRedesSociales`/`urlDeRedSocial`). Reemplaza
+// la lectura directa de `settings.instagram`/`.whatsapp` de este bloque; el "📱 WhatsApp" de la
+// columna Empresa (más abajo) sigue leyendo `settings.whatsapp` DIRECTO — es contacto de negocio,
+// no un ícono de esta lista, y esa columna no se tocó.
+//
+// El ASSET es por-tipo, igual que en `RielSocial`: Instagram con el SVG propio, WhatsApp con
+// `MessageCircle` de lucide, Facebook/X/Pinterest SIN asset (no existe ni en el repo ni en lucide
+// 1.16) — rinden sin ícono, § el spec: "no inventes un SVG".
+function iconoDeRedFooter(red: RedSocialGuardada) {
+  if (red.tipo === "instagram") {
+    return (
+      <Image
+        src="/icons/instagram-white.svg"
+        alt=""
+        width={16}
+        height={16}
+        className="opacity-60"
+      />
+    );
+  }
+  if (red.tipo === "whatsapp") return <MessageCircle className="h-4 w-4 text-[var(--sf-sobre)]/60" />;
+  return null;
+}
+
+const LABEL_RED_FOOTER: Record<RedSocialGuardada["tipo"], string> = {
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  facebook: "Facebook",
+  x: "X",
+  pinterest: "Pinterest",
+};
 
 export default function StoreFooter() {
   const settings = useSiteSettings();
@@ -59,39 +93,21 @@ export default function StoreFooter() {
               {settings.descripcionFooter}
             </p>
 
-            {/* Los botones sociales se OCULTAN cuando su campo está vacío (cliente sin
-                configurar): un enlace a instagram.com/ o wa.me/ SIN número es un botón
-                muerto, peor que no mostrarlo. */}
+            {/* Los botones sociales salen de `settings.redes`: una lista vacía no rinde nada
+                (idéntico al criterio de antes — un botón muerto es peor que no mostrarlo). */}
             <div className="flex gap-3">
-              {settings.instagram && (
+              {settings.redes.map((red) => (
                 <a
-                  href={instagramUrl(settings.instagram)}
+                  key={red.tipo}
+                  href={urlDeRedSocial(red)}
                   target="_blank"
                   rel="noopener"
-                  aria-label={`Instagram de ${settings.nombre}`}
+                  aria-label={`${LABEL_RED_FOOTER[red.tipo]} de ${settings.nombre}`}
                   className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
                 >
-                  <Image
-                    src="/icons/instagram-white.svg"
-                    alt=""
-                    width={16}
-                    height={16}
-                    className="opacity-60"
-                  />
+                  {iconoDeRedFooter(red)}
                 </a>
-              )}
-
-              {settings.whatsapp && (
-                <a
-                  href={whatsappUrl(settings.whatsapp)}
-                  target="_blank"
-                  rel="noopener"
-                  aria-label={`WhatsApp de ${settings.nombre}`}
-                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
-                >
-                  <MessageCircle className="h-4 w-4 text-[var(--sf-sobre)]/60" />
-                </a>
-              )}
+              ))}
             </div>
           </div>
 

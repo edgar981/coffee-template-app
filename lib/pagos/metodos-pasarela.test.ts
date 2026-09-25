@@ -594,7 +594,7 @@ function payloadDeSiteSettings(metodosPasarela: string[]) {
   return {
     nombre: 'x', tagline: 'x', descripcionFooter: 'x', whatsapp: '+573000000000', instagram: 'x',
     emailRemitente: 'a@b.com', metodosPago: [{ tipo: 'efectivo' as const, datos: {} }],
-    metodosPasarela,
+    metodosPasarela, redes: [],
   };
 }
 

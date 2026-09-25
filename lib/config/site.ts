@@ -46,6 +46,58 @@ export function instagramUrl(handle: string): string {
   return `https://instagram.com/${handle}`;
 }
 
+// ─── Redes sociales (§ MUESTRARIO-REDES-ADICIONALES-1) ───────────────────────────────
+// `SiteSetting.redes` es una LISTA `{tipo, valor}`, MISMO patrón que `metodosPago`: reemplaza
+// las DOS columnas fijas `instagram`/`whatsapp` como fuente del riel lateral y del ícono del
+// footer. Set CERRADO de CINCO tipos — sólo instagram/whatsapp tienen ícono hoy (§ el ícono es
+// asset por-tipo, abajo); facebook/x/pinterest se ofrecen sin asset hasta que el owner lo decida.
+
+export type RedSocialTipo = 'instagram' | 'whatsapp' | 'facebook' | 'x' | 'pinterest';
+
+/** El orden CANÓNICO — el que ve el visitante en el riel/footer, y el que devuelve
+ *  `parseRedesSociales` sin importar el orden de guardado. Instagram y whatsapp primero:
+ *  preserva el orden que el riel/footer ya pintaban antes de este slice (byte-idéntico). */
+export const REDES_SOCIALES_ORDEN: RedSocialTipo[] = ['instagram', 'whatsapp', 'facebook', 'x', 'pinterest'];
+
+const TIPOS_RED_VALIDOS = new Set<string>(REDES_SOCIALES_ORDEN);
+
+/** Una red guardada: su tipo (dentro del set cerrado) + su valor. Para instagram/whatsapp,
+ *  `valor` es el handle/número (mismo dato que las columnas viejas); para las demás, la URL
+ *  completa tal cual el dueño la pegó. */
+export interface RedSocialGuardada {
+  tipo: RedSocialTipo;
+  valor: string;
+}
+
+/**
+ * Lee `SiteSetting.redes` (el JSON crudo de la base) SOFT — nunca lanza. Descarta lo que no sea
+ * un objeto con `tipo` dentro del set cerrado, se queda con el PRIMERO de cada tipo repetido, y
+ * devuelve la lista en el ORDEN CANÓNICO — mismo criterio que `parseMetodosPago`
+ * (`lib/checkout/metodos-pago.ts`).
+ */
+export function parseRedesSociales(valor: unknown): RedSocialGuardada[] {
+  if (!Array.isArray(valor)) return [];
+  const porTipo = new Map<RedSocialTipo, RedSocialGuardada>();
+  for (const item of valor) {
+    if (!item || typeof item !== 'object') continue;
+    const tipoRaw = (item as { tipo?: unknown }).tipo;
+    if (typeof tipoRaw !== 'string' || !TIPOS_RED_VALIDOS.has(tipoRaw)) continue;
+    const tipo = tipoRaw as RedSocialTipo;
+    if (porTipo.has(tipo)) continue; // el PRIMERO de un tipo repetido gana
+    const valorRaw = (item as { valor?: unknown }).valor;
+    porTipo.set(tipo, { tipo, valor: typeof valorRaw === 'string' ? valorRaw : String(valorRaw ?? '') });
+  }
+  return REDES_SOCIALES_ORDEN.filter(t => porTipo.has(t)).map(t => porTipo.get(t)!);
+}
+
+/** La URL final que abre el botón — instagram/whatsapp COMPONEN desde su handle/número (los
+ *  helpers de siempre); el resto usa `valor` TAL CUAL (ya es la URL completa). */
+export function urlDeRedSocial(red: RedSocialGuardada): string {
+  if (red.tipo === 'instagram') return instagramUrl(red.valor);
+  if (red.tipo === 'whatsapp') return whatsappUrl(red.valor);
+  return red.valor;
+}
+
 export const siteConfig = {
   // La paleta de los correos al cliente YA NO vive acá: se DERIVA de las 3 raíces del
   // storefront (`content.tema`) en `lib/config/email-colors.ts`, que `buildBrand()` inyecta

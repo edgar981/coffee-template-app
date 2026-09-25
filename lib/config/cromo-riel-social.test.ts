@@ -21,8 +21,9 @@ import { contenidoConPresetDeVista } from './theme-mirador';
 //
 // Este archivo afirma el modelo (DEFAULTS/resolver), el gate de byte-identidad (Nayoli no monta el
 // riel), el cableado del preset (CORTE la enciende, los otros cinco no la tocan), y el render por
-// `renderToStaticMarkup` (sin jsdom, § CLAUDE.md) — incluida la SEGUNDA gate: los DOS links son
-// `SiteSetting.instagram`/`.whatsapp`, cada uno oculto cuando su campo está vacío.
+// `renderToStaticMarkup` (sin jsdom, § CLAUDE.md) — incluida la SEGUNDA gate: los links salen de
+// `SiteSetting.redes` (§ MUESTRARIO-REDES-ADICIONALES-1), cada uno oculto cuando no está en la
+// lista — reemplaza la lectura directa de `instagram`/`.whatsapp` de antes de ese slice.
 
 const SETTINGS_BASE: SiteSettings = {
   nombre: 'Nayoli',
@@ -34,13 +35,16 @@ const SETTINGS_BASE: SiteSettings = {
   emailReplyTo: null,
   adminEmail: null,
   metodosPago: [],
+  redes: [],
   metodoPasarelaDesalineado: null,
 };
 
 const SETTINGS_CON_LOS_DOS: SiteSettings = {
   ...SETTINGS_BASE,
-  instagram: 'nayolicafe',
-  whatsapp: '573001234567',
+  redes: [
+    { tipo: 'instagram', valor: 'nayolicafe' },
+    { tipo: 'whatsapp', valor: '573001234567' },
+  ],
 };
 
 function renderRielSocial(content: SiteContentData, settings: SiteSettings = SETTINGS_BASE): string {
@@ -95,7 +99,7 @@ test('con rielSocial.visible:true PERO los DOS campos sociales vacíos: tampoco 
 
 test('con rielSocial.visible:true + SOLO instagram: UN botón, con la superficie del tema', () => {
   const content = { ...DEFAULTS, rielSocial: { visible: true } } as SiteContentData;
-  const settings: SiteSettings = { ...SETTINGS_BASE, instagram: 'nayolicafe' };
+  const settings: SiteSettings = { ...SETTINGS_BASE, redes: [{ tipo: 'instagram', valor: 'nayolicafe' }] };
   const html = renderRielSocial(content, settings);
   assert.ok(html !== '');
   const botones = html.match(/<a\b/g) ?? [];
@@ -108,7 +112,7 @@ test('con rielSocial.visible:true + SOLO instagram: UN botón, con la superficie
 
 test('con rielSocial.visible:true + SOLO whatsapp: UN botón, sin el de instagram', () => {
   const content = { ...DEFAULTS, rielSocial: { visible: true } } as SiteContentData;
-  const settings: SiteSettings = { ...SETTINGS_BASE, whatsapp: '573001234567' };
+  const settings: SiteSettings = { ...SETTINGS_BASE, redes: [{ tipo: 'whatsapp', valor: '573001234567' }] };
   const html = renderRielSocial(content, settings);
   assert.ok(html !== '');
   const botones = html.match(/<a\b/g) ?? [];

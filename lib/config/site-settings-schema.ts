@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { METODOS_PAGO_ORDEN, type MetodoPagoTipo } from '../checkout/metodos-pago';
 import { checkoutSabeDibujar, esNoCobrable } from '../pagos/metodos-pasarela';
+import { REDES_SOCIALES_ORDEN, type RedSocialTipo } from './site';
 
 // Validación de los campos EDITABLES de SiteSetting (los planos). UNA definición que
 // corren el PATCH (la que MANDA) y el editor de Configuración (aviso temprano) — como
@@ -22,12 +23,29 @@ const metodoPagoSchema = z.object({
   datos: z.record(z.string(), z.string()),
 });
 
+// Una red guardada: su tipo (dentro del set cerrado de `REDES_SOCIALES_ORDEN`) + su valor. Sin
+// regex sobre `valor` — un handle de Instagram, un número de WhatsApp o una URL de Facebook/X/
+// Pinterest varían de forma, y la guarda de "¿se muestra?" vive en el RENDER (una red vacía se
+// omite), no acá.
+const redSocialSchema = z.object({
+  tipo:  z.enum(REDES_SOCIALES_ORDEN as [RedSocialTipo, ...RedSocialTipo[]]),
+  valor: z.string(),
+});
+
 export const siteSettingsEditableSchema = z.object({
   nombre:            z.string().trim().min(1, 'El nombre del negocio es obligatorio'),
   tagline:           z.string().trim().min(1, 'El tagline es obligatorio'),
   descripcionFooter: z.string().trim().min(1, 'La descripción del footer es obligatoria'),
   whatsapp:          z.string().trim().regex(/^\+?\d[\d\s]{6,}$/, 'Teléfono inválido'),
-  instagram:         z.string().trim().min(1, 'El usuario de Instagram es obligatorio'),
+  // `instagram` DEJÓ DE SER OBLIGATORIO (§ MUESTRARIO-REDES-ADICIONALES-1): era la única "vía de
+  // contacto" que este schema garantizaba además de `whatsapp` — pero `whatsapp` YA es obligatorio
+  // arriba (el regex lo exige, siempre), así que relajar `instagram` NO deja al negocio sin ninguna
+  // vía de contacto: sigue habiendo una garantizada (whatsapp), la misma de antes. Lo que cambia es
+  // que Instagram deja de ser LA ÚNICA red editable desde el panel — pasa a ser una entrada más,
+  // opcional, de la lista `redes` de abajo; la columna se queda como fuente CONGELADA del backfill
+  // (§ el docstring de `SiteSetting.redes`, schema.prisma), y este campo compuesto se sigue
+  // aceptando (y reenviando tal cual) porque el write es COMPLETO, no parcial.
+  instagram:         z.string().trim(),
   emailRemitente:    z.string().trim().regex(REMITENTE, 'Remitente inválido (usa "a@b.com" o "Nombre <a@b.com>")'),
   // Opcionales: '' se normaliza a null en el server. `.email()` sólo si hay valor.
   emailReplyTo:      z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
@@ -42,6 +60,10 @@ export const siteSettingsEditableSchema = z.object({
   // capacidad de DESPLIEGUE que puede estar apagada, y `[]` es un estado legítimo — a
   // diferencia de `metodosPago`, el checkout no depende de que esta lista tenga algo.
   metodosPasarela: z.array(z.string().trim().min(1)),
+  // Las redes sociales — LISTA (§ MUESTRARIO-REDES-ADICIONALES-1), SIN tipos repetidos (un
+  // elemento por tipo). `[]` es un estado LEGÍTIMO (a diferencia de `metodosPago`): el riel ya se
+  // oculta solo sin ninguna red configurada — no hay refine de "al menos una".
+  redes: z.array(redSocialSchema),
 }).refine(
   d => new Set(d.metodosPago.map(m => m.tipo)).size === d.metodosPago.length,
   { message: 'No puedes repetir un método de pago', path: ['metodosPago'] },
@@ -76,6 +98,9 @@ export const siteSettingsEditableSchema = z.object({
     message: 'Hay un método de pasarela que tu cuenta no puede cobrar. Quítalo de Pasarela para poder guardar.',
     path: ['metodosPasarela'],
   },
+).refine(
+  d => new Set(d.redes.map(r => r.tipo)).size === d.redes.length,
+  { message: 'No puedes repetir una red social', path: ['redes'] },
 );
 
 export type SiteSettingsEditable = z.infer<typeof siteSettingsEditableSchema>;

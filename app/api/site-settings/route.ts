@@ -58,6 +58,7 @@ export async function PATCH(req: NextRequest) {
       adminEmail:        d.adminEmail || null,
       metodosPago:       d.metodosPago,
       metodosPasarela:   d.metodosPasarela,
+      redes:             d.redes,
     },
   });
   return NextResponse.json({ ok: true });

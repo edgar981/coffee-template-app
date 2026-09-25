@@ -1,5 +1,6 @@
 import prisma from '@duna/core';
 import { parseMetodosPago, type MetodoPagoGuardado } from '../checkout/metodos-pago';
+import { parseRedesSociales, type RedSocialGuardada } from './site';
 
 /**
  * Config EDITABLE del negocio, resuelta a un objeto plano (serializable, para pasar
@@ -19,6 +20,12 @@ export interface SiteSettings {
   // `parseMetodosPago` (SOFT): nadie fuera de este loader lee el JSON crudo de la columna.
   // Reemplaza los 9 campos viejos (los 4 booleanos + el número móvil + los 4 de banco).
   metodosPago: MetodoPagoGuardado[];
+  // Las redes sociales del negocio — LISTA (§ MUESTRARIO-REDES-ADICIONALES-1), ya pasada por
+  // `parseRedesSociales` (SOFT): nadie fuera de este loader lee el JSON crudo de la columna.
+  // Reemplaza las columnas `instagram`/`whatsapp` como fuente del riel/footer (esas dos columnas
+  // se QUEDAN, congeladas para whatsapp menos: sigue siendo la fuente de otros consumos, ver
+  // abajo).
+  redes: RedSocialGuardada[];
   // La PALETA ya no está acá: se mudó a `SiteContent.content.tema` (§ Backlog #55). El storefront
   // la lee de `getSiteContent()`, no de este loader.
   //
@@ -95,6 +102,7 @@ export async function readSiteSettings(): Promise<SiteSettings> {
     emailReplyTo:      s.emailReplyTo,
     adminEmail:        s.adminEmail,
     metodosPago:       parseMetodosPago(s.metodosPago),
+    redes:             parseRedesSociales(s.redes),
     metodoPasarelaDesalineado,
   };
 }

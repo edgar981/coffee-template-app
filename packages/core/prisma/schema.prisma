@@ -769,6 +769,20 @@ model SiteSetting {
   // exige al menos uno): la pasarela es una capacidad de DESPLIEGUE que puede estar apagada,
   // o el dueño puede no haber elegido nada todavía de su cuenta.
   metodosPasarela Json @default("[]")
+  // REDES sociales del negocio (§ MUESTRARIO-REDES-ADICIONALES-1): LISTA `{tipo, valor}`, MISMO
+  // patrón que `metodosPago` — reemplaza las DOS columnas fijas `instagram`/`whatsapp` como fuente
+  // del riel lateral y del ícono del footer. Set cerrado de CINCO tipos (instagram · whatsapp ·
+  // facebook · x · pinterest); `valor` es el handle/número para instagram/whatsapp (los helpers
+  // `instagramUrl`/`whatsappUrl` construyen la URL) y la URL completa tal cual para el resto.
+  // Backfileada, en la MISMA migración que la crea (`20260925120000_site_setting_redes`), desde las
+  // columnas `instagram`/`whatsapp` — que esa migración leyó y que NO se dropean (el retiro es un
+  // follow-up aparte, como `pagoMovilNumero`/las 4 de banco en `metodosPago`). Desde acá cada
+  // representación es dueña de la suya: `instagram`/`whatsapp` (columnas) siguen siendo la fuente
+  // para lo que NO es ícono social —`whatsapp` sigue siendo el contacto del checkout/telefono/
+  // notificaciones, `instagram` queda congelada sin lector propio—, y `redes` es la fuente ÚNICA
+  // para el riel lateral y el ícono del footer. `[]` es un estado LEGÍTIMO (a diferencia de
+  // `metodosPago`): el riel ya se oculta solo sin ninguna red configurada.
+  redes Json @default("[]")
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.

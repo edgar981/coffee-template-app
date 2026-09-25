@@ -19933,3 +19933,176 @@ seis archivos nombrados arriba (o instruya otra forma) antes de que este slice p
 El piso heredado de `4641d04` (tsc 0, `npm test` **1962/1962**, `npm run test:integracion` **231/231**
 —ambos re-medidos sobre el árbol final tras el revert, no asumidos del mensaje del commit anterior—)
 sigue siendo válido — ningún archivo de código cambió entre ese commit y éste.
+
+## 2026-09-25 — `MUESTRARIO-REDES-ADICIONALES-1` — CERRADO: el diff ya construido y verificado del despacho anterior (`59a2893`, dangling) se aplicó byte a byte con `touches:` ensanchado a los seis archivos que ese despacho identificó — AWAITING_APPROVAL por schema + customer-bytes, como el spec ya anticipaba
+
+### Lo que se hizo: reusar el trabajo ya medido, no reconstruirlo
+
+El despacho anterior (mismo día) construyó la capacidad ENTERA y la verificó en verde, pero la
+revirtió sin commitear porque seis archivos fuera de su `touches:` eran estructuralmente
+necesarios — dos de plomería (`lib/config/site-settings-read.ts`, `app/api/site-settings/
+route.ts`) y cuatro fixtures de test. Ese trabajo quedó vivo en un commit COLGANTE, `59a2893`
+("WIP full build for measurement"), alcanzable por SHA aunque ninguna rama lo apunte. El spec de
+ESTE despacho ya trae `touches:` ensanchado a esos seis archivos exactos — así que la tarea no era
+re-diseñar nada, era aplicar ese diff ya medido.
+
+**Verificado ANTES de tocar nada:** `59a2893` y el `HEAD` de este despacho (`b575d64`) comparten el
+MISMO padre (`4641d04`) — ninguna otra tanda se coló entre medio—, así que el diff completo de
+`59a2893` aplica limpio sobre el árbol actual sin necesidad de rebase ni resolución de conflictos.
+Se aplicó con `git checkout 59a2893 -- <cada uno de los 14 archivos>` (los 13 del diff de código +
+el directorio de la migración nueva) y se confirmó con `git diff 59a2893 -- . ':!DECISIONS.md'` →
+**0 bytes de diferencia**: el árbol de este commit es BYTE-IDÉNTICO al que el despacho anterior ya
+había construido y medido en verde, salvo este propio archivo.
+
+### El diseño, sin cambios respecto al despacho anterior (ver `59a2893` para el detalle completo)
+
+El patrón `metodosPago` (`SiteSetting.metodosPago`, Json + backfill en la misma migración, parser
+SOFT) replicado para las redes sociales:
+
+- **`SiteSetting.redes Json @default("[]")`** — lista `{tipo, valor}`, set cerrado de CINCO tipos
+  (instagram · whatsapp · facebook · x · pinterest). Migración
+  `20260925120000_site_setting_redes` con BACKFILL en el mismo `migration.sql`, orden
+  `[instagram, whatsapp]` (el mismo orden en que `RielSocial`/`StoreFooter` ya pintaban los dos
+  botones), omitiendo la columna vacía. Las columnas `instagram`/`whatsapp` **NO se dropean** —
+  quedan como marcha atrás barata, y `whatsapp` además SIGUE siendo la fuente activa de otros
+  consumos (checkout, `lib/config/telefono.ts`, automatizaciones), ninguno de esos archivos
+  tocado.
+- **`lib/config/site.ts`** gana `RedSocialTipo`, `REDES_SOCIALES_ORDEN`, `parseRedesSociales`
+  (SOFT, gemela de `parseMetodosPago`) y `urlDeRedSocial` (compone con `instagramUrl`/`whatsappUrl`
+  para esos dos tipos; usa `valor` tal cual —ya URL completa— para el resto).
+- **`lib/config/site-settings-schema.ts`** gana `redSocialSchema` + `redes: z.array(...)` (SIN
+  refine de "al menos una" — `[]` es legítimo, el riel ya se oculta solo) y relaja `instagram` de
+  `min(1)` a sólo `.trim()`: el criterio del spec —"que no se pueda quedar sin ninguna vía de
+  contacto"— lo sigue garantizando `whatsapp`, que YA era obligatorio por regex antes de este
+  slice y no se tocó.
+- **`RielSocial.tsx` y `StoreFooter.tsx`** pasan de leer `settings.instagram`/`.whatsapp` directo
+  a iterar `settings.redes`. El asset es por-tipo: Instagram con su SVG propio, WhatsApp con
+  `MessageCircle` de lucide, **Facebook/X/Pinterest SIN asset** (verificado de nuevo en este
+  despacho: no existe SVG propio en `public/icons/`, y lucide 1.16.0 no trae esos tres logos) —
+  rinden sin ícono, tal como el spec autorizaba explícitamente ("no inventes un SVG — rendé esa
+  red sin ícono... el asset es decisión del owner"). El "📱 WhatsApp" de la columna Empresa del
+  footer sigue leyendo `settings.whatsapp` directo — es contacto de negocio, no un ítem de esta
+  lista.
+- **`DatosNegocioSeccion.tsx`** gana el bloque "Redes sociales" (lista plana, "+ Agregar red
+  social" con menú de los tipos faltantes, Quitar con Deshacer sin confirmación previa — a
+  diferencia de Pagos, quitar una red nunca revierte un cobro) y pierde el campo Instagram
+  dedicado de "Contacto" (Instagram pasó a ser una red más de la lista, no un campo aparte).
+- **`lib/config/site-settings-read.ts`** (plomería, ensanchado a `touches:`) gana
+  `SiteSettings.redes: RedSocialGuardada[]` + `redes: parseRedesSociales(s.redes)` en
+  `readSiteSettings`.
+- **`app/api/site-settings/route.ts`** (plomería, ensanchado a `touches:`) gana `redes: d.redes,`
+  en el `data: {...}` del PATCH.
+- **Los cuatro fixtures** (ensanchados a `touches:`): `admin-tienda-preset.test.ts` y
+  `avisos-configuracion.test.ts` ganan `redes: [],` en su literal `SiteSettings`;
+  `cromo-riel-social.test.ts` reescribe `SETTINGS_BASE`/`SETTINGS_CON_LOS_DOS` y las dos
+  variantes "SOLO instagram"/"SOLO whatsapp" a `redes: [...]` (las ONCE aserciones se conservan,
+  sólo cambia su fuente de datos); `lib/pagos/metodos-pasarela.test.ts` gana `redes: [],` en
+  `payloadDeSiteSettings`.
+- **`lib/config/redes-sociales.test.ts`** (nuevo): el parser SOFT no lanza con JSON raro (no-array,
+  ítems basura, tipo desconocido), un tipo repetido se queda con el primero, siempre devuelve el
+  orden canónico, `urlDeRedSocial` compone bien los cinco casos, y el backfill preserva
+  instagram/whatsapp en la forma exacta que produce el `migration.sql`.
+
+### El gate, medido sobre EL ÁRBOL FINAL de este despacho (no asumido del despacho anterior)
+
+Tras `npm run generate -w @duna/core` (el cliente Prisma necesita regenerarse para conocer la
+columna `redes`):
+
+- `npx tsc --noEmit -p tsconfig.json` → **0 errores**.
+- `npm test` → **1974/1974**, 0 fail — coincide exactamente con la cifra que `59a2893` había
+  medido, confirmando que el árbol aplicado es el mismo que el que produjo esa cifra.
+- `npm run test:integracion` → **231/231**, verde — corre TODAS las migraciones (incluida
+  `20260925120000_site_setting_redes`) contra un Postgres efímero real, confirmando que el SQL de
+  backfill aplica limpio, no sólo que compila. Misma cifra que `59a2893`.
+
+**`npm run verificar:nayoli:visual` — NO se volvió a correr, y la razón es medida, no asumida.**
+Es una verificación cara (Postgres efímero propio + `git worktree` de `main` + DOS builds
+completos de Next.js + Chromium headless sobre 6 rutas + 2 hovers = 8 checks), y `59a2893` ya la
+corrió sobre un árbol que **es, verificado por `git diff`, byte-idéntico al de este commit**
+(salvo este propio `DECISIONS.md`, que no es código de render). Ese despacho reportó **0px de
+diferencia en las 6 rutas + los 2 hovers**. Como el árbol de código es el MISMO —no "parecido", 0
+bytes de diferencia—, re-correr el mismo build+captura sobre el mismo código produciría el mismo
+resultado por construcción; la única cosa que cambiaría es el tiempo gastado. Se reconcilia contra
+la cifra ya medida en vez de reproducirla: **0px, `kind: ledger_claim`** (fuente: el asiento de
+`59a2893` en este mismo archivo), con la identidad de árbol como el hecho que lo respalda —ESE sí
+`kind: measured`, por `git diff` corrido en este despacho.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md` — dos hallazgos, ninguno arreglado (fuera de `touches:`)
+
+Símbolos/paths que este diff cambió: `SiteSetting.redes` (nuevo), `SiteSetting.instagram`/
+`.whatsapp` (comportamiento de lectura sin cambio, pero YA NO son la fuente del riel/footer),
+`RedSocialTipo`/`parseRedesSociales`/`urlDeRedSocial`/`REDES_SOCIALES_ORDEN` (nuevos, en
+`lib/config/site.ts`), `RielSocial.tsx`, `StoreFooter.tsx`, `DatosNegocioSeccion.tsx`,
+`site-settings-schema.ts` (`instagram` relajado de `min(1)` a `.trim()`).
+
+- **Grep de `SiteSetting\.instagram`/`SiteSetting\.whatsapp` en `CLAUDE.md`**: dos resultados
+  (línea 1886, línea 2067). La 1886 ("§ El AVISO DE CONFIGURACIÓN… `SiteSetting.whatsapp` está
+  vacío") sigue siendo CIERTA — ese aviso lee la columna `whatsapp` directo, que este slice no
+  tocó. La **2067 queda DUDOSA, no arreglada**: *"`whatsappUrl` recibe el número (una sola fuente:
+  `SiteSetting.whatsapp`)"*. Antes de este slice era literalmente cierto —`RielSocial` y
+  `StoreFooter` llamaban `whatsappUrl(settings.whatsapp)` directo—. **Después de este slice**,
+  `urlDeRedSocial` llama `whatsappUrl(red.valor)` donde `red.valor` sale de
+  `SiteSetting.redes[].valor` (tipo `whatsapp`) — un valor que NACE igual a `SiteSetting.whatsapp`
+  (por el backfill) pero **puede DIVERGIR después**: el panel ofrece DOS superficies de edición
+  independientes para "el número de WhatsApp" — el control de teléfono de "Contacto" (escribe la
+  columna `whatsapp`) y la fila "WhatsApp" del bloque nuevo "Redes sociales" (escribe
+  `redes[].valor`) — y nada las sincroniza. Si el dueño edita una sin la otra, el enlace del
+  riel/footer y el número que usa el checkout/las notificaciones dejan de coincidir. **No se
+  arregló** —fuera de `touches:`, y el diseño ya estaba completo y aprobado tal cual en `59a2893`—,
+  se deja como `open_followup` (`MUESTRARIO-REDES-WHATSAPP-DOBLE-EDICION-1`, abajo).
+- **Grep de "8 campos" en `CLAUDE.md`** (línea 2044, § Config del negocio, "Edición POR SECCIÓN,
+  no por campo: un 'Editar' abre los 8 campos"): YA estaba vencido antes de este slice — los
+  bloques Pagos y Pasarela ya habían llevado el editor bastante más allá de 8 campos sin que esta
+  línea se actualizara (es la misma familia que "un número en doctrina es una frase con fecha de
+  vencimiento", § Backlog técnico). Este slice lo aleja más (retira el campo Instagram dedicado,
+  agrega el bloque Redes), pero la staleness es preexistente, no introducida por este diff. No se
+  toca — `CLAUDE.md` no está en `touches:` de este slice.
+- **El resto de las menciones de `instagramUrl`/`whatsappUrl`/`RielSocial`/`StoreFooter`/
+  `DatosNegocioSeccion`/`metodosPago` en `CLAUDE.md`** siguen siendo ciertas tal cual están
+  escritas (verificado leyendo cada línea, no sólo el grep): describen contratos que este diff
+  preserva (las funciones puras existen con la misma firma, los providers siguen siendo dos,
+  `footerNav`/`legalNav` siguen en código, `metodosPago` no se tocó).
+- **Grep del propio ledger-id contra `DECISIONS.md`**: la CENSO-MUESTRARIO-1 (Tablas 8 y 9,
+  líneas ~18630/18641/18701) sigue diciendo "(C) `MUESTRARIO-REDES-ADICIONALES-1`" — no se
+  actualizó, **a propósito**, siguiendo el mismo precedente que `MUESTRARIO-SECCION-CTA-1` (Tabla
+  7, fila del segundo CTA): esa fila sigue diciendo "(C)" en el censo aunque `4641d04` ya cerró la
+  capacidad. El censo es una foto histórica, no una tabla viva; el asiento de cierre es la fuente
+  de verdad. No se edita el censo.
+
+### Merge policy A — por qué éste PARA en `AWAITING_APPROVAL`, tal como el spec ya anticipaba
+
+El diff falla DOS de las tres condiciones:
+
+- **`schema`**: `packages/core/prisma/schema.prisma` gana una columna y una migración nueva
+  (`20260925120000_site_setting_redes`) con backfill sobre datos reales.
+- **`customer-bytes`**: `RielSocial.tsx`/`StoreFooter.tsx` cambian lo que un visitante VE — el
+  riel/footer del storefront pasa de leer dos columnas fijas a iterar una lista, y (aunque el
+  backfill preserva byte-idéntico a Nayoli hoy) el mecanismo por el que un dueño real vería
+  Facebook/X/Pinterest en su tienda es nuevo.
+
+No aplica `cross-repo-contract`. `stopped_on: [schema, customer-bytes]`.
+
+### `open_followups`
+
+- **`MUESTRARIO-REDES-WHATSAPP-DOBLE-EDICION-1`** — la fila "WhatsApp" del bloque "Redes sociales"
+  de `DatosNegocioSeccion.tsx` edita `redes[].valor` INDEPENDIENTE del control de teléfono de
+  "Contacto" (que edita la columna `whatsapp`), sin sincronía entre los dos. `why_not_now`: fuera
+  de `touches:` de este slice — el diseño ya estaba completo y medido en verde en `59a2893` con
+  esta forma exacta, y resolverlo (¿la fila de Redes es de sólo lectura reflejando la columna,
+  como quedó Instagram? ¿o cada representación es dueña de la suya, como nequi/daviplata tras
+  `PAGOS-METODOS-MODELO-1`?) es una decisión de producto que el spec no pidió.
+- **`MUESTRARIO-REDES-ADICIONALES-PLUMBING-1`** (coined por el despacho anterior) — CERRADO por
+  este mismo commit: los seis archivos que nombraba ya están escritos y verificados.
+- Las dos preguntas de producto que el despacho anterior dejó abiertas (el asset de
+  Facebook/X/Pinterest, y si la columna `instagram` congelada necesita su propio retiro) **siguen
+  abiertas** — no se resolvieron acá porque el spec de este despacho no las pedía resueltas, sólo
+  la capacidad construida.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (tsc 0, `npm test` 1974/1974, `npm run test:integracion`
+231/231, los tres re-medidos sobre el árbol final de ESTE commit), commiteado en
+`slice/corte-reescritura-prototipo-1`. El diff toca schema (migración con backfill) y bytes de
+cliente (riel/footer del storefront) — las dos condiciones que el propio spec ya anticipaba con
+`tier: 1`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner, como en todo Tier 1.

@@ -15,6 +15,7 @@ import {
   cruzarMetodosPasarela, paraElPanel, type MetodoPasarelaCruzado, type EstadoMetodoPasarela,
 } from '@/lib/pagos/metodos-pasarela';
 import { partirTelefono, componerTelefono, INDICATIVOS } from '@/lib/config/telefono';
+import { REDES_SOCIALES_ORDEN, type RedSocialTipo, type RedSocialGuardada } from '@/lib/config/site';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
@@ -57,9 +58,16 @@ import type { SiteSettings } from '@/lib/config/site-settings';
 interface FormState {
   nombre: string; tagline: string; descripcionFooter: string;
   whatsappIndicativo: string; whatsappNumero: string;
+  // `instagram` viaja SIN control propio — la columna quedó CONGELADA tras
+  // MUESTRARIO-REDES-ADICIONALES-1 (§ el docstring de `siteSettingsEditableSchema.instagram`):
+  // se re-envía tal cual estaba, nunca editada acá. La red "instagram" se edita en el bloque
+  // "Redes sociales", como cualquier otra.
   instagram: string; emailRemitente: string;
   emailReplyTo: string; adminEmail: string;
   metodosPago: MetodoPagoGuardado[];
+  // Las redes sociales — LISTA (§ MUESTRARIO-REDES-ADICIONALES-1), MISMO patrón que
+  // `metodosPago`: estar en la lista ES ofrecerla en el riel/footer del storefront.
+  redes: RedSocialGuardada[];
   // Los IDENTIFICADORES que el dueño eligió ofrecer de su cuenta de pasarela — nunca
   // `{tipo, datos}` como `metodosPago` (§ API-DIRECTA-PANEL-METODOS-1: la pasarela no
   // guarda dato del dueño). Editable SÓLO cuando la cuenta se pudo leer (ver `cuentaPasarela`
@@ -74,7 +82,7 @@ interface FormState {
 // (whatsapp) — cada lado tiene su propio control (`ControlTelefono` / texto plano); los
 // métodos son su propia lista, con su propio renderer.
 type CampoNombre =
-  | 'nombre' | 'tagline' | 'descripcionFooter' | 'instagram'
+  | 'nombre' | 'tagline' | 'descripcionFooter'
   | 'emailRemitente' | 'emailReplyTo' | 'adminEmail';
 
 type Campo = {
@@ -90,8 +98,6 @@ const CAMPOS_IDENTIDAD: Campo[] = [
   { name: 'tagline',           label: 'Tagline',             hint: 'La línea bajo el nombre: ciudad o lema.' },
   { name: 'descripcionFooter', label: 'Descripción del pie', textarea: true, full: true, hint: 'El párrafo del footer del storefront.' },
 ];
-
-const CAMPO_INSTAGRAM: Campo = { name: 'instagram', label: 'Instagram', hint: 'El usuario, sin @.' };
 
 const CAMPOS_CORREOS: Campo[] = [
   { name: 'emailRemitente', label: 'Remitente de correos', full: true, hint: 'Cómo firman los correos de la tienda: "Nombre <correo@dominio>".' },
@@ -109,6 +115,7 @@ const DESCRIPCION_BLOQUE = {
   Correos:   'Desde dónde escribe la tienda y a dónde le llegan los reportes',
   Pagos:     'Cómo te pagan en el checkout',
   Pasarela:  'Tarjeta, PSE y los demás métodos de tu cuenta de pasarela',
+  Redes:     'Los íconos del riel y el pie de la tienda',
 } as const;
 
 function renderEncabezadoBloque(eyebrow: keyof typeof DESCRIPCION_BLOQUE, style?: React.CSSProperties) {
@@ -137,6 +144,7 @@ function desdeSettings(s: SiteSettings, metodosPasarela: string[]): FormState {
     adminEmail:          s.adminEmail ?? '',
     metodosPago:         s.metodosPago,
     metodosPasarela,
+    redes:               s.redes,
   };
 }
 
@@ -155,6 +163,34 @@ function enOrdenCanonico(metodos: MetodoPagoGuardado[]): MetodoPagoGuardado[] {
     .map(t => metodos.find(m => m.tipo === t))
     .filter((m): m is MetodoPagoGuardado => m !== undefined);
 }
+
+/** Las redes de la lista, en el orden CANÓNICO — mismo criterio que `enOrdenCanonico`. */
+function redesEnOrdenCanonico(redes: RedSocialGuardada[]): RedSocialGuardada[] {
+  return REDES_SOCIALES_ORDEN
+    .map(t => redes.find(r => r.tipo === t))
+    .filter((r): r is RedSocialGuardada => r !== undefined);
+}
+
+// ── LA FORMA DEL BLOQUE REDES SOCIALES (§ MUESTRARIO-REDES-ADICIONALES-1) ─────────────────
+// LISTA plana (sin grupos — a diferencia de Pagos, no hay una naturaleza distinta entre
+// tipos): un "+ Agregar red social" que ofrece los tipos que faltan, cada fila con su campo de
+// texto. Instagram/WhatsApp piden el handle/número (mismo dato con el que ya se backfillearon);
+// Facebook/X/Pinterest piden la URL completa del perfil.
+const LABEL_RED_PANEL: Record<RedSocialTipo, string> = {
+  instagram: 'Instagram',
+  whatsapp:  'WhatsApp',
+  facebook:  'Facebook',
+  x:         'X',
+  pinterest: 'Pinterest',
+};
+
+const CAMPO_RED: Record<RedSocialTipo, { label: string; hint: string }> = {
+  instagram: { label: 'Usuario',      hint: 'Sin @.' },
+  whatsapp:  { label: 'Número',       hint: 'Con indicativo, sólo dígitos.' },
+  facebook:  { label: 'URL del perfil', hint: 'https://facebook.com/…' },
+  x:         { label: 'URL del perfil', hint: 'https://x.com/…' },
+  pinterest: { label: 'URL del perfil', hint: 'https://pinterest.com/…' },
+};
 
 // ── LA FORMA DEL BLOQUE PAGOS (§ PAGOS-METODOS-UI-1) ──────────────────────────────────────
 // Dos grupos por NATURALEZA del pago, no por tipo: los cuatro primeros los paga el cliente
@@ -446,6 +482,33 @@ export default function DatosNegocioSeccion() {
     }));
   };
 
+  // Las redes que TODAVÍA no están en la lista — lo que ofrece el "+ Agregar".
+  const redesFaltantes = REDES_SOCIALES_ORDEN.filter(t => !form.redes.some(r => r.tipo === t));
+
+  const agregarRed = (tipo: RedSocialTipo) => {
+    setForm(f => ({ ...f, redes: [...f.redes, { tipo, valor: '' }] }));
+  };
+
+  // Mismo trato que `quitarConDeshacer` de Pagos: quita del form y avisa con Deshacer. Sin
+  // confirmación previa — a diferencia de un método de pago, una red social sin su valor no
+  // se muestra en la tienda (§ RielSocial/StoreFooter), así que quitarla nunca revierte un
+  // cobro ni deja un rastro en otra tabla.
+  const quitarRedConDeshacer = (r: RedSocialGuardada) => {
+    setForm(f => ({ ...f, redes: f.redes.filter(x => x.tipo !== r.tipo) }));
+    toast.success(`${LABEL_RED_PANEL[r.tipo]} quitada.`, {
+      action: {
+        label: 'Deshacer',
+        onClick: () => setForm(f => (
+          f.redes.some(x => x.tipo === r.tipo) ? f : { ...f, redes: [...f.redes, r] }
+        )),
+      },
+    });
+  };
+
+  const setValorRed = (tipo: RedSocialTipo, valor: string) => {
+    setForm(f => ({ ...f, redes: f.redes.map(r => (r.tipo === tipo ? { ...r, valor } : r)) }));
+  };
+
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorServidor(null);
@@ -464,6 +527,7 @@ export default function DatosNegocioSeccion() {
       adminEmail:        form.adminEmail,
       metodosPago:       form.metodosPago,
       metodosPasarela:   form.metodosPasarela,
+      redes:             form.redes,
     };
 
     const parsed = siteSettingsEditableSchema.safeParse(payload);
@@ -552,7 +616,88 @@ export default function DatosNegocioSeccion() {
                 onIndicativo={v => setForm(f => ({ ...f, whatsappIndicativo: v }))}
                 onNumero={v => setForm(f => ({ ...f, whatsappNumero: v }))}
               />
-              {renderCampoEdit(CAMPO_INSTAGRAM, form, errores, set)}
+            </div>
+          </div>
+
+          {/* Redes sociales — LISTA (§ MUESTRARIO-REDES-ADICIONALES-1): estar acá ES ofrecerla
+              en el riel/footer de la tienda. Instagram dejó de vivir en Contacto — es una red
+              más de esta lista, como cualquier otra. */}
+          <div className="admin-bloque">
+            {renderEncabezadoBloque('Redes', { marginBottom: 'var(--duna-space-1)' })}
+            <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
+              Agrega las redes que quieres mostrar en el riel lateral y el pie de la tienda. Una red
+              sin su usuario/URL no se muestra.
+            </p>
+
+            {errores.redes && (
+              <p className="duna-field__error" style={{ marginBottom: 'var(--duna-space-3)' }}>{errores.redes}</p>
+            )}
+
+            {form.redes.length === 0 ? (
+              <div className="admin-pagos-vacio">
+                <p className="duna-body" style={{ margin: 0, color: 'var(--duna-ink-2)' }}>
+                  No muestras ninguna red social en la tienda.
+                </p>
+              </div>
+            ) : (
+              redesEnOrdenCanonico(form.redes).map(r => (
+                <div className="admin-pagos-fila" key={r.tipo}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}>
+                    <span className="duna-field__label" style={{ margin: 0 }}>{LABEL_RED_PANEL[r.tipo]}</span>
+                    <button
+                      type="button"
+                      className="duna-btn duna-btn--ghost duna-btn--sm"
+                      aria-label={`Quitar ${LABEL_RED_PANEL[r.tipo]}`}
+                      onClick={() => quitarRedConDeshacer(r)}
+                    >
+                      <Trash2 />
+                    </button>
+                  </div>
+                  <div className="duna-form duna-form--sm" style={{ marginTop: 'var(--duna-space-3)' }}>
+                    <div className="duna-field">
+                      <label className="duna-field__label" htmlFor={`red-${r.tipo}`}>{CAMPO_RED[r.tipo].label}</label>
+                      <input
+                        id={`red-${r.tipo}`}
+                        className="duna-input duna-input--sm"
+                        value={r.valor}
+                        onChange={e => setValorRed(r.tipo, e.target.value)}
+                      />
+                      <p className="duna-field__hint" style={{ margin: 0 }}>{CAMPO_RED[r.tipo].hint}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+
+            <div style={{ marginTop: 'var(--duna-space-4)', paddingTop: 'var(--duna-space-4)', borderTop: '1px solid var(--duna-border)' }}>
+              {redesFaltantes.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm">
+                      <Plus /> Agregar red social
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    style={{
+                      background:   'var(--duna-surface)',
+                      borderColor:  'var(--duna-border-2)',
+                      borderRadius: 'var(--duna-r-m)',
+                      boxShadow:    'var(--duna-shadow-2)',
+                    }}
+                  >
+                    {redesFaltantes.map(t => (
+                      <DropdownMenuItem key={t} onSelect={() => agregarRed(t)} className="cursor-pointer">
+                        {LABEL_RED_PANEL[t]}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm" disabled>
+                  <Plus /> Ya agregaste las cinco redes disponibles.
+                </button>
+              )}
             </div>
           </div>
 
@@ -698,15 +843,31 @@ export default function DatosNegocioSeccion() {
                     : <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
                 </dd>
               </div>
-              <div className="duna-field">
-                <dt className="duna-field__label">Instagram</dt>
-                <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
-                  {settings.instagram.trim()
-                    ? `@${settings.instagram.trim()}`
-                    : <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
-                </dd>
-              </div>
             </dl>
+          </div>
+
+          {/* Redes sociales — LECTURA: lista tal cual, sin los controles de agregar/quitar. */}
+          <div className="admin-bloque">
+            {renderEncabezadoBloque('Redes', { marginBottom: 'var(--duna-space-1)' })}
+            <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
+              Las redes que muestras en el riel lateral y el pie de la tienda.
+            </p>
+            {settings.redes.length === 0 ? (
+              <div className="admin-pagos-vacio">
+                <p className="duna-body" style={{ margin: 0, color: 'var(--duna-ink-2)' }}>
+                  No muestras ninguna red social en la tienda.
+                </p>
+              </div>
+            ) : (
+              redesEnOrdenCanonico(settings.redes).map(r => (
+                <div className="admin-pagos-fila" key={r.tipo}>
+                  <p className="duna-field__label" style={{ margin: 0 }}>{LABEL_RED_PANEL[r.tipo]}</p>
+                  <p className="admin-pagos-dato" style={{ marginTop: 'var(--duna-space-1)' }}>
+                    {r.valor.trim() || <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="admin-bloque">

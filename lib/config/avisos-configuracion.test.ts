@@ -45,6 +45,7 @@ const AJUSTES_SANOS: SiteSettings = {
   whatsapp: '+573155766064', instagram: '', emailRemitente: '',
   emailReplyTo: null, adminEmail: null,
   metodosPago: METODOS_SANOS,
+  redes: [],
   metodoPasarelaDesalineado: null,
 };
 const conWhatsapp = (whatsapp: string): SiteSettings => ({ ...AJUSTES_SANOS, whatsapp });

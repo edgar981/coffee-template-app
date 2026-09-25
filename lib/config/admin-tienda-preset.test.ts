@@ -64,6 +64,7 @@ const SETTINGS: SiteSettings = {
   emailReplyTo: null,
   adminEmail: null,
   metodosPago: [],
+  redes: [],
   metodoPasarelaDesalineado: null,
 };
 
