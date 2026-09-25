@@ -101,23 +101,28 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * de `escala-display.ts`). Va DENTRO de `content.tema`, no en una meta aparte como `cromo`: es un
  * eje TIPOGRÁFICO, la misma familia que `fuentePar`/`forma`, que ya viven ahí.
  *
- * `bandaOrigenVisible` (§ ORIGEN-BANDA-1, OPCIONAL) — NO CONFUNDIR con `origenTexto`/`origenAccion`
- * de arriba (esos son la raíz de PALETA de la que nace el texto de lectura/la acción primaria; esto
- * es la banda `origen` del home, la sección "El origen" del prototipo). AUSENTE = el comportamiento
- * de HOY, byte a byte (`content.origen.visible` sigue en `false`, § DEFAULTS.origen,
- * site-content-defaults.ts). `mergePresetEnContent` NUNCA escribe texto/imagen de la sección —sólo
- * este booleano—, exactamente como ya hace con `spotlight.visible` cuando `featured` elige esa
- * variante: encender la banda sin poder tocar su copy es lo que hace que el mirador de un preset la
- * muestre con el contenido que YA hubiera en `content.origen` (los DEFAULTS, para un tenant sin
- * fila propia como Nayoli).
+ * `bandasVisibles` (§ MUESTRARIO-BANDA-APAGABLE-1, OPCIONAL) — la capacidad GENERAL de declarar qué
+ * bandas tiene el diseño de un preset, encendiendo Y apagando, sobre CUALQUIER `BandaId` —no sólo
+ * las dos que nacen `visible:false` (`origen`/`marquesina`, antes cada una con su propio booleano
+ * dedicado: `bandaOrigenVisible`/`bandaMarquesinaVisible`, RETIRADOS por este slice y reemplazados
+ * por entradas de este mapa). AUSENTE en un preset, o una banda ausente del mapa, = el comportamiento
+ * de HOY, byte a byte: `mergePresetEnContent` no toca el `visible` de esa sección, y el resolver
+ * aplica su propio default (`false` para `origen`/`marquesina`, `true` para el resto —
+ * `DEFAULTS.<banda>.visible`, `site-content-defaults.ts`). `mergePresetEnContent` NUNCA escribe
+ * texto/imagen de la sección —sólo este booleano—, exactamente como ya hace con `spotlight.visible`
+ * cuando `featured` elige esa variante: encender/apagar la banda sin poder tocar su copy es lo que
+ * hace que el mirador de un preset la muestre (u oculte) con el contenido que YA hubiera en esa
+ * sección (los DEFAULTS, para un tenant sin fila propia como Nayoli).
  *
- * `bandaMarquesinaVisible` (§ MARQUESINA-BANDA-1, OPCIONAL) — GEMELO exacto de `bandaOrigenVisible`,
- * para la banda `marquesina` (la sección `.marquee` del prototipo, § `MarquesinaContent`). AUSENTE
- * = el comportamiento de HOY, byte a byte (`content.marquesina.visible` sigue en `false`).
+ * La señal NO PUEDE ser "está en `preset.orden`" (misma razón que ya regía a los dos booleanos
+ * viejos): `orden` es universal —`ORDEN_DEFAULT = [...BANDA_IDS]` alimenta también a ARRANQUE/
+ * VITRINA/PATIO— así que estar en la lista no alcanza para mostrarse, ni ausente de la lista alcanza
+ * para ocultarse (`resolverOrden` reinserta al final toda banda de `BANDA_IDS` que falte, sin tocar
+ * su `visible`). La señal es SIEMPRE `bandasVisibles`, explícita por banda.
  *
  * `heroCtasVisibles`/`heroCueDesliza` (§ TEMAS-HERO-TOGGLES-PRESET-1, OPCIONALES) — NO CONFUNDIR con
- * `bandaOrigenVisible`/`bandaMarquesinaVisible` de arriba (esos ENCIENDEN una banda ENTERA de
- * `BANDA_IDS`); estos dos son los DOS BOOLEANOS que `REGISTRY.hero.booleanos` ya declara DENTRO de
+ * `bandasVisibles` de arriba (ese ENCIENDE/APAGA una banda ENTERA de `BANDA_IDS`); estos dos son los
+ * DOS BOOLEANOS que `REGISTRY.hero.booleanos` ya declara DENTRO de
  * la sección `hero` (`ctasVisibles`/`cueDesliza`, § TEMAS-HERO-MEDIA-AGREGADOS-1) — `hero` ya existe
  * y ya se muestra en TODO tenant; lo que faltaba era que un preset pudiera apagar sus CTA y encender
  * su cue "Desliza" sin depender de que el panel del cliente los toque. AUSENTE en un preset = el
@@ -204,8 +209,7 @@ export interface PresetTema {
   navSubtitulo?: boolean;
   navBadge?: string;
   escalaDisplay?: ClaveEscalaDisplay;
-  bandaOrigenVisible?: boolean;
-  bandaMarquesinaVisible?: boolean;
+  bandasVisibles?: Readonly<Partial<Record<BandaId, boolean>>>;
   heroCtasVisibles?: boolean;
   heroCueDesliza?: boolean;
   heroTitularVisible?: boolean;
@@ -219,9 +223,9 @@ export interface PresetTema {
   menuBadgeTexto?: string;
 }
 
-/** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
+/** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-e) y por NOMBRE. */
 export interface FaltanteTema {
-  regla: 'fuentePar' | 'forma' | 'variante' | 'esquema' | 'orden';
+  regla: 'fuentePar' | 'forma' | 'variante' | 'esquema' | 'orden' | 'bandaVisible';
   detalle: string;
 }
 
@@ -234,6 +238,8 @@ export interface FaltanteTema {
  *  b) cada banda del mapa de esquemas existe en BANDA_IDS, y cada esquema en su set cerrado;
  *  c) cada id del `orden` existe en BANDA_IDS (atrapa las bandas inexistentes, p. ej. PATIO);
  *  d) el par y la forma están decididos y en sus sets cerrados.
+ *  e) cada clave del mapa `bandasVisibles` existe en BANDA_IDS (§ MUESTRARIO-BANDA-APAGABLE-1,
+ *     GEMELA de (b) para el dominio de visibilidad en vez de esquema).
  */
 export function validarPreset(preset: PresetTema): FaltanteTema[] {
   const faltantes: FaltanteTema[] = [];
@@ -302,6 +308,18 @@ export function validarPreset(preset: PresetTema): FaltanteTema[] {
     }
   }
 
+  // (e) bandasVisibles — cada clave del mapa tiene que existir en BANDA_IDS, GEMELA de (b) para el
+  // dominio de visibilidad. Atrapa un id corrupto/ajeno al tipo, igual que (b) atrapa un `banner` en
+  // `esquemas`.
+  for (const banda of Object.keys(preset.bandasVisibles ?? {})) {
+    if (!bandaIds.includes(banda)) {
+      faltantes.push({
+        regla: 'bandaVisible',
+        detalle: `${preset.clave} asigna visibilidad a \`${banda}\`, que no existe en BANDA_IDS`,
+      });
+    }
+  }
+
   return faltantes;
 }
 
@@ -342,10 +360,14 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * `rielSocial`/`navTratamiento`, ver el docstring de `NavWordmarkContent`),
  * `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
  * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
- * que esa sección ya tuviera (`{ ...prev, variante }`) — y, SÓLO cuando la variante resultante de
+ * que esa sección ya tuviera (`{ ...prev, variante }`) —, el campo `visible` DENTRO de cada banda
+ * que `preset.bandasVisibles` declara (§ MUESTRARIO-BANDA-APAGABLE-1, mismo `{ ...prev, visible }`,
+ * MISMA razón: es composición —qué banda se ve, no qué dice—, no contenido del dueño; encender Y
+ * apagar, sobre CUALQUIER `BandaId` con sección propia), y, SÓLO cuando la variante resultante de
  * `featured` es 'spotlight' (§ SPOTLIGHT-CABLEADO-HOME-1), el campo `visible` DENTRO de
- * `content.spotlight` (mismo `{ ...prev, visible: true }`, MISMA razón: es composición —qué banda
- * se ve, no qué dice—, no contenido del dueño). Ninguna otra clave de `content` se toca.
+ * `content.spotlight` (mismo mecanismo, para una banda ESTRUCTURAL sin `BandaId` propio — `featured`
+ * no está en `BANDA_IDS`, así que no puede pasar por `bandasVisibles`). Ninguna otra clave de
+ * `content` se toca.
  *
  * `preset.variantes` mezcla DOS destinos bajo una sola clave plana (TEMAS-P1-FEATURED-VARIANTES-1):
  * una entrada cuya clave ES una `SeccionKey` (tiene entrada en el REGISTRY) va DENTRO de esa sección
@@ -447,29 +469,21 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     out.spotlight = { ...prevSpotlight, visible: true };
   }
 
-  // ORIGEN (§ ORIGEN-BANDA-1) — GEMELO del exception de spotlight de arriba, pero para una banda
-  // PROPIA en `BANDA_IDS`, no una variante de `featured`. `origen` nace `visible:false`
-  // (§ DEFAULTS.origen, site-content-defaults.ts) por la MISMA razón mecánica que spotlight nació
-  // OFF mientras estuvo fuera de `BANDA_IDS`: estar en la lista no alcanza para mostrarse.
-  //
-  // LA SEÑAL NO PUEDE SER "está en `preset.orden`" — a diferencia de spotlight (cuya señal, la
-  // VARIANTE elegida, es exclusiva del preset que la pide), `orden` es universal: `ORDEN_DEFAULT =
-  // [...BANDA_IDS]` alimenta también a ARRANQUE/VITRINA/PATIO (los tres lo usan tal cual, § abajo),
-  // así que CUALQUIER preset que use el default tendría 'origen' en su `orden` resuelto sin haberlo
-  // pedido. La señal es el booleano DEDICADO `preset.bandaOrigenVisible` — AUSENTE en TODO preset
-  // salvo CORTE, así que ARRANQUE/VITRINA/PATIO no tocan `content.origen` en absoluto.
-  if (preset.bandaOrigenVisible && registro.origen) {
-    const prevOrigen = esObj(out.origen) ? out.origen : {};
-    out.origen = { ...prevOrigen, visible: true };
-  }
-
-  // MARQUESINA (§ MARQUESINA-BANDA-1) — GEMELO EXACTO del bloque de `origen` de arriba, misma razón
-  // mecánica: `marquesina` nace `visible:false` y `orden` es universal (`ORDEN_DEFAULT =
-  // [...BANDA_IDS]` alimenta también a ARRANQUE/VITRINA/PATIO), así que la señal es el booleano
-  // DEDICADO `preset.bandaMarquesinaVisible`, ausente en todo preset salvo CORTE.
-  if (preset.bandaMarquesinaVisible && registro.marquesina) {
-    const prevMarquesina = esObj(out.marquesina) ? out.marquesina : {};
-    out.marquesina = { ...prevMarquesina, visible: true };
+  // BANDAS VISIBLES (§ MUESTRARIO-BANDA-APAGABLE-1) — GEMELO GENERAL del exception de spotlight de
+  // arriba, pero para bandas PROPIAS en `BANDA_IDS` (con sección real en el REGISTRY), no una
+  // variante de `featured`. Reemplaza los dos bloques dedicados que existían antes de este slice
+  // (uno para `origen`, uno para `marquesina`, cada uno con su propio booleano `bandaOrigenVisible`/
+  // `bandaMarquesinaVisible`) por UN loop sobre `preset.bandasVisibles` — la misma razón mecánica
+  // que ya regía a los dos: `orden` es universal (`ORDEN_DEFAULT = [...BANDA_IDS]` alimenta también
+  // a ARRANQUE/VITRINA/PATIO), así que estar en el `orden` no alcanza como señal, ni de encendido ni
+  // de apagado. La señal es SIEMPRE el mapa explícito; AUSENTE una banda del mapa = no se toca su
+  // `visible` (el resolver aplica su propio default). `registro[banda]` sigue siendo la guarda: sólo
+  // las bandas con sección real en `SiteContentData` (no `featured`, que es estructural) tienen
+  // dónde escribir un `visible`.
+  for (const [banda, visible] of Object.entries(preset.bandasVisibles ?? {})) {
+    if (typeof visible !== 'boolean' || !registro[banda]) continue;
+    const prev = esObj(out[banda]) ? out[banda] : {};
+    out[banda] = { ...prev, visible };
   }
 
   // HERO TOGGLES (§ TEMAS-HERO-TOGGLES-PRESET-1) — GEMELO de la escritura de `variante` en el loop
@@ -668,13 +682,17 @@ export const CORTE: PresetTema = {
     presentaciones: 'crema',
     subscriptionCTA: 'crema',
   },
-  // «usa el default de hoy, sin reordenar» (§2) — el mismo ORDEN_DEFAULT que ya usa Nayoli.
-  // `origen` (§ ORIGEN-BANDA-1) hereda su POSICIÓN de este spread (queda tras `brandStory`, § el
-  // orden de `BANDA_IDS`) SIN necesidad de escribir un array explícito acá — su VISIBILIDAD es un
-  // eje aparte, `bandaOrigenVisible` (abajo), porque `ORDEN_DEFAULT` también alimenta a
-  // ARRANQUE/VITRINA/PATIO y "estar en el orden" no puede ser la señal de "se muestra" (§ el
-  // comentario de `mergePresetEnContent` sobre esta misma distinción).
-  orden: ORDEN_DEFAULT,
+  // `orden` PROPIO (§ MUESTRARIO-BANDA-APAGABLE-1) — ANTES de este slice CORTE usaba `ORDEN_DEFAULT`
+  // (la secuencia de Nayoli, no la del prototipo). MEDIDO contra `docs/prototipos/cafeone/
+  // index.html` (`CENSO-MUESTRARIO-1`): `<main>` monta, EN ESTE ORDEN, `.hero` (120-140),
+  // `.marquee` (142-159), `.section.spotlight#producto` (160-225), `.section#presentaciones`
+  // (226-249), `.section.historia#historia` (250-275), `.section#origen` (276-312) y
+  // `.cta-strip` (313-322) — sin franja de `trustBadges` ni de `testimonials` en absoluto. Ese es
+  // el `orden` que se declara acá; `resolverOrden` reinserta `trustBadges`/`testimonials` al final
+  // (en su posición canónica, § BANDA_IDS) porque su dominio es CERRADO y siempre completa la lista
+  // de 9 — pero las dos quedan APAGADAS por `bandasVisibles` (abajo), así que su posición en la cola
+  // no importa: nunca rinden un nodo.
+  orden: ['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen', 'subscriptionCTA'],
   // origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, DECISIONS.md) — el defecto
   // que el owner reportó gateando este mirador contra el prototipo, y que `CORTE-ESQUEMAS-
   // INVERTIDOS-1` dejó explícitamente sin tocar: `--action-primary` de CORTE (`raices.acento`,
@@ -737,18 +755,24 @@ export const CORTE: PresetTema = {
   // ÚNICO de los seis presets que lo declara — los otros cinco quedan exactamente como estaban,
   // byte a byte (§ el test de `escala-display.test.ts` que afirma `null` → sin override).
   escalaDisplay: 'amplia',
-  // bandaOrigenVisible (§ ORIGEN-BANDA-1) — ver el docstring del campo en `PresetTema`, arriba.
-  // CORTE es hoy el ÚNICO preset que la declara; los otros cinco no tocan `content.origen`.
-  bandaOrigenVisible: true,
-  // bandaMarquesinaVisible (§ MARQUESINA-BANDA-1) — GEMELO de `bandaOrigenVisible`, arriba. La
-  // marquesina hereda su POSICIÓN 2ª (justo tras `hero`) del `orden: ORDEN_DEFAULT` de abajo, SIN
-  // necesidad de un array explícito acá — mismo mecanismo que ya usa `origen` para su posición.
-  // NINGÚN esquema propio en `esquemas` (abajo): su fondo lo da su propia canónica OSCURA
-  // (`BANDAS_OSCURAS`, `bg-[var(--sf-banda,var(--sf-tinta))]`), igual que `hero` —el prototipo pinta
-  // `.marquee{background:var(--green-900)}` bajo la foto velada, la MISMA raíz `tinta` que ya
-  // gobierna esa canónica—, así que asignarle un esquema sería una segunda fuente de verdad
-  // discrepando con la que ya la pinta bien.
-  bandaMarquesinaVisible: true,
+  // bandasVisibles (§ MUESTRARIO-BANDA-APAGABLE-1) — ver el docstring del campo en `PresetTema`,
+  // arriba. REEMPLAZA a los dos booleanos dedicados (`bandaOrigenVisible: true` /
+  // `bandaMarquesinaVisible: true`) que CORTE era el único en declarar, Y AGREGA el apagado que
+  // antes era IMPOSIBLE: `trustBadges`/`testimonials` nacen `visible:true` (§ DEFAULTS,
+  // site-content-defaults.ts) y el prototipo no tiene franja para ninguna de las dos (§ el
+  // comentario de `orden`, arriba — `CENSO-MUESTRARIO-1` no encontró `.badges`/`.testimonials` en
+  // `index.html`), así que sin esta capacidad el mirador mostraba una banda que el diseño no pide.
+  // Verificado ANTES de apagarlas: las dos son `ocultable:true` en el REGISTRY
+  // (`REGISTRY.trustBadges.ocultable`/`REGISTRY.testimonials.ocultable`, site-content-defaults.ts).
+  //   origen/marquesina → `true`: la marquesina hereda su POSICIÓN 2ª (justo tras `hero`) del
+  //     `orden` propio, arriba, sin necesidad de un array separado; NINGÚN esquema propio en
+  //     `esquemas` (arriba) — su fondo lo da su propia canónica OSCURA (`BANDAS_OSCURAS`,
+  //     `bg-[var(--sf-banda,var(--sf-tinta))]`), igual que `hero` —el prototipo pinta
+  //     `.marquee{background:var(--green-900)}` bajo la foto velada, la MISMA raíz `tinta` que ya
+  //     gobierna esa canónica—, así que asignarle un esquema sería una segunda fuente de verdad
+  //     discrepando con la que ya la pinta bien.
+  //   trustBadges/testimonials → `false`: apagadas, sin análogo en el prototipo.
+  bandasVisibles: { origen: true, marquesina: true, trustBadges: false, testimonials: false },
   // heroCtasVisibles/heroCueDesliza (§ TEMAS-HERO-TOGGLES-PRESET-1) — MEDIDO contra el prototipo
   // (`docs/prototipos/cafeone/index.html:122-138`): `.hero-media` no lleva ningún `.btn` (a
   // diferencia de `.hero-media .hero-inner`, que sólo trae el eyebrow/título/párrafo/caption) y SÍ

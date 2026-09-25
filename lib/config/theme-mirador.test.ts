@@ -38,11 +38,14 @@ test('CORTE (completo) → las tres bandas nuevas quedan pedidas en el content r
   assert.equal(out.subscriptionCTA.variante, 'linea');
 });
 
-test('CORTE no toca ningún texto/imagen del dueño — sólo tema/esquemas/orden/variantesBandas/variante', () => {
+test('CORTE no toca ningún texto/imagen del dueño — sólo tema/esquemas/orden/variantesBandas/variante/bandasVisibles', () => {
   const out = contenidoConPresetDeVista(DEFECTO, 'CORTE');
   assert.equal(out.hero.titulo, DEFECTO.hero.titulo);
   assert.equal(out.hero.imagen, DEFECTO.hero.imagen);
-  assert.deepEqual(out.testimonials, DEFECTO.testimonials);
+  // MUESTRARIO-BANDA-APAGABLE-1: CORTE ahora SÍ toca `testimonials.visible` (lo apaga, § su
+  // `bandasVisibles` en themes.ts — el prototipo no tiene franja de testimonios); el resto de la
+  // sección (eyebrow/titulo/items) sigue intacto, sin texto/imagen tocado.
+  assert.deepEqual(out.testimonials, { ...DEFECTO.testimonials, visible: false });
   assert.deepEqual(out.paginas, DEFECTO.paginas);
 });
 

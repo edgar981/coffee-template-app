@@ -133,8 +133,8 @@ test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — el
 
 // ─── CORTE la enciende; los demás presets no tocan `content.marquesina` ─────────────────────────
 
-test('CORTE declara bandaMarquesinaVisible y NO le asigna esquema propio (fondo por canónica oscura) — sigue validando COMPLETO', () => {
-  assert.equal(CORTE.bandaMarquesinaVisible, true);
+test('CORTE declara bandasVisibles.marquesina y NO le asigna esquema propio (fondo por canónica oscura) — sigue validando COMPLETO', () => {
+  assert.equal(CORTE.bandasVisibles?.marquesina, true);
   assert.equal(CORTE.esquemas.marquesina, undefined);
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
@@ -155,8 +155,8 @@ test('mergePresetEnContent(_, CORTE): preserva cualquier copy/pin que el dueño 
   assert.equal(marquesina.productoSlug, 'mi-slug');
 });
 
-test('mergePresetEnContent NO toca marquesina para un preset que NO declara bandaMarquesinaVisible (PATIO)', () => {
-  assert.equal(PATIO.bandaMarquesinaVisible, undefined);
+test('mergePresetEnContent NO toca marquesina para un preset que NO declara bandasVisibles.marquesina (PATIO)', () => {
+  assert.equal(PATIO.bandasVisibles?.marquesina, undefined);
   const despues = mergePresetEnContent({ ...DEFAULTS }, PATIO);
   assert.deepEqual(despues.marquesina, DEFAULTS.marquesina);
 });

@@ -301,6 +301,82 @@ test('regla (b): una banda inexistente y un esquema inexistente se nombran por s
   assert.ok(esquema.some((f) => f.detalle.includes('hero·invalido')));
 });
 
+// ── bandasVisibles (§ MUESTRARIO-BANDA-APAGABLE-1) — la capacidad GENERAL de encender/apagar bandas,
+// reemplazo de los dos booleanos dedicados `bandaOrigenVisible`/`bandaMarquesinaVisible` ────────────
+
+test('(3a) un preset con `bandasVisibles` escribe `visible` de esas bandas y preserva el resto de cada sección', () => {
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-BANDAS-VISIBLES',
+    bandasVisibles: { origen: true, trustBadges: false },
+  };
+  const antes = {
+    ...CONTENT_CON_DATOS_DEL_DUEÑO,
+    origen: { visible: false, titulo: 'Mi origen', dato1Valor: '2.000 msnm' },
+    trustBadges: { visible: true },
+  };
+  const despues = mergePresetEnContent(antes as unknown as Record<string, unknown>, sintetico);
+  const origen = despues.origen as Record<string, unknown>;
+  const trustBadges = despues.trustBadges as Record<string, unknown>;
+  assert.equal(origen.visible, true);
+  assert.equal(origen.titulo, 'Mi origen', 'preserva el resto de la sección, no sólo escribe visible');
+  assert.equal(origen.dato1Valor, '2.000 msnm');
+  assert.equal(trustBadges.visible, false);
+});
+
+test('(3b) un preset SIN `bandasVisibles` no toca ningún `visible` — cada preset del catálogo que no lo declara queda byte-idéntico', () => {
+  const antes = { ...CONTENT_CON_DATOS_DEL_DUEÑO, origen: { visible: false }, trustBadges: { visible: true } };
+  let ejercido = 0;
+  for (const preset of PRESETS) {
+    if (preset.bandasVisibles) continue; // hoy sólo CORTE lo declara
+    ejercido += 1;
+    const despues = mergePresetEnContent(antes as unknown as Record<string, unknown>, preset);
+    assert.deepEqual(despues.origen, antes.origen, `${preset.clave} no debería tocar origen`);
+    assert.deepEqual(despues.trustBadges, antes.trustBadges, `${preset.clave} no debería tocar trustBadges`);
+  }
+  // PLIEGO/PATIO/VETA/VITRINA/ARRANQUE — los cinco que no son CORTE.
+  assert.equal(ejercido, 5, 'el preset que declara bandasVisibles no debería ser más que uno hoy (CORTE)');
+});
+
+test('(3c) validarPreset rechaza una banda desconocida en `bandasVisibles`, por nombre — GEMELA de la regla (b) de esquemas', () => {
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-BANDA-DESCONOCIDA',
+    bandasVisibles: { banner: true } as unknown as PresetTema['bandasVisibles'],
+  };
+  const faltantes = validarPreset(sintetico);
+  const bandaVisible = faltantes.filter((f) => f.regla === 'bandaVisible');
+  assert.equal(bandaVisible.length, 1, JSON.stringify(faltantes));
+  assert.ok(bandaVisible[0].detalle.includes('`banner`, que no existe en BANDA_IDS'));
+});
+
+test('(3d) CORTE resuelve la secuencia del prototipo y deja apagadas trustBadges/testimonials, encendidas origen/marquesina', () => {
+  // Secuencia MEDIDA contra docs/prototipos/cafeone/index.html (§ CENSO-MUESTRARIO-1, el comentario
+  // de `orden` en themes.ts): hero → marquee → spotlight(featured) → presentaciones → historia
+  // (brandStory) → origen → cta-strip(subscriptionCTA). Sin trustBadges/testimonials en el prototipo.
+  assert.deepEqual(
+    CORTE.orden,
+    ['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen', 'subscriptionCTA'],
+  );
+  assert.deepEqual(CORTE.bandasVisibles, { origen: true, marquesina: true, trustBadges: false, testimonials: false });
+  assert.deepEqual(validarPreset(CORTE), []);
+  assert.ok(presetCompleto(CORTE));
+
+  const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const trustBadges = despues.trustBadges as Record<string, unknown>;
+  const testimonials = despues.testimonials as Record<string, unknown>;
+  const origen = despues.origen as Record<string, unknown>;
+  const marquesina = despues.marquesina as Record<string, unknown>;
+  assert.equal(trustBadges.visible, false);
+  assert.equal(testimonials.visible, false);
+  assert.equal(origen.visible, true);
+  assert.equal(marquesina.visible, true);
+  // El `orden` escrito es el propio de CORTE, tal cual (7 bandas) — `resolverOrden` (fuera de
+  // `mergePresetEnContent`, en el resolver de lectura) es quien reinserta trustBadges/testimonials
+  // al final; su posición ahí no importa porque `bandasVisibles` las mantiene apagadas.
+  assert.deepEqual(despues.orden, CORTE.orden);
+});
+
 test('el catálogo completo (PRESETS) incluye los 5 del diseño + ARRANQUE, en ese orden', () => {
   assert.deepEqual(PRESETS.map((p) => p.clave), ['PLIEGO', 'CORTE', 'PATIO', 'VETA', 'VITRINA', 'ARRANQUE']);
 });

@@ -105,7 +105,7 @@ test('LA INVARIANTE: Nayoli (sin fila, sin preset) sigue sin renderizar la marqu
 test('PATIO (preset que NO enciende la marquesina): el contenido resuelto no cambia de forma por este slice', () => {
   const nayoli = resolverSiteContent({});
   const conPatio = contenidoConPresetDeVista(nayoli, 'PATIO');
-  assert.equal(PATIO.bandaMarquesinaVisible, undefined);
+  assert.equal(PATIO.bandasVisibles?.marquesina, undefined);
   assert.equal(renderMarquesina(conPatio), '');
 });
 

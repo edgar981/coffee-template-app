@@ -18976,3 +18976,220 @@ heredado de `e48ad29`/`ae2a568`: tsc 0 errores, `npm test` 1923/1923, `npm run t
 
 El commit queda en la rama a la espera de una decisión del orquestador sobre `touches:` (ensancharlo a
 `lib/config/theme-mirador.test.ts`, o instruir otra forma) antes de que este slice pueda re-intentarse.
+
+## 2026-09-25 — `MUESTRARIO-BANDA-APAGABLE-1`, TERCER INTENTO — CONSTRUIDO, gate verde
+
+### El re-despacho: el `touches:` de los DOS bloqueos anteriores, ya ensanchado
+
+`touches:` llegó con los CINCO archivos de test que los dos bloqueos previos habían medido
+—`origen-banda.test.ts`, `marquesina-banda.test.ts`, `corte-marquesina-velo.test.ts` (primer
+bloqueo) y `theme-mirador.test.ts` (segundo bloqueo)— más `themes.ts`/`themes.test.ts`. Con eso, el
+trabajo ya diseñado en el segundo intento (verificado 81/81 aislado, revertido antes de commitear)
+se reconstruyó completo y se cerró el único hueco que quedaba: `theme-mirador.test.ts:45`.
+
+### La capacidad general (§0 del spec)
+
+`PresetTema.bandaOrigenVisible?: boolean` / `bandaMarquesinaVisible?: boolean` (dos booleanos
+dedicados, uno por banda, § `ORIGEN-BANDA-1`/`MARQUESINA-BANDA-1`) se RETIRARON del tipo y se
+reemplazaron por `bandasVisibles?: Readonly<Partial<Record<BandaId, boolean>>>` — un mapa sobre
+CUALQUIER `BandaId`, que ENCIENDE y APAGA, no sólo enciende. La razón medida (`CENSO-MUESTRARIO-1`):
+con los dos booleanos, un preset sólo podía pedir "muéstrame origen/marquesina" — nunca "apágame
+trustBadges", porque esa banda nace `visible:true` y agregarle un tercer booleano dedicado (y un
+cuarto para `testimonials`, y así por cada banda que un futuro preset quisiera apagar) no escala.
+
+- **`validarPreset` ganó la regla (e)**, GEMELA de la (b) de `esquemas`: cada clave de
+  `bandasVisibles` tiene que existir en `BANDA_IDS`, o se nombra por `regla: 'bandaVisible'`
+  (`FaltanteTema['regla']` ganó ese valor). Afirmado con un preset sintético (`banner`, que no
+  existe) — `themes.test.ts`, test `(3c)`.
+- **`mergePresetEnContent` reemplazó los DOS bloques dedicados** (uno `if (preset.bandaOrigenVisible
+  && registro.origen)`, otro gemelo para marquesina) **por UN loop** sobre
+  `Object.entries(preset.bandasVisibles ?? {})`: por cada `[banda, visible]` con `visible` booleano
+  y `registro[banda]` existente (sólo bandas con sección real en `SiteContentData` — `featured` es
+  estructural, sin sección, así que `bandasVisibles.featured` sería un no-op silencioso si alguien lo
+  pidiera; ningún preset del catálogo lo hace), escribe `{ ...prev, visible }` preservando el resto
+  de la sección. Afirmado en `themes.test.ts`, test `(3a)` (escribe y preserva) y `(3b)` (un preset
+  sin `bandasVisibles` no toca nada — recorre PRESETS filtrando los que SÍ lo declaran, hoy sólo
+  CORTE, así que se ejercen los 5 restantes: PLIEGO/PATIO/VETA/VITRINA/ARRANQUE).
+
+### CORTE declara la página real del muestrario (§1 del spec)
+
+MEDIDO contra `docs/prototipos/cafeone/index.html` (mismo censo que `CENSO-MUESTRARIO-1`, releído
+para este slice: `<main>` monta `.hero` (120-140) → `.marquee` (142-159) →
+`.section.spotlight#producto` (160-225) → `.section#presentaciones` (226-249) →
+`.section.historia#historia` (250-275) → `.section#origen` (276-312) → `.cta-strip` (313-322) — sin
+`trustBadges` ni `testimonials` en absoluto):
+
+- **`orden` propio**: `['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen',
+  'subscriptionCTA']` — reemplaza el `ORDEN_DEFAULT` que CORTE traía (la secuencia de Nayoli, no la
+  del prototipo).
+- **`bandasVisibles: { origen: true, marquesina: true, trustBadges: false, testimonials: false }`**
+  — reemplaza `bandaOrigenVisible: true` / `bandaMarquesinaVisible: true` Y agrega el apagado que
+  antes era imposible. Verificado ANTES de apagarlas, por el propio mandato del spec: `REGISTRY.
+  trustBadges.ocultable === true` (`site-content-defaults.ts:1400`) y `REGISTRY.testimonials.
+  ocultable === true` (`:1535`) — las dos `ocultable:true`, ninguna PARÓ el slice.
+  `resolverOrden` (fuera de `mergePresetEnContent`, en el resolver de lectura) reinserta las dos
+  bandas ausentes del `orden` declarado al final, en su posición canónica (`BANDA_IDS`) — su
+  posición ahí no importa porque `bandasVisibles` las mantiene apagadas y no rinden ningún nodo.
+- Afirmado en `themes.test.ts`, test `(3d)`: la secuencia exacta, el mapa exacto,
+  `validarPreset(CORTE) === []`, `presetCompleto(CORTE)`, y que `mergePresetEnContent` deja
+  `trustBadges.visible === false`, `testimonials.visible === false`, `origen.visible === true`,
+  `marquesina.visible === true`.
+
+### Lo que NO se movió (§2 del spec)
+
+- **Nayoli y los otros cinco presets quedan BYTE-IDÉNTICOS**: ninguno declara `bandasVisibles`, así
+  que `mergePresetEnContent` no les escribe ningún `visible` nuevo — afirmado por el test `(3b)` Y,
+  la vara que manda, `guarda:color` (abajo): **0px de diferencia** en las 6 rutas + 2 hovers contra
+  el fixture commiteado de Nayoli.
+- El modelo de contenido, el REGISTRY y el resolver (`resolverSiteContent`, `resolverOrden`,
+  `seccionEsVisible`) **no se tocaron** — verificado con `git diff --stat` (abajo): sólo
+  `lib/config/themes.ts` y los cinco archivos de test en `touches:`.
+
+### Las CINCO aserciones migradas (los dos bloqueos anteriores, ya resueltos)
+
+Cada una cambia de leer el campo dedicado a leer `bandasVisibles?.<banda>` — MISMO valor, misma
+aserción, sólo el nombre del acceso:
+
+| archivo:línea | antes | después |
+| --- | --- | --- |
+| `origen-banda.test.ts:187` | `CORTE.bandaOrigenVisible` | `CORTE.bandasVisibles?.origen` |
+| `origen-banda.test.ts:209` | `PATIO.bandaOrigenVisible` | `PATIO.bandasVisibles?.origen` |
+| `marquesina-banda.test.ts:137` | `CORTE.bandaMarquesinaVisible` | `CORTE.bandasVisibles?.marquesina` |
+| `marquesina-banda.test.ts:159` | `PATIO.bandaMarquesinaVisible` | `PATIO.bandasVisibles?.marquesina` |
+| `corte-marquesina-velo.test.ts:108` | `PATIO.bandaMarquesinaVisible` | `PATIO.bandasVisibles?.marquesina` |
+
+### La SEXTA aserción, la que el primer bloqueo no pudo ver (el segundo la midió, este slice la cierra)
+
+`theme-mirador.test.ts:45` afirmaba `assert.deepEqual(out.testimonials, DEFECTO.testimonials)` —
+cierto mientras CORTE sólo ENCENDÍA `origen`/`marquesina` y jamás apagaba nada. Con
+`CORTE.bandasVisibles.testimonials: false` (§1 del spec, arriba), `mergePresetEnContent` AHORA sí
+escribe `testimonials.visible: false` — comportamiento CORRECTO y DELIBERADO, exactamente lo que el
+spec pide. La aserción pasó a `assert.deepEqual(out.testimonials, { ...DEFECTO.testimonials,
+visible: false })`, con un comentario que dice por qué difiere del resto de la sección (intacta).
+El título del test se amplió de "...variante" a "...variante/bandasVisibles" para nombrar lo que
+ahora SÍ toca.
+
+### Gate — medido en el árbol final, no heredado
+
+- **`tsc --noEmit -p tsconfig.json`**: 0 errores (corrido dos veces: uno tras migrar sólo `themes.ts`
+  —que sí falló, con los 5 errores TS2339 exactos que el primer bloqueo había predicho, confirmando
+  la medición previa por EJECUCIÓN— y uno final tras fijar los 6 archivos de test, limpio).
+- **`npm test`**: **1927/1927**, 0 fail. (El piso heredado citado por los dos bloqueos previos era
+  1923/1923 antes de este slice: +4 tests nuevos en `themes.test.ts`, §3a-d — no +6, esta tercera
+  construcción escribió 4 tests, no los "6 (más dos de refuerzo)" que el segundo intento revertido
+  había escrito; el número de tests nuevos no es una propiedad fija del spec, es lo que este slice
+  escribió.)
+- **91/91** en la corrida AISLADA de los 5 archivos del grupo (`themes.test.ts` +
+  `origen-banda.test.ts` + `marquesina-banda.test.ts` + `corte-marquesina-velo.test.ts` +
+  `theme-mirador.test.ts`, `node --import tsx --test`) — el segundo intento había medido 81/81 sobre
+  4 archivos (sin `theme-mirador.test.ts` en el grupo); con el quinto archivo sumado y los 4 tests
+  nuevos, 81 + 10 (los del quinto archivo) = 91.
+- **`npm run test:integracion`**: PRIMERA corrida **230/231** — 1 fallo, `tests/integracion/
+  wompi-reconciliador.test.ts:354`, test "CONCURRENCIA: webhook y reconciliador procesando el MISMO
+  evento A LA VEZ" (`assert.ok([...].includes(resultadoWebhook.motivo))`, timing de una carrera real
+  contra Postgres). **Archivo fuera de `touches:` por completo** —Wompi/pagos, cero relación con
+  `lib/config/`—, y `git status --short` en ese momento confirma que el diff sigue siendo
+  exactamente los 6 archivos de `touches:` con escritura. Se RE-CORRIÓ el carril completo una
+  segunda vez (no el test aislado, el `npm run test:integracion` entero) para distinguir "el piso
+  bajó" de "una carrera flaky" — no es re-correr una falla REPRODUCIENTE de este slice hacia verde;
+  es medir si un archivo AJENO al diff es floor real o ruido: **SEGUNDA corrida, 231/231**, sin tocar
+  nada entre medio. Coincide EXACTO con el piso heredado (`e48ad29`/`ae2a568`: 231/231) citado por
+  los dos bloqueos anteriores. Veredicto: flaky, no floor — un test de concurrencia con margen de
+  ~46ms midiendo una carrera real contra un Postgres efímero no es determinista por diseño; no es
+  una regresión de este slice.
+- **`npm run guarda:color`**: las 6 rutas + 2 hovers, **0/N px de diferencia** en cada una
+  (`ruta-home`, `ruta-tienda`, `ruta-producto`, `ruta-checkout`, `ruta-nosotros`,
+  `ruta-suscripciones`, `hover-automatica`, `hover-eleccion`) — "Nayoli sin preset se ve IDÉNTICO al
+  fixture". Confirma por EJECUCIÓN (no por lectura del test `(3b)`) que ningún preset salvo CORTE
+  quedó afectado por el cambio de mecanismo.
+
+### `touches:` — lo que se escribió
+
+```
+git diff --stat (contra el commit anterior de la rama, 99cac5d):
+ lib/config/corte-marquesina-velo.test.ts |   2 +-
+ lib/config/marquesina-banda.test.ts      |   8 +-
+ lib/config/origen-banda.test.ts          |   8 +-
+ lib/config/theme-mirador.test.ts         |   7 +-
+ lib/config/themes.test.ts                |  76 ++++++++++++++++
+ lib/config/themes.ts                     | 150 ++++++++++++++++++-------------
+ 6 files changed, 177 insertions(+), 74 deletions(-)
+```
+
+Los seis archivos son, exactamente, los seis miembros de `touches:` con permiso de escritura
+(`DECISIONS.md`, el séptimo, se escribe acá). Ningún archivo fuera de la lista cambió.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `PresetTema.bandasVisibles` (nuevo, reemplaza
+`bandaOrigenVisible`/`bandaMarquesinaVisible`, retirados), `FaltanteTema.regla` (ganó
+`'bandaVisible'`), `validarPreset`, `mergePresetEnContent`, `CORTE.orden`, `CORTE.bandasVisibles`,
+los archivos `lib/config/themes.ts`/`themes.test.ts`/`origen-banda.test.ts`/
+`marquesina-banda.test.ts`/`corte-marquesina-velo.test.ts`/`theme-mirador.test.ts`.
+
+Grep de cada uno contra `CLAUDE.md`: `bandaOrigenVisible`, `bandaMarquesinaVisible`,
+`bandasVisibles`, `PresetTema`, `mergePresetEnContent`, `validarPreset`, `themes.ts`,
+`MUESTRARIO-BANDA-APAGABLE-1` → **0 resultados cada uno**. `trustBadges` → 0. `testimonials` → 2
+resultados (`CLAUDE.md:2356`, sobre `testimonials` como sección `ocultable:true` en el REGISTRY —
+sigue siendo cierto, este slice no tocó el REGISTRY; `CLAUDE.md:2501`, sobre qué secciones cubre
+`site-content-schema.test.ts` por censo campo-a-campo — sin relación con la VISIBILIDAD de la
+sección, sin relación con este diff). Ninguna sentencia de `CLAUDE.md` queda falsa. La doctrina
+extensa de `PresetTema`/`BANDA_IDS`/`CORTE` vive ENTERA como comentarios dentro de `themes.ts` y
+`site-content-defaults.ts`, no en `CLAUDE.md` — confirmado por el mismo grep (`CORTE` da 3
+resultados en `CLAUDE.md`, ninguno sobre el preset de tema: dos son el ledger-id
+`CORTE-BRANDSTORY-COLLAGE-1`, uno es "EL CORTE es ENVIADO + FALLIDO" del historial de
+automatizaciones — homónimos, no el mismo concepto).
+
+### CHEQUEO MECÁNICO CONTRA DECISIONS.md (los identificadores de sección que este diff toca)
+
+`ORIGEN-BANDA-1` (14 resultados) y `MARQUESINA-BANDA-1` (9 resultados) aparecen sólo en asientos
+FECHADOS anteriores, narrando en pasado qué construyó cada slice en su momento (p. ej. "`ORIGEN-
+BANDA-1` fijó el patrón para que un PRESET siembre un campo…") — hechos históricos que siguen siendo
+ciertos como historia; ninguno afirma en PRESENTE que `bandaOrigenVisible` siga siendo el mecanismo
+vigente (ese tiempo verbal vive sólo en los DOS bloqueos de este mismo `MUESTRARIO-BANDA-APAGABLE-1`,
+arriba, y ya quedan superados por este asiento). `DECISIONS.md` es un ledger APPEND-ONLY: no se
+edita retroactivamente una entrada pasada para reflejar un mecanismo nuevo — este asiento ES la
+entrada que registra la sucesión. No se tocó ningún asiento anterior.
+
+### Desvíos
+
+Ninguno. El spec se siguió literal: la capacidad general (§0), CORTE declarando la secuencia y el
+apagado medidos contra el prototipo (§1), Nayoli/los otros presets intactos (§2, confirmado por
+`guarda:color`), los 4 tests pedidos (§3 a-d).
+
+### Lo que queda AFUERA de `touches:`, nombrado para que no se re-descubra a mano
+
+Comentarios (NO accesos al campo — no rompen `tsc`) que siguen nombrando `bandaOrigenVisible`/
+`bandaMarquesinaVisible` como si fueran el mecanismo vigente, en archivos fuera de `touches:` de
+este slice:
+
+- `lib/config/site-content-defaults.ts:210` — "CORTE es hoy el ÚNICO preset que la enciende, vía
+  `PresetTema.bandaOrigenVisible`";
+- `lib/config/site-content-defaults.ts:663,666` — "separa `bandaOrigenVisible`/
+  `bandaMarquesinaVisible` (encienden una banda ENTERA) de `navTinta`… como `bandaOrigenVisible`,
+  necesita su propio lugar";
+- `lib/config/hero-toggles-preset.test.ts:22` — "El patrón es el MISMO que `bandaOrigenVisible`
+  (§ ORIGEN-BANDA-1)".
+
+Ninguno accede al campo (son prosa dentro de comentarios), así que no rompen `tsc` ni ningún test —
+por eso el `npm test`/`tsc` completo queda verde igual. Pero las tres frases describen un campo que
+ya no existe en `PresetTema`. Abro `MUESTRARIO-BANDA-COMENTARIOS-VENCIDOS-1` como seguimiento: la
+próxima vez que alguien toque cualquiera de esos dos archivos por otra razón, actualizar la mención a
+`bandasVisibles`.
+
+### Verdicto
+
+**AWAITING_APPROVAL**, por instrucción explícita del despacho ("PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES") — no se corre `merge_gated`. Clasificado también contra la política A, para que el
+orquestador tenga el juicio hecho: el diff toca SÓLO `lib/config/*.ts` (código de presets de tema +
+sus tests) y `DECISIONS.md`; no hay migración ni cambio de schema, ni contrato cross-repo. Pero SÍ
+cambia qué bandas se muestran para el preset `CORTE` bajo `?tema=CORTE` —
+`app/(storefront)/page.tsx:82` sólo evalúa `contenidoConPresetDeVista` cuando `esDespliegueDemo()`
+es verdadero (el mirador NUNCA corre en producción real — "en producción el parámetro se ignora por
+completo, ni se lee", el comentario de esa misma página), así que el alcance real es: quien mire un
+despliegue DEMO con `?tema=CORTE` (el propio owner, o un prospecto al que se le muestra la demo) ve
+`trustBadges`/`testimonials` desaparecer y el orden de bandas cambiar. Cae bajo `customer-bytes` —
+son bytes que ALGUIEN lee (el owner mostrando la demo, o un prospecto), aunque el alcance esté
+acotado a despliegues DEMO, nunca a un cliente real en producción. Nayoli sin preset (lo que ve
+cualquier cliente real hoy, y lo que el mirador muestra SIN `?tema=`) queda con 0px de diferencia,
+medido por `guarda:color`.

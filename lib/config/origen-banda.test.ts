@@ -183,8 +183,8 @@ test('un `statNumeroN` no numérico (basura) tampoco se anima ni rompe — el fi
 
 // ─── CORTE la enciende; los demás presets no tocan `content.origen` ─────────────────────────────
 
-test('CORTE declara bandaOrigenVisible y le asigna esquema "crema" — sigue validando COMPLETO', () => {
-  assert.equal(CORTE.bandaOrigenVisible, true);
+test('CORTE declara bandasVisibles.origen y le asigna esquema "crema" — sigue validando COMPLETO', () => {
+  assert.equal(CORTE.bandasVisibles?.origen, true);
   assert.equal(CORTE.esquemas.origen, 'crema');
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
@@ -205,8 +205,8 @@ test('mergePresetEnContent(_, CORTE): preserva cualquier copy/dato que el dueño
   assert.equal(origen.dato1Valor, '2.000 msnm');
 });
 
-test('mergePresetEnContent NO toca origen para un preset que NO declara bandaOrigenVisible (PATIO)', () => {
-  assert.equal(PATIO.bandaOrigenVisible, undefined);
+test('mergePresetEnContent NO toca origen para un preset que NO declara bandasVisibles.origen (PATIO)', () => {
+  assert.equal(PATIO.bandasVisibles?.origen, undefined);
   const despues = mergePresetEnContent({ ...DEFAULTS }, PATIO);
   assert.deepEqual(despues.origen, DEFAULTS.origen);
 });
