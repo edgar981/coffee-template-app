@@ -18339,3 +18339,165 @@ en `VistaTiendaEnVivo.tsx` para que ya no diga "este slice no expone el toggle" 
 comportamiento actual (con `visible:false` sigue en blanco, PERO ahora la tarjeta de lectura en
 `/admin/tienda` sí puede mostrar el aviso muted — el pane en blanco de la vista EN VIVO es otra cosa,
 distinta de la tarjeta de lectura, y conviene que el comentario lo distinga).
+
+## `CORTE-TITULARES-SALTOS-DE-LINEA-1` — el `<h2>` deja de colapsar el salto de línea de autor
+
+Cierra el HALLAZGO medido-y-reportado por `PANEL-EDITOR-SPOTLIGHT-RESTO-1` (§ arriba, "HALLAZGO
+medido, reportado sin construir") y su follow-up coined, **`PANEL-EDITOR-SPOTLIGHT-TITULO-SALTOS-1`**.
+
+### El hueco, MEDIDO
+
+`grep -nE "<h[12].*<br>" docs/prototipos/cafeone/index.html` da exactamente DOS líneas, y son las
+mismas dos que la aprobación citó:
+
+```
+166:  <h2 class="display-l" id="spot-h">Un solo origen,<br>cuidado de principio<br>a fin.</h2>
+231:  <h2 class="display-l" id="pres-h" style="margin-top:var(--space-5)">Nuestro café.<br>4 presentaciones.</h2>
+```
+
+`:166` es `.spotlight` (la banda destacada); `:231` es `.presentaciones` (la banda cuyo `<h2>` en este
+repo lo rinde `GrindChooserRiel.tsx` — la variante `riel` que CORTE elige, § `themes.ts:598,617`). Antes
+de este slice, `SPOTLIGHT.titulo` y `PRESENTACIONES.titulo` (`tienda-secciones.ts`) eran campos de UNA
+línea (sin `textarea: true`) y los dos `<h2>` que los rinden (`Spotlight.tsx:94`, `GrindChooserRiel.tsx:
+134`) no llevaban ningún tratamiento de blanco — un `\n` tecleado en el panel (si el campo hubiera sido
+`textarea`) habría llegado al DOM como salto literal, pero el navegador lo COLAPSA a un espacio sin
+`white-space: pre-line/pre-wrap/pre`. El dueño no podía escribir el titular partido de ninguno de los dos
+prototipos desde el panel.
+
+### El campo — `textarea: true` en los DOS `titulo`, y en NINGÚN otro
+
+`components/admin/tienda-secciones.ts`:
+
+- `PRESENTACIONES.campos[1]` (`titulo`) gana `textarea: true`; el hint pasa de `"Vacío: se usa el texto
+  por defecto."` a `"Un salto de línea acá se respeta en la tienda. Vacío: se usa el texto por
+  defecto."`.
+- `SPOTLIGHT.campos[1]` (`titulo`) gana `textarea: true`; el hint pasa de `"El titular de la banda
+  destacada. Vacío: no se muestra."` a `"El titular de la banda destacada. Un salto de línea acá se
+  respeta en la tienda. Vacío: no se muestra."`.
+
+Ningún otro campo llamado `titulo` del repo se tocó (HERO, BRAND_STORY, ORIGEN, SUBSCRIPTION,
+TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES/PASOS/FAQ conservan su `titulo` de
+una línea) — el hueco medido era de esos dos titulares del prototipo, no de "todo titular de sección".
+Afirmado en el test (§ abajo, la prueba que barre TODAS las demás secciones).
+
+`textarea: true` ya tenía su renderer genérico en `TiendaSeccionEditor.tsx:469-470` (`<textarea
+className="duna-input" rows={2} .../>` vs. `<input>`) — fuera de `touches:` de este slice, no se tocó;
+el campo simplemente empieza a usar la rama que ya existía.
+
+### El render — `whitespace-pre-line` en los DOS `<h2>`, y en NINGÚN otro elemento
+
+- `Spotlight.tsx:94` — el `<h2>` que rinde `{spotlight.titulo}` gana la clase Tailwind
+  `whitespace-pre-line`, agregada al `className` existente (no reemplaza nada).
+- `GrindChooserRiel.tsx:134` — el `<h2>` que rinde `{presentaciones.titulo}` gana la misma clase, mismo
+  patrón.
+
+Sin patrón previo en el repo (`grep -rn "whitespace-pre-line\|whitespace-pre-wrap"` sobre
+`.tsx`/`.ts` da CERO resultados antes de este slice) — se usó la clase de Tailwind pura, como el spec
+autorizaba a falta de un patrón existente que reusar.
+
+### El test — `lib/config/titulares-saltos.test.ts` (7 casos, capa 1, sin DB)
+
+- **El campo (3 tests):** `SPOTLIGHT.titulo`/`PRESENTACIONES.titulo` declaran `textarea: true`, leído
+  directo de `SECCIONES_TIENDA`; y un tercero barre TODAS las demás secciones confirmando que ningún
+  otro `titulo` quedó marcado.
+- **El render de `GrindChooserRiel` (3 tests) — SSR REAL vía `renderToStaticMarkup`, mismo patrón que
+  `lib/config/site-content-defaults.test.ts:833-840` (`renderGrindChooser`):** el `<h2>` lleva la
+  clase; un `titulo` con `\n` queda DENTRO de ese `<h2>` con la clase puesta y el contenido EXACTO
+  (`\n` intacto, no basta con que el `\n` aparezca en algún lugar del HTML — el primer intento de este
+  test era más débil y no discriminaba: pasaba igual con el código viejo, porque React emite el
+  carácter crudo en el HTML tenga o no la clase el elemento); Nayoli (sin salto) sigue mostrando su
+  texto.
+- **El render de `Spotlight` (1 test) — POR DECLARACIÓN DE FUENTE, no SSR**, con el mismo motivo que ya
+  documentó `spotlight-cableado.test.ts:32-41`: `Spotlight.tsx` fetchea el catálogo en un `useEffect`
+  que `renderToStaticMarkup` nunca corre, así que con catálogo `[]` el componente SIEMPRE rinde `null`
+  (`if (!producto) return null`), sea cual sea `spotlight.titulo` — no hay HTML que inspeccionar. Se lee
+  la fuente (`readFileSync`, mismo patrón que `spotlight-cableado.test.ts:134-139`) y se afirma por
+  regex que la línea que interpola `{spotlight.titulo}` es un `<h2>` con `whitespace-pre-line` en su
+  `className`.
+
+**Visto fallar contra el código pre-slice**: revertidos los tres archivos de fuente (`git checkout --`)
+con el test ya escrito, 4 de 7 casos fallaron (los dos de campo, el de la clase del `<h2>` del riel, y
+el de la fuente de Spotlight); los 3 restantes no discriminan por diseño (uno es un sanity check de
+"existen otros titulo", y dos de los de Nayoli-sin-salto/contenido-crudo no dependían del fix). Tras
+restaurar los cuatro archivos de fuente, 7/7 pasan.
+
+### Nayoli — por qué el 0px era el resultado ESPERADO, no sólo el medido
+
+Medido ANTES de correr el diff de píxeles: **Nayoli nunca monta ninguno de los dos `<h2>` tocados**,
+sea cual sea el resultado del diff:
+
+- `DEFAULTS.presentaciones.variante` es `'mosaico'` (`site-content-defaults.ts:1030`) — el dispatcher
+  (`GrindChooser.tsx`) monta `GrindChooserMosaico`, no `GrindChooserRiel`, salvo que un preset pida
+  `presentaciones: 'riel'` (sólo CORTE lo hace, `themes.ts:617`).
+- `DEFAULTS.spotlight.visible` es `false` (`site-content-defaults.ts:1049`) — `Spotlight.tsx:62` corta
+  con `if (!seccionEsVisible(...)) return null` antes de llegar al `<h2>`.
+
+Así que el `whitespace-pre-line` agregado es INERTE para Nayoli por construcción: ni siquiera se
+renderiza el elemento que lo lleva. El diff de píxeles (§ abajo) lo confirma por MEDICIÓN, no lo
+reemplaza — la garantía estructural y la medida son dos cosas distintas y las dos se corrieron.
+
+### `npm run verificar:nayoli:visual` — MEDIDO, 0px en las 6 rutas + 2 hovers
+
+Corrido sobre el árbol final (main vs. esta rama, vía `git worktree`, Postgres efímero propio, captura
+determinista con Playwright — el arnés de `GUARDA-COLOR-NAYOLI-1`):
+
+| ruta/hover | resultado |
+| --- | --- |
+| `ruta:home` | IDÉNTICO — 0/4.608.000 px (consciente de AA; crudo 0) |
+| `ruta:tienda` | IDÉNTICO — 0/2.433.280 px |
+| `ruta:producto` | IDÉNTICO — 0/2.535.680 px |
+| `ruta:checkout` | IDÉNTICO — 0/1.152.000 px |
+| `ruta:nosotros` | IDÉNTICO — 0/1.152.000 px |
+| `ruta:suscripciones` | IDÉNTICO — 0/2.144.000 px |
+| `hover:automatica` | IDÉNTICO — 0/98.298 px |
+| `hover:eleccion` | IDÉNTICO — 0/102.870 px |
+
+`exit 0`. Cero diferencias, salvo antialiasing, en las 8 capturas — confirma la garantía estructural de
+arriba por medición, tal como pedía §4 del spec.
+
+### Verdicto
+
+**Gate VERDE en el árbol final**: `npx tsc --noEmit` → 0 errores; `npm test` → **1923/1923**, 0 fail
+(el +7 sobre el piso reportado por el slice anterior, `1916/1916` en `e7cc029`/`880cefb`, es exactamente
+`titulares-saltos.test.ts`); `npm run test:integracion` → **231/231**, 0 fail, sin cambio — este slice
+no tocó ningún camino que el carril de integración cubra (config de panel + render de storefront, sin
+escritura a DB nueva). Reconciliado contra el piso citado en el dispatch.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea. `stopped_on:
+[customer-bytes]`: la RAMA agrega bytes que el dueño lee — el campo "Titular" de la sección Destacado y
+el campo "Título" de la sección Presentaciones pasan de `<input>` a `<textarea>` en `/admin/tienda` (una
+caja más alta, dos líneas visibles en vez de una), con hints actualizados que explican que un salto de
+línea se respeta en la tienda; y el titular de esas dos bandas, si el dueño teclea un salto, se ve
+partido en la tienda pública en vez de corrido en una línea. El commit queda en la rama a la espera del
+merge gateado del orquestador.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `components/admin/tienda-secciones.ts` (los campos `titulo` de
+`SPOTLIGHT`/`PRESENTACIONES`, `textarea`), `components/storefront/home/Spotlight.tsx`,
+`components/storefront/home/GrindChooserRiel.tsx` (la clase `whitespace-pre-line`),
+`lib/config/titulares-saltos.test.ts` (nuevo).
+
+| símbolo/archivo | hits en CLAUDE.md | ¿alguno queda falso? |
+| --- | --- | --- |
+| `tienda-secciones.ts` | 1 (línea ~2949, sobre `paginas.suscripciones` y el render genérico de página) | No — describe el mecanismo de PÁGINAS (`PAGINAS`/`TogglePagina`), eje distinto de los campos `titulo` de una sección; este diff no lo toca. |
+| `GrindChooserRiel` / `Spotlight.tsx` | 0 | — |
+| `textarea` (la palabra) | 2 (línea 2250, la regleta de paleta; línea 5986, `` `textarea.duna-input` YA EXISTÍA ``) | No — la primera describe el form ABIERTO del editor de paleta (otra pieza, no las dos secciones tocadas); la segunda es una nota histórica sobre una primitiva CSS distinta (`.duna-input`) que este diff no crea ni retira — el campo nuevo simplemente empieza a USAR esa rama existente del renderer, sin cambiarla. |
+| `whitespace-pre-line` | 0 | — |
+| `titulares-saltos` | 0 | — |
+
+**Nada en CLAUDE.md nombra los campos `titulo` de SPOTLIGHT/PRESENTACIONES, ni los dos componentes de
+render tocados.** La única entrada adyacente (`tienda-secciones`) documenta un mecanismo — páginas — que
+este diff no cambia.
+
+### Pointer dentro de DECISIONS.md — la sección de arriba, verificada y CERRADA por este append
+
+El "HALLAZGO medido, reportado sin construir" (§ arriba, dentro del asiento de
+`PANEL-EDITOR-SPOTLIGHT-RESTO-1`) describe el `<h2>` de `Spotlight.tsx:94` **tal como estaba en ese
+commit** ("SIN `whitespace-pre-line` ni ningún tratamiento de blanco… hoy NO lo está, es un input de una
+línea"). Esa frase sigue siendo literalmente cierta sobre EL COMMIT QUE DESCRIBE (tiempo pasado, sobre sí
+mismo) — no se corrige, porque no quedó falsa; lo que hace este append es CERRAR el follow-up que esa
+sección coined (`PANEL-EDITOR-SPOTLIGHT-TITULO-SALTOS-1`), que ahora está resuelto: el campo ganó
+`textarea: true` y el render ganó `whitespace-pre-line`, la primera opción que esa sección planteaba
+("decidir si `spotlight.titulo` gana `textarea: true`... o si el titular... no se replica byte a
+byte") — el owner, vía la aprobación de este slice, eligió la primera.
