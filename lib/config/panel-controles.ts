@@ -18,14 +18,17 @@
 // ya gobierna el resolver. Más las SIETE claves NO-sección con forma fija (`paginas`, `tema`, `cromo`,
 // `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`), leídas de `DEFAULTS` en runtime.
 //
-// LO QUE QUEDA AFUERA A PROPÓSITO — `esquemas`, `orden`, `variantesBandas` — NO por una lista de
-// excepciones, sino porque NUNCA ENTRAN al lado "leído": son dominio ABIERTO (`esquemas`/
-// `variantesBandas` son `Record<string, X>` sin claves fijas — cualquier bandaId puede tener entrada;
-// `orden` es un array de reordenamiento, no un objeto con campos nombrados). Un chequeo por-campo no
-// tiene NADA que enumerar ahí — no es que se decida omitirlos, es que la forma del dato no tiene
-// "campos". Se componen en el onboarding (decisión del owner, ya asentada en CLAUDE.md, § el docstring
-// de `EsquemasContent`/`VariantesBandasContent`/`OrdenContent` en site-content-defaults.ts), no en un
-// picker del panel.
+// LO QUE QUEDA AFUERA A PROPÓSITO — `esquemas`, `orden`, `variantesBandas`, `presetSnapshot` — NO por
+// una lista de excepciones, sino porque NUNCA ENTRAN al lado "leído": son dominio ABIERTO (`esquemas`/
+// `variantesBandas`/`presetSnapshot` son `Record<string, X>` sin claves fijas — cualquier bandaId (o,
+// para `presetSnapshot`, cualquier ruta) puede tener entrada; `orden` es un array de reordenamiento,
+// no un objeto con campos nombrados). Un chequeo por-campo no tiene NADA que enumerar ahí — no es que
+// se decida omitirlos, es que la forma del dato no tiene "campos". Los primeros tres se componen en
+// el onboarding (decisión del owner, ya asentada en CLAUDE.md, § el docstring de
+// `EsquemasContent`/`VariantesBandasContent`/`OrdenContent` en site-content-defaults.ts), no en un
+// picker del panel; `presetSnapshot` (§ REAPPLY-PRESERVA-OVERRIDES-1) NUNCA se compone a mano, en el
+// onboarding ni en ningún otro lado — es CONTABILIDAD que `mergePresetEnContent` (`themes.ts`) escribe
+// y lee sola, y por eso el dueño no la edita ni siquiera indirectamente.
 //
 // EL LADO "CONTROLADO POR EL PANEL" se deriva de DOS fuentes, porque hay DOS mecanismos de edición:
 //  1. Las diez secciones de `SECCIONES_TIENDA` (tienda-secciones.ts) que `TiendaSeccionEditor` renderiza

@@ -305,6 +305,16 @@ const ordenEditableSchema = z.array(z.enum(BANDA_IDS)).refine(
 // (`resolverVariantesBandas`) ya es la red que descarta lo que no encaje.
 const variantesBandasEditableSchema = z.record(z.string(), z.string());
 
+// META de SNAPSHOT DE PRESET (§ REAPPLY-PRESERVA-OVERRIDES-1): el mapa ruta→último-valor-declarado
+// que `mergePresetEnContent` (`themes.ts`) usa para su fusión de tres vías. NO es una sección —
+// tampoco pasa por el flujo borrador/publicar—; se declara acá SÓLO para que un futuro write general
+// no la STRIPPEE en silencio (§ #65-B), como `esquemas`/`orden`/`variantesBandas`. HOY no hay editor
+// que la escriba —sólo `mergePresetEnContent`, directo sobre `content` publicado—. `z.record` con
+// `z.unknown()` porque el VALOR es heterogéneo por ruta (string/boolean/null/array): a diferencia de
+// `esquemasEditableSchema` (un set cerrado único de 5 esquemas), acá no hay un tipo de valor único
+// contra el que acotar — es contabilidad del motor, no dato del dominio.
+const presetSnapshotEditableSchema = z.record(z.string(), z.unknown());
+
 // META de CROMO (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): banda-tinta del nav / sub-encabezado / badge de
 // cosecha — dominio CERRADO de 3 claves fijas, gemela de `paginasEditableSchema` en FORMA (no
 // key-agnóstica como `esquemas`/`variantesBandas`). NO es una sección —tampoco pasa por el flujo
@@ -419,6 +429,7 @@ export const siteContentEditableSchema = z.object({
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),
+  presetSnapshot: presetSnapshotEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

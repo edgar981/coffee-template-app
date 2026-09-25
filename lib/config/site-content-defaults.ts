@@ -780,6 +780,7 @@ export interface SiteContentData {
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
+  presetSnapshot: PresetSnapshotContent;
 }
 
 // META de esquemas (§ eje 5b, mitad B): el mapa bandaId→esquema que decide sobre QUÉ superficie
@@ -799,6 +800,20 @@ export type EsquemasContent = Record<string, ClaveEsquema>;
 // `esquemas`. La `variante` DENTRO de una SECCIÓN real (`hero.variante`, `brandStory.variante`) sigue
 // viviendo donde vivía: esta meta es sólo para las bandas que no tienen una sección donde guardarla.
 export type VariantesBandasContent = Record<string, string>;
+
+// META de SNAPSHOT DE PRESET (§ REAPPLY-PRESERVA-OVERRIDES-1): el mapa RUTA→último-valor-declarado
+// que `mergePresetEnContent` (`themes.ts`) usa para la fusión de TRES VÍAS al re-aplicar un preset —
+// campo no tocado por el dueño desde el último apply, se actualiza con lo que el preset declara
+// ahora; campo que el dueño cambió, se preserva. NO es contenido que la tienda MUESTRE ni que el
+// dueño EDITE: es CONTABILIDAD del motor de presets, gemela de `EsquemasContent`/
+// `VariantesBandasContent` en FORMA (dominio de claves ABIERTO, sin `defaults` fijo que enumerar,
+// resuelta aparte del loop de secciones) pero DISTINTA en el VALOR: las rutas que guarda son de
+// naturaleza heterogénea (`tema.fondo` es string, `cromo.navTinta` es boolean, `orden` es un
+// array), así que no hay un set cerrado contra el que clampar como hace `resolverEsquemas` — de ahí
+// `unknown`, no un tipo de valor único. Una entrada AUSENTE del mapa (primer apply, o una fila de
+// antes de esta capacidad) hace que la fusión se comporte EXACTAMENTE como antes de este slice:
+// escribe lo que el preset declara, sin comparar nada.
+export type PresetSnapshotContent = Record<string, unknown>;
 
 // META de ORDEN (§ eje 5, parte c — el orden de las bandas del home como DATO). A diferencia de
 // `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 9 ids de banda
@@ -1229,6 +1244,11 @@ export const DEFAULTS: SiteContentData = {
   // `themes.ts` (`mergePresetEnContent`), que sigue siendo el sitio donde un preset escribe sin
   // crear una clave `content.featured` huérfana.
   variantesBandas: {},
+  // SNAPSHOT DE PRESET por defecto (§ REAPPLY-PRESERVA-OVERRIDES-1): nace VACÍO — sin un preset
+  // aplicado todavía, no hay nada que recordar. El PRIMER `aplicarPreset` sobre un tenant sin fila
+  // (o sobre una fila de antes de esta capacidad) encuentra este `{}` y por tanto escribe TODO lo
+  // que el preset declara, byte a byte el comportamiento de siempre (§ `mergePresetEnContent`).
+  presetSnapshot: {},
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -1316,10 +1336,10 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `esquemas`, `orden` y
-// `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas; las diez metas quedan
-// fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'navWordmark' | 'esquemas' | 'orden' | 'variantesBandas'>;
+// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `esquemas`, `orden`,
+// `variantesBandas` y `presetSnapshot`, que no son secciones). El REGISTRY las cubre a todas; las
+// once metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'navWordmark' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -1834,6 +1854,10 @@ export function resolverSiteContent(
   // sección (`featured`), resuelto aparte del loop igual que `esquemas` — GEMELO exacto, mismo
   // dominio ABIERTO (§ `resolverVariantesBandas`, abajo).
   out.variantesBandas = resolverVariantesBandas(raw.variantesBandas);
+  // SNAPSHOT DE PRESET (meta, no sección, § REAPPLY-PRESERVA-OVERRIDES-1): el mapa ruta→último-valor-
+  // declarado que `mergePresetEnContent` usa para su fusión de tres vías, resuelto aparte del loop
+  // igual que `esquemas`/`variantesBandas` — mismo dominio ABIERTO (§ `resolverPresetSnapshot`, abajo).
+  out.presetSnapshot = resolverPresetSnapshot(raw.presetSnapshot);
   return out as unknown as SiteContentData;
 }
 
@@ -2006,6 +2030,22 @@ export function resolverVariantesBandas(stored: unknown): VariantesBandasContent
     if (def && typeof val === 'string' && def.claves.includes(val)) out[banda] = val;
   }
   return out;
+}
+
+/**
+ * Resuelve el SNAPSHOT DE PRESET (§ REAPPLY-PRESERVA-OVERRIDES-1), gemelo de `resolverEsquemas`/
+ * `resolverVariantesBandas` en FORMA (meta, no sección, key-agnóstica, resuelta aparte del loop) pero
+ * DISTINTO en propósito y en validación: no es contenido que la tienda muestre ni que el dueño edite
+ * — es CONTABILIDAD del motor de presets (`mergePresetEnContent`, `themes.ts`), y su único lector es
+ * ese motor. Por eso NO clampa valores contra un set cerrado (a diferencia de `resolverEsquemas`): las
+ * rutas que guarda son heterogéneas por naturaleza (`tema.fondo` es string, `cromo.navTinta` es
+ * boolean, `orden` es un array), así que se pasa tal cual, sólo validando que el objeto GUARDADO sea
+ * un objeto — no que cada valor lo sea. SOFT, nunca lanza: sin fila u objeto corrupto, cae a `{}`, el
+ * mismo `{}` que hace que el PRIMER apply sobre un tenant se comporte como "sin snapshot" (§ el
+ * docstring de `mergePresetEnContent`).
+ */
+export function resolverPresetSnapshot(stored: unknown): PresetSnapshotContent {
+  return esObj(stored) ? { ...stored } : {};
 }
 
 const ORDEN_IDS = new Set<BandaId>(BANDA_IDS);

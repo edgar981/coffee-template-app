@@ -156,6 +156,17 @@ test('esquemas/orden/variantesBandas no aparecen en camposLeidosPorTienda (domin
   assert.ok(!leidos.some((c) => c.startsWith('variantesBandas.')));
 });
 
+// § REAPPLY-PRESERVA-OVERRIDES-1: `presetSnapshot` es la CUARTA meta de dominio abierto (contabilidad
+// del motor de presets, § site-content-defaults.ts) — MISMA familia que las tres de arriba, así que
+// tampoco debe entrar al lado "leído" ni obligar a ninguna exención nueva en PENDIENTE_PANEL. Si
+// alguna vez apareciera acá, sería porque alguien la agregó a `METAS_CON_CAMPOS` por error — el dueño
+// no la edita, ni siquiera indirectamente.
+test('presetSnapshot no aparece en camposLeidosPorTienda (dominio abierto, contabilidad del motor de presets, no "campos")', () => {
+  const leidos = camposLeidosPorTienda();
+  assert.ok(!leidos.some((c) => c.startsWith('presetSnapshot.')));
+  assert.ok(!leidos.includes('presetSnapshot'));
+});
+
 // ─── Nayoli sano: con las 15 secciones + 7 metas reales, el chequeo corre sin explotar ─────────────
 
 test('camposLeidosPorTienda() y camposControladosPorPanel() no están vacíos (el chequeo mide algo real)', () => {

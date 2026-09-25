@@ -19193,3 +19193,213 @@ son bytes que ALGUIEN lee (el owner mostrando la demo, o un prospecto), aunque e
 acotado a despliegues DEMO, nunca a un cliente real en producción. Nayoli sin preset (lo que ve
 cualquier cliente real hoy, y lo que el mirador muestra SIN `?tema=`) queda con 0px de diferencia,
 medido por `guarda:color`.
+
+## 2026-09-25 — Re-aplicar un preset deja de pisar lo que el dueño ya ajustó: fusión de TRES VÍAS con snapshot (`REAPPLY-PRESERVA-OVERRIDES-1`)
+
+**El problema, medido contra el código, no supuesto:** `mergePresetEnContent` escribía SIEMPRE lo
+que el preset declaraba — el mismo mecanismo desde `TEMAS-PRESET-DATO-1` (2026-09-12), que en su
+momento anotó la ausencia de guarda como **PROPIEDAD CONOCIDA**: *"hoy no cuesta nada porque la
+composición nunca la toca el dueño (§ el panel NO lleva selector de composición)"*. Esa premisa
+quedó VENCIDA sin que nadie tocara esa frase: el programa de 8 ítems (`PANEL-EDITOR-*`, 2026-09-23 a
+2026-09-25) volvió editables casi todos los campos que un preset escribe —`hero.variante` (vía
+composición futura), los interruptores de `cromo`/`hero` (`EncabezadoSeccion.tsx`), el badge de
+`menu` (`MenuSeccion.tsx`)—, así que re-aplicar CORTE para recibir una mejora (una nueva variante, un
+esquema corregido) habría **BORRADO en silencio** cualquier ajuste que el dueño hiciera con esos
+controles nuevos. El owner aprobó (2026-09-25) construir la fusión de tres vías, con la condición
+explícita de que **"a futuro nos facilite construir la estructura multitenant y que la estructura en
+general se pueda implementar para casi cualquier diseño"** — la aprobación autorizó la ESCRITURA,
+nunca el merge (§ el spec de este slice).
+
+**La forma: SNAPSHOT de lo que el motor escribió la última vez, comparado campo por campo.** Una
+meta nueva de `SiteContentData` (`presetSnapshot: Record<string, unknown>`, gemela de `esquemas`/
+`variantesBandas` en forma —dominio abierto, resuelta aparte del loop de secciones— pero distinta en
+propósito: CONTABILIDAD del motor, nunca contenido que la tienda muestre o que el dueño edite).
+`mergePresetEnContent` gana un closure `fusionar(ruta, nuevo)` que, para cada campo HOJA que el
+preset declara (`tema.fondo`, `cromo.navTinta`, `<seccion>.variante`, `<banda>.visible`,
+`hero.ctasVisibles`, `menu.badgeItem`…): sin entrada en el snapshot para esa ruta → escribe `nuevo`
+(byte a byte lo de HOY); con entrada y el valor ACTUAL de `content` coincide con el snapshot → el
+dueño no lo tocó → escribe `nuevo` (la mejora se propaga); con entrada y el valor ACTUAL difiere →
+el dueño lo cambió → PRESERVA el valor del dueño. En los TRES casos el snapshot se actualiza a lo que
+el preset declara AHORA — es la base de comparación de la PRÓXIMA vez, no un historial, así que un
+override que sigue divergiendo se sigue detectando aunque el preset cambie de valor entre medio.
+
+**`esquemas`/`orden`/`variantesBandas` se fusionan como BLOB ENTERO, no por banda — decisión
+explícita, no un vacío del alcance.** Ninguna de las tres tiene hoy una superficie donde el dueño
+edite una entrada suelta (§ `PENDIENTE_PANEL`, `panel-controles.ts`: "SIN PICKER, decisión del
+owner: se compone en el onboarding"), así que la única forma en que su valor ACTUAL puede diferir
+del snapshot es por OTRO preset aplicado encima — la misma "propiedad conocida" de siempre, no una
+edición del dueño que perder campo por campo. Aplicarles la misma granularidad hoja habría sido
+trabajo sin un caso real que lo motive.
+
+**EL SNAPSHOT VIVE DENTRO DE `content`, no en un canal aparte — la razón es de `touches:`.**
+`aplicarPreset` (`site-content-write.ts`) y el mirador (`theme-mirador.ts`) ya pasan `content`
+completo a `mergePresetEnContent`; si el snapshot fuera un parámetro nuevo, los dos llamadores
+habrían entrado a `touches:` sin necesidad — al vivir como una meta más de `SiteContentData`, viaja
+solo. Ninguno de los dos archivos se tocó.
+
+**LA PROPIEDAD CONOCIDA DE `TEMAS-PRESET-DATO-1` QUEDA ACOTADA, NO CERRADA — y se dice en el
+docstring, no sólo acá.** La fusión NO está scopeada por `preset.clave`: el snapshot recuerda "lo
+último que ESTE MOTOR escribió", sin importar qué preset lo escribió. Re-aplicar el MISMO preset
+sobre un tenant que lo afinó a mano preserva sus ajustes (el caso que este slice resuelve, y el único
+que ocurre hoy — un tenant corre un preset fijo desde el onboarding, nunca dos). Aplicar un preset
+DISTINTO sobre un tenant que YA afinó campos a mano podría sobreescribirlos si el preset nuevo
+declara, por coincidencia, el mismo valor que el snapshot recordaba — scopear el snapshot por preset
+es la salida el día que el dueño componga de verdad, y no se construye acá (hoy sigue sin ocurrir,
+misma guarda que el asiento de `TEMAS-PRESET-DATO-1` ya nombraba).
+
+**Ningún camino de escritura del panel ni el REGISTRY se tocó** (mandato del spec, verificado): el
+diff es sólo `mergePresetEnContent` (el motor), su fusión, y las declaraciones de la meta nueva
+(`SiteContentData`, `DEFAULTS`, `SeccionKey`, el resolver `resolverPresetSnapshot`, el schema
+`presetSnapshotEditableSchema`) — nunca un route handler, nunca `TiendaSeccionEditor` ni ninguno de
+los editores bespoke.
+
+### Los tests — la matriz (a)-(e) del spec, sobre CORTE (el único preset que declara `cromo`/`menu`)
+
+Se usó CORTE (no un preset sintético) para poder ejercer el caso REAL sobre campos de verdad —
+`cromo.navTinta` (el interruptor del Encabezado) y `menu.badgeTexto` (el texto del badge) — en vez de
+un preset que no los tocaría en absoluto:
+
+- **(a) sin snapshot**: el preset escribe todo lo que declara, byte a byte lo de hoy, Y el snapshot
+  nace poblado (listo para la próxima fusión) — afirmado sobre `CONTENT_CON_DATOS_DEL_DUEÑO`, que
+  nunca trae `presetSnapshot`.
+- **(b) con snapshot, valor intacto**: una "mejora al preset" simulada (`{...CORTE, navTinta:
+  false}`) SÍ se propaga cuando el dueño nunca tocó el campo.
+- **(c) con snapshot, valor cambiado por el dueño**: el mismo ajuste (`cromo.navTinta: false`,
+  escrito directo en `content` — como lo haría `EncabezadoSeccion.tsx`) sobrevive a re-aplicar el
+  MISMO preset sin cambios.
+- **(d) el snapshot se actualiza en las tres ramas**: incluso cuando se PRESERVA el valor del dueño,
+  el snapshot guarda lo que el preset declara AHORA (`true`), no el valor preservado (`false`) — es
+  la base de comparación de la próxima vez, no un historial.
+- **(e) el caso real, con DOS ajustes y DOS re-aplicaciones**: el dueño apaga `cromo.navTinta` Y edita
+  `menu.badgeTexto`; tras aplicar CORTE dos veces seguidas, los DOS ajustes siguen ahí, y los campos
+  que el dueño NO tocó (`cromo.navSubtitulo`, `menu.badgeItem`) se siguen actualizando con lo que
+  CORTE declara — la fusión es por CAMPO, no "todo o nada" sobre `cromo`/`menu` enteros.
+
+Dos tests más ejercen la fusión de BLOB de `esquemas` (la mejora se propaga entera sin override; el
+blob completo se preserva si diverge del snapshot). Los **233 tests preexistentes** de
+`themes.test.ts`/`panel-controles.test.ts`/`site-content-schema.test.ts` — incluida la idempotencia
+sobre `CONTENT_CON_DATOS_DEL_DUEÑO` y sobre un `content` VACÍO — pasan **sin tocarlos**: todos operan
+sobre contenido sin `presetSnapshot`, así que la rama "sin snapshot" (byte-idéntica a HOY) es la
+única que se ejercita, confirmando por EJECUCIÓN que el caso (a) es indistinguible del mecanismo
+viejo.
+
+### El guard del panel — `presetSnapshot` es la CUARTA meta de dominio abierto, y no crece `PENDIENTE_PANEL`
+
+`presetSnapshot` sigue el mismo patrón que `esquemas`/`orden`/`variantesBandas`: excluida de
+`SeccionKey` y de `METAS_CON_CAMPOS` (`panel-controles.ts`), así que **nunca entra** al lado "leído"
+de `camposLeidosPorTienda()` — no por una exención nueva, sino porque un `Record<string, unknown>`
+de rutas heterogéneas no tiene "campos" que enumerar. Verificado por ejecución: `huecosDelPanel()`
+sigue `[]`, y `PENDIENTE_PANEL.length` sigue en **13** (el trinquete de `GUARDA-PRE-MERGE-
+TRINQUETE-BUILD-1` no se movió — no hizo falta bajarlo ni subirlo). Se agregó un test gemelo del que
+ya afirmaba esto para `esquemas`/`orden`/`variantesBandas`.
+
+### Gate — medido en el árbol final
+
+- **`npx tsc --noEmit -p tsconfig.json`**: 0 errores.
+- **`npm test`**: **1935/1935**, 0 fail (piso heredado del commit anterior de la rama, `7f662db`:
+  1927/1927 — +8 tests nuevos: los 5 de la matriz (a)-(e), los 2 de fusión de blob, y el test de
+  higiene de `presetSnapshot` en `panel-controles.test.ts`).
+- **`npm run test:integracion`**: PRIMERA corrida (dentro de `npm run gate`) **230/231** — 1 fallo,
+  `tests/integracion/wompi-reconciliador.test.ts:354`, "CONCURRENCIA: webhook y reconciliador
+  procesando el MISMO evento A LA VEZ" — el MISMO archivo:línea que ya midió flaky el asiento de
+  `MUESTRARIO-BANDA-APAGABLE-1` (arriba), completamente fuera de `touches:` (Wompi/pagos, sin
+  relación con `lib/config/`). `git status --short` en ese momento confirma que el diff sigue siendo
+  exactamente los 6 archivos de `touches:`. Re-corrido el carril completo una SEGUNDA vez (no el
+  test aislado) para distinguir piso-bajo de ruido: **SEGUNDA corrida, 231/231** — coincide exacto
+  con el piso heredado (`7f662db`: 231/231). Veredicto: flaky (una carrera real contra Postgres con
+  margen de milisegundos), no floor — no es una regresión de este slice.
+- **`npm run guarda:color`**: `lib/config/themes.ts`, `lib/config/site-content-defaults.ts` y
+  `lib/config/site-content-schema.ts` están en `SISTEMA_DE_COLOR` (`scripts/guarda-color.ts`), así
+  que la guarda corrió completa (Postgres efímero + build + Playwright), no salió por el atajo
+  vacío. **0/N px de diferencia en las 6 rutas + 2 hovers** (`ruta-home`, `ruta-tienda`,
+  `ruta-producto`, `ruta-checkout`, `ruta-nosotros`, `ruta-suscripciones`, `hover-automatica`,
+  `hover-eleccion`) — "Nayoli sin preset se ve IDÉNTICO al fixture". Esperado: Nayoli nunca pasa por
+  `mergePresetEnContent` en su render normal (sin fila de `presetSnapshot`, sin `?tema=` en
+  producción), así que la fusión de tres vías no tiene ningún campo que comparar para ella.
+
+### `touches:` — lo que se escribió
+
+```
+git diff --stat (contra 7f662db, el commit anterior de la rama):
+ lib/config/panel-controles.test.ts  |  11 ++
+ lib/config/panel-controles.ts       |  19 ++--
+ lib/config/site-content-defaults.ts |  48 ++++++++-
+ lib/config/site-content-schema.ts   |  11 ++
+ lib/config/themes.test.ts           |  91 ++++++++++++++++
+ lib/config/themes.ts                | 202 +++++++++++++++++++++++++-----------
+ 6 files changed, 312 insertions(+), 70 deletions(-)
+```
+
+Los seis archivos son, exactamente, los seis miembros de `touches:` con permiso de escritura
+(`DECISIONS.md`, el séptimo, se escribe acá). Ningún archivo fuera de la lista cambió —
+`site-content-write.ts` y `theme-mirador.ts`, los dos llamadores de `mergePresetEnContent`, no
+necesitaron tocarse (§ arriba, "EL SNAPSHOT VIVE DENTRO DE `content`").
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `mergePresetEnContent`, `PresetTema`, `leerRuta`, `igualValor`
+(nuevos en `themes.ts`); `SiteContentData`, `PresetSnapshotContent`, `SeccionKey`, `DEFAULTS`,
+`resolverSiteContent`, `resolverPresetSnapshot` (`site-content-defaults.ts`);
+`presetSnapshotEditableSchema`, `siteContentEditableSchema` (`site-content-schema.ts`);
+`METAS_CON_CAMPOS`, `PENDIENTE_PANEL`, `huecosDelPanel`, `camposLeidosPorTienda`
+(`panel-controles.ts`); y los seis archivos mismos.
+
+Grep de cada uno contra `CLAUDE.md`, por nombre exacto: `mergePresetEnContent`, `PresetTema`,
+`themes.ts`, `SiteContentData`, `resolverSiteContent`, `DEFAULTS`, `aplicarPreset`,
+`esquemasEditableSchema`, `variantesBandasEditableSchema`, `panel-controles.ts`, `PENDIENTE_PANEL`,
+`huecosDelPanel`, `METAS_CON_CAMPOS` → **0 resultados cada uno**. `SeccionKey` → 2 resultados, los
+dos sobre `tema`/`paginas` como las metas que `SeccionKey` excluye (líneas 2225, 2823 de
+`CLAUDE.md`) — ninguno afirma la lista COMPLETA ni un conteo de cuántas claves excluye, así que
+agregar una undécima (`presetSnapshot`) no los vuelve falsos. `site-content-defaults.ts` (8
+resultados) y `site-content-schema.ts` (5 resultados) → todos sobre mecánica AJENA a este diff
+(resolverPaginas/resolverTema, el repeater, `presentacionesEditableSchema`, la exención de
+`footerNav`) — ninguno describe `esquemas`/`orden`/`variantesBandas`/`presetSnapshot` ni el mapeo
+banda→esquema.
+
+**HALLAZGO, no una falla de este slice pero digno de registrarse:** `CLAUDE.md` **no documenta el
+subsistema de themes/presets en absoluto** — cero menciones de `PresetTema`, `mergePresetEnContent`,
+`PLIEGO`/`CORTE`/`PATIO`/`VETA`/`VITRINA`/`ARRANQUE`, `programa THEMES`, ni de la doctrina de
+`bandasVisibles`/`esquemas`/`variantesBandas`. Esa doctrina vive ENTERA en los comentarios de
+`themes.ts`/`site-content-defaults.ts` y en este ledger (`TEMAS-*`, `CORTE-*`, `MUESTRARIO-*`) — ya
+lo había confirmado por el mismo grep el asiento de `MUESTRARIO-BANDA-APAGABLE-1` (arriba, "la
+doctrina extensa... vive ENTERA como comentarios..., no en CLAUDE.md"), y esta medición lo reafirma
+sobre un conjunto de símbolos distinto. **Sí aparece una línea relevante que este diff NO vuelve
+falsa pero que vale nombrar por el contraste**: `CLAUDE.md:39` (la lista de superficies Tier 1 del
+protocolo dev-protocol) nombra literalmente `lib/config/site-content-schema.ts` y
+`lib/config/site-content-defaults.ts` como superficies protegidas que exigen "una sesión read-only
+primero, y sólo se escriben en una SEGUNDA etapa, tras tu visto bueno explícito" — coincide con
+`tier: 1` + `approved: yes` + `approved-by: owner` del spec de este slice: esta sesión ES esa
+segunda etapa, ya autorizada, no una excepción a la regla.
+
+### CHEQUEO MECÁNICO CONTRA DECISIONS.md (los identificadores de sección que este diff toca)
+
+`REAPPLY-PRESERVA-OVERRIDES-1` (el id de este mismo asiento) → 0 resultados antes de esta escritura,
+como corresponde a una capacidad nueva. `TEMAS-PRESET-DATO-1` → aparece en el asiento del
+2026-09-12 (arriba en este mismo archivo) con la frase **"hoy no cuesta nada porque la composición
+nunca la toca el dueño"** — esa premisa es la que este slice mide como VENCIDA (§ arriba, "El
+problema, medido..."). No se edita el asiento viejo (ledger append-only): esta entrada ES la que
+registra la sucesión, igual que `MUESTRARIO-BANDA-APAGABLE-1` registró la sucesión de
+`ORIGEN-BANDA-1`/`MARQUESINA-BANDA-1` sin tocarlos.
+
+### Desvíos
+
+Ninguno. El spec se siguió literal: la fusión de tres vías (§0), el snapshot como meta de
+`SiteContentData` sin tocar caminos de escritura del panel ni el REGISTRY, la matriz (a)-(e) sobre
+un campo real, el guard del panel intacto (`huecosDelPanel()` en `[]`, `PENDIENTE_PANEL` sin crecer),
+y `guarda:color` en 0px.
+
+### Verdicto
+
+**AWAITING_APPROVAL**, por instrucción explícita del despacho ("PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES"). Clasificado también contra la política A: el diff toca sólo `lib/config/*.ts` (el motor
+de presets, su schema, el guard del panel, y sus tests) + `DECISIONS.md` — no hay migración ni
+cambio de schema de base de datos (la meta nueva vive en el JSON de `SiteContent.content`, ya
+existente), ni contrato cross-repo. **`customer-bytes`: `changed: false`.** Este slice no toca
+ningún camino de lectura del storefront ni del panel — `mergePresetEnContent` sólo corre desde
+`aplicarPreset` (un runbook de onboarding, nunca desde una request de cliente) o desde el mirador
+`?tema=` (gateado a despliegues DEMO, § el asiento de `MUESTRARIO-BANDA-APAGABLE-1` arriba). Ningún
+byte que un cliente, operador o dueño lea cambia por este diff — lo confirma `guarda:color` en 0px
+sobre Nayoli, y el hecho de que ningún preset del catálogo cambió su comportamiento observable
+(CORTE, con o sin snapshot previo, sigue declarando exactamente los mismos valores que declaraba
+ayer; lo único que cambia es qué pasa si alguien re-aplica el preset sobre un tenant que YA lo tenía
+aplicado y YA lo ajustó a mano — un caso que hoy no existe en ningún despliegue real).

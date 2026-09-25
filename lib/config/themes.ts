@@ -52,6 +52,36 @@ import type { ClaveEscalaDisplay } from './escala-display';
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
+// LEE un valor por RUTA PUNTEADA ("tema.fondo", "hero.variante", "esquemas" para un campo de primer
+// nivel) de un `content` crudo o resuelto — SOFT, nunca lanza: ausente en cualquier tramo → `undefined`,
+// igual que el resto de los loaders de este archivo. La usa `mergePresetEnContent` (§ REAPPLY-
+// PRESERVA-OVERRIDES-1) para leer el valor ACTUAL de un campo antes de decidir si el dueño lo tocó.
+function leerRuta(obj: Record<string, unknown>, ruta: string): unknown {
+  let cur: unknown = obj;
+  for (const parte of ruta.split('.')) {
+    if (!esObj(cur)) return undefined;
+    cur = cur[parte];
+  }
+  return cur;
+}
+
+// IGUALDAD ESTRUCTURAL (no por referencia): arrays por posición, objetos por sus claves,
+// recursivamente. Los valores que la fusión de tres vías compara son siempre JSON simple (string/
+// boolean/null/array de string/objeto plano de un nivel) — no hace falta un deep-equal genérico para
+// cualquier dato del repo, sólo para éstos.
+function igualValor(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => igualValor(v, b[i]));
+  }
+  if (esObj(a) && esObj(b)) {
+    const clavesA = Object.keys(a);
+    const clavesB = Object.keys(b);
+    return clavesA.length === clavesB.length && clavesA.every((k) => igualValor(a[k], b[k]));
+  }
+  return false;
+}
+
 // Duplicado LITERAL, y a propósito documentado: el set de 5 esquemas (§ CORTE-HISTORIA-COLOR-
 // FOTOS-1, `neutro`) ya vive como `ESQUEMA_IDS` en `site-content-defaults.ts`, pero esa constante
 // NO está exportada. Se acepta esta única lista corta, gemela del tipo `ClaveEsquema` (=
@@ -343,31 +373,59 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * separada por el mismo criterio que `aplicarAjusteInventario`/`aplicarPatchProducto`: la lógica
  * vive donde se puede afirmar sin una base real; la transacción es un envoltorio delgado.
  *
- * INVARIANTE (la promesa del runbook): NUNCA toca un texto ni una imagen del dueño. Sólo escribe
- * `tema` (raíces + par + forma + los dos ejes de origen de § TEMAS-ROLES-DECLARADOS-POR-EL-
- * PRESET-1, reemplazado entero — son composición, no contenido), `cromo` (§ CROMO-NAV-FOOTER-
- * TEMATIZABLE-1, los 3 ejes de chrome de nav/footer, reemplazado entero por la misma razón —
- * composición, no contenido, y META APARTE de `tema` a propósito, ver el docstring de
- * `CromoContent`), `volverArriba` (§ CROMO-VOLVER-ARRIBA-1, el botón flotante, reemplazado entero
- * por la misma razón — META PROPIA, aparte de `cromo`, ver el docstring de `VolverArribaContent`),
- * `rielSocial` (§ CROMO-RIEL-SOCIAL-1, el riel social, reemplazado entero por la misma razón — META
- * PROPIA, aparte de `cromo` y de `volverArriba`, ver el docstring de `RielSocialContent`),
- * `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, el tratamiento tipográfico de los links del nav,
- * reemplazado entero por la misma razón — META PROPIA, aparte de `cromo`/`volverArriba`/
- * `rielSocial`, ver el docstring de `NavTratamientoContent`),
- * `navWordmark` (§ CORTE-LOGO-APILADO-1, el tratamiento tipográfico del wordmark apilado del nav,
- * reemplazado entero por la misma razón — META PROPIA, aparte de `cromo`/`volverArriba`/
- * `rielSocial`/`navTratamiento`, ver el docstring de `NavWordmarkContent`),
- * `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
- * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
- * que esa sección ya tuviera (`{ ...prev, variante }`) —, el campo `visible` DENTRO de cada banda
- * que `preset.bandasVisibles` declara (§ MUESTRARIO-BANDA-APAGABLE-1, mismo `{ ...prev, visible }`,
+ * LA FUSIÓN DE TRES VÍAS (§ REAPPLY-PRESERVA-OVERRIDES-1). Antes de este slice, re-aplicar un preset
+ * REEMPLAZABA sin condición cada campo que declaraba — correcto mientras el dueño no podía tocar
+ * ninguno de esos campos desde el panel. El programa de 8 ítems (PANEL-EDITOR-*) volvió editables
+ * casi todos: `hero.variante`, los interruptores de `cromo`/`hero`, el badge de `menu`… Sin cambiar
+ * nada más, re-aplicar el MISMO preset (para recibir una mejora futura) le habría BORRADO al dueño
+ * cualquier ajuste que hubiera hecho con esos controles.
+ *
+ * La salida es una fusión, por CAMPO, contra un SNAPSHOT de lo que ESTE motor escribió la última vez
+ * (`content.presetSnapshot`, meta § site-content-defaults.ts, un mapa RUTA→valor-declarado):
+ *  · SIN entrada en el snapshot para esa ruta (primer apply sobre el tenant, o una fila de antes de
+ *    esta capacidad) → se escribe lo que el preset declara, BYTE A BYTE el comportamiento de hoy —
+ *    sin base de comparación no hay forma honesta de decir "el dueño lo tocó".
+ *  · CON entrada Y el valor ACTUAL de `content` en esa ruta COINCIDE con el snapshot → el dueño no lo
+ *    tocó desde el último apply → se escribe lo que el preset declara AHORA (así una mejora al
+ *    preset SÍ se propaga a los tenants que ya lo tienen).
+ *  · CON entrada Y el valor ACTUAL DIFIERE del snapshot → el dueño lo cambió → se PRESERVA el valor
+ *    del dueño.
+ * En LOS TRES casos el snapshot queda en lo que el preset declara AHORA — es la base de comparación
+ * de la PRÓXIMA vez, no un historial: así, si el valor preservado del dueño sigue sin coincidir con
+ * lo que el preset declara (el caso normal de un override deliberado), la SIGUIENTE re-aplicación
+ * sigue detectándolo como tocado, aunque el preset haya cambiado de valor entre medio.
+ *
+ * GRANULARIDAD: por CAMPO HOJA — `tema.fondo`, `cromo.navTinta`, `<seccion>.variante`,
+ * `<banda>.visible`, `hero.ctasVisibles`, `menu.badgeItem`… — EXCEPTO `esquemas`, `orden` y
+ * `variantesBandas`, que se fusionan como BLOB ENTERO (como ya se reemplazaban enteros antes de este
+ * slice): ninguna de las tres tiene hoy una superficie donde el dueño edite una entrada suelta
+ * (§ PENDIENTE_PANEL, `panel-controles.ts`: «SIN PICKER, decisión del owner: se compone en el
+ * onboarding»), así que la única forma en que su valor ACTUAL puede diferir del snapshot es por
+ * OTRO preset aplicado encima — la misma "PROPIEDAD CONOCIDA" de siempre (ver el párrafo final),
+ * no una edición del dueño que haya que preservar campo por campo.
+ *
+ * INVARIANTE (la promesa del runbook): NUNCA toca un texto ni una imagen del dueño. Sólo escribe,
+ * campo por campo vía la fusión de arriba, `tema` (raíces + par + forma + los dos ejes de origen de
+ * § TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 + escalaDisplay — son composición, no contenido), `cromo`
+ * (§ CROMO-NAV-FOOTER-TEMATIZABLE-1, los 3 ejes de chrome de nav/footer, META APARTE de `tema` a
+ * propósito, ver el docstring de `CromoContent`), `volverArriba` (§ CROMO-VOLVER-ARRIBA-1, el botón
+ * flotante — META PROPIA, aparte de `cromo`, ver el docstring de `VolverArribaContent`),
+ * `rielSocial` (§ CROMO-RIEL-SOCIAL-1, el riel social — META PROPIA, aparte de `cromo` y de
+ * `volverArriba`, ver el docstring de `RielSocialContent`), `navTratamiento` (§ CROMO-NAV-
+ * TRATAMIENTO-1, el tratamiento tipográfico de los links del nav — META PROPIA, aparte de
+ * `cromo`/`volverArriba`/`rielSocial`, ver el docstring de `NavTratamientoContent`), `navWordmark`
+ * (§ CORTE-LOGO-APILADO-1, el tratamiento tipográfico del wordmark apilado del nav — META PROPIA,
+ * aparte de `cromo`/`volverArriba`/`rielSocial`/`navTratamiento`, ver el docstring de
+ * `NavWordmarkContent`), `esquemas`, `orden` y `variantesBandas` (fusionados como BLOB, § arriba),
+ * el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo que esa
+ * sección ya tuviera (`{ ...prev, variante }`) —, el campo `visible` DENTRO de cada banda que
+ * `preset.bandasVisibles` declara (§ MUESTRARIO-BANDA-APAGABLE-1, mismo `{ ...prev, visible }`,
  * MISMA razón: es composición —qué banda se ve, no qué dice—, no contenido del dueño; encender Y
  * apagar, sobre CUALQUIER `BandaId` con sección propia), y, SÓLO cuando la variante resultante de
  * `featured` es 'spotlight' (§ SPOTLIGHT-CABLEADO-HOME-1), el campo `visible` DENTRO de
  * `content.spotlight` (mismo mecanismo, para una banda ESTRUCTURAL sin `BandaId` propio — `featured`
- * no está en `BANDA_IDS`, así que no puede pasar por `bandasVisibles`). Ninguna otra clave de
- * `content` se toca.
+ * no está en `BANDA_IDS`, así que no puede pasar por `bandasVisibles`) — más `content.presetSnapshot`
+ * mismo (la contabilidad de esta fusión, § arriba). Ninguna otra clave de `content` se toca.
  *
  * `preset.variantes` mezcla DOS destinos bajo una sola clave plana (TEMAS-P1-FEATURED-VARIANTES-1):
  * una entrada cuya clave ES una `SeccionKey` (tiene entrada en el REGISTRY) va DENTRO de esa sección
@@ -381,46 +439,71 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * guarda es responsabilidad de `aplicarPreset`, que llama a `mergePresetEnContent` sólo si
  * `validarPreset` dio `[]`.
  *
- * PROPIEDAD CONOCIDA, no un olvido: no hay guarda contra reaplicar un preset DISTINTO sobre un
- * `content` que un operador ya afinó a mano (§4) — hoy el dueño nunca compone, así que no hace
- * falta, y no se construye acá.
+ * PROPIEDAD CONOCIDA, ACOTADA por este slice pero no cerrada del todo: la fusión NO está scopeada por
+ * `preset.clave` — el snapshot recuerda "lo último que este motor escribió", sin importar qué preset
+ * lo escribió. Reaplicar el MISMO preset sobre un tenant que lo afinó a mano preserva sus ajustes
+ * (el caso que este slice resuelve). Aplicar un preset DISTINTO sobre un tenant que nunca tocó nada
+ * a mano también funciona bien —nada que preservar, todo se propaga—, pero un tenant que afinó
+ * campos a mano y LUEGO recibe un preset distinto puede ver esos campos sobreescritos si el nuevo
+ * preset declara para ellos el MISMO valor que el snapshot recordaba (una coincidencia, no una
+ * garantía). Hoy el dueño nunca compone —un tenant corre UN preset fijo desde el onboarding, nunca
+ * dos— así que este caso sigue sin ocurrir en la práctica; scopear el snapshot por preset es la
+ * salida el día que sí ocurra, y no se construye acá.
  */
 export function mergePresetEnContent(content: Record<string, unknown>, preset: PresetTema): Record<string, unknown> {
   const out: Record<string, unknown> = { ...content };
 
+  // EL SNAPSHOT PREVIO vive DENTRO de `content` (una meta más de `SiteContentData`), así que la
+  // fusión no necesita un canal aparte: `aplicarPreset` y el mirador ya pasan `content` completo, y
+  // el snapshot viaja con él sin tocar ningún llamador (§ site-content-write.ts, theme-mirador.ts —
+  // ninguno de los dos está en el `touches:` de este slice, ni hace falta que lo esté).
+  const snapshotPrevio = esObj(content.presetSnapshot) ? (content.presetSnapshot as Record<string, unknown>) : {};
+  const snapshotNuevo: Record<string, unknown> = {};
+
+  // FUSIONA un campo por su RUTA punteada: ver el docstring de arriba para las tres ramas. Actualiza
+  // `snapshotNuevo` SIEMPRE, en las tres — es la base de comparación de la próxima vez, no el valor
+  // que terminó escrito esta vez.
+  const fusionar = (ruta: string, nuevo: unknown): unknown => {
+    const tieneSnapshot = Object.prototype.hasOwnProperty.call(snapshotPrevio, ruta);
+    const actual = leerRuta(content, ruta);
+    const dueñoLoTocó = tieneSnapshot && !igualValor(actual, snapshotPrevio[ruta]);
+    snapshotNuevo[ruta] = nuevo;
+    return dueñoLoTocó ? actual : nuevo;
+  };
+
   out.tema = {
-    fondo: preset.raices.fondo,
-    tinta: preset.raices.tinta,
-    acento: preset.raices.acento,
-    fuentePar: resolverFuentePar(preset.fuentePar),
-    forma: resolverForma(preset.forma),
+    fondo: fusionar('tema.fondo', preset.raices.fondo),
+    tinta: fusionar('tema.tinta', preset.raices.tinta),
+    acento: fusionar('tema.acento', preset.raices.acento),
+    fuentePar: fusionar('tema.fuentePar', resolverFuentePar(preset.fuentePar)),
+    forma: fusionar('tema.forma', resolverForma(preset.forma)),
     // AUSENTE en el preset → null (el default, byte-idéntico) — el mismo `?? null` que ya hace
     // falta para escribir un `TemaContent` completo (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
-    origenTexto: preset.origenTexto ?? null,
-    origenAccion: preset.origenAccion ?? null,
+    origenTexto: fusionar('tema.origenTexto', preset.origenTexto ?? null),
+    origenAccion: fusionar('tema.origenAccion', preset.origenAccion ?? null),
     // AUSENTE en el preset → null (el default, byte-idéntico) — § TEMAS-ESCALA-DISPLAY-1.
-    escalaDisplay: preset.escalaDisplay ?? null,
+    escalaDisplay: fusionar('tema.escalaDisplay', preset.escalaDisplay ?? null),
   };
   // `cromo` (§ CROMO-NAV-FOOTER-TEMATIZABLE-1): meta APARTE de `tema` — ver el docstring de
   // `CromoContent` para el porqué (el guardar/publicar de la paleta reemplaza `tema` entero y
   // resetearía estos 3 ejes en silencio si vivieran ahí).
   out.cromo = {
-    navTinta: preset.navTinta ?? false,
-    navSubtitulo: preset.navSubtitulo ?? false,
-    navBadge: preset.navBadge ?? '',
+    navTinta: fusionar('cromo.navTinta', preset.navTinta ?? false),
+    navSubtitulo: fusionar('cromo.navSubtitulo', preset.navSubtitulo ?? false),
+    navBadge: fusionar('cromo.navBadge', preset.navBadge ?? ''),
   };
   // `volverArriba` (§ CROMO-VOLVER-ARRIBA-1): meta PROPIA, aparte de `cromo` — ver el docstring de
   // `VolverArribaContent` para el porqué (no comparte el contrato exhaustivo de 3 claves de `cromo`,
   // afirmado por `cromo-tematizable.test.ts`).
   out.volverArriba = {
-    visible: preset.volverArribaVisible ?? false,
+    visible: fusionar('volverArriba.visible', preset.volverArribaVisible ?? false),
   };
   // `rielSocial` (§ CROMO-RIEL-SOCIAL-1): meta PROPIA, aparte de `cromo` Y de `volverArriba` — ver
   // el docstring de `RielSocialContent` para el porqué (MISMA razón que `volverArriba`: no comparte
   // el contrato exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`; y no se
   // fusiona con `volverArriba` porque ese dominio ya cerró SU propio contrato de 1 clave).
   out.rielSocial = {
-    visible: preset.rielSocialVisible ?? false,
+    visible: fusionar('rielSocial.visible', preset.rielSocialVisible ?? false),
   };
   // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1): meta PROPIA, aparte de `cromo`, `volverArriba` Y
   // `rielSocial` — ver el docstring de `NavTratamientoContent` para el porqué (conceptualmente es la
@@ -428,28 +511,30 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:`
   // de este slice).
   out.navTratamiento = {
-    activo: preset.navTratamientoActivo ?? false,
+    activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para el porqué (no es
   // el mismo eje que `navTratamiento`: aquél trata los links del nav, éste el wordmark apilado).
   out.navWordmark = {
-    activo: preset.navWordmarkActivo ?? false,
+    activo: fusionar('navWordmark.activo', preset.navWordmarkActivo ?? false),
   };
-  out.esquemas = { ...preset.esquemas };
-  out.orden = [...preset.orden];
+  // `esquemas`/`orden` — fusión de BLOB ENTERO, no por banda (§ el docstring de arriba, "GRANULARIDAD").
+  out.esquemas = fusionar('esquemas', { ...preset.esquemas });
+  out.orden = fusionar('orden', [...preset.orden]);
 
   const registro = REGISTRY as Record<string, SeccionDef | undefined>;
   const variantesBandas: Record<string, string> = {};
   for (const [seccion, variante] of Object.entries(preset.variantes)) {
     if (registro[seccion]) {
       const prev = esObj(out[seccion]) ? out[seccion] : {};
-      out[seccion] = { ...prev, variante };
+      out[seccion] = { ...prev, variante: fusionar(`${seccion}.variante`, variante) };
     } else {
       variantesBandas[seccion] = variante;
     }
   }
-  out.variantesBandas = variantesBandas;
+  // `variantesBandas` — BLOB ENTERO, misma razón que `esquemas`/`orden` arriba.
+  out.variantesBandas = fusionar('variantesBandas', variantesBandas);
 
   // SPOTLIGHT COMO VARIANTE DE `featured` (§ SPOTLIGHT-CABLEADO-HOME-1): `Spotlight.tsx` (NO
   // reescrito por este slice) revisa `seccionEsVisible(REGISTRY.spotlight, spotlight)` ANTES de
@@ -459,14 +544,14 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // preset que ELIGE la variante 'spotlight' para `featured` está pidiendo, por definición, que esa
   // banda se VEA: sin esto, CORTE aplicaría la variante y `Spotlight` devolvería `null`
   // (`spotlight.visible` seguiría en su default `false`), dejando el slot de `featured` vacío — la
-  // variante "elegida" y "en blanco" a la vez. Se enciende SÓLO cuando la variante resultante es
-  // 'spotlight' (nunca para 'cuadricula'/'grilla', ni para ningún otro preset), preservando
-  // cualquier otro campo que la sección ya tuviera (`{ ...prev, visible: true }`, igual que el
-  // `variante` de arriba) — así un tenant que ya haya editado `eyebrow`/`titulo`/el pin no los
-  // pierde al aplicar el preset.
-  if (variantesBandas.featured === 'spotlight' && registro.spotlight) {
+  // variante "elegida" y "en blanco" a la vez. Se enciende SÓLO cuando la variante RESULTANTE (ya
+  // fusionada — el valor que de verdad va a quedar escrito, dueño incluido) es 'spotlight' (nunca
+  // para 'cuadricula'/'grilla', ni para ningún otro preset), preservando cualquier otro campo que la
+  // sección ya tuviera (`{ ...prev, visible: … }`, igual que el `variante` de arriba) — así un
+  // tenant que ya haya editado `eyebrow`/`titulo`/el pin no los pierde al aplicar el preset.
+  if ((out.variantesBandas as Record<string, string>).featured === 'spotlight' && registro.spotlight) {
     const prevSpotlight = esObj(out.spotlight) ? out.spotlight : {};
-    out.spotlight = { ...prevSpotlight, visible: true };
+    out.spotlight = { ...prevSpotlight, visible: fusionar('spotlight.visible', true) };
   }
 
   // BANDAS VISIBLES (§ MUESTRARIO-BANDA-APAGABLE-1) — GEMELO GENERAL del exception de spotlight de
@@ -483,7 +568,7 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   for (const [banda, visible] of Object.entries(preset.bandasVisibles ?? {})) {
     if (typeof visible !== 'boolean' || !registro[banda]) continue;
     const prev = esObj(out[banda]) ? out[banda] : {};
-    out[banda] = { ...prev, visible };
+    out[banda] = { ...prev, visible: fusionar(`${banda}.visible`, visible) };
   }
 
   // HERO TOGGLES (§ TEMAS-HERO-TOGGLES-PRESET-1) — GEMELO de la escritura de `variante` en el loop
@@ -501,14 +586,14 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     const prevHero = esObj(out.hero) ? out.hero : {};
     out.hero = {
       ...prevHero,
-      ...(typeof preset.heroCtasVisibles === 'boolean' ? { ctasVisibles: preset.heroCtasVisibles } : {}),
-      ...(typeof preset.heroCueDesliza === 'boolean' ? { cueDesliza: preset.heroCueDesliza } : {}),
+      ...(typeof preset.heroCtasVisibles === 'boolean' ? { ctasVisibles: fusionar('hero.ctasVisibles', preset.heroCtasVisibles) } : {}),
+      ...(typeof preset.heroCueDesliza === 'boolean' ? { cueDesliza: fusionar('hero.cueDesliza', preset.heroCueDesliza) } : {}),
       // DOS MÁS (§ CORTE-HERO-TITULAR-OCULTABLE-1), mismo mecanismo: escriben SÓLO si el preset los
       // declara explícitamente.
-      ...(typeof preset.heroTitularVisible === 'boolean' ? { titularVisible: preset.heroTitularVisible } : {}),
-      ...(typeof preset.heroSubtituloVisible === 'boolean' ? { subtituloVisible: preset.heroSubtituloVisible } : {}),
+      ...(typeof preset.heroTitularVisible === 'boolean' ? { titularVisible: fusionar('hero.titularVisible', preset.heroTitularVisible) } : {}),
+      ...(typeof preset.heroSubtituloVisible === 'boolean' ? { subtituloVisible: fusionar('hero.subtituloVisible', preset.heroSubtituloVisible) } : {}),
       // UNO MÁS (§ CORTE-HERO-VIEWPORT-LLENO-1), mismo mecanismo.
-      ...(typeof preset.heroAlturaLlena === 'boolean' ? { alturaLlena: preset.heroAlturaLlena } : {}),
+      ...(typeof preset.heroAlturaLlena === 'boolean' ? { alturaLlena: fusionar('hero.alturaLlena', preset.heroAlturaLlena) } : {}),
     };
   }
 
@@ -525,11 +610,12 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     const prevMenu = esObj(out.menu) ? out.menu : {};
     out.menu = {
       ...prevMenu,
-      ...(typeof preset.menuBadgeItem === 'string' ? { badgeItem: preset.menuBadgeItem } : {}),
-      ...(typeof preset.menuBadgeTexto === 'string' ? { badgeTexto: preset.menuBadgeTexto } : {}),
+      ...(typeof preset.menuBadgeItem === 'string' ? { badgeItem: fusionar('menu.badgeItem', preset.menuBadgeItem) } : {}),
+      ...(typeof preset.menuBadgeTexto === 'string' ? { badgeTexto: fusionar('menu.badgeTexto', preset.menuBadgeTexto) } : {}),
     };
   }
 
+  out.presetSnapshot = snapshotNuevo;
   return out;
 }
 

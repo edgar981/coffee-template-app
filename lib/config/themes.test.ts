@@ -499,3 +499,94 @@ test('idempotencia sobre un content VACÍO (sin fila previa, como un SiteContent
   // sus defaults al leer (§ resolverSiteContent), así que esto no pierde nada mostrable.
   assert.deepEqual(una.hero, { variante: 'ficha' });
 });
+
+// ── LA FUSIÓN DE TRES VÍAS (§ REAPPLY-PRESERVA-OVERRIDES-1) — re-aplicar un preset deja de pisar lo
+// que el dueño ya ajustó. La matriz de abajo usa CORTE (el único preset que declara `cromo`/`menu`
+// junto con el resto de los ejes) para poder ejercer el caso REAL sobre un campo de verdad —
+// `cromo.navTinta` (el interruptor del Encabezado) y `menu.badgeTexto` (el texto del badge) —, no un
+// preset sintético que no tocaría esos campos en absoluto. ────────────────────────────────────────
+
+test('(a) SIN snapshot: el preset escribe todo lo que declara, byte a byte lo de HOY — y el snapshot NACE poblado', () => {
+  // CONTENT_CON_DATOS_DEL_DUEÑO no trae `presetSnapshot` — el caso "primer apply", o una fila de
+  // antes de esta capacidad. Ya lo cubren los tests de arriba (preserva texto/imagen, reemplaza
+  // tema/esquemas/orden/variantesBandas); acá se afirma además que el snapshot queda poblado tras el
+  // primer apply, listo para la PRÓXIMA fusión.
+  const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const cromo = despues.cromo as Record<string, unknown>;
+  assert.equal(cromo.navTinta, true, 'lo que CORTE declara, sin ningún override');
+  const snapshot = despues.presetSnapshot as Record<string, unknown>;
+  assert.equal(snapshot['cromo.navTinta'], true);
+  assert.equal(snapshot['menu.badgeTexto'], 'Cosecha 2026');
+});
+
+test('(b) CON snapshot y el valor ACTUAL coincide con lo que el snapshot recuerda: se escribe lo NUEVO del preset — la mejora se propaga', () => {
+  const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  // Simula una MEJORA al preset: CORTE pasa a declarar navTinta:false. El dueño nunca tocó el campo
+  // (el valor actual sigue siendo el que CORTE declaró la vez pasada, `true`, igual al snapshot), así
+  // que el campo debe SEGUIR al preset mejorado, no quedarse en `true`.
+  const corteMejorado: PresetTema = { ...CORTE, navTinta: false };
+  const segundoApply = mergePresetEnContent(primerApply, corteMejorado);
+  const cromo = segundoApply.cromo as Record<string, unknown>;
+  assert.equal(cromo.navTinta, false, 'sin override del dueño, la mejora del preset se propaga');
+});
+
+test('(c) CON snapshot y el valor ACTUAL difiere del snapshot: el dueño lo cambió, y se PRESERVA', () => {
+  const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  // El dueño apaga el interruptor desde el panel (`EncabezadoSeccion.tsx` escribe `content.cromo`
+  // directo, fuera de este motor) — simulado acá tocando el content resultante a mano.
+  const conAjusteDelDueño = {
+    ...primerApply,
+    cromo: { ...(primerApply.cromo as Record<string, unknown>), navTinta: false },
+  };
+  const reaplicado = mergePresetEnContent(conAjusteDelDueño, CORTE); // el MISMO preset, sin cambios
+  const cromo = reaplicado.cromo as Record<string, unknown>;
+  assert.equal(cromo.navTinta, false, 'el ajuste del dueño sobrevive a re-aplicar el mismo preset');
+});
+
+test('(d) el snapshot queda SIEMPRE actualizado a lo que el preset declara AHORA — incluso cuando se preserva el valor del dueño', () => {
+  const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const conAjusteDelDueño = {
+    ...primerApply,
+    cromo: { ...(primerApply.cromo as Record<string, unknown>), navTinta: false },
+  };
+  const reaplicado = mergePresetEnContent(conAjusteDelDueño, CORTE);
+  const snapshot = reaplicado.presetSnapshot as Record<string, unknown>;
+  // El snapshot NO guarda el valor PRESERVADO (false, el del dueño): guarda lo que CORTE declara
+  // ahora (true) — es la base de comparación de la PRÓXIMA vez, no un historial de lo escrito.
+  assert.equal(snapshot['cromo.navTinta'], true);
+  const cromo = reaplicado.cromo as Record<string, unknown>;
+  assert.equal(cromo.navTinta, false, 'pero lo ESCRITO en este apply sigue siendo el valor preservado del dueño');
+});
+
+test('(e) EL CASO REAL: el dueño apaga cromo.navTinta y edita menu.badgeTexto; tras DOS re-aplicaciones de CORTE, los DOS ajustes siguen ahí', () => {
+  const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const conAjustesDelDueño = {
+    ...primerApply,
+    cromo: { ...(primerApply.cromo as Record<string, unknown>), navTinta: false },
+    menu: { ...(primerApply.menu as Record<string, unknown>), badgeTexto: 'Cosecha 2025' },
+  };
+  let content: Record<string, unknown> = conAjustesDelDueño;
+  for (let i = 0; i < 2; i += 1) content = mergePresetEnContent(content, CORTE);
+  const cromo = content.cromo as Record<string, unknown>;
+  const menu = content.menu as Record<string, unknown>;
+  assert.equal(cromo.navTinta, false, 'el interruptor del Encabezado sigue apagado tras re-aplicar CORTE');
+  assert.equal(menu.badgeTexto, 'Cosecha 2025', 'el texto del badge del menú sigue siendo el del dueño');
+  // Lo que el dueño NO tocó se sigue actualizando con lo que CORTE declara — la fusión es por CAMPO,
+  // no "todo o nada" sobre `cromo`/`menu` enteros.
+  assert.equal(cromo.navSubtitulo, true);
+  assert.equal(menu.badgeItem, 'tienda');
+});
+
+test('esquemas/orden/variantesBandas se fusionan como BLOB ENTERO: una mejora al preset se propaga entera si el dueño nunca los tocó', () => {
+  const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const corteMejorado: PresetTema = { ...CORTE, esquemas: { ...CORTE.esquemas, featured: 'oscuro' } };
+  const segundoApply = mergePresetEnContent(primerApply, corteMejorado);
+  assert.deepEqual(segundoApply.esquemas, corteMejorado.esquemas);
+});
+
+test('esquemas: si el valor ACTUAL del blob difiere del snapshot (otro preset aplicado encima), se PRESERVA el blob completo', () => {
+  const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const conOtroEsquema = { ...primerApply, esquemas: { featured: 'oscuro' } }; // divergió del snapshot de CORTE
+  const reaplicado = mergePresetEnContent(conOtroEsquema, CORTE);
+  assert.deepEqual(reaplicado.esquemas, { featured: 'oscuro' });
+});
