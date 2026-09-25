@@ -18313,3 +18313,29 @@ Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO merge
 sección "Destacado" de `/admin/tienda` — sobre la base de la familia `stopped_on:[customer-bytes]` que
 ya cargaba la rama (§ los asientos anteriores de esta familia). El commit queda en la rama a la espera
 del merge gateado del orquestador.
+
+### Pointer FUERA de `touches:` que este diff volvió parcialmente stale — reportado, no corregido
+
+`components/admin/VistaTiendaEnVivo.tsx:88-90` (fuera de `touches:` de este slice) dice: *"Con
+`spotlight.visible` en `false` (el default; este slice no expone el toggle) el componente devuelve
+`null` — la vista previa queda en blanco, no rota (§ el docstring de `SPOTLIGHT` en
+tienda-secciones.ts)."* Dos cosas cambiaron con este diff:
+
+1. **"este slice no expone el toggle"** — literalmente sigue siendo cierto DEL SLICE QUE ESA FRASE
+   describe (`PANEL-EDITOR-SPOTLIGHT-PIN-1`, que en efecto no lo exponía), pero leído hoy, sin más
+   contexto, es engañoso: el toggle YA está expuesto, por `PANEL-EDITOR-SPOTLIGHT-RESTO-1` (este
+   slice).
+2. **La remisión "§ el docstring de `SPOTLIGHT` en tienda-secciones.ts"** apuntaba a un docstring que
+   este mismo diff REESCRIBIÓ (§ arriba, "La `SeccionConfig` — `SPOTLIGHT` en `tienda-secciones.ts`"):
+   el docstring viejo explicaba el pane en blanco SIN aviso porque el toggle vivía fuera de ese
+   slice; el nuevo ya no dice eso — al contrario, dice que `TiendaSeccionEditor` PUEDE pintar el aviso
+   muted "No se muestra en la tienda" ahora que `ocultable` es `true`. La remisión sigue apuntando al
+   símbolo correcto (el docstring de `SPOTLIGHT` sigue existiendo con ese nombre), pero lo que dice HOY
+   no es lo que decía cuando `VistaTiendaEnVivo.tsx:88-90` se escribió.
+
+`VistaTiendaEnVivo.tsx` no está en `touches:` de este slice, así que no se edita acá. Follow-up coined:
+**`VISTATIENDAENVIVO-STALE-POINTER-SPOTLIGHT-1`** — actualizar el comentario de `COMPONENTES.spotlight`
+en `VistaTiendaEnVivo.tsx` para que ya no diga "este slice no expone el toggle" y para que describa el
+comportamiento actual (con `visible:false` sigue en blanco, PERO ahora la tarjeta de lectura en
+`/admin/tienda` sí puede mostrar el aviso muted — el pane en blanco de la vista EN VIVO es otra cosa,
+distinta de la tarjeta de lectura, y conviene que el comentario lo distinga).
