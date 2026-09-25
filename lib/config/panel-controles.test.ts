@@ -126,6 +126,15 @@ test('calibración: SIN exenciones, el chequeo marca las DOS metas de chrome que
   assert.ok(huecos.includes('rielSocial.visible'));
 });
 
+// § MUESTRARIO-DRAWER-MOVIL-TEMA-1: `navDrawerMovil.variante` gana su control EN EL MISMO commit que
+// la mete al lado "leído" — a diferencia de `volverArriba.visible`/`rielSocial.visible` (arriba,
+// siguen sin editor), esta meta nace YA CONTROLADA. Confirma las DOS mitades: está en el lado
+// controlado, y por eso NO aparece como hueco ni siquiera SIN exenciones.
+test('navDrawerMovil.variante: CONTROLADO por EncabezadoSeccion.tsx desde su propio commit — nunca un hueco', () => {
+  assert.ok(camposControladosPorPanel().includes('navDrawerMovil.variante'));
+  assert.ok(!huecosDelPanel({ conExenciones: false }).includes('navDrawerMovil.variante'));
+});
+
 // CERRADO por PANEL-EDITOR-TRUSTBADGES-VISIBLE-1: este test afirmaba que SIN exenciones el chequeo
 // marcaba `trustBadges.visible` como hueco — la calibración original que motivó su entrada en
 // `PENDIENTE_PANEL`. Ese slice le dio control (`TRUSTBADGES` en `SECCIONES_TIENDA`, § tienda-

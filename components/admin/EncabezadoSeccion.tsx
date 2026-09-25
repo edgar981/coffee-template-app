@@ -8,20 +8,28 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 
 // ─── Bloque ENCABEZADO — vive en /admin/tienda, junto a Colores y el Menú ────────────────────────
 //
-// § PANEL-EDITOR-ENCABEZADO-1: los CUATRO ejes del nav que hasta hoy sólo escribía un preset —logo
-// (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`), color del nav (`cromo.navTinta`),
-// tratamiento tipográfico del nav (`navTratamiento.activo`)—. Default = lo que ya trae `content.*`
-// (el preset lo sembró vía `mergePresetEnContent`); el dueño lo overridea con el switch, mismo
-// principio que los interruptores del hero (§ PANEL-EDITOR-HERO-TOGGLES-1: "el preset pone el punto
-// de partida, el dueño lo overridea con el switch").
+// § PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1: los CINCO ejes del
+// nav que hasta hoy sólo escribía un preset —logo (`navWordmark.activo`), sub-encabezado
+// (`cromo.navSubtitulo`), color del nav (`cromo.navTinta`), tratamiento tipográfico del nav
+// (`navTratamiento.activo`), y el drawer móvil de pantalla completa (`navDrawerMovil.variante`)—.
+// Default = lo que ya trae `content.*` (el preset lo sembró vía `mergePresetEnContent`); el dueño lo
+// overridea con el switch, mismo principio que los interruptores del hero (§ PANEL-EDITOR-HERO-
+// TOGGLES-1: "el preset pone el punto de partida, el dueño lo overridea con el switch").
 //
-// PATRÓN `PaletaSeccion`/`MenuSeccion`, NO `TiendaSeccionEditor`: los cuatro switches viven en TRES
+// PATRÓN `PaletaSeccion`/`MenuSeccion`, NO `TiendaSeccionEditor`: los cinco switches viven en CUATRO
 // claves META que `SeccionKey` EXCLUYE del REGISTRY (`cromo`, `navWordmark`, `navTratamiento`,
-// § site-content-defaults.ts) — no son una sección, así que `TiendaSeccionEditor` no tiene forma de
-// montarlas (necesitaría una entrada en `SeccionVista`/`SECCIONES_TIENDA` que no existe para ellas),
-// y el route GENÉRICO de contenido rechaza publicarlas/descartarlas (`seccion in REGISTRY`, § app/
-// api/site-content/route.ts:88). Por eso el Encabezado tiene su PROPIA ruta
+// `navDrawerMovil`, § site-content-defaults.ts) — no son una sección, así que `TiendaSeccionEditor`
+// no tiene forma de montarlas (necesitaría una entrada en `SeccionVista`/`SECCIONES_TIENDA` que no
+// existe para ellas), y el route GENÉRICO de contenido rechaza publicarlas/descartarlas (`seccion in
+// REGISTRY`, § app/api/site-content/route.ts:88). Por eso el Encabezado tiene su PROPIA ruta
 // (`/api/site-content/encabezado`, patrón `app/api/site-content/tema/route.ts`).
+//
+// EL DRAWER MÓVIL ES UN SWITCH (booleano en el FORM) SOBRE UNA VARIANTE (string en el DATO): a
+// diferencia de los otros cuatro ejes (booleano de punta a punta), `navDrawerMovil.variante` es un
+// set cerrado de DOS composiciones (`'dropdown'`/`'pantallaCompleta'`, § `NavDrawerMovilContent`).
+// Con sólo dos miembros, un switch ON/OFF ("¿pantalla completa?") es la UI correcta — no hace falta
+// un selector de N opciones para un dominio de 2—, así que `wireDe` traduce el booleano del form al
+// string del dato en el borde, sin filtrar esa traducción al resto del componente.
 //
 // SIN VISTA PREVIA EN VIVO (como `MenuSeccion`, por la MISMA razón): el nav es cromo TRANSVERSAL
 // (aparece en toda página, no contenido de una sola), y el nav real del storefront (`StoreNav`)
@@ -56,12 +64,14 @@ interface Form {
   subEncabezado: boolean;  // cromo.navSubtitulo
   colorNav: boolean;       // cromo.navTinta
   tratamientoNav: boolean; // navTratamiento.activo
+  drawerMovil: boolean;    // navDrawerMovil.variante === 'pantallaCompleta'
 }
 
 interface Wire {
   cromo: { navTinta: boolean; navSubtitulo: boolean; navBadge: string };
   navWordmark: { activo: boolean };
   navTratamiento: { activo: boolean };
+  navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
 }
 
 const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
@@ -69,6 +79,7 @@ const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
   { name: 'colorNav', label: 'Color del encabezado', hint: 'El encabezado se ve con un fondo de color sólido, en vez del que usa hoy.' },
   { name: 'tratamientoNav', label: 'Tratamiento del menú', hint: 'Los enlaces del menú van en mayúscula, con más espacio entre letras.' },
+  { name: 'drawerMovil', label: 'Drawer móvil de pantalla completa', hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.' },
 ];
 
 export default function EncabezadoSeccion() {
@@ -91,6 +102,7 @@ export default function EncabezadoSeccion() {
     cromo: { navTinta: f.colorNav, navSubtitulo: f.subEncabezado, navBadge: badge },
     navWordmark: { activo: f.logo },
     navTratamiento: { activo: f.tratamientoNav },
+    navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
   });
 
   const guardarEncabezado = useCallback(async (w: Wire) => {
@@ -114,12 +126,14 @@ export default function EncabezadoSeccion() {
         cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
         navWordmark?: { activo?: unknown };
         navTratamiento?: { activo?: unknown };
+        navDrawerMovil?: { variante?: unknown };
       };
       setForm({
         logo: !!contenido.navWordmark?.activo,
         subEncabezado: !!contenido.cromo?.navSubtitulo,
         colorNav: !!contenido.cromo?.navTinta,
         tratamientoNav: !!contenido.navTratamiento?.activo,
+        drawerMovil: contenido.navDrawerMovil?.variante === 'pantallaCompleta',
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
       setHayBorrador(!!d.sinPublicar?.encabezado);

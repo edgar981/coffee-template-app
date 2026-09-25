@@ -105,6 +105,17 @@ test('validarPreset(CORTE) sigue devolviendo [] (completo) — los 3 ejes nuevos
   assert.deepEqual(validarPreset(CORTE), []);
 });
 
+// § MUESTRARIO-DRAWER-MOVIL-TEMA-1: CORTE ganó un CUARTO eje, `navDrawerMovilVariante` — meta PROPIA
+// (`navDrawerMovil`), no un campo de `cromo`. Este test confirma que `cromo` SIGUE siendo EXACTAMENTE
+// las 3 claves de siempre (el docstring de esta sección lo declara "sigue siendo cierto" — acá se
+// afirma por ejecución, no sólo por lectura): el eje nuevo no ensanchó el objeto que este archivo
+// asume exhaustivo.
+test('CORTE declara `navDrawerMovilVariante` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) SIN ensanchar `cromo` — meta PROPIA, no un 4º campo', () => {
+  assert.equal(CORTE.navDrawerMovilVariante, 'pantallaCompleta');
+  const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, CORTE);
+  assert.deepEqual(Object.keys(out.cromo as object).sort(), ['navBadge', 'navSubtitulo', 'navTinta']);
+});
+
 // ── Logo — el ÚNICO componente de esta superficie renderizable sin contexto de ruteo ────────────
 // Sin `subtitle` (el default en TODO caller salvo que `cromo.navSubtitulo` sea `true`), el HTML es
 // BYTE-IDÉNTICO al de antes de este slice — medido contra `git show HEAD:components/storefront/

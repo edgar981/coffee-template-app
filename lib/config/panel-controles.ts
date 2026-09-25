@@ -15,8 +15,9 @@
 // `booleanos` + (`variante` si la sección declara `variantes`) + las claves de `escalares` +
 // (`visible` si la sección es `ocultable`) — es exactamente el inventario que `resolverSiteContent`
 // ya usa para decidir qué escribe cada sección; no es un segundo inventario paralelo, es leer el que
-// ya gobierna el resolver. Más las SIETE claves NO-sección con forma fija (`paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`), leídas de `DEFAULTS` en runtime.
+// ya gobierna el resolver. Más las OCHO claves NO-sección con forma fija (`paginas`, `tema`, `cromo`,
+// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `navDrawerMovil`), leídas de
+// `DEFAULTS` en runtime.
 //
 // LO QUE QUEDA AFUERA A PROPÓSITO — `esquemas`, `orden`, `variantesBandas`, `presetSnapshot` — NO por
 // una lista de excepciones, sino porque NUNCA ENTRAN al lado "leído": son dominio ABIERTO (`esquemas`/
@@ -55,9 +56,9 @@ import { SECCIONES_TIENDA, type SeccionConfig } from '@/components/admin/tienda-
 
 // ─── LADO A: lo que la tienda LEE ──────────────────────────────────────────────────────────────────
 
-/** Las siete claves NO-sección con forma FIJA (un objeto con campos nombrados, no un `Record` abierto).
+/** Las OCHO claves NO-sección con forma FIJA (un objeto con campos nombrados, no un `Record` abierto).
  *  `esquemas`/`orden`/`variantesBandas` NO están acá — dominio abierto, § el comentario de cabecera. */
-const METAS_CON_CAMPOS = ['paginas', 'tema', 'cromo', 'volverArriba', 'rielSocial', 'navTratamiento', 'navWordmark'] as const;
+const METAS_CON_CAMPOS = ['paginas', 'tema', 'cromo', 'volverArriba', 'rielSocial', 'navTratamiento', 'navWordmark', 'navDrawerMovil'] as const;
 type MetaConCampos = (typeof METAS_CON_CAMPOS)[number];
 
 /** Los campos que `resolverSiteContent`/el escritor resuelven para UNA sección, derivados de su
@@ -196,15 +197,17 @@ const CONTROLADOS_PALETA_SECCION = ['tema.fondo', 'tema.tinta', 'tema.acento', '
  *  encendido/apagado de cada página apagable. */
 const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscripciones.visible'];
 
-/** DECLARACIÓN EXPLÍCITA de lo que `EncabezadoSeccion.tsx` controla (§ PANEL-EDITOR-ENCABEZADO-1):
- *  `cromo`/`navWordmark`/`navTratamiento` NO son secciones del REGISTRY (§ el docstring de
- *  `CONTROLADOS_PALETA_SECCION`, misma familia que `tema`), así que tienen su propia ruta de
- *  publicar/descartar (`/api/site-content/encabezado`) y se declaran acá, leídas de su código: los
- *  cuatro switches — logo (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`), color del
- *  nav (`cromo.navTinta`) y tratamiento del nav (`navTratamiento.activo`). NO controla
- *  `cromo.navBadge` (§ PENDIENTE_PANEL, abajo — superseded por el badge del ítem de menú, que sí
- *  tiene control en `MenuSeccion.tsx`). */
-const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo'];
+/** DECLARACIÓN EXPLÍCITA de lo que `EncabezadoSeccion.tsx` controla (§ PANEL-EDITOR-ENCABEZADO-1,
+ *  ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1): `cromo`/`navWordmark`/`navTratamiento`/
+ *  `navDrawerMovil` NO son secciones del REGISTRY (§ el docstring de `CONTROLADOS_PALETA_SECCION`,
+ *  misma familia que `tema`), así que tienen su propia ruta de publicar/descartar (`/api/
+ *  site-content/encabezado`) y se declaran acá, leídas de su código: los CINCO switches — logo
+ *  (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`), color del nav (`cromo.navTinta`),
+ *  tratamiento del nav (`navTratamiento.activo`) y el drawer móvil de pantalla completa
+ *  (`navDrawerMovil.variante`, un switch ON/OFF sobre el set cerrado de 2 — "pantallaCompleta" vs.
+ *  el default "dropdown"). NO controla `cromo.navBadge` (§ PENDIENTE_PANEL, abajo — superseded por
+ *  el badge del ítem de menú, que sí tiene control en `MenuSeccion.tsx`). */
+const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navDrawerMovil.variante'];
 
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {

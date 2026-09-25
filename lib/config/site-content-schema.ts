@@ -380,6 +380,17 @@ const navWordmarkEditableSchema = z.object({
   activo: z.boolean().optional(),
 });
 
+// META de VARIANTE DEL DRAWER MÓVIL (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1): MISMA forma que
+// `navWordmarkEditableSchema` (dominio CERRADO, NO sección, NO pasa por borrador/publicar del route
+// GENÉRICO — § el docstring de `NavDrawerMovilContent`, site-content-defaults.ts) pero meta PROPIA
+// — no comparte objeto con `cromo`, `volverArriba`, `rielSocial`, `navTratamiento` ni `navWordmark`.
+// A diferencia de esos cuatro (un booleano), el valor es un `z.enum` de 2 miembros: declarado acá
+// SÓLO para que un futuro write general no la STRIPPEE en silencio (§ #65-B), como `esquemas`/
+// `orden`/`variantesBandas`/las otras cuatro metas de chrome.
+const navDrawerMovilEditableSchema = z.object({
+  variante: z.enum(['dropdown', 'pantallaCompleta']).optional(),
+});
+
 // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). A diferencia de `cromo`/`esquemas`/`orden` de arriba,
 // ESTA sí es una SECCIÓN de verdad (pasa por el flujo borrador/publicar de siempre, § REGISTRY.menu
 // en site-content-defaults.ts) — se declara acá por la MISMA razón que todas las demás secciones:
@@ -488,6 +499,7 @@ export const siteContentEditableSchema = z.object({
   rielSocial: rielSocialEditableSchema.optional(),
   navTratamiento: navTratamientoEditableSchema.optional(),
   navWordmark: navWordmarkEditableSchema.optional(),
+  navDrawerMovil: navDrawerMovilEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),

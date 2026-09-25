@@ -21010,3 +21010,145 @@ reconozca la 4ª clave, y ese archivo (`app/api/site-content/encabezado/route.ts
 para que `MUESTRARIO-DRAWER-MOVIL-PLUMBING-1` lo reaplique byte a byte con `touches:` ensanchado a
 `app/api/site-content/encabezado/route.ts` (obligatorio) y `tests/integracion/
 panel-encabezado.test.ts` (por completitud del espejo).
+
+## 2026-09-25 — `MUESTRARIO-DRAWER-MOVIL-TEMA-1` — CERRADO: el diff ya construido y verificado del despacho anterior (`54d3452`, dangling) se aplicó byte a byte con `touches:` ensanchado a los dos archivos de plomería que ese despacho identificó (`MUESTRARIO-DRAWER-MOVIL-PLUMBING-1`) — AWAITING_APPROVAL por customer-bytes, sin schema
+
+### Lo que se hizo: reusar el trabajo ya medido, no reconstruirlo
+
+El despacho anterior (mismo día) construyó la capacidad ENTERA y la verificó en verde, pero la
+revirtió sin commitear porque el ÚNICO archivo fuera de su `touches:` era estructuralmente
+necesario para la PERSISTENCIA del control de panel —`app/api/site-content/encabezado/route.ts`
+(su `.pick()`/`METAS_ENCABEZADO` hardcodeaban las 3 metas pre-existentes; sin la 4ª clave el
+switch nuevo se vería andar y no guardaría nada, § #65-B)—, más `tests/integracion/
+panel-encabezado.test.ts` (su propio espejo del mismo `.pick()`/lista, por completitud, no
+imprescindible para el gate). Ese trabajo quedó vivo en el commit COLGANTE `54d3452` ("WIP full
+build for measurement"), alcanzable por SHA. El spec de ESTE despacho ya trae `touches:`
+ensanchado a esos dos archivos exactos — la tarea era aplicar el diff ya medido, no re-diseñar
+nada.
+
+**Verificado ANTES de tocar nada:** `54d3452^` = `a036931` = el `HEAD^{tree}` de este despacho
+antes de escribir, MODULO el asiento BLOCKED (`git rev-parse a036931^{tree}` =
+`12510f10b9daf44f2d42e6584fe7def93d39e9b0`; `HEAD^{tree}` de este despacho antes de tocar nada
+difería SÓLO en `DECISIONS.md`, el texto del asiento BLOCKED de arriba — sin código nuevo desde
+`a036931`). Se aplicó con `git checkout 54d3452 -- <cada uno de los 11 archivos del diff>` (los
+9 archivos originales de `touches:` que SÍ cambiaron + los 2 de plomería); `lib/config/
+site-content-defaults.test.ts` —el 12º archivo de `touches:`— se dejó SIN TOCAR, confirmando la
+medición del despacho anterior de que sus walkers genéricos (`walkStrings` sobre `DEFAULTS`) no
+necesitaban ajuste. Confirmado con `git diff a036931 --stat -- . ':!DECISIONS.md'`: 11 archivos,
+518 inserciones / 88 eliminaciones — EXACTAMENTE el diffstat de `54d3452` contra su padre — el
+árbol de código de este commit es BYTE-IDÉNTICO al que el despacho anterior ya había construido y
+medido en verde.
+
+### El diseño, sin cambios respecto al despacho anterior (ver el asiento BLOCKED de arriba para el detalle completo)
+
+El drawer de navegación MÓVIL gana su propia meta de VARIANTE, `content.navDrawerMovil`
+(`NavDrawerMovilContent { variante: 'dropdown' | 'pantallaCompleta' }`) — MISMA forma que
+`navTratamiento`/`navWordmark` (booleano de un ajuste sobre un elemento ya montado) pero con
+VARIANTE en vez de booleano, porque las dos composiciones (dropdown angosto bajo el header vs.
+pantalla completa con cabecera propia) son FORMAS ENTERAS distintas del mismo elemento, igual
+criterio que `hero.variante`/`brandStory.variante`. `'dropdown'` es la canónica, byte-idéntica a
+HOY; `'pantallaCompleta'` es la composición del prototipo, medida contra
+`docs/prototipos/cafeone/css/app.css:300-321` e `index.html:93-106`. `cromo`/`navTratamiento`/
+`navWordmark` NO se tocaron — sus docstrings ya declaraban que no gobiernan el drawer, y `cromo-
+tematizable.test.ts` lo confirma por ejecución (`cromo` sigue en exactamente 3 claves).
+
+- **La plomería que cerró el bloqueo, dos líneas en `app/api/site-content/encabezado/route.ts`**:
+  `encabezadoEditableSchema` gana `navDrawerMovil: true` en el `.pick()`; `METAS_ENCABEZADO` gana
+  `'navDrawerMovil'` al final del array. El docstring de cabecera pasa de "cuatro ejes... TRES
+  claves META" a "cinco ejes... CUATRO claves META".
+- **`tests/integracion/panel-encabezado.test.ts`** ganó la 4ª clave en `ENCABEZADO_SCHEMA`/
+  `METAS_ENCABEZADO`, los cinco tests existentes incluyen `navDrawerMovil` en sus bodies, y un
+  sexto test nuevo afirma que el drawer se publica/descarta de forma independiente de los otros
+  tres ejes.
+- **El control de panel** (`EncabezadoSeccion.tsx`, quinto switch "Drawer móvil de pantalla
+  completa") y su declaración en `panel-controles.ts` (`CONTROLADOS_ENCABEZADO_SECCION` gana
+  `'navDrawerMovil.variante'`) ya estaban construidos por el despacho anterior — `huecosDelPanel()`
+  da `[]`, `PENDIENTE_PANEL.length` sigue en **13** (el techo del trinquete NO subió).
+- **`StoreNav.tsx`** despacha por `navDrawerMovil.variante`: `'dropdown'` es el JSX de hoy verbatim;
+  `'pantallaCompleta'` es la composición nueva (cabecera propia + entrada escalonada vía
+  `motion.div`/`variants`/`custom`, congelada por `MotionConfig reducedMotion="user"` sin guard
+  propio — el mismo mecanismo declarativo que el dropdown de hoy ya usa).
+
+### El gate, medido sobre EL ÁRBOL FINAL de este despacho
+
+- `npx tsc --noEmit -p tsconfig.json` → **0 errores**.
+- `npm test` → **2040/2040**, 0 fail — coincide exactamente con la cifra que el despacho anterior
+  había medido sobre el mismo diff.
+- `npm run test:integracion` → primera corrida **231/232** (1 fallo: `CONCURRENCIA: webhook y
+  reconciliador procesando el MISMO evento A LA VEZ`, `tests/integracion/
+  wompi-reconciliador.test.ts:2` — archivo AJENO a `touches:` de este slice, sobre el eje de pagos
+  Wompi, sin relación con el drawer/tema). Re-corrida completa **232/232**, verde — confirma que
+  el primer fallo fue un FLAKE de timing en un test de CONCURRENCIA real (dos ramas async
+  compitiendo por el mismo `PaymentIntent`), no una regresión de este diff: ningún archivo que
+  este slice toca participa en esa cadena, y la cifra de la re-corrida coincide con el piso
+  232/232 que el despacho anterior ya había medido sobre el mismo árbol de código.
+- `npm run verificar:nayoli:visual` → **0px de diferencia en las 6 rutas + los 2 hovers**
+  (home/tienda/producto/checkout/nosotros/suscripciones, hover-automática, hover-elección) —
+  MEDIDO de nuevo en este despacho (no reconciliado por identidad de árbol), sobre el build de
+  producción de esta rama. El fixture captura a `ANCHO_VIEWPORT=1280` (escritorio): el drawer
+  móvil vive detrás de `lg:hidden` y no se ejerce a ese ancho. **LÍMITE DE LA VERIFICACIÓN,
+  DECLARADO**: el 0px confirma que Nayoli (canónica, `'dropdown'`) no cambió en ninguna superficie
+  que el fixture mide — no ejercita la composición `'pantallaCompleta'` en sí, que no tiene forma
+  de aparecer en un tenant sin preset CORTE aplicado ni en un viewport de escritorio.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md` — ningún hallazgo
+
+Símbolos/paths que este diff cambió: `navDrawerMovil`, `NavDrawerMovilContent`,
+`resolverNavDrawerMovil`, `ClaveDrawerMovil`, `CONTROLADOS_ENCABEZADO_SECCION`,
+`METAS_CON_CAMPOS`, `METAS_ENCABEZADO`, `encabezadoEditableSchema`, `navDrawerMovilVariante`,
+`StoreNav.tsx`, `EncabezadoSeccion.tsx`, `panel-controles.ts`, `themes.ts`,
+`site-content-schema.ts`, `site-content-defaults.ts`, `app/api/site-content/encabezado/route.ts`,
+`tests/integracion/panel-encabezado.test.ts`.
+
+- Grep de los símbolos nuevos (`navDrawerMovil`, `NavDrawerMovilContent`,
+  `resolverNavDrawerMovil`, `ClaveDrawerMovil`, `CONTROLADOS_ENCABEZADO_SECCION`,
+  `METAS_CON_CAMPOS`, `METAS_ENCABEZADO`, `encabezadoEditableSchema`, `navDrawerMovilVariante`) en
+  `CLAUDE.md`: **CERO resultados** para los nueve.
+- Grep de los NOMBRES de archivo tocados: `StoreNav`/`StoreFooter` aparecen (líneas 2841, 2938,
+  4438, 4456) pero sólo en el contexto de "el nav es data-driven" y del wordmark/mark de marca —
+  ninguna de esas frases describe el drawer móvil ni queda afectada por que gane una variante.
+  `site-content-schema.ts`/`site-content-defaults.ts` aparecen (línea 39, la lista de superficies
+  Tier 1; líneas 89-90, 1860-2698) siempre en su rol de superficie PROTEGIDA o de mecánica general
+  del REGISTRY/resolver — ninguna sentencia describe el conjunto de metas no-sección de forma
+  exhaustiva (a diferencia de `SeccionKey`, que SÍ lo hace, y vive en el código, no en
+  `CLAUDE.md`). `EncabezadoSeccion.tsx`, `panel-controles.ts`, `panel-encabezado.test.ts`,
+  `encabezado/route.ts`, `PANEL-EDITOR-ENCABEZADO-1`: **CERO resultados** en `CLAUDE.md` — esa
+  doctrina vive sólo en los docstrings del código y en `DECISIONS.md`, nunca se promovió al
+  archivo de doctrina del repo.
+- Grep de "drawer"/"Drawer"/"mobile-nav"/"Mobile Menu": los ÚNICOS resultados son sobre el drawer
+  ADMIN (`DunaSheet`, `useDescarteDeDrawer`, el customizer de "Tu panel") — un concepto no
+  relacionado, ya existente, sin tocar por este diff.
+- **Ningún hallazgo**: no hay sentencia en `CLAUDE.md` que este diff vuelva falsa.
+
+### Merge policy A — por qué éste PARA en `AWAITING_APPROVAL`
+
+El diff falla UNA de las tres condiciones:
+
+- **`customer-bytes`**: `components/storefront/layout/StoreNav.tsx` gana una segunda composición
+  posible del drawer móvil (`'pantallaCompleta'`) y el mecanismo por el que un dueño real la
+  activaría desde el panel es nuevo (`EncabezadoSeccion.tsx`, quinto switch). Para Nayoli hoy el
+  resultado renderizado es byte-idéntico (medido, § arriba) — pero la RAMA (no el commit) ya
+  cambió bytes de cliente en slices anteriores de esta misma tanda (Footer, Mega-menu, etc.), así
+  que `changed: true` contra `main` es correcto por el eje de rama.
+- **`schema`**: NO aplica — no se toca `packages/core/prisma/schema.prisma` ni se agrega
+  migración; la meta vive en `SiteContent.content` (JSON ya existente).
+- **`cross-repo-contract`**: NO aplica.
+
+`stopped_on: [customer-bytes]`.
+
+### `open_followups`
+
+- **`MUESTRARIO-DRAWER-MOVIL-PLUMBING-1`** (coined por el despacho anterior) — CERRADO por este
+  mismo commit: el archivo que nombraba (`app/api/site-content/encabezado/route.ts`) y el de
+  completitud (`tests/integracion/panel-encabezado.test.ts`) ya están escritos y verificados.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (tsc 0, `npm test` 2040/2040, `npm run test:integracion`
+232/232 tras confirmar que el primer 231/232 fue un flake ajeno en `wompi-reconciliador.test.ts`,
+Nayoli visual 0px re-medido en 6 rutas + 2 hovers con el límite viewport-desktop declarado),
+commiteado en `slice/corte-reescritura-prototipo-1`. El diff toca bytes de cliente (el drawer
+móvil del storefront gana una segunda composición y su edición desde el panel) pero NINGÚN schema
+ni contrato cross-repo — la única de las tres condiciones de merge policy A que aplica es
+`customer-bytes`. El owner ya aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente de gate visual/owner, como en todo Tier 1.

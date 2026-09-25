@@ -45,7 +45,7 @@ import { CLAVES_FUENTES, type ClaveFuentePar, resolverFuentePar } from './fuente
 import { CLAVES_FORMAS, type ClaveForma, resolverForma } from './formas';
 import {
   REGISTRY, BANDA_IDS, ORDEN_DEFAULT, VARIANTES_ESTRUCTURALES,
-  type SeccionDef, type BandaId, type ClaveEsquema, type MenuItemId,
+  type SeccionDef, type BandaId, type ClaveEsquema, type MenuItemId, type ClaveDrawerMovil,
 } from './site-content-defaults';
 import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
 import type { ClaveEscalaDisplay } from './escala-display';
@@ -212,6 +212,17 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * propios valores medidos — ver el docstring de `NavWordmarkContent` en `site-content-defaults.ts`).
  * CORTE es hoy el ÚNICO preset que lo declara.
  *
+ * `navDrawerMovilVariante` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1, OPCIONAL) — ¿el drawer móvil (el panel
+ * que abre el botón hamburguesa en `<lg`) rinde la composición de PANTALLA COMPLETA del prototipo
+ * (`.mobile-nav`, `docs/prototipos/cafeone/css/app.css:300-321`, `index.html:93-106` — cabecera
+ * propia con wordmark+botón cerrar, links con entrada escalonada por `--i`)? AUSENTE = el
+ * comportamiento de HOY, byte a byte (el panel angosto `motion.div`/`AnimatePresence` bajo el
+ * header, sin cabecera propia ni escalonado). Escribe `content.navDrawerMovil.variante`
+ * (`NavDrawerMovilContent`, meta PROPIA — ver su docstring en `site-content-defaults.ts` para el
+ * porqué de que no comparta objeto con `cromo`/`volverArriba`/`rielSocial`/`navTratamiento`/
+ * `navWordmark`: es una VARIANTE de FORMA, como `hero.variante`, no un ajuste ON/OFF sobre un
+ * elemento que ya existe en su forma de hoy). CORTE es hoy el ÚNICO preset que lo declara.
+ *
  * `menuBadgeItem`/`menuBadgeTexto` (§ CORTE-BADGE-COSECHA-EN-MENU-1, OPCIONALES) — el badge de
  * cosecha del prototipo (`.nav-item .badge`, `index.html:27-32`), MUDADO de `navBadge` (arriba, que
  * envolvía el LOGO) a ser un ATRIBUTO de UN ítem del menú (`MenuContent.badgeItem`/`.badgeTexto`,
@@ -249,6 +260,7 @@ export interface PresetTema {
   rielSocialVisible?: boolean;
   navTratamientoActivo?: boolean;
   navWordmarkActivo?: boolean;
+  navDrawerMovilVariante?: ClaveDrawerMovil;
   menuBadgeItem?: MenuItemId;
   menuBadgeTexto?: string;
 }
@@ -518,6 +530,13 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // el mismo eje que `navTratamiento`: aquél trata los links del nav, éste el wordmark apilado).
   out.navWordmark = {
     activo: fusionar('navWordmark.activo', preset.navWordmarkActivo ?? false),
+  };
+  // `navDrawerMovil` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1): meta PROPIA, aparte de `cromo`,
+  // `volverArriba`, `rielSocial`, `navTratamiento` Y `navWordmark` — ver el docstring de
+  // `NavDrawerMovilContent` para el porqué (VARIANTE de forma, no un ajuste ON/OFF; no comparte el
+  // contrato exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`).
+  out.navDrawerMovil = {
+    variante: fusionar('navDrawerMovil.variante', preset.navDrawerMovilVariante ?? 'dropdown'),
   };
   // `esquemas`/`orden` — fusión de BLOB ENTERO, no por banda (§ el docstring de arriba, "GRANULARIDAD").
   out.esquemas = fusionar('esquemas', { ...preset.esquemas });
@@ -921,6 +940,17 @@ export const CORTE: PresetTema = {
   // arriba, § CROMO-NAV-FOOTER-TEMATIZABLE-1); este eje sólo cambia el ESTILO de esa rama. CORTE es
   // hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan `content.navWordmark`.
   navWordmarkActivo: true,
+  // navDrawerMovilVariante (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDO contra el prototipo:
+  // `.mobile-nav` (`docs/prototipos/cafeone/css/app.css:300-321`) es un panel `position:fixed;
+  // inset:var(--frame-gap)` (12px) con `border-radius:var(--frame-radius)` (14px),
+  // `background:var(--surface-inverse)` (la MISMA tinta de `raices.tinta`), cabecera propia
+  // (`.mobile-nav-head`, `index.html:94-97`: wordmark + botón cerrar, `margin-bottom:var(--space-10)`
+  // = 40px) y los links (`a.m-link`, `index.html:98-105`) con entrada ESCALONADA
+  // (`animation-delay:calc(var(--i,0) * 60ms + 80ms)`, `420ms var(--ease-out)`, opacity 0→1 +
+  // `translateY(14px)`→0) — el dropdown angosto de HOY no tiene ninguna de las dos piezas
+  // (cabecera propia, escalonado). CORTE es hoy el ÚNICO preset del catálogo que lo declara; los
+  // otros cinco no tocan `content.navDrawerMovil`.
+  navDrawerMovilVariante: 'pantallaCompleta',
 };
 
 export const PATIO: PresetTema = {

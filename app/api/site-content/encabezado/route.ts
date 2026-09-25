@@ -5,14 +5,15 @@ import { storage } from '@/lib/storage';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config/site-content-write';
 
-// EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1): logo, sub-encabezado, color del nav y tratamiento
-// tipográfico del nav — cuatro ejes que hasta hoy sólo escribía un preset (`mergePresetEnContent`,
-// `themes.ts`). Los CUATRO viven en TRES claves META que `SeccionKey` EXCLUYE del REGISTRY
-// (`cromo`, `navWordmark`, `navTratamiento`; § site-content-defaults.ts) — NO son una sección, así
-// que el PUT/POST GENÉRICO de `/api/site-content` no sirve para publicarlas/descartarlas: su gate
-// `seccion in REGISTRY` (route.ts:88) las rechaza con 400. El PUT genérico SÍ las acepta al
-// borrador (`siteContentEditableSchema` ya las declara opcionales), pero sin ruta propia de
-// publicar quedarían escribiendo un borrador que nunca se puede mover a lo publicado.
+// EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1): logo,
+// sub-encabezado, color del nav, tratamiento tipográfico del nav y el drawer móvil de pantalla
+// completa — cinco ejes que hasta hoy sólo escribía un preset (`mergePresetEnContent`, `themes.ts`).
+// Los CINCO viven en CUATRO claves META que `SeccionKey` EXCLUYE del REGISTRY (`cromo`,
+// `navWordmark`, `navTratamiento`, `navDrawerMovil`; § site-content-defaults.ts) — NO son una
+// sección, así que el PUT/POST GENÉRICO de `/api/site-content` no sirve para publicarlas/
+// descartarlas: su gate `seccion in REGISTRY` (route.ts:88) las rechaza con 400. El PUT genérico SÍ
+// las acepta al borrador (`siteContentEditableSchema` ya las declara opcionales), pero sin ruta
+// propia de publicar quedarían escribiendo un borrador que nunca se puede mover a lo publicado.
 //
 // El único precedente de una meta no-sección con flujo borrador/publicar es `tema`
 // (`app/api/site-content/tema/route.ts`), resuelto con su PROPIA ruta reusando las funciones
@@ -45,14 +46,15 @@ async function requireAdmin() {
   return {};
 }
 
-// Acota el schema COMPLETO a las tres claves del Encabezado — ver el docstring de arriba.
+// Acota el schema COMPLETO a las cuatro claves del Encabezado — ver el docstring de arriba.
 const encabezadoEditableSchema = siteContentEditableSchema.pick({
   cromo: true,
   navWordmark: true,
   navTratamiento: true,
+  navDrawerMovil: true,
 });
 
-const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento'] as const;
+const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
 
 // Borrado de blobs huérfanos, best-effort, DESPUÉS del write (§ route genérico). El Encabezado no
 // tiene imágenes propias, así que `blobsABorrar` es siempre `[]` hoy — el contrato se mantiene por

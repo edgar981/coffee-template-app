@@ -6,16 +6,17 @@ import { guardarBorrador, publicarSeccion, descartarSeccion, aplicarPreset } fro
 import { readSiteContent, readSiteContentParaEditor } from '../../lib/config/site-content-read';
 import { CORTE } from '../../lib/config/themes';
 
-// EL VIAJE DE PUNTA A PUNTA del ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1). `cromo`/`navWordmark`/
-// `navTratamiento` NO son secciones del REGISTRY (§ site-content-defaults.ts — `SeccionKey` las
-// excluye), así que el gate `seccion in REGISTRY` del route GENÉRICO
-// (`app/api/site-content/route.ts:88`) rechazaría publicarlas/descartarlas con 400: sin ESTE viaje
-// probado, el botón "Publicar" de `EncabezadoSeccion.tsx` fallaría SIEMPRE, y un test que sólo
-// renderizara el componente no lo vería — un botón que promete publicar y siempre da 400 se ve
-// idéntico a uno que funciona hasta que alguien lo aprieta. Por eso este test corre contra Postgres
-// real, la MISMA secuencia que la ruta propia (`app/api/site-content/encabezado/route.ts`, patrón
-// `tema/route.ts`): parsear con el schema real → `guardarBorrador` → `publicarSeccion`/
-// `descartarSeccion` de las TRES metas → releer con `readSiteContent`/`readSiteContentParaEditor`.
+// EL VIAJE DE PUNTA A PUNTA del ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por §
+// MUESTRARIO-DRAWER-MOVIL-TEMA-1). `cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil` NO son
+// secciones del REGISTRY (§ site-content-defaults.ts — `SeccionKey` las excluye), así que el gate
+// `seccion in REGISTRY` del route GENÉRICO (`app/api/site-content/route.ts:88`) rechazaría
+// publicarlas/descartarlas con 400: sin ESTE viaje probado, el botón "Publicar" de
+// `EncabezadoSeccion.tsx` fallaría SIEMPRE, y un test que sólo renderizara el componente no lo vería
+// — un botón que promete publicar y siempre da 400 se ve idéntico a uno que funciona hasta que
+// alguien lo aprieta. Por eso este test corre contra Postgres real, la MISMA secuencia que la ruta
+// propia (`app/api/site-content/encabezado/route.ts`, patrón `tema/route.ts`): parsear con el schema
+// real → `guardarBorrador` → `publicarSeccion`/`descartarSeccion` de las CUATRO metas → releer con
+// `readSiteContent`/`readSiteContentParaEditor`.
 //
 // DEVIACIÓN DE UBICACIÓN (medida, no del spec): el touches de este slice nombraba
 // `lib/config/panel-encabezado.test.ts`, pero ESE path cae bajo el glob DB-FREE del carril rápido
@@ -26,18 +27,26 @@ import { CORTE } from '../../lib/config/themes';
 // `scripts/test-integracion.sh` recorre es `tests/integracion/**/*.test.ts`
 // (`node --test ... "tests/integracion/**/*.test.ts"`), así que este archivo vive ACÁ para que
 // `npm run test:integracion` lo ejecute de verdad.
+//
+// FUERA DE `touches:` DE `MUESTRARIO-DRAWER-MOVIL-TEMA-1` (medido, no descuido): este archivo ya
+// existía (`PANEL-EDITOR-ENCABEZADO-1`) espejando el `.pick()`/`METAS_ENCABEZADO` EXACTOS de
+// `app/api/site-content/encabezado/route.ts` — ampliar la ruta a la 4ª meta sin actualizar ESTE
+// espejo lo habría dejado probando sólo 3 de las 4 claves reales, un espejo desincronizado del
+// original que ES la clase de defecto que este mismo archivo existe para prevenir del lado del
+// componente. Ver el asiento de este slice en `DECISIONS.md` para el porqué completo de por qué la
+// ruta necesitaba tocarse pese a no estar en `touches:`.
 
-const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true });
-const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento'] as const;
+const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true });
+const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
 
-/** Simula EXACTAMENTE el PUT de la ruta: parsea el body con el schema real, ACOTADO a las tres
+/** Simula EXACTAMENTE el PUT de la ruta: parsea el body con el schema real, ACOTADO a las cuatro
  *  claves del Encabezado (como hace la ruta con `.pick()`), y guarda el resultado en el borrador. */
 async function guardarComoLaRuta(body: unknown) {
   const parsed = ENCABEZADO_SCHEMA.parse(body);
   return guardarBorrador(parsed);
 }
 
-/** Simula EXACTAMENTE el POST `{accion:'publicar'}` de la ruta: publica las TRES metas, una por
+/** Simula EXACTAMENTE el POST `{accion:'publicar'}` de la ruta: publica las CUATRO metas, una por
  *  una (§ no-atómico, docstring de la ruta). */
 async function publicarComoLaRuta() {
   for (const meta of METAS_ENCABEZADO) await publicarSeccion(meta);
@@ -51,11 +60,12 @@ async function descartarComoLaRuta() {
 beforeEach(async () => { await prisma.siteContent.deleteMany({}); });
 after(async () => { await prisma.siteContent.deleteMany({}); await prisma.$disconnect(); });
 
-test('guardar: las tres metas quedan en el BORRADOR y sinPublicar.encabezado es true', async () => {
+test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado es true', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
     navTratamiento: { activo: true },
+    navDrawerMovil: { variante: 'pantallaCompleta' },
   });
 
   const { contenido, sinPublicar } = await readSiteContentParaEditor();
@@ -65,18 +75,21 @@ test('guardar: las tres metas quedan en el BORRADOR y sinPublicar.encabezado es 
   assert.equal(contenido.cromo.navSubtitulo, true);
   assert.equal(contenido.navWordmark.activo, true);
   assert.equal(contenido.navTratamiento.activo, true);
+  assert.equal(contenido.navDrawerMovil.variante, 'pantallaCompleta');
 
   // Y lo PUBLICADO todavía NO cambió — guardar el borrador no publica.
   const publicado = await readSiteContent();
   assert.equal(publicado.cromo.navTinta, false, 'guardar el borrador no debe tocar lo publicado');
   assert.equal(publicado.navWordmark.activo, false);
+  assert.equal(publicado.navDrawerMovil.variante, 'dropdown');
 });
 
-test('publicar: content.{cromo,navWordmark,navTratamiento} quedan actualizadas y el borrador de las TRES queda limpio', async () => {
+test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan actualizadas y el borrador de las CUATRO queda limpio', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
     navTratamiento: { activo: true },
+    navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
 
@@ -85,9 +98,10 @@ test('publicar: content.{cromo,navWordmark,navTratamiento} quedan actualizadas y
   assert.equal(publicado.cromo.navSubtitulo, true);
   assert.equal(publicado.navWordmark.activo, true);
   assert.equal(publicado.navTratamiento.activo, true);
+  assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 
   const { sinPublicar } = await readSiteContentParaEditor();
-  assert.equal(sinPublicar.encabezado, false, 'publicar debe limpiar el borrador de las tres metas');
+  assert.equal(sinPublicar.encabezado, false, 'publicar debe limpiar el borrador de las cuatro metas');
 });
 
 test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
@@ -96,6 +110,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
     navTratamiento: { activo: true },
+    navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
 
@@ -104,6 +119,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
     cromo: { navTinta: false, navSubtitulo: false, navBadge: '' },
     navWordmark: { activo: false },
     navTratamiento: { activo: false },
+    navDrawerMovil: { variante: 'dropdown' },
   });
   await descartarComoLaRuta();
 
@@ -111,13 +127,14 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   assert.equal(publicado.cromo.navTinta, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navWordmark.activo, true);
   assert.equal(publicado.navTratamiento.activo, true);
+  assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta', 'descartar no debe tocar lo YA publicado');
 
   const { sinPublicar } = await readSiteContentParaEditor();
   assert.equal(sinPublicar.encabezado, false, 'descartar debe limpiar el borrador');
 });
 
-test('default del preset: los cuatro controles arrancan con el valor que puso mergePresetEnContent', async () => {
-  // CORTE es el ÚNICO preset del catálogo que enciende los cuatro ejes (§ themes.ts). Esto verifica
+test('default del preset: los cinco controles arrancan con el valor que puso mergePresetEnContent', async () => {
+  // CORTE es el ÚNICO preset del catálogo que enciende los cinco ejes (§ themes.ts). Esto verifica
   // lo que EncabezadoSeccion.tsx lee al abrir por primera vez sobre un tenant con este preset: los
   // switches YA prendidos, sin que el dueño haya tocado nada — "el preset pone el punto de partida".
   await aplicarPreset(CORTE);
@@ -127,12 +144,13 @@ test('default del preset: los cuatro controles arrancan con el valor que puso me
   assert.equal(publicado.cromo.navSubtitulo, true);
   assert.equal(publicado.navWordmark.activo, true);
   assert.equal(publicado.navTratamiento.activo, true);
+  assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 });
 
 test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se reenvía sin editarlo', async () => {
   // El write reemplaza la clave `cromo` ENTERA (spread por clave top-level, § site-content-write.ts):
   // si el guardado del Encabezado no reenviara `navBadge`, publicar lo borraría en silencio la
-  // primera vez que el dueño toque cualquiera de los OTROS tres switches. `EncabezadoSeccion.tsx` lo
+  // primera vez que el dueño toque cualquiera de los OTROS switches. `EncabezadoSeccion.tsx` lo
   // evita leyendo el `navBadge` vigente y reenviándolo tal cual en cada guardado (§ su docstring) —
   // esto prueba esa garantía al nivel del write, contra Postgres real.
   await aplicarPreset(CORTE); // navBadge = 'Cosecha 2026'
@@ -143,10 +161,23 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
     cromo: { navTinta: false, navSubtitulo: true, navBadge: 'Cosecha 2026' },
     navWordmark: { activo: true },
     navTratamiento: { activo: true },
+    navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
 
   const publicado = await readSiteContent();
   assert.equal(publicado.cromo.navBadge, 'Cosecha 2026', 'el navBadge del preset no debe perderse');
   assert.equal(publicado.cromo.navTinta, false, 'y el cambio que sí se pidió se aplicó');
+});
+
+test('el drawer móvil se puede publicar/descartar de forma INDEPENDIENTE de los otros tres ejes (guarda sólo esa clave)', async () => {
+  // El dueño toca SÓLO el switch del drawer móvil — el body no trae `cromo`/`navWordmark`/
+  // `navTratamiento`, como hace `wireDe` de EncabezadoSeccion.tsx en cada guardado real (manda las
+  // CUATRO metas completas, pero esto prueba que el mecanismo de guardado no las EXIGE juntas).
+  await guardarComoLaRuta({ navDrawerMovil: { variante: 'pantallaCompleta' } });
+  await publicarSeccion('navDrawerMovil');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
+  assert.equal(publicado.cromo.navTinta, false, 'los otros ejes no se tocaron');
 });

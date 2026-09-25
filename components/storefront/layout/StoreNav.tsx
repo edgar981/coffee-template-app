@@ -14,6 +14,26 @@ import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
 
+// ENTRADA ESCALONADA del drawer `pantallaCompleta` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA
+// contra `.mobile-nav.is-open a.m-link` del prototipo (`docs/prototipos/cafeone/css/app.css:311-321`):
+// `animation:m-in 420ms var(--ease-out) forwards; animation-delay:calc(var(--i,0) * 60ms + 80ms)`,
+// con `@keyframes m-in{to{opacity:1;transform:none}}` desde `opacity:0;transform:translateY(14px)`.
+// `--ease-out` es `cubic-bezier(.22,.61,.36,1)` (`docs/prototipos/cafeone/ds/motion.css:2`). Es
+// DECLARATIVA (`variants` + `animate`, no un valor de scroll ligado) — el MISMO mecanismo que ya usa
+// el dropdown de hoy (`motion.div initial/animate/exit`) — así que `MotionConfig
+// reducedMotion="user"` (`ReducedMotionProvider`, `lib/animation.ts`, montado en
+// `app/(storefront)/layout.tsx`) la congela sola bajo `prefers-reduced-motion`, sin un guard propio
+// (a diferencia de `useProgresoAcomodo`/`useScroll`+`useTransform` de `BrandStoryCentrada`, que SÍ
+// necesitan `useReducedMotion()` explícito porque ese provider sólo intercepta animaciones
+// DISPARADAS por `.start()` — ver el comentario de esa sección).
+const ENTRADA_ESCALONADA_DRAWER = {
+  hidden: { opacity: 0, y: 14 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.42, ease: [0.22, 0.61, 0.36, 1] as const, delay: i * 0.06 + 0.08 },
+  }),
+};
+
 export default function StoreNav() {
   const { nombre, tagline } = useSiteSettings();
   // El MENÚ es DATO (§ CROMO-MENU-COMO-DATO-1): `itemsDeMenu` resuelve las etiquetas + el orden
@@ -24,7 +44,7 @@ export default function StoreNav() {
   // Cada ítem puede llevar además un `panel` (§ MUESTRARIO-MEGA-MENU-1) — AUSENTE para todo tenant
   // que no lo declare (Nayoli), así que el `.map` de abajo sigue byte-idéntico sin tocar nada.
   const content = useSiteContent();
-  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark } = content;
+  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
 
@@ -379,32 +399,100 @@ export default function StoreNav() {
           `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1) TAMPOCO lo toca, misma acotación: el
           `.nav-link` medido contra el prototipo es el link del header DESKTOP, siempre visible sin
           scroll ni interacción (§ el arnés de captura); el drawer móvil es otra composición
-          (colores/spacing propios) que ese spec no nombra. */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-[var(--sf-tarjeta)] shadow-lg sf-divisor-b border-[var(--sf-linea)]">
-            <nav className="relative flex flex-col px-4 py-4 gap-4">
-              {links.map(l => (
-                <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
-              ))}
-              {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1), la misma pieza que el desktop nav —
-                  pintada como acción, no como link plano—. */}
-              {ctaHref && (
-                <Link
-                  href={ctaHref}
-                  onClick={() => setMobileOpen(false)}
-                  className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium bg-[var(--sf-acento)]/10 text-[var(--sf-acento-4)]"
-                >
-                  {content.menu.ctaLabel}
-                </Link>
-              )}
-              {/* v1: /cuenta link hidden — restore when account feature ships */}
-              {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Mi Cuenta</Link> */}
-              <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Rastrear Pedido</Link>
-            </nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          (colores/spacing propios) que ese spec no nombra — `navDrawerMovil.variante` (§ MUESTRARIO-
+          DRAWER-MOVIL-TEMA-1) es la meta PROPIA que SÍ lo gobierna, distinta de las tres de arriba. */}
+      {navDrawerMovil.variante === 'pantallaCompleta' ? (
+        // PANTALLA COMPLETA (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA contra `.mobile-nav` del
+        // prototipo (`docs/prototipos/cafeone/css/app.css:300-321`, `index.html:93-106`): panel FIJO
+        // a `inset:12px` (`--frame-gap`), `border-radius:14px` (`--frame-radius`), fondo `--sf-tinta`
+        // (la MISMA raíz que `--surface-inverse`), padding `py-8 px-6` (`--space-8`/`--space-6`),
+        // cabecera propia (wordmark + botón cerrar, `mb-10` = `--space-10`, 40px) y los links con
+        // entrada escalonada (`ENTRADA_ESCALONADA_DRAWER`, arriba). El wordmark se pinta DIRECTO, no
+        // vía `<Logo>`: `wordmarkTratado` de ese componente sólo aplica DENTRO de la rama `subtitle`
+        // (`Logo.tsx`), y `.mobile-nav-head .wordmark` del prototipo NO lleva sub — es la composición
+        // FIJA de esta variante, no un eje independiente de `navWordmark.activo`. Todos los ítems de
+        // HOY se conservan (links + CTA + Rastrear Pedido) — sólo cambia la COMPOSICIÓN que los pinta.
+        <AnimatePresence>
+          {mobileOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
+              className="fixed inset-3 z-50 overflow-y-auto rounded-[14px] bg-[var(--sf-tinta)] px-6 py-8"
+            >
+              <div className="mb-10 flex items-center justify-between">
+                <span className="font-display text-[30px] uppercase leading-none tracking-[0.01em] text-[var(--sf-sobre)]">
+                  {nombre}
+                </span>
+                <button type="button" onClick={() => setMobileOpen(false)} className="p-2 text-[var(--sf-sobre)]" aria-label="Cerrar el menú">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <nav className="flex flex-col">
+                {links.map((l, i) => (
+                  <motion.div key={l.path} custom={i} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                    <Link
+                      href={l.path}
+                      onClick={() => setMobileOpen(false)}
+                      className="block border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] leading-none text-[var(--sf-sobre)] last:border-0"
+                    >
+                      {l.label}
+                    </Link>
+                  </motion.div>
+                ))}
+                {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1), la misma pieza que el dropdown de hoy
+                    — pintada como acción, no como link plano—, con el color sobre-tinta de esta
+                    composición. Continúa la secuencia escalonada tras los links. */}
+                {ctaHref && (
+                  <motion.div custom={links.length} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                    <Link
+                      href={ctaHref}
+                      onClick={() => setMobileOpen(false)}
+                      className="mt-4 inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]"
+                    >
+                      {content.menu.ctaLabel}
+                    </Link>
+                  </motion.div>
+                )}
+                <motion.div custom={links.length + (ctaHref ? 1 : 0)} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                  <Link
+                    href="/rastrear-pedido"
+                    onClick={() => setMobileOpen(false)}
+                    className="block border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] leading-none text-[var(--sf-sobre)] last:border-0"
+                  >
+                    Rastrear Pedido
+                  </Link>
+                </motion.div>
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      ) : (
+        <AnimatePresence>
+          {mobileOpen && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-[var(--sf-tarjeta)] shadow-lg sf-divisor-b border-[var(--sf-linea)]">
+              <nav className="relative flex flex-col px-4 py-4 gap-4">
+                {links.map(l => (
+                  <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
+                ))}
+                {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1), la misma pieza que el desktop nav —
+                    pintada como acción, no como link plano—. */}
+                {ctaHref && (
+                  <Link
+                    href={ctaHref}
+                    onClick={() => setMobileOpen(false)}
+                    className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium bg-[var(--sf-acento)]/10 text-[var(--sf-acento-4)]"
+                  >
+                    {content.menu.ctaLabel}
+                  </Link>
+                )}
+                {/* v1: /cuenta link hidden — restore when account feature ships */}
+                {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Mi Cuenta</Link> */}
+                <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Rastrear Pedido</Link>
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </>
   );
 }

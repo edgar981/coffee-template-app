@@ -893,6 +893,33 @@ export interface NavWordmarkContent {
   activo: boolean;
 }
 
+// El set CERRADO de composiciones del drawer móvil (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1).
+export type ClaveDrawerMovil = 'dropdown' | 'pantallaCompleta';
+
+// META de VARIANTE DEL DRAWER MÓVIL (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MISMA forma que
+// `NavTratamientoContent`/`NavWordmarkContent` (arriba): AUSENTE/`'dropdown'` = el comportamiento de
+// HOY, byte a byte. Meta PROPIA, NO un booleano: a diferencia de esos dos ejes (encendido/apagado de
+// un ajuste sobre un elemento que YA existe en su forma de hoy), acá las DOS composiciones son
+// FORMAS ENTERAS distintas del mismo elemento —un `motion.div` angosto bajo el header vs. una
+// pantalla completa con cabecera propia— así que el eje es de VARIANTE (como `hero.variante`,
+// `brandStory.variante`), no de encendido: un booleano ON/OFF no dice CUÁL de dos formas se pinta,
+// sólo que una cambió. `cromo.navTinta`/`navTratamiento.activo` (§ sus propios docstrings, y el
+// comentario del bloque "Mobile Menu" en `StoreNav.tsx`) declaran EXPLÍCITAMENTE que NO gobiernan el
+// drawer móvil —acotan al header DESKTOP fijo/al `.nav-link` siempre visible— y ese texto SIGUE
+// siendo cierto: esta meta es la que sí lo gobierna, y es DISTINTA de las cuatro anteriores.
+export interface NavDrawerMovilContent {
+  // ¿El drawer móvil (el panel que abre el botón hamburguesa en `<lg`) rinde la composición de
+  // PANTALLA COMPLETA del prototipo (`.mobile-nav`, `docs/prototipos/cafeone/css/app.css:300-321`,
+  // `index.html:93-106`) — cabecera propia (wordmark + botón cerrar, `margin-bottom:var(--space-10)`)
+  // + los links con entrada ESCALONADA (`--i`, `animation-delay:calc(var(--i,0) * 60ms + 80ms)`,
+  // `420ms var(--ease-out)`, opacity 0→1 + translateY(14px)→0)? `'dropdown'` = HOY: el panel angosto
+  // bajo el header (`motion.div` con `AnimatePresence`, `fixed top-16 left-0 right-0`, sin cabecera
+  // propia ni escalonado), byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `preset.navDrawerMovilVariante`; de los 6 presets del catálogo, sólo CORTE declara
+  // `'pantallaCompleta'`.
+  variante: ClaveDrawerMovil;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
@@ -917,6 +944,7 @@ export interface SiteContentData {
   rielSocial: RielSocialContent;
   navTratamiento: NavTratamientoContent;
   navWordmark: NavWordmarkContent;
+  navDrawerMovil: NavDrawerMovilContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -1413,6 +1441,12 @@ export const DEFAULTS: SiteContentData = {
   navWordmark: {
     activo: false,
   },
+  // VARIANTE DEL DRAWER MÓVIL por defecto (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1): 'dropdown' → el panel
+  // angosto bajo el header de HOY, byte-idéntico. Sólo CORTE lo cambia a 'pantallaCompleta', vía
+  // `mergePresetEnContent`.
+  navDrawerMovil: {
+    variante: 'dropdown',
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -1523,10 +1557,10 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `esquemas`, `orden`,
-// `variantesBandas` y `presetSnapshot`, que no son secciones). El REGISTRY las cubre a todas; las
-// once metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'navWordmark' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
+// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `navDrawerMovil`, `esquemas`,
+// `orden`, `variantesBandas` y `presetSnapshot`, que no son secciones). El REGISTRY las cubre a
+// todas; las doce metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -2093,6 +2127,11 @@ export function resolverSiteContent(
   // de `cromo`/`volverArriba`/`rielSocial`/`navTratamiento` (dominio CERRADO propio, 1 clave) por el
   // motivo del docstring de `NavWordmarkContent` — no comparte contrato con ninguna de las cuatro.
   out.navWordmark = resolverNavWordmark(raw.navWordmark, defaultsBase.navWordmark);
+  // VARIANTE DEL DRAWER MÓVIL (meta, no sección, § MUESTRARIO-DRAWER-MOVIL-TEMA-1): ¿el drawer móvil
+  // rinde la composición de pantalla completa del prototipo?, resuelto aparte de `cromo`/
+  // `volverArriba`/`rielSocial`/`navTratamiento`/`navWordmark` (dominio CERRADO propio, 1 clave) por
+  // el motivo del docstring de `NavDrawerMovilContent` — no comparte contrato con ninguna de las cinco.
+  out.navDrawerMovil = resolverNavDrawerMovil(raw.navDrawerMovil, defaultsBase.navDrawerMovil);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -2239,6 +2278,25 @@ export function resolverNavWordmark(stored: unknown, defaults: unknown): NavWord
   if (typeof sv === 'boolean') return { activo: sv };
   const dv = def['activo'];
   return { activo: typeof dv === 'boolean' ? dv : false };
+}
+
+const CLAVES_DRAWER_MOVIL = new Set<ClaveDrawerMovil>(['dropdown', 'pantallaCompleta']);
+
+// Resuelve la VARIANTE DEL DRAWER MÓVIL (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1), gemela de
+// `resolverNavWordmark` en FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el
+// docstring de `NavDrawerMovilContent` para el porqué de que no comparta objeto con `cromo`,
+// `volverArriba`, `rielSocial`, `navTratamiento` ni `navWordmark`. A diferencia de esos cuatro
+// (un booleano), acá el valor es un STRING de un set CERRADO de 2 — mismo patrón de validación que
+// `origenTexto`/`origenAccion` (§ `resolverTema`): sólo un miembro del set sobrevive, cualquier otra
+// cosa (ausente, basura, un string fuera del set) cae al default.
+export function resolverNavDrawerMovil(stored: unknown, defaults: unknown): NavDrawerMovilContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const valido = (v: unknown): v is ClaveDrawerMovil => CLAVES_DRAWER_MOVIL.has(v as ClaveDrawerMovil);
+  const sv = st['variante'];
+  if (valido(sv)) return { variante: sv };
+  const dv = def['variante'];
+  return { variante: valido(dv) ? dv : 'dropdown' };
 }
 
 const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento', 'neutro']);
