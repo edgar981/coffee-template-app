@@ -141,6 +141,24 @@ test('calibración: los beneficios de los planes de suscripción SÍ están cont
   assert.ok(controlados.includes('suscripcionPlanes.ben4_4'));
 });
 
+// § MUESTRARIO-SECCION-CTA-1: los seis campos del CTA opcional de sección (Presentaciones · Historia
+// · el segundo de Suscripción) entraron a `campos` DE ENTRADA, con la lección de `panel-controles.ts`
+// ya aplicada — no como hallazgo tardío. Ninguno necesita exención nueva en `PENDIENTE_PANEL`; el
+// techo-trinquete (13) no se mueve.
+test('calibración: el CTA de sección (Presentaciones/Historia/2º de Suscripción) está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('presentaciones.ctaLabel'));
+  assert.ok(controlados.includes('presentaciones.ctaDestino'));
+  assert.ok(controlados.includes('brandStory.ctaLabel'));
+  assert.ok(controlados.includes('brandStory.ctaDestino'));
+  assert.ok(controlados.includes('subscriptionCTA.ctaSecundarioLabel'));
+  assert.ok(controlados.includes('subscriptionCTA.ctaSecundarioDestino'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('presentaciones.ctaLabel'));
+  assert.ok(!pendientes.has('brandStory.ctaLabel'));
+  assert.ok(!pendientes.has('subscriptionCTA.ctaSecundarioLabel'));
+});
+
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
   const esperado = PENDIENTE_PANEL.map((e) => e.campo).sort();

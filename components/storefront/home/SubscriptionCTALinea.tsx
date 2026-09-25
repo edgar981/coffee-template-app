@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fadeUp } from "@/lib/animation";
+import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 
 // LA VARIANTE "LÍNEA" (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): del BLOQUE apilado de hoy
 // (§ SubscriptionCTABloque — texto en una columna, tarjetas de plan en la otra) a una FRANJA
@@ -27,11 +28,19 @@ import { fadeUp } from "@/lib/animation";
 // ANGOSTO: una franja de una línea no entra en una pantalla angosta, así que se resuelve con el
 // MISMO patrón que ya usa el pie de página para el mismo problema (`StoreFooter`, la "Bottom Bar":
 // `flex-col` apilado → `sm:flex-row` una línea) — no se inventa un mecanismo nuevo. Bajo `sm` el
-// texto (gancho + título) se apila centrado sobre el botón; desde `sm` los dos quedan en la misma
-// fila, el texto a la izquierda y el botón a la derecha.
+// texto (gancho + título) se apila centrado sobre los botones; desde `sm` los dos quedan en la misma
+// fila, el texto a la izquierda y los botones a la derecha.
+//
+// EL SEGUNDO BOTÓN (§ MUESTRARIO-SECCION-CTA-1, MEDIDO contra `.cta-strip` del prototipo,
+// `docs/prototipos/cafeone/index.html:313-320`, "Únete al club" + "Explorar" — DOS botones, no uno):
+// `subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino` resuelven el href con
+// `resolverCtaSeccion` — vacío = sin segundo botón, byte-idéntico. Va con estilo SECUNDARIO (borde,
+// no relleno), igual tratamiento que `hero.ctaSecundarioLabel` en `HeroCurtina`. El PRIMER botón
+// (`ctaLabel`) no cambia: sigue con href fijo a `/suscripciones`, no editable.
 export default function SubscriptionCTALinea({ style }: { style?: React.CSSProperties } = {}) {
-  const { subscriptionCTA } = useSiteContent();
+  const { subscriptionCTA, paginas } = useSiteContent();
   const preview = useIsPreview();
+  const ctaSecundarioHref = resolverCtaSeccion(subscriptionCTA.ctaSecundarioLabel, subscriptionCTA.ctaSecundarioDestino, paginas);
 
   return (
     <section className="py-8 bg-[var(--sf-banda,var(--sf-tinta-2))]" style={style}>
@@ -60,12 +69,22 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
               {subscriptionCTA.titulo}
             </h2>
           </div>
-          <Link
-            href="/suscripciones"
-            className="inline-flex shrink-0 items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-tostado-4)] text-[var(--sf-tinta)] font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5"
-          >
-            {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex shrink-0 items-center gap-3">
+            <Link
+              href="/suscripciones"
+              className="inline-flex shrink-0 items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-tostado-4)] text-[var(--sf-tinta)] font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5"
+            >
+              {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
+            </Link>
+            {ctaSecundarioHref && (
+              <Link
+                href={ctaSecundarioHref}
+                className="inline-flex shrink-0 items-center gap-2 border border-[var(--sf-linea-sobre,white)]/30 px-6 py-3 sf-pildora text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+              >
+                {subscriptionCTA.ctaSecundarioLabel}
+              </Link>
+            )}
+          </div>
         </motion.div>
       </div>
     </section>

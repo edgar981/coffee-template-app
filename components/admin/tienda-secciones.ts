@@ -5,7 +5,21 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
+// `MENU_CTA_DESTINOS` también es dato puro (una constante + su tipo, sin JSX ni 'use client') — el
+// mismo criterio que permite importarlo acá sin romper la promesa de cabecera de este archivo.
+import { MENU_CTA_DESTINOS } from '@/lib/config/site-content-defaults';
+
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+
+// EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
+// opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` — el path crudo como label (no hay
+// nombre "bonito" declarado en ningún lado que no sea la propia ruta) + `<option value="">Sin
+// destino</option>` primero. Un solo lugar para que `presentaciones.ctaDestino`/`brandStory.
+// ctaDestino`/`subscriptionCTA.ctaSecundarioDestino` no diverjan entre sí ni del menú.
+const OPCIONES_CTA_DESTINO: { value: string; label: string }[] = [
+  { value: '', label: 'Sin destino' },
+  ...MENU_CTA_DESTINOS.map((d) => ({ value: d, label: d })),
+];
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -282,11 +296,14 @@ const BRAND_STORY: SeccionConfig = {
     { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+    // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): ambos opcionales, vacío = sin botón.
+    { name: 'ctaLabel',   label: 'Botón',            opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón · destino',  opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
   // BLOQUES: el COLLAGE (la posición de cada foto se ve en el grid, como en la tienda) + el texto.
   bloques: [
     { tipo: 'collage', titulo: 'Fotos (1 a 4 — así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
-    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2'] },
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2', 'ctaLabel', 'ctaDestino'] },
   ],
 };
 
@@ -374,12 +391,15 @@ const PRESENTACIONES: SeccionConfig = {
     { name: 'label4',     label: 'Nombre',      opcional: true, hint: 'Ej. "Postres".' },
     { name: 'copy4',      label: 'Descripción', opcional: true, textarea: true, hint: 'Opcional.' },
     { name: 'categoria4', label: 'Presentación 4 · lleva a', categoria: true, tituloDe: 'label4', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
+    // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1): junto al título, no de una tarjeta puntual.
+    { name: 'ctaLabel',   label: 'Botón',           opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
-  // BLOQUES: un encabezado (eyebrow/título) + una TARJETA por slot. Cada tarjeta posee su imagen y sus
-  // tres campos (nombre/descripción/destino); el combobox de destino vive DENTRO de su tarjeta. Slots
+  // BLOQUES: un encabezado (eyebrow/título/CTA) + una TARJETA por slot. Cada tarjeta posee su imagen y
+  // sus tres campos (nombre/descripción/destino); el combobox de destino vive DENTRO de su tarjeta. Slots
   // 3-4 OPCIONALES: la pieza no aparece hasta "+ Agregar tarjeta". El `slot` es la identidad del puente.
   bloques: [
-    { tipo: 'seccion', campos: ['eyebrow', 'titulo'] },
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'ctaLabel', 'ctaDestino'] },
     { tipo: 'tarjeta', slot: 1, titulo: 'Tarjeta 1', imagen: 'imagen1', campos: ['label1', 'copy1', 'categoria1'] },
     { tipo: 'tarjeta', slot: 2, titulo: 'Tarjeta 2', imagen: 'imagen2', campos: ['label2', 'copy2', 'categoria2'] },
     { tipo: 'tarjeta', slot: 3, titulo: 'Tarjeta 3', imagen: 'imagen3', campos: ['label3', 'copy3', 'categoria3'], opcional: true },
@@ -404,13 +424,17 @@ const SUBSCRIPTION: SeccionConfig = {
     { name: 'bullet3',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
     { name: 'bullet4',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
     { name: 'ctaLabel',  label: 'Botón',       hint: 'Su destino es /suscripciones (fijo). Vacío: se usa el texto por defecto.' },
+    // El SEGUNDO CTA (§ MUESTRARIO-SECCION-CTA-1): a diferencia del de arriba, su destino ES editable
+    // (del set cerrado), porque no tiene una ruta estructural propia como /suscripciones.
+    { name: 'ctaSecundarioLabel',   label: 'Segundo botón',           opcional: true, hint: 'Vacío: no se muestra ningún segundo botón.' },
+    { name: 'ctaSecundarioDestino', label: 'Segundo botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el segundo botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
-  // BLOQUES: encabezado + la LISTA de beneficios + el botón. Los beneficios pasan de 4 inputs fijos a
+  // BLOQUES: encabezado + la LISTA de beneficios + los botones. Los beneficios pasan de 4 inputs fijos a
   // una lista plana que se cierra sin huecos (rule 2 · § lista-plana).
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'subtitulo'] },
     { tipo: 'lista', slots: ['bullet1', 'bullet2', 'bullet3', 'bullet4'], itemLabel: 'beneficio', hint: 'Hasta 4. La lista se cierra sin huecos.' },
-    { tipo: 'seccion', campos: ['ctaLabel'] },
+    { tipo: 'seccion', campos: ['ctaLabel', 'ctaSecundarioLabel', 'ctaSecundarioDestino'] },
   ],
 };
 

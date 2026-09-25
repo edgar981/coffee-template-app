@@ -736,6 +736,9 @@ const PRESENTACIONES_ANTES = {
   // Slots 3-4 opcionales, VACÍOS por defecto → la home renderiza 2 (byte-idéntico al copy canónico).
   label3: '', copy3: '', imagen3: '', categoria3: '',
   label4: '', copy4: '', imagen4: '', categoria4: '',
+  // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1) nace VACÍO → sin botón, byte-idéntico.
+  ctaLabel: '',
+  ctaDestino: '',
   // La canónica de composición (§ eje 5e): 'mosaico' es el GrindChooser de hoy, verbatim.
   variante: 'mosaico',
 };

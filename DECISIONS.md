@@ -19575,3 +19575,167 @@ revert, sobre el árbol final; el 1950/1950 de la corrida CON el diff aplicado i
 nuevos de `seccion-cta.test.ts`/`panel-controles.test.ts`, revertidos junto con el resto—, `npm run
 test:integracion` 231/231) sigue siendo válido para el árbol final — ningún archivo de código cambió
 entre ese commit y éste.
+
+## 2026-09-25 — `MUESTRARIO-SECCION-CTA-1` — CONSTRUIDO: `lib/config/site-content-defaults.test.ts`
+### entró a `touches:` (ensanchado por el orquestador), el fix de una línea se aplicó, y la capacidad
+### del BLOQUEO anterior se re-aplicó completa
+
+### Qué cambió respecto al despacho BLOQUEADO de arriba
+
+Nada del diseño. El único cambio es que **este spec YA incluía**
+`lib/config/site-content-defaults.test.ts` en `touches:` — el ensanchamiento que el despacho anterior
+pedía. Con eso, el fix de una línea que ese asiento ya había identificado con su ubicación exacta
+(`PRESENTACIONES_ANTES`, agregar `ctaLabel: ''`/`ctaDestino: ''` junto a `variante: 'mosaico'`) se
+aplicó, y el resto del diseño —ya completo, escrito y verificado en la sesión anterior— se reconstruyó
+desde cero en ésta (el árbol había vuelto a `34e0653`, sin un solo byte del diff previo) siguiendo la
+misma forma que ese asiento describe.
+
+### La capacidad, tal como quedó construida
+
+`resolverCtaSeccion(label, destino, paginas)` (`lib/config/site-content-defaults.ts`) es el resolvedor
+GENERAL: sin label → `null`; destino fuera del set cerrado `MENU_CTA_DESTINOS` → `null`; destino
+apuntando a una página apagada → `null`; si no, el destino. `menuCtaHref` se reescribió como su PRIMER
+caso particular (`resolverCtaSeccion(content.menu.ctaLabel, content.menu.ctaDestino, content.paginas)`),
+sin cambio de comportamiento (afirmado en `seccion-cta.test.ts`, comparando las dos salidas).
+
+Tres secciones ganan el CTA:
+
+- **`presentaciones.ctaLabel`/`.ctaDestino`** (AMBOS opcionales, nuevos) — el CTA "Comprar" de cabecera
+  del prototipo, `.pres-head` (`index.html:233`). Renderizado en `GrindChooserRiel.tsx`, agrupado con
+  los controles de avance a la derecha de la cabecera pero VISIBLE EN TODO ANCHO (a diferencia de esos
+  controles, que sólo aparecen desde `sm`) — estilo PRIMARIO (`sf-pildora` relleno).
+- **`brandStory.ctaLabel`/`.ctaDestino`** (AMBOS opcionales, nuevos) — el CTA "Nuestra historia" →
+  `#origen` del prototipo, `.historia-copy` (`index.html:270`). Renderizado en `BrandStoryCentrada.tsx`,
+  bajo el párrafo de cierre — mismo estilo PRIMARIO.
+- **`subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino`** (AMBOS opcionales, nuevos) — el
+  SEGUNDO botón de `.cta-strip` del prototipo, "Únete al club" + "Explorar" (`index.html:313-320`, dos
+  botones, no uno). El PRIMERO (`ctaLabel`, ya existente) NO CAMBIÓ — sigue con href fijo a
+  `/suscripciones`, no editable. El segundo se renderiza en `SubscriptionCTALinea.tsx`, agrupado junto
+  al primero, con estilo SECUNDARIO (borde, sin relleno) — mismo tratamiento que
+  `hero.ctaSecundarioLabel` en `HeroCurtina`.
+
+Los TRES nacen VACÍOS en `DEFAULTS` (`''`) → `resolverCtaSeccion` da `null` → sin botón, byte-idéntico.
+Las otras variantes de esas secciones (`brandStory·columnas`, `presentaciones·mosaico`/`·indice`,
+`SubscriptionCTABloque`) quedan SIN TOCAR — ninguna lee los campos nuevos, así que Nayoli (que usa las
+canónicas) no cambia un byte pase lo que pase con estos campos.
+
+**El SET CERRADO se reusó tal cual pedía §0 del spec — `MENU_CTA_DESTINOS`, sin inventar una segunda
+lista de rutas.** El muestrario pide destinos que NO están en ese set (`#origen`, `producto.html`), pero
+la capacidad es GENERAL (no un clon literal del prototipo): ofrecer el mismo set cerrado que ya usa el
+CTA del menú es lo que impide un link roto, y es exactamente lo que §0 pedía reusar. No se paró a
+reportar esto — no hace falta un destino fuera del set para que la capacidad exista y sea correcta.
+
+### El control de panel, en el MISMO commit (regla permanente del spec)
+
+Los seis campos nuevos se agregaron a la vez a `SeccionConfig.campos` de `PRESENTACIONES`/`BRAND_STORY`/
+`SUBSCRIPTION` (`components/admin/tienda-secciones.ts`) **Y** a un `bloques[]` de cada una — la lección
+de `panel-controles.ts` ya aplicada de entrada: un campo en `config.campos` sin su nombre TAMBIÉN en
+`bloques[]` se cuenta como "controlado" por el chequeo derivado (`huecosDelPanel()`) pero NUNCA se
+renderiza en el editor real (`bloquesResueltos`, la red de seguridad, sólo cubre secciones SIN `bloques`
+declarados). `seccion-cta.test.ts` afirma las dos mitades por separado —presencia en `config.campos` Y
+presencia en un bloque `bloquesResueltos` resuelto— para que un futuro slice no repita el patrón de sólo
+declarar uno de los dos lados.
+
+El destino usa un SELECT NATIVO compartido, `OPCIONES_CTA_DESTINO` (`tienda-secciones.ts`, construido
+sobre `MENU_CTA_DESTINOS` importado): `<option value="">Sin destino</option>` primero, después las tres
+rutas del set — MISMO patrón que `MenuSeccion.tsx` ya usa para `menu.ctaDestino`. Un solo lugar para que
+los cuatro selects de destino (menú + los tres nuevos) no diverjan entre sí.
+
+`panel-controles.test.ts` ganó una calibración explícita (`camposControladosPorPanel()` incluye los
+seis campos nuevos, y ninguno está en `PENDIENTE_PANEL`) — el techo-trinquete de la exención (13) **no
+se movió**, porque los seis entraron controlados de entrada, sin necesitar ninguna exención nueva.
+
+### El schema editable
+
+`presentacionesEditableSchema`/`brandStoryEditableSchema` ganan `ctaLabel: z.string().optional()` +
+`ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional()`;
+`subscriptionCTAEditableSchema` gana el mismo par con el sufijo `Secundario` — MISMO criterio que
+`menuEditableSchema.ctaDestino` (el `z.literal('')` convive con el enum porque el CTA puede llegar
+apagado). El WRITE es más estricto que el resolver: un destino fuera del set se RECHAZA al guardar
+(afirmado en `seccion-cta.test.ts`), mientras el resolver lo absorbería SOFT si llegara por otra vía.
+
+### El fix de una línea (el ÚNICO cambio en un archivo que no es del diseño nuevo)
+
+`lib/config/site-content-defaults.test.ts:724-741` (`PRESENTACIONES_ANTES`) ganó `ctaLabel: ''` y
+`ctaDestino: ''`, junto a `variante: 'mosaico'` — exactamente donde el asiento BLOQUEADO de arriba lo
+había ubicado. El test que compara `r.presentaciones` contra este literal (`deepEqual`) sigue afirmando
+la misma PROPIEDAD que antes: sin fila, el resolver reproduce byte a byte los defaults declarados —
+ahora con dos claves más, porque `DEFAULTS.presentaciones` las tiene. `brandStory`/`subscriptionCTA`
+NO necesitaron el mismo fix (medido, no asumido, en la corrida completa de `npm test`): sus tests
+comparan `deepEqual` DIRECTO contra `DEFAULTS.brandStory`/`DEFAULTS.subscriptionCTA` —dos lados que
+derivan del mismo `DEFAULTS`, así que se re-sincronizan solos—, a diferencia de `presentaciones`, cuya
+única comparación es contra un literal escrito A MANO por su propia historia (§ el asiento de arriba).
+
+### El gate, medido sobre el árbol final
+
+| capa | comando | resultado |
+| --- | --- | --- |
+| tipos | `npx tsc --noEmit` | 0 errores |
+| capa 1 | `npm test` | **1962/1962** (1935 heredado de `34e0653` + 26 de `seccion-cta.test.ts` + 1 de `panel-controles.test.ts`) |
+| capa 2 | `npm run test:integracion` | **231/231** (sin cambio respecto al piso heredado — este slice no toca ningún camino de integración) |
+| visual | `npm run verificar:nayoli:visual` | **0px en las 6 rutas + los 2 hovers** (home/tienda/producto/checkout/nosotros/suscripciones, hover-automática, hover-elección; `next build` compiló limpio en las DOS ramas, confirmando que el JSX nuevo también pasa SWC) |
+
+`huecosDelPanel()` (el chequeo derivado del panel) sigue dando `[]`, y `PENDIENTE_PANEL.length` sigue
+en 13 — el techo del trinquete no subió.
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts` (interfaces + `DEFAULTS` + `REGISTRY` + `resolverCtaSeccion`),
+`lib/config/site-content-schema.ts` (los tres schemas), `components/admin/tienda-secciones.ts` (import +
+`OPCIONES_CTA_DESTINO` + los tres `SeccionConfig`), `components/storefront/home/GrindChooserRiel.tsx`,
+`components/storefront/home/BrandStoryCentrada.tsx`, `components/storefront/home/SubscriptionCTALinea.tsx`,
+`lib/config/seccion-cta.test.ts` (nuevo), `lib/config/panel-controles.test.ts` (una calibración nueva),
+`lib/config/site-content-defaults.test.ts` (el fix de una línea) — los NUEVE archivos de `touches:` de
+este slice, ninguno de más.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff cambia: `PresentacionesContent`, `BrandStoryContent`,
+`SubscriptionCTAContent`, `resolverCtaSeccion`, `menuCtaHref`, `presentacionesEditableSchema`,
+`brandStoryEditableSchema`, `subscriptionCTAEditableSchema`, `GrindChooserRiel`, `BrandStoryCentrada`,
+`SubscriptionCTALinea`, `OPCIONES_CTA_DESTINO`, `PRESENTACIONES_ANTES`, `MENU_CTA_DESTINOS`. Grepeados
+uno por uno contra `CLAUDE.md`: **todos dan 0 resultados salvo `MENU_CTA_DESTINOS`**, que tampoco
+aparece — CLAUDE.md nunca documenta el REGISTRY de `SiteContent` a este nivel de detalle (esa capa vive
+en los comentarios de código y en este archivo, por el reparto de doctrina del propio CLAUDE.md: "la
+ELECCIÓN de cada decisión... vive en DECISIONS.md; acá vive la REGLA resultante"). Nada que corregir ahí.
+
+Dos frases de CLAUDE.md SÍ nombran una CUENTA de campos de `presentaciones` que este diff mueve, y las
+dos quedan STALE por este cambio (no falsas de contenido, sino un número que ya no es el medido):
+- `§ Presentaciones 2-4`: "el dolor de un formulario largo (**14 campos** con 4 tarjetas)" — con los dos
+  campos nuevos (`ctaLabel`/`ctaDestino`), el formulario de Presentaciones pasa a 16.
+- `§46 Fase 2`: "el CAMPO FLOTANTE para los **~10 campos de TEXTO**... imágenes (4), **destinos-combobox
+  (4)**... ~la mitad de los **19 campos**" — Presentaciones pasa de 19 a 21 campos totales; el texto pasa
+  de ~10 a ~11 (suma `ctaLabel`); los destinos pasan de 4 (`categoria1..4`) a 5 (suma `ctaDestino`, aunque
+  ése es un select nativo y no el `CategoriaCombobox` que motiva el conteo original — la cuenta original
+  no distinguía el tipo de control, sólo "destino").
+
+Las dos son la MISMA familia que el propio CLAUDE.md ya nombra y explica en su sección de Backlog
+técnico ("LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA MEDICIÓN NI UN INVENTARIO... un número en
+doctrina es una frase con fecha de vencimiento") — no se corrigen acá porque `CLAUDE.md` no está en
+`touches:` de este slice. Quedan como `open_followups`, `CLAUDE-MD-PRESENTACIONES-CAMPO-COUNT-STALE-1`.
+
+No hay ninguna sección de `DECISIONS.md` que este asiento CIERRE en el sentido de "un § que otros
+apuntan queda inválido" — el asiento BLOQUEADO de arriba queda como registro histórico correcto de POR
+QUÉ se bloqueó esa vez; este asiento es su continuación, no su corrección.
+
+### Clasificación contra la política de merge A (medida sobre el diff real, no sobre lo que el spec dice de sí mismo)
+
+- **schema**: NO. Sin migración de Prisma; el modelo nuevo vive en el JSON `SiteContent.content`, un
+  campo ya existente.
+- **cross-repo-contract**: NO. Ningún DTO ni contrato compartido con otro repo.
+- **customer-bytes**: **SÍ.** La RAMA agrega SEIS campos nuevos con etiqueta y hint en español al panel
+  de `/admin/tienda` (`components/admin/tienda-secciones.ts`) — bytes que el DUEÑO lee cada vez que abre
+  el editor de Presentaciones/Historia/Suscripción, aunque Nayoli (sin llenarlos) no muestre nada nuevo
+  en el storefront. Los strings nuevos, visibles en el panel:
+  - "Botón" / "Botón · destino" (Presentaciones, Historia)
+  - "Segundo botón" / "Segundo botón · destino" (Suscripción)
+  - Los hints de cada uno ("Vacío: no se muestra ningún botón.", "A dónde lleva el botón. Sin destino,
+    no se muestra aunque tenga texto.", etc.)
+  - Las opciones del select de destino: "Sin destino", "/tienda", "/suscripciones", "/nosotros"
+
+  Ningún string nuevo llega al STOREFRONT bajo Nayoli (los defaults nacen vacíos, `guarda:color`/
+  `verificar:nayoli:visual` lo confirman en 0px) — pero la política A pregunta por la RAMA contra su
+  base, no por lo que un tenant concreto elige mostrar hoy.
+
+**`stopped_on: ["customer-bytes"]`. Verdicto: AWAITING_APPROVAL** — el diff queda commiteado en la rama,
+sin mergear, a la espera del owner.

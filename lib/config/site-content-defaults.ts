@@ -182,6 +182,12 @@ export interface BrandStoryContent {
   imagen2: string;
   imagen3: string;
   imagen4: string;
+  // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1, MEDIDO contra `.historia-copy` del prototipo,
+  // `docs/prototipos/cafeone/index.html:270`, "Nuestra historia" → `#origen`). AMBOS opcionales, mismo
+  // patrón/set cerrado que `presentaciones.ctaLabel`/`.ctaDestino` (§ ahí): vacío = sin botón, byte-
+  // idéntico.
+  ctaLabel: string;
+  ctaDestino: string;
   // La VARIANTE de composición (§ eje 5e, TEMAS-P2-BRANDSTORY-1). 'columnas' es la canónica; 'centrada'
   // (§ CORTE-BRANDSTORY-COLLAGE-1) es la segunda clave — eyebrow+título centrados, el mismo collage a
   // lo ancho, el párrafo debajo (§ REGISTRY.brandStory.variantes). Escalar de SECCIÓN —como
@@ -263,10 +269,19 @@ export interface OrigenContent {
 // tarjeta: label + copy + imagen + `categoria` (el DESTINO, § el destino de Presentaciones es DATO).
 // El href lo construye `hrefCategoria(categoria)`. Qué tarjeta SE MUESTRA lo decide el componente
 // (`tarjetasDePresentaciones`, título O imagen), NO el resolver — así 2→4 no toca ni el resolver ni #44.
+//
+// EL CTA DE CABECERA (§ MUESTRARIO-SECCION-CTA-1, MEDIDO contra `.pres-head` del prototipo,
+// `docs/prototipos/cafeone/index.html:233`, "Comprar"): `ctaLabel`/`ctaDestino`, AMBOS opcionales,
+// mismo patrón que `menu.ctaLabel`/`.ctaDestino` — `ctaDestino` es del SET CERRADO `MENU_CTA_DESTINOS`
+// (§ `resolverCtaSeccion`, abajo, la generalización de `menuCtaHref`); vacío = sin botón, byte-
+// idéntico. Distinto de `categoriaN` (el destino de CADA TARJETA): éste es el CTA de la SECCIÓN
+// entera, junto al título, no de una tarjeta puntual.
 export interface PresentacionesContent {
   visible: boolean;
   eyebrow: string;
   titulo: string;
+  ctaLabel: string;
+  ctaDestino: string;
   // Tarjetas 1-2 REQUERIDAS (siempre renderizan → mínimo 2, con los defaults de Nayoli).
   label1: string;
   copy1: string;
@@ -346,6 +361,14 @@ export interface SubscriptionCTAContent {
   bullet3: string;
   bullet4: string;
   ctaLabel: string;
+  // El SEGUNDO CTA (§ MUESTRARIO-SECCION-CTA-1, MEDIDO contra `.cta-strip` del prototipo,
+  // `docs/prototipos/cafeone/index.html:313-320`, "Únete al club" + "Explorar" — DOS botones, no uno).
+  // `ctaLabel` de arriba sigue siendo el PRIMERO, con su href fijo a `/suscripciones` (por diseño, no
+  // editable); éste es el ADICIONAL, opcional, con su propio destino del set cerrado
+  // `MENU_CTA_DESTINOS` (§ `resolverCtaSeccion`) — mismo patrón que `presentaciones.ctaLabel`/
+  // `.ctaDestino`. Vacío = sin segundo botón, byte-idéntico.
+  ctaSecundarioLabel: string;
+  ctaSecundarioDestino: string;
   // La VARIANTE de composición (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e). 'bloque' (canónica, la de
   // Nayoli — texto + tarjetas de plan en dos columnas) | 'linea' (franja horizontal condensada: el
   // gancho, el título y el botón en una línea; el subtítulo y los bullets NO se renderizan en esa
@@ -980,6 +1003,9 @@ export const DEFAULTS: SiteContentData = {
     imagen2: '/images/historia-2-v1.jpg',
     imagen3: '/images/historia-3-v1.jpg',
     imagen4: '/images/historia-4-v1.jpg',
+    // El CTA de cierre nace VACÍO → sin botón, byte-idéntico (§ MUESTRARIO-SECCION-CTA-1).
+    ctaLabel: '',
+    ctaDestino: '',
     // La canónica (§ eje 5e, TEMAS-P2-BRANDSTORY-1): Nayoli queda byte-idéntica al collage de hoy.
     variante: 'columnas',
   },
@@ -1041,6 +1067,9 @@ export const DEFAULTS: SiteContentData = {
     // con 3-4 presentaciones las llena en el editor.
     label3: '', copy3: '', imagen3: '', categoria3: '',
     label4: '', copy4: '', imagen4: '', categoria4: '',
+    // El CTA de cabecera nace VACÍO → sin botón, byte-idéntico (§ MUESTRARIO-SECCION-CTA-1).
+    ctaLabel: '',
+    ctaDestino: '',
     // La canónica (§ eje 5e): Nayoli queda byte-idéntica al mosaico de hoy.
     variante: 'mosaico',
   },
@@ -1078,6 +1107,9 @@ export const DEFAULTS: SiteContentData = {
     bullet3: 'Se renueva automáticamente, sin líos',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
+    // El segundo CTA nace VACÍO → sin segundo botón, byte-idéntico (§ MUESTRARIO-SECCION-CTA-1).
+    ctaSecundarioLabel: '',
+    ctaSecundarioDestino: '',
     // La canónica (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): Nayoli queda byte-idéntica al bloque de hoy.
     variante: 'bloque',
   },
@@ -1448,6 +1480,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       imagen2: 'opcional',
       imagen3: 'opcional',
       imagen4: 'opcional',
+      // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): AMBOS opcionales, vacío = sin botón.
+      ctaLabel: 'opcional',
+      ctaDestino: 'opcional',
     },
   },
   // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, ver el docstring de `OrigenContent` arriba). `ocultable:
@@ -1509,6 +1544,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       copy4: 'opcional',
       imagen4: 'opcional',
       categoria4: 'opcional',
+      // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1): AMBOS opcionales, vacío = sin botón. Es de
+      // la SECCIÓN entera, junto al título — distinto de `categoriaN`, el destino de cada tarjeta.
+      ctaLabel: 'opcional',
+      ctaDestino: 'opcional',
     },
   },
   // La banda SPOTLIGHT (§ SPOTLIGHT-BANDA-1, ver el docstring de `SpotlightContent`). `ocultable:
@@ -1548,6 +1587,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       bullet3: 'opcional',
       bullet4: 'opcional',
       ctaLabel: 'requerido',
+      // El SEGUNDO CTA (§ MUESTRARIO-SECCION-CTA-1): AMBOS opcionales, vacío = sin segundo botón.
+      ctaSecundarioLabel: 'opcional',
+      ctaSecundarioDestino: 'opcional',
     },
   },
   testimonials: {
@@ -2154,16 +2196,25 @@ export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: 
 
 const MENU_CTA_DESTINO_SET: ReadonlySet<string> = new Set(MENU_CTA_DESTINOS);
 
-/** El href del CTA del menú, o `null` si no debe mostrarse: sin label, sin destino válido (fuera
- *  del set cerrado), o apuntando a una página apagada (§ paginas.*.visible) — preferir callar a un
- *  link roto, mismo criterio que `opcionTransferencia`/el CTA de suscripciones sin whatsapp. */
+/** El href de UN CTA de sección (§ MUESTRARIO-SECCION-CTA-1 — la capacidad GENERAL: cualquier
+ *  sección puede declarar su PROPIO botón opcional, no sólo el menú), o `null` si no debe mostrarse:
+ *  sin label, sin destino válido (fuera del set cerrado `MENU_CTA_DESTINOS`), o apuntando a una
+ *  página apagada (§ paginas.*.visible) — preferir callar a un link roto, mismo criterio que
+ *  `opcionTransferencia`/el CTA de suscripciones sin whatsapp. Recibe sólo lo que necesita (el
+ *  label, el destino, y el estado de `paginas`) en vez de todo `SiteContentData`, para que cualquier
+ *  sección la invoque sin acoplarse al modelo del menú — `menuCtaHref` (abajo) es hoy su primer
+ *  caso particular, no su dueña. */
+export function resolverCtaSeccion(label: string, destino: string, paginas: PaginasContent): string | null {
+  if (label.trim() === '') return null;
+  if (!MENU_CTA_DESTINO_SET.has(destino)) return null;
+  if (destino === '/suscripciones' && !paginas.suscripciones.visible) return null;
+  if (destino === '/nosotros' && !paginas.nosotros.visible) return null;
+  return destino;
+}
+
+/** El href del CTA del menú — caso particular de `resolverCtaSeccion` sobre `content.menu`. */
 export function menuCtaHref(content: SiteContentData): string | null {
-  const { ctaLabel, ctaDestino } = content.menu;
-  if (ctaLabel.trim() === '') return null;
-  if (!MENU_CTA_DESTINO_SET.has(ctaDestino)) return null;
-  if (ctaDestino === '/suscripciones' && !content.paginas.suscripciones.visible) return null;
-  if (ctaDestino === '/nosotros' && !content.paginas.nosotros.visible) return null;
-  return ctaDestino;
+  return resolverCtaSeccion(content.menu.ctaLabel, content.menu.ctaDestino, content.paginas);
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

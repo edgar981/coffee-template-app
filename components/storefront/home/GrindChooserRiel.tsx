@@ -10,6 +10,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -37,14 +38,15 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // scroll y en cada resize; en SSR (sin `useEffect`) los dos botones parten deshabilitados, que es el
 // estado seguro (nunca prometen un desplazamiento que todavía no se pudo medir).
 //
-// LA CABECERA PARTE EN DOS, COMO EL PROTOTIPO (`.pres-head`): antetítulo+título de un lado — un
-// ATAJO SOBRE EL PROPIO SCROLL, no un fabricado. La pieza que el prototipo SÍ tiene y este modelo NO
-// PUEDE EXPRESAR: el CTA "Comprar" de `.pres-head` (`index.html:233`). `PresentacionesContent`
-// (`site-content-defaults.ts`) no declara ningún campo de link/label para esta sección — ni la
-// canónica `GrindChooserMosaico` lo tiene (esa banda no lleva CTA propio, § site-content-defaults.ts,
-// "LA PÁGINA /nosotros" y su nota sobre el anzuelo de la home). Agregar uno sería escritura de
-// esquema, fuera de este slice (§ touches). Se construye SIN el botón — reportado por nombre, no
-// disimulado con un "Comprar" fijo que el cliente no podría editar ni el modelo respalda.
+// LA CABECERA PARTE EN DOS, COMO EL PROTOTIPO (`.pres-head`): antetítulo+título de un lado, el CTA
+// "Comprar" de `.pres-head` (`index.html:233`) del otro — un ATAJO SOBRE EL PROPIO SCROLL, no
+// fabricado. `presentaciones.ctaLabel`/`.ctaDestino` (§ MUESTRARIO-SECCION-CTA-1, la capacidad
+// GENERAL: cualquier sección puede declarar su propio botón opcional) resuelven el href con
+// `resolverCtaSeccion` — vacío = sin botón, byte-idéntico. El CTA es SIEMPRE VISIBLE (a diferencia de
+// los controles de avance, que sólo aparecen desde `sm`), agrupado con ellos a la derecha de la
+// cabecera. La canónica `GrindChooserMosaico` sigue sin CTA propio (esa banda no lo lleva, § site-
+// content-defaults.ts, "LA PÁGINA /nosotros" y su nota sobre el anzuelo de la home) — no es un hueco,
+// es que nadie lo pidió ahí.
 //
 // LO QUE EL PROTOTIPO TIENE Y ESTA VARIANTE SIMPLIFICA A PROPÓSITO (medido, no un descuido):
 //   1. `quick-acts` (ojo/carrito sobre cada tarjeta, `js/home.js:99-102`): son acciones de FICHA DE
@@ -74,12 +76,13 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // índice (§ GrindChooserMosaico): se monta también en la vista previa del panel, sin el
 // `SiteSettingsProvider` del storefront.
 export default function GrindChooserRiel({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
-  const { presentaciones, tema } = useSiteContent();
+  const { presentaciones, tema, paginas } = useSiteContent();
   const preview = useIsPreview();
   const trackRef = useRef<HTMLDivElement>(null);
   const [estado, setEstado] = useState({ puedeAtras: false, puedeAdelante: false });
 
   const tarjetas = tarjetasDePresentaciones(presentaciones);
+  const ctaHref = resolverCtaSeccion(presentaciones.ctaLabel, presentaciones.ctaDestino, paginas);
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`presentaciones:
   // 'riel'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
   // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
@@ -133,27 +136,38 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             )}
             <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
           </motion.div>
-          {/* Ocultos en móvil (como `.car-nav` del prototipo bajo 640px): el touch-scroll ya cubre ese
-              caso, y dos botones de 44px compitiendo con el pulgar no suman nada ahí. */}
-          <div className="hidden shrink-0 gap-2 sm:flex">
-            <button
-              type="button"
-              onClick={() => desplazar(-1)}
-              disabled={!estado.puedeAtras}
-              aria-label="Presentación anterior"
-              className="grid h-11 w-11 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => desplazar(1)}
-              disabled={!estado.puedeAdelante}
-              aria-label="Presentación siguiente"
-              className="grid h-11 w-11 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
-            >
-              <ArrowRight className="h-4 w-4" />
-            </button>
+          {/* El CTA (§ MUESTRARIO-SECCION-CTA-1) + los controles de avance, agrupados a la derecha de
+              la cabecera. El CTA es visible en TODO ancho —a diferencia de los controles, ocultos en
+              móvil como `.car-nav` del prototipo bajo 640px, donde el touch-scroll ya cubre ese caso—. */}
+          <div className="flex shrink-0 items-center gap-3">
+            {ctaHref && (
+              <Link
+                href={ctaHref}
+                className="inline-flex shrink-0 items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-tinta)] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+              >
+                {presentaciones.ctaLabel}
+              </Link>
+            )}
+            <div className="hidden shrink-0 gap-2 sm:flex">
+              <button
+                type="button"
+                onClick={() => desplazar(-1)}
+                disabled={!estado.puedeAtras}
+                aria-label="Presentación anterior"
+                className="grid h-11 w-11 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => desplazar(1)}
+                disabled={!estado.puedeAdelante}
+                aria-label="Presentación siguiente"
+                className="grid h-11 w-11 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 

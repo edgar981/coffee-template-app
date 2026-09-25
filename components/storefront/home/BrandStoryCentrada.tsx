@@ -3,18 +3,20 @@
 import { useRef } from "react";
 import { motion, useReducedMotion, useTransform } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { fadeUp, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 
 // LA VARIANTE "CENTRADA" (§ CORTE-BRANDSTORY-COLLAGE-1, MEDIDA contra la sección `.historia` de
 // `docs/prototipos/cafeone/index.html:250-273` + `css/app.css:561-578`). El BrandStory de siempre
 // (`BrandStoryColumnas`) es a dos columnas — texto de un lado, collage del otro—; ésta es CENTRADA y
 // en CAPAS: eyebrow + título grandes al medio, el collage de figuras A LO ANCHO debajo, y el párrafo
-// cerrando abajo. Mismos siete campos de contenido (eyebrow/titulo/parrafo1/parrafo2/imagen1..4),
-// mismo gate de visibilidad en el DISPATCHER (`BrandStory.tsx`) — lo que cambia es de qué esqueleto
-// está hecha la banda.
+// cerrando abajo. Mismos campos de contenido (eyebrow/titulo/parrafo1/parrafo2/imagen1..4/ctaLabel/
+// ctaDestino), mismo gate de visibilidad en el DISPATCHER (`BrandStory.tsx`) — lo que cambia es de
+// qué esqueleto está hecha la banda.
 //
 // LA CARDINALIDAD ES 1 A 4 (§ CORTE-HISTORIA-COLOR-FOTOS-1), no fija en cuatro: `imagen1` es
 // REQUERIDA (mínimo una foto); `imagen2/3/4` son OPCIONALES (§ REGISTRY.brandStory.campos,
@@ -30,11 +32,12 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // `.map` de RENDER filtra por valor no-vacío. Filtrar ANTES de llamar a los hooks violaría las
 // reglas de hooks de React (el conteo variaría entre renders).
 //
-// LO QUE EL PROTOTIPO TIENE Y ESTA VARIANTE NO PUEDE EXPRESAR (medido, no improvisado con texto fijo):
-//   1. El CTA "Nuestra historia" → #origen (`index.html:270`). `BrandStoryContent` no declara ningún
-//      campo de link/label para esta sección —ni la canónica `BrandStoryColumnas` lo tiene: la home
-//      lleva el ANZUELO, sin CTA propio (§ site-content-defaults.ts, "LA PÁGINA /nosotros")—. Agregar
-//      uno sería escritura de esquema, fuera de este slice. Se construye SIN el botón.
+// EL CTA DE CIERRE (§ MUESTRARIO-SECCION-CTA-1, MEDIDO contra `.historia-copy` del prototipo,
+// "Nuestra historia" → `#origen`, `index.html:270`): `brandStory.ctaLabel`/`.ctaDestino` (la
+// capacidad GENERAL: cualquier sección puede declarar su propio botón opcional) resuelven el href
+// con `resolverCtaSeccion` — vacío = sin botón, byte-idéntico. Va bajo el párrafo de cierre. La
+// canónica `BrandStoryColumnas` sigue sin CTA propio (la home lleva el ANZUELO, § site-content-
+// defaults.ts, "LA PÁGINA /nosotros") — no es un hueco, es que nadie lo pidió ahí.
 //
 // EL PARALLAX DE SCROLL (§ TEMAS-BRANDSTORY-DIRECCION-ARTE-1, cierra el punto 2 de arriba, que
 // hasta este slice decía que el motor "este repo no tiene"): `js/home.js:284-301` (`FSA.scrub`)
@@ -66,13 +69,14 @@ const IMAGENES = [
 ] as const;
 
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
-  const { brandStory, tema } = useSiteContent();
+  const { brandStory, tema, paginas } = useSiteContent();
   const preview = useIsPreview();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`brandStory:
   // 'centrada'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
   // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
   // `text-4xl sm:text-5xl` (2.25rem/3rem, medido) — byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  const ctaHref = resolverCtaSeccion(brandStory.ctaLabel, brandStory.ctaDestino, paginas);
 
   // Mismo switch que `BrandStoryColumnas` (§ ahí, el razonamiento completo): en la vista previa
   // escalada del panel, `whileInView` no dispara —la intersección con el viewport no llega dentro
@@ -166,6 +170,14 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
             <p className="mt-6 text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
               {brandStory.parrafo2}
             </p>
+          )}
+          {ctaHref && (
+            <Link
+              href={ctaHref}
+              className="mt-8 inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+            >
+              {brandStory.ctaLabel}
+            </Link>
           )}
         </motion.div>
       </div>

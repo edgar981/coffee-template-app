@@ -91,6 +91,11 @@ const brandStoryEditableSchema = z.object({
   imagen2: z.string().optional(),
   imagen3: z.string().optional(),
   imagen4: z.string().optional(),
+  // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`
+  // (mismo criterio que `menuEditableSchema.ctaDestino` — `z.literal('')` convive con el enum porque
+  // el CTA puede llegar APAGADO, sin label ni destino).
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   variante: z.string().optional(),
 });
 
@@ -131,6 +136,9 @@ const presentacionesEditableSchema = z.object({
   label2: z.string().optional(), copy2: z.string().optional(), imagen2: z.string().optional(), categoria2: z.string().optional(),
   label3: z.string().optional(), copy3: z.string().optional(), imagen3: z.string().optional(), categoria3: z.string().optional(),
   label4: z.string().optional(), copy4: z.string().optional(), imagen4: z.string().optional(), categoria4: z.string().optional(),
+  // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1): mismo criterio que `brandStoryEditableSchema`.
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   variante: z.string().optional(),
 });
 
@@ -167,6 +175,10 @@ const subscriptionCTAEditableSchema = z.object({
   bullet3: z.string().optional(),
   bullet4: z.string().optional(),
   ctaLabel: z.string().optional(),
+  // El SEGUNDO CTA (§ MUESTRARIO-SECCION-CTA-1): mismo criterio que `ctaLabel`/`ctaDestino` de
+  // `brandStoryEditableSchema`/`presentacionesEditableSchema`.
+  ctaSecundarioLabel: z.string().optional(),
+  ctaSecundarioDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   variante: z.string().optional(),
 });
 
