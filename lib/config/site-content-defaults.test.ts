@@ -999,10 +999,10 @@ test('brandStory: una `variante` guardada "centrada" se respeta, y resuelve igua
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
 // Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────
 
-test('REGISTRY.hero declara `variantes` con el set cerrado (curtina/ficha/media), la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME, TEMAS-HERO-MEDIA-1)', () => {
+test('REGISTRY.hero declara `variantes` con el set cerrado (curtina/ficha/media/sticky), la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME, TEMAS-HERO-MEDIA-1, MUESTRARIO-HERO-MARQUESINA-STICKY-1)', () => {
   assert.deepEqual(
     REGISTRY.hero.variantes,
-    { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
+    { claves: ['curtina', 'ficha', 'media', 'sticky'], canonica: 'curtina', noUniformes: ['ficha'] },
   );
 });
 
@@ -1025,7 +1025,7 @@ test('hero: una `variante` guardada fuera del set cae a la canónica', () => {
   assert.equal(r.hero.variante, 'curtina');
 });
 
-test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha" y "media" se respetan', () => {
+test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha", "media" y "sticky" se respetan', () => {
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, undefined), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, ''), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, null), 'curtina');
@@ -1033,11 +1033,17 @@ test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'ficha'), 'ficha');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'curtina'), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'media'), 'media');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'sticky'), 'sticky');
 });
 
-test('hero: una `variante` guardada "media" se respeta, y resuelve igual que las otras dos (§ TEMAS-HERO-MEDIA-1)', () => {
+test('hero: una `variante` guardada "media" se respeta, y resuelve igual que las otras (§ TEMAS-HERO-MEDIA-1)', () => {
   const r = resolverSiteContent({ hero: { variante: 'media' } });
   assert.equal(r.hero.variante, 'media');
+});
+
+test('hero: una `variante` guardada "sticky" se respeta (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1)', () => {
+  const r = resolverSiteContent({ hero: { variante: 'sticky' } });
+  assert.equal(r.hero.variante, 'sticky');
 });
 
 // ── EL HERO GANA VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo`/`imagenPoster`, el

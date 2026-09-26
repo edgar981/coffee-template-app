@@ -23352,3 +23352,255 @@ color del link activo del nav para un visitante de ese despliegue — de invisib
 ESCRITURA (`approved: yes`, con la cita textual de su reporte como `approval-reason`); el merge
 sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 **Cierra `NAV-LINK-ACTIVO-INVISIBLE-1`.**
+
+## 2026-09-26 — El hero y la marquesina pasan de DOS bandas apiladas a UNA composición pineada (`MUESTRARIO-HERO-MARQUESINA-STICKY-1`)
+
+### La medición que manda: el tema REAL, no el prototipo estático
+
+El owner reportó por TERCERA vez que "las letras del marquee salen lit sobre el hero, no en una
+sección abajo", y pidió analizar el video. Medido directamente contra el tema real cuyo storefront
+de preview facilitó (`https://x-cafeone.myshopify.com/`), buscando la sección `hero_banner_marquee`:
+**UNA sola sección**, `position:sticky;top:0;height:100vh`, con el VIDEO de fondo, un VELO oscuro
+**PLANO** encima, una capa de TEXTO `position:absolute;top:50%;transform:translateY(-50%);
+z-index:10;white-space:nowrap` (el track del marquee) y la TARJETA de producto, encima de todo. El
+efecto: el hero queda PEGADO mientras el texto cruza y la tarjeta entra sobre él.
+
+### `docs/prototipos/cafeone/` DERIVA — y por qué YA NO es la autoridad para esta banda
+
+El prototipo VERSIONADO en este repo (`docs/prototipos/cafeone/index.html:141-159`, `.marquee`) es
+una SEGUNDA sección, aparte del `.hero`, con su propia foto de fondo velada al 55% — y
+`Marquesina.tsx` lo reproduce fielmente (§ MARQUESINA-BANDA-1). Esa fidelidad es exactamente el
+problema: el prototipo versionado DERIVA del tema real (alguien lo capturó en algún momento, y esa
+captura no compone igual que el tema hoy), así que construir fielmente contra él reproduce la forma
+VIEJA — dos bandas apiladas — que es la que el owner reportó tres veces como incorrecta. El owner
+decidió re-basar la referencia de esta banda específica al tema real; el resto del prototipo
+versionado sigue siendo la referencia para todo lo demás (no se toca su condición general).
+
+**Esto NO contradice `CORTE-MARQUESINA-SCROLL-CAPTURA-1` (2026-09-23, arriba) — lo SUPERA con una
+fuente distinta.** Esa investigación midió, contra el MISMO archivo versionado
+(`docs/prototipos/cafeone/index.html`), que `.hero`/`.marquee` son `position:relative` los dos —
+NINGUNO sticky — y concluyó "los dos ya son normal-flow, ninguno necesita volverse sticky para
+parecerse". Esa medición sigue siendo VERDADERA hoy: el archivo versionado no cambió, y sigue sin
+usar `position:sticky`. Lo que cambió es la FUENTE que el owner decidió que manda para esta banda:
+no el archivo versionado (que deriva), sino el tema real en vivo, que SÍ usa `sticky` — un dato que
+esa investigación de 2026-09-23 no tenía porque nunca miró el sitio real, sólo el archivo del repo.
+
+### La variante nueva: qué reusa, qué NO reusa, y por qué
+
+**Contenido**: el texto del loop y el pin de la tarjeta flotante SIGUEN viviendo en
+`marquesina.texto`/`.productoSlug` (§ `MarquesinaContent`) — el componente nuevo los LEE
+directamente (`productoSpotlight`, el MISMO mecanismo que `Marquesina.tsx` ya usa), sin campos
+nuevos. El spec lo pidió explícito ("si te parece que deben ser campos propios del hero, PARÁ y
+reportá — duplicar el dato es peor"); no hizo falta pararse: el dato ya estaba en el lugar correcto.
+
+**Fondo/velo**: son del propio HERO, como las otras tres variantes (`hero.imagen`/`imagenTipo`/
+`imagenPoster`/`puntoFocal`) — `marquesina.imagen` (la foto de la banda suelta) NO se usa acá,
+porque el fondo de esta composición es el del hero. El velo es un overlay PLANO en `--sf-velo`
+(el mismo token compartido hero/marquesina, § CORTE-MARQUESINA-VELO-1), NO el gradiente de dos
+paradas de `HeroMedia.tsx`: lo medido dice "un velo oscuro" (una sola capa), y un plano al 80% en
+TODO el alto protege al nav flotante al menos tanto como el tramo superior de HeroMedia (60%).
+
+**La mecánica sticky, sin motor nuevo**: el panel visible (`sticky top-0 h-[100svh]`) necesita un
+ancestro más alto que el viewport para tener contra qué engancharse. Ese ancestro
+(`min-h-[calc(100svh+70vh)]`) reusa el MISMO presupuesto de scroll que `Marquesina.tsx` ya usaba
+para su propia banda (`min-h-[70vh]`) — no se inventó un número nuevo. El progreso se mide con
+`useProgresoScroll` (§ `lib/animation.ts`) contra ESE ancestro, nunca contra la `<section>` pineada
+(un elemento `sticky` reporta `top:0` fijo mientras está pineado; medirlo ahí daría un progreso
+estancado). `transformMarquesinaTexto`/`transformMarquesinaTarjeta` son las MISMAS funciones puras
+que `Marquesina.tsx` ya usa — **cero líneas nuevas en `lib/animation.ts`**, así que ese archivo del
+`touches:` terminó sin tocarse: la reutilización alcanzó sin necesitar el helper nuevo que el spec
+dejaba como opción ("si hace falta un helper nuevo, que viva ahí junto a los otros").
+
+**`alturaLlena`/`cueDesliza` NO se leen** (decisión pedida explícitamente por el spec: "decidí cómo
+conviven con el sticky y asentalo"): lo medido es un panel SIEMPRE `height:100vh` (nunca `92vh`) y
+SIN cue de scroll — el gesto de "pasar por encima" del marquee ya es la indicación de que hay más
+abajo. Los dos campos siguen siendo exclusivos de `HeroMedia`.
+
+**Verificado antes de escribir, no supuesto** (el spec lo pedía: "verificá que ningún ancestro tenga
+overflow que rompa el sticky"): `grep -n overflow` sobre `app/(storefront)/layout.tsx` y
+`app/(storefront)/page.tsx` da CERO resultados — ningún ancestro entre `<body>` y la sección rompe
+el sticky.
+
+### El DESVÍO MEDIDO: la clave de variante es `'sticky'`, NO `'marquesina'`
+
+Al correr el gate completo tras la primera implementación (con la clave `'marquesina'`, la elección
+obvia dado que el spec habla todo el tiempo de "el hero y la marquesina"), **`lib/config/
+themes.test.ts` reventó dos assertions** — archivo FUERA de `touches:` de este slice:
+
+```
+✖ PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — todas, por nombre
+  expected: ['brandStory', 'featured', 'hero', 'presentaciones', 'subscriptionCTA']
+  actual:   ['brandStory', 'featured', 'presentaciones', 'subscriptionCTA']   // 'hero' desapareció
+```
+
+La causa: `PLIEGO.variantes.hero` (`themes.ts:697`) YA declaraba `'marquesina'` como PLACEHOLDER —
+uno de los CINCO presets "cuya intención vive fuera de este repo" (§ el comentario de cabecera de
+`PLIEGO`), registrando una composición de hero AJENA (el diseño "Pliego", no "cafeone"/CORTE) que
+todavía no se construyó. `themes.test.ts` afirma, por diseño, que ese pedido de PLIEGO debe seguir
+FALLANDO la validación por nombre (`seccionesQueFallanVariante(PLIEGO)` debe incluir `'hero'`) hasta
+que alguien construya ESA composición. Agregar `'marquesina'` al `REGISTRY.hero.variantes.claves`
+volvió ese pedido VÁLIDO por accidente — no porque se hubiera construido lo que PLIEGO pedía, sino
+porque el NOMBRE coincidió con el de una composición completamente distinta.
+
+**La medición ganó sobre la instrucción implícita del spec** (que nunca nombró la clave
+literalmente — sólo habló de "el hero" y "la marquesina" en prosa): se renombró la clave de
+variante a **`'sticky'`** (verificado sin colisión contra las claves de `hero` en los SEIS presets:
+`marquesina`·PLIEGO, `media`·CORTE, `collage`·PATIO, `curtina`·VETA, `ficha`·VITRINA/ARRANQUE — y
+sin colisión con ningún otro valor de `'sticky'` en `themes.ts`/`site-content-defaults.ts`). La
+SECCIÓN de contenido sigue llamándose `marquesina` sin cambios (`texto`/`productoSlug`); sólo la
+CLAVE DE VARIANTE del hero es `'sticky'`. Tras el rename, `themes.test.ts` (no tocado) vuelve a
+357/357 verde junto con el resto.
+
+### Lo que este slice NO HIZO: CORTE no se recableó a la variante nueva — SEGUNDO desvío medido
+
+El spec pedía, en su bullet de implementación: **"CORTE declara la variante nueva Y apaga la
+banda"** (`bandasVisibles.marquesina:false`, para no duplicar el contenido). Medido ANTES de
+tocar `themes.ts` con ese cambio: cambiar `CORTE.variantes.hero` de `'media'` a `'sticky'` (o al
+nombre que fuera) revienta, por diseño, SEIS assertions en CINCO archivos de test, TODOS fuera de
+`touches:` de este slice, cada uno con su propio slice/decisión detrás:
+
+| archivo (fuera de `touches:`) | qué asume sobre `CORTE.hero.variante` |
+| --- | --- |
+| `lib/config/corte-hero-titular.test.ts:166` | `=== 'media'` tras `?tema=CORTE` |
+| `lib/config/corte-hero-viewport.test.ts:133` | `=== 'media'` tras `?tema=CORTE` |
+| `lib/config/corte-marquesina-velo.test.ts:115-116` | `marquesina.visible === true` Y `hero.variante === 'media'` — literalmente afirma que "la marquesina SÍ se enciende" bajo CORTE, la forma que este mismo slice viene a corregir |
+| `lib/config/corte-nav-transparente.test.ts:77` | `=== 'media'`, precondición de la sección de nav-transparente |
+| `lib/config/hero-toggles-preset.test.ts:117` | `=== 'media'` tras `?tema=CORTE` |
+| `lib/config/theme-mirador.test.ts:35` | `=== 'media'` tras `?tema=CORTE` |
+
+El caso de `corte-marquesina-velo.test.ts` es el más elocuente: ese test **afirma como correcto
+exactamente el defecto que el owner reportó** ("la marquesina SÍ se enciende [bajo CORTE], y su
+velo coincide con el hero" — dos bandas apiladas). Cambiar `CORTE` sin reescribir ese test dejaría
+el gate rojo sobre una afirmación que la medición de este mismo slice contradice.
+
+**Instrucción del dispatch: "Your diff must stay inside `touches:`... if the work turns out to need
+a file outside it, stop and say so — do not widen it yourself."** Los seis archivos de arriba no
+están en `touches:`. Reescribirlos habría sido widening unilateral de un Tier 1 slice que ya venía
+con su propia aprobación acotada a los archivos listados. La medición gana sobre la instrucción
+implícita del spec: **este slice construye la variante completa, testeada, disponible en el
+REGISTRY — pero NO recablea `CORTE` para usarla.**
+
+**Consecuencia medida, y por qué no es un "no hacer nada":** la variante 'sticky' EXISTE, compone
+correctamente (afirmado en `hero-marquesina.test.ts`, 19 tests), y es alcanzable por CUALQUIER
+preset futuro con sólo declarar `variantes.hero:'sticky'` — el trabajo de composición está hecho.
+Lo que falta es la línea de configuración en `themes.ts` MÁS la actualización de los seis archivos
+de arriba (que dejarían de estar describiendo el defecto y pasarían a describir la corrección). Se
+deja como `open_followup` con id propio, para que el owner decida si amplía `touches:` de un
+segundo slice o si el propio orquestador lo empaqueta junto con la re-medición de esos seis tests.
+
+### `touches:` — lo que se escribió (y lo que se dejó intacto a propósito)
+
+Escrito: `components/storefront/home/HeroMediaMarquesina.tsx` (nuevo, 232 líneas), `components/
+storefront/home/HeroSection.tsx` (+9/-1, la entrada `sticky` en `VARIANTES`), `lib/config/
+site-content-defaults.ts` (+23/-2: `REGISTRY.hero.variantes.claves` gana `'sticky'`, comentarios),
+`lib/config/site-content-defaults.test.ts` (+14/-4: las dos assertions que la clave nueva volvía
+desactualizadas, más un test nuevo), `lib/config/hero-marquesina.test.ts` (nuevo, 19 tests), este
+asiento.
+
+**NO tocado, y por qué**: `lib/config/site-content-schema.ts` — `heroEditableSchema.variante` ya es
+`z.string().optional()` (sin enum), así que una clave de variante nueva no necesita cambio de
+schema; `lib/animation.ts` — la reutilización de `useProgresoScroll`/`transformMarquesinaTexto`/
+`transformMarquesinaTarjeta` alcanzó sin un helper nuevo (§ arriba); `themes.ts` — el segundo
+desvío medido, arriba; `Marquesina.tsx` — el spec lo pedía explícito, y no hizo falta ni
+implícitamente (la banda suelta sigue siendo su propio interruptor).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `HeroMediaMarquesina` (archivo y componente nuevo),
+`HeroSection.tsx` (la entrada `sticky` en `VARIANTES`), `REGISTRY.hero.variantes.claves`,
+`bandaOscuraCanonica` (comentario), `hero-marquesina.test.ts`. Grepeados uno por uno contra
+`CLAUDE.md`:
+
+- `HeroSection`: 7 apariciones (2615, 2619, 2621, 2677, 2972, 3171, 3187, 4839) — todas sobre la
+  VISTA PREVIA EN VIVO del editor (`HeroSection` importado DIRECTO para alimentar el form) y los
+  literales de color que la capa de tema-por-cliente aún no cubre. Ninguna asume un número o set
+  cerrado de variantes; ninguna se vuelve falsa — el mecanismo de importar `HeroSection` directo
+  sigue siendo el mismo, dispatche a la variante que dispatche.
+- `HeroMedia`, `HeroMediaMarquesina`, `bandaOscuraCanonica`, `EJE-5-VARIANTES-HERO`,
+  `TEMAS-HERO-MEDIA-1`, `REGISTRY.hero`, `variantes.hero`, `hero.variante`,
+  `MUESTRARIO-HERO-MARQUESINA-STICKY`, `Marquesina.tsx`, `docs/prototipos/cafeone`, `sticky`
+  (como clave de variante), `hero_banner_marquee`: **CERO apariciones en `CLAUDE.md`** — ese nivel
+  de detalle (registry de variantes de sección, ids de slice) vive en `DECISIONS.md` y en los
+  comentarios del código, no en la doctrina de `CLAUDE.md`.
+- La palabra "sticky" SÍ aparece en `CLAUDE.md` (18 líneas), pero **todas** describen un mecanismo
+  DISTINTO y no relacionado: el `position:sticky` del PANEL ADMIN (`.duna-lista__head`, el elemento
+  `.tienda-vivo__vista` de la vista previa en vivo de `/admin/tienda`, la cabecera de Pagos). Ninguna
+  se refiere al storefront ni a esta variante; ninguna se vuelve falsa.
+
+**Nada que corregir en `CLAUDE.md`** — el grep no encontró ningún punto de la doctrina que este
+diff invalide.
+
+### `customer_bytes`
+
+**`changed: true`** — clasificación CONSERVADORA, con la medición completa para que el orquestador
+re-clasifique con el mismo material. Dos lecturas posibles, documentadas las dos:
+
+1. **Lectura estricta (a favor de `false`):** ningún preset del catálogo declara
+   `variantes.hero:'sticky'` (CORTE sigue en `'media'`, sin tocar — § el desvío de arriba), el
+   editor del panel NO expone un control para `hero.variante` (`panel-controles.ts:281`: "Sólo
+   `mergePresetEnContent` lo escribe; `TiendaSeccionEditor` no renderiza `variante`"), y
+   `aplicarPreset` (el único escritor de un preset a una fila real) no tiene un solo llamador en
+   producción (corre desde un runbook manual de onboarding). Verificado por ejecución: Nayoli
+   (main vs. rama, `npm run verificar:nayoli:visual`) da **0px de diferencia en las 6 rutas + 2
+   hovers** — ver el bloque de abajo. Por esta lectura, NINGÚN byte servido hoy a ningún visitante,
+   operador o dueño cambia.
+2. **Lectura que se adopta (a favor de `true`):** `heroEditableSchema.variante` es
+   `z.string().optional()` — un STRING LIBRE, sin enum — y el resolver SOFT (`resolverVariante`)
+   clampa contra el REGISTRY en tiempo de LECTURA, no de escritura. Antes de este slice, la cadena
+   literal `'sticky'` guardada en `hero.variante` de CUALQUIER `SiteContent` real habría sido
+   "basura" y resuelto a la canónica `'curtina'`; DESPUÉS de este slice, esa MISMA cadena, escrita
+   por la MISMA ruta de escritura genérica (`PUT /api/site-content` + publicar) que ya existe hoy y
+   no se tocó, renderiza la composición nueva para CUALQUIER tenant real — sin necesitar ningún otro
+   cambio de código. No hay botón en el panel que dispare esa escritura, pero la puerta de escritura
+   YA es de producción (gateada OWNER/MANAGER, no un runbook), y el precedente de este mismo
+   catálogo de slices (`HERO-PUNTO-FOCAL-1`) clasificó `customer_bytes:true` para un caso de
+   alcance comparable (una capacidad nueva, gateada, sin uso por defecto). Se prefiere la lectura
+   que no pueda subestimar reachability sobre una que si se equivoca, se equivoca callado.
+
+`strings`: **vacío**. Ningún texto NUEVO — el marquee sigue leyendo `marquesina.texto`, un campo
+que YA existía y cuyo copy no cambió. Lo que la lectura (2) habilita es una COMPOSICIÓN visual
+distinta (sticky, velo plano, texto/tarjeta superpuestos) para quien la active, no redacción nueva.
+
+**Para NAYOLI, medido por ejecución** (`npm run verificar:nayoli:visual`, main vs. esta rama,
+build+start de los dos árboles, Postgres efímero + seed canónico + 5 productos sintéticos, Chromium
+headless en claro forzado):
+
+```
+ruta:home          → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+Cero diferencias salvo antialiasing en las 6 rutas + 2 hovers — Nayoli, que nunca declara
+`hero.variante`, queda exactamente igual.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son dos componentes React (uno nuevo, uno con 9 líneas agregadas), un
+archivo de config de contenido (TS puro), dos archivos de test, y este asiento.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores; `npm test` 2196/2196, +20
+reconciliados; `npm run test:integracion` 237/237, sin cambio), commiteado en
+`slice/corte-reescritura-prototipo-1`. Diff visual corrido (`npm run verificar:nayoli:visual`,
+main vs. rama) y **CERO diferencias** en las 6 rutas + 2 hovers. El diff falla `customer-bytes` por
+la lectura conservadora adoptada arriba (la puerta de escritura genérica de `SiteContent` ya puede
+alcanzar la composición nueva para cualquier tenant real, aunque hoy ningún preset ni control de
+panel la dispare). `schema` y `cross-repo-contract` NO aplican. `stopped_on: [customer-bytes]`. El
+owner ya aprobó la ESCRITURA (`approved: yes`, con la cita textual de su reporte como
+`approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por instrucción
+del dispatch, no mergea.
+
+**DOS open_followups quedan nombrados** (no ejecutados, fuera de `touches:` de este slice): (1)
+recablear `CORTE.variantes.hero` a `'sticky'` + `bandasVisibles.marquesina:false`, lo que exige
+reescribir las seis assertions listadas arriba en cinco archivos; (2) ninguno más — el desvío de
+nombre (`'marquesina'`→`'sticky'`) ya quedó resuelto dentro de este mismo slice, no queda pendiente.
+
+**Cierra `MUESTRARIO-HERO-MARQUESINA-STICKY-1`.**

@@ -1194,7 +1194,7 @@ export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'm
  *  `bg-[var(--sf-banda,<token>)]` de cada componente, como `BANDAS_OSCURAS`. El resto de las
  *  bandas no varían con la variante → `BANDAS_OSCURAS`. */
 export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolean {
-  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/media/ausente = oscura; ficha = clara
+  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/media/sticky/ausente = oscura; ficha = clara
   return BANDAS_OSCURAS.has(bandaId);
 }
 
@@ -1757,7 +1757,26 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // el nav transparente-flotante cae a SÓLIDO sobre ella (§ `tratamientoNav`, esquema-style.ts).
     // 'media' NO entra acá: es uniforme (un solo plano de media), así que el nav sigue flotando
     // transparente — su legibilidad la garantiza el degradado superior, no el fallback a sólido.
-    variantes: { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
+    //
+    // 'sticky' (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1) es la CUARTA — MEDIDO contra el tema real
+    // (`https://x-cafeone.myshopify.com/`, sección `hero_banner_marquee`: `position:sticky;top:0;
+    // height:100vh` con el video de fondo, un velo oscuro PLANO, una capa de texto
+    // `position:absolute;top:50%;z-index:10;white-space:nowrap` y la tarjeta de producto encima) —
+    // `docs/prototipos/cafeone/` DERIVA de ese tema y ya NO es la autoridad para esta composición
+    // (su `.marquee` es una banda APARTE con foto propia al 55%, que es la forma vieja: dos bandas
+    // apiladas en vez de una sola composición pineada). Tampoco entra a `noUniformes`: es un solo
+    // plano de media (como 'media'), así que el nav sigue flotando transparente.
+    //
+    // NO SE LLAMA 'marquesina' A PROPÓSITO — DESVÍO MEDIDO: ese nombre YA está reservado en
+    // `PLIEGO.variantes.hero` (themes.ts) como placeholder de una composición AJENA (el diseño
+    // "Pliego", un tema distinto — ver el comentario de cabecera de `PLIEGO`: "el diseño vive fuera
+    // de este repo"). `themes.test.ts` (fuera de `touches:` de este slice) afirma que ese pedido de
+    // PLIEGO debe seguir fallando la validación POR NOMBRE
+    // (`seccionesQueFallanVariante(PLIEGO)` incluye 'hero'); usar 'marquesina' acá lo habría vuelto
+    // válido por accidente, corrompiendo esa afirmación sin tocar ese archivo. Medido ANTES de
+    // cerrar el nombre (`npm test` corrido contra 'marquesina' reventó ese archivo); se cambió el
+    // nombre de la clave, no el archivo.
+    variantes: { claves: ['curtina', 'ficha', 'media', 'sticky'], canonica: 'curtina', noUniformes: ['ficha'] },
     // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo` es el SEGUNDO escalar clampado de esta
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila. `puntoFocal`
