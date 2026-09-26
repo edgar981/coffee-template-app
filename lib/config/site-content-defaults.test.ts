@@ -59,6 +59,27 @@ test('carritoEnvio.visible guardado explícito sobrevive la resolución completa
   assert.equal(r.carritoEnvio.visible, true);
 });
 
+// § MUESTRARIO-CARRITO-COMPOSICION-1: `carrito` (meta, no sección) queda cableada dentro de
+// `resolverSiteContent` como `carritoEnvio`/`navDrawerMovil` -- sin fila, byte-idéntica al default
+// ('anclado', el cajón pegado al borde de hoy); con un valor guardado del set cerrado, ese valor
+// sobrevive. El resto del comportamiento de la meta (el resolver en sí, la ruta, el control del
+// panel, el preset, el render del cajón) se afirma en `lib/config/detalles-sitio.test.ts`; esto es
+// sólo el CABLEADO dentro de este archivo.
+test('sin nada guardado → carrito.variante cae al default (anclado, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.carrito, DEFAULTS.carrito);
+});
+
+test('carrito.variante guardado explícito ("flotante") sobrevive la resolución completa', () => {
+  const r = resolverSiteContent({ carrito: { variante: 'flotante' } });
+  assert.equal(r.carrito.variante, 'flotante');
+});
+
+test('carrito.variante guardado fuera del set cerrado cae al default, dentro de la resolución completa', () => {
+  const r = resolverSiteContent({ carrito: { variante: 'volando' } });
+  assert.equal(r.carrito.variante, 'anclado');
+});
+
 test('sin nada guardado y entrada basura (null / string / array) → defaults, no lanza', () => {
   for (const basura of [null, undefined, 'x', 42, [], { hero: 'no-obj' }]) {
     assert.deepEqual(resolverSiteContent(basura).hero, DEFAULTS.hero);

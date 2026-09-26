@@ -46,6 +46,7 @@ import { CLAVES_FORMAS, type ClaveForma, resolverForma } from './formas';
 import {
   REGISTRY, BANDA_IDS, ORDEN_DEFAULT, VARIANTES_ESTRUCTURALES,
   type SeccionDef, type BandaId, type ClaveEsquema, type MenuItemId, type ClaveDrawerMovil,
+  type ClaveCarrito,
 } from './site-content-defaults';
 import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
 import type { ClaveEscalaDisplay } from './escala-display';
@@ -231,6 +232,16 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * `navWordmark`: es una VARIANTE de FORMA, como `hero.variante`, no un ajuste ON/OFF sobre un
  * elemento que ya existe en su forma de hoy). CORTE es hoy el ÚNICO preset que lo declara.
  *
+ * `carritoVariante` (§ MUESTRARIO-CARRITO-COMPOSICION-1, OPCIONAL) — ¿el cajón del carrito rinde la
+ * composición FLOTANTE del muestrario (`.drawer`, `docs/prototipos/cafeone/css/app.css:708-717` —
+ * separado de los tres bordes libres por un margen, esquinas redondeadas del lado que mira al borde
+ * de pantalla, fondo de superficie de PÁGINA, cabecera en tamaño de titular y peso regular)?
+ * AUSENTE = el comportamiento de HOY, byte a byte (el cajón pegado al borde derecho, fondo de
+ * TARJETA, cabecera semibold sin tamaño declarado). Escribe `content.carrito.variante`
+ * (`CarritoContent`, meta PROPIA — ver su docstring en `site-content-defaults.ts` para el porqué de
+ * que no comparta objeto con `carritoEnvio`: es la barra de progreso de envío gratis, OTRO eje del
+ * mismo carrito). CORTE es hoy el ÚNICO preset que lo declara.
+ *
  * `menuBadgeItem`/`menuBadgeTexto` (§ CORTE-BADGE-COSECHA-EN-MENU-1, OPCIONALES) — el badge de
  * cosecha del prototipo (`.nav-item .badge`, `index.html:27-32`), MUDADO de `navBadge` (arriba, que
  * envolvía el LOGO) a ser un ATRIBUTO de UN ítem del menú (`MenuContent.badgeItem`/`.badgeTexto`,
@@ -270,6 +281,7 @@ export interface PresetTema {
   navTratamientoActivo?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
+  carritoVariante?: ClaveCarrito;
   menuBadgeItem?: MenuItemId;
   menuBadgeTexto?: string;
 }
@@ -558,6 +570,14 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // contrato exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`).
   out.navDrawerMovil = {
     variante: fusionar('navDrawerMovil.variante', preset.navDrawerMovilVariante ?? 'dropdown'),
+  };
+  // `carrito` (§ MUESTRARIO-CARRITO-COMPOSICION-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
+  // `rielSocial`, `carritoEnvio`, `navTratamiento`, `navWordmark` Y `navDrawerMovil` — ver el
+  // docstring de `CarritoContent` para el porqué (VARIANTE de forma del cajón entero, no un ajuste
+  // ON/OFF; NO comparte objeto con `carritoEnvio`, que es la barra de progreso de envío gratis, otro
+  // eje del mismo carrito).
+  out.carrito = {
+    variante: fusionar('carrito.variante', preset.carritoVariante ?? 'anclado'),
   };
   // `esquemas`/`orden` — fusión de BLOB ENTERO, no por banda (§ el docstring de arriba, "GRANULARIDAD").
   out.esquemas = fusionar('esquemas', { ...preset.esquemas });
@@ -979,6 +999,18 @@ export const CORTE: PresetTema = {
   // (cabecera propia, escalonado). CORTE es hoy el ÚNICO preset del catálogo que lo declara; los
   // otros cinco no tocan `content.navDrawerMovil`.
   navDrawerMovilVariante: 'pantallaCompleta',
+  // carritoVariante (§ MUESTRARIO-CARRITO-COMPOSICION-1) — MEDIDO contra el prototipo: `.drawer`
+  // (`docs/prototipos/cafeone/css/app.css:708-717`) es un panel `position:fixed;top/bottom/right:
+  // var(--frame-gap)` (12px, separado de los tres bordes libres) con `border-radius:0
+  // var(--frame-radius) var(--frame-radius) 0` (14px, redondeado sólo del lado que mira al borde
+  // de pantalla), `background:var(--surface-page)` (la superficie de PÁGINA, no la de tarjeta) y su
+  // cabecera (`.drawer-head h2`, `app.css:723-724`) en `font-size:var(--text-h1)` (38px) +
+  // `font-weight:var(--weight-regular)` (400) — el cajón pegado al borde de HOY no tiene ninguna de
+  // las tres piezas (separado del borde, radio parcial, fondo de página; su cabecera es
+  // `font-semibold` sin tamaño declarado). El ANCHO (`--drawer-width`, 880px) no tiene equivalente
+  // en este sistema y NO se aplica (§ el docstring de `CarritoContent`). CORTE es hoy el ÚNICO
+  // preset del catálogo que lo declara; los otros cinco no tocan `content.carrito`.
+  carritoVariante: 'flotante',
 };
 
 export const PATIO: PresetTema = {

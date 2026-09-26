@@ -19,6 +19,15 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 // `PENDIENTE_PANEL` —nace YA controlada, nunca pasó por ahí— así que el techo del trinquete
 // (`lib/config/panel-controles.test.ts`) no bajó por este cambio.
 //
+// § MUESTRARIO-CARRITO-COMPOSICION-1 sumó un CUARTO switch: la composición del cajón del carrito
+// (`carrito.variante`). EL DRAWER FLOTANTE ES UN SWITCH (booleano en el FORM) SOBRE UNA VARIANTE
+// (string en el DATO) — MISMO patrón que `drawerMovil` en `EncabezadoSeccion.tsx`
+// (`navDrawerMovil.variante`): con sólo dos miembros en el set cerrado (`'anclado'`/`'flotante'`,
+// § `ClaveCarrito`), un switch ON/OFF ("¿flotante?") es la UI correcta — no hace falta un selector
+// de N opciones para un dominio de 2—, así que `wireDe` traduce el booleano del form al string del
+// dato en el borde, sin filtrar esa traducción al resto del componente. Tampoco cerró ninguna
+// entrada de `PENDIENTE_PANEL` —nace YA controlada, mismo criterio que `carritoEnvio`—.
+//
 // PATRÓN `EncabezadoSeccion`/`PaletaSeccion`/`MenuSeccion`, NO `TiendaSeccionEditor`: los tres
 // switches viven en TRES claves META que `SeccionKey` EXCLUYE del REGISTRY (`volverArriba`,
 // `rielSocial`, `carritoEnvio`, § site-content-defaults.ts) — no son una sección, así que
@@ -44,21 +53,24 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 // es TEXTO, como en esas tres.
 
 interface Form {
-  volverArriba: boolean; // volverArriba.visible
-  rielSocial: boolean;   // rielSocial.visible
-  carritoEnvio: boolean; // carritoEnvio.visible
+  volverArriba: boolean;     // volverArriba.visible
+  rielSocial: boolean;       // rielSocial.visible
+  carritoEnvio: boolean;     // carritoEnvio.visible
+  carritoFlotante: boolean;  // carrito.variante === 'flotante'
 }
 
 interface Wire {
   volverArriba: { visible: boolean };
   rielSocial: { visible: boolean };
   carritoEnvio: { visible: boolean };
+  carrito: { variante: 'anclado' | 'flotante' };
 }
 
 const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
   { name: 'volverArriba', label: 'Botón "volver arriba"', hint: 'Un botón flotante que aparece al bajar por la página y lleva de vuelta al inicio.' },
   { name: 'rielSocial', label: 'Riel social', hint: 'Un riel fijo a un lado de la pantalla con tus redes sociales — usa las que ya cargaste en Configuración. Sólo se ve en pantallas anchas, y sólo si hay al menos una red cargada.' },
   { name: 'carritoEnvio', label: 'Barra de progreso de envío gratis', hint: 'En el carrito, muestra una barra que se llena a medida que el cliente se acerca al envío gratis, en vez del texto fijo de siempre.' },
+  { name: 'carritoFlotante', label: 'Cajón del carrito flotante', hint: 'El cajón del carrito se separa de los bordes de la pantalla, con esquinas redondeadas y su propio fondo, en vez de ir pegado al borde como hoy.' },
 ];
 
 export default function DetallesSitioSeccion() {
@@ -73,12 +85,15 @@ export default function DetallesSitioSeccion() {
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
 
-  // El WIRE que viaja al PUT: las tres metas COMPLETAS — cada una un objeto de una sola clave, así
+  // El WIRE que viaja al PUT: las cuatro metas COMPLETAS — cada una un objeto de una sola clave, así
   // que no hay nada que reenviar sin editar (a diferencia de `cromo.navBadge` en `EncabezadoSeccion`).
+  // `carrito` es la ÚNICA no-booleana: el switch del form se traduce al string del set cerrado
+  // acá, en el borde (§ el docstring de la cabecera del archivo).
   const wireDe = (f: Form): Wire => ({
     volverArriba: { visible: f.volverArriba },
     rielSocial: { visible: f.rielSocial },
     carritoEnvio: { visible: f.carritoEnvio },
+    carrito: { variante: f.carritoFlotante ? 'flotante' : 'anclado' },
   });
 
   const guardarDetalles = useCallback(async (w: Wire) => {
@@ -100,11 +115,13 @@ export default function DetallesSitioSeccion() {
         volverArriba?: { visible?: unknown };
         rielSocial?: { visible?: unknown };
         carritoEnvio?: { visible?: unknown };
+        carrito?: { variante?: unknown };
       };
       setForm({
         volverArriba: !!contenido.volverArriba?.visible,
         rielSocial: !!contenido.rielSocial?.visible,
         carritoEnvio: !!contenido.carritoEnvio?.visible,
+        carritoFlotante: contenido.carrito?.variante === 'flotante',
       });
       setHayBorrador(!!d.sinPublicar);
       if (inicial) setCargando(false);

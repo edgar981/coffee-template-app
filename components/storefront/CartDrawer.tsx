@@ -46,6 +46,19 @@ import { freeShippingThreshold } from "@duna/core/shipping-config";
 // `FraseEnvioGratis` sigue en el FOOTER, dentro de `items.length > 0`, byte-idéntica a como
 // siempre estuvo -- esta tanda es POSICIÓN de la barra, no una capacidad nueva ni un cambio al
 // estado vacío (que se queda intacto).
+//
+// § MUESTRARIO-CARRITO-COMPOSICION-1 -- el CAJÓN ENTERO gana una VARIANTE de composición
+// (`content.carrito.variante`, § `CarritoContent` en site-content-defaults.ts), MISMO patrón que ya
+// tienen el footer (`footer.variante`) y el drawer móvil del nav (`navDrawerMovil.variante`):
+// canónica = el panel de HOY verbatim (`'anclado'`, pegado al borde derecho); la del muestrario
+// (`'flotante'`) separa el panel de los tres bordes libres, lo redondea del lado que mira a la
+// pantalla, cambia su fondo a la superficie de PÁGINA (`--sf-fondo`, no `--sf-tarjeta`) y agranda +
+// aliviana la tipografía de la cabecera. MEDIDO contra `.drawer`/`.drawer-head h2`
+// (`docs/prototipos/cafeone/css/app.css:708-724`) -- el detalle completo, con el mapeo a nuestros
+// tokens y lo que NO se tocó (el ancho), vive en el docstring de `CarritoContent`. `CartTitulo` gana
+// el prop `variante` para poder cambiar tamaño/peso sin filtrar la traducción string↔UI al resto del
+// componente (mismo mecanismo que `DetallesSitioSeccion.tsx` usa en el borde del panel); llamado SIN
+// props (como en `cromo-carrito.test.ts`) sigue rindiendo byte-idéntico a como siempre estuvo.
 
 export interface ProgresoEnvioGratis {
   pct: number;
@@ -97,9 +110,22 @@ export function BarraEnvioGratis({ subtotal, threshold }: { subtotal: number; th
   );
 }
 
-export function CartTitulo() {
+// `variante` traduce `content.carrito.variante` (§ MUESTRARIO-CARRITO-COMPOSICION-1). AUSENTE (o
+// llamado sin props, como en `cromo-carrito.test.ts`) -> 'anclado' -> el MISMO markup byte a byte
+// que rendía antes de esta tanda -- `font-playfair font-semibold text-[var(--sf-tinta)]`, sin
+// tamaño declarado. 'flotante' -> `--text-h1`/`--weight-regular` del muestrario, mapeados a la
+// escala Tailwind (`text-3xl font-normal`) -- ver el docstring de `CarritoContent` para el porqué
+// de no reproducir el 38px literal del prototipo.
+export function CartTitulo({ variante }: { variante?: "anclado" | "flotante" } = {}) {
+  const flotante = variante === "flotante";
   return (
-    <h2 className="font-playfair font-semibold text-[var(--sf-tinta)]">
+    <h2
+      className={
+        flotante
+          ? "font-playfair text-3xl font-normal text-[var(--sf-tinta)]"
+          : "font-playfair font-semibold text-[var(--sf-tinta)]"
+      }
+    >
       Tu Carrito
     </h2>
   );
@@ -128,7 +154,7 @@ export default function CartDrawer() {
     updateQuantity,
     subtotal,
   } = useCartStore();
-  const { carritoEnvio } = useSiteContent();
+  const { carritoEnvio, carrito } = useSiteContent();
 
   // El costo de envío depende de la dirección; se calcula en el checkout. Aquí
   // solo mostramos el subtotal (el total real lo recalcula el servidor).
@@ -163,14 +189,18 @@ export default function CartDrawer() {
               damping: 30,
               stiffness: 300,
             }}
-            className="fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
+            className={
+              carrito.variante === 'flotante'
+                ? "fixed top-3 right-3 bottom-3 z-50 flex w-full max-w-sm flex-col rounded-tr-[14px] rounded-br-[14px] bg-[var(--sf-fondo)] text-[var(--sf-texto)] shadow-2xl"
+                : "fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
+            }
           >
             {/* Header */}
             <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />
 
-                <CartTitulo />
+                <CartTitulo variante={carrito.variante} />
 
                 {items.length > 0 && (
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sf-acento)] text-xs text-[var(--sf-acento-txt)]">

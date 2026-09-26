@@ -23039,3 +23039,201 @@ cambia cuándo y dónde un visitante ve la barra). `schema` y `cross-repo-contra
 `stopped_on: [customer-bytes]`. El owner ya aprobó la ESCRITURA (`approved: yes`, con la cita
 textual de su reporte como `approval-reason`); el merge sigue pendiente del gate del orquestador —
 este slice, por instrucción del dispatch, no mergea. **Cierra `CARRITO-BARRA-POSICION-1`.**
+
+## 2026-09-26 — El cajón del carrito gana una VARIANTE de composición: flotante, MISMO patrón que footer/drawer-móvil (`MUESTRARIO-CARRITO-COMPOSICION-1`)
+
+El owner, gateando desde el celular (2026-09-26): "siento que el carrito del muestrario se sentía
+diferente no sólo por esa sección sino en general, colores tipografías, ubicación eran diferentes".
+Medido contra `docs/prototipos/cafeone/css/app.css:708-724` vs. `CartDrawer.tsx` de hoy: el
+prototipo posiciona el cajón con `top/bottom/right:var(--frame-gap)` (flotante, separado de los
+tres bordes libres) + `border-radius` propio + `box-shadow:var(--shadow-drawer)`, fondo
+`var(--surface-page)`; el nuestro es `fixed top-0 right-0 h-full` pegado al borde, fondo
+`var(--sf-tarjeta)`. Y su cabecera es `font-size:var(--text-h1)` + `font-weight:var(--weight-
+regular)` contra nuestro `font-semibold` sin tamaño declarado. El owner pidió explícitamente NO
+construir la fila Nota|Descuento del pie — eso queda fuera.
+
+### Por qué una VARIANTE y no un ajuste suelto
+
+El carrito lo ve TODO tenant. Cambiar su forma a secas cambiaría también el de Nayoli — el mismo
+argumento que ya cerró el footer (`MUESTRARIO-FOOTER-TEMA-1`) y el drawer móvil
+(`MUESTRARIO-DRAWER-MOVIL-TEMA-1`): **una VARIANTE de composición, canónica = lo de hoy verbatim.**
+Meta PROPIA con su variante, patrón `navDrawerMovil` (no un campo de `carritoEnvio`: esa meta es la
+barra de progreso de envío gratis, OTRO eje del mismo carrito, § su propio docstring).
+
+### El modelo — `CarritoContent`, gemelo de `NavDrawerMovilContent`
+
+`ClaveCarrito = 'anclado' | 'flotante'` (`lib/config/site-content-defaults.ts`). `'anclado'` (el
+default, byte-idéntico) = el cajón pegado al borde de HOY; `'flotante'` (sólo CORTE) = el panel del
+muestrario. Meta NUEVA y PROPIA (`carrito`), excluida de `SeccionKey` como las otras trece metas —
+no es contenido de una sección, es composición de un elemento que NO vive en `SiteContentData` como
+banda. `resolverCarrito` es SOFT (dominio cerrado de 2, nunca lanza, cualquier basura cae a
+`'anclado'`) — gemelo exacto de `resolverNavDrawerMovil`.
+
+**EL ANCHO NO SE TOCA, y está declarado por qué.** `--drawer-width` (880px,
+`width:min(var(--drawer-width),calc(100vw - var(--frame-gap)*2))`) no tiene equivalente en este
+sistema — no hay token de ancho de drawer en `formas.ts`/`tokens.css`, y el owner no señaló el ancho
+como parte de lo que "se sentía diferente" (colores, tipografías, ubicación, explícitamente). Un
+número sin equivalente propio se REPORTA, no se hornea (§ la instrucción del spec) — se deja escrito
+en el docstring de `CarritoContent` en vez de inventar una regla de ancho nueva. Las dos variantes
+conservan `max-w-sm`.
+
+**LOS TOKENS MAPEADOS, no horneados del prototipo:**
+
+| prototipo (`.drawer`/`.drawer-head h2`) | medido | nuestro token | clase Tailwind |
+| --- | --- | --- | --- |
+| `top/bottom/right:var(--frame-gap)` | 12px | mismo valor que `navDrawerMovil` (`StoreNav.tsx`, `inset-3`) | `top-3 right-3 bottom-3` |
+| `border-radius:0 var(--frame-radius) var(--frame-radius) 0` | 14px, sólo 2 esquinas | mismo valor que `navDrawerMovil` (`rounded-[14px]`) | `rounded-tr-[14px] rounded-br-[14px]` |
+| `background:var(--surface-page)` | — | `--sf-fondo` (superficie de PÁGINA, no de tarjeta) | `bg-[var(--sf-fondo)]` |
+| `color:var(--text-body)` | — | `--sf-texto` | `text-[var(--sf-texto)]` |
+| `box-shadow:var(--shadow-drawer)` | direccional, verde | **sin equivalente** (`formas.ts`: "SOMBRAS FUERA en v1... no hay `--sf-sombra`") | se REUSA `shadow-2xl` — la canónica YA tenía sombra propia, y el owner no señaló la sombra como parte de la diferencia |
+| `font-family:var(--font-heading)` | — | `font-playfair` (sin cambio, ya era la fuente de título) | `font-playfair` |
+| `font-size:var(--text-h1)` | 38px | sin escala de titular equivalente para chrome (`escalaDisplay` es sólo para roles `xl`/`l` de banda, fuera de `touches:`) — se usa el escalón fijo más cercano del vocabulario Tailwind ya en uso para titulares de sección (`text-3xl`, 30px) | `text-3xl` |
+| `font-weight:var(--weight-regular)` | 400 | mismo mapeo que `navTratamiento`/`navWordmark` (`--weight-regular` → `font-normal`) | `font-normal` |
+
+El `box-shadow` es el único caso donde NO se reprodujo el eje "propio" explícitamente: `formas.ts`
+declara sombras fuera de alcance en v1 por decisión del owner, y ese archivo no está en `touches:`.
+`shadow-2xl` (Tailwind) ya era la sombra de la canónica y se conserva en la flotante — cumple
+"sombra propia" sin inventar un token nuevo.
+
+### `CartTitulo` gana `variante`, sin romper el consumidor existente
+
+`cromo-carrito.test.ts` (NO en `touches:`) llama `React.createElement(CartTitulo)` SIN props y
+afirma el markup byte a byte (`font-playfair font-semibold text-[var(--sf-tinta)]`). `CartTitulo`
+gana el prop `variante?: "anclado" | "flotante"` con destructuring por default (`{ variante }: {...}
+= {}`): `undefined`/`'anclado'` → EXACTAMENTE la misma cadena de clases de antes; `'flotante'` →
+`text-3xl font-normal` reemplaza `font-semibold` sin tamaño. Verificado por render
+(`renderToStaticMarkup`) en las tres formas (sin props, `'anclado'` explícito, `'flotante'`).
+
+**HALLAZGO DE TIPOS, no del spec — `React.createElement` con un prop-type ALL-OPTIONAL colapsa la
+inferencia genérica a `P={}`.** Al escribir los tests nuevos, `React.createElement(CartTitulo, {
+variante: 'anclado' })` daba `TS2769`: "'variante' does not exist in type 'Attributes'" — con las
+DOS props candidatas (`FraseEnvioGratis`/`BarraEnvioGratis`, ya existentes) teniendo campos
+REQUERIDOS, nunca se había topado este caso. Con un prop-type donde TODAS las claves son opcionales,
+TypeScript infiere `P` como `{}` al resolver el overload de `createElement<P>`, porque `{}` es un
+candidato válido (toda instancia de un tipo all-optional es asignable desde `{}`). Se resolvió
+pasando el tipo EXPLÍCITO en el call site (`React.createElement<PropsCartTitulo>(CartTitulo, {...})`)
+en los tres tests nuevos que pasan props — no se tocó la firma de `CartTitulo` (que sigue como
+destructuring-con-default, la forma más legible) ni `cromo-carrito.test.ts` (fuera de `touches:`,
+llama sin props y nunca topa el bug). Anotado para que el próximo componente con un prop-type
+all-optional no vuelva a perder tiempo con el mismo mensaje de error engañoso.
+
+### El control del panel — CUARTO switch en "Detalles del sitio", nace YA controlado
+
+`DetallesSitioSeccion.tsx` gana un cuarto switch ("Cajón del carrito flotante"), MISMO patrón que
+`navDrawerMovil.variante` en `EncabezadoSeccion.tsx`: el drawer flotante es un SWITCH (booleano en
+el FORM) sobre una VARIANTE (string en el DATO) — con sólo dos miembros en el set, un ON/OFF
+("¿flotante?") es la UI correcta, y `wireDe` traduce el booleano al string en el borde.
+`app/api/site-content/detalles/route.ts` generaliza su mecanismo GET/PUT/POST de TRES a CUATRO
+metas —`METAS_DETALLES`, el `.pick()` de `detallesEditableSchema` y la respuesta del GET crecen en
+una clave— sin cambiar de FORMA. `panel-controles.ts`: `METAS_CON_CAMPOS` pasa de NUEVE a DIEZ,
+`CONTROLADOS_DETALLES_SECCION` gana `'carrito.variante'`. Nace CON control —nunca pasó por
+`PENDIENTE_PANEL`— así que **el techo del trinquete (11) no se mueve**, verificado con el test
+existente (`huecosDelPanel()` sigue en `[]`) más dos tests nuevos (`carrito.variante` controlado, y
+nunca aparece como hueco ni sin exenciones).
+
+### El GATE
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** (tras el hallazgo de tipos de arriba) |
+| `npm test` (capa 1, sin base) | **2173/2173** — verde (+22, ver desglose abajo) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde, SIN cambio (este slice no toca el carril) |
+
+Desglose exacto de los +22 (contado por `git diff | grep -c '^+test('` por archivo):
+`lib/config/detalles-sitio.test.ts` **+18** (4 de `CartTitulo`, 6 del contenedor por lectura de
+fuente, 3 de `resolverCarrito`, 2 del schema/`.pick()`, 2 del control del panel, 1 de CORTE),
+`lib/config/site-content-defaults.test.ts` **+3** (cableado dentro de `resolverSiteContent`),
+`lib/config/panel-controles.test.ts` **+1** (control de `carrito.variante`, análogo al de
+`navDrawerMovil.variante`). Reconciliado contra el piso citado por
+el commit anterior (`0485c0a`: "npm test 2151/2151 … npm run test:integracion 237/237"): capa 1 sube
+en exactamente +22, explicado entero por los tests nuevos; capa 2 queda IDÉNTICA (237→237).
+
+### El diff visual — Nayoli byte-idéntica, con el MISMO límite ya declarado por el slice anterior
+
+`npm run verificar:nayoli:visual` (main vs. esta rama, 6 rutas + 2 hovers, claro forzado, reloj
+congelado): **CERO diferencias, en las 6 rutas Y los 2 hovers** (home 0/4.608.000px, tienda
+0/2.433.280px, producto 0/2.535.680px, checkout 0/1.152.000px, nosotros 0/1.152.000px,
+suscripciones 0/2.144.000px, hover:automatica 0/98.298px, hover:eleccion 0/102.870px). Nayoli tiene
+`carrito.variante='anclado'` (el default, sin fila), así que el ternario de `CartDrawer.tsx` rinde
+la rama `else` byte a byte igual que antes de este slice.
+
+**LÍMITE DECLARADO, el mismo que `CARRITO-BARRA-POSICION-1` ya dejó escrito:** el arnés
+(`scripts/verificar-nayoli-visual.ts`) captura 6 rutas de página completa + 2 hovers de tarjeta;
+NINGUNA de las 8 capturas abre el carrito. **El 0px prueba que Nayoli no cambió en ninguna pantalla
+que el arnés mira, pero NO ejercita esta pieza en absoluto** — ni la posición, ni el radio, ni el
+fondo, ni la tipografía de la cabecera, en ninguna dirección (canónica ni flotante). La verificación
+de que el panel realmente se ve flotante con `CORTE` aplicado es del gate visual del owner (capa 3,
+manual), no de este arnés.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `CarritoContent`, `ClaveCarrito`, `resolverCarrito`, `carrito`
+(meta), `CartTitulo`, `CartDrawer.tsx` (contenido), `carritoEditableSchema`, `METAS_DETALLES`,
+`METAS_CON_CAMPOS`, `CONTROLADOS_DETALLES_SECCION`, `DetallesSitioSeccion.tsx` (contenido),
+`carritoVariante`, `MUESTRARIO-CARRITO-COMPOSICION-1`. Grepeados uno por uno contra `CLAUDE.md`:
+**CERO apariciones** de todos, salvo dos rutas de archivo que SÍ aparecen porque son Tier 1 por
+nombre —`lib/config/site-content-schema.ts` y `lib/config/site-content-defaults.ts`, ambas
+nombradas en la lista de superficies Tier 1 (línea 39) y en la prosa que explica por qué entraron
+(el incidente de strippeo silencioso, #65-B) — ninguna frase alrededor de esas dos menciones se
+vuelve falsa: describen POR QUÉ el archivo es Tier 1 (el incidente que lo trajo), no CUÁNTAS metas o
+qué forma tiene hoy, así que agregar una meta más no las toca. Nada que corregir en `CLAUDE.md`.
+
+**Hallazgo ADYACENTE, fuera de `CLAUDE.md` — un comentario de código, no doctrina:**
+`app/api/site-content/detalles/route.ts:27` dice "esta ruta aceptaría… cualquiera de las 27 claves
+del schema completo". Medido: `siteContentEditableSchema` tenía **28** claves ANTES de este slice
+(29 ahora, con `carrito` sumada) — el comentario ya estaba desactualizado antes de que este slice
+empezara (probablemente desde alguna de las tandas `MUESTRARIO-*` que agregó una meta sin volver a
+contar). No se corrige acá: es un comentario de código en un archivo que SÍ está en `touches:`, pero
+corregir un conteo ajeno a lo que este slice vino a hacer sería el mismo ensanche de alcance que la
+doctrina prohíbe para `CLAUDE.md` — se anota como `open_followup`
+(`DETALLES-ROUTE-27-CLAVES-STALE-1`).
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`, `lib/config/themes.ts`,
+`app/api/site-content/detalles/route.ts`, `components/admin/DetallesSitioSeccion.tsx`,
+`components/storefront/CartDrawer.tsx`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `lib/config/site-content-defaults.test.ts`,
+`lib/config/detalles-sitio.test.ts`, este asiento (`DECISIONS.md`). Sin desviación de alcance — los
+once archivos nombrados en `touches:` son los únicos tocados.
+
+### `open_followups`
+
+- **`DETALLES-ROUTE-27-CLAVES-STALE-1`**: `app/api/site-content/detalles/route.ts:27` dice "27
+  claves del schema completo"; medido, son 29 hoy (28 antes de este slice). Pre-existente a este
+  slice, agravado en uno por la meta nueva. No se corrige acá — es un conteo, no una decisión, y
+  arreglarlo no es lo que este spec pidió.
+
+### `customer_bytes`
+
+`changed: true`, juzgado sobre la RAMA (§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), no sobre
+este commit aislado: `carrito.variante` nace `'anclado'` (Nayoli, byte-idéntico, verificado 0px
+arriba), pero la rama `slice/corte-reescritura-prototipo-1` ya incluye `CORTE`
+(§ `MUESTRARIO-CARRITO-BARRA-ENVIO-1`), el preset que ahora también enciende `carrito.variante:
+'flotante'`. Bajo esa condición, este slice cambia lo que un VISITANTE ve: la posición del cajón
+(flotante con margen en tres bordes, en vez de pegado al borde), su radio (dos esquinas redondeadas
+en vez de ninguna), su fondo (superficie de página en vez de tarjeta) y el tamaño/peso de la
+cabecera ("Tu Carrito" pasa de semibold sin tamaño a `text-3xl` regular).
+
+`strings`: ningún texto NUEVO — "Tu Carrito" ya existía byte a byte. Lo que cambia es la
+COMPOSICIÓN visual (posición, radio, fondo, tamaño/peso tipográfico) del mismo texto, no su
+redacción — bytes compilados/estructurales, no producto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son cuatro archivos de configuración de contenido (TS puro, zod), dos
+componentes React, un route handler Next, y archivos de test.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores; `npm test` 2173/2173, +22
+reconciliados; `npm run test:integracion` 237/237, sin cambio), commiteado en
+`slice/corte-reescritura-prototipo-1`. Diff visual corrido y CERO diferencias en las 6 rutas + 2
+hovers, con el LÍMITE declarado de que el arnés NUNCA abre el carrito — no ejercita esta pieza en
+ninguna dirección. El diff falla `customer-bytes` (la rama, con `CORTE` ya encendiendo
+`carrito.variante:'flotante'`, cambia posición/radio/fondo/tipografía del cajón para el visitante).
+`schema` y `cross-repo-contract` NO aplican. `stopped_on: [customer-bytes]`. El owner ya aprobó la
+ESCRITURA (`approved: yes`, con la cita textual de su reporte como `approval-reason`); el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+**Cierra `MUESTRARIO-CARRITO-COMPOSICION-1`.**

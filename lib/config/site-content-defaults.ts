@@ -1033,6 +1033,42 @@ export interface NavDrawerMovilContent {
   variante: ClaveDrawerMovil;
 }
 
+// El set CERRADO de composiciones del CAJÓN DEL CARRITO (§ MUESTRARIO-CARRITO-COMPOSICION-1).
+export type ClaveCarrito = 'anclado' | 'flotante';
+
+// META de VARIANTE DE COMPOSICIÓN DEL CARRITO (§ MUESTRARIO-CARRITO-COMPOSICION-1) — MISMA forma
+// que `NavDrawerMovilContent` (arriba): AUSENTE/`'anclado'` = el comportamiento de HOY, byte a
+// byte. Meta PROPIA, NO un campo de `CarritoEnvioContent` — ésa es la barra de progreso hacia el
+// envío gratis, OTRO eje del mismo carrito (§ su propio docstring); acá, igual que `navDrawerMovil`
+// frente a `navTratamiento`/`navWordmark`, las DOS composiciones son FORMAS ENTERAS distintas del
+// mismo panel —pegado al borde derecho vs. flotante separado de los tres bordes libres, con su
+// propio radio y su propia sombra— así que el eje es de VARIANTE, no de encendido.
+export interface CarritoContent {
+  // ¿El cajón del carrito (`CartDrawer.tsx`) rinde la composición FLOTANTE del muestrario (`.drawer`,
+  // `docs/prototipos/cafeone/css/app.css:708-717`): separado del viewport por un margen en los TRES
+  // bordes libres (arriba/abajo/derecha — `top/bottom/right:var(--frame-gap)`, MEDIDO en 12px, el
+  // MISMO valor que ya traduce `navDrawerMovil.variante==='pantallaCompleta'` en `StoreNav.tsx`,
+  // `inset-3`), esquinas redondeadas del lado que mira al borde de pantalla
+  // (`border-radius:0 var(--frame-radius) var(--frame-radius) 0`, MEDIDO en 14px — MISMO valor que
+  // `navDrawerMovil`, `rounded-[14px]` en ese componente), fondo en la superficie de PÁGINA
+  // (`background:var(--surface-page)` → `--sf-fondo`, NO `--sf-tarjeta`) y cabecera en tamaño de
+  // titular y peso regular (`font-size:var(--text-h1)` + `font-weight:var(--weight-regular)` →
+  // `text-3xl font-normal`, reemplazando el `font-semibold` sin tamaño declarado de hoy)?
+  // `'anclado'` = HOY: pegado al borde derecho (`fixed top-0 right-0 h-full`), esquinas cuadradas,
+  // fondo `--sf-tarjeta`, cabecera `font-semibold` sin tamaño — byte-idéntico.
+  //
+  // EL ANCHO NO SE TOCA EN NINGUNA DE LAS DOS: `--drawer-width` (880px en el muestrario,
+  // `width:min(var(--drawer-width),calc(100vw - var(--frame-gap)*2))`) no tiene equivalente en este
+  // sistema —no hay token de ancho de drawer, y el owner no señaló el ancho como parte de lo que "se
+  // sentía diferente" (colores, tipografías, ubicación)— así que reproducirlo sería hornear un
+  // número del prototipo sin mapearlo a nada nuestro. Las dos variantes conservan el `max-w-sm` de
+  // siempre.
+  //
+  // Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.carritoVariante` — de los 6
+  // presets del catálogo, sólo CORTE lo declara `'flotante'`.
+  variante: ClaveCarrito;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   marquesina: MarquesinaContent;
@@ -1059,6 +1095,7 @@ export interface SiteContentData {
   navTratamiento: NavTratamientoContent;
   navWordmark: NavWordmarkContent;
   navDrawerMovil: NavDrawerMovilContent;
+  carrito: CarritoContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
@@ -1574,6 +1611,12 @@ export const DEFAULTS: SiteContentData = {
   navDrawerMovil: {
     variante: 'dropdown',
   },
+  // VARIANTE DE COMPOSICIÓN DEL CARRITO por defecto (§ MUESTRARIO-CARRITO-COMPOSICION-1): 'anclado'
+  // → el cajón pegado al borde derecho de HOY, byte-idéntico. Sólo CORTE lo cambia a 'flotante', vía
+  // `mergePresetEnContent`.
+  carrito: {
+    variante: 'anclado',
+  },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
   // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
@@ -1684,10 +1727,11 @@ export interface SeccionDef {
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
-// `volverArriba`, `rielSocial`, `navTratamiento`, `navWordmark`, `navDrawerMovil`, `esquemas`,
-// `orden`, `variantesBandas` y `presetSnapshot`, que no son secciones). El REGISTRY las cubre a
-// todas; las doce metas quedan fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'carritoEnvio' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
+// `volverArriba`, `rielSocial`, `carritoEnvio`, `carrito` (§ MUESTRARIO-CARRITO-COMPOSICION-1),
+// `navTratamiento`, `navWordmark`, `navDrawerMovil`, `esquemas`, `orden`, `variantesBandas` y
+// `presetSnapshot`, que no son secciones). El REGISTRY las cubre a todas; las catorce metas quedan
+// fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'carritoEnvio' | 'carrito' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -2283,6 +2327,12 @@ export function resolverSiteContent(
   // `volverArriba`/`rielSocial`/`navTratamiento`/`navWordmark` (dominio CERRADO propio, 1 clave) por
   // el motivo del docstring de `NavDrawerMovilContent` — no comparte contrato con ninguna de las cinco.
   out.navDrawerMovil = resolverNavDrawerMovil(raw.navDrawerMovil, defaultsBase.navDrawerMovil);
+  // VARIANTE DE COMPOSICIÓN DEL CARRITO (meta, no sección, § MUESTRARIO-CARRITO-COMPOSICION-1): ¿el
+  // cajón del carrito rinde el panel flotante del muestrario?, resuelto aparte de `cromo`/
+  // `volverArriba`/`rielSocial`/`carritoEnvio`/`navTratamiento`/`navWordmark`/`navDrawerMovil`
+  // (dominio CERRADO propio, 1 clave) por el motivo del docstring de `CarritoContent` — no comparte
+  // contrato con ninguna de esas metas.
+  out.carrito = resolverCarrito(raw.carrito, defaultsBase.carrito);
   // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
@@ -2461,6 +2511,25 @@ export function resolverNavDrawerMovil(stored: unknown, defaults: unknown): NavD
   if (valido(sv)) return { variante: sv };
   const dv = def['variante'];
   return { variante: valido(dv) ? dv : 'dropdown' };
+}
+
+const CLAVES_CARRITO = new Set<ClaveCarrito>(['anclado', 'flotante']);
+
+// Resuelve la VARIANTE DE COMPOSICIÓN DEL CARRITO (§ MUESTRARIO-CARRITO-COMPOSICION-1), gemela de
+// `resolverNavDrawerMovil` en FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el
+// docstring de `CarritoContent` para el porqué de que no comparta objeto con `carritoEnvio` ni con
+// ninguna de las metas de chrome del nav. A diferencia de los cinco booleanos (`volverArriba`,
+// `rielSocial`, `carritoEnvio`, `navTratamiento`, `navWordmark`), acá el valor es un STRING de un
+// set CERRADO de 2 — mismo patrón de validación que `navDrawerMovil`: sólo un miembro del set
+// sobrevive, cualquier otra cosa (ausente, basura, un string fuera del set) cae al default.
+export function resolverCarrito(stored: unknown, defaults: unknown): CarritoContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const valido = (v: unknown): v is ClaveCarrito => CLAVES_CARRITO.has(v as ClaveCarrito);
+  const sv = st['variante'];
+  if (valido(sv)) return { variante: sv };
+  const dv = def['variante'];
+  return { variante: valido(dv) ? dv : 'anclado' };
 }
 
 const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento', 'neutro']);

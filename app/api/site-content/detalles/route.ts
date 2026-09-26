@@ -5,7 +5,7 @@ import { auth } from '@/lib/auth';
 import { storage } from '@/lib/storage';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config/site-content-write';
-import { DEFAULTS, mezclarBorrador, resolverVolverArriba, resolverRielSocial, resolverCarritoEnvio } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, mezclarBorrador, resolverVolverArriba, resolverRielSocial, resolverCarritoEnvio, resolverCarrito } from '@/lib/config/site-content-defaults';
 
 // DETALLES DEL SITIO (§ PANEL-DETALLES-SITIO-1) — el nombre que el owner le dio (2026-09-23) a "volver
 // arriba y redes sociales": los DOS ejes de chrome del grupo `PANEL-EDITOR-CHROME-METAS-1`
@@ -51,6 +51,11 @@ import { DEFAULTS, mezclarBorrador, resolverVolverArriba, resolverRielSocial, re
 // cambió de forma — GENERALIZA a N metas cerradas de 1 clave cada una, no una segunda mitad
 // paralela—: sólo crecieron `METAS_DETALLES`, el `.pick()` de `detallesEditableSchema` y la
 // respuesta del GET.
+//
+// § MUESTRARIO-CARRITO-COMPOSICION-1 (2026-09-26) sumó una CUARTA meta, `carrito` (`{variante:
+// 'anclado'|'flotante'}`, la composición del cajón entero — ver el docstring de `CarritoContent`).
+// MISMA generalización: no es un booleano como las otras tres, pero el mecanismo (pick + GET propio
+// + publicar/descartar en bloque) no distingue booleano de enum — ambos son un objeto de 1 clave.
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -66,9 +71,10 @@ const detallesEditableSchema = siteContentEditableSchema.pick({
   volverArriba: true,
   rielSocial: true,
   carritoEnvio: true,
+  carrito: true,
 });
 
-const METAS_DETALLES = ['volverArriba', 'rielSocial', 'carritoEnvio'] as const;
+const METAS_DETALLES = ['volverArriba', 'rielSocial', 'carritoEnvio', 'carrito'] as const;
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -92,13 +98,14 @@ export async function GET() {
   const row = await prisma.siteContent.findUnique({ where: { id: 'default' } });
   const content = esObj(row?.content) ? row!.content : {};
   const borrador = esObj(row?.borrador) ? row!.borrador : {};
-  const merged = mezclarBorrador(content, borrador) as { volverArriba?: unknown; rielSocial?: unknown; carritoEnvio?: unknown };
+  const merged = mezclarBorrador(content, borrador) as { volverArriba?: unknown; rielSocial?: unknown; carritoEnvio?: unknown; carrito?: unknown };
 
   return NextResponse.json({
     contenido: {
       volverArriba: resolverVolverArriba(merged.volverArriba, DEFAULTS.volverArriba),
       rielSocial: resolverRielSocial(merged.rielSocial, DEFAULTS.rielSocial),
       carritoEnvio: resolverCarritoEnvio(merged.carritoEnvio, DEFAULTS.carritoEnvio),
+      carrito: resolverCarrito(merged.carrito, DEFAULTS.carrito),
     },
     sinPublicar: METAS_DETALLES.some((m) => m in borrador),
   });

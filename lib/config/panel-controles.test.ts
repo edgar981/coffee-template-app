@@ -154,6 +154,16 @@ test('carritoEnvio.visible: CONTROLADO por DetallesSitioSeccion.tsx desde su pro
   assert.ok(!huecosDelPanel({ conExenciones: false }).includes('carritoEnvio.visible'));
 });
 
+// § MUESTRARIO-CARRITO-COMPOSICION-1: `carrito.variante` gana su control EN EL MISMO commit que la
+// mete al lado "leído" — MISMO patrón que `carritoEnvio.visible`/`navDrawerMovil.variante` arriba,
+// esta meta nace YA CONTROLADA (`DetallesSitioSeccion.tsx`, § CONTROLADOS_DETALLES_SECCION).
+// Confirma las DOS mitades: está en el lado controlado, y por eso NO aparece como hueco ni siquiera
+// SIN exenciones. El techo-trinquete (11) no se mueve.
+test('carrito.variante: CONTROLADO por DetallesSitioSeccion.tsx desde su propio commit — nunca un hueco', () => {
+  assert.ok(camposControladosPorPanel().includes('carrito.variante'));
+  assert.ok(!huecosDelPanel({ conExenciones: false }).includes('carrito.variante'));
+});
+
 // CERRADO por PANEL-EDITOR-TRUSTBADGES-VISIBLE-1: este test afirmaba que SIN exenciones el chequeo
 // marcaba `trustBadges.visible` como hueco — la calibración original que motivó su entrada en
 // `PENDIENTE_PANEL`. Ese slice le dio control (`TRUSTBADGES` en `SECCIONES_TIENDA`, § tienda-

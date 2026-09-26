@@ -10,9 +10,10 @@ import {
   progresoEnvioGratis,
   FraseEnvioGratis,
   BarraEnvioGratis,
+  CartTitulo,
 } from '@/components/storefront/CartDrawer';
 import { formatCOP } from '@duna/core/utils';
-import { DEFAULTS, resolverCarritoEnvio } from './site-content-defaults';
+import { DEFAULTS, resolverCarritoEnvio, resolverCarrito } from './site-content-defaults';
 import { siteContentEditableSchema } from './site-content-schema';
 import { CORTE, mergePresetEnContent } from './themes';
 import { camposControladosPorPanel, huecosDelPanel } from './panel-controles';
@@ -210,4 +211,141 @@ test('huecosDelPanel(): con la meta nueva, sigue sin quedar ningún campo sin co
 test('mergePresetEnContent(_, CORTE).carritoEnvio.visible === true -- CORTE la enciende', () => {
   const out = mergePresetEnContent({}, CORTE);
   assert.equal((out.carritoEnvio as { visible: boolean }).visible, true);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// § MUESTRARIO-CARRITO-COMPOSICION-1 -- la VARIANTE de composición del cajón del carrito
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// ─── CartTitulo -- byte-idéntica sin variante (o 'anclado'), tamaño/peso de titular con 'flotante' ──
+
+test('CartTitulo: sin variante (llamada sin props, como cromo-carrito.test.ts) -- byte-idéntica al markup de siempre', () => {
+  const html = renderToStaticMarkup(React.createElement(CartTitulo));
+  assert.equal(html, '<h2 class="font-playfair font-semibold text-[var(--sf-tinta)]">Tu Carrito</h2>');
+});
+
+// `React.createElement<{variante?}>` con el tipo EXPLÍCITO: con las dos props opcionales, la
+// inferencia genérica del overload de `createElement` colapsa a `P={}` y rechaza `variante` como
+// "propiedad desconocida" -- el mismo eje del prop-type all-optional de `CartTitulo`. Pasar el tipo
+// explícito no es un patrón nuevo del repo, es lo que este caso puntual exige.
+type PropsCartTitulo = { variante?: 'anclado' | 'flotante' };
+
+test("CartTitulo: variante='anclado' explícita -- MISMO markup que sin props", () => {
+  const html = renderToStaticMarkup(React.createElement<PropsCartTitulo>(CartTitulo, { variante: 'anclado' }));
+  assert.equal(html, '<h2 class="font-playfair font-semibold text-[var(--sf-tinta)]">Tu Carrito</h2>');
+});
+
+test("CartTitulo: variante='flotante' -- tamaño de titular (text-3xl) y peso regular (font-normal), reemplazando font-semibold", () => {
+  const html = renderToStaticMarkup(React.createElement<PropsCartTitulo>(CartTitulo, { variante: 'flotante' }));
+  assert.equal(html, '<h2 class="font-playfair text-3xl font-normal text-[var(--sf-tinta)]">Tu Carrito</h2>');
+  assert.doesNotMatch(html, /font-semibold/, 'flotante no debe conservar el peso semibold de hoy');
+});
+
+test('CartTitulo: las dos variantes conservan la MISMA fuente de TÍTULO (font-playfair, primera clase) y el MISMO color (--sf-tinta)', () => {
+  for (const variante of ['anclado', 'flotante'] as const) {
+    const html = renderToStaticMarkup(React.createElement<PropsCartTitulo>(CartTitulo, { variante }));
+    assert.match(html, /class="font-playfair /);
+    assert.match(html, /text-\[var\(--sf-tinta\)\]/);
+  }
+});
+
+// ─── El CONTENEDOR del cajón -- por lectura de la fuente (CartDrawer no se puede montar, arriba) ────
+
+test("CartDrawer.tsx: el contenedor del drawer gatea SU className por `carrito.variante === 'flotante'`", () => {
+  const src = leerFuenteCartDrawer();
+  assert.match(src, /carrito\.variante === 'flotante'/);
+});
+
+test("CartDrawer.tsx: la rama 'flotante' separa el panel de los TRES bordes libres (12px, MISMO valor que navDrawerMovil), sin `h-full`", () => {
+  const src = leerFuenteCartDrawer();
+  const idxFlotante = src.indexOf("carrito.variante === 'flotante'");
+  const idxAnclado = src.indexOf('fixed top-0 right-0');
+  assert.ok(idxFlotante > -1 && idxAnclado > -1);
+  const bloqueFlotante = src.slice(idxFlotante, idxAnclado);
+  assert.match(bloqueFlotante, /top-3 right-3 bottom-3/, 'los tres bordes libres deben llevar el MISMO margen (12px = top-3/right-3/bottom-3)');
+  assert.doesNotMatch(bloqueFlotante, /h-full/, 'flotante no debe fijar h-full -- el alto sale de top+bottom, no de una clase de altura');
+});
+
+test("CartDrawer.tsx: la rama 'flotante' redondea SÓLO el lado que mira al borde de pantalla (top-right/bottom-right), fondo de PÁGINA (no de tarjeta)", () => {
+  const src = leerFuenteCartDrawer();
+  const idxFlotante = src.indexOf("carrito.variante === 'flotante'");
+  const idxAnclado = src.indexOf('fixed top-0 right-0');
+  const bloqueFlotante = src.slice(idxFlotante, idxAnclado);
+  assert.match(bloqueFlotante, /rounded-tr-\[14px\] rounded-br-\[14px\]/);
+  assert.doesNotMatch(bloqueFlotante, /rounded-tl|rounded-bl/, 'el lado que mira al contenido NO se redondea -- MEDIDO contra `.drawer` del prototipo (0 en las dos esquinas izquierdas)');
+  assert.match(bloqueFlotante, /bg-\[var\(--sf-fondo\)\]/);
+  assert.doesNotMatch(bloqueFlotante, /--sf-tarjeta/, 'flotante no debe usar la superficie de TARJETA -- MEDIDO: el prototipo pinta `--surface-page`, no una superficie de tarjeta');
+});
+
+test("CartDrawer.tsx: la rama 'anclado' (el `else` del ternario) sigue byte-idéntica a como estaba antes de esta tanda", () => {
+  const src = leerFuenteCartDrawer();
+  assert.ok(
+    src.includes('"fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"'),
+    'la cadena de clases del cajón "anclado" debe seguir siendo exactamente la de hoy, sin un solo carácter distinto',
+  );
+});
+
+test('CartDrawer.tsx: el ANCHO (`max-w-sm`) es el MISMO literal en las dos ramas -- el ancho no se toca, sólo posición/radio/fondo/tipografía', () => {
+  const src = leerFuenteCartDrawer();
+  const ocurrenciasMaxWSm = src.split('max-w-sm').length - 1;
+  assert.equal(ocurrenciasMaxWSm, 2, 'las dos ramas del ternario deben declarar el mismo max-w-sm -- ninguna reproduce el --drawer-width del muestrario (sin equivalente en este sistema, § CarritoContent)');
+});
+
+test('CartDrawer.tsx: `<CartTitulo variante={carrito.variante}` está cableado dentro del header del drawer', () => {
+  const src = leerFuenteCartDrawer();
+  assert.match(src, /<CartTitulo variante=\{carrito\.variante\}/);
+});
+
+// ─── resolverCarrito — el resolver SOFT de la meta ──────────────────────────────────────────────────
+
+test('resolverCarrito: sin nada guardado -> el default (anclado, byte-idéntico)', () => {
+  assert.deepEqual(resolverCarrito(undefined, DEFAULTS.carrito), { variante: 'anclado' });
+  assert.deepEqual(DEFAULTS.carrito, { variante: 'anclado' });
+});
+
+test('resolverCarrito: guardado explícito "flotante" sobrevive', () => {
+  assert.deepEqual(resolverCarrito({ variante: 'flotante' }, DEFAULTS.carrito), { variante: 'flotante' });
+});
+
+test('resolverCarrito: basura (fuera del set cerrado) cae al default, nunca lanza', () => {
+  for (const basura of [null, undefined, 'x', 42, [], { variante: 'volando' }, { variante: 42 }]) {
+    assert.deepEqual(resolverCarrito(basura, DEFAULTS.carrito), { variante: 'anclado' });
+  }
+});
+
+// ─── La meta está en la ALLOWLIST del route (`siteContentEditableSchema`, la MISMA que
+// `app/api/site-content/detalles/route.ts` acota con `.pick()`) — sin esto, el schema STRIPPEARÍA
+// `carrito` en silencio al guardar (§ CLAUDE.md, el modo de falla del #65-B). ───────────────────────
+
+test('carrito está declarado en siteContentEditableSchema -- no lo strippea al parsear', () => {
+  const parsed = siteContentEditableSchema.parse({
+    volverArriba: { visible: true },
+    rielSocial: { visible: true },
+    carritoEnvio: { visible: true },
+    carrito: { variante: 'flotante' },
+  });
+  assert.equal(parsed.carrito?.variante, 'flotante');
+});
+
+test('el `.pick({carrito: true})` que usa la ruta propia sigue aceptando y preservando la clave', () => {
+  const detallesSchema = siteContentEditableSchema.pick({ volverArriba: true, rielSocial: true, carritoEnvio: true, carrito: true });
+  const parsed = detallesSchema.parse({ carrito: { variante: 'flotante' } });
+  assert.deepEqual(parsed, { carrito: { variante: 'flotante' } });
+});
+
+// ─── El control del panel — huecosDelPanel() sigue en [], el techo del trinquete no sube ───────────
+
+test('carrito.variante tiene control en el panel (DetallesSitioSeccion.tsx)', () => {
+  assert.ok(camposControladosPorPanel().includes('carrito.variante'));
+});
+
+test('huecosDelPanel(): con la meta nueva (carrito.variante), sigue sin quedar ningún campo sin control', () => {
+  assert.deepEqual(huecosDelPanel(), []);
+});
+
+// ─── CORTE es el único preset del catálogo que enciende la composición flotante ─────────────────────
+
+test("mergePresetEnContent(_, CORTE).carrito.variante === 'flotante' -- CORTE la enciende", () => {
+  const out = mergePresetEnContent({}, CORTE);
+  assert.equal((out.carrito as { variante: string }).variante, 'flotante');
 });
