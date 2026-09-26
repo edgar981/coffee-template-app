@@ -23722,3 +23722,34 @@ que falta es UNA línea en UN archivo fuera de `touches:`.
 archivos ya corregidos en este slice.
 
 **BLOCKED. No cierra `CORTE-USA-HERO-STICKY-1`.**
+
+## 2026-09-26 — la aserción vencida de `theme-mirador.test.ts` se corrige, la rama vuelve a VERDE (`CORTE-USA-HERO-STICKY-MIRADOR-1`)
+
+**Estado: cierra `CORTE-USA-HERO-STICKY-MIRADOR-1` y, con esto, `CORTE-USA-HERO-STICKY-1`.**
+
+`lib/config/theme-mirador.test.ts:35` afirmaba `out.hero.variante === 'media'` en el test "CORTE
+(completo) → las tres bandas nuevas quedan pedidas en el content resultante" — el archivo que
+`CORTE-USA-HERO-STICKY-1` (arriba) dejó nombrado como bloqueante, fuera de su propio `touches:`.
+La aserción venció por el cableado ya committeado (`themes.ts`, `CORTE.variantes.hero:
+'media'→'sticky'`), no por un defecto del mirador.
+
+**El fix DERIVA en vez de repetir el literal**, un paso más allá de lo que `CORTE-USA-HERO-
+STICKY-1` había recomendado (`'sticky'` a mano, línea 23721 arriba): `theme-mirador.test.ts` ya
+importa `CORTE` de `./themes`, así que la aserción pasa a `assert.equal(out.hero.variante,
+CORTE.variantes.hero)`. Con esto la aserción no puede volver a vencerse por un cambio futuro de
+la variante de CORTE — leería el preset real, no un texto congelado. El resto del test
+(`variantesBandas.featured`, `subscriptionCTA.variante`) no se tocó.
+
+**Gate completo, en la rama, sobre el árbol final:**
+- `npx tsc --noEmit` → 0 errores.
+- `npm test` → 2197/2197 (capa 1, sin base).
+- `npm run test:integracion` → 236/237 en la primera corrida (`wompi-reconciliador.test.ts`,
+  "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ"), **237/237 en la
+  segunda corrida sin tocar nada** — es un test de concurrencia real (dos transacciones
+  disputando el mismo lock bajo timing real), ajeno a este diff (`theme-mirador.test.ts` no toca
+  el eje de pagos/Wompi). Flaky, no regresión de este slice.
+
+**Sin diff visual**: este slice toca un solo archivo de test — no hay bytes de cliente que
+verificar.
+
+**Cierra `CORTE-USA-HERO-STICKY-MIRADOR-1` y `CORTE-USA-HERO-STICKY-1`.**

@@ -32,7 +32,10 @@ test('clave de un preset INCOMPLETO (VITRINA: fuentePar/forma sin decidir) → d
 test('CORTE (completo) → las tres bandas nuevas quedan pedidas en el content resultante', () => {
   const out = contenidoConPresetDeVista(DEFECTO, 'CORTE');
   assert.notEqual(out, DEFECTO);
-  assert.equal(out.hero.variante, 'media');
+  // CORTE-USA-HERO-STICKY-1: CORTE pasó de pedir `hero: 'media'` a `hero: 'sticky'`. Se deriva del
+  // preset (no un literal repetido) para que esta aserción no vuelva a vencerse si CORTE cambia de
+  // variante otra vez.
+  assert.equal(out.hero.variante, CORTE.variantes.hero);
   // SPOTLIGHT-CABLEADO-HOME-1: CORTE pasó de pedir `featured: 'grilla'` a `featured: 'spotlight'`.
   assert.equal(out.variantesBandas.featured, 'spotlight');
   assert.equal(out.subscriptionCTA.variante, 'linea');
