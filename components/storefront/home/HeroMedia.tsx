@@ -11,7 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { HERO_HREFS } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, objectPositionDePuntoFocal } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 
@@ -101,6 +101,15 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // render, `muted` también por REF (iOS bloquea el autoplay sin él), el póster pre-cargado con
 // prioridad alta (§ HERO-VIDEO-POSTER-PRIORIDAD-1). Ver el razonamiento completo en HeroCurtina.tsx —
 // no se repite acá una tercera vez.
+//
+// PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1, recorte mínimo del Backlog #58): el owner, gateando desde un
+// celular, reportó que el `object-cover` del video recorta el centro GEOMÉTRICO —no el de interés—
+// en un viewport angosto. `hero.puntoFocal` (escalar clampado, § site-content-defaults.ts) se
+// traduce a `object-position` con `objectPositionDePuntoFocal` y se aplica por `style` a AMBOS
+// medios (video e imagen). La canónica ('centro') no emite `style` en absoluto — Nayoli, que no
+// declara el campo, queda BYTE-IDÉNTICA. El resto del Backlog #58 (encuadre de TODA imagen subida,
+// con un selector visual de arrastre) sigue sin construirse — es un ALCANCE mayor, fuera de este
+// slice.
 export default function HeroMedia({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, paginas, tema } = useSiteContent();
   const preview = useIsPreview();
@@ -114,6 +123,13 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
   const displayXl = fontSizeDisplay(tema.escalaDisplay, 'xl');
   // Idéntico a curtina/ficha: el 2º CTA se oculta si suscripciones está apagada.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
+
+  // PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1, Backlog #58 recorte mínimo): `undefined` cuando es la
+  // canónica ('centro') o basura — no se emite ningún `style`, byte-idéntico al recorte de hoy.
+  // Aplica a los DOS medios (video e imagen, más abajo): el problema se reportó sobre un video, y
+  // sería incoherente que la foto no lo tuviera.
+  const objectPosition = objectPositionDePuntoFocal(hero.puntoFocal);
+  const estiloPuntoFocal = objectPosition ? { objectPosition } : undefined;
 
   const esVideo = hero.imagenTipo === 'video';
   const reduce = useReducedMotion();
@@ -157,6 +173,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             controls={!!reduce && !preview}
             aria-hidden="true"
             className="absolute inset-0 h-full w-full object-cover"
+            style={estiloPuntoFocal}
           />
         ) : (
           <Image
@@ -167,6 +184,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             sizes="100vw"
             quality={85}
             className="object-cover"
+            style={estiloPuntoFocal}
           />
         )}
 

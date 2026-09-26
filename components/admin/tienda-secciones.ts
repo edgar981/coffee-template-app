@@ -7,7 +7,10 @@
 
 // `MENU_CTA_DESTINOS` también es dato puro (una constante + su tipo, sin JSX ni 'use client') — el
 // mismo criterio que permite importarlo acá sin romper la promesa de cabecera de este archivo.
-import { MENU_CTA_DESTINOS } from '@/lib/config/site-content-defaults';
+// `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
+// `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
+// divergir de la que el resolver clampa.
+import { MENU_CTA_DESTINOS, PUNTOS_FOCALES } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -20,6 +23,23 @@ const OPCIONES_CTA_DESTINO: { value: string; label: string }[] = [
   { value: '', label: 'Sin destino' },
   ...MENU_CTA_DESTINOS.map((d) => ({ value: d, label: d })),
 ];
+
+// EL SELECT del punto focal del hero (§ HERO-PUNTO-FOCAL-1): las etiquetas EN ESPAÑOL de las mismas
+// nueve claves de `PUNTOS_FOCALES` (site-content-defaults.ts) — la lista de valores tiene una sola
+// fuente (el set cerrado del resolver); este mapa sólo agrega el texto legible del select nativo.
+const LABEL_PUNTO_FOCAL: Record<(typeof PUNTOS_FOCALES)[number], string> = {
+  centro: 'Centro',
+  arriba: 'Arriba',
+  abajo: 'Abajo',
+  izquierda: 'Izquierda',
+  derecha: 'Derecha',
+  'arriba-izquierda': 'Arriba izquierda',
+  'arriba-derecha': 'Arriba derecha',
+  'abajo-izquierda': 'Abajo izquierda',
+  'abajo-derecha': 'Abajo derecha',
+};
+const OPCIONES_PUNTO_FOCAL: { value: string; label: string }[] =
+  PUNTOS_FOCALES.map((clave) => ({ value: clave, label: LABEL_PUNTO_FOCAL[clave] }));
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -195,6 +215,12 @@ const HERO: SeccionConfig = {
   ],
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
   campos: [
+    // EL PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1): junto a la imagen de fondo, ARRIBA de los campos de
+    // texto — qué parte de la foto/video queda a la vista al recortar. Escalar clampado
+    // (`REGISTRY.hero.escalares.puntoFocal`), no un `campos` requerido/opcional; el select siempre
+    // tiene un valor (la canónica "Centro" si nadie lo tocó), así que no lleva `opcional`.
+    { name: 'puntoFocal', label: 'Punto focal de la imagen o el video', opciones: OPCIONES_PUNTO_FOCAL,
+      hint: 'Qué parte de la foto o el video se prioriza al recortar en pantallas angostas. Vacío: se centra, como hoy.' },
     { name: 'eyebrow',            label: 'Línea superior',      opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
     { name: 'titulo',             label: 'Titular',             hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'tituloEnfasis',      label: 'Énfasis del titular', opcional: true, hint: 'La palabra en cursiva, en su propia línea bajo el titular. Vacío: no se muestra.' },

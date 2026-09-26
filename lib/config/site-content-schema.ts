@@ -44,6 +44,12 @@ const heroEditableSchema = z.object({
   // UN TOGGLE MÁS (§ CORTE-HERO-VIEWPORT-LLENO-1), mismo mecanismo: sin declararlo, zod lo
   // STRIPPEARÍA al guardar (§ #65-B).
   alturaLlena: z.boolean().optional(),
+  // El PUNTO FOCAL de la media de fondo (§ HERO-PUNTO-FOCAL-1, ver el docstring de
+  // `HeroContent.puntoFocal` en site-content-defaults.ts). `z.string()` —no `z.enum`—, MISMO motivo
+  // que `variante`/`imagenTipo`: el resolver SOFT (`resolverVariante`, vía
+  // `REGISTRY.hero.escalares.puntoFocal`) ya clampa a la canónica `'centro'`; un valor fuera del set
+  // cerrado no "no valida" acá —lo clampa el resolver en lectura, no el schema al escribir—.
+  puntoFocal: z.string().optional(),
 }).refine(
   // LA ÚNICA REGLA DURA de este schema (§ HERO-VIDEO-COMO-DATO-1, decisión del owner). NO exige que
   // `imagenPoster` ESTÉ —un hero de IMAGEN sigue pasando con todo vacío, como siempre—: exige que

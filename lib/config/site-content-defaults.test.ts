@@ -28,6 +28,7 @@ import {
   varianteDeBanda,
   seccionEsVisible,
   faqSuscripcionesVisible,
+  PUNTOS_FOCALES,
   type SeccionDef,
   type VariantesDef,
   type SeccionKey,
@@ -1022,7 +1023,14 @@ test('hero: una `variante` guardada "media" se respeta, y resuelve igual que las
 // SEGUNDO escalar clampado de una sección (gemelo de `variante`, vía `REGISTRY.hero.escalares`) ───
 
 test('REGISTRY.hero declara `escalares.imagenTipo` con el set cerrado y la canónica "imagen"', () => {
-  assert.deepEqual(REGISTRY.hero.escalares, { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } });
+  // § HERO-PUNTO-FOCAL-1: `escalares` ganó un TERCER miembro (`puntoFocal`) — este deepEqual
+  // afirma el objeto COMPLETO, así que tiene que nombrar los dos, o fallaría con un miembro
+  // "de más" apenas se agregue el próximo escalar clampado de esta sección. Su propia cobertura
+  // (canónica, set cerrado, clamp de basura) vive en `hero-punto-focal.test.ts`.
+  assert.deepEqual(REGISTRY.hero.escalares, {
+    imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
+    puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
+  });
 });
 
 test('hero: sin fila, `imagenTipo` resuelve a la canónica "imagen" e `imagenPoster` a "" (byte-idéntico)', () => {

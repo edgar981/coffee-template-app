@@ -211,6 +211,18 @@ test('calibración: footer.tarjetaImagen/.tarjetaTexto están controlados, sin e
   assert.ok(!pendientes.has('footer.tarjetaTexto'));
 });
 
+// § HERO-PUNTO-FOCAL-1: `hero.puntoFocal` (escalar clampado, § REGISTRY.hero.escalares) gana su
+// control DE ENTRADA (`HERO.campos` en tienda-secciones.ts, un select de opciones fijas), no como
+// hallazgo tardío. El trinquete de PENDIENTE_PANEL (11) no se mueve.
+test('calibración: hero.puntoFocal está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('hero.puntoFocal'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('hero.puntoFocal'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('hero.puntoFocal'));
+});
+
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
   const esperado = PENDIENTE_PANEL.map((e) => e.campo).sort();

@@ -98,6 +98,64 @@ export interface HeroContent {
   // switch en `HERO.booleanos` (`components/admin/tienda-secciones.ts`) con el mismo valor como punto
   // de partida. Antes, sólo `mergePresetEnContent` los escribía.
   alturaLlena: boolean;
+  // EL PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1, recorte mínimo del Backlog #58 — "el ENCUADRE de las
+  // imágenes subidas: punto focal, no recorte con caja"): qué parte de la MEDIA de fondo (imagen O
+  // video, § `imagenTipo` arriba — el owner reportó el problema sobre un video, y sería incoherente
+  // que la foto no lo tuviera) queda a la vista cuando `object-cover` recorta. Sin esto, el navegador
+  // usa el centro GEOMÉTRICO (el default de `object-position` ausente), que en un viewport angosto
+  // —el caso que el owner reportó, gateando desde un celular— puede no ser el centro de INTERÉS.
+  //
+  // ESCALAR CLAMPADO —como `imagenTipo`, arriba—, no `campos` ni un string libre: `resolverVariante`
+  // vía `REGISTRY.hero.escalares.puntoFocal` (§ site-content-defaults.ts, más abajo) resuelve
+  // ausente/vacío/null/basura a la CANÓNICA `'centro'`. El SET CERRADO es la grilla de NUEVE
+  // posiciones que `object-position` ya entiende de forma nativa (arriba/abajo/izquierda/derecha +
+  // las cuatro esquinas + centro) — un SELECT NATIVO de opciones fijas (§ Controles de formulario,
+  // CLAUDE.md: "el select es NATIVO"), no dos campos de porcentaje libre: el dueño elige una posición
+  // con nombre, sin pelear con números. Se descartó un selector visual (arrastrar un punto sobre la
+  // foto) a propósito — ESO es el Backlog #58 completo (el encuadre de TODAS las imágenes subidas,
+  // con una UI de arrastre); acá el alcance es sólo el hero, con el widget que el panel ya tiene.
+  //
+  // `'centro'` (la canónica) NO EMITE `object-position` en absoluto (§ `objectPositionDePuntoFocal`,
+  // abajo): `object-cover` sin `object-position` YA centra por default del navegador (50% 50%), así
+  // que agregar `center center` explícito sería un byte que hoy no existe, sin cambiar un solo
+  // píxel — Nayoli (que no declara este campo) queda BYTE-IDÉNTICA.
+  puntoFocal: PuntoFocal;
+}
+
+// EL SET CERRADO de posiciones del punto focal del hero (§ el docstring de `HeroContent.puntoFocal`,
+// arriba) — la grilla 3×3 que `object-position` entiende nativamente. `'centro'` es la CANÓNICA:
+// resuelve ausente/vacío/null/basura (§ `REGISTRY.hero.escalares.puntoFocal`, más abajo).
+export const PUNTOS_FOCALES = [
+  'centro',
+  'arriba', 'abajo', 'izquierda', 'derecha',
+  'arriba-izquierda', 'arriba-derecha', 'abajo-izquierda', 'abajo-derecha',
+] as const;
+export type PuntoFocal = (typeof PUNTOS_FOCALES)[number];
+
+/** El valor CSS de `object-position` para cada punto focal que NO es la canónica. `'centro'` no
+ *  entra acá a propósito: no tiene valor CSS propio — no emite nada (§ `objectPositionDePuntoFocal`,
+ *  abajo). */
+const OBJECT_POSITION_POR_PUNTO_FOCAL: Record<Exclude<PuntoFocal, 'centro'>, string> = {
+  arriba: 'center top',
+  abajo: 'center bottom',
+  izquierda: 'left center',
+  derecha: 'right center',
+  'arriba-izquierda': 'left top',
+  'arriba-derecha': 'right top',
+  'abajo-izquierda': 'left bottom',
+  'abajo-derecha': 'right bottom',
+};
+
+/**
+ * El valor CSS `object-position` para un punto focal declarado, o `undefined` si es la CANÓNICA
+ * (`'centro'`) o si `puntoFocal` no pertenece al set cerrado (basura — un valor fuera de rango NO
+ * valida: se ignora, igual que si no se hubiera declarado nada). `HeroMedia.tsx` aplica `style`
+ * SÓLO cuando esto no es `undefined` — así el caso sin declarar (o inválido) no emite ni un byte de
+ * `object-position`, sobre el `<video>` Y sobre la `<Image>` por igual (§ el docstring de
+ * `HeroContent.puntoFocal`, arriba).
+ */
+export function objectPositionDePuntoFocal(puntoFocal: string): string | undefined {
+  return (OBJECT_POSITION_POR_PUNTO_FOCAL as Record<string, string | undefined>)[puntoFocal];
 }
 
 // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
@@ -1160,6 +1218,9 @@ export const DEFAULTS: SiteContentData = {
     // `alturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1): default `false` = `min-h-[92vh]` de HOY,
     // byte-idéntico.
     alturaLlena: false,
+    // `puntoFocal` (§ HERO-PUNTO-FOCAL-1): default `'centro'` = SIN `object-position`, byte-idéntico
+    // al recorte de hoy.
+    puntoFocal: 'centro',
   },
   // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
   // NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`: `resolverOrden` completa
@@ -1655,8 +1716,13 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     variantes: { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
     // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo` es el SEGUNDO escalar clampado de esta
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
-    // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.
-    escalares: { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } },
+    // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila. `puntoFocal`
+    // (§ HERO-PUNTO-FOCAL-1) es el TERCERO — la grilla de 9 posiciones (`PUNTOS_FOCALES`, arriba),
+    // canónica `'centro'` (§ el docstring de `HeroContent.puntoFocal`).
+    escalares: {
+      imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
+      puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
+    },
     // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1 y en
     // § CORTE-HERO-VIEWPORT-LLENO-1): los CINCO agregados de mecánica true/false del hero-media del
     // prototipo — `ctasVisibles` (apaga los dos CTA a la vez), `cueDesliza` (el indicador de scroll

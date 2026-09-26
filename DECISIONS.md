@@ -22636,3 +22636,231 @@ este diff no toca render — sólo qué dispara el guard que SÍ lo corre). `sch
 `cross-repo-contract` NO aplican; `stopped_on: [customer-bytes]` (heredado de la rama). El owner ya
 aprobó la ESCRITURA (`approved: yes`, "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"); el
 merge sigue pendiente del gate del orquestador. **Cierra `GUARDA-COLOR-SISTEMA-LISTA-GAP-1`.**
+
+## 2026-09-25 — El punto focal del hero, recorte mínimo del Backlog #58 (`HERO-PUNTO-FOCAL-1`)
+
+**Origen:** el owner, gateando el muestrario desde un celular (2026-09-25): «el video del hero no sé
+si hay forma de cuadrarlo que salga más la parte del centro del mismo». Medido antes de tocar nada:
+`HeroMedia.tsx:159,169` rinde el `<video>` Y la `<Image>` con `object-cover` y **sin** ningún
+`object-position` — grep de `objectPosition|object-position|puntoFocal|focal` en `lib/config` y
+`components/storefront` dio **CERO**: la capacidad no existía. `CLAUDE.md` ya tenía este hueco
+nombrado como **Backlog #58** ("El ENCUADRE de las imágenes subidas — punto focal, no recorte con
+caja"), con alcance completo (los `campos:'imagen'` de TODAS las secciones) y disparador propio ("la
+PRIMERA imagen de un cliente real que quede mal encuadrada"). Este slice es el **recorte MÍNIMO**
+que el owner pidió: sólo el hero, con la forma más barata que resuelve el problema reportado.
+
+### Pre-flight
+
+`base: main / policy: current-main`, rama de trabajo `slice/corte-reescritura-prototipo-1` (continúa
+sobre `32adb37`, `GUARDA-COLOR-SISTEMA-LISTA-GAP-1`). Árbol limpio al empezar (`git status` sin
+cambios). `tier: 1` — `site-content-defaults.ts`/`site-content-schema.ts` están nombrados
+literalmente en la lista Tier 1; `components/storefront/home/HeroMedia.tsx` entra por el subárbol
+`components/storefront/` ("la MISMA razón que ya cubre a `app/(storefront)/`"). `approved: yes`, con
+la razón de aprobación citada arriba — la escritura estaba autorizada de entrada para este slice.
+
+### La FORMA elegida — set cerrado de NUEVE posiciones, un select nativo, no dos porcentajes
+
+El spec dejaba la forma abierta con un criterio: que el dueño exprese el encuadre **sin pelear con
+porcentajes** si no quiere, y prohibía explícitamente un selector visual nuevo (arrastrar un punto
+sobre la foto es el Backlog #58 COMPLETO, no este recorte).
+
+**Se eligió la grilla 3×3** — `centro`, `arriba`, `abajo`, `izquierda`, `derecha`,
+`arriba-izquierda`, `arriba-derecha`, `abajo-izquierda`, `abajo-derecha` — sobre un **select nativo
+de opciones fijas**, no un par de campos de porcentaje libre. Tres razones, medidas contra el propio
+mecanismo del repo, no elegidas por gusto:
+
+1. **Es el vocabulario que `object-position` ya entiende de forma nativa** (`center top`, `left
+   bottom`, …): no hay traducción que inventar, sólo un mapa 1:1 de nombre→valor CSS.
+2. **`CLAUDE.md` ya tiene la regla escrita: "el select es NATIVO"** para opciones fijas
+   (§ Controles de formulario) — un set cerrado de 9 valores es exactamente ese caso, y el panel ya
+   tiene el widget (`CampoTexto.opciones`, el mismo que `ctaDestino`/`ctaSecundarioDestino`
+   consumen). No hay primitiva nueva que construir ni que aprobar.
+3. **El mecanismo de MODELO ya existe, byte a byte, para un escalar clampado de sección**:
+   `REGISTRY.hero.escalares` (el mismo que resuelve `imagenTipo`), con `resolverVariante` clampando
+   ausente/vacío/null/basura a la canónica. Un par de números libres habría necesitado un `campos`
+   normal (requerido/opcional) O una validación de rango nueva en el schema — el set cerrado encaja
+   en un mecanismo YA probado, sin inventar uno.
+
+Se descartaron los CINCO nombres del set de bordes (`centro`/`arriba`/`abajo`/`izquierda`/`derecha`,
+sin las cuatro esquinas) por insuficientes: una media/video con el sujeto en una esquina (una
+persona en el borde del cuadro, no en el centro de un lado) no tiene representación en un set de
+cinco. La grilla de nueve la cubre sin costo adicional — es el mismo select, con cuatro opciones
+más.
+
+### El modelo — `hero.puntoFocal`, TERCER escalar de la sección
+
+`HeroContent.puntoFocal: PuntoFocal` (nuevo), `PUNTOS_FOCALES` (el set cerrado, `as const`) y
+`objectPositionDePuntoFocal(puntoFocal): string | undefined` — la traducción PURA a CSS, exportada
+de `lib/config/site-content-defaults.ts` junto a los demás resolvers de esta sección.
+
+- **`REGISTRY.hero.escalares.puntoFocal = { claves: PUNTOS_FOCALES, canonica: 'centro' }`** — MISMO
+  mecanismo que `imagenTipo` (`resolverVariante`), ninguna rama nueva en `resolverSiteContent`.
+- **`DEFAULTS.hero.puntoFocal = 'centro'`** — la canónica.
+- **`objectPositionDePuntoFocal('centro')` devuelve `undefined`, y NO por conveniencia: es la
+  decisión de byte-identidad.** `object-cover` sin `object-position` ya centra por default del
+  navegador (50% 50%); emitir `center center` explícito sería un byte que hoy no existe sin cambiar
+  un solo píxel. Un valor fuera del set cerrado (basura pasada directo a la función, sin pasar por
+  el resolver) también devuelve `undefined` — es la respuesta a "un valor fuera del set/rango no
+  valida" del spec: no se traduce a ningún `object-position`, cae al mismo comportamiento que "sin
+  declarar".
+- **`heroEditableSchema.puntoFocal: z.string().optional()`** — NO `z.enum`, mismo motivo ya escrito
+  para `variante`/`imagenTipo`: el resolver SOFT clampa a la canónica en LECTURA; el schema sólo
+  valida el TIPO en la escritura.
+
+### El control — `HERO.campos`, junto a la imagen de fondo, un select con las nueve opciones
+
+`components/admin/tienda-secciones.ts`: `HERO.campos` gana `puntoFocal` como primera entrada (antes
+de `eyebrow`, justo bajo `imagenes: [{ name: 'imagen', … }]`), con `opciones: OPCIONES_PUNTO_FOCAL`
+(las nueve claves de `PUNTOS_FOCALES`, con label en español) — el mismo ensamblaje `CampoTexto` +
+`opciones` que ya renderiza `TiendaSeccionEditor.tsx` sin tocar ese archivo (fuera de `touches:`,
+verificado que ya sabe pintar un select nativo desde `opciones`, § `ctaDestino`).
+
+Como el campo entra a `HERO.campos` en el MISMO commit que entra a `REGISTRY.hero.escalares`,
+**`hero.puntoFocal` nace CONTROLADO — nunca pasa por `PENDIENTE_PANEL`**. El chequeo derivado
+(`lib/config/panel-controles.ts`) lo confirma solo: `camposDeSeccion` agrega `puntoFocal` al lado
+"leído" porque es una clave de `escalares` (mecanismo ya existente, sin tocar ese archivo), y
+`camposDeSeccionEditor` lo agrega al lado "controlado" porque está en `config.campos` — las dos
+mitades se derivan de lo que ya escribí, sin una tercera lista a mano. El trinquete de
+`PENDIENTE_PANEL` (11) NO se mueve.
+
+### El render — `HeroMedia.tsx`, los DOS medios por igual
+
+`estiloPuntoFocal = objectPosition ? { objectPosition } : undefined`, aplicado por `style` al
+`<video>` y a la `<Image>` — el MISMO valor calculado una vez, no una rama por tipo de medio. Se
+verificó por EJECUCIÓN (no se asumió) que el `style` que pasa a `next/image` con `fill` no choca con
+el `style` que el propio componente genera internamente (`position:absolute;height:100%;…`): el
+`object-position` se agrega a ese objeto sin pisar nada, confirmado con `renderToStaticMarkup` real
+antes de escribir el test (ver más abajo — probado en `.scratch/`, no comiteado).
+
+### El GATE
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2146/2146** — verde (+18: 17 en `lib/config/hero-punto-focal.test.ts` nuevo, +1 en `lib/config/panel-controles.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde, SIN cambio de conteo (este slice no toca el carril) |
+
+Reconciliado contra el piso citado por el commit anterior (`32adb37`: "npm test 2128/2128 … npm run
+test:integracion 237/237"): capa 1 sube en exactamente +18, explicado entero por los dos archivos de
+test de este slice (17 nuevos en el archivo dedicado + 1 calibración en `panel-controles.test.ts`);
+capa 2 queda IDÉNTICA (237→237) — ninguna diferencia es drift sin explicación.
+
+`lib/config/site-content-defaults.test.ts` necesitó UN ajuste, no una adición nueva: el test
+`'REGISTRY.hero declara escalares.imagenTipo…'` hacía `assert.deepEqual` contra el objeto
+`escalares` COMPLETO, así que agregar `puntoFocal` a `REGISTRY.hero.escalares` lo habría roto — se
+amplió el `deepEqual` esperado para nombrar los dos miembros, con un comentario explicando por qué
+(no se dejó fallando ni se reescribió a un `assert.ok` más débil).
+
+### El diff visual — Nayoli byte-idéntica, con el LÍMITE del fixture de escritorio declarado
+
+`npm run verificar:nayoli:visual` (main vs. esta rama, 6 rutas + 2 hovers, claro forzado, reloj
+congelado): **CERO diferencias, en las 6 rutas Y los 2 hovers** (home 0/4.608.000px, tienda
+0/2.433.280px, producto 0/2.535.680px, checkout 0/1.152.000px, nosotros 0/1.152.000px,
+suscripciones 0/2.144.000px, hover:automatica 0/98.298px, hover:eleccion 0/102.870px — 0 tanto
+"consciente de antialiasing" como en el conteo CRUDO, las dos varas que el arnés corre). Nayoli no
+declara `hero.puntoFocal` (ningún preset del catálogo lo escribe), así que el resolver cae a la
+canónica `'centro'`, que no emite `object-position` — el mismo recorte de hoy, medido.
+
+**LÍMITE DECLARADO, dicho ANTES de correr el arnés, no descubierto después:** el arnés captura en
+**viewport de ESCRITORIO** (§ el propio script, `capturarRutaCompleta`, sin emulación de dispositivo
+móvil). El problema que el owner reportó ES de viewport ANGOSTO ("gateando desde un celular") —
+`object-position` en desktop y en móvil resuelve al MISMO byte de HTML/CSS (la propiedad no
+depende del viewport, sólo el RECORTE que produce sí), así que el 0px de escritorio **prueba
+byte-identidad, no prueba que el encuadre mejore en móvil**. Esa segunda prueba —que un punto focal
+declarado de verdad recorta distinto en un viewport angosto— es del gate visual del owner, en su
+propio teléfono, como pide el protocolo de Tier 1 (capa 3, manual). Este slice deja el mecanismo
+construido y verificado (el render emite el `object-position` correcto para las 9 claves, § el test
+dedicado) pero NO afirma haber visto el resultado en un celular real.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `puntoFocal`, `PUNTOS_FOCALES`, `PuntoFocal`,
+`objectPositionDePuntoFocal`, `OBJECT_POSITION_POR_PUNTO_FOCAL`, `HERO.campos` (contenido, ganó una
+entrada), `OPCIONES_PUNTO_FOCAL`, `LABEL_PUNTO_FOCAL`, `HERO-PUNTO-FOCAL-1`. Grepeados uno por uno
+contra `CLAUDE.md`:
+
+- `puntoFocal`, `PUNTOS_FOCALES`, `objectPositionDePuntoFocal`, `HERO-PUNTO-FOCAL-1`,
+  `OPCIONES_PUNTO_FOCAL`, `LABEL_PUNTO_FOCAL`, `tienda-secciones.ts`, `HeroMedia.tsx` — **CERO
+  apariciones** de todos en `CLAUDE.md`. Nada que corregir ahí para estos símbolos.
+- `object-position` — **UNA aparición**, dentro del propio **Backlog #58** ("El ENCUADRE de las
+  imágenes subidas — punto focal, no recorte con caja", la sección de la que este slice es el
+  recorte mínimo). Leído completo: el párrafo describe la forma FUTURA como "clic en la imagen del
+  editor marca el punto → se guarda como `object-position` (dos números, x/y en %)" — **este slice
+  construyó una forma DISTINTA** (nueve posiciones nombradas por select, no x/y libre por clic) y
+  **sólo para el hero**, no para "TODO campo `tipo:'imagen'`" como el párrafo dice. Dos frases de esa
+  sección quedan ahora IMPRECISAS para el caso del hero específicamente: "el cliente no puede elegir
+  QUÉ parte se muestra" (ya no es cierto para el hero: hay una elección, aunque discreta de 9
+  posiciones, no continua) y "Costo YA pagado: ninguno" (ya se pagó ALGO, acotado al hero). El resto
+  del párrafo —brandStory, presentaciones, la galería de /nosotros, y el disparador "la PRIMERA
+  imagen de un cliente real que quede mal encuadrada"— sigue siendo exactamente cierto: NINGUNO de
+  esos campos ganó control de encuadre en este slice. `CLAUDE.md` **no está en `touches:`** de este
+  slice, así que no se corrige acá — se declara como `open_followup` (abajo).
+- `site-content-defaults.ts`/`site-content-schema.ts`/`tienda-secciones.ts` (vía "componentes de
+  `components/admin/`", genérico) — las apariciones existentes son todas sobre el estatus Tier 1 (la
+  lista de superficies protegidas, sin cambio — este slice siguió el protocolo de segunda etapa que
+  esa sección describe) o mecánica general de `resolverSiteContent`/`REGISTRY`/`huecosDelPanel` —
+  ninguna nombra un conteo o un campo específico de `hero` que este diff vuelva falso.
+- `HeroMedia.tsx`/`HeroCurtina.tsx`/`HeroFicha.tsx` (buscado por el texto libre "hero") — la
+  variante `media`/`curtina`/`ficha` se discute en términos de estructura (§ eje 5, TEMAS-HERO-
+  MEDIA-1), nunca en términos de encuadre/`object-position`; sin conflicto.
+
+### `touches:` — lo que se escribió
+
+`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`,
+`components/admin/tienda-secciones.ts`, `components/storefront/home/HeroMedia.tsx`,
+`lib/config/panel-controles.test.ts` (una calibración nueva), `lib/config/site-content-defaults.test.ts`
+(un `deepEqual` ampliado), `lib/config/hero-punto-focal.test.ts` (nuevo), este asiento
+(`DECISIONS.md`). `lib/config/panel-controles.ts` estaba nombrado en `touches:` pero **no necesitó
+ninguna línea de código**: su mecanismo derivado (`camposDeSeccion`/`camposDeSeccionEditor`) ya
+cubre un escalar nuevo y un campo nuevo en `HERO.campos` sin tocar el archivo — se verificó
+corriendo su test (`camposControladosPorPanel().includes('hero.puntoFocal')` da `true`, sin
+exención) en vez de asumirlo. Sin desviación de alcance.
+
+### `open_followups`
+
+- **`BACKLOG-58-HERO-PARCIAL-STALE-1`**: el párrafo del Backlog #58 (`CLAUDE.md`, "El ENCUADRE de
+  las imágenes subidas — punto focal, no recorte con caja") describe el estado como si NINGÚN campo
+  `tipo:'imagen'` tuviera control de encuadre ("el cliente no puede elegir QUÉ parte se muestra",
+  "Costo YA pagado: ninguno"). Tras este slice, **el hero específicamente SÍ tiene un punto focal**
+  (parcial: 9 posiciones nombradas por select, no el par x/y libre por clic que ese párrafo
+  describe como la forma futura) — las dos frases citadas son ahora imprecisas para el caso del
+  hero. El resto del párrafo (brandStory, presentaciones, la galería, el disparador de "la primera
+  imagen de un cliente real mal encuadrada") sigue siendo exactamente cierto para los campos que
+  este slice NO tocó. **No se corrige acá**: `CLAUDE.md` no está en `touches:` de este slice.
+
+### `customer_bytes`
+
+`changed: true`. La RAMA gana bytes de **OPERADOR/DUEÑO**: un select nuevo en el editor del hero
+("Punto focal de la imagen o el video", con sus nueve opciones — Centro, Arriba, Abajo, Izquierda,
+Derecha, Arriba izquierda, Arriba derecha, Abajo izquierda, Abajo derecha — y el hint "Qué parte de
+la foto o el video se prioriza al recortar en pantallas angostas. Vacío: se centra, como hoy."). Y
+gana una CAPACIDAD de bytes de **VISITANTE**, gateada por dato: si un operador declara un punto
+focal distinto de "Centro", el recorte del hero en pantallas angostas cambia. Nayoli no lo ve —no
+declara el campo, así que resuelve a la canónica, medido en 0px (§ arriba)—, pero es la RAMA la que
+se juzga (§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), y la rama ya incluye el resto del
+muestrario (CORTE) que sí puede llegar a usarlo si algún preset futuro lo declarara (ninguno lo hace
+hoy — verificado: `themes.ts` no está en `touches:` de este slice y no se tocó).
+
+`strings`: "Punto focal de la imagen o el video"; "Qué parte de la foto o el video se prioriza al
+recortar en pantallas angostas. Vacío: se centra, como hoy."; las nueve etiquetas del select
+("Centro", "Arriba", "Abajo", "Izquierda", "Derecha", "Arriba izquierda", "Arriba derecha", "Abajo
+izquierda", "Abajo derecha").
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: `SiteContent.content`/`SiteContent.borrador` son columnas `Json` ya
+existentes — `puntoFocal` es una clave más dentro de `hero`, sin tocar
+`packages/core/prisma/schema.prisma` ni migración alguna. Sin contrato cross-repo.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores; `npm test` 2146/2146, +18
+reconciliados; `npm run test:integracion` 237/237, sin cambio), commiteado en
+`slice/corte-reescritura-prototipo-1`. Diff visual corrido y CERO diferencias en las 6 rutas + 2
+hovers, con el LÍMITE de viewport de escritorio declarado arriba (no prueba el caso móvil que
+motivó el pedido — eso queda para el gate del owner en su teléfono). El diff falla `customer-bytes`
+(la rama gana un control de operador + una capacidad gateada para el visitante). `schema` y
+`cross-repo-contract` NO aplican. `stopped_on: [customer-bytes]`. El owner ya aprobó la ESCRITURA
+(`approved: yes`, con la cita textual de su reporte como `approval-reason` — "LA APROBACION AUTORIZA
+LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea. **Cierra `HERO-PUNTO-FOCAL-1`.**
