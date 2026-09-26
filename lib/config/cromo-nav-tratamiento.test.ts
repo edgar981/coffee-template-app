@@ -138,3 +138,41 @@ test('navTratamiento: ausente no rompe el parse (es opcional, como las otras met
   const parsed = siteContentEditableSchema.parse({});
   assert.equal(parsed.navTratamiento, undefined);
 });
+
+// ── EL LINK ACTIVO del nav — § NAV-LINK-ACTIVO-INVISIBLE-1 ──────────────────────────────────────
+//
+// `--sf-acento-texto` se florea contra el FONDO CLARO de página (§ palette-derive.ts, `RECETA`,
+// `piso: true`). Sobre CORTE, `origenTexto:'tinta'` lo re-deriva a `pisoContraste(tinta, fondo,
+// 4.5)`: como `tinta` YA pasa el piso contra `fondo`, el resultado es literalmente `tinta`
+// (`#102407`) — el MISMO color que pinta la banda oscura del nav (`bg-[var(--sf-tinta)]`, o el hero
+// oscuro detrás del floating), contraste 1.00 (medido con `derivarPaleta`/`contraste` de
+// `palette-derive.ts`, ver el commit que cierra este slice). Ese 1.00 es la caja vacía que reportó
+// el owner en /nosotros.
+//
+// StoreNav.tsx NO se renderiza acá (misma frontera del comentario de arriba, `usePathname()` fuera
+// de un árbol real). Lo que se afirma es el PASS-THROUGH — la misma expresión que el componente
+// evalúa — replicado literal, como ya hacen los tests de `navLinkTratamiento` arriba.
+const colorActivoDeNavClaro = (navClaro: boolean) =>
+  navClaro ? 'text-[var(--sf-tostado)]!' : 'text-[var(--sf-acento-texto)]!';
+
+test('el link activo: nav CLARO (navClaro=false) sigue usando --sf-acento-texto, byte-idéntico a hoy', () => {
+  assert.equal(colorActivoDeNavClaro(false), 'text-[var(--sf-acento-texto)]!');
+});
+
+test('el link activo: nav OSCURO (navClaro=true) NO usa el token floreado contra fondo claro (--sf-acento-texto)', () => {
+  const clase = colorActivoDeNavClaro(true);
+  assert.notEqual(clase, 'text-[var(--sf-acento-texto)]!');
+  assert.equal(clase, 'text-[var(--sf-tostado)]!');
+});
+
+test('el link activo se distingue del no-activo en AMBAS ramas: el color activo nunca coincide con linkColor', () => {
+  // linkColor de StoreNav.tsx: navClaro → sobre/80 (blanco atenuado); !navClaro → texto (de página).
+  const linkColorDeNavClaro = (navClaro: boolean) =>
+    navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+
+  for (const navClaro of [true, false]) {
+    const activo = colorActivoDeNavClaro(navClaro);
+    const reposo = linkColorDeNavClaro(navClaro);
+    assert.ok(!reposo.includes(activo.replace('!', '')), `navClaro=${navClaro}: el color activo no debe coincidir con el de reposo`);
+  }
+});

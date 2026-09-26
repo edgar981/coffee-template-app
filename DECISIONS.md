@@ -23237,3 +23237,118 @@ ninguna dirección. El diff falla `customer-bytes` (la rama, con `CORTE` ya ence
 ESCRITURA (`approved: yes`, con la cita textual de su reporte como `approval-reason`); el merge
 sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 **Cierra `MUESTRARIO-CARRITO-COMPOSICION-1`.**
+
+## 2026-09-26 — El link ACTIVO del nav era invisible sobre nav oscuro (`NAV-LINK-ACTIVO-INVISIBLE-1`)
+
+### El defecto, medido antes de tocar nada
+
+`components/storefront/layout/StoreNav.tsx:193` (antes del fix) pisaba `linkColor` con
+`text-[var(--sf-acento-texto)]!` SIEMPRE que la ruta coincidía, sin mirar `navClaro` (el booleano
+que ya distingue nav claro/oscuro y gobierna `linkColor` unas líneas arriba). Medido con
+`derivarPaleta`/`contraste` de `lib/config/palette-derive.ts`, contra las raíces de CORTE
+(`fondo:#fdfbf7, tinta:#102407, acento:#a70004`, `ejes:{origenTexto:'tinta', origenAccion:'acento'}`
+— el mismo `ejes` que `CORTE.raices` produce vía `themes.ts`):
+
+| token | valor (CORTE) | contraste contra `tinta` (el fondo real del nav oscuro) |
+| --- | --- | --- |
+| `--sf-acento-texto` (el que pisaba) | `#102407` | **1.00** — literalmente el mismo color que el fondo |
+| `--sf-tostado` (el elegido) | `#d8a378` | **7.38** |
+| `--sf-sobre` (blanco, el de `linkColor` en reposo) | `#ffffff` | 16.44 |
+
+La causa de que `--sf-acento-texto` colapse a `tinta` para CORTE: `origenTexto:'tinta'`
+(`themes.ts`) re-deriva el rol a `pisoContraste(tinta, fondo, 4.5)` (`palette-derive.ts:265`) —
+floreado contra el FONDO CLARO de página, no contra la banda donde el nav realmente vive. Como
+`tinta` (`#102407`) ya pasa el piso de 4.5:1 contra `fondo` sin florear más, el resultado es
+`tinta` sin cambios — el mismo hex que pinta la banda oscura del nav (`bg-[var(--sf-tinta)]`
+sólido, o el hero oscuro detrás del floating). Contraste 1.00 = la caja vacía que reportó el owner
+parado en /nosotros: no faltaba el texto, era invisible.
+
+### La elección: `--sf-tostado`, no un token nuevo
+
+**Opciones consideradas:**
+- (a) `--sf-sobre` a secas (blanco, ya usado por `linkColor`/`iconColor`/el CTA/el badge para
+  `navClaro`) — descartado: full-opacity blanco sería indistinguible del estado `hover` de
+  cualquier link (`linkColor` ya usa `text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]`), y
+  el spec exige que el activo siga distinguiéndose del resto.
+- (b) `--sf-sobre-banda` (el rol que `esquema-style.ts` inyecta para "texto sobre el fondo de una
+  banda con esquema asignado") — descartado: sólo lo fija `esquemaStyle` en línea sobre la
+  `<section>` de una banda CON esquema asignado; el `<header>` del nav es `fixed`, vive FUERA de
+  esa sección en el DOM, y la variable no cae en su scope. Un `var(--sf-sobre-banda, …)` en el
+  header no resolvería nada del esquema.
+- (c) **`--sf-tostado`** — el token que decenas de componentes del home YA usan como el FALLBACK
+  LITERAL de `--sf-sobre-banda` para el caso "SIN esquema asignado, banda canónicamente oscura"
+  (`var(--sf-sobre-banda,var(--sf-tostado))`, HeroCurtina/HeroMedia/BrandStoryColumnas/
+  GrindChooserRiel/SubscriptionCTABloque/SubscriptionCTALinea/…, documentado en el comentario de
+  `RECETA` en `palette-derive.ts`: "tostado… sirve[] igual como texto sobre una banda oscura").
+  Elegido: es el MISMO caso que el nav (banda oscura, sin esquema asignado, el `<header>` fuera de
+  cualquier `<section>` con esquema), reusa infraestructura ya medida y aceptada por el resto del
+  storefront, y da 7.38:1 contra `tinta` — visualmente cálido/distinto del blanco/80% en reposo.
+
+`navClaro:false` (todo tema salvo CORTE hoy) sigue en `--sf-acento-texto`, BYTE-IDÉNTICO a antes:
+ese token SÍ se florea contra `fondo`, la superficie REAL del nav claro, así que el defecto nunca
+existió en esa rama — no había nada que arreglar ahí.
+
+### El anillo de foco — NO tocado
+
+El "caja vacía" que reportó el owner era el anillo de foco del navegador alrededor del texto
+invisible, visible sólo al navegar por teclado o en algún estado forzado. El fix es del COLOR del
+texto; el foco no se tocó (accesibilidad, no defecto) — verificado por lectura: `StoreNav.tsx` no
+declara ningún `outline`/`ring` propio en los links del nav, así que es el foco nativo del
+navegador, ajeno a este diff.
+
+### `touches:` — lo que se escribió
+
+`components/storefront/layout/StoreNav.tsx` (la lógica de color del link activo, `colorActivo`,
+extraída junto a `linkColor`/`iconColor`), `lib/config/cromo-nav-tratamiento.test.ts` (3 tests
+nuevos, pass-through replicado — StoreNav.tsx no se puede renderizar en este archivo, misma
+frontera que ya documentan los tests de `navLinkTratamiento`), este asiento (`DECISIONS.md`). Sin
+desviación de alcance.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `colorActivo`, `linkClassName` (su composición),
+`--sf-acento-texto`, `--sf-tostado` (uso nuevo, no el token en sí), `navClaro` (consumidor nuevo),
+`StoreNav.tsx`, `cromo-nav-tratamiento.test.ts`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- `StoreNav`: 4 apariciones (líneas 2872, 2969, 4481, 4499) — todas sobre "el nav es
+  DATA-DRIVEN" (menú/páginas), el filtrado de Suscripciones, y el wordmark/mark. Ninguna describe
+  el color del link activo; ninguna se vuelve falsa.
+- `acento-texto`, `navClaro`, `cromo-nav-tratamiento`, `colorActivo`, `linkColor`,
+  `linkClassName`: **CERO apariciones** en `CLAUDE.md`.
+- `tostado`: 5 apariciones, TODAS sobre `Product.tostado` (nivel de tueste del café, un campo de
+  dominio de producto — `RoastLevel`, `TOSTION_LABELS`) — dominio completamente distinto del token
+  CSS `--sf-tostado` que este diff usa. Ninguna se vuelve falsa.
+- `NAV-LINK-ACTIVO-INVISIBLE`: cero apariciones (primera vez que este id aparece en el repo).
+
+Nada que corregir en `CLAUDE.md`.
+
+### `customer_bytes`
+
+`changed: true`, juzgado sobre la RAMA. Con `CORTE` ya en la rama `slice/corte-reescritura-
+prototipo-1` (§ preset con `navTinta:true`/`navTratamientoActivo:true`), este slice cambia lo que
+un VISITANTE del despliegue CORTE ve: el color del link activo del nav pasa de invisible (bug) a
+`#d8a378` (tostado cálido) cuando el nav está sobre banda oscura. Es una corrección de un defecto
+visible, no texto nuevo. `strings`: ninguno — no hay copy nuevo, sólo un color.
+
+Para NAYOLI (`navClaro` nunca `true`, § "su nav NO es oscuro"): CERO cambio, medido por ejecución
+(`npm run verificar:nayoli:visual`, abajo).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un componente React (26 líneas, +25/-1) y un archivo de test (+38).
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores; `npm test` 2176/2176, +3
+reconciliados; `npm run test:integracion` 237/237, sin cambio), commiteado en
+`slice/corte-reescritura-prototipo-1`. Diff visual corrido (`npm run verificar:nayoli:visual`,
+main vs. rama) y **CERO diferencias** en las 6 rutas + 2 hovers (home/tienda/producto/checkout/
+nosotros/suscripciones + hover automática/elección), consciente de antialiasing — Nayoli no cambió,
+confirmando que `navClaro` nunca activa la rama nueva para ese tenant. El diff falla
+`customer-bytes` (la rama, con `CORTE` ya encendiendo `navTinta`/`navTratamientoActivo`, cambia el
+color del link activo del nav para un visitante de ese despliegue — de invisible a legible).
+`schema` y `cross-repo-contract` NO aplican. `stopped_on: [customer-bytes]`. El owner ya aprobó la
+ESCRITURA (`approved: yes`, con la cita textual de su reporte como `approval-reason`); el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+**Cierra `NAV-LINK-ACTIVO-INVISIBLE-1`.**

@@ -142,6 +142,31 @@ export default function StoreNav() {
   const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
+  // EL LINK ACTIVO era INVISIBLE sobre nav oscuro (§ NAV-LINK-ACTIVO-INVISIBLE-1): el `!important`
+  // pisaba `linkColor` con `--sf-acento-texto` SIEMPRE, sin mirar `navClaro`. Para CORTE ese token
+  // no es "el acento como texto" — `origenTexto:'tinta'` (themes.ts) lo re-deriva a
+  // `pisoContraste(tinta, fondo, 4.5)`, floreado contra el FONDO CLARO de página, que para CORTE da
+  // literalmente `tinta` (`#102407`) sin florear más porque ya pasa el piso ahí — y sobre la banda
+  // TINTA del nav (`bg-[var(--sf-tinta)]` o el hero oscuro detrás del floating) eso es el MISMO
+  // color que el fondo: contraste 1.00 (medido, `.scratch/medir-tostado.ts`). De ahí la caja vacía
+  // que reportó el owner en /nosotros — no faltaba el texto, el texto era invisible.
+  //
+  // `--sf-tostado` es el token que el resto del storefront YA usa como el fallback de "acento como
+  // texto sobre banda oscura, SIN esquema asignado" (`var(--sf-sobre-banda,var(--sf-tostado))`, la
+  // misma familia que HeroCurtina/HeroMedia/BrandStoryColumnas/GrindChooserRiel/SubscriptionCTA*
+  // — § el comentario de `RECETA` en `palette-derive.ts`, "sirven igual como texto sobre una banda
+  // oscura"). Para CORTE da `#d8a378` — 7.38:1 contra `tinta` (medido), y visualmente distinto del
+  // blanco/80% de `linkColor`, así que el activo sigue distinguiéndose del resto. `--sf-sobre-banda`
+  // en sí NO es alcanzable acá: sólo lo inyecta `esquemaStyle` en la `<section>` de una banda con
+  // esquema asignado, y el `<header>` vive FUERA de esa sección (fixed, por encima) — por eso se usa
+  // `--sf-tostado` directo, el mismo fallback literal que esos componentes usan cuando no hay
+  // esquema, en vez del atajo `--sf-sobre-banda` que acá no resolvería nada.
+  //
+  // `navClaro:false` (todo tema salvo CORTE) sigue en `--sf-acento-texto` — BYTE-IDÉNTICO a hoy: ese
+  // token SÍ se florea contra `fondo` (la superficie real del nav claro), así que el defecto nunca
+  // existió en esa rama.
+  const colorActivo = navClaro ? 'text-[var(--sf-tostado)]!' : 'text-[var(--sf-acento-texto)]!';
+
   // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1), extraído a una función: el ítem CON PANEL
   // (§ MUESTRARIO-MEGA-MENU-1) también puede llevar badge, así que la misma pieza tiene que colgar
   // tanto de un `<Link>` como del `<button>` que abre el panel — sin extraerla, el markup se
@@ -190,7 +215,7 @@ export default function StoreNav() {
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
               {links.map(l => {
-                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`;
+                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? colorActivo : ''}`;
                 // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1): un ítem CON panel es un
                 // BOTÓN que abre/cierra el desplegable — nunca navega directo. Medido contra el
                 // prototipo (`docs/prototipos/cafeone/index.html:28-31`): `.nav-link` de "Nuestro café"
