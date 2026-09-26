@@ -23634,3 +23634,91 @@ reescribir las seis assertions listadas arriba en cinco archivos; (2) ninguno m�
 nombre (`'marquesina'`→`'sticky'`) ya quedó resuelto dentro de este mismo slice, no queda pendiente.
 
 **Cierra `MUESTRARIO-HERO-MARQUESINA-STICKY-1`.**
+
+## 2026-09-26 — CORTE se cablea a `hero:'sticky'` — BLOCKED por un archivo fuera de `touches:` que el propio diagnóstico anterior ya había nombrado (`CORTE-USA-HERO-STICKY-1`)
+
+**Estado: BLOCKED, sin commit de cierre, sin merge.** El cableado en sí se hizo y se verificó; el
+slice se detiene porque el gate completo quedó ROJO por una aserción en un archivo que el
+`touches:` de este dispatch NO incluía — y la instrucción del dispatch es explícita: *"Si aparece
+un archivo MÁS fuera de touches:, PARÁ."*
+
+### El cableado (hecho, verificado, dentro de `touches:`)
+
+En `lib/config/themes.ts`, `CORTE`:
+- `variantes.hero` pasó de `'media'` a `'sticky'`.
+- `bandasVisibles.marquesina` pasó de `true` a `false` — el texto y el pin del marquee ya rinden
+  DENTRO del hero (`HeroMediaMarquesina.tsx`, § `MUESTRARIO-HERO-MARQUESINA-STICKY-1`), así que
+  dejar la banda suelta encendida duplicaría el mismo contenido.
+- Ningún otro campo de `CORTE` se tocó (toggles del hero, esquemas, orden, escala — como pedía el
+  dispatch).
+
+Los DIEZ archivos de test nombrados en `touches:` se actualizaron a la composición nueva:
+`themes.test.ts`, `corte-hero-titular.test.ts`, `corte-hero-viewport.test.ts`,
+`corte-nav-transparente.test.ts`, `corte-marquesina-velo.test.ts`, `hero-toggles-preset.test.ts`,
+`marquesina-banda.test.ts`, `escala-display.test.ts`, `hero-agregados.test.ts` (`hero-marquesina.
+test.ts` no necesitó cambios: no referencia a `CORTE`, medido por grep — cero apariciones).
+
+**Los comportamientos que el dispatch pedía verificar siguen siendo ciertos bajo `sticky`:**
+
+| comportamiento | archivo | sigue cierto |
+| --- | --- | --- |
+| el titular se oculta | `corte-hero-titular.test.ts` | sí — `HeroMediaMarquesina` no rinde NINGÚN h1 (antes tampoco rendía, por `heroTitularVisible:false`, una decisión previa y ajena a este slice) |
+| el nav flota | `corte-nav-transparente.test.ts` | sí — `bandaOscuraCanonica('hero','sticky')` y `bandaUniforme('hero','sticky')` dan `true`, MISMO trato que `'media'` (medido, `hero-marquesina.test.ts:88-91`) |
+| el velo sale del token | `corte-marquesina-velo.test.ts` | sí — `HeroMediaMarquesina` también lee `--sf-velo` (medido) |
+| la escala aplica | `escala-display.test.ts` | PARCIAL, ver abajo |
+
+**El caso de la escala, con matiz medido, no supuesto:** `escalaDisplay:'amplia'` de CORTE sigue
+aplicando en `presentaciones`/`featured`/`brandStory`/`subscriptionCTA`/`testimonials`/`origen` (6
+consumidores, sin cambio). Lo que YA NO aplica es al h1 del hero — pero eso **no es una pérdida de
+este slice**: `HeroMedia.tsx:223` gatea el h1 con `{hero.titularVisible && <motion.h1 …>}`, y CORTE
+ya declaraba `heroTitularVisible:false` desde `CORTE-HERO-TITULAR-OCULTABLE-1` (slice anterior, no
+tocado acá) — así que el h1-con-escala YA no rendía para CORTE bajo `'media'` tampoco. El resultado
+observable (cero h1 con font-size inline en el hero de CORTE) es IDÉNTICO antes y después de este
+slice; sólo cambió el mecanismo. Afirmado con un test nuevo en `escala-display.test.ts`.
+
+**El caso del cue "Desliza" (`hero-toggles-preset.test.ts`), no listado en las cuatro garantías del
+dispatch pero SÍ afectado:** `HeroMediaMarquesina` no lee `cueDesliza` en absoluto (decisión YA
+tomada por `MUESTRARIO-HERO-MARQUESINA-STICKY-1`, documentada en su propio docstring de cabecera:
+"decidí cómo conviven con el sticky y asentalo" — el gesto de pasar por encima del marquee
+reemplaza el propósito del cue). Bajo CORTE, el visitante YA NO ve la etiqueta "Desliza" — antes sí
+la veía. Se documenta como consecuencia CONOCIDA de una decisión YA aprobada en el slice anterior
+(no de éste), no como regresión nueva; el test se actualizó para afirmar la realidad.
+
+### El BLOQUEO — `lib/config/theme-mirador.test.ts:35`, fuera de `touches:`
+
+`npm test` completo: **2196/2197, UNA falla**:
+
+```
+test at lib/config/theme-mirador.test.ts:2:1877
+✖ CORTE (completo) → las tres bandas nuevas quedan pedidas en el content resultante
+  AssertionError: 'sticky' !== 'media'
+      at lib/config/theme-mirador.test.ts:35:10
+```
+
+`lib/config/theme-mirador.test.ts` **NO está en el `touches:` de `CORTE-USA-HERO-STICKY-1`.** Y no
+es un archivo nuevo que nadie hubiera visto: **el propio diagnóstico de `MUESTRARIO-HERO-
+MARQUESINA-STICKY-1` (arriba, en esta misma sección de `DECISIONS.md`) ya lo había nombrado
+explícitamente** en su tabla de "SEIS assertions en CINCO archivos" —
+`lib/config/theme-mirador.test.ts:35`, `=== 'media'` tras `?tema=CORTE`— como uno de los archivos
+que el cableado rompería. El `touches:` de ESTE dispatch enumera diez archivos de test y omite
+justamente ése. Es una desviación MEDIDA entre lo que el dispatch afirma ("Están TODOS
+declarados") y lo que el propio historial del slice anterior ya sabía.
+
+El fix sería mecánicamente idéntico al de los otros cinco archivos (`assert.equal(out.hero.
+variante, 'sticky')` en vez de `'media'`, línea 35) — pero la instrucción del dispatch es
+explícita y se sigue al pie de la letra: *"Si aparece un archivo MÁS fuera de touches:, PARÁ."* No
+se tocó `theme-mirador.test.ts`.
+
+### Lo committeado
+
+El cableado de `themes.ts` y los diez archivos de test dentro de `touches:` quedan COMMITEADOS en
+`slice/corte-reescritura-prototipo-1` — son correctos, están verificados (153/153 en los archivos
+tocados; `npm run typecheck` 0 errores) y no dependen de que se resuelva el archivo bloqueante. Lo
+que falta es UNA línea en UN archivo fuera de `touches:`.
+
+**Recomendación para el siguiente dispatch:** agregar `lib/config/theme-mirador.test.ts` a
+`touches:` y re-despachar (o resolverlo en el mismo paso que apruebe el merge) — el cambio es
+`assert.equal(out.hero.variante, 'media')` → `'sticky'`, línea 35, mismo patrón que los cinco
+archivos ya corregidos en este slice.
+
+**BLOCKED. No cierra `CORTE-USA-HERO-STICKY-1`.**

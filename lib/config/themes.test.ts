@@ -350,7 +350,13 @@ test('(3c) validarPreset rechaza una banda desconocida en `bandasVisibles`, por 
   assert.ok(bandaVisible[0].detalle.includes('`banner`, que no existe en BANDA_IDS'));
 });
 
-test('(3d) CORTE resuelve la secuencia del prototipo y deja apagadas trustBadges/testimonials, encendidas origen/marquesina', () => {
+// § CORTE-USA-HERO-STICKY-1 REESCRIBE la mitad de `bandasVisibles` de este test: `marquesina` pasó
+// de `true` a `false` — con `variantes.hero:'sticky'` (`HeroMediaMarquesina`) el texto y el pin del
+// marquee YA rinden DENTRO del hero (leyendo `content.marquesina.texto`/`.productoSlug` directo, el
+// dato no se movió), así que la banda suelta quedaría duplicando el mismo contenido si siguiera
+// encendida. `orden` NO cambió (sigue sin tocarse por este slice): `marquesina` sigue en la 2ª
+// posición del array — su posición en `orden` es independiente de su `visible`.
+test('(3d) CORTE resuelve la secuencia del prototipo y deja apagadas trustBadges/testimonials/marquesina, encendida origen', () => {
   // Secuencia MEDIDA contra docs/prototipos/cafeone/index.html (§ CENSO-MUESTRARIO-1, el comentario
   // de `orden` en themes.ts): hero → marquee → spotlight(featured) → presentaciones → historia
   // (brandStory) → origen → cta-strip(subscriptionCTA). Sin trustBadges/testimonials en el prototipo.
@@ -358,7 +364,7 @@ test('(3d) CORTE resuelve la secuencia del prototipo y deja apagadas trustBadges
     CORTE.orden,
     ['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen', 'subscriptionCTA'],
   );
-  assert.deepEqual(CORTE.bandasVisibles, { origen: true, marquesina: true, trustBadges: false, testimonials: false });
+  assert.deepEqual(CORTE.bandasVisibles, { origen: true, marquesina: false, trustBadges: false, testimonials: false });
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 
@@ -370,10 +376,13 @@ test('(3d) CORTE resuelve la secuencia del prototipo y deja apagadas trustBadges
   assert.equal(trustBadges.visible, false);
   assert.equal(testimonials.visible, false);
   assert.equal(origen.visible, true);
-  assert.equal(marquesina.visible, true);
+  assert.equal(marquesina.visible, false, 'la banda suelta queda apagada: su contenido ya rinde dentro del hero·sticky');
   // El `orden` escrito es el propio de CORTE, tal cual (7 bandas) — `resolverOrden` (fuera de
   // `mergePresetEnContent`, en el resolver de lectura) es quien reinserta trustBadges/testimonials
-  // al final; su posición ahí no importa porque `bandasVisibles` las mantiene apagadas.
+  // al final; su posición ahí no importa porque `bandasVisibles` las mantiene apagadas. `marquesina`
+  // sigue en la 2ª posición del array pese a estar apagada — su posición en `orden` no depende de
+  // `visible` (mismo mecanismo que ya mantiene a trustBadges/testimonials en su posición canónica
+  // mientras están apagadas).
   assert.deepEqual(despues.orden, CORTE.orden);
 });
 

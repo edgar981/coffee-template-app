@@ -770,8 +770,17 @@ export const CORTE: PresetTema = {
   // `components/storefront/home/Spotlight.tsx` construye (§ SPOTLIGHT-BANDA-1), no la malla de 6
   // que 'grilla' pintaba ahí. 'grilla' era la mejor variante DISPONIBLE en su momento (SPOTLIGHT-
   // BANDA-1 todavía no existía); con la variante real construida, CORTE se re-mide contra ella.
+  //
+  // `hero: 'sticky'` (§ CORTE-USA-HERO-STICKY-1) — hasta este slice CORTE pedía 'media', que
+  // `MUESTRARIO-HERO-MARQUESINA-STICKY-1` construyó en su lugar sin cablear al catálogo (esa tanda
+  // no pudo tocar los tests de `variantes.hero:'media'`/`bandasVisibles.marquesina:true` que
+  // afirmaban la composición vieja, fuera de su `touches:`). El owner reportó TRES veces que el
+  // marquee debe ir SOBRE el hero, no debajo como dos bandas apiladas — 'sticky' es exactamente esa
+  // composición (`HeroMediaMarquesina.tsx`, MEDIDA contra el tema real `x-cafeone.myshopify.com`).
+  // Con `hero: 'sticky'` la banda suelta `marquesina` queda REDUNDANTE (su texto y su pin ya
+  // rinden DENTRO del hero) — por eso `bandasVisibles.marquesina` pasa a `false`, abajo.
   variantes: {
-    hero: 'media',
+    hero: 'sticky',
     featured: 'spotlight',
     brandStory: 'centrada',
     presentaciones: 'riel',
@@ -861,8 +870,10 @@ export const CORTE: PresetTema = {
   // `--surface-inverse` en el estado sólido y asumió que era el ÚNICO estado, sin notar el
   // `background:transparent` de la regla base. `navTinta:true` hoy declara sólo el COLOR del estado
   // sólido (tinta, no la tarjeta clara de los otros temas); el floating lo decide `tratamientoNav`
-  // igual que para cualquier tema — CORTE lo hereda porque su hero (`variantes.hero:'media'`, abajo)
-  // es oscuro y uniforme, sin esquema asignado a 'hero'. El wordmark trae su sub-encabezado
+  // igual que para cualquier tema — CORTE lo hereda porque su hero (`variantes.hero:'sticky'`, abajo
+  // § CORTE-USA-HERO-STICKY-1 — 'media' hasta ese slice, mismo trato: ambas son un solo plano de
+  // media, oscuro y uniforme) es oscuro y uniforme, sin esquema asignado a 'hero'. El wordmark trae
+  // su sub-encabezado
   // (`.wordmark small`, `index.html:23`, "San Adolfo · Huila").
   //
   // `navBadge` SIGUE DECLARADO, PERO DORMIDO (§ CORTE-BADGE-COSECHA-EN-MENU-1) — `StoreNav.tsx` ya
@@ -910,15 +921,18 @@ export const CORTE: PresetTema = {
   // `index.html`), así que sin esta capacidad el mirador mostraba una banda que el diseño no pide.
   // Verificado ANTES de apagarlas: las dos son `ocultable:true` en el REGISTRY
   // (`REGISTRY.trustBadges.ocultable`/`REGISTRY.testimonials.ocultable`, site-content-defaults.ts).
-  //   origen/marquesina → `true`: la marquesina hereda su POSICIÓN 2ª (justo tras `hero`) del
-  //     `orden` propio, arriba, sin necesidad de un array separado; NINGÚN esquema propio en
-  //     `esquemas` (arriba) — su fondo lo da su propia canónica OSCURA (`BANDAS_OSCURAS`,
-  //     `bg-[var(--sf-banda,var(--sf-tinta))]`), igual que `hero` —el prototipo pinta
-  //     `.marquee{background:var(--green-900)}` bajo la foto velada, la MISMA raíz `tinta` que ya
-  //     gobierna esa canónica—, así que asignarle un esquema sería una segunda fuente de verdad
-  //     discrepando con la que ya la pinta bien.
-  //   trustBadges/testimonials → `false`: apagadas, sin análogo en el prototipo.
-  bandasVisibles: { origen: true, marquesina: true, trustBadges: false, testimonials: false },
+  //   origen → `true`: sin cambio por este slice.
+  //   marquesina → `false` (§ CORTE-USA-HERO-STICKY-1, REESCRITO — hasta este slice era `true`,
+  //     porque la banda suelta pintaba el marquee DEBAJO del hero, dos bandas apiladas). Con
+  //     `variantes.hero:'sticky'` (arriba) el texto y el pin del marquee YA rinden DENTRO del hero
+  //     (`HeroMediaMarquesina.tsx`, leyendo `content.marquesina.texto`/`.productoSlug` directo —el
+  //     DATO no se movió, sólo dejó de necesitar su banda propia para mostrarse). Dejar la banda
+  //     suelta encendida duplicaría el mismo contenido: una vez dentro del hero, otra vez debajo,
+  //     exactamente el defecto que este slice existe para cerrar. `HeroMediaMarquesina` no apaga
+  //     la banda por sí misma (no le corresponde decidir la visibilidad de OTRA sección, § su
+  //     docstring de cabecera) — es responsabilidad del PRESET, acá.
+  //   trustBadges/testimonials → `false`: apagadas, sin análogo en el prototipo (sin cambio).
+  bandasVisibles: { origen: true, marquesina: false, trustBadges: false, testimonials: false },
   // heroCtasVisibles/heroCueDesliza (§ TEMAS-HERO-TOGGLES-PRESET-1) — MEDIDO contra el prototipo
   // (`docs/prototipos/cafeone/index.html:122-138`): `.hero-media` no lleva ningún `.btn` (a
   // diferencia de `.hero-media .hero-inner`, que sólo trae el eyebrow/título/párrafo/caption) y SÍ

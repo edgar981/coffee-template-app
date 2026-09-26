@@ -7,6 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import HeroMedia from '@/components/storefront/home/HeroMedia';
+import HeroMediaMarquesina from '@/components/storefront/home/HeroMediaMarquesina';
 import Marquesina from '@/components/storefront/home/Marquesina';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 
@@ -14,12 +15,17 @@ import { DEFAULTS, resolverSiteContent, type SiteContentData } from './site-cont
 import { CORTE, PATIO } from './themes';
 import { contenidoConPresetDeVista } from './theme-mirador';
 
-// CORTE-MARQUESINA-VELO-1 — el velo de la marquesina y el PIE del velo del hero (HeroMedia, la única
-// variante que CORTE usa) COINCIDEN leyendo la MISMA variable derivada de `--sf-tinta` (`--sf-velo`,
-// § app/globals.css), en vez de hornear cada uno su propio modificador de opacidad (`/80` en el hero,
-// `/70` en la marquesina — dos literales del mismo origen que podían divergir). El owner (ronda de
-// gate visual, 2026-09-23): «el velo de la marquesina y el del hero salen del MISMO origen — no
-// copies el rgba, derivalo del token, que los dos lean la misma variable».
+// CORTE-MARQUESINA-VELO-1 — el velo de la marquesina y el PIE del velo del hero COINCIDEN leyendo la
+// MISMA variable derivada de `--sf-tinta` (`--sf-velo`, § app/globals.css), en vez de hornear cada
+// uno su propio modificador de opacidad (`/80` en el hero, `/70` en la marquesina — dos literales del
+// mismo origen que podían divergir). El owner (ronda de gate visual, 2026-09-23): «el velo de la
+// marquesina y el del hero salen del MISMO origen — no copies el rgba, derivalo del token, que los
+// dos lean la misma variable». AL MOMENTO DE ESTE SLICE, `HeroMedia` (variante 'media') era la ÚNICA
+// que CORTE usaba; § CORTE-USA-HERO-STICKY-1 (posterior) pasó CORTE a 'sticky' (`HeroMediaMarquesina`,
+// que fusiona hero+marquee en una sola banda con el mismo token) y apagó la banda suelta — los tests
+// generales de `HeroMedia`/`Marquesina` de este archivo (líneas de abajo) siguen siendo válidos EN SÍ
+// MISMOS (son genéricos, no atados a qué preset usa cuál variante); sólo el caso `?tema=CORTE` al
+// final se reescribió para la composición nueva.
 //
 // LO QUE ESTE ARCHIVO PUEDE AFIRMAR SIN NAVEGADOR: `renderToStaticMarkup` deja ver el className
 // literal (la clase de Tailwind), no el color RESUELTO — ninguna capa de este carril compila CSS ni
@@ -47,6 +53,13 @@ function renderHeroMedia(content: SiteContentData): string {
 
 function renderMarquesina(content: SiteContentData): string {
   const arbol = React.createElement(SiteContentProvider, { value: content, children: React.createElement(Marquesina) });
+  return renderToStaticMarkup(arbol);
+}
+
+// § CORTE-USA-HERO-STICKY-1: CORTE ya no usa `HeroMedia` (variante 'media') — pasó a 'sticky', que
+// rinde `HeroMediaMarquesina`, la composición que fusiona el hero y el marquee en UNA sola banda.
+function renderHeroMediaMarquesina(content: SiteContentData): string {
+  const arbol = React.createElement(SiteContentProvider, { value: content, children: React.createElement(HeroMediaMarquesina) });
   return renderToStaticMarkup(arbol);
 }
 
@@ -109,14 +122,21 @@ test('PATIO (preset que NO enciende la marquesina): el contenido resuelto no cam
   assert.equal(renderMarquesina(conPatio), '');
 });
 
-test('?tema=CORTE: la marquesina SÍ se enciende y su velo lee --sf-velo, coincidiendo con el hero', () => {
+// § CORTE-USA-HERO-STICKY-1 REESCRIBE este caso: CORTE pasó `variantes.hero` de 'media' a 'sticky'
+// y apagó `bandasVisibles.marquesina` (era `true`) — el marquee ya NO vive en una banda suelta
+// aparte del hero, sino DENTRO de él (`HeroMediaMarquesina`, § su docstring: dejar la banda suelta
+// encendida duplicaría el mismo contenido). El COMPORTAMIENTO que este archivo afirma —que el velo
+// del marquee sale del MISMO token `--sf-velo` que el del hero, nunca dos literales— SIGUE siendo
+// cierto: `HeroMediaMarquesina` es la MISMA composición hero+marquee, con un solo velo compartido
+// (afirmado en detalle por `hero-marquesina.test.ts`); lo que cambia es que ya no hay DOS bandas
+// separadas que comparar, sino una sola que lleva las dos cosas.
+test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en el hero·sticky), que sigue leyendo --sf-velo', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.marquesina.visible, true);
-  assert.equal(conCorte.hero.variante, 'media');
+  assert.equal(conCorte.hero.variante, 'sticky');
+  assert.equal(conCorte.marquesina.visible, false, 'la banda suelta queda apagada — su contenido ya rinde dentro del hero');
+  assert.equal(renderMarquesina(conCorte), '', 'la banda suelta no rinde nada bajo CORTE');
 
-  const htmlMarquesina = renderMarquesina(conCorte);
-  const htmlHero = renderHeroMedia(conCorte);
-  assert.match(htmlMarquesina, /bg-\[var\(--sf-velo\)\]/);
-  assert.match(htmlHero, /to-\[var\(--sf-velo\)\]/);
+  const htmlHeroSticky = renderHeroMediaMarquesina(conCorte);
+  assert.match(htmlHeroSticky, /bg-\[var\(--sf-velo\)\]/, 'el velo del hero·sticky sigue leyendo el mismo token');
 });

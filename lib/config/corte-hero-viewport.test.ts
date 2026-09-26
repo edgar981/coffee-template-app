@@ -75,7 +75,7 @@ test('mergePresetEnContent(_, CORTE): escribe hero.alturaLlena:true, preservando
   assert.equal(hero.eyebrow, 'El eyebrow del dueño');
   assert.equal(hero.titulo, 'El título que el dueño escribió');
   assert.equal(hero.ctasVisibles, false); // CORTE también lo apaga, pero por SU propio campo
-  assert.equal(hero.variante, 'media');
+  assert.equal(hero.variante, 'sticky'); // § CORTE-USA-HERO-STICKY-1 (era 'media')
 });
 
 test('mergePresetEnContent NO toca hero.alturaLlena para un preset que no lo declara (PATIO)', () => {
@@ -127,10 +127,10 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), el hero rinde con min-h-[92vh] — el 
   assert.match(html, /min-h-\[92vh\]/);
 });
 
-test('?tema=CORTE sobre Nayoli: el hero pasa a media con min-h-[100svh] (viewport completo)', () => {
+test('?tema=CORTE sobre Nayoli: el hero pasa a sticky (§ CORTE-USA-HERO-STICKY-1, era media) con min-h-[100svh] (viewport completo)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.hero.variante, 'media');
+  assert.equal(conCorte.hero.variante, 'sticky');
   assert.equal(conCorte.hero.alturaLlena, true);
 
   const html = renderHeroMedia(conCorte);

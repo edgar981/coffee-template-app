@@ -131,26 +131,33 @@ test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — el
   assert.ok(!html.includes('transform:translateY(-50%)'), 'sin el gate estático, el texto NO debe rendir la forma "quieta"');
 });
 
-// ─── CORTE la enciende; los demás presets no tocan `content.marquesina` ─────────────────────────
+// ─── CORTE la APAGA (§ CORTE-USA-HERO-STICKY-1); los demás presets no tocan `content.marquesina` ─
+//
+// HASTA ESTE SLICE, CORTE la ENCENDÍA (`bandasVisibles.marquesina:true`): el hero usaba la variante
+// 'media' y la marquesina era una banda suelta, DEBAJO de él. § CORTE-USA-HERO-STICKY-1 pasó
+// `variantes.hero` a 'sticky' (`HeroMediaMarquesina`, que lee `marquesina.texto`/`.productoSlug`
+// DIRECTO — el dato no se movió — y los rinde DENTRO del hero, pineado). Con el contenido ya
+// rindiendo dentro del hero, dejar la banda suelta encendida duplicaría el mismo marquee dos veces
+// (una vez arriba, en el hero; otra vez abajo, en su propia banda) — así que CORTE ahora la APAGA.
 
-test('CORTE declara bandasVisibles.marquesina y NO le asigna esquema propio (fondo por canónica oscura) — sigue validando COMPLETO', () => {
-  assert.equal(CORTE.bandasVisibles?.marquesina, true);
+test('CORTE declara bandasVisibles.marquesina:false (§ CORTE-USA-HERO-STICKY-1, era true) y NO le asigna esquema propio — sigue validando COMPLETO', () => {
+  assert.equal(CORTE.bandasVisibles?.marquesina, false);
   assert.equal(CORTE.esquemas.marquesina, undefined);
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 });
 
-test('mergePresetEnContent(_, CORTE): enciende marquesina.visible — si no, el slot quedaría en el orden y en blanco', () => {
+test('mergePresetEnContent(_, CORTE): APAGA marquesina.visible — su contenido ya rinde dentro del hero·sticky, dejarla encendida lo duplicaría', () => {
   const despues = mergePresetEnContent({ ...DEFAULTS }, CORTE);
   const marquesina = despues.marquesina as Record<string, unknown>;
-  assert.equal(marquesina.visible, true);
+  assert.equal(marquesina.visible, false);
 });
 
-test('mergePresetEnContent(_, CORTE): preserva cualquier copy/pin que el dueño ya hubiera puesto, sólo enciende `visible`', () => {
+test('mergePresetEnContent(_, CORTE): preserva cualquier copy/pin que el dueño ya hubiera puesto, sólo apaga `visible`', () => {
   const antes = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, texto: 'Mi propio texto', productoSlug: 'mi-slug' } };
   const despues = mergePresetEnContent(antes as unknown as Record<string, unknown>, CORTE);
   const marquesina = despues.marquesina as Record<string, unknown>;
-  assert.equal(marquesina.visible, true);
+  assert.equal(marquesina.visible, false);
   assert.equal(marquesina.texto, 'Mi propio texto');
   assert.equal(marquesina.productoSlug, 'mi-slug');
 });
@@ -170,19 +177,14 @@ test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — marquesina 
   assert.equal(renderMarquesina(sinTema), '');
 });
 
-test('?tema=CORTE sobre Nayoli: marquesina pasa a visible y el render trae el texto de los DEFAULTS (Nayoli no tiene fila propia; mergePresetEnContent nunca escribe texto de sección)', () => {
+// § CORTE-USA-HERO-STICKY-1 REESCRIBE este caso: bajo el hero·sticky, la banda suelta queda
+// apagada — su texto/pin ya no rinden AQUÍ, sino dentro del hero (§ `hero-marquesina.test.ts`, que
+// afirma en detalle que `HeroMediaMarquesina` lee `marquesina.texto`/`.productoSlug` y los rinde).
+test('?tema=CORTE sobre Nayoli: la banda suelta queda APAGADA — no renderiza nada (su contenido ya vive dentro del hero·sticky)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.marquesina.visible, true);
-
-  const html = renderMarquesina(conCorte);
-  assert.ok(html !== '');
-  assert.ok(html.includes(DEFAULTS.marquesina.texto));
-  // Consecuencia MEDIDA y aceptada (§ el docstring de `MarquesinaContent`): sin panel para cargar un
-  // pin real, la tarjeta flotante rinde vacía bajo CORTE — mismo comportamiento que `featured·
-  // spotlight` hoy sin catálogo real (§ spotlight-cableado.test.ts) y que `origen` sin datos
-  // (§ origen-banda.test.ts).
-  assert.ok(!/aspect-\[3\/4\]/.test(html), 'sin catálogo real, la tarjeta flotante no rinde ni bajo CORTE');
+  assert.equal(conCorte.marquesina.visible, false);
+  assert.equal(renderMarquesina(conCorte), '');
 });
 
 test('marquesina es la 2ª banda en el orden resuelto bajo CORTE — justo tras `hero`', () => {

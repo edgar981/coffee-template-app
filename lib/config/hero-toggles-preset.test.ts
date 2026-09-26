@@ -69,9 +69,10 @@ test('mergePresetEnContent(_, CORTE): escribe hero.ctasVisibles:false y hero.cue
   assert.equal(hero.eyebrow, 'El eyebrow del dueño');
   assert.equal(hero.titulo, 'El título que el dueño escribió');
   assert.equal(hero.fraseAlPie, 'Una frase que el dueño ya había cargado.');
-  // y `variante` la escribe el loop de `preset.variantes` (CORTE pide hero·media) — las dos escrituras
-  // conviven sobre la MISMA sección sin pisarse.
-  assert.equal(hero.variante, 'media');
+  // y `variante` la escribe el loop de `preset.variantes` (CORTE pide hero·sticky, § CORTE-USA-HERO-
+  // STICKY-1 — 'media' hasta ese slice) — las dos escrituras conviven sobre la MISMA sección sin
+  // pisarse.
+  assert.equal(hero.variante, 'sticky');
 });
 
 test('mergePresetEnContent NO toca hero.ctasVisibles/hero.cueDesliza para un preset que no los declara (PATIO)', () => {
@@ -111,18 +112,29 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), el hero rinde con los dos CTA y sin cu
   assert.ok(!html.includes('data-hero-cue'), 'sin ?tema=, el default cueDesliza=false no debe rendir el cue');
 });
 
-test('?tema=CORTE sobre Nayoli: el hero pasa a media SIN botones y CON el cue "Desliza"', () => {
+// § CORTE-USA-HERO-STICKY-1 REESCRIBE este caso: CORTE pasó `variantes.hero` de 'media' a 'sticky',
+// así que `HeroSection` (el dispatcher) ya NO enruta a `HeroMedia` sino a `HeroMediaMarquesina`
+// (§ HeroSection.tsx, `VARIANTES.sticky`). `heroCtasVisibles`/`heroCueDesliza` SIGUEN declarados en
+// CORTE (`themes.ts` no los toca, § el spec de este slice) pero ninguno de los dos tiene efecto ya:
+// `HeroMediaMarquesina` no rinde CTA en NINGÚN caso (ni con `ctasVisibles:true`) y no lee
+// `cueDesliza` en absoluto — MEDIDO en `hero-marquesina.test.ts` ("cueDesliza no emite ningún
+// marcador — esta variante no lee el agregado de HeroMedia"), decisión YA TOMADA por
+// `MUESTRARIO-HERO-MARQUESINA-STICKY-1` (spec: "decidí cómo conviven con el sticky y asentalo") —
+// no una regresión de ESTE slice. La ausencia de CTA sigue siendo cierta (nunca rinden, con o sin
+// el toggle); el cue "Desliza" YA NO rinde bajo CORTE — el mecanismo sticky+marquee reemplaza su
+// propósito (indicar que hay más contenido abajo) por el gesto de "pasar por encima" del marquee,
+// que es la lectura real medida contra `x-cafeone.myshopify.com` (sin cue propio en esa sección).
+test('?tema=CORTE sobre Nayoli: el hero pasa a sticky — sin CTA (como antes) y SIN el cue "Desliza" (§ HeroMediaMarquesina no lo lee)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.hero.variante, 'media');
+  assert.equal(conCorte.hero.variante, 'sticky');
   assert.equal(conCorte.hero.ctasVisibles, false);
-  assert.equal(conCorte.hero.cueDesliza, true);
+  assert.equal(conCorte.hero.cueDesliza, true, 'CORTE sigue declarando el campo, aunque ya no tenga efecto bajo sticky');
 
   const html = renderHero(conCorte);
-  assert.ok(!html.includes(DEFAULTS.hero.ctaPrimarioLabel), 'sin CTA primario bajo CORTE');
-  assert.ok(!html.includes(DEFAULTS.hero.ctaSecundarioLabel), 'sin CTA secundario bajo CORTE');
-  assert.ok(html.includes('data-hero-cue="desliza"'), 'el cue debe rendir bajo CORTE');
-  assert.match(html, /<span[^>]*>Desliza<\/span>/);
+  assert.ok(!html.includes(DEFAULTS.hero.ctaPrimarioLabel), 'sin CTA primario bajo CORTE (sigue siendo cierto)');
+  assert.ok(!html.includes(DEFAULTS.hero.ctaSecundarioLabel), 'sin CTA secundario bajo CORTE (sigue siendo cierto)');
+  assert.ok(!html.includes('data-hero-cue'), 'el cue ya NO rinde: HeroMediaMarquesina no lee cueDesliza');
 });
 
 test('?tema=CORTE NO toca hero.fraseAlPie — sigue CONTENIDO, ningún preset la siembra', () => {

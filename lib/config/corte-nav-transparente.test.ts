@@ -68,16 +68,19 @@ function estadoNavViejo(
   return { navFlotando, navClaro, navBg };
 }
 
-// ── PRECONDICIÓN medida: el hero de CORTE (variante 'media') es OSCURO y UNIFORME ────────────────
+// ── PRECONDICIÓN medida: el hero de CORTE (variante 'sticky', § CORTE-USA-HERO-STICKY-1 — 'media'
+// hasta ese slice) es OSCURO y UNIFORME ────────────────────────────────────────────────────────────
 // El floating transparente sólo aplica sobre una banda uniforme (§ EJE-5-NAV-UNIFORME); el target
 // del prototipo asume un hero oscuro a sangre. Si esto no diera true/true, el slice pararía acá.
+// 'sticky' es, como 'media', un solo plano de media (§ hero-marquesina.test.ts: "mismo trato que
+// hero·media") — mismo resultado oscuro/uniforme, verificado de nuevo acá.
 
-test('PRECONDICIÓN: hero·media (CORTE) es oscuro y uniforme — el floating del prototipo aplica', () => {
+test('PRECONDICIÓN: hero·sticky (CORTE) es oscuro y uniforme — el floating del prototipo aplica', () => {
   const corte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
-  assert.equal(corte.hero.variante, 'media', 'CORTE declara hero:"media" en variantes (§ themes.ts)');
+  assert.equal(corte.hero.variante, 'sticky', 'CORTE declara hero:"sticky" en variantes (§ themes.ts)');
   assert.equal(corte.esquemas.hero, undefined, 'CORTE no asigna esquema a la banda hero (§ themes.ts:esquemas)');
-  assert.equal(bandaOscuraCanonica('hero' as BandaId, 'media'), true, 'hero·media es oscuro por canónica');
-  assert.equal(bandaUniforme('hero' as BandaId, 'media'), true, 'hero·media es uniforme (sólo "ficha" no lo es)');
+  assert.equal(bandaOscuraCanonica('hero' as BandaId, 'sticky'), true, 'hero·sticky es oscuro por canónica');
+  assert.equal(bandaUniforme('hero' as BandaId, 'sticky'), true, 'hero·sticky es uniforme (sólo "ficha" no lo es)');
 });
 
 // ── CORTE: flota transparente sobre el hero, cae a SÓLIDO --sf-tinta al scrollear ────────────────
@@ -86,8 +89,8 @@ test('CORTE sin scroll, home: flota TRANSPARENTE con texto claro (no cae al tint
   const corte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   const e = estadoNav(corte, { isHome: true, scrolled: false });
   assert.equal(e.navBandaTinta, true, 'CORTE declara cromo.navTinta:true');
-  assert.equal(e.t.flotante, true, 'hero·media es uniforme → tratamientoNav permite flotar');
-  assert.equal(e.t.textoClaro, true, 'hero·media es oscuro → texto claro');
+  assert.equal(e.t.flotante, true, 'hero·sticky es uniforme → tratamientoNav permite flotar');
+  assert.equal(e.t.textoClaro, true, 'hero·sticky es oscuro → texto claro');
   assert.equal(e.navFlotando, true, 'CORTE ya NO fuerza navFlotando=false — el prototipo flota sobre el hero');
   assert.equal(e.navClaro, true);
   assert.equal(e.navBg, 'bg-transparent text-[var(--sf-sobre)]', 'transparente, no --sf-tinta — el defecto que este slice cierra');

@@ -77,7 +77,7 @@ test('mergePresetEnContent(_, CORTE): escribe hero.titularVisible:false y hero.s
   assert.equal(hero.titulo, 'El título que el dueño escribió');
   assert.equal(hero.ctasVisibles, false); // CORTE también los apaga, pero por SU propio campo
   assert.equal(hero.cueDesliza, true);
-  assert.equal(hero.variante, 'media');
+  assert.equal(hero.variante, 'sticky'); // § CORTE-USA-HERO-STICKY-1 (era 'media')
 });
 
 test('mergePresetEnContent NO toca hero.titularVisible/hero.subtituloVisible para un preset que no los declara (PATIO)', () => {
@@ -160,10 +160,10 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), el hero rinde con titular y subtítulo
   assert.ok(html.includes(DEFAULTS.hero.subtitulo));
 });
 
-test('?tema=CORTE sobre Nayoli: el hero pasa a media SIN titular ni subtítulo', () => {
+test('?tema=CORTE sobre Nayoli: el hero pasa a sticky (§ CORTE-USA-HERO-STICKY-1, era media) SIN titular ni subtítulo', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.hero.variante, 'media');
+  assert.equal(conCorte.hero.variante, 'sticky');
   assert.equal(conCorte.hero.titularVisible, false);
   assert.equal(conCorte.hero.subtituloVisible, false);
 

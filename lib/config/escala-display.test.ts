@@ -5,13 +5,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
-import { DEFAULTS } from './site-content-defaults';
+import { DEFAULTS, resolverSiteContent } from './site-content-defaults';
 import {
   fontSizeDisplay,
   resolverEscalaDisplay,
   CLAVES_ESCALA_DISPLAY,
   type ClaveEscalaDisplay,
 } from './escala-display';
+import { CORTE } from './themes';
+import { contenidoConPresetDeVista } from './theme-mirador';
 
 // LA INVARIANTE (§ TEMAS-ESCALA-DISPLAY-1): "SIN declarar escala, cada titular rinde el MISMO
 // font-size que hoy, en cada breakpoint." `fontSizeDisplay(null, rol)` es la señal de "no
@@ -102,7 +104,11 @@ function renderConEscala(
   );
 }
 
-test('WIRING — HeroSection (variante "media", la de CORTE): sin escala, el h1 NO lleva font-size inline; con "amplia", lleva el clamp exacto', () => {
+// "la de CORTE" DEJÓ de ser 'media' (§ CORTE-USA-HERO-STICKY-1: CORTE pasó a `hero:'sticky'`) — este
+// test sigue afirmando el mecanismo GENÉRICO de `HeroMedia` (aún vivo, aún parte del set cerrado de
+// `hero.variantes`, § site-content-defaults.ts), no el hero real de CORTE hoy. Ver el test de abajo
+// ("bajo `?tema=CORTE`…") para lo que SÍ es cierto del hero real.
+test('WIRING — HeroSection (variante "media"): sin escala, el h1 NO lleva font-size inline; con "amplia", lleva el clamp exacto', () => {
   const seccion = { hero: { ...DEFAULTS.hero, variante: 'media' } };
 
   const sinEscala = renderConEscala(HeroSection, seccion, null);
@@ -110,6 +116,30 @@ test('WIRING — HeroSection (variante "media", la de CORTE): sin escala, el h1 
 
   const conEscala = renderConEscala(HeroSection, seccion, 'amplia');
   assert.match(conEscala, /<h1[^>]*style="[^"]*font-size:clamp\(72px, ?9vw, ?168px\)/);
+});
+
+// § CORTE-USA-HERO-STICKY-1 — el hero REAL de CORTE hoy (`hero:'sticky'` → `HeroMediaMarquesina`).
+// `HeroMediaMarquesina` no rinde NINGÚN `<h1>` (no tiene titular propio; su contenido es el marquee
+// + la tarjeta de producto, § su docstring de cabecera) — así que `escalaDisplay` no tiene un h1 al
+// que aplicarse en esta composición. ESTO NO ES UNA PÉRDIDA DE ESTE SLICE: el h1 de `HeroMedia` YA
+// no rendía bajo CORTE desde `CORTE-HERO-TITULAR-OCULTABLE-1` — CORTE declara
+// `heroTitularVisible:false`, así que `{hero.titularVisible && <motion.h1 …>}` (HeroMedia.tsx)
+// tampoco montaba el h1 con la variante vieja ('media'). El resultado observable para el visitante
+// —CERO h1 con font-size inline en el hero de CORTE— es IDÉNTICO antes y después de este slice; sólo
+// cambió el MECANISMO (antes: h1 existía en el árbol pero oculto por el gate; ahora: el componente
+// nunca declara un h1). `escalaDisplay:'amplia'` de CORTE SIGUE aplicando en las OTRAS bandas que sí
+// leen este eje (`presentaciones·riel`, abajo, y featured/brandStory/subscriptionCTA/testimonials/
+// origen — fuera del alcance de este archivo, afirmado en sus propios tests) — "la escala aplica"
+// sigue siendo cierto para CORTE, sólo que nunca fue observable en el hero, ni antes ni ahora.
+test('bajo `?tema=CORTE` (hero real, "sticky"): ningún h1 lleva font-size inline — HeroMediaMarquesina no rinde h1, igual que antes (titularVisible:false ya lo ocultaba)', () => {
+  const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
+  assert.equal(conCorte.hero.variante, 'sticky');
+  assert.equal(conCorte.tema.escalaDisplay, 'amplia', 'CORTE sigue declarando la escala — no se tocó por este slice');
+
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: conCorte, children: React.createElement(HeroSection) }),
+  );
+  assert.doesNotMatch(html, /<h1\b/, 'HeroMediaMarquesina no rinde ningún h1');
 });
 
 test('WIRING — HeroSection (variante "curtina", la canónica/Nayoli): sin escala, byte-idéntica; con "amplia", el MISMO clamp del hero (independiente de la variante)', () => {
