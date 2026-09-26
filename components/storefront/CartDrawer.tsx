@@ -35,6 +35,17 @@ import { freeShippingThreshold } from "@duna/core/shipping-config";
 // `js/app.js:398-405`), gateadas por `content.carritoEnvio.visible` -- AUSENTE/`false` = HOY
 // (`FraseEnvioGratis`, byte-idéntica a la frase condicional de siempre); sólo CORTE la enciende
 // (`themes.ts`).
+//
+// § CARRITO-BARRA-POSICION-1 -- LA POSICIÓN de `BarraEnvioGratis` se movió al TOPE del cuerpo del
+// drawer, ANTES del listado (o del estado vacío), medida contra `.ship-prog` del muestrario
+// (`index.html:408-411`, dentro de `drawer-body`, ANTES de `data-lines`). `js/app.js:398-405`
+// (`renderCart`) actualiza `data-ship-msg`/`data-ship-bar` SIEMPRE, sin condicionar a
+// `cart.length` -- el prototipo muestra la barra con el carrito VACÍO (mensaje "Te faltan
+// $<threshold> para envío gratis", 4% de piso). Por eso acá también se rinde independiente de
+// `items.length`, gateada SÓLO por `carritoEnvio.visible`. Con el gate APAGADO nada cambia:
+// `FraseEnvioGratis` sigue en el FOOTER, dentro de `items.length > 0`, byte-idéntica a como
+// siempre estuvo -- esta tanda es POSICIÓN de la barra, no una capacidad nueva ni un cambio al
+// estado vacío (que se queda intacto).
 
 export interface ProgresoEnvioGratis {
   pct: number;
@@ -178,6 +189,12 @@ export default function CartDrawer() {
 
             {/* Items */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
+              {carritoEnvio.visible && (
+                <div className="mb-4">
+                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} />
+                </div>
+              )}
+
               {items.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--sf-superficie)]">
@@ -298,9 +315,7 @@ export default function CartDrawer() {
                     </span>
                   </div>
 
-                  {carritoEnvio.visible ? (
-                    <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} />
-                  ) : (
+                  {!carritoEnvio.visible && (
                     <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
                   )}
 

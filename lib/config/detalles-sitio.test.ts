@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -93,6 +96,67 @@ test('BarraEnvioGratis: el relleno usa el TOKEN de acción (`--sf-accion`, con f
   assert.match(html, /class="[^"]*bg-\[var\(--sf-accion,var\(--sf-tostado\)\)\][^"]*"/, 'el relleno debe leer el token de ACCIÓN, el mismo que ya pintan BackToTop y CartCTA');
   assert.doesNotMatch(html, /#[0-9a-fA-F]{3,8}/, 'ningún hex literal horneado en el relleno');
   assert.doesNotMatch(html, /rgba?\(/, 'ningún rgb()/rgba() literal horneado en el relleno');
+});
+
+// ─── § CARRITO-BARRA-POSICION-1 — la barra con el carrito VACÍO (subtotal 0), como el muestrario ──
+//
+// Medido contra `docs/prototipos/cafeone/js/app.js:398-405` (`renderCart`): actualiza
+// `data-ship-msg`/`data-ship-bar` SIEMPRE, sin condicionar a `cart.length` -- con el carrito vacío
+// `total` es 0, así que muestra "Te faltan $<threshold completo>" con el piso de 4%. `BarraEnvioGratis`
+// ya es pura sobre `subtotal`/`threshold` (no conoce `items`), así que subtotal=0 ya ejerce el caso
+// "carrito vacío" sin que el componente necesite ningún cambio de lógica -- sólo de POSICIÓN en
+// `CartDrawer.tsx` (abajo).
+
+test('BarraEnvioGratis: subtotal=0 (carrito vacío, como el muestrario) -> "Te faltan $<threshold completo>" con el piso de 4%, NO oculta nada', () => {
+  const html = renderToStaticMarkup(React.createElement(BarraEnvioGratis, { subtotal: 0, threshold: 150_000 }));
+  assert.ok(html.includes(`Te faltan ${money(150_000)} para envío gratis`));
+  assert.match(html, /style="width:4%"/);
+});
+
+// ─── § CARRITO-BARRA-POSICION-1 — LA POSICIÓN en CartDrawer.tsx, por lectura de la fuente ──────────
+//
+// `<CartDrawer/>` no se puede montar en el carril (§ cromo-carrito.test.ts, arriba: `useCartStore`
+// es un CONTEXT con throw duro sin `CartProvider`), así que el orden estructural del JSX -- que la
+// barra quede ANTES del listado/estado-vacío y ya no dependa de `items.length` -- se afirma leyendo
+// la fuente, el mismo mecanismo que `spotlight-cableado.test.ts` usa para el cableado del
+// dispatcher.
+
+function leerFuenteCartDrawer(): string {
+  const srcPath = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../components/storefront/CartDrawer.tsx');
+  return readFileSync(srcPath, 'utf8');
+}
+
+test('CartDrawer.tsx: `<BarraEnvioGratis` aparece ANTES de `items.length === 0` -- la barra vive arriba del cuerpo, antes del listado', () => {
+  const src = leerFuenteCartDrawer();
+  const idxBarra = src.indexOf('<BarraEnvioGratis');
+  const idxListado = src.indexOf('items.length === 0');
+  assert.ok(idxBarra > -1, 'BarraEnvioGratis debe seguir montada en CartDrawer.tsx');
+  assert.ok(idxListado > -1, 'la rama del estado vacío/listado debe seguir presente');
+  assert.ok(idxBarra < idxListado, 'BarraEnvioGratis debe aparecer ANTES de la rama items.length === 0, como .ship-prog antes de data-lines en el muestrario');
+});
+
+test('CartDrawer.tsx: la barra se gatea SÓLO por `carritoEnvio.visible`, nunca por `items.length` -- aparece con carrito vacío', () => {
+  const src = leerFuenteCartDrawer();
+  const bloque = src.slice(src.indexOf('{carritoEnvio.visible && ('), src.indexOf('<BarraEnvioGratis') + 50);
+  assert.ok(bloque.includes('<BarraEnvioGratis'), 'el bloque `carritoEnvio.visible && (…)` debe envolver directamente a BarraEnvioGratis');
+  assert.ok(!bloque.includes('items.length'), 'ese bloque no debe condicionar la barra a que haya ítems -- el prototipo la muestra con el carrito vacío');
+});
+
+test('CartDrawer.tsx: `<BarraEnvioGratis` aparece UNA sola vez en la fuente -- ya no vive duplicada en el footer', () => {
+  const src = leerFuenteCartDrawer();
+  const ocurrencias = src.split('<BarraEnvioGratis').length - 1;
+  assert.equal(ocurrencias, 1, 'la barra se movió, no se copió: el footer ya no debe montarla');
+});
+
+test('CartDrawer.tsx: el footer sigue rindiendo `FraseEnvioGratis` SÓLO cuando el gate está apagado, dentro de `items.length > 0` -- byte-idéntica al comportamiento de siempre', () => {
+  const src = leerFuenteCartDrawer();
+  const idxFooter = src.indexOf('{/* Footer */}');
+  const footer = src.slice(idxFooter);
+  assert.match(footer, /\{!carritoEnvio\.visible && \(/, 'el footer debe condicionar la frase a `!carritoEnvio.visible`, no al ternario viejo');
+  assert.match(footer, /<FraseEnvioGratis/);
+  const idxItemsFooter = footer.indexOf('items.length > 0');
+  const idxFrase = footer.indexOf('<FraseEnvioGratis');
+  assert.ok(idxItemsFooter > -1 && idxItemsFooter < idxFrase, 'la frase debe seguir DENTRO del bloque `items.length > 0` del footer, sin cambios');
 });
 
 // ─── resolverCarritoEnvio — el resolver SOFT de la meta ─────────────────────────────────────────────

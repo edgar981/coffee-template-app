@@ -22864,3 +22864,178 @@ motivó el pedido — eso queda para el gate del owner en su teléfono). El diff
 (`approved: yes`, con la cita textual de su reporte como `approval-reason` — "LA APROBACION AUTORIZA
 LA ESCRITURA, NUNCA EL MERGE"); el merge sigue pendiente del gate del orquestador — este slice, por
 instrucción del dispatch, no mergea. **Cierra `HERO-PUNTO-FOCAL-1`.**
+
+## 2026-09-25 — La barra de envío gratis sube al TOPE del cuerpo, antes del listado (`CARRITO-BARRA-POSICION-1`)
+
+**Origen:** el owner, gateando desde un celular (2026-09-25): «el carrito aún siento que no se
+parece al del muestrario». Medido antes de tocar nada, contra `docs/prototipos/cafeone/index.html:
+408-411`: `.ship-prog` (mensaje + barra) vive DENTRO de `drawer-body`, ANTES de `data-lines`
+(el listado). `CartDrawer.tsx` la rendía al REVÉS: cortaba en `items.length === 0` (:181) y
+mostraba la barra recién en el FOOTER (:301), después de las líneas — y con el carrito vacío el
+footer entero no se rendía, así que la barra nunca aparecía. La barra ya existía
+(§ `MUESTRARIO-CARRITO-BARRA-ENVIO-1`) y `CORTE` ya la enciende; este slice es POSICIÓN, no
+capacidad nueva.
+
+### Pre-flight
+
+`base: main / policy: current-main`, rama de trabajo `slice/corte-reescritura-prototipo-1`
+(continúa sobre `d9739b4`, `HERO-PUNTO-FOCAL-1`). Árbol limpio al empezar. `tier: 1` —
+`components/storefront/CartDrawer.tsx` entra por el subárbol `components/storefront/` de la lista
+Tier 1. `approved: yes`, con la cita textual del owner como `approval-reason` — la escritura estaba
+autorizada de entrada.
+
+### §0 — MEDIDO antes de decidir el caso vacío: el prototipo NO oculta la barra
+
+El spec pedía medir, no elegir por gusto, si `js/app.js` oculta `.ship-prog` con el carrito vacío.
+Leído `js/app.js:388-405` (`renderCart`): el bloque que actualiza `data-ship-msg`/`data-ship-bar`
+corre **incondicionalmente**, ANTES del `if (!cart.length)` que decide entre `cart-empty` y las
+líneas — no hay ninguna rama que lo salte ni lo oculte. Con `cart=[]`, `total = cartTotal()` da 0,
+`remaining = FREE_SHIPPING`, así que el mensaje queda "Te faltan $<threshold completo> para envío
+gratis" con el piso de 4% (`Math.max(4, (0/threshold)*100)`). Grepeado también `css/app.css` por
+`.ship-prog`/`.ship-bar`/`.cart-empty`: **ninguna regla condiciona su `display` al estado del
+carrito** — `.cart-empty` es simplemente contenido normal-flow que sigue a `.ship-prog` en el DOM,
+sin `height:100%` ni centrado vertical (a diferencia de nuestro estado vacío, que sí usa
+`h-full flex-col items-center justify-center` y se deja intacto, § abajo).
+
+**Decisión, derivada de la medición, no elegida:** el prototipo MUESTRA la barra con el carrito
+vacío. Se replicó ese comportamiento — `BarraEnvioGratis` se renderiza en `CartDrawer.tsx`
+independiente de `items.length`, gateada SÓLO por `carritoEnvio.visible`.
+
+### El cambio — un bloque que sube, un ternario que se parte en dos
+
+`components/storefront/CartDrawer.tsx`:
+
+- **El bloque `carritoEnvio.visible ? <BarraEnvioGratis/> : <FraseEnvioGratis/>` del FOOTER se
+  partió.** `<BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} />` se movió a
+  la PRIMERA línea del cuerpo scrolleable (`{/* Items */}`), envuelta en `{carritoEnvio.visible && (
+  …)}` — ANTES del `items.length === 0 ? … : …` que decide entre el estado vacío y el listado. Ya no
+  depende de `items.length` en absoluto.
+- **`FraseEnvioGratis` se queda EXACTAMENTE donde estaba**, en el footer, ahora bajo
+  `{!carritoEnvio.visible && (…)}` — con el gate apagado (Nayoli, hoy) el resultado es
+  BYTE-IDÉNTICO al ternario viejo: `false ? Barra : Frase` y `!false && Frase` renderizan lo mismo.
+  El footer sigue gateado por `items.length > 0`, sin tocar — es exactamente el comportamiento de
+  siempre para el caso apagado.
+- **El estado vacío (`items.length === 0`, el bloque "Tu carrito está vacío…") NO se tocó** — ni su
+  JSX, ni sus clases, ni su condición. El spec era explícito: "ese estado se queda como está". La
+  barra queda como HERMANO anterior, no como parte de esa rama.
+- **`progresoEnvioGratis`/`BarraEnvioGratis`/`FraseEnvioGratis` no cambiaron una línea** — son puras
+  sobre `subtotal`/`threshold`/`belowFreeShipping`, ya independientes de `items`; con `subtotal=0`
+  (carrito vacío) `BarraEnvioGratis` YA daba el resultado correcto ("Te faltan $<threshold
+  completo>", 4%) sin que hiciera falta tocar su lógica. Sólo cambió DÓNDE se monta.
+
+### El test — extendido, por lectura de la fuente (el mismo mecanismo que `spotlight-cableado.test.ts`)
+
+`<CartDrawer/>` no se puede montar en el carril (`useCartStore` es un `CONTEXT` con throw duro sin
+`CartProvider`, § `cromo-carrito.test.ts`), así que el orden ESTRUCTURAL —que la barra quede antes
+del listado y ya no dependa de `items.length`— no se puede afirmar por render. Se afirma leyendo la
+fuente (`readFileSync` + `path`, el mismo patrón que `spotlight-cableado.test.ts` usa para el
+cableado del dispatcher), en `lib/config/detalles-sitio.test.ts`:
+
+- `BarraEnvioGratis: subtotal=0 (carrito vacío…)`: el caso conductual, sin tocar la función —
+  confirma que `subtotal=0` ya da "Te faltan $<threshold completo>" con el piso de 4%.
+- `<BarraEnvioGratis` aparece ANTES de `items.length === 0` en la fuente.
+- el bloque `{carritoEnvio.visible && (…)}` envuelve DIRECTAMENTE a `BarraEnvioGratis` y NO
+  menciona `items.length` — la barra no depende de que haya ítems.
+- `<BarraEnvioGratis` aparece UNA sola vez en toda la fuente — ya no vive duplicada en el footer.
+- el footer sigue rindiendo `FraseEnvioGratis` SÓLO bajo `!carritoEnvio.visible`, dentro del bloque
+  `items.length > 0` — byte-idéntico al comportamiento de siempre para el gate apagado.
+
+### El GATE
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2151/2151** — verde (+5, todos en `lib/config/detalles-sitio.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **237/237** — verde, SIN cambio de conteo (este slice no toca el carril) |
+
+Reconciliado contra el piso citado por el commit anterior (`d9739b4`: "npm test 2146/2146 …
+npm run test:integracion 237/237"): capa 1 sube en exactamente +5, explicado entero por los tests
+nuevos de este slice; capa 2 queda IDÉNTICA (237→237) — ninguna diferencia es drift sin explicación.
+
+### El diff visual — Nayoli byte-idéntica, con el LÍMITE de que el arnés NUNCA abre el carrito
+
+`npm run verificar:nayoli:visual` (main vs. esta rama, 6 rutas + 2 hovers, claro forzado, reloj
+congelado): **CERO diferencias, en las 6 rutas Y los 2 hovers** (home 0/4.608.000px, tienda
+0/2.433.280px, producto 0/2.535.680px, checkout 0/1.152.000px, nosotros 0/1.152.000px,
+suscripciones 0/2.144.000px, hover:automatica 0/98.298px, hover:eleccion 0/102.870px). Nayoli tiene
+`carritoEnvio.visible=false` (el default), así que el bloque nuevo del cuerpo renderiza `false`
+(nada) y el footer sigue exactamente igual que ayer — el 0px es consistente con eso.
+
+**LÍMITE DECLARADO, dicho ANTES de correr el arnés, no descubierto después:** `scripts/
+verificar-nayoli-visual.ts` captura 6 rutas de página completa + 2 hovers de tarjeta — grepeado
+(`cart|drawer|Carrito`), NINGUNA de las 8 capturas abre el carrito. **El 0px prueba que Nayoli no
+cambió en ninguna pantalla que el arnés mira, pero NO ejercita esta pieza en absoluto** — ni antes
+ni después de este slice el arnés vio el drawer, gate ON o OFF. La verificación de que la barra
+efectivamente aparece arriba del listado con el gate encendido es del gate visual del owner
+(capa 3, manual, con un preset/tema que encienda `carritoEnvio.visible`), no de este arnés.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `CartDrawer.tsx` (contenido), `BarraEnvioGratis`,
+`FraseEnvioGratis`, `carritoEnvio.visible`, `detalles-sitio.test.ts`, `CARRITO-BARRA-POSICION-1`.
+Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones** de todos. `CLAUDE.md` no nombra
+`CartDrawer`, `BarraEnvioGratis`, `FraseEnvioGratis` ni `carritoEnvio` en ningún punto (ni en
+§ Config del contenido, ni en el Backlog, ni en Mejoras post-multitenant) — la doctrina no describe
+esta pieza en absoluto, así que no hay frase que este diff pueda volver falsa. Nada que corregir,
+nada que declarar como `open_followup` de este eje.
+
+### `touches:` — lo que se escribió
+
+`components/storefront/CartDrawer.tsx`, `lib/config/detalles-sitio.test.ts`, este asiento
+(`DECISIONS.md`). Sin desviación de alcance — los tres archivos nombrados en `touches:` son los
+únicos tocados.
+
+### `open_followups`
+
+El chequeo mecánico contra `CLAUDE.md` dio cero resultados (arriba). Pero el mismo chequeo aplicado
+a `DECISIONS.md` —el propio documento que este slice edita, § la instrucción de grepear los
+identificadores de sección tocados— sí encontró un pointer que este diff vuelve impreciso:
+
+- **`CARRITO-BARRA-PIE-DESCRIPCION-STALE-1`**: el asiento de `MUESTRARIO-CARRITO-BARRA-ENVIO-1`
+  (línea ~21777) describe `carritoEnvio.visible` como un switch que decide "entre DOS
+  PRESENTACIONES de un elemento que YA está siempre montado (**el pie del carrito**)" — la barra y
+  la frase, ambas en el mismo slot del footer. Tras este slice, con el gate ENCENDIDO,
+  `BarraEnvioGratis` ya NO vive en el pie del carrito: vive al TOPE del cuerpo, antes del listado,
+  independiente de `items.length` — mientras que `FraseEnvioGratis` (el caso apagado) sí se quedó en
+  el pie. La frase "dos presentaciones del MISMO elemento" ya no es exacta para el caso encendido:
+  son dos elementos en dos posiciones distintas, uno de los cuales (la barra) ni siquiera comparte
+  la condición de montaje (`items.length`) del otro. **No se corrige acá** — ya hay precedente
+  exacto de este mismo patrón en este archivo (`CENSO-MUESTRARIO-CARRITO-CHROME-STALE-1`, línea
+  ~21903: "reescribir [una tabla/asiento de OTRO slice] es un cambio a un documento de OTRO slice,
+  fuera de lo que éste pidió escribir"): el spec de `CARRITO-BARRA-POSICION-1` pidió sumar UN
+  asiento propio, no enmendar el de `MUESTRARIO-CARRITO-BARRA-ENVIO-1`.
+
+### `customer_bytes`
+
+`changed: true`, juzgado sobre la RAMA (§ CLAUDE.md, "EL EJE ES LA RAMA, NO EL COMMIT"), no sobre
+este commit aislado: `carritoEnvio.visible` nace `false` (Nayoli, byte-idéntico, verificado 0px
+arriba), pero la rama `slice/corte-reescritura-prototipo-1` ya incluye `CORTE`
+(§ `MUESTRARIO-CARRITO-BARRA-ENVIO-1`), el preset que la enciende. Bajo `carritoEnvio.visible=true`,
+este slice cambia lo que un VISITANTE ve en dos formas: (1) la barra ahora aparece con el carrito
+VACÍO, un estado en el que antes no se rendía nada de "envío gratis" en absoluto (el footer entero
+estaba gateado por `items.length > 0`); y (2) su posición en pantalla cambió, de pie del carrito
+(tras las líneas) a tope del cuerpo (antes del listado).
+
+`strings`: ningún texto NUEVO — el mensaje ("Te faltan $X para envío gratis" / "Tienes envío
+gratis") ya existía byte a byte desde `MUESTRARIO-CARRITO-BARRA-ENVIO-1`. Lo que cambia es la
+CONDICIÓN bajo la que el visitante lo ve (ahora también con el carrito vacío) y su POSICIÓN, no su
+redacción — un cambio de bytes compilados/estructurales sin texto nuevo, la misma categoría que
+"cambian bytes compilados pero NINGÚN texto — un cambio de robustez, no de producto" cuando el
+cambio es de posición y no de producto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un componente React (reordenar JSX) y un archivo de test.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde (`npx tsc --noEmit` 0 errores; `npm test` 2151/2151, +5
+reconciliados; `npm run test:integracion` 237/237, sin cambio), commiteado en
+`slice/corte-reescritura-prototipo-1`. Diff visual corrido y CERO diferencias en las 6 rutas + 2
+hovers, con el LÍMITE declarado de que el arnés NUNCA abre el carrito — no ejercita esta pieza en
+ninguna dirección. El diff falla `customer-bytes` (la rama, con `CORTE` ya encendiendo el gate,
+cambia cuándo y dónde un visitante ve la barra). `schema` y `cross-repo-contract` NO aplican.
+`stopped_on: [customer-bytes]`. El owner ya aprobó la ESCRITURA (`approved: yes`, con la cita
+textual de su reporte como `approval-reason`); el merge sigue pendiente del gate del orquestador —
+este slice, por instrucción del dispatch, no mergea. **Cierra `CARRITO-BARRA-POSICION-1`.**
