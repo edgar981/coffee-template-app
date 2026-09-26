@@ -152,9 +152,9 @@ test('el panel visible es `sticky top-0`, a `h-[100svh]` SIEMPRE (no lee `altura
   assert.equal(conAlturaLlenaFalse, conAlturaLlenaTrue);
 });
 
-test('el ancestro (root del componente) tiene el presupuesto de scroll extra — 100svh del panel + 70vh (el mismo alto que `Marquesina.tsx` ya usaba)', () => {
+test('el ancestro (root del componente) tiene el presupuesto de scroll extra — 100svh del panel + 200vh, MEDIDO contra el `<xo-parallax class="h:300vh">` real (300vh = 100vh + 200vh), no el min-h-[70vh] de la banda suelta', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
-  assert.match(html, /min-h-\[calc\(100svh\+70vh\)\]/);
+  assert.match(html, /min-h-\[calc\(100svh\+200vh\)\]/);
 });
 
 test('`cueDesliza` no emite ningún marcador — esta variante no lee el agregado de HeroMedia', () => {
@@ -190,13 +190,13 @@ test('LA INVARIANTE — Nayoli (sin fila, canónica "curtina"): HeroSection NO r
   assert.equal(nayoli.hero.variante, 'curtina');
   const html = renderHeroSection(nayoli);
   assert.doesNotMatch(html, /sticky top-0/);
-  assert.doesNotMatch(html, /min-h-\[calc\(100svh\+70vh\)\]/);
+  assert.doesNotMatch(html, /min-h-\[calc\(100svh\+200vh\)\]/);
 });
 
 test('HeroSection con `variante:"media"` sigue enrutando a HeroMedia — sin cambios por esta variante nueva', () => {
   const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, variante: 'media' as const } } as SiteContentData;
   const html = renderHeroSection(content);
   // HeroMedia usa min-h-[92vh]/[100svh], nunca el ancestro de presupuesto de scroll de la nueva variante.
-  assert.doesNotMatch(html, /min-h-\[calc\(100svh\+70vh\)\]/);
+  assert.doesNotMatch(html, /min-h-\[calc\(100svh\+200vh\)\]/);
   assert.doesNotMatch(html, /sticky top-0/);
 });

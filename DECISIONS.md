@@ -23355,15 +23355,38 @@ sigue pendiente del gate del orquestador — este slice, por instrucción del di
 
 ## 2026-09-26 — El hero y la marquesina pasan de DOS bandas apiladas a UNA composición pineada (`MUESTRARIO-HERO-MARQUESINA-STICKY-1`)
 
-### La medición que manda: el tema REAL, no el prototipo estático
+### La medición que manda: el tema REAL, no el prototipo estático — y RE-VERIFICADA por ejecución propia
 
 El owner reportó por TERCERA vez que "las letras del marquee salen lit sobre el hero, no en una
-sección abajo", y pidió analizar el video. Medido directamente contra el tema real cuyo storefront
-de preview facilitó (`https://x-cafeone.myshopify.com/`), buscando la sección `hero_banner_marquee`:
-**UNA sola sección**, `position:sticky;top:0;height:100vh`, con el VIDEO de fondo, un VELO oscuro
-**PLANO** encima, una capa de TEXTO `position:absolute;top:50%;transform:translateY(-50%);
-z-index:10;white-space:nowrap` (el track del marquee) y la TARJETA de producto, encima de todo. El
-efecto: el hero queda PEGADO mientras el texto cruza y la tarjeta entra sobre él.
+sección abajo", y pidió analizar el video. El spec de este slice ya traía medido, contra el tema
+real (`https://x-cafeone.myshopify.com/`), que la sección `hero_banner_marquee` es sticky con un
+velo y una capa de texto encima. **Esa cita se re-verificó por EJECUCIÓN propia** (`node --eval`
+con `fetch()` contra el sitio real, no re-transcripción del spec — la red se alcanzó por `node`,
+nunca por `curl`/`WebFetch`), y la re-verificación afinó la medición del spec en tres puntos:
+
+- **La sección real es `<xo-parallax class="h:300vh">` envolviendo `<div class="pos:sticky t:s0
+  h:100vh …">`** — el panel pineado mide `100vh`, pero DENTRO de un ancestro de **`300vh`** (100vh
+  propios + **200vh** de presupuesto de scroll). El spec no citaba la altura del ancestro.
+- **El velo NO es plano**: es un `<div style="background-color:black">` envuelto en
+  `<xo-parallax-scroll xo-keyframes="{'20%':{opacity:0},'40%':{opacity:0.6}}">` — su opacidad
+  ANIMA con el scroll, de 0 a 0.6, entre el 20% y el 40% del progreso. La caracterización del spec
+  ("un velo oscuro encima del video") era compatible con las dos lecturas; la re-verificación
+  descarta la lectura "plano" que este slice había asumido al construir.
+- **El texto NO se desplaza horizontalmente por scroll**: es un `<xo-marquee xo-speed="1"
+  xo-direction="ltr">` — un ticker de velocidad-por-TIEMPO, independiente del scroll de página —
+  envuelto en su propio reveal de entrada por scroll (slide-up + fade). La tarjeta, análogamente,
+  tiene un reveal de slide-up + fade (SIN escala ni rotación), no el mecanismo de
+  `transformMarquesinaTarjeta` que este slice reusa.
+
+**Consecuencia para lo construido:** esta variante replica la ESTRUCTURA medida (sticky + velo +
+texto-encima + tarjeta-encima) usando el ANCESTRO de 200vh (corregido a la cifra real), pero NO
+replica las curvas de animación exactas del sitio real (fade de velo, ticker por velocidad,
+reveals sin escala/rotación) — reusa en su lugar `transformMarquesinaTexto`/
+`transformMarquesinaTarjeta`, las funciones YA construidas para `Marquesina.tsx`, por instrucción
+explícita del spec ("reusá el motor de scroll de `lib/animation.ts`… no agregues librería"). Esto
+NO es una limitación de la medición: es la reutilización que el spec pidió, ahora con la cifra del
+ancestro corregida contra la medición real en vez de contra un número reusado por analogía
+(§ abajo, "la mecánica sticky").
 
 ### `docs/prototipos/cafeone/` DERIVA — y por qué YA NO es la autoridad para esta banda
 
@@ -23395,16 +23418,23 @@ reportá — duplicar el dato es peor"); no hizo falta pararse: el dato ya estab
 
 **Fondo/velo**: son del propio HERO, como las otras tres variantes (`hero.imagen`/`imagenTipo`/
 `imagenPoster`/`puntoFocal`) — `marquesina.imagen` (la foto de la banda suelta) NO se usa acá,
-porque el fondo de esta composición es el del hero. El velo es un overlay PLANO en `--sf-velo`
-(el mismo token compartido hero/marquesina, § CORTE-MARQUESINA-VELO-1), NO el gradiente de dos
-paradas de `HeroMedia.tsx`: lo medido dice "un velo oscuro" (una sola capa), y un plano al 80% en
-TODO el alto protege al nav flotante al menos tanto como el tramo superior de HeroMedia (60%).
+porque el fondo de esta composición es el del hero. El velo es un overlay SIEMPRE-ENCENDIDO en
+`--sf-velo` (el mismo token compartido hero/marquesina, § CORTE-MARQUESINA-VELO-1) — NO el
+gradiente de dos paradas de `HeroMedia.tsx`, y TAMPOCO el fade animado (0→0.6 de opacidad con
+scroll) que la re-verificación encontró en el sitio real (§ arriba): un plano SIEMPRE al 80% en
+TODO el alto protege al nav flotante al menos tanto como el tramo superior de HeroMedia (60%),
+sin depender de que el visitante haya scrolleado lo suficiente para que un fade termine.
 
-**La mecánica sticky, sin motor nuevo**: el panel visible (`sticky top-0 h-[100svh]`) necesita un
-ancestro más alto que el viewport para tener contra qué engancharse. Ese ancestro
-(`min-h-[calc(100svh+70vh)]`) reusa el MISMO presupuesto de scroll que `Marquesina.tsx` ya usaba
-para su propia banda (`min-h-[70vh]`) — no se inventó un número nuevo. El progreso se mide con
-`useProgresoScroll` (§ `lib/animation.ts`) contra ESE ancestro, nunca contra la `<section>` pineada
+**La mecánica sticky, sin motor nuevo, con la cifra del ancestro RE-VERIFICADA**: el panel visible
+(`sticky top-0 h-[100svh]`) necesita un ancestro más alto que el viewport para tener contra qué
+engancharse. Ese ancestro (`min-h-[calc(100svh+200vh)]`) usa el presupuesto de scroll MEDIDO contra
+el `<xo-parallax class="h:300vh">` real (§ arriba: 300vh = 100vh del panel + 200vh de recorrido) —
+la primera implementación había reusado, POR ANALOGÍA y sin la cifra real todavía en mano, el
+`min-h-[70vh]` de la banda SUELTA de `Marquesina.tsx`; la re-verificación por ejecución mostró que
+esa cifra pertenece a OTRA composición (una banda en flujo normal, no un ancestro de sticky) y no
+tiene relación con el presupuesto real del sitio, así que se corrigió a 200vh antes de cerrar el
+slice. El progreso se mide con `useProgresoScroll` (§ `lib/animation.ts`) contra ESE ancestro,
+nunca contra la `<section>` pineada
 (un elemento `sticky` reporta `top:0` fijo mientras está pineado; medirlo ahí daría un progreso
 estancado). `transformMarquesinaTexto`/`transformMarquesinaTarjeta` son las MISMAS funciones puras
 que `Marquesina.tsx` ya usa — **cero líneas nuevas en `lib/animation.ts`**, así que ese archivo del

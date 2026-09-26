@@ -27,12 +27,27 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // reservada en `PLIEGO.variantes.hero` (themes.ts) para una composición ajena; ver el docstring de
 // `HeroSection.tsx`/`REGISTRY.hero.variantes` (site-content-defaults.ts) para el desvío medido.
 //
-// MEDIDO CONTRA EL TEMA REAL (`https://x-cafeone.myshopify.com/`, NO el prototipo estático — ver
-// abajo por qué), buscando `hero_banner_marquee`: UNA sola sección, `position:sticky;top:0;
-// height:100vh`, con el VIDEO de fondo, un VELO oscuro PLANO encima, una capa de TEXTO
-// `position:absolute;top:50%;transform:translateY(-50%);z-index:10;white-space:nowrap` (el track
-// del marquee) y la TARJETA de producto, encima de todo. El efecto: el hero queda PEGADO mientras
-// el texto cruza y la tarjeta entra sobre él.
+// MEDIDO CONTRA EL TEMA REAL — VERIFICADO POR EJECUCIÓN (`node --eval "fetch(...)"` contra
+// `https://x-cafeone.myshopify.com/`, no sólo citado del spec), buscando `hero_banner_marquee`: es
+// `<xo-parallax class="h:300vh">` envolviendo `<div class="pos:sticky t:s0 h:100vh …">` — el panel
+// pineado mide `100vh` DENTRO de un ancestro de `300vh` (100vh propios + 200vh de presupuesto de
+// scroll). Adentro del panel: el VIDEO de fondo (`<xo-video-cover>`), un velo negro cuya opacidad
+// en el sitio real ANIMA con el scroll (`xo-parallax-scroll` con keyframes 0→0.6 entre 20%-40% del
+// progreso — NO un plano estático), una capa de TEXTO `pos:absolute;t:50%;
+// trf:translateY(-50%);z:10` que envuelve un ticker `<xo-marquee xo-speed="1">` (auto-scroll
+// CONTINUO por velocidad/tiempo, independiente del scroll de página) con su propio reveal de
+// entrada (slide-up + fade, otro `xo-parallax-scroll`), y la TARJETA de producto con su propio
+// reveal de entrada (slide-up + fade, SIN escala ni rotación), en `z:100`. El efecto visible: el
+// hero queda PEGADO mientras el texto y la tarjeta aparecen y se mueven por encima.
+//
+// ESTA VARIANTE REPLICA LA ESTRUCTURA (sticky + velo + texto-encima + tarjeta-encima), NO LAS
+// CURVAS DE ANIMACIÓN EXACTAS — decisión explícita del spec ("reusá el motor de scroll de
+// `lib/animation.ts`… no agregues librería"), no un límite de medición: el velo acá es un overlay
+// SIEMPRE-ENCENDIDO en `--sf-velo` (no el fade 0→0.6 con keyframes propios), y el texto/tarjeta
+// usan `transformMarquesinaTexto`/`transformMarquesinaTarjeta` —las funciones YA construidas para
+// `Marquesina.tsx`— en vez de un ticker de velocidad-por-tiempo o reveals de slide+fade sin
+// escala/rotación. Construir esas curvas exactas habría exigido keyframes propios (código nuevo,
+// no reutilización) para un detalle de acabado que el spec no pidió replicar byte a byte.
 //
 // `docs/prototipos/cafeone/` DERIVA DEL TEMA Y YA NO ES LA AUTORIDAD PARA ESTA BANDA. Su `.marquee`
 // (que `Marquesina.tsx` reproduce fielmente) es una SEGUNDA sección, aparte del `.hero`, con su
@@ -55,14 +70,16 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // `marquesina.imagen` (la foto de la banda suelta) NO se usa acá, porque el fondo de ESTA
 // composición es el del HERO, no el de la marquesina. `marquesina` sólo aporta el TEXTO y el PIN.
 //
-// EL VELO ES UN OVERLAY PLANO, NO EL GRADIENTE DE DOS PARADAS DE HeroMedia.tsx: lo medido dice "un
-// velo oscuro encima del video" (una sola capa, no un degradado top→bottom), así que se reusa el
-// MISMO token compartido `--sf-velo` (§ CORTE-MARQUESINA-VELO-1, `app/globals.css`,
-// `color-mix(in oklab, var(--sf-tinta) 80%, transparent)`) con el tratamiento PLANO de
-// `Marquesina.tsx` (`bg-[var(--sf-velo)]`), no el `from/via/to` de HeroMedia.tsx. Un velo plano al
-// 80% en TODO el alto de la sección protege al nav transparente-flotante AL MENOS tanto como el
-// tramo superior de HeroMedia (60%) — nunca menos —, así que la legibilidad del nav está cubierta
-// sin necesitar un segundo tono para el tercio superior.
+// EL VELO ACÁ ES UN OVERLAY SIEMPRE-ENCENDIDO, NO EL FADE ANIMADO DEL SITIO REAL (§ el comentario
+// de cabecera: la estructura se replica, la curva de animación no) NI EL GRADIENTE DE DOS PARADAS
+// DE HeroMedia.tsx: una sola capa PLANA, reusando el MISMO token compartido `--sf-velo`
+// (§ CORTE-MARQUESINA-VELO-1, `app/globals.css`, `color-mix(in oklab, var(--sf-tinta) 80%,
+// transparent)`) con el tratamiento de `Marquesina.tsx` (`bg-[var(--sf-velo)]`), no el `from/via/to`
+// de HeroMedia.tsx. Un velo plano al 80% en TODO el alto de la sección protege al nav
+// transparente-flotante AL MENOS tanto como el tramo superior de HeroMedia (60%) — nunca menos —,
+// así que la legibilidad del nav está cubierta sin necesitar un segundo tono para el tercio
+// superior, y sin depender de que el visitante haya scrolleado lo suficiente para que un fade
+// termine de oscurecer.
 //
 // ALTURALLENA/CUEDESLIZA NO SE LEEN ACÁ, A PROPÓSITO (decisión pedida por el spec: "decidí cómo
 // conviven con el sticky y asentalo"). Los dos son agregados de `HeroMedia.tsx` para su propio caso
@@ -76,11 +93,12 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // (`<section className="sticky top-0 h-[100svh] …">`) necesita un ANCESTRO más alto que el
 // viewport para tener contra qué "engancharse" — un `position:sticky` del mismo alto que su
 // contenedor no tiene distancia de scroll que recorrer y nunca se pinea. Ese ancestro es el `<div>`
-// raíz de este componente (`min-h-[calc(100svh+70vh)]`): el `100svh` es el propio panel pineado, y
-// el `70vh` extra es el PRESUPUESTO DE SCROLL para que el texto y la tarjeta completen su
-// recorrido — el MISMO alto que `Marquesina.tsx` ya usaba para su propia banda (`min-h-[70vh]`),
-// reusado acá en vez de inventar un número nuevo: es el mismo trayecto de scroll que el texto y la
-// tarjeta siempre recorrieron, ahora ENCIMA del hero en vez de en su propia banda suelta.
+// raíz de este componente (`min-h-[calc(100svh+200vh)]`): el `100svh` es el propio panel pineado, y
+// el `200vh` extra es el PRESUPUESTO DE SCROLL, MEDIDO —no inventado— contra el `<xo-parallax
+// class="h:300vh">` real (§ el comentario de cabecera: 300vh = 100vh del panel + 200vh de
+// recorrido). No se reusó el `min-h-[70vh]` de la banda SUELTA de `Marquesina.tsx` —esa cifra es el
+// alto de OTRA composición (una banda en flujo normal, no un ancestro de sticky) y coincide sólo
+// por casualidad de vocabulario, no de medición—.
 //
 // EL PROGRESO DE SCROLL SE MIDE CONTRA ESE ANCESTRO, NUNCA CONTRA EL PANEL PINEADO: mientras está
 // pineado, un elemento `sticky` reporta `top:0` FIJO ante `getBoundingClientRect` — medirlo daría
@@ -150,7 +168,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   return (
     <div
       ref={wrapperRef}
-      className="relative min-h-[calc(100svh+70vh)] bg-[var(--sf-banda,var(--sf-tinta))]"
+      className="relative min-h-[calc(100svh+200vh)] bg-[var(--sf-banda,var(--sf-tinta))]"
       style={style}
     >
       <section
