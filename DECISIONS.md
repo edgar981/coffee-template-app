@@ -23753,3 +23753,124 @@ la variante de CORTE — leería el preset real, no un texto congelado. El resto
 verificar.
 
 **Cierra `CORTE-USA-HERO-STICKY-MIRADOR-1` y `CORTE-USA-HERO-STICKY-1`.**
+
+## 2026-09-26 — Las dos mitades de la medición de `/nosotros` contra el tema real, inlineadas en el libro (`CENSO-NOSOTROS-TEMA-REAL-1`)
+
+**Por qué este asiento existe.** El censo `CENSO-NOSOTROS-TEMA-REAL-1` había vuelto **BLOCKED**: un
+slice `writes: no` no tiene ninguna vía de red (ni `node -e`, ni `curl`, ni `WebFetch`), así que no pudo
+medir el tema real. Midió muy bien, en cambio, todo lo local. **El orquestador midió después la mitad
+externa por su cuenta.** Las dos mitades vivían hasta hoy fuera de este repositorio — un
+`grep -n "CENSO-NOSOTROS" DECISIONS.md` corrido antes de este commit daba **CERO resultados**: el censo
+BLOCKED nunca dejó rastro acá (un slice `writes: no` no deja ledger entry, y BLOCKED tampoco), y la
+medición del orquestador vivía sólo en su propia sesión — así que ningún worker rooteado en este repo
+podía leer ninguna de las dos. Este asiento las trae adentro, transcritas, sin agregar nada de cosecha
+propia de este slice (`writes: yes`, `touches: DECISIONS.md` únicamente).
+
+### 1 · La mitad EXTERNA — medida por el ORQUESTADOR, no por un asiento de este repo
+
+**Procedencia, y por qué se separa de la mitad local:** la midió el **orquestador** el **2026-09-26** con
+un `curl` a `https://x-cafeone.myshopify.com/pages/about`, que devolvió **HTTP 200**, y un parseo del
+HTML crudo resultante. **No es un asiento previo de este libro, no es documentación del proveedor, y
+ningún worker de esta rama la re-verificó.** Se transcribe tal como el orquestador la reportó al spec de
+este slice — para quien la cite después: es una lectura del orquestador, re-medible por cualquiera con
+red, no una medición de este slice.
+
+**El cuerpo de `/pages/about` del tema real, en orden de aparición** (los nombres salen de los
+`id="shopify-section-…"` del markup):
+
+| sección | qué muestra |
+|---|---|
+| `image_with_text` | antetítulo («INTRODUCTION / OUR BRAND») + titular + tres imágenes |
+| `section_…` genérica | historia fundacional: párrafo largo + una media |
+| `brand_story` | titular + cuatro tarjetas con ícono + un still de video |
+| `section_…` genérica | «OUR PROCESS»: pasos con subtítulo + una imagen |
+| `meet_team` | titular + tres personas, cada una con foto, nombre y rol |
+| `section_…` genérica | premios: texto + una tira de imágenes |
+| `cta_scroll` | `position:sticky`, frase grande partida en varios renglones + una imagen |
+| `section_…` genérica | CTA de cierre: titular + párrafo + botón |
+
+**Corrección de una lectura previa del propio orquestador, que vale registrar:** antes había leído que el
+orden era `brand_story` primero. **Es falso** — `image_with_text` va antes. Y no son cuatro secciones:
+son el doble — las genéricas `section_…` **no son separadores, son contenido**.
+
+**Y lo que la misma medición dice de las TRANSICIONES**, porque contesta otra pregunta abierta:
+- **El tema real NO hace transición de ruta.** Ni la View Transitions API, ni un enrutador SPA, ni
+  pjax/barba/swup: **cero coincidencias** en el documento.
+- Lo que produce la sensación de movimiento es **por elemento**: un elemento propio `<xo-animate>` que
+  envuelve contenido, un `<xo-parallax-scroll>`, y micro-interacciones de hover (un subrayado que se
+  dibuja, texto partido, un ícono que se desliza dentro del botón).
+- **Consecuencia de diseño:** nada de esto es global, así que **construirlo NO le cambia los bytes a
+  otro tenant** — es por banda y se puede apagar por tema. La preocupación contraria queda descartada.
+
+**Y del ENCABEZADO, que el owner reportó como «el botón COMPRAR missing»:** el CTA **existe** en el tema
+real y es un botón de verdad — `display:inline-flex`, texto en mayúsculas, transición de 0.3s, y un
+ícono de dos ítems apilados que se desliza al hover—. La barra tiene además un filete inferior y su
+propia escala de relleno vertical, y al pegarse **funde el fondo con una curva tipo resorte**.
+**La hipótesis correcta era «existe pero no se lee como botón», no «falta».**
+
+### 2 · La mitad LOCAL — medida por el censo, contra el árbol `3126fed`
+
+Lo que el censo BLOCKED sí pudo medir, leyendo los archivos completos del árbol de esta rama en
+`3126fed` (el HEAD de `slice/corte-reescritura-prototipo-1` al momento de este asiento):
+- `app/(storefront)/nosotros/page.tsx` monta **exactamente dos componentes en orden fijo**:
+  `NosotrosHistoria` y después `NosotrosGaleria`. **No hay sistema de orden ni de bandas**, al contrario
+  de la home, que resuelve las suyas con `resolverOrden` + un registro `BANDAS`.
+- `NosotrosHistoria` renderiza **sólo texto**: antetítulo opcional, título, y hasta tres párrafos. **Sin
+  imagen, sin CTA, sin datos.**
+- `NosotrosGaleria` es un masonry de un repeater, y es **hide-on-empty: sin items devuelve `null`**.
+- **Entonces hoy `/nosotros` es un bloque de texto y, acto seguido, el footer global** — el layout del
+  storefront cierra siempre con el pie inmediatamente después de lo que la página monte.
+- **No existe ninguna capacidad de equipo/staff en la base**: el censo no encontró ningún tipo de
+  contenido, campo de schema ni componente de esa clase.
+- `brandStory` está tagueado como sección de la **home** y vive en su sistema de bandas; no es parte de
+  `/nosotros`.
+- `SubscriptionCTALinea` — franja de ancho completo con antetítulo, título, hasta dos botones e imagen
+  de fondo opcional — **es el patrón más cercano a un CTA de cierre que la base ya tiene.**
+
+### 3 · Qué NO se midió
+
+**El comportamiento en runtime del tema real.** Un `curl` trae el HTML servido por el edge, no ejecuta la
+página: ninguna interacción se observó (scroll, hover, el `<xo-animate>`/`<xo-parallax-scroll>` en
+movimiento) — sólo su presencia declarada en el markup estático. Cualquier afirmación sobre CÓMO se ve
+esa animación en pantalla sigue sin medirse.
+
+### `touches:` — lo que se escribió
+
+Sólo este asiento en `DECISIONS.md`. Cero código tocado — verificado con `git status`/`git diff` antes de
+commitear: el único archivo en el diff es `DECISIONS.md`.
+
+### Gate
+
+Sin código tocado, el piso de gate ya medido sobre este mismo árbol (commit inmediatamente anterior de
+esta rama, `CORTE-USA-HERO-STICKY-MIRADOR-1`, arriba en este mismo archivo) sigue siendo válido para el
+árbol final. Re-medido igual, en el árbol final de este commit, para no depender de esa cita:
+
+- `npx tsc --noEmit` → 0 errores.
+- `npm test` → 2197/2197 (capa 1, sin base) — mismo conteo que el commit anterior, sin cambio: ningún
+  archivo de código cambió.
+- `npm run test:integracion` → **237/237.**
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: ninguno de código — el único archivo es `DECISIONS.md`, y la sección
+que se agrega es un append puro al final; no retitula ni cierra ninguna sección existente de ese archivo.
+Grep de los identificadores nuevos (`CENSO-NOSOTROS-TEMA-REAL-1`) contra `CLAUDE.md`: cero resultados —
+es un id nuevo, no podía aparecer. No aplica el chequeo de "sección cerrada que alguien apunta", porque
+este asiento no cierra ninguna sección previa de `DECISIONS.md` ni de `CLAUDE.md`.
+
+### Verdicto
+
+**MEDICIÓN inlineada, sin código tocado.** Este slice no construye nada: junta dos mediciones que ya
+existían en sesiones separadas y las hace citables desde el repo. No hay diff visual que correr — este
+commit no toca render.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea. `stopped_on:
+[customer-bytes]`: la RAMA (contra `main`, no sólo este commit) ya trae bytes que el dueño/operador lee
+desde comprometidos anteriores de esta misma rama — por ejemplo el cableado de `hero:'sticky'` en
+`CORTE-USA-HERO-STICKY-1` y el color del link activo del nav en `NAV-LINK-ACTIVO-INVISIBLE-1`, ambos
+arriba en este mismo archivo y ambos ya declarados `AWAITING_APPROVAL: customer-bytes` en su propio
+asiento. Ese cambio visible lo introdujeron commits ANTERIORES de esta misma rama, no éste: este commit
+no agrega ni quita ningún byte visible, sólo un asiento de medición en `DECISIONS.md`. El commit queda en
+la rama a la espera del merge gateado del orquestador.
+
+**Cierra `CENSO-NOSOTROS-TEMA-REAL-1`.**
