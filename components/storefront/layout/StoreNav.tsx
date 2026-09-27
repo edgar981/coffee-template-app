@@ -13,7 +13,7 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
-import { direccionScroll, navOculto, type DireccionScroll } from '@/lib/animation';
+import { direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll } from '@/lib/animation';
 
 // ENTRADA ESCALONADA del drawer `pantallaCompleta` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA
 // contra `.mobile-nav.is-open a.m-link` del prototipo (`docs/prototipos/cafeone/css/app.css:311-321`):
@@ -48,6 +48,10 @@ export default function StoreNav() {
   const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
+  // `navDireccionActiva` (§ CROMO-NAV-DIRECCION-SCROLL-1) se lee ACÁ ARRIBA, no sólo junto a `oculto`
+  // más abajo (que sigue siendo su otro consumidor): el listener de scroll también lo necesita, para
+  // decidir si CONGELA el tratamiento al bajar (§ CROMO-NAV-SIN-DESTELLO-1, el bloque de abajo).
+  const navDireccionActiva = navTratamiento.direccion;
 
   const [scrolled, setScrolled] = useState(false);
   // COMPORTAMIENTO POR DIRECCIÓN (§ CROMO-NAV-DIRECCION-SCROLL-1, `navTratamiento.direccion`):
@@ -88,16 +92,27 @@ export default function StoreNav() {
   useEffect(() => {
     const fn = () => {
       const actual = window.scrollY;
-      setScrolled(actual > 20);
       // `direccionScroll` compara SÓLO contra el frame anterior — sin mínimo de movimiento, medido
       // contra el tema real (§ el docstring de cabecera de `lib/animation.ts`).
-      setDireccion(direccionScroll(actual, scrollYAnteriorRef.current));
+      const direccionActual = direccionScroll(actual, scrollYAnteriorRef.current);
+      // EL DESTELLO AL BAJAR — § CROMO-NAV-SIN-DESTELLO-1: `setScrolled(actual > 20)` corría en TODO
+      // frame, sin mirar la dirección, así que al bajar el tratamiento caía a SÓLIDO en scrollY=21 —
+      // muy antes de que `navOculto` (80px) empezara a ocultar el header — dejando una ventana visible
+      // de nav ya sólido y todavía sin ocultar (medido: 21 a 79px). `debeActualizarTratamientoNav`
+      // (`lib/animation.ts`) congela `scrolled` mientras se BAJA (el tratamiento que ya tenía se
+      // conserva hasta que se oculta) y lo re-evalúa siempre al SUBIR — igual que hoy para todo preset
+      // que no declare `navTratamiento.direccion` (`debeActualizarTratamientoNav` da `true` siempre en
+      // ese caso, así que `setScrolled` corre en cada frame, byte-idéntico).
+      setScrolled((anterior) =>
+        debeActualizarTratamientoNav(navDireccionActiva, direccionActual) ? actual > 20 : anterior,
+      );
+      setDireccion(direccionActual);
       scrollYAnteriorRef.current = actual;
       setScrollY(actual);
     };
     window.addEventListener('scroll', fn);
     return () => window.removeEventListener('scroll', fn);
-  }, []);
+  }, [navDireccionActiva]);
 
   // El nav trata a la PRIMERA banda del orden (§ eje 5 parte c) con UNA sola regla,
   // `tratamientoNav` (esquema-style.ts): flota TRANSPARENTE sólo en home+sin-scroll Y sobre una
@@ -160,11 +175,11 @@ export default function StoreNav() {
   //     ("si el foco está en el nav, no se oculta") ampliado a los tres estados donde el visitante
   //     está usando activamente el encabezado — ocultarlo a mitad de una interacción es el mismo
   //     defecto con otro disparador.
-  //   - `navDireccionActiva` (`navTratamiento.direccion`): `false` para TODO preset salvo CORTE →
-  //     `oculto` es SIEMPRE `false` → BYTE-IDÉNTICO (la clase de abajo queda `''`, el header no gana
-  //     ningún `translate-y-*` que no tuviera hoy).
+  //   - `navDireccionActiva` (`navTratamiento.direccion`, declarado arriba junto al listener de
+  //     scroll — § CROMO-NAV-SIN-DESTELLO-1, también gobierna si el tratamiento se congela al bajar):
+  //     `false` para TODO preset salvo CORTE → `oculto` es SIEMPRE `false` → BYTE-IDÉNTICO (la clase
+  //     de abajo queda `''`, el header no gana ningún `translate-y-*` que no tuviera hoy).
   // `false` = HOY para todo tenant salvo CORTE.
-  const navDireccionActiva = navTratamiento.direccion;
   const bloqueaOcultar = focoDentro || mobileOpen || searchOpen || !!panelAbierto;
   const oculto = navDireccionActiva && !bloqueaOcultar && navOculto(scrollY, direccion);
   // MOVIMIENTO REDUCIDO: no se agrega un gate propio — el guard GLOBAL de `app/globals.css`

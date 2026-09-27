@@ -25272,3 +25272,176 @@ textual como `approval-reason`); el merge sigue pendiente del gate del orquestad
 instrucción del dispatch, no mergea.
 
 **Cierra `CORTE-HERO-REVELADO-MASCARA-1`.**
+
+## 2026-09-27 — El nav ya no destella sólido antes de ocultarse al bajar (`CROMO-NAV-SIN-DESTELLO-1`)
+
+**El pedido del owner, textual** (gate visual de `CROMO-NAV-DIRECCION-SCROLL-1`): *«cuando empiezo a
+hacer scroll para bajar está saliendo el nav en verde. El efecto debería ser: a medida que voy
+haciendo scroll el nav se va ocultando, sin cambiar de color, y van saliendo las letras del marquee,
+son como dos cosas que pasan al tiempo»*. Aplica sólo a los temas que declaran el eje de dirección
+(hoy, sólo CORTE); todo el resto queda byte-idéntico.
+
+### 1 · La hipótesis del orquestador, confirmada por lectura de código — el destello es una VENTANA de 59px
+
+El dispatch pedía medir, no asumir, dónde caía cada umbral:
+
+- **`navFlotando` cae a `false`** en `scrollY = 21` — `scrolled = scrollY > 20`
+  (`StoreNav.tsx:91`, `setScrolled(actual > 20)`, antes de este slice), re-evaluado en CADA frame de
+  scroll, sin mirar la dirección; `navFlotando = isHome && !scrolled && t.flotante`
+  (`StoreNav.tsx:147` antes de este slice). Con `navFlotando=false`, `navBg` resuelve la rama SÓLIDA
+  (`bg-[var(--sf-tinta)]` para CORTE, vía `navBandaTinta`).
+- **El header empieza a ocultarse** en `scrollY = 80` (`UMBRAL_OCULTAR_NAV`, `lib/animation.ts`), y
+  sólo bajando (`navOculto`).
+
+Las dos condiciones son INDEPENDIENTES entre sí — nacieron en slices distintos, midiendo cosas
+distintas (§ el propio comentario de `CROMO-NAV-DIRECCION-SCROLL-1`: "un umbral que gobierna DOS
+comportamientos distintos es la FORMA del bug", por eso se mantuvieron separados). Bajando desde el
+tope: el tratamiento cae a sólido en `scrollY=21` y el header recién se oculta en `scrollY=80` — una
+**ventana visible de 21 a 79px (59px)** donde el nav ya es sólido pero todavía no se tradujo fuera de
+vista. Ésa es la forma exacta del destello: dos pasos donde el owner pide uno solo.
+
+### 2 · La salida: CUÁNDO se resuelve el tratamiento, no un campo nuevo
+
+`navTratamiento.direccion` ya existe (§ `CROMO-NAV-DIRECCION-SCROLL-1`) y sigue siendo el único eje
+que declara esto — no se agregó ninguno. `debeActualizarTratamientoNav(direccionActiva, direccion)`
+(`lib/animation.ts`, pura) decide si el frame de scroll ACTUAL debe re-evaluar el umbral de 20px o
+CONGELAR el valor que `scrolled` ya tenía:
+
+- **BAJANDO → `false` (se congela).** El tratamiento que el header tenía ANTES de empezar a bajar es
+  el mismo que lleva mientras se traduce fuera de vista — "sin cambiar de tratamiento" es literal. Si
+  el visitante nunca pasa de 80px (nunca llega a ocultarse), simplemente sigue mostrando el
+  tratamiento de antes; no hay un estado intermedio que mostrar.
+- **SUBIENDO → `true` (se re-evalúa siempre)**, exactamente como `scrolled` se comportaba antes de
+  este slice. Es lo que hace que el header REAPAREZCA ya con el tratamiento que le corresponde — el
+  pedido YA resuelto de `CROMO-NAV-DIRECCION-SCROLL-1`, que este slice NO toca: "el cambio de color
+  queda reservado para cuando reaparece al subir".
+- **`direccionActiva:false`** (todo preset salvo el que declare el eje, hoy sólo CORTE) **→ SIEMPRE
+  `true`** → BYTE-IDÉNTICO: `scrolled` se re-evalúa en cada frame de scroll exactamente como antes de
+  este slice, para cualquier tenant que no declare `navTratamiento.direccion`.
+
+`StoreNav.tsx` cablea la decisión sin tocar `navFlotando`/`navClaro`/`navBg` (esas tres expresiones
+siguen leyendo `scrolled` tal cual): el `setScrolled` del listener de scroll pasa de
+`setScrolled(actual > 20)` incondicional a
+`setScrolled((anterior) => debeActualizarTratamientoNav(navDireccionActiva, direccionActual) ? actual
+> 20 : anterior)`. `navDireccionActiva` (`navTratamiento.direccion`) se adelantó de su posición
+original (junto a `oculto`) a antes del listener de scroll, porque ahora el listener también lo
+necesita — es la MISMA lectura, sólo se movió de sitio; el `useEffect` del listener gana esa variable
+en su arreglo de dependencias.
+
+### 3 · Lo que NO se tocó
+
+- **`navOculto`/`direccionScroll`/`UMBRAL_OCULTAR_NAV`**: intactos. El defecto no estaba en CUÁNDO se
+  oculta, sino en CUÁNDO cambia de color; tocar el umbral de ocultamiento habría sido resolver el
+  problema equivocado.
+- **Las salvaguardas de accesibilidad de `CROMO-NAV-DIRECCION-SCROLL-1`** (foco de teclado dentro del
+  header, drawer móvil/búsqueda/mega-menú abiertos → nunca se oculta): sin cambios, siguen gateando
+  `oculto` exactamente igual. El congelamiento del tratamiento es un eje aparte que no las toca ni
+  depende de ellas.
+- **Ningún campo nuevo de `NavTratamientoContent`/`PresetTema`**: el dispatch lo pedía explícito
+  ("si al medirlo concluís que hace falta un campo, PARÁ y reportá") y no hizo falta — el eje
+  existente ya distingue lo que hacía falta distinguir (activo/no-activo el comportamiento por
+  dirección); lo que faltaba era CUÁNDO ese comportamiento actúa sobre el tratamiento, resuelto con
+  una función pura sin estado ni dato nuevo.
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2300/2300** — reconciliado contra el piso del commit inmediato anterior (`7072afe`, `CORTE-HERO-REVELADO-MASCARA-1`, 2297/2297): `2297 + 3 = 2300`. El `+3` es el propio diff de `lib/animation.test.ts`: medido `git diff -- lib/animation.test.ts \| grep -c "^+test("` → 3, `^-test(` → 0 |
+| `npm run test:integracion` | **237/237** — sin cambio en el conteo (ningún archivo de `tests/integracion/` está en `touches:` de este slice, ninguno se tocó) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs. esta rama) |
+| `npm run guarda:color` | **0px**, Nayoli sin preset vs. fixture |
+
+```
+verificar:nayoli:visual (main vs. rama):
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+
+guarda:color (rama vs. fixture commiteado):
+ruta-home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta-tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta-producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta-checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta-nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta-suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover-automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover-eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+**Nota de método sobre `guarda:color`:** la primera corrida se lanzó EN PARALELO con
+`verificar:nayoli:visual` (dos `next build`+`next start`+Playwright simultáneos, dos Postgres
+efímeros distintos) y dio `ruta-tienda`/`ruta-producto` con ALTURA DISTINTA a la del fixture
+(900px de rama contra 1901/1981px del fixture) y un diff de 310px en `hover-automatica` — exit 1.
+Antes de reportarlo como regresión se AISLÓ la variable: se re-corrió `guarda:color` SOLO, sin nada
+más compitiendo por CPU/red, y dio **0px en las 8 capturas** (arriba), exit 0 — la misma build, la
+misma base efímera "guardacolor", el mismo fixture. La corrida en paralelo con
+`verificar:nayoli:visual` es lo que produjo capturas incompletas (páginas cortadas a la altura del
+viewport, consistente con un timeout o un scroll-completo que no llegó a correr por contención de
+recursos), no un defecto de este diff. Queda anotado por si alguien reproduce el mismo patrón:
+**no correr los arneses visuales pesados en paralelo entre sí.**
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/layout/StoreNav.tsx` (+23/-8), `lib/animation.ts` (+36/-0:
+`debeActualizarTratamientoNav`), `lib/animation.test.ts` (+19/-1: import + 3 tests nuevos), este
+asiento. Medido con `git diff --numstat`: 3 archivos, los 3 en la lista de `touches:`.
+`lib/config/cromo-nav-tratamiento.test.ts` y `lib/config/themes.test.ts` estaban en `touches:` y NO
+se tocaron — no hicieron falta cambios: ninguno de los dos afirma nada sobre CUÁNDO se resuelve el
+tratamiento en tiempo de scroll (afirman la CAPA DE DATOS — `resolverNavTratamiento`,
+`mergePresetEnContent`, el mirador — no el runtime de `StoreNav.tsx`), y los dos siguen en verde tal
+cual estaban (corridos, 131/131 entre los dos + `lib/animation.test.ts`, § arriba).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `StoreNav`, `navDireccionActiva`,
+`debeActualizarTratamientoNav`, `navOculto`, `direccionScroll`, `UMBRAL_OCULTAR_NAV`, `scrolled`,
+`navTratamiento`, `NavTratamientoContent`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `navDireccionActiva`, `debeActualizarTratamientoNav`, `navOculto`,
+  `direccionScroll`, `UMBRAL_OCULTAR_NAV`, `scrolled`, `navTratamiento`, `NavTratamientoContent`.
+  Nada en `CLAUDE.md` nombra ninguno de estos — el mecanismo de scroll del header vive sólo en los
+  comentarios del código y en `DECISIONS.md`.
+- **`StoreNav` SÍ aparece** (4 líneas: 2872, 2969, 4481, 4499 — las mismas cuatro que
+  `CROMO-NAV-DIRECCION-SCROLL-1` ya revisó). Releídas: hablan de que el nav es DATA-DRIVEN (lee
+  `content.menu`), de que /nosotros apagada oculta su link en el nav, y de que el logo/mark llega a
+  `StoreNav` por prop — ninguna describe el comportamiento de scroll/color del header ni queda
+  contradicha por este diff (el nav sigue siendo data-driven, /nosotros sigue ocultando su link
+  igual, el mark sigue llegando por prop; nada de eso cambió acá).
+
+**Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** Para un tenant con `navTratamiento.direccion:true` (hoy, CORTE), el header deja
+de mostrarse sólido durante la ventana de 21-79px antes de ocultarse al bajar — un comportamiento
+VISIBLE distinto al que tenía la rama un commit atrás. `strings`: **ninguno** — no se agregó ni
+cambió texto visible en ningún lado; es puramente un ajuste de CUÁNDO cambia un color ya existente,
+sin nueva copia ni nuevo control de panel (el switch "Ocultar al bajar" ya existía, de
+`CROMO-NAV-DIRECCION-SCROLL-1`, y no se tocó).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es una función pura nueva en `lib/animation.ts` (sin estado, sin I/O) y
+su cableado dentro de un `useEffect` ya existente de un componente de storefront existente, más
+tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde en las cuatro capas (§4), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea. **A diferencia de otros slices de esta rama, éste NO agrega un
+campo nuevo que el dueño deba re-aplicar**: `navTratamiento.direccion:true`, ya encendido para
+cualquier tenant que use CORTE, adopta el nuevo comportamiento (sin destello) en el próximo deploy,
+sin que nadie toque el panel ni re-aplique el preset.
+
+**Cierra `CROMO-NAV-SIN-DESTELLO-1`.**

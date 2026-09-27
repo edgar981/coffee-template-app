@@ -7,7 +7,7 @@ import {
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, UMBRAL_REVELADO_TEXTO,
   claseAlturaAncestroMarquesina, fadeUp,
-  direccionScroll, navOculto, UMBRAL_OCULTAR_NAV,
+  direccionScroll, navOculto, UMBRAL_OCULTAR_NAV, debeActualizarTratamientoNav,
   duracionTickerS, VELOCIDAD_TICKER_PX_S, VELOCIDAD_TICKER_LENTA_PX_S,
   DURACION_TICKER_FALLBACK_S, duracionTickerFallbackS, velocidadTickerPxS,
 } from './animation';
@@ -417,6 +417,24 @@ test('navOculto: en o sobre UMBRAL_OCULTAR_NAV, BAJANDO oculta', () => {
 test('navOculto: en o sobre UMBRAL_OCULTAR_NAV, SUBIENDO revela — el mismo xoDirection:"up" medido', () => {
   assert.equal(navOculto(UMBRAL_OCULTAR_NAV, 'arriba'), false);
   assert.equal(navOculto(UMBRAL_OCULTAR_NAV + 500, 'arriba'), false, 'aunque el scroll esté muy abajo, subir revela de inmediato');
+});
+
+// ── EL DESTELLO DEL TRATAMIENTO AL BAJAR (§ CROMO-NAV-SIN-DESTELLO-1) ───────────────────────────────
+// `debeActualizarTratamientoNav` decide si `StoreNav.tsx` re-evalúa `scrolled` (el umbral de 20px que
+// resuelve flotante/sólido) en el frame actual, o lo CONGELA en lo que ya tenía. Ver el docstring de
+// cabecera para la medición del destello (ventana 21–79px) que esto cierra.
+
+test('debeActualizarTratamientoNav: direccionActiva=false (todo preset salvo el que declare el eje) → SIEMPRE true, byte-idéntico a hoy', () => {
+  assert.equal(debeActualizarTratamientoNav(false, 'abajo'), true);
+  assert.equal(debeActualizarTratamientoNav(false, 'arriba'), true);
+});
+
+test('debeActualizarTratamientoNav: direccionActiva=true, BAJANDO → false — el tratamiento se congela, no se re-evalúa', () => {
+  assert.equal(debeActualizarTratamientoNav(true, 'abajo'), false);
+});
+
+test('debeActualizarTratamientoNav: direccionActiva=true, SUBIENDO → true — se re-evalúa siempre, como hoy', () => {
+  assert.equal(debeActualizarTratamientoNav(true, 'arriba'), true);
 });
 
 // ── EL TICKER — § CORTE-HERO-VELO-OFF-Y-TICKER-1 ────────────────────────────────────────────────

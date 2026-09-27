@@ -678,6 +678,42 @@ export function navOculto(scrollY: number, direccion: DireccionScroll): boolean 
   return scrollY >= UMBRAL_OCULTAR_NAV && direccion === 'abajo';
 }
 
+// ── EL DESTELLO DEL TRATAMIENTO AL BAJAR — CROMO-NAV-SIN-DESTELLO-1 ────────────────────────────────
+//
+// EL PEDIDO DEL OWNER, LITERAL, sobre el gate de `CROMO-NAV-DIRECCION-SCROLL-1`: «cuando empiezo a
+// hacer scroll para bajar está saliendo el nav en verde. El efecto debería ser: a medida que voy
+// haciendo scroll el nav se va ocultando, sin cambiar de color, y van saliendo las letras del
+// marquee, son como dos cosas que pasan al tiempo».
+//
+// MEDIDO, no supuesto — las DOS condiciones que producían el destello son INDEPENDIENTES entre sí:
+// `StoreNav.tsx` resolvía el tratamiento (flotante/sólido) contra `scrolled = scrollY > 20`, evaluado
+// en CADA frame de scroll sin mirar la dirección, mientras que `navOculto` (arriba) sólo empieza a
+// ocultar en `UMBRAL_OCULTAR_NAV` (80px) y sólo bajando. Bajando desde el tope: el tratamiento cae a
+// SÓLIDO en scrollY=21 (un píxel después de que `scrolled` se vuelve `true`) y el header recién se
+// oculta en scrollY=80 — una VENTANA VISIBLE de **21 a 79px (59px)** donde el nav ya es sólido pero
+// todavía no se tradujo fuera de vista. Ésa es la forma exacta del destello: dos pasos donde el owner
+// pide uno solo.
+//
+// LA SALIDA NO ES UN CAMPO NUEVO — `navTratamiento.direccion` ya existe (§ `CROMO-NAV-DIRECCION-
+// SCROLL-1`) y sigue siendo el único eje que declara esto. Lo que cambia es CUÁNDO `StoreNav.tsx`
+// re-evalúa `scrolled`, no QUÉ se declara: `debeActualizarTratamientoNav` decide si el frame de scroll
+// ACTUAL debe re-evaluar el umbral de 20px o CONGELAR el valor que ya tenía.
+//   - BAJANDO: se congela. El tratamiento que el header tenía ANTES de empezar a bajar es el mismo
+//     que lleva mientras se traduce fuera de vista — "sin cambiar de tratamiento" es literal, no una
+//     aproximación. Si nunca llega a ocultarse (el visitante no pasa de 80px), simplemente sigue
+//     mostrando el tratamiento de antes; no hay un estado intermedio que mostrar.
+//   - SUBIENDO: se re-evalúa SIEMPRE, en cada frame — el mismo comportamiento que `scrolled` ya tenía
+//     antes de este slice. Es lo que hace que el header REAPAREZCA ya con el tratamiento que le
+//     corresponde (§ el pedido YA resuelto de `CROMO-NAV-DIRECCION-SCROLL-1`, que este slice no toca):
+//     "el cambio de color queda reservado para cuando reaparece al subir".
+//
+// `direccionActiva:false` (todo preset salvo el que declare el eje, hoy sólo CORTE) → SIEMPRE `true`
+// → BYTE-IDÉNTICO: `scrolled` se re-evalúa en cada frame de scroll exactamente como antes de este
+// slice, para cualquier tenant que no declare `navTratamiento.direccion`.
+export function debeActualizarTratamientoNav(direccionActiva: boolean, direccion: DireccionScroll): boolean {
+  return !direccionActiva || direccion === 'arriba';
+}
+
 // ReducedMotionProvider — STOREFRONT-REDUCED-MOTION-1 (2026-09-12).
 //
 // EL DEFECTO: las ~21 animaciones de entrada del storefront (censadas en
