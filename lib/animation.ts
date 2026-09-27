@@ -303,13 +303,13 @@ export function rangoVeloDeIntensidad(intensidad: string): VeloRango {
 // `clamp(3rem,10vw,10rem)` del texto (a 48px, 100% son 48px de recorrido; a 160px, 100% son 160px) —
 // nunca vuelve a vencerse en otra pantalla, sin que nadie tenga que recalcular un número.
 //
-// SIN FADE — se evaluó agregar opacidad ADEMÁS del recorte (como hace el tema real, "slide-up +
-// fade") y se descartó: el defecto que el owner reportó era, literalmente, que el texto "se aclara"
-// en vez de "subir" — agregar una segunda curva de opacidad por ENCIMA de la máscara reintroduciría
-// esa misma lectura para la porción de letra que YA cruzó el borde (se seguiría viendo "clarearse" un
-// instante más, justo el defecto que se vino a cerrar). Con SÓLO el recorte, una letra que cruza el
-// borde de la máscara queda a OPACIDAD PLENA de inmediato — el borde es la única señal de progreso,
-// sin competir con una segunda.
+// SIN FADE (histórico, REVERTIDO por § CORTE-MARQUEE-REVELADO-CON-FADE-1 más abajo) — esta ronda
+// evaluó agregar opacidad ADEMÁS del recorte y la descartó, con el argumento de arriba. El spec de
+// ESA ronda pedía explícitamente probar sin fade primero y quedarse con lo que se pareciera más al
+// tema real — "sin fade" fue la elección correcta CONTRA ESE PEDIDO, no un error. El owner, sobre el
+// resultado YA aplicado, pidió las dos cosas compuestas (§ `opacidadRevelaTextoDisplay`, debajo de
+// `transformRevelaTextoDisplay`): es una corrección del CRITERIO —qué se le pidió al worker—, no un
+// defecto de esta ronda.
 //
 // `UMBRAL_REVELADO_TEXTO` NO CAMBIA (mismo campo, mismo valor): acota la ventana a la parte TEMPRANA
 // del progreso — el pedido sigue siendo "cuando alguien EMPIECE a scrollear", no a lo largo de las
@@ -340,6 +340,46 @@ export function transformRevelaTextoDisplay(progreso: number, estatico: boolean)
   if (estatico) return 'translateY(0%)';
   const pct = REVELADO_TRASLADO_PCT * (1 - progresoRevelado(progreso));
   return `translateY(${pct.toFixed(1)}%)`;
+}
+
+// EL PESO — LA RAMPA DE OPACIDAD VUELVE, COMPUESTA CON EL RECORTE — § CORTE-MARQUEE-REVELADO-CON-
+// FADE-1 (2026-09-27). El owner, sobre el gate de RONDA 4 ya re-aplicado: «ahora el ajuste quedó de
+// la frase saliendo hacia arriba, pero se perdió el de la frase haciéndose más clara al hacer el
+// scroll, sale con el mismo peso desde el inicio». Pide las DOS cosas juntas — sube desde detrás del
+// recorte Y gana peso mientras sube —, no una reversión de la máscara.
+//
+// POR QUÉ ESTO NO REINTRODUCE EL DEFECTO ORIGINAL (§ el bloque "SIN FADE" arriba, y el pedido de
+// RONDA 4: «el efecto actual está simplemente mostrándolas cada vez más claras»): esa lectura salía
+// de que la OPACIDAD ERA EL ÚNICO MECANISMO — sin recorte, una letra estática que sólo se aclara no
+// "sube", se ilumina. Acá el recorte SIGUE siendo el mecanismo de aparición (la letra sale de detrás
+// del borde de la máscara, en movimiento); la opacidad es una SEGUNDA señal —peso, no visibilidad—
+// que viaja sobre la MISMA letra que ya se está moviendo. No hay porción de letra que "ya cruzó el
+// borde y todavía se aclara": las dos rampas comparten exactamente la misma ventana
+// (`UMBRAL_REVELADO_TEXTO`, sin tocar) y terminan JUNTAS — al completar la ventana el texto está a la
+// vez en su lugar (0% de traslado) y a peso completo (opacidad 1), nunca una sin la otra.
+//
+// `opacidadRevelaTextoDisplay` REUSA `progresoRevelado` (el mismo mapeo [0,1] de
+// `transformRevelaTextoDisplay`, privado a este módulo) en vez de declarar su propio tramo: si
+// alguna vez `UMBRAL_REVELADO_TEXTO` cambia, las dos rampas se mueven juntas por construcción — dos
+// funciones leyendo la MISMA ventana no pueden divergir en cuándo terminan, que es justo la garantía
+// que el spec pide ("termina de aclarar cuando termina de subir"). Es MONÓTONA porque
+// `progresoRevelado` ya lo es (un cociente clamped de una resta creciente en `progreso`): no puede
+// oscurecerse a mitad de camino.
+//
+// `estatico` (reduced-motion/preview, el MISMO gate que `transformRevelaTextoDisplay`) rinde 1 —
+// PESO COMPLETO, nunca a medio aclarar para siempre: un gate de movimiento apaga el DESPLAZAMIENTO
+// temporal de la rampa, nunca deja el contenido en un estado transitorio permanente.
+//
+// SE COMPONE EN EL MISMO ELEMENTO QUE `transformRevelaTextoDisplay` (el `motion.div` del MEDIO en
+// `HeroMediaMarquesina.tsx`, vía un segundo `style.opacity` junto al `style.transform` ya existente)
+// y NO EN LA MÁSCARA (el `<div>` de afuera, `overflow-hidden`, plano/sin motion): `opacity` y
+// `transform` son propiedades CSS independientes sobre el mismo nodo — aplicarlas juntas no altera el
+// recorte de la máscara ancestro, que sigue intacto. Medido antes de escribir el cableado: no hay
+// pisada entre las dos capas que exija tocar la ESTRUCTURA de tres elementos (§ "EL LOOP DE TEXTO"),
+// sólo agregar un segundo valor de `style` al elemento del medio.
+export function opacidadRevelaTextoDisplay(progreso: number, estatico: boolean): number {
+  if (estatico) return 1;
+  return progresoRevelado(progreso);
 }
 
 // ── EL PRESUPUESTO DE SCROLL, PROPORCIONAL A LO QUE HAY PARA MOSTRAR — CORTE-HERO-MARQUEE-REVELA-1 ─

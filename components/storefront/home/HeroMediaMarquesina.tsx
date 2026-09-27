@@ -11,7 +11,7 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoSpotlight } from "@/lib/config/site-content-defaults";
 import {
   useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
-  transformRevelaTextoDisplay, claseAlturaAncestroMarquesina,
+  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, claseAlturaAncestroMarquesina,
   duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
 } from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
@@ -135,10 +135,19 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // el mecanismo entero: el texto vive dentro de una MÁSCARA (`overflow-hidden`, el `<div>` estático de
 // afuera en el JSX de abajo) y el div del MEDIO lo traslada un PORCENTAJE de su propia caja
 // (`transformRevelaTextoDisplay`) — 100% (fuera de la máscara) en reposo, 0% (en su lugar) al 20% del
-// progreso (`UMBRAL_REVELADO_TEXTO.hasta`, sin cambios). SIN fade: el borde de la máscara es la única
-// señal de progreso. Bajo `estatico` el texto queda SIEMPRE visible y en su lugar
-// (`transformRevelaTextoDisplay` rinde `translateY(0%)`) — un gate de movimiento nunca puede esconder
-// contenido.
+// progreso (`UMBRAL_REVELADO_TEXTO.hasta`, sin cambios). RONDA 4 fue SIN fade, a propósito (el spec
+// de esa ronda pedía probarlo así primero). Bajo `estatico` el texto queda SIEMPRE visible y en su
+// lugar (`transformRevelaTextoDisplay` rinde `translateY(0%)`) — un gate de movimiento nunca puede
+// esconder contenido.
+//
+// EL FADE VUELVE, COMPUESTO — § CORTE-MARQUEE-REVELADO-CON-FADE-1 (2026-09-27, `lib/animation.ts`,
+// el bloque "EL PESO — LA RAMPA DE OPACIDAD VUELVE" para la derivación completa): el owner, sobre
+// RONDA 4 ya aplicada, pidió las DOS cosas juntas — sube desde detrás del recorte Y gana peso
+// mientras sube. `opacidadRevelaTextoDisplay` es una SEGUNDA capa sobre el MISMO `motion.div` del
+// MEDIO (nunca sobre la máscara, que sigue siendo el único mecanismo de aparición): comparte
+// `UMBRAL_REVELADO_TEXTO` con `transformRevelaTextoDisplay` por reusar el mismo tramo interno, así
+// que termina de aclarar EXACTAMENTE cuando termina de subir. Bajo `estatico` rinde peso completo
+// (1) — el mismo criterio: un gate de movimiento no deja contenido a medio aclarar para siempre.
 //
 // EL PRESUPUESTO DE SCROLL DEJA DE SER FIJO — § CORTE-HERO-MARQUEE-REVELA-1 (`lib/animation.ts`, el
 // bloque "EL PRESUPUESTO DE SCROLL"): medido contra el muestrario desplegado, su catálogo está VACÍO
@@ -305,6 +314,12 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // máscara — sólo el revelado en sí necesita seguir el scroll. El eje HORIZONTAL vive aparte, en el
   // ticker (arriba) — no en este `transform`.
   const transformRevelaTexto = useTransform(progreso, (p) => transformRevelaTextoDisplay(p, estatico));
+  // EL PESO — § CORTE-MARQUEE-REVELADO-CON-FADE-1 (`lib/animation.ts`, "EL PESO — LA RAMPA DE
+  // OPACIDAD VUELVE"): SEGUNDA capa sobre el MISMO `progreso`, aplicada al MISMO elemento que
+  // `transformRevelaTexto` (§ el JSX de abajo, el `motion.div` del MEDIO) — nunca a la máscara. Ambas
+  // comparten `UMBRAL_REVELADO_TEXTO` por construcción (las dos derivan del `progresoRevelado`
+  // privado de `lib/animation.ts`), así que terminan de subir y de aclarar en el MISMO instante.
+  const opacidadRevelaTexto = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico));
   const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
   // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
   // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
@@ -387,16 +402,20 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             texto (`leading-none` fija line-height:1 = font-size; un transform del hijo no cambia esa
             altura, sólo su posición pintada). El del MEDIO (`motion.div`) es el MOTOR DEL REVELADO,
             scroll-driven: traslada un PORCENTAJE de su propia caja — 100% (fuera de la máscara) en
-            reposo, 0% (en su lugar) al completar la ventana. El de ADENTRO (`trackRef`) es el TICKER,
-            SIN CAMBIOS de eje: desplaza por TIEMPO, continuo, independiente del scroll. Decorativo (el
-            nombre accesible vive en el `aria-label` de la sección, como `Marquesina.tsx`); el texto se
-            repite dos veces para el efecto de cinta continua — trasladar el track la mitad de su ancho
-            total (`-50%`) mueve exactamente el ancho de UNA copia, cerrando el loop sin salto. */}
+            reposo, 0% (en su lugar) al completar la ventana — Y, desde § CORTE-MARQUEE-REVELADO-CON-
+            FADE-1, lleva TAMBIÉN la rampa de opacidad (`opacidadRevelaTexto`) en el MISMO `style`: las
+            dos capas se COMPONEN sobre el mismo nodo (transform y opacity son propiedades CSS
+            independientes), sin tocar la máscara ni el ticker. El de ADENTRO (`trackRef`) es el
+            TICKER, SIN CAMBIOS de eje: desplaza por TIEMPO, continuo, independiente del scroll.
+            Decorativo (el nombre accesible vive en el `aria-label` de la sección, como
+            `Marquesina.tsx`); el texto se repite dos veces para el efecto de cinta continua —
+            trasladar el track la mitad de su ancho total (`-50%`) mueve exactamente el ancho de UNA
+            copia, cerrando el loop sin salto. */}
         <div
           aria-hidden="true"
           className="absolute left-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
         >
-          <motion.div style={{ transform: transformRevelaTexto }}>
+          <motion.div style={{ transform: transformRevelaTexto, opacity: opacidadRevelaTexto }}>
             <motion.div
               // `key={duracionTicker}` — § RONDA 5 arriba: fuerza un remount cuando `medir()`
               // corrige la duración (target `x` idéntico entre renders, así que sin esta key

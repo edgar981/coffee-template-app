@@ -241,21 +241,25 @@ test('cueDesliza:true, EN PREVIEW — el cue se OMITE (scrollear no significa na
 // (`top-1/2 -translate-y-1/2`) dejó de ser un `style.transform` animado — es una clase ESTÁTICA de
 // Tailwind, en el `<div>` de AFUERA (la máscara, `overflow-hidden`). Lo que SÍ sigue siendo
 // `style.transform` (vía `useTransform`) es el revelado en sí, en el `<motion.div>` del MEDIO —
-// `transformRevelaTextoDisplay`, un PORCENTAJE, no más px+opacity.
+// `transformRevelaTextoDisplay`, un PORCENTAJE. § CORTE-MARQUEE-REVELADO-CON-FADE-1 (2026-09-27)
+// AMPLÍA los mismos dos casos: ESE `<motion.div>` ahora lleva TAMBIÉN `style.opacity`
+// (`opacidadRevelaTextoDisplay`), en el MISMO `style` que el transform — se afirma junto, no aparte,
+// porque el punto del slice es que las dos rampas viajan sobre el mismo nodo y terminan juntas.
 
-test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO (clase estática) y el motor de revelado en "translateY(0%)" — EN SU LUGAR, sin desplazamiento horizontal ni revelado a medias', () => {
+test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO (clase estática), el motor de revelado en "translateY(0%)" y a PESO COMPLETO (opacity:1) — EN SU LUGAR, sin desplazamiento horizontal ni revelado ni peso a medias', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
   assert.match(html, /-translate-y-1\/2/, 'el centrado es una clase Tailwind estática, no un style animado');
-  assert.ok(html.includes('transform:translateY(0%)'), 'el motor de revelado debe rendir "en su lugar" bajo el gate estático');
+  assert.match(html, /transform:translateY\(0%\);opacity:1"/, 'el motor de revelado y la rampa de opacidad deben rendir juntos, "en su lugar" y a peso completo, bajo el gate estático');
   assert.ok(!/translate\(-?\d/.test(html), 'ningún transform de desplazamiento horizontal debe sobrevivir bajo el gate estático');
 });
 
 // § CORTE-HERO-VELO-OFF-Y-TICKER-1 (RONDA 3): el eje HORIZONTAL dejó de ser scroll-driven (ya no hay
 // `translate(Npx, -50%)` combinado) — es un TICKER por TIEMPO, en un elemento APARTE. Este test
-// afirma el eje VERTICAL — hoy el `transform` del `<motion.div>` del MEDIO (el motor de revelado).
-test('SIN el gate estático (SSR, progreso arranca en 0): el texto arranca FUERA de la máscara (translateY(100%)) — el revelado todavía no empezó', () => {
+// afirma el eje VERTICAL — hoy el `transform`+`opacity` del `<motion.div>` del MEDIO (el motor de
+// revelado y su rampa de peso, § CORTE-MARQUEE-REVELADO-CON-FADE-1).
+test('SIN el gate estático (SSR, progreso arranca en 0): el texto arranca FUERA de la máscara (translateY(100%)) y SIN PESO (opacity:0) — el revelado todavía no empezó', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
-  assert.ok(html.includes('transform:translateY(100.0%)'), 'en reposo, 100% de su propia caja — completamente oculto bajo el borde de la máscara');
+  assert.match(html, /transform:translateY\(100\.0%\);opacity:0"/, 'en reposo, 100% de su propia caja Y sin peso — completamente oculto bajo el borde de la máscara, sin adelantar aclarándose');
   assert.ok(!html.includes('transform:translateY(0.0%)'), 'sin el gate estático no debe rendir la forma "ya revelada" en progreso=0');
   assert.match(html, /overflow-hidden/, 'la máscara (overflow-hidden) debe estar en el marcado — es lo que hace que el 100% oculte de verdad');
 });
@@ -277,13 +281,14 @@ test('UMBRAL_REVELADO_TEXTO consume la parte TEMPRANA del progreso — no las tr
   assert.ok(UMBRAL_REVELADO_TEXTO.hasta > 0 && UMBRAL_REVELADO_TEXTO.hasta < 0.5, 'la ventana termina bien antes de la mitad del recorrido');
 });
 
-test('al COMPLETAR la ventana de revelado (progreso=0.2, vía el proxy estático que rinde el estado FINAL): translateY(0%) — no se pasa de su posición final', () => {
-  // `estatico=true` (preview) rinde exactamente el estado que `transformRevelaTextoDisplay` alcanza
-  // al final de la ventana (`translateY(0%)`) — es el mismo valor, por diseño (§ su docstring:
-  // "estatico gana con el estado FINAL"). Lo que NO se puede afirmar por render es el punto EXACTO
-  // 0.2 con scroll real; eso vive en `lib/animation.test.ts`.
+test('al COMPLETAR la ventana de revelado (progreso=0.2, vía el proxy estático que rinde el estado FINAL): translateY(0%) Y opacity:1 — ni la posición ni el peso se pasan de su final', () => {
+  // `estatico=true` (preview) rinde exactamente el estado que `transformRevelaTextoDisplay`/
+  // `opacidadRevelaTextoDisplay` alcanzan al final de la ventana (`translateY(0%)`, opacity 1) — el
+  // mismo valor, por diseño (§ sus docstrings: "estatico gana con el estado FINAL"). Lo que NO se
+  // puede afirmar por render es el punto EXACTO 0.2 con scroll real; eso vive en
+  // `lib/animation.test.ts` (afirmado ahí, además, que las dos rampas llegan JUNTAS a ese punto).
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
-  assert.ok(html.includes('transform:translateY(0%)'));
+  assert.match(html, /transform:translateY\(0%\);opacity:1"/);
   assert.doesNotMatch(html, /translateY\(\d+\.\d/, 'ningún translateY con porcentaje NUMÉRICO (100.0%, 50.0%…) debe sobrevivir una vez completo — sólo translateY(0%)');
 });
 

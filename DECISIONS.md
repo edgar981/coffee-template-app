@@ -26503,3 +26503,128 @@ test:integracion`); el diff visual se omitió por instrucción explícita del sp
 `slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador.
 
 **Cierra `PANEL-LOGIN-HORIZONTE-FAMILIA-1`.**
+
+## 2026-09-27 — El revelado del marquee gana la rampa de opacidad, COMPUESTA con el recorte (`CORTE-MARQUEE-REVELADO-CON-FADE-1`)
+
+**De dónde viene, para que no se lea como un defecto de la ronda anterior.** El spec de
+`CORTE-HERO-REVELADO-MASCARA-1` (§ arriba) pedía, textual, *"probá sin fade primero y quedate con lo
+que se parezca más"* — el worker de esa ronda eligió SIN FADE, que era exactamente lo que se le
+pidió. El owner, sobre el resultado ya re-aplicado: *"ahora el ajuste quedó de la frase saliendo
+hacia arriba, pero se perdió el de la frase haciéndose más clara al hacer el scroll, sale con el
+mismo peso desde el inicio"* — pide las DOS cosas compuestas. Es una corrección del CRITERIO del
+orquestador (qué se le pidió al worker), no un arreglo de un defecto de aquella ronda; el bloque
+"SIN FADE" de `lib/animation.ts` y de esta misma sección (§ `CORTE-HERO-REVELADO-MASCARA-1`, arriba)
+quedan como registro histórico correcto de esa elección, con una nota que apunta acá.
+
+### Por qué componer no reintroduce el defecto que RONDA 4 cerró
+
+El defecto original (RONDA 3, fade+24px) era que la opacidad era el ÚNICO mecanismo: un texto
+estático que sólo se aclara no "sube", se ilumina. RONDA 4 lo cerró reemplazando la opacidad por el
+RECORTE (la máscara `overflow-hidden` + `translateY(N%)`) como único mecanismo. Este slice NO
+reemplaza el recorte por la opacidad de vuelta — la SUMA, sobre el MISMO elemento que ya se mueve:
+
+- **El recorte sigue siendo el mecanismo de APARICIÓN** (posición/visibilidad: 100% oculto → 0% en
+  su lugar). La opacidad es una SEGUNDA señal — PESO, no visibilidad — que viaja sobre la MISMA letra
+  que ya está en movimiento gracias al recorte.
+- **No hay porción de letra que "ya cruzó el borde y todavía se aclara"**, que era la lectura que el
+  owner rechazó en RONDA 3: las dos rampas comparten EXACTAMENTE la misma ventana
+  (`UMBRAL_REVELADO_TEXTO`, `[0, 0.2]`, sin tocar) porque `opacidadRevelaTextoDisplay` reusa el mismo
+  `progresoRevelado` PRIVADO que ya usaba `transformRevelaTextoDisplay` — no un segundo tramo
+  declarado a mano que pudiera desalinearse. Terminan de subir y de aclarar en el MISMO instante
+  (afirmado con test, § abajo: a progreso=hasta y a progreso=hasta/2 las dos funciones dan su valor
+  correspondiente EXACTO en el mismo punto).
+- **`estatico` (reduced-motion/preview) rinde peso completo (1)**, el mismo criterio que ya rinde
+  `transformRevelaTextoDisplay(_, true) = 'translateY(0%)'`: un gate de movimiento apaga el
+  DESPLAZAMIENTO temporal de una rampa, nunca deja el contenido en un estado transitorio (a medio
+  aclarar) para siempre.
+
+### Dónde vive, y por qué no toca la estructura de tres elementos
+
+`opacidadRevelaTextoDisplay(progreso, estatico)` vive en `lib/animation.ts`, al lado de
+`transformRevelaTextoDisplay` — misma firma, mismo gate, misma ventana. Se midió ANTES de escribir el
+cableado si la máscara y la rampa se "pisaban" (la pregunta que el spec obligaba a responder antes de
+bajar cualquiera de las dos): **no hay pisada.** `transform` y `opacity` son propiedades CSS
+independientes sobre el MISMO nodo — `HeroMediaMarquesina.tsx` le agrega `opacity:
+opacidadRevelaTexto` al `style` del `motion.div` del MEDIO (el motor del revelado), en el MISMO
+objeto que ya llevaba `transform: transformRevelaTexto`. La máscara (el `<div>` de AFUERA,
+`overflow-hidden`, plano/sin motion) no se toca; el ticker (el `motion.div` de ADENTRO) no se toca —
+sigue siendo la estructura de TRES elementos de RONDA 4, sin un cuarto nodo ni un nuevo motor.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2330/2330** — reconciliado contra el piso del commit inmediato anterior (`e7a6cab`, `PANEL-LOGIN-HORIZONTE-FAMILIA-1`, 2323/2323): `2323 + 7 = 2330`. El `+7` es el propio diff de los 2 archivos de test tocados (`lib/animation.test.ts`, `lib/config/hero-marquesina.test.ts`): medido `git diff -- <esos 2> \| grep -c "^+test("` → 10, `^-test(` → 3 (dos tests de `hero-marquesina.test.ts` reescritos para afirmar transform+opacity juntos, uno de `animation.test.ts` sin cambio de título), `10-3=7` |
+| `npm run test:integracion` | **237/237** — sin cambio de conteo (ningún archivo de `tests/integracion/` está en `touches:` de este slice) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers |
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+Nayoli sigue usando la variante canónica `curtina`; este slice sólo toca `HeroMediaMarquesina.tsx`
+(la variante `sticky`), así que el 0px era el resultado esperado, no una sorpresa.
+
+**EL DUEÑO NO NECESITA RE-APLICAR CORTE.** A diferencia de `CORTE-HERO-REVELADO-MASCARA-1` (que sí
+lo exigió, por agregar campos NUEVOS de `PresetTema` que sólo `mergePresetEnContent` escribe), este
+slice no toca `themes.ts` ni ningún campo de `hero.escalares` — `opacidadRevelaTextoDisplay` se
+cablea INCONDICIONAL en `HeroMediaMarquesina.tsx`, la misma función para todo tenant en variante
+`sticky`. Se ve directo, sin re-aplicar nada.
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/home/HeroMediaMarquesina.tsx` (+30/-11), `lib/animation.test.ts` (+46/-1),
+`lib/animation.ts` (+47/-7), `lib/config/hero-marquesina.test.ts` (+17/-12), este asiento. Medido con
+`git diff --numstat`: 4 archivos, los 4 en la lista de `touches:` (junto con `DECISIONS.md`, que es
+este mismo asiento).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `opacidadRevelaTextoDisplay` (nuevo),
+`transformRevelaTextoDisplay` (comentario reescrito, sin cambio de firma), `progresoRevelado` (sin
+cambios, sigue privado), `UMBRAL_REVELADO_TEXTO` (sin cambios de valor), `HeroMediaMarquesina.tsx`,
+`opacidadRevelaTexto` (variable local del componente). Grepeados uno por uno contra `CLAUDE.md`:
+**CERO apariciones para los seis.** Nada en `CLAUDE.md` nombra ninguno de estos símbolos — el
+mecanismo de revelado del hero·sticky vive sólo en los comentarios del código y en `DECISIONS.md`.
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO: los ids de sección que este diff referencia
+(`CORTE-HERO-REVELADO-MASCARA-1`, `CORTE-MARQUEE-VELOCIDAD-REAL-1`) no se CERRARON ni se
+reabrieron por este slice — se los cita como antecedente, sin editar su contenido histórico. No hay
+un pointer ("ver §X para lo pendiente") que este diff vuelva falso: `CORTE-HERO-REVELADO-MASCARA-1`
+no tenía ningún open-followup sobre el fade (su "SIN FADE" era una decisión cerrada de esa ronda, no
+un pendiente marcado).
+
+### `customer_bytes`
+
+**`changed: true`.** La rama entera (contra `main`) ya trae varios slices con `customer_bytes.
+changed: true` propio — este lo suma de nuevo, por su propia razón: bajo el preset CORTE (o
+cualquier tenant en `hero.variante:'sticky'`), el texto del marquee ahora gana PESO mientras sube,
+en vez de aparecer siempre a opacidad plena — un cambio VISIBLE del mecanismo de entrada para
+cualquier visitante bajo esa variante. `strings`: **ninguno nuevo** — no se agregó ni cambió texto
+visible; el cambio es puramente de MOVIMIENTO (una curva de opacidad más, sobre el mismo texto que
+ya viaja por `marquesina.texto`).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es una función pura más en `lib/animation.ts`, su cableado en un
+componente de storefront existente, y tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres capas medidas (tsc,
+`npm test`, `npm run test:integracion`) más el diff visual de Nayoli (0px, § arriba). Sin `schema`,
+sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó
+la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`); el merge sigue
+pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `CORTE-MARQUEE-REVELADO-CON-FADE-1`.**
