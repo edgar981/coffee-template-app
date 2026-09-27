@@ -24845,3 +24845,200 @@ textual como `approval-reason`); el merge sigue pendiente del gate del orquestad
 instrucción del dispatch, no mergea.
 
 **Cierra `CORTE-HERO-VELO-OFF-Y-TICKER-1`.**
+
+## 2026-09-27 — El arnés de censo de movimiento — mide transiciones en ejecución, no las describe (`ARNES-CENSO-MOVIMIENTO-1`)
+
+### Por qué
+
+El owner, literal: *«las transiciones es de las cosas que más ha costado implementar… ¿hay alguna
+forma de construir una base que entienda o analice las páginas de tal forma que me sea fácil
+explicarte la idea cuando pido una transición?»*. El costo está MEDIDO: el marquee del hero llevó
+TRES rondas de gate (`CORTE-HERO-STICKY-RONDA-2-1` → `CORTE-HERO-MARQUEE-REVELA-1` →
+`CORTE-HERO-VELO-OFF-Y-TICKER-1`), y la causa de raíz de las tres fue la MISMA: el movimiento se
+DESCRIBIÓ con palabras y se leyó del HTML estático, cuando había que MEDIRLO en ejecución. Este
+slice cambia el protocolo: el owner señala (URL + elemento) y la herramienta MIDE.
+
+### Qué se construyó
+
+`npm run censar:movimiento -- --url <URL> [--nombre <slug>] [...]` (`scripts/censar-movimiento.ts`,
+433 líneas) carga cualquier página con Playwright, arma un plan de posiciones de scroll (parejas,
+arriba→abajo del documento) y en CADA posición muestrea varios instantes de tiempo — así separa lo
+que cambia por SCROLL de lo que cambia por TIEMPO. La CLASIFICACIÓN vive aparte, pura, en
+`lib/movimiento/clasificar.ts` (395 líneas) — `clasificarElemento(grupos: GrupoScroll[])` devuelve
+una o más de `ticker`/`scrub`/`revelado`/`estatico`, con parámetros derivados (velocidad, ventana de
+scroll, o desplazamiento+duración) — con su test al lado (`clasificar.test.ts`, 248 líneas, 11
+casos, todos vistos pasar Y —para los tres que corrigen un defecto real— vistos fallar antes del
+fix, § abajo). Deja `docs/movimiento/<nombre>.md` (legible) y `.json` (traza cruda, sólo de los
+elementos con movimiento — "sólo interesan los que cambian", el spec lo pide explícito) con fecha y
+URL en la cabecera de los dos. El vocabulario (`ticker`/`scrub`/`revelado`, mapeado a
+`lib/animation.ts`, las reglas de movimiento reducido, movimiento-como-eje-del-tema, y byte-identidad
+de Nayoli como gate) vive en `DUNA-MOVIMIENTO.md`, nuevo, hermano de `DUNA-DS.md`; el manual de la
+herramienta (uso, límites, el estreno) vive en `docs/movimiento/README.md`.
+
+### Lo que se REUSÓ del arnés existente, y por qué no se duplicó
+
+`scripts/capturar-seccion.ts` (el otro arnés que abre una URL externa con Playwright, §
+`ARNES-CAPTURA-MUESTRARIO-REAL-1`) no exporta nada importable — todo vive dentro de su `main()` — así
+que no había función que importar de ahí; lo que se reusó es el PATRÓN, citado en los comentarios:
+el mismo directorio de instalación aislada de Playwright (`.arnes-tooling/playwright/`, YA estaba
+cacheado en esta máquina desde una corrida anterior — cero descarga en esta sesión) y la misma
+verificación de Deployment Protection al navegar (401 → para, no captura nada). Lo que SÍ se
+importó, en cambio, es el mecanismo de `scripts/verificar-nayoli-visual.ts` (`cargarPlaywright` +
+los tipos mínimos `PlaywrightModule`/`PlaywrightBrowser`/`PlaywrightPage`/`PlaywrightResponse`) — ese
+archivo YA exporta estas piezas y YA tiene la guarda de entrypoint (`esEntrypoint`, comparando
+`import.meta.url` contra `pathToFileURL(process.argv[1])`) que impide que importarlo dispare su
+propio `main()` como efecto secundario — el MISMO mecanismo que `scripts/guarda-color.ts` ya usa
+para importar de ese mismo archivo. Reusar en vez de reimplementar significa que las DOS
+instalaciones de Chromium (la de este arnés y la de `verificar-nayoli-visual`/`capturar-seccion`)
+son la MISMA — un solo directorio, un solo costo de descarga por máquina.
+
+### El estreno — tres trazas reales, y lo que salió mal ANTES de que salieran bien
+
+Las tres corridas del estreno (parámetros default: 6 posiciones de scroll × 3 instantes × 400ms,
+viewport 1280×900):
+
+| traza | URL | candidatos | con movimiento | duración de la corrida |
+| --- | --- | --- | --- | --- |
+| `cafeone-home` | `https://x-cafeone.myshopify.com/` | 5.240 | 179 | 24,7s |
+| `cafeone-about` | `https://x-cafeone.myshopify.com/pages/about` | 3.221 | 72 | 18,7s |
+| `muestrario-home` | `https://coffee-template-app-onix.vercel.app/` | 171 | 16 | 25,9s |
+
+**Comparado contra lo que ya se sabía del tema real (§ el spec lo pide explícito, "si la
+herramienta no ve algo de eso, la herramienta está mal, no el tema"):**
+
+- **`xo-marquee`/`xo-marquee-item` (el ticker por tiempo del hero)**: el arnés SÍ los detecta y SÍ
+  ve movimiento por tiempo en ellos — pero el contenedor externo (`xo-marquee`,
+  `xo-marquee.xo-marquee-block`) reporta `revelado` (un fade-in de opacidad en una sola posición de
+  scroll), y el track de texto (`xo-marquee-item`) TAMBIÉN reporta `revelado`, no `ticker` puro. La
+  razón, medida (§ el defecto #2 abajo): el track sólo mostró cambio-por-tiempo en la posición de
+  scroll donde estaba VISIBLE — probablemente el propio widget pausa su animación fuera de vista
+  (un patrón común de rendimiento) — y el criterio de `ticker` exige que la MAYORÍA de las
+  posiciones muestren cambio por tiempo. Con una sola posición mostrándolo, no alcanza el umbral, y
+  el elemento se lee como "cambió una vez" (que es, en los hechos, lo que pasó: se movió, y después
+  se congeló). Es una lectura DEFENDIBLE, no un error, pero documentada como límite en
+  `docs/movimiento/README.md` — un ticker que se pausa fuera de vista puede leerse como `revelado`.
+- **`<xo-animate>` (entradas por scroll)**: SÍ se ven, con la etiqueta `xo-animate*` en el
+  descriptor, y clasifican `revelado` — coincide con la doctrina.
+- **`<xo-parallax-scroll>`**: SÍ se ven, pero clasifican `revelado` en las DOS corridas (default 6
+  pasos, y una corrida de validación con 20 pasos que NO se dejó en el repo — no está en
+  `touches:`). Verificado que NO es un artefacto de resolución en este caso: el recorrido de cada
+  parallax se completa dentro de UNA sección (≤1 posición muestreada, incluso a 20 pasos), no a lo
+  largo de todo el documento — es un dato real del tema (parallax acotado a su propia sección), no
+  un defecto de la herramienta. Documentado en el README como comportamiento dependiente de
+  `--pasos`: si un efecto continuo completa su recorrido entre dos posiciones consecutivas, se lee
+  como `revelado` aunque el mecanismo sea continuo.
+- **"Ninguna transición de ruta"**: confirmado por AUSENCIA — ningún elemento del censo (de los 179 +
+  72 con movimiento) tiene un patrón compatible con una transición de navegación (no hay manera de
+  que el arnés la vería de todos modos, ya que censa UNA URL cargada una vez — es una ausencia
+  esperada, no una verificación positiva).
+- **`muestrario-home`** (nuestra propia base, sin preset CORTE aplicado en el deployment auditado):
+  el elemento `div.absolute` (el marquee sticky del hero, `HeroMediaMarquesina`) SÍ se detecta como
+  `scrub` puro (`transform` yendo de `matrix(1,0,0,1,0,-40)` a `matrix(1,0,0,1,-2048,-64)` a medida
+  que crece el scroll) — coherente con que ese deployment corre el path por-DEFECTO
+  (`transformMarquesinaTexto`, scroll-scrubbed), no el ticker de CORTE. Es la MISMA pieza de código
+  que en `cafeone-home` aparece con otra forma (`ticker`), y el censo lo distingue correctamente por
+  el comportamiento medido, no por el nombre de la clase CSS.
+
+### TRES defectos reales, encontrados por el propio estreno, corregidos con test que los vio fallar
+
+**No eran hipotéticos: la primera corrida real produjo un reporte mayormente inútil (~170 de 179
+elementos con movimiento reportaban también `scrub` abarcando el rango de scroll ENTERO), y las
+correcciones se hicieron ANTES de aceptar el estreno como válido, no después.**
+
+1. **Un ticker LINEAL que nunca se detiene contamina la comparación entre grupos de scroll.** El
+   valor "representativo" de cada posición de scroll (su última muestra) avanza SOLO porque pasa
+   tiempo real entre una posición y la siguiente — no porque el scroll lo mueva —, así que un ticker
+   infinito (como un marquee) se leía TAMBIÉN como `scrub` con ventana = el documento entero. Fix:
+   `GrupoScroll.tAbsolutoUltimaMuestraMs` (marca de tiempo real, `Date.now()` del arnés) permite
+   extrapolar cuánto explica el propio ticker por el tiempo transcurrido (`velocidad × dtMs`) antes
+   de contar una transición como cambio real. Visto fallar sin el campo (test "un ticker que sigue
+   corriendo…").
+2. **Un ticker OSCILANTE (no lineal, un pulso acotado) no lo explica una extrapolación lineal.**
+   MEDIDO en el propio censo real: un `<div>` con `transform: matrix(v,0,0,v,0,0)` donde `v` salta
+   entre ~0,02 y ~0,85 dentro de un mismo grupo de 800ms — `velocidad × dt` SUBESTIMA el cambio
+   posible entre grupos separados por más tiempo que un ciclo del pulso, porque el pulso no "sigue
+   creciendo": vuelve sobre el mismo rango. Fix: se toma el MAYOR de dos predictores —la
+   extrapolación lineal Y la amplitud ya observada dentro de cualquier grupo (`amplitudMaximaDentroDeGrupo`)—;
+   cualquiera de los dos "explica" el cambio observado. Visto fallar sin el segundo predictor.
+   Ligado a esto, un tercer ajuste: la comparación se volvió POR-EJE (cada número de la matriz +
+   opacidad, tratados como ejes independientes) en vez de una magnitud combinada — un eje mudo
+   (correlación con `opacity`, epsilon 0,5 demasiado grueso para un `scale` en el rango 0..1) dejaba
+   pasar el mismo falso positivo por otra vía; se unificó `EPS_TRANSFORM` a 0,01 (el mismo que
+   `opacity`), medido contra el caso real.
+3. **Un revelado a MITAD de documento no es "temprano", y el criterio original preguntaba lo
+   equivocado.** La primera versión de `clasificarVentana` miraba DÓNDE cae el último cambio
+   (¿posición absoluta temprana en el recorrido?); un fade-in real de `xo-marquee` (el contenedor)
+   ocurre en la transición 4 de 6 (60% del recorrido MUESTREADO) y se clasificaba `scrub`, porque
+   "60%" no es "temprano" aunque sea UN SOLO evento. Fix: el criterio pasó a ser CUÁNTAS
+   transiciones cambian (proporción), no EN QUÉ POSICIÓN — un evento único revela igual de "de una
+   vez" en la mitad de una página larga que arriba de todo. Visto fallar con el criterio viejo (test
+   "un cambio único a mitad del recorrido…").
+
+**Las tres correcciones tienen su test, y los tres se vieron fallar antes del fix** (no se
+neutralizó el mecanismo para simularlo — se corrió contra el código SIN el fix, en cada caso, y se
+confirmó el fallo antes de aplicar la corrección). 11 tests en total en `clasificar.test.ts`, los 8
+originales (uno por clase + el caso ambiguo + dos bordes) más estos 3.
+
+### El límite declarado: `hover`
+
+Fuera de alcance en esta versión — el arnés no simula el puntero. Un elemento cuyo único movimiento
+depende de `:hover`/`:focus` se clasifica `estatico`. Documentado en `docs/movimiento/README.md` y
+en el docstring de cabecera de `clasificar.ts`; si hace falta, es una capacidad nueva (`page.hover()`
+por candidato y por posición de scroll — multiplica el costo de la corrida), no un ajuste de v1.
+
+### Costo — cuánto tarda repetir esto
+
+**~19-26 segundos por página**, con Playwright ya cacheado (sin descarga de Chromium). El costo NO
+escala con el tamaño del DOM de forma perceptible en este rango (5.240 elementos en `cafeone-home`
+tardaron prácticamente lo mismo que 171 en `muestrario-home`, 24,7s vs 25,9s) — el costo real es el
+plan de muestreo (6 posiciones × ~1,1s de espera cada una ≈ 6,6s) más el overhead fijo de arrancar
+Chromium y cargar la página (~15-18s en esta corrida, variable por red). Subir `--pasos` escala
+linealmente: una corrida de validación con 20 pasos (no incluida en `touches:`, borrada tras
+verificar) tardó 44,8s contra los 24,7s de 6 pasos — consistente con el modelo. Es barato de
+repetir: una corrida por página, no un proceso largo.
+
+### `touches:` — todo escrito estaba declarado
+
+Medido con `git status --short` antes de comitear: `package.json` (modificado, +1 línea, el script
+nuevo), `DUNA-MOVIMIENTO.md`, `docs/movimiento/` (README.md + 3 pares `.md`/`.json` del estreno),
+`lib/movimiento/` (`clasificar.ts` + `clasificar.test.ts`), `scripts/censar-movimiento.ts` — los
+nueve elementos de la lista de `touches:`, ninguno fuera. Se generó y se BORRÓ una décima traza
+(`cafeone-home-alta-resolucion.{md,json}`, la corrida de validación de 20 pasos citada arriba) antes
+de comitear — nunca estuvo en `touches:` y no se dejó en el árbol.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo: `censar:movimiento`, `censar-movimiento.ts`,
+`clasificarElemento`, `GrupoScroll`, `MuestraTiempo`, `DUNA-MOVIMIENTO.md`, `docs/movimiento`,
+`lib/movimiento`, `ARNES-CENSO-MOVIMIENTO-1`. Grepeados uno por uno contra `CLAUDE.md`: **CERO
+apariciones para los nueve.** También se grepeó `arnes-tooling`/`capturar-seccion`/
+`verificar-nayoli-visual`/`guarda-color` (lo que este slice REUSA) por si `CLAUDE.md` dijera algo
+sobre esos arneses que este cambio pudiera volver falso: también CERO. `CLAUDE.md` no nombra ningún
+arnés de captura/censo — viven enteramente en `DECISIONS.md` y en sus propios comentarios de
+cabecera. **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: false`.** Este slice es HERRAMIENTA de arnés — no toca `app/(storefront)/`,
+`components/storefront/`, ni ningún archivo que el storefront renderice. `strings`: ninguno. No se
+corrió `verificar:nayoli:visual` porque no hay render que verificar (el spec lo pide explícito: "no
+corras el diff visual, decilo").
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un script nuevo, un módulo puro nuevo con su test, tres pares de
+traza generados por ejecución, y dos documentos.
+
+### Verdicto
+
+**AWAITING_APPROVAL, por instrucción explícita del dispatch** (`stopped_on: [owner-gate-requested]`
+— el diff, juzgado contra sus tres condiciones, no falla ninguna: sin schema, sin customer-bytes,
+sin cross-repo-contract; el único motivo de parar acá es que el dispatch de esta rama lo pide, no
+que el diff lo amerite). Gate verde: `tsc --noEmit` 0 errores, `npm test` 2279/2279 (2268 previos +
+11 nuevos de `clasificar.test.ts`), `npm run test:integracion` 237/237 — sin cambios de esas dos
+últimas cifras contra la medición previa de la rama, porque este slice no toca ningún código que
+esas suites ejerciten. Commiteado en `slice/corte-reescritura-prototipo-1`; el merge sigue pendiente
+del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `ARNES-CENSO-MOVIMIENTO-1`.**

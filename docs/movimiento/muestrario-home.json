@@ -1,0 +1,2518 @@
+{
+  "url": "https://coffee-template-app-onix.vercel.app/",
+  "nombre": "muestrario-home",
+  "generadoEn": "2026-09-27T17:28:28.525Z",
+  "viewport": {
+    "ancho": 1280,
+    "alto": 900
+  },
+  "plan": {
+    "pasos": 6,
+    "instantes": 3,
+    "esperaInstanteMs": 400,
+    "esperaScrollMs": 300
+  },
+  "elementosCandidatosTotal": 171,
+  "elementosConMovimiento": 16,
+  "elementosDescartadosPorEstaticos": 155,
+  "duracionCorridaMs": 25906,
+  "elementos": [
+    {
+      "descriptor": "div.absolute",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 24.1583,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 0.75,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 0.75,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 0.75,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 0.870707,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 0.870707,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 0.870707,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 0.991583,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 0.991583,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 0.991583,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.absolute",
+      "clases": [
+        {
+          "clase": "scrub",
+          "ventanaScrollY": {
+            "desde": 0,
+            "hasta": 2152
+          }
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, -40)",
+              "opacity": 0,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, -40)",
+              "opacity": 0,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, -40)",
+              "opacity": 0,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, -988.8, -64)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, -988.8, -64)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, -988.8, -64)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, -1979, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, -1979, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, -1979, -64)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, -2048, -64)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "span.absolute",
+      "clases": [
+        {
+          "clase": "ticker",
+          "velocidadAproxPorSegundo": 65.9808125
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, -25.2572)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, -11.4354)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 11.2673)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 54.0957)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 61.4576)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, -24.5561)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 12.3767)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 37.0868)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 55.1382)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, -23.8433)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, -8.19822)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 15.5861)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 56.0796)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 61.59)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, -23.0069)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 16.7016)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 41.5757)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 56.9558)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.w-[78vw]",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.w-[78vw]",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.relative",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 15.961,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.997564, -0.0697565, 0.0697565, 0.997564, 1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.998898, -0.0469321, 0.0469321, 0.998898, 0.504051, 10.7282)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.998898, -0.0469321, 0.0469321, 0.998898, 0.504051, 10.7282)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.998898, -0.0469321, 0.0469321, 0.998898, 0.504051, 10.7282)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.relative",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 15.9781,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.99863, 0.052336, -0.052336, 0.99863, -0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.999385, 0.0350739, -0.0350739, 0.999385, -0.376694, 10.7334)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.999385, 0.0350739, -0.0350739, 0.999385, -0.376694, 10.7334)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.999385, 0.0350739, -0.0350739, 0.999385, -0.376694, 10.7334)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.relative",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 15.9781,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.99863, -0.052336, 0.052336, 0.99863, 0.837375, 15.9781)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.999385, -0.0350739, 0.0350739, 0.999385, 0.376694, 10.7334)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.999385, -0.0350739, 0.0350739, 0.999385, 0.376694, 10.7334)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.999385, -0.0350739, 0.0350739, 0.999385, 0.376694, 10.7334)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.relative",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 15.961,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.997564, 0.0697565, -0.0697565, 0.997564, -1.1161, 15.961)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(0.998898, 0.0469321, -0.0469321, 0.998898, -0.504051, 10.7282)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(0.998898, 0.0469321, -0.0469321, 0.998898, -0.504051, 10.7282)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(0.998898, 0.0469321, -0.0469321, 0.998898, -0.504051, 10.7282)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 0)",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.mx-auto",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.grid",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "div.flex",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 24)",
+              "opacity": 0,
+              "enViewport": false
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    },
+    {
+      "descriptor": "button.fixed",
+      "clases": [
+        {
+          "clase": "revelado",
+          "desplazamientoAprox": 100,
+          "duracionMs": null
+        }
+      ],
+      "grupos": [
+        {
+          "scrollY": 0,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 8)",
+              "opacity": 0,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 8)",
+              "opacity": 0,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 8)",
+              "opacity": 0,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530100376
+        },
+        {
+          "scrollY": 717,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "matrix(1, 0, 0, 1, 0, 8)",
+              "opacity": 0,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "matrix(1, 0, 0, 1, 0, 8)",
+              "opacity": 0,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "matrix(1, 0, 0, 1, 0, 8)",
+              "opacity": 0,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530101998
+        },
+        {
+          "scrollY": 1435,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530103610
+        },
+        {
+          "scrollY": 2152,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530105251
+        },
+        {
+          "scrollY": 2870,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530106862
+        },
+        {
+          "scrollY": 3587,
+          "muestras": [
+            {
+              "t": 0,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 400,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            },
+            {
+              "t": 800,
+              "transform": "none",
+              "opacity": 1,
+              "enViewport": true
+            }
+          ],
+          "tAbsolutoUltimaMuestraMs": 1790530108482
+        }
+      ]
+    }
+  ]
+}

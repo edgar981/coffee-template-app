@@ -22,7 +22,8 @@
     "capturar:seccion": "bash scripts/capturar-seccion.sh",
     "verificar:nayoli": "tsx scripts/verificar-nayoli.ts",
     "verificar:nayoli:visual": "tsx scripts/verificar-nayoli-visual.ts",
-    "guarda:color": "tsx scripts/guarda-color.ts"
+    "guarda:color": "tsx scripts/guarda-color.ts",
+    "censar:movimiento": "node --import tsx scripts/censar-movimiento.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
