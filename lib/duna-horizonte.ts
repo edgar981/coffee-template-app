@@ -1,81 +1,149 @@
 // ─── El HORIZONTE ondulante de las pantallas PRE-AUTH — geometría PURA ─────────
 //
-// Reemplaza a la cresta única con el sol viajero (§ DunaPie.tsx, versión anterior)
-// por un horizonte de VARIAS líneas paralelas que ondulan sin parar — la forma que
-// el owner señaló en la pieza de marca de Duna (PANEL-LOGIN-HORIZONTE-ONDULANTE-1).
-// Sin React, sin DOM: dada una configuración (cuántas líneas, cuántas de acento),
-// devuelve el `d` de cada trazo y sus parámetros de movimiento. `DunaPie.tsx`
-// SOLO consume esto y pinta; toda decisión de forma vive acá, testeada en
-// `duna-horizonte.test.ts`.
+// PANEL-LOGIN-HORIZONTE-FAMILIA-1: corrige el defecto que el slice anterior
+// (PANEL-LOGIN-HORIZONTE-ONDULANTE-1) introdujo A PROPÓSITO — las líneas se
+// CRUZABAN entre sí (velocidad distinta por línea, longitud de onda creciente,
+// sentido alternado), y el owner comparó la pantalla real contra la pieza de
+// marca y señaló que ahí las líneas NO se cruzan: comparten una sola onda y se
+// desplazan JUNTAS, así que se leen como UNA superficie, no como trazos
+// independientes compitiendo.
 //
-// LA GRAMÁTICA (adaptada, no copiada píxel a píxel — ver el asiento de
-// `DECISIONS.md`, PANEL-LOGIN-HORIZONTE-ONDULANTE-1, sobre por qué no se pudo leer
-// el archivo de referencia en esta sesión):
-//   · Cada línea es la SUMA DE DOS ONDAS senoidales de distinta frecuencia (la
-//     principal + un segundo armónico de período MITAD y menor amplitud) — así
-//     una sola línea ya ondula de forma orgánica, no como un seno puro.
-//   · Las líneas se SEPARAN verticalmente (`yBaseDeLinea`) y se DESFASAN entre sí
-//     en x (`faseDeLinea`), para que no luzcan como copias calcadas unas de otras.
-//   · La VELOCIDAD (distinta por línea, `duracionDeLinea`) es lo que las hace
-//     "cruzarse" con el tiempo — la ondulación colectiva no sale de animar la
-//     forma cuadro a cuadro, sino de trasladar cada línea a su propio ritmo.
-//   · La OPACIDAD decae hacia atrás: la línea más lejana (índice 0) es la más
-//     tenue: se funde con el fondo; la más cercana es la más marcada.
-//   · Algunas líneas (las más al FRENTE, `esAcento`) son de ACENTO — se pintan en
-//     el ámbar de marca; el resto son NEUTRAS.
+// LA LEY DE LA REFERENCIA (vendorizada en `docs/marca/horizonte-referencia.md`,
+// que documenta su procedencia): para la línea `i`, con `u` la posición
+// horizontal normalizada y `t` el tiempo,
 //
-// EL LOOP SIN COSTURA es la propiedad que hace válida la animación por CSS
-// `transform: translateX`: cada línea es analíticamente PERIÓDICA en su propio
-// `periodoPx` (`alturaOnda(x) === alturaOnda(x + periodoPx)`, afirmado en el
-// test), así que trasladar el trazo exactamente un período dibuja, en cada
-// instante, la MISMA curva que al principio — no hay salto visible en el punto
-// donde el ciclo se repite. Por eso cada trazo se dibuja MÁS ANCHO que el
-// viewBox (un período de más a cada lado, como ya hacía la cresta única con sus
-// "colas"), para que el tramo visible nunca se quede sin geometría dibujada
-// mientras se desplaza.
+//   y(i,u,t) = BASE + i·SEP
+//            + sin(u·5.2 + t·1.2 + i·0.30) · (A1 + i·1.5)
+//            + sin(u·11.0 − t·0.80 + i·0.50) · A2
+//
+// Léase: las DOS frecuencias (5.2, 11.0) NO dependen de `i` — todas las líneas
+// tienen la MISMA onda —; lo único que varía por línea es un desfase CHICO y
+// una amplitud que crece apenas; y la "ondulación viva" nace de que las DOS
+// ondas del segundo término viajan en SENTIDOS OPUESTOS a distinta velocidad,
+// no de que cada línea vaya a su propio ritmo.
+//
+// LO QUE ESTE SLICE NO PUDO PRESERVAR, Y POR QUÉ (ver DECISIONS.md,
+// PANEL-LOGIN-HORIZONTE-FAMILIA-1, para el razonamiento completo): la SEGUNDA
+// onda de la ley de arriba viaja en sentido CONTRARIO a la primera, a otra
+// velocidad — eso es un patrón que se DEFORMA con el tiempo (las dos ondas se
+// deslizan una respecto de la otra), no un patrón que se TRASLADA. Una forma
+// que se deforma cuadro a cuadro exige recalcular geometría en JS, que es
+// exactamente lo que esta pantalla —donde se teclea una contraseña— no puede
+// pagar (§ DunaPie.tsx, la misma restricción que ya obligaba al `<animateMotion>`
+// del sol que el slice anterior reemplazó). La salida que el propio spec
+// autoriza: UNA sola onda viajera (rígida — toda la familia se traslada JUNTA,
+// a la MISMA velocidad y el MISMO sentido), con el desfase y el crecimiento de
+// amplitud por línea que la ley pide. Se pierde la segunda onda; se conserva el
+// hilo principal (100% CSS `transform`, cero JS por cuadro).
+//
+// `DunaPie.tsx` SOLO consume esto y pinta; toda decisión de forma vive acá,
+// testeada en `duna-horizonte.test.ts` — incluido el INVARIANTE que este slice
+// existe para imponer: ningún par de líneas se cruza jamás.
 
-export const HORIZONTE_ANCHO = 1440; // viewBox width — el mismo que usaba la cresta única
+export const HORIZONTE_ANCHO = 1440; // viewBox width — sin cambio
 export const HORIZONTE_ALTO = 240; // viewBox height — sin cambio
 
-export const HORIZONTE_NUM_LINEAS = 6;
-/** Las últimas N líneas (las más al FRENTE) son de acento (ámbar); el resto, neutras. */
-export const HORIZONTE_NUM_AMBAR = 2;
+export const HORIZONTE_NUM_LINEAS = 8;
+/** Las últimas N líneas (las más al FRENTE) son de acento (ámbar); el resto, neutras.
+ *  Subió de 2 a 3 (§ la referencia: "el ámbar ocupa una BANDA, no un par de trazos").
+ *  Constante nombrada y junto a `HORIZONTE_NUM_LINEAS` A PROPÓSITO: el owner las va
+ *  a mover al mirar el resultado, y tiene que ser un cambio de una línea. */
+export const HORIZONTE_NUM_AMBAR = 3;
 
-// Baseline vertical: de la más lejana (arriba) a la más cercana (abajo).
-const Y_ATRAS = 95;
-const Y_FRENTE = 205;
+// Baseline vertical de la línea más ATRÁS (índice 0); las demás se derivan sumando
+// la SEPARACIÓN (ver `separacionVertical`, abajo) — ya no hay un `Y_FRENTE` fijo:
+// la posición de la línea más al frente es lo que RESULTA de correr N líneas con
+// esa separación, no un segundo número que pudiera divergir del primero.
+const Y_BASE_ATRAS = 40;
 
-// Amplitud de la onda principal y del segundo armónico (período mitad).
-const AMPLITUD_1 = 9;
-const AMPLITUD_2 = AMPLITUD_1 * 0.35;
+// Amplitud de la ONDA ÚNICA (§ arriba, "se pierde la segunda onda"): la línea más
+// atrás lleva `AMPLITUD_BASE`; cada línea hacia el frente crece "apenas"
+// (`AMPLITUD_PASO`) — análogo al `+i·1.5` de la ley de referencia, escalado a
+// nuestras unidades de viewBox (that `1.5` no es directamente nuestro píxel: la
+// referencia no fija una escala común, así que el paso se eligió PEQUEÑO respecto
+// de la base, que es la propiedad que la ley pide ("crece apenas"), no el número
+// exacto).
+const AMPLITUD_BASE = 6;
+const AMPLITUD_PASO = 0.5;
 
-// Longitud de onda: crece con el índice, para que ninguna línea sea un clon
-// reescalado de la anterior.
-const PERIODO_BASE = 420;
-const PERIODO_PASO = 55;
+// Longitud de onda: la MISMA para TODAS las líneas (§ la ley: "las frecuencias no
+// dependen de i") — a diferencia de la versión anterior, que la hacía crecer con
+// el índice a propósito para que las líneas "no lucieran como copias calcadas".
+// Acá la variación viene del desfase y la amplitud, no del período.
+const PERIODO_PX = 420;
+
+// El desfase de cada línea, en RADIANES sobre el argumento de la onda (no en
+// fracción de período): `i · FASE_PASO_RAD`, tomado directo del primer término de
+// la ley de referencia (`i·0.30`) -- el término que SÍ se conserva, ya que el
+// segundo (`i·0.50`) pertenecía a la onda que se pierde (§ arriba).
+const FASE_PASO_RAD = 0.30;
+
+// Separación vertical extra, POR ENCIMA de la mínima matemáticamente necesaria
+// (`separacionMinima`, abajo) -- para que las líneas queden VISIBLEMENTE
+// distintas, no apenas sin tocarse. Es aire, no parte de la prueba del invariante.
+const MARGEN_SEPARACION = 3;
 
 // Opacidad: decae hacia el fondo. 0.5 en el frente es EL MISMO valor que llevaba
-// la cresta única (§ DunaPie histórico), para no perder de golpe la firma visual.
+// la cresta única (§ DunaPie histórico) y que llevaba la línea más al frente en
+// la versión anterior de este archivo — se conserva, no se re-litiga (§4 del
+// spec: "tokens, modo claro/oscuro... como quedaron").
 const OPACIDAD_MIN = 0.12;
 const OPACIDAD_MAX = 0.5;
 
-// Duración del ciclo de traslación: la línea más lejana es la más LENTA; la más
-// cercana, la más RÁPIDA. Es lo que hace que se "crucen" con el tiempo.
-const DURACION_BASE_S = 26;
-const DURACION_PASO_S = -3;
-const DURACION_MIN_S = 6;
+// LA VELOCIDAD Y EL SENTIDO SON COMPARTIDOS POR TODA LA FAMILIA — es lo que hace
+// que se lean como UNA superficie que se desliza, no como trazos independientes
+// (§ la ley: "el tiempo entra con el mismo signo y la misma velocidad para
+// todas"). Antes eran POR LÍNEA (`duracionDeLinea`, `direccion: indice % 2`); acá
+// son constantes ÚNICAS, exportadas para que `DunaPie.tsx` las aplique IGUAL a
+// cada trazo -- estructuralmente imposible reintroducir una velocidad o un
+// sentido distinto por línea sin tocar estos dos nombres.
+export const HORIZONTE_DURACION_S = 20;
+export const HORIZONTE_DIRECCION: 1 | -1 = 1;
 
 // Puntos por período antes de suavizar a Bézier — suficiente para que la curva
 // se lea lisa a cualquier ancho de pantalla real.
 const MUESTRAS_POR_PERIODO = 24;
 
-export function periodoDeLinea(indice: number): number {
-  return PERIODO_BASE + indice * PERIODO_PASO;
+/** La amplitud de la línea `indice` -- crece apenas hacia el frente (§ arriba). */
+export function amplitudDeLinea(indice: number): number {
+  return AMPLITUD_BASE + indice * AMPLITUD_PASO;
 }
 
-function yBaseDeLinea(indice: number, total: number): number {
-  if (total <= 1) return (Y_ATRAS + Y_FRENTE) / 2;
-  return Y_ATRAS + ((Y_FRENTE - Y_ATRAS) * indice) / (total - 1);
+/**
+ * La separación MÍNIMA entre baselines VECINAS para que dos líneas nunca se
+ * crucen, cualquiera sea su fase relativa -- EL INVARIANTE DE ESTE SLICE,
+ * DERIVADO, no elegido a ojo.
+ *
+ * Dos senoidales de la MISMA frecuencia, amplitudes A y A', con cualquier
+ * desfase entre sí, cumplen por desigualdad triangular:
+ *
+ *   |A·sin(θ+φ) − A'·sin(θ+φ')| ≤ A·|sin(θ+φ)| + A'·|sin(θ+φ')| ≤ A + A'
+ *
+ * para TODO θ, φ, φ' (cada |sin| ≤ 1). O sea que la diferencia entre dos
+ * líneas vecinas nunca baja de `−(A+A')`, así que basta con que la separación
+ * de baseline SUPERE la suma de sus amplitudes para blindar ese par -- sin
+ * necesitar saber en qué fase relativa están.
+ *
+ * Como la amplitud CRECE con el índice (`amplitudDeLinea`), el par más exigente
+ * es el de las DOS líneas más al frente (mayor amplitud); usar el DOBLE de la
+ * amplitud MÁXIMA como separación cubre ese par -- y por monotonía, cubre
+ * también a todos los pares menos exigentes detrás. Es MÁS separación de la
+ * estrictamente necesaria para los pares traseros, pero una separación
+ * CONSTANTE (no creciente por par) es más simple de razonar y de testear, y el
+ * costo es sólo unos pocos px de aire de más en la parte trasera.
+ */
+function separacionMinima(numLineas: number): number {
+  if (numLineas <= 1) return 0;
+  const amplitudMax = amplitudDeLinea(numLineas - 1);
+  return 2 * amplitudMax;
+}
+
+function separacionVertical(numLineas: number): number {
+  return separacionMinima(numLineas) + MARGEN_SEPARACION;
+}
+
+function yBaseDeLinea(indice: number, numLineas: number): number {
+  return Y_BASE_ATRAS + indice * separacionVertical(numLineas);
 }
 
 /** Decae hacia el fondo: índice 0 (más lejos) es el más tenue. */
@@ -84,32 +152,28 @@ export function opacidadDeLinea(indice: number, total: number): number {
   return OPACIDAD_MIN + (OPACIDAD_MAX - OPACIDAD_MIN) * (indice / (total - 1));
 }
 
-function duracionDeLinea(indice: number): number {
-  return Math.max(DURACION_MIN_S, DURACION_BASE_S + indice * DURACION_PASO_S);
-}
-
 /** Las últimas `numAcento` líneas (las más al frente) llevan el ámbar de marca. */
 export function esAcento(indice: number, total: number, numAcento: number): boolean {
   const n = Math.max(0, Math.min(numAcento, total));
   return indice >= total - n;
 }
 
-/** El desfase en x de cada línea, para que no arranquen "en fase" unas con otras. */
+/** El desfase (en unidades de x del viewBox) del término de fase en RADIANES de
+ *  la línea `indice` -- convierte `indice · FASE_PASO_RAD` (radianes) a píxeles
+ *  sobre el argumento `2π·x/periodo` de `alturaOnda`. */
 export function faseDeLinea(indice: number, periodo: number): number {
-  return indice * periodo * 0.37;
+  return ((indice * FASE_PASO_RAD) / (2 * Math.PI)) * periodo;
 }
 
-// La altura de la onda en x: SUMA de dos senoidales de distinta frecuencia (la
-// principal, período `periodo`; el segundo armónico, período `periodo/2` — EXACTAMENTE
-// la mitad, a propósito: así la SUMA sigue siendo periódica en `periodo`, que es la
-// condición del loop sin costura de arriba).
-export function alturaOnda(x: number, periodo: number, faseLinea: number): number {
-  const periodoArmonico = periodo / 2;
-  const t = x + faseLinea;
-  return (
-    AMPLITUD_1 * Math.sin((2 * Math.PI * t) / periodo) +
-    AMPLITUD_2 * Math.sin((2 * Math.PI * t) / periodoArmonico + 1.1)
-  );
+/**
+ * La altura de la ONDA ÚNICA en x (§ arriba: se perdió el segundo armónico de la
+ * versión anterior al perderse la segunda onda de la ley de referencia). Un seno
+ * puro, parametrizado por su propia amplitud -- ya no hay un `AMPLITUD_1`/
+ * `AMPLITUD_2` compartido por todas las líneas: cada línea trae la suya
+ * (`amplitudDeLinea`).
+ */
+export function alturaOnda(x: number, periodo: number, faseLinea: number, amplitud: number): number {
+  return amplitud * Math.sin((2 * Math.PI * (x + faseLinea)) / periodo);
 }
 
 type Punto = { x: number; y: number };
@@ -140,11 +204,11 @@ function catmullRomABezier(puntos: Punto[]): string {
   return d;
 }
 
-function pathDeLinea(x0: number, x1: number, y: number, periodo: number, faseLinea: number): string {
+function pathDeLinea(x0: number, x1: number, y: number, periodo: number, faseLinea: number, amplitud: number): string {
   const paso = periodo / MUESTRAS_POR_PERIODO;
   const puntos: Punto[] = [];
   for (let x = x0; x <= x1 + paso / 2; x += paso) {
-    puntos.push({ x, y: y + alturaOnda(x, periodo, faseLinea) });
+    puntos.push({ x, y: y + alturaOnda(x, periodo, faseLinea, amplitud) });
   }
   return catmullRomABezier(puntos);
 }
@@ -163,18 +227,16 @@ export type LineaHorizonte = {
   y: number;
   /** Opacidad del trazo — decae hacia el fondo (índice bajo, más tenue). */
   opacidad: number;
-  /** Longitud (px, en unidades del viewBox) que hay que trasladar para un loop exacto. */
+  /** Longitud (px, en unidades del viewBox) que hay que trasladar para un loop exacto
+   *  -- LA MISMA para toda la familia (§ `PERIODO_PX`), repetida acá sólo porque
+   *  cada `<path>` necesita su propio valor de `--h-periodo` en `style`. */
   periodoPx: number;
-  /** Duración del ciclo de traslación — cada línea a su propia velocidad. */
-  duracionS: number;
-  /** Sentido de traslación: alternado, para que las líneas se CRUCEN entre sí. */
-  direccion: 1 | -1;
 };
 
 /**
  * Construye las `numLineas` líneas del horizonte. Determinista — sin `Math.random`,
- * así que no hace falta resolverlo en el cliente (a diferencia del sol viajero que
- * reemplaza, § DunaPie histórico): el mismo render en servidor y en cliente.
+ * así que no hace falta resolverlo en el cliente: el mismo render en servidor y en
+ * cliente.
  */
 export function construirHorizonte(
   numLineas: number = HORIZONTE_NUM_LINEAS,
@@ -183,22 +245,20 @@ export function construirHorizonte(
 ): LineaHorizonte[] {
   const lineas: LineaHorizonte[] = [];
   for (let indice = 0; indice < numLineas; indice++) {
-    const periodo = periodoDeLinea(indice);
     const y = yBaseDeLinea(indice, numLineas);
-    const x0 = -periodo;
-    const x1 = ancho + periodo;
-    const fase = faseDeLinea(indice, periodo);
+    const x0 = -PERIODO_PX;
+    const x1 = ancho + PERIODO_PX;
+    const fase = faseDeLinea(indice, PERIODO_PX);
+    const amplitud = amplitudDeLinea(indice);
     lineas.push({
       indice,
       acento: esAcento(indice, numLineas, numAmbar),
-      d: pathDeLinea(x0, x1, y, periodo, fase),
+      d: pathDeLinea(x0, x1, y, PERIODO_PX, fase, amplitud),
       x0,
       x1,
       y,
       opacidad: opacidadDeLinea(indice, numLineas),
-      periodoPx: periodo,
-      duracionS: duracionDeLinea(indice),
-      direccion: indice % 2 === 0 ? 1 : -1,
+      periodoPx: PERIODO_PX,
     });
   }
   return lineas;
@@ -223,18 +283,20 @@ export function rellenoBajoHorizonte(lineas: LineaHorizonte[], alto: number = HO
 // + pie) tiene que quedar por encima del punto MÁS ALTO que cualquier línea pueda
 // alcanzar, para que el horizonte nunca lo cruce.
 //
-// La desviación máxima de una línea es la suma de las dos amplitudes (si las dos
-// ondas caen en fase); el punto más alto de TODO el horizonte es el de la línea
-// más lejana (`Y_ATRAS`, la de baseline más chica) menos esa desviación.
-export const HORIZONTE_AMPLITUD_MAX = AMPLITUD_1 + AMPLITUD_2;
-export const HORIZONTE_TOPE_Y = Y_ATRAS - HORIZONTE_AMPLITUD_MAX;
+// El punto más alto de TODO el horizonte es el de la línea más ATRÁS (índice 0):
+// su "top reach" es `yBaseDeLinea(i) − amplitudDeLinea(i) = (Y_BASE_ATRAS −
+// AMPLITUD_BASE) + i·(SEP − AMPLITUD_PASO)`, y como `SEP` (≈22, § arriba) es MUCHO
+// mayor que `AMPLITUD_PASO` (0.5), ese coeficiente de `i` es positivo -- el "top
+// reach" CRECE con el índice, así que el mínimo (el punto más alto) se da en
+// i=0. Por eso alcanza con la amplitud de la línea trasera, no con la máxima.
+export const HORIZONTE_AMPLITUD_MAX = amplitudDeLinea(HORIZONTE_NUM_LINEAS - 1);
+export const HORIZONTE_TOPE_Y = Y_BASE_ATRAS - amplitudDeLinea(0);
 
 /**
  * Fracción del ANCHO del viewport a reservar como banda inferior — misma cuenta
- * que ya hacía la cresta única (distancia del punto más alto al borde inferior
- * del viewBox, como fracción del ancho, porque el SVG escala `width:100%,
- * height:auto`). Con los valores de hoy: (240 − 82.85) / 1440 ≈ 0.1091 → el
- * consumidor la redondea hacia ARRIBA (nunca hacia abajo: cruzar contenido es
- * peor que sobrar aire) — ver `PreAuthShell`.
+ * que ya hacía la versión anterior (distancia del punto más alto al borde
+ * inferior del viewBox, como fracción del ancho, porque el SVG escala
+ * `width:100%, height:auto`). El consumidor la redondea hacia ARRIBA (nunca hacia
+ * abajo: cruzar contenido es peor que sobrar aire) — ver `PreAuthShell`.
  */
 export const HORIZONTE_BANDA_FRACCION = (HORIZONTE_ALTO - HORIZONTE_TOPE_Y) / HORIZONTE_ANCHO;

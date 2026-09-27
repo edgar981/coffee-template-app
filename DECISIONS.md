@@ -26206,3 +26206,300 @@ política A, así que se para antes del merge para que el owner lo vea. Sin `sch
 `slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador.
 
 **Cierra `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`.**
+
+## 2026-09-27 — El horizonte deja de cruzarse: una sola familia de líneas (`PANEL-LOGIN-HORIZONTE-FAMILIA-1`)
+
+Pedido del owner (2026-09-27), textual, comparando una captura de `/login` contra tres cuadros
+de la pieza de marca de Duna: *"Compara la composición de ambas líneas y dime si están
+iguales? Las líneas de las imágenes de referencia no están desordenadas siguen un patrón."*
+El slice anterior (`PANEL-LOGIN-HORIZONTE-ONDULANTE-1`, arriba) construyó el horizonte
+haciendo que las líneas se CRUCEN a propósito ("la velocidad distinta por línea es lo que las
+hace cruzarse"); ésa es exactamente la decisión que el owner rechaza. Este slice la revierte
+y deja construido un INVARIANTE afirmado con test: ningún par de líneas se cruza jamás.
+
+### 0 · LA LEY DE LA REFERENCIA — vendorizada, no vuelta a copiar de oído
+
+Este dispatch (a diferencia del anterior) SÍ trajo la fórmula exacta de la pieza de marca,
+transcrita por el orquestador dentro del spec porque el archivo fuente sigue fuera del
+alcance de lectura de este sandbox. Se vendorizó en **`docs/marca/horizonte-referencia.md`**,
+con su procedencia, para que el PRÓXIMO slice que toque el horizonte no dependa de que
+alguien la copie una tercera vez:
+
+```
+y(i, u, t) = BASE + i·SEP
+           + sin(u·5.2 + t·1.2 + i·0.30) · (A1 + i·1.5)
+           + sin(u·11.0 − t·0.80 + i·0.50) · A2
+```
+
+Lo que la fórmula DICE, y es la parte que importa: **las frecuencias no dependen de `i`**
+(una sola onda para toda la familia); **el tiempo entra con el mismo signo y la misma
+velocidad DENTRO de cada término** (nadie va más rápido ni al revés que su propio término);
+lo único que varía por línea es un desfase CHICO y una amplitud que crece apenas; y la
+"ondulación viva" nace de que el SEGUNDO término viaja en sentido CONTRARIO al primero, a
+otra velocidad — no de que cada línea tenga su propio ritmo (que es justo lo que el código
+viejo hacía, y lo que se revierte).
+
+### 1 · Por qué la ley NO se implementó tal cual — y la salida que el spec autorizaba
+
+Dos ondas que viajan en sentidos opuestos a distinta velocidad **no son un patrón que se
+TRASLADA: son un patrón que se DEFORMA con el tiempo** (las dos ondas se deslizan una
+respecto de la otra, así que la forma compuesta cambia en cada instante, no sólo su
+posición). Expresar eso exige recalcular la geometría por cuadro (JS), que es exactamente lo
+que esta pantalla —donde se teclea una contraseña— no puede pagar (§3 del spec, y la misma
+restricción que ya obligaba al `<animateMotion>` del mecanismo anterior a éste).
+
+**Se tomó la salida intermedia que el propio spec ofrece: una sola onda viajera, RÍGIDA** —
+toda la familia se traslada JUNTA, a la MISMA velocidad y en el MISMO sentido — conservando
+sólo el desfase chico (`i·0.30`, el término que sobrevive) y la amplitud creciente por línea
+(`+i·1.5`, adaptada de escala). **Se perdió el segundo término de la ley** (la onda
+contra-viajera, `sin(u·11.0 − t·0.80 + i·0.50)·A2`) — es la "segunda onda" que el spec
+autorizaba a perder antes que el hilo principal (CSS puro, cero JS por cuadro), y así quedó
+documentado en el propio `docs/marca/horizonte-referencia.md` para que un slice futuro con
+otra restricción de plataforma pueda retomarla.
+
+### 2 · Los TRES mecanismos retirados, uno por uno
+
+`lib/duna-horizonte.ts` documentaba los tres como intención explícita; los tres se van:
+
+- **Longitud de onda que CRECÍA con el índice** (`PERIODO_BASE + indice*PERIODO_PASO`, de 420
+  a 695px entre 6 líneas) → **`PERIODO_PX` es AHORA una única constante (420) compartida por
+  TODAS las líneas** — afirmado con test (`todas las líneas comparten el MISMO período`).
+- **Desfase entre líneas de una FRACCIÓN GRANDE del período** (`faseDeLinea = indice * periodo
+  * 0.37`, ~37% del período por línea) → **`faseDeLinea` ahora convierte un desfase CHICO en
+  RADIANES** (`indice · 0.30`, tomado literal del primer término de la ley de referencia) a
+  píxeles: `(indice·0.30/2π)·periodo` ≈ 20px por línea a 420px de período (~4.8% del período,
+  no 37%) — afirmado con test (`el PASO de desfase entre líneas VECINAS es CHICO`).
+- **Duración DISTINTA por línea + sentido ALTERNADO** (`duracionDeLinea`, de 26s a 11s;
+  `direccion: indice % 2 === 0 ? 1 : -1`) → **`HORIZONTE_DURACION_S` (20) y
+  `HORIZONTE_DIRECCION` (1) son CONSTANTES ÚNICAS**, exportadas, que `DunaPie.tsx` aplica
+  IGUAL a cada trazo. No quedaron como campos por-línea en el tipo `LineaHorizonte`
+  (`duracionS`/`direccion` se RETIRARON del tipo): es una decisión estructural, no sólo un
+  valor igualado — reintroducir una velocidad o un sentido distinto por línea exigiría
+  deshacer el import de estas dos constantes en `DunaPie.tsx`, no sólo cambiar un número.
+
+También se retiró el SEGUNDO ARMÓNICO por línea (`AMPLITUD_2`, período mitad) que el slice
+anterior sumaba para que "una sola línea ya ondule de forma orgánica" — es la consecuencia de
+§1 (se perdió la segunda onda de la ley), no un mecanismo de cruce por sí solo, pero se anota
+para que quien lea `alturaOnda` no busque un segundo término que ya no está.
+
+### 3 · El invariante — DERIVADO, no elegido a ojo
+
+> **NINGÚN PAR DE LÍNEAS SE CRUZA JAMÁS.**
+
+La separación vertical entre baselines vecinas (`separacionVertical`, `lib/duna-horizonte.ts`)
+se deriva de la amplitud MÁXIMA, por desigualdad triangular: para dos senoidales de la MISMA
+frecuencia con amplitudes `A` y `A'` y CUALQUIER desfase entre sí,
+
+```
+|A·sin(θ+φ) − A'·sin(θ+φ')| ≤ A·|sin(θ+φ)| + A'·|sin(θ+φ')| ≤ A + A'    (para todo θ)
+```
+
+así que basta con que la separación de baseline SUPERE la suma de amplitudes de un par para
+blindarlo, sin necesitar conocer su fase relativa. Como la amplitud crece monótonamente con
+el índice (`amplitudDeLinea`), el par más exigente es el de las DOS líneas más al frente; usar
+el DOBLE de la amplitud MÁXIMA (`separacionMinima = 2 · amplitudDeLinea(numLineas-1)`) cubre
+ese par y, por monotonía, cubre también a todos los pares detrás — más separación de la
+estrictamente necesaria para los pares traseros, pero una separación CONSTANTE es más simple
+de razonar y de testear que una creciente por par, y el costo es sólo unos pocos px de aire de
+más atrás. Se le suma un margen visual (`MARGEN_SEPARACION = 3`) para que las líneas queden
+VISIBLEMENTE distintas, no apenas sin tocarse — ese margen es aire, no parte de la prueba.
+
+Con los valores de hoy (`AMPLITUD_BASE=6`, `AMPLITUD_PASO=0.5`, 8 líneas): amplitud máxima
+9.5px → separación mínima 19px → separación final 22px. La línea trasera (índice 0) queda en
+`y=40`; la más al frente, en `y=194` (bot 203.5) — cerca de la posición `Y_FRENTE=205` que
+tenía la versión anterior, sin haber sido elegida para coincidir.
+
+### 4 · Afirmado con test, y VISTO FALLAR contra el código de HOY — con un hallazgo no anticipado
+
+`lib/duna-horizonte.test.ts` gana el test del invariante (`INVARIANTE no-cruce`, barriendo `x`
+a lo largo de un período y `τ` a lo largo de un ciclo completo, reproduciendo la traslación
+CSS EXACTA: la altura en pantalla de un punto en `X` al instante `τ` es la del punto LOCAL del
+`<path>` estático en `X − translateX(τ)`, con `translateX(τ) = frac(τ/duracionS)·(−periodo·
+direccion)` — la misma fórmula que el `@keyframes` de `app/globals.css` ejecuta) más un
+segundo test con `numLineas=20` (para no afirmar el invariante sólo contra el N por defecto).
+
+**El paso "veló fallar antes de arreglar" (§4 del spec) dio un resultado MEDIDO distinto del
+que el spec asumía.** El spec dice, de la versión anterior, "que sí cruza" — pero MEDIDO (no
+supuesto): con el `HORIZONTE_NUM_LINEAS=6` que el código viejo enviaba por DEFECTO, un barrido
+extenso (`x∈[-1440,1440]` en pasos de 3px, `τ∈[0,2000]` segundos en pasos de 0.25s — mucho más
+allá de lo que el propio invariante exige, para no dejar hueco) **nunca encuentra un cruce
+real entre ningún par de líneas**: la diferencia mínima medida es **+2.1785**, siempre
+positiva. El código viejo se ACERCA al cruce (con el bound conservador de la desigualdad
+triangular, `22 − 12.15 − 12.15 = −2.3`, PARECÍA que debía cruzar) pero los valores concretos
+elegidos (fases, períodos, velocidades) nunca alinean el peor caso en la práctica — la
+intención documentada ("se cruzan") no se materializaba con el N=6 por defecto.
+
+**El MECANISMO sí produce cruces reales apenas sube `numLineas`** — que es como se confirmó
+que el defecto es real y no sólo un problema de nomenclatura del docstring viejo. Con el mismo
+código de HOY (antes de este slice) y `construirHorizonte(numLineas, 2)`:
+
+| numLineas | diferencia mínima medida |
+| --- | --- |
+| 6 (default) | +2.179 (no cruza) |
+| 8 | **−4.105** (cruza) |
+| 10 | −7.597 |
+| 12 | −9.819 |
+| 16 | −12.486 |
+| 20 | −14.030 |
+
+Es porque la separación vertical del código viejo era `(Y_FRENTE−Y_ATRAS)/(numLineas−1)` —
+FIJA en total, así que se ENCOGE al agregar líneas mientras la amplitud (fija, sin crecer por
+índice en esa versión) se queda igual: con más líneas el cruce es sólo cuestión de tiempo. Es
+exactamente el HUECO que el invariante de este slice cierra por CONSTRUCCIÓN (la separación
+se deriva de la amplitud máxima, así que agregar líneas no puede volverla insuficiente sin que
+alguien también suba `AMPLITUD_PASO`/`MARGEN_SEPARACION` a mano contra el propio test).
+
+**DESVIACIÓN, reportada porque el spec asumía lo contrario:** el código de HOY, tal como se
+DESPLEGABA (6 líneas), NO cruzaba en la práctica — el defecto era del MECANISMO (frágil,
+dependiente de un N que no creciera), no un cruce ya visible. El test del invariante de este
+slice, corrido contra `construirHorizonte(6)` con el código VIEJO (usando un harness que
+reproduce la traslación CSS con la fórmula real), pasa en verde por esta misma razón — no es
+el "veló fallar" que el spec pedía literal. La forma en que SÍ se vio fallar fue subiendo
+`numLineas` en el código viejo (tabla de arriba, `numLineas≥8`), que es la prueba de que el
+mecanismo (no sólo el valor por defecto) estaba roto.
+
+### 5 · `HORIZONTE_NUM_LINEAS` y `HORIZONTE_NUM_AMBAR` — acercados a la referencia, no verificados contra ella
+
+El spec pide "bastantes más" líneas que las 6 de hoy, con el ámbar ocupando una BANDA, no un
+par de trazos — sin poder abrir la pieza de marca para contar exactamente cuántas. Se subió
+`HORIZONTE_NUM_LINEAS` de 6 a **8** y `HORIZONTE_NUM_AMBAR` de 2 a **3** (37.5% de las líneas,
+una banda visible de tres trazos contiguos, no un par). Las dos constantes siguen **nombradas
+y juntas** (`lib/duna-horizonte.ts`, arriba de `Y_BASE_ATRAS`), tal como el spec pide, para que
+moverlas sea un cambio de una línea cuando el owner las mire contra la referencia real.
+
+### 6 · Lo que NO se tocó
+
+Tokens (`--duna-ink`, `--duna-sol`), modo claro/oscuro, `prefers-reduced-motion` (la regla
+global de `app/globals.css` sigue cubriendo sin guard propio) — sin re-litigar, tal como pedía
+el spec. `app/globals.css` **no se tocó en este slice**: el `@keyframes duna-horizonte-desplaza`
+ya estaba parametrizado por `--h-periodo`/`--h-direccion` desde el slice anterior y sigue
+funcionando idéntico con valores COMPARTIDOS en vez de por-línea (el CSS no distingue de dónde
+sale el valor de la custom property). `PreAuthShell.tsx` tampoco se tocó — no está en
+`touches:` de este slice, y no hacía falta: consume `HORIZONTE_BANDA_FRACCION` importada, así
+que el nuevo valor (§7) se propaga solo, sin editar ese archivo.
+
+### 7 · La banda del chasis — sube de ~11vw a ~15vw, propagada, no editada
+
+`HORIZONTE_TOPE_Y` pasó de 82.85 (versión anterior) a **34** (`Y_BASE_ATRAS(40) −
+amplitudDeLinea(0)(6)`) — el punto más alto ahora es el de la línea TRASERA (índice 0), no un
+número fijo: se demuestra en el código que el "top reach" de la línea `i` crece con `i`
+(`(Y_BASE_ATRAS−AMPLITUD_BASE) + i·(SEP−AMPLITUD_PASO)`, con `SEP≈22 ≫ AMPLITUD_PASO=0.5`, así
+que el coeficiente de `i` es positivo y el mínimo cae en `i=0`). `HORIZONTE_BANDA_FRACCION`
+pasa de ≈0.109 a **≈0.1431** → `Math.ceil(*100)=15` → **15vw** en `PreAuthShell` (era 11vw). Es
+un salto real, no cosmético: MÁS líneas empaquetadas con la separación derivada del invariante
+ocupan más banda vertical total que 6 líneas con una separación fija más generosa por línea.
+No se ajustó a mano para minimizar el salto — la cuenta salió así; forzarla a quedar en 11vw
+habría significado reducir la amplitud o el número de líneas por debajo de lo que el spec pide
+("bastantes más"), y el spec es explícito en que ESTAS dos cosas (número de líneas, banda de
+ámbar) se ajustan mirando el resultado, no calculando para no mover un número secundario.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2323/2323** — de un piso de 2317 (`514381b`, `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`); `lib/duna-horizonte.test.ts` pasó de 16 a 22 tests (+6), sin tests quitados en ningún otro archivo |
+| `npm run test:integracion` | **237/237** — sin cambio de conteo; ningún archivo de este slice vive bajo `tests/integracion/` |
+| `verificar:nayoli:visual` | **NO SE CORRIÓ**, por instrucción explícita del spec (§4: "No corras el diff visual; decilo"). El diff vive enteramente bajo `components/admin/` y `lib/` — `app/globals.css` y el storefront no cambiaron un solo byte en este slice (a diferencia del anterior, que sí tocó `app/globals.css`). El gate real de esta pantalla son los ojos del owner. |
+
+### `touches:` — lo que se tocó, y nada más
+
+`git diff --stat`: `components/admin/DunaPie.tsx` (+27/-6), `lib/duna-horizonte.test.ts`
+(+141/-96, reescrito para el nuevo invariante y la nueva firma de `alturaOnda`),
+`lib/duna-horizonte.ts` (reescrito, +183/-119), más `docs/marca/horizonte-referencia.md`
+(nuevo) y este asiento en `DECISIONS.md`. Los cinco son exactamente los cinco de `touches:` —
+ninguno más, ninguno menos. `app/globals.css` no se tocó (§6).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/archivos que este diff introdujo o cambió: `DunaPie`, `duna-horizonte.ts`,
+`HORIZONTE_NUM_LINEAS` (6→8), `HORIZONTE_NUM_AMBAR` (2→3), `HORIZONTE_DURACION_S` (nuevo),
+`HORIZONTE_DIRECCION` (nuevo), `amplitudDeLinea` (nuevo), `alturaOnda` (firma cambiada, ganó
+`amplitud`), `faseDeLinea` (fórmula cambiada), `periodoDeLinea` (RETIRADO), `HORIZONTE_
+AMPLITUD_MAX`/`HORIZONTE_TOPE_Y`/`HORIZONTE_BANDA_FRACCION` (valores recalculados),
+`LineaHorizonte` (perdió los campos `duracionS`/`direccion`).
+
+`grep -noE` de cada uno contra `CLAUDE.md`: sólo **`DunaPie`**, **`animateMotion`** y
+**`PreAuthShell`** aparecen — ninguno de los símbolos NUEVOS de este slice (`HORIZONTE_
+DURACION_S`, `HORIZONTE_DIRECCION`, `amplitudDeLinea`) tiene mención previa, así que no hay
+nada que este diff pudiera volver falso sobre ellos específicamente.
+
+Las tres coincidencias caen en dos lugares:
+
+- **Las dos de `PreAuthShell` en las líneas 614 y 2015** son de OTRO tema (el patrón de error
+  inline `AvisoError`, y el split shell-servidor/form-cliente para leer `getSiteSettings`) — no
+  describen el mecanismo del horizonte y este diff no las toca ni las vuelve falsas.
+- **`DunaPie`/`animateMotion` en la sección "LA DUNA DEL LOGIN — identidad de la puerta"**
+  (`CLAUDE.md:7125-7162`): esta sección **YA estaba marcada como obsoleta** por el follow-up
+  `CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1` del asiento anterior (describe el mecanismo `<animateMotion>`
+  del SOL VIAJERO, que ya no existe desde `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`). Este slice no
+  la vuelve MÁS falsa en su MECANISMO (ya era falsa), pero sí profundiza el drift de UN número
+  puntual que el follow-up anterior no había cuantificado: la frase "padding-bottom `11vw`" pasa
+  de "obsoleta por el mecanismo" a "obsoleta también en el NÚMERO" — hoy son ~15vw (§7), no 11.
+  **No se corrigió** — sigue sin estar en `touches:`, y el follow-up existente ya cubre reescribir
+  toda la sección; abrir uno nuevo sólo para el número sería fragmentar la misma corrección
+  pendiente en dos lugares.
+
+**Segundo grep, sobre el DOCUMENTO** (`DECISIONS.md`): la entrada anterior
+(`PANEL-LOGIN-HORIZONTE-ONDULANTE-1`, líneas 25968-26208) describe, en sus propias palabras, el
+mecanismo que este slice retira (§25996-26021: "6 líneas", "`HORIZONTE_NUM_AMBAR=2`", "la
+velocidad distinta... es lo que las hace 'cruzarse'"). Es un asiento HISTÓRICO —verdad al
+momento de escribirse, según la cabecera del archivo— y esta entrada NUEVA no lo reescribe;
+lo sucede. Los dos follow-ups que dejó abiertos se resuelven así:
+- **`PANEL-LOGIN-HORIZONTE-GATE-VISUAL-1`** (el gate visual del owner) — SIGUE ABIERTO: este
+  slice tampoco pudo abrir un navegador.
+- **`PANEL-LOGIN-HORIZONTE-NUM-AMBAR-AJUSTE-1`** (`HORIZONTE_NUM_AMBAR` es una elección
+  razonada, no verificada) — SIGUE ABIERTO, con el número ya movido una vez (2→3, §5); la
+  verificación contra la referencia real sigue pendiente del mismo gate visual.
+
+### `customer_bytes`
+
+**`changed: true`.** El OWNER va a MIRAR esta pantalla — es el propósito explícito del pedido
+(comparó una captura contra la pieza de marca). `strings`: **ninguno** — no cambia una sola
+palabra de copy; el cambio es puramente visual (la geometría del fondo de las cuatro pantallas
+pre-auth, y el alto de la banda que reserva `PreAuthShell`). No se pudo correr
+`verificar:nayoli:visual` porque el spec instruye explícitamente NO correrlo (§4) — pero el
+diff no toca ningún archivo del storefront (`app/(storefront)/`, `components/storefront/`) ni
+`app/globals.css`, así que Nayoli es byte-idéntica POR CONSTRUCCIÓN (el mecanismo vive
+enteramente bajo `components/admin/` y `lib/`, que no son leídos por ningún componente del
+storefront).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración,
+sin contrato cross-repo. `touches:` tampoco las incluía.
+
+### Open follow-ups
+
+- **`PANEL-LOGIN-HORIZONTE-GATE-VISUAL-1`** (reabierto de la entrada anterior, sigue sin
+  resolverse) — este slice tampoco pudo abrir un navegador ni ver el resultado. El gate real
+  —¿ahora SÍ se lee como el owner señaló, "un patrón", "no desordenadas"?— sigue enteramente
+  pendiente de su mirada sobre un deploy con este commit.
+- **`PANEL-LOGIN-HORIZONTE-NUM-AMBAR-AJUSTE-1`** (reabierto, valor movido 2→3 en este slice) —
+  `HORIZONTE_NUM_AMBAR` y `HORIZONTE_NUM_LINEAS` siguen siendo elecciones razonadas, acercadas a
+  la descripción del spec pero no verificadas contra la pieza de marca real. Si al mirarlo el
+  owner espera otro número, es un cambio de una constante en `lib/duna-horizonte.ts` (las dos
+  están nombradas y juntas, § 5), no un rediseño. **why_not_now**: depende del mismo gate visual
+  de arriba.
+- **`PANEL-LOGIN-HORIZONTE-SEGUNDA-ONDA-1`** — la ley de referencia trae una SEGUNDA onda
+  contra-viajera (`docs/marca/horizonte-referencia.md`) que este slice no pudo implementar sin
+  romper la restricción de CSS-puro/cero-JS-por-cuadro (§1). Si algún día esa restricción deja
+  de aplicar a esta pantalla (o CSS gana una forma de componer dos traslaciones independientes),
+  la fórmula completa está vendorizada y lista para retomar. **why_not_now**: fuera de lo que
+  este slice puede construir sin JS por cuadro, que el spec prohíbe explícitamente para esta
+  pantalla.
+- **`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`** (de la entrada anterior, sigue sin resolverse; este
+  slice suma un dato: el número "11vw" de esa sección también quedó obsoleto, no sólo el
+  mecanismo — § el chequeo mecánico arriba). **why_not_now**: `CLAUDE.md` no está en `touches:`
+  de este slice.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** El diff cambia bytes que el owner va a
+mirar (la geometría del fondo de las cuatro pantallas pre-auth, y el alto de la banda que le
+reserva espacio) — falla la condición de `customer_bytes` de la política A. Sin `schema`, sin
+`cross-repo-contract`. Gate verde en las dos capas medidas (tsc, `npm test`, `npm run
+test:integracion`); el diff visual se omitió por instrucción explícita del spec. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador.
+
+**Cierra `PANEL-LOGIN-HORIZONTE-FAMILIA-1`.**

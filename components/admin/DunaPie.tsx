@@ -4,21 +4,26 @@ import {
   rellenoBajoHorizonte,
   HORIZONTE_ANCHO,
   HORIZONTE_ALTO,
+  HORIZONTE_DURACION_S,
+  HORIZONTE_DIRECCION,
 } from "@/lib/duna-horizonte";
 
 // ─── El HORIZONTE ondulante — identidad de la puerta, no un gráfico ────────────
 //
-// PANEL-LOGIN-HORIZONTE-ONDULANTE-1 (2026-09-27): reemplaza a la cresta única con
-// el sol viajero (ver DECISIONS.md para el diseño anterior y el porqué del cambio)
-// por VARIAS líneas paralelas que ondulan sin parar — la forma que el owner señaló
-// en la pieza de marca de Duna. Unas van en el ÁMBAR de marca (las más al frente);
-// el resto van en `--duna-ink`, que YA conmuta tinta (claro) / crema (oscuro) sin
-// tocar una línea de este componente — es el mismo token que ya pintaba la cresta
-// única, no uno nuevo.
+// PANEL-LOGIN-HORIZONTE-FAMILIA-1 (2026-09-27): las líneas ya NO se cruzan —
+// comparten una sola onda y se desplazan TODAS a la MISMA velocidad y en el
+// MISMO sentido (`HORIZONTE_DURACION_S`/`HORIZONTE_DIRECCION`, constantes ÚNICAS,
+// no un valor por línea), así se leen como UNA superficie que se desliza, no
+// como trazos independientes compitiendo entre sí. Revierte el cruce a propósito
+// que introdujo PANEL-LOGIN-HORIZONTE-ONDULANTE-1 (ver DECISIONS.md, esa entrada
+// y la de este slice, para el porqué). Unas van en el ÁMBAR de marca (las más al
+// frente); el resto van en `--duna-ink`, que YA conmuta tinta (claro) / crema
+// (oscuro) sin tocar una línea de este componente — es el mismo token que ya
+// pintaba la cresta única, no uno nuevo.
 //
-// TODA la geometría —cuántas líneas, dónde va cada una, su opacidad, su
-// velocidad— vive en `lib/duna-horizonte.ts`, PURA y testeada ahí. Este archivo
-// sólo la consume y la pinta.
+// TODA la geometría —cuántas líneas, dónde va cada una, su opacidad— vive en
+// `lib/duna-horizonte.ts`, PURA y testeada ahí (incluido el INVARIANTE de
+// no-cruce). Este archivo sólo la consume y la pinta.
 //
 // LA ANIMACIÓN ES 100% CSS (`transform`, vía @keyframes en app/globals.css),
 // NUNCA JS por cuadro. Es la MISMA restricción que obligaba al `<animateMotion>`
@@ -94,14 +99,18 @@ export function DunaPie() {
           style={
             {
               animationName: "duna-horizonte-desplaza",
-              animationDuration: `${linea.duracionS}s`,
+              // COMPARTIDOS por TODA la familia (§ arriba) -- no `linea.duracionS`/
+              // `linea.direccion`: esos campos por-línea ya no existen en el tipo,
+              // así que reintroducir una velocidad o un sentido distinto por línea
+              // exigiría deshacer este import, no sólo cambiar un valor acá.
+              animationDuration: `${HORIZONTE_DURACION_S}s`,
               animationTimingFunction: "linear",
               animationIterationCount: "infinite",
               // Hint de compositor: promueve el trazo a su propia capa, para que
               // la traslación no dispare repintado del resto del SVG.
               willChange: "transform",
               "--h-periodo": `${linea.periodoPx}px`,
-              "--h-direccion": linea.direccion,
+              "--h-direccion": HORIZONTE_DIRECCION,
             } as CSSProperties
           }
         />
