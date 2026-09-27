@@ -242,6 +242,18 @@ test('calibración: hero.puntoFocal está controlado, sin exención nueva', () =
   assert.ok(!huecos.includes('hero.puntoFocal'));
 });
 
+// § CORTE-HERO-VELO-OFF-Y-TICKER-1: `hero.veloVisible` (sexto booleano de `REGISTRY.hero.booleanos`)
+// gana su control DE ENTRADA (`HERO.booleanos` en tienda-secciones.ts), igual que `hero.puntoFocal`
+// arriba — no como hallazgo tardío. El trinquete de PENDIENTE_PANEL no se mueve.
+test('calibración: hero.veloVisible está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('hero.veloVisible'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('hero.veloVisible'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('hero.veloVisible'));
+});
+
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
   const esperado = PENDIENTE_PANEL.map((e) => e.campo).sort();

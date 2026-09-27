@@ -186,6 +186,25 @@ export function veloOpacidad(progreso: number, estatico: boolean): number {
   return VELO_OPACIDAD_PISO + (1 - VELO_OPACIDAD_PISO) * p;
 }
 
+// EL VELO SE VUELVE OPT-IN — § CORTE-HERO-VELO-OFF-Y-TICKER-1 (2026-09-27): esta función SIGUE
+// existiendo, sin cambios — la usa cualquier tema con `hero.veloVisible:true` (el default, § el
+// docstring de `HeroContent.veloVisible`, site-content-defaults.ts). Lo que cambió es que
+// `HeroMediaMarquesina.tsx` ahora puede NO MONTAR el `<motion.div>` del velo en absoluto. El owner,
+// sobre el prototipo aplicado: «ese velo verde debemos quitarlo, hace que el video se vea sin
+// calidad» — CORTE apaga el toggle (`heroVeloVisible:false`, § themes.ts).
+//
+// EL CONTRASTE SIN VELO, MEDIDO (no supuesto) contra las MISMAS tres fotos de referencia de arriba
+// (blanco `var(--sf-sobre-banda,white)` sobre arena `rgb(232,222,200)`, casi-blanco
+// `rgb(245,245,240)`, crema `rgb(238,230,214)`): **1.34:1 · 1.09:1 · 1.24:1** — muy por debajo del
+// piso AA (4.5:1) que el velo, encendido, garantizaba incluso en su punto más débil (5.25:1, § arriba).
+// Por eso el velo NO se reintroduce para CORTE pese a este número: las tres fotos son un proxy
+// CONSERVADOR para un video CLARO (el mismo criterio que ya fundaba `VELO_OPACIDAD_PISO`), no una
+// medición del video REAL de CORTE, que es oscuro (§ el comentario de `navTinta` en `themes.ts`: "es
+// oscuro y uniforme, sin esquema asignado a 'hero'") — sobre un fondo oscuro, blanco sin velo SÍ
+// contrasta. **LA PALANCA DE CONTRASTE PASA A SER EL VIDEO, no el velo**: un tema futuro con un video
+// CLARO no puede simplemente copiar `heroVeloVisible:false` de CORTE — necesita su propio velo
+// encendido (el default `true` de la sección), o medir su propio video antes de apagarlo.
+
 // ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1 ───────────────────────────────────────────
 //
 // EL PEDIDO DEL OWNER, LITERAL, sobre el muestrario de RONDA 2 (arriba) ya aplicado: «el marquee no
@@ -266,6 +285,61 @@ export function translateYRevelado(progreso: number, estatico: boolean): number 
 export function claseAlturaAncestroMarquesina(tieneTarjeta: boolean): string {
   return tieneTarjeta ? 'min-h-[calc(100svh+200vh)]' : 'min-h-[calc(100svh+65vh)]';
 }
+
+// ── EL TICKER HORIZONTAL — por TIEMPO, no por scroll, § CORTE-HERO-VELO-OFF-Y-TICKER-1 ─────────────
+//
+// EL PEDIDO DEL OWNER, LITERAL, sobre el gate del prototipo aplicado (2026-09-27): «las letras
+// empiezan a salir desde abajo, pero están continuamente desplazándose horizontalmente, como un
+// aviso, no estático, cuando salen completas es que ya se empieza a navegar hacia abajo». Hasta este
+// slice el desplazamiento HORIZONTAL de `HeroMediaMarquesina` estaba LIGADO al scroll
+// (`transformMarquesinaTexto`, arriba) — la decisión EXPLÍCITA del spec original de `MUESTRARIO-HERO-
+// MARQUESINA-STICKY-1` ("reusá el motor de scroll de `lib/animation.ts`… no agregues librería"), que
+// el owner acaba de revertir con el tema real en la mano: es exactamente lo que ese spec prohibió
+// reproducir. Esta sección es el reemplazo — `transformMarquesinaTexto` NO SE TOCA (sigue gobernando
+// la X de `Marquesina.tsx`, la banda suelta, que también scrubea por scroll y no cambia con este
+// slice); `HeroMediaMarquesina.tsx` deja de llamarla.
+//
+// EL EJE VERTICAL (el revelado, § `UMBRAL_REVELADO_TEXTO` arriba) SIGUE siendo por SCROLL — son DOS
+// EJES, DOS MOTORES, compuestos en DOS ELEMENTOS `motion.*` distintos dentro del componente (el de
+// afuera centra/revela por scroll; el de adentro, con las dos copias del texto, corre el ticker por
+// tiempo) — nunca un solo `transform` armado a mano con las dos piezas concatenadas, que es como
+// vivía antes (`translate(x,-50%) translateY(dy)`).
+//
+// MEDIDO CONTRA EL JS DEL TEMA REAL, NO SU DOCUMENTACIÓN (el spec lo pide explícito): se leyó
+// `xo-webcomponents.min.js` servido por `x-cafeone.myshopify.com/cdn/shop/t/5/assets/`
+// (`node --eval "fetch(...)"`, no un navegador). La clase que registra `Names.Marquee = "xo-marquee"`
+// calcula la duración de la animación CSS de cada ítem en su método `setDuration()`:
+//   `u = this.children[0].offsetWidth` — el ancho de UN ítem del track, en px.
+//   `h = clamp(u*nd - (xoSpeed-1)*u, u, Infinity)`, con `nd = 14` (constante del bundle).
+// El HTML servido (`GET /`, la sección `hero_banner_marquee`) trae
+// `<xo-marquee xo-speed="1" xo-direction="ltr">` — SIN el atributo `xo-pause-on-hover`, así que cae
+// al default de la clase (`xoPauseOnHover: false`): NO pausa al pasar el cursor, y esta variante
+// tampoco lo implementa. Con `xoSpeed = 1`: `h = u*(14-0) = 14u` ms — la duración escala LINEAL con
+// el ancho del ítem, así que la VELOCIDAD EFECTIVA (distancia/tiempo) es CONSTANTE, independiente del
+// largo del texto: `u / (14u ms) = 1/14 px/ms = 1000/14 px/s ≈ 71.43 px/s`. Y
+// `xo-direction="ltr"` mapea a `--xo-marquee-to:"-100%"` (la rama `"rtl"/"btt"` no aplica) — el
+// mismo sentido NEGATIVO en X que ya tenía `transformMarquesinaTexto`, así que el sentido del
+// desplazamiento no cambia con este slice.
+export const VELOCIDAD_TICKER_PX_S = 1000 / 14;
+
+// `duracionTickerS` — PURA, sin React: dado el ancho medido de UNA COPIA del texto (px, el ancho de
+// UNO de los dos `<span>` duplicados) y la velocidad objetivo (px/s), la duración (segundos) de un
+// ciclo `x: 0% → -50%` sobre un track con DOS copias idénticas. Trasladar el track la MITAD de su
+// ancho total (`-50%`) mueve exactamente el ancho de UNA copia — el punto donde la segunda copia ya
+// ocupa la posición inicial de la primera, cerrando el loop sin salto visible en la costura ("cuando
+// la primera copia sale, la segunda ya viene", § el spec). `0` con un ancho o una velocidad no
+// positivos (SSR, o antes de la primera medición del DOM) — el llamador cae a un fallback en vez de
+// animar con `NaN`/`Infinity`.
+export function duracionTickerS(anchoUnaCopiaPx: number, velocidadPxS: number): number {
+  if (anchoUnaCopiaPx <= 0 || velocidadPxS <= 0) return 0;
+  return anchoUnaCopiaPx / velocidadPxS;
+}
+
+// Fallback ANTES de la primera medición del DOM — mismo papel que `TRAVEL_FALLBACK_PX`
+// (`HeroMediaMarquesina.tsx`): un texto de ancho típico (~800px) a la velocidad medida arriba. Se
+// sobrescribe en el primer `useEffect` del componente, así que nunca se ve en pantalla — la
+// animación del ticker arranca recién al montar en el cliente, con la medición real ya disponible.
+export const DURACION_TICKER_FALLBACK_S = 800 / VELOCIDAD_TICKER_PX_S;
 
 // ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────
 //

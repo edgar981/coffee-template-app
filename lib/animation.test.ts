@@ -8,6 +8,7 @@ import {
   opacidadRevelado, translateYRevelado, UMBRAL_REVELADO_TEXTO,
   claseAlturaAncestroMarquesina, fadeUp,
   direccionScroll, navOculto, UMBRAL_OCULTAR_NAV,
+  duracionTickerS, VELOCIDAD_TICKER_PX_S, DURACION_TICKER_FALLBACK_S,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -365,4 +366,37 @@ test('navOculto: en o sobre UMBRAL_OCULTAR_NAV, BAJANDO oculta', () => {
 test('navOculto: en o sobre UMBRAL_OCULTAR_NAV, SUBIENDO revela — el mismo xoDirection:"up" medido', () => {
   assert.equal(navOculto(UMBRAL_OCULTAR_NAV, 'arriba'), false);
   assert.equal(navOculto(UMBRAL_OCULTAR_NAV + 500, 'arriba'), false, 'aunque el scroll esté muy abajo, subir revela de inmediato');
+});
+
+// ── EL TICKER — § CORTE-HERO-VELO-OFF-Y-TICKER-1 ────────────────────────────────────────────────
+//
+// VELOCIDAD_TICKER_PX_S: MEDIDA contra el JS del tema real (`xo-webcomponents.min.js`,
+// `setDuration()`: `h = clamp(u*14 - (xoSpeed-1)*u, u, Infinity)`, `xoSpeed=1` medido en el HTML
+// servido — ver el docstring completo en `animation.ts`). `1000/14 ≈ 71.43 px/s`.
+
+test('VELOCIDAD_TICKER_PX_S es 1000/14 (≈71.43 px/s) — la derivación de nd=14, xoSpeed=1 medidos contra el tema real', () => {
+  assert.equal(VELOCIDAD_TICKER_PX_S, 1000 / 14);
+  assert.ok(Math.abs(VELOCIDAD_TICKER_PX_S - 71.43) < 0.01);
+});
+
+test('duracionTickerS: distancia/velocidad — el mismo px/s para cualquier ancho (velocidad EFECTIVA constante)', () => {
+  assert.equal(duracionTickerS(714.3, VELOCIDAD_TICKER_PX_S), 714.3 / VELOCIDAD_TICKER_PX_S);
+  // el doble de ancho → el doble de duración, misma velocidad (px/s) resultante en los dos casos.
+  const anchoChico = 500;
+  const anchoGrande = 1000;
+  const dChico = duracionTickerS(anchoChico, VELOCIDAD_TICKER_PX_S);
+  const dGrande = duracionTickerS(anchoGrande, VELOCIDAD_TICKER_PX_S);
+  assert.ok(Math.abs((anchoChico / dChico) - (anchoGrande / dGrande)) < 1e-9, 'la velocidad efectiva (ancho/duración) no depende del ancho');
+});
+
+test('duracionTickerS: ancho o velocidad no positivos → 0 (SSR/antes de medir el DOM, nunca NaN/Infinity)', () => {
+  assert.equal(duracionTickerS(0, VELOCIDAD_TICKER_PX_S), 0);
+  assert.equal(duracionTickerS(-10, VELOCIDAD_TICKER_PX_S), 0);
+  assert.equal(duracionTickerS(500, 0), 0);
+  assert.equal(duracionTickerS(500, -5), 0);
+});
+
+test('DURACION_TICKER_FALLBACK_S es positivo y finito — un valor real antes de la primera medición del DOM', () => {
+  assert.ok(Number.isFinite(DURACION_TICKER_FALLBACK_S));
+  assert.ok(DURACION_TICKER_FALLBACK_S > 0);
 });

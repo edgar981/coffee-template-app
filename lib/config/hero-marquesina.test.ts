@@ -114,6 +114,24 @@ test('el texto del loop rinde DOS VECES dentro del track (cinta continua), más 
   assert.equal(enSpans, 2);
 });
 
+// ─── EL TICKER — § CORTE-HERO-VELO-OFF-Y-TICKER-1: por TIEMPO, nunca "a medio ciclo" al cargar ────
+// LÍMITE: `renderToStaticMarkup` no evalúa `animate` (framer-motion sólo lo anima en el cliente, tras
+// hidratar) — sólo `initial`/`style` llegan al HTML. Lo que SÍ se puede afirmar acá es que el track
+// arranca SIEMPRE en `x:0%` (`transform:none`, § el probe de framer-motion citado en el asiento de
+// este slice): si `initial` faltara, el nodo no tendría NINGÚN `style` en absoluto. La curva real
+// (duración/keyframes/`repeat:Infinity`) vive en `duracionTickerS`/`VELOCIDAD_TICKER_PX_S`
+// (`lib/animation.test.ts`, testeables sin React) y en el gate visual del owner (capa 3).
+
+test('el ticker arranca SIEMPRE en su posición inicial (x:0%, transform:none) — nunca "a medio ciclo" al cargar', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.match(html, /transform:none/, '`initial={{x:"0%"}}` debe rendir style="transform:none" en el track');
+});
+
+test('EN PREVIEW: el ticker también arranca en x:0% — detenido, no a medio camino', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
+  assert.match(html, /transform:none/);
+});
+
 test('sin pin (`marquesina.productoSlug` vacío, el default): la tarjeta flotante NO rinde — hide-on-empty de UN elemento', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
   assert.ok(!/aspect-\[3\/4\]/.test(html), 'sin pin, no debe rendir el marcado de la tarjeta');
@@ -151,6 +169,17 @@ test('EN PREVIEW (proxy de movimiento reducido): la opacidad del velo es 1 — l
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
   assert.match(html, /opacity:1"/);
   assert.doesNotMatch(html, new RegExp(`opacity:${VELO_OPACIDAD_PISO}"`));
+});
+
+// § CORTE-HERO-VELO-OFF-Y-TICKER-1: el velo pasa a ser OPT-IN (`hero.veloVisible`).
+
+test('DEFAULTS.hero.veloVisible es true — el velo de HOY sigue montado por default (byte-idéntico)', () => {
+  assert.equal(DEFAULTS.hero.veloVisible, true);
+});
+
+test('veloVisible:false — el velo NO se monta en absoluto (ni el nodo, ni --sf-velo en el HTML)', () => {
+  const html = renderHeroMediaMarquesina({ ...DEFAULTS, hero: { ...DEFAULTS.hero, veloVisible: false } } as SiteContentData);
+  assert.doesNotMatch(html, /--sf-velo/, 'sin veloVisible, ningún rastro del token del velo');
 });
 
 // ─── LA MECÁNICA STICKY — el ancestro da el presupuesto de scroll; el panel visible es el pineado ─
@@ -215,10 +244,14 @@ test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO, QUIETO
   assert.match(html, /opacity:1"/, 'un gate de movimiento nunca puede esconder contenido — el texto queda VISIBLE, nunca en el piso de reposo');
 });
 
+// § CORTE-HERO-VELO-OFF-Y-TICKER-1 (RONDA 3) reescribe este caso: el eje HORIZONTAL dejó de ser
+// scroll-driven (ya no hay `translate(Npx, -50%)` combinado) — es un TICKER por TIEMPO, en un
+// elemento APARTE del que centra/revela por scroll. Este test afirma el eje VERTICAL (el único que
+// sigue viviendo en `transformVertical`, del elemento de AFUERA).
 test('SIN el gate estático (SSR, progreso arranca en 0): el texto arranca INVISIBLE y corrido hacia abajo — el revelado todavía no empezó', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
-  assert.ok(html.includes('transform:translate(0.0px, -50%) translateY(24.0px)'), 'el desplazamiento horizontal es 0 (recién arranca) y el revelado suma su offset de reposo (fadeUp.hidden.y)');
-  assert.ok(!html.includes('transform:translateY(-50%)'), 'sin el gate estático no debe rendir la forma "quieta" (sin el translateY del revelado)');
+  assert.ok(html.includes('transform:translateY(-50%) translateY(24.0px)'), 'el revelado suma su offset de reposo (fadeUp.hidden.y) al centrado vertical');
+  assert.ok(!html.includes('transform:translateY(-50%)"'), 'sin el gate estático no debe rendir la forma "quieta" del revelado (translateY(-50%) SIN el offset)');
   assert.match(html, /opacity:0"/, 'en reposo el marquee NO se ve — "inicialmente solo el video del hero"');
 });
 

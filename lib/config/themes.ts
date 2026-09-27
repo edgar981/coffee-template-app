@@ -180,6 +180,15 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * `height:calc(100vh - (var(--frame-gap) * 2))` con `min-height:640px` — ocupa el viewport
  * COMPLETO, no un 92% de él —, así que CORTE lo enciende.
  *
+ * `heroVeloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1, OPCIONAL) — UN SEXTO booleano de
+ * `REGISTRY.hero.booleanos` (`veloVisible`, ver el docstring de `HeroContent.veloVisible` en
+ * `site-content-defaults.ts`). AUSENTE en un preset = el comportamiento de HOY, byte a byte
+ * (`content.hero.veloVisible` sigue resolviendo a `true`, el overlay montado). El owner, sobre el
+ * prototipo aplicado (2026-09-27): «ese velo verde debemos quitarlo, hace que el video se vea sin
+ * calidad» — CORTE es hoy el ÚNICO preset que lo declara, y lo declara en `false` (lo apaga), no
+ * `true`: apagarlo es una decisión de ESTE video (oscuro), no del mecanismo en general — un tema
+ * futuro con video claro deja el campo sin declarar y hereda el default `true` (encendido).
+ *
  * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
  * arriba" (gemelo del `.to-top` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
  * storefront no tiene este chrome, `BackToTop.tsx` rinde `null`). Escribe `content.volverArriba.
@@ -286,6 +295,7 @@ export interface PresetTema {
   heroTitularVisible?: boolean;
   heroSubtituloVisible?: boolean;
   heroAlturaLlena?: boolean;
+  heroVeloVisible?: boolean;
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
   carritoEnvioVisible?: boolean;
@@ -656,7 +666,7 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // nunca escrita por un preset) intacta.
   if ((typeof preset.heroCtasVisibles === 'boolean' || typeof preset.heroCueDesliza === 'boolean'
       || typeof preset.heroTitularVisible === 'boolean' || typeof preset.heroSubtituloVisible === 'boolean'
-      || typeof preset.heroAlturaLlena === 'boolean')
+      || typeof preset.heroAlturaLlena === 'boolean' || typeof preset.heroVeloVisible === 'boolean')
       && registro.hero) {
     const prevHero = esObj(out.hero) ? out.hero : {};
     out.hero = {
@@ -669,6 +679,8 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
       ...(typeof preset.heroSubtituloVisible === 'boolean' ? { subtituloVisible: fusionar('hero.subtituloVisible', preset.heroSubtituloVisible) } : {}),
       // UNO MÁS (§ CORTE-HERO-VIEWPORT-LLENO-1), mismo mecanismo.
       ...(typeof preset.heroAlturaLlena === 'boolean' ? { alturaLlena: fusionar('hero.alturaLlena', preset.heroAlturaLlena) } : {}),
+      // UN SEXTO (§ CORTE-HERO-VELO-OFF-Y-TICKER-1), mismo mecanismo.
+      ...(typeof preset.heroVeloVisible === 'boolean' ? { veloVisible: fusionar('hero.veloVisible', preset.heroVeloVisible) } : {}),
     };
   }
 
@@ -972,6 +984,19 @@ export const CORTE: PresetTema = {
   // foto velada de la marquesina». CORTE es hoy el ÚNICO preset que lo declara; los otros cinco no
   // tocan `content.hero.alturaLlena`.
   heroAlturaLlena: true,
+  // heroVeloVisible (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) — el owner, gateando CORTE aplicado
+  // (2026-09-27): «ese velo verde debemos quitarlo, hace que el video se vea sin calidad». APAGA el
+  // overlay de `HeroMediaMarquesina` (`false`, no el default `true` de la sección): el video de CORTE
+  // es oscuro y uniforme (§ el comentario de `navTinta`, más abajo — "es oscuro y uniforme, sin
+  // esquema asignado a 'hero'"), así que el texto blanco del marquee sigue legible SIN el velo.
+  // Medido el límite de esa apuesta: contra las tres fotos CLARAS de referencia que `veloOpacidad`
+  // (`lib/animation.ts`) ya usaba como piso AA — arena, casi-blanco, crema — blanco SIN velo da
+  // 1.34:1 / 1.09:1 / 1.24:1, muy por debajo de 4.5:1. Esas tres fotos son un proxy conservador para
+  // un video CLARO, no una medición del video real de CORTE (oscuro); la palanca de contraste pasa a
+  // ser el VIDEO, no el velo — anotado para el owner en el asiento de este slice, no resuelto acá.
+  // CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
+  // `content.hero.veloVisible` (queda en su default `true`).
+  heroVeloVisible: false,
   // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
   // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija
   // abajo-derecha que pinta `background:var(--action-primary)` — el MISMO rol que ya mapea

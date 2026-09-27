@@ -10,8 +10,9 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoSpotlight } from "@/lib/config/site-content-defaults";
 import {
-  useProgresoScrollDesdeTope, transformMarquesinaTexto, transformMarquesinaTarjeta, veloOpacidad,
+  useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad,
   opacidadRevelado, translateYRevelado, claseAlturaAncestroMarquesina,
+  duracionTickerS, VELOCIDAD_TICKER_PX_S, DURACION_TICKER_FALLBACK_S,
 } from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
@@ -43,15 +44,19 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // reveal de entrada (slide-up + fade, SIN escala ni rotación), en `z:100`. El efecto visible: el
 // hero queda PEGADO mientras el texto y la tarjeta aparecen y se mueven por encima.
 //
-// ESTA VARIANTE REPLICA LA ESTRUCTURA (sticky + velo + texto-encima + tarjeta-encima), NO LAS
-// CURVAS DE ANIMACIÓN EXACTAS — decisión explícita del spec ("reusá el motor de scroll de
-// `lib/animation.ts`… no agregues librería"): el texto/tarjeta usan `transformMarquesinaTexto`/
-// `transformMarquesinaTarjeta` —las funciones YA construidas para `Marquesina.tsx`— en vez de un
-// ticker de velocidad-por-tiempo o reveals de slide+fade sin escala/rotación, y el velo sigue la
-// MISMA DIRECCIÓN que el fade 0→0.6 del sitio real (casi transparente en reposo, denso al final)
-// sin replicar sus keyframes exactos (§ CORTE-HERO-STICKY-RONDA-2-1, el bloque del velo más abajo).
-// Construir las curvas exactas habría exigido keyframes propios (código nuevo, no reutilización)
-// para un detalle de acabado que el spec no pidió replicar byte a byte.
+// ESTA VARIANTE REPLICA LA ESTRUCTURA (sticky + velo opt-in + texto-encima + tarjeta-encima) Y, DESDE
+// § CORTE-HERO-VELO-OFF-Y-TICKER-1, TAMBIÉN EL EJE HORIZONTAL DEL TEXTO — RONDA 3, QUE REVIERTE LA
+// DECISIÓN ORIGINAL. La primera versión (arriba, histórica) ataba el desplazamiento horizontal al
+// SCROLL (`transformMarquesinaTexto`, la función que `Marquesina.tsx` ya usaba) por una decisión
+// EXPLÍCITA del spec de `MUESTRARIO-HERO-MARQUESINA-STICKY-1` ("reusá el motor de scroll… no agregues
+// librería"). El owner, sobre el tema real: «las letras… están continuamente desplazándose
+// horizontalmente, como un aviso, no estático» — es LITERALMENTE lo que ese spec original prohibió
+// reproducir (§ RONDA 3, el bloque del ticker más abajo, y § el docstring de `VELOCIDAD_TICKER_PX_S`
+// en `lib/animation.ts`, donde vive la medición contra el JS del tema real). El eje VERTICAL (el
+// revelado por scroll, § RONDA 3 más abajo) no cambió: sigue siendo scroll-scrubbed, sin tocar. La
+// TARJETA sigue usando `transformMarquesinaTarjeta` (scroll-driven, sin cambios) — el pedido del
+// owner es sobre el TEXTO, no sobre la tarjeta, y no hay evidencia de que la tarjeta deba cambiar de
+// motor.
 //
 // `docs/prototipos/cafeone/` DERIVA DEL TEMA Y YA NO ES LA AUTORIDAD PARA ESTA BANDA. Su `.marquee`
 // (que `Marquesina.tsx` reproduce fielmente) es una SEGUNDA sección, aparte del `.hero`, con su
@@ -88,6 +93,17 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // un rgba horneado ni un segundo color. Bajo `estatico` (reduced-motion/preview) el velo NO puede
 // quedar en el piso semitransparente —no hay scroll que lo densifique—, así que rinde la MISMA
 // densidad de HOY (1 → efectiva 0.80).
+//
+// EL VELO ES OPT-IN — RONDA 3 (§ CORTE-HERO-VELO-OFF-Y-TICKER-1): `hero.veloVisible` (default
+// `true`, § `HeroContent.veloVisible` en site-content-defaults.ts) decide si el `<motion.div>` del
+// velo se MONTA en absoluto — no un `opacity:0` disfrazado, el nodo directamente no existe cuando es
+// `false`. El owner, sobre CORTE aplicado: «ese velo verde debemos quitarlo, hace que el video se vea
+// sin calidad» — CORTE apaga el toggle (`heroVeloVisible:false`, § themes.ts); el mecanismo de arriba
+// (`veloOpacidad`, el piso, la densidad final) NO CAMBIÓ, sigue rigiendo para todo tema que deje el
+// toggle en su default `true`. El contraste SIN velo, medido contra las mismas tres fotos de
+// referencia, está MUY por debajo del piso AA (§ el docstring de `veloOpacidad`) — apagarlo es
+// seguro para CORTE sólo porque su video es oscuro, no porque el mecanismo de contraste deje de
+// importar; ver ese docstring para el número completo y la advertencia al owner.
 //
 // ALTURALLENA sigue SIN leerse acá (decisión ORIGINAL, sin cambios en esta ronda): es un agregado de
 // `HeroMedia.tsx` para su propio caso (una sección NO pineada que puede o no llenar el viewport); lo
@@ -160,9 +176,11 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // `useProgresoScroll`: la usan también `Marquesina.tsx` y `SubscriptionCTALinea.tsx`, bandas de media
 // página donde su offset SÍ es el correcto; la hermana vive aparte, en el mismo archivo.
 //
-// `transformMarquesinaTexto`/`transformMarquesinaTarjeta` (las MISMAS funciones puras que
-// `Marquesina.tsx` ya usa, sin cambios en esta ronda) producen exactamente el mismo desplazamiento/
-// escala-rotación de siempre, ahora leídos contra el progreso YA corregido.
+// `transformMarquesinaTarjeta` (la MISMA función pura que `Marquesina.tsx` ya usa, sin cambios en
+// esta ronda) produce exactamente la misma escala/rotación de siempre, leída contra el progreso YA
+// corregido. `transformMarquesinaTexto` YA NO SE LLAMA ACÁ — desde § CORTE-HERO-VELO-OFF-Y-TICKER-1
+// (RONDA 3) el eje horizontal del texto es un TICKER por tiempo, no por scroll; ver esa sección más
+// abajo para el porqué y la mecánica completa. `Marquesina.tsx` sigue usando la función sin cambios.
 //
 // VERIFICADO ANTES DE ESCRIBIR (§ el spec: "verificá que ningún ancestro tenga overflow que rompa
 // el sticky"): `StorefrontLayout` (`app/(storefront)/layout.tsx`) no impone `overflow` en NINGÚN
@@ -170,10 +188,27 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // sin overflow, y `page.tsx` monta cada banda en un `<Fragment>` sin envoltorio propio) — `grep -n
 // overflow` sobre esos dos archivos da CERO resultados. El sticky funciona por construcción.
 //
+// EL TICKER — RONDA 3 (§ CORTE-HERO-VELO-OFF-Y-TICKER-1, ver el docstring de `VELOCIDAD_TICKER_PX_S`
+// en `lib/animation.ts` para la medición contra el tema real): el texto se desplaza horizontalmente
+// SOLO, por TIEMPO — `framer-motion`'s `animate` con `x: ['0%', '-50%']`, `repeat: Infinity`,
+// `ease: 'linear'` — DESACOPLADO de `progreso` (el scroll). Vive en un `<motion.div>` ANIDADO dentro
+// del que centra/revela por scroll: dos elementos, dos motores, en vez del `transform` armado a mano
+// de antes. `trackRef` mide el ancho de UNA COPIA del texto (el primer `<span>`) para calcular la
+// duración de un ciclo a la velocidad medida (`duracionTickerS`) — se re-mide al montar y en cada
+// resize, porque el ancho depende del texto y del tamaño de fuente responsive (`clamp(3rem,10vw,
+// 10rem)`).
+//
+// `estatico` (reduced-motion/preview) DETIENE el ticker — `animate:{x:'0%'}` sin keyframes ni
+// `repeat` — texto VISIBLE, QUIETO y legible, nunca "a medio camino" de un desplazamiento que no va a
+// avanzar. Mismo criterio que ya rige `transformMarquesinaTarjeta`/`veloOpacidad` bajo `estatico`.
+//
+// SIN PAUSA AL PASAR EL CURSOR — medido contra el tema real (§ el docstring de
+// `VELOCIDAD_TICKER_PX_S`): `xoPauseOnHover` es `false` por default y el HTML servido no trae el
+// atributo que lo activaría. No se implementa acá tampoco.
+//
 // MOVIMIENTO REDUCIDO Y VISTA PREVIA: MISMO gate que `Marquesina.tsx` (`estatico = preview ||
-// !!useReducedMotion()`) — con él, el texto queda CENTRADO y QUIETO y la tarjeta sin transformar,
-// nunca "a medio camino" de un recorrido que no va a avanzar.
-const TRAVEL_FALLBACK_PX = 1600;
+// !!useReducedMotion()`) — con él, el texto queda CENTRADO, QUIETO (ticker detenido) y la tarjeta sin
+// transformar, nunca "a medio camino" de un recorrido que no va a avanzar.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -187,23 +222,36 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   }, []);
   const producto = productoSpotlight(catalog, marquesina.productoSlug);
 
-  const [travelPx, setTravelPx] = useState(TRAVEL_FALLBACK_PX);
+  // El TICKER (§ el docstring de cabecera, "EL TICKER — RONDA 3"): `trackRef` apunta al `<motion.div>`
+  // con las dos copias del texto; se mide el ancho de la PRIMERA (`children[0]`) para derivar la
+  // duración de un ciclo a `VELOCIDAD_TICKER_PX_S`. Re-medido al montar y en cada resize — el ancho
+  // depende del texto y de un tamaño de fuente `clamp(...)` responsive.
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [duracionTicker, setDuracionTicker] = useState(DURACION_TICKER_FALLBACK_S);
   useEffect(() => {
-    setTravelPx(window.innerWidth * 1.6);
-  }, []);
+    function medir() {
+      const primero = trackRef.current?.children[0] as HTMLElement | undefined;
+      if (!primero) return;
+      const ancho = primero.getBoundingClientRect().width;
+      if (ancho > 0) setDuracionTicker(duracionTickerS(ancho, VELOCIDAD_TICKER_PX_S));
+    }
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [marquesina.texto]);
 
   // El ANCESTRO del sticky (§ el docstring de cabecera) — el target de `useProgresoScrollDesdeTope`,
   // nunca la `<section>` pineada.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const progreso = useProgresoScrollDesdeTope(wrapperRef);
-  // EL REVELADO (§ el docstring de cabecera): `translateYRevelado` se SUMA al centrado/desplazamiento
-  // de `transformMarquesinaTexto` — dos `translate()` en la misma cadena CSS se combinan por suma —,
-  // nunca lo reemplaza. `dy===0` (estatico, o progreso ya pasó la ventana) omite el translateY extra
-  // en vez de sumar un "translateY(0.0px)" inerte.
-  const transformTexto = useTransform(progreso, (p) => {
-    const base = transformMarquesinaTexto(p, travelPx, estatico);
+  // EL REVELADO (§ el docstring de cabecera): SÓLO el eje VERTICAL — centrado (`translateY(-50%)`) +
+  // `translateYRevelado` sumado (dos `translate()` sucesivos se combinan por suma), nunca lo
+  // reemplaza. El eje HORIZONTAL vive aparte, en el ticker (arriba) — ya no en este `transform`.
+  // `dy===0` (estatico, o progreso ya pasó la ventana) omite el translateY extra en vez de sumar un
+  // "translateY(0.0px)" inerte.
+  const transformVertical = useTransform(progreso, (p) => {
     const dy = translateYRevelado(p, estatico);
-    return dy === 0 ? base : `${base} translateY(${dy.toFixed(1)}px)`;
+    return dy === 0 ? 'translateY(-50%)' : `translateY(-50%) translateY(${dy.toFixed(1)}px)`;
   });
   const opacidadTexto = useTransform(progreso, (p) => opacidadRevelado(p, estatico));
   const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
@@ -268,22 +316,37 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             />
           )}
 
-          {/* EL VELO — RONDA 2 (§ el docstring de cabecera): mismo `bg-[var(--sf-velo)]` de siempre
-              (el color sigue del TOKEN, sin tocar), pero su `opacity` ahora sigue el scroll —
-              casi transparente en reposo, densa al final del recorrido — en vez de fija al 80%. */}
-          <motion.div className="absolute inset-0 bg-[var(--sf-velo)]" style={{ opacity: opacidadVelo }} />
+          {/* EL VELO — OPT-IN DESDE RONDA 3 (§ el docstring de cabecera, "EL VELO ES OPT-IN"):
+              `hero.veloVisible` decide si este nodo se MONTA. Cuando se monta, mismo `bg-[var(
+              --sf-velo)]` de siempre (el color sigue del TOKEN, sin tocar) con su `opacity` siguiendo
+              el scroll — casi transparente en reposo, densa al final del recorrido. */}
+          {hero.veloVisible && (
+            <motion.div className="absolute inset-0 bg-[var(--sf-velo)]" style={{ opacity: opacidadVelo }} />
+          )}
         </div>
 
-        {/* EL LOOP DE TEXTO — MEDIDO: `position:absolute;top:50%;z-index:10;white-space:nowrap`.
-            Decorativo (el nombre accesible vive en el `aria-label` de la sección, como
-            `Marquesina.tsx`); se repite dos veces para el efecto de cinta continua. */}
+        {/* EL LOOP DE TEXTO — DOS ELEMENTOS DESDE RONDA 3 (§ el docstring de cabecera, "EL TICKER"):
+            el de AFUERA centra/revela por SCROLL (posición + opacidad, MEDIDO:
+            `position:absolute;top:50%;z-index:10;white-space:nowrap`); el de ADENTRO (`trackRef`)
+            desplaza por TIEMPO, continuo, independiente del scroll. Decorativo (el nombre accesible
+            vive en el `aria-label` de la sección, como `Marquesina.tsx`); el texto se repite dos
+            veces para el efecto de cinta continua — trasladar el track la mitad de su ancho total
+            (`-50%`) mueve exactamente el ancho de UNA copia, cerrando el loop sin salto. */}
         <motion.div
           aria-hidden="true"
-          className="absolute left-0 top-1/2 z-10 flex whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
-          style={{ transform: transformTexto, opacity: opacidadTexto }}
+          className="absolute left-0 top-1/2 z-10 whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
+          style={{ transform: transformVertical, opacity: opacidadTexto }}
         >
-          <span className="pr-8">{marquesina.texto} —&nbsp;</span>
-          <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+          <motion.div
+            ref={trackRef}
+            className="flex whitespace-nowrap"
+            initial={{ x: '0%' }}
+            animate={estatico ? { x: '0%' } : { x: ['0%', '-50%'] }}
+            transition={estatico ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
+          >
+            <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+            <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+          </motion.div>
         </motion.div>
 
         {/* LA TARJETA — MEDIDO: "encima" del texto y del velo. `z-20` (por encima del `z-10` del

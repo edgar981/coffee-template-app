@@ -12,29 +12,35 @@ import { camposControladosPorPanel, huecosDelPanel, PENDIENTE_PANEL } from './pa
 // `components/admin/tienda-secciones.ts`) para que los siete editores siguientes (§ CLAUDE.md,
 // § Backlog de PENDIENTE_PANEL) lo reusen sin reinventar el mecanismo.
 //
+// UN SEXTO SE SUMÓ AL GRUPO (§ CORTE-HERO-VELO-OFF-Y-TICKER-1): `veloVisible` nace CON control del
+// panel desde su primer commit —igual que `hero.puntoFocal` (§ HERO-PUNTO-FOCAL-1)—, verificando que
+// `REGISTRY.hero.booleanos` + `HERO.booleanos` (acá) sean las DOS ÚNICAS fuentes que
+// `panel-controles.ts` consulta: sumar el nombre a las dos deja `huecosDelPanel()` en `[]` sin tocar
+// `PENDIENTE_PANEL`.
+//
 // EN MEMORIA: no monta React (el repo no tiene jsdom, § CLAUDE.md "El glob NO incluye *.test.tsx").
 // Prueba el CONFIG (`HERO.booleanos`) y las dos funciones puras que `TiendaSeccionEditor` consume
 // para decidir el render — no el JSX en sí. El componente lo cubre el gate visual (owner).
 
 const HERO = SECCIONES_TIENDA.find((c) => c.seccion === 'hero')!;
 
-// ─── LOS CINCO TOGGLES SON CONTROLES AHORA ──────────────────────────────────────────────────────────
+// ─── LOS SEIS TOGGLES SON CONTROLES AHORA ──────────────────────────────────────────────────────────
 
-test('HERO.booleanos declara exactamente los cinco interruptores, con esos nombres', () => {
+test('HERO.booleanos declara exactamente los seis interruptores, con esos nombres', () => {
   const nombres = (HERO.booleanos ?? []).map((b) => b.name).sort();
-  assert.deepEqual(nombres, ['alturaLlena', 'ctasVisibles', 'cueDesliza', 'subtituloVisible', 'titularVisible']);
+  assert.deepEqual(nombres, ['alturaLlena', 'ctasVisibles', 'cueDesliza', 'subtituloVisible', 'titularVisible', 'veloVisible']);
 });
 
-test('los cinco campos hero.* quedan CONTROLADOS por el panel (vía config.booleanos)', () => {
+test('los seis campos hero.* quedan CONTROLADOS por el panel (vía config.booleanos)', () => {
   const controlados = new Set(camposControladosPorPanel());
-  for (const campo of ['hero.ctasVisibles', 'hero.cueDesliza', 'hero.titularVisible', 'hero.subtituloVisible', 'hero.alturaLlena']) {
+  for (const campo of ['hero.ctasVisibles', 'hero.cueDesliza', 'hero.titularVisible', 'hero.subtituloVisible', 'hero.alturaLlena', 'hero.veloVisible']) {
     assert.ok(controlados.has(campo), `${campo} debería estar controlado`);
   }
 });
 
-test('los cinco YA NO están en PENDIENTE_PANEL — la lista encogió, el grupo se cerró', () => {
+test('los seis YA NO están en PENDIENTE_PANEL — la lista encogió, el grupo se cerró', () => {
   const exentos = new Set(PENDIENTE_PANEL.map((e) => e.campo));
-  for (const campo of ['hero.ctasVisibles', 'hero.cueDesliza', 'hero.titularVisible', 'hero.subtituloVisible', 'hero.alturaLlena']) {
+  for (const campo of ['hero.ctasVisibles', 'hero.cueDesliza', 'hero.titularVisible', 'hero.subtituloVisible', 'hero.alturaLlena', 'hero.veloVisible']) {
     assert.ok(!exentos.has(campo), `${campo} seguía exento — el grupo hero-toggles no se cerró`);
   }
   assert.ok(!PENDIENTE_PANEL.some((e) => e.cierra === 'PANEL-EDITOR-HERO-TOGGLES-1'), 'ninguna entrada de PENDIENTE_PANEL debe citar ya PANEL-EDITOR-HERO-TOGGLES-1');
@@ -61,10 +67,11 @@ test('gatePorCampo(HERO): eyebrow no está gateado por ningún interruptor (no a
   assert.equal(gatePorCampo(HERO).has('eyebrow'), false);
 });
 
-test('cueDesliza y alturaLlena no gatean ningún campo de texto (sin gatedFields — controlan presentación, no texto)', () => {
+test('cueDesliza, alturaLlena y veloVisible no gatean ningún campo de texto (sin gatedFields — controlan presentación, no texto)', () => {
   const nombresGate = new Set(gatePorCampo(HERO).values());
   assert.equal(nombresGate.has('cueDesliza'), false);
   assert.equal(nombresGate.has('alturaLlena'), false);
+  assert.equal(nombresGate.has('veloVisible'), false);
 });
 
 test('campoAtenuado: titulo se atenúa cuando titularVisible es false', () => {

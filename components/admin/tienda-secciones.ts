@@ -195,23 +195,29 @@ const HERO: SeccionConfig = {
   pagina: 'home',
   titulo: 'Hero de la home',
   ocultable: false,
-  // LOS CINCO INTERRUPTORES del hero-media (§ TEMAS-HERO-MEDIA-AGREGADOS-1,
-  // CORTE-HERO-TITULAR-OCULTABLE-1, CORTE-HERO-VIEWPORT-LLENO-1): antes SÓLO el preset los escribía
-  // (§ PANEL-EDITOR-HERO-TOGGLES-1, cierra su grupo de `PENDIENTE_PANEL`). El valor que el switch
-  // muestra al abrir es el que YA trae `content.hero.*` —sembrado por el preset, o el default si el
-  // preset no lo tocó—: el preset pone el punto de partida, el dueño lo overridea con el switch.
+  // LOS SEIS INTERRUPTORES del hero-media (§ TEMAS-HERO-MEDIA-AGREGADOS-1,
+  // CORTE-HERO-TITULAR-OCULTABLE-1, CORTE-HERO-VIEWPORT-LLENO-1, CORTE-HERO-VELO-OFF-Y-TICKER-1):
+  // antes SÓLO el preset los escribía (§ PANEL-EDITOR-HERO-TOGGLES-1, cierra su grupo de
+  // `PENDIENTE_PANEL`). El valor que el switch muestra al abrir es el que YA trae `content.hero.*`
+  // —sembrado por el preset, o el default si el preset no lo tocó—: el preset pone el punto de
+  // partida, el dueño lo overridea con el switch.
   // `titularVisible`/`subtituloVisible`/`ctasVisibles` GATEAN sus campos de texto (`gatedFields`,
   // § CampoBooleano) — apagados, esos campos siguen editables pero se muestran ATENUADOS; `cueDesliza`/
-  // `alturaLlena` no gatean ningún campo: controlan presentación del hero-media, sin texto propio.
-  // SÓLO tienen efecto visible con `hero.variante === 'media'` (curtina/ficha no los leen, § HeroMedia.
-  // tsx) — ese eje (`variante`) sigue sin control de panel, es su propio hueco, PANEL-EDITOR-VARIANTES-
-  // COMPOSICION-1, fuera del alcance de este slice.
+  // `alturaLlena`/`veloVisible` no gatean ningún campo: controlan presentación del hero-media, sin
+  // texto propio. `titularVisible`/`subtituloVisible`/`ctasVisibles`/`alturaLlena` SÓLO tienen efecto
+  // visible con `hero.variante === 'media'` (curtina/ficha no los leen, § HeroMedia.tsx); `cueDesliza`
+  // lo lee TAMBIÉN `hero.variante === 'sticky'` (§ HeroMediaMarquesina.tsx, RONDA 2); `veloVisible`
+  // (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) lo lee SÓLO `hero.variante === 'sticky'` — el overlay que
+  // `HeroMedia` no tiene (su propio velo es un degradado fijo, no toggleable). El eje `variante`
+  // mismo sigue sin control de panel, es su propio hueco, PANEL-EDITOR-VARIANTES-COMPOSICION-1, fuera
+  // del alcance de este slice.
   booleanos: [
     { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque.', gatedFields: ['titulo', 'tituloEnfasis'] },
     { name: 'subtituloVisible', label: 'Mostrar subtítulo',   gatedFields: ['subtitulo'] },
     { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos.', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
     { name: 'cueDesliza',       label: 'Mostrar el indicador "Desliza"', hint: 'La línea animada al pie que invita a bajar, con la etiqueta "Desliza".' },
     { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto del viewport, en vez de dejar asomar el siguiente bloque.' },
+    { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "sticky". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.' },
   ],
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
   campos: [

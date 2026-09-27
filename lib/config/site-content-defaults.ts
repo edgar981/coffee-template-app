@@ -98,6 +98,18 @@ export interface HeroContent {
   // switch en `HERO.booleanos` (`components/admin/tienda-secciones.ts`) con el mismo valor como punto
   // de partida. Antes, sólo `mergePresetEnContent` los escribía.
   alturaLlena: boolean;
+  // `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) — UN SEXTO booleano, mismo mecanismo que los
+  // cinco de arriba. SÓLO lo lee `HeroMediaMarquesina.tsx` (la variante `'sticky'`, ver el docstring
+  // de `HeroContent.variante`): controla si el overlay `bg-[var(--sf-velo)]` se monta sobre la media
+  // de fondo. El owner, sobre el prototipo de CORTE aplicado (2026-09-27): «ese velo verde debemos
+  // quitarlo, hace que el video se vea sin calidad». Apagarlo es correcto SÓLO porque el video de
+  // CORTE es oscuro (§ el docstring de `veloOpacidad`, `lib/animation.ts`, para el contraste medido
+  // SIN velo contra las tres fotos CLARAS de referencia — muy por debajo del piso AA; un tema con un
+  // fondo claro necesita el velo prendido). `default: true` = el hero-media de HOY, byte a byte (el
+  // velo siempre montado, como hasta este slice) — CORTE es el que lo apaga expresamente
+  // (`heroVeloVisible: false`, § themes.ts), no el default general: así un futuro tema con video
+  // claro sigue teniendo el velo encendido de fábrica, y sólo lo apaga si su propio video lo permite.
+  veloVisible: boolean;
   // EL PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1, recorte mínimo del Backlog #58 — "el ENCUADRE de las
   // imágenes subidas: punto focal, no recorte con caja"): qué parte de la MEDIA de fondo (imagen O
   // video, § `imagenTipo` arriba — el owner reportó el problema sobre un video, y sería incoherente
@@ -1284,6 +1296,9 @@ export const DEFAULTS: SiteContentData = {
     // `alturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1): default `false` = `min-h-[92vh]` de HOY,
     // byte-idéntico.
     alturaLlena: false,
+    // `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1): default `true` = el velo de HeroMediaMarquesina
+    // SIEMPRE montado, byte-idéntico al comportamiento de hoy (sólo CORTE lo apaga, § themes.ts).
+    veloVisible: true,
     // `puntoFocal` (§ HERO-PUNTO-FOCAL-1): default `'centro'` = SIN `object-position`, byte-idéntico
     // al recorte de hoy.
     puntoFocal: 'centro',
@@ -1818,14 +1833,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
       puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
     },
-    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1 y en
-    // § CORTE-HERO-VIEWPORT-LLENO-1): los CINCO agregados de mecánica true/false del hero-media del
-    // prototipo — `ctasVisibles` (apaga los dos CTA a la vez), `cueDesliza` (el indicador de scroll
-    // animado), `titularVisible` (el bloque `titulo`+`tituloEnfasis`) y `subtituloVisible` (el
-    // `subtitulo`), estos dos últimos cada uno su propio apagador, y `alturaLlena` (§ el docstring de
-    // `HeroContent.alturaLlena`: `100svh` en vez de `min-h-[92vh]`). El sexto agregado (`fraseAlPie`)
+    // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1,
+    // § CORTE-HERO-VIEWPORT-LLENO-1 y § CORTE-HERO-VELO-OFF-Y-TICKER-1): los SEIS agregados de
+    // mecánica true/false del hero-media del prototipo — `ctasVisibles` (apaga los dos CTA a la vez),
+    // `cueDesliza` (el indicador de scroll animado), `titularVisible` (el bloque
+    // `titulo`+`tituloEnfasis`) y `subtituloVisible` (el `subtitulo`), estos dos últimos cada uno su
+    // propio apagador, `alturaLlena` (§ el docstring de `HeroContent.alturaLlena`: `100svh` en vez de
+    // `min-h-[92vh]`), y `veloVisible` (§ el docstring de `HeroContent.veloVisible`: el overlay sobre
+    // la media de `HeroMediaMarquesina`, la variante `'sticky'`). El séptimo agregado (`fraseAlPie`)
     // es un `campos` normal, abajo.
-    booleanos: ['ctasVisibles', 'cueDesliza', 'titularVisible', 'subtituloVisible', 'alturaLlena'],
+    booleanos: ['ctasVisibles', 'cueDesliza', 'titularVisible', 'subtituloVisible', 'alturaLlena', 'veloVisible'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

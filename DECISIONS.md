@@ -24644,3 +24644,204 @@ textual como `approval-reason`); el merge sigue pendiente del gate del orquestad
 instrucción del dispatch, no mergea.
 
 **Cierra `CROMO-NAV-DIRECCION-SCROLL-1`.**
+
+## 2026-09-27 — El velo del hero·sticky se apaga para CORTE, y el marquee pasa de scroll a TICKER por tiempo (`CORTE-HERO-VELO-OFF-Y-TICKER-1`)
+
+**El pedido del owner, textual** (gate visual del 2026-09-27, sobre el tema real): *"Ese velo verde
+debemos quitarlo, hace que el video se vea sin calidad"* y *"las letras empiezan a salir desde abajo,
+pero estan continuamente desplazandose horizontalmente, como un aviso, no estatico, cuando salen
+completas es que ya se empieza a navegar hacia abajo"*. Dos correcciones sobre `HeroMediaMarquesina.tsx`
+(la variante `'sticky'` del hero, § `MUESTRARIO-HERO-MARQUESINA-STICKY-1`): el velo pasa a ser OPT-IN
+(default `true`, CORTE lo apaga), y el desplazamiento horizontal del texto deja de estar ligado al
+scroll — pasa a ser un ticker por TIEMPO, independiente, mientras el revelado vertical sigue por
+scroll. **Es LITERALMENTE lo que el spec original de `MUESTRARIO-HERO-MARQUESINA-STICKY-1` prohibió
+reproducir** ("reusá el motor de scroll de `lib/animation.ts`… no agregues librería") — esa orden era
+del orquestador, y el owner acaba de pedir lo que el worker de entonces había medido y no pudo construir.
+
+### 1 · El velo, opt-in
+
+`HeroContent` gana `veloVisible: boolean` — el SEXTO booleano de `REGISTRY.hero.booleanos` (junto a
+`ctasVisibles`/`cueDesliza`/`titularVisible`/`subtituloVisible`/`alturaLlena`), mismo mecanismo, mismo
+editor genérico (`HERO.booleanos`, `components/admin/tienda-secciones.ts`). **Default `true`** (el
+comportamiento de HOY, el overlay siempre montado) — CORTE es el ÚNICO preset que lo declara, en
+`false` (`heroVeloVisible`, `PresetTema`/`mergePresetEnContent`, `themes.ts`). `HeroMediaMarquesina.tsx`
+deja de MONTAR el `<motion.div>` del velo cuando `hero.veloVisible` es `false` — no un `opacity:0`
+disfrazado, el nodo no existe.
+
+**El control del panel nace SOLO**, verificado y no supuesto (§ el spec: "Verificalo, no lo supongas").
+Sumar `'veloVisible'` a `REGISTRY.hero.booleanos` (site-content-defaults.ts) y a `HERO.booleanos`
+(tienda-secciones.ts) en el MISMO commit deja `huecosDelPanel()` en `[]` sin tocar `PENDIENTE_PANEL` —
+las dos listas se derivan (`panel-controles.ts`, § PANEL-REFLEJA-TIENDA-CHEQUEO-1), así que el campo
+queda controlado desde su primer commit, igual que `hero.puntoFocal` (§ HERO-PUNTO-FOCAL-1). Calibración
+dedicada en `panel-controles.test.ts`.
+
+**EL CONTRASTE SIN VELO, MEDIDO — no se reintrodujo el velo pese al número.** Contra las MISMAS tres
+fotos de referencia que `CORTE-HERO-STICKY-RONDA-2-1` ya usaba (blanco sobre arena `rgb(232,222,200)`,
+casi-blanco `rgb(245,245,240)`, crema `rgb(238,230,214)`):
+
+```
+arena        → 1.34:1
+casi-blanco  → 1.09:1
+crema        → 1.24:1
+```
+
+Muy por debajo del piso AA (4.5:1) que el velo, encendido, garantizaba incluso en su peor caso (5.25:1,
+§ `VELO_OPACIDAD_PISO`). El spec, con el número en la mano, dice explícito: no reintroducir el velo — el
+owner lo descartó — y anotar que **la palanca de contraste pasa a ser el VIDEO**. Las tres fotos son un
+proxy CONSERVADOR pensado para un video CLARO; el video real de CORTE es oscuro y uniforme (§ el
+comentario de `navTinta` en `themes.ts`: "es oscuro y uniforme, sin esquema asignado a 'hero'"), así que
+blanco sin velo SÍ contrasta sobre él. **Queda anotado para el owner, sin resolver acá**: un tema futuro
+con un video CLARO no puede copiar `heroVeloVisible:false` de CORTE sin medir su propio video — o deja
+el velo en su default `true`.
+
+### 2 · El ticker, dos ejes y dos motores
+
+El pedido describe DOS movimientos COMPUESTOS: el texto se desplaza horizontalmente SOLO, por tiempo,
+mientras (a la vez) se revela verticalmente por scroll. Se separaron en DOS elementos `motion.*`
+anidados — el de AFUERA centra/revela por scroll (`transformVertical`, sólo el eje Y ahora — el eje X
+salió de acá); el de ADENTRO (con las dos copias del texto) corre el ticker por tiempo, vía `animate`
+declarativo de framer-motion (`x: ['0%','-50%']`, `repeat: Infinity`, `ease: 'linear'`) — el motor que
+ya está en el repo, sin agregar librería, tal como el spec pidió. `transformMarquesinaTexto` (la función
+scroll-driven que gobernaba la X hasta este slice) **NO SE TOCÓ ni se borró**: `Marquesina.tsx` (la
+banda suelta) sigue usándola sin cambios — sólo `HeroMediaMarquesina.tsx` dejó de llamarla.
+
+**Velocidad medida contra el JS del tema real, no su documentación** (`x-cafeone.myshopify.com/cdn/shop/
+t/5/assets/xo-webcomponents.min.js`, leído con `node --eval "fetch(...)"`, ~422 KB minificado). La clase
+que registra `Names.Marquee = "xo-marquee"` calcula la duración de cada ítem en `setDuration()`:
+
+```
+u = this.children[0].offsetWidth          // ancho de UN ítem, px
+h = clamp(u*nd - (xoSpeed-1)*u, u, Infinity)   // nd = 14, constante del bundle
+```
+
+El HTML servido (`GET /`, sección `hero_banner_marquee`) trae `<xo-marquee xo-speed="1"
+xo-direction="ltr">` — **sin** `xo-pause-on-hover` (default de la clase: `xoPauseOnHover:false`, no
+pausa al pasar el cursor). Con `xoSpeed=1`: `h = u*(14-0) = 14u` ms — la duración escala LINEAL con el
+ancho del ítem, así que la velocidad EFECTIVA (distancia/tiempo) es CONSTANTE, independiente del largo
+del texto: `u / (14u ms) = 1000/14 ≈ 71.43 px/s`. Y `xo-direction="ltr"` mapea a
+`--xo-marquee-to:"-100%"` — el mismo sentido NEGATIVO en X que ya tenía `transformMarquesinaTexto`, así
+que el sentido del desplazamiento no cambió.
+
+`VELOCIDAD_TICKER_PX_S = 1000/14` (`lib/animation.ts`) y `duracionTickerS(anchoUnaCopiaPx, velocidadPxS)`
+— pura, testeada sin React — derivan la duración de UN ciclo `0%→-50%` (la mitad del ancho del track de
+dos copias = el ancho de UNA copia, así el loop cierra sin salto). El componente mide el ancho real de
+un `<span>` copia (`trackRef.current.children[0].getBoundingClientRect().width`) al montar y en cada
+resize; `DURACION_TICKER_FALLBACK_S` (≈11.2s a la velocidad medida, para un texto de ~800px) cubre el
+instante antes de la primera medición — nunca se ve, porque la animación arranca recién al montar en el
+cliente.
+
+**`estatico` (reduced-motion/preview) DETIENE el ticker** — `animate:{x:'0%'}` sin keyframes ni
+`repeat` — texto visible, quieto, legible; nunca "a medio camino". **Sin pausa al pasar el cursor** —
+medido, no supuesto: el tema real tampoco la tiene (`xoPauseOnHover:false` por default, sin el
+atributo que la activaría en el HTML servido), así que esta variante no la implementa.
+
+### 3 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2268/2268** — reconciliado contra el piso del commit inmediato anterior (`05f3455`, `CROMO-NAV-DIRECCION-SCROLL-1`, 2252/2252): `2252 + 16 = 2268`. El `+16` es el propio diff de los 6 archivos de test de capa 1 tocados: medido `git diff -- <esos 6> \| grep -c "^+test("` → 21, `^-test(` → 5 (títulos de tests existentes ampliados/reescritos, § abajo), `21-5=16` |
+| `npm run test:integracion` | **237/237** — sin cambio en el conteo (ningún archivo de `tests/integracion/` está en `touches:` de este slice) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs. esta rama) |
+| `npm run guarda:color` | **0px**, Nayoli sin preset vs. fixture — corrió sola por tocar `REGISTRY`/`DEFAULTS` del hero, como el spec anticipó |
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+Los 5 títulos de test RENOMBRADOS (no perdidos: `git diff` los muestra como par -/+ del mismo test
+ampliado): `panel-hero-toggles.test.ts` ("los cinco…" → "los seis…", ×3, sumando `veloVisible` a los
+nombres/conjuntos ya afirmados) y `corte-marquesina-velo.test.ts` (el último test, que hasta este slice
+afirmaba que el hero·sticky de CORTE SEGUÍA montando el velo — ahora afirma lo contrario, § el hallazgo
+de abajo).
+
+**HALLAZGO DURANTE EL SLICE, corregido en el mismo commit: `corte-marquesina-velo.test.ts` YA EXISTÍA**
+(de `CORTE-MARQUESINA-VELO-1`, 2026-09-23 — la derivación del token `--sf-velo` compartido entre
+`HeroMedia`/`Marquesina`/`HeroMediaMarquesina`). El primer intento de escribir el archivo nuevo listado
+en `touches:` lo SOBRESCRIBIÓ por completo con `Write` sin leerlo primero — se detectó por `git status`
+mostrando el archivo como MODIFICADO, no nuevo (`??`), antes de comitear nada. Se restauró con
+`git checkout HEAD -- lib/config/corte-marquesina-velo.test.ts` y se re-hizo como una EDICIÓN quirúrgica:
+sólo el último test (`?tema=CORTE: …`), que afirmaba `bg-[var(--sf-velo)]` presente bajo CORTE·sticky —
+verde antes de este slice, roto por el cambio de §1 (medido: falló al correr los 8 tests del archivo
+tras aplicar `heroVeloVisible:false`) — se reescribió para afirmar la ausencia del token bajo CORTE, con
+un comentario explicando el porqué. Los otros 7 tests del archivo (la derivación de `--sf-velo`, el
+gradiente de `HeroMedia`, el velo de `Marquesina`, la invariante de Nayoli) NO se tocaron — no dependen
+de este cambio. Los tests de CATÁLOGO de `heroVeloVisible` (declaración única de CORTE, merge,
+mirador) se agregaron en `hero-toggles-preset.test.ts`, el archivo que ya tiene el patrón establecido
+para los otros cinco booleanos del hero — no se duplicaron en `corte-marquesina-velo.test.ts`.
+
+**El dueño debe re-aplicar CORTE para ver el velo apagado** — es un campo de `PresetTema` que sólo
+`mergePresetEnContent` escribe (o el switch nuevo del panel, "Mostrar el velo sobre el video"); un
+tenant que ya tenía CORTE aplicado ANTES de este slice no lo lleva apagado hasta que se re-aplique el
+preset o se apague el switch a mano.
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/home/HeroMediaMarquesina.tsx` (+100/-37), `lib/animation.ts` (+74/-0:
+`VELOCIDAD_TICKER_PX_S`, `duracionTickerS`, `DURACION_TICKER_FALLBACK_S`, más el addendum de contraste
+sin velo en el docstring de `veloOpacidad`), `lib/animation.test.ts` (+34/-0), `lib/config/
+hero-marquesina.test.ts` (+35/-2), `lib/config/themes.ts` (+26/-1), `lib/config/site-content-schema.ts`
+(+3/-0), `lib/config/site-content-defaults.ts` (+24/-7), `lib/config/hero-toggles-preset.test.ts`
+(+60/-0), `lib/config/panel-hero-toggles.test.ts` (+15/-8), `lib/config/corte-marquesina-velo.test.ts`
+(+14/-2), `lib/config/panel-controles.test.ts` (+12/-0), `components/admin/tienda-secciones.ts`
+(+15/-9), este asiento. Medido con `git diff --numstat`: 12 archivos, los 12 en la lista de `touches:`.
+`lib/config/themes.test.ts`, `lib/config/site-content-defaults.test.ts` y `lib/config/panel-controles.ts`
+estaban en `touches:` y NO se tocaron — sus mecanismos derivados (byte-identidad de `DEFAULTS.hero`
+contra sí mismo, `camposLeidosPorTienda()`/`camposControladosPorPanel()`) absorbieron el campo nuevo sin
+necesitar edición, verificado corriendo sus suites completas en verde.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `HeroMediaMarquesina`, `veloVisible`/`heroVeloVisible`,
+`HeroContent`, `PresetTema`, `VELOCIDAD_TICKER_PX_S`, `duracionTickerS`, `DURACION_TICKER_FALLBACK_S`,
+`transformMarquesinaTexto`, `REGISTRY.hero.booleanos`, `HERO.booleanos`, `heroEditableSchema`,
+`mergePresetEnContent`, `hero.cueDesliza`, `hero.alturaLlena`. Grepeados uno por uno contra `CLAUDE.md`
+(`grep -c`): **CERO apariciones para los catorce.** Nada en `CLAUDE.md` nombra ninguno de estos
+símbolos — el hero-media/sticky, sus booleanos y el mecanismo de presets viven sólo en los comentarios
+del código y en `DECISIONS.md`, nunca se subieron a `CLAUDE.md`. **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** La rama entera (contra `main`) ya trae `CROMO-NAV-DIRECCION-SCROLL-1` y
+`CORTE-HERO-MARQUEE-REVELA-1` con `customer_bytes.changed: true` propio — este commit lo suma de nuevo,
+por su propia razón: CORTE (aplicado por un tenant real vía el preset o re-aplicado por el switch del
+panel) deja de mostrar el velo sobre el video del hero y su marquee pasa de deslizarse con el scroll a
+desplazarse continuamente por tiempo — dos cambios VISIBLES para cualquier visitante bajo ese preset.
+`strings`: **ninguno nuevo de storefront** — no se agregó ni cambió texto visible (el marquee sigue
+leyendo `marquesina.texto`, sin tocar); el único string nuevo es la etiqueta del switch del PANEL ADMIN
+("Mostrar el velo sobre el video", `components/admin/tienda-secciones.ts`), copy operativo del dueño,
+no del storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un campo más en un JSON Field ya existente (`SiteContent.content`, sin
+migración), lógica pura en `lib/animation.ts`, su cableado en un componente de storefront existente y un
+editor de panel existente, y tests.
+
+### Follow-up nombrado, no resuelto acá
+
+- **`MARQUESINA-TICKER-CONSUMIDOR-1`** — `Marquesina.tsx` (la banda suelta, hoy apagada bajo CORTE vía
+  `bandasVisibles.marquesina:false`) sigue desplazando su texto con `transformMarquesinaTexto`,
+  scroll-scrubbed — el MISMO defecto de motor que este slice corrigió en `HeroMediaMarquesina.tsx`, no
+  migrado acá: el spec de este slice fue explícito en no tocarla ("contá que es un consumidor más del
+  mismo defecto y nombralo como follow-up"). Sin disparador hoy (ningún preset la enciende); se activa
+  si algún preset futuro enciende `bandasVisibles.marquesina` Y el owner reporta el mismo defecto sobre
+  esa banda suelta.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde en las cinco capas (§3), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**Cierra `CORTE-HERO-VELO-OFF-Y-TICKER-1`.**

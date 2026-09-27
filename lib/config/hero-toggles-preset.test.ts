@@ -152,3 +152,63 @@ test('?tema=CORTE preserva el copy/imagen del hero que un tenant ya hubiera carg
   assert.equal(conCorte.hero.ctasVisibles, false);
   assert.equal(conCorte.hero.cueDesliza, true);
 });
+
+// ─── heroVeloVisible — § CORTE-HERO-VELO-OFF-Y-TICKER-1, MISMO PATRÓN, SEXTO booleano ────────────
+//
+// El owner, con el tema real en la mano (2026-09-27): «ese velo verde debemos quitarlo, hace que el
+// video se vea sin calidad». `heroVeloVisible` es UN booleano más de `REGISTRY.hero.booleanos`
+// (default `true`, byte-idéntico); CORTE lo declara en `false` — es el único preset que lo apaga. El
+// mecanismo de render (el `<motion.div>` del velo deja de MONTARSE) vive en `HeroMediaMarquesina.tsx`
+// y se afirma en `hero-marquesina.test.ts`; acá sólo el eje PRESET (declaración + merge + mirador),
+// mismo patrón que `heroCtasVisibles`/`heroCueDesliza` arriba.
+
+test('CORTE declara heroVeloVisible:false — sigue validando COMPLETO', () => {
+  assert.equal(CORTE.heroVeloVisible, false);
+  assert.deepEqual(validarPreset(CORTE), []);
+  assert.ok(presetCompleto(CORTE));
+});
+
+test('CORTE es el ÚNICO preset del catálogo que declara heroVeloVisible', () => {
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.heroVeloVisible, undefined, `${preset.clave} no debería declarar heroVeloVisible`);
+  }
+});
+
+test('mergePresetEnContent(_, CORTE): escribe hero.veloVisible:false, preservando lo demás de la sección', () => {
+  const antes = { hero: { visible: true, titulo: 'El título del dueño', variante: 'curtina' } };
+  const despues = mergePresetEnContent(antes, CORTE);
+  const hero = despues.hero as Record<string, unknown>;
+  assert.equal(hero.veloVisible, false);
+  assert.equal(hero.titulo, 'El título del dueño');
+});
+
+test('mergePresetEnContent NO toca hero.veloVisible para un preset que no lo declara (PATIO)', () => {
+  assert.equal(PATIO.heroVeloVisible, undefined);
+  const antes = { hero: { visible: true, veloVisible: true, variante: 'curtina' } };
+  const despues = mergePresetEnContent(antes, PATIO);
+  const hero = despues.hero as Record<string, unknown>;
+  assert.equal(hero.veloVisible, true, 'ninguna clave cambia de valor — el bloque entero se saltea');
+});
+
+test('mergePresetEnContent(_, preset) sobre los CINCO presets restantes: ninguno agrega veloVisible a una sección que no lo tenía', () => {
+  const antes = { hero: { visible: true, variante: 'curtina' } };
+  for (const preset of [PLIEGO, PATIO, VETA, VITRINA, ARRANQUE]) {
+    const despues = mergePresetEnContent(antes, preset);
+    const hero = despues.hero as Record<string, unknown>;
+    assert.equal('veloVisible' in hero, false, `${preset.clave} no debería escribir veloVisible`);
+  }
+});
+
+test('LA INVARIANTE: sin ?tema= (Nayoli), hero.veloVisible sigue en su default true — el velo de HOY', () => {
+  const nayoli = resolverSiteContent({});
+  assert.equal(nayoli.hero.veloVisible, true);
+  const sinTema = contenidoConPresetDeVista(nayoli, undefined);
+  assert.equal(sinTema, nayoli, 'byte-idéntico: la misma referencia, ni un campo tocado');
+});
+
+test('?tema=CORTE sobre Nayoli: hero.veloVisible pasa a false', () => {
+  const nayoli = resolverSiteContent({});
+  const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
+  assert.equal(conCorte.hero.veloVisible, false);
+});

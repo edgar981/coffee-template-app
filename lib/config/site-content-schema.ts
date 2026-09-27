@@ -44,6 +44,9 @@ const heroEditableSchema = z.object({
   // UN TOGGLE MÁS (§ CORTE-HERO-VIEWPORT-LLENO-1), mismo mecanismo: sin declararlo, zod lo
   // STRIPPEARÍA al guardar (§ #65-B).
   alturaLlena: z.boolean().optional(),
+  // UN SEXTO TOGGLE (§ CORTE-HERO-VELO-OFF-Y-TICKER-1), mismo mecanismo: sin declararlo, zod lo
+  // STRIPPEARÍA al guardar (§ #65-B).
+  veloVisible: z.boolean().optional(),
   // El PUNTO FOCAL de la media de fondo (§ HERO-PUNTO-FOCAL-1, ver el docstring de
   // `HeroContent.puntoFocal` en site-content-defaults.ts). `z.string()` —no `z.enum`—, MISMO motivo
   // que `variante`/`imagenTipo`: el resolver SOFT (`resolverVariante`, vía
