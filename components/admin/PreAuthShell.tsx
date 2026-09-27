@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { DunaPie } from "@/components/admin/DunaPie";
+import { HORIZONTE_BANDA_FRACCION } from "@/lib/duna-horizonte";
 
 // ─── Chasis de las pantallas PRE-AUTH ────────────────────────────────────────
 // Las TRES son /login, /aceptar-invitacion y /recuperar-clave (+ su
@@ -44,6 +45,26 @@ export function AvisoError({ children }: { children: ReactNode }) {
   );
 }
 
+// PANEL-LOGIN-HORIZONTE-ONDULANTE-1: la banda inferior se RE-DERIVA de la
+// geometría del horizonte (antes, de la cresta única que reemplaza). El SVG
+// escala `width:100%, height:auto`, así que la altura ocupada por el dibujo es
+// proporcional al ANCHO del contenedor — la fracción relevante es la distancia
+// entre el punto MÁS ALTO que cualquier línea del horizonte puede alcanzar y el
+// borde inferior del viewBox, medida en unidades de ancho.
+//
+// `HORIZONTE_BANDA_FRACCION` (§ lib/duna-horizonte.ts) YA es esa cuenta —una
+// sola fuente, no dos números que puedan divergir—; acá sólo se REDONDEA hacia
+// ARRIBA (nunca hacia abajo: cruzar contenido es peor que sobrar aire) para
+// obtener el porcentaje de `vw`. Va por `style`, no por una clase Tailwind
+// `pb-[...]`: una arbitrary-value class necesita ser un LITERAL estático para
+// que el escaneo de Tailwind la vea, y ésta depende de una constante calculada.
+const BANDA_VW = Math.ceil(HORIZONTE_BANDA_FRACCION * 100);
+
+// El PISO también sube, de 3.5rem a 4rem: el horizonte de varias líneas ocupa
+// más espacio vertical que la cresta única que reemplaza (~10.9% del ancho
+// contra los ~8.9% de antes, medido en `lib/duna-horizonte.test.ts`).
+const PISO_BANDA_REM = 4;
+
 export function PreAuthShell({
   titulo,
   nombre,
@@ -56,13 +77,14 @@ export function PreAuthShell({
   children: ReactNode;
 }) {
   return (
-    // El padding-BOTTOM reserva la banda de la duna, para que el contenido centrado (la card y el
-    // pie) quede POR ENCIMA de la cresta y ésta cruce fondo vacío, no el texto. Se ancla el
-    // contenido en vez de capar el SVG: la duna es decoración con el sol CIRCULAR ridando la cresta
-    // (animateMotion), así que capar el alto o la letterboxea (deja de cruzar toda la pantalla) o
-    // clipa el sol en el pico. `11vw` sigue el alto de la cresta —proporcional al ancho, ~0.09·W del
-    // borde inferior (viewBox 1440×240, pico en y≈112; § DunaPie)— con un piso de 3.5rem en angosto.
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 pt-10 pb-[max(3.5rem,11vw)]">
+    // El padding-BOTTOM reserva la banda del horizonte, para que el contenido centrado (la card y
+    // el pie) quede POR ENCIMA de sus líneas y éstas ondulen sobre fondo vacío, no sobre el texto.
+    // Se ancla el contenido en vez de capar el SVG: capar el alto lo letterboxearía (dejaría de
+    // cruzar toda la pantalla). `BANDA_VW`/`PISO_BANDA_REM`, arriba, son la derivación.
+    <div
+      className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 pt-10"
+      style={{ paddingBottom: `max(${PISO_BANDA_REM}rem, ${BANDA_VW}vw)` }}
+    >
       {/* Profundidad sutil: UN tinte radial del primario a muy baja opacidad,
           para que el fondo no sea un plano muerto. Sale de tokens, así que se
           adapta a claro y oscuro, y se queda muy por debajo de la card — el
@@ -72,7 +94,7 @@ export function PreAuthShell({
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(48rem_32rem_at_50%_0%,hsl(var(--primary)/0.07),transparent_70%)]"
       />
 
-      {/* La duna con el sol, al fondo — identidad de la puerta. Detrás de la card
+      {/* El horizonte ondulante, al fondo — identidad de la puerta. Detrás de la card
           (la card es `relative`, con su fondo `bg-card` que la separa del trazo). */}
       <DunaPie />
 

@@ -25964,3 +25964,245 @@ porque el diff lo amerite. Gate verde en las tres capas medidas (§ Gate). Commi
 `slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador.
 
 **Cierra `CORTE-MARQUEE-VELOCIDAD-REAL-1`.**
+
+## 2026-09-27 — El horizonte ondulante reemplaza a la cresta única del sol en las pantallas pre-auth (`PANEL-LOGIN-HORIZONTE-ONDULANTE-1`)
+
+Pedido textual del owner (2026-09-27), con una captura de la pieza de marca de Duna y su archivo
+fuente adjunto: cambiar la línea con el punto ámbar de `/login` por las líneas de la parte de abajo
+de esa pieza —ámbar y "como crema"—, con las crema pasando a tinta en modo claro, y con una
+animación que las haga ondular.
+
+### 0 · EL BLOQUEO DE LA REFERENCIA, Y LA DECISIÓN QUE TOMÉ EN VEZ DE PARAR EL SLICE ENTERO
+
+El spec apuntaba a un archivo fuera del repo
+(`~/.claude/uploads/4dc3dc0b-.../660043e9-duna.html`) como la fuente de la GRAMÁTICA exacta —cuántas
+ondas se superponen por línea, cómo se desfasan entre sí, cómo decae la opacidad—. **Este dispatch
+NO tiene permiso de lectura fuera del directorio del repo**: `Read`, `cat` y `wc` sobre esa ruta
+fallaron los tres con el mismo mensaje ("Claude Code may only [leer/concatenar/contar] archivos
+desde los directorios de trabajo permitidos… coffee-template-app"). No es un permiso que se pueda
+reintentar ni conceder desde acá — es el sandbox de la sesión.
+
+**Decisión: NO bloquear el slice entero por esto.** El propio spec, en su Sección 0, ya TRANSCRIBE
+la gramática que ese archivo contiene (dos ondas superpuestas de distinta frecuencia/velocidad por
+línea, cuáles van ámbar, cómo decae la opacidad hacia el fondo) y en su Sección 4 autoriza
+explícitamente adaptar cualquier valor que no traduzca, con la condición de decirlo acá. Construí la
+gramática matemática DESCRITA en el spec (no los píxeles del archivo, que nunca vi) y dejo esto
+como una DESVIACIÓN medida, no una elección oculta. El gate real de esta pantalla son los ojos del
+owner (§4 del spec) — si el resultado no se parece a lo que señaló, es un ajuste de parámetros sobre
+`lib/duna-horizonte.ts`, no un rediseño.
+
+### 1 · La gramática, tal como se implementó
+
+`lib/duna-horizonte.ts` (PURO, sin React ni DOM) genera **6 líneas** (`HORIZONTE_NUM_LINEAS`), de
+las cuales las **2 más al frente** son de acento/ámbar (`HORIZONTE_NUM_AMBAR`) y las 4 restantes son
+neutras. Por línea:
+
+| índice | acento | opacidad | período (px) | duración (s) | dirección |
+| --- | --- | --- | --- | --- | --- |
+| 0 (más lejos) | no | 0.120 | 420 | 26 | + |
+| 1 | no | 0.196 | 475 | 23 | − |
+| 2 | no | 0.272 | 530 | 20 | + |
+| 3 | no | 0.348 | 585 | 17 | − |
+| 4 | **sí** | 0.424 | 640 | 14 | + |
+| 5 (más cerca) | **sí** | 0.500 | 695 | 11 | − |
+
+- **DOS ondas superpuestas por línea** (`alturaOnda`): la principal (período `p`) + un segundo
+  armónico de período EXACTAMENTE `p/2` y 35% de su amplitud. La razón de la mitad exacta no es
+  estética: es lo que garantiza que la SUMA siga siendo periódica en `p` (la condición del loop sin
+  costura, §3). Afirmado con test (`alturaOnda combina DOS frecuencias -- no es un seno puro`).
+- **Las líneas se DESFASAN entre sí** (`faseDeLinea`, `indice * periodo * 0.37`) para que no luzcan
+  calcadas, y tienen período/duración DISTINTOS por índice — es la VELOCIDAD distinta, no una
+  segunda onda animada por separado, la que hace que "se crucen" con el tiempo (spec §2: "el
+  ondulado sale de que varias líneas con velocidades distintas se cruzan").
+- **La opacidad DECAE hacia el fondo** (0.12 en la más lejana → 0.50 en la más cercana — el MISMO
+  valor que llevaba la cresta única, para no perder de golpe la firma). Afirmado con test
+  (monotonía estricta + el valor 0.5 en el frente).
+- **Las de acento son las 2 MÁS AL FRENTE** (`esAcento`), no elegidas al azar: es la línea que
+  antes llevaba el sol (la más prominente) llevada a la nueva forma. `HORIZONTE_NUM_AMBAR=2` porque
+  el pedido del owner usa plural ("unas ambar") — no se pudo confirmar el número exacto contra la
+  referencia (§0), así que es una elección razonada, ajustable con una constante.
+
+### 2 · El color — NINGÚN token nuevo, y por qué
+
+El pedido era "crema en oscuro, tinta en claro para las líneas neutras, un solo token que conmute
+por modo". **`--duna-ink` YA hace exactamente eso** (`packages/design-system/tokens/tokens.css`:
+`#141311` en `:root`, `#F4F3EF` en `[data-theme="dark"]` — literalmente tinta/crema) y es el MISMO
+token que ya pintaba la cresta única. Crear un token dedicado habría significado tocar
+`packages/design-system/tokens/tokens.css`, que **no está en `touches:`** de este slice — así que
+reusar `--duna-ink` no es sólo la opción más simple, es la única dentro del alcance aprobado. Las
+líneas de acento usan `--duna-sol` (el mismo ámbar del sol viajero, sin cambio de valor entre
+temas, como ya era). El lavado (`dunaSolFill`, gradiente `--duna-sol` 12%→0%) se conservó tal cual,
+apoyado ahora en la línea más al frente en vez de en la cresta única.
+
+### 3 · La animación — 100% CSS `transform`, verificación mecánica (no hay navegador en este sandbox)
+
+Un solo `@keyframes duna-horizonte-desplaza` (`app/globals.css`) parametrizado por dos custom
+properties por línea (`--h-periodo`, `--h-direccion`); cada `<path>` lo aplica vía `style` inline
+(duración distinta por línea — no cabe en una utilidad Tailwind `animate-*` de valor fijo).
+
+**Verificación de que esto NO toca el hilo principal** — mecánica, por construcción, no medida en
+vivo (este sandbox no tiene navegador ni Playwright para perfilar; el gate real es visual, §4 del
+spec):
+- `grep -nE "useState|useEffect|useRef|requestAnimationFrame|setInterval|setTimeout|use client" components/admin/DunaPie.tsx`
+  → **cero coincidencias en código** (las únicas apariciones son dentro de comentarios que explican
+  el mecanismo VIEJO que se retira). El componente no tiene un solo hook ni bucle de JS.
+- El `@keyframes` (`app/globals.css:294-297`) anima **únicamente `transform`** — leído de vuelta,
+  no contiene ninguna otra propiedad. `transform` es compositable: no dispara layout ni repaint.
+- `DunaPie` perdió `"use client"`: la geometría es DETERMINISTA (sin `Math.random`, a diferencia
+  del sol viajero que necesitaba resolver una posición aleatoria en el cliente para no arrastrar un
+  valor del servidor), así que se computa UNA vez al cargar el módulo (`const LINEAS =
+  construirHorizonte()`, top-level) y no hay estado de React que gestionar.
+
+**`prefers-reduced-motion` NO necesita código propio**: `app/globals.css` ya tenía, sin tocar, una
+regla GLOBAL y SIN SCOPE (`*, *::before, *::after { animation-duration: 0.01ms !important;
+animation-iteration-count: 1 !important; }`, línea ~261) que congela cualquier animación CSS del
+sitio — las líneas del horizonte quedan quietas en su fase base (`translateX(0)`, la forma tal como
+`duna-horizonte.ts` la dibuja) sin un segundo guard. Se verificó por lectura que esa regla es
+GENUINAMENTE global (no scopeada a `.duna`, a diferencia de un guard histórico de `primitives.css`
+para sheets/scrims que sí lo estaba — ver CLAUDE.md, § Duna OS en angosto) y por tanto alcanza a
+`DunaPie`, montado fuera de cualquier wrapper `.duna`.
+
+### 4 · La banda del chasis — RE-DERIVADA, no reusada a ojo
+
+`HORIZONTE_TOPE_Y` (el punto MÁS ALTO que cualquier línea puede alcanzar: la línea más lejana,
+baseline `y=95`, menos la suma de las dos amplitudes máximas, `9+3.15=12.15` → `82.85`) y
+`HORIZONTE_BANDA_FRACCION = (240 − 82.85) / 1440 ≈ 0.10913` viven en `lib/duna-horizonte.ts`, misma
+cuenta que ya hacía la cresta única (distancia del punto más alto al borde inferior del viewBox,
+como fracción del ANCHO, porque el SVG escala `width:100%, height:auto`). `PreAuthShell` la consume
+con `Math.ceil(HORIZONTE_BANDA_FRACCION * 100) = 11` → **`11vw`, coincide en el redondeo con el
+valor viejo** (era 11vw también, derivado de una geometría distinta: ~0.089 antes, ~0.109 ahora,
+ambos redondean a 11 al alza) — no fue elegido para que coincidiera, es lo que dio la cuenta nueva.
+**El piso SÍ cambió**: de `3.5rem` a `4rem` (el horizonte de 6 líneas ocupa más banda vertical que
+la cresta única que reemplaza).
+
+**Se pasó de una clase Tailwind `pb-[max(3.5rem,11vw)]` a `style={{ paddingBottom: ... }}`**: una
+arbitrary-value class de Tailwind necesita ser un LITERAL estático en el código fuente para que el
+escaneo la detecte y genere su CSS; como el valor ahora se DERIVA de una constante importada
+(`HORIZONTE_BANDA_FRACCION`), ya no puede expresarse como un literal — así que se mueve a `style`,
+que no depende del escaneo de Tailwind. Es la misma familia de decisión que motiva media doctrina
+de `CLAUDE.md` (una sola fuente de verdad en vez de dos números que puedan divergir).
+
+### 5 · Las cuatro pantallas (y los diálogos de error que reusan el chasis)
+
+`PreAuthShell` lo montan, verificado por lectura (`grep -rln "PreAuthShell"`): `LoginForm.tsx`,
+`RecuperarClaveForm.tsx`, `NuevaClaveForm.tsx` (`/recuperar-clave/nueva`), `AceptarInvitacionForm.tsx`,
+y `EnlaceNoDisponible.tsx` (el terminal compartido de token vencido/usado/inválido, que aceptar-
+invitación y recuperar-clave reusan). Las CUATRO son `'use client'` y renderizan `<PreAuthShell>`
+directamente dentro de sí — `PreAuthShell`/`DunaPie` no necesitan su propia directiva `"use client"`
+porque ya cuelgan de ese límite (y, como se explica en §3, ahora tampoco la necesitarían si colgaran
+de un árbol server: no quedó ningún hook).
+
+No se pudo abrir un navegador para confirmar visualmente cómo se ve en las cuatro (sin Playwright,
+sin sesión gráfica en este sandbox); lo verificado por lectura/geometría es que las CUATRO comparten
+el mismo `PreAuthShell` sin ninguna rama condicional — el mismo `BANDA_VW`/`PISO_BANDA_REM` aplica a
+las cuatro por igual, así que no hay una pantalla con banda insuficiente y otra con banda de sobra.
+La preocupación del spec ("la card de recuperar-clave es más corta y ahí la banda queda más
+expuesta") es válida pero no cambia el cálculo: la banda reservada es la misma para las cuatro
+porque depende del HORIZONTE (siempre igual), no del alto de la card — una card más corta dentro de
+una banda igual de generosa deja MÁS aire, nunca menos. Queda como verificación visual pendiente del
+owner, no como cálculo que este slice pudiera hacer distinto por pantalla.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2317/2317** — +16 tests nuevos (`lib/duna-horizonte.test.ts`), 0 quitados; piso anterior 2301/2301 (`4ff1111`, `CORTE-MARQUEE-VELOCIDAD-REAL-1`) |
+| `npm run test:integracion` | **237/237** — sin cambio de conteo; ningún archivo de este slice vive bajo `tests/integracion/` |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers. Corrido como verificación EXTRA de que `app/globals.css` (compartido) no cambió un solo byte renderizado del storefront — el spec ya avisa que esta herramienta NO CUBRE `/login` ni ninguna pantalla pre-auth (sólo recorre rutas públicas del storefront, `scripts/verificar-nayoli-visual.ts:211`); el gate visual de ESTA pantalla son los ojos del owner, no esta herramienta. |
+
+### `touches:` — lo que se tocó, y nada más
+
+`git diff --stat` sobre el árbol final: `app/globals.css` (+29/-0), `components/admin/DunaPie.tsx`
+(reescrito, 209 líneas de diff), `components/admin/PreAuthShell.tsx` (+38/-13), más
+`lib/duna-horizonte.ts` y `lib/duna-horizonte.test.ts` (nuevos) y este asiento en `DECISIONS.md`.
+Los seis archivos son exactamente los seis de `touches:` — ninguno más, ninguno menos.
+`packages/design-system/tokens/tokens.css` **no se tocó** (§2, la razón por la que no había que
+tocarlo).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/archivos que este diff introdujo o cambió: `DunaPie`, `PreAuthShell`, `duna-horizonte.ts`,
+`construirHorizonte`, `rellenoBajoHorizonte`, `alturaOnda`, `periodoDeLinea`, `faseDeLinea`,
+`esAcento`, `HORIZONTE_ANCHO`, `HORIZONTE_BANDA_FRACCION`, `duna-horizonte-desplaza`, `--h-periodo`,
+`--h-direccion`, `BANDA_VW`, `PISO_BANDA_REM`, `animateMotion` (retirado del código).
+
+`grep -noE` de cada uno contra `CLAUDE.md`: sólo **tres** aparecen — `PreAuthShell` (líneas 614,
+2015, 7158), `DunaPie` (líneas 7128, 7154) y `animateMotion` (línea 7151). Las tres viven dentro o
+alrededor de UNA MISMA subsección: **"LA DUNA DEL LOGIN — identidad de la puerta, y el caso PRIMARIO
+de esta rama"** (`CLAUDE.md:7125-7162`, bajo § EXCEPCIÓN DECLARADA: el ámbar es MARCA/DATO o ESTADO
+según el SITIO). Leída sentencia por sentencia contra este diff:
+
+- **FALSA**: "las tres pantallas pre-auth… llevan al fondo una duna con un SOL QUE LA RECORRE
+  LENTAMENTE" — ya no hay sol viajero; hay un horizonte de 6 líneas estáticas que ondulan.
+- **FALSA** (el detalle, no la clasificación): "Se parece a las del panel a propósito (LÍNEA de
+  tinta a .5…)" — ya no es UNA línea a opacidad fija .5; son SEIS, con opacidad de 0.12 a 0.5, dos
+  de ellas en ámbar, no en tinta.
+- **FALSA/OBSOLETA** las CUATRO bullets siguientes completas: "EL SOL SE PONE Y SALE, NO VA Y
+  VIENE", "El CRUCE VISIBLE tarda 180 s…", "EL SOL ~40 s FUERA DE PANTALLA…" — describen el
+  mecanismo `<animateMotion>`/`mpath` que este diff retira por completo; ningún sol cruza nada.
+- **FALSA (el número), OBSOLETA (el mecanismo)**: "El contenedor de `PreAuthShell` reserva la banda
+  de la duna (padding-bottom `11vw` ~ el alto de la CRESTA, **piso 3.5rem**)" — el piso pasó a
+  `4rem` (§4), y "la cresta" ya no es un concepto singular (son 6 líneas, cada una con su propia
+  geometría); el `11vw` sigue siendo el mismo NÚMERO por coincidencia de redondeo, no porque la
+  cuenta no haya cambiado.
+- **SIGUE SIENDO CIERTA**, sin que este diff la toque: la clasificación "MARCA en su forma más
+  pura… TERCERA naturaleza distinta del DATO y del ESTADO" y el bullet "EL TAGLINE afirma la
+  CATEGORÍA…" (línea 7163, fuera del rango de arriba) — ninguno de los dos describe el mecanismo
+  interno del componente, así que ninguno de los dos se ve afectado por reemplazar el sol por el
+  horizonte.
+
+**No corregí `CLAUDE.md`**: no está en `touches:` de este slice, y la instrucción del dispatch es
+reportar, no arreglar lo que está fuera del alcance declarado. Va como `open_followups` abajo, con
+las líneas exactas.
+
+**Segundo grep, sobre el DOCUMENTO** (`DECISIONS.md`): este asiento es una entrada NUEVA con un id
+nuevo (`PANEL-LOGIN-HORIZONTE-ONDULANTE-1`) — no cierra ni reemplaza ningún id existente, así que no
+hay un puntero previo en el documento que este cambio pudiera volver falso. `grep -n "DunaPie"
+DECISIONS.md` antes de este asiento no traía ninguna entrada que describiera el mecanismo interno
+del componente (las menciones previas de `DunaPie` en `DECISIONS.md`, de haberlas, son de otras
+tandas y no se tocan).
+
+### `customer_bytes`
+
+**`changed: true`.** El OWNER es uno de los tres lectores que cuentan (§ el schema: "un byte que un
+cliente, OPERADOR o DUEÑO lee") y va a MIRAR esta pantalla — es exactamente el propósito del pedido.
+`strings`: **ninguno** — no cambia una sola palabra de copy (título, tagline, labels de campo, todo
+igual); lo que cambia es puramente visual/decorativo (la forma del fondo de las cuatro pantallas
+pre-auth). Verificado por ejecución que el STOREFRONT queda byte-idéntico
+(`verificar:nayoli:visual`, 0px, §Gate) — el cambio vive enteramente bajo `components/admin/` y
+`lib/`, y el único archivo compartido (`app/globals.css`) sólo gana un `@keyframes` sin consumidor
+en el storefront.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `touches:` tampoco las incluía.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`** — la subsección "LA DUNA DEL LOGIN — identidad de la puerta"
+  de `CLAUDE.md` (líneas 7125–7162) describe el mecanismo VIEJO (sol viajero por `<animateMotion>`
+  sobre una cresta única, `padding-bottom` con piso `3.5rem`) que este slice retiró por completo.
+  Cinco afirmaciones puntuales quedan falsas u obsoletas (detalladas arriba, § CHEQUEO MECÁNICO). No
+  se corrigió porque `CLAUDE.md` no está en `touches:` de este slice. **why_not_now**: outside this
+  slice's touches:.
+- **`PANEL-LOGIN-HORIZONTE-GATE-VISUAL-1`** — este slice no pudo abrir un navegador para ver el
+  resultado (sin Playwright, sin sesión gráfica en el sandbox de este dispatch); tampoco pudo leer
+  la pieza de marca de referencia (§0). El gate real —¿se parece a lo que el owner señaló?— queda
+  enteramente pendiente de su propia mirada sobre un deploy con este commit. **why_not_now**: fuera
+  de lo que este slice puede ejecutar (sin navegador, sin permiso de deploy).
+- **`HORIZONTE_NUM_AMBAR` (2) es una elección razonada, no verificada contra la referencia** — si al
+  mirarlo el owner esperaba una sola línea de acento (como antes) o más de dos, es un cambio de una
+  constante en `lib/duna-horizonte.ts`, no un rediseño. **why_not_now**: depende del gate visual de
+  arriba, que este slice no pudo correr.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** El diff cambia bytes que el owner va a leer
+(la forma del fondo de las cuatro pantallas pre-auth) — falla la condición de `customer_bytes` de la
+política A, así que se para antes del merge para que el owner lo vea. Sin `schema`, sin
+`cross-repo-contract`. Gate verde en las tres capas medidas (§ Gate). Commiteado en
+`slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador.
+
+**Cierra `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`.**

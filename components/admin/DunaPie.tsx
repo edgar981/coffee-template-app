@@ -1,111 +1,68 @@
-"use client";
+import type { CSSProperties } from "react";
+import {
+  construirHorizonte,
+  rellenoBajoHorizonte,
+  HORIZONTE_ANCHO,
+  HORIZONTE_ALTO,
+} from "@/lib/duna-horizonte";
 
-import { useEffect, useRef, useState } from "react";
-
-// ─── La DUNA con el SOL — identidad de la puerta, no un gráfico ───────────────
+// ─── El HORIZONTE ondulante — identidad de la puerta, no un gráfico ────────────
 //
-// La marca contando su metáfora: una duna con un sol que la CRUZA, se pone por un
-// borde y sale por el otro. Distinta de las curvas del panel —allí la curva es
-// DATO (`pathDe` deriva su trazo de los buckets); acá NO hay datos, así que la
-// curva es FIJA y dibujada a mano—. Se parece a las del panel a propósito (línea
-// de tinta + lavado de sol), pero es IDENTIDAD.
+// PANEL-LOGIN-HORIZONTE-ONDULANTE-1 (2026-09-27): reemplaza a la cresta única con
+// el sol viajero (ver DECISIONS.md para el diseño anterior y el porqué del cambio)
+// por VARIAS líneas paralelas que ondulan sin parar — la forma que el owner señaló
+// en la pieza de marca de Duna. Unas van en el ÁMBAR de marca (las más al frente);
+// el resto van en `--duna-ink`, que YA conmuta tinta (claro) / crema (oscuro) sin
+// tocar una línea de este componente — es el mismo token que ya pintaba la cresta
+// única, no uno nuevo.
 //
-// LA CRESTA SALE DE LA PANTALLA por los dos lados: el path arranca antes de x=0 y
-// termina después de x=1440 (el viewBox recorta lo de afuera), así que la línea
-// cruza ENTERA, sin planos ni cortes en los extremos.
+// TODA la geometría —cuántas líneas, dónde va cada una, su opacidad, su
+// velocidad— vive en `lib/duna-horizonte.ts`, PURA y testeada ahí. Este archivo
+// sólo la consume y la pinta.
 //
-// EL SOL RECORRE LA CRESTA con `<animateMotion>` + `<mpath>` sobre `<circle>` —SVG
-// nativo, sin offset-path—. Cruza en UN sentido y el salto del loop (fin→inicio
-// del path) cae en las COLAS invisibles: el sol se pone por un borde y sale por el
-// otro, sin teletransporte visible. Un sol que se va y vuelve NO se lee como el
-// paso del tiempo (eso sería ping-pong); el rato fuera de pantalla es lo que hace
-// un sol. Corre fuera del hilo principal (no compite con quien teclea) y sólo
-// repinta la caja del sol. SIN pulso: acá no hay un "ahora" que marcar.
+// LA ANIMACIÓN ES 100% CSS (`transform`, vía @keyframes en app/globals.css),
+// NUNCA JS por cuadro. Es la MISMA restricción que obligaba al `<animateMotion>`
+// del sol que este horizonte reemplaza: una pantalla donde se teclea una
+// contraseña no puede competir con un bucle de `requestAnimationFrame`
+// recalculando geometría SVG en cada frame. `transform` es una propiedad que el
+// compositor anima en su propio hilo, sin recalcular layout ni repintar el resto
+// de la página — verificado por CONSTRUCCIÓN (grep, no herramienta de perfilado:
+// este componente no importa React, no tiene hooks, no tiene estado; el único
+// atributo que cambia con el tiempo es `transform`, vía CSS puro) y no en vivo, ya
+// que este sandbox no tiene un navegador para perfilar. El gate real de esto son
+// los ojos del owner (§ el cierre del asiento).
 //
-// "A VECES NO SE VE EL SOL" ES DISEÑADO, NO UN BUG. Las colas son ~18% del path
-// (160px de cada lado sobre ~1760), así que el sol pasa **~40 s FUERA DE PANTALLA
-// de cada ~220 s** del ciclo (se pone y vuelve a salir). Eso NO contradice que "al
-// cargar SIEMPRE hay sol": el ARRANQUE aleatorio se acota a la parte visible
-// (abajo, `lInicio`), así que la primera impresión lo tiene; lo que se va y vuelve
-// es el recorrido, no el arranque. Si esos ~40 s se sienten largos, se afina la
-// LONGITUD de las colas (colas más cortas → menos tiempo fuera), no es un defecto.
+// SIN HOOKS, SIN "use client": a diferencia del sol (que necesitaba `useEffect` +
+// `getPointAtLength` + una posición aleatoria resuelta en el cliente, para no
+// arrastrar un valor del servidor), el horizonte es DETERMINISTA — ninguna línea
+// depende de `Math.random()` ni de medir el DOM — así que se computa UNA vez, al
+// cargar el módulo, y se sirve igual desde el servidor o el cliente. Sigue
+// pudiendo montarse dentro de un árbol `"use client"` (las cuatro pantallas
+// pre-auth lo hacen, vía `PreAuthShell`) sin necesitar su propia directiva.
+//
+// `prefers-reduced-motion` NO necesita un guard propio acá: `app/globals.css` ya
+// tiene una regla GLOBAL y sin scope (`*, *::before, *::after { animation-duration:
+// 0.01ms !important; animation-iteration-count: 1 !important; }`) que congela
+// CUALQUIER animación CSS del sitio, ésta incluida — las líneas quedan quietas en
+// su fase base (`transform: translateX(0)`, la forma tal como `duna-horizonte.ts`
+// la dibuja), visibles, sin código adicional.
 //
 // Decorativa: `aria-hidden` y `pointer-events:none`.
 
-// Cuánto tarda el sol en cruzar el TRAMO VISIBLE. El `dur` TOTAL se deriva de esto
-// (el path es más largo que lo visible por las colas), para que cruzar la pantalla
-// siga tardando esto y no se acelere al alargar el path.
-const CRUCE_VISIBLE_S = 180; // 3 min
-
-// El viewBox visible es 0..1440 en x. El path se EXTIENDE a x −160..1600: las colas
-// (−160..0 y 1440..1600) quedan fuera y el viewBox las recorta. Tres crestas suaves
-// en la parte visible; las colas sólo continúan el trazo para que el sol entre/salga
-// liso. Sirve para el trazo, el `mpath` y (cerrada al piso) el relleno.
-const D_CRESTA =
-  "M -160 146 C 40 120, 220 116, 400 148 C 580 180, 760 184, 940 150 C 1120 118, 1300 112, 1440 142 C 1520 156, 1560 154, 1600 150";
-const D_RELLENO = `${D_CRESTA} L 1600 240 L -160 240 Z`;
-
-const VIS_X0 = 0;
-const VIS_X1 = 1440;
-const MARGEN = 44; // px adentro de cada borde: el sol nunca ARRANCA medio cortado.
-
-type SolAnimado = { dur: number; begin: string };
-type SolQuieto = { cx: number; cy: number };
+// Calculado UNA vez al cargar el módulo — determinista, sin `Math.random`, así que
+// no hace falta recomputar por render ni por instancia (no hay estado del que
+// depender). Ver `lib/duna-horizonte.ts` para la forma de cada línea.
+const LINEAS = construirHorizonte();
+const D_RELLENO = rellenoBajoHorizonte(LINEAS);
 
 export function DunaPie() {
-  const crestaRef = useRef<SVGPathElement>(null);
-  // Se resuelve en el CLIENTE (posición/tiempo aleatorios) para no arrastrar un
-  // valor del servidor —hydration mismatch—. Hasta entonces no se dibuja.
-  const [sol, setSol] = useState<SolAnimado | SolQuieto | null>(null);
-
-  useEffect(() => {
-    const p = crestaRef.current;
-    if (!p) return;
-    const total = p.getTotalLength();
-
-    // Longitud del path donde su x cruza `targetX`. x es MONÓTONA (cada comando
-    // avanza en x), así que una búsqueda binaria por longitud es exacta.
-    const lenEnX = (targetX: number) => {
-      let lo = 0, hi = total;
-      for (let i = 0; i < 26; i++) {
-        const mid = (lo + hi) / 2;
-        if (p.getPointAtLength(mid).x < targetX) lo = mid; else hi = mid;
-      }
-      return (lo + hi) / 2;
-    };
-
-    // El TRAMO VISIBLE, en longitud de path; el `dur` total mantiene su cruce en
-    // CRUCE_VISIBLE_S (velocidad constante — `calcMode` "paced" por defecto).
-    const lVis0 = lenEnX(VIS_X0);
-    const lVis1 = lenEnX(VIS_X1);
-    const durTotal = (CRUCE_VISIBLE_S * total) / (lVis1 - lVis0);
-
-    // Arranque ALEATORIO acotado a la parte visible (con margen para no asomar
-    // medio cortado): la primera impresión SIEMPRE tiene sol.
-    const lIni = lenEnX(VIS_X0 + MARGEN);
-    const lFin = lenEnX(VIS_X1 - MARGEN);
-    const lInicio = lIni + Math.random() * (lFin - lIni);
-
-    const reducir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reducir) {
-      const pt = p.getPointAtLength(lInicio);
-      setSol({ cx: pt.x, cy: pt.y });
-    } else {
-      // `begin` NEGATIVO = arranca a mitad de ciclo. Con velocidad constante, la
-      // fracción de tiempo == fracción de longitud, así que este begin coloca al
-      // sol justo en `lInicio` (dentro de lo visible).
-      const begin = -((lInicio / total) * durTotal);
-      setSol({ dur: durTotal, begin: `${begin.toFixed(1)}s` });
-    }
-  }, []);
-
   return (
     <svg
       aria-hidden
-      viewBox="0 0 1440 240"
-      // `width:100%` + `height:auto`: alto proporcional al ancho; la duna cruza toda
-      // la pantalla, el sol queda CIRCULAR (escala uniforme). El viewBox recorta las
-      // colas del path (x<0, x>1440), así que la cresta y el sol "salen" por los bordes.
+      viewBox={`0 0 ${HORIZONTE_ANCHO} ${HORIZONTE_ALTO}`}
+      // `width:100%` + `height:auto`: alto proporcional al ancho; el horizonte cruza
+      // toda la pantalla. El viewBox recorta las colas de cada línea (fuera de
+      // 0..1440), igual que hacía la cresta única.
       style={{ height: "auto" }}
       className="pointer-events-none absolute inset-x-0 bottom-0 w-full"
     >
@@ -116,33 +73,39 @@ export function DunaPie() {
         </linearGradient>
       </defs>
 
-      {/* Lavado de sol bajo la cresta (firma de marca, como el área del panel). */}
-      <path d={D_RELLENO} fill="url(#dunaSolFill)" />
+      {/* Lavado de sol bajo el horizonte (firma de marca, como el área del panel).
+          Apoyado en la línea más al frente — la más prominente. */}
+      {D_RELLENO && <path d={D_RELLENO} fill="url(#dunaSolFill)" />}
 
-      {/* La cresta, en tinta a .5 — el mismo trazo de las curvas del panel. */}
-      <path
-        ref={crestaRef}
-        id="duna-cresta"
-        d={D_CRESTA}
-        fill="none"
-        stroke="var(--duna-ink)"
-        strokeOpacity="0.5"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-
-      {/* El sol. Cruza la cresta (animado, se pone/sale por las colas) o queda quieto
-          en su punto visible (reduced-motion). No se dibuja hasta que el cliente fija
-          su tiempo/posición aleatorios. */}
-      {sol && "begin" in sol ? (
-        <circle r="11" fill="var(--duna-sol)">
-          <animateMotion dur={`${sol.dur.toFixed(1)}s`} repeatCount="indefinite" begin={sol.begin}>
-            <mpath href="#duna-cresta" />
-          </animateMotion>
-        </circle>
-      ) : sol ? (
-        <circle r="11" fill="var(--duna-sol)" cx={sol.cx} cy={sol.cy} />
-      ) : null}
+      {LINEAS.map((linea) => (
+        <path
+          key={linea.indice}
+          d={linea.d}
+          fill="none"
+          // Acento → ámbar de marca (mismo token que el sol viajero usaba).
+          // Neutro → `--duna-ink`, que YA conmuta tinta/crema por tema: no hace
+          // falta un token nuevo para esto (y crear uno viviría en
+          // `packages/design-system/tokens/tokens.css`, fuera del alcance de
+          // este slice, § DECISIONS.md).
+          stroke={linea.acento ? "var(--duna-sol)" : "var(--duna-ink)"}
+          strokeOpacity={linea.opacidad}
+          strokeWidth={linea.acento ? 1.5 : 1.25}
+          strokeLinecap="round"
+          style={
+            {
+              animationName: "duna-horizonte-desplaza",
+              animationDuration: `${linea.duracionS}s`,
+              animationTimingFunction: "linear",
+              animationIterationCount: "infinite",
+              // Hint de compositor: promueve el trazo a su propia capa, para que
+              // la traslación no dispare repintado del resto del SVG.
+              willChange: "transform",
+              "--h-periodo": `${linea.periodoPx}px`,
+              "--h-direccion": linea.direccion,
+            } as CSSProperties
+          }
+        />
+      ))}
     </svg>
   );
 }

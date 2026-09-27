@@ -267,6 +267,35 @@ html {
   }
 }
 
+/* ── El HORIZONTE ondulante de las pantallas PRE-AUTH (`DunaPie`, § lib/duna-
+   horizonte.ts) — PANEL-LOGIN-HORIZONTE-ONDULANTE-1 ──────────────────────────
+
+   Un solo keyframe genérico, parametrizado por dos custom properties que cada
+   línea fija por su cuenta (`--h-periodo`, `--h-direccion`): la distancia y el
+   sentido de su traslación. Traduce la geometría PURA de `duna-horizonte.ts` a
+   movimiento sin tocar `d`, `x` ni ninguna propiedad que dispare layout/paint —
+   sólo `transform`, que el compositor anima en su propio hilo. Es la MISMA
+   restricción que ya obligaba al `<animateMotion>` del sol que este horizonte
+   reemplaza (ver el docstring de `DunaPie.tsx`): una pantalla donde se teclea
+   una contraseña no puede competir con un bucle de JS recalculando SVG en cada
+   cuadro.
+
+   Plano, fuera de `@theme`: a diferencia de `--animate-fade-in` y hermanos
+   (arriba), cada línea necesita SU PROPIA duración — no hay un único valor que
+   una utilidad Tailwind pueda fijar — así que se aplica vía `style` inline en
+   el componente, no como clase `animate-*`.
+
+   El `@media (prefers-reduced-motion: reduce)` de arriba YA fuerza
+   `animation-duration: 0.01ms !important` y `animation-iteration-count: 1
+   !important` de forma GLOBAL (sin scope) sobre `*`, así que las líneas del
+   horizonte quedan quietas en su fase base (`translateX(0)`, la forma tal como
+   `duna-horizonte.ts` la dibuja) sin código propio — no hace falta un segundo
+   guard acá. */
+@keyframes duna-horizonte-desplaza {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(var(--h-periodo, 1px) * var(--h-direccion, 1) * -1)); }
+}
+
 /* ============================================
    CSS VARIABLE TOKENS (light + dark)
    ============================================ */
