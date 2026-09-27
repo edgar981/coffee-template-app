@@ -423,9 +423,17 @@ export function duracionTickerS(anchoUnaCopiaPx: number, velocidadPxS: number): 
 }
 
 // Fallback ANTES de la primera medición del DOM — mismo papel que `TRAVEL_FALLBACK_PX`
-// (`HeroMediaMarquesina.tsx`): un texto de ancho típico (~800px) a la velocidad objetivo. Se
-// sobrescribe en el primer `useEffect` del componente, así que nunca se ve en pantalla — la
-// animación del ticker arranca recién al montar en el cliente, con la medición real ya disponible.
+// (`HeroMediaMarquesina.tsx`): un texto de ancho típico (~800px) a la velocidad objetivo.
+//
+// "SE SOBRESCRIBE EN EL PRIMER useEffect" ERA FALSO EN LA PRÁCTICA — § CORTE-MARQUEE-VELOCIDAD-
+// REAL-1 (2026-09-27), corregido en `HeroMediaMarquesina.tsx` (RONDA 5 del ticker, ver su docstring
+// de cabecera para la derivación completa). El estado SÍ se corregía (`setDuracionTicker` con el
+// ancho real, casi siempre ≫800px para un titular display), pero framer-motion IGNORABA ese cambio
+// —sólo diffea el TARGET de `animate`, nunca `transition`, y nuestro target (`x:['0%','-50%']`) es
+// el mismo literal en cada render— así que el ticker corría PARA SIEMPRE a la duración de ESTE
+// fallback, ~3.2× más rápido de lo declarado. El fix (`key={duracionTicker}` en el `motion.div` del
+// track) es lo que hace que "se sobrescribe" vuelva a ser cierto: sin él, este valor es el que
+// SIEMPRE se ve en pantalla, no un valor transitorio antes de la medición.
 //
 // PARAMETRIZADO por la velocidad (§ CORTE-HERO-REVELADO-MASCARA-1, abajo) para no destellar un
 // instante a la velocidad 'media' si el tema pidió 'lenta'; `DURACION_TICKER_FALLBACK_S` es el caso

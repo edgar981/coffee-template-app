@@ -229,6 +229,25 @@ const MINIMO_GRUPOS_PARA_TICKER = 2;
 // es lo que la propia palabra "revelado" (un evento, no una posición) pide.
 const UMBRAL_FRACCION_REVELADO = 0.4;
 
+// ─── LA MEDIANA, NO EL PROMEDIO — § ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1, cerrado por
+// CORTE-MARQUEE-VELOCIDAD-REAL-1 (2026-09-27) ──────────────────────────────────────────────────────
+// MEDIDO contra `muestrario-home.json` (el marquee del hero, cuyo ciclo completa en pocos segundos,
+// § `x:['0%','-50%']`, `repeat:Infinity`): dos de las 42 lecturas intra-grupo cayeron EXACTAMENTE
+// sobre el instante en que el track saltó de vuelta a `0%` (el reset del loop), dando ~6.190 px/s —
+// dos órdenes de magnitud por encima del resto—, y el PROMEDIO simple de `velocidades` (línea de
+// abajo, antes de este fix) las dejaba pasar sin filtrar: `velocidadAproxPorSegundo` reportaba
+// **629.7 px/s**, muy por encima de la **238.7 px/s** que la MEDIANA de esas mismas lecturas —el
+// método que `DECISIONS.md` (§ ARNES-CENSO-MOVIMIENTO-CALIBRACION-1) ya usaba a mano para la medición
+// puntual, "la mediana (robusta a valores atípicos)"— reporta. La mediana no es una aproximación: es
+// EL MISMO criterio que ya regía la medición manual, ahora en el instrumento automático.
+function mediana(valores: number[]): number {
+  const ordenados = [...valores].sort((a, b) => a - b);
+  const medio = Math.floor(ordenados.length / 2);
+  return ordenados.length % 2 === 0
+    ? (ordenados[medio - 1] + ordenados[medio]) / 2
+    : ordenados[medio];
+}
+
 /** El análisis de UN eje (un número de posición fija de la matriz, o la opacidad) a través de
  *  todos los grupos de un elemento. */
 interface AnalisisEje {
@@ -258,7 +277,7 @@ function analizarEje(
         if (dt <= 0) continue;
         velocidades.push((Math.abs(valorDe(g.muestras[g.muestras.length - 1]) - valorDe(g.muestras[0])) / dt) * 1000);
       }
-      velocidadTicker = velocidades.length > 0 ? velocidades.reduce((a, b) => a + b, 0) / velocidades.length : null;
+      velocidadTicker = velocidades.length > 0 ? mediana(velocidades) : null;
     }
   }
 

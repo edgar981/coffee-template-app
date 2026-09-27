@@ -217,6 +217,49 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // MOVIMIENTO REDUCIDO Y VISTA PREVIA: MISMO gate que `Marquesina.tsx` (`estatico = preview ||
 // !!useReducedMotion()`) — con él, el texto queda CENTRADO, QUIETO (ticker detenido) y la tarjeta sin
 // transformar, nunca "a medio camino" de un recorrido que no va a avanzar.
+//
+// LA CORRECCIÓN DE `medir()` NUNCA LE LLEGABA A LA ANIMACIÓN — RONDA 5 (§ CORTE-MARQUEE-VELOCIDAD-
+// REAL-1, 2026-09-27): el owner reportó, y `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1` (DECISIONS.md)
+// MIDIÓ EN VIVO, que el ticker corre ≈2.0–2.1× más rápido que el del tema real y hasta 5.56× más
+// rápido que su propia constante (`VELOCIDAD_TICKER_LENTA_PX_S`). La causa NO era la fórmula
+// (`duracionTickerS`/`duracionTickerFallbackS` son correctas, § sus tests en `lib/animation.test.ts`)
+// ni el elemento medido (`trackRef.current.children[0]` es la copia correcta, y el track SÍ es
+// exactamente 2× su ancho — verificado en vivo, `ancho0===ancho1` y `anchoTrack===2×ancho0`).
+//
+// **LA CAUSA ES QUE FRAMER-MOTION IGNORA UN CAMBIO DE `transition.duration` CUANDO EL TARGET DE
+// `animate` NO CAMBIA DE VALOR** — verificado leyendo el propio paquete instalado
+// (`node_modules/motion-dom/dist/es/render/utils/animation-state.mjs`, `buildResolvedTypeValues`):
+// desestructura `transition` FUERA de los valores que compara (`const { transition, transitionEnd,
+// ...target } = resolved`), así que el diffing que decide si (re)iniciar una animación NUNCA mira la
+// duración — sólo compara el TARGET (`x`). Y como nuestro target es SIEMPRE el mismo literal
+// (`['0%','-50%']`), `shallowCompare` (mismo archivo, comparación elemento-a-elemento) lo declara
+// "sin cambios" en CADA re-render, aunque `duracionTicker` (el estado que `medir()` corrige tras la
+// primera medición real del DOM) sí haya cambiado. El resultado: el ticker queda para SIEMPRE
+// corriendo a la duración de `useState(() => duracionTickerFallbackS(velocidadTicker))` —el fallback
+// que ASUME un texto de ~800px (§ el comentario de `duracionTickerFallbackS`, `lib/animation.ts`)—,
+// nunca a la duración real (`duracionTickerS(anchoMedido, velocidadTicker)`), porque `anchoMedido` es
+// SIEMPRE mayor que 800px para un titular a este tamaño de fuente (medido en vivo: ~2570px, ~3.2× el
+// supuesto del fallback) y por eso el ticker corre más rápido de lo declarado EN TODO CASO, sin
+// importar qué `hero.tickerVelocidad` esté configurado.
+//
+// REPRODUCIDO Y VERIFICADO AISLADO (fuera de `touches:`, sin dejar rastro en el repo): un repro
+// mínimo con la MISMA versión instalada de framer-motion (12.40.0) confirmó las dos mitades — SIN el
+// fix, el período del loop se queda CONGELADO en la duración inicial para siempre (medido: 2.0s de
+// principio a fin, aunque el estado ya diga 6s a partir de los 700ms); CON el fix (`key` abajo), el
+// período pasa a 6.04s en cuanto la corrección llega (medido con precisión de reset-a-reset, no una
+// media aproximada).
+//
+// **EL FIX ES `key={duracionTicker}`** en el `<motion.div ref={trackRef}>`: al cambiar `duracionTicker`
+// (la corrección real de `medir()`), React DESMONTA la instancia vieja y MONTA una nueva — un
+// `VisualElement` nuevo empieza su animación con `isInitialRender=true`, usando el `transition`
+// ACTUAL (ya no hay "target sin cambios" que comparar, porque no hay historial previo). El costo es
+// un reinicio visual del ciclo (vuelve a `x:0%` un instante) — ACEPTABLE: ocurre sólo al montar (tras
+// la primera medición real, normalmente <100ms después del primer paint) y en cada `resize` genuino,
+// nunca en medio de una sesión normal de scroll. NO se usó `useAnimate()`/la API imperativa de
+// framer-motion —hubiera evitado el reinicio visual, pero exige reestructurar el componente entero
+// alrededor de un scope imperativo por una ganancia marginal (un reinicio invisible en la práctica,
+// § arriba)—; `key` es el fix MÍNIMO que hace que la corrección de `medir()` deje de ser un valor de
+// estado que nadie lee.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -355,6 +398,10 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
         >
           <motion.div style={{ transform: transformRevelaTexto }}>
             <motion.div
+              // `key={duracionTicker}` — § RONDA 5 arriba: fuerza un remount cuando `medir()`
+              // corrige la duración (target `x` idéntico entre renders, así que sin esta key
+              // framer-motion nunca reinicia la animación con el `transition` nuevo).
+              key={duracionTicker}
               ref={trackRef}
               className="flex whitespace-nowrap"
               initial={{ x: '0%' }}

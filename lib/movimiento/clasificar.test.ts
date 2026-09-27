@@ -52,6 +52,45 @@ test("clasificarElemento: cambia con el tiempo igual en cada posición de scroll
   );
 });
 
+// § ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1, cerrado por CORTE-MARQUEE-VELOCIDAD-REAL-1: un ticker
+// en LOOP CORTO (el marquee del hero completa su ciclo en segundos) puede tener uno de sus grupos
+// muestreado justo cuando el track saltó de vuelta a su posición inicial — el delta primer↔último
+// instante de ESE grupo queda MUY por encima del resto (medido en vivo: ~6.190 px/s contra una
+// mediana real de ~238.7 px/s). El PROMEDIO simple no filtra ese outlier; la MEDIANA sí. Este fixture
+// reproduce la firma exacta: 4 grupos "limpios" a 100 unidades/s (idéntico al fixture de arriba) más
+// UNO cuyo primer↔último instante cruza un reset (delta 280 en 600ms → 466.67 unidades/s) — el
+// representativo (última muestra) se mantiene en 60 en TODOS los grupos, así que esto no introduce
+// ninguna señal de scroll: aísla la agregación de `velocidadTicker` de todo lo demás.
+test("clasificarElemento: un grupo cuyo instante cae sobre el RESET del loop no infla la velocidad reportada — MEDIANA, no promedio", () => {
+  const gruposLimpios: GrupoScroll[] = [0, 100, 200, 300].map((scrollY) => ({
+    scrollY,
+    muestras: [0, 300, 600].map((t) => ({
+      t,
+      transform: `matrix(1, 0, 0, 1, ${t / 10}, 0)`,
+      opacity: 1,
+      enViewport: true,
+    })),
+  }));
+  const grupoConReset: GrupoScroll = {
+    scrollY: 400,
+    muestras: [
+      { t: 0, transform: "matrix(1, 0, 0, 1, -220, 0)", opacity: 1, enViewport: true },
+      { t: 300, transform: "matrix(1, 0, 0, 1, 30, 0)", opacity: 1, enViewport: true },
+      { t: 600, transform: "matrix(1, 0, 0, 1, 60, 0)", opacity: 1, enViewport: true },
+    ],
+  };
+  const grupos = [...gruposLimpios, grupoConReset];
+
+  const resultado = clasificarElemento(grupos);
+  assert.equal(resultado.clases.length, 1, "sigue siendo SOLO ticker — el grupo con reset no introduce una señal de scroll falsa");
+  assert.equal(resultado.clases[0].clase, "ticker");
+  assert.equal(
+    (resultado.clases[0] as { velocidadAproxPorSegundo: number | null }).velocidadAproxPorSegundo,
+    100,
+    "mediana de [100,100,100,100,466.67] = 100 — el outlier del reset queda descartado, no diluido en un promedio (que daría 173.33)",
+  );
+});
+
 // ── SCRUB — cambia con el scroll, de forma CONTINUA a lo largo de casi todo el recorrido ─────────
 // Modela `useProgresoScroll`/`transformAcomodo`: sin variación por tiempo a scroll fijo (una sola
 // muestra por posición basta), pero el valor avanza en CADA transición de scroll muestreada.

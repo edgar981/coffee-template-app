@@ -25713,3 +25713,254 @@ en las tres capas medidas (§ Gate); el diff visual no aplica y así se declara.
 slice, por instrucción del dispatch, no mergea.
 
 **Cierra `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1`.**
+
+## 2026-09-27 — El fallback del ticker corría PARA SIEMPRE: framer-motion ignora `transition` cuando el `animate` no cambia (`CORTE-MARQUEE-VELOCIDAD-REAL-1`)
+
+### Por qué
+
+`ARNES-CENSO-MOVIMIENTO-CALIBRACION-1` (arriba) midió en vivo que el marquee de `HeroMediaMarquesina`
+bajo CORTE corre ≈2.0–2.1× más rápido que el del tema real, y dejó DOS follow-ups: el promedio simple
+de `analizarEje` puede inflarse con el salto de loop de un ticker corto
+(`ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1`), y el propio marquee corre ≈3.3×–5.6× más rápido que su
+propia constante nominal (`CORTE-MARQUEE-VELOCIDAD-REAL-1`, este slice). El spec pidió arreglar el
+INSTRUMENTO primero —para saber si parte de la diferencia era del método de medición— y recién
+después diagnosticar y arreglar el COMPONENTE.
+
+### 1 · El instrumento — MEDIANA, no promedio (cierra `ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1`)
+
+`analizarEje` (`lib/movimiento/clasificar.ts`) agregaba las velocidades por-grupo con un PROMEDIO
+simple (`velocidades.reduce((a,b)=>a+b,0)/velocidades.length`). Un ticker de loop CORTO (el marquee
+completa su ciclo en segundos) puede tener un grupo cuyo primer↔último instante caiga justo sobre el
+RESET del loop —el track salta de vuelta a `0%`—, dando una velocidad-por-grupo dos órdenes de
+magnitud por encima del resto; el promedio no filtra ese outlier.
+
+- **El FIX es `mediana(velocidades)`** — el MISMO criterio que la medición manual de
+  `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1` ya usaba a mano ("la mediana, robusta a valores atípicos"),
+  ahora en el instrumento automático. Función pura nueva, sin dependencias, en el mismo archivo.
+- **VISTO FALLAR antes del fix**: `lib/movimiento/clasificar.test.ts` gana un test con la firma exacta
+  del defecto real —4 grupos "limpios" a 100 unidades/s + 1 grupo cuyo primer↔último instante cruza
+  un reset (466.67 unidades/s)— y el representativo (última muestra) IDÉNTICO en los 5 grupos, para
+  aislar la agregación de toda otra señal. Con el promedio viejo daba **173.33** (inflado); con la
+  mediana da **100** (exacto). Confirmado revirtiendo el fix a mano y re-corriendo: falla con
+  `actual: 173.33333333333334, expected: 100`; con el fix, 12/12 verde. **No borrar ese test.**
+- **RE-MEDIDO contra la traza YA persistida** (`docs/movimiento/muestrario-home.json`, SIN tocar ese
+  archivo — no está en `touches:`; se re-corrió `clasificarElemento` importándolo desde un script de
+  `.scratch/` contra los `grupos` crudos ya capturados):
+
+  | | `velocidadAproxPorSegundo` reportado |
+  | --- | --- |
+  | instrumento VIEJO (promedio, lo que el `.json` persistido tiene hoy) | **629.69 px/s** |
+  | instrumento ARREGLADO (mediana, re-clasificado sobre la MISMA traza cruda) | **234.38 px/s** |
+
+  El instrumento arreglado converge con la medición MANUAL de `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1`
+  (238.7 px/s de mediana) dentro de ~1.8% — la pequeña diferencia es de MÉTODO (el instrumento agrega
+  el delta primer↔último de CADA grupo de scroll por separado; la medición manual usa deltas
+  consecutivos de 400ms dentro de UNA sola posición fija), no del criterio de agregación.
+
+**CONSECUENCIA PARA EL DIAGNÓSTICO — el defecto NO era más chico de lo que parecía.** 234.38 px/s
+sigue estando MUY por encima de cualquier nominal declarado (42.86 'lenta' · 71.43 'media'): el
+instrumento sólo estaba INFLANDO el número reportado (629.69 → 234.38), nunca estuvo OCULTANDO ni
+CREANDO el defecto real del componente. Arreglar el instrumento primero confirmó que había un
+segundo defecto genuino por diagnosticar, en vez de descartarlo como ruido de medición.
+
+### 2 · El componente — framer-motion IGNORA `transition.duration` cuando `animate` no cambia de valor
+
+**LOS TRES SOSPECHOSOS DEL SPEC SE DESCARTARON, MEDIDOS, NO POR ELIMINACIÓN:**
+
+- **Qué se mide vs qué se traslada**: medido en vivo (Playwright contra
+  `https://coffee-template-app-onix.vercel.app/`) — `children[0]`/`children[1]` del track (`div.flex`)
+  dan EXACTAMENTE el mismo ancho (`2570.390625px` cada uno, post-carga de fuente), y
+  `trackRef.getBoundingClientRect().width` = `5140.78125` = 2×2570.39 EXACTO. El `-50%` de CSS
+  translate resuelve contra el ancho de la CAJA PROPIA de `trackRef` (verificado contra
+  `node_modules/motion-dom/dist/es/render/html/utils/build-transform.mjs`: framer-motion escribe
+  literalmente `translateX(-50%)`, nunca resuelve el porcentaje en JS) — la distancia por ciclo es
+  correcta por construcción.
+- **Cuándo se mide (el font-swap)**: `Playfair Display`/el par custom del tenant carga vía `@import
+  … display=swap` — medido: el ancho de una copia pasa de `2057.8125px` (fallback `serif`) a
+  `2570.390625px` (fuente final) en la ventana de **~50–250ms** tras `domcontentloaded`. Esto SÍ
+  introduce una discrepancia (ratio 1.249×) pero es DEMASIADO CHICA para explicar el ≈3.3×–5.6×
+  observado — se descarta como causa DOMINANTE (aunque puede aportar un margen menor).
+- **El separador entre copias**: sin `gap` en el flex row, sin margen — descartado por construcción
+  (el ancho total mide exactamente 2× una copia, medido arriba).
+
+**LA CAUSA REAL, medida con precisión de reset-a-reset (no una velocidad aproximada):** el período del
+loop del ticker EN VIVO se mantiene **CONSTANTE en ~11.19s** (tres resets consecutivos medidos:
+11.177s, 11.208s) durante TODA la sesión, sin importar que `medir()` (`HeroMediaMarquesina.tsx`)
+corrija `duracionTicker` tras la primera medición real del DOM. Ese número **coincide EXACTO** con
+`duracionTickerFallbackS(VELOCIDAD_TICKER_PX_S) = 800/71.4286 = 11.2s` — la duración de ARRANQUE,
+ANTES de cualquier corrección — no con `duracionTickerS(2570.39, velocidadTicker)` (35.99s si
+`tickerVelocidad='media'`, 59.98s si `'lenta'`), que es lo que `medir()` sí calcula y sí escribe en el
+estado de React.
+
+**Verificado en la fuente instalada** (`node_modules/motion-dom/dist/es/render/utils/animation-state.mjs`,
+`buildResolvedTypeValues`): el diffing que decide si framer-motion (re)inicia una animación
+DESESTRUCTURA `transition` FUERA de los valores comparados (`const { transition, transitionEnd,
+...target } = resolved`) — la duración NUNCA entra al diff. Y como nuestro `animate` target
+(`x:['0%','-50%']`) es el MISMO literal en cada render, `shallowCompare` (mismo paquete,
+`render/utils/shallow-compare.mjs`, comparación elemento-a-elemento) lo declara "sin cambios" —
+`valueHasChanged=false`— en TODOS los renders posteriores al montaje. Consecuencia: `duracionTicker`
+SÍ se corrige en el estado de React (`setDuracionTicker` se llama con el valor correcto), pero
+framer-motion nunca vuelve a leerlo — la animación sigue corriendo con la duración de su PRIMER
+render, el fallback que asume un texto de ~800px (`duracionTickerFallbackS`, `lib/animation.ts`)
+cuando el texto real mide ~2570px (~3.2× más). Por eso el ticker corre más rápido de lo declarado
+**sin importar qué `hero.tickerVelocidad` esté configurado** — el bug afecta a 'media' y 'lenta' por
+igual, en la misma proporción (≈ancho_real/800).
+
+**REPRODUCIDO Y VERIFICADO AISLADO, con la MISMA versión instalada de framer-motion (12.40.0)** — un
+repro mínimo (`.scratch/`, no en `touches:`, no deja rastro en el repo) bundleado con `esbuild` y
+servido por un server HTTP local (los `<script type="module">` fallan por CORS bajo `file://`),
+replicando el patrón EXACTO (`animate={x:['0%','-50%']}`, `transition={{duration}}`, `duration` en
+estado de React que cambia de D0=2s a D1=6s a los 700ms):
+
+| variante | períodos del loop medidos (reset-a-reset) |
+| --- | --- |
+| SIN `key` (el bug de hoy) | 1.90s, 2.01s, 2.01s, 2.02s, 2.02s — **congelado en D0 para siempre** |
+| CON `key={duracion}` (el fix) | primer reset a los 866ms (el remount discontinuando D0 a medio camino); luego 6.04s, 6.04s — **adopta D1** |
+
+Esto prueba las DOS mitades a la vez: que el bug es real e independiente de nuestra app completa (la
+MISMA versión de framer-motion, sin CORTE, sin SiteContent, sin fuentes), y que el fix propuesto lo
+cierra.
+
+### 3 · El fix — `key={duracionTicker}`
+
+En el `<motion.div ref={trackRef}>` (`HeroMediaMarquesina.tsx`), se agrega `key={duracionTicker}`:
+cuando `medir()` corrige la duración, React DESMONTA la instancia vieja y MONTA una nueva —un
+`VisualElement` fresco arranca con `isInitialRender=true`, usando el `transition` ACTUAL, porque ya
+no hay un target previo con el que compararse—. Es el fix MÍNIMO documentado en el propio ecosistema
+de framer-motion para esta clase de gotcha (cambiar sólo `transition` sin cambiar `animate`).
+
+- **NO se usó `useAnimate()`/la API imperativa** (evitaría el reinicio visual del ciclo): exige
+  reestructurar el componente entero alrededor de un scope imperativo por una ganancia marginal — el
+  reinicio ocurre sólo al montar (tras la primera medición real, típicamente <100ms tras el primer
+  paint) y en cada `resize` genuino, nunca en medio de una sesión normal de scroll.
+- **Sin cambio de SSR**: `key` no se serializa a HTML — `renderToStaticMarkup` (todo el harness de
+  `lib/config/hero-marquesina.test.ts`) es ciego a este cambio por construcción, y los 34 tests de ese
+  archivo pasan sin tocar una línea. Por eso ese archivo, aunque está en `touches:`, no ganó tests
+  nuevos: el mecanismo que este fix corrige (framer-motion + DOM real) es precisamente lo que ese
+  harness SSR-only no puede ejercitar (§ CLAUDE.md, "los tests de componente necesitan jsdom, que el
+  repo no tiene" — la misma frontera, un nivel más abajo: acá ni siquiera hace falta jsdom, hace falta
+  un MOTOR DE ANIMACIÓN real). La verificación de este mecanismo es el repro aislado de arriba y,
+  eventualmente, el gate visual del owner sobre un deploy con el fix.
+- **`lib/animation.test.ts` tampoco ganó tests nuevos**: ninguna función pura cambió de comportamiento
+  (`duracionTickerS`/`duracionTickerFallbackS`/`velocidadTickerPxS` siguen siendo matemáticamente
+  correctas — el bug nunca estuvo en la aritmética). Se corrigió sólo un COMENTARIO que afirmaba algo
+  falso en la práctica ("se sobrescribe… nunca se ve en pantalla") — el nuevo texto documenta que esa
+  garantía dependía del fix de `key`, y antes de este slice NO se cumplía.
+
+### 4 · Las cifras — antes y después, con su margen
+
+**ANTES de este slice (medido en vivo, código actual sin el fix, contra el muestrario desplegado):**
+
+| método | período/velocidad medida |
+| --- | --- |
+| deltas de 400ms consecutivos (mismo método que `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1`) | mediana **227.2 px/s** (7 lecturas: 227.24, 227.23, 227.77, 236.91, 227.23, 226.09, 228.93) |
+| reset-a-reset (3 resets, más preciso — no depende de la ventana de muestreo) | 11.177s y 11.208s de período → **≈227.0 px/s** (distancia por ciclo ≈2540px / 11.19s) |
+| instrumento arreglado (mediana) sobre la traza ya persistida | **234.38 px/s** |
+
+Las tres convergen dentro de ~3% entre sí, y con la medición previa del ledger (238.3/238.7 px/s) —
+la variación es ruido de medición esperado (red, `evaluate()`, jitter de `waitForTimeout`), no una
+discrepancia real.
+
+**DESPUÉS del fix — NO SE PUDO MEDIR EN VIVO contra el muestrario desplegado**, porque este slice no
+tiene permiso de push/deploy (§ el dispatch: "no mergeás, no pusheás") y el fix vive sólo en el árbol
+local de esta rama — el muestrario sigue sirviendo el build ANTERIOR hasta que se despliegue. **Esto
+es un UNKNOWN declarado, no una verificación omitida**: el criterio de aceptación verificable del spec
+("la velocidad medida en vivo coincide con la constante declarada, dentro del margen del instrumento")
+sólo se puede cerrar DESPUÉS de un deploy con este commit, que es responsabilidad de una tanda
+posterior (el gate visual del owner, o un slice de verificación post-deploy).
+
+**LO QUE SÍ SE VERIFICÓ, con margen declarado, es el MECANISMO**: el repro aislado (§2, tabla) muestra
+que sin el fix el período queda fijo en D0 (±0.6% de jitter sobre 5 lecturas) y con el fix pasa a D1
+(±0% sobre 2 lecturas, exacto a los 2 decimales). Extrapolado a la app real: una vez desplegado, el
+ticker debería correr a `duracionTickerS(anchoReal, velocidadTickerPxS(hero.tickerVelocidad))` en vez
+del fallback — es decir, a la velocidad NOMINAL exacta (71.43 o 42.86 px/s, según el tema), con el
+mismo margen de medición que ya afecta cualquier lectura en vivo (~1–3%, ruido de red/timing, § arriba).
+
+### 5 · Hallazgo lateral — `hero.tickerVelocidad` en el muestrario desplegado no parece ser 'lenta'
+
+**MEDIDO, fuera de `touches:` (no se toca, se reporta):** el período congelado observado (~11.19s)
+coincide EXACTO con `duracionTickerFallbackS(VELOCIDAD_TICKER_PX_S)=800/71.4286=11.2s` —el fallback
+calculado con la velocidad **'media'**—, NO con `duracionTickerFallbackS(VELOCIDAD_TICKER_LENTA_PX_S)
+=800/42.857=18.667s` —'lenta', la que CORTE declara (`heroTickerVelocidad:'lenta'`,
+`lib/config/themes.ts:1029`)—. Como `duracionTickerFallbackS` usa la `velocidadTicker` YA RESUELTA
+(`velocidadTickerPxS(hero.tickerVelocidad)`) en el momento del montaje, esto es evidencia indirecta
+pero fuerte de que el tenant desplegado en `coffee-template-app-onix.vercel.app` está resolviendo
+`hero.tickerVelocidad` como **'media'** (el default), no **'lenta'** — consistente con la doctrina ya
+escrita (`CLAUDE.md`, § Re-medida…, y el propio comentario de `themes.ts`) de que un tenant ya-CORTE
+necesita RE-APLICAR el preset para tomar campos nuevos que RONDA 4 (`CORTE-HERO-REVELADO-MASCARA-1`)
+agregó. **Esto significa que la tabla de razones de `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1` (§3, "5.56×
+contra `VELOCIDAD_TICKER_LENTA_PX_S`") probablemente comparaba contra un nominal que el tenant medido
+no tenía realmente aplicado** — no se puede confirmar sin acceso autenticado a `/api/site-content` de
+ese despliegue (401 sin sesión), así que queda como hallazgo, no como hecho cerrado. No cambia el
+diagnóstico del bug de código (§2): ese bug afecta a 'media' y 'lenta' por igual.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2301/2301** — +1 test nuevo (`lib/movimiento/clasificar.test.ts`, el de la mediana), 0 quitados; piso anterior 2300/2300 (`b01f73f`) |
+| `npm run test:integracion` | **237/237** en la corrida final. Una corrida INTERMEDIA (previa a este resultado, sobre el mismo árbol) dio 236/237 — falló `wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador…", un test de CARRERA real (dos promesas en paralelo) sobre un archivo que este slice NO toca. Re-corrida independiente inmediata: 237/237 limpio. Es ruido de timing pre-existente del propio test de concurrencia, no una regresión de este diff — `git log -1 -- tests/integracion/wompi-reconciliador.test.ts` da `9abdc5b` (`WOMPI-RECONCILIADOR-HI-1`), ajeno a esta rama. |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, corrido dos veces (antes y después del fix del instrumento) — Nayoli usa `hero:'curtina'`, nunca `HeroMediaMarquesina`, y ninguno de los cuatro archivos tocados es parte del render del storefront de Nayoli. |
+
+### `touches:` — lo que se tocó y lo que no, y por qué
+
+`git diff --numstat`: `components/storefront/home/HeroMediaMarquesina.tsx` (+47/-0),
+`lib/animation.ts` (+11/-3), `lib/movimiento/clasificar.ts` (+20/-1),
+`lib/movimiento/clasificar.test.ts` (+39/-0) — cuatro de los siete archivos de `touches:`.
+**`lib/animation.test.ts` y `lib/config/hero-marquesina.test.ts` NO se tocaron**, y es una decisión,
+no un olvido: ninguna función pura cambió (nada que testear ahí de nuevo) y el mecanismo del fix
+(framer-motion + DOM real, § el punto 3) es estructuralmente invisible para `renderToStaticMarkup`
+(sin jsdom, § CLAUDE.md). `DECISIONS.md` es este asiento. `docs/movimiento/*.json/.md` (fuera de
+`touches:`) NO se tocaron — la re-medición del instrumento (§1) se hizo importando `clasificarElemento`
+desde un script de `.scratch/` contra la traza YA persistida, sin regenerarla ni sobrescribirla.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos que este diff introdujo o cambió: `mediana`, `key={duracionTicker}`,
+`CORTE-MARQUEE-VELOCIDAD-REAL-1`, `ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1`, `analizarEje`,
+`HeroMediaMarquesina`, `duracionTickerFallbackS`, `duracionTickerS`, `VELOCIDAD_TICKER_PX_S`,
+`VELOCIDAD_TICKER_LENTA_PX_S`, `trackRef`, `velocidadTickerPxS`, `clasificarElemento`. Grepeados uno
+por uno contra `CLAUDE.md`: **CERO apariciones para los trece.** `CLAUDE.md` no nombra el arnés de
+censo de movimiento ni el mecanismo del marquee del hero en ningún punto (viven en `DECISIONS.md`,
+`DUNA-MOVIMIENTO.md` y los propios docstrings de `lib/animation.ts`/`HeroMediaMarquesina.tsx`) — nada
+que corregir.
+
+Segundo grep, sobre el DOCUMENTO: `grep -n "CORTE-MARQUEE-VELOCIDAD-REAL-1" DECISIONS.md` (antes de
+este asiento) daba una sola línea, la del open-follow-up de `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1` —
+que este asiento cierra. Nada más apuntaba a ese id. `ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1`
+tampoco tenía otro puntero. Nada que corregir ahí tampoco.
+
+### `customer_bytes`
+
+**`changed: false`.** Ninguno de los cuatro archivos tocados es `app/(storefront)/` ni renderiza texto
+nuevo para el visitante — es lógica interna de animación (framer-motion) y un instrumento de censo
+interno. Verificado por ejecución: `verificar:nayoli:visual` da 0px, y el fix no cambia NINGÚN string
+—sólo la VELOCIDAD a la que el mismo texto se desplaza—. `strings`: ninguno.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo.
+
+### Open follow-ups
+
+- **Verificación post-deploy de la velocidad real** — este slice no pudo medir en vivo el resultado
+  del fix (sin permiso de deploy). Cuando esta rama se mergee y despliegue, medir en vivo contra el
+  muestrario (mismo método: reset-a-reset del `transform` del track) y confirmar que el período pasa
+  a `duracionTickerS(anchoReal, velocidadTickerPxS(hero.tickerVelocidad))` — no al fallback.
+- **`hero.tickerVelocidad` posiblemente sin re-aplicar en el tenant desplegado** (§5) — si se
+  confirma (requiere sesión OWNER/MANAGER contra `/api/site-content`), re-aplicar el preset CORTE a
+  ese tenant para que tome `heroTickerVelocidad:'lenta'`/`heroVeloIntensidad:'suave'`. No es un
+  defecto de código; es una operación de datos sobre un despliegue, fuera de lo que este slice puede
+  tocar.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [owner-gate-requested]`.** El diff, juzgado contra sus tres
+condiciones de la política A, no falla ninguna: sin schema, sin `customer_bytes` (`changed: false`),
+sin cross-repo-contract. Se para acá porque el dispatch de esta rama lo pide para TODO slice, no
+porque el diff lo amerite. Gate verde en las tres capas medidas (§ Gate). Commiteado en
+`slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador.
+
+**Cierra `CORTE-MARQUEE-VELOCIDAD-REAL-1`.**
