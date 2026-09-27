@@ -17,7 +17,7 @@ import {
   resolverVariante,
   type SiteContentData,
 } from './site-content-defaults';
-import { VELO_OPACIDAD_PISO } from '@/lib/animation';
+import { VELO_OPACIDAD_PISO, UMBRAL_REVELADO_TEXTO, claseAlturaAncestroMarquesina } from '@/lib/animation';
 
 // MUESTRARIO-HERO-MARQUESINA-STICKY-1 — la CUARTA variante del hero (tras curtina/ficha/media,
 // § HeroSection.tsx): el hero y la marquesina dejan de ser DOS bandas apiladas y pasan a ser UNA
@@ -166,9 +166,21 @@ test('el panel visible es `sticky top-0`, a `h-[100svh]` SIEMPRE (no lee `altura
   assert.equal(conAlturaLlenaFalse, conAlturaLlenaTrue);
 });
 
-test('el ancestro (root del componente) tiene el presupuesto de scroll extra — 100svh del panel + 200vh, MEDIDO contra el `<xo-parallax class="h:300vh">` real (300vh = 100vh + 200vh), no el min-h-[70vh] de la banda suelta', () => {
+// § CORTE-HERO-MARQUEE-REVELA-1: `DEFAULTS.marquesina.productoSlug` es `''` (§ site-content-
+// defaults.ts), así que `productoSpotlight` SIEMPRE devuelve `null` acá — sin producto que pinear,
+// el ancestro usa el presupuesto CORTO (`claseAlturaAncestroMarquesina(false)`), no el de siempre.
+// El caso CON tarjeta (200vh) queda sin cambios y afirmado directo sobre la función pura, abajo — el
+// mismo límite SSR de `getCatalog()`/`useEffect` que ya documentan los otros tests de esta sección
+// (líneas 122-126) impide resolver un `producto` real a través de este harness de render.
+test('SIN producto (DEFAULTS, hide-on-empty): el ancestro usa el presupuesto CORTO — no arrastra 200vh cuando no hay tarjeta que mostrar', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
-  assert.match(html, /min-h-\[calc\(100svh\+200vh\)\]/);
+  assert.match(html, /min-h-\[calc\(100svh\+65vh\)\]/);
+  assert.doesNotMatch(html, /min-h-\[calc\(100svh\+200vh\)\]/);
+});
+
+test('claseAlturaAncestroMarquesina: CON tarjeta sigue siendo el presupuesto de SIEMPRE (100svh+200vh, MEDIDO contra `<xo-parallax class="h:300vh">`); SIN tarjeta, 100svh+65vh (200vh menos la ventana [0.12,0.57] de la tarjeta: 0.45×300vh=135vh)', () => {
+  assert.equal(claseAlturaAncestroMarquesina(true), 'min-h-[calc(100svh+200vh)]');
+  assert.equal(claseAlturaAncestroMarquesina(false), 'min-h-[calc(100svh+65vh)]');
 });
 
 // § CORTE-HERO-STICKY-RONDA-2-1 INVIERTE este caso: el owner pidió el cue VISIBLE bajo sticky, así
@@ -196,16 +208,45 @@ test('cueDesliza:true, EN PREVIEW — el cue se OMITE (scrollear no significa na
 
 // ─── MOVIMIENTO REDUCIDO (proxy: PreviewProvider, MISMO límite que `marquesina-banda.test.ts`) ───
 
-test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO y QUIETO — sin desplazamiento horizontal', () => {
+test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO, QUIETO y VISIBLE — sin desplazamiento horizontal ni revelado a medias', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
   assert.ok(html.includes('transform:translateY(-50%)'), 'debe rendir el transform QUIETO bajo el gate estático');
   assert.ok(!/translate\(-?\d/.test(html), 'ningún transform de desplazamiento horizontal debe sobrevivir bajo el gate estático');
+  assert.match(html, /opacity:1"/, 'un gate de movimiento nunca puede esconder contenido — el texto queda VISIBLE, nunca en el piso de reposo');
 });
 
-test('SIN el gate estático (SSR, progreso arranca en 0): el texto arranca sin desplazamiento todavía', () => {
+test('SIN el gate estático (SSR, progreso arranca en 0): el texto arranca INVISIBLE y corrido hacia abajo — el revelado todavía no empezó', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
-  assert.ok(html.includes('transform:translate(0.0px, -50%)'));
-  assert.ok(!html.includes('transform:translateY(-50%)'), 'sin el gate estático no debe rendir la forma "quieta"');
+  assert.ok(html.includes('transform:translate(0.0px, -50%) translateY(24.0px)'), 'el desplazamiento horizontal es 0 (recién arranca) y el revelado suma su offset de reposo (fadeUp.hidden.y)');
+  assert.ok(!html.includes('transform:translateY(-50%)'), 'sin el gate estático no debe rendir la forma "quieta" (sin el translateY del revelado)');
+  assert.match(html, /opacity:0"/, 'en reposo el marquee NO se ve — "inicialmente solo el video del hero"');
+});
+
+// ─── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1 (§ el docstring de cabecera de `lib/animation.ts`) ───
+// Afirma, contra el RENDER (no sólo las funciones puras de `lib/animation.test.ts`), que el revelado
+// se compone con el desplazamiento/velo de siempre sin reemplazarlos, y que se completa DENTRO de la
+// ventana temprana declarada (`UMBRAL_REVELADO_TEXTO.hasta`), nunca a lo largo de todo el recorrido.
+
+// El SSR de este componente NO acepta un progreso inyectado (`useProgresoScrollDesdeTope` mide el
+// DOM real vía `useScroll`, que no existe bajo `renderToStaticMarkup`) — así que un progreso
+// INTERMEDIO real (ni 0 ni el estado final) sólo se puede afirmar sobre las funciones puras, ya
+// cubierto en `lib/animation.test.ts` (`opacidadRevelado`/`translateYRevelado` a progreso=0.1, la
+// mitad de esta ventana). Lo que este archivo SÍ puede afirmar por render son los DOS extremos —
+// progreso=0 (arriba) y el estado final que `estatico` fuerza (abajo)— y que la ventana declarada
+// (`UMBRAL_REVELADO_TEXTO.hasta`) es la parte TEMPRANA del progreso, no el recorrido completo.
+test('UMBRAL_REVELADO_TEXTO consume la parte TEMPRANA del progreso — no las tres pantallas completas', () => {
+  assert.equal(UMBRAL_REVELADO_TEXTO.desde, 0);
+  assert.ok(UMBRAL_REVELADO_TEXTO.hasta > 0 && UMBRAL_REVELADO_TEXTO.hasta < 0.5, 'la ventana termina bien antes de la mitad del recorrido');
+});
+
+test('al COMPLETAR la ventana de revelado (progreso=0.2, vía el proxy estático que rinde el estado FINAL): visible y sin offset — no se pasa de su posición final', () => {
+  // `estatico=true` (preview) rinde exactamente el estado que `opacidadRevelado`/`translateYRevelado`
+  // alcanzan al final de la ventana (opacity=1, dy=0) — es el mismo valor, por diseño (§ el docstring
+  // de `opacidadRevelado`: "estatico gana con el estado FINAL"). Lo que NO se puede afirmar por render
+  // es el punto EXACTO 0.2 con scroll real; eso vive en `lib/animation.test.ts`.
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
+  assert.match(html, /opacity:1"/);
+  assert.doesNotMatch(html, /translateY\(\d/, 'ningún translateY numérico del revelado debe sobrevivir una vez completo — sólo translateY(-50%)');
 });
 
 // ─── EL DISPATCHER — HeroSection enruta "sticky"; curtina/ficha/media quedan INTACTAS ────────────

@@ -5,6 +5,8 @@ import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
   transformMarquesinaTexto, transformMarquesinaTarjeta, indiceCentrado,
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO,
+  opacidadRevelado, translateYRevelado, UMBRAL_REVELADO_TEXTO,
+  claseAlturaAncestroMarquesina, fadeUp,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -195,6 +197,83 @@ test('VELO_OPACIDAD_PISO deja margen sobre el piso AA (4.5:1) contra la foto de 
   const c = contraste(blanco, compuesto);
   assert.ok(c >= 4.5, `debe superar AA (4.5:1) contra la foto MÁS clara; dio ${c.toFixed(2)}`);
   assert.ok(c > 5, `debe dejar margen real sobre AA, no el mínimo exacto; dio ${c.toFixed(2)}`);
+});
+
+// ── EL REVELADO DEL TEXTO (§ CORTE-HERO-MARQUEE-REVELA-1) — sin React, sin navegador ──────────────
+// `opacidadRevelado`/`translateYRevelado` reproducen la ventana declarada en `UMBRAL_REVELADO_TEXTO`:
+// invisible y corrido hacia abajo en reposo, visible y en su lugar al completar la ventana. El hook
+// que las consume (`useProgresoScrollDesdeTope`, vía `HeroMediaMarquesina.tsx`) no se puede afirmar
+// acá sin DOM real; su cableado se verifica por render en `lib/config/hero-marquesina.test.ts`.
+
+test('UMBRAL_REVELADO_TEXTO: la ventana empieza en 0 (el arranque mismo del scroll) y termina bien antes de la mitad del recorrido', () => {
+  assert.equal(UMBRAL_REVELADO_TEXTO.desde, 0);
+  assert.ok(UMBRAL_REVELADO_TEXTO.hasta > 0 && UMBRAL_REVELADO_TEXTO.hasta < 0.5, 'consumido en la parte TEMPRANA, no a lo largo de todo el progreso');
+});
+
+test('opacidadRevelado: estatico=true SIEMPRE 1 — un gate de movimiento nunca esconde contenido, ni siquiera en reposo', () => {
+  assert.equal(opacidadRevelado(0, true), 1);
+  assert.equal(opacidadRevelado(0.1, true), 1);
+  assert.equal(opacidadRevelado(1, true), 1);
+  assert.equal(opacidadRevelado(-0.5, true), 1, 'estatico gana incluso con progreso fuera de rango');
+});
+
+test('opacidadRevelado: estatico=false, progreso=0 — INVISIBLE, el pedido "inicialmente sólo el video del hero"', () => {
+  assert.equal(opacidadRevelado(0, false), 0);
+});
+
+test('opacidadRevelado: estatico=false, progreso=hasta (fin de la ventana) — completamente VISIBLE', () => {
+  assert.equal(opacidadRevelado(UMBRAL_REVELADO_TEXTO.hasta, false), 1);
+});
+
+test('opacidadRevelado: estatico=false, más allá de la ventana — sigue en 1, no vuelve a desaparecer', () => {
+  assert.equal(opacidadRevelado(0.5, false), 1);
+  assert.equal(opacidadRevelado(1, false), 1);
+});
+
+test('opacidadRevelado: a mitad de la ventana, a mitad de camino entre invisible y visible', () => {
+  const medio = UMBRAL_REVELADO_TEXTO.hasta / 2;
+  assert.equal(opacidadRevelado(medio, false), 0.5);
+});
+
+test('opacidadRevelado: progreso se acota a [0,1] antes de mapear a la ventana — un negativo no da opacidad negativa', () => {
+  assert.equal(opacidadRevelado(-0.5, false), opacidadRevelado(0, false));
+});
+
+test('translateYRevelado: estatico=true SIEMPRE 0 — sin offset, el texto queda en su posición final', () => {
+  assert.equal(translateYRevelado(0, true), 0);
+  assert.equal(translateYRevelado(0.5, true), 0);
+  assert.equal(translateYRevelado(1, true), 0);
+});
+
+test('translateYRevelado: estatico=false, progreso=0 — el offset de reposo es EXACTAMENTE `fadeUp.hidden.y` (24px), no un número inventado', () => {
+  assert.equal(translateYRevelado(0, false), fadeUp.hidden.y);
+  assert.equal(fadeUp.hidden.y, 24);
+});
+
+test('translateYRevelado: estatico=false, progreso=hasta (fin de la ventana) — 0, ya llegó a su posición final', () => {
+  assert.equal(translateYRevelado(UMBRAL_REVELADO_TEXTO.hasta, false), 0);
+});
+
+test('translateYRevelado: más allá de la ventana — sigue en 0, NUNCA se pasa de su posición final (sin overshoot)', () => {
+  assert.equal(translateYRevelado(0.5, false), 0);
+  assert.equal(translateYRevelado(1, false), 0);
+});
+
+test('translateYRevelado: a mitad de la ventana, a mitad de camino de subir', () => {
+  const medio = UMBRAL_REVELADO_TEXTO.hasta / 2;
+  assert.equal(translateYRevelado(medio, false), fadeUp.hidden.y * 0.5);
+});
+
+// ── EL PRESUPUESTO DE SCROLL PROPORCIONAL (§ CORTE-HERO-MARQUEE-REVELA-1) — sin React, sin navegador
+// `claseAlturaAncestroMarquesina` es lookup por LITERAL (mismo criterio que `gridColsPresentaciones`,
+// `lib/storefront/presentaciones.ts`): las dos ramas son strings COMPLETOS para que Tailwind los vea.
+
+test('claseAlturaAncestroMarquesina: CON tarjeta, el presupuesto de SIEMPRE — 100svh + 200vh, MEDIDO contra `<xo-parallax class="h:300vh">`', () => {
+  assert.equal(claseAlturaAncestroMarquesina(true), 'min-h-[calc(100svh+200vh)]');
+});
+
+test('claseAlturaAncestroMarquesina: SIN tarjeta, 100svh + 65vh — 200vh menos la ventana [0.12,0.57] de `transformMarquesinaTarjeta` (0.45×300vh=135vh), la porción sin nada que animar', () => {
+  assert.equal(claseAlturaAncestroMarquesina(false), 'min-h-[calc(100svh+65vh)]');
 });
 
 // ── EL ÍNDICE CENTRADO DE UN RIEL (§ MUESTRARIO-RIEL-ACTIVO-1) — sin React, sin navegador ─────────

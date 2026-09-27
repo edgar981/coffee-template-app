@@ -11,6 +11,7 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoSpotlight } from "@/lib/config/site-content-defaults";
 import {
   useProgresoScrollDesdeTope, transformMarquesinaTexto, transformMarquesinaTarjeta, veloOpacidad,
+  opacidadRevelado, translateYRevelado, claseAlturaAncestroMarquesina,
 } from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
@@ -106,6 +107,27 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // reduced-motion (`ReducedMotionProvider`, montado en el layout, ya congela el `y` animado del
 // segmento — § el docstring de `ReducedMotionProvider`, `lib/animation.ts`).
 //
+// EL REVELADO DEL TEXTO — § CORTE-HERO-MARQUEE-REVELA-1 (`lib/animation.ts`, el bloque
+// "EL REVELADO DEL TEXTO" para la derivación completa): el owner reportó, sobre el muestrario de
+// RONDA 2, que el marquee «no debe salir inicialmente… las letras van saliendo hacia arriba, en una
+// transición smooth, cuando alguien empiece a hacer scroll». `opacidadRevelado`/`translateYRevelado`
+// se SUMAN al `transformMarquesinaTexto`/`veloOpacidad` de siempre (no los reemplazan): en reposo
+// (`progreso=0`) el texto es invisible (`opacity:0`) y está corrido `fadeUp.hidden.y` (24px) por
+// debajo de su centrado; al 20% del progreso (`UMBRAL_REVELADO_TEXTO.hasta`) ya llegó a su posición
+// final y opacidad completa, y el resto del recorrido (el desplazamiento horizontal continuo + la
+// tarjeta) sigue exactamente igual que antes de esta ronda. Bajo `estatico` el texto queda SIEMPRE
+// visible y en su lugar (`opacidadRevelado`/`translateYRevelado` rinden 1/0) — un gate de movimiento
+// nunca puede esconder contenido.
+//
+// EL PRESUPUESTO DE SCROLL DEJA DE SER FIJO — § CORTE-HERO-MARQUEE-REVELA-1 (`lib/animation.ts`, el
+// bloque "EL PRESUPUESTO DE SCROLL"): medido contra el muestrario desplegado, su catálogo está VACÍO
+// y la sección pineada nunca renderiza la tarjeta, así que el ancestro arrastraba 200vh de recorrido
+// —135vh de ellos dedicados a la ventana [0.12,0.57] de `transformMarquesinaTarjeta`— sin nada que
+// esa ventana pudiera animar: el "tramo muerto" que el owner reportó como bug. `producto` (hide-on-
+// empty, ya calculado más abajo para decidir si la tarjeta se muestra) decide TAMBIÉN cuánto
+// presupuesto reservar (`claseAlturaAncestroMarquesina`): 200vh con tarjeta (sin cambios), 65vh sin
+// ella —lo que queda tras restar exactamente la ventana de la tarjeta—.
+//
 // LA MECÁNICA DE STICKY, EN DOS ELEMENTOS: el elemento que el visitante VE pineado
 // (`<section className="sticky top-0 h-[100svh] …">`) necesita un ANCESTRO más alto que el
 // viewport para tener contra qué "engancharse" — un `position:sticky` del mismo alto que su
@@ -174,7 +196,16 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // nunca la `<section>` pineada.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const progreso = useProgresoScrollDesdeTope(wrapperRef);
-  const transformTexto = useTransform(progreso, (p) => transformMarquesinaTexto(p, travelPx, estatico));
+  // EL REVELADO (§ el docstring de cabecera): `translateYRevelado` se SUMA al centrado/desplazamiento
+  // de `transformMarquesinaTexto` — dos `translate()` en la misma cadena CSS se combinan por suma —,
+  // nunca lo reemplaza. `dy===0` (estatico, o progreso ya pasó la ventana) omite el translateY extra
+  // en vez de sumar un "translateY(0.0px)" inerte.
+  const transformTexto = useTransform(progreso, (p) => {
+    const base = transformMarquesinaTexto(p, travelPx, estatico);
+    const dy = translateYRevelado(p, estatico);
+    return dy === 0 ? base : `${base} translateY(${dy.toFixed(1)}px)`;
+  });
+  const opacidadTexto = useTransform(progreso, (p) => opacidadRevelado(p, estatico));
   const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
   const opacidadVelo = useTransform(progreso, (p) => veloOpacidad(p, estatico));
 
@@ -202,7 +233,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   return (
     <div
       ref={wrapperRef}
-      className="relative min-h-[calc(100svh+200vh)] bg-[var(--sf-banda,var(--sf-tinta))]"
+      className={`relative ${claseAlturaAncestroMarquesina(!!producto)} bg-[var(--sf-banda,var(--sf-tinta))]`}
       style={style}
     >
       <section
@@ -249,7 +280,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
         <motion.div
           aria-hidden="true"
           className="absolute left-0 top-1/2 z-10 flex whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
-          style={{ transform: transformTexto }}
+          style={{ transform: transformTexto, opacity: opacidadTexto }}
         >
           <span className="pr-8">{marquesina.texto} —&nbsp;</span>
           <span className="pr-8">{marquesina.texto} —&nbsp;</span>

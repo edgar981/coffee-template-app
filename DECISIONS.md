@@ -24253,3 +24253,183 @@ del orquestador — este slice, por instrucción del dispatch, no mergea.
 fuera de `touches:` de este slice.
 
 **Cierra `CORTE-HERO-STICKY-RONDA-2-1`.**
+
+---
+
+## 2026-09-27 — El marquee entra desde abajo, y el tramo pineado deja de ser fijo cuando no hay tarjeta (`CORTE-HERO-MARQUEE-REVELA-1`)
+
+El owner corrió el gate visual sobre el prototipo aplicado y reportó dos defectos más de la variante
+`sticky` (`HeroMediaMarquesina.tsx`, § `CORTE-HERO-STICKY-RONDA-2-1`): el marquee se ve completo en
+reposo cuando debería verse SÓLO el video; y el tramo pineado sin tarjeta se siente interminable —
+"por más que haga scroll demoro en bajar mucho esa sección... ahora mismo parece un bug".
+
+### 0 · LA PREMISA DEL SPEC SE MIDIÓ, NO SE ASUMIÓ
+
+El spec marcaba explícitamente `[SIN MEDIR]` la hipótesis del "tramo muerto": que el muestrario
+desplegado no renderiza ninguna tarjeta de producto en el hero porque su catálogo está vacío. Se
+verificó por ejecución, no por lectura de código:
+
+- `GET https://coffee-template-app-onix.vercel.app/api/catalog` → `200`, body `[]` (2 bytes) — el
+  catálogo del muestrario desplegado está VACÍO.
+- El HTML servido de `/` trae `aspect-[3/4]` (el marcado de la tarjeta flotante) **8 veces**; las 8
+  caen fuera de los límites de la sección pineada (entre `min-h-[calc(100svh+200vh)]` y su
+  `</section>` de cierre — medido con `indexOf`, longitud del tramo 1628 caracteres, cero
+  coincidencias adentro) — las 8 son de Presentaciones y BrandStory.
+
+**La hipótesis del spec quedó CONFIRMADA por ejecución.** El wrapper reserva 200vh de recorrido
+extra sin que el catálogo vacío deje nada nuevo que animar en ese tramo.
+
+### 1 · El revelado del texto — reusa la gramática de `fadeUp`, scrubbed por scroll
+
+El pedido, literal: *"el marquee no debe salir inicialmente, inicialmente solo el video del hero. Las
+letras van saliendo hacia arriba, en una transición smooth, cuando alguien empiece a hacer scroll"*.
+
+No se inventó un desplazamiento nuevo ni una curva propia: `opacidadRevelado`/`translateYRevelado`
+(`lib/animation.ts`) reusan la MISMA gramática que `fadeUp` (`opacity 0→1`, `y 24→0` — la que ya usan
+las ~21 animaciones de entrada del storefront), pero SCRUBBED por el progreso de scroll en vez de
+disparada una vez — el mismo tratamiento que `transformAcomodo` ya da a rotate/translateY.
+
+**La curva se SUMA a la de siempre, nunca la reemplaza.** `translateYRevelado` se APPENDEA como un
+segundo `translateY(Npx)` a la cadena `transform` que ya produce `transformMarquesinaTexto`
+(centrado + desplazamiento horizontal) — dos `translate()` sucesivos en un `transform` CSS se
+combinan por SUMA, así que la función compartida con `Marquesina.tsx` NO se tocó (esa banda no
+necesita revelado, y tocarla habría arreglado este consumidor rompiendo el otro, fuera de
+`touches:`).
+
+**El punto en que se completa: `UMBRAL_REVELADO_TEXTO = { desde: 0, hasta: 0.2 }`** — el 20% inicial
+del progreso de scroll del ancestro. Es la parte TEMPRANA del recorrido, no las tres pantallas
+completas: fuera de esa ventana (progreso ≥ 0.2) el texto ya quedó en su posición final, visible, y
+el resto del recorrido lo siguen ocupando el desplazamiento horizontal continuo (sin cambios, sobre
+TODO el rango 0..1) y la tarjeta (sin cambios, recortada a [0.12,0.57]).
+
+| progreso | opacidad | offset vertical extra |
+| --- | --- | --- |
+| 0 (reposo) | 0 — invisible, "sólo el video" | +24px (`fadeUp.hidden.y`, corrido hacia abajo) |
+| 0.1 (mitad de la ventana) | 0.5 | +12px |
+| 0.2 (fin de la ventana) | 1 — visible | 0px |
+| >0.2 | 1 (no vuelve a apagarse) | 0px (nunca overshoot) |
+
+**`estatico` (reduced-motion/preview) rinde el estado FINAL, nunca el de reposo** — mismo criterio ya
+establecido por `veloOpacidad`/`transformAcomodo`: un gate de movimiento apaga el DESPLAZAMIENTO, no
+el CONTENIDO. Con `estatico=true`, `opacidadRevelado`→1 y `translateYRevelado`→0 siempre: el texto
+queda visible y en su lugar, sin importar el progreso.
+
+### 2 · El tramo muerto — el presupuesto de scroll se deriva de si hay tarjeta, por LOOKUP LITERAL
+
+`claseAlturaAncestroMarquesina(tieneTarjeta: boolean)` (`lib/animation.ts`) decide la altura del
+ancestro con el MISMO hecho que ya decide si la tarjeta se muestra (`producto`, hide-on-empty,
+`HeroMediaMarquesina.tsx`):
+
+- **CON tarjeta**: sin cambios — `min-h-[calc(100svh+200vh)]`, medido contra
+  `<xo-parallax class="h:300vh">` real (§ `CORTE-HERO-STICKY-RONDA-2-1`).
+- **SIN tarjeta**: `min-h-[calc(100svh+65vh)]` — se le resta EXACTAMENTE la porción que la ventana
+  [0.12,0.57] de `transformMarquesinaTarjeta` ocupaba (0.45 × 300vh = 135vh; 200vh − 135vh = 65vh).
+  Sin tarjeta, esa ventana no tiene nada que animar; lo que queda (65vh) alcanza para el reveal
+  temprano del texto y el arrastre continuo de texto/velo, sin arrastrar un tramo sin contenido
+  nuevo que mostrar.
+
+**Lookup por LITERAL, no interpolación** — el mismo criterio que `gridColsPresentaciones`
+(`lib/storefront/presentaciones.ts`, § CLAUDE.md "El GRID va por lookup LITERAL"): las dos ramas son
+strings COMPLETOS presentes en el archivo fuente, porque Tailwind escanea texto y una clase armada
+por template literal (`` `min-h-[calc(100svh+${n}vh)]` ``) sería invisible para el JIT.
+
+**Efecto en la práctica, con el muestrario medido en §0:** su catálogo vacío hace que el ancestro
+pase de 300vh (100svh+200vh) a 165vh (100svh+65vh) — el tramo pineado se acorta a poco más de la
+mitad. El caso CON tarjeta (Nayoli, si algún día usara esta variante con catálogo real) no cambia.
+
+**Límite conocido, sin arreglar en esta tanda:** `producto` se resuelve tras un `useEffect`
+(`getCatalog()`), así que el PRIMER render (SSR y el primer paint del cliente) siempre usa la clase
+CORTA hasta que el catálogo cargue — si en ese momento SÍ hay tarjeta, el ancestro crece de 165vh a
+300vh a mitad de sesión. Es el mismo patrón ya existente en el componente (`travelPx` arranca en un
+fallback y se corrige tras montar); no se resuelve acá porque el spec no lo pidió y el catálogo del
+muestrario medido está vacío (no hay caso real hoy que lo ejerza).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2236/2236** — reconciliado EXACTO contra el piso del commit inmediato anterior (`663c490`, `CORTE-HERO-STICKY-RONDA-2-1`, 2219/2219): `2219 + 17 = 2236`. El `+17` es el propio diff, medido (`git diff \| grep -c "^+test("` da 20 agregados, `^-test(` da 3 quitados en `lib/animation.test.ts` + `lib/config/hero-marquesina.test.ts`) |
+| `npm run test:integracion` | **237/237**, sin cambio |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs. esta rama) — Nayoli usa `curtina`, esta variante no se renderiza para ese tenant |
+
+`verificar:nayoli:visual`, medido (main `9a7ab97` vs. esta rama, Postgres efímero + seed canónico +
+Chromium headless):
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+### `touches:` — todo escrito estaba declarado
+
+`lib/animation.ts` (+81/-0: `UMBRAL_REVELADO_TEXTO`, `opacidadRevelado`, `translateYRevelado`,
+`claseAlturaAncestroMarquesina`), `lib/animation.test.ts` (+79/-0), `components/storefront/home/
+HeroMediaMarquesina.tsx` (+34/-3: el import, la composición de `transformTexto`+`opacidadTexto`, la
+clase del ancestro, y el docstring), `lib/config/hero-marquesina.test.ts` (+48/-7), este asiento.
+Nada fuera de la lista se tocó (`git diff --numstat`, medido).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `HeroMediaMarquesina.tsx`, `opacidadRevelado`,
+`translateYRevelado`, `claseAlturaAncestroMarquesina`, `UMBRAL_REVELADO_TEXTO`, `marquesina`,
+`hero-marquesina.test`, `lib/animation`/`lib/animation.test`, `veloOpacidad`, `cueDesliza`,
+`sf-velo`, `fadeUp`, `sticky`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `HeroMediaMarquesina`, `opacidadRevelado`, `translateYRevelado`,
+  `claseAlturaAncestroMarquesina`, `UMBRAL_REVELADO_TEXTO`, `marquesina`, `hero-marquesina`,
+  `lib/animation`, `veloOpacidad`, `cueDesliza`, `sf-velo`, `fadeUp`. Nada en `CLAUDE.md` nombra lo
+  que este diff cambió — mismo hallazgo que ya dejaron escrito los dos slices anteriores de esta
+  rama (este nivel de detalle vive en `DECISIONS.md` y en los comentarios del código).
+- **"sticky" SÍ aparece** (20 líneas): las 20 describen `position:sticky` del PANEL ADMIN
+  (`.duna-lista__head`, `.tienda-vivo__vista`, la cabecera de Pagos) — ninguna relacionada con el
+  storefront ni con esta variante, y este diff no agregó ni tocó ninguna clase `sticky` (la clase
+  `sticky top-0` del panel pineado ya existía, sin cambios). Ninguna se vuelve falsa.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+### Grep del CÓDIGO (fuera de `CLAUDE.md`) — sin hallazgos nuevos
+
+El `open_followup` de `CORTE-HERO-STICKY-RONDA-2-1` (`TIENDA-SECCIONES-CUEDESLIZA-COMENTARIO-STALE-1`)
+sigue exactamente como quedó: este slice no tocó `cueDesliza` ni los comentarios que lo describen en
+`components/admin/tienda-secciones.ts` ni en `lib/config/site-content-defaults.ts`. Ningún comentario
+nuevo describe `opacidadRevelado`/`translateYRevelado`/`claseAlturaAncestroMarquesina` fuera de
+`lib/animation.ts` y `HeroMediaMarquesina.tsx` (ambos en `touches:`), así que no hay una segunda
+afirmación que este diff pueda haber vuelto falsa.
+
+### `customer_bytes`
+
+**`changed: true`** — mismo criterio que los dos slices anteriores de esta rama: la puerta de
+escritura genérica de `SiteContent` ya puede alcanzar esta composición para cualquier tenant real vía
+`hero.variante:'sticky'`, y este commit cambia lo que esa composición RINDE (la curva de entrada del
+texto y, condicionalmente, el alto del ancestro). No se abrió ninguna puerta nueva.
+
+`strings`: **ninguno**. No se agregó ni cambió ningún texto — "Desliza" y `marquesina.texto` siguen
+siendo el mismo copy de siempre; el cambio es puramente de MOVIMIENTO (curva de entrada) y de UN
+número de layout (el presupuesto de scroll).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son cuatro funciones puras nuevas en `lib/animation.ts`, su cableado en
+un componente de storefront existente (sin campos nuevos en `SiteContent`), y tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde en las cuatro capas (tabla arriba), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — mismo criterio que el resto
+de la rama; `schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA
+(`approved: yes`, con su reporte textual como `approval-reason`); el merge sigue pendiente del gate
+del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+Un límite conocido queda anotado en §2 (el ancestro arranca corto y puede crecer a mitad de sesión si
+el catálogo carga con tarjeta), sin `open_followup` propio porque no hay caso real hoy que lo ejerza
+(el catálogo del muestrario medido está vacío).
+
+**Cierra `CORTE-HERO-MARQUEE-REVELA-1`.**

@@ -186,6 +186,87 @@ export function veloOpacidad(progreso: number, estatico: boolean): number {
   return VELO_OPACIDAD_PISO + (1 - VELO_OPACIDAD_PISO) * p;
 }
 
+// ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1 ───────────────────────────────────────────
+//
+// EL PEDIDO DEL OWNER, LITERAL, sobre el muestrario de RONDA 2 (arriba) ya aplicado: «el marquee no
+// debe salir inicialmente, inicialmente solo el video del hero. Las letras van saliendo hacia arriba,
+// en una transición smooth, cuando alguien empiece a hacer scroll». Hasta esta ronda el texto del
+// loop era SIEMPRE visible desde `progreso=0` —sólo con desplazamiento horizontal 0px, nunca
+// invisible ni entrando—, que es el defecto que esta sección cierra.
+//
+// REUSA LA GRAMÁTICA DE `fadeUp` (cabecera de este archivo: `opacity 0→1`, `y 24→0`) — la MISMA que
+// usan las ~21 animaciones de entrada del storefront (§ `ReducedMotionProvider`) — pero SCRUBBED por
+// el progreso de scroll, el mismo tratamiento que `transformAcomodo` ya da a rotate/translateY (un
+// `1-t` continuo en vez de un trigger de `whileInView` disparado una vez). No se inventa un
+// desplazamiento nuevo: `fadeUp.hidden.y` (24px) es el que ya usa toda la home.
+//
+// `UMBRAL_REVELADO_TEXTO` acota la ventana a la parte TEMPRANA del progreso — el pedido es "cuando
+// alguien EMPIECE a scrollear", no a lo largo de las tres pantallas del recorrido pineado completo.
+// Fuera de esta ventana (progreso ≥ 0.2) el texto ya está en su posición final y el resto del
+// recorrido lo ocupan el desplazamiento horizontal CONTINUO (`transformMarquesinaTexto`, sobre TODO
+// el rango 0..1) y la tarjeta (`transformMarquesinaTarjeta`, recortada a [0.12,0.57]).
+export const UMBRAL_REVELADO_TEXTO = { desde: 0, hasta: 0.2 } as const;
+
+function progresoRevelado(progreso: number): number {
+  const p = Math.max(0, Math.min(1, progreso));
+  const { desde, hasta } = UMBRAL_REVELADO_TEXTO;
+  return Math.max(0, Math.min(1, (p - desde) / (hasta - desde)));
+}
+
+// `opacidadRevelado`: 0 en reposo —el pedido "inicialmente sólo el video del hero", sin el marquee
+// visible— y 1 al completar la ventana. `estatico` (reduced-motion/preview, el MISMO gate que
+// `veloOpacidad`/`transformAcomodo`) NUNCA puede dejar el texto invisible: un gate de movimiento
+// apaga el DESPLAZAMIENTO, no el CONTENIDO — así que rinde 1 siempre, el estado FINAL, igual que
+// `veloOpacidad(…, estatico=true)` rinde la densidad final y `transformAcomodo(…, estatico=true)`
+// rinde `'none'` (el acomodo ya hecho) en vez del punto de partida.
+export function opacidadRevelado(progreso: number, estatico: boolean): number {
+  if (estatico) return 1;
+  return progresoRevelado(progreso);
+}
+
+// `translateYRevelado`: el desplazamiento en px que se SUMA (nunca reemplaza) al `translateY(-50%)`
+// de centrado vertical que ya trae `transformMarquesinaTexto` — dos funciones `translate()`
+// sucesivas en un mismo `transform` CSS se combinan por SUMA, así que agregar `translateY(Npx)` al
+// final de la cadena desplaza N px ADEMÁS del centrado, sin tocar esa función (compartida con
+// `Marquesina.tsx`, fuera de `touches:` de este slice: tocarla habría arreglado este consumidor
+// rompiendo el otro, que no necesita ningún revelado). `estatico` rinde 0 — el texto queda en su
+// posición final y centrado, nunca a medio camino de una entrada que no va a completarse por scroll.
+export function translateYRevelado(progreso: number, estatico: boolean): number {
+  if (estatico) return 0;
+  return fadeUp.hidden.y * (1 - progresoRevelado(progreso));
+}
+
+// ── EL PRESUPUESTO DE SCROLL, PROPORCIONAL A LO QUE HAY PARA MOSTRAR — CORTE-HERO-MARQUEE-REVELA-1 ─
+//
+// EL TRAMO MUERTO REPORTADO POR EL OWNER («por más que haga scroll demoro en bajar mucho esa
+// sección... ahora mismo parece un bug») — MEDIDO, no asumido (§ el spec pedía medirlo antes de
+// aceptarlo): `GET https://coffee-template-app-onix.vercel.app/api/catalog` devuelve `[]` — el
+// catálogo del muestrario desplegado está VACÍO — y el HTML servido de la sección pineada (entre
+// `min-h-[calc(100svh+200vh)]` y su `</section>` de cierre) no contiene el marcado de la tarjeta
+// (`aspect-[3/4]`): la página tiene 8 apariciones de esa clase y las 8 caen en Presentaciones/
+// BrandStory, CERO dentro de la sección del hero. La hipótesis del spec queda CONFIRMADA por
+// ejecución: sin producto que pinear (hide-on-empty, § el docstring de cabecera de
+// `HeroMediaMarquesina.tsx`), el ancestro seguía reservando el MISMO presupuesto de 200vh que la
+// ventana [0.12,0.57] de `transformMarquesinaTarjeta` necesita para animar una tarjeta que nunca
+// aparece — 135vh de scroll (0.45 × 300vh) dedicados a una animación sin nada que mostrar.
+//
+// `claseAlturaAncestroMarquesina` deriva la altura del mismo hecho que ya decide si la tarjeta se
+// muestra (`producto`, hide-on-empty): CON tarjeta, el presupuesto de SIEMPRE (100svh + 200vh,
+// medido contra `<xo-parallax class="h:300vh">`, § el docstring de cabecera de
+// `HeroMediaMarquesina.tsx`). SIN tarjeta, se le resta EXACTAMENTE la porción que esa ventana ocupaba
+// (135vh = 0.45×300vh, la misma ventana [0.12,0.57] de `transformMarquesinaTarjeta`) — lo que queda
+// (65vh) alcanza para el reveal temprano del texto (§ `UMBRAL_REVELADO_TEXTO`, arriba) y el arrastre
+// continuo del texto/velo, sin arrastrar un tramo que no tiene contenido nuevo que mostrar.
+//
+// LOOKUP POR LITERAL, NO INTERPOLACIÓN — mismo criterio que `gridColsPresentaciones`
+// (`lib/storefront/presentaciones.ts`): Tailwind escanea el TEXTO de los archivos buscando
+// substrings de clase COMPLETOS; una clase construida por template literal
+// (`` `min-h-[calc(100svh+${n}vh)]` ``) es invisible para el JIT porque el número nunca queda escrito
+// literal en el archivo fuente. Las dos ramas son strings completos, ambas presentes en este archivo.
+export function claseAlturaAncestroMarquesina(tieneTarjeta: boolean): string {
+  return tieneTarjeta ? 'min-h-[calc(100svh+200vh)]' : 'min-h-[calc(100svh+65vh)]';
+}
+
 // ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────
 //
 // El prototipo (`docs/prototipos/cafeone/js/home.js:311-332`) anima sus tres estadísticas
