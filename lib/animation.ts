@@ -95,6 +95,97 @@ export function transformMarquesinaTarjeta(progreso: number, estatico: boolean):
   return `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
 }
 
+// ── EL PROGRESO DESDE EL TOPE — hermana de `useProgresoScroll`, § CORTE-HERO-STICKY-RONDA-2-1 ─────
+//
+// EL DEFECTO (reportado por el owner sobre HeroMediaMarquesina.tsx, la variante `sticky` del hero):
+// «las letras salen de una, deberían salir apenas alguien empieza a hacer scroll» — al cargar la
+// home el marquee ya aparece corrido, como si se hubiera scrolleado un tramo.
+//
+// LA HIPÓTESIS DEL ORQUESTADOR ERA CORRECTA, CONFIRMADA por derivación cerrada (no por navegador:
+// las clases de `HeroMediaMarquesina.tsx` son valores fijos, así que la cuenta es exacta, no una
+// suposición). `useProgresoScroll` usa `offset: ["start end", "end start"]`, pensado para un
+// elemento que el visitante encuentra MÁS ABAJO de la página (`Marquesina.tsx`, una banda suelta):
+// progreso 0 cuando el TOPE del target toca el FONDO del viewport. Verificado contra el propio
+// código de framer-motion (`node_modules/framer-motion/dist/es/render/dom/scroll/offsets/{offset,
+// edge,inset}.mjs`): con `T` = posición-en-documento del tope del target (`calcInset`, la suma de
+// `offsetTop` hasta el contenedor de scroll), `H` = alto del target y `VH` = alto del viewport, el
+// ancla de progreso-0 de `"start end"` cae en `scrollY = T - VH` y la de progreso-1 de `"end start"`
+// en `scrollY = T + H` — progreso = (scrollY - (T-VH)) / (H+VH).
+//
+// El wrapper de `HeroMediaMarquesina` es el PRIMER hijo de `<main>` (el `<header>` de `StoreNav` es
+// `fixed`, § `components/storefront/layout/StoreNav.tsx:203` — no ocupa flujo) y CORTE (el único
+// preset que hoy pide `hero:'sticky'`) también lo pone primero en `orden` (`lib/config/themes.ts`,
+// `CORTE.orden`) — así que `T = 0`. Con `H = 100svh + 200vh = 300vh` (§ el docstring de cabecera de
+// `HeroMediaMarquesina.tsx`), al cargar (`scrollY = 0`): progreso = (0 - (0-VH)) / (300vh+VH) =
+// VH / 400vh = **0.25** — un cuarto del recorrido YA consumido antes de que el visitante scrollee un
+// solo píxel. Es EXACTAMENTE la forma del defecto reportado: `transformMarquesinaTexto` traslada el
+// texto `-0.25*travelPx` desde el primer render.
+//
+// LA HERMANA usa `["start start", "end start"]` — MISMO ancla final (`"end start"`, sin tocar: sigue
+// siendo el punto en que el wrapper entero terminó de salir por arriba, § el docstring de cabecera),
+// sólo cambia el ancla de progreso-0: `"start start"` ancla en `scrollY = T` (targetPoint = T+H*0,
+// containerPoint = VH*0 = 0) — el instante en que el TOPE del target alcanza el TOPE del viewport,
+// que es el único instante que tiene sentido como "arranque" para un elemento que empieza pineado
+// desde el principio del documento. progreso = (scrollY - T) / H — con T=0, progreso=0 EXACTO en
+// scrollY=0 (el criterio de aceptación del spec), y progreso=1 en scrollY=H, SIN mover el ancla
+// final. NO SE TOCÓ `useProgresoScroll`: la usan también `Marquesina.tsx` y
+// `SubscriptionCTALinea.tsx`, bandas de MEDIA página donde "start end"/"end start" es el offset
+// correcto (el target SÍ entra desde abajo del viewport); cambiarla ahí habría arreglado un
+// consumidor rompiendo dos.
+//
+// `progresoDesdeTope` es la MISMA fórmula, pura y SIN React —dado `rectTop` (el
+// `getBoundingClientRect().top` del target, es decir `T - scrollY`) y `alturaTotal` (`H`)—, para
+// poder afirmar la derivación en `node:test` sin DOM: progreso = (scrollY-T)/H = -rectTop/H. Nótese
+// que el alto del VIEWPORT no aparece en la fórmula —se cancela porque las dos anclas usan
+// `containerPoint` en el mismo extremo (0, "start")—, a diferencia de la fórmula vieja
+// (`p = (vh - r.top)/(r.height+vh)`, § `useProgresoAcomodo`) que sí lo necesita. El hook no LLAMA a
+// esta función (framer-motion mide el DOM real por su cuenta); es la prueba, no la implementación.
+export function progresoDesdeTope(rectTop: number, alturaTotal: number): number {
+  if (alturaTotal <= 0) return 0;
+  const p = -rectTop / alturaTotal;
+  return Math.max(0, Math.min(1, p));
+}
+
+export function useProgresoScrollDesdeTope(target: RefObject<HTMLElement | null>) {
+  const { scrollYProgress } = useScroll({ target, offset: ["start start", "end start"] });
+  return scrollYProgress;
+}
+
+// EL VELO ANIMADO — antes un overlay SIEMPRE-ENCENDIDO en `--sf-velo` (decisión explícita de
+// `MUESTRARIO-HERO-MARQUESINA-STICKY-1`, "reusá el motor de scroll... no repliques la curva exacta
+// del tema real"); el owner reportó, sobre el prototipo aplicado, que "oscurece mucho... se ve
+// opaca la página". El tema real anima la opacidad del velo con el MISMO progreso de scroll (§ el
+// docstring de cabecera de `HeroMediaMarquesina.tsx`) — esta función sigue esa DIRECCIÓN (casi
+// transparente en reposo, densa al final del recorrido), no la curva exacta (el spec no la pide).
+//
+// EL COLOR SIGUE SALIENDO DEL TOKEN `--sf-velo` (NUNCA un rgba horneado): lo que anima es la
+// opacidad DEL ELEMENTO (el `opacity` CSS del `<div>` que ya tiene `background-color:
+// var(--sf-velo)`), una SEGUNDA capa de alfa que multiplica al 80% que el token ya hornea
+// (`color-mix(in oklab, var(--sf-tinta) 80%, transparent)`, § `app/globals.css`) — el token no se
+// toca ni se separa en un segundo color.
+//
+// `VELO_OPACIDAD_PISO` es el PISO medido, no un número a ojo: contraste WCAG (blanco sobre el velo,
+// las MISMAS tres fotos claras de referencia que `HeroMedia.tsx` ya usa — arena rgb(232,222,200),
+// casi-blanco rgb(245,245,240), crema rgb(238,230,214)) con densidad efectiva = piso × 0.80 (el
+// 80% horneado en el token). En reposo (progreso=0, densidad = 0.75×0.80 = 0.60): 5.98:1 (arena) ·
+// **5.25:1 (casi-blanco, el peor caso)** · 5.70:1 (crema) — los tres sobre el piso AA (4.5:1) que
+// `HeroMedia.tsx` ya acepta para el mismo texto. 0.70 ya alcanzaba el piso (4.60:1 contra
+// casi-blanco) pero sin margen (una fuente de video más clara lo tumbaría); 0.75 deja margen real
+// sin volver al velo denso. Al final del recorrido (progreso=1) la densidad vuelve a 0.80 — la
+// MISMA de hoy, byte-idéntica en contraste (9.61–11.33:1 contra las tres fotos, § `HeroMedia.tsx`).
+export const VELO_OPACIDAD_PISO = 0.75;
+
+// `estatico` (reduced-motion o vista previa) NO puede quedar en el piso semitransparente: no hay
+// scroll que lo densifique, así que el texto quedaría permanentemente sobre el velo MÁS DÉBIL en
+// vez del más seguro. Rinde la densidad de HOY (1 → efectiva 0.80, la que ya pasaba AA con margen
+// amplio en las tres fotos de referencia) — la misma decisión que `transformAcomodo`/
+// `transformMarquesinaTarjeta` ya toman: `estatico` gana con el estado FINAL, no un punto intermedio.
+export function veloOpacidad(progreso: number, estatico: boolean): number {
+  if (estatico) return 1;
+  const p = Math.max(0, Math.min(1, progreso));
+  return VELO_OPACIDAD_PISO + (1 - VELO_OPACIDAD_PISO) * p;
+}
+
 // ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────
 //
 // El prototipo (`docs/prototipos/cafeone/js/home.js:311-332`) anima sus tres estadísticas

@@ -9,7 +9,9 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoSpotlight } from "@/lib/config/site-content-defaults";
-import { useProgresoScroll, transformMarquesinaTexto, transformMarquesinaTarjeta } from "@/lib/animation";
+import {
+  useProgresoScrollDesdeTope, transformMarquesinaTexto, transformMarquesinaTarjeta, veloOpacidad,
+} from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { imagenPortada } from "@/lib/producto-imagen";
@@ -42,12 +44,13 @@ import { imagenPortada } from "@/lib/producto-imagen";
 //
 // ESTA VARIANTE REPLICA LA ESTRUCTURA (sticky + velo + texto-encima + tarjeta-encima), NO LAS
 // CURVAS DE ANIMACIÓN EXACTAS — decisión explícita del spec ("reusá el motor de scroll de
-// `lib/animation.ts`… no agregues librería"), no un límite de medición: el velo acá es un overlay
-// SIEMPRE-ENCENDIDO en `--sf-velo` (no el fade 0→0.6 con keyframes propios), y el texto/tarjeta
-// usan `transformMarquesinaTexto`/`transformMarquesinaTarjeta` —las funciones YA construidas para
-// `Marquesina.tsx`— en vez de un ticker de velocidad-por-tiempo o reveals de slide+fade sin
-// escala/rotación. Construir esas curvas exactas habría exigido keyframes propios (código nuevo,
-// no reutilización) para un detalle de acabado que el spec no pidió replicar byte a byte.
+// `lib/animation.ts`… no agregues librería"): el texto/tarjeta usan `transformMarquesinaTexto`/
+// `transformMarquesinaTarjeta` —las funciones YA construidas para `Marquesina.tsx`— en vez de un
+// ticker de velocidad-por-tiempo o reveals de slide+fade sin escala/rotación, y el velo sigue la
+// MISMA DIRECCIÓN que el fade 0→0.6 del sitio real (casi transparente en reposo, denso al final)
+// sin replicar sus keyframes exactos (§ CORTE-HERO-STICKY-RONDA-2-1, el bloque del velo más abajo).
+// Construir las curvas exactas habría exigido keyframes propios (código nuevo, no reutilización)
+// para un detalle de acabado que el spec no pidió replicar byte a byte.
 //
 // `docs/prototipos/cafeone/` DERIVA DEL TEMA Y YA NO ES LA AUTORIDAD PARA ESTA BANDA. Su `.marquee`
 // (que `Marquesina.tsx` reproduce fielmente) es una SEGUNDA sección, aparte del `.hero`, con su
@@ -70,24 +73,38 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // `marquesina.imagen` (la foto de la banda suelta) NO se usa acá, porque el fondo de ESTA
 // composición es el del HERO, no el de la marquesina. `marquesina` sólo aporta el TEXTO y el PIN.
 //
-// EL VELO ACÁ ES UN OVERLAY SIEMPRE-ENCENDIDO, NO EL FADE ANIMADO DEL SITIO REAL (§ el comentario
-// de cabecera: la estructura se replica, la curva de animación no) NI EL GRADIENTE DE DOS PARADAS
-// DE HeroMedia.tsx: una sola capa PLANA, reusando el MISMO token compartido `--sf-velo`
-// (§ CORTE-MARQUESINA-VELO-1, `app/globals.css`, `color-mix(in oklab, var(--sf-tinta) 80%,
-// transparent)`) con el tratamiento de `Marquesina.tsx` (`bg-[var(--sf-velo)]`), no el `from/via/to`
-// de HeroMedia.tsx. Un velo plano al 80% en TODO el alto de la sección protege al nav
-// transparente-flotante AL MENOS tanto como el tramo superior de HeroMedia (60%) — nunca menos —,
-// así que la legibilidad del nav está cubierta sin necesitar un segundo tono para el tercio
-// superior, y sin depender de que el visitante haya scrolleado lo suficiente para que un fade
-// termine de oscurecer.
+// EL VELO — RONDA 2 (§ CORTE-HERO-STICKY-RONDA-2-1): DEJÓ DE SER UN OVERLAY SIEMPRE-ENCENDIDO. La
+// primera versión de esta variante lo fijaba al 80% horneado en `--sf-velo` en TODO momento —el
+// owner, sobre el prototipo aplicado, reportó "el velo... lo oscurece mucho... se ve opaca la
+// página"—. Ahora la OPACIDAD DEL ELEMENTO (el `opacity` CSS del `<div>`, una segunda capa de alfa
+// que multiplica al 80% ya horneado en el token) sigue el MISMO `progreso` de scroll que ya mueve
+// texto/tarjeta, vía `veloOpacidad` (`lib/animation.ts`): casi transparente en reposo (el PISO
+// `VELO_OPACIDAD_PISO`, medido por contraste — ver el docstring de esa función para los tres números
+// contra las fotos de referencia de `HeroMedia.tsx`), denso al final del recorrido — la MISMA
+// dirección que el `xo-parallax-scroll` 0→0.6 real (§ el comentario de cabecera), sin replicar sus
+// keyframes exactos. **EL COLOR SIGUE SALIENDO DEL TOKEN**: el fondo del `<div>` sigue siendo
+// `bg-[var(--sf-velo)]`, sin tocar; sólo se le agrega un `style.opacity` animado por encima — nunca
+// un rgba horneado ni un segundo color. Bajo `estatico` (reduced-motion/preview) el velo NO puede
+// quedar en el piso semitransparente —no hay scroll que lo densifique—, así que rinde la MISMA
+// densidad de HOY (1 → efectiva 0.80).
 //
-// ALTURALLENA/CUEDESLIZA NO SE LEEN ACÁ, A PROPÓSITO (decisión pedida por el spec: "decidí cómo
-// conviven con el sticky y asentalo"). Los dos son agregados de `HeroMedia.tsx` para su propio caso
-// (una sección NO pineada, en flujo normal, que puede o no llenar el viewport y puede o no llevar
-// el cue de "Desliza"). Lo medido contra el tema real es un panel SIEMPRE de `height:100vh` fijo
-// (nunca `92vh`) y SIN cue de scroll (el gesto de "pasar por encima" del marquee ya ES la
-// indicación de que hay más abajo) — así que esta variante usa `h-[100svh]` incondicional y no
-// declara ningún cue propio. `alturaLlena`/`cueDesliza` siguen siendo exclusivos de `HeroMedia`.
+// ALTURALLENA sigue SIN leerse acá (decisión ORIGINAL, sin cambios en esta ronda): es un agregado de
+// `HeroMedia.tsx` para su propio caso (una sección NO pineada que puede o no llenar el viewport); lo
+// medido contra el tema real es un panel SIEMPRE de `height:100vh` fijo (nunca `92vh`), así que esta
+// variante usa `h-[100svh]` incondicional sin necesitar el toggle.
+//
+// CUEDESLIZA — RONDA 2 (§ CORTE-HERO-STICKY-RONDA-2-1): SÍ SE LEE, a diferencia de la decisión
+// original ("esta variante no declara ningún cue propio... el gesto de pasar por encima del
+// marquee ya ES la indicación"). El owner lo pidió VISIBLE, y CORTE (el único preset que hoy pide
+// `hero:'sticky'`) YA declara `heroCueDesliza:true` (`lib/config/themes.ts`) — un dato que existía y
+// que, antes de esta ronda, ningún render leía (§ `hero-toggles-preset.test.ts`, el caso que este
+// slice invierte). Se lee el MISMO campo `hero.cueDesliza` que `HeroMedia.tsx` ya declara —sin
+// inventar uno nuevo, instrucción explícita del spec— y se rinde el MISMO marcado
+// (`data-hero-cue="desliza"`, la línea con el segmento que la recorre + la etiqueta "Desliza"),
+// verbatim, para no duplicar ni divergir la única implementación del cue. Mismo gate que allá:
+// `!preview` (scrollear no significa nada en un marco de vista previa) y sin guard propio de
+// reduced-motion (`ReducedMotionProvider`, montado en el layout, ya congela el `y` animado del
+// segmento — § el docstring de `ReducedMotionProvider`, `lib/animation.ts`).
 //
 // LA MECÁNICA DE STICKY, EN DOS ELEMENTOS: el elemento que el visitante VE pineado
 // (`<section className="sticky top-0 h-[100svh] …">`) necesita un ANCESTRO más alto que el
@@ -103,11 +120,27 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // EL PROGRESO DE SCROLL SE MIDE CONTRA ESE ANCESTRO, NUNCA CONTRA EL PANEL PINEADO: mientras está
 // pineado, un elemento `sticky` reporta `top:0` FIJO ante `getBoundingClientRect` — medirlo daría
 // un progreso estancado. El ancestro, en cambio, sigue en flujo normal y se mueve con el scroll
-// real. Por eso `useProgresoScroll` (§ lib/animation.ts, el MISMO motor de `Marquesina.tsx`, sin
-// una sola línea nueva) recibe la ref del `<div>` exterior, no la de la `<section>` pineada. Con
-// eso, `transformMarquesinaTexto`/`transformMarquesinaTarjeta` (las MISMAS funciones puras que
-// `Marquesina.tsx` ya usa) producen exactamente el mismo desplazamiento/escala-rotación de siempre,
-// sólo que ahora leídos contra el presupuesto de scroll del ancestro en vez del de la banda suelta.
+// real.
+//
+// `useProgresoScrollDesdeTope` — RONDA 2 (§ CORTE-HERO-STICKY-RONDA-2-1), NO `useProgresoScroll`.
+// La primera versión reusaba `useProgresoScroll` a secas ("el MISMO motor de `Marquesina.tsx`, sin
+// una sola línea nueva") y eso era el BUG que el owner reportó: "las letras salen de una, deberían
+// salir apenas alguien empieza a hacer scroll". `useProgresoScroll` usa el offset `["start end",
+// "end start"]`, calibrado para un elemento que el visitante encuentra MÁS ABAJO de la página (entra
+// por el borde inferior del viewport) — pero este ancestro es el PRIMER hijo de `<main>` (el
+// `<header>` de `StoreNav` es `fixed`, no ocupa flujo), así que al cargar (scrollY=0) ya estaba
+// "adentro" según ese offset: MEDIDO por derivación cerrada (no adivinado, § el docstring de
+// `useProgresoScrollDesdeTope`/`progresoDesdeTope` en `lib/animation.ts`), el progreso al cargar
+// era **0.25** — un cuarto del recorrido ya consumido, exactamente la forma del defecto (el texto
+// nace trasladado `-0.25*travelPx`). La hermana usa `["start start", "end start"]` — el MISMO ancla
+// final (sin tocar), sólo cambia el ancla de progreso-0 al instante en que el tope del ancestro toca
+// el tope del viewport (`scrollY=0` para este ancestro) — progreso EXACTO 0 al cargar. NO se tocó
+// `useProgresoScroll`: la usan también `Marquesina.tsx` y `SubscriptionCTALinea.tsx`, bandas de media
+// página donde su offset SÍ es el correcto; la hermana vive aparte, en el mismo archivo.
+//
+// `transformMarquesinaTexto`/`transformMarquesinaTarjeta` (las MISMAS funciones puras que
+// `Marquesina.tsx` ya usa, sin cambios en esta ronda) producen exactamente el mismo desplazamiento/
+// escala-rotación de siempre, ahora leídos contra el progreso YA corregido.
 //
 // VERIFICADO ANTES DE ESCRIBIR (§ el spec: "verificá que ningún ancestro tenga overflow que rompa
 // el sticky"): `StorefrontLayout` (`app/(storefront)/layout.tsx`) no impone `overflow` en NINGÚN
@@ -137,12 +170,13 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
     setTravelPx(window.innerWidth * 1.6);
   }, []);
 
-  // El ANCESTRO del sticky (§ el docstring de cabecera) — el target de `useProgresoScroll`, nunca
-  // la `<section>` pineada.
+  // El ANCESTRO del sticky (§ el docstring de cabecera) — el target de `useProgresoScrollDesdeTope`,
+  // nunca la `<section>` pineada.
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const progreso = useProgresoScroll(wrapperRef);
+  const progreso = useProgresoScrollDesdeTope(wrapperRef);
   const transformTexto = useTransform(progreso, (p) => transformMarquesinaTexto(p, travelPx, estatico));
   const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
+  const opacidadVelo = useTransform(progreso, (p) => veloOpacidad(p, estatico));
 
   // PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1): mismo mecanismo que HeroMedia.tsx, aplicado a los DOS
   // medios. `undefined` para la canónica ('centro') o basura — no se emite ningún `style`.
@@ -203,9 +237,10 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             />
           )}
 
-          {/* EL VELO — overlay PLANO en `--sf-velo` (§ el docstring de cabecera), NO el gradiente de
-              dos paradas de HeroMedia.tsx. */}
-          <div className="absolute inset-0 bg-[var(--sf-velo)]" />
+          {/* EL VELO — RONDA 2 (§ el docstring de cabecera): mismo `bg-[var(--sf-velo)]` de siempre
+              (el color sigue del TOKEN, sin tocar), pero su `opacity` ahora sigue el scroll —
+              casi transparente en reposo, densa al final del recorrido — en vez de fija al 80%. */}
+          <motion.div className="absolute inset-0 bg-[var(--sf-velo)]" style={{ opacity: opacidadVelo }} />
         </div>
 
         {/* EL LOOP DE TEXTO — MEDIDO: `position:absolute;top:50%;z-index:10;white-space:nowrap`.
@@ -238,6 +273,28 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
               />
             </div>
           </motion.div>
+        )}
+
+        {/* CUE ANIMADO "DESLIZA" — RONDA 2 (§ el docstring de cabecera): MISMO marcado que
+            `HeroMedia.tsx` (data-hero-cue, la línea + el segmento que la recorre + la etiqueta),
+            leyendo el MISMO campo `hero.cueDesliza`. Se OMITE en preview (scrollear no significa
+            nada en un marco de vista previa); reduced-motion lo congela vía `ReducedMotionProvider`
+            (global), sin guard propio. */}
+        {hero.cueDesliza && !preview && (
+          <div
+            data-hero-cue="desliza"
+            className="absolute bottom-8 left-4 z-10 flex flex-col items-start gap-3 sm:bottom-10 sm:left-6 lg:bottom-12 lg:left-8 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+          >
+            <div className="relative h-14 w-px overflow-hidden bg-[var(--sf-linea-sobre,white)]/30">
+              <motion.span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-1/2 w-full bg-[var(--sf-sobre-banda,white)]"
+                animate={{ y: ['-100%', '220%'] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </div>
+            <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
+          </div>
         )}
       </section>
     </div>

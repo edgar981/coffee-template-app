@@ -17,6 +17,7 @@ import {
   resolverVariante,
   type SiteContentData,
 } from './site-content-defaults';
+import { VELO_OPACIDAD_PISO } from '@/lib/animation';
 
 // MUESTRARIO-HERO-MARQUESINA-STICKY-1 — la CUARTA variante del hero (tras curtina/ficha/media,
 // § HeroSection.tsx): el hero y la marquesina dejan de ser DOS bandas apiladas y pasan a ser UNA
@@ -139,6 +140,19 @@ test('el velo es PLANO — una sola referencia a `--sf-velo`, no el `from/via/to
   assert.doesNotMatch(html, /bg-linear-to-b/, 'HeroMediaMarquesina no usa el gradiente de HeroMedia');
 });
 
+// § CORTE-HERO-STICKY-RONDA-2-1: el velo YA NO es una opacidad fija — su `style.opacity` sigue el
+// progreso de scroll (SSR arranca en progreso=0, mismo límite que el resto de esta sección).
+test('SIN el gate estático (SSR, progreso arranca en 0): la opacidad del velo arranca en el PISO, no en 1', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.match(html, new RegExp(`opacity:${VELO_OPACIDAD_PISO}"`), 'debe arrancar en el piso, casi transparente');
+});
+
+test('EN PREVIEW (proxy de movimiento reducido): la opacidad del velo es 1 — la densidad de HOY, nunca el piso semitransparente', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
+  assert.match(html, /opacity:1"/);
+  assert.doesNotMatch(html, new RegExp(`opacity:${VELO_OPACIDAD_PISO}"`));
+});
+
 // ─── LA MECÁNICA STICKY — el ancestro da el presupuesto de scroll; el panel visible es el pineado ─
 
 test('el panel visible es `sticky top-0`, a `h-[100svh]` SIEMPRE (no lee `alturaLlena`)', () => {
@@ -157,8 +171,26 @@ test('el ancestro (root del componente) tiene el presupuesto de scroll extra —
   assert.match(html, /min-h-\[calc\(100svh\+200vh\)\]/);
 });
 
-test('`cueDesliza` no emite ningún marcador — esta variante no lee el agregado de HeroMedia', () => {
+// § CORTE-HERO-STICKY-RONDA-2-1 INVIERTE este caso: el owner pidió el cue VISIBLE bajo sticky, así
+// que la variante pasó a LEER `hero.cueDesliza` (el mismo campo que `HeroMedia.tsx` ya declara),
+// verbatim el mismo marcado (`data-hero-cue="desliza"` + la etiqueta "Desliza").
+test('cueDesliza:true — la variante RINDE el cue, mismo marcado que HeroMedia (data-hero-cue + "Desliza")', () => {
   const html = renderHeroMediaMarquesina({ ...DEFAULTS, hero: { ...DEFAULTS.hero, cueDesliza: true } } as SiteContentData);
+  assert.match(html, /data-hero-cue="desliza"/);
+  assert.match(html, /<span[^>]*>Desliza<\/span>/);
+});
+
+test('cueDesliza:false (default) — sin cue, byte-idéntico a la versión previa a esta ronda', () => {
+  assert.equal(DEFAULTS.hero.cueDesliza, false);
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, /data-hero-cue/);
+});
+
+test('cueDesliza:true, EN PREVIEW — el cue se OMITE (scrollear no significa nada en un marco de vista previa)', () => {
+  const html = renderHeroMediaMarquesina(
+    { ...DEFAULTS, hero: { ...DEFAULTS.hero, cueDesliza: true } } as SiteContentData,
+    { preview: true },
+  );
   assert.doesNotMatch(html, /data-hero-cue/);
 });
 

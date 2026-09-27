@@ -4,6 +4,7 @@ import { MotionConfig } from 'framer-motion';
 import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
   transformMarquesinaTexto, transformMarquesinaTarjeta, indiceCentrado,
+  progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -118,6 +119,82 @@ test('transformMarquesinaTarjeta: el recorte interno [0.12, 0.57] deja la tarjet
 test('transformMarquesinaTarjeta: progreso se acota a [0,1] — fuera de rango no sobre-escala ni invierte', () => {
   assert.equal(transformMarquesinaTarjeta(-0.5, false), transformMarquesinaTarjeta(0, false));
   assert.equal(transformMarquesinaTarjeta(1.5, false), transformMarquesinaTarjeta(1, false));
+});
+
+// ── EL PROGRESO DESDE EL TOPE (§ CORTE-HERO-STICKY-RONDA-2-1) — sin React, sin navegador ──────────
+// Reproduce la derivación cerrada del docstring de `progresoDesdeTope`: progreso = -rectTop/alturaTotal,
+// el ancla que hace 0 el progreso exactamente en scrollY=0 para un target cuyo tope de documento es 0
+// (el wrapper de `HeroMediaMarquesina`, primero en `<main>`). El hook (`useProgresoScrollDesdeTope`,
+// sobre `useScroll`) no se puede afirmar acá sin DOM real — mismo límite que `useProgresoScroll`.
+
+test('progresoDesdeTope: rectTop=0 (scrollY=0, el target arriba del todo) da progreso 0 — el defecto que este slice cierra', () => {
+  assert.equal(progresoDesdeTope(0, 1200), 0);
+});
+
+test('progresoDesdeTope: rectTop=-alturaTotal (el target scrolleó su propio alto completo) da progreso 1', () => {
+  assert.equal(progresoDesdeTope(-1200, 1200), 1);
+  assert.equal(progresoDesdeTope(-3000, 3000), 1);
+});
+
+test('progresoDesdeTope: a un cuarto del alto scrolleado, progreso 0.25 — LA CIFRA EXACTA del defecto viejo (VH/4VH con H=300vh)', () => {
+  assert.equal(progresoDesdeTope(-300, 1200), 0.25);
+});
+
+test('progresoDesdeTope: se acota a [0,1] — un rectTop positivo (todavía no llegó) no da negativo, uno más allá de -alturaTotal no pasa de 1', () => {
+  assert.equal(progresoDesdeTope(50, 1200), 0);
+  assert.equal(progresoDesdeTope(-1500, 1200), 1);
+});
+
+test('progresoDesdeTope: alturaTotal <= 0 no divide por cero — da 0', () => {
+  assert.equal(progresoDesdeTope(-100, 0), 0);
+  assert.equal(progresoDesdeTope(-100, -50), 0);
+});
+
+// ── EL VELO ANIMADO (§ CORTE-HERO-STICKY-RONDA-2-1) — sin React, sin navegador ─────────────────────
+// `veloOpacidad` reemplaza el overlay SIEMPRE-ENCENDIDO por uno que sigue el progreso: casi
+// transparente en reposo (el PISO medido por contraste, `VELO_OPACIDAD_PISO`), denso al final.
+
+test('veloOpacidad: estatico=true SIEMPRE 1 (la densidad de HOY) — sin scroll que lo densifique, no puede quedar en el piso', () => {
+  assert.equal(veloOpacidad(0, true), 1);
+  assert.equal(veloOpacidad(0.5, true), 1);
+  assert.equal(veloOpacidad(1, true), 1);
+  assert.equal(veloOpacidad(-0.5, true), 1, 'estatico gana incluso con progreso fuera de rango');
+});
+
+test('veloOpacidad: estatico=false, progreso=0 — el PISO exacto, el punto más transparente permitido', () => {
+  assert.equal(veloOpacidad(0, false), VELO_OPACIDAD_PISO);
+});
+
+test('veloOpacidad: estatico=false, progreso=1 — la densidad MÁXIMA es exactamente 1 (la misma de HOY)', () => {
+  assert.equal(veloOpacidad(1, false), 1);
+});
+
+test('veloOpacidad: a mitad de progreso, a mitad de camino entre el piso y 1', () => {
+  assert.equal(veloOpacidad(0.5, false), VELO_OPACIDAD_PISO + (1 - VELO_OPACIDAD_PISO) * 0.5);
+});
+
+test('veloOpacidad: progreso se acota a [0,1] — fuera de rango no baja del piso ni sube de 1', () => {
+  assert.equal(veloOpacidad(-0.5, false), veloOpacidad(0, false));
+  assert.equal(veloOpacidad(1.5, false), veloOpacidad(1, false));
+});
+
+test('VELO_OPACIDAD_PISO deja margen sobre el piso AA (4.5:1) contra la foto de referencia MÁS clara — no es el mínimo exacto', () => {
+  // Contraste WCAG de blanco sobre el velo (tinta #1a0f08, densidad efectiva = piso*0.80) contra
+  // casi-blanco rgb(245,245,240) — la peor de las tres fotos de referencia de HeroMedia.tsx.
+  function srgbToLin(c: number) { const cs = c / 255; return cs <= 0.03928 ? cs / 12.92 : Math.pow((cs + 0.055) / 1.055, 2.4); }
+  function relLum([r, g, b]: number[]) { return 0.2126 * srgbToLin(r) + 0.7152 * srgbToLin(g) + 0.0722 * srgbToLin(b); }
+  function contraste(c1: number[], c2: number[]) {
+    const L1 = relLum(c1), L2 = relLum(c2);
+    return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+  }
+  const tinta = [0x1a, 0x0f, 0x08];
+  const casiBlanco = [245, 245, 240];
+  const blanco = [255, 255, 255];
+  const alfa = VELO_OPACIDAD_PISO * 0.8;
+  const compuesto = tinta.map((t, i) => alfa * t + (1 - alfa) * casiBlanco[i]);
+  const c = contraste(blanco, compuesto);
+  assert.ok(c >= 4.5, `debe superar AA (4.5:1) contra la foto MÁS clara; dio ${c.toFixed(2)}`);
+  assert.ok(c > 5, `debe dejar margen real sobre AA, no el mínimo exacto; dio ${c.toFixed(2)}`);
 });
 
 // ── EL ÍNDICE CENTRADO DE UN RIEL (§ MUESTRARIO-RIEL-ACTIVO-1) — sin React, sin navegador ─────────

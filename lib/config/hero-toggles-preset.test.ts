@@ -112,29 +112,26 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), el hero rinde con los dos CTA y sin cu
   assert.ok(!html.includes('data-hero-cue'), 'sin ?tema=, el default cueDesliza=false no debe rendir el cue');
 });
 
-// § CORTE-USA-HERO-STICKY-1 REESCRIBE este caso: CORTE pasó `variantes.hero` de 'media' a 'sticky',
+// § CORTE-USA-HERO-STICKY-1 REESCRIBIÓ este caso: CORTE pasó `variantes.hero` de 'media' a 'sticky',
 // así que `HeroSection` (el dispatcher) ya NO enruta a `HeroMedia` sino a `HeroMediaMarquesina`
 // (§ HeroSection.tsx, `VARIANTES.sticky`). `heroCtasVisibles`/`heroCueDesliza` SIGUEN declarados en
-// CORTE (`themes.ts` no los toca, § el spec de este slice) pero ninguno de los dos tiene efecto ya:
-// `HeroMediaMarquesina` no rinde CTA en NINGÚN caso (ni con `ctasVisibles:true`) y no lee
-// `cueDesliza` en absoluto — MEDIDO en `hero-marquesina.test.ts` ("cueDesliza no emite ningún
-// marcador — esta variante no lee el agregado de HeroMedia"), decisión YA TOMADA por
-// `MUESTRARIO-HERO-MARQUESINA-STICKY-1` (spec: "decidí cómo conviven con el sticky y asentalo") —
-// no una regresión de ESTE slice. La ausencia de CTA sigue siendo cierta (nunca rinden, con o sin
-// el toggle); el cue "Desliza" YA NO rinde bajo CORTE — el mecanismo sticky+marquee reemplaza su
-// propósito (indicar que hay más contenido abajo) por el gesto de "pasar por encima" del marquee,
-// que es la lectura real medida contra `x-cafeone.myshopify.com` (sin cue propio en esa sección).
-test('?tema=CORTE sobre Nayoli: el hero pasa a sticky — sin CTA (como antes) y SIN el cue "Desliza" (§ HeroMediaMarquesina no lo lee)', () => {
+// CORTE (`themes.ts` no los toca), pero desde entonces los dos divergieron: `ctasVisibles` sigue sin
+// efecto (`HeroMediaMarquesina` no rinde CTA en NINGÚN caso); `cueDesliza`, en cambio, VOLVIÓ a tener
+// efecto en § CORTE-HERO-STICKY-RONDA-2-1 — el owner pidió el cue VISIBLE sobre el prototipo
+// aplicado, y la variante pasó a leer el MISMO campo (§ `hero-marquesina.test.ts`, el caso que ESE
+// slice invirtió: "la variante RINDE el cue, mismo marcado que HeroMedia"). La ausencia de CTA sigue
+// siendo cierta (nunca rinden, con o sin el toggle); el cue "Desliza" SÍ rinde bajo CORTE de nuevo.
+test('?tema=CORTE sobre Nayoli: el hero pasa a sticky — sin CTA (como antes) y CON el cue "Desliza" (§ CORTE-HERO-STICKY-RONDA-2-1)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.hero.variante, 'sticky');
   assert.equal(conCorte.hero.ctasVisibles, false);
-  assert.equal(conCorte.hero.cueDesliza, true, 'CORTE sigue declarando el campo, aunque ya no tenga efecto bajo sticky');
+  assert.equal(conCorte.hero.cueDesliza, true);
 
   const html = renderHero(conCorte);
   assert.ok(!html.includes(DEFAULTS.hero.ctaPrimarioLabel), 'sin CTA primario bajo CORTE (sigue siendo cierto)');
   assert.ok(!html.includes(DEFAULTS.hero.ctaSecundarioLabel), 'sin CTA secundario bajo CORTE (sigue siendo cierto)');
-  assert.ok(!html.includes('data-hero-cue'), 'el cue ya NO rinde: HeroMediaMarquesina no lee cueDesliza');
+  assert.ok(html.includes('data-hero-cue'), 'el cue RINDE de nuevo: HeroMediaMarquesina ya lee cueDesliza');
 });
 
 test('?tema=CORTE NO toca hero.fraseAlPie — sigue CONTENIDO, ningún preset la siembra', () => {

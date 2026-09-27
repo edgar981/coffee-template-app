@@ -24040,3 +24040,216 @@ Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO merge
 la rama a la espera del merge gateado del orquestador.
 
 **Cierra `NOSOTROS-SISTEMA-DE-BANDAS-1`.**
+
+## 2026-09-27 — Ronda 2 del gate visual sobre `HeroMediaMarquesina`: el arranque del marquee, el velo, y el cue "Desliza" (`CORTE-HERO-STICKY-RONDA-2-1`)
+
+El owner corrió el gate visual sobre el prototipo aplicado (`?tema=CORTE`) y reportó, con captura,
+tres defectos de la variante `sticky` construida por `MUESTRARIO-HERO-MARQUESINA-STICKY-1`: el
+marquee "sale de una" en vez de arrancar quieto y moverse recién al scrollear; el velo "oscurece
+mucho... se ve opaca la página"; y el cue "Desliza" no se muestra pese a que CORTE lo declara.
+
+### 1 · El arranque del marquee — la hipótesis del orquestador se CONFIRMÓ por derivación cerrada
+
+El dispatch traía una hipótesis por lectura de código, sin medir: que `useProgresoScroll` (offset
+`["start end", "end start"]`) da progreso ≠0 al cargar. **Se confirmó, y con un número exacto, no
+por prueba-y-error contra el navegador** — el wrapper de `HeroMediaMarquesina` mide valores FIJOS en
+CSS (`min-h-[calc(100svh+200vh)]`) y es el PRIMER hijo de `<main>` (el `<header>` de `StoreNav` es
+`fixed`, § `components/storefront/layout/StoreNav.tsx:203`, no ocupa flujo; y CORTE —el único preset
+que pide `hero:'sticky'`— también lo pone primero en su `orden`, `lib/config/themes.ts:850`), así que
+la cuenta es EXACTA, no una suposición:
+
+Se verificó el propio código de framer-motion (`node_modules/framer-motion/dist/es/render/dom/
+scroll/offsets/{offset,edge,inset}.mjs`, no su documentación): con `T` = posición-en-documento del
+tope del target (aquí `T=0`), `H` = alto del target (`300vh` = `100svh` + `200vh`) y `VH` = alto del
+viewport, el offset `["start end", "end start"]` ancla progreso-0 en `scrollY = T-VH` y progreso-1 en
+`scrollY = T+H`. Al cargar (`scrollY=0`): **progreso = VH/(H+VH) = VH/400vh = 0.25** — un cuarto del
+recorrido ya consumido antes de que el visitante mueva el scroll un solo píxel, exactamente la forma
+del defecto reportado (`transformMarquesinaTexto` traslada el texto `-0.25*travelPx` desde el primer
+render).
+
+**El fix es una HERMANA de `useProgresoScroll`, no un cambio a esa función** — la restricción dura
+del spec se respetó: `useProgresoScroll` la usan también `Marquesina.tsx` y `SubscriptionCTALinea.tsx`
+(bandas de media página, donde ese offset SÍ es el correcto — el target entra por abajo del
+viewport). `useProgresoScrollDesdeTope` (`lib/animation.ts`) usa `["start start", "end start"]`:
+mismo ancla final (`"end start"`, sin tocar — sigue siendo el punto en que el wrapper entero salió
+por arriba), sólo cambia el ancla de progreso-0 al instante en que el tope del wrapper toca el tope
+del viewport (`scrollY=T`) — progreso EXACTO 0 al cargar, para T=0.
+
+La derivación se afirma en `node:test` sin DOM vía `progresoDesdeTope(rectTop, alturaTotal)`, la
+MISMA fórmula pura (`progreso = -rectTop/alturaTotal` — el alto del viewport se CANCELA, porque las
+dos anclas usan el mismo extremo del contenedor; a diferencia de la fórmula vieja, `p=(vh-r.top)/
+(r.height+vh)`, que sí lo necesita). 5 tests, incluido el caso `progresoDesdeTope(-300, 1200) ===
+0.25` que reproduce la cifra exacta del defecto viejo.
+
+### 2 · El velo — anima con el MISMO progreso, nunca un rgba horneado
+
+El velo dejó de ser un overlay siempre-al-80%-encendido (la decisión original de
+`MUESTRARIO-HERO-MARQUESINA-STICKY-1`, que el propio spec de ESA tanda pedía así) y pasó a seguir el
+progreso: casi transparente en reposo, denso al final del recorrido — la misma DIRECCIÓN que el tema
+real (que anima 0→0.6 de opacidad por scroll, § el docstring de cabecera de
+`HeroMediaMarquesina.tsx`), sin replicar sus keyframes exactos (el spec no lo pedía).
+
+**El color sigue saliendo del token, tal como el spec exigía.** No se separó `--sf-velo` en un
+segundo color ni se horneó un rgba: se le agregó un `style.opacity` ANIMADO al mismo `<div
+className="bg-[var(--sf-velo)]">` de siempre (ahora `motion.div`). Es una SEGUNDA capa de alfa que
+multiplica al 80% que el token ya hornea (`color-mix(in oklab, var(--sf-tinta) 80%, transparent)`) —
+`veloOpacidad(progreso, estatico)` (`lib/animation.ts`) devuelve ese multiplicador, mapeado de
+`[VELO_OPACIDAD_PISO, 1]` sobre `progreso ∈ [0,1]`.
+
+**El piso se MIDIÓ, no se eligió a ojo — contraste WCAG, las MISMAS tres fotos de referencia que
+`HeroMedia.tsx` ya usa** (arena `rgb(232,222,200)`, casi-blanco `rgb(245,245,240)`, crema
+`rgb(238,230,214)`), blanco (`#ffffff`, el texto real del marquee bajo CORTE — el hero no tiene
+esquema asignado, así que `--sf-sobre-banda` cae al fallback `white` del Tailwind arbitrario) sobre
+el velo con densidad efectiva = piso×0.80:
+
+| piso | densidad efectiva | arena | casi-blanco (peor caso) | crema |
+| --- | --- | --- | --- | --- |
+| 0.65 | 0.52 | 4.69:1 | 4.05:1 (bajo AA) | 4.44:1 (bajo AA) |
+| 0.70 | 0.56 | 5.29:1 | **4.60:1** (roza AA, sin margen) | 5.02:1 |
+| **0.75 (elegido)** | **0.60** | **5.98:1** | **5.25:1** | **5.70:1** |
+| 1.00 (`estatico`) | 0.80 | 11.33:1 | 10.60:1 | 11.06:1 |
+
+0.70 ya superaba el piso AA (4.5:1) contra la peor foto, pero sin margen real — una fuente de vídeo
+apenas más clara lo habría tumbado. **Se eligió 0.75**: deja margen (5.25:1 en el peor caso, +17%
+sobre AA) sin volver al velo denso — sigue siendo notablemente más transparente que el 0.80 de
+siempre. El número y la tabla completa viven en el docstring de `VELO_OPACIDAD_PISO`
+(`lib/animation.ts`) y se afirman en `lib/animation.test.ts` (el test recalcula el contraste contra
+casi-blanco y exige `>4.5` con margen `>5`).
+
+**`estatico` (reduced-motion/preview) NO puede quedar en el piso**: no hay scroll que lo densifique,
+así que quedaría PERMANENTEMENTE en la densidad más débil en vez de la más segura. Rinde la densidad
+de HOY (1 → efectiva 0.80, la fila de la tabla que ya pasaba AA con el margen más amplio).
+
+### 3 · El cue "Desliza" — el DATO ya resolvía a `true`; faltaba el RENDER
+
+Las dos mitades del spec, verificadas por separado:
+
+- **El dato:** `content.hero.cueDesliza` para CORTE resuelve a **`true`**
+  (`CORTE.heroCueDesliza: true`, `lib/config/themes.ts:944`, ya medido y afirmado en
+  `hero-toggles-preset.test.ts` desde `TEMAS-HERO-TOGGLES-PRESET-1`) — el campo nunca fue el
+  problema.
+- **El render:** `HeroMediaMarquesina` NO lo leía. La decisión ORIGINAL (`MUESTRARIO-HERO-
+  MARQUESINA-STICKY-1`, pedida explícitamente por su propio spec: "decidí cómo conviven [`alturaLlena`/
+  `cueDesliza`] con el sticky") fue que el gesto de "pasar por encima" del marquee YA indicaba que
+  había más contenido abajo, así que ningún cue hacía falta. El owner, en esta ronda, pidió lo
+  contrario: el cue VISIBLE.
+
+Se leyó el MISMO campo `hero.cueDesliza` —sin inventar uno nuevo, instrucción explícita del spec— y
+se rindió el MISMO marcado que `HeroMedia.tsx` ya declara (`data-hero-cue="desliza"`, la línea con el
+segmento animado + la etiqueta "Desliza"), verbatim, para no tener dos implementaciones del mismo cue
+que puedan divergir. Mismo gate: `!preview` (scrollear no significa nada en un marco de vista previa)
+y sin guard propio de reduced-motion (`ReducedMotionProvider`, global, ya congela el `y` animado del
+segmento). `alturaLlena` SIGUE sin leerse acá — el spec de esta ronda no lo tocó, y sigue siendo
+exclusivo de `HeroMedia.tsx`.
+
+`hero-toggles-preset.test.ts` INVIERTE el caso que `MUESTRARIO-HERO-MARQUESINA-STICKY-1` había fijado
+("?tema=CORTE... SIN el cue 'Desliza'") a "...CON el cue 'Desliza'"; `hero-marquesina.test.ts` pasa
+de afirmar la ausencia a afirmar la presencia (y agrega el caso preview, que sigue omitiéndolo).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2219/2219** — reconciliado EXACTO contra el piso del commit inmediato anterior (`237fd83`, `NOSOTROS-SISTEMA-DE-BANDAS-1`, que cita `2204/2204`, no el `2197` de dos commits atrás): `2204 + 15 = 2219`. El `+15` es el propio diff, medido (`git diff \| grep -c "^+test("` da 17 agregados, `^-test(` da 2 quitados: 11 en `animation.test.ts` — `progresoDesdeTope`×5, `veloOpacidad`×6 —, +4 netos en `hero-marquesina.test.ts` (1 test reemplazado por 3 + 2 nuevos de la opacidad del velo), 0 en `hero-toggles-preset.test.ts`/`hero-agregados.test.ts` (sólo se reescribieron aserciones/comentarios dentro de tests existentes) |
+| `npm run test:integracion` | **237/237**, sin cambio |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main vs. rama) — Nayoli usa `curtina`, esta variante no se renderiza para ese tenant |
+
+`verificar:nayoli:visual`, medido (main `9a7ab97` vs. esta rama, Postgres efímero + seed canónico +
+Chromium headless):
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+**El dueño debe RE-APLICAR el preset CORTE en el mirador (`?tema=CORTE`) para ver esta corrección** —
+el contenido publicado no cambió (nadie escribió en `SiteContent`); lo que cambió es el CÓDIGO de la
+composición que ya renderizaba `hero.variante:'sticky'`. Un mirador ya abierto en una pestaña vieja
+sigue sirviendo el bundle anterior hasta recargar.
+
+### `touches:` — todo escrito estaba declarado
+
+`lib/animation.ts` (+91/-0), `lib/animation.test.ts` (+77/-0),
+`components/storefront/home/HeroMediaMarquesina.tsx` (+127/-40 aprox., el hook + el velo animado + el
+cue), `lib/config/hero-marquesina.test.ts` (+34/-4), `lib/config/hero-toggles-preset.test.ts`
+(+23/-13), `lib/config/hero-agregados.test.ts` (+6/-3, sólo el comentario que describía la decisión
+original), este asiento. **NO tocados, verificado que no hacía falta**: `lib/config/themes.ts` (el
+dato ya resolvía a `true`, § arriba), `lib/config/themes.test.ts`, `lib/config/
+corte-hero-titular.test.ts`, `lib/config/corte-hero-pie.test.ts`, `lib/config/
+corte-hero-viewport.test.ts` (los tres renderizan `HeroMedia` DIRECTO, ajenos a esta variante),
+`lib/config/panel-hero-toggles.test.ts` (config del panel, no del render de esta variante) —
+los seis corridos igual, en el gate, para confirmar que seguían verdes sin tocarlos.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `lib/animation.ts` (`useProgresoScrollDesdeTope`,
+`progresoDesdeTope`, `veloOpacidad`, `VELO_OPACIDAD_PISO`), `HeroMediaMarquesina.tsx`, `cueDesliza`,
+`useProgresoScroll`, `sf-velo`/`--sf-velo`, `hero-marquesina.test.ts`, `hero-toggles-preset.test.ts`,
+`hero-agregados.test.ts`, `MUESTRARIO-HERO-MARQUESINA-STICKY-1`, `CORTE-USA-HERO-STICKY-1`,
+`CORTE-MARQUESINA-VELO-1`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para los once: `lib/animation`, `HeroMediaMarquesina`, `useProgresoScroll`,
+  `cueDesliza`, `hero-marquesina.test`, `hero-toggles-preset.test`, `hero-agregados.test`, `sf-velo`,
+  `MUESTRARIO-HERO-MARQUESINA`, `CORTE-USA-HERO-STICKY`, `CORTE-MARQUESINA-VELO`. Mismo hallazgo que
+  ya dejó escrito `MUESTRARIO-HERO-MARQUESINA-STICKY-1`: este nivel de detalle (registry de
+  variantes de sección, mecánica de scroll de una banda, ids de slice) vive en `DECISIONS.md` y en
+  los comentarios del código, no en la doctrina de `CLAUDE.md`.
+- **"sticky" SÍ aparece** (18 líneas, ya censadas por el asiento anterior): todas describen el
+  `position:sticky` del PANEL ADMIN (`.duna-lista__head`, `.tienda-vivo__vista`, la cabecera de
+  Pagos) — ningún mecanismo relacionado con el storefront ni con esta variante. Ninguna se vuelve
+  falsa.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+### Grep del CÓDIGO (fuera de `CLAUDE.md`) — un `open_followup`, no corregido acá
+
+Fuera de la doctrina, `components/admin/tienda-secciones.ts:207-208` (no está en `touches:` de este
+slice) afirma: *"[`cueDesliza`/`alturaLlena`] SÓLO tienen efecto visible con `hero.variante ===
+'media'` (curtina/ficha no los leen, § HeroMedia.tsx)"*. Esa frase es ahora FALSA para `cueDesliza`
+—sigue siendo cierta para `alturaLlena`, que este slice no tocó—: desde este commit, `cueDesliza`
+también tiene efecto visible bajo `hero.variante === 'sticky'`. No se corrige acá (fuera de
+`touches:`); queda como `open_followup` (`TIENDA-SECCIONES-CUEDESLIZA-COMENTARIO-STALE-1`).
+
+También `lib/config/site-content-defaults.ts:61-67` (tampoco en `touches:`) describe la animación del
+cue diciendo "su animación vive en `HeroMedia.tsx`..." — no afirma EXCLUSIVIDAD (no dice "sólo" ni
+"únicamente"), así que no es estrictamente falsa, pero quedó INCOMPLETA: la misma animación vive
+ahora también en `HeroMediaMarquesina.tsx`. Se anota junto al mismo `open_followup` porque el arreglo
+es el mismo gesto (una línea de comentario), no porque sea una segunda afirmación falsa.
+
+### `customer_bytes`
+
+**`changed: true`** — mismo criterio que `MUESTRARIO-HERO-MARQUESINA-STICKY-1` (la lectura que se
+adoptó ahí: la puerta de escritura genérica de `SiteContent` ya puede alcanzar esta composición para
+cualquier tenant real vía `hero.variante:'sticky'`, aunque hoy sólo el mirador `?tema=CORTE` —fuera
+de producción real, `esDespliegueDemo()`— la ejercita). Este commit no ABRE esa puerta —ya estaba
+abierta desde el slice original—, pero SÍ cambia lo que esa puerta, de usarse, mostraría.
+
+`strings`: **una** — "Desliza" (la etiqueta del cue). No es texto NUEVO: es copy que YA existe en
+`HeroMedia.tsx` desde `TEMAS-HERO-MEDIA-AGREGADOS-1`, ahora también alcanzable desde la variante
+`sticky`. Ningún texto se redactó en este slice.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son funciones puras + un hook en `lib/animation.ts`, un componente de
+storefront existente (sin campos nuevos en `SiteContent`), y tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde en las cuatro capas (tabla arriba), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — mismo criterio que el resto
+de la rama; `schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA
+(`approved: yes`, con su reporte textual como `approval-reason`); el merge sigue pendiente del gate
+del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Un `open_followup` queda nombrado** (`TIENDA-SECCIONES-CUEDESLIZA-COMENTARIO-STALE-1`, § arriba),
+fuera de `touches:` de este slice.
+
+**Cierra `CORTE-HERO-STICKY-RONDA-2-1`.**

@@ -81,8 +81,10 @@ test('hero: `ctasVisibles`/`fraseAlPie`/`cueDesliza` SOBREVIVEN al parse', () =>
 // repo no tiene"). `HeroSection` es el DISPATCHER real de `app/(storefront)/page.tsx`; con
 // `hero.variante:'media'` enruta a `HeroMedia`, así que esto ejercita el árbol real de ESA variante
 // — no una copia —, aunque YA NO sea la de CORTE: § CORTE-USA-HERO-STICKY-1 pasó CORTE a
-// `hero:'sticky'` (`HeroMediaMarquesina`, que no lee ninguno de los tres agregados de este archivo,
-// § su propio docstring de cabecera: "ALTURALLENA/CUEDESLIZA NO SE LEEN ACÁ, A PROPÓSITO"). `media`
+// `hero:'sticky'` (`HeroMediaMarquesina`). De los TRES agregados de este archivo, esa variante NO
+// lee `ctasVisibles` ni `fraseAlPie` (siguen exclusivos de `HeroMedia`), pero SÍ lee `cueDesliza`
+// desde § CORTE-HERO-STICKY-RONDA-2-1 (el owner pidió el cue "Desliza" visible sobre el prototipo
+// aplicado; § `hero-marquesina.test.ts` afirma ese render, no este archivo). `media`
 // sigue siendo una variante real y completa del catálogo (§ `hero.variantes.claves`), sólo que hoy
 // ningún preset la usa — estos tests afirman su mecanismo, no el hero actual de CORTE.
 function renderHeroMedia(hero: HeroContent, opts: { preview?: boolean } = {}): string {
