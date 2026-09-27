@@ -23874,3 +23874,169 @@ no agrega ni quita ningún byte visible, sólo un asiento de medición en `DECIS
 la rama a la espera del merge gateado del orquestador.
 
 **Cierra `CENSO-NOSOTROS-TEMA-REAL-1`.**
+
+## 2026-09-27 — `/nosotros` gana su propio registro de bandas + resolvedor de orden — el HABILITADOR, no la composición (`NOSOTROS-SISTEMA-DE-BANDAS-1`)
+
+**Por qué este slice existe.** `CENSO-NOSOTROS-TEMA-REAL-1` (arriba) midió que
+`app/(storefront)/nosotros/page.tsx` montaba **dos componentes en orden fijo** (`NosotrosHistoria`,
+`NosotrosGaleria`) y que la página **no tenía ningún sistema de orden ni de bandas**, mientras la home
+resuelve las suyas con `resolverOrden` + un registro `BANDAS`. Ésa es la causa de que la página se
+sienta cortada — no le falta diseño, le falta estructura. Este slice **no toca la apariencia**: instala
+el habilitador de la composición para que un slice futuro pueda componer sobre él. Si algo se ve
+distinto tras este commit, es un defecto de este slice, no su propósito.
+
+### El modelo — GEMELO de `BANDA_IDS`/`resolverOrden`, reducido a lo que existe
+
+`lib/config/site-content-defaults.ts` gana tres exports nuevos, colocados junto a sus gemelos de la
+home:
+
+- **`BANDA_NOSOTROS_IDS = ['nosotrosHistoria', 'nosotrosGaleria'] as const`** (justo tras `BANDA_IDS`/
+  `ORDEN_DEFAULT`) y **`type BandaNosotrosId`** — el dominio CERRADO de las dos bandas que la página
+  conoce hoy, en el MISMO orden que montaba antes de este slice. A diferencia de `BANDA_IDS`, NO vive
+  dentro de `SiteContentData`: no hay un campo `content.ordenNosotros` que el owner pueda reordenar
+  todavía, así que no hay dominio de `SeccionKey` que declarar.
+- **`resolverOrdenNosotros(): readonly BandaNosotrosId[]`** (justo tras `resolverOrden`) — el
+  HABILITADOR real: `page.tsx` llama a esta función en vez de montar los dos componentes en JSX fijo.
+  DELIBERADAMENTE no toma un `stored: unknown` como `resolverOrden` — no hay nada persistido que leer
+  todavía, y aceptar un parámetro que nadie va a pasar sería una rama muerta (dedup/filtro de basura
+  sobre una entrada que nunca llega). Hoy devuelve siempre `BANDA_NOSOTROS_IDS` completo. El día que
+  exista un campo que reordenar, **este es el único sitio que cambia** — a leer y filtrar ese campo,
+  como `resolverOrden` — sin tocar su llamador en `page.tsx`. `El campo y su control vienen juntos, en
+  otro slice` (spec, textual): éste no los adelanta.
+
+`app/(storefront)/nosotros/page.tsx` reemplaza el JSX fijo por:
+
+```tsx
+const BANDAS: Record<BandaNosotrosId, () => React.ReactNode> = {
+  nosotrosHistoria: () => <NosotrosHistoria />,
+  nosotrosGaleria: () => <NosotrosGaleria negocio={settings.nombre} />,
+};
+return (
+  <>
+    {resolverOrdenNosotros().map((id) => (
+      <Fragment key={id}>{BANDAS[id]()}</Fragment>
+    ))}
+  </>
+);
+```
+
+**El registro `BANDAS` vive en `page.tsx`, no en `lib/`** — mismo sitio que el `BANDAS` de la home
+(`app/(storefront)/page.tsx`), por la MISMA razón: es `Record<BandaNosotrosId, …>`, **exhaustivo por
+TIPO** — si `BANDA_NOSOTROS_IDS` gana un id y nadie lo registra acá, `tsc` falla. `nosotrosGaleria` es
+la única banda con un prop extra (`negocio`), igual que `presentaciones` en el registro de la home.
+
+**`BANDA_IDS`/`BANDA_ID`/`resolverOrden` (home) NO SE TOCARON.** Medido antes de escribir una línea
+(`grep -rln "BANDA_IDS" lib/ components/ app/ tests/`): 16 archivos lo referencian, 9 de ellos tests que
+afirman su forma exacta (`spotlight-cableado.test.ts`, `spotlight-banda.test.ts`, `themes.test.ts`,
+`esquema-style.test.ts`, `site-content-defaults.test.ts`, `corte-trustbadges.test.ts`,
+`marquesina-banda.test.ts`, `footer-tema.test.ts`, `origen-banda.test.ts`). `/nosotros` recibe su
+PROPIO conjunto (`BANDA_NOSOTROS_IDS`), hermano del de la home, no una extensión — cero riesgo de
+romper esas 9 aserciones.
+
+### La prueba de byte-identidad — dos varas, las dos en 0
+
+**Vara 1 — `renderToStaticMarkup`, EN MEMORIA, sin `.env`, sin base** (`lib/config/nosotros-bandas.test.ts`,
+5 tests). `NosotrosHistoria`/`NosotrosGaleria` son `'use client'` sin import `server-only` (leen
+`useSiteContent()`/`useIsPreview()`, ambos seguros en Node — el segundo con default `false`, el primero
+vía `SiteContentProvider`, que sólo trae un `import type` del módulo server-only, erased en compilación).
+`page.tsx` NO se puede importar en el test (arrastra `getSiteContent`/`getSiteSettings`, `server-only` de
+verdad), así que la prueba compara el ÁRBOL: `arbolFijo` (los dos componentes en el JSX literal de ayer)
+contra `arbolResuelto` (`resolverOrdenNosotros()` + un `Record<BandaNosotrosId, …>` construido igual que
+`page.tsx` lo construye). `renderToStaticMarkup(arbolFijo) === renderToStaticMarkup(arbolResuelto)`,
+afirmado con la galería VACÍA (Nayoli, hide-on-empty — sólo la historia rinde) y con la galería CON UNA
+FOTO (las DOS bandas visibles, para ejercitar el orden real). Vive en `lib/config/`, no bajo
+`components/storefront/nosotros/`, mismo motivo que `renderGrindChooser` en `site-content-defaults.test.ts`
+(SSR sin jsdom, el glob de `npm test` cubre `lib/**/*.test.ts`).
+
+- `resolverOrdenNosotros()` devuelve `['nosotrosHistoria', 'nosotrosGaleria']` — el orden de hoy.
+- El registro `BANDAS` (reconstruido en el test) tiene una entrada para cada id de `BANDA_NOSOTROS_IDS` —
+  exhaustividad afirmada en runtime, complementaria a la que `tsc` ya garantiza en compile-time.
+- `NosotrosGaleria` con `items: []` sigue devolviendo `''` (React no emite nada) — el hide-on-empty no
+  cambió.
+
+**Vara 2 — `npm run verificar:nayoli:visual`, MEDIDO, no supuesto.** El arnés completo: `git worktree`
+de `main` (detached, HEAD real), Postgres efímero propio + seed canónico + 5 productos sintéticos
+(los estados de `ProductCard` que Nayoli no cubre), `next build`+`next start` de **main** y de
+**esta rama** contra la MISMA base, Playwright headless en modo determinista (reloj de animación
+congelado), captura de página completa de las 6 rutas públicas + 2 recortes de card en hover, diff de
+píxeles con `pixelmatch` (consciente de antialiasing Y crudo). Resultado:
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+**Cero diferencias, en las 8 mediciones, incluida `ruta:nosotros`.** `main` en esta corrida es el HEAD
+real de `main` (`0ad6a76` al momento de esta medición); la rama es el árbol completo de
+`slice/corte-reescritura-prototipo-1` con este commit encima. Confirma, por EJECUCIÓN y no por lectura
+de código, que el refactor no le cambia un solo píxel a Nayoli.
+
+### Gate
+
+- `npx tsc --noEmit` → **0 errores.**
+- `npm test` → **2204/2204** (piso citado de `CENSO-NOSOTROS-TEMA-REAL-1`: 2197/2197 + 7 tests nuevos —
+  2 en `lib/config/site-content-defaults.test.ts` [`resolverOrdenNosotros`/`BANDA_NOSOTROS_IDS`], 5 en
+  `lib/config/nosotros-bandas.test.ts` [nuevo]. Cero tests quitados ni modificados fuera de la adición.
+- `npm run test:integracion` → **237/237**, sin cambio (`packages/core/` y `tests/integracion/` no están
+  en `touches:` y no se tocaron).
+- `npm run verificar:nayoli:visual` → **0px en las 8 mediciones** (tabla arriba).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, § reportó "se ve cortada"/"esperaba una buena estructura",
+2026-09-26; el spec de este slice cita ese reporte). `app/(storefront)/nosotros/page.tsx` cae en la
+frase canónica de Tier 1 (`app/(storefront)/`, subárbol completo). `lib/config/site-content-defaults.ts`
+y sus dos `.test.ts` están en `touches:` fuera de la lista Tier 1 literal — se escriben igual, porque el
+gate de Tier 1 protege por SUPERFICIE tocada en el diff completo, no exige que cada archivo individual
+esté en la lista (mismo criterio que `MARQUESINA-BANDA-1`, arriba en este archivo).
+
+**`customer_bytes.changed = false` para ESTE COMMIT — verificado por las DOS varas de arriba, no
+supuesto.** El refactor es puro: mismo HTML (vara 1, en memoria) y mismos píxeles (vara 2, medido contra
+`main`) para todo tenant, Nayoli incluida. **Pero el EJE es la RAMA, no el commit** (§ ORCH-CUSTOMER-
+BYTES-EJE-1): esta rama YA trae bytes visibles bajo `?tema=CORTE`/mirador desde commits ANTERIORES
+(`CORTE-USA-HERO-STICKY-1`, `NAV-LINK-ACTIVO-INVISIBLE-1`, ambos `AWAITING_APPROVAL: customer-bytes` en
+sus propios asientos de este mismo archivo), así que la clasificación de la RAMA sigue siendo
+`AWAITING_APPROVAL: customer-bytes` — no porque este commit agregue algo, sino porque hereda lo que la
+rama ya trae. `strings: []` — este commit no introduce ningún texto nuevo visible: el copy de
+`NosotrosHistoria`/`NosotrosGaleria` es el mismo de siempre, sólo cambió CÓMO se decide en qué orden se
+montan.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+Símbolos/paths que este diff tocó: `app/(storefront)/nosotros/page.tsx`, `BANDA_NOSOTROS_IDS`,
+`BandaNosotrosId`, `resolverOrdenNosotros` (nuevos en `lib/config/site-content-defaults.ts`),
+`lib/config/nosotros-bandas.test.ts` (nuevo). Grep de cada uno contra `CLAUDE.md`:
+
+- `nosotros/page.tsx`, `resolverOrdenNosotros`, `BANDA_NOSOTROS_IDS`, `BandaNosotrosId`,
+  `nosotros-bandas` → **cero resultados** en los cinco. `CLAUDE.md` no describe el JSX fijo viejo de
+  esa página ni tenía nada que decir sobre un sistema de bandas ahí — nada que este diff pudiera volver
+  falso.
+- `resolverOrden`/`BANDA_IDS` (los símbolos GEMELOS, no tocados) → cero resultados en `CLAUDE.md`
+  tampoco — esa doctrina vive sólo en el código (`site-content-defaults.ts`), no en el libro.
+- `NosotrosGaleria` → dos apariciones, ninguna afectada: "El `{negocio}` del alt llega por PROP... mismo
+  caso que NosotrosGaleria" (sigue siendo cierto — el prop sigue viniendo de `settings.nombre` en
+  `page.tsx`, sin cambio de mecanismo) y "el editor monta `NosotrosGaleria` en el árbol del ADMIN..."
+  (describe la vista previa del panel, que monta el componente DIRECTO — no pasa por `page.tsx` ni por
+  el registro nuevo, así que no se ve afectada).
+
+Nada que corregir; nada que quede falso.
+
+### Verdicto
+
+**REFACTOR PURO, verificado en las dos varas que el spec pidió.** `/nosotros` deja de montar sus dos
+secciones con JSX fijo y pasa a resolver orden + registro, igual que la home — habilitador de la
+composición, no la composición: ninguna banda nueva, ningún control nuevo en el panel, ningún campo
+nuevo en `SiteContent`. Owner-visible: nada — `renderToStaticMarkup` en memoria y
+`verificar:nayoli:visual` contra `main` real coinciden en cero diferencias.
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea. `stopped_on:
+[customer-bytes]`, heredado de la RAMA (no introducido por este commit, § arriba). El commit queda en
+la rama a la espera del merge gateado del orquestador.
+
+**Cierra `NOSOTROS-SISTEMA-DE-BANDAS-1`.**

@@ -1150,6 +1150,17 @@ export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = BandaId[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
+// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1) — GEMELA de `BANDA_IDS`/`OrdenContent`
+// de arriba, para la OTRA página que compone bandas: `app/(storefront)/nosotros/page.tsx`. Hoy son
+// DOS bandas (la historia larga + la galería), en el MISMO orden que esa página monta desde antes de
+// este slice (dos `import`s fijos). A DIFERENCIA de `orden` (home), acá NO hay campo en
+// `SiteContentData` que persista una secuencia elegida por el owner — no hay fila que reordenar
+// todavía, ni control en el panel para hacerlo (agregar ese campo y su control es su PROPIO slice,
+// § el spec de este). Por eso NO es dominio de `SeccionKey` ni vive dentro de `SiteContentData`: es
+// sólo el conjunto cerrado de ids que la página conoce.
+export const BANDA_NOSOTROS_IDS = ['nosotrosHistoria', 'nosotrosGaleria'] as const;
+export type BandaNosotrosId = typeof BANDA_NOSOTROS_IDS[number];
+
 // LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
 // `bandaEsOscura` (`lib/config/esquema-style.ts`, consumida por `tratamientoNav` → StoreNav) necesita
 // saber si la banda sobre la que flota el nav es oscura CUANDO esa banda NO tiene esquema asignado. Antes de
@@ -2634,6 +2645,21 @@ export function resolverOrden(stored: unknown): BandaId[] {
     if (!vistos.has(id)) out.push(id);
   }
   return out;
+}
+
+/**
+ * Resuelve el orden de las bandas de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1) — el HABILITADOR
+ * que reemplaza los dos `import`s fijos de `app/(storefront)/nosotros/page.tsx` por un `.map` sobre
+ * este resultado, igual que `resolverOrden` ya hace para la home. HOY no hay nada persistido que
+ * leer (§ `BANDA_NOSOTROS_IDS`, arriba: sin campo en `SiteContentData`), así que no toma argumento y
+ * SIEMPRE devuelve el orden canónico completo — el mismo orden que la página monta desde antes de
+ * este slice. Es DELIBERADAMENTE parametrizada distinto de `resolverOrden` (que sí limpia un
+ * `stored: unknown`): aceptar un parámetro que nadie va a pasar todavía sería una rama muerta. El día
+ * que exista un campo que reordenar, ESTE es el único sitio que cambia — a leer y filtrar ese campo,
+ * como `resolverOrden` — sin tocar su llamador en `page.tsx`.
+ */
+export function resolverOrdenNosotros(): readonly BandaNosotrosId[] {
+  return BANDA_NOSOTROS_IDS;
 }
 
 const MENU_ITEM_ID_SET: ReadonlySet<string> = new Set(MENU_ITEM_IDS);

@@ -13,6 +13,7 @@ import {
   REGISTRY,
   BANDA_IDS,
   ORDEN_DEFAULT,
+  BANDA_NOSOTROS_IDS,
   mezclarBorrador,
   resolverSiteContent,
   resolverItems,
@@ -20,6 +21,7 @@ import {
   resolverTema,
   resolverEsquemas,
   resolverOrden,
+  resolverOrdenNosotros,
   resolverVariantesBandas,
   VARIANTES_ESTRUCTURALES,
   resolverVariante,
@@ -1306,6 +1308,20 @@ test('resolverOrden: SIEMPRE devuelve las 9 bandas — ninguna se cae, pase lo q
     assert.equal(resolverOrden(stored).length, BANDA_IDS.length);
     assert.deepEqual(new Set(resolverOrden(stored)), new Set(BANDA_IDS));
   }
+});
+
+// ── resolverOrdenNosotros / BANDA_NOSOTROS_IDS (§ NOSOTROS-SISTEMA-DE-BANDAS-1) — GEMELA reducida ──
+// de la suite de `resolverOrden` de arriba: la página /nosotros no tiene (todavía) un campo
+// persistido que reordenar, así que el resolver no toma `stored` — no hay "garbage" que limpiar, ni
+// "parcial"/"dedup" que ejercer. Lo que SÍ hay que afirmar, igual que del lado de la home: el orden
+// de HOY, y que el dominio es EXHAUSTIVO (nunca se cae una banda).
+test('resolverOrdenNosotros: devuelve las dos bandas de /nosotros, en el orden de hoy', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosHistoria', 'nosotrosGaleria']);
+});
+
+test('resolverOrdenNosotros: el dominio es EXHAUSTIVO — exactamente BANDA_NOSOTROS_IDS, sin faltantes ni de más', () => {
+  assert.equal(resolverOrdenNosotros().length, BANDA_NOSOTROS_IDS.length);
+  assert.deepEqual(new Set(resolverOrdenNosotros()), new Set(BANDA_NOSOTROS_IDS));
 });
 
 // ── CONTENIDO-NEUTRALIZAR-1 (2026-09-12): los defaults dejaron de ser el contenido de Nayoli ──────
