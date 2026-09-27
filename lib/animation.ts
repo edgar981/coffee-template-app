@@ -2,6 +2,13 @@
 
 import { createElement, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { MotionConfig, useScroll, useTransform } from "framer-motion";
+// `VeloIntensidad`/`TickerVelocidad` — el VOCABULARIO de contenido (el set cerrado de strings que el
+// resolver acepta) vive en `site-content-defaults.ts`, no acá (§ CORTE-HERO-REVELADO-MASCARA-1, el
+// mismo criterio que ya separa `PuntoFocal` —declarado ahí— de `objectPositionDePuntoFocal` —también
+// ahí—): este archivo sólo traduce esos valores a MAGNITUD (el rango de opacidad, los px/s). Un tipo
+// re-declarado acá con las mismas claves sería la clase de doble-lista que ya mordió en este repo
+// (§ CLAUDE.md, "CATEGORIAS ≠ CATEGORIA_LABELS").
+import type { VeloIntensidad, TickerVelocidad } from "./config/site-content-defaults";
 
 // fadeUp — la variante compartida de entrada (opacity 0→1, y 24→0) que usan las
 // animaciones de scroll-in del storefront (`whileInView`/`initial+animate` + `variants`).
@@ -177,53 +184,138 @@ export const VELO_OPACIDAD_PISO = 0.75;
 
 // `estatico` (reduced-motion o vista previa) NO puede quedar en el piso semitransparente: no hay
 // scroll que lo densifique, así que el texto quedaría permanentemente sobre el velo MÁS DÉBIL en
-// vez del más seguro. Rinde la densidad de HOY (1 → efectiva 0.80, la que ya pasaba AA con margen
-// amplio en las tres fotos de referencia) — la misma decisión que `transformAcomodo`/
-// `transformMarquesinaTarjeta` ya toman: `estatico` gana con el estado FINAL, no un punto intermedio.
-export function veloOpacidad(progreso: number, estatico: boolean): number {
-  if (estatico) return 1;
+// vez del más seguro. Rinde la densidad FINAL del rango (`rango.techo` — para 'media', 1 → efectiva
+// 0.80, la que ya pasaba AA con margen amplio en las tres fotos de referencia) — la misma decisión
+// que `transformAcomodo`/`transformMarquesinaTarjeta` ya toman: `estatico` gana con el estado FINAL,
+// no un punto intermedio.
+//
+// `rango` (§ CORTE-HERO-REVELADO-MASCARA-1, RONDA 4 — ver el bloque de abajo, "EL VELO VUELVE, PERO
+// SUAVE") PARAMETRIZA piso Y techo; el DEFAULT es el rango de SIEMPRE ('media'), así que todo call
+// site que no lo pase —no había ninguno antes de esta ronda— queda BYTE-IDÉNTICO.
+export function veloOpacidad(progreso: number, estatico: boolean, rango: VeloRango = VELO_RANGO_MEDIA): number {
+  if (estatico) return rango.techo;
   const p = Math.max(0, Math.min(1, progreso));
-  return VELO_OPACIDAD_PISO + (1 - VELO_OPACIDAD_PISO) * p;
+  return rango.piso + (rango.techo - rango.piso) * p;
 }
 
 // EL VELO SE VUELVE OPT-IN — § CORTE-HERO-VELO-OFF-Y-TICKER-1 (2026-09-27): esta función SIGUE
-// existiendo, sin cambios — la usa cualquier tema con `hero.veloVisible:true` (el default, § el
-// docstring de `HeroContent.veloVisible`, site-content-defaults.ts). Lo que cambió es que
-// `HeroMediaMarquesina.tsx` ahora puede NO MONTAR el `<motion.div>` del velo en absoluto. El owner,
-// sobre el prototipo aplicado: «ese velo verde debemos quitarlo, hace que el video se vea sin
-// calidad» — CORTE apaga el toggle (`heroVeloVisible:false`, § themes.ts).
+// existiendo, sin cambios de fondo — la usa cualquier tema con `hero.veloVisible:true` (el default,
+// § el docstring de `HeroContent.veloVisible`, site-content-defaults.ts). `HeroMediaMarquesina.tsx`
+// puede NO MONTAR el `<motion.div>` del velo en absoluto. El owner, sobre el prototipo aplicado:
+// «ese velo verde debemos quitarlo, hace que el video se vea sin calidad» — CORTE apagó el toggle
+// (`heroVeloVisible:false`, § themes.ts) en ESA ronda.
 //
 // EL CONTRASTE SIN VELO, MEDIDO (no supuesto) contra las MISMAS tres fotos de referencia de arriba
 // (blanco `var(--sf-sobre-banda,white)` sobre arena `rgb(232,222,200)`, casi-blanco
 // `rgb(245,245,240)`, crema `rgb(238,230,214)`): **1.34:1 · 1.09:1 · 1.24:1** — muy por debajo del
 // piso AA (4.5:1) que el velo, encendido, garantizaba incluso en su punto más débil (5.25:1, § arriba).
-// Por eso el velo NO se reintroduce para CORTE pese a este número: las tres fotos son un proxy
-// CONSERVADOR para un video CLARO (el mismo criterio que ya fundaba `VELO_OPACIDAD_PISO`), no una
-// medición del video REAL de CORTE, que es oscuro (§ el comentario de `navTinta` en `themes.ts`: "es
-// oscuro y uniforme, sin esquema asignado a 'hero'") — sobre un fondo oscuro, blanco sin velo SÍ
-// contrasta. **LA PALANCA DE CONTRASTE PASA A SER EL VIDEO, no el velo**: un tema futuro con un video
-// CLARO no puede simplemente copiar `heroVeloVisible:false` de CORTE — necesita su propio velo
-// encendido (el default `true` de la sección), o medir su propio video antes de apagarlo.
+// Esas tres fotos son un proxy CONSERVADOR para un video CLARO (el mismo criterio que ya fundaba
+// `VELO_OPACIDAD_PISO`), no una medición del video REAL de CORTE, que es oscuro (§ el comentario de
+// `navTinta` en `themes.ts`: "es oscuro y uniforme, sin esquema asignado a 'hero'") — sobre un fondo
+// oscuro, blanco sin velo SÍ contrasta. **LA PALANCA DE CONTRASTE ES EL VIDEO, no el velo.**
+//
+// EL VELO VUELVE, PERO SUAVE — § CORTE-HERO-REVELADO-MASCARA-1 (RONDA 4, 2026-09-27): el owner, sobre
+// el gate visual de ESTA ronda (el prototipo con el velo ya apagado): «también podemos agregar un
+// velo, pero no tiene que ser tan fuerte porque ya comprobé que incluso sin el velo se ven bien las
+// letras». Dos hechos a conciliar, no uno que corrige al otro: (a) el proxy de arriba dice que SIN
+// velo el contraste es bajísimo, y (b) el owner ya VIO el texto legible sin velo sobre el video REAL
+// de CORTE, que ese proxy no representa. La salida no es reactivar el rango de SIEMPRE (calibrado
+// para un video CLARO genérico): es una intensidad más suave, propia de CORTE.
+//
+// `VeloIntensidad` es un ESCALAR más de `hero.escalares` (mismo mecanismo que `imagenTipo`/
+// `puntoFocal`, § site-content-defaults.ts): 'media' es la CANÓNICA — el rango de SIEMPRE,
+// byte-idéntico para todo tema que no la declare —; 'suave' es la que CORTE elige
+// (`heroVeloIntensidad:'suave'`, § themes.ts).
+//
+// EL RANGO, NO SÓLO EL PISO: 'suave' baja las DOS puntas del recorrido, no sólo el reposo — el
+// pedido del owner es sobre el velo "en general", no sólo al cargar.
+//
+// CONTRASTE MEDIDO PARA 'suave' (mismo método WCAG que `VELO_OPACIDAD_PISO`, blanco sobre el velo
+// compuesto sobre las TRES fotos claras de referencia, densidad efectiva = opacidad×0.80), esta vez
+// CONTRA LA TINTA REAL DE CORTE (`#102407`, § `raices.tinta` en `themes.ts` — no el `#1a0f08`
+// genérico del test de `VELO_OPACIDAD_PISO`, que no es de ningún preset en particular):
+//   piso 0.30 (densidad efectiva 0.24): arena 2.16:1 · casi-blanco 1.80:1 · crema 2.02:1
+//   techo 0.55 (densidad efectiva 0.44): arena 3.46:1 · casi-blanco 2.95:1 · crema 3.26:1
+// LOS DOS QUEDAN BAJO AA (4.5:1) — MEDIDO Y REPORTADO, NO BLOQUEADO: la misma razón que ya acepta
+// `heroVeloVisible:false` (arriba) — el proxy es conservador para un video claro, no el video real de
+// CORTE, y el owner ya verificó la legibilidad real sobre pantalla. Un tema futuro con video CLARO
+// que quiera 'suave' debe medir el SUYO antes de adoptarla; no hereda esta garantía por el nombre.
+export interface VeloRango {
+  piso: number;
+  techo: number;
+}
+const VELO_RANGO_MEDIA: VeloRango = { piso: VELO_OPACIDAD_PISO, techo: 1 };
+const VELO_RANGO_SUAVE: VeloRango = { piso: 0.3, techo: 0.55 };
+const VELO_RANGOS: Record<VeloIntensidad, VeloRango> = { media: VELO_RANGO_MEDIA, suave: VELO_RANGO_SUAVE };
 
-// ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1 ───────────────────────────────────────────
+// Ausente/vacío/basura → 'media' (mismo criterio que `objectPositionDePuntoFocal`): el resolver de
+// contenido (`REGISTRY.hero.escalares.veloIntensidad`) ya clampa el valor guardado a la canónica
+// antes de que llegue acá — ésta es la SEGUNDA guarda, defensiva, para quien llame la función directo.
+export function rangoVeloDeIntensidad(intensidad: string): VeloRango {
+  return (VELO_RANGOS as Record<string, VeloRango | undefined>)[intensidad] ?? VELO_RANGO_MEDIA;
+}
+
+// ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por CORTE-HERO-REVELADO-MASCARA-1 ─
 //
-// EL PEDIDO DEL OWNER, LITERAL, sobre el muestrario de RONDA 2 (arriba) ya aplicado: «el marquee no
+// EL PEDIDO ORIGINAL, LITERAL, sobre el muestrario de RONDA 2 (arriba) ya aplicado: «el marquee no
 // debe salir inicialmente, inicialmente solo el video del hero. Las letras van saliendo hacia arriba,
-// en una transición smooth, cuando alguien empiece a hacer scroll». Hasta esta ronda el texto del
-// loop era SIEMPRE visible desde `progreso=0` —sólo con desplazamiento horizontal 0px, nunca
-// invisible ni entrando—, que es el defecto que esta sección cierra.
+// en una transición smooth, cuando alguien empiece a hacer scroll». La PRIMERA versión (histórica,
+// abajo la reemplaza) reusaba `fadeUp` (`opacity 0→1`, `y 24→0px`) scrubbed por el scroll — y el
+// owner, sobre ESE muestrario, reportó el defecto exacto que predecía tener: «las letras no están
+// apareciendo como si subieran desde un lugar abajo… el efecto actual está simplemente mostrándolas
+// cada vez más claras».
 //
-// REUSA LA GRAMÁTICA DE `fadeUp` (cabecera de este archivo: `opacity 0→1`, `y 24→0`) — la MISMA que
-// usan las ~21 animaciones de entrada del storefront (§ `ReducedMotionProvider`) — pero SCRUBBED por
-// el progreso de scroll, el mismo tratamiento que `transformAcomodo` ya da a rotate/translateY (un
-// `1-t` continuo en vez de un trigger de `whileInView` disparado una vez). No se inventa un
-// desplazamiento nuevo: `fadeUp.hidden.y` (24px) es el que ya usa toda la home.
+// LA MEDICIÓN QUE EXPLICA EL DEFECTO — la hipótesis del orquestador (que 24px es imperceptible contra
+// texto DISPLAY) se CONFIRMA por aritmética, no por navegador (no hay uno en este carril): el texto
+// del marquee usa `text-[clamp(3rem,10vw,10rem)]` — 48px en el piso del clamp, 160px en el techo, y
+// 128px a un ancho de referencia de 1280px (10vw, el mismo ancho que este repo ya usa como referencia
+// de escritorio para `EscalaDesktop`, § CLAUDE.md). `fadeUp.hidden.y` es 24px, fijo. La RELACIÓN
+// desplazamiento/tamaño-de-letra:
+//   piso del clamp (48px):  24/48  = 50.0%
+//   ancho de referencia (128px): 24/128 = 18.75%
+//   techo del clamp (160px): 24/160 = 15.0%
+// `fadeUp` se diseñó para texto de CUERPO/TARJETA (14–24px), donde un desplazamiento de 24px es DEL
+// ORDEN de la propia altura de la letra o mayor — ahí "sube" se lee. Contra texto display de 128px
+// (el caso típico de escritorio, donde se gateó), el MISMO desplazamiento es apenas un 18.75% de la
+// altura del glifo — casi nada frente al cambio de opacidad que ocurre en la MISMA ventana, y por eso
+// domina la lectura de "se aclara" sobre la de "sube". CONFIRMADO: no hace falta un desplazamiento
+// mayor en píxeles fijos (que volvería a vencerse en otra escala de clamp) — hace falta que el
+// desplazamiento sea PROPORCIONAL al tamaño de la letra, no un valor absoluto.
 //
-// `UMBRAL_REVELADO_TEXTO` acota la ventana a la parte TEMPRANA del progreso — el pedido es "cuando
-// alguien EMPIECE a scrollear", no a lo largo de las tres pantallas del recorrido pineado completo.
-// Fuera de esta ventana (progreso ≥ 0.2) el texto ya está en su posición final y el resto del
-// recorrido lo ocupan el desplazamiento horizontal CONTINUO (`transformMarquesinaTexto`, sobre TODO
-// el rango 0..1) y la tarjeta (`transformMarquesinaTarjeta`, recortada a [0.12,0.57]).
+// NO SE TOCA `fadeUp` (instrucción explícita del spec, y la razón ya escrita en este repo): es
+// compartida por ~21 animaciones de entrada de tarjetas/bloques de texto normales, y "arreglar" su
+// `y` para el hero display rompería esos otros consumidores. Lo que sigue es su HERMANA para texto
+// DISPLAY — misma familia de intención (revelado por scroll), otra magnitud.
+//
+// EL REVELADO ENMASCARADO — la construcción, no sólo la magnitud: en vez de sumar un `translateY` en
+// PÍXELES sobre un texto ya visible (transparente→opaco), el texto vive dentro de un contenedor
+// `overflow:hidden` del alto EXACTO de una línea de ese texto (line-height:1, `leading-none` —
+// el propio contenido define esa altura; un transform no la cambia, sólo el layout la fija), y se
+// traslada un PORCENTAJE de su PROPIA caja: 100% (fuera del todo, oculto bajo el borde inferior de la
+// máscara) en reposo, 0% (en su lugar) al completar la ventana. Es la construcción que hace el TEMA
+// REAL para este mismo texto («reveal de entrada… otro `xo-parallax-scroll`», § el docstring de
+// cabecera de `HeroMediaMarquesina.tsx`) y la razón de por qué "sube desde atrás de un borde" se ve
+// distinto de "aparece más claro": antes del borde, el texto NO EXISTE visualmente (recortado), no
+// que exista pero transparente.
+//
+// PORCENTAJE, NO PÍXELES — esto es lo que resuelve la medición de arriba de raíz: un `translateY(N%)`
+// CSS es relativo a la altura de la CAJA TRANSFORMADA, así que escala AUTOMÁTICAMENTE con el
+// `clamp(3rem,10vw,10rem)` del texto (a 48px, 100% son 48px de recorrido; a 160px, 100% son 160px) —
+// nunca vuelve a vencerse en otra pantalla, sin que nadie tenga que recalcular un número.
+//
+// SIN FADE — se evaluó agregar opacidad ADEMÁS del recorte (como hace el tema real, "slide-up +
+// fade") y se descartó: el defecto que el owner reportó era, literalmente, que el texto "se aclara"
+// en vez de "subir" — agregar una segunda curva de opacidad por ENCIMA de la máscara reintroduciría
+// esa misma lectura para la porción de letra que YA cruzó el borde (se seguiría viendo "clarearse" un
+// instante más, justo el defecto que se vino a cerrar). Con SÓLO el recorte, una letra que cruza el
+// borde de la máscara queda a OPACIDAD PLENA de inmediato — el borde es la única señal de progreso,
+// sin competir con una segunda.
+//
+// `UMBRAL_REVELADO_TEXTO` NO CAMBIA (mismo campo, mismo valor): acota la ventana a la parte TEMPRANA
+// del progreso — el pedido sigue siendo "cuando alguien EMPIECE a scrollear", no a lo largo de las
+// tres pantallas del recorrido pineado completo. Fuera de esta ventana (progreso ≥ 0.2) el texto ya
+// está en su posición final y el resto del recorrido lo sigue ocupando el TICKER (horizontal, por
+// tiempo, § más abajo) y la tarjeta (`transformMarquesinaTarjeta`, recortada a [0.12,0.57]).
 export const UMBRAL_REVELADO_TEXTO = { desde: 0, hasta: 0.2 } as const;
 
 function progresoRevelado(progreso: number): number {
@@ -232,27 +324,22 @@ function progresoRevelado(progreso: number): number {
   return Math.max(0, Math.min(1, (p - desde) / (hasta - desde)));
 }
 
-// `opacidadRevelado`: 0 en reposo —el pedido "inicialmente sólo el video del hero", sin el marquee
-// visible— y 1 al completar la ventana. `estatico` (reduced-motion/preview, el MISMO gate que
-// `veloOpacidad`/`transformAcomodo`) NUNCA puede dejar el texto invisible: un gate de movimiento
-// apaga el DESPLAZAMIENTO, no el CONTENIDO — así que rinde 1 siempre, el estado FINAL, igual que
-// `veloOpacidad(…, estatico=true)` rinde la densidad final y `transformAcomodo(…, estatico=true)`
-// rinde `'none'` (el acomodo ya hecho) en vez del punto de partida.
-export function opacidadRevelado(progreso: number, estatico: boolean): number {
-  if (estatico) return 1;
-  return progresoRevelado(progreso);
-}
+// El traslado en reposo: 100% de la caja del propio elemento — completamente fuera del área que la
+// máscara (el contenedor `overflow:hidden`, montado por el componente) deja ver. No es "casi oculto":
+// es la MISMA garantía que pedía `opacidadRevelado` (0 en reposo), expresada por recorte en vez de
+// transparencia.
+const REVELADO_TRASLADO_PCT = 100;
 
-// `translateYRevelado`: el desplazamiento en px que se SUMA (nunca reemplaza) al `translateY(-50%)`
-// de centrado vertical que ya trae `transformMarquesinaTexto` — dos funciones `translate()`
-// sucesivas en un mismo `transform` CSS se combinan por SUMA, así que agregar `translateY(Npx)` al
-// final de la cadena desplaza N px ADEMÁS del centrado, sin tocar esa función (compartida con
-// `Marquesina.tsx`, fuera de `touches:` de este slice: tocarla habría arreglado este consumidor
-// rompiendo el otro, que no necesita ningún revelado). `estatico` rinde 0 — el texto queda en su
-// posición final y centrado, nunca a medio camino de una entrada que no va a completarse por scroll.
-export function translateYRevelado(progreso: number, estatico: boolean): number {
-  if (estatico) return 0;
-  return fadeUp.hidden.y * (1 - progresoRevelado(progreso));
+// `transformRevelaTextoDisplay`: el `transform` CSS completo del elemento que el componente traslada
+// DENTRO de la máscara — reemplaza a `opacidadRevelado`/`translateYRevelado` (RETIRADAS, sin otro
+// consumidor). `estatico` (reduced-motion/preview, el MISMO gate que `veloOpacidad`/
+// `transformAcomodo`) rinde `translateY(0%)` — el texto EN SU LUGAR, visible por completo: un gate de
+// movimiento apaga el DESPLAZAMIENTO, nunca el CONTENIDO, y acá "en su lugar" es lo que dentro de la
+// máscara SIGNIFICA visible (0% = ninguna porción recortada).
+export function transformRevelaTextoDisplay(progreso: number, estatico: boolean): string {
+  if (estatico) return 'translateY(0%)';
+  const pct = REVELADO_TRASLADO_PCT * (1 - progresoRevelado(progreso));
+  return `translateY(${pct.toFixed(1)}%)`;
 }
 
 // ── EL PRESUPUESTO DE SCROLL, PROPORCIONAL A LO QUE HAY PARA MOSTRAR — CORTE-HERO-MARQUEE-REVELA-1 ─
@@ -336,10 +423,38 @@ export function duracionTickerS(anchoUnaCopiaPx: number, velocidadPxS: number): 
 }
 
 // Fallback ANTES de la primera medición del DOM — mismo papel que `TRAVEL_FALLBACK_PX`
-// (`HeroMediaMarquesina.tsx`): un texto de ancho típico (~800px) a la velocidad medida arriba. Se
+// (`HeroMediaMarquesina.tsx`): un texto de ancho típico (~800px) a la velocidad objetivo. Se
 // sobrescribe en el primer `useEffect` del componente, así que nunca se ve en pantalla — la
 // animación del ticker arranca recién al montar en el cliente, con la medición real ya disponible.
-export const DURACION_TICKER_FALLBACK_S = 800 / VELOCIDAD_TICKER_PX_S;
+//
+// PARAMETRIZADO por la velocidad (§ CORTE-HERO-REVELADO-MASCARA-1, abajo) para no destellar un
+// instante a la velocidad 'media' si el tema pidió 'lenta'; `DURACION_TICKER_FALLBACK_S` es el caso
+// 'media' de siempre, sin cambios de valor.
+export function duracionTickerFallbackS(velocidadPxS: number): number {
+  return 800 / velocidadPxS;
+}
+export const DURACION_TICKER_FALLBACK_S = duracionTickerFallbackS(VELOCIDAD_TICKER_PX_S);
+
+// LA VELOCIDAD ES UNA PREFERENCIA DEL OWNER, NO UNA CORRECCIÓN DE LA MEDIDA — § CORTE-HERO-REVELADO-
+// MASCARA-1 (2026-09-27): sobre el gate visual de esta ronda, el owner: «la velocidad a la que van
+// las letras debería ser más baja». `VELOCIDAD_TICKER_PX_S` SIGUE siendo la medida correcta contra el
+// tema real (§ arriba, `xo-webcomponents.min.js`) — el owner no la corrige, pide una MÁS LENTA a
+// propósito sobre una medición que ya está bien. Por eso esa constante NO se toca; se agrega una
+// SEGUNDA, EXPLÍCITAMENTE ELEGIDA (no medida contra nada), y el eje pasa a ser un escalar de tema
+// (`hero.tickerVelocidad`, mismo mecanismo que `veloIntensidad` arriba, § site-content-defaults.ts) —
+// así la próxima vez que el owner pida otro ajuste de velocidad es un valor de contenido, no un
+// segundo slice tocando código.
+//
+// `VELOCIDAD_TICKER_LENTA_PX_S` es 0.6× la medida — una fracción redonda, ELEGIDA, no derivada de
+// ninguna medición (no hay un "tema real más lento" contra qué medirla).
+export const VELOCIDAD_TICKER_LENTA_PX_S = VELOCIDAD_TICKER_PX_S * 0.6;
+
+// Ausente/vacío/basura → la velocidad MEDIDA ('media'); 'lenta' → la preferencia del owner. Segunda
+// guarda defensiva, como `rangoVeloDeIntensidad` — el resolver de contenido (`REGISTRY.hero.
+// escalares.tickerVelocidad`) ya clampa el valor guardado antes de que llegue acá.
+export function velocidadTickerPxS(velocidad: string): number {
+  return velocidad === 'lenta' ? VELOCIDAD_TICKER_LENTA_PX_S : VELOCIDAD_TICKER_PX_S;
+}
 
 // ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────
 //

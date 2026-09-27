@@ -25042,3 +25042,233 @@ esas suites ejerciten. Commiteado en `slice/corte-reescritura-prototipo-1`; el m
 del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `ARNES-CENSO-MOVIMIENTO-1`.**
+
+## 2026-09-27 — Tres ajustes de MAGNITUD sobre el hero de CORTE: revelado enmascarado, ticker más lento, velo suave (`CORTE-HERO-REVELADO-MASCARA-1`)
+
+**El pedido del owner, textual** (gate visual del 2026-09-27, sobre el prototipo re-aplicado):
+*"las letras no estan apareciendo como si subieran desde un lugar abajo, como en Cafeone, el efecto
+actual esta simplemente mostrandolas cada vez mas claras"*; *"la velocidad a la que van las letras
+deberia ser mas baja"*; *"tambien podemos agregar un velo, pero no tiene que ser tan fuerte porque
+ya comprobe que incluso sin el velo se ven bien las letras"*. Los tres son ajustes de MAGNITUD sobre
+mecanismos que `CORTE-HERO-MARQUEE-REVELA-1`/`CORTE-HERO-VELO-OFF-Y-TICKER-1` ya construyeron, no
+cableado nuevo.
+
+### 1 · El revelado — de fade+24px a MÁSCARA + porcentaje
+
+**LA MEDICIÓN QUE CONFIRMA LA HIPÓTESIS DEL ORQUESTADOR.** `translateYRevelado` (RONDA anterior)
+sumaba `fadeUp.hidden.y` (24px, fijo) al centrado del texto. El marquee usa
+`text-[clamp(3rem,10vw,10rem)]` — 48px en el piso del clamp, 160px en el techo, 128px al ancho de
+referencia de escritorio de este repo (10vw a 1280px). La relación desplazamiento/tamaño-de-letra:
+
+```
+piso del clamp (48px)        → 24/48  = 50.0%
+ancho de referencia (128px)  → 24/128 = 18.75%
+techo del clamp (160px)      → 24/160 = 15.0%
+```
+
+`fadeUp` se diseñó para texto de cuerpo/tarjeta (14–24px), donde 24px es del orden de la propia
+letra o mayor — ahí "sube" se lee. Contra el texto display del marquee, el MISMO desplazamiento es
+apenas 15–19% de la altura del glifo en el caso típico de escritorio: casi nada frente al cambio de
+opacidad que ocurría en la misma ventana, y por eso dominaba la lectura de "se aclara" sobre la de
+"sube". Confirmado: no hacía falta un desplazamiento mayor en píxeles fijos (que se volvería a
+vencer en otra escala de clamp) — hacía falta que el desplazamiento fuera PROPORCIONAL al tamaño de
+la letra.
+
+**LA CONSTRUCCIÓN — un revelado ENMASCARADO, la misma forma que el tema real** (§ el docstring de
+cabecera de `HeroMediaMarquesina.tsx`: "reveal de entrada… otro `xo-parallax-scroll`"). El texto pasó
+de DOS elementos (centra/revela por scroll + ticker por tiempo) a TRES:
+
+1. **El de AFUERA (`<div>` plano, sin motion)** — la MÁSCARA: `overflow-hidden`, centrado con clases
+   Tailwind ESTÁTICAS (`top-1/2 -translate-y-1/2`, ya no un `style.transform` animado). Su alto lo
+   fija su propio contenido (`leading-none` = line-height:1 = font-size; un transform de un hijo no
+   cambia el layout, así que el alto de la máscara es EXACTAMENTE una línea de este texto).
+2. **El del MEDIO (`motion.div`)** — el MOTOR DEL REVELADO, scroll-driven: `transformRevelaTextoDisplay`
+   traslada un PORCENTAJE de su propia caja — `translateY(100%)` (fuera de la máscara, invisible) en
+   reposo, `translateY(0%)` (en su lugar) al completar `UMBRAL_REVELADO_TEXTO` (sin cambios, sigue en
+   [0, 0.2]).
+3. **El de ADENTRO (`trackRef`)** — el TICKER, sin cambios de eje.
+
+**PORCENTAJE, NO PÍXELES: esto es lo que resuelve la medición de raíz.** `translateY(N%)` en CSS es
+relativo a la altura de la CAJA TRANSFORMADA, así que escala automáticamente con el
+`clamp(3rem,10vw,10rem)` — a 48px, 100% son 48px de recorrido; a 160px, 100% son 160px. Nunca vuelve
+a vencerse en otra pantalla, sin que nadie recalcule un número.
+
+**SIN FADE — evaluado y descartado.** El tema real combina slide-up + fade; se descartó el fade
+porque el defecto reportado era, literalmente, que el texto "se aclara" en vez de "subir" — agregar
+una segunda curva de opacidad ENCIMA de la máscara reintroduciría esa misma lectura para la porción
+de letra que YA cruzó el borde (seguiría viéndose "clarearse" un instante más). Con SÓLO el recorte,
+una letra que cruza el borde queda a opacidad plena de inmediato — el borde de la máscara es la
+única señal de progreso.
+
+`opacidadRevelado`/`translateYRevelado` (RETIRADAS, sin otro consumidor) → `transformRevelaTextoDisplay`
+(nueva, pura, en `lib/animation.ts`). `UMBRAL_REVELADO_TEXTO` NO se tocó.
+
+### 2 · El ticker — más lento, por PREFERENCIA del owner sobre una medición que ya estaba bien
+
+`VELOCIDAD_TICKER_PX_S` (1000/14 ≈ 71.43 px/s) es la medida correcta contra el JS del tema real
+(§ `CORTE-HERO-VELO-OFF-Y-TICKER-1`) — el owner NO la está corrigiendo, la está pidiendo más lenta A
+PROPÓSITO sobre una medición que ya está bien. Por eso esa constante no se toca: se agrega una
+SEGUNDA, `VELOCIDAD_TICKER_LENTA_PX_S = VELOCIDAD_TICKER_PX_S * 0.6` — una fracción redonda,
+ELEGIDA, no derivada de ninguna medición (no hay un "tema real más lento" contra qué medirla).
+
+**El eje pasa a ser un escalar de tema, no una constante de código.** El owner ya pidió DOS ajustes
+de este mismo efecto (RONDA anterior: velocidad medida; esta ronda: más lenta) — darle un valor
+propio en `hero.tickerVelocidad` (mismo mecanismo que `imagenTipo`/`puntoFocal`,
+`REGISTRY.hero.escalares`, canónica `'media'`) evita que la próxima vuelta cueste otro slice tocando
+código. **Verificado el costo del trinquete ANTES de comprometerse:** `hero.tickerVelocidad` entra a
+`camposLeidosPorTienda()` (vía `escalares`) y a `camposControladosPorPanel()` en el MISMO commit (un
+select en `HERO.campos`, `tienda-secciones.ts`) — `huecosDelPanel()` sigue en `[]` y `PENDIENTE_PANEL`
+no se tocó (sigue en 11, § `panel-controles.test.ts`, el test del TRINQUETE). El control entró en
+ESTE commit, no una exención nueva.
+
+### 3 · El velo — vuelve, pero suave (intensidad, no sólo interruptor)
+
+**Dos hechos a conciliar, no uno que corrige al otro.** El velo apagado (§ `CORTE-HERO-VELO-OFF-Y-
+TICKER-1`) medía, contra las tres fotos claras de referencia, un contraste de 1.34:1/1.09:1/1.24:1
+sin velo — muy bajo AA. El owner, sobre ESTE gate, ya vio el texto legible SIN velo sobre el video
+REAL de CORTE (oscuro), que esas fotos no representan. La salida no es reactivar el rango de siempre
+(0.75 de piso, calibrado para un video claro genérico): es una intensidad más suave, propia de
+CORTE.
+
+**`veloOpacidad` gana un TERCER parámetro (`rango: {piso, techo}`), con DEFAULT = el rango de
+SIEMPRE** — todo call site que no lo pase (no había ninguno antes de esta ronda) queda
+BYTE-IDÉNTICO. `hero.veloIntensidad` (escalar, canónica `'media'` → `{piso: VELO_OPACIDAD_PISO,
+techo: 1}`; `'suave'` → `{piso: 0.30, techo: 0.55}`) resuelve al rango vía `rangoVeloDeIntensidad`.
+**'suave' baja las DOS puntas** —no sólo el reposo—: el pedido del owner es sobre el velo "en
+general", no sólo al cargar.
+
+**Contraste medido para 'suave', contra la TINTA REAL de CORTE** (`#102407`, `raices.tinta` en
+`themes.ts` — no el `#1a0f08` genérico del test de `VELO_OPACIDAD_PISO`, que no es de ningún preset):
+
+```
+piso 0.30 (densidad efectiva 0.24): arena 2.16:1 · casi-blanco 1.80:1 · crema 2.02:1
+techo 0.55 (densidad efectiva 0.44): arena 3.46:1 · casi-blanco 2.95:1 · crema 3.26:1
+```
+
+**Los dos quedan bajo AA (4.5:1) — MEDIDO Y REPORTADO, no bloqueante.** Misma razón que ya aceptó
+`heroVeloVisible:false`: las tres fotos son un proxy CONSERVADOR para un video claro, no el video
+real de CORTE; el owner ya verificó la legibilidad real sobre pantalla. Queda anotado para quien lea
+esto después: el número dice "bajo AA" y el owner igual lo aprobó, con la razón puesta — no es un
+número que alguien pasó por alto.
+
+**El velo VUELVE a montarse bajo CORTE.** CORTE deja de declarar `heroVeloVisible` (hereda el
+default `true`) y declara `heroVeloIntensidad: 'suave'` — el eje que sigue siendo SUYO no es "¿hay
+velo?", es "¿qué tan fuerte?". `heroTickerVelocidad: 'lenta'` acompaña en el mismo preset.
+
+**`veloIntensidad` se atenúa en el panel cuando `veloVisible` está apagado** — primer `gatedFields`
+de ese booleano (`['veloIntensidad']`, `tienda-secciones.ts`), mismo mecanismo de atenuación que
+`titularVisible`→`titulo` (§ `PANEL-EDITOR-HERO-TOGGLES-1`): un select que sólo tiene efecto con
+otro interruptor encendido se atenúa igual que un campo de texto.
+
+### El costo del trinquete de PENDIENTE_PANEL — decidido ANTES de escribir, medido, no de memoria
+
+El spec pedía medir el costo antes de elegir entre "control ahora" o "bajar la constante". Los DOS
+escalares nuevos (`veloIntensidad`, `tickerVelocidad`) entran a `REGISTRY.hero.escalares`
+(`camposLeidosPorTienda()`) Y a `HERO.campos` (`camposControladosPorPanel()`) en el MISMO commit —
+sin eso, `huecosDelPanel()` habría marcado los dos como huecos y la única forma de dejar el gate
+verde habría sido sumarlos a `PENDIENTE_PANEL`, subiendo su techo de 11 (`panel-controles.test.ts`,
+el test del trinquete: `PENDIENTE_PANEL.length <= 11`) — el techo que la doctrina dice que "sólo
+baja". Medido: `panel-controles.test.ts` corrido completo en verde SIN tocar ese archivo — el
+trinquete no se movió.
+
+### La MECÁNICA de dos tipos duplicados evitada — el tipo vive en UN solo lugar
+
+`VeloIntensidad`/`TickerVelocidad` (el set cerrado de strings, `['media','suave']`/
+`['media','lenta']`) se declaran UNA vez en `site-content-defaults.ts` (mismo patrón que
+`PuntoFocal`) — `lib/animation.ts` los IMPORTA (type-only) para tipar `rangoVeloDeIntensidad`/
+`velocidadTickerPxS`, en vez de redeclarar el mismo par de literales. El primer borrador de este
+slice sí los redeclaraba en `lib/animation.ts` — se corrigió ANTES de comitear, al notar que era
+exactamente la clase de doble-lista que ya mordió en este repo (`CATEGORIAS ≠ CATEGORIA_LABELS`,
+§ CLAUDE.md).
+
+### Un collator de copy duplicado necesitó una exclusión nueva
+
+`site-content-defaults.test.ts` tiene un test que camina TODO `DEFAULTS` buscando texto EXACTO
+repetido entre secciones distintas (`CONTENIDO-NEUTRALIZAR-2`) — pensado para atrapar un párrafo de
+copy pegado dos veces. `hero.veloIntensidad: 'media'` y `hero.tickerVelocidad: 'media'` (los dos
+defaults canónicos) chocaron contra él: el mismo SENTINEL de config en dos ejes distintos, no copy
+duplicado. Se agregó `valoresDeCamposEscalares()` (derivada de `REGISTRY.<seccion>.escalares`,
+mismo patrón que la exclusión ya existente de rutas de imagen) para excluir los valores de escalar
+del collator — un sentinel resuelto por `resolverVariante` nunca es prosa visible para el
+visitante, así que no es el defecto que ese test existe para atrapar.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2297/2297** — reconciliado contra el piso del commit inmediato anterior (`2f6fd88`, `ARNES-CENSO-MOVIMIENTO-1`, 2279/2279): `2279 + 18 = 2297`. El `+18` es el propio diff de los 6 archivos de test de capa 1 tocados: medido `git diff` sobre esos 6 archivos → 42 líneas `^+test(`, 24 líneas `^-test(` (títulos reescritos/ampliados), `42-24=18` |
+| `npm run test:integracion` | **237/237** — sin cambio en el conteo (ningún archivo de `tests/integracion/` está en `touches:` de este slice) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers |
+| `npm run guarda:color` | **0px**, Nayoli sin preset vs. fixture |
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+**El dueño debe re-aplicar CORTE para ver los tres cambios** — `veloIntensidad`/`tickerVelocidad`
+son campos de `PresetTema` que sólo `mergePresetEnContent` escribe (o los dos selects nuevos del
+panel); un tenant que ya tenía CORTE aplicado ANTES de este slice no los lleva hasta que se
+re-aplique el preset o se editen a mano los selects nuevos.
+
+### `touches:` — todo escrito estaba declarado
+
+`components/admin/tienda-secciones.ts` (+27/-10), `components/storefront/home/HeroMediaMarquesina.tsx`
+(+84/-66), `lib/animation.test.ts` (+121/-42), `lib/animation.ts` (+173/-58), `lib/config/
+corte-marquesina-velo.test.ts` (+17/-14), `lib/config/hero-marquesina.test.ts` (+26/-21), `lib/config/
+hero-toggles-preset.test.ts` (+72/-22), `lib/config/panel-hero-toggles.test.ts` (+22/-2), `lib/config/
+site-content-defaults.test.ts` (+68/-4), `lib/config/site-content-defaults.ts` (+45/-9), `lib/config/
+site-content-schema.ts` (+7/-0), `lib/config/themes.ts` (+45/-15), este asiento. Medido con
+`git diff --numstat`: 12 archivos, los 12 en la lista de `touches:`. `lib/config/panel-controles.ts`
+estaba en `touches:` y NO se tocó — su mecanismo derivado (`camposLeidosPorTienda()`/
+`camposControladosPorPanel()`) absorbió los dos escalares nuevos sin necesitar edición, verificado
+corriendo `panel-controles.test.ts` completo en verde, incluido el test del trinquete.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `veloIntensidad`, `tickerVelocidad`,
+`transformRevelaTextoDisplay`, `opacidadRevelado`, `translateYRevelado`, `VELO_OPACIDAD_PISO`,
+`veloOpacidad`, `rangoVeloDeIntensidad`, `VeloRango`, `VELOCIDAD_TICKER_PX_S`,
+`VELOCIDAD_TICKER_LENTA_PX_S`, `velocidadTickerPxS`, `DURACION_TICKER_FALLBACK_S`,
+`duracionTickerFallbackS`, `heroVeloVisible`, `HeroMediaMarquesina`, `PENDIENTE_PANEL`. Grepeados uno
+por uno contra `CLAUDE.md`: **CERO apariciones para los diecisiete.** Nada en `CLAUDE.md` nombra
+ninguno de estos símbolos — el hero-media/sticky, sus escalares y el mecanismo de presets viven sólo
+en los comentarios del código y en `DECISIONS.md`, nunca se subieron a `CLAUDE.md`. **Nada que
+corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** La rama entera (contra `main`) ya trae varios slices con `customer_bytes.
+changed: true` propio (`CROMO-NAV-DIRECCION-SCROLL-1`, `CORTE-HERO-MARQUEE-REVELA-1`,
+`CORTE-HERO-VELO-OFF-Y-TICKER-1`) — este commit lo suma de nuevo, por su propia razón: CORTE
+(aplicado por un tenant real vía el preset o re-aplicado por el switch/select del panel) cambia
+CÓMO se ve el marquee entrar (enmascarado en vez de apareciendo más claro), a qué velocidad se
+desplaza el ticker, y vuelve a mostrar un velo (suave) sobre el video — tres cambios VISIBLES para
+cualquier visitante bajo ese preset. `strings`: **ninguno nuevo de storefront** — no se agregó ni
+cambió texto visible del marquee (sigue leyendo `marquesina.texto`); los únicos strings nuevos son
+las etiquetas de los dos selects del PANEL ADMIN ("Intensidad del velo", "Velocidad del texto en
+movimiento", `components/admin/tienda-secciones.ts`), copy operativo del dueño, no del storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es dos campos más en un JSON Field ya existente (`SiteContent.content`,
+sin migración), lógica pura en `lib/animation.ts`, su cableado en un componente de storefront
+existente y un editor de panel existente, y tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde en las cuatro capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**Cierra `CORTE-HERO-REVELADO-MASCARA-1`.**

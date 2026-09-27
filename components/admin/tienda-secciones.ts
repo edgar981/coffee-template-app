@@ -10,7 +10,7 @@
 // `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
 // `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
 // divergir de la que el resolver clampa.
-import { MENU_CTA_DESTINOS, PUNTOS_FOCALES } from '@/lib/config/site-content-defaults';
+import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -40,6 +40,14 @@ const LABEL_PUNTO_FOCAL: Record<(typeof PUNTOS_FOCALES)[number], string> = {
 };
 const OPCIONES_PUNTO_FOCAL: { value: string; label: string }[] =
   PUNTOS_FOCALES.map((clave) => ({ value: clave, label: LABEL_PUNTO_FOCAL[clave] }));
+
+// LOS DOS SELECTS de RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) — MISMO patrón que el de arriba: las
+// claves salen de `site-content-defaults.ts` (el set cerrado del resolver), este archivo sólo agrega
+// la etiqueta legible. Sólo dos opciones cada uno, así que el mapa de labels va inline.
+const OPCIONES_VELO_INTENSIDAD: { value: string; label: string }[] =
+  VELO_INTENSIDADES.map((clave) => ({ value: clave, label: clave === 'suave' ? 'Suave' : 'Media (la de siempre)' }));
+const OPCIONES_TICKER_VELOCIDAD: { value: string; label: string }[] =
+  TICKER_VELOCIDADES.map((clave) => ({ value: clave, label: clave === 'lenta' ? 'Más lenta' : 'Normal (medida contra el tema real)' }));
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -203,21 +211,23 @@ const HERO: SeccionConfig = {
   // partida, el dueño lo overridea con el switch.
   // `titularVisible`/`subtituloVisible`/`ctasVisibles` GATEAN sus campos de texto (`gatedFields`,
   // § CampoBooleano) — apagados, esos campos siguen editables pero se muestran ATENUADOS; `cueDesliza`/
-  // `alturaLlena`/`veloVisible` no gatean ningún campo: controlan presentación del hero-media, sin
-  // texto propio. `titularVisible`/`subtituloVisible`/`ctasVisibles`/`alturaLlena` SÓLO tienen efecto
-  // visible con `hero.variante === 'media'` (curtina/ficha no los leen, § HeroMedia.tsx); `cueDesliza`
-  // lo lee TAMBIÉN `hero.variante === 'sticky'` (§ HeroMediaMarquesina.tsx, RONDA 2); `veloVisible`
-  // (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) lo lee SÓLO `hero.variante === 'sticky'` — el overlay que
-  // `HeroMedia` no tiene (su propio velo es un degradado fijo, no toggleable). El eje `variante`
-  // mismo sigue sin control de panel, es su propio hueco, PANEL-EDITOR-VARIANTES-COMPOSICION-1, fuera
-  // del alcance de este slice.
+  // `alturaLlena` no gatean ningún campo: controlan presentación del hero-media, sin texto propio.
+  // `veloVisible` SÍ gatea desde RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1): con el velo apagado, su
+  // intensidad no tiene efecto, así que `veloIntensidad` (abajo, en `campos`) se atenúa junto con él —
+  // MISMO mecanismo que `titularVisible`→`titulo`, no uno nuevo. `titularVisible`/`subtituloVisible`/
+  // `ctasVisibles`/`alturaLlena` SÓLO tienen efecto visible con `hero.variante === 'media'` (curtina/
+  // ficha no los leen, § HeroMedia.tsx); `cueDesliza` lo lee TAMBIÉN `hero.variante === 'sticky'`
+  // (§ HeroMediaMarquesina.tsx, RONDA 2); `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) lo lee
+  // SÓLO `hero.variante === 'sticky'` — el overlay que `HeroMedia` no tiene (su propio velo es un
+  // degradado fijo, no toggleable). El eje `variante` mismo sigue sin control de panel, es su propio
+  // hueco, PANEL-EDITOR-VARIANTES-COMPOSICION-1, fuera del alcance de este slice.
   booleanos: [
     { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque.', gatedFields: ['titulo', 'tituloEnfasis'] },
     { name: 'subtituloVisible', label: 'Mostrar subtítulo',   gatedFields: ['subtitulo'] },
     { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos.', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
     { name: 'cueDesliza',       label: 'Mostrar el indicador "Desliza"', hint: 'La línea animada al pie que invita a bajar, con la etiqueta "Desliza".' },
     { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto del viewport, en vez de dejar asomar el siguiente bloque.' },
-    { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "sticky". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.' },
+    { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "sticky". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.', gatedFields: ['veloIntensidad'] },
   ],
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
   campos: [
@@ -233,6 +243,13 @@ const HERO: SeccionConfig = {
     { name: 'subtitulo',          label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'ctaPrimarioLabel',   label: 'Botón principal',     hint: 'Su destino es /tienda (fijo). Vacío: se usa el texto por defecto.' },
     { name: 'ctaSecundarioLabel', label: 'Botón secundario',    opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
+    // LOS DOS ESCALARES DE RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) — sólo aplican a la composición
+    // "sticky" (§ HeroMediaMarquesina.tsx). Selects de opciones fijas, como `puntoFocal`: siempre
+    // tienen un valor (la canónica si nadie lo tocó), así que ninguno lleva `opcional`.
+    { name: 'veloIntensidad', label: 'Intensidad del velo', opciones: OPCIONES_VELO_INTENSIDAD,
+      hint: 'Sólo con la composición "sticky" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
+    { name: 'tickerVelocidad', label: 'Velocidad del texto en movimiento', opciones: OPCIONES_TICKER_VELOCIDAD,
+      hint: 'Sólo con la composición "sticky". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
   ],
 };
 

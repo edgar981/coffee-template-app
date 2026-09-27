@@ -157,47 +157,33 @@ test('?tema=CORTE preserva el copy/imagen del hero que un tenant ya hubiera carg
 //
 // El owner, con el tema real en la mano (2026-09-27): «ese velo verde debemos quitarlo, hace que el
 // video se vea sin calidad». `heroVeloVisible` es UN booleano más de `REGISTRY.hero.booleanos`
-// (default `true`, byte-idéntico); CORTE lo declara en `false` — es el único preset que lo apaga. El
-// mecanismo de render (el `<motion.div>` del velo deja de MONTARSE) vive en `HeroMediaMarquesina.tsx`
-// y se afirma en `hero-marquesina.test.ts`; acá sólo el eje PRESET (declaración + merge + mirador),
-// mismo patrón que `heroCtasVisibles`/`heroCueDesliza` arriba.
+// (default `true`, byte-idéntico); CORTE lo declaró en `false` en ESA ronda — el mecanismo de render
+// (el `<motion.div>` del velo deja de MONTARSE) vive en `HeroMediaMarquesina.tsx` y se afirma en
+// `hero-marquesina.test.ts`.
+//
+// § CORTE-HERO-REVELADO-MASCARA-1 (RONDA 4) REVIERTE esto: sobre el gate visual de esa ronda, el
+// owner pidió el velo de vuelta, más suave. CORTE deja de declarar `heroVeloVisible` (hereda el
+// default `true`) y en su lugar declara `heroVeloIntensidad`/`heroTickerVelocidad` — los DOS tests de
+// abajo ("RONDA 4") reemplazan a los de heroVeloVisible que este bloque tenía.
 
-test('CORTE declara heroVeloVisible:false — sigue validando COMPLETO', () => {
-  assert.equal(CORTE.heroVeloVisible, false);
+test('CORTE ya NO declara heroVeloVisible (RONDA 4 lo revirtió) — hereda el default true, byte-idéntico al mecanismo de siempre', () => {
+  assert.equal(CORTE.heroVeloVisible, undefined);
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 });
 
-test('CORTE es el ÚNICO preset del catálogo que declara heroVeloVisible', () => {
+test('NINGÚN preset del catálogo declara heroVeloVisible hoy', () => {
   for (const preset of PRESETS) {
-    if (preset.clave === 'CORTE') continue;
     assert.equal(preset.heroVeloVisible, undefined, `${preset.clave} no debería declarar heroVeloVisible`);
   }
 });
 
-test('mergePresetEnContent(_, CORTE): escribe hero.veloVisible:false, preservando lo demás de la sección', () => {
+test('mergePresetEnContent(_, CORTE): YA NO toca hero.veloVisible — la clave ni se escribe', () => {
   const antes = { hero: { visible: true, titulo: 'El título del dueño', variante: 'curtina' } };
   const despues = mergePresetEnContent(antes, CORTE);
   const hero = despues.hero as Record<string, unknown>;
-  assert.equal(hero.veloVisible, false);
+  assert.equal('veloVisible' in hero, false, 'CORTE ya no declara heroVeloVisible, así que no debe escribir la clave');
   assert.equal(hero.titulo, 'El título del dueño');
-});
-
-test('mergePresetEnContent NO toca hero.veloVisible para un preset que no lo declara (PATIO)', () => {
-  assert.equal(PATIO.heroVeloVisible, undefined);
-  const antes = { hero: { visible: true, veloVisible: true, variante: 'curtina' } };
-  const despues = mergePresetEnContent(antes, PATIO);
-  const hero = despues.hero as Record<string, unknown>;
-  assert.equal(hero.veloVisible, true, 'ninguna clave cambia de valor — el bloque entero se saltea');
-});
-
-test('mergePresetEnContent(_, preset) sobre los CINCO presets restantes: ninguno agrega veloVisible a una sección que no lo tenía', () => {
-  const antes = { hero: { visible: true, variante: 'curtina' } };
-  for (const preset of [PLIEGO, PATIO, VETA, VITRINA, ARRANQUE]) {
-    const despues = mergePresetEnContent(antes, preset);
-    const hero = despues.hero as Record<string, unknown>;
-    assert.equal('veloVisible' in hero, false, `${preset.clave} no debería escribir veloVisible`);
-  }
 });
 
 test('LA INVARIANTE: sin ?tema= (Nayoli), hero.veloVisible sigue en su default true — el velo de HOY', () => {
@@ -207,8 +193,72 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), hero.veloVisible sigue en su default t
   assert.equal(sinTema, nayoli, 'byte-idéntico: la misma referencia, ni un campo tocado');
 });
 
-test('?tema=CORTE sobre Nayoli: hero.veloVisible pasa a false', () => {
+test('?tema=CORTE sobre Nayoli: hero.veloVisible sigue en true — RONDA 4 ya no lo apaga', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.hero.veloVisible, false);
+  assert.equal(conCorte.hero.veloVisible, true);
+});
+
+// ─── heroVeloIntensidad/heroTickerVelocidad — § CORTE-HERO-REVELADO-MASCARA-1, RONDA 4 ────────────
+//
+// DOS escalares (string), MISMO patrón mecánico que `heroCtasVisibles`/`heroCueDesliza` (arriba) pero
+// de STRING en vez de boolean — como `variante`, no como los seis booleanos de la sección de arriba.
+// El owner, sobre el gate visual de esta ronda: «también podemos agregar un velo, pero no tiene que
+// ser tan fuerte» y «la velocidad… debería ser más baja».
+
+test('CORTE declara heroVeloIntensidad:"suave" y heroTickerVelocidad:"lenta" — sigue validando COMPLETO', () => {
+  assert.equal(CORTE.heroVeloIntensidad, 'suave');
+  assert.equal(CORTE.heroTickerVelocidad, 'lenta');
+  assert.deepEqual(validarPreset(CORTE), []);
+  assert.ok(presetCompleto(CORTE));
+});
+
+test('CORTE es el ÚNICO preset del catálogo que declara heroVeloIntensidad/heroTickerVelocidad', () => {
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.heroVeloIntensidad, undefined, `${preset.clave} no debería declarar heroVeloIntensidad`);
+    assert.equal(preset.heroTickerVelocidad, undefined, `${preset.clave} no debería declarar heroTickerVelocidad`);
+  }
+});
+
+test('mergePresetEnContent(_, CORTE): escribe hero.veloIntensidad:"suave" y hero.tickerVelocidad:"lenta", preservando lo demás de la sección', () => {
+  const antes = { hero: { visible: true, titulo: 'El título del dueño', variante: 'curtina' } };
+  const despues = mergePresetEnContent(antes, CORTE);
+  const hero = despues.hero as Record<string, unknown>;
+  assert.equal(hero.veloIntensidad, 'suave');
+  assert.equal(hero.tickerVelocidad, 'lenta');
+  assert.equal(hero.titulo, 'El título del dueño');
+});
+
+test('mergePresetEnContent NO toca hero.veloIntensidad/tickerVelocidad para un preset que no los declara (PATIO)', () => {
+  assert.equal(PATIO.heroVeloIntensidad, undefined);
+  assert.equal(PATIO.heroTickerVelocidad, undefined);
+  const antes = { hero: { visible: true, veloIntensidad: 'media', tickerVelocidad: 'media', variante: 'curtina' } };
+  const despues = mergePresetEnContent(antes, PATIO);
+  const hero = despues.hero as Record<string, unknown>;
+  assert.equal(hero.veloIntensidad, 'media', 'ninguna clave cambia de valor — el bloque entero se saltea');
+  assert.equal(hero.tickerVelocidad, 'media');
+});
+
+test('mergePresetEnContent(_, preset) sobre los CINCO presets restantes: ninguno agrega veloIntensidad/tickerVelocidad a una sección que no los tenía', () => {
+  const antes = { hero: { visible: true, variante: 'curtina' } };
+  for (const preset of [PLIEGO, PATIO, VETA, VITRINA, ARRANQUE]) {
+    const despues = mergePresetEnContent(antes, preset);
+    const hero = despues.hero as Record<string, unknown>;
+    assert.equal('veloIntensidad' in hero, false, `${preset.clave} no debería escribir veloIntensidad`);
+    assert.equal('tickerVelocidad' in hero, false, `${preset.clave} no debería escribir tickerVelocidad`);
+  }
+});
+
+test('LA INVARIANTE: sin ?tema= (Nayoli), hero.veloIntensidad/tickerVelocidad siguen en su default "media" — byte-idéntico', () => {
+  const nayoli = resolverSiteContent({});
+  assert.equal(nayoli.hero.veloIntensidad, 'media');
+  assert.equal(nayoli.hero.tickerVelocidad, 'media');
+});
+
+test('?tema=CORTE sobre Nayoli: hero.veloIntensidad pasa a "suave" y hero.tickerVelocidad a "lenta"', () => {
+  const nayoli = resolverSiteContent({});
+  const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
+  assert.equal(conCorte.hero.veloIntensidad, 'suave');
+  assert.equal(conCorte.hero.tickerVelocidad, 'lenta');
 });

@@ -18,6 +18,12 @@ import { camposControladosPorPanel, huecosDelPanel, PENDIENTE_PANEL } from './pa
 // `panel-controles.ts` consulta: sumar el nombre a las dos deja `huecosDelPanel()` en `[]` sin tocar
 // `PENDIENTE_PANEL`.
 //
+// § CORTE-HERO-REVELADO-MASCARA-1 (RONDA 4) suma DOS ESCALARES (`veloIntensidad`/`tickerVelocidad`),
+// también CON control desde su primer commit (vía `campos`, no `booleanos` — son selects de opciones
+// fijas, no interruptores true/false), y `veloVisible` GANA su primer `gatedFields`
+// (`['veloIntensidad']`): el patrón de atenuación (§ arriba) no era sólo para texto —un select que
+// sólo tiene efecto con otro interruptor encendido se atenúa igual.
+//
 // EN MEMORIA: no monta React (el repo no tiene jsdom, § CLAUDE.md "El glob NO incluye *.test.tsx").
 // Prueba el CONFIG (`HERO.booleanos`) y las dos funciones puras que `TiendaSeccionEditor` consume
 // para decidir el render — no el JSX en sí. El componente lo cubre el gate visual (owner).
@@ -67,11 +73,25 @@ test('gatePorCampo(HERO): eyebrow no está gateado por ningún interruptor (no a
   assert.equal(gatePorCampo(HERO).has('eyebrow'), false);
 });
 
-test('cueDesliza, alturaLlena y veloVisible no gatean ningún campo de texto (sin gatedFields — controlan presentación, no texto)', () => {
+test('cueDesliza y alturaLlena no gatean ningún campo (sin gatedFields — controlan presentación, no texto)', () => {
   const nombresGate = new Set(gatePorCampo(HERO).values());
   assert.equal(nombresGate.has('cueDesliza'), false);
   assert.equal(nombresGate.has('alturaLlena'), false);
-  assert.equal(nombresGate.has('veloVisible'), false);
+});
+
+// § CORTE-HERO-REVELADO-MASCARA-1 (RONDA 4): `veloVisible` SÍ pasa a gatear un campo —
+// `veloIntensidad`, el select de intensidad que sólo tiene efecto con el velo encendido. Reemplaza
+// al test de arriba (que afirmaba lo contrario) para los tres — `veloVisible` ya no comparte su
+// aserción con `cueDesliza`/`alturaLlena`.
+test('gatePorCampo(HERO): veloIntensidad → veloVisible — el select de intensidad se atenúa junto con el velo', () => {
+  const gates = gatePorCampo(HERO);
+  assert.equal(gates.get('veloIntensidad'), 'veloVisible');
+});
+
+test('campoAtenuado: veloIntensidad se atenúa cuando veloVisible es false, y no cuando es true o está ausente', () => {
+  assert.equal(campoAtenuado(HERO, 'veloIntensidad', { veloVisible: false }), true);
+  assert.equal(campoAtenuado(HERO, 'veloIntensidad', { veloVisible: true }), false);
+  assert.equal(campoAtenuado(HERO, 'veloIntensidad', {}), false);
 });
 
 test('campoAtenuado: titulo se atenúa cuando titularVisible es false', () => {

@@ -10,9 +10,9 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoSpotlight } from "@/lib/config/site-content-defaults";
 import {
-  useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad,
-  opacidadRevelado, translateYRevelado, claseAlturaAncestroMarquesina,
-  duracionTickerS, VELOCIDAD_TICKER_PX_S, DURACION_TICKER_FALLBACK_S,
+  useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
+  transformRevelaTextoDisplay, claseAlturaAncestroMarquesina,
+  duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
 } from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
@@ -98,12 +98,16 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // `true`, § `HeroContent.veloVisible` en site-content-defaults.ts) decide si el `<motion.div>` del
 // velo se MONTA en absoluto — no un `opacity:0` disfrazado, el nodo directamente no existe cuando es
 // `false`. El owner, sobre CORTE aplicado: «ese velo verde debemos quitarlo, hace que el video se vea
-// sin calidad» — CORTE apaga el toggle (`heroVeloVisible:false`, § themes.ts); el mecanismo de arriba
-// (`veloOpacidad`, el piso, la densidad final) NO CAMBIÓ, sigue rigiendo para todo tema que deje el
-// toggle en su default `true`. El contraste SIN velo, medido contra las mismas tres fotos de
-// referencia, está MUY por debajo del piso AA (§ el docstring de `veloOpacidad`) — apagarlo es
-// seguro para CORTE sólo porque su video es oscuro, no porque el mecanismo de contraste deje de
-// importar; ver ese docstring para el número completo y la advertencia al owner.
+// sin calidad» — CORTE apagó el toggle en ESA ronda (`heroVeloVisible:false`, § themes.ts).
+//
+// EL VELO VUELVE, PERO SUAVE — RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1): sobre el gate visual de
+// ESTA ronda, el owner pidió reencenderlo, con una intensidad más suave que la de siempre — CORTE
+// pasa a `heroVeloVisible` en su default `true` (ya no lo declara apagado) y agrega
+// `heroVeloIntensidad:'suave'`. El mecanismo de `veloOpacidad` (piso/techo, la densidad) NO cambió de
+// FORMA — ganó un TERCER parámetro (`rango`, derivado de `hero.veloIntensidad` vía
+// `rangoVeloDeIntensidad`) con default = el rango de SIEMPRE, así que todo tema que no declare la
+// intensidad queda BYTE-IDÉNTICO. El contraste medido para 'suave' (y por qué queda bajo AA sin
+// bloquear la decisión) vive en el docstring de `veloOpacidad`, `lib/animation.ts`.
 //
 // ALTURALLENA sigue SIN leerse acá (decisión ORIGINAL, sin cambios en esta ronda): es un agregado de
 // `HeroMedia.tsx` para su propio caso (una sección NO pineada que puede o no llenar el viewport); lo
@@ -123,17 +127,18 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // reduced-motion (`ReducedMotionProvider`, montado en el layout, ya congela el `y` animado del
 // segmento — § el docstring de `ReducedMotionProvider`, `lib/animation.ts`).
 //
-// EL REVELADO DEL TEXTO — § CORTE-HERO-MARQUEE-REVELA-1 (`lib/animation.ts`, el bloque
-// "EL REVELADO DEL TEXTO" para la derivación completa): el owner reportó, sobre el muestrario de
-// RONDA 2, que el marquee «no debe salir inicialmente… las letras van saliendo hacia arriba, en una
-// transición smooth, cuando alguien empiece a hacer scroll». `opacidadRevelado`/`translateYRevelado`
-// se SUMAN al `transformMarquesinaTexto`/`veloOpacidad` de siempre (no los reemplazan): en reposo
-// (`progreso=0`) el texto es invisible (`opacity:0`) y está corrido `fadeUp.hidden.y` (24px) por
-// debajo de su centrado; al 20% del progreso (`UMBRAL_REVELADO_TEXTO.hasta`) ya llegó a su posición
-// final y opacidad completa, y el resto del recorrido (el desplazamiento horizontal continuo + la
-// tarjeta) sigue exactamente igual que antes de esta ronda. Bajo `estatico` el texto queda SIEMPRE
-// visible y en su lugar (`opacidadRevelado`/`translateYRevelado` rinden 1/0) — un gate de movimiento
-// nunca puede esconder contenido.
+// EL REVELADO DEL TEXTO — § CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
+// REVELADO-MASCARA-1, `lib/animation.ts`, el bloque "EL REVELADO DEL TEXTO" para la derivación
+// completa): el owner reportó, sobre el muestrario de RONDA 2, que el marquee «no debe salir
+// inicialmente… las letras van saliendo hacia arriba»; sobre RONDA 3 (fade+24px), que «el efecto
+// actual está simplemente mostrándolas cada vez más claras» — no se veían SUBIR. RONDA 4 reemplaza
+// el mecanismo entero: el texto vive dentro de una MÁSCARA (`overflow-hidden`, el `<div>` estático de
+// afuera en el JSX de abajo) y el div del MEDIO lo traslada un PORCENTAJE de su propia caja
+// (`transformRevelaTextoDisplay`) — 100% (fuera de la máscara) en reposo, 0% (en su lugar) al 20% del
+// progreso (`UMBRAL_REVELADO_TEXTO.hasta`, sin cambios). SIN fade: el borde de la máscara es la única
+// señal de progreso. Bajo `estatico` el texto queda SIEMPRE visible y en su lugar
+// (`transformRevelaTextoDisplay` rinde `translateY(0%)`) — un gate de movimiento nunca puede esconder
+// contenido.
 //
 // EL PRESUPUESTO DE SCROLL DEJA DE SER FIJO — § CORTE-HERO-MARQUEE-REVELA-1 (`lib/animation.ts`, el
 // bloque "EL PRESUPUESTO DE SCROLL"): medido contra el muestrario desplegado, su catálogo está VACÍO
@@ -189,14 +194,17 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // overflow` sobre esos dos archivos da CERO resultados. El sticky funciona por construcción.
 //
 // EL TICKER — RONDA 3 (§ CORTE-HERO-VELO-OFF-Y-TICKER-1, ver el docstring de `VELOCIDAD_TICKER_PX_S`
-// en `lib/animation.ts` para la medición contra el tema real): el texto se desplaza horizontalmente
-// SOLO, por TIEMPO — `framer-motion`'s `animate` con `x: ['0%', '-50%']`, `repeat: Infinity`,
-// `ease: 'linear'` — DESACOPLADO de `progreso` (el scroll). Vive en un `<motion.div>` ANIDADO dentro
-// del que centra/revela por scroll: dos elementos, dos motores, en vez del `transform` armado a mano
-// de antes. `trackRef` mide el ancho de UNA COPIA del texto (el primer `<span>`) para calcular la
-// duración de un ciclo a la velocidad medida (`duracionTickerS`) — se re-mide al montar y en cada
-// resize, porque el ancho depende del texto y del tamaño de fuente responsive (`clamp(3rem,10vw,
-// 10rem)`).
+// en `lib/animation.ts` para la medición contra el tema real), AMPLIADO por RONDA 4 (§ CORTE-HERO-
+// REVELADO-MASCARA-1, "LA VELOCIDAD ES UNA PREFERENCIA DEL OWNER"): el texto se desplaza
+// horizontalmente SOLO, por TIEMPO — `framer-motion`'s `animate` con `x: ['0%', '-50%']`,
+// `repeat: Infinity`, `ease: 'linear'` — DESACOPLADO de `progreso` (el scroll). Vive en un
+// `<motion.div>` ANIDADO dentro del que hace de mask/revelado: tres elementos, dos motores (§ el
+// docstring de la sección "EL REVELADO ENMASCARADO"), en vez del `transform` armado a mano de antes.
+// `trackRef` mide el ancho de UNA COPIA del texto (el primer `<span>`) para calcular la duración de
+// un ciclo a la velocidad ELEGIDA por el tema (`velocidadTickerPxS(hero.tickerVelocidad)` — 'media'
+// es la MEDIDA contra el tema real, byte-idéntica; 'lenta' es la preferencia del owner sobre esa
+// misma medida, RONDA 4) — se re-mide al montar y en cada resize, porque el ancho depende del texto
+// y del tamaño de fuente responsive (`clamp(3rem,10vw,10rem)`).
 //
 // `estatico` (reduced-motion/preview) DETIENE el ticker — `animate:{x:'0%'}` sin keyframes ni
 // `repeat` — texto VISIBLE, QUIETO y legible, nunca "a medio camino" de un desplazamiento que no va a
@@ -222,40 +230,44 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   }, []);
   const producto = productoSpotlight(catalog, marquesina.productoSlug);
 
-  // El TICKER (§ el docstring de cabecera, "EL TICKER — RONDA 3"): `trackRef` apunta al `<motion.div>`
-  // con las dos copias del texto; se mide el ancho de la PRIMERA (`children[0]`) para derivar la
-  // duración de un ciclo a `VELOCIDAD_TICKER_PX_S`. Re-medido al montar y en cada resize — el ancho
-  // depende del texto y de un tamaño de fuente `clamp(...)` responsive.
+  // El TICKER (§ el docstring de cabecera, "EL TICKER — RONDA 3", ampliado por RONDA 4): `trackRef`
+  // apunta al `<motion.div>` con las dos copias del texto; se mide el ancho de la PRIMERA
+  // (`children[0]`) para derivar la duración de un ciclo a la velocidad ELEGIDA por el tema
+  // (`hero.tickerVelocidad`, § RONDA 4 — 'media' es la medida contra el tema real, byte-idéntica;
+  // 'lenta' es la preferencia del owner). Re-medido al montar y en cada resize — el ancho depende del
+  // texto y de un tamaño de fuente `clamp(...)` responsive.
+  const velocidadTicker = velocidadTickerPxS(hero.tickerVelocidad);
   const trackRef = useRef<HTMLDivElement>(null);
-  const [duracionTicker, setDuracionTicker] = useState(DURACION_TICKER_FALLBACK_S);
+  const [duracionTicker, setDuracionTicker] = useState(() => duracionTickerFallbackS(velocidadTicker));
   useEffect(() => {
     function medir() {
       const primero = trackRef.current?.children[0] as HTMLElement | undefined;
       if (!primero) return;
       const ancho = primero.getBoundingClientRect().width;
-      if (ancho > 0) setDuracionTicker(duracionTickerS(ancho, VELOCIDAD_TICKER_PX_S));
+      if (ancho > 0) setDuracionTicker(duracionTickerS(ancho, velocidadTicker));
     }
     medir();
     window.addEventListener('resize', medir);
     return () => window.removeEventListener('resize', medir);
-  }, [marquesina.texto]);
+  }, [marquesina.texto, velocidadTicker]);
 
   // El ANCESTRO del sticky (§ el docstring de cabecera) — el target de `useProgresoScrollDesdeTope`,
   // nunca la `<section>` pineada.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const progreso = useProgresoScrollDesdeTope(wrapperRef);
-  // EL REVELADO (§ el docstring de cabecera): SÓLO el eje VERTICAL — centrado (`translateY(-50%)`) +
-  // `translateYRevelado` sumado (dos `translate()` sucesivos se combinan por suma), nunca lo
-  // reemplaza. El eje HORIZONTAL vive aparte, en el ticker (arriba) — ya no en este `transform`.
-  // `dy===0` (estatico, o progreso ya pasó la ventana) omite el translateY extra en vez de sumar un
-  // "translateY(0.0px)" inerte.
-  const transformVertical = useTransform(progreso, (p) => {
-    const dy = translateYRevelado(p, estatico);
-    return dy === 0 ? 'translateY(-50%)' : `translateY(-50%) translateY(${dy.toFixed(1)}px)`;
-  });
-  const opacidadTexto = useTransform(progreso, (p) => opacidadRevelado(p, estatico));
+  // EL REVELADO ENMASCARADO (§ el docstring de cabecera de `lib/animation.ts`, "EL REVELADO DEL
+  // TEXTO"): SÓLO el eje VERTICAL — el `transform` COMPLETO del div que se traslada DENTRO de la
+  // máscara (`overflow-hidden`, montada por el JSX de abajo). El CENTRADO (`top-1/2 -translate-y-1/2`)
+  // ya NO vive acá: es ESTÁTICO (Tailwind, sin `useTransform`), en el div de AFUERA que hace de
+  // máscara — sólo el revelado en sí necesita seguir el scroll. El eje HORIZONTAL vive aparte, en el
+  // ticker (arriba) — no en este `transform`.
+  const transformRevelaTexto = useTransform(progreso, (p) => transformRevelaTextoDisplay(p, estatico));
   const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
-  const opacidadVelo = useTransform(progreso, (p) => veloOpacidad(p, estatico));
+  // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
+  // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
+  // par piso/techo que `veloOpacidad` ya sabía usar con su DEFAULT — acá se lo pasamos explícito.
+  const rangoVelo = rangoVeloDeIntensidad(hero.veloIntensidad);
+  const opacidadVelo = useTransform(progreso, (p) => veloOpacidad(p, estatico, rangoVelo));
 
   // PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1): mismo mecanismo que HeroMedia.tsx, aplicado a los DOS
   // medios. `undefined` para la canónica ('centro') o basura — no se emite ningún `style`.
@@ -325,29 +337,35 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           )}
         </div>
 
-        {/* EL LOOP DE TEXTO — DOS ELEMENTOS DESDE RONDA 3 (§ el docstring de cabecera, "EL TICKER"):
-            el de AFUERA centra/revela por SCROLL (posición + opacidad, MEDIDO:
-            `position:absolute;top:50%;z-index:10;white-space:nowrap`); el de ADENTRO (`trackRef`)
-            desplaza por TIEMPO, continuo, independiente del scroll. Decorativo (el nombre accesible
-            vive en el `aria-label` de la sección, como `Marquesina.tsx`); el texto se repite dos
-            veces para el efecto de cinta continua — trasladar el track la mitad de su ancho total
-            (`-50%`) mueve exactamente el ancho de UNA copia, cerrando el loop sin salto. */}
-        <motion.div
+        {/* EL LOOP DE TEXTO — TRES ELEMENTOS DESDE RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1, el
+            docstring de cabecera de `lib/animation.ts`, "EL REVELADO ENMASCARADO"): el de AFUERA es
+            un `<div>` PLANO (sin motion — nunca se anima) que sólo CENTRA (`top-1/2 -translate-y-1/2`,
+            estático) y RECORTA (`overflow-hidden`) — la máscara, del alto EXACTO de una línea de este
+            texto (`leading-none` fija line-height:1 = font-size; un transform del hijo no cambia esa
+            altura, sólo su posición pintada). El del MEDIO (`motion.div`) es el MOTOR DEL REVELADO,
+            scroll-driven: traslada un PORCENTAJE de su propia caja — 100% (fuera de la máscara) en
+            reposo, 0% (en su lugar) al completar la ventana. El de ADENTRO (`trackRef`) es el TICKER,
+            SIN CAMBIOS de eje: desplaza por TIEMPO, continuo, independiente del scroll. Decorativo (el
+            nombre accesible vive en el `aria-label` de la sección, como `Marquesina.tsx`); el texto se
+            repite dos veces para el efecto de cinta continua — trasladar el track la mitad de su ancho
+            total (`-50%`) mueve exactamente el ancho de UNA copia, cerrando el loop sin salto. */}
+        <div
           aria-hidden="true"
-          className="absolute left-0 top-1/2 z-10 whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
-          style={{ transform: transformVertical, opacity: opacidadTexto }}
+          className="absolute left-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
         >
-          <motion.div
-            ref={trackRef}
-            className="flex whitespace-nowrap"
-            initial={{ x: '0%' }}
-            animate={estatico ? { x: '0%' } : { x: ['0%', '-50%'] }}
-            transition={estatico ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
-          >
-            <span className="pr-8">{marquesina.texto} —&nbsp;</span>
-            <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+          <motion.div style={{ transform: transformRevelaTexto }}>
+            <motion.div
+              ref={trackRef}
+              className="flex whitespace-nowrap"
+              initial={{ x: '0%' }}
+              animate={estatico ? { x: '0%' } : { x: ['0%', '-50%'] }}
+              transition={estatico ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
+            >
+              <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+              <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        </div>
 
         {/* LA TARJETA — MEDIDO: "encima" del texto y del velo. `z-20` (por encima del `z-10` del
             loop). Hide-on-empty de UN elemento (el pin), como en `Marquesina.tsx`: sin `productoSlug`

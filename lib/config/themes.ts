@@ -46,7 +46,7 @@ import { CLAVES_FORMAS, type ClaveForma, resolverForma } from './formas';
 import {
   REGISTRY, BANDA_IDS, ORDEN_DEFAULT, VARIANTES_ESTRUCTURALES,
   type SeccionDef, type BandaId, type ClaveEsquema, type MenuItemId, type ClaveDrawerMovil,
-  type ClaveCarrito,
+  type ClaveCarrito, type VeloIntensidad, type TickerVelocidad,
 } from './site-content-defaults';
 import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
 import type { ClaveEscalaDisplay } from './escala-display';
@@ -185,9 +185,18 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * `site-content-defaults.ts`). AUSENTE en un preset = el comportamiento de HOY, byte a byte
  * (`content.hero.veloVisible` sigue resolviendo a `true`, el overlay montado). El owner, sobre el
  * prototipo aplicado (2026-09-27): «ese velo verde debemos quitarlo, hace que el video se vea sin
- * calidad» — CORTE es hoy el ÚNICO preset que lo declara, y lo declara en `false` (lo apaga), no
- * `true`: apagarlo es una decisión de ESTE video (oscuro), no del mecanismo en general — un tema
- * futuro con video claro deja el campo sin declarar y hereda el default `true` (encendido).
+ * calidad» — CORTE lo apagó en ESA ronda (`false`). **RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) lo
+ * REVIRTIÓ:** el owner pidió el velo de vuelta, más suave — CORTE ya NO declara este campo (hereda
+ * el default `true`, byte-idéntico al mecanismo de siempre); lo que CORTE declara ahora es
+ * `heroVeloIntensidad` (abajo), el eje que sí sigue siendo suyo.
+ *
+ * `heroVeloIntensidad`/`heroTickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1, RONDA 4, OPCIONALES) —
+ * DOS escalares MÁS de `REGISTRY.hero.escalares` (`veloIntensidad`/`tickerVelocidad`, ver los
+ * docstrings de `HeroContent.veloIntensidad`/`.tickerVelocidad` en `site-content-defaults.ts`).
+ * AUSENTE en un preset = el comportamiento de HOY, byte a byte (los dos resuelven a `'media'`, el
+ * rango de velo y la velocidad de ticker de siempre). El owner, sobre el gate visual de esta ronda:
+ * «también podemos agregar un velo, pero no tiene que ser tan fuerte» y «la velocidad… debería ser
+ * más baja» — CORTE es hoy el ÚNICO preset que declara los dos, en `'suave'`/`'lenta'`.
  *
  * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
  * arriba" (gemelo del `.to-top` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
@@ -296,6 +305,8 @@ export interface PresetTema {
   heroSubtituloVisible?: boolean;
   heroAlturaLlena?: boolean;
   heroVeloVisible?: boolean;
+  heroVeloIntensidad?: VeloIntensidad;
+  heroTickerVelocidad?: TickerVelocidad;
   volverArribaVisible?: boolean;
   rielSocialVisible?: boolean;
   carritoEnvioVisible?: boolean;
@@ -666,7 +677,8 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   // nunca escrita por un preset) intacta.
   if ((typeof preset.heroCtasVisibles === 'boolean' || typeof preset.heroCueDesliza === 'boolean'
       || typeof preset.heroTitularVisible === 'boolean' || typeof preset.heroSubtituloVisible === 'boolean'
-      || typeof preset.heroAlturaLlena === 'boolean' || typeof preset.heroVeloVisible === 'boolean')
+      || typeof preset.heroAlturaLlena === 'boolean' || typeof preset.heroVeloVisible === 'boolean'
+      || typeof preset.heroVeloIntensidad === 'string' || typeof preset.heroTickerVelocidad === 'string')
       && registro.hero) {
     const prevHero = esObj(out.hero) ? out.hero : {};
     out.hero = {
@@ -681,6 +693,11 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
       ...(typeof preset.heroAlturaLlena === 'boolean' ? { alturaLlena: fusionar('hero.alturaLlena', preset.heroAlturaLlena) } : {}),
       // UN SEXTO (§ CORTE-HERO-VELO-OFF-Y-TICKER-1), mismo mecanismo.
       ...(typeof preset.heroVeloVisible === 'boolean' ? { veloVisible: fusionar('hero.veloVisible', preset.heroVeloVisible) } : {}),
+      // DOS ESCALARES MÁS (§ CORTE-HERO-REVELADO-MASCARA-1, RONDA 4) — MISMO mecanismo, pero de
+      // STRING en vez de boolean (como `variante`, no como los seis de arriba): escriben sólo si el
+      // preset los declara.
+      ...(typeof preset.heroVeloIntensidad === 'string' ? { veloIntensidad: fusionar('hero.veloIntensidad', preset.heroVeloIntensidad) } : {}),
+      ...(typeof preset.heroTickerVelocidad === 'string' ? { tickerVelocidad: fusionar('hero.tickerVelocidad', preset.heroTickerVelocidad) } : {}),
     };
   }
 
@@ -985,18 +1002,31 @@ export const CORTE: PresetTema = {
   // tocan `content.hero.alturaLlena`.
   heroAlturaLlena: true,
   // heroVeloVisible (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) — el owner, gateando CORTE aplicado
-  // (2026-09-27): «ese velo verde debemos quitarlo, hace que el video se vea sin calidad». APAGA el
-  // overlay de `HeroMediaMarquesina` (`false`, no el default `true` de la sección): el video de CORTE
-  // es oscuro y uniforme (§ el comentario de `navTinta`, más abajo — "es oscuro y uniforme, sin
-  // esquema asignado a 'hero'"), así que el texto blanco del marquee sigue legible SIN el velo.
-  // Medido el límite de esa apuesta: contra las tres fotos CLARAS de referencia que `veloOpacidad`
+  // (2026-09-27): «ese velo verde debemos quitarlo, hace que el video se vea sin calidad». Esa RONDA
+  // apagó el overlay de `HeroMediaMarquesina` (`heroVeloVisible: false`): el video de CORTE es oscuro
+  // y uniforme (§ el comentario de `navTinta`, más abajo — "es oscuro y uniforme, sin esquema
+  // asignado a 'hero'"), así que el texto blanco del marquee siguió legible SIN el velo. Medido el
+  // límite de esa apuesta: contra las tres fotos CLARAS de referencia que `veloOpacidad`
   // (`lib/animation.ts`) ya usaba como piso AA — arena, casi-blanco, crema — blanco SIN velo da
   // 1.34:1 / 1.09:1 / 1.24:1, muy por debajo de 4.5:1. Esas tres fotos son un proxy conservador para
-  // un video CLARO, no una medición del video real de CORTE (oscuro); la palanca de contraste pasa a
-  // ser el VIDEO, no el velo — anotado para el owner en el asiento de este slice, no resuelto acá.
-  // CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
-  // `content.hero.veloVisible` (queda en su default `true`).
-  heroVeloVisible: false,
+  // un video CLARO, no una medición del video real de CORTE (oscuro).
+  //
+  // RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1, 2026-09-27) REVIRTIÓ esta línea: sobre el gate visual
+  // de esa ronda (el prototipo con el velo ya apagado), el owner: «también podemos agregar un velo,
+  // pero no tiene que ser tan fuerte porque ya comprobé que incluso sin el velo se ven bien las
+  // letras». CORTE deja de declarar `heroVeloVisible` (hereda el default `true` — el overlay vuelve a
+  // montarse) y en su lugar declara `heroVeloIntensidad`, abajo: el eje que sigue siendo SUYO no es
+  // "¿hay velo?", es "¿qué tan fuerte?".
+  //
+  // heroVeloIntensidad/heroTickerVelocidad (§ CORTE-HERO-REVELADO-MASCARA-1) — 'suave' baja el rango
+  // piso/techo de `veloOpacidad` (§ su docstring en `lib/animation.ts` para el contraste medido
+  // contra la tinta REAL de CORTE, `#102407` — bajo AA, medido y aceptado, no bloqueante: el owner ya
+  // vio la legibilidad real sobre el video). 'lenta' es la preferencia EXPLÍCITA del owner sobre la
+  // velocidad YA medida contra el tema real («la velocidad… debería ser más baja») — no una segunda
+  // medición, una elección. CORTE es hoy el ÚNICO preset del catálogo que declara los dos; los otros
+  // cinco no tocan `content.hero.veloIntensidad`/`.tickerVelocidad` (quedan en su default `'media'`).
+  heroVeloIntensidad: 'suave',
+  heroTickerVelocidad: 'lenta',
   // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
   // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija
   // abajo-derecha que pinta `background:var(--action-primary)` — el MISMO rol que ya mapea

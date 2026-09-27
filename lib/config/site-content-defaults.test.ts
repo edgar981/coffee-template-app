@@ -31,6 +31,8 @@ import {
   seccionEsVisible,
   faqSuscripcionesVisible,
   PUNTOS_FOCALES,
+  VELO_INTENSIDADES,
+  TICKER_VELOCIDADES,
   type SeccionDef,
   type VariantesDef,
   type SeccionKey,
@@ -1070,13 +1072,16 @@ test('hero: una `variante` guardada "sticky" se respeta (§ MUESTRARIO-HERO-MARQ
 // SEGUNDO escalar clampado de una sección (gemelo de `variante`, vía `REGISTRY.hero.escalares`) ───
 
 test('REGISTRY.hero declara `escalares.imagenTipo` con el set cerrado y la canónica "imagen"', () => {
-  // § HERO-PUNTO-FOCAL-1: `escalares` ganó un TERCER miembro (`puntoFocal`) — este deepEqual
-  // afirma el objeto COMPLETO, así que tiene que nombrar los dos, o fallaría con un miembro
+  // § HERO-PUNTO-FOCAL-1: `escalares` ganó un TERCER miembro (`puntoFocal`); § CORTE-HERO-REVELADO-
+  // MASCARA-1 sumó el CUARTO y el QUINTO (`veloIntensidad`/`tickerVelocidad`) — este deepEqual
+  // afirma el objeto COMPLETO, así que tiene que nombrar los cinco, o fallaría con un miembro
   // "de más" apenas se agregue el próximo escalar clampado de esta sección. Su propia cobertura
-  // (canónica, set cerrado, clamp de basura) vive en `hero-punto-focal.test.ts`.
+  // (canónica, set cerrado, clamp de basura) vive en `hero-punto-focal.test.ts`/`lib/animation.test.ts`.
   assert.deepEqual(REGISTRY.hero.escalares, {
     imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
     puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
+    veloIntensidad: { claves: VELO_INTENSIDADES, canonica: 'media' },
+    tickerVelocidad: { claves: TICKER_VELOCIDADES, canonica: 'media' },
   });
 });
 
@@ -1131,6 +1136,43 @@ test('hero: `imagenPoster` es OPCIONAL — presente-y-vacío queda "" (el render
 test('una sección SIN `escalares` declarado no gana campos extra en el resuelto (brandStory, p. ej. — sólo el hero tiene `imagenTipo`)', () => {
   const r = resolverSiteContent({});
   assert.equal('imagenTipo' in r.brandStory, false);
+});
+
+// ── EL CUARTO Y QUINTO ESCALAR (§ CORTE-HERO-REVELADO-MASCARA-1): `veloIntensidad`/`tickerVelocidad`,
+// MISMO mecanismo que `imagenTipo`/`puntoFocal` de arriba — el vocabulario de contenido; la magnitud
+// que cada clave representa (rango de opacidad, px/s) vive en `lib/animation.ts`, no acá.
+
+test('DEFAULTS.hero.veloIntensidad y .tickerVelocidad son "media" (byte-idéntico al mecanismo de siempre)', () => {
+  assert.equal(DEFAULTS.hero.veloIntensidad, 'media');
+  assert.equal(DEFAULTS.hero.tickerVelocidad, 'media');
+});
+
+test('hero: sin fila, veloIntensidad/tickerVelocidad resuelven a "media"', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.hero.veloIntensidad, 'media');
+  assert.equal(r.hero.tickerVelocidad, 'media');
+});
+
+test('hero: "suave"/"lenta" guardados se respetan', () => {
+  const r = resolverSiteContent({ hero: { veloIntensidad: 'suave', tickerVelocidad: 'lenta' } });
+  assert.equal(r.hero.veloIntensidad, 'suave');
+  assert.equal(r.hero.tickerVelocidad, 'lenta');
+});
+
+test('hero: veloIntensidad/tickerVelocidad fuera del set cerrado (basura) caen a "media" — nunca lanzan', () => {
+  for (const basura of ['fuerte', '', null, undefined, 42, {}, ['suave']]) {
+    assert.equal(resolverSiteContent({ hero: { veloIntensidad: basura } }).hero.veloIntensidad, 'media');
+    assert.equal(resolverSiteContent({ hero: { tickerVelocidad: basura } }).hero.tickerVelocidad, 'media');
+  }
+});
+
+test('resolverVariante con las claves de veloIntensidad/tickerVelocidad: ausente/basura → "media"; los valores del set cerrado se respetan', () => {
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.veloIntensidad, undefined), 'media');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.veloIntensidad, 'foo'), 'media');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.veloIntensidad, 'suave'), 'suave');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.tickerVelocidad, undefined), 'media');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.tickerVelocidad, 'foo'), 'media');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.tickerVelocidad, 'lenta'), 'lenta');
 });
 
 // ── EL BORRADO DE BLOBS NO DEBE PERDER UN CAMPO-IMAGEN (§ HERO-VIDEO-COMO-DATO-1) ──────────────────
@@ -1393,6 +1435,27 @@ function valoresDeCamposImagen(): Set<string> {
   return out;
 }
 
+// Los valores de `REGISTRY.<seccion>.escalares` (§ CORTE-HERO-REVELADO-MASCARA-1) son SENTINELS de
+// config —resueltos a comportamiento por `resolverVariante`, nunca copy visible para el visitante—,
+// MISMA razón que excluye a las rutas de imagen arriba. Dos escalares de secciones DISTINTAS que
+// comparten canónica (`hero.veloIntensidad`/`hero.tickerVelocidad`, los dos `'media'`) no es el
+// defecto de copy duplicado que el test de abajo existe para atrapar — sin esta exclusión, el
+// collator confundiría "dos ejes que por casualidad eligen el mismo NOMBRE de opción" con "el mismo
+// párrafo pegado dos veces".
+function valoresDeCamposEscalares(): Set<string> {
+  const out = new Set<string>();
+  for (const key of Object.keys(REGISTRY) as (keyof typeof DEFAULTS)[]) {
+    const def = REGISTRY[key as keyof typeof REGISTRY];
+    if (!def.escalares) continue;
+    const sec = DEFAULTS[key] as Record<string, unknown>;
+    for (const campo of Object.keys(def.escalares)) {
+      const v = sec[campo];
+      if (typeof v === 'string' && v.trim() !== '') out.add(v);
+    }
+  }
+  return out;
+}
+
 test('DEFAULTS: ningún campo de TEXTO menciona café, Nayoli, ni asume manufactura/perecedero (tanda, elaborad-, prepara-, fresco, material, artesanal) — las rutas de imagen quedan EXCLUIDAS a propósito (§ MARCA-DE-CLIENTE-EN-EL-REPO-1, no es parte de este slice)', () => {
   const rutasDeImagen = valoresDeCamposImagen();
   const todas: [string, string][] = [];
@@ -1438,11 +1501,12 @@ const DUPLICADO_PERMITIDO = new Set(['Suscripción Mensual', 'Nuestra Historia',
 
 test('DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre campos distintos — salvo el CTA↔destino declarado', () => {
   const rutasDeImagen = valoresDeCamposImagen();
+  const valoresEscalares = valoresDeCamposEscalares();
   const todas: [string, string][] = [];
   walkStrings(DEFAULTS as unknown, '', todas);
   const porValor = new Map<string, string[]>();
   for (const [path, val] of todas) {
-    if (val.trim() === '' || rutasDeImagen.has(val) || DUPLICADO_PERMITIDO.has(val)) continue;
+    if (val.trim() === '' || rutasDeImagen.has(val) || valoresEscalares.has(val) || DUPLICADO_PERMITIDO.has(val)) continue;
     const arr = porValor.get(val) ?? [];
     arr.push(path);
     porValor.set(val, arr);

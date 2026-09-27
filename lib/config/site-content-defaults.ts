@@ -102,14 +102,28 @@ export interface HeroContent {
   // cinco de arriba. SÓLO lo lee `HeroMediaMarquesina.tsx` (la variante `'sticky'`, ver el docstring
   // de `HeroContent.variante`): controla si el overlay `bg-[var(--sf-velo)]` se monta sobre la media
   // de fondo. El owner, sobre el prototipo de CORTE aplicado (2026-09-27): «ese velo verde debemos
-  // quitarlo, hace que el video se vea sin calidad». Apagarlo es correcto SÓLO porque el video de
-  // CORTE es oscuro (§ el docstring de `veloOpacidad`, `lib/animation.ts`, para el contraste medido
-  // SIN velo contra las tres fotos CLARAS de referencia — muy por debajo del piso AA; un tema con un
-  // fondo claro necesita el velo prendido). `default: true` = el hero-media de HOY, byte a byte (el
-  // velo siempre montado, como hasta este slice) — CORTE es el que lo apaga expresamente
-  // (`heroVeloVisible: false`, § themes.ts), no el default general: así un futuro tema con video
-  // claro sigue teniendo el velo encendido de fábrica, y sólo lo apaga si su propio video lo permite.
+  // quitarlo, hace que el video se vea sin calidad» — CORTE lo apagó en ESA ronda. `default: true` =
+  // el hero-media de HOY, byte a byte (el velo siempre montado). **RONDA 4 (§ CORTE-HERO-REVELADO-
+  // MASCARA-1): CORTE volvió a encenderlo** —el owner, sobre el gate visual de esa ronda, pidió un
+  // velo de vuelta, más suave que el de siempre—, así que ya NO es el único preset que lo declara en
+  // `false`; ver `veloIntensidad`, abajo, para el eje que sí sigue siendo propio de CORTE.
   veloVisible: boolean;
+  // `veloIntensidad` (§ CORTE-HERO-REVELADO-MASCARA-1) — ESCALAR de sección, MISMO mecanismo que
+  // `imagenTipo`/`puntoFocal` (`REGISTRY.hero.escalares`, resuelto con `resolverVariante`): 'media'
+  // (canónica) es el rango piso/techo de SIEMPRE (`VELO_OPACIDAD_PISO`/1, § `veloOpacidad`,
+  // `lib/animation.ts` — byte-idéntico para todo tema que no la declare); 'suave' es MÁS TENUE en
+  // las DOS puntas del recorrido (piso y techo), la que CORTE elige. SÓLO tiene efecto con
+  // `veloVisible:true` — atenuada en el panel cuando el velo está apagado (`gatedFields`,
+  // § tienda-secciones.ts, `HERO.booleanos`). El contraste medido de 'suave' (bajo AA contra el
+  // proxy de fotos claras, aceptado porque el video real de CORTE es oscuro) vive en el docstring de
+  // `veloOpacidad`.
+  veloIntensidad: VeloIntensidad;
+  // `tickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1) — ESCALAR de sección, MISMO mecanismo: 'media'
+  // (canónica) es `VELOCIDAD_TICKER_PX_S` — la velocidad MEDIDA contra el tema real (`lib/animation.
+  // ts`), byte-idéntica; 'lenta' es una preferencia EXPLÍCITA del owner sobre esa misma medición («la
+  // velocidad… debería ser más baja»), no una segunda medición. Sólo tiene efecto con
+  // `hero.variante:'sticky'` (el ticker de `HeroMediaMarquesina.tsx`; ninguna otra variante lo lee).
+  tickerVelocidad: TickerVelocidad;
   // EL PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1, recorte mínimo del Backlog #58 — "el ENCUADRE de las
   // imágenes subidas: punto focal, no recorte con caja"): qué parte de la MEDIA de fondo (imagen O
   // video, § `imagenTipo` arriba — el owner reportó el problema sobre un video, y sería incoherente
@@ -169,6 +183,18 @@ const OBJECT_POSITION_POR_PUNTO_FOCAL: Record<Exclude<PuntoFocal, 'centro'>, str
 export function objectPositionDePuntoFocal(puntoFocal: string): string | undefined {
   return (OBJECT_POSITION_POR_PUNTO_FOCAL as Record<string, string | undefined>)[puntoFocal];
 }
+
+// LOS DOS SETS CERRADOS de RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1, ver el docstring de
+// `HeroContent.veloIntensidad`/`.tickerVelocidad`, arriba) — MISMA forma que `PUNTOS_FOCALES`: una
+// tupla `as const` + el tipo derivado, nunca un tipo re-declarado a mano que pudiera divergir de las
+// claves que el resolver realmente acepta. Los NÚMEROS que cada clave representa (el rango de
+// opacidad del velo, la velocidad del ticker en px/s) viven en `lib/animation.ts`, no acá — este
+// archivo sólo declara el VOCABULARIO de contenido; `lib/animation.ts` lo traduce a magnitud.
+export const VELO_INTENSIDADES = ['media', 'suave'] as const;
+export type VeloIntensidad = (typeof VELO_INTENSIDADES)[number];
+
+export const TICKER_VELOCIDADES = ['media', 'lenta'] as const;
+export type TickerVelocidad = (typeof TICKER_VELOCIDADES)[number];
 
 // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
 // de fondo velada con overlay oscuro, un LOOP de texto a gran escala que se desplaza con el scroll
@@ -1297,11 +1323,16 @@ export const DEFAULTS: SiteContentData = {
     // byte-idéntico.
     alturaLlena: false,
     // `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1): default `true` = el velo de HeroMediaMarquesina
-    // SIEMPRE montado, byte-idéntico al comportamiento de hoy (sólo CORTE lo apaga, § themes.ts).
+    // SIEMPRE montado, byte-idéntico al comportamiento de hoy.
     veloVisible: true,
     // `puntoFocal` (§ HERO-PUNTO-FOCAL-1): default `'centro'` = SIN `object-position`, byte-idéntico
     // al recorte de hoy.
     puntoFocal: 'centro',
+    // `veloIntensidad`/`tickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1): la canónica 'media' en
+    // los dos — el rango de velo y la velocidad del ticker de SIEMPRE, byte-idénticos. Sólo CORTE
+    // declara 'suave'/'lenta' (§ themes.ts).
+    veloIntensidad: 'media',
+    tickerVelocidad: 'media',
   },
   // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
   // NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`: `resolverOrden` completa
@@ -1828,10 +1859,15 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila. `puntoFocal`
     // (§ HERO-PUNTO-FOCAL-1) es el TERCERO — la grilla de 9 posiciones (`PUNTOS_FOCALES`, arriba),
-    // canónica `'centro'` (§ el docstring de `HeroContent.puntoFocal`).
+    // canónica `'centro'` (§ el docstring de `HeroContent.puntoFocal`). `veloIntensidad`/
+    // `tickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1) son el CUARTO y QUINTO — mismo mecanismo,
+    // canónica `'media'` en los dos (§ el docstring de `HeroContent.veloIntensidad`/
+    // `.tickerVelocidad`).
     escalares: {
       imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
       puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
+      veloIntensidad: { claves: VELO_INTENSIDADES, canonica: 'media' },
+      tickerVelocidad: { claves: TICKER_VELOCIDADES, canonica: 'media' },
     },
     // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1,
     // § CORTE-HERO-VIEWPORT-LLENO-1 y § CORTE-HERO-VELO-OFF-Y-TICKER-1): los SEIS agregados de

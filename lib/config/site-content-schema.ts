@@ -53,6 +53,13 @@ const heroEditableSchema = z.object({
   // `REGISTRY.hero.escalares.puntoFocal`) ya clampa a la canónica `'centro'`; un valor fuera del set
   // cerrado no "no valida" acá —lo clampa el resolver en lectura, no el schema al escribir—.
   puntoFocal: z.string().optional(),
+  // `veloIntensidad`/`tickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1, ver el docstring de
+  // `HeroContent.veloIntensidad`/`.tickerVelocidad` en site-content-defaults.ts). `z.string()` —
+  // MISMO motivo que `puntoFocal`/`imagenTipo`/`variante`: el resolver SOFT (`resolverVariante`, vía
+  // `REGISTRY.hero.escalares`) ya clampa a la canónica `'media'`; sin declararlos, zod los
+  // STRIPPEARÍA al guardar (§ #65-B).
+  veloIntensidad: z.string().optional(),
+  tickerVelocidad: z.string().optional(),
 }).refine(
   // LA ÚNICA REGLA DURA de este schema (§ HERO-VIDEO-COMO-DATO-1, decisión del owner). NO exige que
   // `imagenPoster` ESTÉ —un hero de IMAGEN sigue pasando con todo vacío, como siempre—: exige que

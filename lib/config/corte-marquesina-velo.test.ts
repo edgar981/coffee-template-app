@@ -130,25 +130,28 @@ test('PATIO (preset que NO enciende la marquesina): el contenido resuelto no cam
 // cierto: `HeroMediaMarquesina` es la MISMA composición hero+marquee, con un solo velo compartido
 // (afirmado en detalle por `hero-marquesina.test.ts`); lo que cambia es que ya no hay DOS bandas
 // separadas que comparar, sino una sola que lleva las dos cosas.
-// § CORTE-HERO-VELO-OFF-Y-TICKER-1 REESCRIBE la última aserción de este test: hasta ese slice, el
-// hero·sticky de CORTE seguía montando el velo (`--sf-velo`) — la MISMA variable que este archivo
-// existe para afirmar que el hero y la marquesina comparten. El owner, con el tema real en la mano:
-// «ese velo verde debemos quitarlo, hace que el video se vea sin calidad» — CORTE pasó a declarar
-// `heroVeloVisible:false` (§ themes.ts), así que `HeroMediaMarquesina` ya NO MONTA el `<motion.div>`
-// del velo bajo CORTE — ni el nodo, ni el token, en absoluto. El resto del test NO cambia: la
-// marquesina suelta sigue apagada, por la misma razón de siempre (§ CORTE-USA-HERO-STICKY-1). La
-// invariante que este archivo protege —que HeroMedia y Marquesina, cuando SÍ montan su velo, leen la
-// MISMA variable— sigue afirmada arriba, sin tocar; lo que cambió es que el hero·sticky de CORTE
-// específicamente decidió no montarlo. § CORTE-HERO-VELO-OFF-Y-TICKER-1 (`hero-marquesina.test.ts`)
-// afirma en detalle el toggle `veloVisible` (default `true`, byte-idéntico) y su apagado.
-test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en el hero·sticky), y el hero·sticky de CORTE YA NO monta el velo', () => {
+// § CORTE-HERO-VELO-OFF-Y-TICKER-1 REESCRIBIÓ la última aserción de este test en su momento: el
+// owner, con el tema real en la mano, «ese velo verde debemos quitarlo, hace que el video se vea sin
+// calidad» — CORTE pasó a declarar `heroVeloVisible:false` y `HeroMediaMarquesina` dejó de montar el
+// `<motion.div>` del velo bajo CORTE.
+//
+// § CORTE-HERO-REVELADO-MASCARA-1 (RONDA 4) LA REESCRIBE OTRA VEZ, EN SENTIDO CONTRARIO: sobre el
+// gate visual de esa ronda, el owner pidió el velo de vuelta —más suave—. CORTE ya NO declara
+// `heroVeloVisible` (hereda el default `true`) y en su lugar declara `heroVeloIntensidad:'suave'`
+// (§ themes.ts) — así que el hero·sticky de CORTE vuelve a montar el velo, y la MISMA variable
+// `--sf-velo` que este archivo existe para afirmar que hero y marquesina comparten vuelve a aparecer
+// bajo CORTE. El resto del test NO cambia: la marquesina suelta sigue apagada, por la misma razón de
+// siempre (§ CORTE-USA-HERO-STICKY-1). § CORTE-HERO-REVELADO-MASCARA-1 (`hero-marquesina.test.ts`,
+// `hero-toggles-preset.test.ts`) afirma en detalle el reencendido y la intensidad.
+test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en el hero·sticky), y el hero·sticky de CORTE vuelve a montar el velo (RONDA 4, más suave)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.hero.variante, 'sticky');
   assert.equal(conCorte.marquesina.visible, false, 'la banda suelta queda apagada — su contenido ya rinde dentro del hero');
   assert.equal(renderMarquesina(conCorte), '', 'la banda suelta no rinde nada bajo CORTE');
 
-  assert.equal(conCorte.hero.veloVisible, false, '§ CORTE-HERO-VELO-OFF-Y-TICKER-1: CORTE apaga el velo del hero·sticky');
+  assert.equal(conCorte.hero.veloVisible, true, '§ CORTE-HERO-REVELADO-MASCARA-1: RONDA 4 revierte el apagado — CORTE ya no declara veloVisible');
+  assert.equal(conCorte.hero.veloIntensidad, 'suave', 'CORTE declara la intensidad suave, el eje que sigue siendo suyo');
   const htmlHeroSticky = renderHeroMediaMarquesina(conCorte);
-  assert.doesNotMatch(htmlHeroSticky, /--sf-velo/, 'sin veloVisible, ningún rastro del token del velo bajo CORTE');
+  assert.match(htmlHeroSticky, /--sf-velo/, 'con veloVisible de vuelta en true, el token del velo vuelve a aparecer bajo CORTE');
 });

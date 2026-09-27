@@ -4,11 +4,12 @@ import { MotionConfig } from 'framer-motion';
 import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
   transformMarquesinaTexto, transformMarquesinaTarjeta, indiceCentrado,
-  progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO,
-  opacidadRevelado, translateYRevelado, UMBRAL_REVELADO_TEXTO,
+  progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO, rangoVeloDeIntensidad,
+  transformRevelaTextoDisplay, UMBRAL_REVELADO_TEXTO,
   claseAlturaAncestroMarquesina, fadeUp,
   direccionScroll, navOculto, UMBRAL_OCULTAR_NAV,
-  duracionTickerS, VELOCIDAD_TICKER_PX_S, DURACION_TICKER_FALLBACK_S,
+  duracionTickerS, VELOCIDAD_TICKER_PX_S, VELOCIDAD_TICKER_LENTA_PX_S,
+  DURACION_TICKER_FALLBACK_S, duracionTickerFallbackS, velocidadTickerPxS,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -201,69 +202,119 @@ test('VELO_OPACIDAD_PISO deja margen sobre el piso AA (4.5:1) contra la foto de 
   assert.ok(c > 5, `debe dejar margen real sobre AA, no el mínimo exacto; dio ${c.toFixed(2)}`);
 });
 
-// ── EL REVELADO DEL TEXTO (§ CORTE-HERO-MARQUEE-REVELA-1) — sin React, sin navegador ──────────────
-// `opacidadRevelado`/`translateYRevelado` reproducen la ventana declarada en `UMBRAL_REVELADO_TEXTO`:
-// invisible y corrido hacia abajo en reposo, visible y en su lugar al completar la ventana. El hook
-// que las consume (`useProgresoScrollDesdeTope`, vía `HeroMediaMarquesina.tsx`) no se puede afirmar
-// acá sin DOM real; su cableado se verifica por render en `lib/config/hero-marquesina.test.ts`.
+// ── EL RANGO DEL VELO POR INTENSIDAD (§ CORTE-HERO-REVELADO-MASCARA-1, RONDA 4) ─────────────────────
+// `veloOpacidad` gana un TERCER parámetro (`rango`), con DEFAULT = el rango de 'media' — así que
+// TODOS los tests de arriba (que no pasan `rango`) siguen afirmando exactamente lo mismo, byte a
+// byte: el default es la garantía de byte-identidad, no una promesa en prosa.
+
+test('rangoVeloDeIntensidad("media") es exactamente {piso: VELO_OPACIDAD_PISO, techo: 1} — el rango de SIEMPRE', () => {
+  assert.deepEqual(rangoVeloDeIntensidad('media'), { piso: VELO_OPACIDAD_PISO, techo: 1 });
+});
+
+test('rangoVeloDeIntensidad: ausente/vacío/basura cae al rango de "media" — nunca lanza (mismo criterio que objectPositionDePuntoFocal)', () => {
+  for (const basura of ['', 'fuerte', 'MEDIA', 'suavecito']) {
+    assert.deepEqual(rangoVeloDeIntensidad(basura), rangoVeloDeIntensidad('media'));
+  }
+});
+
+test('rangoVeloDeIntensidad("suave") baja las DOS puntas del rango — el pedido del owner es "en general", no sólo al cargar', () => {
+  const suave = rangoVeloDeIntensidad('suave');
+  const media = rangoVeloDeIntensidad('media');
+  assert.ok(suave.piso < media.piso, 'el piso (reposo) debe ser más tenue');
+  assert.ok(suave.techo < media.techo, 'el techo (fin del recorrido) también debe ser más tenue');
+});
+
+test('veloOpacidad con el rango "suave": progreso=0 da su piso, progreso=1 da su techo — mismo comportamiento que "media", otra magnitud', () => {
+  const suave = rangoVeloDeIntensidad('suave');
+  assert.equal(veloOpacidad(0, false, suave), suave.piso);
+  assert.equal(veloOpacidad(1, false, suave), suave.techo);
+  assert.equal(veloOpacidad(0.5, false, suave), suave.piso + (suave.techo - suave.piso) * 0.5);
+});
+
+test('veloOpacidad con el rango "suave": estatico=true rinde el TECHO de ESE rango (0.55), no el 1 de "media"', () => {
+  const suave = rangoVeloDeIntensidad('suave');
+  assert.equal(veloOpacidad(0, true, suave), suave.techo);
+  assert.equal(suave.techo, 0.55);
+});
+
+test('el rango "suave" queda BAJO AA (4.5:1) contra el proxy de fotos claras — MEDIDO y REPORTADO, no bloqueado (§ el docstring de veloOpacidad)', () => {
+  // Mismo método WCAG que el test de arriba, contra la TINTA REAL de CORTE (#102407, raices.tinta en
+  // themes.ts) — no el #1a0f08 genérico, que no es de ningún preset. Las tres fotos de referencia de
+  // HeroMedia.tsx (arena/casi-blanco/crema) son un proxy CONSERVADOR para un video claro; el video
+  // real de CORTE es oscuro, así que quedar bajo AA acá es esperado, no un defecto.
+  function srgbToLin(c: number) { const cs = c / 255; return cs <= 0.03928 ? cs / 12.92 : Math.pow((cs + 0.055) / 1.055, 2.4); }
+  function relLum([r, g, b]: number[]) { return 0.2126 * srgbToLin(r) + 0.7152 * srgbToLin(g) + 0.0722 * srgbToLin(b); }
+  function contraste(c1: number[], c2: number[]) {
+    const L1 = relLum(c1), L2 = relLum(c2);
+    return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+  }
+  const tintaCorte = [0x10, 0x24, 0x07];
+  const blanco = [255, 255, 255];
+  const fotos = { arena: [232, 222, 200], casiBlanco: [245, 245, 240], crema: [238, 230, 214] };
+  const suave = rangoVeloDeIntensidad('suave');
+  for (const [nombre, foto] of Object.entries(fotos)) {
+    const alfaPiso = suave.piso * 0.8;
+    const compuestoPiso = tintaCorte.map((t, i) => alfaPiso * t + (1 - alfaPiso) * foto[i]);
+    const cPiso = contraste(blanco, compuestoPiso);
+    assert.ok(cPiso < 4.5, `piso contra ${nombre} debía quedar bajo AA; dio ${cPiso.toFixed(2)}`);
+
+    const alfaTecho = suave.techo * 0.8;
+    const compuestoTecho = tintaCorte.map((t, i) => alfaTecho * t + (1 - alfaTecho) * foto[i]);
+    const cTecho = contraste(blanco, compuestoTecho);
+    assert.ok(cTecho < 4.5, `techo contra ${nombre} debía quedar bajo AA; dio ${cTecho.toFixed(2)}`);
+  }
+});
+
+// ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
+// REVELADO-MASCARA-1) — sin React, sin navegador. `transformRevelaTextoDisplay` reemplaza a
+// `opacidadRevelado`/`translateYRevelado` (RETIRADAS, sin otro consumidor): traslada un PORCENTAJE de
+// la propia caja del texto — 100% (fuera de la máscara `overflow-hidden`) en reposo, 0% (en su lugar)
+// al completar `UMBRAL_REVELADO_TEXTO`. El hook que la consume (`useProgresoScrollDesdeTope`, vía
+// `HeroMediaMarquesina.tsx`) no se puede afirmar acá sin DOM real; su cableado se verifica por
+// render en `lib/config/hero-marquesina.test.ts`.
 
 test('UMBRAL_REVELADO_TEXTO: la ventana empieza en 0 (el arranque mismo del scroll) y termina bien antes de la mitad del recorrido', () => {
   assert.equal(UMBRAL_REVELADO_TEXTO.desde, 0);
   assert.ok(UMBRAL_REVELADO_TEXTO.hasta > 0 && UMBRAL_REVELADO_TEXTO.hasta < 0.5, 'consumido en la parte TEMPRANA, no a lo largo de todo el progreso');
 });
 
-test('opacidadRevelado: estatico=true SIEMPRE 1 — un gate de movimiento nunca esconde contenido, ni siquiera en reposo', () => {
-  assert.equal(opacidadRevelado(0, true), 1);
-  assert.equal(opacidadRevelado(0.1, true), 1);
-  assert.equal(opacidadRevelado(1, true), 1);
-  assert.equal(opacidadRevelado(-0.5, true), 1, 'estatico gana incluso con progreso fuera de rango');
-});
-
-test('opacidadRevelado: estatico=false, progreso=0 — INVISIBLE, el pedido "inicialmente sólo el video del hero"', () => {
-  assert.equal(opacidadRevelado(0, false), 0);
-});
-
-test('opacidadRevelado: estatico=false, progreso=hasta (fin de la ventana) — completamente VISIBLE', () => {
-  assert.equal(opacidadRevelado(UMBRAL_REVELADO_TEXTO.hasta, false), 1);
-});
-
-test('opacidadRevelado: estatico=false, más allá de la ventana — sigue en 1, no vuelve a desaparecer', () => {
-  assert.equal(opacidadRevelado(0.5, false), 1);
-  assert.equal(opacidadRevelado(1, false), 1);
-});
-
-test('opacidadRevelado: a mitad de la ventana, a mitad de camino entre invisible y visible', () => {
-  const medio = UMBRAL_REVELADO_TEXTO.hasta / 2;
-  assert.equal(opacidadRevelado(medio, false), 0.5);
-});
-
-test('opacidadRevelado: progreso se acota a [0,1] antes de mapear a la ventana — un negativo no da opacidad negativa', () => {
-  assert.equal(opacidadRevelado(-0.5, false), opacidadRevelado(0, false));
-});
-
-test('translateYRevelado: estatico=true SIEMPRE 0 — sin offset, el texto queda en su posición final', () => {
-  assert.equal(translateYRevelado(0, true), 0);
-  assert.equal(translateYRevelado(0.5, true), 0);
-  assert.equal(translateYRevelado(1, true), 0);
-});
-
-test('translateYRevelado: estatico=false, progreso=0 — el offset de reposo es EXACTAMENTE `fadeUp.hidden.y` (24px), no un número inventado', () => {
-  assert.equal(translateYRevelado(0, false), fadeUp.hidden.y);
+test('LA MEDICIÓN QUE MOTIVA EL CAMBIO: fadeUp.hidden.y (24px) es una fracción PEQUEÑA del texto DISPLAY del marquee (clamp(3rem,10vw,10rem), 48–160px) — por eso un desplazamiento en píxeles fijos no se lee como "subir"', () => {
   assert.equal(fadeUp.hidden.y, 24);
+  const pisoClampPx = 48;   // 3rem
+  const techoClampPx = 160; // 10rem
+  const referenciaPx = 128; // 10vw a 1280px — el ancho de referencia de escritorio de este repo
+  assert.ok(fadeUp.hidden.y / pisoClampPx > 0.4, 'contra el piso del clamp ya es una fracción grande (ni acá se lee "sube")');
+  assert.ok(fadeUp.hidden.y / referenciaPx < 0.2, 'contra el ancho de referencia de escritorio, bajo el 20% de la altura de la letra');
+  assert.ok(fadeUp.hidden.y / techoClampPx < 0.2, 'contra el techo del clamp, todavía más chico');
 });
 
-test('translateYRevelado: estatico=false, progreso=hasta (fin de la ventana) — 0, ya llegó a su posición final', () => {
-  assert.equal(translateYRevelado(UMBRAL_REVELADO_TEXTO.hasta, false), 0);
+test('transformRevelaTextoDisplay: estatico=true SIEMPRE "translateY(0%)" — el texto queda EN SU LUGAR, visible por completo', () => {
+  assert.equal(transformRevelaTextoDisplay(0, true), 'translateY(0%)');
+  assert.equal(transformRevelaTextoDisplay(0.5, true), 'translateY(0%)');
+  assert.equal(transformRevelaTextoDisplay(1, true), 'translateY(0%)');
+  assert.equal(transformRevelaTextoDisplay(-0.5, true), 'translateY(0%)', 'estatico gana incluso con progreso fuera de rango');
 });
 
-test('translateYRevelado: más allá de la ventana — sigue en 0, NUNCA se pasa de su posición final (sin overshoot)', () => {
-  assert.equal(translateYRevelado(0.5, false), 0);
-  assert.equal(translateYRevelado(1, false), 0);
+test('transformRevelaTextoDisplay: estatico=false, progreso=0 — 100% de la caja, TOTALMENTE fuera de la máscara', () => {
+  assert.equal(transformRevelaTextoDisplay(0, false), 'translateY(100.0%)');
 });
 
-test('translateYRevelado: a mitad de la ventana, a mitad de camino de subir', () => {
+test('transformRevelaTextoDisplay: estatico=false, progreso=hasta (fin de la ventana) — 0%, ya en su lugar', () => {
+  assert.equal(transformRevelaTextoDisplay(UMBRAL_REVELADO_TEXTO.hasta, false), 'translateY(0.0%)');
+});
+
+test('transformRevelaTextoDisplay: más allá de la ventana — sigue en 0%, NUNCA se pasa de su posición final (sin overshoot)', () => {
+  assert.equal(transformRevelaTextoDisplay(0.5, false), 'translateY(0.0%)');
+  assert.equal(transformRevelaTextoDisplay(1, false), 'translateY(0.0%)');
+});
+
+test('transformRevelaTextoDisplay: a mitad de la ventana, a mitad de camino (50%)', () => {
   const medio = UMBRAL_REVELADO_TEXTO.hasta / 2;
-  assert.equal(translateYRevelado(medio, false), fadeUp.hidden.y * 0.5);
+  assert.equal(transformRevelaTextoDisplay(medio, false), 'translateY(50.0%)');
+});
+
+test('transformRevelaTextoDisplay: progreso se acota a [0,1] antes de mapear a la ventana — un negativo no pasa de 100%', () => {
+  assert.equal(transformRevelaTextoDisplay(-0.5, false), transformRevelaTextoDisplay(0, false));
 });
 
 // ── EL PRESUPUESTO DE SCROLL PROPORCIONAL (§ CORTE-HERO-MARQUEE-REVELA-1) — sin React, sin navegador
@@ -399,4 +450,32 @@ test('duracionTickerS: ancho o velocidad no positivos → 0 (SSR/antes de medir 
 test('DURACION_TICKER_FALLBACK_S es positivo y finito — un valor real antes de la primera medición del DOM', () => {
   assert.ok(Number.isFinite(DURACION_TICKER_FALLBACK_S));
   assert.ok(DURACION_TICKER_FALLBACK_S > 0);
+});
+
+test('duracionTickerFallbackS(VELOCIDAD_TICKER_PX_S) es EXACTAMENTE DURACION_TICKER_FALLBACK_S — la constante es el caso "media" de la función genérica, no un número aparte', () => {
+  assert.equal(duracionTickerFallbackS(VELOCIDAD_TICKER_PX_S), DURACION_TICKER_FALLBACK_S);
+});
+
+// ── LA VELOCIDAD ES UNA PREFERENCIA DEL OWNER (§ CORTE-HERO-REVELADO-MASCARA-1, RONDA 4) ───────────
+// «la velocidad a la que van las letras debería ser más baja» — sobre una medición que ya estaba
+// bien (arriba). `VELOCIDAD_TICKER_LENTA_PX_S`/`velocidadTickerPxS` son la preferencia, no una
+// segunda medición.
+
+test('VELOCIDAD_TICKER_LENTA_PX_S es 0.6× la medida — una fracción ELEGIDA, más lenta que VELOCIDAD_TICKER_PX_S', () => {
+  assert.equal(VELOCIDAD_TICKER_LENTA_PX_S, VELOCIDAD_TICKER_PX_S * 0.6);
+  assert.ok(VELOCIDAD_TICKER_LENTA_PX_S < VELOCIDAD_TICKER_PX_S);
+});
+
+test('velocidadTickerPxS: "lenta" da la velocidad lenta; ausente/vacío/basura cae a la MEDIDA ("media")', () => {
+  assert.equal(velocidadTickerPxS('lenta'), VELOCIDAD_TICKER_LENTA_PX_S);
+  for (const basura of ['', 'media', 'rapida', 'LENTA']) {
+    assert.equal(velocidadTickerPxS(basura), VELOCIDAD_TICKER_PX_S);
+  }
+});
+
+test('un ticker más lento tarda MÁS en completar un ciclo del mismo ancho — duracionTickerS compone bien con la velocidad elegida', () => {
+  const ancho = 714.3;
+  const dMedia = duracionTickerS(ancho, velocidadTickerPxS('media'));
+  const dLenta = duracionTickerS(ancho, velocidadTickerPxS('lenta'));
+  assert.ok(dLenta > dMedia, 'a menor velocidad, mayor duración del mismo recorrido');
 });
