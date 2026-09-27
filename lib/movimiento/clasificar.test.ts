@@ -78,7 +78,15 @@ test("clasificarElemento: cambia temprano y se estabiliza → revelado, sola, si
 
   const resultado = clasificarElemento(grupos);
   assert.deepEqual(resultado.clases, [
-    { clase: "revelado", desplazamientoAprox: 100, duracionMs: null },
+    {
+      clase: "revelado",
+      desplazamientoAprox: 100,
+      duracionMs: null,
+      // § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1: el tramo que el arnés usaría para submuestrear si
+      // hiciera falta — acá cubre las DOS transiciones que cambiaron (0→100 y 100→200), no sólo la
+      // última.
+      ventanaScrollY: { desde: 0, hasta: 200 },
+    },
   ]);
 });
 
@@ -106,7 +114,14 @@ test("clasificarElemento: se asienta por tiempo en UNA sola posición de scroll 
 
   const resultado = clasificarElemento(grupos);
   assert.deepEqual(resultado.clases, [
-    { clase: "revelado", desplazamientoAprox: 100, duracionMs: 550 },
+    {
+      clase: "revelado",
+      desplazamientoAprox: 100,
+      duracionMs: 550,
+      // La única transición con cambio-por-scroll es la 1ª (scrollY 0→100) — el asentamiento por
+      // TIEMPO ocurre DENTRO de esa misma posición (scrollY=100), no en una transición posterior.
+      ventanaScrollY: { desde: 0, hasta: 100 },
+    },
   ]);
 });
 
@@ -226,8 +241,17 @@ test("clasificarElemento: un cambio único A MITAD del recorrido es revelado, no
   }));
 
   const resultado = clasificarElemento(grupos);
-  assert.equal(resultado.clases.length, 1);
-  assert.equal(resultado.clases[0].clase, "revelado");
+  assert.deepEqual(resultado.clases, [
+    {
+      clase: "revelado",
+      desplazamientoAprox: 100,
+      duracionMs: null,
+      // § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1 — control negativo: el tramo cae EXACTAMENTE donde
+      // ocurrió el único cambio (scrollY 200→300), a mitad del recorrido muestreado, no al principio
+      // — es el tramo que el arnés usaría para submuestrear adaptativamente, si hiciera falta.
+      ventanaScrollY: { desde: 200, hasta: 300 },
+    },
+  ]);
 });
 
 // ── Un cambio de FORMA de la matriz ("none" → "matrix(...)") también cuenta como cambio ──────────

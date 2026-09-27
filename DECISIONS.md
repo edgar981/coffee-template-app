@@ -25445,3 +25445,271 @@ cualquier tenant que use CORTE, adopta el nuevo comportamiento (sin destello) en
 sin que nadie toque el panel ni re-aplique el preset.
 
 **Cierra `CROMO-NAV-SIN-DESTELLO-1`.**
+
+## 2026-09-27 — Se calibra el arnés de censo (dos huecos de muestreo), y con él se mide la velocidad real del marquee (`ARNES-CENSO-MOVIMIENTO-CALIBRACION-1`)
+
+### Por qué
+
+El primer censo real (`ARNES-CENSO-MOVIMIENTO-1`) dejó DOS huecos declarados en
+`docs/movimiento/README.md`: un ticker que pausa fuera de vista puede leerse `revelado`, y un
+parallax que completa su recorrido DENTRO de una sección (entre dos `--pasos` consecutivos) también.
+Los dos son huecos de MUESTREO, no de clasificación — la pregunta de este slice era si, calibrados,
+el arnés podía por fin responder algo que el owner tiene abierto: **¿nuestro marquee va más rápido
+que el del tema real?** El spec fue explícito en que las cuentas por FÓRMULA (`VELOCIDAD_TICKER_PX_S
+= 1000/14 ≈ 71.43 px/s`, medida contra el JS minificado del tema en `CORTE-HERO-VELO-OFF-Y-TICKER-1`)
+sugerían que no, pero que **nadie había medido la velocidad EFECTIVA en un navegador real** — ni la
+del tema, ni la nuestra. Este slice mide.
+
+### 1 · Calibración (a) — el eje de TIEMPO se muestrea sólo en posiciones donde el elemento está en pantalla
+
+**El fix vive en el MUESTREO** (`scripts/censar-movimiento.ts`), no en el clasificador. Un grupo de
+scroll donde NINGUNA de sus muestras estuvo `enViewport` se COLAPSA a su ÚLTIMA muestra
+(`grupoDentroDeVista`) ANTES de pasar por `clasificarElemento` (`paraClasificar`) — así queda fuera
+de `gruposConVarios` (que exige `muestras.length >= 2`) sin perder su valor representativo para el
+eje de SCROLL. La traza CRUDA persistida en el `.json` no cambia (sigue guardando los `instantes`
+completos con su `enViewport`, para que sea citable); el filtro es sólo la VISTA que recibe el
+clasificador.
+
+**Lo que "decir en la traza" significa, concretamente:** cada elemento reportado lleva
+`posicionesEnViewport: {visibles, total}` (el `.json`) y una columna "en viewport" (el `.md`), con
+`0/N` marcado `⚠` cuando nunca estuvo en vista — el caso que el spec pide declarar en vez de
+clasificar con datos que no lo describen.
+
+**MEDIDO, confirmando la hipótesis del README con datos crudos:** `xo-marquee-item` (cafeone) tiene
+su `transform` bit-a-bit CONGELADO mientras está fuera de vista (`matrix(1,0,0,1,-1352.6,0)` idéntico
+en los 3 instantes, en TODAS las posiciones donde `enViewport:false`) — el widget SÍ pausa su
+animación fuera de vista, tal como el README ya sospechaba. El marquee de `muestrario-home`
+(framer-motion, `x:['0%','-50%']`, `repeat:Infinity`) **NO pausa** fuera de vista — sigue avanzando
+en cualquier posición del documento. Consecuencia práctica: la calibración (a) es INDISPENSABLE para
+medir el tema real (sin ella, promediar los ceros de las posiciones pausadas da un promedio de ~17
+px/s con mediana 0) e INCIDENTAL para medir el nuestro (con o sin el filtro, el resultado es el
+mismo, porque nunca hay ceros que filtrar).
+
+### 2 · Calibración (b) — pasos adaptativos dentro de cada tramo `revelado`
+
+`ClasificacionRevelado` (`lib/movimiento/clasificar.ts`) gana `ventanaScrollY: {desde, hasta}` — el
+MISMO par que ya llevaba `ClasificacionScrub` — para que el ARNÉS (no el módulo puro) sepa EXACTAMENTE
+qué tramo de la pasada gruesa produjo cada `revelado`. `scripts/censar-movimiento.ts` clasifica
+PRELIMINARMENTE con la traza gruesa (calibración (a) ya aplicada), reúne la UNIÓN de tramos marcados
+por algún `revelado` (`gapsARefinar`), inserta `--pasos-adaptativos` (default **3**, elegido por
+suficiente-sin-explotar-el-costo — 4 micro-transiciones por tramo alcanzan para separar un salto de
+un continuo) posiciones parejas DENTRO de cada tramo (`posicionesIntermedias`), las muestrea con el
+MISMO procedimiento que la pasada gruesa (`muestrearPosicion`, extraída para que las dos pasadas no
+diverjan), funde el resultado ORDENADO por `scrollY`, y reclasifica.
+
+**Por qué el criterio es LOCAL y no "subir `--pasos` global":** el README ya medía que 6 pasos y 20
+pasos daban el MISMO resultado contra cafeone — subir la resolución GLOBAL reparte los pasos nuevos
+por todo el documento, no dentro del tramo angosto donde un parallax completa su recorrido. Refinar
+SÓLO el tramo marcado pone la resolución donde hace falta, sin pagar el costo de repetirla en las
+partes del documento que ya se sabían estables.
+
+**MEDIDO, el efecto en cafeone-home** (`git show HEAD:docs/movimiento/cafeone-home.json` — la traza
+SIN calibrar, guardada como referencia en `.scratch/` para esta comparación, no en `touches:` —
+contra `docs/movimiento/cafeone-home.json`, la traza calibrada de este commit):
+
+| | sin calibrar (`ARNES-CENSO-MOVIMIENTO-1`) | calibrado (este slice) |
+| --- | --- | --- |
+| elementos con movimiento | 179 | 225 |
+| de ellos, `scrub` | **0** | **59** |
+| de ellos, `ticker` | 63 | 79 |
+| de ellos, `revelado` | 116 | 134 |
+
+Los 13 `<xo-parallax-scroll>` (el caso que el README citaba explícito) se reparten así tras refinar:
+**6 siguen `revelado` puro** (control negativo: su ventana, aun refinada, sigue siendo un salto único
+— la lectura original NO era un artefacto de resolución para éstos, era el hecho), **4 pasan a
+`ticker` puro** y **3 a `revelado`+`ticker`** — ninguno pasó a `scrub` puro. La mayoría de los 59
+`scrub` nuevos son OTROS elementos del tema (secciones con `<xo-animate>`/transiciones de layout que
+sí son continuas a lo largo de un tramo más ancho que un paso parejo).
+
+**CONTROL NEGATIVO explícito, obligatorio por el spec:** ninguno de los 6 `<xo-parallax-scroll>` que
+siguen `revelado` cambió — es la prueba de que la calibración no fuerza `scrub` donde no corresponde.
+`lib/movimiento/clasificar.test.ts` afirma lo mismo a nivel de MÓDULO: los tres tests que ya
+verificaban `ticker`/`scrub`/`estatico` puros (líneas no tocadas salvo por el campo nuevo cuando
+aplica) siguen pasando byte a byte, y el test del "cambio único a mitad del recorrido" (el caso
+literal que este slice existe para poder refinar) ahora afirma también su `ventanaScrollY` exacta
+(`{desde:200, hasta:300}`, el tramo real donde ocurrió, ni al principio ni al final).
+
+### 3 · La pregunta del owner — medida, no calculada
+
+**Metodología**, la misma para las dos URLs: se toma el eje de traslación horizontal (posición 4 de
+la matriz `matrix(a,b,c,d,e,f)`) del elemento identificado como el TRACK del marquee (`xo-marquee-item`
+en cafeone; `div.flex` — el nodo de `trackRef`, confirmado por su rango de visibilidad y por ser el
+ÚNICO eje que cambia — en `muestrario-home`), se calculan los deltas entre INSTANTES consecutivos
+DENTRO de cada grupo (separados 400ms, a scrollY fijo — nunca entre grupos, que están separados por
+scroll+espera y no aíslan el tiempo puro), se descartan los intervalos con `enViewport:false` en
+cualquiera de sus dos extremos (calibración (a) aplicada A MANO sobre la traza cruda, para esta
+medición puntual — el reporte automático del `.md` ya promedia con el mismo criterio DENTRO del
+clasificador) y se reporta la mediana (robusta a valores atípicos) junto con la media y el rango.
+
+| | tema real (cafeone) | nuestro despliegue (muestrario) |
+| --- | --- | --- |
+| elemento | `xo-marquee-item` | `div.flex` (`trackRef`) |
+| lecturas limpias (n) | 6 | 13 (+ 1 descartada) |
+| media | **116.6 px/s** | **238.3 px/s** |
+| mediana | **113.1 px/s** | **238.7 px/s** |
+| rango | 95.3 – 151.8 px/s | 228.9 – 267.4 px/s |
+
+**RESPUESTA: nuestro marquee se desplaza ≈2.0–2.1× MÁS RÁPIDO que el del tema real, medido en vivo
+en un navegador.** (238.3/116.6 = 2.04 por media; 238.7/113.1 = 2.11 por mediana.) **Esto CONFIRMA la
+percepción del owner, y CONTRADICE la premisa de que "las cuentas dicen lo contrario"** — las cuentas
+(`VELOCIDAD_TICKER_PX_S=1000/14≈71.43 px/s`) son la lectura correcta de la FÓRMULA del tema, pero
+NINGUNA de las dos velocidades RENDERIZADAS coincide con su propia fórmula nominal:
+
+| constante nominal (código) | valor | medido en vivo | razón medido/nominal |
+| --- | --- | --- | --- |
+| `VELOCIDAD_TICKER_PX_S` (media, fórmula del tema) | 71.43 px/s | cafeone: 116.6 px/s | 1.63× |
+| `VELOCIDAD_TICKER_LENTA_PX_S` (lenta, lo que CORTE declara) | 42.86 px/s | muestrario: 238.3 px/s | 5.56× |
+| `VELOCIDAD_TICKER_PX_S` (media, si CORTE no llevara `tickerVelocidad:'lenta'`) | 71.43 px/s | muestrario: 238.3 px/s | 3.34× |
+
+**Ni siquiera el TEMA REAL, medido en vivo, coincide con su propia fórmula** (1.63× más rápido) — así
+que la discrepancia no es exclusiva de nuestro código. Pero la nuestra es MAYOR (3.34×–5.56×, según
+cuál nominal esté vigente), y la comparación medido-contra-medido (2.0–2.1×) es la que responde la
+pregunta real del owner sin depender de qué constante esté configurada.
+
+**HALLAZGO, no arreglado acá — el promedio SIMPLE de `analizarEje` puede contaminarse con un salto de
+loop.** El marquee de `muestrario-home` completa su ciclo (`x:['0%','-50%']`, `repeat:Infinity`) en
+pocos segundos, y el arnés capturó el instante exacto donde el track saltó de vuelta a `0%` DENTRO de
+una ventana de 800ms de muestreo — dos de las 42 lecturas intra-grupo dieron ~6.190 px/s (el "salto de
+fin de vuelta"), que el REPORTE AUTOMÁTICO promedia sin filtrar
+(`velocidadAproxPorSegundo` reportado por el `.md`: **629.7 px/s**, muy por encima de la mediana real
+de 238.7). Es la misma familia de defecto que las DOS calibraciones de este slice —un promedio simple
+sobre datos que incluyen un evento no representativo—, pero es un TERCER hueco, no nombrado por el
+spec, y tocar el promediado de `analizarEje` (decidir un criterio de descarte de outliers, o cambiar
+a mediana) es su propia calibración con su propio criterio de corte. **No se tocó.** Documentado en
+`docs/movimiento/README.md` con el número real, para que quien lea `629.7` en un `.md` futuro sepa
+que un ticker con loop corto puede necesitar el mismo tratamiento manual que se hizo acá.
+Follow-up: `ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1` (abajo).
+
+**Se descarta la lectura "el arnés no muestreó la cinta interna"** (una de las dos que el spec pedía
+separar): la traza VIEJA de `muestrario-home` (`ARNES-CENSO-MOVIMIENTO-1`, generada 2026-09-27T17:28,
+sobrescrita por este commit — el contenido previo vive en el historial de git,
+`git show 2f6fd88:docs/movimiento/muestrario-home.json`) mostraba su elemento [1] como `div.absolute`
+en `scrub` puro, con la matriz `e` avanzando de `0` a `-2048` A MEDIDA QUE CRECÍA EL SCROLL (idéntica
+en los 3 instantes de CADA posición — cero variación por tiempo) — la firma exacta del mecanismo
+POR-DEFECTO (`transformMarquesinaTexto`, scroll-scrubbed), no un fallo de muestreo. **La lectura correcta es la otra: "el ticker no estaba corriendo en el navegador"** — en el momento de
+esa traza vieja, el `SiteContent` del deployment `coffee-template-app-onix.vercel.app` todavía no
+tenía CORTE aplicado (o tenía una aplicación de CORTE ANTERIOR a que el ticker se cableara —
+`CORTE-HERO-VELO-OFF-Y-TICKER-1`/`CORTE-HERO-REVELADO-MASCARA-1` exigen re-aplicar el preset para que
+un tenant ya-CORTE tome los campos nuevos, § el cierre de esos dos asientos), así que el hero
+renderizaba el marquee scroll-scrubbed de siempre, no el ticker por tiempo. Entre esa traza y la de
+este commit, el owner re-aplicó CORTE, y la traza NUEVA de este commit lo confirma con la firma del
+ticker (`div.flex`, `x` avanzando por TIEMPO, congelado en scroll).
+
+**Verificación de frescura del despliegue, antes de medir nada** (el spec lo exige explícito): se
+fetcheó `https://coffee-template-app-onix.vercel.app/` y sus chunks JS servidos, y se buscaron
+símbolos que `git log -S <símbolo> -- lib/animation.ts` confirma introducidos EXCLUSIVAMENTE por
+commits puntuales de esta rama. El chunk `/_next/static/chunks/0tabf1ixxy9u9.js` contiene literalmente
+el string `VELOCIDAD_TICKER_LENTA_PX_S` — la constante que `CORTE-HERO-REVELADO-MASCARA-1` (`7072afe`)
+introdujo, confirmado con `git log --oneline -S "VELOCIDAD_TICKER_LENTA_PX_S" -- lib/animation.ts`
+(una sola coincidencia, ese commit) — y también `debeActualizarTratamientoNav`, la función que
+`CROMO-NAV-SIN-DESTELLO-1` (`b6d7e0f`, el commit INMEDIATO ANTERIOR a este en la rama, el HEAD contra
+el que este slice partió) introdujo en `lib/animation.ts`. El HTML servido trae `--sf-tinta:#102407`
+(la tinta de CORTE, `themes.ts`). Las tres evidencias, juntas, confirman que el HTML/JS medido
+corresponde al código de HEAD, no a un build viejo. **Descartado explícitamente por impreciso**: el
+primer intento de esta verificación citó la clase del wrapper de la máscara del marquee
+(`overflow-hidden whitespace-nowrap font-playfair …`) como introducida por `CORTE-HERO-REVELADO-
+MASCARA-1` — FALSO, medido: `git log --oneline -S "leading-none text-[var(--sf-sobre-banda" --
+components/storefront/home/HeroMediaMarquesina.tsx` da UNA sola coincidencia, `2d18a59`
+(`MUESTRARIO-HERO-MARQUESINA-STICKY-1`, anterior); esa clase no cambió de conteo en
+`CORTE-HERO-REVELADO-MASCARA-1` (que sólo modificó los `motion.div` internos), así que su presencia
+no prueba nada sobre ESE commit puntual — se reemplazó por los dos símbolos verificados arriba.
+
+### 4 · El hallazgo adicional del spec — el movimiento vertical en reposo NO es un defecto
+
+**Sigue pasando, y es intencional.** El elemento `span.absolute` (índice 2 en `muestrario-home.json`,
+`ticker` a 71.1 u/s en la traza de este commit) mueve su componente VERTICAL (posición `f` de la
+matriz, no `e`) por TIEMPO, en TODA posición de scroll incluido scrollY=0 — es el CUE ANIMADO
+"Desliza" (`HeroMediaMarquesina.tsx`, `motion.span` con `animate:{y:['-100%','220%']},
+transition:{duration:2.4, repeat:Infinity, ease:'easeInOut'}`), un segmento que recorre una línea
+vertical corta para invitar al visitante a scrollear. **No es "movimiento en reposo cuando no debería
+haber ninguno"**: es exactamente lo que ese elemento existe para hacer, y lo hace ESPECIALMENTE en
+scrollY=0 — ahí es donde más falta hace invitar a scrollear. Confirmado con la traza VIEJA
+(`git show 2f6fd88:docs/movimiento/muestrario-home.json`, mismo elemento, mismo patrón, `f` oscilando
+entre ~-25 y ~62 en LAS SEIS posiciones de scroll muestreadas, incluida scrollY=0) y la NUEVA — no
+cambió con la calibración, y no debía cambiar: no es un `revelado` ni un `scrub` mal leído, es un
+`ticker` correcto sobre el eje correcto.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2300/2300** — sin cambio de conteo contra el piso del commit inmediato anterior (`b6d7e0f`, `CROMO-NAV-SIN-DESTELLO-1`, 2300/2300): `git diff -- lib/movimiento/clasificar.test.ts \| grep -c "^+test("` → 0, `^-test(` → 0 — este slice AMPLÍA aserciones de tests ya existentes (agrega `ventanaScrollY` a los `deepEqual`), no agrega tests nuevos |
+| `npm run test:integracion` | **237/237** — sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run verificar:nayoli:visual` | **NO CORRIDO — por instrucción explícita del spec** ("Este slice no cambia ningún render… no corras el diff visual, decilo"). El diff no toca `app/(storefront)/` ni `components/storefront/`; medido con `git diff --numstat` (§ abajo). |
+
+### `touches:` — todo escrito estaba declarado
+
+`git diff --numstat` (antes de este asiento): `scripts/censar-movimiento.ts` (+233/-10),
+`lib/movimiento/clasificar.ts` (+43/-3), `lib/movimiento/clasificar.test.ts` (+28/-4),
+`docs/movimiento/README.md` (+68/-26), `docs/movimiento/cafeone-home.md` (+1378/-744, regenerado por
+ejecución), `docs/movimiento/cafeone-home.json` (+94591/-8911, ídem), `docs/movimiento/
+muestrario-home.md` (+78/-48, ídem), `docs/movimiento/muestrario-home.json` (+6732/-806, ídem) — los
+ocho archivos de `touches:` que no son este asiento, ninguno fuera. `docs/movimiento/cafeone-about.*`
+—citado en el spec como fuera de alcance— **no se tocó**, verificado con `git status --short` antes de
+comitear: no aparece en la lista de modificados.
+
+Los dos HTML/JS descargados para verificar la frescura del deployment (`.scratch/onix-home.html`,
+`.scratch/cafeone-home-old.json` — el respaldo de la traza vieja para la comparación de la tabla del
+§2) viven en `.scratch/` (gitignorado), nunca en `touches:`.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `ventanaScrollY` (en `ClasificacionRevelado`),
+`grupoDentroDeVista`, `paraClasificar`, `resumenVisibilidad`, `gapsARefinar`, `posicionesIntermedias`,
+`indiceDePosicion`, `muestrearPosicion`, `pasosAdaptativos`, `--pasos-adaptativos`,
+`ARNES-CENSO-MOVIMIENTO-CALIBRACION-1`. Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones
+para los once.** `CLAUDE.md` no nombra el arnés de censo de movimiento en ningún punto (vive entero en
+`DECISIONS.md`, `DUNA-MOVIMIENTO.md` y `docs/movimiento/`) — nada que corregir.
+
+Segundo grep, sobre el DOCUMENTO: `docs/movimiento/README.md` no tiene identificadores de sección
+citados desde otro archivo (`DUNA-MOVIMIENTO.md` lo referencia por NOMBRE de archivo, no por anchor
+de sección: `grep -n "docs/movimiento/README" DUNA-MOVIMIENTO.md` da una sola línea, la de "el manual
+de la herramienta", que sigue siendo cierta — el README sigue siendo eso). Nada que corregir ahí
+tampoco.
+
+### `customer_bytes`
+
+**`changed: false`.** Este slice es ARNÉS y MEDICIÓN — no toca `app/(storefront)/`,
+`components/storefront/`, ni ningún componente que el storefront renderice (verificado: cero archivos
+de esas rutas en `git diff --numstat`). `strings`: ninguno. No se corrió `verificar:nayoli:visual`
+(el spec lo pide explícito).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un módulo puro ampliado (un campo nuevo en un tipo), un script de
+arnés ampliado (dos calibraciones de muestreo), dos pares de traza regenerados por ejecución, y dos
+documentos.
+
+### Open follow-ups
+
+- **`ARNES-CENSO-MOVIMIENTO-PROMEDIO-TICKER-1`** — el promedio simple de `analizarEje` (la velocidad
+  de ticker reportada por `clasificarElemento`/el `.md`) puede inflarse con el salto de "fin de
+  vuelta a inicio" de un ticker en loop corto (§3, HALLAZGO). No se toca en este slice —tercera
+  calibración, con su propio criterio de corte (mediana vs. descarte de outliers vs. detectar el
+  salto explícitamente)—; el disparador es la próxima vez que alguien necesite citar
+  `velocidadAproxPorSegundo` de un ticker con loop corto sin recalcularlo a mano.
+- **`CORTE-MARQUEE-VELOCIDAD-REAL-1`** — el marquee de `HeroMediaMarquesina.tsx` bajo CORTE se
+  renderiza a ≈238 px/s medido en vivo, entre 3.3× (contra `VELOCIDAD_TICKER_PX_S`) y 5.6× (contra
+  `VELOCIDAD_TICKER_LENTA_PX_S`, la que CORTE declara) más rápido que su propia constante nominal —
+  y el tema real TAMBIÉN se mide 1.6× más rápido que su propia fórmula, así que parte de la
+  discrepancia podría ser inherente al método de medición (ruido de `page.waitForTimeout`/
+  `evaluate()`, que afecta a las dos mediciones en la MISMA dirección pero no necesariamente en la
+  MISMA magnitud) y parte podría ser un defecto real de cómo `duracionTickerS`/la medición del ancho
+  del track interactúan en tiempo de ejecución. Este slice midió y comparó; no diagnosticó la causa
+  ni tocó ningún componente de storefront (fuera de alcance explícito del spec). Con la comparación
+  medido-contra-medido (≈2.0–2.1×, § 3) alcanza para responder la pregunta del owner; diagnosticar el
+  1.6×/3.3×/5.6× residual es trabajo aparte, si se decide que vale la pena perseguirlo.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [owner-gate-requested]`.** El diff, juzgado contra sus tres
+condiciones, no falla ninguna: sin schema, sin `customer_bytes` (`changed: false`), sin
+cross-repo-contract. Se para acá porque el dispatch de esta rama lo pide para TODO slice
+(§ el patrón ya establecido por `ARNES-CENSO-MOVIMIENTO-1`), no porque el diff lo amerite. Gate verde
+en las tres capas medidas (§ Gate); el diff visual no aplica y así se declara. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador — este
+slice, por instrucción del dispatch, no mergea.
+
+**Cierra `ARNES-CENSO-MOVIMIENTO-CALIBRACION-1`.**

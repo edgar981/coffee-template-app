@@ -72,6 +72,7 @@ interface Opciones {
   esperaScrollMs: number;
   anchoPx: number;
   altoPx: number;
+  pasosAdaptativos: number;
 }
 
 function ayuda(): string {
@@ -95,6 +96,11 @@ una misma posición.
 --espera-scroll-ms (default 300) — espera tras cada \`scrollTo\`, antes del
 primer instante, para dar tiempo a que listeners/observers reaccionen.
 --ancho / --alto (default 1280×900) — el viewport de Playwright.
+--pasos-adaptativos (default 3) — § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1: cuántas posiciones DE MÁS
+se insertan DENTRO de cada tramo donde la pasada gruesa detectó un \`revelado\` (un parallax que
+completa su recorrido entre dos \`--pasos\` consecutivos se ve, a esa resolución, como un salto único
+— más resolución local revela si en verdad es continuo). \`0\` desactiva la calibración (para cuando
+sólo importa el costo, no la precisión).
 
 Ejemplo:
   npm run censar:movimiento -- --url https://x-cafeone.myshopify.com/ --nombre cafeone-home
@@ -122,6 +128,7 @@ function parseCli(argv: string[]): Opciones {
       "espera-scroll-ms": { type: "string" },
       ancho: { type: "string" },
       alto: { type: "string" },
+      "pasos-adaptativos": { type: "string" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -138,8 +145,14 @@ function parseCli(argv: string[]): Opciones {
 
   const pasos = values.pasos ? Number(values.pasos) : 6;
   const instantes = values.instantes ? Number(values.instantes) : 3;
+  // Default 3 — § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1: suficiente para separar un salto único (una
+  // sola de las 4 micro-transiciones resultantes cambia) de un continuo (la mayoría cambia), sin
+  // multiplicar el costo de la corrida por un número grande. Ver `gapsARefinar`/`posicionesIntermedias`
+  // más abajo para el criterio completo.
+  const pasosAdaptativos = values["pasos-adaptativos"] ? Number(values["pasos-adaptativos"]) : 3;
   if (pasos < 1) throw new Error("--pasos debe ser ≥ 1.");
   if (instantes < 1) throw new Error("--instantes debe ser ≥ 1.");
+  if (pasosAdaptativos < 0) throw new Error("--pasos-adaptativos debe ser ≥ 0 (0 desactiva).");
 
   return {
     url: values.url,
@@ -150,6 +163,7 @@ function parseCli(argv: string[]): Opciones {
     esperaScrollMs: values["espera-scroll-ms"] ? Number(values["espera-scroll-ms"]) : 300,
     anchoPx: values.ancho ? Number(values.ancho) : 1280,
     altoPx: values.alto ? Number(values.alto) : 900,
+    pasosAdaptativos,
   };
 }
 
@@ -175,6 +189,114 @@ interface LecturaCruda {
   enViewport: boolean;
 }
 
+// ─── CALIBRACIÓN (a) — el eje de TIEMPO se muestrea sólo en posiciones donde el elemento está EN
+// PANTALLA — § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1 ─────────────────────────────────────────────────
+// MEDIDO contra el primer censo real: `xo-marquee-item` (cafeone.myshopify.com) estuvo en viewport
+// SÓLO en la posición scrollY=0 de las 6 muestreadas (`docs/movimiento/cafeone-home.json`, elemento
+// [2] antes de esta calibración) — en las otras 5, el arnés IGUAL tomó 3 instantes de tiempo, y como
+// el widget aparentemente pausa su animación fuera de vista, esos 5 grupos aportaban "no cambia" al
+// cálculo de mayoría (`UMBRAL_MAYORIA_TICKER`, `lib/movimiento/clasificar.ts`) — diluyendo la señal
+// real del único grupo donde SÍ había algo que ver. La captura de los N instantes por posición NO
+// cambia (es barata y uniforme, y saber que un grupo NO cambió mientras el elemento SÍ estaba
+// oculto sigue siendo un dato, no ruido); lo que cambia es qué llega a `clasificarElemento`: un
+// grupo donde NINGUNA muestra estuvo en el viewport se COLAPSA a su ÚLTIMA muestra antes de
+// clasificar, así queda fuera de `gruposConVarios` (que exige `muestras.length >= 2`) sin perder su
+// valor representativo para el eje de SCROLL (scrub/revelado no dependen de la visibilidad — un
+// elemento puede animarse de verdad fuera de vista, y eso es un hecho legítimo del DOM).
+//
+// CRITERIO DE "EN PANTALLA" para un grupo: basta que ALGUNA de sus muestras haya estado en el
+// viewport (no las tres) — a scrollY fijo la visibilidad de un elemento normalmente no cambia entre
+// instantes separados por unos cientos de ms, salvo que el propio elemento se esté moviendo dentro o
+// fuera del viewport por su cuenta (un caso raro, y tratarlo como "visible" es el lado seguro: preferir
+// de más datos de tiempo a de menos).
+function grupoDentroDeVista(g: GrupoScroll): GrupoScroll {
+  const algunaVisible = g.muestras.some((m) => m.enViewport);
+  if (algunaVisible) return g;
+  return { ...g, muestras: [g.muestras[g.muestras.length - 1]] };
+}
+
+// Lo que efectivamente se le pasa a `clasificarElemento` — nunca lo que se persiste en el `.json`
+// (la traza cruda guarda TODOS los instantes tomados, con su `enViewport`, para que sea citable; el
+// filtro de calibración (a) es sólo una VISTA sobre esos datos para la clasificación).
+function paraClasificar(grupos: GrupoScroll[]): GrupoScroll[] {
+  return grupos.map(grupoDentroDeVista);
+}
+
+/** Cuántas de las posiciones de scroll muestreadas tuvieron al elemento en el viewport en ALGUNA de
+ *  sus muestras — el dato que calibración (a) pide "decir en la traza" cuando da 0 (nunca visible):
+ *  la clasificación por TIEMPO no pudo verificarse en vista, así que cualquier `ticker` que hubiera
+ *  quedaría invisible para este muestreo por completo (§ el límite de `hover`, misma familia: no es
+ *  que el arnés se equivoque, es que no lo ejercitó). */
+function resumenVisibilidad(grupos: GrupoScroll[]): { visibles: number; total: number } {
+  const total = grupos.length;
+  const visibles = grupos.filter((g) => g.muestras.some((m) => m.enViewport)).length;
+  return { visibles, total };
+}
+
+// ─── CALIBRACIÓN (b) — PASOS ADAPTATIVOS dentro de un tramo `revelado` — § ARNES-CENSO-MOVIMIENTO-
+// CALIBRACION-1 ───────────────────────────────────────────────────────────────────────────────────
+// MEDIDO contra el primer censo real: TODOS los `<xo-parallax-scroll>` de cafeone.myshopify.com
+// clasificaron `revelado` con 6 pasos Y con 20 (§ `docs/movimiento/README.md`) — su recorrido cabe
+// dentro de una sección, más angosto que cualquier paso parejo razonable. Subir `--pasos` GLOBALMENTE
+// no ayuda: reparte la resolución nueva por TODO el documento, no dentro del tramo angosto donde hace
+// falta. La salida es LOCAL: `ClasificacionRevelado.ventanaScrollY` (§ `lib/movimiento/clasificar.ts`)
+// le dice al arnés EXACTAMENTE qué tramo de la pasada gruesa produjo el `revelado`; acá se
+// re-muestrea ESE tramo con `pasosAdaptativos` posiciones intermedias, se fusiona con la traza y se
+// reclasifica con el conjunto ampliado — si el mecanismo real es continuo, la proporción de
+// transiciones que cambian (ahora medida a resolución fina, dentro de ese tramo) cruza
+// `UMBRAL_FRACCION_REVELADO` y pasa a `scrub`; si sigue siendo un salto único incluso ahí, se queda
+// `revelado`, con una ventana más angosta y más precisa que antes.
+//
+// El criterio se aplica a TODOS los `revelado` de la pasada gruesa (no sólo los de una transición): un
+// tramo de revelado que abarca VARIAS transiciones consecutivas también puede estar sub-resuelto en
+// cada una de ellas.
+
+/** Ubica el ÍNDICE de un `scrollY` dentro del array de posiciones GRUESAS ya muestreadas — las
+ *  ventanas de un `revelado`/`scrub` de la pasada gruesa SIEMPRE citan un `scrollY` que es un
+ *  elemento exacto de ese array (nunca uno inventado), así que la búsqueda no puede fallar salvo que
+ *  se le pase la ventana de una clasificación hecha sobre una traza YA fusionada — no es el caso acá,
+ *  porque los tramos a refinar se calculan ANTES de fusionar nada. */
+function indiceDePosicion(posiciones: number[], scrollY: number): number {
+  const i = posiciones.indexOf(scrollY);
+  if (i === -1) {
+    throw new Error(
+      `Invariante roto: scrollY=${scrollY} no está entre las posiciones gruesas muestreadas ` +
+        `(${posiciones.join(", ")}) — la ventana de un revelado de la pasada gruesa debería citar ` +
+        `siempre una de ellas.`,
+    );
+  }
+  return i;
+}
+
+/** El conjunto de índices de TRAMOS (el tramo `g` es el par `[posiciones[g], posiciones[g+1]]`) que
+ *  algún elemento marcó como `revelado` en la clasificación PRELIMINAR — la UNIÓN de todos, porque
+ *  refinar un tramo no cuesta más por tener varios candidatos (se muestrea la página entera de
+ *  todos modos en cada posición nueva). */
+function gapsARefinar(
+  resultadosPreliminares: Map<string, ResultadoClasificacion>,
+  posicionesGruesas: number[],
+): Set<number> {
+  const gaps = new Set<number>();
+  for (const resultado of resultadosPreliminares.values()) {
+    for (const clase of resultado.clases) {
+      if (clase.clase !== "revelado") continue;
+      const i1 = indiceDePosicion(posicionesGruesas, clase.ventanaScrollY.desde);
+      const i2 = indiceDePosicion(posicionesGruesas, clase.ventanaScrollY.hasta);
+      for (let g = i1; g < i2; g++) gaps.add(g);
+    }
+  }
+  return gaps;
+}
+
+/** `n` posiciones parejas estrictamente ENTRE `desde` y `hasta` (nunca en los extremos, que ya están
+ *  muestreados). Un tramo de menos de 2px no se subdivide — no hay resolución de píxel entera que
+ *  ganar ahí, y evita un `Math.round` produciendo un duplicado de uno de los extremos. */
+function posicionesIntermedias(desde: number, hasta: number, n: number): number[] {
+  if (n <= 0 || hasta - desde < 2) return [];
+  const candidatas = Array.from({ length: n }, (_, k) => Math.round(desde + ((hasta - desde) * (k + 1)) / (n + 1)));
+  return [...new Set(candidatas)].filter((p) => p > desde && p < hasta);
+}
+
 async function main(): Promise<void> {
   const inicio = Date.now();
   const opciones = parseCli(process.argv.slice(2));
@@ -193,6 +315,10 @@ async function main(): Promise<void> {
   let elementosCandidatos = 0;
   const grupos = new Map<string, GrupoScroll[]>();
   const descriptores = new Map<string, string>();
+  // Metadata de calibración (b) para el reporte — poblada dentro del `try` si hubo algo que refinar;
+  // queda declarada acá afuera porque se usa recién al escribir el `.md`/`.json`, después de cerrar
+  // el navegador.
+  const tramosRefinados: Array<{ desde: number; hasta: number; posicionesInsertadas: number[] }> = [];
 
   try {
     // `reducedMotion` no está en el tipo mínimo de `newPage` importado de `verificar-nayoli-visual.ts`
@@ -256,7 +382,13 @@ async function main(): Promise<void> {
         `${posicionesScroll.join(", ")}`,
     );
 
-    for (const scrollY of posicionesScroll) {
+    // Muestrea UNA posición de scroll: la deja fija, espera a que se asiente, y toma `instantes`
+    // lecturas de TODOS los elementos taggeados, separadas por `esperaInstanteMs`. Extraída para que
+    // la pasada gruesa y el re-muestreo adaptativo (calibración (b), abajo) compartan EXACTAMENTE el
+    // mismo procedimiento — dos implementaciones del mismo muestreo es cómo divergen entre sí.
+    async function muestrearPosicion(
+      scrollY: number,
+    ): Promise<{ muestrasPorId: Map<string, MuestraTiempo[]>; tAbsolutoUltimaMuestraMs: number }> {
       await page.evaluate<void, number>((y) => window.scrollTo(0, y), scrollY);
       await page.waitForTimeout(opciones.esperaScrollMs);
 
@@ -291,7 +423,12 @@ async function main(): Promise<void> {
           muestrasPorId.set(id, lista);
         }
       }
+      return { muestrasPorId, tAbsolutoUltimaMuestraMs };
+    }
 
+    // ── Pasada GRUESA — las `pasos` posiciones parejas de siempre ──
+    for (const scrollY of posicionesScroll) {
+      const { muestrasPorId, tAbsolutoUltimaMuestraMs } = await muestrearPosicion(scrollY);
       for (const [id, muestras] of muestrasPorId) {
         const lista = grupos.get(id) ?? [];
         lista.push({ scrollY, muestras, tAbsolutoUltimaMuestraMs });
@@ -300,24 +437,72 @@ async function main(): Promise<void> {
       console.log(`  · scrollY=${scrollY}: ${muestrasPorId.size} elementos muestreados`);
     }
 
+    // ── CALIBRACIÓN (b): pasos adaptativos dentro de cada tramo `revelado` de la pasada gruesa ──
+    // Se clasifica PRELIMINARMENTE (con calibración (a) ya aplicada, § `paraClasificar`) para
+    // encontrar qué tramos de la pasada gruesa produjeron un `revelado` — esos son los candidatos a
+    // estar sub-resueltos (§ el comentario de cabecera de `gapsARefinar`).
+    if (opciones.pasosAdaptativos > 0 && posicionesScroll.length >= 2) {
+      const preliminares = new Map<string, ResultadoClasificacion>();
+      for (const [id, gruposDelElemento] of grupos) {
+        preliminares.set(id, clasificarElemento(paraClasificar(gruposDelElemento)));
+      }
+      const gaps = gapsARefinar(preliminares, posicionesScroll);
+      if (gaps.size > 0) {
+        const nuevasPosiciones: number[] = [];
+        for (const g of [...gaps].sort((a, b) => a - b)) {
+          const desde = posicionesScroll[g];
+          const hasta = posicionesScroll[g + 1];
+          const insertadas = posicionesIntermedias(desde, hasta, opciones.pasosAdaptativos);
+          tramosRefinados.push({ desde, hasta, posicionesInsertadas: insertadas });
+          nuevasPosiciones.push(...insertadas);
+        }
+        console.log(
+          `▸ Calibración adaptativa: ${gaps.size} tramo(s) marcado(s) por un \`revelado\` preliminar → ` +
+            `${nuevasPosiciones.length} posición(es) extra: ${nuevasPosiciones.join(", ") || "(ninguna, tramos <2px)"}`,
+        );
+        for (const scrollY of nuevasPosiciones) {
+          const { muestrasPorId, tAbsolutoUltimaMuestraMs } = await muestrearPosicion(scrollY);
+          for (const [id, muestras] of muestrasPorId) {
+            const lista = grupos.get(id) ?? [];
+            lista.push({ scrollY, muestras, tAbsolutoUltimaMuestraMs });
+            grupos.set(id, lista);
+          }
+          console.log(`  · [adaptativo] scrollY=${scrollY}: ${muestrasPorId.size} elementos muestreados`);
+        }
+        // Fusionar: cada elemento queda con sus grupos gruesos + los finos, en ORDEN de scrollY — la
+        // clasificación asume una secuencia ascendente (ventanas, índices de transición).
+        for (const [, gruposDelElemento] of grupos) gruposDelElemento.sort((a, b) => a.scrollY - b.scrollY);
+      } else {
+        console.log("▸ Calibración adaptativa: ningún tramo marcado (0 `revelado` en la pasada gruesa).");
+      }
+    }
+
     await page.close();
   } finally {
     await browser.close();
   }
 
-  // ─── Clasificar, y descartar lo que da lo mismo en todas las muestras (§ el spec) ─────────────
+  // ─── Clasificar (con calibración (a) aplicada) sobre la traza YA fusionada, y descartar lo que da
+  // lo mismo en todas las muestras (§ el spec) ────────────────────────────────────────────────────
   interface ElementoConMovimiento {
     id: string;
     descriptor: string;
     resultado: ResultadoClasificacion;
     grupos: GrupoScroll[];
+    visibilidad: { visibles: number; total: number };
   }
   const conMovimiento: ElementoConMovimiento[] = [];
   for (const [id, gruposDelElemento] of grupos) {
-    const resultado = clasificarElemento(gruposDelElemento);
+    const resultado = clasificarElemento(paraClasificar(gruposDelElemento));
     const esSoloEstatico = resultado.clases.length === 1 && resultado.clases[0].clase === "estatico";
     if (esSoloEstatico) continue;
-    conMovimiento.push({ id, descriptor: descriptores.get(id) ?? `#${id}`, resultado, grupos: gruposDelElemento });
+    conMovimiento.push({
+      id,
+      descriptor: descriptores.get(id) ?? `#${id}`,
+      resultado,
+      grupos: gruposDelElemento,
+      visibilidad: resumenVisibilidad(gruposDelElemento),
+    });
   }
 
   const duracionMs = Date.now() - inicio;
@@ -343,6 +528,13 @@ async function main(): Promise<void> {
       instantes: opciones.instantes,
       esperaInstanteMs: opciones.esperaInstanteMs,
       esperaScrollMs: opciones.esperaScrollMs,
+      pasosAdaptativos: opciones.pasosAdaptativos,
+    },
+    // § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1, calibración (b) — vacío si `pasosAdaptativos` era 0 o
+    // si la pasada gruesa no produjo ningún `revelado` que marcar.
+    calibracionAdaptativa: {
+      tramosRefinados,
+      posicionesExtraTotal: tramosRefinados.reduce((n, t) => n + t.posicionesInsertadas.length, 0),
     },
     elementosCandidatosTotal: elementosCandidatos,
     elementosConMovimiento: conMovimiento.length,
@@ -351,6 +543,10 @@ async function main(): Promise<void> {
     elementos: conMovimiento.map((e) => ({
       descriptor: e.descriptor,
       clases: e.resultado.clases,
+      // § calibración (a) — cuántas de las posiciones de scroll (gruesas + adaptativas) tuvieron a
+      // este elemento en el viewport en alguna de sus muestras. `visibles: 0` es el caso que la
+      // calibración pide declarar: la clasificación por TIEMPO no se pudo verificar en vista.
+      posicionesEnViewport: e.visibilidad,
       grupos: e.grupos,
     })),
   };
@@ -366,12 +562,13 @@ async function main(): Promise<void> {
         if (c.clase === "scrub") return `scrub (scrollY ${c.ventanaScrollY.desde}–${c.ventanaScrollY.hasta})`;
         if (c.clase === "revelado") {
           const dur = c.duracionMs !== null ? `, ${c.duracionMs}ms` : "";
-          return `revelado (Δ≈${c.desplazamientoAprox?.toFixed(1) ?? "?"}${dur})`;
+          return `revelado (Δ≈${c.desplazamientoAprox?.toFixed(1) ?? "?"}, scrollY ${c.ventanaScrollY.desde}–${c.ventanaScrollY.hasta}${dur})`;
         }
         return c.clase;
       })
       .join(" + ");
-    return `| ${i} | \`${e.descriptor}\` | ${clasesTexto} |`;
+    const visNota = e.visibilidad.visibles === 0 ? " ⚠" : "";
+    return `| ${i} | \`${e.descriptor}\` | ${clasesTexto} | ${e.visibilidad.visibles}/${e.visibilidad.total}${visNota} |`;
   });
 
   const detalle = conMovimiento
@@ -390,9 +587,27 @@ async function main(): Promise<void> {
           return `  - scrollY=${g.scrollY}: ${tiempoTexto}`;
         })
         .join("\n");
-      return `### [${i}] \`${e.descriptor}\`\n- clases: ${e.resultado.clases.map((c) => c.clase).join(", ")}\n- muestras (resumen — primer/mitad/último grupo de scroll):\n${muestras}`;
+      const visNota =
+        e.visibilidad.visibles === 0
+          ? "\n- ⚠ nunca estuvo en el viewport durante el muestreo — la clasificación por TIEMPO no se pudo verificar en vista (§ calibración (a), ARNES-CENSO-MOVIMIENTO-CALIBRACION-1); lo reportado es sólo lo que cambió por SCROLL."
+          : "";
+      return `### [${i}] \`${e.descriptor}\`\n- clases: ${e.resultado.clases.map((c) => c.clase).join(", ")}\n- en viewport durante el muestreo: ${e.visibilidad.visibles}/${e.visibilidad.total} posiciones${visNota}\n- muestras (resumen — primer/mitad/último grupo de scroll):\n${muestras}`;
     })
     .join("\n\n");
+
+  const tramosTexto = tramosRefinados
+    .map(
+      (t) =>
+        `- scrollY ${t.desde}–${t.hasta} → +${t.posicionesInsertadas.length} posición(es): ${t.posicionesInsertadas.join(", ") || "(ninguna, tramo <2px)"}`,
+    )
+    .join("\n");
+  const seccionAdaptativa =
+    opciones.pasosAdaptativos <= 0
+      ? "Desactivada (\`--pasos-adaptativos 0\`)."
+      : tramosRefinados.length > 0
+        ? `${tramosRefinados.length} tramo(s) de la pasada gruesa marcado(s) por un \`revelado\` preliminar, ` +
+          `refinados con ${opciones.pasosAdaptativos} sub-paso(s) cada uno:\n\n${tramosTexto}`
+        : "Ningún tramo marcado — la pasada gruesa no produjo ningún \`revelado\` (todo lo que cambia lo hace ya \`ticker\`/\`scrub\`, o no cambia).";
 
   const md = `# Censo de movimiento — ${opciones.nombre}
 
@@ -408,11 +623,19 @@ async function main(): Promise<void> {
 elemento cuyo único movimiento depende de \`:hover\`/\`:focus\` se clasifica \`estatico\` acá. Ver
 \`docs/movimiento/README.md\`.
 
+## Calibración adaptativa (§ ARNES-CENSO-MOVIMIENTO-CALIBRACION-1)
+
+${seccionAdaptativa}
+
+La columna "en viewport" de la tabla de abajo es \`visibles/total\` posiciones de scroll (gruesas +
+adaptativas) donde el elemento intersectó el viewport en alguna muestra — \`0/N\` (marcado con ⚠)
+significa que el eje de TIEMPO nunca se pudo observar en vista para ese elemento (calibración (a)).
+
 ## Elementos con movimiento
 
-| # | selector | clases |
-| --- | --- | --- |
-${filasResumen.join("\n") || "| — | (ninguno) | — |"}
+| # | selector | clases | en viewport |
+| --- | --- | --- | --- |
+${filasResumen.join("\n") || "| — | (ninguno) | — | — |"}
 
 ## Detalle por elemento
 

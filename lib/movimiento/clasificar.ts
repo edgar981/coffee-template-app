@@ -39,6 +39,28 @@
 // propio eje independiente: el ticker se detecta y se descuenta EJE POR EJE, así que un eje mudo
 // nunca hereda el ruido de un eje vecino que sí tickea, y un eje que sí scrubea (como el ejemplo del
 // marquee: X tickea, Y/opacidad scrubea) no queda enmascarado por la magnitud del otro.
+//
+// ─── DOS CALIBRACIONES DE MUESTREO — § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1 (2026-09-27) ──────────
+// El primer censo real encontró DOS huecos de MUESTREO (no de clasificación), documentados en
+// `docs/movimiento/README.md`. Los dos se calibraron EN EL MUESTREO — `scripts/censar-movimiento.ts`,
+// la mitad impura — sin que este módulo cambie su ALGORITMO de clasificación:
+//   (a) Un TICKER que pausa fuera de vista leía `revelado`: el arnés muestreaba el eje de TIEMPO en
+//       TODAS las posiciones de scroll por igual, así que las posiciones donde el elemento estaba
+//       fuera del viewport (presumiblemente pausado ahí, un patrón común de rendimiento) aportaban
+//       evidencia de "no cambia" que diluía la MAYORÍA que `UMBRAL_MAYORIA_TICKER` exige. El arnés
+//       ahora COLAPSA a una sola muestra (§ `grupoDentroDeVista` en `censar-movimiento.ts`) los
+//       grupos donde NINGUNA muestra estuvo en el viewport, ANTES de pasarlos a `clasificarElemento`
+//       — así el eje de tiempo se evalúa sólo entre posiciones donde hubo algo que ver. Este módulo
+//       sigue sin leer `enViewport` (§ el campo, abajo): el filtro vive enteramente en el llamador.
+//   (b) Un parallax que completa su recorrido DENTRO de una sección (entre dos pasos consecutivos)
+//       leía `revelado` aunque el mecanismo real fuera continuo — la resolución de `--pasos` no
+//       alcanzaba a verlo cambiar gradualmente. `ClasificacionRevelado` ganó `ventanaScrollY` (el
+//       mismo par que ya llevaba `ClasificacionScrub`) exactamente para que el ARNÉS pueda ubicar ESE
+//       tramo y volver a muestrearlo con pasos ADAPTATIVOS (más finos, sólo ahí) — si la
+//       reclasificación con la traza ampliada muestra cambio en la MAYORÍA de los sub-tramos, pasa a
+//       `scrub`; si sigue siendo un salto único incluso a esa resolución, se queda `revelado`, ahora
+//       con una ventana más angosta y más precisa. El criterio de corte (cuántos sub-pasos, y qué
+//       ventanas calzan) vive en `censar-movimiento.ts` — este módulo sólo expone el dato.
 
 /** Una lectura del estado computado de un elemento en un instante `t` (ms transcurridos desde el
  *  PRIMER instante de su grupo de scroll — no un reloj absoluto), a una posición de scroll fija. */
@@ -48,8 +70,10 @@ export interface MuestraTiempo {
   transform: string;
   /** `getComputedStyle(el).opacity`, ya como número (0..1). */
   opacity: number;
-  /** El elemento intersecta el viewport en este instante. Ayuda a interpretar un `revelado`, pero
-   *  la clasificación NO depende de este campo — sólo de `transform`/`opacity`. */
+  /** El elemento intersecta el viewport en este instante. La clasificación de ESTE módulo NO
+   *  depende de este campo — sólo de `transform`/`opacity` — pero desde § ARNES-CENSO-MOVIMIENTO-
+   *  CALIBRACION-1 el LLAMADOR (`scripts/censar-movimiento.ts`) sí lo usa para decidir qué grupos
+   *  entran al análisis del eje de TIEMPO (calibración (a), arriba). */
   enViewport: boolean;
 }
 
@@ -96,6 +120,19 @@ export interface ClasificacionRevelado {
    *  cuenta durante ~1100ms sin que el visitante siga scrolleando), los ms que tardó. `null` si el
    *  revelado fue puramente function del scroll (no se detectó variación temporal en ese grupo). */
   duracionMs: number | null;
+  /** El tramo de scroll (mismas unidades que `GrupoScroll.scrollY`) entre el grupo ANTERIOR al
+   *  primer cambio detectado y el grupo donde el último cambio se asentó — el mismo par
+   *  `{desde,hasta}` que ya lleva `ClasificacionScrub`, § ARNES-CENSO-MOVIMIENTO-CALIBRACION-1. Dos
+   *  usos: (1) le dice a quien lee el reporte DÓNDE del recorrido ocurrió el revelado, cosa que antes
+   *  sólo se podía inferir leyendo la traza cruda muestra por muestra; (2) es lo que el ARNÉS (no
+   *  este módulo) usa para decidir qué tramo SUBMUESTREAR con pasos adaptativos — un `revelado` cuya
+   *  ventana cae DENTRO de un solo paso grueso es exactamente el caso que un parallax que completa su
+   *  recorrido dentro de una sección produce (§ `docs/movimiento/README.md`, "la granularidad de
+   *  `--pasos` decide si un efecto continuo se ve como `scrub` o como `revelado`"); re-muestreando ESE
+   *  tramo con más resolución, si el mecanismo real es continuo, la reclasificación con la traza
+   *  ampliada lo revela como `scrub`. Este módulo sólo REPORTA el tramo — no submuestrea nada, eso
+   *  vive en `scripts/censar-movimiento.ts` (la mitad impura). */
+  ventanaScrollY: { desde: number; hasta: number };
 }
 
 export interface ClasificacionEstatico {
@@ -341,7 +378,10 @@ function clasificarVentana(grupos: GrupoScroll[], indices: number[]): Clasificac
     duracionMs = grupoFinal.muestras[grupoFinal.muestras.length - 1].t - grupoFinal.muestras[0].t;
   }
 
-  return { clase: "revelado", desplazamientoAprox, duracionMs };
+  // MISMO par que `ClasificacionScrub.ventanaScrollY` — § el docstring de `ClasificacionRevelado`.
+  const ventanaScrollY = { desde: grupos[primerIndice - 1].scrollY, hasta: grupos[ultimoIndice].scrollY };
+
+  return { clase: "revelado", desplazamientoAprox, duracionMs, ventanaScrollY };
 }
 
 /** Fallback para forma INCONSISTENTE (§ `formaConsistente`) — el elemento en algún momento cambió
