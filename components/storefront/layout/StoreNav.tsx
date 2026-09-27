@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -13,6 +13,7 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
+import { direccionScroll, navOculto, type DireccionScroll } from '@/lib/animation';
 
 // ENTRADA ESCALONADA del drawer `pantallaCompleta` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA
 // contra `.mobile-nav.is-open a.m-link` del prototipo (`docs/prototipos/cafeone/css/app.css:311-321`):
@@ -49,6 +50,19 @@ export default function StoreNav() {
   const ctaHref = menuCtaHref(content);
 
   const [scrolled, setScrolled] = useState(false);
+  // COMPORTAMIENTO POR DIRECCIÓN (§ CROMO-NAV-DIRECCION-SCROLL-1, `navTratamiento.direccion`):
+  // `scrollY`/`direccion` alimentan `navOculto` (`lib/animation.ts`) para decidir si el encabezado
+  // se traduce fuera de vista. Van en el MISMO listener de scroll que ya calcula `scrolled` — un
+  // segundo listener sería un segundo lugar leyendo `window.scrollY` sin necesidad.
+  const [scrollY, setScrollY] = useState(0);
+  const [direccion, setDireccion] = useState<DireccionScroll>('arriba');
+  const scrollYAnteriorRef = useRef(0);
+  // ACCESIBILIDAD: si el foco del teclado está DENTRO del encabezado, nunca se oculta (§ el spec de
+  // este slice) — `onFocus`/`onBlur` en React BURBUJEAN (a diferencia de los nativos `focus`/`blur`),
+  // así que un botón/enlace CUALQUIERA del `<header>` los dispara sin que haga falta un listener por
+  // control. `e.currentTarget.contains(relatedTarget)` distingue "el foco se movió a OTRO control del
+  // MISMO header" (sigue dentro) de "el foco se fue del header" (sale).
+  const [focoDentro, setFocoDentro] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // EL PANEL DESPLEGABLE (§ MUESTRARIO-MEGA-MENU-1): UN ítem a la vez (`panelAbierto` guarda su id,
@@ -72,7 +86,15 @@ export default function StoreNav() {
   const itemPanel = links.find((l) => l.id === panelAbierto)?.panel ?? null;
 
   useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 20);
+    const fn = () => {
+      const actual = window.scrollY;
+      setScrolled(actual > 20);
+      // `direccionScroll` compara SÓLO contra el frame anterior — sin mínimo de movimiento, medido
+      // contra el tema real (§ el docstring de cabecera de `lib/animation.ts`).
+      setDireccion(direccionScroll(actual, scrollYAnteriorRef.current));
+      scrollYAnteriorRef.current = actual;
+      setScrollY(actual);
+    };
     window.addEventListener('scroll', fn);
     return () => window.removeEventListener('scroll', fn);
   }, []);
@@ -130,6 +152,28 @@ export default function StoreNav() {
     : navBandaTinta
       ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
       : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
+
+  // COMPORTAMIENTO POR DIRECCIÓN (§ CROMO-NAV-DIRECCION-SCROLL-1, `navTratamiento.direccion`):
+  // `navOculto` (`lib/animation.ts`, MEDIDA contra el tema real) decide si el encabezado se traduce
+  // fuera de vista, PERO no es la única voz — tres gates lo pisan, cada uno por su propia razón:
+  //   - `focoDentro`/`mobileOpen`/`searchOpen`/`panelAbierto`: ACCESIBILIDAD, el spec de este slice
+  //     ("si el foco está en el nav, no se oculta") ampliado a los tres estados donde el visitante
+  //     está usando activamente el encabezado — ocultarlo a mitad de una interacción es el mismo
+  //     defecto con otro disparador.
+  //   - `navDireccionActiva` (`navTratamiento.direccion`): `false` para TODO preset salvo CORTE →
+  //     `oculto` es SIEMPRE `false` → BYTE-IDÉNTICO (la clase de abajo queda `''`, el header no gana
+  //     ningún `translate-y-*` que no tuviera hoy).
+  // `false` = HOY para todo tenant salvo CORTE.
+  const navDireccionActiva = navTratamiento.direccion;
+  const bloqueaOcultar = focoDentro || mobileOpen || searchOpen || !!panelAbierto;
+  const oculto = navDireccionActiva && !bloqueaOcultar && navOculto(scrollY, direccion);
+  // MOVIMIENTO REDUCIDO: no se agrega un gate propio — el guard GLOBAL de `app/globals.css`
+  // (`@media (prefers-reduced-motion: reduce) { *,*::before,*::after { transition-duration:0.01ms
+  // !important } }`) ya neutraliza el `transition-all duration-300` del `<header>` (abajo) a un
+  // cambio CASI INSTANTÁNEO — decisión tomada: "aparece/desaparece SIN animar" en vez de "no se
+  // oculta", porque un salto sin desplazamiento perceptible no es el movimiento que esa preferencia
+  // pide evitar, y reusa infraestructura que YA existe en vez de un segundo guard.
+  const navOcultoClase = navDireccionActiva ? (oculto ? '-translate-y-full' : 'translate-y-0') : '';
 
   // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links
   // del nav llevan mayúscula + tracking del prototipo + un peso, sobre la MISMA sans del par (SIN
@@ -200,7 +244,13 @@ export default function StoreNav() {
 
   return (
     <>
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}>
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navOcultoClase} ${navBg}`}
+        onFocus={() => setFocoDentro(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocoDentro(false);
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
             {/* Logo — SIN el badge de `cromo.navBadge` (§ CORTE-BADGE-COSECHA-EN-MENU-1). Antes esta

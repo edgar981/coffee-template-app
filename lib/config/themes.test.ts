@@ -227,6 +227,28 @@ test('mergePresetEnContent(_, CORTE): el tema resultante lleva escalaDisplay:"am
   }
 });
 
+// § CROMO-NAV-DIRECCION-SCROLL-1: `navTratamientoDireccion` es un CAMPO de `PresetTema`, gemelo de
+// `navTratamientoActivo` en forma — MISMA calibración que `escalaDisplay`/`origenTexto` arriba.
+test('CORTE es el ÚNICO preset del catálogo que declara navTratamientoDireccion (§ CROMO-NAV-DIRECCION-SCROLL-1)', () => {
+  assert.equal(CORTE.navTratamientoDireccion, true);
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.navTratamientoDireccion, undefined, `${preset.clave} no debería declarar navTratamientoDireccion`);
+  }
+});
+
+test('mergePresetEnContent(_, CORTE): navTratamiento.direccion pasa a true; los demás presets lo dejan en false', () => {
+  const conCorte = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const navTratamientoCorte = conCorte.navTratamiento as Record<string, unknown>;
+  assert.equal(navTratamientoCorte.direccion, true);
+
+  for (const preset of [PLIEGO, PATIO, VETA, VITRINA, ARRANQUE]) {
+    const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, preset);
+    const navTratamiento = despues.navTratamiento as Record<string, unknown>;
+    assert.equal(navTratamiento.direccion, false, `${preset.clave} debe dejar navTratamiento.direccion:false`);
+  }
+});
+
 test('presentaciones: la clave nueva "riel" (CORTE-PRESENTACIONES-RIEL-1) SÍ pasa la validación — no genera faltante de variante', () => {
   // Preset sintético: ARRANQUE (el único completo con datos sintéticos, § arriba) + un pedido de
   // presentaciones·riel. Nada más cambia, así que si esto sigue completo, la clave es real —

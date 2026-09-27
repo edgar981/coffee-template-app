@@ -430,6 +430,65 @@ export function useIndiceCentrado(target: RefObject<HTMLElement | null>, cuenta:
   return indice;
 }
 
+// ── LA DIRECCIÓN DEL SCROLL DEL NAV — CROMO-NAV-DIRECCION-SCROLL-1 ────────────────────────────────
+//
+// EL PEDIDO DEL OWNER, LITERAL: «el nav debe aparecer/cambiar de color cuando alguien empiece a hacer
+// scroll hacia arriba. De hecho en CAFEONE cuando alguien hace scroll hacia abajo el nav de la página
+// se oculta». Es un eje del TEMA — sólo CORTE lo declara (§ `NavTratamientoContent.direccion`,
+// `site-content-defaults.ts`); todo otro preset, Nayoli incluida, conserva el nav de HOY byte a byte.
+//
+// MEDIDO CONTRA EL TEMA REAL (`https://x-cafeone.myshopify.com/`, fetched 2026-09-27), NO el
+// prototipo local: el prototipo capturado (`docs/prototipos/cafeone/js/app.js:275-286`,
+// `initHeader()`) sólo alterna `.is-solid` con `window.scrollY > 80` — NO oculta nada por dirección;
+// el prototipo no cubre este comportamiento. El sitio real corre un theme de Shopify OS 2.0 con el
+// web component `xo-sticky` (`.../cdn/shop/t/5/assets/xo-webcomponents.min.js`, la clase que define
+// `handleStickyTop`), cuyo default es `xoDirection:"up"`:
+//   - `c = window.scrollY < this.prevScrollY` — la dirección se recalcula en CADA frame de scroll,
+//     comparando sólo contra el frame anterior. SIN mínimo de movimiento: la única guarda que corre
+//     antes es `window.scrollY !== this.prevScrollY`, que no filtra por magnitud — 1px hacia arriba
+//     ya cuenta como "subiendo". No hay debounce que inventar: el tema real no lo tiene.
+//   - el hide/reveal por dirección SÓLO se activa una vez que el scroll pasó la altura PROPIA del
+//     header (`e < i - t`, con `t` = alto del header e `i` = 0 para un header suelto sin otros
+//     `xo-sticky` apilados encima) — bajo ese umbral el header queda SIEMPRE en su posición normal,
+//     visible, sin importar la dirección: es el "arriba del todo manda el tratamiento de hoy" del
+//     spec.
+//   - SUBIENDO, sobre el umbral: `translate3d(0,0,0)` (visible) de inmediato, sin esperar a volver a
+//     cruzar ningún otro punto. BAJANDO, sobre el umbral: `translateY(-(t+i))` (oculto, corrido su
+//     propia altura hacia arriba).
+//
+// `UMBRAL_OCULTAR_NAV` traduce ese umbral medido (la altura del header) a un número fijo: 80px — el
+// MISMO valor que ya usa `initHeader()` del prototipo local para su propio corte sólido/transparente
+// (`window.scrollY > 80`, arriba), lo que da confianza de que aproxima bien la altura real de este
+// header. Se mantiene SEPARADO del umbral de 20px que ya gobierna `scrolled` en `StoreNav.tsx` (el
+// color sólido de HOY) — DELIBERADO, no un descuido: la doctrina de este repo (§ CLAUDE.md, "un
+// umbral que gobierna DOS comportamientos distintos es la FORMA del bug") pide un número nombrado
+// por pregunta, no reciclar uno. Y como 80 > 20, para cuando el nav puede empezar a ocultarse YA
+// está en su tratamiento sólido (`scrolled` ya es `true`) — "cambia de tratamiento" (el pedido del
+// owner, resuelto "con el sistema de tratamiento que ya existe") sale GRATIS de reusar `scrolled`,
+// sin inventar un color literal nuevo.
+export const UMBRAL_OCULTAR_NAV = 80;
+
+export type DireccionScroll = 'arriba' | 'abajo';
+
+/** `direccionScroll` — pura, sin DOM: dado el scrollY actual y el del frame de scroll anterior, la
+ *  dirección. SIN mínimo de movimiento (medido contra el tema real, arriba): 1px de diferencia ya
+ *  cuenta — replica `window.scrollY < this.prevScrollY` del web component real. Un empate (mismo
+ *  valor, p. ej. el primer frame) cae a `'abajo'`: no hay evidencia de que el visitante haya subido. */
+export function direccionScroll(scrollYActual: number, scrollYAnterior: number): DireccionScroll {
+  return scrollYActual < scrollYAnterior ? 'arriba' : 'abajo';
+}
+
+/** `navOculto` — ¿debe el encabezado traducirse fuera de vista? `false` SIEMPRE bajo
+ *  `UMBRAL_OCULTAR_NAV` (el "arriba del todo" del spec — replica el `e >= i` del tema real: cerca
+ *  del tope, sin sticky, sin ocultar, sin importar la dirección). Sobre el umbral, oculta BAJANDO y
+ *  muestra SUBIENDO — el mismo `xoDirection:"up"` medido arriba. NO decide sola: el llamador
+ *  (`StoreNav.tsx`) además fuerza `false` si el foco del teclado está dentro del nav, o si el drawer
+ *  móvil/la búsqueda/el panel desplegable están abiertos — esta función sólo conoce el scroll, no el
+ *  resto del estado de la UI (§ el docstring de `StoreNav.tsx` para el porqué de cada gate). */
+export function navOculto(scrollY: number, direccion: DireccionScroll): boolean {
+  return scrollY >= UMBRAL_OCULTAR_NAV && direccion === 'abajo';
+}
+
 // ReducedMotionProvider — STOREFRONT-REDUCED-MOTION-1 (2026-09-12).
 //
 // EL DEFECTO: las ~21 animaciones de entrada del storefront (censadas en

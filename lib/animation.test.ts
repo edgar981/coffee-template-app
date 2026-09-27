@@ -7,6 +7,7 @@ import {
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO,
   opacidadRevelado, translateYRevelado, UMBRAL_REVELADO_TEXTO,
   claseAlturaAncestroMarquesina, fadeUp,
+  direccionScroll, navOculto, UMBRAL_OCULTAR_NAV,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -326,4 +327,42 @@ test('indiceCentrado: en un empate exacto de distancia, gana el índice MENOR (e
   ];
   // medio = 100 → distancia al hijo 0 = |50-100| = 50; al hijo 1 = |150-100| = 50 → empate
   assert.equal(indiceCentrado(100, 0, dosHijos), 0, 'empate exacto: gana el primero, no el último');
+});
+
+// ── LA DIRECCIÓN DEL SCROLL DEL NAV (§ CROMO-NAV-DIRECCION-SCROLL-1) — sin React, sin navegador ────
+// `direccionScroll`/`navOculto` replican, medidas contra el tema real (`xo-sticky`, § el docstring de
+// cabecera de `animation.ts`), la dirección por-frame SIN mínimo de movimiento y el umbral de 80px
+// que decide cuándo el header puede empezar a ocultarse.
+
+test('direccionScroll: scrollY bajó respecto al frame anterior → "arriba"', () => {
+  assert.equal(direccionScroll(90, 100), 'arriba');
+});
+
+test('direccionScroll: scrollY subió respecto al frame anterior → "abajo"', () => {
+  assert.equal(direccionScroll(110, 100), 'abajo');
+});
+
+test('direccionScroll: SIN mínimo de movimiento — 1px de diferencia ya define la dirección (medido contra el tema real, sin debounce)', () => {
+  assert.equal(direccionScroll(99, 100), 'arriba', '1px hacia arriba ya cuenta como subir');
+  assert.equal(direccionScroll(101, 100), 'abajo', '1px hacia abajo ya cuenta como bajar');
+});
+
+test('direccionScroll: empate (mismo scrollY que el frame anterior) cae a "abajo" — sin evidencia de que subió', () => {
+  assert.equal(direccionScroll(100, 100), 'abajo');
+});
+
+test('navOculto: bajo UMBRAL_OCULTAR_NAV, nunca oculta — "arriba del todo manda el tratamiento de hoy", sin importar la dirección', () => {
+  assert.equal(navOculto(0, 'abajo'), false);
+  assert.equal(navOculto(UMBRAL_OCULTAR_NAV - 1, 'abajo'), false, 'un píxel antes del umbral: todavía no oculta');
+  assert.equal(navOculto(UMBRAL_OCULTAR_NAV - 1, 'arriba'), false);
+});
+
+test('navOculto: en o sobre UMBRAL_OCULTAR_NAV, BAJANDO oculta', () => {
+  assert.equal(navOculto(UMBRAL_OCULTAR_NAV, 'abajo'), true, 'justo en el umbral ya oculta, como `e < i-t` del tema real');
+  assert.equal(navOculto(UMBRAL_OCULTAR_NAV + 500, 'abajo'), true);
+});
+
+test('navOculto: en o sobre UMBRAL_OCULTAR_NAV, SUBIENDO revela — el mismo xoDirection:"up" medido', () => {
+  assert.equal(navOculto(UMBRAL_OCULTAR_NAV, 'arriba'), false);
+  assert.equal(navOculto(UMBRAL_OCULTAR_NAV + 500, 'arriba'), false, 'aunque el scroll esté muy abajo, subir revela de inmediato');
 });

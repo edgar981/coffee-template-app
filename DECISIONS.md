@@ -24433,3 +24433,214 @@ el catálogo carga con tarjeta), sin `open_followup` propio porque no hay caso r
 (el catálogo del muestrario medido está vacío).
 
 **Cierra `CORTE-HERO-MARQUEE-REVELA-1`.**
+
+## 2026-09-27 — El encabezado gana comportamiento por dirección de scroll (`CROMO-NAV-DIRECCION-SCROLL-1`)
+
+**El pedido del owner, textual** (gate visual del 2026-09-27): «el nav debe aparecer/cambiar de color
+cuando alguien empiece a hacer scroll hacia arriba. De hecho en CAFEONE cuando alguien hace scroll
+hacia abajo el nav de la página se oculta». Es un eje del TEMA — sólo CORTE lo declara; todo otro
+preset, Nayoli incluida, conserva el nav de hoy byte a byte.
+
+### 1 · Lo medido contra el TEMA REAL, no el prototipo local
+
+El prototipo capturado (`docs/prototipos/cafeone/js/app.js:275-286`, `initHeader()`) **no implementa
+este comportamiento**: sólo alterna `.is-solid` con `window.scrollY > 80`, sin ocultar nada por
+dirección. Se fetcheó el sitio real (`https://x-cafeone.myshopify.com/`, vía `node`+`fetch`, sin
+`curl`) y su JS (`.../cdn/shop/t/5/assets/xo-webcomponents.min.js`, ~412 KB minificado): corre un
+theme de Shopify OS 2.0 con el web component `xo-sticky` (clave `Sticky:"xo-sticky"` en el mapa de
+nombres del bundle), método `handleStickyTop`, con default `xoDirection:"up"`. Decodificado:
+
+- **Dirección**: `c = window.scrollY < this.prevScrollY`, recalculada en CADA frame de scroll
+  (`handler` corre en cada evento `scroll`, throttled a un `requestAnimationFrame` por ráfaga). La
+  única guarda antes de actuar es `window.scrollY !== this.prevScrollY` — **no filtra por
+  magnitud**: 1px de diferencia ya decide la dirección. Sin debounce que inventar.
+- **Umbral**: el hide/reveal por dirección sólo se activa una vez que el elemento scrolleó su PROPIA
+  altura (`e < i - t`, con `t`=alto del header, `i`=0 para un header suelto). Bajo ese umbral queda
+  SIEMPRE en su posición normal, visible, sea cual sea la dirección — el "arriba del todo manda el
+  tratamiento de hoy" del spec.
+- **Efecto**: SUBIENDO sobre el umbral → `translate3d(0,0,0)` (visible) de inmediato; BAJANDO sobre
+  el umbral → `translateY(-(t+i))` (oculto, corrido su propia altura hacia arriba).
+
+**Los valores elegidos:** `UMBRAL_OCULTAR_NAV = 80` (px) — el MISMO valor que ya usa el prototipo
+local para su propio corte sólido/transparente (`window.scrollY > 80`), razonable como aproximación
+de la altura de este header (el real usa `h-16`/`h-18`, 64–72px). Se mantiene SEPARADO del umbral de
+20px que ya gobierna `scrolled` en `StoreNav.tsx` — DELIBERADO: "un umbral que gobierna DOS
+comportamientos distintos es la FORMA del bug" (§ CLAUDE.md, el caso ya documentado del umbral 1080).
+Como 80 > 20, para cuando el nav puede empezar a ocultarse YA está en su tratamiento sólido
+(`scrolled` ya es `true`) — **"cambia de tratamiento" sale GRATIS de reusar `scrolled`/`navBg`**, sin
+un color literal nuevo, resolviendo el pedido del owner ("con el sistema de tratamiento que ya
+existe").
+
+### 2 · La forma: un CAMPO de `NavTratamientoContent`, no una meta nueva
+
+`NavTratamientoContent` (`lib/config/site-content-defaults.ts`) gana `direccion: boolean` junto a
+`activo: boolean` — NO una undécima clave no-sección (`METAS_CON_CAMPOS`, un resolver nuevo, una
+ruta nueva). Se descartaron dos alternativas más obvias, cada una por una restricción MEDIDA:
+
+- **`CromoContent`** (`navTinta`/`navSubtitulo`/`navBadge`): dominio CERRADO de 3 claves con
+  contrato EXHAUSTIVO afirmado por `cromo-tematizable.test.ts` (`assert.deepEqual` contra un literal
+  de 3 claves) — FUERA de `touches:` de este slice. Extenderlo habría roto ese test sin poder
+  arreglarlo.
+- **`NavWordmarkContent`** (el wordmark apilado): también dominio cerrado de 1 clave, con SU PROPIO
+  contrato exhaustivo en `corte-logo-apilado.test.ts` (`assert.deepEqual(out.navWordmark, ...)`,
+  `assert.deepEqual(DEFAULTS.navWordmark, ...)`) — igualmente FUERA de `touches:`.
+
+`NavTratamientoContent` sí calificaba: su test dedicado, `cromo-nav-tratamiento.test.ts`, **está en
+`touches:` de este slice** — verificado ANTES de decidir (`grep` de `navTratamiento`/`navWordmark`
+contra todo `*.test.ts` del repo): sólo `corte-logo-apilado.test.ts` y `drawer-movil.test.ts`
+mencionan `navTratamiento` fuera de touches, y los dos sólo leen `.activo` puntual
+(`assert.equal((out.navTratamiento as {activo:boolean}).activo, ...)`), nunca `deepEqual` de la
+forma completa — un campo nuevo no los rompe. Esto cumple la instrucción del spec ("preferí extender
+lo que ya existe... menos superficie, menos trinquete, y el control ya tiene dónde vivir"): el mismo
+commit reusa la ruta de publicar/descartar (`/api/site-content/encabezado`) y el control
+(`EncabezadoSeccion.tsx`) que `activo` ya tenía, sin abrir una 6ª meta de chrome.
+
+`resolverNavTratamiento` resuelve `activo` y `direccion` CADA UNO por su cuenta (mismo `bool()` que
+`resolverCromo`) — un guardado que sólo trae uno de los dos no borra el otro en silencio. `CORTE` es
+el único preset del catálogo que declara `navTratamientoDireccion: true` (`themes.ts`); los otros 5
+no lo tocan.
+
+### 3 · Las tres cosas que no se negocian
+
+1. **Byte-idéntico fuera de CORTE.** `navDireccionActiva = navTratamiento.direccion` es `false` para
+   todo preset salvo CORTE → `oculto` es siempre `false` → `navOcultoClase` es `''` → el `<header>`
+   no gana ningún `translate-y-*` que no tuviera hoy. Confirmado por EJECUCIÓN: `npm run
+   verificar:nayoli:visual` da 0px en las 6 rutas + 2 hovers (§5).
+2. **El control en el panel, mismo commit.** `EncabezadoSeccion.tsx` gana un SEXTO switch ("Ocultar
+   al bajar"), cableado en `wireDe`/`cargar` como un campo más de `navTratamiento`.
+   `CONTROLADOS_ENCABEZADO_SECCION` (`panel-controles.ts`) suma `'navTratamiento.direccion'` en el
+   MISMO commit que el campo entra a `DEFAULTS.navTratamiento` (y por tanto a
+   `camposLeidosPorTienda()`, derivado en runtime) — nunca pasó por `PENDIENTE_PANEL`. Verificado:
+   `huecosDelPanel()` (el gate, CON exenciones) sigue dando `[]`, y el nuevo campo aparece en
+   `camposControladosPorPanel()` desde el primer momento (test dedicado, § el diff de
+   `panel-controles.test.ts`). El techo-trinquete de `PENDIENTE_PANEL` (11) no se movió.
+3. **Accesibilidad.** Dos gates independientes sobre `oculto`, ninguno inventado más allá del spec:
+   - **Foco del teclado**: `onFocus`/`onBlur` en el propio `<header>` (React los hace BURBUJEAR, a
+     diferencia de los nativos `focus`/`blur`) fijan `focoDentro`; `onBlur` compara
+     `e.currentTarget.contains(e.relatedTarget)` para distinguir "el foco se movió a otro control del
+     MISMO header" (sigue dentro) de "salió". Ningún listener por control.
+   - **Ampliado a los otros tres estados donde el visitante usa activamente el encabezado**
+     (`mobileOpen`, `searchOpen`, `panelAbierto` — el drawer móvil, la búsqueda y el mega-menú), por
+     la misma razón que el foco: ocultar el nav a mitad de esas interacciones es el mismo defecto con
+     otro disparador. El drawer móvil y el mega-menú viven DENTRO del `<header>` en el árbol de
+     React, pero un clic con mouse no siempre mueve el foco (Safari/macOS no enfoca `<button>` al
+     clic), así que el gate del foco solo no los cubre — de ahí los tres estados explícitos.
+   - **Movimiento reducido: SIN gate propio.** El guard GLOBAL ya existente
+     (`app/globals.css:261-267`, `@media (prefers-reduced-motion: reduce) { *,*::before,*::after {
+     transition-duration:0.01ms !important } }`) neutraliza el `transition-all duration-300` del
+     `<header>` a un cambio casi instantáneo — decisión tomada: **"aparece/desaparece SIN animar"**,
+     no "no se oculta". Un salto sin desplazamiento perceptible no es el movimiento que esa
+     preferencia existe para evitar, y reusa infraestructura que ya cubre el resto del storefront (a
+     diferencia de `ReducedMotionProvider`/`MotionConfig`, que sólo intercepta animaciones de
+     componentes `motion.*` — el `<header>` es HTML plano con clases Tailwind condicionales, así que
+     ese provider no lo alcanza; el guard de `globals.css` sí, porque opera sobre CUALQUIER
+     `transition-duration` de CSS).
+
+### 4 · Lo que NO se tocó, y por qué
+
+`useProgresoScroll`/`useProgresoAcomodo` (el motor de scroll-scrub de las bandas del home) no se
+tocaron: son un eje distinto (progreso [0,1] de una SECCIÓN contra el viewport, vía `useScroll` de
+framer-motion), mientras que `direccionScroll`/`navOculto` miden `window.scrollY` crudo del
+DOCUMENTO — no hay superposición de responsabilidad, y mezclar los dos habría acoplado el header a
+un mecanismo pensado para animar el contenido de una sección, no un chrome fijo.
+
+### 5 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2252/2252** — reconciliado EXACTO contra el piso del commit inmediato anterior (`e59da26`, `CORTE-HERO-MARQUEE-REVELA-1`, 2236/2236): `2236 + 16 = 2252`. El `+16` es el propio diff de los 5 archivos de test de capa 1 tocados (`lib/animation.test.ts`, `lib/config/{cromo-nav-tratamiento,panel-controles,site-content-defaults,themes}.test.ts`): medido `git diff -- <esos 5> \| grep -c "^+test("` → 19, `^-test(` → 3 (títulos de tests existentes que se ampliaron para nombrar los dos campos), `19-3=16` |
+| `npm run test:integracion` | **237/237** — sin cambio en el conteo (el diff de `panel-encabezado.test.ts` amplía bodies/asserts de tests EXISTENTES, no agrega tests nuevos) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs. esta rama) |
+
+`verificar:nayoli:visual`, medido (main `9a7ab97` vs. HEAD de esta rama, Postgres efímero propio +
+seed canónico + Chromium headless):
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+**El dueño debe re-aplicar CORTE para ver este eje en acción** — es un campo de `PresetTema` que sólo
+`mergePresetEnContent` escribe (o el switch nuevo del panel); un tenant que ya tenía CORTE aplicado
+ANTES de este slice no lo lleva encendido hasta que se re-aplique el preset o se prenda el switch a
+mano en "Encabezado" → "Ocultar al bajar".
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/layout/StoreNav.tsx` (+53/-3), `lib/animation.ts` (+59/-0:
+`UMBRAL_OCULTAR_NAV`, `DireccionScroll`, `direccionScroll`, `navOculto`), `lib/animation.test.ts`
+(+39/-0), `lib/config/site-content-schema.ts` (+9/-6), `lib/config/site-content-defaults.ts`
+(+34/-8), `lib/config/site-content-defaults.test.ts` (+18/-0), `lib/config/themes.ts` (+26/-5),
+`lib/config/themes.test.ts` (+22/-0), `lib/config/cromo-nav-tratamiento.test.ts` (+47/-9),
+`lib/config/panel-controles.ts` (+14/-10), `lib/config/panel-controles.test.ts` (+9/-0),
+`components/admin/EncabezadoSeccion.tsx` (+26/-16), `app/api/site-content/encabezado/route.ts`
+(+6/-5), `tests/integracion/panel-encabezado.test.ts` (+17/-7), este asiento. Medido con `git diff
+--numstat`: 14 archivos, los 14 en la lista de `touches:`. Nada fuera de la lista se tocó.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `StoreNav`, `navTratamiento`, `NavTratamientoContent`,
+`navOculto`, `direccionScroll`, `UMBRAL_OCULTAR_NAV`, `EncabezadoSeccion`, `navWordmark`,
+`cromo.navSubtitulo`, `cromo.navTinta`, `navDrawerMovil`, `CONTROLADOS_ENCABEZADO_SECCION`,
+`PENDIENTE_PANEL`, `/api/site-content/encabezado`, `xo-sticky`. Grepeados uno por uno contra
+`CLAUDE.md`:
+
+- **CERO apariciones** para: `navTratamiento`, `NavTratamientoContent`, `navOculto`,
+  `direccionScroll`, `UMBRAL_OCULTAR_NAV`, `EncabezadoSeccion`, `navWordmark`, `cromo.navSubtitulo`,
+  `cromo.navTinta`, `navDrawerMovil`, `CONTROLADOS_ENCABEZADO_SECCION`, `PENDIENTE_PANEL`,
+  `site-content/encabezado`, `xo-sticky`. Nada en `CLAUDE.md` nombra ninguno de estos — este nivel de
+  detalle (los ejes de chrome del nav, el mecanismo de `panel-controles.ts`) vive sólo en los
+  comentarios del código y en `DECISIONS.md`, nunca se subió a `CLAUDE.md`.
+- **`StoreNav` SÍ aparece** (4 líneas: 2872, 2969, 4481, 4499). Leídas las cuatro: hablan de que el
+  nav es DATA-DRIVEN (lee `content.menu`), de que /nosotros apagada oculta su link en el nav, y de
+  que el logo/mark llega a `StoreNav` por prop — ninguna describe el comportamiento de scroll del
+  header ni queda contradicha por este diff (el nav sigue siendo data-driven, /nosotros sigue
+  ocultando su link igual, el mark sigue llegando por prop).
+
+**Nada que corregir en `CLAUDE.md`.**
+
+### Grep del CÓDIGO (fuera de `CLAUDE.md`) — sin hallazgos nuevos
+
+Los comentarios de `NavTratamientoContent`/`resolverNavTratamiento`/`navTratamientoActivo` en
+`site-content-defaults.ts`/`themes.ts` que describían el eje como "un booleano" (`activo` a secas)
+se actualizaron EN ESTE MISMO diff al agregarles `direccion` (§2, arriba) — no queda ninguna
+afirmación vieja sin corregir en esos dos archivos. El único comentario que sigue diciendo "HOY no
+hay editor que la escriba —sólo `aplicarPreset`" para `navTratamientoEditableSchema` YA estaba
+desactualizado ANTES de este slice (`navTratamiento.activo` ya tenía control en
+`EncabezadoSeccion.tsx` desde `PANEL-EDITOR-ENCABEZADO-1`) — se corrigió de paso al tocar ese bloque
+para agregar `direccion` (`lib/config/site-content-schema.ts`), aunque no era el foco de este slice;
+queda mejor, no peor.
+
+### `customer_bytes`
+
+**`changed: true`.** La puerta de escritura genérica de `SiteContent` (`/api/site-content/encabezado`
++ `siteContentEditableSchema`) ya puede alcanzar este campo para cualquier tenant real, y CORTE ya lo
+enciende — un tenant con ese preset gana un comportamiento visible nuevo (el header se oculta al
+bajar) sin que nadie lo pida explícitamente, hasta que se re-aplique el preset o alguien lo apague
+desde el panel. `strings`: **ninguno** — no se agregó ni cambió texto visible; el único string nuevo
+es la etiqueta del switch del PANEL ADMIN ("Ocultar al bajar", `EncabezadoSeccion.tsx`), que es
+copy operativo del dueño, no del storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es una extensión de un JSON Field (`SiteContent.content`, ya existente,
+sin migración) más lógica pura en `lib/animation.ts`, su cableado en un componente de storefront
+existente y un editor de panel existente, y tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL.** Gate verde en las cuatro capas (§5), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**Cierra `CROMO-NAV-DIRECCION-SCROLL-1`.**

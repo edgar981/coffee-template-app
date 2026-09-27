@@ -82,6 +82,24 @@ test('carrito.variante guardado fuera del set cerrado cae al default, dentro de 
   assert.equal(r.carrito.variante, 'anclado');
 });
 
+// § CROMO-NAV-DIRECCION-SCROLL-1: `navTratamiento.direccion` es un CAMPO nuevo de una meta que YA
+// estaba cableada (§ CROMO-NAV-TRATAMIENTO-1) -- sin fila, byte-idéntica al default (`false`, el nav
+// no reacciona a la dirección del scroll); con un valor guardado, ese valor sobrevive, INDEPENDIENTE
+// de `activo`. El resto del comportamiento de la meta (el resolver en sí, la ruta, el control del
+// panel, el preset) se afirma en `lib/config/cromo-nav-tratamiento.test.ts`; esto es sólo el
+// CABLEADO dentro de este archivo, mismo patrón que `carritoEnvio`/`carrito` arriba.
+test('sin nada guardado → navTratamiento.direccion cae al default (false, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.navTratamiento, DEFAULTS.navTratamiento);
+  assert.equal(r.navTratamiento.direccion, false);
+});
+
+test('navTratamiento.direccion guardado explícito sobrevive la resolución completa, sin tocar `activo`', () => {
+  const r = resolverSiteContent({ navTratamiento: { direccion: true } });
+  assert.equal(r.navTratamiento.direccion, true);
+  assert.equal(r.navTratamiento.activo, false, 'un guardado que sólo trae `direccion` no debe encender `activo`');
+});
+
 test('sin nada guardado y entrada basura (null / string / array) → defaults, no lanza', () => {
   for (const basura of [null, undefined, 'x', 42, [], { hero: 'no-obj' }]) {
     assert.deepEqual(resolverSiteContent(basura).hero, DEFAULTS.hero);

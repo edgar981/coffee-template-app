@@ -977,6 +977,24 @@ export interface NavTratamientoContent {
   // byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
   // `preset.navTratamientoActivo`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
   activo: boolean;
+  // ¿El encabezado gana COMPORTAMIENTO POR DIRECCIÓN de scroll (§ CROMO-NAV-DIRECCION-SCROLL-1)?
+  // Bajando se oculta (translateY fuera de vista); subiendo reaparece; y "arriba del todo" (bajo
+  // `UMBRAL_OCULTAR_NAV`, § `lib/animation.ts`) sigue el tratamiento de HOY sin importar la
+  // dirección — el eje MEDIDO contra el tema real (`xo-sticky`, no el prototipo local, que no
+  // implementa esto; ver el docstring de cabecera de `lib/animation.ts`). Se agregó como CAMPO de
+  // ESTA meta —no una meta nueva— a propósito: es el mismo dominio "ajustes de encabezado ya
+  // montado" que `activo` (arriba), y las dos comparten ruta de publicar/descartar
+  // (`/api/site-content/encabezado`) y su control en `EncabezadoSeccion.tsx` — sumar un campo acá es
+  // MENOS superficie que abrir una 11ª clave no-sección (`METAS_CON_CAMPOS`, `SeccionKey`, un nuevo
+  // resolver, una nueva ruta) para un eje que vive en el MISMO lugar del panel. NO es el mismo
+  // ELEMENTO que `activo` (aquél trata los LINKS del `.nav-link`; éste el `<header>` entero) — pero
+  // sí el mismo NIVEL de decisión ("un ajuste más del encabezado"), a diferencia de `NavWordmarkContent`
+  // (otro elemento, el wordmark, con SU PROPIO contrato exhaustivo en `corte-logo-apilado.test.ts`,
+  // fuera de `touches:` de este slice — extenderlo ahí habría roto ese test sin poder arreglarlo).
+  // `false` = HOY: el nav no reacciona a la dirección del scroll, byte-idéntico. Sólo
+  // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.navTratamientoDireccion`; de los 6
+  // presets del catálogo, sólo CORTE lo declara `true`.
+  direccion: boolean;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1607,8 +1625,11 @@ export const DEFAULTS: SiteContentData = {
   },
   // TRATAMIENTO DEL NAV por defecto (§ CROMO-NAV-TRATAMIENTO-1): sin mayúscula/tracking → el
   // `text-sm font-medium` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  // COMPORTAMIENTO POR DIRECCIÓN por defecto (§ CROMO-NAV-DIRECCION-SCROLL-1): sin ocultar/reaparecer
+  // por dirección → el nav de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   navTratamiento: {
     activo: false,
+    direccion: false,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2498,17 +2519,22 @@ export function resolverCarritoEnvio(stored: unknown, defaults: unknown): Carrit
   return { visible: typeof dv === 'boolean' ? dv : false };
 }
 
-// Resuelve el TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1), gemelo de `resolverRielSocial` en
-// FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el docstring de
-// `NavTratamientoContent` para el porqué de que no comparta objeto con `cromo`, `volverArriba` ni
-// `rielSocial`.
+// Resuelve el TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1, ampliado por §
+// CROMO-NAV-DIRECCION-SCROLL-1), gemelo de `resolverRielSocial` en FORMA (dominio CERRADO, SOFT,
+// nunca lanza) pero meta PROPIA — ver el docstring de `NavTratamientoContent` para el porqué de que
+// no comparta objeto con `cromo`, `volverArriba` ni `rielSocial`. `activo` y `direccion` se resuelven
+// CADA UNO por su cuenta (mismo `bool()` que `resolverCromo`) — dos campos del mismo dominio, no dos
+// mitades atadas: un guardado que sólo trae uno de los dos no debe borrar el otro en silencio.
 export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavTratamientoContent {
   const st = esObj(stored) ? stored : {};
   const def = esObj(defaults) ? defaults : {};
-  const sv = st['activo'];
-  if (typeof sv === 'boolean') return { activo: sv };
-  const dv = def['activo'];
-  return { activo: typeof dv === 'boolean' ? dv : false };
+  const bool = (k: string): boolean => {
+    const sv = st[k];
+    if (typeof sv === 'boolean') return sv;
+    const dv = def[k];
+    return typeof dv === 'boolean' ? dv : false;
+  };
+  return { activo: bool('activo'), direccion: bool('direccion') };
 }
 
 // Resuelve el TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1), gemelo de

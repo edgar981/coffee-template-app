@@ -144,6 +144,15 @@ test('navDrawerMovil.variante: CONTROLADO por EncabezadoSeccion.tsx desde su pro
   assert.ok(!huecosDelPanel({ conExenciones: false }).includes('navDrawerMovil.variante'));
 });
 
+// § CROMO-NAV-DIRECCION-SCROLL-1: `navTratamiento.direccion` es un CAMPO de una meta que YA estaba
+// controlada (`navTratamiento.activo`) — nace CONTROLADO en el mismo commit que lo suma al lado
+// "leído" (el campo nuevo en `DEFAULTS.navTratamiento`), MISMO patrón que `navDrawerMovil.variante`
+// arriba. El techo-trinquete (11) no se mueve — no pasó por `PENDIENTE_PANEL`.
+test('navTratamiento.direccion: CONTROLADO por EncabezadoSeccion.tsx desde su propio commit — nunca un hueco', () => {
+  assert.ok(camposControladosPorPanel().includes('navTratamiento.direccion'));
+  assert.ok(!huecosDelPanel({ conExenciones: false }).includes('navTratamiento.direccion'));
+});
+
 // § MUESTRARIO-CARRITO-BARRA-ENVIO-1: `carritoEnvio.visible` gana su control EN EL MISMO commit que
 // la mete al lado "leído" — a diferencia de `volverArriba.visible`/`rielSocial.visible` (que
 // pasaron un tiempo sin editor, § arriba), esta meta nace YA CONTROLADA (`DetallesSitioSeccion.tsx`,

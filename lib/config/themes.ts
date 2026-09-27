@@ -211,6 +211,17 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * `cromo-tematizable.test.ts`, ver el docstring de `NavTratamientoContent` en
  * `site-content-defaults.ts`). CORTE es hoy el ÚNICO preset que lo declara.
  *
+ * `navTratamientoDireccion` (§ CROMO-NAV-DIRECCION-SCROLL-1, OPCIONAL) — ¿el encabezado gana
+ * COMPORTAMIENTO POR DIRECCIÓN de scroll (bajando se oculta, subiendo reaparece con el tratamiento
+ * sólido de HOY, "arriba del todo" sin cambios)? MEDIDO contra el TEMA REAL
+ * (`x-cafeone.myshopify.com`, el web component `xo-sticky` — el prototipo local capturado no
+ * implementa esto, § el docstring de cabecera de `lib/animation.ts`). AUSENTE = el comportamiento de
+ * HOY, byte a byte (el nav no reacciona a la dirección del scroll). Escribe
+ * `content.navTratamiento.direccion` — CAMPO de la MISMA meta que `navTratamientoActivo`, no una
+ * meta nueva (§ el docstring de `NavTratamientoContent.direccion` en `site-content-defaults.ts` para
+ * el porqué: menos superficie, y el control ya vive en `EncabezadoSeccion.tsx`). CORTE es hoy el
+ * ÚNICO preset que lo declara.
+ *
  * `navWordmarkActivo` (§ CORTE-LOGO-APILADO-1, OPCIONAL) — ¿el wordmark apilado del nav (rama
  * `subtitle` de `Logo.tsx`, ya encendida por `navSubtitulo`) calza el `.wordmark`/`.wordmark small`
  * del prototipo (nombre en mayúscula+tracking+tamaño mayor, sub en la sans del cuerpo muted sin
@@ -279,6 +290,7 @@ export interface PresetTema {
   rielSocialVisible?: boolean;
   carritoEnvioVisible?: boolean;
   navTratamientoActivo?: boolean;
+  navTratamientoDireccion?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
   carritoVariante?: ClaveCarrito;
@@ -549,13 +561,16 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   out.carritoEnvio = {
     visible: fusionar('carritoEnvio.visible', preset.carritoEnvioVisible ?? false),
   };
-  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
-  // `rielSocial` Y `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué
-  // (conceptualmente es la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede
-  // compartir el contrato exhaustivo de 3 claves de `cromo`, afirmado por
-  // `cromo-tematizable.test.ts`, FUERA de `touches:` de este slice).
+  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1): meta
+  // PROPIA, aparte de `cromo`, `volverArriba`, `rielSocial` Y `carritoEnvio` — ver el docstring de
+  // `NavTratamientoContent` para el porqué (conceptualmente es la misma familia que
+  // `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato exhaustivo de 3 claves
+  // de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:` de este slice).
+  // `direccion` se fusiona por su PROPIA ruta (`navTratamiento.direccion`) — un campo más de esta
+  // meta, no un objeto aparte.
   out.navTratamiento = {
     activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
+    direccion: fusionar('navTratamiento.direccion', preset.navTratamientoDireccion ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
@@ -990,6 +1005,12 @@ export const CORTE: PresetTema = {
   // conserva. CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
   // `content.navTratamiento`.
   navTratamientoActivo: true,
+  // navTratamientoDireccion (§ CROMO-NAV-DIRECCION-SCROLL-1) — MEDIDO contra el TEMA REAL
+  // (`x-cafeone.myshopify.com`, el web component `xo-sticky`, `xoDirection:"up"` por default; el
+  // prototipo local capturado NO implementa esto, § el docstring de cabecera de `lib/animation.ts`).
+  // CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
+  // `content.navTratamiento.direccion`.
+  navTratamientoDireccion: true,
   // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
   // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
   // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,

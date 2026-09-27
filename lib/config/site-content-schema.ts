@@ -384,14 +384,17 @@ const carritoEnvioEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
-// META de TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1): MISMA forma que `rielSocialEditableSchema`
-// (dominio CERRADO, NO sección, NO pasa por borrador/publicar, se declara SÓLO para que un futuro
-// write general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
-// `NavTratamientoContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
-// `cromo`, `volverArriba` ni `rielSocial`. HOY no hay editor que la escriba —sólo `aplicarPreset`
-// (`themes.ts`).
+// META de TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1, ampliado por §
+// CROMO-NAV-DIRECCION-SCROLL-1): MISMA forma que `rielSocialEditableSchema` (dominio CERRADO, NO
+// sección, se declara SÓLO para que un futuro write general no la STRIPPEE en silencio, § #65-B)
+// pero meta PROPIA — ver el docstring de `NavTratamientoContent` (`site-content-defaults.ts`) para
+// el porqué de que no comparta objeto con `cromo`, `volverArriba` ni `rielSocial`. `direccion` (el
+// comportamiento por dirección de scroll) SE SUMÓ como campo de ESTA meta, no una meta nueva — mismo
+// razonamiento que el docstring de `NavTratamientoContent.direccion`. Las DOS claves SÍ tienen
+// editor: `EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado`.
 const navTratamientoEditableSchema = z.object({
   activo: z.boolean().optional(),
+  direccion: z.boolean().optional(),
 });
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1): MISMA forma que

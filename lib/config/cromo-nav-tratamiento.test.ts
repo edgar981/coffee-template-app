@@ -22,7 +22,11 @@ import { siteContentEditableSchema } from './site-content-schema';
 // que gobierna a StoreNav: `navLinkTratamiento = navTratamiento.activo ? '...' : 'font-medium'` es
 // un pass-through directo sobre el campo que este archivo sí puede verificar por lectura.
 
-const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false };
+// § CROMO-NAV-DIRECCION-SCROLL-1 sumó `direccion` como CAMPO de esta MISMA meta (no una meta nueva —
+// ver el docstring de `NavTratamientoContent.direccion` en `site-content-defaults.ts`), así que el
+// literal de HOY y las aserciones exhaustivas de este archivo se amplían para incluirlo, sin dejar
+// de afirmar `activo` como ya lo hacían.
+const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false };
 
 // ── resolverNavTratamiento — dominio CERRADO de 1 clave, gemelo de resolverRielSocial ────────────
 
@@ -39,15 +43,28 @@ test('resolverNavTratamiento: un tipo equivocado (string donde va boolean) cae a
 });
 
 test('resolverNavTratamiento: un boolean real guardado se respeta', () => {
-  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true });
+  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false });
 });
 
 test('resolverNavTratamiento: sin guardado, un DEFAULT explícito manda (defensa simétrica, como resolverCromo)', () => {
-  const def = { activo: true };
+  const def = { activo: true, direccion: true };
   assert.deepEqual(resolverNavTratamiento(undefined, def), def);
   assert.deepEqual(resolverNavTratamiento({}, def), def);
   // guardado presente con el TIPO correcto sigue ganando sobre el default
-  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false });
+  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true });
+});
+
+// § CROMO-NAV-DIRECCION-SCROLL-1 — `direccion` se resuelve INDEPENDIENTE de `activo` (mismo `bool()`
+// que `resolverCromo`): un guardado que sólo trae uno de los dos no debe borrar el otro.
+
+test('resolverNavTratamiento: un guardado que sólo trae `direccion` no toca `activo` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true });
+});
+
+test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va boolean) cae al default', () => {
+  const r = resolverNavTratamiento({ activo: true, direccion: 'true' }, {});
+  assert.equal(r.direccion, false);
+  assert.equal(r.activo, true, '`activo` no se ve afectado por el tipo equivocado de `direccion`');
 });
 
 // ── resolverSiteContent / DEFAULTS — sin fila, byte-idéntico ────────────────────────────────────
@@ -70,20 +87,30 @@ test('CORTE declara navTratamientoActivo:true; los otros 5 presets del catálogo
   }
 });
 
+// § CROMO-NAV-DIRECCION-SCROLL-1
+test('CORTE declara navTratamientoDireccion:true; los otros 5 presets del catálogo NO lo declaran (ausente, no `false`)', () => {
+  assert.equal(CORTE.navTratamientoDireccion, true);
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.navTratamientoDireccion, undefined, `${preset.clave} no debe declarar navTratamientoDireccion`);
+  }
+});
+
 test('validarPreset(CORTE) sigue devolviendo [] (completo) — el eje nuevo es opcional, no rompe la completitud', () => {
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 });
 
-test('mergePresetEnContent: CORTE escribe `content.navTratamiento.activo:true`', () => {
+test('mergePresetEnContent: CORTE escribe `content.navTratamiento` = {activo:true, direccion:true}', () => {
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, CORTE);
-  assert.deepEqual(out.navTratamiento, { activo: true });
+  assert.deepEqual(out.navTratamiento, { activo: true, direccion: true });
 });
 
-test('mergePresetEnContent: PATIO no declara el eje — la meta queda en su default de HOY (false)', () => {
+test('mergePresetEnContent: PATIO no declara ninguno de los dos ejes — la meta queda en su default de HOY (false/false)', () => {
   assert.equal(PATIO.navTratamientoActivo, undefined);
+  assert.equal(PATIO.navTratamientoDireccion, undefined);
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, PATIO);
-  assert.deepEqual(out.navTratamiento, { activo: false });
+  assert.deepEqual(out.navTratamiento, { activo: false, direccion: false });
 });
 
 test('mergePresetEnContent: los otros 5 presets escriben `content.navTratamiento` = el de HOY, byte-idéntico', () => {
@@ -101,12 +128,14 @@ test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — navTratamie
   const sinTema = contenidoConPresetDeVista(nayoli, undefined);
   assert.equal(sinTema, nayoli, 'byte-idéntico: la misma referencia, ni un campo tocado');
   assert.equal(sinTema.navTratamiento.activo, false);
+  assert.equal(sinTema.navTratamiento.direccion, false);
 });
 
-test('?tema=CORTE sobre Nayoli: navTratamiento.activo pasa a true', () => {
+test('?tema=CORTE sobre Nayoli: navTratamiento.activo Y .direccion pasan a true', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.navTratamiento.activo, true);
+  assert.equal(conCorte.navTratamiento.direccion, true);
 });
 
 // ── La CAPA DE DATOS que gobierna a StoreNav — pass-through directo, verificable sin render ─────
@@ -130,8 +159,17 @@ test('navTratamiento: un objeto válido SOBREVIVE al parse (si no, zod lo descar
   assert.deepEqual(parsed.navTratamiento, { activo: true });
 });
 
+// § CROMO-NAV-DIRECCION-SCROLL-1
+test('navTratamiento.direccion: sobrevive al parse solo, y junto con `activo`', () => {
+  const soloDireccion = siteContentEditableSchema.parse({ navTratamiento: { direccion: true } });
+  assert.deepEqual(soloDireccion.navTratamiento, { direccion: true });
+  const ambos = siteContentEditableSchema.parse({ navTratamiento: { activo: true, direccion: true } });
+  assert.deepEqual(ambos.navTratamiento, { activo: true, direccion: true });
+});
+
 test('navTratamiento: un TIPO equivocado se rechaza (el write es estricto; el resolver SOFT es la red aparte)', () => {
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { activo: 'true' } }));
+  assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { direccion: 'true' } }));
 });
 
 test('navTratamiento: ausente no rompe el parse (es opcional, como las otras metas)', () => {
