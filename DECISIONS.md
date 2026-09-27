@@ -26192,10 +26192,10 @@ contrato cross-repo. `touches:` tampoco las incluía.
   la pieza de marca de referencia (§0). El gate real —¿se parece a lo que el owner señaló?— queda
   enteramente pendiente de su propia mirada sobre un deploy con este commit. **why_not_now**: fuera
   de lo que este slice puede ejecutar (sin navegador, sin permiso de deploy).
-- **`HORIZONTE_NUM_AMBAR` (2) es una elección razonada, no verificada contra la referencia** — si al
-  mirarlo el owner esperaba una sola línea de acento (como antes) o más de dos, es un cambio de una
-  constante en `lib/duna-horizonte.ts`, no un rediseño. **why_not_now**: depende del gate visual de
-  arriba, que este slice no pudo correr.
+- **`PANEL-LOGIN-HORIZONTE-NUM-AMBAR-AJUSTE-1`** — `HORIZONTE_NUM_AMBAR` (2) es una elección
+  razonada, no verificada contra la referencia. Si al mirarlo el owner esperaba una sola línea de
+  acento (como antes) o más de dos, es un cambio de una constante en `lib/duna-horizonte.ts`, no un
+  rediseño. **why_not_now**: depende del gate visual de arriba, que este slice no pudo correr.
 
 ### Verdicto
 
