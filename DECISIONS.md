@@ -28816,3 +28816,245 @@ sigue pendiente del gate del orquestador — este slice, por instrucción del di
 re-aplicar nada.
 
 **Cierra `CROMO-NAV-EXACTO-PROTOTIPO-1`.**
+
+## 2026-09-28 — El pie del login se muda DENTRO de la card: superficie opaca en vez de argumento geométrico (`PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1`)
+
+Gate visual del owner sobre `PANEL-LOGIN-CENTRADO-Y-CLARO-1` (2026-09-28), textual: *"El login bien,
+pero la frase 'El sistema operativo de tu negocio' queda como rara sobre las líneas, no se si
+ubicarla en otro lugar o bajar la ubicación de las líneas."* Cierra el follow-up que esa misma
+entrada había dejado abierto (`PANEL-LOGIN-PIE-LEGIBILIDAD-VISUAL-1`, § abajo). `DuneLines.tsx` —
+componente del owner — **no se toca ni una coma**; el test de hash (`lib/dune-lines-vendor.test.ts`)
+lo sigue afirmando byte a byte, corrido explícito antes y después del cambio.
+
+### 1 · Por qué el argumento anterior no alcanzaba
+
+`PANEL-LOGIN-CENTRADO-Y-CLARO-1` había dejado el pie EN FLUJO, sibling de la card, con un argumento
+ESTÁTICO: "cuanto más baja la pantalla, el pie entra por el extremo MENOS visible de la banda (`i=14`,
+opacidad ~0.097), nunca por la zona ámbar de acento". El gate del owner lo contradice. La causa,
+releyendo `DuneLines.tsx` (§ ese archivo, sin tocarlo): cada línea se anima con DOS senos sobre el
+tiempo —`Math.sin(u*5.2 + t*1.2 + i*0.3)*(18+i*1.5) + Math.sin(u*11 - t*0.8 + i*0.5)*6`—, así que la
+posición de un trazo en un instante cualquiera puede alejarse mucho de su centro PROMEDIO, que era lo
+único que el argumento anterior medía. Esa propia entrada ya lo decía explícito: *"no puede afirmar
+'nunca hay un trazo exactamente debajo de una letra'"*. El gate confirma que, en la práctica, sí lo
+hubo.
+
+### 2 · Las dos opciones del dispatch, medidas — no supuestas
+
+El dispatch ofrecía dos salidas, en orden de preferencia: (1) bajar la banda, "sólo si eso deja
+espacio garantizado… sin romper la forma de las líneas"; (2) mover la frase adonde no pueda cruzarse.
+
+**Se MIDIÓ la opción 1 antes de descartarla** (`.scratch/medir-empuje-banda.mjs`, script de esta
+tanda, no commiteado — la aritmética es la que sigue). `DuneLines` mide 235px (`HEIGHT`) y el wrapper
+reserva sólo 40px bajo el bloque centrado (`py-10` simétrico, de `PANEL-LOGIN-CENTRADO-Y-CLARO-1`).
+Cuando la card fuerza al wrapper (`min-h-screen`) a crecer más que el viewport —el régimen que
+importa: la ventana BAJA con la card MÁS ALTA (aceptar-invitación/recuperar-clave/nueva, con dos
+campos de contraseña)—, el borde superior de la banda queda SIEMPRE `235-40=195px` por encima del
+borde inferior del bloque, **sea cual sea la altura de la card o del viewport** — un déficit
+CONSTANTE, no proporcional a nada. Empujar la banda hacia abajo exactamente esos 195px cierra ese
+déficit a CERO en cualquier alto: **verificado**, no descartado por "no se puede".
+
+**Se descartó igual**, porque el MISMO empuje que lo garantiza (195px, el 83% del alto de la banda)
+deja visible, en el caso NORMAL (viewport que sí alcanza para la card), sólo una tira de 40px del
+tope de la banda — y esos 40px están, medidos contra la propia fórmula de `DuneLines.tsx`, casi
+vacíos: la primera línea (`i=0`, la de acento, la única de alto contraste) recién alcanza `y_local≈36`
+en su punto más alto. Un empuje que garantiza cero solape borra, de hecho, casi TODA la banda que el
+owner acababa de aprobar en el gate inmediato anterior (`PANEL-LOGIN-DUNELINES-OWNER-1` →
+`PANEL-LOGIN-CENTRADO-Y-CLARO-1`) — cambiaría MÁS la composición que mover el pie, no menos, que es
+justo el criterio que el dispatch pedía minimizar. Y un empuje MENOR (que deje la banda visible) no
+puede garantizar cero solape en el caso que hay que resolver, porque las cuatro pantallas comparten el
+MISMO wrapper con alturas de card DISTINTAS — un offset calibrado para no destruir la banda en el caso
+cómodo queda corto para la card más alta en la ventana baja.
+
+**Se eligió la opción 2**, en su variante "dentro de la card al pie" (la segunda de las dos formas que
+el dispatch ofrecía, no "pegada bajo la card con su propio espacio reservado"): un hueco geométrico
+reservado tiene el MISMO problema que la opción 1 —o rompe la centrada de `PANEL-LOGIN-CENTRADO-Y-
+CLARO-1` si se ata al cálculo de centrado, o no puede garantizar separación sin, de nuevo, empujar la
+banda—. Meter el pie DENTRO de la card cambia el mecanismo de raíz: `bg-card` (`--duna-surface`,
+`packages/design-system/tokens/tokens.css`) es un color OPACO, sin alfa, en los dos temas — así que
+ninguna línea de `DuneLines` puede mostrarse detrás de esa región, en NINGÚN frame de la animación ni
+a NINGÚN alto de ventana. No es un argumento sobre dónde cae una línea EN PROMEDIO: es una superficie
+que tapa cualquier píxel debajo, sea cual sea la fase del seno.
+
+### 3 · Lo construido
+
+- El `<p>` del pie se mudó de sibling-después-de-la-card (con `mt-9`, `relative z-10`) a
+  ÚLTIMO HIJO de la card, después de `{children}`, separado del formulario con un filete
+  (`mt-8 border-t border-border pt-5`) — el mismo patrón que `Pliegue`
+  (`components/admin/Pliegue.tsx`) usa para separar secciones.
+- **Color: `text-muted-foreground` a secas, sin literal por tema.** La tanda anterior necesitaba
+  `text-foreground/70 dark:text-white/70` porque el pie vivía sobre el fondo del WRAPPER, que en
+  oscuro es el literal fijo `#1B1712` del owner (no un token). Ahora vive sobre `bg-card`, que
+  conmuta SOLO por token en los dos temas — `--duna-muted` ya sigue el tema por sí mismo, así que una
+  sola clase alcanza. Medido con `contraste()` (`lib/config/palette-derive.ts`, la misma función que
+  usa el motor de color del storefront) contra `--duna-surface` (el token real de `bg-card`,
+  `tokens.css`):
+
+  | tema | texto | superficie | contraste | AA (4.5:1) |
+  | --- | --- | --- | --- | --- |
+  | claro | `--duna-muted` `#746F64` | `--duna-surface` `#FFFFFF` | **5.00:1** | pasa |
+  | oscuro | `--duna-muted` `#9A958A` | `--duna-surface` `#1F1E1B` | **5.59:1** | pasa |
+
+  Coincide, de yapa, con el token que ya usa "Panel de {nombre}" dos párrafos arriba de la misma
+  card — un solo rol de texto secundario para la superficie, no dos convenciones.
+- **Efecto secundario, no buscado pero correcto:** el bloque centrado por `py-10` simétrico
+  (§ `PANEL-LOGIN-CENTRADO-Y-CLARO-1`) pasa a ser SÓLO la card — ya no hay un segundo elemento (el
+  pie) que desplace el centro real del bloque ~26px sobre el centro de la card sola, el matiz que esa
+  misma entrada había dejado anotado en su §1. La card queda centrada en `H/2` sin ese desvío.
+- El texto del pie NO cambió ("El sistema operativo de tu negocio.") — sin cambio de copy en esta
+  tanda.
+
+### 4 · Verificación a los dos altos — qué SÍ se puede afirmar sin navegador
+
+No hay Playwright ni jsdom en este repo (§ CLAUDE.md, § El glob NO incluye `*.test.tsx`). Lo mismo que
+declaró `PANEL-LOGIN-CENTRADO-Y-CLARO-1` sigue vigente acá, con una diferencia importante: la tanda
+anterior dependía de un argumento GEOMÉTRICO sobre dónde cae en promedio cada línea, que resultó
+insuficiente (§1); esta tanda depende de una garantía ESTRUCTURAL (superficie opaca), que no necesita
+"a qué alto" para sostenerse — la respuesta es la MISMA a cualquier alto, porque no es geometría, es
+pintura.
+
+**En las cuatro pantallas** (`/login`, `/aceptar-invitacion`, `/recuperar-clave`,
+`/recuperar-clave/nueva` — las cuatro montan el MISMO `PreAuthShell`, confirmado por
+`grep -rn "PreAuthShell" app/\(admin\)/`), **en los dos temas, a un alto CÓMODO (p. ej. 900px) y a uno
+BAJO (p. ej. 650px)**:
+
+- **La frase nunca cae sobre una línea**, en ninguno de los ocho casos (4 pantallas × 2 temas), a
+  NINGÚN alto — no porque se haya medido cada combinación por separado, sino porque la propiedad que
+  lo garantiza (superficie opaca `bg-card`, sin alfa) no depende de la pantalla, del tema ni del alto
+  de ventana: se cumple por construcción del CSS, no por una medición puntual.
+- **A alto CÓMODO**, la card (con el pie ahora dentro) queda por completo por encima de o superpuesta
+  a la parte VISIBLE de la banda, con la banda mayormente detrás/alrededor de la card — igual que ya
+  describía `PANEL-LOGIN-CENTRADO-Y-CLARO-1` para el caso sin overlap.
+- **A alto BAJO** — el caso que rompía el argumento anterior —, la card entera (incluido el pie, ahora
+  en su interior) puede solaparse EN POSICIÓN con la banda; lo que cambia es que donde antes se veía
+  una línea cruzando el texto, ahora se ve la superficie opaca de la card tapándola. La banda sigue
+  siendo visible DETRÁS de la card en las zonas donde la card no la cubre (el comportamiento que el
+  owner ya aceptó explícitamente en `PANEL-LOGIN-CENTRADO-Y-CLARO-1`: "la banda pase por detrás de la
+  card").
+- **Ningún caso depende de la fase de la animación** (`requestAnimationFrame`/`Math.sin`), a diferencia
+  del argumento anterior — es la diferencia central entre esta tanda y la de antes.
+
+**El gate real de "se ve bien" sigue siendo los ojos del owner** — no porque falte algo por medir, sino
+porque "se ve bien" (la composición, si el filete del pie luce natural, si el peso del texto dentro de
+la card es el correcto) es un juicio, no una medición. Lo que SÍ se puede afirmar sin navegador —y es
+lo que cambia respecto de la tanda anterior— es que la frase YA NO PUEDE mostrarse cruzada por una
+línea, en ningún caso; antes esa garantía no existía.
+
+### 5 · El carril de test — `lib/preauth-chasis.test.ts`
+
+Reescrito para afirmar el mecanismo NUEVO, no el viejo:
+
+- Las tres pruebas sin relación con el pie (selector de recoloreo derivado de `DuneLines.tsx`, el
+  gancho `admin-preauth-lineas`, el chasis sin `paddingBottom` reintroducido) **no cambiaron**.
+- **Nueva:** "el pie vive DENTRO de la card… ya no como sibling suelto" — afirma la ESTRUCTURA: el
+  texto del pie aparece DESPUÉS de `{children}` en el JSX de `PreAuthShell` (no de `AvisoError`, que
+  declara el mismo literal `{children}` más arriba — el test busca desde
+  `export function PreAuthShell` para no confundir los dos), y el primer `</div>` tras `{children}`
+  cierra DESPUÉS del pie, no antes (si cerrara antes, el pie volvió a ser sibling suelto). También
+  afirma que el `<p>` del pie ya no lleva el literal `dark:text-white/70` en su propia classList.
+  **Visto fallar contra el código VIEJO** (restaurado a mano en el archivo, corrido, y vuelto a
+  aplicar el fix — no una aserción hecha en abstracto): 2 de 6 tests caen contra la versión anterior
+  (el estructural y el de contraste, § abajo), los otros 4 siguen en verde porque no dependen de este
+  cambio.
+- **Reescrita:** "el pie pasa AA… contra la superficie REAL de la card (`bg-card`)" — reemplaza el
+  cálculo de blend-de-opacidad contra `--duna-bg` (que ya no aplica: el pie no vive ahí) por la tabla
+  de arriba (§3), con los valores de `tokens.css` citados literal. Afirma también, con una regla
+  acotada a los 200 caracteres previos al texto del pie (no el archivo entero — el literal viejo
+  SIGUE apareciendo, legítimamente, en los comentarios que documentan la decisión anterior), que el
+  `<p>` usa `text-muted-foreground`.
+- El header del archivo se actualizó para listar las CINCO cosas que hoy afirma (antes cuatro), sumando
+  la estructural.
+
+### 6 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2420/2420** — verde. +1 sobre el piso de 2419 (`f8f9dcc`, `CROMO-NAV-EXACTO-PROTOTIPO-1`). Reconciliado por archivo: `lib/preauth-chasis.test.ts` pasó de 5 a 6 tests (la prueba combinada "fondo y texto conmutan" se partió en "fondo del wrapper conmuta" + la nueva estructural; la de contraste se reescribió in-place) — +1 neto, coincide con el delta medido. Ningún otro archivo de test tocado. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo; ningún archivo de este slice vive bajo `tests/integracion/`. |
+| `lib/dune-lines-vendor.test.ts` (el hash) | **verde, sin cambio** — corrido explícito antes y después del cambio, confirmando que `DuneLines.tsx` sigue byte a byte igual al del owner. |
+| `npm run verificar:nayoli:visual` | **NO SE CORRIÓ**, por instrucción explícita del spec (§2: "No toca el storefront: no corras el diff visual"). El diff vive enteramente bajo `components/admin/` y `lib/`; `git diff --numstat` no lista ningún archivo de `app/(storefront)/` ni `components/storefront/`. |
+
+### `touches:` — lo que se tocó, y nada más
+
+`git diff --numstat`: `components/admin/PreAuthShell.tsx` (+88/-46), `lib/preauth-chasis.test.ts`
+(+87/-36), más este asiento en `DECISIONS.md`. Los tres son exactamente los tres de código de
+`touches:` (`DECISIONS.md` es el cuarto, el propio archivo) — `components/admin/DuneLines.tsx` estaba
+en el radar (es el archivo protegido) pero NO se tocó, confirmado por `git diff --numstat` (no
+aparece) y por el hash del carril (§6).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `PreAuthShell` (estructura interna cambiada, símbolo
+sin cambio de nombre), el className del `<p>` del pie (`mt-9`/`text-foreground/70 dark:text-
+white/70` → `mt-8 border-t border-border pt-5 text-muted-foreground`), `lib/preauth-chasis.test.ts`
+(reescrito). Grep de cada uno contra `CLAUDE.md`:
+
+- **`PreAuthShell`** → **tres apariciones** (líneas 614, 2015, 7158):
+  - Línea 614 (`AvisoError` en `PreAuthShell`, el patrón de error inline) — de OTRO tema, no lo toca
+    este diff (`AvisoError` no se editó). Sigue siendo cierta.
+  - Línea 2015 (el split shell-servidor/form-cliente para `getSiteSettings`, "PreAuthShell muestra
+    'Panel de {nombre}'") — de OTRO tema, no lo toca este diff (el split y el prop `nombre` no
+    cambiaron). Sigue siendo cierta.
+  - **Línea 7158** ("el contenedor de `PreAuthShell` reserva la banda de la duna, `padding-bottom
+    11vw`… para que la card y el pie queden por encima") — YA estaba marcada obsoleta desde
+    `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`, reabierta en `PANEL-LOGIN-DUNELINES-OWNER-1` y de nuevo en
+    `PANEL-LOGIN-CENTRADO-Y-CLARO-1` (id `CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`, tres reaperturas
+    previas). **Este slice la vuelve MÁS falsa todavía, con un dato distinto al de la última
+    reapertura**: no sólo no hay `padding-bottom` (eso ya lo había hecho falso
+    `PANEL-LOGIN-CENTRADO-Y-CLARO-1`) — ahora el pie ni siquiera es un elemento separado que
+    necesite "quedar por encima" de la banda: es parte de la card, tapado por su superficie opaca. El
+    follow-up `CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1` se reabre una CUARTA vez con este dato — sigue sin
+    estar en `touches:` de ningún slice de esta familia.
+- El texto exacto del tagline ("El sistema operativo de tu negocio.", § CLAUDE.md línea ~7163-7165,
+  "EL TAGLINE afirma la CATEGORÍA, no cuenta piezas") — **sigue siendo cierto**: este diff no cambia
+  ni una palabra de ese copy, sólo su posición en el árbol y su color.
+- `DuneLines`, `admin-preauth-lineas`, `preauth-chasis` → sin apariciones nuevas que revisar más allá
+  de las ya cubiertas arriba; nada de lo que `CLAUDE.md` dice de `DuneLines.tsx` (el componente en sí,
+  intocado) cambia.
+
+**Nada que corregir dentro de `touches:` de este slice; el follow-up existente
+(`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`) se reabre con un cuarto dato.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): este slice **cierra** el follow-up
+`PANEL-LOGIN-PIE-LEGIBILIDAD-VISUAL-1` (abierto en `PANEL-LOGIN-CENTRADO-Y-CLARO-1`, arriba, única
+aparición previa a esta entrada) — su pregunta abierta era exactamente si el pie se vería cruzado por
+una línea en un caso real, y el gate del owner la respondió que sí; esta entrada es la resolución. No
+se edita el texto histórico de esa entrada (queda como registro de qué se intentó y por qué se creyó
+suficiente); el cierre vive acá, apuntando hacia atrás, igual que el patrón que
+`CROMO-NAV-EXACTO-PROTOTIPO-1` ya usó con `CROMO-NAV-POSICION-TEMA-REAL-1`.
+
+### `customer_bytes`
+
+**`changed: true`.** El owner va a mirar esta pantalla — es el propósito explícito del gate que
+disparó este slice. Cambia la posición del pie de marca (de sibling-debajo-de-la-card a
+último-elemento-dentro-de-la-card, con un filete que lo separa del formulario) y su color en los dos
+temas (de `text-foreground/70`/`dark:text-white/70` a `text-muted-foreground`), en las CUATRO
+pantallas pre-auth. `strings:` **ninguno** — el texto del pie ("El sistema operativo de tu negocio.")
+no cambia una sola palabra; el cambio es puramente de posición y color.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `touches:` tampoco las incluía.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`** (reabierto, cuarta vez) — línea 7158 de `CLAUDE.md`, que
+  describe un mecanismo de reserva de espacio para el pie que ya no existe en ninguna forma (ni
+  `padding-bottom: 11vw`, ni el `235px` que lo reemplazó, ni el pie como elemento separado que
+  necesite "quedar por encima" de nada). **why_not_now**: `CLAUDE.md` no está en `touches:` de este
+  slice.
+- **Ninguno nuevo.** El reclamo del gate del owner (§0) queda cerrado con una garantía estructural, no
+  con una medición que hay que repetir para cada pantalla/tema/altura.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones ejecutables
+(tsc, `npm test`, `npm run test:integracion`) más el test de hash del componente del owner, corrido
+explícito e intacto. Sin `schema`, sin `cross-repo-contract`. `verificar:nayoli:visual` no se corrió
+por instrucción explícita del spec — el diff no toca el storefront. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el owner ya aprobó la ESCRITURA (`approved: yes`, con su
+reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1`.**

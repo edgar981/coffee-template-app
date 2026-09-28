@@ -60,35 +60,76 @@ export function AvisoError({ children }: { children: ReactNode }) {
 // EL FIX: la banda deja de reservarse para el cálculo de centrado. El owner
 // aceptó explícitamente que, en pantallas bajas, la banda pase POR DETRÁS de la
 // card (tiene fondo propio, § `bg-card` abajo) — así que ya no hace falta
-// mantener el contenido íntegro por encima de sus 235px. Lo único que se
-// preserva es que el PIE (el único texto sin fondo propio) no quede ilegible.
+// mantener el contenido íntegro por encima de sus 235px.
 //
 // `py-10` (arriba Y abajo, SIMÉTRICO — antes sólo `pt-10`) es la pieza que hace
 // el centrado exacto: con padding-top == padding-bottom, el bloque flex se
 // centra en el punto medio real de `H` sin importar cuánto valgan (¡es
 // aritmética: `padTop + (H-2*padTop)/2 = H/2` para cualquier `padTop`!), algo
 // que un `paddingBottom` desigual —el bug de arriba— rompe por construcción.
+
+// PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1 — EL PIE SE MUDÓ DENTRO DE LA CARD.
 //
-// EL PIE: se queda EN FLUJO, pegado a la card con el mismo `mt-9` de siempre —
-// no se lo desacopla a `position:absolute` porque eso arriesgaría que quedara
-// SUPERPUESTO a la card en pantallas muy bajas (dos elementos independientes
-// sin relación de spacing entre sí). Medido con la geometría real de
-// `DuneLines` (§ ese archivo: `LINES=15`, línea `i` nace en
-// `y_local = 60 + i*11` dentro de la banda de 235px, con amplitud de onda de
-// `18 + i*1.5` para la primera onda): cuanto MÁS BAJA es la pantalla, más
-// profundo entra el bloque (card+pie) en la banda — pero el pie, al ser lo
-// ÚLTIMO del bloque, entra por el extremo que corresponde a los índices `i`
-// MÁS ALTOS (los MENOS visibles: opacidad ~0.10-0.15, contra 0.5 de las 4
-// líneas de acento). El caso límite es cuando el bloque entero mide lo mismo
-// que la pantalla (`H ≈ altura del bloque`): ahí el pie llega, como mucho, al
-// fondo mismo de la banda (`y_local = 235`, la línea MÁS tenue, `i=14`,
-// opacidad ≈0.097) — nunca a la zona ámbar de acento (`y_local ≤ ~84`, sólo
-// alcanzable si el bloque completo mide ~150px menos que la pantalla, un caso
-// que no ocurre con el alto real de estas cards). Es un argumento geométrico,
-// no una medición en navegador — **el gate real de esto son los ojos del
-// owner** (no hay Playwright/jsdom en este repo para confirmarlo por
-// ejecución), así que el asiento en DECISIONS.md lo deja explícito como punto
-// a confirmar en el gate visual.
+// La tanda anterior dejó el pie EN FLUJO, sibling de la card, con el argumento
+// geométrico de que "cuanto más baja la pantalla, el pie entra por el extremo
+// MENOS visible de la banda (i=14, opacidad ~0.097), nunca por la zona ámbar de
+// acento". El gate del owner sobre esa tanda lo contradijo: *"la frase 'El
+// sistema operativo de tu negocio' queda como rara sobre las líneas"* — el
+// argumento estático (posición PROMEDIO de cada línea) no capturaba lo que el
+// owner vio en vivo, porque `DuneLines` ANIMA cada línea con dos senos sobre el
+// tiempo (`Math.sin(u*5.2 + t*1.2 + i*0.3)*(18+i*1.5) + Math.sin(u*11 - t*0.8 +
+// i*0.5)*6`, § ese archivo) — en cualquier frame, el pico de una línea puede
+// acercarse mucho más al pie que su centro promedio, y el argumento del slice
+// anterior nunca lo midió (lo dijo explícito: "no puede afirmar 'nunca hay un
+// trazo exactamente debajo de una letra'").
+//
+// SE DESCARTÓ "bajar la banda" (empujar `DuneLines` hacia abajo con `bottom`
+// negativo, recortando su tope contra el `overflow-hidden` del wrapper, sin
+// tocar la forma de ninguna línea que sobreviva al recorte) — la primera
+// opción del dispatch, y la que menos cambia la composición. NO por ser
+// imposible de garantizar — SE MIDIÓ (`.scratch/medir-empuje-banda.mjs`, no
+// commiteado) que SÍ hay un empuje que lo garantiza en cualquier alto: el
+// wrapper reserva sólo 40px (`py-10`) bajo el bloque centrado, y la banda mide
+// 235px, así que hay un déficit CONSTANTE de `235-40=195px` — cuando la card
+// fuerza al wrapper a crecer más que el viewport (`min-h-screen` deja de
+// imponer el alto), el borde superior de la banda queda SIEMPRE 195px por
+// encima del borde inferior del bloque, sea cual sea la altura de la card. Un
+// empuje de exactamente esos 195px cierra ese déficit a CERO en todos los
+// altos — verificado, no asumido.
+//
+// SE DESCARTÓ IGUAL, porque ese mismo empuje (195px, el 83% del alto de la
+// banda) dejaría visible una tira de sólo 40px en el caso NORMAL (viewport que
+// SÍ alcanza para la card) — y esos primeros 40px de la banda están, medido
+// contra la propia fórmula de `DuneLines.tsx`, casi vacíos: la primera línea
+// (`i=0`, la de acento) sólo alcanza hasta `y_local≈36` en su punto más alto,
+// así que un empuje que garantiza cero solape borra, de hecho, casi TODA la
+// banda que el owner acaba de aprobar en el gate anterior — cambiaría MÁS la
+// composición que mover el pie, no menos. Un empuje menor (que deje la banda
+// visible) no puede garantizar cero solape en el caso que sí hay que resolver
+// (una card larga —aceptar-invitación o recuperar-clave/nueva, con dos campos
+// de contraseña— en una ventana baja): las cuatro pantallas comparten el mismo
+// wrapper pero tienen alturas de card DISTINTAS, así que un offset fijo
+// calibrado para no destruir la banda en el caso cómodo queda corto para la
+// card más alta en el caso bajo.
+//
+// EL FIX: el pie se muda DENTRO de la card, como su último hijo, separado del
+// formulario con un filete (`border-t border-border`). La card tiene
+// `bg-card` — un color OPACO (sin alfa: `hsl(var(--card))`/`--duna-surface`,
+// hex sólidos en `tokens.css`, § grep de esta tanda) — así que NINGUNA línea de
+// `DuneLines` puede mostrarse detrás de esa región, en NINGÚN frame de la
+// animación ni a NINGÚN alto de ventana: no es un argumento geométrico que
+// pueda fallar según la fase del seno, es una superficie opaca que tapa
+// cualquier píxel debajo. Esto es lo que "espacio reservado" no podía dar sin
+// tocar la banda (ver el párrafo de arriba): la garantía no viene de dejar un
+// hueco vacío entre dos elementos independientes, viene de que el propio pie
+// vive sobre una superficie que ya no deja pasar nada.
+//
+// Efecto secundario, no buscado pero correcto: el bloque centrado (§ el
+// comentario de arriba, `py-10` simétrico) ahora es SÓLO la card — ya no hay un
+// segundo elemento (el pie) que desplace el centro real del bloque unos ~26px
+// sobre el centro de la card sola (el matiz que dejó anotado
+// PANEL-LOGIN-CENTRADO-Y-CLARO-1, §1). La card queda centrada en `H/2` sin ese
+// desvío.
 
 export function PreAuthShell({
   titulo,
@@ -160,33 +201,34 @@ export function PreAuthShell({
         </div>
 
         {children}
+
+        {/* Pie de marca. AFIRMA LA CATEGORÍA —qué ES Duna, el sistema operativo de un negocio— en
+            vez de CONTAR sus piezas. El tagline anterior ("Un negocio. Dos puertas…") enumeraba
+            admin + storefront, pero "dos puertas" se lee como canales y con WhatsApp serían tres:
+            un recuento envejece con cada canal que se agrega. La afirmación de categoría no. Sin
+            versión: un literal no le dice nada a quien entra.
+
+            PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1 — MUDADO DENTRO DE LA CARD (era sibling, fuera, con
+            `mt-9`; § el comentario grande de arriba, "EL PIE SE MUDÓ DENTRO DE LA CARD", trae el
+            porqué completo). El filete (`border-t border-border`) separa el pie del contenido —el
+            mismo patrón que `Pliegue` (`components/admin/Pliegue.tsx`) usa para separar secciones.
+
+            COLOR: `text-muted-foreground` a secas — ya NO hace falta un literal por tema
+            (`dark:text-white/70` de la tanda anterior) porque ahora el pie vive SOBRE `bg-card`,
+            que conmuta solo por token en los dos temas (a diferencia del fondo del wrapper, que en
+            oscuro es el literal fijo `#1B1712` del owner). `--duna-muted` YA seguía el tema por sí
+            mismo, así que una sola clase alcanza para los dos. Medido con `contraste()`
+            (`lib/config/palette-derive.ts`) contra `--duna-surface` (el token real de `bg-card`,
+            `tokens.css`) en los dos temas —
+              · claro (`--duna-muted` #746F64 vs `--duna-surface` #FFFFFF) → 5.00:1 — pasa AA.
+              · oscuro (`--duna-muted` #9A958A vs `--duna-surface` #1F1E1B) → 5.59:1 — pasa AA.
+            Los dos números viven en el asiento de DECISIONS.md. Coincide además con el token que ya
+            usa "Panel de {nombre}" dos párrafos arriba — misma superficie, mismo rol de texto
+            secundario, un solo token en vez de dos convenciones para la card. */}
+        <p className="mt-8 border-t border-border pt-5 text-center text-xs text-muted-foreground">
+          El sistema operativo de tu negocio.
+        </p>
       </div>
-
-      {/* Pie de marca. AFIRMA LA CATEGORÍA —qué ES Duna, el sistema operativo de un negocio— en vez
-          de CONTAR sus piezas. El tagline anterior ("Un negocio. Dos puertas…") enumeraba admin +
-          storefront, pero "dos puertas" se lee como canales y con WhatsApp serían tres: un recuento
-          envejece con cada canal que se agrega. La afirmación de categoría no. Sin versión: un
-          literal no le dice nada a quien entra. `relative z-10` para quedar por encima de la duna.
-
-          COLOR POR TEMA (PANEL-LOGIN-CENTRADO-Y-CLARO-1): el fondo vuelve a conmutar
-          (`bg-background dark:bg-[#1B1712]`, arriba), así que el texto tiene que conmutar CON él —
-          `text-white/70` sólido (heredado de la tanda anterior, cuando el fondo era SIEMPRE oscuro)
-          quedaría casi invisible sobre el fondo claro de hoy. Este párrafo vive FUERA de la card, así
-          que no hereda el `bg-card` que sí sigue el tema por sí solo.
-
-          `text-foreground/70 dark:text-white/70` — NO `text-muted-foreground` (ni con `/70`):
-          medido con `contraste()` (`lib/config/palette-derive.ts`) contra los tokens que esta
-          página REALMENTE resuelve (`--duna-bg`/`--duna-muted`/`--duna-ink`, que ganan sobre el
-          fallback `hsl(var(--background))` porque `duna.css` los define siempre en el grupo admin,
-          § app/globals.css:155,170,171) —
-            · `text-muted-foreground/70` (el reflejo obvio del `/70` de oscuro) → 2.67:1 — FALLA AA.
-            · `text-muted-foreground` a secas (100%) → 4.62:1 — pasa, pero raspando el piso 4.5:1.
-            · `text-foreground/70` (`--duna-ink` al 70%) → 6.67:1 — cómodo, y espejea el `/70` de
-              oscuro (9.12:1) en vez de introducir una tercera convención de opacidad.
-          Los cuatro números viven en el asiento de DECISIONS.md. */}
-      <p className="relative z-10 mt-9 text-center text-xs text-foreground/70 dark:text-white/70">
-        El sistema operativo de tu negocio.
-      </p>
     </div>
   );
 }
