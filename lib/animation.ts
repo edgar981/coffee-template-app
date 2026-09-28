@@ -224,11 +224,13 @@ export function veloOpacidad(progreso: number, estatico: boolean, rango: VeloRan
 //
 // `VeloIntensidad` es un ESCALAR más de `hero.escalares` (mismo mecanismo que `imagenTipo`/
 // `puntoFocal`, § site-content-defaults.ts): 'media' es la CANÓNICA — el rango de SIEMPRE,
-// byte-idéntico para todo tema que no la declare —; 'suave' es la que CORTE elige
-// (`heroVeloIntensidad:'suave'`, § themes.ts).
+// byte-idéntico para todo tema que no la declare —; 'suave' fue la primera intensidad no-canónica
+// (RONDA 4, la que CORTE eligió entonces); 'intermedia' es la TERCERA (§ HERO-VELO-INTERMEDIO-1,
+// abajo), la que CORTE elige DESDE ese slice (`heroVeloIntensidad:'intermedia'`, § themes.ts).
 //
-// EL RANGO, NO SÓLO EL PISO: 'suave' baja las DOS puntas del recorrido, no sólo el reposo — el
-// pedido del owner es sobre el velo "en general", no sólo al cargar.
+// EL RANGO, NO SÓLO EL PISO: cada intensidad no-canónica baja (o, para 'intermedia' sobre 'suave',
+// sube) las DOS puntas del recorrido, no sólo el reposo — el pedido original del owner era sobre el
+// velo "en general", no sólo al cargar, y § HERO-VELO-INTERMEDIO-1 hereda ese mismo eje.
 //
 // CONTRASTE MEDIDO PARA 'suave' (mismo método WCAG que `VELO_OPACIDAD_PISO`, blanco sobre el velo
 // compuesto sobre las TRES fotos claras de referencia, densidad efectiva = opacidad×0.80), esta vez
@@ -240,13 +242,56 @@ export function veloOpacidad(progreso: number, estatico: boolean, rango: VeloRan
 // `heroVeloVisible:false` (arriba) — el proxy es conservador para un video claro, no el video real de
 // CORTE, y el owner ya verificó la legibilidad real sobre pantalla. Un tema futuro con video CLARO
 // que quiera 'suave' debe medir el SUYO antes de adoptarla; no hereda esta garantía por el nombre.
+//
+// ── 'intermedia' — § HERO-VELO-INTERMEDIO-1 (2026-09-28) ───────────────────────────────────────────
+// EL PEDIDO, LITERAL, sobre el gate visual de 'suave' YA APLICADA (§ HERO-FRASE-COLOR-PLENO-1, la
+// misma ronda que subió la frase al pie a `--sf-sobre-banda` PLENO): «Mejoró, sin embargo creo que
+// el velo del hero puede ser un poquito más oscuro, si eso logra que las letras, no solo del pie,
+// sino del nav se aprecien mejor». DOS LECTORES, no uno: la frase al pie (rol PLENO,
+// `--sf-sobre-banda`, fallback `white` — CORTE no asigna esquema a 'hero', § el comentario de
+// `navTinta` en `themes.ts`) Y los links del nav en su tratamiento FLOTANTE sobre el hero
+// (`StoreNav.tsx`, `navFlotando && navClaro → text-[var(--sf-sobre)]`, TAMBIÉN blanco puro — un
+// token GLOBAL, no gated por esquema). Las dos superficies renderizan el MISMO blanco (#ffffff)
+// sobre el MISMO velo compuesto, así que la medición de abajo — UNA sola tabla — vale para las dos;
+// no hay una segunda tabla que hacer.
+//
+// EL RANGO ELEGIDO, Y POR QUÉ ÉSE: `VELO_RANGO_SUAVE` y `VELO_RANGO_MEDIA` comparten el MISMO ancho
+// (0.25: 0.55-0.30 y 1.00-0.75) — 'intermedia' preserva ese ancho ({piso:0.40, techo:0.65}, ancho
+// 0.25) y sólo DESPLAZA la base +0.10 sobre 'suave' (piso 0.30→0.40, techo 0.55→0.65). +0.10 es
+// MENOS de un cuarto de la distancia total entre 'suave' y 'media' (0.75-0.30=0.45; un cuarto sería
+// +0.1125) — deliberadamente CONSERVADOR: el owner dijo «un poquito», y el error caro es pasarse
+// (volver a 'media', que YA se probó y el owner reportó que "opaca" el video, § RONDA 4 arriba), no
+// quedarse corto. Se descartó un paso MÁS CHICO (+0.05, piso 0.35/techo 0.60) por MEDIDO: el salto de
+// contraste que produce (~+0.20 en los tres fotos, ~9% relativo) es más difícil de distinguir a ojo
+// que el de +0.10 (~+0.40, ~19% relativo, tabla abajo) — "que se note", como pide el spec, no sólo
+// que el número cambie.
+//
+// CONTRASTE MEDIDO PARA 'intermedia' (mismo método y mismas tres fotos que 'suave', arriba, contra la
+// TINTA REAL de CORTE):
+//   piso 0.40 (densidad efectiva 0.32): arena 2.58:1 · casi-blanco 2.17:1 · crema 2.42:1
+//   techo 0.65 (densidad efectiva 0.52): arena 4.26:1 · casi-blanco 3.69:1 · crema 4.04:1
+// CONTRA 'suave' (mismo piso/techo de arriba), la ganancia es PAREJA en las tres fotos:
+//   piso:  +0.42 (arena) · +0.37 (casi-blanco) · +0.40 (crema)  →  ~19–21% relativo
+//   techo: +0.80 (arena) · +0.74 (casi-blanco) · +0.78 (crema)  →  ~23–25% relativo
+// SIGUE BAJO AA (4.5:1) EN LOS DOS EXTREMOS DE LAS TRES FOTOS — MEDIDO Y REPORTADO, NO BLOQUEADO, la
+// MISMA razón que ya acepta 'suave' bajo AA: el proxy de fotos claras es conservador para un video
+// claro, no el video real y oscuro de CORTE, y el pedido del owner («un poquito más oscuro») es sobre
+// la LEGIBILIDAD REAL que ya verificó en pantalla, no sobre alcanzar el piso WCAG de un proxy que no
+// representa su video. El techo (4.26 en arena) queda a 0.24 de AA — el más cerca de los tres pasos,
+// pero sigue sin cruzarlo; cruzarlo habría exigido acercarse más a 'media', el paso que el spec pide
+// evitar.
 export interface VeloRango {
   piso: number;
   techo: number;
 }
 const VELO_RANGO_MEDIA: VeloRango = { piso: VELO_OPACIDAD_PISO, techo: 1 };
 const VELO_RANGO_SUAVE: VeloRango = { piso: 0.3, techo: 0.55 };
-const VELO_RANGOS: Record<VeloIntensidad, VeloRango> = { media: VELO_RANGO_MEDIA, suave: VELO_RANGO_SUAVE };
+const VELO_RANGO_INTERMEDIA: VeloRango = { piso: 0.4, techo: 0.65 };
+const VELO_RANGOS: Record<VeloIntensidad, VeloRango> = {
+  media: VELO_RANGO_MEDIA,
+  suave: VELO_RANGO_SUAVE,
+  intermedia: VELO_RANGO_INTERMEDIA,
+};
 
 // Ausente/vacío/basura → 'media' (mismo criterio que `objectPositionDePuntoFocal`): el resolver de
 // contenido (`REGISTRY.hero.escalares.veloIntensidad`) ya clampa el valor guardado a la canónica

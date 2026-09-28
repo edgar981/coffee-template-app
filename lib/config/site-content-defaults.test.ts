@@ -1293,6 +1293,33 @@ test('resolverVariante con las claves de veloIntensidad/tickerVelocidad: ausente
   assert.equal(resolverVariante(REGISTRY.hero.escalares!.tickerVelocidad, 'lenta'), 'lenta');
 });
 
+// ── EL TERCER PASO DE veloIntensidad — § HERO-VELO-INTERMEDIO-1 (2026-09-28): 'intermedia' entra
+// ENTRE 'suave' y 'media'. El owner, sobre el gate visual de 'suave' ya aplicada: «el velo del hero
+// puede ser un poquito más oscuro, si eso logra que las letras... se aprecien mejor». El RANGO exacto
+// (piso/techo) y su contraste medido viven en `lib/animation.test.ts` — acá sólo el VOCABULARIO: el
+// set cerrado, su orden, y que el resolver lo respete/clampe igual que a 'suave'.
+
+test('VELO_INTENSIDADES es exactamente ["suave", "intermedia", "media"], en ESE orden — de más claro a más oscuro, para que el <select> del panel se lea como escala', () => {
+  assert.deepEqual(VELO_INTENSIDADES, ['suave', 'intermedia', 'media']);
+});
+
+test('"media" sigue siendo la CANÓNICA pese a quedar última en el array — orden de presentación y canónica son ejes independientes', () => {
+  assert.equal(REGISTRY.hero.escalares!.veloIntensidad.canonica, 'media');
+});
+
+test('hero: "intermedia" guardada se respeta (igual que "suave")', () => {
+  const r = resolverSiteContent({ hero: { veloIntensidad: 'intermedia' } });
+  assert.equal(r.hero.veloIntensidad, 'intermedia');
+});
+
+test('hero: veloIntensidad "intermedia" NO cae a "media" — no es basura, es un valor del set cerrado', () => {
+  assert.notEqual(resolverSiteContent({ hero: { veloIntensidad: 'intermedia' } }).hero.veloIntensidad, 'media');
+});
+
+test('resolverVariante con la clave "intermedia" de veloIntensidad: se respeta, no clampa a la canónica', () => {
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.veloIntensidad, 'intermedia'), 'intermedia');
+});
+
 // ── EL BORRADO DE BLOBS NO DEBE PERDER UN CAMPO-IMAGEN (§ HERO-VIDEO-COMO-DATO-1) ──────────────────
 // `imagenesDe` (site-content-blobs.ts) borra por diff los campos que `REGISTRY[seccion].imagenes`
 // nombra. Un nombre mal escrito ahí (typo, rename, un campo nuevo olvidado) deja ese blob SIN

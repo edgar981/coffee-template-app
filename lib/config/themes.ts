@@ -194,9 +194,12 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * DOS escalares MÁS de `REGISTRY.hero.escalares` (`veloIntensidad`/`tickerVelocidad`, ver los
  * docstrings de `HeroContent.veloIntensidad`/`.tickerVelocidad` en `site-content-defaults.ts`).
  * AUSENTE en un preset = el comportamiento de HOY, byte a byte (los dos resuelven a `'media'`, el
- * rango de velo y la velocidad de ticker de siempre). El owner, sobre el gate visual de esta ronda:
+ * rango de velo y la velocidad de ticker de siempre). El owner, sobre el gate visual de RONDA 4:
  * «también podemos agregar un velo, pero no tiene que ser tan fuerte» y «la velocidad… debería ser
- * más baja» — CORTE es hoy el ÚNICO preset que declara los dos, en `'suave'`/`'lenta'`.
+ * más baja» — CORTE es hoy el ÚNICO preset que declara los dos. **`heroVeloIntensidad` pasó de
+ * `'suave'` a `'intermedia'` en § HERO-VELO-INTERMEDIO-1** (2026-09-28: «el velo del hero puede ser
+ * un poquito más oscuro» — el TERCER paso del set, § `VELO_INTENSIDADES`, `site-content-defaults.ts`);
+ * `heroTickerVelocidad` sigue en `'lenta'`, sin cambio.
  *
  * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
  * arriba" (gemelo del `.to-top` del prototipo)? AUSENTE = el comportamiento de HOY, byte a byte (el
@@ -1085,14 +1088,24 @@ export const CORTE: PresetTema = {
   // montarse) y en su lugar declara `heroVeloIntensidad`, abajo: el eje que sigue siendo SUYO no es
   // "¿hay velo?", es "¿qué tan fuerte?".
   //
-  // heroVeloIntensidad/heroTickerVelocidad (§ CORTE-HERO-REVELADO-MASCARA-1) — 'suave' baja el rango
-  // piso/techo de `veloOpacidad` (§ su docstring en `lib/animation.ts` para el contraste medido
-  // contra la tinta REAL de CORTE, `#102407` — bajo AA, medido y aceptado, no bloqueante: el owner ya
-  // vio la legibilidad real sobre el video). 'lenta' es la preferencia EXPLÍCITA del owner sobre la
-  // velocidad YA medida contra el tema real («la velocidad… debería ser más baja») — no una segunda
-  // medición, una elección. CORTE es hoy el ÚNICO preset del catálogo que declara los dos; los otros
-  // cinco no tocan `content.hero.veloIntensidad`/`.tickerVelocidad` (quedan en su default `'media'`).
-  heroVeloIntensidad: 'suave',
+  // heroVeloIntensidad/heroTickerVelocidad (§ CORTE-HERO-REVELADO-MASCARA-1) — RONDA 4 declaró
+  // 'suave', que baja el rango piso/techo de `veloOpacidad` (§ su docstring en `lib/animation.ts`
+  // para el contraste medido contra la tinta REAL de CORTE, `#102407` — bajo AA, medido y aceptado,
+  // no bloqueante: el owner ya vio la legibilidad real sobre el video). 'lenta' es la preferencia
+  // EXPLÍCITA del owner sobre la velocidad YA medida contra el tema real («la velocidad… debería ser
+  // más baja») — no una segunda medición, una elección; NO cambia en este slice.
+  //
+  // heroVeloIntensidad PASA DE 'suave' A 'intermedia' — § HERO-VELO-INTERMEDIO-1 (2026-09-28): el
+  // owner, sobre el gate visual de 'suave' ya aplicada («también» junto al color pleno de la frase de
+  // § HERO-FRASE-COLOR-PLENO-1): «el velo del hero puede ser un poquito más oscuro, si eso logra que
+  // las letras, no solo del pie, sino del nav se aprecien mejor». 'intermedia' es el TERCER paso del
+  // set cerrado (`VELO_INTENSIDADES`, site-content-defaults.ts), entre 'suave' y 'media' y MÁS CERCA
+  // de 'suave' — el rango exacto y el contraste medido (frase Y nav, que renderizan el MISMO blanco
+  // sobre el MISMO velo compuesto) viven en el docstring de `rangoVeloDeIntensidad`/`veloOpacidad`,
+  // `lib/animation.ts`. CORTE es hoy el ÚNICO preset del catálogo que declara `heroVeloIntensidad`/
+  // `.heroTickerVelocidad`; los otros cinco no tocan `content.hero.veloIntensidad`/`.tickerVelocidad`
+  // (quedan en su default `'media'`).
+  heroVeloIntensidad: 'intermedia',
   heroTickerVelocidad: 'lenta',
   // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
   // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija

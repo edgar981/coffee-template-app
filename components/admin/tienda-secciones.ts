@@ -10,7 +10,7 @@
 // `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
 // `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
 // divergir de la que el resolver clampa.
-import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES } from '@/lib/config/site-content-defaults';
+import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, type VeloIntensidad } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -43,9 +43,18 @@ const OPCIONES_PUNTO_FOCAL: { value: string; label: string }[] =
 
 // LOS DOS SELECTS de RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) — MISMO patrón que el de arriba: las
 // claves salen de `site-content-defaults.ts` (el set cerrado del resolver), este archivo sólo agrega
-// la etiqueta legible. Sólo dos opciones cada uno, así que el mapa de labels va inline.
+// la etiqueta legible. `OPCIONES_TICKER_VELOCIDAD` sigue teniendo sólo dos opciones (el ternario
+// alcanza); `OPCIONES_VELO_INTENSIDAD` GANÓ UNA TERCERA (§ HERO-VELO-INTERMEDIO-1) y el ternario
+// viejo (`clave === 'suave' ? 'Suave' : 'Media (la de siempre)'`) habría etiquetado la nueva clave
+// como "Media (la de siempre)" por caer en la rama `else` — un mapa explícito por clave, no un
+// ternario que agota sus dos ramas, es lo único que no puede mentir cuando el set crece a tres.
+const LABEL_VELO_INTENSIDAD: Record<VeloIntensidad, string> = {
+  suave: 'Suave',
+  intermedia: 'Intermedia',
+  media: 'Media (la de siempre)',
+};
 const OPCIONES_VELO_INTENSIDAD: { value: string; label: string }[] =
-  VELO_INTENSIDADES.map((clave) => ({ value: clave, label: clave === 'suave' ? 'Suave' : 'Media (la de siempre)' }));
+  VELO_INTENSIDADES.map((clave) => ({ value: clave, label: LABEL_VELO_INTENSIDAD[clave] }));
 const OPCIONES_TICKER_VELOCIDAD: { value: string; label: string }[] =
   TICKER_VELOCIDADES.map((clave) => ({ value: clave, label: clave === 'lenta' ? 'Más lenta' : 'Normal (medida contra el tema real)' }));
 

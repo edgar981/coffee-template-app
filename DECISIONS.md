@@ -29263,3 +29263,229 @@ reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente
 orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `HERO-FRASE-COLOR-PLENO-1`.**
+
+## 2026-09-28 — El velo del hero·sticky gana un TERCER paso, `'intermedia'` — CORTE lo adopta (`HERO-VELO-INTERMEDIO-1`)
+
+Gate visual del owner (2026-09-28), sobre `HERO-FRASE-COLOR-PLENO-1` ya aplicada, textual: *"Mejoró,
+sin embargo creo que el velo del hero puede ser un poquito más oscuro, si eso logra que las letras,
+no solo del pie, sino del nav se aprecien mejor"*. Es la CUARTA ronda del velo de esta variante
+(§ `CORTE-HERO-STICKY-RONDA-2-1`, `CORTE-HERO-VELO-OFF-Y-TICKER-1`, `CORTE-HERO-REVELADO-MASCARA-1`):
+el rango `media` (el de siempre) "opacaba" el video y se apagó; se pidió de vuelta y volvió `suave`;
+ahora el owner pide un paso entre los dos — **más cerca de `suave`**, no una vuelta a `media`.
+
+### 1 · El vocabulario — `VELO_INTENSIDADES` gana `'intermedia'`, reordenado claro→oscuro
+
+`VELO_INTENSIDADES` (`lib/config/site-content-defaults.ts`) pasa de `['media', 'suave']` a
+`['suave', 'intermedia', 'media']` — el orden ahora va de MÁS CLARO a MÁS OSCURO, para que el
+`<select>` del panel (`OPCIONES_VELO_INTENSIDAD`, `tienda-secciones.ts`) se lea como una escala.
+`'media'` SIGUE siendo la CANÓNICA (`REGISTRY.hero.escalares.veloIntensidad.canonica`) pese a quedar
+última en el array — orden de presentación y canónica son ejes independientes, y ningún consumidor
+del array asume que la canónica es el primer elemento.
+
+**El ternario del panel tenía un bug latente que este cambio habría disparado.**
+`OPCIONES_VELO_INTENSIDAD` etiquetaba con `clave === 'suave' ? 'Suave' : 'Media (la de siempre)'` —
+dos ramas para dos claves. Con una tercera clave, la rama `else` habría etiquetado `'intermedia'`
+como *"Media (la de siempre)"*, un texto FALSO en el panel. Se reemplazó por un mapa explícito
+(`LABEL_VELO_INTENSIDAD: Record<VeloIntensidad, string>`), la única forma que no puede mentir cuando
+el set crece.
+
+### 2 · El rango — MEDIDO, no elegido a ojo
+
+`VELO_RANGO_SUAVE` (`{piso:0.30, techo:0.55}`) y `VELO_RANGO_MEDIA` (`{piso:0.75, techo:1}`)
+comparten el MISMO ancho, 0.25. `VELO_RANGO_INTERMEDIA` preserva ese ancho —
+**`{piso:0.40, techo:0.65}`** — y sólo DESPLAZA la base **+0.10** sobre `suave`. +0.10 es MENOS de un
+cuarto de la distancia total entre `suave` y `media` (0.75−0.30=0.45; un cuarto serían +0.1125):
+deliberadamente CONSERVADOR — el owner dijo *"un poquito"*, y el error caro es pasarse (volver a
+`media`, que YA se probó y "opacaba" el video), no quedarse corto.
+
+Se descartó un paso MÁS CHICO (+0.05, `{piso:0.35, techo:0.60}`) por MEDIDO: el salto de contraste
+que produce (~+0.20 en las tres fotos, ~9% relativo) es más difícil de distinguir a ojo que el de
++0.10 (~+0.40/+0.80, ~19–25% relativo, tabla abajo) — el spec pide un paso "que se note", no sólo
+que el número cambie.
+
+### 3 · El contraste — la frase Y el nav son EL MISMO blanco sobre EL MISMO velo
+
+El pedido tiene DOS lectores, no uno: la frase al pie (`hero.fraseAlPie`, rol PLENO desde
+`HERO-FRASE-COLOR-PLENO-1`, `--sf-sobre-banda`, fallback `white` — CORTE no asigna esquema a
+`'hero'`) y los links del nav en su tratamiento FLOTANTE sobre el hero
+(`StoreNav.tsx:187-190`, `navFlotando && navClaro → text-[var(--sf-sobre)]`, TAMBIÉN blanco puro,
+`#ffffff`, un token GLOBAL sin esquema). **Las dos superficies renderizan el mismo blanco sobre el
+mismo velo compuesto** — una sola tabla de contraste vale para las dos; no hace falta una segunda.
+
+Mismo método WCAG que ya usa `lib/animation.ts` (luminancia relativa, alpha-compositing sRGB estándar)
+contra las TRES fotos claras de referencia (arena `rgb(232,222,200)`, casi-blanco `rgb(245,245,240)`,
+crema `rgb(238,230,214)`) y la tinta REAL de CORTE (`#102407`):
+
+| foto | etapa | `suave` (ANTES) | `intermedia` (DESPUÉS) | delta |
+| --- | --- | --- | --- | --- |
+| arena | reposo (piso, densidad 0.24→0.32) | 2.16:1 | 2.58:1 | +0.42 |
+| arena | final (techo, densidad 0.44→0.52) | 3.46:1 | 4.26:1 | +0.80 |
+| casi-blanco | reposo | 1.80:1 | 2.17:1 | +0.37 |
+| casi-blanco | final | 2.95:1 | 3.69:1 | +0.74 |
+| crema | reposo | 2.02:1 | 2.42:1 | +0.40 |
+| crema | final | 3.26:1 | 4.04:1 | +0.78 |
+
+La ganancia es PAREJA en las tres fotos (~19–21% relativo en reposo, ~23–25% en el final). **Sigue
+bajo AA (4.5:1) en los seis puntos** — MEDIDO Y REPORTADO, NO BLOQUEADO, la misma aceptación que ya
+rige `suave`: el proxy de fotos claras es conservador para un video claro, no el video real y oscuro
+de CORTE, y el pedido del owner es sobre la legibilidad REAL que ya verificó en pantalla, no sobre
+cruzar el piso WCAG de un proxy que no representa su video. El punto más cercano a AA es el techo
+sobre arena (4.26, a 0.24 de cruzarlo) — cruzarlo habría exigido acercarse más a `media`, el paso que
+el spec pide evitar.
+
+### 4 · CORTE adopta `'intermedia'`
+
+`heroVeloIntensidad` (`CORTE`, `lib/config/themes.ts`) pasa de `'suave'` a `'intermedia'`.
+`heroTickerVelocidad` NO cambia (`'lenta'`, sin relación con este pedido). CORTE sigue siendo el
+ÚNICO preset del catálogo que declara `heroVeloIntensidad`/`.heroTickerVelocidad`; los otros cinco
+siguen sin tocar `content.hero.veloIntensidad`/`.tickerVelocidad` (quedan en `'media'`).
+
+**EL DUEÑO DEBE RE-APLICAR CORTE PARA VER EL CAMBIO.** El valor persistido en `SiteContent` de
+cualquier tenant que ya aplicó CORTE sigue siendo `'suave'` — cambiar el preset en el código no
+reescribe una fila ya guardada (`mergePresetEnContent` sólo corre cuando alguien re-aplica el
+preset desde el panel o `?tema=CORTE`). Después de re-aplicar, el dueño puede moverse libremente
+entre los TRES pasos (`Suave` · `Intermedia` · `Media (la de siempre)`) desde el select "Intensidad
+del velo" del editor de `/admin/tienda` — sin otro slice: es exactamente lo que `escalares` +
+`resolverVariante` ya resuelven para cualquier valor del set cerrado.
+
+### 5 · Tests
+
+- `VELO_INTENSIDADES` es exactamente `['suave', 'intermedia', 'media']`, en ese orden
+  (`site-content-defaults.test.ts`).
+- `'media'` sigue siendo la canónica del escalar pese al reorden.
+- `resolverSiteContent`/`resolverVariante` respetan `'intermedia'` (no la confunden con basura, no
+  la clampan a la canónica).
+- `rangoVeloDeIntensidad('intermedia')` es exactamente `{piso:0.4, techo:0.65}`.
+- `'intermedia'` cae ESTRICTAMENTE entre `suave` y `media` en las DOS puntas, y MÁS CERCA de `suave`
+  (distancia medida, no supuesta).
+- `'intermedia'` preserva el ancho 0.25 de los otros dos rangos (con tolerancia de punto flotante —
+  `0.55-0.30` en JS da `0.25000000000000006`, no `0.25` exacto; el primer intento de este test
+  comparaba con `assert.equal` y falló por esto, se corrigió a comparación con tolerancia `1e-9`).
+- `veloOpacidad` con el rango `intermedia` se comporta igual que con `suave`/`media` (progreso 0/0.5/1,
+  `estatico` rinde el techo DE ESE rango).
+- Variantes casi-iguales (`'intermedio'`, `'INTERMEDIA'`, con espacio) no matchean la clave exacta y
+  caen a `media` — la guarda de basura no se ablandó.
+- El contraste de `intermedia` MEJORA sobre `suave` en las seis mediciones (piso/techo × 3 fotos) y
+  sigue bajo AA en las seis — la tabla de §3, afirmada por código.
+- CORTE declara `'intermedia'`, sigue validando COMPLETO, y `mergePresetEnContent` la escribe
+  preservando el resto de la sección (`hero-toggles-preset.test.ts`).
+- `?tema=CORTE` sobre Nayoli resuelve `hero.veloIntensidad:'intermedia'`.
+- `corte-marquesina-velo.test.ts`: el test de `--sf-velo` bajo CORTE se actualiza al nuevo valor
+  esperado (`'intermedia'`); la mitad que afirma el token compartido hero↔marquesina no cambia — no
+  depende de CUÁL intensidad.
+
+### 6 · Gate
+
+| Medición | Resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2434/2434** — verde. +12 netos sobre el piso de 2422 (`f871a86`, `HERO-FRASE-COLOR-PLENO-1`). Reconciliado: `git diff` cuenta +12 `test(` nuevos y 0 removidos en `lib/animation.test.ts` + `lib/config/site-content-defaults.test.ts` — coincide exacto. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (`touches:` no incluye ningún archivo de `tests/integracion/`). |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + los 2 hovers, crudo Y consciente de antialiasing (`home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870`) — idénticos a los conteos de `HERO-FRASE-COLOR-PLENO-1`, esperado por construcción: Nayoli sin preset resuelve `hero.veloIntensidad` a la canónica `'media'` (sin cambio) y nunca lee `'intermedia'` — el cambio vive enteramente dentro de `CORTE`. |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers contra el fixture commiteado — ver §7 para el detalle. |
+
+### 7 · `guarda:color` — corrida sobre el árbol de trabajo, ANTES del commit
+
+`lib/config/themes.ts` y `lib/config/site-content-defaults.ts` importan DIRECTAMENTE una de las tres
+raíces del motor de color (`fuentes.ts`/`formas.ts`/`palette-derive.ts`, verificado por grep de sus
+imports relativos) — los DOS entran a `SISTEMA_DE_COLOR` por la regla derivada
+(`importadoresDirectosDeRaices`), así que la guarda SÍ corre el arnés completo para este slice (no
+sale por intersección vacía). Corrió contra el ÁRBOL DE TRABAJO (`construir(RAIZ, …)` compila los
+archivos en disco, no un checkout de git — la decisión de SI correr sí depende de `git diff` contra
+`main`, pero la CONSTRUCCIÓN no depende de haber commiteado). Resultado, las 6 rutas + 2 hovers
+contra el fixture commiteado de `tests/visual/nayoli/`:
+
+```
+ruta-home          → IDÉNTICO (0/4608000 px, consciente de AA; crudo: 0)
+ruta-tienda        → IDÉNTICO (0/2433280 px, consciente de AA; crudo: 0)
+ruta-producto      → IDÉNTICO (0/2535680 px, consciente de AA; crudo: 0)
+ruta-checkout      → IDÉNTICO (0/1152000 px, consciente de AA; crudo: 0)
+ruta-nosotros      → IDÉNTICO (0/1152000 px, consciente de AA; crudo: 0)
+ruta-suscripciones → IDÉNTICO (0/2144000 px, consciente de AA; crudo: 0)
+hover-automatica   → IDÉNTICO (0/98298 px, consciente de AA; crudo: 0)
+hover-eleccion     → IDÉNTICO (0/102870 px, consciente de AA; crudo: 0)
+```
+
+`exit 0` — "Nayoli sin preset se ve IDÉNTICO al fixture". Los mismos ocho conteos de píxeles totales
+que `verificar:nayoli:visual` (§6) — coherente: las dos corren el mismo arnés de captura sobre las
+mismas rutas, una contra `main` en vivo y ésta contra el fixture congelado.
+
+### `customer_bytes`
+
+**`changed: true`.** Para el tenant que declara `CORTE` (hoy Nayoli con `?tema=CORTE` aplicado, o
+cualquier tenant futuro que aplique/re-aplique ese preset), el velo sobre el hero·sticky se vuelve
+MÁS OSCURO en las dos puntas del recorrido de scroll (piso 0.30→0.40, techo 0.55→0.65) — un cambio
+VISUAL directo del storefront, el propósito explícito del gate que disparó este slice.
+`strings:` **ninguno** — no se agrega ni cambia copy; el cambio es puramente de opacidad de un
+overlay. (El label del `<select>` del panel — `"Intermedia"` — es texto del ADMIN, no del visitante;
+se nombra igual por transparencia, no porque cuente como customer-facing.)
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `touches:` tampoco las incluía.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `VELO_INTENSIDADES`, `VeloIntensidad`, `veloIntensidad`,
+`heroVeloIntensidad`, `VELO_RANGO_INTERMEDIA`, `rangoVeloDeIntensidad`, `veloOpacidad`,
+`OPCIONES_VELO_INTENSIDAD`, `LABEL_VELO_INTENSIDAD`, el valor `'intermedia'`, y los archivos
+`lib/animation.ts`, `lib/config/site-content-defaults.ts`, `lib/config/themes.ts`,
+`components/admin/tienda-secciones.ts` y sus tests. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `veloIntensidad`, `VeloIntensidad`, `VELO_INTENSIDADES`,
+  `heroVeloIntensidad`, `rangoVeloDeIntensidad`, `veloOpacidad`, `VELO_RANGO`, `animation.ts`, y el
+  string `'intermedia'` como clave. `CLAUDE.md` no documenta el hero sticky, el velo, el sistema de
+  presets multi-tenant (CORTE) ni `lib/animation.ts` en absoluto — consistente con lo que
+  `HERO-FRASE-COLOR-PLENO-1` ya reportó para el mismo vecindario.
+- **`tienda-secciones`** → UNA aparición (línea ~2982, § "La SUSCRIPCIÓN es una capacidad APAGABLE"),
+  citando el archivo por su rol de agrupar `PAGINAS` en pestañas — no tiene relación con
+  `OPCIONES_VELO_INTENSIDAD`/`LABEL_VELO_INTENSIDAD` (los símbolos que este diff toca ahí). No queda
+  falsa.
+- **`components/storefront/`** (el bullet de subárboles Tier 1) → confirma que
+  `components/storefront/home/HeroMediaMarquesina.tsx` (NO tocado por este diff, ver más abajo) cae
+  bajo Tier 1 por el subárbol, consistente con `tier: 1` del dispatch.
+
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`), por las secciones que este diff toca:
+`grep -n "heroVeloIntensidad\|veloIntensidad" DECISIONS.md` (antes de esta entrada) da estas
+apariciones relevantes fuera de la propia historia de `CORTE-HERO-REVELADO-MASCARA-1`:
+
+- `DECISIONS.md:25954` (una entrada anterior sobre la velocidad del ticker, open follow-up):
+  *"re-aplicar el preset CORTE a ese tenant para que tome
+  `heroTickerVelocidad:'lenta'`/`heroVeloIntensidad:'suave'`"* — **ESTA FRASE QUEDA FALSA por este
+  diff**: el valor correcto a confirmar tras re-aplicar CORTE ya NO es `'suave'`, es `'intermedia'`.
+  Es un follow-up de OTRO slice, fuera de `touches:` de éste — no se edita (§ Open follow-ups, abajo,
+  nombra el defecto en vez de corregirlo).
+- Todas las demás apariciones son DENTRO de la propia historia de `CORTE-HERO-REVELADO-MASCARA-1`
+  (RONDA 4) y sus asientos hermanos, narrando correctamente lo que esa ronda decidió EN SU MOMENTO
+  (`'suave'` era la elección correcta entonces) — no se editan, es historia, no una afirmación sobre
+  el presente.
+
+### Open follow-ups
+
+- **`HERO-VELO-INTERMEDIO-STALE-POINTER-1`** — `DECISIONS.md:25954` (el open follow-up de un slice
+  anterior sobre `heroTickerVelocidad`) nombra `'suave'` como el valor a confirmar tras re-aplicar
+  CORTE; después de este slice el valor correcto es `'intermedia'`. No se corrige acá: es la entrada
+  de OTRO slice y editarla está fuera de `touches:` de éste. Quien retome ese follow-up debe leer
+  `heroVeloIntensidad:'intermedia'`, no `'suave'`.
+- **`components/storefront/home/HeroMediaMarquesina.tsx` queda con DOS comentarios desactualizados**
+  (líneas ~108-109 y ~416-417, fuera de `touches:` — el archivo no está en la lista del dispatch):
+  citan literalmente `heroVeloIntensidad:'suave'`/`'suave', la preferencia de CORTE` como el valor
+  vigente. El MECANISMO que describen (el tercer parámetro `rango` de `veloOpacidad`, derivado vía
+  `rangoVeloDeIntensidad`) sigue siendo exacto — lo que envejece es el VALOR citado como ejemplo. No
+  se edita: tocar ese archivo habría ensanchado el diff más allá de lo declarado.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones ejecutables
+(tsc, `npm test`, `npm run test:integracion`) más `verificar:nayoli:visual` en 0px (6 rutas + 2
+hovers) y `guarda:color` (§7). Sin `schema`, sin `cross-repo-contract`. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el owner ya aprobó la ESCRITURA (`approved: yes`, con su
+reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea. **El dueño debe re-aplicar CORTE**
+para que la fila persistida tome `'intermedia'` (§4); después puede moverse entre los tres pasos
+desde "Intensidad del velo" sin otro slice.
+
+**Cierra `HERO-VELO-INTERMEDIO-1`.**

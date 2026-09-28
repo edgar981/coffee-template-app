@@ -268,6 +268,97 @@ test('el rango "suave" queda BAJO AA (4.5:1) contra el proxy de fotos claras —
   }
 });
 
+// ── EL TERCER RANGO, 'intermedia' — § HERO-VELO-INTERMEDIO-1 (2026-09-28). El owner, sobre el gate
+// visual de 'suave' ya aplicada (misma ronda que subió la frase al pie a `--sf-sobre-banda` PLENO,
+// § HERO-FRASE-COLOR-PLENO-1): «el velo del hero puede ser un poquito más oscuro, si eso logra que
+// las letras, no solo del pie, sino del nav se aprecien mejor». El rango completo y su porqué —el
+// ancho de 0.25 preservado, el desplazamiento de +0.10 sobre 'suave', y por qué no uno más chico ni
+// más grande— vive en el docstring de `rangoVeloDeIntensidad`, arriba.
+
+test('rangoVeloDeIntensidad("intermedia") es exactamente {piso:0.4, techo:0.65}', () => {
+  assert.deepEqual(rangoVeloDeIntensidad('intermedia'), { piso: 0.4, techo: 0.65 });
+});
+
+test('"intermedia" cae ENTRE "suave" y "media" en las DOS puntas, y MÁS CERCA de "suave" — el pedido del owner fue "un poquito", no volver a "media"', () => {
+  const suave = rangoVeloDeIntensidad('suave');
+  const intermedia = rangoVeloDeIntensidad('intermedia');
+  const media = rangoVeloDeIntensidad('media');
+  assert.ok(intermedia.piso > suave.piso && intermedia.piso < media.piso, 'el piso debe quedar estrictamente entre los otros dos');
+  assert.ok(intermedia.techo > suave.techo && intermedia.techo < media.techo, 'el techo debe quedar estrictamente entre los otros dos');
+  const distanciaASuavePiso = intermedia.piso - suave.piso;
+  const distanciaAMediaPiso = media.piso - intermedia.piso;
+  assert.ok(distanciaASuavePiso < distanciaAMediaPiso, `"intermedia" debe quedar más cerca de "suave" (dist ${distanciaASuavePiso.toFixed(2)}) que de "media" (dist ${distanciaAMediaPiso.toFixed(2)})`);
+});
+
+test('"intermedia" preserva el ANCHO de 0.25 que ya comparten "suave" y "media" — se desplaza la base, no se estira ni encoge la ventana', () => {
+  // Aritmética en punto flotante: 0.55-0.30 NO da 0.25 exacto (da 0.25000000000000006), así que la
+  // comparación va con TOLERANCIA (1e-9), no `assert.equal` — el mismo motivo por el que el resto de
+  // este archivo nunca compara floats restados con igualdad estricta.
+  const suave = rangoVeloDeIntensidad('suave');
+  const intermedia = rangoVeloDeIntensidad('intermedia');
+  const media = rangoVeloDeIntensidad('media');
+  const anchoSuave = suave.techo - suave.piso;
+  const anchoIntermedia = intermedia.techo - intermedia.piso;
+  const anchoMedia = media.techo - media.piso;
+  const TOLERANCIA = 1e-9;
+  assert.ok(Math.abs(anchoSuave - 0.25) < TOLERANCIA, `anchoSuave debía ser ~0.25; dio ${anchoSuave}`);
+  assert.ok(Math.abs(anchoMedia - 0.25) < TOLERANCIA, `anchoMedia debía ser ~0.25; dio ${anchoMedia}`);
+  assert.ok(Math.abs(anchoIntermedia - anchoSuave) < TOLERANCIA, 'el mismo ancho que "suave"');
+  assert.ok(Math.abs(anchoIntermedia - anchoMedia) < TOLERANCIA, 'el mismo ancho que "media"');
+});
+
+test('veloOpacidad con el rango "intermedia": progreso=0 da su piso, progreso=1 da su techo, 0.5 a mitad de camino — mismo comportamiento que "suave"/"media", otra magnitud', () => {
+  const intermedia = rangoVeloDeIntensidad('intermedia');
+  assert.equal(veloOpacidad(0, false, intermedia), intermedia.piso);
+  assert.equal(veloOpacidad(1, false, intermedia), intermedia.techo);
+  assert.equal(veloOpacidad(0.5, false, intermedia), intermedia.piso + (intermedia.techo - intermedia.piso) * 0.5);
+});
+
+test('veloOpacidad con el rango "intermedia": estatico=true rinde el TECHO de ESE rango (0.65) — ni el 0.55 de "suave" ni el 1 de "media"', () => {
+  const intermedia = rangoVeloDeIntensidad('intermedia');
+  assert.equal(veloOpacidad(0, true, intermedia), intermedia.techo);
+  assert.equal(intermedia.techo, 0.65);
+});
+
+test('rangoVeloDeIntensidad("intermedia") no colisiona con la guarda de basura — "intermedio"/"INTERMEDIA"/variantes no son la clave exacta y caen a "media"', () => {
+  for (const casiIgual of ['intermedio', 'INTERMEDIA', 'Intermedia', 'intermedia ']) {
+    assert.deepEqual(rangoVeloDeIntensidad(casiIgual), rangoVeloDeIntensidad('media'), `"${casiIgual}" no es la clave exacta`);
+  }
+});
+
+test('el rango "intermedia" MEJORA el contraste sobre "suave" en las DOS puntas y las TRES fotos, y sigue bajo AA (4.5:1) — MEDIDO y REPORTADO, no bloqueado (§ el docstring de rangoVeloDeIntensidad)', () => {
+  // Mismo método WCAG y las mismas tres fotos de referencia que el test de "suave" arriba, contra la
+  // TINTA REAL de CORTE (#102407). "Un poquito más oscuro" se verifica en DOS partes: el contraste
+  // SUBE respecto de "suave" (el pedido), y sigue sin cruzar AA (el límite: no es "media" otra vez).
+  function srgbToLin(c: number) { const cs = c / 255; return cs <= 0.03928 ? cs / 12.92 : Math.pow((cs + 0.055) / 1.055, 2.4); }
+  function relLum([r, g, b]: number[]) { return 0.2126 * srgbToLin(r) + 0.7152 * srgbToLin(g) + 0.0722 * srgbToLin(b); }
+  function contraste(c1: number[], c2: number[]) {
+    const L1 = relLum(c1), L2 = relLum(c2);
+    return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+  }
+  const tintaCorte = [0x10, 0x24, 0x07];
+  const blanco = [255, 255, 255];
+  const fotos = { arena: [232, 222, 200], casiBlanco: [245, 245, 240], crema: [238, 230, 214] };
+  const suave = rangoVeloDeIntensidad('suave');
+  const intermedia = rangoVeloDeIntensidad('intermedia');
+  for (const [nombre, foto] of Object.entries(fotos)) {
+    const contrasteEn = (opacidad: number) => {
+      const alfa = opacidad * 0.8;
+      const compuesto = tintaCorte.map((t, i) => alfa * t + (1 - alfa) * foto[i]);
+      return contraste(blanco, compuesto);
+    };
+    const suavePiso = contrasteEn(suave.piso);
+    const intermediaPiso = contrasteEn(intermedia.piso);
+    assert.ok(intermediaPiso > suavePiso, `piso: "intermedia" (${intermediaPiso.toFixed(2)}) debe superar a "suave" (${suavePiso.toFixed(2)}) contra ${nombre}`);
+    assert.ok(intermediaPiso < 4.5, `piso contra ${nombre} debía quedar bajo AA; dio ${intermediaPiso.toFixed(2)}`);
+
+    const suaveTecho = contrasteEn(suave.techo);
+    const intermediaTecho = contrasteEn(intermedia.techo);
+    assert.ok(intermediaTecho > suaveTecho, `techo: "intermedia" (${intermediaTecho.toFixed(2)}) debe superar a "suave" (${suaveTecho.toFixed(2)}) contra ${nombre}`);
+    assert.ok(intermediaTecho < 4.5, `techo contra ${nombre} debía quedar bajo AA; dio ${intermediaTecho.toFixed(2)}`);
+  }
+});
+
 // ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
 // REVELADO-MASCARA-1) — sin React, sin navegador. `transformRevelaTextoDisplay` reemplaza a
 // `opacidadRevelado`/`translateYRevelado` (RETIRADAS, sin otro consumidor): traslada un PORCENTAJE de

@@ -108,15 +108,17 @@ export interface HeroContent {
   // velo de vuelta, más suave que el de siempre—, así que ya NO es el único preset que lo declara en
   // `false`; ver `veloIntensidad`, abajo, para el eje que sí sigue siendo propio de CORTE.
   veloVisible: boolean;
-  // `veloIntensidad` (§ CORTE-HERO-REVELADO-MASCARA-1) — ESCALAR de sección, MISMO mecanismo que
-  // `imagenTipo`/`puntoFocal` (`REGISTRY.hero.escalares`, resuelto con `resolverVariante`): 'media'
-  // (canónica) es el rango piso/techo de SIEMPRE (`VELO_OPACIDAD_PISO`/1, § `veloOpacidad`,
-  // `lib/animation.ts` — byte-idéntico para todo tema que no la declare); 'suave' es MÁS TENUE en
-  // las DOS puntas del recorrido (piso y techo), la que CORTE elige. SÓLO tiene efecto con
-  // `veloVisible:true` — atenuada en el panel cuando el velo está apagado (`gatedFields`,
-  // § tienda-secciones.ts, `HERO.booleanos`). El contraste medido de 'suave' (bajo AA contra el
-  // proxy de fotos claras, aceptado porque el video real de CORTE es oscuro) vive en el docstring de
-  // `veloOpacidad`.
+  // `veloIntensidad` (§ CORTE-HERO-REVELADO-MASCARA-1, TERCER paso agregado por § HERO-VELO-
+  // INTERMEDIO-1) — ESCALAR de sección, MISMO mecanismo que `imagenTipo`/`puntoFocal`
+  // (`REGISTRY.hero.escalares`, resuelto con `resolverVariante`): 'media' (canónica) es el rango
+  // piso/techo de SIEMPRE (`VELO_OPACIDAD_PISO`/1, § `veloOpacidad`, `lib/animation.ts` —
+  // byte-idéntico para todo tema que no la declare); 'suave' es la MÁS TENUE en las DOS puntas del
+  // recorrido (piso y techo); 'intermedia' cae ENTRE las dos, más cerca de 'suave' — la que CORTE
+  // elige desde § HERO-VELO-INTERMEDIO-1 (el owner, sobre 'suave' ya aplicada: «el velo del hero
+  // puede ser un poquito más oscuro»). SÓLO tiene efecto con `veloVisible:true` — atenuada en el
+  // panel cuando el velo está apagado (`gatedFields`, § tienda-secciones.ts, `HERO.booleanos`). El
+  // contraste medido de las tres intensidades (bajo AA contra el proxy de fotos claras, aceptado
+  // porque el video real de CORTE es oscuro) vive en el docstring de `veloOpacidad`.
   veloIntensidad: VeloIntensidad;
   // `tickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1) — ESCALAR de sección, MISMO mecanismo: 'media'
   // (canónica) es `VELOCIDAD_TICKER_PX_S` — la velocidad MEDIDA contra el tema real (`lib/animation.
@@ -190,7 +192,19 @@ export function objectPositionDePuntoFocal(puntoFocal: string): string | undefin
 // claves que el resolver realmente acepta. Los NÚMEROS que cada clave representa (el rango de
 // opacidad del velo, la velocidad del ticker en px/s) viven en `lib/animation.ts`, no acá — este
 // archivo sólo declara el VOCABULARIO de contenido; `lib/animation.ts` lo traduce a magnitud.
-export const VELO_INTENSIDADES = ['media', 'suave'] as const;
+//
+// `VELO_INTENSIDADES` GANÓ UN TERCER PASO — § HERO-VELO-INTERMEDIO-1 (2026-09-28): el owner, sobre
+// el gate visual de 'suave' ya aplicada (tras § HERO-FRASE-COLOR-PLENO-1): «el velo del hero puede
+// ser un poquito más oscuro, si eso logra que las letras, no sólo del pie, sino del nav se aprecien
+// mejor». 'intermedia' entra ENTRE las dos, MÁS CERCA de 'suave' que de 'media' (el rango exacto, §
+// `lib/animation.ts`). EL ORDEN DEL ARRAY VA DE MÁS CLARO A MÁS OSCURO ('suave' → 'intermedia' →
+// 'media') — así el `<select>` del panel (`OPCIONES_VELO_INTENSIDAD`, `tienda-secciones.ts`, que
+// mapea este array `.map()`) se lee como una escala, no como una lista sin orden aparente. 'media'
+// SIGUE SIENDO LA CANÓNICA pese a quedar última en el array — el orden de PRESENTACIÓN (claridad→
+// oscuridad) y la CANÓNICA (byte-idéntico sin fila) son dos ejes independientes; ningún consumidor
+// de este array asume que la canónica es el primer elemento (`resolverVariante` la recibe aparte,
+// § `escalares.veloIntensidad.canonica` más abajo).
+export const VELO_INTENSIDADES = ['suave', 'intermedia', 'media'] as const;
 export type VeloIntensidad = (typeof VELO_INTENSIDADES)[number];
 
 export const TICKER_VELOCIDADES = ['media', 'lenta'] as const;
