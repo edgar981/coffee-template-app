@@ -190,6 +190,26 @@ export default function StoreNav() {
   // pide evitar, y reusa infraestructura que YA existe en vez de un segundo guard.
   const navOcultoClase = navDireccionActiva ? (oculto ? '-translate-y-full' : 'translate-y-0') : '';
 
+  // EL FILETE INFERIOR (§ CROMO-NAV-FILETE-1): línea fina que separa el encabezado del contenido, SIN
+  // cruzar toda la pantalla — va en el CONTENEDOR DE CONTENIDO (`.max-w-6xl` de abajo), NO en el
+  // `<header>` de ancho completo. Medido contra el tema real (`x-cafeone.myshopify.com`,
+  // `.xo-header__content`, `bdb:s1 bdbc:foreground.2`, dentro de `<xo-container>`): el borde vive en
+  // el contenedor CON el margen lateral de página — nunca en la barra fija (`.xo-header`/
+  // `.xo-header__inner`, que declaran `bdrs:s0 bd:s0`, CERO borde) — así el inset sale del mismo
+  // margen que ya alinea el contenido, sin un número propio. Ancho: la unidad no-cero más chica de su
+  // escala de bordes, `border-b` (1px) — el MISMO hairline que ya usa
+  // `border-[var(--sf-sobre)]/20` más abajo (el drawer `pantallaCompleta`, medido contra el mismo
+  // prototipo). Color: el PROPIO primer plano del encabezado —el mismo par `navClaro` que ya decide
+  // texto/íconos, no un color de borde aparte— a opacidad reducida (`foreground.2` = 20%). Las clases
+  // de borde del tema real NO llevan el sufijo condicional de sticky que sí llevan `pl`/`pr` en esa
+  // misma cadena, así que el filete se ve en los DOS tratamientos del nav (flotando Y sólido) — no
+  // depende de `scrolled`. `false` (todo tenant salvo CORTE) → sin filete, byte-idéntico a hoy. Vive
+  // DENTRO del `<header>`, así que se oculta CON él al bajar (§ CROMO-NAV-DIRECCION-SCROLL-1) — nunca
+  // queda flotando solo.
+  const navFileteClase = navTratamiento.filete
+    ? (navClaro ? 'border-b border-[var(--sf-sobre)]/20' : 'border-b border-[var(--sf-tinta)]/20')
+    : '';
+
   // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links
   // del nav llevan mayúscula + tracking del prototipo + un peso, sobre la MISMA sans del par (SIN
   // tercera familia: no se toca `font-family`, sólo `text-transform`/`letter-spacing`/`font-weight`).
@@ -266,7 +286,7 @@ export default function StoreNav() {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocoDentro(false);
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 ${navFileteClase}`}>
           <div className="flex items-center justify-between h-16 lg:h-18">
             {/* Logo — SIN el badge de `cromo.navBadge` (§ CORTE-BADGE-COSECHA-EN-MENU-1). Antes esta
                 celda condicionaba entre `logoLink` solo y un flex que lo envolvía junto al badge; el

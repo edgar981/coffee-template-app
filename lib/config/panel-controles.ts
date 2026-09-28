@@ -202,20 +202,21 @@ const CONTROLADOS_PALETA_SECCION = ['tema.fondo', 'tema.tinta', 'tema.acento', '
 const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscripciones.visible'];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `EncabezadoSeccion.tsx` controla (§ PANEL-EDITOR-ENCABEZADO-1,
- *  ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1 y § CROMO-NAV-DIRECCION-SCROLL-1): `cromo`/
- *  `navWordmark`/`navTratamiento`/`navDrawerMovil` NO son secciones del REGISTRY (§ el docstring de
- *  `CONTROLADOS_PALETA_SECCION`, misma familia que `tema`), así que tienen su propia ruta de
- *  publicar/descartar (`/api/site-content/encabezado`) y se declaran acá, leídas de su código: los
- *  SEIS switches — logo (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`), color del nav
- *  (`cromo.navTinta`), tratamiento del nav (`navTratamiento.activo`), el drawer móvil de pantalla
- *  completa (`navDrawerMovil.variante`, un switch ON/OFF sobre el set cerrado de 2 —
- *  "pantallaCompleta" vs. el default "dropdown") y el comportamiento por dirección de scroll
- *  (`navTratamiento.direccion`, § CROMO-NAV-DIRECCION-SCROLL-1 — CAMPO de la MISMA meta que
- *  `navTratamiento.activo`, no una meta nueva, así que nace CONTROLADO en el mismo commit que lo
- *  suma al lado "leído": nunca pasa por `PENDIENTE_PANEL`). NO controla `cromo.navBadge`
- *  (§ PENDIENTE_PANEL, abajo — superseded por el badge del ítem de menú, que sí tiene control en
- *  `MenuSeccion.tsx`). */
-const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navTratamiento.direccion', 'navDrawerMovil.variante'];
+ *  ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, § CROMO-NAV-DIRECCION-SCROLL-1 y §
+ *  CROMO-NAV-FILETE-1): `cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil` NO son secciones del
+ *  REGISTRY (§ el docstring de `CONTROLADOS_PALETA_SECCION`, misma familia que `tema`), así que
+ *  tienen su propia ruta de publicar/descartar (`/api/site-content/encabezado`) y se declaran acá,
+ *  leídas de su código: los SIETE switches — logo (`navWordmark.activo`), sub-encabezado
+ *  (`cromo.navSubtitulo`), color del nav (`cromo.navTinta`), tratamiento del nav
+ *  (`navTratamiento.activo`), el drawer móvil de pantalla completa (`navDrawerMovil.variante`, un
+ *  switch ON/OFF sobre el set cerrado de 2 — "pantallaCompleta" vs. el default "dropdown"), el
+ *  comportamiento por dirección de scroll (`navTratamiento.direccion`, § CROMO-NAV-DIRECCION-
+ *  SCROLL-1) y el filete inferior del encabezado (`navTratamiento.filete`, § CROMO-NAV-FILETE-1) —
+ *  los últimos DOS son CAMPOS de la MISMA meta que `navTratamiento.activo`, no metas nuevas, así que
+ *  nacen CONTROLADOS en su propio commit: nunca pasan por `PENDIENTE_PANEL`. NO controla
+ *  `cromo.navBadge` (§ PENDIENTE_PANEL, abajo — superseded por el badge del ítem de menú, que sí
+ *  tiene control en `MenuSeccion.tsx`). */
+const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navTratamiento.direccion', 'navTratamiento.filete', 'navDrawerMovil.variante'];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `DetallesSitioSeccion.tsx` controla (§ PANEL-DETALLES-SITIO-1,
  *  ampliado por § MUESTRARIO-CARRITO-BARRA-ENVIO-1 y § MUESTRARIO-CARRITO-COMPOSICION-1):

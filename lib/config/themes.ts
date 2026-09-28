@@ -240,6 +240,16 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * el porqué: menos superficie, y el control ya vive en `EncabezadoSeccion.tsx`). CORTE es hoy el
  * ÚNICO preset que lo declara.
  *
+ * `navTratamientoFilete` (§ CROMO-NAV-FILETE-1, OPCIONAL) — ¿el encabezado gana un FILETE INFERIOR —
+ * una línea fina que lo separa del contenido, sin cruzar toda la pantalla— como el del tema real?
+ * MEDIDO contra el TEMA REAL (`x-cafeone.myshopify.com`, `.xo-header__content`, `bdb:s1
+ * bdbc:foreground.2` — el prototipo local capturado no lo trae, mismo límite que
+ * `navTratamientoDireccion` arriba). AUSENTE = el comportamiento de HOY, byte a byte (sin filete).
+ * Escribe `content.navTratamiento.filete` — TERCER CAMPO de la MISMA meta que `navTratamientoActivo`/
+ * `navTratamientoDireccion`, no una meta nueva (§ el docstring de `NavTratamientoContent.filete` en
+ * `site-content-defaults.ts` para el porqué completo, incluida la medición). CORTE es hoy el ÚNICO
+ * preset que lo declara.
+ *
  * `navWordmarkActivo` (§ CORTE-LOGO-APILADO-1, OPCIONAL) — ¿el wordmark apilado del nav (rama
  * `subtitle` de `Logo.tsx`, ya encendida por `navSubtitulo`) calza el `.wordmark`/`.wordmark small`
  * del prototipo (nombre en mayúscula+tracking+tamaño mayor, sub en la sans del cuerpo muted sin
@@ -312,6 +322,7 @@ export interface PresetTema {
   carritoEnvioVisible?: boolean;
   navTratamientoActivo?: boolean;
   navTratamientoDireccion?: boolean;
+  navTratamientoFilete?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
   carritoVariante?: ClaveCarrito;
@@ -582,16 +593,17 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   out.carritoEnvio = {
     visible: fusionar('carritoEnvio.visible', preset.carritoEnvioVisible ?? false),
   };
-  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1): meta
-  // PROPIA, aparte de `cromo`, `volverArriba`, `rielSocial` Y `carritoEnvio` — ver el docstring de
-  // `NavTratamientoContent` para el porqué (conceptualmente es la misma familia que
-  // `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato exhaustivo de 3 claves
-  // de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:` de este slice).
-  // `direccion` se fusiona por su PROPIA ruta (`navTratamiento.direccion`) — un campo más de esta
-  // meta, no un objeto aparte.
+  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1 y §
+  // CROMO-NAV-FILETE-1): meta PROPIA, aparte de `cromo`, `volverArriba`, `rielSocial` Y
+  // `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué (conceptualmente es
+  // la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato
+  // exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:`
+  // de este slice). `direccion` y `filete` se fusionan cada uno por su PROPIA ruta
+  // (`navTratamiento.direccion`/`.filete`) — campos más de esta meta, no un objeto aparte.
   out.navTratamiento = {
     activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
     direccion: fusionar('navTratamiento.direccion', preset.navTratamientoDireccion ?? false),
+    filete: fusionar('navTratamiento.filete', preset.navTratamientoFilete ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
@@ -1066,6 +1078,16 @@ export const CORTE: PresetTema = {
   // CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
   // `content.navTratamiento.direccion`.
   navTratamientoDireccion: true,
+  // navTratamientoFilete (§ CROMO-NAV-FILETE-1) — MEDIDO contra el TEMA REAL
+  // (`x-cafeone.myshopify.com`, `.xo-header__content`, clase `bdb:s1 bdbc:foreground.2`, DENTRO de
+  // `<xo-container>` — el prototipo local capturado NO implementa esto, mismo límite que
+  // `navTratamientoDireccion`). El gate visual del owner sobre el prototipo aplicado (2026-09-27):
+  // «el nav tiene una línea de demarcado en CAFEONE el nuestro no, pero la línea no cruza toda la
+  // pantalla, sino que deja los bordes sin tocar los extremos» — exactamente lo medido: el borde
+  // vive en el contenedor DE CONTENIDO (con el margen lateral de página), no en la barra de ancho
+  // completo. CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
+  // `content.navTratamiento.filete`.
+  navTratamientoFilete: true,
   // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
   // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
   // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,

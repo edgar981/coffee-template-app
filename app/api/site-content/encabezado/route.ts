@@ -5,12 +5,13 @@ import { storage } from '@/lib/storage';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config/site-content-write';
 
-// EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1 y §
-// CROMO-NAV-DIRECCION-SCROLL-1): logo, sub-encabezado, color del nav, tratamiento tipográfico del
-// nav, el drawer móvil de pantalla completa, y el comportamiento por dirección de scroll — SEIS ejes
-// que hasta hoy sólo escribía un preset (`mergePresetEnContent`, `themes.ts`). Los SEIS viven en
-// CUATRO claves META que `SeccionKey` EXCLUYE del REGISTRY (`cromo`, `navWordmark`, `navTratamiento`
-// —con DOS campos, `activo`/`direccion`—, `navDrawerMovil`; § site-content-defaults.ts) — NO son una
+// EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, §
+// CROMO-NAV-DIRECCION-SCROLL-1 y § CROMO-NAV-FILETE-1): logo, sub-encabezado, color del nav,
+// tratamiento tipográfico del nav, el drawer móvil de pantalla completa, el comportamiento por
+// dirección de scroll, y el filete inferior — SIETE ejes que hasta hoy sólo escribía un preset
+// (`mergePresetEnContent`, `themes.ts`). Los SIETE viven en CUATRO claves META que `SeccionKey`
+// EXCLUYE del REGISTRY (`cromo`, `navWordmark`, `navTratamiento` —con TRES campos,
+// `activo`/`direccion`/`filete`—, `navDrawerMovil`; § site-content-defaults.ts) — NO son una
 // sección, así que el PUT/POST GENÉRICO de `/api/site-content` no sirve para publicarlas/
 // descartarlas: su gate `seccion in REGISTRY` (route.ts:88) las rechaza con 400. El PUT genérico SÍ
 // las acepta al borrador (`siteContentEditableSchema` ya las declara opcionales), pero sin ruta

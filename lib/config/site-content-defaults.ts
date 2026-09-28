@@ -1033,6 +1033,24 @@ export interface NavTratamientoContent {
   // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.navTratamientoDireccion`; de los 6
   // presets del catálogo, sólo CORTE lo declara `true`.
   direccion: boolean;
+  // ¿El encabezado gana un FILETE INFERIOR — una línea fina que lo separa del contenido — como el
+  // del tema real (§ CROMO-NAV-FILETE-1)? MEDIDO contra el tema real
+  // (`x-cafeone.myshopify.com`, `.xo-header__content`, `bdb:s1 bdbc:foreground.2`): el borde vive en
+  // el CONTENEDOR DE CONTENIDO del header (`<xo-container><div class="xo-header__content"
+  // bdb:s1…">`), NO en la barra de ancho completo (`.xo-header`/`.xo-header__inner`, que declaran
+  // `bdrs:s0 bd:s0` — CERO borde explícito) — por eso el filete real no llega a los bordes de la
+  // pantalla: hereda el mismo margen lateral de página que ya alinea el contenido del encabezado, no
+  // un inset propio. `bdb:s1` es la unidad NO-CERO más chica de su escala de bordes (equivalente al
+  // `border-b` de 1px de Tailwind — el mismo hairline que ya usa `border-[var(--sf-sobre)]/20` en
+  // este archivo, § abajo); `bdbc:foreground.2` es el PROPIO primer plano del encabezado —el mismo
+  // token que ya decide `navClaro` para texto/íconos, no un color de borde aparte— a **opacidad
+  // reducida (20%)**. Las DOS clases de borde NO llevan el sufijo condicional `/xo-is-sticky` que sí
+  // llevan `pl`/`pr` en la misma cadena de clases del tema real, así que el filete se ve en LOS DOS
+  // tratamientos del nav (flotando transparente sobre el hero Y sólido al hacer scroll) — no cambia
+  // con `scrolled`, y por eso el resolver no necesita un segundo campo para eso. `false` = HOY: sin
+  // filete, byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `preset.navTratamientoFilete`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
+  filete: boolean;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1673,9 +1691,12 @@ export const DEFAULTS: SiteContentData = {
   // `text-sm font-medium` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   // COMPORTAMIENTO POR DIRECCIÓN por defecto (§ CROMO-NAV-DIRECCION-SCROLL-1): sin ocultar/reaparecer
   // por dirección → el nav de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  // FILETE INFERIOR por defecto (§ CROMO-NAV-FILETE-1): sin línea → el encabezado de HOY,
+  // byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   navTratamiento: {
     activo: false,
     direccion: false,
+    filete: false,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2587,7 +2608,7 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
     const dv = def[k];
     return typeof dv === 'boolean' ? dv : false;
   };
-  return { activo: bool('activo'), direccion: bool('direccion') };
+  return { activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete') };
 }
 
 // Resuelve el TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1), gemelo de

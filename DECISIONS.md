@@ -26814,3 +26814,196 @@ pendiente del gate del orquestador — este slice, por instrucción del dispatch
 
 **Cierra `CORTE-HERO-MARQUEE-RONDA-5-1`. Recomendado: re-aplicar CORTE NO hace falta (§ arriba); el
 próximo gate visual del owner puede verificar directo sobre lo ya commiteado.**
+
+## 2026-09-27 — El encabezado gana un filete inferior, TERCER campo de `navTratamiento` (`CROMO-NAV-FILETE-1`)
+
+**El pedido del owner, textual** (gate visual del prototipo aplicado): *«el nav tiene una línea de
+demarcado en CAFEONE el nuestro no, pero la línea no cruza toda la pantalla, sino que deja los bordes
+sin tocar los extremos»*. Cita el `por-medir:FILETE_NAV_REAL` que el dispatch marcaba `[SIN MEDIR]`
+explícitamente — se re-midió contra el tema real, no se dio por cierto.
+
+### 1 · La medición contra el tema real — `x-cafeone.myshopify.com`
+
+Fetch directo (Node, `fetch`) de la home y de las hojas de estilo/JS enlazadas — sin navegador, así
+que sin CSS generado en runtime (§4, el límite). El markup real del header, DOM completo:
+
+```
+<xo-header … xo-direction='up'>
+  <xo-header-content class="xo-header__container … ">
+    <div class="xo-header__inner … bgc:background/xo-is-sticky … bdrs:s0 bd:s0 " …>
+      <div class="w:100% h:100%">
+        <xo-container>
+          <div class="xo-header__content bdb:s1 bdbc:foreground.2 py:s9 py:s7@+lg
+                      d:flex jc:space-between ai:center gp:s6
+                      pl:var(--page-side-margin)/xo-is-sticky pr:var(--page-side-margin)/xo-is-sticky">
+```
+
+Cuatro hechos MEDIDOS, directos de esa cadena:
+
+1. **El borde vive en `.xo-header__content`, DENTRO de `<xo-container>`** — el contenedor de
+   CONTENIDO, el mismo que ya carga `pl`/`pr: var(--page-side-margin)` (el margen lateral de
+   página). NO vive en `.xo-header__inner` (la capa que pinta el fondo sólido al hacer scroll, la que
+   sería el equivalente a nuestra barra de ancho completo) — ésa declara EXPLÍCITAMENTE `bdrs:s0
+   bd:s0` (radio y borde CERO). Confirma la hipótesis del `por-medir`: el filete real no llega a los
+   bordes de la pantalla porque hereda el mismo inset que ya alinea el contenido, no un margen propio
+   del borde.
+2. **Ancho: `bdb:s1`** — la escala de bordes de este framework usa `s0` para CERO (medido en la
+   misma cadena, `bdrs:s0 bd:s0` de `.xo-header__inner`), así que `s1` es su unidad NO-CERO más
+   chica: el equivalente al `border-b` (1px) de Tailwind — el MISMO hairline que ya usa
+   `border-[var(--sf-sobre)]/20` en `StoreNav.tsx` (el drawer `pantallaCompleta`, medido contra el
+   mismo prototipo en `MUESTRARIO-DRAWER-MOVIL-TEMA-1`).
+3. **Color: `bdbc:foreground.2`** — el foreground token es el MISMO que pinta texto/logo (medido:
+   `--color-foreground`/`--color-foreground-2` cambian juntos entre `color-background-1` (claro,
+   `16 38 6`) y `color-background-2` (oscuro/inverso, `252 251 246`), en los `<style data-shopify>`
+   inline de la página) — no un color de borde aparte. `.2` es el modificador de OPACIDAD de este
+   framework (20%), la misma convención que Tailwind usa con `/20`.
+4. **NADA de sufijo condicional de sticky en las clases del borde** (`bdb:s1 bdbc:foreground.2`),
+   a diferencia de `pl`/`pr: var(--page-side-margin)/xo-is-sticky` en la MISMA cadena de clases, que
+   sí lo llevan. El filete se ve en los DOS tratamientos (flotando transparente sobre el hero Y sólido
+   al hacer scroll) — no depende de `scrolled`.
+
+### 2 · El límite de la medición — declarado, no disimulado
+
+No se pudo confirmar el valor EXACTO en píxeles de `s1` ni el porcentaje exacto de `.2` (¿es 20% al
+byte, o el nombre de un paso de una escala no-lineal?): ese framework atómico genera las reglas CSS
+reales en RUNTIME vía JS (no hay ninguna definición estática de `--s1`/`--…-2` en `styles.css`,
+`xo-webcomponents.min.css`, `xo-critical.min.js` ni `xo-webcomponents.min.js` — grepeado explícito,
+cero resultados), y este sandbox no tiene navegador con el que ejecutar ese JS y leer el
+`getComputedStyle` real (sólo `node`+`fetch`, sin DOM). Lo medido es la ESTRUCTURA (qué contenedor,
+qué framework de escala, qué convención de opacidad) y la CONVENCIÓN (nombres que sólo tienen sentido
+como "1 unidad" y "20%" dado el resto del sistema, § los `s0`/`foreground.2` ya usados en el mismo
+markup) — no el número crudo. Se implementó con `border-b` (1px, el hairline por defecto de Tailwind)
+y `/20` (20%), la lectura más directa de esa convención, y **coincide, letra por letra, con un
+patrón YA existente en este mismo componente** (`border-[var(--sf-sobre)]/20`, el divisor del drawer
+`pantallaCompleta`, medido en un slice previo contra el mismo prototipo) — la coincidencia no es
+casual: dos mediciones independientes contra la misma familia de diseño llegaron al mismo número.
+
+### 3 · Dónde vive, y qué NO se tocó
+
+`navTratamiento.filete` — TERCER campo de la MISMA meta que `activo`/`direccion` (§ CROMO-NAV-
+TRATAMIENTO-1/CROMO-NAV-DIRECCION-SCROLL-1), no una meta nueva: mismo razonamiento de siempre —
+"ajuste más del encabezado ya montado", misma ruta de publicar/descartar
+(`/api/site-content/encabezado`), mismo control (`EncabezadoSeccion.tsx`). El campo se resuelve con
+el MISMO `bool()` independiente que ya resuelve `activo`/`direccion` — un guardado que sólo trae uno
+de los tres no borra los otros dos.
+
+- **`StoreNav.tsx`**: el filete va en el `<div className="max-w-6xl mx-auto px-4 …">` — el
+  CONTENEDOR DE CONTENIDO, exacto análogo de `.xo-header__content` — nunca en el `<header>` de ancho
+  completo (fixed, `left-0 right-0`). Color por el MISMO par `navClaro` que ya decide texto/íconos
+  (`border-[var(--sf-sobre)]/20` claro-sobre-oscuro, `border-[var(--sf-tinta)]/20` oscuro-sobre-claro)
+  — no un token de borde aparte. Vive DENTRO del `<header>`, así que se oculta CON él al bajar
+  (§ CROMO-NAV-DIRECCION-SCROLL-1) sin código adicional.
+- **NO se tocó `tratamientoNav`/`esquema-style.ts`**: el filete no decide flotante/color de texto,
+  sólo LEE `navClaro` ya calculado — cero cambio de superficie ahí, y por eso no está en `touches:`.
+- **NO se necesitó un campo nuevo que distinga floating/sólido**: medido (§1.4) que el filete real NO
+  lleva ese sufijo, así que un solo booleano alcanza — el dispatch pedía medir "si el filete se ve
+  también cuando el encabezado flota… o sólo al pegarse" precisamente para decidir esto, y la
+  medición dio "en los dos".
+- **`app/api/site-content/encabezado/route.ts`**: SIN cambio funcional — el `.pick()` opera sobre la
+  clave `navTratamiento` ENTERA, así que el nuevo campo del schema viaja solo. Se tocó sólo el
+  comentario de cabecera (SEIS→SIETE ejes), porque el archivo está en `touches:` y describía un
+  conteo que este slice volvía desactualizado.
+- **`panel-controles.ts`**: `navTratamiento.filete` se agregó a `CONTROLADOS_ENCABEZADO_SECCION` EN
+  EL MISMO commit que lo suma al lado "leído" (`DEFAULTS.navTratamiento` gana el campo) — nace
+  CONTROLADO, nunca pasa por `PENDIENTE_PANEL`. El techo-trinquete (11) **no se movió** — verificado
+  con el propio test de higiene (`PENDIENTE_PANEL.length <= 11`), que sigue en verde sin tocarlo.
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2348/2348** — reconciliado contra el piso del commit inmediato anterior (`acbdd06`, `CORTE-HERO-MARQUEE-RONDA-5-1`, 2337/2337): `2337 + 11 = 2348`. El `+11` son los tests nuevos medidos por archivo (`grep -c "^test("` antes/después): `cromo-nav-tratamiento.test.ts` +6, `themes.test.ts` +2, `site-content-defaults.test.ts` +2, `panel-controles.test.ts` +1 |
+| `npm run test:integracion` | **237/237** — sin cambio de conteo (los tests de `tests/integracion/panel-encabezado.test.ts` se EDITARON, no se agregaron/quitaron — mismo total de `test(` antes y después) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers |
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+Nayoli no declara `navTratamiento.filete` (ausente de su preset — Nayoli no corre un preset del
+catálogo, corre defaults), así que el 0px es el resultado esperado: `filete:false` no agrega ninguna
+clase (`navFileteClase = ''`), byte-idéntico.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para que el filete se vea (a diferencia de
+`CORTE-HERO-MARQUEE-RONDA-5-1`, el slice anterior de esta rama): `navTratamiento` es un OBJETO que
+`mergePresetEnContent` escribe COMPLETO cada vez que se aplica un preset — un `SiteContent` que ya
+tenga CORTE aplicado desde ANTES de este slice guarda `content.navTratamiento = {activo:true,
+direccion:true}` (sin la clave `filete`, porque no existía cuando se aplicó), y `resolverNavTratamiento`
+sobre esa fila devuelve `filete:false` (cae al default) hasta que el dueño vuelva a aplicar el preset
+y `mergePresetEnContent` escriba `filete:true` desde `CORTE.navTratamientoFilete`.
+
+### `touches:` — todo escrito estaba declarado
+
+`git diff --numstat`: `components/storefront/layout/StoreNav.tsx` (+21/-1), `lib/config/
+site-content-schema.ts` (+9/-7), `lib/config/site-content-defaults.ts` (+22/-1), `lib/config/
+site-content-defaults.test.ts` (+16/-0), `lib/config/themes.ts` (+29/-7), `lib/config/themes.test.ts`
+(+22/-0), `lib/config/cromo-nav-tratamiento.test.ts` (+68/-12), `lib/config/panel-controles.ts`
+(+15/-14), `lib/config/panel-controles.test.ts` (+10/-0), `components/admin/EncabezadoSeccion.tsx`
+(+20/-16), `app/api/site-content/encabezado/route.ts` (+7/-6), `tests/integracion/
+panel-encabezado.test.ts` (+15/-7), y este asiento. 12 archivos de código, los 12 en la lista de
+`touches:`; nada tocado fuera de ella.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `NavTratamientoContent.filete`,
+`resolverNavTratamiento`, `navTratamientoFilete` (`PresetTema`), `navFileteClase` (`StoreNav.tsx`),
+`CONTROLADOS_ENCABEZADO_SECCION`, `EncabezadoSeccion`, `StoreNav`, `panel-controles.ts`,
+`CROMO-NAV-FILETE-1`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `NavTratamientoContent`, `resolverNavTratamiento`, `navTratamientoFilete`,
+  `navTratamiento.filete`, `navTratamiento` (a secas), `navFileteClase`,
+  `CONTROLADOS_ENCABEZADO_SECCION`, `EncabezadoSeccion`, `CROMO-NAV-FILETE`,
+  `site-content/encabezado`, `panel-controles.ts`. `CLAUDE.md` no documenta el eje de tratamiento del
+  nav, el Encabezado del panel, ni el mecanismo `panel-controles.ts` en absoluto.
+- **`StoreNav` SÍ aparece** (4 líneas: 2872, 2969, 4481, 4499 — las MISMAS cuatro que
+  `CROMO-NAV-SIN-DESTELLO-1` y `CROMO-NAV-DIRECCION-SCROLL-1` ya revisaron). Releídas: hablan de que
+  el nav es DATA-DRIVEN (lee `content.menu`), de que /nosotros apagada oculta su link, y de que el
+  logo/mark llega a `StoreNav` por prop. Ninguna describe el borde/filete del encabezado ni queda
+  contradicha por este diff — el nav sigue siendo data-driven, /nosotros sigue ocultando su link
+  igual, el mark sigue llegando por prop.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): los ids que este asiento cita como antecedente
+(`CROMO-NAV-TRATAMIENTO-1`, `CROMO-NAV-DIRECCION-SCROLL-1`, `CROMO-NAV-SIN-DESTELLO-1`,
+`MUESTRARIO-DRAWER-MOVIL-TEMA-1`) no se CERRARON ni se reabrieron por este slice — se citan como el
+precedente de FORMA que este slice extiende (tercer campo de la misma meta), sin editar su contenido
+histórico. Ninguno de los cuatro dejó un open-followup sobre un "campo pendiente" de `navTratamiento`
+que este slice estuviera cerrando (grepeado: ninguna de esas secciones menciona `filete` ni un
+tercer eje pendiente).
+
+### `customer_bytes`
+
+**`changed: true`.** Para un tenant con `navTratamiento.filete:true` (hoy, sólo CORTE, y sólo tras
+RE-APLICAR el preset, § arriba), el encabezado gana una línea fina bajo su contenido — un elemento
+VISIBLE nuevo. `strings`: **ninguno** — no se agregó ni cambió texto visible; es un elemento gráfico
+(un borde), no copy.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un campo más de un objeto JSON ya existente (`SiteContent.content`,
+Postgres `Json`), su resolución SOFT, su escritura vía la ruta ya existente del Encabezado, y su
+control en el panel — todo dentro del mecanismo de `SiteContent` que ya corre.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres capas medidas (tsc,
+`npm test`, `npm run test:integracion`) más el diff visual de Nayoli (0px, § arriba). Sin `schema`,
+sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó
+la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, § el gate visual citado
+arriba); el merge sigue pendiente del gate del orquestador — este slice, por instrucción del
+dispatch, no mergea.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el filete (§3/§4) — no es automático como
+`CORTE-HERO-MARQUEE-RONDA-5-1`.
+
+**Cierra `CROMO-NAV-FILETE-1`.**
