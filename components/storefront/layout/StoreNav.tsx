@@ -297,6 +297,28 @@ export default function StoreNav() {
   const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
+  // EL TAMAÑO/TRAZO del ícono del encabezado (buscar, carrito) — § CORTE-CUERPO-LETRA-E-ICONOS-1.
+  // MEDIDO contra el prototipo (`docs/prototipos/cafeone/js/app.js`, la función `icon`, cerca de
+  // `:44`): stroke-width **1.6** sobre un ícono de **22px** (viewBox 24, igual que lucide-react) —
+  // rendered = 1.6 × 22/24 ≈ 1.47px, contra 1.25 × 20/24 ≈ 1.04px de HOY (`--sf-trazo` de la forma
+  // 'recta', § formas.ts, sobre `w-5 h-5`=20px) — más grueso Y más grande, igual que reportó el
+  // owner.
+  //
+  // 'recta' es COMPARTIDA con PLIEGO (`themes.ts`), así que este ajuste NO toca `--sf-trazo` —
+  // cambiarlo movería el trazo de TODOS los íconos de PLIEGO, en silencio—. En vez de una meta de
+  // contenido nueva (que exigiría schema + control de panel para un detalle que no es una elección
+  // de producto, sólo la exactitud de un ícono contra una referencia externa), REUSA el eje que ya
+  // existe: `navTratamiento.posicion` (§ CROMO-NAV-EXACTO-PROTOTIPO-1) ya significa "adoptar la
+  // geometría MEDIDA del prototipo, no la de hoy" — CORTE es hoy el ÚNICO preset que lo declara —,
+  // así que gatear el ícono con la MISMA señal es extender ese eje, no inventar uno. El tamaño 22px
+  // se declara en LA CLASE (Tailwind arbitrario, sin CSS nuevo); el trazo 1.6 vive en
+  // `.sf-icono-nav-exacto` (`app/globals.css`), una clase de mayor especificidad que `.lucide` sola
+  // — necesaria porque el prop `strokeWidth` de lucide-react emite un ATRIBUTO SVG, y la regla
+  // global `.lucide{stroke-width:var(--sf-trazo,2)}` ya gana sobre cualquier atributo (esa es su
+  // razón de existir, § el comentario de esa regla). `false` (todo tenant salvo CORTE) →
+  // `w-5 h-5`, byte-idéntico a hoy.
+  const navIconoClase = navTratamiento.posicion ? 'w-[22px] h-[22px] sf-icono-nav-exacto' : 'w-5 h-5';
+
   // EL LINK ACTIVO era INVISIBLE sobre nav oscuro (§ NAV-LINK-ACTIVO-INVISIBLE-1): el `!important`
   // pisaba `linkColor` con `--sf-acento-texto` SIEMPRE, sin mirar `navClaro`. Para CORTE ese token
   // no es "el acento como texto" — `origenTexto:'tinta'` (themes.ts) lo re-deriva a
@@ -474,6 +496,7 @@ export default function StoreNav() {
     setSearchOpen(false)
   }
   triggerRef={searchTriggerRef}
+  iconoClase={navIconoClase}
 />
 
             {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el
@@ -579,10 +602,10 @@ export default function StoreNav() {
             {/* Actions */}
             <div className="flex items-center gap-2">
               <button ref={searchTriggerRef} className={`p-2 cursor-pointer rounded-full transition-colors ${iconColor}`} onClick={() => setSearchOpen(true)}>
-                <Search className="w-5 h-5" />
+                <Search className={navIconoClase} />
               </button>
               <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>
-                <ShoppingBag className="w-5 h-5" />
+                <ShoppingBag className={navIconoClase} />
                 {count > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-[10px] rounded-full flex items-center justify-center font-bold" style={{ width: 18, height: 18, fontSize: 10 }}>
                     {count > 9 ? '9+' : count}

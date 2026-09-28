@@ -200,18 +200,22 @@ test('?tema=CORTE sobre Nayoli: hero.veloVisible sigue en true — RONDA 4 ya no
 });
 
 // ─── heroVeloIntensidad/heroTickerVelocidad — § CORTE-HERO-REVELADO-MASCARA-1, RONDA 4; el VALOR de
-// heroVeloIntensidad pasa de 'suave' a 'intermedia' en § HERO-VELO-INTERMEDIO-1 ──────────────────
+// heroVeloIntensidad pasa de 'suave' a 'intermedia' en § HERO-VELO-INTERMEDIO-1 y VUELVE a 'suave' en
+// § CORTE-CUERPO-LETRA-E-ICONOS-1 ─────────────────────────────────────────────────────────────────
 //
 // DOS escalares (string), MISMO patrón mecánico que `heroCtasVisibles`/`heroCueDesliza` (arriba) pero
 // de STRING en vez de boolean — como `variante`, no como los seis booleanos de la sección de arriba.
 // El owner, sobre el gate visual de RONDA 4: «también podemos agregar un velo, pero no tiene que ser
 // tan fuerte» y «la velocidad… debería ser más baja». § HERO-VELO-INTERMEDIO-1 (2026-09-28), sobre el
-// gate visual de 'suave' ya aplicada: «el velo del hero puede ser un poquito más oscuro» — CORTE pasa
-// a declarar 'intermedia' (el tercer paso del set, § site-content-defaults.ts); `heroTickerVelocidad`
-// NO cambia.
+// gate visual de 'suave' ya aplicada: «el velo del hero puede ser un poquito más oscuro» — CORTE pasó
+// a declarar 'intermedia' (el tercer paso del set, § site-content-defaults.ts). **§ CORTE-CUERPO-
+// LETRA-E-ICONOS-1 (mismo día) lo REVIRTIÓ a 'suave'** — el owner, sobre el gate de 'intermedia':
+// «el velo en suave es el que voy a dejar». El paso 'intermedia' SIGUE en el catálogo (`VELO_
+// INTENSIDADES` y el `<select>` del panel no se tocan); sólo CORTE deja de declararlo.
+// `heroTickerVelocidad` NO cambia en ninguna de las dos rondas.
 
-test('CORTE declara heroVeloIntensidad:"intermedia" y heroTickerVelocidad:"lenta" — sigue validando COMPLETO', () => {
-  assert.equal(CORTE.heroVeloIntensidad, 'intermedia');
+test('CORTE declara heroVeloIntensidad:"suave" y heroTickerVelocidad:"lenta" — sigue validando COMPLETO', () => {
+  assert.equal(CORTE.heroVeloIntensidad, 'suave');
   assert.equal(CORTE.heroTickerVelocidad, 'lenta');
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
@@ -225,11 +229,11 @@ test('CORTE es el ÚNICO preset del catálogo que declara heroVeloIntensidad/her
   }
 });
 
-test('mergePresetEnContent(_, CORTE): escribe hero.veloIntensidad:"intermedia" y hero.tickerVelocidad:"lenta", preservando lo demás de la sección', () => {
+test('mergePresetEnContent(_, CORTE): escribe hero.veloIntensidad:"suave" y hero.tickerVelocidad:"lenta", preservando lo demás de la sección', () => {
   const antes = { hero: { visible: true, titulo: 'El título del dueño', variante: 'curtina' } };
   const despues = mergePresetEnContent(antes, CORTE);
   const hero = despues.hero as Record<string, unknown>;
-  assert.equal(hero.veloIntensidad, 'intermedia');
+  assert.equal(hero.veloIntensidad, 'suave');
   assert.equal(hero.tickerVelocidad, 'lenta');
   assert.equal(hero.titulo, 'El título del dueño');
 });
@@ -260,9 +264,9 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), hero.veloIntensidad/tickerVelocidad si
   assert.equal(nayoli.hero.tickerVelocidad, 'media');
 });
 
-test('?tema=CORTE sobre Nayoli: hero.veloIntensidad pasa a "intermedia" y hero.tickerVelocidad a "lenta"', () => {
+test('?tema=CORTE sobre Nayoli: hero.veloIntensidad pasa a "suave" y hero.tickerVelocidad a "lenta"', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
-  assert.equal(conCorte.hero.veloIntensidad, 'intermedia');
+  assert.equal(conCorte.hero.veloIntensidad, 'suave');
   assert.equal(conCorte.hero.tickerVelocidad, 'lenta');
 });

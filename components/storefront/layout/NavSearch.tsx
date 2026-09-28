@@ -41,12 +41,21 @@ interface NavSearchProps {
   // y tocar el disparador cerraría el panel Y lo reabriría en el mismo gesto (su propio `onClick`
   // sigue llamando `setSearchOpen(true)`).
   triggerRef?: React.RefObject<HTMLButtonElement | null>;
+
+  // La clase del ícono de lupa DEL INPUT — § CORTE-CUERPO-LETRA-E-ICONOS-1. `StoreNav.tsx` ya
+  // calcula `navIconoClase` (gateado por `navTratamiento.posicion`, § su propio docstring) para el
+  // ícono del disparador; este panel es "su versión en el buscador" que el spec pide llevar al
+  // mismo tamaño/trazo — así que la recibe por PROP en vez de leer `useSiteContent()` de nuevo (este
+  // componente no lo importa hoy, y una segunda lectura del mismo dato es cómo dos copias
+  // divergen). AUSENTE = `w-5 h-5` (el default de la prop, byte-idéntico a hoy).
+  iconoClase?: string;
 }
 
 export default function NavSearch({
   isOpen,
   onClose,
   triggerRef,
+  iconoClase = 'w-5 h-5',
 }: NavSearchProps) {
   const [query, setQuery] =
     useState("");
@@ -188,7 +197,7 @@ export default function NavSearch({
             <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
               {/* Search Input */}
               <div className="relative mb-6">
-                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--sf-tostado-3)]" />
+                <Search className={`absolute left-4 top-1/2 -translate-y-1/2 text-[var(--sf-tostado-3)] ${iconoClase}`} />
 
                 <input
                   ref={inputRef}

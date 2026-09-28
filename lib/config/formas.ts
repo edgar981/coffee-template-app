@@ -52,6 +52,14 @@ export interface Forma {
   borde: string;     // --sf-borde     (grosor del borde)
   divisor: string;   // --sf-divisor   (grosor del divisor de banda)
   trazo: string;     // --sf-trazo     (stroke-width del ícono; unitless)
+  // NO SE TOCÓ para 'recta' en § CORTE-CUERPO-LETRA-E-ICONOS-1 (2026-09-28): CORTE necesitaba un
+  // trazo/tamaño más grueso/grande que 'recta' (1.25) para los DOS íconos del encabezado, medido
+  // contra el prototipo — pero 'recta' es COMPARTIDA con PLIEGO, y bumpear este campo habría
+  // cambiado el trazo de TODOS los íconos de PLIEGO en silencio. La salida vive FUERA de esta
+  // tabla: una clase propia (`.sf-icono-nav-exacto`, `app/globals.css`) de mayor especificidad que
+  // `.lucide` sola, aplicada sólo a esos dos íconos y gateada por `navTratamiento.posicion`
+  // (`StoreNav.tsx`/`NavSearch.tsx`) — no por `forma`. `trazo`/`FORMAS` quedan intactos, para las
+  // TRES formas.
   // Tipografía del BADGE (§ eje 4, remate 1). SÓLO etiquetas —product.badge, "Más Popular"—,
   // nunca un chip/control (§ .sf-badge en globals.css). Suave = caja natural sin tracking
   // (byte-idéntica a hoy); Recta/Mínima = versalitas con distinto tracking.

@@ -29489,3 +29489,270 @@ para que la fila persistida tome `'intermedia'` (§4); después puede moverse en
 desde "Intensidad del velo" sin otro slice.
 
 **Cierra `HERO-VELO-INTERMEDIO-1`.**
+
+## 2026-09-28 — El velo vuelve a `'suave'` y los íconos del encabezado se llevan al prototipo; la
+## FAMILIA del cuerpo (Hanken Grotesk) PARA — contradice un invariante que este mismo repo ya midió
+## y decidió NO cruzar (`CORTE-CUERPO-LETRA-E-ICONOS-1`)
+
+Gate visual del owner (2026-09-28), sobre `'intermedia'` ya aplicada: *"El velo en suave es el que voy
+a dejar, sin embargo lo de agregar más cuerpo en las letras definitivamente hay que hacerlo, o cambiar
+la fuente, ya que también se aplica a los íconos, se ven más gruesos en el muestrario."* El dispatch
+dejó la elección peso-vs-fuente al orquestador, que midió (§0 del spec) que color/tamaño/peso/tracking
+YA coinciden con el prototipo y que sólo difieren la FAMILIA del cuerpo (Figtree vs. Hanken Grotesk) y
+el trazo/tamaño del ícono, e instruyó agregar un par nuevo al catálogo con cuerpo Hanken Grotesk.
+
+### 0 · RE-MEDIDO ANTES DE ESCRIBIR — el spec pisaba una decisión ya tomada, con test
+
+**Hecho, no opinión:** `lib/config/fuentes.ts` (comentario de cabecera) y `lib/config/fuentes.test.ts`
+(`"SORA reemplaza a Space Grotesk..."`, línea ~49-55) afirman, CON TEST, que **ningún par del catálogo
+ofrece las tres fuentes del producto Duna (Space Grotesk, Hanken Grotesk, Spline Sans Mono)** — Hanken
+Grotesk es `--duna-font-ui`, el cuerpo del PANEL (`app/(admin)/fonts.ts`, `app/(admin)/duna.css`,
+`packages/design-system/tokens/tokens.css`), y ofrecerla a un cliente "borraría la separación
+producto/cliente" (razón textual de por qué 'Moderno' usa Sora y no Space Grotesk).
+
+Y no es una regla abstracta sin precedente aplicado a este mismo caso: **el slice INMEDIATAMENTE
+ANTERIOR de esta misma rama YA SE HIZO ESTA PREGUNTA Y LA CONTESTÓ QUE NO.** `CROMO-NAV-EXACTO-
+PROTOTIPO-1` (el commit `f8f9dcc`, un slice antes de éste en `slice/corte-reescritura-prototipo-1`),
+§4, midió EXACTAMENTE el mismo hueco (la frase al pie del hero "se ve sin cuerpo", y la causa real es
+Figtree-vs-Hanken-Grotesk, no un número de peso) y escribió, textual: *"Meter Hanken Grotesk acá,
+aunque sea para un solo párrafo, es la misma mezcla que esa regla prohíbe... la barrera admin/producto
+ya existe en la práctica, y este slice la respeta en vez de perforarla."* La salida que eligió fue
+subir el PESO (`font-medium`), no la familia — después revertida por `HERO-FRASE-COLOR-PLENO-1` por
+otra razón (el color era la causa real de ESE síntoma puntual, no el peso), pero la NEGATIVA a meter
+Hanken Grotesk nunca se revocó.
+
+`TEMAS-PAR-PRENSA-1`/`CORTE-REESCRITURA-PROTOTIPO-1` (más arriba en este mismo libro) ya habían medido
+el mismo hueco al elegir `'prensa'` para CORTE y lo reportaron EXPLÍCITAMENTE como una aproximación
+aceptada, no un defecto a cerrar: *"Ningún par del catálogo trae Hanken Grotesk... 'prensa' es el
+único con el TITULAR exacto; es el que menos se aleja."*
+
+**La conclusión: el spec de ESTE slice instruye exactamente lo que el slice anterior, un commit atrás,
+midió y rechazó por la misma razón — un invariante de PRODUCTO (la separación admin/cliente),
+sostenido por un test (`fuentes.test.ts`), decidido por el owner en otra ronda (§ 'Moderno'/Sora). No
+es una afirmación fáctica que una remedición pueda resolver por sí sola: es una pregunta de PRODUCTO
+— ¿el catálogo de fuentes del storefront puede, para UN preset de demostración, importar la tipografía
+reservada del panel? — y el protocolo de esta sesión (§ "Quién decide qué", CLAUDE.md: el OWNER decide
+cómo se modela un concepto del dominio) dice que esa pregunta no la resuelve quien corre el slice.
+
+**No se agregó Hanken Grotesk al catálogo.** `lib/config/fuentes.ts`/`.test.ts`, `lib/config/
+palette-schema.ts`, `components/admin/PaletaSeccion.tsx`, `lib/config/cromo-nav-tratamiento.test.ts` y
+`lib/config/theme-mirador.test.ts` (todos en `touches:`, previstos para el par nuevo) **no se
+tocaron** — no había par nuevo que declarar, catalogar o verificar. `CORTE.fuentePar` sigue en
+`'prensa'`, byte a byte.
+
+### 1 · Los íconos del encabezado SÍ se llevaron al prototipo — sin tocar 'recta'
+
+**Medido, `docs/prototipos/cafeone/js/app.js`, la función `icon(name, size)` (cerca de `:44-47`):**
+`stroke-width="1.6"`, `width`/`height` = `size || 22` (default 22px), `viewBox="0 0 24 24"` — el
+MISMO viewBox que `lucide-react` usa de fábrica (confirmado en
+`node_modules/lucide-react/dist/cjs/lucide-react.js:41`). Los íconos del encabezado del prototipo
+(`data-icon="search"`/`data-icon="cart"`, `index.html:46,48`) se piden SIN tamaño explícito → 22px.
+
+**El trazo RENDERIZADO** (stroke-width × tamaño/viewBox) del prototipo es 1.6 × 22/24 ≈ **1.4667px**.
+El nuestro, ANTES de este slice: `--sf-trazo` de la forma `'recta'` (1.25, `lib/config/formas.ts`)
+sobre `w-5 h-5` (20px) → 1.25 × 20/24 ≈ **1.0417px** — más FINO y el ícono más CHICO, exactamente el
+reclamo del owner. Con este slice: 1.6 × 22/24 ≈ **1.4667px** — coincide EXACTO.
+
+**`'recta'` es COMPARTIDA con `PLIEGO`** (medido, `lib/config/themes.ts:809,864`: los dos presets
+declaran `forma:'recta'`), así que subir su `trazo` en `formas.ts` movería el trazo de TODOS los
+íconos de PLIEGO en silencio — la advertencia literal del spec. Y una regla GLOBAL de tamaño sobre
+`.lucide` (el mecanismo que sí funciona para el trazo, porque `stroke-width` no interactúa con el
+tamaño de caja) es inviable para el TAMAÑO: el storefront tiene decenas de íconos con tamaños
+DISTINTOS (`h-4 w-4`, `h-3 w-3`, `h-7 w-7`, `h-8 w-8`…, medido por grep en `components/storefront/`),
+así que un `.lucide{width:...}` sin selector adicional los reescalaría a todos — rompería
+`verificar:nayoli:visual`.
+
+**La salida, con las cuatro reglas del spec, en orden:**
+- **ningún otro preset cambia un byte**: `formas.ts` NO se tocó en valores — 'recta' sigue en
+  `trazo:'1.25'` para las tres formas. Se agregó un test GUARDIÁN
+  (`formas.test.ts`, `"'recta' conserva su trazo de HOY..."`) que falla si alguien la sube.
+- **preferí extender un eje que ya existe antes que crear una meta nueva**: se REUSA
+  `navTratamiento.posicion` (§ `CROMO-NAV-EXACTO-PROTOTIPO-1`) como la señal — ese campo YA significa
+  "adoptar la geometría MEDIDA del prototipo, no la de hoy" (hoy gobierna el ancho/alto del
+  contenedor y la altura de la fila), y CORTE es el único preset que lo declara. No se creó
+  `content.navTratamiento.iconos` ni ninguna meta nueva.
+- **si agregás un campo de contenido, su control va en este commit; si es un valor fijo sin control,
+  decí por qué**: NO se agregó un campo de contenido — es un VALOR FIJO (22px, stroke-width 1.6),
+  computado en `StoreNav.tsx`/`NavSearch.tsx` a partir de `navTratamiento.posicion` ya existente. La
+  razón por la que no lleva control propio: no es una elección de producto que el dueño deba afinar
+  —es la exactitud de un ícono contra una referencia externa (el prototipo), la misma naturaleza que
+  `navTratamiento.posicion`/`.filete`/`.subrayado`, que tampoco exponen "cuánto" sino que son
+  ON/OFF heredados del mismo interruptor—. Por esto `lib/config/site-content-schema.ts`,
+  `components/admin/EncabezadoSeccion.tsx` y `lib/config/panel-controles.ts` (ninguno en `touches:`)
+  no se tocaron: no hay nada nuevo que guardar ni un switch que montar.
+- **el tamaño del ícono del encabezado sale del prototipo; el de Nayoli no cambia**: `navIconoClase`
+  (`StoreNav.tsx`) es `'w-5 h-5'` para todo tenant que no declare `navTratamiento.posicion` — byte a
+  byte lo de hoy.
+
+**Mecanismo, `archivo:línea`:**
+- `app/globals.css` — nueva regla, SIN `@layer` (misma razón que la de `--sf-trazo` ya existente:
+  gana sobre el atributo `stroke-width` que lucide-react emite): `html:not(.admin)
+  .lucide.sf-icono-nav-exacto { stroke-width: 1.6; }`. Dos clases > una: gana sobre `.lucide{stroke-
+  width:var(--sf-trazo,2)}` por especificidad, sin tocarla.
+- `components/storefront/layout/StoreNav.tsx` — `navIconoClase = navTratamiento.posicion ?
+  'w-[22px] h-[22px] sf-icono-nav-exacto' : 'w-5 h-5'`, aplicado a los DOS íconos del encabezado
+  (`Search`/`ShoppingBag` de las Actions) y pasado a `NavSearch` por prop.
+- `components/storefront/layout/NavSearch.tsx` — nueva prop `iconoClase?: string` (default `'w-5
+  h-5'`), aplicada al ícono de lupa DENTRO del panel de búsqueda ("su versión en el buscador", el
+  alcance que el spec pide). No lee `useSiteContent()` de nuevo — recibe la clase ya resuelta, para
+  no duplicar la lectura del dato.
+
+**Alcance verificado, no supuesto:** los DOS íconos del encabezado (buscar, carrito) + su versión en
+el buscador son los ÚNICOS que cambian. El hamburguesa/cerrar del drawer móvil (`w-5 h-5` en `X`/
+`Menu`, líneas ~654/691 de `StoreNav.tsx`) quedan FUERA — el spec acota el alcance a "buscar,
+carrito", y el drawer móvil no es ese ícono.
+
+### 2 · El velo — CORTE vuelve a `'suave'`, `'intermedia'` se queda en el catálogo
+
+El owner, sobre el gate de `'intermedia'` ya aplicada: *"El velo en suave es el que voy a dejar."*
+`CORTE.heroVeloIntensidad` pasa de `'intermedia'` a `'suave'` (`lib/config/themes.ts`). `VELO_
+INTENSIDADES` (`site-content-defaults.ts`) SIGUE con sus TRES miembros — el paso `'intermedia'` no se
+retira del catálogo ni del `<select>` del panel (`OPCIONES_VELO_INTENSIDAD`, `tienda-secciones.ts`,
+NO tocado — deriva del array, que no cambió). Sólo CORTE deja de declararlo.
+
+**Comentarios puestos al día** (los que el spec nombró: `lib/animation.ts`, `site-content-
+defaults.ts`, `themes.ts`) para que ninguno siga afirmando que CORTE usa `'intermedia'` hoy. Tests
+actualizados: `hero-toggles-preset.test.ts` (3 aserciones), `corte-marquesina-velo.test.ts` (1
+aserción + su comentario). `lib/animation.test.ts` NO se tocó — sus tests afirman el RANGO genérico
+de `'intermedia'` (`rangoVeloDeIntensidad('intermedia')`), no cuál preset lo usa; siguen verdes sin
+cambio.
+
+**Efecto lateral MEDIDO, no buscado:** el open follow-up `HERO-VELO-INTERMEDIO-STALE-POINTER-1` (§
+la entrada anterior de este libro) señalaba que `components/storefront/home/HeroMediaMarquesina.tsx`
+(líneas ~108-109, ~416-417; fuera de `touches:` de este slice, no tocado) citaba literalmente
+`heroVeloIntensidad:'suave'`/`'la preferencia de CORTE'` como el valor VIGENTE, y que esas líneas
+habían quedado desactualizadas por `HERO-VELO-INTERMEDIO-1`. **Este slice las vuelve a poner al día
+sin tocarlas**: con `CORTE.heroVeloIntensidad` de vuelta en `'suave'`, esas dos citas vuelven a ser
+ciertas. El follow-up queda resuelto de HECHO, no de EDICIÓN — se anota para que quien lo lea no
+"corrija" un comentario que ya volvió a ser exacto.
+
+### 3 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm run build` | `✓ Compiled successfully` (Turbopack, TypeScript limpio, 53 rutas). `grep -rl "sf-icono-nav-exacto" .next` da hits en JS (className) y en el CSS compilado (`.next/static/chunks/17lbuemqcsz6m.css`) — el artefacto, no sólo la fuente. |
+| `npm test` | **2435/2435** — verde. +1 sobre el piso de 2434 (`da0418e`, `HERO-VELO-INTERMEDIO-1`). Reconciliado: el único test nuevo es el guardián de `formas.test.ts` (§1); ningún otro archivo ganó ni perdió tests (los cambios en `hero-toggles-preset.test.ts`/`corte-marquesina-velo.test.ts` son ediciones in-place de aserciones existentes, 0 neto). |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo, coherente (nada de este slice toca el carril de integración). |
+| `npm run guarda:color` | **0px** en las 6 rutas + los 2 hovers (crudo: 0 en las 8), idéntico byte a byte a los conteos de `HERO-VELO-INTERMEDIO-1`: `home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870`. |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + los 2 hovers, main vs. rama, mismos conteos exactos que la fila de arriba — SEGUNDA medición independiente (fixture vs. worktree real de `main`), misma conclusión. |
+
+**NO SE CORRIÓ `npm run capturar:seccion`** (antes/después del encabezado, prototipo vs. nuestro). Es
+un arnés propio (Postgres efímero + `next build`/`next start` DOS veces + Chromium vía Playwright
+aislado) y, con `guarda:color`/`verificar:nayoli:visual` ya corridos (dos verificaciones pixel-a-pixel
+independientes, ambas en 0px), su costo marginal para ESTE slice es una tercera corrida del mismo
+arnés de base, sin evidencia nueva que aportar sobre Nayoli — y CORTE no tiene el gate visual del
+owner pendiente de estas capturas (el gate real es que el owner re-aplique el preset y lo mire en
+vivo, § abajo). Se deja como `unknown`, no como paso saltado en silencio: **el owner no tiene, de
+este slice, un PNG lado a lado del encabezado de CORTE contra el prototipo** — sólo la aritmética
+medida (§1) y la garantía de que Nayoli no se movió.
+
+### `touches:` — lo que se usó del permiso, y lo que no
+
+Usados: `app/globals.css`, `components/storefront/layout/StoreNav.tsx`, `components/storefront/
+layout/NavSearch.tsx`, `lib/config/formas.ts`, `lib/config/formas.test.ts`, `lib/config/themes.ts`,
+`lib/config/site-content-defaults.ts`, `lib/animation.ts`, `lib/config/hero-toggles-preset.test.ts`,
+`lib/config/corte-marquesina-velo.test.ts`, y este asiento (`DECISIONS.md`) — 10 archivos de código.
+
+**No usados, y por qué cada uno:** `lib/config/fuentes.ts`/`.test.ts`, `lib/config/palette-schema.ts`,
+`components/admin/PaletaSeccion.tsx`, `lib/config/cromo-nav-tratamiento.test.ts`, `lib/config/
+theme-mirador.test.ts` — los cinco estaban previstos para el par tipográfico nuevo (Hanken Grotesk),
+que no se agregó (§0). `lib/config/themes.test.ts` — no tiene ninguna aserción sobre
+`heroVeloIntensidad`/`fuentePar` de CORTE (verificado por grep); nada que actualizar.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `navIconoClase`, `.sf-icono-nav-exacto`,
+`iconoClase` (prop de `NavSearch`), `CORTE.heroVeloIntensidad:'suave'`. Grepeados uno por uno:
+
+- **`navIconoClase`, `.sf-icono-nav-exacto`, `NavSearch`, `heroVeloIntensidad`, `CORTE-CUERPO-
+  LETRA-E-ICONOS-1`** → CERO apariciones en `CLAUDE.md`. El documento no describe el nav sticky del
+  storefront, sus tratamientos por preset, ni el eje de velo del hero — la misma ausencia que ya
+  midieron los cuatro slices anteriores de esta familia (`CROMO-NAV-EXACTO-PROTOTIPO-1` y
+  hermanos).
+- **`"Space Grotesk NO se ofrece a clientes"`** (§ fuentes, `CLAUDE.md`) → la sentencia que ESTE
+  slice cumple activamente al PARAR antes de agregar Hanken Grotesk — no la contradice ni la deja
+  falsa. Es la misma cita que `CROMO-NAV-EXACTO-PROTOTIPO-1` ya había verificado.
+- **`components/storefront/`** (el bullet de subárboles Tier 1, `CLAUDE.md`) → confirma que
+  `StoreNav.tsx`/`NavSearch.tsx` caen bajo Tier 1 por el subárbol, consistente con `tier: 1` del
+  dispatch.
+
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `grep -c "CORTE-CUERPO-LETRA-E-ICONOS-1"` antes de
+este párrafo dio **0** — id nuevo. Los ids citados como precedente (`CROMO-NAV-EXACTO-PROTOTIPO-1`,
+`TEMAS-PAR-PRENSA-1`, `HERO-VELO-INTERMEDIO-1`) NO se editan — sus entradas quedan como registro
+histórico de lo que cada una decidió en su momento; la corrección de "qué declara CORTE hoy" vive en
+ESTA entrada, apuntando hacia atrás, como ya hizo `CROMO-NAV-EXACTO-PROTOTIPO-1` con
+`CROMO-NAV-POSICION-TEMA-REAL-1`.
+
+### `customer_bytes`
+
+**`changed: true`.** Para CORTE (hoy sólo alcanzable vía el mirador `?tema=CORTE`, tras re-aplicar el
+preset): el encabezado dibuja sus dos íconos con trazo/tamaño distinto (VISIBLE), y el velo del hero
+vuelve a su intensidad `'suave'` (VISIBLE, más CLARO que `'intermedia'`). `strings:` **ninguno** — no
+se agrega ni cambia copy; los dos cambios son de geometría/tono visual.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. Ningún campo nuevo de `SiteContent` (§1, "valor fijo sin control").
+
+### RULING NEEDED
+
+**La pregunta, en una frase:** ¿puede el catálogo de pares tipográficos del STOREFRONT —hoy con la
+garantía testeada de que NINGÚN par ofrece las tres fuentes reservadas del panel Duna (Space Grotesk,
+Hanken Grotesk, Spline Sans Mono)— ganar una entrada que use Hanken Grotesk como cuerpo, aunque sea
+sólo para un preset de demostración (CORTE) que reproduce un prototipo externo?
+
+**Por qué es del owner y no de quien corre el slice:** es exactamente la clase de decisión que
+`CLAUDE.md` reserva al owner — "cómo se modela un concepto del dominio" (§ "Quién decide qué") — y
+específicamente porque YA fue decidida una vez, con test, y una ronda de esta misma rama (un commit
+antes) volvió a medirla y a NO cruzarla. Cruzarla ahora, sin que el owner la re-abra explícitamente
+sabiendo que está reabriendo esa regla, sería CODE decidiendo producto.
+
+**Lo que la levantó:** medición directa (§0) — `fuentes.test.ts` (test existente, no escrito para
+esta ocasión) más el texto de `CROMO-NAV-EXACTO-PROTOTIPO-1`, un commit antes en la misma rama,
+rechazando el mismo cambio por el mismo motivo.
+
+**Opciones, con su consecuencia MEDIDA:**
+
+- **(a) Agregar Hanken Grotesk al catálogo, sólo para este par nuevo de CORTE.** Consecuencia
+  medida: `fuentes.test.ts` (`"Ningún par ofrece las 3 fuentes del producto (DUNA)"`) pasa a FALSO —
+  hay que REESCRIBIR ese test para declarar la excepción, y la doctrina de `fuentes.ts`
+  ("SORA reemplaza a Space Grotesk... Space Grotesk es la tipografía de DUNA... y ofrecerla a un
+  cliente borraría la separación producto/cliente") deja de ser universal — pasa a "universal salvo
+  CORTE". Cierra el gap EXACTO que el owner reportó (trazo/tamaño de ícono aparte, ya resuelto en §1
+  sin esta decisión).
+- **(b) Mantener el catálogo cerrado a las tres fuentes de Duna; CORTE se queda con `'prensa'`
+  (Figtree) para el cuerpo, con la aproximación ya reportada desde `CORTE-REESCRITURA-PROTOTIPO-1`.**
+  Consecuencia medida: el gap de FAMILIA queda abierto — el owner seguirá viendo el cuerpo de CORTE
+  más liviano que el del muestrario en cualquier gate visual futuro que compare los dos lado a lado,
+  aunque los íconos (§1) y el velo (§2) ya queden exactos.
+- **(c) Un CUARTO par nuevo con una fuente NO reservada pero visualmente más cercana a Hanken
+  Grotesk que Figtree** (una humanist geometric sans que no sea Sora/Hanken/Space Grotesk — p. ej.
+  algo de la familia de Public Sans, IBM Plex Sans Condensed u otra no usada hoy en el catálogo).
+  Consecuencia: no medida en este slice (no se evaluó ninguna candidata concreta) — quedaría más
+  cerca que Figtree sin cruzar la barrera del panel, pero "más cerca" es un juicio visual que
+  necesita su propia medición de campo (que no se hizo) antes de poder ofrecerse como opción real.
+
+**Bloqueado hasta la ruling:** si el catálogo gana o no una entrada con Hanken Grotesk (o una entrada
+nueva alternativa, opción c) para el cuerpo de CORTE; en consecuencia, si `CORTE.fuentePar` sigue en
+`'prensa'` o pasa a un par nuevo.
+
+**Hecho de todos modos, sin depender de la ruling:** los íconos del encabezado (§1) y el velo (§2) —
+ninguno de los dos comparte la barrera de producto que bloquea la fuente, y los dos quedan
+COMMITEADOS y verdes en este slice.
+
+### Verdicto
+
+**RULING_NEEDED**, con trabajo COMPLETO y COMMITEADO para las dos piezas que no dependen de la
+pregunta (§1 íconos, §2 velo). Gate verde en las cinco mediciones ejecutables (§3). Sin `schema`, sin
+`cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; **NO se mergea** — ni por
+instrucción del dispatch ni porque la ruling siga abierta.
+
+**El dueño debe re-aplicar CORTE** para ver el ícono/velo nuevos en el mirador — mismo mecanismo que
+toda la familia de slices de esta rama.
+
+**No cierra `CORTE-CUERPO-LETRA-E-ICONOS-1`** — queda abierto hasta la ruling de la Sección "RULING
+NEEDED".

@@ -226,7 +226,11 @@ export function veloOpacidad(progreso: number, estatico: boolean, rango: VeloRan
 // `puntoFocal`, § site-content-defaults.ts): 'media' es la CANÓNICA — el rango de SIEMPRE,
 // byte-idéntico para todo tema que no la declare —; 'suave' fue la primera intensidad no-canónica
 // (RONDA 4, la que CORTE eligió entonces); 'intermedia' es la TERCERA (§ HERO-VELO-INTERMEDIO-1,
-// abajo), la que CORTE elige DESDE ese slice (`heroVeloIntensidad:'intermedia'`, § themes.ts).
+// abajo). CORTE la usó por UN slice: **§ CORTE-CUERPO-LETRA-E-ICONOS-1 (2026-09-28) la REVIRTIÓ a
+// 'suave'** — el owner, sobre el gate visual de 'intermedia' ya aplicada, la dejó fijada en
+// 'suave' («el velo en suave es el que voy a dejar»). El PASO 'intermedia' NO se retira del
+// catálogo ni del `<select>` del panel — sigue disponible para cualquier tema que quiera elegirla —,
+// sólo CORTE deja de declararla.
 //
 // EL RANGO, NO SÓLO EL PISO: cada intensidad no-canónica baja (o, para 'intermedia' sobre 'suave',
 // sube) las DOS puntas del recorrido, no sólo el reposo — el pedido original del owner era sobre el

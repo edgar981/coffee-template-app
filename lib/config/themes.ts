@@ -198,7 +198,9 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * «también podemos agregar un velo, pero no tiene que ser tan fuerte» y «la velocidad… debería ser
  * más baja» — CORTE es hoy el ÚNICO preset que declara los dos. **`heroVeloIntensidad` pasó de
  * `'suave'` a `'intermedia'` en § HERO-VELO-INTERMEDIO-1** (2026-09-28: «el velo del hero puede ser
- * un poquito más oscuro» — el TERCER paso del set, § `VELO_INTENSIDADES`, `site-content-defaults.ts`);
+ * un poquito más oscuro» — el TERCER paso del set, § `VELO_INTENSIDADES`, `site-content-defaults.ts`)
+ * **y VOLVIÓ a `'suave'` en § CORTE-CUERPO-LETRA-E-ICONOS-1** (2026-09-28, el gate visual sobre
+ * 'intermedia': «el velo en suave es el que voy a dejar»). El paso 'intermedia' sigue en el catálogo;
  * `heroTickerVelocidad` sigue en `'lenta'`, sin cambio.
  *
  * `volverArribaVisible` (§ CROMO-VOLVER-ARRIBA-1, OPCIONAL) — ¿se monta el botón flotante "volver
@@ -1095,17 +1097,23 @@ export const CORTE: PresetTema = {
   // EXPLÍCITA del owner sobre la velocidad YA medida contra el tema real («la velocidad… debería ser
   // más baja») — no una segunda medición, una elección; NO cambia en este slice.
   //
-  // heroVeloIntensidad PASA DE 'suave' A 'intermedia' — § HERO-VELO-INTERMEDIO-1 (2026-09-28): el
+  // heroVeloIntensidad PASÓ DE 'suave' A 'intermedia' — § HERO-VELO-INTERMEDIO-1 (2026-09-28): el
   // owner, sobre el gate visual de 'suave' ya aplicada («también» junto al color pleno de la frase de
   // § HERO-FRASE-COLOR-PLENO-1): «el velo del hero puede ser un poquito más oscuro, si eso logra que
   // las letras, no solo del pie, sino del nav se aprecien mejor». 'intermedia' es el TERCER paso del
   // set cerrado (`VELO_INTENSIDADES`, site-content-defaults.ts), entre 'suave' y 'media' y MÁS CERCA
   // de 'suave' — el rango exacto y el contraste medido (frase Y nav, que renderizan el MISMO blanco
   // sobre el MISMO velo compuesto) viven en el docstring de `rangoVeloDeIntensidad`/`veloOpacidad`,
-  // `lib/animation.ts`. CORTE es hoy el ÚNICO preset del catálogo que declara `heroVeloIntensidad`/
-  // `.heroTickerVelocidad`; los otros cinco no tocan `content.hero.veloIntensidad`/`.tickerVelocidad`
-  // (quedan en su default `'media'`).
-  heroVeloIntensidad: 'intermedia',
+  // `lib/animation.ts`.
+  //
+  // **Y VUELVE DE 'intermedia' A 'suave' — § CORTE-CUERPO-LETRA-E-ICONOS-1 (2026-09-28):** el gate
+  // visual del owner sobre 'intermedia' ya aplicada, junto al pedido de cuerpo en letras e íconos:
+  // «El velo en suave es el que voy a dejar». El paso 'intermedia' NO se retira del catálogo —
+  // `VELO_INTENSIDADES` sigue con sus TRES miembros y el `<select>` del panel lo sigue ofreciendo —
+  // sólo CORTE deja de declararlo. CORTE es hoy el ÚNICO preset del catálogo que declara
+  // `heroVeloIntensidad`/`.heroTickerVelocidad`; los otros cinco no tocan
+  // `content.hero.veloIntensidad`/`.tickerVelocidad` (quedan en su default `'media'`).
+  heroVeloIntensidad: 'suave',
   heroTickerVelocidad: 'lenta',
   // volverArribaVisible (§ CROMO-VOLVER-ARRIBA-1) — MEDIDO contra el prototipo: `.to-top`
   // (`docs/prototipos/cafeone/index.html:116`, `css/app.css:340-353`) es una pastilla fija

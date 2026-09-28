@@ -570,3 +570,16 @@ html {
    trazo. El selector `.lucide` deja fuera los `<svg>` inline propios (Logo, NosotrosGaleria),
    que conservan su trazo. Fallback 2 = el default de lucide → Suave byte-idéntico. */
 html:not(.admin) .lucide { stroke-width: var(--sf-trazo, 2); }
+
+/* El TRAZO del ícono del encabezado en CORTE (§ CORTE-CUERPO-LETRA-E-ICONOS-1) — MEDIDO contra el
+   prototipo (`docs/prototipos/cafeone/js/app.js`, función `icon`, cerca de `:44`): stroke-width
+   1.6 sobre un ícono de 22px. `--sf-trazo` (arriba) es de la FORMA 'recta' (1.25, § formas.ts) y
+   'recta' es COMPARTIDA con PLIEGO — pisarla movería el trazo de TODOS los íconos de PLIEGO. Por
+   eso este 1.6 vive en una clase PROPIA, de mayor especificidad que `.lucide` sola (dos clases >
+   una: gana sobre la regla de arriba sin tocarla), aplicada SÓLO a los dos íconos del encabezado
+   (buscar, carrito) y a su versión dentro del panel de búsqueda — gateada en `StoreNav.tsx`/
+   `NavSearch.tsx` por `navTratamiento.posicion` (CORTE es hoy el ÚNICO preset que lo declara). Sin
+   `@layer`, por la MISMA razón que la regla de arriba: gana sobre el atributo `stroke-width` que
+   lucide emite. El TAMAÑO (22px) va en la clase Tailwind arbitraria del propio componente
+   (`w-[22px] h-[22px]`), no acá — no hace falta CSS para eso. */
+html:not(.admin) .lucide.sf-icono-nav-exacto { stroke-width: 1.6; }

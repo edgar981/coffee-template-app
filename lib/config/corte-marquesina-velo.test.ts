@@ -143,11 +143,13 @@ test('PATIO (preset que NO enciende la marquesina): el contenido resuelto no cam
 // del test NO cambia: la marquesina suelta sigue apagada, por la misma razón de siempre
 // (§ CORTE-USA-HERO-STICKY-1). § HERO-VELO-INTERMEDIO-1 (2026-09-28) cambió el VALOR de
 // `heroVeloIntensidad` de 'suave' a 'intermedia' (el owner: «el velo del hero puede ser un poquito
-// más oscuro») — el `--sf-velo` que este test afirma no depende de CUÁL intensidad, así que esa
-// mitad del test no cambia; sólo el valor esperado de `veloIntensidad`. § CORTE-HERO-REVELADO-
-// MASCARA-1/§ HERO-VELO-INTERMEDIO-1 (`hero-marquesina.test.ts`, `hero-toggles-preset.test.ts`,
-// `lib/animation.test.ts`) afirman en detalle el reencendido y el rango de cada intensidad.
-test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en el hero·sticky), y el hero·sticky de CORTE vuelve a montar el velo (intensidad "intermedia")', () => {
+// más oscuro») y § CORTE-CUERPO-LETRA-E-ICONOS-1 (mismo día) lo REVIRTIÓ a 'suave' (el owner, sobre
+// el gate de 'intermedia': «el velo en suave es el que voy a dejar») — el `--sf-velo` que este test
+// afirma no depende de CUÁL intensidad, así que esa mitad del test no cambia; sólo el valor esperado
+// de `veloIntensidad`. § CORTE-HERO-REVELADO-MASCARA-1/§ HERO-VELO-INTERMEDIO-1
+// (`hero-marquesina.test.ts`, `hero-toggles-preset.test.ts`, `lib/animation.test.ts`) afirman en
+// detalle el reencendido y el rango de cada intensidad.
+test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en el hero·sticky), y el hero·sticky de CORTE vuelve a montar el velo (intensidad "suave")', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.hero.variante, 'sticky');
@@ -155,7 +157,7 @@ test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en
   assert.equal(renderMarquesina(conCorte), '', 'la banda suelta no rinde nada bajo CORTE');
 
   assert.equal(conCorte.hero.veloVisible, true, '§ CORTE-HERO-REVELADO-MASCARA-1: RONDA 4 revierte el apagado — CORTE ya no declara veloVisible');
-  assert.equal(conCorte.hero.veloIntensidad, 'intermedia', '§ HERO-VELO-INTERMEDIO-1: CORTE declara la intensidad intermedia, el eje que sigue siendo suyo');
+  assert.equal(conCorte.hero.veloIntensidad, 'suave', '§ CORTE-CUERPO-LETRA-E-ICONOS-1: CORTE volvió a declarar la intensidad suave, el eje que sigue siendo suyo');
   const htmlHeroSticky = renderHeroMediaMarquesina(conCorte);
   assert.match(htmlHeroSticky, /--sf-velo/, 'con veloVisible de vuelta en true, el token del velo vuelve a aparecer bajo CORTE');
 });

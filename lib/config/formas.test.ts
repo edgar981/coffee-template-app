@@ -132,3 +132,14 @@ test('#65-B · forma sobrevive el schema y el resolver (no se strippea, no se re
   assert.equal(resolverTema({ forma: 'inexistente' }, DEFAULTS.tema).forma, null);
   assert.equal(resolverTema({}, DEFAULTS.tema).forma, null);
 });
+
+// § CORTE-CUERPO-LETRA-E-ICONOS-1 (2026-09-28): CORTE necesitaba un trazo de ícono más grueso que
+// 'recta' para los dos íconos del encabezado (medido contra el prototipo), pero 'recta' es
+// COMPARTIDA con PLIEGO — bumpearla habría movido el trazo de TODOS los íconos de PLIEGO en
+// silencio. La salida (§ el docstring de `Forma.trazo`, y `.sf-icono-nav-exacto` en
+// `app/globals.css`) vive FUERA de este catálogo, así que este test es el GUARDIÁN: 'recta' debe
+// seguir en 1.25 para las tres formas, sin excepción.
+test("'recta' conserva su trazo de HOY (1.25) tras § CORTE-CUERPO-LETRA-E-ICONOS-1 — PLIEGO no se tocó", () => {
+  const recta = FORMAS.find((f) => f.clave === 'recta')!;
+  assert.equal(recta.trazo, '1.25');
+});

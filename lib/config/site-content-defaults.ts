@@ -114,8 +114,11 @@ export interface HeroContent {
   // piso/techo de SIEMPRE (`VELO_OPACIDAD_PISO`/1, § `veloOpacidad`, `lib/animation.ts` —
   // byte-idéntico para todo tema que no la declare); 'suave' es la MÁS TENUE en las DOS puntas del
   // recorrido (piso y techo); 'intermedia' cae ENTRE las dos, más cerca de 'suave' — la que CORTE
-  // elige desde § HERO-VELO-INTERMEDIO-1 (el owner, sobre 'suave' ya aplicada: «el velo del hero
-  // puede ser un poquito más oscuro»). SÓLO tiene efecto con `veloVisible:true` — atenuada en el
+  // eligió DESDE § HERO-VELO-INTERMEDIO-1 (el owner, sobre 'suave' ya aplicada: «el velo del hero
+  // puede ser un poquito más oscuro») y de la que CORTE VOLVIÓ a 'suave' en
+  // § CORTE-CUERPO-LETRA-E-ICONOS-1 (el owner, sobre el gate de 'intermedia': «el velo en suave es
+  // el que voy a dejar»). El paso 'intermedia' SIGUE en el catálogo y en el `<select>` del panel —
+  // sólo CORTE ya no lo declara. SÓLO tiene efecto con `veloVisible:true` — atenuada en el
   // panel cuando el velo está apagado (`gatedFields`, § tienda-secciones.ts, `HERO.booleanos`). El
   // contraste medido de las tres intensidades (bajo AA contra el proxy de fotos claras, aceptado
   // porque el video real de CORTE es oscuro) vive en el docstring de `veloOpacidad`.
