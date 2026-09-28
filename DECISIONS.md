@@ -27686,3 +27686,256 @@ instrucción del dispatch, no mergea.
 **EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio (§4).
 
 **Cierra `CROMO-NAV-CTA-Y-BADGE-1`.**
+
+## 2026-09-28 — El login se centra de verdad y sigue el tema en claro (`PANEL-LOGIN-CENTRADO-Y-CLARO-1`)
+
+Gate visual del owner sobre `PANEL-LOGIN-DUNELINES-OWNER-1` (2026-09-28), textual: *"la forma de
+las lineas ahora si es la esperada, sin embargo dos detalles. Uno que el login ahora no esta
+centrado en la pantalla, verticalmente, se puede shrink la amplitud o encuentra la forma de hacer
+que se siga viendo bien, pero que el login quede mas centrado. Y dos, que ahora esta oscuro para el
+modo claro, entonces falta la implementacion para el modo claro."* Los dos arreglos, enteros en el
+WRAPPER (`components/admin/PreAuthShell.tsx` + `app/(admin)/duna.css`) — `DuneLines.tsx` (el
+componente del owner) **no se toca ni una coma**; el test de hash (`lib/dune-lines-vendor.test.ts`)
+lo sigue afirmando byte a byte, sin cambio.
+
+### 1 · El descentrado — la causa MEDIDA, no supuesta
+
+`PreAuthShell` ponía `paddingBottom: 235px` (el `HEIGHT` fijo de `DuneLines`) sobre un contenedor
+`flex-col justify-center` con `pt-10` (40px) arriba. Con padding DESIGUAL arriba/abajo, el centro
+del bloque flex no cae en el centro real de la pantalla: cae en
+`padTop + (H - padTop - padBottom) / 2`. Para `H=800px` eso da `40 + (800-40-235)/2 ≈ 302` —
+**~98px arriba del centro real (400)**. Es aritmética directa de cómo reparte espacio
+`justify-content:center` con padding asimétrico, no una medición de navegador (§5, por qué).
+
+**El fix no fue "achicar la amplitud"** (la opción que el owner ofreció como salida, y que el
+dispatch pedía intentar EVITAR primero): se resolvió con posicionamiento puro. `paddingBottom`
+desaparece del cálculo de centrado; el contenedor pasa a `py-10` **SIMÉTRICO** (arriba Y abajo). Con
+padding-top == padding-bottom, el centro del bloque cae exactamente en `H/2` sin importar el valor
+del padding — es la propiedad que hace el fix robusto a cualquier alto de pantalla, no sólo a los
+que se pudieron medir a mano.
+
+**El owner aceptó explícitamente** (en el mismo mensaje) que la banda de `DuneLines` pase POR
+DETRÁS de la card en pantallas bajas — la card tiene fondo propio (`bg-card`), así que se sigue
+leyendo. Eso es lo que hace seguro remover la reserva completa: ya no hace falta blindar los 235px
+enteros, sólo el PIE (el único texto sin fondo propio).
+
+**El pie se queda EN FLUJO**, pegado a la card con el mismo `mt-9` de siempre — NO se lo desacopló a
+`position:absolute` (una opción evaluada y descartada): desacoplarlo habría roto la relación de
+espaciado card↔pie, con riesgo real de que ambos quedaran SUPERPUESTOS en una pantalla muy baja (dos
+elementos independientes, sin garantía de orden entre sí). Mantenerlos juntos es la opción de menor
+riesgo, aunque signifique que el centro EXACTO del bloque (card+pie) queda un poco por encima del
+centro de pantalla — el footer, al pesar hacia abajo, desplaza el punto medio del bloque unos ~26px
+sobre el card solo (con card≈420px + gap 36px + pie≈20px, el bloque completo mide ~476px, así que
+el CARD queda centrado en `H/2 - (476-420)/2 ≈ H/2 - 28`). Un desplazamiento de esa magnitud es
+imperceptible comparado con el que reportó el owner (~98-117px medido/estimado en la tanda anterior)
+y es el mismo patrón visual de cualquier tarjeta-con-pie centrada.
+
+### 2 · El pie no queda ilegible — argumento geométrico, con su límite declarado
+
+`DuneLines` (leído, no editado) dibuja cada línea `i` (0..14) con línea de base
+`y_local = 60 + i*11` dentro de su banda de 235px, y colorea `i<4` de ámbar (acento, opacidad ~0.5,
+la ÚNICA zona de alto contraste) e `i>=4` de crema (neutro, opacidad decreciente hasta ~0.097 en
+`i=14`). El bloque centrado (card+pie) sólo invade la banda cuando la pantalla es más baja que
+~946px (`H < altoDelBloque + 470`, derivado de igualar el borde inferior del bloque centrado con el
+borde superior de la banda) — y cuanto MÁS invade (pantalla más baja), MÁS PROFUNDO cae el pie
+dentro de la banda, es decir, hacia los índices `i` más ALTOS (los MENOS visibles). El caso límite
+—pantalla tan baja como el bloque mismo— deja al pie tocando, como mucho, el fondo de la banda
+(`y_local≈235`, la línea `i=14`, la más tenue). La zona ámbar de acento (`y_local≤~84`) sólo se
+alcanzaría si el bloque completo midiera ~150px MENOS que la pantalla — un caso que no ocurre con
+el alto real de estas cards (~420-500px con formularios más largos como Aceptar invitación).
+
+**Esto es geometría estática, no una medición en navegador — no hay Playwright ni jsdom en este
+repo** (`lib/preauth-chasis.test.ts`, el encabezado del archivo, lo dice explícito). El argumento
+reduce el riesgo a "cuando el pie SÍ está dentro de la banda, está en la zona menos visible", pero
+no puede afirmar "nunca hay un trazo exactamente debajo de una letra" — eso depende de la fase de la
+animación (`requestAnimationFrame`, con `Math.sin` sobre el tiempo) en el instante en que el owner
+mire la pantalla. **El gate real de este punto son los ojos del owner**, en las cuatro pantallas
+pre-auth y en al menos dos altos de ventana (uno cómodo, uno bajo) — dicho explícito en vez de
+omitido, por la regla de reporte de `CLAUDE.md` (§ PRECONDICIÓN, "al declarar una suite verde hay
+que decir qué capa quedó fuera").
+
+### 3 · El modo claro — fondo por token, texto medido (no supuesto)
+
+**Fondo**: `bg-background dark:bg-[#1B1712]`. El literal del owner (`#1B1712`) queda SÓLO tras el
+`dark:` — en claro, `bg-background` resuelve al TOKEN `--duna-bg` (`packages/design-system/tokens/
+tokens.css`, `:root`), no a un hex nuevo. Medido, no asumido: en el grupo admin, `--color-background`
+(`app/globals.css:155`) es `var(--duna-bg, hsl(var(--background)))`, y `--duna-bg` SIEMPRE está
+definido (tokens.css se importa incondicionalmente en `app/(admin)/duna.css`) — así que el fallback
+`hsl(var(--background))` (el token shadcn, `#F9F6F0`) nunca se alcanza en esta página; lo que
+realmente pinta es `--duna-bg` (`#F7F6F2` en claro). La diferencia entre los dos es de 2 unidades de
+canal, imperceptible, pero importa saber CUÁL es el que de verdad corre para medir el contraste del
+paso siguiente con el número correcto.
+
+**Las líneas NEUTRAS de `DuneLines` pasan a tinta en claro** — pedido textual del owner ("las líneas
+crema pasan a TINTA; las ámbar quedan ámbar"). Sin tocar el componente: `DuneLines` pinta con el
+atributo de presentación `stroke=`, y una regla CSS de selector de elemento le gana (spec de CSS:
+un atributo de presentación tiene la especificidad más baja posible). La regla vive en
+`app/(admin)/duna.css`:
+
+```css
+html.admin:not(.dark) .admin-preauth-lineas path:nth-child(n+5) {
+  stroke: var(--duna-ink);
+}
+```
+
+- **Scope por CLASE, no por `path` a secas**: `admin-preauth-lineas` la pone el WRAPPER
+  (`<DuneLines className="z-0 admin-preauth-lineas" />`) — `DuneLines` es hoy el único consumidor
+  con `<path>` hijo directo de `<svg>`, pero un selector sin clase alcanzaría cualquier ícono futuro
+  del admin con 5+ `<path>`.
+- **`nth-child(n+5)` sale del propio código de `DuneLines.tsx`**, no de un "5" copiado a mano:
+  `LINES=15`, y el color se decide con `stroke={i < 4 ? '#F59E0B' : '#A69D8E'}` — 4 líneas de acento
+  (índices 0-3, `nth-child(1..4)`), 11 neutras desde el índice 4 (`nth-child(5)` en adelante).
+  `lib/preauth-chasis.test.ts` DERIVA ese "5" leyendo el archivo fuente (regex sobre `LINES` y el
+  umbral `i < 4`) y lo compara contra el selector real en `duna.css` — si el owner autoriza mañana
+  mover el umbral de acento, este test lo detecta sin que nadie tenga que acordarse de sincronizar
+  el CSS a mano.
+- **Sólo `stroke`**: la regla no nombra `opacity` ni `stroke-width` — esos son del owner y el test
+  afirma explícitamente que el cuerpo de la regla no los toca.
+
+**El texto fuera de la card (el pie)**: en la tanda anterior se fijó `text-white/70` LITERAL porque
+el fondo era SIEMPRE oscuro. Con el fondo conmutando de nuevo, ese literal se leería casi invisible
+sobre el fondo claro nuevo. Se midió con `contraste()` (`lib/config/palette-derive.ts`, la misma
+función del motor de color del storefront) contra los tokens que esta página REALMENTE resuelve —
+`--duna-bg`/`--duna-muted`/`--duna-ink` (no los del `hsl(var(--background))` de shadcn, por la
+misma razón del fondo, arriba):
+
+| candidato | color efectivo | contraste vs `--duna-bg` (`#F7F6F2`) | AA (4.5:1) |
+| --- | --- | --- | --- |
+| `text-muted-foreground/70` (el reflejo obvio del `/70` de oscuro) | `#9b988f` | 2.67:1 | **FALLA** |
+| `text-muted-foreground` a secas (100%) | `#746F64` | 4.62:1 | pasa, raspando el piso |
+| `text-foreground/70` (`--duna-ink` al 70%) | `#595754` | **6.67:1** | pasa con margen |
+
+Se eligió `text-foreground/70 dark:text-white/70` — `--duna-ink` al 70% en claro. No sólo pasa AA
+con margen: espeja la MISMA convención de opacidad (`/70`) que ya rige en oscuro (`text-white/70`,
+9.12:1 contra `#1B1712`, sin cambio) en vez de introducir una tercera regla de opacidad para el
+mismo elemento. Los cinco números (los tres candidatos de claro + los dos temas elegidos) están
+afirmados por test (`lib/preauth-chasis.test.ts`, con la MISMA función `contraste()`, no una
+reimplementación) — visto pasar con los valores actuales; si alguna vez alguien cambia el token o la
+opacidad sin volver a medir, el test lo va a agarrar antes que el ojo.
+
+### 4 · El tinte radial — sigue retirado, a propósito
+
+La tanda anterior retiró el tinte radial de `--primary` (competía con el fondo literal fijo).
+Con el fondo volviendo a conmutar por tema, técnicamente ya podría reintroducirse sin el riesgo
+original — pero **nadie lo pidió**: el spec de este slice habla sólo de centrado y de modo claro.
+Reintroducirlo habría sido alcance no autorizado (scope creep) sobre una decisión de otra tanda.
+Queda anotado y NO tocado.
+
+### 5 · Por qué no hay diff visual — y qué es lo que sustituye
+
+El dispatch lo pide explícito: *"No corras el diff visual; decilo, y decí que el gate de estas
+pantallas son los ojos del owner."* No se corrió `verificar:nayoli:visual` — el diff no toca el
+storefront (`app/(storefront)/`, `components/storefront/`) ni `app/globals.css`, así que Nayoli es
+byte-idéntica por construcción (ningún archivo del storefront aparece en `git diff --numstat`).
+
+Lo que hace las veces de verificación en este slice, en ausencia de un navegador real:
+
+- **Matemática de layout** (§1, §2) — derivada del propio código de `PreAuthShell.tsx` y
+  `DuneLines.tsx`, no asumida.
+- **Contraste WCAG real** (§3) — calculado con la función de producción (`contraste()`), no
+  estimado a ojo.
+- **Regresión estructural** (`lib/preauth-chasis.test.ts`) — que el selector de recoloreo siga
+  derivado del componente real, que el bug de `paddingBottom` no vuelva, que fondo/texto sigan
+  conmutando por tema.
+
+Ninguna de las tres reemplaza al ojo del owner viendo la animación real en las cuatro pantallas a
+distintos altos de ventana — es la evidencia MÁXIMA que se puede producir sin un navegador, no un
+sustituto declarado como equivalente.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2380/2380** — verde. +5 sobre el piso de 2375 (`e65d4eb`, `CROMO-NAV-CTA-Y-BADGE-1`): los 5 tests nuevos de `lib/preauth-chasis.test.ts` (único archivo nuevo de esta tanda), medido por `node --test` directo sobre el archivo (5/5) antes de correr la suite completa. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo; ningún archivo de este slice vive bajo `tests/integracion/` |
+| `verificar:nayoli:visual` | **NO SE CORRIÓ**, por instrucción explícita del spec (§3: "No corras el diff visual; decilo"). El diff vive enteramente bajo `components/admin/` y `app/(admin)/`; el storefront y `app/globals.css` no aparecen en `git diff --numstat`. |
+| `lib/dune-lines-vendor.test.ts` (el hash) | **verde, sin cambio** — corrido explícito (no sólo dentro de `npm test`) para confirmar que `DuneLines.tsx` sigue byte a byte igual al del owner. |
+
+### `touches:` — lo que se tocó, y nada más
+
+`git diff --numstat` + el archivo nuevo: `app/(admin)/duna.css` (+31/-0), `components/admin/
+PreAuthShell.tsx` (+81/-34), `lib/preauth-chasis.test.ts` (nuevo, 139 líneas), más este asiento en
+`DECISIONS.md`. Los cuatro son exactamente los cuatro de `touches:` — `components/admin/
+DuneLines.tsx` estaba en el radar (es el archivo protegido) pero NO se tocó, y `git diff` lo confirma
+(no aparece en el numstat).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `DUNE_LINES_ALTO_PX` (retirado), `py-10` (nuevo, en
+vez de `pt-10` a secas), `admin-preauth-lineas` (clase nueva), `bg-background dark:bg-[#1B1712]`
+(cambiado desde `bg-[#1B1712]` fijo), `text-foreground/70 dark:text-white/70` (cambiado desde
+`text-white/70` fijo), `preauth-chasis.test.ts` (archivo nuevo), `PreAuthShell` (cambiado).
+
+Grep de cada uno contra `CLAUDE.md`:
+
+- `DUNE_LINES_ALTO_PX`, `admin-preauth-lineas`, `preauth-chasis` → **cero apariciones** en los tres.
+  `CLAUDE.md` no documentaba `DUNE_LINES_ALTO_PX` (era interno a `PreAuthShell.tsx`, nunca citado
+  por nombre) y los otros dos son símbolos que este mismo diff introduce.
+- `PreAuthShell` → **tres apariciones** (líneas 614, 2015, 7158), las mismas tres que ya revisó
+  `PANEL-LOGIN-DUNELINES-OWNER-1`:
+  - Línea 614 (patrón `AvisoError`) y línea 2015 (split shell-servidor/form-cliente para
+    `getSiteSettings`) — de OTRO tema, no las toca este diff, siguen siendo ciertas.
+  - **Línea 7158** ("el contenedor de `PreAuthShell` reserva la banda de la duna, `padding-bottom
+    11vw` ~ el alto de la cresta, piso 3.5rem") — YA estaba marcada obsoleta desde
+    `PANEL-LOGIN-HORIZONTE-ONDULANTE-1` (describe el mecanismo `11vw`/`lib/duna-horizonte.ts`,
+    retirado hace dos slices) y reabierta con datos nuevos en `PANEL-LOGIN-DUNELINES-OWNER-1` (el
+    número real ya era `235px` fijo, no una fracción de `vw`). **Este slice la vuelve MÁS falsa
+    todavía**: ahora el contenedor **no reserva ningún padding-bottom para centrar** — ni el `11vw`
+    de la frase, ni el `235px` que la reemplazó de hecho. El follow-up
+    `CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1` (abierto en `PANEL-LOGIN-HORIZONTE-FAMILIA-1`, reabierto dos
+    veces) se reabre una tercera vez con este dato — sigue sin estar en `touches:` de ningún slice
+    de esta familia.
+- `DunaPie` (símbolo huérfano ya documentado, no tocado por este diff) → sigue con las mismas dos
+  apariciones (7128, 7154) que `PANEL-LOGIN-DUNELINES-OWNER-1` ya nombró — mismo follow-up, sin
+  dato nuevo de este slice.
+
+**Nada que corregir dentro de `touches:` de este slice; el follow-up existente
+(`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`) se reabre con un dato más.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): este slice no cierra ninguna sección con id
+propio de una entrada anterior — agrega una nueva, y hace referencia a `PANEL-LOGIN-DUNELINES-
+OWNER-1` como el punto de partida (el `observed-report` del dispatch), sin editar su contenido
+histórico. Los follow-ups de esa entrada (`PANEL-LOGIN-RETIRO-HORIZONTE-VIEJO-1`,
+`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`) no se cierran acá — el primero necesita permiso de `rm` que este
+dispatch tampoco concedió; el segundo se reabre, como se detalla arriba.
+
+### `customer_bytes`
+
+**`changed: true`.** El owner va a mirar esta pantalla — es el propósito explícito del gate que
+disparó este slice. Cambia el fondo de las cuatro pantallas pre-auth (conmuta por tema en vez de
+fijo), la posición vertical del formulario (más centrado), el color de 11 de las 15 líneas de
+`DuneLines` en modo claro, y el color del pie de página en modo claro. `strings:` **ninguno** — no
+cambia una sola palabra de copy; el cambio es puramente de layout y color.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `touches:` tampoco las incluía.
+
+### Open follow-ups
+
+- **Condición anotada, no un id nuevo**: `CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1` (abierto en
+  `PANEL-LOGIN-HORIZONTE-FAMILIA-1`, reabierto en `PANEL-LOGIN-DUNELINES-OWNER-1`) se reabre una
+  tercera vez — la línea 7158 de `CLAUDE.md` describía ya un mecanismo retirado (`11vw`), y este
+  slice retira TAMBIÉN el mecanismo que lo había reemplazado de hecho (`235px` fijo). **why_not_now**:
+  `CLAUDE.md` no está en `touches:` de este slice.
+- **`PANEL-LOGIN-PIE-LEGIBILIDAD-VISUAL-1`** (nuevo) — el argumento de §2 (el pie cae en la zona
+  menos visible de la banda cuanto más baja es la pantalla) es geométrico, derivado del código, pero
+  NO fue verificado contra un frame real de la animación (`requestAnimationFrame` + `Math.sin`) ni
+  contra las cuatro pantallas con formularios de distinto alto (Aceptar invitación y Recuperar clave
+  tienen más campos que Login). **why_not_now**: este dispatch no tiene navegador ni permiso de
+  correr el diff visual (§3, instrucción explícita del spec) — es exactamente el punto que el gate
+  del owner tiene que confirmar.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones ejecutables
+(tsc, `npm test`, `npm run test:integracion`) más el test de hash del componente del owner, intacto.
+Sin `schema`, sin `cross-repo-contract`. `verificar:nayoli:visual` no se corrió por instrucción
+explícita del spec — el diff no toca el storefront, así que Nayoli es byte-idéntica por construcción.
+Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó la ESCRITURA (`approved: yes`,
+con su reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `PANEL-LOGIN-CENTRADO-Y-CLARO-1`.**

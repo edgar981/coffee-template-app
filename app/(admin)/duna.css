@@ -855,3 +855,34 @@ html.admin {
   color: var(--duna-sol-ink); font-size: .8rem; line-height: 1.4; text-decoration: none;
 }
 .admin-aviso-config__item:hover { text-decoration: underline; }
+
+/* ─── PANEL-LOGIN-CENTRADO-Y-CLARO-1 — las líneas NEUTRAS de DuneLines en modo CLARO ───
+   `DuneLines` (§ components/admin/DuneLines.tsx, del owner — NO se toca) pinta cada línea con el
+   atributo de presentación `stroke`, fijo en los DOS colores del owner: `#F59E0B` para las 4
+   líneas de ACENTO (`i < 4`, índices 0-3) y `#A69D8E` —"crema"— para las 11 NEUTRAS (`i >= 4`,
+   índices 4-14), de un total `LINES = 15`. Pedido textual del owner: en modo CLARO las líneas de
+   ACENTO se quedan ámbar y las NEUTRAS pasan a TINTA — la crema sobre un fondo claro pierde
+   contraste; sobre el fondo oscuro fijo de antes se leía bien.
+
+   UNA REGLA CSS CON SELECTOR DE ELEMENTO GANA SOBRE UN ATRIBUTO DE PRESENTACIÓN (así lo pinta
+   `stroke=`, no `style=`), así que basta recolorear desde acá sin tocar el componente ni una coma.
+
+   El selector es `nth-child(n+5)`: DOM-order, los primeros 4 hijos (`nth-child(1..4)`) son las
+   líneas de acento (índice 0-3) y el resto —desde el 5º hijo (índice 4, `nth-child(5)`) hasta el
+   15º— son las neutras. `lib/preauth-chasis.test.ts` DERIVA ese "5" leyendo el propio código de
+   `DuneLines.tsx` (el umbral `i < 4` de la condición del `stroke`, +1 por el offset 0-index →
+   nth-child) y lo compara contra ESTE selector — así una edición futura del componente
+   (autorizada por el owner) que mueva el umbral no deja el selector apuntando a las líneas
+   equivocadas EN SILENCIO.
+
+   SÓLO `stroke` se toca: la opacidad (`opacity`) y el grosor (`stroke-width`) son del owner y
+   esta regla no los nombra, así que siguen viniendo tal cual de los atributos de presentación.
+
+   Clase DEDICADA (`.admin-preauth-lineas`, NUNCA `path` a secas ni `svg path`): DuneLines es hoy
+   el único consumidor con `<path>` como hijo directo de un `<svg>`, pero un selector sin scope
+   sería una bomba para cualquier ícono del admin con 5+ `<path>` que aparezca después — un
+   `lucide-react` compuesto, un chart de recharts. La clase la pone el WRAPPER
+   (`components/admin/PreAuthShell.tsx`, vía `className`), no el componente. */
+html.admin:not(.dark) .admin-preauth-lineas path:nth-child(n+5) {
+  stroke: var(--duna-ink);
+}
