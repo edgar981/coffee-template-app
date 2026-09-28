@@ -27247,3 +27247,233 @@ Sin `schema`, sin `cross-repo-contract`. El commit queda en la rama a la espera 
 del orquestador.
 
 **Cierra `NOSOTROS-COMPOSICION-1`.**
+
+## 2026-09-27 — El fondo de login pasa a ser el `DuneLines` del owner, copiado tal cual (`PANEL-LOGIN-DUNELINES-OWNER-1`)
+
+Instrucción textual del owner (2026-09-27), reemplazando de raíz el horizonte que el protocolo
+venía construyendo de oído desde `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`: *"Use the component at
+~/Documents/All Projects/duna-motion/DuneLines.tsx for the /login background. Copy it into the
+project as-is. Don't rewrite the math, don't change the constants, and don't swap SVG for canvas
+or CSS."* Dos slices habían construido dos versiones del horizonte comparándolo contra capturas de
+una pieza de marca que este sandbox no podía abrir; ninguna se pareció lo suficiente. Este slice no
+intenta una tercera aproximación de oído: copia el archivo real, verificado por hash.
+
+### 1 · La copia — decodificada y verificada, no transcrita
+
+El archivo llegó en el spec como base64. Se decodificó con `node` (sin tocar un byte) a
+`components/admin/DuneLines.tsx` y se midió su SHA-256: **coincide EXACTO** con el hash que el spec
+declaraba (`94a2b2677b95e96e5b4a618ebfc80bcb8cae4d28a725af611214c51d1394e931`, 64 caracteres hex,
+2378 bytes decodificados). No hizo falta ningún ajuste — ni de whitespace, ni de línea final — el
+hash dio igual al primer intento.
+
+`tsc --noEmit` y `eslint` corridos sobre el archivo tal cual: **cero quejas de ninguno de los dos**,
+así que no hubo que decidir entre "romper la regla del owner" y "silenciar una regla de lint" — el
+caso que el spec anticipaba (§ "si tsc o eslint se quejan, PARÁ y reportá") no se dio.
+
+El componente es autocontenido: `'use client'`, sin imports del repo, `useEffect`+`useRef` que
+mutan el atributo `d` de 15 `<path>` a mano en cada `requestAnimationFrame`, leyendo
+`clientWidth` del propio SVG y `prefers-reduced-motion` con `matchMedia` — su propio guard, no el
+global de `app/globals.css` que cubría al horizonte viejo. Alto **FIJO en píxeles** (`HEIGHT=235`,
+inline), a diferencia del horizonte viejo que escalaba `width:100%,height:auto` proporcional al
+ancho. Colores hardcodeados (`#F59E0B` para las 4 líneas de acento, `#A69D8E` para las 11 neutras),
+sin leer ningún token del sistema.
+
+`lib/dune-lines-vendor.test.ts` (nuevo, capa 1, en el glob `lib/**/*.test.ts` que corre `npm test`)
+afirma ese mismo hash leyendo el archivo del disco: **la promesa "tal cual" deja de depender de que
+alguien se acuerde** — cualquier edición futura de una coma, una constante o la fórmula entera
+rompe este test, y el gate obliga a que esa edición se decida a la vista en vez de colarse.
+
+### 2 · El montaje — en `PreAuthShell`, una sola vez para las CUATRO pantallas
+
+`PreAuthShell` es el chasis compartido por las cuatro rutas pre-auth (confirmado por grep de sus
+consumidores: `LoginForm.tsx`, `AceptarInvitacionForm.tsx`, `RecuperarClaveForm.tsx`,
+`NuevaClaveForm.tsx`, más `recuperar-clave/page.tsx`), así que un solo montaje cubre "login,
+recuperar cuenta, etc." tal como pidió el owner.
+
+- **Se retiró `<DunaPie />` y se montó `<DuneLines className="z-0" />`** en su lugar, mismo sitio
+  del árbol (antes de la card, dentro del contenedor `relative`).
+- **El contenedor raíz ganó `overflow-hidden` y cambió `bg-background` por `bg-[#1B1712]`** — el
+  literal que el owner dio, tal cual, como clase arbitraria de Tailwind (instrucción explícita:
+  "on a #1B1712 background"). Antes el fondo seguía el token `--background` (claro/oscuro según el
+  tema del panel); ahora es un color FIJO, el mismo contra el que el owner diseñó `DuneLines`
+  (sus colores `#F59E0B`/`#A69D8E` no leen ningún token, así que necesitan un fondo fijo para verse
+  como se diseñaron).
+- **La card (`bg-card`) NO se tocó** — sigue el tema claro/oscuro del panel, tal como pedía el
+  spec ("la card se queda como está"). El logo adentro (con su swap `dark:hidden`/`dark:block`)
+  sigue siendo correcto porque vive sobre `bg-card`, no sobre el fondo literal nuevo.
+
+### 3 · La reserva de espacio — re-derivada del alto FIJO, no de una fracción de `vw`
+
+El horizonte viejo escalaba proporcional al ancho, así que la banda que `PreAuthShell` reservaba
+era una fracción de `vw` (`HORIZONTE_BANDA_FRACCION`, importada de `lib/duna-horizonte.ts`).
+`DuneLines` es alto FIJO en píxeles (`HEIGHT=235`, adentro del propio componente, NO exportado —
+no se tocó el archivo para exportarlo, la instrucción es "ni una coma"). Se re-espejó el mismo
+literal en `PreAuthShell.tsx` como `DUNE_LINES_ALTO_PX = 235`, con un comentario que es el ÚNICO
+puente entre los dos archivos (si el owner cambia `HEIGHT` en su copia maestra y alguien vuelve a
+pegarla acá, hay que releer este número — el test de hash lo va a forzar a mirar el archivo de
+nuevo de todas formas). El `padding-bottom` pasó de `max(4rem, 15vw)` (una fórmula con piso, para
+una banda proporcional) a `235px` llano (un número fijo, para una banda fija) — ya no hace falta el
+`max()` con un piso en rem, porque no hay nada que "encoja" en pantallas angostas: el alto es el
+mismo siempre.
+
+### 4 · El texto fuera de la card — recoloreado, y medido
+
+El único texto que vive FUERA de la card es el pie *"El sistema operativo de tu negocio."*, que
+usaba `text-muted-foreground/70` — un token que sigue el tema del panel. Con el fondo ahora
+LITERAL y siempre oscuro (`#1B1712`), en tema CLARO ese token resuelve a un gris oscuro pensado
+para un fondo `bg-background` claro — quedaría casi invisible.
+
+Se cambió a `text-white/70` (LITERAL, no un token — el fondo tampoco lo es). Medido (WCAG relative
+luminance, blend alpha 70% del blanco sobre `#1B1712`): el color efectivo es `#bbb9b8`, con
+**contraste 9.12:1 contra `#1B1712`** — la AA exige 4.5:1 para texto normal (14px es el tamaño de
+este pie, `text-xs`); 9.12:1 la supera con margen y hasta pasa el umbral AAA de texto normal (7:1).
+Cálculo (Node, sin librería, la fórmula estándar de luminancia relativa sRGB):
+
+```
+srgbToLin(c) = c/255 <= 0.03928 ? c/(255*12.92) : ((c/255+0.055)/1.055)^2.4
+L(rgb) = 0.2126*srgbToLin(r) + 0.7152*srgbToLin(g) + 0.0722*srgbToLin(b)
+contraste(c1,c2) = (max(L1,L2)+0.05) / (min(L1,L2)+0.05)
+blanco@70% sobre #1B1712 = round(255*0.7 + 27*0.3), etc. = #bbb9b8
+contraste(#bbb9b8, #1B1712) = 9.12
+```
+
+### 5 · El tinte radial — retirado
+
+El contenedor tenía un `bg-[radial-gradient(...,hsl(var(--primary)/0.07),...)]` para dar
+profundidad sutil, apoyado en el token `--primary` (que sigue el tema del panel). El spec ofrecía
+retirarlo si "sobraba"; se decidió retirarlo: el token ya no tiene garantía de verse bien contra un
+fondo FIJO que dejó de seguir el tema (podía resolver a un valor pensado para un fondo claro), y
+`DuneLines` ya aporta su propio acento cálido (las 4 líneas en `#F59E0B`) — el tinte no sumaba un
+efecto que no estuviera ya ahí, y arriesgaba desentonar contra un fondo que ya no es el que lo
+alojaba quando se escribió.
+
+### 6 · Lo que queda huérfano — nombrado, no borrado
+
+Sin permiso de borrar archivos. Contados los consumidores DESPUÉS del cambio (grep sobre todo el
+árbol, excluido `node_modules`):
+
+- **`components/admin/DunaPie.tsx`** — CERO consumidores (antes, el único era `PreAuthShell`).
+- **`lib/duna-horizonte.ts`** — CERO consumidores fuera de sí mismo y de su propio test
+  (`lib/duna-horizonte.test.ts`); antes, su único consumidor externo era `DunaPie.tsx` (para la
+  geometría) y `PreAuthShell.tsx` (para `HORIZONTE_BANDA_FRACCION`).
+
+Los dos quedan nombrados como **`PANEL-LOGIN-RETIRO-HORIZONTE-VIEJO-1`** (abajo, open follow-up):
+retirar `DunaPie.tsx`, `lib/duna-horizonte.ts` y `lib/duna-horizonte.test.ts` es limpieza de código
+muerto que este slice no tiene permiso de ejecutar (§ el dispatch: sin `rm`).
+
+### 7 · El hilo principal — decisión explícita del owner, asentada para que nadie la "optimice"
+
+`DuneLines` anima con `requestAnimationFrame`, recalculando 15 paths × hasta 241 puntos por cuadro,
+en el HILO PRINCIPAL, en una pantalla donde se teclea una contraseña. Es lo opuesto de la
+restricción que gobernó las dos versiones anteriores del protocolo (`transform` vía CSS, cero JS
+por cuadro, exactamente para no competir con el tecleo). **Es DECISIÓN EXPLÍCITA del owner**,
+tomada él mismo después de ver las dos versiones por CSS que el protocolo construyó y no
+reconocerlas como su pieza de marca — prefiere el costo de rendimiento real y medible antes que una
+aproximación barata que no se parece. Quien quiera cambiar el mecanismo (a CSS, a canvas, a
+`will-change`/`requestIdleCallback` o cualquier optimización) se lo pregunta a él primero — no es
+una omisión de este slice, es lo que el spec pidió textualmente ("don't swap SVG for canvas or
+CSS").
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2364/2364** — de un piso de 2363 (`a9436ad`, `NOSOTROS-COMPOSICION-1`); `lib/dune-lines-vendor.test.ts` suma 1 test nuevo, sin tests quitados en ningún otro archivo |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo; ningún archivo de este slice vive bajo `tests/integracion/` |
+| `verificar:nayoli:visual` | **NO SE CORRIÓ**, por instrucción explícita del spec (§4: "No corras el diff visual; decilo"). El diff vive enteramente bajo `components/admin/` y `lib/`; el storefront y `app/globals.css` no cambiaron un solo byte. El gate real de esta pantalla son los ojos del owner. |
+
+### `touches:` — lo que se tocó, y nada más
+
+`git status --porcelain`: `components/admin/PreAuthShell.tsx` (modificado, +42/-40),
+`components/admin/DuneLines.tsx` (nuevo, 75 líneas, vendorizado), `lib/dune-lines-vendor.test.ts`
+(nuevo, 40 líneas), más este asiento en `DECISIONS.md`. Los cuatro son exactamente los cuatro de
+`touches:` — ninguno más, ninguno menos.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff introdujo o cambió: `DuneLines` (componente nuevo), `DunaPie` (deja de
+montarse), `HORIZONTE_BANDA_FRACCION` (deja de importarse), `duna-horizonte` (deja de importarse),
+`BANDA_VW`/`PISO_BANDA_REM` (retirados), `DUNE_LINES_ALTO_PX` (nuevo), `PreAuthShell` (cambiado).
+
+Grep de cada uno contra `CLAUDE.md`:
+
+- `DuneLines`, `HORIZONTE_BANDA_FRACCION`, `duna-horizonte`, `BANDA_VW`, `PISO_BANDA_REM`,
+  `DUNE_LINES_ALTO_PX` → **cero resultados** en los seis. `CLAUDE.md` no describía nada de esto
+  (los cinco últimos porque son símbolos que este diff retira o introduce, no documentados nunca;
+  `duna-horizonte` porque ninguna sección de `CLAUDE.md` cita ese archivo por nombre).
+- `DunaPie` → **dos apariciones**, ambas en la sección "LA DUNA DEL LOGIN — identidad de la puerta"
+  (`CLAUDE.md:7125-7162`, bajo § Principio rector del admin — EXCEPCIÓN DECLARADA). Esa sección
+  **YA estaba marcada obsoleta** por el follow-up `CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1` (abierto en
+  `PANEL-LOGIN-HORIZONTE-ONDULANTE-1`, reabierto en `PANEL-LOGIN-HORIZONTE-FAMILIA-1` por el número
+  "11vw" también desactualizado): describe un `<animateMotion>` de un sol viajero que ya no existe
+  desde hace dos slices. **Este diff profundiza el mismo drift, en un eslabón más**: ya no sólo el
+  MECANISMO que la sección describe es viejo (el sol que "recorre lentamente" la cresta) — ahora
+  el propio COMPONENTE que nombra (`DunaPie`) **no se monta en ningún lado**. La sección pasa de
+  "describe un mecanismo retirado" a "describe un mecanismo retirado, de un componente huérfano".
+  **No se corrigió** — sigue sin estar en `touches:` de este slice (`CLAUDE.md` no lo está), y el
+  follow-up existente ya cubre reescribir la sección entera; se reabre con este dato nuevo en vez
+  de fragmentar la corrección en un tercer id.
+- `PreAuthShell` → **tres apariciones** (líneas 614, 2015, 7158). Las líneas 614 y 2015 son de OTRO
+  tema (el patrón `AvisoError`, y el split shell-servidor/form-cliente para `getSiteSettings`) — no
+  las toca este diff. La línea 7158 ("el contenedor de `PreAuthShell` reserva la banda de la duna,
+  padding-bottom `11vw`...") vive DENTRO de la misma sección obsoleta de arriba — el número real
+  hoy es `235px` fijo, no una fracción de `vw` en absoluto (§3) — otro dato más para el mismo
+  follow-up reabierto, no una tercera sección.
+
+**Nada que corregir dentro de `touches:` de este slice; un follow-up ya existente se reabre con dos
+datos nuevos (el componente huérfano, el número que dejó de ser siquiera una fracción de `vw`).**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): este slice no cierra ninguna sección con id
+propio de una entrada anterior — agrega una nueva. Los tres follow-ups que dejó abiertos
+`PANEL-LOGIN-HORIZONTE-FAMILIA-1` (`PANEL-LOGIN-HORIZONTE-GATE-VISUAL-1`,
+`PANEL-LOGIN-HORIZONTE-NUM-AMBAR-AJUSTE-1`, `PANEL-LOGIN-HORIZONTE-SEGUNDA-ONDA-1`) apuntaban los
+tres al mecanismo `duna-horizonte`/`DunaPie` que este slice deja huérfano — **quedan MOOT, no
+cerrados**: el mecanismo que describían ya no está montado, pero cerrarlos es una decisión sobre
+ESA entrada anterior y esos ids, fuera de lo que este asiento decide por su cuenta. Se anota la
+condición; no se marcan resueltos acá.
+
+### `customer_bytes`
+
+**`changed: true`.** El owner va a mirar esta pantalla — es el propósito explícito del pedido. Con
+contenido vacío (no aplica acá: no hay "contenido" configurable, es geometría fija) el cambio es
+visual DIRECTO desde este mismo commit: el fondo de las cuatro pantallas pre-auth pasa de seguir el
+tema del panel a un literal oscuro fijo, con 15 líneas de un patrón distinto al horizonte anterior,
+y el pie de página cambia de color. `strings:` **ninguno** — no cambia una sola palabra de copy; el
+cambio es puramente visual (fondo, líneas, color del pie). No se corrió `verificar:nayoli:visual`
+porque el spec lo prohíbe explícitamente para este slice (§4) — pero el diff no toca ningún archivo
+del storefront (`app/(storefront)/`, `components/storefront/`) ni `app/globals.css`, así que Nayoli
+es byte-idéntica POR CONSTRUCCIÓN (el mecanismo vive enteramente bajo `components/admin/` y `lib/`).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `touches:` tampoco las incluía.
+
+### Open follow-ups
+
+- **`PANEL-LOGIN-RETIRO-HORIZONTE-VIEJO-1`** (nuevo) — `components/admin/DunaPie.tsx`,
+  `lib/duna-horizonte.ts` y `lib/duna-horizonte.test.ts` quedan con CERO consumidores tras este
+  slice (medido por grep, § arriba). **why_not_now**: este dispatch no tiene permiso de `rm`; el
+  retiro es del alcance de un slice con esa concesión.
+- **`CLAUDE-MD-DUNA-LOGIN-OBSOLETA-1`** (reabierto, tercera vez) — la sección "LA DUNA DEL LOGIN"
+  (`CLAUDE.md:7125-7162`) describe un mecanismo (`<animateMotion>`, sol viajero) que ya no existe
+  desde hace dos slices, y ahora además nombra un componente (`DunaPie`) que este slice deja sin
+  montar en ningún lado — el drift se profundiza con cada slice que toca esta pantalla sin poder
+  tocar `CLAUDE.md`. **why_not_now**: `CLAUDE.md` no está en `touches:` de este slice.
+- **Condición anotada, no un id nuevo**: `PANEL-LOGIN-HORIZONTE-GATE-VISUAL-1`,
+  `PANEL-LOGIN-HORIZONTE-NUM-AMBAR-AJUSTE-1` y `PANEL-LOGIN-HORIZONTE-SEGUNDA-ONDA-1` (abiertos en
+  `PANEL-LOGIN-HORIZONTE-FAMILIA-1`) apuntaban al mecanismo `duna-horizonte`/`DunaPie` que este
+  slice reemplaza por `DuneLines`. Quedan MOOT — el mecanismo que describían ya no está en
+  pantalla —, pero cerrarlos es una decisión sobre esos ids puntuales que este asiento no toma por
+  su cuenta.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** El diff cambia bytes que el owner va a
+mirar (el fondo de las cuatro pantallas pre-auth: componente, colores, geometría, y el color del
+pie de página) — falla la condición de `customer_bytes` de la política A. Sin `schema`, sin
+`cross-repo-contract`. Por instrucción del dispatch, este slice PARA acá y NO mergea; el commit
+queda en la rama a la espera del merge gateado del orquestador.
+
+**Cierra `PANEL-LOGIN-DUNELINES-OWNER-1`.**

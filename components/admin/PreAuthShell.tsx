@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { DunaPie } from "@/components/admin/DunaPie";
-import { HORIZONTE_BANDA_FRACCION } from "@/lib/duna-horizonte";
+import { DuneLines } from "@/components/admin/DuneLines";
 
 // ─── Chasis de las pantallas PRE-AUTH ────────────────────────────────────────
 // Las TRES son /login, /aceptar-invitacion y /recuperar-clave (+ su
@@ -45,25 +44,19 @@ export function AvisoError({ children }: { children: ReactNode }) {
   );
 }
 
-// PANEL-LOGIN-HORIZONTE-ONDULANTE-1: la banda inferior se RE-DERIVA de la
-// geometría del horizonte (antes, de la cresta única que reemplaza). El SVG
-// escala `width:100%, height:auto`, así que la altura ocupada por el dibujo es
-// proporcional al ANCHO del contenedor — la fracción relevante es la distancia
-// entre el punto MÁS ALTO que cualquier línea del horizonte puede alcanzar y el
-// borde inferior del viewBox, medida en unidades de ancho.
+// PANEL-LOGIN-DUNELINES-OWNER-1: la banda inferior se RE-DERIVA del alto FIJO
+// que `DuneLines` (componente del owner, copiado tal cual — § components/admin/
+// DuneLines.tsx) declara para sí mismo: `HEIGHT = 235` dentro de ese archivo. No
+// se toca el componente para exportar esa constante (la instrucción del owner es
+// "ni una coma"), así que acá se re-espeja el MISMO literal, con el comentario
+// como único puente entre los dos archivos.
 //
-// `HORIZONTE_BANDA_FRACCION` (§ lib/duna-horizonte.ts) YA es esa cuenta —una
-// sola fuente, no dos números que puedan divergir—; acá sólo se REDONDEA hacia
-// ARRIBA (nunca hacia abajo: cruzar contenido es peor que sobrar aire) para
-// obtener el porcentaje de `vw`. Va por `style`, no por una clase Tailwind
-// `pb-[...]`: una arbitrary-value class necesita ser un LITERAL estático para
-// que el escaneo de Tailwind la vea, y ésta depende de una constante calculada.
-const BANDA_VW = Math.ceil(HORIZONTE_BANDA_FRACCION * 100);
-
-// El PISO también sube, de 3.5rem a 4rem: el horizonte de varias líneas ocupa
-// más espacio vertical que la cresta única que reemplaza (~10.9% del ancho
-// contra los ~8.9% de antes, medido en `lib/duna-horizonte.test.ts`).
-const PISO_BANDA_REM = 4;
+// A diferencia del horizonte viejo (`lib/duna-horizonte.ts`, retirado de este
+// chasis), que escalaba `width:100%, height:auto` — proporcional al ANCHO del
+// contenedor, de ahí la reserva en `vw` —, `DuneLines` fija su alto en PÍXELES
+// (`height: HEIGHT` inline, sin importar el ancho). La reserva por tanto deja de
+// ser una fracción de `vw`: es ese mismo número fijo de píxeles, siempre.
+const DUNE_LINES_ALTO_PX = 235;
 
 export function PreAuthShell({
   titulo,
@@ -77,28 +70,31 @@ export function PreAuthShell({
   children: ReactNode;
 }) {
   return (
-    // El padding-BOTTOM reserva la banda del horizonte, para que el contenido centrado (la card y
-    // el pie) quede POR ENCIMA de sus líneas y éstas ondulen sobre fondo vacío, no sobre el texto.
-    // Se ancla el contenido en vez de capar el SVG: capar el alto lo letterboxearía (dejaría de
-    // cruzar toda la pantalla). `BANDA_VW`/`PISO_BANDA_REM`, arriba, son la derivación.
+    // El padding-BOTTOM reserva la banda de `DuneLines`, para que el contenido centrado (la card y
+    // el pie) quede POR ENCIMA de sus líneas. `DUNE_LINES_ALTO_PX`, arriba, es la derivación.
+    //
+    // Fondo `#1B1712` LITERAL (no un token): instrucción textual del owner (§ DECISIONS.md,
+    // PANEL-LOGIN-DUNELINES-OWNER-1) — la pantalla de login deja de seguir el tema claro/oscuro del
+    // panel en su fondo, para que `DuneLines` (que trae sus propios colores fijos, `#F59E0B`/
+    // `#A69D8E`, sin leer tokens) tenga siempre el mismo fondo contra el que fue diseñado.
+    // `overflow-hidden` también es del pedido del owner ("position: relative; overflow: hidden
+    // wrapper"), sobre el contenedor raíz.
     <div
-      className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 pt-10"
-      style={{ paddingBottom: `max(${PISO_BANDA_REM}rem, ${BANDA_VW}vw)` }}
+      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#1B1712] px-4 pt-10"
+      style={{ paddingBottom: `${DUNE_LINES_ALTO_PX}px` }}
     >
-      {/* Profundidad sutil: UN tinte radial del primario a muy baja opacidad,
-          para que el fondo no sea un plano muerto. Sale de tokens, así que se
-          adapta a claro y oscuro, y se queda muy por debajo de la card — el
-          contraste de la página lo sigue haciendo la card, no el fondo. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(48rem_32rem_at_50%_0%,hsl(var(--primary)/0.07),transparent_70%)]"
-      />
+      {/* El tinte radial de `--primary` que vivía acá se RETIRÓ (PANEL-LOGIN-DUNELINES-OWNER-1):
+          leía un token que sigue el tema claro/oscuro del panel, y el fondo ya no lo hace — sobre
+          `#1B1712` fijo, ese token puede resolver a un valor pensado para un fondo claro y no
+          adaptarse. `DuneLines` ya aporta su propio acento cálido (las líneas en `#F59E0B`), así
+          que el tinte no sumaba algo que no estuviera ahí y arriesgaba desentonar. */}
 
-      {/* El horizonte ondulante, al fondo — identidad de la puerta. Detrás de la card
-          (la card es `relative`, con su fondo `bg-card` que la separa del trazo). */}
-      <DunaPie />
+      {/* `DuneLines`, el componente del owner (copiado tal cual, § components/admin/DuneLines.tsx),
+          al fondo — identidad de la puerta. `z-0` explícito para que quede detrás del formulario,
+          aunque el orden del DOM ya lo garantizaría (es el primer hijo, sin z-index propio). */}
+      <DuneLines className="z-0" />
 
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-10">
+      <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-10">
         <div className="mb-9 flex flex-col items-center text-center">
           {/* Logo de Duna. Dos archivos, uno por fondo: el negativo (claro) va
               sobre oscuro y el normal sobre claro. Se conmuta con `dark:` y no
@@ -134,8 +130,14 @@ export function PreAuthShell({
           de CONTAR sus piezas. El tagline anterior ("Un negocio. Dos puertas…") enumeraba admin +
           storefront, pero "dos puertas" se lee como canales y con WhatsApp serían tres: un recuento
           envejece con cada canal que se agrega. La afirmación de categoría no. Sin versión: un
-          literal no le dice nada a quien entra. `relative z-10` para quedar por encima de la duna. */}
-      <p className="relative z-10 mt-9 text-center text-xs text-muted-foreground/70">
+          literal no le dice nada a quien entra. `relative z-10` para quedar por encima de la duna.
+          `text-white/70` LITERAL, no `text-muted-foreground/70` (PANEL-LOGIN-DUNELINES-OWNER-1):
+          ese token sigue el tema claro/oscuro del panel y en tema CLARO resuelve a un gris OSCURO,
+          ilegible sobre el `#1B1712` fijo del fondo — este párrafo vive FUERA de la card, así que no
+          hereda el fondo claro de `bg-card` que sí sigue el tema. Medido: blanco al 70% sobre
+          `#1B1712` da 9.12:1 (AA exige 4.5:1 para texto normal) — ver el asiento en DECISIONS.md
+          para el cálculo. */}
+      <p className="relative z-10 mt-9 text-center text-xs text-white/70">
         El sistema operativo de tu negocio.
       </p>
     </div>
