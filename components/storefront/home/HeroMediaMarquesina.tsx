@@ -154,6 +154,29 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // en preview dejaría al dueño sin ver el campo que acaba de escribir, en la única superficie donde lo
 // está mirando en vivo.
 //
+// EL PESO — § CROMO-NAV-EXACTO-PROTOTIPO-1 (`font-medium`, DEVIACIÓN medida, ver el asiento de este
+// slice). El owner, frente al muestrario: «Las letras en el pie del Hero, se ven sin cuerpo muy
+// delgadas, en el muestrario se ven con más.» LA MEDICIÓN: `.hero-caption` del prototipo
+// (`docs/prototipos/cafeone/css/app.css:380-384`) no declara `font-weight` propio, así que hereda el
+// `400`/regular del `body` (que tampoco lo declara, `app.css:21-28`) — nominalmente el MISMO peso
+// que ya tenía este párrafo (sin clase de peso, mismo default del navegador). La diferencia real es
+// de FAMILIA: el `body` del prototipo es `--font-body` = 'Hanken Grotesk' (`tokens.css:14`), y el
+// cuerpo de CORTE es `fuentePar:'prensa'` = 'Figtree' (`lib/config/fuentes.ts:111`, reportado como
+// aproximación desde `TEMAS-PAR-PRENSA-1` — el catálogo no tiene a Hanken Grotesk). Figtree a 400 se
+// lee más liviana que Hanken Grotesk a 400 — dos tipografías distintas, no un número de peso
+// distinto.
+//
+// LA DEVIACIÓN: llevar el peso EXACTO del prototipo (400, ya el nuestro) no resuelve el reclamo; la
+// salida literal sería FAMILIA (Hanken Grotesk), pero **Hanken Grotesk está reservada a Duna** —
+// CLAUDE.md, § "Space Grotesk NO se ofrece a clientes": «es la tipografía de DUNA (el design system
+// del panel)… un cliente vistiendo su tienda como el panel borra la separación producto/cliente» —
+// y `fuentes.test.ts` afirma que NINGÚN par del catálogo del storefront ofrece Space Grotesk/Hanken/
+// Spline. Meterla acá, aunque sea para un solo párrafo, es la misma mezcla que esa regla prohíbe.
+// Por eso el arreglo sube el PESO (`font-medium`, 500) en vez de la familia: le da a la frase el
+// "cuerpo" que el owner pide sin cruzar la frontera producto/panel. Sólo esta variante (`'sticky'`,
+// la que usa CORTE) — `HeroMedia.tsx` no está en `touches:` de este slice y queda con el mismo
+// defecto, sin lector visible hoy (ningún preset del catálogo usa `hero:'media'`).
+//
 // EL REVELADO DEL TEXTO — § CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
 // REVELADO-MASCARA-1, `lib/animation.ts`, el bloque "EL REVELADO DEL TEXTO" para la derivación
 // completa): el owner reportó, sobre el muestrario de RONDA 2, que el marquee «no debe salir
@@ -507,7 +530,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             izquierda). Vacío → SE OMITE; SIN gate de preview (a diferencia del cue), es texto
             estático que el "cuadro compuesto" de la vista previa debe mostrar si hay dato. */}
         {hero.fraseAlPie && (
-          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-sm leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))] sm:bottom-10 sm:right-6 lg:bottom-12 lg:right-8">
+          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-sm font-medium leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))] sm:bottom-10 sm:right-6 lg:bottom-12 lg:right-8">
             {hero.fraseAlPie}
           </p>
         )}

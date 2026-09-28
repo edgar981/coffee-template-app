@@ -39,7 +39,13 @@ import { siteContentEditableSchema } from './site-content-schema';
 // razonamiento que `direccion`/`filete`/`cta`, ver el docstring de `NavTratamientoContent.posicion`),
 // así que el literal de HOY y las aserciones exhaustivas se amplían otra vez, sin dejar de afirmar
 // `activo`/`direccion`/`filete`/`cta`.
-const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false, filete: false, cta: false, posicion: false };
+//
+// § CROMO-NAV-EXACTO-PROTOTIPO-1 REESCRIBE el VALOR de `posicion` (de la geometría del tema real a
+// la del prototipo local, § el docstring de `NavTratamientoContent.posicion`) y suma `subrayado`
+// como SEXTO CAMPO de esta MISMA meta (mismo razonamiento que `posicion`, ver el docstring de
+// `NavTratamientoContent.subrayado`), así que el literal de HOY y las aserciones exhaustivas se
+// amplían otra vez, sin dejar de afirmar `activo`/`direccion`/`filete`/`cta`/`posicion`.
+const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false };
 
 // ── resolverNavTratamiento — dominio CERRADO de 1 clave, gemelo de resolverRielSocial ────────────
 
@@ -56,25 +62,26 @@ test('resolverNavTratamiento: un tipo equivocado (string donde va boolean) cae a
 });
 
 test('resolverNavTratamiento: un boolean real guardado se respeta', () => {
-  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false, filete: false, cta: false, posicion: false });
+  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false, filete: false, cta: false, posicion: false, subrayado: false });
 });
 
 test('resolverNavTratamiento: sin guardado, un DEFAULT explícito manda (defensa simétrica, como resolverCromo)', () => {
-  const def = { activo: true, direccion: true, filete: true, cta: true, posicion: true };
+  const def = { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true };
   assert.deepEqual(resolverNavTratamiento(undefined, def), def);
   assert.deepEqual(resolverNavTratamiento({}, def), def);
   // guardado presente con el TIPO correcto sigue ganando sobre el default
-  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true, filete: true, cta: true, posicion: true });
+  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true, filete: true, cta: true, posicion: true, subrayado: true });
 });
 
 // § CROMO-NAV-DIRECCION-SCROLL-1 — `direccion` se resuelve INDEPENDIENTE de `activo` (mismo `bool()`
 // que `resolverCromo`): un guardado que sólo trae uno de los dos no debe borrar el otro. § CROMO-
 // NAV-FILETE-1 — `filete` es el TERCER campo, resuelto con el MISMO mecanismo independiente. § CROMO-
 // NAV-CTA-Y-BADGE-1 — `cta` es el CUARTO campo, mismo mecanismo. § CROMO-NAV-POSICION-TEMA-REAL-1 —
-// `posicion` es el QUINTO campo, mismo mecanismo.
+// `posicion` es el QUINTO campo, mismo mecanismo. § CROMO-NAV-EXACTO-PROTOTIPO-1 — `subrayado` es
+// el SEXTO campo, mismo mecanismo.
 
-test('resolverNavTratamiento: un guardado que sólo trae `direccion` no toca `activo` ni `filete` ni `cta` ni `posicion` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true, filete: false, cta: false, posicion: false });
+test('resolverNavTratamiento: un guardado que sólo trae `direccion` no toca `activo` ni `filete` ni `cta` ni `posicion` ni `subrayado` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true, filete: false, cta: false, posicion: false, subrayado: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va boolean) cae al default', () => {
@@ -83,8 +90,8 @@ test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va
   assert.equal(r.activo, true, '`activo` no se ve afectado por el tipo equivocado de `direccion`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `filete` no toca `activo` ni `direccion` ni `cta` ni `posicion` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ filete: true }, {}), { activo: false, direccion: false, filete: true, cta: false, posicion: false });
+test('resolverNavTratamiento: un guardado que sólo trae `filete` no toca `activo` ni `direccion` ni `cta` ni `posicion` ni `subrayado` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ filete: true }, {}), { activo: false, direccion: false, filete: true, cta: false, posicion: false, subrayado: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `filete` (string donde va boolean) cae al default', () => {
@@ -94,8 +101,8 @@ test('resolverNavTratamiento: un tipo equivocado en `filete` (string donde va bo
   assert.equal(r.direccion, true, '`direccion` no se ve afectado por el tipo equivocado de `filete`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `cta` no toca `activo`/`direccion`/`filete`/`posicion` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ cta: true }, {}), { activo: false, direccion: false, filete: false, cta: true, posicion: false });
+test('resolverNavTratamiento: un guardado que sólo trae `cta` no toca `activo`/`direccion`/`filete`/`posicion`/`subrayado` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ cta: true }, {}), { activo: false, direccion: false, filete: false, cta: true, posicion: false, subrayado: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `cta` (string donde va boolean) cae al default', () => {
@@ -106,8 +113,8 @@ test('resolverNavTratamiento: un tipo equivocado en `cta` (string donde va boole
   assert.equal(r.filete, true, '`filete` no se ve afectado por el tipo equivocado de `cta`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `posicion` no toca `activo`/`direccion`/`filete`/`cta` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ posicion: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: true });
+test('resolverNavTratamiento: un guardado que sólo trae `posicion` no toca `activo`/`direccion`/`filete`/`cta`/`subrayado` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ posicion: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: true, subrayado: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `posicion` (string donde va boolean) cae al default', () => {
@@ -117,6 +124,20 @@ test('resolverNavTratamiento: un tipo equivocado en `posicion` (string donde va 
   assert.equal(r.direccion, true, '`direccion` no se ve afectado por el tipo equivocado de `posicion`');
   assert.equal(r.filete, true, '`filete` no se ve afectado por el tipo equivocado de `posicion`');
   assert.equal(r.cta, true, '`cta` no se ve afectado por el tipo equivocado de `posicion`');
+});
+
+test('resolverNavTratamiento: un guardado que sólo trae `subrayado` no toca `activo`/`direccion`/`filete`/`cta`/`posicion` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ subrayado: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: true });
+});
+
+test('resolverNavTratamiento: un tipo equivocado en `subrayado` (string donde va boolean) cae al default', () => {
+  const r = resolverNavTratamiento({ activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: 'true' }, {});
+  assert.equal(r.subrayado, false);
+  assert.equal(r.activo, true, '`activo` no se ve afectado por el tipo equivocado de `subrayado`');
+  assert.equal(r.direccion, true, '`direccion` no se ve afectado por el tipo equivocado de `subrayado`');
+  assert.equal(r.filete, true, '`filete` no se ve afectado por el tipo equivocado de `subrayado`');
+  assert.equal(r.cta, true, '`cta` no se ve afectado por el tipo equivocado de `subrayado`');
+  assert.equal(r.posicion, true, '`posicion` no se ve afectado por el tipo equivocado de `subrayado`');
 });
 
 // ── resolverSiteContent / DEFAULTS — sin fila, byte-idéntico ────────────────────────────────────
@@ -175,24 +196,34 @@ test('CORTE declara navTratamientoPosicion:true; los otros 5 presets del catálo
   }
 });
 
+// § CROMO-NAV-EXACTO-PROTOTIPO-1
+test('CORTE declara navTratamientoSubrayado:true; los otros 5 presets del catálogo NO lo declaran (ausente, no `false`)', () => {
+  assert.equal(CORTE.navTratamientoSubrayado, true);
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.navTratamientoSubrayado, undefined, `${preset.clave} no debe declarar navTratamientoSubrayado`);
+  }
+});
+
 test('validarPreset(CORTE) sigue devolviendo [] (completo) — el eje nuevo es opcional, no rompe la completitud', () => {
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 });
 
-test('mergePresetEnContent: CORTE escribe `content.navTratamiento` = {activo:true, direccion:true, filete:true, cta:true, posicion:true}', () => {
+test('mergePresetEnContent: CORTE escribe `content.navTratamiento` = {activo:true, direccion:true, filete:true, cta:true, posicion:true, subrayado:true}', () => {
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, CORTE);
-  assert.deepEqual(out.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true });
+  assert.deepEqual(out.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true });
 });
 
-test('mergePresetEnContent: PATIO no declara ninguno de los cinco ejes — la meta queda en su default de HOY (false×5)', () => {
+test('mergePresetEnContent: PATIO no declara ninguno de los seis ejes — la meta queda en su default de HOY (false×6)', () => {
   assert.equal(PATIO.navTratamientoActivo, undefined);
   assert.equal(PATIO.navTratamientoDireccion, undefined);
   assert.equal(PATIO.navTratamientoFilete, undefined);
   assert.equal(PATIO.navTratamientoCta, undefined);
   assert.equal(PATIO.navTratamientoPosicion, undefined);
+  assert.equal(PATIO.navTratamientoSubrayado, undefined);
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, PATIO);
-  assert.deepEqual(out.navTratamiento, { activo: false, direccion: false, filete: false, cta: false, posicion: false });
+  assert.deepEqual(out.navTratamiento, { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false });
 });
 
 test('mergePresetEnContent: los otros 5 presets escriben `content.navTratamiento` = el de HOY, byte-idéntico', () => {
@@ -214,9 +245,10 @@ test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — navTratamie
   assert.equal(sinTema.navTratamiento.filete, false);
   assert.equal(sinTema.navTratamiento.cta, false);
   assert.equal(sinTema.navTratamiento.posicion, false);
+  assert.equal(sinTema.navTratamiento.subrayado, false);
 });
 
-test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta Y .posicion pasan a true', () => {
+test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta, .posicion Y .subrayado pasan a true', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.navTratamiento.activo, true);
@@ -224,6 +256,7 @@ test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta
   assert.equal(conCorte.navTratamiento.filete, true);
   assert.equal(conCorte.navTratamiento.cta, true);
   assert.equal(conCorte.navTratamiento.posicion, true);
+  assert.equal(conCorte.navTratamiento.subrayado, true);
 });
 
 // ── La CAPA DE DATOS que gobierna a StoreNav — pass-through directo, verificable sin render ─────
@@ -242,7 +275,10 @@ test('la capa de datos: navTratamiento.activo=true (CORTE) → el pass-through d
 
 // § CROMO-NAV-FILETE-1 — el pass-through EXACTO de `navFileteClase` en StoreNav.tsx: `filete:false` no
 // agrega ninguna clase (byte-idéntico); `filete:true` agrega el hairline, con el par `navClaro` que
-// ya decide texto/íconos (§ el docstring del componente para el porqué de los tokens elegidos).
+// ya decide texto/íconos (§ el docstring del componente para el porqué de los tokens elegidos). El
+// VALOR no cambió con § CROMO-NAV-EXACTO-PROTOTIPO-1 — lo que se movió es DÓNDE se aplica la clase
+// (del contenedor con padding, donde el borde ignoraba su propio padding y tocaba los bordes de
+// pantalla, a la fila interior, ya inset por ese mismo padding) — invisible para este test de string.
 const navFileteClaseDe = (filete: boolean, navClaro: boolean) =>
   filete ? (navClaro ? 'border-b border-[var(--sf-sobre)]/20' : 'border-b border-[var(--sf-tinta)]/20') : '';
 
@@ -280,13 +316,15 @@ test('la capa de datos: navTratamiento.cta=true (CORTE) → el badge es FIJO, in
   assert.equal(badgeClaseDe(cta, false), 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]');
 });
 
-// § CROMO-NAV-POSICION-TEMA-REAL-1 — el pass-through EXACTO de `navContenedorClase`/`navFilaAltoClase`
-// en `StoreNav.tsx`: `posicion:false` deja el contenedor/altura de HOY (byte-idéntico); `posicion:true`
-// (CORTE) los reemplaza por la geometría medida contra el tema real.
+// § CROMO-NAV-EXACTO-PROTOTIPO-1 (REESCRIBE § CROMO-NAV-POSICION-TEMA-REAL-1) — el pass-through
+// EXACTO de `navContenedorClase`/`navFilaAltoClase` en `StoreNav.tsx`: `posicion:false` deja el
+// contenedor/altura de HOY (byte-idéntico); `posicion:true` (CORTE) los reemplaza por la geometría
+// medida contra el PROTOTIPO LOCAL (`--content-max`/`--page-gutter`/`--header-height`,
+// `docs/prototipos/cafeone/css/tokens.css:150,151,157`), no el tema real de la medición anterior.
 const navContenedorClaseDe = (posicion: boolean) =>
-  posicion ? 'max-w-[1800px] px-5' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+  posicion ? 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
 const navFilaAltoClaseDe = (posicion: boolean) =>
-  posicion ? 'py-4 lg:py-[13px]' : 'h-16 lg:h-18';
+  posicion ? 'h-[76px] sm:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
 
 test('la capa de datos: navTratamiento.posicion=false → el pass-through de StoreNav usa el contenedor/altura de HOY (el HOY exacto)', () => {
   const posicion = resolverSiteContent({}).navTratamiento.posicion;
@@ -294,11 +332,36 @@ test('la capa de datos: navTratamiento.posicion=false → el pass-through de Sto
   assert.equal(navFilaAltoClaseDe(posicion), 'h-16 lg:h-18');
 });
 
-test('la capa de datos: navTratamiento.posicion=true (CORTE) → el pass-through aplica la geometría medida contra el tema real', () => {
+test('la capa de datos: navTratamiento.posicion=true (CORTE) → el pass-through aplica la geometría medida contra el prototipo local', () => {
   const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   const posicion = conCorte.navTratamiento.posicion;
-  assert.equal(navContenedorClaseDe(posicion), 'max-w-[1800px] px-5');
-  assert.equal(navFilaAltoClaseDe(posicion), 'py-4 lg:py-[13px]');
+  assert.equal(navContenedorClaseDe(posicion), 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8');
+  assert.equal(navFilaAltoClaseDe(posicion), 'h-[76px] sm:h-[88px] cortenav:h-[118px]');
+});
+
+// § CROMO-NAV-EXACTO-PROTOTIPO-1 — el pass-through EXACTO de `navHoverClase` en `StoreNav.tsx`:
+// `subrayado:false` no agrega ninguna clase (byte-idéntico); `subrayado:true` agrega el subrayado
+// que se dibuja al hover (`.nav-link::after` del prototipo, `docs/prototipos/cafeone/css/
+// app.css:219-224`) — `bg-current` (=`currentColor`) porque el subrayado toma el color del propio
+// texto del link, sin un token nuevo.
+const navHoverClaseDe = (subrayado: boolean) =>
+  subrayado
+    ? 'relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:after:scale-x-100'
+    : '';
+
+test('la capa de datos: navTratamiento.subrayado=false → el pass-through de StoreNav no agrega ninguna clase (el HOY exacto)', () => {
+  const subrayado = resolverSiteContent({}).navTratamiento.subrayado;
+  assert.equal(navHoverClaseDe(subrayado), '');
+});
+
+test('la capa de datos: navTratamiento.subrayado=true (CORTE) → el pass-through aplica el subrayado animado', () => {
+  const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
+  const subrayado = conCorte.navTratamiento.subrayado;
+  const clase = navHoverClaseDe(subrayado);
+  assert.match(clase, /after:bg-current/, 'el subrayado toma currentColor, como .nav-link::after del prototipo');
+  assert.match(clase, /after:duration-\[220ms\]/, '--duration-base del prototipo (tokens.css:192)');
+  assert.match(clase, /after:ease-\[cubic-bezier\(0\.22,0\.61,0\.36,1\)\]/, '--ease-out del prototipo (tokens.css:189), la MISMA curva que ENTRADA_ESCALONADA_DRAWER');
+  assert.match(clase, /hover:after:scale-x-100/, 'se dibuja al hover');
 });
 
 // ── siteContentEditableSchema — `navTratamiento` es DEFENSIVO (§65-B), gemelo de `rielSocial` ────
@@ -340,12 +403,21 @@ test('navTratamiento.posicion: sobrevive al parse solo, y junto con `activo`/`di
   assert.deepEqual(los5.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true });
 });
 
+// § CROMO-NAV-EXACTO-PROTOTIPO-1
+test('navTratamiento.subrayado: sobrevive al parse solo, y junto con `activo`/`direccion`/`filete`/`cta`/`posicion`', () => {
+  const soloSubrayado = siteContentEditableSchema.parse({ navTratamiento: { subrayado: true } });
+  assert.deepEqual(soloSubrayado.navTratamiento, { subrayado: true });
+  const los6 = siteContentEditableSchema.parse({ navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true } });
+  assert.deepEqual(los6.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true });
+});
+
 test('navTratamiento: un TIPO equivocado se rechaza (el write es estricto; el resolver SOFT es la red aparte)', () => {
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { activo: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { direccion: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { filete: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { cta: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { posicion: 'true' } }));
+  assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { subrayado: 'true' } }));
 });
 
 test('navTratamiento: ausente no rompe el parse (es opcional, como las otras metas)', () => {

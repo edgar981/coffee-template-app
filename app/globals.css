@@ -34,6 +34,20 @@
      sistema que es dueño del número, no a la app. */
   --breakpoint-duna: 960px;
 
+  /* ── EL BREAKPOINT DEL NAV DE CORTE ────────────────────────────────────────
+     1200px, MEDIDO contra `docs/prototipos/cafeone/css/app.css:971-972`
+     (`@media (max-width:1200px){:root{--header-height:88px;--section-y:72px;
+     --page-gutter:24px}}`) — el punto donde el prototipo local reescribe la
+     geometría del encabezado de CORTE (§ CROMO-NAV-EXACTO-PROTOTIPO-1,
+     `navTratamiento.posicion`, `StoreNav.tsx`). No coincide con ningún
+     breakpoint nuestro (`lg`=1024, `xl`=1280) — su hermano de 640px SÍ coincide
+     con `sm` de Tailwind y no necesita nombre propio.
+
+     Mismo patrón que `--breakpoint-duna` arriba: se nombra al EJE que es dueño
+     del número (el nav de este preset), no a la app. Una variante que nadie usa
+     no genera CSS, así que no toca a ningún otro tenant. */
+  --breakpoint-cortenav: 1200px;
+
   /* Fonts */
   --font-inter: 'Inter', sans-serif;
   --font-playfair: 'Playfair Display', serif;

@@ -282,6 +282,16 @@ test('hero.fraseAlPie con texto: rinde el párrafo, alineado a la derecha, ENFRE
   assert.match(html, /right-4[^"]*z-10[^"]*max-w-\[34ch\][^"]*text-right/, 'debe ir a la derecha, no a la izquierda (donde va el cue)');
 });
 
+// § CROMO-NAV-EXACTO-PROTOTIPO-1 — EL PESO: el owner reportó la frase «sin cuerpo, muy delgada»
+// frente al muestrario. La familia real (Figtree, el cuerpo de CORTE) no puede llevarse a Hanken
+// Grotesk (reservada a Duna, § el docstring de cabecera "EL PESO" en HeroMediaMarquesina.tsx), así
+// que la deviación medida sube el PESO a `font-medium` en vez de la familia.
+test('hero.fraseAlPie: el párrafo lleva font-medium (subida de peso, § la deviación medida — no Hanken Grotesk)', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.match(html, /text-right[^"]*font-medium[^"]*leading-relaxed/, 'font-medium debe ir junto al resto de la tipografía de la frase');
+});
+
 test('hero.fraseAlPie EN PREVIEW: SIGUE rindiendo (a diferencia del cue, que se omite ahí) — es texto estático, no depende del scroll', () => {
   const html = renderHeroMediaMarquesina(
     { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData,

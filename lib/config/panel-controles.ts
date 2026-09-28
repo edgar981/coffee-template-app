@@ -203,23 +203,25 @@ const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscrip
 
 /** DECLARACIÓN EXPLÍCITA de lo que `EncabezadoSeccion.tsx` controla (§ PANEL-EDITOR-ENCABEZADO-1,
  *  ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, § CROMO-NAV-DIRECCION-SCROLL-1, §
- *  CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1 y § CROMO-NAV-POSICION-TEMA-REAL-1):
- *  `cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil` NO son secciones del REGISTRY (§ el
- *  docstring de `CONTROLADOS_PALETA_SECCION`, misma familia que `tema`), así que tienen su propia
- *  ruta de publicar/descartar (`/api/site-content/encabezado`) y se declaran acá, leídas de su
- *  código: los NUEVE switches — logo (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`),
- *  color del nav (`cromo.navTinta`), tratamiento del nav (`navTratamiento.activo`), el drawer móvil
- *  de pantalla completa (`navDrawerMovil.variante`, un switch ON/OFF sobre el set cerrado de 2 —
- *  "pantallaCompleta" vs. el default "dropdown"), el comportamiento por dirección de scroll
- *  (`navTratamiento.direccion`, § CROMO-NAV-DIRECCION-SCROLL-1), el filete inferior del encabezado
- *  (`navTratamiento.filete`, § CROMO-NAV-FILETE-1), la forma/color del CTA COMPRAR + el badge de
- *  menú (`navTratamiento.cta`, § CROMO-NAV-CTA-Y-BADGE-1) y la geometría del contenedor de contenido
- *  (`navTratamiento.posicion`, § CROMO-NAV-POSICION-TEMA-REAL-1) — los últimos CUATRO son CAMPOS de
+ *  CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1, § CROMO-NAV-POSICION-TEMA-REAL-1 y §
+ *  CROMO-NAV-EXACTO-PROTOTIPO-1): `cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil` NO son
+ *  secciones del REGISTRY (§ el docstring de `CONTROLADOS_PALETA_SECCION`, misma familia que
+ *  `tema`), así que tienen su propia ruta de publicar/descartar (`/api/site-content/encabezado`) y
+ *  se declaran acá, leídas de su código: los DIEZ switches — logo (`navWordmark.activo`),
+ *  sub-encabezado (`cromo.navSubtitulo`), color del nav (`cromo.navTinta`), tratamiento del nav
+ *  (`navTratamiento.activo`), el drawer móvil de pantalla completa (`navDrawerMovil.variante`, un
+ *  switch ON/OFF sobre el set cerrado de 2 — "pantallaCompleta" vs. el default "dropdown"), el
+ *  comportamiento por dirección de scroll (`navTratamiento.direccion`, § CROMO-NAV-DIRECCION-
+ *  SCROLL-1), el filete inferior del encabezado (`navTratamiento.filete`, § CROMO-NAV-FILETE-1), la
+ *  forma/color del CTA COMPRAR + el badge de menú (`navTratamiento.cta`, § CROMO-NAV-CTA-Y-BADGE-1),
+ *  la geometría del contenedor de contenido (`navTratamiento.posicion`, § CROMO-NAV-POSICION-TEMA-
+ *  REAL-1, reescrita por § CROMO-NAV-EXACTO-PROTOTIPO-1) y el subrayado al hover de los links
+ *  (`navTratamiento.subrayado`, § CROMO-NAV-EXACTO-PROTOTIPO-1) — los últimos CINCO son CAMPOS de
  *  la MISMA meta que `navTratamiento.activo`, no metas nuevas, así que nacen CONTROLADOS en su
  *  propio commit: nunca pasan por `PENDIENTE_PANEL`. NO controla `cromo.navBadge` (§
  *  PENDIENTE_PANEL, abajo — superseded por el badge del ítem de menú, que sí tiene control en
  *  `MenuSeccion.tsx`). */
-const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navTratamiento.direccion', 'navTratamiento.filete', 'navTratamiento.cta', 'navTratamiento.posicion', 'navDrawerMovil.variante'];
+const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navTratamiento.direccion', 'navTratamiento.filete', 'navTratamiento.cta', 'navTratamiento.posicion', 'navTratamiento.subrayado', 'navDrawerMovil.variante'];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `DetallesSitioSeccion.tsx` controla (§ PANEL-DETALLES-SITIO-1,
  *  ampliado por § MUESTRARIO-CARRITO-BARRA-ENVIO-1 y § MUESTRARIO-CARRITO-COMPOSICION-1):

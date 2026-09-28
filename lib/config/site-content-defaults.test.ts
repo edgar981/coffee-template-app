@@ -153,6 +153,26 @@ test('navTratamiento.posicion guardado explícito sobrevive la resolución compl
   assert.equal(r.navTratamiento.cta, false, 'un guardado que sólo trae `posicion` no debe encender `cta`');
 });
 
+// § CROMO-NAV-EXACTO-PROTOTIPO-1: `navTratamiento.subrayado` es OTRO CAMPO nuevo de la MISMA meta
+// ya cableada — mismo patrón que `posicion` arriba, mismo alcance (esto es sólo el CABLEADO; el
+// resolver, la ruta, el control del panel y el preset se afirman en
+// `lib/config/cromo-nav-tratamiento.test.ts`).
+test('sin nada guardado → navTratamiento.subrayado cae al default (false, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.navTratamiento, DEFAULTS.navTratamiento);
+  assert.equal(r.navTratamiento.subrayado, false);
+});
+
+test('navTratamiento.subrayado guardado explícito sobrevive la resolución completa, sin tocar `activo`/`direccion`/`filete`/`cta`/`posicion`', () => {
+  const r = resolverSiteContent({ navTratamiento: { subrayado: true } });
+  assert.equal(r.navTratamiento.subrayado, true);
+  assert.equal(r.navTratamiento.activo, false, 'un guardado que sólo trae `subrayado` no debe encender `activo`');
+  assert.equal(r.navTratamiento.direccion, false, 'un guardado que sólo trae `subrayado` no debe encender `direccion`');
+  assert.equal(r.navTratamiento.filete, false, 'un guardado que sólo trae `subrayado` no debe encender `filete`');
+  assert.equal(r.navTratamiento.cta, false, 'un guardado que sólo trae `subrayado` no debe encender `cta`');
+  assert.equal(r.navTratamiento.posicion, false, 'un guardado que sólo trae `subrayado` no debe encender `posicion`');
+});
+
 test('sin nada guardado y entrada basura (null / string / array) → defaults, no lanza', () => {
   for (const basura of [null, undefined, 'x', 42, [], { hero: 'no-obj' }]) {
     assert.deepEqual(resolverSiteContent(basura).hero, DEFAULTS.hero);

@@ -224,39 +224,53 @@ export default function StoreNav() {
   // pide evitar, y reusa infraestructura que YA existe en vez de un segundo guard.
   const navOcultoClase = navDireccionActiva ? (oculto ? '-translate-y-full' : 'translate-y-0') : '';
 
-  // EL FILETE INFERIOR (§ CROMO-NAV-FILETE-1): línea fina que separa el encabezado del contenido, SIN
-  // cruzar toda la pantalla — va en el CONTENEDOR DE CONTENIDO (`.max-w-6xl` de abajo), NO en el
-  // `<header>` de ancho completo. Medido contra el tema real (`x-cafeone.myshopify.com`,
-  // `.xo-header__content`, `bdb:s1 bdbc:foreground.2`, dentro de `<xo-container>`): el borde vive en
-  // el contenedor CON el margen lateral de página — nunca en la barra fija (`.xo-header`/
-  // `.xo-header__inner`, que declaran `bdrs:s0 bd:s0`, CERO borde) — así el inset sale del mismo
-  // margen que ya alinea el contenido, sin un número propio. Ancho: la unidad no-cero más chica de su
-  // escala de bordes, `border-b` (1px) — el MISMO hairline que ya usa
-  // `border-[var(--sf-sobre)]/20` más abajo (el drawer `pantallaCompleta`, medido contra el mismo
-  // prototipo). Color: el PROPIO primer plano del encabezado —el mismo par `navClaro` que ya decide
-  // texto/íconos, no un color de borde aparte— a opacidad reducida (`foreground.2` = 20%). Las clases
-  // de borde del tema real NO llevan el sufijo condicional de sticky que sí llevan `pl`/`pr` en esa
-  // misma cadena, así que el filete se ve en los DOS tratamientos del nav (flotando Y sólido) — no
-  // depende de `scrolled`. `false` (todo tenant salvo CORTE) → sin filete, byte-idéntico a hoy. Vive
-  // DENTRO del `<header>`, así que se oculta CON él al bajar (§ CROMO-NAV-DIRECCION-SCROLL-1) — nunca
-  // queda flotando solo.
+  // LA GEOMETRÍA (§ CROMO-NAV-EXACTO-PROTOTIPO-1, REESCRIBE § CROMO-NAV-POSICION-TEMA-REAL-1): el
+  // CONTENEDOR DE CONTENIDO y la FILA flex, medidos contra el PROTOTIPO LOCAL
+  // (`docs/prototipos/cafeone/`), no el tema real — el gate visual del owner («la ubicación de los
+  // elementos del nav aún no es como la del muestrario… ya llevamos varias pasadas en eso»)
+  // estableció que la referencia que se compara, pasada tras pasada, es el prototipo VERSIONADO, no
+  // un sitio de terceros que puede cambiar sin aviso. MEDIDO contra `docs/prototipos/cafeone/css/
+  // tokens.css:150,151,157` (`--header-height:118px`, `--page-gutter:32px`, `--content-max:1440px`)
+  // y `css/app.css:193-198` (`.header-bar{height:var(--header-height);display:flex;align-items:
+  // center;…max-width:var(--content-max);margin-inline:auto;padding-inline:var(--page-gutter)}` —
+  // ALTURA FIJA centrada por flex, no relleno) + sus dos breakpoints (`app.css:971-972`: bajo
+  // 1200px, `88px`/`24px`; `997-998`: bajo 640px, `76px`/`18px`). `max-w-[1440px]` (`--content-max`
+  // EXACTO) + `px-[18px] sm:px-6 cortenav:px-8` (18/24/32px, `--page-gutter` en sus tres
+  // breakpoints, mobile-first — `sm` de Tailwind coincide con los 640px del prototipo; 1200px no
+  // coincide con ningún breakpoint nuestro y gana el suyo propio, `--breakpoint-cortenav`,
+  // `app/globals.css`) reemplazan a `max-w-6xl` + `px-4 sm:px-6 lg:px-8`; y
+  // `h-[76px] sm:h-[88px] cortenav:h-[118px]` (`--header-height` en sus tres breakpoints) reemplaza
+  // a la altura FIJA `h-16 lg:h-18` — sigue siendo ALTURA FIJA, no relleno, sólo que ahora crece a
+  // los valores REALES del muestrario (§ el docstring de `NavTratamientoContent.posicion`,
+  // `site-content-defaults.ts`, para la corrección completa). `false` (todo tenant salvo CORTE) →
+  // `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` + `h-16 lg:h-18`, byte-idéntico a hoy.
+  const navContenedorClase = navTratamiento.posicion ? 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+  const navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] sm:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
+
+  // EL FILETE INFERIOR (§ CROMO-NAV-FILETE-1, la UBICACIÓN corregida por § CROMO-NAV-EXACTO-
+  // PROTOTIPO-1): línea fina que separa el encabezado del contenido, SIN cruzar toda la pantalla —
+  // va en la FILA INTERIOR (que ya lleva `navFilaAltoClase`), NO en el contenedor con padding ni en
+  // el `<header>` de ancho completo.
+  //
+  // EL DEFECTO QUE ESTO CORRIGE: un `border-b` se dibuja en el borde EXTERIOR de la caja del
+  // elemento, sin importar su `padding` — el padding empuja el CONTENIDO hacia adentro, no el borde.
+  // Puesto en el contenedor `max-w-[1440px] px-[18px]…`, el borde quedaba en el borde exterior de
+  // ESE contenedor, que en cualquier viewport ≤1440px ES el viewport completo — así que el filete
+  // tocaba los bordes de pantalla pese al `px-*`, el defecto que reportó el owner («la línea del nav
+  // ahora toca los bordes, la idea es que quede un espacio como en Cafeone»). La fila interior YA
+  // renderiza angosta —es un hijo block-level del contenedor con padding, así que ocupa el ANCHO DEL
+  // CONTENIDO (contenedor menos el padding), no el del contenedor— así que un borde puesto ahí queda
+  // inset por el MISMO margen que ya alinea el wordmark y el CTA, sin un número propio.
+  //
+  // Ancho: la unidad no-cero más chica de la escala de bordes, `border-b` (1px) — el MISMO hairline
+  // que ya usa `border-[var(--sf-sobre)]/20` más abajo (el drawer `pantallaCompleta`, medido contra
+  // el mismo prototipo). Color: el PROPIO primer plano del encabezado —el mismo par `navClaro` que
+  // ya decide texto/íconos, no un color de borde aparte— a opacidad reducida (20%). `false` (todo
+  // tenant salvo CORTE) → sin filete, byte-idéntico a hoy. Vive DENTRO del `<header>`, así que se
+  // oculta CON él al bajar (§ CROMO-NAV-DIRECCION-SCROLL-1) — nunca queda flotando solo.
   const navFileteClase = navTratamiento.filete
     ? (navClaro ? 'border-b border-[var(--sf-sobre)]/20' : 'border-b border-[var(--sf-tinta)]/20')
     : '';
-
-  // LA GEOMETRÍA (§ CROMO-NAV-POSICION-TEMA-REAL-1): el CONTENEDOR DE CONTENIDO —el MISMO div que ya
-  // lleva `navFileteClase`, así que el filete se ABRE con el contenedor sin tocarlo— y la FILA flex
-  // que hoy fuerza una altura corta. MEDIDO contra `.xo-header__content` del TEMA REAL
-  // (`x-cafeone.myshopify.com`): `max-w-[1800px]` (el `--page-width` de esa tienda, no el 1400px de
-  // fallback del framework) + `px-5` (20px, el `--page-gap` medido, FLAT — `--page-side-margin` no
-  // está asignado en esa tienda, cae a 0) reemplazan a `max-w-6xl` + `px-4 sm:px-6 lg:px-8`; y
-  // `py-4 lg:py-[13px]` (16px/13px, `s9`/`s7` de la escala del tema, `html{font-size:62.5%}`)
-  // reemplaza a la altura FIJA `h-16 lg:h-18` — la altura pasa a depender del contenido (§ el
-  // docstring de `NavTratamientoContent.posicion`, `site-content-defaults.ts`, para la
-  // reconciliación con el prototipo local, que diverge en los números exactos). `false` (todo tenant
-  // salvo CORTE) → `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` + `h-16 lg:h-18`, byte-idéntico a hoy.
-  const navContenedorClase = navTratamiento.posicion ? 'max-w-[1800px] px-5' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
-  const navFilaAltoClase = navTratamiento.posicion ? 'py-4 lg:py-[13px]' : 'h-16 lg:h-18';
 
   // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links
   // del nav llevan mayúscula + tracking del prototipo + un peso, sobre la MISMA sans del par (SIN
@@ -265,6 +279,20 @@ export default function StoreNav() {
   // exacto, sin mayúscula ni tracking. El tamaño (`text-sm`) es el mismo en las dos ramas — ya es el
   // body-s del prototipo, no cambia con el tratamiento.
   const navLinkTratamiento = navTratamiento.activo ? 'uppercase tracking-[0.06em] font-normal' : 'font-medium';
+
+  // EL SUBRAYADO AL HOVER (§ CROMO-NAV-EXACTO-PROTOTIPO-1): `.nav-link::after` del prototipo
+  // (`docs/prototipos/cafeone/css/app.css:219-224`) — una línea de 1px en `currentColor` que se
+  // dibuja desde la izquierda (`scaleX(0)→scaleX(1)`, `transform-origin:left`) con la MISMA curva
+  // que `ENTRADA_ESCALONADA_DRAWER` de arriba (`--duration-base:220ms`, `--ease-out:cubic-
+  // bezier(.22,.61,.36,1)`, `tokens.css:189,192`). `bg-current` toma el color del propio `linkColor`
+  // del link — sin un token nuevo, igual que `background:currentColor` en el prototipo.
+  // `prefers-reduced-motion` lo congela el guard GLOBAL de `app/globals.css`
+  // (`*,*::before,*::after{transition-duration:0.01ms!important}`), sin un guard propio: el
+  // subrayado APARECE, sólo que sin animar. `false` (todo tenant salvo CORTE) → sin subrayado,
+  // byte-idéntico a hoy.
+  const navHoverClase = navTratamiento.subrayado
+    ? 'relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:after:scale-x-100'
+    : '';
 
   const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
   const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
@@ -344,8 +372,8 @@ export default function StoreNav() {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocoDentro(false);
         }}
       >
-        <div className={`mx-auto ${navContenedorClase} ${navFileteClase}`}>
-          <div className={`flex items-center justify-between ${navFilaAltoClase}`}>
+        <div className={`mx-auto ${navContenedorClase}`}>
+          <div className={`flex items-center justify-between ${navFilaAltoClase} ${navFileteClase}`}>
             {/* Logo — SIN el badge de `cromo.navBadge` (§ CORTE-BADGE-COSECHA-EN-MENU-1). Antes esta
                 celda condicionaba entre `logoLink` solo y un flex que lo envolvía junto al badge; el
                 badge se MUDÓ a ser un atributo de un ítem del menú (abajo, `l.badge`), así que el
@@ -358,7 +386,7 @@ export default function StoreNav() {
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
               {links.map(l => {
-                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${pathname.startsWith(l.path) ? colorActivo : ''}`;
+                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${navHoverClase} ${pathname.startsWith(l.path) ? colorActivo : ''}`;
                 // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1): un ítem CON panel es un
                 // BOTÓN que abre/cierra el desplegable — nunca navega directo. Medido contra el
                 // prototipo (`docs/prototipos/cafeone/index.html:28-31`): `.nav-link` de "Nuestro café"
@@ -367,6 +395,11 @@ export default function StoreNav() {
                 // declare `panelItem` (Nayoli), así que esta rama nunca se ejercita ahí — byte-idéntico.
                 if (l.panel) {
                   const abierto = panelAbierto === l.id;
+                  // EL SUBRAYADO QUEDA VISIBLE MIENTRAS EL PANEL ESTÁ ABIERTO (§ CROMO-NAV-EXACTO-
+                  // PROTOTIPO-1) — `.nav-item.is-open .nav-link::after{transform:scaleX(1)}` del
+                  // prototipo (`app.css:224`): el trigger del mega-menú es el `.nav-item` que puede
+                  // estar `is-open`, así que fuerza el subrayado en vez de esperar el hover.
+                  const subrayadoAbierto = navTratamiento.subrayado && abierto ? 'after:scale-x-100' : '';
                   const trigger = (
                     <button
                       ref={megaTriggerRef}
@@ -374,7 +407,7 @@ export default function StoreNav() {
                       aria-expanded={abierto}
                       aria-controls={`mega-${l.id}`}
                       onClick={() => setPanelAbierto(abierto ? null : l.id)}
-                      className={`${linkClassName} inline-flex items-center gap-1 cursor-pointer`}
+                      className={`${linkClassName} inline-flex items-center gap-1 cursor-pointer ${subrayadoAbierto}`}
                     >
                       {l.label}
                       <ChevronDown aria-hidden className={`w-4 h-4 transition-transform ${abierto ? 'rotate-180' : ''}`} />

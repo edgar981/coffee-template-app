@@ -53,6 +53,12 @@ import { CORTE } from '../../lib/config/themes';
 // § CROMO-NAV-POSICION-TEMA-REAL-1: `navTratamiento` gana un QUINTO campo (`posicion`), mismo
 // razonamiento — los bodies de abajo llevan `posicion` junto a `activo`/`direccion`/`filete`/`cta`
 // porque `wireDe` sigue mandando el objeto COMPLETO.
+//
+// § CROMO-NAV-EXACTO-PROTOTIPO-1: `navTratamiento` gana un SEXTO campo (`subrayado`), mismo
+// razonamiento — los bodies de abajo llevan `subrayado` junto a `activo`/`direccion`/`filete`/`cta`/
+// `posicion` porque `wireDe` sigue mandando el objeto COMPLETO. `posicion` REESCRIBE su VALOR (la
+// geometría del prototipo local, no del tema real) sin tocar este viaje: el body sigue siendo
+// `{posicion: true|false}`, sólo cambió lo que StoreNav.tsx hace con ese booleano.
 
 const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true });
 const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
@@ -82,7 +88,7 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
 
@@ -97,6 +103,7 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   assert.equal(contenido.navTratamiento.filete, true);
   assert.equal(contenido.navTratamiento.cta, true);
   assert.equal(contenido.navTratamiento.posicion, true);
+  assert.equal(contenido.navTratamiento.subrayado, true);
   assert.equal(contenido.navDrawerMovil.variante, 'pantallaCompleta');
 
   // Y lo PUBLICADO todavía NO cambió — guardar el borrador no publica.
@@ -110,7 +117,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
@@ -124,6 +131,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   assert.equal(publicado.navTratamiento.filete, true);
   assert.equal(publicado.navTratamiento.cta, true);
   assert.equal(publicado.navTratamiento.posicion, true);
+  assert.equal(publicado.navTratamiento.subrayado, true);
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 
   const { sinPublicar } = await readSiteContentParaEditor();
@@ -135,7 +143,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
@@ -144,7 +152,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: false, navSubtitulo: false, navBadge: '' },
     navWordmark: { activo: false },
-    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false },
+    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false },
     navDrawerMovil: { variante: 'dropdown' },
   });
   await descartarComoLaRuta();
@@ -157,14 +165,15 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   assert.equal(publicado.navTratamiento.filete, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.cta, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.posicion, true, 'descartar no debe tocar lo YA publicado');
+  assert.equal(publicado.navTratamiento.subrayado, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta', 'descartar no debe tocar lo YA publicado');
 
   const { sinPublicar } = await readSiteContentParaEditor();
   assert.equal(sinPublicar.encabezado, false, 'descartar debe limpiar el borrador');
 });
 
-test('default del preset: los nueve controles arrancan con el valor que puso mergePresetEnContent', async () => {
-  // CORTE es el ÚNICO preset del catálogo que enciende los nueve ejes (§ themes.ts). Esto verifica
+test('default del preset: los diez controles arrancan con el valor que puso mergePresetEnContent', async () => {
+  // CORTE es el ÚNICO preset del catálogo que enciende los diez ejes (§ themes.ts). Esto verifica
   // lo que EncabezadoSeccion.tsx lee al abrir por primera vez sobre un tenant con este preset: los
   // switches YA prendidos, sin que el dueño haya tocado nada — "el preset pone el punto de partida".
   await aplicarPreset(CORTE);
@@ -178,6 +187,7 @@ test('default del preset: los nueve controles arrancan con el valor que puso mer
   assert.equal(publicado.navTratamiento.filete, true);
   assert.equal(publicado.navTratamiento.cta, true);
   assert.equal(publicado.navTratamiento.posicion, true);
+  assert.equal(publicado.navTratamiento.subrayado, true);
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 });
 
@@ -194,7 +204,7 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
     // VIGENTE, como hace el componente (nunca a medias).
     cromo: { navTinta: false, navSubtitulo: true, navBadge: 'Cosecha 2026' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();

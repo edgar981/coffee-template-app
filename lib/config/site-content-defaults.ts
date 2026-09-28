@@ -1116,34 +1116,75 @@ export interface NavTratamientoContent {
   // `preset.navTratamientoCta`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
   cta: boolean;
   // ¿El contenedor de contenido del encabezado (`.max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` de HOY,
-  // `StoreNav.tsx`) toma la GEOMETRÍA del tema real (§ CROMO-NAV-POSICION-TEMA-REAL-1) — más ancho
-  // (más cerca de los bordes) y con relleno VERTICAL propio, en vez de una altura fija? QUINTO CAMPO
-  // de la MISMA meta (mismo dominio "un ajuste más del encabezado" que `activo`/`direccion`/
-  // `filete`/`cta`, misma ruta/control).
+  // `StoreNav.tsx`) toma la GEOMETRÍA del PROTOTIPO LOCAL (§ CROMO-NAV-EXACTO-PROTOTIPO-1, que
+  // REEMPLAZA la medición contra el tema real de § CROMO-NAV-POSICION-TEMA-REAL-1 — ver la
+  // corrección abajo) — más ancho, con el mismo margen lateral por breakpoint que ya alinea el
+  // wordmark/CTA, y con ALTURA FIJA (no relleno) que crece por breakpoint? QUINTO CAMPO de la MISMA
+  // meta (mismo dominio "un ajuste más del encabezado" que `activo`/`direccion`/`filete`/`cta`,
+  // misma ruta/control).
   //
-  // MEDIDO contra `.xo-header__content` del TEMA REAL (`x-cafeone.myshopify.com`, fetch directo —
-  // el prototipo local capturado usa `--content-max:1440px`/`--header-height` FIJA, valores que
-  // DIVERGEN del tema real; § el asiento de este slice para la reconciliación completa): la clase es
-  // `py:s9 py:s7@+lg … pl:var(--page-side-margin)/xo-is-sticky pr:var(--page-side-margin)/xo-is-
-  // sticky`, DENTRO de `<xo-container>` (`max-width:var(--xo-container-width,1400px); margin:auto;
-  // padding-inline:var(--container-gap,2rem)`). En la tienda medida: `--page-width:180rem` (1800px,
-  // override del setting del tema — NO el 1400px de fallback del framework) y `--page-gap:20px` =
-  // `--page-gap-mobile:20px` (FLAT, no responsivo en esta tienda) alimentan `--xo-container-width`/
-  // `--container-gap`; `--page-side-margin` está SIN asignar (cae a `0` por su propio fallback CSS),
-  // así que el `pl/pr` condicional a `xo-is-sticky` no aporta nada extra ni flotando ni sólido.
-  // `s9`/`s7` son la escala de espaciado del tema (`--space-s9:1.6rem`=16px, `--space-s7:1.3rem`=
-  // 13px, con `html{font-size:62.5%}`): relleno vertical 16px por defecto, 13px desde el breakpoint
-  // `@+lg` — DISTINTO, no mayor, al de mobile.
+  // LA CORRECCIÓN (§ CROMO-NAV-EXACTO-PROTOTIPO-1, 2026-09-28): `CROMO-NAV-POSICION-TEMA-REAL-1`
+  // midió esto contra el TEMA REAL (`x-cafeone.myshopify.com`) razonando que el prototipo local
+  // "diverge en los números exactos" y por eso no servía de referencia. El gate visual del owner
+  // sobre ese resultado («la ubicación de los elementos del nav aún no es como la del muestrario…
+  // ya llevamos varias pasadas en eso») estableció el hecho que haría falta para esta reescritura:
+  // **la referencia que el owner compara, pasada tras pasada, es el PROTOTIPO LOCAL versionado
+  // (`docs/prototipos/cafeone/`), no el tema real** — un sitio vivo de terceros que puede cambiar
+  // sin aviso y que nadie tiene abierto al lado para comparar. Medir contra el tema real producía
+  // una geometría que se PARECE a la del prototipo pero no COINCIDE con ella (1800px vs 1440px de
+  // ancho máximo; relleno vertical variable vs una altura FIJA con `align-items:center`), y esa
+  // diferencia es justo lo que el gate reportó como "siguen estando más arriba" — con relleno en vez
+  // de altura fija, la fila calculaba más corta que los 118/88/76px reales del prototipo, así que el
+  // contenido quedaba más cerca del techo del encabezado de lo que el muestrario muestra.
+  //
+  // MEDIDO contra `docs/prototipos/cafeone/css/tokens.css:150,151,157` (`--header-height:118px`,
+  // `--page-gutter:32px`, `--content-max:1440px`) y `app.css:193-198` (`.header-bar{height:var(
+  // --header-height);display:flex;align-items:center;…max-width:var(--content-max);margin-inline:
+  // auto;padding-inline:var(--page-gutter)}`) — UNA ALTURA FIJA, centrada por flex, no relleno. Los
+  // DOS breakpoints que reescriben esos tokens (`app.css:971-972`, `997-998`): bajo 1200px,
+  // `--header-height:88px;--page-gutter:24px`; bajo 640px, `--header-height:76px;--page-gutter:
+  // 18px`. 640px coincide con el breakpoint `sm` de Tailwind (min-width:640px); 1200px no coincide
+  // con ninguno de los nuestros (`lg`=1024, `xl`=1280) y gana su PROPIO breakpoint con nombre,
+  // `--breakpoint-cortenav:1200px` (`app/globals.css`, MISMO patrón que `--breakpoint-duna:960px`
+  // del admin — nombra al EJE que es dueño del número, no a la app).
   //
   // `false` = HOY: `max-w-6xl` (1152px) + `px-4 sm:px-6 lg:px-8` (16/24/32px responsivo) + altura FIJA
-  // `h-16 lg:h-18` (64/72px, con `items-center`) — byte-idéntico. `true` (sólo CORTE): `max-w-[1800px]`
-  // (el ancho medido de la tienda real) + `px-5` (20px, el `--page-gap` medido, FLAT en vez de
-  // responsivo) en el contenedor de contenido; y en la fila flex, `py-4 lg:py-[13px]` (16px/13px, los
-  // dos valores de `s9`/`s7` medidos) EN VEZ de la altura fija — la altura pasa a depender del
-  // contenido (el wordmark apilado de CORTE, § `NavWordmarkContent`, es más alto que el logo de HOY),
-  // como en el tema real. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `h-16 lg:h-18` (64/72px, con `items-center`) — byte-idéntico. `true` (sólo CORTE): `max-w-[1440px]`
+  // (`--content-max` EXACTO del prototipo) + `px-[18px] sm:px-6 cortenav:px-8` (18/24/32px, los TRES
+  // valores de `--page-gutter` medidos, mobile-first) en el contenedor de contenido; y en la fila
+  // flex, `h-[76px] sm:h-[88px] cortenav:h-[118px]` (los TRES valores de `--header-height` medidos)
+  // EN VEZ de relleno — la altura es FIJA y crece por breakpoint, como en el prototipo, en vez de
+  // derivarse del contenido. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
   // `preset.navTratamientoPosicion`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
   posicion: boolean;
+  // ¿Los links del nav ganan el SUBRAYADO al pasar el mouse (`.nav-link::after` del prototipo,
+  // `docs/prototipos/cafeone/css/app.css:219-224`) — una línea de 1px en el color del propio texto
+  // que se DIBUJA desde la izquierda con una transición, y que queda visible también en el ítem cuyo
+  // panel desplegable está abierto? SEXTO CAMPO de la MISMA meta (§ CROMO-NAV-EXACTO-PROTOTIPO-1,
+  // mismo dominio "un ajuste más del encabezado" que `activo`/`direccion`/`filete`/`cta`/`posicion`,
+  // misma ruta/control). Es un elemento NUEVO del `.nav-link` que ningún campo anterior cubría:
+  // `activo` sólo trata su TIPOGRAFÍA (mayúscula/tracking/peso, § arriba); esto trata su conducta al
+  // HOVER — el gate visual del owner lo pidió aparte: «El nav del muestrario también tiene un efecto
+  // al hacer hover sobre los elementos del mismo, que nuestro nav no tiene.»
+  //
+  // MEDIDO contra `docs/prototipos/cafeone/css/app.css:219-224`: `.nav-link::after{content:"";
+  // position:absolute;left:0;right:0;bottom:0;height:1px;background:currentColor;transform:scaleX(0);
+  // transform-origin:left;transition:transform var(--duration-base) var(--ease-out)}
+  // .nav-link:hover::after,.nav-item.is-open .nav-link::after{transform:scaleX(1)}` —
+  // `--duration-base` = 220ms (`tokens.css:192`), `--ease-out` = `cubic-bezier(.22,.61,.36,1)`
+  // (`tokens.css:189`, la MISMA curva que ya usa `ENTRADA_ESCALONADA_DRAWER` en `StoreNav.tsx`, sin
+  // inventar una segunda). `prefers-reduced-motion`: el subrayado aparece SIN animar — cubierto por
+  // el guard GLOBAL de `app/globals.css` (`*,*::before,*::after{transition-duration:0.01ms
+  // !important}` bajo esa media query), sin un guard propio.
+  //
+  // `false` = HOY: sin subrayado, byte-idéntico. `true` (sólo CORTE): `after:absolute after:inset-x-0
+  // after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current
+  // after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)]
+  // hover:after:scale-x-100` en cada link, más `after:scale-x-100` fijo en el trigger del panel
+  // mientras `abierto` (el equivalente de `.nav-item.is-open`). Sólo `mergePresetEnContent`
+  // (`themes.ts`) lo escribe, con `preset.navTratamientoSubrayado`; de los 6 presets del catálogo,
+  // sólo CORTE lo declara `true`.
+  subrayado: boolean;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1804,15 +1845,18 @@ export const DEFAULTS: SiteContentData = {
   // CTA/BADGE por defecto (§ CROMO-NAV-CTA-Y-BADGE-1): sin tratamiento → el CTA sigue siendo la
   // pastilla translúcida de HOY (antes de buscar/carrito) y el badge sigue dependiendo de `navClaro`,
   // byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
-  // GEOMETRÍA por defecto (§ CROMO-NAV-POSICION-TEMA-REAL-1): sin la geometría del tema real → el
-  // contenedor de HOY (`max-w-6xl` + altura fija), byte-idéntico. Sólo CORTE lo enciende, vía
-  // `mergePresetEnContent`.
+  // GEOMETRÍA por defecto (§ CROMO-NAV-EXACTO-PROTOTIPO-1, reescribe § CROMO-NAV-POSICION-TEMA-REAL-1):
+  // sin la geometría del prototipo local → el contenedor de HOY (`max-w-6xl` + altura fija),
+  // byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  // SUBRAYADO AL HOVER por defecto (§ CROMO-NAV-EXACTO-PROTOTIPO-1): sin subrayado → los links del
+  // nav de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   navTratamiento: {
     activo: false,
     direccion: false,
     filete: false,
     cta: false,
     posicion: false,
+    subrayado: false,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2747,7 +2791,7 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
   };
   return {
     activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete'), cta: bool('cta'),
-    posicion: bool('posicion'),
+    posicion: bool('posicion'), subrayado: bool('subrayado'),
   };
 }
 

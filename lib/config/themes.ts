@@ -261,18 +261,41 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * docstring de `NavTratamientoContent.cta` en `site-content-defaults.ts` para el porqué completo,
  * incluidos los tokens y los contrastes). CORTE es hoy el ÚNICO preset que lo declara.
  *
- * `navTratamientoPosicion` (§ CROMO-NAV-POSICION-TEMA-REAL-1, OPCIONAL) — ¿el contenedor de
- * contenido del encabezado toma la GEOMETRÍA medida contra `.xo-header__content` del TEMA REAL
- * (`x-cafeone.myshopify.com`): más ancho —`max-w-[1800px]` en vez de `max-w-6xl`, el `--page-width`
- * medido de esa tienda— y más cerca de los bordes —`px-5` (20px) FLAT en vez de `px-4 sm:px-6
- * lg:px-8` responsivo, el `--page-gap` medido, con `--page-side-margin` sin asignar (cae a 0)—, y
- * con relleno VERTICAL propio en vez de una altura fija —`py-4 lg:py-[13px]` (16px/13px, `s9`/`s7`
- * de la escala del tema) en vez de `h-16 lg:h-18`—? AUSENTE = el comportamiento de HOY, byte a byte.
+ * `navTratamientoPosicion` (§ CROMO-NAV-EXACTO-PROTOTIPO-1, OPCIONAL, REESCRIBE § CROMO-NAV-
+ * POSICION-TEMA-REAL-1) — ¿el contenedor de contenido del encabezado toma la GEOMETRÍA del
+ * PROTOTIPO LOCAL (`docs/prototipos/cafeone/`, no el tema real — ver la corrección abajo): más
+ * ancho —`max-w-[1440px]` en vez de `max-w-6xl`, el `--content-max` EXACTO del prototipo— y con el
+ * MISMO margen lateral por breakpoint que ya alinea el wordmark/CTA —`px-[18px] sm:px-6
+ * cortenav:px-8` (18/24/32px, `--page-gutter` medido en sus tres breakpoints) en vez de `px-4
+ * sm:px-6 lg:px-8`—, y con ALTURA FIJA que crece por breakpoint en vez de derivarse del contenido
+ * —`h-[76px] sm:h-[88px] cortenav:h-[118px]` (`--header-height` medido) en vez de `h-16 lg:h-18`—?
+ * AUSENTE = el comportamiento de HOY, byte a byte.
+ *
+ * LA CORRECCIÓN: `CROMO-NAV-POSICION-TEMA-REAL-1` había medido esto contra el TEMA REAL
+ * (`x-cafeone.myshopify.com`), razonando que el prototipo local "diverge en los números exactos"
+ * y por eso no servía. El gate visual del owner sobre ese resultado («la ubicación de los elementos
+ * del nav aún no es como la del muestrario… ya llevamos varias pasadas en eso») estableció que la
+ * referencia que el owner compara es el PROTOTIPO LOCAL, no un sitio de terceros — y que medir
+ * contra el tema real producía una geometría PARECIDA pero no IDÉNTICA (1800px vs 1440px; relleno
+ * variable vs altura fija de 118/88/76px), que es justo lo que el gate reportó como "más arriba".
  * Escribe `content.navTratamiento.posicion` — QUINTO CAMPO de la MISMA meta que
  * `navTratamientoActivo`/`navTratamientoDireccion`/`navTratamientoFilete`/`navTratamientoCta`, no
  * una meta nueva (§ el docstring de `NavTratamientoContent.posicion` en `site-content-defaults.ts`
- * para el porqué completo, incluida la reconciliación con el prototipo local, que diverge en los
- * números exactos). CORTE es hoy el ÚNICO preset que lo declara.
+ * para el porqué completo, con los `archivo:línea` del prototipo). CORTE es hoy el ÚNICO preset que
+ * lo declara.
+ *
+ * `navTratamientoSubrayado` (§ CROMO-NAV-EXACTO-PROTOTIPO-1, OPCIONAL) — ¿los links del nav ganan
+ * el subrayado al hover del `.nav-link::after` del prototipo (`docs/prototipos/cafeone/css/
+ * app.css:219-224`): una línea de 1px en `currentColor` que se dibuja desde la izquierda
+ * (`scaleX(0)→scaleX(1)`, `transform-origin:left`, 220ms `cubic-bezier(.22,.61,.36,1)`), visible
+ * también en el ítem cuyo panel desplegable está abierto? MEDIDO contra el prototipo LOCAL (el
+ * mismo `.nav-link` que ya mide `navTratamientoActivo`, un elemento DISTINTO de ese eje — aquél es
+ * tipografía, esto es hover). AUSENTE = el comportamiento de HOY, byte a byte (sin subrayado).
+ * Escribe `content.navTratamiento.subrayado` — SEXTO CAMPO de la MISMA meta que
+ * `navTratamientoActivo`/`navTratamientoDireccion`/`navTratamientoFilete`/`navTratamientoCta`/
+ * `navTratamientoPosicion`, no una meta nueva (§ el docstring de `NavTratamientoContent.subrayado`
+ * en `site-content-defaults.ts` para el porqué completo). CORTE es hoy el ÚNICO preset que lo
+ * declara.
  *
  * `navWordmarkActivo` (§ CORTE-LOGO-APILADO-1, OPCIONAL) — ¿el wordmark apilado del nav (rama
  * `subtitle` de `Logo.tsx`, ya encendida por `navSubtitulo`) calza el `.wordmark`/`.wordmark small`
@@ -349,6 +372,7 @@ export interface PresetTema {
   navTratamientoFilete?: boolean;
   navTratamientoCta?: boolean;
   navTratamientoPosicion?: boolean;
+  navTratamientoSubrayado?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
   carritoVariante?: ClaveCarrito;
@@ -620,20 +644,21 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     visible: fusionar('carritoEnvio.visible', preset.carritoEnvioVisible ?? false),
   };
   // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1, §
-  // CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1 y § CROMO-NAV-POSICION-TEMA-REAL-1): meta PROPIA,
-  // aparte de `cromo`, `volverArriba`, `rielSocial` Y `carritoEnvio` — ver el docstring de
-  // `NavTratamientoContent` para el porqué (conceptualmente es la misma familia que
-  // `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato exhaustivo de 3 claves
-  // de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:` de este slice).
-  // `direccion`, `filete`, `cta` y `posicion` se fusionan cada uno por su PROPIA ruta
-  // (`navTratamiento.direccion`/`.filete`/`.cta`/`.posicion`) — campos más de esta meta, no un objeto
-  // aparte.
+  // CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1, § CROMO-NAV-POSICION-TEMA-REAL-1 y §
+  // CROMO-NAV-EXACTO-PROTOTIPO-1): meta PROPIA, aparte de `cromo`, `volverArriba`, `rielSocial` Y
+  // `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué (conceptualmente es
+  // la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato
+  // exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de
+  // `touches:` de este slice). `direccion`, `filete`, `cta`, `posicion` y `subrayado` se fusionan
+  // cada uno por su PROPIA ruta (`navTratamiento.direccion`/`.filete`/`.cta`/`.posicion`/
+  // `.subrayado`) — campos más de esta meta, no un objeto aparte.
   out.navTratamiento = {
     activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
     direccion: fusionar('navTratamiento.direccion', preset.navTratamientoDireccion ?? false),
     filete: fusionar('navTratamiento.filete', preset.navTratamientoFilete ?? false),
     cta: fusionar('navTratamiento.cta', preset.navTratamientoCta ?? false),
     posicion: fusionar('navTratamiento.posicion', preset.navTratamientoPosicion ?? false),
+    subrayado: fusionar('navTratamiento.subrayado', preset.navTratamientoSubrayado ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
@@ -1151,31 +1176,58 @@ export const CORTE: PresetTema = {
   // diferencia de la versión translúcida de HOY. CORTE es hoy el ÚNICO preset del catálogo que lo
   // declara; los otros cinco no tocan `content.navTratamiento.cta`.
   navTratamientoCta: true,
-  // navTratamientoPosicion (§ CROMO-NAV-POSICION-TEMA-REAL-1) — MEDIDO contra el TEMA REAL
-  // (`x-cafeone.myshopify.com`, `.xo-header__content`, fetch directo de `styles.css` + el HTML
-  // servido: `py:s9 py:s7@+lg … pl:var(--page-side-margin)/xo-is-sticky pr:var(--page-side-margin)/
-  // xo-is-sticky`, dentro de `<xo-container>`). En esa tienda: `--page-width:180rem` (1800px) y
-  // `--page-gap:20px`=`--page-gap-mobile:20px` (FLAT) alimentan el ancho/relleno lateral del
-  // contenedor; `--page-side-margin` no está asignado (cae a 0 por su propio fallback), así que el
-  // `pl/pr` condicional a sticky no suma nada. `s9`=1.6rem=16px, `s7`=1.3rem=13px
-  // (`html{font-size:62.5%}`): relleno vertical DISTINTO por breakpoint, 16px por defecto → 13px
-  // desde `@+lg` (más chico, no más grande, en desktop).
+  // navTratamientoPosicion (§ CROMO-NAV-EXACTO-PROTOTIPO-1, REESCRIBE § CROMO-NAV-POSICION-TEMA-
+  // REAL-1) — MEDIDO contra el PROTOTIPO LOCAL (`docs/prototipos/cafeone/`), no el tema real.
   //
-  // El PROTOTIPO LOCAL capturado (`docs/prototipos/cafeone/`) NO coincide en los números exactos —
-  // usa `--content-max:1440px` (no 1800px) y una ALTURA FIJA `--header-height` (118/88/76px por
-  // breakpoint, con `align-items:center`) en vez de relleno — así que las dos referencias DIVERGEN;
-  // se sigue al TEMA REAL (§ el asiento de este slice). Gate visual del owner con tres capturas lado
-  // a lado (2026-09-28): «los elementos del nav aún están muy en el top y centrados, compara como
-  // están en cafeone y el muestrario, están un poco más abajo y spreaded un poco más
-  // horizontalmente» — el contenedor de HOY (`max-w-6xl`, 1152px, con `px-4 sm:px-6 lg:px-8`
-  // responsivo hasta 32px, y una altura FIJA `h-16 lg:h-18`) deja el logo/CTA lejos de los bordes en
-  // cualquier viewport por debajo de ~1216px, y centra el contenido verticalmente en una barra corta
-  // — el contenedor MEDIDO (`max-w-[1800px]` + `px-5` FLAT de 20px + `py-4 lg:py-[13px]`, altura
-  // DERIVADA del contenido en vez de fija) lo abre hacia los costados y dejar de forzar una altura
-  // corta permite que el wordmark apilado de CORTE (más alto que el logo de HOY, § `navWordmarkActivo`
-  // abajo) empuje la fila hacia abajo, como en las dos referencias. CORTE es hoy el ÚNICO preset del
-  // catálogo que lo declara; los otros cinco no tocan `content.navTratamiento.posicion`.
+  // LA CORRECCIÓN: el slice anterior había medido esto contra `x-cafeone.myshopify.com`
+  // (`.xo-header__content`, fetch directo), razonando que el prototipo local capturado "diverge en
+  // los números exactos" y por eso no servía como referencia. El gate visual del owner sobre ESE
+  // resultado (2026-09-28, tres capturas lado a lado) fue: «la ubicación de los elementos del nav
+  // aún no es como la del muestrario, siguen estando más arriba, compara ambas imágenes, la idea de
+  // nuevo es que sea lo más exacto al muestrario, ya llevamos varias pasadas en eso» — estableciendo
+  // el hecho que faltaba: la referencia que el owner compara, pasada tras pasada, es el PROTOTIPO
+  // LOCAL versionado, no un sitio de terceros que puede cambiar sin aviso y que nadie tiene abierto
+  // al lado para comparar. Medir contra el tema real producía una geometría PARECIDA a la del
+  // muestrario pero no IDÉNTICA (1800px vs 1440px de ancho máximo; relleno vertical de 16/13px vs
+  // una altura FIJA de 118/88/76px) — y esa diferencia es justo la que el gate reportó como "más
+  // arriba": con relleno en vez de altura fija, la fila calculaba más corta que los 118px reales del
+  // muestrario a escritorio, así que el contenido quedaba más cerca del techo del encabezado.
+  //
+  // MEDIDO contra `docs/prototipos/cafeone/css/tokens.css:150,151,157` (`--header-height:118px`,
+  // `--page-gutter:32px`, `--content-max:1440px`) y `css/app.css:193-198` (`.header-bar{
+  // height:var(--header-height);display:flex;align-items:center;…max-width:var(--content-max);
+  // margin-inline:auto;padding-inline:var(--page-gutter)}` — una ALTURA FIJA centrada por flex, no
+  // relleno). Los DOS breakpoints que reescriben esos tokens (`app.css:971-972`, `997-998`): bajo
+  // 1200px, `--header-height:88px;--page-gutter:24px`; bajo 640px, `--header-height:76px;
+  // --page-gutter:18px`. 640px coincide con `sm` de Tailwind (min-width:640px); 1200px no coincide
+  // con `lg`(1024) ni `xl`(1280) y gana su propio breakpoint con nombre, `--breakpoint-cortenav:
+  // 1200px` (`app/globals.css`, mismo patrón que `--breakpoint-duna:960px` del admin).
+  //
+  // El contenedor MEDIDO reemplaza `max-w-6xl` (1152px) + `px-4 sm:px-6 lg:px-8` por
+  // `max-w-[1440px]` + `px-[18px] sm:px-6 cortenav:px-8` (18/24/32px, `--page-gutter` en sus tres
+  // breakpoints, mobile-first); y la fila reemplaza la altura fija `h-16 lg:h-18` por
+  // `h-[76px] sm:h-[88px] cortenav:h-[118px]` (`--header-height` en sus tres breakpoints) — sigue
+  // siendo ALTURA FIJA, no relleno, sólo que ahora crece a los valores REALES del muestrario en vez
+  // de a los del tema real. El FILETE (`navTratamiento.filete`, arriba) se movió de este mismo
+  // contenedor a la FILA interior en el mismo commit (§ CROMO-NAV-EXACTO-PROTOTIPO-1): el
+  // `border-b` dibujado sobre el contenedor CON padding ignora su propio padding —el borde se pinta
+  // en el borde EXTERIOR de la caja, no adentro del relleno— así que tocaba los bordes de pantalla
+  // en cualquier viewport ≤1440px pese al `px-*`; puesto en la fila (que YA renderiza angosta por el
+  // padding del padre) queda inset por el MISMO margen que alinea el wordmark y el CTA, sin un
+  // número propio. CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no
+  // tocan `content.navTratamiento.posicion`.
   navTratamientoPosicion: true,
+  // navTratamientoSubrayado (§ CROMO-NAV-EXACTO-PROTOTIPO-1) — MEDIDO contra el prototipo LOCAL:
+  // `.nav-link::after` (`docs/prototipos/cafeone/css/app.css:219-224`) es una línea de 1px en
+  // `background:currentColor`, `transform:scaleX(0)` con `transform-origin:left`, que pasa a
+  // `scaleX(1)` en `:hover` y en `.nav-item.is-open` (el ítem cuyo panel desplegable está abierto —
+  // `StoreNav.tsx` ya modela ese estado como `abierto`, el trigger del mega-menú). La transición usa
+  // `--duration-base` (220ms, `tokens.css:192`) y `--ease-out` (`cubic-bezier(.22,.61,.36,1)`,
+  // `tokens.css:189`) — la MISMA curva que `ENTRADA_ESCALONADA_DRAWER` ya usa en `StoreNav.tsx`.
+  // Gate visual del owner (2026-09-28): «El nav del muestrario también tiene un efecto al hacer
+  // hover sobre los elementos del mismo, que nuestro nav no tiene.» CORTE es hoy el ÚNICO preset del
+  // catálogo que lo declara; los otros cinco no tocan `content.navTratamiento.subrayado`.
+  navTratamientoSubrayado: true,
   // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
   // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
   // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,

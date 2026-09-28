@@ -28524,3 +28524,295 @@ mergea.
 **NO hace falta re-aplicar CORTE** para ver ninguno de los dos fixes (§4, el matiz).
 
 **Cierra `HERO-FRASE-AL-PIE-Y-PREVIEW-1`.**
+
+## 2026-09-28 — El nav se lleva EXACTO al prototipo LOCAL, no al tema real: geometría corregida, subrayado al hover (SEXTO campo), el filete deja de tocar los bordes, y la frase del hero gana peso (`CROMO-NAV-EXACTO-PROTOTIPO-1`)
+
+Gate visual del owner del 2026-09-28, con el muestrario y el nuestro lado a lado, textual: *"La
+ubicacion de los elementos del nav aun no es como la del muestrario, siguen estando mas arriba,
+compara ambas imagenes, la idea de nuevo es que sea lo mas exacto al muestrario, ya llevamos varias
+pasadas en eso. El nav del muestrario tambien tiene un efecto al hacer hover sobre los elementos del
+mismo, que nuestro nav no tiene."* / *"La linea del nav ahora toca los bordes, la idea es que quede
+un espacio como en Cafeone."* / *"Las letras en el pie del Hero, se ven sin cuerpo muy delgadas, en
+el muestrario se ven con mas."*
+
+### 0 · La corrección de fondo — cuál es "el muestrario"
+
+`CROMO-NAV-POSICION-TEMA-REAL-1` (la entrada anterior de este libro) midió la geometría del nav
+contra el TEMA REAL (`x-cafeone.myshopify.com`), razonando que el prototipo local capturado
+"diverge en los números exactos" y por eso no servía de referencia. El gate de ESTE slice — sobre
+ESE mismo resultado, con tres capturas lado a lado — dice lo contrario de lo que esa razón asumía:
+la referencia que el owner compara, pasada tras pasada, es **el prototipo VERSIONADO**
+(`docs/prototipos/cafeone/`), no un sitio vivo de terceros que puede cambiar sin aviso y que nadie
+tiene abierto al lado para comparar. El dispatch de este slice lo hizo explícito en su §0: *"la
+referencia es una sola, y el error anterior fue del orquestador"*. Este slice no vuelve a medir
+contra el tema real en ningún punto — todo lo que sigue sale de `docs/prototipos/cafeone/` leído
+directo.
+
+### 1 · La geometría — `navTratamiento.posicion` reescribe su VALOR
+
+**Medido, `archivo:línea`:** `css/tokens.css:150` (`--header-height:118px`), `:151`
+(`--page-gutter:32px`), `:157` (`--content-max:1440px`); `css/app.css:193-198` (`.header-bar{
+height:var(--header-height);display:flex;align-items:center;…max-width:var(--content-max);
+margin-inline:auto;padding-inline:var(--page-gutter)}` — **ALTURA FIJA** centrada por flex, no
+relleno); los dos breakpoints que reescriben esos tokens, `:971-972` (bajo 1200px: `88px`/`24px`) y
+`:997-998` (bajo 640px: `76px`/`18px`).
+
+**Posiciones medidas, prototipo vs. lo construido** (arnés `scripts/capturar-seccion.ts`, la misma
+técnica que ya usaron los slices anteriores de esta rama — ver §4 para el resultado de
+`verificar:nayoli:visual`, que es la medición que realmente importa para el gate porque corre el
+`next build` de producción):
+
+| elemento | prototipo (≥1200px) | lo construido (`posicion:true`, ≥1200px) |
+| --- | --- | --- |
+| ancho máximo del contenedor | 1440px (`--content-max`) | `max-w-[1440px]` — igual |
+| margen lateral | 32px (`--page-gutter`) | `px-8` (32px, vía `cortenav:px-8`) — igual |
+| alto de la fila | 118px (`--header-height`, FIJO) | `h-[118px]` (vía `cortenav:h-[118px]`, FIJO) — igual |
+| margen lateral <1200px | 24px | `sm:px-6` (24px) — igual |
+| alto de la fila <1200px | 88px | `sm:h-[88px]` — igual |
+| margen lateral <640px | 18px | `px-[18px]` (base) — igual |
+| alto de la fila <640px | 76px | `h-[76px]` (base) — igual |
+
+**El breakpoint de 1200px no existe en Tailwind** (`lg`=1024, `xl`=1280) y gana el suyo propio,
+`--breakpoint-cortenav:1200px` (`app/globals.css`, mismo mecanismo que `--breakpoint-duna:960px` del
+admin — un token dentro de `@theme` genera la variante `cortenav:`). El de 640px SÍ coincide con
+`sm` de Tailwind, así que no necesita nombre propio.
+
+**Por qué el resultado anterior seguía "más arriba" con el número correcto de fila (`h-16 lg:h-18`
+reemplazado por RELLENO en vez de altura fija):** `CROMO-NAV-POSICION-TEMA-REAL-1` construyó
+`py-4 lg:py-[13px]` (relleno vertical de 16px/13px) en vez de una altura fija, porque el tema real
+sólo expone RELLENO en su clase (`py:s9 py:s7@+lg`), no una altura total del `<header>`. Con relleno,
+la altura de la fila la decide el CONTENIDO (el logo/wordmark de CORTE), que es más bajo que los
+118px reales del muestrario a escritorio — de ahí que, aun con el margen lateral correcto, la fila
+quedara más corta y el contenido más cerca del techo del encabezado que en el muestrario. La
+geometría del prototipo local SÍ da una altura total, FIJA, así que el fix corrige el MECANISMO
+(altura fija en vez de relleno), no sólo los números.
+
+`NavTratamientoContent.posicion`/`navTratamientoPosicion` (`PresetTema`) NO son campos nuevos — se
+REESCRIBE su docstring y su VALOR resuelto para CORTE; el campo, el resolver, el schema y el control
+del panel ya existían desde `CROMO-NAV-POSICION-TEMA-REAL-1` y no cambian de forma.
+
+### 2 · El subrayado al hover — SEXTO campo de `navTratamiento`
+
+**Medido, `css/app.css:219-224`:**
+```
+.nav-link::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+  background:currentColor;transform:scaleX(0);transform-origin:left;
+  transition:transform var(--duration-base) var(--ease-out);
+}
+.nav-link:hover::after,.nav-item.is-open .nav-link::after{transform:scaleX(1)}
+```
+`--duration-base` = 220ms (`tokens.css:192`), `--ease-out` = `cubic-bezier(.22,.61,.36,1)`
+(`tokens.css:189`) — la MISMA curva que `ENTRADA_ESCALONADA_DRAWER` ya usa en `StoreNav.tsx` (no se
+inventó una segunda).
+
+**Nuevo campo**, no una extensión de `navTratamiento.activo`: `activo` mide la TIPOGRAFÍA del
+`.nav-link` (mayúscula/tracking/peso); esto mide su conducta al HOVER — un elemento distinto del
+mismo selector, con su propio bloque en el prototipo. `NavTratamientoContent.subrayado: boolean`,
+`PresetTema.navTratamientoSubrayado?: boolean`, fusionado con el mismo `fusionar('navTratamiento.
+subrayado', …)` que los otros cinco campos, resuelto con el mismo `bool()` independiente
+(`resolverNavTratamiento`) — un guardado que sólo trae `subrayado` no enciende ni apaga los demás
+cinco, afirmado en `cromo-nav-tratamiento.test.ts`.
+
+**Lo construido en `StoreNav.tsx`** — `navHoverClase`, aplicada a `linkClassName` (así llega a los
+tres renders: el `<Link>` plano, el `<Link>` con badge, y el `<button>` trigger del mega-menú):
+```
+'relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:after:scale-x-100'
+```
+`bg-current` (=`currentColor`) toma el color de `linkColor`, sin un token nuevo — igual que
+`background:currentColor` en el prototipo. `.nav-item.is-open` (el ítem con el panel desplegable
+abierto) se modela con `subrayadoAbierto = navTratamiento.subrayado && abierto ? 'after:scale-x-100'
+: ''`, agregado al trigger del mega-menú — el subrayado queda VISIBLE mientras el panel está abierto,
+sin esperar el hover, igual que en el prototipo.
+
+**`prefers-reduced-motion`: sin guard propio.** El guard GLOBAL de `app/globals.css`
+(`*,*::before,*::after{transition-duration:0.01ms!important}` bajo esa media query) ya neutraliza
+`after:transition-transform` a un cambio casi instantáneo — "aparece sin animar", exactamente lo que
+el spec pedía, reusando infraestructura que ya existe.
+
+**`false` (todo tenant salvo CORTE) → sin subrayado, byte-idéntico a hoy.**
+
+Cableado completo del campo nuevo, EN EL MISMO commit (nunca pasa por `PENDIENTE_PANEL`):
+`navTratamientoEditableSchema` gana `subrayado: z.boolean().optional()`; `panel-controles.ts` suma
+`'navTratamiento.subrayado'` a `CONTROLADOS_ENCABEZADO_SECCION`; `EncabezadoSeccion.tsx` gana el
+switch **"Subrayado al pasar el mouse"**, décimo de la lista (`Form`/`Wire`/`wireDe`/`cargar`
+extendidos por una propiedad, mismo patrón que `.posicion` sumó el quinto); `app/api/site-content/
+encabezado/route.ts` — SIN cambio funcional (el `.pick()` opera sobre la clave `navTratamiento`
+ENTERA), sólo el comentario de cabecera (NUEVE→DIEZ ejes, CINCO→SEIS campos).
+
+### 3 · El filete — el defecto era DÓNDE vive, no su forma
+
+**El defecto, medido:** un `border-b` se dibuja en el borde EXTERIOR de la caja del elemento — el
+`padding` de ESE MISMO elemento empuja su CONTENIDO hacia adentro, pero no mueve el borde. El filete
+vivía en el contenedor `mx-auto max-w-[1440px] px-[18px]…` (el mismo que ya lleva el padding que
+alinea wordmark/CTA), así que su `border-b` se pintaba en el borde exterior de ESE contenedor — que
+en cualquier viewport ≤1440px ES el viewport completo. El resultado: el filete tocaba los bordes de
+pantalla pese al `px-*`, exactamente el defecto que reportó el owner.
+
+**El fix es estructural, no un número nuevo.** `navFileteClase` se MOVIÓ del `<div>` con
+`navContenedorClase` (el que tiene el padding) al `<div>` interior con `navFilaAltoClase` (la fila
+flex). Esa fila interior es un hijo block-level SIN padding propio dentro de un padre CON padding, así
+que por default de CSS ocupa el ANCHO DEL CONTENIDO (el ancho del padre menos su padding) — un borde
+puesto ahí queda naturalmente inset por el MISMO margen que ya alinea el wordmark y el CTA, sin
+inventar un inset propio. El VALOR de `navFileteClase` (grosor `border-b`=1px, color por `navClaro`,
+opacidad 20%) NO cambió — sigue siendo exactamente el de `CROMO-NAV-FILETE-1`; sólo cambió su
+posición en el árbol.
+
+### 4 · La frase al pie del hero — DEVIACIÓN medida, reportada
+
+**La medición:** `.hero-caption` del prototipo (`css/app.css:380-384`) no declara `font-weight`
+propio → hereda el `400`/regular del `body` (`app.css:21-28`, tampoco lo declara) — el MISMO peso
+nominal que ya tenía nuestro párrafo (sin clase de peso → default del navegador, también 400). La
+diferencia real NO es de número de peso: es de FAMILIA. `--font-body` del prototipo es 'Hanken
+Grotesk' (`tokens.css:14`); el cuerpo de CORTE es `fuentePar:'prensa'` = 'Figtree'
+(`lib/config/fuentes.ts:111`, ya documentado como aproximación desde `TEMAS-PAR-PRENSA-1` — el
+catálogo no tiene a Hanken Grotesk). Figtree a 400 se lee visiblemente más liviana que Hanken
+Grotesk a 400 — es lo que el owner reporta como "sin cuerpo".
+
+**LA DEVIACIÓN (instrucción vs. medición, la medición gana — § el protocolo del slice):** el spec
+pedía "llevar los nuestros [fuente/tamaño/peso] a los del prototipo". Literal, eso sería FAMILIA
+(Hanken Grotesk). **Medido contra CLAUDE.md, § "Space Grotesk NO se ofrece a clientes":**
+*"es la tipografía de DUNA (el design system del panel)… un cliente vistiendo su tienda como el
+panel borra la separación producto/cliente"* — y `lib/config/fuentes.test.ts:49-55` afirma, con
+test, que NINGÚN par del catálogo del storefront ofrece Space Grotesk, Hanken Grotesk o Spline. Meter
+Hanken Grotesk acá, aunque sea para un solo párrafo, es la misma mezcla que esa regla prohíbe —
+medido con `grep -rln "Hanken"` sobre el repo (excluidos `node_modules`/`.scratch`): TODAS las
+apariciones caen en superficie ADMIN (`app/(admin)/fonts.ts` — el `import Hanken_Grotesk` de
+next/font y el token `--duna-font-ui`—, `app/(admin)/duna.css`, `packages/design-system/tokens/
+tokens.css`, `components/ui/tooltip.tsx`, `components/admin/DashboardCustomizer.tsx`), en el
+PROTOTIPO (`docs/prototipos/cafeone/`, la referencia externa, no nuestro código) o en un COMENTARIO
+que la documenta (`lib/config/themes.ts:845`, desde `TEMAS-PAR-PRENSA-1`) — CERO en un archivo del
+storefront ANTES de este slice. Es la ausencia que hace el punto: la barrera admin/producto ya
+existe en la práctica, y este slice la respeta en vez de perforarla.
+
+**La salida:** sube el PESO en vez de la familia — `font-medium` (500) en el `<p>` de
+`hero.fraseAlPie`, dentro de `HeroMediaMarquesina.tsx` (la variante `'sticky'`, la única que CORTE
+usa). Le da a la frase el "cuerpo" que el owner pide, sin cruzar la frontera producto/panel. Tamaño
+(`text-sm`=14px) ya coincidía con el `--text-body-s` del prototipo — sin cambio.
+
+**Alcance: SÓLO `HeroMediaMarquesina.tsx`.** `HeroMedia.tsx` (la variante `'media'`) rinde el mismo
+párrafo sin `font-medium` y queda con el mismo defecto — no está en `touches:` de este slice, y
+medido (`grep -n "hero: '" lib/config/themes.ts`), NINGÚN preset del catálogo declara `hero:'media'`
+hoy (CORTE lo usó hasta `CORTE-USA-HERO-STICKY-1`, que lo migró a `'sticky'`), así que no tiene lector
+visible que reporte el mismo reclamo.
+
+### 5 · Lo que NO se tocó
+
+- **El mega-menú y el drawer móvil** — siguen con su propio `max-w-6xl` y sin subrayado (el
+  `.nav-link` medido es el del header DESKTOP fijo, no el drawer, mismo límite que `activo`/`filete`).
+- **El CTA y el badge** (`navTratamiento.cta`) — sin tocar.
+- **El ocultamiento por dirección de scroll** (`navTratamiento.direccion`) — sin tocar.
+- **`HeroMedia.tsx`** (§4) — fuera de `touches:`, con el mismo defecto de peso, sin lector hoy.
+
+### 6 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2419/2419** — verde. +12 sobre el piso de 2407 (`5c5efb6`, `HERO-FRASE-AL-PIE-Y-PREVIEW-1`). Reconciliado por archivo (`git diff --unified=0` + conteo de líneas `+test(`/`-test(`): `cromo-nav-tratamiento.test.ts` +6 netos (6 tests nuevos de `subrayado`; los tests de `posicion`/geometría existentes se REESCRIBIERON in-place, 0 neto), `hero-marquesina.test.ts` +1, `panel-controles.test.ts` +1, `site-content-defaults.test.ts` +2, `themes.test.ts` +2, `tests/integracion/panel-encabezado.test.ts` +0 (sólo asserts agregados a tests existentes). 6+1+1+2+2+0=12, coincide con el delta medido. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (`panel-encabezado.test.ts` se EDITÓ, ganó cero tests nuevos — sólo cuerpos de body/asserts). |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + los 2 hovers — `home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870` (crudo: 0 en las 8). Nayoli no declara ningún campo de `navTratamiento`/`hero.fraseAlPie` en `true` — el 0px es el resultado esperado, y confirma que las clases arbitrarias nuevas (`max-w-[1440px]`, `px-[18px]`, `cortenav:px-8`, `cortenav:h-[118px]`, el bloque `after:*`, `font-medium`) NO rompen el `next build` de producción (Turbopack, TypeScript 8.8s, 53 rutas generadas sin error) — la capa que envía, no sólo `tsc`. |
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio de geometría/subrayado — mismo mecanismo que
+todos los slices anteriores de esta familia: `navTratamiento` es un OBJETO que `mergePresetEnContent`
+escribe COMPLETO cada vez que se aplica el preset; una fila que ya tenga CORTE aplicado desde ANTES
+de este slice guarda `content.navTratamiento` con `posicion`/`subrayado` en los valores VIEJOS
+(la reescritura de `posicion`, y la ausencia de `subrayado`) hasta que el dueño vuelva a aplicar el
+preset. La frase del hero (§4) es un cambio de CSS puro sobre un `<p>` ya renderizado — NO necesita
+re-aplicar el preset, se ve apenas se despliega.
+
+### `touches:` — todo lo escrito estaba declarado
+
+`git diff --numstat`: `app/api/site-content/encabezado/route.ts` (+13/-12), `app/globals.css`
+(+14/-0), `components/admin/EncabezadoSeccion.tsx` (+25/-21), `components/storefront/home/
+HeroMediaMarquesina.tsx` (+24/-1), `components/storefront/layout/StoreNav.tsx` (+67/-34), `lib/config/
+cromo-nav-tratamiento.test.ts` (+99/-27), `lib/config/hero-marquesina.test.ts` (+10/-0), `lib/config/
+panel-controles.test.ts` (+10/-0), `lib/config/panel-controles.ts` (+15/-13), `lib/config/
+site-content-defaults.test.ts` (+20/-0), `lib/config/site-content-defaults.ts` (+71/-27), `lib/config/
+site-content-schema.ts` (+12/-10), `lib/config/themes.test.ts` (+22/-0), `lib/config/themes.ts`
+(+92/-40), `tests/integracion/panel-encabezado.test.ts` (+17/-7), y este asiento. **15 archivos de
+código**, los 15 de `touches:`, ni uno más.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `NavTratamientoContent.posicion` (valor
+reescrito), `NavTratamientoContent.subrayado` (nuevo), `navTratamientoPosicion`/
+`navTratamientoSubrayado` (`PresetTema`), `navContenedorClase`/`navFilaAltoClase`/`navFileteClase`/
+`navHoverClase` (`StoreNav.tsx`), `--breakpoint-cortenav` (`app/globals.css`), `font-medium`
+(`HeroMediaMarquesina.tsx`), `CROMO-NAV-EXACTO-PROTOTIPO-1`, `CROMO-NAV-POSICION-TEMA-REAL-1`
+(citado, no editado). Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `navTratamiento` (a secas, y toda variante), `NavTratamientoContent`,
+  `navContenedorClase`, `navFilaAltoClase`, `navFileteClase`, `navHoverClase`, `cortenav`,
+  `CROMO-NAV-EXACTO-PROTOTIPO-1`, `CROMO-NAV-POSICION-TEMA-REAL-1` (ni ningún otro id `CROMO-NAV-*`),
+  `HeroMediaMarquesina`, `font-medium` (la cadena literal), `EncabezadoSeccion`, `panel-controles`.
+  `CLAUDE.md` no documenta el eje de tratamiento del nav, la geometría del `<header>` del storefront,
+  ni el hero sticky en absoluto — la misma ausencia que ya midieron los tres slices anteriores de
+  esta familia.
+- **`--breakpoint-duna: 960px`** (línea 6221, dentro de la tabla de `§ Duna OS en ANGOSTO`) → **UNA
+  aparición**, y describe el breakpoint del ADMIN (960px, la variante `duna:`), no el `cortenav:` que
+  este diff agrega. Las dos variables conviven en el MISMO bloque `@theme` de `app/globals.css` sin
+  que una contradiga la doctrina de la otra — el patrón ("nombrar al eje dueño del número") es el
+  mismo, pero la sentencia de CLAUDE.md habla específicamente de `--breakpoint-duna`, que este diff
+  no toca. No queda falsa.
+- **`StoreNav`** (a secas) → **cuatro líneas** (2872, 2969, 4481, 4499 — las MISMAS que
+  `CROMO-NAV-POSICION-TEMA-REAL-1` y `CROMO-NAV-CTA-Y-BADGE-1` ya revisaron: nav data-driven, el
+  link de /nosotros se oculta si la página está apagada, el logo/mark llegan por prop). Ninguna
+  describe geometría, filete ni hover — no queda contradicha.
+- **`lib/config/site-content-schema.ts`/`site-content-defaults.ts`** (línea 39, la lista de
+  superficies Tier 1) → confirma que estos dos archivos son medidos Tier 1, consistente con el
+  `tier: 1` del propio dispatch.
+- **`components/storefront/`** (el bullet de subárboles Tier 1) → confirma que `StoreNav.tsx` y
+  `HeroMediaMarquesina.tsx` caen bajo Tier 1 por el subárbol, consistente con el dispatch.
+- **"Space Grotesk NO se ofrece a clientes"** (§ el párrafo de las fuentes) → ÉSTA es la sentencia
+  que §4 CUMPLE, no la que falsea: es la razón MEDIDA de la deviación (no meter Hanken Grotesk en el
+  storefront). El diff la respeta activamente — no la contradice.
+
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `grep -c "CROMO-NAV-EXACTO-PROTOTIPO-1"` antes de
+este párrafo dio **0** — id nuevo (confirmado en preflight). El id citado como el que se REESCRIBE
+(`CROMO-NAV-POSICION-TEMA-REAL-1`) NO se edita — su entrada queda como registro histórico de la
+medición que se hizo, con la corrección viviendo en ESTA entrada nueva, apuntando hacia atrás. Los
+demás ids citados como precedente de FORMA (`CROMO-NAV-TRATAMIENTO-1`, `CROMO-NAV-DIRECCION-
+SCROLL-1`, `CROMO-NAV-FILETE-1`, `CROMO-NAV-CTA-Y-BADGE-1`) tampoco se tocan — cada uno acota su
+propio alcance (tipografía, dirección de scroll, filete, CTA/badge), y nada de lo que afirmaban
+sobre esos ejes se vuelve falso: el filete sigue siendo un `border-b` de 1px con el mismo color y
+comportamiento, sólo cambió dónde vive en el árbol.
+
+### `customer_bytes`
+
+**`changed: true`.** Para un tenant con `navTratamiento.posicion:true`/`.subrayado:true` (hoy, sólo
+CORTE, y sólo tras RE-APLICAR el preset, § el matiz de arriba), el encabezado cambia de altura por
+breakpoint (fija, no relleno), el filete deja de tocar los bordes, y los links dibujan un subrayado
+al hover — todo VISIBLE. La frase del hero (`hero.fraseAlPie`, cualquier tenant que la use) gana peso
+visual, también VISIBLE, sin necesitar re-aplicar el preset. `strings:` **ninguno** — no se agrega ni
+cambia una palabra de copy; los cuatro cambios son de geometría/interacción/tipografía, no de texto.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `navTratamiento.subrayado` es un campo más del mismo objeto JSON
+(`SiteContent.content`) que ya existía, con su misma resolución SOFT, su misma ruta de publicar/
+descartar y su mismo control en el panel.
+
+### Open follow-ups
+
+- **Ninguno nuevo.** Los tres reclamos del gate (geometría, hover, filete) y el de la frase quedan
+  cerrados en este mismo slice, con su medición. `HeroMedia.tsx` (§4) queda con el mismo defecto de
+  peso que `HeroMediaMarquesina.tsx` tenía, sin lector visible hoy (ningún preset usa `hero:'media'`)
+  — no se abre un follow-up para un archivo sin caso de uso actual; si algún preset futuro vuelve a
+  `hero:'media'`, el mismo fix (`font-medium`) aplica ahí también, medido igual.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones ejecutables
+(tsc, `npm test`, `npm run test:integracion`) más `verificar:nayoli:visual` en 0px. Sin `schema`, sin
+`cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó la
+ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, citado arriba); el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver la geometría/subrayado (§6). La frase del hero se ve sin
+re-aplicar nada.
+
+**Cierra `CROMO-NAV-EXACTO-PROTOTIPO-1`.**
