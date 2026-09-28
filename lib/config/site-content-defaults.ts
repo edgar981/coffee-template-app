@@ -1082,6 +1082,39 @@ export interface NavTratamientoContent {
   // filete, byte-idéntico. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
   // `preset.navTratamientoFilete`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
   filete: boolean;
+  // ¿El CTA COMPRAR del menú (`.btn.btn--primary.btn--sm` del prototipo,
+  // `docs/prototipos/cafeone/css/app.css:123-136`) y el badge de un ítem de menú (`.badge`,
+  // `app.css:151-157`) toman la forma/color medidos, y el CTA se muda al FINAL del encabezado
+  // (`docs/prototipos/cafeone/index.html:39-53`, `.header-actions`: locale·búsqueda·cuenta·carrito·
+  // COMPRAR·hamburguesa — después del carrito, no antes de buscar/carrito como HOY)? CUARTO CAMPO de
+  // la MISMA meta (§ CROMO-NAV-CTA-Y-BADGE-1) — mismo dominio "un ajuste más del encabezado" que
+  // `activo`/`direccion`/`filete`, y misma ruta/control (`/api/site-content/encabezado`,
+  // `EncabezadoSeccion.tsx`). Gobierna DOS elementos —el CTA `ctaHref` y el badge del ítem de menú
+  // (`badgeSpan`, `StoreNav.tsx`)— porque los dos se MIDIERON JUNTOS contra el mismo prototipo, en el
+  // mismo commit; no es el mismo criterio de `NavWordmarkContent` (un elemento propio con su propio
+  // contrato) porque acá no hay un segundo contrato exhaustivo que romper.
+  //
+  // `false` = HOY: el CTA es una pastilla translúcida (`rounded-full`, `bg-[var(--sf-acento)]/10` o
+  // `bg-[var(--sf-sobre)]/10` según `navClaro`) ubicada ANTES de buscar/carrito, dentro del `<nav>`
+  // desktop (oculta bajo `lg`); el badge es oscuro translúcido (`bg-[var(--sf-tinta)]/5`) o claro
+  // translúcido (`bg-[var(--sf-sobre)]/10`) según `navClaro` — byte-idéntico.
+  //
+  // `true` (sólo CORTE): el CTA pasa a botón SÓLIDO — fondo `--sf-acento` (= EXACTO `--action-primary`
+  // para CORTE, `themes.ts`), texto `--sf-acento-txt` (= `--text-on-accent`), radio de BOTÓN vía
+  // `.sf-pildora` (que para la forma `'recta'` de CORTE ya vale `0` = `--radius-button`, § formas.ts —
+  // no un radio nuevo), mayúscula + tracking `.085em` (= `--tracking-button`) + peso 600 (=
+  // `--weight-semibold`) por CSS (el texto sigue siendo el DATO de `menu.ctaLabel`, sin reescribirlo).
+  // Hover/active DERIVADOS del mismo acento, sin hex nuevo: `--sf-acento-3` (hover, =
+  // `mezclar(acento, tinta, 0.41)`) y `--sf-acento-2` (active, `mezclar(acento, tinta, 0.64)` — más
+  // mezclado = más oscuro, el mismo sentido que `--action-primary-hover`/`-active` del prototipo) +
+  // `translateY(1px)` al presionar. El badge pasa a FIJO (ya no depende de `navClaro`): fondo
+  // `--sf-tostado`, texto `--sf-tinta` — el MISMO par que ya usan `Spotlight.badge`/`product.badge`
+  // en este repo (no un rol nuevo), porque `--accent-sale` del prototipo no tiene raíz propia en
+  // nuestro modelo de 3 raíces y `tostado` es la mezcla cálida-y-clara del acento que ya cumple ese
+  // papel en todo el storefront — ver el asiento de `CROMO-NAV-CTA-Y-BADGE-1` (`DECISIONS.md`) para
+  // los contrastes medidos. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `preset.navTratamientoCta`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
+  cta: boolean;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1739,10 +1772,14 @@ export const DEFAULTS: SiteContentData = {
   // por dirección → el nav de HOY, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   // FILETE INFERIOR por defecto (§ CROMO-NAV-FILETE-1): sin línea → el encabezado de HOY,
   // byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  // CTA/BADGE por defecto (§ CROMO-NAV-CTA-Y-BADGE-1): sin tratamiento → el CTA sigue siendo la
+  // pastilla translúcida de HOY (antes de buscar/carrito) y el badge sigue dependiendo de `navClaro`,
+  // byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
   navTratamiento: {
     activo: false,
     direccion: false,
     filete: false,
+    cta: false,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2675,7 +2712,7 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
     const dv = def[k];
     return typeof dv === 'boolean' ? dv : false;
   };
-  return { activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete') };
+  return { activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete'), cta: bool('cta') };
 }
 
 // Resuelve el TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1), gemelo de

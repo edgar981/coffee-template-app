@@ -118,6 +118,23 @@ test('navTratamiento.filete guardado explícito sobrevive la resolución complet
   assert.equal(r.navTratamiento.direccion, false, 'un guardado que sólo trae `filete` no debe encender `direccion`');
 });
 
+// § CROMO-NAV-CTA-Y-BADGE-1: `navTratamiento.cta` es OTRO CAMPO nuevo de la MISMA meta ya cableada —
+// mismo patrón que `filete` arriba, mismo alcance (esto es sólo el CABLEADO; el resolver, la ruta,
+// el control del panel y el preset se afirman en `lib/config/cromo-nav-tratamiento.test.ts`).
+test('sin nada guardado → navTratamiento.cta cae al default (false, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.navTratamiento, DEFAULTS.navTratamiento);
+  assert.equal(r.navTratamiento.cta, false);
+});
+
+test('navTratamiento.cta guardado explícito sobrevive la resolución completa, sin tocar `activo`/`direccion`/`filete`', () => {
+  const r = resolverSiteContent({ navTratamiento: { cta: true } });
+  assert.equal(r.navTratamiento.cta, true);
+  assert.equal(r.navTratamiento.activo, false, 'un guardado que sólo trae `cta` no debe encender `activo`');
+  assert.equal(r.navTratamiento.direccion, false, 'un guardado que sólo trae `cta` no debe encender `direccion`');
+  assert.equal(r.navTratamiento.filete, false, 'un guardado que sólo trae `cta` no debe encender `filete`');
+});
+
 test('sin nada guardado y entrada basura (null / string / array) → defaults, no lanza', () => {
   for (const basura of [null, undefined, 'x', 42, [], { hero: 'no-obj' }]) {
     assert.deepEqual(resolverSiteContent(basura).hero, DEFAULTS.hero);

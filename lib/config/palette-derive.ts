@@ -196,7 +196,12 @@ export function pisoContraste(hex: string, bg: string, objetivo = 4.5, dir: Dire
 //         inerte para cualquier tema de raíces custom (CORTE incluido), porque el token primario
 //         SIEMPRE está definido ahí (`--sf-sobre-tarjeta-suave` lo emite `derivarPaleta` siempre;
 //         `--sf-sobre-banda` lo fija `esquemaStyle` en línea para toda banda con esquema asignado,
-//         y `trustBadges` tiene uno en CORTE). No pinta nada para CORTE.
+//         y `trustBadges` tiene uno en CORTE). No pinta nada para CORTE EN EL HOME (los 7
+//         componentes censados acá). ACTUALIZADO (§ CROMO-NAV-CTA-Y-BADGE-1): fuera del home,
+//         `StoreNav.tsx` SÍ le da un uso REAL a `acento-2` para CORTE — el estado `:active` del CTA
+//         COMPRAR (`bg-[var(--sf-acento-2)]`, más mezclado con tinta que el hover `acento-3` =
+//         más oscuro, el mismo sentido que `--action-primary-active` del prototipo) — así que "no
+//         pinta nada para CORTE" deja de ser cierto para el storefront completo, sólo para el home.
 //       - `acento-3` SÍ PINTA — es el color de HOVER del link "Ver todos los productos" en
 //         `FeaturedProductsGrilla` (`hover:text-[var(--sf-acento-3)]`, sin fallback), que CORTE sí
 //         monta (`featured: 'grilla'`). Es un matiz de hover de un link cuyo color EN REPOSO ya

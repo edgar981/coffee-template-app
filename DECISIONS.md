@@ -27477,3 +27477,212 @@ pie de página) — falla la condición de `customer_bytes` de la política A. S
 queda en la rama a la espera del merge gateado del orquestador.
 
 **Cierra `PANEL-LOGIN-DUNELINES-OWNER-1`.**
+
+## 2026-09-27 — El CTA COMPRAR y el badge de menú toman forma/color del muestrario; COMPRAR se muda al final del encabezado, CUARTO campo de `navTratamiento` (`CROMO-NAV-CTA-Y-BADGE-1`)
+
+**El pedido del owner, textual** (gate visual con dos capturas lado a lado, nuestro nav contra el del
+muestrario): *«el botón comprar y el badge usan colores diferentes a los que tenemos actualmente,
+cambiarlos a como el muestrario, la ubicación del mismo, en el muestrario está al final»*.
+
+### 1 · Lo medido contra el prototipo — `docs/prototipos/cafeone/`
+
+`index.html:39-53` (`.header-actions`): orden real — locale · buscador · cuenta · carrito ·
+**COMPRAR** · hamburguesa. `Comprar` es el ÚLTIMO elemento, DESPUÉS del carrito — hoy vive ANTES de
+buscar/carrito, dentro del `<nav>` desktop (`hidden lg:flex`).
+
+`css/app.css:123-136` (`.btn`/`.btn--primary`/`.btn--sm`) + `tokens.css:66,71,77-79,123,128,164,171`:
+
+| rol del prototipo | token | valor para CORTE | mapeo nuestro |
+| --- | --- | --- | --- |
+| fondo del CTA | `--action-primary` | `#a70004` | `--sf-acento` (raíz, EXACTO) |
+| texto del CTA | `--text-on-accent` | `#fdfbf7` | `--sf-acento-txt` (auto-flip, ya floreado) |
+| hover del CTA | `--action-primary-hover` | `#860b0c` | `--sf-acento-3` (`mezclar(acento,tinta,0.41)`) |
+| active del CTA | `--action-primary-active` | `#6e0a0b` | `--sf-acento-2` (`mezclar(acento,tinta,0.64)`) |
+| radio del botón | `--radius-button` | `0px` | `.sf-pildora` → `--sf-pildora` (`'recta'`=`0`) |
+| peso/mayúscula/tracking | `--weight-semibold`/`--tracking-button` | `600`/`.085em` | `font-semibold`/`tracking-[0.085em]`/`uppercase` |
+
+`css/app.css:151-157` (`.badge`) + `tokens.css:66,71,83`:
+
+| rol del prototipo | token | valor para CORTE | mapeo nuestro |
+| --- | --- | --- | --- |
+| fondo del badge | `--accent-sale` (amber, SIN raíz propia) | `#f5b36a` | `--sf-tostado` |
+| texto del badge | `--text-heading` | `#102407` | `--sf-tinta` (raíz, EXACTO) |
+
+**`--accent-sale` no tiene contraparte exacta en nuestro modelo de 3 raíces** (fondo/tinta/acento):
+es un cuarto color independiente del sistema del prototipo, y agregar una raíz nueva es un cambio de
+schema/editor fuera de `touches:`. Se usó `--sf-tostado` en su lugar — no un rol nuevo ni un hex
+horneado: es EL MISMO par (`bg-[var(--sf-tostado)] text-[var(--sf-tinta)]`) que ya pintan
+`Spotlight.badge`/`product.badge` en este repo (`components/storefront/home/Spotlight.tsx:109`,
+`app/(storefront)/tienda/[slug]/page.tsx:242`) — la mezcla cálida-y-clara del acento ya es el token
+de "badge" establecido, y el badge del nav ("Cosecha 2026", `menu.badgeTexto`) es la MISMA familia
+de dato que ese badge de producto. La forma del badge (radio 2px, 11px, bold, mayúscula, tracking
+`.085em`) YA estaba medida desde `CORTE-BADGE-COSECHA-EN-MENU-1` y no cambió — sólo el COLOR, que
+además pasa a ser FIJO (ya no depende de `navClaro`, § abajo).
+
+**`.sf-pildora` da el radio de botón GRATIS.** `formas.ts` ya declara `pildora:'0'` para la forma
+`'recta'` de CORTE (medido en `CORTE-REESCRITURA-PROTOTIPO-1` contra `--radius-button:0px` del
+prototipo) — no fue necesario un radio nuevo: el botón toma `.sf-pildora` y CORTE ya lo resuelve a
+0, mientras cualquier otro tema (si algún día declarara este eje) seguiría con pastilla completa.
+`GrindChooserRiel.tsx` ya usa `.sf-pildora` y ya se monta para CORTE (`presentaciones:'riel'`), así
+que el mecanismo ya estaba EJERCIDO, no es nuevo.
+
+### 2 · Los contrastes — medidos con `derivarPaleta`/`contraste` (`lib/config/palette-derive.ts`)
+
+Contra las raíces reales de CORTE (`fondo:#fdfbf7 tinta:#102407 acento:#a70004`):
+
+```
+prototype badge contrast (accent-sale vs text-heading): 9.03
+tostado vs tinta (nuestro badge):                        7.38
+acento vs acento-txt (CTA en reposo):                     7.94
+prototype button contrast (action-primary vs text-on-accent): 7.68
+acento-3 vs acento-txt (CTA hover):                      10.76
+acento-2 vs acento-txt (CTA active):                     12.80
+```
+
+Los seis muy por sobre el piso AA (4.5). **Las dos superficies (badge y CTA) son OPACAS** —hex
+sólido, sin alpha—, así que ninguna depende de qué haya detrás: se leen igual con el nav flotando
+transparente sobre el hero que con el nav sólido al hacer scroll. Es justo lo que el spec pedía
+medir en los dos tratamientos, y la razón por la que alcanza con medir una vez: el contraste
+badge-fondo/badge-texto y CTA-fondo/CTA-texto no cambia con lo que hay atrás de una superficie
+opaca.
+
+### 3 · Dónde vive, y qué NO se tocó
+
+`navTratamiento.cta` — CUARTO campo de la MISMA meta que `activo`/`direccion`/`filete`
+(§ CROMO-NAV-TRATAMIENTO-1/CROMO-NAV-DIRECCION-SCROLL-1/CROMO-NAV-FILETE-1), no una meta nueva:
+mismo razonamiento de siempre — "ajuste más del encabezado ya montado", misma ruta de publicar/
+descartar (`/api/site-content/encabezado`), mismo control (`EncabezadoSeccion.tsx`). Gobierna DOS
+elementos (CTA + badge) porque se midieron JUNTOS, en el mismo commit, contra el mismo prototipo —
+no es el mismo criterio que separó `NavWordmarkContent` (que SÍ tiene su propio contrato exhaustivo
+que este slice no podía tocar).
+
+- **`StoreNav.tsx`**: el CTA viejo (`ctaHref && ...` dentro del `<nav>` desktop) se gatea
+  `!navTratamiento.cta` — sigue byte-idéntico para todo tenant salvo CORTE. El CTA nuevo se agrega
+  DESPUÉS del botón del carrito, gateado `ctaHref && navTratamiento.cta`, con `hidden sm:inline-flex`
+  (§ el `hide-sm` del prototipo, `app.css:999`, que oculta el CTA bajo 640px). `badgeSpan` gana una
+  tercera rama de color, gateada por el mismo campo, ANTES del chequeo de `navClaro` (no lo
+  reemplaza para los demás tenants).
+- **El badge del ítem de menú se oculta SOLO ANTES de que haga falta un breakpoint nuevo**: el
+  prototipo oculta `.nav-item .badge` a `max-width:1280px` (`app.css:968`), pero nuestro `<nav>`
+  entero ya cae bajo `lg` (1024px) — MÁS ESTRICTO —, así que el badge desaparece antes de llegar a
+  ese punto por construcción. No se agregó una media query nueva.
+- **El drawer móvil (`navDrawerMovil`) NO se toca**: mismo límite ya establecido por
+  `navTratamiento.activo`/`.filete` (sus propios docstrings) — es OTRA composición, y el
+  `.mobile-nav` del prototipo (`index.html:93-106`) no lleva CTA ni badge en absoluto (verificado
+  leyendo su markup completo). El CTA del drawer (las dos variantes, `pantallaCompleta`/`dropdown`)
+  sigue sin cambios.
+- **`palette-derive.ts`**: SIN cambio de fórmula/rol — sólo se actualizó un comentario que afirmaba
+  "`acento-2` no pinta nada para CORTE" (cierto hasta este slice, para los 7 componentes del home
+  censados en `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`) para acotarlo a "en el home": fuera del
+  home, el `:active` del CTA le da un uso real. Es la corrección que el chequeo mecánico de cierre
+  exige (§ abajo) — no una decisión nueva de paleta.
+- **`app/api/site-content/encabezado/route.ts`**: SIN cambio funcional — el `.pick()` opera sobre la
+  clave `navTratamiento` ENTERA. Se tocó sólo el comentario de cabecera (SIETE→OCHO ejes, TRES→CUATRO
+  campos), mismo motivo que `CROMO-NAV-FILETE-1`.
+- **`panel-controles.ts`**: `navTratamiento.cta` se agregó a `CONTROLADOS_ENCABEZADO_SECCION` EN EL
+  MISMO commit que lo suma al lado "leído" — nace CONTROLADO, nunca pasa por `PENDIENTE_PANEL`. El
+  techo-trinquete (11) **no se movió** — el propio test de higiene lo confirma en verde.
+
+### DEVIACIÓN medida contra `touches:`
+
+El spec citaba `lib/palette-derive.ts`; el archivo real vive en `lib/config/palette-derive.ts` (no
+existe `lib/palette-derive.ts` en el repo — medido, `find . -iname "palette-derive*"` da sólo los dos
+archivos bajo `lib/config/`). Se editó el archivo REAL, con el mismo alcance que el spec pedía.
+
+`app/globals.css` estaba en `touches:` y **no se tocó**: no hizo falta CSS nuevo — `.sf-pildora`,
+`sm:`/`hidden`, `active:`/`hover:`, `duration-[...]` y las custom properties usadas ya existen; no
+se creó ninguna clase ni token.
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2375/2375** — verde. 11 tests nuevos MEDIDOS por archivo (conteo de `^test(` antes/después, no por arithmetic sobre el commit anterior): `cromo-nav-tratamiento.test.ts` +6, `themes.test.ts` +2, `site-content-defaults.test.ts` +2, `panel-controles.test.ts` +1. El commit anterior (`31f64ac`, `PANEL-LOGIN-DUNELINES-OWNER-1`) reportó 2363/2363; `2363+11=2374`, un test de diferencia con el 2375 medido — un grep de `^test(` no captura toda la forma en que este repo declara casos (algún archivo puede generar más de un test por línea, p. ej. un `for` que llama `test(...)` dentro), así que el conteo por archivo es una aproximación; el NÚMERO AUTORITATIVO es el que reporta `node --test` (2375/2375, 0 fallas), no la suma manual. Se deja anotado en vez de perseguir el test exacto que explica el +1, porque no cambia el veredicto (verde en los dos casos). |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (`tests/integracion/panel-encabezado.test.ts` se EDITÓ, no ganó/perdió tests — 6 antes, 6 después) |
+| `npm run guarda:color` | **0px** en las 8 mediciones (home/tienda/producto/checkout/nosotros/suscripciones + 2 hovers) |
+| `npm run verificar:nayoli:visual` | **0px** en las mismas 8 mediciones (rama vs. `main`) |
+
+Nayoli no declara `navTratamiento.cta` (Nayoli no corre un preset del catálogo, corre defaults), así
+que el 0px es el resultado esperado: `cta:false` deja el CTA/badge exactamente como estaban.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio — mismo mecanismo que
+`CROMO-NAV-FILETE-1`/`CROMO-NAV-DIRECCION-SCROLL-1`: `navTratamiento` es un OBJETO que
+`mergePresetEnContent` escribe COMPLETO cada vez que se aplica el preset; una fila que ya tenga
+CORTE aplicado desde ANTES de este slice guarda `content.navTratamiento` SIN la clave `cta` (no
+existía cuando se aplicó), y `resolverNavTratamiento` cae a `cta:false` hasta que el dueño vuelva a
+aplicar el preset.
+
+### `touches:` — todo escrito estaba declarado (con una corrección de ruta)
+
+`git diff --numstat`: `app/api/site-content/encabezado/route.ts` (+7/-6), `components/admin/
+EncabezadoSeccion.tsx` (+21/-16), `components/storefront/layout/StoreNav.tsx` (+51/-3), `lib/config/
+cromo-nav-tratamiento.test.ts` (+73/-14), `lib/config/palette-derive.ts` (+6/-1), `lib/config/
+panel-controles.test.ts` (+9/-0), `lib/config/panel-controles.ts` (+16/-15), `lib/config/
+site-content-defaults.test.ts` (+17/-0), `lib/config/site-content-defaults.ts` (+38/-1), `lib/config/
+site-content-schema.ts` (+10/-8), `lib/config/themes.test.ts` (+22/-0), `lib/config/themes.ts`
+(+54/-7), `tests/integracion/panel-encabezado.test.ts` (+15/-7), y este asiento. **13 archivos de
+código**, los 13 cubiertos por `touches:` (12 en la ruta exacta + `palette-derive.ts` en la ruta
+corregida, § arriba). `app/globals.css` estaba autorizado y no se usó — no es un archivo tocado fuera
+de lista, es uno de la lista que resultó innecesario.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `NavTratamientoContent.cta`, `navTratamientoCta`
+(`PresetTema`), `resolverNavTratamiento` (extendido), `badgeSpan` (StoreNav.tsx), el CTA repositionado,
+`CONTROLADOS_ENCABEZADO_SECCION`, `EncabezadoSeccion`, `panel-controles.ts`, `CROMO-NAV-CTA-Y-BADGE-1`,
+`sf-pildora`/`sf-tostado`/`sf-acento-2`/`sf-acento-3` (como consumidores nuevos en este contexto).
+Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `navTratamiento` (a secas, y por tanto todas sus variantes),
+  `NavTratamientoContent`, `navTratamientoCta`, `CROMO-NAV` (cualquier id de esta familia),
+  `badgeSpan`, `sf-pildora`, `sf-tostado`, `EncabezadoSeccion`, `CONTROLADOS_ENCABEZADO_SECCION`,
+  `panel-controles`, `COMPRAR`, `Cosecha 2026`. `CLAUDE.md` no documenta el eje de tratamiento del
+  nav, el Encabezado del panel, el mecanismo `panel-controles.ts`, ni el CTA/badge del header en
+  absoluto.
+- **`StoreNav` SÍ aparece** (4 líneas: 2872, 2969, 4481, 4499 — las MISMAS cuatro que
+  `CROMO-NAV-FILETE-1` ya revisó). Releídas: el nav es DATA-DRIVEN (lee `content.menu`), /nosotros
+  apagada oculta su link, el logo/mark llega a `StoreNav` por prop. Ninguna describe el CTA/badge del
+  header ni queda contradicha — el nav sigue siendo data-driven, el mark sigue llegando por prop.
+- **`acento-2`/`acento-3` no aparecen** en `CLAUDE.md` — el doctrine de "Amber Minimal" (color =
+  información) que sí vive ahí es EXPLÍCITAMENTE del **admin**, no del storefront (`StoreNav` es
+  `components/storefront/`), así que no aplica y no queda contradicho.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): los ids citados como precedente
+(`CROMO-NAV-TRATAMIENTO-1`, `CROMO-NAV-DIRECCION-SCROLL-1`, `CROMO-NAV-FILETE-1`,
+`CORTE-BADGE-COSECHA-EN-MENU-1`, `CORTE-REESCRITURA-PROTOTIPO-1`, `TEMAS-ROLES-DECLARADOS-POR-EL-
+PRESET-1`) no se cierran ni se reabren — se citan como precedente de FORMA (cuarto campo de la misma
+meta) o como fuente de un hecho medido (`acento-2` inerte en el home), sin editar su contenido
+histórico. La única corrección de PROSA a una sección anterior es la nota de `palette-derive.ts`
+sobre `acento-2` (§3, arriba) — ESE archivo SÍ está en `touches:`, así que corregirlo ahí es dentro de
+alcance, no un follow-up.
+
+### `customer_bytes`
+
+**`changed: true`.** Para un tenant con `navTratamiento.cta:true` (hoy, sólo CORTE, y sólo tras
+RE-APLICAR el preset, § arriba), el CTA COMPRAR cambia de color/forma/posición y el badge de un ítem
+de menú cambia de color — todo VISIBLE. `strings:` **ninguno** — no se agregó ni cambió texto
+visible (`menu.ctaLabel`/`menu.badgeTexto` siguen siendo el mismo dato, sin reescribirse); el cambio
+es puramente de color/forma/posición.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un campo más de un objeto JSON ya existente (`SiteContent.content`),
+su resolución SOFT, su escritura vía la ruta ya existente del Encabezado, y su control en el panel —
+todo dentro del mecanismo de `SiteContent` que ya corre.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las cuatro mediciones (tsc,
+`npm test`, `npm run test:integracion`, `npm run guarda:color` + `verificar:nayoli:visual`, 0px).
+Sin `schema`, sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el
+owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, § el
+gate visual citado arriba); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio (§4).
+
+**Cierra `CROMO-NAV-CTA-Y-BADGE-1`.**

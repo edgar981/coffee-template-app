@@ -45,6 +45,10 @@ import { CORTE } from '../../lib/config/themes';
 // § CROMO-NAV-FILETE-1: `navTratamiento` gana un TERCER campo (`filete`), mismo razonamiento — los
 // bodies de abajo llevan `filete` junto a `activo`/`direccion` porque `wireDe` sigue mandando el
 // objeto COMPLETO.
+//
+// § CROMO-NAV-CTA-Y-BADGE-1: `navTratamiento` gana un CUARTO campo (`cta`), mismo razonamiento —
+// los bodies de abajo llevan `cta` junto a `activo`/`direccion`/`filete` porque `wireDe` sigue
+// mandando el objeto COMPLETO.
 
 const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true });
 const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
@@ -74,7 +78,7 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
 
@@ -87,6 +91,7 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   assert.equal(contenido.navTratamiento.activo, true);
   assert.equal(contenido.navTratamiento.direccion, true);
   assert.equal(contenido.navTratamiento.filete, true);
+  assert.equal(contenido.navTratamiento.cta, true);
   assert.equal(contenido.navDrawerMovil.variante, 'pantallaCompleta');
 
   // Y lo PUBLICADO todavía NO cambió — guardar el borrador no publica.
@@ -100,7 +105,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
@@ -112,6 +117,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   assert.equal(publicado.navTratamiento.activo, true);
   assert.equal(publicado.navTratamiento.direccion, true);
   assert.equal(publicado.navTratamiento.filete, true);
+  assert.equal(publicado.navTratamiento.cta, true);
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 
   const { sinPublicar } = await readSiteContentParaEditor();
@@ -123,7 +129,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
@@ -132,7 +138,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: false, navSubtitulo: false, navBadge: '' },
     navWordmark: { activo: false },
-    navTratamiento: { activo: false, direccion: false, filete: false },
+    navTratamiento: { activo: false, direccion: false, filete: false, cta: false },
     navDrawerMovil: { variante: 'dropdown' },
   });
   await descartarComoLaRuta();
@@ -143,14 +149,15 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   assert.equal(publicado.navTratamiento.activo, true);
   assert.equal(publicado.navTratamiento.direccion, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.filete, true, 'descartar no debe tocar lo YA publicado');
+  assert.equal(publicado.navTratamiento.cta, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta', 'descartar no debe tocar lo YA publicado');
 
   const { sinPublicar } = await readSiteContentParaEditor();
   assert.equal(sinPublicar.encabezado, false, 'descartar debe limpiar el borrador');
 });
 
-test('default del preset: los siete controles arrancan con el valor que puso mergePresetEnContent', async () => {
-  // CORTE es el ÚNICO preset del catálogo que enciende los siete ejes (§ themes.ts). Esto verifica
+test('default del preset: los ocho controles arrancan con el valor que puso mergePresetEnContent', async () => {
+  // CORTE es el ÚNICO preset del catálogo que enciende los ocho ejes (§ themes.ts). Esto verifica
   // lo que EncabezadoSeccion.tsx lee al abrir por primera vez sobre un tenant con este preset: los
   // switches YA prendidos, sin que el dueño haya tocado nada — "el preset pone el punto de partida".
   await aplicarPreset(CORTE);
@@ -162,6 +169,7 @@ test('default del preset: los siete controles arrancan con el valor que puso mer
   assert.equal(publicado.navTratamiento.activo, true);
   assert.equal(publicado.navTratamiento.direccion, true);
   assert.equal(publicado.navTratamiento.filete, true);
+  assert.equal(publicado.navTratamiento.cta, true);
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 });
 
@@ -178,7 +186,7 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
     // VIGENTE, como hace el componente (nunca a medias).
     cromo: { navTinta: false, navSubtitulo: true, navBadge: 'Cosecha 2026' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();

@@ -250,6 +250,17 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * `site-content-defaults.ts` para el porqué completo, incluida la medición). CORTE es hoy el ÚNICO
  * preset que lo declara.
  *
+ * `navTratamientoCta` (§ CROMO-NAV-CTA-Y-BADGE-1, OPCIONAL) — ¿el CTA COMPRAR del menú
+ * (`.btn.btn--primary.btn--sm` del prototipo) y el badge de un ítem de menú (`.badge`) toman la
+ * forma/color medidos, y el CTA se muda al FINAL del encabezado (después del carrito, no antes de
+ * buscar/carrito como HOY)? MEDIDO contra el prototipo (`docs/prototipos/cafeone/css/app.css:123-
+ * 157`, `tokens.css:66,71,77-83,123,128,164,171`; `index.html:39-53`). AUSENTE = el comportamiento
+ * de HOY, byte a byte (el CTA es una pastilla translúcida antes de buscar/carrito; el badge depende
+ * de `navClaro`). Escribe `content.navTratamiento.cta` — CUARTO CAMPO de la MISMA meta que
+ * `navTratamientoActivo`/`navTratamientoDireccion`/`navTratamientoFilete`, no una meta nueva (§ el
+ * docstring de `NavTratamientoContent.cta` en `site-content-defaults.ts` para el porqué completo,
+ * incluidos los tokens y los contrastes). CORTE es hoy el ÚNICO preset que lo declara.
+ *
  * `navWordmarkActivo` (§ CORTE-LOGO-APILADO-1, OPCIONAL) — ¿el wordmark apilado del nav (rama
  * `subtitle` de `Logo.tsx`, ya encendida por `navSubtitulo`) calza el `.wordmark`/`.wordmark small`
  * del prototipo (nombre en mayúscula+tracking+tamaño mayor, sub en la sans del cuerpo muted sin
@@ -323,6 +334,7 @@ export interface PresetTema {
   navTratamientoActivo?: boolean;
   navTratamientoDireccion?: boolean;
   navTratamientoFilete?: boolean;
+  navTratamientoCta?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
   carritoVariante?: ClaveCarrito;
@@ -593,17 +605,19 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   out.carritoEnvio = {
     visible: fusionar('carritoEnvio.visible', preset.carritoEnvioVisible ?? false),
   };
-  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1 y §
-  // CROMO-NAV-FILETE-1): meta PROPIA, aparte de `cromo`, `volverArriba`, `rielSocial` Y
-  // `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué (conceptualmente es
-  // la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato
-  // exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:`
-  // de este slice). `direccion` y `filete` se fusionan cada uno por su PROPIA ruta
-  // (`navTratamiento.direccion`/`.filete`) — campos más de esta meta, no un objeto aparte.
+  // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1, §
+  // CROMO-NAV-FILETE-1 y § CROMO-NAV-CTA-Y-BADGE-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
+  // `rielSocial` Y `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué
+  // (conceptualmente es la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede
+  // compartir el contrato exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`,
+  // FUERA de `touches:` de este slice). `direccion`, `filete` y `cta` se fusionan cada uno por su
+  // PROPIA ruta (`navTratamiento.direccion`/`.filete`/`.cta`) — campos más de esta meta, no un objeto
+  // aparte.
   out.navTratamiento = {
     activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
     direccion: fusionar('navTratamiento.direccion', preset.navTratamientoDireccion ?? false),
     filete: fusionar('navTratamiento.filete', preset.navTratamientoFilete ?? false),
+    cta: fusionar('navTratamiento.cta', preset.navTratamientoCta ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
@@ -1088,6 +1102,39 @@ export const CORTE: PresetTema = {
   // completo. CORTE es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
   // `content.navTratamiento.filete`.
   navTratamientoFilete: true,
+  // navTratamientoCta (§ CROMO-NAV-CTA-Y-BADGE-1) — MEDIDO contra el prototipo LOCAL (a diferencia
+  // de `navTratamientoDireccion`/`.filete`, que necesitaron el TEMA REAL: acá `.btn.btn--primary.
+  // btn--sm`/`.badge` SÍ están en `docs/prototipos/cafeone/`). Gate visual del owner con dos
+  // capturas lado a lado (2026-09-27): «el botón comprar y el badge usan colores diferentes a los
+  // que tenemos actualmente, cambiarlos a como el muestrario, la ubicación del mismo, en el
+  // muestrario está al final».
+  //
+  // EL CTA (`.btn.btn--primary.btn--sm`, `css/app.css:123-136`): fondo `--action-primary` (= raíz
+  // `acento`, EXACTO para CORTE — #a70004), texto `--text-on-accent` (= `--sf-acento-txt`, auto-flip
+  // ya floreado), radio `--radius-button` (0, ya cubierto por `.sf-pildora` bajo la forma `'recta'`
+  // de CORTE — § formas.ts), mayúscula + `letter-spacing:.085em` (`--tracking-button`) + peso 600
+  // (`--weight-semibold`) — ningún dato nuevo, el texto sigue siendo `menu.ctaLabel`. Hover/active
+  // (`--action-primary-hover`/`-active`, `tokens.css:78-79`) no tienen contraparte exacta en nuestro
+  // sistema (mismo límite que el relleno de envío gratis, § `CarritoEnvioContent`), así que se
+  // reusan los dos derivados YA EXISTENTES del acento que ya oscurecen en el mismo sentido:
+  // `--sf-acento-3` (hover) y `--sf-acento-2` (active, MÁS mezclado con tinta = más oscuro que el
+  // hover) — ninguno inventado para este slice. POSICIÓN: `index.html:39-53`, `.header-actions` — el
+  // CTA es el ÚLTIMO elemento, después del carrito (hoy vive ANTES de buscar/carrito, dentro del
+  // `<nav>` desktop).
+  //
+  // EL BADGE (`.badge`, `css/app.css:151-157`): fondo `--accent-sale` (amber, SIN raíz propia en
+  // nuestro modelo de 3 raíces), texto `--text-heading` (= raíz `tinta`, EXACTO para CORTE —
+  // #102407). Como `--accent-sale` no deriva de ninguna de las 3 raíces, se usa `--sf-tostado` (la
+  // mezcla cálida-y-clara del acento, YA el token de "badge" en este repo —
+  // `Spotlight.badge`/`product.badge` ya pintan `bg-[var(--sf-tostado)] text-[var(--sf-tinta)]`—),
+  // en vez de un rol nuevo o un hex horneado. Contrastes medidos (`derivarPaleta` sobre las raíces de
+  // CORTE): badge `tostado` vs `tinta` = 7.38:1; CTA `acento` vs `acento-txt` = 7.94:1; hover
+  // `acento-3` vs `acento-txt` = 10.76:1; active `acento-2` vs `acento-txt` = 12.80:1 — los cuatro
+  // muy por sobre el piso AA (4.5), y los DOS (badge y CTA) son superficies OPACAS: no dependen de
+  // qué haya detrás (nav flotando transparente sobre el hero, o nav sólido al scrollear), a
+  // diferencia de la versión translúcida de HOY. CORTE es hoy el ÚNICO preset del catálogo que lo
+  // declara; los otros cinco no tocan `content.navTratamiento.cta`.
+  navTratamientoCta: true,
   // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
   // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
   // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,

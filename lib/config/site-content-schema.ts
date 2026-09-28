@@ -411,18 +411,20 @@ const carritoEnvioEditableSchema = z.object({
 });
 
 // META de TRATAMIENTO DEL NAV (§ CROMO-NAV-TRATAMIENTO-1, ampliado por §
-// CROMO-NAV-DIRECCION-SCROLL-1 y § CROMO-NAV-FILETE-1): MISMA forma que `rielSocialEditableSchema`
-// (dominio CERRADO, NO sección, se declara SÓLO para que un futuro write general no la STRIPPEE en
-// silencio, § #65-B) pero meta PROPIA — ver el docstring de `NavTratamientoContent`
-// (`site-content-defaults.ts`) para el porqué de que no comparta objeto con `cromo`, `volverArriba`
-// ni `rielSocial`. `direccion` (el comportamiento por dirección de scroll) y `filete` (la línea
-// inferior del encabezado) SE SUMARON como campos de ESTA meta, no metas nuevas — mismo
-// razonamiento que el docstring de `NavTratamientoContent.direccion`/`.filete`. Las TRES claves SÍ
-// tienen editor: `EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado`.
+// CROMO-NAV-DIRECCION-SCROLL-1, § CROMO-NAV-FILETE-1 y § CROMO-NAV-CTA-Y-BADGE-1): MISMA forma que
+// `rielSocialEditableSchema` (dominio CERRADO, NO sección, se declara SÓLO para que un futuro write
+// general no la STRIPPEE en silencio, § #65-B) pero meta PROPIA — ver el docstring de
+// `NavTratamientoContent` (`site-content-defaults.ts`) para el porqué de que no comparta objeto con
+// `cromo`, `volverArriba` ni `rielSocial`. `direccion` (el comportamiento por dirección de scroll),
+// `filete` (la línea inferior del encabezado) y `cta` (la forma/color del CTA COMPRAR + el badge de
+// menú) SE SUMARON como campos de ESTA meta, no metas nuevas — mismo razonamiento que el docstring
+// de `NavTratamientoContent.direccion`/`.filete`/`.cta`. Las CUATRO claves SÍ tienen editor:
+// `EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado`.
 const navTratamientoEditableSchema = z.object({
   activo: z.boolean().optional(),
   direccion: z.boolean().optional(),
   filete: z.boolean().optional(),
+  cta: z.boolean().optional(),
 });
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1): MISMA forma que

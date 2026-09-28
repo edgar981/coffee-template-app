@@ -250,8 +250,18 @@ export default function StoreNav() {
   // (§ MUESTRARIO-MEGA-MENU-1) también puede llevar badge, así que la misma pieza tiene que colgar
   // tanto de un `<Link>` como del `<button>` que abre el panel — sin extraerla, el markup se
   // duplicaría una tercera vez.
+  //
+  // EL COLOR (§ CROMO-NAV-CTA-Y-BADGE-1, `navTratamiento.cta`): la FORMA (padding, tamaño, peso,
+  // mayúscula, tracking, radio) ya estaba MEDIDA contra `.badge` del prototipo
+  // (`docs/prototipos/cafeone/css/app.css:151-157`, `tokens.css:123,128,164`) y no cambia acá — sólo
+  // el COLOR. `false` (todo tenant salvo CORTE) → sigue dependiendo de `navClaro`, byte-idéntico.
+  // `true` (CORTE): FIJO, ya no depende de `navClaro` — `bg-[var(--sf-tostado)] text-[var(--sf-
+  // tinta)]`, el MISMO par que ya usan `Spotlight.badge`/`product.badge` en este repo (§ el docstring
+  // de `NavTratamientoContent.cta`, `site-content-defaults.ts`, para el porqué de `tostado` en vez
+  // de un rol nuevo). Las dos superficies son OPACAS, así que el mismo par se lee igual flotando
+  // sobre el hero o con el nav sólido — no hace falta un segundo par por tratamiento.
   const badgeSpan = (texto: string) => (
-    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
+    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navTratamiento.cta ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]' : navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
       {texto}
     </span>
   );
@@ -360,8 +370,13 @@ export default function StoreNav() {
                   no su destino ni su contenido. `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1)
                   NO lo toca: el `.nav` del prototipo (`docs/prototipos/cafeone/index.html:26-37`)
                   sólo contiene `.nav-link` de navegación, sin CTA propio — esta pieza es dato
-                  nuestro sin análogo medido, así que queda fuera del alcance de este slice. */}
-              {ctaHref && (
+                  nuestro sin análogo medido, así que queda fuera del alcance de este slice.
+
+                  `!navTratamiento.cta` (§ CROMO-NAV-CTA-Y-BADGE-1): con el tratamiento encendido
+                  (CORTE) el CTA se muda al FINAL del encabezado (dentro de "Actions", abajo) — acá
+                  no se renderiza una segunda vez. `false` (todo tenant salvo CORTE) → sigue acá,
+                  byte-idéntico. */}
+              {ctaHref && !navTratamiento.cta && (
                 <Link
                   href={ctaHref}
                   className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)] hover:bg-[var(--sf-sobre)]/20' : 'bg-[var(--sf-acento)]/10 text-[var(--sf-acento-4)] hover:bg-[var(--sf-acento)]/20'}`}
@@ -490,6 +505,39 @@ export default function StoreNav() {
                   </span>
                 )}
               </button>
+              {/* EL CTA COMPRAR, en su posición del prototipo (§ CROMO-NAV-CTA-Y-BADGE-1) — MEDIDO
+                  contra `docs/prototipos/cafeone/index.html:39-53` (`.header-actions`): el ÚLTIMO
+                  elemento, después del carrito — `<a class="btn btn--primary btn--sm hide-sm"
+                  href="producto.html">Comprar</a>` entre el `.cart-btn` y el `.hamburger`. Sólo se
+                  renderiza con `navTratamiento.cta` encendido (CORTE); el resto de los tenants sigue
+                  con la pastilla translúcida de arriba, dentro del `<nav>` desktop.
+
+                  FORMA/COLOR medidos contra `.btn.btn--primary.btn--sm` (`css/app.css:123-136`,
+                  `tokens.css:66,71,77-79,123,128,171`): fondo `--sf-acento` (= `--action-primary`
+                  EXACTO para CORTE), texto `--sf-acento-txt` (= `--text-on-accent`), radio de BOTÓN
+                  vía `.sf-pildora` (= `--radius-button`, 0, bajo la forma `'recta'` de CORTE — no un
+                  radio nuevo), mayúscula + `tracking-[0.085em]` (= `--tracking-button`, el MISMO
+                  valor que ya usa `badgeSpan`) + `font-semibold` (= `--weight-semibold`, 600) por
+                  CSS — el texto sigue siendo el DATO de `menu.ctaLabel`. Hover/active DERIVADOS del
+                  acento, sin hex nuevo: `--sf-acento-3` (hover) y `--sf-acento-2` (active, MÁS
+                  mezclado con tinta = más oscuro, el mismo sentido que `--action-primary-hover`/
+                  `-active` del prototipo) + `translate-y-px` al presionar.
+
+                  `hidden sm:inline-flex` (§ el `hide-sm` del prototipo, `app.css:999`, que oculta el
+                  CTA bajo 640px junto al buscador y la cuenta): el badge del ítem de menú ya se
+                  oculta ANTES —el `<nav>` entero cae bajo `lg` (1024px), más estricto que el
+                  `1280px` del prototipo (`app.css:968`) — así que no hace falta una media query
+                  nueva para él. El drawer móvil (`navDrawerMovil`) NO se toca: mismo límite que
+                  `navTratamiento.activo`/`.filete` (§ sus propios comentarios) — es OTRA
+                  composición, y el `.mobile-nav` del prototipo (`index.html:93-106`) no lleva CTA. */}
+              {ctaHref && navTratamiento.cta && (
+                <Link
+                  href={ctaHref}
+                  className="hidden sm:inline-flex items-center justify-center whitespace-nowrap leading-none sf-pildora bg-[var(--sf-acento)] px-[18px] py-[11px] text-[11px] font-semibold uppercase tracking-[0.085em] text-[var(--sf-acento-txt)] transition-all duration-[120ms] hover:bg-[var(--sf-acento-3)] active:bg-[var(--sf-acento-2)] active:translate-y-px"
+                >
+                  {content.menu.ctaLabel}
+                </Link>
+              )}
               {/* v1: /cuenta link hidden — restore when account feature ships */}
               {/* <Link href="/cuenta" className={`hidden sm:flex items-center ml-1 text-sm font-medium rounded-full transition-colors ${linkColor}`}>
                 <button className={`p-2 pt-1.5 cursor-pointer rounded-full transition-colors ${iconColor} bg-[var(--sf-acento)]/10`}>

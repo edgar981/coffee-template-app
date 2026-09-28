@@ -9,20 +9,22 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 // ─── Bloque ENCABEZADO — vive en /admin/tienda, junto a Colores y el Menú ────────────────────────
 //
 // § PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, §
-// CROMO-NAV-DIRECCION-SCROLL-1 y § CROMO-NAV-FILETE-1: los SIETE ejes del nav que hasta hoy sólo
-// escribía un preset —logo (`navWordmark.activo`), sub-encabezado (`cromo.navSubtitulo`), color del
-// nav (`cromo.navTinta`), tratamiento tipográfico del nav (`navTratamiento.activo`), el drawer móvil
-// de pantalla completa (`navDrawerMovil.variante`), el comportamiento por dirección de scroll
-// (`navTratamiento.direccion`) y el filete inferior del encabezado (`navTratamiento.filete`)—.
-// Default = lo que ya trae `content.*` (el preset lo sembró vía `mergePresetEnContent`); el dueño lo
-// overridea con el switch, mismo principio que los interruptores del hero (§
-// PANEL-EDITOR-HERO-TOGGLES-1: "el preset pone el punto de partida, el dueño lo overridea con el
-// switch").
+// CROMO-NAV-DIRECCION-SCROLL-1, § CROMO-NAV-FILETE-1 y § CROMO-NAV-CTA-Y-BADGE-1: los OCHO ejes del
+// nav que hasta hoy sólo escribía un preset —logo (`navWordmark.activo`), sub-encabezado
+// (`cromo.navSubtitulo`), color del nav (`cromo.navTinta`), tratamiento tipográfico del nav
+// (`navTratamiento.activo`), el drawer móvil de pantalla completa (`navDrawerMovil.variante`), el
+// comportamiento por dirección de scroll (`navTratamiento.direccion`), el filete inferior del
+// encabezado (`navTratamiento.filete`) y la forma/color del CTA COMPRAR + el badge de menú
+// (`navTratamiento.cta`)—. Default = lo que ya trae `content.*` (el preset lo sembró vía
+// `mergePresetEnContent`); el dueño lo overridea con el switch, mismo principio que los
+// interruptores del hero (§ PANEL-EDITOR-HERO-TOGGLES-1: "el preset pone el punto de partida, el
+// dueño lo overridea con el switch").
 //
-// `navTratamiento.direccion`/`.filete` son CAMPOS MÁS de la MISMA clave `navTratamiento` que ya
-// trae `activo` (§ el docstring de `NavTratamientoContent.direccion`/`.filete`,
-// `site-content-defaults.ts`) — no una quinta/sexta clave meta. Por eso `wireDe`/`cargar` sólo
-// agregan una propiedad al objeto `navTratamiento` que ya armaban, sin tocar el resto del cableado.
+// `navTratamiento.direccion`/`.filete`/`.cta` son CAMPOS MÁS de la MISMA clave `navTratamiento` que
+// ya trae `activo` (§ el docstring de `NavTratamientoContent.direccion`/`.filete`/`.cta`,
+// `site-content-defaults.ts`) — no una quinta/sexta/séptima clave meta. Por eso `wireDe`/`cargar`
+// sólo agregan una propiedad al objeto `navTratamiento` que ya armaban, sin tocar el resto del
+// cableado.
 //
 // PATRÓN `PaletaSeccion`/`MenuSeccion`, NO `TiendaSeccionEditor`: los seis switches viven en CUATRO
 // claves META que `SeccionKey` EXCLUYE del REGISTRY (`cromo`, `navWordmark`, `navTratamiento`,
@@ -75,12 +77,13 @@ interface Form {
   drawerMovil: boolean;      // navDrawerMovil.variante === 'pantallaCompleta'
   direccionScroll: boolean;  // navTratamiento.direccion
   filete: boolean;           // navTratamiento.filete
+  ctaBadge: boolean;         // navTratamiento.cta
 }
 
 interface Wire {
   cromo: { navTinta: boolean; navSubtitulo: boolean; navBadge: string };
   navWordmark: { activo: boolean };
-  navTratamiento: { activo: boolean; direccion: boolean; filete: boolean };
+  navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
 }
 
@@ -92,6 +95,7 @@ const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
   { name: 'drawerMovil', label: 'Drawer móvil de pantalla completa', hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.' },
   { name: 'direccionScroll', label: 'Ocultar al bajar', hint: 'Al bajar, el encabezado se oculta; al subir, reaparece con su color sólido. Arriba del todo se ve como siempre.' },
   { name: 'filete', label: 'Filete inferior', hint: 'Una línea fina separa el encabezado del contenido, sin llegar a los bordes de la pantalla.' },
+  { name: 'ctaBadge', label: 'Botón Comprar y badge del menú', hint: 'El botón Comprar se ve sólido y se muda al final del encabezado, después del carrito; el badge de un ítem de menú toma un color fijo.' },
 ];
 
 export default function EncabezadoSeccion() {
@@ -113,7 +117,7 @@ export default function EncabezadoSeccion() {
   const wireDe = (f: Form, badge: string): Wire => ({
     cromo: { navTinta: f.colorNav, navSubtitulo: f.subEncabezado, navBadge: badge },
     navWordmark: { activo: f.logo },
-    navTratamiento: { activo: f.tratamientoNav, direccion: f.direccionScroll, filete: f.filete },
+    navTratamiento: { activo: f.tratamientoNav, direccion: f.direccionScroll, filete: f.filete, cta: f.ctaBadge },
     navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
   });
 
@@ -137,7 +141,7 @@ export default function EncabezadoSeccion() {
       const contenido = (d.contenido ?? {}) as {
         cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
         navWordmark?: { activo?: unknown };
-        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown };
+        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown };
         navDrawerMovil?: { variante?: unknown };
       };
       setForm({
@@ -148,6 +152,7 @@ export default function EncabezadoSeccion() {
         drawerMovil: contenido.navDrawerMovil?.variante === 'pantallaCompleta',
         direccionScroll: !!contenido.navTratamiento?.direccion,
         filete: !!contenido.navTratamiento?.filete,
+        ctaBadge: !!contenido.navTratamiento?.cta,
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
       setHayBorrador(!!d.sinPublicar?.encabezado);
