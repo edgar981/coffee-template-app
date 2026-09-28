@@ -6,14 +6,15 @@ import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config/site-content-write';
 
 // EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, §
-// CROMO-NAV-DIRECCION-SCROLL-1, § CROMO-NAV-FILETE-1 y § CROMO-NAV-CTA-Y-BADGE-1): logo,
-// sub-encabezado, color del nav, tratamiento tipográfico del nav, el drawer móvil de pantalla
-// completa, el comportamiento por dirección de scroll, el filete inferior, y la forma/color del CTA
-// COMPRAR + el badge de menú — OCHO ejes que hasta hoy sólo escribía un preset
-// (`mergePresetEnContent`, `themes.ts`). Los OCHO viven en CUATRO claves META que `SeccionKey`
-// EXCLUYE del REGISTRY (`cromo`, `navWordmark`, `navTratamiento` —con CUATRO campos,
-// `activo`/`direccion`/`filete`/`cta`—, `navDrawerMovil`; § site-content-defaults.ts) — NO son una
-// sección, así que el PUT/POST GENÉRICO de `/api/site-content` no sirve para publicarlas/
+// CROMO-NAV-DIRECCION-SCROLL-1, § CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1 y §
+// CROMO-NAV-POSICION-TEMA-REAL-1): logo, sub-encabezado, color del nav, tratamiento tipográfico del
+// nav, el drawer móvil de pantalla completa, el comportamiento por dirección de scroll, el filete
+// inferior, la forma/color del CTA COMPRAR + el badge de menú, y la geometría del contenedor de
+// contenido — NUEVE ejes que hasta hoy sólo escribía un preset (`mergePresetEnContent`,
+// `themes.ts`). Los NUEVE viven en CUATRO claves META que `SeccionKey` EXCLUYE del REGISTRY
+// (`cromo`, `navWordmark`, `navTratamiento` —con CINCO campos,
+// `activo`/`direccion`/`filete`/`cta`/`posicion`—, `navDrawerMovil`; § site-content-defaults.ts) —
+// NO son una sección, así que el PUT/POST GENÉRICO de `/api/site-content` no sirve para publicarlas/
 // descartarlas: su gate `seccion in REGISTRY` (route.ts:88) las rechaza con 400. El PUT genérico SÍ
 // las acepta al borrador (`siteContentEditableSchema` ya las declara opcionales), pero sin ruta
 // propia de publicar quedarían escribiendo un borrador que nunca se puede mover a lo publicado.

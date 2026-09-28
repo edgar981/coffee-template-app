@@ -28119,3 +28119,199 @@ citado arriba); el merge sigue pendiente del gate del orquestador — este slice
 dispatch, no mergea.
 
 **Cierra `NAV-CIERRE-CLICK-AFUERA-1`.**
+
+## 2026-09-28 — El encabezado toma la GEOMETRÍA del tema real: más ancho, más cerca de los bordes, con relleno vertical en vez de altura fija — QUINTO campo de `navTratamiento` (`CROMO-NAV-POSICION-TEMA-REAL-1`)
+
+Gate visual del owner del 2026-09-28, con tres capturas lado a lado (nuestro muestrario, el
+prototipo y el tema real), textual: *"Los elementos del nav aun estan muy en el top y centrados,
+compara como estan en cafeone y el muestrario, estan un poco mas abajo y spreaded un poco mas
+horizontalmente."*
+
+### 1 · La medición — de las DOS referencias, y por qué se sigue a UNA
+
+El spec citaba una hipótesis SIN MEDIR (`por-medir:CONTENEDOR_NAV_REAL`): "en el tema real el
+contenido del encabezado ocupa el ancho de la página menos un margen lateral de página, no un
+contenedor centrado de ancho máximo". **Medida y PARCIALMENTE FALSA** — la corrección importa para
+cómo se implementó, así que va primero.
+
+**El prototipo local** (`docs/prototipos/cafeone/css/app.css`/`ds/spacing.css`), leído directo:
+`.header-bar{height:var(--header-height);display:flex;align-items:center;max-width:var(--content-
+max);margin-inline:auto;padding-inline:var(--page-gutter)}`, con tres tramos —desktop (≥1024px,
+Tailwind `lg`) `--header-height:118px --content-max:1440px --page-gutter:32px`; `<1024px` (bajo
+`lg`, Tailwind base+`sm`) `88px`/`24px`; `<640px` (bajo `sm`) `76px`/`18px`. Los DOS breakpoints del
+prototipo (`max-width:1024px`/`max-width:640px`) coinciden EXACTO con los umbrales `lg`/`sm` de
+Tailwind que este componente ya usa — no hay que traducir nada.
+
+**El tema real** (`x-cafeone.myshopify.com`, fetch directo con `node`+`fetch` — sin curl, sin
+navegador headless; `styles.css` + el HTML servido guardados en `.scratch/`, no comiteados): la
+clase real de `.xo-header__content` es `py:s9 py:s7@+lg … pl:var(--page-side-margin)/xo-is-sticky
+pr:var(--page-side-margin)/xo-is-sticky`, DENTRO de `<xo-container>{max-width:var(--xo-container-
+width,1400px);margin:auto;padding-inline:var(--container-gap,2rem)}`. En ESTA tienda:
+`--page-width:180rem` (1800px — el SETTING de esa tienda, no el 1400px de fallback del framework) y
+`--page-gap:20px`=`--page-gap-mobile:20px` (FLAT, sin variar por breakpoint) alimentan ancho/relleno
+lateral; `--page-side-margin` **no está asignado** (cae a `0` por su propio fallback CSS), así que
+el `pl/pr` condicional a `xo-is-sticky` no suma nada en NINGÚN estado. `s9`=1.6rem=16px,
+`s7`=1.3rem=13px (`html{font-size:62.5%}`, confirmado por fetch de `styles.css`): relleno vertical
+16px por defecto, 13px desde el breakpoint `@+lg` (MÁS CHICO en desktop, no más grande).
+
+**LA HIPÓTESIS ERA PARCIALMENTE FALSA:** el tema real SÍ usa un contenedor centrado de ancho máximo
+(`xo-container`, exactamente la misma FORMA que ya usamos, `max-w-X mx-auto px-Y`) — lo que cambia
+son los NÚMEROS: 1800px de ancho máximo (no "sin máximo") y ~20px de margen lateral (no un
+"page-side-margin" propio, que en esta tienda vale 0). El efecto visual que el owner describe
+("logo cerca del borde, CTA cerca del borde") sale de que 1800px casi nunca se alcanza a los anchos
+de escritorio comunes, así que el contenedor se COMPORTA como full-bleed-menos-20px sin serlo
+técnicamente — no de la ausencia de un máximo.
+
+**Las DOS referencias DIVERGEN en número** (1440px/32px/altura-fija vs. 1800px/20px-flat/relleno-
+vertical) — el spec pide seguir al tema real cuando difieren, y así se hizo: `max-w-[1800px]` y
+`px-5` (20px) son los del tema real, no los del prototipo.
+
+**Móvil, medido, no inventado:** en el tema real `--page-gap-mobile` = `--page-gap` = 20px (el
+MISMO valor a cualquier ancho) y `py:s9` (16px) es el valor BASE/mobile — sólo `@+lg` lo cambia a
+13px. La implementación (`px-5` flat + `py-4` base + `lg:py-[13px]`) ya encodea esto exacto sin
+necesitar un tramo aparte para móvil: el caso móvil ES el caso base de Tailwind.
+
+### 2 · Lo construido — QUINTO campo de `navTratamiento`, mismo patrón que `activo`/`direccion`/`filete`/`cta`
+
+`NavTratamientoContent.posicion: boolean` (`site-content-defaults.ts`), resuelto por
+`resolverNavTratamiento` con el mismo `bool()` independiente que los otros cuatro (un guardado que
+sólo trae `posicion` no enciende ni apaga los demás). `PresetTema.navTratamientoPosicion?: boolean`
+(`themes.ts`), escrito por `mergePresetEnContent` con el mismo `fusionar('navTratamiento.posicion',
+…)`. Schema (`navTratamientoEditableSchema`) gana `posicion: z.boolean().optional()`.
+
+`StoreNav.tsx` — dos ternarias nuevas sobre el MISMO div que ya lleva `navFileteClase` (así que el
+filete se ABRE con el contenedor sin tocar una línea de `CROMO-NAV-FILETE-1`):
+
+```
+const navContenedorClase = navTratamiento.posicion ? 'max-w-[1800px] px-5' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+const navFilaAltoClase   = navTratamiento.posicion ? 'py-4 lg:py-[13px]' : 'h-16 lg:h-18';
+```
+
+`false` (todo tenant salvo CORTE) → los literales de HOY, byte-idénticos. `true` (CORTE): el
+contenedor de contenido pasa de `max-w-6xl` (1152px) + `px-4 sm:px-6 lg:px-8` (16/24/32px) a
+`max-w-[1800px]` + `px-5` (20px flat); y la fila deja de forzar una ALTURA fija (`h-16 lg:h-18`,
+64/72px con `items-center`) para tomar un RELLENO vertical (`py-4 lg:py-[13px]`, 16px/13px) —
+la altura pasa a depender del contenido, como en el tema real. Como CORTE también enciende
+`navWordmark.activo` (el wordmark apilado, nombre 30px + sub 11px ≈ más alto que el logo de 22px de
+HOY), quitar la altura fija deja que ese contenido más alto empuje la fila hacia abajo en vez de
+comprimirse dentro de una caja corta — la causa MEDIDA de "el nav queda más abajo", no una
+constante de altura inventada para lograrlo.
+
+`EncabezadoSeccion.tsx` gana el switch **"Posición del encabezado"**, quinto de la lista, con el
+mismo `wireDe`/`cargar` extendidos por una propiedad (mismo patrón que `.cta` sumó el cuarto).
+`panel-controles.ts` — `navTratamiento.posicion` entra a `CONTROLADOS_ENCABEZADO_SECCION` EN EL
+MISMO commit que lo suma al lado "leído" (el campo nuevo en `DEFAULTS.navTratamiento`): nace
+CONTROLADO, nunca pasa por `PENDIENTE_PANEL`. El techo-trinquete (11) no se mueve — el test de
+higiene lo confirma en verde. `app/api/site-content/encabezado/route.ts` — SIN cambio funcional (el
+`.pick()` opera sobre la clave `navTratamiento` ENTERA); se tocó sólo el comentario de cabecera
+(OCHO→NUEVE ejes, CUATRO→CINCO campos), mismo motivo que `CROMO-NAV-CTA-Y-BADGE-1`.
+
+### 3 · Lo que NO se tocó
+
+- **El mega-menú y el drawer móvil** (`itemPanel`, `navDrawerMovil`) siguen con su propio `max-w-6xl`
+  sin cambio — el `surface:` del spec es el encabezado FIJO, no el panel que se despliega ni la
+  composición del drawer, que ya tienen sus propias metas (`navDrawerMovil.variante`).
+- **El CTA y el badge** (`navTratamiento.cta`) — sin tocar; sólo cambia el contenedor que los aloja,
+  no su forma ni su posición relativa dentro de la fila.
+- **El ocultamiento por dirección de scroll** (`navTratamiento.direccion`) — sin tocar; el
+  `navOcultoClase` sigue operando sobre el `<header>`, ajeno al contenedor de contenido.
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2399/2399** — verde. +11 sobre el piso de 2388 (`b03b528`, `NAV-CIERRE-CLICK-AFUERA-1`): medido por `git diff <archivo> \| grep -c '^+test('` menos `grep -c '^-test('` (las líneas de test MODIFICADAS, no sólo agregadas, restan): `cromo-nav-tratamiento.test.ts` +6 neto (12 agregadas, 6 removidas — 4 tests existentes se reescribieron para el 5º campo), `panel-controles.test.ts` +1, `site-content-defaults.test.ts` +2, `themes.test.ts` +2. 6+1+2+2=11, coincide con el delta medido. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (`tests/integracion/panel-encabezado.test.ts` se EDITÓ, no ganó/perdió tests). **Una corrida previa dio 239/240**, con la ÚNICA falla en `tests/integracion/wompi-reconciliador.test.ts` ("CONCURRENCIA: webhook y reconciliador…") — archivo FUERA de `touches:` de este slice, sobre una carrera de timing entre dos transacciones concurrentes. Re-corrida completa (cluster efímero nuevo, mismo árbol, sin tocar código): **240/240**, esa prueba pasó. No es causada por este diff — ningún archivo tocado por este slice toca `packages/core/src/pagos/` ni el webhook de Wompi. |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + los 2 hovers — `home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870`. Nayoli no declara `navTratamiento.posicion` (no corre preset), así que el 0px es el resultado esperado — confirma también que las clases arbitrarias nuevas (`max-w-[1800px]`, `px-5`, `py-4`, `py-[13px]`) no rompen el build de producción (el `next build` de la rama, parte del arnés, compiló sin error). |
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio — mismo mecanismo que
+`CROMO-NAV-FILETE-1`/`CROMO-NAV-CTA-Y-BADGE-1`: `navTratamiento` es un OBJETO que
+`mergePresetEnContent` escribe COMPLETO cada vez que se aplica el preset; una fila que ya tenga
+CORTE aplicado desde ANTES de este slice guarda `content.navTratamiento` SIN la clave `posicion`
+(no existía cuando se aplicó), y `resolverNavTratamiento` cae a `posicion:false` hasta que el dueño
+vuelva a aplicar el preset.
+
+### `touches:` — todo lo escrito estaba declarado
+
+`git diff --numstat`: `app/api/site-content/encabezado/route.ts` (+9/-8), `components/admin/
+EncabezadoSeccion.tsx` (+22/-18), `components/storefront/layout/StoreNav.tsx` (+16/-2), `lib/config/
+cromo-nav-tratamiento.test.ts` (+77/-16), `lib/config/panel-controles.test.ts` (+9/-0), `lib/config/
+panel-controles.ts` (+15/-13), `lib/config/site-content-defaults.test.ts` (+18/-0), `lib/config/
+site-content-defaults.ts` (+37/-1), `lib/config/site-content-schema.ts` (+11/-9), `lib/config/
+themes.test.ts` (+22/-0), `lib/config/themes.ts` (+47/-6), `tests/integracion/panel-encabezado.
+test.ts` (+15/-7), y este asiento. **12 archivos de código**, los 12 de `touches:`, ni uno más.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `NavTratamientoContent.posicion`,
+`navTratamientoPosicion` (`PresetTema`), `navContenedorClase`/`navFilaAltoClase` (`StoreNav.tsx`),
+`CROMO-NAV-POSICION-TEMA-REAL-1`, `.xo-header__content`/`xo-container`/`--page-side-margin`/
+`--page-gap` (del tema real, citados en comentarios), `max-w-[1800px]`/`px-5`/`py-4`/`py-[13px]`
+(clases nuevas). Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `navTratamiento` (a secas, y toda variante), `NavTratamientoContent`,
+  `navContenedorClase`, `navFilaAltoClase`, `CROMO-NAV-POSICION-TEMA-REAL-1` (ni ningún otro id
+  `CROMO-NAV-*`), `.xo-header`, `xo-container`, `page-side-margin`, `page-gap`, `max-w-6xl` (la
+  cadena literal completa), `h-16 lg:h-18` (la cadena literal completa). `CLAUDE.md` no documenta el
+  eje de tratamiento del nav, el Encabezado del panel, ni la geometría del `<header>` del
+  storefront en absoluto — la misma ausencia que ya midió `CROMO-NAV-CTA-Y-BADGE-1`.
+- **`StoreNav.tsx`** (como archivo/símbolo, sin la extensión) → **cero apariciones**; `StoreNav` (a
+  secas) → **cuatro líneas** (2872, 2969, 4481, 4499 — las MISMAS que `CROMO-NAV-CTA-Y-BADGE-1` y
+  `CROMO-NAV-FILETE-1` ya revisaron: el nav es data-driven, /nosotros apagada oculta su link, el
+  logo/mark llega por prop). Ninguna describe la geometría del contenedor ni queda contradicha por
+  este diff — cambia el ANCHO/RELLENO del contenedor, no de dónde vienen sus datos.
+- **`lib/config/site-content-schema.ts`/`site-content-defaults.ts`** (línea 39, la lista de
+  superficies Tier 1) → confirma que estos dos archivos son medidos Tier 1, consistente con el
+  `tier: 1` del propio dispatch — no una contradicción, una confirmación. La otra aparición de
+  `site-content-schema.ts` (línea 1928, "es una SEGUNDA lista escrita a mano… un campo del modelo
+  que no se declara ahí se pierde en silencio al guardar") es la regla que este slice CUMPLE: el
+  campo nuevo (`posicion`) se agregó a `NavTratamientoContent` Y a `navTratamientoEditableSchema`
+  en el mismo commit — no queda falsa, queda respetada.
+- **`components/storefront/`** (el bullet de subárboles Tier 1, línea 47) → confirma que
+  `StoreNav.tsx` cae bajo Tier 1 por el subárbol, consistente con el `tier: 1` del dispatch.
+
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `grep -c "CROMO-NAV-POSICION-TEMA-REAL-1"` antes
+de este párrafo da **0** — id nuevo. Los ids citados como precedente (`CROMO-NAV-TRATAMIENTO-1`,
+`CROMO-NAV-DIRECCION-SCROLL-1`, `CROMO-NAV-FILETE-1`, `CROMO-NAV-CTA-Y-BADGE-1`) no se cierran ni se
+reabren — se citan como precedente de FORMA (quinto campo de la misma meta), sin editar su
+contenido histórico. Ninguna de esas entradas afirmaba nada sobre la geometría del contenedor (cada
+una acota su propio alcance explícitamente: tipografía de los links, dirección de scroll, filete,
+CTA/badge) — nada que este diff vuelva falso.
+
+### `customer_bytes`
+
+**`changed: true`.** Para un tenant con `navTratamiento.posicion:true` (hoy, sólo CORTE, y sólo tras
+RE-APLICAR el preset, § arriba), el encabezado cambia de ancho (más cerca de los bordes) y de altura
+(deja de ser fija, depende del contenido) — todo VISIBLE. `strings:` **ninguno** — no se agrega ni
+cambia una palabra de copy; el cambio es puramente de geometría (ancho/relleno/altura).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un campo más de un objeto JSON ya existente (`SiteContent.content`),
+su resolución SOFT, su escritura vía la ruta ya existente del Encabezado, y su control en el panel —
+todo dentro del mecanismo de `SiteContent` que ya corre.
+
+### Open follow-ups
+
+- **Ninguno nuevo.** La única incertidumbre real (§1) —que el tema real no da un número de ALTURA
+  total del `<header>`, sólo de relleno, porque medir el alto intrínseco del contenido exigiría un
+  navegador real— se resolvió cambiando el MECANISMO (relleno en vez de altura fija) en vez de
+  adivinar un número; no queda una pregunta abierta que otro slice deba resolver, sólo el gate
+  visual del owner sobre el resultado (§ Verdicto).
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones
+ejecutables (tsc, `npm test`, `npm run test:integracion`) más `verificar:nayoli:visual` en 0px. Sin
+`schema`, sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner
+ya aprobó la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, citado
+arriba); el merge sigue pendiente del gate del orquestador — este slice, por instrucción del
+dispatch, no mergea.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio (§2).
+
+**Cierra `CROMO-NAV-POSICION-TEMA-REAL-1`.**

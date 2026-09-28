@@ -1115,6 +1115,35 @@ export interface NavTratamientoContent {
   // los contrastes medidos. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
   // `preset.navTratamientoCta`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
   cta: boolean;
+  // ¿El contenedor de contenido del encabezado (`.max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` de HOY,
+  // `StoreNav.tsx`) toma la GEOMETRÍA del tema real (§ CROMO-NAV-POSICION-TEMA-REAL-1) — más ancho
+  // (más cerca de los bordes) y con relleno VERTICAL propio, en vez de una altura fija? QUINTO CAMPO
+  // de la MISMA meta (mismo dominio "un ajuste más del encabezado" que `activo`/`direccion`/
+  // `filete`/`cta`, misma ruta/control).
+  //
+  // MEDIDO contra `.xo-header__content` del TEMA REAL (`x-cafeone.myshopify.com`, fetch directo —
+  // el prototipo local capturado usa `--content-max:1440px`/`--header-height` FIJA, valores que
+  // DIVERGEN del tema real; § el asiento de este slice para la reconciliación completa): la clase es
+  // `py:s9 py:s7@+lg … pl:var(--page-side-margin)/xo-is-sticky pr:var(--page-side-margin)/xo-is-
+  // sticky`, DENTRO de `<xo-container>` (`max-width:var(--xo-container-width,1400px); margin:auto;
+  // padding-inline:var(--container-gap,2rem)`). En la tienda medida: `--page-width:180rem` (1800px,
+  // override del setting del tema — NO el 1400px de fallback del framework) y `--page-gap:20px` =
+  // `--page-gap-mobile:20px` (FLAT, no responsivo en esta tienda) alimentan `--xo-container-width`/
+  // `--container-gap`; `--page-side-margin` está SIN asignar (cae a `0` por su propio fallback CSS),
+  // así que el `pl/pr` condicional a `xo-is-sticky` no aporta nada extra ni flotando ni sólido.
+  // `s9`/`s7` son la escala de espaciado del tema (`--space-s9:1.6rem`=16px, `--space-s7:1.3rem`=
+  // 13px, con `html{font-size:62.5%}`): relleno vertical 16px por defecto, 13px desde el breakpoint
+  // `@+lg` — DISTINTO, no mayor, al de mobile.
+  //
+  // `false` = HOY: `max-w-6xl` (1152px) + `px-4 sm:px-6 lg:px-8` (16/24/32px responsivo) + altura FIJA
+  // `h-16 lg:h-18` (64/72px, con `items-center`) — byte-idéntico. `true` (sólo CORTE): `max-w-[1800px]`
+  // (el ancho medido de la tienda real) + `px-5` (20px, el `--page-gap` medido, FLAT en vez de
+  // responsivo) en el contenedor de contenido; y en la fila flex, `py-4 lg:py-[13px]` (16px/13px, los
+  // dos valores de `s9`/`s7` medidos) EN VEZ de la altura fija — la altura pasa a depender del
+  // contenido (el wordmark apilado de CORTE, § `NavWordmarkContent`, es más alto que el logo de HOY),
+  // como en el tema real. Sólo `mergePresetEnContent` (`themes.ts`) lo escribe, con
+  // `preset.navTratamientoPosicion`; de los 6 presets del catálogo, sólo CORTE lo declara `true`.
+  posicion: boolean;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1775,11 +1804,15 @@ export const DEFAULTS: SiteContentData = {
   // CTA/BADGE por defecto (§ CROMO-NAV-CTA-Y-BADGE-1): sin tratamiento → el CTA sigue siendo la
   // pastilla translúcida de HOY (antes de buscar/carrito) y el badge sigue dependiendo de `navClaro`,
   // byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+  // GEOMETRÍA por defecto (§ CROMO-NAV-POSICION-TEMA-REAL-1): sin la geometría del tema real → el
+  // contenedor de HOY (`max-w-6xl` + altura fija), byte-idéntico. Sólo CORTE lo enciende, vía
+  // `mergePresetEnContent`.
   navTratamiento: {
     activo: false,
     direccion: false,
     filete: false,
     cta: false,
+    posicion: false,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2712,7 +2745,10 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
     const dv = def[k];
     return typeof dv === 'boolean' ? dv : false;
   };
-  return { activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete'), cta: bool('cta') };
+  return {
+    activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete'), cta: bool('cta'),
+    posicion: bool('posicion'),
+  };
 }
 
 // Resuelve el TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1), gemelo de

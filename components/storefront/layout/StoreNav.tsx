@@ -244,6 +244,20 @@ export default function StoreNav() {
     ? (navClaro ? 'border-b border-[var(--sf-sobre)]/20' : 'border-b border-[var(--sf-tinta)]/20')
     : '';
 
+  // LA GEOMETRÍA (§ CROMO-NAV-POSICION-TEMA-REAL-1): el CONTENEDOR DE CONTENIDO —el MISMO div que ya
+  // lleva `navFileteClase`, así que el filete se ABRE con el contenedor sin tocarlo— y la FILA flex
+  // que hoy fuerza una altura corta. MEDIDO contra `.xo-header__content` del TEMA REAL
+  // (`x-cafeone.myshopify.com`): `max-w-[1800px]` (el `--page-width` de esa tienda, no el 1400px de
+  // fallback del framework) + `px-5` (20px, el `--page-gap` medido, FLAT — `--page-side-margin` no
+  // está asignado en esa tienda, cae a 0) reemplazan a `max-w-6xl` + `px-4 sm:px-6 lg:px-8`; y
+  // `py-4 lg:py-[13px]` (16px/13px, `s9`/`s7` de la escala del tema, `html{font-size:62.5%}`)
+  // reemplaza a la altura FIJA `h-16 lg:h-18` — la altura pasa a depender del contenido (§ el
+  // docstring de `NavTratamientoContent.posicion`, `site-content-defaults.ts`, para la
+  // reconciliación con el prototipo local, que diverge en los números exactos). `false` (todo tenant
+  // salvo CORTE) → `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` + `h-16 lg:h-18`, byte-idéntico a hoy.
+  const navContenedorClase = navTratamiento.posicion ? 'max-w-[1800px] px-5' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+  const navFilaAltoClase = navTratamiento.posicion ? 'py-4 lg:py-[13px]' : 'h-16 lg:h-18';
+
   // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links
   // del nav llevan mayúscula + tracking del prototipo + un peso, sobre la MISMA sans del par (SIN
   // tercera familia: no se toca `font-family`, sólo `text-transform`/`letter-spacing`/`font-weight`).
@@ -330,8 +344,8 @@ export default function StoreNav() {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocoDentro(false);
         }}
       >
-        <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 ${navFileteClase}`}>
-          <div className="flex items-center justify-between h-16 lg:h-18">
+        <div className={`mx-auto ${navContenedorClase} ${navFileteClase}`}>
+          <div className={`flex items-center justify-between ${navFilaAltoClase}`}>
             {/* Logo — SIN el badge de `cromo.navBadge` (§ CORTE-BADGE-COSECHA-EN-MENU-1). Antes esta
                 celda condicionaba entre `logoLink` solo y un flex que lo envolvía junto al badge; el
                 badge se MUDÓ a ser un atributo de un ítem del menú (abajo, `l.badge`), así que el

@@ -261,6 +261,19 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * docstring de `NavTratamientoContent.cta` en `site-content-defaults.ts` para el porqué completo,
  * incluidos los tokens y los contrastes). CORTE es hoy el ÚNICO preset que lo declara.
  *
+ * `navTratamientoPosicion` (§ CROMO-NAV-POSICION-TEMA-REAL-1, OPCIONAL) — ¿el contenedor de
+ * contenido del encabezado toma la GEOMETRÍA medida contra `.xo-header__content` del TEMA REAL
+ * (`x-cafeone.myshopify.com`): más ancho —`max-w-[1800px]` en vez de `max-w-6xl`, el `--page-width`
+ * medido de esa tienda— y más cerca de los bordes —`px-5` (20px) FLAT en vez de `px-4 sm:px-6
+ * lg:px-8` responsivo, el `--page-gap` medido, con `--page-side-margin` sin asignar (cae a 0)—, y
+ * con relleno VERTICAL propio en vez de una altura fija —`py-4 lg:py-[13px]` (16px/13px, `s9`/`s7`
+ * de la escala del tema) en vez de `h-16 lg:h-18`—? AUSENTE = el comportamiento de HOY, byte a byte.
+ * Escribe `content.navTratamiento.posicion` — QUINTO CAMPO de la MISMA meta que
+ * `navTratamientoActivo`/`navTratamientoDireccion`/`navTratamientoFilete`/`navTratamientoCta`, no
+ * una meta nueva (§ el docstring de `NavTratamientoContent.posicion` en `site-content-defaults.ts`
+ * para el porqué completo, incluida la reconciliación con el prototipo local, que diverge en los
+ * números exactos). CORTE es hoy el ÚNICO preset que lo declara.
+ *
  * `navWordmarkActivo` (§ CORTE-LOGO-APILADO-1, OPCIONAL) — ¿el wordmark apilado del nav (rama
  * `subtitle` de `Logo.tsx`, ya encendida por `navSubtitulo`) calza el `.wordmark`/`.wordmark small`
  * del prototipo (nombre en mayúscula+tracking+tamaño mayor, sub en la sans del cuerpo muted sin
@@ -335,6 +348,7 @@ export interface PresetTema {
   navTratamientoDireccion?: boolean;
   navTratamientoFilete?: boolean;
   navTratamientoCta?: boolean;
+  navTratamientoPosicion?: boolean;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
   carritoVariante?: ClaveCarrito;
@@ -606,18 +620,20 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     visible: fusionar('carritoEnvio.visible', preset.carritoEnvioVisible ?? false),
   };
   // `navTratamiento` (§ CROMO-NAV-TRATAMIENTO-1, ampliado por § CROMO-NAV-DIRECCION-SCROLL-1, §
-  // CROMO-NAV-FILETE-1 y § CROMO-NAV-CTA-Y-BADGE-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
-  // `rielSocial` Y `carritoEnvio` — ver el docstring de `NavTratamientoContent` para el porqué
-  // (conceptualmente es la misma familia que `navTinta`/`navSubtitulo`/`navBadge`, pero no puede
-  // compartir el contrato exhaustivo de 3 claves de `cromo`, afirmado por `cromo-tematizable.test.ts`,
-  // FUERA de `touches:` de este slice). `direccion`, `filete` y `cta` se fusionan cada uno por su
-  // PROPIA ruta (`navTratamiento.direccion`/`.filete`/`.cta`) — campos más de esta meta, no un objeto
+  // CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1 y § CROMO-NAV-POSICION-TEMA-REAL-1): meta PROPIA,
+  // aparte de `cromo`, `volverArriba`, `rielSocial` Y `carritoEnvio` — ver el docstring de
+  // `NavTratamientoContent` para el porqué (conceptualmente es la misma familia que
+  // `navTinta`/`navSubtitulo`/`navBadge`, pero no puede compartir el contrato exhaustivo de 3 claves
+  // de `cromo`, afirmado por `cromo-tematizable.test.ts`, FUERA de `touches:` de este slice).
+  // `direccion`, `filete`, `cta` y `posicion` se fusionan cada uno por su PROPIA ruta
+  // (`navTratamiento.direccion`/`.filete`/`.cta`/`.posicion`) — campos más de esta meta, no un objeto
   // aparte.
   out.navTratamiento = {
     activo: fusionar('navTratamiento.activo', preset.navTratamientoActivo ?? false),
     direccion: fusionar('navTratamiento.direccion', preset.navTratamientoDireccion ?? false),
     filete: fusionar('navTratamiento.filete', preset.navTratamientoFilete ?? false),
     cta: fusionar('navTratamiento.cta', preset.navTratamientoCta ?? false),
+    posicion: fusionar('navTratamiento.posicion', preset.navTratamientoPosicion ?? false),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
@@ -1135,6 +1151,31 @@ export const CORTE: PresetTema = {
   // diferencia de la versión translúcida de HOY. CORTE es hoy el ÚNICO preset del catálogo que lo
   // declara; los otros cinco no tocan `content.navTratamiento.cta`.
   navTratamientoCta: true,
+  // navTratamientoPosicion (§ CROMO-NAV-POSICION-TEMA-REAL-1) — MEDIDO contra el TEMA REAL
+  // (`x-cafeone.myshopify.com`, `.xo-header__content`, fetch directo de `styles.css` + el HTML
+  // servido: `py:s9 py:s7@+lg … pl:var(--page-side-margin)/xo-is-sticky pr:var(--page-side-margin)/
+  // xo-is-sticky`, dentro de `<xo-container>`). En esa tienda: `--page-width:180rem` (1800px) y
+  // `--page-gap:20px`=`--page-gap-mobile:20px` (FLAT) alimentan el ancho/relleno lateral del
+  // contenedor; `--page-side-margin` no está asignado (cae a 0 por su propio fallback), así que el
+  // `pl/pr` condicional a sticky no suma nada. `s9`=1.6rem=16px, `s7`=1.3rem=13px
+  // (`html{font-size:62.5%}`): relleno vertical DISTINTO por breakpoint, 16px por defecto → 13px
+  // desde `@+lg` (más chico, no más grande, en desktop).
+  //
+  // El PROTOTIPO LOCAL capturado (`docs/prototipos/cafeone/`) NO coincide en los números exactos —
+  // usa `--content-max:1440px` (no 1800px) y una ALTURA FIJA `--header-height` (118/88/76px por
+  // breakpoint, con `align-items:center`) en vez de relleno — así que las dos referencias DIVERGEN;
+  // se sigue al TEMA REAL (§ el asiento de este slice). Gate visual del owner con tres capturas lado
+  // a lado (2026-09-28): «los elementos del nav aún están muy en el top y centrados, compara como
+  // están en cafeone y el muestrario, están un poco más abajo y spreaded un poco más
+  // horizontalmente» — el contenedor de HOY (`max-w-6xl`, 1152px, con `px-4 sm:px-6 lg:px-8`
+  // responsivo hasta 32px, y una altura FIJA `h-16 lg:h-18`) deja el logo/CTA lejos de los bordes en
+  // cualquier viewport por debajo de ~1216px, y centra el contenido verticalmente en una barra corta
+  // — el contenedor MEDIDO (`max-w-[1800px]` + `px-5` FLAT de 20px + `py-4 lg:py-[13px]`, altura
+  // DERIVADA del contenido en vez de fija) lo abre hacia los costados y dejar de forzar una altura
+  // corta permite que el wordmark apilado de CORTE (más alto que el logo de HOY, § `navWordmarkActivo`
+  // abajo) empuje la fila hacia abajo, como en las dos referencias. CORTE es hoy el ÚNICO preset del
+  // catálogo que lo declara; los otros cinco no tocan `content.navTratamiento.posicion`.
+  navTratamientoPosicion: true,
   // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
   // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
   // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,
