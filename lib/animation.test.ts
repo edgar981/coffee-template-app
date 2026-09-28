@@ -5,11 +5,14 @@ import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
   transformMarquesinaTexto, transformMarquesinaTarjeta, indiceCentrado,
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO, rangoVeloDeIntensidad,
-  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, UMBRAL_REVELADO_TEXTO,
+  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, OPACIDAD_REVELADO_TECHO,
+  UMBRAL_REVELADO_TEXTO,
   claseAlturaAncestroMarquesina, fadeUp,
   direccionScroll, navOculto, UMBRAL_OCULTAR_NAV, debeActualizarTratamientoNav,
   duracionTickerS, VELOCIDAD_TICKER_PX_S, VELOCIDAD_TICKER_LENTA_PX_S,
   DURACION_TICKER_FALLBACK_S, duracionTickerFallbackS, velocidadTickerPxS,
+  MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
+  MARQUEE_MASCARA_RELLENO_EM,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -320,31 +323,37 @@ test('transformRevelaTextoDisplay: progreso se acota a [0,1] antes de mapear a l
 // ── EL PESO — CORTE-MARQUEE-REVELADO-CON-FADE-1 — la rampa de opacidad que ACOMPAÑA al recorte,
 // comparte ventana con `transformRevelaTextoDisplay` por reusar el mismo `progresoRevelado` privado.
 
-test('opacidadRevelaTextoDisplay: estatico=true SIEMPRE 1 — peso completo, nunca a medio aclarar para siempre', () => {
-  assert.equal(opacidadRevelaTextoDisplay(0, true), 1);
-  assert.equal(opacidadRevelaTextoDisplay(0.5, true), 1);
-  assert.equal(opacidadRevelaTextoDisplay(1, true), 1);
-  assert.equal(opacidadRevelaTextoDisplay(-0.5, true), 1, 'estatico gana incluso con progreso fuera de rango');
+test('opacidadRevelaTextoDisplay: estatico=true SIEMPRE el TECHO — peso completo (pero no pleno), nunca a medio aclarar para siempre', () => {
+  assert.equal(opacidadRevelaTextoDisplay(0, true), OPACIDAD_REVELADO_TECHO);
+  assert.equal(opacidadRevelaTextoDisplay(0.5, true), OPACIDAD_REVELADO_TECHO);
+  assert.equal(opacidadRevelaTextoDisplay(1, true), OPACIDAD_REVELADO_TECHO);
+  assert.equal(opacidadRevelaTextoDisplay(-0.5, true), OPACIDAD_REVELADO_TECHO, 'estatico gana incluso con progreso fuera de rango');
 });
 
 test('opacidadRevelaTextoDisplay: estatico=false, progreso=0 — 0, sin peso en reposo (igual que el recorte, 100% fuera de la máscara)', () => {
   assert.equal(opacidadRevelaTextoDisplay(0, false), 0);
 });
 
-test('opacidadRevelaTextoDisplay: estatico=false, progreso=hasta (fin de la ventana) — 1, peso completo EN EL MISMO instante en que el recorte llega a 0%', () => {
-  assert.equal(opacidadRevelaTextoDisplay(UMBRAL_REVELADO_TEXTO.hasta, false), 1);
+test('opacidadRevelaTextoDisplay: estatico=false, progreso=hasta (fin de la ventana) — el TECHO, EN EL MISMO instante en que el recorte llega a 0%', () => {
+  assert.equal(opacidadRevelaTextoDisplay(UMBRAL_REVELADO_TEXTO.hasta, false), OPACIDAD_REVELADO_TECHO);
   assert.equal(transformRevelaTextoDisplay(UMBRAL_REVELADO_TEXTO.hasta, false), 'translateY(0.0%)', 'las dos rampas terminan JUNTAS, a la misma altura de progreso');
 });
 
-test('opacidadRevelaTextoDisplay: más allá de la ventana — sigue en 1, nunca se pasa de peso completo', () => {
-  assert.equal(opacidadRevelaTextoDisplay(0.5, false), 1);
-  assert.equal(opacidadRevelaTextoDisplay(1, false), 1);
+test('opacidadRevelaTextoDisplay: más allá de la ventana — sigue en el TECHO, nunca se pasa de él', () => {
+  assert.equal(opacidadRevelaTextoDisplay(0.5, false), OPACIDAD_REVELADO_TECHO);
+  assert.equal(opacidadRevelaTextoDisplay(1, false), OPACIDAD_REVELADO_TECHO);
 });
 
-test('opacidadRevelaTextoDisplay: a mitad de la ventana, a mitad de peso (0.5) — MISMO punto donde el recorte está a mitad de camino (50%)', () => {
+test('opacidadRevelaTextoDisplay: a mitad de la ventana, a mitad del TECHO — MISMO punto donde el recorte está a mitad de camino (50%)', () => {
   const medio = UMBRAL_REVELADO_TEXTO.hasta / 2;
-  assert.equal(opacidadRevelaTextoDisplay(medio, false), 0.5);
+  assert.equal(opacidadRevelaTextoDisplay(medio, false), 0.5 * OPACIDAD_REVELADO_TECHO);
   assert.equal(transformRevelaTextoDisplay(medio, false), 'translateY(50.0%)', 'a mitad de ventana, el recorte también está a mitad de camino — las dos rampas avanzan JUNTAS');
+});
+
+test('OPACIDAD_REVELADO_TECHO: un escalón MODERADO por debajo del pleno — RONDA § CORTE-HERO-MARQUEE-RONDA-5-1', () => {
+  assert.ok(OPACIDAD_REVELADO_TECHO > 0.5, 'sigue siendo peso ALTO, no una segunda opacidad tenue');
+  assert.ok(OPACIDAD_REVELADO_TECHO < 1, 'estrictamente menor al pleno — "que no sea un blanco tan claro"');
+  assert.equal(OPACIDAD_REVELADO_TECHO, 0.9);
 });
 
 test('opacidadRevelaTextoDisplay: progreso se acota a [0,1] antes de mapear a la ventana — un negativo no pasa de 0', () => {
@@ -360,6 +369,34 @@ test('opacidadRevelaTextoDisplay: MONÓTONA — nunca oscurece a mitad de camino
     assert.ok(valor >= anterior, `debe ser no-decreciente: en progreso=${p} dio ${valor}, antes ${anterior}`);
     anterior = valor;
   }
+});
+
+// ── EL TAMAÑO DEL TEXTO Y SU MÁSCARA — § CORTE-HERO-MARQUEE-RONDA-5-1 ──────────────────────────────
+// MEDIDO contra `fz:d1` del tema real (§ el docstring de estas constantes en `lib/animation.ts` para
+// la derivación completa: preset-2 body-preset, rem del tema a 62.5%, las dos escalas en 1.0).
+
+test('MARQUEE_TITULO_FONT_SIZE: el clamp MEDIDO en px absolutos — mayor que el techo de hoy (10rem=160px a nuestro rem)', () => {
+  assert.equal(MARQUEE_TITULO_FONT_SIZE, 'clamp(76px, calc(17.25vw + 7px), 214px)');
+  // el piso/techo del clamp VIEJO (§ el comentario de `fadeUp` arriba): 48px/160px.
+  assert.ok(76 > 48, 'el piso nuevo es mayor que el piso de hoy');
+  assert.ok(214 > 160, 'el techo nuevo es mayor que el techo de hoy — "se ve más lleno"');
+});
+
+test('MARQUEE_TITULO_FONT_SIZE: a 1280px (la referencia de escritorio de este repo) el clamp toca el TECHO — 214px', () => {
+  const anchoReferencia = 1280;
+  const fluido = 17.25 * (anchoReferencia / 100) + 7; // 17.25vw + 7px
+  assert.ok(fluido > 214, 'el tramo fluido a 1280px ya excede el techo — el clamp lo recorta ahí');
+});
+
+test('MARQUEE_TITULO_LINE_HEIGHT/MARQUEE_TITULO_LETTER_SPACING: los valores que el tema declara EN LÍNEA (--lh/--lts), no una aproximación', () => {
+  assert.equal(MARQUEE_TITULO_LINE_HEIGHT, 1.1);
+  assert.equal(MARQUEE_TITULO_LETTER_SPACING, '-1px');
+});
+
+test('MARQUEE_MASCARA_RELLENO_EM: un relleno MEDIDO (0.04em), menor que el 0.08em de la pieza de marca de Duna — no se copió a ciegas', () => {
+  assert.equal(MARQUEE_MASCARA_RELLENO_EM, 0.04);
+  assert.ok(MARQUEE_MASCARA_RELLENO_EM > 0, 'tiene que existir relleno — 0 reproduciría el recorte reportado');
+  assert.ok(MARQUEE_MASCARA_RELLENO_EM < 0.08, 'el interlineado nuevo (1.1) ya achica el déficit frente al recorrido de Duna (0.08em)');
 });
 
 // ── EL PRESUPUESTO DE SCROLL PROPORCIONAL (§ CORTE-HERO-MARQUEE-REVELA-1) — sin React, sin navegador
@@ -522,11 +559,13 @@ test('duracionTickerFallbackS(VELOCIDAD_TICKER_PX_S) es EXACTAMENTE DURACION_TIC
 // ── LA VELOCIDAD ES UNA PREFERENCIA DEL OWNER (§ CORTE-HERO-REVELADO-MASCARA-1, RONDA 4) ───────────
 // «la velocidad a la que van las letras debería ser más baja» — sobre una medición que ya estaba
 // bien (arriba). `VELOCIDAD_TICKER_LENTA_PX_S`/`velocidadTickerPxS` son la preferencia, no una
-// segunda medición.
+// segunda medición. § CORTE-HERO-MARQUEE-RONDA-5-1 (2026-09-27) sube la fracción de 0.6× a 0.7×
+// («subele sólo un poco la velocidad») — se actualiza a la nueva meta, no se afloja el test.
 
-test('VELOCIDAD_TICKER_LENTA_PX_S es 0.6× la medida — una fracción ELEGIDA, más lenta que VELOCIDAD_TICKER_PX_S', () => {
-  assert.equal(VELOCIDAD_TICKER_LENTA_PX_S, VELOCIDAD_TICKER_PX_S * 0.6);
-  assert.ok(VELOCIDAD_TICKER_LENTA_PX_S < VELOCIDAD_TICKER_PX_S);
+test('VELOCIDAD_TICKER_LENTA_PX_S es 0.7× la medida — una fracción ELEGIDA, ESTRICTAMENTE entre la lenta vieja (0.6×) y la medida (1×)', () => {
+  assert.equal(VELOCIDAD_TICKER_LENTA_PX_S, VELOCIDAD_TICKER_PX_S * 0.7);
+  assert.ok(VELOCIDAD_TICKER_LENTA_PX_S < VELOCIDAD_TICKER_PX_S, 'sigue siendo más lenta que la medida');
+  assert.ok(VELOCIDAD_TICKER_LENTA_PX_S > VELOCIDAD_TICKER_PX_S * 0.6, 'más rápida que la lenta anterior — "subele sólo un poco"');
 });
 
 test('velocidadTickerPxS: "lenta" da la velocidad lenta; ausente/vacío/basura cae a la MEDIDA ("media")', () => {

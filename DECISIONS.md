@@ -26628,3 +26628,189 @@ la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`); e
 pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `CORTE-MARQUEE-REVELADO-CON-FADE-1`.**
+
+## 2026-09-27 — Ronda 5 del gate visual sobre `HeroMediaMarquesina`: tamaño de fuente medido, descendentes sin cortar, velocidad y peso final ajustados (`CORTE-HERO-MARQUEE-RONDA-5-1`)
+
+Cuatro pedidos del owner, textuales, sobre el gate de `CORTE-MARQUEE-REVELADO-CON-FADE-1` ya
+re-aplicado: *"ahora quedaron lentas las letras, subele solo un poco la velocidad. Y el tamaño de la
+fuente en cafeone es mayor hace que se vea más lleno el hero, tenemos que subirle el tamaño a la
+fuente. También la g y la q salen cortadas en la parte de abajo un poco. Y la opacidad final de las
+letras dejemosla solo un poco más bajo, que no sea un blanco tan claro al que llegan"*. Los cuatro
+son ajustes de MAGNITUD sobre mecanismos que YA existen (RONDA 3/4) — ninguno cambia la estructura
+de tres elementos del loop, el eje del ticker, ni el modelo de revelado enmascarado.
+
+### §1 — El tamaño, MEDIDO contra el tema real (no adivinado)
+
+El spec marcaba explícitamente `ESCALA_D1_REAL` como `[SIN MEDIR]` y pedía medirlo antes de tocar
+nada. Medido (`node --eval "fetch(...)"` contra `https://x-cafeone.myshopify.com/`, dos fetches
+independientes, 2026-09-27 — NO `docs/prototipos/cafeone/`, que la propia cabecera de
+`HeroMediaMarquesina.tsx` ya declaró sin autoridad para esta banda): el texto del loop rinde con la
+clase `fz:d1` + `style="--lh:1.1;--lts:-0.1rem"` inline. `styles.css` declara TRES variantes de
+`.fz\:d1` bajo distintos selectores de PRESET; el `<body>` servido trae `class="gradient preset-2
+body-preset"` (confirmado en los dos fetches), así que la que aplica es `.preset-2 body-preset
+.fz\:d1`:
+
+```
+font-size: calc(var(--font-heading-scale) * var(--font-body-scale) *
+           clamp(7.6rem, calc(17.25vw + .7rem), 21.4rem))
+```
+
+Las dos variables de escala están en `1.0` en el `:root` inline del HTML (única aparición de cada
+una) — sin multiplicador efectivo. Y `<html>` trae `font-size:62.5%` — 1rem de ESE tema son 10px, NO
+los 16px de este repo (`app/globals.css` no toca el rem raíz): exactamente el caso que el spec pedía
+no pasar por alto. Convertido a PX ABSOLUTOS (la unidad que no depende de ningún rem):
+
+```
+clamp(76px, calc(17.25vw + 7px), 214px)
+```
+
+A 1280px (la referencia de escritorio de este repo): `17.25vw+7px = 227.8px`, por encima del techo →
+rinde **214px** — MAYOR que el techo de hoy (160px, `10rem` a nuestro rem de 16px): confirma "se ve
+más lleno" con un número. El interlineado/interletrado se copian tal como el tema los declara EN
+LÍNEA: `--lh:1.1` (unitless, sin ambigüedad) → `line-height:1.1`; `--lts:-0.1rem` SÍ depende del rem
+del tema (10px) → **-1px absoluto**, no `-0.1rem` (que en nuestro rem de 16px daría -1.6px, un valor
+que el tema real nunca declaró).
+
+**Por qué es una constante local (`MARQUEE_TITULO_FONT_SIZE`/`_LINE_HEIGHT`/`_LETTER_SPACING`,
+`lib/animation.ts`) y no un tercer rol de `fontSizeDisplay`/`escalaDisplay`
+(`lib/config/escala-display.ts`) — DECISIÓN medida, no un atajo:** ese archivo, y `site-content-
+defaults.ts`/`components/admin/tienda-secciones.ts` (que tendrían que ganar el campo nuevo + su
+control de panel bajo el trinquete `PENDIENTE_PANEL`, § CLAUDE.md "PANEL-REFLEJA-TIENDA-
+CHEQUEO-1"), están FUERA de `touches:` de este slice. Y no hace falta un eje de tema nuevo para
+representarlo: `hero:'sticky'` —la única composición que monta este texto— la declara HOY sólo
+CORTE (verificado, `grep -n "hero:\s*'sticky'" lib/config/themes.ts`: una sola asignación), así que
+aplicar el valor MEDIDO sin condición, DENTRO del componente, es byte-idéntico en EFECTO a gatearlo
+por un eje de tema que sólo CORTE prendería — ningún otro preset renderiza jamás este árbol. Si algún
+día un SEGUNDO preset pidiera `hero:'sticky'` con OTRO tamaño, ESE es el momento de promover esto a
+un escalar de `hero.escalares` con su control de panel, en su propio slice.
+
+### §2 — Los descendentes, la máscara de Duna MEDIDA (no copiada a ciegas)
+
+La pieza de marca de Duna resuelve exactamente el recorte de g/q con
+`.mask{overflow:hidden;padding:0 .02em .08em;margin-bottom:-.08em}`. El spec pedía explícitamente
+NO copiar el `0.08em` a ciegas, dado el interlineado nuevo (1.1). Medido, fuera de `touches:`, sin
+dejar rastro en el repo (Chromium headless vía Playwright ya cacheado en `.arnes-tooling/`, más
+`pngjs` — el mismo playbook que `CORTE-MARQUEE-VELOCIDAD-REAL-1` ya usó para medir el ticker):
+
+- **Analítico** (Canvas 2D `measureText`, fuente REAL de CORTE — Roboto Serif, el titulo del par
+  'prensa'): `fontBoundingBoxAscent+Descent = 1.17em` (93+24 a 100px), MÁS que el `1.10em` que
+  `line-height:1.1` reserva — un déficit de `0.07em` que el modelo de "half-leading" de CSS reparte
+  mitad arriba/mitad abajo (`0.035em` por lado).
+- **Empírico, por PÍXEL** (comparación fila-por-fila `overflow:hidden` vs `overflow:visible`, con
+  una frase con g/q/j/y/ü, en las tres paradas del clamp — 76px/140px/214px): SIN relleno, a
+  `font-size:214px` (el caso más exigente) se pierden **8px de tinta real**. Con **0.04em** de
+  relleno (el doble del déficit analítico) la pérdida da **CERO** en las tres paradas. `0.08em` (el
+  valor de Duna) también cierra el caso, pero con margen que este componente no necesita.
+
+`MARQUEE_MASCARA_RELLENO_EM = 0.04` — padding-bottom + margin-bottom de igual magnitud (negativo),
+sobre el MISMO `<div>` que ya lleva el font-size/line-height/letter-spacing de §1 (la máscara,
+`overflow-hidden`).
+
+### §3 — La velocidad: 0.6× → 0.7×
+
+`VELOCIDAD_TICKER_LENTA_PX_S` sube de 0.6× a 0.7× la medida contra el tema real — "subele sólo un
+poco", un ajuste MODERADO, ESTRICTAMENTE entre la lenta de antes (0.6×) y la medida (1.0×). Único
+consumidor verificado (`grep -rn "heroTickerVelocidad" lib/config/themes.ts`): CORTE es la única
+entrada del catálogo que declara `heroTickerVelocidad:'lenta'` — el cambio no le llega a nadie más.
+
+### §4 — El peso final: `OPACIDAD_REVELADO_TECHO = 0.9`
+
+`opacidadRevelaTextoDisplay` dejó de terminar en `1` (peso pleno) y termina en
+`OPACIDAD_REVELADO_TECHO` (0.9) — la MISMA rampa (0 en reposo, lineal dentro de la ventana) ESCALADA
+por ese techo, así que sigue MONÓTONA por construcción (escalar una función no-decreciente por una
+constante positiva preserva el orden — no hizo falta una prueba nueva de monotonía). `estatico`
+(reduced-motion/preview) también rinde el TECHO, nunca `1` — el mismo criterio de siempre: el gate de
+movimiento nunca deja un valor que sólo exista bajo esa preferencia.
+
+### Tests actualizados a la NUEVA meta, no aflojados
+
+Las cuatro aserciones que afirmaban peso pleno (`opacidadRevelaTextoDisplay(..., true) === 1`, etc.,
+en `lib/animation.test.ts` y `lib/config/hero-marquesina.test.ts`) se reescribieron contra
+`OPACIDAD_REVELADO_TECHO`; la de "a mitad de ventana, a mitad de peso" pasa de esperar `0.5` a
+esperar `0.5 * OPACIDAD_REVELADO_TECHO`. La prueba de VELOCIDAD_TICKER_LENTA_PX_S se actualizó de
+`* 0.6` a `* 0.7`, sumando una aserción de que queda estrictamente por encima del 0.6 viejo. Se
+agregaron 5 tests nuevos en `lib/animation.test.ts` (los cuatro valores de §1/§2 + el techo de §4) y
+2 en `lib/config/hero-marquesina.test.ts` (el style inline de la máscara con font-size/line-height/
+letter-spacing, y el padding/margin del relleno) — **14 `test(` agregados, 7 quitados, +7 netos**
+(medido, `git diff -- lib/animation.test.ts lib/config/hero-marquesina.test.ts | grep -c`).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2337/2337** — reconciliado contra el piso del commit inmediato anterior (`2761352`, `CORTE-MARQUEE-REVELADO-CON-FADE-1`, 2330/2330): `2330 + 7 = 2337` |
+| `npm run test:integracion` | **237/237** — sin cambio de conteo (ningún archivo de `tests/integracion/` está en `touches:` de este slice) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers |
+
+```
+ruta:home           → IDÉNTICO (0/4608000 px; crudo: 0)
+ruta:tienda         → IDÉNTICO (0/2433280 px; crudo: 0)
+ruta:producto       → IDÉNTICO (0/2535680 px; crudo: 0)
+ruta:checkout       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:nosotros       → IDÉNTICO (0/1152000 px; crudo: 0)
+ruta:suscripciones  → IDÉNTICO (0/2144000 px; crudo: 0)
+hover:automatica    → IDÉNTICO (0/98298 px; crudo: 0)
+hover:eleccion      → IDÉNTICO (0/102870 px; crudo: 0)
+```
+
+Nayoli sigue usando la variante canónica `curtina`; este slice sólo toca `HeroMediaMarquesina.tsx`
+(la variante `sticky`), así que el 0px era el resultado esperado. **`npm run guarda:color` NO se
+corrió**: el spec lo pedía condicional ("si tocás el preset") y este slice no tocó ningún preset ni
+token de color (`lib/config/themes.ts`, `tokens/*.css`, `palette-derive.ts` no están en el diff).
+
+**EL DUEÑO NO NECESITA RE-APLICAR CORTE.** Igual que `CORTE-MARQUEE-REVELADO-CON-FADE-1`: este slice
+no toca `themes.ts` ni ningún campo de `hero.escalares` — las cuatro constantes se cablean
+INCONDICIONAL en `HeroMediaMarquesina.tsx`, la misma función para todo tenant en variante `sticky`.
+Se ve directo, sin re-aplicar nada.
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/home/HeroMediaMarquesina.tsx` (+25/-1), `lib/animation.test.ts` (+56/-17),
+`lib/animation.ts` (+103/-5), `lib/config/hero-marquesina.test.ts` (+33/-9), este asiento. Medido con
+`git diff --numstat`: 4 archivos, los 4 en la lista de `touches:` (junto con `DECISIONS.md`, que es
+este mismo asiento). Nada tocado fuera de la lista.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `HeroMediaMarquesina` (el componente),
+`VELOCIDAD_TICKER_LENTA_PX_S`, `OPACIDAD_REVELADO_TECHO`, `MARQUEE_TITULO_FONT_SIZE`,
+`opacidadRevelaTextoDisplay`, `hero-marquesina.test.ts`, `CORTE-HERO-MARQUEE` (el ledger id propio),
+`clamp(3rem` (el literal retirado). Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones
+para los ocho.** CLAUDE.md no documenta CORTE, el preset "sticky" del hero, ni ningún mecanismo de
+`lib/animation.ts` — sólo menciona "CORTE" en dos lugares ajenos (`CORTE-BRANDSTORY-COLLAGE-1`, una
+sección de brandStory, y "El CORTE" del historial de automatizaciones, un concepto sin relación).
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO: los ids de sección que este diff cita (`CORTE-HERO-REVELADO-
+MASCARA-1`, `CORTE-MARQUEE-REVELADO-CON-FADE-1`, `CORTE-MARQUEE-VELOCIDAD-REAL-1`) no se CERRARON ni
+se reabrieron por este slice — se los cita como antecedente de la MAGNITUD que este slice ajusta,
+sin editar su contenido histórico. No hay un pointer ("ver §X para lo pendiente") que este diff
+vuelva falso: ninguna de las tres secciones citadas dejó un open-followup sobre tamaño/velocidad/
+peso-final que este slice estuviera cerrando (grepeado: `sed -n` sobre el rango de
+`CORTE-HERO-REVELADO-MASCARA-1` no encontró `open_followup`/`DISPARADOR`/"queda abierto" relevante).
+
+### `customer_bytes`
+
+**`changed: true`.** Bajo el preset CORTE (o cualquier tenant futuro en `hero.variante:'sticky'`):
+el texto del marquee se ve MÁS GRANDE, ya no pierde la cola de la g/q, se desplaza un poco más rápido,
+y termina su rampa de aparición en un blanco ligeramente menos pleno. `strings`: **ninguno nuevo** —
+no se agregó ni cambió texto visible; los cuatro cambios son de TAMAÑO/MOVIMIENTO/PESO sobre el
+mismo texto que ya viaja por `marquesina.texto`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son cuatro constantes + su cableado en un componente de storefront
+existente, y tests.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres capas medidas (tsc,
+`npm test`, `npm run test:integracion`) más el diff visual de Nayoli (0px, § arriba). Sin `schema`,
+sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó
+la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`); el merge sigue
+pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `CORTE-HERO-MARQUEE-RONDA-5-1`. Recomendado: re-aplicar CORTE NO hace falta (§ arriba); el
+próximo gate visual del owner puede verificar directo sobre lo ya commiteado.**

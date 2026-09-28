@@ -13,6 +13,8 @@ import {
   useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, claseAlturaAncestroMarquesina,
   duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
+  MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
+  MARQUEE_MASCARA_RELLENO_EM,
 } from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
@@ -269,6 +271,21 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // alrededor de un scope imperativo por una ganancia marginal (un reinicio invisible en la práctica,
 // § arriba)—; `key` es el fix MÍNIMO que hace que la corrección de `medir()` deje de ser un valor de
 // estado que nadie lee.
+//
+// CUATRO AJUSTES DEL OWNER SOBRE EL GATE YA APLICADO — § CORTE-HERO-MARQUEE-RONDA-5-1 (2026-09-27),
+// sobre la MISMA capa (el texto del loop), cada uno con su propia medición en `lib/animation.ts`:
+//   (1) el tamaño de fuente pasa a `MARQUEE_TITULO_FONT_SIZE` — MEDIDO contra `fz:d1` del tema real
+//       (antes horneado sin medir, `text-[clamp(3rem,10vw,10rem)]`), junto con el interlineado
+//       (`MARQUEE_TITULO_LINE_HEIGHT`) y el interletrado (`MARQUEE_TITULO_LETTER_SPACING`) que el
+//       tema declara EN LÍNEA para ese mismo texto;
+//   (2) la máscara gana el relleno inferior + margen negativo de la pieza de marca de Duna
+//       (`MARQUEE_MASCARA_RELLENO_EM`), MEDIDO —no copiado a ciegas— contra el interlineado nuevo,
+//       para que la g/q no pierdan su cola;
+//   (3) `VELOCIDAD_TICKER_LENTA_PX_S` sube de 0.6× a 0.7× la medida — «subele sólo un poco»;
+//   (4) `OPACIDAD_REVELADO_TECHO` (0.9) reemplaza al peso pleno como destino de la rampa de
+//       `opacidadRevelaTextoDisplay` — «que no sea un blanco tan claro al que llegan».
+// Los CUATRO son ajustes de MAGNITUD sobre mecanismos que YA existían (RONDA 3/4) — ninguno cambia
+// la estructura de tres elementos del loop, el eje del ticker, ni el modelo de revelado enmascarado.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -413,7 +430,14 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             copia, cerrando el loop sin salto. */}
         <div
           aria-hidden="true"
-          className="absolute left-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
+          className="absolute left-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[var(--sf-sobre-banda,white)]"
+          style={{
+            fontSize: MARQUEE_TITULO_FONT_SIZE,
+            lineHeight: MARQUEE_TITULO_LINE_HEIGHT,
+            letterSpacing: MARQUEE_TITULO_LETTER_SPACING,
+            paddingBottom: `${MARQUEE_MASCARA_RELLENO_EM}em`,
+            marginBottom: `${-MARQUEE_MASCARA_RELLENO_EM}em`,
+          }}
         >
           <motion.div style={{ transform: transformRevelaTexto, opacity: opacidadRevelaTexto }}>
             <motion.div

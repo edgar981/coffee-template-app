@@ -17,7 +17,11 @@ import {
   resolverVariante,
   type SiteContentData,
 } from './site-content-defaults';
-import { VELO_OPACIDAD_PISO, UMBRAL_REVELADO_TEXTO, claseAlturaAncestroMarquesina } from '@/lib/animation';
+import {
+  VELO_OPACIDAD_PISO, UMBRAL_REVELADO_TEXTO, claseAlturaAncestroMarquesina,
+  OPACIDAD_REVELADO_TECHO, MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT,
+  MARQUEE_TITULO_LETTER_SPACING, MARQUEE_MASCARA_RELLENO_EM,
+} from '@/lib/animation';
 
 // MUESTRARIO-HERO-MARQUESINA-STICKY-1 — la CUARTA variante del hero (tras curtina/ficha/media,
 // § HeroSection.tsx): el hero y la marquesina dejan de ser DOS bandas apiladas y pasan a ser UNA
@@ -112,6 +116,25 @@ test('el texto del loop rinde DOS VECES dentro del track (cinta continua), más 
   assert.equal(apariciones, 3);
   const enSpans = (html.match(/<span class="pr-8">/g) || []).length;
   assert.equal(enSpans, 2);
+});
+
+// ─── EL TAMAÑO Y LA MÁSCARA — § CORTE-HERO-MARQUEE-RONDA-5-1 ──────────────────────────────────────
+
+test('la máscara (el `<div>` de afuera) lleva el font-size/line-height/letter-spacing MEDIDOS, y ya no la className horneada vieja', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.ok(
+    html.includes(`font-size:${MARQUEE_TITULO_FONT_SIZE};line-height:${MARQUEE_TITULO_LINE_HEIGHT}`),
+    'el style inline debe traer el clamp medido y el interlineado, en ese orden',
+  );
+  assert.ok(html.includes(`letter-spacing:${MARQUEE_TITULO_LETTER_SPACING}`));
+  assert.doesNotMatch(html, /text-\[clamp\(3rem,10vw,10rem\)\]/, 'la className horneada vieja no debe sobrevivir — el tamaño ahora es SIEMPRE el medido');
+  assert.doesNotMatch(html, /leading-none/, 'el line-height ahora viaja por style, no por la clase Tailwind');
+});
+
+test('la máscara lleva el relleno inferior MEDIDO + el margen negativo que lo compensa (la receta de la pieza de marca, sin el layout corrido)', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.ok(html.includes(`padding-bottom:${MARQUEE_MASCARA_RELLENO_EM}em`));
+  assert.ok(html.includes(`margin-bottom:-${MARQUEE_MASCARA_RELLENO_EM}em`));
 });
 
 // ─── EL TICKER — § CORTE-HERO-VELO-OFF-Y-TICKER-1: por TIEMPO, nunca "a medio ciclo" al cargar ────
@@ -246,10 +269,10 @@ test('cueDesliza:true, EN PREVIEW — el cue se OMITE (scrollear no significa na
 // (`opacidadRevelaTextoDisplay`), en el MISMO `style` que el transform — se afirma junto, no aparte,
 // porque el punto del slice es que las dos rampas viajan sobre el mismo nodo y terminan juntas.
 
-test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO (clase estática), el motor de revelado en "translateY(0%)" y a PESO COMPLETO (opacity:1) — EN SU LUGAR, sin desplazamiento horizontal ni revelado ni peso a medias', () => {
+test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO (clase estática), el motor de revelado en "translateY(0%)" y al TECHO de peso (§ CORTE-HERO-MARQUEE-RONDA-5-1, ya no 1 pleno) — EN SU LUGAR, sin desplazamiento horizontal ni revelado ni peso a medias', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
   assert.match(html, /-translate-y-1\/2/, 'el centrado es una clase Tailwind estática, no un style animado');
-  assert.match(html, /transform:translateY\(0%\);opacity:1"/, 'el motor de revelado y la rampa de opacidad deben rendir juntos, "en su lugar" y a peso completo, bajo el gate estático');
+  assert.match(html, new RegExp(`transform:translateY\\(0%\\);opacity:${OPACIDAD_REVELADO_TECHO}"`), 'el motor de revelado y la rampa de opacidad deben rendir juntos, "en su lugar" y al TECHO de peso, bajo el gate estático');
   assert.ok(!/translate\(-?\d/.test(html), 'ningún transform de desplazamiento horizontal debe sobrevivir bajo el gate estático');
 });
 
@@ -281,14 +304,15 @@ test('UMBRAL_REVELADO_TEXTO consume la parte TEMPRANA del progreso — no las tr
   assert.ok(UMBRAL_REVELADO_TEXTO.hasta > 0 && UMBRAL_REVELADO_TEXTO.hasta < 0.5, 'la ventana termina bien antes de la mitad del recorrido');
 });
 
-test('al COMPLETAR la ventana de revelado (progreso=0.2, vía el proxy estático que rinde el estado FINAL): translateY(0%) Y opacity:1 — ni la posición ni el peso se pasan de su final', () => {
+test('al COMPLETAR la ventana de revelado (progreso=0.2, vía el proxy estático que rinde el estado FINAL): translateY(0%) Y opacity:TECHO — ni la posición ni el peso se pasan de su final', () => {
   // `estatico=true` (preview) rinde exactamente el estado que `transformRevelaTextoDisplay`/
-  // `opacidadRevelaTextoDisplay` alcanzan al final de la ventana (`translateY(0%)`, opacity 1) — el
-  // mismo valor, por diseño (§ sus docstrings: "estatico gana con el estado FINAL"). Lo que NO se
-  // puede afirmar por render es el punto EXACTO 0.2 con scroll real; eso vive en
-  // `lib/animation.test.ts` (afirmado ahí, además, que las dos rampas llegan JUNTAS a ese punto).
+  // `opacidadRevelaTextoDisplay` alcanzan al final de la ventana (`translateY(0%)`,
+  // `OPACIDAD_REVELADO_TECHO` — § CORTE-HERO-MARQUEE-RONDA-5-1, ya no el pleno 1) — el mismo valor,
+  // por diseño (§ sus docstrings: "estatico gana con el estado FINAL"). Lo que NO se puede afirmar
+  // por render es el punto EXACTO 0.2 con scroll real; eso vive en `lib/animation.test.ts` (afirmado
+  // ahí, además, que las dos rampas llegan JUNTAS a ese punto).
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
-  assert.match(html, /transform:translateY\(0%\);opacity:1"/);
+  assert.match(html, new RegExp(`transform:translateY\\(0%\\);opacity:${OPACIDAD_REVELADO_TECHO}"`));
   assert.doesNotMatch(html, /translateY\(\d+\.\d/, 'ningún translateY con porcentaje NUMÉRICO (100.0%, 50.0%…) debe sobrevivir una vez completo — sólo translateY(0%)');
 });
 

@@ -377,10 +377,97 @@ export function transformRevelaTextoDisplay(progreso: number, estatico: boolean)
 // recorte de la máscara ancestro, que sigue intacto. Medido antes de escribir el cableado: no hay
 // pisada entre las dos capas que exija tocar la ESTRUCTURA de tres elementos (§ "EL LOOP DE TEXTO"),
 // sólo agregar un segundo valor de `style` al elemento del medio.
+// EL TECHO DE LA RAMPA BAJA UN ESCALÓN — § CORTE-HERO-MARQUEE-RONDA-5-1 (2026-09-27): el owner, sobre
+// el gate visual de RONDA 4 ya reaplicada: «la opacidad final de las letras dejemosla sólo un poco
+// más bajo, que no sea un blanco tan claro al que llegan». `OPACIDAD_REVELADO_TECHO` reemplaza al `1`
+// (peso pleno) como destino de la rampa — un escalón MODERADO por debajo del pleno, no una segunda
+// curva: `opacidadRevelaTextoDisplay` sigue siendo la MISMA rampa (0 en reposo, lineal dentro de la
+// ventana) ESCALADA por este techo. Sigue MONÓTONA por construcción: escalar una función
+// no-decreciente (`progresoRevelado`) por una constante positiva preserva el orden — no hace falta
+// una prueba nueva de monotonía, la que ya existe (`lib/animation.test.ts`) sigue afirmándola tal
+// cual sobre la función escalada.
+//
+// `estatico` (reduced-motion/preview) TAMBIÉN rinde el TECHO, nunca `1`: bajo esa preferencia el
+// texto debe llegar al MISMO peso final que cualquier otro modo alcanza al completar la rampa — el
+// mismo criterio de siempre («estatico gana con el estado FINAL, no un punto intermedio, y nunca uno
+// que sólo exista bajo esa preferencia»).
+export const OPACIDAD_REVELADO_TECHO = 0.9;
+
 export function opacidadRevelaTextoDisplay(progreso: number, estatico: boolean): number {
-  if (estatico) return 1;
-  return progresoRevelado(progreso);
+  if (estatico) return OPACIDAD_REVELADO_TECHO;
+  return progresoRevelado(progreso) * OPACIDAD_REVELADO_TECHO;
 }
+
+// ── EL TAMAÑO DEL TEXTO Y SU MÁSCARA — MEDIDO CONTRA EL TEMA REAL, § CORTE-HERO-MARQUEE-RONDA-5-1 ──
+//
+// EL PEDIDO DEL OWNER, LITERAL, sobre el gate visual de RONDA 4 ya reaplicada (2026-09-27): «el
+// tamaño de la fuente en cafeone es mayor, hace que se vea más lleno el hero, tenemos que subirle el
+// tamaño a la fuente». Hasta este slice el marquee HORNEABA su tamaño en la className de
+// `HeroMediaMarquesina.tsx` (`text-[clamp(3rem,10vw,10rem)] leading-none`) sin haberlo medido nunca
+// contra el tema real — era el tamaño elegido para la primera versión del componente.
+//
+// MEDIDO (`node --eval "fetch(...)"` contra `https://x-cafeone.myshopify.com/`, 2026-09-27 — NO
+// `docs/prototipos/cafeone/`, que § el docstring de cabecera de `HeroMediaMarquesina.tsx` ya
+// declaró "ya no es la autoridad para esta banda"): el HTML servido (sección
+// `hero_banner_marquee`) envuelve el texto del loop en un `<div class="... fz:d1 ...">` con
+// `style="--lh:1.1;--lts:-0.1rem;..."` inline. `styles.css` (`.../cdn/shop/t/5/assets/styles.css`)
+// declara TRES variantes de `.fz\:d1` bajo distintos selectores de PRESET; el `<body>` servido trae
+// `class="gradient preset-2 body-preset"` (confirmado en dos fetches independientes), así que la
+// que aplica es `.preset-2 body-preset .fz\:d1`:
+//   font-size: calc(var(--font-heading-scale) * var(--font-body-scale) *
+//              clamp(7.6rem, calc(17.25vw + .7rem), 21.4rem))
+// Las dos variables de escala están declaradas `1.0` en el `:root` inline del HTML (única aparición
+// de cada una) — sin multiplicador efectivo. Y `<html>` trae `font-size:62.5%` — 1rem de ESE tema
+// son 10px (62.5% de los 16px de default del navegador), NO los 16px de este repo (`app/globals.css`
+// no toca el rem raíz): es EXACTAMENTE el caso que el spec pedía no pasar por alto ("el tamaño
+// efectivo en px depende además de la base del rem que fija el tema"). Convertido a PX ABSOLUTOS —la
+// unidad que no depende de NINGÚN rem—:
+//   clamp(76px, calc(17.25vw + 7px), 214px)
+// A 1280px de ancho (la referencia de escritorio de este repo, § el comentario de `fadeUp` arriba):
+// 17.25vw+7px = 227.8px, por encima del techo → rinde 214px — MAYOR que el techo de hoy (160px,
+// `10rem` a los 16px de nuestro rem): confirma "se ve más lleno" con un número, no sólo a ojo.
+//
+// POR QUÉ ES UNA CONSTANTE LOCAL Y NO UN TERCER ROL DE `fontSizeDisplay`/`escalaDisplay`
+// (`lib/config/escala-display.ts`) — DECISIÓN, no descuido: ese archivo (y `site-content-
+// defaults.ts`/`tienda-secciones.ts`, que tendrían que ganar el campo nuevo + su control de panel
+// bajo el trinquete `PENDIENTE_PANEL`, § CLAUDE.md "PANEL-REFLEJA-TIENDA-CHEQUEO-1") están FUERA de
+// `touches:` de este slice. Y no hace falta un eje de tema nuevo para representarlo: `hero:'sticky'`
+// —la única composición que monta este texto— la declara HOY sólo CORTE (verificado,
+// `grep -n "hero:\s*'sticky'" lib/config/themes.ts`: una sola asignación, dentro de `CORTE.
+// variantes`), así que aplicar el valor MEDIDO sin condición, DENTRO de este componente, es
+// byte-idéntico en EFECTO a gatearlo por un eje de tema que sólo CORTE prendería: ningún otro preset
+// renderiza jamás este árbol. Si algún día un SEGUNDO preset pidiera `hero:'sticky'` con OTRO
+// tamaño, ESE es el momento de promover esto a un escalar de `hero.escalares` con su control de
+// panel, en su propio slice — no antes.
+//
+// EL INTERLINEADO Y EL INTERLETRADO TAMBIÉN SE COPIAN, tal como el tema los declara EN LÍNEA:
+// `--lh:1.1` es unitless (sin ambigüedad de rem) → `line-height:1.1`. `--lts:-0.1rem` SÍ depende del
+// rem del tema (10px) → -1px ABSOLUTO — se copia como `-1px` (no como `-0.1rem`, que en NUESTRO rem
+// de 16px daría -1.6px, un valor que el tema real nunca declaró).
+export const MARQUEE_TITULO_FONT_SIZE = 'clamp(76px, calc(17.25vw + 7px), 214px)';
+export const MARQUEE_TITULO_LINE_HEIGHT = 1.1;
+export const MARQUEE_TITULO_LETTER_SPACING = '-1px';
+
+// LOS DESCENDENTES CORTADOS — la máscara gana el relleno de la pieza de marca, MEDIDO (no copiado a
+// ciegas). EL PEDIDO DEL OWNER: «la g y la q salen cortadas en la parte de abajo un poco». La pieza
+// de marca de Duna resuelve exactamente esto en su propia máscara (transcrita por el spec):
+// `.mask{overflow:hidden;padding:0 .02em .08em;margin-bottom:-.08em}` — relleno inferior en `em`
+// para que la máscara incluya el descendente, y margen negativo de IGUAL magnitud para que el
+// layout no se corra por el relleno agregado.
+//
+// EL 0.08em DE DUNA NO SE COPIÓ TAL CUAL — medido, no asumido: con el interlineado nuevo (1.1, arriba)
+// el déficit real es MENOR. Verificado fuera de `touches:` (Chromium headless vía Playwright + Canvas
+// 2D `measureText`, sin dejar rastro en el repo — el mismo playbook que `CORTE-MARQUEE-VELOCIDAD-
+// REAL-1` ya usó para medir el ticker) contra la fuente REAL que este componente rinde bajo CORTE
+// (Roboto Serif, el titulo del par 'prensa'): sus métricas propias dan `ascent+descent = 1.17em`
+// (`fontBoundingBox{Ascent,Descent}` a 100px: 93+24), MÁS que el `1.10em` que `line-height:1.1`
+// reserva — el déficit que el modelo de "half-leading" de CSS reparte mitad arriba/mitad abajo
+// termina recortando el descendente. Confirmado por PÍXEL (no sólo por métrica): a `font-size:214px`
+// (el techo del clamp de arriba, el caso más exigente) una frase con g/q/j/y/ü perdía 8px de tinta
+// real contra `overflow:hidden` sin relleno; con **0.04em** de relleno (el doble del déficit
+// analítico, ~0.035em por lado) la pérdida da CERO en las tres paradas del clamp (76px/140px/214px).
+// 0.08em (el valor de Duna) también cierra el caso, pero con margen que este componente no necesita.
+export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 
 // ── EL PRESUPUESTO DE SCROLL, PROPORCIONAL A LO QUE HAY PARA MOSTRAR — CORTE-HERO-MARQUEE-REVELA-1 ─
 //
@@ -493,9 +580,20 @@ export const DURACION_TICKER_FALLBACK_S = duracionTickerFallbackS(VELOCIDAD_TICK
 // así la próxima vez que el owner pida otro ajuste de velocidad es un valor de contenido, no un
 // segundo slice tocando código.
 //
-// `VELOCIDAD_TICKER_LENTA_PX_S` es 0.6× la medida — una fracción redonda, ELEGIDA, no derivada de
-// ninguna medición (no hay un "tema real más lento" contra qué medirla).
-export const VELOCIDAD_TICKER_LENTA_PX_S = VELOCIDAD_TICKER_PX_S * 0.6;
+// `VELOCIDAD_TICKER_LENTA_PX_S` nació en 0.6× la medida — una fracción redonda, ELEGIDA, no derivada
+// de ninguna medición (no hay un "tema real más lento" contra qué medirla).
+//
+// SUBE A 0.7× — § CORTE-HERO-MARQUEE-RONDA-5-1 (2026-09-27): el owner, sobre el gate visual de RONDA
+// 4 ya reaplicada: «ahora quedaron lentas las letras, subele sólo un poco la velocidad». Es un
+// ajuste MODERADO, no un salto a la medida (1.0×): 0.7 sigue siendo más lento que
+// `VELOCIDAD_TICKER_PX_S`, sólo que menos lento que el 0.6 de antes — queda ESTRICTAMENTE entre las
+// dos, como pide el spec. `hero.tickerVelocidad:'lenta'` (§ site-content-defaults.ts) sigue
+// resolviendo a ESTA constante sin cambiar de mecanismo: sólo cambia el número.
+//
+// ÚNICO CONSUMIDOR, verificado antes de tocarla (`grep -rn "heroTickerVelocidad" lib/config/
+// themes.ts`): CORTE es la ÚNICA entrada del catálogo que declara `heroTickerVelocidad:'lenta'` — el
+// cambio de fracción no le llega a ningún otro preset.
+export const VELOCIDAD_TICKER_LENTA_PX_S = VELOCIDAD_TICKER_PX_S * 0.7;
 
 // Ausente/vacío/basura → la velocidad MEDIDA ('media'); 'lenta' → la preferencia del owner. Segunda
 // guarda defensiva, como `rangoVeloDeIntensidad` — el resolver de contenido (`REGISTRY.hero.
