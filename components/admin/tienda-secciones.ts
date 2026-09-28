@@ -243,6 +243,13 @@ const HERO: SeccionConfig = {
     { name: 'subtitulo',          label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'ctaPrimarioLabel',   label: 'Botón principal',     hint: 'Su destino es /tienda (fijo). Vacío: se usa el texto por defecto.' },
     { name: 'ctaSecundarioLabel', label: 'Botón secundario',    opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
+    // § HERO-FRASE-AL-PIE-Y-PREVIEW-1: campo opcional que ya existía en REGISTRY.hero.campos
+    // (§ TEMAS-HERO-MEDIA-AGREGADOS-1) pero no tenía control acá — el `.hero-caption` del prototipo
+    // no tenía por dónde escribirse. Sólo lo rinden las composiciones "media" y "sticky" (curtina/
+    // ficha no lo leen); el hint lo dice para que el dueño no lo cargue esperando verlo en la
+    // canónica.
+    { name: 'fraseAlPie', label: 'Frase al pie', opcional: true, textarea: true,
+      hint: 'Sólo con las composiciones "media" o "sticky". Aparece al pie del hero, alineada a la derecha, junto al indicador "Desliza". Vacío: no se muestra.' },
     // LOS DOS ESCALARES DE RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) — sólo aplican a la composición
     // "sticky" (§ HeroMediaMarquesina.tsx). Selects de opciones fijas, como `puntoFocal`: siempre
     // tienen un valor (la canónica si nadie lo tocó), así que ninguno lleva `opcional`.

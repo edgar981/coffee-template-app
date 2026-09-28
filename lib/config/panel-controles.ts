@@ -279,10 +279,10 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   { campo: 'hero.imagenTipo', razon: 'Sólo mergePresetEnContent lo escribe; sin control en tienda-secciones.ts', cierra: 'PANEL-EDITOR-HERO-VIDEO-1' },
   { campo: 'hero.imagenPoster', razon: 'Declarado en REGISTRY.hero.campos/imagenes; ausente de HERO.imagenes en tienda-secciones.ts', cierra: 'PANEL-EDITOR-HERO-VIDEO-1' },
 
-  // `fraseAlPie` (§ TEMAS-HERO-MEDIA-AGREGADOS-1): declarado en REGISTRY.hero.campos como 'opcional'
-  // (su propio docstring dice "es un `campos` normal, abajo") pero ausente de HERO.campos en
-  // tienda-secciones.ts — el `.hero-caption` del prototipo no tiene por dónde escribirse hoy.
-  { campo: 'hero.fraseAlPie', razon: 'Declarado en REGISTRY.hero.campos como campo normal; ausente de HERO.campos en tienda-secciones.ts', cierra: 'PANEL-EDITOR-HERO-FRASE-AL-PIE-1' },
+  // CERRADO por HERO-FRASE-AL-PIE-Y-PREVIEW-1: `fraseAlPie` ganó su control (`HERO.campos` en
+  // tienda-secciones.ts, campo de texto opcional) — su entrada de exención se retiró de acá. El
+  // `.hero-caption` del prototipo ya tiene por dónde escribirse, y `HeroMediaMarquesina.tsx` (la
+  // composición "sticky") ganó su lectura en el mismo slice (antes sólo `HeroMedia.tsx` la rendía).
 
   // El eje `variante` (composición de sección, § eje 5/5e): las CUATRO secciones que lo declaran no
   // tienen ningún control — ni `TiendaSeccionEditor` sabe leer `config.variantes` hoy.

@@ -129,6 +129,31 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // reduced-motion (`ReducedMotionProvider`, montado en el layout, ya congela el `y` animado del
 // segmento — § el docstring de `ReducedMotionProvider`, `lib/animation.ts`).
 //
+// LA FRASE AL PIE — § HERO-FRASE-AL-PIE-Y-PREVIEW-1 (esta variante NO la leía hasta este slice,
+// pese a que `HeroMedia.tsx` — la variante `'media'` — ya la rinde desde `TEMAS-HERO-MEDIA-
+// AGREGADOS-1). El owner, sobre el panel: quiso cargar el `.hero-caption` del prototipo («Hay algo
+// profundamente meditativo en preparar un café cultivado a 1.600 msnm.», `docs/prototipos/cafeone/
+// index.html:133-136`) y no encontró dónde — el campo (`hero.fraseAlPie`) YA EXISTÍA en el modelo
+// (declarado en `REGISTRY.hero.campos` desde `TEMAS-HERO-MEDIA-AGREGADOS-1`), pero esta variante
+// nunca lo leía Y el panel nunca lo controlaba (§ `PENDIENTE_PANEL`, `lib/config/panel-controles.ts`
+// — cerrado por este mismo slice). MISMO campo/token que `HeroMedia.tsx`
+// (`text-[var(--sf-sobre-banda-suave,…)]`, `max-w-[34ch] text-right text-balance`), en la MISMA
+// posición del prototipo: al pie, alineada a la derecha, ENFRENTADA al cue "Desliza" (bottom-
+// izquierda) — la MISMA fila del `.hero-inner` del prototipo (`.hero-caption` viene ANTES de
+// `.scroll-cue` en su propio HTML, `margin-left:auto` la empuja a la derecha mientras `.scroll-cue`
+// es `left:var(--page-gutter)`). Acá va como bloque `absolute` PROPIO —espejo horizontal de
+// `data-hero-cue`, mismos offsets `bottom-8/sm:bottom-10/lg:bottom-12`— porque esta variante no
+// tiene un `.hero-inner` flex-column común a los dos (a diferencia de `HeroMedia.tsx`). Vacío → SE
+// OMITE (byte-idéntico, como en `HeroMedia.tsx` y como el resto de los `campos` opcionales del hero,
+// § "la frontera fina de defaults-como-fallback" en CLAUDE.md). Sin animación de entrada, igual que
+// el cue: vive FUERA del loop de texto/tarjeta, así que no comparte su stagger ni su revelado.
+//
+// **NO se gatea en `!preview`, A DIFERENCIA DEL CUE.** El cue anima un scroll que en preview no
+// significa nada; la frase es TEXTO ESTÁTICO (no depende de `progreso`/`estatico`), y el spec de este
+// slice pide explícito que el "cuadro compuesto" de la vista previa la muestre SI HAY TEXTO — omitirla
+// en preview dejaría al dueño sin ver el campo que acaba de escribir, en la única superficie donde lo
+// está mirando en vivo.
+//
 // EL REVELADO DEL TEXTO — § CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
 // REVELADO-MASCARA-1, `lib/animation.ts`, el bloque "EL REVELADO DEL TEXTO" para la derivación
 // completa): el owner reportó, sobre el muestrario de RONDA 2, que el marquee «no debe salir
@@ -368,7 +393,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   return (
     <div
       ref={wrapperRef}
-      className={`relative ${claseAlturaAncestroMarquesina(!!producto)} bg-[var(--sf-banda,var(--sf-tinta))]`}
+      className={`relative ${claseAlturaAncestroMarquesina(!!producto, preview)} bg-[var(--sf-banda,var(--sf-tinta))]`}
       style={style}
     >
       <section
@@ -475,6 +500,16 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
               />
             </div>
           </motion.div>
+        )}
+
+        {/* FRASE AL PIE (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1, § el docstring de cabecera "LA FRASE AL
+            PIE"): MISMO token que `HeroMedia.tsx`, ENFRENTADA al cue de abajo (derecha vs. su
+            izquierda). Vacío → SE OMITE; SIN gate de preview (a diferencia del cue), es texto
+            estático que el "cuadro compuesto" de la vista previa debe mostrar si hay dato. */}
+        {hero.fraseAlPie && (
+          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-sm leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))] sm:bottom-10 sm:right-6 lg:bottom-12 lg:right-8">
+            {hero.fraseAlPie}
+          </p>
         )}
 
         {/* CUE ANIMADO "DESLIZA" — RONDA 2 (§ el docstring de cabecera): MISMO marcado que

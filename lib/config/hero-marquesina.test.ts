@@ -231,8 +231,63 @@ test('SIN producto (DEFAULTS, hide-on-empty): el ancestro usa el presupuesto COR
 });
 
 test('claseAlturaAncestroMarquesina: CON tarjeta sigue siendo el presupuesto de SIEMPRE (100svh+200vh, MEDIDO contra `<xo-parallax class="h:300vh">`); SIN tarjeta, 100svh+65vh (200vh menos la ventana [0.12,0.57] de la tarjeta: 0.45×300vh=135vh)', () => {
-  assert.equal(claseAlturaAncestroMarquesina(true), 'min-h-[calc(100svh+200vh)]');
-  assert.equal(claseAlturaAncestroMarquesina(false), 'min-h-[calc(100svh+65vh)]');
+  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
+  assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
+});
+
+// ─── LA VISTA PREVIA DEL PANEL — § HERO-FRASE-AL-PIE-Y-PREVIEW-1 ──────────────────────────────────
+// El owner, sobre `/admin/tienda`: «la imagen de la sección "Hero de la home" no se está
+// renderizando correctamente… cubre sólo una parte del marco y el resto queda en el fondo oscuro».
+// MEDIDO: `VistaTiendaEnVivo` (vía `EscalaDesktop`) renderiza el alto NATURAL completo del ancestro
+// (`100svh+200vh`/`100svh+65vh`) SIN scrollear, así que el "presupuesto de scroll" que el storefront
+// real esconde detrás del `position:sticky` queda visible como fondo `--sf-tinta` plano bajo la
+// sección pineada (sólo 1/3 o ~0.61 del total es media). En `preview`, el ancestro se colapsa a
+// `h-[100svh]` — el mismo alto que la sección pineada — así que no queda tramo sobrante que pintar.
+
+test('EN PREVIEW: el ancestro se colapsa a h-[100svh] — SIN el presupuesto de scroll, cubre el marco entero (con o sin tarjeta)', () => {
+  const sinProducto = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
+  // El discriminador es la clase del ANCESTRO (`class="relative h-[100svh]…`) — el `<section>`
+  // pineado YA lleva su propio `h-[100svh]` literal siempre, con o sin preview; lo que prueba el fix
+  // es que el WRAPPER (el primer `class=` del árbol) también lo lleve, en vez del `min-h-[calc(…)]`.
+  assert.match(sinProducto, /class="relative h-\[100svh\]/, 'el ancestro debe colapsarse a h-[100svh]');
+  assert.doesNotMatch(sinProducto, /min-h-\[calc\(100svh\+65vh\)\]/, 'sin el presupuesto corto (sin tarjeta) bajo preview');
+  assert.doesNotMatch(sinProducto, /min-h-\[calc\(100svh\+200vh\)\]/, 'sin el presupuesto largo (con tarjeta) bajo preview');
+});
+
+test('FUERA de preview (SSR normal): el ancestro sigue usando el presupuesto de scroll (65vh sin tarjeta, DEFAULTS) — el storefront real no cambia', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.match(html, /min-h-\[calc\(100svh\+65vh\)\]/);
+  // El discriminador es la clase del ANCESTRO (`class="relative h-[100svh]…`), no la del `<section>`
+  // pineado (`class="sticky top-0 flex h-[100svh]…`) — ese literal SIEMPRE está presente, con o sin
+  // preview, porque es la altura fija de la sección visible, no del ancestro con presupuesto.
+  assert.doesNotMatch(html, /class="relative h-\[100svh\]/, 'sin preview, el ANCESTRO no debe colapsarse al alto corto');
+});
+
+// ─── LA FRASE AL PIE — § HERO-FRASE-AL-PIE-Y-PREVIEW-1 ────────────────────────────────────────────
+// El campo (`hero.fraseAlPie`) YA existía en el modelo (`TEMAS-HERO-MEDIA-AGREGADOS-1`) pero esta
+// variante nunca lo leía — sólo `HeroMedia.tsx` (la variante "media") lo rendía. Vacío → SE OMITE
+// (default, byte-idéntico); con texto → aparece, ENFRENTADA al cue (bottom-right vs. bottom-left del
+// cue), y SIN gatearse en preview (a diferencia del cue, que sí se omite ahí).
+
+test('hero.fraseAlPie vacío (DEFAULTS): NO rinde el párrafo de la frase', () => {
+  assert.equal(DEFAULTS.hero.fraseAlPie, '');
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, /Hay algo profundamente meditativo/);
+});
+
+test('hero.fraseAlPie con texto: rinde el párrafo, alineado a la derecha, ENFRENTADO al cue (bottom-right, no left)', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Hay algo profundamente meditativo en preparar un café cultivado a 1.600 msnm.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.ok(html.includes('Hay algo profundamente meditativo en preparar un café cultivado a 1.600 msnm.'));
+  assert.match(html, /right-4[^"]*z-10[^"]*max-w-\[34ch\][^"]*text-right/, 'debe ir a la derecha, no a la izquierda (donde va el cue)');
+});
+
+test('hero.fraseAlPie EN PREVIEW: SIGUE rindiendo (a diferencia del cue, que se omite ahí) — es texto estático, no depende del scroll', () => {
+  const html = renderHeroMediaMarquesina(
+    { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData,
+    { preview: true },
+  );
+  assert.ok(html.includes('Café de altura.'), 'la frase debe verse en el cuadro compuesto de la vista previa');
 });
 
 // § CORTE-HERO-STICKY-RONDA-2-1 INVIERTE este caso: el owner pidió el cue VISIBLE bajo sticky, así

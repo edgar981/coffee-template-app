@@ -495,8 +495,33 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // (`lib/storefront/presentaciones.ts`): Tailwind escanea el TEXTO de los archivos buscando
 // substrings de clase COMPLETOS; una clase construida por template literal
 // (`` `min-h-[calc(100svh+${n}vh)]` ``) es invisible para el JIT porque el número nunca queda escrito
-// literal en el archivo fuente. Las dos ramas son strings completos, ambas presentes en este archivo.
-export function claseAlturaAncestroMarquesina(tieneTarjeta: boolean): string {
+// literal en el archivo fuente. Las TRES ramas son strings completos, todas presentes en este archivo
+// (la de `preview` además es LITERAL en `HeroMediaMarquesina.tsx`, en el `<section>` pineado).
+//
+// EL SEGUNDO PARÁMETRO — `preview` — CIERRA EL DEFECTO DE LA VISTA PREVIA DEL PANEL
+// (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1). El owner, sobre el panel: «la imagen de la sección "Hero de la
+// home" no se está renderizando correctamente… cubre sólo una parte del marco y el resto queda en
+// el fondo oscuro». MEDIDO por ARITMÉTICA de las propias clases (no una captura): el `<section>`
+// pineado mide `h-[100svh]`; el ANCESTRO (`wrapperRef`, este mismo cálculo) mide `100svh+200vh` CON
+// tarjeta o `100svh+65vh` SIN ella — la sección visible es sólo 100/300=0.333 (CON) o
+// 100/165≈0.606 (SIN) de ese total. En el storefront REAL eso es invisible: `position:sticky` PINEA
+// la sección sobre el resto mientras se scrollea, así que el visitante nunca ve el tramo extra — es
+// justamente el "presupuesto de scroll" (§ el bloque de arriba). Pero `VistaTiendaEnVivo`
+// (`EscalaDesktop`, § su docstring) NO scrollea: mide el alto NATURAL completo del contenido sin
+// escalar (`ResizeObserver` sobre `contenidoRef`) y lo escala ENTERO — así que el tramo que el
+// storefront real esconde queda VISIBLE, plano, como el fondo `--sf-tinta` del propio `wrapperRef`
+// sin nada pintado encima. Coincide exacto con el reporte: la media (dentro del `<section>`) cubre
+// sólo un tercio (o dos tercios) del marco, y el resto es el fondo oscuro.
+//
+// LA SALIDA: en `preview`, el ancestro se COLAPSA al tamaño EXACTO de la sección pineada
+// (`h-[100svh]`, el mismo literal que ya lleva el `<section>` — no hay recorrido que reservar
+// porque no hay scroll que animar) — el marco pasa a ser UN SOLO CUADRO COMPUESTO: la media llena
+// el marco entero, el marquee y la frase al pie quietos en su lugar (`estatico` ya los rinde así,
+// § el resto de este archivo), sin el tramo muerto. `tieneTarjeta` deja de importar bajo `preview`
+// (las dos ramas no-preview convergen a la misma clase colapsada). **El storefront REAL no cambia**:
+// `preview` es `false` ahí siempre, así que las dos ramas de siempre (200vh/65vh) quedan intactas.
+export function claseAlturaAncestroMarquesina(tieneTarjeta: boolean, preview: boolean): string {
+  if (preview) return 'h-[100svh]';
   return tieneTarjeta ? 'min-h-[calc(100svh+200vh)]' : 'min-h-[calc(100svh+65vh)]';
 }
 

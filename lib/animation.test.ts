@@ -401,14 +401,29 @@ test('MARQUEE_MASCARA_RELLENO_EM: un relleno MEDIDO (0.04em), menor que el 0.08e
 
 // ── EL PRESUPUESTO DE SCROLL PROPORCIONAL (§ CORTE-HERO-MARQUEE-REVELA-1) — sin React, sin navegador
 // `claseAlturaAncestroMarquesina` es lookup por LITERAL (mismo criterio que `gridColsPresentaciones`,
-// `lib/storefront/presentaciones.ts`): las dos ramas son strings COMPLETOS para que Tailwind los vea.
+// `lib/storefront/presentaciones.ts`): las TRES ramas son strings COMPLETOS para que Tailwind los vea.
 
 test('claseAlturaAncestroMarquesina: CON tarjeta, el presupuesto de SIEMPRE — 100svh + 200vh, MEDIDO contra `<xo-parallax class="h:300vh">`', () => {
-  assert.equal(claseAlturaAncestroMarquesina(true), 'min-h-[calc(100svh+200vh)]');
+  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
 });
 
 test('claseAlturaAncestroMarquesina: SIN tarjeta, 100svh + 65vh — 200vh menos la ventana [0.12,0.57] de `transformMarquesinaTarjeta` (0.45×300vh=135vh), la porción sin nada que animar', () => {
-  assert.equal(claseAlturaAncestroMarquesina(false), 'min-h-[calc(100svh+65vh)]');
+  assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
+});
+
+// § HERO-FRASE-AL-PIE-Y-PREVIEW-1: en PREVIEW el ancestro se COLAPSA al tamaño exacto de la sección
+// pineada (`h-[100svh]`) — la vista previa del panel no scrollea, así que el "presupuesto" que el
+// storefront real esconde detrás del `position:sticky` quedaba VISIBLE, plano, como fondo oscuro
+// bajo la media (el defecto reportado por el owner). `tieneTarjeta` deja de importar bajo preview:
+// las dos ramas convergen a la MISMA clase colapsada.
+test('claseAlturaAncestroMarquesina: EN PREVIEW, el ancestro se colapsa a h-[100svh] — sin recorrido de scroll, cubre el marco entero', () => {
+  assert.equal(claseAlturaAncestroMarquesina(true, true), 'h-[100svh]');
+  assert.equal(claseAlturaAncestroMarquesina(false, true), 'h-[100svh]');
+});
+
+test('claseAlturaAncestroMarquesina: fuera de preview, las dos ramas de SIEMPRE (200vh/65vh) quedan intactas — el storefront real no cambia', () => {
+  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
+  assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
 });
 
 // ── EL ÍNDICE CENTRADO DE UN RIEL (§ MUESTRARIO-RIEL-ACTIVO-1) — sin React, sin navegador ─────────

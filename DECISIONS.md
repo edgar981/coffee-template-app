@@ -28315,3 +28315,212 @@ dispatch, no mergea.
 **EL DUEÑO DEBE RE-APLICAR CORTE** para ver el cambio (§2).
 
 **Cierra `CROMO-NAV-POSICION-TEMA-REAL-1`.**
+
+## 2026-09-28 — La frase al pie del hero gana control en el panel, y la vista previa deja de mostrar el fondo oscuro bajo el hero·sticky (`HERO-FRASE-AL-PIE-Y-PREVIEW-1`)
+
+Gate del owner del 2026-09-28, con captura del panel y del prototipo, textual: *"Trate de agregar
+'Hay algo profundamente meditativo en preparar un cafe cultivado a 1.600 msnm.' en el hero, pero no
+encontre una seccion para hacerlo desde /admin/tienda."* y *"La img de la seccion 'Hero de la home'
+no se esta renderizando correctamente."* Dos defectos del hero de CORTE vistos desde el panel. El
+primero ya estaba nombrado como follow-up pendiente (`PANEL-EDITOR-HERO-FRASE-AL-PIE-1`, coined por
+`PANEL-REFLEJA-TIENDA-CHEQUEO-1`, `DECISIONS.md:15747`), sin ejecutar hasta este slice; el segundo lo
+destapó este mismo gate.
+
+### 1 · La frase al pie — las tres mediciones que el spec pedía, antes de construir
+
+**El MODELO ya estaba completo.** `hero.fraseAlPie: string` vive en `HeroContent`
+(`site-content-defaults.ts:60`), en `REGISTRY.hero.campos` como `'opcional'`
+(`site-content-defaults.ts:2035`) y en `heroEditableSchema`
+(`site-content-schema.ts:38`) — nada de esto cambió en este slice. `todo campo del MODELO está en
+el schema editable` (el test derivado de `site-content-schema.test.ts`) ya pasaba antes de tocar
+nada.
+
+**El PANEL era el hueco real.** `HERO.campos` (`components/admin/tienda-secciones.ts`) no
+declaraba `fraseAlPie` — el campo estaba en `PENDIENTE_PANEL`
+(`lib/config/panel-controles.ts:285`), citado como cerrado por `PANEL-EDITOR-HERO-FRASE-AL-PIE-1`
+(el follow-up que `PANEL-REFLEJA-TIENDA-CHEQUEO-1` coined y nunca ejecutó, `DECISIONS.md:15747`).
+Confirmado por el propio chequeo derivado: `huecosDelPanel({conExenciones:false})` marcaba
+`hero.fraseAlPie` como hueco.
+
+**El RENDER — y aquí el spec citaba una HIPÓTESIS correcta.** `grep -rn "fraseAlPie"` sobre el
+storefront da un solo consumidor real: `HeroMedia.tsx` (la variante `'media'`), que ya lo rinde
+desde `TEMAS-HERO-MEDIA-AGREGADOS-1` (`mt-8 ml-auto max-w-[34ch] text-right`, el `.hero-caption`
+del prototipo). `HeroMediaMarquesina.tsx` (la variante `'sticky'`, la que **CORTE** usa desde
+`CORTE-USA-HERO-STICKY-1`) **no leía el campo en absoluto** — cero apariciones. Como el owner
+estaba editando el hero de CORTE (`hero.variante:'sticky'`), cargar la frase en el panel no habría
+cambiado nada visible aunque el panel la controlara: los dos defectos comparten la misma variante.
+
+**El prototipo, medido en su sitio** (`docs/prototipos/cafeone/css/app.css:374-391`): `.hero-inner`
+es un flex-column `justify-content:flex-end` con `.hero-caption` (`margin-left:auto;
+max-width:34ch;text-align:right`) y `.scroll-cue` (`position:absolute;left:var(--page-gutter);
+bottom:var(--space-12)`) — la frase a la derecha, el cue a la izquierda, ambos al pie de la misma
+fila. `HeroMedia.tsx` ya replica esto fiel (`ml-auto max-w-[34ch] text-right`, § arriba).
+
+**Lo construido:** `HeroMediaMarquesina.tsx` ganó el mismo bloque, como `<p>` `absolute` propio
+—esta variante no tiene un `.hero-inner` flex-column común a los dos elementos, a diferencia de
+`HeroMedia.tsx`— con los MISMOS offsets responsive que ya usa `data-hero-cue` (`bottom-8/sm:bottom-
+10/lg:bottom-12`), en el lado opuesto (`right-4/sm:right-6/lg:right-8` en vez de `left-*`), mismo
+token (`--sf-sobre-banda-suave`), mismo `max-w-[34ch] text-right text-balance`. Vacío → SE OMITE
+(byte-idéntico, la regla de "opcional vacío se omite" del repo). **NO se gatea en `!preview`**, a
+diferencia del cue: la frase es texto estático, no depende de scroll, y el spec pide que el "cuadro
+compuesto" de la vista previa la muestre si hay dato.
+
+`HERO.campos` (`tienda-secciones.ts`) ganó el campo (`textarea`, opcional, con hint que dice "sólo
+con las composiciones 'media' o 'sticky'") entre `ctaSecundarioLabel` y los dos escalares de RONDA
+4. `PENDIENTE_PANEL` perdió su entrada (`lib/config/panel-controles.ts`) — el trinquete de
+`panel-controles.test.ts` baja de 11 a 10, en el mismo commit (§ la regla de esa prueba: "baja el
+número de acá A MANO en el MISMO commit; nunca sube en silencio").
+
+### 2 · La vista previa — causa MEDIDA por aritmética de las propias clases, no por captura
+
+**La hipótesis del orquestador se CONFIRMA, medida sin necesitar un navegador.** `HeroMediaMarquesina.
+tsx` pinea su `<section>` (`h-[100svh]`) dentro de un ancestro (`wrapperRef`) cuya altura es el
+"presupuesto de scroll": `min-h-[calc(100svh+200vh)]` con tarjeta pineada, `min-h-[calc(100svh+65vh)]`
+sin ella (`claseAlturaAncestroMarquesina`, `lib/animation.ts`). En el storefront REAL ese presupuesto
+es invisible: `position:sticky` pinea la sección sobre él mientras se scrollea, así que el visitante
+nunca ve el tramo extra. `VistaTiendaEnVivo` (vía `EscalaDesktop`) **NO scrollea**: mide el alto
+NATURAL completo del contenido sin escalar (`ResizeObserver` sobre `contenidoRef`, en GRANDE `alto =
+contenidoH*scale`; en COMPACTO `scale = min(paneW/desktopW, paneH/contenidoH)`) y lo escala ENTERO —
+así que el tramo que el sticky esconde en la vida real queda VISIBLE, plano, como el fondo
+`bg-[var(--sf-banda,var(--sf-tinta))]` del propio `wrapperRef` sin nada pintado encima.
+
+**MEDIDO por aritmética** (no una captura de pantalla, porque el número sale directo de las clases
+que ya declaraba el componente): la sección visible es 100/(100+200)=**0.333** del total CON
+tarjeta, 100/(100+65)≈**0.606** SIN ella — las dos por debajo de 1, así que las dos formas del bug
+existían (con o sin producto pineado en el spotlight/marquesina). Coincide exacto con el reporte del
+owner: "la imagen cubre sólo una parte del marco y el resto queda en el fondo oscuro".
+
+**La salida: `claseAlturaAncestroMarquesina` gana un segundo parámetro, `preview`.** En preview el
+ancestro se COLAPSA al tamaño EXACTO de la sección pineada (`'h-[100svh]'`, el mismo literal que ya
+lleva el `<section>` — Tailwind lo ve igual, ya está presente literal en el archivo). `tieneTarjeta`
+deja de importar bajo preview (las dos ramas convergen). El storefront real no cambia: `preview` es
+siempre `false` ahí, así que las dos ramas de siempre (200vh/65vh) quedan intactas.
+
+**NO se usó `estatico` (`preview || reducedMotion`).** El spec es explícito: *"el arreglo es sólo
+para el caso preview... la tienda del visitante NO cambia"*. Colapsar también para un visitante REAL
+con `prefers-reduced-motion` habría sido un cambio de comportamiento del storefront —sacarle el
+"presupuesto" de scroll a un visitante real acorta cuánto tiene que scrollear antes de que aparezca
+la siguiente sección, lo que podría discutirse como mejora, pero NO es lo que este slice pidió ni lo
+que el gate visual del owner aprobó—. Se usa `preview` (el flag de `useIsPreview()`, ya leído por el
+componente) a secas.
+
+**`VistaTiendaEnVivo.tsx` NO SE TOCÓ**, y es una medición, no un olvido: ya envuelve el contenido con
+`<PreviewProvider>` (línea del componente, sin cambios desde antes de este slice), así que
+`useIsPreview()` dentro de `HeroMediaMarquesina.tsx` ya resolvía a `true` cuando se renderiza ahí. El
+fix vive enteramente en el componente que CONSUME ese flag (`HeroMediaMarquesina.tsx`/
+`lib/animation.ts`), no en el que lo PROVEE. Verificado leyendo `EscalaDesktop.tsx` completo: el
+`ResizeObserver` de `contenidoRef` mide la altura NATURAL post-fix automáticamente —ni GRANDE ni
+COMPACTO necesitan un ajuste propio—, así que el mismo cambio cierra las DOS superficies que el spec
+pedía verificar (la miniatura compacta de la tarjeta de lectura y la vista grande de edición).
+
+### 3 · Lo que NO se tocó
+
+- **`HeroMedia.tsx`** (la variante `'media'`) — ya rendía `fraseAlPie` desde `TEMAS-HERO-MEDIA-
+  AGREGADOS-1`; sin cambios.
+- **`HeroSection.tsx`** (el dispatcher) — sigue enrutando por `hero.variante`, sin tocar.
+- **El modelo** (`site-content-defaults.ts`, `site-content-schema.ts`) — `hero.fraseAlPie` ya
+  estaba completo en las tres capas; este slice sólo le dio control de panel y lectura en la
+  variante que le faltaba. `themes.ts` — CORTE no cambia (sigue sin declarar `heroFraseAlPie`;
+  cargar la frase es una acción del dueño desde el panel, no del preset).
+- **`EscalaDesktop.tsx`** — genérico, sin conocimiento de secciones; su mecanismo de medición ya
+  cubre el fix sin cambios propios (§2).
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2407/2407** — verde. +8 sobre el piso de 2399 (`7a3ff85`, `CROMO-NAV-POSICION-TEMA-REAL-1`): `lib/animation.test.ts` +2 (preview=true/false explícitos), `lib/config/hero-marquesina.test.ts` +5 (colapso del ancestro con/sin tarjeta, frase vacía/con texto/en preview), `lib/config/panel-controles.test.ts` +1 (calibración de `hero.fraseAlPie`). 2+5+1=8, coincide. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (ningún archivo de `touches:` de este slice toca el carril de integración). |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + los 2 hovers — `home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870`. Nayoli usa `hero.variante:'curtina'` (nunca `'sticky'`) y no declara `fraseAlPie`, así que el 0px es el resultado esperado — confirma también que el nuevo bloque JSX y el nuevo parámetro de `claseAlturaAncestroMarquesina` no rompen el build de producción. |
+| `guarda:color` | NO corrido — este slice no tocó ningún preset de color (`lib/config/themes.ts` no cambió). |
+
+**EL DUEÑO DEBE RE-APLICAR CORTE PARA VER EL CAMPO EN EL PANEL, PERO NO PARA VER EL FIX DE LA VISTA
+PREVIA.** El campo `fraseAlPie` ya vive en `content.hero` de cualquier fila existente (con default
+`''`, § el modelo, §1) — no hace falta re-aplicar el preset para que el control aparezca en
+`/admin/tienda`, sólo para poblarlo de dato el dueño escribe directo en el editor. El fix de la
+vista previa (§2) es puramente de RENDER —no depende de ningún dato guardado— así que se ve apenas
+este commit esté desplegado, sin ninguna acción del dueño.
+
+### `touches:` — todo lo escrito estaba declarado
+
+`git diff --numstat`: `components/admin/tienda-secciones.ts` (+7/-0), `components/storefront/
+home/HeroMediaMarquesina.tsx` (+36/-1), `lib/animation.test.ts` (+18/-3), `lib/animation.ts`
+(+27/-2), `lib/config/hero-marquesina.test.ts` (+57/-2), `lib/config/panel-controles.test.ts`
+(+20/-5), `lib/config/panel-controles.ts` (+4/-4), y este asiento. **7 archivos de código**, los 7
+dentro de la lista de `touches:` del spec (que también permitía `lib/config/site-content-schema.ts`/
+`.test.ts`, `site-content-defaults.ts`/`.test.ts`, `themes.ts`/`.test.ts`,
+`panel-hero-toggles.test.ts` y `components/admin/VistaTiendaEnVivo.tsx` — medidos y dejados intactos
+porque no hacía falta tocarlos, § 1 y § 2 arriba: el modelo ya estaba completo, y `VistaTiendaEnVivo`
+ya proveía el flag que el fix consume).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `claseAlturaAncestroMarquesina` (nuevo segundo
+parámetro `preview`), `hero.fraseAlPie` (ganó control), `HeroMediaMarquesina.tsx` (nuevo bloque
+JSX), `HERO.campos` (`tienda-secciones.ts`), `PENDIENTE_PANEL` (`panel-controles.ts`, una entrada
+menos), `VistaTiendaEnVivo` (no tocado, pero medido), `EscalaDesktop` (no tocado, pero medido).
+Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `claseAlturaAncestroMarquesina`, `fraseAlPie`, `HeroMediaMarquesina`,
+  `PENDIENTE_PANEL`, `tienda-secciones.ts`, `panel-controles.ts`, `PANEL-EDITOR-HERO-FRASE-AL-PIE-1`,
+  `HERO-FRASE-AL-PIE-Y-PREVIEW-1`, `CORTE-HERO`, `hero-caption`, `hero.cueDesliza`. `CLAUDE.md` no
+  documenta el editor de hero, el modelo de `SiteContent` a nivel de campo, ni la mecánica de la
+  variante `sticky` en absoluto — esa doctrina vive en los docstrings del código y en `DECISIONS.md`,
+  no en `CLAUDE.md`.
+- **`VistaTiendaEnVivo`** → 5 apariciones (§56, §471, §2614, §2642, §2788 del documento renderizado en
+  esta sesión), todas describiendo el mecanismo GENERAL (render de componentes reales, `SiteContentProvider`
+  local, `EscalaDesktop`, el costo de montar N secciones). Ninguna nombra `HeroMediaMarquesina`,
+  `claseAlturaAncestroMarquesina` ni el defecto de altura — nada queda contradicho: este slice no
+  tocó ese archivo, y lo que sí describe (medir+escalar el alto natural) sigue siendo exactamente el
+  mecanismo, ahora alimentado por una altura correcta en vez de una inflada.
+- **`sticky`** → todas las apariciones son del scroll de PANTALLAS DEL ADMIN (`.tienda-vivo__vista`,
+  el head de `.duna-lista`, el progreso pegado al botón) — ninguna sobre la variante de hero del
+  storefront. Sin contradicción.
+
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `grep -c "HERO-FRASE-AL-PIE-Y-PREVIEW-1"` antes de
+este párrafo da **0** — id nuevo. `PANEL-EDITOR-HERO-FRASE-AL-PIE-1` (el follow-up coined por
+`PANEL-REFLEJA-TIENDA-CHEQUEO-1`, `DECISIONS.md:15747`) queda CERRADO por este slice — no se edita
+esa tabla histórica (registra qué se coined y cuándo, no un estado en vivo), pero la entrada de
+`PENDIENTE_PANEL` que la citaba como `cierra` ya no existe en el código (§1). Ninguna otra entrada
+de `DECISIONS.md` afirmaba algo sobre `hero.fraseAlPie` o la altura del ancestro de
+`HeroMediaMarquesina` que este diff vuelva falso.
+
+### `customer_bytes`
+
+**`changed: true`.** El diff agrega un elemento de texto NUEVO al storefront: para cualquier tenant
+con `hero.variante:'sticky'` (hoy sólo alcanzable vía el preset CORTE) que cargue `hero.fraseAlPie`
+desde el panel, el hero muestra esa frase al pie, a la derecha, junto al cue "Desliza" — visible en
+el storefront real, no sólo en el panel. `strings:` **ninguno** — no se hornea ningún texto nuevo en
+el código (el default sigue siendo `''`, que se omite); lo que cambia es que el CAMPO, ya existente
+en el modelo desde `TEMAS-HERO-MEDIA-AGREGADOS-1`, ahora tiene una RUTA de escritura (el panel) y una
+SEGUNDA variante que lo renderiza. Confirmado por medición: Nayoli (sin `fraseAlPie`, sin `'sticky'`)
+sigue en **0px** de diferencia (§4).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El campo ya existía en el modelo JSON de `SiteContent.content` desde
+`TEMAS-HERO-MEDIA-AGREGADOS-1`; este slice sólo agrega una ruta de panel y una lectura de render
+sobre un campo que el schema/resolver/write path ya soportaban por completo.
+
+### Open follow-ups
+
+- **Ninguno nuevo.** Los dos defectos del spec quedan cerrados: el campo tiene control (§1) y la
+  vista previa deja de mostrar el fondo oscuro (§2). `PANEL-EDITOR-HERO-FRASE-AL-PIE-1` (el follow-up
+  que este slice cierra) no necesita reemplazo.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones
+ejecutables (tsc, `npm test`, `npm run test:integracion`) más `verificar:nayoli:visual` en 0px. Sin
+`schema`, sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya
+aprobó la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, citado arriba);
+el merge sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no
+mergea.
+
+**NO hace falta re-aplicar CORTE** para ver ninguno de los dos fixes (§4, el matiz).
+
+**Cierra `HERO-FRASE-AL-PIE-Y-PREVIEW-1`.**

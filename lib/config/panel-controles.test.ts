@@ -71,14 +71,15 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // Este test es lo que hace esa prosa MECÁNICA: el TECHO es un TRINQUETE, sólo BAJA. Cuando un slice
 // cierra exenciones (como hicieron PANEL-EDITOR-MARQUESINA-1, -TRUSTBADGES-VISIBLE-1, -ORIGEN-1,
 // PANEL-EDITOR-SPOTLIGHT-RESTO-1 — bajándolo de 17 a 13, cerrando `spotlight.visible`/`.eyebrow`/
-// `.titulo`/`.badge` —, y PANEL-DETALLES-SITIO-1 — bajándolo de 13 a 11, cerrando
-// `volverArriba.visible`/`rielSocial.visible` —, cada uno bajando PENDIENTE_PANEL), baja el número de
-// acá A MANO en el MISMO commit; nunca sube en silencio. El valor de hoy (11) es el largo actual
-// medido (`PENDIENTE_PANEL.length`) — la aserción pasa hoy porque coincide; el día que alguien la vea
+// `.titulo`/`.badge` —, PANEL-DETALLES-SITIO-1 — bajándolo de 13 a 11, cerrando
+// `volverArriba.visible`/`rielSocial.visible` —, y HERO-FRASE-AL-PIE-Y-PREVIEW-1 — bajándolo de 11 a
+// 10, cerrando `hero.fraseAlPie` —, cada uno bajando PENDIENTE_PANEL), baja el número de acá A MANO
+// en el MISMO commit; nunca sube en silencio. El valor de hoy (10) es el largo actual medido
+// (`PENDIENTE_PANEL.length`) — la aserción pasa hoy porque coincide; el día que alguien la vea
 // fallar, la respuesta es cerrar el hueco con un CONTROL, no subir el techo.
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 11,
+    PENDIENTE_PANEL.length <= 10,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );
@@ -303,6 +304,20 @@ test('calibración: hero.veloVisible está controlado, sin exención nueva', () 
   assert.ok(!pendientes.has('hero.veloVisible'));
   const huecos = huecosDelPanel({ conExenciones: false });
   assert.ok(!huecos.includes('hero.veloVisible'));
+});
+
+// § HERO-FRASE-AL-PIE-Y-PREVIEW-1: `hero.fraseAlPie` estaba declarado en `REGISTRY.hero.campos`
+// (§ TEMAS-HERO-MEDIA-AGREGADOS-1) pero ausente de `HERO.campos` — un hueco MEDIDO, no un hallazgo
+// tardío de este slice (§ el docstring de `PENDIENTE_PANEL`, arriba). Este slice le da control
+// (campo de texto opcional en `HERO.campos`) y retira su exención; el trinquete de PENDIENTE_PANEL
+// baja de 11 a 10.
+test('calibración: hero.fraseAlPie está controlado, sin exención — el hueco medido por PANEL-REFLEJA-TIENDA-CHEQUEO-1 se cerró', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('hero.fraseAlPie'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('hero.fraseAlPie'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('hero.fraseAlPie'));
 });
 
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
