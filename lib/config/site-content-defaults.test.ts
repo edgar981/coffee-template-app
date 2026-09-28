@@ -448,6 +448,19 @@ test('nosotrosHistoria: requerido vacío → default; opcional presente-vacío �
   assert.equal(r.nosotrosHistoria.parrafo3, 'Tercero');                          // opcional con valor → se conserva
 });
 
+// § NOSOTROS-COMPOSICION-1: `imagen` es OPCIONAL — vacía (el default) nunca cae a un fallback
+// fabricado, sólo se OMITE (composición de una columna, § NosotrosHistoria.tsx).
+test('nosotrosHistoria: `imagen` nace VACÍA (byte-idéntico sin ella) y se conserva si se guarda', () => {
+  assert.equal(DEFAULTS.nosotrosHistoria.imagen, '');
+  const r = resolverSiteContent({ nosotrosHistoria: { imagen: '/finca.jpg' } });
+  assert.equal(r.nosotrosHistoria.imagen, '/finca.jpg');
+});
+
+test('REGISTRY.nosotrosHistoria.imagenes = [imagen] (tripwire del borrado de blobs, § NOSOTROS-COMPOSICION-1)', () => {
+  assert.deepEqual(REGISTRY.nosotrosHistoria.imagenes, ['imagen']);
+  assert.equal(REGISTRY.nosotrosHistoria.campos.imagen, 'opcional');
+});
+
 test('paginas: por default /nosotros está ENCENDIDA', () => {
   assert.equal(resolverSiteContent({}).paginas.nosotros.visible, true);
 });
@@ -538,6 +551,40 @@ test('REGISTRY.nosotrosGaleria.imagenes = [url, poster] y url es requerido (trip
   // vídeo se borre con el ítem. Y la url debe ser requerida (sin archivo no hay ítem).
   assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url', 'poster']);
   assert.equal(REGISTRY.nosotrosGaleria.repeater!.campos.url, 'requerido');
+});
+
+// ── El CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — nace VACÍO, TODO opcional ─────────
+
+test('nosotrosCierre: sin nada guardado → TODO vacío (nace sin copy fabricado; ningún tenant ve nada)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.nosotrosCierre.titulo, '');
+  assert.equal(r.nosotrosCierre.parrafo, '');
+  assert.equal(r.nosotrosCierre.ctaLabel, '');
+  assert.equal(r.nosotrosCierre.ctaDestino, '');
+  assert.equal(r.nosotrosCierre.imagenFondo, '');
+});
+
+test('nosotrosCierre: TODOS los campos son opcionales — un valor guardado se conserva, ninguno cae a un default fabricado', () => {
+  const r = resolverSiteContent({
+    nosotrosCierre: { titulo: 'Conocé la finca', parrafo: 'Te esperamos.', ctaLabel: 'Ir a la tienda', ctaDestino: '/tienda', imagenFondo: '/finca.jpg' },
+  });
+  assert.equal(r.nosotrosCierre.titulo, 'Conocé la finca');
+  assert.equal(r.nosotrosCierre.parrafo, 'Te esperamos.');
+  assert.equal(r.nosotrosCierre.ctaLabel, 'Ir a la tienda');
+  assert.equal(r.nosotrosCierre.ctaDestino, '/tienda');
+  assert.equal(r.nosotrosCierre.imagenFondo, '/finca.jpg');
+});
+
+test('nosotrosCierre: `ocultable: true`, con `visible` respetando el toggle explícito (el hide-on-empty de `titulo` vive en el COMPONENTE, no acá)', () => {
+  const def = REGISTRY.nosotrosCierre;
+  assert.equal(def.ocultable, true);
+  assert.equal(seccionEsVisible(def, { visible: true }), true);
+  assert.equal(seccionEsVisible(def, { visible: false }), false);
+});
+
+test('REGISTRY.nosotrosCierre.imagenes = [imagenFondo] (tripwire del borrado de blobs, § NOSOTROS-COMPOSICION-1)', () => {
+  assert.deepEqual(REGISTRY.nosotrosCierre.imagenes, ['imagenFondo']);
+  assert.equal(REGISTRY.nosotrosCierre.campos.imagenFondo, 'opcional');
 });
 
 // ── La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1) — 3ª sección repeater, gemela de
@@ -1391,8 +1438,8 @@ test('resolverOrden: SIEMPRE devuelve las 9 bandas — ninguna se cae, pase lo q
 // persistido que reordenar, así que el resolver no toma `stored` — no hay "garbage" que limpiar, ni
 // "parcial"/"dedup" que ejercer. Lo que SÍ hay que afirmar, igual que del lado de la home: el orden
 // de HOY, y que el dominio es EXHAUSTIVO (nunca se cae una banda).
-test('resolverOrdenNosotros: devuelve las dos bandas de /nosotros, en el orden de hoy', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosHistoria', 'nosotrosGaleria']);
+test('resolverOrdenNosotros: devuelve las TRES bandas de /nosotros, en el orden de hoy — el cierre AL FINAL (§ NOSOTROS-COMPOSICION-1)', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
 });
 
 test('resolverOrdenNosotros: el dominio es EXHAUSTIVO — exactamente BANDA_NOSOTROS_IDS, sin faltantes ni de más', () => {

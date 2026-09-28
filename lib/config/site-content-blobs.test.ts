@@ -45,6 +45,21 @@ test('imagenesDe REAL: un ítem-VÍDEO aporta url Y poster (los dos blobs se bor
   assert.deepEqual(imagenesDe(doc).sort(), ['/finca-poster.jpg', '/finca.mp4', '/foto.jpg']);
 });
 
+// § NOSOTROS-COMPOSICION-1: las dos imágenes NUEVAS de /nosotros (campos PLANOS de sección, no de
+// ítem de repeater) — afirma el CABLEADO end-to-end contra el REGISTRY real, mismo patrón que la
+// galería arriba: sin nombrar el campo en `REGISTRY.<seccion>.imagenes`, el borrado de blobs lo
+// pierde en silencio para siempre.
+
+test('imagenesDe con el REGISTRY REAL junta la imagen de la HISTORIA de /nosotros (campo plano opcional, § NOSOTROS-COMPOSICION-1)', () => {
+  const doc = { nosotrosHistoria: { imagen: '/historia.jpg' } };
+  assert.deepEqual(imagenesDe(doc), ['/historia.jpg']);
+});
+
+test('imagenesDe con el REGISTRY REAL junta el fondo del CTA DE CIERRE de /nosotros (campo plano opcional, § NOSOTROS-COMPOSICION-1)', () => {
+  const doc = { nosotrosCierre: { imagenFondo: '/cierre.jpg' } };
+  assert.deepEqual(imagenesDe(doc), ['/cierre.jpg']);
+});
+
 // ── blobsAReemplazar: SET-diff, NO por índice (modo a) ──────────────────────────
 
 test('SWAP: reordenar slots NO borra nada (set-diff) — falla con un diff por índice', () => {

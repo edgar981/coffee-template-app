@@ -76,6 +76,23 @@ test('hero: el mensaje del rechazo nombra el póster, no un "invalid input" gen�
   if (!r.success) assert.match(r.error.issues[0].message, /póster/i);
 });
 
+// ─── NOSOTROS-COMPOSICION-1: la imagen de la historia y el CTA de cierre SOBREVIVEN al parse ─────
+test('nosotrosHistoria: `imagen` SOBREVIVE al parse (si no, zod la descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ nosotrosHistoria: { imagen: '/x.jpg' } });
+  assert.equal(parsed.nosotrosHistoria!.imagen, '/x.jpg');
+});
+
+test('nosotrosCierre: los cinco campos SOBREVIVEN al parse (si no, zod los descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    nosotrosCierre: { titulo: 'T', parrafo: 'P', ctaLabel: 'Ver más', ctaDestino: '/tienda', imagenFondo: '/x.jpg' },
+  });
+  assert.deepEqual(parsed.nosotrosCierre, { titulo: 'T', parrafo: 'P', ctaLabel: 'Ver más', ctaDestino: '/tienda', imagenFondo: '/x.jpg' });
+});
+
+test('nosotrosCierre: un `ctaDestino` fuera del set cerrado se rechaza (a diferencia de ctaLabel/imagenFondo, texto libre)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ nosotrosCierre: { ctaDestino: 'https://ejemplo.com' } }));
+});
+
 // ─── EL DERIVADO (§ Backlog #65-B, FIX 3): modelo ⊆ schema, sin una tercera lista a mano ─────────
 // Los tests de arriba prueban ÍTEM POR ÍTEM lo que sobrevive/se rechaza (la mitad de repeater). Éste
 // cierra la OTRA brecha —la que costó #65-B—: que TODO campo de PRIMER NIVEL del modelo esté en el

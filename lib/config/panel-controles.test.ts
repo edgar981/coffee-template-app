@@ -231,6 +231,29 @@ test('calibración: subscriptionCTA.imagenFondo está controlado, sin exención 
 // (`tarjetaImagen`/`tarjetaTexto` — en el muestrario, el mapa con marcador; NO una integración de
 // mapas) con control DE ENTRADA (`CONTROLADOS_FOOTER_SECCION`, § panel-controles.ts), no como
 // hallazgo tardío. El trinquete de PENDIENTE_PANEL (11) no se mueve.
+// § NOSOTROS-COMPOSICION-1: `nosotrosHistoria` gana `imagen` (§ el campo del REGISTRY) y la página
+// gana la sección `nosotrosCierre` ENTERA, las dos con control DE ENTRADA (§ `NOSOTROS_HISTORIA`/
+// `NOSOTROS_CIERRE` en tienda-secciones.ts), no como hallazgo tardío. El trinquete de
+// `PENDIENTE_PANEL` (11) no se mueve — ninguna entrada nueva.
+test('calibración: nosotrosHistoria.imagen y toda la sección nosotrosCierre están controladas, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('nosotrosHistoria.imagen'));
+  assert.ok(controlados.includes('nosotrosCierre.visible'));
+  assert.ok(controlados.includes('nosotrosCierre.titulo'));
+  assert.ok(controlados.includes('nosotrosCierre.parrafo'));
+  assert.ok(controlados.includes('nosotrosCierre.ctaLabel'));
+  assert.ok(controlados.includes('nosotrosCierre.ctaDestino'));
+  assert.ok(controlados.includes('nosotrosCierre.imagenFondo'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('nosotrosHistoria.imagen'));
+  for (const campo of ['visible', 'titulo', 'parrafo', 'ctaLabel', 'ctaDestino', 'imagenFondo']) {
+    assert.ok(!pendientes.has(`nosotrosCierre.${campo}`));
+  }
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('nosotrosHistoria.imagen'));
+  assert.ok(!huecos.some((c) => c.startsWith('nosotrosCierre.')));
+});
+
 test('calibración: footer.tarjetaImagen/.tarjetaTexto están controlados, sin exención nueva', () => {
   const controlados = camposControladosPorPanel();
   assert.ok(controlados.includes('footer.tarjetaImagen'));
@@ -290,7 +313,7 @@ test('presetSnapshot no aparece en camposLeidosPorTienda (dominio abierto, conta
   assert.ok(!leidos.includes('presetSnapshot'));
 });
 
-// ─── Nayoli sano: con las 15 secciones + 7 metas reales, el chequeo corre sin explotar ─────────────
+// ─── Nayoli sano: con las 16 secciones + 7 metas reales, el chequeo corre sin explotar ─────────────
 
 test('camposLeidosPorTienda() y camposControladosPorPanel() no están vacíos (el chequeo mide algo real)', () => {
   assert.ok(camposLeidosPorTienda().length > 50);

@@ -510,6 +510,14 @@ export interface TestimonialsContent {
 // "página" es una agrupación de CONFIG (§ tienda-secciones `pagina`), no un anidado en el dato—.
 // `ocultable:false` porque el ocultar es a nivel de PÁGINA (`paginas.nosotros.visible`), no de esta
 // sección.
+//
+// `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL, el mismo mecanismo de imagen de sección ya usado en
+// todo el REGISTRY (path estático o URL de Blob, string) — no un tipo nuevo. **Vacío = el render de
+// hoy, byte a byte** (`NosotrosHistoria.tsx` bifurca ANTES de tocar el layout): la página se sentía
+// "cortada" porque terminaba en puro texto seguido del footer; con la foto puesta, la sección
+// compone a DOS COLUMNAS (texto | imagen) en escritorio, apiladas en móvil — la MISMA composición
+// imagen-con-texto con la que abre el about del tema real (medido, § CENSO-NOSOTROS-TEMA-REAL-1,
+// `image_with_text`). Sin ella, Nayoli (y cualquier tenant que no la llene) no cambia un solo byte.
 export interface NosotrosHistoriaContent {
   visible: boolean;
   eyebrow: string;
@@ -517,6 +525,29 @@ export interface NosotrosHistoriaContent {
   parrafo1: string;
   parrafo2: string;
   parrafo3: string;
+  imagen: string;
+}
+
+// EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1): la banda que cierra la página, justo
+// antes del pie — mismo lugar donde el tema real cierra con su CTA final (titular + párrafo + botón,
+// § CENSO-NOSOTROS-TEMA-REAL-1). Reusa la GRAMÁTICA visual de `SubscriptionCTALinea` (imagen a sangre
+// + velo + parallax + gate de movimiento reducido, § NosotrosCierre.tsx) con SU PROPIO contenido: el
+// cierre de /nosotros no puede repetir el texto de la suscripción de la home.
+//
+// NACE VACÍA, TODO OPCIONAL — ninguna sección nueva nace con copy de una vertical (café u otra); el
+// owner la llena desde el panel. `titulo` es el ÚNICO gate de hide-on-empty: sin él la banda NO se
+// monta (`NosotrosCierre.tsx`), así que ningún tenant que no la llene cambia un byte, Nayoli incluida.
+// `ctaLabel`/`ctaDestino` son el par de un botón opcional (mismo patrón que
+// `subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino` — `resolverCtaSeccion` decide el
+// href, `null` = sin botón). `imagenFondo` es el ÚNICO blob de la sección — vacío = fondo sólido
+// (`--sf-tinta-2`, la misma OSCURA canónica que la suscripción cierra la home).
+export interface NosotrosCierreContent {
+  visible: boolean;
+  titulo: string;
+  parrafo: string;
+  ctaLabel: string;
+  ctaDestino: string;
+  imagenFondo: string;
 }
 
 // La GALERÍA de /nosotros: la SEGUNDA sección REPEATER (Testimonios fue la primera), y la que
@@ -1155,6 +1186,7 @@ export interface SiteContentData {
   testimonials: TestimonialsContent;
   nosotrosHistoria: NosotrosHistoriaContent;
   nosotrosGaleria: NosotrosGaleriaContent;
+  nosotrosCierre: NosotrosCierreContent;
   suscripcionPlanes: SuscripcionPlanesContent;
   suscripcionPasos: SuscripcionPasosContent;
   suscripcionFaq: SuscripcionFaqContent;
@@ -1224,15 +1256,16 @@ export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = BandaId[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
-// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1) — GEMELA de `BANDA_IDS`/`OrdenContent`
-// de arriba, para la OTRA página que compone bandas: `app/(storefront)/nosotros/page.tsx`. Hoy son
-// DOS bandas (la historia larga + la galería), en el MISMO orden que esa página monta desde antes de
-// este slice (dos `import`s fijos). A DIFERENCIA de `orden` (home), acá NO hay campo en
-// `SiteContentData` que persista una secuencia elegida por el owner — no hay fila que reordenar
-// todavía, ni control en el panel para hacerlo (agregar ese campo y su control es su PROPIO slice,
-// § el spec de este). Por eso NO es dominio de `SeccionKey` ni vive dentro de `SiteContentData`: es
-// sólo el conjunto cerrado de ids que la página conoce.
-export const BANDA_NOSOTROS_IDS = ['nosotrosHistoria', 'nosotrosGaleria'] as const;
+// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1)
+// — GEMELA de `BANDA_IDS`/`OrdenContent` de arriba, para la OTRA página que compone bandas:
+// `app/(storefront)/nosotros/page.tsx`. Son TRES bandas —la historia larga, la galería, y el CTA de
+// cierre, en ese orden (el cierre AL FINAL, justo antes del pie, § NosotrosCierre.tsx)—. A
+// DIFERENCIA de `orden` (home), acá NO hay campo en `SiteContentData` que persista una secuencia
+// elegida por el owner — no hay fila que reordenar todavía, ni control en el panel para hacerlo
+// (agregar ese campo y su control es su PROPIO slice, ya anotado en su momento). Por eso el ARRAY EN
+// SÍ no vive dentro de `SiteContentData` (es sólo el conjunto cerrado de ids que la página conoce),
+// aunque cada id que nombra SÍ es una sección real de `SiteContentData`/`SeccionKey`.
+export const BANDA_NOSOTROS_IDS = ['nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre'] as const;
 export type BandaNosotrosId = typeof BANDA_NOSOTROS_IDS[number];
 
 // LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
@@ -1525,6 +1558,8 @@ export const DEFAULTS: SiteContentData = {
     parrafo2:
       'Hoy seguimos con la misma idea: que elegir, pedir y recibir sea simple, y que cada persona que confía en nosotros sienta que valió la pena.',
     parrafo3: '',
+    // Vacío → composición de una sola columna, byte-idéntica a antes de § NOSOTROS-COMPOSICION-1.
+    imagen: '',
   },
   // La galería de /nosotros. Encabezado con defaults de COPY (se muestran sólo cuando hay fotos, por
   // hide-on-empty); `items` VACÍO —las fotos de la finca son DATO del owner, no hay imagen que
@@ -1534,6 +1569,17 @@ export const DEFAULTS: SiteContentData = {
     eyebrow: 'Galería',
     titulo: 'Nuestro trabajo en imágenes',
     items: [],
+  },
+  // El CTA de cierre de /nosotros (§ NOSOTROS-COMPOSICION-1). NACE VACÍO — sin `titulo` la banda no
+  // se monta (hide-on-empty, § NosotrosCierre.tsx), así que ningún tenant que no la llene cambia un
+  // byte, Nayoli incluida.
+  nosotrosCierre: {
+    visible: true,
+    titulo: '',
+    parrafo: '',
+    ctaLabel: '',
+    ctaDestino: '',
+    imagenFondo: '',
   },
   // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
   // byte: sin fila, /suscripciones y el teaser de la home quedan IDÉNTICOS. Precios VACÍOS (Nayoli no
@@ -2111,12 +2157,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   nosotrosHistoria: {
     label: 'Historia',
     ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.nosotros.visible), no de esta sección
+    // `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL — vacío = la composición de una sola columna de
+    // siempre; con foto, la sección pasa a imagen-con-texto (§ NosotrosHistoria.tsx).
+    imagenes: ['imagen'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
       parrafo1: 'requerido',
       parrafo2: 'opcional',
       parrafo3: 'opcional',
+      imagen: 'opcional',
     },
   },
   nosotrosGaleria: {
@@ -2138,6 +2188,23 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
         url: 'requerido',
         alt: 'opcional',
       },
+    },
+  },
+  // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1). `ocultable: true` + hide-on-empty por
+  // `titulo` (el gate vive en `NosotrosCierre.tsx`, no en `seccionEsVisible` — no es un repeater, así
+  // que esa función no lo hace sola; el componente chequea `titulo.trim()` además del toggle). TODO
+  // opcional, nace vacío: ninguna sección nueva nace con copy de una vertical. `imagenFondo` es el
+  // ÚNICO blob — vacío = fondo sólido, sólo esta sección lo lee.
+  nosotrosCierre: {
+    label: 'CTA de cierre',
+    ocultable: true,
+    imagenes: ['imagenFondo'],
+    campos: {
+      titulo: 'opcional',
+      parrafo: 'opcional',
+      ctaLabel: 'opcional',
+      ctaDestino: 'opcional',
+      imagenFondo: 'opcional',
     },
   },
   // Los PLANES de /suscripciones. Encabezado + "Elige tu plan" + 4 slots de plan (1 requerido, 2-4

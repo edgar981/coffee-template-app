@@ -5,6 +5,7 @@ import { getSiteContent } from "@/lib/config/site-content";
 import { getSiteSettings } from "@/lib/config/site-settings";
 import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria";
 import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
+import NosotrosCierre from "@/components/storefront/nosotros/NosotrosCierre";
 import { resolverOrdenNosotros, type BandaNosotrosId } from "@/lib/config/site-content-defaults";
 
 // Sólo "Nosotros": el layout del storefront aplica el template `%s · {nombre}` desde
@@ -23,8 +24,10 @@ export const metadata: Metadata = { title: "Nosotros" };
 // en `lib/` — mismo sitio que la home) es el REGISTRO bandaId→render, exhaustivo por TIPO
 // (`Record<BandaNosotrosId, …>`: agregar un id a `BANDA_NOSOTROS_IDS` sin registrarlo acá rompe el
 // typecheck). `nosotrosGaleria` es la ÚNICA banda con un prop extra (`negocio`), igual que
-// `presentaciones` en la home. REFACTOR PURO: compone exactamente las mismas dos bandas, en el mismo
-// orden — la salida es byte-idéntica para TODO tenant (afirmado en `lib/config/nosotros-bandas.test.ts`).
+// `presentaciones` en la home. `nosotrosCierre` (§ NOSOTROS-COMPOSICION-1) cierra la página, al final
+// —justo antes del pie global del layout—: es hide-on-empty (§ NosotrosCierre.tsx), así que un tenant
+// que no la llene no ve nada nuevo — la salida sigue byte-idéntica para todo tenant que no edite
+// nada (afirmado en `lib/config/nosotros-bandas.test.ts`).
 export default async function NosotrosPage() {
   const content = await getSiteContent();
   if (!content.paginas.nosotros.visible) redirect("/");
@@ -36,6 +39,7 @@ export default async function NosotrosPage() {
   const BANDAS: Record<BandaNosotrosId, () => React.ReactNode> = {
     nosotrosHistoria: () => <NosotrosHistoria />,
     nosotrosGaleria: () => <NosotrosGaleria negocio={settings.nombre} />,
+    nosotrosCierre: () => <NosotrosCierre />,
   };
 
   // El provider de SiteContent lo monta el layout del storefront → las secciones leen el contenido.

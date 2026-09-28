@@ -12,6 +12,7 @@ import TestimonialSection from '@/components/storefront/home/TestimonialSection'
 import Spotlight from '@/components/storefront/home/Spotlight';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
+import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
@@ -93,6 +94,14 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.
   nosotrosGaleria: NosotrosGaleria,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § NOSOTROS-COMPOSICION-1 (mismo patrón que 'origen'/
+  // 'spotlight' arriba): sumar `'nosotrosCierre'` a `SeccionVista` (tienda-secciones.ts) para que la
+  // banda "CTA de cierre" pueda entrar a `SECCIONES_TIENDA` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea — `tsc` lo rechaza. `NosotrosCierre`
+  // toma sólo `style` opcional (con default `{}`) → asignable a `ComponentType`, mismo patrón que
+  // `Spotlight`/`Origen`. Con `nosotrosCierre.titulo` vacío (el default; nace hide-on-empty) el
+  // componente devuelve `null` — la vista previa queda en blanco, no rota.
+  nosotrosCierre: NosotrosCierre,
   // SuscripcionPlanes toma `whatsapp` opcional para el CTA; en el preview va sin prop → el CTA se oculta
   // (un `wa.me/` sin número es un botón muerto). Todo-opcional → asignable a ComponentType.
   suscripcionPlanes: SuscripcionPlanes,

@@ -178,6 +178,39 @@ test('QUITAR una foto del BORRADOR NO borra el blob mientras sigue en lo PUBLICA
   assert.deepEqual(p.blobsABorrar, ['B']);
 });
 
+// § NOSOTROS-COMPOSICION-1: las dos imágenes NUEVAS de /nosotros por el WRITE REAL (no sólo la
+// función pura de `site-content-blobs.test.ts`) — campos PLANOS de sección, como `hero.imagen`.
+
+test('PUBLICAR nosotrosHistoria (imagen opcional) borra la vieja publicada, ya sin referencias', async () => {
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { nosotrosHistoria: { imagen: 'A.jpg', titulo: 'x' } },
+      borrador: { nosotrosHistoria: { imagen: 'B.jpg', titulo: 'x' } },
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('nosotrosHistoria');
+  assert.deepEqual(blobsABorrar, ['A.jpg']); // A ya sin referencias tras publicar B
+});
+
+test('GUARDAR nosotrosHistoria con una imagen nueva NO borra la publicada (aún viva)', async () => {
+  await prisma.siteContent.create({ data: { id: 'default', content: { nosotrosHistoria: { imagen: 'A.jpg', titulo: 'x' } } } });
+  const { blobsABorrar } = await guardarBorrador({ nosotrosHistoria: { imagen: 'B.jpg', titulo: 'x' } });
+  assert.deepEqual(blobsABorrar, []); // A vive en publicado; B recién entra al borrador
+});
+
+test('PUBLICAR nosotrosCierre (imagenFondo opcional) borra la vieja publicada, ya sin referencias', async () => {
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { nosotrosCierre: { imagenFondo: 'A.jpg', titulo: 'x' } },
+      borrador: { nosotrosCierre: { imagenFondo: 'B.jpg', titulo: 'x' } },
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('nosotrosCierre');
+  assert.deepEqual(blobsABorrar, ['A.jpg']); // A ya sin referencias tras publicar B
+});
+
 test('PUBLICAR brandStory con un SWAP de posiciones entre las 4 imágenes NO borra ninguna (set-diff, no índice)', async () => {
   await prisma.siteContent.create({
     data: {

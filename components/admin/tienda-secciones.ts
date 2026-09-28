@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` — el path crudo como label (no hay
@@ -564,15 +564,16 @@ const SPOTLIGHT: SeccionConfig = {
   ],
 };
 
-// La página /nosotros: la historia larga (sólo texto; la galería variable es su propia sección,
-// tanda 2). `ocultable:false` — el ocultar es a nivel de PÁGINA (el toggle de encender/apagar), no
-// de esta sección.
+// La página /nosotros: la historia larga (la galería variable es su propia sección, tanda 2).
+// `ocultable:false` — el ocultar es a nivel de PÁGINA (el toggle de encender/apagar), no de esta
+// sección. `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL — vacía = la sección de una sola columna de
+// siempre; con foto, compone a dos columnas (§ NosotrosHistoria.tsx).
 const NOSOTROS_HISTORIA: SeccionConfig = {
   seccion: 'nosotrosHistoria',
   pagina: 'nosotros',
   titulo: 'Historia',
   ocultable: false,
-  imagenes: [],
+  imagenes: [{ name: 'imagen', label: 'Imagen (opcional)' }],
   campos: [
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
@@ -609,6 +610,24 @@ const NOSOTROS_GALERIA: SeccionConfig = {
       { name: 'alt', label: 'Descripción', tipo: 'texto', opcional: true, resumen: 'principal', hint: 'Describe la foto para quien no puede verla. Vacío: se usa una descripción genérica.' },
     ],
   },
+};
+
+// EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1): la banda final, antes del pie — titular +
+// párrafo + un botón + imagen de fondo opcional, reusando la GRAMÁTICA visual de
+// `SubscriptionCTALinea` con su propio contenido (§ NosotrosCierre.tsx). `titulo` es el gate de
+// hide-on-empty (vacío → la banda no se muestra); el hint lo dice donde el operador lo ve.
+const NOSOTROS_CIERRE: SeccionConfig = {
+  seccion: 'nosotrosCierre',
+  pagina: 'nosotros',
+  titulo: 'CTA de cierre',
+  ocultable: true,
+  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)' }],
+  campos: [
+    { name: 'titulo',     label: 'Titular',         opcional: true, hint: 'Vacío: esta banda NO se muestra.' },
+    { name: 'parrafo',    label: 'Párrafo',         opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+    { name: 'ctaLabel',   label: 'Botón',           opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+  ],
 };
 
 // Los PLANES de /suscripciones (§ Backlog #49, opción 1). Encabezado + "Elige tu plan" (con el
@@ -744,4 +763,4 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // montada en el orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, §
 // SPOTLIGHT-BANDA-1) — no hay una posición "correcta" que replicar, así que se agrega al final para
 // no sugerir un orden que el storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

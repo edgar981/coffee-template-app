@@ -218,7 +218,8 @@ const testimonialsEditableSchema = z.object({
   items: z.array(testimonialItemSchema).optional(),
 });
 
-// /nosotros — la historia larga. Sólo texto (la galería es su propia sección, abajo).
+// /nosotros — la historia larga. `imagen` (§ NOSOTROS-COMPOSICION-1) es OPCIONAL, string (path o
+// URL de Blob, como cualquier otra imagen de sección) — vacía = la composición de una sola columna.
 const nosotrosHistoriaEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -226,6 +227,7 @@ const nosotrosHistoriaEditableSchema = z.object({
   parrafo1: z.string().optional(),
   parrafo2: z.string().optional(),
   parrafo3: z.string().optional(),
+  imagen: z.string().optional(),
 });
 
 // /nosotros — la galería (repeater con tipo imagen). Encabezado opcional + un ARRAY de ítems `{ url,
@@ -246,6 +248,20 @@ const nosotrosGaleriaEditableSchema = z.object({
   eyebrow: z.string().optional(),
   titulo: z.string().optional(),
   items: z.array(galeriaItemSchema).optional(),
+});
+
+// /nosotros — el CTA de cierre (§ NOSOTROS-COMPOSICION-1). Todo opcional/SOFT, como el resto: el
+// resolver decide (todos los campos son 'opcional' en REGISTRY, así que vacío queda vacío, nunca
+// cae a un default fabricado). `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`, mismo criterio que
+// `subscriptionCTAEditableSchema.ctaSecundarioDestino` — el CTA puede llegar apagado, sin label ni
+// destino. `imagenFondo` es string (path o Blob), como `subscriptionCTA.imagenFondo`.
+const nosotrosCierreEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  titulo: z.string().optional(),
+  parrafo: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  imagenFondo: z.string().optional(),
 });
 
 // /suscripciones — los PLANES como dato (§ Backlog #49). Encabezado + "Elige tu plan" + `destacadoSlot`
@@ -541,6 +557,7 @@ export const siteContentEditableSchema = z.object({
   testimonials: testimonialsEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
+  nosotrosCierre: nosotrosCierreEditableSchema.optional(),
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),

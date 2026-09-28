@@ -27007,3 +27007,243 @@ dispatch, no mergea.
 `CORTE-HERO-MARQUEE-RONDA-5-1`.
 
 **Cierra `CROMO-NAV-FILETE-1`.**
+
+## 2026-09-27 — `/nosotros` deja de verse cortada: la historia gana una imagen opcional, la página gana un CTA de cierre (`NOSOTROS-COMPOSICION-1`)
+
+**Ledger-id:** `NOSOTROS-COMPOSICION-1`. **Repo:** coffee-template-app. **Base:** `main` (policy:
+current-main). **`writes:` yes.** **`touches:`** `app/(storefront)/nosotros/page.tsx`,
+`components/storefront/nosotros/NosotrosHistoria.tsx`,
+`components/storefront/nosotros/NosotrosCierre.tsx`, `lib/config/site-content-schema.ts`,
+`lib/config/site-content-schema.test.ts`, `lib/config/site-content-defaults.ts`,
+`lib/config/site-content-defaults.test.ts`, `lib/config/site-content-blobs.test.ts`,
+`lib/config/nosotros-bandas.test.ts`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `components/admin/tienda-secciones.ts`,
+`components/admin/VistaTiendaEnVivo.tsx`, `tests/integracion/borrador-endpoints.test.ts`,
+`DECISIONS.md`. **Observed-report:** `CENSO-NOSOTROS-TEMA-REAL-1` (§ arriba). **Continúa la rama**
+`slice/corte-reescritura-prototipo-1`. **Aprobado por el owner** ("En nosotros esperaba que no se
+viera cortada... que tuviera una buena estructura la página", 2026-09-26; confirmado 2026-09-27 al
+ordenar seguir con /nosotros tras los ajustes del hero).
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `f3c4e79` (`CROMO-NAV-FILETE-1`, tope de `slice/corte-reescritura-
+  prototipo-1`) — **medido** (`git status`, `git log --oneline -1`).
+- `app/(storefront)/nosotros/page.tsx` montaba exactamente `nosotrosHistoria` + `nosotrosGaleria`
+  vía `resolverOrdenNosotros()`/`BANDAS` (§ `NOSOTROS-SISTEMA-DE-BANDAS-1`, arriba) — **medido**
+  (lectura completa del archivo antes de tocarlo).
+- `NosotrosHistoria.tsx` rendía SÓLO texto (eyebrow/titulo/parrafo1-3, una columna centrada,
+  `max-w-3xl`) — **medido** (lectura completa).
+- `SubscriptionCTALinea.tsx` es el patrón más cercano a un CTA de cierre en la base (franja +
+  imagen de fondo opcional + velo + parallax + gate de movimiento reducido) — **medido**, citado ya
+  por `CENSO-NOSOTROS-TEMA-REAL-1`.
+- `PENDIENTE_PANEL.length` = **11** antes de este slice — **medido** (`npx tsx --test
+  lib/config/panel-controles.test.ts`, el test del trinquete en verde contra `<= 11`).
+
+### 1 · La historia gana una imagen — composición imagen-con-texto, bifurcada ANTES de tocar el layout
+
+`NosotrosHistoriaContent` gana `imagen: string` (OPCIONAL — `REGISTRY.nosotrosHistoria.campos.
+imagen = 'opcional'`, `REGISTRY.nosotrosHistoria.imagenes = ['imagen']` para el borrado de blobs).
+`DEFAULTS.nosotrosHistoria.imagen = ''`.
+
+**`NosotrosHistoria.tsx` bifurca en dos ramas de render, no en un `if` dentro del mismo árbol:** el
+bloque de texto (eyebrow/h1/párrafos) se extrae UNA vez a una variable `texto` y se reusa en las
+dos ramas — **sin imagen, la rama devuelve EXACTAMENTE el JSX de antes de este slice** (mismo
+`max-w-3xl`, mismo wrapper, ninguna clase nueva); **con imagen**, compone a `grid-cols-1
+lg:grid-cols-2` (apilado en móvil, dos columnas en escritorio — la MISMA composición image_with_text
+con la que abre el about del tema real, § `CENSO-NOSOTROS-TEMA-REAL-1`), imagen a `aspect-[3/4]`
+(mismo patrón que `Origen.tsx`), `alt=""` decorativo (mismo criterio que `marquesina.imagen`: el
+texto adjunto ya cuenta la historia). Byte-identidad afirmada por EJECUCIÓN, no por lectura: la
+vara 1 (`renderToStaticMarkup` en memoria, `lib/config/nosotros-bandas.test.ts`) y la vara 2
+(`verificar:nayoli:visual`, § el gate abajo) las dos con `imagen: ''`.
+
+**El control del panel nace en el mismo commit**: `NOSOTROS_HISTORIA.imagenes` gana `{ name:
+'imagen', label: 'Imagen (opcional)' }` en `tienda-secciones.ts` — el editor genérico
+(`TiendaSeccionEditor`) lo renderiza solo, sin tocar `VistaTiendaEnVivo.tsx` (la banda ya estaba
+registrada ahí desde `NOSOTROS-SISTEMA-DE-BANDAS-1`).
+
+### 2 · El CTA de cierre — banda NUEVA, `nosotrosCierre`, hide-on-empty por `titulo`
+
+**Nueva sección** `nosotrosCierre` (`NosotrosCierreContent`: `visible`, `titulo`, `parrafo`,
+`ctaLabel`, `ctaDestino`, `imagenFondo`) — TODOS los campos `'opcional'` en el REGISTRY, y
+`DEFAULTS.nosotrosCierre` nace CON TODO VACÍO (`titulo: ''`, etc.): **ninguna sección nueva nace con
+copy de una vertical** (café u otra) — el owner la llena desde el panel, como testimonials/
+nosotrosGaleria nacen con `items: []`.
+
+**El componente `NosotrosCierre.tsx` REUSA la GRAMÁTICA visual de `SubscriptionCTALinea.tsx`**
+(imagen a sangre completa + velo degradado con `--sf-velo` + parallax vía `useProgresoScroll` + el
+gate de movimiento reducido no-negociable `estatico = preview || !!reduce`), **no su contenido**:
+el cierre de /nosotros tiene su propio `titulo`/`parrafo`/botón — nunca el texto de la suscripción
+de la home. La composición es CENTRADA (`max-w-3xl mx-auto text-center`), no la franja
+horizontal de `SubscriptionCTALinea` — porque este cierre lleva un párrafo además del titular y el
+botón, y una franja de una línea no lo aguanta (mismo motivo que esa sección declaró para NO
+renderizar su propio `subtitulo`/bullets). Sin imagen: fondo sólido `--sf-tinta-2` (la misma OSCURA
+canónica con la que la suscripción cierra la home).
+
+**Hide-on-empty por `titulo`, NO por `seccionEsVisible` sola** — esa función sólo hace hide-on-empty
+para secciones con `repeater` (§ `site-content-defaults.ts`); ésta es de campos PLANOS, así que el
+gate de contenido vive en el COMPONENTE, mismo patrón que `Spotlight.tsx` (`if
+(!seccionEsVisible(...)) return null; if (!producto) return null;`): `if
+(!seccionEsVisible(REGISTRY.nosotrosCierre, nosotrosCierre)) return null; if
+(nosotrosCierre.titulo.trim() === '') return null;`. Con `titulo` vacío (el default, para todo
+tenant que no la llene) la banda NO se monta — ningún byte nuevo para nadie.
+
+**El botón reusa `resolverCtaSeccion`** (`ctaLabel`/`ctaDestino`, MISMO patrón que
+`subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino` — `null` = sin botón, preferir callar a
+un link roto). `ctaDestino` es del SET CERRADO `MENU_CTA_DESTINOS` en el schema editable (el WRITE
+es más estricto que el loader SOFT, mismo criterio que `brandStory.ctaDestino`).
+
+**`BANDA_NOSOTROS_IDS` gana el tercer id, AL FINAL**: `['nosotrosHistoria', 'nosotrosGaleria',
+'nosotrosCierre']` — `resolverOrdenNosotros()` (sin cambio de firma; devuelve el array completo)
+monta el cierre justo antes del pie global del layout del storefront. `page.tsx` registra
+`nosotrosCierre: () => <NosotrosCierre />` en su `Record<BandaNosotrosId, …>` exhaustivo por TIPO
+(agregar un id sin registrarlo ahí rompe `tsc`).
+
+**El control del panel nace en el mismo commit, sección ENTERA**: `NOSOTROS_CIERRE` en
+`tienda-secciones.ts` (`ocultable: true`, `imagenes: [{name:'imagenFondo', …}]`, los cuatro campos
+de texto con sus hints — el de `titulo` dice explícitamente "Vacío: esta banda NO se muestra."),
+sumada a `SECCIONES_TIENDA` y a `SeccionVista`. `VistaTiendaEnVivo.tsx` gana la entrada
+`nosotrosCierre: NosotrosCierre` en su `Record<SeccionVista, ComponentType>` exhaustivo — sin ella
+`tsc` rechaza el archivo (consecuencia mecánica de sumar el id a `SeccionVista`, mismo patrón que
+`origen`/`spotlight` documentan ahí mismo).
+
+**`lib/config/panel-controles.ts` NO SE EDITÓ** — estaba en `touches:` porque el spec no podía saber
+de antemano si haría falta, pero el chequeo (`camposLeidosPorTienda`/`camposControladosPorPanel`) se
+DERIVA por completo de `REGISTRY` + `SECCIONES_TIENDA`: con las dos fuentes actualizadas, las dos
+mitades del chequeo crecieron solas. **`PENDIENTE_PANEL` sigue en 11 entradas — CERO exenciones
+nuevas**: los seis campos de `nosotrosCierre` más `nosotrosHistoria.imagen` nacen CONTROLADOS,
+nunca pasaron por la lista. Afirmado con una calibración nueva en `panel-controles.test.ts`
+("nosotrosHistoria.imagen y toda la sección nosotrosCierre están controladas, sin exención nueva")
+y con el test general "SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de
+PENDIENTE_PANEL", que sigue en verde sin tocarse.
+
+### 3 · Los dos blobs nuevos, cableados end-to-end (no sólo la función pura)
+
+`REGISTRY.nosotrosHistoria.imagenes = ['imagen']` y `REGISTRY.nosotrosCierre.imagenes =
+['imagenFondo']` — campos PLANOS de sección (no de ítem de repeater), así que `imagenesDe`
+(`site-content-blobs.ts`) los recoge SIN cambios de código, derivado del REGISTRY. Afirmado en TRES
+capas: la función pura contra el REGISTRY real (`site-content-blobs.test.ts`, dos tests nuevos), el
+test derivado "todo campo de `imagenes` existe en `DEFAULTS[seccion]`" (`site-content-defaults.
+test.ts`, sin tocar — cubre las dos entradas nuevas solo), y el WRITE real contra Postgres
+(`tests/integracion/borrador-endpoints.test.ts`, tres tests nuevos: publicar `nosotrosHistoria`
+borra el blob viejo reemplazado; guardar un borrador con imagen nueva NO borra la publicada, aún
+viva; publicar `nosotrosCierre` borra el `imagenFondo` viejo reemplazado).
+
+### 4 · El schema editable — los dos campos/sección declarados, con el derivado en verde
+
+`nosotrosHistoriaEditableSchema` gana `imagen: z.string().optional()`. Nueva
+`nosotrosCierreEditableSchema` (los cinco campos, `ctaDestino` del `z.union([z.enum(
+MENU_CTA_DESTINOS), z.literal('')])` — mismo patrón que el resto de los CTAs de sección),
+registrada en `siteContentEditableSchema.nosotrosCierre`. El test DERIVADO "todo campo del MODELO
+está en el schema editable" (`site-content-schema.test.ts`, sin tocar su lógica) confirma que
+ninguno de los dos strippea en silencio — más tres tests nuevos que afirman el parse directo
+(`nosotrosHistoria.imagen` sobrevive; los cinco campos de `nosotrosCierre` sobreviven; un
+`ctaDestino` fuera del set cerrado se rechaza).
+
+### 5 · Cómo se VE esto en el muestrario — el owner tiene que cargar contenido desde el panel
+
+**Con los campos vacíos (el estado de HOY para todo tenant, Nayoli incluida), `/nosotros` rinde
+EXACTAMENTE igual que antes de este slice.** Eso es el resultado esperado, no un defecto: la
+imagen de la historia y el CTA de cierre son HIDE-ON-EMPTY por diseño (§1/§2). **Para verlos en el
+muestrario, el owner tiene que entrar a `/admin/tienda` → pestaña Nosotros y cargar una imagen en
+"Historia" y un titular en "CTA de cierre"** — sin ese paso, no hay nada nuevo que mirar en la
+tienda, y eso es correcto.
+
+### El gate, medido sobre el ÁRBOL FINAL de este slice
+
+- `npx tsc --noEmit` → **0 errores.**
+- `npm test` → **2363/2363** (piso 2348 + 15 nuevos: 6 en `site-content-defaults.test.ts`
+  [2 de `nosotrosHistoria.imagen`, 4 de `nosotrosCierre`], 3 en `site-content-schema.test.ts`, 2 en
+  `site-content-blobs.test.ts`, 3 en `nosotros-bandas.test.ts`, 1 en `panel-controles.test.ts` — 15
+  exacto). Cero tests quitados ni modificados fuera de la adición/ampliación de comentarios.
+- `npm run test:integracion` → **240/240** (piso 237 + 3 nuevos en `borrador-endpoints.test.ts`).
+- `npm run verificar:nayoli:visual` → **0px en las 8 mediciones**: home 0/4608000 · tienda
+  0/2433280 · producto 0/2535680 · checkout 0/1152000 · **nosotros 0/1152000** · suscripciones
+  0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870 — MEDIDO contra el HEAD real de
+  `main` en un `git worktree` aparte, con Postgres efímero + seed canónico + 5 productos sintéticos,
+  `next build`+`next start` de las dos ramas contra la misma base, Playwright headless
+  determinista.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, § arriba). `app/(storefront)/nosotros/page.tsx` cae en la frase
+canónica de Tier 1 (`app/(storefront)/`, subárbol completo); `lib/config/site-content-schema.ts` y
+`lib/config/site-content-defaults.ts` están NOMBRADOS como archivos sueltos en esa misma frase. El
+resto de `touches:` (los `.test.ts`, `tienda-secciones.ts`, `VistaTiendaEnVivo.tsx`) se escribe
+igual, por el mismo criterio que `MARQUESINA-BANDA-1`/`NOSOTROS-SISTEMA-DE-BANDAS-1`: el gate de
+Tier 1 protege por SUPERFICIE tocada en el diff completo, no exige que cada archivo esté listado
+individualmente.
+
+`schema`/`cross-repo-contract`: NINGUNA de las dos aplica. Sin cambios a
+`packages/core/prisma/schema.prisma`, sin migración — los dos campos nuevos son claves más del
+mismo `SiteContent.content` (Postgres `Json`), resueltas SOFT, sin tocar el modelo de datos
+relacional. Sin contrato cross-repo.
+
+`customer-bytes`: **`changed: true`.** Aunque Nayoli mide 0px (§ arriba), `NosotrosHistoria.tsx` y
+`NosotrosCierre.tsx` ganan ramas de render NUEVAS que, una vez que el owner cargue contenido, SÍ
+producen bytes nuevos para el visitante — misma clasificación que `MUESTRARIO-CTA-BANNER-FOTO-1`
+(que también midió 0px para Nayoli y aun así se clasificó `customer-bytes`, porque la CAPACIDAD es
+nueva, no el default). `strings:` los textos NUEVOS que el owner puede llegar a escribir no
+existen todavía en ningún lado (nacen vacíos) — lo único "visible" hoy, con contenido vacío, es
+CERO bytes; el chip de "cambia" es sobre la CAPACIDAD, no sobre un string concreto ya escrito.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff tocó: `NosotrosHistoriaContent.imagen`, `NosotrosCierreContent`
+(nuevo), `NosotrosCierre` (componente nuevo), `NosotrosHistoria.tsx` (comportamiento extendido),
+`BANDA_NOSOTROS_IDS` (tercer id), `REGISTRY.nosotrosHistoria`/`REGISTRY.nosotrosCierre`,
+`SeccionVista` (nuevo miembro), `SECCIONES_TIENDA`/`NOSOTROS_CIERRE` (tienda-secciones.ts),
+`VistaTiendaEnVivo.tsx` (nueva entrada), `siteContentEditableSchema`/`nosotrosCierreEditableSchema`,
+`app/(storefront)/nosotros/page.tsx`.
+
+Grep de cada uno contra `CLAUDE.md`:
+
+- `NosotrosCierre`, `NosotrosCierreContent`, `BANDA_NOSOTROS_IDS`, `resolverOrdenNosotros`,
+  `nosotrosCierre`, `SeccionVista`, `nosotrosCierreEditableSchema` → **cero resultados** en los
+  siete. `CLAUDE.md` no describía nada de esto (no podía: son símbolos/valores nuevos).
+- `nosotrosHistoria` → **dos apariciones**, ninguna afectada: la línea del censo de
+  `site-content-schema.test.ts` ("hero/brandStory/… /nosotrosHistoria/nosotrosGaleria+item
+  coinciden campo por campo con su modelo") describe una medición HISTÓRICA de una tanda anterior —
+  sigue siendo cierta como registro de esa medición, y el test derivado que la sucede sigue en
+  verde con el campo nuevo (confirmado, § arriba); y la línea de "páginas por CONFIG... es una
+  sección MÁS del mismo `content` JSON (`nosotrosHistoria`)" — sigue siendo literalmente cierto.
+- `NosotrosGaleria` → **dos apariciones**, ninguna afectada: describen el prop `negocio` y el
+  montaje en el árbol admin — mecanismos que este diff no toca.
+- `SECCIONES_TIENDA` → **una aparición** ("`TiendaPaginas` agrupa `SECCIONES_TIENDA` por página") —
+  sigue siendo cierto; `nosotrosCierre` se agrupa bajo `pagina: 'nosotros'` como cualquier otra.
+- `VistaTiendaEnVivo` → **cinco apariciones**, todas describiendo el MECANISMO (vista en vivo,
+  componentes reales, `SiteContentProvider`, escala) — ninguna nombra el conjunto cerrado de
+  secciones que cubre, así que sumar una entrada no las falsea.
+- `site-content-schema` → **cinco apariciones**: la línea 39 (lista de superficies Tier 1, sigue
+  correcta — el archivo sigue siendo Tier 1); las demás describen el mecanismo "modelo ⊆ schema,
+  derivado" — sigue en verde, confirmado por el test derivado sin tocarse.
+- `site-content-defaults` → **diez apariciones**: nueve describen el mecanismo o citan otro archivo
+  sin número de línea — ninguna afectada. **La restante (línea ~1919) cita
+  `lib/config/site-content-defaults.ts:411` para `hero.titulo`** — MEDIDO contra el árbol de ESTE
+  commit: la línea 411 no es (ni era, en el HEAD previo a este slice) `hero.titulo` — es parte del
+  comentario de cabecera de `SpotlightContent`. **Es una desviación PREEXISTENTE, no causada por
+  este diff**: mis inserciones en este archivo empiezan en la línea original 510 (§ los hunks del
+  diff), muy después de la 411, así que el número no se movió por este slice. Se deja como
+  `open_followup` (abajo) para que alguien con `CLAUDE.md` en `touches:` lo corrija — no se toca
+  acá, porque `CLAUDE.md` no está en `touches:` de este slice.
+- `panel-controles`, `PENDIENTE_PANEL` → **cero resultados** en `CLAUDE.md` (esa doctrina vive sólo
+  en el código y en este libro, § `panel-controles.ts`) — nada que verificar.
+
+**Nada que corregir dentro de `touches:`; un solo hallazgo preexistente, anotado como
+`open_followup`.**
+
+### Verdicto
+
+**COMPOSICIÓN CONSTRUIDA, gate verde, Nayoli byte-idéntica.** `/nosotros` deja de terminar en un
+bloque de texto seguido del footer: la historia puede llevar una foto (imagen-con-texto, apilada en
+móvil) y la página cierra con un CTA propio antes del pie — las dos piezas HIDE-ON-EMPTY, así que
+ningún tenant que no las llene ve un byte distinto (medido, 0px). El control del panel nace en el
+mismo commit para las dos capacidades, sin una sola exención nueva en `PENDIENTE_PANEL` (sigue en
+11). **Para VERLO en el muestrario, el owner tiene que cargar contenido desde `/admin/tienda` (§5):
+con los campos vacíos, la página se ve igual que hoy, por diseño.**
+
+Por instrucción del dispatch, este slice PARA en `AWAITING_APPROVAL` y NO mergea.
+`stopped_on: [customer-bytes]` — nueva CAPACIDAD de render (§ arriba), aunque Nayoli mida 0px hoy.
+Sin `schema`, sin `cross-repo-contract`. El commit queda en la rama a la espera del merge gateado
+del orquestador.
+
+**Cierra `NOSOTROS-COMPOSICION-1`.**
