@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -26,6 +27,7 @@ import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { categoriasDelCatalogo } from "@/lib/productos/categorias";
 import { buscarProductos } from "@/lib/productos/buscar";
+import { esClickAfuera } from "@/lib/cierre-afuera";
 
 import { formatCOP } from "@duna/core/utils";
 
@@ -33,11 +35,18 @@ interface NavSearchProps {
   isOpen: boolean;
 
   onClose: () => void;
+
+  // El botón que abre el panel (§ NAV-CIERRE-CLICK-AFUERA-1): vive en `StoreNav.tsx`, fuera de
+  // este componente, así que llega por ref — sin ella, el click-afuera lo trataría como "afuera"
+  // y tocar el disparador cerraría el panel Y lo reabriría en el mismo gesto (su propio `onClick`
+  // sigue llamando `setSearchOpen(true)`).
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 export default function NavSearch({
   isOpen,
   onClose,
+  triggerRef,
 }: NavSearchProps) {
   const [query, setQuery] =
     useState("");
@@ -48,6 +57,9 @@ export default function NavSearch({
 
   const inputRef =
     useRef<HTMLInputElement>(null);
+  // EL PANEL (§ NAV-CIERRE-CLICK-AFUERA-1): el nodo "adentro" para el click-afuera — envuelve el
+  // input, los resultados y el botón "X" propios.
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -58,12 +70,31 @@ export default function NavSearch({
     }
   }, [isOpen]);
 
+  // CIERRA Y DEVUELVE EL FOCO al disparador — la mitad de accesibilidad que Escape y el
+  // click-afuera comparten (§ NAV-CIERRE-CLICK-AFUERA-1, el spec de este slice): un panel que se
+  // abrió desde un botón debe devolver el foco a ESE botón al cerrarse, no dejarlo flotando en un
+  // nodo que puede haber salido del árbol.
+  //
+  // EL `.focus()` VA DIFERIDO A UN MACROTASK, MEDIDO: cuando el cierre lo dispara un
+  // `pointerdown` de click-afuera, el propio navegador aplica DESPUÉS de correr los listeners su
+  // paso por defecto de "enfocar el elemento clicado o, si no es enfocable, devolver el foco a
+  // `<body>`" — y ese paso corre TRAS nuestro handler, así que un `.focus()` síncrono acá queda
+  // pisado (confirmado con Playwright: `document.activeElement` terminaba en `<body>`). Un
+  // `setTimeout(0)` corre en un macrotask posterior, después de que el navegador ya resolvió su
+  // propio foco por defecto, y gana la carrera sin recurrir a `preventDefault()` — que en touch
+  // suprimiría el `click` sintetizado del elemento de abajo (el mismo que el click-afuera de
+  // abajo deja pasar a propósito).
+  const cerrarYDevolverFoco = useCallback(() => {
+    onClose();
+    setTimeout(() => triggerRef?.current?.focus(), 0);
+  }, [onClose, triggerRef]);
+
   useEffect(() => {
     const handleEsc = (
       e: KeyboardEvent
     ) => {
       if (e.key === "Escape") {
-        onClose();
+        cerrarYDevolverFoco();
       }
     };
 
@@ -78,7 +109,28 @@ export default function NavSearch({
         handleEsc
       );
     };
-  }, [onClose]);
+  }, [cerrarYDevolverFoco]);
+
+  // EL CLICK-AFUERA (§ NAV-CIERRE-CLICK-AFUERA-1) — MEDIDO: el fondo `fixed inset-0` de abajo
+  // (con su propio `onClick`, retirado en esta tanda) dejaba de cubrir el viewport en cuanto el
+  // encabezado entraba a su estado "sólido" (`backdrop-blur`), porque un ancestro con
+  // `backdrop-filter` se vuelve el containing block de sus descendientes `fixed` — el fondo se
+  // confinaba a los ~72px del encabezado, no a los 900px del viewport. Un `pointerdown` en
+  // CAPTURA sobre `document` no depende de dónde pintó nada: decide por CONTENCIÓN DE ÁRBOL
+  // (`esClickAfuera`, `lib/cierre-afuera.ts`), inmune a `backdrop-filter`/`transform`/escala. NO
+  // se llama `stopPropagation`: un click afuera cierra el panel y el elemento debajo sigue
+  // recibiendo su propio click con normalidad (el mismo trato que ya dan los overlays de Radix
+  // que este repo usa en el admin).
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (esClickAfuera(e.target, [panelRef.current, triggerRef?.current ?? null])) {
+        cerrarYDevolverFoco();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [isOpen, cerrarYDevolverFoco, triggerRef]);
 
   // El predicado de coincidencia vive en lib/productos/buscar.ts (afirmable en un test);
   // el tope de 6 es de PRESENTACIÓN (cuántas tarjetas caben en el panel), no de coincidencia,
@@ -101,17 +153,21 @@ export default function NavSearch({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — SÓLO visual (§ NAV-CIERRE-CLICK-AFUERA-1): el `onClick` que tenía se
+              retiró porque demostró ser el mecanismo que falla (se confina al alto del
+              encabezado bajo `backdrop-filter`, § el docstring de `lib/cierre-afuera.ts`). El
+              cierre real vive en el listener de `document` de arriba; este div sigue dimeando/
+              blureando, cero cambio de píxeles. */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
             className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
           />
 
           {/* Search Panel */}
           <motion.div
+            ref={panelRef}
             initial={{
               opacity: 0,
               y: -24,
@@ -148,7 +204,7 @@ export default function NavSearch({
                 />
 
                 <button
-                  onClick={onClose}
+                  onClick={cerrarYDevolverFoco}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-tinta)]"
                 >
                   <X className="h-5 w-5" />

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -14,6 +14,7 @@ import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
 import { direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll } from '@/lib/animation';
+import { esClickAfuera } from '@/lib/cierre-afuera';
 
 // ENTRADA ESCALONADA del drawer `pantallaCompleta` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA
 // contra `.mobile-nav.is-open a.m-link` del prototipo (`docs/prototipos/cafeone/css/app.css:311-321`):
@@ -74,18 +75,51 @@ export default function StoreNav() {
   // backdrop — MISMO patrón que `NavSearch` (§ ese componente, "el patrón del repo para menús") — y
   // al cambiar de ruta (un enlace de adentro navegó).
   const [panelAbierto, setPanelAbierto] = useState<MenuItemId | null>(null);
+  // EL CLICK-AFUERA (§ NAV-CIERRE-CLICK-AFUERA-1): los nodos "adentro" para el mega-menú — el
+  // panel desplegable Y el `<button>` que lo abre/cierra (sólo UNO puede tener `l.panel` a la vez,
+  // § `panelDeMenuItem`, así que un ref simple alcanza; no hace falta un `Map` por id).
+  const megaPanelRef = useRef<HTMLDivElement>(null);
+  const megaTriggerRef = useRef<HTMLButtonElement>(null);
+  const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const { count, openCart } = useCartStore();
   const pathname = usePathname();
   const isHome = pathname === '/';
 
   useEffect(() => { setPanelAbierto(null); }, [pathname]);
 
+  // CIERRA Y DEVUELVE EL FOCO al disparador (§ NAV-CIERRE-CLICK-AFUERA-1) — Escape y el
+  // click-afuera comparten esta salida; un panel que se abrió desde un botón no debe dejar el
+  // foco flotando en un nodo que puede haber salido del árbol. El `.focus()` va DIFERIDO a un
+  // macrotask (`setTimeout(0)`) — MEDIDO en `NavSearch.tsx` (mismo mecanismo, ver su docstring):
+  // tras un `pointerdown` de click-afuera el navegador aplica su propio foco por defecto DESPUÉS
+  // de correr los listeners, y pisa un `.focus()` síncrono.
+  const cerrarPanelYDevolverFoco = useCallback(() => {
+    setPanelAbierto(null);
+    setTimeout(() => megaTriggerRef.current?.focus(), 0);
+  }, []);
+
   useEffect(() => {
     if (!panelAbierto) return;
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanelAbierto(null); };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') cerrarPanelYDevolverFoco(); };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [panelAbierto]);
+  }, [panelAbierto, cerrarPanelYDevolverFoco]);
+
+  // EL CLICK-AFUERA propiamente — MISMA causa y misma salida que `NavSearch.tsx` (§ el docstring
+  // de `lib/cierre-afuera.ts`): el fondo `fixed inset-0` de abajo dejaba de cubrir el viewport en
+  // el estado "sólido" del encabezado (`backdrop-filter` lo confinaba a los ~72px de la barra), así
+  // que su `onClick` (retirado en esta tanda) sólo cerraba mientras el header flotaba sin scroll.
+  // `pointerdown` en CAPTURA sobre `document`, decidido por contención de árbol, no depende de eso.
+  useEffect(() => {
+    if (!panelAbierto) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (esClickAfuera(e.target, [megaPanelRef.current, megaTriggerRef.current])) {
+        cerrarPanelYDevolverFoco();
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+  }, [panelAbierto, cerrarPanelYDevolverFoco]);
 
   const itemPanel = links.find((l) => l.id === panelAbierto)?.panel ?? null;
 
@@ -321,6 +355,7 @@ export default function StoreNav() {
                   const abierto = panelAbierto === l.id;
                   const trigger = (
                     <button
+                      ref={megaTriggerRef}
                       type="button"
                       aria-expanded={abierto}
                       aria-controls={`mega-${l.id}`}
@@ -391,25 +426,27 @@ export default function StoreNav() {
   onClose={() =>
     setSearchOpen(false)
   }
+  triggerRef={searchTriggerRef}
 />
 
             {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el
                 prototipo (`docs/prototipos/cafeone/index.html:57-89`, `#mega-cafe`): intro (copy +
-                CTA), dos columnas de sub-enlaces, una tarjeta promocional. MISMO patrón de
-                backdrop+Escape que `NavSearch` (arriba); posicionado FULL-WIDTH relativo al
-                `<header>` (`fixed`), como `NavSearch` — es hijo de este `div.max-w-6xl` (`position:
-                static`, no crea containing block), así que `absolute left-0 w-full` resuelve contra
-                el header, no contra este contenedor angosto. `itemPanel` es `null` para todo tenant
-                sin panel declarado → esta rama nunca se monta ahí. */}
+                CTA), dos columnas de sub-enlaces, una tarjeta promocional. Posicionado FULL-WIDTH
+                relativo al `<header>` (`fixed`), como `NavSearch` — es hijo de este `div.max-w-6xl`
+                (`position: static`, no crea containing block), así que `absolute left-0 w-full`
+                resuelve contra el header, no contra este contenedor angosto. `itemPanel` es `null`
+                para todo tenant sin panel declarado → esta rama nunca se monta ahí. El cierre
+                (Escape + click-afuera) vive arriba (§ NAV-CIERRE-CLICK-AFUERA-1); el fondo de abajo
+                es SÓLO visual, igual que en `NavSearch`. */}
             <AnimatePresence>
               {itemPanel && (
                 <>
                   <motion.div
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    onClick={() => setPanelAbierto(null)}
                     className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
                   />
                   <motion.div
+                    ref={megaPanelRef}
                     id={`mega-${panelAbierto}`}
                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
@@ -494,7 +531,7 @@ export default function StoreNav() {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-              <button className={`p-2 cursor-pointer rounded-full transition-colors ${iconColor}`} onClick={() => setSearchOpen(true)}>
+              <button ref={searchTriggerRef} className={`p-2 cursor-pointer rounded-full transition-colors ${iconColor}`} onClick={() => setSearchOpen(true)}>
                 <Search className="w-5 h-5" />
               </button>
               <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>

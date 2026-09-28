@@ -27939,3 +27939,183 @@ con su reporte textual como `approval-reason`, citado arriba); el merge sigue pe
 orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `PANEL-LOGIN-CENTRADO-Y-CLARO-1`.**
+
+## 2026-09-28 — El mega-menú y el buscador cierran de verdad al tocar afuera; la primitiva compartida es `lib/cierre-afuera.ts` (`NAV-CIERRE-CLICK-AFUERA-1`)
+
+Gate del owner del 2026-09-28 sobre el muestrario, textual: *"El mega menu y boton de buscar al
+abrirse, y tratar de cerrar dando click afuera no estan funcionando, solo con esc."* Continuación de
+`slice/corte-reescritura-prototipo-1`, sobre `MUESTRARIO-MEGA-MENU-1` (2026-09-25).
+
+### 1 · La causa MEDIDA — no era "falta el mecanismo", era que el mecanismo se rompe en un estado
+
+Los dos paneles (`components/storefront/layout/NavSearch.tsx`, `components/storefront/layout/
+StoreNav.tsx`) YA llevaban el patrón que el spec pedía verificar antes de asumir nada: un fondo
+`fixed inset-0 z-40 bg-black/20 backdrop-blur-sm` con su propio `onClick` que cierra. `Escape` es un
+`keydown` en `window`, ajeno a todo lo de abajo.
+
+**MEDIDO con Playwright/Chromium real** (`.arnes-tooling/playwright`, ya cacheado en el repo; dev
+server local, sin tocar la base compartida): con el encabezado en su estado FLOTANTE (tope de
+página, sin scroll) el fondo SÍ cubre el viewport entero y SÍ cierra al click — `elementFromPoint`
+en cualquier punto de la pantalla devuelve el propio fondo, y clickearlo dispara el `onClick`. Pero
+en cuanto el encabezado entra a su estado SÓLIDO (`scrolled`, la clase `backdrop-blur` de
+`StoreNav.tsx:169`) — que es el estado normal apenas alguien scrollea unos px, no un caso raro —
+el `getBoundingClientRect()` del MISMO fondo pasa de `{width:1280, height:900}` (el viewport) a
+`{width:1280, height:72}` (la altura del propio `<header>`). La causa: un ancestro con
+`backdrop-filter` computado se vuelve el CONTAINING BLOCK de sus descendientes `position:fixed` —
+la misma regla que ya rige para `transform` en este repo (§ CLAUDE.md, `EscalaDesktop`) — así que
+`inset:0` deja de resolver contra el viewport y se confina a la caja del `<header>`. Un click por
+debajo de esos 72px —la inmensa mayoría de "afuera"— nunca toca el fondo, y su `onClick` nunca
+corre. Confirmado en las DOS direcciones: mismo test, con y sin scroll, mismo resultado en el mega-
+menú (con un `panelItem` configurado a mano en un dev server local, revertido antes de tocar nada
+del diff real) y en el buscador — es el MISMO patrón, así que falla igual en los dos, y falla para
+CUALQUIER tenant (la clase `backdrop-blur` del estado sólido no depende de `navTratamiento`).
+
+Es la misma familia que el resto de la doctrina de este repo (§ CLAUDE.md, el artefacto rancio, el
+rol de una base, el spec que contradice el terreno): que un elemento PAREZCA cubrir la pantalla no
+prueba que la cubra en todo estado.
+
+### 2 · La primitiva — `lib/cierre-afuera.ts`, una decisión, dos consumidores
+
+`esClickAfuera(destino, nodos)` decide por CONTENCIÓN DE ÁRBOL (`Node.contains`), no por dónde
+pintó nada — inmune a `backdrop-filter`/`transform`/escala/scroll. `nodos` son los que cuentan como
+"adentro": el panel Y el disparador que lo abrió (si el disparador contara como afuera, tocarlo
+cerraría y su propio `onClick` lo reabriría en el mismo gesto). La interfaz (`NodoDeCierre`, sólo
+`.contains`) existe para que `lib/cierre-afuera.test.ts` no dependa de una clase DOM real —el repo
+no tiene jsdom (§ CLAUDE.md, "El glob NO incluye `*.test.tsx`")—: los 8 tests corren contra nodos
+FALSOS (`{ contains: (o) => idsDentro.includes(o) }`). `npm test` los corre en capa 1, DB-free.
+
+**El componente sólo cablea el listener contra ella** — una sola implementación, no dos copias que
+puedan divergir (la misma clase de defecto que `razonDelServidor`/`cruzoMinimo` ya documentan). Un
+`pointerdown` en CAPTURA sobre `document` (cubre mouse y táctil por igual, § el spec de este slice),
+sin `stopPropagation`: un click afuera cierra el panel y el elemento de abajo sigue recibiendo su
+propio click con normalidad — el mismo trato que ya dan los overlays de Radix que este repo usa en
+el admin. **El fondo oscuro visual se CONSERVA tal cual** (cero cambio de píxeles, sigue
+dimeando/blureando); lo que se retira es su `onClick`, que quedaba como una segunda fuente de verdad
+para el mismo cierre y que además demostró ser el que falla.
+
+### 3 · El foco vuelve al disparador — y el `.focus()` síncrono se pisaba solo
+
+Escape y el click-afuera comparten `cerrarYDevolverFoco`/`cerrarPanelYDevolverFoco`: cierran y
+devuelven el foco al botón que abrió. **MEDIDO, no supuesto:** un `.focus()` síncrono dentro del
+handler de `pointerdown` terminaba con `document.activeElement === <body>`, no el botón — el propio
+navegador aplica, DESPUÉS de correr los listeners, su paso por defecto de "enfocar el elemento
+clicado o, si no es enfocable, devolver el foco a `<body>`", y ese paso pisaba nuestro `.focus()`.
+Diferido a un macrotask (`setTimeout(0)`) el `.focus()` corre DESPUÉS de que el navegador ya resolvió
+el suyo, y gana la carrera — sin recurrir a `preventDefault()`, que en táctil suprimiría el `click`
+sintetizado del elemento de abajo (el mismo que el click-afuera deja pasar a propósito, arriba).
+Verificado con Playwright: `focusReturnedToTrigger: true` en las cuatro combinaciones (mega-menú y
+buscador, con y sin scroll).
+
+### 4 · Lo que NO se tocó
+
+- **`bloqueaOcultar`** (`StoreNav.tsx`) sigue leyendo `searchOpen`/`panelAbierto` sin cambio — el
+  ocultamiento del nav por dirección de scroll sigue bloqueado mientras cualquiera de los dos está
+  abierto. Verificado por ejecución: con el buscador abierto y la página scrolleada, el encabezado
+  sigue visible.
+- **Los cierres por navegación interna** (clic en un resultado de búsqueda, clic en un enlace del
+  panel, cambio de `pathname`) siguen llamando `onClose`/`setPanelAbierto(null)` directo, sin pasar
+  por `cerrarYDevolverFoco` — devolver el foco al disparador justo cuando el visitante navegó a otra
+  parte no tiene sentido; ninguno de los dos "vías" que el spec pedía (Escape, click-afuera) es éste.
+- **`lib/animation.ts`** — en `touches:` del spec, no tocado: las salvaguardas de ocultamiento ya
+  cubrían este caso sin cambios.
+
+### 5 · Un método de verificación que este dispatch no tenía por defecto
+
+El §1 exigía medir la causa, no suponerla. `.arnes-tooling/playwright` (instalado por
+`scripts/verificar-nayoli-visual.ts`, § CLAUDE.md) ya estaba cacheado localmente, así que se
+reusó ese mismo mecanismo para un dev server real (`npm run dev`, la base `development` de
+siempre, sin escrituras) en vez de razonar sólo desde el código. Para reproducir el mega-menú (que
+en Nayoli nace con `panelItem: ''`, § `MUESTRARIO-MEGA-MENU-1`) se editó `lib/config/site-content-
+defaults.ts` con un `panelItem` de prueba, se midió, y se REVIRTIÓ byte a byte antes de tocar el
+diff real —`git diff --stat` sobre ese archivo da vacío—; no forma parte de `touches:` ni del commit.
+Los scripts de prueba (`.scratch/probe-*.mjs`, `.scratch/verify-fix-*.mjs`) son gitignored, no
+forman parte del diff.
+
+**Hallazgo lateral, no accionado**: el mismo error de página (`pageerror`) apareció en TODAS las
+corridas, antes y después de tocar una sola línea: *"Target ref is defined but not hydrated"*
+(framer-motion, `useScroll`). Es preexistente y ajeno a `touches:` de este slice — no se investigó
+más; se anota para no confundirlo con una regresión de este cambio.
+
+### Gate
+
+- **`npm run typecheck`**: 0 errores.
+- **`npm test`**: **2388/2388** (subió de 2380 a 2388 — los 8 tests nuevos de
+  `lib/cierre-afuera.test.ts`, medido: `grep -c '^test(' lib/cierre-afuera.test.ts` = 8).
+- **`npm run test:integracion`**: **240/240**, sin cambio — este slice no toca ningún camino
+  server-side ni de escritura; el mecanismo entero es cliente.
+- **`npm run verificar:nayoli:visual`**: **0px** en las 6 rutas + los 2 hovers, cero diferencias
+  salvo antialiasing — `home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout
+  0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 ·
+  hover:eleccion 0/102870`. Confirma que el cambio es de CONDUCTA, no de píxel — exactamente lo que
+  el `surface:` del spec pedía.
+
+### CHEQUEO MECÁNICO — grep de los símbolos que este diff cambió, contra `CLAUDE.md`
+
+Symbols/paths tocados: `StoreNav.tsx`, `NavSearch.tsx`, `panelAbierto`, `searchOpen`, `itemPanel`,
+el fondo `fixed inset-0 z-40` de los dos paneles, `lib/cierre-afuera.ts` (nuevo).
+
+- `grep -n "StoreNav\|NavSearch\|panelAbierto\|itemPanel\|backdrop\|cierre-afuera\|mega-menu\|
+  MUESTRARIO-MEGA-MENU" CLAUDE.md` → 5 líneas: **2872, 2969, 4481, 4499** (`StoreNav`) y **6320**
+  (`backdrop`).
+- **2872, 2969**: describen que `StoreNav` es `'use client'` dentro de `SiteContentProvider` y que
+  el NAV es una de las superficies que la capacidad "apagable" gatea por `useSiteContent()`. Mi
+  diff no toca ninguna de las dos cosas — sigue siendo `'use client'`, sigue leyendo el mismo flag.
+- **4481, 4499**: describen que `Logo` recibe el nombre/el mark por PROP desde `StoreNav`/
+  `StoreFooter`. No tocado.
+- **6320**: el `backdrop bg-black/50` ahí referido es el del drawer hamburguesa del ADMIN,
+  retirado hace tiempo — no tiene relación con los `bg-black/20` del storefront que este slice
+  toca. No se vuelve falsa.
+- **Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.** Ninguna describía el mecanismo de
+  cierre del mega-menú/buscador (esa descripción vivía sólo en `DECISIONS.md`,
+  `MUESTRARIO-MEGA-MENU-1`, abajo).
+
+### CHEQUEO DEL DOCUMENTO — `DECISIONS.md`
+
+`grep -c "NAV-CIERRE-CLICK-AFUERA-1" DECISIONS.md` (antes de este párrafo) da **0** — id nuevo, sin
+punteros previos que revisar. La entrada `MUESTRARIO-MEGA-MENU-1` (2026-09-25) describe el fondo
+`fixed inset-0 z-40, onClick` como "el MISMO patrón que `NavSearch.tsx`" — sigue siendo una
+descripción HISTÓRICAMENTE correcta de lo que se construyó ese día; no se edita retroactivamente
+(mismo precedente que esa propia entrada ya sentó para `CENSO-MUESTRARIO-1`: "el censo es una foto
+histórica... el asiento de cierre es la fuente de verdad"). Este párrafo es el pointer que un
+lector futuro necesita.
+
+### `customer_bytes`
+
+**`changed: true`.** El mega-menú y el buscador ahora cierran al click-afuera en TODO estado del
+encabezado (antes sólo en el estado flotante, sin scroll) — es un cambio de CONDUCTA visible al
+visitante, aunque los píxeles sean idénticos (§ Gate, 0px medido). `strings:` **ninguno** — no
+cambia una sola palabra de copy ni un color; el cambio es puramente de interacción.
+
+**Consecuencia medida, declarada:** el click-afuera ya NO "traga" el click bajo el fondo (antes,
+cuando el fondo cubría el viewport, el click SOLO cerraba; el elemento de abajo nunca lo recibía,
+porque un click real sólo llega al elemento topmost). Con el listener de `document`, un click
+afuera CIERRA Y el elemento de abajo también recibe su propio click — el mismo trato que los
+overlays de Radix que ya usa este repo. Es un cambio de comportamiento aceptado, no un descuido:
+sin él, evitar tocar el elemento de abajo exigiría `preventDefault()` en `pointerdown`, que en
+táctil suprimiría el `click` sintetizado (§ punto 3, arriba) — un costo mayor que el beneficio.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El mecanismo entero es cliente (`'use client'`, sin tocar ningún endpoint).
+
+### Open follow-ups
+
+- **`NAV-CIERRE-CLICK-AFUERA-CLICK-PASSTHROUGH-1`** (nuevo) — la consecuencia declarada arriba (el
+  click afuera ya no traga el click del elemento de abajo) es una decisión de PRODUCTO menor que
+  nadie pidió explícitamente evaluar; si en uso real resulta molesta (p. ej. un click-afuera que
+  también agrega un producto al carrito sin querer), la salida es capturar el `click` subsiguiente
+  una vez y cancelarlo, no volver a `preventDefault()` en `pointerdown`. **why_not_now**: sin
+  evidencia de que moleste en uso real, y fuera de lo que el spec pidió (cerrar, no también
+  bloquear la interacción de abajo).
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones
+ejecutables (tsc, `npm test`, `npm run test:integracion`) más `verificar:nayoli:visual` en 0px.
+Sin `schema`, sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el
+owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`,
+citado arriba); el merge sigue pendiente del gate del orquestador — este slice, por instrucción del
+dispatch, no mergea.
+
+**Cierra `NAV-CIERRE-CLICK-AFUERA-1`.**
