@@ -282,14 +282,34 @@ test('hero.fraseAlPie con texto: rinde el párrafo, alineado a la derecha, ENFRE
   assert.match(html, /right-4[^"]*z-10[^"]*max-w-\[34ch\][^"]*text-right/, 'debe ir a la derecha, no a la izquierda (donde va el cue)');
 });
 
-// § CROMO-NAV-EXACTO-PROTOTIPO-1 — EL PESO: el owner reportó la frase «sin cuerpo, muy delgada»
-// frente al muestrario. La familia real (Figtree, el cuerpo de CORTE) no puede llevarse a Hanken
-// Grotesk (reservada a Duna, § el docstring de cabecera "EL PESO" en HeroMediaMarquesina.tsx), así
-// que la deviación medida sube el PESO a `font-medium` en vez de la familia.
-test('hero.fraseAlPie: el párrafo lleva font-medium (subida de peso, § la deviación medida — no Hanken Grotesk)', () => {
+// § HERO-FRASE-COLOR-PLENO-1 — LA CAUSA MEDIDA NO ERA LA TIPOGRAFÍA, ERA EL ROL DE COLOR. El owner
+// seguía reportando la frase «con menos cuerpo que el muestrario» aun con `font-medium` ya aplicado
+// (§ CROMO-NAV-EXACTO-PROTOTIPO-1). El orquestador midió: esta frase pintaba con el rol SUAVE
+// (`--sf-sobre-banda-suave`, blanco translúcido ~70%) mientras el `.hero-caption` del muestrario usa
+// `--text-on-inverse` — PLENO, opaco —, el MISMO rol que ya usa el texto del marquee de esta variante
+// (`text-[var(--sf-sobre-banda,white)]`). Un texto translúcido se lee lavado y delgado con cualquier
+// fuente. La frase pasa al rol PLENO y el peso VUELVE a regular (`font-normal`): el muestrario no
+// declara peso propio en `.hero-caption`, hereda el 400 del body — el "cuerpo" que faltaba lo daba el
+// color, no el peso, así que la subida de la ronda anterior se revierte.
+test('hero.fraseAlPie: rol PLENO (--sf-sobre-banda), NUNCA el suave translúcido — el mismo rol que ya usa el texto del marquee', () => {
   const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);
-  assert.match(html, /text-right[^"]*font-medium[^"]*leading-relaxed/, 'font-medium debe ir junto al resto de la tipografía de la frase');
+  assert.match(html, /text-\[var\(--sf-sobre-banda,white\)\]/, 'debe pintar con el rol pleno, fallback white — igual que el marquee y el cue');
+  assert.doesNotMatch(html, /--sf-sobre-banda-suave/, 'sin `cueDesliza` (default false) el único --sf-sobre-banda-suave posible era esta frase; no debe quedar rastro');
+});
+
+test('hero.fraseAlPie: peso REGULAR (font-normal, no font-medium) — como el muestrario, que no declara peso propio en `.hero-caption`', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.match(html, /text-right[^"]*font-normal[^"]*leading-relaxed/, 'font-normal debe ir junto al resto de la tipografía de la frase');
+  assert.doesNotMatch(html, /font-medium/, 'la subida de peso de CROMO-NAV-EXACTO-PROTOTIPO-1 se revierte — la causa real era el color');
+});
+
+test('hero.fraseAlPie: el tamaño sigue los DOS tokens del muestrario por breakpoint — 13px bajo 640px (--text-body-xs), 14px desde 640px (--text-body-s, = text-sm, sin cambio)', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.match(html, /text-\[13px\][^"]*font-normal/, 'la base (mobile) debe llevar los 13px medidos de --text-body-xs, que faltaban');
+  assert.match(html, /sm:text-sm\b/, 'desde 640px sube a 14px (text-sm), medido de --text-body-s — sin cambio de valor, sólo se hace responsive');
 });
 
 test('hero.fraseAlPie EN PREVIEW: SIGUE rindiendo (a diferencia del cue, que se omite ahí) — es texto estático, no depende del scroll', () => {

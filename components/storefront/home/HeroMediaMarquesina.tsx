@@ -136,9 +136,12 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // index.html:133-136`) y no encontró dónde — el campo (`hero.fraseAlPie`) YA EXISTÍA en el modelo
 // (declarado en `REGISTRY.hero.campos` desde `TEMAS-HERO-MEDIA-AGREGADOS-1`), pero esta variante
 // nunca lo leía Y el panel nunca lo controlaba (§ `PENDIENTE_PANEL`, `lib/config/panel-controles.ts`
-// — cerrado por este mismo slice). MISMO campo/token que `HeroMedia.tsx`
-// (`text-[var(--sf-sobre-banda-suave,…)]`, `max-w-[34ch] text-right text-balance`), en la MISMA
-// posición del prototipo: al pie, alineada a la derecha, ENFRENTADA al cue "Desliza" (bottom-
+// — cerrado por este mismo slice). MISMO campo y MISMO `max-w-[34ch] text-right text-balance` que
+// `HeroMedia.tsx` — el TOKEN DE COLOR DIVERGE desde § HERO-FRASE-COLOR-PLENO-1 (ver abajo, "EL
+// COLOR — LA CAUSA REAL"): esta variante pasa a `--sf-sobre-banda` (pleno); `HeroMedia.tsx`, fuera de
+// `touches:` de esa ronda, se queda en `--sf-sobre-banda-suave` — divergencia MEDIDA y deliberada, no
+// un descuido: nace de que esta variante compone con el marquee/cue (ya pleno) y `HeroMedia.tsx` no.
+// Misma posición del prototipo: al pie, alineada a la derecha, ENFRENTADA al cue "Desliza" (bottom-
 // izquierda) — la MISMA fila del `.hero-inner` del prototipo (`.hero-caption` viene ANTES de
 // `.scroll-cue` en su propio HTML, `margin-left:auto` la empuja a la derecha mientras `.scroll-cue`
 // es `left:var(--page-gutter)`). Acá va como bloque `absolute` PROPIO —espejo horizontal de
@@ -154,28 +157,51 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // en preview dejaría al dueño sin ver el campo que acaba de escribir, en la única superficie donde lo
 // está mirando en vivo.
 //
-// EL PESO — § CROMO-NAV-EXACTO-PROTOTIPO-1 (`font-medium`, DEVIACIÓN medida, ver el asiento de este
-// slice). El owner, frente al muestrario: «Las letras en el pie del Hero, se ven sin cuerpo muy
-// delgadas, en el muestrario se ven con más.» LA MEDICIÓN: `.hero-caption` del prototipo
-// (`docs/prototipos/cafeone/css/app.css:380-384`) no declara `font-weight` propio, así que hereda el
-// `400`/regular del `body` (que tampoco lo declara, `app.css:21-28`) — nominalmente el MISMO peso
-// que ya tenía este párrafo (sin clase de peso, mismo default del navegador). La diferencia real es
-// de FAMILIA: el `body` del prototipo es `--font-body` = 'Hanken Grotesk' (`tokens.css:14`), y el
-// cuerpo de CORTE es `fuentePar:'prensa'` = 'Figtree' (`lib/config/fuentes.ts:111`, reportado como
-// aproximación desde `TEMAS-PAR-PRENSA-1` — el catálogo no tiene a Hanken Grotesk). Figtree a 400 se
-// lee más liviana que Hanken Grotesk a 400 — dos tipografías distintas, no un número de peso
-// distinto.
+// EL PESO — § CROMO-NAV-EXACTO-PROTOTIPO-1 (`font-medium`, DEVIACIÓN medida en su momento) —
+// REVERTIDO por § HERO-FRASE-COLOR-PLENO-1 (ver debajo, "EL COLOR — LA CAUSA REAL"). El owner, frente
+// al muestrario en esa ronda: «Las letras en el pie del Hero, se ven sin cuerpo muy delgadas, en el
+// muestrario se ven con más.» Esa ronda diagnosticó FAMILIA tipográfica (Figtree del cuerpo de CORTE
+// vs Hanken Grotesk del muestrario, reservada a Duna) y subió el peso a `font-medium` (500) como
+// salida sin cruzar esa frontera. El gate visual SIGUIENTE, ya con el peso subido, seguía reportando
+// el mismo reclamo — la subida de peso no lo resolvía, lo que delata que el diagnóstico de causa
+// estaba incompleto: la variable real no era tipografía.
 //
-// LA DEVIACIÓN: llevar el peso EXACTO del prototipo (400, ya el nuestro) no resuelve el reclamo; la
-// salida literal sería FAMILIA (Hanken Grotesk), pero **Hanken Grotesk está reservada a Duna** —
-// CLAUDE.md, § "Space Grotesk NO se ofrece a clientes": «es la tipografía de DUNA (el design system
-// del panel)… un cliente vistiendo su tienda como el panel borra la separación producto/cliente» —
-// y `fuentes.test.ts` afirma que NINGÚN par del catálogo del storefront ofrece Space Grotesk/Hanken/
-// Spline. Meterla acá, aunque sea para un solo párrafo, es la misma mezcla que esa regla prohíbe.
-// Por eso el arreglo sube el PESO (`font-medium`, 500) en vez de la familia: le da a la frase el
-// "cuerpo" que el owner pide sin cruzar la frontera producto/panel. Sólo esta variante (`'sticky'`,
-// la que usa CORTE) — `HeroMedia.tsx` no está en `touches:` de este slice y queda con el mismo
-// defecto, sin lector visible hoy (ningún preset del catálogo usa `hero:'media'`).
+// EL COLOR — LA CAUSA REAL (§ HERO-FRASE-COLOR-PLENO-1): el orquestador midió que esta frase pintaba
+// con el ROL SUAVE (`--sf-sobre-banda-suave`, blanco translúcido ~70%, § `esquema-style.ts`) mientras
+// `.hero-caption` del muestrario pinta con `--text-on-inverse` — PLENO, opaco (`tokens.css:69`,
+// `#fdfbf7`) —, el MISMO rol que ya usa el texto del marquee de esta variante
+// (`text-[var(--sf-sobre-banda,white)]`, arriba) y el segmento del cue (`bg-[var(--sf-sobre-banda,
+// white)]`, abajo). Un texto translúcido sobre una foto se lee lavado y delgado con CUALQUIER
+// fuente — es lo que el owner leía como "sin cuerpo", no la tipografía. La frase pasa al rol PLENO
+// (`--sf-sobre-banda`, fallback `white` — el MISMO fallback que el marquee y el cue, nunca un hex
+// horneado) y el peso VUELVE a regular (`font-normal`): `.hero-caption` del prototipo
+// (`docs/prototipos/cafeone/css/app.css:380-384`) no declara `font-weight` propio, hereda el 400 del
+// `body` (que tampoco lo declara, `app.css:21-28`) — el "cuerpo" que faltaba lo daba el color, no el
+// peso, así que la subida de la ronda anterior ya no tiene motivo. `Hanken Grotesk` SIGUE reservada a
+// Duna (§ CLAUDE.md, "Space Grotesk NO se ofrece a clientes"; `fuentes.test.ts` sin cambios) — esta
+// ronda no toca esa frontera, sólo revierte una compensación que apuntaba a la causa equivocada.
+//
+// EL TAMAÑO — medido por breakpoint contra los DOS tokens del muestrario: `--text-body-s` (14px,
+// `tokens.css:111`) es el tamaño por defecto de `.hero-caption` y coincide EXACTO con nuestro
+// `text-sm` (14px, sin override de Tailwind en este repo) — sin cambio ahí, ya coincidía desde la
+// ronda anterior. Pero bajo `@media (max-width:640px)` el muestrario baja a `--text-body-xs` (13px,
+// `tokens.css:112` + `app.css:1003`), y este párrafo no tenía ese escalón — se agrega `text-[13px]`
+// de base con `sm:text-sm` (14px) desde 640px, el MISMO corte que usa el breakpoint `sm` de Tailwind
+// (640px, sin override en `app/globals.css`).
+//
+// EL CONTRASTE, MEDIDO antes/después (mismo método WCAG y las MISMAS tres fotos claras de referencia
+// que `VELO_OPACIDAD_PISO` usa, `lib/animation.ts`: arena rgb(232,222,200), casi-blanco
+// rgb(245,245,240), crema rgb(238,230,214)) — el detalle completo, incluida la medición CON el velo
+// 'suave' real de CORTE, vive en el asiento de este slice (`DECISIONS.md`). Contra las fotos SOLAS
+// (sin velo, el proxy conservador que `lib/animation.ts` ya usa para "EL CONTRASTE SIN VELO"): suave
+// ~70% daba 1.23:1/1.07:1/1.16:1, pleno da 1.34:1/1.09:1/1.24:1 — los dos muy por debajo de AA sobre
+// este proxy, que es justo por qué CORTE lleva el velo encendido. CON el velo 'suave' real de CORTE
+// (tinta `#102407`, § `themes.ts`) compuesto sobre esas mismas tres fotos, el pleno sube el contraste
+// sobre el suave en cada punto del recorrido (reposo 2.16:1/1.80:1/2.02:1 vs 1.75:1/1.53:1/1.67:1;
+// final 3.46:1/2.95:1/3.26:1 vs 2.52:1/2.23:1/2.41:1) — bajo AA en el proxy de foto clara, MEDIDO Y
+// REPORTADO, no bloqueante: la misma aceptación que ya rige el rango 'suave' del velo (§ el docstring
+// de `veloOpacidad`, `lib/animation.ts` — el proxy es conservador para un video claro, no el video
+// oscuro real de CORTE, donde blanco sin velo ya contrasta).
 //
 // EL REVELADO DEL TEXTO — § CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
 // REVELADO-MASCARA-1, `lib/animation.ts`, el bloque "EL REVELADO DEL TEXTO" para la derivación
@@ -526,11 +552,13 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
         )}
 
         {/* FRASE AL PIE (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1, § el docstring de cabecera "LA FRASE AL
-            PIE"): MISMO token que `HeroMedia.tsx`, ENFRENTADA al cue de abajo (derecha vs. su
-            izquierda). Vacío → SE OMITE; SIN gate de preview (a diferencia del cue), es texto
-            estático que el "cuadro compuesto" de la vista previa debe mostrar si hay dato. */}
+            PIE"): ENFRENTADA al cue de abajo (derecha vs. su izquierda). Rol de color PLENO desde
+            § HERO-FRASE-COLOR-PLENO-1 (el docstring de cabecera, "EL COLOR — LA CAUSA REAL") — ya NO
+            el mismo token que `HeroMedia.tsx`, que se queda en el rol suave. Vacío → SE OMITE; SIN
+            gate de preview (a diferencia del cue), es texto estático que el "cuadro compuesto" de la
+            vista previa debe mostrar si hay dato. */}
         {hero.fraseAlPie && (
-          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-sm font-medium leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))] sm:bottom-10 sm:right-6 lg:bottom-12 lg:right-8">
+          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-[13px] font-normal leading-relaxed text-balance text-[var(--sf-sobre-banda,white)] sm:bottom-10 sm:right-6 sm:text-sm lg:bottom-12 lg:right-8">
             {hero.fraseAlPie}
           </p>
         )}

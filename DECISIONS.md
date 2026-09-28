@@ -29058,3 +29058,208 @@ reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente
 orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1`.**
+
+## 2026-09-28 — La frase al pie del hero·sticky pasa al rol de color PLENO, no del par tipográfico (`HERO-FRASE-COLOR-PLENO-1`)
+
+Gate visual del owner sobre `CROMO-NAV-EXACTO-PROTOTIPO-1` (2026-09-28), textual: *"aun se ve con
+menos cuerpo que el muestrario"* — DESPUÉS de que esa ronda ya había subido el peso a `font-medium`
+(500). El orquestador midió la causa REAL antes de proponer el spec: no era la tipografía, era el ROL
+DE COLOR — esta frase (`hero.fraseAlPie`, `HeroMediaMarquesina.tsx`, la variante `'sticky'` que CORTE
+usa) pintaba con `--sf-sobre-banda-suave` (blanco translúcido ~70%), mientras `.hero-caption` del
+muestrario (`docs/prototipos/cafeone/css/app.css:380-384`) pinta con `--text-on-inverse` — PLENO,
+opaco (`tokens.css:69`, `#fdfbf7`) —, el MISMO rol que ya usa el texto del marquee de esta variante
+(`text-[var(--sf-sobre-banda,white)]`) y el segmento del cue "Desliza". Un texto translúcido sobre una
+foto se lee lavado y delgado con CUALQUIER fuente — es lo que el owner seguía leyendo como "sin
+cuerpo" después de subir el peso, porque el peso nunca fue la variable.
+
+### 1 · La medición del color — el rol, no un hex horneado
+
+`--sf-sobre-banda` y `--sf-sobre-banda-suave` son roles YA establecidos en todo el storefront
+(`esquema-style.ts:90-91`), consumidos con el MISMO fallback en decenas de secciones (`white` para el
+pleno, `color-mix(in_oklab,white_NN%,transparent)` para el suave). La frase pasa de:
+
+```
+text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]
+```
+
+a:
+
+```
+text-[var(--sf-sobre-banda,white)]
+```
+
+— el mismo fallback `white` que ya usa el marquee (`text-[var(--sf-sobre-banda,white)]`, línea de
+arriba en el mismo archivo) y el segmento del cue (`bg-[var(--sf-sobre-banda,white)]`, abajo). Ningún
+hex horneado nuevo.
+
+### 2 · El peso — vuelve a regular, la deviación anterior se revierte
+
+**MEDICIÓN, no supuesta:** `.hero-caption` del muestrario no declara `font-weight` propio
+(`app.css:380-384`), hereda el `400`/regular del `body` (que tampoco lo declara, `app.css:21-28`).
+`CROMO-NAV-EXACTO-PROTOTIPO-1` ya había medido esto mismo y, al no poder resolver la diferencia real
+(que creyó de FAMILIA — Figtree del cuerpo de CORTE vs Hanken Grotesk del muestrario, reservada a
+Duna) subió el peso a `font-medium` (500) como compensación. El gate visual de ESTA ronda, con el
+peso ya subido, seguía reportando el mismo reclamo — la prueba de que la compensación apuntaba a la
+causa equivocada. Con el color corregido, la subida de peso deja de tener motivo: vuelve a
+`font-normal`, el peso que la frase ya tenía nominalmente antes de `CROMO-NAV-EXACTO-PROTOTIPO-1`
+(sin clase de peso, default del navegador — que es 400, lo mismo que `font-normal` hace explícito).
+
+`Hanken Grotesk` SIGUE reservada a Duna — esta ronda no toca esa frontera; `fuentes.test.ts` no
+cambia.
+
+### 3 · El tamaño — medido por LOS DOS tokens del muestrario, un escalón faltaba
+
+`CROMO-NAV-EXACTO-PROTOTIPO-1` ya había medido el tamaño por defecto (`--text-body-s`, 14px,
+`tokens.css:111`) y confirmado que coincidía con nuestro `text-sm` (14px, Tailwind sin override en
+este repo) — sin cambio ahí. Lo que esa ronda NO midió es el SEGUNDO token: bajo
+`@media (max-width:640px)` el muestrario baja a `--text-body-xs` (13px, `tokens.css:112`) —
+`app.css:997-1003`:
+
+```
+@media (max-width:640px){
+  .hero-caption{max-width:26ch;font-size:var(--text-body-xs)}
+}
+```
+
+Nuestro párrafo no tenía ese escalón: `text-sm` (14px) corría en TODAS las anchuras. Se agrega
+`text-[13px]` de base con `sm:text-sm` (14px) desde 640px — el MISMO corte que usa el breakpoint `sm`
+de Tailwind (640px, `grep -n "font-size" app/globals.css` sin overrides). **`max-width` NO se toca**
+(se queda `34ch` en todas las anchuras): el muestrario también reduce a `26ch` bajo 640px, pero el
+spec de esta ronda acota la medición a "tamaño" (los dos tokens de fuente), no a ancho de línea, y el
+ancho no es lo que el owner reportó como "sin cuerpo". Se deja anotado, no se amplía el alcance.
+
+### 4 · El contraste, MEDIDO antes/después (WCAG, las tres fotos de referencia de `VELO_OPACIDAD_PISO`)
+
+Mismo método que ya usa `lib/animation.ts` (relative luminance WCAG, alpha-compositing estándar
+sRGB) contra las MISMAS tres fotos claras de referencia: arena `rgb(232,222,200)`, casi-blanco
+`rgb(245,245,240)`, crema `rgb(238,230,214)`.
+
+**Sobre las fotos SOLAS (sin velo)** — el mismo proxy conservador que `lib/animation.ts` ya usa para
+"EL CONTRASTE SIN VELO" (blanco pleno da exactamente 1.34:1/1.09:1/1.24:1, ya documentado ahí):
+
+| foto | suave ~70% (ANTES) | pleno (DESPUÉS) |
+| --- | --- | --- |
+| arena | 1.23:1 | 1.34:1 |
+| casi-blanco | 1.07:1 | 1.09:1 |
+| crema | 1.16:1 | 1.24:1 |
+
+Los dos MUY por debajo de AA (4.5:1) sobre este proxy — es justo por qué CORTE lleva el velo
+encendido; esta medición aislada no representa la pantalla real.
+
+**CON el velo `'suave'` real de CORTE** (tinta `#102407`, § `themes.ts`) compuesto sobre esas mismas
+tres fotos, en los dos extremos del recorrido de scroll (piso 0.30→densidad efectiva 0.24, techo
+0.55→densidad efectiva 0.44, § `veloOpacidad`/`rangoVeloDeIntensidad`):
+
+| foto | etapa | suave ~70% (ANTES) | pleno (DESPUÉS) |
+| --- | --- | --- | --- |
+| arena | reposo (piso) | 1.75:1 | 2.16:1 |
+| arena | final (techo) | 2.52:1 | 3.46:1 |
+| casi-blanco | reposo (piso) | 1.53:1 | 1.80:1 |
+| casi-blanco | final (techo) | 2.23:1 | 2.95:1 |
+| crema | reposo (piso) | 1.67:1 | 2.02:1 |
+| crema | final (techo) | 2.41:1 | 3.26:1 |
+
+El pleno sube el contraste sobre el suave en los seis puntos medidos (+0.24 a +0.94 de ratio). Los
+valores DESPUÉS coinciden EXACTOS con los que `veloOpacidad` ya documenta para `'suave'` (§ el
+docstring de esa función, `lib/animation.ts`) — confirma que esos números ya eran los del rol PLENO
+(el marquee/cue), y que la frase, en SUAVE, vivía por debajo de ellos. Los DESPUÉS siguen bajo AA
+(4.5:1) sobre el proxy de foto clara — **MEDIDO Y REPORTADO, no bloqueante**: la misma aceptación que
+ya rige el rango `'suave'` del velo (el proxy es conservador para un video claro; el video real de
+CORTE es oscuro, y sobre fondo oscuro blanco sin velo ya contrasta — § el docstring de `veloOpacidad`).
+No se tocó el velo ni se agregó gradiente de protección — instrucción explícita del spec.
+
+### 5 · Lo que NO se tocó
+
+- **El velo** (`hero.veloVisible`/`heroVeloIntensidad`) — sin cambios, instrucción explícita del spec.
+- **`max-width`** de la frase — se queda `34ch` en todas las anchuras (§3).
+- **`HeroMedia.tsx`** (la variante `'media'`) — fuera de `touches:`, se queda en el rol SUAVE. Ningún
+  preset del catálogo usa `hero:'media'` hoy (medido: `grep -n "hero: '" lib/config/themes.ts`), así
+  que no tiene lector visible que reporte el mismo reclamo — mismo estado que dejó
+  `CROMO-NAV-EXACTO-PROTOTIPO-1`.
+- **El cue "Desliza"** y el resto del loop de texto/tarjeta — sin cambios.
+
+### 6 · Gate
+
+| Medición | Resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2422/2422** — verde. +2 netos sobre el piso de 2420 (`c109de6`, `PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1`). Reconciliado: `lib/config/hero-marquesina.test.ts` es el único archivo tocado (`git diff` +26/-6 líneas); +3 `test(` nuevos (rol pleno, peso regular, tamaño responsive) y -1 `test(` (el de `font-medium`, reemplazado) = +2 neto. Coincide exacto con el delta medido. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (`touches:` de este slice no incluye ningún archivo de `tests/integracion/`). |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + los 2 hovers, crudo Y consciente de antialiasing (`home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover:automatica 0/98298 · hover:eleccion 0/102870`). Resultado ESPERADO por construcción, no sólo medido: `DEFAULTS.hero.fraseAlPie` es `''` (`site-content-defaults.ts:1470`) y Nayoli (sin fila, sin preset) resuelve a la variante canónica `'curtina'` — nunca monta `HeroMediaMarquesina.tsx` en absoluto (afirmado en `hero-marquesina.test.ts`, "LA INVARIANTE"). El 0px confirma además que las clases arbitrarias nuevas (`text-[13px]`, `sm:text-sm`, `text-[var(--sf-sobre-banda,white)]`) no rompen el `next build` de producción (Turbopack, 51 rutas generadas sin error) — la capa que envía, no sólo `tsc`. |
+
+**EL DUEÑO NO NECESITA RE-APLICAR CORTE** para ver el cambio: es CSS puro sobre un `<p>` ya
+renderizado (mismo patrón que §4 de `CROMO-NAV-EXACTO-PROTOTIPO-1`), no un campo de
+`navTratamiento`/`SiteContent` que dependa de que el preset se re-guarde.
+
+### `touches:` — todo lo escrito estaba declarado
+
+`git diff --numstat`: `components/storefront/home/HeroMediaMarquesina.tsx` (+57/-29, el className de
+la frase + los tres bloques de comentario que documentaban la razón vieja, reescritos con la causa
+medida), `lib/config/hero-marquesina.test.ts` (+26/-6), y este asiento. **2 archivos de código**, los
+2 de `touches:` (`DECISIONS.md` es el tercero, el propio archivo), ni uno más.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: el className del `<p>` de `hero.fraseAlPie`
+(`--sf-sobre-banda-suave`→`--sf-sobre-banda`, `font-medium`→`font-normal`,
+`text-sm`→`text-[13px] sm:text-sm`), `lib/config/hero-marquesina.test.ts` (tres tests
+reemplazan/agregan al de `font-medium`), y los tres bloques de comentario de cabecera del componente.
+Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `HeroMediaMarquesina`, `hero-marquesina.test`, `fraseAlPie`,
+  `sf-sobre-banda` (a secas y con `-suave`), `font-medium` (la cadena literal),
+  `CROMO-NAV-EXACTO-PROTOTIPO-1`. `CLAUDE.md` no documenta el hero sticky, la frase al pie, ni los
+  roles de color `--sf-sobre-banda*` en absoluto — nada que este diff cambie tiene una sentencia que
+  revisar.
+- **`components/storefront/`** (el bullet de subárboles Tier 1, § Tier 1 — superficies protegidas) →
+  confirma que `HeroMediaMarquesina.tsx` cae bajo Tier 1 por el subárbol, consistente con el `tier: 1`
+  del dispatch.
+
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff — no hay ninguna que lo mencione.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `git show HEAD:DECISIONS.md | grep -c
+"CROMO-NAV-EXACTO-PROTOTIPO-1"` (el estado ANTES de esta entrada) da **siete** apariciones — CINCO
+dentro de la propia entrada de `CROMO-NAV-EXACTO-PROTOTIPO-1` (su título, su `touches:`, su CHEQUEO
+MECÁNICO citándose a sí misma dos veces, y su "Cierra") y DOS dentro de la entrada siguiente
+(`PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1`), que la cita sólo como BASELINE numérico ("+1 sobre el piso de
+2419… `CROMO-NAV-EXACTO-PROTOTIPO-1`") y como precedente del PATRÓN de corrección-apuntando-hacia-
+atrás que esa misma entrada reutiliza — ninguna de las siete la cita como algo pendiente. Ese slice ya
+cerró; nadie lo cita como abierto. Esta entrada nueva **no reabre ningún follow-up**:
+`CROMO-NAV-EXACTO-PROTOTIPO-1` no había dejado uno pendiente sobre la frase — la dejó cerrada con su
+propia medición, que ESTA entrada corrige con un dato nuevo (el gate posterior del owner), apuntando
+hacia atrás, sin editar el texto histórico de esa entrada — el mismo patrón que
+`PANEL-LOGIN-PIE-FUERA-DE-LINEAS-1` ya usó con `CROMO-NAV-EXACTO-PROTOTIPO-1`, y que aquélla a su vez
+tomó de `CROMO-NAV-EXACTO-PROTOTIPO-1` con `CROMO-NAV-POSICION-TEMA-REAL-1`.
+
+### `customer_bytes`
+
+**`changed: true`.** El owner va a mirar esta pantalla — es el propósito explícito del gate que
+disparó este slice. Para un tenant con `hero.fraseAlPie` no vacío en la variante `'sticky'` (hoy sólo
+CORTE), la frase cambia de color (de blanco translúcido ~70% a blanco pleno) y de peso (de 500 a
+400), visible sin necesitar re-aplicar ningún preset. `strings:` **ninguno** — no se agrega ni cambia
+una palabra de copy; el cambio es puramente de color/peso/tamaño responsive.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. `touches:` tampoco las incluía.
+
+### Open follow-ups
+
+- **`HeroMedia.tsx`** (§5) — sigue en el rol SUAVE, sin lector visible hoy (ningún preset usa
+  `hero:'media'`). No se abre un follow-up nuevo: es el MISMO estado que `CROMO-NAV-EXACTO-
+  PROTOTIPO-1` ya dejó anotado para el peso, ahora también cierto del color — si algún preset futuro
+  vuelve a `hero:'media'`, la misma corrección (rol pleno, peso regular) aplica ahí, medida igual.
+- **Ninguno nuevo.** El reclamo del gate del owner (§0) queda cerrado con la causa medida, no con un
+  segundo ajuste de compensación.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las tres mediciones ejecutables
+(tsc, `npm test`, `npm run test:integracion`) más `verificar:nayoli:visual` en 0px, crudo y consciente
+de antialiasing, en las 6 rutas + 2 hovers. Sin `schema`, sin `cross-repo-contract`. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el owner ya aprobó la ESCRITURA (`approved: yes`, con su
+reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `HERO-FRASE-COLOR-PLENO-1`.**
