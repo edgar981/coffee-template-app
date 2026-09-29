@@ -32177,9 +32177,12 @@ alineados con los del encabezado." — dice lo que el control YA hacía desde
 ### 6 · Censo de otros breakpoints propios — `duna` no aplica
 
 `grep -rn "duna:"` sobre `components/`, `packages/`, `lib/` (excluido `node_modules`/`.scratch`):
-único breakpoint propio además de `cortenav`. Sus **9 sitios de uso reales**
-(`Sidebar.tsx` ×6, `TopBar.tsx` ×3, `AdminChrome.tsx` ×1) combinan `duna:` SIEMPRE contra una clase
-SIN variante (`duna:flex` sobre `hidden`, `duna:hidden` sobre una clase base, `duna:w-18`,
+único breakpoint propio además de `cortenav`. Sus **14 LÍNEAS de uso real en código** (`className`,
+no comentario — dos apariciones más son comentarios que NOMBRAN la variante sin usarla,
+`TopBar.tsx:87` y `AdminChrome.tsx:87`): `Sidebar.tsx` ×9 (líneas 257,258,271,274,279,292,296,302,
+303 — la 279 combina tres tokens `duna:*` en una sola línea), `TopBar.tsx` ×4 (67,77,88,154),
+`AdminChrome.tsx` ×1 (75). Todas combinan `duna:` SIEMPRE contra una clase SIN variante
+(`duna:flex` sobre `hidden`, `duna:hidden` sobre una clase base, `duna:w-18`,
 `duna:justify-center`, `duna:items-center`, `duna:left-[var(--sb-w)]`, `duna:ml-(--sb-w)`,
 `duna:block`) — CERO combinaciones con `sm:`/`md:`/`lg:`/`xl:`/`2xl:` sobre la MISMA propiedad. Sin
 una condición COMPETIDORA (la clase base no tiene `@media`), el orden de bloques no importa: la
