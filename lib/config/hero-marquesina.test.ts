@@ -118,6 +118,16 @@ test('el texto del loop rinde DOS VECES dentro del track (cinta continua), más 
   assert.equal(enSpans, 2);
 });
 
+// § MARQUEE-SIN-RAYA-1 — la raya (—) que separaba cada repetición se retira (decisión del owner,
+// apartándose de `docs/prototipos/cafeone/index.html:149`); el hueco queda como espacio, con un
+// spacer `inline-block w-[1em]` que preserva el ancho visual del glifo retirado.
+test('el loop NO rinde la raya (—) — el separador es un spacer `inline-block w-[1em]`, no texto', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.ok(!html.includes('—'), 'ningún guion largo debe sobrevivir en el texto del loop');
+  const enSpacers = (html.match(/<span class="inline-block w-\[1em\]">/g) || []).length;
+  assert.equal(enSpacers, 2, 'las DOS repeticiones deben llevar el spacer, no el guion');
+});
+
 // ─── EL TAMAÑO Y LA MÁSCARA — § CORTE-HERO-MARQUEE-RONDA-5-1 ──────────────────────────────────────
 
 test('la máscara (el `<div>` de afuera) lleva el font-size/line-height/letter-spacing MEDIDOS, y ya no la className horneada vieja', () => {

@@ -96,8 +96,13 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
         className="absolute left-0 top-1/2 flex whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
         style={{ transform: transformTexto }}
       >
-        <span className="pr-8">{marquesina.texto} —&nbsp;</span>
-        <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+        {/* SIN RAYA — § MARQUEE-SIN-RAYA-1 (2026-09-29): decisión del owner, apartándose del
+            prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;"). La raya se
+            retira; el hueco entre repeticiones queda como ESPACIO, con un spacer
+            `inline-block w-[1em]` que preserva el ancho visual que el glifo del guion ocupaba
+            (1em, la convención del propio nombre "em dash"). */}
+        <span className="pr-8">{marquesina.texto} <span className="inline-block w-[1em]" />&nbsp;</span>
+        <span className="pr-8">{marquesina.texto} <span className="inline-block w-[1em]" />&nbsp;</span>
       </motion.div>
 
       {producto && (

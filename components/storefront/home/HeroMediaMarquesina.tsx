@@ -535,8 +535,14 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
               animate={estatico ? { x: '0%' } : { x: ['0%', '-50%'] }}
               transition={estatico ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
             >
-              <span className="pr-8">{marquesina.texto} —&nbsp;</span>
-              <span className="pr-8">{marquesina.texto} —&nbsp;</span>
+              {/* SIN RAYA — § MARQUEE-SIN-RAYA-1 (2026-09-29): decisión del owner, apartándose del
+                  prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;"). La
+                  raya se retira; el hueco entre repeticiones queda como ESPACIO, con un spacer
+                  `inline-block w-[1em]` que preserva el ancho visual que el glifo del guion
+                  ocupaba (1em, la convención del propio nombre "em dash") — así la cinta no se ve
+                  pegada al escalar con `MARQUEE_TITULO_FONT_SIZE`. */}
+              <span className="pr-8">{marquesina.texto} <span className="inline-block w-[1em]" />&nbsp;</span>
+              <span className="pr-8">{marquesina.texto} <span className="inline-block w-[1em]" />&nbsp;</span>
             </motion.div>
           </motion.div>
         </div>

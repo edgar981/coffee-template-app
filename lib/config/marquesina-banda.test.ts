@@ -111,6 +111,17 @@ test('el texto del loop rinde DOS VECES dentro del track (el efecto de cinta con
   assert.equal(enSpans, 2, 'el loop debe repetir el texto en exactamente DOS <span>');
 });
 
+// § MARQUEE-SIN-RAYA-1 — la raya (—) que separaba cada repetición se retira (decisión del owner,
+// apartándose de `docs/prototipos/cafeone/index.html:149`); el hueco queda como espacio, con un
+// spacer `inline-block w-[1em]` que preserva el ancho visual del glifo retirado.
+test('el loop NO rinde la raya (—) — el separador es un spacer `inline-block w-[1em]`, no texto', () => {
+  const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
+  const html = renderMarquesina(content);
+  assert.ok(!html.includes('—'), 'ningún guion largo debe sobrevivir en el texto del loop');
+  const enSpacers = (html.match(/<span class="inline-block w-\[1em\]">/g) || []).length;
+  assert.equal(enSpacers, 2, 'las DOS repeticiones deben llevar el spacer, no el guion');
+});
+
 // ─── EL SCROLL — el gate ESTÁTICO (§ lib/animation.test.ts para la matemática pura) ──────────────
 //
 // LO QUE SE PUEDE AFIRMAR SIN NAVEGADOR (mismo límite que `historia-direccion-arte.test.ts`): el
