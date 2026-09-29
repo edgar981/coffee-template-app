@@ -409,12 +409,16 @@ export function derivarPaleta(raices: RaicesPaleta, ejes: EjesPaleta = {}): Pale
   // depender de que el auto-flip "dé la casualidad" de coincidir.
   //
   // accion-hover: el ROJO OSCURECIDO del prototipo (`--action-primary-hover`, `tokens.css:78`),
-  // NO `mezclar(acento, tinta, w)` — el mecanismo de `acento-2`/`acento-3` que YA usan el CTA
-  // "Comprar" del nav (`StoreNav.tsx`) y `lib/storefront/pdp-botones.ts` para SU hover/active: MEDIDO
-  // contra CORTE, mezclar hacia la TINTA (verde) desvía el HUE del rojo hacia un marrón/oliva
-  // (`acento-3` da `#672d00`, `acento-2` da `#403000`) — la MISMA clase de defecto que este slice
-  // existe para cerrar ("el otro tono", no "el mismo rojo oscurecido"); esos dos consumidores NO
-  // están en el alcance de este slice y quedan con su propio defecto nombrado (§ DECISIONS.md).
+  // NO `mezclar(acento, tinta, w)` — el mecanismo de `acento-2`/`acento-3` que usaban el CTA
+  // "Comprar" del nav (`StoreNav.tsx`), el "Agregar al carrito" de la banda spotlight
+  // (`Spotlight.tsx`) y `lib/storefront/pdp-botones.ts` para SU hover/active: MEDIDO contra CORTE,
+  // mezclar hacia la TINTA (verde) desvía el HUE del rojo hacia un marrón/oliva (`acento-3` da
+  // `#672d00`, `acento-2` da `#403000`) — la MISMA clase de defecto que este eje existía para
+  // cerrar ("el otro tono", no "el mismo rojo oscurecido"). `§ CTA-HOVER-RESTO-FAMILIA-1` migró
+  // esos tres consumidores a este mismo par (`accion-hover`/`accion-active`, abajo) — el residuo
+  // nombrado en `§ CTA-PRIMARIO-COLOR-Y-HOVER-1`/DECISIONS.md queda cerrado para ellos; el censo
+  // de OTROS consumidores del mismo patrón fuera de `touches:` (rastrear-pedido, checkout, etc.)
+  // vive en DECISIONS.md, no acá.
   // `oscurecer` (arriba) preserva el HUE —sólo escala L y C en OKLCH—, y el factor 0.85 es el
   // medido contra el prototipo real: `oscurecer('#a70004', 0.85)` da `#860002`, con la R EXACTA
   // (`0x86`) de `--action-primary-hover` (`#860b0c`) y una distancia en Oklab de ~0.006 —
@@ -423,6 +427,27 @@ export function derivarPaleta(raices: RaicesPaleta, ejes: EjesPaleta = {}): Pale
   const FACTOR_ACCION_HOVER = 0.85;
   out['accion-txt'] = ejes.origenAccion === 'acento' ? out['acento-txt'] : tinta;
   out['accion-hover'] = ejes.origenAccion === 'acento' ? oscurecer(acento, FACTOR_ACCION_HOVER) : out['tostado-4'];
+  // accion-active (§ CTA-HOVER-RESTO-FAMILIA-1) — el compañero de `accion-hover` para los TRES
+  // consumidores que además tienen un estado `:active` propio (`StoreNav.tsx`, `Spotlight.tsx`,
+  // `pdp-botones.ts`; los otros 9 de la familia nunca declararon `active:`, así que no lo necesitan).
+  // MISMO mecanismo, UN PASO MÁS: `oscurecer(acento, FACTOR_ACCION_ACTIVE)`, MEDIDO contra el
+  // delta del prototipo `--action-primary-hover` (`#860b0c`) → `-active` (`#6e0a0b`,
+  // `tokens.css:79`) — en OKLCH el HUE apenas se mueve (27.93°→27.47°) mientras L/C bajan un paso
+  // más. Un barrido de factor contra `-active` (no contra `-hover`) da el óptimo en 0.74:
+  // `oscurecer('#a70004', 0.74)` = `#6e0002`, con la R EXACTA (`0x6e`) de `-active` y una distancia
+  // en Oklab de ~0.0097 — misma magnitud de imperceptible que el 0.85 de `accion-hover` (~0.008).
+  // AUSENTE/`'tostado'`: no hay un `tostado-4`-pero-más-oscuro ya establecido en la RECETA (§ arriba
+  // — la familia `tostado-N` sólo se aleja de `acento` hacia `fondo`, nunca al revés), así que se
+  // usa `tostado-3` (w:0.24, más cerca de `acento` que `tostado-4` w:0.43 → más oscuro, medido:
+  // Nayoli `#8c5d3e` < `#c49060`) — un paso más oscuro que el hover, igual que `accion-active`
+  // es un paso más oscuro que `accion-hover` con el eje puesto. Esta rama es hoy INALCANZABLE en la
+  // práctica: los tres consumidores que leen `accion-active` sólo lo hacen cuando `origenAccion`
+  // YA es `'acento'` (StoreNav/`pdp-botones.ts` gatean el bloque entero a `navTratamiento.cta`/
+  // `origenAccion==='acento'`; `Spotlight.tsx` es una variante que hoy sólo pide CORTE) — se deja
+  // documentada y probada igual, para que un preset futuro que comparta el eje sin compartir
+  // `origenAccion:'acento'` no herede un valor sin pensar.
+  const FACTOR_ACCION_ACTIVE = 0.74;
+  out['accion-active'] = ejes.origenAccion === 'acento' ? oscurecer(acento, FACTOR_ACCION_ACTIVE) : out['tostado-3'];
   return out;
 }
 

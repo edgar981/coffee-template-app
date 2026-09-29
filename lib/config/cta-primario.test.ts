@@ -69,6 +69,50 @@ for (const archivo of CONSUMIDORES) {
   });
 }
 
+// ── § CTA-HOVER-RESTO-FAMILIA-1 — LOS TRES RESTANTES, OTRO SUB-PATRÓN ─────────────────────────────
+// StoreNav.tsx/Spotlight.tsx/pdp-botones.ts NO comparten el patrón de arriba (fondo
+// `--sf-accion,var(--sf-tostado)` + texto `--sf-accion-txt,var(--sf-tinta)`): pintan el fondo con
+// `--sf-acento` CRUDO (no la indirección `accion`) y su texto ya era `--sf-acento-txt` correcto
+// desde `PARIDAD-PDP-BOTONES-1`/`CROMO-NAV-CTA-Y-BADGE-1` — el defecto que este slice cierra era
+// SÓLO el hover/active (`--sf-acento-3`/`-2`, que desviaba el hue hacia la tinta). Por eso NO
+// entran al loop `CONSUMIDORES` de arriba (fallarían la aserción de fondo/texto, que no aplica) —
+// tienen su propio par de aserciones, y `pdp-botones.ts` además tiene su verificación PURA en
+// `lib/storefront/pdp-botones.test.ts` (no source-grep: exporta la función que arma la clase).
+const CONSUMIDORES_HOVER_ACTIVE = [
+  'components/storefront/layout/StoreNav.tsx',
+  'components/storefront/home/Spotlight.tsx',
+] as const;
+
+for (const archivo of CONSUMIDORES_HOVER_ACTIVE) {
+  test(`${archivo}: el CTA usa --sf-accion-hover (hover) con fallback a --sf-tostado-4`, () => {
+    const src = leer(archivo);
+    assert.match(
+      src,
+      /hover:bg-\[var\(--sf-accion-hover,var\(--sf-tostado-4\)\)\]/,
+      `${archivo} no migró el hover del CTA a --sf-accion-hover`,
+    );
+  });
+
+  test(`${archivo}: el CTA usa --sf-accion-active (active) con fallback a --sf-tostado-3`, () => {
+    const src = leer(archivo);
+    assert.match(
+      src,
+      /active:bg-\[var\(--sf-accion-active,var\(--sf-tostado-3\)\)\]/,
+      `${archivo} no migró el active del CTA a --sf-accion-active`,
+    );
+  });
+
+  test(`${archivo}: NO conserva el mecanismo viejo de hover/active (--sf-acento-3/--sf-acento-2, el hue-shift hacia la tinta)`, () => {
+    // Blanco de `--sf-acento-2`/`-3` a secas NO sirve de discriminador acá: StoreNav.tsx sigue
+    // usando `--sf-acento-2` como color de TEXTO del nav móvil (líneas ~812/827, fuera de esta
+    // familia) y ambos archivos nombran los tokens viejos en su propio comentario explicativo. El
+    // discriminador real es la CLASE de hover/active del BOTÓN, que es lo que este slice migró.
+    const src = leer(archivo);
+    assert.doesNotMatch(src, /hover:bg-\[var\(--sf-acento-3\)\]/, `${archivo} todavía usa hover:bg-[var(--sf-acento-3)]`);
+    assert.doesNotMatch(src, /active:bg-\[var\(--sf-acento-2\)\]/, `${archivo} todavía usa active:bg-[var(--sf-acento-2)]`);
+  });
+}
+
 // ── El barrido: ningún .tsx del storefront conserva el patrón VIEJO ──────────────────────────────
 // `hover:bg-[var(--sf-tostado-4)]` A SECAS (sin el fallback de `--sf-accion-hover` delante) es
 // justo el literal que esta familia tenía. Si reaparece en cualquier .tsx del storefront —un CTA
@@ -102,7 +146,7 @@ test('barrido: ningún .tsx de components/storefront/ o app/(storefront)/ conser
   assert.deepEqual(ofensores, [], `patrón viejo aún presente en: ${ofensores.join(', ')}`);
 });
 
-test('barrido: la lista `CONSUMIDORES` de arriba es EXHAUSTIVA — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 9 archivos + palette-derive.ts', () => {
+test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 11 archivos + palette-derive.ts', () => {
   const conAccionHover: string[] = [];
   for (const raiz of RAICES_STOREFRONT) {
     for (const archivo of walkTsx(path.join(RAIZ, raiz))) {
@@ -112,5 +156,18 @@ test('barrido: la lista `CONSUMIDORES` de arriba es EXHAUSTIVA — ningún .tsx 
       }
     }
   }
-  assert.deepEqual(conAccionHover.sort(), [...CONSUMIDORES].sort());
+  assert.deepEqual(conAccionHover.sort(), [...CONSUMIDORES, ...CONSUMIDORES_HOVER_ACTIVE].sort());
+});
+
+test('barrido: `CONSUMIDORES_HOVER_ACTIVE` es EXHAUSTIVA para `--sf-accion-active` — ningún .tsx del storefront la usa fuera de esos 2 archivos + palette-derive.ts (pdp-botones.ts es .ts, fuera de este barrido de .tsx — cubierto por su propio test PURO)', () => {
+  const conAccionActive: string[] = [];
+  for (const raiz of RAICES_STOREFRONT) {
+    for (const archivo of walkTsx(path.join(RAIZ, raiz))) {
+      const src = readFileSync(archivo, 'utf8');
+      if (src.includes('--sf-accion-active')) {
+        conAccionActive.push(path.relative(RAIZ, archivo).replace(/\\/g, '/'));
+      }
+    }
+  }
+  assert.deepEqual(conAccionActive.sort(), [...CONSUMIDORES_HOVER_ACTIVE].sort());
 });

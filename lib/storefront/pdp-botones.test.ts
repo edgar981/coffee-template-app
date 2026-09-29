@@ -28,9 +28,15 @@ test('clasesBotonesCompra("acento"): CORTE — "Comprar ahora" pasa a ser el PRI
   const { primario } = clasesBotonesCompra('acento');
   assert.match(primario, /bg-\[var\(--sf-acento\)\]/);
   assert.match(primario, /text-\[var\(--sf-acento-txt\)\]/);
-  assert.match(primario, /hover:bg-\[var\(--sf-acento-3\)\]/);
-  assert.match(primario, /active:bg-\[var\(--sf-acento-2\)\]/);
+  assert.match(primario, /hover:bg-\[var\(--sf-accion-hover,var\(--sf-tostado-4\)\)\]/);
+  assert.match(primario, /active:bg-\[var\(--sf-accion-active,var\(--sf-tostado-3\)\)\]/);
   assert.doesNotMatch(primario, /border-2 border-\[var\(--sf-acento\)\]/);
+});
+
+test('clasesBotonesCompra("acento"): CORTE — "Comprar ahora" NO usa el mecanismo viejo (`--sf-acento-3`/`-2`, § CTA-HOVER-RESTO-FAMILIA-1) que desviaba el hue hacia la tinta', () => {
+  const { primario } = clasesBotonesCompra('acento');
+  assert.doesNotMatch(primario, /--sf-acento-3/);
+  assert.doesNotMatch(primario, /--sf-acento-2/);
 });
 
 test('clasesBotonesCompra("acento"): CORTE — "Agregar al carrito" pasa a ser el SECUNDARIO de contorno que se llena de acento al hover', () => {
@@ -39,6 +45,13 @@ test('clasesBotonesCompra("acento"): CORTE — "Agregar al carrito" pasa a ser e
   assert.match(secundario, /hover:bg-\[var\(--sf-acento\)\]/);
   assert.match(secundario, /hover:text-\[var\(--sf-acento-txt\)\]/);
   assert.doesNotMatch(secundario, /bg-\[var\(--sf-tinta\)\]/);
+});
+
+test('clasesBotonesCompra("acento"): CORTE — "Agregar al carrito" usa `--sf-accion-active` para su active (no `--sf-acento-2`, § CTA-HOVER-RESTO-FAMILIA-1) — el hover se queda en `--sf-acento` crudo, que ya coincide con el prototipo', () => {
+  const { secundario } = clasesBotonesCompra('acento');
+  assert.match(secundario, /active:bg-\[var\(--sf-accion-active,var\(--sf-tostado-3\)\)\]/);
+  assert.doesNotMatch(secundario, /--sf-acento-2/);
+  assert.doesNotMatch(secundario, /--sf-acento-3/);
 });
 
 test('clasesBotonesCompra("acento"): el TEXTO del secundario va en `--sf-acento` CRUDO, nunca `--sf-acento-texto` — CORTE redirige ese token a la TINTA vía `origenTexto:\'tinta\'` (medido: `--sf-acento-texto` resuelve `#102407`, no `#a70004`), así que usarlo repetiría el defecto del CENSO (borde rojo, texto tinta, dos colores en el mismo botón)', () => {

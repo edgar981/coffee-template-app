@@ -51,17 +51,27 @@ const SECUNDARIO_DEFECTO =
   'flex-1 flex items-center justify-center gap-2 bg-[var(--sf-tinta)] hover:bg-[var(--sf-tinta-2)] text-[var(--sf-sobre)] font-semibold py-4 rounded-2xl transition-all hover:-translate-y-0.5 text-sm';
 
 // CORTE (`origenAccion:'acento'`) — MISMO tratamiento `.btn--primary`/`.btn--secondary` ya vetado
-// contra el prototipo en `Spotlight.tsx:337-343` (el "Agregar al carrito" de la banda spotlight) y
-// `StoreNav.tsx:656-660` (el CTA "Comprar" del encabezado, § CROMO-NAV-CTA-Y-BADGE-1): `sf-pildora`
+// contra el prototipo en `Spotlight.tsx:361` (el "Agregar al carrito" de la banda spotlight) y
+// `StoreNav.tsx:712` (el CTA "Comprar" del encabezado, § CROMO-NAV-CTA-Y-BADGE-1): `sf-pildora`
 // para el radio (0 bajo `forma:'recta'` de CORTE), `sf-borde` para el grosor del borde del contorno,
 // mayúscula + tracking .085em + semibold, `py-[18px] px-[28px]` (`--button-pad-y`/`-x`), hover/active
-// DERIVADOS del acento (`--sf-acento-3`/`-2`) sin hex nuevo — ningún valor de esta lista es inventado
-// para este slice, todos ya circulan en el storefront bajo el mismo eje.
+// vía `--sf-accion-hover`/`--sf-accion-active` (§ CTA-HOVER-RESTO-FAMILIA-1, `palette-derive.ts`) —
+// ningún valor de esta lista es inventado para este slice, todos ya circulan en el storefront bajo
+// el mismo eje.
+//
+// `--sf-accion-hover`/`--sf-accion-active` son `oscurecer(acento, factor)` en OKLCH (preserva el
+// HUE) — NO `mezclar(acento, tinta, w)`, el mecanismo VIEJO (`--sf-acento-3`/`-2`) que este mismo
+// archivo usaba hasta `§ CTA-HOVER-RESTO-FAMILIA-1`: MEDIDO contra CORTE, mezclar hacia la tinta
+// (verde) desviaba el hue del rojo a un marrón/oliva (`acento-3`→`#672d00`, `acento-2`→`#403000`) —
+// el defecto que el gate del owner reportó ("cambiarlo a ese otro tono", no "el mismo rojo
+// oscurecido"). `PARIDAD-PDP-BOTONES-1` había medido y aceptado esa aproximación como fuera de su
+// alcance; `§ CTA-HOVER-RESTO-FAMILIA-1` la cierra.
 //
 // `.btn--secondary` del prototipo (`css/app.css:137-142`) rellena a `--action-primary` (el acento
 // CRUDO, no el matiz `-hover`) al pasar el mouse, y a `--action-primary-active` (el matiz `-active`,
-// más oscuro) al presionar — por eso el hover de acá usa `--sf-acento` (no `-3`) y el active usa
-// `--sf-acento-2`, la MISMA pareja que ya usa el primario para su propio active.
+// más oscuro) al presionar — por eso el hover de acá usa `--sf-acento` (no `-3` ni `--sf-accion-
+// hover`: el prototipo mismo no distingue un tono de hover para el secundario) y el active usa
+// `--sf-accion-active`, la MISMA que usa el primario para su propio active.
 //
 // EL BORDE/TEXTO DEL SECUNDARIO USA `--sf-acento` (crudo), NUNCA `--sf-acento-texto` — MEDIDO, no
 // asumido, contra el muestrario desplegado: CORTE declara `origenTexto:'tinta'` (§ TEMAS-ROLES-
@@ -78,9 +88,9 @@ const SECUNDARIO_DEFECTO =
 // `--sf-acento` no es uno de los roles que `origenTexto` mueve (sólo mueve `texto`/`texto-suave`/
 // `acento-texto`), así que es estable ante cualquier preset futuro que declare ese eje.
 const PRIMARIO_CORTE =
-  'w-full flex items-center justify-center gap-2 sf-pildora bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] active:bg-[var(--sf-acento-2)] active:translate-y-px text-[var(--sf-acento-txt)] font-semibold uppercase tracking-[0.085em] py-[18px] px-[28px] transition-all duration-[120ms] text-sm cursor-pointer';
+  'w-full flex items-center justify-center gap-2 sf-pildora bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] active:translate-y-px text-[var(--sf-acento-txt)] font-semibold uppercase tracking-[0.085em] py-[18px] px-[28px] transition-all duration-[120ms] text-sm cursor-pointer';
 const SECUNDARIO_CORTE =
-  'flex-1 flex items-center justify-center gap-2 sf-pildora sf-borde border-[var(--sf-acento)] text-[var(--sf-acento)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] active:bg-[var(--sf-acento-2)] active:text-[var(--sf-acento-txt)] active:translate-y-px font-semibold uppercase tracking-[0.085em] py-[18px] px-[28px] transition-all duration-[120ms] text-sm cursor-pointer';
+  'flex-1 flex items-center justify-center gap-2 sf-pildora sf-borde border-[var(--sf-acento)] text-[var(--sf-acento)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] active:text-[var(--sf-acento-txt)] active:translate-y-px font-semibold uppercase tracking-[0.085em] py-[18px] px-[28px] transition-all duration-[120ms] text-sm cursor-pointer';
 
 /**
  * Las clases de los dos botones de compra de `/tienda/[slug]`, según `tema.origenAccion`. Sólo

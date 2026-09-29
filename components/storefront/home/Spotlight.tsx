@@ -352,13 +352,16 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             {/* `.btn.btn--primary.btn--block` (css/app.css:123-136,147, tokens.css:77-79,111,128,
                 155-156,171) — MISMO patrón ya medido/vetado para el CTA de StoreNav (§
                 CROMO-NAV-CTA-Y-BADGE-1): `sf-pildora` para el radio de botón (0 bajo 'recta'),
-                mayúscula + tracking .085em + semibold, hover/active DERIVADOS del acento
-                (`--sf-acento-3`/`-2`) sin hex nuevo, `active:translate-y-px`. `py-[18px]` +
+                mayúscula + tracking .085em + semibold, hover/active vía `--sf-accion-hover`/
+                `--sf-accion-active` (§ CTA-HOVER-RESTO-FAMILIA-1, `palette-derive.ts`) — el ROJO
+                OSCURECIDO del prototipo (`oscurecer()`, preserva el HUE), NO `mezclar(acento,
+                tinta, w)` (`--sf-acento-3`/`-2`, el mecanismo viejo: desviaba el hue hacia la
+                tinta verde de CORTE y daba un marrón/oliva), `active:translate-y-px`. `py-[18px]` +
                 `px-[28px]` = `--button-pad-y`/`-x`; `text-sm`(14px) = `--text-body-s`. */}
             <button
               type="button"
               onClick={handleAdd}
-              className="w-full flex items-center justify-center gap-2 sf-pildora bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] active:bg-[var(--sf-acento-2)] active:translate-y-px text-[var(--sf-acento-txt)] font-semibold uppercase tracking-[0.085em] py-[18px] px-[28px] transition-all duration-[120ms] text-sm cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 sf-pildora bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] active:translate-y-px text-[var(--sf-acento-txt)] font-semibold uppercase tracking-[0.085em] py-[18px] px-[28px] transition-all duration-[120ms] text-sm cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4" /> Agregar al carrito
             </button>

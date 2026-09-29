@@ -32557,3 +32557,142 @@ ESCRITURA (`approval-reason` del spec, gate visual del 2026-09-29 sobre el riel 
 el MERGE sigue gateado aparte.
 
 **Cierra `CTA-PRIMARIO-COLOR-Y-HOVER-1`.**
+
+## 2026-09-29 — El hover/active de los tres botones rojos que quedaron fuera pasan al MISMO rojo oscurecido, y gana compañero `accion-active` (`CTA-HOVER-RESTO-FAMILIA-1`)
+
+Cierra `ACENTO-2-3-HOVER-HUE-SHIFT-1` (open_followup de `CTA-PRIMARIO-COLOR-Y-HOVER-1`, arriba): los
+TRES consumidores que ese slice nombró y dejó fuera de `touches:` —el CTA "Comprar" del encabezado
+(`StoreNav.tsx:712`), el "Agregar al carrito" de la banda spotlight (`Spotlight.tsx:361`) y
+`lib/storefront/pdp-botones.ts` (`PRIMARIO_CORTE`/`SECUNDARIO_CORTE`)— usaban `mezclar(acento, tinta,
+w)` (`--sf-acento-3`/`-2`) para su hover/active, el MISMO defecto que ese slice cerró para los otros
+9: mezclar el rojo de CORTE hacia su tinta verde desvía el hue a un marrón/oliva (`acento-3`→
+`#672d00`, `acento-2`→`#403000`), no "el mismo rojo oscurecido" que pedía el gate del owner.
+
+### El mecanismo — `accion-active`, el compañero de `accion-hover`
+
+Los tres consumidores de este slice, a diferencia de los 9 de `CTA-PRIMARIO-COLOR-Y-HOVER-1`, además
+declaran un estado `:active` propio (los 9 nunca lo hacían). `accion-hover` ya resolvía el hover; el
+active necesitaba un rol nuevo, **UN PASO MÁS oscuro**, con el MISMO mecanismo (`oscurecer`, preserva
+el HUE en OKLCH).
+
+**El factor se midió contra el DELTA del prototipo, no se inventó.** `docs/prototipos/cafeone/css/
+tokens.css:77-79`: `--action-primary-hover:#860b0c` → `-active:#6e0a0b`. Convertidos a OKLCH: L/C
+bajan de `0.3950/0.1540` a `0.3448/0.1319` mientras el HUE apenas se mueve (27.93°→27.47°). Un barrido
+de `factor` contra `-active` (no contra `-hover`) da el óptimo en **0.74**:
+`oscurecer('#a70004', 0.74)` = `#6e0002` — la R EXACTA del prototipo (`0x6e`), distancia en Oklab
+≈0.0097 (misma magnitud de imperceptible que el 0.85/≈0.0082 de `accion-hover`).
+
+**AUSENTE/`origenAccion:'tostado'`: `accion-active` cae a `tostado-3`, no `tostado-4`.** La familia
+`tostado-N` de la RECETA sólo se ALEJA de `acento` hacia `fondo` (mayor peso = más claro); no hay un
+"`tostado-4`-pero-más-oscuro" ya establecido, así que se usa `tostado-3` (w:0.24, más cerca de
+`acento` que `tostado-4` w:0.43 → más oscuro — medido en los ESTÁTICOS de Nayoli: `#8c5d3e` <
+`#c49060`). Esta rama es hoy INALCANZABLE en la práctica —los tres consumidores sólo leen
+`accion-active` cuando `origenAccion` YA es `'acento'`— y se deja documentada y probada igual, para
+un preset futuro que comparta el eje sin origenAccion:'acento'.
+
+### Los cuatro sitios migrados
+
+| archivo | hover (antes → después) | active (antes → después) |
+| --- | --- | --- |
+| `StoreNav.tsx:712` (Comprar) | `--sf-acento-3` → `--sf-accion-hover,var(--sf-tostado-4)` | `--sf-acento-2` → `--sf-accion-active,var(--sf-tostado-3)` |
+| `Spotlight.tsx:361` (Agregar al carrito) | ídem | ídem |
+| `pdp-botones.ts` `PRIMARIO_CORTE` (Comprar ahora) | ídem | ídem |
+| `pdp-botones.ts` `SECUNDARIO_CORTE` (Agregar al carrito) | **SIN CAMBIO** — `--sf-acento` crudo, ya coincide con `--action-primary` del prototipo | `--sf-acento-2` → `--sf-accion-active,var(--sf-tostado-3)` |
+
+El hover de `SECUNDARIO_CORTE` NO se tocó: el prototipo mismo (`.btn--secondary`, `css/app.css:
+137-142`) rellena a `--action-primary` (el acento CRUDO) al pasar el mouse, no a un matiz `-hover` —
+ese hover YA era correcto antes de este slice, y `PARIDAD-PDP-BOTONES-1` ya lo había medido así.
+
+### El censo ampliado — SIETE consumidores MÁS del mismo defecto, FUERA de `touches:`
+
+El spec pedía censar "algún otro consumidor de `--sf-acento-2`/`--sf-acento-3` como hover de un botón
+rojo bajo CORTE". `grep -rn "hover:bg-\[var(--sf-acento-3)\]\|active:bg-\[var(--sf-acento-2)\]"`
+contra el repo completo dio, además de los 4 sitios de arriba, **SIETE** botones más con el MISMO
+patrón (`bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)]`, sin `active:` en ninguno de los siete):
+
+- `app/(storefront)/rastrear-pedido/page.tsx:135` (botón "Buscar")
+- `app/(storefront)/checkout/retorno/RetornoCliente.tsx:222`
+- `app/(storefront)/checkout/page.tsx:805` (botón de enviar el pedido)
+- `components/storefront/home/Newsletter.tsx:22` (botón "Suscribir")
+- `components/storefront/checkout/FormularioTarjeta.tsx:626`
+- `components/storefront/suscripciones/SuscripcionPlanes.tsx:109` (plan destacado)
+- `components/storefront/checkout/FormularioOtroMetodoPasarela.tsx:333`
+
+Ninguno de los siete está en `touches:` de este slice, así que **no se tocaron** — el spec autorizó
+migrar o nombrar, y nombrar es lo que corresponde para un archivo fuera del techo aprobado. Quedan
+como `open_followups` (abajo), con el mecanismo (`accion-hover`) ya construido y probado, listo para
+que el próximo slice que los toque no tenga que volver a medir el factor ni el defecto.
+
+**Relacionado pero DISTINTO, no censado como el mismo defecto:** `FeaturedProductsCuadricula.tsx:49`
+y `FeaturedProductsGrilla.tsx:57` usan `hover:text-[var(--sf-acento-3)]` sobre un LINK de texto ("Ver
+todos"), no el FONDO de un botón — el spec pedía específicamente "hover de un botón rojo", y un link
+de texto es otra superficie (no hay "botón que se ve marrón", hay texto que cambia de color). Se
+nombran para que quien evalúe el censo sepa que se vieron y se excluyeron a propósito, no por olvido.
+
+### Medido — contraste, antes/después
+
+| | valor | contraste vs `accion-txt` (`#ffffff`) |
+| --- | --- | --- |
+| `accion-active` con `mezclar(acento,tinta,w)` de `acento-2` (DESCARTADO) | `#403000` (marrón/oliva) | — |
+| `accion-active` con `oscurecer(acento,0.74)` (elegido) | `#6e0002` | **12.62:1** |
+| `accion-hover` (sin cambio, de `CTA-PRIMARIO-COLOR-Y-HOVER-1`) | `#860002` | **10.42:1** |
+| reposo: `accion-txt` sobre `accion` | `#a70004` | **7.94:1** |
+
+La progresión reposo→hover→active (7.94→10.42→12.62) es monótona creciente, como debe ser: cada
+estado más "presionado" es un rojo más oscuro del MISMO hue, nunca un tono distinto.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2566/2566** (2553 + 13 nuevos: 4 en `palette-derive.test.ts`, 7 en `cta-primario.test.ts`, 2 en `pdp-botones.test.ts`) |
+| `npm run test:integracion` | **240/240** |
+| `npm run guarda:color` | **0px** en las 8 capturas (6 rutas + 2 hovers) — `ruta-home`/`ruta-tienda`/`ruta-producto`/`ruta-checkout`/`ruta-nosotros`/`ruta-suscripciones`/`hover-automatica`/`hover-eleccion`, todas IDÉNTICO contra el fixture commiteado |
+| `npm run verificar:nayoli:visual` | **NO CORRIDO** — deviación, ver abajo |
+
+### La deviación — `verificar:nayoli:visual` no se corrió
+
+`scripts/verificar-nayoli-visual.ts` crea un `git worktree` de `main` (`spawnSync('git',['worktree',
+'add','--detach',...])`) como parte de su propio mecanismo — es cómo compara la rama contra `main`
+sin reconstruir dos veces el mismo checkout. Esta sesión operó bajo la restricción explícita de no
+crear worktrees. Se corrió en su lugar `npm run guarda:color` (§ Gate, arriba: 0px en las 8
+capturas), que diffea contra el FIXTURE COMMITEADO en `tests/visual/nayoli/` en vez de contra un
+worktree de `main` en vivo — no crea worktree. La cobertura de `guarda:color` es la misma pregunta
+("¿Nayoli se ve distinto?") con una fuente distinta de verdad (el fixture, no un build fresco de
+`main`); no correr el segundo arnés dejó sin cubrir la posibilidad de que el FIXTURE mismo esté
+desactualizado respecto de `main` — riesgo que no se puede descartar acá y que un gate del owner
+(capa 3) sí cubre al mirar el preview real.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+`grep` de cada símbolo/archivo tocado (`StoreNav.tsx`, `Spotlight.tsx`, `pdp-botones`,
+`palette-derive`, `accion-hover`, `accion-active`, `acento-3`, `acento-2`, `oscurecer`,
+`CTA-PRIMARIO-COLOR-Y-HOVER-1`, `cta-primario`) contra `CLAUDE.md`: **CERO coincidencias** — ninguna
+sentencia de `CLAUDE.md` nombra ninguno de estos símbolos/archivos por su nombre de archivo o token.
+La única mención indirecta es la regla del subárbol `components/storefront/` (Tier 1, línea 47), que
+cubre a `StoreNav.tsx`/`Spotlight.tsx` por pertenecer a ese árbol — sigue siendo cierta sin cambios
+(es justamente por qué este slice corrió bajo `tier:1` con aprobación del owner). **CERO sentencias
+de `CLAUDE.md` quedan falsas por este diff.** Se grepeó también el ID cerrado
+(`ACENTO-2-3-HOVER-HUE-SHIFT-1`): su única aparición en el repo es la entrada de arriba en este mismo
+archivo; no hay otro puntero que actualizar.
+
+### open_followups
+
+- **`ACENTO-2-3-HOVER-HUE-SHIFT-2`** — los SIETE consumidores del censo ampliado (arriba) usan el
+  MISMO patrón viejo (`bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)]`, sin `active:`) y
+  compartirían el defecto SI algún día un preset con `origenAccion:'acento'` que no sea CORTE los
+  alcanza — hoy, bajo CORTE, tienen el mismo marrón/oliva medido para `acento-3` (`#672d00`). El
+  mecanismo (`--sf-accion-hover,var(--sf-tostado-4)`) ya existe y está probado; migrarlos es un
+  cambio de una línea por archivo, cada uno fuera de `touches:` de este slice. No se tocaron.
+
+### Verdict
+
+**AWAITING_APPROVAL.** El diff cambia el hover/active de cuatro botones (tres archivos) del
+storefront de CORTE — bytes que un visitante de esa tienda ve en cada hover/click — así que falla
+`customer-bytes` de merge policy A, igual que el resto de esta racha. El owner ya aprobó la ESCRITURA
+(`approval-reason` del spec: el mismo gate del 2026-09-29 sobre el riel de presentaciones, que
+nombró estos tres consumidores como fuera del alcance de `CTA-PRIMARIO-COLOR-Y-HOVER-1`) — el MERGE
+sigue gateado aparte.
+
+**Cierra `CTA-HOVER-RESTO-FAMILIA-1` y `ACENTO-2-3-HOVER-HUE-SHIFT-1`.**

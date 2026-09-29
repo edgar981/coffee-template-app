@@ -694,10 +694,13 @@ export default function StoreNav() {
                   vía `.sf-pildora` (= `--radius-button`, 0, bajo la forma `'recta'` de CORTE — no un
                   radio nuevo), mayúscula + `tracking-[0.085em]` (= `--tracking-button`, el MISMO
                   valor que ya usa `badgeSpan`) + `font-semibold` (= `--weight-semibold`, 600) por
-                  CSS — el texto sigue siendo el DATO de `menu.ctaLabel`. Hover/active DERIVADOS del
-                  acento, sin hex nuevo: `--sf-acento-3` (hover) y `--sf-acento-2` (active, MÁS
-                  mezclado con tinta = más oscuro, el mismo sentido que `--action-primary-hover`/
-                  `-active` del prototipo) + `translate-y-px` al presionar.
+                  CSS — el texto sigue siendo el DATO de `menu.ctaLabel`. Hover/active vía
+                  `--sf-accion-hover`/`--sf-accion-active` (§ CTA-HOVER-RESTO-FAMILIA-1,
+                  `palette-derive.ts`) — el ROJO OSCURECIDO del prototipo (`oscurecer()`, preserva
+                  el HUE), NO `mezclar(acento, tinta, w)` (`--sf-acento-3`/`-2`, el mecanismo viejo:
+                  MEDIDO, desviaba el hue hacia la tinta verde de CORTE y daba un marrón/oliva —
+                  `acento-3`→`#672d00`, `acento-2`→`#403000` — en vez de "el mismo rojo oscurecido"
+                  que pedía el gate del owner) + `translate-y-px` al presionar.
 
                   `hidden sm:inline-flex` (§ el `hide-sm` del prototipo, `app.css:999`, que oculta el
                   CTA bajo 640px junto al buscador y la cuenta): el badge del ítem de menú ya se
@@ -709,7 +712,7 @@ export default function StoreNav() {
               {ctaHref && navTratamiento.cta && (
                 <Link
                   href={ctaHref}
-                  className="hidden sm:inline-flex items-center justify-center whitespace-nowrap leading-none sf-pildora bg-[var(--sf-acento)] px-[18px] py-[11px] text-[11px] font-semibold uppercase tracking-[0.085em] text-[var(--sf-acento-txt)] transition-all duration-[120ms] hover:bg-[var(--sf-acento-3)] active:bg-[var(--sf-acento-2)] active:translate-y-px"
+                  className="hidden sm:inline-flex items-center justify-center whitespace-nowrap leading-none sf-pildora bg-[var(--sf-acento)] px-[18px] py-[11px] text-[11px] font-semibold uppercase tracking-[0.085em] text-[var(--sf-acento-txt)] transition-all duration-[120ms] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] active:translate-y-px"
                 >
                   {content.menu.ctaLabel}
                 </Link>
