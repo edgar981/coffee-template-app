@@ -191,7 +191,7 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
           {ctaHref && (
             <Link
               href={ctaHref}
-              className="inline-flex shrink-0 items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-tinta)] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+              className="inline-flex shrink-0 items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
             >
               {presentaciones.ctaLabel}
             </Link>

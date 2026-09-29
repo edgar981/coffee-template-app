@@ -98,6 +98,17 @@ export function mezclar(h1: string, h2: string, w: number): string {
   let dh = c2.H - c1.H; if (dh > 180) dh -= 360; if (dh < -180) dh += 360;
   return oklabToHex(lchToLab({ L: c1.L + (c2.L - c1.L) * w, C: c1.C + (c2.C - c1.C) * w, H: (c1.H + dh * w + 360) % 360 }));
 }
+/** Escala L y C en OKLCH por `factor` (< 1 oscurece), preservando H — un OSCURECIMIENTO PURO del
+ *  MISMO color, a diferencia de `mezclar(hex, otraRaíz, w)`: mezclar hacia otra raíz desvía el HUE
+ *  hacia el de esa raíz (§ CTA-PRIMARIO-COLOR-Y-HOVER-1 — MEDIDO: `mezclar(acento, tinta, 0.41)`
+ *  sobre el rojo de CORTE, `#a70004`, da `#672d00` — un marrón/oliva, porque la tinta de CORTE es
+ *  verde y el arco de mezcla cruza por ahí — el "otro tono" que el owner reportó en el hover del
+ *  CTA primario, no "el mismo rojo oscurecido"). Un hover de botón tiene que seguir siendo EL MISMO
+ *  color, sólo más oscuro. */
+function oscurecer(hex: string, factor: number): string {
+  const lch = labToLch(hexToOklab(hex));
+  return oklabToHex(lchToLab({ L: Math.max(0, lch.L * factor), C: Math.max(0, lch.C * factor), H: lch.H }));
+}
 /** Luminancia relativa WCAG de un hex (0..1). Compartida por `contraste` y por la dirección
  *  del piso: una superficie es "clara" si su luminancia pasa 0.5. */
 const luminancia = (hex: string): number => {
@@ -370,16 +381,48 @@ export function derivarPaleta(raices: RaicesPaleta, ejes: EjesPaleta = {}): Pale
   out['sobre-tarjeta-suave'] = pisoContraste(out['acento-texto'], out['tarjeta'], 4.5);
   // accion (§ EjesPaleta, arriba): el fondo de una ACCIÓN PRIMARIA — hoy los CTA de
   // `components/storefront/home/{HeroCurtina,HeroFicha,HeroMedia,SubscriptionCTABloque,
-  // SubscriptionCTALinea}.tsx`, que pintaban `bg-[var(--sf-tostado)]` DIRECTO. La INDIRECCIÓN: un
+  // SubscriptionCTALinea}.tsx` (+ `BackToTop.tsx`/`CartDrawer.tsx`/`NosotrosCierre.tsx`,
+  // § CTA-PRIMARIO-COLOR-Y-HOVER-1), que pintaban `bg-[var(--sf-tostado)]` DIRECTO. La INDIRECCIÓN: un
   // rol nuevo, SIN color propio — DEFAULT = copia exacta de `tostado` (byte a byte: son las MISMAS
-  // 5 clases que hoy leen `--sf-tostado`, ahora vía `--sf-accion` con fallback a `--sf-tostado` en
+  // clases que hoy leen `--sf-tostado`, ahora vía `--sf-accion` con fallback a `--sf-tostado` en
   // el propio JSX, así que Nayoli/cualquier tema que no declare este eje queda IDÉNTICO) — y
   // `origenAccion === 'acento'` lo hace apuntar al ACENTO crudo, el color de acción real del
   // cliente, sin florear (mismo trato que `--sf-acento` cuando pinta un botón/badge — nunca se
-  // florea, es superficie, no texto). NO se tocó el hover de esos 5 CTA (`--sf-tostado-4` literal):
-  // el spec pide la indirección del FONDO, no repintar cada lugar a mano; el hover queda como
-  // residuo conocido y declarado (§ DECISIONS.md, TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
+  // florea, es superficie, no texto).
   out['accion'] = ejes.origenAccion === 'acento' ? acento : out['tostado'];
+  // accion-txt / accion-hover (§ CTA-PRIMARIO-COLOR-Y-HOVER-1) — CIERRAN el residuo que el
+  // párrafo de arriba dejaba declarado ("NO se tocó el hover… queda como residuo conocido"): el
+  // TEXTO/ícono y el HOVER de la superficie `accion`, arriba. El defecto medido contra el gate del
+  // owner: con `origenAccion:'acento'` (CORTE), el JSX pintaba texto `--sf-tinta` fijo sobre un
+  // fondo `accion` que YA es el acento rojo crudo — contraste bajo, "texto tinta sobre el rojo" — y
+  // el hover caía a `--sf-tostado-4` literal, un tostado CLARO ajeno al rojo — "el hover cambia a
+  // un marrón claro" que el owner reportó.
+  //
+  // accion-txt: el MISMO auto-flip-GANA-PISO que ya calcula `acento-txt` (arriba), evaluado contra
+  // la superficie REAL del botón (`accion`), no siempre contra el acento crudo. Para
+  // `origenAccion:'acento'` las dos superficies COINCIDEN (`accion === acento`), así que es
+  // LITERALMENTE `acento-txt` — se reusa, no se recalcula. AUSENTE/`'tostado'` = `tinta` LITERAL,
+  // NO el resultado del auto-flip: el auto-flip podría, para algún cliente futuro de raíces
+  // extremas, preferir blanco sobre un `tostado` oscuro, y eso no sería byte-idéntico al
+  // `text-[var(--sf-tinta)]` que el JSX de hoy hornea — fijar el default a `tinta` sin pasar por el
+  // motor es lo que GARANTIZA el byte-idéntico para Nayoli y cualquier tema sin este eje, en vez de
+  // depender de que el auto-flip "dé la casualidad" de coincidir.
+  //
+  // accion-hover: el ROJO OSCURECIDO del prototipo (`--action-primary-hover`, `tokens.css:78`),
+  // NO `mezclar(acento, tinta, w)` — el mecanismo de `acento-2`/`acento-3` que YA usan el CTA
+  // "Comprar" del nav (`StoreNav.tsx`) y `lib/storefront/pdp-botones.ts` para SU hover/active: MEDIDO
+  // contra CORTE, mezclar hacia la TINTA (verde) desvía el HUE del rojo hacia un marrón/oliva
+  // (`acento-3` da `#672d00`, `acento-2` da `#403000`) — la MISMA clase de defecto que este slice
+  // existe para cerrar ("el otro tono", no "el mismo rojo oscurecido"); esos dos consumidores NO
+  // están en el alcance de este slice y quedan con su propio defecto nombrado (§ DECISIONS.md).
+  // `oscurecer` (arriba) preserva el HUE —sólo escala L y C en OKLCH—, y el factor 0.85 es el
+  // medido contra el prototipo real: `oscurecer('#a70004', 0.85)` da `#860002`, con la R EXACTA
+  // (`0x86`) de `--action-primary-hover` (`#860b0c`) y una distancia en Oklab de ~0.006 —
+  // imperceptible. AUSENTE/`'tostado'` = `tostado-4` LITERAL (el residuo que el JSX ya tenía, ahora
+  // derivado en un solo sitio en vez de hardcodeado en cada uno de los ~10 CTA de la familia).
+  const FACTOR_ACCION_HOVER = 0.85;
+  out['accion-txt'] = ejes.origenAccion === 'acento' ? out['acento-txt'] : tinta;
+  out['accion-hover'] = ejes.origenAccion === 'acento' ? oscurecer(acento, FACTOR_ACCION_HOVER) : out['tostado-4'];
   return out;
 }
 

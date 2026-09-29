@@ -78,7 +78,7 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
           {ctaHref && (
             <Link
               href={ctaHref}
-              className="inline-flex items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-tostado-4)] text-[var(--sf-tinta)] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5"
             >
               {nosotrosCierre.ctaLabel}
             </Link>

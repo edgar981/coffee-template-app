@@ -131,12 +131,16 @@ export function CartTitulo({ variante }: { variante?: "anclado" | "flotante" } =
   );
 }
 
+// COLOR (§ CTA-PRIMARIO-COLOR-Y-HOVER-1): texto `--sf-accion-txt` (no `--sf-tinta` fijo) y hover
+// `--sf-accion-hover` (no `--sf-tostado-4` fijo) — MISMOS dos tokens derivados que el resto de la
+// familia (`BackToTop.tsx` y hermanos). AUSENTE/`origenAccion:'tostado'` = byte-idéntico al par de
+// antes de este slice.
 export function CartCTA({ onClick }: { onClick: () => void }) {
   return (
     <Link
       href="/checkout"
       onClick={onClick}
-      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] py-3.5 text-sm font-semibold text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tostado-4)]"
+      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] py-3.5 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
     >
       Ir al Checkout
 

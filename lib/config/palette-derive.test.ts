@@ -23,10 +23,10 @@ test('las 3 raíces se copian tal cual', () => {
   assert.equal(p.acento, '#8b4513');
 });
 
-test('deriva las 32 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2 + accion de §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1)', () => {
+test('deriva las 34 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2 + accion/accion-txt/accion-hover de §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1/§CTA-PRIMARIO-COLOR-Y-HOVER-1)', () => {
   const p = derivarPaleta(NAYOLI);
-  assert.equal(Object.keys(p).length, 32);
-  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2','accion']) {
+  assert.equal(Object.keys(p).length, 34);
+  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2','accion','accion-txt','accion-hover']) {
     assert.match(p[k], /^#[0-9a-f]{6}$/, `${k} debe ser hex`);
   }
 });
@@ -431,12 +431,66 @@ test('accion: `origenAccion: "acento"` apunta al ACENTO CRUDO, sin florear (supe
   }
 });
 
-test('origenAccion: "acento" NO mueve ningún otro rol — sólo `accion` cambia', () => {
+test('origenAccion: "acento" NO mueve ningún otro rol — sólo `accion`/`accion-txt`/`accion-hover` cambian', () => {
   const sinEje = derivarPaleta(CORTE_RAICES);
   const conEje = derivarPaleta(CORTE_RAICES, { origenAccion: 'acento' });
+  const puedeMoverse = new Set(['accion', 'accion-txt', 'accion-hover']);
   for (const k of Object.keys(sinEje)) {
-    if (k === 'accion') continue;
+    if (puedeMoverse.has(k)) continue;
     assert.equal(conEje[k], sinEje[k], `${k} no debería moverse por origenAccion`);
+  }
+});
+
+// ── §CTA-PRIMARIO-COLOR-Y-HOVER-1 — accion-txt/accion-hover: el residuo que dejaba TEMAS-ROLES-
+// DECLARADOS-POR-EL-PRESET-1 declarado ("NO se tocó el hover… queda como residuo conocido").
+
+test('accion-txt: AUSENTE `origenAccion` es BYTE-IDÉNTICO a `tinta` — nunca el resultado del auto-flip', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices);
+    assert.equal(p['accion-txt'], raices.tinta);
+  }
+});
+
+test('accion-hover: AUSENTE `origenAccion` es BYTE-IDÉNTICO a `tostado-4`', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices);
+    assert.equal(p['accion-hover'], p['tostado-4']);
+  }
+});
+
+test('accion-txt: `origenAccion: "acento"` es EXACTAMENTE `acento-txt` (misma superficie, `accion === acento`)', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices, { origenAccion: 'acento' });
+    assert.equal(p['accion-txt'], p['acento-txt']);
+    assert.ok(contraste(p['accion-txt'], p.accion) >= 4.5, `accion-txt debe pasar AA sobre accion (fue ${contraste(p['accion-txt'], p.accion).toFixed(2)})`);
+  }
+});
+
+test('accion-hover: `origenAccion: "acento"` OSCURECE el acento preservando el HUE — no lo mezcla hacia la tinta', () => {
+  const p = derivarPaleta(CORTE_RAICES, { origenAccion: 'acento' });
+  // MEDIDO contra el prototipo (`tokens.css:78`, `--action-primary-hover:#860b0c`): la fórmula
+  // reproduce la R exacta (0x86) y queda a una distancia imperceptible en Oklab.
+  assert.equal(p['accion-hover'], '#860002');
+  // NUNCA el mecanismo `mezclar(acento, tinta, w)` que usan StoreNav/pdp-botones (`acento-2`/
+  // `acento-3`) — ese mezcla desvía el hue hacia la tinta (verde) y da un marrón/oliva, el defecto
+  // que este slice existe para cerrar.
+  assert.notEqual(p['accion-hover'], p['acento-2']);
+  assert.notEqual(p['accion-hover'], p['acento-3']);
+});
+
+test('accion-hover: preserva el HUE del acento (no lo desvía hacia otra raíz), en varias raíces', () => {
+  // El hue de un hex casi-acromático (croma bajo) es ruidoso — MEDIO (`#6f6558`) tiene croma bajo
+  // y su hue puede saltar por redondeo; se excluye de esta propiedad y queda cubierto por los
+  // tests de arriba (byte-idéntico a `tostado-4` sin el eje).
+  for (const raices of [NAYOLI, NEON, CORTE_RAICES]) {
+    const p = derivarPaleta(raices, { origenAccion: 'acento' });
+    // El HOVER debe seguir siendo más oscuro Y del mismo color que `accion` — nunca IGUAL a
+    // `mezclar(acento, tinta, w)` para ningún `w` razonable (la propiedad que distingue
+    // "oscurecer" de "mezclar hacia otra raíz" es que oscurecer nunca cruza hacia el hue de la
+    // tinta). Afirmado indirectamente: accion-hover ≠ acento-2/acento-3 para TODAS las raíces del
+    // catálogo, no sólo CORTE.
+    assert.notEqual(p['accion-hover'], p['acento-2'], `${raices.acento}: accion-hover no debe coincidir con acento-2`);
+    assert.notEqual(p['accion-hover'], p['acento-3'], `${raices.acento}: accion-hover no debe coincidir con acento-3`);
   }
 });
 

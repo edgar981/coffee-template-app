@@ -27,11 +27,14 @@ import { useCartStore } from "@/lib/cartStore";
 // .to-top{opacity:0}` del prototipo (`css/app.css:352`): dos superficies flotantes compitiendo por
 // la esquina inferior derecha es ruido, no chrome.
 //
-// COLOR: fondo `--sf-accion`, ícono `--sf-tinta` — EL MISMO PAR que ya visten los 5 CTA primarios
-// del storefront (HeroCurtina/HeroFicha/HeroMedia/SubscriptionCTABloque/SubscriptionCTALinea,
-// `bg-[var(--sf-accion,var(--sf-tostado))] … text-[var(--sf-tinta)]`) — NO un token
-// `--sf-accion-texto` (no existe en este sistema): el prototipo llama a ese rol `--text-on-accent`
-// (`css/app.css:342`), y acá ese rol ya lo cumple `--sf-tinta` sobre `--sf-accion`.
+// COLOR (§ CTA-PRIMARIO-COLOR-Y-HOVER-1): fondo `--sf-accion`, ícono `--sf-accion-txt`, hover
+// `--sf-accion-hover` — EL MISMO PAR que visten los demás CTA primarios de la familia
+// (HeroCurtina/HeroFicha/HeroMedia/SubscriptionCTABloque/SubscriptionCTALinea/CartDrawer/
+// NosotrosCierre, `bg-[var(--sf-accion,var(--sf-tostado))] … text-[var(--sf-accion-txt,
+// var(--sf-tinta))] … hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]`) — los TRES tokens
+// derivados en `palette-derive.ts`, gemelo de `--text-on-accent`/`--action-primary-hover` del
+// prototipo (`tokens.css:71,78`). AUSENTE/`origenAccion:'tostado'` (Nayoli y todo tenant sin el
+// eje) = `--sf-tinta`/`--sf-tostado-4` LITERALES — byte-idéntico al par de antes de este slice.
 //
 // MOVIMIENTO REDUCIDO: el canal es `ReducedMotionProvider` (`app/(storefront)/layout.tsx`,
 // `<MotionConfig reducedMotion="user">`, § `lib/animation.ts`) — con la preferencia activa, congela
@@ -62,7 +65,7 @@ export default function BackToTop() {
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       initial={false}
       animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : 8 }}
-      className={`fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-tinta)] shadow-lg transition-colors hover:bg-[var(--sf-tostado-4)] ${
+      className={`fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))] shadow-lg transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] ${
         visible ? "" : "pointer-events-none"
       }`}
     >

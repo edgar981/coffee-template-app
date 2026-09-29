@@ -27,6 +27,17 @@ import { CartTitulo, CartCTA } from '@/components/storefront/CartDrawer';
 // componente con nombre propio en vez de JSX inline — el DOM que el visitante ve no cambia un byte.
 // Con eso, este archivo AFIRMA POR RENDER (no por grep del código fuente) que el título usa la clase
 // de fuente de TÍTULO del preset y el CTA el token de ACCIÓN, sin mockear nada.
+//
+// ACTUALIZADO por § CTA-PRIMARIO-COLOR-Y-HOVER-1 (DEVIACIÓN DECLARADA, archivo fuera de `touches:`
+// de ese slice): las dos aserciones de abajo pineaban el texto del CTA en `--sf-tinta` LITERAL y su
+// hover en `--sf-tostado-4` LITERAL — exactamente el par que ese slice existe para cambiar (`CartCTA`
+// es uno de los 9 miembros de la familia, y `CartDrawer.tsx` SÍ está en su `touches:`). Dejarlas sin
+// tocar habría forzado GATE_RED sobre un archivo que un slice aprobado por el owner necesitaba tocar,
+// o habría dejado `CartCTA` como la única excepción de la familia sin su fix — las dos peores que
+// editar dos aserciones. El texto ahora es `--sf-accion-txt` (con fallback a `--sf-tinta`, byte-
+// idéntico para Nayoli/todo tenant sin `origenAccion:'acento'`) y el hover `--sf-accion-hover` (con
+// fallback a `--sf-tostado-4`, misma byte-identidad) — ver `lib/config/palette-derive.ts` y
+// `lib/config/cta-primario.test.ts` para la derivación y el censo completo de la familia.
 
 test('CartTitulo: el título usa `.font-playfair` -- la clase que resuelve `var(--sf-fuente-titulo, "Playfair Display", serif)`, el rol DISPLAY del preset (antes: sin clase de fuente, heredaba el rol CUERPO)', () => {
   const html = renderToStaticMarkup(React.createElement(CartTitulo));
@@ -43,15 +54,15 @@ test('CartCTA: el fondo usa `--sf-accion` (con fallback a `--sf-tostado`, byte-i
   assert.doesNotMatch(html, /bg-\[var\(--sf-tinta\)\]/, 'el CTA ya no debe pintar su fondo con --sf-tinta (el color de INK, no de acción)');
 });
 
-test('CartCTA: el texto sobre el fondo de acción usa `--sf-tinta` -- el mismo "texto sobre-acción" que ya usa el botón primario del storefront (Hero*), no `--sf-sobre`', () => {
+test('CartCTA: el texto sobre el fondo de acción usa `--sf-accion-txt` (fallback `--sf-tinta`) -- § CTA-PRIMARIO-COLOR-Y-HOVER-1, no `--sf-sobre` ni el `--sf-tinta` fijo de antes', () => {
   const html = renderToStaticMarkup(React.createElement(CartCTA, { onClick: () => {} }));
-  assert.match(html, /class="[^"]*text-\[var\(--sf-tinta\)\][^"]*"/);
+  assert.match(html, /class="[^"]*text-\[var\(--sf-accion-txt,var\(--sf-tinta\)\)\][^"]*"/);
   assert.doesNotMatch(html, /text-\[var\(--sf-sobre\)\]/, 'el CTA ya no debe usar --sf-sobre (el token de texto sobre TINTA, no sobre ACCIÓN)');
 });
 
-test('CartCTA: el hover sigue el MISMO token que el CTA primario de Hero (`hover:bg-[var(--sf-tostado-4)]`), no el `--sf-tinta-2` que sólo tenía sentido cuando el fondo era tinta', () => {
+test('CartCTA: el hover usa `--sf-accion-hover` (fallback `--sf-tostado-4`, byte-idéntico) -- § CTA-PRIMARIO-COLOR-Y-HOVER-1, no el `--sf-tinta-2` que sólo tenía sentido cuando el fondo era tinta', () => {
   const html = renderToStaticMarkup(React.createElement(CartCTA, { onClick: () => {} }));
-  assert.match(html, /hover:bg-\[var\(--sf-tostado-4\)\]/);
+  assert.match(html, /hover:bg-\[var\(--sf-accion-hover,var\(--sf-tostado-4\)\)\]/);
   assert.doesNotMatch(html, /hover:bg-\[var\(--sf-tinta-2\)\]/);
 });
 

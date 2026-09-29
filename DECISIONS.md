@@ -32416,3 +32416,144 @@ predecesores de esta racha. El owner ya aprobó la ESCRITURA (`approval-reason` 
 visual de `PARIDAD-CORTENAV-CASCADA-1`, 2026-09-29) — el MERGE sigue gateado aparte.
 
 **Cierra `NAV-ALTURA-CON-FILETE-1`.**
+
+## 2026-09-29 — El CTA primario de CORTE gana texto e ícono claros y un hover que oscurece el MISMO rojo, en vez de virar a tostado (`CTA-PRIMARIO-COLOR-Y-HOVER-1`)
+
+Gate visual del owner sobre el riel "Elige tu presentación": *"el color de fondo del botón comprar,
+debería ser como en el muestrario al igual que la flecha de ir hacia arriba, la cual también
+debería ser blanca. El hover que tienen ese botón y flecha tampoco me parece que es el adecuado,
+debería oscurecer un poco el color del rojo no cambiarlo a ese otro tono."* Dos defectos en un
+mismo par de tokens: el texto/ícono sobre el CTA seguía en `--sf-tinta` (fijo) mientras el fondo ya
+es el acento rojo de CORTE, y el hover caía a `--sf-tostado-4` (un tostado claro, "ese otro tono").
+**Medido: texto tinta (`#102407`) sobre el fondo del CTA (`#a70004`) da 2.07:1 — bajo AA**, no sólo
+"se ve mal": era ilegible por norma.
+
+### El mecanismo — dos tokens nuevos, derivados, no hex hardcodeados
+
+`lib/config/palette-derive.ts` gana `accion-txt` y `accion-hover` en `derivarPaleta`, junto al `accion`
+ya existente (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, que había dejado el hover como "residuo
+conocido y declarado"):
+
+- **`accion-txt`** — GANA PISO, MISMO auto-flip blanco/tinta que ya usa `acento-txt`, pero evaluado
+  contra la superficie REAL del botón (`accion`), no siempre contra el acento crudo. Con
+  `origenAccion:'acento'` las dos superficies COINCIDEN (`accion === acento`), así que es
+  LITERALMENTE `acento-txt` reusado. Sin el eje (Nayoli, todo tenant), es `tinta` FIJO — no el
+  resultado del auto-flip, a propósito: fijarlo sin pasar por el motor es lo que GARANTIZA el
+  byte-idéntico, en vez de depender de que el auto-flip "dé la casualidad" de coincidir con `tinta`
+  para cualquier raíz futura.
+- **`accion-hover`** — una función nueva, `oscurecer(hex, factor)` (junto a `mezclar`, mismo
+  archivo): escala L y C en OKLCH por `factor`, preservando H. Es DELIBERADAMENTE distinta de
+  `mezclar(acento, tinta, w)` — el mecanismo que YA usan `StoreNav.tsx` (el CTA "Comprar" del
+  encabezado) y `lib/storefront/pdp-botones.ts` para SU propio hover/active
+  (`--sf-acento-3`/`--sf-acento-2`), y que `PARIDAD-PDP-BOTONES-1` (este mismo libro, entrada
+  anterior) ya había medido y ACEPTADO como aproximación imperfecta ("`rgb(103,45,0)` — oliva, vs.
+  `rgb(134,11,12)` del prototipo — NO exacto"). **Medido de nuevo acá, con número:** mezclar el rojo
+  de CORTE (`#a70004`) hacia su tinta verde (`#102407`) al peso que usa `acento-3` (0.41) da
+  `#672d00` — un marrón/oliva, PORQUE el arco de mezcla cruza por el hue de la tinta. Es EXACTAMENTE
+  el defecto que el owner reportó ("cambiarlo a ese otro tono"), no una variación menor.
+  `oscurecer` no mezcla con otra raíz — nunca puede desviar el hue — así que un hover de botón sigue
+  siendo el MISMO color, sólo más oscuro.
+
+**El factor se midió contra el prototipo, no se inventó.** `docs/prototipos/cafeone/css/tokens.css:
+77-79`: `--action-primary:#a70004` → `-hover:#860b0c` → `-active:#6e0a0b`. Convertidos a OKLCH
+(L/C/H): `0.4576/0.1874/28.66°` → `0.3950/0.1540/27.93°` → `0.3448/0.1319/27.47°` — el HUE apenas se
+mueve (28.66→27.47°) mientras L y C SÍ bajan, en una proporción consistente. Un barrido de `factor`
+en pasos de 0.001 contra `-hover` da el óptimo en **0.855** (distancia Oklab ≈0.0074, imperceptible);
+se usó **0.85** (redondo, medido a la misma distancia práctica): `oscurecer('#a70004', 0.85)` =
+`#860002` — la R exacta del prototipo (`0x86`), G/B a un par de unidades. Sin `--action-primary-
+active`: la familia de CTA de este slice no declara estado `:active` en su JSX (a diferencia de
+`StoreNav`/`pdp-botones.ts`, que sí lo hacen), así que agregar uno habría sido capacidad no pedida.
+
+**AUSENTE/`origenAccion:'tostado'` (Nayoli y todo tenant sin el eje): `accion-hover` es LITERALMENTE
+`tostado-4`** — mismo valor, copiado, no un fallback que "da la casualidad" de coincidir. Byte-
+idéntico verificado por render (`cta-primario.test.ts`) y por píxel (`guarda:color`/
+`verificar:nayoli:visual`, abajo).
+
+### El censo de la familia — 9 CTA, en 10 archivos
+
+`grep -rln "hover:bg-\[var(--sf-tostado-4)\]"` contra el repo completo (antes de este slice) dio
+exactamente los 10 archivos de `touches:` menos uno: `BackToTop.tsx`, `CartDrawer.tsx` (el CTA "Ir
+al Checkout" — la barra de envío gratis del mismo archivo usa `--sf-accion` para el relleno, sin
+texto ni hover, no es parte de esta familia), `GrindChooserRiel.tsx` (el "Comprar" del riel de
+presentaciones que disparó el gate del owner), `BrandStoryCentrada.tsx`, `SubscriptionCTABloque.tsx`,
+`SubscriptionCTALinea.tsx`, `HeroMedia.tsx`, `HeroCurtina.tsx`, `HeroFicha.tsx`,
+`NosotrosCierre.tsx`. Los 9 CTA migraron: `text-[var(--sf-tinta)]` → `text-[var(--sf-accion-txt,
+var(--sf-tinta))]`; `hover:bg-[var(--sf-tostado-4)]` → `hover:bg-[var(--sf-accion-hover,
+var(--sf-tostado-4))]`. El fondo (`bg-[var(--sf-accion,var(--sf-tostado))]`) no se tocó — el rol ya
+era correcto, sólo el texto y el hover tenían el defecto.
+
+`StoreNav.tsx`, `Spotlight.tsx`, `BrandStoryColumnas.tsx` y
+`app/(storefront)/tienda/[slug]/page.tsx` estaban en `touches:` como techo, y se verificaron SIN
+necesitar cambio: `StoreNav.tsx` (su CTA "Comprar" del encabezado) y `Spotlight.tsx` (su "Agregar al
+carrito") ya pintan texto correcto (`--sf-acento-txt`) y no comparten el patrón `--sf-accion`/
+`--sf-tinta`/`--sf-tostado-4` — su defecto de hover es el OTRO (`acento-3`/`acento-2`, ver el
+follow-up abajo), fuera del patrón que el owner señaló. `BrandStoryColumnas.tsx` no tiene ningún
+botón. `page.tsx` delega sus dos botones de compra a `lib/storefront/pdp-botones.ts`, que NO está en
+`touches:` de este slice (mismo archivo, mismo defecto de hover ya aceptado en `PARIDAD-PDP-
+BOTONES-1`) — no se tocó.
+
+### La deviación — `lib/config/cromo-carrito.test.ts`, fuera de `touches:`
+
+Ese archivo (de `CROMO-CARRITO-TEMATIZADO-1`) pineaba, por render, que `CartCTA` usa
+`text-[var(--sf-tinta)]` LITERAL y `hover:bg-[var(--sf-tostado-4)]` LITERAL — exactamente el par
+que este slice (aprobado, con `CartDrawer.tsx` nombrado en `touches:`) existe para cambiar. No hay
+forma de fijar el defecto en `CartDrawer.tsx` sin que esas dos aserciones dejen de matchear: son
+literales de STRING, y el nuevo token cambia el string por diseño. Se evaluaron las alternativas —
+dejar `CartCTA` como la única excepción de la familia (contradice la aprobación, que nombra el
+archivo), o aceptar GATE_RED sobre un test que verifica el defecto mismo que se está cerrando (peor
+que corregirlo) — y se editaron las DOS aserciones para afirmar el mecanismo nuevo
+(`--sf-accion-txt`/`--sf-accion-hover` con su fallback), dejando las otras tres del archivo (título,
+fondo, estructura href/texto) intactas. Documentado en el propio archivo con su ID.
+
+### Medido — contraste, antes/después
+
+| | valor | contraste |
+| --- | --- | --- |
+| ANTES: texto `--sf-tinta` (`#102407`) sobre `accion` (`#a70004`) | — | **2.07:1 — bajo AA** |
+| DESPUÉS, reposo: `accion-txt` (`#ffffff`) sobre `accion` (`#a70004`) | | **7.94:1** |
+| DESPUÉS, hover: `accion-txt` (`#ffffff`) sobre `accion-hover` (`#860002`) | | **10.42:1** |
+| `accion-hover` con `mezclar(acento,tinta,0.41)` (el mecanismo de `acento-3`, DESCARTADO) | `#672d00` (marrón/oliva) | — |
+| `accion-hover` con `oscurecer(acento,0.85)` (el mecanismo elegido) | `#860002` | R exacta del prototipo (`0x86`) |
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2553/2553** (incluye 34 tests nuevos: 8 en `palette-derive.test.ts`, 32 en `cta-primario.test.ts` nuevo, 5 en `cromo-carrito.test.ts` re-verificado — el resto sin cambio) |
+| `npm run test:integracion` | **240/240** |
+| `npm run guarda:color` | **0px** en 6 rutas + 2 hovers, rama vs. fixture de Nayoli |
+| `npm run verificar:nayoli:visual` | **0px** en 6 rutas + 2 hovers, main vs. rama |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+`grep` de cada símbolo/archivo tocado (`sf-tostado-4`, `sf-accion`, `acento-txt`, `acento-2`,
+`acento-3`, `palette-derive`, `origenAccion`, `cromo-carrito`, y los 9 nombres de componente)
+contra `CLAUDE.md`: **una sola coincidencia**, `CLAUDE.md:51-52` — nombra `HeroCurtina.tsx`/
+`HeroFicha.tsx` como ejemplos de variantes que viven bajo `components/storefront/` para la regla del
+subárbol de Tier 1. No habla de color ni de este defecto; sigue siendo cierto sin cambios. **CERO
+sentencias de `CLAUDE.md` quedan falsas por este diff.**
+
+### open_followups
+
+- **`ACENTO-2-3-HOVER-HUE-SHIFT-1`** — `StoreNav.tsx` (el CTA "Comprar" del encabezado, línea ~712),
+  `Spotlight.tsx` (el "Agregar al carrito" de la banda spotlight, línea ~361) y
+  `lib/storefront/pdp-botones.ts` (`PRIMARIO_CORTE`) usan `mezclar(acento, tinta, w)`
+  (`--sf-acento-3`/`--sf-acento-2`) para SU hover/active, y esa mezcla desvía el hue hacia la tinta
+  igual que el defecto que este slice cierra — MEDIDO: `#672d00`/`#403000` (marrón/oliva), no un
+  rojo oscurecido. `PARIDAD-PDP-BOTONES-1` ya había medido y aceptado esta aproximación como fuera
+  de su alcance ("no es una deuda nueva de este slice"). Ahora existe un mecanismo general
+  (`oscurecer`, § arriba) que resolvería los tres sin desviar el hue. **No se tocó acá**: ninguno de
+  los tres coincide con el patrón textual que el owner señaló (`--sf-tinta`/`--sf-tostado-4`), y
+  `pdp-botones.ts` no está en `touches:` de este slice. Queda nombrado para que el próximo slice que
+  toque cualquiera de los tres no lo mida de cero.
+
+### Verdict
+
+**AWAITING_APPROVAL.** El diff cambia el color de texto y el hover de 9 botones primarios del
+storefront de CORTE —bytes que un visitante de esa tienda ve en cada carga y en cada hover— así que
+falla `customer-bytes` de merge policy A, igual que el resto de esta racha. El owner ya aprobó la
+ESCRITURA (`approval-reason` del spec, gate visual del 2026-09-29 sobre el riel de presentaciones) —
+el MERGE sigue gateado aparte.
+
+**Cierra `CTA-PRIMARIO-COLOR-Y-HOVER-1`.**
