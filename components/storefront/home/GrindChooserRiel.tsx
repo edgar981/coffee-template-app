@@ -8,9 +8,12 @@ import Image from "next/image";
 import { fadeUp, useIndiceCentrado } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
+import { tarjetasDePresentaciones, precioMinimoCategoria } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
+import { getCatalog } from "@/lib/api/products";
+import type { Product } from "@/types/product";
+import { formatCOP } from "@duna/core/utils";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -42,11 +45,17 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 // "Comprar" de `.pres-head` (`index.html:233`) del otro — un ATAJO SOBRE EL PROPIO SCROLL, no
 // fabricado. `presentaciones.ctaLabel`/`.ctaDestino` (§ MUESTRARIO-SECCION-CTA-1, la capacidad
 // GENERAL: cualquier sección puede declarar su propio botón opcional) resuelven el href con
-// `resolverCtaSeccion` — vacío = sin botón, byte-idéntico. El CTA es SIEMPRE VISIBLE (a diferencia de
-// los controles de avance, que sólo aparecen desde `sm`), agrupado con ellos a la derecha de la
-// cabecera. La canónica `GrindChooserMosaico` sigue sin CTA propio (esa banda no lo lleva, § site-
-// content-defaults.ts, "LA PÁGINA /nosotros" y su nota sobre el anzuelo de la home) — no es un hueco,
-// es que nadie lo pidió ahí.
+// `resolverCtaSeccion` — vacío = sin botón, byte-idéntico. La canónica `GrindChooserMosaico` sigue
+// sin CTA propio (esa banda no lo lleva, § site-content-defaults.ts, "LA PÁGINA /nosotros" y su nota
+// sobre el anzuelo de la home) — no es un hueco, es que nadie lo pidió ahí.
+//
+// LOS CONTROLES DE AVANCE VIVEN DEBAJO DEL TRACK, NO EN LA CABECERA (§ PARIDAD-RIEL-TARJETAS-1,
+// MEDIDO contra `riel-antes-1440`/`riel-antes-390`, DECISIONS.md, y `.car-nav` del prototipo,
+// `index.html:241-246` + `css/app.css:553-559`). Antes vivían agrupados con el CTA en la cabecera
+// —una posición que el prototipo NUNCA usa: `.car-nav` es un bloque APARTE, DESPUÉS de `.pres-rail`,
+// alineado a la derecha—. Siguen ocultos bajo `sm` (`.car-nav{display:none}` bajo 640px,
+// `css/app.css:1008` — el touch-scroll ya cubre ese caso ahí) y siguen llamando al MISMO `desplazar`
+// sobre el MISMO `trackRef`; sólo cambió DÓNDE se pintan, no la mecánica de scroll.
 //
 // LO QUE EL PROTOTIPO TIENE Y ESTA VARIANTE SIMPLIFICA A PROPÓSITO (medido, no un descuido):
 //   1. `quick-acts` (ojo/carrito sobre cada tarjeta, `js/home.js:99-102`): son acciones de FICHA DE
@@ -74,6 +83,26 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 // misma frase habría sido una TERCERA copia del mismo café-shape sin necesidad (el índice tampoco la
 // lleva). No agranda la deuda ya anotada; la deja del tamaño que tenía.
 //
+// EL TILE Y EL PRECIO (§ PARIDAD-RIEL-TARJETAS-1) — el segundo hallazgo medido contra
+// `riel-antes-1440`/`riel-antes-390` (DECISIONS.md), junto a la posición de los controles (arriba):
+//   1. El tile pasó de `rounded-3xl` (var(--radius-3xl), CERO bajo CORTE 'recta' — la tarjeta salía
+//      CUADRADA) a `sf-radio-tile` (§ formas.ts, `Forma.radioTile`/`--sf-radio-tile`): el ROL propio
+//      de tile grande, 20px medido bajo 'recta' (`--radius-tile`, tokens.css:169), separado del
+//      escalón de control chico (`sf-radio-lg`, 2px).
+//   2. NOMBRE Y PRECIO EN UNA LÍNEA (`.pres-meta{display:flex;justify-content:space-between}`,
+//      `css/app.css:549-552`): el precio es `precioMinimoCategoria(catalog, op.cat)` (§
+//      lib/storefront/presentaciones.ts) — el MENOR precio real entre los productos ACTIVOS de la
+//      categoría de destino de la tarjeta, NUNCA un literal. El catálogo llega por
+//      `getCatalog()` (el MISMO fetch memoizado que ya usa Spotlight/Marquesina, § su propio
+//      docstring), en un `useEffect` — así que en SSR (sin efectos) el catálogo queda `[]` y ninguna
+//      tarjeta muestra precio hasta que el navegador lo resuelve; es el mismo límite ya documentado
+//      para Spotlight en `admin-tienda-preset.test.ts` (el catálogo interno nunca sale de `[]` bajo
+//      `renderToStaticMarkup`), y por lo mismo es SEGURO montar este componente en la vista previa
+//      del panel (`VistaTiendaEnVivo`) sin CartProvider ni ningún provider nuevo: no hay hook que
+//      dependa de uno — `getCatalog` es un `fetch` liso, no `useCartStore`. Categoría SIN productos
+//      (destino rancio) → `precioMinimoCategoria` da `null` → el componente OMITE el precio, nunca
+//      inventa "$0".
+//
 // El gate de visibilidad (`seccionEsVisible`) vive en el DISPATCHER (`GrindChooser.tsx`), no acá.
 //
 // EL `negocio` DEL ALT LLEGA POR PROP, no por `useSiteSettings()` — mismo motivo que el mosaico y el
@@ -88,6 +117,15 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
   const tarjetas = tarjetasDePresentaciones(presentaciones);
   const indiceActivo = useIndiceCentrado(trackRef, tarjetas.length);
   const ctaHref = resolverCtaSeccion(presentaciones.ctaLabel, presentaciones.ctaDestino, paginas);
+
+  // EL PRECIO "DESDE" (§ PARIDAD-RIEL-TARJETAS-1, el docstring de cabecera). `getCatalog()` es el
+  // MISMO fetch memoizado que Spotlight/Marquesina — no una segunda implementación—; en SSR el
+  // `useEffect` nunca corre, así que `catalog` queda `[]` y `precioMinimoCategoria` da `null` para
+  // toda tarjeta (ninguna muestra precio), sin lanzar.
+  const [catalog, setCatalog] = useState<Product[]>([]);
+  useEffect(() => {
+    getCatalog().then(setCatalog).catch(() => setCatalog([]));
+  }, []);
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`presentaciones:
   // 'riel'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
   // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
@@ -125,9 +163,9 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))] overflow-hidden" style={style}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* La cabecera partida (§ arriba): título de un lado, controles del otro. En columna en móvil
-            —como el prototipo (`.pres-head{flex-direction:column}` bajo 640px)—, porque ahí los
-            controles se ocultan y el título no necesita compartir la fila con nada. */}
+        {/* La cabecera partida (§ arriba): título de un lado, el CTA del otro — SIN los controles de
+            avance, que ahora viven DEBAJO del track (§ el docstring de cabecera). En columna en
+            móvil, como el prototipo (`.pres-head{flex-direction:column}` bajo 640px). */}
         <div className="flex flex-col items-start gap-5 mb-10 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
           <motion.div
             initial={preview ? false : "hidden"}
@@ -141,39 +179,16 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             )}
             <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
           </motion.div>
-          {/* El CTA (§ MUESTRARIO-SECCION-CTA-1) + los controles de avance, agrupados a la derecha de
-              la cabecera. El CTA es visible en TODO ancho —a diferencia de los controles, ocultos en
-              móvil como `.car-nav` del prototipo bajo 640px, donde el touch-scroll ya cubre ese caso—. */}
-          <div className="flex shrink-0 items-center gap-3">
-            {ctaHref && (
-              <Link
-                href={ctaHref}
-                className="inline-flex shrink-0 items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-tinta)] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
-              >
-                {presentaciones.ctaLabel}
-              </Link>
-            )}
-            <div className="hidden shrink-0 gap-2 sm:flex">
-              <button
-                type="button"
-                onClick={() => desplazar(-1)}
-                disabled={!estado.puedeAtras}
-                aria-label="Presentación anterior"
-                className="grid h-11 w-11 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => desplazar(1)}
-                disabled={!estado.puedeAdelante}
-                aria-label="Presentación siguiente"
-                className="grid h-11 w-11 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
-              >
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          {/* El CTA (§ MUESTRARIO-SECCION-CTA-1), SOLO — `.pres-head` del prototipo no lleva nada
+              más a la derecha (`index.html:228-234`: título de un lado, `.btn--primary` del otro). */}
+          {ctaHref && (
+            <Link
+              href={ctaHref}
+              className="inline-flex shrink-0 items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-tinta)] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+            >
+              {presentaciones.ctaLabel}
+            </Link>
+          )}
         </div>
 
         {/* El track: `overflow-x-auto` nativo con snap, sin scrollbar de WebKit a la vista (el
@@ -246,7 +261,10 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
                   resaltada ? "sm:scale-[1.06]" : dimmed ? "sm:opacity-[.62] sm:scale-[.96]" : ""
                 }`}
               >
-                <div className="relative aspect-[3/4] overflow-hidden rounded-3xl bg-[var(--sf-linea)]">
+                {/* El tile: `sf-radio-tile` (§ el docstring de cabecera) — el rol PROPIO de forma
+                    para media grande, 20px bajo CORTE 'recta' (`--radius-tile`, MEDIDO), no
+                    `rounded-3xl` (var(--radius-3xl), CERO bajo 'recta' — la tarjeta salía cuadrada). */}
+                <div className="relative aspect-[3/4] overflow-hidden sf-radio-tile bg-[var(--sf-linea)]">
                   {/* Imagen condicional (criterio OR, § tarjetasDePresentaciones): sin foto se ve el
                       hueco de marca `--sf-linea`, nunca un `<img src="">` roto. */}
                   {op.img && (
@@ -259,14 +277,50 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
                     />
                   )}
                 </div>
+                {/* NOMBRE Y PRECIO EN UNA LÍNEA (`.pres-meta{display:flex;justify-content:space-
+                    between}`, § el docstring de cabecera) — el precio se OMITE (no "$0") si el
+                    catálogo aún no cargó o el destino es una categoría rancia sin productos. */}
                 <div className="pt-4">
-                  <h3 className="text-xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] mb-1 group-hover:underline">{op.label}</h3>
-                  <p className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto))]">{op.copy}</p>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <h3 className="text-xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] group-hover:underline">{op.label}</h3>
+                    {(() => {
+                      const precio = precioMinimoCategoria(catalog, op.cat);
+                      return precio != null ? (
+                        <span className="shrink-0 text-base text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">
+                          Desde {formatCOP(precio)}
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto))]">{op.copy}</p>
                 </div>
               </Link>
             </motion.div>
             );
           })}
+        </div>
+
+        {/* Los controles de avance, DEBAJO del track (§ el docstring de cabecera — `.car-nav` del
+            prototipo). Ocultos bajo `sm` (el touch-scroll ya cubre ese caso en móvil). */}
+        <div className="hidden justify-end gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={() => desplazar(-1)}
+            disabled={!estado.puedeAtras}
+            aria-label="Presentación anterior"
+            className="grid h-12 w-12 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => desplazar(1)}
+            disabled={!estado.puedeAdelante}
+            aria-label="Presentación siguiente"
+            className="grid h-12 w-12 place-items-center border border-[var(--sf-linea)] text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-linea)] disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </section>

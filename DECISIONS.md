@@ -31567,3 +31567,188 @@ la escritura de este slice específico (§ `approval-reason` del spec), pero el 
 aparte, como toda escritura de storefront de esta rama.
 
 **Cierra `PARIDAD-PDP-BOTONES-1`.**
+
+## 2026-09-29 — "Elige tu presentación" (riel) toma la forma del prototipo: tile redondeado, precio real, flechas abajo (`PARIDAD-RIEL-TARJETAS-1`)
+
+Cierra el hallazgo de código de `CENSO-PARIDAD-MUESTRARIO-1` (§1.4 del documento, "«Elige tu
+presentación» (riel)") sobre la FORMA del bloque — no confundir con los hallazgos de CONTENIDO de
+esa misma sección (imágenes vacías, `categoria1/2` apuntando a categorías rancias), que siguen
+siendo del owner en el panel. **Cierra también `NUESTRO-CAFE-RADIO-TILE-1`** (open_followup de
+`NUESTRO-CAFE-COMO-MUESTRARIO-1`), por compartir la misma causa raíz.
+
+### DESVÍO — el `observed-report` citado NO trae este hallazgo como CÓDIGO
+
+El spec de este slice cita `CENSO-PARIDAD-MUESTRARIO-1` como `observed-report` y describe la
+superficie ("tarjetas rectas, sin precio, flechas arriba") como si viniera de ahí. **Releído el
+documento real** (`docs/paridad/muestrario-vs-prototipo.md`): su §1.4 ("«Elige tu presentación»
+(riel)") sólo lista hallazgos de CONTENIDO (imágenes vacías, `categoria1/2` rancias) y su fila de
+"Movimiento" los clasifica como "artefacto del método, no hallazgo" — el tile cuadrado, la ausencia
+de precio y la posición de las flechas **no figuran en el §6.1 CÓDIGO del documento** (que sólo
+lista `PDP-BOTONES-JERARQUIA-1`, `PDP-PERFIL-SABOR-1`, `FOOTER-WATERMARK-MAPA-1`). El censo, en
+otras palabras, no vio este hallazgo — o lo vio y no lo elevó a slice propuesto.
+
+**La medición ganó de todas formas** (§ CLAUDE.md, "cuando una medición contradice la instrucción,
+la medición gana"): antes de escribir una línea, este slice releyó el prototipo (`index.html:225-
+247`, `css/app.css:508-559`, `js/home.js:90-190`) contra el componente actual y CONFIRMÓ por
+captura (`riel-antes-1440`/`riel-antes-390`, abajo) que la superficie descrita en el spec es
+REAL — el tile SÍ salía cuadrado, SÍ faltaba precio, las flechas SÍ vivían arriba. El hallazgo es
+CIERTO; su procedencia declarada (`CENSO-PARIDAD-MUESTRARIO-1`) es INCOMPLETA — no se puede afirmar
+que ese documento lo haya propuesto. Reportado para que quien re-lea el censo no asuma que su
+§6.1 es exhaustivo.
+
+### El defecto — MEDIDO contra el muestrario desplegado, ANTES de tocar código
+
+`npm run capturar:seccion -- --url https://coffee-template-app-onix.vercel.app/ --selector-app
+"section:has(.grind-riel-track)" --prototipo index.html --selector-prototipo "#presentaciones"`, a
+1440×900 y 390×1200 (`.capturas/riel-antes-1440/`, `.capturas/riel-antes-390/`, local, gitignored).
+La captura confirmó los tres rasgos que el spec describía:
+
+- **el tile salía CUADRADO**, no redondeado — CORTE declara `forma:'recta'`
+  (`--radius-3xl/2xl/xl: 0`), y el tile usaba `rounded-3xl` (`var(--radius-3xl)`) directo en vez de
+  un rol de forma propio, así que heredaba el CERO de los controles/botones;
+- **sin precio** — la tarjeta sólo mostraba nombre + descripción, nunca un monto;
+- **las flechas de avance vivían ARRIBA**, agrupadas con el CTA "Comprar" en la cabecera — el
+  prototipo las pone en un bloque `.car-nav` APARTE, DESPUÉS del riel, alineado a la derecha
+  (`index.html:241-246`, `css/app.css:553-559`).
+
+### El tile — `--sf-radio-tile`, un ROL de forma nuevo, separado de `--sf-radio-lg`
+
+El prototipo mide `--radius-tile:20px` (`tokens.css:169`) como un rol PROPIO de media
+grande/imágenes, distinto de `--radius-button`/`--radius-card` (0px bajo 'recta'). Nuestro sistema
+sólo tenía `--sf-radio-lg` (chips/controles chicos) para ese rol, y bajo 'recta' da 2px — el
+defecto medido en `NUESTRO-CAFE-COMO-MUESTRARIO-1` para el escenario de Spotlight, y el mismo
+defecto, no nombrado hasta ahora, del tile del riel.
+
+`lib/config/formas.ts` gana `Forma.radioTile` / `--sf-radio-tile` (el SEXTO token de superficie del
+eje 4, junto a `radioLg`/`pildora`/`borde`/`divisor`/`trazo`), cableado de una vez en
+`app/globals.css` (`.sf-radio-tile { border-radius: var(--sf-radio-tile, 1.5rem); } `) — a
+diferencia del resto del eje 4, que nació INERTE y se cableó en una segunda mitad, éste nace ya
+conectado en el mismo slice:
+
+| forma | `--sf-radio-tile` | de dónde sale |
+| --- | --- | --- |
+| Suave (default, Nayoli) | `1.5rem` | = `--radius-3xl` de hoy — el `rounded-3xl` que el riel ya rendía bajo Suave, byte-idéntico |
+| Recta (CORTE, PLIEGO) | `20px` | MEDIDO contra el prototipo (`tokens.css:169`) |
+| Mínima | `10px` | = su propio `radius3xl` — "corto y parejo", sin inventar un salto de escala |
+
+Dos consumidores migraron de `sf-radio-lg` a `sf-radio-tile`: el tile del riel
+(`GrindChooserRiel.tsx`, antes `rounded-3xl`) y el escenario de Spotlight (`Spotlight.tsx`, antes
+`sf-radio-lg`). **`sf-radio-lg` no se retiró** — sigue siendo el rol de control chico (usado en
+otros sitios ajenos a esta tanda); sólo dejó de ser el rol equivocado para media grande.
+
+### El precio — real, del catálogo, nunca inventado
+
+`precioMinimoCategoria(catalogo, cat)` (`lib/storefront/presentaciones.ts`, puro, capa 1): el MENOR
+`precio` entre los productos del catálogo cuya `categoria` matchea el destino de la tarjeta (`cat`
+vacío = "todos" → mide sobre el catálogo completo). Categoría sin productos (destino rancio, el
+propio hallazgo de CONTENIDO del censo) → `null` → el componente OMITE el precio, nunca "$0". El
+catálogo llega a `GrindChooserRiel` por `getCatalog()` (`lib/api/products.ts`), el MISMO fetch
+memoizado que ya usan Spotlight/Marquesina — no una segunda implementación, y por eso es seguro
+montarlo en la vista previa del panel (confirmado: `admin-tienda-preset.test.ts`, 21/21, sin tocar
+ese archivo).
+
+`/api/catalog` ya filtra `activo:true` (`app/api/catalog/route.ts`), así que el helper no vuelve a
+filtrar por eso — sólo por categoría.
+
+### Las flechas — debajo del track, no en la cabecera
+
+Se extrajeron del `<div className="flex shrink-0 items-center gap-3">` que las agrupaba con el CTA
+en la cabecera, a un bloque propio DESPUÉS del track (`hidden justify-end gap-2 sm:flex`, gemelo de
+`.car-nav`), 48×48px (`h-12 w-12`, el tamaño medido de `.car-nav button`, antes 44×44). La cabecera
+queda con SOLO título + CTA, como `.pres-head` del prototipo. La mecánica de scroll (`desplazar`,
+`trackRef`, `puedeAtras`/`puedeAdelante`) no cambió — sólo DÓNDE se pintan los botones.
+
+### Antes / después — capturado
+
+| | antes | después |
+| --- | --- | --- |
+| 1440×900 | `.capturas/riel-antes-1440/app-0.png` | `.capturas/riel-despues-1440/app-0.png` |
+| 390×1200 | `.capturas/riel-antes-390/app-0.png` | `.capturas/riel-despues-390/app-0.png` |
+
+"Después" es contra una base efímera fresca con el preset CORTE aplicado (`--preset CORTE`, sin
+`--sembrar-spotlight` ni flag equivalente para el riel — no existe uno; por eso ninguna de las dos
+capturas de "después" muestra precio: el catálogo de esa base está vacío / la categoría de destino
+por defecto de CORTE no matchea ningún producto, el mismo caso "destino rancio" que el censo ya
+documentó como hallazgo de CONTENIDO, ajeno a este slice). El precio se afirma por el test puro
+(`precioMinimoCategoria`, 5 casos) y por la garantía de que su ausencia no revienta nada
+(`presentaciones-riel.test.ts`, "el precio NUNCA revienta sin catálogo").
+
+**Computados EN VIVO (Playwright, `getComputedStyle`), contra la primera tarjeta**
+(`.capturas/riel-computados/`, misma corrida `--preset CORTE`):
+
+| propiedad | nuestro tile (`.grind-riel-track > div:first-child .sf-radio-tile`) | `.pres-rail .pres-card:first-child .pres-media` | ¿coincide? |
+| --- | --- | --- | --- |
+| `border-radius` | `20px` | `20px` | **exacto** |
+| `aspect-ratio` | `3 / 4` | `3 / 4` | **exacto** |
+
+| propiedad | nuestro `h3` (nombre) | `.pres-meta h3` | ¿coincide? |
+| --- | --- | --- | --- |
+| `font-size` | `20px` (`text-xl`, SIN TOCAR) | `21px` (`--text-h4`) | diverge 1px — PRE-EXISTENTE, no de este slice (el mosaico/índice ya usan `text-xl` para el mismo rol) |
+| `font-family` | `"Roboto Serif", serif` | `"Roboto Serif", ui-serif, Georgia, serif` | coincide (par 'prensa', ya reportado en slices previos) |
+| `color` | `rgb(61, 48, 0)` | `rgb(16, 36, 7)` | diverge — color DERIVADO (`--sf-sobre-banda,--sf-tinta`) vs. raíz cruda; misma familia de aproximación ya aceptada en `Spotlight.tsx`/`StoreNav.tsx`/`PARIDAD-PDP-BOTONES-1`, no nueva de este slice |
+
+La tipografía y el color del `h3` NO se tocaron en este slice (el spec pedía tile/precio/flechas,
+no re-medir nombre); se citan para que quede escrito qué mide "computados clave" y qué queda fuera.
+
+**Advertencia de método (§ NUESTRO-CAFE-COMO-MUESTRARIO-1, "el arnés no asienta animaciones de
+hijos independientes"): las dos capturas del PROTOTIPO de esta corrida avisaron "no asentó su
+opacidad en 4000ms — se captura igual"** (`.pres-rail .pres-card:first-child .pres-media`/`.pres-
+meta h3`, ambas bajo `[data-reveal]`). Los VALORES COMPUTADOS citados arriba no dependen de que el
+píxel se vea asentado (mismo argumento que `NUESTRO-CAFE-COMO-MUESTRARIO-1` ya usó para su propia
+tabla): `border-radius`/`aspect-ratio`/`font-size` no cambian con la opacidad de entrada.
+
+**No se demostró el red→green literal de las dos regresiones de código con un `git stash`** (el
+despacho de este slice no concede `git stash` ni worktrees): la evidencia de "antes" es la captura
+`riel-antes-*` contra el muestrario desplegado (código anterior a este slice, sin tocar), y las
+aserciones nuevas de `presentaciones-riel.test.ts` están escritas contra la ESTRUCTURA del fix
+(orden flechas/track en el HTML, clase `sf-radio-tile` presente y `rounded-3xl` ausente) — se
+verificaron en verde contra el código YA arreglado, no contra el viejo neutralizado.
+
+### El dueño NO necesita re-aplicar CORTE
+
+`content.tema.forma` guarda sólo la CLAVE (`'recta'`), no los valores de radio — `varsDeForma`/
+`cssForma` los resuelven en VIVO contra el catálogo de `formas.ts` en cada request. Como la clave no
+cambió (CORTE sigue declarando `forma:'recta'`), el `--sf-radio-tile:20px` nuevo llega solo, en el
+próximo request, sin que el dueño toque el panel.
+
+**Open follow-up, para quien lo necesite de nuevo**: `CAPTURA-SECCION-SEMBRAR-STOCK-1` (arriba, de
+`PARIDAD-PDP-BOTONES-1`) ya nombraba el hueco de sembrar CATÁLOGO con stock; este slice agrega el
+mismo hueco del lado de CATEGORÍA — no existe un flag para sembrar productos cuya `categoria`
+matchee `presentaciones.categoria1/2` de un preset, así que ninguna captura de "después" pudo
+mostrar el precio en vivo. Cubierto por los 5 casos de `precioMinimoCategoria` (puro) y el test que
+afirma que su ausencia no revienta el render; no se construye un flag nuevo acá — `capturar-
+seccion.ts` no está en `touches:`.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2502/2502** (2494 de `PARIDAD-PDP-BOTONES-1` + 8 nuevos netos — `git diff -- '*.test.ts' \| grep '^\+test('` dio 11 líneas, 3 son renombres de tests existentes de `formas.test.ts`, no altas) |
+| `npm run test:integracion` | **240/240**, sin cambio (esta tanda no tocó `tests/integracion/`) |
+| `npm run verificar:nayoli:visual` | **0px** en 6 rutas + 2 hovers — Nayoli usa `forma:null`/`presentaciones:'chips'` (no 'riel'), así que confirma que el resto del árbol (globals.css, formas.ts, Spotlight.tsx) no se movió |
+| `npx tsx scripts/guarda-color.ts` | **0px** en las mismas 8 mediciones contra el fixture congelado |
+
+### Chequeo mecánico contra CLAUDE.md
+
+Símbolos/archivos que este diff cambió: `GrindChooserRiel.tsx`, `Spotlight.tsx`, `formas.ts`
+(`Forma.radioTile`), `app/globals.css` (`.sf-radio-tile`), `themes.ts` (comentario de CORTE),
+`lib/storefront/presentaciones.ts` (`precioMinimoCategoria`, nueva — `tarjetasDePresentaciones`/
+`gridColsPresentaciones` sin tocar). `grep` de cada uno contra `CLAUDE.md`: **CERO coincidencias**
+para `GrindChooserRiel`, `Spotlight`, `sf-radio-lg`/`sf-radio-tile`, `themes.ts`, `formas.ts`, y la
+palabra suelta `riel` — CLAUDE.md no documenta el sistema de forma (eje 4) ni la variante 'riel' de
+Presentaciones; esa doctrina vive en este archivo. La única superficie compartida es
+`lib/storefront/presentaciones.ts` (§ "Presentaciones 2-4 — cardinalidad variable sobre campos
+planos", CLAUDE.md): la frase ahí describe `tarjetasDePresentaciones` exclusivamente, que este
+slice NO modificó — sigue siendo cierta. **Nada en CLAUDE.md queda falso por este diff.**
+
+### Verdicto
+
+**AWAITING_APPROVAL.** El diff no toca schema/migración ni es un contrato cross-repo, pero SÍ son
+bytes que un visitante de CORTE lee (el tile cambia de forma, aparece un precio nuevo cuando el
+catálogo lo permite, las flechas cambian de posición) → falla `customer-bytes` de merge policy A. El
+owner ya aprobó la ESCRITURA de este slice (§ `approval-reason` del spec, 2026-09-29: "Ve
+despachando los arreglos de código mientras hago los ajustes en el panel") — el MERGE sigue gateado
+aparte, como toda escritura de storefront de esta rama.
+
+**Cierra `PARIDAD-RIEL-TARJETAS-1` y `NUESTRO-CAFE-RADIO-TILE-1`.**

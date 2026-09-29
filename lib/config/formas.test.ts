@@ -36,14 +36,17 @@ test('SUAVE es byte-idéntico a HOY: los radios exactos en REM (1.5/1/0.75rem)',
   assert.equal(FORMA_DEFECTO.radiusXl, '0.75rem');
 });
 
-test('SUAVE reproduce los CINCO tokens de HOY — el contrato byte-idéntico que B2 cablea', () => {
-  // La segunda mitad (eje 4, superficie) cableó estos 5 a las utilidades `.sf-*` con FALLBACKS =
+test('SUAVE reproduce los SEIS tokens de HOY — el contrato byte-idéntico que B2 cablea', () => {
+  // La segunda mitad (eje 4, superficie) cableó estos 6 a las utilidades `.sf-*` con FALLBACKS =
   // el valor de HOY. Suave es null → cssForma no emite <style> → cada utilidad cae a su fallback,
   // así que Suave queda byte-idéntico. Este test fija esos literales: si alguien cambia un token de
   // Suave, deja de reproducir el de hoy y esto lo caza. (El fallback CSS de la píldora es
   // `calc(infinity*1px)` = el `rounded-full` de Tailwind v4; el '9999px' de acá es la muestra del
   // picker — ambos renderizan una píldora completa para cualquier elemento real.)
   assert.equal(FORMA_DEFECTO.radioLg, '0.75rem');  // = `.sf-radio-lg` fallback (rounded-lg de hoy)
+  // = `.sf-radio-tile` fallback (§ NUESTRO-CAFE-RADIO-TILE-1) — el `rounded-3xl` que el riel ya
+  // rendía bajo Suave (= --radius-3xl de hoy, 1.5rem), no un valor nuevo.
+  assert.equal(FORMA_DEFECTO.radioTile, '1.5rem');
   assert.equal(FORMA_DEFECTO.pildora, '9999px');   // = `.sf-pildora` (fallback ∞)
   assert.equal(FORMA_DEFECTO.borde, '1px');        // = `.sf-borde` fallback (hairline de hoy)
   assert.equal(FORMA_DEFECTO.divisor, '1px');      // = `.sf-divisor-*` fallback (divisor de hoy)
@@ -57,7 +60,7 @@ test('SUAVE reproduce los DOS tokens de badge de HOY — el remate 1 (tipografí
   assert.equal(FORMA_DEFECTO.badgeTracking, 'normal'); // = `.sf-badge` fallback (sin tracking)
 });
 
-test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 10 vars', () => {
+test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 11 vars', () => {
   assert.deepEqual(varsDeForma(null), {});
   assert.deepEqual(varsDeForma('suave'), {});
   const v = varsDeForma('recta');
@@ -65,8 +68,9 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   assert.equal(v['--radius-3xl'], '0');
   assert.equal(v['--radius-2xl'], '0');
   assert.equal(v['--radius-xl'], '0');
-  // los 5 tokens propios de superficie (INERTES en esta mitad, emitidos igual)
+  // los 6 tokens propios de superficie (§ NUESTRO-CAFE-RADIO-TILE-1: radioTile YA cableado, no inerte)
   assert.equal(v['--sf-radio-lg'], '2px');
+  assert.equal(v['--sf-radio-tile'], '20px'); // MEDIDO contra el prototipo (tokens.css:169)
   assert.equal(v['--sf-pildora'], '0');
   assert.equal(v['--sf-borde'], '1.5px');
   assert.equal(v['--sf-divisor'], '1px');
@@ -74,7 +78,7 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   // los 2 tokens de badge (§ remate 1)
   assert.equal(v['--sf-badge-caja'], 'uppercase');
   assert.equal(v['--sf-badge-tracking'], '0.12em');
-  assert.equal(Object.keys(v).length, 10);
+  assert.equal(Object.keys(v).length, 11);
 });
 
 test('varsDeForma: Mínima lleva versalitas con MENOS tracking que Recta (mismo tratamiento, otro grado)', () => {
@@ -89,7 +93,7 @@ test('cssForma: Suave/null/basura → null (sin <style> → los radios de hoy �
   assert.equal(cssForma('basura' as never), null);
 });
 
-test('cssForma: una forma CUSTOM → `:root{}` con las 10 vars', () => {
+test('cssForma: una forma CUSTOM → `:root{}` con las 11 vars', () => {
   const css = cssForma('minima');
   assert.ok(css);
   assert.match(css!, /^:root\{/);
@@ -98,14 +102,15 @@ test('cssForma: una forma CUSTOM → `:root{}` con las 10 vars', () => {
   assert.match(css!, /--radius-2xl:8px/);
   assert.match(css!, /--radius-xl:6px/);
   assert.match(css!, /--sf-radio-lg:6px/);
+  assert.match(css!, /--sf-radio-tile:10px/); // = radius3xl de Mínima — "corto y parejo", sin salto
   assert.match(css!, /--sf-pildora:8px/);
   assert.match(css!, /--sf-borde:1px/);
   assert.match(css!, /--sf-divisor:0/);
   assert.match(css!, /--sf-trazo:1.5/);
   assert.match(css!, /--sf-badge-caja:uppercase/);
   assert.match(css!, /--sf-badge-tracking:0.05em/);
-  // las 3 var-backed + las 5 de superficie + las 2 de badge = 10 declaraciones, ni una de más
-  assert.equal((css!.match(/;/g) ?? []).length + 1, 10);
+  // las 3 var-backed + las 6 de superficie + las 2 de badge = 11 declaraciones, ni una de más
+  assert.equal((css!.match(/;/g) ?? []).length + 1, 11);
 });
 
 test('el tuple CLAVES_FORMAS ⊆ las claves de FORMAS (una sola fuente con el tipo)', () => {

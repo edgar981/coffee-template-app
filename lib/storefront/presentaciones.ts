@@ -60,3 +60,29 @@ export function gridColsPresentaciones(n: number): string {
   };
   return mapa[n] ?? 'md:grid-cols-2';
 }
+
+/** El subconjunto de `Product` que `precioMinimoCategoria` necesita — evita importar el tipo
+ *  completo (`types/product.ts`) en una capa pura que no usa el resto de sus ~25 campos. */
+export interface ProductoConPrecio {
+  categoria: string;
+  precio: number;
+}
+
+/**
+ * El precio "desde" de una tarjeta (§ PARIDAD-RIEL-TARJETAS-1, la composición 'riel'): el MENOR
+ * precio entre los productos del catálogo que pertenecen a `cat`. **NUNCA se inventa ni se escribe
+ * a mano** — sale del catálogo REAL que el componente recibe (`/api/catalog`, que ya filtra
+ * `activo: true`, § app/api/catalog/route.ts — este helper no vuelve a filtrar por `activo`).
+ *
+ * `cat` VACÍO (el destino "todos", § `hrefCategoria`) mide sobre el catálogo COMPLETO — coherente
+ * con que la tarjeta enlace a /tienda sin filtro.
+ *
+ * Sin productos en la categoría (destino RANCIO — una categoría que ya no existe en el catálogo,
+ * § CLAUDE.md "Destino rancio → AVISO en el editor") → `null`. El componente OMITE el precio; jamás
+ * muestra "$0" ni un placeholder.
+ */
+export function precioMinimoCategoria(catalogo: readonly ProductoConPrecio[], cat: string): number | null {
+  const productos = cat.trim() === '' ? catalogo : catalogo.filter((p) => p.categoria === cat);
+  if (productos.length === 0) return null;
+  return productos.reduce((min, p) => Math.min(min, p.precio), Infinity);
+}

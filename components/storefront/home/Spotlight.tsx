@@ -171,10 +171,11 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
           )}
 
           {/* EL ESCENARIO — `.spotlight-stage`/`.bag-card`/`.stage-nav` (css/app.css:442-468,
-              tokens.css:60,169). `aspect-[3/4]` (`.bag-card{aspect-ratio:3/4}`), `sf-radio-lg`
-              (el rol var-backed que cubre `--radius-tile`, § themes.ts — CORTE 'recta' → 2px, no
-              los 20px medidos del prototipo: ese token queda INERTE hoy, sin valor propio del set
-              cerrado que represente 20px; reportado, no disimulado), fondo `--sf-superficie` (el
+              tokens.css:60,169). `aspect-[3/4]` (`.bag-card{aspect-ratio:3/4}`), `sf-radio-tile`
+              (§ NUESTRO-CAFE-RADIO-TILE-1, cerrado por PARIDAD-RIEL-TARJETAS-1 — el rol var-backed
+              PROPIO de `--radius-tile`, separado de `sf-radio-lg`: CORTE 'recta' → 20px, el valor
+              exacto medido del prototipo; antes compartía campo con `sf-radio-lg`, que daba 2px,
+              el escalón de un control chico, no de un tile grande), fondo `--sf-superficie` (el
               rol más próximo a `--surface-tile`). El padding de 32px (`--space-8`) vive en el div
               INTERNO, no en el que lleva `fill` — un hijo `position:absolute;inset:0` ignora el
               padding del ancestro que lo posiciona (§ CSS containing block), así que la portada
@@ -186,7 +187,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             viewport={preview ? undefined : { once: true }}
             variants={fadeUp}
           >
-            <div className="relative aspect-[3/4] sf-radio-lg overflow-hidden bg-[var(--sf-superficie)]">
+            <div className="relative aspect-[3/4] sf-radio-tile overflow-hidden bg-[var(--sf-superficie)]">
               {/* El `.bag-card .badge` del prototipo (§ RIEL-SCROLL-Y-BADGE-DORADO-1, el censo de
                   consumidores, DECISIONS.md) — mismo `style` inline condicional que StoreNav/
                   ProductCard, byte-idéntico si `navTratamiento.badgeColor` es `null`. */}

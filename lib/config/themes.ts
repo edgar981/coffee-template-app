@@ -897,9 +897,11 @@ export const CORTE: PresetTema = {
   // `rounded-2xl`/`rounded-xl` en app/(storefront) y components/storefront, no sólo imágenes) son
   // 0/0/0 en 'recta' (formas.ts), el único match exacto del set cerrado. 'minima' (el valor viejo,
   // 6-10px) contradice la regla explícita del prototipo. Las imágenes SÍ se redondean en el prototipo
-  // (`--radius-image:16px`/`--radius-tile:20px`), pero ese rol lo cubre `--sf-radio-lg` — hoy INERTE
-  // en nuestro sistema (§ formas.ts, "LO QUE ESTA MITAD CONECTA vs LO QUE QUEDA INERTE"), así que no
-  // hay valor propio del set cerrado que lo represente todavía.
+  // (`--radius-image:16px`/`--radius-tile:20px`) — CERRADO por § NUESTRO-CAFE-RADIO-TILE-1
+  // (PARIDAD-RIEL-TARJETAS-1): ese rol tiene HOY su propio token, `Forma.radioTile`/
+  // `--sf-radio-tile` (formas.ts), separado de `--sf-radio-lg` — 'recta' lo declara en 20px, el
+  // valor exacto medido de `--radius-tile`. Antes de ese slice compartía campo con `--sf-radio-lg`
+  // (2px, el escalón de un control chico) y el tile salía casi recto; ya no.
   forma: 'recta',
   // `brandStory: 'centrada'` (§ CORTE-BRANDSTORY-COLLAGE-1) — hasta ese slice CORTE pedía la
   // canónica ('columnas') porque era la ÚNICA clave que `brandStory.variantes` declaraba; el estándar

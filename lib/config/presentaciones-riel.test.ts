@@ -61,3 +61,34 @@ test('LA INVARIANTE: Nayoli no monta esta composición — resolverSiteContent({
   const content = resolverSiteContent({});
   assert.notEqual(content.presentaciones?.variante, 'riel');
 });
+
+// ─── PARIDAD-RIEL-TARJETAS-1 — la FORMA del bloque, medida contra `riel-antes-1440`/`riel-antes-390`
+// (DECISIONS.md) y el prototipo (`docs/prototipos/cafeone/index.html:225-247`, `css/app.css:508-559`).
+// Dos regresiones que el gate visual solo no atraparía por sí mismo: los controles de avance vivían
+// AGRUPADOS con el CTA en la cabecera (arriba del track) y el tile usaba `rounded-3xl` en vez del rol
+// de forma dedicado — los dos hallazgos de código del censo de paridad.
+
+test('los controles de avance viven DESPUÉS del track (abajo), no en la cabecera (arriba) — MEDIDO contra `.car-nav`, `css/app.css:553-559` y `index.html:241-246`', () => {
+  const html = renderRiel();
+  const indiceTrack = html.indexOf('grind-riel-track');
+  const indiceFlechaAnterior = html.indexOf('aria-label="Presentación anterior"');
+  assert.ok(indiceTrack > -1, 'el track debe estar presente');
+  assert.ok(indiceFlechaAnterior > -1, 'el botón "Presentación anterior" debe estar presente');
+  assert.ok(
+    indiceFlechaAnterior > indiceTrack,
+    'las flechas deben aparecer DESPUÉS del track en el HTML — abajo, no en la cabecera',
+  );
+});
+
+test('el tile usa el token de FORMA `sf-radio-tile`, no un radio fijo en el componente (`rounded-3xl` retirado)', () => {
+  const html = renderRiel();
+  assert.match(html, /aspect-\[3\/4\] overflow-hidden sf-radio-tile bg-\[var\(--sf-linea\)\]/);
+  assert.doesNotMatch(html, /rounded-3xl/);
+});
+
+test('el precio NUNCA revienta sin catálogo — SSR (sin efectos, § el límite de admin-tienda-preset.test.ts) deja el catálogo en `[]` y ninguna tarjeta muestra "Desde"', () => {
+  // Documenta el límite, no lo rodea: `getCatalog()` corre en un `useEffect`, que
+  // `renderToStaticMarkup` nunca ejecuta — mismo patrón que Spotlight/Marquesina.
+  const html = renderRiel();
+  assert.doesNotMatch(html, /Desde/);
+});

@@ -585,6 +585,15 @@ html {
   .sf-pildora   { border-radius: var(--sf-pildora, calc(infinity * 1px)); }
   .sf-radio-lg  { border-radius: var(--sf-radio-lg, 0.75rem); }
 
+  /* EL ROL "TILE GRANDE" (§ NUESTRO-CAFE-RADIO-TILE-1, cerrado por PARIDAD-RIEL-TARJETAS-1) —
+     SEPARADO de `.sf-radio-lg` a propósito (§ el docstring de `Forma.radioTile`, formas.ts): viste
+     imágenes/media GRANDES (el escenario de Spotlight, el tile del riel de Presentaciones), no
+     chips/controles. Fallback 1.5rem = lo que el riel ya rendía con `rounded-3xl` bajo Suave (el
+     `--radius-3xl` de HOY) → Suave/Nayoli sigue sin `<style>` → byte-idéntico. Sin este rol propio,
+     'recta' (CORTE) heredaba `--sf-radio-lg` (2px, el escalón de un control chico) donde el
+     prototipo mide `--radius-tile:20px` — el tile salía CASI RECTO en vez de redondeado. */
+  .sf-radio-tile { border-radius: var(--sf-radio-tile, 1.5rem); }
+
   /* BORDE (ciñe una tarjeta/control) vs DIVISOR (separa dos bandas de página). Se SEPARAN para
      que Mínima pueda APAGAR los divisores (divisor:0) sin apagar el borde de una tarjeta —que
      obligaría a tocar el RELLENO, y el relleno es PALETA (§ el spec, los dos ejes se pisarían)—.
