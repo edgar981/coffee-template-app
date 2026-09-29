@@ -618,12 +618,18 @@ const SPOTLIGHT: SeccionConfig = {
   // (§ el docstring de `SeccionConfig.bandaId`, arriba), no tiene bandaId propio en `BANDA_IDS`.
   bandaId: 'featured',
   imagenes: [],
+  // `notaPrecio` (§ NUESTRO-CAFE-COMO-MUESTRARIO-1, § `SpotlightContent.notaPrecio`,
+  // site-content-defaults.ts): la nota junto al precio ("COP · impuestos incluidos" en el
+  // prototipo). Va AL FINAL de `campos` — el orden del array es el orden visual (§ el comentario de
+  // arriba), y esta nota se lee pegada al precio, que es lo último que la banda muestra antes del
+  // botón.
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
     { name: 'titulo', label: 'Titular', opcional: true, textarea: true, hint: 'El titular de la banda destacada. Un salto de línea acá se respeta en la tienda. Vacío: no se muestra.' },
     { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
     { name: 'productoSlug', label: 'Producto destacado', opcional: true, hint: 'El slug del producto que se destaca en la banda; se importa por CSV y podés ajustarlo acá. Vacío: la banda no muestra nada.' },
     { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, hint: 'El mismo café en otra presentación, si aplica — se muestra como un enlace a esa otra talla. Vacío: no se muestra.' },
+    { name: 'notaPrecio', label: 'Nota junto al precio', opcional: true, hint: 'Aclaración corta junto al precio, por ejemplo "COP · impuestos incluidos". Vacío: no se muestra.' },
   ],
 };
 

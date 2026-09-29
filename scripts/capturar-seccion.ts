@@ -113,6 +113,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { extname, join, resolve, dirname, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+// `import type` se borra por completo en compilación (§ TS, verbatimModuleSyntax) — no ejecuta el
+// módulo de `@duna/core` ni exige env vars sólo para tipar `Prisma.InputJsonValue`
+// (§ sembrarSpotlight, abajo, § NUESTRO-CAFE-COMO-MUESTRARIO-1). El VALOR (`prisma`, el cliente) se
+// sigue cargando con `import()` dinámico, como el resto de este archivo.
+import type { Prisma } from "@duna/core";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROTOTIPO_DIR = join(RAIZ, "docs", "prototipos", "cafeone");
@@ -219,6 +224,7 @@ interface Opciones {
   anchoPx: number;
   altoPx: number;
   estiloElementoExtra: string[];
+  sembrarSpotlight: boolean;
 }
 
 function ayuda(): string {
@@ -262,12 +268,27 @@ getComputedStyle DEL NODO seleccionado (no de :root) — repetible. El default y
 incluye text-transform, letter-spacing, font-weight, font-family, color,
 position. Sólo se reporta cuando hay --selector-app/--selector-prototipo (un
 nodo necesita un selector para existir).
+--sembrar-spotlight (§ NUESTRO-CAFE-COMO-MUESTRARIO-1) siembra, sobre la base
+efímera y DESPUÉS de aplicar --preset (si se pasó), dos productos reales — el
+pineado (2 moliendas, notas de cata, 250 g) y su "otra talla" (500 g) — y
+publica content.spotlight con el eyebrow/título/badge/nota del prototipo, para
+capturar la banda con el MISMO contenido que .spotlight muestra (index.html:
+160-224) en vez de un catálogo vacío (sin siembra, productoSpotlight([], …)
+da null y la banda no rinde nada — hide-on-empty). SÓLO válido en modo base
+fresca (mutuamente excluyente con --url: no hay base local que sembrar contra
+una URL ya desplegada, cuyo catálogo es el que sea que tenga ese entorno).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
     --ruta / --selector-app "#hero" \\
     --prototipo index.html --selector-prototipo ".hero" \\
     --nombre hero
+
+Ejemplo (--sembrar-spotlight, § NUESTRO-CAFE-COMO-MUESTRARIO-1):
+  node --import tsx scripts/capturar-seccion.ts --preset CORTE --sembrar-spotlight \\
+    --ruta / --selector-app "#producto" \\
+    --prototipo index.html --selector-prototipo ".spotlight" \\
+    --nombre spotlight
 
 Ejemplo (--url, el muestrario real):
   node --import tsx scripts/capturar-seccion.ts \\
@@ -295,6 +316,7 @@ function parseCli(argv: string[]): Opciones {
       ancho: { type: "string" },
       alto: { type: "string" },
       "estilo-elemento": { type: "string", multiple: true },
+      "sembrar-spotlight": { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -312,6 +334,13 @@ function parseCli(argv: string[]): Opciones {
     throw new Error(
       `--url y --preset son mutuamente excluyentes: --url navega el muestrario YA DESPLEGADO — no ` +
         `hay base local que un preset pudiera tocar. Corré sin --url si necesitás aplicar un preset.\n\n${ayuda()}`,
+    );
+  }
+  const sembrarSpotlight = values["sembrar-spotlight"] === true;
+  if (sembrarSpotlight && url) {
+    throw new Error(
+      `--sembrar-spotlight y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
+        `una URL ya desplegada (§ NUESTRO-CAFE-COMO-MUESTRARIO-1).\n\n${ayuda()}`,
     );
   }
 
@@ -352,6 +381,7 @@ function parseCli(argv: string[]): Opciones {
     anchoPx: values.ancho ? Number(values.ancho) : 1280,
     altoPx: values.alto ? Number(values.alto) : 900,
     estiloElementoExtra: values["estilo-elemento"] ?? [],
+    sembrarSpotlight,
   };
 }
 
@@ -630,6 +660,84 @@ async function detenerProceso(child: ChildProcess): Promise<void> {
   });
 }
 
+// ─── SEMBRAR SPOTLIGHT (§ NUESTRO-CAFE-COMO-MUESTRARIO-1) ────────────────────────────────────────
+//
+// Sin producto pineado el catálogo de la base efímera está VACÍO (§ el hallazgo de este slice: la
+// base sólo migra, nunca siembra — `productoSpotlight([], slug)` cae a `null`, hide-on-empty, y la
+// banda no rinde un solo nodo), así que capturar `.spotlight`/`#producto` contra una base sin
+// sembrar compararía el prototipo lleno contra un hueco vacío. Esto siembra DOS productos reales —
+// el pineado (2 moliendas, notas de cata, 250 g, § MOLIENDAS/NOTAS abajo) y su "otra talla" (500
+// g) — vía Prisma DIRECTO (mismos campos que `prisma/seed-products.ts`, no un mecanismo nuevo) y
+// publica `content.spotlight` con el eyebrow/título/badge/nota del prototipo (`index.html:
+// 164-165,169,212`) por el camino de escritura REAL del panel (`guardarBorrador` +
+// `publicarSeccion('spotlight')`, § `site-content-write.ts` — no un `UPDATE` a mano que pudiera
+// divergir de lo que el editor realmente escribe).
+//
+// Usa `@duna/core` (el cliente Prisma generado) y `lib/config/site-content-write` con `import()`
+// DINÁMICO, igual que el bloque de `--preset` de arriba — mismo motivo: sólo se cargan cuando hace
+// falta, y el script sigue arrancando sin tocar Prisma en modo `--url`.
+async function sembrarSpotlight(): Promise<void> {
+  console.log(
+    "▸ --sembrar-spotlight: creando 2 productos (pineado + otra talla) y publicando content.spotlight…",
+  );
+  const { default: prisma } = await import("@duna/core");
+  const { guardarBorrador, publicarSeccion } = await import("../lib/config/site-content-write");
+
+  // Medido contra `.spotlight` (index.html:184-193): las dos moliendas y las tres notas de cata
+  // del mockup, tal cual.
+  const MOLIENDAS = [
+    { nombre: "Molido", metodo: "Filtro / Greca tradicional", disponible: true },
+    { nombre: "En grano", metodo: "Muele en casa a tu gusto", disponible: true },
+  ];
+  const NOTAS_CATA = ["Panela", "Frutos rojos", "Chocolate"];
+  const DESCRIPCION =
+    "Cultivamos entre 1.500 y 1.800 msnm, recogemos solo el grano maduro y lo secamos al sol " +
+    "sobre marquesinas. Una taza limpia y dulce.";
+  // Imágenes reales YA en `public/images/` (§ prisma/seed-products.ts) — ninguna sube a Blob.
+  const SLUG_PINEADO = "arnes-spotlight-san-adolfo-250";
+  const SLUG_OTRA_TALLA = "arnes-spotlight-san-adolfo-500";
+
+  const datosBase = {
+    nombre: "Café Finca San Adolfo",
+    descripcion: DESCRIPCION,
+    categoria: "Café en Grano",
+    activo: true,
+    // Cast del Json (§ prisma/seed.ts:315, el mismo patrón) — Prisma tipa la columna como
+    // `Prisma.InputJsonValue`, que un array de objetos planos no satisface estructuralmente sin él.
+    moliendasOpciones: MOLIENDAS as unknown as Prisma.InputJsonValue,
+    notasCata: NOTAS_CATA,
+  };
+
+  await prisma.product.upsert({
+    where: { slug: SLUG_PINEADO },
+    update: { ...datosBase, precio: 38000, costo: 20000, peso_gramos: 250, imagen: "/images/cafe-nayoli-250g-molido.webp" },
+    create: { ...datosBase, slug: SLUG_PINEADO, precio: 38000, costo: 20000, peso_gramos: 250, imagen: "/images/cafe-nayoli-250g-molido.webp" },
+  });
+  await prisma.product.upsert({
+    where: { slug: SLUG_OTRA_TALLA },
+    update: { ...datosBase, nombre: "Café Finca San Adolfo 500 g", precio: 68000, costo: 38000, peso_gramos: 500, imagen: "/images/cafe-nayoli-500g-molido-v2.webp" },
+    create: { ...datosBase, nombre: "Café Finca San Adolfo 500 g", slug: SLUG_OTRA_TALLA, precio: 68000, costo: 38000, peso_gramos: 500, imagen: "/images/cafe-nayoli-500g-molido-v2.webp" },
+  });
+
+  // Copy del eyebrow/título/badge/nota MEDIDO contra `.spotlight` (index.html:164-165,169,212) —
+  // el `\n` del título reproduce los `<br>` del `<h2>` del prototipo (nuestro `whitespace-pre-line`
+  // ya respeta saltos de línea, § Spotlight.tsx).
+  await guardarBorrador({
+    spotlight: {
+      visible: true,
+      eyebrow: "Nuestro café",
+      titulo: "Un solo origen,\ncuidado de principio\na fin.",
+      badge: "Cosecha 2026",
+      productoSlug: SLUG_PINEADO,
+      otroTamanoSlug: SLUG_OTRA_TALLA,
+      notaPrecio: "COP · impuestos incluidos",
+    },
+  });
+  await publicarSeccion("spotlight");
+
+  console.log("✔ Spotlight sembrado (2 productos + content.spotlight publicado).");
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log(BANNER);
@@ -674,6 +782,14 @@ async function main(): Promise<void> {
         "▸ Sin --preset: la base efímera NO se toca (queda tal cual migró, sin fila de SiteContent → " +
           "los defaults del código).",
       );
+    }
+
+    // § NUESTRO-CAFE-COMO-MUESTRARIO-1 — DESPUÉS del preset (si lo hay), por la MISMA razón
+    // cinturón-y-tirantes de arriba: el orden entre los dos no importa para el resultado (el
+    // storefront es force-dynamic), pero seguir el mismo orden declarado evita una sorpresa si
+    // algún día dejara de serlo.
+    if (opciones.sembrarSpotlight) {
+      await sembrarSpotlight();
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {

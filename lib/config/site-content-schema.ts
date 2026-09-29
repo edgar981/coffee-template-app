@@ -173,6 +173,9 @@ const spotlightEditableSchema = z.object({
   badge: z.string().optional(),
   productoSlug: z.string().optional(),
   otroTamanoSlug: z.string().optional(),
+  // La nota junto al precio (§ NUESTRO-CAFE-COMO-MUESTRARIO-1, `SpotlightContent.notaPrecio`):
+  // COPY libre, opcional/SOFT como el resto — el resolver la omite vacía.
+  notaPrecio: z.string().optional(),
 });
 
 // SubscriptionCTA: antes "solo texto"; gana UNA imagen OPCIONAL (§ MUESTRARIO-CTA-BANNER-FOTO-1,

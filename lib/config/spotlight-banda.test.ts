@@ -74,7 +74,7 @@ test('spotlight TODAVÍA no es miembro de BANDA_IDS — el bloqueo medido de SPO
   assert.equal((BANDA_IDS as readonly string[]).includes('spotlight'), false);
 });
 
-test('DEFAULTS.spotlight nace OFF (visible:false) con los cinco campos vacíos — la ÚNICA sección ocultable con este default, y a propósito', () => {
+test('DEFAULTS.spotlight nace OFF (visible:false) con los seis campos vacíos — la ÚNICA sección ocultable con este default, y a propósito', () => {
   assert.deepEqual(DEFAULTS.spotlight, {
     visible: false,
     eyebrow: '',
@@ -82,6 +82,7 @@ test('DEFAULTS.spotlight nace OFF (visible:false) con los cinco campos vacíos �
     badge: '',
     productoSlug: '',
     otroTamanoSlug: '',
+    notaPrecio: '',
   });
 });
 

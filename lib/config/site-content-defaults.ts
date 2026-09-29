@@ -447,6 +447,12 @@ export interface PresentacionesContent {
 // para mostrarla. Es el mismo mecanismo que ya usan los repeaters vacíos (Testimonios, la
 // Galería) para no encender solos en ningún tenant, expresado como un booleano en vez de un array
 // vacío porque acá el dato no es una lista.
+// `notaPrecio` (§ NUESTRO-CAFE-COMO-MUESTRARIO-1) — la nota junto al precio del `.price-row`
+// (`docs/prototipos/cafeone/index.html:212`, "COP · impuestos incluidos"; `css/app.css:503`). Es
+// COPY, no un cálculo: el sistema no valida moneda ni impuestos, igual que `precio` de
+// `SuscripcionPlanesContent` — el dueño escribe la frase que aplique a su negocio. OPCIONAL, vacío
+// = no se muestra (§ la frontera fina de defaults-como-fallback, CLAUDE.md): un campo opcional
+// vacío se OMITE, nunca cae a un default de copy.
 export interface SpotlightContent {
   visible: boolean;
   eyebrow: string;
@@ -454,6 +460,7 @@ export interface SpotlightContent {
   badge: string;
   productoSlug: string;
   otroTamanoSlug: string;
+  notaPrecio: string;
 }
 
 // SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
@@ -1656,6 +1663,7 @@ export const DEFAULTS: SiteContentData = {
     badge: '',
     productoSlug: '',
     otroTamanoSlug: '',
+    notaPrecio: '',
   },
   subscriptionCTA: {
     visible: true,
@@ -2250,6 +2258,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       badge: 'opcional',
       productoSlug: 'opcional',
       otroTamanoSlug: 'opcional',
+      // La nota del precio (§ SpotlightContent.notaPrecio, arriba): opcional, vacía = no se muestra.
+      notaPrecio: 'opcional',
     },
   },
   subscriptionCTA: {
