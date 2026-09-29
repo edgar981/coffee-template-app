@@ -31138,3 +31138,226 @@ capturas de pantalla (con el límite del reveal del prototipo declarado, no esco
 orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `NUESTRO-CAFE-COMO-MUESTRARIO-1`.**
+
+## 2026-09-29 — `/admin/tienda` caído: la vista previa en vivo gana un `CartProvider` local, y el carril prueba las 15 secciones (`ADMIN-TIENDA-CARTPROVIDER-PREVIEW-1`)
+
+**Reporte del owner (URGENTE), con captura de consola:** `/admin/tienda` tiraba "This page couldn't
+load"; el error de consola era `Uncaught Error: useCartStore must be used within CartProvider`.
+Bloqueaba al owner, que necesitaba el panel para cargar el contenido de "Destacado".
+`approval-reason` lo atribuía a que "el tenant ya tiene productos y la banda 'Nuestro café' renderiza
+su bloque de compra" — esa parte de la premisa es del orquestador, no medida; se verificó y se
+corrige abajo (§ LA CAUSA).
+
+### LA CAUSA, reproducida antes de tocar nada — y es INCONDICIONAL, no depende del catálogo
+
+`Spotlight.tsx:52` llama `const { addItem } = useCartStore();` **sin condición**, ANTES de los dos
+early-return de visibilidad/catálogo (`Spotlight.tsx:72-73`). `useCartStore` (`lib/cartStore.tsx:157-
+161`) es un `useContext` + `throw new Error("useCartStore must be used within CartProvider")` si no
+hay `CartProvider` ancestro. `VistaTiendaEnVivo.tsx` monta el componente REAL de cada sección
+(`Comp`) dentro de `SiteContentProvider` + `PreviewProvider`, **sin `CartProvider`** — la sección
+`spotlight` YA está en `SECCIONES_TIENDA` (`components/admin/tienda-secciones.ts`, agregada por
+`PANEL-EDITOR-SPOTLIGHT-PIN-1`), así que abrir cualquier página de `/admin/tienda` que la incluya
+(la pestaña "Home") la monta y revienta el editor entero.
+
+**Medido con `node --import tsx` (repro descartado tras confirmar, no commiteado — `.scratch/`,
+gitignored) sobre `renderToStaticMarkup(<SiteContentProvider value={DEFAULTS}><PreviewProvider>
+<Spotlight/></PreviewProvider></SiteContentProvider>)`:**
+
+```
+DEFAULTS.spotlight: {"visible":false,"eyebrow":"","titulo":"","badge":"","productoSlug":"",
+"otroTamanoSlug":"","notaPrecio":""}
+THREW: useCartStore must be used within CartProvider
+```
+
+**Tira con el catálogo VACÍO y `spotlight.visible:false` — los DEFAULTS de cualquier tenant nuevo.**
+La premisa "apareció porque el tenant ya tiene productos" es del REPORTE del owner, no del mecanismo:
+lo que cambió con productos reales no es que el hook empiece a tirar, es que la pestaña "Destacado"
+deja de ser un no-op para el ojo del owner y por eso la visita/lo nota. El `catalog` interno de
+`Spotlight` (`useState<Product[]>([])` + `useEffect(() => getCatalog().then(setCatalog), [])`) ni
+siquiera se resuelve antes del throw — es irrelevante para el crash. Se corrige la atribución del
+`approval-reason`, no se le resta autoridad a la aprobación (que sigue vigente sobre el bloqueo real:
+el panel caído).
+
+**Precedente ya escrito, mismo mecanismo, dos veces antes:** `PaletaSeccion.tsx` (`FragmentoTienda`)
+ya envuelve `<ProductCard>` en un `CartProvider` local desde el incidente de `/admin/configuracion`
+del 2026-08-28 (§ CLAUDE.md, "Montar un componente en OTRO árbol de providers no lo atrapa ni tsc ni
+el build"), cerrado en `ADMIN-TIENDA-ROTO-CON-PRESET-1` (§ arriba en este archivo) para
+`SiteContentProvider`. Y el hueco de `VistaTiendaEnVivo` específicamente YA estaba nombrado —para
+`StoreNav`/`useSiteSettings`+`useCartStore`, no para `Spotlight`— en `CROMO-MENU-COMO-DATO-1`
+(2026-09-21, RULING_NEEDED, § arriba, línea ~10839-10848): *"`VistaTiendaEnVivo.tsx` renderiza el
+componente REAL del storefront dentro de un árbol que sólo monta `SiteContentProvider` +
+`PreviewProvider` — sin `CartProvider` ni el `SiteSettingsProvider` DEL STOREFRONT."* Esa ruling
+sigue **Bloqueada** (el editor de `menu` nunca se construyó, `StoreNav` nunca entró a
+`SECCIONES_TIENDA`) y este slice no la resuelve — pero confirma que el landmine estaba anticipado
+para OTRA sección, no descubierto por sorpresa acá.
+
+### EL CENSO — qué otro componente montado por `VistaTiendaEnVivo` necesita un provider que falta
+
+Se auditaron los import de TODOS los componentes que `COMPONENTES` (el `Record<SeccionVista,
+ComponentType>` de `VistaTiendaEnVivo.tsx`) puede montar — las 15 entradas de `SECCIONES_TIENDA` — y
+sus imports transitivos de primer nivel (`GrindChooserMosaico`/`Indice`/`Riel`, `HeroCurtina`/
+`Ficha`/`Media`/`MediaMarquesina`, `BrandStoryColumnas`/`Centrada`, `SubscriptionCTABloque`/`Linea`),
+por `grep` de `useCartStore`/`useSiteSettings`/`useContext`:
+
+| símbolo buscado | resultado |
+| --- | --- |
+| `useCartStore` | **SÓLO `Spotlight.tsx`** (de los 15 componentes + sus sub-variantes) |
+| `useSiteSettings` | CERO — las tres secciones que necesitan `negocio`/`whatsapp` (GrindChooser*, NosotrosGaleria, SuscripcionPlanes) lo reciben por PROP, con el motivo escrito en el propio código ("EL `negocio` DEL ALT LLEGA POR PROP, no por `useSiteSettings()`") — el mismo patrón que ya cerró este landmine para esas tres en tandas previas |
+| `FeaturedProductsGrilla`/`Cuadricula` (los que SÍ montan `ProductCard`, y por tanto un SEGUNDO uso de `useCartStore`) | **NO están en `SeccionVista`** — `featured` se despacha por `FeaturedProducts.tsx`, fuera del mapa de `VistaTiendaEnVivo` (confirmado: `SeccionVista` no tiene una clave `featuredProducts`/`featured`) |
+
+**Conclusión del censo: `Spotlight` es la ÚNICA sección de hoy con este landmine.** El fix no se acotó
+a `seccion==='spotlight'` de todas formas —se envuelve `Comp` INCONDICIONALMENTE— porque el censo
+sólo prueba "hoy", no "siempre": la próxima sección con un control de compra (el checkout-en-preview
+que la doctrina de `lib/checkout/` ya prevé como superficie viva) hereda el provider sin que nadie
+tenga que volver a auditar este archivo.
+
+### EL FIX — `VistaTiendaEnVivo.tsx`
+
+`CartProvider` (`@/lib/cartStore`) envuelve a `Comp` dentro de `PreviewProvider`, mismo patrón que
+`FragmentoTienda` ya usa para `ProductCard`. **Refactor acoplado, no separable:** `EscalaDesktop`
+(`components/admin/EscalaDesktop.tsx:110`) sólo monta sus `children` cuando `paneW > 0` —una medida
+de `ResizeObserver` que en SSR (`renderToStaticMarkup`, sin DOM real) nunca dispara—, así que
+`VistaTiendaEnVivo` a secas es intestable por render directo: `Comp` (y por tanto el `CartProvider`
+nuevo) nunca llega a montar en el carril. Se extrajo `VistaTiendaContenido` (exportada) — el árbol
+interno de providers + `Comp` (`SiteContentProvider>PreviewProvider>CartProvider>Comp`), SIN
+`EscalaDesktop` — y el default-export quedó como `EscalaDesktop` por FUERA envolviendo a
+`VistaTiendaContenido` por DENTRO. Así el carril puede renderizar exactamente la composición real que
+el panel usa, sin reimplementarla ni saltarse `EscalaDesktop` a mano.
+
+**Medido, ANTES de asumir que hacía falta:** `renderToStaticMarkup(<VistaTiendaEnVivo seccion=
+"spotlight" valor={DEFAULTS.spotlight}/>)` sobre el código YA arreglado (con `CartProvider` puesto)
+devuelve `<div class="tienda-vivo-pane" style="position:relative"></div>` — 62 bytes, vacío. Confirma
+que testear `VistaTiendaEnVivo` a secas NUNCA habría ejercido el fix (ni el bug), con o sin
+`CartProvider`: es SIEMPRE un no-op en SSR. `VistaTiendaContenido` es la única vía honesta.
+
+### EL TEST — `lib/config/admin-tienda-preset.test.ts`, 9 casos nuevos (12→21)
+
+**La red que faltaba:** el archivo ya probaba `FragmentoTienda` (PaletaSeccion, la vista previa de
+PALETA) por preset, pero nunca `VistaTiendaEnVivo`/`VistaTiendaContenido` (la vista previa de
+CONTENIDO) — que es justo donde vivía este crash. Se agregó:
+
+- **Control + 6 presets (7 tests):** `VistaTiendaContenido` por CADA una de las 15 `SeccionVista` de
+  `SECCIONES_TIENDA`, con el `valor`/`bandaId`/`esquemas`/`tema` que `TiendaSeccionEditor` realmente
+  les pasaría (`content[config.seccion]`, `config.bandaId`, `content.esquemas`, `content.tema`) —
+  105 renders por ejecución (7×15), todos con `assert.doesNotThrow`.
+- **1 test con `spotlight` FORZADO a "lleno"** (visible:true, eyebrow/titulo/badge/pin/talla-
+  alterna/nota-de-precio no vacíos), sobre el control + los 6 presets.
+- **1 test-regresión** ("EL DEFECTO QUE ESTO CIERRA"): `Spotlight` SIN `CartProvider` (con
+  `SiteContentProvider`+`PreviewProvider`) tira `/useCartStore must be used within CartProvider/`,
+  con DEFAULTS y con el spotlight "lleno" — deja escrita la firma exacta del error que el owner
+  reportó, mismo patrón que la prueba equivalente de `TrustBadges` en este archivo.
+
+**EL LÍMITE de "catálogo NO vacío", medido y documentado en el propio test (no escondido):**
+`Spotlight`/`Marquesina` resuelven su `catalog` en un `useEffect` (`getCatalog().then(setCatalog)`),
+y `renderToStaticMarkup` **nunca corre efectos** — es un único paso de render síncrono. Verificado
+contra el precedente ya escrito en `spotlight-cableado.test.ts` (mismo límite, mismo mecanismo) y
+`cromo-carrito.test.ts` (mockear el módulo exige `--experimental-test-module-mocks`, que `npm test`
+no lleva y que este slice no puede agregar sin tocar `package.json`, fuera de `touches:`). Así que
+"un catálogo no vacío" no es alcanzable por `getCatalog()` real en este carril — se afirma en la
+ÚNICA capa alcanzable desde SSR: los campos de `SiteContent` (`spotlight` "lleno", arriba). **Esto no
+es una laguna de cobertura para ESTE bug**: el `throw` de `useCartStore()` ocurre ANTES de que el
+catálogo importe (medido arriba: tira con catálogo vacío Y con `visible:false`), así que cualquier
+contenido —vacío o lleno— ejerce la misma línea riesgosa.
+
+### El test FALLA sin el arreglo — verificado por reversión manual, no supuesto
+
+Se revirtió a mano `CartProvider` dentro de `VistaTiendaContenido` (el `<CartProvider>…</CartProvider>`
+por un `<div>` liso, con un comentario `TEMPORALMENTE REVERTIDO` que no llegó a commitearse), se corrió
+el archivo, y se restauró exacto (`git diff` limpio sobre el comentario después):
+
+| corrida | resultado |
+| --- | --- |
+| SIN el fix | **13 pass, 8 fail** — las 8 que fallan son EXACTAMENTE las 8 nuevas que dependen de `Comp==Spotlight` (control + 6 presets + "spotlight lleno"), todas con `Actual message: "useCartStore must be used within CartProvider"`. La 9ª nueva (el test-regresión, que afirma el `throw` DIRECTO sin pasar por `VistaTiendaContenido`) sigue pasando, como debe — prueba el defecto, no el fix. |
+| CON el fix | **21/21 pass** |
+
+### Gate — corrido completo sobre el árbol final
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | limpio (0 errores), corrido dos veces (tras el fix de `VistaTiendaEnVivo.tsx`, y tras el test) |
+| `npm test` (capa 1, sin base) | **2488/2488** — sube de 2479 (piso de `NUESTRO-CAFE-COMO-MUESTRARIO-1`) por los 9 tests nuevos |
+| `npm run test:integracion` (capa 2, Postgres 14.20 efímero) | **240/240** — sin cambio (este slice no toca schema, migración ni ningún test de integración) |
+
+**Capa 3 (gate visual) NO aplica**: el diff no toca `app/(storefront)/` ni `components/storefront/`
+—los 15 componentes se IMPORTAN sin editarse—, así que no hay diff visual del storefront que medir
+con `verificar:nayoli:visual`. El gate de esta tanda son los OJOS DEL OWNER sobre `/admin/tienda`
+—el panel, no la tienda—, que es capa 3 del ADMIN, fuera del script de diff visual del storefront.
+
+### CHEQUEO MECÁNICO CONTRA CLAUDE.md
+
+`grep` de los símbolos/rutas que este diff tocó (`VistaTiendaEnVivo`, `VistaTiendaContenido`,
+`CartProvider`, `TiendaSeccionEditor`, `admin-tienda-preset.test.ts`) contra `CLAUDE.md`:
+
+- **`VistaTiendaEnVivo`** aparece 5 veces por `grep` LITERAL (líneas 56, 471, 2614, 2642, 2788).
+  Las de 56, 2614, 2642 y 2788 sobreviven intactas (§ "que el admin monte varios de estos mismos
+  archivos… no los saca de la lista", § "componentes REALES, no un iframe", § "gana un modo
+  `compacto`", § "PESADO (§ VistaTiendaEnVivo)") — ninguna depende de CUÁNTOS providers monta el
+  árbol interno. La de 471 se trata en el bullet de `CartProvider`, abajo. **Leyendo el CONTEXTO de
+  la de 2614 (no un hit de grep aparte) aparece una frase YA en cuestión ANTES de este diff, que mi
+  diff NO vuelve falsa** (CLAUDE.md:2617-2618): *"`<SiteContentProvider value={{...DEFAULTS, hero:
+  form}}>` es el ÚNICO `SiteContentProvider` del subárbol admin (no hay otro)"*. Bajo lectura LITERAL
+  ya era falsa desde `ADMIN-TIENDA-ROTO-CON-PRESET-1` (2026-09-23, § arriba en este archivo), que
+  coinó el follow-up `CLAUDE-MD-SITECONTENTPROVIDER-UNICO-AMBIGUO-1` sin resolverlo — mi diff no toca
+  cuántos `SiteContentProvider` hay, sólo agrega un `CartProvider`, así que no cambia el estado de
+  verdad de esa frase. Reportado sin re-corregir (`CLAUDE.md` fuera de `touches:`).
+- **`CartProvider`** aparece en la sección "MONTAJE de un componente en un árbol sin sus providers…"
+  (línea ~469-472): *"…y montar el provider que falta, LOCAL, como `VistaTiendaEnVivo` monta su
+  `SiteContentProvider` (§ La PANTALLA) y como la vista previa de paleta monta ahora `CartProvider`."*
+  Sigue siendo VERDAD tal como está escrita (los dos ejemplos citados siguen siendo ciertos); queda
+  INCOMPLETA —ya no menciona que `VistaTiendaEnVivo` TAMBIÉN monta `CartProvider` desde hoy—, pero
+  incompleto no es falso. No se toca (CLAUDE.md fuera de `touches:`).
+- **`TiendaSeccionEditor`** aparece 6 veces, ninguna sobre providers ni sobre `useCartStore` (drafts,
+  edición por bloques, el uploader compartido, categorías) — ninguna se ve afectada; el archivo NO se
+  tocó (censo abajo).
+- **`admin-tienda-preset.test.ts`**: cero menciones en `CLAUDE.md`.
+
+**Ningún hallazgo nuevo que reportar como follow-up**: el único candidato (la frase "ÚNICO
+`SiteContentProvider`") ya tenía su id coinado por el slice anterior; no coino uno nuevo por algo que
+mi diff no causó.
+
+### `TiendaSeccionEditor.tsx` — en `touches:`, AUDITADO, sin cambios
+
+Se verificó completo (imports + los tres call-sites de `VistaTiendaEnVivo`, líneas ~851/943/947):
+**no importa un solo componente de `components/storefront/` directo** — delega TODO el montaje en
+`VistaTiendaEnVivo`, así que el landmine (y su fix) vive enteramente ahí. `grep` de
+`@/components/storefront` contra `TiendaSeccionEditor.tsx` (y contra `RepeaterEditor.tsx`/
+`PosterScrubber.tsx`/`BarraProgreso.tsx`/`CategoriaCombobox.tsx`/`useSubidaImagen.ts`, los otros
+componentes que importa) da CERO. Queda en `touches:` porque el spec lo declaró como posible
+superficie; el censo confirma que no hacía falta tocarlo.
+
+### `touches:` — lo que se escribió
+
+`components/admin/VistaTiendaEnVivo.tsx` (import de `CartProvider`; `VistaTiendaProps` extraído a
+interfaz propia; `VistaTiendaContenido` nueva función exportada con el árbol interno de providers;
+`VistaTiendaEnVivo` reducido a envolver `EscalaDesktop` + `VistaTiendaContenido`), `lib/config/
+admin-tienda-preset.test.ts` (imports de `Spotlight`/`PreviewProvider`/`VistaTiendaContenido`/
+`SiteContentData`; 9 tests nuevos), este asiento. `components/admin/TiendaSeccionEditor.tsx`
+AUDITADO sin cambios (§ arriba).
+
+### Deviations
+
+Ninguna del spec en el MECANISMO (CartProvider local e inerte, mismo patrón que `FragmentoTienda`) ni
+en el alcance (`touches:` respetado). Una corrección medida contra la premisa del `approval-reason`,
+no contra una instrucción de ejecución: "apareció porque el tenant ya tiene productos" no es la causa
+técnica del crash (que es incondicional, § LA CAUSA) — se documenta la medición sin restarle validez
+a la aprobación, que sigue vigente sobre el bloqueo real reportado.
+
+### Open follow-ups
+
+Ninguno nuevo. `CLAUDE-MD-SITECONTENTPROVIDER-UNICO-AMBIGUO-1` (coinado en `ADMIN-TIENDA-ROTO-CON-
+PRESET-1`, 2026-09-23) sigue abierto y sigue siendo el mismo — este slice no lo agrava ni lo cierra.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en tsc + capa 1 + capa 2; capa 3
+(visual del storefront) no aplica (§ arriba) — el gate de esta tanda es el OWNER cargando
+`/admin/tienda`. `customer_bytes.changed: true`, `strings: []` (ningún texto nuevo — un cambio de
+robustez: `/admin/tienda` deja de tirar "This page couldn't load" al owner y muestra la vista previa
+de "Destacado" en su lugar, el mismo tipo de cambio que cerró `ADMIN-TIENDA-ROTO-CON-PRESET-1`). Y,
+como siempre en esta rama, la RAMA completa (no sólo este commit) ya tocaba bytes visibles desde
+commits anteriores (`HERO-SIN-TARJETA-Y-PDP-IMAGEN-1`, `RIEL-SCROLL-Y-BADGE-DORADO-1`, `PANEL-
+TARJETAS-NO-ESTIRAN-1`, `NUESTRO-CAFE-COMO-MUESTRARIO-1`), así que el veredicto no cambiaría aunque
+este commit fuera puramente interno. Commiteado en `slice/corte-reescritura-prototipo-1`; el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `ADMIN-TIENDA-CARTPROVIDER-PREVIEW-1`.**
