@@ -32915,3 +32915,77 @@ igual el nombre del script y los IDs que esta entrada cierra
 sin contrato cruzado — así que pasa las tres condiciones de merge policy A limpio.
 
 **Cierra `VERIFICAR-NAYOLI-TRAS-CTA-1`.**
+
+## 2026-09-29 — La cinta del marquee de CORTE deja de poner una raya entre repeticiones (`MARQUEE-SIN-RAYA-1`)
+
+`678f422` (rama `slice/corte-reescritura-prototipo-1`, SIN mergear — AWAITING_APPROVAL, ver Verdict abajo)
+
+### El pedido
+
+Pedido del owner, textual: *"Remueve esto '—' de el marquee que se muestra en el hero"*.
+`HeroMediaMarquesina.tsx` (el hero `variante:'sticky'` de CORTE) y `Marquesina.tsx` (la banda
+suelta `marquesina` — apagada bajo CORTE mismo, § CORTE-USA-HERO-STICKY-1, pero disponible para
+cualquier otro preset o dueño que la encienda) apendizaban `" —&nbsp;"` tras cada repetición del
+texto — el MISMO separador que trae el prototipo
+(`docs/prototipos/cafeone/index.html:149`, `"Café fresco de San Adolfo — Huila — Colombia —&nbsp;"`).
+El owner decide apartarse de esa forma; **el prototipo NO se toca** — sigue usando la raya, a
+propósito, para que nadie la "restaure" leyendo el prototipo como fuente de verdad.
+
+### La elección
+
+Se retira el GLIFO "—" del HTML renderizado, no sólo se lo esconde con CSS — un test que lea el
+HTML no debe encontrar el carácter (`assert.ok(!html.includes('—'))`). El hueco que dejaba queda
+como ESPACIO, con un spacer `<span className="inline-block w-[1em]" />` que preserva el ancho
+visual que el glifo ocupaba — la convención del propio nombre "em dash" (~1em de avance) — para
+que la cinta no se vea pegada al escalar con `MARQUEE_TITULO_FONT_SIZE` (clamp 76px–214px en el
+hero) ni con el clamp de la banda suelta (`clamp(3rem,10vw,10rem)`, 48px–160px). El outer
+`<span className="pr-8">` de cada repetición NO se tocó — sigue siendo exactamente el mismo, para
+no invalidar el conteo `enSpans===2` que los dos tests ya afirmaban.
+
+**Se descartó:**
+- borrar sólo el glifo sin compensar el ancho: a los tamaños grandes del hero (hasta 214px) el
+  hueco perdido habría sido de decenas a más de cien píxeles — justo el defecto que el spec pide
+  evitar ("no se vea pegada");
+- una `pr-*`/`mr-*` FIJA en vez de un spacer en `em`: no escala con el `font-size` variable
+  (clamp), así que a un extremo del rango se vería corto y al otro largo — y habría exigido
+  cambiar la className del `<span className="pr-8">` externo, rompiendo el conteo que los tests
+  ya afirmaban.
+
+### Lo medido, no asumido
+
+El ancho exacto del glifo "—" en Playfair Display **no se midió pixel a pixel** contra la fuente
+real (sería sobre-ingeniería para un separador decorativo y `aria-hidden`, sin caso de uso pedido
+que lo justifique); `1em` es la convención documentada del propio nombre del carácter ("em dash"),
+no una medición. Si el ancho resultara visiblemente distinto en el gate del owner (capa 3, la que
+sí juzga gusto), es un ajuste de UN número (`w-[1em]` → otro valor), no un cambio de mecanismo.
+
+### El cierre
+
+- Los DOS archivos de test que el spec nombra (`lib/config/hero-marquesina.test.ts`,
+  `lib/config/marquesina-banda.test.ts`) ganan un test cada uno: afirman que el HTML renderizado
+  no contiene "—" y que el spacer (`<span class="inline-block w-[1em]">`) aparece EXACTAMENTE dos
+  veces — una por repetición.
+- `npm test`: **2589/2589** (2587 de la rama + los 2 tests nuevos de este slice). Corrido también
+  acotado a los dos archivos tocados: **63/63**.
+- `npm run verificar:nayoli:visual` (Nayoli, sin preset — CORTE no se aplica a Nayoli):
+  **0px en las 6 rutas + los 2 hovers, consciente de antialiasing Y crudo** (`includeAA:true`).
+  `main` = `9a7ab97` (worktree detached), rama = el árbol de trabajo con este commit ya aplicado
+  (`678f422`). Es el resultado ESPERADO y no una verificación vacía: ni `HeroMediaMarquesina.tsx`
+  (hero `variante:'sticky'`, sólo CORTE la usa) ni el texto de `Marquesina.tsx` (banda
+  `marquesina`, `visible:false` por default y apagada explícitamente bajo CORTE) rinden NADA para
+  Nayoli (`resolverSiteContent({})`, sin preset) — el 0px confirma que ninguno de los dos archivos
+  tocados afecta lo que Nayoli sirve HOY, no que el cambio sea invisible en general para cualquier
+  tienda que encienda `marquesina` o adopte CORTE.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). El diff cambia bytes que un visitante de una tienda con
+CORTE activo — o con `content.marquesina.visible:true` bajo cualquier otro preset — lee en
+pantalla (el texto de la cinta del hero/banda). Nayoli no lo ve HOY (0px, arriba), pero la RAMA sí
+cambia ese byte para quien lo tenga encendido, y merge policy A juzga la RAMA contra su base, no el
+commit aislado (§ CLAUDE.md, customer_bytes: "el eje es la rama, no el commit") — y esta rama, con
+sus commits previos (CTA-HOVER-*, NAV-ALTURA-*, etc.), ya cambiaba bytes de cliente de sobra antes
+de este slice. El spec además lo pide explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
+
+Cierra `MARQUEE-SIN-RAYA-1` (pendiente del gate visual del owner, capa 3, y de mergear — ninguna de
+las dos cosas hechas por este slice).
