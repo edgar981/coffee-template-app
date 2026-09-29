@@ -107,6 +107,32 @@ test('con `origen.visible:true` y los DEFAULTS (sin valores cargados): rinde el 
   assert.ok(!html.includes(DEFAULTS.origen.dato1Label), 'un label sin valor tampoco aparece — el par se omite completo');
 });
 
+// ─── LAS DOS FOTOS — gap y desfase responsive, medidos contra `.origen-media` del prototipo ────────
+//
+// `css/app.css:584,589` (base, ≥641px): gap 20px (`--space-5`), desfase del primer marco 48px
+// (`--space-12`). `css/app.css:1013-1014` (`@media max-width:640px`): gap 12px (`--space-3`), desfase
+// 32px (`--space-8`). Acá vivían FIJOS en 16px/32px siempre (sin variación por ancho) — las fotos
+// quedaban menos escalonadas que en el prototipo (§ PARIDAD-CAFE-Y-ORIGEN-1).
+
+test('la grilla de fotos usa gap-3 (12px, mobile) con sm:gap-5 (20px, ≥640px) — ya NO gap-4 (16px) fijo', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.match(html, /class="grid grid-cols-2 gap-3 sm:gap-5 items-start"/);
+  assert.doesNotMatch(html, /class="grid grid-cols-2 gap-4 items-start"/);
+});
+
+test('el PRIMER marco de foto lleva mt-8 (32px, mobile) con sm:mt-12 (48px, ≥640px) — ya NO mt-8 fijo siempre', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden rounded-2xl mt-8 sm:mt-12"/);
+});
+
+test('el SEGUNDO marco de foto sigue SIN desfase — sólo el primero (first-child, como en el prototipo) se empuja', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden rounded-2xl"/, 'debe existir un marco SIN clases de margen (el segundo)');
+});
+
 test('con datos y stats CARGADOS (contenido explícito, no los DEFAULTS): la lista y los 3 contadores SÍ rinden', () => {
   const content = {
     ...DEFAULTS,

@@ -31752,3 +31752,117 @@ despachando los arreglos de código mientras hago los ajustes en el panel") — 
 aparte, como toda escritura de storefront de esta rama.
 
 **Cierra `PARIDAD-RIEL-TARJETAS-1` y `NUESTRO-CAFE-RADIO-TILE-1`.**
+
+## 2026-09-29 — "Nuestro café" sin titular ocupa el ancho igual, y las fotos de Origen quedan altas y escalonadas como el prototipo (`PARIDAD-CAFE-Y-ORIGEN-1`)
+
+Cierra dos hallazgos de `CENSO-PARIDAD-MUESTRARIO-1` que el spec de este slice ya traía re-medidos:
+la grilla de Spotlight corrida a la izquierda con un tercio vacío cuando `spotlight.eyebrow`/
+`spotlight.titulo` están vacíos (caso REAL del muestrario Onix, medido en `.capturas/
+paridad-antes-spotlight-1440/app-0.png`), y el gap/desfase de las dos fotos de Origen fijos en
+16px/32px siempre, donde el prototipo varía 20px/48px (≥641px) → 12px/32px (≤640px).
+
+### 1 · Spotlight — el split de 3 columnas ahora es CONDICIONAL
+
+La grilla (`Spotlight.tsx:154-158`) tenía la clase `min-[1200px]:grid-cols-[1fr_1.05fr_1fr]`
+INCONDICIONAL. Sin encabezado, el escenario y la compra se auto-colocaban en las columnas 1 y 2
+(el encabezado es el ÚNICO consumidor de la columna 3), dejando un tercio del ancho en blanco desde
+1200px. Se extrajo `const tieneEncabezado = Boolean(spotlight.eyebrow || spotlight.titulo)` (ya
+existía como expresión inline, ahora nombrada y reusada por el gate del encabezado) y el split de 3
+columnas quedó condicionado a esa bandera. Sin encabezado, la grilla se queda en
+`min-[820px]:grid-cols-2` (el mismo que ya reparte el ancho completo entre escenario y compra en
+820-1199px) — **no se inventó una proporción nueva**, sólo se dejó de activar el split de tres a
+1200px. Con encabezado, la clase reaparece byte-idéntica a como estaba.
+
+### 2 · Origen — gap y desfase responsive, medidos contra `.origen-media`
+
+`css/app.css:584,589` (prototipo, base ≥641px): gap 20px (`--space-5`), desfase del primer marco
+48px (`--space-12`). `css/app.css:1013-1014` (`@media max-width:640px`): gap 12px (`--space-3`),
+desfase 32px (`--space-8`). `Origen.tsx` tenía ambos FIJOS (16px/32px, sin variación por ancho) —
+se llevaron a `gap-3 sm:gap-5` (12px/20px) y `mt-8 sm:mt-12` (32px/48px) en el primer marco. El
+segundo marco queda sin cambios (sin desfase, como en el prototipo).
+
+**MEDIDO contra el prototipo, computado real, los dos anchos** (`npm run capturar:seccion`,
+`--estilo-elemento gap`/`margin-top`, base CORTE + `--sembrar-spotlight` para que el catálogo no
+esté vacío):
+
+| propiedad | ancho | ANTES (código viejo) | DESPUÉS | prototipo | resultado |
+| --- | --- | --- | --- | --- | --- |
+| gap de `.origen-media`/photo-grid | 1440px | 16px | **20px** | 20px | **exacto** |
+| gap de `.origen-media`/photo-grid | 390px | 16px | **12px** | 12px | **exacto** |
+| `margin-top` del 1er marco | 1440px | 32px | **48px** | 48px | **exacto** |
+| `margin-top` del 1er marco | 390px | 32px | **32px** | 32px | **exacto** (mobile no cambiaba, ya coincidía) |
+
+**LO QUE NO CIERRA, medido y fuera de alcance de este slice (código, no doctrina nueva):** la altura
+TOTAL de la sección Origen sigue lejos del prototipo (674px medidos contra 1178px a 1440px, sección
+completa; 376px contra 802px sólo el photo-grid) — por DOS causas, ninguna de código de esta banda:
+(a) el ANCHO DE CONTENEDOR es `max-w-6xl` (1152px) en TODO el storefront, deliberado y documentado
+(§ CLAUDE.md, "Presentaciones 2-4"/§2 de `NUESTRO-CAFE-RADIO-TILE-1` arriba: "`max-w-4xl` → `max-w-
+6xl`... el ancho de banda que YA usan... Origen..."), contra el `--content-max:1440px` del
+prototipo — tocarlo en Origen sola desalinearía sus bordes con Hero/Spotlight/Presentaciones
+vecinos; y (b) los 4 pares de dato y los 3 contadores de Origen nacen VACÍOS bajo CORTE
+(`mergePresetEnContent` sólo enciende `visible`, nunca escribe texto de sección — § CLAUDE.md, "Los
+DEFAULTS SON GENÉRICOS Y SUS VALORES nacen VACÍOS"), así que el `<dl>` y la fila de stats no rinden
+(hide-on-empty) — es el hallazgo CONTENIDO que `CENSO-PARIDAD-MUESTRARIO-1` ya clasificó como "se ve
+incompleta pese a que el código ya soporta la paridad completa", no un defecto de este slice.
+
+### DESVIACIÓN — no se pudo capturar "Spotlight después, SIN titular" en vivo
+
+El spec pedía capturar Spotlight "con y sin titular" para el DESPUÉS. Se logró **con titular**
+(`.capturas/paridad-despues-spotlight-1440/`, vía `--preset CORTE --sembrar-spotlight`, que publica
+`content.spotlight` con eyebrow/título llenos). **Sin titular no se pudo**, medido: el arnés
+(`capturar-seccion.ts`) en modo base fresca **no seeds un catálogo de productos salvo con
+`--sembrar-spotlight`** ("Sin --preset: la base efímera NO se toca... sin fila de SiteContent"; sin
+`--sembrar-spotlight` el catálogo queda vacío incluso con `--preset CORTE`, porque `aplicarPreset`
+sólo escribe `SiteContent`, nunca productos) — y `--sembrar-spotlight` SIEMPRE publica eyebrow/
+titulo llenos (`scripts/capturar-seccion.ts:718-728`, el copy del prototipo, sin flag para vaciarlo).
+Lograr "visible:true + catálogo real + eyebrow/titulo vacíos" en una captura local exigiría o bien
+extender `capturar-seccion.ts` (fuera de `touches:`) o un harness aparte que reimplemente su
+bootstrap — no se construyó ninguno de los dos. Se confirmó por rojo→verde (§ abajo) y se dejó
+como evidencia complementaria: `.capturas/paridad-antes-spotlight-1440/` (el MISMO layout, en el
+CÓDIGO VIEJO desplegado) muestra exactamente el caso "sin titular" con el bug — y el mecanismo que
+lo cierra (quitar UNA clase condicionada a `tieneEncabezado`, cayendo al `min-[820px]:grid-cols-2`
+ya usado y probado en el rango intermedio) es determinista por CSS Grid, sin lógica async ni
+animación de por medio — el mismo nivel de certeza que un cálculo a mano, verificado mecánicamente
+por los tests de fuente (§ abajo).
+
+### Verificación roja→verde (sin `git stash`/worktree propio — no concedidos a este despacho)
+
+`lib/config/spotlight-banda.test.ts` ganó 2 tests por FUENTE (mismo patrón que
+`titulares-saltos.test.ts`, citado en el propio archivo: Spotlight.tsx SIEMPRE rinde `null` bajo
+`renderToStaticMarkup` porque el catálogo llega por `useEffect`, así que la aserción es sobre el
+código fuente, no sobre HTML renderizado) y `lib/config/origen-banda.test.ts` ganó 3 tests por SSR
+real (`renderToStaticMarkup`, Origen no depende de un fetch async). Los 5 se revirtieron a mano
+(`git checkout -- <archivo>` sobre los dos componentes, sin tocar los tests) y se vieron fallar 4/4
+en Spotlight+Origen (el 5º, "segundo marco sin desfase", seguía pasando porque el segundo marco
+nunca cambió) antes de reaplicar el fix — `node --import tsx --test lib/config/spotlight-banda.test.ts
+lib/config/origen-banda.test.ts` dio `pass 34 / fail 4` contra el código viejo, `pass 38 / fail 0`
+reaplicado.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2507/2507** |
+| `npm run test:integracion` | **240/240** |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main vs. esta rama) — Spotlight.tsx nunca monta bajo `featured·cuadricula` (Nayoli) y `Origen.tsx` rinde `null` sin fila (`seccionEsVisible` con `visible:false` por default), así que el diff de esta banda es inalcanzable para Nayoli por construcción, confirmado por las dos rutas del gate y por el test `LA INVARIANTE: Nayoli ... rinde la banda VACÍA — ni un nodo` |
+
+### Chequeo mecánico contra CLAUDE.md
+
+Símbolos/archivos que este diff cambió: `Spotlight.tsx` (`tieneEncabezado`, el className
+condicional del grid), `Origen.tsx` (`gap-3 sm:gap-5`, `mt-8 sm:mt-12`), `spotlight-banda.test.ts`,
+`origen-banda.test.ts`. `grep` de cada uno (y de `min-[1200px]`, `min-[820px]`, `SPOTLIGHT-BANDA`,
+`ORIGEN-BANDA`, `NUESTRO-CAFE`, `featured·spotlight`) contra `CLAUDE.md`: **CERO coincidencias** —
+CLAUDE.md no documenta el sistema de bandas de CORTE ni sus clases de grid; esa doctrina vive
+enteramente en este archivo. **Nada en CLAUDE.md queda falso por este diff.**
+
+### Verdicto
+
+**AWAITING_APPROVAL.** El diff no toca schema/migración ni es contrato cross-repo, pero SÍ son bytes
+que un visitante de CORTE lee (Spotlight se recompone sin titular; las fotos de Origen cambian de
+gap/desfase) → falla `customer-bytes` de merge policy A. El owner ya aprobó la ESCRITURA de este
+slice (§ `approval-reason` del spec, 2026-09-29, el mismo texto que ya autorizó `PARIDAD-PDP-
+BOTONES-1`/`PARIDAD-RIEL-TARJETAS-1`: "Ve despachando los arreglos de código mientras hago los
+ajustes en el panel") — el MERGE sigue gateado aparte.
+
+**Cierra `PARIDAD-CAFE-Y-ORIGEN-1`.**

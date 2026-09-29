@@ -131,6 +131,16 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
     toast.success(`${producto.nombre} agregado al carrito`);
   };
 
+  // SIN ENCABEZADO, LA GRILLA NO PUEDE SEGUIR SIENDO DE TRES COLUMNAS (§ PARIDAD-CAFE-Y-ORIGEN-1,
+  // medido contra el muestrario desplegado: `spotlight.eyebrow`/`spotlight.titulo` vacíos —caso real
+  // de hoy, Onix sin esos campos cargados— dejaban el escenario y la compra auto-colocados en las
+  // columnas 1 y 2 de `[1fr_1.05fr_1fr]`, con la 3ª (1fr) VACÍA: la banda quedaba corrida a la
+  // izquierda con un tercio del ancho en blanco). El encabezado es el ÚNICO consumidor de esa 3ª
+  // columna — sin él, la grilla se queda en el MISMO `min-[820px]:grid-cols-2` que ya reparte el
+  // ancho completo entre escenario y compra en los anchos intermedios (820-1199px): no hace falta
+  // inventar una proporción nueva, sólo NO activar el split de tres a 1200px.
+  const tieneEncabezado = Boolean(spotlight.eyebrow || spotlight.titulo);
+
   return (
     <section id="producto" className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -141,8 +151,12 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             debajo, uno junto al otro. Bajo 820 es UNA columna (gap 40px, `--space-10`), apilados en
             el mismo orden del DOM: encabezado → escenario → compra — igual que el prototipo, que no
             reordena en ningún breakpoint. */}
-        <div className="grid grid-cols-1 gap-10 min-[820px]:grid-cols-2 min-[820px]:gap-12 min-[1200px]:grid-cols-[1fr_1.05fr_1fr] min-[1200px]:gap-16 items-center">
-          {(spotlight.eyebrow || spotlight.titulo) && (
+        <div
+          className={`grid grid-cols-1 gap-10 min-[820px]:grid-cols-2 min-[820px]:gap-12 min-[1200px]:gap-16 items-center ${
+            tieneEncabezado ? 'min-[1200px]:grid-cols-[1fr_1.05fr_1fr]' : ''
+          }`}
+        >
+          {tieneEncabezado && (
             <motion.div
               initial={preview ? false : "hidden"}
               animate={preview ? "visible" : undefined}

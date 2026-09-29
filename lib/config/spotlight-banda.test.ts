@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import {
   BANDA_IDS,
   DEFAULTS,
@@ -18,6 +21,18 @@ import {
 // es lo que decide QUÉ se muestra antes de que el componente pinte un solo nodo:
 // `productoSpotlight`/`productoOtraTalla` (el pin resuelto contra el catálogo) y el gate de
 // visibilidad (`seccionEsVisible`) que el componente consulta primero.
+//
+// LA GRILLA SIN ENCABEZADO (§ PARIDAD-CAFE-Y-ORIGEN-1) es la EXCEPCIÓN declarada al límite de
+// arriba: `Spotlight.tsx` SIEMPRE rinde `null` bajo `renderToStaticMarkup` (el catálogo llega por
+// `useEffect`, que ese carril nunca corre — mismo límite que documenta `spotlight-banda.test.ts`
+// hermano `spotlight-cableado.test.ts` y `titulares-saltos.test.ts`), así que esta afirmación —que
+// el split de 3 columnas a 1200px sólo se activa CON encabezado— se hace por FUENTE, no por render,
+// igual que `titulares-saltos.test.ts:108-120` ya hace para el mismo componente.
+
+function fuenteSpotlight(): string {
+  const srcPath = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../components/storefront/home/Spotlight.tsx');
+  return readFileSync(srcPath, 'utf8');
+}
 
 const CATALOGO = [
   { slug: 'cafe-huila-250' },
@@ -96,4 +111,39 @@ test('con visible explícito en true, la sección deja de ocultarse — la garan
   const resuelto = resolverSiteContent({ spotlight: { visible: true } });
   assert.equal(resuelto.spotlight.visible, true);
   assert.equal(seccionEsVisible(REGISTRY.spotlight, resuelto.spotlight), true);
+});
+
+// ─── LA GRILLA SIN ENCABEZADO — §PARIDAD-CAFE-Y-ORIGEN-1 ───────────────────────────────────────────
+//
+// Medido contra el muestrario desplegado (Onix, `spotlight.eyebrow`/`spotlight.titulo` vacíos hoy):
+// sin encabezado, el escenario y la compra se auto-colocaban en las columnas 1 y 2 de la grilla
+// `[1fr_1.05fr_1fr]` que sólo se activa desde 1200px, dejando la 3ª columna (1fr) vacía — la banda
+// quedaba corrida a la izquierda con un tercio del ancho en blanco. El encabezado es el ÚNICO
+// consumidor de esa 3ª columna, así que sin él la grilla debe quedarse en el `min-[820px]:grid-cols-2`
+// que ya reparte el ancho completo entre escenario y compra en los anchos intermedios (820-1199px).
+
+test('Spotlight.tsx: el split de tres columnas a 1200px (`min-[1200px]:grid-cols-[1fr_1.05fr_1fr]`) está CONDICIONADO a `tieneEncabezado` — nunca una clase incondicional', () => {
+  const src = fuenteSpotlight();
+  const m = src.match(/className=\{`grid grid-cols-1[\s\S]*?`\}/);
+  assert.ok(m, 'no se encontró la className (template literal) del grid principal de Spotlight');
+  const claseGrid = m![0];
+  assert.match(
+    claseGrid,
+    /tieneEncabezado \? 'min-\[1200px\]:grid-cols-\[1fr_1\.05fr_1fr\]' : ''/,
+    'el split de 3 columnas debe estar dentro de un ternario sobre tieneEncabezado, no ser parte de la base incondicional',
+  );
+  // Y el resto de la grilla (columnas/gaps que SÍ deben seguir aplicando siempre, con o sin
+  // encabezado) se queda FUERA del ternario — sólo el split de 3 columnas es condicional.
+  assert.match(claseGrid, /grid grid-cols-1 gap-10 min-\[820px\]:grid-cols-2 min-\[820px\]:gap-12 min-\[1200px\]:gap-16 items-center/);
+});
+
+test('Spotlight.tsx: `tieneEncabezado` se deriva de eyebrow O titulo, y el bloque del encabezado usa esa MISMA bandera — no una segunda comprobación inline del mismo par', () => {
+  const src = fuenteSpotlight();
+  assert.match(src, /const tieneEncabezado = Boolean\(spotlight\.eyebrow \|\| spotlight\.titulo\);/);
+  assert.match(src, /\{tieneEncabezado && \(/, 'el bloque que monta el encabezado debe usar tieneEncabezado, no repetir spotlight.eyebrow || spotlight.titulo');
+  assert.doesNotMatch(
+    src,
+    /\{\(spotlight\.eyebrow \|\| spotlight\.titulo\) &&/,
+    'no debe quedar una segunda comprobación inline del mismo par — dos lugares que deciden lo mismo pueden divergir',
+  );
 });

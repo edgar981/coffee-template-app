@@ -92,9 +92,14 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
             whileInView={preview ? undefined : "visible"}
             viewport={preview ? undefined : { once: true }}
             variants={fadeUp}
-            className="grid grid-cols-2 gap-4 items-start"
+            className="grid grid-cols-2 gap-3 sm:gap-5 items-start"
           >
-            <div className="relative aspect-[3/4] overflow-hidden rounded-2xl mt-8">
+            {/* `.origen-media` del prototipo (css/app.css:584,589,1013-1014) — gap 20px desde 641px
+                (`--space-5`), 12px bajo 640 (`--space-3`); el desfase del primer marco es 48px desde
+                641px (`--space-12`), 32px bajo 640 (`--space-8`). Medido contra `PARIDAD-CAFE-Y-
+                ORIGEN-1`: acá vivían fijos en 16px/32px siempre, sin la variación por ancho — las
+                fotos quedaban menos escalonadas que en el prototipo. */}
+            <div className="relative aspect-[3/4] overflow-hidden rounded-2xl mt-8 sm:mt-12">
               <Image
                 src={origen.imagen1}
                 alt="Cerezas de café secándose al sol"
