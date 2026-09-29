@@ -429,6 +429,12 @@ const navTratamientoEditableSchema = z.object({
   cta: z.boolean().optional(),
   posicion: z.boolean().optional(),
   subrayado: z.boolean().optional(),
+  // SÉPTIMO CAMPO (§ RIEL-SCROLL-Y-BADGE-DORADO-1): el hex del fondo del badge FIJO (§ `cta`,
+  // arriba) cuando difiere de `--sf-tostado` — ver `NavTratamientoContent.badgeColor`
+  // (site-content-defaults.ts) para el porqué completo. SOFT como el resto de este archivo (§ el
+  // docstring de cabecera: "se valida sólo el TIPO"): el formato de hex lo exige
+  // `resolverNavTratamiento` (SOFT, nunca lanza) al leer, no este schema al escribir.
+  badgeColor: z.string().nullable().optional(),
 });
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1): MISMA forma que

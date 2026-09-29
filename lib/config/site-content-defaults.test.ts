@@ -173,6 +173,28 @@ test('navTratamiento.subrayado guardado explícito sobrevive la resolución comp
   assert.equal(r.navTratamiento.posicion, false, 'un guardado que sólo trae `subrayado` no debe encender `posicion`');
 });
 
+// § RIEL-SCROLL-Y-BADGE-DORADO-1: `navTratamiento.badgeColor` es OTRO CAMPO nuevo de la MISMA meta
+// ya cableada — mismo patrón que `subrayado` arriba, mismo alcance (esto es sólo el CABLEADO; el
+// resolver, la ruta, el control del panel y el preset se afirman en
+// `lib/config/cromo-nav-tratamiento.test.ts`). Único matiz: el default es `null` (hex-o-null), no
+// `false`.
+test('sin nada guardado → navTratamiento.badgeColor cae al default (null, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.navTratamiento, DEFAULTS.navTratamiento);
+  assert.equal(r.navTratamiento.badgeColor, null);
+});
+
+test('navTratamiento.badgeColor guardado explícito sobrevive la resolución completa, sin tocar `activo`/`direccion`/`filete`/`cta`/`posicion`/`subrayado`', () => {
+  const r = resolverSiteContent({ navTratamiento: { badgeColor: '#f5b36a' } });
+  assert.equal(r.navTratamiento.badgeColor, '#f5b36a');
+  assert.equal(r.navTratamiento.activo, false, 'un guardado que sólo trae `badgeColor` no debe encender `activo`');
+  assert.equal(r.navTratamiento.direccion, false, 'un guardado que sólo trae `badgeColor` no debe encender `direccion`');
+  assert.equal(r.navTratamiento.filete, false, 'un guardado que sólo trae `badgeColor` no debe encender `filete`');
+  assert.equal(r.navTratamiento.cta, false, 'un guardado que sólo trae `badgeColor` no debe encender `cta`');
+  assert.equal(r.navTratamiento.posicion, false, 'un guardado que sólo trae `badgeColor` no debe encender `posicion`');
+  assert.equal(r.navTratamiento.subrayado, false, 'un guardado que sólo trae `badgeColor` no debe encender `subrayado`');
+});
+
 test('sin nada guardado y entrada basura (null / string / array) → defaults, no lanza', () => {
   for (const basura of [null, undefined, 'x', 42, [], { hero: 'no-obj' }]) {
     assert.deepEqual(resolverSiteContent(basura).hero, DEFAULTS.hero);

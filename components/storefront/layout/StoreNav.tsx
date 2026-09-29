@@ -364,8 +364,18 @@ export default function StoreNav() {
   // de `NavTratamientoContent.cta`, `site-content-defaults.ts`, para el porqué de `tostado` en vez
   // de un rol nuevo). Las dos superficies son OPACAS, así que el mismo par se lee igual flotando
   // sobre el hero o con el nav sólido — no hace falta un segundo par por tratamiento.
+  //
+  // `navTratamiento.badgeColor` (§ RIEL-SCROLL-Y-BADGE-DORADO-1) — el `style` inline SÓLO se aplica
+  // cuando el campo NO es `null` (sólo CORTE): pisa el `background-color` de la clase Tailwind con
+  // el hex medido contra `--accent-sale` (`#f5b36a`). `undefined` con el campo en `null` hace que
+  // React OMITA la propiedad — la clase `bg-[var(--sf-tostado)]` de siempre queda intacta,
+  // byte-idéntica. `ProductCard.tsx`/`Spotlight.tsx` aplican el MISMO override sobre su propio badge
+  // (§ el censo de consumidores, DECISIONS.md).
   const badgeSpan = (texto: string) => (
-    <span className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navTratamiento.cta ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]' : navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}>
+    <span
+      className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navTratamiento.cta ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]' : navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}
+      style={navTratamiento.cta && navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
+    >
       {texto}
     </span>
   );

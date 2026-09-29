@@ -30295,3 +30295,305 @@ persistido, no de un campo nuevo que el preset escriba.
 
 **La foto que se quita de una tienda real la quita el owner desde el panel** (§4): este slice sólo
 construyó el control ("Quitar"); no toca ninguna fila de `SiteContent` existente.
+
+## 2026-09-29 — El riel deja de tragarse el scroll de la página, y el badge del muestrario gana su hex propio (`RIEL-SCROLL-Y-BADGE-DORADO-1`)
+
+**El pedido del owner, textual**: *"corrige un bug que hay sobre la sección 'Elige tu presentación',
+cuando voy haciendo scroll ya sea hacia arriba o hacia abajo y el cursor queda sobre una de las
+cards de 'Presentación Clásica o Especial' no scrollea, hace como el intento pero es como si
+estuviera pegado y el color del badge en el nav, no luce como el del muestrario no se ve tan
+'dorado'"*.
+
+### 1 · El riel — la hipótesis del orquestador, MEDIDA antes de tocar código
+
+**Hipótesis a confirmar**: `overflow-x-auto` (el track de `GrindChooserRiel.tsx`) fuerza, por regla
+de la especificación CSS, que `overflow-y` se compute como `auto` en vez de `visible`; la tarjeta
+resaltada (`sm:scale-[1.06]`) desborda su caja de layout por PINTADO (un `transform` no participa
+del layout, pero sí del `scrollHeight` de un ancestro con overflow no-visible), dándole al track un
+rango vertical real que un scroll-chaining de rueda/trackpad puede latchear.
+
+**Medido, ANTES de tocar código**: se construyó una reproducción fiel de las clases Tailwind
+computadas del track (`.scratch/riel-repro.html`, sin build — CSS equivalente escrito a mano,
+verificado línea por línea contra los valores Tailwind: `overflow-x:auto`, `gap:1.5rem`,
+`scroll-snap-type:x mandatory`, `padding-bottom:0.5rem`, tarjeta activa a `transform:scale(1.06)`,
+viewport 1280×900 — el mismo tamaño que usa el arnés `verificar-nayoli-visual.ts`) y medida con el
+MISMO Chromium headless que usa ese arnés (Playwright, instalación aislada `.arnes-tooling/
+playwright`, ya cacheada). Resultado (`.scratch/medir-riel.mjs`):
+
+```
+ANTES: overflowY:'auto', track.scrollHeight=518, track.clientHeight=511  → 7px de rango vertical REAL
+```
+
+**Confirma la mitad estructural de la hipótesis**: hay overflow vertical genuino, causado por la
+tarjeta escalada. **No confirma la mitad de captura de wheel**: una serie de 10 `page.mouse.wheel
+(0,100)` sobre la tarjeta activa, en este arnés, llegó a scrollear la página COMPLETA (`scrollY`
+0→1000) sin que `track.scrollTop` se moviera nunca — es decir, el wheel sintético de Playwright NO
+reprodujo una captura/latching en esta prueba puntual. Se investigó el porqué (documentado en el
+propio commit, `GrindChooserRiel.tsx`): la API `mouse.wheel()` de Playwright dispatcha eventos de
+rueda DISCRETOS sin la información de FASE (`begin/update/end`, `momentumBegin/Changed/Ended`) que
+un trackpad real de macOS sí manda a Chromium, y es precisamente esa información de fase la que
+activa el mecanismo de "wheel scroll latching" de Chromium que mantendría el scroll target fijo en
+el track durante todo un gesto continuo — una limitación DOCUMENTADA de fidelidad del wheel
+sintético, no evidencia contra la hipótesis. **La condición estructural (que es la única parte
+reproducible sin un trackpad físico) SÍ estaba confirmada, y es la que el fix cierra.**
+
+**El fix**: `sm:py-6` en el track (24px arriba y abajo — ≥ el peor caso medido de desborde,
+~16.44px por lado, para una tarjeta de 360px de ancho máximo, imagen 3/4 + texto ≈ 548px de alto,
+escalada 1.06). Verificado con la MISMA reproducción + arnés, DESPUÉS del fix:
+
+```
+DESPUÉS: track.scrollHeight=560, track.clientHeight=560 → 0px de rango vertical — CERO overflow
+```
+
+Con `scrollHeight === clientHeight` el track queda GEOMÉTRICAMENTE sin nada que desplazar en
+vertical — elimina la condición necesaria para cualquier captura de wheel, sea cual sea el motor de
+scroll-chaining que la interprete, sin depender de reproducir el latching en sí. **Sólo desde
+`sm:`**: el resaltado escalado ya se apaga bajo 640px (comentario preexistente del componente,
+"Bajo 640px el prototipo APAGA el resaltado"), así que no hay escala que reservar ahí y `pb-2` (el
+gap visual sobre el scrollbar oculto) se queda igual para ese caso — móvil byte-idéntico.
+
+**Verificado contra el componente REAL, no sólo la reproducción**: `npm run capturar:seccion --
+--preset CORTE --ancho 1440 --ruta / --selector-app '[aria-label="Presentaciones disponibles"]'
+--prototipo index.html --selector-prototipo '.pres-rail' --nombre riel-corte` (Postgres efímero +
+`next build`/`start` + Playwright, el arnés canónico). El track real midió **1088×596** — y 596 es
+exactamente 548 (la altura sin escalar calculada arriba) + 48 (los 24px×2 del fix): **la predicción
+de mano coincidió con la medición del componente real, no sólo con la reproducción aislada**. Sin
+clipping visible en la captura (`.capturas/badge-corte/app-0.png` — el nombre de carpeta es el de
+la SEGUNDA invocación del arnés, § nota abajo). El prototipo real (`.pres-rail`,
+`prototipo-0.png`) muestra el MISMO comportamiento —la tarjeta activa crece más allá de sus
+vecinas, con espacio reservado arriba y abajo—, confirmando que reservar espacio (no recortar) es
+el comportamiento de referencia correcto, no una invención.
+
+**Nota sobre el nombre de carpeta**: `--nombre` no es un flag index-pareado como `--ruta`/
+`--selector-app` (a diferencia de lo que su documentación sugiere por analogía) — es UN nombre para
+toda la invocación; las dos capturas de esta corrida (riel + badge) quedaron ambas bajo
+`.capturas/badge-corte/` como `app-0`/`prototipo-0` (riel) y `app-1`/`prototipo-1` (badge). Ningún
+dato se perdió, sólo el nombre de carpeta no distingue las dos secciones.
+
+**El desplazamiento horizontal, el snap, los botones, el arrastre y el índice centrado NO
+cambiaron** — el fix es enteramente de reserva vertical.
+
+### 2 · El badge — el rol del prototipo pasa a ser dato del preset
+
+**Re-medido, no asumido**: `derivarPaleta` sobre las raíces de CORTE (`fondo:#fdfbf7,
+tinta:#102407, acento:#a70004`) da `tostado:'#d8a378'` — el valor que `CROMO-NAV-CTA-Y-BADGE-1`
+(2026-09-27) ya había decidido usar para el fondo del badge, razonando explícitamente que
+`--accent-sale` del prototipo "no tiene raíz propia en nuestro modelo de 3 raíces" y que `tostado`
+era "la mezcla cálida-y-clara del acento que ya cumple ese papel" — la opción MÁS BARATA
+disponible entonces, no un error. El `--accent-sale` real del prototipo es **`#f5b36a`**
+(`docs/prototipos/cafeone/css/tokens.css:83`, el mismo valor que `--amber-400`, `:36`). Censados
+los 8 tonos de `tostado*` que `RECETA` (`palette-derive.ts`) ya cataloga (`tostado` … `tostado-8`,
+todos mezclas de `acento`/`fondo`): quedan entre `#c0592e` y `#e3c2a1` — **ninguno igual a
+`#f5b36a`**, así que esta vez sí hace falta un hex nuevo, no una reasignación de rol existente.
+
+**Censo de consumidores** (grep de `bg-[var(--sf-tostado)] text-[var(--sf-tinta)]` en
+`components/storefront/`): TRES, los tres pintando el MISMO par —el badge del ítem de menú
+(`StoreNav.tsx`, `badgeSpan`, gateado por `navTratamiento.cta`), el badge no-bestseller de
+`ProductCard.tsx` ("Edición limitada"/similar — el bestseller/"Oferta" usa `--sf-acento`, un rol
+DISTINTO que el prototipo no tiene y que no se tocó), y el badge de `Spotlight.tsx` (el mockup de
+bolsa, análogo a `.bag-card .badge` del prototipo). Los tres se actualizaron con el MISMO
+mecanismo. El contador del carrito (`.badge--count`) es otro rol (`--action-primary`/pill), no se
+tocó — confirmado por lectura, nunca usó `--sf-tostado`.
+
+**Dónde vive el dato — decisión de COSTO, no de gusto arquitectónico**: se evaluaron `tema` y
+`navTratamiento` (las dos alternativas que el spec ofrecía). `tema` PARECE el hogar semánticamente
+más limpio (es un color), pero su ruta de escritura real (`guardarTemaBorrador`,
+`lib/config/site-content-write.ts`) tipa el tema como objeto de 5 campos FIJOS, y su único caller
+(`app/api/site-content/tema/route.ts`) construye ese objeto enumerando los 5 campos A MANO
+(`{fondo: d.paletaFondo, tinta: d.paletaTinta, …}`) — sumar un 6º ahí exige editar DOS archivos
+fuera de `touches:`. `navTratamiento` no tiene ese problema: su ruta
+(`/api/site-content/encabezado`) hace `.pick({navTratamiento: true, …})` y `guardarBorrador`
+escribe el objeto ENTERO sin enumerar campo por campo (`{...borrador, ...data}`) — un campo nuevo
+del lado del contenido (`site-content-schema.ts`, `site-content-defaults.ts`, los dos EN
+`touches:`) fluye solo. Se implementó vía `navTratamiento.badgeColor` — semánticamente vive junto a
+`navTratamiento.cta` (que ya gobierna "la forma/color del CTA COMPRAR + el badge de menú", § su
+propio docstring), y `ProductCard.tsx`/`Spotlight.tsx` lo leen vía el mismo `useSiteContent()` que
+ya usan para otros datos, aunque no son componentes de nav — una concesión de nombre (el campo del
+preset se llama `navTratamientoBadgeColor` por SIMETRÍA posicional con sus vecinos, no porque
+escriba sólo esa meta) documentada en el propio código.
+
+**El mecanismo**: `NavTratamientoContent.badgeColor: string | null` (séptimo campo de la meta,
+mismo patrón aditivo que `activo`/`direccion`/`filete`/`cta`/`posicion`/`subrayado` — AUSENTE/`null`
+= el HOY exacto). `resolverNavTratamiento` valida hex-6-o-null (reusa `HEX6_TEMA`, ya declarado
+junto a `resolverTema`). `PresetTema.navTratamientoBadgeColor?: string`; CORTE lo declara
+`'#f5b36a'`, los otros 5 presets no lo declaran. Los tres consumidores aplican un `style` INLINE
+condicional (`navTratamiento.badgeColor ? {backgroundColor: …} : undefined`) — con `null`, React
+omite la propiedad y la clase Tailwind `bg-[var(--sf-tostado)]` de siempre gobierna sin cambio,
+byte-idéntico. Contraste medido (`derivarPaleta`/`contraste`, `palette-derive.ts`): `#f5b36a` vs
+`#102407` (texto, = `--sf-tinta`) = **9.03:1** — MEJOR que el valor viejo (`#d8a378` vs `#102407` =
+7.38:1), no sólo distinto.
+
+**El control del panel nace EN ESTE COMMIT, nunca pasa por `PENDIENTE_PANEL`** (instrucción
+explícita del spec): `EncabezadoSeccion.tsx` gana un picker `type="color"` + input hex anidado bajo
+el switch "Botón Comprar y badge del menú" (visible sólo con ese switch encendido, con
+"Restablecer" para volver a `null`); `navTratamiento.badgeColor` se agregó a
+`CONTROLADOS_ENCABEZADO_SECCION` en el MISMO commit que se agrega a `DEFAULTS.navTratamiento` — el
+test de higiene (`huecosDelPanel()`, `panel-controles.test.ts`) sigue en `[]` sin exención nueva, y
+el techo-trinquete de `PENDIENTE_PANEL` (`<=10`) no se movió (verificado, sigue pasando).
+`app/api/site-content/encabezado/route.ts` **no necesitó ningún cambio de código** — su `.pick()`
+ya cubre `navTratamiento` entero; se dejó sin tocar.
+
+**Verificado contra el componente REAL** (§1, la misma corrida de `capturar-seccion`):
+`.capturas/badge-corte/app-1.png` muestra "COSECHA 2026" sobre fondo ámbar — visualmente IDÉNTICO
+a `.capturas/badge-corte/prototipo-1.png` (el `.nav-item .badge` real del prototipo), salvo la
+familia tipográfica (Figtree vs Hanken Grotesk, la sustitución YA decidida en `CORTE-REESCRITURA-
+PROTOTIPO-1`, fuera de alcance de este slice). Los valores computados coinciden byte a byte en
+`color` (`rgb(16, 36, 7)` en los dos — `#102407`), `text-transform` (`uppercase`),
+`letter-spacing` (`0.935px`) y `font-weight` (`700`).
+
+### 3 · Un landmine encontrado y cerrado de paso — `PaletaSeccion.tsx`
+
+Al agregar `useSiteContent()` a `ProductCard.tsx` (necesario para leer `navTratamiento.badgeColor`)
+se reprodujo, DE NUEVO, el patrón que CLAUDE.md ya documenta ("Montar un componente en OTRO árbol
+de providers no lo atrapa ni `tsc` ni el build"): `FragmentoTienda` (`components/admin/
+PaletaSeccion.tsx`, la vista previa inerte del editor de paleta) monta `ProductCard` bajo un
+`CartProvider` LOCAL, pero el `SiteContentProvider` LOCAL de esa pieza envolvía SÓLO `TrustBadges`
+— cerraba ANTES del bloque de `ProductCard`. Sin fix, `useSiteContent()` habría lanzado
+`"useSiteContent() fuera de <SiteContentProvider>"` en cuanto `ProductCard` intentara leerlo, un
+throw SSR que tira la ruta entera (la MISMA familia del incidente de `/admin/configuracion`,
+2026-08-28, que CLAUDE.md cita). Detectado por LECTURA antes de que el gate lo revelara — ni `tsc`
+ni `npm run build` lo habrían atrapado (confirmado: los dos corrieron limpios en la versión CON el
+fix; no se probó la versión rota a propósito, dado el costo, pero el mecanismo es el mismo que
+CLAUDE.md ya documenta con evidencia). El fix: el `SiteContentProvider` local se extendió para
+envolver TODO el resto del fragmento (`TrustBadges` Y el bloque `CartProvider`/`ProductCard`), en
+vez de dos providers locales separados. Verificado con `lib/config/admin-tienda-preset.test.ts`
+(FUERA de `touches:`, pero YA cubría `FragmentoTienda` para los 6 presets del catálogo — 12/12
+verde, incluido el test que ya afirmaba "TrustBadges SIN SiteContentProvider tira").
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2466/2466** — verde. Delta MEDIDO por archivo (conteo de `^test(` antes/después, `git show HEAD:<archivo>` vs el árbol final): `lib/config/cromo-nav-tratamiento.test.ts` 49→59 (+10 neto — 19 líneas `+test(` menos 9 títulos de tests existentes que se reescribieron para nombrar `badgeColor`, así que el diff bruto no es el delta neto), `lib/config/site-content-defaults.test.ts` 205→207 (+2), `lib/config/presentaciones-riel.test.ts` (archivo nuevo) 0→4. Delta conocido = +16. **No se pudo reconciliar contra un piso de HEAD limpio**: este dispatch no concede `git stash`, y hacer `git checkout` de los archivos editados para medir el piso arriesgaba perder trabajo sin una red segura — se prefirió no arriesgarlo. El número AUTORITATIVO es el medido dos veces de forma idéntica sobre el árbol final (2466 ambas veces), no una resta contra un piso no re-verificado. |
+| `npm run test:integracion` | **240/240** — sin cambio de conteo (`tests/integracion/panel-encabezado.test.ts` se EDITÓ, no ganó/perdió `test(` — 6 antes, 6 después). |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (rama vs. fixture committeado) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (rama vs. `main`) |
+
+```
+guarda:color            ruta-home/tienda/producto/checkout/nosotros/suscripciones → IDÉNTICO (0px, consciente de AA; crudo 0)
+                         hover-automatica/hover-eleccion → IDÉNTICO (0px, consciente de AA; crudo 0)
+verificar:nayoli:visual  mismas 8 mediciones, main vs. rama → IDÉNTICO (0px, consciente de AA; crudo 0)
+```
+
+Nayoli no declara `presentaciones:'riel'` (usa `'mosaico'`, la canónica) ni
+`navTratamiento.badgeColor` (Nayoli no corre un preset del catálogo), así que el 0px es el
+resultado esperado en los dos: `GrindChooserRiel.tsx` nunca se monta para Nayoli, y el badge de
+Nayoli (que de todas formas no lleva `navTratamiento.cta:true`) sigue exactamente igual.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el badge dorado — mismo mecanismo que toda la familia
+`navTratamiento` (`CROMO-NAV-FILETE-1` y sucesores): `mergePresetEnContent` escribe el objeto
+COMPLETO sólo al aplicar el preset; una fila que ya tenga CORTE aplicado desde ANTES de este slice
+guarda `navTratamiento` SIN la clave `badgeColor` (no existía cuando se aplicó), y
+`resolverNavTratamiento` cae a `null` (sigue con `tostado`) hasta volver a aplicar el preset. **El
+fix del riel NO necesita reaplicar nada** — es un cambio de CSS puro en `GrindChooserRiel.tsx`, sin
+dato de `SiteContent` de por medio; se ve apenas el deploy esté en línea.
+
+### `touches:` — todo escrito estaba declarado
+
+`git diff --numstat` + el archivo nuevo: `components/storefront/home/GrindChooserRiel.tsx`
+(+25/-2), `lib/config/presentaciones-riel.test.ts` (nuevo, 65 líneas), `components/storefront/
+layout/StoreNav.tsx` (+11/-1), `components/storefront/ProductCard.tsx` (+13/-1),
+`components/storefront/home/Spotlight.tsx` (+8/-2), `lib/config/themes.ts` (+48/-0), `lib/config/
+site-content-defaults.ts` (+29/-0), `lib/config/site-content-schema.ts` (+6/-0), `lib/config/
+panel-controles.ts` (+20/-19), `components/admin/EncabezadoSeccion.tsx` (+51/-4),
+`components/admin/PaletaSeccion.tsx` (+23/-16, § el landmine cerrado de paso), `lib/config/
+cromo-nav-tratamiento.test.ts` (+108/-20), `lib/config/site-content-defaults.test.ts` (+22/-0),
+`tests/integracion/panel-encabezado.test.ts` (+14/-5), y este asiento. **14 archivos de código**,
+los 14 dentro de `touches:` declarado. **`app/globals.css` estaba autorizado y no se usó** — el
+fix del riel usa el `<style>` scoped que el componente ya tenía (sin tocar CSS global) y el badge
+usa `style` inline, no una var CSS nueva; no es un archivo tocado fuera de lista, es uno de la
+lista que resultó innecesario — igual que `CROMO-NAV-CTA-Y-BADGE-1` reportó lo mismo de ese mismo
+archivo. **`lib/config/palette-derive.ts`, `.test.ts`, `palette-style.ts`, `.test.ts`,
+`palette-schema.ts`, `lib/config/guarda-color-lista.test.ts` y `app/api/site-content/encabezado/
+route.ts` estaban autorizados y NO se usaron** — la decisión de §2 (vivir en `navTratamiento`, no
+en `tema`) los volvió innecesarios; `guarda-color-lista.test.ts` se corrió igual (verde, sin
+cambio) porque `themes.ts` sí está en el conjunto derivado de `sistemaDeColorDerivado()`.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `GrindChooserRiel` (el fix `sm:py-6`),
+`grind-riel-track`, `NavTratamientoContent.badgeColor`, `resolverNavTratamiento` (extendido),
+`navTratamientoBadgeColor` (`PresetTema`), `badgeSpan` (StoreNav.tsx), `FragmentoTienda`
+(PaletaSeccion.tsx, restructurado), `CONTROLADOS_ENCABEZADO_SECCION`, `RIEL-SCROLL-Y-BADGE-
+DORADO-1`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para: `GrindChooserRiel`, `grind-riel-track`, `navTratamiento` (a secas, y
+  por tanto TODAS sus variantes incluida `badgeColor`), `NavTratamientoContent`,
+  `resolverNavTratamiento`, `badgeSpan`, `FragmentoTienda`, `CONTROLADOS_ENCABEZADO_SECCION`,
+  `EncabezadoSeccion`, `RIEL-SCROLL-Y-BADGE-DORADO-1`, `CROMO-NAV-CTA-Y-BADGE-1`. `CLAUDE.md` no
+  documenta el eje de tratamiento del nav, el Encabezado del panel, el mecanismo
+  `panel-controles.ts`, ni la composición `riel` de presentaciones, en absoluto — coherente con que
+  toda esta familia (`navTratamiento`, `CROMO-NAV-*`) es doctrina de CÓDIGO/DECISIONS.md, no
+  promovida a CLAUDE.md.
+- **`ProductCard` SÍ aparece** (7 líneas: 457-465, 1587-1590, 4369). Las tres de 457-465 son
+  EXACTAMENTE el precedente del landmine que §3 cierra ("Montar un componente en OTRO árbol de
+  providers no lo atrapa ni tsc ni el build" — el incidente histórico de `CartProvider` en
+  `/admin/configuracion`, 2026-08-28): mi cambio es una NUEVA instancia de la MISMA regla, seguida
+  correctamente (verifiqué qué contexto le faltaba y monté el provider LOCAL que falta) — no la
+  contradice, la vuelve a poner en práctica. Las de 1587-1590 (tratamiento tipográfico del precio) y
+  4369 (guarda `{imagen && …}`) son de otro eje, sin relación con `useSiteContent`/`badgeColor` —
+  releídas, ninguna queda falsa.
+- **`PaletaSeccion` aparece 3 veces** (56, 2260, 2808) — ninguna describe la estructura interna de
+  providers de `FragmentoTienda`; hablan de dónde vive el editor y de su GET propio. No quedan
+  falsas.
+- **`sf-tostado` a secas: CERO** (sólo aparece `tostado` sin el prefijo `sf-`, 5 veces, y las 5 son
+  `Product.tostado` — el campo de nivel de TOSTIÓN del café, un concepto de dominio TOTALMENTE
+  distinto al token de color `--sf-tostado`). Ninguna queda afectada por el cambio de color del
+  badge.
+- **`GrindChooser` (genérico, sin "Riel")**: 6 apariciones (52, 1860, 2449, 2473, 2504, 2762) —
+  ninguna describe el mecanismo de scroll del riel ni el color del badge; hablan de variantes de
+  composición, copy café-shape ("Ver café {label}", que `GrindChooserRiel` ya declara NO llevar,
+  por su propio comentario, así que no aplica), y el puente vista→formulario. Releídas, ninguna
+  queda falsa.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `CROMO-NAV-CTA-Y-BADGE-1` (10 apariciones,
+incluida la entrada que este slice SUPERSEDE en parte — la tabla que documentaba "fondo del
+badge → `--sf-tostado`" como la decisión final). **No se editó esa entrada** (el ledger es
+append-only): la entrada vieja documenta correctamente lo que se decidió Y POR QUÉ, con la
+restricción real de ese momento ("agregar una raíz nueva es un cambio de schema/editor fuera de
+`touches:`") — sigue siendo verdad HISTÓRICA, no falsa; este slice la SUPERSEDE citándola como el
+"antes", el mismo patrón que `CORTE-HERO-VELO-OFF-Y-TICKER-1`/`HERO-VELO-INTERMEDIO-1` ya
+establecieron para revisar una decisión previa sin reescribirla. `RIEL-SCROLL-Y-BADGE-DORADO-1`
+(id nuevo): `grep -c` antes de este párrafo dio **0** — sin colisión.
+
+### `customer_bytes`
+
+**`changed: true`.** Dos cambios, los dos sólo bajo el preset **CORTE** (y sólo tras que el owner
+re-aplique el preset para el del badge, § arriba):
+
+- **El riel de "Elige tu presentación" deja de tragarse el scroll de la página** cuando el cursor
+  está sobre la tarjeta resaltada — un cambio de COMPORTAMIENTO (interacción), no de apariencia
+  visual estática (0px en las mediciones de píxeles de Nayoli, que no monta esta composición).
+- **El badge de "Cosecha 2026" (nav) y el equivalente en `ProductCard`/`Spotlight`** cambian de
+  `#d8a378` (tostado apagado) a `#f5b36a` (ámbar, igual al prototipo) — un cambio de COLOR visible.
+
+`strings:` **ninguno** — ningún texto nuevo ni reescrito (el copy "Cosecha 2026" sigue siendo el
+mismo dato de `menu.badgeTexto`); el `sm:py-6` es geometría, el `badgeColor` es color. Nayoli queda
+byte-idéntica en las dos mediciones ejecutadas (`guarda:color`, `verificar:nayoli:visual`, §4).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo. `NavTratamientoContent.badgeColor` es un campo más de un objeto JSON ya existente
+(`SiteContent.content`, Postgres `Json`), su resolución SOFT, su escritura vía la ruta YA existente
+del Encabezado (sin tocarla), y su control en el panel — todo dentro del mecanismo de `SiteContent`
+que ya corre. El fix del riel es CSS puro, sin dato de por medio.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las cinco mediciones
+ejecutadas (tsc, `npm test` 2466/2466, `npm run test:integracion` 240/240, `npm run guarda:color`
+0px, `npm run verificar:nayoli:visual` 0px) más la captura real contra CORTE + el prototipo
+(`npm run capturar:seccion`, §1/§2, sin clipping, badge visualmente idéntico salvo tipografía ya
+decidida). Sin `schema`, sin `cross-repo-contract`. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el owner ya aprobó la ESCRITURA (`approved: yes`, con su
+reporte textual como `approval-reason`, citado arriba); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**EL DUEÑO DEBE RE-APLICAR CORTE** para ver el badge dorado (§2/§4) — el fix del riel no lo
+necesita, es CSS puro.
+
+**Cierra `RIEL-SCROLL-Y-BADGE-DORADO-1`.**

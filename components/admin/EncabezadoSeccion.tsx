@@ -82,16 +82,22 @@ interface Form {
   ctaBadge: boolean;         // navTratamiento.cta
   posicion: boolean;         // navTratamiento.posicion
   subrayado: boolean;        // navTratamiento.subrayado
+  // '' = null (sigue pintando con `--sf-tostado`); un hex = el override (§ RIEL-SCROLL-Y-BADGE-
+  // DORADO-1). SÓLO tiene efecto con `ctaBadge` encendido — el badge fijo es lo que este color
+  // pinta; sin `ctaBadge` el badge sigue el par translúcido de `navClaro`, que este campo no toca.
+  badgeColor: string;        // navTratamiento.badgeColor
 }
 
 interface Wire {
   cromo: { navTinta: boolean; navSubtitulo: boolean; navBadge: string };
   navWordmark: { activo: boolean };
-  navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean };
+  navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
 }
 
-const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
+const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
+
+const CONTROLES: { name: Exclude<keyof Form, 'badgeColor'>; label: string; hint: string }[] = [
   { name: 'logo', label: 'Logo', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido.' },
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
   { name: 'colorNav', label: 'Color del encabezado', hint: 'El encabezado se ve con un fondo de color sólido, en vez del que usa hoy.' },
@@ -123,7 +129,11 @@ export default function EncabezadoSeccion() {
   const wireDe = (f: Form, badge: string): Wire => ({
     cromo: { navTinta: f.colorNav, navSubtitulo: f.subEncabezado, navBadge: badge },
     navWordmark: { activo: f.logo },
-    navTratamiento: { activo: f.tratamientoNav, direccion: f.direccionScroll, filete: f.filete, cta: f.ctaBadge, posicion: f.posicion, subrayado: f.subrayado },
+    navTratamiento: {
+      activo: f.tratamientoNav, direccion: f.direccionScroll, filete: f.filete, cta: f.ctaBadge,
+      posicion: f.posicion, subrayado: f.subrayado,
+      badgeColor: HEX6_BADGE.test(f.badgeColor) ? f.badgeColor : null,
+    },
     navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
   });
 
@@ -147,7 +157,7 @@ export default function EncabezadoSeccion() {
       const contenido = (d.contenido ?? {}) as {
         cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
         navWordmark?: { activo?: unknown };
-        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown };
+        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown };
         navDrawerMovil?: { variante?: unknown };
       };
       setForm({
@@ -161,6 +171,7 @@ export default function EncabezadoSeccion() {
         ctaBadge: !!contenido.navTratamiento?.cta,
         posicion: !!contenido.navTratamiento?.posicion,
         subrayado: !!contenido.navTratamiento?.subrayado,
+        badgeColor: typeof contenido.navTratamiento?.badgeColor === 'string' ? contenido.navTratamiento.badgeColor : '',
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
       setHayBorrador(!!d.sinPublicar?.encabezado);
@@ -307,6 +318,42 @@ export default function EncabezadoSeccion() {
                     <span className="duna-field__label" style={{ margin: 0 }}>{c.label}</span>
                   </div>
                   <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{c.hint}</p>
+                  {/* Sub-control de "Botón Comprar y badge del menú" (§ RIEL-SCROLL-Y-BADGE-
+                      DORADO-1): sólo tiene efecto con ESE switch encendido — el badge fijo es lo
+                      que este color pinta. Anidado bajo su hint, no una entrada más de
+                      `CONTROLES` (no es un booleano ON/OFF). */}
+                  {c.name === 'ctaBadge' && form.ctaBadge && (
+                    <div style={{ marginTop: 'var(--duna-space-3)', marginLeft: 'calc(2.5rem + var(--duna-space-3))' }}>
+                      <label className="duna-field__label" htmlFor="enc-badge-color">Color del badge</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
+                        <input
+                          id="enc-badge-color" type="color"
+                          value={HEX6_BADGE.test(form.badgeColor) ? form.badgeColor : '#d8a378'}
+                          onChange={(e) => cambiar({ badgeColor: e.target.value })}
+                          style={{ width: 34, height: 30, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
+                          aria-label="Elegir color del badge"
+                        />
+                        <input
+                          className="duna-input" style={{ width: 110, fontFamily: 'var(--duna-font-mono)' }}
+                          value={form.badgeColor} onChange={(e) => cambiar({ badgeColor: e.target.value })}
+                          placeholder="#d8a378"
+                          aria-invalid={form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) || undefined}
+                        />
+                        {form.badgeColor !== '' && (
+                          <button type="button" onClick={() => cambiar({ badgeColor: '' })} className="duna-btn duna-btn--ghost duna-btn--sm">
+                            Restablecer
+                          </button>
+                        )}
+                      </div>
+                      {form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) ? (
+                        <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #f5b36a.</p>
+                      ) : (
+                        <p className="duna-field__hint" style={{ marginTop: '6px', marginBottom: 0 }}>
+                          Vacío: el badge sigue con el color de acento cálido de siempre.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

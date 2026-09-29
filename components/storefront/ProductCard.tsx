@@ -13,6 +13,8 @@ import { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
 
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+
 import { decidirMolienda } from "@duna/core/moliendas-opciones";
 
 import { formatCOP } from "@duna/core/utils";
@@ -32,6 +34,12 @@ export default function ProductCard({
   sizes = "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw",
 }: ProductCardProps) {
   const { addItem } = useCartStore();
+  // `navTratamiento.badgeColor` (§ RIEL-SCROLL-Y-BADGE-DORADO-1): pese al nombre de la meta, este
+  // campo es el fondo del badge de "cosecha"/edición — un ROL DE COLOR compartido por StoreNav,
+  // esta card y Spotlight (§ el censo de consumidores, DECISIONS.md), no algo propio del nav; vive
+  // ahí por costo de escritura, no por dominio (ver el docstring de `navTratamientoBadgeColor` en
+  // `themes.ts`). `null` (todo tenant salvo CORTE) = no se aplica ningún `style`.
+  const { navTratamiento } = useSiteContent();
 
   // La card SOLO agrega cuando no hay nada que preguntar. Si la elección de
   // molienda es real, el botón deja pasar el click al <Link> que ya envuelve la
@@ -89,7 +97,10 @@ export default function ProductCard({
             />
           )}
 
-          {/* Badge */}
+          {/* Badge — el rol NO-bestseller es el `.badge` de "cosecha"/edición del prototipo (§
+              RIEL-SCROLL-Y-BADGE-DORADO-1); el `style` inline sólo se activa con
+              `navTratamiento.badgeColor` puesto (sólo CORTE), byte-idéntico si no. El rol
+              bestseller (`--sf-acento`, "Oferta") NO es del prototipo — no se toca. */}
           {product.badge && (
             <div className="absolute top-3 left-3">
               <span
@@ -98,6 +109,7 @@ export default function ProductCard({
                     ? "bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]"
                     : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
                 }`}
+                style={!product.bestseller && navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
               >
                 {product.badge}
               </span>

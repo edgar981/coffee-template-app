@@ -33,7 +33,7 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // `app/(storefront)/page.tsx` — este archivo EXISTE y COMPILA, listo para conectarse el día que
 // esa RULING se resuelva, pero hoy no lo alcanza ningún preset.
 export default function Spotlight({ style }: { style?: React.CSSProperties } = {}) {
-  const { spotlight, tema } = useSiteContent();
+  const { spotlight, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1, SPOTLIGHT-CIERRE-1) — mismo mecanismo que
   // FeaturedProductsGrilla.tsx: `undefined` sin escala declarada → NO se toca el `style`, el h2
@@ -105,8 +105,14 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             variants={fadeUp}
             className="relative aspect-square overflow-hidden rounded-3xl bg-[var(--sf-superficie)]"
           >
+            {/* El `.bag-card .badge` del prototipo (§ RIEL-SCROLL-Y-BADGE-DORADO-1, el censo de
+                consumidores, DECISIONS.md) — mismo `style` inline condicional que StoreNav/
+                ProductCard, byte-idéntico si `navTratamiento.badgeColor` es `null`. */}
             {spotlight.badge && (
-              <span className="absolute top-4 left-4 z-10 text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora sf-badge">{spotlight.badge}</span>
+              <span
+                className="absolute top-4 left-4 z-10 text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora sf-badge"
+                style={navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
+              >{spotlight.badge}</span>
             )}
             {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1) — si la opción elegida declaró su
                 propia imagen, el mockup cambia a esa foto SIN navegar a otro producto; sin ella,

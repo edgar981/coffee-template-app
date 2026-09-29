@@ -1202,6 +1202,21 @@ export interface NavTratamientoContent {
   // (`themes.ts`) lo escribe, con `preset.navTratamientoSubrayado`; de los 6 presets del catálogo,
   // sólo CORTE lo declara `true`.
   subrayado: boolean;
+  // ¿El fondo del badge FIJO (§ `cta`, arriba) usa un hex PROPIO en vez de `--sf-tostado`
+  // (§ RIEL-SCROLL-Y-BADGE-DORADO-1)? `cta` ya decidió que el badge se pinta con `tostado` —"la
+  // mezcla cálida-y-clara del acento que ya cumple ese papel"— por no tener `--accent-sale` del
+  // prototipo una raíz propia en nuestro modelo de 3 raíces. El owner vio el resultado y reportó
+  // que no lucía "tan dorado": MEDIDO, `tostado` para CORTE da `#d8a378` y el `--accent-sale` real
+  // del prototipo es `#f5b36a` (`docs/prototipos/cafeone/css/tokens.css:83`) — ninguna combinación
+  // de las 3 raíces con los pesos ya catalogados en `RECETA` (`palette-derive.ts`) da ese hex, así
+  // que esta vez sí hace falta un hex propio. `null` (el default) = sigue pintando con `tostado`,
+  // byte a byte — `StoreNav`/`ProductCard`/`Spotlight` (§ el censo de consumidores, DECISIONS.md)
+  // sólo aplican un `style` inline de `backgroundColor` cuando este campo NO es `null`; con `null`
+  // no aplican ningún `style` y la clase Tailwind `bg-[var(--sf-tostado)]` de siempre gobierna sin
+  // cambio. Hex de 6 dígitos validado por `resolverNavTratamiento` (§ abajo), o `null`. Sólo
+  // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.navTratamientoBadgeColor`; de los
+  // 6 presets del catálogo, sólo CORTE lo declara (`#f5b36a`).
+  badgeColor: string | null;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1874,6 +1889,9 @@ export const DEFAULTS: SiteContentData = {
     cta: false,
     posicion: false,
     subrayado: false,
+    // BADGE COLOR por defecto (§ RIEL-SCROLL-Y-BADGE-DORADO-1): `null` = el badge sigue pintando
+    // con `--sf-tostado`, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
+    badgeColor: null,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2806,9 +2824,20 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
     const dv = def[k];
     return typeof dv === 'boolean' ? dv : false;
   };
+  // badgeColor (§ RIEL-SCROLL-Y-BADGE-DORADO-1): SOFT, mismo patrón que `raiz()` en `resolverTema`
+  // — un hex de 6 dígitos válido, o cae a `defaults`, o `null`. Reusa `HEX6_TEMA` (declarado arriba,
+  // junto a `resolverTema`): es el MISMO formato de valor (un hex de paleta), así que es el mismo
+  // chequeo, no uno nuevo.
+  const hex = (k: string): string | null => {
+    const sv = st[k];
+    if (typeof sv === 'string' && HEX6_TEMA.test(sv)) return sv;
+    const dv = def[k];
+    return typeof dv === 'string' && HEX6_TEMA.test(dv) ? dv : null;
+  };
   return {
     activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete'), cta: bool('cta'),
     posicion: bool('posicion'), subrayado: bool('subrayado'),
+    badgeColor: hex('badgeColor'),
   };
 }
 

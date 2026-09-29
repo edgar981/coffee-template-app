@@ -59,6 +59,10 @@ import { CORTE } from '../../lib/config/themes';
 // `posicion` porque `wireDe` sigue mandando el objeto COMPLETO. `posicion` REESCRIBE su VALOR (la
 // geometría del prototipo local, no del tema real) sin tocar este viaje: el body sigue siendo
 // `{posicion: true|false}`, sólo cambió lo que StoreNav.tsx hace con ese booleano.
+//
+// § RIEL-SCROLL-Y-BADGE-DORADO-1: `navTratamiento` gana un SÉPTIMO campo (`badgeColor`), mismo
+// razonamiento — los bodies de abajo llevan `badgeColor` junto a los otros seis porque `wireDe`
+// sigue mandando el objeto COMPLETO. Único matiz: es un hex-o-`null`, no un booleano.
 
 const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true });
 const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
@@ -88,7 +92,7 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
 
@@ -104,12 +108,14 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   assert.equal(contenido.navTratamiento.cta, true);
   assert.equal(contenido.navTratamiento.posicion, true);
   assert.equal(contenido.navTratamiento.subrayado, true);
+  assert.equal(contenido.navTratamiento.badgeColor, '#f5b36a');
   assert.equal(contenido.navDrawerMovil.variante, 'pantallaCompleta');
 
   // Y lo PUBLICADO todavía NO cambió — guardar el borrador no publica.
   const publicado = await readSiteContent();
   assert.equal(publicado.cromo.navTinta, false, 'guardar el borrador no debe tocar lo publicado');
   assert.equal(publicado.navWordmark.activo, false);
+  assert.equal(publicado.navTratamiento.badgeColor, null, 'guardar el borrador no debe tocar lo publicado');
   assert.equal(publicado.navDrawerMovil.variante, 'dropdown');
 });
 
@@ -117,7 +123,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
@@ -132,6 +138,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   assert.equal(publicado.navTratamiento.cta, true);
   assert.equal(publicado.navTratamiento.posicion, true);
   assert.equal(publicado.navTratamiento.subrayado, true);
+  assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 
   const { sinPublicar } = await readSiteContentParaEditor();
@@ -143,7 +150,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();
@@ -152,7 +159,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: false, navSubtitulo: false, navBadge: '' },
     navWordmark: { activo: false },
-    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false },
+    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null },
     navDrawerMovil: { variante: 'dropdown' },
   });
   await descartarComoLaRuta();
@@ -166,6 +173,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   assert.equal(publicado.navTratamiento.cta, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.posicion, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.subrayado, true, 'descartar no debe tocar lo YA publicado');
+  assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a', 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta', 'descartar no debe tocar lo YA publicado');
 
   const { sinPublicar } = await readSiteContentParaEditor();
@@ -188,6 +196,7 @@ test('default del preset: los diez controles arrancan con el valor que puso merg
   assert.equal(publicado.navTratamiento.cta, true);
   assert.equal(publicado.navTratamiento.posicion, true);
   assert.equal(publicado.navTratamiento.subrayado, true);
+  assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
 });
 
@@ -204,7 +213,7 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
     // VIGENTE, como hace el componente (nunca a medias).
     cromo: { navTinta: false, navSubtitulo: true, navBadge: 'Cosecha 2026' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
   });
   await publicarComoLaRuta();

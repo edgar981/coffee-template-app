@@ -45,7 +45,12 @@ import { siteContentEditableSchema } from './site-content-schema';
 // como SEXTO CAMPO de esta MISMA meta (mismo razonamiento que `posicion`, ver el docstring de
 // `NavTratamientoContent.subrayado`), así que el literal de HOY y las aserciones exhaustivas se
 // amplían otra vez, sin dejar de afirmar `activo`/`direccion`/`filete`/`cta`/`posicion`.
-const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false };
+//
+// § RIEL-SCROLL-Y-BADGE-DORADO-1 suma `badgeColor` como SÉPTIMO CAMPO de esta MISMA meta (mismo
+// razonamiento — CAMPO, no meta nueva — ver el docstring de `NavTratamientoContent.badgeColor`), la
+// ÚNICA diferencia es que no es booleano: es un hex de 6 dígitos o `null` (el default). El literal
+// de HOY y las aserciones exhaustivas se amplían otra vez, sin dejar de afirmar los seis anteriores.
+const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null };
 
 // ── resolverNavTratamiento — dominio CERRADO de 1 clave, gemelo de resolverRielSocial ────────────
 
@@ -62,15 +67,17 @@ test('resolverNavTratamiento: un tipo equivocado (string donde va boolean) cae a
 });
 
 test('resolverNavTratamiento: un boolean real guardado se respeta', () => {
-  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false, filete: false, cta: false, posicion: false, subrayado: false });
+  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null });
 });
 
 test('resolverNavTratamiento: sin guardado, un DEFAULT explícito manda (defensa simétrica, como resolverCromo)', () => {
-  const def = { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true };
+  const def = { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#111111' };
   assert.deepEqual(resolverNavTratamiento(undefined, def), def);
   assert.deepEqual(resolverNavTratamiento({}, def), def);
   // guardado presente con el TIPO correcto sigue ganando sobre el default
-  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true, filete: true, cta: true, posicion: true, subrayado: true });
+  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#111111' });
+  // un hex guardado gana sobre el default de `badgeColor`, igual que cualquier otro campo
+  assert.deepEqual(resolverNavTratamiento({ badgeColor: '#222222' }, def), { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#222222' });
 });
 
 // § CROMO-NAV-DIRECCION-SCROLL-1 — `direccion` se resuelve INDEPENDIENTE de `activo` (mismo `bool()`
@@ -80,8 +87,8 @@ test('resolverNavTratamiento: sin guardado, un DEFAULT explícito manda (defensa
 // `posicion` es el QUINTO campo, mismo mecanismo. § CROMO-NAV-EXACTO-PROTOTIPO-1 — `subrayado` es
 // el SEXTO campo, mismo mecanismo.
 
-test('resolverNavTratamiento: un guardado que sólo trae `direccion` no toca `activo` ni `filete` ni `cta` ni `posicion` ni `subrayado` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true, filete: false, cta: false, posicion: false, subrayado: false });
+test('resolverNavTratamiento: un guardado que sólo trae `direccion` no toca `activo` ni `filete` ni `cta` ni `posicion` ni `subrayado` ni `badgeColor` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va boolean) cae al default', () => {
@@ -90,8 +97,8 @@ test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va
   assert.equal(r.activo, true, '`activo` no se ve afectado por el tipo equivocado de `direccion`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `filete` no toca `activo` ni `direccion` ni `cta` ni `posicion` ni `subrayado` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ filete: true }, {}), { activo: false, direccion: false, filete: true, cta: false, posicion: false, subrayado: false });
+test('resolverNavTratamiento: un guardado que sólo trae `filete` no toca `activo` ni `direccion` ni `cta` ni `posicion` ni `subrayado` ni `badgeColor` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ filete: true }, {}), { activo: false, direccion: false, filete: true, cta: false, posicion: false, subrayado: false, badgeColor: null });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `filete` (string donde va boolean) cae al default', () => {
@@ -101,8 +108,8 @@ test('resolverNavTratamiento: un tipo equivocado en `filete` (string donde va bo
   assert.equal(r.direccion, true, '`direccion` no se ve afectado por el tipo equivocado de `filete`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `cta` no toca `activo`/`direccion`/`filete`/`posicion`/`subrayado` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ cta: true }, {}), { activo: false, direccion: false, filete: false, cta: true, posicion: false, subrayado: false });
+test('resolverNavTratamiento: un guardado que sólo trae `cta` no toca `activo`/`direccion`/`filete`/`posicion`/`subrayado`/`badgeColor` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ cta: true }, {}), { activo: false, direccion: false, filete: false, cta: true, posicion: false, subrayado: false, badgeColor: null });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `cta` (string donde va boolean) cae al default', () => {
@@ -113,8 +120,8 @@ test('resolverNavTratamiento: un tipo equivocado en `cta` (string donde va boole
   assert.equal(r.filete, true, '`filete` no se ve afectado por el tipo equivocado de `cta`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `posicion` no toca `activo`/`direccion`/`filete`/`cta`/`subrayado` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ posicion: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: true, subrayado: false });
+test('resolverNavTratamiento: un guardado que sólo trae `posicion` no toca `activo`/`direccion`/`filete`/`cta`/`subrayado`/`badgeColor` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ posicion: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: true, subrayado: false, badgeColor: null });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `posicion` (string donde va boolean) cae al default', () => {
@@ -126,8 +133,8 @@ test('resolverNavTratamiento: un tipo equivocado en `posicion` (string donde va 
   assert.equal(r.cta, true, '`cta` no se ve afectado por el tipo equivocado de `posicion`');
 });
 
-test('resolverNavTratamiento: un guardado que sólo trae `subrayado` no toca `activo`/`direccion`/`filete`/`cta`/`posicion` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ subrayado: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: true });
+test('resolverNavTratamiento: un guardado que sólo trae `subrayado` no toca `activo`/`direccion`/`filete`/`cta`/`posicion`/`badgeColor` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ subrayado: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: true, badgeColor: null });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `subrayado` (string donde va boolean) cae al default', () => {
@@ -138,6 +145,33 @@ test('resolverNavTratamiento: un tipo equivocado en `subrayado` (string donde va
   assert.equal(r.filete, true, '`filete` no se ve afectado por el tipo equivocado de `subrayado`');
   assert.equal(r.cta, true, '`cta` no se ve afectado por el tipo equivocado de `subrayado`');
   assert.equal(r.posicion, true, '`posicion` no se ve afectado por el tipo equivocado de `subrayado`');
+});
+
+// § RIEL-SCROLL-Y-BADGE-DORADO-1 — `badgeColor` es el SÉPTIMO campo, mismo mecanismo independiente
+// (§ CROMO-NAV-DIRECCION-SCROLL-1 y sucesores), pero con UNA validación más: no basta con el TIPO
+// (string), tiene que ser un hex de 6 dígitos — el mismo formato-o-null que `resolverTema` ya exige
+// para las raíces de paleta (`HEX6_TEMA`, reusado acá).
+
+test('resolverNavTratamiento: un guardado que sólo trae `badgeColor` no toca `activo`/`direccion`/`filete`/`cta`/`posicion`/`subrayado` (cada campo cae a SU PROPIO default)', () => {
+  assert.deepEqual(resolverNavTratamiento({ badgeColor: '#f5b36a' }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: '#f5b36a' });
+});
+
+test('resolverNavTratamiento: un tipo equivocado en `badgeColor` (number donde va string) cae al default null', () => {
+  const r = resolverNavTratamiento({ activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: 123 }, {});
+  assert.equal(r.badgeColor, null);
+  assert.equal(r.activo, true, '`activo` no se ve afectado por el tipo equivocado de `badgeColor`');
+  assert.equal(r.subrayado, true, '`subrayado` no se ve afectado por el tipo equivocado de `badgeColor`');
+});
+
+test('resolverNavTratamiento: un `badgeColor` con FORMATO inválido (no hex-6) cae al default null, aunque sea string', () => {
+  assert.equal(resolverNavTratamiento({ badgeColor: 'dorado' }, {}).badgeColor, null);
+  assert.equal(resolverNavTratamiento({ badgeColor: '#f5b' }, {}).badgeColor, null, 'hex de 3 dígitos no es hex-6');
+  assert.equal(resolverNavTratamiento({ badgeColor: '#f5b36a00' }, {}).badgeColor, null, 'hex de 8 dígitos (con alfa) no es hex-6');
+  assert.equal(resolverNavTratamiento({ badgeColor: null }, {}).badgeColor, null);
+});
+
+test('resolverNavTratamiento: `badgeColor` con hex-6 válido sobrevive tal cual', () => {
+  assert.equal(resolverNavTratamiento({ badgeColor: '#F5B36A' }, {}).badgeColor, '#F5B36A', 'mayúsculas también son hex-6 válido');
 });
 
 // ── resolverSiteContent / DEFAULTS — sin fila, byte-idéntico ────────────────────────────────────
@@ -205,25 +239,35 @@ test('CORTE declara navTratamientoSubrayado:true; los otros 5 presets del catál
   }
 });
 
+// § RIEL-SCROLL-Y-BADGE-DORADO-1
+test('CORTE declara navTratamientoBadgeColor:"#f5b36a"; los otros 5 presets del catálogo NO lo declaran (ausente, no `null`)', () => {
+  assert.equal(CORTE.navTratamientoBadgeColor, '#f5b36a');
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.navTratamientoBadgeColor, undefined, `${preset.clave} no debe declarar navTratamientoBadgeColor`);
+  }
+});
+
 test('validarPreset(CORTE) sigue devolviendo [] (completo) — el eje nuevo es opcional, no rompe la completitud', () => {
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 });
 
-test('mergePresetEnContent: CORTE escribe `content.navTratamiento` = {activo:true, direccion:true, filete:true, cta:true, posicion:true, subrayado:true}', () => {
+test('mergePresetEnContent: CORTE escribe `content.navTratamiento` = {activo:true, direccion:true, filete:true, cta:true, posicion:true, subrayado:true, badgeColor:"#f5b36a"}', () => {
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, CORTE);
-  assert.deepEqual(out.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true });
+  assert.deepEqual(out.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' });
 });
 
-test('mergePresetEnContent: PATIO no declara ninguno de los seis ejes — la meta queda en su default de HOY (false×6)', () => {
+test('mergePresetEnContent: PATIO no declara ninguno de los siete ejes — la meta queda en su default de HOY (false×6 + badgeColor:null)', () => {
   assert.equal(PATIO.navTratamientoActivo, undefined);
   assert.equal(PATIO.navTratamientoDireccion, undefined);
   assert.equal(PATIO.navTratamientoFilete, undefined);
   assert.equal(PATIO.navTratamientoCta, undefined);
   assert.equal(PATIO.navTratamientoPosicion, undefined);
   assert.equal(PATIO.navTratamientoSubrayado, undefined);
+  assert.equal(PATIO.navTratamientoBadgeColor, undefined);
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, PATIO);
-  assert.deepEqual(out.navTratamiento, { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false });
+  assert.deepEqual(out.navTratamiento, { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null });
 });
 
 test('mergePresetEnContent: los otros 5 presets escriben `content.navTratamiento` = el de HOY, byte-idéntico', () => {
@@ -236,7 +280,7 @@ test('mergePresetEnContent: los otros 5 presets escriben `content.navTratamiento
 
 // ── El mirador (`?tema=CORTE`) — la vista de sólo-lectura que ejerce la cadena completa ─────────
 
-test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — navTratamiento sigue en false', () => {
+test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — navTratamiento sigue en false/null', () => {
   const nayoli = resolverSiteContent({});
   const sinTema = contenidoConPresetDeVista(nayoli, undefined);
   assert.equal(sinTema, nayoli, 'byte-idéntico: la misma referencia, ni un campo tocado');
@@ -246,9 +290,10 @@ test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — navTratamie
   assert.equal(sinTema.navTratamiento.cta, false);
   assert.equal(sinTema.navTratamiento.posicion, false);
   assert.equal(sinTema.navTratamiento.subrayado, false);
+  assert.equal(sinTema.navTratamiento.badgeColor, null);
 });
 
-test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta, .posicion Y .subrayado pasan a true', () => {
+test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta, .posicion, .subrayado pasan a true Y .badgeColor a "#f5b36a"', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.navTratamiento.activo, true);
@@ -257,6 +302,7 @@ test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta
   assert.equal(conCorte.navTratamiento.cta, true);
   assert.equal(conCorte.navTratamiento.posicion, true);
   assert.equal(conCorte.navTratamiento.subrayado, true);
+  assert.equal(conCorte.navTratamiento.badgeColor, '#f5b36a');
 });
 
 // ── La CAPA DE DATOS que gobierna a StoreNav — pass-through directo, verificable sin render ─────
@@ -317,6 +363,29 @@ test('la capa de datos: navTratamiento.cta=true (CORTE) → el badge es FIJO, in
   const cta = conCorte.navTratamiento.cta;
   assert.equal(badgeClaseDe(cta, true), 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]');
   assert.equal(badgeClaseDe(cta, false), 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]');
+});
+
+// § RIEL-SCROLL-Y-BADGE-DORADO-1 — el pass-through EXACTO del `style` inline en `badgeSpan`
+// (`StoreNav.tsx`): sólo se activa con `cta=true` Y `badgeColor` puesto — con `badgeColor:null`
+// (todo tenant salvo CORTE) React OMITE la propiedad, la clase `bg-[var(--sf-tostado)]` de
+// `badgeClaseDe` (arriba) gobierna sin cambio.
+const badgeStyleDe = (cta: boolean, badgeColor: string | null) =>
+  cta && badgeColor ? { backgroundColor: badgeColor } : undefined;
+
+test('la capa de datos: navTratamiento.badgeColor=null (el HOY, todo tenant salvo CORTE) → ningún `style`, cta=true o false', () => {
+  const { cta, badgeColor } = resolverSiteContent({}).navTratamiento;
+  assert.equal(badgeStyleDe(cta, badgeColor), undefined);
+  assert.equal(badgeStyleDe(true, badgeColor), undefined, 'ni siquiera con cta=true, si badgeColor sigue null');
+});
+
+test('la capa de datos: navTratamiento.badgeColor="#f5b36a" (CORTE) con cta=true → el `style` pisa el fondo del badge', () => {
+  const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
+  const { cta, badgeColor } = conCorte.navTratamiento;
+  assert.deepEqual(badgeStyleDe(cta, badgeColor), { backgroundColor: '#f5b36a' });
+});
+
+test('la capa de datos: `badgeColor` puesto pero `cta=false` → SIN `style` (el override es del badge FIJO, no de la variante translúcida)', () => {
+  assert.equal(badgeStyleDe(false, '#f5b36a'), undefined);
 });
 
 // § CROMO-NAV-EXACTO-PROTOTIPO-1 (REESCRIBE § CROMO-NAV-POSICION-TEMA-REAL-1) — el pass-through
@@ -414,6 +483,24 @@ test('navTratamiento.subrayado: sobrevive al parse solo, y junto con `activo`/`d
   assert.deepEqual(los6.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true });
 });
 
+// § RIEL-SCROLL-Y-BADGE-DORADO-1 — `badgeColor` sobrevive SOLO, junto con los otros seis, y acepta
+// `null` explícito (a diferencia de los seis booleanos, que no tienen forma "apagada" propia además
+// de `false`). SOFT en el FORMATO (§ el docstring de `navTratamientoEditableSchema`): un string con
+// formato inválido SOBREVIVE al parse — el formato lo exige `resolverNavTratamiento`, no este schema.
+test('navTratamiento.badgeColor: sobrevive al parse solo, junto con los otros seis, y con `null` explícito', () => {
+  const soloBadgeColor = siteContentEditableSchema.parse({ navTratamiento: { badgeColor: '#f5b36a' } });
+  assert.deepEqual(soloBadgeColor.navTratamiento, { badgeColor: '#f5b36a' });
+  const los7 = siteContentEditableSchema.parse({ navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' } });
+  assert.deepEqual(los7.navTratamiento, { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' });
+  const nulo = siteContentEditableSchema.parse({ navTratamiento: { badgeColor: null } });
+  assert.deepEqual(nulo.navTratamiento, { badgeColor: null });
+});
+
+test('navTratamiento.badgeColor: un STRING con formato inválido sobrevive al parse (SOFT — el formato lo exige el resolver, no el schema)', () => {
+  const parsed = siteContentEditableSchema.parse({ navTratamiento: { badgeColor: 'dorado' } });
+  assert.deepEqual(parsed.navTratamiento, { badgeColor: 'dorado' });
+});
+
 test('navTratamiento: un TIPO equivocado se rechaza (el write es estricto; el resolver SOFT es la red aparte)', () => {
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { activo: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { direccion: 'true' } }));
@@ -421,6 +508,7 @@ test('navTratamiento: un TIPO equivocado se rechaza (el write es estricto; el re
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { cta: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { posicion: 'true' } }));
   assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { subrayado: 'true' } }));
+  assert.throws(() => siteContentEditableSchema.parse({ navTratamiento: { badgeColor: 123 } }), 'un NUMBER no es string ni null');
 });
 
 test('navTratamiento: ausente no rompe el parse (es opcional, como las otras metas)', () => {

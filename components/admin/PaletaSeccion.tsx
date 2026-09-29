@@ -133,13 +133,15 @@ const PRODUCTOS_MUESTRA: Product[] = [
  *  tarjetas en `repeat(3,1fr)`): a 1280 se ve natural, no dos tarjetas gigantes escaladas.
  *
  *  Qué se monta sin fetch (censo del gate): `Logo` por PROP sin providers; `TrustBadges` YA NO es
- *  estático (§ CORTE-TRUSTBADGES-OCULTABLE-1: lee `useSiteContent()`) — necesita el MISMO tipo de
- *  provider local que `ProductCard` (abajo); `StoreNav` quedó FUERA (3 providers + chrome inerte).
- *  `ProductCard` sólo necesita `CartProvider` local e inerte, y `TrustBadges` un `SiteContentProvider`
- *  local con `DEFAULTS` (§ Las tres capas — montar un componente en otro árbol de providers; landmine
- *  medido y cerrado por `ADMIN-TIENDA-ROTO-CON-PRESET-1`, DECISIONS.md). `DEFAULTS` alcanza: la muestra
- *  de paleta no necesita reflejar el toggle real de `trustBadges.visible`, sólo no reventar — el
- *  default es `true`, así que la franja se sigue viendo como hasta ahora.
+ *  estático (§ CORTE-TRUSTBADGES-OCULTABLE-1: lee `useSiteContent()`) y `ProductCard` GANÓ la misma
+ *  lectura (§ RIEL-SCROLL-Y-BADGE-DORADO-1: el fondo del badge, `navTratamiento.badgeColor`) — los
+ *  DOS necesitan el MISMO `SiteContentProvider` local, así que comparten UNO (abajo), no dos
+ *  idénticos; `StoreNav` quedó FUERA (3 providers + chrome inerte). `ProductCard` además necesita
+ *  `CartProvider` local e inerte (§ Las tres capas — montar un componente en otro árbol de
+ *  providers; landmine medido y cerrado por `ADMIN-TIENDA-ROTO-CON-PRESET-1`, DECISIONS.md, y por
+ *  esta misma tanda para el segundo consumidor). `DEFAULTS` alcanza: la muestra de paleta no
+ *  necesita reflejar el toggle real de `trustBadges.visible` ni un `badgeColor` de preset, sólo no
+ *  reventar — los dos defaults (`true`/`null`) dejan la franja y el badge como hasta ahora.
  *
  *  EXPORTADO (§ ADMIN-TIENDA-ROTO-CON-PRESET-1) para que `admin-tienda-preset.test.ts` pueda
  *  renderizarlo DIRECTO, con las raíces/fuente/forma que resulten de cada preset del catálogo — es
@@ -161,18 +163,23 @@ export function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: 
       <div className="mx-auto max-w-6xl px-6 py-4">
         <Logo nombre={nombre} conMark={STOREFRONT_TIENE_MARK} />
       </div>
-      {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas). Provider
-          LOCAL con DEFAULTS: `TrustBadges` lee `useSiteContent()` desde CORTE-TRUSTBADGES-OCULTABLE-1
-          y este árbol no cuelga del layout del storefront (§ el docstring de arriba). */}
+      {/* Provider LOCAL con DEFAULTS, sobre TODO el resto del fragmento — no sólo `TrustBadges`.
+          `ProductCard` (§ RIEL-SCROLL-Y-BADGE-DORADO-1) ganó su propia lectura de
+          `useSiteContent()` (el fondo del badge, `navTratamiento.badgeColor`), así que la landmine
+          que el docstring de arriba ya documenta ("montar sin el mismo tipo de provider revienta
+          en runtime, ni tsc ni el build lo atrapan") se repetiría acá si el provider siguiera
+          cerrando antes del `CartProvider`/`ProductCard` de abajo. Un solo provider que cubra los
+          DOS consumidores es más simple que dos providers locales idénticos. */}
       <SiteContentProvider value={DEFAULTS}>
+        {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas). */}
         <TrustBadges />
+        {/* Tres tarjetas reales en fila de escritorio, bajo un CartProvider local inerte */}
+        <CartProvider>
+          <div className="mx-auto max-w-6xl px-6 py-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+            {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
+          </div>
+        </CartProvider>
       </SiteContentProvider>
-      {/* Tres tarjetas reales en fila de escritorio, bajo un CartProvider local inerte */}
-      <CartProvider>
-        <div className="mx-auto max-w-6xl px-6 py-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
-          {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
-        </div>
-      </CartProvider>
     </div>
   );
 }

@@ -180,14 +180,37 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             `<style>` de abajo, scoped a la clase, es el único CSS que este componente necesita fuera
             de Tailwind — no toca `app/globals.css`, fuera de `touches`). `tabIndex` para que un
             usuario de teclado pueda enfocar el riel y desplazarlo con las flechas nativas del
-            navegador sobre un contenedor con overflow, sin pasar por los botones. */}
+            navegador sobre un contenedor con overflow, sin pasar por los botones.
+
+            `sm:py-6` — EL FIX de RIEL-SCROLL-Y-BADGE-DORADO-1 (MEDIDO, no supuesto). `overflow-x-
+            auto` fuerza, por regla de la especificación CSS (si un eje se declara distinto de
+            `visible`, el otro eje — si es `visible` — se COMPUTA como `auto`; no hay forma de
+            declarar `overflow-y: visible` que sobreviva esa regla), que este track sea también
+            contenedor de scroll VERTICAL — algo que nadie pidió. Sin overflow vertical real eso es
+            inerte (0 rango, nada que capturar); pero la tarjeta RESALTADA (`sm:scale-[1.06]`, arriba)
+            desborda su caja de layout ~6% por los cuatro lados vía `transform` — un desborde de
+            PINTADO, no de layout, que SÍ cuenta para el `scrollHeight` del contenedor con overflow no-
+            visible. Medido contra una reproducción fiel de esta tarjeta (peor caso: card de 360px de
+            ancho, imagen 3/4 + texto ≈ 548px de alto): antes del fix, `scrollHeight` (518) > `client-
+            Height` (511) — 7px de rango vertical real, aunque chico; el track pasa a ser un scroll
+            vertical con algo que recorrer, que es la condición que un scroll-chaining real (rueda o
+            trackpad, con la semántica de "fase"/momentum que un evento sintético no siempre replica)
+            puede latchear y sentir "pegado". El fix RESERVA ese espacio en vez de recortarlo:
+            `sm:py-6` (24px arriba y abajo, ≥ el peor caso medido de ~16.44px por lado) sube el propio
+            `clientHeight` del track para que la tarjeta escalada NUNCA lo exceda —
+            `scrollHeight === clientHeight`, medido 560/560 tras el fix, en la misma reproducción—: el
+            track deja de tener NADA que desplazar en vertical, sin depender de qué motor de scroll-
+            chaining lo interprete. Sólo desde `sm:` porque el resaltado se apaga bajo 640px (§ arriba,
+            "Bajo 640px el prototipo APAGA el resaltado") — bajo ese ancho no hay escala que reservar,
+            y `pb-2` (el gap visual sobre el scrollbar oculto) se queda para ese caso. El desplaza-
+            miento horizontal, el snap, los botones, el arrastre y el índice centrado no cambian. */}
         <style>{".grind-riel-track::-webkit-scrollbar{display:none}"}</style>
         <div
           ref={trackRef}
           role="group"
           aria-label="Presentaciones disponibles"
           tabIndex={0}
-          className="grind-riel-track flex gap-6 overflow-x-auto snap-x snap-mandatory pb-2"
+          className="grind-riel-track flex gap-6 overflow-x-auto snap-x snap-mandatory pb-2 sm:py-6"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {tarjetas.map((op, i) => {

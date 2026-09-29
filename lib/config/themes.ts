@@ -266,6 +266,39 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * docstring de `NavTratamientoContent.cta` en `site-content-defaults.ts` para el porqué completo,
  * incluidos los tokens y los contrastes). CORTE es hoy el ÚNICO preset que lo declara.
  *
+ * `navTratamientoBadgeColor` (§ RIEL-SCROLL-Y-BADGE-DORADO-1, OPCIONAL) — REVISITA una pieza de la
+ * decisión de `navTratamientoCta` (arriba): ese slice hizo el badge FIJO en `--sf-tostado` a
+ * propósito, razonando que "`--accent-sale` del prototipo no tiene raíz propia en nuestro modelo de
+ * 3 raíces y `tostado` es la mezcla cálida-y-clara del acento que ya cumple ese papel" — no era un
+ * descuido, era la opción MÁS BARATA disponible entonces (ningún hex nuevo, sólo reusar un rol que
+ * ya existía). El owner la vio en el muestrario y reportó que el badge "no luce tan dorado" como el
+ * del prototipo: MEDIDO (no supuesto) — `derivarPaleta` sobre las raíces de CORTE
+ * (`fondo:#fdfbf7,tinta:#102407,acento:#a70004`) da `tostado:'#d8a378'`, un tostado apagado; el
+ * `--accent-sale` real del prototipo es `#f5b36a` (`docs/prototipos/cafeone/css/tokens.css:83`, el
+ * mismo valor que `--amber-400`, `:36`) — NINGUNA combinación de las 3 raíces con los pesos ya
+ * catalogados en `RECETA` (`palette-derive.ts`) da ese hex (censado: los 8 tonos de `tostado*`
+ * quedan entre `#c0592e` y `#e3c2a1`, ninguno igual). Por eso esta vez SÍ hace falta un hex nuevo,
+ * no una reasignación de rol.
+ *
+ * VIVE EN `navTratamiento`, NO EN `tema` — decisión de COSTO, medida antes de escribir una línea:
+ * `tema` PARECE el hogar obvio (es un color), pero su ruta de escritura
+ * (`guardarTemaBorrador`, `lib/config/site-content-write.ts`) tipa el tema como un objeto de
+ * FORMA FIJA de 5 campos y su único caller (`app/api/site-content/tema/route.ts`) construye ese
+ * objeto enumerando esos 5 campos A MANO — sumar un 6º ahí exige tocar DOS archivos que este
+ * slice no declaró en `touches:`. `navTratamiento` no tiene ese problema: su ruta
+ * (`/api/site-content/encabezado`) hace `.pick({ navTratamiento: true, … })` y
+ * `guardarBorrador` ESCRIBE EL OBJETO ENTERO (`{ ...borrador, ...data }`, sin enumerar
+ * campo por campo) — un campo nuevo del lado del contenido (`site-content-schema.ts`,
+ * `site-content-defaults.ts`, ambos EN `touches:`) fluye solo, sin tocar la ruta.
+ *
+ * AUSENTE/`null` = el comportamiento de HOY exacto: los TRES consumidores (`StoreNav`/
+ * `ProductCard`/`Spotlight`, § el censo de consumidores, DECISIONS.md) aplican un `style` inline
+ * de `backgroundColor` SÓLO cuando `navTratamiento.badgeColor` no es `null`; con `null` no se
+ * aplica ningún `style`, y la clase Tailwind `bg-[var(--sf-tostado)]` de siempre gobierna sin
+ * cambio — byte-idéntico para todo preset salvo CORTE. El texto sigue siendo `--sf-tinta` (=
+ * `--text-heading` del prototipo, que YA era el par correcto: sólo el fondo estaba mal), sin
+ * tocar. CORTE es hoy el ÚNICO preset que lo declara.
+ *
  * `navTratamientoPosicion` (§ CROMO-NAV-EXACTO-PROTOTIPO-1, OPCIONAL, REESCRIBE § CROMO-NAV-
  * POSICION-TEMA-REAL-1) — ¿el contenedor de contenido del encabezado toma la GEOMETRÍA del
  * PROTOTIPO LOCAL (`docs/prototipos/cafeone/`, no el tema real — ver la corrección abajo): más
@@ -378,6 +411,7 @@ export interface PresetTema {
   navTratamientoCta?: boolean;
   navTratamientoPosicion?: boolean;
   navTratamientoSubrayado?: boolean;
+  navTratamientoBadgeColor?: string;
   navWordmarkActivo?: boolean;
   navDrawerMovilVariante?: ClaveDrawerMovil;
   carritoVariante?: ClaveCarrito;
@@ -664,6 +698,9 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     cta: fusionar('navTratamiento.cta', preset.navTratamientoCta ?? false),
     posicion: fusionar('navTratamiento.posicion', preset.navTratamientoPosicion ?? false),
     subrayado: fusionar('navTratamiento.subrayado', preset.navTratamientoSubrayado ?? false),
+    // AUSENTE en el preset → null (el default, byte-idéntico) — § el docstring de
+    // `navTratamientoBadgeColor`, arriba (RIEL-SCROLL-Y-BADGE-DORADO-1).
+    badgeColor: fusionar('navTratamiento.badgeColor', preset.navTratamientoBadgeColor ?? null),
   };
   // `navWordmark` (§ CORTE-LOGO-APILADO-1): meta PROPIA, aparte de `cromo`, `volverArriba`,
   // `rielSocial`, `carritoEnvio` Y `navTratamiento` — ver el docstring de `NavWordmarkContent` para
@@ -1249,6 +1286,17 @@ export const CORTE: PresetTema = {
   // hover sobre los elementos del mismo, que nuestro nav no tiene.» CORTE es hoy el ÚNICO preset del
   // catálogo que lo declara; los otros cinco no tocan `content.navTratamiento.subrayado`.
   navTratamientoSubrayado: true,
+  // navTratamientoBadgeColor (§ RIEL-SCROLL-Y-BADGE-DORADO-1) — el hex EXACTO que
+  // `navTratamientoCta` (arriba) decidió NO usar («`--accent-sale` no deriva de ninguna de las 3
+  // raíces, se usa `--sf-tostado`… en vez de un rol nuevo o un hex horneado») porque en ese
+  // momento era más barato reusar un rol existente que declarar uno. El owner vio el resultado en
+  // el muestrario y reportó que "no luce tan dorado" — MEDIDO: `tostado` da `#d8a378` (contraste
+  // 7.38:1 contra `tinta`), el `--accent-sale` real del prototipo es `#f5b36a`
+  // (`docs/prototipos/cafeone/css/tokens.css:83`, = `--amber-400`, `:36`; contraste 9.03:1 contra
+  // `tinta` — MEJOR que el valor viejo, no sólo distinto). CORTE es hoy el ÚNICO preset del
+  // catálogo que lo declara; los otros cinco no tocan `content.navTratamiento.badgeColor` y
+  // siguen pintando el badge con `tostado`, como siempre.
+  navTratamientoBadgeColor: '#f5b36a',
   // navWordmarkActivo (§ CORTE-LOGO-APILADO-1) — MEDIDO contra el prototipo: `.wordmark`
   // (`docs/prototipos/cafeone/css/app.css:199-205`) declara `font-family:var(--font-display)` (la
   // MISMA serif del par — sin cambio), `font-size:30px`, `letter-spacing:.01em`,
