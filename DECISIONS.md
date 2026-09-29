@@ -31540,6 +31540,13 @@ derivación token-por-token, no por sustitución de la doctrina de captura.
 `scripts/capturar-seccion.ts`, para que un slice de paridad visual sobre CORTE con productos
 DISPONIBLES no dependa de derivación manual. No se construye acá — ese script no está en `touches:`.
 
+**Segundo open follow-up, encontrado en el chequeo mecánico contra el documento del censo**:
+`PARIDAD-DOC-PDP-BOTONES-STALE-1` — `docs/paridad/muestrario-vs-prototipo.md:215` sigue listando
+`PDP-BOTONES-JERARQUIA-1` como pendiente en el punch-list §6.1 ("propuesto para slices futuros"),
+pero el trabajo que describe ya está cerrado por este slice. No se corrige acá: ese documento no
+está en `touches:` de `PARIDAD-PDP-BOTONES-1`, y tocarlo ampliaría el diff fuera del techo
+aprobado.
+
 ### Gate
 
 | capa | resultado |
