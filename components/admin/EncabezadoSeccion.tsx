@@ -106,7 +106,7 @@ const CONTROLES: { name: Exclude<keyof Form, 'badgeColor'>; label: string; hint:
   { name: 'direccionScroll', label: 'Ocultar al bajar', hint: 'Al bajar, el encabezado se oculta; al subir, reaparece con su color sólido. Arriba del todo se ve como siempre.' },
   { name: 'filete', label: 'Filete inferior', hint: 'Una línea fina separa el encabezado del contenido, sin llegar a los bordes de la pantalla.' },
   { name: 'ctaBadge', label: 'Botón Comprar y badge del menú', hint: 'El botón Comprar se ve sólido y se muda al final del encabezado, después del carrito; el badge de un ítem de menú toma un color fijo.' },
-  { name: 'posicion', label: 'Posición del encabezado', hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy.' },
+  { name: 'posicion', label: 'Posición del encabezado', hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.' },
   { name: 'subrayado', label: 'Subrayado al pasar el mouse', hint: 'Los enlaces del menú dibujan una línea debajo al pasar el mouse por encima.' },
 ];
 

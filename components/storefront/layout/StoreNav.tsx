@@ -236,21 +236,42 @@ export default function StoreNav() {
   // center;…max-width:var(--content-max);margin-inline:auto;padding-inline:var(--page-gutter)}` —
   // ALTURA FIJA centrada por flex, no relleno) + sus dos breakpoints (`app.css:971-972`: bajo
   // 1200px, `88px`/`24px`; `997-998`: bajo 640px, `76px`/`18px`). `max-w-[1440px]` (`--content-max`
-  // EXACTO) + `px-[18px] sm:px-6 cortenav:px-8` (18/24/32px, `--page-gutter` en sus tres
-  // breakpoints, mobile-first — `sm` de Tailwind coincide con los 640px del prototipo; 1200px no
-  // coincide con ningún breakpoint nuestro y gana el suyo propio, `--breakpoint-cortenav`,
-  // `app/globals.css`) reemplazan a `max-w-6xl` + `px-4 sm:px-6 lg:px-8`; y
-  // `h-[76px] sm:h-[88px] cortenav:h-[118px]` (`--header-height` en sus tres breakpoints) reemplaza
-  // a la altura FIJA `h-16 lg:h-18` — sigue siendo ALTURA FIJA, no relleno, sólo que ahora crece a
-  // los valores REALES del muestrario (§ el docstring de `NavTratamientoContent.posicion`,
+  // EXACTO) + `px-[18px] min-[640px]:px-6 cortenav:px-8` (18/24/32px, `--page-gutter` en sus tres
+  // breakpoints, mobile-first — 640px coincide con `sm` de Tailwind (min-width:640px) EN VALOR,
+  // pero el paso se escribe como variante ARBITRARIA `min-[640px]:`, NO `sm:` — § PARIDAD-CORTENAV-
+  // CASCADA-1, abajo; 1200px no coincide con ningún breakpoint nuestro y gana el suyo propio,
+  // `--breakpoint-cortenav`, `app/globals.css`) reemplazan a `max-w-6xl` + `px-4 sm:px-6 lg:px-8`; y
+  // `h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]` (`--header-height` en sus tres breakpoints)
+  // reemplaza a la altura FIJA `h-16 lg:h-18` — sigue siendo ALTURA FIJA, no relleno, sólo que ahora
+  // crece a los valores REALES del muestrario (§ el docstring de `NavTratamientoContent.posicion`,
   // `site-content-defaults.ts`, para la corrección completa). `false` (todo tenant salvo CORTE) →
   // `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` + `h-16 lg:h-18`, byte-idéntico a hoy.
   //
   // El ANCHO/RELLENO (no la altura) ahora se calcula en `contenedorAnchoClase`
   // (`lib/config/themes.ts`, § PARIDAD-ANCHO-CONTENIDO-1) — MISMO literal, MISMA fuente, para que
   // el encabezado y las bandas del storefront no puedan divergir sobre la geometría del prototipo.
+  //
+  // § PARIDAD-CORTENAV-CASCADA-1 (CIERRA `PARIDAD-ANCHO-CORTENAV-CASCADA-1`) — POR QUÉ `min-[640px]:`
+  // Y NO `sm:` EN ESTOS DOS LITERALES: medido compilando `app/globals.css` con `@tailwindcss/postcss`
+  // en aislamiento (capa 1, sin `next build`), Tailwind v4 agrupa las variantes de ancho por la
+  // UNIDAD del valor declarado (`px` vs `rem`), no por su magnitud resuelta — TODO breakpoint en
+  // `px` (`--breakpoint-duna`, `--breakpoint-cortenav`, cualquier `min-[Npx]:` arbitrario) emite en
+  // UN bloque ascendente; TODO el scale por default de Tailwind (`sm`/`md`/`lg`/`xl`/`2xl`, en
+  // `rem`) emite en OTRO bloque, COMPLETO, DESPUÉS. A ≥1200px, con `sm:px-6` (rem) y `cortenav:px-8`
+  // (px) en el MISMO elemento, `sm:` ganaba la cascada por aparecer más tarde en la hoja — el header
+  // rendía 24px/88px en vez de los 32px/118px del prototipo. Reordenar la declaración de
+  // `--breakpoint-cortenav`/`--breakpoint-duna` en `@theme` NO lo arregla (probado, sin efecto): el
+  // criterio es la unidad, no el orden textual. El fix es expresar el paso de 640px como variante
+  // ARBITRARIA en `px` (`min-[640px]:`, exacto a `sm`=40rem a la raíz de 16px por defecto), que cae
+  // en el MISMO bloque que `cortenav:` y ordena correctamente por valor — el MISMO patrón que
+  // `Spotlight.tsx` ya usa (`min-[820px]:`/`min-[1200px]:`, sin `sm:`/`lg:`). `--breakpoint-sm` NUNCA
+  // se toca, así que el resto del storefront (todo `sm:` fuera de estos dos literales) es
+  // byte-idéntico. `--breakpoint-duna` (el panel admin, 960px) se censó: no combina con ningún
+  // breakpoint estándar sobre la MISMA propiedad en ningún consumidor (`Sidebar.tsx`, `TopBar.tsx`,
+  // `AdminChrome.tsx` — siempre `duna:` contra una clase SIN variante, sin condición competidora), así
+  // que no sufre este defecto y no necesita la misma pieza.
   const navContenedorClase = contenedorAnchoClase(navTratamiento.posicion);
-  const navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] sm:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
+  const navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
 
   // EL FILETE INFERIOR (§ CROMO-NAV-FILETE-1, la UBICACIÓN corregida por § CROMO-NAV-EXACTO-
   // PROTOTIPO-1): línea fina que separa el encabezado del contenido, SIN cruzar toda la pantalla —
@@ -523,12 +544,23 @@ export default function StoreNav() {
             {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el
                 prototipo (`docs/prototipos/cafeone/index.html:57-89`, `#mega-cafe`): intro (copy +
                 CTA), dos columnas de sub-enlaces, una tarjeta promocional. Posicionado FULL-WIDTH
-                relativo al `<header>` (`fixed`), como `NavSearch` — es hijo de este `div.max-w-6xl`
+                relativo al `<header>` (`fixed`), como `NavSearch` — es hijo de este contenedor
                 (`position: static`, no crea containing block), así que `absolute left-0 w-full`
                 resuelve contra el header, no contra este contenedor angosto. `itemPanel` es `null`
                 para todo tenant sin panel declarado → esta rama nunca se monta ahí. El cierre
                 (Escape + click-afuera) vive arriba (§ NAV-CIERRE-CLICK-AFUERA-1); el fondo de abajo
-                es SÓLO visual, igual que en `NavSearch`. */}
+                es SÓLO visual, igual que en `NavSearch`.
+
+                § PARIDAD-CORTENAV-CASCADA-1 (CIERRA `PARIDAD-ANCHO-MEGAMENU-1`): el ancho/relleno
+                del panel ahora sale de `navContenedorClase` (= `contenedorAnchoClase(navTratamiento.
+                posicion)`, ya calculado arriba, MISMA fuente que el encabezado y las bandas) en vez
+                de un literal `max-w-6xl px-4 sm:px-6 lg:px-8` propio — el prototipo mide `.mega-inner`
+                contra el MISMO `--content-max`/`--page-gutter` que el resto del contenido (§
+                DECISIONS.md, PARIDAD-ANCHO-CONTENIDO-1 §3), así que un contenedor aparte para el
+                mega-menu podía divergir del resto. `false` (todo tenant salvo CORTE) →
+                `navContenedorClase` resuelve a `max-w-6xl px-4 sm:px-6 lg:px-8`, byte-idéntico al
+                literal que reemplaza. `grid gap-10 py-10 lg:grid-cols-[minmax(0,260px)_1fr]` —el
+                LAYOUT de columnas del panel, no el ancho/relleno— se queda aparte. */}
             <AnimatePresence>
               {itemPanel && (
                 <>
@@ -543,7 +575,7 @@ export default function StoreNav() {
                     transition={{ duration: 0.2 }}
                     className="absolute left-0 top-full z-50 w-full sf-divisor-t border-[var(--sf-linea)] bg-[var(--sf-tarjeta)] shadow-2xl"
                   >
-                    <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,260px)_1fr] lg:px-8">
+                    <div className={`mx-auto grid gap-10 py-10 lg:grid-cols-[minmax(0,260px)_1fr] ${navContenedorClase}`}>
                       <div>
                         {itemPanel.intro && <p className="text-sm text-[var(--sf-texto)]">{itemPanel.intro}</p>}
                         {itemPanel.introCtaHref && (

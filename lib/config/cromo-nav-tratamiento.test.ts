@@ -394,9 +394,9 @@ test('la capa de datos: `badgeColor` puesto pero `cta=false` → SIN `style` (el
 // medida contra el PROTOTIPO LOCAL (`--content-max`/`--page-gutter`/`--header-height`,
 // `docs/prototipos/cafeone/css/tokens.css:150,151,157`), no el tema real de la medición anterior.
 const navContenedorClaseDe = (posicion: boolean) =>
-  posicion ? 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+  posicion ? 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
 const navFilaAltoClaseDe = (posicion: boolean) =>
-  posicion ? 'h-[76px] sm:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
+  posicion ? 'h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
 
 test('la capa de datos: navTratamiento.posicion=false → el pass-through de StoreNav usa el contenedor/altura de HOY (el HOY exacto)', () => {
   const posicion = resolverSiteContent({}).navTratamiento.posicion;
@@ -407,8 +407,8 @@ test('la capa de datos: navTratamiento.posicion=false → el pass-through de Sto
 test('la capa de datos: navTratamiento.posicion=true (CORTE) → el pass-through aplica la geometría medida contra el prototipo local', () => {
   const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   const posicion = conCorte.navTratamiento.posicion;
-  assert.equal(navContenedorClaseDe(posicion), 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8');
-  assert.equal(navFilaAltoClaseDe(posicion), 'h-[76px] sm:h-[88px] cortenav:h-[118px]');
+  assert.equal(navContenedorClaseDe(posicion), 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8');
+  assert.equal(navFilaAltoClaseDe(posicion), 'h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]');
 });
 
 // § CROMO-NAV-EXACTO-PROTOTIPO-1 — el pass-through EXACTO de `navHoverClase` en `StoreNav.tsx`:

@@ -13,8 +13,8 @@ test('contenedorAnchoClase(false) = el literal de HOY, byte a byte (max-w-6xl, t
   assert.equal(contenedorAnchoClase(false), 'max-w-6xl px-4 sm:px-6 lg:px-8');
 });
 
-test('contenedorAnchoClase(true) = la geometría EXACTA del prototipo (CORTE) — MISMO literal que `StoreNav.tsx` ya usaba para su propio contenedor', () => {
-  assert.equal(contenedorAnchoClase(true), 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8');
+test('contenedorAnchoClase(true) = la geometría EXACTA del prototipo (CORTE) — MISMO literal que `StoreNav.tsx` ya usaba para su propio contenedor; `min-[640px]:`, no `sm:` (§ PARIDAD-CORTENAV-CASCADA-1, el fix de la cascada contra `cortenav:`)', () => {
+  assert.equal(contenedorAnchoClase(true), 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8');
 });
 
 test('sin fila de SiteContent (Nayoli/defaults) → navTratamiento.posicion es false → el contenedor de HOY', () => {
@@ -27,7 +27,7 @@ test('con el preset CORTE superpuesto → navTratamiento.posicion es true → la
   const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   const posicion = conCorte.navTratamiento.posicion;
   assert.equal(posicion, true);
-  assert.equal(contenedorAnchoClase(posicion), 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8');
+  assert.equal(contenedorAnchoClase(posicion), 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8');
 });
 
 test('de los 6 presets del catálogo, sólo CORTE resuelve navTratamiento.posicion=true (el eje que gobierna este contenedor no se activa por accidente en otro preset)', () => {

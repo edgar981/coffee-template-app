@@ -32070,3 +32070,186 @@ no migró, §3), `PARIDAD-ANCHO-CORTENAV-CASCADA-1` (el breakpoint custom `corte
 contra `sm` a ≥1200px, defecto PRE-EXISTENTE medido en producción, §4).
 
 **Cierra `PARIDAD-ANCHO-CONTENIDO-1`.**
+
+## 2026-09-29 — `cortenav` gana la cascada contra `sm:` — y el mega-menu comparte contenedor (`PARIDAD-CORTENAV-CASCADA-1`)
+
+Cierra los tres open_followups de `PARIDAD-ANCHO-CONTENIDO-1`: `PARIDAD-ANCHO-CORTENAV-CASCADA-1`
+(§4 de ese slice), `PARIDAD-ANCHO-MEGAMENU-1` (§3) y `PARIDAD-ANCHO-HINT-ENCABEZADO-1` (§2).
+
+### 1 · Re-medido antes de tocar código
+
+`app/globals.css:49` sigue declarando `--breakpoint-cortenav: 1200px;`, exacto a lo que
+`PARIDAD-ANCHO-CONTENIDO-1` había medido. `StoreNav.tsx:253` (antes de este slice) seguía en
+`navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] sm:h-[88px] cortenav:h-[118px]' : 'h-16
+lg:h-18'`, y `themes.ts:1515` (`contenedorAnchoClase`) en `'max-w-[1440px] px-[18px] sm:px-6
+cortenav:px-8'` — ambos confirmados por lectura antes de editar. El mega-menu (`StoreNav.tsx:546`
+en la numeración de esa medición) seguía en su propio literal `max-w-6xl gap-10 px-4 py-10 sm:px-6
+lg:grid-cols-[minmax(0,260px)_1fr] lg:px-8`, sin usar `contenedorAnchoClase`.
+
+### 2 · La causa, re-medida — Tailwind v4 bucketea por UNIDAD del valor, no por magnitud
+
+`PARIDAD-ANCHO-CONTENIDO-1` había medido el síntoma (`.cortenav\:px-8` vive en un bloque
+`@media(min-width:1200px)` que aparece ANTES que el de `.sm\:px-6`) pero no había aislado la
+CAUSA. Se aisló compilando `app/globals.css` con `@tailwindcss/postcss` DIRECTO (sin `next build`,
+sin Postgres, capa 1 — `postcss([tailwindcss()]).process(...)`), variando el `@theme` en un archivo
+CSS mínimo (`@source inline(...)` con candidatos sintéticos) y comparando offsets en el string de
+salida:
+
+- **Hipótesis descartada — orden de declaración en `@theme`:** reordenar `--breakpoint-duna`/
+  `--breakpoint-cortenav` intercalados en orden ascendente con `--breakpoint-sm/md/lg/xl/2xl`
+  (mismos valores que el default, re-declarados a mano) NO cambia el orden de emisión — el bloque
+  `px` sigue emitiendo completo antes del bloque `rem`, sin importar el orden textual.
+- **Hipótesis descartada — reset del namespace:** agregar `--breakpoint-*: initial;` antes de
+  re-declarar los siete breakpoints tampoco cambia el orden.
+- **Hipótesis confirmada — la UNIDAD decide el bloque:** todo breakpoint declarado en `px`
+  (`--breakpoint-duna:960px`, `--breakpoint-cortenav:1200px`, y cualquier variante arbitraria
+  `min-[Npx]:`) emite en UN bloque de la hoja, ordenado ASCENDENTE por valor resuelto; el scale por
+  defecto de Tailwind (`sm:40rem`/`md:48rem`/`lg:64rem`/`xl:80rem`/`2xl:96rem`,
+  `node_modules/tailwindcss/theme.css:327-331`) emite en OTRO bloque, también ascendente, COMPLETO
+  DESPUÉS del bloque `px` — sin importar la magnitud relativa entre bloques (960px y 1200px, que
+  caen numéricamente entre `md` y `lg`, emiten igual ANTES de los cinco). Medido con los SIETE
+  breakpoints declarados en `px` en un mismo `@theme` (`sm:640px, md:768px, duna:960px, lg:1024px,
+  cortenav:1200px, xl:1280px, 2xl:1536px`): el orden de emisión pasa a ser ascendente de punta a
+  punta (640→768→960→1024→1200→1280→1536) — confirma que la unidad, no la clave, es el
+  discriminador.
+- **Precedente YA existente en el repo, no reconocido hasta ahora:** `Spotlight.tsx` (grilla de
+  Origen) ya combina `min-[820px]:grid-cols-2`/`min-[820px]:gap-12` con `min-[1200px]:gap-16`/
+  `min-[1200px]:col-span-1` sobre las MISMAS propiedades, y las dos SON arbitrarias — nunca `sm:`/
+  `lg:` — así que esa cascada siempre fue correcta, sin que nadie tuviera que razonar por qué.
+
+### 3 · El fix — NO se toca `--breakpoint-sm`, NI se reordena `@theme`
+
+Se evaluaron cuatro formas y se descartaron dos:
+
+- **Redeclarar `--breakpoint-sm: 640px;` (px) globalmente** en `app/globals.css`: arregla el
+  defecto (confirmado, medido), pero mueve TODO `sm:` del repo —cientos de usos, todo tenant, todo
+  el panel— al bloque `px`, perdiendo el escalado por `rem` (zoom vía tamaño de fuente raíz del
+  navegador) para ESE breakpoint en TODA la app, para arreglar una colisión que hoy sólo existe en
+  DOS literales. Descartado por blast radius: ningún otro consumidor de `sm:` necesita este fix.
+- **Declarar un breakpoint nuevo `--breakpoint-cortenav-sm: 640px;`** y usarlo en los dos literales
+  en vez de `sm:`: funciona (medido), pero agrega una CUARTA clave al `@theme` para un concepto que
+  ya tiene nombre en Tailwind (`sm`) — el nombre nuevo no aporta significado, sólo unidad.
+- **Redeclarar TODO el scale (`sm`…`2xl`) en `px`, ascendente, junto a `duna`/`cortenav`:** arregla
+  el mecanismo para CUALQUIER combinación futura (medido: ascendente de punta a punta), pero
+  cambia la unidad de `md`/`lg`/`xl`/`2xl` sin que hoy exista una sola colisión que lo necesite —
+  mismo argumento de blast radius que la primera opción, a mayor escala.
+- **ELEGIDA — expresar el paso de 640px como variante ARBITRARIA `min-[640px]:`, sólo en los DOS
+  literales que colisionan:** cae en el bloque `px` (medido: ordena antes de `duna`/`cortenav` por
+  valor), no toca `--breakpoint-sm` ni ningún otro breakpoint, y es el MISMO patrón que
+  `Spotlight.tsx` ya usa (§2). Cero blast radius: `grep -rn "sm:"` fuera de los dos literales
+  tocados no cambia una sola clase en el repo.
+
+**Los dos literales, antes → después:**
+
+| literal | consumidor | antes | después |
+| --- | --- | --- | --- |
+| ancho/relleno | `contenedorAnchoClase(true)`, `themes.ts:1513` | `max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8` | `max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8` |
+| altura fija | `navFilaAltoClase`, `StoreNav.tsx:~279` (posicion:true) | `h-[76px] sm:h-[88px] cortenav:h-[118px]` | `h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]` |
+
+`contenedorAnchoClase(false)` (todo tenant salvo CORTE) **no se tocó**: sigue en
+`'max-w-6xl px-4 sm:px-6 lg:px-8'`, byte a byte — afirmado en `contenedor-ancho.test.ts` y
+`cromo-nav-tratamiento.test.ts`.
+
+### 4 · El mega-menu comparte contenedor (cierra `PARIDAD-ANCHO-MEGAMENU-1`)
+
+`StoreNav.tsx`, el `<div>` del panel desplegable (línea `578` tras este slice) pasó de su propio
+literal `max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,260px)_1fr] lg:px-8` a
+`` `mx-auto grid gap-10 py-10 lg:grid-cols-[minmax(0,260px)_1fr] ${navContenedorClase}` ``, donde
+`navContenedorClase = contenedorAnchoClase(navTratamiento.posicion)` — la MISMA variable que ya
+alimenta la fila del header (`StoreNav.tsx:439`, sin cambio) y, vía `contenedorAnchoClase`, las
+bandas del storefront (`PARIDAD-ANCHO-CONTENIDO-1`). `false` (todo tenant salvo CORTE):
+`navContenedorClase` resuelve a `max-w-6xl px-4 sm:px-6 lg:px-8` — el MISMO literal que el div
+tenía antes, byte a byte (el `grid gap-10 py-10 lg:grid-cols-[minmax(0,260px)_1fr]` que queda
+aparte es el LAYOUT de columnas del panel, no el ancho/relleno, y no cambió). `true` (CORTE): el
+mega-menu ahora mide su ancho contra `--content-max`/`--page-gutter` igual que el header y las
+bandas — el prototipo mide `.mega-inner` contra el mismo par (§ `PARIDAD-ANCHO-CONTENIDO-1` §1), así
+que antes de este slice el mega-menu podía divergir del resto en CORTE; ahora no puede, porque
+comparte la fuente.
+
+### 5 · El hint del panel (cierra `PARIDAD-ANCHO-HINT-ENCABEZADO-1`)
+
+`EncabezadoSeccion.tsx:109`, el control "Posición del encabezado", pasó de "El encabezado se abre
+hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy." a la misma
+frase + "También ensancha el contenido de cada banda de la tienda, para que sus bordes queden
+alineados con los del encabezado." — dice lo que el control YA hacía desde
+`PARIDAD-ANCHO-CONTENIDO-1` y que el hint no decía.
+
+### 6 · Censo de otros breakpoints propios — `duna` no aplica
+
+`grep -rn "duna:"` sobre `components/`, `packages/`, `lib/` (excluido `node_modules`/`.scratch`):
+único breakpoint propio además de `cortenav`. Sus **9 sitios de uso reales**
+(`Sidebar.tsx` ×6, `TopBar.tsx` ×3, `AdminChrome.tsx` ×1) combinan `duna:` SIEMPRE contra una clase
+SIN variante (`duna:flex` sobre `hidden`, `duna:hidden` sobre una clase base, `duna:w-18`,
+`duna:justify-center`, `duna:items-center`, `duna:left-[var(--sb-w)]`, `duna:ml-(--sb-w)`,
+`duna:block`) — CERO combinaciones con `sm:`/`md:`/`lg:`/`xl:`/`2xl:` sobre la MISMA propiedad. Sin
+una condición COMPETIDORA (la clase base no tiene `@media`), el orden de bloques no importa: la
+regla de `duna:` es la única con condición, y gana cuando su condición es verdadera
+independientemente de en qué bloque de la hoja viva. **`duna` no sufre el defecto y no se tocó** —
+documentado en `app/globals.css`, junto a su declaración, con el criterio para el día que sí lo
+necesite (variante arbitraria en `px` para el paso menor, nunca el nombre estándar).
+
+### 7 · Medido: antes/después contra el muestrario desplegado y el prototipo local
+
+`npm run capturar:seccion`, modo `--url` (ANTES, contra `https://coffee-template-app-onix.vercel.app/`,
+que YA corre CORTE) y modo `--preset CORTE` (DESPUÉS, local, esta rama), `--estilo-elemento
+padding-left padding-right height width max-width`:
+
+| selector | viewport | ANTES (muestrario) | DESPUÉS (esta rama) | prototipo (`.header-bar`/`#historia>.shell`) |
+| --- | --- | --- | --- | --- |
+| `header > div` | 1440 | `padding:24px height:88px` | `padding:32px height:118px` | `padding:32px height:118px` |
+| `header > div` | 1280 | `padding:24px height:88px` | `padding:32px height:118px` | `padding:32px height:118px` |
+| `#nuestra-historia > div` | 1440 | `padding:24px` | `padding:32px` | `padding:32px` |
+| `#nuestra-historia > div` | 1280 | `padding:24px` | `padding:32px` | `padding:32px` |
+
+Las cuatro filas del DESPUÉS coinciden EXACTO con el prototipo. La altura de `#nuestra-historia`
+difiere del prototipo en las dos columnas (contenido dinámico real vs. demo estática del
+prototipo) — no es parte de este fix, ya declarado como fuera de alcance por
+`PARIDAD-ANCHO-CONTENIDO-1`.
+
+**No se capturó el mega-menu ABIERTO** (el arnés no simula clics, sólo navega y lee
+`getComputedStyle` de un selector): la verificación de §4 es por REVISIÓN DE CÓDIGO + reuso de la
+MISMA variable ya verificada en el header (`navContenedorClase`), no por captura de pantalla del
+panel desplegado. Queda declarado como límite, no como paso omitido.
+
+**LÍMITE MEDIDO: `npm run verificar:nayoli:visual` (y su gemelo `verificar:nayoli`) NO se
+ejecutaron.** Los dos crean un `git worktree` de `main` (`spawnSync("git",["worktree","add",...])`,
+`scripts/verificar-nayoli-visual.ts:455`) y este slice corrió bajo un dispatch que prohíbe crear
+worktrees explícitamente. La verificación de "Nayoli byte-idéntica" se hizo por la vía que SÍ
+estaba disponible: `contenedorAnchoClase(false)` se afirma sin cambios en dos tests (`contenedor-
+ancho.test.ts`, `cromo-nav-tratamiento.test.ts`), `navFilaAltoClase` para `posicion:false`
+(`'h-16 lg:h-18'`) no se tocó una sola línea, y el mega-menu para `posicion:false` resuelve al
+MISMO literal byte a byte (§4) — los tres puntos que Nayoli (preset ausente → `posicion:false`)
+podría tocar quedan cubiertos por el diff mismo, no por una captura de pantalla. Ningún breakpoint
+global (`sm`, `duna`, ni ningún otro) cambió de valor — sólo se agregaron comentarios (sin efecto en
+CSS compilado) y se reescribieron DOS literales que sólo aplican bajo `posicion:true` (CORTE).
+open_followup **ninguno** — no se propone repetir la corrida cuando la restricción de worktree se
+levante, porque la cobertura mecánica (dos tests + revisión de diff) ya cierra el caso; si algún
+día se quiere el 0px formal de la captura, correrlo es del owner o de una sesión sin esa
+restricción, no una deuda de este slice.
+
+### 8 · Gate
+
+| comando | resultado |
+| --- | --- |
+| `npm run typecheck` | limpio, sin errores |
+| `npm test` | **2516/2516** |
+| `npm run test:integracion` | **240/240** |
+
+### Símbolos/archivos que este diff cambió, contra `CLAUDE.md`
+
+`contenedorAnchoClase`, `navFilaAltoClase`, `navContenedorClase` (sin cambio, sólo nuevo
+consumidor), el mega-menu de `StoreNav.tsx`, el hint de "Posición del encabezado"
+(`EncabezadoSeccion.tsx`), `--breakpoint-duna`/`--breakpoint-cortenav` (comentario, sin cambio de
+valor). `grep` de cada uno contra `CLAUDE.md`: **CERO coincidencias** — ninguno de estos símbolos
+se menciona en `CLAUDE.md`; toda esta doctrina vive en `DECISIONS.md`. **Nada en `CLAUDE.md` queda
+falso por este diff.**
+
+### Verdict
+
+**AWAITING_APPROVAL.** El diff cambia el ancho/margen/altura del encabezado y el mega-menu, y el
+ancho de las bandas, bajo CORTE —bytes que un visitante de esa tienda lee— así que falla
+`customer-bytes` de merge policy A, igual que su predecesor. El owner ya aprobó la ESCRITURA (§
+`approval-reason` del spec, 2026-09-29, el mismo texto que autorizó los slices anteriores de esta
+racha) — el MERGE sigue gateado aparte.
+
+**Cierra `PARIDAD-CORTENAV-CASCADA-1`, `PARIDAD-ANCHO-MEGAMENU-1` y `PARIDAD-ANCHO-HINT-ENCABEZADO-1`.**

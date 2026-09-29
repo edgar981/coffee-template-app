@@ -31,7 +31,18 @@
 
      No es un token de marca ni entra al storefront por la puerta de atrás: una
      variante que nadie usa no genera CSS. Se llama `duna` porque nombra al
-     sistema que es dueño del número, no a la app. */
+     sistema que es dueño del número, no a la app.
+
+     § PARIDAD-CORTENAV-CASCADA-1 — CENSADO, SIN el defecto de abajo: `duna:`
+     nunca combina con `sm:`/`md:`/`lg:`/`xl:`/`2xl:` sobre la MISMA propiedad
+     en ningún consumidor (`Sidebar.tsx`, `TopBar.tsx`, `AdminChrome.tsx` —
+     siempre contra una clase SIN variante, sin condición competidora), así que
+     este breakpoint no sufre el bug que `--breakpoint-cortenav` sí sufría (ver
+     abajo) y no necesita la misma pieza. Si algún día `duna:` gana un
+     consumidor que SÍ lo combine con un breakpoint estándar sobre la misma
+     propiedad, esa combinación necesita el mismo tratamiento: expresar el paso
+     MENOR como variante arbitraria en `px` (p.ej. `min-[768px]:`), nunca el
+     nombre estándar (`md:`) — ver el porqué abajo. */
   --breakpoint-duna: 960px;
 
   /* ── EL BREAKPOINT DEL NAV DE CORTE ────────────────────────────────────────
@@ -40,12 +51,50 @@
      --page-gutter:24px}}`) — el punto donde el prototipo local reescribe la
      geometría del encabezado de CORTE (§ CROMO-NAV-EXACTO-PROTOTIPO-1,
      `navTratamiento.posicion`, `StoreNav.tsx`). No coincide con ningún
-     breakpoint nuestro (`lg`=1024, `xl`=1280) — su hermano de 640px SÍ coincide
-     con `sm` de Tailwind y no necesita nombre propio.
+     breakpoint nuestro (`lg`=1024, `xl`=1280) — su hermano de 640px coincide EN
+     VALOR con `sm` de Tailwind, pero NO se expresa como `sm:` en los dos
+     consumidores que combinan ambos pasos sobre la misma propiedad — ver el
+     porqué abajo (§ PARIDAD-CORTENAV-CASCADA-1).
 
      Mismo patrón que `--breakpoint-duna` arriba: se nombra al EJE que es dueño
      del número (el nav de este preset), no a la app. Una variante que nadie usa
-     no genera CSS, así que no toca a ningún otro tenant. */
+     no genera CSS, así que no toca a ningún otro tenant.
+
+     § PARIDAD-CORTENAV-CASCADA-1 — EL HALLAZGO (medido compilando este archivo
+     con `@tailwindcss/postcss` en aislamiento, capa 1, sin `next build`, y
+     confirmado antes contra el CSS COMPILADO de un `next build` real, §
+     DECISIONS.md PARIDAD-ANCHO-CONTENIDO-1 §4): Tailwind v4 AGRUPA las
+     variantes de ancho por la UNIDAD del valor declarado (`px` vs `rem`), NO
+     por su magnitud resuelta en píxeles. Todo breakpoint declarado en `px`
+     —este archivo, y cualquier variante arbitraria `min-[Npx]:`— cae en UN
+     bloque de la hoja compilada, ordenado ASCENDENTE por valor; el scale POR
+     DEFECTO de Tailwind (`sm`/`md`/`lg`/`xl`/`2xl`, declarado en `rem` en
+     `node_modules/tailwindcss/theme.css`) cae en OTRO bloque, también
+     ascendente, que la hoja emite COMPLETO DESPUÉS del bloque `px` — sin
+     importar la magnitud relativa ENTRE los dos bloques (960px y 1200px, pese
+     a caer numéricamente entre `sm`/`md`/`lg`, se emiten ANTES de los tres).
+     Con igual especificidad, la regla que aparece DESPUÉS en la hoja gana la
+     cascada — por eso `sm:px-6` (rem, bloque tardío) le ganaba a
+     `cortenav:px-8` (px, bloque temprano) a cualquier viewport ≥1200px.
+
+     PROBADO Y DESCARTADO: reordenar la declaración de `--breakpoint-cortenav`/
+     `--breakpoint-duna` en este `@theme` (incluso con `--breakpoint-*: initial`
+     para resetear el namespace primero) NO cambia el bloque de emisión — el
+     criterio es la UNIDAD del valor, no el orden textual de declaración ni si
+     la clave ya existía en el scale por defecto.
+
+     EL FIX no toca estas dos declaraciones: vive en los DOS consumidores que
+     combinaban `sm:` con `cortenav:` sobre la misma propiedad
+     (`contenedorAnchoClase`, `lib/config/themes.ts`; `navFilaAltoClase`,
+     `components/storefront/layout/StoreNav.tsx`) — el paso de 640px se
+     reescribió como `min-[640px]:` (variante arbitraria en `px`, EXACTA a
+     `sm`=40rem a la raíz de 16px por defecto), que cae en el MISMO bloque que
+     `cortenav:` y ordena correctamente. Es el MISMO patrón que
+     `components/storefront/home/Spotlight.tsx` ya usaba para su propia
+     grilla (`min-[820px]:`/`min-[1200px]:`, sin `sm:`/`lg:`) — no un mecanismo
+     nuevo. `--breakpoint-sm` NUNCA se redefine acá: el resto del storefront y
+     del panel, todo `sm:`/`md:`/`lg:`/`xl:`/`2xl:` fuera de esos dos literales,
+     queda byte-idéntico. */
   --breakpoint-cortenav: 1200px;
 
   /* Fonts */

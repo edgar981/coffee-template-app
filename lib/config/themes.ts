@@ -303,10 +303,12 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * POSICION-TEMA-REAL-1) — ¿el contenedor de contenido del encabezado toma la GEOMETRÍA del
  * PROTOTIPO LOCAL (`docs/prototipos/cafeone/`, no el tema real — ver la corrección abajo): más
  * ancho —`max-w-[1440px]` en vez de `max-w-6xl`, el `--content-max` EXACTO del prototipo— y con el
- * MISMO margen lateral por breakpoint que ya alinea el wordmark/CTA —`px-[18px] sm:px-6
- * cortenav:px-8` (18/24/32px, `--page-gutter` medido en sus tres breakpoints) en vez de `px-4
+ * MISMO margen lateral por breakpoint que ya alinea el wordmark/CTA —`px-[18px] min-[640px]:px-6
+ * cortenav:px-8` (18/24/32px, `--page-gutter` medido en sus tres breakpoints; `min-[640px]:`, no
+ * `sm:` — § PARIDAD-CORTENAV-CASCADA-1, el fix de la cascada contra `cortenav:`) en vez de `px-4
  * sm:px-6 lg:px-8`—, y con ALTURA FIJA que crece por breakpoint en vez de derivarse del contenido
- * —`h-[76px] sm:h-[88px] cortenav:h-[118px]` (`--header-height` medido) en vez de `h-16 lg:h-18`—?
+ * —`h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]` (`--header-height` medido) en vez de `h-16
+ * lg:h-18`—?
  * AUSENTE = el comportamiento de HOY, byte a byte.
  *
  * LA CORRECCIÓN: `CROMO-NAV-POSICION-TEMA-REAL-1` había medido esto contra el TEMA REAL
@@ -1264,9 +1266,10 @@ export const CORTE: PresetTema = {
   // 1200px` (`app/globals.css`, mismo patrón que `--breakpoint-duna:960px` del admin).
   //
   // El contenedor MEDIDO reemplaza `max-w-6xl` (1152px) + `px-4 sm:px-6 lg:px-8` por
-  // `max-w-[1440px]` + `px-[18px] sm:px-6 cortenav:px-8` (18/24/32px, `--page-gutter` en sus tres
-  // breakpoints, mobile-first); y la fila reemplaza la altura fija `h-16 lg:h-18` por
-  // `h-[76px] sm:h-[88px] cortenav:h-[118px]` (`--header-height` en sus tres breakpoints) — sigue
+  // `max-w-[1440px]` + `px-[18px] min-[640px]:px-6 cortenav:px-8` (18/24/32px, `--page-gutter` en
+  // sus tres breakpoints, mobile-first; `min-[640px]:`, no `sm:` — § PARIDAD-CORTENAV-CASCADA-1);
+  // y la fila reemplaza la altura fija `h-16 lg:h-18` por
+  // `h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]` (`--header-height` en sus tres breakpoints) — sigue
   // siendo ALTURA FIJA, no relleno, sólo que ahora crece a los valores REALES del muestrario en vez
   // de a los del tema real. El FILETE (`navTratamiento.filete`, arriba) se movió de este mismo
   // contenedor a la FILA interior en el mismo commit (§ CROMO-NAV-EXACTO-PROTOTIPO-1): el
@@ -1474,44 +1477,54 @@ export const PRESETS: readonly PresetTema[] = [PLIEGO, CORTE, PATIO, VETA, VITRI
 //    (§ el censo de consumidores, DECISIONS.md). Ensanchar el CONSUMIDOR de un campo de
 //    `navTratamiento` sin ensanchar su NOMBRE es el patrón ya establecido, no uno nuevo.
 //
-// DEUDA DECLARADA, no cerrada acá: el hint del picker en `EncabezadoSeccion.tsx` ("Posición del
-// encabezado" — "El encabezado se abre hacia los costados y con más espacio vertical…") sigue
-// describiendo SÓLO el header. Con este slice, apagar/encender ese ÚNICO control TAMBIÉN
-// redimensiona cada banda — el hint queda INCOMPLETO (no FALSO: todo lo que dice sigue pasando),
-// pero no dice todo lo que pasa. Corregirlo exige tocar `EncabezadoSeccion.tsx`, fuera de
-// `touches:` de este slice — open_followup `PARIDAD-ANCHO-HINT-ENCABEZADO-1`.
+// EL HINT del picker en `EncabezadoSeccion.tsx` ya dice que este control TAMBIÉN redimensiona cada
+// banda (§ PARIDAD-ANCHO-HINT-ENCABEZADO-1, CERRADO en `PARIDAD-CORTENAV-CASCADA-1`) — no sólo el
+// header, como decía antes de esa corrección.
 //
 // `false` (TODO tenant salvo CORTE) = el contenedor de HOY, BYTE A BYTE: `max-w-6xl` (1152px) +
 // `px-4 sm:px-6 lg:px-8` (16/24/32px responsivo). `true` (CORTE) = la geometría EXACTA del
 // prototipo, MEDIDA — el MISMO literal que `StoreNav.tsx` ya usaba para su propio contenedor
 // (`navContenedorClase`, refactorizado en este slice para llamar a esta función en vez de duplicar
-// el ternario): `max-w-[1440px]` (`--content-max` exacto) + `px-[18px] sm:px-6 cortenav:px-8`
-// (18/24/32px, los TRES valores de `--page-gutter` medidos, mobile-first; `cortenav` =
-// `--breakpoint-cortenav:1200px`, `app/globals.css`, el mismo breakpoint con nombre que ya usaba
+// el ternario): `max-w-[1440px]` (`--content-max` exacto) + `px-[18px] min-[640px]:px-6
+// cortenav:px-8` (18/24/32px, los TRES valores de `--page-gutter` medidos, mobile-first; `cortenav`
+// = `--breakpoint-cortenav:1200px`, `app/globals.css`, el mismo breakpoint con nombre que ya usaba
 // `navContenedorClase`).
 //
-// NO incluye la ALTURA fija (`navFilaAltoClase` en `StoreNav.tsx`, `h-[76px] sm:h-[88px]
+// NO incluye la ALTURA fija (`navFilaAltoClase` en `StoreNav.tsx`, `h-[76px] min-[640px]:h-[88px]
 // cortenav:h-[118px]`): esa mitad es EXCLUSIVA del `<header>` — centrado por flex, altura fija —, y
 // ninguna banda tiene esa forma (usan `py-*`, alto derivado del contenido). Sólo el ANCHO/RELLENO
 // es el eje compartido; StoreNav.tsx sigue calculando su propia altura aparte.
 //
-// DEFECTO PRE-EXISTENTE MEDIDO, no de esta función — QUEDA ESCRITO PARA QUE NO SE RE-DIAGNOSTIQUE:
-// a viewports ≥1200px el `padding-inline` REAL que rinde `true` NO es 32px como dice el literal
-// —es 24px, el valor de `sm:`—. Medido contra el muestrario YA desplegado (§ DECISIONS.md,
-// PARIDAD-ANCHO-CONTENIDO-1): `header > div` en producción da `padding-left:24px` a 1440px viewport,
-// no los 32px que `cortenav:px-8` declara, y lo MISMO le pasa a `cortenav:h-[118px]` (rinde 88px).
-// CAUSA, confirmada leyendo el CSS COMPILADO (no supuesta): Tailwind emite `.cortenav\:px-8` DENTRO
-// de un bloque `@media (min-width:1200px)` que aparece ANTES en el archivo que el bloque
-// `@media (min-width:40rem)` que trae `.sm\:px-6` — a cualquier viewport ≥1200px las DOS media
-// queries están activas a la vez, y con igual especificidad la regla que aparece DESPUÉS en la hoja
-// gana la cascada: `sm:px-6` le gana a `cortenav:px-8`. Este archivo REUSA el literal de
-// `navTratamiento.posicion` tal cual —no lo repara—, así que HEREDA el defecto: bandas y encabezado
-// quedan CONSISTENTES entre sí (ambos en 24px a ≥1200px), pero ninguno de los dos iguala el 32px del
-// prototipo en ese rango. Reparar esto es una decisión de ALCANCE distinto (toca el ORDEN en que
-// Tailwind v4 registra `--breakpoint-cortenav`/`--breakpoint-duna` frente al scale por defecto, con
-// consumidores fuera de `touches:` de este slice) — open_followup `PARIDAD-ANCHO-CORTENAV-CASCADA-1`.
+// `min-[640px]:`, NO `sm:` — EL FIX de `PARIDAD-ANCHO-CORTENAV-CASCADA-1`, CERRADO. El defecto
+// medido en `PARIDAD-ANCHO-CONTENIDO-1` (§ DECISIONS.md): a viewports ≥1200px el `padding-inline`
+// REAL que rendía `true` NO era 32px como decía el literal —era 24px, el valor de `sm:`—, porque
+// Tailwind v4 emite `.cortenav\:px-8` (declarado en `px`) dentro de un bloque que aparece ANTES, en
+// la hoja compilada, que el bloque `.sm\:px-6` (declarado en `rem` — el DEFAULT de `--breakpoint-sm`
+// en `node_modules/tailwindcss/theme.css`) trae; con igual especificidad, la regla que aparece
+// DESPUÉS en la hoja gana, y `sm:px-6` ganaba.
+//
+// LA CAUSA (medida compilando `app/globals.css` con `@tailwindcss/postcss` en aislamiento, capa 1,
+// sin `next build`): Tailwind AGRUPA las variantes de ancho por la UNIDAD del valor declarado, no
+// por su magnitud resuelta en píxeles. Todo breakpoint declarado en `px` —`--breakpoint-duna:960px`,
+// `--breakpoint-cortenav:1200px`, y cualquier variante arbitraria `min-[Npx]:`— cae en UN bloque,
+// ordenado ASCENDENTE por su valor; todo breakpoint declarado en `rem` —el scale por defecto de
+// Tailwind, `sm`/`md`/`lg`/`xl`/`2xl`— cae en OTRO bloque, también ascendente, que la hoja emite
+// COMPLETO DESPUÉS del bloque `px`, sin importar la magnitud relativa entre bloques. Reordenar la
+// declaración de `--breakpoint-cortenav`/`--breakpoint-duna` en `@theme` (incluso con
+// `--breakpoint-*: initial` para forzar un reset del namespace) NO cambia esto — se probó y se
+// midió sin efecto — porque el criterio de bucketeo es la UNIDAD del valor, no el orden textual de
+// declaración.
+//
+// EL FIX: la MENOR de las dos (el paso de 640px que hoy `sm:` expresa) se re-declara como variante
+// ARBITRARIA en `px` (`min-[640px]:`, EXACTO a `sm`=40rem a la raíz de 16px por defecto) — así cae
+// en el MISMO bloque `px` que `cortenav:`, ordenada ANTES por su valor menor (640 < 1200), y la
+// cascada la resuelve correctamente. Es el MISMO patrón que `Spotlight.tsx` ya usaba para su propia
+// grilla (`min-[820px]:` + `min-[1200px]:`, sin tocar `sm:`/`lg:`) — no un mecanismo nuevo. `sm:`
+// NO se toca en NINGÚN otro sitio del repo (censo: `grep -rn "sm:"` fuera de estas dos funciones no
+// combina `sm:` con `duna:`/`cortenav:` sobre la MISMA propiedad), así que el resto del storefront y
+// del panel quedan byte-idénticos — `--breakpoint-sm` en sí NUNCA se redefine.
 export function contenedorAnchoClase(posicion: boolean): string {
   return posicion
-    ? 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8'
+    ? 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8'
     : 'max-w-6xl px-4 sm:px-6 lg:px-8';
 }
