@@ -32826,3 +32826,92 @@ spec: el mismo gate del 2026-09-29 que nombró estos siete consumidores como pen
 `CTA-HOVER-RESTO-FAMILIA-1`) — el MERGE sigue gateado aparte.
 
 **Cierra `CTA-HOVER-CENSO-FINAL-1` y `ACENTO-2-3-HOVER-HUE-SHIFT-2`.**
+
+## 2026-09-29 — El diff visual que dos slices no pudieron correr, corrido: 0px (`VERIFICAR-NAYOLI-TRAS-CTA-1`)
+
+`CTA-HOVER-RESTO-FAMILIA-1` y `CTA-HOVER-CENSO-FINAL-1` (arriba) no corrieron
+`npm run verificar:nayoli:visual` porque las dos sesiones operaron bajo una instrucción del
+orquestador que prohibía crear un `git worktree`, y ese script crea uno de `main` como parte de su
+propio mecanismo (§ su cabecera, `prepararWorktreeMain`). Las dos corrieron `npm run guarda:color`
+en su lugar — que diffea contra el fixture COMMITEADO en `tests/visual/nayoli/`, no contra `main` en
+vivo — y dejaron escrito el riesgo residual: "no cubre la posibilidad de que el fixture mismo esté
+desactualizado respecto de `main`". Este slice existe para cerrar exactamente ese hueco, corriendo el
+diff real, `main` (`9a7ab97`) contra la rama (`66947be`).
+
+### Corrida
+
+```
+$ npm run verificar:nayoli:visual
+```
+
+Postgres efímero propio (:55439) → `migrate deploy` + `prisma/seed.ts` (identidad real de Nayoli) →
+5 productos sintéticos (los estados de `ProductCard` que el catálogo canónico no cubre) → worktree de
+`main` en `.scratch/verificar-nayoli-visual-main` (detached, `9a7ab97`) → `next build` + `next start`
+de `main` (:3493) → captura de las 6 rutas + settle → `next build` + `next start` de la rama (:3494,
+`66947be`) → misma captura → diff de píxeles con `pixelmatch`, dos pasadas (consciente de
+antialiasing e `includeAA:true` crudo).
+
+### Resultado medido — 0px en las 6 rutas + los 2 hovers, en las dos pasadas
+
+| clave | AA-consciente | crudo (`includeAA:true`) |
+| --- | --- | --- |
+| `ruta:home` | 0/4.608.000 px | 0 |
+| `ruta:tienda` | 0/2.433.280 px | 0 |
+| `ruta:producto` | 0/2.535.680 px | 0 |
+| `ruta:checkout` | 0/1.152.000 px | 0 |
+| `ruta:nosotros` | 0/1.152.000 px | 0 |
+| `ruta:suscripciones` | 0/2.144.000 px | 0 |
+| `hover:automatica` | 0/98.298 px | 0 |
+| `hover:eleccion` | 0/102.870 px | 0 |
+
+**IDÉNTICO en las ocho, en las dos pasadas** (ni siquiera antialiasing detectado). `process.exitCode`
+del script: `0`. Fuente: salida completa capturada en
+`/private/tmp/claude-501/.../tasks/bo2falbrv.output` — reproducida arriba con el conteo de píxeles
+tal cual el script lo imprimió.
+
+Cubre en una sola corrida lo que `CTA-HOVER-RESTO-FAMILIA-1` (StoreNav, Spotlight,
+`pdp-botones.ts`) y `CTA-HOVER-CENSO-FINAL-1` (los siete consumidores restantes: rastrear pedido,
+checkout ida y retorno, newsletter, `FormularioTarjeta`, `FormularioOtroMetodoPasarela`, el plan
+destacado de suscripciones) cambiaron — Nayoli no tiene `whatsapp`/config custom que la saque de
+"defaults sin preset", así que ninguno de esos cambios de hover/active toca un solo píxel de lo que
+Nayoli renderiza. El fixture commiteado que `guarda:color` venía usando en su lugar resultó estar al
+día con `main`: el riesgo residual que las dos entradas anteriores dejaron escrito no se materializó.
+
+### `npm test` — se corrió para dejar constancia de que la rama sigue verde
+
+```
+ℹ tests 2587
+ℹ pass 2587
+ℹ fail 0
+```
+
+**2587/2587**, mismo número que reportó `CTA-HOVER-CENSO-FINAL-1` — la rama no se tocó entre esa
+entrada y ésta, así que el número coincidir es lo esperado, no una re-verificación de otra cosa.
+`npm run test:integracion` y `npm run guarda:color` **no se corrieron en esta tanda**: el spec pide
+específicamente el diff visual contra `main` (lo que faltaba) más `npm test` (constancia de verde);
+las otras dos capas ya están corridas y reportadas en las dos entradas que ésta cubre, sin cambios de
+código entre medio que las pudieran invalidar.
+
+### El worktree — creado y removido por el propio script, sin intervención manual
+
+`git worktree add --detach .scratch/verificar-nayoli-visual-main main` lo ejecuta
+`scripts/verificar-nayoli-visual.ts` como parte de correr `npm run verificar:nayoli:visual` — exactamente
+la excepción que el dispatch de este slice declaró por adelantado ("los scripts del repo que usan uno
+SÍ se corren — es lo que este slice existe para hacer"). El propio script lo remueve en su `finally`
+(`quitarWorktreeMain`); verificado después de la corrida: `git worktree list` sólo lista el árbol de
+trabajo principal, sin residuo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Este diff sólo toca `DECISIONS.md` — no hay símbolo ni archivo de código para grepear. Se grepeó
+igual el nombre del script y los IDs que esta entrada cierra
+(`verificar:nayoli:visual`, `VERIFICAR-NAYOLI-TRAS-CTA-1`, `CTA-HOVER-CENSO-FINAL-1`,
+`CTA-HOVER-RESTO-FAMILIA-1`) contra `CLAUDE.md`: **cero coincidencias para los cuatro.** Nada en
+`CLAUDE.md` nombra este script ni estos IDs de ledger.
+
+### Verdict
+
+**COMPLETE.** El diff de este slice es prosa en `DECISIONS.md` — sin schema, sin bytes de cliente,
+sin contrato cruzado — así que pasa las tres condiciones de merge policy A limpio.
+
+**Cierra `VERIFICAR-NAYOLI-TRAS-CTA-1`.**
