@@ -31361,3 +31361,53 @@ este commit fuera puramente interno. Commiteado en `slice/corte-reescritura-prot
 sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `ADMIN-TIENDA-CARTPROVIDER-PREVIEW-1`.**
+
+## 2026-09-29 — Censo de paridad muestrario (Café Onix, tema CORTE) vs. prototipo, lado a lado (`CENSO-PARIDAD-MUESTRARIO-1`)
+
+**No escribe código.** Documento completo en `docs/paridad/muestrario-vs-prototipo.md`. Capturó
+cada sección de la home y la ficha de producto del muestrario DESPLEGADO
+(`coffee-template-app-onix.vercel.app`, contenido real del tenant, catálogo de 4 productos) contra
+el prototipo versionado, a 1440×900 y 390×844, vía `npm run capturar:seccion -- --url …` (8
+invocaciones, sin Postgres efímero ni build local).
+
+**Recuento por tipo** (filas con hallazgo real, sin contar las "coincide"/"ya decidido"): 13
+CONTENIDO, 6 DECISIÓN, 5 CÓDIGO (agrupadas en 3 slices propuestos) — 24 filas de diferencia, sobre
+9 secciones + la ficha de producto.
+
+**Recuento por quién resuelve:**
+- **CÓDIGO** (§6.1 del documento): `PDP-BOTONES-JERARQUIA-1` (los dos CTA de la ficha tienen color/
+  jerarquía invertidos respecto al prototipo, Y respecto al propio botón "Agregar al carrito" de
+  Spotlight en la home — misma etiqueta, dos colores distintos en el mismo sitio); `PDP-PERFIL-
+  SABOR-1` (capacidad nueva, ausente: barras de Dulzura/Amargor/Acidez); `FOOTER-WATERMARK-MAPA-1`
+  (watermark tipográfico y tarjeta de mapa del pie, sin doctrina que los excluya a diferencia del
+  newsletter, que sí está decidido en v1).
+- **CONTENIDO**: la mitad de los hallazgos son campos vacíos del panel, no bugs — `spotlight.
+  eyebrow/titulo/badge` y `notasCata` del producto (Spotlight se ve incompleto); `presentaciones.
+  imagen1/imagen2` vacías (las tarjetas del riel se ven sin foto); **`presentaciones.categoria1/2`
+  apuntan a `"Clásico"`/`"Especial"`, que NO existen en el catálogo real** (las categorías reales
+  son "Café en Grano"/"Café Molido") — las dos tarjetas del riel no llevan a ningún producto al
+  hacer clic, el hallazgo de mayor impacto de todo el censo porque rompe el flujo de compra; los 4
+  pares de dato y los 3 contadores de Origen, vacíos (la sección se ve incompleta pese a que el
+  código ya soporta la paridad completa con el prototipo, `Origen.tsx` tiene `datosDeOrigen`/
+  `statsDeOrigen` construidos); el acento faltante en "Nuestro café" del menú.
+- **DECISIÓN**: 6 preguntas de producto (selector de moneda, ícono de cuenta, cantidad de ítems del
+  menú, buscador en móvil, 3 vs 4 fotos en el collage de Historia, si la ficha de producto repite
+  la banda de Origen) — todas con al menos dos opciones y su costo, en §6.3 del documento.
+
+**El límite de método más caro de medir, y el que más tiempo llevó** (§0.1 del documento): el arnés
+de captura asienta animaciones revisando la cadena de ANCESTROS del selector fotografiado, nunca sus
+descendientes — tres secciones (`presentaciones`, `historia`, `origen`) animan con `motion.div` hijos
+independientes, así que sus capturas "en reposo" mostraban texto en opacidad baja, y el "mid-scroll"
+oficial del arnés sobre el header/hero dio capturas en blanco (el propio `scrollIntoView` final del
+arnés re-centra el selector y pisa el `--scroll` pedido). Verificado con un script de Playwright de
+SOLO LECTURA (scroll incremental real, sin tocar código) que el contenido asienta correctamente con
+scroll natural — ningún hallazgo del documento se apoya en una captura con opacidad sin asentar sin
+haberla contrastado contra la versión asentada.
+
+**Gate:** `npm test` → 2488/2488, 0 fallos, sobre el HEAD de la rama (`30e664f`) sin tocar código.
+
+**Verdicto: COMPLETE.** El diff (el documento + este asiento) no toca schema, no es un contrato
+cross-repo, y es texto interno del repositorio (no bytes que un cliente/operador/dueño lea en el
+producto) — pasa merge policy A limpio.
+
+**Cierra `CENSO-PARIDAD-MUESTRARIO-1`.**
