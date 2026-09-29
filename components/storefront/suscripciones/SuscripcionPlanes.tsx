@@ -106,7 +106,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     href={interesHref(plan.nombre)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
+                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
                   >
                     {c.ctaLabel} <ArrowRight className="w-4 h-4" />
                   </a>

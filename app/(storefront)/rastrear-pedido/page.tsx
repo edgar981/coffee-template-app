@@ -132,7 +132,7 @@ function OrderTrackingInner() {
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)] font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-2 bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] text-[var(--sf-acento-txt)] font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
             >
               <Search className="w-4 h-4" /> {loading ? 'Buscando...' : 'Buscar'}
             </button>

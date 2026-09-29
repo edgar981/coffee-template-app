@@ -330,7 +330,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
             type="button"
             onClick={handlePagar}
             disabled={!aceptado || procesando}
-            className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
+            className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
           >
             {procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
           </button>

@@ -32696,3 +32696,133 @@ nombró estos tres consumidores como fuera del alcance de `CTA-PRIMARIO-COLOR-Y-
 sigue gateado aparte.
 
 **Cierra `CTA-HOVER-RESTO-FAMILIA-1` y `ACENTO-2-3-HOVER-HUE-SHIFT-1`.**
+
+## 2026-09-29 — Los últimos siete botones rojos del storefront cierran la familia entera del hover/active oscurecido (`CTA-HOVER-CENSO-FINAL-1`)
+
+Cierra `ACENTO-2-3-HOVER-HUE-SHIFT-2` (open_followup de `CTA-HOVER-RESTO-FAMILIA-1`, arriba): los
+SIETE consumidores que ese slice censó y dejó fuera de `touches:` —todos con el mismo patrón
+`bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)]`, SIN `active:` propio— pasan al par
+`--sf-accion-hover`/`--sf-accion-active` ya construido en `palette-derive.ts`. El mecanismo
+(`oscurecer()` en OKLCH, factores 0.85/0.74) no se recalculó: ya existía y está probado desde
+`CTA-HOVER-RESTO-FAMILIA-1`.
+
+### Los siete sitios migrados
+
+| archivo | hover (antes → después) | active (antes → después) |
+| --- | --- | --- |
+| `app/(storefront)/rastrear-pedido/page.tsx:135` (Buscar) | `--sf-acento-3` → `--sf-accion-hover,var(--sf-tostado-4)` | *(ninguno)* → `--sf-accion-active,var(--sf-tostado-3)` |
+| `app/(storefront)/checkout/retorno/RetornoCliente.tsx:222` | ídem | ídem |
+| `app/(storefront)/checkout/page.tsx:805` (enviar el pedido) | ídem | ídem |
+| `components/storefront/home/Newsletter.tsx:22` (Suscribir) | ídem | ídem |
+| `components/storefront/checkout/FormularioTarjeta.tsx:626` | ídem | ídem |
+| `components/storefront/checkout/FormularioOtroMetodoPasarela.tsx:333` | ídem | ídem |
+| `components/storefront/suscripciones/SuscripcionPlanes.tsx:109` (plan destacado) | ídem | ídem |
+
+**LOS SIETE GANAN `active:` DE CERO** — a diferencia de los cuatro de `CTA-HOVER-RESTO-FAMILIA-1`
+(StoreNav/Spotlight ya traían `active:bg-[var(--sf-acento-2)]`; `PRIMARIO_CORTE` también), el censo
+de ese slice ya había anotado "sin `active:` en ninguno de los siete". Se agrega junto con el hover,
+porque el spec de este slice lo pide explícito ("Pasalos al hover y al active de la familia") y
+porque dejar sólo el hover migrado habría dejado un active fantasma (sin clase `active:`, el navegador
+sigue mostrando el `hover:` mientras el dedo está presionado en táctil, o simplemente no oscurece más
+al hacer click en desktop) — la MISMA inconsistencia visual que el resto de la familia ya cerró.
+
+**El TEXTO no se tocó, y no hacía falta.** Los siete ya usaban `text-[var(--sf-acento-txt)]` —
+correcto desde antes de esta familia (`PARIDAD-PDP-BOTONES-1`/`CROMO-NAV-CTA-Y-BADGE-1`)—, no
+`--sf-tinta`. Y `accion-txt` = `acento-txt` LITERAL cuando `origenAccion:'acento'`
+(`palette-derive.ts:428`), así que no hay divergencia entre los dos nombres bajo CORTE: son el mismo
+valor.
+
+**`SuscripcionPlanes.tsx:109` es un ternario con DOS ramas — sólo la de `plan.destacado` cambia.** La
+rama `plan.destacado` es el CTA rojo relleno (el botón primario del plan resaltado); la rama else es
+el CTA outline (borde `--sf-acento`, texto `--sf-acento`, hover rellena a `--sf-acento` CRUDO) —
+mismo patrón que `SECUNDARIO_CORTE` en `pdp-botones.ts` (el prototipo mismo rellena su botón
+secundario al `--action-primary` crudo, no a un matiz `-hover`). La rama else NO se tocó: no es un
+botón rojo con hover marrón, es un botón outline cuyo hover ya era correcto.
+
+**El BACKGROUND en reposo (`bg-[var(--sf-acento)]`) NO se tocó en ninguno de los siete** — igual que
+en `StoreNav`/`Spotlight`/`pdp-botones.ts`: el rol de fondo no cambió, sólo hover/active.
+
+### El grep final — cero botones rojos con el patrón viejo
+
+```
+$ grep -rn 'hover:bg-\[var(--sf-acento-3)\]\|active:bg-\[var(--sf-acento-2)\]\|hover:bg-\[var(--sf-tostado-4)\]' --include='*.tsx' --include='*.ts' . | grep -v node_modules | grep -v .next
+lib/config/cta-primario.test.ts:30:// `hover:bg-[var(--sf-tostado-4)]`) antes de este slice, medido con
+lib/config/cta-primario.test.ts:85:// `text-[var(--sf-acento-txt)]` ya correcto, `hover:bg-[var(--sf-acento-3)]` SIN `active:` propio
+lib/config/cta-primario.test.ts:86:// — a diferencia de StoreNav/Spotlight, que ya traían `active:bg-[var(--sf-acento-2)]` antes de
+lib/config/cta-primario.test.ts:126:    assert.doesNotMatch(src, /hover:bg-\[var\(--sf-acento-3\)\]/, ...);
+lib/config/cta-primario.test.ts:127:    assert.doesNotMatch(src, /active:bg-\[var\(--sf-acento-2\)\]/, ...);
+lib/config/cta-primario.test.ts:132:// `hover:bg-[var(--sf-tostado-4)]` A SECAS (sin el fallback...
+lib/config/cta-primario.test.ts:151:test('barrido: ningún .tsx de components/storefront/ o app/(storefront)/ conserva `hover:bg-[var(--sf-tostado-4)]`...
+```
+
+**CERO coincidencias fuera del propio test** — las únicas apariciones de los tres patrones viejos son
+comentarios explicativos y literales de regex dentro de `cta-primario.test.ts`, que es justo el
+archivo que los prohíbe. Ningún `.tsx`/`.ts` del storefront pinta un botón rojo con el mecanismo
+viejo. `FeaturedProductsCuadricula.tsx`/`FeaturedProductsGrilla.tsx` (`hover:text-[var(--sf-acento-3)]`
+sobre un link de texto, no el fondo de un botón) siguen fuera del alcance por la misma razón que
+`CTA-HOVER-RESTO-FAMILIA-1` ya las nombró y excluyó — no son "un botón que se ve marrón".
+
+### El test — `cta-primario.test.ts`, `CONSUMIDORES_HOVER_ACTIVE` de 2 a 9
+
+Los siete se sumaron al MISMO array `CONSUMIDORES_HOVER_ACTIVE` que ya cubría StoreNav/Spotlight
+(mismo sub-patrón: fondo `--sf-acento` crudo, texto `--sf-acento-txt` ya correcto, sólo hover/active
+migran) — no se creó un tercer array. Los dos barridos exhaustivos (`--sf-accion-hover` no aparece
+fuera de `CONSUMIDORES`+`CONSUMIDORES_HOVER_ACTIVE`+`palette-derive.ts`; `--sf-accion-active` no
+aparece fuera de `CONSUMIDORES_HOVER_ACTIVE`+`palette-derive.ts`) se actualizaron con los conteos
+nuevos (10+9=19 archivos con `accion-hover`; 9 archivos con `accion-active`) — sin esos dos barridos,
+un octavo consumidor futuro con el patrón viejo podría colarse sin que ningún test lo note.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2587/2587** (2566 + 21 nuevos: 7 archivos × 3 aserciones en `cta-primario.test.ts`) |
+| `npm run test:integracion` | **240/240** |
+| `npm run guarda:color` | **0px** en las 8 capturas (6 rutas + 2 hovers), IDÉNTICO contra el fixture commiteado |
+| `npm run verificar:nayoli:visual` | **NO CORRIDO** — deviación, ver abajo |
+
+### La deviación — `verificar:nayoli:visual` no se corrió (misma razón que el slice anterior)
+
+`scripts/verificar-nayoli-visual.ts` crea un `git worktree` de `main` como parte de su propio
+mecanismo. Esta sesión operó bajo la misma restricción explícita de no crear worktrees que
+`CTA-HOVER-RESTO-FAMILIA-1`. Se corrió `npm run guarda:color` en su lugar (§ Gate, arriba: 0px en las
+8 capturas) — diffea contra el FIXTURE COMMITEADO en `tests/visual/nayoli/`, no contra un worktree de
+`main` en vivo. Mismo riesgo residual que la vez anterior: no cubre la posibilidad de que el fixture
+mismo esté desactualizado respecto de `main`; el gate del owner (capa 3) sí lo cubre.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+`grep` de cada símbolo/archivo tocado (`rastrear-pedido`, `RetornoCliente`, `checkout/page.tsx`,
+`checkout/retorno`, `Newsletter.tsx`, `FormularioTarjeta`, `FormularioOtroMetodoPasarela`,
+`SuscripcionPlanes`, `cta-primario`, `accion-hover`, `accion-active`, `ACENTO-2-3-HOVER-HUE-SHIFT`)
+contra `CLAUDE.md`: **CERO coincidencias** para todos salvo dos, ninguna afectada por este diff:
+
+- `rastrear-pedido` aparece una vez (línea 2210, sobre `getOrderByNumber` sobreviviendo el retiro de
+  `/cuenta`) — no habla de color ni de este botón; sin relación con el cambio.
+- `components/storefront/checkout` aparece dos veces (líneas 54 y 196, la doctrina Tier 1 sobre el
+  subárbol `components/storefront/`) — describe que ese directorio "hoy no existe" en el contexto de
+  cuándo se escribió esa sección; **ya era falso ANTES de este slice** (el directorio existe desde
+  `CHECKOUT-UNA-SOLA-PANTALLA-1`/`API-DIRECTA-*`, meses antes de hoy — verificado con
+  `git log --follow` sobre `FormularioTarjeta.tsx`), así que este diff no es lo que lo volvió falso;
+  no se reporta como open_followup de este slice por esa razón.
+
+**CERO sentencias de `CLAUDE.md` quedan falsas POR ESTE DIFF.** El único puntero de doctrina
+relevante —el subárbol `components/storefront/` y `app/(storefront)/` bajo Tier 1— sigue siendo
+cierto sin cambios: es justamente por qué este slice corrió bajo `tier:1` con aprobación del owner.
+
+No hay sección/id de este propio archivo (`DECISIONS.md`) que este diff cierre y que otro párrafo
+apunte todavía como abierto: `ACENTO-2-3-HOVER-HUE-SHIFT-2` sólo aparece en la entrada de
+`CTA-HOVER-RESTO-FAMILIA-1` (arriba) como su propio open_followup, y esta entrada es la que lo cierra
+— no hay un tercer puntero a actualizar.
+
+### Verdict
+
+**AWAITING_APPROVAL.** El diff cambia el hover/active de siete botones (siete archivos) del
+storefront de CORTE — bytes que un visitante ve en cada hover/click en rastrear pedido, el checkout
+completo (ida y retorno), el newsletter y suscripciones — así que falla `customer-bytes` de merge
+policy A, igual que el resto de esta racha. El owner ya aprobó la ESCRITURA (`approval-reason` del
+spec: el mismo gate del 2026-09-29 que nombró estos siete consumidores como pendientes en
+`CTA-HOVER-RESTO-FAMILIA-1`) — el MERGE sigue gateado aparte.
+
+**Cierra `CTA-HOVER-CENSO-FINAL-1` y `ACENTO-2-3-HOVER-HUE-SHIFT-2`.**

@@ -69,7 +69,7 @@ for (const archivo of CONSUMIDORES) {
   });
 }
 
-// ── § CTA-HOVER-RESTO-FAMILIA-1 — LOS TRES RESTANTES, OTRO SUB-PATRÓN ─────────────────────────────
+// ── § CTA-HOVER-RESTO-FAMILIA-1 + § CTA-HOVER-CENSO-FINAL-1 — EL RESTO, MISMO SUB-PATRÓN ──────────
 // StoreNav.tsx/Spotlight.tsx/pdp-botones.ts NO comparten el patrón de arriba (fondo
 // `--sf-accion,var(--sf-tostado)` + texto `--sf-accion-txt,var(--sf-tinta)`): pintan el fondo con
 // `--sf-acento` CRUDO (no la indirección `accion`) y su texto ya era `--sf-acento-txt` correcto
@@ -78,9 +78,24 @@ for (const archivo of CONSUMIDORES) {
 // entran al loop `CONSUMIDORES` de arriba (fallarían la aserción de fondo/texto, que no aplica) —
 // tienen su propio par de aserciones, y `pdp-botones.ts` además tiene su verificación PURA en
 // `lib/storefront/pdp-botones.test.ts` (no source-grep: exporta la función que arma la clase).
+//
+// § CTA-HOVER-CENSO-FINAL-1 sumó los SIETE consumidores del censo ampliado de
+// `CTA-HOVER-RESTO-FAMILIA-1` (`ACENTO-2-3-HOVER-HUE-SHIFT-2`, nombrados y dejados fuera de
+// `touches:` en ese slice): mismo sub-patrón exacto (`bg-[var(--sf-acento)]` crudo,
+// `text-[var(--sf-acento-txt)]` ya correcto, `hover:bg-[var(--sf-acento-3)]` SIN `active:` propio
+// — a diferencia de StoreNav/Spotlight, que ya traían `active:bg-[var(--sf-acento-2)]` antes de
+// migrar). Ninguno de los siete tenía active previo; los siete ganan `active:bg-[var(--sf-accion-
+// active,var(--sf-tostado-3))]` de cero, junto con el hover, cerrando la familia entera.
 const CONSUMIDORES_HOVER_ACTIVE = [
   'components/storefront/layout/StoreNav.tsx',
   'components/storefront/home/Spotlight.tsx',
+  'app/(storefront)/rastrear-pedido/page.tsx',
+  'app/(storefront)/checkout/retorno/RetornoCliente.tsx',
+  'app/(storefront)/checkout/page.tsx',
+  'components/storefront/home/Newsletter.tsx',
+  'components/storefront/checkout/FormularioTarjeta.tsx',
+  'components/storefront/suscripciones/SuscripcionPlanes.tsx',
+  'components/storefront/checkout/FormularioOtroMetodoPasarela.tsx',
 ] as const;
 
 for (const archivo of CONSUMIDORES_HOVER_ACTIVE) {
@@ -146,7 +161,7 @@ test('barrido: ningún .tsx de components/storefront/ o app/(storefront)/ conser
   assert.deepEqual(ofensores, [], `patrón viejo aún presente en: ${ofensores.join(', ')}`);
 });
 
-test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 11 archivos + palette-derive.ts', () => {
+test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 19 archivos + palette-derive.ts', () => {
   const conAccionHover: string[] = [];
   for (const raiz of RAICES_STOREFRONT) {
     for (const archivo of walkTsx(path.join(RAIZ, raiz))) {
@@ -159,7 +174,7 @@ test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — 
   assert.deepEqual(conAccionHover.sort(), [...CONSUMIDORES, ...CONSUMIDORES_HOVER_ACTIVE].sort());
 });
 
-test('barrido: `CONSUMIDORES_HOVER_ACTIVE` es EXHAUSTIVA para `--sf-accion-active` — ningún .tsx del storefront la usa fuera de esos 2 archivos + palette-derive.ts (pdp-botones.ts es .ts, fuera de este barrido de .tsx — cubierto por su propio test PURO)', () => {
+test('barrido: `CONSUMIDORES_HOVER_ACTIVE` es EXHAUSTIVA para `--sf-accion-active` — ningún .tsx del storefront la usa fuera de esos 9 archivos + palette-derive.ts (pdp-botones.ts es .ts, fuera de este barrido de .tsx — cubierto por su propio test PURO)', () => {
   const conAccionActive: string[] = [];
   for (const raiz of RAICES_STOREFRONT) {
     for (const archivo of walkTsx(path.join(RAIZ, raiz))) {

@@ -219,7 +219,7 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
               <button
                 onClick={handleBuscar}
                 disabled={vista.fase === "buscando" || !email.trim()}
-                className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold px-5 py-3 rounded-xl text-sm transition-colors"
+                className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold px-5 py-3 rounded-xl text-sm transition-colors"
               >
                 {vista.fase === "buscando" ? "Consultando..." : "Ver el estado de mi pago"}
               </button>
