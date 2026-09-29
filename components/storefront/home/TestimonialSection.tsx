@@ -7,6 +7,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // "Lo que dicen nuestros clientes" — la 1ª sección REPEATER: encabezado (eyebrow/titulo) + una LISTA
 // de testimonios leída de SiteContent. Cada ítem: name/text (requeridos, vienen resueltos), city y
@@ -17,7 +18,7 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // retiraron del CÓDIGO (§ SiteContent — el repeater). La sección sigue existiendo — vuelve con testimonios REALES cuando
 // el owner los cargue como dato por el editor.
 export default function TestimonialSection({ style }: { style?: React.CSSProperties } = {}) {
-  const { testimonials, tema } = useSiteContent();
+  const { testimonials, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.testimonials, testimonials)) return null;
 
@@ -26,10 +27,14 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
   // `style` del h2, que sigue rindiendo exactamente `text-3xl` (1.875rem, fijo, medido) —
   // byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`${contenedorClase} mx-auto`}>
           <motion.div
             initial={preview ? false : "hidden"}
             animate={preview ? "visible" : undefined}

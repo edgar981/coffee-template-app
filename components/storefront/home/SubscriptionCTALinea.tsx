@@ -9,6 +9,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fadeUp, useProgresoScroll } from "@/lib/animation";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE "LÍNEA" (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): del BLOQUE apilado de hoy
 // (§ SubscriptionCTABloque — texto en una columna, tarjetas de plan en la otra) a una FRANJA
@@ -65,12 +66,16 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 //
 // `SubscriptionCTABloque` (la variante canónica, la de Nayoli) NO LEE `imagenFondo` — no se toca.
 export default function SubscriptionCTALinea({ style }: { style?: React.CSSProperties } = {}) {
-  const { subscriptionCTA, paginas } = useSiteContent();
+  const { subscriptionCTA, paginas, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
   const ctaSecundarioHref = resolverCtaSeccion(subscriptionCTA.ctaSecundarioLabel, subscriptionCTA.ctaSecundarioDestino, paginas);
   const tieneImagenFondo = subscriptionCTA.imagenFondo.trim() !== "";
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   const sectionRef = useRef<HTMLElement>(null);
   const progreso = useProgresoScroll(sectionRef);
@@ -96,7 +101,7 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)]" />
         </div>
       )}
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`relative z-10 ${contenedorClase} mx-auto`}>
         {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
             la intersección (como HeroSection/BrandStory/SubscriptionCTABloque). Fuera de preview,
             idéntico a cualquier otra sección. */}

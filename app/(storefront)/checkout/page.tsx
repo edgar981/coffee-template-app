@@ -25,6 +25,8 @@ import {
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
 import { metodosDisponibles, type MetodoPagoTipo } from '@/lib/checkout/metodos-pago';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -32,6 +34,11 @@ export default function Checkout() {
   const { items, subtotal, clearCart } = useCartStore();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const { navTratamiento } = useSiteContent();
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   // Al cambiar de paso (Continuar o Atrás), subir al inicio: el checkout son pasos por ESTADO en
   // una sola página (no rutas), así que la posición vertical del paso anterior se conserva y el
@@ -508,7 +515,7 @@ export default function Checkout() {
 
   return (
       <div className="pt-16 min-h-screen bg-[var(--sf-fondo)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className={`${contenedorClase} mx-auto py-8`}>
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
             <Link href="/tienda" className="p-2 hover:bg-[var(--sf-superficie)] sf-radio-lg transition-colors cursor-pointer">

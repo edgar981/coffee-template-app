@@ -7,6 +7,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // Una celda de VÍDEO de la galería. NO usa el atributo `autoplay` —medido: `preload="none"` + autoplay
 // se contradicen y Chrome DESCARGA igual, y estar fuera del fold TAMPOCO lo difiere; con el atributo,
@@ -100,7 +101,7 @@ function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: s
 // no tiene el SiteSettingsProvider del storefront —usarlo ahí lanzaría—. Sin prop (el preview) el
 // alt cae a un fallback genérico, que en un preview no importa.
 export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
-  const { nosotrosGaleria } = useSiteContent();
+  const { nosotrosGaleria, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.nosotrosGaleria, nosotrosGaleria)) return null;
 
@@ -109,10 +110,14 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
   // Fallback del alt: describe el CONTEXTO, no el índice (§ decisión del owner). El alt del ítem, si
   // el owner lo escribió, manda —es mejor para un lector de pantalla que cualquier genérico—.
   const altFallback = negocio ? `Foto de la galería de ${negocio}` : "Foto de la galería";
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="py-20 bg-[var(--sf-fondo)]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`${contenedorClase} mx-auto`}>
         {(eyebrow || titulo) && (
           <motion.div
             initial={preview ? false : "hidden"}

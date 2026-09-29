@@ -9,6 +9,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE CANÓNICA (§ eje 5e): "¿Cómo tomas tu café?" en cortinas fotográficas — el GrindChooser
 // de SIEMPRE, extraído VERBATIM al separar el mecanismo de variantes del dispatcher (`GrindChooser.tsx`).
@@ -22,7 +23,7 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // prop → alt genérico (irrelevante en un preview). Mismo patrón que NosotrosGaleria (§ el {negocio}
 // del fallback llega por PROP).
 export default function GrindChooserMosaico({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
-  const { presentaciones, tema } = useSiteContent();
+  const { presentaciones, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
 
   const tarjetas = tarjetasDePresentaciones(presentaciones);
@@ -31,10 +32,15 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
   // `style` del h2, que sigue rindiendo exactamente `text-3xl sm:text-4xl` (1.875rem/2.25rem,
   // medido) — byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE, incluida Nayoli con esta variante canónica) = el literal de HOY,
+  // byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`${contenedorClase} mx-auto`}>
         {/* En el preview escalado, `whileInView` no dispara (la intersección no llega) → se cambia a
             `animate` con `initial={false}`, asentado desde el primer render. Fuera de preview, idéntico. */}
         <motion.div

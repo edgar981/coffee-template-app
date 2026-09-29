@@ -15,6 +15,7 @@ import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
 import { direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll } from '@/lib/animation';
 import { esClickAfuera } from '@/lib/cierre-afuera';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 
 // ENTRADA ESCALONADA del drawer `pantallaCompleta` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA
 // contra `.mobile-nav.is-open a.m-link` del prototipo (`docs/prototipos/cafeone/css/app.css:311-321`):
@@ -244,7 +245,11 @@ export default function StoreNav() {
   // los valores REALES del muestrario (§ el docstring de `NavTratamientoContent.posicion`,
   // `site-content-defaults.ts`, para la corrección completa). `false` (todo tenant salvo CORTE) →
   // `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8` + `h-16 lg:h-18`, byte-idéntico a hoy.
-  const navContenedorClase = navTratamiento.posicion ? 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+  //
+  // El ANCHO/RELLENO (no la altura) ahora se calcula en `contenedorAnchoClase`
+  // (`lib/config/themes.ts`, § PARIDAD-ANCHO-CONTENIDO-1) — MISMO literal, MISMA fuente, para que
+  // el encabezado y las bandas del storefront no puedan divergir sobre la geometría del prototipo.
+  const navContenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] sm:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
 
   // EL FILETE INFERIOR (§ CROMO-NAV-FILETE-1, la UBICACIÓN corregida por § CROMO-NAV-EXACTO-

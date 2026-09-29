@@ -9,6 +9,7 @@ import Link from "next/link";
 import ProductCard from "../ProductCard";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE CANÓNICA (§ TEMAS-FEATURED-GRILLA-1): la fila de 4 de SIEMPRE, extraída VERBATIM al
 // separar el mecanismo de variantes del dispatcher (`FeaturedProducts.tsx`) — mismo movimiento que
@@ -27,12 +28,16 @@ export default function FeaturedProductsCuadricula({ style }: { style?: React.CS
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h2, que sigue rindiendo exactamente `text-3xl sm:text-4xl` (1.875rem/2.25rem,
   // medido) — byte-idéntico.
-  const { tema } = useSiteContent();
+  const { tema, navTratamiento } = useSiteContent();
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`${contenedorClase} mx-auto`}>
           {/* Eyebrow/título/link SOBRE EL FONDO de la banda: `--sf-sobre-banda` con el literal de hoy
               como fallback (§ eje 5b, home-2). Las ProductCard de la grilla NO se tocan: su texto va
               sobre `--sf-tarjeta`, no sobre la banda. */}

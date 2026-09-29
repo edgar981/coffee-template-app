@@ -8,6 +8,8 @@ import { getCatalog } from '@/lib/api/products';
 import { categoriasDelCatalogo, catalogoTieneTostado } from '@/lib/productos/categorias';
 import { useSearchParams } from 'next/navigation';
 import {Product, RoastLevel} from '@/types/product';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 
 
 const SORTBY = [
@@ -19,6 +21,11 @@ const SORTBY = [
 
 function ShopInner() {
   const searchParams = useSearchParams();
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const { navTratamiento } = useSiteContent();
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const [search, setSearch] = useState('');
   // La categoría es texto libre (la taxonomía se DERIVA del catálogo, § categorias): el estado es
   // `string`. Un `?cat=X` que no exista simplemente filtra a vacío y su chip muestra "X" —no
@@ -102,7 +109,7 @@ function ShopInner() {
             abajo (fallback `--sf-tinta`) migró en PALETA-MIGRAR-ACENTO-TINTA-1 --
             § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
         <div className="bg-[var(--sf-superficie)] sf-divisor-b border-[var(--sf-linea)] py-12">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className={`${contenedorClase} mx-auto`}>
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
               <h1 className="text-4xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-2">Nuestra Tienda</h1>
               <p className="text-[var(--sf-sobre-superficie,var(--sf-texto))] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`} · Origen colombiano</p>
@@ -110,7 +117,7 @@ function ShopInner() {
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className={`${contenedorClase} mx-auto py-8`}>
           {/* Search & Sort Bar */}
           <div className="flex flex-wrap gap-3 mb-6">
             <div className="relative flex-1 min-w-48">

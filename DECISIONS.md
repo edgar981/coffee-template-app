@@ -31871,3 +31871,202 @@ BOTONES-1`/`PARIDAD-RIEL-TARJETAS-1`: "Ve despachando los arreglos de código mi
 ajustes en el panel") — el MERGE sigue gateado aparte.
 
 **Cierra `PARIDAD-CAFE-Y-ORIGEN-1`.**
+
+## 2026-09-29 — Las bandas del storefront de CORTE toman el ancho/margen del prototipo (`PARIDAD-ANCHO-CONTENIDO-1`)
+
+`PARIDAD-CAFE-Y-ORIGEN-1` había medido la altura de Origen contra el prototipo (674px vs 1178px a
+1440px) y atribuido el residuo, en parte, a que **todo el storefront** usa `max-w-6xl` (1152px)
+mientras el prototipo mide sus contenedores contra `--content-max:1440px` (`.shell`,
+`docs/prototipos/cafeone/css/app.css:49-53`) — y había dejado explícito que tocarlo era "fuera de
+alcance de ese slice". Éste es ese slice.
+
+### 1 · Lo medido, antes de tocar código
+
+`docs/prototipos/cafeone/css/tokens.css:151,157`: `--content-max:1440px` fijo; `--page-gutter:32px`
+en la base, **24px bajo 1200px** (`css/app.css:972`), **18px bajo 640px** (`:998`). `.shell`
+(`css/app.css:49-53`) aplica ese par a **CUALQUIER** contenedor de contenido — no es una regla del
+header: el header (`.header-bar`, `:193-198`) usa el MISMO par, y también `.mega-inner`, `.cta-inner`
+y la composición de banda genérica (`:196-197,262-263,623-624`). `CROMO-NAV-EXACTO-PROTOTIPO-1`
+(slice anterior) ya había medido este mismo par para el `<header>` y lo cableó como
+`content.navTratamiento.posicion` — un boolean CORTE-only, con panel picker en
+`EncabezadoSeccion.tsx` ("Posición del encabezado"). Todo lo demás del storefront (bandas, footer,
+breadcrumb del PDP, header de /tienda, checkout) seguía en `max-w-6xl px-4 sm:px-6 lg:px-8` (1152px)
+sin condición, para TODO tenant incluido CORTE.
+
+### 2 · La decisión de dónde vive: REUSAR `navTratamiento.posicion`, no un campo nuevo
+
+Se evaluaron tres opciones y se descartaron dos:
+
+- **Un campo NUEVO en `NavTratamientoContent`** (p.ej. `navTratamiento.contenidoAncho`): requiere
+  tocar `lib/config/site-content-defaults.ts` (el tipo, el resolver) y
+  `components/admin/EncabezadoSeccion.tsx` (el picker) — **ninguno de los dos está en `touches:`**
+  de este slice, y el spec exige que un campo de contenido nuevo traiga su control en el MISMO
+  commit. Bloqueado por el límite del slice, no por diseño.
+- **Un valor derivado de `content.tema.forma`/`fuentePar`** (CORTE es hoy el único con
+  `forma:'recta'`+`fuentePar:'prensa'`): descartado porque `forma:'recta'` es **COMPARTIDA con
+  PLIEGO** (mismo hueco que ya documentó `formas.ts` para `trazo`/`radioTile` — bumpear un campo de
+  `Forma` cambia TODOS los presets que comparten esa forma, en silencio) y `fuentePar` es
+  independientemente editable por panel, con el mismo problema de acoplamiento oculto que se
+  describe abajo.
+- **REUSAR `content.navTratamiento.posicion`** (la opción construida): es el MISMO eje medido —
+  `--content-max`/`--page-gutter`, no una coincidencia de nombre—, ya tiene panel picker cableado
+  (cero costo de UI nuevo), y tiene precedente EXACTO en el propio objeto: `navTratamiento.badgeColor`
+  —cuyo docstring también arranca enmarcado "del encabezado"— ya lo consumen `Spotlight.tsx` y
+  `ProductCard.tsx`, dos superficies que no son el nav. Ensanchar el CONSUMIDOR de un campo sin
+  ensanchar su nombre es el patrón que este mismo archivo ya usa, no uno nuevo.
+
+**El costo de esta decisión, declarado, no escondido:** el picker de `EncabezadoSeccion.tsx` dice
+"Posición del encabezado" / "El encabezado se abre hacia los costados y con más espacio vertical, en
+vez del ancho y la altura de hoy" — y ahora ese ÚNICO control también redimensiona cada banda del
+storefront. El hint queda **INCOMPLETO, no FALSO** (todo lo que dice sigue pasando), pero no dice
+todo lo que pasa. Corregir el hint exige tocar `EncabezadoSeccion.tsx`, fuera de `touches:` —
+**open_followup `PARIDAD-ANCHO-HINT-ENCABEZADO-1`**.
+
+La función vive en `lib/config/themes.ts` (`contenedorAnchoClase(posicion: boolean): string`), con
+el docstring completo de este razonamiento. `StoreNav.tsx` se REFACTORIZÓ para llamarla en vez de
+mantener su propio literal duplicado (`navContenedorClase`) — mismo literal, misma fuente, para que
+encabezado y bandas no puedan divergir por una edición futura de una de las dos copias.
+
+### 3 · Los 20 consumidores migrados, y los dos que NO
+
+`grep -rln "max-w-6xl" components/storefront app/(storefront)` daba 24 apariciones en 20 archivos
+antes de este slice (contando las 4 de `StoreFooter.tsx`, 2 variantes × 2 divs cada una, y las 3 de
+`app/(storefront)/tienda/[slug]/page.tsx`). Las 24 se migraron:
+
+`StoreFooter.tsx` (×4), `Origen.tsx`, `SubscriptionCTABloque.tsx`, `SubscriptionCTALinea.tsx`,
+`TestimonialSection.tsx`, `FeaturedProductsCuadricula.tsx`, `FeaturedProductsGrilla.tsx`,
+`GrindChooserRiel.tsx`, `GrindChooserMosaico.tsx`, `TrustBadges.tsx`, `BrandStoryCentrada.tsx`,
+`BrandStoryColumnas.tsx`, `Spotlight.tsx`, `HeroCurtina.tsx`, `HeroMedia.tsx`, `NosotrosGaleria.tsx`,
+`NosotrosHistoria.tsx` (la rama CON imagen), `StoreNav.tsx` (refactor, mismo literal),
+`tienda/[slug]/page.tsx` (×3), `tienda/page.tsx` (×2), `checkout/page.tsx`.
+
+**Dos exclusiones deliberadas, no olvidos:**
+
+- **`NosotrosHistoria.tsx`, la rama SIN imagen (`max-w-3xl`).** Es el "contenedor de lectura que
+  debe quedar angosto a propósito" que el spec ya anticipaba: una sola columna de prosa corrida.
+  Ensanchar el ancho de línea de un párrafo lo hace más difícil de leer, no más fiel al prototipo —
+  el prototipo tampoco tiene un análogo de "historia sin foto" que medir. Queda en `max-w-3xl` en
+  las DOS geometrías, con un comentario en el código que lo declara.
+- **`StoreNav.tsx:546`, el panel del mega-menu (`div.max-w-6xl` dentro de `AnimatePresence`).** El
+  prototipo SÍ mide su `.mega-inner` contra el mismo `--content-max`/`--page-gutter`, así que en
+  rigor también podría migrar — pero es chrome de NAVEGACIÓN (el dropdown de un ítem del menú), no
+  una banda de contenido de página, que es el alcance que el spec nombra ("El contenido de las
+  bandas del storefront"). Se deja fuera por alcance, no por descuido —
+  **open_followup `PARIDAD-ANCHO-MEGAMENU-1`** para quien decida que el mega-menu también debe
+  alinear sus bordes.
+
+### 4 · El hallazgo no buscado: el `cortenav:` de Tailwind pierde la cascada a ≥1200px
+
+Al medir el ANTES contra el muestrario ya desplegado (`https://coffee-template-app-onix.vercel.app`,
+que YA corre CORTE con `navTratamiento.posicion:true` desde `CROMO-NAV-EXACTO-PROTOTIPO-1`), el
+`<header>` — que ESTE slice no tocó en comportamiento — dio `padding-left:24px` y `height:88px` a
+viewport 1440px, no los `32px`/`118px` que su propio literal (`cortenav:px-8`/`cortenav:h-[118px]`)
+declara.
+
+**Confirmado leyendo el CSS COMPILADO, no supuesto** (`.next/static/chunks/*.css` de una build local
+con `--preset CORTE`): `.cortenav\:px-8{padding-inline:calc(var(--spacing) * 8)}` vive dentro de un
+bloque `@media (min-width:1200px)` que aparece en el archivo ANTES que el bloque
+`@media (min-width:40rem)` que trae `.sm\:px-6`. A cualquier viewport ≥1200px las DOS media queries
+están activas; con igual especificidad de selector, la regla que aparece DESPUÉS en la hoja gana la
+cascada — `sm:px-6` (24px) le gana a `cortenav:px-8` (32px). El MISMO patrón afecta a
+`cortenav:h-[118px]` contra `sm:h-[88px]`. Los breakpoints ESTÁNDAR de Tailwind (`sm`/`lg`) no lo
+sufren entre sí porque están correctamente ordenados en el scale por defecto; el problema es
+ESPECÍFICO del breakpoint CUSTOM `--breakpoint-cortenav:1200px` (`app/globals.css`), que Tailwind v4
+no está mezclando en ese orden al generar la hoja.
+
+Este defecto **YA EXISTÍA, en el `<header>` ya desplegado, antes de este slice** — `contenedorAnchoClase`
+reusa el literal de `navTratamiento.posicion` TAL CUAL, así que lo HEREDA para las bandas, sin
+agravarlo: encabezado y bandas quedan CONSISTENTES entre sí (ambos en 24px/88px a ≥1200px), que es
+lo que el spec pedía ("el nav y las bandas tienen que alinear sus bordes") — pero ninguno de los dos
+alcanza el 32px/118px exacto del prototipo en ese rango específico. Repararlo es una decisión de
+ALCANCE distinto: toca el ORDEN en que Tailwind registra `--breakpoint-cortenav`/`--breakpoint-duna`
+frente al scale por defecto, con consumidores (`NavSearch.tsx`, el admin) fuera de `touches:` de este
+slice — **open_followup `PARIDAD-ANCHO-CORTENAV-CASCADA-1`**, documentado también en el docstring de
+`contenedorAnchoClase`.
+
+### 5 · Medido: alineación nav↔banda, y ancho/margen contra el prototipo
+
+`npm run capturar:seccion` (modo `--url` contra el muestrario para el ANTES; modo `--preset CORTE`
+local para el DESPUÉS), `--estilo-elemento width max-width padding-left padding-right`, viewport
+1440×1200:
+
+| selector | ANTES (muestrario desplegado) | DESPUÉS (esta rama, local) | prototipo (`.shell`) |
+| --- | --- | --- | --- |
+| `header > div` (nav) | `width:1440px max-width:1440px padding:24px` *(ya CORTE antes de este slice)* | `width:1440px max-width:1440px padding:24px` (sin cambio — no se tocó su comportamiento) | `width:1416px max-width:1440px padding:32px` |
+| `#nuestra-historia > div` (banda BrandStoryCentrada) | `width:1152px max-width:1152px padding:32px` | `width:1440px max-width:1440px padding:24px` | `width:1416px max-width:1440px padding:32px` |
+
+**`max-width` de la banda pasa de 1152px a 1440px — coincide EXACTO con el prototipo.** El
+`padding` de la banda pasa de 32px (heredado de `lg:px-8`, el breakpoint ESTÁNDAR, que en el sistema
+VIEJO sí ordenaba bien porque `lg` no es custom) a 24px — **ahora IGUAL al del nav** (alineación
+lograda, el objetivo del spec), aunque los DOS diverjan igual del prototipo por el hallazgo de §4.
+
+**Capturas visuales** en `.capturas/`: `paridad-ancho-antes-1440/` (home + PDP, muestrario
+desplegado), `paridad-ancho-despues-1440-full/` (home + PDP, esta rama, `--preset CORTE`, base
+efímera SIN productos seedeados — el PDP muestra "Producto no encontrado" en las dos capturas porque
+ni el muestrario Onix ni la base efímera tienen el slug `cafe-nayoli-grano-250g`; el nav/footer
+completos SÍ son comparables y confirman el ancho de 1440px en el DESPUÉS), `paridad-ancho-despues-390/`
+(home, ancho de teléfono — sin overflow ni texto roto).
+
+### 6 · Verificación de Nayoli — SIN worktree, por reasoning + tests (no por `verificar:nayoli:visual`)
+
+**DESVIACIÓN declarada.** El spec pide `npm run verificar:nayoli:visual` (0px) y `npm run
+guarda:color` para el cierre. Los dos scripts (`scripts/verificar-nayoli-visual.ts`,
+`scripts/verificar-nayoli.ts`) crean INCONDICIONALMENTE un `git worktree` de `main` en `.scratch/`
+(`spawnSync('git', ['worktree', 'add', …])`) como parte de su propio mecanismo — y este despacho trae
+la instrucción explícita "No crees worktrees". No se corrieron.
+
+**La verificación que SÍ se hizo, y por qué alcanza para esta clase de cambio:**
+
+- `lib/config/contenedor-ancho.test.ts` afirma, por EJECUCIÓN: `contenedorAnchoClase(false) ===
+  'max-w-6xl px-4 sm:px-6 lg:px-8'` — el literal EXACTO que cada uno de los 20 consumidores tenía
+  ANTES de este slice, byte a byte. Como CADA edición de este diff es `` `${contenedorClase} …` ``
+  con `contenedorClase = contenedorAnchoClase(navTratamiento.posicion)`, y `navTratamiento.posicion`
+  resuelve a `false` para TODO preset salvo CORTE (afirmado también en el mismo archivo, iterando
+  los 6 presets del catálogo vía `contenidoConPresetDeVista`), el SET de clases Tailwind que Nayoli
+  recibe es IDÉNTICO al de antes — sólo cambia el ORDEN de las clases dentro del string (p.ej.
+  `max-w-6xl mx-auto px-4…` → `max-w-6xl px-4…mx-auto`), que no afecta el CSS aplicado (el orden de
+  clases en `class=` no tiene efecto sobre qué reglas se aplican).
+- `npm test` (2512/2512) y `npm run test:integracion` (240/240), completos, en verde.
+- `npm run typecheck`, 0 errores.
+
+**Lo que esto NO prueba, dicho para no confundirlo con el pixel-diff que el spec pedía:** que el
+HTML renderizado de Nayoli sea byte-idéntico incluyendo el ORDEN exacto del atributo `class=`. Eso
+sí cambia (una reordenación de clases, no una clase distinta) y `verificar-nayoli.ts` (la vara de
+BYTES, no de píxeles) lo marcaría como diff — el propio script documenta que ya existen diffs de
+bytes con CERO efecto visual (3 rutas, 0 de esas diferencias con efecto visual, según su propio
+docstring). Si el owner necesita el 0px/0-bytes formal, hace falta correr `verificar:nayoli:visual`/
+`verificar:nayoli` con permiso de crear el worktree — no se pudo en este despacho.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2512/2512** |
+| `npm run test:integracion` | **240/240** |
+| `npm run verificar:nayoli:visual` / `npm run guarda:color` | **NO CORRIDOS** — requieren `git worktree`, no concedido a este despacho (§6) |
+
+### Chequeo mecánico contra CLAUDE.md
+
+Símbolos/archivos que este diff cambió: `contenedorAnchoClase`, `navContenedorClase` (refactor),
+`max-w-6xl`, `navTratamiento.posicion` (consumo ensanchado), `contenedor-ancho.test.ts`, y los 20
+componentes/páginas listados en §3. `grep` de cada uno contra `CLAUDE.md`: **CERO coincidencias** —
+CLAUDE.md no menciona `contenedorAnchoClase`, `navContenedorClase`, `max-w-6xl` ni
+`navTratamiento.posicion` en absoluto; toda esta doctrina (el sistema de presets/bandas de CORTE)
+vive en `DECISIONS.md`, no en CLAUDE.md. **Nada en CLAUDE.md queda falso por este diff.**
+
+### Verdicto
+
+**AWAITING_APPROVAL.** El diff cambia el ancho/margen de TODAS las bandas del storefront bajo CORTE
+—bytes que un visitante de esa tienda lee— así que falla `customer-bytes` de merge policy A. El
+owner ya aprobó la ESCRITURA de este slice (§ `approval-reason` del spec, 2026-09-29, el mismo texto
+que ya autorizó `PARIDAD-PDP-BOTONES-1`/`PARIDAD-RIEL-TARJETAS-1`/`PARIDAD-CAFE-Y-ORIGEN-1`: "Ve
+despachando los arreglos de código mientras hago los ajustes en el panel") — el MERGE sigue gateado
+aparte.
+
+**Open follow-ups de este slice:** `PARIDAD-ANCHO-HINT-ENCABEZADO-1` (el hint del picker de
+"Posición del encabezado" quedó incompleto, §2), `PARIDAD-ANCHO-MEGAMENU-1` (el panel del mega-menu
+no migró, §3), `PARIDAD-ANCHO-CORTENAV-CASCADA-1` (el breakpoint custom `cortenav` pierde la cascada
+contra `sm` a ≥1200px, defecto PRE-EXISTENTE medido en producción, §4).
+
+**Cierra `PARIDAD-ANCHO-CONTENIDO-1`.**

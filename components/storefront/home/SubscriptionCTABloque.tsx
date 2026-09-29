@@ -7,6 +7,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { planesDeSuscripcion, planesDelTeaser, gridColsTeaser } from "@/lib/storefront/planes-suscripcion";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
@@ -24,13 +25,17 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // (`plan.destacado`, el `destacadoSlot` de la sección), no del `i===1` hardcodeado de antes. El href del
 // CTA es estructura (`/suscripciones`), sólo el label es editable.
 export default function SubscriptionCTABloque({ style }: { style?: React.CSSProperties } = {}) {
-  const { subscriptionCTA, suscripcionPlanes, tema } = useSiteContent();
+  const { subscriptionCTA, suscripcionPlanes, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const planesTeaser = planesDelTeaser(planesDeSuscripcion(suscripcionPlanes));
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h2, que sigue rindiendo exactamente `text-4xl` (2.25rem, fijo, medido) —
   // byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   const beneficios = [
     subscriptionCTA.bullet1,
@@ -41,7 +46,7 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-tinta-2))]" style={style}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`${contenedorClase} mx-auto`}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
                 la intersección (como HeroSection/BrandStory). Fuera de preview, idéntico a hoy. */}

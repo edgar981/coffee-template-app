@@ -6,6 +6,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
 // texto de un lado, collage del otro — el BrandStory de SIEMPRE, extraído VERBATIM al separar el
@@ -25,12 +26,17 @@ const IMAGENES = [
 ] as const;
 
 export default function BrandStoryColumnas({ style }: { style?: React.CSSProperties } = {}) {
-  const { brandStory, tema } = useSiteContent();
+  const { brandStory, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h2, que sigue rindiendo exactamente `text-4xl sm:text-5xl` (2.25rem/3rem, medido) —
   // byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE, incluida Nayoli con esta variante canónica) = el literal de HOY,
+  // byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   // Las imágenes CON VALOR — `imagen1` siempre (requerida); `imagen2/3/4` sólo si el dueño las
   // llenó (§ el comentario de cabecera, arriba). Con las cuatro llenas (Nayoli) da la lista
@@ -44,7 +50,7 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
   // que HeroSection, ahí escrito para esta sección.)
   return (
     <section id="nuestra-historia" className="py-24 bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
             initial={preview ? false : "hidden"}

@@ -9,6 +9,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE "CENTRADA" (§ CORTE-BRANDSTORY-COLLAGE-1, MEDIDA contra la sección `.historia` de
 // `docs/prototipos/cafeone/index.html:250-273` + `css/app.css:561-578`). El BrandStory de siempre
@@ -110,7 +111,7 @@ const CLASE_FIGURA_LADO = 'w-[min(320px,82vw)] sm:w-[clamp(200px,24vw,340px)]';
 const CLASE_FIGURA_MEDIO = 'z-10 w-[min(320px,82vw)] sm:w-[clamp(240px,28vw,400px)]';
 
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
-  const { brandStory, tema, paginas } = useSiteContent();
+  const { brandStory, tema, paginas, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`brandStory:
   // 'centrada'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
@@ -118,6 +119,12 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
   // `text-4xl sm:text-5xl` (2.25rem/3rem, medido) — byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
   const ctaHref = resolverCtaSeccion(brandStory.ctaLabel, brandStory.ctaDestino, paginas);
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte. El `clamp(...)` de las figuras
+  // (arriba, CLASE_FIGURA_LADO/MEDIO) sigue en `vw` sobre el VIEWPORT, no sobre este contenedor —
+  // no cambia con el ancho del contenedor.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   // Mismo switch que `BrandStoryColumnas` (§ ahí, el razonamiento completo): en la vista previa
   // escalada del panel, `whileInView` no dispara —la intersección con el viewport no llega dentro
@@ -162,7 +169,7 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
 
   return (
     <section id="nuestra-historia" className="overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] py-24" style={style}>
-      <div className="mx-auto max-w-6xl px-4 text-center sm:px-6 lg:px-8">
+      <div className={`mx-auto ${contenedorClase} text-center`}>
         <motion.div
           initial={preview ? false : "hidden"}
           animate={preview ? "visible" : undefined}

@@ -9,6 +9,7 @@ import {
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 const BADGES = [
   {
@@ -43,12 +44,16 @@ const BADGES = [
 // `seccionEsVisible` decide si la sección se apaga (`null`). SE APAGA, NO SE BORRA: el array
 // `BADGES` de arriba sigue siendo estructura de código; sólo el "¿se muestra?" es dato.
 export default function TrustBadges({ style }: { style?: React.CSSProperties } = {}) {
-  const { trustBadges } = useSiteContent();
+  const { trustBadges, navTratamiento } = useSiteContent();
   if (!seccionEsVisible(REGISTRY.trustBadges, trustBadges)) return null;
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="sf-divisor-y border-[var(--sf-linea)] bg-[var(--sf-banda,var(--sf-fondo))] py-6" style={style}>
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div className={`mx-auto ${contenedorClase}`}>
         <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
           {BADGES.map(
             ({ icon: Icon, text }) => (

@@ -1449,3 +1449,69 @@ export const ARRANQUE: PresetTema = {
 
 /** El catálogo completo — los cinco themes del diseño + el de arranque. */
 export const PRESETS: readonly PresetTema[] = [PLIEGO, CORTE, PATIO, VETA, VITRINA, ARRANQUE];
+
+// ─── `contenedorAnchoClase` (§ PARIDAD-ANCHO-CONTENIDO-1) — el ANCHO/RELLENO del CONTENEDOR DE
+// CONTENIDO, compartido por el encabezado Y las BANDAS del storefront (Origen, Spotlight,
+// Testimonios, Presentaciones, el pie…). REUSA `content.navTratamiento.posicion` — NO una meta
+// nueva — por DOS razones medidas antes de escribir la primera línea:
+//
+// 1. ES EL MISMO EJE, no uno parecido. `navTratamiento.posicion` mide `--content-max`/
+//    `--page-gutter` (`docs/prototipos/cafeone/css/tokens.css:151,157`) contra `.header-bar`
+//    (`css/app.css:193-198`) — pero esos DOS tokens NO son del header: son de `.shell`
+//    (`css/app.css:49-53`), la clase GENÉRICA del prototipo que envuelve CUALQUIER contenedor de
+//    contenido (repetida, con el MISMO par de tokens, en `.mega-inner`, `.cta-inner`, la
+//    composición de banda genérica — `css/app.css:196-197,262-263,623-624`). El header sólo fue el
+//    PRIMER consumidor porque era el único que existía cuando se midió; el eje que mide no es "del
+//    encabezado", es "del contenido".
+// 2. EL `touches:` DE ESTE SLICE NO INCLUYE `site-content-defaults.ts` (donde vive el tipo
+//    `NavTratamientoContent` y su resolver) NI `components/admin/EncabezadoSeccion.tsx` (donde
+//    vive el ÚNICO picker del panel para este eje) — así que un CAMPO nuevo no se puede cablear de
+//    punta a punta acá (el spec lo anticipa: "si agregás un campo de contenido, su control va en
+//    este commit"). Reusar el campo YA CABLEADO es la salida que el spec pide preferir ("un eje que
+//    ya exista… antes que una meta nueva"), y tiene precedente EXACTO en este mismo objeto:
+//    `navTratamiento.badgeColor` — cuyo docstring también arranca enmarcado alrededor del CTA del
+//    encabezado — YA lo consumen `Spotlight`/`ProductCard`, dos superficies que no son el nav
+//    (§ el censo de consumidores, DECISIONS.md). Ensanchar el CONSUMIDOR de un campo de
+//    `navTratamiento` sin ensanchar su NOMBRE es el patrón ya establecido, no uno nuevo.
+//
+// DEUDA DECLARADA, no cerrada acá: el hint del picker en `EncabezadoSeccion.tsx` ("Posición del
+// encabezado" — "El encabezado se abre hacia los costados y con más espacio vertical…") sigue
+// describiendo SÓLO el header. Con este slice, apagar/encender ese ÚNICO control TAMBIÉN
+// redimensiona cada banda — el hint queda INCOMPLETO (no FALSO: todo lo que dice sigue pasando),
+// pero no dice todo lo que pasa. Corregirlo exige tocar `EncabezadoSeccion.tsx`, fuera de
+// `touches:` de este slice — open_followup `PARIDAD-ANCHO-HINT-ENCABEZADO-1`.
+//
+// `false` (TODO tenant salvo CORTE) = el contenedor de HOY, BYTE A BYTE: `max-w-6xl` (1152px) +
+// `px-4 sm:px-6 lg:px-8` (16/24/32px responsivo). `true` (CORTE) = la geometría EXACTA del
+// prototipo, MEDIDA — el MISMO literal que `StoreNav.tsx` ya usaba para su propio contenedor
+// (`navContenedorClase`, refactorizado en este slice para llamar a esta función en vez de duplicar
+// el ternario): `max-w-[1440px]` (`--content-max` exacto) + `px-[18px] sm:px-6 cortenav:px-8`
+// (18/24/32px, los TRES valores de `--page-gutter` medidos, mobile-first; `cortenav` =
+// `--breakpoint-cortenav:1200px`, `app/globals.css`, el mismo breakpoint con nombre que ya usaba
+// `navContenedorClase`).
+//
+// NO incluye la ALTURA fija (`navFilaAltoClase` en `StoreNav.tsx`, `h-[76px] sm:h-[88px]
+// cortenav:h-[118px]`): esa mitad es EXCLUSIVA del `<header>` — centrado por flex, altura fija —, y
+// ninguna banda tiene esa forma (usan `py-*`, alto derivado del contenido). Sólo el ANCHO/RELLENO
+// es el eje compartido; StoreNav.tsx sigue calculando su propia altura aparte.
+//
+// DEFECTO PRE-EXISTENTE MEDIDO, no de esta función — QUEDA ESCRITO PARA QUE NO SE RE-DIAGNOSTIQUE:
+// a viewports ≥1200px el `padding-inline` REAL que rinde `true` NO es 32px como dice el literal
+// —es 24px, el valor de `sm:`—. Medido contra el muestrario YA desplegado (§ DECISIONS.md,
+// PARIDAD-ANCHO-CONTENIDO-1): `header > div` en producción da `padding-left:24px` a 1440px viewport,
+// no los 32px que `cortenav:px-8` declara, y lo MISMO le pasa a `cortenav:h-[118px]` (rinde 88px).
+// CAUSA, confirmada leyendo el CSS COMPILADO (no supuesta): Tailwind emite `.cortenav\:px-8` DENTRO
+// de un bloque `@media (min-width:1200px)` que aparece ANTES en el archivo que el bloque
+// `@media (min-width:40rem)` que trae `.sm\:px-6` — a cualquier viewport ≥1200px las DOS media
+// queries están activas a la vez, y con igual especificidad la regla que aparece DESPUÉS en la hoja
+// gana la cascada: `sm:px-6` le gana a `cortenav:px-8`. Este archivo REUSA el literal de
+// `navTratamiento.posicion` tal cual —no lo repara—, así que HEREDA el defecto: bandas y encabezado
+// quedan CONSISTENTES entre sí (ambos en 24px a ≥1200px), pero ninguno de los dos iguala el 32px del
+// prototipo en ese rango. Reparar esto es una decisión de ALCANCE distinto (toca el ORDEN en que
+// Tailwind v4 registra `--breakpoint-cortenav`/`--breakpoint-duna` frente al scale por defecto, con
+// consumidores fuera de `touches:` de este slice) — open_followup `PARIDAD-ANCHO-CORTENAV-CASCADA-1`.
+export function contenedorAnchoClase(posicion: boolean): string {
+  return posicion
+    ? 'max-w-[1440px] px-[18px] sm:px-6 cortenav:px-8'
+    : 'max-w-6xl px-4 sm:px-6 lg:px-8';
+}

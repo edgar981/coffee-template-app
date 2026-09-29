@@ -14,6 +14,7 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS, objectPositionDePuntoFocal } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE "MEDIA" (§ eje 5, EJE-5-VARIANTES-HERO, TEMAS-HERO-MEDIA-1; SIN TARJETA desde
 // HERO-MEDIA-SIN-TARJETA-1) — la TERCERA composición: donde curtina y ficha tratan la foto/video como
@@ -111,7 +112,7 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // con un selector visual de arrastre) sigue sin construirse — es un ALCANCE mayor, fuera de este
 // slice.
 export default function HeroMedia({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, paginas, tema } = useSiteContent();
+  const { hero, paginas, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: la clase de hoy del h1
   // (`text-4xl sm:text-5xl lg:text-6xl` = 2.25rem/3rem/3.75rem) es la que la doctrina de este slice
@@ -123,6 +124,10 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
   const displayXl = fontSizeDisplay(tema.escalaDisplay, 'xl');
   // Idéntico a curtina/ficha: el 2º CTA se oculta si suscripciones está apagada.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   // PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1, Backlog #58 recorte mínimo): `undefined` cuando es la
   // canónica ('centro') o basura — no se emite ningún `style`, byte-idéntico al recorte de hoy.
@@ -197,7 +202,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-velo)]" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20">
+      <div className={`relative z-10 mx-auto w-full ${contenedorClase} pb-12 sm:pb-16 lg:pb-20`}>
         <motion.div
           // Mismo switch que curtina/ficha: en preview, asentado desde el primer render, sin
           // animación de entrada.

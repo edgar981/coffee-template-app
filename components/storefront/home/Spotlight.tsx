@@ -18,6 +18,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA BANDA SPOTLIGHT (§ SPOTLIGHT-BANDA-1) — un solo producto PINEADO, con su selector de
 // molienda, notas de cata y "Agregar al carrito" REUSADOS VERBATIM (medido:
@@ -140,10 +141,15 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
   // ancho completo entre escenario y compra en los anchos intermedios (820-1199px): no hace falta
   // inventar una proporción nueva, sólo NO activar el split de tres a 1200px.
   const tieneEncabezado = Boolean(spotlight.eyebrow || spotlight.titulo);
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá (esta banda ya
+  // lee `navTratamiento` para `badgeColor`, arriba). `false` = el literal de HOY, byte a byte —
+  // aunque en la práctica esta banda sólo renderiza bajo CORTE (§ el docstring de cabecera).
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section id="producto" className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`${contenedorClase} mx-auto`}>
         {/* LA GRILLA (`.spotlight-grid`, css/app.css:437-440,973-974,989) — TRES columnas lado a lado
             desde 1200px (`1fr 1.05fr 1fr`, gap 64px, `--space-16`); el encabezado sube a su PROPIA
             columna recién ahí. Entre 820-1200 son DOS columnas (gap 48px, `--space-12`) con el

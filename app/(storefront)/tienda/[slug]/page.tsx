@@ -34,6 +34,7 @@ import { galeriaCompleta } from "@duna/core/product-gallery";
 import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria";
 import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 interface ProductPageProps {
   params: Promise<{
@@ -57,8 +58,12 @@ export default function ProductPage({
   const { addItem } = useCartStore();
   // § PARIDAD-PDP-BOTONES-1 (`lib/storefront/pdp-botones.ts`): la jerarquía/color de los dos botones
   // de compra sigue al eje EXISTENTE `tema.origenAccion`, no un campo nuevo de SiteContent.
-  const { tema } = useSiteContent();
+  const { tema, navTratamiento } = useSiteContent();
   const { primario: claseBotonComprar, secundario: claseBotonAgregar } = clasesBotonesCompra(tema.origenAccion);
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   const [qty, setQty] = useState(1);
 
@@ -166,7 +171,7 @@ export default function ProductPage({
   return (
     <div className="pt-16">
       {/* Breadcrumb */}
-      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
+      <div className={`mx-auto ${contenedorClase} py-4`}>
         <nav className="flex items-center gap-2 text-xs text-[var(--sf-texto-suave)]">
           <Link
             href="/"
@@ -193,7 +198,7 @@ export default function ProductPage({
       </div>
 
       {/* Product */}
-      <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
+      <div className={`mx-auto ${contenedorClase} pb-16`}>
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
           {/* Images */}
           <div className="space-y-3">
@@ -404,7 +409,7 @@ export default function ProductPage({
         // Este h2 (fallback `--sf-tinta`) migró en PALETA-MIGRAR-ACENTO-TINTA-1 --
         // § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md.
         <div className="bg-[var(--sf-superficie)] py-16">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className={`mx-auto ${contenedorClase}`}>
             <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
               También te puede gustar
             </h2>

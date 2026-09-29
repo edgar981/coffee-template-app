@@ -14,6 +14,7 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { formatCOP } from "@duna/core/utils";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -109,7 +110,7 @@ import { formatCOP } from "@duna/core/utils";
 // índice (§ GrindChooserMosaico): se monta también en la vista previa del panel, sin el
 // `SiteSettingsProvider` del storefront.
 export default function GrindChooserRiel({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
-  const { presentaciones, tema, paginas } = useSiteContent();
+  const { presentaciones, tema, paginas, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const trackRef = useRef<HTMLDivElement>(null);
   const [estado, setEstado] = useState({ puedeAtras: false, puedeAdelante: false });
@@ -131,6 +132,12 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
   // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
   // `text-3xl sm:text-4xl` (1.875rem/2.25rem, medido) — byte-idéntico.
   const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte. El ANCHO de cada tile
+  // (`w-[78vw] sm:w-[clamp(260px,26vw,360px)]`, más abajo) es relativo al VIEWPORT, no a este
+  // contenedor, así que no cambia — sólo cambia cuánto track queda visible antes de scrollear.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -162,7 +169,7 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))] overflow-hidden" style={style}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`${contenedorClase} mx-auto`}>
         {/* La cabecera partida (§ arriba): título de un lado, el CTA del otro — SIN los controles de
             avance, que ahora viven DEBAJO del track (§ el docstring de cabecera). En columna en
             móvil, como el prototipo (`.pres-head{flex-direction:column}` bajo 640px). */}

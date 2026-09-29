@@ -8,6 +8,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, type OrigenContent } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, medido: ORIGEN-BANDA-CENSO-1) — grid de 2 fotos + copy + una
 // lista de 4 pares dato editoriales a nivel finca + 3 contadores animados. Ver el docstring de
@@ -62,7 +63,7 @@ function OrigenContador({ valor, etiqueta, estatico }: { valor: string; etiqueta
 }
 
 export default function Origen({ style }: { style?: React.CSSProperties } = {}) {
-  const { origen, tema } = useSiteContent();
+  const { origen, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   // MOVIMIENTO REDUCIDO, mismo gate que `BrandStoryCentrada` (§ el docstring de `useContadorAnimado`
   // en `lib/animation.ts` para el porqué de las DOS razones que lo piden).
@@ -82,9 +83,16 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
   const datosVisibles = datosDeOrigen(origen);
   const statsVisibles = statsDeOrigen(origen);
 
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1): `contenedorAnchoClase` reemplaza el literal
+  // `max-w-6xl px-4 sm:px-6 lg:px-8` de siempre — `false` (todo tenant salvo CORTE) devuelve ESE
+  // MISMO literal, byte a byte; `true` (CORTE) da el `--content-max`/`--page-gutter` EXACTOS del
+  // prototipo, el mismo par que ya alinea el encabezado (ver el docstring de la función,
+  // `lib/config/themes.ts`, para el porqué de reusar `navTratamiento.posicion`).
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <motion.div
             initial={preview ? false : "hidden"}

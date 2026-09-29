@@ -13,6 +13,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -30,7 +31,7 @@ const fadeUp = {
 // los opcionales vacíos (eyebrow, el énfasis del titular, el 2º CTA). Hero es `ocultable:false`
 // → siempre se renderiza. Los destinos de los CTA son ESTRUCTURA (`HERO_HREFS`), no editables.
 export default function HeroCurtina({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, paginas, tema } = useSiteContent();
+  const { hero, paginas, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h1, que sigue rindiendo exactamente `text-5xl sm:text-6xl lg:text-7xl` (3rem/3.75rem/
@@ -44,6 +45,10 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
   // sería un enlace muerto. Es la QUINTA superficie que enlaza a /suscripciones. En preview (editor)
   // `paginas` viene de DEFAULTS (siempre true), así que el 2º CTA sigue editable.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   // EL FONDO ES VIDEO cuando el dueño lo eligió (§ HERO-VIDEO-COMO-DATO-1); si no, la imagen de
   // siempre. `imagenTipo` llega YA CLAMPADO por el resolver — nunca otro valor que 'imagen'/'video'.
@@ -138,7 +143,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div className={`relative z-10 mx-auto w-full ${contenedorClase}`}>
         <motion.div
           // En la VISTA PREVIA del panel (`preview`), `initial={false}` renderiza en el estado
           // "visible" SIN animación de entrada: el contenido se ve asentado desde el primer render.

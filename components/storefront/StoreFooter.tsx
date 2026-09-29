@@ -18,6 +18,7 @@ import {
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { columnasDeFooter, type FooterContent } from "@/lib/config/site-content-defaults";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // EL PIE DE PÁGINA como SECCIÓN del REGISTRY (§ MUESTRARIO-FOOTER-TEMA-1). Antes `footerNav`/
 // `legalNav` vivían en `siteConfig` (código fijo, cero fidelidad de preset posible); hoy los
@@ -64,12 +65,17 @@ const LABEL_RED_FOOTER: Record<RedSocialGuardada["tipo"], string> = {
 export default function StoreFooter() {
   const settings = useSiteSettings();
   const content = useSiteContent();
-  const { footer } = content;
+  const { footer, navTratamiento } = content;
   const { tienda, ayuda, empresa } = columnasDeFooter(content);
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
+  // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
+  // (todo tenant salvo CORTE) = el literal de HOY, byte a byte. Se resuelve ACÁ (el dispatcher) y
+  // viaja por prop a las dos variantes, para no leer `useSiteContent()` dos veces.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return footer.variante === "apilado"
-    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} />
-    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} />;
+    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} />
+    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} />;
 }
 
 type SettingsFooter = ReturnType<typeof useSiteSettings>;
@@ -80,14 +86,15 @@ interface VariantProps {
   tienda: { label: string; href: string }[];
   ayuda: { label: string; href: string }[];
   empresa: { label: string; href: string }[];
+  contenedorClase: string;
 }
 
 // VARIANTE 'franjas' — LA CANÓNICA: el pie de HOY, VERBATIM (byte-idéntico a antes de este slice;
 // sólo cambió DE DÓNDE salen los textos — de `siteConfig.footerNav`/`legalNav` a `content.footer`).
-function FooterColumnas({ settings, footer, tienda, ayuda, empresa }: VariantProps) {
+function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase }: VariantProps) {
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className={`mx-auto ${contenedorClase} py-16`}>
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
@@ -218,7 +225,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa }: VariantPro
 
       {/* Bottom Bar */}
       <div className="sf-divisor-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row sm:px-6 lg:px-8">
+        <div className={`mx-auto flex ${contenedorClase} flex-col items-center justify-between gap-3 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row`}>
           <p>
             © 2026 {settings.nombre}.
             Todos los derechos reservados.
@@ -258,7 +265,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa }: VariantPro
 // SIN wrapper de grid extra (byte-idéntico); con imagen, la marca pasa a la columna izquierda de un
 // grid `1.1fr 1fr` (§ `.footer-top` del prototipo) y la tarjeta ocupa la derecha. `tarjetaTexto`
 // SOLO, sin `tarjetaImagen`, NO rinde nada — sería un pie de foto flotando sobre nada.
-function FooterApilado({ settings, footer, tienda, ayuda, empresa }: VariantProps) {
+function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase }: VariantProps) {
   const columnas: { titulo: string; links: { label: string; href: string }[] }[] = [
     { titulo: footer.columnaTienda, links: tienda },
     { titulo: footer.columnaAyuda, links: ayuda },
@@ -298,7 +305,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa }: VariantProp
 
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className={`mx-auto ${contenedorClase} py-16`}>
         {/* La marca ocupa el ancho completo arriba (§ `.footer-mark`/`.footer-top .tag` del
             prototipo) — mismo `Logo`/`descripcionFooter` que la canónica, sólo reordenado. Con
             tarjeta, comparte fila con ella (§ `.footer-top` del prototipo, grid 1.1fr/1fr). */}
@@ -368,7 +375,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa }: VariantProp
 
       {/* Bottom Bar — idéntica a la canónica. */}
       <div className="sf-divisor-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row sm:px-6 lg:px-8">
+        <div className={`mx-auto flex ${contenedorClase} flex-col items-center justify-between gap-3 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row`}>
           <p>
             © 2026 {settings.nombre}.
             Todos los derechos reservados.
