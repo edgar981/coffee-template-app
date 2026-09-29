@@ -31817,7 +31817,12 @@ sólo escribe `SiteContent`, nunca productos) — y `--sembrar-spotlight` SIEMPR
 titulo llenos (`scripts/capturar-seccion.ts:718-728`, el copy del prototipo, sin flag para vaciarlo).
 Lograr "visible:true + catálogo real + eyebrow/titulo vacíos" en una captura local exigiría o bien
 extender `capturar-seccion.ts` (fuera de `touches:`) o un harness aparte que reimplemente su
-bootstrap — no se construyó ninguno de los dos. Se confirmó por rojo→verde (§ abajo) y se dejó
+bootstrap — no se construyó ninguno de los dos. **Open follow-up, para quien lo necesite de nuevo:
+`CAPTURA-SECCION-SPOTLIGHT-SIN-TITULO-1`** — un flag como `--sembrar-spotlight-sin-titulo` (o un
+parámetro sobre el existente) que publique `content.spotlight` con `productoSlug` apuntando al
+producto sembrado pero `eyebrow`/`titulo` vacíos, para poder capturar en vivo el caso "banda visible,
+catálogo real, sin encabezado" sin depender de un muestrario desplegado. Se confirmó por rojo→verde
+(§ abajo) y se dejó
 como evidencia complementaria: `.capturas/paridad-antes-spotlight-1440/` (el MISMO layout, en el
 CÓDIGO VIEJO desplegado) muestra exactamente el caso "sin titular" con el bug — y el mecanismo que
 lo cierra (quitar UNA clase condicionada a `tieneEncabezado`, cayendo al `min-[820px]:grid-cols-2`
