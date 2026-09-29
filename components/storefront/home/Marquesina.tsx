@@ -7,7 +7,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { useProgresoScroll, transformMarquesinaTexto, transformMarquesinaTarjeta } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { REGISTRY, seccionEsVisible, productoSpotlight } from "@/lib/config/site-content-defaults";
+import { REGISTRY, seccionEsVisible, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { imagenPortada } from "@/lib/producto-imagen";
@@ -19,11 +19,13 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // APAGADA y de su posición 2ª (justo tras el hero). El gate de visibilidad vive ACÁ (como
 // brandStory/origen/spotlight), no en `page.tsx`.
 //
-// EL PIN — `productoSlug` resuelto con `productoSpotlight` (site-content-defaults.ts), el MISMO
-// mecanismo que ya usa `Spotlight.tsx`: puntero al `Product` vivo, nunca copia de su nombre/precio/
-// imagen (§ SpotlightContent, "la decisión es PUNTERO no copia"). Sin pin, o con el catálogo vacío,
-// la tarjeta flotante simplemente NO se muestra — hide-on-empty de UN elemento, no de toda la
-// sección: el texto del loop no depende del producto.
+// EL PIN — `productoSlug` resuelto con `productoMarquesina` (site-content-defaults.ts, § HERO-SIN-
+// TARJETA-Y-PDP-IMAGEN-1): puntero al `Product` vivo, nunca copia de su nombre/precio/imagen
+// (§ SpotlightContent, "la decisión es PUNTERO no copia"). Sin pin, con el catálogo vacío, O con un
+// slug que no matchea NINGÚN producto, la tarjeta flotante simplemente NO se muestra —
+// hide-on-empty de UN elemento, no de toda la sección: el texto del loop no depende del producto.
+// A DIFERENCIA de `Spotlight.tsx` (que usa `productoSpotlight`, con fallback al primer producto del
+// catálogo), acá NUNCA hay fallback: un pin roto o vacío no debe mostrar un producto arbitrario.
 //
 // EL SCROLL — reusa `useScroll`/`useTransform` de `lib/animation.ts` (§ TEMAS-BRANDSTORY-DIRECCION-
 // ARTE-1, el motor que ese slice construyó, no un listener propio): `useProgresoScroll` da el
@@ -56,7 +58,7 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
   useEffect(() => {
     getCatalog().then(setCatalog).catch(() => setCatalog([]));
   }, []);
-  const producto = productoSpotlight(catalog, marquesina.productoSlug);
+  const producto = productoMarquesina(catalog, marquesina.productoSlug);
 
   const [travelPx, setTravelPx] = useState(TRAVEL_FALLBACK_PX);
   useEffect(() => {

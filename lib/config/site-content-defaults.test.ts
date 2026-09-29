@@ -33,6 +33,9 @@ import {
   PUNTOS_FOCALES,
   VELO_INTENSIDADES,
   TICKER_VELOCIDADES,
+  productoSpotlight,
+  productoOtraTalla,
+  productoMarquesina,
   type SeccionDef,
   type VariantesDef,
   type SeccionKey,
@@ -1755,4 +1758,43 @@ test('DEFAULTS: toda ruta /images/… de un campo-imagen apunta a un archivo que
   assert.ok(rutas.length > 0, 'no se encontró ninguna ruta /images/… en los campos-imagen de DEFAULTS — ¿cambió el prefijo?');
   const faltantes = rutas.filter(r => !existsSync(path.join(dirImagenes, r.slice('/images/'.length))));
   assert.deepEqual(faltantes, [], `ruta de DEFAULTS sin archivo en disco: ${faltantes.join(' ; ')}`);
+});
+
+// ── HERO-SIN-TARJETA-Y-PDP-IMAGEN-1 (defecto 1): `productoMarquesina` NO cae al primer producto ──
+//
+// EL DEFECTO: `productoSpotlight` cae al PRIMER producto del catálogo cuando el slug está vacío o
+// no matchea — correcto para `spotlight` (la banda ENTERA es de un producto), pero la tarjeta
+// FLOTANTE de `marquesina` (la banda suelta y el hero·sticky de CORTE) lo usaba TAMBIÉN, así que un
+// pin vacío/roto mostraba un producto arbitrario en vez de ocultar la tarjeta — el gate visual del
+// owner del 2026-09-29 lo destapó al cargar productos (con el catálogo vacío no se veía).
+//
+// `productoMarquesina` es el fix: MISMO catálogo/slug, NUNCA cae a `catalog[0]`.
+
+const CATALOGO_PRUEBA = [
+  { slug: 'cafe-a' },
+  { slug: 'cafe-b' },
+];
+
+test('productoSpotlight: slug vacío o sin match CAE al primer producto (spotlight, comportamiento conservado)', () => {
+  assert.deepEqual(productoSpotlight(CATALOGO_PRUEBA, ''), CATALOGO_PRUEBA[0]);
+  assert.deepEqual(productoSpotlight(CATALOGO_PRUEBA, 'no-existe'), CATALOGO_PRUEBA[0]);
+  assert.deepEqual(productoSpotlight(CATALOGO_PRUEBA, 'cafe-b'), CATALOGO_PRUEBA[1]);
+  assert.equal(productoSpotlight([], 'cafe-a'), null, 'catálogo vacío: null, ni el fallback tiene sentido');
+});
+
+test('productoMarquesina: slug vacío o sin match devuelve null — NUNCA cae al primer producto (§ el defecto de la tarjeta arbitraria)', () => {
+  assert.equal(productoMarquesina(CATALOGO_PRUEBA, ''), null);
+  assert.equal(productoMarquesina(CATALOGO_PRUEBA, 'no-existe'), null);
+  assert.equal(productoMarquesina([], ''), null);
+  assert.equal(productoMarquesina([], 'cafe-a'), null);
+});
+
+test('productoMarquesina: con un slug que SÍ matchea, resuelve el producto exacto (el caso feliz no cambia)', () => {
+  assert.deepEqual(productoMarquesina(CATALOGO_PRUEBA, 'cafe-b'), CATALOGO_PRUEBA[1]);
+});
+
+test('productoMarquesina comparte el criterio "sin fallback" de productoOtraTalla — mismo comportamiento ante los mismos casos', () => {
+  for (const slug of ['', 'no-existe', 'cafe-a']) {
+    assert.deepEqual(productoMarquesina(CATALOGO_PRUEBA, slug), productoOtraTalla(CATALOGO_PRUEBA, slug));
+  }
 });

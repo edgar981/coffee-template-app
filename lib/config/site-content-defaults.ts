@@ -3329,3 +3329,24 @@ export function productoOtraTalla<T extends { slug: string }>(catalog: readonly 
   if (!slug) return null;
   return catalog.find((p) => p.slug === slug) ?? null;
 }
+
+/**
+ * El pin de la tarjeta FLOTANTE de `marquesina` (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1), resuelto SIN
+ * el fallback de `productoSpotlight`: un `slug` vacío o que no matchea ningún producto devuelve
+ * `null` — hide-on-empty de la tarjeta, nunca un producto arbitrario del catálogo. MISMO criterio
+ * que `productoOtraTalla` (arriba), copiado en vez de reusado a propósito: `productoOtraTalla` es
+ * el pin de "la OTRA talla", y llamarlo desde el pin de la marquesina confundiría a quien lea el
+ * código — dos conceptos distintos que comparten la MISMA regla ("sin match, sin fallback"), no
+ * el mismo concepto con dos nombres.
+ *
+ * `productoSpotlight` (arriba) SÍ conserva su fallback al primer producto: esa es la banda
+ * `spotlight`, donde la banda ENTERA está dedicada a un producto y "sin match, mostrar el
+ * primero" es la decisión correcta. La tarjeta de `marquesina` es un elemento OPCIONAL sobre una
+ * banda de texto que no depende de ella — sin un pin real, no hay nada honesto que mostrar.
+ * Consumida por `Marquesina.tsx` (la banda suelta) y `HeroMediaMarquesina.tsx` (el hero·sticky de
+ * CORTE) — las dos leen el MISMO campo `marquesina.productoSlug`.
+ */
+export function productoMarquesina<T extends { slug: string }>(catalog: readonly T[], slug: string): T | null {
+  if (!slug) return null;
+  return catalog.find((p) => p.slug === slug) ?? null;
+}

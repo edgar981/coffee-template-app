@@ -27,7 +27,8 @@ import { contenidoConPresetDeVista } from './theme-mirador';
 // visibilidad, el cableado del preset (CORTE la enciende, PATIO no la toca), el render por
 // `renderToStaticMarkup` (sin jsdom, § CLAUDE.md) — incluida la mitad verificable del scroll (el
 // gate estático; el `useScroll` real es capa 3, mismo límite que `historia-direccion-arte.test.ts`
-// documenta para el otro motor de movimiento) — y el pin del producto (reuso de `productoSpotlight`).
+// documenta para el otro motor de movimiento) — y el pin del producto (`productoMarquesina`, § HERO-
+// SIN-TARJETA-Y-PDP-IMAGEN-1 — SIN el fallback al primer producto que tenía `productoSpotlight`).
 
 function renderMarquesina(content: SiteContentData, opts: { preview?: boolean } = {}): string {
   const arbol = React.createElement(SiteContentProvider, { value: content, children: React.createElement(Marquesina) });

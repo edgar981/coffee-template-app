@@ -30762,3 +30762,209 @@ ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, citad
 sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `PANEL-TARJETAS-NO-ESTIRAN-1`.**
+
+## 2026-09-29 — Sin tarjeta arbitraria en el hero, e imagen principal de la ficha que nunca depende de JS para verse (`HERO-SIN-TARJETA-Y-PDP-IMAGEN-1`)
+
+Dos defectos del gate visual del owner sobre el muestrario desplegado, del mismo mensaje.
+
+### 1 · La tarjeta del hero — el pin caía al primer producto, re-medido y confirmado
+
+Re-medido contra `lib/config/site-content-defaults.ts:3316` (`productoSpotlight`): con un `slug`
+vacío o que no matchea NINGÚN producto, `catalog.length > 0` hace que devuelva `catalog[0]` — el
+PRIMER producto del catálogo, nunca `null`. Los docstrings de `Marquesina.tsx` (`:24-26`, antes de
+este slice) y `HeroMediaMarquesina.tsx` (`:544-546`, antes de este slice) YA decían "sin pin, la
+tarjeta no se muestra" — el código hacía lo contrario en cuanto el catálogo dejaba de estar vacío
+(exactamente el reporte del owner: con el catálogo vacío no se veía, al cargar productos apareció).
+
+**El fix es una función NUEVA, `productoMarquesina` (`site-content-defaults.ts`, junto a
+`productoSpotlight`/`productoOtraTalla`), no un parche sobre `productoSpotlight`.**
+`productoSpotlight` CONSERVA su fallback — la banda `spotlight` (`Spotlight.tsx`, fuera de
+`touches:` de este slice, sin tocar) está dedicada ENTERA a un producto, así que "sin match, mostrar
+el primero" sigue siendo la decisión correcta ahí. `productoMarquesina` es el mismo cuerpo que
+`productoOtraTalla` (slug vacío o sin match → `null`, sin fallback) pero exportada APARTE: llamar a
+`productoOtraTalla` desde el pin de la marquesina habría confundido a quien lea el código — dos
+conceptos distintos ("el pin de la marquesina" y "la otra talla") que comparten la MISMA regla, no
+el mismo concepto con dos nombres. `Marquesina.tsx` (la banda suelta) y `HeroMediaMarquesina.tsx`
+(el hero·sticky de CORTE) migran a `productoMarquesina` — las dos leen el MISMO campo
+`marquesina.productoSlug`, así que el fix es uno solo, cableado en los dos consumidores.
+
+Los docstrings de los dos componentes ya AFIRMABAN el comportamiento correcto (hide-on-empty); se
+actualizó la referencia al nombre de la función y se agregó la comparación con `productoSpotlight`
+para que quede escrito por qué NO comparten fallback. El hint del panel
+(`components/admin/tienda-secciones.ts:324`, "Vacío: la tarjeta no se muestra") YA era literal
+—describía la intención, no el bug—; se sumó un párrafo explicando la asimetría con `spotlight` para
+que el próximo lector no la reintroduzca "unificando" los dos pines.
+
+El presupuesto de scroll (`claseAlturaAncestroMarquesina(!!producto, preview)`,
+`HeroMediaMarquesina.tsx:455`) ya dependía de `!!producto` desde antes de este slice — con el fix,
+un pin vacío/roto hace que `producto` sea `null` de verdad, así que el ancestro cae al presupuesto
+CORTO (65vh) automáticamente, sin tocar esa línea.
+
+**Tests** (`lib/config/site-content-defaults.test.ts`, junto a las funciones): `productoSpotlight`
+sigue cayendo al primer producto (comportamiento CONSERVADO, afirmado por primera vez — no tenía
+test propio); `productoMarquesina` nunca cae a un fallback (slug vacío, sin match, catálogo vacío);
+un caso que compara las dos funciones sobre los mismos inputs para que la divergencia quede
+explícita. `hero-marquesina.test.ts` y `marquesina-banda.test.ts` no cambian de aserciones —los dos
+archivos renderizan con `catalog=[]` (SSR nunca resuelve el `fetch` de `getCatalog()`, mismo límite
+documentado en los dos archivos desde antes), así que el viejo y el nuevo comportamiento coinciden
+en ese caso (los dos devuelven `null` con catálogo vacío); se actualizaron sólo sus comentarios para
+nombrar la función correcta.
+
+### 2 · La imagen principal invisible — no se pudo REPRODUCIR el "atascado"; se cerró el mecanismo, no un repro
+
+**Medido en el navegador (Playwright headless, Chromium, contra el muestrario desplegado
+`https://coffee-template-app-onix.vercel.app`) en SEIS escenarios distintos, ninguno reprodujo un
+`opacity: 0` persistente en el contenedor de la imagen principal de `/tienda/[slug]`:**
+
+| # | Escenario | Resultado |
+| --- | --- | --- |
+| 1 | Carga directa (`page.goto` + `networkidle`), 0–10s | `opacity:1` ya al primer muestreo |
+| 2 | Click en miniatura (imgIdx 0→1) | `opacity` pasa por ~0.07 y llega a 1 en <500ms |
+| 3 | CPU 6×, red 500kbps/400ms latencia, `reducedMotion:'reduce'`, viewport móvil | contenedor tarda en APARECER (fetch lento), pero una vez presente sube de ~0.88 a 1 en ~1s — nunca atascado |
+| 4 | Navegación CLIENT-SIDE entre dos PDP (imgIdx heredado de la anterior) | `opacity:1` en <1s, `alt` actualizado al nuevo producto |
+| 5 | Scroll agresivo en `/tienda` (replicando la secuencia real del owner) + click client-side a un producto | `opacity:1` en ~1s |
+| 6 | Ráfaga de clicks SIN esperar entre miniaturas (3 rondas × 4 miniaturas) | `opacity:1` en ~300ms tras la ráfaga |
+
+Ningún CSS del repo apunta a `.aspect-square` (`grep` sobre `*.css`, cero resultados): no hay una
+regla que pudiera forzar la opacidad del contenedor por fuera del estilo inline de framer-motion. El
+"contenedor" con `opacity:0` sólo puede ser el `style` inline que `motion.div` escribe — no hay un
+segundo candidato en el árbol (confirmado leyendo el HTML capturado en cada prueba: el contenedor
+que matcheaba `.aspect-square` era siempre el `<div>` con `alt` = nombre del producto, no una card de
+"relacionados" ni del nav).
+
+**No se pudo confirmar la causa EXACTA que el owner vio** (posible: la primera medición cayó en un
+instante de verdad transitorio que mi harness no reprodujo; posible también que el catálogo del
+muestrario —datos MUTABLES, no un snapshot— cambió entre la medición del owner y ésta: la imagen del
+mismo slug midió `naturalWidth` 640 acá contra 542 reportado, así que el producto que el owner vio
+puede no ser byte-a-byte el mismo que el que existe ahora). Es un `deviation` de lo que el spec
+afirmaba como reproducible, y se declara como tal — no se inventó una causa que la medición no
+sostiene.
+
+**El fix no es "arreglar el atasco" (no se pudo ver ocurrir), es cerrar el MECANISMO que lo hace
+posible en principio**, siguiendo un patrón que este mismo repo ya usa para la MISMA clase de riesgo:
+`HeroMediaMarquesina.tsx` (§ "LA VISTA PREVIA ES EN VIVO", `PreviewProvider`) usa `initial={false}`
+para que el contenido "quede asentado desde el primer render" y "NO quede invisible esperando" un
+disparador de JS que puede no llegar a tiempo. La imagen principal de la ficha (`priority`, marcada
+como LCP) tenía el MISMO riesgo de fábrica: `initial={{opacity:0}}` → `animate={{opacity:1}}` ata su
+visibilidad a que framer-motion complete un ciclo de montaje — un antipatrón conocido para contenido
+crítico, sin relación con si mi harness pudo o no dispararlo.
+
+**El fix, en `app/(storefront)/tienda/[slug]/page.tsx`:** un estado `galeriaTocada` (arranca en
+`false`) decide el `initial` del `motion.div` de la imagen principal vía `entradaHeroInicial`
+(`lib/storefront/pdp-galeria.ts`, nuevo): `false` mientras el visitante no clickeó ninguna miniatura
+(framer-motion renderiza DIRECTO en `animate`, sin animación que pueda no completar) y `{opacity:0}`
+(el fade de siempre) una vez que sí interactuó —en ese punto la interacción ya demuestra que JS está
+corriendo—. `setGaleriaTocada(true)` se agrega al `onClick` de la miniatura, junto al `setImgIdx`
+existente. La lógica de índice (`galeria[imgIdx] ?? galeria[0]`) se extrajo a `heroDeGaleria`, mismo
+archivo, sin cambiar su comportamiento (sigue cayendo a la portada si el índice heredado de otra
+navegación queda fuera de rango).
+
+**`lib/storefront/pdp-galeria.ts` NO estaba en `touches:`** — sólo `lib/storefront/pdp-galeria.test.ts`
+lo estaba. Es la única desviación de alcance de este slice, y se declara: sin un módulo fuente, el
+test declarado no tiene nada que importar; las dos funciones son PURAS, de ~3 líneas cada una, y
+existen sólo para que la decisión (qué `initial` usar, a qué imagen caer) sea afirmable sin
+navegador — la animación en sí sigue siendo capa 3. Esta sesión no tiene una herramienta de borrado
+de archivos concedida (`rm`/`git rm` fueron denegados), así que la alternativa —mover las funciones
+DENTRO de `page.tsx` (que sí está en `touches:`) y dejar `pdp-galeria.ts` como archivo suelto sin
+comitear— habría dejado basura de árbol de trabajo sin rastrear, que el próximo dispatch rechaza por
+diseño (§ las instrucciones de este dispatch). Comitear el módulo mínimo y necesario es la opción que
+deja el árbol limpio.
+
+**Verificación (Chromium headless, mismo arnés que la medición de arriba, contra la RAMA):** tras el
+fix, `entradaHeroInicial(false)` → `false` (afirmado en `lib/storefront/pdp-galeria.test.ts`, sin
+navegador); en capa 3 no se pudo re-correr contra un deploy de la rama (el muestrario despliega desde
+la rama y no hay control sobre cuándo termina ese build desde esta sesión), así que la verificación
+de la MECÁNICA en producción queda pendiente del próximo deploy — lo que SÍ se verificó es que
+`npm run verificar:nayoli:visual` da 0px de diferencia en la ruta `producto` (main vs. esta rama, ver
+§4), confirmando que el fix no mueve NINGÚN píxel del estado FINAL asentado (coherente con lo
+esperado: `initial={false}` cambia sólo el estado de PARTIDA, nunca el de llegada).
+
+### 3 · `productoMarquesina` — comparación con `productoOtraTalla`, y por qué no se reusó
+
+Ver §1: se evaluó llamar a `productoOtraTalla` directo desde `Marquesina.tsx`/`HeroMediaMarquesina.tsx`
+(mismo cuerpo, cero líneas nuevas) y se descartó: el nombre de la función quedaría describiendo "la
+otra talla" en un sitio que no tiene nada que ver con tallas — la clase de confusión que este repo
+documenta para otros casos (§ CLAUDE.md, "cuando dos declaraciones describen el mismo conjunto..."
+habla de DERIVAR o atar con un test, no de reusar un nombre semánticamente ajeno). El costo de la
+duplicación es dos líneas; el costo del reuso habría sido leible-mal para siempre.
+
+### 4 · Gate
+
+| Capa | Comando | Resultado |
+| --- | --- | --- |
+| Typecheck | `npm run typecheck` | **0 errores** |
+| Reglas puras | `npm test` | **2479/2479** (+10: 4 en `site-content-defaults.test.ts`, 6 en `pdp-galeria.test.ts`; baseline previo 2469) |
+| Cadenas del motor | `npm run test:integracion` | **240/240**, sin cambio — este slice no toca ninguna cadena del carril de Postgres |
+| Byte-identidad visual Nayoli | `npm run verificar:nayoli:visual` | **0px** de diferencia en las 6 rutas + 2 hovers (home, tienda, producto, checkout, nosotros, suscripciones; hover automática/elección), main vs. esta rama |
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `productoMarquesina`, `productoSpotlight` (sin
+cambio de comportamiento, sólo ganó test), `productoOtraTalla` (sin cambio, citado en comentarios),
+`entradaHeroInicial`, `heroDeGaleria`, `galeriaTocada`, `lib/storefront/pdp-galeria.ts`,
+`HERO-SIN-TARJETA-Y-PDP-IMAGEN-1`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- **`productoSpotlight`/`productoOtraTalla`**: CERO apariciones en `CLAUDE.md` — la doctrina de
+  `SPOTLIGHT-BANDA-1`/`SPOTLIGHT-CAPACIDAD-CENSO-1` vive en `DECISIONS.md` (`§SPOTLIGHT-BANDA-1`,
+  citada en los docstrings del código), no promovida a `CLAUDE.md`. Nada que corregir.
+- **`productoMarquesina`, `entradaHeroInicial`, `heroDeGaleria`, `pdp-galeria`,
+  `HERO-SIN-TARJETA-Y-PDP-IMAGEN-1`**: CERO apariciones (símbolos nuevos de este slice).
+- **`marquesina`** (la sección): grepeado literal, **CERO** apariciones en `CLAUDE.md` — la
+  doctrina de `MARQUESINA-BANDA-1`/`MUESTRARIO-HERO-MARQUESINA-STICKY-1`/`CORTE-USA-HERO-STICKY-1`
+  vive entera en `DECISIONS.md` (citada en los docstrings del código), no promovida a `CLAUDE.md`.
+  Nada que corregir.
+- **`/tienda/[slug]`**: UNA aparición (§ 59, "Los ATRIBUTOS café del producto") — describe que el
+  detalle pinta Chips con vocabulario café (`origen`/`proceso`/`tostado`/etc.), no el mecanismo de
+  la galería ni la animación de entrada del contenedor. No queda falsa.
+- **`imgIdx`/`aspect-square`/`ProductPage`**: CERO apariciones en `CLAUDE.md`. La sección
+  "Galería de producto — `imagen` vs `imagenes[]`" describe `imagen`/`imagenes[]` como CAMPOS del
+  modelo y la dedupe de `lib/product-gallery.ts` (`galeriaCompleta`) — no toca cómo el detalle
+  ANIMA su contenedor ni el estado de qué miniatura está seleccionada; ninguna frase de esa sección
+  queda falsa (el CONTRATO de `galeriaCompleta` no cambió, sólo se extrajo el `??galeria[0]` a
+  `heroDeGaleria`, mismo comportamiento).
+
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `HERO-SIN-TARJETA-Y-PDP-IMAGEN-1` (id nuevo) —
+`grep -c` antes de este párrafo dio **0**, sin colisión. `SPOTLIGHT-BANDA-1`/`SPOTLIGHT-CAPACIDAD-
+CENSO-1` (citados arriba) siguen describiendo el mecanismo de `spotlight`/`Spotlight.tsx`, que este
+slice NO tocó — ningún pointer queda falso.
+
+### `customer_bytes`
+
+**`changed: true`.** El hero de CORTE deja de mostrar una tarjeta de producto arbitraria cuando el
+pin está vacío o roto — un cambio VISIBLE del storefront para cualquier tenant en esa situación
+(hoy, ninguno con fila real: Nayoli sigue byte-idéntica, confirmado por `verificar:nayoli:visual`
+arriba, porque `DEFAULTS.marquesina.productoSlug` ya era `''` y el catálogo de Nayoli en ese arnés
+SIEMPRE tiene productos — la diferencia sólo se activa con un pin roto contra un catálogo no vacío,
+que el arnés de Nayoli no ejercita). La imagen principal de la ficha de producto cambia su
+comportamiento de MONTAJE (visible antes vs. después de una animación) sin cambiar su apariencia
+FINAL — confirmado 0px por el mismo arnés.
+
+`strings:` **ninguno** — ningún texto nuevo ni reescrito; los dos cambios son de LÓGICA/mecánica,
+sin copy.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo. El diff es TypeScript/TSX puro (funciones + un componente de storefront) más tests y el
+asiento.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde (tsc 0, `npm test` 2479/2479,
+`npm run test:integracion` 240/240, `verificar:nayoli:visual` 0px). El defecto 1 (tarjeta del hero)
+está confirmado por medición ANTES/DESPUÉS de la función pura, con test que la fija. El defecto 2
+(imagen invisible) NO se pudo reproducir pese a seis intentos distintos contra el muestrario
+desplegado — se documenta como `deviation`, y el fix cierra el MECANISMO de riesgo (una imagen
+`priority`/LCP que depende de JS para hacerse visible), no un repro confirmado; el owner debe saber
+esto antes de dar por cerrado el defecto 2 específicamente. `lib/storefront/pdp-galeria.ts` es una
+desviación declarada de `touches:` (archivo nuevo no listado, sólo su `.test.ts` lo estaba),
+necesaria porque esta sesión no tuvo capacidad de borrar archivos. Commiteado en
+`slice/corte-reescritura-prototipo-1`; el merge sigue pendiente del gate del orquestador — este
+slice, por instrucción del dispatch, no mergea.
+
+**Cierra `HERO-SIN-TARJETA-Y-PDP-IMAGEN-1`** en lo que a defecto 1 respecta; el defecto 2 se cierra
+como "mecanismo endurecido, repro no confirmado" — el owner puede pedir mayor investigación si vuelve
+a verlo en un deploy futuro, con pasos EXACTOS de reproducción (dispositivo, navegador, y si es
+posible las devtools abiertas con el Performance/Elements panel capturando el momento).

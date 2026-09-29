@@ -219,8 +219,9 @@ test('el panel visible es `sticky top-0`, a `h-[100svh]` SIEMPRE (no lee `altura
 });
 
 // § CORTE-HERO-MARQUEE-REVELA-1: `DEFAULTS.marquesina.productoSlug` es `''` (§ site-content-
-// defaults.ts), así que `productoSpotlight` SIEMPRE devuelve `null` acá — sin producto que pinear,
-// el ancestro usa el presupuesto CORTO (`claseAlturaAncestroMarquesina(false)`), no el de siempre.
+// defaults.ts), así que `productoMarquesina` (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1 — antes
+// `productoSpotlight`, que caía al primer producto del catálogo) SIEMPRE devuelve `null` acá — sin
+// producto que pinear, el ancestro usa el presupuesto CORTO (`claseAlturaAncestroMarquesina(false)`), no el de siempre.
 // El caso CON tarjeta (200vh) queda sin cambios y afirmado directo sobre la función pura, abajo — el
 // mismo límite SSR de `getCatalog()`/`useEffect` que ya documentan los otros tests de esta sección
 // (líneas 122-126) impide resolver un `producto` real a través de este harness de render.

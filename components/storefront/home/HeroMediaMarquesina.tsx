@@ -8,7 +8,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { objectPositionDePuntoFocal, productoSpotlight } from "@/lib/config/site-content-defaults";
+import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import {
   useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, claseAlturaAncestroMarquesina,
@@ -68,8 +68,8 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // REUSA CONTENIDO, NO LO DUPLICA (instrucción explícita del spec: "si te parece que deben ser
 // campos propios del hero, PARÁ y reportá — duplicar el dato es peor"). El texto del loop y el pin
 // de la tarjeta flotante YA VIVEN en `marquesina` (`texto`/`productoSlug`, § `MarquesinaContent`) —
-// el MISMO mecanismo que `Marquesina.tsx` ya usa (`productoSpotlight`, puntero al `Product` vivo,
-// nunca copia). Esta variante los LEE directo, sin depender de `marquesina.visible`: la banda
+// el MISMO mecanismo que `Marquesina.tsx` ya usa (`productoMarquesina`, § HERO-SIN-TARJETA-Y-PDP-
+// IMAGEN-1, puntero al `Product` vivo, nunca copia, SIN fallback al primer producto del catálogo). Esta variante los LEE directo, sin depender de `marquesina.visible`: la banda
 // SUELTA (`Marquesina.tsx`) sigue siendo su propio interruptor, independiente de qué variante de
 // hero esté activa — es responsabilidad del PRESET que active esta variante apagar también la banda
 // suelta con `bandasVisibles.marquesina:false` (§ MUESTRARIO-BANDA-APAGABLE-1), para no mostrar el
@@ -381,7 +381,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   useEffect(() => {
     getCatalog().then(setCatalog).catch(() => setCatalog([]));
   }, []);
-  const producto = productoSpotlight(catalog, marquesina.productoSlug);
+  const producto = productoMarquesina(catalog, marquesina.productoSlug);
 
   // El TICKER (§ el docstring de cabecera, "EL TICKER — RONDA 3", ampliado por RONDA 4): `trackRef`
   // apunta al `<motion.div>` con las dos copias del texto; se mide el ancho de la PRIMERA
@@ -542,8 +542,10 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
         </div>
 
         {/* LA TARJETA — MEDIDO: "encima" del texto y del velo. `z-20` (por encima del `z-10` del
-            loop). Hide-on-empty de UN elemento (el pin), como en `Marquesina.tsx`: sin `productoSlug`
-            o con el catálogo vacío, simplemente no se muestra — el texto del loop no depende de ella. */}
+            loop). Hide-on-empty de UN elemento (el pin), como en `Marquesina.tsx`: sin `productoSlug`,
+            con el catálogo vacío, O con un slug que no matchea ningún producto — `productoMarquesina`
+            (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1) NO cae a ningún fallback — simplemente no se muestra;
+            el texto del loop no depende de ella. */}
         {producto && (
           <motion.div
             className="relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center rounded-2xl bg-[var(--sf-tarjeta,white)] p-8"

@@ -31,6 +31,7 @@ import { formatCOP } from "@duna/core/utils";
 import { TOSTION_LABELS } from "@/constants/roast-levels";
 import Chip from "@/components/storefront/ProductChip";
 import { galeriaCompleta } from "@duna/core/product-gallery";
+import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria";
 
 interface ProductPageProps {
   params: Promise<{
@@ -57,6 +58,13 @@ export default function ProductPage({
 
   const [imgIdx, setImgIdx] =
     useState(0);
+
+  // § HERO-SIN-TARJETA-Y-PDP-IMAGEN-1 (defecto 2, `lib/storefront/pdp-galeria.ts`): mientras el
+  // visitante NO tocó ninguna miniatura, la imagen principal no debe depender de que una animación
+  // de JS complete para hacerse visible. Se pone en `true` en el `onClick` de la miniatura, abajo —
+  // nunca se vuelve a `false` (una vez que JS demostró estar corriendo, se queda demostrado).
+  const [galeriaTocada, setGaleriaTocada] =
+    useState(false);
 
   const [wishlisted, setWishlisted] =
     useState(false);
@@ -115,7 +123,7 @@ export default function ProductPage({
   // que el hero arranca en ella. Puede quedar vacía (producto sin imágenes) →
   // se renderiza el bloque crema de marca.
   const galeria = galeriaCompleta(product.imagen, product.imagenes);
-  const heroSrc = imagenPortada(galeria[imgIdx] ?? galeria[0]);
+  const heroSrc = imagenPortada(heroDeGaleria(galeria, imgIdx));
 
   const related = catalog.filter(
     (p) =>
@@ -183,9 +191,13 @@ export default function ProductPage({
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
           {/* Images */}
           <div className="space-y-3">
+            {/* § HERO-SIN-TARJETA-Y-PDP-IMAGEN-1: la imagen PRINCIPAL nunca debe depender de que
+                una animación de JS complete para hacerse visible (`initial={false}` mientras el
+                visitante no tocó ninguna miniatura, § lib/storefront/pdp-galeria.ts). El fade entre
+                imágenes se conserva DESPUÉS de la primera interacción. */}
             <motion.div
               key={imgIdx}
-              initial={{ opacity: 0 }}
+              initial={entradaHeroInicial(galeriaTocada)}
               animate={{ opacity: 1 }}
               className="relative aspect-square overflow-hidden rounded-3xl bg-[var(--sf-superficie)]"
             >
@@ -211,9 +223,10 @@ export default function ProductPage({
                   (img, i) => (
                     <button
                       key={i}
-                      onClick={() =>
-                        setImgIdx(i)
-                      }
+                      onClick={() => {
+                        setGaleriaTocada(true);
+                        setImgIdx(i);
+                      }}
                       className={`h-16 w-16 overflow-hidden rounded-xl border-2 transition-all ${
                         imgIdx === i
                           ? "border-[var(--sf-acento)]"

@@ -312,6 +312,13 @@ const HERO: SeccionConfig = {
 // (puntero al catálogo, texto libre, validado en LECTURA contra el catálogo vivo — nunca contra un
 // set fijo al guardar, § el docstring de `MarquesinaContent`/`SpotlightContent`). OPCIONAL: sin pin
 // la tarjeta simplemente no se muestra (hide-on-empty de UN elemento, no de la sección entera).
+//
+// SIN el fallback de `spotlight` (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1): `spotlight.productoSlug`
+// resuelve con `productoSpotlight`, que cae al PRIMER producto del catálogo si el slug no matchea
+// —correcto ahí, la banda ENTERA es de un producto—; `marquesina.productoSlug` resuelve con
+// `productoMarquesina`, que NUNCA cae a un producto arbitrario. Por eso el hint de arriba ("Vacío:
+// la tarjeta no se muestra") es literal: un pin vacío o roto oculta la tarjeta, no muestra el
+// primer café del catálogo.
 const MARQUESINA: SeccionConfig = {
   seccion: 'marquesina',
   pagina: 'home',
