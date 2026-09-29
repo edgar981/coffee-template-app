@@ -9,9 +9,12 @@ import { SiteSettingsProvider } from '@/components/admin/SiteSettingsProvider';
 import type { SiteSettings } from '@/lib/config/site-settings';
 import { SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 import BrandStory from '@/components/storefront/home/BrandStory';
+import Spotlight from '@/components/storefront/home/Spotlight';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { PreviewProvider } from '@/components/storefront/PreviewMode';
+import { VistaTiendaContenido } from '@/components/admin/VistaTiendaEnVivo';
 
-import { resolverSiteContent, DEFAULTS, BANDA_IDS } from './site-content-defaults';
+import { resolverSiteContent, DEFAULTS, BANDA_IDS, type SiteContentData } from './site-content-defaults';
 import { PRESETS, mergePresetEnContent } from './themes';
 import { RAICES_DEFECTO } from './palette-derive';
 import { esquemaStyleDeBanda } from './esquema-style';
@@ -205,4 +208,143 @@ test('EL ESTILO APLICADO: BrandStory(style=esquemaStyleDeBanda(…)) pinta la ba
     React.createElement(SiteContentProvider, { value: DEFAULTS, children: React.createElement<{ style?: React.CSSProperties }>(BrandStory, { style: {} }) }),
   );
   assert.ok(!sinEsquema.includes('--sf-banda:'), 'sin esquema, el section no lleva --sf-banda inline — cae al fallback de clase, el defecto de antes');
+});
+
+// ─── ADMIN-TIENDA-CARTPROVIDER-PREVIEW-1 — el crash real: `/admin/tienda` tiraba "This page
+// couldn't load" (`Uncaught Error: useCartStore must be used within CartProvider`) al abrir el
+// muestrario. `Spotlight.tsx` llama `useCartStore()` SIN CONDICIÓN, antes de cualquier
+// early-return de visibilidad/catálogo (§ el propio código, `Spotlight.tsx:52`), y ese hook hace
+// `throw` sin un `CartProvider` ancestro (`lib/cartStore.tsx`) — `VistaTiendaEnVivo.tsx` montaba
+// `<Comp>` sin uno.
+//
+// EL LÍMITE de este carril, heredado de `spotlight-cableado.test.ts` (§ su propio comentario de
+// cabecera): `Spotlight`/`Marquesina` resuelven su `catalog` en un `useEffect`
+// (`getCatalog().then(setCatalog)`), y `renderToStaticMarkup` NUNCA corre efectos — es un único
+// paso de render síncrono. Así que en TODO este archivo el `catalog` interno de esos componentes
+// queda SIEMPRE en `[]`, sea cual sea el contenido de `SiteContent` que se les pase: no hay forma
+// honesta de "sembrar" un catálogo real sin mockear el módulo (`mock.module` exige
+// `--experimental-test-module-mocks`, que `npm test` no lleva y que este slice no puede agregar
+// sin tocar `package.json`, fuera de `touches:` — mismo límite que ya documentó
+// `cromo-carrito.test.ts`) o instalar jsdom + `act()` (el repo no los tiene, § CLAUDE.md "los tests
+// de COMPONENTE necesitan jsdom, que el repo no tiene"). Por eso "un catálogo NO vacío" se afirma
+// en la ÚNICA capa que SÍ es alcanzable desde SSR: los CAMPOS de `SiteContent` que la sección
+// declara (`spotlight.visible`/`.productoSlug`/`.otroTamanoSlug`/`.notaPrecio` no vacíos, § abajo)
+// — no el array de productos que el fetch resolvería. Esto no es una laguna de cobertura para ESTE
+// bug: el `throw` de `useCartStore()` ocurre ANTES de que el catálogo importe (medido: revienta
+// igual con catálogo vacío Y con `spotlight.visible:false`, los DEFAULTS — § el asiento de este
+// slice en DECISIONS.md), así que cualquier contenido de `SiteContent` —vacío o lleno— ejerce la
+// misma línea de código riesgosa.
+
+/** El content resuelto de un preset (o Nayoli), con `spotlight` FORZADO a una configuración
+ *  "llena" — visible, con eyebrow/título/badge/pin/talla-alterna/nota de precio no vacíos — para
+ *  acercarse lo más posible a "las ramas que dependen de productos" dentro del límite de arriba: el
+ *  `producto` que `Spotlight` resuelve seguirá siendo `null` (catálogo interno `[]`), así que el
+ *  componente igual retorna temprano después del hook — pero es EXACTAMENTE ahí, en el hook, donde
+ *  vivía el crash, y este contenido es lo más "no vacío" que el nivel de `SiteContent` permite. */
+function contenidoSpotlightLleno(clave: string | null): SiteContentData {
+  const base = contenidoDePreset(clave);
+  return {
+    ...base,
+    spotlight: {
+      visible: true,
+      eyebrow: 'Nuestro café',
+      titulo: 'Un café que cuenta su origen',
+      badge: 'Edición limitada',
+      productoSlug: 'cafe-narino-1kg',
+      otroTamanoSlug: 'cafe-narino-250g',
+      notaPrecio: 'COP · impuestos incluidos',
+    },
+  };
+}
+
+// ─── LA RED — `VistaTiendaContenido` por CADA SECCIÓN de `SECCIONES_TIENDA`, bajo CADA preset ────
+//
+// Es el test que faltaba: el archivo YA probaba `FragmentoTienda` (la vista previa de PALETA) por
+// preset, pero nunca `VistaTiendaEnVivo`/`VistaTiendaContenido` (la vista previa de CONTENIDO,
+// § TiendaSeccionEditor.tsx) — que es justo donde vivía este crash. Itera las 15 `SeccionVista` con
+// el MISMO contenido/props que `TiendaSeccionEditor` les pasaría (`bandaId`, `content.esquemas`,
+// `content.tema`), así que cualquier sección futura que agregue un hook sin su provider lo dice acá,
+// no sólo `spotlight`.
+
+test('control (sin preset, Nayoli): VistaTiendaContenido no tira para NINGUNA de las 15 SeccionVista', () => {
+  const content = contenidoDePreset(null);
+  for (const config of SECCIONES_TIENDA) {
+    assert.doesNotThrow(
+      () => renderToStaticMarkup(
+        React.createElement(VistaTiendaContenido, {
+          seccion: config.seccion,
+          valor: content[config.seccion],
+          bandaId: config.bandaId,
+          esquemas: content.esquemas,
+          tema: content.tema,
+        }),
+      ),
+      `VistaTiendaContenido(${config.seccion}) no debe tirar bajo Nayoli (sin preset)`,
+    );
+  }
+});
+
+for (const preset of PRESETS) {
+  test(`preset ${preset.clave}: VistaTiendaContenido no tira para NINGUNA de las 15 SeccionVista (el editor de /admin/tienda sobrevive a aplicarlo)`, () => {
+    const content = contenidoDePreset(preset.clave);
+    for (const config of SECCIONES_TIENDA) {
+      assert.doesNotThrow(
+        () => renderToStaticMarkup(
+          React.createElement(VistaTiendaContenido, {
+            seccion: config.seccion,
+            valor: content[config.seccion],
+            bandaId: config.bandaId,
+            esquemas: content.esquemas,
+            tema: content.tema,
+          }),
+        ),
+        `VistaTiendaContenido(${config.seccion}) no debe tirar bajo el preset ${preset.clave}`,
+      );
+    }
+  });
+}
+
+test('control + CADA preset: VistaTiendaContenido(spotlight) con la sección FORZADA a "llena" (visible, con pin/talla/nota) no tira — la rama que dispara el crash real en uso', () => {
+  for (const clave of [null, ...PRESETS.map(p => p.clave)]) {
+    const content = contenidoSpotlightLleno(clave);
+    assert.doesNotThrow(
+      () => renderToStaticMarkup(
+        React.createElement(VistaTiendaContenido, {
+          seccion: 'spotlight',
+          valor: content.spotlight,
+          bandaId: 'featured',
+          esquemas: content.esquemas,
+          tema: content.tema,
+        }),
+      ),
+      `spotlight lleno no debe tirar (contenido: ${clave ?? 'sin preset'})`,
+    );
+  }
+});
+
+// ─── EL REGRESO — sin CartProvider, Spotlight SÍ tira, con o sin catálogo/contenido ──────────────
+//
+// Deja escrita la firma EXACTA del error que el owner reportó ("This page couldn't load" +
+// `Uncaught Error: useCartStore must be used within CartProvider"), directo contra `Spotlight` (sin
+// pasar por `VistaTiendaContenido`, que ya lo arregla) — mismo patrón que la prueba equivalente de
+// TrustBadges, arriba. `useCartStore()` se llama ANTES de cualquier early-return, así que tira con
+// CUALQUIER contenido: DEFAULTS (catálogo/visibilidad vacíos) y el spotlight "lleno" de arriba.
+
+test('EL DEFECTO QUE ESTO CIERRA: Spotlight SIN CartProvider tira, con SiteContent vacío Y con spotlight "lleno" — la firma EXACTA del crash que el owner reportó', () => {
+  const casos: Array<[string, SiteContentData]> = [
+    ['DEFAULTS (catálogo vacío, spotlight.visible:false)', DEFAULTS as SiteContentData],
+    ['spotlight lleno (visible:true, pin/talla/nota puestos)', contenidoSpotlightLleno(null)],
+  ];
+  for (const [etiqueta, content] of casos) {
+    assert.throws(
+      () => renderToStaticMarkup(
+        React.createElement(SiteContentProvider, {
+          value: content,
+          children: React.createElement(PreviewProvider, null, React.createElement(Spotlight, {})),
+        }),
+      ),
+      /useCartStore must be used within CartProvider/,
+      `Spotlight sin CartProvider debería tirar (${etiqueta})`,
+    );
+  }
 });

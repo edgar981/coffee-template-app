@@ -18,6 +18,7 @@ import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionP
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
+import { CartProvider } from '@/lib/cartStore';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { DEFAULTS, type SiteContentData, type BandaId, type EsquemasContent, type TemaContent } from '@/lib/config/site-content-defaults';
 import { esquemaStyleDeBanda } from '@/lib/config/esquema-style';
@@ -37,7 +38,10 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 //
 // LA ESCALA (render a 1280 + transform scale) vive en `EscalaDesktop` —extraída acá porque la vista
 // previa de paleta es su segundo consumidor (§ EscalaDesktop)—. Este componente ya sólo aporta lo
-// ESPECÍFICO de la vista de contenido: el mapa de secciones, el provider y el `PreviewProvider`.
+// ESPECÍFICO de la vista de contenido: el mapa de secciones, los providers (`SiteContentProvider`,
+// `PreviewProvider`, `CartProvider` — § el docstring de `VistaTiendaContenido`, abajo, que explica
+// por qué `CartProvider` es necesario y por qué cubre a `Comp` incondicionalmente) y el `style` de la
+// banda.
 //
 // EL ESQUEMA DE LA BANDA (§ HISTORIA-COMO-MUESTRARIO-1) — el defecto que esto cierra: hasta este
 // slice `<Comp />` se montaba SIN `style`, así que una banda con esquema asignado (p. ej. `brandStory`
@@ -134,17 +138,9 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   suscripcionFaq: PreguntasFrecuentes,
 };
 
-export default function VistaTiendaEnVivo({
-  seccion,
-  valor,
-  compacto = false,
-  bandaId,
-  esquemas,
-  tema,
-}: {
+export interface VistaTiendaProps {
   seccion: SeccionVista;
   valor: unknown;
-  compacto?: boolean;
   /** La banda del home de esta sección (§ SeccionConfig.bandaId) — para pintar con SU esquema real.
    *  Ausente = sin esquema (el `{}` de siempre). */
   bandaId?: BandaId;
@@ -155,7 +151,27 @@ export default function VistaTiendaEnVivo({
    *  lea `useSiteContent().tema` directo (p. ej. `escalaDisplay`, § BrandStoryCentrada) debe ver la
    *  MISMA fuente que decide el esquema, no la fábrica en un lado y lo real en el otro. */
   tema?: TemaContent;
-}) {
+}
+
+/** EL ÁRBOL INTERNO — providers + `<Comp>`, SIN `EscalaDesktop` (§ ADMIN-TIENDA-CARTPROVIDER-
+ *  PREVIEW-1). Extraído para que el carril pueda ejercer la composición REAL de providers —incluido
+ *  `CartProvider`, abajo— por RENDER DIRECTO, sin reimplementarla: `EscalaDesktop` sólo monta sus
+ *  `children` tras medir con un `ResizeObserver` (`paneW > 0`), que en SSR (`renderToStaticMarkup`,
+ *  sin un DOM real) nunca dispara — así que un test que renderice `VistaTiendaEnVivo` a secas ve un
+ *  `<div>` vacío y NUNCA llega a montar `Comp` ni sus providers (medido: `admin-tienda-preset.
+ *  test.ts` lo verifica explícitamente). `VistaTiendaContenido` es la mitad SSR-segura; el
+ *  default-export de abajo la envuelve en `EscalaDesktop` para el uso real del panel.
+ *
+ *  `CartProvider` LOCAL e INERTE (mismo mecanismo que `ProductCard` ya usa en `FragmentoTienda`/
+ *  PaletaSeccion.tsx desde el incidente de `/admin/configuracion` de 2026-08-28, § CLAUDE.md
+ *  "Montar un componente en OTRO árbol de providers"). Cubre a `Comp` INCONDICIONALMENTE — no sólo a
+ *  `spotlight`, la sección de hoy que dispara el crash (`Spotlight.tsx` llama `useCartStore()` sin
+ *  condición, al tope del componente, ANTES de cualquier early-return de visibilidad/catálogo) —
+ *  porque cualquier `SeccionVista` futura que agregue un control de compra hereda el mismo landmine
+ *  sin que nadie tenga que volver a tocar este archivo. Un click en "Agregar al carrito" dentro de
+ *  la vista previa sólo muta ESTE estado desechable: no hay un carrito real del dueño en el árbol
+ *  del admin. */
+export function VistaTiendaContenido({ seccion, valor, bandaId, esquemas, tema }: VistaTiendaProps) {
   const Comp = COMPONENTES[seccion];
   const temaReal = tema ?? DEFAULTS.tema;
   const esquemasReales = esquemas ?? DEFAULTS.esquemas;
@@ -165,14 +181,29 @@ export default function VistaTiendaEnVivo({
   const contenido = { ...DEFAULTS, tema: temaReal, esquemas: esquemasReales, [seccion]: valor } as SiteContentData;
 
   return (
-    <EscalaDesktop compacto={compacto} className={compacto ? 'tienda-tarjeta__mini' : 'tienda-vivo-pane'}>
-      <SiteContentProvider value={contenido}>
-        <PreviewProvider>
+    <SiteContentProvider value={contenido}>
+      <PreviewProvider>
+        <CartProvider>
           <div className="bg-[#faf7f4] font-inter">
             <Comp style={style} />
           </div>
-        </PreviewProvider>
-      </SiteContentProvider>
+        </CartProvider>
+      </PreviewProvider>
+    </SiteContentProvider>
+  );
+}
+
+export default function VistaTiendaEnVivo({
+  seccion,
+  valor,
+  compacto = false,
+  bandaId,
+  esquemas,
+  tema,
+}: VistaTiendaProps & { compacto?: boolean }) {
+  return (
+    <EscalaDesktop compacto={compacto} className={compacto ? 'tienda-tarjeta__mini' : 'tienda-vivo-pane'}>
+      <VistaTiendaContenido seccion={seccion} valor={valor} bandaId={bandaId} esquemas={esquemas} tema={tema} />
     </EscalaDesktop>
   );
 }
