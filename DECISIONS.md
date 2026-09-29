@@ -30968,3 +30968,173 @@ slice, por instrucción del dispatch, no mergea.
 como "mecanismo endurecido, repro no confirmado" — el owner puede pedir mayor investigación si vuelve
 a verlo en un deploy futuro, con pasos EXACTOS de reproducción (dispositivo, navegador, y si es
 posible las devtools abiertas con el Performance/Elements panel capturando el momento).
+
+## 2026-09-29 — "Nuestro café" (spotlight) se re-mide entero contra `.spotlight` del prototipo (`NUESTRO-CAFE-COMO-MUESTRARIO-1`)
+
+Pedido del owner, repetido varias veces: la banda del producto destacado de CORTE ("Nuestro café")
+no se parecía al muestrario en estructura, tipografía ni color. Spotlight.tsx **nunca renderiza para
+Nayoli** (sólo la variante `featured·spotlight`, que hoy sólo pide CORTE, y Nayoli resuelve a
+`featured·cuadricula`), así que este slice tuvo libertad TOTAL para reescribir su JSX — no hay
+byte-identidad que preservar dentro del componente, sólo la de las cuatro capas de datos que lo
+alimentan (DEFAULTS/REGISTRY/schema/editor), que sí se tocaron con cuidado (§ abajo).
+
+### La tabla de diferencias — `archivo:línea` del prototipo citado en cada fila
+
+| pieza | antes (`b7fb11f`) | después | prototipo (`docs/prototipos/cafeone/`) |
+| --- | --- | --- | --- |
+| grilla | `grid-cols-1 lg:grid-cols-2` (encabezado FUERA de la grilla, `mb-12`) | `grid-cols-1 gap-10 min-[820px]:grid-cols-2 min-[820px]:gap-12 min-[1200px]:grid-cols-[1fr_1.05fr_1fr] min-[1200px]:gap-16`, encabezado DENTRO (`col-span-2`→`col-span-1` a 1200) | `.spotlight-grid{grid-template-columns:1fr 1.05fr 1fr;gap:var(--space-16)}` (`css/app.css:437-440`), `@media(max-width:1200px){grid-template-columns:1fr 1fr;gap:var(--space-12);.spotlight-head{grid-column:1/-1}}` (`:984-986`), `@media(max-width:820px){grid-template-columns:1fr;gap:var(--space-10)}` (`:989`) |
+| eyebrow | `text-xs tracking-[0.2em] font-medium`, color `--sf-acento-texto` | `text-[12px] font-semibold tracking-[0.085em]`, color `--sf-sobre-banda-suave`/`--sf-texto-suave` | `.eyebrow{font-size:var(--text-label)=12px;font-weight:var(--weight-semibold)=600;letter-spacing:var(--tracking-button)=.085em;color:var(--text-muted)}` (`css/app.css:83-87`, `tokens.css:113,123,128`) |
+| titular | sin `mt-5`, sin `leading`/`tracking` propios | `mt-5 leading-[0.98] tracking-[-0.015em] text-balance` | `.spotlight-head .display-l{margin-top:var(--space-5)=20px;text-wrap:balance}` (`:441`); `--leading-display:.98`, `--tracking-display:-.015em` (`tokens.css:115,131`) |
+| escenario | `aspect-square`, `rounded-3xl`, `object-cover` sin padding | `aspect-[3/4]`, `sf-radio-lg`, padding interno `p-8`, `object-contain` | `.bag-card{aspect-ratio:3/4;border-radius:var(--radius-tile)=20px;padding:var(--space-8)=32px}` `.bag-card img{object-fit:contain}` (`:443-449`, `tokens.css:60,145,169`) |
+| flechas | no existían | `.stage-nav`: 44×44px cuadrados, borde, recorren moliendas + otra talla | `.stage-nav button{width:44px;height:44px;border-radius:var(--radius-button)=0;border:1px solid var(--border-strong)}` (`:463-468`) |
+| leyenda | no existía | `.bag-label` bajo el escenario, 13px uppercase tracking .085em | `.bag-label{font-size:var(--text-body-xs)=13px;text-transform:uppercase;letter-spacing:.085em;color:var(--text-muted)}` (`:453-458`) |
+| `.opt` (Presentación/Tamaño) | seleccionado = `bg-[var(--sf-acento)]/5` (5% de tinte) | seleccionado = `bg-[var(--sf-acento)]` LLENO | `.opt[aria-pressed="true"]{background:var(--action-primary);border-color:var(--action-primary);color:var(--text-on-accent)}` (`:487-490`) — **medido en vivo, exacto**: `background-color: rgb(167,0,4)` en los dos lados (§ el checkeo, abajo) |
+| notas de cata | caja con fondo `--sf-superficie` + label "Notas de cata" | chips sin relleno, sólo borde, 13px, SIN label (el prototipo no lleva uno) | `.notes` (`:184-188`, sin heading); `.note-chip{font-size:var(--text-body-xs)=13px;border:1px solid var(--border-hairline);padding:6px 12px}` (`:471-474`) |
+| botón | `bg-[var(--sf-tinta)] rounded-2xl py-4` (caja mixta, tinta no acento) | `sf-pildora bg-[var(--sf-acento)] py-[18px] px-[28px] uppercase tracking-[0.085em] font-semibold` | `.btn.btn--primary.btn--block{background:var(--action-primary);padding:var(--button-pad-y) var(--button-pad-x)=18px 28px;text-transform:uppercase;letter-spacing:.085em;font-weight:600;border-radius:0}` (`:123-136,147`) — **medido en vivo, exacto**: `background-color rgb(167,0,4)`, `border-radius 0px`, `padding 18px 28px`, `letter-spacing 1.19px`, `font-weight 600` EN LOS DOS LADOS |
+| fila de precio | sin nota | precio `text-[32px] font-playfair font-normal` + `spotlight.notaPrecio` (nuevo campo, copy) | `.price-row{gap:var(--space-3)}.price{font-size:var(--text-h2)=32px}.price-row small{font-size:var(--text-body-s)=14px;color:var(--text-subtle)}` — nota "COP · impuestos incluidos" (`index.html:212`) |
+
+### El campo nuevo — `SpotlightContent.notaPrecio`
+
+Opcional, copy libre (no cálculo — mismo criterio que `precio` de `SuscripcionPlanesContent`), vacío
+= no se muestra. Se agregó en las CUATRO capas a la vez (nunca una sola, § doctrina "el schema
+editable STRIPPEA lo no declarado", CLAUDE.md:1928 — el bug #65-B que congeló
+`presentacionesEditableSchema` es exactamente lo que agregar sólo una capa reproduciría):
+`SpotlightContent`/`DEFAULTS.spotlight`/`REGISTRY.spotlight.campos` (`site-content-defaults.ts`),
+`spotlightEditableSchema` (`site-content-schema.ts`), y `SPOTLIGHT.campos`
+(`tienda-secciones.ts`, con label "Nota junto al precio" + hint). Como `spotlight` ya pasa por
+`TiendaSeccionEditor` (el editor GENÉRICO), el campo queda CONTROLADO en el panel sin tocar
+`panel-controles.ts` — verificado: `PENDIENTE_PANEL` sigue en el mismo largo, `huecosDelPanel()` da
+`[]`.
+
+### Los campos que el dueño tiene que llenar para que su banda se vea como el prototipo
+
+En `/admin/tienda`, sección "Destacado" (`spotlight`):
+
+1. **Línea superior** (`eyebrow`) — p.ej. "Nuestro café".
+2. **Titular** (`titulo`) — admite saltos de línea de autor (textarea).
+3. **Etiqueta sobre la imagen** (`badge`) — p.ej. "Cosecha 2026".
+4. **Producto destacado** (`productoSlug`) — el pin; sin él la banda no muestra nada.
+5. **Otro tamaño** (`otroTamanoSlug`, opcional) — activa el control "Tamaño" y la vista de otra
+   talla en el escenario.
+6. **Nota junto al precio** (`notaPrecio`, opcional, NUEVO) — p.ej. "COP · impuestos incluidos".
+
+Y en la FICHA del producto pineado (no en el editor de la banda, porque el pin es puntero — nunca
+copia, § el docstring de `SpotlightContent`): moliendas con su `metodo` (para el desglose bajo cada
+opción) y notas de cata (para los chips), que es donde vive ese contenido de verdad.
+
+### Medir — capturas y valores computados
+
+**Antes** (`b7fb11f`, restaurado temporalmente con `git checkout`/`Write` y vuelto a `840dfc3` con
+`git checkout HEAD --`, § el commit de este slice), full-page a 1440×1400:
+`.capturas/spotlight-antes/app-0.png` — la banda vieja (grilla 2 columnas, opt con 5% de tinte,
+botón `--sf-tinta` con esquinas redondeadas, sin escenario/flechas/leyenda/nota de precio).
+
+**Después**, `#producto` (app) vs `.spotlight` (prototipo), en los DOS anchos que pide el spec:
+
+- 1440×1400: `.capturas/spotlight-despues-1440/app-0.png` / `prototipo-0.png`.
+- 600×1900 (angosto, bajo el quiebre de 820): `.capturas/spotlight-despues-angosto/app-0.png` /
+  `prototipo-0.png` — confirma el apilado de UNA columna en el mismo orden del DOM.
+
+**LÍMITE MEDIDO en las capturas del PROTOTIPO** (no del lado app): `.spotlight` del prototipo usa
+`[data-reveal]` con una transición de entrada que el arnés (`esperarAsentamiento`, que ya scrollea y
+espera opacidad ≥0.98 en la cadena de ancestros) no termina de asentar dentro de su tope de 4000ms
+en esta sección — las dos capturas `prototipo-0.png` de arriba salen con TODO el bloque atenuado
+(texto, chips, botón, badge, los 8 elementos con la MISMA palidez uniforme). Es un límite del
+ARNÉS/la animación del PROTOTIPO, no del componente: confirmado porque el mismo patrón aparece en
+`spotlight-antes` (antes de tocar una sola línea de este slice) y porque los VALORES COMPUTADOS
+(abajo) —que no dependen de que un píxel se vea "asentado"— coinciden exacto con el prototipo. La
+comparación de COLOR/estructura se hizo por el número medido, no por el ojo sobre un PNG atenuado.
+
+**Valores computados EN VIVO (Playwright, `getComputedStyle`), la evidencia dura de la fidelidad:**
+
+| propiedad | nuestro botón (`#producto button.w-full`) | el `[data-add]` del prototipo | ¿coincide? |
+| --- | --- | --- | --- |
+| `background-color` | `rgb(167, 0, 4)` | `rgb(167, 0, 4)` | **exacto** |
+| `border-radius` | `0px` | `0px` | **exacto** |
+| `padding` | `18px 28px` | `18px 28px` | **exacto** |
+| `text-transform` | `uppercase` | `uppercase` | **exacto** |
+| `letter-spacing` | `1.19px` | `1.19px` | **exacto** |
+| `font-weight` | `600` | `600` | **exacto** |
+| `color` | `rgb(255, 255, 255)` | `rgb(253, 251, 247)` | diverge — `--sf-acento-txt` default es `#ffffff` (globals.css:108), el prototipo usa `--text-on-accent:#fdfbf7` (near-white); diferencia de 2 unidades por canal, imperceptible, NO se toca (fuera de `touches:`: es un token de sistema, `app/globals.css` sólo está en `touches:` para posibles ajustes de ESTE slice, y el token ya existe con ese valor desde antes) |
+| `font-family` | `Figtree, sans-serif` | `"Hanken Grotesk", ...` | diverge, YA DOCUMENTADO (`themes.ts:887-890`, CORTE usa 'prensa' porque el catálogo de pares es CERRADO y no calza el cuerpo exacto — no es un defecto de este slice) |
+
+| propiedad | nuestro `.opt[aria-pressed=true]` | `.opts[data-opts='grind'] .opt[aria-pressed=true]` del prototipo | ¿coincide? |
+| --- | --- | --- | --- |
+| `background-color` | `rgb(167, 0, 4)` | `rgb(167, 0, 4)` | **exacto** |
+| `border-radius` | `0px` | `0px` | **exacto** |
+| `padding` | `13px 22px` | `13px 22px` | **exacto** |
+
+| propiedad | nuestro `<h2>` (`#producto h2`) | contraste medido (`contraste()`, `palette-derive.ts`) |
+| --- | --- | --- |
+| `color` | `rgb(61, 48, 0)` = `#3d3000` | `12.53:1` contra `--sf-fondo` (`#fdfbf7`) — el color es el DERIVADO real de `derivarEsquema(raícesCORTE,'crema',{origenTexto:'tinta',...})`, no un placeholder; se verificó porque a primera vista en el PNG (fuente serif fina, tamaño grande) se leía "pálido" y la medición lo descartó como percepción óptica, no como defecto |
+
+El token `--sf-radio-lg` que cubre el escenario (`.bag-card`) da **2px** para la forma 'recta' de
+CORTE (`formas.ts`), no los 20px medidos del prototipo — declarado en el propio comentario de
+`themes.ts:899-901` como INERTE hoy ("no hay valor propio del set cerrado que lo represente
+todavía"); se cita de nuevo acá porque este slice es el primer CONSUMIDOR real de ese hueco (antes
+`sf-radio-lg` sólo vestía los `.opt`/enlaces de "Tamaño", donde 2px ya se acercaba a `--radius-button`
+=0 por casualidad de vecindad). **No se toca `formas.ts`** — no está en `touches:` de este slice, y
+es una decisión de CATÁLOGO (agregar un cuarto valor a `--sf-radio-lg` para 'recta', o separar el rol
+"tile" del rol "control"), no un fix de una línea.
+
+### Gate
+
+- `npx tsc --noEmit`: **0 errores**.
+- `npm test`: **2479/2479** (mismo total que el floor de `HERO-SIN-TARJETA-Y-PDP-IMAGEN-1`; no se
+  agregó ningún `test(...)` nuevo, se ACTUALIZÓ el `deepEqual` de `DEFAULTS.spotlight` en
+  `spotlight-banda.test.ts` para incluir `notaPrecio: ''`).
+- `npm run test:integracion`: **240/240**, sin cambio.
+- `npm run verificar:nayoli:visual`: **0px** en las 6 rutas + 2 hovers (Spotlight.tsx nunca se monta
+  para Nayoli, así que esto confirma que TODO lo demás —`site-content-defaults.ts`,
+  `site-content-schema.ts`, `tienda-secciones.ts`— sigue byte-idéntico).
+- `npx tsx scripts/guarda-color.ts`: **0px**, misma confirmación contra el fixture congelado.
+
+### Deviation
+
+**El "antes" no se capturó ANTES de editar** (como pide el spec), porque la implementación arrancó
+directo en la investigación/escritura. Se recuperó DESPUÉS, de forma reversible: se comprometió el
+trabajo (`840dfc3`), se restauró `Spotlight.tsx` a `b7fb11f` con `Write` (contenido verificado
+byte a byte contra `git show HEAD~1:...` antes de escribirlo), se corrió la captura, y se restauró el
+archivo con `git checkout HEAD -- components/storefront/home/Spotlight.tsx` (confirmado con
+`git diff HEAD` vacío). Ningún commit se reescribió; el árbol final es exactamente `840dfc3`.
+
+### `open_followups`
+
+- **`NUESTRO-CAFE-RADIO-TILE-1`** — qué: el rol "tile grande" (`--radius-tile`, 20px en el
+  prototipo) no tiene token propio en el eje 4 (`formas.ts`); hoy comparte `--sf-radio-lg` con
+  chips/controles pequeños, dando 2px donde el prototipo mide 20px. Por qué no ahora: `formas.ts`
+  no está en `touches:` de este slice, y es una decisión de CATÁLOGO (cuarto valor por forma, o
+  separar el rol), no una línea suelta.
+- **`NUESTRO-CAFE-REVEAL-ARNES-1`** — qué: `esperarAsentamiento` (`scripts/capturar-seccion.ts`) no
+  asienta la transición `[data-reveal]` del PROTOTIPO dentro de su tope de 4000ms (§ el límite
+  medido, arriba) — las capturas del lado prototipo salen atenuadas. Por qué no ahora: es del
+  ARNÉS/la animación del prototipo, no de este componente, y el criterio de aceptación de este
+  slice (valores computados vía Playwright) no depende de que el PNG se vea asentado.
+
+### `customer_bytes`
+
+**`changed: true`.** La banda "Nuestro café" cambia de estructura/tipografía/color para CUALQUIER
+tenant que use la variante `featured·spotlight` — hoy sólo CORTE, sin tráfico real de clientes
+todavía (el muestrario). Nayoli (`featured·cuadricula`) queda byte-idéntica, confirmado 0px arriba.
+
+`strings:` **ninguno nuevo por defecto.** `notaPrecio` es un campo opcional que nace vacío
+(`DEFAULTS.spotlight.notaPrecio: ''`) — no se muestra hasta que un dueño lo llene desde el panel; no
+hay copy horneado en el código. El resto de los textos visibles (eyebrow/titulo/badge) ya eran
+DATO editable, sin cambios de default.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin `packages/core/prisma/schema.prisma`, sin migración (el campo nuevo
+vive en el JSON `SiteContent.content`, no en una columna), sin contrato cross-repo.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las cuatro capas (tsc, capa 1,
+capa 2, visual). La fidelidad estructural/tipográfica/de color contra el prototipo se midió en DOS
+formas independientes: `getComputedStyle` en vivo (exacto en 8/9 propiedades comparadas del botón, y
+en las 3 del `.opt`; las 2 que divergen están explicadas y son de sistema, no de este slice) y las
+capturas de pantalla (con el límite del reveal del prototipo declarado, no escondido). Commiteado en
+`slice/corte-reescritura-prototipo-1` (`840dfc3`); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `NUESTRO-CAFE-COMO-MUESTRARIO-1`.**
