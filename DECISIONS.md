@@ -32256,3 +32256,163 @@ ancho de las bandas, bajo CORTE —bytes que un visitante de esa tienda lee— a
 racha) — el MERGE sigue gateado aparte.
 
 **Cierra `PARIDAD-CORTENAV-CASCADA-1`, `PARIDAD-ANCHO-MEGAMENU-1` y `PARIDAD-ANCHO-HINT-ENCABEZADO-1`.**
+
+## 2026-09-29 — El encabezado de CORTE vuelve a 88px con el filete visible (`NAV-ALTURA-CON-FILETE-1`)
+
+Gate visual del owner sobre `PARIDAD-CORTENAV-CASCADA-1` (arriba, la misma tarde): «el problema
+que le veo al cambio es que ahora el nav da la impresión de que ocupa mucha altura, por la línea
+que tiene, queda muy separada de las letras, cosa que el muestrario no tiene, pero me gusta como
+se ve la línea». Dos señales que parecen contradictorias — "no me gusta la altura" + "sí me gusta
+la línea"— resueltas en una sola decisión: la altura vuelve a 88px, el filete se queda VISIBLE.
+
+### 1 · Por qué difiere del prototipo, a propósito
+
+El prototipo mide 118px en `cortenav` (`docs/prototipos/cafeone/css/tokens.css:150`), pero su
+filete (`.site-header::after`, `docs/prototipos/cafeone/css/app.css`, cerca de `:185-189`) lleva
+`opacity:0` **sobre el hero** y sólo aparece con el encabezado SÓLIDO (al bajar el scroll). El
+nuestro (`navFileteClase`, § `CROMO-NAV-FILETE-1`) se ve TAMBIÉN sobre el hero —decisión del owner
+de una tanda anterior—, y con la línea siempre visible, 118px deja demasiado aire entre las letras
+y el filete. El prototipo nunca tuvo que resolver esa combinación porque en él la línea nunca
+convive con el hero. **No es un defecto de medición: es que dos decisiones del owner (filete
+siempre visible + altura del prototipo) se pisan, y el gate visual eligió cuál cede.**
+
+### 2 · El fix — sólo la ALTURA, nada más
+
+`navFilaAltoClase` (`StoreNav.tsx`): `cortenav:h-[118px]` → `cortenav:h-[88px]`. Queda:
+
+```
+h-[76px] min-[640px]:h-[88px] cortenav:h-[88px]
+```
+
+- **El valor de `cortenav:h-[88px]` es REDUNDANTE contra `min-[640px]:h-[88px]`** — desde 640px la
+  fila ya mide 88px, así que declararlo otra vez a 1200px no cambia nada en el CSS resuelto. Se
+  deja EXPLÍCITO a propósito (no se retira el paso `cortenav:`): el breakpoint de 1200px SIGUE
+  existiendo y sigue gobernando el `padding-inline` de 32px vía `contenedorAnchoClase`
+  (`themes.ts`, sin tocar en este slice) — retirar el paso de altura sin dejar rastro habría hecho
+  parecer, al leer sólo `navFilaAltoClase`, que `cortenav` dejó de aplicar a la fila, cuando sigue
+  aplicando (al padding).
+- **`contenedorAnchoClase` NO se tocó.** El margen lateral de 32px, el ancho de 1440px, el filete
+  (`navFileteClase`), el hover y el resto de `navTratamiento` quedan exactamente igual — el spec
+  pedía sólo la altura y sólo la altura cambió (`git diff --stat`: 2 archivos, cero líneas fuera de
+  comentarios + un literal).
+- **`HeroMediaMarquesina.tsx` se REVISÓ y NO se tocó** (§2 del spec: "revisá todo lo que dependa
+  del alto del encabezado"). Censo: `grep -rn "header-height\|scroll-mt\|scroll-margin"` sobre
+  `app/`, `components/`, `lib/` da CERO usos fuera de comentarios de `StoreNav.tsx`/`themes.ts`/
+  `site-content-defaults.ts`. El `<header>` es `position:fixed` (no ocupa flujo), y la variante
+  `sticky` del hero (`HeroMediaMarquesina.tsx`) mide su progreso de scroll contra su propio
+  ancestro (`wrapperRef`, primer hijo de `<main>`), nunca contra la altura del header — cambiar
+  118→88 no mueve ni un píxel de esa cadena. `hero-marquesina.test.ts` tampoco tiene ninguna
+  aserción sobre `--header-height`/118/88 (censado por lectura completa del archivo). **Ningún
+  cambio en ninguno de los dos.**
+
+### 3 · El mirror de `cromo-nav-tratamiento.test.ts` — actualizado; el de `breakpoints-cascada.test.ts` — NO, y por qué
+
+`lib/config/cromo-nav-tratamiento.test.ts` (en `touches:`) mantiene un mirror local de
+`navFilaAltoClase` (`navFilaAltoClaseDe`, no importado de `StoreNav.tsx` — el mismo patrón que ya
+usaba `navContenedorClaseDe`) para no depender de exportar internals de un componente de página.
+Se actualizó a `cortenav:h-[88px]`, y el test que antes afirmaba el literal completo con `118px`
+ahora afirma `88px` — es el test que cumple el pedido explícito del spec ("Test: el alto declarado
+para CORTE ≥1200 es 88").
+
+`lib/config/breakpoints-cascada.test.ts` (**fuera de `touches:`**) tiene su PROPIO mirror
+(`navFilaAltoClase` local, línea 65) con el literal viejo (`cortenav:h-[118px]`), usado para
+compilar una hoja Tailwind real y verificar el ORDEN de emisión de los bloques `min-[640px]:` vs
+`cortenav:` — un test sobre el MECANISMO de la cascada (§ `PARIDAD-CORTENAV-CASCADA-1` §2-3), NO
+sobre el valor final de la altura. Sigue pasando sin tocarlo: la aserción es `posMinH < posCortenavH`
+(offset de aparición en la hoja), y esa relación de orden no depende de que el valor sea 88 o 118 —
+sigue habiendo dos declaraciones con esa forma (`min-[640px]:h-[88px]` y `cortenav:h-[Npx]`) para
+comparar. **No se tocó por estar fuera de `touches:`** — el mirror queda con un valor que ya no
+coincide con el real (118 en vez de 88), documentado como open_followup abajo.
+
+### 4 · Medido: ANTES/DESPUÉS contra el muestrario desplegado y una build local de esta rama
+
+`npm run capturar:seccion`, modo `--url` (ANTES, contra
+`https://coffee-template-app-onix.vercel.app/`, que corre `PARIDAD-CORTENAV-CASCADA-1` ya
+mergeado/desplegado) y modo `--preset CORTE` (DESPUÉS, build local de esta rama, `--puerto-app
+3491` porque `3477` quedó ocupado por un proceso ajeno a esta corrida), `--selector-app "header >
+div"`, viewport 1440×900, `--estilo-elemento height padding-left padding-right`:
+
+| | ANTES (muestrario, 118px) | DESPUÉS (esta rama, 88px) |
+| --- | --- | --- |
+| `height` | `118px` | `88px` |
+| `padding-left` | `32px` | `32px` |
+| `padding-right` | `32px` | `32px` |
+
+El margen lateral (32px) no se movió, como afirma §2. Capturas guardadas en
+`.capturas/nav-altura-antes/app-0.png` y `.capturas/nav-altura-despues/app-0.png` (gitignoradas,
+no viajan en el commit). En el DESPUÉS, el filete queda a la altura de los íconos de buscar/
+carrito, visiblemente más cerca de las letras que en el ANTES — confirmación visual del pedido del
+owner, no sólo el número.
+
+**Distancia letras→filete — DERIVADA, no medida directamente en el DOM.** El arnés no reporta
+`getBoundingClientRect`, así que la distancia exacta se deriva por aritmética de flex-centering (el
+elemento con `navFileteClase` es `items-center`, y el nodo inline más alto de la fila es el ícono
+de 22px, `navIconoClase`): con fila de 88px, el hueco de cada lado del contenido es
+`(88-22)/2 = 33px`; con la fila de 118px (ANTES), `(118-22)/2 = 48px`. **Reducción de 15px por lado
+entre el borde del ícono/texto y el filete** — consistente con lo que la captura muestra. Esto es
+un CÁLCULO sobre los valores medidos arriba (altura de fila, tamaño de ícono ya declarado en
+`navIconoClase`), no una segunda medición del DOM — se declara así para no hacerlo pasar por algo
+que no es.
+
+### 5 · Nayoli — sin `verificar:nayoli:visual` (mismo límite que `PARIDAD-CORTENAV-CASCADA-1`)
+
+Este dispatch prohíbe crear worktrees, y `verificar:nayoli`/`verificar:nayoli:visual` crean uno
+(`spawnSync("git",["worktree","add",...])`) para comparar contra `main`. Igual que el slice
+anterior de esta racha, la byte-identidad de Nayoli se prueba por el diff mismo, no por esa
+corrida:
+
+- `navFilaAltoClase` para `posicion:false` (todo tenant salvo CORTE) es `'h-16 lg:h-18'` — **no se
+  tocó una sola línea** (el cambio vive enteramente dentro de la rama `navTratamiento.posicion ?
+  ... : 'h-16 lg:h-18'`, y el ternario en sí no se tocó, sólo su rama `true`).
+- `cromo-nav-tratamiento.test.ts` sigue afirmando `navFilaAltoClaseDe(false) === 'h-16 lg:h-18'`
+  (sin cambio en esa aserción).
+- `contenedorAnchoClase`, `navFileteClase`, `navHoverClase`, `navLinkTratamiento`, `navIconoClase`,
+  `colorActivo`, el badge, el logo, el mega-menu: **cero líneas tocadas** — el diff completo de
+  `StoreNav.tsx` es el bloque de comentario nuevo + un literal.
+- `HeroMediaMarquesina.tsx`: cero líneas tocadas (§2 arriba).
+
+Nayoli (preset ausente → `posicion:false`) no puede ver este cambio por construcción del propio
+diff, no por inferencia.
+
+### 6 · Gate
+
+| comando | resultado |
+| --- | --- |
+| `npm run typecheck` | limpio, sin errores |
+| `npm test` | **2516/2516** (igual al floor de `PARIDAD-CORTENAV-CASCADA-1`, mismo total) |
+| `npm run test:integracion` | **240/240** (igual al floor de `PARIDAD-CORTENAV-CASCADA-1`) |
+
+### 7 · Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió: `navFilaAltoClase` (`StoreNav.tsx`), su mirror
+`navFilaAltoClaseDe` (`cromo-nav-tratamiento.test.ts`). `grep` de cada uno, y de `StoreNav.tsx`,
+`HeroMediaMarquesina.tsx`, `cromo-nav-tratamiento.test.ts`, `hero-marquesina.test.ts`, `cortenav`,
+`header-height`, `118px`, `NAV-ALTURA-CON-FILETE` contra `CLAUDE.md`: **una sola coincidencia**,
+`CLAUDE.md:1598` ("4 a 118px no" — el ancho de una tarjeta de Presentaciones en `lg:grid-cols-2`,
+sin relación con la altura del encabezado). **CERO sentencias de `CLAUDE.md` quedan falsas por
+este diff.**
+
+### open_followups
+
+- **`NAV-ALTURA-MIRROR-BREAKPOINTS-CASCADA-STALE-1`** — el mirror local de `navFilaAltoClase` en
+  `lib/config/breakpoints-cascada.test.ts:65` (fuera de `touches:` de este slice) sigue declarando
+  `cortenav:h-[118px]`, un valor que el código real (`StoreNav.tsx`) ya no tiene. El test SIGUE
+  PASANDO (afirma orden de emisión en la hoja compilada, no el valor final), así que no es un
+  defecto funcional, pero el comentario "Mirror de `navFilaAltoClase`… en `StoreNav.tsx`" (líneas
+  63-64 de ese archivo) queda impreciso. **No se tocó** por estar fuera de `touches:`.
+- **`NAV-ALTURA-DOCSTRINGS-118-STALE-1`** — tres comentarios fuera de `touches:` siguen citando el
+  literal completo `cortenav:h-[118px]` como si describiera el código vigente:
+  `lib/config/themes.ts:310` (docstring de `contenedorAnchoClase`), `lib/config/themes.ts:1272,1494`
+  y `lib/config/site-content-defaults.ts:1179` (docstring de `NavTratamientoContent.posicion`).
+  Ninguno es incorrecto sobre el HISTORIAL (lo que `CROMO-NAV-EXACTO-PROTOTIPO-1` decidió en su
+  momento), pero un lector que no conozca este slice puede creer que `navFilaAltoClase` sigue en
+  118px a `cortenav`. **No se tocaron** por estar fuera de `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL.** El diff cambia la altura del encabezado bajo CORTE —bytes que un visitante
+de esa tienda ve en cada carga— así que falla `customer-bytes` de merge policy A, igual que sus dos
+predecesores de esta racha. El owner ya aprobó la ESCRITURA (`approval-reason` del spec, gate
+visual de `PARIDAD-CORTENAV-CASCADA-1`, 2026-09-29) — el MERGE sigue gateado aparte.
+
+**Cierra `NAV-ALTURA-CON-FILETE-1`.**

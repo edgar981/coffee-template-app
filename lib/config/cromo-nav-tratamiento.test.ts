@@ -393,10 +393,17 @@ test('la capa de datos: `badgeColor` puesto pero `cta=false` → SIN `style` (el
 // contenedor/altura de HOY (byte-idéntico); `posicion:true` (CORTE) los reemplaza por la geometría
 // medida contra el PROTOTIPO LOCAL (`--content-max`/`--page-gutter`/`--header-height`,
 // `docs/prototipos/cafeone/css/tokens.css:150,151,157`), no el tema real de la medición anterior.
+//
+// § NAV-ALTURA-CON-FILETE-1 (2026-09-29) REESCRIBE la mitad de la ALTURA: a ≥1200px (`cortenav`)
+// la fila vuelve a 88px, NO los 118px del prototipo — el filete (§ CROMO-NAV-FILETE-1) se ve
+// también sobre el hero acá (a diferencia del prototipo, que lo esconde ahí) y a 118px quedaba
+// lejos de las letras; ver el docstring de `navFilaAltoClase` en `StoreNav.tsx` para el porqué
+// completo y la cita del gate visual del owner. El ANCHO/RELLENO (`navContenedorClaseDe`) NO
+// cambia — sigue siendo la geometría exacta del prototipo.
 const navContenedorClaseDe = (posicion: boolean) =>
   posicion ? 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8' : 'max-w-6xl px-4 sm:px-6 lg:px-8';
 const navFilaAltoClaseDe = (posicion: boolean) =>
-  posicion ? 'h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
+  posicion ? 'h-[76px] min-[640px]:h-[88px] cortenav:h-[88px]' : 'h-16 lg:h-18';
 
 test('la capa de datos: navTratamiento.posicion=false → el pass-through de StoreNav usa el contenedor/altura de HOY (el HOY exacto)', () => {
   const posicion = resolverSiteContent({}).navTratamiento.posicion;
@@ -404,11 +411,11 @@ test('la capa de datos: navTratamiento.posicion=false → el pass-through de Sto
   assert.equal(navFilaAltoClaseDe(posicion), 'h-16 lg:h-18');
 });
 
-test('la capa de datos: navTratamiento.posicion=true (CORTE) → el pass-through aplica la geometría medida contra el prototipo local', () => {
+test('la capa de datos: navTratamiento.posicion=true (CORTE) → el pass-through aplica el ancho/relleno medido contra el prototipo local, y la altura de 88px desde 1200px (§ NAV-ALTURA-CON-FILETE-1, NO los 118px del prototipo)', () => {
   const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   const posicion = conCorte.navTratamiento.posicion;
   assert.equal(navContenedorClaseDe(posicion), 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8');
-  assert.equal(navFilaAltoClaseDe(posicion), 'h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]');
+  assert.equal(navFilaAltoClaseDe(posicion), 'h-[76px] min-[640px]:h-[88px] cortenav:h-[88px]');
 });
 
 // § CROMO-NAV-EXACTO-PROTOTIPO-1 — el pass-through EXACTO de `navHoverClase` en `StoreNav.tsx`:

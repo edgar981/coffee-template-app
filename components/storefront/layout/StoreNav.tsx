@@ -271,7 +271,23 @@ export default function StoreNav() {
   // `AdminChrome.tsx` — siempre `duna:` contra una clase SIN variante, sin condición competidora), así
   // que no sufre este defecto y no necesita la misma pieza.
   const navContenedorClase = contenedorAnchoClase(navTratamiento.posicion);
-  const navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] min-[640px]:h-[88px] cortenav:h-[118px]' : 'h-16 lg:h-18';
+
+  // § NAV-ALTURA-CON-FILETE-1 (2026-09-29) — LA ALTURA A ≥1200px SE APARTA DEL PROTOTIPO, A
+  // PROPÓSITO: el prototipo mide 118px en `cortenav` (§ el bloque de arriba), PERO su filete
+  // (`.site-header::after`, `docs/prototipos/cafeone/css/app.css`, cerca de `:185-189`) lleva
+  // `opacity:0` sobre el hero y sólo aparece con el encabezado SÓLIDO. El nuestro
+  // (`navFileteClase`, abajo, § CROMO-NAV-FILETE-1) se ve TAMBIÉN sobre el hero —decisión del
+  // owner—, y a 118px esa línea queda lejos de las letras. Gate visual del owner sobre
+  // `PARIDAD-CORTENAV-CASCADA-1` (DECISIONS.md, 2026-09-29): «el problema que le veo al cambio es
+  // que ahora el nav da la impresión de que ocupa mucha altura, por la línea que tiene, queda muy
+  // separada de las letras… pero me gusta cómo se ve la línea» — filete VISIBLE + la altura de
+  // 88px que ya regía bajo `min-[640px]:` (la de HOY, previa a `CROMO-NAV-EXACTO-PROTOTIPO-1`), no
+  // los 118px del prototipo. `cortenav:h-[88px]` abajo es por tanto REDUNDANTE en valor contra
+  // `min-[640px]:h-[88px]` — se deja EXPLÍCITO a propósito, para que quede escrito que el
+  // breakpoint de 1200px SIGUE existiendo (sigue gobernando el `padding-inline` de 32px vía
+  // `contenedorAnchoClase`, sin cambio) aunque ya no suba la altura. El ANCHO/RELLENO y el filete
+  // no se tocan — sólo esta altura.
+  const navFilaAltoClase = navTratamiento.posicion ? 'h-[76px] min-[640px]:h-[88px] cortenav:h-[88px]' : 'h-16 lg:h-18';
 
   // EL FILETE INFERIOR (§ CROMO-NAV-FILETE-1, la UBICACIÓN corregida por § CROMO-NAV-EXACTO-
   // PROTOTIPO-1): línea fina que separa el encabezado del contenido, SIN cruzar toda la pantalla —
