@@ -31411,3 +31411,152 @@ cross-repo, y es texto interno del repositorio (no bytes que un cliente/operador
 producto) — pasa merge policy A limpio.
 
 **Cierra `CENSO-PARIDAD-MUESTRARIO-1`.**
+
+## 2026-09-29 — Los dos botones de compra de la ficha toman color y jerarquía del prototipo, sólo CORTE (`PARIDAD-PDP-BOTONES-1`)
+
+Cierra el hallazgo de mayor impacto de código de `CENSO-PARIDAD-MUESTRARIO-1` (§6.1 de
+`docs/paridad/muestrario-vs-prototipo.md`, propuesto ahí como `PDP-BOTONES-JERARQUIA-1`): en
+`/tienda/[slug]`, "Agregar al carrito" salía SÓLIDO en `--sf-tinta` y "Comprar ahora" en CONTORNO —
+al revés del prototipo, donde "Comprar ahora" (`.btn--primary`) es la acción sólida y "Agregar al
+carrito" (`.btn--secondary`) el contorno que se llena al hover.
+
+### El mecanismo — CERO campos nuevos de `SiteContent`
+
+`touches:` incluía `themes.ts`/`.test.ts`, `site-content-schema.ts`, `site-content-defaults.ts`/
+`.test.ts` y `panel-controles.ts`/`.test.ts` como TECHO, no como mandato — **ninguno se tocó**. La
+jerarquía sigue al eje YA EXISTENTE `tema.origenAccion` (`OrigenAccion`, `palette-derive.ts`,
+§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1): "de qué raíz nace la ACCIÓN PRIMARIA", exactamente la
+pregunta que decide si el acento de un tema se comporta como el `--action-primary` de un botón
+(CORTE, `origenAccion:'acento'`) o como el tostado cálido de siempre (Nayoli, sin el eje). Ya estaba
+resuelto por `resolverTema`, expuesto en `useSiteContent().tema.origenAccion`, y YA exento en
+`PENDIENTE_PANEL` ("tema.origenAccion… Sólo mergePresetEnContent lo escribe") — reusarlo no agrega
+ni un campo ni una fila a `PENDIENTE_PANEL`.
+
+**Por qué NO `tema.forma`** (la otra señal obvia — CORTE es el único con `forma:'recta'`): `forma`
+es COMPARTIDA con PLIEGO (§ formas.ts, `CLAVES_FORMAS`), y el propio repo ya documentó el riesgo de
+gatear una decisión CORTE-específica sobre un eje compartido — el trazo/tamaño de los íconos del
+encabezado necesitó su propia señal (`navTratamiento.posicion`) en vez de bumpear `forma`, por la
+misma razón (`StoreNav.tsx`/`formas.ts`). Gatear los botones por `forma==='recta'` habría arrastrado
+a PLIEGO el día que ese preset también pida `'recta'`, sin que nadie lo haya decidido. `origenAccion`
+sólo lo declara CORTE hoy y seguirá siendo así hasta que un preset FUTURO comparta el mismo hecho de
+fondo (acento = color de acción puro) — momento en el que también DEBERÍA heredar esta jerarquía.
+
+**Descartado explícitamente: agregar un campo nuevo.** El spec permitía "campo nuevo + control en
+este commit" — se descartó porque el techo (`touches:`) no incluye ningún componente de panel
+(`PaletaSeccion.tsx`, `EncabezadoSeccion.tsx`) para darle ese control, y crear un campo sin panel
+habría exigido, por la letra de la instrucción, justificar `PENDIENTE_PANEL` — que el spec pedía
+evitar. La opción B (reuso de eje existente) resolvía las dos condiciones a la vez.
+
+### La pieza — `lib/storefront/pdp-botones.ts` + `.test.ts`, y su cableado en `page.tsx`
+
+`clasesBotonesCompra(origenAccion)` (PURA, capa 1) devuelve `{primario, secundario}`: con `null`/
+`'tostado'` (Nayoli, todo tenant sin el eje) las dos strings son BYTE-IDÉNTICAS a lo que el JSX ya
+tenía — ni un carácter tocado. Con `'acento'` (CORTE) devuelve el tratamiento `.btn--primary`/
+`.btn--secondary` del prototipo, **reusando el MISMO patrón ya vetado** en `Spotlight.tsx:337-343`
+("Agregar al carrito" de la banda spotlight) y `StoreNav.tsx:656-660` (el CTA "Comprar" del
+encabezado, § CROMO-NAV-CTA-Y-BADGE-1): `sf-pildora`/`sf-borde` (radio/grosor del TEMA), mayúscula +
+tracking `.085em` + semibold, `py-[18px] px-[28px]`, hover/active derivados del acento
+(`--sf-acento-3`/`-2`, sin hex nuevo). `page.tsx` llama `useSiteContent()` (ya wrapeaba toda la ruta,
+`app/(storefront)/layout.tsx:141`) y pasa las dos clases a los botones existentes — la conducta
+(`handleAdd`, `setWishlisted`, el botón de wishlist entre medio) no se tocó.
+
+### EL HALLAZGO QUE CORRIGIÓ EL FIX A MITAD DE CAMINO — medir antes de asumir
+
+El primer borrador de `SECUNDARIO_CORTE` reusaba `text-[var(--sf-acento-texto)]` para el texto del
+contorno (el MISMO token que el código viejo ya usaba en "Comprar ahora"). Capturado en vivo contra
+`coffee-template-app-onix.vercel.app` (`--var=--sf-acento-texto`), ese token resuelve **`#102407`**
+para CORTE — la raíz `tinta`, NO `#a70004` (el acento) — porque CORTE declara `origenTexto:'tinta'`
+(§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1), que redirige `acento-texto` (uno de los TRES roles de
+"texto de lectura") a nacer de la tinta. Es EXACTAMENTE el defecto que el censo midió en el botón
+viejo: borde rojo, texto tinta, dos colores en el mismo botón (`color: rgb(16, 36, 7)`, capturado
+abajo). El prototipo no tiene esa distinción — `--action-secondary-border` Y `--action-secondary-
+text` son el MISMO valor crudo (`#a70004`) — así que el fix final usa `text-[var(--sf-acento)]`
+(crudo, no redirigido por `origenTexto`) para que borde y texto SIEMPRE coincidan. Sin esta medición
+el fix habría reproducido, en el botón que decía arreglar, la misma inconsistencia que estaba
+cerrando. `pdp-botones.test.ts` fija esta corrección con una aserción negativa dedicada.
+
+### Antes/después — capturado, no supuesto
+
+**ANTES** (`npm run capturar:seccion -- --url https://coffee-template-app-onix.vercel.app/ …`,
+producto real `caf-la-ceiba--en-grano-500-g`, sin tocar código — HEAD `d08f524`):
+
+| botón | propiedad | nuestro (antes) | prototipo (`.buy-actions .btn--{secondary,primary}`) |
+| --- | --- | --- | --- |
+| Agregar al carrito | background-color | `rgb(16, 36, 7)` (tinta, SÓLIDO) | `rgba(0,0,0,0)` (transparente) |
+| Agregar al carrito | color | `rgb(255,255,255)` | `rgb(167,0,4)` |
+| Agregar al carrito | border-color | `rgb(229,224,220)` (default, sin borde propio) | `rgb(167,0,4)` |
+| Comprar ahora | background-color | `rgba(0,0,0,0)` (contorno) | `rgb(167,0,4)` (SÓLIDO) |
+| Comprar ahora | color | `rgb(16,36,7)` (tinta — el defecto) | `rgb(253,251,247)` |
+| Comprar ahora | border-color | `rgb(167,0,4)` | `rgba(0,0,0,0)` |
+
+Capturas: `.capturas/pdp-botones-antes/{app,prototipo}-{0,1}.png` + `valores.json` (local, gitignored
+— rutas para quien re-corra el mismo comando). :root medido en la misma corrida:
+`--sf-fondo:#fdfbf7 --sf-tinta:#102407 --sf-acento:#a70004`.
+
+**DESPUÉS — derivado de los tokens medidos, no screenshoteado (§ el límite de método, abajo)**, con
+los CINCO tokens adicionales medidos en la MISMA corrida (`--var=--sf-acento-txt` etc., aún válidos:
+el fix no toca ningún `:root`): `--sf-acento-txt:#ffffff`, `--sf-acento-texto:#102407` (el hallazgo
+de arriba), `--sf-acento-2:#403000`, `--sf-acento-3:#672d00`. Con las clases de `pdp-botones.ts`
+aplicadas, el estado BASE de los dos botones queda:
+
+| botón | propiedad | nuestro (después, derivado) | prototipo | ¿coincide? |
+| --- | --- | --- | --- | --- |
+| Agregar al carrito | background-color | `rgba(0,0,0,0)` (sin `bg-*`, reset de Tailwind) | `rgba(0,0,0,0)` | sí |
+| Agregar al carrito | color / border-color | `rgb(167,0,4)` (`--sf-acento`, el fix) | `rgb(167,0,4)` | sí |
+| Agregar al carrito | hover bg / color | `rgb(167,0,4)` / `rgb(255,255,255)` | `rgb(167,0,4)` / `rgb(253,251,247)` | sí (blanco vs. crema casi blanco) |
+| Comprar ahora | background-color | `rgb(167,0,4)` (`--sf-acento`) | `rgb(167,0,4)` | sí |
+| Comprar ahora | color | `rgb(255,255,255)` (`--sf-acento-txt`) | `rgb(253,251,247)` | sí (mismo par de siempre) |
+| Comprar ahora | hover bg | `rgb(103,45,0)` (`--sf-acento-3`, oliva) | `rgb(134,11,12)` (rojo más oscuro) | NO exacto — aproximación YA aceptada en `Spotlight.tsx`/`StoreNav.tsx` |
+| ambos | padding / uppercase / tracking / radio | `18px 28px` / uppercase / `1.19px` (`.085em`×14px) / `0px` | ídem | sí, exacto |
+
+El único renglón que no calza exacto (el matiz de hover/active) es la MISMA aproximación que
+`Spotlight.tsx:334-335` y `StoreNav.tsx:645` ya documentan y aceptan ("DERIVADOS del acento… sin hex
+nuevo") — no es una deuda nueva de este slice.
+
+### LÍMITE DE MÉTODO, medido — por qué "después" es derivado y no screenshoteado
+
+`npm run capturar:seccion --preset CORTE --sembrar-spotlight` (modo base fresca, único camino
+autorizado para aplicar un preset localmente) siembra dos productos vía `upsert` SIN fijar `stock`
+(`scripts/capturar-seccion.ts:697-720`) → `stock` cae al `@default(0)` del schema → `disponible:
+stock > 0` da `false` (`app/api/catalog/route.ts:55`) → `/tienda/<slug>` renderiza el panel
+"Producto Agotado" en vez de los botones de compra. **Confirmado por captura**
+(`.capturas/pdp-botones-confirmar-agotado/app-0.png`): el panel agotado, sin rastro de
+"Agregar al carrito"/"Comprar ahora". No hay flag de `capturar-seccion.ts` para sembrar con stock, y
+las dos rutas que lo evitarían están cerradas: tocar la base compartida de `.env` local viola
+§ Bases de datos de CLAUDE.md (fuera de alcance de un slice, y el prompt pide explícitamente no
+inspeccionar `.env`); reimplementar el bootstrap de Postgres efímero a mano exige `bash`/`initdb`/
+`pg_ctl` fuera de los grants de este despacho (`node`/`npm`/`npx` únicamente).
+
+La evidencia "después" que SÍ se obtuvo por ejecución, y que pesa más que un screenshot de un botón
+aislado: **`npm run verificar:nayoli:visual` y `npm run guarda:color`, los DOS con 0px de diferencia
+en `ruta:producto` (`/tienda/cafe-nayoli-grano-250g`, 2.535.680 px)** — el producto CANÓNICO de
+Nayoli sí tiene stock real (seed completo), así que esa ruta SÍ renderiza los dos botones de compra
+completos, de punta a punta, y confirma en el render REAL (no derivado) que Nayoli no se movió ni un
+píxel. Lo que falta por screenshotear es sólo el lado CORTE del "después" — cubierto acá por
+derivación token-por-token, no por sustitución de la doctrina de captura.
+
+**Open follow-up, para quien lo necesite de nuevo**: `CAPTURA-SECCION-SEMBRAR-STOCK-1` — un flag
+`--sembrar-stock <n>` (o que `sembrarSpotlight` fije `stock: 10` por default) en
+`scripts/capturar-seccion.ts`, para que un slice de paridad visual sobre CORTE con productos
+DISPONIBLES no dependa de derivación manual. No se construye acá — ese script no está en `touches:`.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2494/2494** (2488 + 6 nuevos en `pdp-botones.test.ts`) |
+| `npm run test:integracion` | **240/240** en la corrida final. Una corrida intermedia dio 239/240 — `wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador…" — archivo AJENO a `touches:` de este slice (`git log -1` → `9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`), el mismo flake de timing documentado ≥12 veces antes en este libro. Re-corrida COMPLETA (no sólo el archivo): 240/240 |
+| `npm run verificar:nayoli:visual` | **0px** en 6 rutas + 2 hovers, main vs. rama — incluida `ruta:producto` |
+| `npm run guarda:color` | **0px** en las mismas 8 mediciones contra el fixture de Nayoli |
+
+### Verdicto
+
+**COMPLETE.** El diff no toca schema/migración, no es un contrato cross-repo, y es
+`app/(storefront)/tienda/[slug]/page.tsx` + un módulo puro nuevo con su test — SÍ son bytes que un
+visitante de CORTE lee (dos botones de compra cambian de color/jerarquía), así que pasa por
+`customer-bytes` de merge policy A → **AWAITING_APPROVAL**, no auto-mergeable; el owner ya aprobó
+la escritura de este slice específico (§ `approval-reason` del spec), pero el MERGE sigue gateado
+aparte, como toda escritura de storefront de esta rama.
+
+**Cierra `PARIDAD-PDP-BOTONES-1`.**

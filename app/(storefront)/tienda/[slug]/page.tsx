@@ -32,6 +32,8 @@ import { TOSTION_LABELS } from "@/constants/roast-levels";
 import Chip from "@/components/storefront/ProductChip";
 import { galeriaCompleta } from "@duna/core/product-gallery";
 import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria";
+import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 
 interface ProductPageProps {
   params: Promise<{
@@ -53,6 +55,10 @@ export default function ProductPage({
   const product = catalog?.find((p) => p.slug === slug);
 
   const { addItem } = useCartStore();
+  // § PARIDAD-PDP-BOTONES-1 (`lib/storefront/pdp-botones.ts`): la jerarquía/color de los dos botones
+  // de compra sigue al eje EXISTENTE `tema.origenAccion`, no un campo nuevo de SiteContent.
+  const { tema } = useSiteContent();
+  const { primario: claseBotonComprar, secundario: claseBotonAgregar } = clasesBotonesCompra(tema.origenAccion);
 
   const [qty, setQty] = useState(1);
 
@@ -358,14 +364,14 @@ export default function ProductPage({
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={handleAdd} className="flex-1 flex items-center justify-center gap-2 bg-[var(--sf-tinta)] hover:bg-[var(--sf-tinta-2)] text-[var(--sf-sobre)] font-semibold py-4 rounded-2xl transition-all hover:-translate-y-0.5 text-sm">
+                      <button onClick={handleAdd} className={claseBotonAgregar}>
                         <ShoppingBag className="w-4 h-4" /> Agregar al carrito
                       </button>
                       <button onClick={() => setWishlisted(!wishlisted)} className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${wishlisted ? 'border-red-400 bg-red-50 text-red-500' : 'border-[var(--sf-linea)] text-[var(--sf-tostado-3)] hover:border-red-300'}`}>
                         <Heart className={`w-5 h-5 ${wishlisted ? 'fill-red-400' : ''}`} />
                       </button>
                     </div>
-                    <button onClick={() => { handleAdd(); }} className="w-full border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] font-semibold py-4 rounded-2xl transition-all text-sm">
+                    <button onClick={() => { handleAdd(); }} className={claseBotonComprar}>
                       Comprar ahora
                     </button>
                   </div>
