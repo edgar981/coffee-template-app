@@ -30597,3 +30597,168 @@ orquestador — este slice, por instrucción del dispatch, no mergea.
 necesita, es CSS puro.
 
 **Cierra `RIEL-SCROLL-Y-BADGE-DORADO-1`.**
+
+## 2026-09-29 — La tarjeta de producto deja de estirarse en el panel (`PANEL-TARJETAS-NO-ESTIRAN-1`)
+
+**El pedido del owner, textual**: *"Encontre un bug en el panel tambien, agregando productos, desde
+mi laptop se ve bien, sin embargo en el monitor externo que es mas grande, la tarjeta del producto
+se ve alargada."* (con captura de `/admin/productos` adjunta).
+
+### 1 · La hipótesis del orquestador — confirmada por medición, sin tocar código primero
+
+**Hipótesis**: `.duna-cards` (`packages/design-system/primitives/primitives.css:254` en `HEAD`,
+antes de este slice) es `display:grid` con `grid-template-columns: repeat(auto-fill, …)` y
+**sin `align-content`**
+declarado. Dentro de `.duna-pantalla-fija .duna-split > .duna-cards` (`app/(admin)/duna.css:168`,
+el contexto de alto fijo de Productos en cuadrícula CON selección) el contenedor recibe una altura
+DEFINIDA por la cadena de layout (no por su contenido): `align-content: normal`, el valor por
+defecto, computa a `stretch` para un grid — con menos filas que las que caben en esa altura (el
+caso reportado: un producto solo), el sobrante se reparte estirando esas filas, y `align-items`
+(también `normal`→`stretch`) estira cada tarjeta a la altura de SU fila.
+
+**Medido, ANTES de tocar código**: se construyó el árbol REAL de
+`app/(admin)/admin/productos/page.tsx` (cuadrícula con selección: `.duna.duna-pantalla-fija >
+.duna-cabecera + .duna-region > .duna-split.duna-split--panel-derecha > .duna-cards + .duna-
+split__panel`, con la cadena real del chrome — `.admin-shell main:has(.duna-pantalla-fija)` /
+`> div` / `.duna-pantalla-fija` / `.duna-region` / `.duna-split`, § `app/(admin)/duna.css:124-170`
+— reproducida con CSS puro donde el chrome real usa clases Tailwind arbitrarias sin build,
+`min-height:100vh; padding-top:var(--duna-topbar-h)` en vez de `min-h-screen pt-(--duna-topbar-h)`)
+en `.scratch/panel-tarjetas-repro.html` (NO commiteado), cargando `tokens.css` + `primitives.css` +
+`duna.css` REALES (no reescritos a mano) y `TarjetaProducto` (`app/(admin)/admin/productos/
+page.tsx:652-728`) con UN solo producto — el caso del reporte. Medido con Chromium headless
+(Playwright, instalación aislada `.arnes-tooling/playwright`, ya cacheada — el chromium `1243` ya
+estaba instalado, cero descarga) en dos viewports:
+
+```
+ANTES (align-content sin declarar):
+  laptop        1440×900  → tarjeta 618.4px de alto (tile cuadrado 198px + texto ≈ 272px de sobrante estirado)
+  monitor 2560×1440       → tarjeta 1158.4px de alto (tile cuadrado 189px + texto ≈ 895px de sobrante estirado)
+```
+
+**Confirma la hipótesis, y explica el patrón exacto del reporte**: el sobrante crece con la altura
+del viewport (346px de estiramiento a 900px de alto, 895px a 1440) — la MISMA tarjeta se ve "bien"
+en un viewport más corto (el sobrante es menor, menos visible) y "alargada" en uno más alto, sin que
+nada del componente cambie entre los dos. `.duna-split` (`primitives.css:428` en `HEAD`, línea 457
+tras la inserción de este slice) confirma la cadena:
+`align-items: stretch` a ≥1080 estira `.duna-cards` (columna del split) a la altura de la fila
+`1fr` del root, y ESE contenedor —ya con altura definida por el layout, no por contenido— es el que
+hereda `align-content: normal` sin declarar.
+
+### 2 · El fix — en el PRIMITIVO, no sólo en el contexto de alto fijo
+
+`align-content: start` en `.duna-cards` (`primitives.css:283` tras el fix, con un bloque de
+comentario nuevo delante que explica el porqué): las filas miden lo que su contenido pide y el
+sobrante queda VACÍO abajo
+—scrolleable, porque `.duna-pantalla-fija .duna-split > .duna-cards` ya lleva `overflow-y:auto`—,
+en vez de repartido entre las tarjetas. **No toca `align-items`**: dentro de UNA fila, las tarjetas
+siguen igualándose a la más alta (comportamiento correcto de una rejilla de tarjetas parejas, no
+parte del defecto reportado).
+
+**Va en el primitivo, no en `app/(admin)/duna.css` scopeado al contexto de alto fijo**, porque una
+rejilla de tarjetas no debería estirar sus filas en NINGÚN contexto — es una propiedad de la
+rejilla, no del shell que la contiene. Medido (mismo arnés, los TRES consumidores reales de
+`.duna-cards`, censados por grep: `app/(admin)/admin/productos/page.tsx`, `app/(admin)/admin/
+perfil/page.tsx`, `app/(admin)/admin/configuracion/page.tsx`): Perfil y Configuración renderizan
+`.duna-cards` en DOCUMENT-SCROLL (§ CLAUDE.md, Los DOS modelos de scroll — ninguna de las dos lleva
+`.duna-pantalla-fija`), donde el contenedor nunca recibe una altura definida por el layout —mide lo
+que su contenido pide—, así que ahí `align-content: normal` nunca tuvo sobrante que repartir y
+`align-content: start` no cambia nada observable. El único consumidor con alto fijo es Productos.
+
+### 3 · Verificado DESPUÉS del fix, mismo arnés
+
+```
+DESPUÉS (align-content: start):
+  laptop        1440×900  → tarjeta 306.25px de alto
+  monitor 2560×1440       → tarjeta 297.22px de alto
+```
+
+Las dos alturas quedan CONSISTENTES entre viewports (la diferencia de 9px es el ancho de columna
+distinto que produce `auto-fill` con más espacio horizontal disponible en el monitor —215px vs
+224px de ancho de tarjeta—, no estiramiento vertical): la tarjeta mide lo que su propio contenido
+pide, en cualquier viewport.
+
+**Con VARIAS tarjetas la rejilla sigue igual que antes** (`.scratch/panel-tarjetas-repro-multi.html`
++ `.scratch/medir-tarjeta-panel-multi.mjs`, 6 tarjetas, mismos dos viewports): en el laptop (2
+filas de 4+2) las 6 tarjetas miden **280.25px** cada una, IDÉNTICO dentro de cada fila; en el
+monitor (1 fila de 6) las 6 miden **271.23px**, IDÉNTICO entre sí — `align-items` sigue igualando
+las tarjetas DENTRO de su fila (comportamiento conservado) y ninguna fila se estira para llenar el
+contenedor (comportamiento arreglado). Sin regresión.
+
+### 4 · `lib/design-system-cards.test.ts` — lo afirmable sin DOM
+
+El carril de `npm test` no tiene jsdom (§ CLAUDE.md, El glob NO incluye `*.test.tsx`), así que este
+archivo no puede medir un `getBoundingClientRect` — repite el patrón ya usado en
+`lib/preauth-chasis.test.ts` (leer el CSS fuente con `readFileSync` y afirmar contra el texto de la
+regla). Tres tests: `.duna-cards` declara `align-content: start` (visto fallar contra el `HEAD`
+pre-fix, confirmado leyendo `git show HEAD:packages/design-system/primitives/primitives.css` y
+corriendo el mismo regex — el cuerpo de la regla en `HEAD` no matchea); `.duna-cards` NO declara
+`align-items` propio (blinda que el alcance del fix no se ensanche); y `.duna-cards` sigue siendo
+`display:grid` + el `auto-fill` con el mínimo derivado de `--duna-list-w` (el fix no tocó la forma
+de columnas).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npm test` | **2469/2469** (2466 en `HEAD` + 3 nuevos de `design-system-cards.test.ts`) |
+| `npm run test:integracion` | **240/240**, sin cambio — este slice no toca ninguna cadena del carril de Postgres |
+
+**No hace falta el diff visual de Nayoli** (`verificar:nayoli:visual`/`guarda:color`): el `surface`
+del spec lo dice explícito ("es layout del design system del panel, no del storefront") y el censo
+de §2 lo confirma —los tres consumidores de `.duna-cards` son TODOS admin-only; el storefront no
+importa `primitives.css` de este paquete en absoluto para su propio layout de producto (usa sus
+propios componentes `ProductCard`/`FeaturedProductsCuadricula`)—. **El gate de esto son los ojos del
+owner sobre el panel** (`/admin/productos`, cuadrícula con un producto seleccionado, en un monitor
+grande), no una medición de píxeles automatizada.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `.duna-cards` (la regla editada,
+`primitives.css:283`), `align-content` (la propiedad agregada), `lib/design-system-cards.test.ts`
+(archivo nuevo), `PANEL-TARJETAS-NO-ESTIRAN-1` (el id). Grepeados uno por uno contra `CLAUDE.md`:
+
+- **CERO apariciones** para los cuatro: `duna-cards`, `align-content`, `design-system-cards`,
+  `PANEL-TARJETAS-NO-ESTIRAN`. `CLAUDE.md` no documenta la rejilla de tarjetas del admin en
+  absoluto — es doctrina de CÓDIGO (el bloque de comentario en `primitives.css`), no promovida a
+  `CLAUDE.md`.
+- **`primitives.css` SÍ aparece** (5 líneas: 2291, 6220, 6221, 6266, 7219) — ninguna describe
+  `.duna-cards` ni su `align-content`; hablan del colapso del split a 1079.98px, el swap de nav a
+  959.98px, la costura de `.admin-tooltip` pendiente de mover al paquete, y `.duna-lista`. Ninguna
+  queda falsa.
+- **"Rejilla de tarjetas" SÍ aparece** (línea 7527, § La PANTALLA de Automatizaciones) — pero es
+  la rejilla de LA PÁGINA DE AUTOMATIZACIONES (`app/(admin)/admin/automatizaciones/page.tsx:207`,
+  `grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start` — Tailwind directo, **no**
+  `.duna-cards`; verificado por grep, cero uso de `duna-cards` en ese archivo), un componente
+  TOTALMENTE distinto del que este slice toca. No queda falsa.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `PANEL-TARJETAS-NO-ESTIRAN-1` (id nuevo) — `grep
+-c` antes de este párrafo dio **0**, sin colisión.
+
+### `customer_bytes`
+
+**`changed: true`.** El panel es lo que un OPERADOR/DUEÑO lee (§ el esquema de este reporte: "Any
+byte a customer, operator or owner reads"), y la tarjeta de producto en `/admin/productos` deja de
+verse alargada — un cambio de GEOMETRÍA visible en una pantalla que el owner mira todos los días,
+aunque no toque el storefront.
+
+`strings:` **ninguno** — ningún texto nuevo ni reescrito; el cambio es puramente de layout
+(`align-content: start`), sin copy.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo. El diff es CSS de un paquete de design-system + un test que lee ese mismo CSS.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde (tsc 0, `npm test` 2469/2469,
+`npm run test:integracion` 240/240) más la medición headless antes/después que confirma la causa y
+el arreglo, y el censo de que ningún otro consumidor de `.duna-cards` cambia. Sin `schema`, sin
+`cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó la
+ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, citado arriba); el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `PANEL-TARJETAS-NO-ESTIRAN-1`.**

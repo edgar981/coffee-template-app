@@ -250,8 +250,37 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    `auto-fill` y no un número de columnas: la rejilla sirve igual en un teléfono
    —donde da una— que en un monitor ancho, sin que el consumidor decida cuántas
    caben en cada tamaño. El gap es el mismo `space-4` que separa las tarjetas de
-   una lista, para que las dos vistas del mismo conjunto respiren igual. */
-.duna-cards { display: grid; gap: var(--duna-space-4);
+   una lista, para que las dos vistas del mismo conjunto respiren igual.
+
+   ── `align-content: start`, PARA QUE LAS FILAS NO SE ESTIREN (PANEL-TARJETAS-
+   NO-ESTIRAN-1) ────────────────────────────────────────────────────────────
+   Cuando esta rejilla vive dentro de una región de alto FIJO (Productos en
+   cuadrícula con selección, § duna.css `.duna-pantalla-fija .duna-split >
+   .duna-cards`), el contenedor recibe una altura DEFINIDA por el layout —no por
+   su contenido—. `align-content` sin declarar computa a `normal`, que para un
+   contenedor grid se comporta como `stretch`: con MENOS filas que las que
+   entrarían en esa altura (el caso típico: un producto solo, o pocos), el
+   sobrante se reparte estirando esas filas, y como `align-items` (también
+   `normal`→`stretch`) estira cada tarjeta a la altura de SU fila, la tarjeta
+   termina alargada hasta el fondo de la región — más visible cuanto más alta
+   la pantalla, porque hay más sobrante que repartir (medido: 346px de
+   estiramiento en un viewport de 900px de alto, 895px en uno de 1440).
+
+   `start` dejа que las filas midan lo que su contenido pide y el sobrante
+   quede VACÍO abajo — ninguna tarjeta responde por el alto de la región que no
+   le pertenece. No toca `align-items`: dentro de UNA fila, las tarjetas SÍ
+   siguen igualándose a la más alta (`stretch` por fila, no por región), que es
+   el comportamiento correcto de una rejilla de tarjetas parejas.
+
+   No es un caso del contexto de alto fijo: en document-scroll (Perfil,
+   Configuración, Productos en cuadrícula SIN selección) `.duna-cards` nunca
+   recibe una altura definida por el layout —mide lo que su contenido pide—,
+   así que ahí no había sobrante que repartir y `align-content: start` no
+   cambia nada (medido, los tres consumidores). Va en el PRIMITIVO y no sólo en
+   el contexto de alto fijo porque una rejilla de tarjetas no debería estirar
+   sus filas en NINGÚN contexto — es una propiedad de la rejilla, no del shell
+   que la contiene. */
+.duna-cards { display: grid; gap: var(--duna-space-4); align-content: start;
               grid-template-columns: repeat(auto-fill, minmax(calc(var(--duna-list-w) / 2), 1fr)); }
 
 /* ── EL CONTROL PRINCIPAL DE UNA SUPERFICIE, CON SU ÁREA ESTIRADA ────────────
