@@ -21,6 +21,10 @@ import { transformAcomodo, UMBRAL_ACOMODO } from '../animation';
 // (`transformAcomodo`/`useProgresoAcomodo`), sobre `useScroll`+`useTransform` de framer-motion —no
 // un listener de scroll propio—.
 //
+// § HISTORIA-COMO-MUESTRARIO-1 REESCRIBIÓ el eje de `transformAcomodo`: ya NO es un asiento VERTICAL
+// (`translateY`, la aproximación anterior) sino la APERTURA HORIZONTAL real del prototipo
+// (`translateX`, `js/home.js:288-297`) — los tests de abajo se re-miden contra ESE eje.
+//
 // LO QUE ESTE ARCHIVO PUEDE AFIRMAR SIN NAVEGADOR (§ CLAUDE.md — el carril rápido es DB-free y este
 // repo no tiene jsdom): la MATEMÁTICA del scrub (pura, sin React) y el CABLEADO por render server
 // (`renderToStaticMarkup`, sin scroll real). LO QUE NO PUEDE: el movimiento en sí — que
@@ -38,17 +42,17 @@ test('transformAcomodo: estatico=true SIEMPRE "none", sin importar el progreso �
   assert.equal(transformAcomodo(4, 16, -0.5, true), 'none', 'estatico gana incluso con un progreso fuera de rango');
 });
 
-test('transformAcomodo: estatico=false, progreso=0 — la figura arranca INCLINADA con su asiento inicial (el estado previo al scrub)', () => {
-  assert.equal(transformAcomodo(-4, 16, 0, false), 'rotate(-4.00deg) translateY(16.00px)');
-  assert.equal(transformAcomodo(3, 16, 0, false), 'rotate(3.00deg) translateY(16.00px)');
+test('transformAcomodo: estatico=false, progreso=0 — la figura arranca INCLINADA y SIN apertura (translateX en 0, el estado previo al scrub — `js/home.js:294` translateX primero, rotate después)', () => {
+  assert.equal(transformAcomodo(-4, 16, 0, false), 'translateX(0.0px) rotate(-4.00deg)');
+  assert.equal(transformAcomodo(3, 16, 0, false), 'translateX(0.0px) rotate(3.00deg)');
 });
 
-test('transformAcomodo: estatico=false, progreso=1 — la figura llega ACOMODADA: rotación y asiento en 0 (el mismo VALOR visual que `estatico`, aunque la cadena difiera — `rotate(0.00deg)…` vs `none`)', () => {
-  assert.equal(transformAcomodo(-4, 16, 1, false), 'rotate(0.00deg) translateY(0.00px)');
-  assert.equal(transformAcomodo(3, 16, 1, false), 'rotate(0.00deg) translateY(0.00px)');
+test('transformAcomodo: estatico=false, progreso=1 — la figura llega ACOMODADA: rotación en 0° Y apertura en su TOPE (el mismo VALOR visual que `estatico`, aunque la cadena difiera — `translateX(…)rotate(0.00deg)` vs `none`)', () => {
+  assert.equal(transformAcomodo(-4, 16, 1, false), 'translateX(16.0px) rotate(0.00deg)');
+  assert.equal(transformAcomodo(3, 16, 1, false), 'translateX(16.0px) rotate(0.00deg)');
 });
 
-test('transformAcomodo: progreso se acota a [0,1] — un valor fuera de rango no sobre-rota ni invierte el signo', () => {
+test('transformAcomodo: progreso se acota a [0,1] — un valor fuera de rango no sobre-rota/sobre-abre ni invierte el signo', () => {
   assert.equal(transformAcomodo(-4, 16, -0.5, false), transformAcomodo(-4, 16, 0, false));
   assert.equal(transformAcomodo(-4, 16, 1.5, false), transformAcomodo(-4, 16, 1, false));
 });
@@ -81,12 +85,17 @@ test('EL ESTADO REDUCIDO (proxy: vista previa) — las 4 figuras del collage rin
 
 test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — las 4 figuras arrancan en su transform de INICIO, inclinadas', () => {
   const html = renderCentrada();
-  // Mismos valores que `IMAGENES` en `BrandStoryCentrada.tsx` (rotar: -4, 3, -3, 4) y el mismo
-  // `ASIENTO_ACOMODO_PX` (16) — si alguien cambia esos números ahí, este test debe fallar y avisar.
-  assert.ok(html.includes('rotate(-4.00deg) translateY(16.00px)'), 'imagen1: rotar -4');
-  assert.ok(html.includes('rotate(3.00deg) translateY(16.00px)'), 'imagen2: rotar 3');
-  assert.ok(html.includes('rotate(-3.00deg) translateY(16.00px)'), 'imagen3: rotar -3');
-  assert.ok(html.includes('rotate(4.00deg) translateY(16.00px)'), 'imagen4: rotar 4');
+  // DEFAULTS.brandStory trae las 4 imágenes llenas (Nayoli), así que `totalVisible=4` — un total PAR,
+  // sin "figura del medio" (§ `parametrosAcomodoCollage`, `lib/animation.ts`: el prototipo sólo define
+  // esa simetría para 3). La regla general da magnitud CONSTANTE por lado: posición < centro → -4°,
+  // posición > centro → +4° — imagen1/imagen2 comparten signo, imagen3/imagen4 comparten el opuesto.
+  // A progreso=0 la apertura (`translateX`) es 0 para las 4 (t=0 anula cualquier magnitud) — sólo la
+  // rotación es visible en este punto, así que se cuenta por OCURRENCIAS, no por imagen individual
+  // (dos figuras a cada lado producen la MISMA cadena a t=0).
+  const negativas = html.match(/translateX\(0\.0px\) rotate\(-4\.00deg\)/g) || [];
+  const positivas = html.match(/translateX\(0\.0px\) rotate\(4\.00deg\)/g) || [];
+  assert.equal(negativas.length, 2, 'imagen1/imagen2 (posición < centro, total=4) arrancan con rotación -4°');
+  assert.equal(positivas.length, 2, 'imagen3/imagen4 (posición > centro, total=4) arrancan con rotación +4°');
   assert.ok(!html.includes('transform:none'), 'sin el gate estático, ninguna figura debe rendir ya-acomodada en el primer render');
 });
 

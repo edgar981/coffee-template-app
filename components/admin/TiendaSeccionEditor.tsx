@@ -18,7 +18,7 @@ import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { remuxMovAMp4 } from '@/lib/video-remux';
-import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, type SuscripcionPlanesContent, type TemaContent, type EsquemasContent } from '@/lib/config/site-content-defaults';
 import {
   MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES, TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_VIDEO,
   MSG_VIDEO_NO_ADMITIDO, CONTENEDORES_REMUXEABLES, MAX_VIDEO_HERO_BYTES, MSG_VIDEO_HERO_LARGO,
@@ -37,6 +37,50 @@ import {
 // Descartar son las acciones del borrador.
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
+
+// ── EL ESQUEMA/TEMA REAL, PARA LA VISTA PREVIA (§ HISTORIA-COMO-MUESTRARIO-1) ─────────────────────
+//
+// EL DEFECTO MEDIDO: `VistaTiendaEnVivo` sintetiza su contenido con `{ ...DEFAULTS, [seccion]: valor
+// }` — `DEFAULTS.tema`/`.esquemas` son la FÁBRICA (raíces null, `{}`), así que la vista previa SIEMPRE
+// pintaba una banda con esquema asignado (p. ej. `brandStory` bajo CORTE, 'neutro') como si el tenant
+// no tuviera paleta ni esquema — el "lienzo de Nayoli" que el owner reportó. La tienda REAL no tiene
+// este problema porque `app/(storefront)/page.tsx` lee `content.esquemas`/`.tema` de la base en cada
+// request; el editor del panel nunca los leía.
+//
+// POR QUÉ UN PROMISE COMPARTIDO A NIVEL DE MÓDULO, NO UN FETCH POR INSTANCIA: `TiendaSeccionEditor` se
+// monta UNA VEZ POR SECCIÓN (hasta ~9 en la página Home), y `esquemas`/`tema` son dos claves MÁS del
+// MISMO doc que `TiendaPaginas` ya trae completo (`doc.contenido`) — pero `TiendaPaginas.tsx` queda
+// FUERA del `touches:` de este slice (no se le puede agregar el prop que baje esos dos campos a cada
+// editor sin tocarlo), así que este editor no puede recibirlos por prop. La alternativa que SÍ está en
+// `touches:` —y la que NO reintroduce el N-duplicados que § "El fetch bajó de 5 a 1" (CLAUDE.md)
+// cerró— es que las N instancias montadas en la MISMA carga de página resuelvan la MISMA promesa: el
+// costo es SIEMPRE una request de más por carga de `/admin/tienda` (iguala al patrón ya aceptado de
+// `PaletaSeccion`/`MenuSeccion`/`FooterSeccion`/`EncabezadoSeccion`/`DetallesSitioSeccion`, que YA
+// hacen su propio fetch independiente de `/api/site-content` en esa misma página — iría de 6 a 7
+// fetches totales en la carga de la página, nunca de 1 a N), no N como sería un fetch por instancia.
+//
+// LÍMITE DECLARADO: la promesa se resuelve UNA vez por carga de página y no se invalida — si el
+// operador edita la paleta en `PaletaSeccion` (otra sección de la misma página) y NO recarga, esta
+// vista previa sigue mostrando el esquema/tema con el que cargó la página. Es la MISMA clase de
+// límite que ya tiene el resto del panel (ningún editor de `/admin/tienda` escucha los cambios de
+// otro sin recargar); no es peor que el estado de hoy, y se documenta acá en vez de resolverse con
+// un mecanismo de invalidación cross-componente que este slice no pidió.
+//
+// El fallback (fetch fallido, sesión sin rol admin, etc.) es `DEFAULTS.tema`/`.esquemas` — EXACTAMENTE
+// el comportamiento de ANTES de este slice, nunca peor que el defecto que se está cerrando.
+let promesaEsquemaTema: Promise<{ tema: TemaContent; esquemas: EsquemasContent }> | null = null;
+function cargarEsquemaTemaReal() {
+  if (!promesaEsquemaTema) {
+    promesaEsquemaTema = fetch('/api/site-content')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('no-ok'))))
+      .then((d) => ({
+        tema: (d?.contenido?.tema ?? DEFAULTS.tema) as TemaContent,
+        esquemas: (d?.contenido?.esquemas ?? DEFAULTS.esquemas) as EsquemasContent,
+      }))
+      .catch(() => ({ tema: DEFAULTS.tema, esquemas: DEFAULTS.esquemas }));
+  }
+  return promesaEsquemaTema;
+}
 
 export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga }: {
   config: SeccionConfig;
@@ -64,6 +108,16 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 }) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
+
+  // El esquema/tema REAL del tenant, para la vista previa (§ cargarEsquemaTemaReal, arriba). `null`
+  // hasta que resuelve; `VistaTiendaEnVivo` ya trata `undefined` como "usa DEFAULTS" — este editor no
+  // necesita distinguir "cargando" de "sin esquema", así que no hay un tercer estado que modelar acá.
+  const [esquemaTemaReal, setEsquemaTemaReal] = useState<{ tema: TemaContent; esquemas: EsquemasContent } | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    cargarEsquemaTemaReal().then((v) => { if (vivo) setEsquemaTemaReal(v); });
+    return () => { vivo = false; };
+  }, []);
 
   const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
@@ -270,6 +324,18 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
   const usarPorDefecto = (campo: string) => {
     const nf = { ...(formRef.current as Datos), [campo]: defaults[campo] };
+    setForm(nf); setHayBorrador(true);
+    auto.marcarSucio(nf); auto.flush();
+  };
+
+  // Vacía un campo-imagen OPCIONAL (§ CampoImagen.opcional, HISTORIA-COMO-MUESTRARIO-1) — DISTINTO de
+  // `usarPorDefecto`: ésa pisa con `defaults[campo]` (para brandStory, un asset REAL de Nayoli, no una
+  // cadena vacía — "Por defecto" y "Quitar" son dos destinos distintos). `''` es lo que
+  // `REGISTRY.<seccion>.campos[campo] === 'opcional'` ya trata como AUSENTE al resolver (se OMITE,
+  // nunca cae al default — § site-content-defaults.ts, "la frontera fina de defaults-como-fallback"):
+  // este botón sólo agrega el CONTROL para escribir ese vacío, no cambia qué hace el resolver con él.
+  const vaciarImagen = (campo: string) => {
+    const nf = { ...(formRef.current as Datos), [campo]: '' };
     setForm(nf); setHayBorrador(true);
     auto.marcarSucio(nf); auto.flush();
   };
@@ -603,6 +669,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     const val = String(form[img.name] ?? '');
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;
+    // "Quitar" (§ CampoImagen.opcional, HISTORIA-COMO-MUESTRARIO-1): sólo para una foto OPCIONAL que
+    // TIENE valor — vaciar una ya vacía no hace nada, y una REQUERIDA no puede quedar sin foto.
+    const puedeQuitar = !!img.opcional && val !== '';
     return (
       <div key={img.name} className="duna-field" style={{ marginBottom: 'var(--duna-space-4)' }}>
         <span className="duna-field__label">{img.label}</span>
@@ -622,6 +691,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   Por defecto
                 </button>
               )}
+              {puedeQuitar && (
+                <button type="button" onClick={() => vaciarImagen(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo}>
+                  Quitar
+                </button>
+              )}
             </div>
             <span className="duna-field__hint" style={{ margin: 0 }}>
               {subiendoEste ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
@@ -635,11 +709,12 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
   // UNA CELDA del collage: una miniatura CLICABLE (clic = Cambiar) que ocupa su cuadro del 2×2; la
   // POSICIÓN la da el grid (rule 1: la posición se VE como en la tienda). Vacía → placeholder muted
-  // (§ #66). "Por defecto" abajo si cambió.
+  // (§ #66). "Por defecto"/"Quitar" abajo, según corresponda.
   const renderCeldaCollage = (img: CampoImagen) => {
     const val = String(form[img.name] ?? '');
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;
+    const puedeQuitar = !!img.opcional && val !== '';
     return (
       <div key={img.name} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-1)', minWidth: 0 }}>
         <button type="button" onClick={() => ponerImagen(img.name)} className="duna-tile" style={{ width: '100%' }} disabled={subiendo} aria-label={`Cambiar ${img.label}`}>
@@ -647,10 +722,19 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
             ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={val} alt="" />
             : <ImageIcon aria-hidden width={20} height={20} />}
         </button>
-        {!esDefault && !subiendoEste && (
-          <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo} style={{ alignSelf: 'flex-start' }}>
-            Por defecto
-          </button>
+        {!subiendoEste && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-1)' }}>
+            {!esDefault && (
+              <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo} style={{ alignSelf: 'flex-start' }}>
+                Por defecto
+              </button>
+            )}
+            {puedeQuitar && (
+              <button type="button" onClick={() => vaciarImagen(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo} style={{ alignSelf: 'flex-start' }}>
+                Quitar
+              </button>
+            )}
+          </div>
         )}
         {subiendoEste && <BarraProgreso pct={subida.progreso ?? 0} />}
       </div>
@@ -764,7 +848,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
             </div>
           ) : previaVisible ? (
-            <VistaTiendaEnVivo seccion={seccion} valor={form} compacto />
+            <VistaTiendaEnVivo seccion={seccion} valor={form} compacto bandaId={config.bandaId} esquemas={esquemaTemaReal?.esquemas} tema={esquemaTemaReal?.tema} />
           ) : (
             // La tarjeta esperando: el esqueleto del panel rellena la caja (alto reservado por el
             // `aspect-ratio` del thumb) hasta que entra en vista y la preview monta. Sin salto.
@@ -856,11 +940,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 Haz clic en una tarjeta para editar sus campos.
               </p>
               <div className="puente-tarjetas" data-tarjeta-activa={tarjetaActiva ?? undefined} onClickCapture={onClicTarjeta}>
-                <VistaTiendaEnVivo seccion={seccion} valor={form} />
+                <VistaTiendaEnVivo seccion={seccion} valor={form} bandaId={config.bandaId} esquemas={esquemaTemaReal?.esquemas} tema={esquemaTemaReal?.tema} />
               </div>
             </>
           ) : (
-            <VistaTiendaEnVivo seccion={seccion} valor={form} />
+            <VistaTiendaEnVivo seccion={seccion} valor={form} bandaId={config.bandaId} esquemas={esquemaTemaReal?.esquemas} tema={esquemaTemaReal?.tema} />
           )}
         </div>
 

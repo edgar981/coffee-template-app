@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { esquemaStyle, bandaEsOscura, tratamientoNav } from './esquema-style';
+import { esquemaStyle, bandaEsOscura, tratamientoNav, esquemaStyleDeBanda } from './esquema-style';
 import { RAICES_DEFECTO, derivarEsquema, contraste, type RaicesPaleta } from './palette-derive';
-import { BANDA_IDS, BANDAS_OSCURAS, type EsquemasContent } from './site-content-defaults';
+import { BANDA_IDS, BANDAS_OSCURAS, type EsquemasContent, type TemaContent } from './site-content-defaults';
+
+// Fixture mínimo de `TemaContent` (los 8 campos, § site-content-defaults.ts:900) — helper para las
+// pruebas de `esquemaStyleDeBanda`, no un segundo default: sólo lo que ese envoltorio LEE cambia.
+function temaFixture(over: Partial<TemaContent> = {}): TemaContent {
+  return {
+    fondo: null, tinta: null, acento: null, fuentePar: null, forma: null,
+    origenTexto: null, origenAccion: null, escalaDisplay: null,
+    ...over,
+  };
+}
 
 // Capa 1 del PUENTE banda→esquema (§ eje 5b, mitad B). Sin base — lógica pura.
 
@@ -294,4 +304,28 @@ test('tratamientoNav: hero·ficha CON esquema sigue SIN flotar — la uniformida
     tratamientoNav('hero', 'ficha', { hero: 'oscuro' }, null, null, null),
     { flotante: false, textoClaro: false },
   );
+});
+
+// ── esquemaStyleDeBanda — el envoltorio que arma `ejes` (§ HISTORIA-COMO-MUESTRARIO-1) ────────────
+
+test('esquemaStyleDeBanda: sin bandaId (una sección sin banda asignable) → {} — el mismo no-op que esquemaStyle(undefined, …)', () => {
+  assert.deepEqual(esquemaStyleDeBanda(undefined, {}, temaFixture()), {});
+});
+
+test('esquemaStyleDeBanda: con bandaId pero SIN esquema asignado para esa banda → {} — la banda cae a su fallback de clase, como hoy', () => {
+  assert.deepEqual(esquemaStyleDeBanda('brandStory', {}, temaFixture()), {});
+});
+
+test('esquemaStyleDeBanda: con esquema asignado, da EXACTAMENTE lo mismo que esquemaStyle llamado a mano con los ejes ya mapeados', () => {
+  const tema = temaFixture({ fondo: '#fdfbf7', tinta: '#102407', acento: '#a70004' });
+  const esquemas: EsquemasContent = { brandStory: 'neutro' };
+  const esperado = esquemaStyle('neutro', '#fdfbf7', '#102407', '#a70004', { origenTexto: undefined, origenAccion: undefined });
+  assert.deepEqual(esquemaStyleDeBanda('brandStory', esquemas, tema), esperado);
+});
+
+test('esquemaStyleDeBanda: los ejes NULL del tema se mapean a undefined (mismo mapeo que `app/(storefront)/page.tsx`), no se pasan como null', () => {
+  const tema = temaFixture({ fondo: '#fff', tinta: '#000', acento: '#f00', origenTexto: 'acento', origenAccion: null });
+  const conEjes = esquemaStyleDeBanda('brandStory', { brandStory: 'oscuro' }, tema);
+  const sinEjes = esquemaStyle('oscuro', '#fff', '#000', '#f00', { origenTexto: 'acento', origenAccion: undefined });
+  assert.deepEqual(conEjes, sinEjes);
 });

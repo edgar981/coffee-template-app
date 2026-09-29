@@ -1,6 +1,6 @@
 'use client';
 
-import type { ComponentType } from 'react';
+import type { ComponentType, CSSProperties } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import Marquesina from '@/components/storefront/home/Marquesina';
 import TrustBadges from '@/components/storefront/home/TrustBadges';
@@ -19,7 +19,8 @@ import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
-import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, type SiteContentData, type BandaId, type EsquemasContent, type TemaContent } from '@/lib/config/site-content-defaults';
+import { esquemaStyleDeBanda } from '@/lib/config/esquema-style';
 import type { SeccionVista } from '@/components/admin/tienda-secciones';
 
 // VISTA PREVIA EN VIVO — los componentes REALES del storefront renderizados en el panel,
@@ -38,6 +39,17 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 // previa de paleta es su segundo consumidor (§ EscalaDesktop)—. Este componente ya sólo aporta lo
 // ESPECÍFICO de la vista de contenido: el mapa de secciones, el provider y el `PreviewProvider`.
 //
+// EL ESQUEMA DE LA BANDA (§ HISTORIA-COMO-MUESTRARIO-1) — el defecto que esto cierra: hasta este
+// slice `<Comp />` se montaba SIN `style`, así que una banda con esquema asignado (p. ej. `brandStory`
+// bajo CORTE, 'neutro') caía SIEMPRE a su fallback de clase (`var(--sf-banda,var(--sf-tinta))` →
+// `--sf-tinta`, el literal de FÁBRICA de `app/globals.css` — el "lienzo de Nayoli" que el owner
+// reportó, aunque el tenant activo fuera otro). `bandaId`/`esquemas`/`tema` son OPCIONALES —ausentes
+// (o `undefined`, el default de cada uno) reproducen el `{}` de SIEMPRE (`esquemaStyleDeBanda`
+// devuelve `{}` sin `bandaId`)—, así que un consumidor que no los pase queda BYTE-IDÉNTICO a antes.
+// Quien los fetchea es `TiendaSeccionEditor` (§ su docstring, el porqué de un promise COMPARTIDO en
+// vez de un fetch por instancia); este componente sigue sin tocar red, sólo DERIVA el `style` de lo
+// que recibe — es lo que lo mantiene testeable por SSR sin jsdom (§ admin-tienda-preset.test.ts).
+//
 // DOS MODOS (los pasa a EscalaDesktop):
 //  · GRANDE (edición): ancho completo, escala `paneW/1280`; el chrome del pane (border, bg,
 //    max-height con scroll) lo da `.tienda-vivo-pane`. Un `92vh` (el hero) resuelve contra el
@@ -45,7 +57,17 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 //  · COMPACTO (la tarjeta de lectura): scale-to-FIT de la sección ENTERA en la caja del thumb
 //    (`.tienda-tarjeta__mini`, con su `> * { pointer-events: none }`), centrada (letterbox mínimo).
 
-const COMPONENTES: Record<SeccionVista, ComponentType> = {
+// `style` opcional en la firma: los OCHO de home (§ app/(storefront)/page.tsx, que ya se lo pasan a
+// todos) lo leen; las seis de /nosotros y /suscripciones lo ignoran (todos sus props son igual de
+// opcionales, así que un `style` extra que no leen es un no-op en RUNTIME). PERO tipar el Record como
+// `ComponentType<{style?}>` a secas NO compila para `NosotrosGaleria`/`SuscripcionPlanes`: TS marca
+// como error DOS tipos con propiedades TODAS opcionales y CERO en común (`{style?}` vs `{negocio?}` /
+// `{whatsapp?}`) — la detección de "weak type" (probable typo), que NO se dispara con un tipo que
+// tiene índice (`Record<string, unknown>` no es "weak"). De ahí el tipo del VALOR: sigue exigiendo
+// que cada entrada sea invocable con cualquier prop-bag (todo-opcional en cada componente real, como
+// ya documentaba el `ComponentType` bare de antes), sin la falsa alarma de TS sobre las dos que no
+// comparten NINGÚN nombre de prop con `style`.
+const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> = {
   hero: HeroSection,
   // NECESARIO POR CONSECUENCIA MECÁNICA de PANEL-EDITOR-MARQUESINA-1 (mismo patrón que 'origen'/
   // 'spotlight' abajo, § sus asientos en DECISIONS.md): sumar `'marquesina'` a `SeccionVista`
@@ -116,22 +138,38 @@ export default function VistaTiendaEnVivo({
   seccion,
   valor,
   compacto = false,
+  bandaId,
+  esquemas,
+  tema,
 }: {
   seccion: SeccionVista;
   valor: unknown;
   compacto?: boolean;
+  /** La banda del home de esta sección (§ SeccionConfig.bandaId) — para pintar con SU esquema real.
+   *  Ausente = sin esquema (el `{}` de siempre). */
+  bandaId?: BandaId;
+  /** `content.esquemas` REAL del tenant (§ el docstring de arriba). Ausente = `DEFAULTS.esquemas`. */
+  esquemas?: EsquemasContent;
+  /** `content.tema` REAL del tenant. Ausente = `DEFAULTS.tema` (fábrica) — el comportamiento de
+   *  SIEMPRE. Se mezcla también en `contenido` (no sólo en el `style` de la banda): un componente que
+   *  lea `useSiteContent().tema` directo (p. ej. `escalaDisplay`, § BrandStoryCentrada) debe ver la
+   *  MISMA fuente que decide el esquema, no la fábrica en un lado y lo real en el otro. */
+  tema?: TemaContent;
 }) {
   const Comp = COMPONENTES[seccion];
+  const temaReal = tema ?? DEFAULTS.tema;
+  const esquemasReales = esquemas ?? DEFAULTS.esquemas;
+  const style = esquemaStyleDeBanda(bandaId, esquemasReales, temaReal) as CSSProperties;
   // Objeto NUEVO por render → la vista sigue al form. El caller garantiza que `valor` calza con
   // `seccion`, así que el cast es honesto (la clave es dinámica y TS no la puede estrechar).
-  const contenido = { ...DEFAULTS, [seccion]: valor } as SiteContentData;
+  const contenido = { ...DEFAULTS, tema: temaReal, esquemas: esquemasReales, [seccion]: valor } as SiteContentData;
 
   return (
     <EscalaDesktop compacto={compacto} className={compacto ? 'tienda-tarjeta__mini' : 'tienda-vivo-pane'}>
       <SiteContentProvider value={contenido}>
         <PreviewProvider>
           <div className="bg-[#faf7f4] font-inter">
-            <Comp />
+            <Comp style={style} />
           </div>
         </PreviewProvider>
       </SiteContentProvider>

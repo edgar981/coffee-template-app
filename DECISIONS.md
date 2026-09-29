@@ -30010,3 +30010,288 @@ lectura.
 pares podía ganar una entrada con Hanken Grotesk; la respuesta del owner fue NO — se calibra el peso
 de Figtree en su lugar. `CORTE-CUERPO-LETRA-E-ICONOS-1` queda con su trabajo de íconos/velo ya
 COMMITEADO desde entonces (§ esa entrada) y su pregunta abierta RESUELTA acá, sin reabrir esa entrada.
+
+## 2026-09-28 — La banda de "Nuestra historia" se mide contra el prototipo, y el panel deja de pintarla con el lienzo de Nayoli (`HISTORIA-COMO-MUESTRARIO-1`)
+
+### 0 · El defecto en el PANEL — causa y censo
+
+`VistaTiendaEnVivo` montaba `<Comp />` (el componente real del storefront) SIN prop `style`, siempre.
+Cualquier banda con un ESQUEMA de color asignado por el tenant (`content.esquemas[bandaId]`, p. ej.
+`brandStory: 'neutro'` bajo CORTE) dependía de que `<Comp>` recibiera ese `style` con las 8 custom
+properties (`esquemaStyle`) para no caer al fallback de CLASE (`var(--sf-banda,var(--sf-tinta))` →
+`--sf-tinta`, el literal de FÁBRICA de `app/globals.css`). Sin el `style`, la vista previa SIEMPRE
+mostraba el lienzo de fábrica — el "canvas de Nayoli" que el owner reportó, aunque el tenant activo
+tuviera otro esquema asignado y la TIENDA REAL (que sí pasa `style` en `app/(storefront)/page.tsx`) se
+viera correcta. Es el mismo modo de falla que § "Montar un componente en OTRO árbol de providers no lo
+atrapa ni tsc ni el build" — acá el árbol tenía el provider (`SiteContentProvider`), pero al componente
+le faltaba el prop que el árbol REAL siempre le pasa.
+
+**CENSO — qué otras secciones comparten el defecto.** `esquemaStyle` sólo lo invoca `app/(storefront)/
+page.tsx` (las 8 bandas del home: hero, marquesina, trustBadges, brandStory, origen, presentaciones,
+subscriptionCTA, testimonials — y `spotlight` vía su variante `'featured'`) y `StoreNav.tsx`. Las 6
+secciones de `/nosotros` y `/suscripciones` (nosotrosHistoria/nosotrosGaleria/nosotrosCierre/
+suscripcionPlanes/suscripcionPasos/suscripcionFaq) viven en páginas que **nunca** llaman a
+`esquemaStyle` — verificado leyendo `app/(storefront)/nosotros/page.tsx`: monta sus bandas sin pasarles
+`style`, y no existe un `content.esquemas` de esas páginas. Esas 6 quedan **sin bandaId a propósito**,
+no por omisión: no hay esquema real que aplicarles.
+
+**El fix**: `SeccionConfig.bandaId?: BandaId` (nuevo campo, `components/admin/tienda-secciones.ts`) en
+las 8 secciones del home + `esquemaStyleDeBanda(bandaId, esquemas, tema)` (`lib/config/esquema-style.ts`,
+envoltura pura de `esquemaStyle` con el mapeo `ejes` null→undefined que ya usaba `page.tsx:92`, sin
+duplicarlo). `TiendaSeccionEditor` fetchea `content.tema`/`content.esquemas` REALES (§1 abajo, el
+deviation del fetch) y los pasa a las 3 instancias de `<VistaTiendaEnVivo>` (lectura, edición-grande,
+compacta); `VistaTiendaEnVivo` computa `style = esquemaStyleDeBanda(...)` y lo monta en `<Comp style=
+{style} />` — y lo MEZCLA también dentro de `contenido` (`{ ...DEFAULTS, tema: temaReal, esquemas:
+esquemasReales, [seccion]: valor }`), no sólo en el `style` de la banda: un componente que lea
+`useSiteContent().tema` directo (p. ej. `escalaDisplay` de `BrandStoryCentrada`) tiene que ver la MISMA
+fuente que decide el esquema, no la fábrica en un lado y lo real en el otro.
+
+**Ausente/`undefined` (todo consumidor que no pase las 3 props nuevas) reproduce el `{}` de SIEMPRE**
+(`esquemaStyleDeBanda` sin `bandaId` devuelve `{}`) — byte-idéntico a antes de este slice para
+cualquier caller que no las pase.
+
+### 1 · El fetch del esquema/tema real — DEVIATION declarada, no threadeado por `TiendaPaginas`
+
+`TiendaSeccionEditor` necesita `content.tema`/`content.esquemas` REALES para calcular el `style`, pero
+NO los recibe por props — a diferencia del resto del documento (§ "El fetch bajó de 5 a 1"), donde
+`TiendaPaginas.tsx` hace el ÚNICO `GET /api/site-content` de la página y reparte la rebanada de cada
+sección por props. **`TiendaPaginas.tsx` NO está en el `touches:` de este slice** (spec validado antes
+del dispatch), así que threadear `tema`/`esquemas` como prop desde ahí —la forma CORRECTA, que evita un
+segundo fetch— quedó fuera de alcance.
+
+**Lo que se construyó en su lugar**: un fetch de MÓDULO, compartido por promise (`cargarEsquemaTemaReal`,
+`components/admin/TiendaSeccionEditor.tsx`) — UNA sola llamada a `/api/site-content` por carga de
+`/admin/tienda` sin importar cuántas instancias de `TiendaSeccionEditor` monten (8 en home), con
+fallback a `DEFAULTS.tema`/`DEFAULTS.esquemas` si falla. Es un fetch EXTRA sobre el que ya hace
+`TiendaPaginas`, no un reemplazo — de facto sube el conteo de fetches de la página de "6→2" (documentado
+en § "La CASCADA de /admin/tienda", PaletaSeccion aparte) a "6→3". Registrado como `open_followup`
+(abajo), no corregido: corregirlo bien exige tocar `TiendaPaginas.tsx`.
+
+### 2 · La composición `centrada` — MEDIDA contra el prototipo, y el bug de layout que eso destapó
+
+**Los números del prototipo, con cita exacta** (`docs/prototipos/cafeone/`):
+- `css/app.css:566-576` — `.collage{display:flex;justify-content:center;align-items:center;gap:var(
+  --space-6)}`; `.collage figure{flex:0 0 clamp(200px,24vw,340px)}`; `.collage figure:nth-child(2){
+  flex-basis:clamp(240px,28vw,400px);z-index:2}`.
+- `js/home.js:284-301` (`FSA.scrub` sobre `[data-collage]`) — `from=[-8,4,-3]` (rotación inicial por
+  figura), `spread=[-70,0,70]` (apertura horizontal en `translateX`, tope), `t=clamp((p-0.15)/0.5,0,1)`
+  (la ventana de scroll — YA cubierta por `UMBRAL_ACOMODO`/`useProgresoAcomodo`, construidos en
+  `TEMAS-BRANDSTORY-DIRECCION-ARTE-1`, sin tocar en este slice), `rot=from[i]*(1-t)`, `x=spread[i]*t`.
+- `css/tokens.css:157` — `--content-max:1440px` — el `.shell` (`css/app.css:49-53`) que envuelve TODO
+  `.historia`, incluido el collage: los `clamp(...)` de arriba están en `vw` porque se miden contra un
+  contenedor casi del ANCHO DEL VIEWPORT, no un texto angosto.
+
+**LA REESCRITURA**: `transformAcomodo` (`lib/animation.ts`) pasó de un ASIENTO VERTICAL (`y:16→0`, que
+el prototipo nunca tuvo) a la apertura HORIZONTAL exacta (`translateX(aperturaPx·t) rotate(rotarDeg·
+(1-t))`). `parametrosAcomodoCollage(posicion, total)` (nueva, pura) deriva `{rotarInicialDeg, aperturaPx}`
+por figura: **con `total===3` usa los LITERALES del prototipo** (`ROTACION_PROTOTIPO_N3=[-8,4,-3]`,
+`APERTURA_PROTOTIPO_N3=[-70,0,70]`), no una fórmula — es el ÚNICO caso que el prototipo define. Para
+cualquier OTRO total, la generalización elegida es la MÁS SIMPLE que preserva el patrón visible en esos
+literales (simetría alrededor del centro, paso de apertura = 70px — el mismo `spread[2]-spread[1]` del
+prototipo, medido — y sin una figura "del medio" salvo en el caso de 3): `total=1` → `{0,0}`; par → espejo
+exacto sin centro; impar>3 → espejo con centro en `{0,0}`. Afirmado en 6 tests nuevos de
+`lib/animation.test.ts` (los 3 literales de N=3 exactos, N=1, N=2 espejo, N=4 espejo+magnitud creciente,
+el paso de 70px medido en general, N=5 centro exacto en 0).
+
+**EL BUG DE OVERFLOW QUE ESTO DESTAPÓ, y el fix real de esta sección**: el contenedor de
+`BrandStoryCentrada` era `max-w-4xl` (896px) — el ancho de un bloque de TEXTO, no de una banda a lo
+ancho—, mientras los `clamp(...)` recién portados usan `vw` (relativo al VIEWPORT, como en el
+prototipo). A 1280px de viewport, lado+medio+lado (307+358+307px) + 2 gaps (48px) = **1021px**, que
+DESBORDABA los ~832px útiles de `max-w-4xl`. El primer intento de esta rescritura (antes del fix)
+producía exactamente eso: la 4ª imagen (con las 4 imágenes REALES de `DEFAULTS.brandStory`, el contenido
+de hoy — CORTE no recorta el collage a 3 fotos) se cortaba visualmente fuera del viewport en la captura
+de gate.
+
+**El fix, en dos partes**:
+- **`max-w-4xl` → `max-w-6xl`** (1152px): el ancho de banda que YA usan TrustBadges, GrindChooser*,
+  FeaturedProducts, Origen, BrandStoryColumnas, Spotlight, SubscriptionCTA, HeroCurtina/HeroMedia — no
+  es un valor nuevo, es el que le faltaba a esta variante. A 1280px de viewport, 1021px de collage caben
+  en los ~1088px útiles de `max-w-6xl` (medido, con margen).
+- **`sm:flex-wrap`** en el contenedor del collage: el prototipo NUNCA declara más de 3 figuras, así que
+  nunca necesitó envolver — pero con **4 imágenes llenas** (el contenido REAL de hoy bajo CORTE, ya que
+  ningún preset recorta `imagen4`), los 4 lados a tamaño de prototipo NO caben en una fila ni a
+  `max-w-6xl` (4×307px+3×gap ≈ 1301px > ~1088px útiles). La generalización más simple para ese caso no
+  es encoger las figuras —el prototipo no da esa regla, y sería una tercera invención sobre la ya
+  extendida de `parametrosAcomodoCollage`— es dejar que la fila SE ENVUELVA, como ya hacía la
+  composición vertical-asiento que esto reemplaza. Con 3 o menos, `sm:flex-wrap` es un no-op (los
+  tamaños de prototipo caben en una sola fila a `max-w-6xl`, medido).
+
+### 3 · Las alturas — MEDIDAS con `npm run capturar:seccion`, antes/después/prototipo
+
+**El contenido real de HOY bajo CORTE es N=4** (`DEFAULTS.brandStory` sin recorte — ningún preset
+limita el collage a 3 fotos), no N=3. El criterio de aceptación original ("las alturas coinciden") se
+verificó por tanto en DOS ejes separados, porque medirlo con contenido real (N=4) contra un prototipo
+que sólo define N=3 mide dos cardinalidades distintas a propósito:
+
+- **La matemática EXACTA de N=3** (el único caso que el prototipo define) se afirma en capa 1, no por
+  captura de pantalla — los 3 valores literales de `ROTACION_PROTOTIPO_N3`/`APERTURA_PROTOTIPO_N3`
+  igualan byte a byte a `from`/`spread` de `js/home.js:288-289` (test citado en §2).
+- **La altura RENDERIZADA, con el contenido real (N=4), antes/después del fix de overflow, contra el
+  prototipo (N=3)** — capturado con `npm run capturar:seccion --preset CORTE --selector-app
+  "#nuestra-historia" --selector-prototipo ".historia" --estilo-elemento height`:
+
+| ancho viewport | ANTES (overflow, `max-w-4xl`, sin wrap) | DESPUÉS (`max-w-6xl` + `sm:flex-wrap`) | prototipo (N=3) |
+| --- | --- | --- | --- |
+| 1280px | 969.58px (4ª imagen cortada del viewport — verificado por captura) | **1403.16px** | 1345.72px |
+| 900px | (no medido — el bug de overflow ya estaba confirmado a 1280px) | **1140px** | 1282.03px |
+
+El ANTES es más BAJO que el DESPUÉS pese a tener imágenes MÁS CHICAS (el error de la primera pasada de
+esta rescritura, previo a este commit) porque el contenedor angosto (`max-w-4xl`) sin `flex-wrap`
+dejaba la 4ª imagen recortada FUERA del flujo horizontal en vez de forzar una segunda fila — menos
+altura, no más, por estar rota. El DESPUÉS a 1280px (1403px) queda **57px (4.2%) por encima** del
+prototipo — esperado y no un defecto: son 4 fotos en dos filas contra las 3 del prototipo en una sola,
+más el `parrafo2` y el margen extra del salto de línea del collage. A 900px el DESPUÉS (1140px) es MÁS
+BAJO que el prototipo (1282px) porque a ese ancho el `clamp(...)` en `vw` da figuras más chicas (216px
+de lado, contra 307px a 1280px) — la ausencia de la figura "del medio" agrandada (N=4, sin centro) más
+el tamaño reducido por el propio `vw` compensa el peso de la fila extra. **Ninguna de las dos capturas
+muestra recorte ni overflow** (verificado por captura de pantalla completa, `.capturas/historia-fix-
+1280/app-0.png` y `.capturas/historia-fix-900/app-0.png`): las 4 fotos se ven completas, centradas, en
+2 filas (3+1), sin clip.
+
+**El criterio "las alturas coinciden" se cumple para la matemática (N=3 exacta, byte a byte) y se
+DECLARA — no se fuerza — para el render con contenido real (N=4 contra N=3): las alturas son del mismo
+ORDEN DE MAGNITUD (dentro de ~5% a 1280px) y la diferencia a 900px tiene una causa identificada y
+correcta, no un bug.** Forzar una coincidencia exacta con contenido de cardinalidad distinta a la del
+prototipo habría exigido inventar una regla de tamaño que el prototipo no define (§2, "la generalización
+más simple").
+
+### 4 · La persistencia de fotos opcionales — verificada, NO nueva
+
+`tests/integracion/brandstory-fotos.test.ts` (carril, **NO tocado por este slice** — ya existía desde
+`CORTE-HISTORIA-COLOR-FOTOS-1`) ya cubre exactamente el requisito de esta sección: sus 3 tests afirman
+que vaciar `imagen2`/`imagen3`/`imagen4` (OPCIONALES) sobrevive borrador→publicar→releer **sin** revertir
+al default de Nayoli — sólo `imagen1` (REQUERIDA) cae al default si se vacía. Corrió verde en el
+`npm run test:integracion` de este gate (240/240, sin cambio de conteo) — CONFIRMADO, no re-construido.
+
+**Lo que este slice SÍ agregó**: el CONTROL en el panel para disparar ese vacío — `vaciarImagen(campo)`
+(`TiendaSeccionEditor.tsx`) + el botón "Quitar" (visible sólo si `CampoImagen.opcional` y el campo TIENE
+valor), en las dos vistas del editor de imágenes (miniatura de campo plano y celda de collage). Antes de
+este slice, el ÚNICO camino para vaciar `imagen2/3/4` era editar la base a mano — el resolver y el
+schema YA lo soportaban (§ arriba), el panel no ofrecía CÓMO.
+
+**Esta slice NO escribe contenido de tenant** — el owner sigue siendo quien decide, desde el panel, qué
+fotos quitar de una tienda real. Nada de lo commiteado acá cambia una fila de `SiteContent` existente.
+
+### 5 · Re-aplicar CORTE — NO hace falta
+
+A diferencia de `CORTE-CUERPO-FIGTREE-PESO-1` (que agregó un campo NUEVO al preset, `pesoCuerpo`, que
+sólo llega a una fila ya sembrada si el owner reaplica el preset), este slice **no agrega ni cambia
+ningún campo que el preset `themes.ts` escriba**. `bandaId`/`esquemaStyleDeBanda` sólo LEEN
+`content.esquemas`/`content.tema` que YA están persistidos de aplicaciones anteriores de CORTE — el fix
+del panel es de LECTURA, no de escritura del preset. **No hace falta que el owner reaplique nada** para
+que la vista previa empiece a pintar el esquema real.
+
+### 6 · Gate
+
+- `npx tsc --noEmit` → **0 errores**.
+- `npm test` → **2450/2450** (capa 1, +6 sobre el piso previo — los 6 tests nuevos de
+  `parametrosAcomodoCollage`; los demás archivos tocados reescriben tests existentes sin sumar netos).
+- `npm run build` (`next build`) → **verde**, sin warnings nuevos.
+- `npm run test:integracion` → **240/240**, sin cambio de conteo (`brandstory-fotos.test.ts` no se tocó).
+- `npm run verificar:nayoli:visual` → **0px en las 6 rutas + los 2 hovers** (medido, exit 0): home,
+  tienda, producto, checkout, nosotros, suscripciones, hover:automatica, hover:eleccion — TODAS
+  "IDÉNTICO (consciente de antialiasing; crudo: 0)". Nayoli usa `brandStory: 'columnas'`
+  (`BrandStoryColumnas.tsx`, archivo NO tocado por este slice) — el fix de `BrandStoryCentrada` no
+  puede tocarla por construcción, y la medición lo confirma.
+- `npm run capturar:seccion --preset CORTE` (×2, 1280px y 900px) → sin recorte ni overflow visual
+  (§3, capturas adjuntas), alturas del mismo orden de magnitud que el prototipo.
+
+**Capa que quedó fuera**: el checklist manual del owner (capa 3) sobre el preview de Vercel — este slice
+no lo corre (dispatch read-write local, sin gate visual del owner todavía).
+
+### `touches:` — lo usado y lo no usado
+
+Todos los archivos tocados están dentro del `touches:` declarado: `components/admin/
+TiendaSeccionEditor.tsx`, `components/admin/VistaTiendaEnVivo.tsx`, `components/admin/
+tienda-secciones.ts`, `components/storefront/home/BrandStoryCentrada.tsx`, `lib/animation.ts` (+ su
+test), `lib/config/esquema-style.ts` (+ su test), `lib/config/historia-direccion-arte.test.ts`,
+`lib/config/admin-tienda-preset.test.ts`, `DECISIONS.md`. **NO se tocó** `components/admin/
+TiendaPaginas.tsx` (§1, la razón del fetch-de-módulo en vez del threading correcto por props) ni
+`tests/integracion/brandstory-fotos.test.ts` (§4, ya cubría lo pedido).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `BrandStoryCentrada`, `VistaTiendaEnVivo` (props
+nuevas), `TiendaSeccionEditor` (fetch nuevo), `tienda-secciones.ts` (`SeccionConfig.bandaId`,
+`CampoImagen.opcional`), `esquema-style.ts` (`esquemaStyleDeBanda`), `parametrosAcomodoCollage`,
+`transformAcomodo` (firma cambiada), `CORTE-BRANDSTORY-COLLAGE-1`, `HISTORIA-COMO-MUESTRARIO-1`.
+Grepeados uno por uno contra `CLAUDE.md`:
+
+- **`BrandStoryCentrada`, `esquemaStyleDeBanda`, `parametrosAcomodoCollage`, `BandaId`,
+  `HISTORIA-COMO-MUESTRARIO-1`** → CERO apariciones (fuera de las que este mismo slice hubiera
+  agregado, que no aplica — `CLAUDE.md` no está en `touches:`). Nada que este diff pudiera dejar falso.
+- **`VistaTiendaEnVivo`** (5 apariciones) → cuatro son genéricas (nombra el mecanismo de vista en vivo
+  sin describir su firma exacta) y no quedan falsas. **La quinta SÍ queda desactualizada, sin ser
+  literalmente falsa**: § "La PANTALLA — vista previa EN VIVO…", el bullet "Provider LOCAL que pisa
+  cualquiera de arriba" cita el literal `<SiteContentProvider value={{ ...DEFAULTS, hero: form }}>`
+  como LA forma del provider. Tras este slice, el valor real es `{ ...DEFAULTS, tema: temaReal,
+  esquemas: esquemasReales, [seccion]: valor }` — sigue siendo "`...DEFAULTS` + overrides", así que el
+  CLAIM (provider único, form en vivo, objeto nuevo por render) sigue siendo cierto, pero el LITERAL
+  citado ya no es el código real. Anotado en `open_followups`.
+- **`TiendaSeccionEditor`** (6 apariciones) → ninguna describe su conteo de fetches directamente, PERO
+  la sección hermana **"La CASCADA de /admin/tienda"** (bullet `[3]`, "EL FETCH BAJÓ DE 5 A 1") sí
+  documenta el conteo de fetches de la PÁGINA `/admin/tienda` (1 de `TiendaPaginas` + 1 propio de
+  `PaletaSeccion` = 2, "6→2, no 6→1"). Este slice agrega un TERCER fetch (§1, el fetch de módulo
+  compartido) que esa sección no cuenta — **queda INCOMPLETA, no falsa** (no afirma "nunca más de 2"
+  explícitamente, pero el número que sí da ya no refleja el estado real). Anotado en `open_followups`.
+- **`tienda-secciones` / `CORTE-BRANDSTORY-COLLAGE-1`** → sin afectación: las referencias existentes
+  describen la cardinalidad 1-4 y el letterbox de la miniatura, ninguna de las cuales cambió.
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `grep -c "HISTORIA-COMO-MUESTRARIO-1"` antes de este
+párrafo dio **0** — id nuevo, sin colisión.
+
+### `customer_bytes`
+
+**`changed: true`.** Dos superficies distintas, cada una con su propio lector:
+
+- **Storefront (dueño de la tienda + su visitante), sólo bajo el preset CORTE** — el collage de
+  "Nuestra historia" cambia de tamaño/composición/animación (apertura horizontal en vez de asiento
+  vertical; contenedor más ancho; envuelve a 2 filas con 4 fotos). `strings:` **ninguno** — no cambia
+  ningún texto, sólo geometría y movimiento (un cambio de robustez/fidelidad visual, no de copy).
+  Nayoli queda byte-idéntica (§6, medido 0px) porque usa `brandStory: 'columnas'`, no `'centrada'`.
+- **Panel (el dueño), en el editor de `/admin/tienda`** — dos cambios visibles: (a) la vista previa en
+  vivo de CUALQUIER banda con esquema asignado (las 8 del home, cualquier preset) deja de mostrar
+  siempre el lienzo de fábrica y pasa a pintar el esquema real del tenant; (b) el editor de imágenes de
+  `brandStory` (y cualquier sección futura con un campo-imagen `opcional`) gana un botón nuevo,
+  **"Quitar"**. `strings:` **"Quitar"** (el único texto nuevo que un operador/dueño ve).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo. `SeccionConfig.bandaId`/`CampoImagen.opcional` son campos de un registro TypeScript
+(`tienda-secciones.ts`), no de la base — no hay columna nueva, no hay contrato de wire nuevo (el PUT/
+POST de `/api/site-content` no cambió de forma).
+
+### `open_followups`
+
+- **`CLAUDE-VISTATIENDAENVIVO-PROVIDER-LITERAL-VENCIDO-1`** — el literal `<SiteContentProvider
+  value={{ ...DEFAULTS, hero: form }}>` citado en § "La PANTALLA — vista previa EN VIVO…" (bullet
+  "Provider LOCAL que pisa cualquiera de arriba") ya no es el código real de `VistaTiendaEnVivo`: hoy
+  el value también mezcla `tema: temaReal, esquemas: esquemasReales`. El CLAIM (provider único, form en
+  vivo) sigue siendo cierto; el literal no. `why_not_now`: `CLAUDE.md` no está en el `touches:` de este
+  slice.
+- **`CLAUDE-CASCADA-TIENDA-FETCH-3-VENCIDO-1`** — § "La CASCADA de /admin/tienda" (bullet `[3]`)
+  documenta "el fetch bajó de 5 a 1" + el propio de `PaletaSeccion` = 2 ("6→2, no 6→1"). Este slice
+  agregó un TERCER fetch de `/api/site-content` (compartido por promise de módulo, en
+  `TiendaSeccionEditor`) para leer `tema`/`esquemas` reales — el conteo documentado ya no cubre el
+  estado real de la página. `why_not_now`: la forma correcta (threadear `tema`/`esquemas` desde
+  `TiendaPaginas.tsx` por props) exige tocar un archivo fuera del `touches:` de este slice.
+- **`TIENDAPAGINAS-THREAD-TEMA-ESQUEMAS-1`** (nuevo, para el próximo slice que sí toque
+  `TiendaPaginas.tsx`) — reemplazar el fetch de módulo de `cargarEsquemaTemaReal` por props threadeadas
+  desde `TiendaPaginas` (que ya hace el ÚNICO `GET /api/site-content` de la página), eliminando el
+  fetch #3 documentado arriba. `why_not_now`: fuera del `touches:` de este slice.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las cinco mediciones ejecutables
+(tsc, `npm test` 2450/2450, `npm run test:integracion` 240/240, `npm run build`, `npm run
+verificar:nayoli:visual` 0px en 6 rutas + 2 hovers) más las dos capturas de `npm run capturar:seccion`
+contra CORTE (1280px y 900px, sin overflow ni recorte, alturas medidas contra el prototipo — §3). Sin
+`schema`, sin `cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el merge queda
+pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**El owner NO necesita reaplicar CORTE** (§5): el fix es de lectura del `content.esquemas`/`.tema` ya
+persistido, no de un campo nuevo que el preset escriba.
+
+**La foto que se quita de una tienda real la quita el owner desde el panel** (§4): este slice sólo
+construyó el control ("Quitar"); no toca ninguna fila de `SiteContent` existente.

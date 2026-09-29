@@ -12,7 +12,7 @@ import {
   duracionTickerS, VELOCIDAD_TICKER_PX_S, VELOCIDAD_TICKER_LENTA_PX_S,
   DURACION_TICKER_FALLBACK_S, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
-  MARQUEE_MASCARA_RELLENO_EM,
+  MARQUEE_MASCARA_RELLENO_EM, parametrosAcomodoCollage,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -686,4 +686,52 @@ test('un ticker más lento tarda MÁS en completar un ciclo del mismo ancho — 
   const dMedia = duracionTickerS(ancho, velocidadTickerPxS('media'));
   const dLenta = duracionTickerS(ancho, velocidadTickerPxS('lenta'));
   assert.ok(dLenta > dMedia, 'a menor velocidad, mayor duración del mismo recorrido');
+});
+
+// ── EL COLLAGE DE brandStory·centrada — CARDINALIDAD 1-4 CONTRA UN PROTOTIPO DE 3 (§ HISTORIA-COMO-
+// MUESTRARIO-1) ─────────────────────────────────────────────────────────────────────────────────
+// `parametrosAcomodoCollage` es la pieza puramente MATEMÁTICA; el cableado con `brandStory` (cuál
+// slot es "la del medio", el `useTransform` por figura) se afirma en
+// `lib/config/historia-direccion-arte.test.ts`, que ya importa `transformAcomodo`.
+
+test('parametrosAcomodoCollage: total=3 usa los valores LITERALES del prototipo (`js/home.js:287-288`), no la fórmula general', () => {
+  assert.deepEqual(parametrosAcomodoCollage(0, 3), { rotarInicialDeg: -8, aperturaPx: -70 });
+  assert.deepEqual(parametrosAcomodoCollage(1, 3), { rotarInicialDeg: 4, aperturaPx: 0 });
+  assert.deepEqual(parametrosAcomodoCollage(2, 3), { rotarInicialDeg: -3, aperturaPx: 70 });
+});
+
+test('parametrosAcomodoCollage: total=1 — una sola figura, sin nada contra qué ser simétrica: rotación y apertura en 0', () => {
+  assert.deepEqual(parametrosAcomodoCollage(0, 1), { rotarInicialDeg: 0, aperturaPx: 0 });
+});
+
+test('parametrosAcomodoCollage: total=2 — PAR, sin centro: las dos posiciones son un espejo exacto (misma magnitud, signo opuesto)', () => {
+  const izq = parametrosAcomodoCollage(0, 2);
+  const der = parametrosAcomodoCollage(1, 2);
+  assert.equal(izq.rotarInicialDeg, -der.rotarInicialDeg);
+  assert.equal(izq.aperturaPx, -der.aperturaPx);
+  assert.ok(izq.rotarInicialDeg !== 0, 'sin centro (total par), ninguna posición cae en offset 0');
+});
+
+test('parametrosAcomodoCollage: total=4 — PAR, simetría espejo entre 0↔3 y 1↔2, la apertura crece con la distancia al centro', () => {
+  const p0 = parametrosAcomodoCollage(0, 4);
+  const p1 = parametrosAcomodoCollage(1, 4);
+  const p2 = parametrosAcomodoCollage(2, 4);
+  const p3 = parametrosAcomodoCollage(3, 4);
+  assert.equal(p0.rotarInicialDeg, -p3.rotarInicialDeg, 'espejo: extremo izquierdo ↔ extremo derecho');
+  assert.equal(p1.rotarInicialDeg, -p2.rotarInicialDeg, 'espejo: interior izquierdo ↔ interior derecho');
+  assert.equal(p0.aperturaPx, -p3.aperturaPx);
+  assert.equal(p1.aperturaPx, -p2.aperturaPx);
+  assert.ok(Math.abs(p0.aperturaPx) > Math.abs(p1.aperturaPx), 'el extremo se abre MÁS que el interior — simetría alrededor del centro, no una apertura uniforme');
+});
+
+test('parametrosAcomodoCollage: el paso de apertura es el MISMO paso medido del prototipo (70px) para cualquier total, no sólo para 3', () => {
+  const p0 = parametrosAcomodoCollage(0, 4);
+  const p1 = parametrosAcomodoCollage(1, 4);
+  assert.equal(p1.aperturaPx - p0.aperturaPx, 70, 'el paso entre posiciones contiguas es 70px, igual que spread[2]-spread[1] del prototipo');
+});
+
+test('parametrosAcomodoCollage: una figura EXACTAMENTE en el centro (posible sólo con total impar) tiene rotarInicialDeg=0 en la regla general (no aplica a total=3, que usa el literal)', () => {
+  const centro = parametrosAcomodoCollage(2, 5);
+  assert.equal(centro.rotarInicialDeg, 0);
+  assert.equal(centro.aperturaPx, 0);
 });

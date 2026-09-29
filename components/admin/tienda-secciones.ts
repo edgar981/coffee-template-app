@@ -10,7 +10,7 @@
 // `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
 // `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
 // divergir de la que el resolver clampa.
-import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, type VeloIntensidad } from '@/lib/config/site-content-defaults';
+import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -89,7 +89,11 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // panel para opciones fijas (§ Controles de formulario). `placeholder` → texto-guía del input (el ejemplo
 // de formato del precio). Excluyen `textarea`/`categoria`.
 export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
-export type CampoImagen = { name: string; label: string };
+// `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
+// "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
+// como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
+// requisito de una sección dejaría la banda sin nada que mostrar en ese slot.
+export type CampoImagen = { name: string; label: string; opcional?: boolean };
 
 // UN CAMPO BOOLEANO (switch) — el interruptor de UNA CAPACIDAD de la sección, distinto del toggle
 // `SeccionConfig.ocultable` (que apaga la sección ENTERA). `gatedFields` declara qué campos de
@@ -178,6 +182,22 @@ export interface SeccionConfig {
   /** Cómo se DIBUJA la sección en el editor (§ BloqueConfig). Ausente → un bloque `seccion` derivado
    *  con todas las imágenes y campos (idéntico a antes). Cada bloque posee sus campos por NOMBRE. */
   bloques?: BloqueConfig[];
+  /** La BANDA del home a la que corresponde esta sección (§ site-content-defaults.ts, `BandaId`),
+   *  para que la VISTA PREVIA EN VIVO (`VistaTiendaEnVivo.tsx`) pueda pintarla con el ESQUEMA que el
+   *  tenant le asignó a esa banda (`content.esquemas[bandaId]`) — § HISTORIA-COMO-MUESTRARIO-1, el
+   *  defecto que esto cierra: sin esto la vista previa SIEMPRE usaba `DEFAULTS.esquemas`/`.tema`
+   *  (fábrica), nunca el esquema/paleta real del tenant, y una banda con esquema asignado (como
+   *  `brandStory` bajo CORTE, 'neutro') se veía con el canvas de Nayoli en el panel aunque en la
+   *  tienda real se viera correcto.
+   *  `spotlight` declara `'featured'` — es la VARIANTE que ocupa el slot de esa banda estructural
+   *  (§ BANDA_IDS, site-content-defaults.ts: "spotlight… se quedó FUERA de BANDA_IDS porque es una
+   *  VARIANTE de featured"), no tiene bandaId propio.
+   *  AUSENTE (nosotrosHistoria/nosotrosGaleria/nosotrosCierre/suscripcionPlanes/suscripcionPasos/
+   *  suscripcionFaq) — CENSO: esas seis secciones viven en /nosotros y /suscripciones, páginas que
+   *  NUNCA llaman a `esquemaStyle` (verificado: `app/(storefront)/nosotros/page.tsx` monta sus bandas
+   *  sin pasarles `style`, y no existe un `content.esquemas` de /suscripciones) — no hay esquema real
+   *  que aplicarles, así que quedan sin bandaId a propósito, no por omisión. */
+  bandaId?: BandaId;
 }
 
 // ── EL PATRÓN GENERAL DE ATENUACIÓN (§ PANEL-EDITOR-HERO-TOGGLES-1, item 1) — REUSABLE por todo
@@ -212,6 +232,7 @@ const HERO: SeccionConfig = {
   pagina: 'home',
   titulo: 'Hero de la home',
   ocultable: false,
+  bandaId: 'hero',
   // LOS SEIS INTERRUPTORES del hero-media (§ TEMAS-HERO-MEDIA-AGREGADOS-1,
   // CORTE-HERO-TITULAR-OCULTABLE-1, CORTE-HERO-VIEWPORT-LLENO-1, CORTE-HERO-VELO-OFF-Y-TICKER-1):
   // antes SÓLO el preset los escribía (§ PANEL-EDITOR-HERO-TOGGLES-1, cierra su grupo de
@@ -296,6 +317,7 @@ const MARQUESINA: SeccionConfig = {
   pagina: 'home',
   titulo: 'Marquesina',
   ocultable: true,
+  bandaId: 'marquesina',
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
   campos: [
     { name: 'texto', label: 'Texto del loop', hint: 'La frase que se repite desplazándose por la banda, p. ej. una línea de marca. Vacío: se usa el texto por defecto.' },
@@ -337,6 +359,7 @@ const TRUSTBADGES: SeccionConfig = {
   pagina: 'home',
   titulo: 'Confianza',
   ocultable: true,
+  bandaId: 'trustBadges',
   imagenes: [],
   campos: [],
 };
@@ -346,15 +369,25 @@ const BRAND_STORY: SeccionConfig = {
   pagina: 'home',
   titulo: 'Nuestra Historia',
   ocultable: true,
-  // El collage del storefront (§ CORTE-HISTORIA-COLOR-FOTOS-1): 1 a 4 fotos — imagen1 arriba-izq
-  // REQUERIDA (mínimo una); imagen2 arriba-der, imagen3 abajo-izq, imagen4 abajo-der OPCIONALES
-  // (vacías no se muestran, el collage se reacomoda con las que haya). Las posiciones son las de la
-  // composición con las CUATRO llenas; con menos, el collage simplemente tiene menos piezas.
+  bandaId: 'brandStory',
+  // El collage del storefront (§ CORTE-HISTORIA-COLOR-FOTOS-1): 1 a 4 fotos — imagen1 REQUERIDA
+  // (mínimo una); imagen2/3/4 OPCIONALES (vacías no se muestran, el collage se reacomoda con las
+  // que haya). Las etiquetas son NEUTRAS, no describen una posición fija (§ HISTORIA-COMO-
+  // MUESTRARIO-1): decían "arriba izquierda"/"abajo derecha" — ciertas SÓLO para la composición
+  // `columnas` (grilla 2×2, Nayoli); la composición `centrada` (CORTE) las muestra en una FILA con
+  // apertura horizontal, sin ningún concepto de "arriba"/"abajo". Una etiqueta que asume una
+  // composición que no es la activa MIENTE — más simple dejarlas neutras que bifurcar el label por
+  // la variante activa (que exigiría leer `content.brandStory.variante` dentro de una config
+  // estática, hoy independiente del contenido).
+  // `opcional:true` en imagen2/3/4 habilita el botón "Quitar" (§ CampoImagen.opcional) — coincide con
+  // `REGISTRY.brandStory.campos` (site-content-defaults.ts: imagen1 'requerido', imagen2/3/4
+  // 'opcional'), la MISMA fuente que ya decide qué cae al default y qué se omite al resolver; esto
+  // sólo agrega el CONTROL que faltaba, no cambia qué es opcional.
   imagenes: [
-    { name: 'imagen1', label: 'Imagen 1 · arriba izquierda' },
-    { name: 'imagen2', label: 'Imagen 2 · arriba derecha (opcional)' },
-    { name: 'imagen3', label: 'Imagen 3 · abajo izquierda (opcional)' },
-    { name: 'imagen4', label: 'Imagen 4 · abajo derecha (opcional)' },
+    { name: 'imagen1', label: 'Imagen 1' },
+    { name: 'imagen2', label: 'Imagen 2 (opcional)', opcional: true },
+    { name: 'imagen3', label: 'Imagen 3 (opcional)', opcional: true },
+    { name: 'imagen4', label: 'Imagen 4 (opcional)', opcional: true },
   ],
   campos: [
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
@@ -389,6 +422,7 @@ const ORIGEN: SeccionConfig = {
   pagina: 'home',
   titulo: 'Origen',
   ocultable: true,
+  bandaId: 'origen',
   imagenes: [
     { name: 'imagen1', label: 'Imagen 1' },
     { name: 'imagen2', label: 'Imagen 2' },
@@ -432,6 +466,7 @@ const PRESENTACIONES: SeccionConfig = {
   pagina: 'home',
   titulo: 'Presentaciones',
   ocultable: true,
+  bandaId: 'presentaciones',
   imagenes: [
     { name: 'imagen1', label: 'Imagen' },
     { name: 'imagen2', label: 'Imagen' },
@@ -477,6 +512,7 @@ const SUBSCRIPTION: SeccionConfig = {
   pagina: 'home',
   titulo: 'Suscripción',
   ocultable: true,
+  bandaId: 'subscriptionCTA',
   // `imagenFondo` (§ MUESTRARIO-CTA-BANNER-FOTO-1): el fondo OPCIONAL de la franja — sólo la
   // variante 'linea' la rinde (foto a sangre + velo + parallax); vacío = fondo sólido de hoy.
   imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)' }],
@@ -511,6 +547,7 @@ const TESTIMONIOS: SeccionConfig = {
   pagina: 'home',
   titulo: 'Testimonios',
   ocultable: true,
+  bandaId: 'testimonials',
   imagenes: [], // sección de solo texto (el avatar es la inicial del nombre)
   // Campos de SECCIÓN: el encabezado. La LISTA va en `repeater`.
   campos: [
@@ -570,6 +607,9 @@ const SPOTLIGHT: SeccionConfig = {
   pagina: 'home',
   titulo: 'Destacado',
   ocultable: true,
+  // 'featured', no 'spotlight': spotlight es la VARIANTE que ocupa el slot de esa banda estructural
+  // (§ el docstring de `SeccionConfig.bandaId`, arriba), no tiene bandaId propio en `BANDA_IDS`.
+  bandaId: 'featured',
   imagenes: [],
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },

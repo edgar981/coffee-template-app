@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { motion, useReducedMotion, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { fadeUp, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
+import { fadeUp, parametrosAcomodoCollage, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
@@ -21,11 +21,10 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 // LA CARDINALIDAD ES 1 A 4 (§ CORTE-HISTORIA-COLOR-FOTOS-1), no fija en cuatro: `imagen1` es
 // REQUERIDA (mínimo una foto); `imagen2/3/4` son OPCIONALES (§ REGISTRY.brandStory.campos,
 // site-content-defaults.ts) — vacías se OMITEN, nunca rellenadas por el resolver. Se rinden sólo
-// las imágenes con VALOR; el collage (`flex-wrap`+`justify-center`, abajo) se reacomoda solo con
-// las que haya, sin cambio de layout. Con las cuatro llenas (Nayoli) el resultado es EXACTO al de
-// antes: las CUATRO en fila, alternando el offset vertical (mismos valores que ya usa
-// `BrandStoryColumnas` para su 2×2 — no se inventa una escala nueva) para reproducir el
-// escalonado del prototipo con la cardinalidad que el modelo tiene.
+// las imágenes con VALOR; el collage (`justify-center`+`items-center`, abajo) se reacomoda solo
+// con las que haya, sin cambio de layout — CENTRADO SIEMPRE, nunca alineado a un borde. Con
+// exactamente TRES visibles el resultado es el del prototipo EXACTO (§ HISTORIA-COMO-MUESTRARIO-1,
+// más abajo); con otra cantidad, la SIMETRÍA se extiende — nunca un offset vertical inventado.
 //
 // LOS HOOKS SE LLAMAN SIEMPRE LOS CUATRO, SIN IMPORTAR CUÁNTAS IMÁGENES SE RINDAN: `IMAGENES` es
 // un literal de longitud fija (4) y los cuatro `useTransform` (abajo) se calculan siempre; sólo el
@@ -40,14 +39,19 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 // defaults.ts, "LA PÁGINA /nosotros") — no es un hueco, es que nadie lo pidió ahí.
 //
 // EL PARALLAX DE SCROLL (§ TEMAS-BRANDSTORY-DIRECCION-ARTE-1, cierra el punto 2 de arriba, que
-// hasta este slice decía que el motor "este repo no tiene"): `js/home.js:284-301` (`FSA.scrub`)
+// hasta ese slice decía que el motor "este repo no tiene"): `js/home.js:284-301` (`FSA.scrub`)
 // resuelve la inclinación/superposición del collage EN FUNCIÓN DEL PROGRESO DE SCROLL de la
-// sección, no de un disparo único. Ahora el collage usa el motor real
+// sección, no de un disparo único. El collage usa el motor real
 // (`useProgresoAcomodo`/`transformAcomodo`, `lib/animation.ts`) sobre `useScroll`+`useTransform`
-// —el mismo mecanismo de movimiento que ya trae el repo, no un listener propio—: cada figura
-// arranca inclinada (`rotar`) y con un asiento vertical (`ASIENTO_ACOMODO_PX`, el mismo `y:16` que
-// la aproximación anterior por `whileInView` ya usaba) y SE ACOMODA —rotación y asiento a 0— a
-// medida que el visitante scrollea la sección, no al entrar una vez en el viewport.
+// —el mismo mecanismo de movimiento que ya trae el repo, no un listener propio—.
+//
+// § HISTORIA-COMO-MUESTRARIO-1 REESCRIBIÓ el eje: la aproximación anterior movía cada figura con un
+// ASIENTO VERTICAL (`y:16→0`) que el prototipo NUNCA tuvo. `js/home.js:287-297` abre las figuras
+// HORIZONTALMENTE (`translateX`), no verticalmente: cada una arranca inclinada (`rotar`) Y con
+// apertura 0, y SE ACOMODA —la rotación se endereza a 0° MIENTRAS la apertura CRECE hasta su tope—
+// a medida que el visitante scrollea la sección. `parametrosAcomodoCollage` (`lib/animation.ts`)
+// deriva `{rotarInicialDeg, aperturaPx}` por FIGURA a partir de su posición entre las VISIBLES y el
+// total visible —no de su slot fijo (0..3)—, porque la simetría es sobre lo que se MUESTRA, § abajo.
 //
 // MOVIMIENTO REDUCIDO, NO NEGOCIABLE: con `prefers-reduced-motion` (o en la VISTA PREVIA del editor,
 // que tampoco puede scrollear de verdad — mismo criterio que el resto de esta variante, § el switch
@@ -59,14 +63,51 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 // `.start()`; un valor de scroll ligado directo vía `useScroll`+`useTransform` no pasa por ahí —no
 // hay `.start()` que interceptar—, así que el guard acá SÍ hace falta (a diferencia del cue del
 // hero, § `hero-agregados.test.ts`, que no necesita uno propio).
-const ASIENTO_ACOMODO_PX = 16;
-
+//
+// ANGOSTO (<640px, el mismo umbral `sm:` de Tailwind que el prototipo usa en su `@media (max-width:
+// 640px)`, `css/app.css:1011-1012`): el collage pasa a COLUMNA (una foto por fila, mismo ancho) y
+// SIN transform — el prototipo lo fuerza con `transform:none !important`, porque el `transform`
+// scrubbed es un INLINE STYLE (`motion.div` lo escribe vía `element.style`) y sólo una regla con
+// `!important` puede ganarle. `max-sm:transform-none!` (sintaxis de importante de Tailwind v4:
+// el `!` va al FINAL de la utilidad) reproduce esa misma regla.
+//
+// TAMAÑOS — MEDIDOS del prototipo (`css/app.css:566-576`), NO inventados: lado `clamp(200px,24vw,
+// 340px)`; LA FIGURA DEL MEDIO `clamp(240px,28vw,400px)` + `z-index:2` (`nth-child(2)`, sólo con
+// exactamente TRES figuras — el prototipo no define un "medio" para otra cantidad). Angosto:
+// `width:min(320px,82vw)` para TODAS (`css/app.css:1012`), sin distinción de tamaño.
+//
+// EL CONTENEDOR ES `max-w-6xl` (1152px), NO `max-w-4xl` (§ HISTORIA-COMO-MUESTRARIO-1, MEDIDO):
+// el `clamp(...)` está en `vw` porque el prototipo mide contra `.shell` (`--content-max: 1440px`,
+// `css/tokens.css:157`) — casi el ancho del VIEWPORT, no un texto angosto. Metido dentro de
+// `max-w-4xl` (896px) los 3 lados+medio (~1021px a 1280px de viewport) DESBORDABAN el contenedor
+// —el defecto real detrás del recorte visible en el gate—. `max-w-6xl` es el ancho de banda que YA
+// usan las demás secciones del home (TrustBadges, GrindChooser*, FeaturedProducts, Origen,
+// BrandStoryColumnas), así que no es un valor nuevo: es el que le faltaba a esta variante.
+//
+// CARDINALIDAD PAR (2 o 4 visibles): NO HAY una figura "del medio" única, así que NINGUNA gana el
+// tamaño grande — todas quedan del tamaño de lado. Es la generalización MÁS SIMPLE del caso que el
+// prototipo sólo define para 3: "impar → hay centro, se agranda"; "par → no hay centro, todas iguales".
+//
+// `sm:flex-wrap` — el prototipo NUNCA declara más de 3 figuras, así que nunca necesitó envolver.
+// Con 4 llenas (el default de HOY, sin preset que recorte `imagen4`) los lados a tamaño de
+// prototipo SIGUEN sin caber en una fila aun a `max-w-6xl` (4×307px+3×gap ≈ 1301px > ~1088px
+// útiles) — la generalización más simple para ese caso NO es encoger las figuras (el prototipo no
+// da esa regla), es dejar que la fila SE ENVUELVA, como ya hacía la composición anterior
+// (asiento vertical). Con 3 o menos, `sm:flex-wrap` es un no-op: los TAMAÑOS DE PROTOTIPO caben
+// en una sola fila a `max-w-6xl` (medido, con margen).
 const IMAGENES = [
-  { campo: "imagen1", alt: "Una taza de café servida sobre una mesa de madera, con granos alrededor", offset: "", rotar: -4 },
-  { campo: "imagen2", alt: "Cerezas de café secándose extendidas sobre una malla", offset: "sm:mt-8", rotar: 3 },
-  { campo: "imagen3", alt: "Las manos de un recolector mostrando cerezas rojas sobre su canasto", offset: "sm:-mt-4", rotar: -3 },
-  { campo: "imagen4", alt: "Una rama de cafeto con los granos todavía verdes", offset: "sm:mt-4", rotar: 4 },
+  { campo: "imagen1", alt: "Una taza de café servida sobre una mesa de madera, con granos alrededor" },
+  { campo: "imagen2", alt: "Cerezas de café secándose extendidas sobre una malla" },
+  { campo: "imagen3", alt: "Las manos de un recolector mostrando cerezas rojas sobre su canasto" },
+  { campo: "imagen4", alt: "Una rama de cafeto con los granos todavía verdes" },
 ] as const;
+
+// El lado, y el medio (SÓLO con 3 visibles) — dos strings LITERALES completos, nunca interpolados:
+// Tailwind escanea el TEXTO del archivo buscando substrings de clase completos (mismo criterio que
+// `gridColsPresentaciones`, § lib/storefront/presentaciones.ts); una clase armada por template
+// literal con el número adentro sería invisible para el JIT.
+const CLASE_FIGURA_LADO = 'w-[min(320px,82vw)] sm:w-[clamp(200px,24vw,340px)]';
+const CLASE_FIGURA_MEDIO = 'z-10 w-[min(320px,82vw)] sm:w-[clamp(240px,28vw,400px)]';
 
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
   const { brandStory, tema, paginas } = useSiteContent();
@@ -90,24 +131,38 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
   const estatico = preview || !!reduce;
   const collageRef = useRef<HTMLDivElement>(null);
   const progreso = useProgresoAcomodo(collageRef);
-  // Cuatro llamadas EXPLÍCITAS, una por imagen — `IMAGENES` es un literal de longitud fija (4), así
-  // que el número de hooks no varía entre renders; llamarlas dentro de un `.map()` sí lo haría
-  // (inseguro para React aunque acá el largo nunca cambiaría en la práctica).
-  const transformImg1 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[0].rotar, ASIENTO_ACOMODO_PX, p, estatico));
-  const transformImg2 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[1].rotar, ASIENTO_ACOMODO_PX, p, estatico));
-  const transformImg3 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[2].rotar, ASIENTO_ACOMODO_PX, p, estatico));
-  const transformImg4 = useTransform(progreso, (p) => transformAcomodo(IMAGENES[3].rotar, ASIENTO_ACOMODO_PX, p, estatico));
-  const transformsPorImagen = [transformImg1, transformImg2, transformImg3, transformImg4];
-  // Las imágenes CON VALOR, preservando el índice original (0..3) para leer su `transform` ya
-  // calculado arriba — la posición en la lista VISIBLE no es la posición en `IMAGENES` cuando una
-  // opcional queda vacía (§ el comentario de cabecera, arriba).
+  // Las imágenes CON VALOR, preservando el índice original (0..3) — ANTES de los hooks, porque la
+  // simetría de `parametrosAcomodoCollage` es sobre la POSICIÓN ENTRE LAS VISIBLES y el TOTAL
+  // visible, no sobre el slot fijo (0..3): con imagen1+imagen3 llenas y 2/4 vacías, imagen3 es la
+  // SEGUNDA de DOS visibles, no la "tercera de cuatro". Esto es puro cálculo de datos (sin hooks),
+  // así que reordenarlo antes de los `useTransform` no viola las reglas de hooks.
   const imagenesLlenas = IMAGENES
     .map((img, i) => ({ ...img, i }))
     .filter(({ campo }) => !!brandStory[campo]);
+  const totalVisible = imagenesLlenas.length;
+  // El parámetro de CADA slot (0..3), por su posición dentro de las visibles — `null` para un slot
+  // vacío (nunca se lee: `imagenesLlenas` no lo incluye en el `.map()` de render, abajo).
+  const posicionPorSlot = new Map(imagenesLlenas.map(({ i }, pos) => [i, pos]));
+  const parametroDeSlot = (i: number) => {
+    const pos = posicionPorSlot.get(i);
+    return pos === undefined ? { rotarInicialDeg: 0, aperturaPx: 0 } : parametrosAcomodoCollage(pos, totalVisible);
+  };
+  // Cuatro llamadas EXPLÍCITAS, una por imagen — `IMAGENES` es un literal de longitud fija (4), así
+  // que el número de hooks no varía entre renders; llamarlas dentro de un `.map()` sí lo haría
+  // (inseguro para React aunque acá el largo nunca cambiaría en la práctica).
+  const p1 = parametroDeSlot(0);
+  const p2 = parametroDeSlot(1);
+  const p3 = parametroDeSlot(2);
+  const p4 = parametroDeSlot(3);
+  const transformImg1 = useTransform(progreso, (p) => transformAcomodo(p1.rotarInicialDeg, p1.aperturaPx, p, estatico));
+  const transformImg2 = useTransform(progreso, (p) => transformAcomodo(p2.rotarInicialDeg, p2.aperturaPx, p, estatico));
+  const transformImg3 = useTransform(progreso, (p) => transformAcomodo(p3.rotarInicialDeg, p3.aperturaPx, p, estatico));
+  const transformImg4 = useTransform(progreso, (p) => transformAcomodo(p4.rotarInicialDeg, p4.aperturaPx, p, estatico));
+  const transformsPorImagen = [transformImg1, transformImg2, transformImg3, transformImg4];
 
   return (
     <section id="nuestra-historia" className="overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] py-24" style={style}>
-      <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 text-center sm:px-6 lg:px-8">
         <motion.div
           initial={preview ? false : "hidden"}
           animate={preview ? "visible" : undefined}
@@ -131,28 +186,33 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
           </h2>
         </motion.div>
 
-        {/* El collage A LO ANCHO — cuatro figuras en fila, con offset vertical alternado (estático,
-            del layout) y un `transform` scrubbed por scroll (§ el comentario de arriba): cada
-            figura arranca inclinada y se ACOMODA a medida que la sección cruza el viewport, salvo
-            `estatico` (movimiento reducido / vista previa), donde queda siempre en su estado final.
+        {/* El collage A LO ANCHO — figuras en fila (columna bajo 640px, § el comentario de cabecera),
+            centradas verticalmente (`items-center`, como el prototipo: la figura del medio protruye
+            por ser más GRANDE, nunca por un offset de margen) y un `transform` scrubbed por scroll:
+            cada figura arranca inclinada y se ABRE (rotación→0, apertura horizontal→su tope) a
+            medida que la sección cruza el viewport, salvo `estatico` (movimiento reducido / vista
+            previa) o angosto (`max-sm:transform-none!`, § arriba), donde queda siempre quieta.
             SIEMPRE visible (opacity 1): el prototipo nunca desvanece estas figuras, sólo las
-            rota/asienta. */}
-        <div ref={collageRef} className="mt-16 mb-16 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {imagenesLlenas.map(({ campo, alt, offset, i }) => (
-            <motion.div
-              key={campo}
-              style={{ transform: transformsPorImagen[i] }}
-              className={`relative aspect-[3/4] w-[42%] overflow-hidden rounded-2xl shadow-xl sm:w-40 lg:w-52 ${offset}`}
-            >
-              <Image
-                src={brandStory[campo]}
-                alt={alt}
-                fill
-                sizes="(max-width: 640px) 42vw, (max-width: 1024px) 160px, 208px"
-                className="object-cover"
-              />
-            </motion.div>
-          ))}
+            rota/abre. */}
+        <div ref={collageRef} className="mt-16 mb-16 flex flex-col items-center justify-center gap-6 sm:flex-row sm:flex-wrap">
+          {imagenesLlenas.map(({ campo, alt, i }, pos) => {
+            const esMedia = totalVisible === 3 && pos === 1;
+            return (
+              <motion.div
+                key={campo}
+                style={{ transform: transformsPorImagen[i] }}
+                className={`relative aspect-[3/4] shrink-0 overflow-hidden rounded-2xl shadow-[0_18px_44px_rgba(16,36,7,0.14)] max-sm:transform-none! ${esMedia ? CLASE_FIGURA_MEDIO : CLASE_FIGURA_LADO}`}
+              >
+                <Image
+                  src={brandStory[campo]}
+                  alt={alt}
+                  fill
+                  sizes="(max-width: 640px) 82vw, 28vw"
+                  className="object-cover"
+                />
+              </motion.div>
+            );
+          })}
         </div>
 
         <motion.div

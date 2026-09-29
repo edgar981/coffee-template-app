@@ -1,5 +1,5 @@
 import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta, type EjesPaleta } from './palette-derive';
-import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent } from './site-content-defaults';
+import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent, type TemaContent } from './site-content-defaults';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -90,6 +90,24 @@ export function esquemaStyle(
     '--sf-sobre-banda': p.texto,
     '--sf-sobre-banda-suave': p['texto-suave'],
   };
+}
+
+/**
+ * Envoltorio de `esquemaStyle` que arma los `ejes` NULL→undefined desde `TemaContent` — el MISMO
+ * mapeo que ya hacía `app/(storefront)/page.tsx` a mano (`ejesTema`, línea 92) — para que un
+ * consumidor nuevo no lo repita (§ HISTORIA-COMO-MUESTRARIO-1, la vista previa en vivo del panel,
+ * `VistaTiendaEnVivo.tsx`). `bandaId` ausente (una sección sin banda asignable, p. ej. las de
+ * /nosotros o /suscripciones — esas páginas no pasan por `esquemaStyle` ni en el storefront real,
+ * § el censo de ese slice) → `{}`, el mismo no-op que `esquemaStyle(undefined, …)` ya da.
+ */
+export function esquemaStyleDeBanda(
+  bandaId: BandaId | undefined,
+  esquemas: EsquemasContent,
+  tema: TemaContent,
+): Record<string, string> {
+  if (!bandaId) return {};
+  const ejes = { origenTexto: tema.origenTexto ?? undefined, origenAccion: tema.origenAccion ?? undefined };
+  return esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento, ejes);
 }
 
 /**

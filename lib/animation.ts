@@ -29,27 +29,72 @@ export const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y:
 // progreso. `UMBRAL_ACOMODO` es esa MISMA ventana.
 export const UMBRAL_ACOMODO = { desde: 0.15, hasta: 0.65 } as const;
 
-// `transformAcomodo` reproduce, PURA y sin React, el cálculo por-figura de `js/home.js:290-297`
-// (`rot = from[i]*(1-t)`) más el asiento vertical que la aproximación anterior por `whileInView` ya
-// usaba (`y: 16 → 0`, ahora scrubbed en vez de disparado una vez, mismo número). Separada del hook
-// para poder afirmarla en `node:test` sin navegador — el hook (abajo) no se puede testear por
-// render sin jsdom, esta función sí.
+// `transformAcomodo` reproduce, PURA y sin React, el cálculo por-figura EXACTO de
+// `js/home.js:288-297` — REESCRITO por § HISTORIA-COMO-MUESTRARIO-1 para dejar de aproximar con un
+// asiento VERTICAL (`y: 16 → 0`, la aproximación de `MUESTRARIO`/`TEMAS-BRANDSTORY-DIRECCION-ARTE-1`,
+// que el prototipo NUNCA tuvo) y pasar a la apertura HORIZONTAL real que el prototipo sí hace:
+//   `rot = from[i]*(1-t)` (arranca inclinada, se endereza a 0 — SIN CAMBIO, mismo signo/magnitud)
+//   `x   = spread[i]*t`   (arranca en 0, SE ABRE hasta `spread[i]` — nuevo: antes era un asiento que
+//                          se CERRABA desde un valor inicial; acá es una apertura que CRECE desde 0)
+// El ORDEN de la cadena también se copia literal de `js/home.js:294`
+// (`'translateX(' + x + 'px) rotate(' + rot + 'deg)'`) — translateX PRIMERO, luego rotate.
+// Separada del hook para poder afirmarla en `node:test` sin navegador — el hook (abajo) no se puede
+// testear por render sin jsdom, esta función sí.
 //
 // `estatico` es el gate de MOVIMIENTO REDUCIDO (y de la vista previa del editor, que tampoco puede
 // scrollear de verdad): con `estatico=true` la figura rinde SIEMPRE `'none'` —el collage
 // ACOMODADO, quieto y legible—, sin importar `progreso`. Es la garantía de que no hay un estado
-// "a medio inclinar" bajo esa preferencia.
+// "a medio inclinar/abrir" bajo esa preferencia.
 export function transformAcomodo(
   rotarInicialDeg: number,
-  asientoInicialPx: number,
+  aperturaPx: number,
   progreso: number,
   estatico: boolean,
 ): string {
   if (estatico) return "none";
   const t = Math.max(0, Math.min(1, progreso));
   const rot = rotarInicialDeg * (1 - t);
-  const y = asientoInicialPx * (1 - t);
-  return `rotate(${rot.toFixed(2)}deg) translateY(${y.toFixed(2)}px)`;
+  const x = aperturaPx * t;
+  return `translateX(${x.toFixed(1)}px) rotate(${rot.toFixed(2)}deg)`;
+}
+
+// `parametrosAcomodoCollage` — LA CARDINALIDAD 1-4 (§ CORTE-HISTORIA-COLOR-FOTOS-1) contra un
+// prototipo que sólo define el caso de TRES fotos (`from = [-8, 4, -3]`, `spread = [-70, 0, 70]`,
+// `js/home.js:287-288`). Con exactamente 3 figuras visibles, usa esos valores LITERALES — el
+// prototipo manda, no se aproxima. Para 1, 2 o 4 figuras (que el prototipo no cubre), se EXTIENDE la
+// regla con el criterio MÁS SIMPLE que sigue siendo fiel a lo medido: SIMETRÍA alrededor del centro.
+//
+// LA APERTURA (`spread`) generaliza SOLA, sin necesitar un caso especial: `spread[i] = (i - centro) *
+// PASO_APERTURA_PX` con `centro = (total-1)/2` reproduce EXACTO el `[-70, 0, 70]` del prototipo para
+// total=3 (offsets -1, 0, +1 × 70 = -70, 0, 70) — por eso `PASO_APERTURA_PX` es el paso MEDIDO entre
+// posiciones contiguas del prototipo, no un número inventado, y la rama total=3 de abajo lo reutiliza
+// en vez de repetir el literal.
+//
+// LA ROTACIÓN no generaliza así: `from = [-8, 4, -3]` no es una función lineal ni simétrica del
+// offset (la figura del medio, offset 0, rota 4° — no 0°), así que NO hay fórmula que la reproduzca
+// para total=3 Y sea simétrica a la vez. Por eso total=3 usa el ARRAY LITERAL del prototipo, y la
+// regla general (para 1/2/4) es una generalización PROPIA, declarada como tal: magnitud CONSTANTE
+// (`PASO_ROTACION_DEG`), signo negativo del lado izquierdo del centro y positivo del derecho —
+// simetría espejo real (la figura en offset -d y la de offset +d rotan la MISMA magnitud, signo
+// opuesto), y 0° para una figura exactamente en el centro (posible sólo con total impar).
+const PASO_APERTURA_PX = 70; // medido: spread[2]-spread[1] = 70-0 = 70 (js/home.js:288)
+const PASO_ROTACION_DEG = 4; // generalización PROPIA (no del prototipo) para total ≠ 3, § arriba
+
+const ROTACION_PROTOTIPO_N3 = [-8, 4, -3] as const; // js/home.js:287, literal
+const APERTURA_PROTOTIPO_N3 = [-70, 0, 70] as const; // js/home.js:288, literal (= regla general)
+
+export function parametrosAcomodoCollage(
+  posicion: number,
+  total: number,
+): { rotarInicialDeg: number; aperturaPx: number } {
+  if (total === 3 && posicion >= 0 && posicion < 3) {
+    return { rotarInicialDeg: ROTACION_PROTOTIPO_N3[posicion], aperturaPx: APERTURA_PROTOTIPO_N3[posicion] };
+  }
+  const centro = (total - 1) / 2;
+  const d = posicion - centro;
+  const aperturaPx = d * PASO_APERTURA_PX;
+  const rotarInicialDeg = d === 0 ? 0 : d < 0 ? -PASO_ROTACION_DEG : PASO_ROTACION_DEG;
+  return { rotarInicialDeg, aperturaPx };
 }
 
 // `useProgresoAcomodo` — el progreso de scroll [0,1] YA acotado a `UMBRAL_ACOMODO`, listo para que

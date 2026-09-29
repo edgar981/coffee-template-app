@@ -7,10 +7,14 @@ import MenuSeccion from '@/components/admin/MenuSeccion';
 import PaletaSeccion, { FragmentoTienda, type Form } from '@/components/admin/PaletaSeccion';
 import { SiteSettingsProvider } from '@/components/admin/SiteSettingsProvider';
 import type { SiteSettings } from '@/lib/config/site-settings';
+import { SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
+import BrandStory from '@/components/storefront/home/BrandStory';
+import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 
-import { resolverSiteContent } from './site-content-defaults';
+import { resolverSiteContent, DEFAULTS, BANDA_IDS } from './site-content-defaults';
 import { PRESETS, mergePresetEnContent } from './themes';
 import { RAICES_DEFECTO } from './palette-derive';
+import { esquemaStyleDeBanda } from './esquema-style';
 
 // ADMIN-TIENDA-ROTO-CON-PRESET-1 — el owner reportó `/admin/tienda` tirando "This page couldn't
 // load" tras aplicar un preset (CORTE) desde el muestrario. Medido (§ el asiento de este slice,
@@ -143,4 +147,62 @@ test('PaletaSeccion (default) monta sin tirar, con el SiteSettingsProvider que e
   const arbol = React.createElement(SiteSettingsProvider, { value: SETTINGS, children: React.createElement(PaletaSeccion) });
   const html = renderToStaticMarkup(arbol);
   assert.ok(html.includes('Cargando'), 'debe quedar en su esqueleto de carga, no tirar');
+});
+
+// ─── EL CENSO bandaId (§ HISTORIA-COMO-MUESTRARIO-1) — la vista previa pinta con el esquema REAL ──
+//
+// EL DEFECTO MEDIDO: `VistaTiendaEnVivo` montaba `<Comp />` SIN `style`, así que una banda con
+// esquema asignado (`content.esquemas[bandaId]`) —p. ej. `brandStory` bajo CORTE, 'neutro'— caía
+// SIEMPRE al fallback `--sf-tinta` de FÁBRICA (`app/globals.css`), el "lienzo de Nayoli" que el
+// owner reportó viendo en el panel aunque el tenant activo fuera otro. El fix es `SeccionConfig.
+// bandaId` (§ tienda-secciones.ts) + `esquemaStyleDeBanda` (§ esquema-style.ts) aplicados en
+// `VistaTiendaEnVivo` — pero `VistaTiendaEnVivo` envuelve SIEMPRE en `EscalaDesktop`, que en SSR
+// (sin ResizeObserver real) nunca monta sus children (`paneW` arranca en 0 y nunca sube) — el MISMO
+// límite por el que este archivo ya prueba `FragmentoTienda` DIRECTO, sin `EscalaDesktop` (§ el
+// comentario de cabecera, arriba). Por eso el censo se afirma en DOS PARTES que SÍ son SSR-seguras:
+// el MAPEO (dato puro, sin React) y la APLICACIÓN del estilo sobre el componente REAL (sin
+// EscalaDesktop de por medio) — la pieza de `VistaTiendaEnVivo` que queda sin ejercer por este
+// límite es sólo el PASO de esas dos props, ya sin lógica propia que pueda romperse en silencio.
+
+test('CENSO: toda SeccionVista de una banda del home declara su bandaId; las de /nosotros y /suscripciones NO — esas páginas nunca llaman a esquemaStyle', () => {
+  const CON_BANDA_PROPIA: Record<string, string> = {
+    hero: 'hero', marquesina: 'marquesina', trustBadges: 'trustBadges', brandStory: 'brandStory',
+    origen: 'origen', presentaciones: 'presentaciones', subscriptionCTA: 'subscriptionCTA',
+    testimonials: 'testimonials',
+    spotlight: 'featured', // variante que ocupa el slot de la banda 'featured', no tiene bandaId propio
+  };
+  for (const config of SECCIONES_TIENDA) {
+    const esperado = CON_BANDA_PROPIA[config.seccion];
+    if (esperado) {
+      assert.equal(config.bandaId, esperado, `${config.seccion} debe declarar bandaId:'${esperado}'`);
+      assert.ok((BANDA_IDS as readonly string[]).includes(config.bandaId!), `${config.bandaId} debe ser un BandaId real de BANDA_IDS`);
+    } else {
+      assert.equal(config.bandaId, undefined, `${config.seccion} vive en /nosotros o /suscripciones — sin bandaId a propósito, § el censo`);
+    }
+  }
+});
+
+test('EL ESTILO APLICADO: BrandStory(style=esquemaStyleDeBanda(…)) pinta la banda con el ESQUEMA real de CORTE, no el fallback de fábrica — la pieza exacta que VistaTiendaEnVivo monta en <Comp style={…}>', () => {
+  const content = contenidoDePreset('CORTE');
+  const { tema, esquemas } = content;
+  assert.equal(esquemas.brandStory, 'neutro', 'CORTE asigna neutro a brandStory (§ themes.ts) — si esto cambia, el resto del test no prueba lo que dice');
+
+  const style = esquemaStyleDeBanda('brandStory', esquemas, tema);
+  assert.ok(style['--sf-banda'], 'con esquema asignado, esquemaStyleDeBanda debe emitir --sf-banda');
+
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement<{ style?: React.CSSProperties }>(BrandStory, { style: style as React.CSSProperties }) }),
+  );
+  assert.ok(
+    html.includes(`--sf-banda:${style['--sf-banda']}`),
+    'el <section> de BrandStory debe llevar el --sf-banda REAL de CORTE en su style inline, no el genérico',
+  );
+
+  // EL CONTRASTE — sin bandaId/esquemas/tema (el comportamiento de ANTES de este slice, y el de
+  // cualquier sección sin banda), el mismo componente NO lleva ningún --sf-banda en su style: cae al
+  // fallback de clase (`var(--sf-banda,var(--sf-tinta))`), que es justo el defecto que se cierra.
+  const sinEsquema = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: DEFAULTS, children: React.createElement<{ style?: React.CSSProperties }>(BrandStory, { style: {} }) }),
+  );
+  assert.ok(!sinEsquema.includes('--sf-banda:'), 'sin esquema, el section no lleva --sf-banda inline — cae al fallback de clase, el defecto de antes');
 });
