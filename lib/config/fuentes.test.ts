@@ -125,14 +125,47 @@ test('Prensa (Roboto Serif + Figtree) — el par nuevo, misma forma que los dem�
   assert.match(prensa.titulo, /Roboto Serif/);
   assert.match(prensa.cuerpo, /Figtree/);
   assert.equal(prensa.googleTitulo, 'Roboto+Serif:wght@400');   // display al mismo peso único que el resto
-  assert.equal(prensa.googleCuerpo, 'Figtree:wght@300;400;500;600;700');
+  // El cuerpo pide un RANGO, no la lista discreta de los otros nueve (§ CORTE-CUERPO-FIGTREE-PESO-1):
+  // es lo que hace RENDERIZABLE `pesoCuerpo` (abajo) — con caras discretas el navegador snapea a la
+  // cara más cercana (500), nunca interpola un 440.
+  assert.equal(prensa.googleCuerpo, 'Figtree:wght@300..700');
   assert.equal(resolverFuentePar('prensa'), 'prensa');   // clave CUSTOM válida, no cae a null
   const l = linkFuentePar('prensa');
   assert.ok(l);
   assert.match(l!, /family=Roboto\+Serif:wght@400&/);
-  assert.match(l!, /family=Figtree:wght@300;400;500;600;700/);
+  assert.match(l!, /family=Figtree:wght@300\.\.700/);
   // editorial sigue siendo el default: 'prensa' no lo desplaza.
   assert.equal(PAR_DEFECTO.clave, 'editorial');
+});
+
+// § CORTE-CUERPO-FIGTREE-PESO-1: el peso de cuerpo calibrado, y su AUSENCIA en los otros nueve pares.
+test("'prensa' es el ÚNICO par que declara `pesoCuerpo` — los otros nueve quedan en 400 (ausente)", () => {
+  const prensa = PARES_FUENTES.find((p) => p.clave === 'prensa')!;
+  assert.equal(prensa.pesoCuerpo, 440);
+  for (const p of PARES_FUENTES) {
+    if (p.clave === 'prensa') continue;
+    assert.equal(p.pesoCuerpo, undefined, `${p.clave} no debería declarar pesoCuerpo`);
+  }
+});
+
+test('varsDeFuentePar: `--sf-peso-cuerpo` sólo aparece para `prensa` — AUSENTE (no `"400"`) en los demás', () => {
+  const vPrensa = varsDeFuentePar('prensa');
+  assert.equal(vPrensa['--sf-peso-cuerpo'], '440');
+  for (const c of ['calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano'] as const) {
+    const v = varsDeFuentePar(c);
+    assert.equal('--sf-peso-cuerpo' in v, false, `${c} no debería emitir --sf-peso-cuerpo`);
+  }
+  // Editorial/null: ni las de fuente ni la de peso.
+  assert.deepEqual(varsDeFuentePar(null), {});
+});
+
+test('Space Grotesk/Hanken/Spline SIGUEN sin ofrecerse — la calibración de peso NO agregó Hanken al catálogo', () => {
+  // Mismo invariante que "SORA reemplaza a Space Grotesk", re-afirmado tras CORTE-CUERPO-FIGTREE-PESO-1:
+  // la ruling de CORTE-CUERPO-LETRA-E-ICONOS-1 se cerró calibrando el PESO de Figtree, no cruzando la
+  // frontera producto/cliente agregando la fuente reservada de Duna.
+  const todas = PARES_FUENTES.map((p) => `${p.titulo} ${p.cuerpo}`).join(' ');
+  assert.doesNotMatch(todas, /Space Grotesk|Hanken|Spline/i);
+  assert.equal(PARES_FUENTES.length, 10);   // el catálogo NO ganó un par nuevo
 });
 
 test('urlGoogle arma la css2 con las dos familias del par', () => {

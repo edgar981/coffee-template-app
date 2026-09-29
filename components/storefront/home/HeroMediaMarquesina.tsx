@@ -181,6 +181,16 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // Duna (§ CLAUDE.md, "Space Grotesk NO se ofrece a clientes"; `fuentes.test.ts` sin cambios) — esta
 // ronda no toca esa frontera, sólo revierte una compensación que apuntaba a la causa equivocada.
 //
+// EL PESO, TERCERA VUELTA — § CORTE-CUERPO-FIGTREE-PESO-1 (la ruling que `CORTE-CUERPO-LETRA-E-
+// ICONOS-1` dejó abierta): un gate POSTERIOR, ya con el color pleno de arriba, seguía viendo la frase
+// (y el nav) "sin cuerpo" — el orquestador midió que la causa real era la FAMILIA (Figtree del cuerpo
+// de 'prensa' es más liviana que Hanken Grotesk del muestrario a IGUAL peso 400), y presentó la
+// pregunta al owner: ¿agregar Hanken Grotesk al catálogo (cruzando la frontera producto/cliente que
+// `fuentes.test.ts` protege) o calibrar el PESO de Figtree? El owner eligió calibrar el peso — la
+// frontera se mantiene, `fuentes.test.ts` sigue sin Hanken. `font-normal` (literal 400) pasa a
+// `sf-peso-normal` (`app/globals.css`, lee `--sf-peso-cuerpo`): con 'prensa' aplicado (CORTE) rinde el
+// peso calibrado (440, § fuentes.ts); para cualquier otro par cae al mismo 400 de siempre.
+//
 // EL TAMAÑO — medido por breakpoint contra los DOS tokens del muestrario: `--text-body-s` (14px,
 // `tokens.css:111`) es el tamaño por defecto de `.hero-caption` y coincide EXACTO con nuestro
 // `text-sm` (14px, sin override de Tailwind en este repo) — sin cambio ahí, ya coincidía desde la
@@ -556,9 +566,12 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             § HERO-FRASE-COLOR-PLENO-1 (el docstring de cabecera, "EL COLOR — LA CAUSA REAL") — ya NO
             el mismo token que `HeroMedia.tsx`, que se queda en el rol suave. Vacío → SE OMITE; SIN
             gate de preview (a diferencia del cue), es texto estático que el "cuadro compuesto" de la
-            vista previa debe mostrar si hay dato. */}
+            vista previa debe mostrar si hay dato.
+            `sf-peso-normal`, no `font-normal` (§ CORTE-CUERPO-FIGTREE-PESO-1, § el docstring de
+            cabecera "EL PESO"): sigue al `--sf-peso-cuerpo` del par ('prensa'/440 en CORTE), en vez de
+            un 400 fijo — fallback 400 para cualquier otro tenant. */}
         {hero.fraseAlPie && (
-          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-[13px] font-normal leading-relaxed text-balance text-[var(--sf-sobre-banda,white)] sm:bottom-10 sm:right-6 sm:text-sm lg:bottom-12 lg:right-8">
+          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-[13px] sf-peso-normal leading-relaxed text-balance text-[var(--sf-sobre-banda,white)] sm:bottom-10 sm:right-6 sm:text-sm lg:bottom-12 lg:right-8">
             {hero.fraseAlPie}
           </p>
         )}

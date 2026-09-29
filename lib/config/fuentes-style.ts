@@ -11,10 +11,18 @@ import { resolverFuentePar, parDeFuentePar, type ClaveFuentePar } from './fuente
 // EDITORIAL (o null, o basura) → `null`: sin <style>. Las clases caen a `'Inter'/'Playfair Display'`
 // —las que carga el `@import` de globals.css— → Nayoli byte-idéntico, sin depender de una siembra.
 // Un par CUSTOM → el <style> con sus dos familias (que el `<link>` del layout ya cargó, § linkFuentePar).
+//
+// `--sf-peso-cuerpo` (§ CORTE-CUERPO-FIGTREE-PESO-1) SÓLO se agrega al `:root` cuando el par declara
+// `pesoCuerpo` — hoy únicamente 'prensa' (CORTE). Para los otros OCHO pares custom el string emitido
+// es BYTE A BYTE el de antes de este slice (ni una coma de más): `.font-inter` (§ globals.css) lee esa
+// var con fallback `400`, así que su ausencia en el `:root` es indistinguible, en cómputo, de estar
+// presente con el valor `400` — la diferencia es sólo textual, y la garantía de byte-identidad para
+// "todo otro preset" pasa por esa ausencia, no por el fallback.
 
 export function cssFuentes(fuentePar: ClaveFuentePar | null): string | null {
   const clave = resolverFuentePar(fuentePar);
   if (!clave) return null;
   const par = parDeFuentePar(clave);
-  return `:root{--sf-fuente-titulo:${par.titulo};--sf-fuente-cuerpo:${par.cuerpo}}`;
+  const peso = par.pesoCuerpo !== undefined ? `;--sf-peso-cuerpo:${par.pesoCuerpo}` : '';
+  return `:root{--sf-fuente-titulo:${par.titulo};--sf-fuente-cuerpo:${par.cuerpo}${peso}}`;
 }

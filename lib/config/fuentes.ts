@@ -8,18 +8,27 @@
 // caen a su fallback (Inter/Playfair, que carga el `@import` de globals.css) → Nayoli byte-idéntico.
 // Por eso `editorial` NUNCA se guarda: el picker manda `null` para Editorial (§ resolverFuentePar).
 //
-// PESOS por ROL: display **UN SOLO PESO (400)** en los NUEVE pares; cuerpo 300;400;500;600;700 (sin
-// cambio). (§ FUENTES-PESOS-DISPLAY-SOBRAN-1, 2026-09-12): el storefront pinta el rol DISPLAY —
-// `.font-display`/`.font-playfair`— con el peso 400 SIEMPRE (verificado: cero clases de peso Tailwind
-// —font-semibold/medium/bold/light/…—, cero `fontWeight` inline, cero regla `font-weight` en
-// globals.css sobre esas clases, en TODO `app/(storefront)` y `components/storefront`; los `h1..h6`
-// no heredan bold del user-agent porque el preflight de Tailwind los resetea a `font-weight: inherit`).
+// PESOS por ROL: display **UN SOLO PESO (400)** en los DIEZ pares; cuerpo 300;400;500;600;700 en
+// NUEVE de los diez ('prensa' pide un RANGO — ver su docstring y § CORTE-CUERPO-FIGTREE-PESO-1,
+// abajo). (§ FUENTES-PESOS-DISPLAY-SOBRAN-1, 2026-09-12): el storefront pinta el rol DISPLAY —
+// `.font-display`/`.font-playfair`— con el peso 400 SIEMPRE. **Esto YA NO es sólo AUSENCIA de una
+// regla** (§ CORTE-CUERPO-FIGTREE-PESO-1: `globals.css` ganó `font-weight:400` explícito en esas dos
+// clases, en `@layer base` —por debajo de `utilities`, para que `font-semibold`/`.font-medium`/etc.
+// sigan ganando donde se combinan con ellas— porque el CUERPO ahora puede declarar un peso propio vía
+// `--sf-peso-cuerpo`, y sin el candado ese peso se COLARÍA a título por herencia, vía cualquier
+// `.font-display`/`.font-playfair` sin una clase de peso propia — el wordmark del `Logo` y el título
+// del marquee de `HeroMediaMarquesina` son los dos casos reales que lo habrían sufrido). Verificado:
+// cero clases de peso Tailwind —font-semibold/medium/bold/light/…—, cero `fontWeight` inline, en TODO
+// `app/(storefront)` y `components/storefront`; los `h1..h6` no heredan bold del user-agent porque el
+// preflight de Tailwind los resetea a `font-weight: inherit`, y el candado de `base` gana sobre ese
+// `inherit` (una regla declarada siempre gana a un valor heredado, sea cual sea su layer).
 // Pedir 500/600 descargaba un archivo de fuente por peso que ningún elemento pinta — el navegador no
 // falla, SINTETIZA un bold falso si algo llegara a usarlo sin el peso pedido; el test de este archivo
-// afirma que los nueve piden el MISMO conjunto (hoy, sólo `400`), para que ninguno pueda divergir en
-// silencio. 'Técnico' YA venía recortado a `400;600` (IBM Plex Mono no es variable en Google Fonts, así
-// que cada peso es un archivo estático propio) y ahora pierde también el 600 sobrante, igual que los
-// otros ocho pierden 500;600 — el delta es distinto (1 peso vs. 2), el estado final es el mismo.
+// afirma que los diez piden el MISMO conjunto (hoy, sólo `400`) de DISPLAY, para que ninguno pueda
+// divergir en silencio. 'Técnico' YA venía recortado a `400;600` (IBM Plex Mono no es variable en
+// Google Fonts, así que cada peso es un archivo estático propio) y ahora pierde también el 600
+// sobrante, igual que los otros ocho pierden 500;600 — el delta es distinto (1 peso vs. 2), el estado
+// final es el mismo.
 // El costo de red de los CINCO PRIMEROS se midió por par ANTES de este recorte (latin, woff2
 // deduplicado, con display en 400;500;600 o 400;600 para Técnico): Editorial ~85 KB era el MÁS pesado;
 // Cálido/Moderno/Clásico/Nítido pesaban 12–19 KB MENOS. El único que SUBÍA era 'Técnico': ~94 KB
@@ -53,6 +62,16 @@ export interface ParFuentes {
   googleTitulo: string;
   /** Spec `family=…` de Google Fonts css2 para el CUERPO. */
   googleCuerpo: string;
+  /**
+   * PESO regular de LECTURA del rol CUERPO, en gramos (§ CORTE-CUERPO-FIGTREE-PESO-1). AUSENTE
+   * (`undefined`) = 400, el peso de HOY — los otros NUEVE pares no lo declaran. Sólo 'prensa' trae
+   * un valor: es la calibración de Figtree contra Hanken Grotesk del muestrario (ver el docstring de
+   * 'prensa', abajo, para el porqué del NÚMERO y por qué NO se agregó Hanken al catálogo). `varsDe
+   * FuentePar`/`cssFuentes` sólo emiten `--sf-peso-cuerpo` cuando este campo está presente —su
+   * AUSENCIA es la señal de "sin override", igual que `fuentePar`/`forma` en `null`—, así que los
+   * otros nueve pares no cambian ni un byte del `:root` que inyectan hoy.
+   */
+  pesoCuerpo?: number;
 }
 
 // El registro. `editorial` va PRIMERO (es el default) y su muestra en el picker representa "las de hoy".
@@ -109,7 +128,34 @@ export const PARES_FUENTES: readonly ParFuentes[] = [
     clave: 'prensa', label: 'Prensa',
     descripcion: 'Serif moderno de bajo contraste con una grotesca geométrica. Sobrio y actual, sin el dramatismo de un didone.',
     titulo: "'Roboto Serif', serif", cuerpo: "'Figtree', sans-serif",
-    googleTitulo: 'Roboto+Serif:wght@400', googleCuerpo: 'Figtree:wght@300;400;500;600;700',
+    // EL CUERPO PIDE UN RANGO (`300..700`), NO LA LISTA DISCRETA de los otros nueve pares
+    // (§ CORTE-CUERPO-FIGTREE-PESO-1) — es lo que hace RENDERIZABLE el `pesoCuerpo` de abajo.
+    // MEDIDO por ejecución contra `fonts.googleapis.com` (Chrome UA): pedir `wght@300;400;500;600;700`
+    // devuelve CINCO `@font-face` con `font-weight` DISCRETO (300/400/500/600/700), los CINCO
+    // apuntando al MISMO archivo .woff2 (Figtree ya es variable; Google sólo declara caras puntuales
+    // sobre el mismo binario). Con caras puntuales, el algoritmo de font-matching de CSS busca la cara
+    // MÁS CERCANA entre las declaradas — `font-weight:440` cae en la cara 500 (busca hacia arriba
+    // primero dentro de [peso,500]), NO en un 440 interpolado: el navegador NUNCA ve ese número. Pedir
+    // `wght@300..700` (RANGO) da DOS `@font-face` (los mismos 2 subsets de unicode) con `font-weight:
+    // 300 700` — el MISMO archivo .woff2 exacto (bytes idénticos, mismas URLs) declarado como capaz de
+    // CUALQUIER peso en ese tramo, así que `font-weight:440` SÍ interpola el eje `wght` de la fuente
+    // variable al valor exacto. Como nadie más que CORTE usa 'prensa', y el archivo descargado es
+    // BYTE A BYTE el mismo con cualquiera de las dos sintaxis, este cambio no mueve el peso de ningún
+    // otro tenant ni agrega descarga.
+    googleTitulo: 'Roboto+Serif:wght@400', googleCuerpo: 'Figtree:wght@300..700',
+    // PESO DE CUERPO CALIBRADO (§ CORTE-CUERPO-FIGTREE-PESO-1, decisión del owner sobre la
+    // RULING_NEEDED de CORTE-CUERPO-LETRA-E-ICONOS-1: "Figtree más gruesa", NO agregar Hanken
+    // Grotesk — esa fuente sigue reservada a Duna, § "SORA reemplaza a Space Grotesk" arriba). El
+    // muestrario pinta su cuerpo con Hanken Grotesk 400; medido con fontTools (Google Fonts,
+    // `ofl/hankengrotesk`/`ofl/figtree`, unidades/em=1000) sobre "TIENDA NOSOTROS SUSCRIPCIONES CAFE"
+    // (el nav, donde más se nota) y la frase del pie: Hanken 400 da tinta≈218.3 (nav)/185.4 (frase);
+    // Figtree 400 da 204.4/183.7 — MÁS LIVIANA en las dos; Figtree 500 da 235.7/210.3 — MÁS PESADA que
+    // Hanken en las dos. Interpolando linealmente entre Figtree 400 y 500 para IGUALAR la tinta de
+    // Hanken: ~444 por el nav, ~405 por la frase — el nav pesa más en la decisión (es donde el owner
+    // reportó el defecto), así que el valor elegido es 440. NO es 400 (seguiría leyéndose más liviana
+    // que el muestrario) ni 500 (la sobrepasaría). Con el rango de arriba, el navegador renderiza
+    // exactamente este número, no la cara 500 más cercana.
+    pesoCuerpo: 440,
   },
 ] as const;
 
@@ -163,13 +209,19 @@ export function linkFuentesTodas(): string {
 }
 
 /**
- * Las dos vars `--sf-fuente-*` para un par, para un `style` INLINE (la vista previa del panel, que no
- * pasa por el `<style>` server de cssFuentes). Editorial/null → `{}`: sin override, las clases `.font-*`
- * caen a su fallback Inter/Playfair (cargadas en el panel por el `@import`).
+ * Las vars `--sf-fuente-*`/`--sf-peso-cuerpo` para un par, para un `style` INLINE (la vista previa
+ * del panel, que no pasa por el `<style>` server de cssFuentes — la usa `FragmentoTienda`,
+ * `PaletaSeccion.tsx`, spreadeada sobre el div `.font-inter` que envuelve el fragmento real). Editorial/
+ * null → `{}`: sin override, las clases `.font-*` caen a su fallback Inter/Playfair (cargadas en el
+ * panel por el `@import`). `--sf-peso-cuerpo` sólo aparece si el par declara `pesoCuerpo`
+ * (§ CORTE-CUERPO-FIGTREE-PESO-1) — su AUSENCIA en el objeto (no un `'400'` explícito) es la señal de
+ * "sin override" para los otros nueve pares, igual que `fuentePar`/`forma` en `null`.
  */
 export function varsDeFuentePar(fuentePar: ClaveFuentePar | null): Record<string, string> {
   const clave = resolverFuentePar(fuentePar);
   if (!clave) return {};
   const par = parDeFuentePar(clave);
-  return { '--sf-fuente-titulo': par.titulo, '--sf-fuente-cuerpo': par.cuerpo };
+  const vars: Record<string, string> = { '--sf-fuente-titulo': par.titulo, '--sf-fuente-cuerpo': par.cuerpo };
+  if (par.pesoCuerpo !== undefined) vars['--sf-peso-cuerpo'] = String(par.pesoCuerpo);
+  return vars;
 }

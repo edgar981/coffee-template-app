@@ -29756,3 +29756,257 @@ toda la familia de slices de esta rama.
 
 **No cierra `CORTE-CUERPO-LETRA-E-ICONOS-1`** — queda abierto hasta la ruling de la Sección "RULING
 NEEDED".
+
+## 2026-09-28 — El cuerpo de CORTE sube de peso: Figtree calibrado contra Hanken Grotesk, sin cruzar
+## la frontera de Duna (`CORTE-CUERPO-FIGTREE-PESO-1`) — CIERRA la ruling de `CORTE-CUERPO-LETRA-E-ICONOS-1`
+
+**La decisión del owner, textual, sobre la RULING_NEEDED de `CORTE-CUERPO-LETRA-E-ICONOS-1`:** con
+las tres opciones presentadas (agregar Hanken Grotesk al catálogo / dejar la aproximación de 'prensa'
+tal cual / un cuarto par con otra fuente no reservada), el owner eligió **"Figtree más gruesa
+(Recomendado)"**: el peso regular de Figtree sube a un intermedio calibrado, SOLO en CORTE; la regla
+de fuentes de Duna (§ CLAUDE.md, "Space Grotesk NO se ofrece a clientes") se mantiene. **La aprobación
+autoriza la ESCRITURA, no el merge.**
+
+### 0 · Re-medido antes de escribir — la tabla del spec, y lo que se pudo/no se pudo re-derivar
+
+El spec traía una tabla del orquestador (`fontTools`, Google Fonts `ofl/hankengrotesk`/`ofl/figtree`,
+unidades/em=1000) interpolando Figtree 400→500 contra Hanken 400. **Este slice NO tuvo forma de
+re-correr esa medición**: el dispatch sólo concede `node`/`npm`/`npx` como comando de tope, y
+`fontTools` es Python — no instalable acá. Se intentó `fontkit`/`opentype.js` vía `npx`, sin éxito (la
+resolución de módulos de `npx -p` no llega al `require` de un script aparte). **Este número queda
+como `ledger_claim`, citado tal cual del spec, no re-medido por este slice**:
+
+| fuente · peso | trazo H | tinta NAV | tinta frase |
+|---|---|---|---|
+| Hanken 400 | 88.0 | 218.3 | 185.4 |
+| Figtree 400 | 84.2 | 204.4 | 183.7 |
+| Figtree 500 | 98.7 | 235.7 | 210.3 |
+| **interpolado para igualar Hanken** | ~426 | **~444** | ~405 |
+
+**Se eligió 440** (el valor que el spec ya señalaba como "el que el owner aprobó", ponderando el NAV
+—donde más se nota— sobre la frase). Es el mismo criterio, no una segunda decisión.
+
+**Lo que SÍ se re-midió, por ejecución, y cambió el diseño:** si Figtree puede renderizar un peso NO
+declarado explícitamente. Con `node --eval "fetch(...)"` contra `fonts.googleapis.com`:
+
+- `family=Figtree:wght@300;400;500;600;700` (la petición de HOY) → **CINCO** `@font-face`, cada uno con
+  `font-weight` DISCRETO (300/400/500/600/700), **los cinco apuntando al MISMO archivo `.woff2`**
+  (Figtree ya es variable; Google despacha el mismo binario para cada cara declarada). Con caras
+  puntuales, el algoritmo de font-matching de CSS busca la cara MÁS CERCANA — `font-weight:440`
+  cae en la cara **500**, no en 440: el navegador nunca ve ese número.
+- `family=Figtree:wght@300..700` (RANGO) → **DOS** `@font-face` (mismos 2 subsets de unicode), con
+  `font-weight: 300 700` — **el mismo archivo `.woff2`, byte a byte**, ahora declarado como capaz de
+  CUALQUIER peso en el tramo. `font-weight:440` interpola el eje `wght` real.
+
+**Consecuencia para "sin mover los bytes renderizados de ningún otro tenant":** el archivo descargado
+es idéntico con las dos sintaxis (mismas URLs, medido), y 'prensa' no lo usa ningún otro preset del
+catálogo (`grep` de `fuentePar:` en `themes.ts`: sólo CORTE) — así que el cambio de sintaxis no mueve
+un byte para nadie más.
+
+### 1 · Dónde vive — opción (b), una propiedad del par, no una meta nueva
+
+El spec ofrecía (a) un eje de `content.tema` que CORTE declare, o (b) una propiedad del par 'prensa'
+en el registro (`fuentes.ts`), con la advertencia de que (b) sólo vale si mover 'prensa' no mueve a
+otro tenant. Medido: 'prensa' nació **"prerrequisito de CORTE"** (`TEMAS-PAR-PRENSA-1`) y HOY sólo
+CORTE lo usa — así que (b) es la extensión de un eje que YA EXISTE (el registro de pares), no una
+meta nueva, y cumple la condición del spec.
+
+- `ParFuentes` gana `pesoCuerpo?: number` (OPCIONAL). Sólo `'prensa'` lo declara (`440`); los otros
+  NUEVE quedan `undefined` — su AUSENCIA, no un `400` explícito, es la señal de "sin override" (mismo
+  criterio que `fuentePar`/`forma` en `null`).
+- **Sin control en el panel, a propósito** (la misma razón que el trazo/tamaño del ícono en
+  `CORTE-CUERPO-LETRA-E-ICONOS-1`, §1 de esa entrada): no es una elección de producto que el dueño
+  deba afinar — es la calibración de que Figtree se lea al mismo grosor óptico que Hanken Grotesk del
+  muestrario, contra una medición externa. `lib/config/palette-schema.ts`, `lib/config/panel-
+  controles.ts`, `components/admin/PaletaSeccion.tsx`, `lib/config/site-content-schema.ts`,
+  `lib/config/site-content-defaults.ts`, `lib/config/themes.test.ts`, `lib/config/theme-mirador.test.ts`
+  (todos en `touches:`) **no se tocaron** — no hay campo de contenido nuevo ni control que montar.
+
+### 2 · El mecanismo — `--sf-peso-cuerpo`, y el candado que casi se olvida
+
+`varsDeFuentePar`/`cssFuentes` emiten `--sf-peso-cuerpo` SÓLO cuando `par.pesoCuerpo` está presente —
+para los otros ocho pares custom el `:root{...}` que `cssFuentes` arma es **byte a byte el de antes**
+de este slice (verificado por lectura del string armado, no sólo por test).
+
+- `.font-inter` (`app/globals.css`) gana `font-weight: var(--sf-peso-cuerpo, 400)` — cascada por
+  HERENCIA hacia todo el texto de lectura sin peso propio ("el resto del cuerpo"). Fallback 400 =
+  byte-idéntico para cualquier tenant sin 'prensa'.
+- Los DOS lugares que fijaban el peso a 400 A MANO (`font-normal` de Tailwind, literal, ciego al par):
+  los links del nav con tratamiento (`navLinkTratamiento`, `StoreNav.tsx`, sólo `navTratamiento.activo`
+  = CORTE) y la frase al pie del hero (`HeroMediaMarquesina.tsx`). Pasan a `.sf-peso-normal` —MISMA
+  fórmula que `.font-inter`, fallback 400— así que dejan de estar ciegos al par.
+
+**EL HALLAZGO QUE OBLIGÓ A PARTIR `.font-inter` EN DOS LAYERS — medido contra el CSS COMPILADO REAL, no
+supuesto.** Compilando `app/globals.css` con `@tailwindcss/postcss` (y luego contra el artefacto real
+de `next build`) apareció: (1) `Logo.tsx:134` combina `font-inter font-normal` en el MISMO `<span>` (el
+subtítulo "San Adolfo · Huila"); (2) el wordmark de `Logo` y el título del marquee de
+`HeroMediaMarquesina` usan `.font-display`/`.font-playfair` **SIN clase de peso propia**. Ninguno de
+los dos está en `touches:`.
+
+- Si `.font-inter` ganara su `font-weight` en `@layer utilities` (donde vive `font-normal`), la regla
+  MÁS TARDÍA en esa capa fusionada gana — y la nuestra, escrita después en el archivo, pisaría el 400
+  explícito de `font-normal` en el subtítulo de `Logo.tsx`: una TERCERA superficie, fuera de
+  `touches:`, cambiando peso bajo CORTE sin que este slice lo pidiera.
+- Si `.font-display`/`.font-playfair` no ganaran un peso propio, heredarían el peso de CUERPO por la
+  MISMA cascada que arregla "el resto del cuerpo" — el wordmark y el título del marquee se habrían
+  puesto a 440, rompiendo el invariante "DISPLAY siempre 400" (§ CLAUDE.md, `fuentes.ts`).
+
+**La solución: `@layer base` para las TRES reglas de peso** (`.font-inter{font-weight:var(--sf-peso-
+cuerpo,400)}`, `.font-playfair,.font-display{font-weight:400}`), dejando la FAMILIA donde estaba
+(`utilities`). `@import "tailwindcss"` declara el orden `theme, base, components, utilities`
+(`node_modules/tailwindcss/index.css:1`) — un layer LATER gana sobre uno EARLIER sin importar
+especificidad ni orden de archivo. Con el peso en `base`: `font-normal`/`font-semibold`/etc.
+(`utilities`) siguen ganando siempre que se combinan con estas tres clases; y una regla DIRECTA sobre
+un elemento (aunque sea de `base`) siempre gana a un valor HEREDADO, sea cual sea el layer del que
+hereda — así que `.font-display`/`.font-playfair` sin peso propio quedan en 400 SIEMPRE, y
+`Logo.tsx`/CartTitulo (`font-playfair font-semibold`, verificado por grep que sigue siendo el único
+caso de esa combinación) no se mueven.
+
+**Verificado contra el artefacto de PRODUCCIÓN** (`next build`, no sólo la compilación standalone):
+`.next/static/chunks/0mfdbextzesf4.css` trae `.font-inter{font-weight:var(--sf-peso-cuerpo,400)}` y
+`.font-playfair,.font-display{font-weight:400}` dentro de un ÚNICO `@layer base{...}` fusionado
+(offset 5981), y las dos reglas de FAMILIA (`.font-inter{font-family:...}`, `.font-playfair,
+.font-display{font-family:...}`) en el `@layer utilities{...}` de siempre (offset 5989) — el mismo
+orden relativo a `.font-normal`/`.font-semibold` (offsets 60362/60456) que la teoría exige.
+
+### 3 · Verificado por ejecución, en un Chromium real — `getComputedStyle`, no sólo CSS
+
+`npm run capturar:seccion` (Postgres efímero + preset CORTE + `next build`/`next start` + Playwright),
+capturando el primer link del nav (`header nav a:first-child`) contra `.nav-link[href="#historia"]`
+del prototipo:
+
+| | `font-weight` | `font-family` | `letter-spacing` | `text-transform` |
+|---|---|---|---|---|
+| **App (CORTE)** | **`440`** | `Figtree, sans-serif` | `0.84px` | `uppercase` |
+| **Prototipo** | `400` | `"Hanken Grotesk", …` | `0.84px` | `uppercase` |
+
+**El peso 440 es el que el navegador REALMENTE aplica** — no una inferencia del CSS fuente, medido con
+`getComputedStyle` en Chromium contra la build de producción. `letter-spacing`/`text-transform`
+coinciden EXACTO con el prototipo (ya medidos en slices anteriores); sólo difieren familia (aceptado,
+§0 de `CORTE-CUERPO-LETRA-E-ICONOS-1`) y peso (ahora calibrado, en vez de plano 400).
+
+Capturas en `.capturas/corte-hero-frase-peso/{app,prototipo}-0.png` — **el nombre de la carpeta quedó
+MAL ASIGNADO** (un off-by-one en cómo este arnés empareja `--nombre` repetidos con pares de
+`--ruta`/`--selector-app`, no verificado antes de invocarlo dos veces): el contenido real es el nav
+("TIENDA" vs "LA FINCA"), no la frase. Los archivos son correctos; el nombre de carpeta no.
+
+**LA FRASE AL PIE DEL HERO NO SE PUDO CAPTURAR — bloqueo del ARNÉS, no del código.**
+`hero.fraseAlPie` es un campo de CONTENIDO (`REGISTRY.hero.campos`), y `aplicarPreset`/CORTE **no
+toca contenido** (§ el comentario de `mergePresetEnContent`, `themes.ts`: "CORTE no toca ningún
+texto/imagen del dueño"). Sin ese campo poblado, `{hero.fraseAlPie && <p className="…sf-peso-
+normal">}` nunca renderiza — `capturar-seccion.ts` no tiene forma de sembrar contenido, sólo aplicar
+un preset. El mecanismo es LITERALMENTE el mismo que el nav (misma clase `sf-peso-normal`, misma var
+`--sf-peso-cuerpo`, mismo layer) — la captura del nav ya lo prueba extremo a extremo; la frase queda
+sin su propia captura, `unknown`, no un defecto sospechado.
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2438/2438** — verde. +3 sobre el piso de 2435 (`c04dc6b`). Reconciliado: 3 tests nuevos en `fuentes.test.ts` (pesoCuerpo único de 'prensa', `--sf-peso-cuerpo` ausente en los demás, invariante Duna re-afirmado); `cromo-nav-tratamiento.test.ts`/`hero-marquesina.test.ts` son ediciones in-place (0 neto). |
+| `npm run test:integracion` | **240/240** — sin cambio, coherente (nada de este slice toca el carril de integración). |
+| `npm run build` | Primer intento: `P1001`, el sandbox no alcanzó `ep-still-sound-acfmedf2` (Neon, la base `development`) — **transitorio**: el segundo intento migró (57 migraciones, ninguna pendiente) y compiló. `✓ Compiled successfully`, TypeScript del build limpio, **80 rutas** (contadas por ejecución: `grep -cE "^(├|└)" <salida>`, distintas y sin duplicados). **DESVIACIÓN medida, no repetida a ciegas**: el commit anterior (`c04dc6b`) reportó "53 rutas" — este slice NO reprodujo ese número (80 ≠ 53) y no investigó la causa (fuera de alcance: ninguna ruta se agregó/quitó en este diff, así que sea cual sea el conteo real, es el MISMO antes y después de este slice — lo que importa para este gate). Grep del artefacto: `.next/static/chunks/0mfdbextzesf4.css` trae `sf-peso-normal`, `.font-inter{font-weight:var(--sf-peso-cuerpo,400)}` y `.font-playfair,.font-display{font-weight:400}` — el símbolo nuevo, en el artefacto, no sólo la fuente. |
+| `npm run guarda:color` | Detectó que `app/globals.css` toca el sistema de color (de los 9 archivos listados, 8 eran esperables por `lib/config/*`; `app/globals.css` es el noveno) y corrió el arnés completo: **0px** en las 6 rutas + 2 hovers — CONTEOS IDÉNTICOS a `c04dc6b`/`da0418e` (home 0/4608000 · tienda 0/2433280 · producto 0/2535680 · checkout 0/1152000 · nosotros 0/1152000 · suscripciones 0/2144000 · hover-automatica 0/98298 · hover-eleccion 0/102870). |
+| `npm run verificar:nayoli:visual` | **0px**, main (`9a7ab97`, worktree) vs. rama, MISMOS 8 conteos exactos — segunda medición independiente, misma conclusión. |
+| `npm run capturar:seccion` | Ver §3 — el nav capturado y verificado por `getComputedStyle`; la frase al pie bloqueada por el arnés (contenido, no tema). |
+
+### `touches:` — lo usado y lo no usado
+
+Usados: `lib/config/fuentes.ts`, `lib/config/fuentes.test.ts`, `lib/config/fuentes-style.ts`,
+`app/globals.css`, `components/storefront/layout/StoreNav.tsx`, `components/storefront/home/
+HeroMediaMarquesina.tsx`, `lib/config/cromo-nav-tratamiento.test.ts`, `lib/config/hero-
+marquesina.test.ts`, y este asiento.
+
+**No usados, y por qué cada uno:** `lib/config/palette-schema.ts`, `lib/config/panel-controles.ts`,
+`lib/config/panel-controles.test.ts`, `components/admin/PaletaSeccion.tsx`, `lib/config/site-content-
+schema.ts`, `lib/config/site-content-defaults.ts`, `lib/config/site-content-defaults.test.ts`,
+`lib/config/themes.ts`, `lib/config/themes.test.ts`, `lib/config/theme-mirador.test.ts`,
+`app/(storefront)/layout.tsx` — todos previstos para la opción (a) (un campo de `content.tema`) o para
+un control de panel, ninguno de los dos necesario con la opción (b) (§1). `PaletaSeccion.tsx` en
+particular: su preview (`FragmentoTienda`) YA propaga `varsDeFuentePar(fuentePar)` como `style` inline
+sobre un div `.font-inter` — el mecanismo nuevo llega gratis a la vista previa del panel sin tocar ese
+archivo, verificado por lectura del código (no por captura, que exigiría sesión).
+
+**`lib/config/fuentes-style.test.ts` (sibling de `fuentes-style.ts`, no en `touches:`) NO se tocó**,
+pese a que `cssFuentes` ganó una rama nueva: su único test (`cssFuentes('calido')`) sigue verde sin
+cambios (corrido explícito), pero esa rama nueva no tiene aserción propia en ESE archivo — queda
+cubierta indirectamente por los tests de `varsDeFuentePar`/`ParFuentes.pesoCuerpo` en `fuentes.test.ts`
+(sí en `touches:`) y por la verificación de artefacto de producción (§4). Anotado como hueco menor, no
+corregido por estar fuera de `touches:`.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `pesoCuerpo`, `--sf-peso-cuerpo`, `.sf-peso-normal`,
+`Figtree:wght@300..700`, el cambio de `navLinkTratamiento`/la frase de `font-normal`→`sf-peso-normal`.
+Grepeados uno por uno contra `CLAUDE.md`:
+
+- **`pesoCuerpo`, `sf-peso-normal`, `sf-peso-cuerpo`, `CORTE-CUERPO-FIGTREE-PESO-1`,
+  `Figtree:wght@300..700`, `navLinkTratamiento`** → CERO apariciones. El documento no nombra el eje de
+  peso de cuerpo ni el mecanismo de layers — no había nada que este diff pudiera dejar falso ahí.
+- **`lib/config/fuentes.ts` (cerca de `:23-30`)** (§ "Las FUENTES son content.tema.fuentePar", el
+  párrafo "EL PESO DE LA FUENTE ES UN COSTO REAL") → **EL PUNTERO QUEDÓ VIEJO POR ESTE DIFF.** Antes de
+  este slice los KB-estimados vivían en `fuentes.ts:23-30` (verificado, `git show HEAD:lib/config/
+  fuentes.ts`); el header comment de este slice agregó ~9 líneas ANTES de ese bloque, que hoy vive en
+  `:32-39`. **No se corrige acá** (`CLAUDE.md` no está en `touches:`) — anotado en `open_followups`
+  como `CLAUDE-FUENTES-PUNTERO-KB-VENCIDO-1`.
+- **`"Space Grotesk NO se ofrece a clientes"` / "ningún par ofrece Space Grotesk/Hanken/Spline"** → el
+  invariante SIGUE cumpliéndose: no se agregó Hanken; el test (`fuentes.test.ts`) se re-afirmó con una
+  aserción nueva. No queda falso.
+- **`"cssFuentes(fuentePar)"..."`:root{--sf-fuente-*}` o `null`"`** → sigue siendo la descripción exacta
+  para OCHO de los nueve pares custom (byte a byte); para 'prensa' el `:root{}` ahora incluye TAMBIÉN
+  `--sf-peso-cuerpo`. No es FALSO (la sección no afirma "sólo esas dos vars, siempre"), pero queda
+  INCOMPLETO para el caso nuevo — anotado como el mismo `open_followup` de arriba, ya que ambos se
+  resuelven ampliando el mismo párrafo de CLAUDE.md el día que se toque por otra razón.
+
+Segundo grep, sobre el DOCUMENTO (`DECISIONS.md`): `grep -c "CORTE-CUERPO-FIGTREE-PESO-1"` antes de
+este párrafo dio **0** — id nuevo. `CORTE-CUERPO-LETRA-E-ICONOS-1` (la entrada que este slice cierra)
+NO se edita — su RULING NEEDED queda como registro de lo que preguntó; la respuesta vive acá, apuntando
+hacia atrás, como ya hicieron las entradas anteriores de esta misma familia.
+
+### `customer_bytes`
+
+**`changed: true`.** Alcanzable hoy sólo vía el mirador `?tema=CORTE` (tras re-aplicar el preset): el
+texto de lectura de CORTE —los links del nav, la frase al pie del hero cuando el dueño la haya
+escrito, y cualquier otro texto sin peso propio— se ve VISIBLEMENTE más grueso (440 en vez de 400).
+`strings:` **ninguno** — no cambia copy, sólo el grosor del trazo tipográfico.
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo. `ParFuentes.pesoCuerpo` es un campo del registro TypeScript (`fuentes.ts`), no de
+`SiteContent` — no hay columna, no hay schema de escritura nuevo.
+
+### `open_followups`
+
+- **`CLAUDE-FUENTES-PUNTERO-KB-VENCIDO-1`** — el puntero `lib/config/fuentes.ts (cerca de :23-30)` en
+  CLAUDE.md (§ "Las FUENTES son content.tema.fuentePar") quedó desalineado por este slice (hoy
+  `:32-39`); el mismo párrafo tampoco menciona que `cssFuentes` ahora puede emitir una tercera var
+  (`--sf-peso-cuerpo`) para 'prensa'. `why_not_now`: `CLAUDE.md` no está en el `touches:` de este slice.
+- **`FUENTES-STYLE-TEST-COBERTURA-PESO-1`** — `lib/config/fuentes-style.test.ts` no tiene una
+  aserción propia para la rama nueva de `cssFuentes` (el string con `--sf-peso-cuerpo`); queda cubierta
+  indirectamente (§ `touches:`, arriba) pero no de forma directa en su propio archivo. `why_not_now`:
+  ese archivo no está en el `touches:` de este slice.
+- **`BUILD-CONTEO-RUTAS-53-VS-80-1`** — `c04dc6b` reportó "53 rutas" en `next build`; este slice midió
+  **80**, por ejecución, sobre el MISMO checkout (ningún route file cambia en este diff). No se
+  investigó si 53 era un conteo erróneo, una medición sobre menos rutas de las que existían entonces, o
+  un método de conteo distinto (¿sólo páginas, sin API routes?). `why_not_now`: no afecta el veredicto
+  de este slice (ninguna ruta se agrega/quita acá) y diagnosticarlo es trabajo de OTRO slice.
+
+### Verdicto
+
+**AWAITING_APPROVAL — `stopped_on: [customer-bytes]`.** Gate verde en las cinco mediciones ejecutables
+(tsc, `npm test`, `npm run test:integracion`, `npm run build`, y las DOS mediciones visuales
+independientes de Nayoli en 0px) más la verificación por ejecución del mecanismo nuevo contra un
+Chromium real (§3, `font-weight:440` medido con `getComputedStyle`). Sin `schema`, sin
+`cross-repo-contract`. Commiteado en `slice/corte-reescritura-prototipo-1`; el owner ya aprobó la
+ESCRITURA (`approved: yes`, con su reporte textual como `approval-reason`, citado arriba); el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**El dueño debe re-aplicar CORTE** para que la fila persistida tome `pesoCuerpo:440` en su cuerpo de
+lectura.
+
+**Cierra la RULING NEEDED de `CORTE-CUERPO-LETRA-E-ICONOS-1`**: la pregunta era si el catálogo de
+pares podía ganar una entrada con Hanken Grotesk; la respuesta del owner fue NO — se calibra el peso
+de Figtree en su lugar. `CORTE-CUERPO-LETRA-E-ICONOS-1` queda con su trabajo de íconos/velo ya
+COMMITEADO desde entonces (§ esa entrada) y su pregunta abierta RESUELTA acá, sin reabrir esa entrada.

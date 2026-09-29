@@ -298,17 +298,22 @@ test('hero.fraseAlPie: rol PLENO (--sf-sobre-banda), NUNCA el suave translúcido
   assert.doesNotMatch(html, /--sf-sobre-banda-suave/, 'sin `cueDesliza` (default false) el único --sf-sobre-banda-suave posible era esta frase; no debe quedar rastro');
 });
 
-test('hero.fraseAlPie: peso REGULAR (font-normal, no font-medium) — como el muestrario, que no declara peso propio en `.hero-caption`', () => {
+// § CORTE-CUERPO-FIGTREE-PESO-1: `font-normal` (literal 400, ciego al par) pasa a `sf-peso-normal`
+// (`app/globals.css`, lee `--sf-peso-cuerpo`) — con 'prensa' (CORTE) rinde el peso calibrado (440); con
+// cualquier otro par cae al mismo 400 de siempre (byte-idéntico). El nombre de la clase cambia; el
+// COMPORTAMIENTO de "regular, no font-medium" para todo tenant que no declare peso propio, no.
+test('hero.fraseAlPie: peso REGULAR (sf-peso-normal, no font-medium) — sigue a --sf-peso-cuerpo del par, 400 por defecto', () => {
   const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);
-  assert.match(html, /text-right[^"]*font-normal[^"]*leading-relaxed/, 'font-normal debe ir junto al resto de la tipografía de la frase');
+  assert.match(html, /text-right[^"]*sf-peso-normal[^"]*leading-relaxed/, 'sf-peso-normal debe ir junto al resto de la tipografía de la frase');
+  assert.doesNotMatch(html, /font-normal/, 'ya no es el 400 fijo de Tailwind — ahora sigue al par vía sf-peso-normal');
   assert.doesNotMatch(html, /font-medium/, 'la subida de peso de CROMO-NAV-EXACTO-PROTOTIPO-1 se revierte — la causa real era el color');
 });
 
 test('hero.fraseAlPie: el tamaño sigue los DOS tokens del muestrario por breakpoint — 13px bajo 640px (--text-body-xs), 14px desde 640px (--text-body-s, = text-sm, sin cambio)', () => {
   const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);
-  assert.match(html, /text-\[13px\][^"]*font-normal/, 'la base (mobile) debe llevar los 13px medidos de --text-body-xs, que faltaban');
+  assert.match(html, /text-\[13px\][^"]*sf-peso-normal/, 'la base (mobile) debe llevar los 13px medidos de --text-body-xs, que faltaban');
   assert.match(html, /sm:text-sm\b/, 'desde 640px sube a 14px (text-sm), medido de --text-body-s — sin cambio de valor, sólo se hace responsive');
 });
 

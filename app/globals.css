@@ -516,6 +516,35 @@ html {
   .badge-cancelado  { @apply bg-red-100     text-red-800     dark:bg-red-900/30     dark:text-red-400; }
 }
 
+/* EL PESO REGULAR DEL CUERPO ES UN EJE APARTE DE LA FAMILIA (§ CORTE-CUERPO-FIGTREE-PESO-1) — Y VIVE
+   EN `@layer base`, NO `utilities`, PARA LAS DOS CLASES DE CUERPO/DISPLAY, a propósito.
+   `@import "tailwindcss"` declara el orden `theme, base, components, utilities` (medido en
+   `node_modules/tailwindcss/index.css:1`): un layer LATER siempre gana sobre uno EARLIER para la MISMA
+   propiedad en el MISMO elemento, sin importar especificidad ni orden de aparición en el archivo — así
+   que cualquier utilidad de peso de Tailwind (`font-normal`/`font-medium`/`font-semibold`/…, TODAS en
+   `utilities`) sigue ganando cuando se combina con `.font-inter`/`.font-playfair`/`.font-display` en el
+   MISMO elemento, sea cual sea el orden en que aparezcan escritas.
+   MEDIDO CONTRA EL CSS REAL (compilado con `@tailwindcss/postcss`, no supuesto): `Logo.tsx:134` combina
+   `font-inter font-normal` en el MISMO `<span>` (el subtítulo "San Adolfo · Huila") — si el peso de
+   `.font-inter` viviera en `utilities` (la capa de `font-normal`), la regla MÁS TARDÍA en esa capa
+   fusionada ganaría (la nuestra, declarada después de las utilidades generadas por Tailwind), pisando el
+   400 explícito de `font-normal` con el peso calibrado de CORTE — una tercera superficie, fuera de
+   `touches:`, que este slice NO toca a propósito. Con el peso en `base`, `font-normal` (utilities) gana
+   siempre sobre `.font-inter` (base), así que ese subtítulo queda intacto.
+   Y para `.font-display`/`.font-playfair` (el wordmark de `Logo`, el título del marquee de
+   `HeroMediaMarquesina`, SIN clase de peso propia): antes de este slice NINGUNA regla tocaba su peso, así
+   que heredaban el 400 del `body`/ancestro más cercano por default del navegador. Con `.font-inter`
+   ganando peso (abajo), ese 400 heredado se habría vuelto el peso calibrado del CUERPO para CUALQUIER
+   título sin peso propio — el candado de acá se los fija en 400 SIEMPRE, ganando sobre la herencia (una
+   regla ESPECIFICADA en el elemento SIEMPRE gana a un valor heredado, sea cual sea su layer) pero
+   perdiendo frente a `font-semibold` et al. si algún título los combina (ninguno lo hace hoy, medido —
+   pero si alguno lo hiciera mañana, `utilities` seguiría ganando). Fallback 400 = lo de HOY para
+   cualquier otro par → sin cambio de bytes para Nayoli ni los otros ocho pares custom. */
+@layer base {
+  .font-inter { font-weight: var(--sf-peso-cuerpo, 400); }
+  .font-playfair, .font-display { font-weight: 400; }
+}
+
 /* ============================================
    UTILITY CLASSES
    ============================================ */
@@ -523,10 +552,23 @@ html {
   /* El PAR TIPOGRÁFICO del cliente (§ Tanda C2 · #3): las clases leen las vars `--sf-fuente-*` que
      inyecta cssFuentes en el layout del storefront (gemelo de la paleta). SIN la var —Editorial, el
      default— caen al fallback Inter/Playfair, que carga el `@import` de arriba → Nayoli byte-idéntico.
-     `.font-inter` = rol CUERPO; `.font-playfair`/`.font-display` = rol DISPLAY (títulos y wordmark). */
+     `.font-inter` = rol CUERPO; `.font-playfair`/`.font-display` = rol DISPLAY (títulos y wordmark).
+     El PESO de estas tres clases vive APARTE, en `@layer base` (arriba) — no acá — por lo que documenta
+     ese bloque: acá conviven con las utilidades de peso de Tailwind (`font-normal`, `font-semibold`…) y
+     necesitan perder frente a ellas cuando se combinan en el mismo elemento. */
   .font-inter    { font-family: var(--sf-fuente-cuerpo, 'Inter', sans-serif); }
   .font-playfair { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
   .font-display  { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
+
+  /* El peso REGULAR explícito del CUERPO (§ CORTE-CUERPO-FIGTREE-PESO-1) — para los DOS lugares que
+     hoy fijan el peso a 400 A MANO en vez de heredarlo de `.font-inter`: los links del nav con
+     tratamiento (`navTratamiento.activo`, `StoreNav.tsx`) y la frase al pie del hero
+     (`HeroMediaMarquesina.tsx`). Reemplaza el `font-normal` de Tailwind (que fija 400 SIEMPRE, sin
+     leer el par) en esos dos sitios: acá el fallback es 400 —byte-idéntico para todo tenant salvo
+     CORTE—, y con 'prensa' aplicado sube al peso calibrado del cuerpo, igual que el resto del texto de
+     lectura de esa página. NO se usa en ningún otro sitio del storefront — "el resto del cuerpo" ya
+     queda cubierto por la herencia de `.font-inter`, arriba. */
+  .sf-peso-normal { font-weight: var(--sf-peso-cuerpo, 400); }
 
   /* ── Eje 4 (forma) · la superficie var-backed del storefront (§ formas, § forma-style) ──
      Los CINCO tokens de superficie que el <style> de cssForma inyecta en el layout del storefront

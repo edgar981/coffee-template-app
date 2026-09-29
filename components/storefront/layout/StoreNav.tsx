@@ -278,7 +278,13 @@ export default function StoreNav() {
   // `false` (todo tenant salvo el que lo declare, § CORTE en themes.ts) → `font-medium` de HOY,
   // exacto, sin mayúscula ni tracking. El tamaño (`text-sm`) es el mismo en las dos ramas — ya es el
   // body-s del prototipo, no cambia con el tratamiento.
-  const navLinkTratamiento = navTratamiento.activo ? 'uppercase tracking-[0.06em] font-normal' : 'font-medium';
+  //
+  // `sf-peso-normal`, NO `font-normal` (§ CORTE-CUERPO-FIGTREE-PESO-1): el peso "regular" de este
+  // rama YA NO es un 400 fijo — sigue al `--sf-peso-cuerpo` del par elegido (`app/globals.css`), así
+  // que CORTE (el único preset con `navTratamiento.activo`) lo pinta al peso calibrado de 'prensa'
+  // (440) en vez de al Figtree 400 liviano. Fallback 400 = `font-normal` de HOY para cualquier otro
+  // tenant que algún día active este tratamiento sin declarar peso propio.
+  const navLinkTratamiento = navTratamiento.activo ? 'uppercase tracking-[0.06em] sf-peso-normal' : 'font-medium';
 
   // EL SUBRAYADO AL HOVER (§ CROMO-NAV-EXACTO-PROTOTIPO-1): `.nav-link::after` del prototipo
   // (`docs/prototipos/cafeone/css/app.css:219-224`) — una línea de 1px en `currentColor` que se

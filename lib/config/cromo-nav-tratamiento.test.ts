@@ -263,14 +263,17 @@ test('?tema=CORTE sobre Nayoli: navTratamiento.activo, .direccion, .filete, .cta
 
 test('la capa de datos: navTratamiento.activo=false → el pass-through de StoreNav usa "font-medium" (el HOY exacto)', () => {
   const activo = resolverSiteContent({}).navTratamiento.activo;
-  const navLinkTratamiento = activo ? 'uppercase tracking-[0.06em] font-normal' : 'font-medium';
+  const navLinkTratamiento = activo ? 'uppercase tracking-[0.06em] sf-peso-normal' : 'font-medium';
   assert.equal(navLinkTratamiento, 'font-medium');
 });
 
-test('la capa de datos: navTratamiento.activo=true (CORTE) → el pass-through de StoreNav aplica mayúscula+tracking+peso regular', () => {
+// `sf-peso-normal`, no `font-normal`, desde § CORTE-CUERPO-FIGTREE-PESO-1: el peso "regular" de esta
+// rama sigue a `--sf-peso-cuerpo` del par elegido (app/globals.css), en vez de fijar 400 siempre — con
+// fallback 400 para cualquier tenant que no declare peso propio.
+test('la capa de datos: navTratamiento.activo=true (CORTE) → el pass-through de StoreNav aplica mayúscula+tracking+peso regular (sf-peso-normal, sigue a --sf-peso-cuerpo)', () => {
   const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
-  const navLinkTratamiento = conCorte.navTratamiento.activo ? 'uppercase tracking-[0.06em] font-normal' : 'font-medium';
-  assert.equal(navLinkTratamiento, 'uppercase tracking-[0.06em] font-normal');
+  const navLinkTratamiento = conCorte.navTratamiento.activo ? 'uppercase tracking-[0.06em] sf-peso-normal' : 'font-medium';
+  assert.equal(navLinkTratamiento, 'uppercase tracking-[0.06em] sf-peso-normal');
 });
 
 // § CROMO-NAV-FILETE-1 — el pass-through EXACTO de `navFileteClase` en StoreNav.tsx: `filete:false` no
