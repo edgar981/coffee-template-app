@@ -707,3 +707,17 @@ html:not(.admin) .lucide { stroke-width: var(--sf-trazo, 2); }
    lucide emite. El TAMAÑO (22px) va en la clase Tailwind arbitraria del propio componente
    (`w-[22px] h-[22px]`), no acá — no hace falta CSS para eso. */
 html:not(.admin) .lucide.sf-icono-nav-exacto { stroke-width: 1.6; }
+
+/* El TOAST de la tienda bajo CORTE (§ TOAST-COMO-PROTOTIPO-1) — la banda oscura, el texto claro,
+   las esquinas rectas y la posición van por PROPS de `<Toaster/>` y por las custom properties que
+   sonner ya expone (`--normal-bg`/`--normal-text`/`--border-radius`, `components/storefront/
+   ToasterTienda.tsx` + `lib/storefront/toast-tienda.ts`); lo único que queda para CSS es DISTINGUIR
+   el error sin el rojo/verde genérico de `richColors` que este slice retira — con `richColors`
+   apagado, éxito y error comparten la MISMA banda oscura, y "sigue distinguiéndose" (spec) exige un
+   segundo trazo. Un filete del ACENTO del tema (`--sf-acento`, ya documentado arriba como rol de
+   BORDE — "botón/badge/borde/ring/ícono") sobre el lado que abre el toast (abajo a la izquierda:
+   el borde vertical del lado derecho, el que mira al centro de la pantalla).
+   Escopeado a `.toast-tienda` — la clase que `ToasterTienda.tsx` SÓLO agrega con CORTE — para no
+   pintar el error de Nayoli, que comparte el MISMO `--sf-acento` (rol de marca, no de CORTE) y
+   quedaría con un filete nuevo que nadie pidió. */
+.toast-tienda [data-sonner-toast][data-type="error"] { border-right: 3px solid var(--sf-acento); }

@@ -114,12 +114,13 @@ test('con CORTE aplicado → --sf-acento-texto sale de la TINTA (no del acento r
   assert.match(out.paletaCss!, /--sf-accion:#a70004/);        // = raices.acento EXACTA de CORTE
 });
 
-// § SCROLL-INERCIA-CORTE-1 — `corteAplicado` (themes.ts) es el gate de `ScrollInercia`, y lee
-// `content.tema.origenAccion` del content PUBLICADO en `app/(storefront)/layout.tsx` — NUNCA del
-// mirador (`layout.tsx` no ve `searchParams`, § el comentario de cabecera de este archivo). Este
-// test fija que, si `mergePresetEnContent` alguna vez cambiara CÓMO escribe `origenAccion`, el gate
-// del scroll con inercia lo delata acá — puente entre `themes.ts` y el mirador, mismo mecanismo que
-// el resto de este archivo (reusar, no una segunda composición).
+// § SCROLL-INERCIA-CORTE-1 — `corteAplicado` (themes.ts) es el gate de `ScrollInercia` (y, desde
+// § TOAST-COMO-PROTOTIPO-1, también de `ToasterTienda.tsx`), y lee `content.tema.origenAccion` del
+// content PUBLICADO en `app/(storefront)/layout.tsx` — NUNCA del mirador (`layout.tsx` no ve
+// `searchParams`, § el comentario de cabecera de este archivo). Este test fija que, si
+// `mergePresetEnContent` alguna vez cambiara CÓMO escribe `origenAccion`, el gate lo delata acá —
+// puente entre `themes.ts` y el mirador, mismo mecanismo que el resto de este archivo (reusar, no
+// una segunda composición).
 test('el mirador aplicando CORTE deja origenAccion en el valor que enciende corteAplicado', () => {
   const conCorte = contenidoConPresetDeVista(DEFECTO, 'CORTE');
   assert.equal(corteAplicado(conCorte.tema.origenAccion), true);

@@ -1611,6 +1611,10 @@ export function navOffsetClase(posicion: boolean): string {
 // también — el día que eso pase, la salida es la misma que ya nombra `pdp-botones.ts`: ese preset
 // comparte el mismo hecho de fondo (un acento que actúa como color de acción, no un tono cálido), así
 // que heredar el resto del tratamiento de CORTE sería lo esperable, no un bug.
+//
+// CUARTO CONSUMIDOR (§ TOAST-COMO-PROTOTIPO-1): `ToasterTienda.tsx` (`app/(storefront)/layout.tsx`)
+// lo usa para decidir el estilo del toast de la tienda — igual que `ScrollInercia`, lee
+// `useSiteContent().tema.origenAccion` directo, sin una segunda comparación.
 export function corteAplicado(origenAccion: OrigenAccion | null): boolean {
   return origenAccion === 'acento';
 }

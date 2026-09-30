@@ -734,7 +734,9 @@ test('esquemas: si el valor ACTUAL del blob difiere del snapshot (otro preset ap
 
 // § SCROLL-INERCIA-CORTE-1 — `corteAplicado` es el gate de `ScrollInercia`: sólo CORTE enciende el
 // scroll con inercia del prototipo. Reusa `tema.origenAccion` (§ el docstring de la función), así
-// que estos tests fijan el CONTRATO del eje, no una lógica propia de scroll.
+// que estos tests fijan el CONTRATO del eje, no una lógica propia de scroll. § TOAST-COMO-
+// PROTOTIPO-1 sumó a `ToasterTienda.tsx` como CUARTO consumidor del mismo gate — el contrato no
+// cambió, así que no le hicieron falta tests propios acá.
 
 test('corteAplicado: fixture — CORTE declara origenAccion:"acento", el único valor que enciende el gate', () => {
   assert.equal(CORTE.origenAccion, 'acento');

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: { default: "Café Nayoli", template: "%s · Café Nayoli" },
@@ -26,7 +26,10 @@ export default function RootLayout({
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
         {children}
-        <Toaster richColors position="top-center" />
+        {/* TOAST-COMO-PROTOTIPO-1: este Toaster ahora decide su propio alcance (admin/pre-auth) —
+            fuera de esas rutas se apaga solo, para dejarle el paso a `ToasterTienda`
+            (`app/(storefront)/layout.tsx`). Ver `components/ui/sonner.tsx`. */}
+        <Toaster />
       </body>
     </html>
   );

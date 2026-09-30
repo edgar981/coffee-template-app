@@ -35966,3 +35966,186 @@ MERGEES."*
 
 Cierra `BADGES-ACCIONES-Y-LOGO-CORTE-1` (pendiente del gate visual REAL del owner, capa 3, y de
 mergear).
+
+## 2026-09-30 — El toast de la tienda toma el estilo del prototipo bajo CORTE, y admin/Nayoli quedan sin tocar (`TOAST-COMO-PROTOTIPO-1`)
+
+Pedido del owner, textual: *"Podemos hacer que el toast que sale, vaya un poco mas acorde al estilo
+de la pagina?"*.
+
+### 1 · El problema real: UN Toaster servía a TODA la app
+
+`app/layout.tsx` montaba un único `<Toaster richColors position="top-center" />` (de `sonner`,
+crudo) en la raíz — el MISMO Toaster para el panel admin y para la tienda. Reestilarlo in-place
+habría cambiado el toast de admin también; darle a la tienda uno SEGUNDO sin apagar el primero
+habría DUPLICADO cada aviso real: sonner es un store global (`ToastState`, verificado contra
+`node_modules/sonner/dist/index.mjs`) y un `<Toaster>` sin `id` renderiza TODO toast sin
+`toasterId` — dos instancias sin `id` muestran el MISMO aviso dos veces. Ninguno de los ~30 call
+sites de `toast.success/error(...)` en el storefront (8 archivos) está en `touches:` de este
+slice, así que etiquetarlos con un `toasterId` propio no era una opción.
+
+**La salida: el Toaster genérico decide su propio ALCANCE por ruta.** `components/ui/sonner.tsx`
+(scaffold de shadcn, sin un solo consumidor antes de este slice — verificado, `grep` de su import
+daba cero) pasa a ser un Toaster que se apaga solo fuera de admin/pre-auth
+(`esRutaAdmin`, allowlist de los 4 prefijos del grupo `(admin)`: `/admin`, `/login`,
+`/aceptar-invitacion`, `/recuperar-clave`). La tienda monta el suyo (`ToasterTienda`,
+`app/(storefront)/layout.tsx`, MISMO mecanismo que BackToTop/RielSocial/ScrollInercia: montado
+SIEMPRE, decide su propio estilo adentro). Con esto, en CUALQUIER ruta hay exactamente UN Toaster
+activo — nunca dos compitiendo por el mismo aviso.
+
+**LÍMITE DECLARADO** (en el propio código, `components/ui/sonner.tsx`): `esRutaAdmin` es un
+allowlist, no derivado del filesystem. Un QUINTO top-level fuera de `/admin/*` que se agregara sin
+tocar esta lista se quedaría sin Toaster en esa página. Riesgo aceptado — el grupo admin crece casi
+siempre bajo `/admin/*` (ya cubierto por el prefijo) y las tres páginas pre-auth son estables.
+
+### 2 · El estilo — sin `unstyled`, sin classNames elaborados: las custom properties que sonner ya expone
+
+`ToasterTienda.tsx` + `lib/storefront/toast-tienda.ts` (`configToasterTienda`, puro y testeado):
+
+- **SIN CORTE** (`corteAplicado(tema.origenAccion)` falso — Nayoli y todo tenant sin CORTE): la
+  config es EXACTAMENTE la que tenía el Toaster de `app/layout.tsx` antes de este slice
+  (`richColors`, `top-center`, sin `duration` ni `style` propios) — sólo cambió DE DÓNDE sale, no
+  CÓMO se ve. Byte a byte, medido (§4).
+- **CON CORTE**: `richColors` se apaga (si quedara prendido, el verde/rojo de la librería pisaría
+  la paleta del cliente en cada toast — exactamente lo que este slice existe para sacar) y el color
+  sale de las 3 raíces del tema vía las custom properties que sonner YA consume en su propia hoja
+  de estilos (`--normal-bg`/`--normal-text`/`--border-radius`, confirmado leyendo
+  `node_modules/sonner/dist/index.mjs`: `[data-sonner-toast][data-styled=true]{background:
+  var(--normal-bg);color:var(--normal-text);border-radius:var(--border-radius);...}`) — así el
+  toast se recolorea SIN pelear contra el CSS de la librería: layout, padding y el ícono de check
+  (el default de `type:'success'`, ya un SVG con `fill="currentColor"` — sigue a `--normal-text`
+  sin tocar nada) quedan intactos. `position="bottom-left"` (prop real, no un hack de CSS) da la
+  posición Y el comportamiento responsive de fábrica de sonner: a <600px el propio
+  `@media (max-width:600px)` de la librería pasa el toast a ancho completo con margen — "en el
+  teléfono, a lo ancho con el margen" (spec) sale GRATIS, sin una línea de CSS nuestra. Duración
+  visible: `3200ms`, la del prototipo (`js/app.js:162`, `setTimeout(...,3200)`).
+- **El ERROR se distingue sin volver al rojo genérico**: con `richColors` apagado, éxito y error
+  comparten la MISMA banda oscura — "sigue distinguiéndose" (spec) exige un segundo trazo. Un
+  filete de 3px del ACENTO del tema (`--sf-acento`, ya documentado en `globals.css` como rol de
+  BORDE) sobre el lado derecho del toast, escopeado a `.toast-tienda [data-sonner-toast]
+  [data-type="error"]` — la clase `.toast-tienda` la agrega `ToasterTienda.tsx` SÓLO con CORTE
+  (`config.vars` no-null), para no pintarle el filete al error de Nayoli, que comparte el MISMO
+  `--sf-acento` (rol de marca, no de CORTE).
+- **Movimiento reducido**: sonner trae su propio `@media (prefers-reduced-motion)` que anula
+  `transition`/`animation` en `[data-sonner-toast]` (confirmado en el paquete instalado) — no hizo
+  falta agregar nada acá; "sin desplazamiento" es el comportamiento de fábrica.
+
+### 3 · `corteAplicado` — CUARTO consumidor, sin cambiar el contrato
+
+`ToasterTienda` lee `useSiteContent().tema.origenAccion` y llama a `corteAplicado`
+(`lib/config/themes.ts`), el MISMO gate que ya usan `ScrollInercia`, `template.tsx`/`EntradaPagina`
+y `pdp-botones.ts`/`VistaRapidaProducto.tsx` — no una quinta comparación de raíces. Se sumó una
+línea al docstring de `corteAplicado` nombrando este consumidor, y una nota en `themes.test.ts`/
+`theme-mirador.test.ts` (§ el bloque de tests de `corteAplicado`) — el CONTRATO del gate no cambió,
+así que no hicieron falta tests nuevos ahí; los tests nuevos de este slice viven en
+`lib/storefront/toast-tienda.test.ts` (afirman `configToasterTienda`, no el gate).
+
+### 4 · Medido, no supuesto — ANTES (muestrario desplegado) / DESPUÉS (esta rama)
+
+Script THROWAWAY `.scratch/capturar-toast.mjs` (gitignoreado; el arnés compartido
+`capturar-seccion.ts` no soporta clicks, límite ya documentado en esta misma rama,
+`MUESTRARIO-CARRITO-COMPOSICION-1`) — MISMOS flags de Postgres efímero que
+`scripts/postgres-efimero.sh`, seed canónico, `aplicarPreset(CORTE)` **persistido** (no el mirador
+`?tema=`, para que `origenAccion` llegue al layout tal cual), `next build` + `next start`,
+Playwright aislado (`.arnes-tooling/playwright`, el mismo que ya usan `capturar-seccion.ts`/
+`verificar-nayoli-visual.ts`).
+
+**ANTES** — `https://coffee-template-app-onix.vercel.app/` (el muestrario ya desplegado, SIN este
+código), agregando un producto al carrito desde el riel, 1440×900: toast genérico verde,
+top-center, esquinas redondeadas — el `richColors` de fábrica de sonner. Capturas:
+`.scratch/capturas-toast/antes/riel-{1440,390}-full.png`.
+
+**DESPUÉS** — base efímera propia (Postgres :55462), CORTE persistido, `next start` en :3497, MISMA
+interacción:
+
+| viewport | computados del `[data-sonner-toast]` |
+| --- | --- |
+| 1440×900 | `background-color: rgb(16, 36, 7)` (= `--sf-tinta` de CORTE, `#102407`) · `color: rgb(253, 251, 247)` (= `--sf-fondo`, `#fdfbf7`) · `border-radius: 0px` · `position: absolute` · offset `left:24 bottom:24` |
+| 390×844 | MISMOS colores/radio · offset `left:16 right:16 bottom:16` — ancho completo con margen, el `@media` de sonner, § 2 |
+
+Capturas: `.scratch/capturas-toast/despues/riel-{1440,390}-full.png`. El toast dice "Café Nayoli —
+En grano 250 g agregado al carrito", banda oscura, texto claro, ícono de check, esquinas rectas,
+abajo a la izquierda (1440) / a todo lo ancho con margen (390) — el estilo `.toast`/`.toast.is-open`
+del prototipo, medido, no argumentado.
+
+**El ERROR** — Vista Rápida, tope de cantidad (`maxCompra = min(stock, 20)`, `/api/catalog`),
+21 clicks en "Agregar una unidad" → `toast.error("Cantidad no disponible")`. Computado:
+`background-color: rgb(16, 36, 7)` · `color: rgb(253, 251, 247)` · `border-right: 3px solid
+rgb(167, 0, 4)` (= `--sf-acento` de CORTE, `#a70004`) · `data-type: "error"` — la MISMA banda,
+distinguida por el filete, sin el rojo genérico. Captura:
+`.scratch/capturas-toast/error-despues/rastrear-error-toast.png`.
+
+**El panel** — login como el owner del seed (`admin@sierranativa.co`/`ChangeMe123!`, los defaults
+de `prisma/seed.ts` para `SEED_OWNER_EMAIL`/`ADMIN_PASSWORD` — no un dato de `.env`), Perfil →
+"Guardar cambios" → toast "Perfil actualizado". Computado (DESPUÉS, sobre la MISMA base con CORTE
+aplicado al tenant storefront): `background-color: rgb(236, 253, 243)` · `color: rgb(0, 138, 46)` ·
+`border-radius: 8px` — el `richColors` genérico de sonner, IDÉNTICO al de ANTES (no se corrió un
+build local aparte con el código viejo para el panel: `components/ui/sonner.tsx` renderiza
+`<Sonner richColors position="top-center" />`, las MISMAS dos props, literal, que el
+`<Toaster richColors position="top-center" />` de `app/layout.tsx` antes de este slice — la
+equivalencia es de CÓDIGO, y la captura DESPUÉS confirma que el resultado renderizado sigue siendo
+el genérico). Captura: `.scratch/capturas-toast/panel-despues/perfil-toast.png`.
+
+### 5 · Gate
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2715/2715** — verde (incluye los 3 tests nuevos de `lib/storefront/toast-tienda.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **242/242** — verde |
+| `npx next build` | limpio — `Compiled successfully` + `Finished TypeScript`, 53 rutas |
+| `npm run guarda:color` (píxeles, esta rama vs. fixture de Nayoli) | **0px** en las 6 rutas + 2 hovers (consciente de AA y en crudo) — la rama SÍ toca el sistema de color (`lib/config/themes.ts` importa directo `palette-derive.ts`/`fuentes.ts`/`formas.ts`, y `app/globals.css` es ancla declarada), así que corrió el diff completo |
+| `npm run verificar:nayoli:visual` (píxeles, `main` vs. esta rama) | **0px** en las 6 rutas + 2 hovers |
+| `npm run gate` (`typecheck && test && test:integracion`) en el árbol FINAL | **exit 0** |
+
+El 0px de las dos herramientas de diff confirma lo esperado por diseño: un Toaster montado pero SIN
+avisos activos no pinta un solo píxel (`if (!filteredToasts.length) return null`, verificado contra
+la fuente de sonner) — mover el mount de la raíz al layout del storefront no podía, por
+construcción, mover un píxel de Nayoli.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `ToasterTienda`, `toast-tienda.ts`/`configToasterTienda`,
+`esRutaAdmin`, `components/ui/sonner.tsx`, `.toast-tienda`, `richColors`, `app/layout.tsx`,
+`corteAplicado`. Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones** de
+`ToasterTienda`/`toast-tienda`/`esRutaAdmin`/`configToasterTienda`/`components/ui/sonner`/
+`richColors`/`corteAplicado`/`themes.ts`/`origenAccion`/`sonner` — `CLAUDE.md` no documenta
+componentes ni mecanismos individuales de CORTE (esa doctrina vive en `DECISIONS.md`, no en
+`CLAUDE.md`, § lo que ya afirmaban los cierres anteriores de esta rama). `app/layout.tsx` aparece
+UNA vez (línea de Identidad, sobre las convenciones de favicon/`app/icon.svg` — nada sobre el
+Toaster). La ÚNICA sección relevante por CONTENIDO es **"Toast = éxito, inline = error — la
+división de vehículos"** (`CLAUDE.md`, admin: `toast.success` para el éxito, `<ErrorDialogo>`
+DENTRO del diálogo para el error): describe una convención de los MODALES de admin sobre CUÁNDO
+usar toast vs. inline — no toca el mecanismo de mount ni el estilo visual del Toaster, ninguno de
+los dos tocados por este diff. Sigue siendo verdadera: los call sites de `toast.success/error` de
+admin (~20 archivos, `ConfirmDeleteDialog`, `RegisterPaymentModal`, etc.) no se tocaron, y el
+Toaster que los sirve renderiza exactamente lo mismo que antes. Nada que corregir.
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** Un visitante con CORTE ve el toast de la tienda ("agregado al
+carrito", errores de checkout/vista rápida) con banda oscura del tema, texto claro, ícono de check,
+esquinas rectas, abajo a la izquierda (a lo ancho con margen en el teléfono), y el error distinguido
+por un filete del acento — en vez del genérico verde/rojo redondeado de la librería, arriba al
+centro. Nayoli (y todo tenant sin CORTE) y el panel admin quedan sin cambio — MEDIDO 0px (§5) y por
+captura (§4), no sólo argumentado.
+
+**`strings:`** ninguno nuevo — el cambio es de color/forma/posición del toast, sin texto nuevo (los
+textos de los ~30 call sites, "agregado al carrito", "Cantidad no disponible", etc., no se
+tocaron).
+
+### Open follow-ups
+
+- `TOAST-GENERICO-ALLOWLIST-RUTAS-1`: `esRutaAdmin` (`components/ui/sonner.tsx`) es un allowlist
+  a mano de los 4 prefijos de `(admin)`, no derivado del filesystem (§1, "LÍMITE DECLARADO"). Un
+  quinto top-level fuera de `/admin/*` que se agregue sin tocar esa lista se queda sin Toaster en
+  esa página — silencioso, no un error. No se cierra acá porque hoy no hay un quinto candidato;
+  queda nombrado para cuando aparezca uno.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE lee
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES."* El owner ya aprobó la ESCRITURA de este slice específico (§ `approval-reason` del spec);
+el MERGE sigue gateado aparte.
+
+Cierra `TOAST-COMO-PROTOTIPO-1`.

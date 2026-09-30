@@ -7,6 +7,7 @@ import CartDrawer from "@/components/storefront/CartDrawer";
 import BackToTop from "@/components/storefront/BackToTop";
 import RielSocial from "@/components/storefront/RielSocial";
 import ScrollInercia from "@/components/storefront/ScrollInercia";
+import ToasterTienda from "@/components/storefront/ToasterTienda";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
 import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvider";
@@ -162,6 +163,11 @@ export default async function StorefrontLayout({
                     `corteAplicado(tema.origenAccion)` (AUSENTE/null → no-op, byte-idéntico). Sin
                     render propio (`return null` siempre): sólo adjunta/retira listeners de `window`. */}
                 <ScrollInercia />
+                {/* ToasterTienda (§ TOAST-COMO-PROTOTIPO-1): MISMO mecanismo que BackToTop/RielSocial/
+                    ScrollInercia, montado SIEMPRE — decide su propio estilo adentro por
+                    `corteAplicado(content.tema.origenAccion)`. Es el ÚNICO Toaster de la tienda: el
+                    genérico de `app/layout.tsx` se apaga fuera de admin/pre-auth para dejarle el paso. */}
+                <ToasterTienda />
               </div>
             </CartProvider>
           </SiteContentProvider>
