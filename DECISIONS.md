@@ -33628,3 +33628,133 @@ viaja en el mismo commit que el cambio de storefront (§2), así que el mismo ve
 dos.
 
 Cierra `HISTORIA-FOTOS-PANEL-Y-GIRO-1`.
+
+## 2026-09-29 — El botón "volver arriba" pasa a CÍRCULO bajo CORTE, y Presentaciones baja debajo de El origen (`BACKTOTOP-REDONDO-Y-ORDEN-1`)
+
+Dos ajustes del gate del owner del 2026-09-29: *"Lo que rodea a la flecha para ir hacia arriba
+debería ser redondo como en el muestrario, no cuadriculado"* y *"ubica la sección 'Presentaciones'
+debajo de la sección el origen"*.
+
+### 1 · El rol que faltaba: PÍLDORA REAL, distinta del radio de botón
+
+**El defecto, medido:** `BackToTop.tsx` usaba `sf-pildora` (`--sf-pildora`), que bajo la forma
+`'recta'` de CORTE vale `0` — el radio de BOTÓN/CHROME (`docs/prototipos/cafeone/css/app.css:8`,
+"Buttons and interface chrome are SQUARE"). Pero el propio prototipo distingue DOS roles:
+`--radius-button:0px` (botones) y `--radius-pill:999px` (`tokens.css:170-171`), CONSTANTE e
+INDEPENDIENTE del primero — lo usa su `.to-top` (`css/app.css:340-353`), la barra de scroll, badges
+y progress bars, todos circulares aunque el chrome de botón sea recto. `.sf-pildora` colapsaba los
+dos roles en uno, y por eso el botón salía cuadrado bajo CORTE.
+
+**La decisión: se le dio al sistema de formas el rol que faltaba, en vez de un `rounded-full`
+suelto en el componente** — mismo criterio que `radioTile` (§ NUESTRO-CAFE-RADIO-TILE-1): un token
+que nace YA CONECTADO, en el mismo slice que lo agrega.
+
+- `lib/config/formas.ts`: campo nuevo `Forma.pildoraReal` (`--sf-pildora-real`). Vale `9999px` en
+  LAS TRES formas (suave/recta/mínima) — a diferencia de `radioTile`, que "continúa la filosofía de
+  cada forma" (valores distintos por forma), `pildoraReal` no tiene ese grado de libertad: una
+  píldora real no es un matiz de personalidad, el propio diseño fuente la declara ajena al radio de
+  botón. `varsDeForma` pasa de 11 a 12 vars emitidas.
+- `app/globals.css`: `.sf-pildora-real { border-radius: var(--sf-pildora-real, calc(infinity *
+  1px)); }` — mismo fallback circular que `.sf-pildora`, así que Suave/Nayoli y cualquier forma que
+  nunca declare el token quedan exactamente igual que antes.
+- `components/storefront/BackToTop.tsx`: la clase pasa de `sf-pildora` a `sf-pildora-real`. Único
+  consumidor hoy.
+
+**Medido contra el muestrario real, ANTES y DESPUÉS** (ad-hoc Playwright, `.scratch/` — reusa la
+instalación aislada que ya dejó `ARNES-CAPTURA-MUESTRARIO-REAL-1` en `.arnes-tooling/playwright/`;
+`git status --porcelain` tras generar las capturas: sólo los siete archivos de `touches:` con
+código, cero rastro de los scripts ad-hoc ni de las capturas):
+
+| | comando | `getComputedStyle(...).borderRadius` |
+| --- | --- | --- |
+| **ANTES** (main desplegado, `https://coffee-template-app-onix.vercel.app/`, sin código de esta rama) | Playwright directo: `goto` → `window.scrollTo(0,2000)` → `locator('button[aria-label="Volver arriba"]')` | **`0px`** — cuadrado, confirmado por captura (`antes-reposo.png`/`antes-hover.png`) |
+| **DESPUÉS** (esta rama, `d08c247`, CORTE aplicado a Postgres efímero propio — puerto 55499, base `backtotop_captura`, nunca development/production) | ephemeral pg → `migrate deploy` → `CONFIRMAR_TENANT="Configura tu tienda" npx tsx prisma/aplicar-preset.ts CORTE` → `next build && next start -p 3498` → Playwright | **`9999px`** — círculo, confirmado por captura (`despues-reposo.png`/`despues-hover.png`) |
+
+El hover se capturó en los dos lados (`locator.hover()` + `waitForTimeout(400)` para la transición
+de color) — el fondo oscurece en los dos, el borde sigue siendo el mismo (`border-radius` no
+depende de `:hover`, ninguna clase de hover se tocó). Las 4 capturas quedan en
+`.scratch/backtotop-capturas/` (gitignoreado, no comiteado).
+
+**Por qué esto no toca Nayoli ni ningún otro preset:** `pildoraReal` vale `9999px` en las tres
+formas, así que 'suave' (Nayoli, nunca emite `<style>`) y 'mínima' (VETA) quedan con el MISMO valor
+que su fallback CSS ya daba — cero cambio observable. Sólo 'recta' (CORTE y PLIEGO) tenía el
+defecto (`pildora:0`), y sólo CORTE monta `BackToTop` hoy (`volverArribaVisible`, el ÚNICO preset
+que lo declara, § `cromo-volver-arriba.test.ts`) — PLIEGO comparte la forma pero no el componente,
+así que no hay efecto visible en PLIEGO tampoco.
+
+### 2 · El orden de la home — decisión del owner, NO el del prototipo
+
+`CORTE.orden` (`lib/config/themes.ts`) pasa de
+`['hero','marquesina','featured','presentaciones','brandStory','origen','subscriptionCTA']` a
+`['hero','marquesina','featured','brandStory','origen','presentaciones','subscriptionCTA']` —
+`presentaciones` de la 4ª a la 6ª posición.
+
+**Esto DIVERGE del `CENSO-MUESTRARIO-1` a propósito, y queda escrito para que nadie lo revierta
+creyéndolo un error de merge:** el prototipo real (`docs/prototipos/cafeone/index.html`) sigue
+montando `.section#presentaciones` (226-249) ANTES de `.section.historia#historia`/`.section#origen`
+(250-312) — la medición original de `orden` (el comentario que ya vivía en `themes.ts`) sigue
+siendo CIERTA sobre el prototipo; lo que cambió es que el owner pidió, explícitamente, un orden
+DISTINTO del medido. El comentario en el código documenta las dos cosas: qué mide el censo, y por
+qué esta línea ya no lo reproduce.
+
+**La pregunta que el spec planteó — ¿un tenant que YA tenía CORTE aplicado ve el orden nuevo al
+re-aplicar?** SÍ, medido contra el mecanismo de fusión de tres vías (`mergePresetEnContent`,
+§ REAPPLY-PRESERVA-OVERRIDES-1): `orden` se fusiona como BLOB ENTERO y **no tiene picker en el
+panel** (§ PENDIENTE_PANEL, `panel-controles.ts`: "SIN PICKER, se compone en el onboarding"), así
+que el `content.orden` de cualquier tenant SIEMPRE coincide con su propio `presetSnapshot['orden']`
+— nadie puede desviarlo a mano. La fusión trata "actual === snapshot" como "el dueño no lo tocó" y
+propaga lo que el preset declara AHORA. Test nuevo en `themes.test.ts` que lo ejerce con los
+valores REALES viejo/nuevo de CORTE (simulando un tenant con el snapshot y el `orden` en la
+secuencia de ANTES de este slice, re-aplicando CORTE y viendo el `orden` de DESPUÉS).
+
+**El dueño debe RE-APLICAR CORTE** (`npx tsx prisma/aplicar-preset.ts CORTE` contra su base, o el
+flujo de onboarding que lo invoque) **para ver el orden nuevo en un tenant que ya lo tenía
+aplicado** — no es automático sin ese paso; el mirador (`?tema=CORTE`) y una base fresca sí lo ven
+sin re-aplicar nada, porque calculan el merge en el momento.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2614/2614** (2613 + 1 nuevo, el test de propagación de `orden` en `themes.test.ts`) |
+| `npm run test:integracion` | **242/242** (sin cambios — este slice no toca ninguna cadena de integración) |
+| `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (`main`=`9a7ab97` vs esta rama en `d08c247`) |
+| `npm run guarda:color` | **IDÉNTICO, 0px** en las 8 capturas contra el fixture commiteado |
+| BackToTop antes/después (ad-hoc, `.scratch/`) | `border-radius` 0px → 9999px, § arriba |
+
+### `touches:` — los siete archivos, todos usados
+
+`components/storefront/BackToTop.tsx` (clase + docstring), `lib/config/formas.ts` (campo
+`pildoraReal` + docstring), `lib/config/formas.test.ts` (11→12 vars, nuevas aserciones),
+`app/globals.css` (`.sf-pildora-real`), `lib/config/themes.ts` (`CORTE.orden` + comentario),
+`lib/config/themes.test.ts` (orden nuevo + test de propagación), `lib/config/cromo-volver-arriba.
+test.ts` (aserción de clase). `DECISIONS.md` (este asiento). No se tocó ningún archivo fuera de la
+lista declarada.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados uno por uno contra `CLAUDE.md`: `BackToTop`,
+`sf-pildora`, `pildoraReal`, `formas.ts`, `themes.test.ts`, `cromo-volver-arriba`, `CORTE.orden` →
+**CERO apariciones**, ninguno de los siete se menciona en `CLAUDE.md`. Los dos términos genéricos
+que SÍ aparecen —`presentaciones`\` (17 apariciones) y `globals.css` (7 apariciones)— se revisaron
+uno por uno: las 17 de `presentaciones` hablan del modelo editable (schema, repeater, cardinalidad,
+bifurcación fija/variable), ninguna del ORDEN de la sección en la home; las 7 de `globals.css`
+hablan del `@theme` del admin, breakpoints y `.card-hover`, ninguna de `.sf-pildora`/tokens de
+forma del storefront. **Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+### `customer_bytes`
+
+**`changed: true`.** Dos cambios visibles para un visitante con CORTE activo: (1) el botón "volver
+arriba" es circular en vez de cuadrado; (2) la sección "Elige tu presentación" aparece después de
+"El origen" en vez de antes. `strings:` **ninguno** — los dos son forma/orden, no copy. Nayoli no
+ve ninguno de los dos (forma `'suave'` ya era círculo; Nayoli no declara `orden` propio de CORTE).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`) — la RAMA cambia bytes visuales que un visitante con CORTE
+activo ve (la forma del botón flotante y el orden de una sección de la home). El owner ya aprobó la
+ESCRITURA (`approval-reason` del spec: el mismo gate del 2026-09-29 que pidió los dos ajustes); el
+MERGE sigue gateado aparte, por instrucción del dispatch (`exec: no`).
+
+Cierra `BACKTOTOP-REDONDO-Y-ORDEN-1`.
