@@ -35673,3 +35673,171 @@ explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
 
 Cierra `TRANSICION-ENTRE-PAGINAS-1` (pendiente del gate visual REAL del owner, capa 3, y de
 mergear).
+
+## 2026-09-30 — El encabezado de /tienda deja de chocar de color, y filtros+orden se unen en un panel (`TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`)
+
+Gate del owner, con captura del panel "Filter & Sort" de Cafeone adjunta
+(`.scratch/refs/cafeone-filtrar-ordenar.png`): *"Los colores de el espacio en Nuestra tienda 4
+productos origen colombiano, me parece que chocan con el resto de la pagina. El Estilo de la
+seccion parece sin terminar. La seccion de filtros tiene un estilo y la de destacados otro.
+Combinemoslos como en la imagen adjunta."*
+
+### 1 · El choque de color, MEDIDO — por qué el fix es de COMPONENTE, no de `themes.ts`
+
+El encabezado de siempre pinta con `--sf-superficie`/`--sf-sobre-superficie` — la familia RAÍZ
+(`palette-derive.ts`, `derivarPaleta`). Corrido el motor contra las raíces reales de CORTE
+(`{fondo:'#fdfbf7', tinta:'#102407', acento:'#a70004'}` + `{origenTexto:'tinta',
+origenAccion:'acento'}`):
+
+```
+superficie          → #f3eadb
+sobre-superficie     → #732a00   (NO respeta origenTexto)
+sobre-superficie-suave → #961700 (NO respeta origenTexto)
+texto               → #3d3000   (SÍ respeta origenTexto — el que pinta el resto del storefront)
+texto-suave         → #1d2a00   (SÍ respeta origenTexto)
+tinta               → #102407
+```
+
+`sobre-superficie`/`-suave` se derivan SIEMPRE de `mezclar(acento, tinta, …)` — `derivarPaleta`
+sólo re-deriva `acento-texto`/`texto`/`texto-suave` cuando `origenTexto==='tinta'` (§
+TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1); la familia `superficie` queda fuera de ese `if` a
+propósito (es RAÍZ, § el comentario de `palette-derive.ts:285-303`). Resultado: el h1/p del
+encabezado (`--sf-sobre-superficie`, #732a00, un rojo-marrón) y CUALQUIER OTRO título/párrafo de
+CORTE (`--sf-texto`, #3d3000, un verde-oliva oscuro — `FeaturedProductsGrilla`,
+`PreguntasFrecuentes`, `NosotrosHistoria`) son dos familias de color DISTINTAS para el MISMO rol
+("texto de lectura"), en la MISMA página — el choque que el owner reportó, medido, no supuesto.
+
+**El fix queda en `app/(storefront)/tienda/page.tsx`, no en `themes.ts`/`palette-derive.ts`**: CORTE
+ya declara `origenTexto`/`origenAccion` correctamente (nada que corregir ahí), y la asimetría real
+vive en `palette-derive.ts`, fuera del `touches:` de este slice — corregirla ahí sería una tanda de
+alcance MAYOR (movería el color de CUALQUIER consumidor de `--sf-sobre-superficie`/`-suave` en TODO
+el storefront, no sólo /tienda). La salida de esta tanda: dejar de leer esos dos tokens RAÍZ en el
+encabezado y usar los MISMOS dos que ya usa el resto de una banda de contenido plana de CORTE
+(`PreguntasFrecuentes.tsx`, `NosotrosHistoria.tsx`): `--sf-fondo` de banda + `--sf-tinta` (título) +
+`--sf-texto` (meta).
+
+### 2 · La rama se BIFURCA entera — `ShopLegacy`/`ShopCorte`, gateadas por `navTratamiento.posicion`
+
+`ShopInner` (el componente de siempre) se renombró a `ShopLegacy`, **sin editar una sola línea de
+su cuerpo** — byte a byte el código de antes de este slice. Un nuevo `ShopCorte` implementa el
+encabezado corregido + el panel combinado; un `ShopInner` de tres líneas elige entre los dos por
+`navTratamiento.posicion` (el MISMO eje que ya usan `contenedorAnchoClase`/`navOffsetClase` en este
+archivo). "Nayoli byte-idéntica" es acá una garantía de NO-EDICIÓN del código existente, no de una
+reescritura cuidadosa — MEDIDO en las capas de píxeles (§4).
+
+### 3 · El panel "Filtrar y ordenar" — `FiltrarOrdenar.tsx` + `lib/storefront/filtrar-ordenar.ts`
+
+Sólo se monta bajo CORTE. Fila ícono+título (`SlidersHorizontal` + "Filtrar y ordenar") con un
+filete debajo (`sf-divisor-b`); al abrir, columnas — Disponibilidad (checkboxes nativos con
+conteo, `accent-[var(--sf-acento)]`, mismo patrón que `AceptacionesPasarela.tsx`/`checkout/
+page.tsx`), Categoría y Nivel de Tostado (hide-on-empty si el catálogo no los puebla, MISMA
+derivación que `ShopLegacy` — `categoriasDelCatalogo`/`catalogoTieneTostado`, sin tocar), Precio
+(slider de rango `@radix-ui/react-slider`, YA dependencia del repo — NO se reusó
+`components/ui/slider.tsx`, que lee tokens ADMIN `--primary`/`--background`, ajenos al storefront)
+y Ordenar por (chips). Cierra con "Aplicar filtro" (primario, `--sf-accion`/`--sf-accion-txt`) que
+cierra el panel.
+
+**TODOS los selectores (Categoría, Tostado, Ordenar por) comparten la MISMA forma de chip**
+—border-only, activo con borde `--sf-tinta`— medida contra la referencia: es la unificación
+"filtros" + "destacados" que el owner pidió, no dos estilos que conviven.
+
+**Los órdenes son los de hoy MÁS los que se pueden con datos reales — ninguno inventado**
+(`lib/storefront/filtrar-ordenar.ts`, `OPCIONES_ORDEN`): Destacados (el orden que ya entrega el
+servidor, `createdAt asc`, sin redefinir), Más vendidos (campo real `Product.bestseller`), Nombre
+A-Z/Z-A, Precio menor/mayor. Se descartaron "Más recientes/antiguos" (duplicarían Destacados, que
+YA es ese orden) y "Más relevantes" (no hay puntaje de búsqueda que ordenar) — un chip que da el
+MISMO resultado que otro confunde, no suma.
+
+La lógica (ordenar/filtrar/contar/rango) es PURA, en `lib/storefront/filtrar-ordenar.ts`, capa 1,
+27 tests (`filtrar-ordenar.test.ts`). El eje viejo de `ShopLegacy` (search+categoría+tostado+select)
+NO se tocó ni se reusó desde este módulo — dos implementaciones separadas, a propósito, para que un
+detalle de la nueva (p. ej. `.trim()` en la búsqueda) no pudiera filtrarse a la rama que debe
+quedar byte-idéntica.
+
+### 4 · DESVÍO — el botón "Aplicar filtro" no usa el token de hover de la familia CTA-primario
+
+El botón primario de la familia (`--sf-accion` fondo, `--sf-accion-txt` texto,
+§ CTA-PRIMARIO-COLOR-Y-HOVER-1) normalmente también lleva `hover:bg-[var(--sf-accion-hover,…)]`.
+`lib/config/cta-primario.test.ts` mantiene un CENSO EXHAUSTIVO por source-grep de qué archivos
+contienen ese string — y ese archivo de test queda FUERA de `touches:` de este slice. Agregar
+`FiltrarOrdenar.tsx` a esa lista habría sido tocar un archivo no aprobado.
+
+**Medido, no asumido**: se intentó primero (fondo/texto correctos + hover de la familia) y
+`npm test` falló exactamente ese censo (`lib/config/cta-primario.test.ts:174`, la lista
+`CONSUMIDORES + CONSUMIDORES_HOVER_ACTIVE` dejó de ser exhaustiva). La salida: el fondo/texto en
+reposo SÍ usan los tokens correctos (`--sf-accion`/`--sf-accion-txt`, coherente con el resto del
+sitio); el hover usa `hover:opacity-90` (genérico, sin ese token) en vez de sumarse al censo. Un
+CTA nuevo con el hover completo de la familia es trabajo LEGÍTIMO, pero de un slice que SÍ tenga
+`cta-primario.test.ts` en su `touches:` — no de éste.
+
+### 5 · Gate
+
+- `npm run typecheck`: limpio, cero errores.
+- `npm test`: **2712/2712** (2685 + 27 casos nuevos de `lib/storefront/filtrar-ordenar.test.ts`).
+- `npm run test:integracion`: **242/242**.
+- `npm run build`: limpio; `/tienda` sigue `ƒ` (dinámico), sin cambio de ruta.
+- `npm run verificar:nayoli:visual`: **0px** en las 6 rutas + 2 hovers (consciente de
+  antialiasing Y crudo), main vs. rama.
+- `npm run guarda:color`: **0px** en las 6 rutas + 2 hovers — con un HALLAZGO de método: la
+  PRIMERA corrida (inmediatamente después de una sesión de `next build`/`next start` manuales
+  contra el mismo `.next/` compartido del repo, para capturar antes/después de /tienda bajo CORTE)
+  dio diferencias en LAS OCHO capturas, incluidas rutas que este diff NUNCA toca (`/`, `/checkout`,
+  `/nosotros`, `/suscripciones`, los dos hovers de `ProductCard`). Investigado antes de creer el
+  número: con `page.tsx` revertido a mano a HEAD (`git checkout HEAD -- app/(storefront)/tienda/
+  page.tsx`) la corrida dio **0px** — descartando que el propio cambio fuera la causa, porque
+  `page.tsx` es un componente hoja que no puede afectar `/checkout`/`/nosotros`. Con el cambio
+  RESTAURADO, dos corridas más seguidas dieron **0px** ambas. Conclusión: la primera corrida fue
+  RUIDO de caché de build (`next build` sobreescribe el `.next/` que TODOS mis builds manuales
+  compartieron esa sesión — la misma precondición que `capturar-seccion.ts`/`test-integracion.sh`
+  ya documentan para otro script), no una regresión — MEDIDO con dos controles, no descartado a
+  ojo.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `app/(storefront)/tienda/page.tsx`, `ShopLegacy`, `ShopCorte`,
+`ShopInner`, `components/storefront/tienda/FiltrarOrdenar.tsx`,
+`lib/storefront/filtrar-ordenar.ts` (`ordenarCatalogo`, `filtrarCatalogo`, `contarDisponibilidad`,
+`rangoPrecioCatalogo`, `OPCIONES_ORDEN`, `OrdenCatalogo`, `DisponibilidadFiltro`). Grepeados contra
+`CLAUDE.md`: **CERO apariciones, los once** (incluidos `/tienda/page.tsx`, `SlidersHorizontal`,
+`showFilters`, `activeFilters`, `sf-superficie`/`sf-sobre-superficie` como símbolos). Las menciones
+existentes de `/tienda` en `CLAUDE.md` son todas sobre `/admin/tienda` (el editor) o sobre el
+detalle de producto (`/tienda/[slug]`) — ninguna describe el encabezado ni el panel de filtros de
+la página de listado, así que ninguna frase se vuelve falsa por este diff. Nada que corregir.
+
+### `customer_bytes`
+
+**`changed: true`, y sólo bajo CORTE.** Un visitante con CORTE activo ve, en /tienda: el
+encabezado ("Nuestra Tienda", el conteo, "Origen colombiano") en los mismos tonos que el resto de
+la página en vez de un rojo-marrón que desentonaba; el botón "Filtros" + el `<select>` de orden
+reemplazados por un único trigger "Filtrar y ordenar" que despliega Disponibilidad/Categoría/
+Tostado/Precio/Ordenar en un panel; dos chips de orden nuevos ("Más vendidos", "Nombre: Z-A"); un
+filtro de disponibilidad y uno de rango de precio que no existían. Nayoli (y todo tenant sin
+CORTE) queda byte-idéntico — MEDIDO 0px, §5.
+
+**`strings:`** "Filtrar y ordenar", "Disponibilidad", "Disponible", "Agotado", "Categoría",
+"Nivel de Tostado", "Todas"/"Todos", "Precio", "Ordenar por", "Más vendidos", "Nombre: A-Z",
+"Nombre: Z-A", "Aplicar filtro".
+
+### Open follow-ups
+
+- `TIENDA-SOBRE-SUPERFICIE-ORIGEN-TEXTO-1`: `palette-derive.ts` deriva `sobre-superficie`/
+  `-suave` SIEMPRE de `mezclar(acento, tinta, …)`, sin pasar por el `if (ejes.origenTexto ===
+  'tinta')` que sí corrige `acento-texto`/`texto`/`texto-suave` (§1, arriba). Cualquier consumidor
+  FUTURO de esos dos tokens bajo un preset con `origenTexto:'tinta'` (hoy sólo CORTE) va a pintar
+  la misma familia de color equivocada que este slice sacó de /tienda. Arreglarlo en
+  `palette-derive.ts` está fuera de `touches:` de este slice (blast radius: todo consumidor de
+  `--sf-sobre-superficie`/`-suave` en el storefront, no sólo esta página).
+- `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1`: el botón "Aplicar filtro" no lleva el hover de la
+  familia CTA-primario (§4, arriba) porque sumarlo exige tocar `lib/config/cta-primario.test.ts`,
+  fuera de `touches:`. Si se retoma: agregar `FiltrarOrdenar.tsx` a `CONSUMIDORES_HOVER_ACTIVE` en
+  ese test y migrar el botón a `hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]` +
+  `active:bg-[var(--sf-accion-active,var(--sf-tostado-3))]`.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — cambia lo que un visitante con CORTE ve en /tienda
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN AWAITING_APPROVAL. NO
+MERGEES."*
+
+Cierra `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` (pendiente del gate visual REAL del owner, capa 3,
+y de mergear).
