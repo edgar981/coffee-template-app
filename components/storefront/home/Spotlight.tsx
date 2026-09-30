@@ -210,10 +210,15 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             <div className="relative aspect-[3/4] sf-radio-tile overflow-hidden bg-[var(--sf-superficie)]">
               {/* El `.bag-card .badge` del prototipo (§ RIEL-SCROLL-Y-BADGE-DORADO-1, el censo de
                   consumidores, DECISIONS.md) — mismo `style` inline condicional que StoreNav/
-                  ProductCard, byte-idéntico si `navTratamiento.badgeColor` es `null`. */}
+                  ProductCard, byte-idéntico si `navTratamiento.badgeColor` es `null`.
+
+                  TEXTO (§ BADGES-ACCIONES-Y-LOGO-CORTE-1, cierra CORTE-BADGE-BESTSELLER-TEXTO-VERDE-1):
+                  mismo cambio que `ProductCard.tsx` — el texto pasa de `--sf-tinta` (verde) al par
+                  pleno que ya usa "Cosecha 2026" en `StoreNav.tsx`, gateado por `navTratamiento.cta`
+                  (true sólo en CORTE). `false` → `text-[var(--sf-tinta)]`, byte-idéntico a hoy. */}
               {spotlight.badge && (
                 <span
-                  className="absolute top-4 left-4 z-10 text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora sf-badge"
+                  className={`absolute top-4 left-4 z-10 text-xs font-semibold bg-[var(--sf-tostado)] ${navTratamiento.cta ? "text-[var(--sf-acento-txt)]" : "text-[var(--sf-tinta)]"} px-3 py-1 sf-pildora sf-badge`}
                   style={navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
                 >{spotlight.badge}</span>
               )}

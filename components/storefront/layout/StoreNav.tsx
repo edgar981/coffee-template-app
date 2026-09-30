@@ -475,6 +475,12 @@ export default function StoreNav() {
   // `NavWordmarkContent`—, DISTINTO de `navTratamiento.activo` (arriba, que trata los LINKS del
   // nav). `false` (todo tenant salvo CORTE) → `Logo` ignora la prop (default `false`) y su rama
   // `subtitle` renderiza EXACTAMENTE como siempre.
+  //
+  // `transicionColor` (§ BADGES-ACCIONES-Y-LOGO-CORTE-1, cierra LOGO-WORDMARK-SIN-TRANSICION-1):
+  // gateado por `navTratamiento.posicion` — el MISMO booleano que ya gatea `navFilaTransicionClase`
+  // (arriba), para que el filete y el wordmark transicionen JUNTOS al alternar `navClaro` (flotando↔
+  // sólido, home↔interna). `false` (todo tenant salvo CORTE) → `Logo` ignora la prop (default
+  // `false`) y el wordmark sigue saltando de golpe, byte a byte.
   const logoLink = (
     <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
       {/* Cream lockup over the transparent hero, espresso once scrolled */}
@@ -484,6 +490,7 @@ export default function StoreNav() {
         conMark={STOREFRONT_TIENE_MARK}
         subtitle={cromo.navSubtitulo ? tagline : undefined}
         wordmarkTratado={navWordmark.activo}
+        transicionColor={navTratamiento.posicion}
       />
     </Link>
   );

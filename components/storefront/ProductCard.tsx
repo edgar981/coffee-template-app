@@ -120,14 +120,27 @@ export default function ProductCard({
           {/* Badge — el rol NO-bestseller es el `.badge` de "cosecha"/edición del prototipo (§
               RIEL-SCROLL-Y-BADGE-DORADO-1); el `style` inline sólo se activa con
               `navTratamiento.badgeColor` puesto (sólo CORTE), byte-idéntico si no. El rol
-              bestseller (`--sf-acento`, "Oferta") NO es del prototipo — no se toca. */}
+              bestseller (`--sf-acento`, "Oferta") NO es del prototipo — no se toca.
+
+              TEXTO (§ BADGES-ACCIONES-Y-LOGO-CORTE-1, cierra CORTE-BADGE-BESTSELLER-TEXTO-VERDE-1):
+              el mismo par `bg-[var(--sf-tostado)]` que ya lleva este badge pintaba texto
+              `--sf-tinta` (verde de marca) en vez del texto PLENO que ya usa el badge "Cosecha 2026"
+              del menú (`StoreNav.tsx`, `badgeSpan`, rama `navTratamiento.cta`) — gate del owner:
+              «La fuente en 'Cosecha 2026' debería ser blanca, no verde». Gateado por
+              `navTratamiento.cta` (el MISMO booleano que decide esa rama en `badgeSpan`, true SÓLO
+              en CORTE), no por `badgeColor`: ambos son `true`/no-`null` únicamente bajo CORTE hoy,
+              pero `cta` es el eje conceptual correcto (¿este preset adopta el tratamiento de
+              badge/CTA del prototipo?), mientras `badgeColor` es sólo el hex opcional de FONDO. `false`
+              (todo tenant salvo CORTE) → `text-[var(--sf-tinta)]`, byte-idéntico a hoy. */}
           {product.badge && (
             <div className="absolute top-3 left-3">
               <span
                 className={`sf-pildora sf-badge px-2.5 py-1 text-xs font-semibold ${
                   product.bestseller
                     ? "bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]"
-                    : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
+                    : navTratamiento.cta
+                      ? "bg-[var(--sf-tostado)] text-[var(--sf-acento-txt)]"
+                      : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
                 }`}
                 style={!product.bestseller && navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
               >
@@ -149,7 +162,15 @@ export default function ProductCard({
               `--duration-base`/`--ease-out` del prototipo (`docs/prototipos/cafeone/css/
               app.css:538-548`), MISMO tratamiento que `GrindChooserRiel.tsx`. Sin stagger: es el
               ÚNICO botón de esta tarjeta. Bajo Suave: la rama de ANTES de este slice, literal —
-              `rounded-full`, `transition-opacity`, sin transform — la única con 0px medido. */}
+              `rounded-full`, `transition-opacity`, sin transform — la única con 0px medido.
+
+              FONDO/SOMBRA/HOVER (§ BADGES-ACCIONES-Y-LOGO-CORTE-1) — la rama `formaCustom` re-medida
+              contra el mismo prototipo: `bg-white`+`shadow-md`+hover `--sf-acento` (dorado) pasan a
+              `bg-[var(--sf-fondo)]` sin sombra y hover `--sf-accion`/`--sf-accion-txt` (el rojo de
+              acción), igual que `GrindChooserRiel.tsx` (mismo docstring, con la medición completa
+              del mapeo `--surface-page`→`--sf-fondo`/`--action-primary`→`--sf-accion`). La rama SIN
+              `formaCustom` (Suave/Nayoli) NO se toca — sigue `bg-white`+`shadow-md`+`--sf-acento`,
+              byte a byte. */}
           {product.disponible && (
               <button
                 onClick={handleAdd}
@@ -161,7 +182,7 @@ export default function ProductCard({
                 title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
                 className={
                   formaCustom
-                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-white opacity-0 shadow-md transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:translate-x-0 group-hover:opacity-100"
+                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))] group-hover:translate-x-0 group-hover:opacity-100"
                     : "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
                 }
               >

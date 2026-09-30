@@ -273,13 +273,25 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
       {/* Las dos acciones rápidas (§ el docstring de cabecera, "quick-acts" del prototipo): SIBLINGS
           del `<Link>`, nunca hijos — un botón dentro de un enlace es inválido y además navegaría al
           clickearlo. El CONTENEDOR sólo posiciona — cada botón anima su PROPIA opacidad+posición
-          (§ ACCIONES-RAPIDAS-CUADRADAS-1, arriba), como `.quick-acts button` del prototipo. */}
+          (§ ACCIONES-RAPIDAS-CUADRADAS-1, arriba), como `.quick-acts button` del prototipo.
+
+          FONDO/SOMBRA/HOVER (§ BADGES-ACCIONES-Y-LOGO-CORTE-1, re-medido contra el muestrario
+          desplegado): `.quick-acts button` (`docs/prototipos/cafeone/css/app.css:538-548`) pinta
+          `background:var(--surface-page)` —fondo de PÁGINA, no de tarjeta— SIN sombra, y su
+          `:hover` usa `--action-primary`/`--text-on-accent` —la acción PRIMARIA (el rojo), no el
+          dorado—. `--surface-page` es `#fdfbf7` (`tokens.css:57`), el MISMO hex que la raíz
+          `fondo` de CORTE → `--sf-fondo` (base token, siempre definido, sin fallback). `--action-
+          primary`/`--text-on-accent` → `--sf-accion`/`--sf-accion-txt` (§ StoreNav.tsx, el mismo
+          par que ya viste el contador del carrito y el CTA "Explorar" de esta banda, línea de
+          abajo), CON fallback a `--sf-tostado`/`--sf-tinta`: este componente sólo renderiza bajo
+          CORTE (inalcanzable para Nayoli, § el docstring de `ProductCard.tsx`), pero el fallback
+          sigue la convención del resto del archivo (línea del CTA "Explorar"), no un dato nuevo. */}
       <div className="pointer-events-none absolute right-3 top-3 flex flex-col gap-2">
         <button
           type="button"
           onClick={(e) => onEye(producto, e.currentTarget)}
           aria-label={`Vista rápida de ${producto.nombre}`}
-          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] opacity-0 shadow-md transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
         >
           <Eye className="h-[18px] w-[18px]" />
         </button>
@@ -288,7 +300,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             type="button"
             onClick={(e) => onCart(producto, e.currentTarget)}
             aria-label={`Agregar ${producto.nombre} al carrito`}
-            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] opacity-0 shadow-md transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
           >
             <ShoppingBag className="h-[18px] w-[18px]" />
           </button>

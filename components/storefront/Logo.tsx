@@ -81,22 +81,45 @@ type LogoProps = {
       byte. Los consumidores pasan `content.navWordmark.activo`. Sólo afecta la rama `subtitle`; NO
       toca `stacked` (el footer). */
   wordmarkTratado?: boolean;
+  /** ¿El wordmark TRANSICIONA de color, en vez de saltar de golpe? (§ BADGES-ACCIONES-Y-LOGO-CORTE-1,
+      cierra LOGO-WORDMARK-SIN-TRANSICION-1, asiento de TRANSICION-ENTRE-PAGINAS-1). Ese slice le dio
+      al FILETE del nav (`navFileteClase`, `StoreNav.tsx`) una transición de color al alternar
+      `navClaro` (flotando↔sólido, home↔interna) pero no al WORDMARK, porque `Logo.tsx` no estaba en
+      su `touches:`. DEFAULT false = el salto de HOY, byte a byte — sólo el ÚNICO consumidor que
+      alterna `variant` dinámicamente (`StoreNav.tsx`, vía `navClaro`) lo activa, gateado por
+      `navTratamiento.posicion` (el MISMO booleano que gatea `navFilaTransicionClase`, para que las
+      dos transiciones — filete y wordmark — enciendan y apaguen JUNTAS, nunca una sin la otra). El
+      footer (`stacked`) y el preview del panel (`PaletaSeccion.tsx`) montan `variant` FIJO — nunca lo
+      alternan — así que no lo necesitan y no lo pasan. `transition-colors duration-300`: MISMA
+      duración que `navFilaTransicionClase` (`' transition-colors duration-300'`, `StoreNav.tsx`);
+      Tailwind no declara curva propia en ninguna de las dos, así que las dos comparten también la
+      curva default del navegador — no hay una segunda curva que igualar. */
+  transicionColor?: boolean;
 };
 
-export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false }: LogoProps) {
+export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false }: LogoProps) {
   // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
   // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
   // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
   // el fallback a `--sf-fondo` es el que Nayoli sigue resolviendo (raíces null → sin inyección).
+  //
+  // `wordmark` SE QUEDA de UNA sola clase a propósito (§ BADGES-ACCIONES-Y-LOGO-CORTE-1): más abajo
+  // (rama `subtitle` + `wordmarkTratado`) se le concatena `/60` en un TEMPLATE LITERAL crudo
+  // (`` `${wordmark}/60` ``, el modificador de opacidad de Tailwind, que sólo es válido pegado a UNA
+  // utilidad) — mezclar `transition-colors duration-300` acá adentro habría roto esa concatenación
+  // (`…duration-300/60` en vez de `…tinta)]/60`). La transición vive aparte, en `transicionClase`.
   const wordmark = variant === "light" ? "text-[var(--sf-tinta)]" : "text-[var(--sf-sobre-tinta,var(--sf-fondo))]";
   const cherry = variant === "light" ? "var(--sf-tinta)" : "var(--sf-sobre-tinta,var(--sf-fondo))";
+  // Sólo el NOMBRE (no el `subtitle`/tagline, que ya es un color fijo `--sf-tostado-5` en la rama sin
+  // tratar, y que el gate del owner no nombró): "el wordmark cambia de color de golpe" es del nombre.
+  const transicionClase = transicionColor ? "transition-colors duration-300" : "";
 
   if (stacked) {
     return (
       <div className={cn("flex flex-col items-center gap-3", className)}>
         {conMark && <LogoMark className="h-12 w-12" cherry={cherry} />}
         <div className="flex flex-col items-center gap-0.5">
-          <span className={cn("font-display text-2xl", wordmark)}>{nombre}</span>
+          <span className={cn("font-display text-2xl", wordmark, transicionClase)}>{nombre}</span>
           {subtitle && (
             <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
           )}
@@ -128,6 +151,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
               ? "font-display uppercase tracking-[0.01em] text-[30px] leading-none"
               : "font-display text-[22px] leading-none",
             wordmark,
+            transicionClase,
           )}>{nombre}</span>
           <span className={
             wordmarkTratado
@@ -142,7 +166,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       {conMark && <LogoMark className="h-7 w-7" cherry={cherry} />}
-      <span className={cn("font-display text-[22px] leading-none", wordmark)}>
+      <span className={cn("font-display text-[22px] leading-none", wordmark, transicionClase)}>
         {nombre}
       </span>
     </div>

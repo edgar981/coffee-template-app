@@ -35841,3 +35841,128 @@ MERGEES."*
 
 Cierra `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` (pendiente del gate visual REAL del owner, capa 3,
 y de mergear).
+
+## 2026-09-30 — Badges dorados con texto pleno, acciones rápidas contra el prototipo, y el logo transiciona (`BADGES-ACCIONES-Y-LOGO-CORTE-1`)
+
+Tres cierres de follow-ups nombrados por slices anteriores de esta rama, los tres "sólo CORTE".
+
+### 1 · Badges dorados con texto blanco — cierra `CORTE-BADGE-BESTSELLER-TEXTO-VERDE-1`
+
+`ProductCard.tsx:135-148` y `Spotlight.tsx:219-224`: el badge no-bestseller
+(`bg-[var(--sf-tostado)]`) pintaba `text-[var(--sf-tinta)]` (verde de marca) — el mismo defecto que
+el gate del owner («la fuente en 'Cosecha 2026' debería ser blanca, no verde») ya cerró en
+`StoreNav.tsx` (`badgeSpan`, rama `navTratamiento.cta`) en `CARRITO-CABECERA-Y-COLORES-NAV-1`. Las
+dos cards pasan al MISMO token que esa rama ya usa (`text-[var(--sf-acento-txt)]`), gateado por
+`navTratamiento.cta` (el mismo booleano de `badgeSpan`, true sólo en CORTE) — no por `badgeColor`:
+los dos son truthy únicamente bajo CORTE hoy, pero `cta` es el eje conceptual correcto (¿este
+preset adopta el tratamiento badge/CTA del prototipo?), mientras `badgeColor` es sólo el hex
+opcional de FONDO. `false` (todo tenant salvo CORTE) → `text-[var(--sf-tinta)]`, byte-idéntico.
+
+**Censo por grep de otro badge dorado+tinta** (`bg-[var(--sf-tostado)].*text-[var(--sf-tinta)]`,
+storefront completo): aparece un CUARTO —`app/(storefront)/tienda/[slug]/page.tsx:271`, el badge
+del detalle de producto—, fuera de `touches:` de este slice y SIN ningún gate de
+`navTratamiento` (el archivo ya destructura `navTratamiento` para otro uso, línea 61, pero el
+badge en sí es una clase estática sin condicional). Anotado en `open_followups`, no tocado.
+
+### 2 · Acciones rápidas (ojo/carrito) contra el prototipo — GrindChooserRiel.tsx y ProductCard.tsx
+
+Re-medido `.quick-acts button`/`:hover` (`docs/prototipos/cafeone/css/app.css:538-548`): fondo
+`var(--surface-page)` (`#fdfbf7`, `tokens.css:57` — el MISMO hex que la raíz `fondo` de CORTE),
+SIN sombra, y `:hover` con `--action-primary`/`--text-on-accent` (la acción PRIMARIA, el rojo).
+Los dos consumidores llevaban `bg-[var(--sf-tarjeta)]`/`bg-white` + `shadow-md` + hover
+`--sf-acento` (dorado) — el mapeo que el owner pidió re-medir.
+
+- `GrindChooserRiel.tsx:294,303` (los dos botones, ojo y carrito): `bg-[var(--sf-tarjeta)]` →
+  `bg-[var(--sf-fondo)]` (token base, siempre definido, sin fallback — `--surface-page` es el
+  mismo hex); `shadow-md` retirado; hover `--sf-acento`/`--sf-acento-txt` → `--sf-accion`/
+  `--sf-accion-txt` CON fallback a `--sf-tostado`/`--sf-tinta` (convención del resto del archivo,
+  línea 434, aunque el componente sólo renderiza bajo CORTE — inalcanzable para Nayoli, afirmado
+  en `presentaciones-riel.test.ts`).
+- `ProductCard.tsx:185` (rama `formaCustom`, el MISMO gate de `ACCIONES-RAPIDAS-CUADRADAS-1`):
+  mismo mapeo — `bg-white` → `bg-[var(--sf-fondo)]`, `shadow-md` retirado, hover → `--sf-accion,
+  var(--sf-tostado))`/`--sf-accion-txt,var(--sf-tinta))`. La rama SIN `formaCustom` (Suave/Nayoli)
+  NO se toca: sigue `bg-white`+`shadow-md`+`--sf-acento`, byte a byte. `formaCustom` es más ancho
+  que "sólo CORTE" (`tema.forma !== null`, también true bajo `recta`/`suave`/`minima`), así que el
+  fallback acá SÍ es alcanzable — no es sólo convención.
+
+### 3 · El wordmark del nav transiciona — cierra `LOGO-WORDMARK-SIN-TRANSICION-1`
+
+`Logo.tsx` gana `transicionColor?: boolean` (default `false`), aplicada como `transition-colors
+duration-300` — la MISMA duración que `navFilaTransicionClase` (`StoreNav.tsx:349`, el fix del
+filete de `TRANSICION-ENTRE-PAGINAS-1`; Tailwind no declara curva propia en ninguna de las dos, así
+que comparten también la curva default). `StoreNav.tsx:493` pasa `transicionColor={navTratamiento.
+posicion}` — el MISMO booleano que ya gatea `navFilaTransicionClase`, para que filete y wordmark
+enciendan/apaguen juntos. El footer (`stacked`) y `PaletaSeccion.tsx` (admin) montan `variant` FIJO
+— nunca lo alternan — así que no pasan la prop y quedan intactos.
+
+**HALLAZGO propio, arreglado ANTES de que llegara a producción:** la rama `subtitle`+
+`wordmarkTratado` (`Logo.tsx`, hoy línea 158) concatena `` `${wordmark}/60` `` en un TEMPLATE
+LITERAL crudo — el modificador de opacidad de Tailwind, válido sólo pegado a UNA utilidad.
+Bakear `transition-colors duration-300` dentro de `wordmark` (el intento inicial) habría roto esa
+concatenación (`…duration-300/60` en vez de `…tinta)]/60`) — y esa rama exacta SÍ se alcanza bajo
+CORTE (`navSubtitulo: true` + `navWordmarkActivo: true`, `themes.ts:1060,1330`), el mismo preset
+donde se activa `transicionColor`. Se corrigió manteniendo `wordmark` de UNA sola clase y
+sumando la transición aparte (`transicionClase`), aplicada sólo a los `<span>` del NOMBRE (no al
+`<span>` del `subtitle`/tagline, que el gate del owner no nombró y que en la rama sin tratar ya es
+un color fijo `--sf-tostado-5` que no depende de `variant`).
+
+### 4 · Gate
+
+- `npm test` (capa 1): **2712/2712**, incluidas las 106 pruebas de `corte-logo-apilado.test.ts`/
+  `presentaciones-riel.test.ts`/`themes.test.ts`/`theme-mirador.test.ts` corridas aparte primero —
+  `corte-logo-apilado.test.ts` afirma el HTML EXACTO de `Logo.tsx` (las 3 ramas, con y sin
+  `wordmarkTratado`) y pasó sin tocar sus assertions, confirmando que `transicionColor=false`
+  (default, ningún test lo pasa) es byte-idéntico al HTML de antes.
+- `npx next build`: limpio — `Compiled successfully` + `Finished TypeScript` sin errores; las 5
+  rutas storefront tocadas (`/`, `/tienda`, `/tienda/[slug]`, `/nosotros`, `/suscripciones`, home)
+  siguen compilando. Corrido DIRECTO (sin `db:deploy`) porque este slice no toca schema.
+- `npm run verificar:nayoli:visual`: **0px** (consciente de antialiasing Y crudo) en las 6 rutas +
+  2 hovers, main vs. rama.
+- `npm run guarda:color`: **0px** (consciente de AA) en las mismas 6 rutas + 2 hovers, rama vs. el
+  fixture commiteado de Nayoli.
+- `npm run gate` (`typecheck && test && test:integracion`) en el árbol FINAL: **exit 0** —
+  `tsc --noEmit` limpio, `npm test` **2712/2712**, `npm run test:integracion` **242/242**.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `components/storefront/ProductCard.tsx`, `components/
+storefront/home/Spotlight.tsx`, `components/storefront/home/GrindChooserRiel.tsx`, `components/
+storefront/Logo.tsx` (`transicionColor`, `wordmark`, `transicionClase`), `components/storefront/
+layout/StoreNav.tsx`. Grepeados contra `CLAUDE.md`: `ProductCard` (7 apariciones — mounting fuera
+de `CartProvider`, tamaño de precio VERBATIM, fallback de imagen; ninguna sobre el badge ni el
+botón de acciones rápidas), `Logo.tsx`/`Logo` (4 — el mark opt-in por despliegue, el wordmark como
+identidad portable, el fallback oscuro sobre el hero; ninguna sobre la transición de color) y
+`StoreNav` (4 — el nav data-driven, cómo pasa props a `Logo`; ninguna sobre `navFilaTransicionClase`
+ni sobre el filete). `Spotlight`, `GrindChooserRiel`, `transicionColor`, `navTratamiento.cta`,
+`navFilaTransicionClase` y `sf-accion`: **CERO apariciones**. Ninguna frase de `CLAUDE.md` se vuelve
+falsa por este diff — las superficies CORTE-específicas (tokens, slice IDs, gates de preset) viven
+en este libro, no en la doctrina.
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** Un visitante con CORTE ve: el badge "cosecha"/edición de las
+cards de producto y del destacado en texto blanco (antes verde); los botones ojo/carrito de la
+tarjeta sobre fondo crema sin sombra, que se tiñen de rojo (no dorado) al hover; y el nombre del
+negocio en el nav cambiando de color CON transición (no de golpe) al pasar de home a una interna o
+al scrollear sobre el hero. Nayoli (y todo tenant sin CORTE) queda byte-idéntico — MEDIDO 0px, §4.
+
+**`strings:`** ninguno nuevo — los tres cambios son de color/sombra/transición, sin texto nuevo.
+
+### Open follow-ups
+
+- `PRODUCTO-DETALLE-BADGE-DORADO-TEXTO-1`: el badge del detalle de producto
+  (`app/(storefront)/tienda/[slug]/page.tsx:271`) tiene el MISMO patrón `bg-[var(--sf-tostado)]
+  text-[var(--sf-tinta)]` que este slice corrigió en `ProductCard.tsx`/`Spotlight.tsx`, sin ningún
+  gate de `navTratamiento` — ni `.cta` para el texto ni `.badgeColor` para el fondo. Fuera de
+  `touches:` de este slice (el archivo no está en la lista). Si el criterio del owner es "todo
+  badge sobre `--sf-tostado` va con texto pleno", este cuarto sitio queda pendiente de la misma
+  decisión.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE lee
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES."*
+
+Cierra `BADGES-ACCIONES-Y-LOGO-CORTE-1` (pendiente del gate visual REAL del owner, capa 3, y de
+mergear).
