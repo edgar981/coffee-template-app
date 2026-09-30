@@ -7,6 +7,7 @@ import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria"
 import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
 import NosotrosCierre from "@/components/storefront/nosotros/NosotrosCierre";
 import { resolverOrdenNosotros, type BandaNosotrosId } from "@/lib/config/site-content-defaults";
+import { navOffsetClase } from "@/lib/config/themes";
 
 // Sólo "Nosotros": el layout del storefront aplica el template `%s · {nombre}` desde
 // SiteSetting (app/(storefront)/layout.tsx), así que el título resuelve a "Nosotros · {nombre}".
@@ -43,11 +44,12 @@ export default async function NosotrosPage() {
   };
 
   // El provider de SiteContent lo monta el layout del storefront → las secciones leen el contenido.
-  return (
-    <>
-      {resolverOrdenNosotros().map((id) => (
-        <Fragment key={id}>{BANDAS[id]()}</Fragment>
-      ))}
-    </>
-  );
+  const bandas = resolverOrdenNosotros().map((id) => (
+    <Fragment key={id}>{BANDAS[id]()}</Fragment>
+  ));
+  // EL ALTO DEL HEADER FIJO — § NOSOTROS-OFFSET-NAV-1: con el nav de CORTE (88px) la primera banda
+  // (`py-24`) quedaba a 8px del filete. Bajo `navTratamiento.posicion` se reserva el alto del header,
+  // como las demás páginas internas (`navOffsetClase`). Sin él (Nayoli) no hay envoltorio: byte-idéntico.
+  if (!content.navTratamiento.posicion) return <>{bandas}</>;
+  return <div className={navOffsetClase(true)}>{bandas}</div>;
 }
