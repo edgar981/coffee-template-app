@@ -1528,3 +1528,58 @@ export function contenedorAnchoClase(posicion: boolean): string {
     ? 'max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8'
     : 'max-w-6xl px-4 sm:px-6 lg:px-8';
 }
+
+// ─── `navOffsetClase` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — el RELLENO SUPERIOR que cada página
+// INTERNA (no-home) del storefront reserva para que su primer elemento no quede debajo del
+// `<header>` `fixed`. REUSA `navTratamiento.posicion`, MISMO eje que `contenedorAnchoClase` arriba
+// —no una meta nueva—: es el mismo criterio ("¿esta página adoptó la geometría exacta del
+// prototipo?") aplicado a una TERCERA dimensión (ancho/relleno del contenedor, altura del propio
+// `<header>`, y ahora el hueco que el CONTENIDO le debe reservar al header).
+//
+// EL DEFECTO QUE CIERRA: el gate del owner sobre el muestrario desplegado (2026-09-29, la captura de
+// la ficha de producto) — «Hay otro bug en la sección de detalle: el nav tapa la ruta que sale de
+// Inicio/tienda/producto». Cada página interna reservaba un `pt-16` (64px) fijo, calculado contra el
+// header de HOY (`navFilaAltoClase` en `StoreNav.tsx`: `h-16 lg:h-18` = 64/72px) — pero el header de
+// CORTE (`navTratamiento.posicion:true`) mide `h-[76px] min-[640px]:h-[88px] cortenav:h-[88px]`
+// (§ NAV-ALTURA-CON-FILETE-1, los 76/88px YA MEDIDOS y FIJADOS por el gate visual anterior, no
+// reabiertos acá) — 12 a 24px MÁS ALTO que el `pt-16` que cada página reservaba, así que el header
+// se comía justo esos píxeles del contenido de abajo.
+//
+// `false` (TODO tenant salvo CORTE) = `'pt-16'`, el LITERAL exacto que cada página ya usaba —
+// BYTE-IDÉNTICO para Nayoli y el resto del catálogo (`navFilaAltoClase` de esos temas sigue en
+// `h-16 lg:h-18`, así que el `pt-16` de hoy ya era correcto para ellos; este slice no toca su
+// aritmética, sólo la CENTRALIZA para que CORTE pueda declarar la suya sin que cada página
+// reinvente el número). `true` (CORTE) = el ALTO REAL del header, punto por punto: `pt-[76px]`
+// bajo 640px, `pt-[88px]` desde 640px — `cortenav:pt-[88px]` EXPLÍCITO por la MISMA razón que
+// `navFilaAltoClase` lo deja explícito en su propio breakpoint (§ NAV-ALTURA-CON-FILETE-1: "para
+// que quede escrito que el breakpoint de 1200px SIGUE existiendo" aunque el valor no vuelva a
+// subir). `min-[640px]:`, no `sm:` — mismo motivo que `contenedorAnchoClase` (§ arriba,
+// PARIDAD-ANCHO-CORTENAV-CASCADA-1): cae en el mismo bloque `px` que `cortenav:` y la cascada no
+// depende del orden textual de las reglas.
+export function navOffsetClase(posicion: boolean): string {
+  return posicion
+    ? 'pt-[76px] min-[640px]:pt-[88px] cortenav:pt-[88px]'
+    : 'pt-16';
+}
+
+// ─── `navOffsetDeltaClase` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — el HUECO QUE FALTA, no el hueco
+// completo, para la ÚNICA página cuyo wrapper con el `pt-16` de hoy vive en un archivo FUERA del
+// `touches:` de este slice: `app/(storefront)/suscripciones/Contenido.tsx` (el `touches:` sólo
+// declara `suscripciones/page.tsx`, el server component que decide la visibilidad de la página —
+// no el client component que renderiza su contenido, donde vive el `pt-16` real). Reescribir ese
+// `pt-16` a `navOffsetClase(...)` habría sido la solución UNIFORME (§ el resto de las páginas
+// tocadas), pero tocar un archivo fuera de `touches:` no es una opción de esta sesión — se abre
+// como `SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-DE-TOUCHES-1` en `DECISIONS.md` para que un slice con
+// ese archivo en su alcance termine la migración.
+//
+// LA SALIDA, dentro de lo permitido: `suscripciones/page.tsx` (SÍ en `touches:`) envuelve a
+// `<SuscripcionesContenido />` en un `<div>` que agrega SÓLO LA DIFERENCIA entre el `pt-16` (64px)
+// que ese componente YA reserva y el alto real del header de CORTE — 12px bajo 640px (76-64),
+// 24px desde 640px (88-64) — para que el TOTAL (64 + delta) termine siendo 76/88, igual que en
+// cualquier otra página. `pt-3`/`pt-6` son los pasos EXACTOS de la escala de Tailwind para 12px/24px
+// — no arbitrarios, no una segunda fuente del número: 76 y 88 son los MISMOS dos literales de
+// `navOffsetClase`, arriba. `false` (todo tenant salvo CORTE) = `''` (sin clase, sin envoltorio que
+// agregue nada) — BYTE-IDÉNTICO, `Contenido.tsx` sigue solo con su `pt-16` de siempre.
+export function navOffsetDeltaClase(posicion: boolean): string {
+  return posicion ? 'pt-3 min-[640px]:pt-6' : '';
+}

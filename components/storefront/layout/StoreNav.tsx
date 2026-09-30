@@ -193,7 +193,27 @@ export default function StoreNav() {
   // `navFlotando`/`navClaro`/`navBg` resuelven EXACTAMENTE la misma rama de siempre (verificado por
   // sustitución algebraica: con `navBandaTinta` fijo en `false`, las tres expresiones de abajo
   // colapsan a las de antes de este slice).
-  const navBandaTinta = cromo.navTinta;
+  //
+  // `isHome &&` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — EL DEFECTO que este eje seguía sin cerrar: sin
+  // esta condición, `cromo.navTinta:true` pintaba la banda tinta TAMBIÉN fuera de la home, porque
+  // `navFlotando` YA exige `isHome` (arriba) pero `navBandaTinta` no lo exigía — así que en
+  // `/tienda`, la ficha, `/nosotros`… CORTE caía SIEMPRE a `navClaro=true` (encabezado oscuro, texto
+  // claro), el mismo comportamiento que el `navBg` sólido da al SCROLLEAR sobre la home. El gate del
+  // owner sobre el muestrario desplegado (2026-09-29): «el nav debería ser blanco en las otras
+  // páginas» — comparando contra las páginas internas del TEMA REAL (no `producto.html`, que sí
+  // queda oscuro con `.is-opaque`; decisión del owner, apartándose del prototipo a propósito, § el
+  // asiento de este slice en DECISIONS.md). `cromo.navTinta` describe el color del estado SÓLIDO
+  // **de la home al scrollear** — nunca describió, ni antes ni ahora, el estado por defecto de una
+  // página que NO es la home; la ausencia del `isHome &&` era el bug, no una lectura alternativa
+  // válida. Con la condición, fuera de home `navBandaTinta` es SIEMPRE `false` → `navClaro=false` →
+  // CORTE cae a la MISMA rama `bg-[var(--sf-tarjeta)]/95 backdrop-blur … text-[var(--sf-tinta)]` que
+  // los otros 5 presets del catálogo YA usan fuera de home (nunca flotan, § `navFlotando` arriba) —
+  // no un tercer estado inventado. El filete (`navFileteClase`, más abajo) hereda el mismo
+  // `navClaro=false` → `border-[var(--sf-tinta)]/20`, el hairline gris fino que pide el gate; el CTA
+  // y el badge de cosecha no dependen de `navClaro` cuando `navTratamiento.cta` está encendido (§
+  // sus propios comentarios, más abajo), así que siguen igual. `isHome && false === false` para
+  // todo tenant salvo CORTE → BYTE-IDÉNTICO, la condición nueva no cambia nada fuera de CORTE.
+  const navBandaTinta = isHome && cromo.navTinta;
   const navFlotando = isHome && !scrolled && t.flotante;
   const navClaro = navFlotando ? t.textoClaro : navBandaTinta;
 

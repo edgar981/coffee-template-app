@@ -9,7 +9,7 @@ import { categoriasDelCatalogo, catalogoTieneTostado } from '@/lib/productos/cat
 import { useSearchParams } from 'next/navigation';
 import {Product, RoastLevel} from '@/types/product';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
-import { contenedorAnchoClase } from '@/lib/config/themes';
+import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 
 
 const SORTBY = [
@@ -26,6 +26,11 @@ function ShopInner() {
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
   const { navTratamiento } = useSiteContent();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+  // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
+  // (`lib/config/themes.ts`) para el porqué: reserva el alto REAL del header fijo de CORTE, para
+  // que no tape el primer elemento visible. `false` (todo tenant salvo CORTE) = `pt-16`, byte a
+  // byte lo que esta página ya usaba.
+  const offsetClase = navOffsetClase(navTratamiento.posicion);
   const [search, setSearch] = useState('');
   // La categoría es texto libre (la taxonomía se DERIVA del catálogo, § categorias): el estado es
   // `string`. Un `?cat=X` que no exista simplemente filtra a vacío y su chip muestra "X" —no
@@ -102,7 +107,7 @@ function ShopInner() {
 );
 
   return (
-      <div className="pt-16">
+      <div className={offsetClase}>
         {/* Page Header */}
         {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
             al par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1). El h1 de
@@ -209,8 +214,11 @@ function ShopInner() {
 // useSearchParams() (cat/tostado filters from the URL) requires a Suspense
 // boundary to prerender — Next.js CSR bailout.
 export default function Shop() {
+  // El fallback de Suspense se renderiza ANTES de que `ShopInner` monte, así que necesita su
+  // propio `navOffsetClase` — no puede heredarlo de `ShopInner` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).
+  const { navTratamiento } = useSiteContent();
   return (
-    <Suspense fallback={<div className="pt-16 min-h-screen" />}>
+    <Suspense fallback={<div className={`${navOffsetClase(navTratamiento.posicion)} min-h-screen`} />}>
       <ShopInner />
     </Suspense>
   );

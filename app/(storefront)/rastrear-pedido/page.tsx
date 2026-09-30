@@ -13,6 +13,8 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCOP } from '@duna/core/utils';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { navOffsetClase } from '@/lib/config/themes';
 
 interface TimelineStep {
   estado: string;
@@ -53,6 +55,10 @@ const formatDate = (iso: string) =>
 
 function OrderTrackingInner() {
   const searchParams = useSearchParams();
+  // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
+  // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
+  const { navTratamiento } = useSiteContent();
+  const offsetClase = navOffsetClase(navTratamiento.posicion);
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [order, setOrder] = useState<TrackedOrder | null>(null);
@@ -92,7 +98,7 @@ function OrderTrackingInner() {
     : '';
 
   return (
-      <div className="pt-16 min-h-screen">
+      <div className={`${offsetClase} min-h-screen`}>
         {/* Header */}
         <div className="bg-[var(--sf-tinta)] py-16 text-center">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
@@ -282,8 +288,11 @@ function OrderTrackingInner() {
 // useSearchParams() (order number + email from the URL) requires a Suspense
 // boundary to prerender — Next.js CSR bailout.
 export default function OrderTracking() {
+  // El fallback de Suspense se renderiza ANTES de que `OrderTrackingInner` monte, así que necesita
+  // su propio `navOffsetClase` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).
+  const { navTratamiento } = useSiteContent();
   return (
-    <Suspense fallback={<div className="pt-16 min-h-screen" />}>
+    <Suspense fallback={<div className={`${navOffsetClase(navTratamiento.posicion)} min-h-screen`} />}>
       <OrderTrackingInner />
     </Suspense>
   );

@@ -100,7 +100,7 @@ const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
 const CONTROLES: { name: Exclude<keyof Form, 'badgeColor'>; label: string; hint: string }[] = [
   { name: 'logo', label: 'Logo', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido.' },
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
-  { name: 'colorNav', label: 'Color del encabezado', hint: 'El encabezado se ve con un fondo de color sólido, en vez del que usa hoy.' },
+  { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).' },
   { name: 'tratamientoNav', label: 'Tratamiento del menú', hint: 'Los enlaces del menú van en mayúscula, con más espacio entre letras.' },
   { name: 'drawerMovil', label: 'Drawer móvil de pantalla completa', hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.' },
   { name: 'direccionScroll', label: 'Ocultar al bajar', hint: 'Al bajar, el encabezado se oculta; al subir, reaparece con su color sólido. Arriba del todo se ve como siempre.' },

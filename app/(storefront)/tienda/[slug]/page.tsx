@@ -34,7 +34,7 @@ import { galeriaCompleta } from "@duna/core/product-gallery";
 import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria";
 import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
-import { contenedorAnchoClase } from "@/lib/config/themes";
+import { contenedorAnchoClase, navOffsetClase } from "@/lib/config/themes";
 
 interface ProductPageProps {
   params: Promise<{
@@ -64,6 +64,11 @@ export default function ProductPage({
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+  // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — el defecto REPORTADO que este slice
+  // cierra: sin esto, el header fijo de CORTE (76/88px) tapaba la ruta de migas ("Inicio / Tienda /
+  // producto"), que reservaba sólo 64px (`pt-16`). Ver el docstring de `navOffsetClase`
+  // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
+  const offsetClase = navOffsetClase(navTratamiento.posicion);
 
   const [qty, setQty] = useState(1);
 
@@ -98,7 +103,7 @@ export default function ProductPage({
   // Catálogo aún cargando
   if (catalog === null) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center pt-16">
+      <div className={`flex min-h-[60vh] items-center justify-center ${offsetClase}`}>
         <p className="font-playfair text-xl text-[var(--sf-texto-suave)]">Cargando…</p>
       </div>
     );
@@ -106,7 +111,7 @@ export default function ProductPage({
 
   if (!product) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center pt-16">
+      <div className={`flex min-h-[60vh] flex-col items-center justify-center ${offsetClase}`}>
         <p className="mb-4 font-playfair text-xl">
           Producto no encontrado
         </p>
@@ -169,7 +174,7 @@ export default function ProductPage({
   };
 
   return (
-    <div className="pt-16">
+    <div className={offsetClase}>
       {/* Breadcrumb */}
       <div className={`mx-auto ${contenedorClase} py-4`}>
         <nav className="flex items-center gap-2 text-xs text-[var(--sf-texto-suave)]">

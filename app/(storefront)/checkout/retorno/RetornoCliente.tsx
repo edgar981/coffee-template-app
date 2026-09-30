@@ -15,6 +15,8 @@ import {
 } from "@/services/checkout.service";
 import { whatsappUrl } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { navOffsetClase } from "@/lib/config/themes";
 
 // ── LA PANTALLA DE RETORNO — Wompi devuelve al comprador acá ─────────────────────
 //
@@ -83,6 +85,10 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
   // es sólo la señal de PRESENCIA que gatea si el CTA se pinta; el número en sí no viaja
   // por prop porque ya está disponible acá sin costo (StoreFooter lo lee igual).
   const settings = useSiteSettings();
+  // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
+  // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
+  const { navTratamiento } = useSiteContent();
+  const offsetClase = navOffsetClase(navTratamiento.posicion);
 
   const [email, setEmail] = useState("");
   const [vista, setVista] = useState<Vista>(
@@ -166,7 +172,7 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
+    <div className={`min-h-[80vh] flex items-center justify-center ${offsetClase} px-4`}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -377,8 +383,11 @@ interface RetornoClienteProps {
 // `useSearchParams()` (la `reference` del redirect de Wompi) exige un límite
 // Suspense para prerenderizar — Next.js CSR bailout, mismo patrón que `rastrear-pedido`.
 export default function RetornoCliente({ tieneWhatsapp }: RetornoClienteProps) {
+  // El fallback de Suspense se renderiza ANTES de que `RetornoInner` monte, así que necesita su
+  // propio `navOffsetClase` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).
+  const { navTratamiento } = useSiteContent();
   return (
-    <Suspense fallback={<div className="pt-16 min-h-screen" />}>
+    <Suspense fallback={<div className={`${navOffsetClase(navTratamiento.posicion)} min-h-screen`} />}>
       <RetornoInner tieneWhatsapp={tieneWhatsapp} />
     </Suspense>
   );

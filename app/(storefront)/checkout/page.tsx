@@ -26,7 +26,7 @@ import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-department
 import { metodosDisponibles, type MetodoPagoTipo } from '@/lib/checkout/metodos-pago';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
-import { contenedorAnchoClase } from '@/lib/config/themes';
+import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -39,6 +39,9 @@ export default function Checkout() {
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
   const { navTratamiento } = useSiteContent();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+  // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
+  // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
+  const offsetClase = navOffsetClase(navTratamiento.posicion);
 
   // Al cambiar de paso (Continuar o Atrás), subir al inicio: el checkout son pasos por ESTADO en
   // una sola página (no rutas), así que la posición vertical del paso anterior se conserva y el
@@ -409,7 +412,7 @@ export default function Checkout() {
   // dos son "no se pudo cobrar con tarjeta, el equipo coordina el pago").
   if (confirmation && (!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada || intentosAgotados)) {
     return (
-        <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
+        <div className={`min-h-[80vh] flex items-center justify-center ${offsetClase} px-4`}>
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
             <div className={`w-20 h-20 ${pasarelaAprobada ? 'bg-emerald-100' : 'bg-amber-100'} rounded-full flex items-center justify-center mx-auto mb-6`}>
               {pasarelaAprobada
@@ -504,7 +507,7 @@ export default function Checkout() {
   // carrito vacío en vez de seguir mostrando el paso de pago con la pasarela montada.
   if (items.length === 0 && !confirmation) {
     return (
-        <div className="min-h-[60vh] flex items-center justify-center pt-16">
+        <div className={`min-h-[60vh] flex items-center justify-center ${offsetClase}`}>
           <div className="text-center">
             <p className="text-xl font-playfair mb-4">Tu carrito está vacío</p>
             <Link href="/" className="text-[var(--sf-acento-texto)] underline text-sm">← Explorar productos</Link>
@@ -514,7 +517,7 @@ export default function Checkout() {
   }
 
   return (
-      <div className="pt-16 min-h-screen bg-[var(--sf-fondo)]">
+      <div className={`${offsetClase} min-h-screen bg-[var(--sf-fondo)]`}>
         <div className={`${contenedorClase} mx-auto py-8`}>
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
