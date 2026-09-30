@@ -19,6 +19,7 @@ import { useCartStore } from "@/lib/cartStore";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { formatCOP } from "@duna/core/utils";
 import { freeShippingThreshold } from "@duna/core/shipping-config";
+import { composicionCarrito } from "@/lib/storefront/carrito-drawer";
 
 // CartTitulo y CartCTA no dependen de useCartStore (el título es fijo; el CTA recibe su onClick por
 // prop) a propósito: § CROMO-CARRITO-TEMATIZADO-1 -- useCartStore es un CONTEXT que revienta sin
@@ -59,6 +60,22 @@ import { freeShippingThreshold } from "@duna/core/shipping-config";
 // el prop `variante` para poder cambiar tamaño/peso sin filtrar la traducción string↔UI al resto del
 // componente (mismo mecanismo que `DetallesSitioSeccion.tsx` usa en el borde del panel); llamado SIN
 // props (como en `cromo-carrito.test.ts`) sigue rindiendo byte-idéntico a como siempre estuvo.
+//
+// § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- completa el RESTO de la composición 'flotante' que
+// MUESTRARIO-CARRITO-COMPOSICION-1 dejó pendiente (esa tanda sólo movió posición/color/radio del
+// cajón y el tamaño del título): el estado VACÍO (ícono/título/botón), la caja de CANTIDAD, y el
+// CTA del pie. Las clases puras viven en `lib/storefront/carrito-drawer.ts`
+// (`composicionCarrito`) -- MISMO patrón que `clasesBotonesCompra` (`lib/storefront/
+// pdp-botones.ts`): un eje de tema de 2 valores, un bundle de clases, sin JSX. AUSENTE/'anclado'
+// es byte-idéntico a lo que este archivo ya traía. La fila Nota|Descuento y la nota de impuestos
+// SIGUEN fuera -- pedido explícito del owner, reafirmado en este slice.
+//
+// EL CONTADOR DEL CARRITO EN EL NAV (el badge de la bolsa en `StoreNav.tsx`) se corrige en ESE
+// archivo, no acá: reusa el MISMO `navTratamiento.badgeColor` (§ RIEL-SCROLL-Y-BADGE-DORADO-1) que
+// ya pinta el badge del ítem de menú/producto/spotlight -- ver el docstring de `themes.ts` junto a
+// ese campo. El badge de conteo DENTRO de este cajón (`{totalItems}`, junto al título) no tiene
+// equivalente en el prototipo (`.drawer-head` sólo lleva `<h2>` + cerrar) y el spec de este slice
+// no lo señaló como "crema" -- se deja sin tocar.
 
 export interface ProgresoEnvioGratis {
   pct: number;
@@ -135,14 +152,20 @@ export function CartTitulo({ variante }: { variante?: "anclado" | "flotante" } =
 // `--sf-accion-hover` (no `--sf-tostado-4` fijo) — MISMOS dos tokens derivados que el resto de la
 // familia (`BackToTop.tsx` y hermanos). AUSENTE/`origenAccion:'tostado'` = byte-idéntico al par de
 // antes de este slice.
-export function CartCTA({ onClick }: { onClick: () => void }) {
+//
+// `label` (§ CARRITO-Y-MENU-MOVIL-CAFEONE-1, OPCIONAL): el texto del botón. AUSENTE = "Ir al
+// Checkout" -- byte-idéntico al `cromo-carrito.test.ts` existente, que lo llama sin props. El
+// cajón 'flotante' (CORTE) pasa "Pagar" (§ `composicionCarrito`, `lib/storefront/
+// carrito-drawer.ts`) -- el texto que el owner pidió explícito, distinto del "Finalizar compra"
+// del prototipo local.
+export function CartCTA({ onClick, label = "Ir al Checkout" }: { onClick: () => void; label?: string }) {
   return (
     <Link
       href="/checkout"
       onClick={onClick}
       className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] py-3.5 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
     >
-      Ir al Checkout
+      {label}
 
       <ArrowRight className="h-4 w-4" />
     </Link>
@@ -169,6 +192,12 @@ export default function CartDrawer() {
     (sum, item) => sum + item.quantity,
     0
   );
+
+  // § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- `paginaCarritoExiste=false`: `app/(storefront)/` no
+  // declara `/carrito` hoy, así que ninguna variante muestra el botón secundario. Cambia acá el
+  // día que esa página exista (§ el docstring de `composicionCarrito`).
+  const flotante = carrito.variante === 'flotante';
+  const composicion = composicionCarrito(carrito.variante, false);
 
   return (
     <AnimatePresence>
@@ -232,10 +261,10 @@ export default function CartDrawer() {
               {items.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--sf-superficie)]">
-                    <ShoppingBag aria-hidden="true" className="h-7 w-7 text-[var(--sf-tostado)]" />
+                    <ShoppingBag aria-hidden="true" className={`h-7 w-7 ${composicion.claseIconoVacio}`} />
                   </div>
 
-                  <p className="mb-1 font-medium text-[var(--sf-tinta)]">
+                  <p className={`mb-1 text-[var(--sf-tinta)] ${composicion.claseTituloVacio}`}>
                     Tu carrito está vacío
                   </p>
 
@@ -243,12 +272,22 @@ export default function CartDrawer() {
                     Explora nuestros productos y agrega tu café favorito.
                   </p>
 
-                  <button
-                    onClick={closeCart}
-                    className="text-sm font-medium text-[var(--sf-acento-texto)] underline underline-offset-2 crusor-pointer"
-                  >
-                    Seguir comprando
-                  </button>
+                  {flotante ? (
+                    <button
+                      onClick={closeCart}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] cursor-pointer"
+                    >
+                      Seguir comprando
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={closeCart}
+                      className="text-sm font-medium text-[var(--sf-acento-texto)] underline underline-offset-2 crusor-pointer"
+                    >
+                      Seguir comprando
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -257,8 +296,11 @@ export default function CartDrawer() {
                       key={item.key}
                       className="flex gap-3"
                     >
-                      {/* Image */}
-                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[var(--sf-superficie)]">
+                      {/* Image -- § CARRITO-Y-MENU-MOVIL-CAFEONE-1: `sf-radio-lg` bajo 'flotante'
+                          (2px en 'recta', "tile suavizado") en vez de `rounded-xl` (`--radius-xl`,
+                          0 bajo 'recta' -- fully square, no "suavizado"). AUSENTE/'anclado' queda
+                          `rounded-xl`, byte-idéntico. */}
+                      <div className={`relative h-16 w-16 shrink-0 overflow-hidden bg-[var(--sf-superficie)] ${flotante ? 'sf-radio-lg' : 'rounded-xl'}`}>
                         <Image
                           src={imagenPortada(item.imagen)}
                           alt={item.nombre}
@@ -270,7 +312,7 @@ export default function CartDrawer() {
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-sm font-medium leading-tight text-[var(--sf-tinta)]">
+                        <p className={`line-clamp-2 text-sm leading-tight text-[var(--sf-tinta)] ${flotante ? 'font-playfair font-normal' : 'font-medium'}`}>
                           {item.nombre}
                         </p>
 
@@ -286,7 +328,7 @@ export default function CartDrawer() {
 
                         {/* Quantity Controls */}
                         <div className="mt-2 flex items-center gap-3">
-                          <div className="flex items-center gap-1 sf-radio-lg bg-[var(--sf-superficie)]">
+                          <div className={`flex items-center gap-1 sf-radio-lg ${composicion.claseCajaCantidad}`}>
                             <button
                               onClick={() =>
                                 updateQuantity(
@@ -353,21 +395,43 @@ export default function CartDrawer() {
                     <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
                   )}
 
-                  <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">
-                    <span>Subtotal</span>
+                  {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- "Total estimado" con la cifra en la
+                      fuente de TÍTULO, medido contra `.totals`/`.totals b` del prototipo
+                      (`docs/prototipos/cafeone/css/app.css:794-800`). AUSENTE/'anclado' queda
+                      "Subtotal" en negrita de cuerpo, byte-idéntico. */}
+                  {flotante ? (
+                    <div className="flex items-baseline justify-between pt-1">
+                      <span className="text-[var(--sf-texto)]">Total estimado</span>
 
-                    <span>{formatCOP(subtotal)}</span>
-                  </div>
+                      <span className="font-playfair text-2xl font-normal text-[var(--sf-tinta)]">
+                        {formatCOP(subtotal)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">
+                      <span>Subtotal</span>
+
+                      <span>{formatCOP(subtotal)}</span>
+                    </div>
+                  )}
                 </div>
 
-                <CartCTA onClick={closeCart} />
+                <CartCTA onClick={closeCart} label={composicion.ctaLabel} />
 
-                <button
-                  onClick={closeCart}
-                  className="w-full text-center text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-texto)] cursor-pointer"
-                >
-                  Seguir comprando
-                </button>
+                {/* El secundario "Ver carrito" sólo existiría si `/carrito` existiera
+                    (`composicion.mostrarBotonSecundario`, hoy siempre `false` -- § el docstring de
+                    `composicionCarrito`). Bajo 'flotante' el pie del prototipo no lleva un TERCER
+                    link de texto (§ `.drawer-foot`, `docs/prototipos/cafeone/index.html:416-444`:
+                    totales + `.drawer-cta` nada más), así que ese link se omite; 'anclado' lo
+                    conserva byte-idéntico. */}
+                {!flotante && (
+                  <button
+                    onClick={closeCart}
+                    className="w-full text-center text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-texto)] cursor-pointer"
+                  >
+                    Seguir comprando
+                  </button>
+                )}
               </div>
             )}
           </motion.div>

@@ -695,8 +695,24 @@ export default function StoreNav() {
               </button>
               <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>
                 <ShoppingBag className={navIconoClase} />
+                {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- el contador del carrito EN EL NAV deja el
+                    tono `--sf-acento`/`--sf-acento-txt` de HOY (dark red/white para CORTE, no el
+                    "crema" que el owner señaló) y pasa al MISMO tratamiento `tostado`/`tinta` +
+                    `navTratamiento.badgeColor` que ya usan el badge del ítem de menú
+                    (`§ CROMO-NAV-CTA-Y-BADGE-1`, abajo en este archivo), `ProductCard.tsx` y
+                    `Spotlight.tsx` (§ RIEL-SCROLL-Y-BADGE-DORADO-1) -- "el dorado que ya usa el
+                    badge del nav". La CLASE cambia sólo cuando hay `badgeColor` puesto (sólo
+                    CORTE); AUSENTE/`null` deja `bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]`,
+                    byte-idéntico. */}
                 {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-[10px] rounded-full flex items-center justify-center font-bold" style={{ width: 18, height: 18, fontSize: 10 }}>
+                  <span
+                    className={`absolute -top-0.5 -right-0.5 w-4.5 h-4.5 text-[10px] rounded-full flex items-center justify-center font-bold ${
+                      navTratamiento.badgeColor
+                        ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]'
+                        : 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]'
+                    }`}
+                    style={navTratamiento.badgeColor ? { width: 18, height: 18, fontSize: 10, backgroundColor: navTratamiento.badgeColor } : { width: 18, height: 18, fontSize: 10 }}
+                  >
                     {count > 9 ? '9+' : count}
                   </span>
                 )}
@@ -780,9 +796,46 @@ export default function StoreNav() {
                 <span className="font-display text-[30px] uppercase leading-none tracking-[0.01em] text-[var(--sf-sobre)]">
                   {nombre}
                 </span>
-                <button type="button" onClick={() => setMobileOpen(false)} className="p-2 text-[var(--sf-sobre)]" aria-label="Cerrar el menú">
-                  <X className="w-5 h-5" />
-                </button>
+                {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- este panel es `fixed inset-3 z-50`, así que
+                    tapa por completo el encabezado (buscar/carrito quedan inalcanzables mientras
+                    está abierto): "buscar si existe, carrito, cuenta si existe, cerrar" repite acá
+                    los mismos disparadores del encabezado, `navIconoClase` incluido (mismo tamaño/
+                    trazo que ya usan `Search`/`ShoppingBag` arriba en este archivo). "Cuenta" NO
+                    entra -- `/cuenta` sigue oculta (v1, § el comentario "restore when account
+                    feature ships" más abajo en este archivo): "si existe" da falso hoy. */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setMobileOpen(false); setSearchOpen(true); }}
+                    className="p-2 text-[var(--sf-sobre)]"
+                    aria-label="Buscar"
+                  >
+                    <Search className={navIconoClase} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMobileOpen(false); openCart(); }}
+                    className="relative p-2 text-[var(--sf-sobre)]"
+                    aria-label="Ver carrito"
+                  >
+                    <ShoppingBag className={navIconoClase} />
+                    {count > 0 && (
+                      <span
+                        className={`absolute -top-0.5 -right-0.5 text-[10px] rounded-full flex items-center justify-center font-bold ${
+                          navTratamiento.badgeColor
+                            ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]'
+                            : 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]'
+                        }`}
+                        style={navTratamiento.badgeColor ? { width: 18, height: 18, fontSize: 10, backgroundColor: navTratamiento.badgeColor } : { width: 18, height: 18, fontSize: 10 }}
+                      >
+                        {count > 9 ? '9+' : count}
+                      </span>
+                    )}
+                  </button>
+                  <button type="button" onClick={() => setMobileOpen(false)} className="p-2 text-[var(--sf-sobre)]" aria-label="Cerrar el menú">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               <nav className="flex flex-col">
                 {links.map((l, i) => (
@@ -790,9 +843,14 @@ export default function StoreNav() {
                     <Link
                       href={l.path}
                       onClick={() => setMobileOpen(false)}
-                      className="block border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] leading-none text-[var(--sf-sobre)] last:border-0"
+                      className="flex items-center justify-between gap-2 border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] uppercase leading-none text-[var(--sf-sobre)] last:border-0"
                     >
                       {l.label}
+                      {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- el chevron es puramente indicativo
+                          (marca que el ítem tiene un panel de mega-menú en desktop, `l.panel`);
+                          este drawer no expande el submenú, sólo navega como los demás -- mismo
+                          alcance de "chevron donde hay submenú" del spec. */}
+                      {l.panel && <ChevronDown className="h-5 w-5 shrink-0 -rotate-90 opacity-70" aria-hidden="true" />}
                     </Link>
                   </motion.div>
                 ))}
@@ -814,7 +872,7 @@ export default function StoreNav() {
                   <Link
                     href="/rastrear-pedido"
                     onClick={() => setMobileOpen(false)}
-                    className="block border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] leading-none text-[var(--sf-sobre)] last:border-0"
+                    className="block border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] uppercase leading-none text-[var(--sf-sobre)] last:border-0"
                   >
                     Rastrear Pedido
                   </Link>

@@ -34951,3 +34951,228 @@ con CORTE activo, en las ocho páginas. El owner ya aprobó la ESCRITURA de este
 Cierra `SCROLL-INERCIA-CORTE-1`.
 
 Cierra `ORIGEN-RADIO-SOMBRA-IMAGEN-1`.
+
+## 2026-09-30 — El carrito lateral y el menú móvil de CORTE terminan de verse como Cafeone, y el contador del carrito en el nav deja el dorado que ya usaba el badge del ítem de menú (`CARRITO-Y-MENU-MOVIL-CAFEONE-1`)
+
+### 0 · Límite de verificación, declarado primero — no se pudieron ver las capturas de referencia
+
+El spec (§0) pedía mirar tres capturas del tema REAL de Cafeone (`specs/refs/cafeone-carrito-lleno-
+movil.png`, `-vacio-movil.png`, `-menu-movil.png`) que viven **en el repo `dev-protocol`**, no en
+éste. Esta sesión está en el mismo sandbox restringido que `TIER1-LISTA-VENCIDA-2`/`TIER1-SUBARBOL-
+NO-DISPARABA-1` ya documentaron: acotada al working directory de `coffee-template-app`, sin ruta a
+`dev-protocol` — un intento de `Read`/`find` fuera de él fue rechazado por la herramienta misma
+("Claude Code may only search files in the allowed working directories for this session"). **No se
+pudieron ver las tres capturas.**
+
+Lo que SÍ se usó, medido: el prototipo local versionado (`docs/prototipos/cafeone/css/app.css`,
+`index.html`, `js/app.js`, bloques "Cart drawer"/"Mobile drawer") — la fuente que esta rama entera
+viene reescribiendo pixel a pixel desde `CORTE-REESCRITURA-PROTOTIPO-1` — y la PROSA del spec, que
+describe con detalle accionable lo que las capturas muestran (orden de la línea de producto, los dos
+botones del pie, el ícono/título/botón del vacío, los íconos del encabezado del menú móvil, mayúsculas
+y chevron). Donde la prosa del spec diverge del prototipo local (p. ej. el prototipo NO tiene íconos en
+`.mobile-nav-head`, ni ilustración en `.cart-empty`, ni el texto "Pagar"), se siguió la prosa del spec
+— es la transcripción del owner de lo que la captura real muestra, y coincide con el patrón ya
+documentado en este mismo archivo de que el prototipo local a veces diverge del tema real
+(`navTratamientoDireccion`/`.filete`, medidos contra `x-cafeone.myshopify.com` porque el prototipo no
+los tiene). El **ANTES** capturado contra el muestrario desplegado (§4) sirvió de verificación cruzada
+adicional para el resto (posición/color/fuente del cajón, ya construidos por slices previos).
+
+### 1 · El "tono crema" — medido, no adivinado
+
+Re-leyendo el `approval-reason` del spec completo: *"el badge aun sale con ese tono como crema"* — no
+"el contador", que es como lo resumía el `surface`. Medido contra el muestrario desplegado (`--url`,
+§4): el ícono `ShoppingBag` dentro del círculo del carrito VACÍO pintaba `text-[var(--sf-tostado)]`
+— para CORTE, `derivarPaleta` da `tostado:'#d8a378'` (§ RIEL-SCROLL-Y-BADGE-DORADO-1, ya medido en
+esta rama: "un tostado apagado", la mezcla cálida-y-CLARA del acento) — un tono tostado/caramelo
+visiblemente distinto del acento real de CORTE (`#a70004`), y es EXACTAMENTE lo que la captura del
+ANTES muestra (§4, `carrito-vacio-390x844.png`: círculo con un ícono color caramelo sobre fondo
+crema). Es una segunda instancia del MISMO defecto que `RIEL-SCROLL-Y-BADGE-DORADO-1` ya cerró para el
+badge del ítem de menú/producto/spotlight (`--sf-tostado` puesto donde el prototipo pide el acento/el
+dorado real) — ese slice dejó el contador del carrito EXPLÍCITAMENTE fuera ("el contador del carrito…
+no se tocó — confirmado por lectura, nunca usó `--sf-tostado`"), y tenía razón sobre ESE contador (el
+badge de conteo usa `--sf-acento`, no `--sf-tostado`); el "crema" real vivía en el ÍCONO del estado
+vacío, no en ningún contador. El "contador del carrito en el nav" (§1 del spec, un pedido aparte y
+correcto) SÍ usa `--sf-acento`/`--sf-acento-txt` (rojo oscuro/blanco) — no crema, pero tampoco el
+dorado que el owner pidió explícitamente reusar ("el dorado que ya usa el badge del nav"); se corrigió
+igual, por pedido directo, no por ser crema.
+
+### 2 · El mecanismo — reusar, no inventar campos
+
+Ningún archivo de `touches:` fuera de los seis realmente tocados hizo falta tocar: **no se agregó
+ningún campo nuevo a `SiteContentData`** (`site-content-defaults.ts`/`site-content-schema.ts`/
+`panel-controles.ts` NO están en `touches:` y no hicieron falta). Todo se construyó sobre TRES ejes
+que esta rama ya tenía wireados:
+
+- **`carrito.variante` (`'anclado'|'flotante'`, § MUESTRARIO-CARRITO-COMPOSICION-1)** — ese slice
+  resolvió posición/color/radio del cajón y el tamaño del título; éste completa el RESTO de la
+  composición 'flotante' que quedó pendiente (estado vacío, caja de cantidad, CTA del pie) vía
+  `composicionCarrito` (`lib/storefront/carrito-drawer.ts`, NUEVO), MISMO patrón que
+  `clasesBotonesCompra` (`lib/storefront/pdp-botones.ts`): un eje de 2 valores → un bundle de clases,
+  puro, sin JSX.
+- **`navDrawerMovil.variante === 'pantallaCompleta'` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1)** — ya
+  resolvía el panel fijo/fondo-tinta/entrada escalonada; éste le agregó la fila de íconos (buscar/
+  carrito/cerrar) en la cabecera, mayúsculas en los ítems, y un chevron indicativo donde el ítem trae
+  `panel` (mega-menú).
+- **`navTratamiento.badgeColor` (§ RIEL-SCROLL-Y-BADGE-DORADO-1)** — ya pintaba el badge del ítem de
+  menú/producto/spotlight con `style` inline condicional; se sumó como CUARTO/QUINTO consumidor (el
+  badge de conteo en el header, y su gemelo dentro del menú móvil), con el MISMO patrón (`bg-
+  [var(--sf-tostado)] text-[var(--sf-tinta)]` de base + `style={{backgroundColor: badgeColor}}`
+  cuando está puesto — no `--sf-acento`/`--sf-acento-txt`, para que el par tenga el contraste medido
+  que ya tiene el resto de la familia dorada).
+
+**"Cuenta si existe" da FALSO hoy** (`/cuenta` sigue oculta, v1 — comentario "restore when account
+feature ships" en `StoreNav.tsx`, no tocado): el ícono de cuenta NO se agregó a la fila del menú
+móvil, por la misma regla que ya rige el resto del nav.
+
+**Sin la fila Nota|Descuento ni la nota de impuestos** — pedido explícito del owner, reafirmado en
+este slice; ninguna de las dos existía desde `MUESTRARIO-CARRITO-COMPOSICION-1` y siguen sin existir.
+El pendiente sobre eso (`MUESTRARIO-CARRITO-UTILIDADES-1`) sigue abierto, sin tocar.
+
+**Sin botón secundario "Ver carrito"**: `app/(storefront)/` no declara `/carrito` hoy (medido,
+`find . -maxdepth 2 -type d` sobre ese árbol) — `composicionCarrito(variante, paginaCarritoExiste)`
+recibe `paginaCarritoExiste=false` desde el único llamador (`CartDrawer.tsx`), así que
+`mostrarBotonSecundario` da `false` siempre. El eje queda abierto en la función para el día que esa
+página exista, sin volver a tocar el archivo — no se inventó una ruta.
+
+**El texto del CTA primario es "Pagar"** (no "Finalizar compra" del prototipo local, ni "Ir al
+Checkout" de hoy) — el texto exacto que pide el spec, presumiblemente transcrito de la captura real
+que esta sesión no pudo ver. `CartCTA` gana un prop `label?` con default `"Ir al Checkout"` — el
+`cromo-carrito.test.ts` existente (fuera de `touches:`) lo llama sin props y sigue pasando byte a
+byte (verificado, § 5).
+
+**El radio de la caja de cantidad y de la foto del ítem son una APROXIMACIÓN reportada, no medida
+exacta**: el prototipo mide `--radius-sm` (4px, `.qty`) y `--radius-md` (8px, `.line-thumb`) — dos
+valores SIN token propio en `formas.ts` hoy. Se reusó `--sf-radio-lg` (2px en 'recta', el rol ya
+conectado de "chips/controles pequeños") para las dos piezas, en vez de agregar dos tokens nuevos al
+catálogo de forma sin verificación visual del owner — `formas.ts` es infraestructura compartida por
+TODO el storefront bajo 'recta'/'minima', y ensancharla a ciegas es más riesgo que la aproximación.
+Nombrado como `CARRITO-RADIO-SM-MD-TOKENS-1` (§ `open_followups`).
+
+### 3 · La caja de cantidad y la línea de producto
+
+Medido contra `.qty`/`.line` del prototipo (`docs/prototipos/cafeone/css/app.css:744-768`): la caja
+de cantidad es un BORDE (`border:1px solid var(--border-strong)`), sin relleno — la nuestra de HOY es
+una píldora RELLENA (`bg-[var(--sf-superficie)]`). "No nested cards" es la nota de diseño del cajón
+entero (`.drawer`, comentario de cabecera del prototipo) y una píldora rellena dentro de una fila ya
+es una tarjeta anidada. Bajo 'flotante': `sf-borde border-[var(--sf-linea)]`, sin fondo. El nombre del
+producto pasa a la fuente de título (`font-playfair`), como el resto de los titulares del cajón bajo
+esta variante.
+
+### 4 · Medido: ANTES (muestrario desplegado) / DESPUÉS (esta rama, base efímera con CORTE aplicado)
+
+**ANTES** — `node .scratch/capturar-carrito-menu.mjs --base https://coffee-template-app-onix.vercel.
+app/ --ancho <390|1440>` (script THROWAWAY de este slice, en `.scratch/`, gitignoreado — el arnés
+compartido `capturar-seccion.ts` no soporta clicks, § el hallazgo ya documentado por
+`MUESTRARIO-CARRITO-COMPOSICION-1`: "la pieza vive detrás de un clic que el arnés no da"). El
+muestrario desplegado YA corre con un tenant "Café Onix" y `navDrawerMovil.variante:'pantallaCompleta'`
+persistido (no hace falta `?tema=CORTE` — otra evidencia de que la rama viene aplicando CORTE como
+default del muestrario en slices previos, no medido a fondo por no ser parte de este slice). Capturas:
+`.scratch/capturas-antes-390/{carrito-vacio,carrito-un-producto,menu-movil}-390x844.png`,
+`.scratch/capturas-antes-1440/carrito-un-producto-1440x900.png` (mobile menu no aplica a 1440,
+`lg:hidden`).
+
+**DESPUÉS** — base efímera propia (Postgres :55450, `node .scratch/levantar-corte.mjs`, también
+THROWAWAY: `initdb`+`pg_ctl` con los MISMOS flags que `scripts/postgres-efimero.sh`, `migrate deploy`
++ seed canónico + `aplicarPreset(CORTE)` PERSISTIDO — no el mirador `?tema=`, para que
+`carrito.variante`/`navDrawerMovil.variante`/`navTratamiento.badgeColor` lleguen al layout tal cual,
+§ el porqué en §2 — + `next build` + `next start` en :3499), mismo script de captura contra
+`http://localhost:3499/`. Capturas: `.scratch/capturas-despues-390/{carrito-vacio,carrito-un-
+producto,menu-movil}-390x844.png`, `.scratch/capturas-despues-1440/carrito-un-producto-1440x900.png`,
+`.scratch/capturas-despues-1440/header-badge-nav.png` (el badge dorado del contador en el nav, con
+un ítem en el carrito y el cajón cerrado).
+
+**Lo que el DESPUÉS muestra, comparado contra el ANTES, punto por punto del spec:**
+- vacío: el ícono deja el caramelo/crema y pasa a `--sf-acento-texto` (tinta oscura); el título pasa
+  a `font-playfair`; "Seguir comprando" pasa de link subrayado a botón primario sólido con flecha.
+- con un producto: caja de cantidad con borde (sin relleno); "Total estimado" en `font-playfair`
+  2xl; un solo botón "Pagar" con flecha, sin el link "Seguir comprando" debajo (el prototipo no lo
+  tiene en su `.drawer-foot`).
+- menú móvil: fila de íconos (buscar/carrito con contador/cerrar) junto al logo; ítems en MAYÚSCULAS.
+- header (desktop, 1440): el contador del carrito en el ícono de la bolsa pasa de rojo oscuro a
+  dorado (`#f5b36a`), el MISMO tono que ya pinta "COSECHA 2026" junto a "TIENDA" en el mismo header.
+
+**Límite declarado**: no se pudo probar interactivamente que el ícono "Buscar" del menú móvil abre
+`NavSearch` correctamente (el botón se ve renderizado y su `onClick` llama a `setMobileOpen(false)` +
+`setSearchOpen(true)`, el mismo par de setters que ya usa el trigger de escritorio, pero no se hizo
+click-test de esa apertura en esta sesión). Tampoco se probó el chevron de submenú por ejecución —
+ningún ítem del seed canónico trae `panel`, así que no había un caso real que ejercitarlo; se afirma
+por lectura del JSX (`{l.panel && <ChevronDown .../>}`) y por los 151 tests de `lib/config/mega-
+menu.test.ts`/`menu-como-dato.test.ts` que confirman que `l.panel` llega correcto a `itemsDeMenu`.
+
+### 5 · Gate
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2667/2667** — verde (incluye los 7 tests nuevos de `lib/storefront/carrito-drawer.test.ts`) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **242/242** — verde |
+| `npm run verificar:nayoli:visual` (píxeles, main vs. esta rama) | **0px** en las 6 rutas + 2 hovers (consciente de antialiasing y en crudo) |
+| `npm run guarda:color` (píxeles, esta rama vs. fixture de Nayoli) | **0px** en las 6 rutas + 2 hovers — la rama SÍ toca el sistema de color (11 archivos, `git diff` contra `main`, acumulado de toda la rama), así que corrió el diff completo |
+| `lib/config/cromo-carrito.test.ts` (existente, fuera de `touches:`) | **5/5** — `CartCTA`/`CartTitulo` byte-idénticos sin props |
+| `lib/config/drawer-movil.test.ts`, `detalles-sitio.test.ts`, `mega-menu.test.ts`, `menu-como-dato.test.ts`, `corte-badge-menu.test.ts` (existentes) | **151/151** |
+
+**`themes.test.ts`/`theme-mirador.test.ts`/`formas.ts`/`formas.test.ts`/`app/globals.css` (en
+`touches:`, sin tocar):** ninguno necesitó cambio — `themes.ts` sólo ganó comentarios (docstring de
+`carritoVariante` y del cuarto/quinto consumidor de `badgeColor`), sin tocar ningún campo/valor;
+`formas.ts` se reusó tal cual (§2, la aproximación de radio); `app/globals.css` no necesitó una clase
+nueva (`sf-borde`, `sf-radio-lg`, `.sf-icono-nav-exacto` vía `navIconoClase` ya cubrían todo). Correr
+sus tests/gate de todas formas confirma que nada se rompió por accidente.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff introdujo o cambió: `CartDrawer.tsx` (contenido), `StoreNav.tsx`
+(contenido), `CartCTA` (gana `label?`), `composicionCarrito`, `ComposicionCarrito`,
+`ClaveCarritoVariante`, `lib/storefront/carrito-drawer.ts`, `CARRITO-Y-MENU-MOVIL-CAFEONE-1`.
+Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones de los ocho** (`grep -c` sobre cada uno,
+incluidos `CartDrawer.tsx`, `StoreNav.tsx`, `carrito.variante`, `navDrawerMovil`, `badgeColor`,
+`sf-radio-lg`, `formas.ts`, `themes.ts`). `CLAUDE.md` no documenta la implementación de componentes
+individuales del storefront ni el mecanismo de temas por preset — esa doctrina vive enteramente en
+`DECISIONS.md` (el mismo hallazgo que los slices anteriores de esta rama ya vienen dejando escrito).
+Nada que corregir ahí.
+
+### `touches:` — lo que se escribió
+
+`components/storefront/CartDrawer.tsx`, `components/storefront/layout/StoreNav.tsx`,
+`lib/storefront/carrito-drawer.ts` (nuevo), `lib/storefront/carrito-drawer.test.ts` (nuevo),
+`lib/config/themes.ts` (sólo comentarios), este asiento (`DECISIONS.md`). `lib/config/themes.test.ts`,
+`lib/config/theme-mirador.test.ts`, `lib/config/formas.ts`, `lib/config/formas.test.ts`,
+`app/globals.css` quedaron dentro del techo de `touches:` sin necesitar edición (§5). Sin desviación
+de alcance.
+
+### `customer_bytes`
+
+**`changed: true`.** Un visitante con CORTE aplicado ve: el CTA del pie del carrito dice "Pagar" (no
+"Ir al Checkout"); el pie ya no tiene el link "Seguir comprando" bajo el botón; el rótulo del total
+pasa de "Subtotal" a "Total estimado"; el ícono del carrito vacío deja el caramelo/crema por un tono
+más oscuro; el menú móvil gana una fila de íconos (buscar/carrito/cerrar) y sus ítems pasan a
+MAYÚSCULAS; el contador del carrito en el header pasa de rojo oscuro a dorado. Nayoli (`carrito.
+variante`/`navDrawerMovil.variante`/`navTratamiento.badgeColor` nacen en su default de HOY, sin
+preset aplicado) queda byte-idéntica — medido 0px en las dos herramientas de diff de píxeles (§5).
+
+**`strings:`**
+- "Pagar" — nuevo texto del CTA primario del carrito, sólo bajo `carrito.variante:'flotante'` (CORTE).
+- "Total estimado" — nuevo rótulo del total del carrito, mismo gate.
+- "Buscar" / "Ver carrito" / "Cerrar el menú" — nuevos `aria-label` de los íconos del menú móvil
+  pantalla-completa (CORTE), para lector de pantalla.
+- Los labels del menú (`Tienda`, `Suscripciones`, `Nosotros`, `Rastrear Pedido`) NO cambian como
+  DATO — sólo su presentación visual pasa a mayúsculas vía CSS (`text-transform`), mismo gate.
+
+### Open follow-ups
+
+- `CARRITO-RADIO-SM-MD-TOKENS-1`: la caja de cantidad y el tile de foto del carrito 'flotante' reusan
+  `--sf-radio-lg` (2px en 'recta') en vez de los valores que el prototipo mide para esos DOS roles
+  (`--radius-sm` 4px, `--radius-md` 8px). Agregar los tokens propios a `formas.ts` (2 campos × 3
+  FORMAS) es la solución exacta; no se hizo en este slice porque `formas.ts` es infraestructura
+  compartida por todo el storefront y ensancharla sin que el owner haya visto el resultado (las
+  capturas de referencia que esta sesión no pudo mirar, § 0) es más riesgo que la aproximación
+  reportada.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE aplicado
+lee (§ `customer_bytes`, arriba). El owner ya aprobó la ESCRITURA de este slice específico
+(§ `approval-reason` del spec, con las capturas de referencia y la instrucción explícita de excluir
+Nota/Descuento/Iniciar sesión/impuestos); el MERGE sigue gateado aparte — la aprobación de escritura
+nunca fue aprobación de merge.
+
+Cierra `CARRITO-Y-MENU-MOVIL-CAFEONE-1`.
