@@ -411,7 +411,9 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // (el ANCESTRO del sticky) como red de seguridad: acota cualquier excedente al espacio del ancestro
 // (que sobra, § el presupuesto de scroll de 200vh/65vh) para que la media desbordada nunca alcance a
 // pintar sobre la sección SIGUIENTE de la página, ni siquiera en el instante en que el panel se
-// despinea al final del recorrido. Lo único que dependía del `overflow-hidden` retirado de la
+// despinea al final del recorrido. **ESTE VALOR ROMPIÓ EL PROPIO STICKY QUE LO CONTIENE — ver
+// § HERO-STICKY-OVERFLOW-FIX-1 más abajo, donde pasa a `overflow-clip`.** Lo único que dependía del
+// `overflow-hidden` retirado de la
 // sección era el recorte HORIZONTAL de la máscara del ticker (§ "EL LOOP DE TEXTO" — sin ancho
 // propio, su caja crecía tan ancha como el texto sin envolver); gana `inset-x-0` (ancho acotado al
 // marco) para quedar auto-contenida vía su PROPIO `overflow-hidden`, sin depender de la sección. La
@@ -426,6 +428,43 @@ import { imagenPortada } from "@/lib/producto-imagen";
 // de que el fix funcione: es el LÍMITE del arnés, medido y documentado en el asiento de este slice
 // (`DECISIONS.md`). La prueba real es el Safari del owner, en su teléfono, con la barra de
 // direcciones colapsando de verdad durante el scroll.
+//
+// EL STICKY DEJÓ DE PEGARSE, EN ESCRITORIO Y EN MÓVIL — § HERO-STICKY-OVERFLOW-FIX-1 (2026-09-29):
+// el `overflow-hidden` que el slice de arriba AGREGÓ al `<div ref={wrapperRef}>` (el ancestro del
+// sticky, "como red de seguridad" para que la media a `100lvh` no desbordara sobre la sección
+// siguiente) fue la causa del regreso reportado por el owner — captura de escritorio: «El bug está
+// peor ahora, no sólo se ve en la vista móvil, sino también en la de escritorio y más grande aún en
+// ambas» — el video se iba con la página al hacer scroll, en vez de quedarse fijo, y por eso el
+// bloque `--sf-tinta` del ancestro quedaba a la vista en TODO el recorrido, no sólo en el resquicio
+// del chrome dinámico.
+//
+// LA CAUSA, por especificación: un elemento con `overflow: hidden` (o `auto`/`scroll`) se vuelve un
+// SCROLL CONTAINER — la caja contra la que el spec de posicionamiento resuelve el `position:sticky`
+// de sus descendientes. El `<div ref={wrapperRef}>` es el elemento PENSADO para dar el presupuesto
+// de scroll (min-h `100svh+200vh`/`100svh+65vh`, § "LA MECÁNICA DE STICKY" arriba) — no scrollea por
+// sí mismo, así que agregarle `overflow-hidden` lo convierte en un scroll container SIN mecanismo de
+// scroll propio, y el `<section sticky top-0 …>` que hasta ahora se pineaba contra el VIEWPORT pasa a
+// intentar pinearse contra ESE ancestro — que crece con la página en vez de quedarse quieto, así que
+// el "pineado" deja de fijarse a nada. Es un efecto colateral DOCUMENTADO de `overflow-hidden`, no
+// exclusivo de este componente: cualquier ancestro entre un `position:sticky` y el viewport que lleve
+// `overflow: hidden/auto/scroll` rompe el sticky de la misma forma.
+//
+// EL FIX: `overflow-clip` EN VEZ DE `overflow-hidden` EN EL ANCESTRO. `overflow: clip` recorta el
+// contenido que se pasa de la caja — la MISMA función visual que motivó agregarlo (conservar el
+// "red de seguridad" para el excedente de la media a `lvh`) — pero, A DIFERENCIA de `hidden`, NO
+// establece un scroll container (spec de CSS Overflow: `clip` documenta explícitamente que NO forma
+// parte del modelo de "scrollable overflow", así que un descendiente `position:sticky` sigue
+// resolviendo su ancla contra el próximo ancestro que SÍ sea un scroll container real — acá, el
+// viewport). El sticky vuelve a fijarse al viewport, y el recorte del excedente de la media sigue
+// vigente por el mismo mecanismo, sin el efecto colateral. `overflow-clip` es tan soportado como
+// `overflow-hidden` en los navegadores donde corre este storefront (Safari 16+, Chrome/Firefox desde
+// 2022) — no hay fallback que declarar.
+//
+// LO QUE NO CAMBIA: la máscara del ticker sigue con su PROPIO `overflow-hidden` (§ "EL LOOP DE
+// TEXTO" — nunca dependió del ancestro, ya está auto-contenida vía `inset-x-0`); la `<section>`
+// pineada sigue SIN `overflow` propio (se retiró en la ronda anterior, sin cambios acá); la media
+// sigue midiendo `100lvh` centrada. Es un cambio de UN valor, en UN selector — de la propiedad que
+// causaba el scroll container al valor que recorta sin causarlo.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -508,7 +547,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   return (
     <div
       ref={wrapperRef}
-      className={`relative ${claseAlturaAncestroMarquesina(!!producto, preview)} overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`}
+      className={`relative ${claseAlturaAncestroMarquesina(!!producto, preview)} overflow-clip bg-[var(--sf-banda,var(--sf-tinta))]`}
       style={style}
     >
       <section

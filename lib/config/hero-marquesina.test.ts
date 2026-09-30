@@ -259,21 +259,30 @@ test('claseAlturaAncestroMarquesina: CON tarjeta sigue siendo el presupuesto de 
 // hacia `lvh` y el ancestro (§ "LA MECÁNICA DE STICKY") asoma por el hueco. El docstring de cabecera
 // de `HeroMediaMarquesina.tsx` (el bloque con este mismo id) trae la derivación completa.
 
-test('el marco (`<section>`) YA NO lleva `overflow-hidden` propio — se retiró para que la media pueda pintar más allá de su caja; el ANCESTRO del sticky lo gana como red de seguridad', () => {
+test('el marco (`<section>`) YA NO lleva `overflow-hidden` propio — se retiró para que la media pueda pintar más allá de su caja; el ANCESTRO del sticky NO lleva overflow-hidden tampoco (§ HERO-STICKY-OVERFLOW-FIX-1: rompía el sticky por especificación — un scroll container ancestro)', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
   const iWrapper = html.indexOf('class="relative');
   const iSection = html.indexOf('<section');
   const claseWrapper = html.slice(iWrapper, html.indexOf('"', iWrapper + 'class="'.length) + 1);
   const claseSection = html.slice(html.indexOf('class="', iSection), html.indexOf('"', html.indexOf('class="', iSection) + 'class="'.length) + 1);
-  assert.match(claseWrapper, /overflow-hidden/, 'el <div ref={wrapperRef}> (el ancestro) debe llevar overflow-hidden');
+  assert.doesNotMatch(claseWrapper, /overflow-hidden|overflow-auto|overflow-scroll/, 'el <div ref={wrapperRef}> (el ancestro de un sticky) NUNCA debe llevar un overflow que cree scroll container — rompe el sticky de sus descendientes');
   assert.doesNotMatch(claseSection, /overflow-hidden/, 'la <section> (el marco pineado) ya no debe llevarlo en su propia className');
 });
 
-test('overflow-hidden SIGUE en el marcado (vía la máscara del ticker, no la sección) — no desaparece del todo', () => {
+test('el ANCESTRO del sticky lleva `overflow-clip`, no `overflow-hidden` — recorta el excedente de la media SIN volverse scroll container (§ HERO-STICKY-OVERFLOW-FIX-1)', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  const iWrapper = html.indexOf('class="relative');
+  const claseWrapper = html.slice(iWrapper, html.indexOf('"', iWrapper + 'class="'.length) + 1);
+  assert.match(claseWrapper, /overflow-clip/, 'el <div ref={wrapperRef}> (el ancestro) debe llevar overflow-clip como red de seguridad que no rompe el sticky');
+});
+
+test('overflow-hidden SIGUE en el marcado UNA sola vez (vía la máscara del ticker) — el ancestro ya no lo aporta', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
   const apariciones = (html.match(/overflow-hidden/g) ?? []).length;
-  // Dos apariciones: el ancestro (nuevo) y la máscara del ticker (sin cambios). La sección ya no aporta la suya.
-  assert.equal(apariciones, 2);
+  // Una aparición: la máscara del ticker (sin cambios). El ancestro pasó a overflow-clip y la sección nunca lo tuvo.
+  assert.equal(apariciones, 1);
+  const aparicionesClip = (html.match(/overflow-clip/g) ?? []).length;
+  assert.equal(aparicionesClip, 1, 'overflow-clip debe aparecer exactamente una vez — sólo en el ancestro del sticky');
 });
 
 test('el `<div>` de video/imagen+velo mide `100lvh`, CENTRADO respecto al marco (`top:calc((100svh - 100lvh) / 2)`) — antes `absolute inset-0` (100% del marco, svh)', () => {
