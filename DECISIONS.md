@@ -33262,3 +33262,189 @@ spec lo pide explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
 
 Cierra `HERO-STICKY-OVERFLOW-FIX-1` (pendiente del gate visual REAL del owner en su Safari, capa
 3, y de mergear).
+
+## 2026-09-29 — Encabezado CLARO en páginas internas de CORTE, y el relleno que reserva su alto real (`NAV-INTERNAS-CLARO-Y-OFFSET-1`)
+
+`fb01af6` (rama `slice/corte-reescritura-prototipo-1`, SIN mergear — AWAITING_APPROVAL, ver Verdict abajo)
+
+### El pedido
+
+Gate del owner del 2026-09-29, con captura de la ficha de producto y de una página interna del
+tema real (CAFEONE, «Contact»): *"Hay otro bug en la sección de detalle el nav tapa la ruta que
+sale de Inicio/tienda/producto"* y *"El nav debería ser blanco en las otras páginas de la
+página."* Dos defectos, un mismo gate.
+
+### Defecto 1 — el encabezado quedaba oscuro fuera de la home
+
+`navBandaTinta` (`StoreNav.tsx`) describe el color del estado SÓLIDO del nav — la banda tinta que
+CORTE usa cuando el header deja de flotar transparente. Pero `navFlotando` YA exige `isHome`
+(arriba en el mismo archivo) mientras `navBandaTinta` no lo exigía: `const navBandaTinta =
+cromo.navTinta;`. Fuera de la home `navFlotando` es siempre `false`, así que `navClaro` colapsaba
+a `navBandaTinta` — y como `cromo.navTinta` es `true` para CORTE, **toda página interna** (`/
+tienda`, la ficha, `/nosotros`, `/suscripciones`, `/checkout`…) heredaba la MISMA banda oscura que
+la home sólo debía mostrar al scrollear.
+
+El fix es un `isHome &&` en esa misma línea: `const navBandaTinta = isHome && cromo.navTinta;`.
+Fuera de home, `navBandaTinta` es SIEMPRE `false` → `navClaro` cae a `false` → CORTE resuelve la
+MISMA rama clara que los otros 5 presets del catálogo YA usan fuera de home —
+`bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]` — nunca un tercer
+estado inventado. Con eso, el filete (`navFileteClase`) hereda `navClaro=false` →
+`border-[var(--sf-tinta)]/20`, el hairline gris fino que el gate pedía; el CTA rojo y el badge
+dorado de cosecha no dependen de `navClaro` cuando `navTratamiento.cta` está encendido (CORTE lo
+tiene fijo), así que siguen exactamente iguales. `isHome && false === false` para los 5 presets
+sin `navTinta` → BYTE-IDÉNTICO, la condición nueva no mueve un solo píxel fuera de CORTE.
+
+**A propósito, se aparta del prototipo:** `producto.html` (`docs/prototipos/cafeone/`) mantiene el
+encabezado oscuro con `.site-header.is-opaque`. El owner comparó contra las páginas internas del
+TEMA REAL (no el prototipo local, que sólo tiene `index.html`/`producto.html`) y pidió claro; ésta
+es su decisión de producto, no una relectura del prototipo.
+
+### Defecto 2 — el relleno de cada página quedaba corto contra el header de CORTE
+
+Cada página interna reservaba `pt-16` (64px), calculado contra el header de HOY
+(`h-16 lg:h-18` = 64/72px). El header de CORTE mide `h-[76px] min-[640px]:h-[88px]
+cortenav:h-[88px]` (§ `NAV-ALTURA-CON-FILETE-1`, no reabierto por este slice — los 76/88px ya
+estaban medidos y fijados por el gate visual anterior) — 12 a 24px MÁS ALTO que lo reservado, así
+que el header se comía justo esos píxeles: en la ficha, la ruta de migas "Inicio / Tienda /
+producto" quedaba parcialmente tapada.
+
+**El mecanismo, UNA pieza reusada por todas las páginas** (`lib/config/themes.ts`, junto a
+`contenedorAnchoClase`, mismo eje `navTratamiento.posicion` — no una meta nueva):
+
+- `navOffsetClase(posicion)` — el relleno superior COMPLETO. `false` (todo tenant salvo CORTE) =
+  `'pt-16'`, el literal exacto de hoy. `true` (CORTE) = `'pt-[76px] min-[640px]:pt-[88px]
+  cortenav:pt-[88px]'` — el alto real del header, `cortenav:` explícito por la MISMA razón que
+  `navFilaAltoClase` lo deja explícito (que quede escrito que el breakpoint de 1200px sigue
+  existiendo, aunque el valor no vuelva a subir).
+- `navOffsetDeltaClase(posicion)` — SÓLO para `/suscripciones` (ver abajo).
+
+Reemplazado en: `tienda/page.tsx` (el wrapper y el fallback de `Suspense` de `Shop`), la ficha
+(`tienda/[slug]/page.tsx`, las tres ramas: cargando, no-encontrado, y la principal),
+`preguntas-frecuentes/page.tsx` (`py-16` se separó en `pt-{offset} pb-16` — sólo el TOPE necesita
+el alto del header), `rastrear-pedido/page.tsx` (el wrapper y el fallback de `Suspense`), y
+`checkout/page.tsx` + `checkout/retorno/RetornoCliente.tsx` (las tres/dos ramas de cada uno,
+incluidos los fallbacks de `Suspense`). Cada página YA leía `navTratamiento.posicion` para
+`contenedorAnchoClase` (o ganó la lectura en este commit); el offset se calcula UNA vez y se usa en
+todas las ramas de esa página.
+
+**`/nosotros` NO se tocó — se verificó, no se asumió.** Su primera banda (`NosotrosHistoria.tsx`)
+ya reserva `py-24` (96px), por encima del máximo de CORTE (88px) en los dos breakpoints (76px
+móvil, 88px desde 640px) — margen ≥8px siempre. El orden de bandas de `/nosotros` es FIJO
+(`resolverOrdenNosotros()`, sin argumento, `BANDA_NOSOTROS_IDS` literal), así que esa banda es
+SIEMPRE la primera, para cualquier tenant.
+
+**`/suscripciones` es el caso especial, y su razón queda escrita para el próximo slice que la
+mida:** su `pt-16` vive en `app/(storefront)/suscripciones/Contenido.tsx`, un client component que
+el `touches:` de este slice NO declara (sólo `suscripciones/page.tsx`, el server component que
+decide la visibilidad de la página). Reemplazar su `pt-16` directo habría sido la solución UNIFORME
+—lo que hicieron las otras seis páginas—, pero tocar un archivo fuera de `touches:` no es una
+opción de esta sesión. La salida: `navOffsetDeltaClase(posicion)` agrega SÓLO la diferencia que
+falta sobre el `pt-16` que `Contenido.tsx` YA reserva — `'pt-3 min-[640px]:pt-6'` (12px/24px, los
+MISMOS dos números de `navOffsetClase` menos 64) — mediante un `<div>` que `suscripciones/page.tsx`
+monta alrededor de `<SuscripcionesContenido />`. **El wrapper NO se monta en absoluto cuando la
+diferencia es `''`** (`if (!deltaClase) return <SuscripcionesContenido />;`): un `<div
+className="">` seguiría siendo un nodo nuevo en el DOM aunque no tenga clase, y `npm run
+verificar:nayoli` (la vara de BYTES, no sólo píxeles) lo habría visto. Para todo tenant salvo
+CORTE, el render es literalmente el de antes de este commit.
+
+**Abierto, para el slice que tenga `Contenido.tsx` en su `touches:`:** migrar
+`app/(storefront)/suscripciones/Contenido.tsx` de su `pt-16` directo a `navOffsetClase(...)` y
+retirar el wrapper de `page.tsx` — la forma uniforme que las otras seis páginas ya tienen.
+`SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-DE-TOUCHES-1`.
+
+### `EncabezadoSeccion.tsx` — un hint corregido, no un campo nuevo
+
+El toggle "Color del encabezado" (`cromo.navTinta`, panel del dueño) decía *"El encabezado se ve
+con un fondo de color sólido, en vez del que usa hoy"* — cierto pero incompleto tras el defecto 1:
+el efecto ahora es SÓLO en la portada al bajar; en cualquier otra página el encabezado siempre
+queda claro, sin importar este switch. Se corrigió el texto del hint para decirlo. **No es una
+capacidad nueva ni un campo nuevo**: es la descripción de un campo que YA existía, ajustada al
+comportamiento correcto — por eso no se tocó `site-content-schema.ts`, `site-content-defaults.ts`,
+`panel-controles.ts` ni `app/api/site-content/encabezado/route.ts` (los cuatro estaban en
+`touches:` por si hacía falta un campo nuevo; no hizo falta, y esta línea documenta la elección
+—"si es un valor fijo/corrección de alcance, decí por qué"—, que pedía el spec).
+
+### `corte-nav-transparente.test.ts` queda con su fórmula VIEJA — no se rompe, pero describe algo que ya no es cierto
+
+`lib/config/corte-nav-transparente.test.ts` (FUERA de `touches:` de este slice) tiene un test
+literal: *"CORTE fuera de home (no isHome): mismo sólido --sf-tinta que scrolleado — nunca flota
+fuera de home"*, que afirma `navBg === 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'`
+para `isHome:false`. Ese test **sigue pasando** después de este commit, porque su función
+`estadoNav()` es una COPIA de la fórmula de `StoreNav.tsx` escrita a mano dentro del propio archivo
+de test (no un import) — el mismo método que documenta su propio docstring ("StoreNav.tsx NO se
+renderiza acá… lo que se afirma es la CAPA DE DATOS… duplicado literal"). Como es una copia y no un
+import, mi cambio a `StoreNav.tsx` no lo toca: el test verifica su propia fórmula duplicada, que
+sigue siendo la de ANTES de este slice.
+
+Es exactamente la clase de staleness que este protocolo pide señalar: una prueba que se queda
+VERDE mientras describe un comportamiento que el componente real ya no tiene. `lib/config/
+nav-internas.test.ts` (nuevo, en `touches:`) es la prueba VIVA de la fórmula actual — su test *"CORTE
+fuera de home (no isHome): YA NO cae al sólido --sf-tinta — el defecto reportado por el owner"*
+afirma lo contrario del test viejo, sobre la fórmula NUEVA. **No se tocó `corte-nav-transparente.
+test.ts`** (fuera de `touches:`); queda abierto para quien lo tenga en su alcance:
+`CORTE-NAV-TRANSPARENTE-TEST-STALE-1` — actualizar su título/docstring/assert de la prueba
+"fuera de home" para que deje de describir el comportamiento viejo como el vigente, o retirarla en
+favor de `nav-internas.test.ts` si resulta redundante.
+
+### La verificación visual — CORTE aplicado, local, `--sembrar-spotlight`
+
+`npm run capturar:seccion -- --preset CORTE --sembrar-spotlight` (base fresca, Postgres efímero
+propio) contra la ficha del producto sembrado, `/tienda`, `/nosotros`, `/checkout` y
+`/suscripciones`, a **1440×1000** y —ficha y suscripciones, los dos casos de offset más ajustados—
+a **390×844**. Las cinco rutas cargaron sin error, con:
+
+- encabezado CLARO (fondo `--sf-fondo`, wordmark/links/íconos en `--sf-tinta`, filete fino) en las
+  cinco, incluida la ficha;
+- la ruta de migas "Inicio / Tienda / Café Finca San Adolfo" completa, con espacio limpio bajo el
+  filete, a los dos anchos — el defecto reportado, cerrado;
+- en `/suscripciones`, la banda `--sf-tinta` del hero arranca justo bajo el filete, sin que el
+  header le tape el borde superior, a los dos anchos — el caso del `navOffsetDeltaClase`,
+  verificado en vivo;
+- el CTA rojo y el badge dorado de "Cosecha 2026" sin cambios, como en cualquier estado del nav.
+
+Capturas en `.capturas/corte-nav-after-1440/` y `.capturas/corte-nav-after-390/` (gitignoreado, no
+comiteado). No se generaron capturas "antes" locales (el muestrario ya desplegado, con el defecto,
+es la captura del propio reporte del owner que abrió este slice).
+
+### El cierre
+
+- `npm test`: **2609/2609** (2594 + 15 nuevos, `lib/config/nav-internas.test.ts`).
+- `npm run typecheck`: limpio, cero errores.
+- `npm run test:integracion`: **240/240**.
+- `npm run verificar:nayoli:visual` (Nayoli, sin preset; `main`=`9a7ab97` worktree detached, rama =
+  el árbol de trabajo con este commit ya aplicado): **IDÉNTICO, 0px en las 6 rutas + los 2 hovers,
+  consciente de antialiasing Y crudo** — `ruta:home` (0/4.608.000 px), `ruta:tienda`
+  (0/2.433.280 px), `ruta:producto` (0/2.535.680 px), `ruta:checkout` (0/1.152.000 px),
+  `ruta:nosotros` (0/1.152.000 px), `ruta:suscripciones` (0/2.144.000 px), `hover:automatica`
+  (0/98.298 px), `hover:eleccion` (0/102.870 px).
+- `npm run guarda:color`: la rama SÍ toca el sistema de color (`themes.ts` es importador directo de
+  las raíces) → corrió el diff contra el fixture. **PRIMERA corrida (en paralelo con
+  `verificar:nayoli:visual`, compitiendo por CPU/memoria en la misma máquina): FALSO NEGATIVO** —
+  `/checkout` devolvió texto plano "Internal Server Error", `/nosotros` y `/suscripciones`
+  devolvieron la pantalla de error de red de Chromium ("This page couldn't load") y
+  `/suscripciones` reportó tamaños de imagen distintos (900px de alto, un viewport sin contenido,
+  contra 1675px del fixture) — la firma de un servidor Next.js/Postgres caído bajo presión, no de
+  un defecto de render (confirmado por la corrida GEMELA de `verificar:nayoli:visual`, que en el
+  MISMO instante construyó y sirvió las MISMAS rutas sin un solo error). **SEGUNDA corrida, en
+  AISLAMIENTO (sin ningún otro arnés corriendo a la vez): IDÉNTICO, 0px en las 8 capturas** —
+  `ruta-home`/`ruta-tienda`/`ruta-producto`/`ruta-checkout`/`ruta-nosotros`/`ruta-suscripciones`/
+  `hover-automatica`/`hover-eleccion`, todas "IDÉNTICO al fixture". La corrida en aislamiento es la
+  autoritativa.
+- `git worktree list` tras las corridas: sin residuos.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`) — mismo criterio que el resto de esta rama: el diff
+cambia lo que un visitante con CORTE activo ve en cualquier página que no sea la home (el color del
+encabezado, y el espacio entre el encabezado y el contenido). Nayoli no lo ve HOY (0px en las dos
+varas, arriba); la RAMA sí, y merge policy A juzga la RAMA contra su base, no el commit aislado
+(§ CLAUDE.md, `customer_bytes`: "el eje es la rama, no el commit"). El spec lo pide explícito:
+*"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
+
+Cierra `NAV-INTERNAS-CLARO-Y-OFFSET-1` (pendiente del gate visual REAL del owner, capa 3, y de
+mergear). **El dueño debe re-aplicar CORTE** para ver este fix reflejado en el muestrario
+desplegado — el preset ya aplicado en esa base sigue teniendo `cromo.navTinta:true` como dato, y el
+fix vive en el CÓDIGO que lo interpreta (`StoreNav.tsx`), así que no hace falta re-aplicar el
+preset para que el dato cambie — sólo hace falta el DEPLOY de este código. Aclarado porque
+`aplicarPreset`/re-aplicar CORTE es la operación que otros slices de esta rama sí piden, y acá no
+aplica.
