@@ -225,6 +225,7 @@ interface Opciones {
   altoPx: number;
   estiloElementoExtra: string[];
   sembrarSpotlight: boolean;
+  sembrarOrigen: boolean;
 }
 
 function ayuda(): string {
@@ -277,6 +278,13 @@ capturar la banda con el MISMO contenido que .spotlight muestra (index.html:
 da null y la banda no rinde nada — hide-on-empty). SÓLO válido en modo base
 fresca (mutuamente excluyente con --url: no hay base local que sembrar contra
 una URL ya desplegada, cuyo catálogo es el que sea que tenga ese entorno).
+--sembrar-origen (§ ORIGEN-DATOS-EXACTO-1) siembra, sobre la base efímera y
+DESPUÉS de aplicar --preset (si se pasó), los 4 pares dato + los 3 contadores
+de la banda origen con el MISMO contenido que .spec-list/.stats muestra
+(index.html:295-308), y publica content.origen con visible:true — sin
+siembra, los 8 campos nacen VACÍOS (§ el docstring de OrigenContent) y la
+lista/los contadores no rinden nada (hide-on-empty). SÓLO válido en modo base
+fresca (mismo motivo que --sembrar-spotlight).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -289,6 +297,12 @@ Ejemplo (--sembrar-spotlight, § NUESTRO-CAFE-COMO-MUESTRARIO-1):
     --ruta / --selector-app "#producto" \\
     --prototipo index.html --selector-prototipo ".spotlight" \\
     --nombre spotlight
+
+Ejemplo (--sembrar-origen, § ORIGEN-DATOS-EXACTO-1):
+  node --import tsx scripts/capturar-seccion.ts --preset CORTE --sembrar-origen \\
+    --ruta / --selector-app "#origen" \\
+    --prototipo index.html --selector-prototipo "#origen" \\
+    --nombre origen
 
 Ejemplo (--url, el muestrario real):
   node --import tsx scripts/capturar-seccion.ts \\
@@ -317,6 +331,7 @@ function parseCli(argv: string[]): Opciones {
       alto: { type: "string" },
       "estilo-elemento": { type: "string", multiple: true },
       "sembrar-spotlight": { type: "boolean" },
+      "sembrar-origen": { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -341,6 +356,13 @@ function parseCli(argv: string[]): Opciones {
     throw new Error(
       `--sembrar-spotlight y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
         `una URL ya desplegada (§ NUESTRO-CAFE-COMO-MUESTRARIO-1).\n\n${ayuda()}`,
+    );
+  }
+  const sembrarOrigen = values["sembrar-origen"] === true;
+  if (sembrarOrigen && url) {
+    throw new Error(
+      `--sembrar-origen y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
+        `una URL ya desplegada (§ ORIGEN-DATOS-EXACTO-1).\n\n${ayuda()}`,
     );
   }
 
@@ -382,6 +404,7 @@ function parseCli(argv: string[]): Opciones {
     altoPx: values.alto ? Number(values.alto) : 900,
     estiloElementoExtra: values["estilo-elemento"] ?? [],
     sembrarSpotlight,
+    sembrarOrigen,
   };
 }
 
@@ -738,6 +761,37 @@ async function sembrarSpotlight(): Promise<void> {
   console.log("✔ Spotlight sembrado (2 productos + content.spotlight publicado).");
 }
 
+// ─── SEMBRAR ORIGEN (§ ORIGEN-DATOS-EXACTO-1) ────────────────────────────────────────────────────
+//
+// Los 8 campos de `content.origen` (4 pares dato + 3 contadores) NACEN VACÍOS (§ el docstring de
+// `OrigenContent`, site-content-defaults.ts — `mergePresetEnContent` sólo enciende `visible`,
+// JAMÁS escribe texto/dato de sección), así que capturar `.spec-list`/`.stats` contra la base
+// efímera SIN sembrar compararía el prototipo lleno contra una lista/contadores VACÍOS
+// (hide-on-empty, § `datosDeOrigen`/`statsDeOrigen` en `Origen.tsx`) — mismo hallazgo que
+// `sembrarSpotlight` ya resolvió para `.spotlight`. Escribe los valores MEDIDOS del prototipo
+// (`docs/prototipos/cafeone/index.html:295-308`) por el camino de escritura REAL del panel
+// (`guardarBorrador` + `publicarSeccion('origen')`), no un `UPDATE` a mano.
+async function sembrarOrigen(): Promise<void> {
+  console.log("▸ --sembrar-origen: publicando content.origen con los 4 datos + 3 contadores del prototipo…");
+  const { guardarBorrador, publicarSeccion } = await import("../lib/config/site-content-write");
+
+  await guardarBorrador({
+    origen: {
+      visible: true,
+      dato1Label: "Altitud", dato1Valor: "1.500 – 1.800 msnm",
+      dato2Label: "Variedad", dato2Valor: "Caturra y Colombia",
+      dato3Label: "Proceso", dato3Valor: "Lavado, secado al sol",
+      dato4Label: "Cosecha", dato4Valor: "Marzo – junio",
+      statNumero1: "1600", statEtiqueta1: "msnm promedio",
+      statNumero2: "12", statEtiqueta2: "hectáreas sembradas",
+      statNumero3: "52", statEtiqueta3: "años de tradición",
+    },
+  });
+  await publicarSeccion("origen");
+
+  console.log("✔ Origen sembrado (content.origen publicado con los datos/contadores del prototipo).");
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log(BANNER);
@@ -790,6 +844,10 @@ async function main(): Promise<void> {
     // algún día dejara de serlo.
     if (opciones.sembrarSpotlight) {
       await sembrarSpotlight();
+    }
+
+    if (opciones.sembrarOrigen) {
+      await sembrarOrigen();
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {

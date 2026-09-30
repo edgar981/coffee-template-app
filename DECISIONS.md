@@ -33758,3 +33758,185 @@ ESCRITURA (`approval-reason` del spec: el mismo gate del 2026-09-29 que pidió l
 MERGE sigue gateado aparte, por instrucción del dispatch (`exec: no`).
 
 Cierra `BACKTOTOP-REDONDO-Y-ORDEN-1`.
+
+## 2026-09-29 — La lista y los contadores de Origen, MEDIDOS pixel a pixel contra el prototipo, no sólo el andamiaje (`ORIGEN-DATOS-EXACTO-1`)
+
+`PARIDAD-CAFE-Y-ORIGEN-1` había dejado dicho que la lista de datos y los 3 contadores de Origen
+nacen VACÍOS bajo CORTE por falta de contenido cargado, citando la clasificación de
+`CENSO-PARIDAD-MUESTRARIO-1`: "se ve incompleta pese a que el código ya soporta la paridad
+completa". Este slice sembró los valores REALES del prototipo (base efímera del arnés, nunca el
+tenant) para poder MIRAR ese código con datos adentro — y esa premisa resultó ser sólo PARCIALMENTE
+cierta: `Origen.tsx` ya sabía OMITIR pares/stats vacíos y ANIMAR el conteo (§ `ORIGEN-BANDA-1`), pero
+con datos cargados la lista y los contadores no coincidían con `.spec-list`/`.stats` del prototipo
+en seis ejes concretos — todos MEDIDOS por `getComputedStyle` contra el prototipo real
+(`docs/prototipos/cafeone/index.html`), no derivados de la hoja de estilos a ojo.
+
+### Los seis ejes, medidos ANTES/DESPUÉS
+
+| elemento | propiedad | ANTES (código viejo) | DESPUÉS | prototipo (medido) |
+| --- | --- | --- | --- | --- |
+| fila de un dato | padding-block | `py-3` (12px) | `py-4` (16px) | **16px** |
+| fila de un dato | align-items | `items-center` | *(sin clase — default)* | `normal` (= stretch) |
+| `dt` (label) | letter-spacing | `tracking-wide` (0.025em → 0.3px) | `tracking-[0.11em]` | **1.32px** (0.11em·12px) |
+| `dd` (valor) | font-size | `text-sm` (14px) | `text-base` (16px) | **16px** |
+| `dd` (valor) | color (rol) | `var(--sf-tinta)` (rol `--text-heading`) | `var(--sf-texto)` (rol `--text-body`) | rol **`--text-body`** |
+| `.stat b` (cifra) | font-size | `text-4xl sm:text-5xl` (36px/48px) | `text-[40px]` (fijo) | **40px fijo**, sin variar por ancho |
+| `.stat b` | line-height / letter-spacing | *(sin declarar)* | `leading-[0.98]` / `tracking-[-0.015em]` | **39.2px** / **-0.6px** (a 40px) |
+| `.stat span` (etiqueta) | font-size | `text-sm` (14px) | `text-base` (16px) | **16px** |
+| contador (contenedor) | text-align | `text-left sm:text-center` | `text-left` | **`start`/`left` en TODO ancho** — nunca centrado |
+| rejilla de contadores | gap | `gap-8` fijo (32px) | `gap-6 sm:gap-8` | **24px** (<640px) / **32px** (≥641px) |
+
+El `text-align` del contador es el hallazgo que una lectura de la hoja de estilos sola no habría
+dado: `.stat`/`.stat b`/`.stat span` no declaran `text-align` en NINGÚN ancho — la regla mobile
+(`@media max-width:640px{.stats{text-align:left}}`) es un reset REDUNDANTE, no una excepción, y a
+desktop el valor computado es `start` (el default heredado). `sm:text-center` era, por tanto, el
+único de los seis ejes que no era un "faltaba ajustar la clase" sino un **defecto de lectura**
+—alguien asumió que 3 columnas de números se ven centradas, sin medir—. Confirmado por ejecución
+contra el muestrario Onix desplegado (`.stat:first-child` → `text-align: start` a 1280px) ANTES de
+tocar el código.
+
+### `id="origen"` — el selector que faltaba para poder medir esto en absoluto
+
+`Origen.tsx` no declaraba `id` en su `<section>` (a diferencia de `Spotlight.tsx`, que sí tiene
+`id="producto"` — el mismo patrón que el prototipo usa para sus dos secciones). Sin él, no hay
+selector CSS estable para apuntar el arnés de captura a la sección — se agregó, byte-inerte para
+Nayoli (la sección entera es `null` sin `visible:true`, así que el atributo nunca se emite para un
+tenant sin fila propia).
+
+### `--sembrar-origen`, gemelo de `--sembrar-spotlight`
+
+`scripts/capturar-seccion.ts` gana el flag: sobre la base efímera del arnés (nunca el tenant),
+publica `content.origen` con `visible:true` y los 8 campos con los valores MEDIDOS del prototipo
+(`index.html:295-308`) por el camino de escritura real del panel (`guardarBorrador` +
+`publicarSeccion('origen')`). Mismo mecanismo, mismas exclusiones mutuas con `--url` que su
+gemelo.
+
+### Medido, con el harness — ANTES y DESPUÉS
+
+**ANTES** (`--url` contra el muestrario Onix desplegado, sin preset/sin siembra — el estado real de
+un tenant sin fila propia): página completa capturada junto al `#origen` del prototipo, de
+referencia — `origen` no renderiza NADA (`visible:false` + sin datos), consistente con la doctrina
+y con lo que Nayoli sigue viendo hoy.
+
+**DESPUÉS** (base efímera propia, `--preset CORTE --sembrar-origen`, `next build`+`next start`
+reales, NUNCA `next dev` — § CROMO-DEV-HIDRATACION-SPA-1), computados en vivo a 1440px y a 390px,
+`app` (esta rama) contra `prototipo` (el HTML real):
+
+| selector | propiedad | app (esta rama) | prototipo |
+| --- | --- | --- | --- |
+| `#origen dl > div:first-child dt` | `letter-spacing` | `1.32px` | `1.32px` |
+| `#origen dl > div:first-child dt` | `font-size` | `12px` | `12px` |
+| `#origen dl > div:first-child dd` | `font-size` | `16px` | `16px` |
+| `#origen dl > div:first-child dd` | `text-align` | `right` | `right` |
+| `#origen … b` (1er contador) | `font-size` | `40px` | `40px` |
+| `#origen … b` | `line-height` | `39.2px` | `39.2px` |
+| `#origen … b` | `letter-spacing` | `-0.6px` | `-0.6px` |
+| `#origen … b` | `color` | `rgb(16,36,7)` | `rgb(16,36,7)` |
+| `.../div:last-child` (rejilla stats, 390px) | `column-gap` | `24px` | `24px` |
+| `.../div:last-child` (rejilla stats, 1440px, corrida separada) | `column-gap` | `32px` | `32px` |
+
+Capturas en `.capturas/origen-antes-1440/`, `.capturas/origen-antes-390/`,
+`.capturas/origen-despues-1440/`, `.capturas/origen-despues-390/` (gitignoreadas, no comiteadas —
+mismo tratamiento que el resto del arnés).
+
+### DOS residuos MEDIDOS y DEJADOS FUERA, con su razón
+
+- **`dt` renderiza a `line-height: 16px` (app) contra `18px` (prototipo).** `text-xs` de Tailwind
+  empareja `font-size:12px` con SU PROPIO `line-height:16px` (1.33×); el prototipo no declara
+  `line-height` en `dt` y hereda el `1.5×` ambiente del body (18px a 12px). Es una característica de
+  CADA uso de `text-xs` en TODO el storefront (preexistente, no introducida por este slice — el
+  `dt` ya usaba `text-xs` antes del fix, y este slice no tocó su tamaño ni su line-height). Arreglarlo
+  exigiría un `leading-*` propio en `dt` que ningún otro `text-xs` del storefront lleva — una
+  decisión de convención transversal, no un ajuste de la lista de Origen. No se tocó.
+- **El `font-weight` ambiente del cuerpo del storefront computa `440` (app, Figtree) contra `400`
+  (prototipo, Hanken Grotesk/Roboto Serif).** Ni `dt` ni `dd` declaran `font-weight` explícito (antes
+  ni después de este slice) — es el peso REGULAR ambiente de la fuente del storefront ENTERO
+  (Figtree, variable), ORTOGONAL a la lista de Origen. Arreglarlo tocaría la tipografía de toda la
+  app, no esta sección. No se tocó.
+- **`grid-template-columns` de la rejilla de stats a 390px: `354px` (app) contra `342px`
+  (prototipo)**, 12px de diferencia en el ANCHO DEL CONTENEDOR — no del gap (que coincide
+  exacto). Pertenece a `contenedorAnchoClase`/`PARIDAD-ANCHO-CONTENIDO-1` (el contenedor
+  COMPARTIDO por toda banda del storefront), no a los ejes propios de la lista/stats de Origen.
+  **Open follow-up: `PARIDAD-ANCHO-CONTENEDOR-390-1`** — re-medir `contenedorAnchoClase` contra
+  `.shell` del prototipo específicamente a anchos <640px; no se investigó más porque tocar esa
+  función está fuera de `touches:` de este slice.
+
+### Los campos del panel — la lista exacta para el dueño
+
+`Tienda → Home → Origen`, sección "4 pares dato" (los 4 campos `Valor`, junto a su label ya fijo) y
+"Contadores" (los 3 pares `Número`/`Etiqueta`), con estos valores como SUGERENCIA (no se escribieron
+en ningún default ni en ninguna fila del tenant — sólo en la base efímera del arnés, § arriba):
+
+| campo | sugerencia |
+| --- | --- |
+| Altitud (valor) | `1.500 – 1.800 msnm` |
+| Variedad (valor) | `Caturra y Colombia` |
+| Proceso (valor) | `Lavado, secado al sol` |
+| Cosecha (valor) | `Marzo – junio` |
+| Contador 1 — número / etiqueta | `1600` / `msnm promedio` |
+| Contador 2 — número / etiqueta | `12` / `hectáreas sembradas` |
+| Contador 3 — número / etiqueta | `52` / `años de tradición` |
+
+El separador de miles ya lo decide `toLocaleString('es-CO')` (existente, § `ORIGEN-BANDA-1`) —
+`1600` se muestra `1.600`, igual que el prototipo; no hubo decisión de formato que tomar en este
+slice.
+
+### Tests nuevos — 8, todos por fuente/render, ninguno de navegador
+
+`lib/config/origen-banda.test.ts` gana 8 tests (31 en total, antes 23): 3 para la fila del dato
+(padding+align-items, tracking de `dt`, tamaño+color de `dd`), 4 para los contadores (gap
+responsive, tipografía de `.stat b`, tamaño de `.stat span`, alineación), todos por
+`renderToStaticMarkup` (sin jsdom, mismo carril que el resto del archivo) — afirman la CLASE exacta
+que sale en el HTML, no el `getComputedStyle` (eso lo mide el harness contra el navegador real,
+arriba). `lib/animation.ts`/`lib/animation.test.ts` (en `touches:`) no necesitaron cambios: la
+matemática del conteo (`valorContador`, `DURACION_CONTADOR_MS=1100`, threshold 0.4) ya reproducía
+`js/home.js:320-327` exacto desde `ORIGEN-BANDA-1` — verificado leyendo el archivo, no supuesto.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2621/2621** (2613 + 8 nuevos) |
+| `npm run test:integracion` | **242/242** (sin cambios — este slice no toca ninguna cadena de integración) |
+| `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (`main`=`9a7ab97` vs esta rama en el árbol final) |
+
+### `touches:` — los seis archivos, todos usados
+
+`components/storefront/home/Origen.tsx` (las clases de la fila/contador + `id="origen"`),
+`lib/config/origen-banda.test.ts` (8 tests nuevos), `scripts/capturar-seccion.ts`
+(`--sembrar-origen` + `sembrarOrigen()`), `lib/animation.ts`/`lib/animation.test.ts` (leídos,
+verificados ya correctos, sin cambio), `DECISIONS.md` (este asiento). No se tocó ningún archivo
+fuera de la lista declarada.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados uno por uno contra `CLAUDE.md`: `Origen.tsx`,
+`OrigenContador`, `datosDeOrigen`, `statsDeOrigen`, `capturar-seccion`, `sembrarOrigen`,
+`sembrar-origen`, `origen-banda`, `ORIGEN-BANDA`, `spec-list` → **CERO apariciones** en los diez.
+Se buscó también la palabra suelta `origen` (sin comillas): 12 apariciones, ninguna sobre la banda
+"El origen" del storefront de CORTE — todas sobre `Product.origen` (atributo de ficha del
+producto), "origen de una orden" (`canal`/code-path), o "origen" del eje de una gráfica (Dashboard).
+**Ninguna sentencia de `CLAUDE.md` queda falsa por este diff** — CLAUDE.md no documenta el sistema
+de bandas de CORTE ni esta sección en absoluto; esa doctrina vive enteramente en `DECISIONS.md`
+(`ORIGEN-BANDA-1`, `PARIDAD-CAFE-Y-ORIGEN-1`).
+
+### `customer_bytes`
+
+**`changed: true`.** Un visitante con CORTE activo y `content.origen` cargado por el dueño vería:
+la fila de un dato más espaciada verticalmente (16px vs 12px de padding), su etiqueta con más
+tracking, su valor un punto más grande y en un tono distinto (rol body en vez de heading); el
+número de cada contador a tamaño fijo (40px, antes variaba 36-48px) con line-height/tracking
+propios; y los tres contadores YA NO se centran a ningún ancho (antes se centraban ≥640px). `strings:`
+**ninguno** — los seis ejes son forma/tipografía/espaciado, no copy nuevo. **Nayoli no ve nada de
+esto**: `origen.visible` sigue en `false` por default y Nayoli no tiene fila propia en `SiteContent`
+para esta sección (medido: `npm run verificar:nayoli:visual`, 0px en las 6 rutas + 2 hovers).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`) — la RAMA cambia bytes visuales que un visitante con CORTE
+activo y datos cargados en Origen vería (los seis ejes de arriba). El owner ya aprobó la ESCRITURA
+(`approval-reason` del spec: el gate del 2026-09-29 que pidió esta sección "exactamente igual" al
+muestrario); el MERGE sigue gateado aparte (`exec: no`).
+
+Cierra `ORIGEN-DATOS-EXACTO-1`.

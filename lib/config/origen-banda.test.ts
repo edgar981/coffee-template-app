@@ -133,6 +133,47 @@ test('el SEGUNDO marco de foto sigue SIN desfase — sólo el primero (first-chi
   assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden rounded-2xl"/, 'debe existir un marco SIN clases de margen (el segundo)');
 });
 
+// ─── LA LISTA DE DATOS — filetes finos, medidos contra `.spec-list`/`dt`/`dd` del prototipo ──────
+//
+// `css/app.css:591-599` — MEDIDO por computed-style contra el prototipo real (§ ORIGEN-DATOS-
+// EXACTO-1, no derivado de la hoja a ojo): la fila es `py-4` (16px, `--space-4`) SIN
+// `items-center` (el prototipo no fija `align-items`; el computado da `normal`); `dt` lleva
+// `tracking-[0.11em]` (1.32px medidos a 12px, `--tracking-eyebrow`); `dd` es `text-base` (16px,
+// `--text-body-m`) en `var(--sf-texto)` (el rol `--text-body`, NO `--sf-tinta` — ése es
+// `--text-heading`, el rol del h2/los contadores).
+
+test('la fila de un dato usa py-4 (16px) SIN items-center — antes era py-3 (12px) con items-center', () => {
+  const content = {
+    ...DEFAULTS,
+    origen: { ...DEFAULTS.origen, visible: true, dato1Valor: '1.500 – 1.800 msnm' },
+  } as SiteContentData;
+  const html = renderOrigen(content);
+  // El match EXACTO de la clase de la fila ya certifica la ausencia de `items-center`/`py-3`
+  // (una clase distinta no matchearía) — un `doesNotMatch` global sería FALSO POSITIVO acá: el
+  // grid EXTERNO de fotos+copy (`grid-cols-1 lg:grid-cols-2 … items-center`, línea de arriba)
+  // legítimamente lleva `items-center` para OTRA cosa (centrar fotos y copy verticalmente).
+  assert.match(html, /class="flex justify-between gap-6 py-4 border-b border-\[var\(--sf-linea\)\]"/);
+});
+
+test('el dt (label) lleva tracking-[0.11em] — antes era tracking-wide (0.025em, un tercio de lo medido)', () => {
+  const content = {
+    ...DEFAULTS,
+    origen: { ...DEFAULTS.origen, visible: true, dato1Valor: '1.500 – 1.800 msnm' },
+  } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.match(html, /class="text-\[var\(--sf-texto-suave\)\] text-xs uppercase tracking-\[0\.11em\]"/);
+  assert.doesNotMatch(html, /tracking-wide/);
+});
+
+test('el dd (valor) es text-base (16px) en var(--sf-texto) — antes era text-sm (14px) en var(--sf-tinta)', () => {
+  const content = {
+    ...DEFAULTS,
+    origen: { ...DEFAULTS.origen, visible: true, dato1Valor: '1.500 – 1.800 msnm' },
+  } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.match(html, /class="text-\[var\(--sf-texto\)\] text-base text-right m-0"/);
+});
+
 test('con datos y stats CARGADOS (contenido explícito, no los DEFAULTS): la lista y los 3 contadores SÍ rinden', () => {
   const content = {
     ...DEFAULTS,
@@ -205,6 +246,41 @@ test('un `statNumeroN` no numérico (basura) tampoco se anima ni rompe — el fi
   const html = renderOrigen(content);
   assert.ok(html.includes('N/D'), 'un valor no-numérico se muestra literal, no se descarta');
   assert.ok(html.includes('Estado'));
+});
+
+// ─── LOS CONTADORES — gap responsive y tipografía, medidos contra `.stats`/`.stat b`/`.stat span` ──
+//
+// MEDIDO por computed-style contra el prototipo real (§ ORIGEN-DATOS-EXACTO-1, no derivado de la
+// hoja a ojo): `.stats` es gap 24px bajo 640px (`--space-6`) y 32px desde 641px (`--space-8`) —
+// antes era `gap-8` fijo siempre; `.stat b` es 40px FIJO en TODO ancho (`--text-display-m`, sin
+// clamp — no es `--text-display-l`), line-height 39.2px (`leading-[0.98]`) y letter-spacing -0.6px
+// (`tracking-[-0.015em]`) — antes `text-4xl sm:text-5xl` variaba 36/48px; `.stat span` es
+// text-base (16px) — antes text-sm (14px); y el texto se queda a la IZQUIERDA en TODO ancho — el
+// computado da `start` a 1280px y `left` a 390px, NUNCA centrado (`sm:text-center` era el error).
+
+test('la rejilla de contadores usa gap-6 (24px, mobile) con sm:gap-8 (32px, ≥640px) — ya NO gap-8 fijo', () => {
+  const html = renderOrigen(CONTENT_CON_STATS);
+  assert.match(html, /class="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mt-16 pt-12 border-t border-\[var\(--sf-linea\)\]"/);
+});
+
+test('el número del contador es text-\\[40px\\] fijo con leading-[0.98] y tracking-[-0.015em] — ya NO text-4xl sm:text-5xl', () => {
+  const html = renderOrigen(CONTENT_CON_STATS);
+  assert.match(
+    html,
+    /class="block font-playfair text-\[40px\] leading-\[0\.98\] tracking-\[-0\.015em\] font-normal text-\[var\(--sf-tinta\)\]"/,
+  );
+  assert.doesNotMatch(html, /text-4xl sm:text-5xl/);
+});
+
+test('la etiqueta del contador es text-base (16px) — ya NO text-sm (14px)', () => {
+  const html = renderOrigen(CONTENT_CON_STATS);
+  assert.match(html, /class="block mt-2 text-base text-\[var\(--sf-texto-suave\)\]"/);
+});
+
+test('el contador queda a la IZQUIERDA en todo ancho — ya NO sm:text-center (el prototipo no centra a ningún ancho)', () => {
+  const html = renderOrigen(CONTENT_CON_STATS);
+  assert.match(html, /class="text-left"/);
+  assert.doesNotMatch(html, /text-center/);
 });
 
 // ─── CORTE la enciende; los demás presets no tocan `content.origen` ─────────────────────────────

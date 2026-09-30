@@ -53,11 +53,18 @@ function OrigenContador({ valor, etiqueta, estatico }: { valor: string; etiqueta
   const { ref, valor: valorActual } = useContadorAnimado(destino, estatico || !numeroValido);
 
   return (
-    <div ref={ref as RefObject<HTMLDivElement>} className="text-left sm:text-center">
-      <b className="block font-playfair text-4xl sm:text-5xl font-normal text-[var(--sf-tinta)]">
+    // `.stat`/`.stat b`/`.stat span` del prototipo (`css/app.css:600-610`) — MEDIDO por
+    // computed-style contra el prototipo real (§ ORIGEN-DATOS-EXACTO-1): text-align se queda
+    // IZQUIERDA en TODO ancho (`start` a 1280px Y `left` a 390px — la regla mobile de la hoja es
+    // un reset redundante, no una excepción; NUNCA centrado — `sm:text-center` era el error).
+    // `.stat b`: 40px fijo (`--text-display-m`, SIN variación por breakpoint — no es
+    // `--text-display-l`, que sí es un clamp), line-height 39.2px (0.98 · 40) y letter-spacing
+    // -0.6px (-.015em · 40), los tres medidos en vivo, no derivados de la hoja a ojo.
+    <div className="text-left">
+      <b className="block font-playfair text-[40px] leading-[0.98] tracking-[-0.015em] font-normal text-[var(--sf-tinta)]">
         {numeroValido ? Math.round(valorActual).toLocaleString("es-CO") : valor}
       </b>
-      <span className="block mt-2 text-sm text-[var(--sf-texto-suave)]">{etiqueta}</span>
+      <span className="block mt-2 text-base text-[var(--sf-texto-suave)]">{etiqueta}</span>
     </div>
   );
 }
@@ -91,7 +98,7 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
-    <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
+    <section id="origen" className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <motion.div
@@ -148,14 +155,22 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
             <p className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base">{origen.lede}</p>
 
             {datosVisibles.length > 0 && (
+              // `.spec-list`/`.spec-list div`/`dt`/`dd` del prototipo (`css/app.css:591-599`) —
+              // MEDIDO por computed-style (§ ORIGEN-DATOS-EXACTO-1): la fila es `py-4` (16px,
+              // `--space-4`; ERA `py-3`/12px) SIN `items-center` (el prototipo no fija
+              // `align-items`, y el computado da `normal` = stretch, no `center`); `dt` lleva
+              // `tracking-[0.11em]` (1.32px a 12px, `--tracking-eyebrow` — ERA `tracking-wide`,
+              // 0.025em, un tercio de lo medido); `dd` es `text-base` (16px, `--text-body-m` —
+              // ERA `text-sm`/14px) en `var(--sf-texto)` (el rol `--text-body`, NO `--sf-tinta`:
+              // ese es el rol `--text-heading` que usan el h2/los contadores, no la fila del dato).
               <dl className="border-t border-[var(--sf-linea)]">
                 {datosVisibles.map(({ key, label, valor }) => (
                   <div
                     key={key}
-                    className="flex items-center justify-between gap-6 py-3 border-b border-[var(--sf-linea)]"
+                    className="flex justify-between gap-6 py-4 border-b border-[var(--sf-linea)]"
                   >
-                    <dt className="text-[var(--sf-texto-suave)] text-xs uppercase tracking-wide">{label}</dt>
-                    <dd className="text-[var(--sf-tinta)] text-sm text-right m-0">{valor}</dd>
+                    <dt className="text-[var(--sf-texto-suave)] text-xs uppercase tracking-[0.11em]">{label}</dt>
+                    <dd className="text-[var(--sf-texto)] text-base text-right m-0">{valor}</dd>
                   </div>
                 ))}
               </dl>
@@ -164,7 +179,11 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
         </div>
 
         {statsVisibles.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-16 pt-12 border-t border-[var(--sf-linea)]">
+          // `.stats` del prototipo (`css/app.css:600-604` + su variante `max-width:640px`,
+          // `:992`) — MEDIDO por computed-style (§ ORIGEN-DATOS-EXACTO-1): gap 24px bajo 640px
+          // (`--space-6`) y 32px desde 641px (`--space-8`) — ERA `gap-8` fijo siempre, sin la
+          // variación por ancho (mt-16/pt-12 sí eran correctos: 64px/48px en las DOS anchuras).
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mt-16 pt-12 border-t border-[var(--sf-linea)]">
             {statsVisibles.map(({ key, numero, etiqueta }) => (
               <OrigenContador key={key} valor={numero} etiqueta={etiqueta} estatico={estatico} />
             ))}
