@@ -21,7 +21,7 @@ import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { CartProvider } from '@/lib/cartStore';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { DEFAULTS, type SiteContentData, type BandaId, type EsquemasContent, type TemaContent } from '@/lib/config/site-content-defaults';
-import { esquemaStyleDeBanda } from '@/lib/config/esquema-style';
+import { varsDeTienda } from '@/lib/config/esquema-style';
 import type { SeccionVista } from '@/components/admin/tienda-secciones';
 
 // VISTA PREVIA EN VIVO — los componentes REALES del storefront renderizados en el panel,
@@ -43,16 +43,29 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 // por qué `CartProvider` es necesario y por qué cubre a `Comp` incondicionalmente) y el `style` de la
 // banda.
 //
-// EL ESQUEMA DE LA BANDA (§ HISTORIA-COMO-MUESTRARIO-1) — el defecto que esto cierra: hasta este
-// slice `<Comp />` se montaba SIN `style`, así que una banda con esquema asignado (p. ej. `brandStory`
-// bajo CORTE, 'neutro') caía SIEMPRE a su fallback de clase (`var(--sf-banda,var(--sf-tinta))` →
-// `--sf-tinta`, el literal de FÁBRICA de `app/globals.css` — el "lienzo de Nayoli" que el owner
-// reportó, aunque el tenant activo fuera otro). `bandaId`/`esquemas`/`tema` son OPCIONALES —ausentes
-// (o `undefined`, el default de cada uno) reproducen el `{}` de SIEMPRE (`esquemaStyleDeBanda`
-// devuelve `{}` sin `bandaId`)—, así que un consumidor que no los pase queda BYTE-IDÉNTICO a antes.
-// Quien los fetchea es `TiendaSeccionEditor` (§ su docstring, el porqué de un promise COMPARTIDO en
-// vez de un fetch por instancia); este componente sigue sin tocar red, sólo DERIVA el `style` de lo
-// que recibe — es lo que lo mantiene testeable por SSR sin jsdom (§ admin-tienda-preset.test.ts).
+// TODAS LAS VARS DE LA TIENDA, NO SÓLO LAS 8 DE BANDA (§ PANEL-PREVIEW-COLORES-REALES-1) — el
+// defecto que esto cierra: hasta este slice `<Comp />` sólo recibía las 8 vars de
+// `esquemaStyleDeBanda` (§ HISTORIA-COMO-MUESTRARIO-1, abajo), y TODO lo demás que un componente lee
+// —`--sf-fondo`/`-tinta`/`-acento`, la familia `texto`/`tostado`/`accion`, el par tipográfico, los
+// radios de forma— caía SIEMPRE al literal de FÁBRICA de `app/globals.css` (la paleta de Nayoli),
+// sea cual sea el tema REAL del tenant: el "casi todos los preview pintan colores que no
+// corresponden" que el owner reportó. `varsDeTienda` (§ esquema-style.ts) compone las CUATRO capas
+// —paleta completa CON sus ejes, fuente, forma, y (si hay `bandaId`) el esquema de esa banda— en un
+// solo objeto, la MISMA fuente que consume `PaletaSeccion.tsx`; se aplica en el WRAPPER (no sólo en
+// `<Comp>`) para que el FONDO del propio wrapper (antes `#faf7f4` a fuego, el literal de Nayoli)
+// también refleje el tema real. `bandaId`/`esquemas`/`tema` son OPCIONALES —ausentes (o `undefined`,
+// el default de cada uno) hacen que `varsDeTienda` derive de `DEFAULTS.tema`/`.esquemas` (fábrica,
+// sin `bandaId`) → los MISMOS valores que ya viven en `globals.css` → BYTE-IDÉNTICO a antes para
+// Nayoli. Quien los fetchea es `TiendaSeccionEditor` (§ su docstring, el porqué de un promise
+// COMPARTIDO en vez de un fetch por instancia); este componente sigue sin tocar red, sólo DERIVA las
+// vars de lo que recibe — es lo que lo mantiene testeable por SSR sin jsdom (§
+// admin-tienda-preset.test.ts).
+//
+// EL ESQUEMA DE LA BANDA (§ HISTORIA-COMO-MUESTRARIO-1) — la parte de `varsDeTienda` que ya existía
+// antes de este slice, como `esquemaStyleDeBanda` suelto: hasta ese slice `<Comp />` se montaba SIN
+// `style`, así que una banda con esquema asignado (p. ej. `brandStory` bajo CORTE, 'neutro') caía
+// SIEMPRE a su fallback de clase (`var(--sf-banda,var(--sf-tinta))` → `--sf-tinta`). Sigue siendo la
+// MISMA pieza, ahora una de las cuatro que `varsDeTienda` combina.
 //
 // DOS MODOS (los pasa a EscalaDesktop):
 //  · GRANDE (edición): ancho completo, escala `paneW/1280`; el chrome del pane (border, bg,
@@ -175,7 +188,12 @@ export function VistaTiendaContenido({ seccion, valor, bandaId, esquemas, tema }
   const Comp = COMPONENTES[seccion];
   const temaReal = tema ?? DEFAULTS.tema;
   const esquemasReales = esquemas ?? DEFAULTS.esquemas;
-  const style = esquemaStyleDeBanda(bandaId, esquemasReales, temaReal) as CSSProperties;
+  // TODAS las vars de la tienda para ESTE tema —paleta completa con sus ejes, fuente, forma y (si
+  // `bandaId`) el esquema de la banda— en el WRAPPER: cascada por CSS a `<Comp>` y todos sus
+  // descendientes, como el `:root` del layout real cascada a toda la página. `<Comp>` recibe el MISMO
+  // objeto por `style` además (no sólo por herencia): así su propio nodo raíz lleva las vars, igual
+  // que `esquemaStyleDeBanda` ya se las ponía antes de este slice (§ el docstring de arriba).
+  const vars = varsDeTienda(temaReal, esquemasReales, bandaId) as CSSProperties;
   // Objeto NUEVO por render → la vista sigue al form. El caller garantiza que `valor` calza con
   // `seccion`, así que el cast es honesto (la clave es dinámica y TS no la puede estrechar).
   const contenido = { ...DEFAULTS, tema: temaReal, esquemas: esquemasReales, [seccion]: valor } as SiteContentData;
@@ -184,8 +202,8 @@ export function VistaTiendaContenido({ seccion, valor, bandaId, esquemas, tema }
     <SiteContentProvider value={contenido}>
       <PreviewProvider>
         <CartProvider>
-          <div className="bg-[#faf7f4] font-inter">
-            <Comp style={style} />
+          <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)' }}>
+            <Comp style={vars} />
           </div>
         </CartProvider>
       </PreviewProvider>

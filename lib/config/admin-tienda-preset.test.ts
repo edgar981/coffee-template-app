@@ -85,14 +85,17 @@ function contenidoDePreset(clave: string | null) {
   return resolverSiteContent(preset ? mergePresetEnContent({}, preset) : {});
 }
 
-/** Las raíces/fuente/forma que `PaletaSeccion.cargar()` derivaría de `content.tema` — mismo mapeo
- *  que `raizValida`/`resolverFuentePar`/`resolverForma` en `PaletaSeccion.tsx`: un preset SIEMPRE
- *  escribe las 3 raíces JUNTAS (nunca una suelta, § `mergePresetEnContent`), así que "fondo nulo" es
- *  el único caso fábrica — el control, sin preset. */
-function propsDeContenido(content: ReturnType<typeof contenidoDePreset>): Pick<Parameters<typeof FragmentoTienda>[0], 'raices' | 'fuentePar' | 'forma'> {
+/** Las raíces/fuente/forma/ejes que `PaletaSeccion.cargar()` derivaría de `content.tema` — mismo
+ *  mapeo que `raizValida`/`resolverFuentePar`/`resolverForma`/los dos `setOrigen*` en
+ *  `PaletaSeccion.tsx` (§ PANEL-PREVIEW-COLORES-REALES-1): un preset SIEMPRE escribe las 3 raíces
+ *  JUNTAS (nunca una suelta, § `mergePresetEnContent`), así que "fondo nulo" es el único caso
+ *  fábrica — el control, sin preset. `ejes` es SÓLO LECTURA (PaletaSeccion no los edita, § el
+ *  docstring de `FragmentoTienda`): de los 6 presets del catálogo, sólo CORTE los declara. */
+function propsDeContenido(content: ReturnType<typeof contenidoDePreset>): Pick<Parameters<typeof FragmentoTienda>[0], 'raices' | 'fuentePar' | 'forma' | 'ejes'> {
   const { tema } = content;
   const raices: Form = tema.fondo ? { fondo: tema.fondo, tinta: tema.tinta!, acento: tema.acento! } : RAICES_DEFECTO;
-  return { raices, fuentePar: tema.fuentePar, forma: tema.forma };
+  const ejes = { origenTexto: tema.origenTexto ?? undefined, origenAccion: tema.origenAccion ?? undefined };
+  return { raices, fuentePar: tema.fuentePar, forma: tema.forma, ejes };
 }
 
 // ─── `FragmentoTienda` por CADA preset del catálogo + el control — LA RED DE ESTA CLASE ──────────

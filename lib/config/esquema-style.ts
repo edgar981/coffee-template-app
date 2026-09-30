@@ -1,5 +1,7 @@
-import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta, type EjesPaleta } from './palette-derive';
+import { derivarPaleta, derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta, type EjesPaleta } from './palette-derive';
 import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent, type TemaContent } from './site-content-defaults';
+import { varsDeFuentePar } from './fuentes';
+import { varsDeForma } from './formas';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -108,6 +110,55 @@ export function esquemaStyleDeBanda(
   if (!bandaId) return {};
   const ejes = { origenTexto: tema.origenTexto ?? undefined, origenAccion: tema.origenAccion ?? undefined };
   return esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento, ejes);
+}
+
+/**
+ * TODAS las variables CSS `--sf-*` que la TIENDA pone para un `tema` dado — paleta completa (con sus
+ * EJES, § EjesPaleta) + fuente + forma + (si se pasa `bandaId`) el esquema de ESA banda. Una sola
+ * función para las CUATRO capas que hoy pone la tienda REAL en tres sitios distintos —el `:root` del
+ * layout (`cssPaleta`+`cssFuentes`+`cssForma`, § palette-style.ts/fuentes-style.ts/forma-style.ts) y el
+ * `style` por-banda de `page.tsx` (`esquemaStyle`, arriba)— para que un consumidor que necesita el
+ * resultado como OBJETO (no como texto `:root{…}` para un `<style>` server-rendered) no tenga que
+ * recomponerlas por su cuenta.
+ *
+ * NACE PARA LA VISTA PREVIA DEL PANEL (§ PANEL-PREVIEW-COLORES-REALES-1): el owner reportó que casi
+ * todos los preview de `/admin/tienda` pintaban colores que NO correspondían a los de la página
+ * publicada. Medido: `VistaTiendaEnVivo.tsx` sólo aplicaba las 8 vars de `esquemaStyleDeBanda` —nunca
+ * la paleta completa (32 vars, CON sus ejes), ni la fuente, ni la forma— así que TODO lo que un
+ * componente lee fuera de esas 8 (el fondo, el acento, `--sf-texto`, la familia `tostado`/`accion`, el
+ * par tipográfico, los radios…) caía SIEMPRE al literal de FÁBRICA de `app/globals.css` (la paleta de
+ * Nayoli), sea cual sea el tema REAL del tenant. Y `PaletaSeccion.tsx` (`FragmentoTienda`) sí componía
+ * la paleta completa a mano, pero SIN `ejes` — byte-idéntico salvo bajo un preset que los declare (hoy
+ * sólo CORTE). Esta función es la que las DOS vistas previas consumen ahora, para que ninguna vuelva a
+ * derivar por su cuenta.
+ *
+ * A diferencia de `cssPaleta` (que devuelve `null` con raíces fábrica, para NO emitir un `<style>` y
+ * dejar que el storefront caiga a los literales de `globals.css`), acá SIEMPRE se devuelven valores
+ * CONCRETOS —igual que `esquemaStyleDeBanda`/`derivarPaleta`—: el consumidor es un `style` INLINE
+ * scopeado a un wrapper del panel, no un `<style>{}':root'` global, así que no hay "byte-identidad de
+ * HTML" que proteger omitiendo la emisión — sólo el VALOR importa, y con raíces fábrica el valor ya es
+ * EXACTAMENTE el mismo que el literal de `globals.css` (§ `RAICES_DEFECTO`), así que es un no-op visual.
+ *
+ * `esquemas`/`bandaId` son OPCIONALES: sin ellos (o sin esquema asignado a esa banda), la parte de
+ * banda es `{}` — el resultado es sólo paleta+fuente+forma, el caso de una sección de /nosotros o
+ * /suscripciones (que en la tienda real tampoco pasan por `esquemaStyle`, § el censo de
+ * `admin-tienda-preset.test.ts`).
+ */
+export function varsDeTienda(
+  tema: TemaContent,
+  esquemas: EsquemasContent = {},
+  bandaId?: BandaId,
+): Record<string, string> {
+  const raices = raicesResueltas(tema.fondo, tema.tinta, tema.acento);
+  const ejes: EjesPaleta = { origenTexto: tema.origenTexto ?? undefined, origenAccion: tema.origenAccion ?? undefined };
+  const paleta = derivarPaleta(raices, ejes);
+  const paletaVars = Object.fromEntries(Object.entries(paleta).map(([k, v]) => [`--sf-${k}`, v]));
+  return {
+    ...paletaVars,
+    ...varsDeFuentePar(tema.fuentePar),
+    ...varsDeForma(tema.forma),
+    ...esquemaStyleDeBanda(bandaId, esquemas, tema),
+  };
 }
 
 /**

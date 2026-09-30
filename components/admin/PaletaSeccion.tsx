@@ -10,13 +10,14 @@ import { Logo } from '@/components/storefront/Logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import TrustBadges from '@/components/storefront/home/TrustBadges';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
-import { DEFAULTS } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, type TemaContent } from '@/lib/config/site-content-defaults';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
-import { derivarPaleta, contraste, RAICES_DEFECTO } from '@/lib/config/palette-derive';
-import { PARES_FUENTES, varsDeFuentePar, linkFuentesTodas, resolverFuentePar, type ClaveFuentePar } from '@/lib/config/fuentes';
-import { FORMAS, varsDeForma, resolverForma, type ClaveForma } from '@/lib/config/formas';
+import { derivarPaleta, contraste, RAICES_DEFECTO, type EjesPaleta, type OrigenTexto, type OrigenAccion } from '@/lib/config/palette-derive';
+import { varsDeTienda } from '@/lib/config/esquema-style';
+import { PARES_FUENTES, linkFuentesTodas, resolverFuentePar, type ClaveFuentePar } from '@/lib/config/fuentes';
+import { FORMAS, resolverForma, type ClaveForma } from '@/lib/config/formas';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 
@@ -148,15 +149,33 @@ const PRODUCTOS_MUESTRA: Product[] = [
  *  la ÚNICA pieza de `/admin/tienda` que monta componentes REALES del storefront alimentados por
  *  contenido derivable de un preset, así que es la única con este tipo de landmine posible. El
  *  componente por DEFECTO (`PaletaSeccion`) no se puede renderizar así: arranca en `cargando` y
- *  sólo llega a montar esto tras un `fetch` que un render SSR (sin jsdom, § CLAUDE.md) no ejecuta. */
-export function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
-  const p = derivarPaleta(raices);
-  // Las vars de COLOR (derivadas) + las de FUENTE (del par elegido) + las de FORMA (radios). Una forma
-  // CUSTOM setea `--radius-3xl/2xl/xl` → las clases `rounded-*` de los componentes reales las leen; Suave
-  // no las setea → caen a los radios de hoy. Un par CUSTOM setea `--sf-fuente-*` → las clases `.font-*` las
-  // leen; Editorial no las setea → caen a Inter/Playfair (cargadas en el panel por el `@import`). Las
-  // familias del par las carga el `<link>` de todos los pares que inyecta el editor (§ el efecto en PaletaSeccion).
-  const vars = { ...Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])), ...varsDeFuentePar(fuentePar), ...varsDeForma(forma) } as CSSProperties;
+ *  sólo llega a montar esto tras un `fetch` que un render SSR (sin jsdom, § CLAUDE.md) no ejecuta.
+ *
+ *  `ejes` (§ PANEL-PREVIEW-COLORES-REALES-1, `EjesPaleta`, `palette-derive.ts`) es OPCIONAL —ausente
+ *  reproduce el `derivarPaleta(raices)` de SIEMPRE—: hasta este slice el preview de esta pieza NUNCA
+ *  los pasaba, así que bajo un tema que declare `origenTexto`/`origenAccion` (hoy sólo CORTE) el
+ *  texto/acción de la muestra salía de la RECETA de siempre (nacida del acento) en vez del origen
+ *  real publicado — la misma familia de defecto que `/tienda` tuvo antes de `TIENDA-ENCABEZADO-Y-
+ *  FILTRAR-ORDENAR-1`, acá en el PANEL. `PaletaSeccion` no EDITA estos dos ejes (no hay campo en
+ *  `paletaEditableSchema` ni en este editor, § panel-controles.ts, `PANEL-EDITOR-TEMA-EJES-1`) — sólo
+ *  los LEE del tema publicado/borrador para que el preview no mienta; el `wireDe` que arma el PUT
+ *  sigue sin tocarlos.
+ *
+ *  LAS VARS SALEN DE `varsDeTienda` (§ esquema-style.ts, PANEL-PREVIEW-COLORES-REALES-1), NO DE UNA
+ *  COMPOSICIÓN PROPIA: hasta este slice esta pieza armaba `{ paleta, fuente, forma }` a mano —la
+ *  MISMA composición que `varsDeTienda` hace ahora, pero una segunda vez, con el riesgo de que las
+ *  dos diverjan (era, de hecho, la que le faltaban los `ejes`). `raices`/`fuentePar`/`forma`/`ejes`
+ *  se empacan en un `TemaContent` sintético —sin banda (esta pieza no tiene una), `escalaDisplay`
+ *  fijo en `null` (esa clave no produce ninguna var CSS, § su docstring en site-content-defaults.ts)—
+ *  para llamar a la MISMA función que consume `VistaTiendaEnVivo.tsx`. */
+export function FragmentoTienda({ raices, nombre, fuentePar, forma, ejes }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null; ejes?: EjesPaleta }) {
+  const temaSintetico: TemaContent = {
+    fondo: raices.fondo, tinta: raices.tinta, acento: raices.acento,
+    fuentePar, forma,
+    origenTexto: ejes?.origenTexto ?? null, origenAccion: ejes?.origenAccion ?? null,
+    escalaDisplay: null,
+  };
+  const vars = varsDeTienda(temaSintetico) as CSSProperties;
   return (
     <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)', pointerEvents: 'none' }}>
       {/* Barra superior con el wordmark real (centrada como el nav) */}
@@ -188,10 +207,10 @@ export function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: 
  *  COMÚN de las vistas en vivo (`.tienda-vivo-pane`, § alineado con VistaTiendaEnVivo). El escenario
  *  de EDICIÓN usa su propio pane (`.tienda-escena__pane`), así que "Ampliar" ya no vive acá —es un
  *  chip del escenario—: en lectura el owner no está afinando nada y no lo necesita. */
-function PreviewTiendaReal({ raices, nombre, fuentePar, forma }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
+function PreviewTiendaReal({ raices, nombre, fuentePar, forma, ejes }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null; ejes?: EjesPaleta }) {
   return (
     <EscalaDesktop className="tienda-vivo-pane">
-      <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} forma={forma} />
+      <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} forma={forma} ejes={ejes} />
     </EscalaDesktop>
   );
 }
@@ -200,7 +219,7 @@ function PreviewTiendaReal({ raices, nombre, fuentePar, forma }: { raices: Form;
  *  `Dialog` del admin (Esc, clic-afuera, foco atrapado, X, scroll-lock, todo de Radix — NO
  *  ImageLightbox, que es image-only). `EscalaDesktop` COMPACTO lo encaja entero en la caja
  *  (scale-to-fit, letterbox), como una foto en un visor. */
-function AmpliarOverlay({ abierto, onCerrar, raices, nombre, fuentePar, forma }: { abierto: boolean; onCerrar: () => void; raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
+function AmpliarOverlay({ abierto, onCerrar, raices, nombre, fuentePar, forma, ejes }: { abierto: boolean; onCerrar: () => void; raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null; ejes?: EjesPaleta }) {
   return (
     <Dialog open={abierto} onOpenChange={o => { if (!o) onCerrar(); }}>
       <DialogContent
@@ -211,7 +230,7 @@ function AmpliarOverlay({ abierto, onCerrar, raices, nombre, fuentePar, forma }:
         {/* Alto EXPLÍCITO (vh), no `height:100%`: compacto necesita una caja de alto definido para
             el scale-to-fit, y una cadena de `100%` a través del padding del Dialog es frágil. */}
         <EscalaDesktop compacto style={{ width: '100%', height: '82vh', overflow: 'hidden' }}>
-          <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} forma={forma} />
+          <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} forma={forma} ejes={ejes} />
         </EscalaDesktop>
       </DialogContent>
     </Dialog>
@@ -238,6 +257,12 @@ export default function PaletaSeccion() {
   const [esFabrica, setEsFabrica]         = useState(true);   // las 3 raíces en null (colores de fábrica); NO habla del par
   const [fuentePar, setFuentePar]         = useState<ClaveFuentePar | null>(null);   // null = Editorial (el par por defecto)
   const [forma, setForma]                 = useState<ClaveForma | null>(null);       // null = Suave (la forma por defecto)
+  // LOS DOS EJES, SÓLO LECTURA (§ PANEL-PREVIEW-COLORES-REALES-1) — este editor no los escribe (no
+  // hay campo en `paletaEditableSchema` ni acá, § panel-controles.ts `PANEL-EDITOR-TEMA-EJES-1`); se
+  // guardan sólo para que el PREVIEW de esta pieza derive con el mismo origen que la tienda real
+  // (`FragmentoTienda`, más abajo). `wireDe`/`guardarTema`/`resetFabrica` NO los tocan.
+  const [origenTexto, setOrigenTexto]     = useState<OrigenTexto | null>(null);
+  const [origenAccion, setOrigenAccion]   = useState<OrigenAccion | null>(null);
   const [hayBorrador, setHayBorrador]     = useState(false);
   const [editando, setEditando]           = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
@@ -327,7 +352,7 @@ export default function PaletaSeccion() {
       const r = await fetch('/api/site-content');
       if (!r.ok) throw new Error();
       const d = await r.json();
-      const t = (d.contenido?.tema ?? {}) as { fondo?: string | null; tinta?: string | null; acento?: string | null; fuentePar?: unknown; forma?: unknown };
+      const t = (d.contenido?.tema ?? {}) as { fondo?: string | null; tinta?: string | null; acento?: string | null; fuentePar?: unknown; forma?: unknown; origenTexto?: unknown; origenAccion?: unknown };
       setForm({
         fondo:  raizValida(t.fondo  ?? null, DEFAULT_RAICES.fondo),
         tinta:  raizValida(t.tinta  ?? null, DEFAULT_RAICES.tinta),
@@ -336,6 +361,11 @@ export default function PaletaSeccion() {
       setEsFabrica(t.fondo == null);          // sin raíces guardadas = colores de fábrica (defaults de código)
       setFuentePar(resolverFuentePar(t.fuentePar));  // par CUSTOM válido, o null (Editorial)
       setForma(resolverForma(t.forma));              // forma CUSTOM válida, o null (Suave)
+      // SÓLO LECTURA (§ arriba): ningún preset real hoy salvo CORTE los declara; el `??`/tipo laxo
+      // no valida más allá de lo que `derivarPaleta` ya tolera (un valor ajeno cae en el `if` de
+      // ningún caso conocido y se comporta como ausente).
+      setOrigenTexto((t.origenTexto === 'tinta' ? 'tinta' : null));
+      setOrigenAccion((t.origenAccion === 'acento' ? 'acento' : null));
       setHayBorrador(!!d.sinPublicar?.tema);
       if (inicial) setCargando(false);
     } catch {
@@ -454,7 +484,12 @@ export default function PaletaSeccion() {
   // cuando es válido (el error inline cubre el ínterin).
   const baseActiva = BASES.find(b => b.fondo === form.fondo && b.tinta === form.tinta);
   const acentoInvalido = !HEX6.test(form.acento);
-  const derivada = derivarPaleta(form);
+  // El origen REAL del tema (sólo lectura, § arriba) — se pasa a CADA preview de esta pieza para que
+  // ninguna muestre un texto/acción que nace del acento cuando el tema publicado ya declaró que nace
+  // de la tinta (CORTE). `undefined` en vez de `null`: es lo que `EjesPaleta`/`derivarPaleta` esperan
+  // para "sin declarar" (§ palette-derive.ts).
+  const ejes: EjesPaleta = { origenTexto: origenTexto ?? undefined, origenAccion: origenAccion ?? undefined };
+  const derivada = derivarPaleta(form, ejes);
   const acentoTxt = derivada['acento-txt'];
   // Los 19 DERIVADOS (todo menos las 3 raíces editables), en el orden en que los produce el motor.
   const derivados = Object.keys(derivada).filter(k => k !== 'fondo' && k !== 'tinta' && k !== 'acento');
@@ -552,7 +587,7 @@ export default function PaletaSeccion() {
             {/* El fragmento REAL, scale-to-fit dentro del pane (EscalaDesktop COMPACTO, el mismo del
                 overlay de Ampliar). El pane toma el alto que el flexbox le deja bajo la regleta. */}
             <EscalaDesktop compacto style={{ width: '100%', height: '100%' }}>
-              <FragmentoTienda raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} />
+              <FragmentoTienda raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} ejes={ejes} />
             </EscalaDesktop>
 
             {/* Ampliar (chip arriba-der): abre el overlay con el mismo fragmento en grande. */}
@@ -767,7 +802,7 @@ export default function PaletaSeccion() {
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-5)', alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
-              <PreviewTiendaReal raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} />
+              <PreviewTiendaReal raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} ejes={ejes} />
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {temaEsFabrica
@@ -799,7 +834,7 @@ export default function PaletaSeccion() {
       />
 
       {/* Ampliar: el mismo fragmento en grande con las raíces + el par actuales → vivo por construcción. */}
-      <AmpliarOverlay abierto={ampliado} onCerrar={() => setAmpliado(false)} raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} />
+      <AmpliarOverlay abierto={ampliado} onCerrar={() => setAmpliado(false)} raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} ejes={ejes} />
     </>
   );
 }

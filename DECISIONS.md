@@ -36869,3 +36869,136 @@ sobre `HISTORIA-COLLAGE-COMO-PROTOTIPO-1` con una captura del collage ya recto a
 MERGE sigue gateado aparte.
 
 Cierra `HISTORIA-GIRO-ANTES-1`. Sin follow-ups nuevos.
+
+## 2026-09-30 — Los preview de `/admin/tienda` pintan la paleta REAL del tenant, no la de Nayoli (`PANEL-PREVIEW-COLORES-REALES-1`)
+
+Gate del owner (2026-09-30): *"Revisar la sección de /admin/tienda casi todos los preview están
+renderizando colores que no corresponden a los que se están realmente mostrando en la página, de
+nuevo mi intención de hacer /tienda algo más parecido a un editor que lo que estamos haciendo ahora
+y es como la 20ava vez que lo menciono."*
+
+### 1 · El censo MEDIDO — la causa es que faltaba la paleta ENTERA, no un matiz
+
+`VistaTiendaEnVivo.tsx` (`TiendaSeccionEditor`, las 15 `SeccionVista`) sólo aplicaba las 8 vars de
+`esquemaStyleDeBanda` —el esquema POR BANDA (`--sf-banda`/`-tarjeta`/`-sobre`/…)— y NUNCA la paleta
+completa derivada de `content.tema` (32 `--sf-*`), ni la fuente, ni la forma. Fuera de esas 8, todo
+componente leía el `:root` del propio documento del PANEL, que trae los literales de FÁBRICA de
+`app/globals.css` (la paleta de Nayoli) — sea cual sea el tema real del tenant. Medido (censo
+completo en `.scratch/censo-preview-colores.mjs`, no commiteado; reproducible con las mismas
+funciones de producción):
+
+| tenant | ANTES (`esquemaStyleDeBanda` sólo, resuelto contra el fallback real del admin) | DESPUÉS (`varsDeTienda`) |
+| --- | --- | --- |
+| Nayoli (fábrica) | 0/15 secciones con una var VISUALMENTE distinta — el fallback de `globals.css` YA coincidía, así que el defecto no se veía acá | 0/15 |
+| CORTE | **15/15 secciones con 44 a 46 `--sf-*` visualmente distintas** (fondo, tinta, acento, toda la familia `texto`/`tostado`/`accion`, el par tipográfico, los radios de forma) | 0/15 |
+
+Y `PaletaSeccion.tsx` (`FragmentoTienda`, la pieza "Colores y tipografía") SÍ componía la paleta
+completa a mano —era la única que lo hacía— pero llamaba a `derivarPaleta(raices)` **sin los EJES**
+(`origenTexto`/`origenAccion`, § `EjesPaleta`, `palette-derive.ts`): bajo CORTE (el único preset del
+catálogo que los declara), 8 vars salían mal (`--sf-acento-texto`, `--sf-texto`, `--sf-texto-suave`,
+`--sf-sobre-tarjeta-suave`, `--sf-accion`, `--sf-accion-txt`, `--sf-accion-hover`,
+`--sf-accion-active`) — la misma familia de defecto que `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` ya
+había medido en `/tienda`, acá dentro del PANEL.
+
+### 2 · El arreglo de raíz — `varsDeTienda`, una función, dos consumidores
+
+`varsDeTienda(tema, esquemas?, bandaId?)` (`lib/config/esquema-style.ts`) compone, en un solo
+`Record<string,string>`, las CUATRO capas que la tienda real pone en tres sitios (el `:root` del
+layout — `cssPaleta`+`cssFuentes`+`cssForma` — y el `style` por-banda de `page.tsx` —
+`esquemaStyle`): la paleta completa **con sus ejes** (`derivarPaleta(raicesResueltas(tema), ejes)`),
+la fuente (`varsDeFuentePar`), la forma (`varsDeForma`) y, si se pasa `bandaId`, el esquema de esa
+banda (reusa `esquemaStyleDeBanda`, sin tocarla). Con raíces fábrica devuelve valores CONCRETOS
+—nunca `null`, a diferencia de `cssPaleta`— porque el consumidor es un `style` inline scopeado a un
+wrapper del panel, no un `<style>{}` global: no hay "byte-identidad de HTML" que proteger omitiendo
+la emisión, y con raíces fábrica el valor concreto YA es idéntico al literal de `globals.css`
+(mismo mecanismo que `esquemaStyleDeBanda` ya usaba).
+
+- **`VistaTiendaEnVivo.tsx`**: `VistaTiendaContenido` calcula `varsDeTienda(temaReal, esquemasReales,
+  bandaId)` una vez y lo aplica en el WRAPPER (`style={{ ...vars, background: 'var(--sf-fondo)' }}`,
+  reemplazando el `bg-[#faf7f4]` a fuego) — cascada por CSS a `<Comp>` y sus descendientes, como el
+  `:root` del layout real cascada a toda la página — y también se lo pasa a `<Comp style={vars}>`
+  directo, igual que antes hacía con las 8 vars de `esquemaStyleDeBanda`.
+- **`PaletaSeccion.tsx`**: `FragmentoTienda` deja de componer la paleta a mano y llama a
+  `varsDeTienda` con un `TemaContent` sintético armado de sus props (`raices`/`fuentePar`/`forma`/
+  `ejes`, `escalaDisplay: null` — esa clave no produce ninguna var CSS). El componente ganó `origenTexto`/
+  `origenAccion` de SÓLO LECTURA (dos `useState` nuevos, poblados en `cargar()` desde
+  `content.tema`): el editor **no los edita** —no hay campo en `paletaEditableSchema` ni acá, § el
+  gap ya documentado en `lib/config/panel-controles.ts` bajo `PANEL-EDITOR-TEMA-EJES-1`— sólo los
+  lee para que el preview no mienta; `wireDe`/`guardarTema`/`resetFabrica` (el PUT) quedan
+  INTACTOS, sin tocar esos dos campos.
+
+### 3 · Los tests
+
+- **`lib/config/preview-colores.test.ts` (nuevo)**: para CADA `SeccionVista` (15) × CADA preset del
+  catálogo (6) + Nayoli/control, compara `varsDeTienda(...)` contra una reconstrucción de "lo que la
+  página real pintaría" usando las funciones REALES de producción (`cssPaleta`+`cssFuentes`+
+  `cssForma`+`esquemaStyle`, nunca una copia de su lógica) — `assert.deepEqual`, valor por valor, no
+  sólo presencia de clave. Más una prueba dedicada para `FragmentoTienda` y una para Nayoli
+  byte-idéntica contra `derivarPaleta(RAICES_DEFECTO)`. Y **el REGRESO**: reconstruye el mecanismo
+  VIEJO (sólo `esquemaStyle` por banda) y afirma que bajo CORTE diverge en 14 de 15 secciones — vista
+  fallar contra el código de antes.
+- **`lib/config/admin-tienda-preset.test.ts`**: `propsDeContenido` ganó `ejes` (derivado de
+  `content.tema`), así que el barrido de presets que ya existía para `FragmentoTienda` pasa a
+  ejercer también los ejes de CORTE — sin esto, ese archivo habría seguido en verde con el bug
+  (missing ejes) sin tocarlo, porque nunca lo pasaba.
+
+### 4 · Gate
+
+- `npm run typecheck`: limpio, cero errores.
+- `npm test`: **2830/2830** (incluye 108 casos nuevos de `preview-colores.test.ts` y el ajuste de
+  `admin-tienda-preset.test.ts`).
+- `npm run test:integracion`: **242/242**, sin cambios de ese carril.
+- `npm run guarda:color`: **0px** en las 6 rutas + 2 hovers (`esquema-style.ts` ya importaba
+  `palette-derive.ts` —estaba en el sistema de color derivado antes de este slice— así que la guarda
+  corrió completo, no salió por intersección vacía). Confirma que el storefront de Nayoli —el único
+  que este slice NO debía tocar— sigue idéntico: `app/(storefront)/layout.tsx`/`page.tsx` no se
+  editaron, y los exports preexistentes de `esquema-style.ts` (`esquemaStyle`, `esquemaStyleDeBanda`,
+  `bandaEsOscura`, `tratamientoNav`) quedan byte a byte iguales — sólo se agregó un export nuevo.
+- **Capa que queda FUERA, y se dice explícito**: el gate visual REAL del owner sobre `/admin/tienda`
+  con CORTE aplicado (capa 3) — requiere sesión de admin, que esta sesión no tiene. `guarda:color`
+  cubre el storefront público; la corrección del PANEL (lo que este slice arregla) se afirma por
+  cálculo exacto (`preview-colores.test.ts`), no por captura de pantalla del panel.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `varsDeTienda`, `VistaTiendaEnVivo.tsx`/`VistaTiendaContenido`,
+`PaletaSeccion.tsx`/`FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay`, `origenTexto`/
+`origenAccion` (estado nuevo de `PaletaSeccion`), `lib/config/esquema-style.ts`,
+`lib/config/admin-tienda-preset.test.ts`, `lib/config/preview-colores.test.ts` (nuevo). Grepeados uno
+por uno contra `CLAUDE.md`: **`VistaTiendaEnVivo`/`PaletaSeccion` aparecen 8 veces** (líneas 56, 471,
+2260, 2614, 2642, 2788, 2808 de `CLAUDE.md`), y las 8 describen mecanismos que este diff NO toca
+—qué providers monta (`SiteContentProvider`/`CartProvider`), que es "en vivo, sin iframe", el GET
+propio de `PaletaSeccion`, el costo de montar N storefronts reales, que un componente Tier 1 se
+protege una sola vez aunque se monte también acá—; ninguna afirma nada sobre QUÉ VARS CSS recibe
+`<Comp>`, así que ninguna se vuelve falsa. `varsDeTienda`, `esquemaStyleDeBanda`, `bandaId`,
+`HISTORIA-COMO-MUESTRARIO`, `origenTexto`/`origenAccion`: **CERO apariciones** en `CLAUDE.md` — esa
+doctrina vive en los comentarios de `esquema-style.ts`/`VistaTiendaEnVivo.tsx`/`palette-derive.ts` y
+en este ledger, no en `CLAUDE.md`.
+
+### `customer_bytes`
+
+**`changed: true`.** Nadie en el STOREFRONT ve un byte distinto (0px medido, § Gate) — el cambio
+es en la PANTALLA `/admin/tienda`, que lee/opera el OWNER/MANAGER: bajo un tema custom (hoy sólo
+CORTE en esta base), las 15 vistas previas de sección y la pieza "Colores y tipografía" pasan a
+mostrar el fondo/tinta/acento/tipografía/forma/esquema REALES del tenant en vez de los de Nayoli.
+Ningún STRING nuevo (no hay copy nuevo): es exclusivamente color/tipografía/forma de una vista previa
+ya existente pintándose distinto.
+
+### Open follow-ups
+
+Ninguno nuevo. El gap YA documentado (`panel-controles.ts`, `PANEL-EDITOR-TEMA-EJES-1`: el PUT de
+`PaletaSeccion` no declara `origenTexto`/`origenAccion`/`escalaDisplay`, así que publicar un cambio de
+color desde este editor sobre un tenant con esos ejes los resetearía a `null`) sigue igual de abierto
+—este slice sólo LEE esos campos para el preview, nunca toca el `wireDe`/PUT— y su cierre sigue
+siendo trabajo de `PANEL-EDITOR-TEMA-EJES-1`, fuera de `touches:` de este slice
+(`app/api/site-content/tema/route.ts`, `lib/config/site-content-write.ts`, `lib/config/
+palette-schema.ts`).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia lo que el OWNER/MANAGER ve en
+`/admin/tienda` (§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."*
+
+Cierra `PANEL-PREVIEW-COLORES-REALES-1` (pendiente del gate visual REAL del owner, capa 3, y de
+mergear).
