@@ -143,6 +143,44 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // además su click navegaría) — posicionados absolutos sobre la tarjeta, visibles en `group-hover`/
 // `group-focus-within`.
 //
+// ── ACCIONES-RAPIDAS-CUADRADAS-1 (2026-09-30) — FORMA CUADRADA + ENTRADA DEL PROTOTIPO ─────────────
+//
+// GATE DEL OWNER, LITERAL: «Lo que encierra al carrito y ojo, en las tarjetas donde se use, debe ser
+// cuadrado, no circular… Y el efecto que tienen de aparecer/desaparecer al hacer hover debe ser como
+// el del prototipo, no el actual.»
+//
+// FORMA: `rounded-full` → `sf-pildora` (§ formas.ts/globals.css). El prototipo mide el MISMO token de
+// radio para `.quick-acts button` y `.btn` (`css/app.css:126,540`, los dos `border-radius:var(--radius-
+// button)`) — es el rol de radio de BOTÓN/CHROME que `sf-pildora` YA sigue (0 bajo 'recta', la CTA de
+// este mismo componente ya lo usa, línea de abajo). Ningún token nuevo: Suave (Nayoli, sin preset)
+// sigue cayendo al fallback `calc(infinity*1px)` = el `rounded-full` de HOY — byte-idéntico.
+//
+// ENTRADA/SALIDA: el contenedor DEJA de animar opacidad (antes `opacity-0 transition-opacity
+// duration-300 group-hover:opacity-100`, sólo posiciona) — cada BOTÓN anima su propia
+// opacidad+posición, como `.quick-acts button` del prototipo (`css/app.css:538-548`): reposo
+// `opacity-0 translate-x-[14px]` (desliza desde la derecha, el eje por el que el botón "entra"),
+// hover/foco de la TARJETA → `opacity-100 translate-x-0`. `duration-[220ms] ease-[cubic-bezier
+// (0.22,0.61,0.36,1)]` = `--duration-base`/`--ease-out` EXACTOS del prototipo (`tokens.css:192,189`),
+// el MISMO par que ya usa `navHoverClase` en este archivo — token reusado, no inventado.
+// `transition-all` (no `transition-colors` suelto) porque el HOVER de fondo/texto (`hover:bg-[var(
+// --sf-acento)]`) comparte la MISMA propiedad `transition-property` que el nuevo slide — dos clases
+// `transition-*` en el mismo elemento se pisan (la última en el orden de Tailwind gana), así que se
+// unifican en una sola declaración. DEVIACIÓN DECLARADA: el prototipo parte la duración del color en
+// `--duration-fast` (120ms, `var(--transition-color)`) separada de la de opacidad/transform (220ms,
+// `--duration-base`) — acá las CUATRO viajan a 220ms. Tailwind v4 no compone dos duraciones distintas
+// en una sola utilidad sin CSS arbitrario propio (`[transition:…]`, sin precedente en este repo); el
+// costo de escribirlo a mano no se justifica por 100ms de diferencia en un hover de fondo que no era
+// el foco del gate del owner (forma + entrada, no la velocidad del tinte).
+//
+// STAGGER: el CARRITO (2º botón, siempre el último en el flex-col) lleva `delay-[60ms]` — el MISMO
+// `.quick-acts button:nth-child(2){transition-delay:60ms}` del prototipo. Con el producto sin stock
+// el carrito no se renderiza y el ojo queda SOLO, sin retraso — igual que `:nth-child(2)` no
+// matchearía con un solo hijo.
+//
+// `prefers-reduced-motion` NO necesita guard propio acá: la regla GLOBAL de `app/globals.css`
+// (`*,*::before,*::after{transition-duration:0.01ms!important}`) ya neutraliza cualquier transición
+// nueva, el MISMO mecanismo que el bloque §19 del prototipo (`css/app.css:1035-1039`).
+//
 // FOTOS NÍTIDAS — MEDIDO, LOS TRES EJES QUE EL SPEC PIDIÓ REVISAR:
 //   1. `object-fit`: el tile pasó de `object-cover` a `object-contain`, como `.pres-media img` del
 //      prototipo (`css/app.css:524-525`). `cover` en un tile 3:4 CROPEA (y por tanto MAGNIFICA) la
@@ -234,13 +272,14 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
 
       {/* Las dos acciones rápidas (§ el docstring de cabecera, "quick-acts" del prototipo): SIBLINGS
           del `<Link>`, nunca hijos — un botón dentro de un enlace es inválido y además navegaría al
-          clickearlo. */}
-      <div className="pointer-events-none absolute right-3 top-3 flex flex-col gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+          clickearlo. El CONTENEDOR sólo posiciona — cada botón anima su PROPIA opacidad+posición
+          (§ ACCIONES-RAPIDAS-CUADRADAS-1, arriba), como `.quick-acts button` del prototipo. */}
+      <div className="pointer-events-none absolute right-3 top-3 flex flex-col gap-2">
         <button
           type="button"
           onClick={(e) => onEye(producto, e.currentTarget)}
           aria-label={`Vista rápida de ${producto.nombre}`}
-          className="pointer-events-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] opacity-0 shadow-md transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
         >
           <Eye className="h-[18px] w-[18px]" />
         </button>
@@ -249,7 +288,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             type="button"
             onClick={(e) => onCart(producto, e.currentTarget)}
             aria-label={`Agregar ${producto.nombre} al carrito`}
-            className="pointer-events-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] opacity-0 shadow-md transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
           >
             <ShoppingBag className="h-[18px] w-[18px]" />
           </button>

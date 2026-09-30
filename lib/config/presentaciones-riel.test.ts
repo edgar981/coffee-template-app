@@ -197,3 +197,49 @@ test('TarjetaRiel: sin foto en absoluto, cae al placeholder de marca — nunca u
   const html = renderTarjeta({ ...PRODUCTO_FIXTURE, imagen: '', imagenes: [] });
   assert.doesNotMatch(html, /src=""/);
 });
+
+// ─── ACCIONES-RAPIDAS-CUADRADAS-1 — forma cuadrada + entrada del prototipo ─────────────────────────
+
+test('TarjetaRiel: el ojo y el carrito son CUADRADOS (`sf-pildora`, nunca `rounded-full`) — gate del owner: "debe ser cuadrado, no circular"', () => {
+  const html = renderTarjeta();
+  const botonOjo = html.match(/<button[^>]*aria-label="Vista rápida de Café Nariño 500g"[^>]*>/);
+  const botonCarrito = html.match(/<button[^>]*aria-label="Agregar Café Nariño 500g al carrito"[^>]*>/);
+  assert.ok(botonOjo, 'el botón ojo debe estar presente');
+  assert.ok(botonCarrito, 'el botón carrito debe estar presente');
+  assert.match(botonOjo![0], /\bsf-pildora\b/);
+  assert.match(botonCarrito![0], /\bsf-pildora\b/);
+  assert.doesNotMatch(botonOjo![0], /rounded-full/);
+  assert.doesNotMatch(botonCarrito![0], /rounded-full/);
+});
+
+test('TarjetaRiel: el ojo y el carrito entran deslizando desde la derecha, como `.quick-acts button` del prototipo — reposo opacity-0/translate-x-[14px], hover/foco de la TARJETA → opacity-100/translate-x-0, MISMOS tokens 220ms/cubic-bezier(0.22,0.61,0.36,1) que `navHoverClase`/StoreNav', () => {
+  const html = renderTarjeta();
+  const botonOjo = html.match(/<button[^>]*aria-label="Vista rápida de Café Nariño 500g"[^>]*>/)![0];
+  const botonCarrito = html.match(/<button[^>]*aria-label="Agregar Café Nariño 500g al carrito"[^>]*>/)![0];
+  for (const boton of [botonOjo, botonCarrito]) {
+    assert.match(boton, /\bopacity-0\b/);
+    assert.match(boton, /\btranslate-x-\[14px\]/);
+    assert.match(boton, /\bgroup-hover:translate-x-0\b/);
+    assert.match(boton, /\bgroup-hover:opacity-100\b/);
+    assert.match(boton, /\bgroup-focus-within:translate-x-0\b/);
+    assert.match(boton, /\bgroup-focus-within:opacity-100\b/);
+    assert.match(boton, /duration-\[220ms\]/);
+    assert.match(boton, /ease-\[cubic-bezier\(0\.22,0\.61,0\.36,1\)\]/);
+  }
+});
+
+test('TarjetaRiel: el CARRITO (2º botón) lleva el retraso escalonado del prototipo (`delay-[60ms]`, `.quick-acts button:nth-child(2)`) — el OJO (1º) no', () => {
+  const html = renderTarjeta();
+  const botonOjo = html.match(/<button[^>]*aria-label="Vista rápida de Café Nariño 500g"[^>]*>/)![0];
+  const botonCarrito = html.match(/<button[^>]*aria-label="Agregar Café Nariño 500g al carrito"[^>]*>/)![0];
+  assert.doesNotMatch(botonOjo, /delay-\[60ms\]/);
+  assert.match(botonCarrito, /delay-\[60ms\]/);
+});
+
+test('TarjetaRiel: el contenedor de acciones rápidas YA NO anima opacidad — cada botón anima la suya (§ ACCIONES-RAPIDAS-CUADRADAS-1)', () => {
+  const html = renderTarjeta();
+  const m = html.match(/<div class="(pointer-events-none absolute right-3 top-3[^"]*)"/);
+  assert.ok(m, 'el contenedor de acciones rápidas debe estar presente');
+  assert.doesNotMatch(m![1], /opacity-0/);
+  assert.doesNotMatch(m![1], /transition-opacity/);
+});

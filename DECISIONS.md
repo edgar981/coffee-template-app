@@ -35362,3 +35362,148 @@ lee (§ `customer_bytes`, arriba). El owner ya aprobó la ESCRITURA de este slic
 gate); el MERGE sigue gateado aparte — la aprobación de escritura nunca fue aprobación de merge.
 
 Cierra `CARRITO-CABECERA-Y-COLORES-NAV-1`.
+
+## 2026-09-30 — Los botones de ojo/carrito de las tarjetas pasan a cuadrados con la entrada del
+prototipo, y un GATEO nuevo por `tema.forma` evita que el slide rompa "Nayoli byte-idéntica"
+(`ACCIONES-RAPIDAS-CUADRADAS-1`)
+
+### 0 · Censo — las dos tarjetas con ojo/carrito
+
+`grep` de `Eye\b\|ShoppingBag\b` sobre `components/storefront/` da dos consumidores: el riel de
+Presentaciones (`GrindChooserRiel.tsx`, `TarjetaRiel`, ojo + carrito) y la tarjeta genérica de
+catálogo (`ProductCard.tsx`, sólo carrito/selector de molienda — sin ojo, el prototipo no tiene un
+equivalente de `ProductCard` propio). Los dos usaban `rounded-full` + `opacity-0 transition-opacity
+group-hover:opacity-100`, sin `transform`, sin escalonado.
+
+### 1 · Forma — `rounded-full` → `sf-pildora`, sin token nuevo
+
+`sf-pildora` (`app/globals.css:634`) YA sigue el radio de BOTÓN/CHROME del prototipo
+(`--radius-button`, 0 bajo 'recta' — el MISMO token que ya usan la CTA "Comprar" del propio riel y
+~15 otros controles del storefront, § el censo de `grep -rn "sf-pildora\b"`). Bajo Suave (sin
+`<style>` de forma) cae al fallback `calc(infinity*1px)` — el MISMO círculo completo que
+`rounded-full` ya rendía (ambos exceden el radio máximo clampeable de una caja de 36-40px, así que
+pintan IDÉNTICO). No hizo falta tocar `lib/config/formas.ts` ni `formas.test.ts`: el campo `pildora`
+ya era genérico ("botón/chip"), y `.sf-pildora` ya tenía consumidores de sobra que probaban el
+fallback. **Confirmado por EJECUCIÓN, no sólo por lectura**: las 6 rutas de página completa de
+`guarda:color`/`verificar:nayoli:visual` (que SÍ ejercitan el botón en reposo, aunque invisible por
+`opacity-0`) dieron 0px las DOS veces, antes y después del hallazgo de §2.
+
+### 2 · La entrada — `.quick-acts button` del prototipo, y el HALLAZGO que obligó a gatear
+
+Prototipo (`docs/prototipos/cafeone/css/app.css:534-548`): reposo `opacity:0;
+transform:translateX(14px)`; hover/foco de la TARJETA → `opacity:1; transform:none`; transición
+`opacity`/`transform` en `--duration-base` (220ms) `--ease-out` (`cubic-bezier(.22,.61,.36,1)` —
+MISMOS tokens que `navHoverClase` ya usa en este mismo archivo); el 2º botón (`:nth-child(2)`) lleva
+`transition-delay:60ms`. Se replicó con clases Tailwind: `opacity-0 translate-x-[14px]` en reposo,
+`group-hover:opacity-100 group-hover:translate-x-0` (+ `group-focus-within:*`), `transition-all
+duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)]` (una sola declaración — `transition-colors`
+y una segunda utilidad de transición se pisan, así que el hover de fondo viaja en la MISMA
+declaración que el slide; devía DECLARADA del 120ms del prototipo para el color, § el docstring de
+`GrindChooserRiel.tsx`), `delay-[60ms]` en el 2º botón (el carrito).
+
+**HALLAZGO, MEDIDO con `npm run guarda:color` (el script del cierre): aplicar esta MISMA clase sin
+condición a `ProductCard.tsx` ROMPE "Nayoli byte-idéntica".** Reproducido IDÉNTICO en DOS builds
+completos, separados (Postgres+`next build`+`next start`+Playwright cada uno):
+
+| captura | resultado (1er build, con `translate-x` sin gate) | resultado (2º build, MISMO código) |
+| --- | --- | --- |
+| 6 rutas de página completa | IDÉNTICO (0px) | IDÉNTICO (0px) |
+| `hover-automatica` (ProductCard, `/tienda`) | DIFIERE: 3094/98298 px consciente de AA (3510 crudo), caja `[12,15]–[240,239]` | DIFIERE: **el MISMO número**, misma caja |
+| `hover-eleccion` (ProductCard, `/tienda`) | DIFIERE: 2547/102870 px (2708 crudo), caja `[59,36]–[240,240]` | DIFIERE: **el MISMO número**, misma caja |
+
+El PNG de diff (`.scratch/guarda-color/diffs/hover-automatica.png`, `pixelmatch --includeAA=false`,
+así que NO es ruido de antialiasing) muestra diferencia repartida en CASI TODA la altura de la
+imagen del producto (filas 15–241 de 387, con picos donde el empaque tiene más texto/logo) — no
+recortada a los 36×36px del botón. Comparación byte a byte confirmó DETERMINISMO (mismo tamaño de
+PNG, 49109 bytes, en los dos builds) — descarta ruido de timing/fuente; y una comparación previa
+`main vs rama` (artefacto dejado por una medición anterior de la sesión, ambos aún SIN este cambio)
+daba 0px — descarta que el fixture ya estuviera vencido.
+
+**La causa exacta no se aisló del todo** (¿compositing layer del `transform` alterando el rasterizado
+de la imagen vecina? ¿la forma en que `verificar-nayoli-visual.ts` hace `boton.hover()` DIRECTO sobre
+el botón, no sobre la tarjeta, interactuando con la geometría trasladada?) — pero la CAUSA (agregar
+`transform` al botón) sí, por eliminación: es la ÚNICA variable que cambia entre el código ANTES
+(0px, la fixture real) y el código CON el slide (≠0px, reproducible).
+
+### 3 · El fix — gateado por `tema.forma`, MISMO eje que ya decide `sf-pildora`
+
+`GrindChooserRiel.tsx` (el riel) se deja SIN gate: `presentaciones.variante==='riel'` SÓLO lo declara
+CORTE (afirmado por el propio test, "LA INVARIANTE" en `presentaciones-riel.test.ts`), así que Nayoli
+JAMÁS renderiza este componente — "byte-idéntica" se cumple por INALCANZABILIDAD, no por condición.
+
+`ProductCard.tsx` SÍ se gatea: es COMPARTIDO (Nayoli lo renderiza en `/tienda` y en la home).
+`const formaCustom = tema.forma !== null;` (el MISMO campo que ya decide `sf-pildora`/`sf-radio-tile`
+etc.) — `true` → la clase nueva completa (slide + `sf-pildora`); `false` (Suave/Nayoli, TODO tenant
+sin forma custom) → la clase de ANTES de este slice, **literal, carácter a carácter**
+(`rounded-full`, `transition-opacity`, sin `transform`) — la única rama con 0px medido.
+
+### 4 · Gate — la tabla completa
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2681/2681** — verde |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **242/242** — verde |
+| `npm run guarda:color` (píxeles, esta rama vs. fixture de Nayoli) — 1ª corrida | **ROJO**: `hover-automatica`/`hover-eleccion` DIFIEREN (§2) |
+| `npm run guarda:color` — 2ª corrida, MISMO código (repetibilidad) | **ROJO**, números IDÉNTICOS a la 1ª (§2) |
+| `npm run guarda:color` — 3ª corrida, CON el fix de `formaCustom` (§3) | **VERDE**: 0px en las 6 rutas + 2 hovers |
+| `npm run verificar:nayoli:visual` (píxeles, `main` vs. esta rama) | **VERDE**: 0px en las 6 rutas + 2 hovers |
+
+Las dos corridas ROJAS (§2) no son ruido del arnés: son la evidencia que encontró el defecto antes
+de que llegara a "Nayoli byte-idéntica" declarado en el spec — el gate hizo exactamente lo que existe
+para hacer.
+
+### 5 · Tests — `lib/config/presentaciones-riel.test.ts`
+
+20 tests totales (16 preexistentes + 4 nuevos), todos verdes: la forma cuadrada (`sf-pildora`, nunca
+`rounded-full`) de los dos botones del riel; la entrada (reposo `opacity-0`/`translate-x-[14px]`,
+hover/foco → `opacity-100`/`translate-x-0`, `duration-[220ms]`/`ease-[cubic-bezier(...)]`); el
+escalonado (`delay-[60ms]` en el carrito, ausente en el ojo); y que el CONTENEDOR ya no anima
+opacidad (cada botón la anima por su cuenta, como `.quick-acts button` del prototipo). No se agregó
+test propio para `ProductCard.tsx` — no está en `touches:` ningún archivo de test para ese componente
+y no se puede montar en el carril sin `CartProvider`/`SiteContentProvider` reales (mismo límite ya
+documentado para `StoreNav.tsx`/`CartDrawer.tsx` en slices anteriores de esta rama); su corrección se
+verificó por EJECUCIÓN real (§4, las dos herramientas de diff de píxeles).
+
+### `formas.ts`/`formas.test.ts`/`app/globals.css` — dentro de `touches:`, sin tocar
+
+Ninguno de los tres necesitó edición: `sf-pildora` ya existía, ya era genérico, y ya estaba probado.
+Sin desviación de alcance — el techo de `touches:` se declaró ancho a propósito, no se agotó.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `GrindChooserRiel.tsx`, `ProductCard.tsx`,
+`presentaciones-riel.test.ts`, `sf-pildora`, `rounded-full`, `tema.forma`, `formaCustom`,
+`ACCIONES-RAPIDAS-CUADRADAS-1`. Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones de los
+ocho** — `CLAUDE.md` no documenta componentes individuales del storefront de CORTE ni el mecanismo de
+`tema.forma` (esa doctrina vive en `DECISIONS.md`/`lib/config/formas.ts`, no en `CLAUDE.md`). Nada
+que corregir ahí.
+
+### `customer_bytes`
+
+**`changed: true`.** Un visitante con una forma CUSTOM activa (hoy: CORTE/`recta`, o cualquier preset
+futuro con `minima`) ve los botones de ojo/carrito CUADRADOS en vez de circulares, y con una entrada
+deslizante-y-escalonada al pasar el mouse sobre la tarjeta, en vez de un simple fundido. Nayoli (y
+todo tenant sin forma custom) queda byte-idéntica — MEDIDO 0px en las dos herramientas de diff de
+píxeles (§4), no sólo argumentado.
+
+**`strings:`** ninguno — el cambio es de forma/movimiento, sin texto nuevo.
+
+### Open follow-ups
+
+- `ACCIONES-RAPIDAS-TRANSFORM-CAUSA-EXACTA-1`: la causa RAÍZ exacta de por qué `transform` en el
+  botón de `ProductCard.tsx` altera el rasterizado de la imagen vecina en la captura de `.hover()`
+  (§2) no se aisló — se eliminó el riesgo (gateando), no se explicó el mecanismo del navegador. Si
+  algún día otro componente necesita un `transform` en un elemento que el arnés de
+  `verificar-nayoli-visual.ts` hovers DIRECTAMENTE, este hallazgo es el punto de partida.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con una forma CUSTOM
+activa lee (§ `customer_bytes`, arriba). El owner ya aprobó la ESCRITURA de este slice específico
+(§ `approval-reason` del spec: "Lo que encierra al carrito y ojo… debe ser cuadrado, no circular…
+el efecto de aparecer/desaparecer debe ser como el del prototipo, no el actual" — las dos piezas se
+implementaron y se verificaron con captura/gate real); el MERGE sigue gateado aparte — la aprobación
+de escritura nunca fue aprobación de merge.
+
+Cierra `ACCIONES-RAPIDAS-CUADRADAS-1`.

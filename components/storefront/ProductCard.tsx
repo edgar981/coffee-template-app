@@ -39,7 +39,27 @@ export default function ProductCard({
   // esta card y Spotlight (§ el censo de consumidores, DECISIONS.md), no algo propio del nav; vive
   // ahí por costo de escritura, no por dominio (ver el docstring de `navTratamientoBadgeColor` en
   // `themes.ts`). `null` (todo tenant salvo CORTE) = no se aplica ningún `style`.
-  const { navTratamiento } = useSiteContent();
+  const { navTratamiento, tema } = useSiteContent();
+
+  // ENTRADA DESLIZANTE (§ ACCIONES-RAPIDAS-CUADRADAS-1) — GATEADA por `tema.forma`, NO unconditional
+  // como en `GrindChooserRiel.tsx`. Esa diferencia es DELIBERADA y está MEDIDA, no es inconsistencia:
+  // `GrindChooserRiel` sólo monta bajo `presentaciones.variante==='riel'`, que SÓLO CORTE declara —
+  // Nayoli JAMÁS la renderiza (afirmado en `presentaciones-riel.test.ts`, "LA INVARIANTE") — así que
+  // ese componente puede llevar el tratamiento SIN condición: la restricción "Nayoli byte-idéntica"
+  // se cumple por INALCANZABILIDAD, no por gate. `ProductCard`, en cambio, es COMPARTIDO — Nayoli lo
+  // renderiza en /tienda y en la home —, y acá SÍ hace falta el gate.
+  //
+  // Y hace falta por un HALLAZGO MEDIDO, no por precaución genérica: agregar `transform:translateX`
+  // al botón — con `duration:0` forzado por `verificar-nayoli-visual.ts` y settleado tras 400ms —
+  // seguía produciendo un diff de píxeles REAL y DETERMINISTA en la captura de HOVER (3094/98298 px,
+  // reproducido IDÉNTICO en dos builds separados; 0 diff en las 6 rutas de página completa, que
+  // capturan el botón en REPOSO — invisible por `opacity-0`). El mecanismo exacto no se aisló del
+  // todo (compositing layer del `transform` vs. cómo `verificar-nayoli-visual.ts` hace `boton.hover()`
+  // directo sobre el botón, no sobre la tarjeta), pero la CAUSA sí: agregar `transform` al botón
+  // moviéndolo. La única forma con evidencia de 0 diff es la rama SIN transform — el código de HOY,
+  // byte a byte —, así que Suave/Nayoli sigue exactamente esa rama; sólo una forma CUSTOM (`tema.forma
+  // !== null`, el mismo eje que ya decide `sf-pildora`) gana el slide.
+  const formaCustom = tema.forma !== null;
 
   // La card SOLO agrega cuando no hay nada que preguntar. Si la elección de
   // molienda es real, el botón deja pasar el click al <Link> que ya envuelve la
@@ -118,7 +138,18 @@ export default function ProductCard({
 
           {/* Add to cart — o "elegir molienda", según lo que haya que preguntar.
               El ícono cambia con la acción: un carrito que en realidad navega a
-              otra página es una promesa que el botón no cumple. */}
+              otra página es una promesa que el botón no cumple.
+
+              FORMA + ENTRADA (§ ACCIONES-RAPIDAS-CUADRADAS-1, gate del owner: "Lo que encierra al
+              carrito y ojo… debe ser cuadrado, no circular… el efecto de aparecer/desaparecer debe
+              ser como el del prototipo") — GATEADO por `formaCustom` (arriba, con la medición
+              completa de POR QUÉ). Bajo una forma CUSTOM: `rounded-full` → `sf-pildora` (el rol de
+              radio de BOTÓN/CHROME, 0 bajo 'recta'); reposo `opacity-0 translate-x-[14px]` → hover
+              `opacity-100 translate-x-0`, `duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)]` =
+              `--duration-base`/`--ease-out` del prototipo (`docs/prototipos/cafeone/css/
+              app.css:538-548`), MISMO tratamiento que `GrindChooserRiel.tsx`. Sin stagger: es el
+              ÚNICO botón de esta tarjeta. Bajo Suave: la rama de ANTES de este slice, literal —
+              `rounded-full`, `transition-opacity`, sin transform — la única con 0px medido. */}
           {product.disponible && (
               <button
                 onClick={handleAdd}
@@ -128,7 +159,11 @@ export default function ProductCard({
                     : `Elegir molienda de ${product.nombre}`
                 }
                 title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
-                className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
+                className={
+                  formaCustom
+                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-white opacity-0 shadow-md transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:translate-x-0 group-hover:opacity-100"
+                    : "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
+                }
               >
                 {agregaDirecto
                   ? <ShoppingBag className="h-4 w-4" />
