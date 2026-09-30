@@ -36688,18 +36688,17 @@ mecanismo de fade sobre uno que ya funcionaba.
 
 ### Open follow-ups
 
-- **`CHECKOUT-ATRAS-SIN-TRANSICION-1`** — los dos botones "Atrás" de `app/(storefront)/checkout/
-  page.tsx` (líneas ~803/807) tienen `hover:bg-[var(--sf-superficie)]` sin `transition-colors`, a
-  diferencia del CTA "Confirmar pedido" vecino que sí la lleva. Por qué no ahora: `checkout/
-  page.tsx` está fuera de `touches:` de este slice.
-- **`CHECKOUT-STEP-SIN-TRANSICION-1`** — el cambio entre `step===0` y `step===1` en `checkout/
-  page.tsx` es un `{cond && (<div>…)}` plano, sin `motion`/`AnimatePresence`: cambia de golpe entre
-  los dos pasos. Por qué no ahora: fuera de `touches:`, y no se profundizó más allá de la lectura
-  del código (no se midió en ejecución qué tan perceptible es el salto).
-- **`RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1`** — los tres estados de resultado de `/rastrear-
-  pedido` (`!searched` / `searched && !order` / `order`) son `{cond && (<div>…)}` planos. Por qué no
-  ahora: fuera de `touches:`, y es un cambio de resultado de búsqueda (no un control que el
-  visitante abre/cierra a voluntad), de menor prioridad que los de checkout.
+- **`CHECKOUT-ATRAS-SIN-TRANSICION-1` — CERRADO por `CHECKOUT-RASTREAR-TRANSICIONES-1` (abajo).**
+  Los dos botones "Atrás" de `app/(storefront)/checkout/page.tsx` (líneas ~803/807 de entonces)
+  tenían `hover:bg-[var(--sf-superficie)]` sin `transition-colors`, a diferencia del CTA "Confirmar
+  pedido" vecino que sí la llevaba. No se abre un id nuevo — el id existente queda marcado cerrado
+  acá.
+- **`CHECKOUT-STEP-SIN-TRANSICION-1` — CERRADO por `CHECKOUT-RASTREAR-TRANSICIONES-1` (abajo).** El
+  cambio entre `step===0` y `step===1` en `checkout/page.tsx` era un `{cond && (<div>…)}` plano, sin
+  `motion`/`AnimatePresence`: cambiaba de golpe entre los dos pasos.
+- **`RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1` — CERRADO por `CHECKOUT-RASTREAR-TRANSICIONES-1`
+  (abajo).** Los tres estados de resultado de `/rastrear-pedido` (`!searched` / `searched && !order`
+  / `order`) eran `{cond && (<div>…)}` planos.
 - **`MENU-DRAWER-DEFAULTS-DOCSTRING-1`**, **`MENU-DRAWER-SUBMENU-SIN-TENANT-1`** — siguen abiertos
   de `MENU-MOVIL-COMO-CAFEONE-1` (arriba), sin relación con este slice.
 
@@ -36722,8 +36721,10 @@ vuelva falso.
 MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30
 sobre `MENU-MOVIL-COMO-CAFEONE-1`) — el MERGE sigue gateado aparte.
 
-Cierra `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`. Cinco follow-ups quedan abiertos (arriba, tres
-nuevos + dos heredados).
+Cierra `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`. Cinco follow-ups quedaron abiertos al cerrar este
+slice (arriba, tres nuevos + dos heredados); los TRES nuevos —`CHECKOUT-ATRAS-SIN-TRANSICION-1`,
+`CHECKOUT-STEP-SIN-TRANSICION-1`, `RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1`— se CERRARON después
+por `CHECKOUT-RASTREAR-TRANSICIONES-1` (abajo); los dos heredados siguen abiertos.
 
 ## 2026-09-30 — El collage de "Nuestra Historia" arranca más girado y se endereza antes (`HISTORIA-GIRO-ANTES-1`)
 
