@@ -32989,3 +32989,79 @@ de este slice. El spec además lo pide explícito: *"PARÁS EN AWAITING_APPROVAL
 
 Cierra `MARQUEE-SIN-RAYA-1` (pendiente del gate visual del owner, capa 3, y de mergear — ninguna de
 las dos cosas hechas por este slice).
+
+## 2026-09-29 — La separación entre repeticiones de la cinta baja a media letra (`MARQUEE-ESPACIO-MENOR-1`)
+
+`c3e79bc` (rama `slice/corte-reescritura-prototipo-1`, SIN mergear — AWAITING_APPROVAL, ver Verdict abajo)
+
+### El pedido
+
+Gate visual del owner tras `MARQUEE-SIN-RAYA-1`, textual: *"Disminuye el espacio que hay entre el
+final e inicio de la frase"*. La entrega anterior había retirado el glifo "—" pero dejó el hueco
+como la SUMA de cuatro mecanismos, uno encima del otro: el `pr-8` fijo (32px) del `<span>` externo
++ el espacio de texto literal entre `{marquesina.texto}` y el spacer + el spacer
+`<span className="inline-block w-[1em]" />` (1em, pensado para preservar el ancho del glifo
+retirado) + `&nbsp;`. Cuatro mecanismos sumados es justo lo que se leía como un hueco, no una
+separación.
+
+### La elección
+
+Se colapsan los cuatro a UNO solo: `pr-[0.5em]` en el `<span>` que envuelve cada repetición del
+texto, sin espacio de texto, sin spacer intermedio, sin `&nbsp;`. `cifras-decision: 0.5em` viene
+del spec — media letra, la mitad del ancho que el spacer viejo reservaba para el glifo retirado.
+Va en `em` (no un `pr-*` de Tailwind en rem/px) por la misma razón que ya regía el spacer viejo:
+`MARQUEE_TITULO_FONT_SIZE` en el hero es un `clamp()` y el loop de la banda suelta usa
+`text-[clamp(3rem,10vw,10rem)]`, así que un valor fijo en píxeles se vería corto en un extremo del
+rango y largo en el otro; `padding` en `em` escala con el `font-size` heredado igual que lo hacía
+el spacer.
+
+**Se descartó:**
+- mover sólo el NÚMERO del spacer (`w-[1em]` → `w-[0.5em]`) dejando el resto intacto: seguiría
+  siendo la suma de cuatro mecanismos —padding fijo + espacio de texto + spacer + nbsp—, y el
+  spec pide explícitamente "un solo mecanismo (padding o un espaciador), no tres sumados";
+- un espaciador (`<span className="inline-block w-[0.5em]" />`) en vez de padding: funcionalmente
+  equivalente, pero el padding en el `<span>` que ya envuelve el texto no necesita un nodo extra
+  ni el espacio de texto literal que lo separaba del spacer — es el mecanismo más simple de los
+  dos que el spec ofrecía.
+
+### El cierre
+
+- Los DOS archivos de test que el spec nombra (`lib/config/hero-marquesina.test.ts`,
+  `lib/config/marquesina-banda.test.ts`) reescriben el test del spacer viejo: ahora afirman que
+  el HTML no contiene ` ` (el `&nbsp;` del mecanismo viejo) ni `inline-block w-[1em]` (el
+  spacer viejo), y que `pr-[0.5em]` aparece EXACTAMENTE dos veces — una por repetición. El test
+  de conteo de repeticiones (`enSpans`) se actualizó del patrón `pr-8` al patrón `pr-[0.5em]`.
+- Las dos repeticiones siguen midiendo lo mismo (mismo `className`, mismo `marquesina.texto`,
+  sin nodo extra en ninguna de las dos) — el ciclo del ticker (`x:['0%','-50%']`,
+  `HeroMediaMarquesina.tsx`) no salta.
+- `npm test`: **2589/2589** (mismo total que `MARQUEE-SIN-RAYA-1` — dos tests reescritos, no
+  agregados). Acotado a los dos archivos tocados: **63/63**.
+- `npm run typecheck`: limpio, cero errores.
+- `npm run test:integracion`: **240/240**.
+- `npm run verificar:nayoli:visual` (Nayoli, sin preset — CORTE no se aplica a Nayoli; `main` =
+  `9a7ab97` worktree detached, rama = el árbol de trabajo con `c3e79bc` ya aplicado): **IDÉNTICO,
+  0px en las 6 rutas + los 2 hovers, consciente de antialiasing Y crudo** (`includeAA:true`) —
+  `ruta:home` (0/4.608.000 px), `ruta:tienda` (0/2.433.280 px), `ruta:producto` (0/2.535.680 px),
+  `ruta:checkout` (0/1.152.000 px), `ruta:nosotros` (0/1.152.000 px), `ruta:suscripciones`
+  (0/2.144.000 px), `hover:automatica` (0/98.298 px), `hover:eleccion` (0/102.870 px). Mismo
+  resultado esperado que `MARQUEE-SIN-RAYA-1` y por la misma razón: ni `HeroMediaMarquesina.tsx`
+  (hero `variante:'sticky'`, sólo CORTE la usa) ni el texto de `Marquesina.tsx` (banda
+  `marquesina`, `visible:false` por default y apagada explícitamente bajo CORTE) rinden NADA para
+  Nayoli (`resolverSiteContent({})`, sin preset) — el 0px confirma que ninguno de los dos archivos
+  tocados afecta lo que Nayoli sirve HOY, no que el cambio sea invisible para cualquier tienda que
+  encienda `marquesina` o adopte CORTE.
+- `git worktree list` tras la corrida: sin residuos (el worktree de `main` se removió solo, como
+  parte del propio script).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`), la misma clasificación que `MARQUEE-SIN-RAYA-1` y por la
+misma razón: el diff cambia bytes que un visitante de una tienda con CORTE activo — o con
+`content.marquesina.visible:true` bajo cualquier otro preset — lee en pantalla (la separación
+visual de la cinta del hero/banda). Nayoli no lo ve HOY (0px, arriba), pero la RAMA sí cambia ese
+byte para quien lo tenga encendido, y merge policy A juzga la RAMA contra su base, no el commit
+aislado (§ CLAUDE.md, customer_bytes: "el eje es la rama, no el commit"). El spec además lo pide
+explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
+
+Cierra `MARQUEE-ESPACIO-MENOR-1` (pendiente del gate visual del owner, capa 3, y de mergear —
+ninguna de las dos cosas hechas por este slice).
