@@ -224,7 +224,7 @@ export default function CartDrawer() {
             }}
             className={
               carrito.variante === 'flotante'
-                ? "fixed top-3 right-3 bottom-3 z-50 flex w-full max-w-sm flex-col rounded-tr-[14px] rounded-br-[14px] bg-[var(--sf-fondo)] text-[var(--sf-texto)] shadow-2xl"
+                ? "fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-sm flex-col bg-[var(--sf-fondo)] text-[var(--sf-texto)] shadow-2xl"
                 : "fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
             }
           >

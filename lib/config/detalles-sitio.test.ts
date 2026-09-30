@@ -256,23 +256,24 @@ test("CartDrawer.tsx: el contenedor del drawer gatea SU className por `carrito.v
   assert.match(src, /carrito\.variante === 'flotante'/);
 });
 
-test("CartDrawer.tsx: la rama 'flotante' separa el panel de los TRES bordes libres (12px, MISMO valor que navDrawerMovil), sin `h-full`", () => {
+test("CartDrawer.tsx: la rama 'flotante' va pegada a los tres bordes (CARRITO-PEGADO-AL-BORDE-1), sin `h-full`", () => {
   const src = leerFuenteCartDrawer();
   const idxFlotante = src.indexOf("carrito.variante === 'flotante'");
-  const idxAnclado = src.indexOf('fixed top-0 right-0');
+  const idxAnclado = src.indexOf('fixed top-0 right-0 z-50 flex h-full');
   assert.ok(idxFlotante > -1 && idxAnclado > -1);
   const bloqueFlotante = src.slice(idxFlotante, idxAnclado);
-  assert.match(bloqueFlotante, /top-3 right-3 bottom-3/, 'los tres bordes libres deben llevar el MISMO margen (12px = top-3/right-3/bottom-3)');
+  // § CARRITO-PEGADO-AL-BORDE-1 (owner 2026-09-30, "el carrito se siente como flotando", contra Cafeone real):
+  // pegado a los tres bordes y sin radio; el alto sigue saliendo de top+bottom.
+  assert.match(bloqueFlotante, /top-0 right-0 bottom-0/, 'pegado a los tres bordes, como Cafeone');
+  assert.doesNotMatch(bloqueFlotante, /rounded-/, 'sin radio: pegado al borde no se redondea');
   assert.doesNotMatch(bloqueFlotante, /h-full/, 'flotante no debe fijar h-full -- el alto sale de top+bottom, no de una clase de altura');
 });
 
-test("CartDrawer.tsx: la rama 'flotante' redondea SÓLO el lado que mira al borde de pantalla (top-right/bottom-right), fondo de PÁGINA (no de tarjeta)", () => {
+test("CartDrawer.tsx: la rama 'flotante' va sin radio (pegada al borde, CARRITO-PEGADO-AL-BORDE-1), fondo de PÁGINA (no de tarjeta)", () => {
   const src = leerFuenteCartDrawer();
   const idxFlotante = src.indexOf("carrito.variante === 'flotante'");
-  const idxAnclado = src.indexOf('fixed top-0 right-0');
+  const idxAnclado = src.indexOf('fixed top-0 right-0 z-50 flex h-full');
   const bloqueFlotante = src.slice(idxFlotante, idxAnclado);
-  assert.match(bloqueFlotante, /rounded-tr-\[14px\] rounded-br-\[14px\]/);
-  assert.doesNotMatch(bloqueFlotante, /rounded-tl|rounded-bl/, 'el lado que mira al contenido NO se redondea -- MEDIDO contra `.drawer` del prototipo (0 en las dos esquinas izquierdas)');
   assert.match(bloqueFlotante, /bg-\[var\(--sf-fondo\)\]/);
   assert.doesNotMatch(bloqueFlotante, /--sf-tarjeta/, 'flotante no debe usar la superficie de TARJETA -- MEDIDO: el prototipo pinta `--surface-page`, no una superficie de tarjeta');
 });
