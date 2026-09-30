@@ -36290,6 +36290,17 @@ DIRECTO, sin pasar por acá) nunca herede el campo de una acción anterior de la
 también al abrir/cerrar la edición, para que un ciclo cerrar→reabrir no deje un campo colgado de
 una sesión de edición previa.
 
+**RESIDUO CONOCIDO, no cerrado del todo:** la consume-on-conclude cubre el caso normal (una acción
+de la cáscara siempre termina, éxito o error, antes de que el operador toque otra cosa), pero NO
+el caso en que el operador ABRE el picker nativo de un campo de la cáscara (`marcarCampoActivo` ya
+corrió) y lo CANCELA sin elegir archivo —`alElegirHold`/`alElegir` nunca disparan, así que nada
+consume el ref—. Si en esa ventana el operador dispara una validación fallida del REPEATER (que
+también pasa por `pedir`/`elegir`), el error se atribuiría al campo de la cáscara abandonado, no al
+ítem del repeater. Angosto —exige cancelar un picker Y accionar el repeater antes de tocar
+cualquier otro control de la cáscara— y nunca peor que HOY (antes, TODO error caía sólo al pie, sin
+atribución); no se cierra en este slice porque exigiría que `RepeaterEditor` (fuera de `touches:`)
+también anunciara el inicio de sus propias acciones.
+
 **`components/admin/useSubidaImagen.ts` estaba en `touches:` y NO se tocó — a propósito, no un
 olvido.** Su `onError: (msg: string | null) => void` ya propaga `err.message` tal cual (línea 98,
 sin cambio); como `MSG_SESION_VENCIDA` YA ES el texto final que el dueño debe ver, ese passthrough
@@ -36384,6 +36395,12 @@ pedido — el spec mismo los admite ("si el flujo de login lo permite").
 - **`PANEL-ERROR-SUBIDA-VISIBLE-CAPA3-1`** — falta el gate visual (capa 3) que el spec pidió:
   sesión forzada a vencer en la base efímera + captura mostrando el mensaje junto al control. *Por
   qué no ahora:* este dispatch no tiene navegador/captura disponible.
+- **`PANEL-ERROR-CAMPO-ACTIVO-REPEATER-1`** — residuo angosto del mecanismo de atribución
+  (§ arriba, "RESIDUO CONOCIDO"): cancelar el picker nativo de un campo de la cáscara sin elegir
+  archivo, y accionar el repeater ANTES de tocar otro control, puede atribuir el error del repeater
+  al campo de la cáscara abandonado. *Por qué no ahora:* exigiría que `RepeaterEditor` (fuera de
+  `touches:`) anunciara el inicio de sus propias acciones; nunca peor que el estado previo (sin
+  atribución alguna).
 
 ### Verdict
 
