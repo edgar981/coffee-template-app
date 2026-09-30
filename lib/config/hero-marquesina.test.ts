@@ -114,18 +114,23 @@ test('el texto del loop rinde DOS VECES dentro del track (cinta continua), más 
   const html = renderHeroMediaMarquesina(content);
   const apariciones = html.split('Calidad que se nota').length - 1;
   assert.equal(apariciones, 3);
-  const enSpans = (html.match(/<span class="pr-8">/g) || []).length;
+  const enSpans = (html.match(/<span class="pr-\[0\.5em\]">/g) || []).length;
   assert.equal(enSpans, 2);
 });
 
 // § MARQUEE-SIN-RAYA-1 — la raya (—) que separaba cada repetición se retira (decisión del owner,
-// apartándose de `docs/prototipos/cafeone/index.html:149`); el hueco queda como espacio, con un
-// spacer `inline-block w-[1em]` que preserva el ancho visual del glifo retirado.
-test('el loop NO rinde la raya (—) — el separador es un spacer `inline-block w-[1em]`, no texto', () => {
+// apartándose de `docs/prototipos/cafeone/index.html:149`).
+// § MARQUEE-ESPACIO-MENOR-1 — gate visual del owner tras esa entrega: el hueco resultante (espacio
+// de texto + spacer de 1em + `&nbsp;` + el `pr-8` fijo) se leía como un hueco. Colapsa a UN solo
+// mecanismo, `pr-[0.5em]` — sin espacio de texto, sin spacer, sin `&nbsp;` — así la separación total
+// es de media letra, no la suma de cuatro.
+test('el loop NO rinde la raya (—), y la separación es UN solo mecanismo (`pr-[0.5em]`), no la suma de espacio+spacer+nbsp+padding', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
   assert.ok(!html.includes('—'), 'ningún guion largo debe sobrevivir en el texto del loop');
-  const enSpacers = (html.match(/<span class="inline-block w-\[1em\]">/g) || []).length;
-  assert.equal(enSpacers, 2, 'las DOS repeticiones deben llevar el spacer, no el guion');
+  assert.ok(!html.includes(' '), 'el `&nbsp;` del mecanismo viejo no debe sobrevivir');
+  assert.ok(!html.includes('inline-block w-[1em]'), 'el spacer de 1em del mecanismo viejo no debe sobrevivir');
+  const enPad = (html.match(/<span class="pr-\[0\.5em\]">/g) || []).length;
+  assert.equal(enPad, 2, 'las DOS repeticiones deben llevar el padding de 0.5em');
 });
 
 // ─── EL TAMAÑO Y LA MÁSCARA — § CORTE-HERO-MARQUEE-RONDA-5-1 ──────────────────────────────────────

@@ -101,25 +101,30 @@ test('con `marquesina.visible:true` y los DEFAULTS (sin pin): rinde el texto del
 test('el texto del loop rinde DOS VECES dentro del track (el efecto de cinta continua, § `.marquee-track` del prototipo) — MÁS la 3ª aparición del `aria-label` de la sección', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
-  // 3 = las 2 del loop (`<span class="pr-8">…`) + 1 del `aria-label` de la <section> (el nombre
-  // accesible, para que el lector de pantalla anuncie la frase una vez — el loop visual es
+  // 3 = las 2 del loop (`<span class="pr-[0.5em]">…`) + 1 del `aria-label` de la <section> (el
+  // nombre accesible, para que el lector de pantalla anuncie la frase una vez — el loop visual es
   // `aria-hidden`). Un total de 2 significaría que el `aria-label` se perdió; de 1, que el loop dejó
   // de duplicarse.
   const apariciones = html.split(DEFAULTS.marquesina.texto).length - 1;
   assert.equal(apariciones, 3);
-  const enSpans = (html.match(/<span class="pr-8">/g) || []).length;
+  const enSpans = (html.match(/<span class="pr-\[0\.5em\]">/g) || []).length;
   assert.equal(enSpans, 2, 'el loop debe repetir el texto en exactamente DOS <span>');
 });
 
 // § MARQUEE-SIN-RAYA-1 — la raya (—) que separaba cada repetición se retira (decisión del owner,
-// apartándose de `docs/prototipos/cafeone/index.html:149`); el hueco queda como espacio, con un
-// spacer `inline-block w-[1em]` que preserva el ancho visual del glifo retirado.
-test('el loop NO rinde la raya (—) — el separador es un spacer `inline-block w-[1em]`, no texto', () => {
+// apartándose de `docs/prototipos/cafeone/index.html:149`).
+// § MARQUEE-ESPACIO-MENOR-1 — gate visual del owner tras esa entrega: el hueco resultante (espacio
+// de texto + spacer de 1em + `&nbsp;` + el `pr-8` fijo) se leía como un hueco. Colapsa a UN solo
+// mecanismo, `pr-[0.5em]` — sin espacio de texto, sin spacer, sin `&nbsp;` — así la separación total
+// es de media letra, no la suma de cuatro.
+test('el loop NO rinde la raya (—), y la separación es UN solo mecanismo (`pr-[0.5em]`), no la suma de espacio+spacer+nbsp+padding', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
   assert.ok(!html.includes('—'), 'ningún guion largo debe sobrevivir en el texto del loop');
-  const enSpacers = (html.match(/<span class="inline-block w-\[1em\]">/g) || []).length;
-  assert.equal(enSpacers, 2, 'las DOS repeticiones deben llevar el spacer, no el guion');
+  assert.ok(!html.includes(' '), 'el `&nbsp;` del mecanismo viejo no debe sobrevivir');
+  assert.ok(!html.includes('inline-block w-[1em]'), 'el spacer de 1em del mecanismo viejo no debe sobrevivir');
+  const enPad = (html.match(/<span class="pr-\[0\.5em\]">/g) || []).length;
+  assert.equal(enPad, 2, 'las DOS repeticiones deben llevar el padding de 0.5em');
 });
 
 // ─── EL SCROLL — el gate ESTÁTICO (§ lib/animation.test.ts para la matemática pura) ──────────────

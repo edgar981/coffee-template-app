@@ -96,13 +96,16 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
         className="absolute left-0 top-1/2 flex whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
         style={{ transform: transformTexto }}
       >
-        {/* SIN RAYA — § MARQUEE-SIN-RAYA-1 (2026-09-29): decisión del owner, apartándose del
-            prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;"). La raya se
-            retira; el hueco entre repeticiones queda como ESPACIO, con un spacer
-            `inline-block w-[1em]` que preserva el ancho visual que el glifo del guion ocupaba
-            (1em, la convención del propio nombre "em dash"). */}
-        <span className="pr-8">{marquesina.texto} <span className="inline-block w-[1em]" />&nbsp;</span>
-        <span className="pr-8">{marquesina.texto} <span className="inline-block w-[1em]" />&nbsp;</span>
+        {/* SIN RAYA, ESPACIO CORTO — § MARQUEE-SIN-RAYA-1 (2026-09-29) retiró la raya (—) del
+            prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;") y dejó el
+            hueco como espacio + un spacer de 1em (para preservar el ancho del glifo retirado) + el
+            espacio de texto + `&nbsp;`: tres mecanismos sumados que, juntos, se leían como un
+            hueco. § MARQUEE-ESPACIO-MENOR-1 (gate visual del owner tras esa entrega) los colapsa a
+            UN solo mecanismo — `pr-[0.5em]` — así la separación total es de media letra y escala
+            con el tamaño de fuente del propio loop (`text-[clamp(...)]`), en vez de quedar fija en
+            píxeles como el `pr-8` de antes. */}
+        <span className="pr-[0.5em]">{marquesina.texto}</span>
+        <span className="pr-[0.5em]">{marquesina.texto}</span>
       </motion.div>
 
       {producto && (
