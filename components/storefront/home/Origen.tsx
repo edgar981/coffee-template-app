@@ -114,7 +114,19 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 641px (`--space-12`), 32px bajo 640 (`--space-8`). Medido contra `PARIDAD-CAFE-Y-
                 ORIGEN-1`: acá vivían fijos en 16px/32px siempre, sin la variación por ancho — las
                 fotos quedaban menos escalonadas que en el prototipo. */}
-            <div className="relative aspect-[3/4] overflow-hidden rounded-2xl mt-8 sm:mt-12">
+            {/* `.origen-media figure` del prototipo (`css/app.css:585`) — MEDIDO contra el
+                muestrario desplegado (§ ORIGEN-RADIO-SOMBRA-IMAGEN-1, el mismo defecto ya cerrado
+                en el collage de Historia, § HISTORIA-COLLAGE-COMO-PROTOTIPO-1): `rounded-2xl` crudo
+                compila a `var(--radius-2xl)`, el MISMO token que 'recta' pisa a 0 para botones/
+                tarjetas, así que bajo CORTE estas fotos salían con esquinas RECTAS y sin la sombra
+                del prototipo. `sf-radio-imagen`/`sf-sombra-imagen` (`app/globals.css`, § eje 4, rol
+                IMAGEN) son el mismo rol de forma que ya usa `BrandStoryCentrada.tsx` — su fallback
+                para Suave es 1rem (= lo que `rounded-2xl` ya resolvía), pero la banda Origen nace
+                OFF para Nayoli (`visible:false`, § el docstring de `OrigenContent`) y este componente
+                retorna `null` sin fila (afirmado: "LA INVARIANTE… rinde la banda VACÍA — ni un
+                nodo", `origen-banda.test.ts`), así que ni el radio ni la sombra nuevos le llegan a
+                Nayoli — byte-idéntica por construcción, no por coincidencia de valores. */}
+            <div className="relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12">
               <Image
                 src={origen.imagen1}
                 alt="Cerezas de café secándose al sol"
@@ -123,7 +135,7 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 className="object-cover"
               />
             </div>
-            <div className="relative aspect-[3/4] overflow-hidden rounded-2xl">
+            <div className="relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen">
               <Image
                 src={origen.imagen2}
                 alt="Las manos de un recolector con cerezas de café maduras"

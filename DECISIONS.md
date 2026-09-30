@@ -34675,3 +34675,115 @@ ve al mirar/scrollear esa sección. El owner ya aprobó la ESCRITURA de este sli
 (§ `approval-reason` del spec); el MERGE sigue gateado aparte.
 
 Cierra `HISTORIA-COLLAGE-COMO-PROTOTIPO-1`.
+
+## 2026-09-30 — Las fotos de "El origen" ganan el rol de forma imagen — esquinas suavizadas y sombra del prototipo bajo CORTE (`ORIGEN-RADIO-SOMBRA-IMAGEN-1`)
+
+Pendiente nombrado por `HISTORIA-COLLAGE-COMO-PROTOTIPO-1` (el `open_followups` de su reporte de
+slice, no una prosa de este ledger — grepeado: cero apariciones previas de este id en el archivo):
+`ORIGEN-RADIO-IMAGEN-MISMO-BUG-1` — las figuras de foto de `Origen.tsx` usaban el mismo `rounded-2xl`
+crudo que el collage de Historia tenía antes de ese slice, y ninguna sombra.
+
+### 1 · El defecto, RE-MEDIDO contra el muestrario desplegado (no asumido del pendiente)
+
+`npm run capturar:seccion -- --url https://coffee-template-app-onix.vercel.app/` (main desplegado,
+sin el código de esta rama) contra la primera figura de la banda (`#origen .grid.grid-cols-2 >
+div:first-child`), a 1440 y 390:
+
+| propiedad | app (antes) | prototipo (`.origen-media figure`, `css/app.css:585`) | ¿coincide? |
+| --- | --- | --- | --- |
+| `border-radius` | **0px** (las dos anchuras) | 16px | NO |
+| `box-shadow` | **none** (las dos anchuras) | `rgba(16,36,7,.14) 0 18px 44px` | NO |
+
+Misma causa raíz que `HISTORIA-COLLAGE-COMO-PROTOTIPO-1`: `rounded-2xl` compila a `var(--radius-2xl)`,
+el token que 'recta' (CORTE) ya pisa a `0` para botones/tarjetas — el collage y estas dos fotos
+compartían por accidente el radio de botón, nunca tuvieron un rol de forma IMAGEN propio.
+
+### 2 · El fix — el MISMO rol, sin tocar `formas.ts`
+
+`formas.ts` (fuera de `touches:`) ya declara el rol —`radioImagen`/`sombraImagen`, `.sf-radio-imagen`/
+`.sf-sombra-imagen` en `app/globals.css`— desde el slice anterior; no hacía falta un token nuevo, sólo
+un SEGUNDO consumidor. `Origen.tsx` cambia `rounded-2xl` → `sf-radio-imagen sf-sombra-imagen` en las
+DOS figuras (`components/storefront/home/Origen.tsx`), idéntico al patrón que `BrandStoryCentrada.tsx`
+ya usa. Sin `will-change:transform`: a diferencia del collage, estas figuras no llevan un transform
+scrubbeado por scroll — no hay nada que promover a su propia capa de composición.
+
+### 3 · POR QUÉ "Nayoli byte-idéntica" se sostiene, y NO es la misma razón que en Historia
+
+En `BrandStoryCentrada.tsx` la migración fue byte-idéntica porque el collage YA tenía ese
+`shadow-[0_18px_44px_rgba(16,36,7,0.14)]` para TODAS las formas (incluida Suave) — el fallback de
+`sombraImagen` para 'suave' es literalmente ese mismo valor. Acá `sombraImagen` vale lo MISMO en las
+tres formas (`formas.ts`, fuera de `touches:`, sin cambio), así que aplicar `.sf-sombra-imagen`
+agregaría una sombra NUEVA a estas fotos bajo Suave — que antes NO tenían ninguna. Aplicado a ciegas,
+eso habría roto la byte-identidad de Nayoli.
+
+Lo que la sostiene es OTRO hecho, medido y ya afirmado por el carril: `origen.visible: false` de
+fábrica (§ el docstring de `OrigenContent`, `site-content-defaults.ts`) — Nayoli no tiene fila propia
+de `SiteContent`, así que `Origen()` retorna `null` ANTES de llegar a estas dos figuras
+(`origen-banda.test.ts`, "LA INVARIANTE: Nayoli … rinde la banda VACÍA — ni un nodo", ya verde antes
+de este slice). Ni el radio ni la sombra nuevos le llegan a Nayoli porque la sección entera no se
+monta — byte-idéntica por CONSTRUCCIÓN (el componente no renderiza), no porque los valores del
+fallback coincidan con lo de antes (no coinciden, para la sombra). Medido, no asumido: `npm run
+verificar:nayoli:visual` y `npm run guarda:color`, abajo, dan 0px en las 6 rutas + 2 hovers —
+incluida `/` (home), que es donde `#origen` viviría si se montara.
+
+### 4 · Capturas — ANTES (muestrario real) y DESPUÉS (build local + `--preset CORTE`), 1440 y 390
+
+| captura | 1440px | 390px |
+| --- | --- | --- |
+| antes (`--url`, main desplegado) | `border-radius:0px` `box-shadow:none` — `.capturas/origen-antes-1440/` | ídem — `.capturas/origen-antes-390/` |
+| después (local, `--preset CORTE`, esta rama) | `border-radius:16px` `box-shadow:rgba(16,36,7,.14) 0 18px 44px 0` — `.capturas/origen-despues-1440/` | ídem — `.capturas/origen-despues-390/` |
+
+Los computados de "después" coinciden EXACTOS con los del prototipo en las dos anchuras (mismo
+`border-radius`/`box-shadow`, verificado en la misma corrida que capturó `#origen .origen-media
+figure:first-child`). Las cuatro carpetas se inspeccionaron por los `valores.json`/consola impresos,
+no sólo generadas.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npm test` | **2633/2633** (2632 del piso de `HISTORIA-COLLAGE-COMO-PROTOTIPO-1` + 1: el nuevo test de `origen-banda.test.ts` que afirma las dos figuras contra `sf-radio-imagen`/`sf-sombra-imagen` y la ausencia de `rounded-2xl`) |
+| `npm run test:integracion` | **242/242**, sin cambio — este slice no toca `tests/integracion/` |
+| `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs esta rama) |
+| `npm run guarda:color` | **IDÉNTICO, 0px** contra el fixture, mismas 6 rutas + 2 hovers |
+| capturas antes/después (1440 y 390, una figura) | § 4, medidas y vistas |
+
+### `touches:` — lo usado
+
+`components/storefront/home/Origen.tsx` (el className de las dos figuras + el comentario de docstring),
+`lib/config/origen-banda.test.ts` (las dos regex actualizadas + un test nuevo), `DECISIONS.md`. **NO se
+tocó** `lib/config/formas.test.ts`: nada de lo que ese archivo afirma (los valores de `FORMA_DEFECTO`,
+`varsDeForma`, `cssForma`) cambió — el fix es un segundo CONSUMIDOR de un rol que ya existía, no un
+token nuevo, así que no había una aserción ahí que necesitara moverse. Corrido igual, sin cambios:
+13/13 verde (§ Gate).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff cambió: `Origen.tsx` (el className de las figuras), `origen-banda.test.ts`
+(dos regex + un test), `sf-radio-imagen`/`sf-sombra-imagen` (consumidos, no declarados — viven en
+`formas.ts`/`globals.css`, fuera de `touches:`). Grepeados uno por uno contra `CLAUDE.md`:
+
+- **`Origen.tsx`, `origen-banda`, `sf-radio-imagen`, `sf-sombra-imagen`, `OrigenContent`,
+  `ORIGEN-RADIO-SOMBRA-IMAGEN`** → CERO apariciones. La banda "Origen" del storefront no está
+  documentada en `CLAUDE.md` en absoluto (vive en `site-content-defaults.ts`/`DECISIONS.md`) — mismo
+  hallazgo que ya dejó `PANEL-EDITOR-ORIGEN-1` (`DECISIONS.md:16780`, su propio chequeo mecánico).
+  Nada que este
+  diff pudiera dejar falso ahí.
+- **`rounded-2xl`** (1 aparición, `§ "InviteUserModal" es un DunaSheet`) → describe un modal DISTINTO
+  del admin (`InviteUserModal`), sin relación con la banda Origen del storefront. Sin afectación.
+
+### `customer_bytes`
+
+**`changed: true`.** La banda "Origen" bajo CORTE (`?tema=CORTE`, o cualquier tenant futuro con
+`bandasVisibles.origen`) deja de mostrar esquinas rectas en sus dos fotos y gana la sombra del
+prototipo. `strings:` **ninguno** — cambio de geometría, no de copy. Nayoli (`origen.visible:false`)
+queda byte-idéntica: la sección no se monta, medido 0px arriba (§ 3).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE activo (y
+`origen.visible:true`) ve al mirar esa sección. El owner ya aprobó la ESCRITURA de este slice
+específico (§ `approval-reason` del spec); el MERGE sigue gateado aparte.
+
+Cierra `ORIGEN-RADIO-SOMBRA-IMAGEN-1`.

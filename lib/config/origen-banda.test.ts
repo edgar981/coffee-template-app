@@ -124,13 +124,30 @@ test('la grilla de fotos usa gap-3 (12px, mobile) con sm:gap-5 (20px, ≥640px) 
 test('el PRIMER marco de foto lleva mt-8 (32px, mobile) con sm:mt-12 (48px, ≥640px) — ya NO mt-8 fijo siempre', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
-  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden rounded-2xl mt-8 sm:mt-12"/);
+  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12"/);
 });
 
 test('el SEGUNDO marco de foto sigue SIN desfase — sólo el primero (first-child, como en el prototipo) se empuja', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
-  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden rounded-2xl"/, 'debe existir un marco SIN clases de margen (el segundo)');
+  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden sf-radio-imagen sf-sombra-imagen"/, 'debe existir un marco SIN clases de margen (el segundo)');
+});
+
+// ─── EL ROL DE FORMA "IMAGEN" — cada figura consume `sf-radio-imagen`/`sf-sombra-imagen`, nunca
+// el `rounded-2xl` crudo (§ ORIGEN-RADIO-SOMBRA-IMAGEN-1: mismo defecto que el collage de Historia,
+// § HISTORIA-COLLAGE-COMO-PROTOTIPO-1 — `rounded-2xl` compila al MISMO token que 'recta' pisa a 0
+// para botones/tarjetas, así que bajo CORTE las fotos salían con esquinas rectas y sin sombra) ──
+
+test('las DOS figuras de foto usan el rol de forma imagen (sf-radio-imagen/sf-sombra-imagen) — ya NO rounded-2xl crudo', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  const figuras = html.match(/class="relative aspect-\[3\/4\] overflow-hidden [^"]*"/g) ?? [];
+  assert.equal(figuras.length, 2, 'deben existir exactamente dos figuras de foto');
+  for (const figura of figuras) {
+    assert.match(figura, /\bsf-radio-imagen\b/);
+    assert.match(figura, /\bsf-sombra-imagen\b/);
+    assert.doesNotMatch(figura, /\brounded-2xl\b/);
+  }
 });
 
 // ─── LA LISTA DE DATOS — filetes finos, medidos contra `.spec-list`/`dt`/`dd` del prototipo ──────
