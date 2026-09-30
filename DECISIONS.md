@@ -37014,3 +37014,138 @@ palette-schema.ts`).
 
 Cierra `PANEL-PREVIEW-COLORES-REALES-1` (pendiente del gate visual REAL del owner, capa 3, y de
 mergear).
+
+## 2026-09-30 — Diseño del editor de `/admin/tienda` como editor de verdad (`EDITOR-TIENDA-DISENO-1`)
+
+Gate del owner del 2026-09-30, al ver `PANEL-PREVIEW-COLORES-REALES-1`: *"de nuevo mi intención de
+hacer /tienda algo más parecido a un editor que lo que estamos haciendo ahora y es como la 20ava vez
+que lo menciono."* Este slice NO cambia código de producto: escribe `docs/editor-tienda/DISENO.md`,
+un documento de arquitectura para que el owner lo apruebe antes de que exista un solo slice de
+implementación.
+
+### 1 · El censo que sostiene el diseño
+
+Cuatro investigaciones de lectura (agentes `Explore`, en paralelo) midieron, con file:line, las
+piezas que el documento compara:
+
+- **La arquitectura actual de las dos vistas previas** (`VistaTiendaEnVivo.tsx`, `PaletaSeccion.tsx`/
+  `FragmentoTienda`, `varsDeTienda` en `lib/config/esquema-style.ts:147-162`) y qué NO reproducen del
+  layout real: Nav/Footer (exigen `useSiteSettings()`, ausente a propósito, `tienda-secciones.ts:19-31`),
+  chrome global, ancho real (`EscalaDesktop` siempre renderiza a 1280px y ESCALA con `transform`, así
+  que ningún breakpoint móvil de Tailwind se activa nunca), el orden real de bandas (`resolverOrden`,
+  sólo lo consume `page.tsx:113`) y la banda `featured` (sin `SeccionVista` propia, sin preview).
+- **El render real de la tienda y los "presets"**: `app/(storefront)/layout.tsx:34` (`force-dynamic`),
+  `cssPaleta`/`cssFuentes`/`cssForma` server-rendered en el `<head>` (líneas 115-130), y que un
+  "preset" (`PresetTema`, `lib/config/themes.ts:391-430`, catálogo en la línea 1481: PLIEGO, CORTE,
+  PATIO, VETA, VITRINA, ARRANQUE) es dato aplicado DIRECTO a la única fila `SiteContent` vía
+  `prisma/aplicar-preset.ts` — no hay multi-tenancy ni activación por env var/query param.
+- **La infraestructura de verificación visual ya existente** (para no inventar una cuarta vara):
+  `verificar:nayoli` (bytes, sin Playwright), `verificar:nayoli:visual`/`guarda:color` (píxeles,
+  Playwright + `pixelmatch`, `.arnes-tooling/playwright` instalado aislado y gitignored), y
+  `capturar:seccion` (captura lado a lado contra un prototipo/deploy real, "prueba que el tema se
+  aplicó, NO que se vea bien" — cita textual del propio script). Confirmado: el plan de Vercel es
+  Hobby (`CLAUDE.md:7814-7816`, ya sabido por el cron en GitHub Actions).
+- **Auth/CSP/sesión**: el gate de rol (OWNER/MANAGER) es un chequeo server-side en
+  `app/(admin)/admin/layout.tsx:44-55` contra la fila real de `User`, no algo que viaje en la cookie
+  — un iframe mismo-origen la hereda sin problema. **Cero resultados** en todo el repo para
+  `frame-ancestors`/`X-Frame-Options` (la única CSP es `Report-Only`, sólo sobre `/checkout`,
+  `next.config.ts:141-212`, sin esa directiva). **Cero resultados** para `draftMode()`. El mecanismo
+  de borrador-por-URL anterior (`?borrador=1`/`debeLeerBorrador`/`readSiteContentBorrador`) se
+  confirmó RETIRADO por completo (grep, cero resultados) — hay que reconstruirlo, no reactivarlo.
+
+### 2 · La revisión de la decisión "componentes reales, no un iframe"
+
+`CLAUDE.md:2665-2672` mide que el iframe retirado en 2026-08-25 costaba un ciclo
+guardar→recargar→renderizar, con el render real barato (~157ms) y el retraso percibido siendo la
+espera deliberada del debounce+reload — NO el render. El documento nota que esa decisión evaluó UNA
+sola alternativa (un iframe que recarga tras cada guardado), no la variante con `postMessage` (que
+en 2026-08-25 no existía como patrón en el repo, y hoy SÍ existe — es exactamente lo que
+`VistaTiendaEnVivo` hace con su `SiteContentProvider` sintético). El propio argumento medido
+("el render es barato, el ciclo es el problema") es el argumento A FAVOR de sacar el ciclo de red
+—no el iframe—, así que la decisión se revisa con ese dato, no se repite por inercia.
+
+### 3 · La recomendación
+
+Tres alternativas medidas (fidelidad, latencia, seguridad, SEO, costo Vercel, reuso): **(a)** iframe
++ `postMessage` (fidelidad total, cero red por tecla, exige un gate de sesión nuevo en el
+storefront); **(b)** iframe + reload tras cada guardado (misma fidelidad, el ciclo ya rechazado una
+vez); **(c)** reparar in situ el patrón actual con más providers sintéticos (nunca cierra el hueco de
+breakpoints móviles, y suma MÁS superficie de la misma familia que causó `PANEL-PREVIEW-COLORES-
+REALES-1`). Recomendación: **construir (a) por etapas, empezando por (b) como primer slice** — la
+forma más barata de conseguir toda la fidelidad (nav/pie/orden/breakpoints reales) y resolver el gate
+de seguridad una sola vez, luego agregar `postMessage` para eliminar el reload por tecla.
+
+### 4 · El plan — siete slices, y qué se retira
+
+Siete slices (tabla completa en el documento): el gate de sesión del modo-borrador (Tier 1, criterio
+`verificar:nayoli` en 0 diffs con la cookie ausente), el iframe reemplazando a `VistaTiendaEnVivo`
+por sección, `postMessage` para eliminar el reload, selección en contexto (clic en el iframe abre
+sus campos, y viceversa — generaliza el puente `data-sf-tarjeta` que hoy sólo cubre Presentaciones),
+selector de dispositivo por ANCHO LITERAL (no `transform`, para activar breakpoints móviles reales),
+reordenar/ocultar bandas desde la lista (capacidad NUEVA: `content.orden` existe en el modelo,
+`resolverOrden`/`site-content-defaults.ts:2973`, pero CERO control de panel lo lee o escribe hoy —
+confirmado por grep), y el retiro final de `VistaTiendaEnVivo`, `varsDeTienda`,
+`FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay`, el puente viejo y su test de comparación
+(`preview-colores.test.ts`) — ya no hay dos pipelines que comparar. `EscalaDesktop.tsx` NO se retira:
+lo usan `VistaRapidaProducto.tsx`/`SuscripcionPlanes.tsx`, ajenos a este editor.
+
+Cada slice que toque `app/(storefront)/`/`components/storefront/` (la mayoría) corre primero en una
+sesión OBSERVED de sólo lectura, con el visto bueno del owner antes de escribir — el protocolo Tier 1
+ya vigente, no una regla nueva de este documento.
+
+### 5 · Lo que el documento deja explícitamente sin decidir
+
+Si `/tienda` y `/tienda/[slug]` (que hoy NO tienen secciones de `SiteContent` — confirmado, `PaginaKey`
+sólo declara `'home'|'nosotros'|'suscripciones'`, `tienda-secciones.ts:65`) ganan secciones editables;
+el ancho exacto de los presets de dispositivo; si se agrega `frame-ancestors 'self'` (recomendado como
+endurecimiento, hoy ausente de TODO el repo) como parte de este trabajo o aparte. Ninguna bloquea el
+primer slice.
+
+### Gate
+
+- **Sin cambios de código de producto.** `touches:` es `docs/editor-tienda/DISENO.md`, `DECISIONS.md`
+  — los dos únicos archivos que este diff toca.
+- `npm test`: se corre una vez sobre el árbol final antes de cerrar (§ Gate del reporte) — el glob de
+  `test` (`lib/**`, `constants/**`, `packages/core/**`, `app/**`, `components/**`, `services/**`) no
+  incluye `docs/**`, así que un cambio de markdown no puede moverlo; se corre igual por disciplina de
+  "gate final sobre el árbol que se entrega", no porque se sospeche una regresión.
+- El resto del gate (`typecheck`, `test:integracion`, `pre-merge`) no aplica: el spec lo dice
+  explícito ("gate no aplica más allá de que `npm test` siga verde").
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff nombra o cita (no que EDITA — el diff no toca código):
+`VistaTiendaEnVivo`, `PaletaSeccion`/`FragmentoTienda`, `varsDeTienda`, `esquema-style.ts`,
+`EscalaDesktop`, `TiendaSeccionEditor`, `tienda-secciones.ts`, `site-content-write.ts`,
+`resolverOrden`/`content.orden`, `app/(storefront)/layout.tsx`, `puente-tarjetas.ts`/
+`data-sf-tarjeta`. Grepeados uno por uno contra `CLAUDE.md`: las ocho apariciones de
+`VistaTiendaEnVivo`/`PaletaSeccion` (líneas 56, 471, 2260, 2614, 2642, 2788, 2808) describen el
+mecanismo "en vivo, sin iframe" que este DOCUMENTO propone reemplazar — ninguna se vuelve FALSA
+todavía, porque el diff no cambia el código que esas líneas describen; se vuelven candidatas a
+reescritura recién cuando el slice 7 del plan (§ 7 del documento) retire esos archivos, y esa
+reescritura es trabajo de ESE slice, no de éste. `docs/editor-tienda/`: **cero apariciones** en
+`CLAUDE.md` (carpeta nueva). `DISENO.md`/`EDITOR-TIENDA-DISENO-1`: cero apariciones, como es de
+esperar de un id de ledger nuevo.
+
+### `customer_bytes`
+
+**`changed: false`.** El diff son dos documentos de ingeniería (`docs/editor-tienda/DISENO.md`,
+`DECISIONS.md`) — ningún byte servido por la aplicación (storefront ni panel) cambia. El owner/manager
+SÍ va a leer el documento para aprobarlo, pero eso es la revisión que este mismo slice pide, no un
+byte de producto que un cliente, operador o dueño vea al USAR la tienda o el panel.
+
+### Open follow-ups
+
+Ninguno nuevo — las tres preguntas abiertas del documento (§ 8, arriba) no son follow-ups con id
+propio: son decisiones de producto que el owner responde al aprobar o ajustar este mismo documento,
+no trabajo que otro slice deba completar.
+
+### Verdict
+
+**AWAITING_APPROVAL (`owner-gate-requested`)** — el diff no toca schema, no cambia bytes de producto
+y no toca un contrato cross-repo (§ `customer_bytes`, arriba: `changed: false`); el único motivo de
+parada es que el spec lo pide explícito y el propio objeto de este slice —un documento de
+arquitectura para una superficie Tier 1— exige el visto bueno del owner antes de que cualquier slice
+de implementación lo cite. *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."*
+
+Cierra `EDITOR-TIENDA-DISENO-1` (pendiente de que el owner apruebe el documento, y de mergear).
