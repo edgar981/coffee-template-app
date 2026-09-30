@@ -33,16 +33,13 @@ import {
 // `--background`), no los `--sf-*` del storefront, así que montarlo acá pintaría colores ajenos al
 // tema del cliente.
 //
-// EL BOTÓN "APLICAR FILTRO" NO USA EL TOKEN DE HOVER DE LA FAMILIA CTA-PRIMARIO — DESVÍO
-// DELIBERADO. Es el mismo par CTA-primario que el resto de la familia (fondo `--sf-accion`, texto
-// `--sf-accion-txt`, § CTA-PRIMARIO-COLOR-Y-HOVER-1), pero `lib/config/cta-primario.test.ts`
-// mantiene un CENSO EXHAUSTIVO por source-grep de qué archivos contienen ese string de hover (y el
-// de active), y ese archivo de test queda FUERA de `touches:` de este slice — agregar este
-// componente a esa lista, o siquiera NOMBRAR el string exacto acá (el grep no distingue código de
-// comentario), lo haría fallar. El hover se resuelve con `hover:opacity-90` (genérico, sin ese
-// token) en vez del token de la familia; el color de fondo/texto en reposo SÍ usa los tokens
-// correctos (`--sf-accion`/`--sf-accion-txt`), así que el CTA es coherente con el resto del sitio,
-// sólo su hover usa un mecanismo distinto. Reportado como deviación en el asiento de este slice.
+// EL BOTÓN "APLICAR FILTRO" USA EL PAR HOVER/ACTIVE DE LA FAMILIA CTA-PRIMARIO
+// (§ CTA-APLICAR-FILTRO-HOVER-1, cierra el follow-up `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1` de
+// `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`): mismo fondo/texto que ya tenía
+// (`--sf-accion`/`--sf-accion-txt`) más el hover/active que oscurecen el MISMO rojo
+// (`--sf-accion-hover`/`--sf-accion-active`, § CTA-PRIMARIO-COLOR-Y-HOVER-1), en vez del
+// `hover:opacity-90` genérico que dejaba `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`. Este archivo
+// está listado en `CONSUMIDORES_HOVER_ACTIVE` de `lib/config/cta-primario.test.ts`.
 //
 // LOS RADIOS SIGUEN LOS ROLES DE `formas.ts`: `sf-pildora` en botones/chips/inputs (0 bajo 'recta',
 // el chrome cuadrado del prototipo) y `sf-pildora-real` en los thumbs del slider (SIEMPRE
@@ -267,7 +264,7 @@ export default function FiltrarOrdenar({
             <button
               type="button"
               onClick={() => onAbiertoChange(false)}
-              className="sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90"
+              className="sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))]"
             >
               Aplicar filtro
             </button>

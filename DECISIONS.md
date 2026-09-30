@@ -36149,3 +36149,93 @@ MERGEES."* El owner ya aprobó la ESCRITURA de este slice específico (§ `appro
 el MERGE sigue gateado aparte.
 
 Cierra `TOAST-COMO-PROTOTIPO-1`.
+
+## 2026-09-30 — El botón "Aplicar filtro" gana el hover/active de la familia CTA-primario (`CTA-APLICAR-FILTRO-HOVER-1`)
+
+Cierra el follow-up `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1` (`TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`,
+arriba): el botón "Aplicar filtro" del panel de /tienda bajo CORTE dejaba su hover en
+`hover:opacity-90` (genérico) porque sumarlo a la familia exigía tocar `lib/config/cta-primario.
+test.ts`, fuera de `touches:` de aquel slice. Este slice SÍ lo tiene en `touches:` — aprobación del
+owner sobre el gate visual del 2026-09-29 ("el hover... debería oscurecer un poco el color del rojo
+no cambiarlo a ese otro tono", § `CTA-PRIMARIO-COLOR-Y-HOVER-1`), aplicado al CTA que nombró este
+follow-up.
+
+### El cambio — un archivo de componente, un archivo de test
+
+`FiltrarOrdenar.tsx`: el botón ya pintaba fondo/texto con el par correcto
+(`--sf-accion,var(--sf-tostado)` / `--sf-accion-txt,var(--sf-tinta)`) — sólo el hover usaba el
+mecanismo genérico. Se reemplazó `transition-opacity hover:opacity-90` por
+`transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]
+active:bg-[var(--sf-accion-active,var(--sf-tostado-3))]` — el MISMO par que ya usan los otros 19
+consumidores de la familia (ninguna cifra ni mecanismo nuevo: `accion-hover`/`accion-active` ya
+existían en `palette-derive.ts` desde `CTA-PRIMARIO-COLOR-Y-HOVER-1`/`CTA-HOVER-RESTO-FAMILIA-1`).
+El comentario del "desvío deliberado" en la cabecera del archivo se reemplazó por uno que describe
+el mecanismo actual.
+
+`lib/config/cta-primario.test.ts`: `FiltrarOrdenar.tsx` se sumó a `CONSUMIDORES_HOVER_ACTIVE`
+(10 archivos, no a `CONSUMIDORES`) — es el único bloque que afirma HOVER y ACTIVE a la vez, y el
+follow-up pedía las dos cosas juntas; `CONSUMIDORES` sólo afirma hover (esa familia nunca declaró
+`:active` en su JSX). Que su fondo/texto ya coincida con el patrón de `CONSUMIDORES`
+(`--sf-accion,var(--sf-tostado)`, no el `--sf-acento` crudo de los demás miembros de
+`CONSUMIDORES_HOVER_ACTIVE`) no importa para ese bloque: no afirma fondo/texto, sólo hover/active/
+ausencia del mecanismo viejo — y los tres pasan. Los dos barridos exhaustivos (`--sf-accion-hover`
+sobre 20 archivos, `--sf-accion-active` sobre 10) se actualizaron de 19→20 y 9→10.
+
+### Medido — computado en navegador, CORTE aplicado en base efímera
+
+Script throwaway `.scratch/computar-aplicar-filtro.mjs` contra el server de `.scratch/levantar-
+corte.mjs` (Postgres efímero :55450, seed canónico, `aplicarPreset(CORTE)` persistido — el mismo
+runbook real que usa el resto de esta rama, no el mirador `?tema=` —, `next build`+`next start`
+en :3499). Abre `/tienda`, abre el panel "Filtrar y ordenar", lee `getComputedStyle` del botón en
+reposo, hover (`page.hover`) y active (`mouse.down` sin `mouse.up`):
+
+| estado | `background-color` computado | hex esperado (`palette-derive.ts`, CORTE) |
+| --- | --- | --- |
+| reposo | `rgb(167, 0, 4)` | `#a70004` (`accion`) |
+| hover | `rgb(134, 0, 2)` | `#860002` (`accion-hover`) |
+| active | `rgb(110, 0, 2)` | `#6e0002` (`accion-active`) |
+
+`color` (texto) se mantuvo `rgb(255, 255, 255)` en los tres estados — `accion-txt`, fijo, sin
+cambio. Los tres valores coinciden EXACTOS con los hex que `CTA-PRIMARIO-COLOR-Y-HOVER-1`/
+`CTA-HOVER-RESTO-FAMILIA-1` ya midieron para el resto de la familia — ningún cálculo nuevo, sólo
+confirmar que este botón los recibe.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2718/2718** (2715 + 3 nuevos, todos en `lib/config/cta-primario.test.ts`: los tres tests de `FiltrarOrdenar.tsx` en el loop `CONSUMIDORES_HOVER_ACTIVE`) |
+| `npm run test:integracion` | **242/242**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, rama vs. fixture de Nayoli — la rama SÍ toca el sistema de color (heredado de slices previos de esta misma rama; el diff de ESTE slice no toca `lib/config/` fuera del test, que está excluido del sistema por ser `.test.ts`) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+
+### `customer_bytes`
+
+**`changed: true`, y sólo bajo CORTE** — la RAMA (no sólo este commit) ya cambiaba bytes del
+storefront con CORTE activo desde slices anteriores de esta misma rama (§ `TIENDA-ENCABEZADO-Y-
+FILTRAR-ORDENAR-1`, `BADGES-ACCIONES-Y-LOGO-CORTE-1`, `TOAST-COMO-PROTOTIPO-1`, y las series CTA-
+* anteriores); este commit AGREGA un cambio más al mismo eje: el hover/active del botón "Aplicar
+filtro" pasa de una opacidad genérica a un rojo oscurecido. Nayoli (y todo tenant sin CORTE) queda
+byte-idéntico — MEDIDO 0px, §Gate.
+
+**`strings:`** ninguna — sin texto nuevo, sólo color de hover/active de un botón ya existente.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `FiltrarOrdenar.tsx`, `lib/config/cta-primario.test.ts`,
+`CONSUMIDORES_HOVER_ACTIVE`, `--sf-accion-hover`, `--sf-accion-active`,
+`TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`, `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1`,
+`hover:opacity-90`. Grepeados contra `CLAUDE.md`, uno por uno: **CERO coincidencias en los ocho**.
+Nada que corregir.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia el hover/active de un botón que un
+visitante con CORTE ve al interactuar con el panel de filtros de /tienda (§ `customer_bytes`,
+arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya
+aprobó la ESCRITURA (`approval-reason` del spec: el mismo gate del 2026-09-29 sobre el hover/active
+oscurecido, aplicado acá al CTA que `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` había dejado con el
+mecanismo genérico) — el MERGE sigue gateado aparte.
+
+Cierra `CTA-APLICAR-FILTRO-HOVER-1` y `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1`.
