@@ -334,6 +334,20 @@ export default function StoreNav() {
     ? (navClaro ? 'border-b border-[var(--sf-sobre)]/20' : 'border-b border-[var(--sf-tinta)]/20')
     : '';
 
+  // LA FILA INTERIOR NO TRANSICIONABA SU PROPIO CAMBIO — § TRANSICION-ENTRE-PAGINAS-1. El `<header>`
+  // ya lleva `transition-all duration-300` (más abajo), pero una transición CSS sólo anima la
+  // propiedad EN EL ELEMENTO donde cambia: el color del filete (`navFileteClase`, arriba) se pinta en
+  // ESTA fila interior, no en el `<header>`, así que el `transition-all` del padre no lo cubre — al
+  // cambiar de home a una página interna (o al entrar/salir del floating sobre el hero) el color del
+  // filete saltaba de golpe mientras el fondo del header sí se desvanecía. `transition-colors
+  // duration-300` en la MISMA fila, MISMA duración que el header, cierra ese salto puntual sin tocar
+  // el valor de `navFileteClase` (que sigue decidiendo QUÉ color, no CÓMO llega).
+  //
+  // `false` (todo tenant salvo CORTE, § `navTratamiento.posicion`) → cadena vacía: para esos temas
+  // `navFileteClase` tampoco pinta ningún borde (nunca hay nada que transicionar acá), así que la
+  // fila queda BYTE-IDÉNTICA a hoy — ni la clase nueva se agrega a su `className`.
+  const navFilaTransicionClase = navTratamiento.posicion ? ' transition-colors duration-300' : '';
+
   // `navTratamiento.activo` (§ CROMO-NAV-TRATAMIENTO-1): declaración OPCIONAL del preset — los links
   // del nav llevan mayúscula + tracking del prototipo + un peso, sobre la MISMA sans del par (SIN
   // tercera familia: no se toca `font-family`, sólo `text-transform`/`letter-spacing`/`font-weight`).
@@ -487,7 +501,7 @@ export default function StoreNav() {
         }}
       >
         <div className={`mx-auto ${navContenedorClase}`}>
-          <div className={`flex items-center justify-between ${navFilaAltoClase} ${navFileteClase}`}>
+          <div className={`flex items-center justify-between ${navFilaAltoClase} ${navFileteClase}${navFilaTransicionClase}`}>
             {/* Logo — SIN el badge de `cromo.navBadge` (§ CORTE-BADGE-COSECHA-EN-MENU-1). Antes esta
                 celda condicionaba entre `logoLink` solo y un flex que lo envolvía junto al badge; el
                 badge se MUDÓ a ser un atributo de un ítem del menú (abajo, `l.badge`), así que el

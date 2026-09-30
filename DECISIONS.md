@@ -35507,3 +35507,169 @@ implementaron y se verificaron con captura/gate real); el MERGE sigue gateado ap
 de escritura nunca fue aprobación de merge.
 
 Cierra `ACCIONES-RAPIDAS-CUADRADAS-1`.
+
+## 2026-09-30 — El contenido de cada página entra progresivamente, y el nav transiciona su filete al cambiar de página (`TRANSICION-ENTRE-PAGINAS-1`)
+
+Gate del owner: *"Los elementos al cambiar entre páginas deberían cargar progresivamente, actualmente
+cambian como de golpe. Especialmente en el nav."*
+
+### 1 · El contenido — `template.tsx` + `EntradaPagina`, CSS puro
+
+`app/(storefront)/template.tsx` (NUEVO): a diferencia de `layout.tsx` (persiste entre navegaciones —
+por eso `StoreNav`/`ScrollInercia`/etc. no remontan), `template.tsx` REMONTA en cada cambio de ruta —
+es el único punto del árbol donde "la página cambió" es observable sin JS de cliente. Envuelve
+`{children}` en `EntradaPagina` (NUEVO, `components/storefront/EntradaPagina.tsx`), gateado por
+`corteAplicado(tema.origenAccion)` (`lib/config/themes.ts`, SIN TOCAR — el mismo gate que ya usa
+`ScrollInercia`, no una segunda comparación).
+
+**Es CSS puro, sin JS, sin IntersectionObserver** — a diferencia del `[data-reveal-group]` del
+prototipo (`docs/prototipos/cafeone/js/app.js:167-181`, scroll-triggered vía observer), acá el
+disparo es "la página montó", que el remount de `template.tsx` ya da gratis. El spec lo exige
+explícito ("sin retrasar el primer pintado… si el JS no corre, el HTML llega visible"): una
+`animation` CSS declarada en su propio `@keyframes` juega sola, sin depender de que un observer
+agregue una clase.
+
+`cssRevelaPagina()` (`lib/animation.ts`, NUEVO, puro — testeado sin DOM) genera el texto CSS:
+opacidad 0→1 + `translateY(28px)→none`, `animation:… 600ms cubic-bezier(0.22, 0.61, 0.36, 1) both`
+sobre `[data-entrada-pagina]>*`, escalonado por `:nth-child` en pasos de 90ms. Los CUATRO valores
+—`REVELADO_PAGINA_DURACION_MS=600`, `REVELADO_PAGINA_TRASLADO_PX=28`, `REVELADO_PAGINA_EASE=cubic-
+bezier(0.22, 0.61, 0.36, 1)`, `REVELADO_PAGINA_PASO_MS=90`— son los tokens MEDIDOS de
+`[data-reveal]`/`[data-reveal-group]` del prototipo (`docs/prototipos/cafeone/css/app.css:942-958`,
+`tokens.css:189,192,213-214`: `--duration-reveal:600ms`, `--ease-reveal:var(--ease-out)`). El
+prototipo sólo declara `:nth-child(1..5)` porque sus grupos de ejemplo no pasan de 5 ítems; acá el
+consumidor es la PÁGINA ENTERA (la home llega a `BANDA_IDS.length` bloques de primer nivel, hoy 9),
+así que el escalonado se EXTIENDE a ese tope —derivado, no un literal— en vez de dejar los bloques
+6+ sin regla (caerían a 0ms, entrando junto con el primero).
+
+`EntradaPagina` inyecta un `<style>` server-rendered (MISMO patrón que `cssPaleta`/`cssFuentes`/
+`cssForma` en `layout.tsx`) + `<div data-entrada-pagina style={{display:'contents'}}>{children}</div>`.
+`display:contents` es lo que hace layout-neutro al wrapper: sin él, un `<div>` de más entre `<main>`
+y el primer hijo de la home habría podido mover el ancestro del hero sticky (que asume ser el
+PRIMER hijo de `<main>`, § el docstring de cabecera de `HeroMediaMarquesina.tsx`) — con
+`display:contents` el wrapper no genera caja propia (sin `offsetTop`), así que la cadena de scroll
+del hero queda intacta, VERIFICADO por ejecución (§3).
+
+**`prefers-reduced-motion` no necesita guard propio**: el guard GLOBAL de `app/globals.css`
+(`*,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important}`)
+ya neutraliza cualquier `animation-duration`, venga de la hoja que venga — incluida ésta, inyectada
+en runtime.
+
+### 2 · El nav — `transition-colors duration-300` en la fila interior
+
+El `<header>` ya llevaba `transition-all duration-300`, pero eso sólo anima lo que cambia EN el
+propio `<header>`; el color del filete (`navFileteClase`) se pinta en la FILA INTERIOR (el `<div>`
+que también lleva `navFilaAltoClase`), y esa fila no tenía transición propia — el filete saltaba de
+golpe al cambiar de home a una página interna (o al entrar/salir del floating sobre el hero)
+mientras el fondo del header sí se desvanecía. `navFilaTransicionClase` (`StoreNav.tsx`) agrega
+`transition-colors duration-300` a esa fila, gateada por `navTratamiento.posicion` — para todo
+tenant salvo CORTE, `navFileteClase` ya es `''` (nunca hay nada que transicionar ahí), así que la
+clase nueva tampoco se agrega: byte-idéntico.
+
+**Lo que NO se pudo cerrar, dentro de `touches:`:** el WORDMARK del nav (`Logo.tsx`, `wordmark =
+navClaro ? '--sf-sobre-tinta' : '--sf-tinta'`) tampoco transiciona — sus `<span>` cambian de color
+literal sin `transition-colors` propio, y la transición del `<header>`/de la fila no cubre eso (un
+`transition` sólo anima lo que cambia EN el elemento que lo declara; el span del wordmark fija su
+propio `color` sin heredarlo). `Logo.tsx` NO está en `touches:` de este slice, así que este salto
+queda sin cerrar — anotado como open follow-up, no ampliado por mi cuenta.
+
+### 3 · EL DEFECTO REAL que este slice destapó y cerró: `lib/animation.ts` es `"use client"` ENTERO
+
+Medido contra CORTE aplicado (Postgres efímero propio, `CONFIRMAR_TENANT`, `next build` + `next
+start`, fuera de `capturar-seccion.ts` porque ese arnés no expone el stderr del server cuando la
+página responde 500 en vez de no responder — medido: su `salidaApp` sólo se imprime en el timeout,
+nunca en un 500): `/`, `/tienda`, `/nosotros` devolvían **500**, "This page couldn't load", digest
+`1858415120`. La causa: `lib/animation.ts` empieza con `"use client";` (lo necesitan sus OTROS
+exports, con hooks de React/framer-motion) — Next trata CUALQUIER export de un archivo así como una
+referencia de cliente, así que un Server Component (`template.tsx`/`EntradaPagina` SIN el directive)
+puede RENDERIZAR uno de esos exports como JSX pero no puede LLAMARLO como función. `EntradaPagina`
+llamaba `cssRevelaPagina()` directo → "Attempted to call cssRevelaPagina() from the server but
+cssRevelaPagina is on the client."
+
+**El fix: `"use client"` en `EntradaPagina.tsx`**, el MISMO patrón que `ReducedMotionProvider` (el
+otro export de `lib/animation.ts` que envuelve children del server) ya usa en `layout.tsx` — no uno
+nuevo. Un Client Component SIGUE sirviéndose en el HTML inicial (SSR + hidratación, no
+"sólo-navegador"), así que el `<style>`/`<div>` siguen en la respuesta del server sin JS de por
+medio, y `{children}` (el árbol SERVER de la página) se sigue pasando y sirviendo intacto — el mismo
+patrón que `ReducedMotionProvider` ya prueba en producción.
+
+**RE-VERIFICADO tras el fix, mismo arnés:** `/`, `/tienda`, `/nosotros`, `/checkout` → **200** los
+cuatro; `data-entrada-pagina` presente (11 apariciones — 9 `nth-child` + apertura/cierre del
+atributo × N usos del selector en la hoja, contado por texto, no por nodos DOM); el bloque
+`@keyframes sf-entrada-pagina` con los 9 pasos de `:nth-child` (0/90/180/270/360/450/540/630/720ms,
+= `BANDA_IDS.length`); la fila del nav con `transition-colors duration-300` presente; `:root` con
+los 3 colores REALES de CORTE (`--sf-fondo:#fdfbf7;--sf-tinta:#102407;--sf-acento:#a70004`, no los
+de Nayoli que el 500 dejaba ver por accidente — la página de error no monta el `<style>` de paleta
+del layout, así que el navegador caía al fallback ESTÁTICO de `globals.css`, que COINCIDE con los
+literales de Nayoli — la razón por la que el primer síntoma parecía "el preset no se aplicó" cuando
+en realidad era "la página nunca llegó a pintar el tema").
+
+El hero sticky de la home (`min-h-[calc(100svh+65vh)]`, primer hijo tras el `<style>` inyectado)
+sigue siendo el primer nodo RENDERIZADO bajo `<main>` en el HTML servido — `display:contents` en el
+wrapper no le agregó un nivel de caja.
+
+### 4 · Gate
+
+- `npx tsc --noEmit`: limpio, cero errores.
+- `npm test`: **2685/2685** (2681 + 4 casos nuevos de `cssRevelaPagina` en `lib/animation.test.ts`
+  — los 4 cubren: los tokens medidos, el estado final del keyframe, el escalonado de 0-360ms contra
+  el prototipo, y la extensión hasta `BANDA_IDS.length`).
+- `npm run test:integracion`: **242/242** (241/242 en una corrida intermedia — `CONCURRENCIA: webhook
+  y reconciliador…` en `tests/integracion/wompi-reconciliador.test.ts`, un test de CARRERA ajeno a
+  este slice — no toca nav/animación/storefront; re-corrido solo, **242/242** — flaky pre-existente,
+  no una regresión de este diff).
+- `npm run build`: limpio, `/` sigue `ƒ` (dinámico), sin cambio de ruta.
+- `npm run verificar:nayoli:visual`: **0px** en las 6 rutas + 2 hovers (consciente de antialiasing Y
+  crudo), corrido DOS VECES (antes y después del fix de `"use client"` — la segunda es la
+  autoritativa, sobre el árbol final).
+- `npm run guarda:color`: **0px** en las 6 rutas + 2 hovers, corrido DOS VECES (misma razón).
+- `npm run verificar:nayoli` (byte-level, NO pedido por el spec de este slice — corrido igual, por
+  higiene): **DIFIERE** en las 4 rutas + CSS. Investigado antes de descartarlo: el diff de CSS es
+  ~175 clases Tailwind (`cortenav:*`, `sf-pildora-real`, `after:*`, `scale-100`, `snap-*`…) presentes
+  en la RAMA y ausentes en `main` — medido que esas clases YA EXISTÍAN en `StoreNav.tsx` en
+  `f51af3d` (el HEAD de esta rama antes de este slice: `git show f51af3d:components/storefront/
+  layout/StoreNav.tsx | grep -c "cortenav:"` → 6), así que el diff es la deriva ACUMULADA de las
+  ~198 commits de `slice/corte-reescritura-prototipo-1` contra `main` (`9a7ab97`), no algo que este
+  slice introduce. Consistente con que el cierre de `NAV-INTERNAS-CLARO-Y-OFFSET-1` (el slice
+  inmediato anterior en esta rama) tampoco corrió `verificar:nayoli` en su propio cierre — sólo
+  `verificar:nayoli:visual`. La vara PÍXEL (0px, arriba) es la que mide si Nayoli se VE distinto;
+  ésta mide bytes, y "dos bytes distintos pueden resolver al mismo píxel" es la razón por la que el
+  propio script la documenta como HALLAZGO a caracterizar, no un fallo automático.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `app/(storefront)/template.tsx`, `components/storefront/
+EntradaPagina.tsx`, `cssRevelaPagina`, `REVELADO_PAGINA_DURACION_MS`/`_TRASLADO_PX`/`_EASE`/
+`_PASO_MS`, `navFilaTransicionClase`, `navFileteClase`, `StoreNav.tsx`, `lib/animation.ts`,
+`corteAplicado`, `BANDA_IDS`. Grepeados uno por uno contra `CLAUDE.md`: `EntradaPagina`,
+`template.tsx`, `cssRevelaPagina`, `REVELADO_PAGINA_*`, `navFilaTransicionClase`, `navFileteClase`,
+`lib/animation`, `corteAplicado`, `BANDA_IDS` → **CERO apariciones, los nueve**. `StoreNav` SÍ
+aparece (§ "El NAV es DATA-DRIVEN", y dos menciones sobre cómo `Logo` se monta desde ahí) — ninguna
+de esas tres frases describe la fila interior ni su transición, así que ninguna se vuelve falsa por
+este diff. Nada que corregir en `CLAUDE.md`.
+
+### `customer_bytes`
+
+**`changed: true`.** Un visitante con CORTE activo ve, al cambiar de página, el contenido entrar
+progresivamente (opacidad+traslado escalonado) en vez de aparecer de golpe, y el filete del nav
+cambiar de color CON transición en vez de saltar. Nayoli (y todo tenant sin CORTE) queda
+byte-idéntico — MEDIDO 0px en las dos varas de píxeles (§4), corrido dos veces.
+
+**`strings:`** ninguno — el cambio es de movimiento/transición, sin texto nuevo.
+
+### Open follow-ups
+
+- `LOGO-WORDMARK-SIN-TRANSICION-1`: el wordmark del nav (`Logo.tsx`, fuera de `touches:` de este
+  slice) cambia de color de golpe al alternar `navClaro` (flotando↔sólido, home↔interna) — el mismo
+  defecto que este slice cerró para el filete, sin cerrar para el wordmark porque `Logo.tsx` no está
+  en `touches:`. Si se retoma, el fix es agregar `transition-colors` (con la MISMA duración/curva que
+  `navFilaTransicionClase`) a los `<span>` de `wordmark` en `Logo.tsx`, gateado de forma que no
+  cambie el render de los otros 5 presets del catálogo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — mismo criterio que el resto de esta rama: la RAMA cambia
+lo que un visitante con CORTE activo ve al navegar (§ `customer_bytes`, arriba). El spec lo pide
+explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
+
+Cierra `TRANSICION-ENTRE-PAGINAS-1` (pendiente del gate visual REAL del owner, capa 3, y de
+mergear).

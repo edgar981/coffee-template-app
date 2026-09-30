@@ -13,7 +13,10 @@ import {
   DURACION_TICKER_FALLBACK_S, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
   MARQUEE_MASCARA_RELLENO_EM, parametrosAcomodoCollage, RESORTE_ACOMODO,
+  cssRevelaPagina, REVELADO_PAGINA_DURACION_MS, REVELADO_PAGINA_TRASLADO_PX,
+  REVELADO_PAGINA_EASE, REVELADO_PAGINA_PASO_MS,
 } from './animation';
+import { BANDA_IDS } from './config/site-content-defaults';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
 // `<MotionConfig reducedMotion="user">`, no un valor distinto ni ningún otro provider.
@@ -703,5 +706,49 @@ test('RESORTE_ACOMODO: sobreamortiguado (damping ≥ 2·√stiffness, mass=1) �
   assert.ok(
     RESORTE_ACOMODO.damping >= criticaMasaUno,
     `damping (${RESORTE_ACOMODO.damping}) debe ser ≥ el crítico (${criticaMasaUno.toFixed(2)}) para mass=1 — si baja de eso, el progreso puede pasarse de 1 u oscilar bajo 0 antes de asentar`,
+  );
+});
+
+// § TRANSICION-ENTRE-PAGINAS-1 — `cssRevelaPagina`, el CSS que `EntradaPagina.tsx` inyecta. Afirma
+// el TEXTO producido, no un DOM (no hay navegador en capa 1): los tokens medidos contra el
+// prototipo (600ms/28px/la curva/90ms de paso) y el escalonado por `:nth-child`.
+
+test('cssRevelaPagina: la regla base declara opacidad 0, el traslado y la animación con los tokens medidos', () => {
+  const css = cssRevelaPagina();
+  assert.ok(css.includes('[data-entrada-pagina]>*{opacity:0;transform:translateY(28px);'), css);
+  assert.ok(css.includes(`animation:sf-entrada-pagina ${REVELADO_PAGINA_DURACION_MS}ms ${REVELADO_PAGINA_EASE} both}`), css);
+  assert.equal(REVELADO_PAGINA_DURACION_MS, 600, '--duration-reveal del prototipo, tokens.css:214');
+  assert.equal(REVELADO_PAGINA_TRASLADO_PX, 28, 'translateY del prototipo, app.css:943');
+  assert.equal(REVELADO_PAGINA_EASE, 'cubic-bezier(0.22, 0.61, 0.36, 1)', '--ease-reveal=--ease-out, tokens.css:189,213');
+});
+
+test('cssRevelaPagina: el keyframe deja el estado FINAL visible (opacity:1, sin transform)', () => {
+  const css = cssRevelaPagina();
+  assert.ok(css.includes('@keyframes sf-entrada-pagina{to{opacity:1;transform:none}}'), css);
+});
+
+test('cssRevelaPagina: el escalonado va en pasos de 90ms — nth-child(1)=0ms, (2)=90ms, (3)=180ms, (4)=270ms, (5)=360ms (§ app.css:954-958)', () => {
+  const css = cssRevelaPagina();
+  assert.equal(REVELADO_PAGINA_PASO_MS, 90);
+  for (let i = 0; i < 5; i++) {
+    assert.ok(
+      css.includes(`[data-entrada-pagina]>*:nth-child(${i + 1}){animation-delay:${i * 90}ms}`),
+      `falta la regla de nth-child(${i + 1})`,
+    );
+  }
+});
+
+test('cssRevelaPagina: el escalonado se EXTIENDE más allá del 5º hijo del prototipo — hasta BANDA_IDS.length, la home entera', () => {
+  const css = cssRevelaPagina();
+  assert.ok(BANDA_IDS.length > 5, 'la premisa de esta extensión: la home tiene más de 5 bloques');
+  for (let i = 0; i < BANDA_IDS.length; i++) {
+    assert.ok(
+      css.includes(`[data-entrada-pagina]>*:nth-child(${i + 1}){animation-delay:${i * 90}ms}`),
+      `falta la regla de nth-child(${i + 1}) — BANDA_IDS.length=${BANDA_IDS.length}`,
+    );
+  }
+  assert.ok(
+    !css.includes(`nth-child(${BANDA_IDS.length + 1})`),
+    'no hay regla de más — el tope es BANDA_IDS.length, no infinito',
   );
 });

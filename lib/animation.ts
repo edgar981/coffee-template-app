@@ -8,7 +8,7 @@ import { MotionConfig, useScroll, useSpring, useTransform } from "framer-motion"
 // ahí—): este archivo sólo traduce esos valores a MAGNITUD (el rango de opacidad, los px/s). Un tipo
 // re-declarado acá con las mismas claves sería la clase de doble-lista que ya mordió en este repo
 // (§ CLAUDE.md, "CATEGORIAS ≠ CATEGORIA_LABELS").
-import type { VeloIntensidad, TickerVelocidad } from "./config/site-content-defaults";
+import { BANDA_IDS, type VeloIntensidad, type TickerVelocidad } from "./config/site-content-defaults";
 
 // fadeUp — la variante compartida de entrada (opacity 0→1, y 24→0) que usan las
 // animaciones de scroll-in del storefront (`whileInView`/`initial+animate` + `variants`).
@@ -965,4 +965,61 @@ export function debeActualizarTratamientoNav(direccionActiva: boolean, direccion
 // sin que ese componente tenga que acordarse de nada.
 export function ReducedMotionProvider({ children }: { children: ReactNode }) {
   return createElement(MotionConfig, { reducedMotion: "user" }, children);
+}
+
+// ── LA ENTRADA DE PÁGINA — § TRANSICION-ENTRE-PAGINAS-1 ───────────────────────────────────────────
+//
+// EL PEDIDO DEL OWNER: «al cambiar de página… el contenido entra progresivamente (como el revelado
+// del prototipo) en vez de aparecer de golpe». El target es `[data-reveal-group]` del prototipo
+// (`docs/prototipos/cafeone/css/app.css:948-958`): opacidad 0→1 + `translateY(28px)→none`,
+// escalonado por hijo directo (`:nth-child(N)` con `transition-delay` en pasos de 90ms —
+// `app.css:954-958`), sobre `--duration-reveal:600ms`/`--ease-reveal:var(--ease-out)=cubic-
+// bezier(.22,.61,.36,1)` (`docs/prototipos/cafeone/css/tokens.css:189,213-214`).
+//
+// DISPARADO AL MONTAR, NO AL ENTRAR EN VIEWPORT — a diferencia del prototipo (que usa
+// `IntersectionObserver` para revelar al hacer scroll, § `initReveal`, `js/app.js:167-181`), acá el
+// evento es "la página cambió": `app/(storefront)/template.tsx` REMONTA en cada navegación (a
+// diferencia de `layout.tsx`, que persiste), así que el remount ES el disparo — no hace falta
+// observar el scroll para saber cuándo jugar la animación.
+//
+// POR ESO ES CSS PURO, SIN JS: la regla vive en un `<style>` inyectado por el propio componente
+// (`EntradaPagina.tsx`, generado por `cssRevelaPagina` de acá abajo — MISMO patrón que `cssPaleta`/
+// `cssFuentes`/`cssForma`, server-rendered, sin flash). El spec lo exige explícito: "sin retrasar el
+// primer pintado… el HTML llega visible si el JS no corre". Un mecanismo `IntersectionObserver` (como
+// el del prototipo) depende de que el JS corra para agregar la clase que revela — roto, el contenido
+// quedaría oculto para siempre. Una `animation` CSS declarada en el propio `@keyframes` no depende de
+// nada: si el CSS se aplica, juega sola; si por algo no se aplicara, no hay un `opacity:0` de base que
+// pudiera quedar huérfano (el `opacity:0` vive DENTRO de la regla que también declara la animación).
+//
+// `prefers-reduced-motion` no necesita un guard propio: el guard GLOBAL de `app/globals.css`
+// (`*,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important}`)
+// ya neutraliza CUALQUIER `animation-duration` declarada en cualquier hoja — incluida ésta, inyectada
+// en runtime —, así que bajo esa preferencia el contenido aparece casi al instante (una iteración
+// completa a 0.01ms, `both` deja el estado FINAL) en vez de quedar a medio revelar.
+export const REVELADO_PAGINA_DURACION_MS = 600;
+export const REVELADO_PAGINA_TRASLADO_PX = 28;
+export const REVELADO_PAGINA_EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+export const REVELADO_PAGINA_PASO_MS = 90;
+
+// El prototipo sólo declara `:nth-child(1..5)` (`app.css:954-958`) porque sus grupos de ejemplo no
+// pasan de 5 ítems. Acá el consumidor es LA PÁGINA ENTERA — la home llega a `BANDA_IDS.length`
+// bloques de primer nivel (hoy 9) — así que el paso se EXTIENDE a ese tope en vez de dejar los
+// bloques 6+ sin regla (sin `animation-delay` explícito caería a 0ms: entrarían todos junto con el
+// primero). `BANDA_IDS.length`, no un literal, para que un bloque nuevo de la home no vuelva a dejar
+// esta lista corta sin que nadie lo note.
+const REVELADO_PAGINA_TOPE_HIJOS = BANDA_IDS.length;
+
+// `cssRevelaPagina` — el texto CSS completo (keyframes + la regla base + el escalonado por
+// `:nth-child`), PURO, para poder afirmar sus valores en `node:test` sin DOM. `EntradaPagina.tsx` lo
+// inyecta en un `<style>` server-rendered; esta función no toca React.
+export function cssRevelaPagina(): string {
+  const base =
+    `[data-entrada-pagina]>*{opacity:0;transform:translateY(${REVELADO_PAGINA_TRASLADO_PX}px);` +
+    `animation:sf-entrada-pagina ${REVELADO_PAGINA_DURACION_MS}ms ${REVELADO_PAGINA_EASE} both}`;
+  const keyframes = `@keyframes sf-entrada-pagina{to{opacity:1;transform:none}}`;
+  const pasos = Array.from(
+    { length: REVELADO_PAGINA_TOPE_HIJOS },
+    (_, i) => `[data-entrada-pagina]>*:nth-child(${i + 1}){animation-delay:${i * REVELADO_PAGINA_PASO_MS}ms}`,
+  ).join("");
+  return base + keyframes + pasos;
 }
