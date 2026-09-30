@@ -73,16 +73,21 @@ export default function ScrollInercia() {
     let enVuelo = false;
     let rafId: number | null = null;
 
+    // Cada paso del loop mueve la página AL INSTANTE: `html { scroll-behavior: smooth }`
+    // (globals.css) convertía cada `scrollTo` por frame en una animación nativa propia que el
+    // frame siguiente cancelaba — la página casi no bajaba y luego saltaba de golpe.
+    const irA = (y: number) => window.scrollTo({ top: y, behavior: "instant" });
+
     const frame = () => {
       actual = pasoInercia(actual, objetivo);
       if (seAsento(actual, objetivo)) {
         actual = objetivo;
-        window.scrollTo(0, actual);
+        irA(actual);
         enVuelo = false;
         rafId = null;
         return;
       }
-      window.scrollTo(0, actual);
+      irA(actual);
       rafId = requestAnimationFrame(frame);
     };
 
