@@ -181,29 +181,33 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // (`*,*::before,*::after{transition-duration:0.01ms!important}`) ya neutraliza cualquier transición
 // nueva, el MISMO mecanismo que el bloque §19 del prototipo (`css/app.css:1035-1039`).
 //
-// FOTOS NÍTIDAS — MEDIDO, LOS TRES EJES QUE EL SPEC PIDIÓ REVISAR:
-//   1. `object-fit`: el tile pasó de `object-cover` a `object-contain`, como `.pres-media img` del
-//      prototipo (`css/app.css:524-525`). `cover` en un tile 3:4 CROPEA (y por tanto MAGNIFICA) la
-//      porción visible de una foto cuya proporción real no sea exactamente 3:4 — muestra MENOS
-//      píxeles nativos de la imagen sobre MÁS píxeles de pantalla, que es una pérdida de nitidez real,
-//      no aparente. `contain` muestra la foto ENTERA, sin magnificar ningún recorte; el tile gana
-//      relleno (`p-6`, ~`--space-6` del prototipo) para que la imagen no toque el borde, y conserva
-//      `bg-[var(--sf-linea)]` como fondo del letterboxing.
-//   2. `sizes`: el valor de antes (`"(max-width: 640px) 78vw, 360px"`) declaraba un ancho FIJO de
+// FOTOS SIN BORDE (§ FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1) — REVIERTE el punto 1 de abajo,
+// `object-contain`, de `PARIDAD-RIEL-TARJETAS-1`. Gate del owner con captura (`onix-riel-borde.webp`):
+// "en... presentaciones las imágenes hay que acomodarlas para que no se vea el borde" — `contain`
+// dentro del `p-6` dejaba ver `bg-[var(--sf-linea)]` alrededor de la foto como un RECTÁNGULO con
+// borde propio dentro del tile, el defecto exacto de la captura. La premisa que justificaba `contain`
+// —"una foto cuya proporción real no sea exactamente 3:4"— YA NO APLICA: el owner subió fotos 3:4 de
+// ≥1500px, la MISMA proporción del tile (`aspect-[3/4]`), así que `object-cover` sin relleno no
+// recorta nada perceptible. Vuelve a `object-cover`, sin `p-6`: la foto llena el tile borde a borde,
+// con el radio de `sf-radio-tile` (`overflow-hidden` en el ancestro).
+//
+// FOTOS NÍTIDAS — MEDIDO, LOS OTROS DOS EJES DE `PARIDAD-RIEL-TARJETAS-1` QUE EL OBJECT-FIT NO TOCA:
+//   1. `sizes`: el valor de antes (`"(max-width: 640px) 78vw, 360px"`) declaraba un ancho FIJO de
 //      360px para TODO viewport ≥640px, pero el ancho real es `clamp(260px,26vw,360px)` — con piso de
 //      260px hasta que `26vw` lo supere (viewport ≥1000px aprox.). Entre 640 y 1000px, `26vw` da MENOS
 //      de 260px (p. ej. 216px a 830px de viewport): el navegador subestimaba el ancho real y pedía una
 //      imagen más chica de la que iba a mostrar, un caso genuino de sub-muestreo. Corregido a
 //      `"(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"` — sigue el piso/techo real del
-//      `clamp` en vez de un valor plano.
-//   3. `quality`: subido a 90 (por encima del 85 que ya usan los heroes, `HeroMedia.tsx` y hermanos) —
+//      `clamp` en vez de un valor plano. SIGUE VIGENTE con `cover`: el ancho renderizado del tile no
+//      cambió, sólo cómo la foto lo llena.
+//   2. `quality`: subido a 90 (por encima del 85 que ya usan los heroes, `HeroMedia.tsx` y hermanos) —
 //      la calidad por defecto de `next/image` es 75, calibrada para fotografía genérica; el empaque de
 //      un producto es la pieza que el riel existe para vender, y merece el mismo tratamiento.
 //
-// LÍMITE DECLARADO: estas tres correcciones se derivaron por ARITMÉTICA sobre las clases (el mismo
-// método que ya usa `MARQUEE_TITULO_FONT_SIZE`, § lib/animation.ts, para medir sin navegador), no por
-// una captura en vivo del `naturalWidth` servido contra una foto real de un cliente — no hay acceso a
-// las imágenes subidas de un tenant real desde este carril. El antes/después está en `DECISIONS.md`.
+// LÍMITE DECLARADO: estas correcciones se derivaron por ARITMÉTICA sobre las clases (el mismo método
+// que ya usa `MARQUEE_TITULO_FONT_SIZE`, § lib/animation.ts, para medir sin navegador), no por una
+// captura en vivo del `naturalWidth` servido contra una foto real de un cliente — no hay acceso a las
+// imágenes subidas de un tenant real desde este carril. El antes/después está en `DECISIONS.md`.
 //
 // `TarjetaRiel` SE EXPORTA aparte (§ el mismo criterio que `precioMinimoCategoria`/etc.: "se extrae
 // lo que tiene el defecto para poder afirmarlo en un test") por una razón CONCRETA de este slice: la
@@ -240,8 +244,9 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
       className="group relative w-[78vw] shrink-0 snap-center sm:w-[clamp(260px,26vw,360px)]"
     >
       {/* El tile: `sf-radio-tile` (§ PARIDAD-RIEL-TARJETAS-1) — el rol PROPIO de forma para media
-          grande, con relleno + `object-contain` (§ el docstring de cabecera, "fotos nítidas") —
-          nunca `object-cover`, que cropeaba/magnificaba. */}
+          grande, con `object-cover` sin relleno (§ FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1, el
+          docstring de cabecera, "fotos sin borde") — la foto llena el tile, nunca deja ver el
+          fondo `--sf-linea` como un borde propio alrededor. */}
       <Link href={href} className="block">
         <div className="relative aspect-[3/4] overflow-hidden sf-radio-tile bg-[var(--sf-linea)]">
           {/* `fotoFrente` sale de `imagenPortada` (§ lib/producto-imagen.ts): SIEMPRE un src
@@ -253,7 +258,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             fill
             sizes="(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"
             quality={90}
-            className={`object-contain p-6 transition-opacity duration-500 ${fotoAtras ? 'group-hover:opacity-0 group-focus-within:opacity-0' : ''}`}
+            className={`object-cover transition-opacity duration-500 ${fotoAtras ? 'group-hover:opacity-0 group-focus-within:opacity-0' : ''}`}
           />
           {/* La foto de atrás (§ el docstring de cabecera): crossfade al hover de la TARJETA
               entera, no sólo de la imagen — pedido explícito del owner. */}
@@ -264,7 +269,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
               fill
               sizes="(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"
               quality={90}
-              className="object-contain p-6 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100"
+              className="object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100"
             />
           )}
         </div>

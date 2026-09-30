@@ -33,6 +33,7 @@ import Chip from "@/components/storefront/ProductChip";
 import { galeriaCompleta } from "@duna/core/product-gallery";
 import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria";
 import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
+import GaleriaProducto from "@/components/storefront/pdp/GaleriaProducto";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { contenedorAnchoClase, navOffsetClase } from "@/lib/config/themes";
 
@@ -208,65 +209,74 @@ export default function ProductPage({
       {/* Product */}
       <div className={`mx-auto ${contenedorClase} pb-16`}>
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
-          {/* Images */}
-          <div className="space-y-3">
-            {/* § HERO-SIN-TARJETA-Y-PDP-IMAGEN-1: la imagen PRINCIPAL nunca debe depender de que
-                una animación de JS complete para hacerse visible (`initial={false}` mientras el
-                visitante no tocó ninguna miniatura, § lib/storefront/pdp-galeria.ts). El fade entre
-                imágenes se conserva DESPUÉS de la primera interacción. */}
-            <motion.div
-              key={imgIdx}
-              initial={entradaHeroInicial(galeriaTocada)}
-              animate={{ opacity: 1 }}
-              className="relative aspect-square overflow-hidden rounded-3xl bg-[var(--sf-superficie)]"
-            >
-              {heroSrc && (
-                <Image
-                  src={heroSrc}
-                  alt={product.nombre}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  className="object-cover"
-                  // Imagen hero del detalle = LCP: preload + sin lazy-loading.
-                  priority
-                />
-              )}
-            </motion.div>
-
-            {/* Una sola imagen no lleva fila de miniaturas: un thumbnail suelto
-                bajo su propia hero no es navegación, es ruido. Por eso un
-                producto sin tomas adicionales se ve exactamente como antes. */}
-            {galeria.length > 1 && (
-              <div className="flex gap-3">
-                {galeria.map(
-                  (img, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setGaleriaTocada(true);
-                        setImgIdx(i);
-                      }}
-                      className={`h-16 w-16 overflow-hidden rounded-xl border-2 transition-all ${
-                        imgIdx === i
-                          ? "border-[var(--sf-acento)]"
-                          : "border-transparent opacity-60 hover:opacity-100"
-                      }`}
-                    >
-                      <div className="relative h-full w-full">
-                        <Image
-                          src={img}
-                          alt=""
-                          fill
-                          sizes="64px"
-                          className="object-cover"
-                        />
-                      </div>
-                    </button>
-                  )
+          {/* Images — § FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1 (sólo CORTE): CORTE monta
+              `GaleriaProducto` (flechas sobre la imagen, teclado, swipe — su propio docstring).
+              Los otros 5 presets siguen con ESTE markup, sin cambio — `navTratamiento.posicion` es
+              el MISMO booleano que ya gatea `contenedorClase`/`offsetClase` arriba ("adoptar la
+              geometría MEDIDA del prototipo", hoy sólo CORTE la declara). Nayoli byte-idéntico:
+              nunca importa ni renderiza `GaleriaProducto`. */}
+          {navTratamiento.posicion ? (
+            <GaleriaProducto galeria={galeria} nombre={product.nombre} />
+          ) : (
+            <div className="space-y-3">
+              {/* § HERO-SIN-TARJETA-Y-PDP-IMAGEN-1: la imagen PRINCIPAL nunca debe depender de que
+                  una animación de JS complete para hacerse visible (`initial={false}` mientras el
+                  visitante no tocó ninguna miniatura, § lib/storefront/pdp-galeria.ts). El fade entre
+                  imágenes se conserva DESPUÉS de la primera interacción. */}
+              <motion.div
+                key={imgIdx}
+                initial={entradaHeroInicial(galeriaTocada)}
+                animate={{ opacity: 1 }}
+                className="relative aspect-square overflow-hidden rounded-3xl bg-[var(--sf-superficie)]"
+              >
+                {heroSrc && (
+                  <Image
+                    src={heroSrc}
+                    alt={product.nombre}
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    className="object-cover"
+                    // Imagen hero del detalle = LCP: preload + sin lazy-loading.
+                    priority
+                  />
                 )}
-              </div>
-            )}
-          </div>
+              </motion.div>
+
+              {/* Una sola imagen no lleva fila de miniaturas: un thumbnail suelto
+                  bajo su propia hero no es navegación, es ruido. Por eso un
+                  producto sin tomas adicionales se ve exactamente como antes. */}
+              {galeria.length > 1 && (
+                <div className="flex gap-3">
+                  {galeria.map(
+                    (img, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setGaleriaTocada(true);
+                          setImgIdx(i);
+                        }}
+                        className={`h-16 w-16 overflow-hidden rounded-xl border-2 transition-all ${
+                          imgIdx === i
+                            ? "border-[var(--sf-acento)]"
+                            : "border-transparent opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        <div className="relative h-full w-full">
+                          <Image
+                            src={img}
+                            alt=""
+                            fill
+                            sizes="64px"
+                            className="object-cover"
+                          />
+                        </div>
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Info */}
           <div className="space-y-6">

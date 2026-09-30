@@ -30,21 +30,31 @@ import { contenidoConPresetDeVista } from '@/lib/config/theme-mirador';
 
 // Reproduce el pass-through de StoreNav.tsx (líneas 67-83) byte a byte. No es una reimplementación
 // independiente: es el mismo cálculo que el componente hace, para poder afirmarlo sin `usePathname`.
+//
+// § FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1 — `navSombraClase` se sumó al pass-through, igual que en
+// `nav-internas.test.ts` (su copia hermana de esta misma fórmula): `shadow-sm` pintaba una SEGUNDA
+// línea de borde-a-borde bajo el header sólido, redundante con el filete (`navTratamiento.filete`,
+// hoy sólo CORTE) que ya dibuja esa línea, inset. Ver `StoreNav.tsx` (`navBg`) para el porqué
+// completo. `estadoNavViejo` (abajo) NO se toca: es la fórmula HISTÓRICA de un slice anterior,
+// congelada sólo para comparar byte-identidad contra tenants sin `navTratamiento.filete` (Nayoli y
+// los otros 4 presets no-CORTE) — ahí `navSombraClase` sería siempre `' shadow-sm'` en las dos
+// fórmulas, así que la comparación no cambia sin tocarla.
 function estadoNav(
   content: ReturnType<typeof resolverSiteContent>,
   { isHome, scrolled }: { isHome: boolean; scrolled: boolean },
 ) {
-  const { esquemas, tema, orden, cromo } = content;
+  const { esquemas, tema, orden, cromo, navTratamiento } = content;
   const primera = resolverOrden(orden)[0];
   const t = tratamientoNav(primera, varianteDeBanda(content, primera), esquemas, tema.fondo, tema.tinta, tema.acento);
   const navBandaTinta = cromo.navTinta;
   const navFlotando = isHome && !scrolled && t.flotante;
   const navClaro = navFlotando ? t.textoClaro : navBandaTinta;
+  const navSombraClase = navTratamiento.filete ? '' : ' shadow-sm';
   const navBg = navFlotando
     ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
     : navBandaTinta
-      ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
-      : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
+      ? `bg-[var(--sf-tinta)]${navSombraClase} text-[var(--sf-sobre)]`
+      : `bg-[var(--sf-tarjeta)]/95 backdrop-blur${navSombraClase} text-[var(--sf-tinta)]`;
   return { primera, t, navBandaTinta, navFlotando, navClaro, navBg };
 }
 
@@ -96,12 +106,12 @@ test('CORTE sin scroll, home: flota TRANSPARENTE con texto claro (no cae al tint
   assert.equal(e.navBg, 'bg-transparent text-[var(--sf-sobre)]', 'transparente, no --sf-tinta — el defecto que este slice cierra');
 });
 
-test('CORTE scrolleado: cae a SÓLIDO --sf-tinta (no a la tarjeta clara de los otros temas)', () => {
+test('CORTE scrolleado: cae a SÓLIDO --sf-tinta (no a la tarjeta clara de los otros temas), SIN `shadow-sm` (§ FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1)', () => {
   const corte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   const e = estadoNav(corte, { isHome: true, scrolled: true });
   assert.equal(e.navFlotando, false);
   assert.equal(e.navClaro, true, 'el estado sólido de CORTE sigue siendo tinta → texto claro');
-  assert.equal(e.navBg, 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]', 'sólido tinta, no la tarjeta clara de --sf-tarjeta');
+  assert.equal(e.navBg, 'bg-[var(--sf-tinta)] text-[var(--sf-sobre)]', 'sólido tinta, no la tarjeta clara de --sf-tarjeta, y sin la sombra vieja que duplicaba el filete');
 });
 
 // ── CORTE fuera de home — RETIRADO (§ CIERRE-NOCHE-RIEL-1, cierra CORTE-NAV-TRANSPARENTE-TEST-STALE-1) ─

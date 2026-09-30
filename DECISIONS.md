@@ -37149,3 +37149,189 @@ arquitectura para una superficie Tier 1— exige el visto bueno del owner antes 
 de implementación lo cite. *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."*
 
 Cierra `EDITOR-TIENDA-DISENO-1` (pendiente de que el owner apruebe el documento, y de mergear).
+
+## 2026-09-30 — Fotos sin borde en destacado/riel, una sola línea en el nav interno, flechas en la galería de la ficha (`FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el
+gate del 2026-09-30, con capturas: *"En destacado y presentaciones las imagenes hay que acomodarlas
+para que no se vea el borde. En la del detalle del producto están bien, pero se están renderizando
+dos líneas en el nav, la nueva que no toca el borde y la vieja que sí lo hace. Tampoco hay arrows
+sobre las imágenes en el detalle del producto para pasar las imágenes."* Los tres arreglos son
+**sólo CORTE**; Nayoli queda byte-idéntico (medido, §Gate).
+
+### 1 · Fotos que llenan el marco — revierte `object-contain`/`p-6`/`p-8` de `PARIDAD-RIEL-TARJETAS-1`
+
+`Spotlight.tsx` (el escenario del destacado) y `TarjetaRiel` (`GrindChooserRiel.tsx`) envolvían la
+foto en un `div` con `p-8`/`p-6` y `object-contain` sobre un fondo (`--sf-superficie`/`--sf-linea`):
+con una foto que trae su PROPIO fondo de estudio (como las de Onix, `.scratch/refs/onix-destacado-
+borde.webp`/`onix-riel-borde.webp`), el resultado es un rectángulo con borde visible dentro del
+tile — exactamente el defecto de las capturas. Las dos clases pasan a `object-cover`, sin relleno:
+la foto llena el tile completo, recortada al `aspect-[3/4]` con el radio de `sf-radio-tile`.
+
+**Esto ES la decisión que `RIEL-FOTO-FORMATO-COVER-OPCION-1` (§ `RIEL-SUBRAYADO-CURSOR-NITIDEZ-1`,
+arriba, línea ~34485) dejó PROPUESTA y sin tomar** — ese asiento la describía como "decisión del
+dueño, no mía… pertenece al dueño, no es una corrección de código" y la dejó como Opción B sin
+implementar. El owner la tomó en el gate de este slice ("ahora que sus fotos son 3:4", spec de este
+slice): las fotos de Onix ya son 3:4, la MISMA proporción del tile, así que `cover` no cropea nada
+perceptible. **Este follow-up queda CERRADO** (§ Open follow-ups, abajo).
+
+**`presentaciones-riel.test.ts` se actualizó** (3 tests, antes afirmaban `object-contain`/`p-6` y
+`doesNotMatch(object-cover)` — invertido). `npm test` afirma el nuevo estado; no hay test de render
+para `Spotlight.tsx` (no está en `touches:`, y no lo necesitaba: su cambio es la misma clase de
+edición que `TarjetaRiel`, ya cubierta).
+
+**DEVIACIÓN DECLARADA, NO CORREGIDA — `VistaRapidaProducto.tsx:281` tiene el MISMO patrón**
+(`object-contain p-6`, el modal del "ojo"). El spec de este slice decía explícito: "La vista rápida
+queda como está salvo que la medida muestre el mismo borde: en ese caso aplicá lo mismo y decilo."
+MEDIDO: sí muestra el mismo borde (mismo mecanismo, mismas fotos). **NO se tocó** porque
+`VistaRapidaProducto.tsx` no está en `touches:` de este slice, y el contrato del dispatch es tajante
+("si el trabajo necesita un archivo fuera de `touches`, PARAR y decirlo, no ensancharlo"). Queda
+como `open_followup` (abajo), no como un hueco silencioso.
+
+### 2 · Una sola línea en el nav de páginas internas — `shadow-sm` era la vieja, `navFileteClase` la nueva
+
+**Medido por pixel-scan** (`sharp`, sobre `.scratch/refs/onix-pdp-doble-linea.webp`, 2000×1094) antes
+de tocar nada: DOS bandas horizontales distintas en la cabecera. La primera (fila ~y142-143) se
+ATENÚA cerca de los bordes —blanco en `x∈[2,40]` y `x∈[1960,1997]`, oscura (211) desde `x≈80` hasta
+`x≈1220`— consistente con un `border-b` INSET por el padding del contenedor (`cortenav:px-8`=32px
+CSS × 2 de escala ≈ 64px físicos, exactamente donde empieza a oscurecer). La segunda (y144-150) es
+UNIFORME de borde a borde, sin atenuar en los extremos — un box-shadow que no respeta ningún margen.
+La primera es `navFileteClase` (§ `CROMO-NAV-FILETE-1`, ya construida, con margen A PROPÓSITO — el
+gate de esa tanda pedía justo eso). La segunda es `shadow-sm`, presente en `navBg`
+(`StoreNav.tsx`) para TODO tema desde antes de que el filete existiera — nadie la retiró cuando el
+filete se agregó, así que los dos convivían sólo para CORTE (el único preset con
+`navTratamiento.filete:true`).
+
+**El fix**: `navSombraClase = navTratamiento.filete ? '' : ' shadow-sm'` (`StoreNav.tsx:279-284`),
+aplicado a los DOS estados sólidos de `navBg` (banda tinta y tarjeta clara). Sólo CORTE pierde la
+sombra vieja; los otros 5 presets (sin `navTratamiento.filete`) siguen con `shadow-sm`,
+byte-idéntico. **La supresión NO se ató a `isHome`**: el filete tampoco depende de `isHome`
+(`navFileteClase` se calcula sin esa condición desde `CROMO-NAV-FILETE-1`), así que la home
+scrolleada de CORTE TAMBIÉN tenía la doble línea (nadie la había reportado, pero la fórmula la
+producía igual) — corregida también, sin ese caso el fix habría dejado una tercera combinación
+(home-scrolled) con el defecto que las páginas internas ya no tienen.
+
+**Verificado con captura propia**: `.scratch/gate-capturas/pdp-desktop.png` (build+start+Playwright
+contra CORTE, script ad-hoc en `.scratch/`, no comiteado) — pixel-scan de la fila del filete muestra
+blanco en `x∈[1,30]`, oscuro (209) desde `x=45` hasta `x=1235`, blanco de nuevo en `x∈[1250,1278]` —
+el patrón de UNA sola línea, inset, sin la banda uniforme de antes.
+
+**Tests actualizados** (ambos ya declaraban su PROPIA copia de `navBg`/`estadoNav`, por sustitución —
+no renderizan `StoreNav.tsx` real, que usa `usePathname()`): `lib/config/nav-internas.test.ts`
+(3 asserts: `navBg` de CORTE fuera-de-home y CORTE-scrolled pierden `shadow-sm`) y
+`lib/config/corte-nav-transparente.test.ts` (1 assert: CORTE-scrolled pierde `shadow-sm` — su
+`estadoNavViejo`, la fórmula HISTÓRICA de un slice previo, NO se tocó: sólo se compara contra
+Nayoli/no-CORTE, donde `navSombraClase` es idéntica en ambas fórmulas).
+
+### 3 · Flechas en la galería de la ficha — sólo CORTE, con un bug de foco encontrado y cerrado
+
+Nueva lógica pura `siguienteIndiceGaleria(actual, total, direccion)` (`lib/storefront/galeria.ts`,
+29 líneas, 7 tests en `lib/storefront/galeria.test.ts`) — **EN BUCLE**, no deshabilitada en los
+extremos: mismo criterio que `Spotlight.tsx` (`irAVista`, módulo sobre `vistas.length`) y la
+referencia del gate (`cafeone-pdp-galeria-flechas.png`) no muestra ningún estado deshabilitado.
+Separada de `lib/storefront/pdp-galeria.ts` (que resuelve OTRO problema: `initial` de framer-motion
+para que el hero nunca dependa de una animación para hacerse visible, y a qué imagen cae `imgIdx`
+fuera de rango) — se REUSAN sus dos funciones (`heroDeGaleria`/`entradaHeroInicial`), no se duplican.
+
+`components/storefront/pdp/GaleriaProducto.tsx` (nuevo, 179 líneas) es la galería CON flechas —
+clic, teclado (←/→) y swipe (umbral 40px) — montada SÓLO cuando `navTratamiento.posicion` es true
+(hoy sólo CORTE; el MISMO booleano que `app/(storefront)/tienda/[slug]/page.tsx` ya usaba para
+`contenedorClase`/`offsetClase` en esa misma página). Los otros 5 presets siguen con el markup
+INLINE anterior de `page.tsx`, sin tocar — Nayoli nunca importa este archivo.
+
+**BUG ENCONTRADO Y CERRADO, medido por ejecución (Playwright: clic en "Foto siguiente", después
+`ArrowLeft`), no supuesto.** El primer intento puso las flechas y los handlers de teclado/dedo
+DENTRO del `motion.div key={imgIdx}` (el mismo que ya usaba `page.tsx` para el fade). Medido: clic
+en "Foto siguiente" SÍ cambiaba la imagen (`cambio=true`), pero la tecla `ArrowLeft` inmediatamente
+después NO volvía (`volvio=false`) — el cambio de `imgIdx` remonta el `motion.div` por su `key`, y
+con él su PROPIO botón (el que acababa de recibir el clic/foco): un nodo del DOM destruido no puede
+seguir enfocado, así que la tecla no llegaba a ningún `onKeyDown`. **El fix**: las flechas y los tres
+handlers (`onKeyDown`/`onTouchStart`/`onTouchEnd`) suben a un `<div>` EXTERIOR que nunca remonta;
+sólo la foto (`motion.div key={imgIdx}`, ahora `absolute inset-0` puro) se destruye/recrea para el
+fade. Re-medido tras el fix: `volvio=true`. Documentado en el propio componente (docstring "EL
+WRAPPER ESTABLE NO ES DECORATIVO") para que nadie vuelva a mover las flechas adentro por
+simplicidad.
+
+**La transición usa los tokens de CORTE** (`duration:0.22, ease:[0.22,0.61,0.36,1]`, el MISMO
+220ms/cubic-bezier que `StoreNav.tsx` ya usa para el subrayado del nav y el mega-menú) — el markup
+viejo de `page.tsx` (Nayoli) no declaraba duración explícita y no se tocó, es otro `motion.div` que
+este componente no importa. Los botones reusan el lenguaje visual ya establecido para "ícono
+flotando sobre una imagen de producto" en CORTE: `sf-pildora` + `bg-[var(--sf-fondo)]` + hover a
+`--sf-accion`/`--sf-accion-txt`, el MISMO par que las acciones rápidas de `GrindChooserRiel.tsx`.
+
+**Verificado por ejecución** (`.scratch/gate-capturas/pdp-{desktop,movil}.png`): las flechas
+renderizan sobre la imagen en escritorio (1280×900) y móvil (390×844); el clic en "Foto siguiente"
+cambia el `src` servido (`cafe-nayoli-250g-molido.webp` → `cafe-nayoli-500g-grano.webp`); `ArrowLeft`
+tras el clic vuelve al original.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2837/2837** (2830 del piso previo + 7 nuevos de `lib/storefront/galeria.test.ts`) |
+| `npm run test:integracion` | **242/242** en la corrida final (y en la corrida previa a ella). Una corrida intermedia dio 241/242 — `wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador…", archivo AJENO a `touches:` de este slice, el mismo flake de timing ya documentado ≥12 veces en este libro. Re-corrida: 242/242, dos veces seguidas. |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset vs. fixture (corrido dos veces, antes y después del fix del bug de foco — 0px las dos) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** Tres superficies del storefront cambian bytes que un visitante
+CON CORTE ve: el tile del destacado y las tarjetas del riel (foto sin borde), el encabezado de toda
+página interna (una sola línea en vez de dos) y la ficha de producto (flechas nuevas sobre la
+imagen, con su comportamiento de teclado/swipe). Nayoli (y los otros 4 presets del catálogo) quedan
+byte-idénticos — MEDIDO 0px, §Gate arriba, en las dos corridas (`guarda:color` y
+`verificar:nayoli:visual`).
+
+**`strings:`** ninguna cadena de copy nueva ni cambiada — los `aria-label` nuevos ("Foto anterior"/
+"Foto siguiente") son accesibilidad, no copy de producto visible por defecto.
+
+### Deviations
+
+Ninguna respecto del spec. Un hallazgo por ejecución que el spec no anticipaba (el bug de foco del
+§3) se corrigió dentro del mismo archivo que el spec ya autorizaba (`GaleriaProducto.tsx`), no
+amplió `touches:`.
+
+### Open follow-ups
+
+- **`RIEL-FOTO-FORMATO-COVER-OPCION-1` — CERRADO por este slice.** Era la Opción B propuesta en
+  `RIEL-SUBRAYADO-CURSOR-NITIDEZ-1` (arriba, ~línea 34485): "si el dueño prefiere que el Riel/Vista
+  rápida acepten fotos horizontales sin re-tomarlas, la salida es `object-cover`… revirtiendo
+  `PARIDAD-RIEL-TARJETAS-1` a propósito." El owner la tomó en el gate de este slice. No se abre un
+  id nuevo — el id existente queda marcado cerrado acá.
+- **`VISTA-RAPIDA-MISMO-BORDE-1`** — `VistaRapidaProducto.tsx:281` tiene el MISMO `object-contain
+  p-6` que `TarjetaRiel`/`Spotlight` tenían, y MEDIDO que produce el mismo borde con fotos que traen
+  fondo propio. Por qué no ahora: fuera de `touches:` de este slice (§1, arriba, "deviación
+  declarada, no corregida"). Costo si se pide: idéntico al de este slice — `object-cover` sin
+  relleno, mismo cambio de dos clases.
+- **`GALERIA-VISTA-RAPIDA-SIN-FLECHAS-1`** — la vista rápida (`VistaRapidaProducto.tsx`) no ganó
+  flechas de galería; el spec de este slice sólo pidió la ficha completa (`/tienda/[slug]`). Si el
+  modal también necesita navegar entre fotos, es su propio slice — la lógica pura
+  (`siguienteIndiceGaleria`) ya está lista para reusarse.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió o creó: `Spotlight.tsx`, `GrindChooserRiel.tsx`/`TarjetaRiel`,
+`StoreNav.tsx`/`navBg`/`navSombraClase`/`navFileteClase`, `app/(storefront)/tienda/[slug]/page.tsx`,
+`components/storefront/pdp/GaleriaProducto.tsx`, `lib/storefront/galeria.ts`,
+`siguienteIndiceGaleria`. Grepeados uno por uno contra `CLAUDE.md`: **CERO coincidencias** en
+`Spotlight`, `GrindChooserRiel`, `GaleriaProducto`, `pdp-galeria`, `lib/storefront/galeria`,
+`siguienteIndiceGaleria`, `CROMO-NAV-FILETE-1`, `navTratamiento.filete`, `PARIDAD-RIEL-TARJETAS-1` —
+ninguno de estos símbolos/ids aparece en el archivo de instrucciones del repo (toda esta rama de
+prototipo-CORTE es trabajo reciente que `CLAUDE.md` todavía no absorbió, consistente con que sigue
+gateado Tier 1 sin mergear). `StoreNav` da 4 coincidencias (líneas 2872, 2969, 4481, 4499 de
+`CLAUDE.md`) — las cuatro describen el menú data-driven (`paginas.*.visible`) y el wordmark/mark del
+logo, mecanismos que este diff no toca; ninguna se vuelve falsa. `object-cover` da 3 coincidencias
+(líneas 1510, 1753, 1765) — las tres describen el ENCUADRE de imágenes subidas (§58, foco/masonry de
+la galería de /nosotros), una superficie distinta que este diff no toca; ninguna se vuelve falsa.
+`tienda/[slug]` da 1 coincidencia (línea 1781, los chips café-shape de la ficha, §59) — no relacionada
+con la galería ni el nav, no se vuelve falsa.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante con CORTE ve
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"LA APROBACIÓN AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE"* / *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA
+(gate del 2026-09-30, citado arriba) — el MERGE sigue gateado aparte.
+
+Cierra `FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1`.

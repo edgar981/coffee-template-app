@@ -196,10 +196,18 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               PROPIO de `--radius-tile`, separado de `sf-radio-lg`: CORTE 'recta' → 20px, el valor
               exacto medido del prototipo; antes compartía campo con `sf-radio-lg`, que daba 2px,
               el escalón de un control chico, no de un tile grande), fondo `--sf-superficie` (el
-              rol más próximo a `--surface-tile`). El padding de 32px (`--space-8`) vive en el div
-              INTERNO, no en el que lleva `fill` — un hijo `position:absolute;inset:0` ignora el
-              padding del ancestro que lo posiciona (§ CSS containing block), así que la portada
-              debe envolverse en un segundo nivel para que el margen se vea. */}
+              rol más próximo a `--surface-tile`, sólo visible mientras la imagen carga).
+
+              LA FOTO LLENA EL TILE (§ FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1, REVIERTE `p-8` +
+              `object-contain`) — gate del owner con captura: "en destacado... hay que acomodarlas
+              para que no se vea el borde". `object-contain` dentro de un `p-8` dejaba ver el fondo
+              `--sf-superficie` alrededor de la foto como un RECTÁNGULO con borde propio dentro del
+              tile — el defecto exacto de la captura (`onix-destacado-borde.webp`). Las fotos de
+              CORTE ya son 3:4 (el owner subió fotos 3:4 de ≥1500px), la MISMA proporción del tile
+              (`aspect-[3/4]`), así que `object-cover` sin relleno no recorta nada perceptible: llena
+              el tile borde a borde, con el radio de `sf-radio-tile` (`overflow-hidden` en el
+              ancestro). Sin el `div` intermedio de padding: un hijo `fill` llena directo al
+              ancestro con `overflow-hidden`. */}
           <motion.div
             initial={preview ? false : "hidden"}
             animate={preview ? "visible" : undefined}
@@ -222,22 +230,16 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                   style={navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
                 >{spotlight.badge}</span>
               )}
-              <div className="absolute inset-0 p-8">
-                <div className="relative w-full h-full">
-                  {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1, extendido acá a la OTRA TALLA):
-                      `vistaActual` es la molienda elegida, o —al llegar al final del ciclo, si
-                      existe— la otra talla en modo sólo-vistazo (§ el comentario de `vistas`,
-                      arriba). `object-contain`, no `-cover` (`.bag-card img{object-fit:contain}`):
-                      el prototipo deja ver la bolsa entera dentro del tile, nunca recortada. */}
-                  <Image
-                    src={vistaActual.imagen}
-                    alt={vistaActual.esOtraTalla ? (otroTamano?.nombre ?? producto.nombre) : producto.nombre}
-                    fill
-                    sizes="(max-width: 1200px) 100vw, 33vw"
-                    className="object-contain"
-                  />
-                </div>
-              </div>
+              {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1, extendido acá a la OTRA TALLA):
+                  `vistaActual` es la molienda elegida, o —al llegar al final del ciclo, si existe—
+                  la otra talla en modo sólo-vistazo (§ el comentario de `vistas`, arriba). */}
+              <Image
+                src={vistaActual.imagen}
+                alt={vistaActual.esOtraTalla ? (otroTamano?.nombre ?? producto.nombre) : producto.nombre}
+                fill
+                sizes="(max-width: 1200px) 100vw, 33vw"
+                className="object-cover"
+              />
               {/* `.bag-label` (css/app.css:453-458, tokens.css:112,128): 13px, uppercase, tracking
                   .085em, color `text-muted`, 20px del borde (`--space-5`). */}
               {vistaActual.etiqueta && (

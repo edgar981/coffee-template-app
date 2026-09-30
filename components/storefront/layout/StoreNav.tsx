@@ -262,11 +262,26 @@ export default function StoreNav() {
   const navFlotando = isHome && !scrolled && t.flotante;
   const navClaro = navFlotando ? t.textoClaro : navBandaTinta;
 
+  // LA DOBLE LÍNEA (§ FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1) — `shadow-sm` pintaba una SEGUNDA
+  // demarcación de borde-a-borde bajo el header SÓLIDO, redundante con el filete nuevo
+  // (`navFileteClase`, § CROMO-NAV-FILETE-1, más abajo) que ya dibuja esa línea — inset, con el
+  // margen del contenedor. MEDIDO contra la captura del gate del owner (`onix-pdp-doble-linea.webp`,
+  // pixel-scan por `sharp`): dos bandas horizontales distintas en la misma fila — una que se atenúa
+  // cerca de los bordes (el filete, inset por `navContenedorClase`) y otra pareja en TODO el ancho,
+  // sin margen (`shadow-sm`). Se retira `shadow-sm` SÓLO cuando `navTratamiento.filete` está activo
+  // —hoy, únicamente CORTE— para no tocar los otros 5 presets del catálogo (byte-idénticos, siguen
+  // con su única línea de siempre, sin filete). CORTE la pierde en LOS DOS estados sólidos (la banda
+  // tinta al scrollear sobre la home, y la tarjeta clara en cualquier página interna): el filete no
+  // depende de `isHome` (§ arriba), así que tampoco debe depender la supresión de la sombra vieja —
+  // "la home no cambia" se cumple porque ninguna de las variables que gobiernan su comportamiento
+  // (`navFlotando`/`navBandaTinta`/`navClaro`) se tocó, sólo se retiró una sombra redundante que
+  // competía con la línea nueva.
+  const navSombraClase = navTratamiento.filete ? '' : ' shadow-sm';
   const navBg = navFlotando
     ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
     : navBandaTinta
-      ? 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]'
-      : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
+      ? `bg-[var(--sf-tinta)]${navSombraClase} text-[var(--sf-sobre)]`
+      : `bg-[var(--sf-tarjeta)]/95 backdrop-blur${navSombraClase} text-[var(--sf-tinta)]`;
 
   // COMPORTAMIENTO POR DIRECCIÓN (§ CROMO-NAV-DIRECCION-SCROLL-1, `navTratamiento.direccion`):
   // `navOculto` (`lib/animation.ts`, MEDIDA contra el tema real) decide si el encabezado se traduce

@@ -117,11 +117,12 @@ function renderTarjeta(producto: Product = PRODUCTO_FIXTURE, navHoverClase = 'ho
   );
 }
 
-test('TarjetaRiel: el tile usa el token de FORMA `sf-radio-tile` con relleno + `object-contain`, nunca `object-cover`/`rounded-3xl`', () => {
+test('TarjetaRiel: el tile usa el token de FORMA `sf-radio-tile` con `object-cover`, sin relleno — REVIERTE `object-contain`/`p-6` (§ FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1)', () => {
   const html = renderTarjeta();
   assert.match(html, /aspect-\[3\/4\] overflow-hidden sf-radio-tile bg-\[var\(--sf-linea\)\]/);
-  assert.match(html, /object-contain p-6/);
-  assert.doesNotMatch(html, /object-cover/);
+  assert.match(html, /object-cover/);
+  assert.doesNotMatch(html, /object-contain/);
+  assert.doesNotMatch(html, /\bp-6\b/);
   assert.doesNotMatch(html, /rounded-3xl/);
 });
 
@@ -137,15 +138,15 @@ test('TarjetaRiel: sin foto de atrás (una sola imagen), sólo se renderiza UNA 
   assert.equal(imgs.length, 1, 'sin foto de atrás debe haber UNA sola <img> (la portada), no dos');
   // El `alt=""` es exclusivo de la foto de atrás (la portada lleva el nombre del producto como alt).
   assert.doesNotMatch(html, /alt=""/);
-  assert.doesNotMatch(html, /object-contain p-6 opacity-0/, 'sin foto de atrás no debe declararse su clase de crossfade');
+  assert.doesNotMatch(html, /object-cover opacity-0/, 'sin foto de atrás no debe declararse su clase de crossfade');
 });
 
 test('TarjetaRiel: CON foto de atrás, hay DOS <img> — la portada se apaga al hover y la de atrás aparece', () => {
   const html = renderTarjeta();
   const imgs = html.match(/<img\b/g) ?? [];
   assert.equal(imgs.length, 2, 'con foto de atrás debe haber DOS <img>: la portada y la de atrás');
-  assert.match(html, /object-contain p-6 transition-opacity duration-500 group-hover:opacity-0 group-focus-within:opacity-0/, 'la portada debe declarar su fade-out al hover');
-  assert.match(html, /object-contain p-6 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100/, 'la foto de atrás debe declarar su fade-in al hover');
+  assert.match(html, /object-cover transition-opacity duration-500 group-hover:opacity-0 group-focus-within:opacity-0/, 'la portada debe declarar su fade-out al hover');
+  assert.match(html, /object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100/, 'la foto de atrás debe declarar su fade-in al hover');
 });
 
 test('TarjetaRiel: las dos acciones rápidas (ojo y carrito) están presentes, y el carrito se OMITE si el producto no está disponible', () => {
