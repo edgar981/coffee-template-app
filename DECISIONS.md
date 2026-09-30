@@ -36411,3 +36411,162 @@ error citado arriba) — el MERGE sigue gateado aparte, y falta además el gate 
 (§ arriba).
 
 Cierra la escritura de `PANEL-ERROR-SUBIDA-VISIBLE-1`; dos follow-ups quedan abiertos (arriba).
+
+## 2026-09-30 — El drawer móvil de CORTE deja el prototipo LOCAL y pasa a CAFEONE REAL (`MENU-MOVIL-COMO-CAFEONE-1`)
+
+Slice de escritura, segunda etapa del par `MENU-MOVIL-COMO-CAFEONE-1`; continúa
+`slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el gate visual del 2026-09-30 con
+una captura del menú móvil de Cafeone real: *"el carrito en la vista móvil, el sidebar y el
+contenido que luzca como en Cafeone"*; tras `CARRITO-Y-MENU-MOVIL-CAFEONE-1` (que no había visto
+esa captura): *"veo que el nav en la vista móvil se ve igual"*.
+
+### El hallazgo — el prototipo LOCAL diverge del sitio que dice imitar, en esta pieza
+
+Las dos tandas anteriores (`MUESTRARIO-DRAWER-MOVIL-TEMA-1`, `CARRITO-Y-MENU-MOVIL-CAFEONE-1`)
+midieron el drawer `pantallaCompleta` contra `.mobile-nav` del prototipo LOCAL versionado
+(`docs/prototipos/cafeone/css/app.css:300-321`): panel `inset:12px`, `border-radius:14px`, fondo
+`--surface-inverse` (la tinta oscura), ítems `--text-h2` (32px, display). Es EXACTAMENTE lo que el
+código producía —verificado por captura, no supuesto— contra `https://coffee-template-app-
+onix.vercel.app/` (el muestrario ya desplegado, `.scratch/menu-movil-como-cafeone/antes-menu-
+abierto.png`).
+
+La captura del sitio CAFEONE REAL que trajo el owner
+(`.scratch/refs/cafeone-menu-movil.png`) es OTRA COSA: panel CLARO a pantalla completa, pegado a
+los cuatro bordes, cabecera con logo + buscar/carrito/cerrar, ítems en tipografía de interfaz con
+filete y chevron de submenú. El prototipo local —la referencia que `CROMO-NAV-EXACTO-PROTOTIPO-1`
+fijó como "la que se compara, pasada tras pasada"— resultó no reproducir fielmente al sitio real en
+esta pieza puntual. Se cambia la referencia a la captura del sitio real para esta pieza, dejando
+intacta la doctrina general de medir contra el prototipo local donde éste SÍ coincide (el resto del
+encabezado, ya medido en slices previos, no se tocó).
+
+### El cambio — `StoreNav.tsx`, rama `pantallaCompleta`
+
+- **Panel**: `fixed inset-0` (sin `inset-3`/`rounded-[14px]`), fondo `--sf-fondo` (la superficie de
+  página, no `--sf-tinta`).
+- **Cabecera propia**: el MISMO `<Logo>` que el header desktop (`variant="light"` FIJO —el panel
+  siempre es claro, sin importar si el header detrás flota o está sólido—, `subtitle`/
+  `wordmarkTratado` reusados tal cual) a la izquierda; buscar/carrito/cerrar a la derecha (sin
+  cambio de alcance — "Cuenta" sigue sin entrar, v1); un filete (`border-b border-[var(--sf-
+  linea)]`) bajo la fila, edge-to-edge (vive en la propia fila con su `px-6`, no en un contenedor
+  padre).
+- **Ítems**: de `font-display text-[32px]` a `text-sm` + `navLinkTratamiento` (uppercase, tracking,
+  `sf-peso-normal` — la MISMA variable que ya calza el `<nav>` desktop, no reinventada) sobre
+  `drawerTextoClase` (texto/hover fijos, nunca dependientes de `navClaro` — el panel es SIEMPRE
+  claro). Filete entre cada ítem, INCLUYENDO tras el último (medido contra la referencia: la línea
+  sigue después del ítem final). El badge de cosecha (`badgeSpan`, reusado) se agregó — antes no se
+  pintaba en esta rama.
+- **El submenú (`l.panel`) FUNCIONA**: antes el chevron era decorativo y el ítem navegaba directo.
+  Ahora un ítem con `panel` es un `<button>` que alterna `mobileSubAbierto` (estado nuevo) y expande
+  la lista PLANA de `l.panel.columnas[].enlaces` — sin la intro/tarjeta promocional del mega-menú
+  desktop (no cabe en ~350px). Se resetea al navegar (`pathname`) y al cerrar el drawer
+  (`!mobileOpen`).
+- **«Comprar» al pie, recto**: el CTA deja la píldora translúcida sobre-tinta y pasa a la MISMA
+  clase que el CTA del encabezado desktop (`navTratamiento.cta`) — duplicada literal con su propio
+  comentario, mismo patrón que el contador del carrito (ya duplicado en el archivo). `sf-pildora`
+  ya resuelve radio 0 para CORTE (forma 'recta'), "recto" sale gratis.
+- **El `last:border-0` de la composición vieja no hacía nada** — hallazgo colateral, medido: cada
+  fila vivía envuelta en su propio `motion.div` de un solo hijo, así que CADA Link era trivialmente
+  `:last-child` de su propio wrapper, y `last:border-0` se aplicaba a TODAS (ninguna mostraba
+  filete). Confirmado por el computado `itemBorderBottom: '0px solid …'` capturado contra el sitio
+  desplegado (§ Medido, abajo). La composición nueva no usa `last:` en ninguna fila.
+- **`themes.ts`**: los dos docstrings que describían la composición vieja (medida contra el
+  prototipo local) se corrigieron para describir la composición nueva (medida contra el sitio real)
+  y decir explícitamente por qué cambió la referencia.
+
+Nayoli no toca esta rama (`navDrawerMovil.variante==='dropdown'`, sin cambio) — medido, §Gate.
+
+### Medido — computado en navegador, antes (sitio desplegado) vs. después (rama, local)
+
+| computado | antes (`onix.vercel.app`, dark) | después (rama, local, CORTE) |
+| --- | --- | --- |
+| fondo del panel | `rgb(16, 36, 7)` (`--sf-tinta`) | `rgb(253, 251, 247)` = `#fdfbf7` exacto, `raices.fondo` de CORTE (`themes.ts:892`) |
+| radio del panel | `14px` | `0px` |
+| texto, transform | `uppercase` | `uppercase` (sin cambio) |
+| texto, tracking | `normal` | `0.84px` (`tracking-[0.06em]` sobre 14px) |
+| texto, tamaño | `32px` (display) | `14px` (interfaz, `text-sm`) |
+| texto, familia | `"Roboto Serif", serif` (display) | `Figtree, sans-serif` (interfaz) |
+| texto, color | `rgb(255, 255, 255)` | `rgb(61, 48, 0)` (`--sf-texto` derivado) |
+| filete del ítem | `0px solid …` (el bug de `last:`, arriba) | `1px solid rgb(237, 221, 198)` (`--sf-linea` derivado) |
+
+Capturas en `.scratch/menu-movil-como-cafeone/` (gitignored, no viaja con el commit):
+`antes-menu-abierto.png` (contra `https://coffee-template-app-onix.vercel.app/`, el código previo a
+este slice), `despues-menu-abierto.png` y `despues-submenu-abierto.png` (contra un build local de
+esta rama, Postgres efímero propio + `aplicarPreset(CORTE)` — el mismo runbook que usan los gates
+anteriores de esta serie, § `.scratch/levantar-corte.mjs`, ya presente de `CARRITO-Y-MENU-MOVIL-
+CAFEONE-1`).
+
+**El submenú se verificó con datos SEMBRADOS, no con contenido real de ningún tenant** — ningún
+despliegue del catálogo declara hoy `content.menu.panelItem` (medido: el ⁠sitio real `onix.vercel.app`
+no lo trae tampoco). Se sembró uno (`panelItem:'tienda'`, dos enlaces) contra la base EFÍMERA del
+harness local, vía `guardarBorrador`/`publicarSeccion` (el mismo mecanismo que usaría el panel de
+admin) — nunca contra `development`/`production`. La captura `despues-submenu-abierto.png` muestra
+el acordeón abierto con "Café en grano"/"Café molido" bajo "TIENDA", chevron rotado. Sin esa
+siembra, el mecanismo nuevo no tenía forma de aparecer en ninguna captura — es la misma razón por la
+que `verificar-nayoli-visual.ts` siembra 5 productos sintéticos para ejercer estados que el catálogo
+canónico no cubre.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2722/2722** (sin tests nuevos — el cambio es JSX/presentacional, ninguna función pura nueva que afirmar en capa 1) |
+| `npm run test:integracion` | **242/242**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, rama vs. fixture de Nayoli (`themes.ts` entra a `SISTEMA_DE_COLOR` por importar `palette-derive.ts`/`fuentes.ts`/`formas.ts` directo — el diff de bytes de ESTE slice ahí es sólo comentarios, pero el guard corre por archivo, no por contenido) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| `npm run lint` (no forma parte de `npm run gate`, corrido igual) | 0 errores, 3 warnings `react-hooks/set-state-in-effect` — MISMO patrón que la línea 96 preexistente (`setPanelAbierto(null)` en un efecto), no una clase nueva de aviso |
+
+### `customer_bytes`
+
+**`changed: true`, y sólo bajo CORTE con viewport `<lg` (el drawer móvil).** La RAMA cambia bytes
+del storefront con CORTE activo desde slices anteriores (§ los asientos de `TIENDA-ENCABEZADO-Y-
+FILTRAR-ORDENAR-1`, `BADGES-ACCIONES-Y-LOGO-CORTE-1`, `TOAST-COMO-PROTOTIPO-1`, la serie `CTA-*`,
+`PANEL-ERROR-SUBIDA-VISIBLE-1` — arriba); este commit agrega uno más al mismo eje: el panel del
+menú móvil pasa de oscuro/display a claro/interfaz, gana un submenú funcional y un CTA recto.
+Nayoli (y todo tenant sin `navDrawerMovil.variante==='pantallaCompleta'`) queda byte-idéntico —
+MEDIDO 0px, §Gate.
+
+**`strings:`** ninguna cadena de copy nueva — "Comprar"/los labels de menú siguen siendo DATO
+(`content.menu`), no texto horneado en este commit. El submenú muestra `l.panel.columnas[].enlaces`,
+dato que YA existía en el modelo (§ MUESTRARIO-MEGA-MENU-1) y que hoy ningún tenant puebla.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `components/storefront/layout/StoreNav.tsx`,
+`lib/config/themes.ts`, `mobileSubAbierto`, `drawerTextoClase`, `navDrawerMovil.variante`,
+`pantallaCompleta`, `MENU-MOVIL-COMO-CAFEONE-1`. Grepeados contra `CLAUDE.md`, uno por uno:
+**`navDrawerMovil`/`pantallaCompleta` NO aparecen en `CLAUDE.md`** (la doctrina de esta pieza vive
+en `themes.ts`/`site-content-defaults.ts`, fuera del archivo de instrucciones del repo); el resto,
+**CERO coincidencias**. Nada en `CLAUDE.md` afirma algo sobre esta pieza que este diff vuelva falso.
+
+### Chequeo mecánico — `site-content-defaults.ts`, fuera de `touches:`
+
+`lib/config/site-content-defaults.ts` (el docstring de `NavDrawerMovilContent`, cerca de la línea
+1256) sigue describiendo la composición VIEJA ("cabecera propia con wordmark+botón cerrar" — sin
+buscar/carrito, sin filete, sin submenú funcional) como lo que `'pantallaCompleta'` produce. Ese
+archivo NO está en `touches:` de este slice, así que no se corrigió. Anotado como `open_followup`
+(abajo): la próxima tanda que toque ese archivo, o que re-mida esta pieza, debe actualizar ese
+docstring para que coincida con la composición real descrita acá y en `StoreNav.tsx`/`themes.ts`.
+
+### Open follow-ups
+
+- **`MENU-DRAWER-DEFAULTS-DOCSTRING-1`** — `site-content-defaults.ts` (`NavDrawerMovilContent`,
+  cerca de la línea 1256) describe la composición VIEJA del drawer `pantallaCompleta`. Por qué no
+  ahora: fuera de `touches:` de este slice.
+- **`MENU-DRAWER-SUBMENU-SIN-TENANT-1`** — el submenú del drawer móvil se verificó con datos
+  sembrados a propósito para este gate (arriba), no con contenido de ningún tenant real: ningún
+  despliegue del catálogo declara hoy `content.menu.panelItem`. Por qué no ahora: sembrar contenido
+  real es decisión de producto del owner (qué columnas, qué enlaces), no de este slice de forma.
+  Cuando un tenant configure un panel de verdad desde el admin, vale la pena un vistazo al acordeón
+  con su contenido real — el layout plano (sin columnas tituladas ni tarjeta promocional) es una
+  simplificación deliberada para el ancho de un drawer móvil, pero no está gateado visualmente por
+  el owner contra nada más rico que la siembra sintética de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante con CORTE ve al
+abrir el menú en `<lg` (§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: el
+gate del 2026-09-30 con la captura de Cafeone real) — el MERGE sigue gateado aparte.
+
+Cierra `MENU-MOVIL-COMO-CAFEONE-1`. Dos follow-ups quedan abiertos (arriba).

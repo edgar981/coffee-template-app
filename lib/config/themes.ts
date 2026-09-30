@@ -347,16 +347,24 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * propios valores medidos — ver el docstring de `NavWordmarkContent` en `site-content-defaults.ts`).
  * CORTE es hoy el ÚNICO preset que lo declara.
  *
- * `navDrawerMovilVariante` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1, OPCIONAL) — ¿el drawer móvil (el panel
- * que abre el botón hamburguesa en `<lg`) rinde la composición de PANTALLA COMPLETA del prototipo
- * (`.mobile-nav`, `docs/prototipos/cafeone/css/app.css:300-321`, `index.html:93-106` — cabecera
- * propia con wordmark+botón cerrar, links con entrada escalonada por `--i`)? AUSENTE = el
- * comportamiento de HOY, byte a byte (el panel angosto `motion.div`/`AnimatePresence` bajo el
- * header, sin cabecera propia ni escalonado). Escribe `content.navDrawerMovil.variante`
- * (`NavDrawerMovilContent`, meta PROPIA — ver su docstring en `site-content-defaults.ts` para el
- * porqué de que no comparta objeto con `cromo`/`volverArriba`/`rielSocial`/`navTratamiento`/
- * `navWordmark`: es una VARIANTE de FORMA, como `hero.variante`, no un ajuste ON/OFF sobre un
- * elemento que ya existe en su forma de hoy). CORTE es hoy el ÚNICO preset que lo declara.
+ * `navDrawerMovilVariante` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1, OPCIONAL; composición CORREGIDA por
+ * § MENU-MOVIL-COMO-CAFEONE-1) — ¿el drawer móvil (el panel que abre el botón hamburguesa en `<lg`)
+ * rinde la composición de PANTALLA COMPLETA del sitio CAFEONE REAL —cabecera propia (logo + buscar/
+ * carrito/cerrar) sobre fondo de PÁGINA, ítems en tipografía de interfaz con filete y chevron de
+ * submenú, CTA "Comprar" recto al pie— en vez de la composición de PANTALLA COMPLETA del prototipo
+ * LOCAL (`.mobile-nav`, `docs/prototipos/cafeone/css/app.css:300-321` — panel inset con esquinas
+ * redondeadas, fondo `--surface-inverse`, ítems `--text-h2` gigantes) que MUESTRARIO-DRAWER-MOVIL-
+ * TEMA-1 midió originalmente? El gate del owner sobre una captura del sitio real (`.scratch/refs/
+ * cafeone-menu-movil.png`) encontró que el prototipo local DIVERGE del sitio que dice imitar en esta
+ * pieza — § MENU-MOVIL-COMO-CAFEONE-1, `StoreNav.tsx`, para el detalle completo de la composición
+ * nueva. AUSENTE = el comportamiento de HOY, byte a byte (el panel angosto `motion.div`/
+ * `AnimatePresence` bajo el header, sin cabecera propia ni escalonado). Escribe
+ * `content.navDrawerMovil.variante` (`NavDrawerMovilContent`, meta PROPIA — ver su docstring en
+ * `site-content-defaults.ts` para el porqué de que no comparta objeto con `cromo`/`volverArriba`/
+ * `rielSocial`/`navTratamiento`/`navWordmark`: es una VARIANTE de FORMA, como `hero.variante`, no un
+ * ajuste ON/OFF sobre un elemento que ya existe en su forma de hoy — ESE docstring sigue describiendo
+ * el prototipo local como referencia de la composición VIEJA, no re-medido por este slice porque
+ * `site-content-defaults.ts` no está en su `touches:`). CORTE es hoy el ÚNICO preset que lo declara.
  *
  * `carritoVariante` (§ MUESTRARIO-CARRITO-COMPOSICION-1, OPCIONAL) — ¿el cajón del carrito rinde la
  * composición FLOTANTE del muestrario (`.drawer`, `docs/prototipos/cafeone/css/app.css:708-717` —
@@ -1328,16 +1336,21 @@ export const CORTE: PresetTema = {
   // arriba, § CROMO-NAV-FOOTER-TEMATIZABLE-1); este eje sólo cambia el ESTILO de esa rama. CORTE es
   // hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan `content.navWordmark`.
   navWordmarkActivo: true,
-  // navDrawerMovilVariante (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDO contra el prototipo:
-  // `.mobile-nav` (`docs/prototipos/cafeone/css/app.css:300-321`) es un panel `position:fixed;
-  // inset:var(--frame-gap)` (12px) con `border-radius:var(--frame-radius)` (14px),
-  // `background:var(--surface-inverse)` (la MISMA tinta de `raices.tinta`), cabecera propia
-  // (`.mobile-nav-head`, `index.html:94-97`: wordmark + botón cerrar, `margin-bottom:var(--space-10)`
-  // = 40px) y los links (`a.m-link`, `index.html:98-105`) con entrada ESCALONADA
-  // (`animation-delay:calc(var(--i,0) * 60ms + 80ms)`, `420ms var(--ease-out)`, opacity 0→1 +
-  // `translateY(14px)`→0) — el dropdown angosto de HOY no tiene ninguna de las dos piezas
-  // (cabecera propia, escalonado). CORTE es hoy el ÚNICO preset del catálogo que lo declara; los
-  // otros cinco no tocan `content.navDrawerMovil`.
+  // navDrawerMovilVariante (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1; composición CORREGIDA por
+  // § MENU-MOVIL-COMO-CAFEONE-1) — MEDIDO contra la CAPTURA del sitio CAFEONE REAL (`.scratch/refs/
+  // cafeone-menu-movil.png`), no contra el prototipo local: `.mobile-nav`
+  // (`docs/prototipos/cafeone/css/app.css:300-321`, panel inset+redondeado sobre `--surface-inverse`
+  // con ítems `--text-h2`) DIVERGE del sitio que dice imitar en esta pieza — el gate del owner lo
+  // confirmó sobre el screenshot. La composición real: panel a pantalla completa PEGADO a los cuatro
+  // bordes (sin `inset`/`border-radius`), fondo de PÁGINA (no `--surface-inverse`), cabecera propia
+  // con el logo + buscar/carrito/cerrar (no sólo wordmark+cerrar) y un filete debajo, ítems en
+  // tipografía de INTERFAZ (no `--text-h2`) con filete entre cada uno y chevron funcional donde hay
+  // submenú, CTA "Comprar" recto al pie de la lista. Los links conservan la entrada ESCALONADA
+  // (`ENTRADA_ESCALONADA_DRAWER`, `StoreNav.tsx` — mismo timing, `420ms var(--ease-out)` con
+  // `animation-delay` por índice) — eso sí lo tenía bien medido el prototipo, y no cambió. El
+  // dropdown angosto de HOY sigue sin ninguna de las dos piezas (cabecera propia, escalonado). CORTE
+  // es hoy el ÚNICO preset del catálogo que lo declara; los otros cinco no tocan
+  // `content.navDrawerMovil`.
   navDrawerMovilVariante: 'pantallaCompleta',
   // carritoVariante (§ MUESTRARIO-CARRITO-COMPOSICION-1) — MEDIDO contra el prototipo: `.drawer`
   // (`docs/prototipos/cafeone/css/app.css:708-717`) es un panel `position:fixed;top/bottom/right:

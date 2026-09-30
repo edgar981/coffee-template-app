@@ -71,6 +71,13 @@ export default function StoreNav() {
   const [focoDentro, setFocoDentro] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // § MENU-MOVIL-COMO-CAFEONE-1 — EL SUBMENÚ DEL DRAWER MÓVIL: un acordeón propio del panel
+  // `pantallaCompleta`, SEPARADO de `panelAbierto` (arriba, el mega-menú DESKTOP) a propósito — el
+  // `<nav>` que dispara `panelAbierto` vive dentro de `hidden lg:flex`, así que en el drawer móvil
+  // (`<lg`) ese botón nunca está montado: compartir el mismo estado no ahorraría nada, sólo
+  // acoplaría dos superficies que nunca conviven en el DOM. Guarda el id del ítem CON `panel`
+  // (`MenuItemId`, no un boolean) por la MISMA razón que `panelAbierto`: sólo uno a la vez.
+  const [mobileSubAbierto, setMobileSubAbierto] = useState<MenuItemId | null>(null);
   // EL PANEL DESPLEGABLE (§ MUESTRARIO-MEGA-MENU-1): UN ítem a la vez (`panelAbierto` guarda su id,
   // no un boolean), como su fuente (`content.menu.panelItem`). Se cierra con Escape y con el
   // backdrop — MISMO patrón que `NavSearch` (§ ese componente, "el patrón del repo para menús") — y
@@ -87,6 +94,12 @@ export default function StoreNav() {
   const isHome = pathname === '/';
 
   useEffect(() => { setPanelAbierto(null); }, [pathname]);
+  // § MENU-MOVIL-COMO-CAFEONE-1 — el acordeón del drawer móvil se cierra al navegar (mismo
+  // criterio que `panelAbierto` arriba) Y al CERRAR el drawer sin navegar (botón cerrar / tap en el
+  // scrim): sin esto, reabrir el menú más tarde mostraría el submenú ya expandido de la vez
+  // anterior, que el visitante nunca pidió en ESTA apertura.
+  useEffect(() => { setMobileSubAbierto(null); }, [pathname]);
+  useEffect(() => { if (!mobileOpen) setMobileSubAbierto(null); }, [mobileOpen]);
 
   // CIERRA Y DEVUELVE EL FOCO al disparador (§ NAV-CIERRE-CLICK-AFUERA-1) — Escape y el
   // click-afuera comparten esta salida; un panel que se abrió desde un botón no debe dejar el
@@ -425,6 +438,14 @@ export default function StoreNav() {
   // token SÍ se florea contra `fondo` (la superficie real del nav claro), así que el defecto nunca
   // existió en esa rama.
   const colorActivo = navClaro ? 'text-[var(--sf-tostado)]!' : 'text-[var(--sf-acento-texto)]!';
+
+  // § MENU-MOVIL-COMO-CAFEONE-1 — el texto/íconos del DRAWER móvil `pantallaCompleta` (más abajo),
+  // FIJO, NO depende de `navClaro`: el panel del drawer pinta su PROPIO fondo (`--sf-fondo`, la
+  // superficie de página), siempre CLARO sin importar si el encabezado —detrás, tapado por este
+  // panel a pantalla completa— está flotando transparente o sólido en ese instante. Reusa el par
+  // que `linkColor`/`iconColor` (arriba) ya resuelven para su rama `navClaro=false` — texto/íconos
+  // sobre superficie clara — en vez de un tercer literal que pudiera divergir de ese par.
+  const drawerTextoClase = 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
   // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1), extraído a una función: el ítem CON PANEL
   // (§ MUESTRARIO-MEGA-MENU-1) también puede llevar badge, así que la misma pieza tiene que colgar
@@ -815,39 +836,81 @@ export default function StoreNav() {
           (colores/spacing propios) que ese spec no nombra — `navDrawerMovil.variante` (§ MUESTRARIO-
           DRAWER-MOVIL-TEMA-1) es la meta PROPIA que SÍ lo gobierna, distinta de las tres de arriba. */}
       {navDrawerMovil.variante === 'pantallaCompleta' ? (
-        // PANTALLA COMPLETA (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1) — MEDIDA contra `.mobile-nav` del
-        // prototipo (`docs/prototipos/cafeone/css/app.css:300-321`, `index.html:93-106`): panel FIJO
-        // a `inset:12px` (`--frame-gap`), `border-radius:14px` (`--frame-radius`), fondo `--sf-tinta`
-        // (la MISMA raíz que `--surface-inverse`), padding `py-8 px-6` (`--space-8`/`--space-6`),
-        // cabecera propia (wordmark + botón cerrar, `mb-10` = `--space-10`, 40px) y los links con
-        // entrada escalonada (`ENTRADA_ESCALONADA_DRAWER`, arriba). El wordmark se pinta DIRECTO, no
-        // vía `<Logo>`: `wordmarkTratado` de ese componente sólo aplica DENTRO de la rama `subtitle`
-        // (`Logo.tsx`), y `.mobile-nav-head .wordmark` del prototipo NO lleva sub — es la composición
-        // FIJA de esta variante, no un eje independiente de `navWordmark.activo`. Todos los ítems de
-        // HOY se conservan (links + CTA + Rastrear Pedido) — sólo cambia la COMPOSICIÓN que los pinta.
+        // PANTALLA COMPLETA (§ MENU-MOVIL-COMO-CAFEONE-1, CORRIGE MUESTRARIO-DRAWER-MOVIL-TEMA-1 /
+        // CARRITO-Y-MENU-MOVIL-CAFEONE-1) — el gate visual del owner sobre CAFEONE REAL
+        // (`.scratch/refs/cafeone-menu-movil.png`, capturado en el gate de `CARRITO-Y-MENU-MOVIL-
+        // CAFEONE-1`) midió que el drawer del sitio real NO es el `.mobile-nav` del prototipo LOCAL
+        // (`docs/prototipos/cafeone/css/app.css:300-321`) que las dos tandas anteriores habían
+        // medido: el real es un panel CLARO a pantalla completa, pegado a los CUATRO bordes (sin el
+        // `inset:12px`/`border-radius:14px` del prototipo, sin su fondo `--surface-inverse` ni su
+        // tipografía `--text-h2` gigante) — el prototipo LOCAL, acá, diverge del sitio que dice
+        // imitar; el owner lo confirmó sobre el screenshot, no sobre el HTML estático. Es la TERCERA
+        // fuente de "lo escrito no prueba lo que corre" (§ CLAUDE.md, El TRIPWIRE PROTEGE CONTRA LA
+        // INSTRUCCIÓN): acá el "escrito" es el prototipo LOCAL versionado, no un spec ni un
+        // artefacto — y el site real lo contradice, medido por captura.
+        //
+        // La FORMA: fondo de PÁGINA (`--sf-fondo`, nunca `--sf-tinta`), fila superior con el logo
+        // —el MISMO `<Logo>` del header, fijo en `variant="light"` porque el panel SIEMPRE es
+        // claro, sin importar cómo esté pintado el header (detrás, tapado por este panel)— y los
+        // tres disparadores (buscar/carrito/cerrar, § el docstring viejo de `CARRITO-Y-MENU-MOVIL-
+        // CAFEONE-1` sobre por qué "Cuenta" no entra, que sigue vigente), un filete bajo esa fila
+        // (edge-to-edge: el `border-b` vive en la PROPIA fila con su `px-6`, no en un contenedor
+        // padre — el filete alcanza los bordes de pantalla A PROPÓSITO, a diferencia del filete del
+        // header sólido, § CROMO-NAV-EXACTO-PROTOTIPO-1, que lo evita). Los ÍTEMS pasan de
+        // `font-display text-[32px]` a la MISMA tipografía de interfaz + tracking que ya usa el
+        // `<nav>` desktop (`navLinkTratamiento`/`navHoverClase`, arriba — reutilizados tal cual, no
+        // reinventados), con un filete fino (edge-to-edge, mismo mecanismo) entre cada uno —
+        // INCLUYENDO tras el último: medido contra la referencia, la línea sigue tras el ítem final
+        // antes del espacio vacío, así que ningún ítem lleva `last:border-0` (que además, con cada
+        // fila envuelta en su propio `motion.div` de UN solo hijo, aplicaría a TODAS — cada Link es
+        // trivialmente `:last-child` de su propio wrapper — y por eso NINGÚN filete se veía en la
+        // composición vieja, pese a que el código los declaraba).
+        //
+        // EL SUBMENÚ (`l.panel`) AHORA FUNCIONA: antes el chevron era puramente decorativo (el link
+        // navegaba directo a `l.path`, ignorando el panel). Un ítem CON panel deja de ser un
+        // `<Link>` y pasa a ser un `<button>` que alterna `mobileSubAbierto` (arriba) — el MISMO
+        // patrón que el `<button data-menu>` del sitio real para "Nuestro café"/"Historia" (no
+        // navegan directo, abren su desplegable) — y expande la lista PLANA de
+        // `l.panel.columnas[].enlaces` (sin la intro/columna-título/tarjeta promocional del mega-
+        // menú desktop: ese layout de 3 columnas no cabe en un panel de ~350px, y ningún tenant del
+        // catálogo declara hoy un `panel` — § unknowns del asiento de este slice, sin referencia
+        // visual del estado EXPANDIDO para medir contra algo más rico). El chevron rota 90° al
+        // abrir (mismo `ease`/duración que el resto de transiciones de esta composición; el guard
+        // GLOBAL de `prefers-reduced-motion` en `app/globals.css` la congela sola, sin un gate
+        // propio — ya cubre cualquier `transition-transform`).
+        //
+        // «COMPRAR» AL PIE, RECTO: el CTA del menú (§ CROMO-MENU-COMO-DATO-1) deja la píldora
+        // translúcida sobre-tinta y pasa a la MISMA familia CTA-primario que ya pinta el "Comprar"
+        // del encabezado desktop (`navTratamiento.cta`, más abajo en este archivo) — MISMA clase,
+        // duplicada literal con su propio comentario en vez de extraída a una constante compartida:
+        // es el patrón que este archivo YA sigue para dos renders del mismo elemento en superficies
+        // distintas (el contador del carrito, arriba, está duplicado exactamente así). `sf-pildora`
+        // ya resuelve RADIO 0 para CORTE (forma 'recta', `--sf-pildora`→0, § formas.ts) — "recto"
+        // sale gratis del mismo token que ya usa el CTA del encabezado, sin un segundo valor.
         <AnimatePresence>
           {mobileOpen && (
             <motion.div
               initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
-              className="fixed inset-3 z-50 overflow-y-auto rounded-[14px] bg-[var(--sf-tinta)] px-6 py-8"
+              className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-[var(--sf-fondo)]"
             >
-              <div className="mb-10 flex items-center justify-between">
-                <span className="font-display text-[30px] uppercase leading-none tracking-[0.01em] text-[var(--sf-sobre)]">
-                  {nombre}
-                </span>
-                {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- este panel es `fixed inset-3 z-50`, así que
-                    tapa por completo el encabezado (buscar/carrito quedan inalcanzables mientras
-                    está abierto): "buscar si existe, carrito, cuenta si existe, cerrar" repite acá
-                    los mismos disparadores del encabezado, `navIconoClase` incluido (mismo tamaño/
-                    trazo que ya usan `Search`/`ShoppingBag` arriba en este archivo). "Cuenta" NO
-                    entra -- `/cuenta` sigue oculta (v1, § el comentario "restore when account
-                    feature ships" más abajo en este archivo): "si existe" da falso hoy. */}
+              <div className="flex items-center justify-between border-b border-[var(--sf-linea)] px-6 py-5">
+                <Link href="/" onClick={() => setMobileOpen(false)} aria-label={`${nombre} — inicio`}>
+                  <Logo
+                    nombre={nombre}
+                    variant="light"
+                    conMark={STOREFRONT_TIENE_MARK}
+                    subtitle={cromo.navSubtitulo ? tagline : undefined}
+                    wordmarkTratado={navWordmark.activo}
+                  />
+                </Link>
+                {/* "buscar si existe, carrito, cerrar" — § CARRITO-Y-MENU-MOVIL-CAFEONE-1, sin
+                    cambio de alcance: "Cuenta" sigue sin entrar (`/cuenta` oculta, v1). */}
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => { setMobileOpen(false); setSearchOpen(true); }}
-                    className="p-2 text-[var(--sf-sobre)]"
+                    className={`rounded-full p-2 transition-colors ${drawerTextoClase}`}
                     aria-label="Buscar"
                   >
                     <Search className={navIconoClase} />
@@ -855,14 +918,14 @@ export default function StoreNav() {
                   <button
                     type="button"
                     onClick={() => { setMobileOpen(false); openCart(); }}
-                    className="relative p-2 text-[var(--sf-sobre)]"
+                    className={`relative rounded-full p-2 transition-colors ${drawerTextoClase}`}
                     aria-label="Ver carrito"
                   >
                     <ShoppingBag className={navIconoClase} />
                     {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 -- MISMO fix que el contador del
                         encabezado desktop (arriba en este archivo): dorado -> `--sf-accion`/
                         `--sf-accion-txt`, "en toda página y estado" (el gate no depende de
-                        `navClaro` en ninguna de las dos copias). */}
+                        `navClaro` en ninguna de las dos copias, ni de que el panel sea claro). */}
                     {count > 0 && (
                       <span
                         className={`absolute -top-0.5 -right-0.5 text-[10px] rounded-full flex items-center justify-center font-bold ${
@@ -876,52 +939,96 @@ export default function StoreNav() {
                       </span>
                     )}
                   </button>
-                  <button type="button" onClick={() => setMobileOpen(false)} className="p-2 text-[var(--sf-sobre)]" aria-label="Cerrar el menú">
+                  <button
+                    type="button"
+                    onClick={() => setMobileOpen(false)}
+                    className={`rounded-full p-2 transition-colors ${drawerTextoClase}`}
+                    aria-label="Cerrar el menú"
+                  >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
               <nav className="flex flex-col">
-                {links.map((l, i) => (
-                  <motion.div key={l.path} custom={i} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
-                    <Link
-                      href={l.path}
-                      onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between gap-2 border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] uppercase leading-none text-[var(--sf-sobre)] last:border-0"
-                    >
-                      {l.label}
-                      {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- el chevron es puramente indicativo
-                          (marca que el ítem tiene un panel de mega-menú en desktop, `l.panel`);
-                          este drawer no expande el submenú, sólo navega como los demás -- mismo
-                          alcance de "chevron donde hay submenú" del spec. */}
-                      {l.panel && <ChevronDown className="h-5 w-5 shrink-0 -rotate-90 opacity-70" aria-hidden="true" />}
-                    </Link>
-                  </motion.div>
-                ))}
-                {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1), la misma pieza que el dropdown de hoy
-                    — pintada como acción, no como link plano—, con el color sobre-tinta de esta
-                    composición. Continúa la secuencia escalonada tras los links. */}
-                {ctaHref && (
-                  <motion.div custom={links.length} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
-                    <Link
-                      href={ctaHref}
-                      onClick={() => setMobileOpen(false)}
-                      className="mt-4 inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]"
-                    >
-                      {content.menu.ctaLabel}
-                    </Link>
-                  </motion.div>
-                )}
-                <motion.div custom={links.length + (ctaHref ? 1 : 0)} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                {links.map((l, i) => {
+                  const filaClase = `flex w-full items-center justify-between gap-2 border-b border-[var(--sf-linea)] px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`;
+                  if (l.panel) {
+                    const abierto = mobileSubAbierto === l.id;
+                    const enlaces = l.panel.columnas.flatMap((col) => col.enlaces);
+                    return (
+                      <motion.div key={l.path} custom={i} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                        <button
+                          type="button"
+                          aria-expanded={abierto}
+                          aria-controls={`mobile-sub-${l.id}`}
+                          onClick={() => setMobileSubAbierto(abierto ? null : l.id)}
+                          className={`${filaClase} cursor-pointer text-left ${abierto ? 'border-b-0' : ''}`}
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            {l.label}
+                            {l.badge && badgeSpan(l.badge)}
+                          </span>
+                          <ChevronDown
+                            aria-hidden="true"
+                            className={`h-4 w-4 shrink-0 opacity-70 transition-transform ${abierto ? 'rotate-0' : '-rotate-90'}`}
+                          />
+                        </button>
+                        {abierto && (
+                          <div id={`mobile-sub-${l.id}`} className="flex flex-col border-b border-[var(--sf-linea)] px-6 pb-3 pt-1">
+                            {enlaces.map((en, j) => (
+                              <Link
+                                key={j}
+                                href={en.destino}
+                                onClick={() => setMobileOpen(false)}
+                                className="py-1.5 pl-4 text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-tinta)]"
+                              >
+                                {en.etiqueta}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  }
+                  return (
+                    <motion.div key={l.path} custom={i} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                      <Link href={l.path} onClick={() => setMobileOpen(false)} className={filaClase}>
+                        <span className="inline-flex items-center gap-2">
+                          {l.label}
+                          {l.badge && badgeSpan(l.badge)}
+                        </span>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+                <motion.div custom={links.length} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
                   <Link
                     href="/rastrear-pedido"
                     onClick={() => setMobileOpen(false)}
-                    className="block border-b border-[var(--sf-sobre)]/20 py-4 font-display text-[32px] uppercase leading-none text-[var(--sf-sobre)] last:border-0"
+                    className={`flex w-full items-center border-b border-[var(--sf-linea)] px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`}
                   >
                     Rastrear Pedido
                   </Link>
                 </motion.div>
               </nav>
+              {/* El CTA del menú, al PIE de la lista — § MENU-MOVIL-COMO-CAFEONE-1, arriba, para el
+                  porqué de la clase duplicada (misma familia que el "Comprar" del encabezado
+                  desktop, `navTratamiento.cta` más abajo en este archivo). */}
+              {ctaHref && (
+                <motion.div
+                  custom={links.length + 1}
+                  variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible"
+                  className="px-6 pb-8 pt-5"
+                >
+                  <Link
+                    href={ctaHref}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex w-full items-center justify-center whitespace-nowrap leading-none sf-pildora bg-[var(--sf-acento)] px-[18px] py-[11px] text-[11px] font-semibold uppercase tracking-[0.085em] text-[var(--sf-acento-txt)] transition-all duration-[120ms] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] active:translate-y-px"
+                  >
+                    {content.menu.ctaLabel}
+                  </Link>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
