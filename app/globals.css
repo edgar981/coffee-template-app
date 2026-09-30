@@ -634,6 +634,15 @@ html {
   .sf-pildora   { border-radius: var(--sf-pildora, calc(infinity * 1px)); }
   .sf-radio-lg  { border-radius: var(--sf-radio-lg, 0.75rem); }
 
+  /* PÍLDORA REAL (§ BACKTOTOP-REDONDO-Y-ORDEN-1) — SEPARADA de `.sf-pildora` a propósito (§ el
+     docstring de `Forma.pildoraReal`, formas.ts): `.sf-pildora` sigue al radio de BOTÓN/CHROME
+     (0 bajo 'recta', la regla del prototipo — `docs/prototipos/cafeone/css/app.css:8`); ésta es
+     la píldora GENUINA que el propio prototipo mantiene CONSTANTE en `--radius-pill:999px`
+     (`tokens.css:170`), independiente de si el chrome de botón es recto — su `.to-top`
+     (`css/app.css:340-353`) la usa así. Único consumidor hoy: `components/storefront/BackToTop.tsx`.
+     Fallback ∞ = círculo completo, igual que `.sf-pildora` sin <style> → Suave byte-idéntica. */
+  .sf-pildora-real { border-radius: var(--sf-pildora-real, calc(infinity * 1px)); }
+
   /* EL ROL "TILE GRANDE" (§ NUESTRO-CAFE-RADIO-TILE-1, cerrado por PARIDAD-RIEL-TARJETAS-1) —
      SEPARADO de `.sf-radio-lg` a propósito (§ el docstring de `Forma.radioTile`, formas.ts): viste
      imágenes/media GRANDES (el escenario de Spotlight, el tile del riel de Presentaciones), no

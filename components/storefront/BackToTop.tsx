@@ -40,6 +40,14 @@ import { useCartStore } from "@/lib/cartStore";
 // `<MotionConfig reducedMotion="user">`, § `lib/animation.ts`) — con la preferencia activa, congela
 // el `y` (transform) de la transición de abajo y deja sólo el fundido de opacidad. Ningún `@media`
 // propio.
+//
+// FORMA (§ BACKTOTOP-REDONDO-Y-ORDEN-1): `sf-pildora-real`, NO `sf-pildora`. El prototipo distingue
+// DOS radios —`--radius-button:0` para el chrome de botón, `--radius-pill:999px` para lo que es un
+// círculo por naturaleza (su `.to-top`, `css/app.css:340-353`)—, y nuestro `.sf-pildora` (= el radio
+// de botón, 0 bajo la forma 'recta' de CORTE) colapsaba los dos en uno: por eso este botón salía
+// CUADRADO bajo CORTE. `sf-pildora-real` (`--sf-pildora-real`, § formas.ts/globals.css) es el rol que
+// faltaba en el sistema de formas — vale `9999px` en las TRES formas, así que Nayoli (Suave) y
+// cualquier otro preset quedan exactamente como estaban; sólo CORTE, que hoy tenía el defecto, cambia.
 export default function BackToTop() {
   const { volverArriba } = useSiteContent();
   const { isOpen } = useCartStore();
@@ -65,7 +73,7 @@ export default function BackToTop() {
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       initial={false}
       animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : 8 }}
-      className={`fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))] shadow-lg transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] ${
+      className={`fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center sf-pildora-real bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))] shadow-lg transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] ${
         visible ? "" : "pointer-events-none"
       }`}
     >

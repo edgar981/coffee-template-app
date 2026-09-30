@@ -36,8 +36,8 @@ test('SUAVE es byte-idéntico a HOY: los radios exactos en REM (1.5/1/0.75rem)',
   assert.equal(FORMA_DEFECTO.radiusXl, '0.75rem');
 });
 
-test('SUAVE reproduce los SEIS tokens de HOY — el contrato byte-idéntico que B2 cablea', () => {
-  // La segunda mitad (eje 4, superficie) cableó estos 6 a las utilidades `.sf-*` con FALLBACKS =
+test('SUAVE reproduce los SIETE tokens de HOY — el contrato byte-idéntico que B2 cablea', () => {
+  // La segunda mitad (eje 4, superficie) cableó estos 7 a las utilidades `.sf-*` con FALLBACKS =
   // el valor de HOY. Suave es null → cssForma no emite <style> → cada utilidad cae a su fallback,
   // así que Suave queda byte-idéntico. Este test fija esos literales: si alguien cambia un token de
   // Suave, deja de reproducir el de hoy y esto lo caza. (El fallback CSS de la píldora es
@@ -48,6 +48,9 @@ test('SUAVE reproduce los SEIS tokens de HOY — el contrato byte-idéntico que 
   // rendía bajo Suave (= --radius-3xl de hoy, 1.5rem), no un valor nuevo.
   assert.equal(FORMA_DEFECTO.radioTile, '1.5rem');
   assert.equal(FORMA_DEFECTO.pildora, '9999px');   // = `.sf-pildora` (fallback ∞)
+  // = `.sf-pildora-real` fallback (§ BACKTOTOP-REDONDO-Y-ORDEN-1) — el mismo círculo que `pildora`
+  // ya tenía bajo Suave; el rol nuevo sólo separa el círculo del radio de botón para 'recta'.
+  assert.equal(FORMA_DEFECTO.pildoraReal, '9999px');
   assert.equal(FORMA_DEFECTO.borde, '1px');        // = `.sf-borde` fallback (hairline de hoy)
   assert.equal(FORMA_DEFECTO.divisor, '1px');      // = `.sf-divisor-*` fallback (divisor de hoy)
   assert.equal(FORMA_DEFECTO.trazo, '2');          // = `.lucide` stroke-width fallback (lucide default)
@@ -60,7 +63,7 @@ test('SUAVE reproduce los DOS tokens de badge de HOY — el remate 1 (tipografí
   assert.equal(FORMA_DEFECTO.badgeTracking, 'normal'); // = `.sf-badge` fallback (sin tracking)
 });
 
-test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 11 vars', () => {
+test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 12 vars', () => {
   assert.deepEqual(varsDeForma(null), {});
   assert.deepEqual(varsDeForma('suave'), {});
   const v = varsDeForma('recta');
@@ -68,17 +71,21 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   assert.equal(v['--radius-3xl'], '0');
   assert.equal(v['--radius-2xl'], '0');
   assert.equal(v['--radius-xl'], '0');
-  // los 6 tokens propios de superficie (§ NUESTRO-CAFE-RADIO-TILE-1: radioTile YA cableado, no inerte)
+  // los 7 tokens propios de superficie (§ NUESTRO-CAFE-RADIO-TILE-1: radioTile YA cableado, no inerte;
+  // § BACKTOTOP-REDONDO-Y-ORDEN-1: pildoraReal, ídem, nace ya conectada)
   assert.equal(v['--sf-radio-lg'], '2px');
   assert.equal(v['--sf-radio-tile'], '20px'); // MEDIDO contra el prototipo (tokens.css:169)
   assert.equal(v['--sf-pildora'], '0');
+  // el punto de esta tanda: bajo 'recta', `pildora` (botón) es RECTO (0) pero `pildoraReal` (el
+  // círculo genuino, § el docstring de `Forma.pildoraReal`) sigue siendo un círculo completo.
+  assert.equal(v['--sf-pildora-real'], '9999px'); // MEDIDO contra el prototipo (tokens.css:170)
   assert.equal(v['--sf-borde'], '1.5px');
   assert.equal(v['--sf-divisor'], '1px');
   assert.equal(v['--sf-trazo'], '1.25');
   // los 2 tokens de badge (§ remate 1)
   assert.equal(v['--sf-badge-caja'], 'uppercase');
   assert.equal(v['--sf-badge-tracking'], '0.12em');
-  assert.equal(Object.keys(v).length, 11);
+  assert.equal(Object.keys(v).length, 12);
 });
 
 test('varsDeForma: Mínima lleva versalitas con MENOS tracking que Recta (mismo tratamiento, otro grado)', () => {
@@ -93,7 +100,7 @@ test('cssForma: Suave/null/basura → null (sin <style> → los radios de hoy �
   assert.equal(cssForma('basura' as never), null);
 });
 
-test('cssForma: una forma CUSTOM → `:root{}` con las 11 vars', () => {
+test('cssForma: una forma CUSTOM → `:root{}` con las 12 vars', () => {
   const css = cssForma('minima');
   assert.ok(css);
   assert.match(css!, /^:root\{/);
@@ -104,13 +111,16 @@ test('cssForma: una forma CUSTOM → `:root{}` con las 11 vars', () => {
   assert.match(css!, /--sf-radio-lg:6px/);
   assert.match(css!, /--sf-radio-tile:10px/); // = radius3xl de Mínima — "corto y parejo", sin salto
   assert.match(css!, /--sf-pildora:8px/);
+  // Mínima no está en el muestrario (§ el docstring de `Forma.pildoraReal`): 9999px en las tres
+  // formas, mismo valor que su `pildora` YA tenía — no hay cambio visible para este preset.
+  assert.match(css!, /--sf-pildora-real:9999px/);
   assert.match(css!, /--sf-borde:1px/);
   assert.match(css!, /--sf-divisor:0/);
   assert.match(css!, /--sf-trazo:1.5/);
   assert.match(css!, /--sf-badge-caja:uppercase/);
   assert.match(css!, /--sf-badge-tracking:0.05em/);
-  // las 3 var-backed + las 6 de superficie + las 2 de badge = 11 declaraciones, ni una de más
-  assert.equal((css!.match(/;/g) ?? []).length + 1, 11);
+  // las 3 var-backed + las 7 de superficie + las 2 de badge = 12 declaraciones, ni una de más
+  assert.equal((css!.match(/;/g) ?? []).length + 1, 12);
 });
 
 test('el tuple CLAVES_FORMAS ⊆ las claves de FORMAS (una sola fuente con el tipo)', () => {

@@ -999,12 +999,20 @@ export const CORTE: PresetTema = {
   // index.html` (`CENSO-MUESTRARIO-1`): `<main>` monta, EN ESTE ORDEN, `.hero` (120-140),
   // `.marquee` (142-159), `.section.spotlight#producto` (160-225), `.section#presentaciones`
   // (226-249), `.section.historia#historia` (250-275), `.section#origen` (276-312) y
-  // `.cta-strip` (313-322) — sin franja de `trustBadges` ni de `testimonials` en absoluto. Ese es
-  // el `orden` que se declara acá; `resolverOrden` reinserta `trustBadges`/`testimonials` al final
+  // `.cta-strip` (313-322) — sin franja de `trustBadges` ni de `testimonials` en absoluto.
+  //
+  // ESE ORDEN MEDIDO CAMBIÓ EN § BACKTOTOP-REDONDO-Y-ORDEN-1, por decisión EXPLÍCITA del owner (gate
+  // del 2026-09-29: "ubica la sección 'Presentaciones' debajo de la sección el origen") — NO porque
+  // el prototipo lo pida: `index.html` SIGUE montando `#presentaciones` (226-249) ANTES de
+  // `.historia`/`#origen` (250-312); esta línea ya NO reproduce esa secuencia literal. Se deja
+  // escrito para que nadie "corrija" el orden de vuelta al del prototipo creyendo que diverge por
+  // error — diverge A PROPÓSITO, sobre el mismo censo (`CENSO-MUESTRARIO-1`) leído arriba.
+  //
+  // El `orden` que se declara acá; `resolverOrden` reinserta `trustBadges`/`testimonials` al final
   // (en su posición canónica, § BANDA_IDS) porque su dominio es CERRADO y siempre completa la lista
   // de 9 — pero las dos quedan APAGADAS por `bandasVisibles` (abajo), así que su posición en la cola
   // no importa: nunca rinden un nodo.
-  orden: ['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen', 'subscriptionCTA'],
+  orden: ['hero', 'marquesina', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA'],
   // origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, DECISIONS.md) — el defecto
   // que el owner reportó gateando este mirador contra el prototipo, y que `CORTE-ESQUEMAS-
   // INVERTIDOS-1` dejó explícitamente sin tocar: `--action-primary` de CORTE (`raices.acento`,

@@ -78,7 +78,14 @@ test('con volverArriba.visible:true: el botón SE MONTA, con su aria-label y el 
     html.includes('--sf-tinta'),
     'el ícono debe leer el MISMO par (fondo accion + texto tinta) que ya visten los 5 CTA primarios del storefront',
   );
-  assert.ok(html.includes('sf-pildora'), 'debe ser una PASTILLA, como el `.to-top` del prototipo');
+  // § BACKTOTOP-REDONDO-Y-ORDEN-1: la clase es `sf-pildora-real` (círculo GENUINO en las tres formas,
+  // § formas.ts), NO `sf-pildora` (que sigue al radio de botón y vale 0 bajo 'recta' de CORTE — el
+  // defecto que este slice cierra: sin el cambio de clase, CORTE lo mostraría cuadrado).
+  assert.ok(html.includes('sf-pildora-real'), 'debe ser una PASTILLA REAL, como el `.to-top` del prototipo');
+  // Boundary con espacios (no substring): "sf-pildora-real" CONTIENE "sf-pildora", así que un match
+  // simple habría pasado igual con la clase vieja. " sf-pildora " (con los dos espacios) sólo aparece
+  // si el token viejo sigue presente COMO CLASE PROPIA, separado de "-real".
+  assert.ok(!html.includes(' sf-pildora '), 'no debe quedar el `sf-pildora` viejo (radio de botón, 0 bajo recta)');
 });
 
 // ─── EL PRESET — CORTE la enciende, y es el ÚNICO ──────────────────────────────────────────────

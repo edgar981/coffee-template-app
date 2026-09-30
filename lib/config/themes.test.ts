@@ -464,15 +464,18 @@ test('(3c) validarPreset rechaza una banda desconocida en `bandasVisibles`, por 
 // de `true` a `false` — con `variantes.hero:'sticky'` (`HeroMediaMarquesina`) el texto y el pin del
 // marquee YA rinden DENTRO del hero (leyendo `content.marquesina.texto`/`.productoSlug` directo, el
 // dato no se movió), así que la banda suelta quedaría duplicando el mismo contenido si siguiera
-// encendida. `orden` NO cambió (sigue sin tocarse por este slice): `marquesina` sigue en la 2ª
-// posición del array — su posición en `orden` es independiente de su `visible`.
-test('(3d) CORTE resuelve la secuencia del prototipo y deja apagadas trustBadges/testimonials/marquesina, encendida origen', () => {
-  // Secuencia MEDIDA contra docs/prototipos/cafeone/index.html (§ CENSO-MUESTRARIO-1, el comentario
-  // de `orden` en themes.ts): hero → marquee → spotlight(featured) → presentaciones → historia
-  // (brandStory) → origen → cta-strip(subscriptionCTA). Sin trustBadges/testimonials en el prototipo.
+// encendida. `orden` NO cambió CON ESE slice: `marquesina` sigue en la 2ª posición del array — su
+// posición en `orden` es independiente de su `visible`. § BACKTOTOP-REDONDO-Y-ORDEN-1 SÍ movió
+// `orden` (ver el test de abajo): `presentaciones` pasó de la 4ª posición a la 6ª.
+test('(3d) CORTE deja apagadas trustBadges/testimonials/marquesina, encendida origen — orden por decisión del owner, NO el del prototipo', () => {
+  // § BACKTOTOP-REDONDO-Y-ORDEN-1 (gate del owner, 2026-09-29: "ubica la sección 'Presentaciones'
+  // debajo de la sección el origen") REESCRIBE esta secuencia — YA NO es la MEDIDA contra
+  // `docs/prototipos/cafeone/index.html` (§ CENSO-MUESTRARIO-1, el comentario de `orden` en
+  // themes.ts, que sigue documentando la medición original y por qué diverge ahora A PROPÓSITO):
+  // el prototipo monta `#presentaciones` ANTES de `.historia`/`#origen`; esta línea ya no.
   assert.deepEqual(
     CORTE.orden,
-    ['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen', 'subscriptionCTA'],
+    ['hero', 'marquesina', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA'],
   );
   assert.deepEqual(CORTE.bandasVisibles, { origen: true, marquesina: false, trustBadges: false, testimonials: false });
   assert.deepEqual(validarPreset(CORTE), []);
@@ -701,6 +704,25 @@ test('esquemas/orden/variantesBandas se fusionan como BLOB ENTERO: una mejora al
   const corteMejorado: PresetTema = { ...CORTE, esquemas: { ...CORTE.esquemas, featured: 'oscuro' } };
   const segundoApply = mergePresetEnContent(primerApply, corteMejorado);
   assert.deepEqual(segundoApply.esquemas, corteMejorado.esquemas);
+});
+
+// § BACKTOTOP-REDONDO-Y-ORDEN-1 — la pregunta del spec: ¿un tenant que YA tenía CORTE aplicado (con
+// el `orden` VIEJO, presentaciones en la 4ª posición) ve el `orden` NUEVO al re-aplicar CORTE desde
+// el panel? SÍ, y es consecuencia directa del mecanismo de arriba: `orden` no tiene picker
+// (§ PENDIENTE_PANEL, `panel-controles.ts`, "SIN PICKER: se compone en el onboarding"), así que el
+// dueño nunca puede desviar `content.orden` de lo que este motor escribió la última vez — su valor
+// ACTUAL siempre coincide con su propio `presetSnapshot['orden']`, y la fusión de tres vías (arriba)
+// trata "actual === snapshot" como "el dueño no lo tocó" → propaga lo que el preset declara AHORA.
+test('BACKTOTOP-REDONDO-Y-ORDEN-1 · un tenant con el `orden` VIEJO de CORTE lo actualiza al re-aplicar (sin picker, nunca pudo "tocarlo")', () => {
+  const ordenViejo = ['hero', 'marquesina', 'featured', 'presentaciones', 'brandStory', 'origen', 'subscriptionCTA'];
+  const tenantPreExistente = {
+    ...CONTENT_CON_DATOS_DEL_DUEÑO,
+    orden: ordenViejo,
+    presetSnapshot: { orden: ordenViejo }, // lo que ESTE motor escribió la última vez que CORTE aplicó
+  };
+  const reaplicado = mergePresetEnContent(tenantPreExistente, CORTE);
+  assert.deepEqual(reaplicado.orden, CORTE.orden, 'sin picker de `orden`, el actual siempre == snapshot → se propaga la mejora');
+  assert.notDeepEqual(reaplicado.orden, ordenViejo);
 });
 
 test('esquemas: si el valor ACTUAL del blob difiere del snapshot (otro preset aplicado encima), se PRESERVA el blob completo', () => {
