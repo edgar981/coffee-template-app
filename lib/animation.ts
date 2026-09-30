@@ -24,10 +24,22 @@ export const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y:
 // ese motor, construido sobre `useScroll`+`useTransform` (el mismo paquete de `fadeUp`/
 // `ReducedMotionProvider`, NO un listener de scroll propio).
 //
-// LOS DOS UMBRALES SON MEDIDOS, no inventados: `js/home.js:291` calcula
-// `t = clamp((p - 0.15) / 0.5, 0, 1)` para el collage — el acomodo ocurre entre el 15% y el 65% del
-// progreso. `UMBRAL_ACOMODO` es esa MISMA ventana.
-export const UMBRAL_ACOMODO = { desde: 0.15, hasta: 0.65 } as const;
+// LOS DOS UMBRALES ERAN MEDIDOS DEL PROTOTIPO —`js/home.js:291` calcula `t = clamp((p - 0.15) /
+// 0.5, 0, 1)`, acomodo entre el 15% y el 65% del progreso— y § HISTORIA-GIRO-ANTES-1 LOS REEMPLAZA
+// por una ventana PROPIA de este tema, más temprana: gate del owner sobre HISTORIA-COLLAGE-COMO-
+// PROTOTIPO-1 (2026-09-30), *"arrancan un poco más giradas y se enderezan antes de bajar tanto en
+// la página, el problema no es que se enderecen, es que lo hacen cuando casi he pasado la
+// sección"*. Con [0.15,0.65] el collage queda recto cuando la sección ya casi TERMINÓ de cruzar el
+// viewport (el borde final del acomodo, 0.65, está cerca del 1.0 en que la sección sale del todo);
+// con **[0.10,0.50]** el acomodo TERMINA a mitad del progreso de scroll de la sección, que es
+// cuando el collage está más o menos CENTRADO en la pantalla — el punto que el owner pidió, medido
+// por ejecución (§ el comentario de `RESORTE_ACOMODO`, más abajo, y `HISTORIA-GIRO-ANTES-1` en
+// DECISIONS.md). El ARRANQUE (0.10, antes que el 0.15 viejo) es la mitad del mismo ajuste: si el final se
+// adelanta pero el arranque no, la ventana se ANGOSTA de 0.50 a 0.40 de progreso — más corta, no
+// solo más temprana — así que el arranque también se corre 0.05 antes para no comprimir el
+// recorrido de más (la cardinalidad decidida por el orquestador, § cifras-decision del spec:
+// 0.10/0.50, no una tercera combinación).
+export const UMBRAL_ACOMODO = { desde: 0.10, hasta: 0.50 } as const;
 
 // `transformAcomodo` reproduce, PURA y sin React, el cálculo por-figura EXACTO de
 // `js/home.js:288-297` — REESCRITO por § HISTORIA-COMO-MUESTRARIO-1 para dejar de aproximar con un
@@ -85,16 +97,25 @@ const PASO_ROTACION_DEG = 4; // generalización PROPIA (no del prototipo) para t
 
 const ROTACION_PROTOTIPO_N3 = [-8, 4, -3] as const; // js/home.js:287, literal
 
+// `MULTIPLICADOR_GIRO_INICIAL` — § HISTORIA-GIRO-ANTES-1, la otra mitad del mismo gate que movió
+// `UMBRAL_ACOMODO` (arriba): *"arrancan un poco más giradas"*. Escala el ÁNGULO INICIAL que cada
+// figura YA tenía (el literal del prototipo para total=3, la generalización propia para el resto)
+// — NO reescribe esos literales, para no perder de dónde salió cada número: `ROTACION_PROTOTIPO_N3`
+// sigue siendo la cita EXACTA de `js/home.js:287`, y lo que arranca más girado es el COLLAGE de
+// este tema (aplicado al devolver), no la cita del prototipo. Sin desplazamiento en X — sin cambio,
+// `aperturaPx` se sigue forzando a 0 más abajo (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1).
+const MULTIPLICADOR_GIRO_INICIAL = 1.5;
+
 export function parametrosAcomodoCollage(
   posicion: number,
   total: number,
 ): { rotarInicialDeg: number; aperturaPx: number } {
   if (total === 3 && posicion >= 0 && posicion < 3) {
-    return { rotarInicialDeg: ROTACION_PROTOTIPO_N3[posicion], aperturaPx: 0 };
+    return { rotarInicialDeg: ROTACION_PROTOTIPO_N3[posicion] * MULTIPLICADOR_GIRO_INICIAL, aperturaPx: 0 };
   }
   const centro = (total - 1) / 2;
   const d = posicion - centro;
-  const rotarInicialDeg = d === 0 ? 0 : d < 0 ? -PASO_ROTACION_DEG : PASO_ROTACION_DEG;
+  const rotarInicialDeg = (d === 0 ? 0 : d < 0 ? -PASO_ROTACION_DEG : PASO_ROTACION_DEG) * MULTIPLICADOR_GIRO_INICIAL;
   return { rotarInicialDeg, aperturaPx: 0 };
 }
 
@@ -119,7 +140,45 @@ export function parametrosAcomodoCollage(
 // distinto, no hay un número que "medir" acá— y se declaran como generalización propia, con el mismo
 // criterio que ya usa `PASO_ROTACION_DEG` para los totales que el prototipo no cubre: la más simple
 // que da un seguimiento suave sin overshoot perceptible (crítica o cercana a ella) ni lag excesivo.
-export const RESORTE_ACOMODO = { stiffness: 120, damping: 24, restDelta: 0.001 } as const;
+//
+// § HISTORIA-GIRO-ANTES-1 RE-ESCALA stiffness/damping — no por gusto, por lo que angostar
+// `UMBRAL_ACOMODO` (arriba, de una franja de 0.50 a una de 0.40) le hace al RETRASO del resorte.
+// Verificado contra la fuente REAL del generador (`node_modules/motion-dom/dist/es/animation/
+// generators/spring.mjs`, `node_modules/motion-dom/dist/es/value/follow-value.mjs`): cada vez que
+// el valor de origen (`acotado`) cambia, `attachFollow` relanza una animación de resorte desde el
+// valor actual hacia el nuevo objetivo conservando la velocidad — el resorte SIGUE al valor de
+// origen en vez de reiniciar, así que durante un scroll continuo se comporta como un sistema de
+// 2º orden estándar (masa-resorte-amortiguador, `stiffness`=k, `damping`=c, `mass`=1) persiguiendo
+// una RAMPA. El error de régimen permanente de ese seguimiento es el resultado de control clásico
+// `e_ss = α·(c/k)` (unidades de `progreso`, α = velocidad de cambio de `acotado`). Expresado en
+// SCROLL FÍSICO (α = v / (ancho_ventana·D), v=velocidad de scroll en px/s, D=r.height+vh — la
+// distancia física total del `useScroll` de abajo): el retraso en PÍXELES es `v·(c/k)`, y el
+// `ancho_ventana` SE CANCELA — angostar la ventana NO agranda el retraso absoluto en píxeles.
+//
+// PERO SÍ agranda ese MISMO retraso absoluto como FRACCIÓN del recorrido de la ventana —angosta de
+// 0.50 a 0.40 es ×1.25 (0.50/0.40)—, que es justo lo que el gate reporta: el punto en que el
+// collage queda recto se demora relativo a dónde está la sección en pantalla. Para conservar la
+// MISMA fracción relativa de sobrepaso que tenía la ventana vieja (ni más lag relativo, ni menos),
+// `stiffness` escala por 1.25² y `damping` por 1.25 — eso mantiene EXACTO el mismo damping ratio ζ
+// = damping/(2·√stiffness) = 1.0955 (ni más sobreamortiguado ni menos: mismo carácter, sin
+// oscilación) y reduce `damping/stiffness` en el mismo factor 1/1.25 que compensa el angostamiento
+// (120×1.5625=187.5, 24×1.25=30 — exacto, no redondeado).
+//
+// MEDIDO POR EJECUCIÓN (arnés propio de este slice, § HISTORIA-GIRO-ANTES-1 en DECISIONS.md: el
+// componente REAL montado en un navegador headless con scroll CONTINUO simulado —`mouse.wheel` en
+// pasos de ~16ms, no un jump—, framer-motion real, sin Postgres/Next build): a 1440×900, con esta
+// pareja compensada, un scroll de 900px/s (brisco, normal) deja recto ~16px DESPUÉS de donde la
+// ventana lo pide (1483 contra 1467 de scrollY, 2.1% del ancho de la ventana) — el collage queda
+// centrado en pantalla al milímetro (su centro cae a 434px de un viewport de 900px, 16px del
+// centro exacto). Con el resorte SIN compensar (120/24) el mismo scroll dejaba el doble de
+// sobrepaso (31px, 4.2%). A 2200px/s (scroll muy rápido) el sobrepaso compensado es 152px (20.7%)
+// contra 223px (30.4%) sin compensar — sigue siendo una reducción real, y aun en el caso más
+// exigente el collage queda recto muy por dentro de la sección (progreso crudo ≈0.58 de 1), lejos
+// del "casi pasé la sección" que motivó este slice. A 390×844 el resorte es INERTE: por debajo del
+// breakpoint `sm` (640px) el collage fuerza `transform:none!` siempre (§ el comentario de cabecera
+// de `BrandStoryCentrada.tsx`, "ANGOSTO"), así que no hay giro que suavizar en ese ancho — medido:
+// el ángulo es 0° desde scrollY=0.
+export const RESORTE_ACOMODO = { stiffness: 187.5, damping: 30, restDelta: 0.001 } as const;
 
 export function useProgresoAcomodo(target: RefObject<HTMLElement | null>) {
   const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] });

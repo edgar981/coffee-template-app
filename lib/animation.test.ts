@@ -653,12 +653,15 @@ test('un ticker más lento tarda MÁS en completar un ciclo del mismo ancho — 
 //
 // § HISTORIA-FOTOS-PANEL-Y-GIRO-1 (gate del owner) FUERZA `aperturaPx` a CERO, SIEMPRE — se aparta a
 // propósito de `js/home.js:288` (`spread=[-70,0,70]`), que abre horizontalmente. La ROTACIÓN no
-// cambió: sigue el literal del prototipo para total=3 y la generalización simétrica para el resto.
+// cambió de FORMA: sigue el literal del prototipo para total=3 y la generalización simétrica para
+// el resto — § HISTORIA-GIRO-ANTES-1 escala esos mismos valores por `MULTIPLICADOR_GIRO_INICIAL`
+// (1.5, "arrancan un poco más giradas"), así que los literales de abajo ya NO son la cita exacta
+// de `js/home.js:287` (`[-8,4,-3]`): son esa cita ×1.5.
 
-test('parametrosAcomodoCollage: total=3 usa la ROTACIÓN LITERAL del prototipo (`js/home.js:287`); la apertura es CERO, no el `spread` del prototipo', () => {
-  assert.deepEqual(parametrosAcomodoCollage(0, 3), { rotarInicialDeg: -8, aperturaPx: 0 });
-  assert.deepEqual(parametrosAcomodoCollage(1, 3), { rotarInicialDeg: 4, aperturaPx: 0 });
-  assert.deepEqual(parametrosAcomodoCollage(2, 3), { rotarInicialDeg: -3, aperturaPx: 0 });
+test('parametrosAcomodoCollage: total=3 ESCALA ×1.5 la ROTACIÓN LITERAL del prototipo (`js/home.js:287`, [-8,4,-3] → [-12,6,-4.5], § HISTORIA-GIRO-ANTES-1); la apertura sigue en CERO, no el `spread` del prototipo', () => {
+  assert.deepEqual(parametrosAcomodoCollage(0, 3), { rotarInicialDeg: -12, aperturaPx: 0 });
+  assert.deepEqual(parametrosAcomodoCollage(1, 3), { rotarInicialDeg: 6, aperturaPx: 0 });
+  assert.deepEqual(parametrosAcomodoCollage(2, 3), { rotarInicialDeg: -4.5, aperturaPx: 0 });
 });
 
 test('parametrosAcomodoCollage: total=1 — una sola figura, sin nada contra qué ser simétrica: rotación y apertura en 0', () => {

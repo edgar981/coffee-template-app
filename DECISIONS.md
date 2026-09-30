@@ -36724,3 +36724,148 @@ sobre `MENU-MOVIL-COMO-CAFEONE-1`) — el MERGE sigue gateado aparte.
 
 Cierra `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`. Cinco follow-ups quedan abiertos (arriba, tres
 nuevos + dos heredados).
+
+## 2026-09-30 — El collage de "Nuestra Historia" arranca más girado y se endereza antes (`HISTORIA-GIRO-ANTES-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el
+gate de `HISTORIA-COLLAGE-COMO-PROTOTIPO-1`, con una captura del collage ya recto al final de la
+sección: *"Arrancan un poco más giradas y se enderezan antes de bajar tanto en la página, el
+problema no es que se enderecen, es que lo hacen cuando casi he pasado la sección, la idea tampoco
+es que se enderecen mucho antes."*
+
+### 1 · La ventana — `UMBRAL_ACOMODO`, de [0.15,0.65] a [0.10,0.50]
+
+El hasta viejo (0.65, medido del prototipo) dejaba el collage recto casi al final del recorrido de
+scroll de la sección. `UMBRAL_ACOMODO` pasa a **{desde: 0.10, hasta: 0.50}** — los dos números que
+trae el spec (`cifras-decision`). El final se adelanta (0.65→0.50) para que "recto" caiga a mitad
+del progreso de la sección, y el arranque se adelanta con él (0.15→0.10) para no angostar de más el
+recorrido (el ancho pasa de 0.50 a 0.40, no menos).
+
+### 2 · El giro inicial — ×1.5 sobre el ángulo de HOY, vía `MULTIPLICADOR_GIRO_INICIAL`
+
+`parametrosAcomodoCollage` sigue devolviendo el LITERAL del prototipo para total=3
+(`ROTACION_PROTOTIPO_N3 = [-8,4,-3]`, sin tocar) y la generalización simétrica para 1/2/4
+(`PASO_ROTACION_DEG = 4`, sin tocar) — lo que cambia es que el VALOR DEVUELTO se multiplica ×1.5
+antes de salir de la función. Con 4 imágenes (el caso de HOY, Nayoli y el default de CORTE), las
+dos figuras a cada lado del centro pasan de ±4° a **±6°**. Sin desplazamiento en X: `aperturaPx`
+sigue forzado a 0 (§ `HISTORIA-FOTOS-PANEL-Y-GIRO-1`, sin cambio).
+
+### 3 · El resorte — compensado, no sólo más firme porque sí
+
+Angostar la ventana de 0.50 a 0.40 (×1.25) tiene un efecto MEDIDO sobre el resorte, verificado
+contra la fuente real del generador (`node_modules/motion-dom/dist/es/animation/generators/
+spring.mjs`, `.../value/follow-value.mjs`): cada cambio del valor de origen relanza la animación
+desde el valor actual conservando velocidad (no reinicia), así que durante un scroll continuo el
+resorte se comporta como un sistema de 2º orden persiguiendo una RAMPA. El retraso de régimen
+permanente en SCROLL FÍSICO es `v·(damping/stiffness)` — el ancho de la ventana SE CANCELA
+algebraicamente, así que angostarla no agranda el retraso absoluto en píxeles, PERO sí lo agranda
+como fracción del recorrido de la ventana (×1.25, el mismo factor). Para conservar la misma
+fracción relativa de sobrepaso que tenía la ventana vieja, `stiffness` escala ×1.25² y `damping`
+×1.25 (120→**187.5**, 24→**30**, exacto) — mismo damping ratio ζ=1.0955 (mismo carácter
+sobreamortiguado, sin oscilación nueva).
+
+### 4 · Medido por ejecución — arnés propio, no el capturador de secciones
+
+`scripts/capturar-seccion.ts` no sirve para esto: su único mecanismo de posicionar un selector
+(`esperarAsentamiento`, `scrollIntoView({block:'center'})`) reemplaza cualquier `--scroll` pasado,
+y como la opacidad del collage siempre es 1 (nunca se desvanece) la espera de asentamiento vuelve
+casi instantánea — captura el resorte a mitad de un salto abrupto, no un estado de scroll continuo
+asentado. Se construyó un arnés propio y desechable (`.scratch/harness-collage/`, fuera de
+`touches:`, no es parte de este diff): esbuild bundlea el componente REAL `BrandStoryCentrada` (sin
+mocks de framer-motion/scroll/spring, sólo `next/image`/`next/link` reemplazados por equivalentes
+sin loader), `@tailwindcss/postcss` compila `app/globals.css` contra el contenido real del repo
+(mismo `clamp()`/`aspect-ratio`/`flex-wrap` que el build de producción), y Playwright (el mismo
+`.arnes-tooling/playwright` cacheado) simula un scroll CONTINUO con `mouse.wheel` en pasos de
+~16ms — no un jump — leyendo `getComputedStyle().transform` de la primera figura en cada paso.
+
+**Resultados, 1440×900** (T=1452.0px, D=1830.7px, vh=900 — geometría medida a scrollY=0):
+
+| velocidad de scroll | scrollY donde "hasta" cae (sin resorte) | scrollY donde queda recto (MEDIDO) | sobrepaso | collage en pantalla al quedar recto |
+| --- | --- | --- | --- | --- |
+| 900 px/s (brisco, normal) | 1467.3 | **1483.0** | 15.7px (2.1% de la ventana) | top=-31 bottom=900 de vh=900 → CENTRADO (centro a 434.5px de 450px exacto, 15.5px de diferencia) |
+| 2200 px/s (muy rápido) | 1467.3 | **1619.0** | 151.7px (20.7% de la ventana) | top=-167 bottom=764 → centro a 298.5px, progreso crudo≈0.58 — todavía lejos de "pasé la sección" |
+
+**Comparado contra el resorte SIN compensar** (120/24, misma ventana nueva, medido en la misma
+corrida): 900px/s → 30.7px (4.2%, el doble); 2200px/s → 222.7px (30.4%). La compensación reduce el
+sobrepaso medido entre ~32% y ~49% según la velocidad, en la dirección y orden de magnitud que la
+derivación de §3 predice.
+
+**A 390×844 el cambio es INERTE**: por debajo del breakpoint `sm` (640px) `max-sm:transform-none!`
+fuerza `transform:none` siempre (§ el comentario "ANGOSTO" de `BrandStoryCentrada.tsx`, sin tocar
+en este slice) — medido: el ángulo es 0° desde `scrollY=0` en las dos velocidades, no hay ventana
+que compensar en ese ancho. El "teléfono" del spec cae bajo ese breakpoint; queda documentado para
+que nadie vuelva a medir ahí esperando una curva.
+
+**Capturas** (`.scratch/harness-collage/capturas/`, fuera de `touches:`; imágenes reales servidas
+desde `public/images/`): `1440x900-antes.png` (scrollY≈40, las 4 fotos claramente giradas, ±6°) y
+`1440x900-despues.png` (scrollY=1483, las 4 rectas) — vistas por ejecución, no sólo generadas.
+`390x844-antes.png`/`-despues.png` — idénticas entre sí (scrollY=0 en ambas, el efecto no corre),
+confirmando lo de arriba.
+
+### 5 · Lo que NO se tocó
+
+`components/storefront/home/BrandStoryCentrada.tsx` estaba en `touches:` pero **no se modificó**:
+consume `parametrosAcomodoCollage`/`useProgresoAcomodo` sin conocer sus constantes internas, así
+que el fix entero queda contenido en `lib/animation.ts`. `ROTACION_PROTOTIPO_N3`, `PASO_ROTACION_DEG`
+y la rama `aperturaPx:0` (§ `HISTORIA-FOTOS-PANEL-Y-GIRO-1`) no cambiaron.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2722/2722** (sin cambio de piso — este slice no agrega tests nuevos, sólo re-mide valores existentes en `lib/animation.test.ts`/`historia-direccion-arte.test.ts`) |
+| `npm run test:integracion` | **242/242**, sin cambio — este slice no toca `tests/integracion/` |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama — Nayoli usa `brandStory:'columnas'` (no tocado), así que el collage nuevo no puede alcanzarla por construcción |
+| `npm run guarda:color` | **0px** contra el fixture, mismas 6 rutas + 2 hovers |
+| `.scratch/harness-collage/` (arnés propio, fuera del gate formal) | ventana/ángulo/resorte medidos por ejecución, §4 |
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** El collage de "Nuestra Historia" bajo CORTE
+(`brandStory:'centrada'`) arranca con más giro (±6° en vez de ±4° con 4 fotos) y queda recto antes
+en el recorrido de scroll de la sección — un cambio de MOVIMIENTO/geometría, no de copy. Nayoli
+(`columnas`) y cualquier tenant sin `brandStory:'centrada'` quedan byte-idénticos — medido 0px,
+§Gate.
+
+**`strings:`** ninguna.
+
+### Deviations
+
+Ninguna respecto del spec en las CIFRAS (0.10/0.50/1.5, exactamente las que `cifras-decision`
+pide). La única decisión que el spec dejó abierta y que este slice resolvió con medición —el
+resorte, "si corre visiblemente... compensalo y decí cuánto"— se resolvió compensando (§3/§4),
+con la cifra dicha ahí. El mecanismo de verificación (arnés propio en vez de
+`capturar-seccion.ts`) no estaba prescrito por el spec; se armó porque el arnés existente demostró
+no poder medir esto (§4, primer párrafo) — medido ANTES de descartarlo, no supuesto.
+
+### Open follow-ups
+
+Ninguno nuevo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `UMBRAL_ACOMODO`, `RESORTE_ACOMODO`,
+`MULTIPLICADOR_GIRO_INICIAL`, `parametrosAcomodoCollage` (`lib/animation.ts`), y los tests de
+`lib/animation.test.ts`/`lib/config/historia-direccion-arte.test.ts`. Grepeados uno por uno contra
+`CLAUDE.md`: **CERO coincidencias** en todos (`UMBRAL_ACOMODO`, `RESORTE_ACOMODO`,
+`MULTIPLICADOR_GIRO_INICIAL`, `parametrosAcomodoCollage`, `transformAcomodo`, `BrandStoryCentrada`,
+`lib/animation`, `HISTORIA-GIRO-ANTES`, `HISTORIA-COLLAGE-COMO-PROTOTIPO`) — la doctrina de este
+motor vive en los comentarios de `lib/animation.ts`/`BrandStoryCentrada.tsx` y en este ledger, no
+en `CLAUDE.md`. Nada en `CLAUDE.md` afirma algo sobre esta pieza que este diff vuelva falso.
+
+Las referencias a los números viejos dentro de este mismo archivo (`DECISIONS.md:11777-12167`,
+`:33540`, `:34573` y alrededores, de `TEMAS-BRANDSTORY-DIRECCION-ARTE-1`/`HISTORIA-COMO-
+MUESTRARIO-1`/`HISTORIA-COLLAGE-COMO-PROTOTIPO-1`) son HISTORIA —verdad al momento de escribirse,
+por la propia regla del libro (cabecera de este archivo)—, no afirmaciones sobre el estado actual;
+no se tocan.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante con CORTE ve
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30
+sobre `HISTORIA-COLLAGE-COMO-PROTOTIPO-1` con una captura del collage ya recto al final) — el
+MERGE sigue gateado aparte.
+
+Cierra `HISTORIA-GIRO-ANTES-1`. Sin follow-ups nuevos.

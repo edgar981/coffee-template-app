@@ -65,9 +65,9 @@ test('transformAcomodo: progreso se acota a [0,1] — un valor fuera de rango no
   assert.equal(transformAcomodo(-4, 16, 1.5, false), transformAcomodo(-4, 16, 1, false));
 });
 
-test('UMBRAL_ACOMODO reproduce los umbrales MEDIDOS del prototipo (`docs/prototipos/cafeone/js/home.js:291`, `(p - 0.15) / 0.5`)', () => {
-  assert.equal(UMBRAL_ACOMODO.desde, 0.15);
-  assert.equal(UMBRAL_ACOMODO.hasta, 0.65); // 0.15 + 0.5, el mismo span que `js/home.js`
+test('UMBRAL_ACOMODO — § HISTORIA-GIRO-ANTES-1 reemplazó los umbrales del prototipo (0.15/0.65) por una ventana PROPIA más temprana: recto a mitad del progreso de la sección, no casi al final', () => {
+  assert.equal(UMBRAL_ACOMODO.desde, 0.1);
+  assert.equal(UMBRAL_ACOMODO.hasta, 0.5);
 });
 
 test('§ HISTORIA-FOTOS-PANEL-Y-GIRO-1: con la apertura que REALMENTE produce parametrosAcomodoCollage (0, siempre), transformAcomodo nunca desplaza en X — sólo cambia el ángulo, para 1 a 4 fotos y todo el recorrido del scroll', () => {
@@ -103,19 +103,20 @@ test('EL ESTADO REDUCIDO (proxy: vista previa) — las 4 figuras del collage rin
   assert.ok(!/rotate\(-?\d/.test(html), 'ninguna figura debe quedar tildada/a medio inclinar bajo el gate estático');
 });
 
-test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — las 4 figuras arrancan en su transform de INICIO, inclinadas', () => {
+test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — las 4 figuras arrancan en su transform de INICIO, inclinadas (§ HISTORIA-GIRO-ANTES-1: ±4° × 1.5 = ±6°)', () => {
   const html = renderCentrada();
   // DEFAULTS.brandStory trae las 4 imágenes llenas (Nayoli), así que `totalVisible=4` — un total PAR,
   // sin "figura del medio" (§ `parametrosAcomodoCollage`, `lib/animation.ts`: el prototipo sólo define
   // esa simetría para 3). La regla general da magnitud CONSTANTE por lado: posición < centro → -4°,
-  // posición > centro → +4° — imagen1/imagen2 comparten signo, imagen3/imagen4 comparten el opuesto.
-  // A progreso=0 la apertura (`translateX`) es 0 para las 4 (t=0 anula cualquier magnitud) — sólo la
-  // rotación es visible en este punto, así que se cuenta por OCURRENCIAS, no por imagen individual
-  // (dos figuras a cada lado producen la MISMA cadena a t=0).
-  const negativas = html.match(/translateX\(0\.0px\) rotate\(-4\.00deg\)/g) || [];
-  const positivas = html.match(/translateX\(0\.0px\) rotate\(4\.00deg\)/g) || [];
-  assert.equal(negativas.length, 2, 'imagen1/imagen2 (posición < centro, total=4) arrancan con rotación -4°');
-  assert.equal(positivas.length, 2, 'imagen3/imagen4 (posición > centro, total=4) arrancan con rotación +4°');
+  // posición > centro → +4°, y § HISTORIA-GIRO-ANTES-1 la escala ×1.5 → ∓6° — imagen1/imagen2
+  // comparten signo, imagen3/imagen4 comparten el opuesto. A progreso=0 la apertura (`translateX`)
+  // es 0 para las 4 (t=0 anula cualquier magnitud) — sólo la rotación es visible en este punto, así
+  // que se cuenta por OCURRENCIAS, no por imagen individual (dos figuras a cada lado producen la
+  // MISMA cadena a t=0).
+  const negativas = html.match(/translateX\(0\.0px\) rotate\(-6\.00deg\)/g) || [];
+  const positivas = html.match(/translateX\(0\.0px\) rotate\(6\.00deg\)/g) || [];
+  assert.equal(negativas.length, 2, 'imagen1/imagen2 (posición < centro, total=4) arrancan con rotación -6°');
+  assert.equal(positivas.length, 2, 'imagen3/imagen4 (posición > centro, total=4) arrancan con rotación +6°');
   assert.ok(!html.includes('transform:none'), 'sin el gate estático, ninguna figura debe rendir ya-acomodada en el primer render');
 });
 
