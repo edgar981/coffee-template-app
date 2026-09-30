@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { contenidoConPresetDeVista, cssMiradorTema } from './theme-mirador';
 import { resolverSiteContent } from './site-content-defaults';
-import { CORTE } from './themes';
+import { CORTE, corteAplicado } from './themes';
 
 // EL MIRADOR (§ TEMAS-MIRADOR-PRESET-1). Puro; capa 1. Afirma el CONTRATO del que depende el
 // invariante del slice —«el tenant no se mueve»— del lado de LECTURA: sin clave, con una clave
@@ -112,4 +112,19 @@ test('con CORTE aplicado → --sf-acento-texto sale de la TINTA (no del acento r
   const out = cssMiradorTema(conCorte, DEFECTO)!;
   assert.match(out.paletaCss!, /--sf-acento-texto:#102407/); // = raices.tinta EXACTA de CORTE
   assert.match(out.paletaCss!, /--sf-accion:#a70004/);        // = raices.acento EXACTA de CORTE
+});
+
+// § SCROLL-INERCIA-CORTE-1 — `corteAplicado` (themes.ts) es el gate de `ScrollInercia`, y lee
+// `content.tema.origenAccion` del content PUBLICADO en `app/(storefront)/layout.tsx` — NUNCA del
+// mirador (`layout.tsx` no ve `searchParams`, § el comentario de cabecera de este archivo). Este
+// test fija que, si `mergePresetEnContent` alguna vez cambiara CÓMO escribe `origenAccion`, el gate
+// del scroll con inercia lo delata acá — puente entre `themes.ts` y el mirador, mismo mecanismo que
+// el resto de este archivo (reusar, no una segunda composición).
+test('el mirador aplicando CORTE deja origenAccion en el valor que enciende corteAplicado', () => {
+  const conCorte = contenidoConPresetDeVista(DEFECTO, 'CORTE');
+  assert.equal(corteAplicado(conCorte.tema.origenAccion), true);
+});
+
+test('sin mirador (DEFECTO, byte-idéntico a Nayoli) → corteAplicado da false', () => {
+  assert.equal(corteAplicado(DEFECTO.tema.origenAccion), false);
 });

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PLIEGO, CORTE, PATIO, VETA, VITRINA, ARRANQUE, PRESETS,
-  validarPreset, presetCompleto, temasCompletos, mergePresetEnContent,
+  validarPreset, presetCompleto, temasCompletos, mergePresetEnContent, corteAplicado,
   type PresetTema, type FaltanteTema,
 } from './themes';
 
@@ -730,4 +730,26 @@ test('esquemas: si el valor ACTUAL del blob difiere del snapshot (otro preset ap
   const conOtroEsquema = { ...primerApply, esquemas: { featured: 'oscuro' } }; // divergió del snapshot de CORTE
   const reaplicado = mergePresetEnContent(conOtroEsquema, CORTE);
   assert.deepEqual(reaplicado.esquemas, { featured: 'oscuro' });
+});
+
+// § SCROLL-INERCIA-CORTE-1 — `corteAplicado` es el gate de `ScrollInercia`: sólo CORTE enciende el
+// scroll con inercia del prototipo. Reusa `tema.origenAccion` (§ el docstring de la función), así
+// que estos tests fijan el CONTRATO del eje, no una lógica propia de scroll.
+
+test('corteAplicado: fixture — CORTE declara origenAccion:"acento", el único valor que enciende el gate', () => {
+  assert.equal(CORTE.origenAccion, 'acento');
+  assert.equal(corteAplicado(CORTE.origenAccion!), true);
+});
+
+test('corteAplicado: null (ningún preset aplicado, Nayoli y todo tenant sin fila) → false', () => {
+  assert.equal(corteAplicado(null), false);
+});
+
+test('corteAplicado: "tostado" (el otro valor del set cerrado, ningún preset lo declara hoy) → false', () => {
+  assert.equal(corteAplicado('tostado'), false);
+});
+
+test('corteAplicado: fixture — de los 6 presets del catálogo, SÓLO CORTE hace que el gate encienda', () => {
+  const encendidos = PRESETS.filter((p) => corteAplicado(p.origenAccion ?? null));
+  assert.deepEqual(encendidos.map((p) => p.clave), ['CORTE']);
 });

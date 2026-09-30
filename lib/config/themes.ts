@@ -1584,3 +1584,33 @@ export function navOffsetClase(posicion: boolean): string {
 // esta tanda, migró a `navOffsetClase(navTratamiento.posicion)` directo (la forma UNIFORME que las
 // otras seis páginas ya tenían) y el wrapper se retiró — sin consumidor, código muerto que se borra
 // (§ CLAUDE.md, "código muerto se BORRA o se CABLEA, nunca se deja AMBIGUO").
+
+// ─── `corteAplicado` (§ SCROLL-INERCIA-CORTE-1) — ¿el CONTENT PUBLICADO corresponde a CORTE? Hace
+// falta para gatear el scroll con inercia del prototipo (`ScrollInercia.tsx`,
+// `app/(storefront)/layout.tsx`): "sólo CORTE lo enciende" (spec), y layout.tsx no tiene ningún
+// identificador de preset persistido a mano — `mergePresetEnContent` (arriba) sólo guarda VALORES
+// resueltos, nunca `preset.clave`.
+//
+// LA SEÑAL ES `tema.origenAccion`, NO UNA COMPARACIÓN DE RAÍCES NUEVA. De los 6 presets del catálogo,
+// SÓLO CORTE lo declara (`origenAccion: 'acento'`, arriba, § TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1) —
+// y a diferencia de `navTratamiento.*` (editable independiente en `EncabezadoSeccion.tsx`,
+// `app/api/site-content/encabezado/route.ts` — un tenant podría encenderlo sin aplicar CORTE),
+// `origenAccion` NO TIENE control de panel: está en `PENDIENTE_PANEL`
+// (`panel-controles.ts`: "Sólo mergePresetEnContent lo escribe; sin campo en paletaEditableSchema ni
+// en PaletaSeccion"). Así que hoy un tenant no puede encender esta señal sin aplicar el preset
+// completo. Es el MISMO eje que ya reusan `lib/storefront/pdp-botones.ts` ("el eje MÁS CERCANO ya
+// existente al problema... `origenAccion` sólo lo declara CORTE hoy") y `VistaRapidaProducto.tsx`
+// ("este modal sólo monta bajo `origenAccion:'acento'` (CORTE)") para la MISMA pregunta — no una
+// tercera comparación que pudiera divergir de esas dos.
+//
+// `null`/`'tostado'` (todo tenant salvo CORTE, incluida Nayoli — su `content.tema.origenAccion` nace
+// `null`, sin fila) → `false`, byte-idéntico: `ScrollInercia` nunca se monta, cero listeners de más.
+//
+// RIESGO ACEPTADO, DOCUMENTADO (mismo que ya aceptaron los otros dos consumidores de este eje): si un
+// preset FUTURO declarara `origenAccion:'acento'` sin querer scroll con inercia, heredaría este gate
+// también — el día que eso pase, la salida es la misma que ya nombra `pdp-botones.ts`: ese preset
+// comparte el mismo hecho de fondo (un acento que actúa como color de acción, no un tono cálido), así
+// que heredar el resto del tratamiento de CORTE sería lo esperable, no un bug.
+export function corteAplicado(origenAccion: OrigenAccion | null): boolean {
+  return origenAccion === 'acento';
+}

@@ -6,6 +6,7 @@ import StoreFooter from "@/components/storefront/StoreFooter";
 import CartDrawer from "@/components/storefront/CartDrawer";
 import BackToTop from "@/components/storefront/BackToTop";
 import RielSocial from "@/components/storefront/RielSocial";
+import ScrollInercia from "@/components/storefront/ScrollInercia";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
 import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvider";
@@ -156,6 +157,11 @@ export default async function StorefrontLayout({
                     — decide su propio silencio adentro por `content.rielSocial.visible` (AUSENTE/false
                     → `null`, byte-idéntico) y por si `SiteSetting.instagram`/`.whatsapp` están vacíos. */}
                 <RielSocial />
+                {/* ScrollInercia (§ SCROLL-INERCIA-CORTE-1): MISMO mecanismo que BackToTop/RielSocial,
+                    montado SIEMPRE — decide su propio silencio adentro por
+                    `corteAplicado(tema.origenAccion)` (AUSENTE/null → no-op, byte-idéntico). Sin
+                    render propio (`return null` siempre): sólo adjunta/retira listeners de `window`. */}
+                <ScrollInercia />
               </div>
             </CartProvider>
           </SiteContentProvider>

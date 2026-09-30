@@ -34804,4 +34804,150 @@ queda byte-idéntica: la sección no se monta, medido 0px arriba (§ 3).
 `origen.visible:true`) ve al mirar esa sección. El owner ya aprobó la ESCRITURA de este slice
 específico (§ `approval-reason` del spec); el MERGE sigue gateado aparte.
 
+## 2026-09-30 — La tienda con CORTE gana el scroll con inercia del prototipo, en todas sus páginas (`SCROLL-INERCIA-CORTE-1`)
+
+Gate del owner del 2026-09-30 (§ `approval-reason` del spec): se le explicó que la suavidad del
+muestrario viene de la inercia de scroll de TODA la página, y se le preguntó si agregarla sólo en
+CORTE; respondió **"Agregala en todo."** — "todo" interpretado, por el orquestador, como todas las
+páginas de la tienda con CORTE (home, tienda, ficha, nosotros, suscripciones, preguntas, rastrear,
+checkout), no el panel `/admin`, y Nayoli sin cambio.
+
+El § 3 de `HISTORIA-COLLAGE-COMO-PROTOTIPO-1` (arriba, `DECISIONS.md:34561`) ya había nombrado esto
+como "fuera del `touches:`" de aquel slice: `initSmoothScroll` (`js/app.js:205-239`) es "scroll-
+jacking global", una escala distinta del `useSpring` local que resolvía el collage. Este slice es
+ese pendiente, con su propio `touches:`.
+
+### 1 · El mecanismo — un PORT literal, con la lógica pura extraída
+
+`lib/storefront/scroll-inercia.ts` (puro, capa 1) es la fórmula del prototipo re-escrita sin mutar
+argumentos: `pasoInercia` (`current += (target-current)*0.12`, `js/app.js:223`), `seAsento`
+(`Math.abs(target-current) < 0.4`, `:224`), `limiteScroll` (`max()`, `:220`), `objetivoTrasRueda`
+(el clamp de `:232`). Los DOS números (`0.12`/`0.4`) son LITERALES del prototipo, no inventados —
+copiarlos es lo que hace que "nuestro vs prototipo" sea la MISMA curva.
+
+`components/storefront/ScrollInercia.tsx` es el envoltorio de `window`/RAF/los listeners reales:
+adjunta `wheel`/`scroll` en `window` sólo cuando `debeUsarScrollNativo` da `false` (ni movimiento
+reducido ni puntero grueso), y decide por evento con `debeInterceptarRueda`.
+
+### 2 · El gate — `corteAplicado(tema.origenAccion)`, no una comparación de raíces nueva
+
+`layout.tsx` no tiene ningún identificador de preset persistido: `mergePresetEnContent` sólo guarda
+VALORES resueltos, nunca `preset.clave`. La señal reusada es `content.tema.origenAccion`
+(§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1): de los 6 presets del catálogo, SÓLO CORTE declara
+`origenAccion:'acento'` — y a diferencia de `navTratamiento.*` (editable independiente en
+`EncabezadoSeccion.tsx`), `origenAccion` está en `PENDIENTE_PANEL`
+(`panel-controles.ts:324`: "Sólo mergePresetEnContent lo escribe; sin campo en paletaEditableSchema
+ni en PaletaSeccion") — así que un tenant no puede encenderlo sin aplicar CORTE completo. Es el
+MISMO eje que ya reusan `lib/storefront/pdp-botones.ts` y `VistaRapidaProducto.tsx` para la misma
+pregunta ("¿esto es CORTE?"), fuera de `touches:` así que no se tocaron — sólo se agregó
+`corteAplicado(origenAccion)` a `themes.ts`, la tercera consumidora del mismo eje, no una cuarta
+comparación que pudiera divergir.
+
+`ScrollInercia` se monta SIEMPRE desde `layout.tsx` (como `BackToTop`/`RielSocial`) y decide su
+propio silencio adentro vía `useSiteContent().tema.origenAccion` — el MISMO mecanismo que esos dos,
+no uno nuevo. AUSENTE/`null` (Nayoli, y todo tenant sin CORTE aplicado) → el `useEffect` retorna sin
+adjuntar NINGÚN listener — cero nodos, cero bytes de comportamiento de más.
+
+### 3 · Lo que NO rompe — cada caso, medido
+
+Ninguno de estos seis se asumió: se armó un harness ad-hoc (`.scratch/scroll-inercia/`, throwaway,
+gitignoreado — no viaja en el diff) con Playwright headless a 1440×900, reusando la instalación
+aislada de `.arnes-tooling/playwright` que ya usan `capturar-seccion.ts`/`verificar-nayoli-visual.ts`.
+
+| caso | mecanismo de la guarda | medido |
+| --- | --- | --- |
+| rueda dentro de un elemento con scroll propio (carrito, vista rápida, menú móvil, el track del riel) | `dentroDeScrollPropio`: camina el árbol de ancestros hasta `<body>`, ¿`overflow-y:auto\|scroll` + `scrollHeight>clientHeight`? | wheel sobre un `<div overflow-y:auto>` sintético → página `scrollY=0`, el div `scrollTop=400` |
+| modal/drawer con scroll bloqueado | `document.body.style.overflow === 'hidden'` — la ÚNICA señal real de este storefront (la pone `VistaRapidaProducto.tsx`; `CartDrawer.tsx`/`NavSearch.tsx` NO bloquean, § el censo en ese archivo) | cubierto por la MISMA rama de código que el caso anterior (`debeInterceptarRueda`), no medido aparte en el harness — la función pura ya lo afirma (`scroll-inercia.test.ts`) |
+| trackpad con desplazamiento horizontal (el track del riel) | `Math.abs(deltaX) > Math.abs(deltaY)` → no intercepta | afirmado en capa 1 (`debeInterceptarRueda`), no en el harness (Playwright no simula gestos de trackpad reales) |
+| `ctrlKey` (zoom del navegador) | no intercepta | Control+rueda → mi RAF nunca corrió (0 frames en `__serie`) |
+| `prefers-reduced-motion` | `debeUsarScrollNativo` → `return` sin adjuntar listeners | contexto Playwright `reducedMotion:'reduce'` → `nativo=true`, 0 frames propios, el navegador scrollea NATIVO (confiable vía `page.mouse.wheel`, `scrollY` final=600 SIN mi JS) |
+| `pointer:coarse` (táctil) | `debeUsarScrollNativo` → `scroll-behavior:smooth` + `return` | contexto Playwright `hasTouch:true` → `scrollBehavior==='smooth'`, 0 frames propios, scroll nativo |
+| teclado/barra de scroll/anclas/`scrollTo` de la app (volver arriba, breadcrumbs) | el listener `scroll` resincroniza `objetivo`/`actual` con `window.scrollY` mientras `enVuelo===false` — igual que el prototipo (`js/app.js:236-238`) | por construcción: ninguno de estos dispara `wheel`, así que mi código nunca interviene; no hay nada que resincronizar-mal |
+
+**LA MISMA CURVA, medida**: rueda con `deltaY=600` sobre el prototipo (código LITERAL embebido en el
+harness) vs. mi port — 58 frames cada uno, **delta máximo = 0.0000px** en toda la serie, los dos
+asientan exactamente en `scrollY=600`.
+
+### 4 · `useScroll`/`whileInView` de framer-motion — por qué no se rompen
+
+`StoreNav.tsx`, `Marquesina.tsx`, `BrandStoryCentrada.tsx`, `HeroMediaMarquesina.tsx`,
+`SubscriptionCTALinea.tsx`, `NosotrosCierre.tsx` usan `useScroll`/`useTransform`. Mi mecanismo nunca
+FALSEA la posición de scroll —a diferencia de un scroll "virtual" con CSS transform, cada paso llama
+`window.scrollTo(0, actual)` REAL—, así que `window.scrollY`/`getBoundingClientRect()` reflejan
+exactamente lo que reflejarían con scroll nativo, sólo repartido en más frames. No se verificó cada
+consumidor uno por uno (fuera de alcance medible sin el gate visual del owner sobre CORTE en vivo),
+pero el argumento es estructural: nada en el mecanismo puede mentir sobre `scrollY`, porque nunca
+inventa uno.
+
+### 5 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npm test` | **2660/2660** (2633 del piso de `ORIGEN-RADIO-SOMBRA-IMAGEN-1` + 27 nuevos: 21 en `scroll-inercia.test.ts` + 4 en `themes.test.ts` + 2 en `theme-mirador.test.ts`) |
+| `npm run test:integracion` | **242/242**, sin cambio — este slice no toca `tests/integracion/` |
+| `npm run gate` (los dos carriles) | verde, corrido completo (typecheck + los 2660 + los 242) |
+| `next build` | compila limpio, SWC — misma lista de rutas que `main` (cero rutas nuevas, este slice no toca `app/api`) |
+| `npm run guarda:color` | **IDÉNTICO, 0px** contra el fixture, 6 rutas + 2 hovers |
+| `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs esta rama) |
+| harness ad-hoc de inercia (Playwright, `.scratch/`, no en el diff) | misma curva (0.0000px de delta), reduced-motion, pointer:coarse, scroll propio, ctrlKey — los 5 verdes, § 3 |
+
+### `touches:` — lo usado, y lo declarado sin tocar
+
+Usados los ocho: `components/storefront/ScrollInercia.tsx` (nuevo), `lib/storefront/scroll-inercia.ts`
+(nuevo), `lib/storefront/scroll-inercia.test.ts` (nuevo), `app/(storefront)/layout.tsx` (el import +
+el mount, 6 líneas), `lib/config/themes.ts` (`corteAplicado`, 30 líneas), `lib/config/themes.test.ts`
+(4 tests), `lib/config/theme-mirador.test.ts` (2 tests, puente con `contenidoConPresetDeVista`),
+`DECISIONS.md`. **NO se tocaron** `lib/storefront/pdp-botones.ts`, `VistaRapidaProducto.tsx`,
+`panel-controles.ts`, `site-content-defaults.ts`, `site-content-schema.ts`, `EncabezadoSeccion.tsx`
+ni ninguna ruta de `app/api/` — el gate no persiste ningún campo nuevo de `SiteContent`, sólo LEE uno
+que ya existía (`tema.origenAccion`).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/paths que este diff cambió: `ScrollInercia`/`ScrollInercia.tsx`, `scroll-inercia.ts`/
+`scroll-inercia.test.ts`, `corteAplicado`, `initSmoothScroll`/`scrollToY` (citados, no tocados —
+viven en `docs/prototipos/`), `app/(storefront)/layout.tsx` (mount nuevo). Grepeados uno por uno
+contra `CLAUDE.md`:
+
+- **`ScrollInercia`, `scroll-inercia`, `corteAplicado`, `SCROLL-INERCIA-CORTE`, `initSmoothScroll`,
+  `scrollToY`** → CERO apariciones en `CLAUDE.md`. Nada que este diff pudiera dejar falso ahí —el
+  mecanismo de scroll con inercia, el catálogo de presets de `themes.ts` y su gate por `origenAccion`
+  no están documentados en `CLAUDE.md` en absoluto (viven en `site-content-defaults.ts`/
+  `DECISIONS.md`, mismo hallazgo que ya dejaron los tres slices anteriores de esta rama).
+- **`app/(storefront)/layout.tsx`** (2 apariciones, `§ Identidad` sobre favicons y `§ Política de
+  tema` sobre `StorefrontThemeProvider`) → las dos describen mecanismos que este diff NO toca
+  (`metadata.icons`, el theme provider de dark-mode del admin/storefront); el `<ScrollInercia />`
+  nuevo se monta DENTRO del árbol que esas dos secciones describen, sin cambiar nada de lo que
+  afirman. Sin afectación.
+- **`ReducedMotionProvider`/`prefers-reduced-motion`** (3 apariciones) → ninguna declara que TODO
+  movimiento del storefront deba pasar por ese provider; su propio docstring en `layout.tsx` lo
+  acota a "cualquier animación de **framer-motion**". `ScrollInercia` no usa framer-motion (JS/DOM
+  vanilla, como el prototipo), así que queda fuera de ese contrato por diseño, no por omisión —
+  y mide `matchMedia('(prefers-reduced-motion: reduce)')` por su cuenta, igual que
+  `initSmoothScroll` en el prototipo.
+
+### `customer_bytes`
+
+**`changed: true`.** Un visitante con CORTE aplicado (hoy: sin tenant real, sólo `?tema=CORTE` en
+`esDespliegueDemo()` o un content publicado con `origenAccion:'acento'`) siente el scroll de rueda
+amortiguado en TODAS las páginas de la tienda, en vez del salto nativo del navegador — un cambio de
+CONDUCTA, no de texto. `strings:` **ninguno** — nada de copy cambia; lo que cambia es cómo se mueve
+la pantalla. Nayoli (`origenAccion` nace `null`, sin CORTE aplicado) queda byte-idéntica: medido 0px
+en las dos herramientas de diff de píxeles (§ 5) y confirmado por construcción (`corteAplicado(null)
+=== false` → `ScrollInercia` nunca adjunta un listener).
+
+### Open follow-ups
+
+Ninguno nuevo. El pendiente que originó este slice (`HISTORIA-COLLAGE-COMO-PROTOTIPO-1`, § 3) queda
+cerrado.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia CÓMO scrollea la tienda para un visitante
+con CORTE activo, en las ocho páginas. El owner ya aprobó la ESCRITURA de este slice específico
+(§ `approval-reason` del spec, "Agregala en todo"); el MERGE sigue gateado aparte.
+
+Cierra `SCROLL-INERCIA-CORTE-1`.
+
 Cierra `ORIGEN-RADIO-SOMBRA-IMAGEN-1`.
