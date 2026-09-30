@@ -34780,6 +34780,24 @@ Símbolos/paths que este diff cambió: `Origen.tsx` (el className de las figuras
 prototipo. `strings:` **ninguno** — cambio de geometría, no de copy. Nayoli (`origen.visible:false`)
 queda byte-idéntica: la sección no se monta, medido 0px arriba (§ 3).
 
+### Lo que queda abierto (adyacente, deliberadamente NO hecho en este slice)
+
+- **`FORMAS-SEGUNDO-CONSUMIDOR-IMAGEN-COMENTARIO-1`** — `lib/config/formas.ts` (docstring de
+  `Forma.radioImagen`/`sombraImagen`) y `app/globals.css` (comentario de `.sf-radio-imagen`/
+  `.sf-sombra-imagen`) dicen "único consumidor hoy: el collage de `BrandStoryCentrada.tsx`" — ya no
+  es cierto, `Origen.tsx` es un SEGUNDO consumidor desde este slice. Ninguno de los dos archivos está
+  en `touches:` de `ORIGEN-RADIO-SOMBRA-IMAGEN-1`, así que el comentario queda sin corregir.
+- **`PRESENTACIONES-Y-DEMAS-RADIO-IMAGEN-CENSO-1`** — el gate del owner que originó esta rama
+  (`HISTORIA-COLLAGE-COMO-PROTOTIPO-1`, § `approval-reason`) pidió que las imágenes de
+  "presentaciones, origen y demás secciones" se vean como el muestrario; este slice sólo cerró
+  origen. `grep -rln "rounded-2xl\|rounded-3xl" components/storefront/` (corrido en este slice, fuera
+  de `touches:`) da OTROS consumidores vivos —entre ellos `GrindChooserIndice.tsx`/
+  `GrindChooserMosaico.tsx` (el riel de Presentaciones), `NosotrosGaleria.tsx`,
+  `TestimonialSection.tsx`, `SuscripcionPlanes.tsx`/`SuscripcionPasos.tsx`— sin censar si son
+  IMÁGENES (candidatas al mismo rol `sf-radio-imagen`/`sf-sombra-imagen`) o CHROME (otro rol, p. ej.
+  `sf-radio-lg`/`sf-radio-tile`). No medido bajo CORTE; no se afirma que tengan el mismo defecto,
+  sólo que no se descartó.
+
 ### Verdict
 
 **AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE activo (y
