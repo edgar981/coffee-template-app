@@ -34094,3 +34094,19 @@ la ampliación.
 
 No cierra `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1` — sigue en `slice/corte-reescritura-prototipo-1`, sin
 mergear, pendiente de que el gate global quede verde.
+
+### Follow-ups abiertos, con id
+
+- **`RIEL-COLATERAL-TESTS-1`** — actualizar/retirar las ~10 aserciones de los cuatro archivos
+  listados en § 6 (`lib/config/escala-display.test.ts`, `lib/config/site-content-defaults.test.ts`,
+  `lib/config/titulares-saltos.test.ts`, `lib/tienda/puente-tarjetas.test.ts`) para que reflejen el
+  riel catalog-driven de este slice. NO se hizo acá porque ninguno de los cuatro está en `touches:`.
+- **`NEXT-CONFIG-IMAGE-QUALITIES-1`** — `next.config.ts` no declara `images.qualities`, así que todo
+  `quality` distinto de 75 (el `85` YA en producción en los cuatro Hero, y el `90` nuevo de
+  `TarjetaRiel`/`VistaRapidaProducto`) dispara el warning "is using quality… not configured". NO se
+  hizo acá porque `next.config.ts` no está en `touches:`; es PRE-EXISTENTE (no lo crea este slice).
+- **`RIEL-NATURALWIDTH-CAPTURA-1`** — el spec pedía "el `naturalWidth` servido contra el renderizado
+  antes/después"; este slice lo derivó por ARITMÉTICA sobre las clases (§4), no por una captura en
+  vivo (Playwright) contra una foto real de un tenant. NO se hizo acá porque el gate ya es RED en la
+  capa más barata (`npm test`) y no se justificaba levantar Chromium/un build completo para una
+  evidencia visual de un diff que no se puede mergear todavía.
