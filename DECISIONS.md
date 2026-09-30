@@ -33448,3 +33448,183 @@ fix vive en el CÓDIGO que lo interpreta (`StoreNav.tsx`), así que no hace falt
 preset para que el dato cambie — sólo hace falta el DEPLOY de este código. Aclarado porque
 `aplicarPreset`/re-aplicar CORTE es la operación que otros slices de esta rama sí piden, y acá no
 aplica.
+
+## 2026-09-29 — El panel deja quitar/reordenar CUALQUIER foto del collage de "Nuestra Historia", y el giro deja de abrirse en X (`HISTORIA-FOTOS-PANEL-Y-GIRO-1`)
+
+Dos arreglos del gate del owner sobre `HISTORIA-COMO-MUESTRARIO-1`, textuales: *"En 'Nuestra
+Historia', no deja eliminar la primera foto solo las otras 3, o re posicionar las mismas."* y *"El
+efecto de las fotos en nuestra historia no esta como el del muestrario, en el muestrario las
+imagenes no se desplazan en x, simplemente cambia su angulo, en nuestra pagina estan cambiando en x
+y cambiando de angulo."*
+
+### 1 · El PANEL — "Quitar" deja de ser `CampoImagen.opcional`, pasa a ser CONTEO
+
+`renderCeldaCollage` (`TiendaSeccionEditor.tsx`) gateaba "Quitar" con `!!img.opcional && val !== ''`
+— `imagen1` (`opcional` ausente, REQUERIDA en `REGISTRY.brandStory.campos`) nunca ofrecía el botón,
+así que la primera foto no se podía quitar, exactamente el reporte del owner. El fix cambia el
+GATE, no el modelo: `REGISTRY.brandStory.campos` sigue con `imagen1:'requerido'` (sin tocar,
+`site-content-defaults.ts` fuera de `touches:`), y `CampoImagen.opcional` sigue significando lo
+mismo para `renderMiniatura` (el campo-imagen plano de Origen/Presentaciones/Hero, sección
+INTOCADA). Sólo `renderBloqueCollage` deja de leer ese flag: ahora cuenta cuántas de las 4 fotos
+del bloque TIENEN valor y permite "Quitar" en CUALQUIERA de ellas mientras quede al menos otra —
+la ÚLTIMA nunca se puede quitar, porque la sección necesita una.
+
+- **Al quitar, COMPACTA** (`quitar` de `lib/tienda/lista-plana.ts`): las de abajo suben, sin dejar
+  huecos — mismo criterio que ya regía los bullets de Suscripción. Quitar `imagen1` deja lo que era
+  `imagen2` en el slot 1: el fallback a default de `imagen1` (que el REGISTRY sigue disparando si
+  el slot queda vacío) no se ejercita en uso normal, porque el panel garantiza que el slot 1 nunca
+  queda vacío mientras sobreviva otra foto.
+- **Reordenar es NUEVO** — flechas subir/bajar por foto, mismo patrón visual/de código que
+  `RepeaterEditor.mover` (SWAP con el vecino, sin compactar). `lib/tienda/lista-plana.ts` GANA
+  `mover(valores, i, dir)`, generalizando el archivo (nació sólo para `bullet1..4`, ahora también
+  sirve a `imagen1..4`) en vez de escribir una segunda función de swap en el editor.
+- **El borrado de blobs sigue funcionando SIN tocarlo**: `blobsHuerfanos`/`blobsAReemplazar`
+  (`lib/config/site-content-blobs.ts`) comparan CONJUNTOS de URLs, no por índice — una foto que sólo
+  se MOVIÓ de slot sigue en el conjunto "en uso" y no se borra al publicar. Ya había un test
+  genérico para esto en `tests/integracion/borrador-endpoints.test.ts` ("PUBLICAR brandStory con un
+  SWAP de posiciones entre las 4 imágenes NO borra ninguna", pre-existente, fuera de `touches:` —
+  no se tocó) que corrió en la corrida final del gate. Se sumó uno PROPIO en
+  `tests/integracion/brandstory-fotos.test.ts` que usa la función REAL del panel (`mover`), no un
+  swap armado a mano, para que la aserción de blobs y la de VALORES persistidos vivan en el mismo
+  test.
+- **Tests**: `lib/tienda/lista-plana.test.ts` gana 3 casos de `mover` (swap en cada dirección,
+  borde sin efecto, swap de huecos). `tests/integracion/brandstory-fotos.test.ts` gana 2: quitar
+  `imagen1` compacta y sobrevive publicar sin caer al default; reordenar sobrevive publicar y no
+  borra blobs (usando `quitar`/`mover` reales, no valores calculados a mano).
+
+### 2 · El STOREFRONT — la apertura horizontal se aparta del prototipo, a CERO siempre
+
+`HISTORIA-COMO-MUESTRARIO-1` había reescrito `transformAcomodo`/`parametrosAcomodoCollage` para
+reproducir EXACTO `js/home.js:287-297` — inclinación (`rotate`) Y apertura horizontal
+(`translateX`) juntas. El owner, comparando contra "el muestrario" (que sólo gira, no desplaza),
+pidió apartarse de esa apertura — DECISIÓN, no una lectura más fiel del prototipo.
+
+- **`parametrosAcomodoCollage` fuerza `aperturaPx` a 0 SIEMPRE** — para el caso total=3 (que usaba
+  el array literal `APERTURA_PROTOTIPO_N3=[-70,0,70]` del prototipo) y para la generalización
+  simétrica de 1/2/4/5+. Se BORRARON `PASO_APERTURA_PX` y `APERTURA_PROTOTIPO_N3` (quedaban sin
+  ningún lector). **La ROTACIÓN no se tocó**: sigue el literal `ROTACION_PROTOTIPO_N3=[-8,4,-3]`
+  para total=3 y la magnitud constante `PASO_ROTACION_DEG` con simetría espejo para el resto —
+  exactamente como `HISTORIA-COMO-MUESTRARIO-1` la dejó.
+- **`transformAcomodo` NO cambió de firma.** Sigue recibiendo `aperturaPx` y aplicándolo
+  (`x = aperturaPx * t`): es la pieza GENÉRICA, sin conocimiento de brandStory, y su único llamador
+  real es quien dejó de pedirle apertura. Cambiarle la firma habría sido tocar una función pura
+  documentada como reproducción literal de `js/home.js:288-297` por una decisión que es del
+  COLLAGE, no de la matemática del scrub.
+- **`BrandStoryCentrada.tsx`**: sin cambios de código (el flujo `parametrosAcomodoCollage` →
+  `transformAcomodo` ya threadeaba `aperturaPx` tal cual) — sólo los comentarios que describían la
+  apertura como viva se actualizaron para no afirmar algo que dejó de ser cierto.
+- **Tests**: `lib/animation.test.ts` reescribe las 6 aserciones de `parametrosAcomodoCollage` para
+  esperar `aperturaPx:0` en vez del valor del prototipo, y suma un séptimo test que barre TODA
+  combinación posición/total de 1 a 5 afirmando `aperturaPx===0`. `lib/config/historia-direccion-
+  arte.test.ts` suma un test de INTEGRACIÓN: alimenta `transformAcomodo` con los valores REALES que
+  `parametrosAcomodoCollage` produce (no un `aperturaPx` inventado) para total 1-4, posición
+  0..total-1 y progreso 0/0.25/0.5/0.75/1, y afirma que la cadena resultante SIEMPRE es
+  `translateX(0.0px) rotate(...)` — nunca un x distinto de cero. Los tests PUROS que llaman a
+  `transformAcomodo` directo con `aperturaPx=16` (para afirmar su matemática genérica) NO se
+  tocaron: siguen siendo válidos, porque la función sigue sabiendo aplicar una apertura si alguien
+  se la pide — sólo que ya nadie lo hace.
+
+### 3 · Capturas — medidas, no adivinadas
+
+**El problema de método**: a progreso=0 (antes de scrollear la sección) `x = aperturaPx·0 = 0`
+SIEMPRE, viejo o nuevo código — comparar ahí no muestra nada. Y con `--selector-app`, el arnés
+(`esperarAsentamiento`) hace `scrollIntoView({block:'center'})` sobre el nodo elegido, que
+SOBREESCRIBE cualquier `--scroll` manual — verificado por ejecución: centrar la sección completa o
+una sola figura dio en los dos casos progreso≈0 (`matrix(0.997564,-0.0697565,0.0697565,0.997564,0,
+0)`, exactamente `rotate(4deg)` sin x). Hacía falta un scroll ABSOLUTO, sin selector.
+
+**Medido con un script ad-hoc (Playwright aislado, contra `https://coffee-template-app-onix.vercel.
+app/`, `.scratch/`, no comiteado)**: `#nuestra-historia` empieza en `y=3386.9`, el contenedor del
+collage (`collageRef`) en `y=3658.9`, alto `843.2`, viewport 900px de alto → la ventana de
+`useProgresoAcomodo` (`["start end","end start"]`) va de `scrollY=2758.9` (progreso 0) a
+`scrollY=4502.1` (progreso 1). `scrollY=3456` cae en progreso RAW≈0.40 → tras `UMBRAL_ACOMODO`
+(`(0.40-0.15)/0.5`) da t≈0.5. Confirmado leyendo `getComputedStyle` de las 4 figuras en ese
+`scrollY`: `matrix(...,-52.5,0)`, `matrix(...,-17.5,0)`, `matrix(...,17.5,0)`, `matrix(...,52.5,0)`
+— EXACTAMENTE `aperturaPx·0.5` para `total=4` (`aperturaPx = [-105,-35,35,105]`), y rotación
+`±2.00°` (`±4°·(1-0.5)`). El cálculo a mano coincidió con lo medido, byte a byte.
+
+**ANTES** (`npm run capturar:seccion -- --url https://coffee-template-app-onix.vercel.app/ --scroll
+3456 --prototipo index.html --selector-prototipo ".historia" --nombre historia-giro-antes-
+midscroll`, sin código de esta rama — el muestrario desplegado, que corre el `HISTORIA-COMO-
+MUESTRARIO-1` YA mergeado): las 4 fotos del collage aparecen visiblemente DESPLAZADAS en X entre sí
+(cup a la izquierda, beans levemente a la izquierda, basket a la derecha, branch a la derecha) —
+el defecto reportado por el owner, confirmado por captura. `.capturas/historia-giro-antes-
+midscroll/` (gitignoreado).
+
+**DESPUÉS** (`npm run capturar:seccion -- --preset CORTE --ruta / --scroll 3456 --prototipo
+index.html --selector-prototipo ".historia" --nombre historia-giro-despues-midscroll`, base fresca
+local CON el código de esta rama — sin `--sembrar-spotlight`, así que las tarjetas de presentación
+salen sin imagen, irrelevante para este collage): las 4 fotos aparecen en GRILLA, tocándose borde
+con borde, SIN el desplazamiento en X que la captura "antes" mostraba — sólo el giro sigue vivo.
+`.capturas/historia-giro-despues-midscroll/` (gitignoreado). La página local (sin productos
+sembrados) es más corta que la desplegada, así que el `scrollY` no cae exactamente en el mismo t
+matemático en las dos — la comparación es CUALITATIVA (¿hay desplazamiento visible o no?), la
+prueba CUANTITATIVA (que `aperturaPx` es 0 para cualquier t) la dan los tests de §2, exhaustivos y
+deterministas.
+
+**El gate del PANEL (quitar la primera foto, reordenar, ver la vista previa reflejar el cambio) es
+del OWNER** — ruta con sesión (`/admin/tienda`), no verificable por captura sin credenciales. Este
+slice lo deja cubierto por los tests de persistencia (§1) y por el tripwire de tipos
+(`npx tsc --noEmit`), no por una captura del panel.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2613/2613** |
+| `npm run test:integracion` | **242/242** (240 + 2 nuevos en `brandstory-fotos.test.ts`) |
+| `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (`main`=`9a7ab97` vs esta rama) — Nayoli usa `brandStory:'columnas'` (`BrandStoryColumnas.tsx`, archivo no tocado), así que el fix de `centrada` no puede tocarla por construcción, y la medición lo confirma |
+| `npm run guarda:color` | NO corrido — esta rama no toca `themes.ts` ni ninguna raíz de color, sólo `aperturaPx`/el gate del panel |
+| capturas antes/después | medidas contra `scrollY` calculado, § 3 |
+
+### `touches:` — lo usado
+
+Los nueve archivos de código/test tocados están dentro del `touches:` declarado:
+`components/admin/TiendaSeccionEditor.tsx`, `components/admin/tienda-secciones.ts`,
+`lib/tienda/lista-plana.ts` (+ test), `lib/animation.ts` (+ test),
+`components/storefront/home/BrandStoryCentrada.tsx` (sólo comentarios),
+`lib/config/historia-direccion-arte.test.ts`, `tests/integracion/brandstory-fotos.test.ts`.
+**NO se tocó** `lib/tienda/bloques.ts`/`bloques.test.ts` (el descriptor `{tipo:'collage',
+imagenes:[...]}` no cambió de forma — sólo cambió CÓMO el editor lo renderiza) ni
+`site-content-defaults.ts` (el REGISTRY/resolver no cambió).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `renderBloqueCollage`/`renderCeldaCollage`
+(`TiendaSeccionEditor.tsx`), el comentario de `BRAND_STORY` en `tienda-secciones.ts`,
+`lib/tienda/lista-plana.ts` (`mover` nueva), `parametrosAcomodoCollage`/`transformAcomodo`
+(`lib/animation.ts`, sólo el CUERPO de la primera cambió, la firma de las dos no),
+`BrandStoryCentrada.tsx` (comentarios). Grepeados uno por uno contra `CLAUDE.md`:
+
+- **`renderBloqueCollage`, `renderCeldaCollage`, `parametrosAcomodoCollage`, `transformAcomodo`,
+  `BrandStoryCentrada`, `CampoImagen`, `aperturaPx`** → CERO apariciones. Nada que este diff
+  pudiera dejar falso.
+- **`lista-plana`** (1 aparición, § "LISTA PLANA COMPACTA") → describe el archivo SÓLO por su uso
+  en `bullet1..4` de Suscripción. Sigue siendo CIERTO (ese uso no cambió), pero queda INCOMPLETO:
+  no menciona que el mismo archivo ahora también sirve a `imagen1..4` de brandStory, ni la función
+  `mover` nueva. No es una afirmación falsa — es una doctrina que no se actualizó para cubrir el
+  alcance ampliado. Anotado en `open_followups` (`LISTA-PLANA-DOCTRINA-INCOMPLETA-1`).
+- **`brandStory`** (13 apariciones) → ninguna describe el comportamiento de "Quitar" ni la
+  apertura del collage; todas hablan de cardinalidad, defaults, o composición (`columnas` vs
+  `centrada`), ninguno de los cuales cambió. Sin afectación.
+- **`collage`** (6 apariciones) → todas sobre layout/letterboxing de la vista previa, no sobre el
+  editor de fotos ni el motor de scroll. Sin afectación.
+
+### `customer_bytes`
+
+**`changed: true`.** El collage de "Nuestra Historia" bajo la variante `centrada` (preset CORTE, o
+cualquier tenant futuro que declare `brandStory.variante:'centrada'`) deja de desplazarse en X al
+scrollear — sólo sigue girando. `strings:` **ninguno** — cambio de movimiento/geometría, no de
+copy. Nayoli (`columnas`) no lo ve (medido, 0px arriba).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`) — la RAMA cambia bytes que un visitante con CORTE activo
+(o `brandStory.variante:'centrada'` bajo cualquier preset) ve al scrollear esa sección. El owner ya
+aprobó la ESCRITURA de este slice específico (§ `approval-reason` del spec); el MERGE sigue
+gateado aparte. El cambio del PANEL (§1) no tiene bytes de cliente — vive detrás de sesión — pero
+viaja en el mismo commit que el cambio de storefront (§2), así que el mismo veredicto cubre a los
+dos.
+
+Cierra `HISTORIA-FOTOS-PANEL-Y-GIRO-1`.
