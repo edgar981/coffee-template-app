@@ -637,7 +637,12 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
               // framer-motion nunca reinicia la animación con el `transition` nuevo).
               key={duracionTicker}
               ref={trackRef}
-              className="flex whitespace-nowrap"
+              // `w-max` — § MARQUEE-TICKER-ANCHO-1: sin él la caja del track mide el ancho del
+              // contenedor, no el de sus dos copias, y el `-50%` de abajo recorría media PANTALLA
+              // en el tiempo calculado para UNA COPIA entera (`duracionTicker`): con una frase más
+              // ancha que la pantalla, la cinta iba a una fracción de la velocidad elegida y el
+              // loop saltaba en vez de empalmar.
+              className="flex w-max whitespace-nowrap"
               initial={{ x: '0%' }}
               animate={estatico ? { x: '0%' } : { x: ['0%', '-50%'] }}
               transition={estatico ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
