@@ -175,12 +175,15 @@ export default function ProductPage({
 
   return (
     <div className={offsetClase}>
-      {/* Breadcrumb */}
+      {/* Breadcrumb — § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1 (censo de transiciones,
+          2026-09-30): los dos enlaces ("Inicio"/"Tienda") cambiaban de color al hover SIN
+          `transition-colors` (a diferencia del resto de hovers de esta página, todos con
+          `transition-colors`/`transition-all`) — se les agregó, sin tocar color ni destino. */}
       <div className={`mx-auto ${contenedorClase} py-4`}>
         <nav className="flex items-center gap-2 text-xs text-[var(--sf-texto-suave)]">
           <Link
             href="/"
-            className="hover:text-[var(--sf-acento-texto)]"
+            className="transition-colors hover:text-[var(--sf-acento-texto)]"
           >
             Inicio
           </Link>
@@ -189,7 +192,7 @@ export default function ProductPage({
 
           <Link
             href="/tienda"
-            className="hover:text-[var(--sf-acento-texto)]"
+            className="transition-colors hover:text-[var(--sf-acento-texto)]"
           >
             Tienda
           </Link>

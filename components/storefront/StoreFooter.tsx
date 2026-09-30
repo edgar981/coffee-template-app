@@ -29,6 +29,13 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 //
 // LAS TRES COLUMNAS (con sus hrefs de ESTRUCTURA y el filtrado por página visible) se arman en
 // `columnasDeFooter` (site-content-defaults.ts, PURA — capa 1 la prueba sin jsdom).
+//
+// EL HOVER DEL LINK DE WHATSAPP NO TRANSICIONABA — § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1
+// (censo de transiciones, 2026-09-30). Todo enlace de este archivo lleva `transition-colors`
+// (sociales, columnas, bottom bar) MENOS el de WhatsApp en las dos variantes — un `hover:` sin
+// transición salta de golpe entre `--sf-tostado`/`--sf-tostado-6`, la única inconsistencia del
+// archivo. Se le agregó `transition-colors`, igual que a sus vecinos; sin cambio de color ni de
+// destino.
 
 // LOS BOTONES SOCIALES SALEN DE `settings.redes` (§ MUESTRARIO-REDES-ADICIONALES-1) — la MISMA
 // fuente que `RielSocial` (`lib/config/site.ts`, `parseRedesSociales`/`urlDeRedSocial`). El
@@ -213,7 +220,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
                   href={whatsappUrl(settings.whatsapp)}
                   target="_blank"
                   rel="noopener"
-                  className="text-[var(--sf-tostado)] hover:text-[var(--sf-tostado-6)]"
+                  className="text-[var(--sf-tostado)] transition-colors hover:text-[var(--sf-tostado-6)]"
                 >
                   {formatWhatsappDisplay(settings.whatsapp)}
                 </a>
@@ -364,7 +371,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
                 href={whatsappUrl(settings.whatsapp)}
                 target="_blank"
                 rel="noopener"
-                className="text-[var(--sf-tostado)] hover:text-[var(--sf-tostado-6)]"
+                className="text-[var(--sf-tostado)] transition-colors hover:text-[var(--sf-tostado-6)]"
               >
                 {formatWhatsappDisplay(settings.whatsapp)}
               </a>

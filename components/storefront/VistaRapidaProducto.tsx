@@ -18,7 +18,7 @@ import {
   clampCantidadVistaRapida,
   accionVistaRapida,
 } from "@/lib/storefront/vista-rapida";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { formatCOP } from "@duna/core/utils";
 
 // components/storefront/VistaRapidaProducto.tsx — § RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1
@@ -76,6 +76,28 @@ import { formatCOP } from "@duna/core/utils";
 // así que nunca cae en el branch `_DEFECTO` (Nayoli) que carece de `cursor-pointer`. Los botones de
 // molienda, más abajo, YA lo tenían (`cursor-pointer`/`cursor-not-allowed` explícitos) — no se
 // tocan.
+//
+// EL MODAL ENTERO ABRÍA/CERRABA DE GOLPE — § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1 (censo de
+// transiciones, 2026-09-30). El `<motion.div key={imgIdx}>` de la galería (abajo) SÍ crossfadea al
+// cambiar de foto, pero el CONTENEDOR del modal (velo + panel) era un `<div>` plano: con
+// `if (!producto) return null` como única puerta, React lo desmonta/monta en el MISMO tick que
+// cambia `producto` — sin `AnimatePresence` de por medio no hay exit que animar, así que aparecía y
+// desaparecía en un frame. Es la MISMA familia de defecto que el drawer móvil de `StoreNav.tsx`
+// (§ ese archivo) pero en su forma MÁS aguda: ahí el `exit` SÍ estaba declarado (medido con
+// Playwright: opacity 1→0 en ~220ms) y sólo faltaba Escape; acá no había ni motion ni exit en el
+// contenedor — medido por lectura del código (sin `motion.*` en la fila de arriba de este comentario
+// hasta el `<div className="fixed inset-0…">` de abajo), no por ejecución (no hace falta correr un
+// navegador para confirmar la AUSENCIA de un import/uso).
+//
+// EL FIX: `AnimatePresence` + `motion.div` en el velo Y en el panel (opacity, panel con `y` además),
+// gateado por `abierto` (no por `producto` directo). Como los EFECTOS (Escape/Tab/click-afuera/
+// scroll-lock, arriba) y el resto de la lógica de render leen `producto`/`producto.campo` en varios
+// puntos, y `producto` se vuelve `null` en el MISMO instante en que arranca la salida, se agrega
+// `productoMostrado` — un snapshot del ÚLTIMO producto no-nulo — para que el panel tenga qué
+// mostrar mientras se desvanece (200ms) en vez de crashear leyendo `null.nombre`. `abierto` sigue
+// derivándose de `producto` (la fuente de verdad de "¿está abierto?"), nunca de `productoMostrado`
+// (que por diseño SOBREVIVE un tic más que `producto`, y usarlo para "abierto" nunca cerraría el
+// panel).
 export interface VistaRapidaProductoProps {
   /** El producto a mostrar. `null` = el modal está CERRADO. */
   producto: Product | null;
@@ -99,6 +121,12 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
   const [galeriaTocada, setGaleriaTocada] = useState(false);
   const [cantidad, setCantidad] = useState(1);
   const [molienda, setMolienda] = useState<string | null>(null);
+  // El SNAPSHOT del último producto no-nulo (§ el docstring de cabecera) — sobrevive el tic en que
+  // `producto` se vuelve `null` para que el panel tenga qué renderizar mientras `exit` se reproduce.
+  const [productoMostrado, setProductoMostrado] = useState<Product | null>(null);
+  useEffect(() => {
+    if (producto) setProductoMostrado(producto);
+  }, [producto]);
 
   function cerrarYDevolverFoco() {
     onClose();
@@ -172,12 +200,16 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
     };
   }, [abierto]);
 
-  if (!producto) return null;
+  // `productoMostrado`, no `producto`: nunca se abrió (siempre `null`) o ya terminó de cerrarse
+  // (AnimatePresence retiró el nodo, no hay nada que animar). Mientras `abierto` es `true` los dos
+  // valen lo mismo; en el tramo de salida `producto` ya es `null` y `productoMostrado` sostiene el
+  // panel para que el `exit` tenga contenido real que desvanecer.
+  if (!productoMostrado) return null;
 
-  const galeria = galeriaVistaRapida(producto);
+  const galeria = galeriaVistaRapida(productoMostrado);
   const heroSrc = imagenPortada(heroDeGaleria(galeria, imgIdx));
-  const maxCompra = producto.maxCompra ?? 1;
-  const accion = accionVistaRapida(producto.moliendasOpciones, molienda);
+  const maxCompra = productoMostrado.maxCompra ?? 1;
+  const accion = accionVistaRapida(productoMostrado.moliendasOpciones, molienda);
 
   function cambiarFoto(direccion: 1 | -1) {
     setGaleriaTocada(true);
@@ -189,24 +221,37 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
       toast.error(accion.mensajeError ?? "Selecciona una molienda disponible");
       return;
     }
-    // `producto` ya se verificó no-null arriba (`if (!producto) return null`), pero TS no propaga
-    // esa narrowing dentro de una función declarada más abajo en el mismo cuerpo — el mismo patrón
-    // que ya acepta /tienda/[slug] con `product.moliendasOpciones!`.
-    addItem(producto!, cantidad, molienda ? { molienda } : {});
-    toast.success(`${producto!.nombre} agregado al carrito`);
+    // `productoMostrado` ya se verificó no-null arriba, pero TS no propaga esa narrowing dentro de
+    // una función declarada más abajo en el mismo cuerpo — el mismo patrón que ya acepta
+    // /tienda/[slug] con `product.moliendasOpciones!`.
+    addItem(productoMostrado!, cantidad, molienda ? { molienda } : {});
+    toast.success(`${productoMostrado!.nombre} agregado al carrito`);
     cerrarYDevolverFoco();
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Vista rápida de ${producto.nombre}`}
-        className="relative grid max-h-[90vh] w-full max-w-3xl grid-cols-1 gap-6 overflow-y-auto rounded-3xl bg-[var(--sf-tarjeta)] p-6 shadow-2xl sm:grid-cols-2 sm:p-8"
-      >
+    <AnimatePresence>
+      {abierto && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          role="presentation"
+        >
+          <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+          <motion.div
+            ref={panelRef}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.2 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Vista rápida de ${productoMostrado.nombre}`}
+            className="relative grid max-h-[90vh] w-full max-w-3xl grid-cols-1 gap-6 overflow-y-auto rounded-3xl bg-[var(--sf-tarjeta)] p-6 shadow-2xl sm:grid-cols-2 sm:p-8"
+          >
         <button
           ref={cerrarBtnRef}
           type="button"
@@ -229,7 +274,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
           {heroSrc && (
             <Image
               src={heroSrc}
-              alt={producto.nombre}
+              alt={productoMostrado.nombre}
               fill
               sizes="(max-width: 640px) 90vw, 420px"
               quality={90}
@@ -261,21 +306,21 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
         {/* Info */}
         <div className="flex flex-col gap-4">
           <div>
-            <h2 className="font-playfair text-2xl text-[var(--sf-tinta)]">{producto.nombre}</h2>
-            <p className="mt-1 text-2xl font-bold text-[var(--sf-tinta)]">{formatCOP(producto.precio)}</p>
+            <h2 className="font-playfair text-2xl text-[var(--sf-tinta)]">{productoMostrado.nombre}</h2>
+            <p className="mt-1 text-2xl font-bold text-[var(--sf-tinta)]">{formatCOP(productoMostrado.precio)}</p>
           </div>
 
-          {producto.descripcion && (
-            <p className="text-sm leading-relaxed text-[var(--sf-texto)]">{producto.descripcion}</p>
+          {productoMostrado.descripcion && (
+            <p className="text-sm leading-relaxed text-[var(--sf-texto)]">{productoMostrado.descripcion}</p>
           )}
 
           {/* Molienda — la MISMA condición y lógica que /tienda/[slug] (length>0, no sólo >1): el
               producto con una sola opción también la muestra, ya elegida. */}
-          {(producto.moliendasOpciones?.length ?? 0) > 0 && (
+          {(productoMostrado.moliendasOpciones?.length ?? 0) > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--sf-texto)]">Tipo de molienda</p>
               <div className="flex flex-wrap gap-2">
-                {producto.moliendasOpciones!.map((o) => {
+                {productoMostrado.moliendasOpciones!.map((o) => {
                   const selected = molienda === o.nombre;
                   return (
                     <button
@@ -300,7 +345,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
             </div>
           )}
 
-          {producto.disponible ? (
+          {productoMostrado.disponible ? (
             <div className="mt-auto flex flex-col gap-3">
               <div className="flex items-center gap-2 self-start rounded-xl bg-[var(--sf-superficie)] px-1">
                 <button
@@ -343,7 +388,9 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
             <p className="mt-auto text-sm font-semibold text-[var(--sf-neutro)]">Producto agotado</p>
           )}
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

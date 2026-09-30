@@ -36570,3 +36570,157 @@ abrir el menú en `<lg` (§ `customer_bytes`, arriba). El spec lo pide explícit
 gate del 2026-09-30 con la captura de Cafeone real) — el MERGE sigue gateado aparte.
 
 Cierra `MENU-MOVIL-COMO-CAFEONE-1`. Dos follow-ups quedan abiertos (arriba).
+
+## 2026-09-30 — Márgenes del filete del drawer móvil + cierre con transición + censo de transiciones (`MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el
+gate de `MENU-MOVIL-COMO-CAFEONE-1`: *"Deja de borde a borde solamente la que divide el título con
+las opciones, las otras con margen. Y agrega una transición al cerrar el panel lateral… censa qué
+otras secciones… no tienen una transición."*
+
+### 1 · Filete de la cabecera edge-to-edge; filetes de ítems con margen
+
+Medido por PÍXEL contra `.scratch/refs/cafeone-menu-movil.png` (`sharp` sobre el raw decodificado,
+359×607): la fila de la cabecera pinta oscuro en TODO el ancho (`first:0, last:358`); las cuatro
+líneas entre ítems pintan sólo de `first:21` a `last:338` — margen de ~20px por lado, alineado con
+el arranque del texto (`first:24`/`25` en las filas de letras). El código (`StoreNav.tsx`,
+`pantallaCompleta`) pintaba las dos con la MISMA forma (`border-b` en la propia fila `w-full`),
+edge-to-edge las dos — correcto para la cabecera, no para los ítems, por el mismo motivo que ya
+cerró `CROMO-NAV-EXACTO-PROTOTIPO-1` para el filete del header sólido: un `border-b` se dibuja en
+el borde EXTERIOR de la caja, sin importar el `padding`.
+
+**El fix**: `border-b` sale de `filaClase` (ítems planos, botón-con-panel, "Rastrear Pedido") y pasa
+a un `<div aria-hidden mx-6 border-b>` HERMANO, tras el contenido completo de cada fila. `mx-6`
+(24px) = el mismo valor que el `px-6` de la fila, así el filete queda alineado al texto. La fila
+sigue `w-full px-6 py-4` — el ÁREA TÁCTIL no se achica, sólo el filete decorativo lleva margen. El
+`border-b-0` condicional del botón-con-panel se retira: ya no hace falta, el divisor único vive
+siempre al final del `motion.div`.
+
+**Medido en ejecución** (Playwright, `.arnes-tooling/playwright`, contra el preset CORTE levantado
+por `.scratch/levantar-corte.mjs`, viewport 390×844): cabecera `left:0, right:390` (edge-to-edge
+exacto); las cuatro líneas de ítems `left:24, right:366` (margen de 24px por lado, exacto). Captura
+en `.scratch/despues-menu-movil-margen.png` (gitignored), visualmente idéntica a la referencia.
+
+### 2 · El drawer móvil cierra con transición, Escape y devuelve el foco
+
+**Medido, no asumido**: contrario a lo que el código parecía prometer (`exit={{opacity:0,y:-8}}`
+declarado desde `MENU-MOVIL-COMO-CAFEONE-1`), una medición cuadro-a-cuadro (Playwright, muestreo
+cada ~40ms tras el click en "Cerrar") confirmó que ESE fade SÍ se reproducía —opacity 1→0 en
+~220ms, `matrix(…,-8)` de transform— así que "cierra de golpe" no era la animación del panel: era
+que **Escape no tenía NINGÚN listener** (medido: `Escape` con el drawer abierto no lo cerraba) y el
+foco, al cerrar por X, quedaba en `<body>` en vez de volver al botón hamburguesa.
+
+**El fix**: `cerrarMobileYDevolverFoco` (mismo patrón que `cerrarPanelYDevolverFoco`/
+`cerrarYDevolverFoco` de `NavSearch.tsx`, § `NAV-CIERRE-CLICK-AFUERA-1`) + un `useEffect` que
+engancha `keydown`→`Escape` SOLO mientras `navDrawerMovil.variante==='pantallaCompleta'` Y
+`mobileOpen` — el gate por variante es lo que mantiene a Nayoli (`variante==='dropdown'`) sin
+conducta nueva. El botón "Cerrar el menú" (X) pasa a usar ese cierre; los `<Link>` de navegación
+siguen en `setMobileOpen(false)` a secas (sin devolver foco), el MISMO criterio que ya usa
+`NavSearch` para sus resultados — el visitante ya se está yendo a otra pantalla. Movimiento
+reducido no necesitó gate propio: `MotionConfig reducedMotion="user"` (montado en
+`app/(storefront)/layout.tsx`) ya cubre este `motion.div`.
+
+**Medido en ejecución** (mismo harness): con el drawer abierto, `Escape` → cerrado (confirmado,
+antes daba `false`) y el foco final es el `<button>` hamburguesa (`esHamburguesa:true`); el cierre
+por Escape sigue animando (opacity 1→0.0051 en 200ms, muestreado cada 35ms) antes de desmontar.
+
+### 3 · Censo de transiciones bajo CORTE
+
+Recorrido por CÓDIGO + ejecución (Playwright contra el preset CORTE) de los controles que abren/
+cierran/cambian de estado, home → checkout. Corregidos los que cambian de golpe **dentro de
+`touches:`**; los de fuera se listan sin tocar.
+
+| Control | Superficie | Entrada | Salida | Hover | Estado | Acción |
+| --- | --- | --- | --- | --- | --- | --- |
+| Carrito lateral (`CartDrawer`) | global | sí (spring) | sí (spring) | sí, todos con `transition-colors`/`-all` | OK | sin cambio |
+| Vista rápida (`VistaRapidaProducto`) | riel de home | **NO** — `<div>` plano, sin `motion`/`AnimatePresence` | **NO** | parcial (botones sí) | DEFECTO | **CORREGIDO**: `AnimatePresence`+`motion.div` (velo+panel), snapshot `productoMostrado` para no crashear en el tramo de salida |
+| Búsqueda (`NavSearch`) | header | sí | sí | sí | OK | sin cambio |
+| Megamenú desktop (`itemPanel`, `StoreNav`) | header | sí | sí | sí | OK | sin cambio |
+| Drawer móvil completo (`StoreNav`, `pantallaCompleta`) | header | sí (stagger 420ms) | sí (220ms), pero sin Escape ni retorno de foco | sí | DEFECTO (Escape/foco) | **CORREGIDO** (§2) |
+| Submenú de un ítem del drawer móvil (acordeón) | header, móvil | **NO** — `<div>` plano | **NO** | chevron sí rota | DEFECTO | **CORREGIDO**: `AnimatePresence`+`height:'auto'`+`overflow:hidden`, 220ms/ease-out (mismos tokens que el resto de la composición) |
+| Panel "Filtrar y ordenar" | /tienda | **NO** — `<div>` plano (archivo no importaba `framer-motion`) | **NO** | chips sí | DEFECTO | **CORREGIDO**: mismo mecanismo que el ítem anterior |
+| Chips categoría/tostado/orden, slider de precio | /tienda | n/a | n/a | sí / n/a (drag directo) | OK | sin cambio |
+| Tarjeta de producto (`ProductCard`, hover lift/imagen/botón) | /tienda, home, ficha | sí (`whileInView`) | n/a | sí, medido con los tokens exactos del prototipo (§ `ACCIONES-RAPIDAS-CUADRADAS-1`) | OK | sin cambio |
+| Riel de Presentaciones (tarjetas, crossfade foto trasera, acciones rápidas, subrayado) | home | sí | sí | sí | OK | sin cambio |
+| Pie: columnas/sociales/bottom bar | global | n/a | n/a | sí | OK | sin cambio |
+| Pie: enlace de WhatsApp (2 variantes) | global | n/a | n/a | **NO** — sin `transition-colors`, único hover del archivo sin ella | DEFECTO | **CORREGIDO** |
+| Migas de pan ("Inicio"/"Tienda") | /tienda/[slug] | n/a | n/a | **NO** — sin `transition-colors` | DEFECTO | **CORREGIDO** |
+| Selector de molienda/cantidad/wishlist, miniaturas de galería | /tienda/[slug] | n/a | n/a | sí (`transition-all`/`-colors`) | OK | sin cambio |
+| Hero de galería (ficha y vista rápida, `key={imgIdx}`) | /tienda/[slug], riel | fade-in tras la primera interacción (`entradaHeroInicial`) | sin fade-out del cuadro anterior (remonta por `key`, sin `AnimatePresence`) | n/a | DISEÑO YA DELIBERADO (mismo patrón documentado en los dos componentes, § `pdp-galeria.ts`) | sin cambio — no es la omisión que este censo busca, es una elección ya escrita |
+| FAQ de /suscripciones (`PreguntasFrecuentes`) | /preguntas-frecuentes | — | — | — | **N/A**: lista estática siempre expandida, no existe acordeón que censar | sin cambio |
+| Toast (`sonner`) | global | sí (§ `TOAST-COMO-PROTOTIPO-1`, slice previo) | sí | n/a | OK | sin cambio |
+| Botones "Atrás" del checkout (2) | /checkout | n/a | n/a | **NO** — sin `transition-colors`, a diferencia del CTA "Confirmar pedido" vecino, que sí la tiene | DEFECTO, **fuera de `touches:`** | listado, no corregido |
+| Cambio de paso 0→1 del checkout | /checkout | **NO** — `{step === N && (<div>…)}` plano, sin `motion` | **NO** | — | posible defecto, **fuera de `touches:`**, no profundizado | listado, no corregido |
+| Estados de resultado de "Rastrear pedido" | /rastrear-pedido | **NO** — `<div>` plano | **NO** | — | posible defecto, **fuera de `touches:`**, no profundizado | listado, no corregido |
+
+Los tres últimos quedan como `open_followup` (abajo) — no se tocan por estar fuera de `touches:` de
+este slice, no porque se ignore lo medido.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2722/2722** |
+| `npm run test:integracion` | **242/242** en la corrida final. Una corrida intermedia dio 241/242 — `wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador…", archivo AJENO a `touches:` de este slice, el mismo flake de timing ya documentado ≥12 veces en este libro (§ arriba). Re-corrida COMPLETA: 242/242. |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset vs. fixture |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| `npm run lint` (no forma parte de `npm run gate`, corrido igual) | 0 errores; el único warning NUEVO en archivos de este slice es `react-hooks/set-state-in-effect` en `VistaRapidaProducto.tsx:128` (el snapshot `productoMostrado`) — MISMA clase de warning ya preexistente en `StoreNav.tsx` (líneas 100/105/106) y aceptada en slices anteriores ("mismo patrón que la línea 96 preexistente, no una clase nueva de aviso") |
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** La RAMA sigue cambiando bytes del storefront bajo CORTE desde
+slices anteriores de esta misma rama (§ los asientos previos); este commit ajusta tres piezas más
+del mismo eje: el filete del drawer móvil (margen en vez de edge-to-edge en las líneas de ítem), su
+mecánica de cierre (Escape ahora funciona, el foco vuelve al disparador) y la transición de dos
+acordeones (submenú del drawer, panel de filtros) que antes cambiaban de golpe. Nayoli
+(`navDrawerMovil.variante==='dropdown'`, `FiltrarOrdenar.tsx` no se importa fuera de CORTE) queda
+byte-idéntico — MEDIDO 0px, §Gate.
+
+**`strings:`** ninguna cadena de copy nueva ni cambiada.
+
+### Deviations
+
+Ninguna respecto del spec. La medición de por qué "cierra de golpe" (el fade YA se reproducía; lo
+que faltaba era Escape/foco, §2) contradijo la lectura literal del spec ("hoy… al cerrar
+desaparece de golpe") — se corrigió el defecto REAL medido (Escape/foco), no se inventó un segundo
+mecanismo de fade sobre uno que ya funcionaba.
+
+### Open follow-ups
+
+- **`CHECKOUT-ATRAS-SIN-TRANSICION-1`** — los dos botones "Atrás" de `app/(storefront)/checkout/
+  page.tsx` (líneas ~803/807) tienen `hover:bg-[var(--sf-superficie)]` sin `transition-colors`, a
+  diferencia del CTA "Confirmar pedido" vecino que sí la lleva. Por qué no ahora: `checkout/
+  page.tsx` está fuera de `touches:` de este slice.
+- **`CHECKOUT-STEP-SIN-TRANSICION-1`** — el cambio entre `step===0` y `step===1` en `checkout/
+  page.tsx` es un `{cond && (<div>…)}` plano, sin `motion`/`AnimatePresence`: cambia de golpe entre
+  los dos pasos. Por qué no ahora: fuera de `touches:`, y no se profundizó más allá de la lectura
+  del código (no se midió en ejecución qué tan perceptible es el salto).
+- **`RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1`** — los tres estados de resultado de `/rastrear-
+  pedido` (`!searched` / `searched && !order` / `order`) son `{cond && (<div>…)}` planos. Por qué no
+  ahora: fuera de `touches:`, y es un cambio de resultado de búsqueda (no un control que el
+  visitante abre/cierra a voluntad), de menor prioridad que los de checkout.
+- **`MENU-DRAWER-DEFAULTS-DOCSTRING-1`**, **`MENU-DRAWER-SUBMENU-SIN-TENANT-1`** — siguen abiertos
+  de `MENU-MOVIL-COMO-CAFEONE-1` (arriba), sin relación con este slice.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `components/storefront/layout/StoreNav.tsx`,
+`components/storefront/VistaRapidaProducto.tsx`, `components/storefront/tienda/
+FiltrarOrdenar.tsx`, `components/storefront/StoreFooter.tsx`, `app/(storefront)/tienda/[slug]/
+page.tsx`, `productoMostrado`, `cerrarMobileYDevolverFoco`, `mobileTriggerRef`,
+`MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`. Grepeados uno por uno contra `CLAUDE.md`: **CERO
+coincidencias** en todos — ninguno de estos símbolos/rutas aparece en el archivo de instrucciones
+del repo (la doctrina de estas piezas vive en `themes.ts`/`site-content-defaults.ts`/los propios
+componentes, no en `CLAUDE.md`). Nada en `CLAUDE.md` afirma algo sobre esta pieza que este diff
+vuelva falso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante con CORTE ve
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30
+sobre `MENU-MOVIL-COMO-CAFEONE-1`) — el MERGE sigue gateado aparte.
+
+Cierra `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`. Cinco follow-ups quedan abiertos (arriba, tres
+nuevos + dos heredados).

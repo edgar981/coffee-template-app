@@ -89,6 +89,10 @@ export default function StoreNav() {
   const megaPanelRef = useRef<HTMLDivElement>(null);
   const megaTriggerRef = useRef<HTMLButtonElement>(null);
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
+  // EL DISPARADOR DEL DRAWER MÓVIL (§ MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1) — el botón
+  // hamburguesa/X de la fila de acciones del header (abajo), para devolverle el foco al cerrar por
+  // X/Esc, MISMO patrón que `megaTriggerRef`/`searchTriggerRef` arriba (§ NAV-CIERRE-CLICK-AFUERA-1).
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const { count, openCart } = useCartStore();
   const pathname = usePathname();
   const isHome = pathname === '/';
@@ -134,6 +138,34 @@ export default function StoreNav() {
     document.addEventListener('pointerdown', handlePointerDown, true);
     return () => document.removeEventListener('pointerdown', handlePointerDown, true);
   }, [panelAbierto, cerrarPanelYDevolverFoco]);
+
+  // § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1 — EL CIERRE DEL DRAWER MÓVIL GANA Escape + devuelve
+  // el foco, MISMO patrón que `cerrarPanelYDevolverFoco`/`cerrarYDevolverFoco` (`NavSearch.tsx`) de
+  // arriba: el X y Esc dejan el foco en el botón hamburguesa que abrió el panel; un tap en un
+  // enlace NO lo devuelve — mismo criterio que `NavSearch` usa `onClose` a secas para sus
+  // resultados (§ ese componente), porque el visitante ya está navegando a otra pantalla.
+  //
+  // ANTES DE ESTE SLICE, Escape NO CERRABA EL DRAWER — medido por ejecución (Playwright contra el
+  // preset CORTE), no supuesto: con el drawer abierto, `Escape` no tenía listener alguno y el panel
+  // seguía montado. El cierre por X/tap SÍ animaba la salida (opacity 1→0 + y 0→-8px en ~220ms,
+  // medido cuadro a cuadro) — la "de golpe" del spec no era la transición del panel, sino la
+  // ausencia total de una salida por teclado.
+  //
+  // GATEADO a `navDrawerMovil.variante === 'pantallaCompleta'`: Nayoli usa el dropdown viejo
+  // (`variante === 'dropdown'`, sin cambio), que nunca cerró con Escape — agregarlo sin el gate
+  // sería CONDUCTA nueva para Nayoli, y el spec pide "Nayoli no se mueve ni en píxeles ni en
+  // conducta". `false` (todo tenant salvo CORTE) → el efecto de abajo nunca engancha el listener.
+  const cerrarMobileYDevolverFoco = useCallback(() => {
+    setMobileOpen(false);
+    setTimeout(() => mobileTriggerRef.current?.focus(), 0);
+  }, []);
+
+  useEffect(() => {
+    if (navDrawerMovil.variante !== 'pantallaCompleta' || !mobileOpen) return;
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') cerrarMobileYDevolverFoco(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [navDrawerMovil.variante, mobileOpen, cerrarMobileYDevolverFoco]);
 
   const itemPanel = links.find((l) => l.id === panelAbierto)?.panel ?? null;
 
@@ -820,7 +852,7 @@ export default function StoreNav() {
                   <span className="text-xs font-bold text-[var(--sf-acento-4)]">Mi</span>
                 </button>
               </Link> */}
-              <button className={`lg:hidden p-2 ${iconColor}`} onClick={() => setMobileOpen(!mobileOpen)}>
+              <button ref={mobileTriggerRef} className={`lg:hidden p-2 ${iconColor}`} onClick={() => setMobileOpen(!mobileOpen)}>
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
             </div>
@@ -859,12 +891,38 @@ export default function StoreNav() {
         // header sólido, § CROMO-NAV-EXACTO-PROTOTIPO-1, que lo evita). Los ÍTEMS pasan de
         // `font-display text-[32px]` a la MISMA tipografía de interfaz + tracking que ya usa el
         // `<nav>` desktop (`navLinkTratamiento`/`navHoverClase`, arriba — reutilizados tal cual, no
-        // reinventados), con un filete fino (edge-to-edge, mismo mecanismo) entre cada uno —
-        // INCLUYENDO tras el último: medido contra la referencia, la línea sigue tras el ítem final
-        // antes del espacio vacío, así que ningún ítem lleva `last:border-0` (que además, con cada
-        // fila envuelta en su propio `motion.div` de UN solo hijo, aplicaría a TODAS — cada Link es
-        // trivialmente `:last-child` de su propio wrapper — y por eso NINGÚN filete se veía en la
-        // composición vieja, pese a que el código los declaraba).
+        // reinventados), con un filete fino entre cada uno — INCLUYENDO tras el último: medido
+        // contra la referencia, la línea sigue tras el ítem final antes del espacio vacío.
+        //
+        // EL FILETE DE LOS ÍTEMS LLEVA MARGEN, A DIFERENCIA DEL DE LA CABECERA — § MENU-MOVIL-
+        // MARGEN-Y-CENSO-TRANSICIONES-1 (2026-09-30), CORRIGE la lectura de arriba ("edge-to-edge,
+        // mismo mecanismo"): esa lectura describía el código de MENU-MOVIL-COMO-CAFEONE-1, y era
+        // literalmente lo que el código hacía — pero MEDIDO por PÍXEL contra la MISMA referencia
+        // (`.scratch/refs/cafeone-menu-movil.png`, `sharp` sobre el raw decodificado, sin asumir):
+        // la fila de la cabecera pinta oscuro en TODO el ancho de la imagen (`first:0, last:358` de
+        // 359px — edge-to-edge, exacto); las CUATRO líneas entre ítems pintan oscuro sólo de
+        // `first:21` a `last:338` — un margen de ~20px por lado, alineado con el arranque del texto
+        // (`first:24` en las filas de letras). Dos filetes con la MISMA forma de código
+        // (`border-b` en un elemento `w-full`) medían DISTINTO en la referencia: el de la cabecera
+        // es de verdad edge-to-edge; el de los ítems tenía margen, y el código (border-b sobre el
+        // `<Link>`/`<button>` `w-full`) lo pintaba edge-to-edge por el mismo motivo que ya cerró
+        // § CROMO-NAV-EXACTO-PROTOTIPO-1 para el filete del header SÓLIDO: un `border-b` se dibuja
+        // en el borde EXTERIOR de la caja del elemento, sin importar su `padding` — puesto en una
+        // fila `w-full px-6`, el borde queda en el borde exterior de ESA fila (el ancho completo),
+        // no inset por su propio `padding-inline`.
+        //
+        // EL FIX: el `border-b` SALE de `filaClase` (que ya NO declara borde) y pasa a un `<div
+        // aria-hidden>` HERMANO, con `mx-6` en vez de `px-6` — MARGEN, no relleno, así que el borde
+        // vive en el borde exterior de ESE div, que ya nació angosto por el margen. `mx-6` es el
+        // MISMO valor de espaciado que `px-6` (1.5rem = 24px, la escala de Tailwind), así que el
+        // filete queda alineado al arranque/fin del texto de la fila de arriba — el número que la
+        // referencia mide (~20px a 359px de ancho) es la MISMA proporción, a otra densidad de
+        // píxel. La fila (`<Link>`/`<button>`) SIGUE `w-full` con su `px-6 py-4`: el ÁREA TÁCTIL no
+        // se achica —el margen es sólo del filete decorativo, nunca del target de toque—, así que
+        // esta corrección no reduce el hit-target de ningún ítem. El divisor se renderiza SIEMPRE
+        // tras el contenido completo de la fila (para un ítem CON panel, tras el `<button>` Y su
+        // lista expandida si está abierta) — reemplaza al `border-b-0` condicional de antes, que
+        // ya no hace falta: un solo filete al final de cada `motion.div`, nunca dos.
         //
         // EL SUBMENÚ (`l.panel`) AHORA FUNCIONA: antes el chevron era puramente decorativo (el link
         // navegaba directo a `l.path`, ignorando el panel). Un ítem CON panel deja de ser un
@@ -878,6 +936,16 @@ export default function StoreNav() {
         // abrir (mismo `ease`/duración que el resto de transiciones de esta composición; el guard
         // GLOBAL de `prefers-reduced-motion` en `app/globals.css` la congela sola, sin un gate
         // propio — ya cubre cualquier `transition-transform`).
+        //
+        // LA LISTA EXPANDIDA, EN CAMBIO, APARECÍA/DESAPARECÍA DE GOLPE — § MENU-MOVIL-MARGEN-Y-CENSO-
+        // TRANSICIONES-1 (censo de transiciones, 2026-09-30): sólo el CHEVRON tenía transición; el
+        // `{abierto && (<div>…)}` de la lista era un `<div>` PLANO, montado/desmontado en el mismo
+        // tick — medido por lectura del código (sin `motion`/`AnimatePresence` en esa rama). Pasó a
+        // `AnimatePresence` + `motion.div` animando `height`/`opacity` (`initial={false}` para que el
+        // primer render de un ítem recién montado no dispare una entrada fantasma), MISMA
+        // duración/curva que `ENTRADA_ESCALONADA_DRAWER` de arriba (220ms, `--ease-out` del
+        // prototipo) — no los 420ms de la entrada ESCALONADA del drawer entero (esto es un acordeón
+        // LOCAL a un ítem, no la apertura del panel completo).
         //
         // «COMPRAR» AL PIE, RECTO: el CTA del menú (§ CROMO-MENU-COMO-DATO-1) deja la píldora
         // translúcida sobre-tinta y pasa a la MISMA familia CTA-primario que ya pinta el "Comprar"
@@ -941,7 +1009,7 @@ export default function StoreNav() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMobileOpen(false)}
+                    onClick={cerrarMobileYDevolverFoco}
                     className={`rounded-full p-2 transition-colors ${drawerTextoClase}`}
                     aria-label="Cerrar el menú"
                   >
@@ -951,7 +1019,7 @@ export default function StoreNav() {
               </div>
               <nav className="flex flex-col">
                 {links.map((l, i) => {
-                  const filaClase = `flex w-full items-center justify-between gap-2 border-b border-[var(--sf-linea)] px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`;
+                  const filaClase = `flex w-full items-center justify-between gap-2 px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`;
                   if (l.panel) {
                     const abierto = mobileSubAbierto === l.id;
                     const enlaces = l.panel.columnas.flatMap((col) => col.enlaces);
@@ -962,7 +1030,7 @@ export default function StoreNav() {
                           aria-expanded={abierto}
                           aria-controls={`mobile-sub-${l.id}`}
                           onClick={() => setMobileSubAbierto(abierto ? null : l.id)}
-                          className={`${filaClase} cursor-pointer text-left ${abierto ? 'border-b-0' : ''}`}
+                          className={`${filaClase} cursor-pointer text-left`}
                         >
                           <span className="inline-flex items-center gap-2">
                             {l.label}
@@ -973,20 +1041,33 @@ export default function StoreNav() {
                             className={`h-4 w-4 shrink-0 opacity-70 transition-transform ${abierto ? 'rotate-0' : '-rotate-90'}`}
                           />
                         </button>
-                        {abierto && (
-                          <div id={`mobile-sub-${l.id}`} className="flex flex-col border-b border-[var(--sf-linea)] px-6 pb-3 pt-1">
-                            {enlaces.map((en, j) => (
-                              <Link
-                                key={j}
-                                href={en.destino}
-                                onClick={() => setMobileOpen(false)}
-                                className="py-1.5 pl-4 text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-tinta)]"
-                              >
-                                {en.etiqueta}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
+                        <AnimatePresence initial={false}>
+                          {abierto && (
+                            <motion.div
+                              key={`mobile-sub-${l.id}`}
+                              id={`mobile-sub-${l.id}`}
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
+                              style={{ overflow: 'hidden' }}
+                            >
+                              <div className="flex flex-col px-6 pb-3 pt-1">
+                                {enlaces.map((en, j) => (
+                                  <Link
+                                    key={j}
+                                    href={en.destino}
+                                    onClick={() => setMobileOpen(false)}
+                                    className="py-1.5 pl-4 text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-tinta)]"
+                                  >
+                                    {en.etiqueta}
+                                  </Link>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        <div aria-hidden="true" className="mx-6 border-b border-[var(--sf-linea)]" />
                       </motion.div>
                     );
                   }
@@ -998,6 +1079,7 @@ export default function StoreNav() {
                           {l.badge && badgeSpan(l.badge)}
                         </span>
                       </Link>
+                      <div aria-hidden="true" className="mx-6 border-b border-[var(--sf-linea)]" />
                     </motion.div>
                   );
                 })}
@@ -1005,10 +1087,11 @@ export default function StoreNav() {
                   <Link
                     href="/rastrear-pedido"
                     onClick={() => setMobileOpen(false)}
-                    className={`flex w-full items-center border-b border-[var(--sf-linea)] px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`}
+                    className={`flex w-full items-center px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`}
                   >
                     Rastrear Pedido
                   </Link>
+                  <div aria-hidden="true" className="mx-6 border-b border-[var(--sf-linea)]" />
                 </motion.div>
               </nav>
               {/* El CTA del menú, al PIE de la lista — § MENU-MOVIL-COMO-CAFEONE-1, arriba, para el

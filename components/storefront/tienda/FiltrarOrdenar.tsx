@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { SlidersHorizontal } from "lucide-react";
 import { TOSTADO_LABELS } from "@/constants/roast-levels";
@@ -45,7 +46,18 @@ import {
 // el chrome cuadrado del prototipo) y `sf-pildora-real` en los thumbs del slider (SIEMPRE
 // circulares, el mismo rol que ya usan `BackToTop`/la barra de progreso del carrito — un asa de
 // slider no es "chrome cuadrado", es control físico).
-
+//
+// EL PANEL ABRÍA/CERRABA DE GOLPE — § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1 (censo de
+// transiciones, 2026-09-30). `{abierto && (<div>…)}` es un `<div>` PLANO: sin `motion`/
+// `AnimatePresence`, React monta/desmonta el bloque entero en el mismo tick que cambia `abierto`,
+// así que las cuatro columnas y el CTA aparecían/desaparecían de un frame a otro — medido por
+// lectura del código (este archivo no importaba `framer-motion` en absoluto), no por ejecución.
+// `AnimatePresence` + `motion.div` animando `height`/`opacity` (`initial:false` para que el primer
+// render —panel cerrado de fábrica— no dispare una entrada fantasma) reemplazan al `<div>` plano;
+// `overflow:hidden` en el wrapper es lo que hace legible una transición de `height` (sin él, el
+// contenido se desborda mientras el alto todavía crece). Byte-idéntico para todo tenant que no
+// monte este archivo (Nayoli: `navTratamiento.posicion` decide la rama en `tienda/page.tsx`, este
+// componente nunca se importa del lado no-CORTE).
 export interface FiltrarOrdenarProps {
   abierto: boolean;
   onAbiertoChange: (v: boolean) => void;
@@ -117,7 +129,16 @@ export default function FiltrarOrdenar({
         <span className="font-playfair text-lg">Filtrar y ordenar</span>
       </button>
 
-      {abierto && (
+      <AnimatePresence initial={false}>
+        {abierto && (
+          <motion.div
+            key="filtro-panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
+            style={{ overflow: "hidden" }}
+          >
         <div className="pb-8">
           {/* En el teléfono el panel APILA las columnas (1 sola), por spec — grid-cols-1 de base. */}
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -270,7 +291,9 @@ export default function FiltrarOrdenar({
             </button>
           </div>
         </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
