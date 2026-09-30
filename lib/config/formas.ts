@@ -45,8 +45,23 @@
 // Suave = `none`/`normal` (byte-idéntico); van SÓLO en `.sf-badge` (globals.css), sólo sobre etiquetas
 // de estado (product.badge, "Más Popular") — nunca en un chip/control.
 //
-// SOMBRAS FUERA en v1 (decisión del owner): no hay `--sf-sombra`. Las tres personalidades funcionan sin
-// ella; entra cuando una la necesite.
+// SOMBRAS FUERA en v1, SALVO EL ROL IMAGEN (§ HISTORIA-COLLAGE-COMO-PROTOTIPO-1, el momento en que
+// "entra cuando una la necesite" se cumplió): el collage de `brandStory·centrada`
+// (`BrandStoryCentrada.tsx`) usaba `rounded-2xl shadow-[0_18px_44px_rgba(16,36,7,0.14)]` — un radio
+// HARDCODEADO que resulta ser el MISMO `--radius-2xl` que 'recta' ya pisa a 0 para botones/tarjetas
+// (§ el comentario de CORTE en `themes.ts`, «Buttons and interface chrome are SQUARE»), así que bajo
+// CORTE el collage rendía con ESQUINAS RECTAS (medido: `border-radius:0px` contra el muestrario
+// desplegado, `.capturas/historia-collage-antes-figura/`) — exactamente el defecto reportado por el
+// owner («los bordes al no ser rectos sino suavizados»). El prototipo NUNCA comparte ese token: sus
+// fotos usan `--radius-image:16px` (`tokens.css:168`), un rol PROPIO, distinto de `--radius-card:0px`
+// —la misma separación que ya motivó `radioTile` (§ el docstring de ese campo, arriba). `radioImagen`/
+// `sombraImagen` son ese rol: SEPARADOS de `radioTile` (20px en 'recta', el tile de Spotlight/riel) y
+// de `radioLg`, porque el prototipo mide DOS valores DISTINTOS para "imagen" (16px) y "tile" (20px) en
+// la MISMA hoja de estilos — colapsarlos habría sido inventar una coincidencia que el prototipo no
+// declara. `sombraImagen` es el PRIMER token de sombra del eje: la única sombra que hoy existe en el
+// storefront (la del collage) queda var-backed en vez de un literal fijo, con el MISMO valor exacto
+// del prototipo (`--shadow-image:0 18px 44px rgba(16,36,7,.14)`, `tokens.css:182`) para 'recta', y el
+// literal de HOY como fallback de Suave — el resto del eje (botones, tarjetas) sigue sin sombra propia.
 //
 // PURO / client-safe: sin red, sin `server-only`. Lo consumen `forma-style` (el `<style>` del server),
 // el layout del storefront (via forma-style) y el picker del panel (`PaletaSeccion`).
@@ -79,6 +94,12 @@ export interface Forma {
   // a lo que el riel ya rendía con `rounded-3xl` bajo Suave); mínima = el mismo valor que su
   // `radius3xl` (10px, "corto y parejo" — sin un salto de escala nuevo).
   radioTile: string; // --sf-radio-tile (el rol tile grande — imágenes/media, separado de radioLg)
+  // EL ROL "IMAGEN" (§ HISTORIA-COLLAGE-COMO-PROTOTIPO-1) — ver el docstring de cabecera, arriba, para
+  // el porqué de separarlo de `radioTile`/`radioLg`. Único consumidor hoy: el collage de fotos de
+  // `brandStory·centrada` (`BrandStoryCentrada.tsx`). `sombraImagen` es el gemelo de sombra —el PRIMER
+  // token de sombra del eje (§ SOMBRAS FUERA en v1, arriba): mismo consumidor, mismo motivo.
+  radioImagen: string;  // --sf-radio-imagen  (el rol imagen — fotos de collage, distinto de tile/lg)
+  sombraImagen: string; // --sf-sombra-imagen (la sombra de esas mismas fotos)
   pildora: string;   // --sf-pildora   (el radio de las píldoras — botón/chip; sigue a --radius-button)
   // El rol PÍLDORA REAL (§ BACKTOTOP-REDONDO-Y-ORDEN-1) — ver el docstring de cabecera, arriba, para el
   // porqué de separarlo de `pildora`. Vale `9999px` en las tres formas: no hay personalidad que haga a
@@ -110,7 +131,12 @@ export const FORMAS: readonly Forma[] = [
     // Los valores EXACTOS de hoy, en REM (byte-idéntico: = los defaults de Tailwind v4). Suave es null y
     // NUNCA se guarda, así que estos valores NO se emiten en un <style>; existen para el picker y el test.
     radius3xl: '1.5rem', radius2xl: '1rem', radiusXl: '0.75rem',
-    radioLg: '0.75rem', radioTile: '1.5rem', pildora: '9999px', pildoraReal: '9999px',
+    radioLg: '0.75rem', radioTile: '1.5rem',
+    // radioImagen: 1rem = --radius-2xl de HOY (Tailwind v4), el valor que `rounded-2xl` ya resolvía
+    // ANTES de este rol propio — byte-idéntico. sombraImagen: el literal exacto que
+    // `shadow-[0_18px_44px_rgba(16,36,7,0.14)]` ya escribía — mismo valor, ahora var-backed.
+    radioImagen: '1rem', sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
+    pildora: '9999px', pildoraReal: '9999px',
     borde: '1px', divisor: '1px', trazo: '2',
     badgeCaja: 'none', badgeTracking: 'normal',
   },
@@ -122,7 +148,12 @@ export const FORMAS: readonly Forma[] = [
     // `--radius-tile:20px`) — NO los 2px de `radioLg` (§ el docstring del campo, arriba).
     // pildoraReal: 9999px, MEDIDO contra el prototipo (`tokens.css:170`, `--radius-pill:999px`) — NO
     // los 0 de `pildora` (§ BACKTOTOP-REDONDO-Y-ORDEN-1, el docstring del campo, arriba).
-    radioLg: '2px', radioTile: '20px', pildora: '0', pildoraReal: '9999px',
+    radioLg: '2px', radioTile: '20px',
+    // radioImagen/sombraImagen: 16px / `0 18px 44px rgba(16,36,7,.14)`, MEDIDOS contra el prototipo
+    // (`tokens.css:168` `--radius-image:16px`, `:182` `--shadow-image`) — NO los 0px de `--radius-2xl`
+    // que 'recta' ya pisa para botones/tarjetas (§ el docstring de cabecera, el defecto que esto cierra).
+    radioImagen: '16px', sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
+    pildora: '0', pildoraReal: '9999px',
     borde: '1.5px', divisor: '1px', trazo: '1.25',
     badgeCaja: 'uppercase', badgeTracking: '0.12em',
   },
@@ -130,7 +161,13 @@ export const FORMAS: readonly Forma[] = [
     clave: 'minima', label: 'Mínima',
     descripcion: 'Radio corto y parejo, sin divisores de banda.',
     radius3xl: '10px', radius2xl: '8px', radiusXl: '6px',
-    radioLg: '6px', radioTile: '10px', pildora: '8px', pildoraReal: '9999px',
+    // radioImagen: 10px, MISMA razón que radioTile (arriba de esta misma fila) — "corto y parejo, sin
+    // salto de escala nueva": sin prototipo propio, sigue el valor que ya usa el otro rol de media
+    // grande de esta personalidad. sombraImagen: sin evidencia de que Mínima deba verse SIN sombra
+    // (el divisor apagado es de BANDA, no de profundidad de foto), se mantiene el mismo valor.
+    radioLg: '6px', radioTile: '10px',
+    radioImagen: '10px', sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
+    pildora: '8px', pildoraReal: '9999px',
     borde: '1px', divisor: '0', trazo: '1.5',
     badgeCaja: 'uppercase', badgeTracking: '0.05em',
   },
@@ -161,7 +198,7 @@ export function formaDeForma(forma: ClaveForma | null): Forma {
 /**
  * Las vars de forma para un `style` INLINE (la vista previa del panel, que no pasa por el `<style>`
  * server de cssForma). Suave/null → `{}`: sin override, las utilidades de radio caen a su valor de hoy
- * (Tailwind v4). Una forma CUSTOM → las 12 vars (las 3 leídas + las 7 de superficie + las 2 de badge,
+ * (Tailwind v4). Una forma CUSTOM → las 14 vars (las 3 leídas + las 9 de superficie + las 2 de badge,
  * para que preview y `<style>` no puedan divergir; § el test de consistencia). Gemelo de `varsDeFuentePar`.
  */
 export function varsDeForma(forma: ClaveForma | null): Record<string, string> {
@@ -174,6 +211,8 @@ export function varsDeForma(forma: ClaveForma | null): Record<string, string> {
     '--radius-xl': f.radiusXl,
     '--sf-radio-lg': f.radioLg,
     '--sf-radio-tile': f.radioTile,
+    '--sf-radio-imagen': f.radioImagen,
+    '--sf-sombra-imagen': f.sombraImagen,
     '--sf-pildora': f.pildora,
     '--sf-pildora-real': f.pildoraReal,
     '--sf-borde': f.borde,

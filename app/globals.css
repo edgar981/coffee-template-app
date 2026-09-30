@@ -652,6 +652,21 @@ html {
      prototipo mide `--radius-tile:20px` — el tile salía CASI RECTO en vez de redondeado. */
   .sf-radio-tile { border-radius: var(--sf-radio-tile, 1.5rem); }
 
+  /* EL ROL "IMAGEN" (§ HISTORIA-COLLAGE-COMO-PROTOTIPO-1) — SEPARADO de `.sf-radio-tile` a propósito
+     (§ el docstring de `Forma.radioImagen`, formas.ts): el prototipo mide DOS valores distintos para
+     "imagen" (16px, `--radius-image`) y "tile" (20px, `--radius-tile`) en la MISMA hoja de estilos.
+     Único consumidor hoy: el collage de fotos de `brandStory·centrada` (`BrandStoryCentrada.tsx`),
+     que ANTES leía `rounded-2xl` crudo (→ `--radius-2xl`, el MISMO token que 'recta' pisa a 0 para
+     botones/tarjetas) — bajo CORTE esas esquinas salían RECTAS en vez de las 16px del prototipo
+     (medido: `border-radius:0px` contra el muestrario desplegado). Fallback 1rem = el `--radius-2xl`
+     de HOY (Tailwind v4), el mismo valor que `rounded-2xl` ya resolvía → Suave/Nayoli byte-idéntico
+     (y CORTE también, antes de este slice: 1rem ES la fila de Suave, ver `formas.ts`).
+     `.sf-sombra-imagen` es su gemelo de sombra — el PRIMER token de sombra del eje (§ SOMBRAS FUERA
+     en v1, `formas.ts`): mismo consumidor, mismo motivo. Fallback = el literal exacto que
+     `shadow-[0_18px_44px_rgba(16,36,7,0.14)]` ya escribía en el collage, ahora var-backed. */
+  .sf-radio-imagen  { border-radius: var(--sf-radio-imagen, 1rem); }
+  .sf-sombra-imagen { box-shadow: var(--sf-sombra-imagen, 0 18px 44px rgba(16,36,7,0.14)); }
+
   /* BORDE (ciñe una tarjeta/control) vs DIVISOR (separa dos bandas de página). Se SEPARAN para
      que Mínima pueda APAGAR los divisores (divisor:0) sin apagar el borde de una tarjeta —que
      obligaría a tocar el RELLENO, y el relleno es PALETA (§ el spec, los dos ejes se pisarían)—.

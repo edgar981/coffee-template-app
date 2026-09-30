@@ -1,7 +1,7 @@
 "use client";
 
 import { createElement, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { MotionConfig, useScroll, useTransform } from "framer-motion";
+import { MotionConfig, useScroll, useSpring, useTransform } from "framer-motion";
 // `VeloIntensidad`/`TickerVelocidad` — el VOCABULARIO de contenido (el set cerrado de strings que el
 // resolver acepta) vive en `site-content-defaults.ts`, no acá (§ CORTE-HERO-REVELADO-MASCARA-1, el
 // mismo criterio que ya separa `PuntoFocal` —declarado ahí— de `objectPositionDePuntoFocal` —también
@@ -103,9 +103,28 @@ export function parametrosAcomodoCollage(
 // (`["start end", "end start"]`) es el mismo que `FSA.scrub` mide a mano
 // (`p = (vh - r.top) / (r.height + vh)`, `js/app.js:190-197`): progreso 0 cuando el target entra
 // por el borde inferior del viewport, 1 cuando termina de salir por el superior.
+//
+// EL `useSpring` (§ HISTORIA-COLLAGE-COMO-PROTOTIPO-1) — el gate del owner reportó el collage "no tan
+// smooth como en el muestrario". El candidato que el spec nombra ("¿escritura directa por evento de
+// scroll sin interpolar?") es exactamente lo que había: `scrollYProgress` sigue el scroll NATIVO
+// frame a frame sin ninguna interpolación temporal, así que `transformAcomodo` saltaba directo al
+// valor de cada evento. El prototipo SÍ suaviza, pero por un mecanismo de OTRA escala — un
+// scroll-momentum GLOBAL que anima el `scrollY` real de toda la página (`initSmoothScroll`,
+// `js/app.js:205-239`), fuera del alcance de esta variante (afectaría cada gesto de scroll del
+// sitio, no sólo este collage; § el comentario de cabecera de `BrandStoryCentrada.tsx`). `useSpring`
+// es la aproximación LOCAL, del mismo paquete (framer-motion) que ya trae `useScroll`/`useTransform`
+// —no un segundo motor—: suaviza el VALOR derivado, no el scroll físico, así que el resto del sitio
+// (incluida la propia página que contiene este collage) sigue con scroll nativo. Los parámetros
+// (stiffness/damping) no reproducen ninguna constante del prototipo —su mecanismo es categóricamente
+// distinto, no hay un número que "medir" acá— y se declaran como generalización propia, con el mismo
+// criterio que ya usa `PASO_ROTACION_DEG` para los totales que el prototipo no cubre: la más simple
+// que da un seguimiento suave sin overshoot perceptible (crítica o cercana a ella) ni lag excesivo.
+export const RESORTE_ACOMODO = { stiffness: 120, damping: 24, restDelta: 0.001 } as const;
+
 export function useProgresoAcomodo(target: RefObject<HTMLElement | null>) {
   const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] });
-  return useTransform(scrollYProgress, [UMBRAL_ACOMODO.desde, UMBRAL_ACOMODO.hasta], [0, 1], { clamp: true });
+  const acotado = useTransform(scrollYProgress, [UMBRAL_ACOMODO.desde, UMBRAL_ACOMODO.hasta], [0, 1], { clamp: true });
+  return useSpring(acotado, RESORTE_ACOMODO);
 }
 
 // ── EL LOOP DE LA MARQUESINA — texto y tarjeta scrubbed por scroll, § MARQUESINA-BANDA-1 ──────────

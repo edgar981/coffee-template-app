@@ -896,14 +896,20 @@ export const CORTE: PresetTema = {
   // (docs/prototipos/cafeone/css/app.css:8; el mismo valor en radius.css:11 `--radius-button:0px` y
   // :12 `--radius-card:0px`). Los TRES tokens que nuestro sistema efectivamente LEE hoy
   // (`--radius-3xl/2xl/xl`, que en el storefront gobiernan botones/tarjetas/inputs — grep de
-  // `rounded-2xl`/`rounded-xl` en app/(storefront) y components/storefront, no sólo imágenes) son
+  // `rounded-2xl`/`rounded-xl` en app/(storefront) y components/storefront, **no sólo imágenes**) son
   // 0/0/0 en 'recta' (formas.ts), el único match exacto del set cerrado. 'minima' (el valor viejo,
   // 6-10px) contradice la regla explícita del prototipo. Las imágenes SÍ se redondean en el prototipo
   // (`--radius-image:16px`/`--radius-tile:20px`) — CERRADO por § NUESTRO-CAFE-RADIO-TILE-1
-  // (PARIDAD-RIEL-TARJETAS-1): ese rol tiene HOY su propio token, `Forma.radioTile`/
-  // `--sf-radio-tile` (formas.ts), separado de `--sf-radio-lg` — 'recta' lo declara en 20px, el
-  // valor exacto medido de `--radius-tile`. Antes de ese slice compartía campo con `--sf-radio-lg`
-  // (2px, el escalón de un control chico) y el tile salía casi recto; ya no.
+  // (PARIDAD-RIEL-TARJETAS-1) para el rol TILE (`Forma.radioTile`/`--sf-radio-tile`, 20px en 'recta',
+  // separado de `--sf-radio-lg`) y por § HISTORIA-COLLAGE-COMO-PROTOTIPO-1 para el rol IMAGEN
+  // (`Forma.radioImagen`/`--sf-radio-imagen`, 16px en 'recta') — el «no sólo imágenes» de arriba
+  // ERA, hasta ese slice, un defecto sin cerrar: el collage de `brandStory·centrada` seguía leyendo
+  // `rounded-2xl` (→ `--radius-2xl`, el mismo token que botones/tarjetas), así que bajo 'recta' sus
+  // esquinas salían RECTAS (0px, medido) en vez de las 16px del prototipo — el mismo modo de falla
+  // que ya había mordido al tile antes de que existiera `radioTile`. Con `radioImagen` cerrado, el
+  // grep de arriba queda desactualizado en un sentido MENOR (`rounded-2xl` ya no aparece en
+  // `BrandStoryCentrada.tsx`, migrado a `.sf-radio-imagen`), pero la ADVERTENCIA sigue siendo válida
+  // para cualquier imagen FUTURA que use `rounded-2xl`/`rounded-xl` crudo en vez de un rol de forma.
   forma: 'recta',
   // `brandStory: 'centrada'` (§ CORTE-BRANDSTORY-COLLAGE-1) — hasta ese slice CORTE pedía la
   // canónica ('columnas') porque era la ÚNICA clave que `brandStory.variantes` declaraba; el estándar

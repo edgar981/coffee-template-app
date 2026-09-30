@@ -12,7 +12,7 @@ import {
   duracionTickerS, VELOCIDAD_TICKER_PX_S, VELOCIDAD_TICKER_LENTA_PX_S,
   DURACION_TICKER_FALLBACK_S, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
-  MARQUEE_MASCARA_RELLENO_EM, parametrosAcomodoCollage,
+  MARQUEE_MASCARA_RELLENO_EM, parametrosAcomodoCollage, RESORTE_ACOMODO,
 } from './animation';
 
 // EL INVARIANTE de este slice (STOREFRONT-REDUCED-MOTION-1): el storefront monta
@@ -693,4 +693,15 @@ test('parametrosAcomodoCollage: una figura EXACTAMENTE en el centro (posible só
   const centro = parametrosAcomodoCollage(2, 5);
   assert.equal(centro.rotarInicialDeg, 0);
   assert.equal(centro.aperturaPx, 0);
+});
+
+// § HISTORIA-COLLAGE-COMO-PROTOTIPO-1 — la constante que `useProgresoAcomodo` pasa a `useSpring`
+// (el hook en sí no es testeable sin jsdom, § el docstring de ese archivo; esto afirma el ÚNICO
+// invariante verificable sin renderizar: que el resorte no puede OSCILAR más allá de [0,1]).
+test('RESORTE_ACOMODO: sobreamortiguado (damping ≥ 2·√stiffness, mass=1) — sin overshoot perceptible del progreso', () => {
+  const criticaMasaUno = 2 * Math.sqrt(RESORTE_ACOMODO.stiffness);
+  assert.ok(
+    RESORTE_ACOMODO.damping >= criticaMasaUno,
+    `damping (${RESORTE_ACOMODO.damping}) debe ser ≥ el crítico (${criticaMasaUno.toFixed(2)}) para mass=1 — si baja de eso, el progreso puede pasarse de 1 u oscilar bajo 0 antes de asentar`,
+  );
 });

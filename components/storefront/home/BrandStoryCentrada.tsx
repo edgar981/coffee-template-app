@@ -61,6 +61,37 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // mientras scrollea, SIN desplazarse — nunca abre. `transformAcomodo` sigue siendo la pieza genérica
 // que sabe aplicar una apertura (sin cambio); es `parametrosAcomodoCollage` la que dejó de pedirla.
 //
+// § HISTORIA-COLLAGE-COMO-PROTOTIPO-1 (gate del owner, 2026-09-30: "no se siente tan smooth como en
+// el muestrario... los bordes al no ser rectos sino suavizados y como con sombra") cierra DOS
+// defectos MEDIDOS contra el muestrario desplegado (`.capturas/historia-collage-antes-figura/`):
+//
+//   1. LAS ESQUINAS SALÍAN RECTAS BAJO CORTE — `rounded-2xl` (el radio de las figuras) compila a
+//      `var(--radius-2xl)`, el MISMO token que 'recta' pisa a `0` para botones/tarjetas (§ el
+//      comentario de CORTE en `themes.ts`, «Buttons and interface chrome are SQUARE»). Medido:
+//      `border-radius:0px` en el muestrario contra `16px` en el prototipo. El fix NO es un literal
+//      nuevo: es el ROL PROPIO que el sistema de formas le faltaba (`--sf-radio-imagen`/
+//      `--sf-sombra-imagen`, § `formas.ts`) — `.sf-radio-imagen`/`.sf-sombra-imagen` (`globals.css`)
+//      leen esos tokens con fallback = el valor EXACTO que `rounded-2xl shadow-[...]` ya rendía, así
+//      que Suave (Nayoli) queda byte-idéntico y 'recta' (CORTE) pasa a 16px/la sombra del prototipo
+//      SIN que nadie vuelva a pisarlo con el radio de botón.
+//   2. `WILL-CHANGE:TRANSFORM` FALTABA — el prototipo lo declara en `.collage figure`
+//      (`css/app.css:573`) y el muestrario lo rendía `auto` (medido). Sin el hint, el navegador no
+//      promueve la figura a su propia capa de composición ANTES de que el scrub empiece, así que las
+//      primeras actualizaciones de `transform` pueden forzar repintado —costoso acá, con
+//      `overflow-hidden` + sombra + esquinas redondeadas— en vez de una actualización de sólo
+//      compositor. Se agrega vía Tailwind (`[will-change:transform]`), no condicionado a `estatico`:
+//      el prototipo tampoco lo retira bajo `prefers-reduced-motion` (css/app.css no lo gatea), y acá
+//      es inofensivo con la figura quieta.
+//
+// LO QUE NO SE REPLICA: la suavidad del prototipo viene, en última instancia, de un scroll-momentum
+// GLOBAL (`initSmoothScroll`, `js/app.js:205-239` — intercepta `wheel` y anima el `scrollY` real con
+// un lerp propio), no de una técnica local al collage. Interceptar el scroll de TODO el sitio es una
+// decisión de otra escala —afecta cada página, cada gesto, la semántica nativa del scroll— y está
+// fuera del alcance de esta variante. La aproximación LOCAL, dentro de `useProgresoAcomodo`
+// (`lib/animation.ts`), es una `useSpring` de framer-motion sobre el progreso ya acotado: suaviza la
+// escritura DIRECTA del valor crudo de scroll (§ el candidato que el spec nombra, "escritura directa
+// por evento de scroll sin interpolar") sin tocar el scroll físico de la página. Ver ese archivo.
+//
 // MOVIMIENTO REDUCIDO, NO NEGOCIABLE: con `prefers-reduced-motion` (o en la VISTA PREVIA del editor,
 // que tampoco puede scrollear de verdad — mismo criterio que el resto de esta variante, § el switch
 // `preview` de abajo) el collage rinde su estado ACOMODADO final, QUIETO, sin importar el scroll —
@@ -215,7 +246,7 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
               <motion.div
                 key={campo}
                 style={{ transform: transformsPorImagen[i] }}
-                className={`relative aspect-[3/4] shrink-0 overflow-hidden rounded-2xl shadow-[0_18px_44px_rgba(16,36,7,0.14)] max-sm:transform-none! ${esMedia ? CLASE_FIGURA_MEDIO : CLASE_FIGURA_LADO}`}
+                className={`relative aspect-[3/4] shrink-0 overflow-hidden sf-radio-imagen sf-sombra-imagen [will-change:transform] max-sm:transform-none! ${esMedia ? CLASE_FIGURA_MEDIO : CLASE_FIGURA_LADO}`}
               >
                 <Image
                   src={brandStory[campo]}

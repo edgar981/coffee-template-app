@@ -34494,3 +34494,184 @@ si el dueño la prefiere, es su propio slice con su propia medición.
 `cursor-pointer` en los 7 controles nombrados) o re-verificados con evidencia fresca (nitidez, sin
 cambio de código porque ya estaba correcta). Gate completo verde. Sigue sin mergear (branch
 `slice/corte-reescritura-prototipo-1`).
+
+## 2026-09-30 — El collage de "Nuestra Historia" pierde su bug de esquinas rectas bajo CORTE, y el giro gana interpolación (`HISTORIA-COLLAGE-COMO-PROTOTIPO-1`)
+
+Gate del owner sobre `HISTORIA-FOTOS-PANEL-Y-GIRO-1`, 2026-09-30: *"Aun el efecto/transicion que
+tienen las imagenes en la seccion historia, no se siente tan smooth como en el muestrario. El
+cuadro en el que van al ser mas alargado tambien se ve mejor, y los bordes al no ser rectos sino
+suavizados y como con sombra."*
+
+### 1 · EL DEFECTO REAL — no era el marco ni la sombra: era `--radius-2xl` compartido con botones
+
+El diagnóstico-antes-de-fix (§ CLAUDE.md, El TRIPWIRE) partió de medir, no de suponer. El collage
+YA tenía `rounded-2xl shadow-[0_18px_44px_rgba(16,36,7,0.14)]` desde `HISTORIA-COMO-MUESTRARIO-1`
+—ancho y `aspect-[3/4]` YA coincidían byte a byte con el prototipo (307.188px, medido en las dos
+puntas)—, así que la sospecha inicial ("falta agrandar el marco") no encajaba con lo que el código
+ya hacía. Medido contra el muestrario desplegado (`--url https://coffee-template-app-onix.vercel.
+app/`, `--scroll 3456`, `.capturas/historia-collage-antes-figura/`):
+
+| propiedad | muestrario (antes) | prototipo | ¿coincide? |
+| --- | --- | --- | --- |
+| `border-radius` | **0px** | 16px | NO — el defecto real |
+| `box-shadow` | `rgba(16,36,7,.14) 0 18px 44px` | idéntico | sí |
+| `width` | 307.188px | 307.188px | sí |
+| `aspect-ratio` | 3/4 | 3/4 | sí |
+| `will-change` | `auto` | `transform` | NO — el segundo defecto |
+
+**La causa: `rounded-2xl` compila a `var(--radius-2xl)`, y CORTE (`forma:'recta'`) ya PISA ese
+mismo token a `0` para botones/tarjetas** (`cssForma('recta')` inyecta `:root{--radius-2xl:0;...}`
+en el layout del storefront, § el comentario de CORTE en `themes.ts`, «Buttons and interface
+chrome are SQUARE»). El collage nunca tuvo un rol de forma PROPIO — compartía el de botón/tarjeta
+por accidente de qué utilidad Tailwind se usó—, así que bajo CORTE sus esquinas salían RECTAS pese
+a que el literal en el JSX decía `rounded-2xl`. Es el MISMO modo de falla que ya había mordido al
+tile del riel antes de `NUESTRO-CAFE-RADIO-TILE-1` (§ el docstring de `Forma.radioTile`,
+`formas.ts`) — resuelto ahí con un rol propio, nunca cerrado para "imagen" porque nadie lo había
+medido hasta hoy. La "sombra" que el owner describía ya estaba correcta (byte-idéntica al
+prototipo); lo que el ojo leía como "sin sombra, sin suavizar" era una esquina recta con una
+sombra rectangular encima — la MISMA causa que "marco menos elegante/menos alargado": una caja
+cuadrada se lee más chata que la misma caja con esquinas suaves, sin que el ancho/alto cambie un
+píxel (medido: 0 cambio en `width`/`aspect-ratio` entre antes y después).
+
+### 2 · El fix — un ROL de forma nuevo, `radioImagen`/`sombraImagen` (§ SOMBRAS FUERA en v1, cerrado para este caso)
+
+`lib/config/formas.ts` documentaba desde su origen: *"SOMBRAS FUERA en v1 (decisión del owner): no
+hay `--sf-sombra`... entra cuando una la necesite."* Este slice es ese momento. `Forma` gana DOS
+campos (`radioImagen`, `sombraImagen`), separados de `radioTile` (el prototipo mide DOS valores
+distintos, `--radius-image:16px` vs `--radius-tile:20px`, en la MISMA hoja — colapsarlos habría
+inventado una coincidencia inexistente):
+
+| forma | radioImagen | sombraImagen | razón |
+| --- | --- | --- | --- |
+| suave (Nayoli) | `1rem` | `0 18px 44px rgba(16,36,7,0.14)` | = lo que `rounded-2xl shadow-[...]` YA rendía — byte-idéntico |
+| recta (CORTE) | `16px` | `0 18px 44px rgba(16,36,7,0.14)` | MEDIDO contra `tokens.css:168,182` |
+| mínima | `10px` | `0 18px 44px rgba(16,36,7,0.14)` | sin prototipo propio — mismo criterio que `radioTile` mínima ("sin salto de escala nueva") |
+
+`.sf-radio-imagen`/`.sf-sombra-imagen` (`app/globals.css`, § eje 4) leen esos tokens con FALLBACK
+= el literal exacto de HOY, así que Suave/Nayoli (sin `<style>` de forma) cae al mismo valor de
+siempre. `BrandStoryCentrada.tsx` cambia `rounded-2xl shadow-[0_18px_44px_rgba(16,36,7,0.14)]` →
+`sf-radio-imagen sf-sombra-imagen` — CERO cambio de valor para Suave, y el valor CORRECTO (ya no
+compartido con botones) para 'recta'.
+
+**`will-change:transform` faltaba** (medido: `auto` en el muestrario, `transform` en el
+prototipo, `css/app.css:573`). Se agrega vía Tailwind (`[will-change:transform]`), sin gatear a
+`estatico`: el prototipo tampoco lo retira bajo `prefers-reduced-motion`, y es inofensivo sobre
+una figura quieta.
+
+### 3 · La interpolación temporal — `useSpring` sobre el progreso, NO un scroll-momentum global
+
+El otro candidato que el spec nombraba ("¿escritura directa por evento de scroll sin
+interpolar?") era exacto: `useProgresoAcomodo` alimentaba `transformAcomodo` con el
+`scrollYProgress` NATIVO, sin ninguna interpolación temporal — cada evento de scroll saltaba
+DIRECTO al valor mapeado. El prototipo sí suaviza, pero por un mecanismo de OTRA escala:
+`initSmoothScroll` (`js/app.js:205-239`) intercepta `wheel` en TODA la página y anima el
+`scrollY` real con un lerp propio (`current += (target-current)*0.12` por frame) — scroll-jacking
+global, fuera del `touches:` de este slice y de la escala de "suavizar un collage".
+
+La aproximación LOCAL: `useProgresoAcomodo` envuelve el progreso YA acotado con `useSpring`
+(framer-motion, ya en el paquete — no un segundo motor), en vez de tocar el scroll físico de la
+página. `RESORTE_ACOMODO = {stiffness:120, damping:24, restDelta:0.001}` — SOBREAMORTIGUADO
+(`damping ≥ 2·√stiffness`, afirmado en `lib/animation.test.ts`): sin overshoot perceptible del
+progreso, así que no hace falta un clamp adicional sobre lo que `transformAcomodo` ya acota.
+**No reproduce ninguna constante del prototipo** —su mecanismo es categóricamente distinto, no
+hay número que medir— y se declara generalización propia, mismo criterio que ya usa
+`PASO_ROTACION_DEG` para los totales que el prototipo no cubre.
+
+**Verificado que no rompe SSR**: `useFollowValue` (la base de `useSpring` en framer-motion,
+`node_modules/framer-motion/dist/es/value/use-follow-value.mjs`) sólo activa la suscripción del
+resorte en `useInsertionEffect`, que NUNCA corre bajo `renderToStaticMarkup` — así que los dos
+tests de `historia-direccion-arte.test.ts` que renderizan `BrandStoryCentrada` sin navegador (el
+estado estático y el estado inicial a progreso=0) siguen pasando SIN modificarlos: el valor
+inicial del resorte es el valor inicial de la fuente, y sin efecto que corra, nunca diverge.
+
+### 4 · Lo que YA estaba bien, sin tocar
+
+- **"Foto del centro más grande"** (`esMedia = totalVisible===3 && pos===1`,
+  `CLASE_FIGURA_MEDIO`): construido en `HISTORIA-COMO-MUESTRARIO-1`, sin cambios en este slice —
+  el spec lo describe como parte del estado esperado, no como un defecto nuevo. Con el contenido
+  de HOY (4 fotos, `totalVisible=4`) esa rama no se ejercita — es correcta para el caso que sí
+  cubre (exactamente 3 visibles), regla ya fijada.
+- **Sin desplazamiento lateral** (`aperturaPx` forzado a 0, `HISTORIA-FOTOS-PANEL-Y-GIRO-1`): sin
+  cambios — la decisión del owner en ese slice sigue vigente, y `useSpring` suaviza el mismo
+  VALOR final (rotación), nunca reintroduce una apertura.
+- **`parametrosAcomodoCollage`/`transformAcomodo`**: SIN CAMBIOS — la matemática del ángulo por
+  posición/total sigue siendo la del prototipo (exacta para N=3, generalización simétrica para el
+  resto), exhaustivamente afirmada en `lib/animation.test.ts` (barrido de 1 a 4 figuras × 5
+  progresos). Esa cobertura YA es la "serie de ángulos por posición de scroll" que demuestra que
+  la curva coincide — más exacta que una serie de capturas manuales, y sin modificar por este
+  slice.
+
+### 5 · Capturas — medidas, en las dos anchuras que pide el spec
+
+`npm run capturar:seccion`, antes contra `--url` (el muestrario desplegado, sin este código) y
+después contra `--preset CORTE` (base local fresca, con este código):
+
+| captura | 1440px | 390px |
+| --- | --- | --- |
+| antes (una figura, computado) | `border-radius:0px` `will-change:auto` — `.capturas/historia-collage-antes-figura/` | — |
+| después (una figura, computado) | `border-radius:16px` `will-change:transform` — `.capturas/historia-collage-antes-figura/` … `-despues-figura/` | — |
+| antes (sección completa) | `.capturas/historia-seccion-antes-1440/` | `.capturas/historia-seccion-antes-390/` |
+| después (sección completa) | `.capturas/historia-seccion-despues-1440/` | `.capturas/historia-seccion-despues-390/` |
+
+Las cuatro capturas de sección se inspeccionaron por ejecución (no sólo se generaron): "antes"
+muestra esquinas rectas en las 3 fotos (1440 y 390); "después" muestra las 4 fotos con esquinas
+redondeadas visibles, en las dos anchuras. (El conteo de fotos difiere, 3 vs 4 — la base local
+efímera trae los 4 defaults de `DEFAULTS.brandStory`, sin recorte; no es parte de lo medido acá,
+ya explicado en `HISTORIA-COMO-MUESTRARIO-1`.)
+
+**Lo que NO se midió por ejecución**: la sensación de "smooth" en vivo durante un scroll real —eso
+es capa 3, el gate del propio owner sobre el preview—. Lo que SÍ se midió: (a) que el defecto
+concreto que el spec nombraba como candidato (`will-change` ausente) era real, y (b) que el
+mecanismo de interpolación queda genuinamente cableado (vía la lectura de `useFollowValue` en el
+paquete instalado, no una suposición sobre la API).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2632/2632** (2631 del piso de `RIEL-SUBRAYADO-CURSOR-NITIDEZ-1` + 1: el test nuevo de `RESORTE_ACOMODO`) |
+| `npm run test:integracion` | **242/242**, sin cambio — este slice no toca `tests/integracion/` |
+| `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs esta rama en `741160d`+este commit) — Nayoli usa `brandStory:'columnas'` (`BrandStoryColumnas.tsx`, no tocado) y `forma:null` (Suave), así que ni el cambio de collage ni el rol de forma nuevo pueden tocarla por construcción |
+| `npm run guarda:color` | **IDÉNTICO, 0px** contra el fixture, mismas 6 rutas + 2 hovers |
+| capturas antes/después (1440 y 390, sección completa + una figura) | § 5, medidas y vistas |
+
+### `touches:` — lo usado
+
+Los siete archivos tocados están dentro del `touches:` declarado: `components/storefront/home/
+BrandStoryCentrada.tsx`, `lib/animation.ts` (+ test), `lib/config/historia-direccion-arte.test.ts`
+(**NO tocado** — sus dos tests SSR ya cubrían el invariante y siguieron pasando sin cambio, § 3),
+`lib/config/themes.ts` (sólo el comentario de CORTE, actualizado para nombrar el nuevo rol),
+`lib/config/formas.ts` (+ test), `app/globals.css`, `DECISIONS.md`.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `Forma.radioImagen`/`Forma.sombraImagen`/`varsDeForma`
+(`lib/config/formas.ts`), `.sf-radio-imagen`/`.sf-sombra-imagen` (`app/globals.css`),
+`useProgresoAcomodo`/`RESORTE_ACOMODO` (`lib/animation.ts`), el className de la figura del
+collage y el comentario de CORTE sobre `forma:'recta'` (`themes.ts`). Grepeados uno por uno
+contra `CLAUDE.md`:
+
+- **`formas.ts`, `radioTile`/`radioImagen`/`sombraImagen`, `useProgresoAcomodo`,
+  `RESORTE_ACOMODO`, `BrandStoryCentrada`, `lib/animation`, `.sf-radio-*`/`.sf-sombra-*`,
+  `will-change`, `HISTORIA-COLLAGE-COMO-PROTOTIPO`** → CERO apariciones. La doctrina de "eje 4
+  forma" y del collage vive en comentarios DENTRO de `formas.ts`/`BrandStoryCentrada.tsx` y en
+  este ledger, no en `CLAUDE.md` — nada que este diff pudiera dejar falso ahí.
+- **`rounded-2xl`** (1 aparición, línea ~5368, § "`InviteUserModal` es un DunaSheet") → describe
+  un modal DISTINTO del admin (`InviteUserModal`, ya migrado a `DunaSheet` en una tanda anterior),
+  sin relación con el collage de Historia. Sin afectación.
+
+### `customer_bytes`
+
+**`changed: true`.** El collage de "Nuestra Historia" bajo CORTE (`brandStory:'centrada'`, o
+cualquier tenant futuro con esa variante) deja de mostrar esquinas rectas y gana la interpolación
+del giro. `strings:` **ninguno** — cambio de geometría/movimiento, no de copy. Nayoli
+(`columnas`, `forma:null`) queda byte-idéntica, medido 0px arriba.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE activo
+ve al mirar/scrollear esa sección. El owner ya aprobó la ESCRITURA de este slice específico
+(§ `approval-reason` del spec); el MERGE sigue gateado aparte.
+
+Cierra `HISTORIA-COLLAGE-COMO-PROTOTIPO-1`.
