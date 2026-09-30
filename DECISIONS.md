@@ -33146,3 +33146,119 @@ pide explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
 
 Cierra `HERO-MOVIL-SIN-FRANJA-VERDE-1` (pendiente del gate visual REAL del owner en su Safari,
 capa 3 — el único que puede confirmar que la franja desapareció de verdad — y de mergear).
+
+## 2026-09-29 — `overflow-hidden` en el ancestro rompía el propio sticky; `overflow-clip` lo repara (`HERO-STICKY-OVERFLOW-FIX-1`)
+
+`98c35b3` (rama `slice/corte-reescritura-prototipo-1`, SIN mergear — AWAITING_APPROVAL, ver Verdict abajo)
+
+### El pedido
+
+Gate del owner del 2026-09-29, con captura de ESCRITORIO: *"El bug está peor ahora, no sólo se ve
+en la vista móvil, sino también en la de escritorio y más grande aún en ambas"* — el video del
+hero sticky de CORTE (`HeroMediaMarquesina.tsx`, hero `variante:'sticky'`) dejó de quedarse fijo:
+al hacer scroll se iba con la página, y debajo aparecía un bloque grande del fondo `--sf-tinta`.
+
+### La causa
+
+`HERO-MOVIL-SIN-FRANJA-VERDE-1` (`47b8533`, este mismo día) movió `overflow-hidden` de la
+`<section>` pineada al `<div ref={wrapperRef}>` — el ancestro del sticky, pensado para dar el
+presupuesto de scroll (`min-h-[calc(100svh+200vh)]`/`65vh`) — como "red de seguridad" para que la
+media a `100lvh` (más alta que el marco) no desbordara sobre la sección siguiente de la página.
+
+Por especificación de CSS, un elemento con `overflow: hidden` (o `auto`/`scroll`) se vuelve un
+**scroll container** — la caja contra la que se resuelve el `position:sticky` de sus
+descendientes. El wrapper no scrollea por sí mismo (su tamaño lo fija su propio `min-height`,
+independiente de su contenido); agregarle `overflow-hidden` lo convierte en un scroll container
+SIN mecanismo de scroll propio, y la `<section sticky top-0>` — que hasta entonces se pineaba
+contra el VIEWPORT — pasa a intentar resolver su ancla contra ESE ancestro, que crece con la
+página en vez de quedarse quieto. El "pineado" deja de fijarse a nada.
+
+### El fix
+
+`overflow-clip` en vez de `overflow-hidden`, en el mismo selector (el `<div ref={wrapperRef}>`).
+`overflow: clip` recorta el contenido que se pasa de la caja — la MISMA función visual que
+motivó agregar la red de seguridad — pero, a diferencia de `hidden`, el spec de CSS Overflow lo
+excluye explícitamente del modelo de "scrollable overflow": no establece un scroll container, así
+que un descendiente `position:sticky` sigue resolviendo su ancla contra el próximo ancestro que sí
+lo sea — acá, el viewport. Un cambio de UN valor en UN selector; nada más se tocó (la máscara del
+ticker sigue con su propio `overflow-hidden`, auto-contenida desde la ronda anterior; la
+`<section>` sigue sin `overflow` propio; la media sigue midiendo `100lvh` centrada).
+
+### La verificación — Chromium headless SÍ puede reproducir y confirmar ESTE mecanismo
+
+A diferencia de `HERO-MOVIL-SIN-FRANJA-VERDE-1` (donde el límite del arnés era real: sin chrome
+dinámico, headless no distingue `svh` de `lvh`), acá el defecto es CSS puro —
+`position:sticky` + `overflow` de un ancestro— y no depende de que el navegador tenga barra de
+direcciones dinámica. Se verificó con un arnés descartable en `.scratch/` (no en `scripts/`; el
+spec declara `touches:` sólo componente + test + este archivo):
+
+1. `renderToStaticMarkup` (el MISMO mecanismo que ya usa `hero-marquesina.test.ts`) de DOS
+   variantes: la de `HEAD=da9045d` (snapshot manual en `.scratch/HeroMediaMarquesina.antes-sticky-
+   fix.tsx`, diffeado contra `git show HEAD:...` — idéntico salvo comentarios) y la actual
+   (`overflow-clip`).
+2. El CSS REAL compilado por Tailwind (`postcss` + `@tailwindcss/postcss` sobre `app/globals.css`,
+   el mismo patrón que `.scratch/compile-css.mjs` de una tanda anterior).
+3. Playwright headless (la instalación aislada de `.arnes-tooling/playwright/`), a **1440×900**,
+   **390×844** y **390×932**, en **0 / 0.25 / 0.5 / 0.75** del presupuesto de scroll de cada
+   variante (el `min-h` del wrapper menos el alto del viewport), midiendo
+   `getBoundingClientRect()` de la `<section aria-label>` y de su media.
+
+**Resultado — ANTES reproduce el bug exacto, DESPUÉS lo cierra, en las TRES resoluciones:**
+
+| viewport | variante | fracción | `section.top` | pineado | media cubre el viewport |
+| --- | --- | --- | --- | --- | --- |
+| 1440×900 | antes | 0.25/0.5/0.75 | -146/-293/-439 | NO | NO (franja del fondo visible) |
+| 1440×900 | después | 0.25/0.5/0.75 | 0/0/0 | SÍ | SÍ |
+| 390×844 | antes | 0.25/0.5/0.75 | -137/-274/-411 | NO | NO |
+| 390×844 | después | 0.25/0.5/0.75 | 0/0/0 | SÍ | SÍ |
+| 390×932 | antes | 0.25/0.5/0.75 | -151/-303/-454 | NO | NO |
+| 390×932 | después | 0.25/0.5/0.75 | 0/0/0 | SÍ | SÍ |
+
+En el punto 0 (tope) las dos variantes están pineadas (aún no empezó el scroll); en TODO punto
+>0, "antes" deja de estarlo (el `section.top` cae en lockstep con `scrollY`, confirmando que la
+sección se mueve con la página) y "después" se mantiene en `top:0`, con la media cubriendo el
+viewport completo (`mediaTop<=0` y `mediaBottom>=vh`) en las tres resoluciones. **30 mediciones
+en total (3 viewports × 2 variantes × 5 fracciones); 12 fallas, TODAS en "antes" en fracción>0;
+0 fallas en "después".** Capturas de pantalla en el punto medio de cada combinación, guardadas en
+`.capturas/hero-sticky-overflow-fix/` (gitignoreado): "antes" muestra el bloque de fondo
+(`--sf-tinta`, dark) ocupando la mitad inferior del viewport en el punto medio del scroll;
+"después" muestra el color de la media llenando el viewport entero, sin franja.
+
+**Límite declarado, igual que en el slice anterior — Chromium headless sigue sin chrome dinámico
+real**, así que esto NO verifica la parte `svh`/`lvh` (ya verificada en `HERO-MOVIL-SIN-FRANJA-
+VERDE-1`): verifica el mecanismo `sticky`+`overflow`, que es CSS puro y no depende de la barra de
+direcciones. La prueba final sigue siendo el Safari del owner, en su teléfono, con la barra
+colapsando de verdad durante el scroll.
+
+### El cierre
+
+- `lib/config/hero-marquesina.test.ts` (en el commit de código, `98c35b3`): el test que afirmaba
+  `overflow-hidden` en el wrapper se INVIRTIÓ (ahora afirma su AUSENCIA, junto con `overflow-auto`/
+  `overflow-scroll`, en el ancestro de CUALQUIER sticky) y se agregó un test dedicado que afirma
+  `overflow-clip` en ese mismo selector, más un conteo total de apariciones en el marcado
+  (`overflow-hidden`: 1, sólo la máscara del ticker; `overflow-clip`: 1, sólo el wrapper).
+- `npm test`: **2594/2594** (2593 + 1 neto: se dividió un test en dos y se agregó uno). Acotado al
+  archivo tocado: **46/46**.
+- `npm run typecheck`: limpio, cero errores.
+- `npm run test:integracion`: **240/240**.
+- `npm run verificar:nayoli:visual` (Nayoli, sin preset; `main`=`9a7ab97` worktree detached, rama =
+  el árbol de trabajo con `98c35b3` ya aplicado): **IDÉNTICO, 0px en las 6 rutas + los 2 hovers,
+  consciente de antialiasing Y crudo** — `ruta:home` (0/4.608.000 px), `ruta:tienda`
+  (0/2.433.280 px), `ruta:producto` (0/2.535.680 px), `ruta:checkout` (0/1.152.000 px),
+  `ruta:nosotros` (0/1.152.000 px), `ruta:suscripciones` (0/2.144.000 px), `hover:automatica`
+  (0/98.298 px), `hover:eleccion` (0/102.870 px). Esperado: Nayoli no usa hero
+  `variante:'sticky'` (`DEFAULTS.hero.variante` es `'curtina'`, byte-idéntica), así que el archivo
+  tocado no le toca un solo píxel.
+- `git worktree list` tras la corrida: sin residuos.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`) — mismo criterio que el resto de esta rama: el diff
+cambia lo que un visitante con CORTE activo —o `hero.variante:'sticky'` bajo cualquier otro
+preset— ve en su navegador durante el scroll del hero (el video queda fijo en vez de irse con la
+página). Nayoli no lo ve HOY (0px, arriba); la RAMA sí, y merge policy A juzga la RAMA contra su
+base, no el commit aislado (§ CLAUDE.md, `customer_bytes`: "el eje es la rama, no el commit"). El
+spec lo pide explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
+
+Cierra `HERO-STICKY-OVERFLOW-FIX-1` (pendiente del gate visual REAL del owner en su Safari, capa
+3, y de mergear).
