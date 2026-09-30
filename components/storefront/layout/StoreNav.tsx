@@ -422,20 +422,31 @@ export default function StoreNav() {
   // (`docs/prototipos/cafeone/css/app.css:151-157`, `tokens.css:123,128,164`) y no cambia acá — sólo
   // el COLOR. `false` (todo tenant salvo CORTE) → sigue dependiendo de `navClaro`, byte-idéntico.
   // `true` (CORTE): FIJO, ya no depende de `navClaro` — `bg-[var(--sf-tostado)] text-[var(--sf-
-  // tinta)]`, el MISMO par que ya usan `Spotlight.badge`/`product.badge` en este repo (§ el docstring
-  // de `NavTratamientoContent.cta`, `site-content-defaults.ts`, para el porqué de `tostado` en vez
-  // de un rol nuevo). Las dos superficies son OPACAS, así que el mismo par se lee igual flotando
-  // sobre el hero o con el nav sólido — no hace falta un segundo par por tratamiento.
+  // acento-txt)]`, sobre el MISMO fondo que ya usan `Spotlight.badge`/`product.badge` en este repo
+  // (§ el docstring de `NavTratamientoContent.cta`, `site-content-defaults.ts`, para el porqué de
+  // `tostado` en vez de un rol nuevo). Las dos superficies son OPACAS, así que el mismo par se lee
+  // igual flotando sobre el hero o con el nav sólido — no hace falta un segundo par por tratamiento.
+  //
+  // EL TEXTO (§ CARRITO-CABECERA-Y-COLORES-NAV-1, 2026-09-30) — CORRIGE `CROMO-NAV-CTA-Y-BADGE-1`:
+  // este texto vivía en `--sf-tinta` (verde oscuro), el MISMO par que el `.badge{color:var(--text-
+  // heading)}` del PROTOTIPO LOCAL (`docs/prototipos/cafeone/css/app.css:156`). El owner, gateando
+  // contra Cafeone REAL: "la fuente en 'Cosecha 2026' debería ser blanca, no verde" — el sitio real
+  // pinta su badge con texto PLENO, no con la tinta de encabezado del prototipo estático. `--sf-
+  // acento-txt` es el token "texto sobre la superficie de acento" ya usado en todo el storefront
+  // (ProductCard, Spotlight, los CTA) — para CORTE resuelve a BLANCO (auto-flip contra `acento` =
+  // rojo `#a70004`, § `palette-derive.ts`), nunca un hex horneado. Sólo el TEXTO cambia; el FONDO
+  // (`--sf-tostado` + el `style` de `badgeColor` de abajo) sigue igual.
   //
   // `navTratamiento.badgeColor` (§ RIEL-SCROLL-Y-BADGE-DORADO-1) — el `style` inline SÓLO se aplica
   // cuando el campo NO es `null` (sólo CORTE): pisa el `background-color` de la clase Tailwind con
   // el hex medido contra `--accent-sale` (`#f5b36a`). `undefined` con el campo en `null` hace que
   // React OMITA la propiedad — la clase `bg-[var(--sf-tostado)]` de siempre queda intacta,
   // byte-idéntica. `ProductCard.tsx`/`Spotlight.tsx` aplican el MISMO override sobre su propio badge
-  // (§ el censo de consumidores, DECISIONS.md).
+  // (§ el censo de consumidores, DECISIONS.md) — SUS badges no están en `touches:` de este slice y
+  // siguen en `text-[var(--sf-tinta)]`, sin tocar (§ open_followups del asiento de este slice).
   const badgeSpan = (texto: string) => (
     <span
-      className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navTratamiento.cta ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]' : navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}
+      className={`inline-flex items-center px-[9px] py-[5px] text-[11px] font-bold uppercase tracking-[0.085em] leading-none rounded-[2px] ${navTratamiento.cta ? 'bg-[var(--sf-tostado)] text-[var(--sf-acento-txt)]' : navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)]' : 'bg-[var(--sf-tinta)]/5 text-[var(--sf-tinta)]'}`}
       style={navTratamiento.cta && navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
     >
       {texto}
@@ -698,23 +709,28 @@ export default function StoreNav() {
               </button>
               <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>
                 <ShoppingBag className={navIconoClase} />
-                {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- el contador del carrito EN EL NAV deja el
-                    tono `--sf-acento`/`--sf-acento-txt` de HOY (dark red/white para CORTE, no el
-                    "crema" que el owner señaló) y pasa al MISMO tratamiento `tostado`/`tinta` +
-                    `navTratamiento.badgeColor` que ya usan el badge del ítem de menú
-                    (`§ CROMO-NAV-CTA-Y-BADGE-1`, abajo en este archivo), `ProductCard.tsx` y
-                    `Spotlight.tsx` (§ RIEL-SCROLL-Y-BADGE-DORADO-1) -- "el dorado que ya usa el
-                    badge del nav". La CLASE cambia sólo cuando hay `badgeColor` puesto (sólo
-                    CORTE); AUSENTE/`null` deja `bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]`,
-                    byte-idéntico. */}
+                {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 (2026-09-30) -- CORRIGE `CARRITO-Y-MENU-MOVIL-
+                    CAFEONE-1`: ese slice movió el contador del "crema" (`--sf-acento`/`--sf-acento-
+                    txt`) al DORADO de `navTratamiento.badgeColor` (`--sf-tostado`/`--sf-tinta` +
+                    el hex `#f5b36a`), razonando que era "el dorado que ya usa el badge del nav". El
+                    owner, gateando contra Cafeone real: "el badge... también cambialo al rojo que
+                    usamos, no el que tiene actualmente" -- el contador de CARRITO es una acción del
+                    visitante (cuántos ítems lleva), no una etiqueta de catálogo como "Cosecha"/
+                    "Oferta"; su color es el de ACCIÓN. Mismo GATE que ya usaba (`badgeColor` no-nulo
+                    = sólo CORTE, "en toda página y estado" -- invariante a `navClaro`/scroll), pero
+                    la CLASE pasa de dorado a `--sf-accion`/`--sf-accion-txt` (rojo `#a70004` +
+                    blanco, § `palette-derive.ts`, `origenAccion:'acento'` de CORTE) -- el MISMO par
+                    que ya pinta `CartCTA`/`BackToTop`. Sin `style` de `backgroundColor`: ya no hay
+                    un hex que pisar, el color sale del token. `null` (todo tenant salvo CORTE) sigue
+                    en `bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]`, byte-idéntico. */}
                 {count > 0 && (
                   <span
                     className={`absolute -top-0.5 -right-0.5 w-4.5 h-4.5 text-[10px] rounded-full flex items-center justify-center font-bold ${
                       navTratamiento.badgeColor
-                        ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]'
+                        ? 'bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))]'
                         : 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]'
                     }`}
-                    style={navTratamiento.badgeColor ? { width: 18, height: 18, fontSize: 10, backgroundColor: navTratamiento.badgeColor } : { width: 18, height: 18, fontSize: 10 }}
+                    style={{ width: 18, height: 18, fontSize: 10 }}
                   >
                     {count > 9 ? '9+' : count}
                   </span>
@@ -822,14 +838,18 @@ export default function StoreNav() {
                     aria-label="Ver carrito"
                   >
                     <ShoppingBag className={navIconoClase} />
+                    {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 -- MISMO fix que el contador del
+                        encabezado desktop (arriba en este archivo): dorado -> `--sf-accion`/
+                        `--sf-accion-txt`, "en toda página y estado" (el gate no depende de
+                        `navClaro` en ninguna de las dos copias). */}
                     {count > 0 && (
                       <span
                         className={`absolute -top-0.5 -right-0.5 text-[10px] rounded-full flex items-center justify-center font-bold ${
                           navTratamiento.badgeColor
-                            ? 'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]'
+                            ? 'bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))]'
                             : 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]'
                         }`}
-                        style={navTratamiento.badgeColor ? { width: 18, height: 18, fontSize: 10, backgroundColor: navTratamiento.badgeColor } : { width: 18, height: 18, fontSize: 10 }}
+                        style={{ width: 18, height: 18, fontSize: 10 }}
                       >
                         {count > 9 ? '9+' : count}
                       </span>

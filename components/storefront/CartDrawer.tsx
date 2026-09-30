@@ -130,16 +130,25 @@ export function BarraEnvioGratis({ subtotal, threshold }: { subtotal: number; th
 // `variante` traduce `content.carrito.variante` (§ MUESTRARIO-CARRITO-COMPOSICION-1). AUSENTE (o
 // llamado sin props, como en `cromo-carrito.test.ts`) -> 'anclado' -> el MISMO markup byte a byte
 // que rendía antes de esta tanda -- `font-playfair font-semibold text-[var(--sf-tinta)]`, sin
-// tamaño declarado. 'flotante' -> `--text-h1`/`--weight-regular` del muestrario, mapeados a la
-// escala Tailwind (`text-3xl font-normal`) -- ver el docstring de `CarritoContent` para el porqué
-// de no reproducir el 38px literal del prototipo.
+// tamaño declarado.
+//
+// § CARRITO-CABECERA-Y-COLORES-NAV-1 (2026-09-30) -- 'flotante' BAJA de `text-3xl` (30px, medido
+// contra el `--text-h1`/38px del PROTOTIPO LOCAL en MUESTRARIO-CARRITO-COMPOSICION-1) a `text-2xl`
+// (24px), tamaño de SUBTÍTULO -- owner, gate contra Cafeone REAL (capturas en `.scratch/refs/
+// cafeone-carrito-*-movil.png`): "el título es más chico, sin ícono". MEDIDO contra el sitio real
+// (`x-cafeone.myshopify.com`, fetch directo con `node`+`fetch`, no el prototipo estático de
+// `docs/prototipos/cafeone/`): el `<h3 class="xo-modal-content__title … fz:h5 fw:400">Your cart
+// </h3>` real lee `--font-heading-5-size: clamp(2.0rem, …, 2.6rem)` con `html{font-size:62.5%}`
+// (1rem=10px ahí) -> 20px a 26px según viewport; interpolando la fórmula a un viewport de laptop
+// (~1280px) da ~24.4px -- `text-2xl` (24px, escala Tailwind de ESTE repo, root 16px) es la
+// aproximación más cercana. `font-normal` (400) no cambia -- ya coincidía con el `fw:400` real.
 export function CartTitulo({ variante }: { variante?: "anclado" | "flotante" } = {}) {
   const flotante = variante === "flotante";
   return (
     <h2
       className={
         flotante
-          ? "font-playfair text-3xl font-normal text-[var(--sf-tinta)]"
+          ? "font-playfair text-2xl font-normal text-[var(--sf-tinta)]"
           : "font-playfair font-semibold text-[var(--sf-tinta)]"
       }
     >
@@ -223,15 +232,27 @@ export default function CartDrawer() {
               stiffness: 300,
             }}
             className={
+              // § CARRITO-CABECERA-Y-COLORES-NAV-1 -- 'flotante' pasa su `max-w-sm` (384px) a
+              // `max-w-[530px]`, MEDIDO contra el cajón REAL de Cafeone (`x-cafeone.myshopify.com`,
+              // no el prototipo local): `<div class="xo-modal-content … w:100vw@+md" style="--width:
+              // 53rem">` -- 53rem a `html{font-size:62.5%}` (1rem=10px en ESE sitio) = 530px exactos.
+              // `.xo-modal-content__inner{width:var(--width)}` sólo aplica `@media(min-width:768px)`
+              // -- bajo eso el 100vw manda, que es lo que ya cubre `w-full` en la rama de abajo (el
+              // teléfono sigue a pantalla completa, sin cambio). `max-w-sm` de 'anclado' NO se toca.
               carrito.variante === 'flotante'
-                ? "fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-sm flex-col bg-[var(--sf-fondo)] text-[var(--sf-texto)] shadow-2xl"
+                ? "fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-[530px] flex-col bg-[var(--sf-fondo)] text-[var(--sf-texto)] shadow-2xl"
                 : "fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
             }
           >
             {/* Header */}
             <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
               <div className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />
+                {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 -- 'flotante' pierde el ícono de bolsa: la
+                    cabecera REAL de Cafeone (`xo-modal-content__header`, fetch directo) es sólo
+                    título + botón de cerrar, sin ícono -- las capturas de móvil (`.scratch/refs/
+                    cafeone-carrito-*-movil.png`) lo confirman. 'anclado' (Nayoli) lo conserva
+                    byte-idéntico: el ícono sigue siendo del rol de hoy. */}
+                {!flotante && <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />}
 
                 <CartTitulo variante={carrito.variante} />
 

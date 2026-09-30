@@ -35176,3 +35176,189 @@ Nota/Descuento/Iniciar sesión/impuestos); el MERGE sigue gateado aparte — la 
 nunca fue aprobación de merge.
 
 Cierra `CARRITO-Y-MENU-MOVIL-CAFEONE-1`.
+
+## 2026-09-30 — El carrito de CORTE toma la cabecera y el ancho de Cafeone REAL, el contador del
+carrito pasa al rojo de acción, el badge "Cosecha" pasa a texto blanco (`CARRITO-CABECERA-Y-COLORES-NAV-1`)
+
+### 0 · Medido contra el sitio REAL, no el prototipo local ni una foto de escritorio no guardada
+
+El spec citó una captura de escritorio "no guardada" y pidió "re-medir contra las de móvil" —
+insuficiente para un ancho exacto (una foto de escritorio recortada no da un número de píxeles
+confiable, y las dos referencias guardadas son de MÓVIL, donde el cajón siempre es pantalla completa
+y no hay proporción de escritorio que leer). Se fue a la fuente que el resto de esta rama ya usa
+cuando el prototipo local diverge del tema real (`x-cafeone.myshopify.com`, § los precedentes de
+`navTratamientoDireccion`/`.filete`/`CARRITO-PEGADO-AL-BORDE-1`): `node`+`fetch` directo (sin curl,
+sin WebFetch) contra el HTML y el CSS servidos por esa tienda real.
+
+**Hallazgo exacto, no aproximado:** el `<div class="xo-modal-content">` real del carrito trae
+`style="--width: 53rem"`, y ese sitio fija `html{font-size:62.5%}` (1rem=10px ahí) → **530px
+exactos**, aplicados sólo `@media(min-width:768px)` (bajo eso, 100vw — pantalla completa, igual que
+las dos capturas de móvil ya muestran). El título real es un `<h3 class="… fz:h5 fw:400">Your
+cart</h3>`, y `--font-heading-5-size: clamp(2.0rem, …, 2.6rem)` interpola a **~24.4px** a un ancho de
+laptop (~1280px) — `text-2xl` (24px, la escala de ESTE repo) es la aproximación más cercana, y
+claramente menor que el `text-3xl` (30px) que `MUESTRARIO-CARRITO-COMPOSICION-1` había medido contra
+el `--text-h1`/38px del PROTOTIPO LOCAL — el mismo defecto de fuente que ya documentaron los
+slices anteriores de esta rama.
+
+### 1 · La cabecera — tres cambios, un `sf-divisor-b` que ya estaba
+
+- **Sin ícono de bolsa**: la cabecera real (`xo-modal-content__header`) es sólo título + botón de
+  cerrar. `{!flotante && <ShoppingBag .../>}` en vez de incondicional — 'anclado' (Nayoli) no se toca.
+- **Título más chico**: `text-3xl` → `text-2xl` en `CartTitulo` (rama 'flotante' únicamente).
+- **Ancho del cajón**: `max-w-sm` (384px) → `max-w-[530px]`, medido arriba. `w-full` se conserva —
+  es lo que ya daba pantalla completa en el teléfono, sin depender de un breakpoint nuevo.
+- **El filete bajo la cabecera YA ESTABA** (`sf-divisor-b border-[var(--sf-linea)]`, sin condicionar
+  a la variante) — no hizo falta tocarlo; se agregó un test que lo fija (§5) para que no se pierda
+  de paso en una tanda futura.
+
+### 2 · El contador del carrito — de dorado a `--sf-accion`
+
+`CARRITO-Y-MENU-MOVIL-CAFEONE-1` había movido este contador del "crema" (`--sf-acento`/`-txt`) al
+DORADO de `navTratamiento.badgeColor` (`--sf-tostado`/`--sf-tinta` + el hex `#f5b36a`), razonando
+"el dorado que ya usa el badge del nav". El owner, sobre el gate de HOY: el contador debe ser del
+mismo rojo que el resto de la familia de acción (`CartCTA`, `BackToTop`, el CTA "Comprar"), no un
+dorado de catálogo. Las DOS copias (desktop y el drawer móvil `pantallaCompleta`) pasan de
+`'bg-[var(--sf-tostado)] text-[var(--sf-tinta)]'` a `'bg-[var(--sf-accion,var(--sf-tostado))]
+text-[var(--sf-accion-txt,var(--sf-tinta))]'`, MISMO gate (`navTratamiento.badgeColor` no-nulo =
+sólo CORTE). El `style` inline que pisaba `backgroundColor` con el hex de `badgeColor` se retira de
+las dos — ya no hay un hex que pisar, el color sale del token. `null` (todo tenant salvo CORTE) sigue
+en `bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]`, byte-idéntico.
+
+### 3 · El badge "Cosecha 2026" — mismo fondo, texto blanco
+
+`badgeSpan` (el badge del ítem de menú) pintaba su texto con `--sf-tinta` bajo `navTratamiento.cta`
+— el MISMO par que `.badge{color:var(--text-heading)}` del PROTOTIPO LOCAL. El owner, contra el sitio
+real: el texto debe ser blanco, no verde. Se cambió SÓLO el texto a `--sf-acento-txt` (el token "texto
+sobre la superficie de acento" que ya usa el resto del storefront) — para CORTE resuelve a BLANCO
+(auto-flip contra `acento`=rojo `#a70004`). El FONDO (`--sf-tostado` + el `style` de `badgeColor`,
+`#f5b36a`) no se tocó — el spec pedía "fondo dorado sin cambio".
+
+**No tocado, y con su propia razón:** `ProductCard.tsx`/`Spotlight.tsx` aplican el MISMO override de
+`badgeColor` sobre su propio badge de "bestseller"/edición y siguen en `text-[var(--sf-tinta)]`. Ninguno
+de los dos está en `touches:` de este slice, y el spec nombró explícitamente "el badge que sale con
+'Cosecha 2026'" — el del menú, no éstos. Queda nombrado como `open_followups` (abajo) para que no se
+confunda con un descuido.
+
+### 4 · El peso de los ítems del nav — YA COINCIDÍA, sin código que cambiar
+
+El spec pedía igualar el peso de los links del nav ("Nuestro Café", "Suscripciones", "Nosotros") al
+de la frase al pie del hero. **Medido antes de tocar nada:** los dos YA comparten literalmente el
+mismo mecanismo — `sf-peso-normal` (`app/globals.css`, `font-weight: var(--sf-peso-cuerpo, 400)`) —
+desde `CORTE-CUERPO-FIGTREE-PESO-1` (`4838897`, ya en `main` de esta rama): `navLinkTratamiento`
+(`StoreNav.tsx`) y la frase al pie del hero (`HeroMediaMarquesina.tsx`) son, textualmente, "los DOS
+lugares que hoy fijan el peso a 400 A MANO en vez de heredarlo de `.font-inter`" (`app/globals.css`,
+el comentario de `.sf-peso-normal`). Confirmado por EJECUCIÓN contra el sitio construido con CORTE
+(§5, harness ad hoc): `getComputedStyle` del link de nav da `font-weight: 440` — el mismo peso
+calibrado de 'prensa' que ya lleva la frase del pie. **No se tocó ningún archivo por este punto** —
+sería un cambio sin motivo, y el spec asumía (incorrectamente, medido) que hacía falta uno. Se
+reporta como desviación, no como trabajo hecho.
+
+### 5 · Gate
+
+Verificación por EJECUCIÓN, no sólo lectura: harness ad hoc (`.scratch/capturar-carrito-nav.ts`,
+gitignored, reusa `scripts/verificar-nayoli-visual.ts` — Postgres efímero propio :55441, preset
+CORTE aplicado vía `aplicarPreset`, `next build`+`next start`, Playwright cacheado) que abre el
+carrito vacío, agrega un producto real y vuelve a abrirlo, a 1440 y 390px. Computados leídos con
+`getComputedStyle` en el navegador real:
+
+| computado | 1440px | 390px |
+| --- | --- | --- |
+| ancho del cajón (`getBoundingClientRect().width`) | **530px** | **390px** (pantalla completa) |
+| título del cajón — texto / tamaño / peso / familia | "Tu Carrito" / **24px** / 400 / "Roboto Serif" |  ídem |
+| peso del link de nav / familia | **440** / "Figtree" | ídem |
+| badge "Cosecha 2026" — color / fondo | **rgb(255,255,255)** / rgb(245,179,106) | ídem |
+| contador del carrito (nav) — fondo / color | **rgb(167,0,4)** / rgb(255,255,255) | ídem |
+
+rgb(167,0,4) = `#a70004` (= `raices.acento` de CORTE, exacto); rgb(245,179,106) = `#f5b36a` (=
+`navTratamientoBadgeColor`, sin cambio). Las cuatro piezas del spec, confirmadas por EJECUCIÓN en las
+dos anchuras pedidas — no sólo por lectura de la clase.
+
+| carril | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **0 errores** |
+| `npm test` (capa 1, sin base) | **2677/2677** — verde (+10 sobre los 2667 de `CARRITO-Y-MENU-MOVIL-CAFEONE-1`: los tests nuevos/reescritos de `detalles-sitio.test.ts`, §6) |
+| `npm run test:integracion` (capa 2, Postgres efímero) | **242/242** — verde |
+| `npm run verificar:nayoli:visual` (píxeles, main vs. esta rama) | **0px** en las 6 rutas + 2 hovers |
+| `npm run guarda:color` (píxeles, esta rama vs. fixture de Nayoli) | **0px** en las 6 rutas + 2 hovers — la rama toca el sistema de color acumulado, corrió el diff completo |
+
+### 6 · Los tests — reescritos donde el comportamiendo cambió, agregados donde no había cobertura
+
+`lib/config/detalles-sitio.test.ts` (el único archivo de test en `touches:` que hacía falta tocar):
+
+- El test de `CartTitulo` variante `'flotante'` se reescribió para `text-2xl` (antes fijaba
+  `text-3xl`, que ahora sería un falso-verde).
+- El test que afirmaba "el ANCHO (`max-w-sm`) es el MISMO literal en las dos ramas" se retiró —
+  su propia premisa (`MUESTRARIO-CARRITO-COMPOSICION-1`: "el ancho no se toca") es justamente lo que
+  este slice revierte — y se reemplazó por uno que afirma el string exacto de la rama `flotante` con
+  `max-w-[530px]`, sin depender de un conteo de ocurrencias de todo el archivo (el primer intento de
+  este mismo test se rompió con su PROPIO comentario, que citaba `max-w-sm` al explicar qué NO
+  cambió — el discriminador correcto es el string literal completo de la clase, no un conteo).
+- Tests NUEVOS: el ícono de bolsa ausente en 'flotante' y presente en 'anclado' (por lectura de
+  fuente, ya que `CartDrawer` no se puede montar en el carril — `useCartStore`/`useSiteContent` son
+  contexts con throw duro sin sus providers); el filete de la cabecera presente en las dos variantes
+  (no cambiaba, pero no tenía test propio); y una sección nueva completa para `StoreNav.tsx` (el
+  contador en `--sf-accion`/`-txt`, el gate por `badgeColor` intacto, `badgeSpan` en `--sf-acento-txt`)
+  — mismo mecanismo de lectura de fuente que ya usa `cta-primario.test.ts` para el resto de los CTA
+  del storefront (`StoreNav.tsx` tampoco se puede montar: usa `usePathname()` fuera de un árbol real
+  de Next).
+- Los discriminadores de las nuevas aserciones de `StoreNav.tsx` se afinaron contra el conteo REAL
+  (no supuesto) de ocurrencias del símbolo en el archivo — `navTratamiento.badgeColor` aparece 6
+  veces en total (comentarios incluidos) pero sólo 2 como el ternario propio de cada contador
+  (`/navTratamiento\.badgeColor\r?\n\s*\?/`, que no matchea la línea de `badgeSpan` —una sola línea,
+  sin salto antes del `?`— ni los comentarios).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `CartDrawer.tsx` (contenido: `CartTitulo`, el ancho del cajón,
+el ícono de la cabecera), `StoreNav.tsx` (contenido: el contador del carrito ×2, `badgeSpan`),
+`lib/config/detalles-sitio.test.ts`, `text-3xl`→`text-2xl`, `max-w-sm`→`max-w-[530px]`,
+`navTratamiento.badgeColor`, `--sf-accion`/`--sf-accion-txt`, `--sf-acento-txt`, `CARRITO-Y-MENU-
+MOVIL-CAFEONE-1`, `CROMO-NAV-CTA-Y-BADGE-1`, `RIEL-SCROLL-Y-BADGE-DORADO-1`, "Cosecha". Grepeados uno
+por uno contra `CLAUDE.md`: **CERO apariciones de los once** (`CartDrawer.tsx`, `StoreNav.tsx`,
+`CartTitulo`, `badgeSpan`, `detalles-sitio.test.ts`, `navTratamiento.badgeColor`,
+`RIEL-SCROLL-Y-BADGE-DORADO-1`, `Cosecha` dieron 0; `text-3xl` dio 1 aparición, en una sección
+totalmente distinta — el tamaño de precio de `SuscripcionPlanes`, § "Planes de Suscripción como
+DATO" — sin relación con `CartTitulo` y sin que mi cambio la vuelva falsa). `CLAUDE.md` no documenta
+el mecanismo de temas CORTE ni componentes individuales del storefront — esa doctrina vive en
+`DECISIONS.md`, el mismo hallazgo que los slices anteriores de esta rama ya dejaron escrito. Nada
+que corregir ahí.
+
+### `touches:` — lo que se escribió
+
+`components/storefront/CartDrawer.tsx`, `components/storefront/layout/StoreNav.tsx`,
+`lib/config/detalles-sitio.test.ts`, este asiento (`DECISIONS.md`). `lib/storefront/
+carrito-drawer.ts`/`.test.ts`, `lib/config/themes.ts`/`.test.ts`, `lib/config/theme-mirador.test.ts`,
+`lib/config/menu-como-dato.test.ts`, `lib/config/nav-internas.test.ts`,
+`lib/config/corte-nav-transparente.test.ts`, `app/globals.css` quedaron dentro del techo de
+`touches:` sin necesitar edición — ningún cambio de este slice tocaba lo que esos archivos
+gobiernan (composición de variante, presets, derivación de paleta, geometría del nav). Sin
+desviación de alcance.
+
+### `customer_bytes`
+
+**`changed: true`.** Un visitante con CORTE aplicado ve: el cajón del carrito más ancho en escritorio
+(530px en vez de 384px) sin ícono de bolsa junto a un título más chico; el número junto al ícono del
+carrito en el header pasa de dorado a rojo; el badge "Cosecha 2026" del menú pasa de texto verde a
+blanco. Nayoli (`navTratamiento.badgeColor`/`carrito.variante` nacen en su default de HOY, sin preset
+aplicado) queda byte-idéntica — medido 0px en las dos herramientas de diff de píxeles (§5).
+
+**`strings:`** ninguno nuevo — los tres cambios son de tamaño/ancho/color, sin texto nuevo.
+
+### Open follow-ups
+
+- `CORTE-BADGE-BESTSELLER-TEXTO-VERDE-1`: `ProductCard.tsx`/`Spotlight.tsx` tienen el MISMO patrón de
+  badge (`bg-[var(--sf-tostado)] text-[var(--sf-tinta)]`, con el override de `badgeColor`) que
+  `badgeSpan` tenía antes de este slice — texto verde-tinta sobre el dorado. El spec de este slice
+  nombró explícitamente "el badge que sale con 'Cosecha 2026'", que sólo renderiza `StoreNav.tsx`; no
+  se tocaron esos dos archivos porque no están en `touches:` y el spec no los nombró. Si el criterio
+  del owner es "todo badge sobre `--sf-tostado` va con texto pleno", esos dos quedan pendientes de la
+  misma decisión.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE aplicado
+lee (§ `customer_bytes`, arriba). El owner ya aprobó la ESCRITURA de este slice específico
+(§ `approval-reason` del spec, con las capturas de referencia y las tres instrucciones textuales del
+gate); el MERGE sigue gateado aparte — la aprobación de escritura nunca fue aprobación de merge.
+
+Cierra `CARRITO-CABECERA-Y-COLORES-NAV-1`.

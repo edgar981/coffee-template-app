@@ -235,10 +235,16 @@ test("CartTitulo: variante='anclado' explícita -- MISMO markup que sin props", 
   assert.equal(html, '<h2 class="font-playfair font-semibold text-[var(--sf-tinta)]">Tu Carrito</h2>');
 });
 
-test("CartTitulo: variante='flotante' -- tamaño de titular (text-3xl) y peso regular (font-normal), reemplazando font-semibold", () => {
+// § CARRITO-CABECERA-Y-COLORES-NAV-1 (2026-09-30) -- BAJA de `text-3xl` (30px) a `text-2xl` (24px),
+// tamaño de SUBTÍTULO en vez del display grande de MUESTRARIO-CARRITO-COMPOSICION-1. Owner, gate
+// contra Cafeone REAL: "el título es más chico". MEDIDO contra el sitio real (fetch directo, no el
+// prototipo local): `--font-heading-5-size: clamp(2.0rem,…,2.6rem)` con `html{font-size:62.5%}`
+// (1rem=10px ahí) -> ~24px a un viewport de laptop -- ver el docstring de `CartTitulo`.
+test("CartTitulo: variante='flotante' -- tamaño de SUBTÍTULO (text-2xl) y peso regular (font-normal), reemplazando font-semibold", () => {
   const html = renderToStaticMarkup(React.createElement<PropsCartTitulo>(CartTitulo, { variante: 'flotante' }));
-  assert.equal(html, '<h2 class="font-playfair text-3xl font-normal text-[var(--sf-tinta)]">Tu Carrito</h2>');
+  assert.equal(html, '<h2 class="font-playfair text-2xl font-normal text-[var(--sf-tinta)]">Tu Carrito</h2>');
   assert.doesNotMatch(html, /font-semibold/, 'flotante no debe conservar el peso semibold de hoy');
+  assert.doesNotMatch(html, /text-3xl/, 'flotante ya no debe ser el display grande de MUESTRARIO-CARRITO-COMPOSICION-1');
 });
 
 test('CartTitulo: las dos variantes conservan la MISMA fuente de TÍTULO (font-playfair, primera clase) y el MISMO color (--sf-tinta)', () => {
@@ -286,15 +292,51 @@ test("CartDrawer.tsx: la rama 'anclado' (el `else` del ternario) sigue byte-idé
   );
 });
 
-test('CartDrawer.tsx: el ANCHO (`max-w-sm`) es el MISMO literal en las dos ramas -- el ancho no se toca, sólo posición/radio/fondo/tipografía', () => {
+// § CARRITO-CABECERA-Y-COLORES-NAV-1 -- REEMPLAZA el test de arriba (borrado, no dos assert
+// contradictorios en el mismo archivo): el ancho SÍ se toca ahora. La rama `anclado` (Nayoli) sigue
+// angosta byte-idéntica -- ya cubierto por el test de arriba ("la rama 'anclado' … sigue byte-
+// idéntica"), que afirma la cadena COMPLETA de su className. La rama `flotante` (CORTE) sube a un
+// ancho nuevo, MEDIDO contra el cajón REAL de Cafeone (`x-cafeone.myshopify.com`, `--width:53rem` a
+// `html{font-size:62.5%}` = 530px exactos -- ver el docstring de la clase en `CartDrawer.tsx`). El
+// discriminador es el STRING LITERAL exacto de esa rama -- no el `bloqueFlotante` amplio que usan
+// los tests de arriba (ese span arranca en la declaración `const flotante = …`, ANTES del JSX, así
+// que también atraviesa los comentarios de esta misma tanda, que citan el nombre de la clase vieja
+// al explicar qué NO cambió).
+test("CartDrawer.tsx: la rama 'flotante' declara el ancho MEDIDO contra Cafeone real (530px)", () => {
   const src = leerFuenteCartDrawer();
-  const ocurrenciasMaxWSm = src.split('max-w-sm').length - 1;
-  assert.equal(ocurrenciasMaxWSm, 2, 'las dos ramas del ternario deben declarar el mismo max-w-sm -- ninguna reproduce el --drawer-width del muestrario (sin equivalente en este sistema, § CarritoContent)');
+  assert.match(
+    src,
+    /"fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-\[530px\] flex-col bg-\[var\(--sf-fondo\)\] text-\[var\(--sf-texto\)\] shadow-2xl"/,
+    'la cadena de clases de la rama flotante debe declarar el ancho medido contra Cafeone real; w-full se conserva para el teléfono a pantalla completa',
+  );
 });
 
 test('CartDrawer.tsx: `<CartTitulo variante={carrito.variante}` está cableado dentro del header del drawer', () => {
   const src = leerFuenteCartDrawer();
   assert.match(src, /<CartTitulo variante=\{carrito\.variante\}/);
+});
+
+// ─── § CARRITO-CABECERA-Y-COLORES-NAV-1 -- la cabecera 'flotante' pierde el ícono, conserva el filete ──
+
+test("CartDrawer.tsx: la cabecera 'flotante' NO renderiza el ícono de bolsa (`ShoppingBag`) -- Cafeone real no lo lleva", () => {
+  const src = leerFuenteCartDrawer();
+  assert.match(src, /\{!flotante && <ShoppingBag/, 'el ícono debe estar condicionado a `!flotante`');
+});
+
+test("CartDrawer.tsx: la cabecera 'anclado' (Nayoli) SIGUE con el ícono de bolsa, sin condición -- byte-idéntico a hoy", () => {
+  const src = leerFuenteCartDrawer();
+  const idxHeader = src.indexOf('{/* Header */}');
+  const idxCierreHeaderDiv = src.indexOf('{/* Items */}');
+  const bloqueHeader = src.slice(idxHeader, idxCierreHeaderDiv);
+  assert.match(bloqueHeader, /\{!flotante && <ShoppingBag className="h-5 w-5 text-\[var\(--sf-acento-texto\)\]" \/>\}/);
+});
+
+test("CartDrawer.tsx: la cabecera conserva el filete inferior (`sf-divisor-b`) en las DOS variantes -- no se tocó", () => {
+  const src = leerFuenteCartDrawer();
+  const idxHeader = src.indexOf('{/* Header */}');
+  const idxCierreHeaderDiv = src.indexOf('{/* Items */}');
+  const bloqueHeader = src.slice(idxHeader, idxCierreHeaderDiv);
+  assert.match(bloqueHeader, /sf-divisor-b border-\[var\(--sf-linea\)\]/, 'el filete bajo la cabecera debe seguir presente para las dos variantes');
 });
 
 // ─── resolverCarrito — el resolver SOFT de la meta ──────────────────────────────────────────────────
@@ -349,4 +391,69 @@ test('huecosDelPanel(): con la meta nueva (carrito.variante), sigue sin quedar n
 test("mergePresetEnContent(_, CORTE).carrito.variante === 'flotante' -- CORTE la enciende", () => {
   const out = mergePresetEnContent({}, CORTE);
   assert.equal((out.carrito as { variante: string }).variante, 'flotante');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// § CARRITO-CABECERA-Y-COLORES-NAV-1 -- StoreNav.tsx: el contador del carrito pasa a `--sf-accion`
+// (rojo), y el texto del badge "Cosecha 2026" pasa a blanco (`--sf-acento-txt`)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+//
+// `StoreNav.tsx` no se puede montar en el carril -- usa `usePathname()` (`next/navigation`), que
+// fuera de un árbol real de Next devuelve `null` (§ `menu-como-dato.test.ts`, el mismo motivo ya
+// documentado ahí) -- así que estas dos piezas se afirman por LECTURA DE FUENTE, el mismo mecanismo
+// que `leerFuenteCartDrawer()` ya usa arriba en este archivo y que `cta-primario.test.ts` usa para
+// el resto de los CTA del storefront.
+
+function leerFuenteStoreNav(): string {
+  const srcPath = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../components/storefront/layout/StoreNav.tsx');
+  return readFileSync(srcPath, 'utf8');
+}
+
+test('StoreNav.tsx: las DOS copias del contador (desktop + drawer móvil) usan `--sf-accion`/`--sf-accion-txt` cuando `badgeColor` está puesto (CORTE) -- ya no el dorado', () => {
+  const src = leerFuenteStoreNav();
+  const ocurrencias = src.split('bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))]').length - 1;
+  assert.equal(ocurrencias, 2, 'debe haber EXACTAMENTE dos contadores leyendo el token de ACCIÓN -- desktop y drawer móvil pantallaCompleta');
+});
+
+test('StoreNav.tsx: NINGUNA de las DOS copias del contador sigue pintando `bg-[var(--sf-tostado)] text-[var(--sf-tinta)]` para el conteo', () => {
+  const src = leerFuenteStoreNav();
+  // El discriminador es la combinación EXACTA fondo+texto del contador viejo, como cadena única --
+  // `--sf-tostado` y `--sf-tinta` SIGUEN vivos en el archivo por otras razones (el ícono vacío del
+  // carrito, el link activo del nav, etc.), así que un `doesNotMatch` suelto sobre cualquiera de los
+  // dos por separado daría falso positivo. La pareja unida es la que sólo el contador viejo tenía.
+  assert.doesNotMatch(src, /bg-\[var\(--sf-tostado\)\] text-\[var\(--sf-tinta\)\]/, 'ningún contador debe seguir con el par dorado/tinta viejo (y badgeSpan tampoco -- ver el test de abajo)');
+});
+
+test('StoreNav.tsx: los DOS contadores siguen gateados por `navTratamiento.badgeColor ?` como ternario propio (mismo gate; sólo cambia a qué apunta)', () => {
+  const src = leerFuenteStoreNav();
+  // El patrón `identificador + salto de línea + ?` sólo aparece en el TERNARIO de cada contador
+  // (desktop y drawer móvil) -- distinto de `navTratamiento.cta && navTratamiento.badgeColor ? {`
+  // de `badgeSpan`, que está en UNA sola línea sin salto antes del `?`, y de los comentarios (que no
+  // siguen esta forma). `\s*` en vez de un indentado fijo, para no atarse a cuántos espacios exactos
+  // separan cada copia.
+  const ocurrencias = (src.match(/navTratamiento\.badgeColor\r?\n\s*\?/g) ?? []).length;
+  assert.equal(ocurrencias, 2, 'debe haber EXACTAMENTE dos contadores con su propio ternario gateado por badgeColor -- desktop y drawer móvil pantallaCompleta');
+});
+
+test('StoreNav.tsx: ninguno de los DOS contadores sigue pisando `backgroundColor` con el hex de `badgeColor` -- el color ahora sale del token, no de un hex inline', () => {
+  const src = leerFuenteStoreNav();
+  // `backgroundColor: navTratamiento.badgeColor` sigue vivo UNA vez -- el `style` de `badgeSpan`
+  // (el fondo del badge "Cosecha", que NO se tocó). Los DOS contadores ya no lo usan.
+  const ocurrencias = src.split('backgroundColor: navTratamiento.badgeColor').length - 1;
+  assert.equal(ocurrencias, 1, 'sólo badgeSpan debe seguir pisando backgroundColor con el hex -- los contadores ya resuelven el color por el token');
+});
+
+test('StoreNav.tsx: badgeSpan (el badge "Cosecha 2026") pinta su texto con `--sf-acento-txt` cuando `navTratamiento.cta` está encendido (CORTE) -- ya no `--sf-tinta`', () => {
+  const src = leerFuenteStoreNav();
+  assert.match(src, /navTratamiento\.cta \? 'bg-\[var\(--sf-tostado\)\] text-\[var\(--sf-acento-txt\)\]'/, 'el fondo dorado se conserva; sólo el texto pasa a --sf-acento-txt');
+});
+
+test('StoreNav.tsx: badgeSpan ya NO pinta el texto de "Cosecha" con `--sf-tinta` bajo `navTratamiento.cta`', () => {
+  const src = leerFuenteStoreNav();
+  assert.doesNotMatch(src, /navTratamiento\.cta \? 'bg-\[var\(--sf-tostado\)\] text-\[var\(--sf-tinta\)\]'/, 'el texto del badge de cosecha no debe seguir en --sf-tinta bajo el tratamiento CORTE');
+});
+
+test('StoreNav.tsx: badgeSpan sigue pisando el FONDO con el hex de `badgeColor` (sin cambio) -- sólo el texto se movió', () => {
+  const src = leerFuenteStoreNav();
+  assert.match(src, /style=\{navTratamiento\.cta && navTratamiento\.badgeColor \? \{ backgroundColor: navTratamiento\.badgeColor \} : undefined\}/);
 });
