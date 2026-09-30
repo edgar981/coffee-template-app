@@ -370,6 +370,62 @@ import { imagenPortada } from "@/lib/producto-imagen";
 //       `opacidadRevelaTextoDisplay` — «que no sea un blanco tan claro al que llegan».
 // Los CUATRO son ajustes de MAGNITUD sobre mecanismos que YA existían (RONDA 3/4) — ninguno cambia
 // la estructura de tres elementos del loop, el eje del ticker, ni el modelo de revelado enmascarado.
+//
+// LA FRANJA VERDE EN MÓVIL AL EMPEZAR A HACER SCROLL — § HERO-MOVIL-SIN-FRANJA-VERDE-1 (2026-09-29):
+// el owner, desde su teléfono, con captura: «En móvil se ve como una pantalla verde detrás del
+// video cuando empiezo a hacer scroll y empiezan a salir las letras» — la franja aparece debajo, y a
+// veces arriba, del video durante el tramo pineado.
+//
+// LA CAUSA: `100svh` ("small viewport height") resuelve al viewport MÁS CHICO posible (el chrome del
+// navegador —barra de direcciones/gestos— EXPANDIDO); `100lvh` ("large viewport height") al MÁS
+// GRANDE (el chrome COLAPSADO). Los dos son valores FIJOS — ninguno de los dos sigue al chrome real
+// en tiempo real; sólo `100dvh` lo hace. Este panel medía `h-[100svh]` para TODO (el marco Y la
+// media), así que al iniciar el scroll —el momento en que el navegador móvil colapsa su chrome y el
+// viewport VISIBLE crece hacia `lvh`— el panel se quedaba anclado al tamaño CHICO, ya resuelto en
+// píxeles, que no crece con el chrome; el área que el chrome deja de ocupar quedaba por FUERA del
+// panel, mostrando el `bg-[var(--sf-banda,var(--sf-tinta))]` del ANCESTRO (§ arriba, "LA MECÁNICA DE
+// STICKY") — la franja verde oscura reportada. El "a veces arriba" es la MISMA causa en el otro
+// sentido: el chrome de un navegador móvil puede colapsar/expandir por los DOS bordes (barra de
+// direcciones arriba, barra de gestos abajo), así que el viewport visible puede crecer por
+// cualquiera de los dos, no sólo el inferior.
+//
+// EL FIX — SÓLO LA MEDIA MIDE `lvh`; EL MARCO SIGUE EN `svh`. La `<section>` que ancla el texto, la
+// tarjeta, la frase al pie y el cue "Desliza" NO cambia: sigue `h-[100svh]`, el viewport MÁS CHICO,
+// así que esos elementos —posicionados con `bottom-*`/`top-*` relativos a ESE marco— siguen SIEMPRE
+// dentro del área visible, con el chrome mostrado o escondido (agrandar el marco a `lvh` los habría
+// sacado del área visible cuando el chrome SÍ está mostrado, ocultándolos detrás de la barra del
+// navegador — justo lo que el spec pidió no crear). El `<div>` que envuelve video+imagen+velo (antes
+// `absolute inset-0`, 100% del marco) pasa a `absolute inset-x-0` con `height:'100lvh'` y
+// `top:'calc((100svh - 100lvh) / 2)'` — CENTRADO respecto al marco, así que el excedente (`lvh -
+// svh`, el alto del chrome) se reparte MITAD arriba, MITAD abajo, cubriendo los dos casos reportados
+// con el MISMO mecanismo, no dos parches distintos.
+//
+// EN ESCRITORIO (y en cualquier navegador SIN chrome dinámico) `svh === lvh === dvh === vh`, por
+// definición del spec de CSS — no hay chrome que colapsar. Con eso, `calc((100svh - 100lvh) / 2)`
+// resuelve a `0` y `100lvh` resuelve al MISMO valor que `100svh` ya resolvía: el `top`/`height`
+// nuevos quedan IDÉNTICOS al `inset-0` de antes, byte a byte — el fix es byte-idéntico en escritorio
+// por la PROPIEDAD de la fórmula, no por una media query aparte.
+//
+// `overflow-hidden` SE RETIRA de la `<section>` — necesario para que la media (ahora más alta que el
+// marco) pueda pintar más allá de su caja sin recortarse — y se AGREGA al `<div ref={wrapperRef}>`
+// (el ANCESTRO del sticky) como red de seguridad: acota cualquier excedente al espacio del ancestro
+// (que sobra, § el presupuesto de scroll de 200vh/65vh) para que la media desbordada nunca alcance a
+// pintar sobre la sección SIGUIENTE de la página, ni siquiera en el instante en que el panel se
+// despinea al final del recorrido. Lo único que dependía del `overflow-hidden` retirado de la
+// sección era el recorte HORIZONTAL de la máscara del ticker (§ "EL LOOP DE TEXTO" — sin ancho
+// propio, su caja crecía tan ancha como el texto sin envolver); gana `inset-x-0` (ancho acotado al
+// marco) para quedar auto-contenida vía su PROPIO `overflow-hidden`, sin depender de la sección. La
+// tarjeta (`transformMarquesinaTarjeta`, escala 0.85→1 y rotación -4°→0°) nunca se apoyaba en el
+// recorte de la sección de forma perceptible —su desborde por rotación es de unos pocos píxeles en
+// las esquinas, a lo sumo— así que retirarlo no le cambia nada visible.
+//
+// VERIFICADO POR MEDICIÓN, NO ASUMIDO: Chromium headless (Playwright, sin chrome dinámico real) NO
+// puede reproducir el defecto ni distinguir `svh` de `lvh` — en ese entorno los dos SIEMPRE resuelven
+// al mismo valor que el viewport que se le pida, con o sin este fix, así que una captura headless a
+// 390×844 y a 390×932 da CERO franja en AMBOS casos, antes y después del cambio. Eso NO es evidencia
+// de que el fix funcione: es el LÍMITE del arnés, medido y documentado en el asiento de este slice
+// (`DECISIONS.md`). La prueba real es el Safari del owner, en su teléfono, con la barra de
+// direcciones colapsando de verdad durante el scroll.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -452,14 +508,21 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   return (
     <div
       ref={wrapperRef}
-      className={`relative ${claseAlturaAncestroMarquesina(!!producto, preview)} bg-[var(--sf-banda,var(--sf-tinta))]`}
+      className={`relative ${claseAlturaAncestroMarquesina(!!producto, preview)} overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`}
       style={style}
     >
       <section
         aria-label={marquesina.texto}
-        className="sticky top-0 flex h-[100svh] items-center justify-center overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]"
+        className="sticky top-0 flex h-[100svh] items-center justify-center bg-[var(--sf-banda,var(--sf-tinta))]"
       >
-        <div className="absolute inset-0">
+        {/* LA MEDIA CUBRE `lvh`, CENTRADA — § HERO-MOVIL-SIN-FRANJA-VERDE-1 (el docstring de
+            cabecera, "LA FRANJA VERDE EN MÓVIL"). Antes `absolute inset-0` (100% del marco, `svh`);
+            ahora explícita a `100lvh` con un offset negativo que la centra respecto al marco —
+            `top:0, height:100%` cuando `svh===lvh` (escritorio), sin necesitar una media query. */}
+        <div
+          className="absolute inset-x-0"
+          style={{ top: 'calc((100svh - 100lvh) / 2)', height: '100lvh' }}
+        >
           {esVideo ? (
             <video
               ref={videoRef}
@@ -512,9 +575,14 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             `Marquesina.tsx`); el texto se repite dos veces para el efecto de cinta continua —
             trasladar el track la mitad de su ancho total (`-50%`) mueve exactamente el ancho de UNA
             copia, cerrando el loop sin salto. */}
+        {/* `inset-x-0` reemplaza a `left-0` a secas — § HERO-MOVIL-SIN-FRANJA-VERDE-1: la máscara ya
+            no puede apoyarse en el `overflow-hidden` de la SECCIÓN (retirado arriba, para que la
+            media pueda pintar más allá del marco) para su recorte horizontal; sin ancho propio su
+            caja crecía tan ancha como el texto sin envolver. Con `inset-x-0` queda acotada al 100%
+            del marco por sí sola, y su `overflow-hidden` PROPIO (sin cambios) hace el recorte. */}
         <div
           aria-hidden="true"
-          className="absolute left-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[var(--sf-sobre-banda,white)]"
+          className="absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[var(--sf-sobre-banda,white)]"
           style={{
             fontSize: MARQUEE_TITULO_FONT_SIZE,
             lineHeight: MARQUEE_TITULO_LINE_HEIGHT,

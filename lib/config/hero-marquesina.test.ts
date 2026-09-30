@@ -251,6 +251,56 @@ test('claseAlturaAncestroMarquesina: CON tarjeta sigue siendo el presupuesto de 
   assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
 });
 
+// ─── LA MEDIA CUBRE `lvh` CENTRADA — § HERO-MOVIL-SIN-FRANJA-VERDE-1 ──────────────────────────────
+// El owner, desde su teléfono, con captura: «En móvil se ve como una pantalla verde detrás del video
+// cuando empiezo a hacer scroll y empiezan a salir las letras» — el marco (`h-[100svh]`, sin cambios)
+// y la media que lo llenaba (antes `absolute inset-0`, 100% del marco) quedaban atados al mismo
+// viewport CHICO; al colapsar el chrome del navegador durante el scroll el viewport visible crece
+// hacia `lvh` y el ancestro (§ "LA MECÁNICA DE STICKY") asoma por el hueco. El docstring de cabecera
+// de `HeroMediaMarquesina.tsx` (el bloque con este mismo id) trae la derivación completa.
+
+test('el marco (`<section>`) YA NO lleva `overflow-hidden` propio — se retiró para que la media pueda pintar más allá de su caja; el ANCESTRO del sticky lo gana como red de seguridad', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  const iWrapper = html.indexOf('class="relative');
+  const iSection = html.indexOf('<section');
+  const claseWrapper = html.slice(iWrapper, html.indexOf('"', iWrapper + 'class="'.length) + 1);
+  const claseSection = html.slice(html.indexOf('class="', iSection), html.indexOf('"', html.indexOf('class="', iSection) + 'class="'.length) + 1);
+  assert.match(claseWrapper, /overflow-hidden/, 'el <div ref={wrapperRef}> (el ancestro) debe llevar overflow-hidden');
+  assert.doesNotMatch(claseSection, /overflow-hidden/, 'la <section> (el marco pineado) ya no debe llevarlo en su propia className');
+});
+
+test('overflow-hidden SIGUE en el marcado (vía la máscara del ticker, no la sección) — no desaparece del todo', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  const apariciones = (html.match(/overflow-hidden/g) ?? []).length;
+  // Dos apariciones: el ancestro (nuevo) y la máscara del ticker (sin cambios). La sección ya no aporta la suya.
+  assert.equal(apariciones, 2);
+});
+
+test('el `<div>` de video/imagen+velo mide `100lvh`, CENTRADO respecto al marco (`top:calc((100svh - 100lvh) / 2)`) — antes `absolute inset-0` (100% del marco, svh)', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.ok(
+    html.includes('<div class="absolute inset-x-0" style="top:calc((100svh - 100lvh) / 2);height:100lvh">'),
+    'el div de media debe llevar el offset centrado y la altura lvh explícitos',
+  );
+  assert.doesNotMatch(html, /<div class="absolute inset-0">/, 'la className vieja (100% del marco, sin el offset lvh) no debe sobrevivir');
+});
+
+test('la máscara del ticker gana `inset-x-0` (ancho acotado al marco) en vez de `left-0` a secas — ya no depende del overflow-hidden retirado de la sección', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.match(
+    html,
+    /class="absolute inset-x-0 top-1\/2 z-10 -translate-y-1\/2 overflow-hidden whitespace-nowrap font-playfair/,
+    'la máscara debe declarar su propio ancho (inset-x-0), con su overflow-hidden propio intacto',
+  );
+});
+
+// EN ESCRITORIO/SIN chrome dinámico, `svh === lvh` por definición del spec de CSS — no hay jsdom en
+// este repo (§ CLAUDE.md) para evaluar `calc()` de verdad, así que la propiedad "la fórmula se anula
+// (top:0, height:100%) cuando svh=lvh" no tiene un test de render que la ejercite acá; es aritmética
+// de la fórmula (`(X-X)/2 = 0`), no algo que dependa de este componente. La prueba de que el
+// NAVEGADOR realmente resuelve `calc((100svh - 100lvh) / 2)` a `0px` en escritorio es del gate
+// visual (`verificar:nayoli:visual`, capa 3), no de este archivo.
+
 // ─── LA VISTA PREVIA DEL PANEL — § HERO-FRASE-AL-PIE-Y-PREVIEW-1 ──────────────────────────────────
 // El owner, sobre `/admin/tienda`: «la imagen de la sección "Hero de la home" no se está
 // renderizando correctamente… cubre sólo una parte del marco y el resto queda en el fondo oscuro».
