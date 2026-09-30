@@ -467,7 +467,10 @@ export default function StoreNav() {
     <>
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navOcultoClase} ${navBg}`}
-        onFocus={() => setFocoDentro(true)}
+        // Sólo el foco de TECLADO (`:focus-visible`) sostiene el nav visible — § NAV-FOCO-SOLO-TECLADO-1:
+        // un clic con mouse (logo, un link del menú, el carrito, COMPRAR) también deja el foco adentro,
+        // y el nav quedaba sin ocultarse al bajar hasta hacer clic en otra parte.
+        onFocus={(e) => setFocoDentro(e.target.matches(':focus-visible'))}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocoDentro(false);
         }}
