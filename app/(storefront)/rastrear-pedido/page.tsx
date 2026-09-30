@@ -9,7 +9,7 @@ import { TrackedOrder } from "@/types/order";
 import { getOrderByNumber } from "@/services/order.service";
 
 import { Search, Package, CheckCircle, Truck, MapPin, Coffee, XCircle, AlertTriangle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCOP } from '@duna/core/utils';
@@ -147,25 +147,30 @@ function OrderTrackingInner() {
 
         {/* Result */}
         <div className="max-w-2xl mx-auto px-4 py-12">
+          {/* RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1: los tres estados de resultado —sin buscar,
+              sin resultado, con orden— entran/salen con AnimatePresence + motion.div (fade +
+              desplazamiento vertical), en vez de `{cond && (<div>…)}` planos que cambiaban de
+              golpe. */}
+          <AnimatePresence mode="wait">
           {!searched && (
-            <div className="text-center py-8 text-[var(--sf-tostado-3)]">
+            <motion.div key="sin-buscar" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="text-center py-8 text-[var(--sf-tostado-3)]">
               <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">Ingresa el número de tu orden y tu correo para comenzar.</p>
-            </div>
+            </motion.div>
           )}
 
           {searched && !loading && !order && (
-            <div className="text-center py-8">
+            <motion.div key="sin-resultado" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="text-center py-8">
               <div className="w-16 h-16 bg-[var(--sf-superficie)] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search aria-hidden="true" className="w-7 h-7 text-[var(--sf-tostado-2)]" />
               </div>
               <p className="font-medium text-[var(--sf-tinta)] mb-1">Orden no encontrada</p>
               <p className="text-sm text-[var(--sf-texto-suave)]">Verifica el número de orden y el correo con el que hiciste tu compra.</p>
-            </div>
+            </motion.div>
           )}
 
           {order && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <motion.div key="con-resultado" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="space-y-6">
               {/* Order Header */}
               <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
                 <div className="flex items-start justify-between mb-4">
@@ -280,6 +285,7 @@ function OrderTrackingInner() {
               )}
             </motion.div>
           )}
+          </AnimatePresence>
         </div>
       </div>
   );

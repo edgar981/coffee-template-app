@@ -546,9 +546,14 @@ export default function Checkout() {
             {/* Form */}
             <div className="lg:col-span-2">
               <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+                {/* CHECKOUT-STEP-SIN-TRANSICION-1: el cambio entre step===0 y step===1 usa la
+                    misma gramática de AnimatePresence + motion.div que el resto de CORTE (fade +
+                    desplazamiento vertical de 8px, 200ms), en vez de un `{cond && (<div>…)}`
+                    plano que cambiaba de golpe. */}
+                <AnimatePresence mode="wait">
                 {/* Step 0: Info */}
                 {step === 0 && (
-                  <div className="space-y-4">
+                  <motion.div key="step-0" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="space-y-4">
                     <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Información de contacto</h2>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Nombre *" value={info.nombre} onChange={v => setInfo({ ...info, nombre: v })} />
@@ -627,7 +632,7 @@ export default function Checkout() {
                       <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 disabled:pointer-events-none text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
                     </div>
                   </div>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Step 1: Shipping */}
@@ -635,7 +640,7 @@ export default function Checkout() {
 
                 {/* Step 2: Payment */}
                 {step === 1 && (
-                  <div className="space-y-4">
+                  <motion.div key="step-1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="space-y-4">
                     {confirmation && confirmation.wompi && !pasarelaMetodoNoHabilitado && !modoApiDirecta ? (
                       // § CHECKOUT-UNA-SOLA-PANTALLA-1: EXCEPCIÓN DECLARADA — el modo WIDGET no
                       // adopta el flujo de una sola pantalla, y es a propósito (§ el reporte del
@@ -800,11 +805,11 @@ export default function Checkout() {
                         // confirma (§ CHECKOUT-UNA-SOLA-PANTALLA-1, "el único botón que
                         // confirma dice cuánto se paga") — acá sólo queda "Atrás".
                         <div className="flex gap-3">
-                          <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                          <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Atrás</button>
                         </div>
                       ) : (
                         <div className="flex gap-3">
-                          <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                          <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Atrás</button>
                           <button onClick={handleOrder} disabled={loading || (availablePayments.length === 0 && !pasarelaOfrecida)} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
                             {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                           </button>
@@ -813,8 +818,9 @@ export default function Checkout() {
                     )}
                     </>
                     )}
-                  </div>
+                  </motion.div>
                 )}
+                </AnimatePresence>
               </div>
             </div>
 

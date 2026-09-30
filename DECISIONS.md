@@ -37335,3 +37335,144 @@ NUNCA EL MERGE"* / *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya ap
 (gate del 2026-09-30, citado arriba) — el MERGE sigue gateado aparte.
 
 Cierra `FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1`.
+
+## 2026-09-30 — Los tres cambios de golpe del censo de transiciones (`CHECKOUT-RASTREAR-TRANSICIONES-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Cierra los tres `open_followup`
+que dejó `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1` (arriba): `CHECKOUT-ATRAS-SIN-TRANSICION-1`,
+`CHECKOUT-STEP-SIN-TRANSICION-1` y `RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1`. Aprobación del owner
+sobre el gate de `MENU-MOVIL-COMO-CAFEONE-1`: *"censa qué otras secciones… no tienen una
+transición"* — el censo los nombró fuera de `touches:` de aquel slice; éste los cierra.
+
+### 1 · Los dos botones "Atrás" del checkout ganan `transition-colors`
+
+`app/(storefront)/checkout/page.tsx:808/812` (antes 803/807): el hover `hover:bg-[var(--sf-
+superficie)]` no llevaba `transition-colors`, a diferencia del CTA "Confirmar pedido" vecino
+(línea 813, `transition-colors` ya presente) y de "Seguir comprando"/la flecha del encabezado de
+la misma página (líneas 497/524, ambos con `transition-colors`). Se agregó la MISMA clase de
+Tailwind ya usada en el resto de la composición — sin tocar el color del hover, sólo cómo se
+transiciona hacia él.
+
+### 2 · El cambio de paso 0→1 del checkout entra/sale con AnimatePresence
+
+Era `{step === N && (<div>…)}` plano (dos condicionales hermanas dentro del mismo contenedor): el
+paso nuevo aparecía de golpe y el viejo desaparecía sin transición. Se envolvieron las dos ramas en
+`<AnimatePresence mode="wait">`, cada una como `<motion.div key="step-0"|"step-1" initial={{opacity:
+0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:0.2}}>` — el MISMO
+par opacity+y que ya usa el propio checkout para sus pantallas terminales (`confirmation`,
+línea 416: `initial={{opacity:0,scale:0.9}}`; la confirmación de pasarela, línea 659:
+`initial={{opacity:0,y:8}}`), así que el token no es nuevo, es el que esta misma página ya declara
+en otro lado. `mode="wait"` evita que las dos ramas convivan a mitad de transición (el paso viejo
+termina de salir antes de que el nuevo entre), que es lo que corresponde a un flujo de pasos
+secuencial (nunca dos pasos a la vez en pantalla).
+
+**No se tocó ninguna validación, envío ni estado del formulario** — sólo el WRAPPER de cada rama
+(el `<div className="space-y-4">` pasó a `<motion.div key=… … className="space-y-4">`, con su
+`</div>`/`</motion.div>` de cierre correspondiente verificado por balance de árbol, no por
+indentación visual — la indentación de este archivo ya venía con un desfase preexistente entre el
+`<div>` de "Dirección de entrega" (línea 578) y su cierre (línea 634), ajeno a este diff). El botón
+"Continuar al pago" (paso 0) y el selector de método/formulario de pasarela (paso 1) quedan
+exactamente donde estaban.
+
+### 3 · Los tres estados de resultado de /rastrear-pedido entran/salen con AnimatePresence
+
+`!searched` / `searched && !loading && !order` / `order` eran tres `{cond && (<div>…)}` planos y
+mutuamente excluyentes. Se envolvieron en `<AnimatePresence mode="wait">` con `motion.div` por
+estado (`key="sin-buscar"`/`"sin-resultado"`/`"con-resultado"`), fade+y de 8px/200ms para los dos
+estados vacíos (mismo par que el checkout, arriba) y se conservó el y:20 ya establecido del estado
+`order` (línea 173, preexistente desde antes de este slice) agregándole sólo `exit={{opacity:0,
+y:-20}}` y `transition={{duration:0.2}}` — no se le cambió la magnitud de entrada para no introducir
+una diferencia de pixel no pedida en el ÚNICO estado que ya tenía animación. El import de
+`framer-motion` ganó `AnimatePresence` junto al `motion` que ya traía.
+
+**Movimiento reducido no necesitó gate propio**, mismo criterio que §2 de `MENU-MOVIL-MARGEN-Y-
+CENSO-TRANSICIONES-1`: `ReducedMotionProvider` (`MotionConfig reducedMotion="user"`) está montado
+una sola vez en `app/(storefront)/layout.tsx` envolviendo TODO el árbol del storefront — cubre
+cualquier `motion.*` nuevo sin que el componente tenga que acordarse de nada (`lib/animation.ts`,
+docstring de `ReducedMotionProvider`: "cubre los 21 sitios de hoy y cualquier `motion.*` que se
+agregue después").
+
+### Por qué NO se tocó `lib/animation.ts`
+
+El `touches:` del spec lo incluía como candidato. Medido antes de escribir: el par
+`duration:0.2`/`opacity+y` que se usó ya vive DUPLICADO inline en el propio `checkout/page.tsx`
+(dos veces, líneas 416 y 659, preexistentes) y el par `duration:0.22`/`ease:[0.22,0.61,0.36,1]`
+(el de la acordeón/drawer) vive inline en `StoreNav.tsx` (dos veces) y `FiltrarOrdenar.tsx` (una
+vez) — ninguno de los dos está centralizado en `lib/animation.ts` hoy; es el patrón establecido de
+esta familia (repetir el literal en el call site, no extraerlo). Extraer una constante nueva a
+`lib/animation.ts` para 5 call sites (2 en checkout, 3 en rastrear-pedido) sin que el resto de la
+composición (StoreNav, FiltrarOrdenar, las 2 pantallas terminales del propio checkout) migre a la
+misma constante habría creado una TERCERA fuente del mismo número en vez de cerrar la duplicación
+existente — un refactor de centralización que este slice no pidió y que tocaría archivos fuera de
+`touches:`. Se sigue la convención YA vigente; no se abre una nueva.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2837/2837** |
+| `npm run test:integracion` | **242/242** |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset vs. fixture (la intersección contra `SISTEMA_DE_COLOR` de la RAMA completa contra `main` da 11 archivos —heredados de slices previos de esta misma rama, ninguno de este diff—, así que corrió el arnés completo; 0px) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| `npm run lint` (no forma parte de `npm run gate`, corrido igual) | sin errores/warnings NUEVOS en los dos archivos de este slice — `checkout/page.tsx` conserva sus 3 warnings preexistentes (`CreditCard` sin usar, 2 `<img>`) y `rastrear-pedido/page.tsx` su 1 warning preexistente (`setState` síncrono en el `useEffect` de auto-búsqueda, línea 87) |
+
+`/rastrear-pedido` NO es una de las 6 rutas que `verificar:nayoli:visual`/`guarda:color` capturan
+(`RUTAS` en `scripts/verificar-nayoli-visual.ts:211-218`: home, tienda, producto, checkout, nosotros,
+suscripciones) — su cambio se verifica por el gate funcional (`npm test`/`test:integracion`, que no
+cubren render de componente sin jsdom, § CLAUDE.md "el glob NO incluye `*.test.tsx`") y por lectura/
+balance de árbol JSX, verificado con `tsc` (0 errores) y typecheck de JSX/TSX vía el propio
+`next build` implícito en `verificar:nayoli:visual`/`guarda:color` (que SÍ compilan el árbol
+completo, incluida esta ruta, aunque no la capturen).
+
+### `customer_bytes`
+
+**`changed: true`, universal — NO gateado a CORTE.** A diferencia de los slices previos de esta
+rama, `checkout/page.tsx` y `rastrear-pedido/page.tsx` no tienen una rama condicional por
+`navTratamiento`/preset: el cambio de "transición en vez de golpe" llega a TODO tenant, Nayoli
+incluida. Lo que se mide y da 0px es que el RESULTADO VISUAL post-settle (después de que la
+animación termina) es idéntico al de antes — el `transition-colors` de los botones Atrás sólo
+cambia CUÁNTO TARDA el hover en llegar al mismo color final, y el `AnimatePresence` de los dos
+archivos sólo cambia CÓMO entra/sale cada bloque, no su estado final en reposo. `verificar:nayoli:
+visual` confirma esto para `/checkout` (paso 0, la única rama que esa ruta alcanza sin interacción);
+`guarda:color` confirma lo mismo contra el fixture commiteado. Ninguno de los dos arneses interactúa
+con el checkout (cambiar de paso, hacer hover en "Atrás") ni visita `/rastrear-pedido`, así que la
+prueba de que el ESTADO FINAL no cambió para esas interacciones puntuales es de lectura de código
+(el `animate`/estado de reposo de cada `motion.div` es idéntico al `className` que reemplazó,
+verificado línea por línea arriba), no de captura de píxeles — se declara la diferencia de método,
+no se oculta.
+
+**`strings:`** ninguna cadena de copy nueva ni cambiada.
+
+### Deviations
+
+Ninguna respecto del spec.
+
+### Open follow-ups
+
+Ninguno nuevo. Los dos heredados de `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1` sin relación con
+este slice (`MENU-DRAWER-DEFAULTS-DOCSTRING-1`, `MENU-DRAWER-SUBMENU-SIN-TENANT-1`) siguen abiertos,
+sin tocar acá.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `app/(storefront)/checkout/page.tsx`, `app/(storefront)/
+rastrear-pedido/page.tsx`, `AnimatePresence`, `transition-colors`, `CHECKOUT-ATRAS-SIN-TRANSICION-1`,
+`CHECKOUT-STEP-SIN-TRANSICION-1`, `RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1`,
+`CHECKOUT-RASTREAR-TRANSICIONES-1`. Grepeados uno por uno contra `CLAUDE.md`: **CERO coincidencias**
+en todos salvo `rastrear-pedido`, que da UNA coincidencia (línea 2210, el retiro del andamiaje de
+`/cuenta`: "`getOrderByNumber` sobrevive porque /rastrear-pedido es dato REAL") — describe otra
+superficie (el servicio de auth stub retirado), no el archivo de página ni su transición; no se
+vuelve falsa. Nada en `CLAUDE.md` afirma algo sobre estas piezas que este diff vuelva falso —la
+doctrina de esta familia (CORTE, el censo de transiciones) vive en este archivo, no en `CLAUDE.md`,
+igual que en los slices anteriores de esta misma rama.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante (de CUALQUIER
+tenant, no sólo CORTE) ve al interactuar con el checkout o con /rastrear-pedido (§ `customer_bytes`,
+arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó
+la ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30 sobre `MENU-MOVIL-COMO-CAFEONE-1`,
+citado arriba) — el MERGE sigue gateado aparte.
+
+Cierra `CHECKOUT-RASTREAR-TRANSICIONES-1`.
