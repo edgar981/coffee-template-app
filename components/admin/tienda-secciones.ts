@@ -386,10 +386,18 @@ const BRAND_STORY: SeccionConfig = {
   // composición que no es la activa MIENTE — más simple dejarlas neutras que bifurcar el label por
   // la variante activa (que exigiría leer `content.brandStory.variante` dentro de una config
   // estática, hoy independiente del contenido).
-  // `opcional:true` en imagen2/3/4 habilita el botón "Quitar" (§ CampoImagen.opcional) — coincide con
-  // `REGISTRY.brandStory.campos` (site-content-defaults.ts: imagen1 'requerido', imagen2/3/4
-  // 'opcional'), la MISMA fuente que ya decide qué cae al default y qué se omite al resolver; esto
-  // sólo agrega el CONTROL que faltaba, no cambia qué es opcional.
+  // `opcional:true` en imagen2/3/4 SIGUE describiendo el RESOLVER (§ CampoImagen.opcional): coincide
+  // con `REGISTRY.brandStory.campos` (site-content-defaults.ts: imagen1 'requerido' → cae al default
+  // si queda vacía; imagen2/3/4 'opcional' → se OMITEN). Eso NO cambió.
+  // LO QUE SÍ CAMBIÓ (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1, gate del owner: "no deja eliminar la primera
+  // foto, sólo las otras 3, o re posicionar las mismas"): el botón "Quitar" del PANEL ya NO lo
+  // habilita este flag — lo habilita el CONTEO de fotos con valor en el bloque collage (cualquiera
+  // se puede quitar mientras quede al menos otra; ver `renderBloqueCollage`/`renderCeldaCollage` en
+  // `TiendaSeccionEditor.tsx`). Al quitar, las de abajo suben (se compacta) y la que sobrevive en el
+  // slot 1 nunca queda vacía, así que el fallback a default de `imagen1` no se dispara en uso normal.
+  // El panel también gana reordenar (flechas subir/bajar, mismo patrón que `RepeaterEditor.mover`),
+  // sobre `lib/tienda/lista-plana.ts` (`quitar`/`mover`), generalizada de los bullets de Suscripción
+  // a los slots de imagen — misma pieza, no una segunda implementación.
   imagenes: [
     { name: 'imagen1', label: 'Imagen 1' },
     { name: 'imagen2', label: 'Imagen 2 (opcional)', opcional: true },

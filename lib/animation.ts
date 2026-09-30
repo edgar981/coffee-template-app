@@ -59,42 +59,43 @@ export function transformAcomodo(
 }
 
 // `parametrosAcomodoCollage` — LA CARDINALIDAD 1-4 (§ CORTE-HISTORIA-COLOR-FOTOS-1) contra un
-// prototipo que sólo define el caso de TRES fotos (`from = [-8, 4, -3]`, `spread = [-70, 0, 70]`,
-// `js/home.js:287-288`). Con exactamente 3 figuras visibles, usa esos valores LITERALES — el
-// prototipo manda, no se aproxima. Para 1, 2 o 4 figuras (que el prototipo no cubre), se EXTIENDE la
-// regla con el criterio MÁS SIMPLE que sigue siendo fiel a lo medido: SIMETRÍA alrededor del centro.
+// prototipo que sólo define el caso de TRES fotos (`from = [-8, 4, -3]`, `js/home.js:287`). Con
+// exactamente 3 figuras visibles, la ROTACIÓN usa esos valores LITERALES — el prototipo manda, no se
+// aproxima. Para 1, 2 o 4 figuras (que el prototipo no cubre), se EXTIENDE la regla con el criterio
+// MÁS SIMPLE que sigue siendo fiel a lo medido: SIMETRÍA alrededor del centro.
 //
-// LA APERTURA (`spread`) generaliza SOLA, sin necesitar un caso especial: `spread[i] = (i - centro) *
-// PASO_APERTURA_PX` con `centro = (total-1)/2` reproduce EXACTO el `[-70, 0, 70]` del prototipo para
-// total=3 (offsets -1, 0, +1 × 70 = -70, 0, 70) — por eso `PASO_APERTURA_PX` es el paso MEDIDO entre
-// posiciones contiguas del prototipo, no un número inventado, y la rama total=3 de abajo lo reutiliza
-// en vez de repetir el literal.
-//
-// LA ROTACIÓN no generaliza así: `from = [-8, 4, -3]` no es una función lineal ni simétrica del
+// LA ROTACIÓN no generaliza con una fórmula única: `from = [-8, 4, -3]` no es lineal ni simétrica del
 // offset (la figura del medio, offset 0, rota 4° — no 0°), así que NO hay fórmula que la reproduzca
 // para total=3 Y sea simétrica a la vez. Por eso total=3 usa el ARRAY LITERAL del prototipo, y la
 // regla general (para 1/2/4) es una generalización PROPIA, declarada como tal: magnitud CONSTANTE
 // (`PASO_ROTACION_DEG`), signo negativo del lado izquierdo del centro y positivo del derecho —
 // simetría espejo real (la figura en offset -d y la de offset +d rotan la MISMA magnitud, signo
 // opuesto), y 0° para una figura exactamente en el centro (posible sólo con total impar).
-const PASO_APERTURA_PX = 70; // medido: spread[2]-spread[1] = 70-0 = 70 (js/home.js:288)
+//
+// LA APERTURA (`aperturaPx`) SE FUERZA A CERO, SIEMPRE — DECISIÓN DEL OWNER, no aproximación
+// (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1, gate: "en el muestrario las imágenes no se desplazan en X,
+// simplemente cambia su ángulo; en nuestra página están cambiando en X y cambiando de ángulo"). Se
+// APARTA A PROPÓSITO de `js/home.js:288` (`spread=[-70,0,70]`), que SÍ abre horizontalmente — el
+// collage de esta variante ya NO reproduce esa apertura, sólo el enderezado de la rotación. El campo
+// `aperturaPx` se CONSERVA en la firma (en vez de retirarlo de acá y de `transformAcomodo`) porque
+// `transformAcomodo` sigue siendo la pieza GENÉRICA —matemática pura, sin conocimiento de brandStory—
+// que cualquier apertura futura reutilizaría sin cambios; lo que dejó de abrir es esta función, la que
+// decide CUÁNTO abrir por figura para el collage de HOY.
 const PASO_ROTACION_DEG = 4; // generalización PROPIA (no del prototipo) para total ≠ 3, § arriba
 
 const ROTACION_PROTOTIPO_N3 = [-8, 4, -3] as const; // js/home.js:287, literal
-const APERTURA_PROTOTIPO_N3 = [-70, 0, 70] as const; // js/home.js:288, literal (= regla general)
 
 export function parametrosAcomodoCollage(
   posicion: number,
   total: number,
 ): { rotarInicialDeg: number; aperturaPx: number } {
   if (total === 3 && posicion >= 0 && posicion < 3) {
-    return { rotarInicialDeg: ROTACION_PROTOTIPO_N3[posicion], aperturaPx: APERTURA_PROTOTIPO_N3[posicion] };
+    return { rotarInicialDeg: ROTACION_PROTOTIPO_N3[posicion], aperturaPx: 0 };
   }
   const centro = (total - 1) / 2;
   const d = posicion - centro;
-  const aperturaPx = d * PASO_APERTURA_PX;
   const rotarInicialDeg = d === 0 ? 0 : d < 0 ? -PASO_ROTACION_DEG : PASO_ROTACION_DEG;
-  return { rotarInicialDeg, aperturaPx };
+  return { rotarInicialDeg, aperturaPx: 0 };
 }
 
 // `useProgresoAcomodo` — el progreso de scroll [0,1] YA acotado a `UMBRAL_ACOMODO`, listo para que

@@ -5,6 +5,9 @@ import { siteContentEditableSchema } from '../../lib/config/site-content-schema'
 import { guardarBorrador, publicarSeccion } from '../../lib/config/site-content-write';
 import { readSiteContent } from '../../lib/config/site-content-read';
 import { DEFAULTS } from '../../lib/config/site-content-defaults';
+import { quitar, mover } from '../../lib/tienda/lista-plana';
+
+const SLOTS = ['imagen1', 'imagen2', 'imagen3', 'imagen4'] as const;
 
 // EL VIAJE DE PUNTA A PUNTA de brandStory (§ CORTE-HISTORIA-COLOR-FOTOS-1): el collage dejó de ser
 // 4 fotos FIJAS y pasó a 1-4 — `imagen1` sigue REQUERIDA (mínimo una foto); `imagen2/3/4` pasaron a
@@ -64,4 +67,47 @@ test('imagen1 (REQUERIDA) vacía cae al default; imagen2/3/4 (OPCIONALES) vacía
   assert.equal(bs.imagen2, '', 'imagen2 vacía se omite, no cae al default');
   assert.equal(bs.imagen3, '', 'imagen3 vacía se omite, no cae al default');
   assert.equal(bs.imagen4, '', 'imagen4 vacía se omite, no cae al default');
+});
+
+// § HISTORIA-FOTOS-PANEL-Y-GIRO-1 — EL PANEL: "quitar" cualquier foto (incluida la primera) COMPACTA,
+// y "reordenar" (flechas) sobrevive el viaje sin tocar el CONJUNTO de blobs. Las dos usan las mismas
+// funciones PURAS que el editor (`lib/tienda/lista-plana.ts`), así que el body que se guarda acá es
+// EXACTAMENTE el que el panel produciría — no un cálculo hecho a mano que pueda divergir del real.
+
+test('el panel PUEDE quitar la PRIMERA foto (imagen1) — compacta (imagen2 sube) y sobrevive publicar SIN caer al default', async () => {
+  const antes = ['https://blob.example/imagen1.jpg', 'https://blob.example/imagen2.jpg', 'https://blob.example/imagen3.jpg', ''];
+  const despues = quitar(antes, 0); // el panel: "Quitar" sobre la celda 0 (imagen1)
+  assert.deepEqual(despues, ['https://blob.example/imagen2.jpg', 'https://blob.example/imagen3.jpg', '', '']);
+
+  await guardarComoElRoute({
+    titulo: 'Nuestra historia real', parrafo1: 'Un párrafo real',
+    ...Object.fromEntries(SLOTS.map((s, i) => [s, despues[i]])),
+  });
+  await publicarSeccion('brandStory');
+
+  const bs = (await readSiteContent()).brandStory;
+  assert.equal(bs.imagen1, 'https://blob.example/imagen2.jpg', 'imagen1 quedó con lo que era imagen2 — compactado, no vacío');
+  assert.equal(bs.imagen2, 'https://blob.example/imagen3.jpg');
+  assert.equal(bs.imagen3, '');
+  assert.equal(bs.imagen4, '');
+  assert.notEqual(bs.imagen1, DEFAULTS.brandStory.imagen1, 'no cayó al default: había otra foto real para ocupar el slot 1');
+});
+
+test('PUBLICAR brandStory con las fotos REORDENADAS (flechas del panel) sobrevive el viaje y NO borra ningún blob — el CONJUNTO de urls no cambió', async () => {
+  const original = ['A1.jpg', 'A2.jpg', 'A3.jpg', 'A4.jpg'];
+  const reordenado = mover(original, 0, 1); // el panel: "Bajar" imagen1 → swap con imagen2
+  assert.deepEqual(reordenado, ['A2.jpg', 'A1.jpg', 'A3.jpg', 'A4.jpg']);
+
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content: { brandStory: { ...Object.fromEntries(SLOTS.map((s, i) => [s, original[i]])), titulo: 'x', parrafo1: 'x' } },
+      borrador: { brandStory: { ...Object.fromEntries(SLOTS.map((s, i) => [s, reordenado[i]])), titulo: 'x', parrafo1: 'x' } },
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('brandStory');
+  assert.deepEqual(blobsABorrar, [], 'el swap no cambia el CONJUNTO de urls — ninguna queda huérfana (§ blobsHuerfanos, set-diff)');
+
+  const bs = (await readSiteContent()).brandStory;
+  assert.deepEqual(SLOTS.map(s => bs[s]), reordenado, 'el orden publicado es el REORDENADO, no el original');
 });

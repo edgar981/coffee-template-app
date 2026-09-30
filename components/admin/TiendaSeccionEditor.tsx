@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, Plus, ImageIcon, X, Film } from 'lucide-react';
+import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
@@ -15,7 +15,7 @@ import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano } from '@/co
 import { gatePorCampo } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
-import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
+import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { DEFAULTS, type SuscripcionPlanesContent, type TemaContent, type EsquemasContent } from '@/lib/config/site-content-defaults';
@@ -709,12 +709,21 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
   // UNA CELDA del collage: una miniatura CLICABLE (clic = Cambiar) que ocupa su cuadro del 2×2; la
   // POSICIÓN la da el grid (rule 1: la posición se VE como en la tienda). Vacía → placeholder muted
-  // (§ #66). "Por defecto"/"Quitar" abajo, según corresponda.
-  const renderCeldaCollage = (img: CampoImagen) => {
+  // (§ #66). "Por defecto"/flechas/"Quitar" abajo, según corresponda.
+  //
+  // "Quitar" y las flechas operan sobre el ARRAY completo del bloque, no sobre `img.name` solo
+  // (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1, gate del owner: "no deja eliminar la primera foto, sólo las
+  // otras 3, o re posicionar las mismas"). El gate de "Quitar" YA NO es `CampoImagen.opcional` —ese
+  // campo sigue describiendo si el slot cae al DEFAULT o se OMITE al resolver (sin cambio, §
+  // REGISTRY.brandStory.campos en site-content-defaults.ts)—: acá es el CONTEO de fotos con valor en
+  // el bloque, recibido por prop desde `renderBloqueCollage`.
+  const renderCeldaCollage = (
+    img: CampoImagen, i: number, total: number, puedeQuitar: boolean,
+    quitarFoto: (i: number) => void, moverFoto: (i: number, dir: -1 | 1) => void,
+  ) => {
     const val = String(form[img.name] ?? '');
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;
-    const puedeQuitar = !!img.opcional && val !== '';
     return (
       <div key={img.name} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-1)', minWidth: 0 }}>
         <button type="button" onClick={() => ponerImagen(img.name)} className="duna-tile" style={{ width: '100%' }} disabled={subiendo} aria-label={`Cambiar ${img.label}`}>
@@ -729,8 +738,14 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 Por defecto
               </button>
             )}
+            <button type="button" onClick={() => moverFoto(i, -1)} disabled={subiendo || i === 0} aria-label="Subir" className="duna-btn duna-btn--ghost duna-btn--sm">
+              <ArrowUp className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={() => moverFoto(i, 1)} disabled={subiendo || i === total - 1} aria-label="Bajar" className="duna-btn duna-btn--ghost duna-btn--sm">
+              <ArrowDown className="h-3.5 w-3.5" />
+            </button>
             {puedeQuitar && (
-              <button type="button" onClick={() => vaciarImagen(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo} style={{ alignSelf: 'flex-start' }}>
+              <button type="button" onClick={() => quitarFoto(i)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo} style={{ alignSelf: 'flex-start' }}>
                 Quitar
               </button>
             )}
@@ -742,14 +757,29 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   };
 
   // Bloque COLLAGE (rule 1): las fotos en un 2×2 para que la posición se VEA como en la tienda.
-  const renderBloqueCollage = (bloque: Extract<BloqueResuelto, { tipo: 'collage' }>) => (
-    <div>
-      {bloque.titulo && <span className="duna-field__label">{bloque.titulo}</span>}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)', maxWidth: '280px' }}>
-        {bloque.imagenes.map(renderCeldaCollage)}
+  // "Quitar" COMPACTA (las de abajo suben, § lib/tienda/lista-plana.ts) y sólo se ofrece si queda ≥1
+  // foto con contenido tras quitar ésta — la ÚLTIMA que queda no se puede quitar (la sección necesita
+  // al menos una). Reordenar hace SWAP con el vecino (mismo patrón que `RepeaterEditor.mover`). Las
+  // dos operan sobre el ARRAY de valores del bloque y reescriben los CUATRO campos a la vez, así que
+  // cualquier foto —incluida la primera— puede terminar en cualquier slot.
+  const renderBloqueCollage = (bloque: Extract<BloqueResuelto, { tipo: 'collage' }>) => {
+    const nombres = bloque.imagenes.map(im => im.name);
+    const valores = nombres.map(n => String(form[n] ?? ''));
+    const conContenido = valores.filter(v => v.trim() !== '').length;
+    const escribir = (nuevos: string[]) => cambiar(Object.fromEntries(nombres.map((n, idx) => [n, nuevos[idx]])));
+    const quitarFoto = (i: number) => escribir(quitarDeLista(valores, i));
+    const moverFoto = (i: number, dir: -1 | 1) => escribir(moverEnLista(valores, i, dir));
+    return (
+      <div>
+        {bloque.titulo && <span className="duna-field__label">{bloque.titulo}</span>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)', maxWidth: '280px' }}>
+          {bloque.imagenes.map((img, i) => renderCeldaCollage(
+            img, i, bloque.imagenes.length, valores[i].trim() !== '' && conContenido > 1, quitarFoto, moverFoto,
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Bloque SECCIÓN: imágenes (miniatura, § rule 1) + campos. Sin encabezados de grupo (se retiraron).
   const renderBloqueSeccion = (bloque: Extract<BloqueResuelto, { tipo: 'seccion' }>) => (

@@ -12,7 +12,7 @@ import { SiteContentProvider } from '@/components/storefront/SiteContentProvider
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 
 import { DEFAULTS } from './site-content-defaults';
-import { transformAcomodo, UMBRAL_ACOMODO } from '../animation';
+import { transformAcomodo, parametrosAcomodoCollage, UMBRAL_ACOMODO } from '../animation';
 
 // TEMAS-BRANDSTORY-DIRECCION-ARTE-1 — la variante `centrada` de brandStory (§ CORTE-BRANDSTORY-
 // COLLAGE-1, la ÚNICA que usa el preset CORTE) gana la dirección de arte del prototipo: fotos
@@ -24,6 +24,14 @@ import { transformAcomodo, UMBRAL_ACOMODO } from '../animation';
 // § HISTORIA-COMO-MUESTRARIO-1 REESCRIBIÓ el eje de `transformAcomodo`: ya NO es un asiento VERTICAL
 // (`translateY`, la aproximación anterior) sino la APERTURA HORIZONTAL real del prototipo
 // (`translateX`, `js/home.js:288-297`) — los tests de abajo se re-miden contra ESE eje.
+//
+// § HISTORIA-FOTOS-PANEL-Y-GIRO-1 (gate del owner) SE APARTA de esa apertura horizontal: `transformAcomodo`
+// SIGUE siendo la pieza GENÉRICA (recibe `aperturaPx` y lo aplica — sin cambio, por eso los tests de
+// abajo que lo llaman DIRECTO con `aperturaPx=16` siguen afirmando su matemática tal cual), pero su
+// ÚNICO llamador real (`parametrosAcomodoCollage`, `lib/animation.ts`) ahora SIEMPRE le pasa `aperturaPx:
+// 0` — el collage de brandStory·centrada dejó de abrirse en X; sólo cambia de ángulo. Ver el test de
+// integración de esta pieza más abajo, y `lib/animation.test.ts` para la afirmación pura de
+// `parametrosAcomodoCollage`.
 //
 // LO QUE ESTE ARCHIVO PUEDE AFIRMAR SIN NAVEGADOR (§ CLAUDE.md — el carril rápido es DB-free y este
 // repo no tiene jsdom): la MATEMÁTICA del scrub (pura, sin React) y el CABLEADO por render server
@@ -60,6 +68,18 @@ test('transformAcomodo: progreso se acota a [0,1] — un valor fuera de rango no
 test('UMBRAL_ACOMODO reproduce los umbrales MEDIDOS del prototipo (`docs/prototipos/cafeone/js/home.js:291`, `(p - 0.15) / 0.5`)', () => {
   assert.equal(UMBRAL_ACOMODO.desde, 0.15);
   assert.equal(UMBRAL_ACOMODO.hasta, 0.65); // 0.15 + 0.5, el mismo span que `js/home.js`
+});
+
+test('§ HISTORIA-FOTOS-PANEL-Y-GIRO-1: con la apertura que REALMENTE produce parametrosAcomodoCollage (0, siempre), transformAcomodo nunca desplaza en X — sólo cambia el ángulo, para 1 a 4 fotos y todo el recorrido del scroll', () => {
+  for (let total = 1; total <= 4; total++) {
+    for (let posicion = 0; posicion < total; posicion++) {
+      const { rotarInicialDeg, aperturaPx } = parametrosAcomodoCollage(posicion, total);
+      for (const progreso of [0, 0.25, 0.5, 0.75, 1]) {
+        const t = transformAcomodo(rotarInicialDeg, aperturaPx, progreso, false);
+        assert.match(t, /^translateX\(0\.0px\) rotate\(-?\d+\.\d{2}deg\)$/, `total=${total} posicion=${posicion} progreso=${progreso}: "${t}"`);
+      }
+    }
+  }
 });
 
 // ─── EL CABLEADO — render vía `SiteContentProvider`, sin jsdom (`renderToStaticMarkup`) ─────────

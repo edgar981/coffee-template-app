@@ -1,5 +1,7 @@
-// Una LISTA PLANA sobre slots FIJOS del modelo (los beneficios de Suscripción: bullet1..4). El editor
-// la muestra como filas + "+ Agregar" + "×"; el modelo NO cambia (siguen siendo campos planos).
+// Una LISTA PLANA sobre slots FIJOS del modelo — nació para los beneficios de Suscripción (bullet1..4)
+// y GENERALIZA (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1) a los slots de imagen del collage de brandStory
+// (imagen1..4): el editor la muestra como filas + "+ Agregar"/flechas/"×"; el modelo NO cambia (siguen
+// siendo campos planos). El valor de cada slot puede ser texto o una URL — la lógica no distingue.
 //
 // DECISIÓN (diagnóstico b): se COMPACTA, no se dejan huecos. El storefront ya cierra huecos al mostrar
 // (`.filter`); si el editor dejara un agujero interior al quitar la fila del medio, editor y storefront
@@ -28,4 +30,16 @@ export function ultimoLleno(valores: string[]): number {
   let ultimo = -1;
   valores.forEach((v, i) => { if ((v ?? '').trim() !== '') ultimo = i; });
   return ultimo;
+}
+
+/** Mueve el valor en `i` una posición (arriba con dir=-1, abajo con dir=1) — SWAP posicional, SIN
+ *  compactar (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1: las flechas del collage de brandStory; mismo patrón
+ *  que `mover` de `RepeaterEditor.tsx`). Intercambia también huecos —no filtra vacíos, sólo cambia de
+ *  lugar—. Sin efecto si `i + dir` cae fuera de rango. */
+export function mover(valores: string[], i: number, dir: -1 | 1): string[] {
+  const j = i + dir;
+  if (j < 0 || j >= valores.length) return valores;
+  const out = valores.slice();
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
 }

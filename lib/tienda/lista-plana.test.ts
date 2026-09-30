@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { empacar, quitar, ultimoLleno } from './lista-plana';
+import { empacar, quitar, mover, ultimoLleno } from './lista-plana';
 
 // La DECISIÓN de compactar (diagnóstico b): quitar la fila del medio SUBE las de abajo — nunca deja un
 // hueco interior. Así el editor coincide con el storefront (que filtra los vacíos) en el DATO.
@@ -26,4 +26,21 @@ test('ultimoLleno: índice del último no-vacío (o -1)', () => {
   assert.equal(ultimoLleno(['A', 'B', '', '']), 1);
   assert.equal(ultimoLleno(['A', '', 'C', '']), 2); // el hueco interior se muestra hasta el último lleno
   assert.equal(ultimoLleno(['', '', '', '']), -1);
+});
+
+// `mover` — las flechas subir/bajar del collage de brandStory (§ HISTORIA-FOTOS-PANEL-Y-GIRO-1).
+// SWAP posicional, no compactación: distinto de `quitar`, que sí compacta.
+
+test('mover: swap con el vecino, en cada dirección', () => {
+  assert.deepEqual(mover(['A', 'B', 'C', 'D'], 1, -1), ['B', 'A', 'C', 'D']);
+  assert.deepEqual(mover(['A', 'B', 'C', 'D'], 1, 1), ['A', 'C', 'B', 'D']);
+});
+
+test('mover: en el borde no hace nada (sin salirse de rango)', () => {
+  assert.deepEqual(mover(['A', 'B', 'C', 'D'], 0, -1), ['A', 'B', 'C', 'D']);
+  assert.deepEqual(mover(['A', 'B', 'C', 'D'], 3, 1), ['A', 'B', 'C', 'D']);
+});
+
+test('mover: intercambia también huecos (vacíos) — swap posicional puro, no filtra', () => {
+  assert.deepEqual(mover(['A', '', 'C', ''], 0, 1), ['', 'A', 'C', '']);
 });

@@ -693,41 +693,46 @@ test('un ticker más lento tarda MÁS en completar un ciclo del mismo ancho — 
 // `parametrosAcomodoCollage` es la pieza puramente MATEMÁTICA; el cableado con `brandStory` (cuál
 // slot es "la del medio", el `useTransform` por figura) se afirma en
 // `lib/config/historia-direccion-arte.test.ts`, que ya importa `transformAcomodo`.
+//
+// § HISTORIA-FOTOS-PANEL-Y-GIRO-1 (gate del owner) FUERZA `aperturaPx` a CERO, SIEMPRE — se aparta a
+// propósito de `js/home.js:288` (`spread=[-70,0,70]`), que abre horizontalmente. La ROTACIÓN no
+// cambió: sigue el literal del prototipo para total=3 y la generalización simétrica para el resto.
 
-test('parametrosAcomodoCollage: total=3 usa los valores LITERALES del prototipo (`js/home.js:287-288`), no la fórmula general', () => {
-  assert.deepEqual(parametrosAcomodoCollage(0, 3), { rotarInicialDeg: -8, aperturaPx: -70 });
+test('parametrosAcomodoCollage: total=3 usa la ROTACIÓN LITERAL del prototipo (`js/home.js:287`); la apertura es CERO, no el `spread` del prototipo', () => {
+  assert.deepEqual(parametrosAcomodoCollage(0, 3), { rotarInicialDeg: -8, aperturaPx: 0 });
   assert.deepEqual(parametrosAcomodoCollage(1, 3), { rotarInicialDeg: 4, aperturaPx: 0 });
-  assert.deepEqual(parametrosAcomodoCollage(2, 3), { rotarInicialDeg: -3, aperturaPx: 70 });
+  assert.deepEqual(parametrosAcomodoCollage(2, 3), { rotarInicialDeg: -3, aperturaPx: 0 });
 });
 
 test('parametrosAcomodoCollage: total=1 — una sola figura, sin nada contra qué ser simétrica: rotación y apertura en 0', () => {
   assert.deepEqual(parametrosAcomodoCollage(0, 1), { rotarInicialDeg: 0, aperturaPx: 0 });
 });
 
-test('parametrosAcomodoCollage: total=2 — PAR, sin centro: las dos posiciones son un espejo exacto (misma magnitud, signo opuesto)', () => {
+test('parametrosAcomodoCollage: total=2 — PAR, sin centro: las dos posiciones son un espejo exacto en ROTACIÓN (misma magnitud, signo opuesto); la apertura es CERO en las dos', () => {
   const izq = parametrosAcomodoCollage(0, 2);
   const der = parametrosAcomodoCollage(1, 2);
   assert.equal(izq.rotarInicialDeg, -der.rotarInicialDeg);
-  assert.equal(izq.aperturaPx, -der.aperturaPx);
   assert.ok(izq.rotarInicialDeg !== 0, 'sin centro (total par), ninguna posición cae en offset 0');
+  assert.equal(izq.aperturaPx, 0);
+  assert.equal(der.aperturaPx, 0);
 });
 
-test('parametrosAcomodoCollage: total=4 — PAR, simetría espejo entre 0↔3 y 1↔2, la apertura crece con la distancia al centro', () => {
+test('parametrosAcomodoCollage: total=4 — PAR, simetría espejo en ROTACIÓN entre 0↔3 y 1↔2; la apertura sigue en CERO para las cuatro (ya no crece con la distancia al centro)', () => {
   const p0 = parametrosAcomodoCollage(0, 4);
   const p1 = parametrosAcomodoCollage(1, 4);
   const p2 = parametrosAcomodoCollage(2, 4);
   const p3 = parametrosAcomodoCollage(3, 4);
   assert.equal(p0.rotarInicialDeg, -p3.rotarInicialDeg, 'espejo: extremo izquierdo ↔ extremo derecho');
   assert.equal(p1.rotarInicialDeg, -p2.rotarInicialDeg, 'espejo: interior izquierdo ↔ interior derecho');
-  assert.equal(p0.aperturaPx, -p3.aperturaPx);
-  assert.equal(p1.aperturaPx, -p2.aperturaPx);
-  assert.ok(Math.abs(p0.aperturaPx) > Math.abs(p1.aperturaPx), 'el extremo se abre MÁS que el interior — simetría alrededor del centro, no una apertura uniforme');
+  for (const p of [p0, p1, p2, p3]) assert.equal(p.aperturaPx, 0);
 });
 
-test('parametrosAcomodoCollage: el paso de apertura es el MISMO paso medido del prototipo (70px) para cualquier total, no sólo para 3', () => {
-  const p0 = parametrosAcomodoCollage(0, 4);
-  const p1 = parametrosAcomodoCollage(1, 4);
-  assert.equal(p1.aperturaPx - p0.aperturaPx, 70, 'el paso entre posiciones contiguas es 70px, igual que spread[2]-spread[1] del prototipo');
+test('parametrosAcomodoCollage: la apertura es CERO para TODA cantidad de fotos (1 a 5), sin importar la posición — § HISTORIA-FOTOS-PANEL-Y-GIRO-1', () => {
+  for (let total = 1; total <= 5; total++) {
+    for (let posicion = 0; posicion < total; posicion++) {
+      assert.equal(parametrosAcomodoCollage(posicion, total).aperturaPx, 0, `total=${total}, posicion=${posicion}`);
+    }
+  }
 });
 
 test('parametrosAcomodoCollage: una figura EXACTAMENTE en el centro (posible sólo con total impar) tiene rotarInicialDeg=0 en la regla general (no aplica a total=3, que usa el literal)', () => {

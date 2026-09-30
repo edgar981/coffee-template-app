@@ -24,8 +24,11 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // site-content-defaults.ts) — vacías se OMITEN, nunca rellenadas por el resolver. Se rinden sólo
 // las imágenes con VALOR; el collage (`justify-center`+`items-center`, abajo) se reacomoda solo
 // con las que haya, sin cambio de layout — CENTRADO SIEMPRE, nunca alineado a un borde. Con
-// exactamente TRES visibles el resultado es el del prototipo EXACTO (§ HISTORIA-COMO-MUESTRARIO-1,
-// más abajo); con otra cantidad, la SIMETRÍA se extiende — nunca un offset vertical inventado.
+// exactamente TRES visibles el TAMAÑO de cada figura (lado/medio, § abajo) es el del prototipo
+// EXACTO (§ HISTORIA-COMO-MUESTRARIO-1, más abajo); con otra cantidad, la SIMETRÍA se extiende —
+// nunca un offset vertical inventado. **La ROTACIÓN por figura sigue esa misma regla (literal para
+// N=3, simétrica para el resto); la APERTURA horizontal del prototipo NO se reproduce — § HISTORIA-
+// FOTOS-PANEL-Y-GIRO-1, más abajo, la fuerza a cero siempre.**
 //
 // LOS HOOKS SE LLAMAN SIEMPRE LOS CUATRO, SIN IMPORTAR CUÁNTAS IMÁGENES SE RINDAN: `IMAGENES` es
 // un literal de longitud fija (4) y los cuatro `useTransform` (abajo) se calculan siempre; sólo el
@@ -47,12 +50,16 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // —el mismo mecanismo de movimiento que ya trae el repo, no un listener propio—.
 //
 // § HISTORIA-COMO-MUESTRARIO-1 REESCRIBIÓ el eje: la aproximación anterior movía cada figura con un
-// ASIENTO VERTICAL (`y:16→0`) que el prototipo NUNCA tuvo. `js/home.js:287-297` abre las figuras
-// HORIZONTALMENTE (`translateX`), no verticalmente: cada una arranca inclinada (`rotar`) Y con
-// apertura 0, y SE ACOMODA —la rotación se endereza a 0° MIENTRAS la apertura CRECE hasta su tope—
-// a medida que el visitante scrollea la sección. `parametrosAcomodoCollage` (`lib/animation.ts`)
-// deriva `{rotarInicialDeg, aperturaPx}` por FIGURA a partir de su posición entre las VISIBLES y el
-// total visible —no de su slot fijo (0..3)—, porque la simetría es sobre lo que se MUESTRA, § abajo.
+// ASIENTO VERTICAL (`y:16→0`) que el prototipo NUNCA tuvo, y lo cambió por la apertura HORIZONTAL
+// (`translateX`) de `js/home.js:287-297`. `parametrosAcomodoCollage` (`lib/animation.ts`) deriva
+// `{rotarInicialDeg, aperturaPx}` por FIGURA a partir de su posición entre las VISIBLES y el total
+// visible —no de su slot fijo (0..3)—, porque la simetría es sobre lo que se MUESTRA, § abajo.
+//
+// § HISTORIA-FOTOS-PANEL-Y-GIRO-1 (gate del owner) SE APARTA de esa apertura: "en el muestrario las
+// imágenes no se desplazan en X, simplemente cambia su ángulo" — `parametrosAcomodoCollage` fuerza
+// `aperturaPx` a CERO, SIEMPRE, así que cada figura arranca inclinada (`rotar`) y SE ENDEREZA a 0°
+// mientras scrollea, SIN desplazarse — nunca abre. `transformAcomodo` sigue siendo la pieza genérica
+// que sabe aplicar una apertura (sin cambio); es `parametrosAcomodoCollage` la que dejó de pedirla.
 //
 // MOVIMIENTO REDUCIDO, NO NEGOCIABLE: con `prefers-reduced-motion` (o en la VISTA PREVIA del editor,
 // que tampoco puede scrollear de verdad — mismo criterio que el resto de esta variante, § el switch
@@ -196,11 +203,11 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
         {/* El collage A LO ANCHO — figuras en fila (columna bajo 640px, § el comentario de cabecera),
             centradas verticalmente (`items-center`, como el prototipo: la figura del medio protruye
             por ser más GRANDE, nunca por un offset de margen) y un `transform` scrubbed por scroll:
-            cada figura arranca inclinada y se ABRE (rotación→0, apertura horizontal→su tope) a
-            medida que la sección cruza el viewport, salvo `estatico` (movimiento reducido / vista
-            previa) o angosto (`max-sm:transform-none!`, § arriba), donde queda siempre quieta.
-            SIEMPRE visible (opacity 1): el prototipo nunca desvanece estas figuras, sólo las
-            rota/abre. */}
+            cada figura arranca inclinada y SE ENDEREZA (rotación→0, SIN desplazarse — § HISTORIA-
+            FOTOS-PANEL-Y-GIRO-1, arriba) a medida que la sección cruza el viewport, salvo `estatico`
+            (movimiento reducido / vista previa) o angosto (`max-sm:transform-none!`, § arriba), donde
+            queda siempre quieta. SIEMPRE visible (opacity 1): el prototipo nunca desvanece estas
+            figuras, sólo las rota. */}
         <div ref={collageRef} className="mt-16 mb-16 flex flex-col items-center justify-center gap-6 sm:flex-row sm:flex-wrap">
           {imagenesLlenas.map(({ campo, alt, i }, pos) => {
             const esMedia = totalVisible === 3 && pos === 1;
