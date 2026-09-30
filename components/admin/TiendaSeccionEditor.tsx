@@ -11,6 +11,7 @@ import PosterScrubber from '@/components/admin/PosterScrubber';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
+import { esSesionVencida } from '@/lib/api/upload';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano } from '@/components/admin/tienda-secciones';
 import { gatePorCampo } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
@@ -123,6 +124,12 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   const [hayBorrador, setHayBorrador] = useState(false);
   const [editando, setEditando]       = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  // El CONTROL al que pertenece `errorServidor` —el nombre del campo-imagen (hero, brandStory…), o
+  // `null` para un error SIN control propio en este editor (publicar/descartar, o un ítem del
+  // repeater, que no tiene una ubicación direccionable acá). Sólo así el mensaje puede pintarse JUNTO
+  // al control que lo disparó (§ PANEL-ERROR-SUBIDA-VISIBLE-1) sin heredar el campo de un error viejo
+  // cuando el dueño toca un control distinto o pide publicar/descartar.
+  const [errorCampo, setErrorCampo] = useState<string | null>(null);
   const [procesando, setProcesando]   = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
 
@@ -177,9 +184,45 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     setExpandidos(prev => { const n = new Set(prev); n.delete(slot); return n; });
   };
 
+  // Muestra un error de SUBIDA: lo guarda, lo ata al CONTROL que lo disparó (si se conoce), y lo
+  // anuncia con un toast (aviso flotante) — así se ve SIN hacer scroll, además de quedar junto al
+  // control (§ PANEL-ERROR-SUBIDA-VISIBLE-1). El rechazo por sesión (§ esSesionVencida) suma un
+  // enlace para volver a entrar — un "Reintenta" ahí no arregla nada, la sesión sigue vencida.
+  const anunciarError = useCallback((msg: string, campo: string | null) => {
+    setErrorServidor(msg);
+    setErrorCampo(campo);
+    toast.error(msg, esSesionVencida(msg)
+      ? { action: { label: 'Iniciar sesión', onClick: () => { window.location.href = '/login'; } } }
+      : undefined);
+  }, []);
+
+  // Qué campo-imagen FIJO ESTÁ EN VUELO (pidiendo el archivo o subiéndolo) — el uploader compartido es
+  // UNA sola instancia para toda la cáscara (hero, brandStory, presentaciones…) y el repeater, así que
+  // su `onError` no sabe por sí solo a qué control atribuir un fallo. Este ref lo dice: se fija al
+  // EMPEZAR una acción propia de esta cáscara (`marcarCampoActivo`) y se CONSUME (vuelve a null) en
+  // cuanto esa acción concluye —éxito o error—, para que un fallo del REPEATER (que llama a
+  // `subida.pedir`/`.elegir` directo, sin pasar por acá) nunca herede el campo de una acción anterior
+  // de la cáscara y quede pegado al control equivocado.
+  const campoActivoRef = useRef<string | null>(null);
+  const marcarCampoActivo = (campo: string) => {
+    campoActivoRef.current = campo;
+    setSubiendoCampo(campo);
+    setErrorServidor(null); setErrorCampo(null); // una acción nueva no debe mostrar el error viejo pegado a OTRO control
+  };
+
   // El uploader compartido (§ useSubidaImagen): la cáscara lo instancia y lo comparte con el
-  // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
-  const subida = useSubidaImagen({ onError: setErrorServidor });
+  // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`. Su `onError` es lo único
+  // que ve TODOS los fallos de validación de `pedir`/`elegir` (los del repeater incluidos, § arriba);
+  // `null` (limpieza previa a una subida, § useSubidaImagen.alElegir) no consume el ref —el fallo real
+  // de ESA MISMA acción puede llegar después y necesita seguir viendo el campo correcto—.
+  const subida = useSubidaImagen({
+    onError: (msg) => {
+      if (msg === null) { setErrorServidor(null); setErrorCampo(null); return; }
+      const campo = campoActivoRef.current;
+      campoActivoRef.current = null;
+      anunciarError(msg, campo);
+    },
+  });
 
   // Qué campo-imagen FIJO está subiendo (hero: `imagen`; brandStory: `imagen1..4`), para pegarle la
   // barra de progreso a ESE botón —no a todos—. Se limpia cuando la subida termina. (Las fotos del
@@ -212,17 +255,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // DECISIONS.md, no un hueco de TAMAÑO: en ningún caso sube al storage un video de hero por
   // encima de su propio tope.
   const agregarVideoHero = () => {
+    marcarCampoActivo('imagen'); // desde ACÁ (el picker) ya es del hero: un rechazo de tipo/códec/tamaño debe verse junto a su control, no sólo al pie
     subida.elegir(f => {
       const esMov = (CONTENEDORES_REMUXEABLES as readonly string[]).includes(f.type);
       const limite = esMov ? MAX_VIDEO_HERO_BYTES * 1.5 : MAX_VIDEO_HERO_BYTES;
-      if (f.size > limite) { setErrorServidor(MSG_VIDEO_HERO_LARGO); return; }
-      setErrorServidor(null);
+      if (f.size > limite) { anunciarError(MSG_VIDEO_HERO_LARGO, 'imagen'); return; }
       setHeroVideoPendiente(f);
     }, { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
   };
 
   const subirVideoYPosterHero = async (video: File, poster: File) => {
-    setSubiendoCampo('imagen');
+    marcarCampoActivo('imagen');
     try {
       let videoFinal = video;
       if ((CONTENEDORES_REMUXEABLES as readonly string[]).includes(video.type)) {
@@ -243,8 +286,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
       const nf = { ...(formRef.current as Datos), imagen: videoUrl, imagenPoster: posterUrl, imagenTipo: 'video' };
       setForm(nf); setHayBorrador(true);
       auto.marcarSucio(nf); auto.flush();
+      campoActivoRef.current = null; // éxito: no queda pegado a un error de otro control
     } catch (err) {
-      setErrorServidor(err instanceof Error ? err.message : 'No se pudo subir el video. Reintenta.');
+      anunciarError(err instanceof Error ? err.message : 'No se pudo subir el video. Reintenta.', 'imagen');
     } finally {
       setHeroVideoPendiente(null);
       setHeroSubiendoPaso(null);
@@ -254,6 +298,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   const elegirPosterParaHero = () => {
     const v = heroVideoPendiente;
     if (!v) return;
+    marcarCampoActivo('imagen');
     subida.elegir(poster => subirVideoYPosterHero(v, poster), { tipos: TIPOS_PERMITIDOS, accept: ACCEPT_IMAGENES, msgError: 'Formato no admitido. Usa JPG, PNG o WebP.' });
   };
 
@@ -314,8 +359,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // luego guardar. El callback corre con `subiendo` ya en false (§ useSubidaImagen), así que
   // marcarSucio no se descarta.
   const ponerImagen = (campo: string) => {
-    setSubiendoCampo(campo); // para pegarle la barra a este botón
+    marcarCampoActivo(campo); // para pegarle la barra Y un eventual error a este botón
     subida.pedir(url => {
+      campoActivoRef.current = null; // éxito: no queda pegado a un error de otro control
       const nf = { ...(formRef.current as Datos), [campo]: url };
       setForm(nf); setHayBorrador(true);
       auto.marcarSucio(nf); auto.flush();
@@ -349,8 +395,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // estado efímero de UI (el `File` elegido nunca se persistió), así que reabrir empieza limpio. Un
   // upload YA en vuelo (heroOcupado) sigue corriendo en segundo plano —fire-and-forget, como el
   // resto de las mutaciones de esta cáscara— y su `finally` limpia estos mismos estados al terminar.
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); };
+  // `campoActivoRef` se limpia en las dos puntas (abrir/cerrar): es un ref de vida CORTA —sólo vale
+  // mientras la acción que lo fijó está en vuelo (§ marcarCampoActivo)— y un ciclo cerrar→reabrir no
+  // debe dejarlo apuntando a un control de una sesión de edición anterior.
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; };
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
@@ -410,7 +459,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }, []);
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
-    setErrorServidor(null); setProcesando(true);
+    // Publicar/descartar NO tienen un control-imagen propio: su error se queda SOLO al pie
+    // (`errorCampo=null`) — nunca pegado a un campo de una subida anterior que ya no aplica.
+    setErrorServidor(null); setErrorCampo(null); setProcesando(true);
     try {
       const res = await fetch('/api/site-content', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -419,6 +470,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
       if (!res.ok) {
         const d = await res.json().catch(() => null);
         setErrorServidor(d?.error ?? (accion === 'publicar' ? 'No se pudo publicar.' : 'No se pudo descartar.'));
+        setErrorCampo(null);
         return;
       }
       if (accion === 'publicar') {
@@ -577,6 +629,20 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   };
 
+  // El error de subida JUNTO AL CONTROL que lo disparó (§ PANEL-ERROR-SUBIDA-VISIBLE-1): sólo se
+  // pinta si `errorCampo` es ESTE campo —nunca un error de publicar/descartar ni uno del repeater
+  // (§ accionBorrador/RepeaterEditor.onError, que dejan `errorCampo=null`)—. El rechazo por sesión
+  // suma el enlace para volver a entrar, igual que el toast que ya disparó `anunciarError`.
+  const errorInline = (campo: string) => {
+    if (errorCampo !== campo || !errorServidor) return null;
+    return (
+      <p className="duna-field__error" role="alert" style={{ margin: 0 }}>
+        {errorServidor}
+        {esSesionVencida(errorServidor) && <> <a href="/login" className="duna-link">Iniciar sesión</a></>}
+      </p>
+    );
+  };
+
   // LA MEDIA DE FONDO DEL HERO — imagen (por defecto) o VIDEO (§ HERO-VIDEO-COMO-DATO-1). Vive
   // APARTE de `renderMiniatura` (no como una rama más ahí adentro) porque el hero es la ÚNICA
   // sección con esta dualidad —el resto de `imagenes` del REGISTRY son SIEMPRE imagen— y porque no
@@ -645,11 +711,15 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   </>
                 )}
               </div>
-              <span className="duna-field__hint" style={{ margin: 0 }}>
-                {subiendoEste
-                  ? (enVideoFlow ? heroTextoPaso() : `Subiendo póster… ${subida.progreso ?? 0}%`)
-                  : esVideo ? 'MP4, WebM o MOV.' : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
-              </span>
+              {/* El slot cubre DOS campos —`imagen` (video/imagen completos) e `imagenPoster` (el
+                  reemplazo suelto del póster, § arriba)—: cualquiera de los dos puede haber fallado. */}
+              {errorInline('imagen') ?? errorInline('imagenPoster') ?? (
+                <span className="duna-field__hint" style={{ margin: 0 }}>
+                  {subiendoEste
+                    ? (enVideoFlow ? heroTextoPaso() : `Subiendo póster… ${subida.progreso ?? 0}%`)
+                    : esVideo ? 'MP4, WebM o MOV.' : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+                </span>
+              )}
               {subiendoEste && heroSubiendoPaso !== 'convirtiendo' && <BarraProgreso pct={subida.progreso ?? 0} />}
             </div>
           </div>
@@ -697,9 +767,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 </button>
               )}
             </div>
-            <span className="duna-field__hint" style={{ margin: 0 }}>
-              {subiendoEste ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
-            </span>
+            {errorInline(img.name) ?? (
+              <span className="duna-field__hint" style={{ margin: 0 }}>
+                {subiendoEste ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+              </span>
+            )}
             {subiendoEste && <BarraProgreso pct={subida.progreso ?? 0} />}
           </div>
         </div>
@@ -731,6 +803,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
             ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={val} alt="" />
             : <ImageIcon aria-hidden width={20} height={20} />}
         </button>
+        {errorInline(img.name)}
         {!subiendoEste && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-1)' }}>
             {!esDefault && (
@@ -1060,7 +1133,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                     pedirImagen={subida.pedir}
                     elegir={subida.elegir}
                     subir={subida.subir}
-                    onError={setErrorServidor}
+                    // `campo=null` EXPLÍCITO: un ítem del repeater no tiene una ubicación propia en
+                    // este editor (§ arriba) — nunca hereda el campo de una acción previa de la
+                    // cáscara (hero/miniatura/collage). Degrada a "junto al pie" + el toast, no a
+                    // un control equivocado.
+                    onError={(msg) => anunciarError(msg, null)}
                     subiendo={subiendo}
                     progreso={subida.progreso}
                     onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}
@@ -1068,8 +1145,15 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 </div>
               )}
 
-              {errorServidor && (
-                <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>
+              {/* Sólo los errores SIN control propio (publicar/descartar, § accionBorrador; un ítem
+                  del repeater, § RepeaterEditor.onError arriba): los de un campo-imagen de la
+                  cáscara ya se pintan JUNTO a su control (`errorInline`), y repetirlos acá sería
+                  el mismo aviso dos veces. */}
+              {errorServidor && !errorCampo && (
+                <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>
+                  {errorServidor}
+                  {esSesionVencida(errorServidor) && <> <a href="/login" className="duna-link">Iniciar sesión</a></>}
+                </p>
               )}
             </div>
         </div>

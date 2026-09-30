@@ -12,14 +12,44 @@ import type { PrefijoUpload, KindUpload } from '@/constants/upload';
 // El SDK (`@vercel/blob/client`) es la cara CLIENTE de la frontera del proveedor; la server vive en
 // `lib/storage.ts`. Al cambiar de proveedor se reimplementan las dos.
 
+/**
+ * Mensaje que ve el dueño cuando la subida se rechaza porque su SESIÓN del panel venció (o su rol ya
+ * no alcanza) — el mismo gate de `GET /api/upload/token` que firma el token de subida
+ * (`sesionAdmin`, § app/api/upload/token/route.ts). Exportado para que `esSesionVencida` (abajo) y el
+ * editor lo reconozcan y ofrezcan "vuelve a iniciar sesión" en vez de un "reintenta" que no arregla
+ * nada —la sesión sigue vencida hasta que vuelva a entrar— (§ PANEL-ERROR-SUBIDA-VISIBLE-1).
+ */
+export const MSG_SESION_VENCIDA = 'Tu sesión expiró. Vuelve a iniciar sesión y reintenta la subida.';
+
+/** Compara CONTRA el mensaje exacto de arriba —nunca un substring— porque es la ÚNICA fuente que lo
+ *  produce (`envPrefijo`, abajo): un match más laxo podría confundir un error genuino que mencione
+ *  "sesión" de pasada con el caso real. */
+export function esSesionVencida(msg: string): boolean {
+  return msg === MSG_SESION_VENCIDA;
+}
+
 // El navegador no ve `VERCEL_ENV`, así que pregunta el prefijo de entorno (`''` | `'dev/'`) al server
 // una vez y lo cachea. Sin él, una subida de dev aterrizaría en el namespace de producción. Un fallo
 // NO se cachea (para reintentar).
+//
+// EL 401 DE ESTE GET ES EL MISMO GATE QUE FIRMA EL TOKEN (`sesionAdmin`): si la sesión venció o el rol
+// ya no alcanza, este GET devuelve 401 —y es la ÚNICA de las dos peticiones que `subirDirecto` hace
+// (ésta, y la interna del SDK abajo) cuyo status SÍ se puede leer acá—, así que es donde se distingue
+// el rechazo por sesión de cualquier otro fallo (§ PANEL-ERROR-SUBIDA-VISIBLE-1). El POST que firma el
+// token (dentro de `upload()`, del SDK `@vercel/blob/client`) pasa por el MISMO gate, pero el SDK no
+// expone el status de esa respuesta —sólo un mensaje genérico, "Failed to retrieve the client
+// token"—, así que esa mitad queda SIN distinguir; declarado, no resuelto acá (§ el reporte del
+// slice: si la sesión vence DESPUÉS de que este GET ya cacheó un prefijo válido, el siguiente fallo de
+// `upload()` no se reconoce como sesión vencida).
 let prefijoPromesa: Promise<string> | null = null;
 function envPrefijo(): Promise<string> {
   if (!prefijoPromesa) {
     prefijoPromesa = fetch('/api/upload/token', { method: 'GET' })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('No autorizado para subir'))))
+      .then((r) => {
+        if (r.ok) return r.json();
+        if (r.status === 401) return Promise.reject(new Error(MSG_SESION_VENCIDA));
+        return Promise.reject(new Error('No se pudo autorizar la subida.'));
+      })
       .then((d) => d.prefijo as string)
       .catch((e) => { prefijoPromesa = null; throw e; });
   }

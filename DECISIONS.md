@@ -36239,3 +36239,158 @@ oscurecido, aplicado acá al CTA que `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` hab
 mecanismo genérico) — el MERGE sigue gateado aparte.
 
 Cierra `CTA-APLICAR-FILTRO-HOVER-1` y `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1`.
+
+## 2026-09-30 — El error de subida en `/admin/tienda` se ve JUNTO al control y como toast; el rechazo por sesión lo dice (`PANEL-ERROR-SUBIDA-VISIBLE-1`)
+
+Gate del owner del 2026-09-30, al subir el video del hero: *"Me esta saliendo un error al subir
+los videos, dice No autorizado para subir, el error sale abajo, asi que si no hago scroll hacia
+abajo no me doy cuenta"* (`GET /api/upload/token` → 401; la sesión del panel dura 8 h,
+`lib/auth.ts:87`, medido). `TiendaSeccionEditor.tsx` guardaba TODO error de subida en un solo
+`errorServidor` y lo pintaba en UN `<p role="alert">` al final del editor —lejos del control de
+hero, arriba del todo—, y `lib/api/upload.ts` convertía CUALQUIER rechazo del GET del token
+(`envPrefijo`) al mismo literal "No autorizado para subir", sin distinguir sesión vencida de otro
+fallo.
+
+### El rechazo por SESIÓN se distingue en `lib/api/upload.ts`
+
+`envPrefijo()` ahora lee el `status` de la respuesta —antes sólo miraba `r.ok`—: **401** (el mismo
+gate `sesionAdmin` que firma el token, `app/api/upload/token/route.ts`, NO tocado) rechaza con
+`MSG_SESION_VENCIDA` ("Tu sesión expiró. Vuelve a iniciar sesión y reintenta la subida."); **NO
+401** cae a un mensaje genérico distinto ("No se pudo autorizar la subida."), para que un fallo de
+OTRA naturaleza no se lea como sesión vencida. `esSesionVencida(msg)` compara CONTRA el literal
+exacto (nunca un substring) y las dos quedan exportadas para que el editor las reconozca.
+
+**LÍMITE DECLARADO, no resuelto en este slice:** el rechazo del mismo gate puede llegar por OTRA
+vía — el POST que firma el token, DENTRO de `upload()` del SDK `@vercel/blob/client` (cuando
+`envPrefijo()` ya cacheó un prefijo válido en una carga anterior de la página y la sesión vence
+DESPUÉS). El SDK no expone el status de esa respuesta, sólo un mensaje genérico
+("Failed to  retrieve the client token"), así que esa mitad sigue SIN distinguirse. El caso que el
+owner reportó —y el único confirmado por el texto EXACTO que citó— es el del GET; queda escrito en
+el comentario de `envPrefijo` para que no se dé por cerrado el caso completo.
+
+### El error se muestra JUNTO al control, y el `<p>` de abajo se reserva para publicar/descartar
+
+`TiendaSeccionEditor.tsx` gana `errorCampo` (qué campo-imagen es DUEÑO del `errorServidor` actual;
+`null` = sin control propio) y `anunciarError(msg, campo)` (guarda el error, lo ata al campo, y
+dispara `toast.error` — con un botón "Iniciar sesión" → `/login` cuando `esSesionVencida`). Tres
+sitios lo pintan JUNTO a su control (`errorInline(campo)`, reemplaza al hint normal): el hero
+(`imagen`/`imagenPoster`, los dos campos que su slot cubre), las miniaturas genéricas
+(brandStory/presentaciones) y las celdas del collage. El `<p>` del pie sólo se pinta si
+`errorServidor && !errorCampo` — publicar/descartar (`accionBorrador`, que ahora limpia
+`errorCampo` explícito) y los ítems del REPEATER (fuera de `touches:`; su `onError` pasa
+`campo=null` a propósito, así que degradan a "toast + pie", nunca un control equivocado).
+
+`campoActivoRef` es el mecanismo que hace posible la atribución: el uploader (`useSubidaImagen`)
+es UNA sola instancia compartida por toda la cáscara Y el repeater, así que su `onError` no sabe
+por sí solo a qué control pertenece un fallo. El ref se fija al EMPEZAR una acción propia de la
+cáscara (`marcarCampoActivo`, llamado desde `ponerImagen`/`agregarVideoHero`/
+`elegirPosterParaHero`/`subirVideoYPosterHero`) y se CONSUME (vuelve a `null`) en cuanto esa acción
+concluye —éxito o error—, para que un fallo del repeater (que llama a `subida.pedir`/`.elegir`
+DIRECTO, sin pasar por acá) nunca herede el campo de una acción anterior de la cáscara. Se limpia
+también al abrir/cerrar la edición, para que un ciclo cerrar→reabrir no deje un campo colgado de
+una sesión de edición previa.
+
+**`components/admin/useSubidaImagen.ts` estaba en `touches:` y NO se tocó — a propósito, no un
+olvido.** Su `onError: (msg: string | null) => void` ya propaga `err.message` tal cual (línea 98,
+sin cambio); como `MSG_SESION_VENCIDA` YA ES el texto final que el dueño debe ver, ese passthrough
+alcanza sin tocar el hook. Toda la lógica de ATRIBUCIÓN (a qué control, toast, enlace) vive en el
+CONSUMIDOR (`TiendaSeccionEditor.tsx`), que es quien sabe cuál botón disparó la acción — moverla al
+hook habría acoplado un hook GENÉRICO (también lo usa `RepeaterEditor`, fuera de `touches:`) a una
+decisión de PRESENTACIÓN de un solo consumidor.
+
+### El enlace "Iniciar sesión" va a `/login`, no a un retorno a `/admin/tienda`
+
+`LoginForm.tsx` (`app/(admin)/login/LoginForm.tsx:44`, fuera de `touches:`) tiene el `callbackURL`
+del login **hardcodeado** a `/admin/dashboard` — no existe un `?redirect=` ni mecanismo de retorno
+a una página específica. El spec decía *"con un enlace a iniciar sesión que regrese al panel SI EL
+FLUJO DE LOGIN LO PERMITE"* — no lo permite (para la página exacta), así que el enlace es un
+`<a href="/login">` simple: el dueño vuelve al PANEL (dashboard), no a `/admin/tienda` puntual.
+Construir el retorno exacto tocaría `LoginForm.tsx`/el gate de sesión, fuera de `touches:`.
+
+### Lo que NO se verificó — falta la capa 3 (gate visual)
+
+El spec pedía una "captura del panel con el error visible junto al control (sesión forzada a
+vencer en la base EFÍMERA)". Este dispatch no tiene navegador ni captura de pantalla disponibles
+(sólo `node`/`npm`/`npx` y git) — **no se produjo la captura**. Queda como el checklist manual del
+owner (§ Las tres capas de verificación, CLAUDE.md): las capas 1 y 2 (abajo) están verdes; la
+capa 3 —¿se VE el mensaje sin scroll, junto al control, con el enlace?— sigue sin correr.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2722/2722** (2718 + 4 nuevos, todos en `lib/api/upload.test.ts`) |
+| `npm run test:integracion` | **242/242**, sin cambio (este slice no toca el eje de datos) |
+| `npm run gate` (los tres, un solo corrido) | **VERDE** — corrido UNA vez sobre el árbol final |
+
+**NO corrido**: `npm run guarda:color` / `npm run verificar:nayoli:visual` — este slice no toca
+`lib/config/` de storefront ni ninguna ruta de `app/(storefront)/`; no hay superficie que esos
+scripts midan. `npx eslint` se corrió por iniciativa propia (no es parte de `gate`): **12 errores
+pre-existentes** de la regla `react-hooks/refs` sobre `subida.pedir`/`.elegir`/`.subir` pasados
+como prop a `RepeaterEditor` —confirmado idéntico contando el HEAD original vía
+`git show HEAD:... | npx eslint --stdin`— sin cambio de CANTIDAD por este diff (mismas 12 líneas,
+ninguna tocada). No se investigó ni se intentó arreglar: fuera de `touches:` y preexistente.
+
+### `customer_bytes`
+
+**`changed: true`** — el texto nuevo lo lee el DUEÑO (operador del panel), y la doctrina de este
+libro cuenta eso como bytes-de-cliente (§ CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1: "todo lo que un
+CLIENTE, OPERADOR o DUEÑO lee"). La tienda pública (`app/(storefront)/`) no cambia un solo byte —
+todo el diff vive en `components/admin/` y `lib/api/`.
+
+**`strings:`**
+- `"Tu sesión expiró. Vuelve a iniciar sesión y reintenta la subida."` (nuevo, `MSG_SESION_VENCIDA`)
+- `"Iniciar sesión"` (nuevo, label del botón del toast y del enlace inline/pie)
+- `"No se pudo autorizar la subida."` (nuevo, reemplaza a "No autorizado para subir" para el caso
+  NO-401 del GET del token)
+- El resto de los mensajes de error (formato/tamaño/códec/red…) **no cambia** — sólo se movió DÓNDE
+  se ven (junto al control + toast), no QUÉ dicen.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas de este diff, grepeados uno por uno contra `CLAUDE.md`: `TiendaSeccionEditor`
+(6 coincidencias, todas sobre arquitectura de bloques/puente/uploader-compartido no tocada por
+este diff — ninguna se vuelve falsa), `useSubidaImagen` (4, ídem: describen que es un hook
+compartido extraído, que sigue siendo cierto), `lib/api/upload.ts`/`subirDirecto` (3, sobre la
+frontera cliente/servidor del proveedor de storage — su forma no cambió, sólo ganó dos exports),
+`/api/upload/token` (1, sobre el gate de seguridad — NO tocado). `MSG_SESION_VENCIDA`,
+`esSesionVencida`, `errorCampo`, `anunciarError`, `marcarCampoActivo`, `campoActivoRef`,
+`errorInline` — **CERO coincidencias** (símbolos nuevos de este slice). Nada que corregir.
+
+Se evaluó además, sin que el grep lo pidiera —por tocar directamente el tema de este slice—: § Toast
+= éxito, inline = error (CLAUDE.md:599) dice *"Regla del admin, y aplica a **todo diálogo con
+mutación**"*. `TiendaSeccionEditor` no es un diálogo (`DunaDialog`/`DunaSheet`) — es un editor
+inline embebido en la página (§ La PANTALLA — LECTURA=TARJETA/EDICIÓN=VISTA GRANDE) — así que la
+regla, por su propio alcance declarado, no gobierna esta superficie; no se vuelve falsa, y usar
+toast+inline juntos acá no la contradice. § Controles de formulario (CLAUDE.md:5995, "el
+`toast.error` de validación previa MUERE") tampoco aplica: describe validación CLIENTE previa al
+submit en otros cuatro flujos (Nuevo pedido, Programar entrega…), no fallos ASÍNCRONOS de una
+subida a un servicio externo; no se tocó ninguno de esos cuatro flujos.
+
+### Deviations
+
+Ninguna respecto del spec. El límite de `upload()`/SDK (arriba, "LÍMITE DECLARADO") y la ausencia
+de retorno-a-página-exacta del login son restricciones MEDIDAS contra el código, no desvíos de lo
+pedido — el spec mismo los admite ("si el flujo de login lo permite").
+
+### Open follow-ups
+
+- **`PANEL-ERROR-SUBIDA-VISIBLE-SDK-1`** — el rechazo por sesión que llega por el POST interno de
+  `upload()` (`@vercel/blob/client`, tras un `envPrefijo()` ya cacheado con éxito) no se distingue
+  de sesión vencida, por falta de status expuesto por el SDK. *Por qué no ahora:* fuera del caso
+  reportado por el owner (el texto citado es el del GET) y exigiría un chequeo de red adicional
+  tras cada fallo de subida —una decisión de diseño que el spec de este slice no pidió.
+- **`PANEL-ERROR-SUBIDA-VISIBLE-CAPA3-1`** — falta el gate visual (capa 3) que el spec pidió:
+  sesión forzada a vencer en la base efímera + captura mostrando el mensaje junto al control. *Por
+  qué no ahora:* este dispatch no tiene navegador/captura disponible.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia texto que el dueño lee en el panel
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: su propio reporte del
+error citado arriba) — el MERGE sigue gateado aparte, y falta además el gate visual de capa 3
+(§ arriba).
+
+Cierra la escritura de `PANEL-ERROR-SUBIDA-VISIBLE-1`; dos follow-ups quedan abiertos (arriba).
