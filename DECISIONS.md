@@ -36900,6 +36900,18 @@ catálogo que los declara), 8 vars salían mal (`--sf-acento-texto`, `--sf-texto
 `--sf-accion-active`) — la misma familia de defecto que `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` ya
 había medido en `/tienda`, acá dentro del PANEL.
 
+**LOS OTROS CUATRO EDITORES BESPOKE DE `/admin/tienda` SE VERIFICARON Y NO TIENEN ESTE HUECO —
+NO PORQUE ESTÉN BIEN, SINO PORQUE NO TIENEN VISTA PREVIA EN VIVO.** `MenuSeccion.tsx`,
+`FooterSeccion.tsx` y `EncabezadoSeccion.tsx` lo dicen en su propio docstring de cabecera: NO montan
+`StoreNav`/`StoreFooter` (los componentes reales que necesitarían) porque eso exigiría los mismos
+providers locales que `PaletaSeccion` monta para su fragmento, "y ese costo no está en el alcance"
+de sus respectivos slices — su "preview" es un resumen de TEXTO. `DetallesSitioSeccion.tsx` no
+importa un solo componente de `components/storefront/` ni lee ninguna var `--sf-*`. Verificado por
+grep, no supuesto: `VistaTiendaEnVivo`/`TiendaSeccionEditor` (las 15 `SeccionVista`) y `PaletaSeccion`
+(`FragmentoTienda`) son las ÚNICAS DOS superficies de `/admin/tienda` que renderizan componentes
+reales del storefront con color — las dos que este slice arregla. No queda un tercer preview con el
+mismo hueco.
+
 ### 2 · El arreglo de raíz — `varsDeTienda`, una función, dos consumidores
 
 `varsDeTienda(tema, esquemas?, bandaId?)` (`lib/config/esquema-style.ts`) compone, en un solo
