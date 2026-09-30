@@ -104,12 +104,25 @@ test('CORTE scrolleado: cae a SÓLIDO --sf-tinta (no a la tarjeta clara de los o
   assert.equal(e.navBg, 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]', 'sólido tinta, no la tarjeta clara de --sf-tarjeta');
 });
 
-test('CORTE fuera de home (no isHome): mismo sólido --sf-tinta que scrolleado — nunca flota fuera de home', () => {
-  const corte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
-  const e = estadoNav(corte, { isHome: false, scrolled: false });
-  assert.equal(e.navFlotando, false);
-  assert.equal(e.navBg, 'bg-[var(--sf-tinta)] shadow-sm text-[var(--sf-sobre)]');
-});
+// ── CORTE fuera de home — RETIRADO (§ CIERRE-NOCHE-RIEL-1, cierra CORTE-NAV-TRANSPARENTE-TEST-STALE-1) ─
+//
+// Vivía acá: "CORTE fuera de home (no isHome): mismo sólido --sf-tinta que scrolleado — nunca flota
+// fuera de home", afirmando `navBandaTinta = cromo.navTinta` (SIN `isHome &&`) contra el `estadoNav()`
+// de ESTE archivo. NAV-INTERNAS-CLARO-Y-OFFSET-1 cambió la fórmula REAL de `StoreNav.tsx` a
+// `navBandaTinta = isHome && cromo.navTinta` (§ CLAUDE.md, "Defecto 1"): fuera de home, CORTE ya NO
+// cae al sólido `--sf-tinta` — cae a la MISMA rama clara que los otros 5 presets. El test seguía en
+// VERDE después de ese cambio porque su `estadoNav()` es una copia literal que este slice no toca
+// (la fórmula real vive en `StoreNav.tsx`, que usa `usePathname()` y no se puede renderizar acá,
+// § el docstring de cabecera) — pasaba describiendo un comportamiento que el componente real ya no
+// tiene, la staleness exacta que este protocolo pide señalar.
+//
+// NO se actualizó la copia de ESTE archivo: `lib/config/nav-internas.test.ts` ya tiene su PROPIA
+// copia de `estadoNav()` CON `isHome &&` (la fórmula vigente) y su propio test para el mismo caso
+// —"CORTE fuera de home (no isHome): YA NO cae al sólido --sf-tinta — el defecto reportado por el
+// owner"—, así que mantener DOS copias de la fórmula (una vieja acá, una nueva allá) sólo repetiría
+// el riesgo que ya causó esta staleness. El resto de este archivo (`estadoNav()`/`estadoNavViejo()`)
+// SIGUE VÁLIDO: todos sus demás tests usan `isHome: true`, donde `isHome && x === x` — el gate que
+// falta acá nunca cambió su resultado.
 
 // ── navTinta:false (todo tenant salvo CORTE): BYTE-IDÉNTICO al comportamiento de hoy ─────────────
 

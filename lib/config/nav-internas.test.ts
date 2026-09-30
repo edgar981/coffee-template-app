@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { navOffsetClase, navOffsetDeltaClase, PRESETS, CORTE } from './themes';
+import { navOffsetClase, PRESETS, CORTE } from './themes';
 import { resolverSiteContent, resolverOrden, varianteDeBanda } from './site-content-defaults';
 import { tratamientoNav } from './esquema-style';
 import { contenidoConPresetDeVista } from './theme-mirador';
@@ -17,8 +17,11 @@ import { contenidoConPresetDeVista } from './theme-mirador';
 //      real de Next.js, § el docstring de ese archivo).
 //   2. «El nav tapa la ruta que sale de Inicio/tienda/producto» — cada página interna reservaba un
 //      `pt-16` (64px) fijo, calculado contra el header de HOY (64/72px), pero el header de CORTE mide
-//      76/88px (§ NAV-ALTURA-CON-FILETE-1). `navOffsetClase`/`navOffsetDeltaClase` (`themes.ts`)
-//      cierran ese hueco; acá se afirman sus valores exactos.
+//      76/88px (§ NAV-ALTURA-CON-FILETE-1). `navOffsetClase` (`themes.ts`) cierra ese hueco; acá se
+//      afirman sus valores exactos. (`navOffsetDeltaClase`, el parche temporal para
+//      `suscripciones/Contenido.tsx` mientras ese archivo estaba fuera de `touches:`, SE RETIRÓ en
+//      § CIERRE-NOCHE-RIEL-1 junto con sus tres tests — `Contenido.tsx` ya usa `navOffsetClase`
+//      directo, como las demás páginas.)
 
 // ─── `navOffsetClase` — el relleno superior COMPLETO (reemplaza el `pt-16` de cada página) ──────
 
@@ -48,28 +51,6 @@ test('de los 6 presets del catálogo, sólo CORTE dispara navOffsetClase distint
     const esperado = preset.clave === 'CORTE' ? 'pt-[76px] min-[640px]:pt-[88px] cortenav:pt-[88px]' : 'pt-16';
     assert.equal(navOffsetClase(conPreset.navTratamiento.posicion), esperado, `${preset.clave}`);
   }
-});
-
-// ─── `navOffsetDeltaClase` — sólo el HUECO que falta sobre el `pt-16` que YA reserva
-// `suscripciones/Contenido.tsx` (fuera de `touches:` de este slice, § el docstring en `themes.ts`) ──
-
-test('navOffsetDeltaClase(false) = sin clase — Contenido.tsx sigue solo con su pt-16 de siempre', () => {
-  assert.equal(navOffsetDeltaClase(false), '');
-});
-
-test('navOffsetDeltaClase(true) = exactamente el faltante para llegar a 76/88 sobre un pt-16 (64px) ya reservado: 12px bajo 640px, 24px desde 640px', () => {
-  assert.equal(navOffsetDeltaClase(true), 'pt-3 min-[640px]:pt-6');
-});
-
-test('navOffsetDeltaClase == 0 (Tailwind pt-3/pt-6) sumado al pt-16 de Contenido.tsx da el MISMO total que navOffsetClase(true) — no dos fuentes divergentes del mismo número', () => {
-  // pt-16 = 4rem = 64px; pt-3 = 0.75rem = 12px; pt-6 = 1.5rem = 24px (escala de Tailwind, no
-  // arbitraria). 64+12=76, 64+24=88 — los MISMOS dos literales que navOffsetClase(true) declara.
-  const REM_PX = 16;
-  const PT16_PX = 4 * REM_PX;
-  const DELTA_BASE_PX = 0.75 * REM_PX;
-  const DELTA_640_PX = 1.5 * REM_PX;
-  assert.equal(PT16_PX + DELTA_BASE_PX, 76);
-  assert.equal(PT16_PX + DELTA_640_PX, 88);
 });
 
 // ─── `navBandaTinta` (StoreNav.tsx) — la fórmula NUEVA, scoped a `isHome` ────────────────────────

@@ -32,6 +32,18 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**.public.blob.vercel-storage.com' },
     ],
+    // `qualities` declara TODO valor de `quality` que el código pide, medido con
+    // `grep -rn "quality={" --include="*.tsx" app components lib packages` (§
+    // NEXT-CONFIG-IMAGE-QUALITIES-1, DECISIONS.md): 75 es el DEFAULT de `next/image`
+    // (todo `<Image>` sin `quality` propio, incluidas las de producto/catálogo), 85 lo
+    // usan los cuatro Hero (`HeroCurtina`/`HeroMedia`/`HeroMediaMarquesina`/`HeroFicha`),
+    // y 90 lo usa el riel de Presentaciones (`TarjetaRiel`, § GrindChooserRiel.tsx) y su
+    // vista rápida (`VistaRapidaProducto.tsx`). Sin esta lista, Next.js 16 emite el aviso
+    // "is using quality 'N' which is not configured in images.qualities [75]" por cada
+    // valor no-default — pre-existente para el 85 (los Hero ya estaban en producción) y
+    // ampliado por el 90 nuevo de esta tanda. Un `quality` futuro que no esté en esta
+    // lista dispara el mismo aviso: agregarlo acá es parte de declarar el cambio.
+    qualities: [75, 85, 90],
   },
   // El noindex se emite fuera de PRODUCCIÓN (previews) y en cualquier deploy que lo
   // PIDA con `NOINDEX=1` — la DEMO de Nayoli es env `production` pero NO debe indexarse,

@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
+import { CartProvider } from '@/lib/cartStore';
 import {
   DEFAULTS,
   REGISTRY,
@@ -1048,14 +1049,19 @@ test('REGISTRY.presentaciones declara `variantes` con el set cerrado (incluido "
 // `touches` de este slice — no se toca.
 function renderGrindChooser(pres: PresentacionesContent, opts: { preview?: boolean } = {}): string {
   const content = { ...DEFAULTS, presentaciones: pres };
-  const arbol = React.createElement(SiteContentProvider, {
-    value: content,
-    children: React.createElement(GrindChooser),
+  // `CartProvider` ENVUELVE SIEMPRE (§ RIEL-COLATERAL-TESTS-1): desde RIEL-PRODUCTOS-Y-VISTA-
+  // RAPIDA-1, `GrindChooserRiel` gana `useCartStore()` incondicional (el carrito rápido de sus dos
+  // acciones), y ese hook es un CONTEXT con throw duro sin su provider. Envolver siempre es inocuo
+  // para mosaico/índice (ninguno de los dos lee `useCartStore`) — mismo patrón que
+  // `escala-display.test.ts`.
+  const arbol = React.createElement(CartProvider, {
+    children: React.createElement(SiteContentProvider, {
+      value: content,
+      children: React.createElement(GrindChooser),
+    }),
   });
   return renderToStaticMarkup(opts.preview ? React.createElement(PreviewProvider, { children: arbol }) : arbol);
 }
-
-const nEnlaces = (html: string) => (html.match(/<a /g) || []).length;
 
 test('el DISPATCHER enruta "riel" a GrindChooserRiel', () => {
   const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel' });
@@ -1072,52 +1078,36 @@ test('el DISPATCHER sigue enrutando "mosaico" y "indice" a sus componentes — s
   assert.ok(!htmlIndice.includes('grind-riel-track'));
 });
 
-// LA CARDINALIDAD MÍNIMA de esta sección son DOS tarjetas — slots 1-2, siempre requeridas
-// (§ `tarjetasDePresentaciones`); los defaults (arriba, `DEFAULTS.presentaciones`) son exactamente
-// ese mínimo (3-4 vacíos). El riel tiene que verse bien ahí: dos tarjetas, sin nada roto, con los
-// controles naciendo DESHABILITADOS en SSR (§ el comentario de `GrindChooserRiel.tsx` — sin
-// `useEffect`, el estado seguro es no prometer un desplazamiento que no se pudo medir).
-test('riel: cardinalidad MÍNIMA (2 tarjetas, los defaults) — no se ve roto sin nada que desplazar', () => {
-  const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel' });
-  assert.equal(nEnlaces(html), 2, 'las 2 tarjetas requeridas, cada una un <a>');
-  assert.ok(html.includes(DEFAULTS.presentaciones.label1));
-  assert.ok(html.includes(DEFAULTS.presentaciones.label2));
-  assert.ok(html.includes('Presentación anterior'));
-  assert.ok(html.includes('Presentación siguiente'));
-  const deshabilitados = (html.match(/disabled=""/g) || []).length;
-  assert.equal(deshabilitados, 2, 'sin medición de scroll (SSR), los dos botones nacen deshabilitados');
-});
-
-test('riel: cardinalidad MÁXIMA (4 tarjetas, los slots 3-4 llenos) — las cuatro se muestran', () => {
-  const pres: PresentacionesContent = {
-    ...DEFAULTS.presentaciones,
-    variante: 'riel',
-    label3: 'Presentación Tercera',
-    copy3: 'Una tercera opción.',
-    label4: 'Presentación Cuarta',
-    copy4: 'Una cuarta opción.',
-  };
-  const html = renderGrindChooser(pres);
-  assert.equal(nEnlaces(html), 4);
-  assert.ok(html.includes('Presentación Tercera') && html.includes('Presentación Cuarta'));
-});
-
-test('riel: el marcador `data-sf-tarjeta` del puente vista→formulario sólo aparece en preview', () => {
-  const pres = { ...DEFAULTS.presentaciones, variante: 'riel' };
-  const htmlPublico = renderGrindChooser(pres);
-  const htmlPreview = renderGrindChooser(pres, { preview: true });
-  assert.ok(!htmlPublico.includes('data-sf-tarjeta'), 'la tienda pública no debe emitir el atributo');
-  assert.ok(htmlPreview.includes('data-sf-tarjeta="1"'));
-  assert.ok(htmlPreview.includes('data-sf-tarjeta="2"'));
-});
-
-test('riel: una tarjeta SIN imagen (el default, sin fila sembrada) no rompe — sin `<img src="">`', () => {
-  // Los defaults nacen con `imagen1`/`imagen2` vacíos (§ MARCA-CLIENTE-PRESENTACIONES-1) — la tarjeta
-  // se muestra igual (criterio OR de `tarjetasDePresentaciones`), con el hueco de marca `--sf-linea`,
-  // nunca un `<img src="">` roto.
-  const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel' });
-  assert.ok(!html.includes('src=""'));
-});
+// ── RIEL-COLATERAL-TESTS-1 (2026-09-30) — CUATRO ASERCIONES RETIRADAS, no actualizadas ─────────────
+//
+// RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 movió la fuente de las tarjetas del riel de las tarjetas
+// CONFIGURADAS (`label1..4`/`copy1..4`/`imagen1..4`, resueltas por `tarjetasDePresentaciones`) al
+// CATÁLOGO (`productosDelRiel`, § lib/storefront/presentaciones.ts) — mosaico/índice SIGUEN siendo
+// config-driven (nada de esto los toca). Las cuatro pruebas que vivían acá describían un
+// comportamiento que ya NO EXISTE para "riel", no uno que cambió de forma:
+//   - "cardinalidad MÍNIMA/MÁXIMA (2/4 tarjetas, los defaults/slots 3-4 llenos)" asumía que
+//     `label1..4` gobierna cuántas tarjetas aparecen. Bajo el catálogo, la cardinalidad la decide
+//     `productosDelRiel` sobre lo que trae `getCatalog()` — y este arnés (`renderToStaticMarkup`,
+//     sin jsdom) nunca ejecuta ese `fetch` (vive en un `useEffect`), así que el catálogo queda
+//     SIEMPRE `[]` sin importar qué `pres` se le pase: la aserción "2 tarjetas"/"4 tarjetas" no se
+//     puede volver a escribir en ESTE archivo sin mentir. La cardinalidad de `productosDelRiel` (con
+//     catálogo real, sin el límite de SSR) ya está afirmada en `lib/storefront/presentaciones.test.ts`
+//     ("catálogo vacío → []", "recorta al TOPE (8)", "menos que el tope, los devuelve TODOS"); que el
+//     riel no rompe con catálogo vacío en SSR está afirmado en `lib/config/presentaciones-riel.test.ts`
+//     ("bajo Nayoli (sin catálogo, SSR) GrindChooserRiel no revienta — cero tarjetas, no un crash").
+//   - "el marcador `data-sf-tarjeta`… sólo en preview" afirmaba el puente vista→formulario del panel.
+//     `TarjetaRiel` (la pieza que ahora pinta cada tarjeta) YA NO EMITE ese atributo — no hay slot que
+//     resaltar sobre un producto del catálogo — así que la aserción "aparece en preview" describiría
+//     algo falso. § lib/tienda/puente-tarjetas.ts documenta por qué el puente no aplica a esta
+//     variante.
+//   - "una tarjeta SIN imagen… no rompe" verificaba el fallback de `imagen1`/`imagen2` vacíos, un
+//     concepto que no existe bajo el catálogo (cada tarjeta es un `Product`, con su propia
+//     `imagenPortada`). El fallback de imagen equivalente —`TarjetaRiel` sin ninguna foto cae al
+//     placeholder de marca, nunca un `<img src="">` roto— está afirmado con un producto de fixture en
+//     `lib/config/presentaciones-riel.test.ts` ("TarjetaRiel: sin foto en absoluto, cae al placeholder
+//     de marca").
+// Los defaults `label1..4`/`imagen1..4` SIGUEN existiendo (mosaico/índice los consumen) y sus propios
+// tests arriba en este archivo (cardinalidad fija, OR título/imagen, grid por conteo) NO se tocaron.
 
 test('presentaciones NO visible → el riel no renderiza nada (el gate de visibilidad vive en el DISPATCHER)', () => {
   const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel', visible: false });

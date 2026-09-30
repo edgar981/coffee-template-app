@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { CartProvider } from '@/lib/cartStore';
 import { DEFAULTS, resolverSiteContent } from './site-content-defaults';
 import {
   fontSizeDisplay,
@@ -96,10 +97,19 @@ function renderConEscala(
   // de `SiteContentProvider` (`{ value: SiteContentData; children: ReactNode }`) — mismo patrón que
   // `renderGrindChooser` en `site-content-defaults.test.ts`, y con el MISMO costo: dispara
   // `react/no-children-prop` de eslint, ya aceptado ahí (pre-existente, fuera de `touches` arreglarlo).
+  //
+  // `CartProvider` ENVUELVE SIEMPRE, no sólo para el caso "riel" (§ RIEL-COLATERAL-TESTS-1):
+  // `GrindChooserRiel` gana `useCartStore()` incondicional (el carrito rápido de sus dos acciones,
+  // § GrindChooserRiel.tsx) y ese hook es un CONTEXT con throw duro sin su provider (§ CLAUDE.md, "un
+  // hook con nombre de STORE puede ser un CONTEXT con throw duro"). Envolver siempre es inocuo para
+  // `HeroSection`/`GrindChooser` (ninguno de los dos lee `useCartStore`, verificado por grep) y evita
+  // que `renderConEscala` necesite saber CUÁL de sus llamadores lo requiere.
   return renderToStaticMarkup(
-    React.createElement(SiteContentProvider, {
-      value: content,
-      children: React.createElement(Componente),
+    React.createElement(CartProvider, {
+      children: React.createElement(SiteContentProvider, {
+        value: content,
+        children: React.createElement(Componente),
+      }),
     }),
   );
 }

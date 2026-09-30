@@ -1570,24 +1570,11 @@ export function navOffsetClase(posicion: boolean): string {
     : 'pt-16';
 }
 
-// ─── `navOffsetDeltaClase` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — el HUECO QUE FALTA, no el hueco
-// completo, para la ÚNICA página cuyo wrapper con el `pt-16` de hoy vive en un archivo FUERA del
-// `touches:` de este slice: `app/(storefront)/suscripciones/Contenido.tsx` (el `touches:` sólo
-// declara `suscripciones/page.tsx`, el server component que decide la visibilidad de la página —
-// no el client component que renderiza su contenido, donde vive el `pt-16` real). Reescribir ese
-// `pt-16` a `navOffsetClase(...)` habría sido la solución UNIFORME (§ el resto de las páginas
-// tocadas), pero tocar un archivo fuera de `touches:` no es una opción de esta sesión — se abre
-// como `SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-DE-TOUCHES-1` en `DECISIONS.md` para que un slice con
-// ese archivo en su alcance termine la migración.
-//
-// LA SALIDA, dentro de lo permitido: `suscripciones/page.tsx` (SÍ en `touches:`) envuelve a
-// `<SuscripcionesContenido />` en un `<div>` que agrega SÓLO LA DIFERENCIA entre el `pt-16` (64px)
-// que ese componente YA reserva y el alto real del header de CORTE — 12px bajo 640px (76-64),
-// 24px desde 640px (88-64) — para que el TOTAL (64 + delta) termine siendo 76/88, igual que en
-// cualquier otra página. `pt-3`/`pt-6` son los pasos EXACTOS de la escala de Tailwind para 12px/24px
-// — no arbitrarios, no una segunda fuente del número: 76 y 88 son los MISMOS dos literales de
-// `navOffsetClase`, arriba. `false` (todo tenant salvo CORTE) = `''` (sin clase, sin envoltorio que
-// agregue nada) — BYTE-IDÉNTICO, `Contenido.tsx` sigue solo con su `pt-16` de siempre.
-export function navOffsetDeltaClase(posicion: boolean): string {
-  return posicion ? 'pt-3 min-[640px]:pt-6' : '';
-}
+// `navOffsetDeltaClase` SE RETIRÓ (§ CIERRE-NOCHE-RIEL-1, cierra
+// SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-DE-TOUCHES-1). Existía SÓLO porque
+// `app/(storefront)/suscripciones/Contenido.tsx` estaba fuera del `touches:` de
+// NAV-INTERNAS-CLARO-Y-OFFSET-1 y no se podía reemplazar su `pt-16` directo — este archivo agregaba
+// la DIFERENCIA que faltaba desde un wrapper en `page.tsx`. Con `Contenido.tsx` en `touches:` de
+// esta tanda, migró a `navOffsetClase(navTratamiento.posicion)` directo (la forma UNIFORME que las
+// otras seis páginas ya tenían) y el wrapper se retiró — sin consumidor, código muerto que se borra
+// (§ CLAUDE.md, "código muerto se BORRA o se CABLEA, nunca se deja AMBIGUO").

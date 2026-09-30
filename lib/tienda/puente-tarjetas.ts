@@ -9,6 +9,18 @@ import type { SeccionConfig, BloqueConfig } from '@/components/admin/tienda-secc
 // llena fuera de orden (slot 4 lleno con el 3 vacío = 3ª tarjeta visible). Cada tarjeta es un BLOQUE
 // con su `slot` (§ BloqueConfig · tarjeta), y el marcador `data-sf-tarjeta` del storefront lleva el
 // slot. Con bloques, el destino del scroll es el bloque, no un encabezado de grupo (que se retiró).
+//
+// EL PUENTE YA NO APLICA A LA VARIANTE "riel" (§ RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1,
+// RIEL-COLATERAL-TESTS-1). Este módulo sigue siendo agnóstico de variante —lee `config.bloques`,
+// que `tienda-secciones.ts` sigue declarando para "presentaciones" con sus 4 slots, títulos
+// "Tarjeta N (no aplica con el riel)" incluidos— pero bajo esa variante el CLIC en la vista no
+// tiene destino real: `GrindChooserRiel`/`TarjetaRiel` ya NO emiten `data-sf-tarjeta` (las tarjetas
+// son productos del catálogo, no los slots `label1..4`/`imagen1..4`), así que `.closest('[data-sf-
+// tarjeta]')` (el otro extremo del puente, en `TiendaSeccionEditor.tsx`) nunca encuentra el
+// atributo para esa composición y el puente simplemente no dispara. Los campos de tarjeta del panel
+// SIGUEN existiendo para "presentaciones" (§ el comentario de cabecera de `GrindChooserRiel.tsx`) —
+// NO aplican bajo riel, pero el mapeo slot→bloque de este archivo no distingue por composición, y
+// no debe: mosaico/índice siguen siendo config-driven y su puente sigue funcionando igual.
 
 type BloqueTarjeta = Extract<BloqueConfig, { tipo: 'tarjeta' }>;
 

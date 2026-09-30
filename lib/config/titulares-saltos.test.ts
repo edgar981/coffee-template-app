@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import GrindChooserRiel from '@/components/storefront/home/GrindChooserRiel';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { CartProvider } from '@/lib/cartStore';
 import { SECCIONES_TIENDA, type SeccionConfig } from '@/components/admin/tienda-secciones';
 
 import { DEFAULTS, type PresentacionesContent, type SiteContentData } from './site-content-defaults';
@@ -68,8 +69,13 @@ test('ningún otro campo llamado "titulo" de SECCIONES_TIENDA quedó marcado tex
 
 function renderRiel(pres: PresentacionesContent): string {
   const content = { ...DEFAULTS, presentaciones: pres } as SiteContentData;
+  // `CartProvider` es obligatorio desde RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 (§ RIEL-COLATERAL-TESTS-1):
+  // `GrindChooserRiel` gana `useCartStore()` incondicional (el carrito rápido) — sin el provider,
+  // ese hook lanza (§ CLAUDE.md, "un hook con nombre de STORE puede ser un CONTEXT con throw duro").
   return renderToStaticMarkup(
-    React.createElement(SiteContentProvider, { value: content, children: React.createElement(GrindChooserRiel) }),
+    React.createElement(CartProvider, {
+      children: React.createElement(SiteContentProvider, { value: content, children: React.createElement(GrindChooserRiel) }),
+    }),
   );
 }
 

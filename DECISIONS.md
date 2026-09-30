@@ -34110,3 +34110,140 @@ mergear, pendiente de que el gate global quede verde.
   vivo (Playwright) contra una foto real de un tenant. NO se hizo acá porque el gate ya es RED en la
   capa más barata (`npm test`) y no se justificaba levantar Chromium/un build completo para una
   evidencia visual de un diff que no se puede mergear todavía.
+
+## 2026-09-30 — Cierre de la tanda nocturna del riel: colaterales, `images.qualities`, nitidez MEDIDA, offset de Suscripciones, test stale (`CIERRE-NOCHE-RIEL-1`) — COMPLETE
+
+Cierra los cinco follow-ups que `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1` dejó abiertos (arriba). Sigue en
+`slice/corte-reescritura-prototipo-1`, sin mergear (el owner pidió la tanda nocturna para el gate de
+la mañana).
+
+### 1 · `RIEL-COLATERAL-TESTS-1` — CERRADO: 5 arreglados con `CartProvider`/título nuevo, 8 retirados
+
+Medido ANTES de tocar nada (`npx tsx --test` por archivo): los 10 fallos del asiento anterior eran
+exactamente los 4 archivos ya diagnosticados. Cada uno se trató por su causa real, no en bloque:
+
+| archivo | tests | causa | qué se hizo |
+| --- | --- | --- | --- |
+| `lib/config/escala-display.test.ts` | 1 | falta `CartProvider` | `renderConEscala` envuelve con `CartProvider` SIEMPRE (inocuo para HeroSection/GrindChooser, que no leen `useCartStore` — verificado por grep) |
+| `lib/config/titulares-saltos.test.ts` | 3 | falta `CartProvider` | `renderRiel` ídem |
+| `lib/tienda/puente-tarjetas.test.ts` | 1 | título literal `'Tarjeta N'` vs `'Tarjeta N (no aplica con el riel)'` | se actualizó el `assert.equal` al título REAL de `tienda-secciones.ts` (medido con grep, no supuesto) |
+| `lib/config/site-content-defaults.test.ts` | 5 | 1 = falta `CartProvider` ("el DISPATCHER enruta riel"); 4 = describían la semántica VIEJA (cardinalidad por slots, marcador `data-sf-tarjeta`, imagen vacía por default) que §1 de RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 retiró a propósito | 1 arreglado con `CartProvider`; **4 RETIRADOS** (nunca actualizados a una forma nueva — no describen nada vivo bajo el catálogo) |
+
+**Los 4 retirados, y por qué no se "arreglaron" en su lugar:** con el catálogo como fuente,
+`renderToStaticMarkup` (SSR sin navegador) nunca ejecuta el `fetch` de `getCatalog()` —vive en un
+`useEffect`—, así que el catálogo queda SIEMPRE `[]` bajo este arnés, sin importar qué `pres` se le
+pase. Reescribir "cardinalidad MÍNIMA/MÁXIMA" con `[]` fijo no afirmaría nada; la cardinalidad de
+`productosDelRiel` YA está cubierta con datos reales en `lib/storefront/presentaciones.test.ts`
+(fuera de `touches:`, no tocado), y que el riel no rompe con catálogo vacío en SSR YA está cubierto
+en `lib/config/presentaciones-riel.test.ts` ("bajo Nayoli (sin catálogo, SSR) GrindChooserRiel no
+revienta"). El marcador `data-sf-tarjeta` no se reescribió porque `TarjetaRiel` YA NO LO EMITE —
+documentado ahora en `lib/tienda/puente-tarjetas.ts` (el puente no dispara bajo la variante riel,
+sin cambiar su mapeo agnóstico slot→bloque, que mosaico/índice siguen usando sin cambio). Los tests
+de mosaico/índice/`presentaciones` (cardinalidad fija, OR título/imagen, grid por conteo) — **no se
+tocaron**, y el nuevo bloque de comentario en el archivo lo deja escrito para que nadie los borre
+creyendo que son parte de la misma poda.
+
+Verificado, `npx tsx --test` de los cuatro archivos por separado: **17 + 6 + 207 = 230 tests, 0
+fallos** (incluye 3 de `puente-tarjetas.test.ts` no tocados que siguen pasando).
+
+### 2 · `NEXT-CONFIG-IMAGE-QUALITIES-1` — CERRADO: `images.qualities: [75, 85, 90]`
+
+Medido con `grep -rn "quality={" --include="*.tsx" app components lib packages` (excluidos tests):
+**75** es el default de `next/image` (todo `<Image>` sin `quality` propio — catálogo, cards); **85**
+lo usan los cuatro Hero (`HeroCurtina`/`HeroMedia`/`HeroMediaMarquesina`/`HeroFicha`); **90** lo usan
+`TarjetaRiel` (dos `<Image>`, portada+atrás) y `VistaRapidaProducto` (el hero de la galería). Se
+declaró `qualities: [75, 85, 90]` en `next.config.ts`.
+
+**LÍMITE MEDIDO, no asumido:** el warning "is using quality 'N' which is not configured" SIGUE
+apareciendo al correr `npx tsx --test` sobre archivos que renderizan `next/image` — verificado
+leyendo `node_modules/next/dist/esm/shared/lib/get-img-props.js:143`: `imgConf = process.env
+.__NEXT_IMAGE_OPTS || imageConfigDefault`, y esa env var la inyecta el DEFINE PLUGIN de webpack
+DENTRO de `next build`/`next dev` — nunca existe bajo `node --import tsx --test`. La config real
+(con `qualities:[75,85,90]`) SÍ llega al runtime que importa: confirmado en la corrida de
+`RIEL-NATURALWIDTH-CAPTURA-1` (abajo), un `next build` + `next start` REAL, sin ese warning en la
+salida servida (los únicos warnings del build son de `BETTER_AUTH_SECRET`, nada de `images.qualities`).
+
+### 3 · `RIEL-NATURALWIDTH-CAPTURA-1` — CERRADO: MEDIDO en vivo, sin corrección de `sizes` — las 4 pasan
+
+**El arnés:** `.scratch/medir-nitidez.ts` (descartable, no se integra al repo — se borró al terminar),
+réplica mínima del mecanismo de `scripts/postgres-efimero.sh` (initdb/pg_ctl binarios, puerto propio
+55491, base `nitidez`) + `prisma migrate deploy` + UN producto sembrado con las fotos reales YA en
+`public/images/` (medidas con `sharp`: **1254×1254** las dos — `cafe-nayoli-250g-molido.webp` de
+portada, `cafe-nayoli-500g-molido-v2.webp` como galería, para tener "foto de atrás") + `presentaciones
+.variante:'riel'` publicado por el camino real (`guardarBorrador`+`publicarSeccion`, el mismo que usa
+`sembrarSpotlight` en `capturar-seccion.ts`) + `next build` + `next start` + Playwright (el mismo
+Chromium aislado que ya usa `scripts/capturar-seccion.ts`, `.arnes-tooling/playwright/`).
+
+**HALLAZGO DE MÉTODO, antes del resultado:** la primera corrida leyó `img.naturalWidth` desde el DOM
+(`page.evaluate`) apenas el locator confirmaba visibilidad, y dio **360/304** en los 4 puntos —
+exactamente el ancho RENDERIZADO, no el servido —, mintiendo "por debajo del umbral" en las 4
+mediciones. `img.currentSrc` (leído en el MISMO `evaluate`) ya mostraba `w=750`/`w=640`/`w=1080` —
+contradiciendo su propio `naturalWidth` vecino. Se agregó `waitForFunction(() => img.complete &&
+img.naturalWidth > 0)` (no alcanzó — mismo resultado) y un CROSS-CHECK independiente: `fetch(
+currentSrc)` fuera del DOM + `sharp(...).metadata()` sobre los bytes reales. El fetch directo
+resolvió la contradicción: `img.naturalWidth` vía CDP/Chromium headless con `deviceScaleFactor:2` es
+NO CONFIABLE en este arnés (reporta el ancho CSS, no el pixel real, pese a `complete:true`); el
+`currentSrc` + el fetch de sus bytes es la fuente de verdad. Ninguna optimización de código lo
+arregla — es una propiedad del harness, no del componente.
+
+**RESULTADO MEDIDO (DPR=2, el más exigente del catálogo — un DPR=1 pasa con más margen aún):**
+
+| viewport | pieza | renderizado (css px) | requerido (×DPR2) | servido (sharp, bytes reales) | ok |
+| --- | --- | --- | --- | --- | --- |
+| 1440 | TarjetaRiel (portada) | 360 | 720 | **750** | ✔ |
+| 1440 | VistaRapidaProducto (hero) | 340 | 680 | **1080** | ✔ |
+| 390 | TarjetaRiel (portada) | 304 | 608 | **640** | ✔ |
+| 390 | VistaRapidaProducto (hero) | 310 | 620 | **750** | ✔ |
+
+**Las 4 mediciones cumplen `naturalWidth-servido ≥ renderizado × DPR`. NO se corrigió `sizes` —
+no hacía falta.** La corrección aritmética de la tanda anterior (`"(max-width: 640px) 78vw,
+(max-width: 1000px) 260px, 360px"` para `TarjetaRiel`) ya alcanzaba; este slice la CONFIRMA con
+bytes reales servidos por un `next build`/`next start` real, cerrando el límite declarado del
+asiento anterior ("se derivó por aritmética, no por captura en vivo").
+
+**Postgres efímero + `next start` verificados sin residuo**: `ps aux` sin procesos `next-server`/
+`pg_ctl` colgados tras la corrida; sin datadirs huérfanos bajo `$TMPDIR` (`nitidez-pg-*`).
+
+### 4 · Suscripciones migra a `navOffsetClase` — cierra `SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-DE-TOUCHES-1`
+
+`Contenido.tsx` entró al `touches:` de esta tanda: reemplazó su `pt-16` fijo por `navOffsetClase(
+navTratamiento.posicion)` (lee `navTratamiento` de `useSiteContent()`, el mismo patrón cliente que
+`checkout/page.tsx`/`RetornoCliente.tsx`) — `false` (todo tenant salvo CORTE) = `'pt-16'`, byte a
+byte lo que ya reservaba. `page.tsx` retiró el wrapper con `navOffsetDeltaClase` (ya no hace falta:
+la diferencia que tapaba dejó de faltar). **`navOffsetDeltaClase` se BORRÓ de `themes.ts`** —sin
+consumidor tras el retiro del wrapper (verificado por grep), código muerto que se borra— junto con
+sus 3 tests en `lib/config/nav-internas.test.ts` (afirmaban sólo la función retirada; el resto del
+archivo —`navOffsetClase`, `navBandaTinta`— no se tocó).
+
+Verificado con `npm run verificar:nayoli:visual` (abajo): las 6 rutas completas, incluida
+`/suscripciones`, dan **0px de diferencia** contra `main` — el cambio de mecanismo (wrapper→clase
+directa) es invisible para Nayoli, que es exactamente lo que `navOffsetClase(false)==='pt-16'` y
+`navOffsetDeltaClase` retirado sin reemplazo predicen.
+
+### 5 · `corte-nav-transparente.test.ts` — cierra `CORTE-NAV-TRANSPARENTE-TEST-STALE-1`: RETIRADO, no actualizado
+
+El test "CORTE fuera de home (no isHome): mismo sólido --sf-tinta que scrolleado" describía la
+fórmula VIEJA de `navBandaTinta` (sin `isHome &&`) contra la copia LOCAL de `estadoNav()` de ese
+archivo — seguía en VERDE después de NAV-INTERNAS-CLARO-Y-OFFSET-1 porque nunca leyó la fórmula
+real. Se retiró (no se actualizó): `lib/config/nav-internas.test.ts` YA tiene su propia copia de
+`estadoNav()` CON `isHome &&` y su propio test para el mismo caso ("YA NO cae al sólido --sf-tinta —
+el defecto reportado por el owner") — mantener dos copias de la misma fórmula es cómo diverge de
+nuevo. El resto del archivo (`estadoNav`/`estadoNavViejo`, 9 tests restantes) no se tocó: todos usan
+`isHome:true`, donde el `isHome &&` que falta en la copia local nunca cambió el resultado — verificado
+corriendo el archivo completo tras el retiro (9/9 verde).
+
+### El gate — verde, medido una vez sobre el árbol final
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npm test` | **2629/2629** (2637 − 8 retirados = 2629; los 8 son los 4 de `site-content-defaults.test.ts` + los 3 de `navOffsetDeltaClase` + el 1 de `corte-nav-transparente.test.ts`) |
+| `npm run test:integracion` | **242/242** |
+| `npm run verificar:nayoli:visual` | **0px** en 6 rutas + 2 hovers (crudo Y consciente de antialiasing) |
+| `npx tsx scripts/guarda-color.ts` | **0px** contra el fixture de Nayoli, mismas 6 rutas + 2 hovers |
+
+### Verdict
+
+**COMPLETE.** Cierra `CIERRE-NOCHE-RIEL-1`. Los cinco follow-ups de `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1`
+quedan resueltos con evidencia medida, no supuesta. Sigue sin mergear (branch `slice/corte-
+reescritura-prototipo-1`) — el owner corre el gate de la mañana sobre este árbol.
