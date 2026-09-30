@@ -33065,3 +33065,84 @@ explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
 
 Cierra `MARQUEE-ESPACIO-MENOR-1` (pendiente del gate visual del owner, capa 3, y de mergear —
 ninguna de las dos cosas hechas por este slice).
+
+## 2026-09-30 — El video del hero sticky cubre el viewport GRANDE en móvil; el marco sigue en el chico (`HERO-MOVIL-SIN-FRANJA-VERDE-1`)
+
+`47b8533` (rama `slice/corte-reescritura-prototipo-1`, SIN mergear — AWAITING_APPROVAL, ver Verdict abajo)
+
+### El pedido
+
+Gate del owner del 2026-09-29 desde su teléfono, con captura: *"En móvil se ve como una pantalla
+verde detrás del video cuando empiezo a hacer scroll y empiezan a salir las letras"*. El marco
+pineado de CORTE (`HeroMediaMarquesina.tsx`, hero `variante:'sticky'`) medía `h-[100svh]` para
+TODO —el marco Y la media—; al colapsar el chrome del navegador durante el scroll el viewport
+visible crece hacia `lvh` (el valor MÁS GRANDE posible, chrome escondido) y el marco se quedaba
+anclado al `svh` (el MÁS CHICO, ya resuelto en píxeles), así que el fondo `--sf-tinta` del
+ancestro asomaba por el hueco — debajo, y a veces arriba (el chrome de un móvil puede colapsar
+por los dos bordes, no sólo el inferior).
+
+### La elección
+
+Sólo la MEDIA (video/imagen+velo) pasa a medir `100lvh`, centrada respecto al marco vía
+`top:'calc((100svh - 100lvh) / 2)'` — el excedente se reparte mitad arriba, mitad abajo, cubriendo
+los dos casos reportados con UN mecanismo. El marco que ancla texto/tarjeta/frase/cue sigue en
+`h-[100svh]` SIN cambios: agrandarlo a `lvh` los habría escondido detrás del chrome cuando SÍ está
+mostrado — justo lo que el spec pidió no crear. `overflow-hidden` se mueve de la `<section>` (que
+ahora necesita dejar pintar a la media más allá de su caja) al `<div ref={wrapperRef}>` (el
+ancestro del sticky, como red de seguridad contra el borde de despineo al final del recorrido); la
+máscara del ticker, que dependía de ESE `overflow-hidden` para su recorte horizontal (sin ancho
+propio), gana `inset-x-0` para quedar auto-contenida con el suyo. El detalle completo —incluidos
+los descartes evaluados: un sibling sticky separado para la media (desincroniza su punto de
+despineo del marco, porque dos siblings con distinta altura de layout se despinean en momentos
+distintos) y un top-anchored sin centrar (sólo cubre el caso "abajo", no el "a veces arriba"
+reportado)— vive en el docstring de cabecera de `HeroMediaMarquesina.tsx`, § el mismo id.
+
+En escritorio (y cualquier navegador sin chrome dinámico) `svh===lvh` por definición del spec de
+CSS, así que la fórmula se anula (`top:0`, `height:100%`) y el fix es byte-idéntico sin media
+query — es una propiedad de la fórmula, no una condición aparte.
+
+### El límite de la verificación — MEDIDO, no supuesto
+
+Chromium headless no tiene chrome dinámico real: `svh`/`lvh`/`dvh` siempre resuelven al viewport
+que se le pida, con o sin el fix — no hay forma de reproducir el defecto ahí. Confirmado con
+`capturar:seccion` (preset CORTE, selector `.sticky`) a 390×844 y 390×932, antes y después del
+fix: las CUATRO capturas muestran el video cubriendo el viewport completo, sin franja visible en
+ninguna. Un diff de píxeles antes/después a 390×932 da **4/363.480** (0,0011%) — el mismo orden de
+ruido de timing de animación que `verificar-nayoli-visual.ts` ya documenta contra el scroll-cue de
+`HeroCurtina.tsx` (§ su docstring, "MEDIDO, NO TEÓRICO"), no una diferencia estructural. Esto NO
+prueba que el fix funcione: prueba el LÍMITE del arnés headless. La prueba real es el Safari del
+owner, en su teléfono, con la barra de direcciones colapsando de verdad durante el scroll.
+
+### El cierre
+
+- `lib/config/hero-marquesina.test.ts` gana 4 tests (en el commit de código, `47b8533`): que
+  `overflow-hidden` se movió de la sección al wrapper (y sigue en el marcado vía la máscara del
+  ticker, sin desaparecer del todo); que el `<div>` de media lleva el offset centrado + `100lvh`
+  explícitos; y que la máscara gana `inset-x-0`. Los 3 discriminadores se vieron FALLAR contra el
+  código pre-fix — revertido temporalmente con `Edit` (no `git stash`: ese comando pidió
+  aprobación que este dispatch no concede; sólo `checkout`/`switch`/`branch`/`add`/`commit` lo
+  están) y restaurado a mano — antes de confirmarlos en verde.
+- `npm test`: **2593/2593** (2589 + 4 nuevos). Acotado al archivo tocado: **45/45**.
+- `npm run typecheck`: limpio, cero errores.
+- `npm run test:integracion`: **240/240**.
+- `npm run verificar:nayoli:visual` (Nayoli, sin preset; `main`=`9a7ab97` worktree detached, rama
+  = el árbol de trabajo con `47b8533` ya aplicado): **IDÉNTICO, 0px en las 6 rutas + los 2 hovers,
+  consciente de antialiasing Y crudo** — `ruta:home` (0/4.608.000 px), `ruta:tienda`
+  (0/2.433.280 px), `ruta:producto` (0/2.535.680 px), `ruta:checkout` (0/1.152.000 px),
+  `ruta:nosotros` (0/1.152.000 px), `ruta:suscripciones` (0/2.144.000 px), `hover:automatica`
+  (0/98.298 px), `hover:eleccion` (0/102.870 px). Esperado: Nayoli no usa hero
+  `variante:'sticky'` (`DEFAULTS.hero.variante` es `'curtina'`, byte-idéntica), así que el archivo
+  tocado no le toca un solo píxel.
+- `git worktree list` tras la corrida: sin residuos.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`) — mismo criterio que `MARQUEE-SIN-RAYA-1`/
+`MARQUEE-ESPACIO-MENOR-1` en esta misma rama: el diff cambia lo que un visitante con CORTE activo
+—o `hero.variante:'sticky'` bajo cualquier otro preset— ve en su teléfono durante el scroll del
+hero. Nayoli no lo ve HOY (0px, arriba); la RAMA sí, y merge policy A juzga la RAMA contra su base,
+no el commit aislado (§ CLAUDE.md, customer_bytes: "el eje es la rama, no el commit"). El spec lo
+pide explícito: *"PARÁS EN AWAITING_APPROVAL. NO MERGEES."*
+
+Cierra `HERO-MOVIL-SIN-FRANJA-VERDE-1` (pendiente del gate visual REAL del owner en su Safari,
+capa 3 — el único que puede confirmar que la franja desapareció de verdad — y de mergear).
