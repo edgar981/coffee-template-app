@@ -66,6 +66,16 @@ import { formatCOP } from "@duna/core/utils";
 // SÓLO EL RIEL LO USA HOY — componente reutilizable, sin conocimiento de quién lo monta: recibe el
 // producto y el disparador por prop, nada de `useSiteContent()` fuera de lo que ya necesita
 // (`tema.origenAccion`, compartido con la ficha).
+//
+// CURSOR: pointer explícito en cerrar/flechas de galería/cantidad (§ RIEL-SUBRAYADO-CURSOR-
+// NITIDEZ-1) — MEDIDO, no supuesto: Tailwind v4 no agrega `cursor:pointer` a `<button>` (a
+// diferencia de Tailwind v3, que sí lo hacía en Preflight), y el UA no lo pone solo, así que sin la
+// clase estos controles se ven clickeables pero el cursor no lo confirma. Los botones de
+// "Agregar/Comprar" NO lo necesitan acá: ya lo llevan desde `PRIMARIO_CORTE`/`SECUNDARIO_CORTE`
+// (`lib/storefront/pdp-botones.ts`) — este modal sólo monta bajo `origenAccion:'acento'` (CORTE),
+// así que nunca cae en el branch `_DEFECTO` (Nayoli) que carece de `cursor-pointer`. Los botones de
+// molienda, más abajo, YA lo tenían (`cursor-pointer`/`cursor-not-allowed` explícitos) — no se
+// tocan.
 export interface VistaRapidaProductoProps {
   /** El producto a mostrar. `null` = el modal está CERRADO. */
   producto: Product | null;
@@ -202,7 +212,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
           type="button"
           onClick={cerrarYDevolverFoco}
           aria-label="Cerrar"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie)]"
+          className="absolute right-4 top-4 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie)]"
         >
           <X className="h-5 w-5" />
         </button>
@@ -232,7 +242,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
                 type="button"
                 onClick={() => cambiarFoto(-1)}
                 aria-label="Foto anterior"
-                className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--sf-tarjeta)]/90 text-[var(--sf-tinta)] shadow transition-colors hover:bg-[var(--sf-tarjeta)]"
+                className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)]/90 text-[var(--sf-tinta)] shadow transition-colors hover:bg-[var(--sf-tarjeta)]"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -240,7 +250,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
                 type="button"
                 onClick={() => cambiarFoto(1)}
                 aria-label="Foto siguiente"
-                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--sf-tarjeta)]/90 text-[var(--sf-tinta)] shadow transition-colors hover:bg-[var(--sf-tarjeta)]"
+                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)]/90 text-[var(--sf-tinta)] shadow transition-colors hover:bg-[var(--sf-tarjeta)]"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -296,7 +306,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
                 <button
                   type="button"
                   onClick={() => setCantidad((c) => clampCantidadVistaRapida(c - 1, maxCompra))}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)]"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)]"
                   aria-label="Quitar una unidad"
                 >
                   <Minus className="h-4 w-4" />
@@ -313,7 +323,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
                       return clampCantidadVistaRapida(c + 1, maxCompra);
                     })
                   }
-                  className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)]"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)]"
                   aria-label="Agregar una unidad"
                 >
                   <Plus className="h-4 w-4" />

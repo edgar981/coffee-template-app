@@ -101,13 +101,37 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // al pasar el mouse (o con foco, `group-hover`/`group-focus-within`) — un crossfade de opacidad, sin
 // escalar ni atenuar las vecinas. Sin foto de atrás, la portada se queda quieta.
 //
-// EL NOMBRE LLEVA EL SUBRAYADO DEL NAV — REUSADO, NO UNA SEGUNDA GRAMÁTICA. `navHoverClase` (§
-// `StoreNav.tsx`, `.nav-link::after` del prototipo) es la MISMA clase, byte a byte: una línea de 1px
-// en `bg-current` que crece desde la izquierda con la curva de `tokens.css` — acá en `hover:` PROPIO
-// del `<Link>` del nombre (no `group-hover:`), porque el pedido es "si hago hover sobre el NOMBRE",
-// independiente de dónde esté el cursor sobre el resto de la tarjeta. `navTratamiento.subrayado` sigue
-// siendo `false` para todo tenant salvo CORTE (§ site-content-defaults.ts) — sin ese eje, el nombre
-// vuelve a su subrayado de HOY (`hover:underline`), byte-idéntico.
+// EL NOMBRE LLEVA EL SUBRAYADO DEL NAV — MISMOS TOKENS, GRAMÁTICA DISTINTA (§ RIEL-SUBRAYADO-
+// CURSOR-NITIDEZ-1, gate del owner del 2026-09-30 con captura del riel desplegado: "como hacemos
+// para que el delineado se vea en todo el nombre y no solo como en la parte de abajo"). El
+// `navHoverClase` de `StoreNav.tsx` (`.nav-link::after` del prototipo) es un pseudo-elemento
+// ABSOLUTO sobre un elemento de BLOQUE: un solo rectángulo pegado al borde inferior del bloque
+// ENTERO — sirve para un link corto de una línea, pero un nombre de producto que PARTE en varias
+// líneas (a diferencia de los ítems fijos del nav) lo dibuja sólo bajo la ÚLTIMA línea, con el ancho
+// del bloque completo — exactamente el defecto de la captura.
+//
+// ACÁ el subrayado es un `background-image` sobre un `<span>` INLINE con `box-decoration-clone`:
+// cada línea que el texto envuelto arma es, para el navegador, una CAJA DE PINTADO propia — con
+// `box-decoration-clone` cada una pinta SU PROPIA copia del `background`, así que el subrayado SIGUE
+// al texto línea por línea. `background-position:left bottom` + `background-size` de `0%` a `100%`
+// (en vez de `scale-x`) da el mismo crecimiento-desde-la-izquierda que `after:origin-left
+// after:scale-x-0`; el `<span>` no puede ser el h3 mismo (un bloque no re-pinta su fondo por línea,
+// sólo un inline con `box-decoration-clone` lo hace), así que el nombre vive en un span propio
+// (abajo, en `TarjetaRiel`).
+//
+// LOS MISMOS TOKENS, REUSADOS — no una paleta nueva: `220ms`/`cubic-bezier(0.22,0.61,0.36,1)` (la
+// curva y duración exactas de `StoreNav.tsx`), `1px` (el grosor, ahí `h-px`, acá el alto del
+// `background-size`) y `currentColor` (ahí `bg-current`, acá `linear-gradient(currentColor,
+// currentColor)` — el mismo color de texto heredado, sea cual sea `origenTexto`).
+// `motion-reduce:transition-none` = "aparece sin animar" bajo `prefers-reduced-motion: reduce` (el
+// `<MotionConfig reducedMotion="user">` del layout cubre las entradas de `framer-motion`, no un
+// `transition` de CSS puro — mismo motivo por el que `desplazar()`, arriba, lee la media query por
+// su cuenta).
+//
+// `navTratamiento.subrayado` sigue siendo `false` para todo tenant salvo CORTE (§ site-content-
+// defaults.ts) — sin ese eje, el nombre vuelve a su subrayado de HOY (`hover:underline`, nativo,
+// que YA sigue el texto línea por línea sin ningún truco — el defecto es EXCLUSIVO de la gramática
+// `after:`), byte-idéntico.
 //
 // DOS ACCIONES RÁPIDAS, COMO `.quick-acts` DEL PROTOTIPO (`js/home.js:99-102`): el OJO abre la vista
 // rápida SIEMPRE (`VistaRapidaProducto.tsx`, § su propio docstring — la referencia es el tema real,
@@ -216,7 +240,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
           type="button"
           onClick={(e) => onEye(producto, e.currentTarget)}
           aria-label={`Vista rápida de ${producto.nombre}`}
-          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+          className="pointer-events-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
         >
           <Eye className="h-[18px] w-[18px]" />
         </button>
@@ -225,7 +249,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             type="button"
             onClick={(e) => onCart(producto, e.currentTarget)}
             aria-label={`Agregar ${producto.nombre} al carrito`}
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+            className="pointer-events-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
           >
             <ShoppingBag className="h-[18px] w-[18px]" />
           </button>
@@ -237,7 +261,11 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
       <div className="pt-4">
         <div className="flex items-baseline justify-between gap-4">
           <Link href={href} className="inline-block">
-            <h3 className={`text-xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] ${navHoverClase}`}>{producto.nombre}</h3>
+            {/* El subrayado vive en el SPAN, no en el h3 (§ el docstring de cabecera): sólo un
+                inline con `box-decoration-clone` re-pinta su fondo por línea; un bloque no. */}
+            <h3 className="text-xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">
+              <span className={navHoverClase}>{producto.nombre}</span>
+            </h3>
           </Link>
           <span className="shrink-0 text-base text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">
             {formatCOP(producto.precio)}
@@ -291,10 +319,11 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
   // contenedor, así que no cambia — sólo cambia cuánto track queda visible antes de scrollear.
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
-  // EL SUBRAYADO DEL NOMBRE (§ el docstring de cabecera) — la MISMA clase que `StoreNav.tsx` arma
-  // para `.nav-link::after`, reusada byte a byte (no una segunda gramática de subrayado).
+  // EL SUBRAYADO DEL NOMBRE (§ el docstring de cabecera) — MISMOS tokens que `StoreNav.tsx`
+  // (220ms, la curva, 1px, currentColor), gramática de `background-size` sobre un `<span>` inline
+  // con `box-decoration-clone` para que siga al texto PARTIDO en varias líneas.
   const navHoverClase = navTratamiento.subrayado
-    ? 'relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:after:scale-x-100'
+    ? '[background-image:linear-gradient(currentColor,currentColor)] bg-no-repeat bg-left-bottom bg-size-[0%_1px] box-decoration-clone transition-[background-size] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-size-[100%_1px] motion-reduce:transition-none'
     : 'hover:underline';
 
   useEffect(() => {

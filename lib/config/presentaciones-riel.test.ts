@@ -158,16 +158,39 @@ test('TarjetaRiel: las dos acciones rápidas (ojo y carrito) están presentes, y
   assert.doesNotMatch(sinStock, /Agregar Café Nariño 500g al carrito/, 'sin stock no se ofrece agregar directo');
 });
 
-test('TarjetaRiel: el nombre lleva `navHoverClase` tal cual se lo pasan — sin `navTratamiento.subrayado` cae a `hover:underline`, byte-idéntico a hoy', () => {
-  const html = renderTarjeta(PRODUCTO_FIXTURE, 'hover:underline');
-  assert.match(html, /font-playfair text-\[var\(--sf-sobre-banda,var\(--sf-tinta\)\)\] hover:underline/);
+test('TarjetaRiel: el nombre vive en un `<span>` DENTRO del `<h3>` (§ RIEL-SUBRAYADO-CURSOR-NITIDEZ-1) — nunca la clase de subrayado sobre el h3 mismo', () => {
+  const html = renderTarjeta();
+  assert.match(html, /<h3 class="text-xl font-playfair text-\[var\(--sf-sobre-banda,var\(--sf-tinta\)\)\]"><span class="[^"]*">Café Nariño 500g<\/span><\/h3>/);
 });
 
-test('TarjetaRiel: con `navTratamiento.subrayado` (CORTE), el nombre lleva la MISMA gramática del subrayado del nav (`after:` + `hover:after:scale-x-100`)', () => {
-  const claseNav = 'relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:after:scale-x-100';
+test('TarjetaRiel: el nombre lleva `navHoverClase` tal cual se lo pasan — sin `navTratamiento.subrayado` cae a `hover:underline`, byte-idéntico a hoy (sigue el texto línea por línea, nativo, sin truco)', () => {
+  const html = renderTarjeta(PRODUCTO_FIXTURE, 'hover:underline');
+  assert.match(html, /<span class="hover:underline">Café Nariño 500g<\/span>/);
+});
+
+test('TarjetaRiel: con `navTratamiento.subrayado` (CORTE), el nombre lleva la gramática MULTI-LÍNEA — `background-size` sobre un inline con `box-decoration-clone`, MISMOS tokens que StoreNav (220ms, la curva, 1px, currentColor)', () => {
+  const claseNav = '[background-image:linear-gradient(currentColor,currentColor)] bg-no-repeat bg-left-bottom bg-size-[0%_1px] box-decoration-clone transition-[background-size] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-size-[100%_1px] motion-reduce:transition-none';
   const html = renderTarjeta(PRODUCTO_FIXTURE, claseNav);
-  assert.match(html, /hover:after:scale-x-100/);
+  // `box-decoration-clone` es LO QUE HACE que el subrayado siga cada línea (§ el docstring de
+  // cabecera de GrindChooserRiel.tsx) — sin él, un nombre partido en varias líneas subraya sólo
+  // la última, el defecto exacto que este slice cierra.
+  assert.match(html, /box-decoration-clone/);
+  assert.match(html, /hover:bg-size-\[100%_1px\]/);
+  assert.match(html, /duration-\[220ms\]/, 'MISMA duración que StoreNav.tsx — token reusado, no un valor nuevo');
+  assert.match(html, /ease-\[cubic-bezier\(0\.22,0\.61,0\.36,1\)\]/, 'MISMA curva que StoreNav.tsx');
+  assert.match(html, /motion-reduce:transition-none/, '"aparece sin animar" bajo movimiento reducido');
+  assert.doesNotMatch(html, /after:scale-x-100/, 'NUNCA la gramática de bloque de `after:` — es la que no sigue el texto partido');
   assert.doesNotMatch(html, /hover:underline/);
+});
+
+test('TarjetaRiel: el ojo y el carrito muestran `cursor-pointer` (§ RIEL-SUBRAYADO-CURSOR-NITIDEZ-1, gate del owner: "El \'ojo\' y el carrito deberían tener \'cursor-pointer\'")', () => {
+  const html = renderTarjeta();
+  const botonOjo = html.match(/<button[^>]*aria-label="Vista rápida de Café Nariño 500g"[^>]*>/);
+  const botonCarrito = html.match(/<button[^>]*aria-label="Agregar Café Nariño 500g al carrito"[^>]*>/);
+  assert.ok(botonOjo, 'el botón ojo debe estar presente');
+  assert.ok(botonCarrito, 'el botón carrito debe estar presente');
+  assert.match(botonOjo![0], /\bcursor-pointer\b/);
+  assert.match(botonCarrito![0], /\bcursor-pointer\b/);
 });
 
 test('TarjetaRiel: sin foto en absoluto, cae al placeholder de marca — nunca un <img src=""> roto', () => {

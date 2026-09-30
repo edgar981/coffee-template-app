@@ -34247,3 +34247,250 @@ corriendo el archivo completo tras el retiro (9/9 verde).
 **COMPLETE.** Cierra `CIERRE-NOCHE-RIEL-1`. Los cinco follow-ups de `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1`
 quedan resueltos con evidencia medida, no supuesta. Sigue sin mergear (branch `slice/corte-
 reescritura-prototipo-1`) — el owner corre el gate de la mañana sobre este árbol.
+
+## 2026-09-30 — Subrayado por-línea, `cursor-pointer` medido, y la nitidez re-verificada con foto real (`RIEL-SUBRAYADO-CURSOR-NITIDEZ-1`) — COMPLETE
+
+Tres ajustes del gate del owner sobre el riel desplegado (captura, 2026-09-30): «como hacemos para
+que el delineado se vea en todo el nombre y no solo como en la parte de abajo», «el "ojo" y el
+carrito deberían tener 'cursor-pointer'», y «que las imágenes… se vean más a tamaño real y en
+calidad hd». Sigue en `slice/corte-reescritura-prototipo-1`, sin mergear.
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` = `38b20c9` (cierre de `CIERRE-NOCHE-RIEL-1`), rama =
+  `slice/corte-reescritura-prototipo-1` — verificado con `git status`/`git log -5`.
+- Los 9 archivos de `touches:` existen — verificado uno por uno antes de escribir.
+
+### 1 · El subrayado en TODAS las líneas — `background-size` sobre un `<span>` inline con `box-decoration-clone`
+
+**El defecto, confirmado por medición ANTES de tocar código**: `navHoverClase` (cuando
+`navTratamiento.subrayado`) era la MISMA gramática de `StoreNav.tsx` —un `after:absolute
+after:inset-x-0 after:bottom-0` sobre el `<h3>` (BLOQUE)—, y un pseudo-elemento absoluto de bloque
+dibuja UN rectángulo pegado al borde inferior del bloque ENTERO, no una línea por renglón de texto.
+Con un nombre de producto largo ("Café La Ceiba — En grano 500 g", que en la tarjeta del riel parte
+en 2 líneas —confirmado, `getBoundingClientRect().height` del `<h3>` = 56px = 2×28px—) el subrayado
+salía sólo bajo la ÚLTIMA línea, con el ancho del bloque completo — exactamente la captura del
+owner. Screenshot ANTES: `.scratch/antes/riel-hover-1440.png` (borrado al cerrar, descartable, no
+se integra al repo — la evidencia que sobrevive es la de abajo, la del árbol final).
+
+**El fix**: el subrayado se mudó del `<h3>` a un `<span>` INTERNO, y la gramática pasó de
+`scale-x`/`after:` a `background-image` + `background-size` con `box-decoration-clone`:
+
+```
+[background-image:linear-gradient(currentColor,currentColor)] bg-no-repeat bg-left-bottom
+bg-size-[0%_1px] box-decoration-clone transition-[background-size] duration-[220ms]
+ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-size-[100%_1px] motion-reduce:transition-none
+```
+
+- **`box-decoration-clone` es la pieza que hace la diferencia**: un elemento `inline` con esa
+  propiedad pinta su `background` en CADA caja de línea por separado (no una sola vez sobre el
+  bloque completo) — así el subrayado SIGUE al texto, línea por línea. `<h3>` es bloque y no puede
+  hacer esto sobre sí mismo; por eso el subrayado se movió al `<span>` hijo (`TarjetaRiel`,
+  `GrindChooserRiel.tsx`).
+- **Mismos tokens que `StoreNav.tsx`, verbatim, no reinventados**: `220ms`,
+  `cubic-bezier(0.22,0.61,0.36,1)`, `1px` (ahí `h-px`, acá el alto del `background-size`),
+  `currentColor` (ahí `bg-current`). `background-position:left bottom` + `background-size` de `0%`
+  a `100%` da el mismo crecimiento-desde-la-izquierda que `after:origin-left after:scale-x-0`.
+- **`motion-reduce:transition-none`** = "aparece sin animar" bajo `prefers-reduced-motion: reduce`
+  (pedido del spec) — el `<MotionConfig reducedMotion="user">` del layout cubre las entradas de
+  `framer-motion`, no un `transition` de CSS puro.
+- **`hover:underline` (sin `navTratamiento.subrayado`) NO se tocó**: sigue el texto línea por línea
+  NATIVAMENTE (`text-decoration-line` no necesita ningún truco), así que el defecto era EXCLUSIVO
+  de la gramática `after:`. Nayoli nunca monta esta composición (confirmado por el test existente),
+  así que esta rama es puramente de generalidad del componente.
+- **Verificado en Tailwind v4 real** (no supuesto): compilé las clases con
+  `@tailwindcss/postcss` contra un HTML de prueba (`.scratch/`, descartable) y grepeé el CSS de
+  salida — `bg-size-\[0%_1px\]` → `background-size: 0% 1px`; `box-decoration-clone` → `box-
+  decoration-break: clone` (+ `-webkit-`); `[background-image:linear-gradient(currentColor,
+  currentColor)]` → la propiedad arbitraria compila tal cual; `hover:bg-size-[100%_1px]` → la
+  regla `:hover`; `motion-reduce:transition-none` → `@media (prefers-reduced-motion: reduce)`. Las
+  cinco piezas del mecanismo compilan a la propiedad CSS correcta, no a clases muertas.
+- **CAPTURADO en el árbol final** (build real, no dev — § CLAUDE.md "dev engaña"): a 1440 Y a 390,
+  el subrayado aparece bajo LAS DOS líneas del nombre. `.scratch/despues/riel-hover-{1440,390}.png`
+  (descartables). El texto EXACTO capturado: "Café La Ceiba — En grano" (línea 1) + "500 g" (línea
+  2), las dos subrayadas al hover.
+- **Test**: `lib/config/presentaciones-riel.test.ts` — se reescribieron las 2 aserciones que
+  verificaban la gramática vieja (`after:scale-x-100`) y se agregó 1 test nuevo que afirma que el
+  nombre vive en un `<span>` hijo del `<h3>` (nunca la clase de subrayado sobre el h3 mismo) + que
+  la gramática nueva trae `box-decoration-clone` y NUNCA `after:scale-x-100`.
+- **Alcance**: sólo `TarjetaRiel`/`GrindChooserRiel.tsx` (donde el nombre puede partir). NO se
+  extendió a `StoreNav.tsx` (los links del nav son etiquetas cortas fijas, "Nuestro café"/"Tienda"/
+  etc. — nunca parten) ni a las tarjetas de `/tienda` (fuera de `touches:`; si algún nombre de
+  catálogo largo mostrara el mismo defecto ahí, es candidato a un slice propio con su propia
+  medición — no se supone, se deja para cuando se mida).
+
+### 2 · `cursor-pointer` — MEDIDO antes y después, con `getComputedStyle` real (no supuesto)
+
+**MEDIDO contra el muestrario desplegado (ANTES, sin mis cambios)**: los 7 controles nombrados por
+el spec dan `cursor: default` — CONFIRMA que Tailwind v4 no agrega `cursor:pointer` a `<button>`
+(a diferencia de Tailwind v3, que sí lo hacía en Preflight; verificado además leyendo
+`node_modules/tailwindcss/preflight.css`: cero reglas de `cursor` sobre `button`).
+
+| control | cursor ANTES (`--url`, 1440/390) | cursor DESPUÉS (build local, 1440/390) |
+| --- | --- | --- |
+| Ojo (riel) | `default` | `pointer` |
+| Carrito (riel) | `default` | `pointer` |
+| Cerrar (vista rápida) | `default` | `pointer` |
+| Foto anterior (vista rápida) | `default` | `pointer` |
+| Foto siguiente (vista rápida) | `default` | `pointer` |
+| Quitar una unidad (vista rápida) | `default` | `pointer` |
+| Agregar una unidad (vista rápida) | `default` | `pointer` |
+| "Anterior"/"Siguiente" del TRACK del riel (fuera de alcance, ver abajo) | `default` | `default` (sin tocar) |
+
+Los 7 controles nombrados por el spec ("el ojo y el carrito", y en la vista rápida "flechas de
+galería, cantidad, cerrar") ganaron `cursor-pointer` explícito. Los botones de molienda de la
+vista rápida **ya lo tenían** (`cursor-pointer`/`cursor-not-allowed`, sin tocar); "Agregar al
+carrito"/"Comprar ahora" de la vista rápida **ya lo tenían** vía `PRIMARIO_CORTE`/`SECUNDARIO_CORTE`
+(`lib/storefront/pdp-botones.ts`, fuera de `touches:` — este modal sólo monta bajo
+`origenAccion:'acento'`, es decir CORTE, así que nunca cae en el branch `_DEFECTO` de Nayoli que
+carece de `cursor-pointer`).
+
+**LA DECISIÓN "sólo CORTE o toda la tienda"**: se mantuvo **sólo CORTE** — los dos archivos
+tocados (`GrindChooserRiel.tsx`, `VistaRapidaProducto.tsx`) son EXCLUSIVOS de la composición
+`presentaciones:'riel'`, que sólo CORTE declara (afirmado por el test "LA INVARIANTE: Nayoli no
+monta esta composición"), así que el cambio no puede tocar a Nayoli por construcción — no hizo
+falta gatear nada.
+
+**NO se extendió a los botones "Anterior"/"Siguiente" del TRACK del riel** (también sin
+`cursor-pointer`, medido arriba) ni a un reset global en `app/globals.css` — el owner nombró
+literalmente "el ojo y el carrito" (y, en el texto del spec, las flechas/cantidad/cerrar de la
+vista rápida); los del track quedan MEDIDOS y NOMBRADOS pero sin tocar, por disciplina de alcance
+(§ CLAUDE.md, "no extender el alcance de una aprobación" — agregar una capacidad a más controles
+de los pedidos es una decisión aparte). Queda como `open_followup` (abajo) con su propia medición
+ya hecha, para que decidir "sí" cueste sólo leer esta tabla.
+
+**Nota técnica sobre el follow-up, por si se retoma**: `cursor` no es una propiedad que afecte
+PÍXELES pintados (no es lo que un diff de captura de pantalla puede detectar), así que un reset
+global `button { cursor: pointer }` en `app/globals.css` NO rompería `verificar:nayoli:visual`/
+`guarda-color.ts` (los dos dieron 0px con el alcance actual, sin tocar ese archivo). Sigue siendo
+una decisión de PRODUCTO —toca Nayoli, sale de "sólo CORTE"— y por eso no se tomó acá sin pedirla.
+
+### 3 · Fotos a tamaño real y nítidas — RE-VERIFICADO con `sharp` + `currentSrc`, sin cambios de código
+
+**Arnés**: réplica del mecanismo de `RIEL-NATURALWIDTH-CAPTURA-1` (mismo hallazgo de método:
+`img.naturalWidth` vía CDP/Chromium headless con `deviceScaleFactor:2` reporta el ancho CSS, NO el
+pixel real — la fuente de verdad es `currentSrc` + `fetch` de los bytes reales + `sharp`), extendido
+a la ficha y a Origen. `.scratch/despues-local.ts` (descartable, no se integra): Postgres efímero
+propio (`:55499`, base `nitidezfinal`) + `migrate deploy` + preset CORTE aplicado por el camino real
+(`aplicarPreset`, el mismo que usa `capturar-seccion.ts --preset CORTE` — de ahí sale
+`presentaciones:'riel'`, `navTratamiento.subrayado:true` y `bandasVisibles.origen:true`, sin
+sembrado manual de Origen: sus DEFAULTS ya traen `imagen1`/`imagen2` reales y visibles) + dos
+productos sembrados directo por Prisma + `next build`/`next start` reales + Playwright aislado.
+
+**LO QUE EL ORQUESTADOR LEYÓ EN EL CÓDIGO ESTABA VENCIDO — re-medido, no asumido.** El spec citaba
+"el `sizes` del riel declara un ancho fijo menor que la tarjeta renderizada a 1440" como algo a
+corregir. **Eso ya estaba cerrado**: `CIERRE-NOCHE-RIEL-1` (el commit inmediatamente anterior en
+esta misma rama, `RIEL-NATURALWIDTH-CAPTURA-1`) ya había corregido el `sizes` del riel Y medido con
+el mismo método (`sharp`+`currentSrc`) que las 4 piezas de riel/vista-rápida PASABAN con margen. Re-
+medido acá para confirmarlo sin regresión (fila 1-4 de la tabla) y EXTENDIDO a ficha/Origen, que
+`CIERRE-NOCHE-RIEL-1` no había cubierto.
+
+**RESULTADO (DPR=2, el más exigente; `renderizado×DPR2` = lo que hace falta para nitidez completa)**:
+
+| viewport | pieza | render (css px) | requerido (×DPR2) | servido (sharp, bytes reales) | ok |
+| --- | --- | --- | --- | --- | --- |
+| 1440 | Riel, portada (`TarjetaRiel`) | 360 | 720 | **750** | ✔ |
+| 1440 | Vista rápida, hero | 340 | 680 | **1080** | ✔ |
+| 1440 | Origen, foto 1 | 318 | 636 | **750** | ✔ |
+| 1440 | Origen, foto 2 | 318 | 636 | **750** | ✔ |
+| 1440 | Ficha, hero — **foto REAL del muestrario** (1678×937) | 656 | 1312 | **1678** | ✔ |
+| 1440 | Ficha, hero — asset SINTÉTICO de la siembra (1254×1254) | 656 | 1312 | 1254 | ✘ — **del ASSET de prueba, no del código** (ver abajo) |
+| 390 | Riel, portada | 304 | 608 | **640** | ✔ |
+| 390 | Vista rápida, hero | 310 | 620 | **750** | ✔ |
+| 390 | Origen, foto 1 | 171 | 342 | **640** | ✔ |
+| 390 | Origen, foto 2 | 171 | 342 | **640** | ✔ |
+| 390 | Ficha, hero — foto real | 354 | 708 | **828** | ✔ |
+| 390 | Ficha, hero — asset sintético | 354 | 708 | **828** | ✔ |
+
+**EL ÚNICO "✘" ES DEL DATO DE PRUEBA, NO DEL CÓDIGO — verificado sembrando un SEGUNDO producto con
+la foto REAL del muestrario desplegado** (`Onix-Test-500g-Grano-….jpeg`, medida por `fetch`+`sharp`
+antes de sembrar: 1678×937, contra `coffee-template-app-onix.vercel.app/api/catalog`). Con esa
+foto, el hero de la ficha a 1440/DPR2 sirve 1678px ≥ 1312 requeridos — PASA. El asset sintético que
+usé para el primer producto (tomado de `public/images/`, 1254×1254, el mismo que `CIERRE-NOCHE-
+RIEL-1` ya había usado para riel/vista-rápida, donde el render es más chico y 1254 alcanza) resultó
+insuficiente SÓLO porque el hero de la ficha renderiza más grande (656px, el ancho de columna
+CAPADO por `--content-max:1440px` de CORTE) que lo que ese asset concreto puede cubrir a DPR2. El
+`sizes="(max-width:1024px) 100vw, 50vw"` de la ficha YA pide el bucket más grande configurado
+(1920w) — no hay corrección de `sizes` que hacer; Next.js no puede inventar píxeles que la fuente
+no tiene. **No se tocó `sizes` ni `quality` en ningún archivo** (ninguno de los 4 estaba corto).
+
+**Capturas** (`.scratch/despues/`, descartables): `riel-hover-{1440,390}.png` (subrayado, arriba),
+`vista-rapida-1440.png`, `origen-1440.png`, `ficha-1440.png`.
+
+#### El formato de foto recomendado por sección — en lenguaje del dueño, para el asiento
+
+Dos secciones usan `object-contain` (la foto se ve ENTERA, sin recortar — así se decidió en
+`PARIDAD-RIEL-TARJETAS-1` para no cropear el empaque) y dos usan `object-cover` (la foto LLENA el
+espacio, recortando lo que sobre). El formato que conviene depende de cuál usa cada una:
+
+| sección | tratamiento | forma del hueco | qué foto conviene |
+| --- | --- | --- | --- |
+| **Riel** ("Elige tu presentación") | se ve ENTERA (no recorta) | vertical, 3 de ancho × 4 de alto | Foto del empaque DE FRENTE, en formato **vertical o cuadrado** — no horizontal. Fondo **transparente** o del mismo tono que el fondo de la tarjeta (hoy un beige claro). Ancho mínimo recomendado: **750 px**. El empaque debe ocupar la MAYOR parte del cuadro — no una foto de estudio con mucho aire alrededor. |
+| **Vista rápida** (el modal del "ojo") | se ve ENTERA (no recorta) | cuadrado | Igual que el riel: foto **cuadrada o vertical**, fondo transparente o a tono, empaque grande dentro del cuadro. Ancho mínimo recomendado: **1080 px**. |
+| **Ficha del producto** (al hacer clic en un producto) | se RECORTA para llenar (siempre se ve completo el marco, sin bordes vacíos) | cuadrado | Puede ser una foto de estudio normal, horizontal o vertical — el sistema la recorta al centro para llenar un cuadrado, así que no hace falta que la foto YA sea cuadrada. Ancho mínimo recomendado: **1600 px** (foto de buena resolución). |
+| **El origen** (las dos fotos de la finca) | se RECORTA para llenar | vertical, 3 de ancho × 4 de alto | Igual que la ficha: cualquier foto de buena calidad sirve, el sistema recorta. Ancho mínimo recomendado: **1300 px**. |
+
+**LO QUE PASÓ EN LA CAPTURA DEL OWNER, explicado**: el Riel y la Vista rápida muestran la foto
+ENTERA a propósito (para no cortar el empaque), y cuando la foto es horizontal —como la foto real
+del catálogo de muestra, 1678×937— dentro de un hueco vertical, el sistema la encoge para que
+quepa Y deja un espacio vacío arriba y abajo. Si esa foto tiene su PROPIO fondo (un estudio con
+telón, por ejemplo) y ese fondo no es del mismo color que el hueco, se ve exactamente lo que la
+captura mostraba: el empaque chico, con una franja de otro color alrededor. **Lo capturé en vivo
+para que se vea el efecto exacto**: `.scratch/despues/riel-sin-hover-1440.png` (descartable) —
+la segunda tarjeta de esa captura usa la foto real horizontal, y se ve el defecto descrito.
+
+**No cambié el Riel/Vista rápida a "recortar en vez de mostrar entera"** (`object-cover`), porque
+esa decisión ya se tomó a propósito en otra tanda (`PARIDAD-RIEL-TARJETAS-1`) para que un producto
+nunca se vea cropeado — cambiarla de vuelta sin pedirlo sería deshacer esa decisión sin el mismo
+peso de evidencia con que se tomó. **La dejo PROPUESTA, con las dos opciones y su costo:**
+
+- **Opción A — pedir fotos con el formato de la tabla de arriba** (vertical/cuadrado, fondo a tono
+  o transparente): no toca código, es lo más simple, y es exactamente lo que las fotos DE ESTE
+  producto (Nayoli, cuadradas, fondo crema) ya hacen bien —se ven perfectas en el riel—. El costo
+  es que el dueño tiene que re-fotografiar o recortar las fotos horizontales que ya tiene.
+- **Opción B — cambiar el Riel/Vista rápida a `object-cover`** (recorta para llenar, como la
+  Ficha/Origen): cualquier foto sirve sin re-tomarla, pero vuelve a cropear el empaque —el defecto
+  que `PARIDAD-RIEL-TARJETAS-1` corrigió a propósito—. Es la decisión del dueño, no mía: pide
+  revertir una decisión de otra tanda.
+
+Sin captura de "cómo se vería con `cover`" (no se implementó ni siquiera temporalmente, para no
+arriesgar tocar el archivo final por un experimento) — la Opción B está descrita, no renderizada;
+si el dueño la prefiere, es su propio slice con su propia medición.
+
+### 4 · Cierre — el gate, verde, medido en el árbol final
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npm test` | **2631/2631** (2629 de `CIERRE-NOCHE-RIEL-1` + 2 netos: 2 tests reescritos + 2 tests nuevos, 2 retirados por reemplazo) |
+| `npm run test:integracion` | **242/242** (sin cambio — este slice no tocó `tests/integracion/`) |
+| `npm run verificar:nayoli:visual` | **0px** en 6 rutas + 2 hovers (crudo y consciente de antialiasing) — confirma que Nayoli, que nunca monta `presentaciones:'riel'`, no se movió un píxel |
+| `npm run guarda:color` | **0px** contra el fixture de Nayoli, mismas 6 rutas + 2 hovers |
+
+### Deviations
+
+- El spec pedía "corregir el `sizes` del riel" como si estuviera roto; MEDIDO que ya estaba
+  corregido desde el commit inmediatamente anterior de esta misma rama (`CIERRE-NOCHE-RIEL-1`,
+  `RIEL-NATURALWIDTH-CAPTURA-1`). No se tocó `sizes` en ningún archivo — la medición ganó sobre la
+  premisa del spec, y se re-verificó en vez de asumir que la premisa seguía viva.
+
+### Open follow-ups
+
+- **`RIEL-CURSOR-TRACK-Y-GLOBAL-1`** — los botones "Anterior"/"Siguiente" del track del riel
+  también dan `cursor: default` (medido, tabla arriba), y lo mismo aplicaría a CUALQUIER botón de
+  Nayoli/todo el storefront (Tailwind v4 no pone `cursor:pointer` por defecto). No se tocó: el
+  owner nombró literalmente "el ojo y el carrito" (+ los controles de la vista rápida), y un reset
+  más ancho —aunque NO movería píxeles, sólo interacción— es una decisión de alcance que toca
+  Nayoli y no se tomó sin pedirla. Por qué no ahora: fuera de lo que el owner pidió esta vez.
+- **`RIEL-FOTO-FORMATO-COVER-OPCION-1`** — si el dueño prefiere que el Riel/Vista rápida acepten
+  fotos horizontales sin re-tomarlas, la salida es `object-cover` en vez de `object-contain`
+  (Opción B de arriba), revirtiendo `PARIDAD-RIEL-TARJETAS-1` a propósito. No se tocó: es una
+  decisión de producto que pertenece al dueño, con su propio costo (empaque cropeado). Por qué no
+  ahora: pertenece al dueño, no es una corrección de código.
+
+### Verdict
+
+**COMPLETE.** Los tres ajustes del gate del owner están implementados (subrayado por-línea,
+`cursor-pointer` en los 7 controles nombrados) o re-verificados con evidencia fresca (nitidez, sin
+cambio de código porque ya estaba correcta). Gate completo verde. Sigue sin mergear (branch
+`slice/corte-reescritura-prototipo-1`).
