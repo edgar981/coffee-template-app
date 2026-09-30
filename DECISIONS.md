@@ -33881,9 +33881,9 @@ El separador de miles ya lo decide `toLocaleString('es-CO')` (existente, § `ORI
 `1600` se muestra `1.600`, igual que el prototipo; no hubo decisión de formato que tomar en este
 slice.
 
-### Tests nuevos — 8, todos por fuente/render, ninguno de navegador
+### Tests nuevos — 7, todos por fuente/render, ninguno de navegador
 
-`lib/config/origen-banda.test.ts` gana 8 tests (31 en total, antes 23): 3 para la fila del dato
+`lib/config/origen-banda.test.ts` gana 7 tests (31 en total, antes 24): 3 para la fila del dato
 (padding+align-items, tracking de `dt`, tamaño+color de `dd`), 4 para los contadores (gap
 responsive, tipografía de `.stat b`, tamaño de `.stat span`, alineación), todos por
 `renderToStaticMarkup` (sin jsdom, mismo carril que el resto del archivo) — afirman la CLASE exacta
@@ -33897,14 +33897,14 @@ matemática del conteo (`valorContador`, `DURACION_CONTADOR_MS=1100`, threshold 
 | capa | resultado |
 | --- | --- |
 | `npx tsc --noEmit` | 0 errores |
-| `npm test` | **2621/2621** (2613 + 8 nuevos) |
+| `npm test` | **2621/2621** (2614 + 7 nuevos) |
 | `npm run test:integracion` | **242/242** (sin cambios — este slice no toca ninguna cadena de integración) |
 | `npm run verificar:nayoli:visual` | **IDÉNTICO, 0px** en las 6 rutas + 2 hovers (`main`=`9a7ab97` vs esta rama en el árbol final) |
 
 ### `touches:` — los seis archivos, todos usados
 
 `components/storefront/home/Origen.tsx` (las clases de la fila/contador + `id="origen"`),
-`lib/config/origen-banda.test.ts` (8 tests nuevos), `scripts/capturar-seccion.ts`
+`lib/config/origen-banda.test.ts` (7 tests nuevos), `scripts/capturar-seccion.ts`
 (`--sembrar-origen` + `sembrarOrigen()`), `lib/animation.ts`/`lib/animation.test.ts` (leídos,
 verificados ya correctos, sin cambio), `DECISIONS.md` (este asiento). No se tocó ningún archivo
 fuera de la lista declarada.
