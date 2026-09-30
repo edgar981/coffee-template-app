@@ -476,6 +476,17 @@ const ORIGEN: SeccionConfig = {
 // DESTINO (`categoria`, editable con el combobox de categorías reales; § el destino de Presentaciones
 // es DATO). El destino dejó de ser estructura porque un path fijo se rompe cuando el cliente renombra
 // la categoría.
+//
+// LOS CAMPOS DE TARJETA (`label1..4`/`copy1..4`/`imagen1..4`/`categoria1..4`) SÓLO APLICAN A LAS
+// COMPOSICIONES 'mosaico'/'índice' — § RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 (2026-09-30). Bajo 'riel'
+// (`presentaciones.variante`, sólo CORTE la declara hoy, § site-content-defaults.ts) las tarjetas
+// visibles SALEN DEL CATÁLOGO de Productos (`productosDelRiel`, § lib/storefront/presentaciones.ts)
+// y estos cuatro campos NO TIENEN EFECTO en la tienda. No hay control de panel para la `variante`
+// misma (PANEL-EDITOR-VARIANTES-COMPOSICION-1 sigue sin construirse, § themes.ts), así que el dueño
+// no puede verla ni cambiarla desde acá — el aviso va en el `titulo` de cada bloque de tarjeta y en
+// el hint de su primer campo, los DOS únicos lugares de este archivo (dato puro, sin JSX) que
+// `TiendaSeccionEditor.tsx` ya renderiza sin necesitar un campo nuevo. El encabezado (eyebrow/título)
+// y el CTA de cabecera SÍ siguen aplicando bajo cualquier composición — no llevan el aviso.
 const PRESENTACIONES: SeccionConfig = {
   seccion: 'presentaciones',
   pagina: 'home',
@@ -494,16 +505,16 @@ const PRESENTACIONES: SeccionConfig = {
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',  label: 'Título', textarea: true, hint: 'Un salto de línea acá se respeta en la tienda. Vacío: se usa el texto por defecto.' },
-    { name: 'label1',     label: 'Nombre',      hint: 'Ej. "Presentación Clásica". Vacío: se usa el texto por defecto.' },
+    { name: 'label1',     label: 'Nombre',      hint: 'Ej. "Presentación Clásica". Vacío: se usa el texto por defecto. No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
     { name: 'copy1',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'categoria1', label: 'Presentación 1 · lleva a', categoria: true, tituloDe: 'label1', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
-    { name: 'label2',     label: 'Nombre',      hint: 'Ej. "Presentación Especial". Vacío: se usa el texto por defecto.' },
+    { name: 'label2',     label: 'Nombre',      hint: 'Ej. "Presentación Especial". Vacío: se usa el texto por defecto. No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
     { name: 'copy2',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'categoria2', label: 'Presentación 2 · lleva a', categoria: true, tituloDe: 'label2', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
-    { name: 'label3',     label: 'Nombre',      opcional: true, hint: 'Ej. "Tortas".' },
+    { name: 'label3',     label: 'Nombre',      opcional: true, hint: 'Ej. "Tortas". No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
     { name: 'copy3',      label: 'Descripción', opcional: true, textarea: true, hint: 'Opcional.' },
     { name: 'categoria3', label: 'Presentación 3 · lleva a', categoria: true, tituloDe: 'label3', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
-    { name: 'label4',     label: 'Nombre',      opcional: true, hint: 'Ej. "Postres".' },
+    { name: 'label4',     label: 'Nombre',      opcional: true, hint: 'Ej. "Postres". No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
     { name: 'copy4',      label: 'Descripción', opcional: true, textarea: true, hint: 'Opcional.' },
     { name: 'categoria4', label: 'Presentación 4 · lleva a', categoria: true, tituloDe: 'label4', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
     // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1): junto al título, no de una tarjeta puntual.
@@ -515,10 +526,10 @@ const PRESENTACIONES: SeccionConfig = {
   // 3-4 OPCIONALES: la pieza no aparece hasta "+ Agregar tarjeta". El `slot` es la identidad del puente.
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'ctaLabel', 'ctaDestino'] },
-    { tipo: 'tarjeta', slot: 1, titulo: 'Tarjeta 1', imagen: 'imagen1', campos: ['label1', 'copy1', 'categoria1'] },
-    { tipo: 'tarjeta', slot: 2, titulo: 'Tarjeta 2', imagen: 'imagen2', campos: ['label2', 'copy2', 'categoria2'] },
-    { tipo: 'tarjeta', slot: 3, titulo: 'Tarjeta 3', imagen: 'imagen3', campos: ['label3', 'copy3', 'categoria3'], opcional: true },
-    { tipo: 'tarjeta', slot: 4, titulo: 'Tarjeta 4', imagen: 'imagen4', campos: ['label4', 'copy4', 'categoria4'], opcional: true },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Tarjeta 1 (no aplica con el riel)', imagen: 'imagen1', campos: ['label1', 'copy1', 'categoria1'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Tarjeta 2 (no aplica con el riel)', imagen: 'imagen2', campos: ['label2', 'copy2', 'categoria2'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Tarjeta 3 (no aplica con el riel)', imagen: 'imagen3', campos: ['label3', 'copy3', 'categoria3'], opcional: true },
+    { tipo: 'tarjeta', slot: 4, titulo: 'Tarjeta 4 (no aplica con el riel)', imagen: 'imagen4', campos: ['label4', 'copy4', 'categoria4'], opcional: true },
   ],
 };
 

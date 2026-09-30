@@ -61,28 +61,30 @@ export function gridColsPresentaciones(n: number): string {
   return mapa[n] ?? 'md:grid-cols-2';
 }
 
-/** El subconjunto de `Product` que `precioMinimoCategoria` necesita — evita importar el tipo
- *  completo (`types/product.ts`) en una capa pura que no usa el resto de sus ~25 campos. */
-export interface ProductoConPrecio {
-  categoria: string;
-  precio: number;
-}
+// ─── RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 — la composición 'riel' pasa a mostrar el CATÁLOGO ──────────
+//
+// `precioMinimoCategoria`/`ProductoConPrecio` (§ PARIDAD-RIEL-TARJETAS-1) se RETIRARON: existían
+// para el precio "desde" de una tarjeta-CATEGORÍA (`op.cat`), y esa tarjeta ya no existe bajo
+// 'riel' — cada tarjeta es ahora un PRODUCTO con su propio `precio` real, sin necesidad de un
+// mínimo agregado. Eran el ÚNICO consumidor de las dos (verificado: `grep -rln
+// precioMinimoCategoria` fuera de este archivo y su test daba sólo `GrindChooserRiel.tsx`) — código
+// muerto que este slice no deja ambiguo (§ CLAUDE.md, "código muerto se BORRA o se CABLEA").
+
+/** Tope de tarjetas del riel — es para HOJEAR el catálogo, no para listarlo entero (la cuadrícula
+ *  completa ya vive en /tienda). */
+export const TOPE_RIEL_PRODUCTOS = 8;
 
 /**
- * El precio "desde" de una tarjeta (§ PARIDAD-RIEL-TARJETAS-1, la composición 'riel'): el MENOR
- * precio entre los productos del catálogo que pertenecen a `cat`. **NUNCA se inventa ni se escribe
- * a mano** — sale del catálogo REAL que el componente recibe (`/api/catalog`, que ya filtra
- * `activo: true`, § app/api/catalog/route.ts — este helper no vuelve a filtrar por `activo`).
+ * Los productos que muestra la composición 'riel': el catálogo, en SU ORDEN, recortado al tope.
  *
- * `cat` VACÍO (el destino "todos", § `hrefCategoria`) mide sobre el catálogo COMPLETO — coherente
- * con que la tarjeta enlace a /tienda sin filtro.
+ * NO vuelve a filtrar por `activo` — `/api/catalog` ya lo hace (`where: { activo: true }`,
+ * § app/api/catalog/route.ts), el mismo criterio que ya declaraba `precioMinimoCategoria` para el
+ * mismo campo. Tampoco reordena: el orden es el que el catálogo público ya trae
+ * (`orderBy: { createdAt: 'asc' }`), así que el riel y /tienda listan en el mismo orden.
  *
- * Sin productos en la categoría (destino RANCIO — una categoría que ya no existe en el catálogo,
- * § CLAUDE.md "Destino rancio → AVISO en el editor") → `null`. El componente OMITE el precio; jamás
- * muestra "$0" ni un placeholder.
+ * Catálogo vacío (aún sin cargar, o sin productos) → `[]` — la sección se comporta como con
+ * presentaciones vacías: ninguna tarjeta que mostrar.
  */
-export function precioMinimoCategoria(catalogo: readonly ProductoConPrecio[], cat: string): number | null {
-  const productos = cat.trim() === '' ? catalogo : catalogo.filter((p) => p.categoria === cat);
-  if (productos.length === 0) return null;
-  return productos.reduce((min, p) => Math.min(min, p.precio), Infinity);
+export function productosDelRiel<T>(catalogo: readonly T[]): T[] {
+  return catalogo.slice(0, TOPE_RIEL_PRODUCTOS);
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tarjetasDePresentaciones, gridColsPresentaciones, precioMinimoCategoria } from './presentaciones';
+import { tarjetasDePresentaciones, gridColsPresentaciones, productosDelRiel, TOPE_RIEL_PRODUCTOS } from './presentaciones';
 import { DEFAULTS } from '../config/site-content-defaults';
 import { hrefCategoria } from '../productos/categorias';
 
@@ -69,36 +69,25 @@ test('grid por conteo: 2→cols-2, 3→cols-3, 4→2×2 (cols-2)', () => {
   assert.equal(gridColsPresentaciones(4), 'md:grid-cols-2'); // 2×2, NO cols-4 (ilegible a 800px)
 });
 
-// ─── precioMinimoCategoria (§ PARIDAD-RIEL-TARJETAS-1) — el precio "desde" NUNCA se inventa ──────
+// ─── productosDelRiel (§ RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1) — el CATÁLOGO, en orden, con tope ──────
 
-test('precioMinimoCategoria: el MENOR precio entre los productos de la categoría exacta', () => {
-  const catalogo = [
-    { categoria: 'Café en Grano', precio: 35000 },
-    { categoria: 'Café en Grano', precio: 20000 },
-    { categoria: 'Café Molido', precio: 18000 },
-  ];
-  assert.equal(precioMinimoCategoria(catalogo, 'Café en Grano'), 20000);
+test('productosDelRiel: catálogo vacío (aún sin cargar) → []', () => {
+  assert.deepEqual(productosDelRiel([]), []);
 });
 
-test('precioMinimoCategoria: cat VACÍO ("todos") mide sobre el catálogo COMPLETO', () => {
-  const catalogo = [
-    { categoria: 'Café en Grano', precio: 30000 },
-    { categoria: 'Café Molido', precio: 10000 },
-  ];
-  assert.equal(precioMinimoCategoria(catalogo, ''), 10000);
+test('productosDelRiel: con menos productos que el tope, los devuelve TODOS, en el mismo orden', () => {
+  const catalogo = ['a', 'b', 'c'];
+  assert.deepEqual(productosDelRiel(catalogo), ['a', 'b', 'c']);
 });
 
-test('precioMinimoCategoria: destino RANCIO (categoría sin productos en el catálogo) → null, nunca $0 inventado', () => {
-  const catalogo = [{ categoria: 'Café en Grano', precio: 20000 }];
-  assert.equal(precioMinimoCategoria(catalogo, 'Clásico'), null);
+test('productosDelRiel: recorta al TOPE (8), sin reordenar — se queda con los PRIMEROS', () => {
+  const catalogo = Array.from({ length: 12 }, (_, i) => i);
+  const t = productosDelRiel(catalogo);
+  assert.equal(t.length, TOPE_RIEL_PRODUCTOS);
+  assert.deepEqual(t, [0, 1, 2, 3, 4, 5, 6, 7]);
 });
 
-test('precioMinimoCategoria: catálogo VACÍO (aún sin cargar) → null', () => {
-  assert.equal(precioMinimoCategoria([], 'Café en Grano'), null);
-  assert.equal(precioMinimoCategoria([], ''), null);
-});
-
-test('precioMinimoCategoria: un solo producto en la categoría → ESE precio', () => {
-  const catalogo = [{ categoria: 'Café en Grano', precio: 42000 }];
-  assert.equal(precioMinimoCategoria(catalogo, 'Café en Grano'), 42000);
+test('productosDelRiel: exactamente el tope → los devuelve todos, sin recortar de más', () => {
+  const catalogo = Array.from({ length: TOPE_RIEL_PRODUCTOS }, (_, i) => i);
+  assert.deepEqual(productosDelRiel(catalogo), catalogo);
 });

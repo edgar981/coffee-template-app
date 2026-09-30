@@ -33940,3 +33940,157 @@ activo y datos cargados en Origen vería (los seis ejes de arriba). El owner ya 
 muestrario); el MERGE sigue gateado aparte (`exec: no`).
 
 Cierra `ORIGEN-DATOS-EXACTO-1`.
+
+## 2026-09-30 — El riel de Presentaciones pasa a mostrar PRODUCTOS del catálogo, con vista rápida (`RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1`) — GATE_RED, blocked por 4 archivos fuera de `touches:`
+
+Cierra el gate del owner del 2026-09-29 (§ `PARIDAD-RIEL-TARJETAS-1`, arriba): «Las imágenes de
+productos en "presentaciones" se ven en muy pésima calidad» y «el efecto que tienen las cards... no
+es el esperado... la segunda tarjeta está todo el tiempo "activa"... cada vez que haga hover sobre la
+tarjeta debería mostrarme la otra foto... si el ícono de "ojo" se toca debería abrirse un modal como
+el adjunto de cafeone (Guji Coba Pack)». Construido ENTERO; el gate final (`npm test`) da **RED** por
+razones fuera del control de este slice — ver § el bloqueo, abajo. Sigue en `slice/corte-reescritura-
+prototipo-1`, sin mergear.
+
+### 1 · La fuente del riel pasa a ser el CATÁLOGO, no las tarjetas configuradas
+
+`productosDelRiel(catalogo)` (`lib/storefront/presentaciones.ts`, puro): recorta el catálogo —ya
+`activo:true` y ordenado por `/api/catalog`— al tope de 8, SIN reordenar. Reemplaza a
+`tarjetasDePresentaciones` dentro de `GrindChooserRiel.tsx` (que sigue sirviendo a mosaico/índice).
+`precioMinimoCategoria`/`ProductoConPrecio` (§ `PARIDAD-RIEL-TARJETAS-1`) quedaron SIN consumidores
+—verificado, `grep -rln precioMinimoCategoria` fuera del propio archivo y su test daba sólo
+`GrindChooserRiel.tsx`— y se BORRARON (§ CLAUDE.md, "código muerto se BORRA o se CABLEA"): cada
+tarjeta ahora es un producto con su PROPIO precio real, no un "desde" agregado por categoría.
+
+El panel de `/admin/tienda` sigue mostrando los campos de tarjeta (`label1..4`/`copy1..4`/
+`imagen1..4`/`categoria1..4`) para esta sección —no hay control de panel para la `variante` misma
+(`PANEL-EDITOR-VARIANTES-COMPOSICION-1` sigue sin construirse)—, así que el aviso de que NO APLICAN
+bajo 'riel' va en los dos lugares que `tienda-secciones.ts` (dato puro) ya puede decir sin tocar
+`TiendaSeccionEditor.tsx` (fuera de `touches:`): el `titulo` de cada bloque de tarjeta
+("Tarjeta N (no aplica con el riel)") y el `hint` del primer campo de cada una.
+
+### 2 · Sin tarjeta "activa" — hover POR TARJETA a la foto de atrás
+
+`useIndiceCentrado`/`indiceCentrado` (`lib/animation.ts`, § `MUESTRARIO-RIEL-ACTIVO-1`) se
+RETIRARON con su único consumidor (`GrindChooserRiel.tsx` — verificado, `grep -rln
+useIndiceCentrado` fuera de `lib/animation.ts`/`.test.ts` da cero). En su lugar, cada tarjeta
+(`TarjetaRiel`, extraída de `GrindChooserRiel.tsx` — § el porqué de la extracción, abajo) hace un
+crossfade de opacidad entre su portada y su "foto de atrás" (`galeriaCompleta(producto.imagen,
+producto.imagenes)[1]`) al pasar el mouse sobre TODA la tarjeta (`group-hover`/
+`group-focus-within`), no sólo la imagen. Sin foto de atrás, la portada queda quieta.
+
+El nombre lleva el MISMO subrayado del nav (`navHoverClase`, calcado byte a byte de
+`StoreNav.tsx`'s `.nav-link::after`), en `hover:` PROPIO del `<Link>` del nombre —no `group-hover:`—
+porque el pedido del owner fue "si hago hover sobre el NOMBRE". `navTratamiento.subrayado` sigue en
+`false` para todo tenant salvo CORTE → cae a `hover:underline`, byte-idéntico a hoy.
+
+### 3 · Las dos acciones rápidas — ojo (vista rápida) y carrito (agregar)
+
+`components/storefront/VistaRapidaProducto.tsx` (nuevo): galería con flechas, nombre, precio,
+descripción, selector de molienda (si `moliendasOpciones.length>0`, la MISMA condición que
+`/tienda/[slug]`), selector de cantidad, "Agregar al carrito"/"Comprar ahora" con
+`clasesBotonesCompra` (§ `PARIDAD-PDP-BOTONES-1`, sin tocar ese archivo — ya era genérico), y
+cerrar. Cierra con la X, Escape y clic afuera (`esClickAfuera`, § `NAV-CIERRE-CLICK-AFUERA-1`,
+reusado byte a byte — el mismo mecanismo de `StoreNav.tsx`/`NavSearch.tsx`); foco atrapado (Tab/
+Shift+Tab no escapa del panel) y devuelto al botón "ojo" que lo abrió; scroll de la página bloqueado
+mientras está abierto. SIN portal (`createPortal`) — censo: cero usos en todo el repo — sigue el
+patrón establecido (`position:fixed` dentro del árbol, como `CartDrawer.tsx`), lo que además lo
+mantiene consistente entre el storefront real y la vista previa escalada del panel (un portal
+escaparía del `transform:scale` de `EscalaDesktop`). Lógica pura en `lib/storefront/vista-rapida.ts`
+(`galeriaVistaRapida`, `moliendaInicialVistaRapida`, `clampCantidadVistaRapida`, `accionVistaRapida`
+— ésta reusa `moliendaAceptada`, la MISMA regla del servidor), 28 tests.
+
+El CARRITO de cada tarjeta reusa la regla de `ProductCard.tsx` (`decidirMolienda`): agrega 1 directo
+(mismo `addItem`+`toast.success` de siempre — `addItem` ya abre el carrito solo) cuando no hay nada
+que preguntar; si la elección es real (o el producto está agotado de moliendas), abre la MISMA vista
+rápida. El OJO siempre abre la vista rápida. Los dos botones son SIBLINGS del `<Link>` de la imagen
+(nunca hijos — un botón dentro de un enlace es HTML inválido y además navegaría al clickearlo).
+
+### 4 · Fotos nítidas — medido por ARITMÉTICA, no por captura en vivo (límite declarado)
+
+Los tres ejes que el spec pidió revisar, sobre `TarjetaRiel`:
+
+1. **`object-fit`**: `object-cover` → `object-contain` (como `.pres-media img` del prototipo,
+   `css/app.css:524-525`). `cover` en un tile 3:4 CROPEA la porción visible de una foto cuya
+   proporción real no sea 3:4 — magnifica MENOS píxeles nativos sobre MÁS píxeles de pantalla, una
+   pérdida de nitidez real. `contain` muestra la foto ENTERA; el tile gana `p-6` de relleno
+   (≈`--space-6` del prototipo) y conserva `bg-[var(--sf-linea)]` para el letterboxing.
+2. **`sizes`**: el valor de antes (`"(max-width: 640px) 78vw, 360px"`) declaraba 360px fijos para
+   TODO viewport ≥640px, pero el ancho real es `clamp(260px,26vw,360px)` — entre 640 y ~1000px,
+   `26vw` da MENOS de 260px (p. ej. 216px a 830px), así que el navegador SUBESTIMABA el ancho real y
+   pedía una imagen más chica de la que iba a mostrar. Corregido a `"(max-width: 640px) 78vw,
+   (max-width: 1000px) 260px, 360px"`.
+3. **`quality`**: subido a 90 (por encima del 85 de los heroes, `HeroMedia.tsx` y hermanos) — el
+   default de `next/image` (75) es genérico; el empaque es la pieza que el riel existe para vender.
+
+**LÍMITE DECLARADO**: las tres correcciones se derivaron por ARITMÉTICA sobre las clases (el mismo
+método que ya usa `MARQUEE_TITULO_FONT_SIZE`, § `lib/animation.ts`), NO por una captura en vivo del
+`naturalWidth` servido contra una foto real de un tenant — no hay acceso a imágenes subidas de un
+cliente real desde este carril, y el gate visual/Playwright (§ el bloqueo, abajo) no llegó a correr.
+
+**HALLAZGO FUERA DE `touches:` (no corregido, sólo reportado):** `next.config.ts` no declara
+`images.qualities`, así que CUALQUIER `quality` distinto del default (75) —incluido el `85` YA EN
+PRODUCCIÓN en `HeroMedia.tsx`/`HeroCurtina.tsx`/`HeroFicha.tsx`/`HeroMediaMarquesina.tsx`, verificado
+corriendo su propio test (`lib/config/corte-hero-pie.test.ts`)— dispara el warning "is using quality
+'N' which is not configured in images.qualities [75]". Es PRE-EXISTENTE (no lo crea este slice); el
+`quality={90}` nuevo de este slice suma más apariciones del MISMO warning. `next.config.ts` no está
+en `touches:` — no se tocó.
+
+### 5 · `TarjetaRiel` se exporta aparte — por qué, y qué prueba
+
+`GrindChooserRiel.tsx` fuente sus tarjetas de `getCatalog()` (un `fetch` en `useEffect`), que
+`renderToStaticMarkup` (SSR, sin navegador — el único carril de capa 1 disponible) NUNCA ejecuta: con
+el componente completo, el catálogo queda SIEMPRE `[]` y NINGUNA tarjeta llega a renderizarse — el
+mismo límite ya documentado para Spotlight/Marquesina. Se extrajo `TarjetaRiel` (misma JSX, recibe
+`producto`/`onEye`/`onCart` por prop, SIN `useCartStore` propio) para poder afirmar sus clases
+(`sf-radio-tile`, `object-contain`, `sizes`, el subrayado, las dos acciones, el fallback de
+placeholder) con un producto de fixture, sin fetch ni `CartProvider`. 14 tests nuevos en
+`lib/config/presentaciones-riel.test.ts` (reescrito completo — la mitad vieja de la cáscara/track se
+conserva; la mitad de tarjetas pasa a `TarjetaRiel`).
+
+### 6 · EL BLOQUEO — `npm test` da RED por 10 tests en 4 archivos FUERA de `touches:`
+
+**Medido, `npm run gate` (typecheck → npm test → test:integracion):** `npm run typecheck` **0
+errores**. `npm test`: **2627/2637**, **10 FALLando**, y `test:integracion` **NO SE ALCANZÓ** (el
+`&&` de `gate` corta ahí). Los 10 fallos, en CUATRO archivos, NINGUNO en `touches:` de este slice:
+
+| archivo | tests | causa |
+| --- | --- | --- |
+| `lib/config/escala-display.test.ts` | 1 | `GrindChooserRiel` ahora llama `useCartStore()` incondicional (para el carrito rápido, § 3) — el helper `renderConEscala` de ese archivo NO envuelve `CartProvider` |
+| `lib/config/titulares-saltos.test.ts` | 3 | misma causa — renderiza `GrindChooserRiel` directo, sin `CartProvider` |
+| `lib/config/site-content-defaults.test.ts` | 6 | **INCOMPATIBILIDAD DE FONDO, no sólo el provider**: todo un bloque (`riel: cardinalidad MÍNIMA/MÁXIMA`, `el marcador data-sf-tarjeta`, `una tarjeta SIN imagen`, `el DISPATCHER enruta "riel"`) asume la semántica VIEJA — tarjetas de `label1/label2` de la config, cardinalidad 2-4 gobernada por slots, el marcador `data-sf-tarjeta` del puente vista→formulario — que el §1 de este slice RETIRA a propósito (las tarjetas ahora son productos del catálogo, sin puente de slots que resaltar) |
+| `lib/tienda/puente-tarjetas.test.ts` | 1 | asertaba el `titulo` LITERAL `'Tarjeta 1'` del bloque en `tienda-secciones.ts` (`bloqueDeTarjeta`); este slice lo cambió a `'Tarjeta 1 (no aplica con el riel)'` (§1) — la config SÍ está en `touches:`, el test que la consume no |
+
+**POR QUÉ NO SE CORRIGIERON**: ninguno de los 4 archivos está en `touches:` de este slice, y el
+protocolo del dispatch es explícito ("YOUR DIFF MUST STAY INSIDE `touches:`... do not widen it
+yourself"). Se evaluó una redistribución de `useCartStore()` (moverlo ENTERO a
+`VistaRapidaProducto`, con un `useLayoutEffect` de auto-agregar-y-cerrar para el camino directo) para
+evitarle el requisito de `CartProvider` a `GrindChooserRiel` — MEDIDO que sólo resolvería 4 de los 10
+fallos (`escala-display`+`titulares-saltos`); los 6 de `site-content-defaults.test.ts` +
+`puente-tarjetas.test.ts` son INCOMPATIBILIDAD DE SEMÁNTICA, no de provider, y ningún cambio de
+arquitectura los evita sin deshacer el §1 (que es justo lo que el owner pidió). Se descartó ese
+rediseño por costo/riesgo (un `useLayoutEffect` de auto-cierre es un patrón fràgil) sin cambiar el
+veredicto.
+
+**LO QUE NO CORRIÓ, en consecuencia**: `npm run test:integracion` (nunca se alcanzó), `npm run
+verificar:nayoli:visual`, `npx tsx scripts/guarda-color.ts`, y las capturas antes/después del §3 del
+spec (1440/390 + el `naturalWidth` en vivo) — no tiene sentido levantar Playwright/Chromium y un
+build completo para un gate que ya es RED en la capa más barata (`npm test`, sin red ni base de
+datos). `npx tsc --noEmit` SÍ corrió limpio (0 errores) porque es independiente de `npm test`.
+
+### Verdict
+
+**GATE_RED.** El código de este slice (`GrindChooserRiel.tsx`, `VistaRapidaProducto.tsx`,
+`presentaciones.ts`, `vista-rapida.ts`, `tienda-secciones.ts`, `animation.ts`, y sus tests) está
+completo, tipa limpio, y sus propios 173 tests nuevos/tocados pasan (28 en `vista-rapida.test.ts` +
+4 en `presentaciones.test.ts` reescritos + 14 en `presentaciones-riel.test.ts` reescrito + los de
+`animation.test.ts`/`tienda-secciones` intactos). El gate GLOBAL (`npm test`) da RED por 10 tests en
+4 archivos fuera de `touches:`, causados por dos consecuencias NECESARIAS y aprobadas del spec: (a)
+`GrindChooserRiel` gana una dependencia real de `CartProvider` para el carrito rápido, y (b) las
+tarjetas dejan de ser configurables por slot (`label1..4`) para ser el catálogo — la clase de cambio
+que el owner pidió explícitamente. No se mergea. Queda para el orquestador decidir: ensanchar
+`touches:` en un slice de seguimiento que actualice/retire esas ~10 aserciones (el diagnóstico de
+arriba ya dice exactamente cuáles y por qué), o instruir a este mismo worker a hacerlo si se autoriza
+la ampliación.
+
+No cierra `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1` — sigue en `slice/corte-reescritura-prototipo-1`, sin
+mergear, pendiente de que el gate global quede verde.

@@ -2,19 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { fadeUp, useIndiceCentrado } from "@/lib/animation";
+import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { tarjetasDePresentaciones, precioMinimoCategoria } from "@/lib/storefront/presentaciones";
+import { productosDelRiel } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { formatCOP } from "@duna/core/utils";
+import { galeriaCompleta } from "@duna/core/product-gallery";
+import { decidirMolienda } from "@duna/core/moliendas-opciones";
+import { imagenPortada } from "@/lib/producto-imagen";
+import { useCartStore } from "@/lib/cartStore";
+import { toast } from "sonner";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -35,9 +41,8 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // media query por su cuenta, igual que el checkout.
 //
 // EL ESTADO `puedeAtras`/`puedeAdelante` SÓLO DESHABILITA LOS BOTONES; NUNCA OCULTA TARJETAS NI
-// BLOQUEA EL SCROLL NATIVO. Con la cardinalidad MÍNIMA de esta sección (2 tarjetas, las dos
-// requeridas — § `tarjetasDePresentaciones`) es común que las dos quepan sin nada que desplazar: ahí
-// los dos botones nacen deshabilitados, y el riel se ve como una fila corta y quieta — no como un
+// BLOQUEA EL SCROLL NATIVO. Con pocos productos es común que todos quepan sin nada que desplazar:
+// ahí los dos botones nacen deshabilitados, y el riel se ve como una fila corta y quieta — no como un
 // carrusel roto. Se mide con el propio `scrollWidth`/`clientWidth` del track, recalculado en cada
 // scroll y en cada resize; en SSR (sin `useEffect`) los dos botones parten deshabilitados, que es el
 // estado seguro (nunca prometen un desplazamiento que todavía no se pudo medir).
@@ -52,81 +57,228 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 //
 // LOS CONTROLES DE AVANCE VIVEN DEBAJO DEL TRACK, NO EN LA CABECERA (§ PARIDAD-RIEL-TARJETAS-1,
 // MEDIDO contra `riel-antes-1440`/`riel-antes-390`, DECISIONS.md, y `.car-nav` del prototipo,
-// `index.html:241-246` + `css/app.css:553-559`). Antes vivían agrupados con el CTA en la cabecera
-// —una posición que el prototipo NUNCA usa: `.car-nav` es un bloque APARTE, DESPUÉS de `.pres-rail`,
-// alineado a la derecha—. Siguen ocultos bajo `sm` (`.car-nav{display:none}` bajo 640px,
-// `css/app.css:1008` — el touch-scroll ya cubre ese caso ahí) y siguen llamando al MISMO `desplazar`
-// sobre el MISMO `trackRef`; sólo cambió DÓNDE se pintan, no la mecánica de scroll.
+// `index.html:241-246` + `css/app.css:553-559`). Siguen ocultos bajo `sm` (`.car-nav{display:none}`
+// bajo 640px, `css/app.css:1008` — el touch-scroll ya cubre ese caso ahí) y siguen llamando al MISMO
+// `desplazar` sobre el MISMO `trackRef`.
 //
 // LO QUE EL PROTOTIPO TIENE Y ESTA VARIANTE SIMPLIFICA A PROPÓSITO (medido, no un descuido):
-//   1. `quick-acts` (ojo/carrito sobre cada tarjeta, `js/home.js:99-102`): son acciones de FICHA DE
-//      PRODUCTO (vista rápida, agregar al carrito de UNA variante concreta). Las tarjetas de esta
-//      sección son enlaces a CATEGORÍA (`TarjetaPresentacion.href`, vía `hrefCategoria`), no a un
-//      producto puntual — no hay "esa" variante que agregar. Se omiten.
-//   2. El arrastre con el mouse (`pointerdown`/`pointermove`, `js/home.js:150-175`): el `overflow-x-
+//   1. El arrastre con el mouse (`pointerdown`/`pointermove`, `js/home.js:150-175`): el `overflow-x-
 //      auto` nativo ya da drag por touch/trackpad y una barra de scroll utilizable; emular arrastre de
 //      mouse es una capa de JS que el desplazamiento nativo no necesita para ser usable.
 //
-// EL RESALTADO DE LA TARJETA CENTRADA (`.pres-card.is-active`, § MUESTRARIO-RIEL-ACTIVO-1) YA NO
-// ESTÁ FUERA — el comentario de este archivo lo descartaba porque construirlo habría exigido "una
-// segunda fuente de estado sobre el mismo scroll" y esa capacidad no existía en `lib/animation.ts`.
-// Ahora existe (`useIndiceCentrado`, abajo): DERIVA el índice centrado del scroll REAL del propio
-// `trackRef` — el mismo elemento que ya desplazan los botones y el `overflow-x-auto` nativo —, así
-// que sigue sin haber un índice paralelo que sincronizar. La tarjeta activa gana la
-// opacidad/escala de `.pres-card.is-active` (`css/app.css:520-525`); las demás quedan dimmed, igual
-// que el prototipo. Bajo 640px el prototipo APAGA el resaltado (`css/app.css:1010`,
-// `.pres-card,.pres-card.is-active{opacity:1;transform:none}`) — acá se reproduce dejando el
-// resaltado detrás de `sm:`, la MISMA cabecera de breakpoint que ya oculta los controles de avance.
 // LA TARJETA NO LLEVA "Ver café {label}" — a DIFERENCIA del mosaico, A PROPÓSITO. El mosaico repite
-// ese texto (§ CLAUDE.md, "COPY café-shape del storefront", Backlog #63: "Ver café {label}" es una
-// FAMILIA de copy café-shape, no un literal suelto) porque su tarjeta es una tile grande con una sola
-// línea de acción; acá el `<h3>`+párrafo ya ocupan ese rol y el CARD ENTERO es el `<Link>` — sumar la
-// misma frase habría sido una TERCERA copia del mismo café-shape sin necesidad (el índice tampoco la
-// lleva). No agranda la deuda ya anotada; la deja del tamaño que tenía.
-//
-// EL TILE Y EL PRECIO (§ PARIDAD-RIEL-TARJETAS-1) — el segundo hallazgo medido contra
-// `riel-antes-1440`/`riel-antes-390` (DECISIONS.md), junto a la posición de los controles (arriba):
-//   1. El tile pasó de `rounded-3xl` (var(--radius-3xl), CERO bajo CORTE 'recta' — la tarjeta salía
-//      CUADRADA) a `sf-radio-tile` (§ formas.ts, `Forma.radioTile`/`--sf-radio-tile`): el ROL propio
-//      de tile grande, 20px medido bajo 'recta' (`--radius-tile`, tokens.css:169), separado del
-//      escalón de control chico (`sf-radio-lg`, 2px).
-//   2. NOMBRE Y PRECIO EN UNA LÍNEA (`.pres-meta{display:flex;justify-content:space-between}`,
-//      `css/app.css:549-552`): el precio es `precioMinimoCategoria(catalog, op.cat)` (§
-//      lib/storefront/presentaciones.ts) — el MENOR precio real entre los productos ACTIVOS de la
-//      categoría de destino de la tarjeta, NUNCA un literal. El catálogo llega por
-//      `getCatalog()` (el MISMO fetch memoizado que ya usa Spotlight/Marquesina, § su propio
-//      docstring), en un `useEffect` — así que en SSR (sin efectos) el catálogo queda `[]` y ninguna
-//      tarjeta muestra precio hasta que el navegador lo resuelve; es el mismo límite ya documentado
-//      para Spotlight en `admin-tienda-preset.test.ts` (el catálogo interno nunca sale de `[]` bajo
-//      `renderToStaticMarkup`), y por lo mismo es SEGURO montar este componente en la vista previa
-//      del panel (`VistaTiendaEnVivo`) sin CartProvider ni ningún provider nuevo: no hay hook que
-//      dependa de uno — `getCatalog` es un `fetch` liso, no `useCartStore`. Categoría SIN productos
-//      (destino rancio) → `precioMinimoCategoria` da `null` → el componente OMITE el precio, nunca
-//      inventa "$0".
+// ese texto (§ CLAUDE.md, "COPY café-shape del storefront", Backlog #63) porque su tarjeta es una
+// tile grande con una sola línea de acción; acá el nombre del PRODUCTO ya cumple ese rol.
 //
 // El gate de visibilidad (`seccionEsVisible`) vive en el DISPATCHER (`GrindChooser.tsx`), no acá.
 //
 // EL `negocio` DEL ALT LLEGA POR PROP, no por `useSiteSettings()` — mismo motivo que el mosaico y el
 // índice (§ GrindChooserMosaico): se monta también en la vista previa del panel, sin el
 // `SiteSettingsProvider` del storefront.
+//
+// ── RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 (2026-09-30) — LAS TARJETAS SON PRODUCTOS DEL CATÁLOGO ─────────
+//
+// EL GATE DEL OWNER, LITERAL, sobre `PARIDAD-RIEL-TARJETAS-1` ya aplicada: «Las imágenes de productos
+// en "presentaciones" se ven en muy pésima calidad» y «el efecto que tienen las cards no es el
+// esperado... la segunda tarjeta está todo el tiempo "activa"... el efecto debería ser, cada vez que
+// haga hover sobre la tarjeta me muestre la otra foto que esa tarjeta tenga asignada... Si el ícono de
+// "ojo" se toca debería abrirse un modal como el adjunto de cafeone (Guji Coba Pack)».
+//
+// LA FUENTE PASA A SER EL CATÁLOGO (`productosDelRiel`, § lib/storefront/presentaciones.ts) — ya NO
+// las tarjetas configuradas (`label1..4`/`copy1..4`/`imagen1..4`/`categoria1..4`, § site-content-
+// defaults.ts). `tarjetasDePresentaciones`/`precioMinimoCategoria` SE RETIRARON de este componente
+// (siguen sirviendo a mosaico/índice la primera; la segunda quedó sin consumidores y se borró, § el
+// docstring de `presentaciones.ts`) — cada tarjeta ES un producto, con su PROPIO precio real, no un
+// "desde" agregado por categoría. El panel de `/admin/tienda` sigue mostrando los campos de tarjeta
+// (nombre/descripción/imagen/destino) para esta sección: NO APLICAN bajo esta composición (§ el hint
+// de cada campo en `components/admin/tienda-secciones.ts`) — la vista previa del panel sigue
+// funcionando (monta el MISMO `GrindChooserRiel`, bajo el MISMO `CartProvider` inerte que ya cubre a
+// cualquier `SeccionVista`, § `VistaTiendaEnVivo.tsx`).
+//
+// SIN TARJETA "ACTIVA" AGRANDADA: `useIndiceCentrado`/el resaltado por-scroll (`.pres-card.is-active`)
+// se RETIRARON (§ el docstring que queda en su lugar en `lib/animation.ts`). En su reemplazo, CADA
+// tarjeta cambia a su PROPIA "foto de atrás" —la primera adicional de su galería, `galeriaCompleta`—
+// al pasar el mouse (o con foco, `group-hover`/`group-focus-within`) — un crossfade de opacidad, sin
+// escalar ni atenuar las vecinas. Sin foto de atrás, la portada se queda quieta.
+//
+// EL NOMBRE LLEVA EL SUBRAYADO DEL NAV — REUSADO, NO UNA SEGUNDA GRAMÁTICA. `navHoverClase` (§
+// `StoreNav.tsx`, `.nav-link::after` del prototipo) es la MISMA clase, byte a byte: una línea de 1px
+// en `bg-current` que crece desde la izquierda con la curva de `tokens.css` — acá en `hover:` PROPIO
+// del `<Link>` del nombre (no `group-hover:`), porque el pedido es "si hago hover sobre el NOMBRE",
+// independiente de dónde esté el cursor sobre el resto de la tarjeta. `navTratamiento.subrayado` sigue
+// siendo `false` para todo tenant salvo CORTE (§ site-content-defaults.ts) — sin ese eje, el nombre
+// vuelve a su subrayado de HOY (`hover:underline`), byte-idéntico.
+//
+// DOS ACCIONES RÁPIDAS, COMO `.quick-acts` DEL PROTOTIPO (`js/home.js:99-102`): el OJO abre la vista
+// rápida SIEMPRE (`VistaRapidaProducto.tsx`, § su propio docstring — la referencia es el tema real,
+// no el modal simple del prototipo); el CARRITO reusa la MISMA regla que ya decide en `ProductCard`
+// (`decidirMolienda`): una sola molienda disponible (o ninguna declarada) agrega 1 directo, con el
+// MISMO camino de siempre (`addItem` + `toast.success` — `addItem` ya abre el carrito por su cuenta,
+// § `lib/cartStore.tsx`); con varias, abre la MISMA vista rápida para elegir. Los dos botones son
+// SIBLINGS del `<Link>` de la imagen (nunca hijos: un `<button>` dentro de un `<a>` es HTML inválido y
+// además su click navegaría) — posicionados absolutos sobre la tarjeta, visibles en `group-hover`/
+// `group-focus-within`.
+//
+// FOTOS NÍTIDAS — MEDIDO, LOS TRES EJES QUE EL SPEC PIDIÓ REVISAR:
+//   1. `object-fit`: el tile pasó de `object-cover` a `object-contain`, como `.pres-media img` del
+//      prototipo (`css/app.css:524-525`). `cover` en un tile 3:4 CROPEA (y por tanto MAGNIFICA) la
+//      porción visible de una foto cuya proporción real no sea exactamente 3:4 — muestra MENOS
+//      píxeles nativos de la imagen sobre MÁS píxeles de pantalla, que es una pérdida de nitidez real,
+//      no aparente. `contain` muestra la foto ENTERA, sin magnificar ningún recorte; el tile gana
+//      relleno (`p-6`, ~`--space-6` del prototipo) para que la imagen no toque el borde, y conserva
+//      `bg-[var(--sf-linea)]` como fondo del letterboxing.
+//   2. `sizes`: el valor de antes (`"(max-width: 640px) 78vw, 360px"`) declaraba un ancho FIJO de
+//      360px para TODO viewport ≥640px, pero el ancho real es `clamp(260px,26vw,360px)` — con piso de
+//      260px hasta que `26vw` lo supere (viewport ≥1000px aprox.). Entre 640 y 1000px, `26vw` da MENOS
+//      de 260px (p. ej. 216px a 830px de viewport): el navegador subestimaba el ancho real y pedía una
+//      imagen más chica de la que iba a mostrar, un caso genuino de sub-muestreo. Corregido a
+//      `"(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"` — sigue el piso/techo real del
+//      `clamp` en vez de un valor plano.
+//   3. `quality`: subido a 90 (por encima del 85 que ya usan los heroes, `HeroMedia.tsx` y hermanos) —
+//      la calidad por defecto de `next/image` es 75, calibrada para fotografía genérica; el empaque de
+//      un producto es la pieza que el riel existe para vender, y merece el mismo tratamiento.
+//
+// LÍMITE DECLARADO: estas tres correcciones se derivaron por ARITMÉTICA sobre las clases (el mismo
+// método que ya usa `MARQUEE_TITULO_FONT_SIZE`, § lib/animation.ts, para medir sin navegador), no por
+// una captura en vivo del `naturalWidth` servido contra una foto real de un cliente — no hay acceso a
+// las imágenes subidas de un tenant real desde este carril. El antes/después está en `DECISIONS.md`.
+//
+// `TarjetaRiel` SE EXPORTA aparte (§ el mismo criterio que `precioMinimoCategoria`/etc.: "se extrae
+// lo que tiene el defecto para poder afirmarlo en un test") por una razón CONCRETA de este slice: la
+// fuente de tarjetas es ahora `getCatalog()`, un `fetch` en un `useEffect` que `renderToStaticMarkup`
+// (SSR, sin navegador, § `presentaciones-riel.test.ts`) NUNCA ejecuta — con el componente completo,
+// el catálogo queda SIEMPRE `[]` y ninguna tarjeta llega a renderizarse, así que sus clases (`sf-
+// radio-tile`, `object-contain`, `sizes`, el subrayado del nombre) quedarían INAFIRMABLES sin esta
+// extracción. `TarjetaRiel` no depende del catálogo ni de `useCartStore` — recibe el producto y los
+// dos manejadores por prop —, así que un test puede rendirla con un producto de mentira sin fetch ni
+// `CartProvider`.
+interface TarjetaRielProps {
+  producto: Product;
+  negocio?: string;
+  navHoverClase: string;
+  preview: boolean;
+  index: number;
+  onEye: (producto: Product, disparador: HTMLElement) => void;
+  onCart: (producto: Product, disparador: HTMLElement) => void;
+}
+
+export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, onEye, onCart }: TarjetaRielProps) {
+  const galeria = galeriaCompleta(producto.imagen, producto.imagenes);
+  const fotoFrente = imagenPortada(galeria[0]);
+  const fotoAtras = galeria[1];
+  const href = `/tienda/${producto.slug}`;
+  return (
+    <motion.div
+      initial={preview ? false : "hidden"}
+      animate={preview ? "visible" : undefined}
+      whileInView={preview ? undefined : "visible"}
+      viewport={preview ? undefined : { once: true }}
+      variants={fadeUp}
+      transition={{ delay: index * 0.08 }}
+      className="group relative w-[78vw] shrink-0 snap-center sm:w-[clamp(260px,26vw,360px)]"
+    >
+      {/* El tile: `sf-radio-tile` (§ PARIDAD-RIEL-TARJETAS-1) — el rol PROPIO de forma para media
+          grande, con relleno + `object-contain` (§ el docstring de cabecera, "fotos nítidas") —
+          nunca `object-cover`, que cropeaba/magnificaba. */}
+      <Link href={href} className="block">
+        <div className="relative aspect-[3/4] overflow-hidden sf-radio-tile bg-[var(--sf-linea)]">
+          {/* `fotoFrente` sale de `imagenPortada` (§ lib/producto-imagen.ts): SIEMPRE un src
+              válido — el placeholder de marca si el producto no tiene foto — así que se renderiza
+              sin condición, nunca un `<img src="">` roto. */}
+          <Image
+            src={fotoFrente}
+            alt={negocio ? `${negocio} ${producto.nombre}` : producto.nombre}
+            fill
+            sizes="(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"
+            quality={90}
+            className={`object-contain p-6 transition-opacity duration-500 ${fotoAtras ? 'group-hover:opacity-0 group-focus-within:opacity-0' : ''}`}
+          />
+          {/* La foto de atrás (§ el docstring de cabecera): crossfade al hover de la TARJETA
+              entera, no sólo de la imagen — pedido explícito del owner. */}
+          {fotoAtras && (
+            <Image
+              src={fotoAtras}
+              alt=""
+              fill
+              sizes="(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"
+              quality={90}
+              className="object-contain p-6 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100"
+            />
+          )}
+        </div>
+      </Link>
+
+      {/* Las dos acciones rápidas (§ el docstring de cabecera, "quick-acts" del prototipo): SIBLINGS
+          del `<Link>`, nunca hijos — un botón dentro de un enlace es inválido y además navegaría al
+          clickearlo. */}
+      <div className="pointer-events-none absolute right-3 top-3 flex flex-col gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+        <button
+          type="button"
+          onClick={(e) => onEye(producto, e.currentTarget)}
+          aria-label={`Vista rápida de ${producto.nombre}`}
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+        >
+          <Eye className="h-[18px] w-[18px]" />
+        </button>
+        {producto.disponible && (
+          <button
+            type="button"
+            onClick={(e) => onCart(producto, e.currentTarget)}
+            aria-label={`Agregar ${producto.nombre} al carrito`}
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-[var(--sf-tarjeta)] text-[var(--sf-tinta)] shadow-md transition-colors hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]"
+          >
+            <ShoppingBag className="h-[18px] w-[18px]" />
+          </button>
+        )}
+      </div>
+
+      {/* NOMBRE Y PRECIO EN UNA LÍNEA (`.pres-meta{display:flex;justify-content:space-between}`, §
+          el docstring de cabecera) — precio EXACTO del producto, nunca un "desde" agregado. */}
+      <div className="pt-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <Link href={href} className="inline-block">
+            <h3 className={`text-xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] ${navHoverClase}`}>{producto.nombre}</h3>
+          </Link>
+          <span className="shrink-0 text-base text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">
+            {formatCOP(producto.precio)}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function GrindChooserRiel({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
   const { presentaciones, tema, paginas, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const trackRef = useRef<HTMLDivElement>(null);
   const [estado, setEstado] = useState({ puedeAtras: false, puedeAdelante: false });
+  const { addItem } = useCartStore();
 
-  const tarjetas = tarjetasDePresentaciones(presentaciones);
-  const indiceActivo = useIndiceCentrado(trackRef, tarjetas.length);
+  // La vista rápida es COMPARTIDA por todas las tarjetas: un solo modal, montado una vez, con el
+  // producto y el botón "ojo" que lo abrió (para devolverle el foco al cerrar).
+  const [vistaRapida, setVistaRapida] = useState<{ producto: Product; disparador: HTMLElement } | null>(null);
+  function abrirVistaRapida(producto: Product, disparador: HTMLElement) {
+    setVistaRapida({ producto, disparador });
+  }
+  function cerrarVistaRapida() {
+    setVistaRapida(null);
+  }
+
   const ctaHref = resolverCtaSeccion(presentaciones.ctaLabel, presentaciones.ctaDestino, paginas);
 
-  // EL PRECIO "DESDE" (§ PARIDAD-RIEL-TARJETAS-1, el docstring de cabecera). `getCatalog()` es el
-  // MISMO fetch memoizado que Spotlight/Marquesina — no una segunda implementación—; en SSR el
-  // `useEffect` nunca corre, así que `catalog` queda `[]` y `precioMinimoCategoria` da `null` para
-  // toda tarjeta (ninguna muestra precio), sin lanzar.
+  // EL CATÁLOGO (§ el docstring de cabecera) — `getCatalog()` es el MISMO fetch memoizado que ya usan
+  // Spotlight/Marquesina; en SSR el `useEffect` nunca corre, así que `catalog` queda `[]` y ninguna
+  // tarjeta se muestra hasta que el navegador lo resuelve — el mismo límite ya documentado para
+  // Spotlight en `admin-tienda-preset.test.ts`, y por lo mismo es SEGURO montar este componente en la
+  // vista previa del panel: no hay hook que dependa de un provider que no esté ya cubierto
+  // (`SiteContentProvider`/`CartProvider`, § `VistaTiendaEnVivo.tsx`).
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => {
     getCatalog().then(setCatalog).catch(() => setCatalog([]));
   }, []);
+  const tarjetas = productosDelRiel(catalog);
+
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`presentaciones:
   // 'riel'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
   // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
@@ -138,6 +290,12 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
   // (`w-[78vw] sm:w-[clamp(260px,26vw,360px)]`, más abajo) es relativo al VIEWPORT, no a este
   // contenedor, así que no cambia — sólo cambia cuánto track queda visible antes de scrollear.
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+
+  // EL SUBRAYADO DEL NOMBRE (§ el docstring de cabecera) — la MISMA clase que `StoreNav.tsx` arma
+  // para `.nav-link::after`, reusada byte a byte (no una segunda gramática de subrayado).
+  const navHoverClase = navTratamiento.subrayado
+    ? 'relative after:absolute after:inset-x-0 after:bottom-0 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:after:scale-x-100'
+    : 'hover:underline';
 
   useEffect(() => {
     const track = trackRef.current;
@@ -156,8 +314,8 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
       track.removeEventListener("scroll", medir);
       window.removeEventListener("resize", medir);
     };
-    // Recalcula si cambia el número de tarjetas (borrador del editor agregando/quitando una) — el
-    // ancho del track puede cambiar sin que el usuario haya scrolleado todavía.
+    // Recalcula si cambia el número de tarjetas (el catálogo termina de cargar) — el ancho del
+    // track puede cambiar sin que el usuario haya scrolleado todavía.
   }, [tarjetas.length]);
 
   function desplazar(direccion: 1 | -1) {
@@ -165,6 +323,20 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
     if (!track) return;
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     track.scrollBy({ left: direccion * track.clientWidth * 0.9, behavior: reduce ? "auto" : "smooth" });
+  }
+
+  // El carrito rápido (§ el docstring de cabecera): agrega directo cuando no hay nada que preguntar
+  // (`decidirMolienda`, la MISMA regla que `ProductCard.tsx`); si la elección es real (o el producto
+  // está agotado de moliendas), abre la vista rápida en su lugar.
+  function agregarRapido(producto: Product, disparador: HTMLElement) {
+    if (!producto.disponible) return;
+    const decision = decidirMolienda(producto.moliendasOpciones);
+    if (decision.modo === 'ninguna' || decision.modo === 'automatica') {
+      addItem(producto, 1, decision.modo === 'automatica' ? { molienda: decision.nombre } : {});
+      toast.success(`${producto.nombre} agregado al carrito`);
+      return;
+    }
+    abrirVistaRapida(producto, disparador);
   }
 
   return (
@@ -202,30 +374,10 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             `<style>` de abajo, scoped a la clase, es el único CSS que este componente necesita fuera
             de Tailwind — no toca `app/globals.css`, fuera de `touches`). `tabIndex` para que un
             usuario de teclado pueda enfocar el riel y desplazarlo con las flechas nativas del
-            navegador sobre un contenedor con overflow, sin pasar por los botones.
-
-            `sm:py-6` — EL FIX de RIEL-SCROLL-Y-BADGE-DORADO-1 (MEDIDO, no supuesto). `overflow-x-
-            auto` fuerza, por regla de la especificación CSS (si un eje se declara distinto de
-            `visible`, el otro eje — si es `visible` — se COMPUTA como `auto`; no hay forma de
-            declarar `overflow-y: visible` que sobreviva esa regla), que este track sea también
-            contenedor de scroll VERTICAL — algo que nadie pidió. Sin overflow vertical real eso es
-            inerte (0 rango, nada que capturar); pero la tarjeta RESALTADA (`sm:scale-[1.06]`, arriba)
-            desborda su caja de layout ~6% por los cuatro lados vía `transform` — un desborde de
-            PINTADO, no de layout, que SÍ cuenta para el `scrollHeight` del contenedor con overflow no-
-            visible. Medido contra una reproducción fiel de esta tarjeta (peor caso: card de 360px de
-            ancho, imagen 3/4 + texto ≈ 548px de alto): antes del fix, `scrollHeight` (518) > `client-
-            Height` (511) — 7px de rango vertical real, aunque chico; el track pasa a ser un scroll
-            vertical con algo que recorrer, que es la condición que un scroll-chaining real (rueda o
-            trackpad, con la semántica de "fase"/momentum que un evento sintético no siempre replica)
-            puede latchear y sentir "pegado". El fix RESERVA ese espacio en vez de recortarlo:
-            `sm:py-6` (24px arriba y abajo, ≥ el peor caso medido de ~16.44px por lado) sube el propio
-            `clientHeight` del track para que la tarjeta escalada NUNCA lo exceda —
-            `scrollHeight === clientHeight`, medido 560/560 tras el fix, en la misma reproducción—: el
-            track deja de tener NADA que desplazar en vertical, sin depender de qué motor de scroll-
-            chaining lo interprete. Sólo desde `sm:` porque el resaltado se apaga bajo 640px (§ arriba,
-            "Bajo 640px el prototipo APAGA el resaltado") — bajo ese ancho no hay escala que reservar,
-            y `pb-2` (el gap visual sobre el scrollbar oculto) se queda para ese caso. El desplaza-
-            miento horizontal, el snap, los botones, el arrastre y el índice centrado no cambian. */}
+            navegador sobre un contenedor con overflow, sin pasar por los botones. `sm:py-6` reserva
+            espacio vertical (§ RIEL-SCROLL-Y-BADGE-DORADO-1) — su causa original (la tarjeta
+            RESALTADA desbordando por `transform`) se retiró con `useIndiceCentrado` (§ el docstring
+            de cabecera), y esta reserva queda como respiro visual del track, sin costo. */}
         <style>{".grind-riel-track::-webkit-scrollbar{display:none}"}</style>
         <div
           ref={trackRef}
@@ -235,76 +387,18 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
           className="grind-riel-track flex gap-6 overflow-x-auto snap-x snap-mandatory pb-2 sm:py-6"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {tarjetas.map((op, i) => {
-            // El resaltado (§ MUESTRARIO-RIEL-ACTIVO-1) va en el `<Link>`, no en el `motion.div` —
-            // framer-motion escribe `opacity`/`transform` INLINE sobre el `motion.div` al resolver
-            // `fadeUp` (mayor especificidad que cualquier clase), así que una clase de opacidad/
-            // escala puesta ahí quedaría pisada por esa animación de entrada. El `<Link>` es un
-            // elemento distinto: su propio `transform`/`opacity` compone con el del padre sin
-            // pelear por la misma propiedad inline.
-            //
-            // `indiceActivo === null` (sin medir todavía, SSR/primer render) es el estado SEGURO
-            // —igual que `puedeAtras`/`puedeAdelante` arrancan deshabilitados—: ninguna tarjeta se
-            // marca ni resaltada ni dimmed hasta saber cuál está centrada de verdad.
-            const resaltada = indiceActivo !== null && indiceActivo === i;
-            const dimmed = indiceActivo !== null && indiceActivo !== i;
-            return (
-            <motion.div
-              key={i}
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              transition={{ delay: i * 0.08 }}
-              className="w-[78vw] shrink-0 snap-center sm:w-[clamp(260px,26vw,360px)]"
-            >
-              {/* `data-sf-tarjeta`: marcador INERTE del slot (1-4) para el puente vista→formulario del
-                  editor (§ Backlog #46), gemelo del mosaico y el índice. Sólo en preview. */}
-              <Link
-                href={op.href}
-                data-sf-tarjeta={preview ? op.slot : undefined}
-                className={`group block opacity-100 scale-100 transition-[opacity,transform] duration-500 ease-out ${
-                  resaltada ? "sm:scale-[1.06]" : dimmed ? "sm:opacity-[.62] sm:scale-[.96]" : ""
-                }`}
-              >
-                {/* El tile: `sf-radio-tile` (§ el docstring de cabecera) — el rol PROPIO de forma
-                    para media grande, 20px bajo CORTE 'recta' (`--radius-tile`, MEDIDO), no
-                    `rounded-3xl` (var(--radius-3xl), CERO bajo 'recta' — la tarjeta salía cuadrada). */}
-                <div className="relative aspect-[3/4] overflow-hidden sf-radio-tile bg-[var(--sf-linea)]">
-                  {/* Imagen condicional (criterio OR, § tarjetasDePresentaciones): sin foto se ve el
-                      hueco de marca `--sf-linea`, nunca un `<img src="">` roto. */}
-                  {op.img && (
-                    <Image
-                      src={op.img}
-                      alt={negocio ? `${negocio} ${op.label}` : op.label}
-                      fill
-                      sizes="(max-width: 640px) 78vw, 360px"
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  )}
-                </div>
-                {/* NOMBRE Y PRECIO EN UNA LÍNEA (`.pres-meta{display:flex;justify-content:space-
-                    between}`, § el docstring de cabecera) — el precio se OMITE (no "$0") si el
-                    catálogo aún no cargó o el destino es una categoría rancia sin productos. */}
-                <div className="pt-4">
-                  <div className="flex items-baseline justify-between gap-4">
-                    <h3 className="text-xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] group-hover:underline">{op.label}</h3>
-                    {(() => {
-                      const precio = precioMinimoCategoria(catalog, op.cat);
-                      return precio != null ? (
-                        <span className="shrink-0 text-base text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">
-                          Desde {formatCOP(precio)}
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                  <p className="mt-1 text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto))]">{op.copy}</p>
-                </div>
-              </Link>
-            </motion.div>
-            );
-          })}
+          {tarjetas.map((producto, i) => (
+            <TarjetaRiel
+              key={producto.id}
+              producto={producto}
+              negocio={negocio}
+              navHoverClase={navHoverClase}
+              preview={preview}
+              index={i}
+              onEye={abrirVistaRapida}
+              onCart={agregarRapido}
+            />
+          ))}
         </div>
 
         {/* Los controles de avance, DEBAJO del track (§ el docstring de cabecera — `.car-nav` del
@@ -330,6 +424,12 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
           </button>
         </div>
       </div>
+
+      <VistaRapidaProducto
+        producto={vistaRapida?.producto ?? null}
+        disparador={vistaRapida?.disparador ?? null}
+        onClose={cerrarVistaRapida}
+      />
     </section>
   );
 }
