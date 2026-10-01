@@ -39667,3 +39667,90 @@ su reporte textual como `approval-reason`); el merge sigue pendiente del gate de
 este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `ORIGEN-TEXTO-POR-BLOQUE-1`.**
+
+## 2026-10-01 — El radio único de CORTE sube de 2px a 4px, sin acercarse a 'minima' (`RADIO-UN-POCO-MAS-1`)
+
+Gate del owner sobre `RADIOS-UN-SOLO-RITMO-1`: *"El redondeo me gustaría ajustarlo, solo un poco más
+redondeado que el actual, pero que no llegue a parecerse a la forma 'Mínima'."*
+
+- **MEDIDO antes de tocar el valor** (`lib/config/formas.ts`, la fila `minima`): su radio más chico es
+  **6px** (`radiusXl`/`radioLg`); los demás roles de 'minima' van en 8/10px. `RADIO_UNIFICADO_RECTA`
+  sube de `'2px'` a `'4px'` — **4 < 6**, así que 'recta' sigue sin acercarse a 'minima' por
+  construcción, no por coincidencia. 'minima' no se tocó.
+- Las SIETE claves de radio de 'recta' (`radius3xl/2xl/xl`, `radioLg`, `radioTile`, `radioImagen`,
+  `pildora`) siguen compartiendo la MISMA constante — el mecanismo de `RADIOS-UN-SOLO-RITMO-1` no
+  cambió, sólo la cifra. `pildoraReal` y `sombraImagen` siguen fuera, por las mismas razones de esa
+  tanda (un círculo real no es un matiz de radio; la sombra de las fotos de sección no se toca).
+- `lib/config/formas.test.ts` ganó un test nuevo, el GUARDIÁN del piso: afirma que el radio más chico
+  de 'minima' (6px) sigue por encima del único valor de 'recta' — si algún día 'minima' bajara ese
+  piso, este test lo dice antes de que alguien suba 'recta' sin volver a medir.
+- `theme-mirador.test.ts` y `presentaciones-riel.test.ts` tenían aserciones/comentarios que citaban el
+  valor literal `2px` (el `:root` del mirador de CORTE, y el comentario que documenta el rol
+  `sf-radio-lg`) — se actualizaron a `4px`. `pdp-botones.test.ts` (en `touches:`) no citaba ningún
+  valor literal —su aserción es sobre la clase `sf-pildora`, no el píxel— y no necesitó cambio.
+
+### Capturas antes/después (`scripts/capturar-seccion.ts`, Postgres efímero + `--sembrar-spotlight`)
+
+Una tarjeta (`#producto .sf-radio-tile`, el tile de Spotlight), un botón (`#producto button.w-full`,
+"Agregar al carrito") y una foto de sección (`#nuestra-historia .sf-radio-imagen:first-of-type`, el
+collage de `brandStory·centrada`), bajo el preset CORTE, antes (2px) y después (4px):
+`.capturas/radio-un-poco-mas-antes/` y `.capturas/radio-un-poco-mas-despues/` (scratch, no
+versionado — `.capturas/` está en `.gitignore`). El diff es sutil a propósito (el gate pedía "un
+poco más", no un cambio drástico); visible en las esquinas del botón y del tile al comparar los PNG.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2943/2943** — reconciliado contra el piso del commit inmediato anterior (`0498b38`, `ORIGEN-TEXTO-POR-BLOQUE-1`, 2942/2942): `2942 + 1 = 2943`, el único test nuevo (el guardián del piso de 'minima') |
+| `npm run test:integracion` | **253/253** — sin cambio en el conteo (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (comparación COMPLETA) |
+
+`npm run verificar:nayoli:visual` NO se corrió: `main` sigue anclado en `9a7ab97` (medido:
+`git rev-parse main` == `git merge-base HEAD main`, el MISMO sha que `ORIGEN-TEXTO-POR-BLOQUE-1`
+ya documentó como stale), así que no daría una cifra útil sobre ESTE diff.
+
+### `touches:` — todo escrito estaba declarado
+
+`lib/config/formas.ts` (+15/-5), `lib/config/formas.test.ts` (+26/-9, incluye el test nuevo),
+`lib/config/theme-mirador.test.ts` (+6/-5), `lib/config/presentaciones-riel.test.ts` (+3/-3), este
+asiento. Medido con `git diff --numstat`: 4 archivos modificados (50 inserciones, 22 eliminaciones),
+los 4 en la lista de `touches:` (más este asiento en `DECISIONS.md`, también declarado).
+`lib/storefront/pdp-botones.test.ts` estaba en `touches:` y se LEYÓ completo: no citaba el valor
+literal, así que no se tocó.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `RADIO_UNIFICADO_RECTA`, `formas.ts`, `formas.test.ts`,
+`theme-mirador.test.ts`, `presentaciones-riel.test.ts`, `RADIOS-UN-SOLO-RITMO-1`, `sf-radio-tile`,
+`sf-radio-imagen`, `sf-pildora`, `radioLg`, `radioTile`, `radioImagen`. Grepeados uno por uno contra
+`CLAUDE.md` (`grep -c`): **CERO apariciones para los once.** Se buscó además el literal "CORTE": tres
+coincidencias, las tres de OTROS asuntos —dos de `CORTE-BRANDSTORY-COLLAGE-1` (el letterboxing de la
+vista en vivo según la composición de `brandStory`, no el radio) y una de "EL CORTE es ENVIADO +
+FALLIDO" (el corte de qué estados entran al historial de Automatizaciones, sin relación con esta
+`forma`). **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA (contra `main`) ya trae `customer_bytes.changed: true` propio por los
+slices de CORTE anteriores; este commit suma el suyo: bajo el preset CORTE (`forma: 'recta'`), las
+esquinas de tarjetas, botones, campos, chips, paneles y fotos de sección pasan de 2px a 4px de radio
+— cambio VISIBLE, aunque sutil, para cualquier visitante bajo ese preset. `strings`: **ninguno
+nuevo** — no cambia ni un carácter de copy; lo que cambia es sólo la geometría de esquina.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un literal en `lib/config/formas.ts` (consumido por el `<style>` del
+mirador y el picker del panel) y sus tests.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cuatro capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**Cierra `RADIO-UN-POCO-MAS-1`.**
