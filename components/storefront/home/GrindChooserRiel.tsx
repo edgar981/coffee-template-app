@@ -169,6 +169,28 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // este mismo componente ya lo usa, línea de abajo). Ningún token nuevo: Suave (Nayoli, sin preset)
 // sigue cayendo al fallback `calc(infinity*1px)` = el `rounded-full` de HOY — byte-idéntico.
 //
+// RE-MEDIDO (§ SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1, 2026-10-01) — gate del owner con
+// captura: "Los cuadros del carrito y 'ojo' están muy rectos, redondea las esquinas sólo un poco". El
+// `0` de `sf-pildora` bajo 'recta' es RECTO A PROPÓSITO (el radio de botón/chrome del prototipo); lo
+// que el owner pide es un radio CHICO, no el de botón — y ESE rol YA EXISTE: `sf-radio-lg`
+// (`--sf-radio-lg`, 2px en 'recta' / 6px en 'minima'), el mismo "radio de chips/controles pequeños"
+// que `lib/storefront/pdp-botones.ts` ya usa para botones cuadrados de 36px idénticos a estos (§ su
+// propio comentario: "el rol de 'chips/controles pequeños' que formas.ts YA conecta"). Sólo los DOS
+// botones de acción rápida (ojo/carrito) migran de `sf-pildora` a `sf-radio-lg` — NO el CTA "Comprar"
+// de abajo (ESE sigue siendo radio de BOTÓN, `sf-pildora`, lo que el prototipo mide para un botón de
+// verdad) ni el badge/las píldoras de notas de `ProductCard.tsx` (`sf-pildora`, intactas: tocar el rol
+// `pildora` en vez de migrar SÓLO estos dos botones habría redondeado también esas píldoras, que NO
+// son el defecto reportado).
+//
+// NAYOLI NO CAMBIA, PERO NO POR EQUIVALENCIA DE FALLBACK — por INALCANZABILIDAD, la MISMA razón ya
+// escrita en `ACCIONES-RAPIDAS-CUADRADAS-1` (arriba): `presentaciones.variante==='riel'` SÓLO lo
+// declara CORTE, así que Nayoli JAMÁS renderiza este componente, sea cual sea el token que use. Ojo:
+// `sf-radio-lg` y `sf-pildora` NO son fallbacks equivalentes en una caja de 40×40px —`--sf-radio-lg`
+// cae a `0.75rem` (12px, un cuadrado de esquinas redondeadas) contra `calc(infinity*1px)` de
+// `--sf-pildora` (círculo completo, excede el radio clampeable)—, así que si este componente SÍ
+// renderizara sin forma custom, el swap SÍ se vería. No ocurre porque no renderiza, no porque los
+// fallbacks coincidan.
+//
 // ENTRADA/SALIDA: el contenedor DEJA de animar opacidad (antes `opacity-0 transition-opacity
 // duration-300 group-hover:opacity-100`, sólo posiciona) — cada BOTÓN anima su propia
 // opacidad+posición, como `.quick-acts button` del prototipo (`css/app.css:538-548`): reposo
@@ -310,7 +332,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
           type="button"
           onClick={(e) => onEye(producto, e.currentTarget)}
           aria-label={`Vista rápida de ${producto.nombre}`}
-          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
+          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-radio-lg bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
         >
           <Eye className="h-[18px] w-[18px]" />
         </button>
@@ -319,7 +341,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             type="button"
             onClick={(e) => onCart(producto, e.currentTarget)}
             aria-label={`Agregar ${producto.nombre} al carrito`}
-            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
+            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-radio-lg bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
           >
             <ShoppingBag className="h-[18px] w-[18px]" />
           </button>

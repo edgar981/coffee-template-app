@@ -58,7 +58,26 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // mitad de camino caería justo donde vive el texto. Se omite ese stop y el degradado corre entre los
 // MISMOS DOS extremos que `HeroMedia.tsx` ya calibró y midió (`--sf-tinta`/60 → `--sf-velo`), así que
 // el piso de protección en TODA la franja es el 60% que ese docstring ya midió en 4.68:1–5.32:1
-// sobre tres fotos claras de referencia (AA, ≥4.5:1) — nunca por debajo de eso.
+// sobre tres fotos claras de referencia (AA, ≥4.5:1) — nunca por debajo de eso. **ESA MEDICIÓN ERA
+// SÓLO DE BLANCO** (§ SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1, gate del owner con captura:
+// "le puse una imagen... las letras a penas y se notan"): nunca cubrió el `tostado` del eyebrow.
+// Medido ahora (mismo método WCAG, componiendo `--sf-tinta` sobre las tres fotos claras de
+// referencia + una oscura): `tostado` NO alcanza 4.5:1 en NINGÚN punto del degradado actual contra
+// ninguna de las tres claras (2.09–4.40:1, el propio 80.4% de `--sf-velo` incluido) — necesitaría
+// ≥82% de opacidad UNIFORME, que ensancharía el velo de Nayoli/Marquesina (fuera de `touches:`) o
+// requeriría un segundo token sin consumidor. El texto translúcido (`--sf-sobre-banda-suave`, blanco
+// ~70%) TAMPOCO alcanza en el peor punto (3.20–3.57:1). Sólo el BLANCO PLENO cumple con el velo
+// EXISTENTE, sin tocarlo — 4.66–17.09:1 en las cuatro fotos, al peor punto del degradado (60%), el
+// mismo margen que ya acepta `HeroMedia.tsx`.
+//
+// POR ESO, CON IMAGEN, el eyebrow y el título van en BLANCO PLENO LITERAL (`text-white`), SIN pasar
+// por `--sf-sobre-banda` — ni el fallback a `--sf-tostado`, ni (cuando la banda trae un esquema
+// asignado, p.ej. CORTE·crema) el valor OSCURO que ese esquema deriva para lectura sobre una
+// superficie CLARA (`derivarEsquema('crema')` = `base.texto`, floreado para la página crema, no para
+// una foto con velo oscuro — la CAUSA RAÍZ real del defecto reportado: no era el velo, era que el
+// esquema de la banda SÍ estaba asignado y su texto oscuro sobrevivía a la foto). SIN imagen, nada
+// cambia: el `var(--sf-sobre-banda,...)` de siempre sigue resolviendo contra el fondo SÓLIDO, donde
+// un esquema claro SÍ necesita texto oscuro para leerse.
 //
 // MOVIMIENTO REDUCIDO, NO NEGOCIABLE (mismo gate que Marquesina/BrandStoryCentrada/Origen):
 // `estatico` (preview del editor, que no puede scrollear de verdad, o `prefers-reduced-motion`) deja
@@ -114,15 +133,18 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
           className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:text-left"
         >
           {/* El gancho y el título en la MISMA línea (`items-baseline`, `flex-wrap` por si el título
-              es largo): son los dos primeros de los tres elementos que esta franja compone. Mismos
-              tokens `--sf-sobre-banda` que el bloque — la composición cambia, no la paleta. */}
+              es largo): son los dos primeros de los tres elementos que esta franja compone. SIN
+              imagen, mismos tokens `--sf-sobre-banda` que el bloque — la composición cambia, no la
+              paleta. CON imagen, BLANCO PLENO literal (§ el docstring de arriba, "ESA MEDICIÓN ERA
+              SÓLO DE BLANCO") — nunca `--sf-sobre-banda`, que puede traer el texto OSCURO de un
+              esquema claro asignado a la banda (CORTE·crema) sobre una foto con velo oscuro. */}
           <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 sm:justify-start">
             {subscriptionCTA.eyebrow && (
-              <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase">
+              <p className={`text-xs tracking-[0.2em] uppercase ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,var(--sf-tostado))]"}`}>
                 {subscriptionCTA.eyebrow}
               </p>
             )}
-            <h2 className="text-xl sm:text-2xl font-playfair text-[var(--sf-sobre-banda,white)]">
+            <h2 className={`text-xl sm:text-2xl font-playfair ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,white)]"}`}>
               {subscriptionCTA.titulo}
             </h2>
           </div>

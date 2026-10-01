@@ -38371,3 +38371,172 @@ corrió verde en el árbol final (tabla arriba), committed en `slice/corte-reesc
 El merge lo gatea el orquestador aparte.
 
 Cierra `CIERRE-VISTA-RAPIDA-TESTS-1`.
+
+## 2026-10-01 — El texto de la franja de Suscripción se lee sobre la foto, y el ojo/carrito del riel ganan un radio chico en vez de recto (`SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Gate del owner con captura
+(`.scratch/refs/onix-suscripcion-foto-ilegible.webp`): *"Le puse una imagen a la sección de
+Suscripciones y las letras a penas y se notan. Los cuadros del carrito y 'ojo' están muy rectos,
+redondea las esquinas sólo un poco."*
+
+### 1 · La causa real del texto ilegible — NO era el velo, era el esquema heredado
+
+`SubscriptionCTALinea.tsx` pinta el eyebrow/título con `var(--sf-sobre-banda,...)`. **Sin** banda
+con esquema asignado esa var queda sin setear y cae al fallback de siempre (tostado/white) — el
+caso de los tests existentes (`cta-banner-foto.test.ts`, que nunca pasa `style`). **Con** una banda
+que SÍ trae un esquema CLARO asignado (CORTE·crema: `esquemas.subscriptionCTA = 'crema'`,
+`lib/config/themes.ts:1009`), `esquemaStyle` (`lib/config/esquema-style.ts`) inyecta
+`--sf-sobre-banda: p.texto` como `style` inline en la `<section>` — y `derivarEsquema('crema')` es
+IDENTIDAD de `derivarPaleta` (`palette-derive.ts:574`, `if (id==='crema') return base`): `texto` es
+el OSCURO de lectura, floreado para la página crema, no para una foto con velo oscuro encima. Ese
+oscuro sobrevivía a la foto — el defecto medido en la captura del owner.
+
+### 2 · Medido antes de decidir el fix — por qué BLANCO y no tostado
+
+Mismo método WCAG que `lib/animation.test.ts` (fórmula sRGB, componiendo `--sf-tinta` sobre las
+tres fotos claras de referencia que `HeroMedia.tsx` ya calibró + una oscura), contra el PEOR punto
+del degradado existente (`from-[var(--sf-tinta)]/60`, el tope — el componente ya declaraba este
+punto como "el piso de protección en TODA la franja", pero esa medición de origen era SÓLO de
+blanco):
+
+| texto | arena | casi-blanco | crema | oscura |
+| --- | --- | --- | --- | --- |
+| blanco PLENO | 5.35:1 | **4.66:1** | 5.05:1 | 17.09:1 |
+| `--sf-tostado` de CORTE (`#d8a378`, derivado) | 2.40:1 | 2.09:1 | 2.27:1 | 7.68:1 |
+| `--sf-sobre-banda-suave` (blanco ~70%) | 3.57:1 | 3.20:1 | 3.41:1 | 8.91:1 |
+
+El tostado no cruza AA en NINGÚN punto del degradado actual contra ninguna de las tres fotos
+claras (ni siquiera en el 80.4% de `--sf-velo`, el extremo opuesto: 4.40/4.08/4.26). Subir el velo
+lo suficiente (≥82% uniforme) ensancharía `--sf-velo`, que comparte `Marquesina.tsx` — fuera de
+`touches:` y de la foto puntual reportada. El blanco PLENO sí cumple con el velo EXISTENTE, sin
+tocarlo (4.66:1 en el peor caso, el mismo margen que ya acepta `HeroMedia.tsx` para su propio nav).
+
+**El fix: con `imagenFondo`, eyebrow y título van en `text-white` LITERAL, sin pasar por
+`--sf-sobre-banda` en absoluto** — ni su fallback a tostado, ni el oscuro que un esquema asignado
+pueda inyectar. Sin imagen, cero cambio: la var sigue resolviendo contra el fondo sólido, donde un
+esquema claro sí necesita texto oscuro.
+
+### 3 · Las esquinas del ojo/carrito — `sf-pildora` → `sf-radio-lg`, el rol que ya existía
+
+`ACCIONES-RAPIDAS-CUADRADAS-1` (el commit anterior en esta rama) había puesto `sf-pildora` en los
+dos botones de acción rápida del riel (ojo/carrito, `GrindChooserRiel.tsx`) y en el de
+`ProductCard.tsx` — el radio de BOTÓN/CHROME del prototipo, 0 bajo 'recta'. El owner lo vio
+DEMASIADO recto. El radio chico ya existía sin inventar token: `--sf-radio-lg` (2px en 'recta' /
+6px en 'minima'), el rol "chips/controles pequeños" que `lib/storefront/pdp-botones.ts` ya usa
+para un botón cuadrado de 36px idéntico a estos. Se migró SÓLO el ojo y el carrito — no el CTA
+"Comprar" (sigue siendo radio de botón, correcto para un botón de verdad) ni el badge/las píldoras
+de notas de `ProductCard.tsx` (sf-pildora intacto: tocar el rol global habría redondeado también
+esas píldoras, que no eran el defecto).
+
+**Nayoli no cambia, por INALCANZABILIDAD, no por equivalencia de fallback.** `GrindChooserRiel`
+sólo monta bajo `presentaciones.variante==='riel'`, que únicamente CORTE declara — Nayoli jamás lo
+renderiza, con cualquier token. En `ProductCard.tsx` el botón está gateado por `formaCustom`
+(`tema.forma!==null`): Suave/Nayoli toma la rama ANTERIOR a `ACCIONES-RAPIDAS-CUADRADAS-1`, literal
+(`rounded-full`, sin var de radio), así que el swap de la rama `formaCustom` no la toca. (Ojo:
+`--sf-radio-lg` y `--sf-pildora` NO son fallbacks equivalentes en una caja de 40×40px —0.75rem
+contra `calc(infinity*1px)`—, pero eso nunca se ejercita porque ninguna de las dos ramas de Nayoli
+pasa por ese fallback.)
+
+`formas.ts`/`formas.test.ts`/`app/globals.css` estaban en `touches:` y no necesitaron edición:
+`sf-radio-lg` ya existía, ya era genérico, y ya estaba probado (`formas.test.ts`, `v['--sf-radio-
+lg']` para 'recta'/'minima').
+
+### 4 · Tests
+
+`lib/config/subscription-linea.test.ts` (nuevo, 7 tests): sin imagen el eyebrow/título siguen
+cayendo a `var(--sf-sobre-banda,...)`; con imagen pasan a `text-white` literal, SIN referenciar
+`--sf-sobre-banda` en absoluto — incluido el caso que reproduce el gate: un `style` con
+`--sf-sobre-banda` puesto al OSCURO real que `derivarEsquema('crema')` produce para CORTE (no un
+placeholder), donde el texto sigue en blanco y el `style` SÍ sigue llegando a la `<section>` (no se
+descarta, sólo se deja de consumir). Más las dos pruebas de contraste WCAG de la tabla de §2 — la
+del tostado se ve FALLAR (`< 4.5`) a propósito, documentando por qué el eyebrow no puede usar ese
+color con foto.
+
+`lib/config/presentaciones-riel.test.ts`: el test de `ACCIONES-RAPIDAS-CUADRADAS-1` que afirmaba
+`sf-pildora`/"CUADRADOS" pasa a afirmar `sf-radio-lg`/"esquinas apenas redondeadas", con
+`doesNotMatch` tanto para `rounded-full` (el círculo de antes de todo el eje) como para `sf-pildora`
+(el "muy recto" que este slice corrige).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2892/2892** |
+| `npm run test:integracion` | **253/253** |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers contra el fixture de Nayoli — la rama SÍ toca el sistema de color (11 archivos, acumulados de slices anteriores de esta misma rama; ninguno nuevo de este slice), así que corrió el pipeline completo |
+
+Dos clusters de Postgres efímero quedaron huérfanos de corridas anteriores de este MISMO arnés
+(puertos 55439/55440, `PPID=1`, en `/var/folders/.../verificar-nayoli-visual-pg-*`) y bloquearon el
+primer intento de cada script; se detuvieron con `pg_ctl … stop -m fast` antes de reintentar — no
+un `kill -9`, y ningún proceso ajeno a este arnés.
+
+### `customer_bytes`
+
+**`changed: true`.** Dos cambios visuales, ambos sólo bajo una forma CUSTOM (`tema.forma!==null`,
+hoy CORTE/PLIEGO-like) o una banda `subscriptionCTA` con `imagenFondo` configurada:
+
+- el eyebrow/título de la franja de Suscripción, CON foto de fondo, pasan de un color potencialmente
+  oscuro-e-ilegible a blanco pleno siempre legible;
+- el ojo/carrito del riel de Presentaciones (sólo CORTE) y el botón de agregar de `ProductCard` bajo
+  cualquier forma custom pasan de esquinas RECTAS (0px) a esquinas apenas redondeadas (2px 'recta' /
+  6px 'minima').
+
+Nayoli (y cualquier tenant sin forma custom ni `imagenFondo`) queda byte-idéntica — MEDIDO 0px en
+las dos herramientas de diff de píxeles (§ Gate), no sólo argumentado.
+
+**`strings:`** ninguno — los dos cambios son de color/radio, sin texto nuevo.
+
+### Deviations
+
+El spec decía *"el velo debe garantizar el contraste"*, sugiriendo tocar el velo como posible
+segunda palanca. Medido (§2): el velo EXISTENTE ya garantiza ≥4.5:1 para blanco pleno en el peor
+punto contra las cuatro fotos de referencia — no hizo falta tocarlo. Subirlo lo suficiente para que
+el TOSTADO también alcanzara AA habría ensanchado `--sf-velo`, compartido con `Marquesina.tsx`
+(fuera de `touches:`). Se resolvió con la palabra "el texto debe ser el claro de sobre imagen" del
+mismo párrafo del spec, no con la del velo — el velo cumple su parte sin cambiar un carácter.
+
+### Unknowns
+
+- **La captura "antes/después con una foto real" del §3 del spec no se produjo.** `capturar-
+  seccion.ts --preset CORTE` no tiene forma de sembrar `subscriptionCTA.imagenFondo` (sus flags de
+  siembra, `--sembrar-spotlight`/`--sembrar-origen`, son de otras secciones) y extender ese script
+  es trabajo fuera de `touches:`. La referencia del ANTES (`onix-suscripcion-foto-ilegible.webp`) ya
+  la trajo el spec; el DESPUÉS con foto real queda para el gate visual del owner sobre el preview de
+  Vercel (§ CLAUDE.md, "la suite verde no reemplaza el gate visual, capa 3"), donde sí hay una foto
+  real subida. Lo que SÍ se verificó por ejecución es la mecánica — render con/sin imagen, con/sin
+  esquema oscuro heredado (§4) — y el contraste por MEDICIÓN matemática (§2), no por captura.
+
+### Open follow-ups
+
+- **`SUBSCRIPTION-CTA-SECUNDARIO-FOTO-LEGIBLE-1`**: el botón secundario opcional de esta misma
+  franja (`ctaSecundarioLabel`/`ctaSecundarioDestino`) pinta su texto con el MISMO patrón
+  `text-[var(--sf-sobre-banda,white)]` que tenía el título antes de este slice — mismo riesgo
+  teórico bajo un esquema claro asignado + imagen, no medido ni corregido acá porque el spec nombró
+  explícitamente sólo "eyebrow y título". Su borde (`--sf-linea-sobre,white)/30`) comparte la misma
+  familia de riesgo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `SubscriptionCTALinea.tsx`, `subscription-linea.test.ts`,
+`GrindChooserRiel.tsx`, `ProductCard.tsx`, `presentaciones-riel.test.ts`, `sf-radio-lg`,
+`sf-pildora`, `--sf-sobre-banda`, `tieneImagenFondo`. Grepeados uno por uno contra `CLAUDE.md`:
+**CERO apariciones** de `SubscriptionCTALinea`, `GrindChooserRiel`, `sf-radio-lg`, `sf-sobre-banda`,
+`sf-pildora`, `tieneImagenFondo`, `subscription-linea.test`, `presentaciones-riel.test` —
+`CLAUDE.md` no documenta estos componentes ni mecanismos de CORTE (viven en `DECISIONS.md`/
+`lib/config/formas.ts`, no en `CLAUDE.md`). `ProductCard` aparece 7 veces, ninguna sobre el radio de
+su botón de agregar ni sobre esta franja — las siete son sobre `useCartStore`/`CartProvider`
+(montaje cruzado de árboles), tipografía del precio de Suscripciones, y la guarda de imagen
+ausente. Nada en `CLAUDE.md` afirma algo sobre estas piezas que este diff vuelva falso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con CORTE (o
+cualquier forma custom / `imagenFondo` configurada) lee (§ `customer_bytes`, arriba). El owner ya
+aprobó la ESCRITURA de este slice específico (§ `approval-reason` del spec: gate del 2026-10-01 con
+captura, "las letras a penas y se notan" + "redondea las esquinas sólo un poco" — las dos piezas se
+implementaron y se verificaron con medición/gate real); el MERGE sigue gateado aparte — la
+aprobación de escritura nunca fue aprobación de merge.
+
+Cierra `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1`.

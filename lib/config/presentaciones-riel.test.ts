@@ -201,17 +201,25 @@ test('TarjetaRiel: sin foto en absoluto, cae al placeholder de marca — nunca u
 });
 
 // ─── ACCIONES-RAPIDAS-CUADRADAS-1 — forma cuadrada + entrada del prototipo ─────────────────────────
+// RE-MEDIDO por § SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1 (2026-10-01): "cuadrado" (0px,
+// `sf-pildora` bajo 'recta') resultó DEMASIADO recto — gate del owner: "redondea las esquinas sólo
+// un poco". El test deja de afirmar `sf-pildora` y pasa a afirmar `sf-radio-lg` (el rol "chips/
+// controles pequeños" de `formas.ts`, 2px en 'recta'/6px en 'minima') — nunca `rounded-full` (el
+// círculo de antes de TODO este eje) ni `sf-pildora` (el radio de botón/chrome, el "muy recto" que
+// este slice corrige).
 
-test('TarjetaRiel: el ojo y el carrito son CUADRADOS (`sf-pildora`, nunca `rounded-full`) — gate del owner: "debe ser cuadrado, no circular"', () => {
+test('TarjetaRiel: el ojo y el carrito llevan esquinas APENAS redondeadas (`sf-radio-lg`), nunca `rounded-full` ni `sf-pildora` — gate del owner: "redondea las esquinas sólo un poco"', () => {
   const html = renderTarjeta();
   const botonOjo = html.match(/<button[^>]*aria-label="Vista rápida de Café Nariño 500g"[^>]*>/);
   const botonCarrito = html.match(/<button[^>]*aria-label="Agregar Café Nariño 500g al carrito"[^>]*>/);
   assert.ok(botonOjo, 'el botón ojo debe estar presente');
   assert.ok(botonCarrito, 'el botón carrito debe estar presente');
-  assert.match(botonOjo![0], /\bsf-pildora\b/);
-  assert.match(botonCarrito![0], /\bsf-pildora\b/);
+  assert.match(botonOjo![0], /\bsf-radio-lg\b/);
+  assert.match(botonCarrito![0], /\bsf-radio-lg\b/);
   assert.doesNotMatch(botonOjo![0], /rounded-full/);
   assert.doesNotMatch(botonCarrito![0], /rounded-full/);
+  assert.doesNotMatch(botonOjo![0], /\bsf-pildora\b/);
+  assert.doesNotMatch(botonCarrito![0], /\bsf-pildora\b/);
 });
 
 test('TarjetaRiel: el ojo y el carrito entran deslizando desde la derecha, como `.quick-acts button` del prototipo — reposo opacity-0/translate-x-[14px], hover/foco de TECLADO de la TARJETA (§ VISTA-RAPIDA-CENTRADA-1, group-has-[:focus-visible], no group-focus-within) → opacity-100/translate-x-0, MISMOS tokens 220ms/cubic-bezier(0.22,0.61,0.36,1) que `navHoverClase`/StoreNav', () => {

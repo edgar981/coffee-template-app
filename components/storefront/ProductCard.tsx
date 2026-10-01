@@ -156,13 +156,19 @@ export default function ProductCard({
               FORMA + ENTRADA (§ ACCIONES-RAPIDAS-CUADRADAS-1, gate del owner: "Lo que encierra al
               carrito y ojo… debe ser cuadrado, no circular… el efecto de aparecer/desaparecer debe
               ser como el del prototipo") — GATEADO por `formaCustom` (arriba, con la medición
-              completa de POR QUÉ). Bajo una forma CUSTOM: `rounded-full` → `sf-pildora` (el rol de
-              radio de BOTÓN/CHROME, 0 bajo 'recta'); reposo `opacity-0 translate-x-[14px]` → hover
-              `opacity-100 translate-x-0`, `duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)]` =
-              `--duration-base`/`--ease-out` del prototipo (`docs/prototipos/cafeone/css/
-              app.css:538-548`), MISMO tratamiento que `GrindChooserRiel.tsx`. Sin stagger: es el
-              ÚNICO botón de esta tarjeta. Bajo Suave: la rama de ANTES de este slice, literal —
-              `rounded-full`, `transition-opacity`, sin transform — la única con 0px medido.
+              completa de POR QUÉ). Bajo una forma CUSTOM: `rounded-full` → `sf-radio-lg` (RE-MEDIDO,
+              § SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1, 2026-10-01 — gate del owner:
+              "redondea las esquinas sólo un poco"; era `sf-pildora`, el radio de BOTÓN/CHROME, 0 bajo
+              'recta' — DEMASIADO recto para el pedido; `sf-radio-lg` es el rol "chips/controles
+              pequeños" que ya usa `lib/storefront/pdp-botones.ts` para un botón cuadrado idéntico,
+              2px en 'recta' / 6px en 'minima' — MISMO mecanismo que `GrindChooserRiel.tsx`); reposo
+              `opacity-0 translate-x-[14px]` → hover `opacity-100 translate-x-0`, `duration-[220ms]
+              ease-[cubic-bezier(0.22,0.61,0.36,1)]` = `--duration-base`/`--ease-out` del prototipo
+              (`docs/prototipos/cafeone/css/app.css:538-548`), MISMO tratamiento que
+              `GrindChooserRiel.tsx`. Sin stagger: es el ÚNICO botón de esta tarjeta. Bajo Suave: la
+              rama de ANTES de § ACCIONES-RAPIDAS-CUADRADAS-1, literal — `rounded-full`,
+              `transition-opacity`, sin transform, SIN leer ningún token de radio — la única con 0px
+              medido; el swap `sf-pildora`→`sf-radio-lg` de la rama `formaCustom` no la toca.
 
               FONDO/SOMBRA/HOVER (§ BADGES-ACCIONES-Y-LOGO-CORTE-1) — la rama `formaCustom` re-medida
               contra el mismo prototipo: `bg-white`+`shadow-md`+hover `--sf-acento` (dorado) pasan a
@@ -194,7 +200,7 @@ export default function ProductCard({
                 title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
                 className={
                   formaCustom
-                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100"
+                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-radio-lg bg-[var(--sf-fondo)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100"
                     : "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
                 }
               >
