@@ -141,12 +141,13 @@ test('TarjetaRiel: sin foto de atrás (una sola imagen), sólo se renderiza UNA 
   assert.doesNotMatch(html, /object-cover opacity-0/, 'sin foto de atrás no debe declararse su clase de crossfade');
 });
 
-test('TarjetaRiel: CON foto de atrás, hay DOS <img> — la portada se apaga al hover y la de atrás aparece', () => {
+test('TarjetaRiel: CON foto de atrás, hay DOS <img> — la portada se apaga al hover y al FOCO DE TECLADO (§ VISTA-RAPIDA-CENTRADA-1, group-has-[:focus-visible], no group-focus-within)', () => {
   const html = renderTarjeta();
   const imgs = html.match(/<img\b/g) ?? [];
   assert.equal(imgs.length, 2, 'con foto de atrás debe haber DOS <img>: la portada y la de atrás');
-  assert.match(html, /object-cover transition-opacity duration-500 group-hover:opacity-0 group-focus-within:opacity-0/, 'la portada debe declarar su fade-out al hover');
-  assert.match(html, /object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100/, 'la foto de atrás debe declarar su fade-in al hover');
+  assert.match(html, /object-cover transition-opacity duration-500 group-hover:opacity-0 group-has-\[:focus-visible\]:opacity-0/, 'la portada debe declarar su fade-out al hover y al foco de teclado');
+  assert.match(html, /object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-has-\[:focus-visible\]:opacity-100/, 'la foto de atrás debe declarar su fade-in al hover y al foco de teclado');
+  assert.doesNotMatch(html, /group-focus-within/, 'group-focus-within reacciona al foco programático que deja el modal al cerrar — el defecto que VISTA-RAPIDA-CENTRADA-1 cierra');
 });
 
 test('TarjetaRiel: las dos acciones rápidas (ojo y carrito) están presentes, y el carrito se OMITE si el producto no está disponible', () => {
@@ -213,7 +214,7 @@ test('TarjetaRiel: el ojo y el carrito son CUADRADOS (`sf-pildora`, nunca `round
   assert.doesNotMatch(botonCarrito![0], /rounded-full/);
 });
 
-test('TarjetaRiel: el ojo y el carrito entran deslizando desde la derecha, como `.quick-acts button` del prototipo — reposo opacity-0/translate-x-[14px], hover/foco de la TARJETA → opacity-100/translate-x-0, MISMOS tokens 220ms/cubic-bezier(0.22,0.61,0.36,1) que `navHoverClase`/StoreNav', () => {
+test('TarjetaRiel: el ojo y el carrito entran deslizando desde la derecha, como `.quick-acts button` del prototipo — reposo opacity-0/translate-x-[14px], hover/foco de TECLADO de la TARJETA (§ VISTA-RAPIDA-CENTRADA-1, group-has-[:focus-visible], no group-focus-within) → opacity-100/translate-x-0, MISMOS tokens 220ms/cubic-bezier(0.22,0.61,0.36,1) que `navHoverClase`/StoreNav', () => {
   const html = renderTarjeta();
   const botonOjo = html.match(/<button[^>]*aria-label="Vista rápida de Café Nariño 500g"[^>]*>/)![0];
   const botonCarrito = html.match(/<button[^>]*aria-label="Agregar Café Nariño 500g al carrito"[^>]*>/)![0];
@@ -222,8 +223,9 @@ test('TarjetaRiel: el ojo y el carrito entran deslizando desde la derecha, como 
     assert.match(boton, /\btranslate-x-\[14px\]/);
     assert.match(boton, /\bgroup-hover:translate-x-0\b/);
     assert.match(boton, /\bgroup-hover:opacity-100\b/);
-    assert.match(boton, /\bgroup-focus-within:translate-x-0\b/);
-    assert.match(boton, /\bgroup-focus-within:opacity-100\b/);
+    assert.match(boton, /\bgroup-has-\[:focus-visible\]:translate-x-0\b/);
+    assert.match(boton, /\bgroup-has-\[:focus-visible\]:opacity-100\b/);
+    assert.doesNotMatch(boton, /group-focus-within/, 'group-focus-within reacciona al foco programático que deja el modal al cerrar — el defecto que VISTA-RAPIDA-CENTRADA-1 cierra');
     assert.match(boton, /duration-\[220ms\]/);
     assert.match(boton, /ease-\[cubic-bezier\(0\.22,0\.61,0\.36,1\)\]/);
   }
