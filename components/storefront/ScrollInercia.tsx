@@ -11,6 +11,12 @@ import {
   objetivoTrasRueda,
   debeUsarScrollNativo,
   debeInterceptarRueda,
+  claveScrollGuardado,
+  parsearScrollGuardado,
+  objetivoDeRestauracion,
+  estadoInicialEstabilizacion,
+  siguienteEstadoEstabilizacion,
+  listoParaRestaurar,
 } from "@/lib/storefront/scroll-inercia";
 
 // ScrollInercia (§ SCROLL-INERCIA-CORTE-1) — gemelo de comportamiento de `initSmoothScroll`/
@@ -143,6 +149,85 @@ export default function ScrollInercia() {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("scroll", onScroll);
       if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [activo]);
+
+  // LA RESTAURACIÓN DE SCROLL AL RECARGAR — § SUSCRIPCION-TITULO-Y-RECARGA-1. EFECTO APARTE, no una
+  // rama más del de arriba: ese efecto corta temprano bajo `pointer:coarse`/`prefers-reduced-motion`
+  // (el scroll de RUEDA no aplica ahí), pero el defecto que esto arregla —Chromium restaura el
+  // `scrollY` del reload contra un documento que todavía no creció del todo (§ el docstring de
+  // `scroll-inercia.ts` para la medición completa)— le pasa a CUALQUIER visitante de CORTE, táctil o
+  // con movimiento reducido incluido. Mezclarlo en el efecto de arriba habría significado repetir sus
+  // dos `return` tempranos, o peor, dejarlo sin cubrir en esas dos salidas.
+  //
+  // `history.scrollRestoration = 'manual'` LE DICE al navegador que deje de intentarlo — no es
+  // estrictamente necesario para que el fix funcione (lo de abajo sobreescribe cualquier posición que
+  // el navegador haya dejado, sea correcta o no), pero evita que una SEGUNDA corrección nativa tardía
+  // pelee con la nuestra después de aplicada. Se revierte a `'auto'` al desmontar/desactivarse, para
+  // no dejar la preferencia puesta fuera de CORTE.
+  useEffect(() => {
+    if (!activo) return;
+
+    const historial = window.history;
+    const restauracionPrevia = historial.scrollRestoration;
+    if ('scrollRestoration' in historial) {
+      historial.scrollRestoration = 'manual';
+    }
+
+    const clave = claveScrollGuardado(window.location.pathname);
+    let guardado: number | null = null;
+    try {
+      guardado = parsearScrollGuardado(window.sessionStorage.getItem(clave));
+    } catch {
+      // Storage inaccesible (privado/bloqueado): sin guardado que restaurar, el reload cae al
+      // comportamiento por-defecto del navegador — no es peor que antes de este slice.
+    }
+
+    let detenido = false;
+    let rafId: number | null = null;
+
+    if (guardado !== null) {
+      const inicio = performance.now();
+      let estado = estadoInicialEstabilizacion(document.documentElement.scrollHeight, inicio);
+      const intentar = () => {
+        if (detenido) return;
+        const ahora = performance.now();
+        estado = siguienteEstadoEstabilizacion(estado, document.documentElement.scrollHeight, ahora);
+        if (listoParaRestaurar(estado, ahora, inicio)) {
+          const objetivo = objetivoDeRestauracion(guardado!, document.documentElement.scrollHeight, window.innerHeight);
+          // `behavior:'instant'` — el mismo motivo que `irA` más arriba: con `scroll-behavior:smooth`
+          // (globals.css) un `scrollTo` animado es justo el mecanismo que produce la "subida trabada
+          // y luego de golpe" que este slice está cerrando; un salto instantáneo no le da pie a eso.
+          window.scrollTo({ top: objetivo, behavior: 'instant' });
+          return;
+        }
+        rafId = requestAnimationFrame(intentar);
+      };
+      rafId = requestAnimationFrame(intentar);
+    }
+
+    // Se guarda en CADA scroll (igual que el `onScroll` del efecto de arriba, sin debounce — un
+    // `sessionStorage.setItem` es barato) Y en `pagehide` (la salida confiable de cualquier
+    // navegación, incluido un reload) como red: si el último scroll no alcanzó a escribir por lo que
+    // sea, `pagehide` siempre corre antes de que la página se descargue.
+    const guardar = () => {
+      try {
+        window.sessionStorage.setItem(clave, String(window.scrollY));
+      } catch {
+        // Igual que arriba: sin storage, simplemente no se guarda nada — no revienta nada más.
+      }
+    };
+    window.addEventListener("scroll", guardar, { passive: true });
+    window.addEventListener("pagehide", guardar);
+
+    return () => {
+      detenido = true;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", guardar);
+      window.removeEventListener("pagehide", guardar);
+      if ('scrollRestoration' in historial) {
+        historial.scrollRestoration = restauracionPrevia;
+      }
     };
   }, [activo]);
 

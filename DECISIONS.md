@@ -39264,3 +39264,252 @@ NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte te
 del dispatch, no mergea.
 
 **Cierra `ORIGEN-TEXTO-EN-CASCADA-1`.**
+
+## 2026-10-01 — El título de la postal de suscripción sube por máscara y el eyebrow/botón se desvanecen escalonados; el salto al recargar la página era un defecto de Chromium, no del código, y se cierra tomando la restauración de scroll nosotros mismos (`SUSCRIPCION-TITULO-Y-RECARGA-1`)
+
+Gate del owner (2026-10-01): aprobó la transición propuesta para el título de la postal de
+suscripción (§ SUSCRIPCION-POSTAL-DE-CIERRE-1, `observed-report` de este spec) — *"De acuerdo con esa
+transición"* — y reportó, por su cuenta: *"revisa el recargar de la página, siempre me lleva al
+centro de la página luego de haber recargado… siempre luego de recargar la página se ubica sobre las
+fotos de: Nuestra Historia"*.
+
+### 1 · El salto al recargar — MEDIDO, no asumido
+
+**Reproducido** con Playwright (`.arnes-tooling/playwright`) contra el sitio desplegado
+(`https://coffee-template-app-onix.vercel.app/?tema=CORTE`, sólo lectura) y contra un build local
+(`next dev`, puerto 3001), en Chromium y en WebKit: por cada motor, tres posiciones de arranque (0%,
+50%, 100% del recorrido) — scroll a esa posición, `page.reload()`, muestreo de `window.scrollY` a
+0/100/250/500/1000/1500/2000/3000/4500ms tras el reload.
+
+**Resultado del repro (ANTES del fix), Chromium contra el despliegue real:**
+
+| posición antes | `scrollY` guardado | `scrollY` tras reload (asentado) |
+| --- | --- | --- |
+| arriba | 0 | 26 |
+| mitad | 2576 | **1841** |
+| fondo | 5152 | **3868** |
+
+**WebKit, MISMO repro, MISMO despliegue: 0 / 2576 / 5152 — EXACTO en los tres casos.** Es un defecto
+de **Chromium únicamente**; WebKit no lo tiene.
+
+**LA CAUSA, medida por qué.** `document.documentElement.scrollHeight` NO es estable en los primeros
+segundos de carga — pasa por un plano de ~900px (recién arrancando a parsear el HTML), después uno
+intermedio (~4.750px local / ~4.768px contra el despliegue real), y sólo después llega a su altura
+final (~6.337px local / ~6.052px desplegado). El plano intermedio dura ~300ms en local y hasta
+**~1.500ms** contra el despliegue real (más lento: Vercel + consultas a la base). Chromium restaura
+el `scrollY` del reload CONTRA el alto que el documento tiene disponible en el instante en que decide
+restaurar — que cae, medido, dentro de ese plano intermedio, bien antes de que el documento llegue a
+su altura real — y no lo vuelve a intentar después. El resultado es un `scrollY` final clampeado
+contra un documento que todavía no había terminado de crecer: 3868 = 4751−900 (exacto, cuando "antes"
+era 1 — fondo), consistente con la hipótesis. `html{scroll-behavior:smooth}` (`app/globals.css`)
+agrava el SÍNTOMA VISIBLE —convierte cada corrección en una animación que la siguiente cancela a medio
+camino, la "subida trabada y luego de golpe" que el propio `ScrollInercia.tsx` ya describía para OTRO
+mecanismo (el de rueda)— pero MEDIDO (repro con `scroll-behavior:auto` forzado vía `addInitScript`):
+el valor FINAL clampeado es el MISMO con o sin `smooth` — el salto visible cambia, el destino
+equivocado no. No es la causa, es el ruido encima de ella.
+
+**Por qué "siempre sobre las fotos de Nuestra Historia":** `brandStory` (id `nuestra-historia`) es la
+4ª banda de `orden` de CORTE (`hero, marquesina, featured, brandStory, …`), justo después del hero
+sticky (~300vh) + marquesina + featured — el rango donde el documento recién alcanzado su plano
+intermedio aterriza visualmente para un reload a mitad/fondo de página, consistente con los valores
+medidos (el `scrollY` clampeado, 1841–3868, cae en esa región para un documento de ~6.300px).
+
+**UN CANDIDATO DESCARTADO POR MEDICIÓN:** `claseAlturaAncestroMarquesina` (el ancestro del hero
+sticky, cuyo alto depende de `producto` — resuelto de un `getCatalog()` client-side, § `lib/
+animation.ts`) era un candidato fuerte (el propio spec lo nombra: "hero sticky de alto variable").
+Medido en el entorno de verificación: `producto` es `null` ahí (sin tarjeta pineada), así que
+`claseAlturaAncestroMarquesina` nunca cambia de clase en esa corrida — el crecimiento real medido
+vino de OTRA parte del documento (la banda `producto`/Spotlight, que también resuelve un catálogo
+client-side, y que está FUERA de `touches:` de este slice — no se tocó). El hallazgo no cambia el
+diagnóstico: el defecto es la RESTAURACIÓN NATIVA de Chromium contra un documento que crece después,
+sin importar CUÁL de los varios catálogos client-side de la home sea el que crece en un momento dado
+— y por eso el fix no apunta a estabilizar una sola fuente de crecimiento, sino a no depender de que
+el navegador adivine bien contra un documento todavía inestable.
+
+### El arreglo — tomar la restauración nosotros mismos, no perseguir cada fuente de crecimiento
+
+`ScrollInercia.tsx` gana un SEGUNDO efecto (aparte del de inercia de rueda, que corta temprano bajo
+táctil/movimiento-reducido — el defecto de reload le pasa a CUALQUIER visitante de CORTE, así que no
+podía vivir dentro de esas dos salidas): `history.scrollRestoration='manual'` (le dice al navegador
+que no lo intente — no imprescindible, pero evita una segunda corrección tardía peleando con la
+nuestra) + guardar `window.scrollY` en `sessionStorage` (namespaced por ruta, en cada `scroll` y en
+`pagehide`) + restaurar, al montar, el valor guardado UNA VEZ que el documento deja de cambiar de
+alto.
+
+**Las piezas puras viven en `lib/storefront/scroll-inercia.ts`** (mismo criterio que
+`pasoInercia`/`seAsento` ya establecían): `claveScrollGuardado`/`parsearScrollGuardado` (el guardado
+defensivo — basura o negativo → `null`, preferir callar a restaurar un número inventado, mismo
+criterio que `sugerirZona`), `objetivoDeRestauracion` (el guardado recortado al límite ACTUAL del
+documento, reusando `limiteScroll`), y el autómata `estadoInicialEstabilizacion`/
+`siguienteEstadoEstabilizacion`/`listoParaRestaurar` que decide "¿ya puedo confiar en esta altura?".
+
+**EL AUTÓMATA ES POR TIEMPO, NO POR CONTEO DE FRAMES — y ahí casi queda mal.** La primera versión
+contaba 3 lecturas CONSECUTIVAS idénticas de `scrollHeight` (≈48ms a 60fps) antes de confiar en la
+altura. Verificado por ejecución contra el entorno local: el autómata se "confirmaba" sobre el PLANO
+INTERMEDIO (4751px, que se sostiene el tiempo suficiente para juntar 3 frames iguales) y restauraba
+ahí — reproduciendo el MISMO defecto que estaba cerrando (3851px en vez de los 5437px guardados, el
+caso "fondo"). El rediseño usa TIEMPO (`MS_ALTURA_ESTABLE=1800`, medido contra el plano intermedio
+real de ~1.500ms + margen) en vez de conteo de frames: el plano intermedio nunca alcanza 1800ms sin
+cambiar, así que el autómata sigue esperando hasta la altura de verdad. `MS_TOPE_ESPERA_
+ESTABILIZACION=6000` es la salida de emergencia si la altura nunca se asienta.
+
+**Resultado del repro (DESPUÉS del fix), fresh-context por posición (para que el guardado de una
+posición no contamine la "antes" de la siguiente — un `goto` plano, no sólo un `reload`, también
+dispara la restauración):**
+
+| motor | posición | guardado | tras reload (asentado) |
+| --- | --- | --- | --- |
+| Chromium, local | arriba | 0 | **0** (t+0ms) |
+| Chromium, local | mitad | 2719 | **2719** (t+2500ms) |
+| Chromium, local | fondo | 5437 | **5437** (t+2500ms) |
+| WebKit, local | arriba | 0 | **0** (t+0ms, ya era correcto) |
+| WebKit, local | mitad | 2719 | **2719** (t+0ms, ya era correcto) |
+| WebKit, local | fondo | 5437 | **5437** (t+0ms, ya era correcto) |
+
+Chromium ahora restaura EXACTO en los tres casos (antes no restauraba en ninguno de los dos no-cero);
+WebKit sigue siendo correcto por su cuenta, sin cambio de comportamiento visible (su propia
+restauración nativa ya acertaba, y la nuestra converge al mismo valor sin pelear con ella).
+
+**VERIFICACIÓN — LA LIMITACIÓN QUE HAY QUE DECIR, no esconder.** `ScrollInercia` se monta desde
+`app/(storefront)/layout.tsx`, y `layout.tsx` lee SIEMPRE el content PUBLICADO — nunca ve el override
+de `?tema=CORTE` (el mismo hallazgo que ya documenta `app/(storefront)/page.tsx`, "el `<style>` de
+paleta/fuentes/forma… lee SIEMPRE el content PUBLICADO"). El mirador de query param hace que la HOME
+se vea como CORTE (los componentes de banda sí ven el override), pero `ScrollInercia.activo`
+(`corteAplicado(tema.origenAccion)`) se queda en `false` contra la base de desarrollo local, que no
+tiene CORTE publicado de verdad — medido por ejecución, no asumido. **Este dispatch no tiene concedidos
+los binarios de Postgres** (`initdb`/`pg_ctl`/`psql` requieren aprobación interactiva que no hay quién
+dé; `npm run db:aplicar-preset` necesita una base donde escribir), así que el mecanismo que otros
+slices de esta rama usan para esto —Postgres efímero + CORTE aplicado de verdad, § el comentario de
+`SUSCRIPCION-POSTAL-DE-CIERRE-1`— no estuvo disponible. La verificación real se hizo forzando
+`activo` a `true` TEMPORALMENTE en el árbol de trabajo (`const activo = true ||
+corteAplicado(...)`), confirmando el comportamiento con Playwright en los dos motores (tabla de
+arriba), y REVIRTIENDO el forzado antes de tipar/testear/compilar/commitear — `git diff` de
+`ScrollInercia.tsx` no contiene el forzado ni ningún `console.log` de depuración; confirmado por
+grep antes de este asiento. El código que se commitea es el gateado de siempre
+(`corteAplicado(tema.origenAccion)`), sin excepción.
+
+### 2 · La transición del título — máscara, no cascada
+
+`SubscriptionCTALinea.tsx`: el `motion.div` único (eyebrow+título+botones juntos, `fadeUp`) se
+reemplaza por TRES piezas independientes. El **título** (`motion.h2`) vive dentro de una máscara
+estática (`<div class="overflow-hidden leading-none">`) y se traduce con `revelaMascaraVertical`
+(`{hidden:{y:'100%'}, visible:{y:'0%'}}`, SIN opacidad — el texto no existe visualmente antes de
+cruzar el borde, no que exista transparente) + `transicionTituloPostal()` (duration/ease de
+`REVELADO_GRUPO_*`, delay 0 — entra primero). El **eyebrow** y el **grupo de botones** usan `fadeUp`
++ `transicionFadePostal(indice)` (delay = `REVELADO_GRUPO_DURACION_S` + `indice·REVELADO_GRUPO_
+PASO_S` — arrancan DESPUÉS de que el título termina de subir, escalonados 90ms entre ellos). Es
+DISTINTO de la cascada por palabras de `TextoEnCascada` (§ ORIGEN-TEXTO-EN-CASCADA-1): acá no hay
+texto tokenizado — el título es un bloque único por máscara, el eyebrow/botón son dos HERMANOS que se
+desvanecen, el mismo patrón de `transicionEscalonada` que ya usa Origen para sus fotos/filas/cifras,
+aplicado a esta sección.
+
+**Captura cuadro a cuadro** (Playwright, Chromium, un solo gesto de scroll que trae eyebrow+título+
+botón a la vista JUNTOS — como un scroll real continuo; una primera versión del arnés que los traía
+en DOS pasos separados por una pausa artificial producía un adelanto espurio del eyebrow, descartada):
+
+| t (desde el disparo) | título (`transform`) | eyebrow (opacidad) | botón (opacidad) |
+| --- | --- | --- | --- |
+| 600ms | aún traduciendo (~1.6px de residuo) | 0 | 0 |
+| 750ms | **`none`** (en su lugar) | 0.136 (recién empieza) | 0 |
+| 900ms | `none` | 0.672 | 0.391 (empezó ~90ms después del eyebrow) |
+| 1100ms | `none` | 0.941 | 0.861 |
+| 1400ms | `none` | **1.000** | **1.000** |
+
+Confirma la secuencia pedida: el título termina de subir (~600-750ms) antes de que el eyebrow
+empiece a desvanecerse, y el botón entra ~90ms después del eyebrow — nunca al revés.
+
+**SIN JS: TODO VISIBLE** — mismo mecanismo que `TextoEnCascada` (`initial="hidden"` hornea el estado
+oculto en SSR; sin hidratación nunca se revertiría). `<noscript><style>` neutraliza las dos clases
+marcadoras (`sf-postal-titulo{transform:none!important}`, `sf-postal-fade{opacity:1!important;
+transform:none!important}`) — con JS la animación queda intacta, sin JS las tres piezas se ven
+completas. **Movimiento reducido**: sin gate propio — igual que el resto de esta sección (`preview`
+gobierna las ternarias, no `estatico`/`reduce`), el `MotionConfig(reducedMotion:'user')` global ya
+vuelve estas transiciones casi instantáneas bajo esa preferencia.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2944/2944** — reconciliado contra el piso de `ORIGEN-TEXTO-EN-CASCADA-1` (2920/2920): `2920 + 24 = 2944`. El `+24` es: 6 tests nuevos en `lib/animation.test.ts` (`revelaMascaraVertical`/`transicionTituloPostal`/`transicionFadePostal`), 5 en `lib/config/subscription-linea.test.ts` (la máscara, sin cascada por palabras, las dos clases marcadoras, el `noscript`, el grupo de botones), 13 en `lib/storefront/scroll-inercia.test.ts` (clave, parseo, objetivo recortado, el autómata por tiempo, las dos salidas de `listoParaRestaurar`) |
+| `npm run test:integracion` | **253/253** — sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run build` | `✓ Compiled successfully` |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` (`9a7ab97`) vs. esta rama — medido limpio, sin el staleness estructural que `CIERRE-EDITOR-GATE-1` reportó para un commit anterior de esta misma rama (ese reporte quedó caracterizado ahí como transcripción cruzada; esta corrida, sobre el HEAD actual, da 0 real) |
+| `npm run guarda:color` | **0px** en las 8 capturas (consciente de AA y crudo) contra el fixture de Nayoli |
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA (contra `main`) cambia bytes que un visitante bajo
+`variantes.subscriptionCTA:'linea'` (hoy, CORTE) lee: la transición de entrada del eyebrow/título/
+botón de la postal de suscripción pasa de un fundido de bloque único a un revelado por máscara +
+desvanecimiento escalonado. `strings`: **ninguno nuevo** — ni un carácter de copy cambia
+(`subscriptionCTA.eyebrow`/`.titulo`/`.ctaLabel` se leen tal cual); cambia sólo la FORMA en que
+entran. El arreglo del reload (`ScrollInercia.tsx`) no cambia ningún byte VISIBLE en reposo —
+corrige dónde queda el `scrollY` tras recargar, que no es contenido que el visitante lea, es la
+posición de la página.
+
+### Deviations
+
+- **El spec pedía `BrandStoryCentrada.tsx`, `HeroMediaMarquesina.tsx`, `EntradaPagina.tsx` y `app/
+  globals.css` en `touches:` como superficie DISPONIBLE** (el candidato "hero sticky de alto
+  variable" que el spec nombraba explícitamente). Medido (§ 1, arriba): el crecimiento de altura real
+  en el entorno de verificación vino de OTRA banda (Spotlight/`producto`, fuera de `touches:`), y el
+  fix elegido (tomar la restauración nosotros mismos) no depende de estabilizar NINGUNA fuente de
+  crecimiento en particular — así que no hizo falta tocar ninguno de los cuatro. Se deja escrito para
+  que no se lea como un olvido.
+- **El mecanismo de verificación del Postgres efímero + CORTE aplicado de verdad** (el que
+  `SUSCRIPCION-POSTAL-DE-CIERRE-1` usó) **no estuvo disponible en este dispatch** — `initdb`/
+  `pg_ctl`/`psql` no están en los binarios concedidos y piden aprobación interactiva que nadie puede
+  dar. Se verificó forzando temporalmente `ScrollInercia.activo=true` en el árbol de trabajo,
+  confirmando con Playwright, y revirtiendo el forzado antes de cerrar — § el párrafo de arriba,
+  "VERIFICACIÓN — LA LIMITACIÓN QUE HAY QUE DECIR".
+
+### Unknowns
+
+- **El margen de `MS_ALTURA_ESTABLE` (1800ms) es una medición con margen, no una garantía.** Está
+  calibrado contra el plano intermedio medido (hasta ~1.500ms contra el despliegue real); un entorno
+  más lento que el medido (una conexión peor, un cold-start más largo) podría, en teoría, seguir
+  reproduciendo el defecto si el plano intermedio dura más de 1800ms. `MS_TOPE_ESPERA_
+  ESTABILIZACION` (6000ms) acota el caso patológico, pero restaura contra una altura que puede no ser
+  la final — mismo trade-off que `verificar-nayoli-visual.ts` ya documenta para su propia espera fija
+  ("no pretende cubrir cualquier animación futura; es una medida, no una garantía").
+- **No se verificó el mecanismo contra el despliegue PRODUCCIÓN real con el código de este slice** —
+  el despliegue sirve el código ya publicado, no el de este árbol de trabajo; sólo se pudo verificar
+  el ANTES ahí (§ 1) y el DESPUÉS en local (§ el arreglo). El gate de capa 3 del owner, sobre un
+  preview real de esta rama, es la verificación que falta.
+
+### Open follow-ups
+
+Ninguno nuevo. El `SUBSCRIPTION-CTA-SECUNDARIO-PADDING-1` abierto por `SUSCRIPCION-POSTAL-DE-
+CIERRE-1` sigue abierto, sin que este slice lo toque (fuera de su alcance).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `SubscriptionCTALinea`, `ScrollInercia`, `scroll-inercia.ts`,
+`claveScrollGuardado`, `parsearScrollGuardado`, `objetivoDeRestauracion`, `estadoInicialEstabilizacion`,
+`siguienteEstadoEstabilizacion`, `listoParaRestaurar`, `MS_ALTURA_ESTABLE`, `MS_TOPE_ESPERA_
+ESTABILIZACION`, `revelaMascaraVertical`, `transicionTituloPostal`, `transicionFadePostal`,
+`history.scrollRestoration`, `sf-postal-titulo`, `sf-postal-fade`, `scroll-behavior` (CSS, referenciada
+sin tocar). Grepeados uno por uno contra `CLAUDE.md` (`grep -c`): **CERO apariciones para los
+diecisiete** — `CLAUDE.md` no documenta ninguno de estos componentes/funciones ni el mecanismo de
+restauración de scroll del storefront (vive en `DECISIONS.md`/`lib/storefront/scroll-inercia.ts`, no
+en `CLAUDE.md`). Se buscó además cualquier mención a "recargar"/"reload" cerca del storefront: las
+coincidencias que trae `CLAUDE.md` son todas de OTROS subsistemas (Fast Refresh del admin, el editor
+de `/admin/tienda`, el refresco de `router.refresh()`) — ninguna describe la restauración de scroll al
+recargar el storefront. **Nada que corregir en `CLAUDE.md`.**
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es dos componentes de storefront existentes, lógica pura nueva en
+`lib/animation.ts`/`lib/storefront/scroll-inercia.ts`, y sus tests.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las seis capas (§ Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**Cierra `SUSCRIPCION-TITULO-Y-RECARGA-1`.**

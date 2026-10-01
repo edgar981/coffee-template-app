@@ -9,6 +9,15 @@ import {
   objetivoTrasRueda,
   debeUsarScrollNativo,
   debeInterceptarRueda,
+  CLAVE_SCROLL_PREFIJO,
+  claveScrollGuardado,
+  parsearScrollGuardado,
+  objetivoDeRestauracion,
+  estadoInicialEstabilizacion,
+  siguienteEstadoEstabilizacion,
+  listoParaRestaurar,
+  MS_ALTURA_ESTABLE,
+  MS_TOPE_ESPERA_ESTABILIZACION,
 } from './scroll-inercia';
 
 // Capa 1 del mecanismo de inercia (§ SCROLL-INERCIA-CORTE-1). Puro, sin DOM — lo que se afirma es la
@@ -138,4 +147,97 @@ test('debeInterceptarRueda: las CUATRO salidas son independientes — cualquiera
   assert.equal(debeInterceptarRueda({ ctrlKey: false, cuerpoBloqueado: true, deltaX: 0, deltaY: 10, dentroDeScrollPropio: false }), false);
   assert.equal(debeInterceptarRueda({ ctrlKey: false, cuerpoBloqueado: false, deltaX: 30, deltaY: 10, dentroDeScrollPropio: false }), false);
   assert.equal(debeInterceptarRueda({ ctrlKey: false, cuerpoBloqueado: false, deltaX: 0, deltaY: 10, dentroDeScrollPropio: true }), false);
+});
+
+// § SUSCRIPCION-TITULO-Y-RECARGA-1 — la restauración de scroll al recargar. Ver el docstring en
+// `scroll-inercia.ts` para la medición completa (Chromium clampea contra un documento que todavía
+// no creció; WebKit no tiene el defecto).
+
+test('claveScrollGuardado: namespaced con el prefijo y la ruta exacta — "/" y "/tienda" no chocan', () => {
+  assert.equal(claveScrollGuardado('/'), `${CLAVE_SCROLL_PREFIJO}/`);
+  assert.equal(claveScrollGuardado('/tienda'), `${CLAVE_SCROLL_PREFIJO}/tienda`);
+  assert.notEqual(claveScrollGuardado('/'), claveScrollGuardado('/tienda'));
+});
+
+test('parsearScrollGuardado: null (nunca se guardó nada) → null', () => {
+  assert.equal(parsearScrollGuardado(null), null);
+});
+
+test('parsearScrollGuardado: un número válido en texto → ese número', () => {
+  assert.equal(parsearScrollGuardado('2576'), 2576);
+  assert.equal(parsearScrollGuardado('0'), 0);
+});
+
+test('parsearScrollGuardado: basura no numérica o negativa → null — preferir callar a restaurar un número inventado', () => {
+  assert.equal(parsearScrollGuardado('no-es-un-numero'), null);
+  assert.equal(parsearScrollGuardado('-50'), null);
+  assert.equal(parsearScrollGuardado('Infinity'), null);
+});
+
+test('objetivoDeRestauracion: el guardado cabe en el documento actual → se restaura tal cual', () => {
+  assert.equal(objetivoDeRestauracion(2576, 6052, 900), 2576);
+});
+
+test('objetivoDeRestauracion: el guardado EXCEDE el límite actual del documento → se recorta — la causa raíz del defecto (Chromium restauraba contra un documento aún chico)', () => {
+  // El caso medido: antes=5152 (la página completa, 6052-900), pero el documento SÓLO tiene 4751px
+  // en el instante de restaurar → el límite es 3851, y restaurar más allá de eso sería imposible de
+  // todos modos (no hay dónde desplazarse).
+  assert.equal(objetivoDeRestauracion(5152, 4751, 900), 3851);
+});
+
+test('objetivoDeRestauracion: nunca negativo, aunque el documento sea más corto que el viewport', () => {
+  assert.equal(objetivoDeRestauracion(500, 600, 900), 0);
+});
+
+test('siguienteEstadoEstabilizacion: la MISMA altura → `ultimoCambioMs` NO se toca, el documento sigue quieto desde que cambió por última vez', () => {
+  const inicial = estadoInicialEstabilizacion(900, 0);
+  const uno = siguienteEstadoEstabilizacion(inicial, 900, 100);
+  assert.deepEqual(uno, { altura: 900, ultimoCambioMs: 0 }, 'misma altura: el reloj de "desde cuándo" no avanza');
+  const dos = siguienteEstadoEstabilizacion(uno, 900, 250);
+  assert.deepEqual(dos, { altura: 900, ultimoCambioMs: 0 }, 'sigue sin avanzar, aunque pasen más lecturas');
+});
+
+test('siguienteEstadoEstabilizacion: la altura CAMBIA → `ultimoCambioMs` se reinicia al reloj de ESTA lectura', () => {
+  const estado = { altura: 900, ultimoCambioMs: 0 };
+  const siguiente = siguienteEstadoEstabilizacion(estado, 4751, 300);
+  assert.deepEqual(siguiente, { altura: 4751, ultimoCambioMs: 300 });
+});
+
+test('siguienteEstadoEstabilizacion/listoParaRestaurar: reproduce la SERIE medida (900→4751→6337) — un PLANO INTERMEDIO que dura MENOS que MS_ALTURA_ESTABLE no se confunde con el final', () => {
+  // La serie real (§ el docstring de arriba): 900 de t=0 a t≈300, 4751 de t≈300 a t≈600, 6337 desde
+  // ahí. El plano de 4751 dura sólo ~300ms — muy por debajo de MS_ALTURA_ESTABLE (1800) — así que
+  // NUNCA debe declararse listo mientras el reloj sigue dentro de ese plano.
+  let estado = estadoInicialEstabilizacion(900, 0);
+  estado = siguienteEstadoEstabilizacion(estado, 4751, 300);
+  assert.ok(!listoParaRestaurar(estado, 600, 0), 'a los 600ms, el plano de 4751 sólo lleva 300ms quieto — no alcanza');
+  estado = siguienteEstadoEstabilizacion(estado, 6337, 600);
+  assert.ok(!listoParaRestaurar(estado, 600 + MS_ALTURA_ESTABLE - 1, 0), 'un instante antes de los 1800ms de quietud en 6337, todavía no');
+  assert.ok(listoParaRestaurar(estado, 600 + MS_ALTURA_ESTABLE, 0), 'a los 1800ms exactos de quietud en la altura final, ya sí');
+});
+
+test('listoParaRestaurar: el PLANO INTERMEDIO del despliegue real (~1.500ms) tampoco alcanza MS_ALTURA_ESTABLE — es la causa raíz que el primer diseño (por conteo de frames) no cubría', () => {
+  // La medición más lenta (§ el asiento de DECISIONS.md): 4768 de t≈1.500 a t≈3.000ms antes de
+  // llegar a 6052. Ese plano de ~1.500ms sigue por DEBAJO de MS_ALTURA_ESTABLE (1800) — con margen
+  // chico a propósito (medido, no elegido con holgura infinita).
+  let estado = estadoInicialEstabilizacion(900, 0);
+  estado = siguienteEstadoEstabilizacion(estado, 4768, 1500);
+  assert.ok(!listoParaRestaurar(estado, 3000, 0), 'a los 3000ms, el plano de 4768 lleva 1500ms — por debajo del umbral de 1800');
+});
+
+test('listoParaRestaurar: el TOPE DE TIEMPO TOTAL es la salida de emergencia — si la altura NUNCA se asienta, igual se restaura', () => {
+  let estado = estadoInicialEstabilizacion(100, 0);
+  // La altura cambia CADA 10ms, hasta justo antes del tope total — `ultimoCambioMs` queda siempre
+  // RECIENTE (nunca pasa MS_ALTURA_ESTABLE desde el último cambio), así que sin el tope de tiempo
+  // TOTAL esto esperaría para siempre.
+  const ultimoCambioMs = MS_TOPE_ESPERA_ESTABILIZACION - 10;
+  for (let t = 10; t <= ultimoCambioMs; t += 10) estado = siguienteEstadoEstabilizacion(estado, 100 + t, t);
+  assert.equal(estado.altura, 100 + ultimoCambioMs);
+  assert.equal(listoParaRestaurar(estado, MS_TOPE_ESPERA_ESTABILIZACION - 1, 0), false, 'la altura cambió hace sólo 9ms — ni estable ni se agotó el tope total');
+  assert.equal(listoParaRestaurar(estado, MS_TOPE_ESPERA_ESTABILIZACION, 0), true, 'el tope total se cruza, aunque la altura siga cambiando cada 10ms');
+});
+
+test('listoParaRestaurar: las DOS salidas son independientes — un tope de tiempo cruzado basta, aunque la altura siga fresca', () => {
+  const estado = estadoInicialEstabilizacion(900, 500); // cambió hace sólo 10ms al momento de medir
+  assert.equal(listoParaRestaurar(estado, 510, 0), false, 'ni estable ni se agotó el tiempo total');
+  assert.equal(listoParaRestaurar(estado, 0 + MS_TOPE_ESPERA_ESTABILIZACION, 0), true, 'el tope total manda aunque la altura acabe de cambiar');
 });

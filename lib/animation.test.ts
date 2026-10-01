@@ -19,6 +19,7 @@ import {
   DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE, DRAWER_MOVIL_PASO_S, DRAWER_MOVIL_BASE_S,
   retardoEntradaDrawerMovil, retardoSalidaDrawerMovil,
   transicionPalabra, CASCADA_PALABRA_PASO_S, CASCADA_PALABRA_DELAY_MAX_S, palabrasDeTexto,
+  revelaMascaraVertical, transicionTituloPostal, transicionFadePostal,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -915,4 +916,37 @@ test('palabrasDeTexto: la lede real de Origen (29 palabras, con comas y puntos p
   const palabras = palabrasDeTexto(lede).filter((t) => t.esPalabra);
   assert.equal(palabras.length, 29);
   assert.deepEqual(palabras.map((t) => t.indice), Array.from({ length: 29 }, (_, i) => i));
+});
+
+// § SUSCRIPCION-TITULO-Y-RECARGA-1 — el revelado de la postal de suscripción: el título sube por
+// máscara, el eyebrow/botón se desvanecen escalonados DESPUÉS. Ver el docstring en `lib/animation.ts`.
+
+test('revelaMascaraVertical: oculto = fuera de la caja (100%), visible = en su lugar (0%) — SIN opacidad', () => {
+  assert.deepEqual(revelaMascaraVertical, { hidden: { y: '100%' }, visible: { y: '0%' } });
+  assert.ok(!('opacity' in revelaMascaraVertical.hidden), 'el recorte es por traslado, no por transparencia');
+  assert.ok(!('opacity' in revelaMascaraVertical.visible));
+});
+
+test('transicionTituloPostal: sin retraso — el título es lo primero que entra', () => {
+  assert.deepEqual(transicionTituloPostal(), { duration: REVELADO_GRUPO_DURACION_S, ease: REVELADO_GRUPO_EASE, delay: 0 });
+});
+
+test('transicionFadePostal(0): el eyebrow espera exactamente a que el título termine de subir', () => {
+  assert.equal(transicionFadePostal(0).delay, REVELADO_GRUPO_DURACION_S);
+});
+
+test('transicionFadePostal: cada hermano siguiente suma UN paso más — el escalonado es ENTRE ellos, no por palabra', () => {
+  assert.equal(transicionFadePostal(1).delay, REVELADO_GRUPO_DURACION_S + REVELADO_GRUPO_PASO_S);
+  assert.equal(transicionFadePostal(2).delay, REVELADO_GRUPO_DURACION_S + 2 * REVELADO_GRUPO_PASO_S);
+});
+
+test('transicionFadePostal: duration/ease son los tokens de movimiento YA establecidos — mismos que el título y que Origen', () => {
+  assert.equal(transicionFadePostal(0).duration, REVELADO_GRUPO_DURACION_S);
+  assert.deepEqual(transicionFadePostal(0).ease, REVELADO_GRUPO_EASE);
+  assert.equal(transicionFadePostal(1).duration, transicionTituloPostal().duration);
+  assert.deepEqual(transicionFadePostal(1).ease, transicionTituloPostal().ease);
+});
+
+test('transicionFadePostal: el eyebrow (0) entra ANTES que el botón (1) — nunca al revés', () => {
+  assert.ok(transicionFadePostal(0).delay < transicionFadePostal(1).delay);
 });

@@ -7,7 +7,10 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { fadeUp, useProgresoScroll, transformSubscripcionParallax } from "@/lib/animation";
+import {
+  fadeUp, useProgresoScroll, transformSubscripcionParallax,
+  revelaMascaraVertical, transicionTituloPostal, transicionFadePostal,
+} from "@/lib/animation";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
@@ -146,6 +149,39 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // ya reconoce, reusada acá en vez de inventar una cuarta.
 //
 // `SubscriptionCTABloque` (la variante canónica, la de Nayoli) NO LEE `imagenFondo` — no se toca.
+//
+// § SUSCRIPCION-TITULO-Y-RECARGA-1 — LA TRANSICIÓN DE ENTRADA DEJA DE SER UN SOLO BLOQUE. Hasta
+// esta tanda, eyebrow+título+botones entraban juntos en UN `motion.div` con `fadeUp` (opacidad+24px).
+// Gate del owner, tras `SUSCRIPCION-POSTAL-DE-CIERRE-1` (el alto/escala/composición ya aplicados):
+// aprobó la transición propuesta — el TÍTULO sube desde detrás de una línea (revelado con máscara,
+// `revelaMascaraVertical`/`transicionTituloPostal`, § `lib/animation.ts`), y el EYEBROW + el BOTÓN
+// entran DESPUÉS con un desvanecimiento escalonado (`fadeUp`/`transicionFadePostal`) — DISTINTO de la
+// cascada por palabras de `TextoEnCascada` (§ ORIGEN-TEXTO-EN-CASCADA-1): acá no hay palabras que
+// tokenizar, son DOS hermanos (eyebrow, botones) que se desvanecen con un paso entre ellos, el mismo
+// patrón de `transicionEscalonada` que ya usa Origen para sus fotos/filas/cifras.
+//
+// LA MÁSCARA DEL TÍTULO ES `overflow-hidden leading-none` sobre un `<div>` ESTÁTICO (sin motion,
+// nunca se anima — sólo recorta), con el `motion.h2` adentro traduciéndose un PORCENTAJE de su
+// propia caja (100%→0%) — la MISMA construcción que `transformRevelaTextoDisplay` ya usa para el
+// marquee del hero (§ "EL REVELADO ENMASCARADO", `lib/animation.ts`), pero disparada por VIEWPORT
+// (`whileInView`, un tiro único) en vez de por scroll continuo: no hay progreso de scroll que leer
+// acá, el disparador es "entró en vista", igual que `fadeUp` en el resto de la home. `leading-none`
+// fija el alto de la máscara al alto EXACTO de una línea de este texto — un `transform` del hijo no
+// cambia esa altura, sólo su posición pintada, así que el traslado nunca desplaza el layout de
+// alrededor (ni el eyebrow arriba ni los botones a la derecha se mueven mientras el título sube).
+//
+// SIN JS: TODO VISIBLE — requisito explícito del slice, mismo mecanismo que ya usa `TextoEnCascada`
+// (§ el docstring de ese componente): `initial="hidden"` hornea el estado oculto en el HTML del
+// servidor (framer-motion resuelve la variante server-side para que SSR y cliente coincidan), y sin
+// hidratación ese estilo nunca se revertiría. El `<noscript><style>` de abajo neutraliza las DOS
+// clases marcadoras (`sf-postal-titulo`/`sf-postal-fade`) con `!important` — el navegador sólo lo
+// PARSEA como markup real cuando el scripting está apagado, así que con JS la animación queda intacta
+// y sin JS el eyebrow/título/botón se ven completos, sin opacidad/traslado residual.
+//
+// MOVIMIENTO REDUCIDO: sin per-componente especial — igual que el resto de esta sección (`preview`
+// gobierna las ternarias, no `estatico`/`reduce`), el `MotionConfig(reducedMotion:'user')` global
+// (`app/(storefront)/layout.tsx`) ya vuelve estas transiciones prácticamente instantáneas bajo esa
+// preferencia, el mismo criterio que el resto de los `whileInView` de esta home.
 export default function SubscriptionCTALinea({ style }: { style?: React.CSSProperties } = {}) {
   const { subscriptionCTA, paginas, navTratamiento, tema } = useSiteContent();
   const preview = useIsPreview();
@@ -182,18 +218,15 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)]" />
         </div>
       )}
+      <noscript>
+        <style>{".sf-postal-titulo{transform:none!important}.sf-postal-fade{opacity:1!important;transform:none!important}"}</style>
+      </noscript>
       <div className={`relative z-10 ${contenedorClase} mx-auto`}>
-        {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
-            la intersección (como HeroSection/BrandStory/SubscriptionCTABloque). Fuera de preview,
-            idéntico a cualquier otra sección. */}
-        <motion.div
-          initial={preview ? false : "hidden"}
-          animate={preview ? "visible" : undefined}
-          whileInView={preview ? undefined : "visible"}
-          viewport={preview ? undefined : { once: true }}
-          variants={fadeUp}
-          className="flex flex-col items-center gap-6 text-center sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:text-left"
-        >
+        {/* YA NO es un solo `motion.div`: el título sube por máscara (su propio disparo de
+            viewport); el eyebrow y los botones se desvanecen DESPUÉS, escalonados entre ellos
+            (§ SUSCRIPCION-TITULO-Y-RECARGA-1, el docstring de arriba). El envoltorio vuelve a ser un
+            `<div>` plano — sólo fija el acomodo texto↔CTAs, igual que antes. */}
+        <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:text-left">
           {/* El gancho ARRIBA del título (columna, § SUSCRIPCION-POSTAL-DE-CIERRE-1 — ya no
               `items-baseline` en línea: con el título en escala de sección, la línea se habría visto
               aplastada). SIN imagen, mismos tokens `--sf-sobre-banda` que el bloque — la composición
@@ -202,19 +235,49 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
               OSCURO de un esquema claro asignado a la banda (CORTE·crema) sobre una foto con velo
               oscuro. */}
           <div className="flex flex-col items-center gap-2 sm:items-start">
+            {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no
+                dispara la intersección (como HeroSection/BrandStory/SubscriptionCTABloque). Fuera de
+                preview, idéntico a cualquier otra sección. */}
             {subscriptionCTA.eyebrow && (
-              <p className={`text-xs tracking-[0.2em] uppercase ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,var(--sf-tostado))]"}`}>
+              <motion.p
+                initial={preview ? false : "hidden"}
+                animate={preview ? "visible" : undefined}
+                whileInView={preview ? undefined : "visible"}
+                viewport={preview ? undefined : { once: true }}
+                variants={fadeUp}
+                transition={preview ? undefined : transicionFadePostal(0)}
+                className={`sf-postal-fade text-xs tracking-[0.2em] uppercase ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,var(--sf-tostado))]"}`}
+              >
                 {subscriptionCTA.eyebrow}
-              </p>
+              </motion.p>
             )}
-            <h2
-              className={`text-4xl font-playfair ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,white)]"}`}
-              style={displayL ? { fontSize: displayL } : undefined}
-            >
-              {subscriptionCTA.titulo}
-            </h2>
+            {/* LA MÁSCARA — `<div>` ESTÁTICO (sin motion, nunca se anima), `overflow-hidden` del alto
+                EXACTO de una línea de este texto (`leading-none`). El `motion.h2` adentro traduce un
+                PORCENTAJE de su propia caja — § el docstring de arriba, "LA MÁSCARA DEL TÍTULO". */}
+            <div className="overflow-hidden leading-none">
+              <motion.h2
+                initial={preview ? false : "hidden"}
+                animate={preview ? "visible" : undefined}
+                whileInView={preview ? undefined : "visible"}
+                viewport={preview ? undefined : { once: true }}
+                variants={revelaMascaraVertical}
+                transition={preview ? undefined : transicionTituloPostal()}
+                className={`sf-postal-titulo text-4xl font-playfair ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,white)]"}`}
+                style={displayL ? { fontSize: displayL } : undefined}
+              >
+                {subscriptionCTA.titulo}
+              </motion.h2>
+            </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-4">
+          <motion.div
+            initial={preview ? false : "hidden"}
+            animate={preview ? "visible" : undefined}
+            whileInView={preview ? undefined : "visible"}
+            viewport={preview ? undefined : { once: true }}
+            variants={fadeUp}
+            transition={preview ? undefined : transicionFadePostal(1)}
+            className="sf-postal-fade flex shrink-0 flex-wrap items-center justify-center gap-4"
+          >
             <Link
               href="/suscripciones"
               className="inline-flex shrink-0 items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5"
@@ -229,8 +292,8 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
                 {subscriptionCTA.ctaSecundarioLabel}
               </Link>
             )}
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

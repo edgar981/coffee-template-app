@@ -1242,3 +1242,57 @@ export function palabrasDeTexto(texto: string): TokenCascada[] {
     return token;
   });
 }
+
+// ── EL REVELADO DE LA POSTAL DE SUSCRIPCIÓN — § SUSCRIPCION-TITULO-Y-RECARGA-1 ───────────────────
+//
+// Gate del owner tras `SUSCRIPCION-POSTAL-DE-CIERRE-1` (el alto/escala/composición de la franja ya
+// aplicados): aprobó la transición propuesta para el título — *"sube desde detrás de una línea"*
+// (revelado con máscara) — y que el eyebrow y el botón entren DESPUÉS con un desvanecimiento
+// escalonado, DISTINTO de la cascada por palabras de `TextoEnCascada` (§ ORIGEN-TEXTO-EN-CASCADA-1):
+// acá no hay palabras que tokenizar — el título es UN bloque que se revela por máscara, y el
+// eyebrow/botón son dos HERMANOS que se desvanecen con un paso entre ellos, el mismo patrón de
+// `transicionEscalonada` (fotos/filas/cifras de Origen) aplicado a esta sección.
+//
+// `revelaMascaraVertical` es la MISMA construcción que `transformRevelaTextoDisplay`/
+// `UMBRAL_REVELADO_TEXTO` ya usan para el marquee del hero (§ "EL REVELADO ENMASCARADO", arriba): el
+// texto vive dentro de un contenedor `overflow:hidden` del alto de su propia caja, y se traslada un
+// PORCENTAJE de esa caja — 100% (fuera, bajo el borde inferior de la máscara) en reposo, 0% (en su
+// lugar) revelado. NO ES LA MISMA FUNCIÓN: aquélla es SCROLL-SCRUBBED (`useTransform` sobre un
+// progreso continuo de `useScroll`, re-evaluada en cada frame de scroll); ésta es un DISPARO ÚNICO
+// por viewport (`whileInView`/`variants`, como `fadeUp`), consistente con el resto de los reveals de
+// esta sección (§ SUSCRIPCION-POSTAL-DE-CIERRE-1 ya monta su bloque entero así). Por eso es una
+// variante de `variants` —no una función `transform*DeProgreso`— y no reusa `transformRevelaTexto-
+// Display`: no hay progreso de scroll que leer acá, el disparador es "entró en vista", el mismo que
+// ya usa `fadeUp` en ~20 secciones.
+//
+// SIN OPACIDAD: a diferencia de `fadeUp`, esto traslada SIN desvanecer — el texto no existe
+// visualmente ANTES de cruzar el borde de la máscara (recortado), no que exista pero transparente
+// (la misma distinción que el docstring de `transformRevelaTextoDisplay` ya hace: "antes del borde,
+// el texto NO EXISTE visualmente… no que exista pero transparente"). Es la pieza que hace que "sube
+// desde atrás de una línea" se vea distinto de un fundido.
+export const revelaMascaraVertical = { hidden: { y: "100%" }, visible: { y: "0%" } };
+
+/**
+ * El título entra PRIMERO, sin retraso — el resto de la postal espera a que termine (ver
+ * `transicionFadePostal`, abajo). Reusa `REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_EASE`: son los
+ * tokens de movimiento YA establecidos de este storefront (el mismo revelado de Origen), y un
+ * título no tiene motivo para entrar con una curva distinta de una foto o una cifra.
+ */
+export function transicionTituloPostal(): { duration: number; ease: [number, number, number, number]; delay: number } {
+  return { duration: REVELADO_GRUPO_DURACION_S, ease: REVELADO_GRUPO_EASE, delay: 0 };
+}
+
+/**
+ * El eyebrow (`indice=0`) y el botón (`indice=1`) se desvanecen DESPUÉS de que el título termina de
+ * subir — el retraso arranca en `REVELADO_GRUPO_DURACION_S` (cuando el título ya está en su lugar), y
+ * cada hermano siguiente suma UN paso más (`REVELADO_GRUPO_PASO_S`, el mismo paso de 90ms que ya usa
+ * `transicionEscalonada` para los grupos de Origen) — el escalonado que el spec pide entre ellos DOS,
+ * no entre palabras.
+ */
+export function transicionFadePostal(indice: number): { duration: number; ease: [number, number, number, number]; delay: number } {
+  return {
+    duration: REVELADO_GRUPO_DURACION_S,
+    ease: REVELADO_GRUPO_EASE,
+    delay: REVELADO_GRUPO_DURACION_S + indice * REVELADO_GRUPO_PASO_S,
+  };
+}

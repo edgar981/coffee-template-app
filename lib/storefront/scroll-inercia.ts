@@ -119,3 +119,116 @@ export function debeInterceptarRueda(c: CondicionesRueda): boolean {
   if (Math.abs(c.deltaX) > Math.abs(c.deltaY)) return false;
   return true;
 }
+
+// ── LA RESTAURACIÓN DE SCROLL AL RECARGAR — § SUSCRIPCION-TITULO-Y-RECARGA-1 ──────────────────────
+//
+// EL REPORTE DEL OWNER, LITERAL: *"revisa el recargar de la página, siempre me lleva al centro de la
+// página luego de haber recargado… siempre luego de recargar la página se ubica sobre las fotos de:
+// Nuestra Historia"*.
+//
+// LA CAUSA, MEDIDA (Playwright, `.arnes-tooling/playwright`, contra el muestrario desplegado Y contra
+// un build local, § el asiento de este slice en `DECISIONS.md` para la tabla completa): es un defecto
+// de **Chromium**, no de este código — WebKit restaura el `scrollY` exacto en los TRES casos medidos
+// (arriba, a mitad, al fondo); Chromium lo CLAMPEA contra el alto del documento que tiene disponible
+// en el instante en que decide restaurar, y esa restauración ocurre ANTES de que el storefront
+// termine de montar — medido: `document.documentElement.scrollHeight` pasa por 900px (recién
+// empezando a cargar) → ~4.750px → ~6.300px (asentado) en una ventana de 0.3 a 3s, tanto contra el
+// despliegue real como en local. Como `html{scroll-behavior:smooth}` (`app/globals.css`) convierte
+// cada corrección del navegador en una animación que la SIGUIENTE corrección cancela a medio camino,
+// el resultado visible es la "subida trabada y luego de golpe" que el prototipo original ya describía
+// para ESTE MISMO mecanismo de rueda (§ el comentario de `ScrollInercia.tsx`, "la página casi no
+// bajaba y luego saltaba de golpe") — pero acá el disparador es la restauración NATIVA del navegador,
+// no nuestra inercia.
+//
+// EL FIX NO ES "esperar a que el navegador termine": es TOMAR LA RESTAURACIÓN NOSOTROS MISMOS,
+// después de confirmar que el documento dejó de crecer, y aplicarla con un salto instantáneo — el
+// mismo criterio que ya usa `irA` en `ScrollInercia.tsx` para no pelear con `scroll-behavior:smooth`.
+// Las piezas de acá son PURAS: la clave de almacenamiento, el parseo defensivo del valor guardado, el
+// recorte al límite ACTUAL del documento, y el pequeño autómata que decide "¿ya puedo confiar en esta
+// altura, o sigo esperando?" — el `window`/`sessionStorage`/`requestAnimationFrame` que los alimenta
+// vive en `ScrollInercia.tsx`, igual que el resto del mecanismo de rueda.
+
+/** El prefijo de la clave de `sessionStorage` — namespaced para no chocar con otra cosa que guarde
+ *  bajo la misma pestaña, y para que un futuro censo de claves lo encuentre por nombre. */
+export const CLAVE_SCROLL_PREFIJO = 'corte:scrollY:';
+
+/** La clave es por RUTA (pathname): volver a `/` recuerda su posición sin pisar la de `/tienda`. */
+export function claveScrollGuardado(pathname: string): string {
+  return `${CLAVE_SCROLL_PREFIJO}${pathname}`;
+}
+
+/**
+ * Parseo DEFENSIVO del valor crudo de `sessionStorage` — `null` (nunca se guardó nada, primera
+ * visita de la pestaña a esta ruta) y cualquier basura no numérica o negativa se tratan igual: "no
+ * hay nada que restaurar". Preferir callar (no restaurar) a restaurar un número inventado — mismo
+ * criterio que `sugerirZona`/`Origen.tsx` ya aplican con datos que no se pueden validar.
+ */
+export function parsearScrollGuardado(valor: string | null): number | null {
+  if (valor === null) return null;
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+/**
+ * El objetivo final de la restauración: el valor guardado, recortado al límite de scroll que el
+ * documento tiene AHORA — nunca más allá de lo que la página puede mostrar. Reusa `limiteScroll`
+ * (arriba, el mismo tope que ya usa la rueda) en vez de reimplementar el `Math.max(0, altura-vh)`.
+ */
+export function objetivoDeRestauracion(guardado: number, alturaDocumento: number, altoViewport: number): number {
+  return Math.min(guardado, limiteScroll(alturaDocumento, altoViewport));
+}
+
+export interface EstadoEstabilizacion {
+  /** La última altura de documento observada. */
+  altura: number;
+  /** `performance.now()` de la ÚLTIMA VEZ que la altura CAMBIÓ — no de la última lectura. */
+  ultimoCambioMs: number;
+}
+
+export function estadoInicialEstabilizacion(alturaInicial: number, ahoraMs: number): EstadoEstabilizacion {
+  return { altura: alturaInicial, ultimoCambioMs: ahoraMs };
+}
+
+/**
+ * Un paso del autómata: una lectura más de `document.documentElement.scrollHeight`, con el reloj que
+ * la acompaña. Si la altura es la MISMA, `ultimoCambioMs` NO se toca (el documento sigue quieto desde
+ * entonces); si CAMBIÓ, se reinicia a `ahoraMs` — recién ahora "lleva quieto 0ms".
+ *
+ * ES POR TIEMPO, NO POR CONTEO DE FRAMES — y ésa es la parte que casi queda mal: la primera versión
+ * de este autómata contaba LECTURAS consecutivas idénticas (3 frames ≈ 48ms a 60fps). Medido contra
+ * la serie REAL (§ el docstring de arriba): la altura pasa por un PLANO INTERMEDIO —900px, luego
+ * ~4.750px— que dura más que unos pocos frames (hasta ~1.5s contra el despliegue real, más lento que
+ * en local) antes de llegar a su valor final. Tres frames iguales bastan para "confirmar" ese plano
+ * intermedio como si fuera el final, y ahí es exactamente donde el fix fallaba: medido, restauraba
+ * contra 4.750px y dejaba el reload corto en el mismo punto que el defecto original (3851px en vez
+ * de los 5437px guardados). Por tiempo, el plano intermedio de ~1.5s no alcanza el umbral de abajo
+ * (`MS_ALTURA_ESTABLE`, mayor a propósito) y el autómata sigue esperando hasta la altura de verdad.
+ */
+export function siguienteEstadoEstabilizacion(estado: EstadoEstabilizacion, alturaActual: number, ahoraMs: number): EstadoEstabilizacion {
+  return alturaActual === estado.altura
+    ? estado
+    : { altura: alturaActual, ultimoCambioMs: ahoraMs };
+}
+
+/**
+ * Milisegundos SIN que la altura cambie antes de confiar en que el documento terminó de crecer.
+ * MEDIDO, no elegido a ojo: contra el despliegue real, el plano intermedio (~4.750px, antes del valor
+ * final) duró hasta ~1.500ms (de t≈1.500ms a t≈3.000ms, § el asiento de este slice en
+ * `DECISIONS.md`); 1.800ms deja margen sin acercarse al tope de espera de abajo.
+ */
+export const MS_ALTURA_ESTABLE = 1800;
+
+/**
+ * ¿Ya hay que restaurar? Dos salidas independientes: la altura lleva quieta `MS_ALTURA_ESTABLE`, O
+ * se agotó el tiempo de espera total — este segundo caso es el que evita esperar PARA SIEMPRE si, por
+ * lo que sea, el documento nunca deja de cambiar (una automatización futura, un layout roto): mejor
+ * restaurar contra la mejor altura que se tenga que no restaurar nunca. `ahoraMs`/`inicioMs` los mide
+ * el llamador (`performance.now()`), no esta función — mantiene el autómata puro, sin un reloj propio
+ * que un test tendría que simular con fakes.
+ */
+export const MS_TOPE_ESPERA_ESTABILIZACION = 6000;
+
+export function listoParaRestaurar(estado: EstadoEstabilizacion, ahoraMs: number, inicioMs: number): boolean {
+  return (ahoraMs - estado.ultimoCambioMs) >= MS_ALTURA_ESTABLE || (ahoraMs - inicioMs) >= MS_TOPE_ESPERA_ESTABILIZACION;
+}

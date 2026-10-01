@@ -28,15 +28,20 @@ function renderLinea(content: SiteContentData, style?: React.CSSProperties): str
   return renderToStaticMarkup(arbol);
 }
 
+// § SUSCRIPCION-TITULO-Y-RECARGA-1: eyebrow y título dejaron de ser nodos planos — son
+// `motion.p`/`motion.h2`, así que `renderToStaticMarkup` les hornea un `style` inline (el estado
+// `initial="hidden"` de `fadeUp`/`revelaMascaraVertical`, § el docstring de `TextoEnCascada`). Las
+// extracciones toleran ese `style` opcional en vez de exigir que `class="..."` sea el último atributo.
+
 function extraerEyebrow(html: string): string {
   // El eyebrow es el único <p> de la franja; su texto es el `subscriptionCTA.eyebrow` del DEFAULTS.
-  const m = html.match(/<p class="([^"]*)">[^<]*<\/p>/);
+  const m = html.match(/<p class="([^"]*)"(?: style="[^"]*")?>[^<]*<\/p>/);
   assert.ok(m, 'el <p> del eyebrow debe estar presente');
   return m![1];
 }
 
 function extraerTitulo(html: string): string {
-  const m = html.match(/<h2 class="([^"]*)">/);
+  const m = html.match(/<h2 class="([^"]*)"(?: style="[^"]*")?>/);
   assert.ok(m, 'el <h2> del título debe estar presente');
   return m![1];
 }
@@ -96,9 +101,16 @@ test('el título usa la escala FIJA de sección (`text-4xl`) — ya no `text-xl 
   assert.doesNotMatch(clase, /\btext-2xl\b/);
 });
 
-test('SIN `tema.escalaDisplay` (DEFAULTS, null — el caso de Nayoli y de los otros cinco presets): el título NO lleva ningún `style` — sigue su clase Tailwind de hoy', () => {
+// § SUSCRIPCION-TITULO-Y-RECARGA-1: el `style` del h2 YA NO está vacío sin `escalaDisplay` — el
+// `motion.h2` del revelado por máscara siempre hornea `transform:translateY(100%)` en el HTML del
+// servidor (el estado "hidden", § el docstring del componente). Lo que sigue siendo cierto es que
+// `font-size` está AUSENTE sin `escalaDisplay:'amplia'` — ésa es la parte que `displayL` gobierna.
+test('SIN `tema.escalaDisplay` (DEFAULTS, null — el caso de Nayoli y de los otros cinco presets): el título NO lleva `font-size` — sigue su clase Tailwind de hoy, sólo el `transform` de la máscara', () => {
   const html = renderLinea(DEFAULTS as unknown as SiteContentData);
-  assert.equal(extraerStyleDelTitulo(html), null);
+  const estilo = extraerStyleDelTitulo(html);
+  assert.ok(estilo, 'el h2 del revelado por máscara siempre lleva style (el transform horneado)');
+  assert.doesNotMatch(estilo!, /font-size/);
+  assert.match(estilo!, /transform:translateY\(100%\)/);
 });
 
 test('CON `tema.escalaDisplay: "amplia"` (el caso de CORTE): el título toma el font-size de display-l — el MISMO override que featured/brandStory/presentaciones/testimonials/origen ya aplican', () => {
@@ -110,6 +122,43 @@ test('CON `tema.escalaDisplay: "amplia"` (el caso de CORTE): el título toma el 
   const estilo = extraerStyleDelTitulo(html);
   assert.ok(estilo, 'el h2 debe llevar un style inline con escalaDisplay:"amplia"');
   assert.match(estilo!, /font-size:clamp\(48px, 5vw, 76px\)/);
+});
+
+// ─── § SUSCRIPCION-TITULO-Y-RECARGA-1 — LA TRANSICIÓN: título por máscara, eyebrow/botón por
+// desvanecimiento escalonado, DISTINTA de la cascada por palabras ────────────────────────────────
+
+test('el título va dentro de la máscara estática (`overflow-hidden leading-none`), con la clase marcadora `sf-postal-titulo`', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  assert.match(html, /<div class="overflow-hidden leading-none"><h2 class="sf-postal-titulo /);
+});
+
+test('el título NO se divide en palabras — el texto completo vive en UN solo nodo, a diferencia de `TextoEnCascada`', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  assert.match(html, />Tu pedido, cada mes</);
+  assert.doesNotMatch(html, /sf-cascada-palabra/, 'esta sección no usa la cascada por palabras de Origen');
+});
+
+test('el eyebrow y el grupo de botones llevan la clase marcadora `sf-postal-fade` — el desvanecimiento, no la máscara', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  // `class="..."` nada más — el `<noscript>` también menciona el selector `.sf-postal-fade`, pero
+  // eso no es una CLASE aplicada a un nodo, así que no cuenta acá.
+  const apariciones = html.match(/class="sf-postal-fade/g) ?? [];
+  assert.equal(apariciones.length, 2, 'eyebrow + grupo de botones, ninguno más');
+});
+
+test('el `<noscript>` neutraliza las DOS clases marcadoras — sin JS, eyebrow/título/botón se ven completos', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  assert.match(
+    html,
+    /<noscript><style>\.sf-postal-titulo\{transform:none!important\}\.sf-postal-fade\{opacity:1!important;transform:none!important\}<\/style><\/noscript>/,
+  );
+});
+
+test('el grupo de botones (ex `motion.div` de bloque) sigue envolviendo los DOS enlaces, ahora con `sf-postal-fade`', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  const m = html.match(/<div class="sf-postal-fade flex shrink-0[^"]*" style="[^"]*">(.*?)<\/div><\/div><\/div><\/section>/);
+  assert.ok(m, 'el contenedor de botones debe llevar sf-postal-fade');
+  assert.match(m![1], /href="\/suscripciones"/);
 });
 
 // ─── EL CASO QUE REPRODUCE EL GATE: una banda con esquema CLARO asignado (CORTE·crema) + foto ──────
