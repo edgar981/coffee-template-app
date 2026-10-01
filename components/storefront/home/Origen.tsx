@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { fadeUp, palabrasDeTexto, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
+import { fadeUp, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
 import TextoEnCascada from "@/components/storefront/TextoEnCascada";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
@@ -118,13 +118,15 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
   const datosVisibles = datosDeOrigen(origen);
   const statsVisibles = statsDeOrigen(origen);
 
-  // ÍNDICES DE LA CASCADA DE PALABRAS (§ ORIGEN-TEXTO-EN-CASCADA-1): eyebrow, título y párrafo son
-  // TRES `TextoEnCascada` independientes (cada uno tokeniza su propio texto, § el docstring de
-  // `palabrasDeTexto`), pero comparten UN solo escalonado continuo — el título retoma el índice
-  // donde el eyebrow terminó, y el párrafo donde el título terminó — así la cascada se LEE como una
-  // sola secuencia (eyebrow → título → párrafo), no como tres ráfagas que reinician en 0.
-  const palabrasEyebrow = origen.eyebrow ? palabrasDeTexto(origen.eyebrow).filter((t) => t.esPalabra).length : 0;
-  const palabrasTitulo = palabrasDeTexto(origen.titulo).filter((t) => t.esPalabra).length;
+  // ÍNDICES DE LA CASCADA DE BLOQUES (§ ORIGEN-TEXTO-POR-BLOQUE-1): eyebrow, título y párrafo son
+  // TRES `TextoEnCascada` independientes, cada uno UN bloque entero (ya no palabras, § el
+  // docstring de `TextoEnCascada.tsx`), que comparten UN solo escalonado continuo — el título
+  // retoma el índice siguiente al del eyebrow, y el párrafo el siguiente al del título — así la
+  // cascada se LEE como una sola secuencia (eyebrow → título → párrafo), no como tres piezas que
+  // entran todas a la vez. El eyebrow es OPCIONAL: si no hay fila para él, el título ocupa el
+  // índice 0 (es la primera pieza en aparecer), no el 1.
+  const indiceTitulo = origen.eyebrow ? 1 : 0;
+  const indiceParrafo = indiceTitulo + 1;
 
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1): `contenedorAnchoClase` reemplaza el literal
   // `max-w-6xl px-4 sm:px-6 lg:px-8` de siempre — `false` (todo tenant salvo CORTE) devuelve ESE
@@ -198,14 +200,12 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
             </motion.div>
           </div>
 
-          {/* La columna de copy YA NO envuelve eyebrow+h2+lede en un único `motion.div` de bloque
-              (§ ORIGEN-TEXTO-EN-CASCADA-1, revierte la decisión de ORIGEN-FOTOS-REVELADO-Y-CONTEO-1:
-              "el TEXTO sigue siendo su propio bloque único" — el gate del owner pidió explícitamente
-              la cascada de palabras que esa tanda dejó afuera). Cada uno de los tres es un
-              `TextoEnCascada` independiente que tokeniza y revela SUS PROPIAS palabras (§ el
-              docstring de `TextoEnCascada.tsx`); el `<div>` envolvente ya no anima — la animación
-              vive palabra por palabra, no por bloque. La LISTA DE DATOS sigue escalonando cada fila
-              por separado (§ `transicionEscalonada`, sin cambios en esta tanda). */}
+          {/* La columna de copy NO envuelve eyebrow+h2+lede en un único `motion.div` de bloque —
+              cada uno de los tres es un `TextoEnCascada` independiente (§ ORIGEN-TEXTO-POR-
+              BLOQUE-1, el docstring de `TextoEnCascada.tsx`) que entra como UNA pieza entera,
+              escalonada contra las otras dos por su propio `indice`; el `<div>` envolvente no
+              anima. La LISTA DE DATOS sigue escalonando cada fila por separado (§
+              `transicionEscalonada`, sin cambios en esta tanda). */}
           <div>
             <div>
               {origen.eyebrow && (
@@ -214,7 +214,7 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                   texto={origen.eyebrow}
                   className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-4"
                   preview={preview}
-                  indiceInicial={0}
+                  indice={0}
                 />
               )}
               <TextoEnCascada
@@ -223,14 +223,14 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] leading-tight mb-5"
                 style={displayL ? { fontSize: displayL } : undefined}
                 preview={preview}
-                indiceInicial={palabrasEyebrow}
+                indice={indiceTitulo}
               />
               <TextoEnCascada
                 as="p"
                 texto={origen.lede}
                 className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base"
                 preview={preview}
-                indiceInicial={palabrasEyebrow + palabrasTitulo}
+                indice={indiceParrafo}
               />
             </div>
 

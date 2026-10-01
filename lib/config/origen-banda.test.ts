@@ -315,24 +315,22 @@ test('el contador queda a la IZQUIERDA en todo ancho — ya NO sm:text-center (e
   assert.doesNotMatch(html, /text-center/);
 });
 
-// ─── EL REVELADO ESCALONADO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, § ORIGEN-TEXTO-EN-CASCADA-1 ────
+// ─── EL REVELADO ESCALONADO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, § ORIGEN-TEXTO-POR-BLOQUE-1 ────
 //
 // El gate del owner: «los datos deberían ir apareciendo progresivamente, no cargar de un golpe; los
 // números deberían cargar como en el muestrario, como si estuvieran aumentando». Framer-motion
 // hornea el estado `hidden` como estilo inline en el SSR (verificado por ejecución:
-// `renderToStaticMarkup` de un `motion.div`/`motion.span` con `initial="hidden"` da
-// `style="opacity:0;transform:translateY(24px)"` — sin preview/reduced-motion, el HTML nace oculto
-// hasta que JS + el `IntersectionObserver` de `whileInView` lo revele), así que ESTE string es el
-// discriminador entre "entra como un bloque" (1 aparición por grupo) y "entra escalonado" (una
-// aparición por HIJO/PALABRA). Hasta ORIGEN-FOTOS-REVELADO-Y-CONTEO-1: 2 fotos + 1 bloque
-// texto+datos = 2 divs con el string y CERO en los contadores. Después de esa tanda: cada foto, el
-// bloque de TEXTO completo (1), cada fila de dato y cada cifra, su PROPIO motion.div — EL TEXTO
-// seguía siendo un solo bloque.
+// `renderToStaticMarkup` de un `motion.div`/`motion.p`/`motion.h2` con `initial="hidden"` da
+// `style="opacity:0;transform:translateY(24px)"` para `fadeUp` y `style="opacity:0;
+// transform:translateY(30%)"` para `fadeUpCascadaBloque`, § `lib/animation.ts` — sin preview/
+// reduced-motion, el HTML nace oculto hasta que JS + el `IntersectionObserver` de `whileInView` lo
+// revele), así que estos DOS strings son el discriminador entre las DOS familias de reveal: fotos/
+// datos/cifras (`fadeUp`, 24px) y los TRES bloques de texto (`fadeUpCascadaBloque`, 30%,
+// § ORIGEN-TEXTO-POR-BLOQUE-1 — reemplaza la cascada POR PALABRA de ORIGEN-TEXTO-EN-CASCADA-1, que
+// llegó a 39 `motion.span` ocultos por los 2+8+29 tokens de eyebrow/título/párrafo; ahora son
+// SIEMPRE 3, uno por bloque, sin importar cuántas palabras tenga cada texto).
 //
-// ORIGEN-TEXTO-EN-CASCADA-1 reemplaza esa única aparición de "texto" por UNA POR PALABRA: eyebrow
-// (2) + título (8) + párrafo/lede (29) = 39 `motion.span` ocultos donde antes había 1 `motion.div`
-// (§ `TextoEnCascada.tsx`, § `palabrasDeTexto` en `lib/animation.ts`). El conteo total pasa de
-// 10 (2 fotos + 1 texto + 4 datos + 3 cifras) a **48** (2 fotos + 39 palabras + 4 datos + 3 cifras).
+// El conteo total: 2 fotos + 3 bloques de texto (eyebrow+título+párrafo) + 4 datos + 3 cifras = 12.
 
 const CONTENT_ORIGEN_COMPLETO = {
   ...DEFAULTS,
@@ -349,71 +347,78 @@ const CONTENT_ORIGEN_COMPLETO = {
   },
 } as SiteContentData;
 
-test('SIN preview: 48 motion.div/span nacen ocultos — 2 fotos + 39 palabras (eyebrow 2 + título 8 + párrafo 29) + 4 datos + 3 cifras, cada uno su PROPIO hijo', () => {
+test('SIN preview: 9 nodos fadeUp(24px) ocultos — 2 fotos + 4 datos + 3 cifras, cada uno su PROPIO hijo', () => {
   const html = renderOrigen(CONTENT_ORIGEN_COMPLETO);
   const ocultos = html.match(/style="opacity:0;transform:translateY\(24px\)"/g) ?? [];
-  assert.equal(ocultos.length, 48, 'fotos(2) + palabras(39) + datos(4) + cifras(3) = 48 revelados independientes');
+  assert.equal(ocultos.length, 9, 'fotos(2) + datos(4) + cifras(3) = 9 revelados independientes con fadeUp');
 });
 
-test('EN PREVIEW: los mismos 48 nacen YA visibles (opacity:1) — nunca ocultos esperando un scroll que el editor no dispara', () => {
+test('SIN preview: 3 bloques de texto (fadeUpCascadaBloque, 30%) ocultos — eyebrow + título + párrafo, SIEMPRE 3 sin importar la cantidad de palabras', () => {
+  const html = renderOrigen(CONTENT_ORIGEN_COMPLETO);
+  const ocultos = html.match(/style="opacity:0;transform:translateY\(30%\)"/g) ?? [];
+  assert.equal(ocultos.length, 3, 'eyebrow + título + párrafo = 3, cada uno UN bloque entero');
+});
+
+test('EN PREVIEW: los 12 (9 fadeUp + 3 bloques de texto) nacen YA visibles (opacity:1) — nunca ocultos esperando un scroll que el editor no dispara', () => {
   const html = renderOrigen(CONTENT_ORIGEN_COMPLETO, { preview: true });
   assert.equal(html.match(/style="opacity:0/g), null, 'ningún nodo debe quedar oculto en preview');
   const visibles = html.match(/style="opacity:1;transform:none"/g) ?? [];
-  assert.equal(visibles.length, 48);
+  assert.equal(visibles.length, 12, 'fotos(2) + datos(4) + cifras(3) + bloques de texto(3) = 12');
 });
 
-test('con SÓLO 2 datos y sin stats: 2 fotos + 39 palabras + 2 datos = 43 ocultos — el conteo sigue la CANTIDAD real, no un tope fijo', () => {
+test('con SÓLO 2 datos y sin stats: 2 fotos + 2 datos = 4 ocultos fadeUp — el conteo sigue la CANTIDAD real, no un tope fijo', () => {
   const content = {
     ...DEFAULTS,
     origen: { ...DEFAULTS.origen, visible: true, dato1Valor: '1.500 – 1.800 msnm', dato2Valor: 'Caturra y Colombia' },
   } as SiteContentData;
   const html = renderOrigen(content);
   const ocultos = html.match(/style="opacity:0;transform:translateY\(24px\)"/g) ?? [];
-  assert.equal(ocultos.length, 43);
+  assert.equal(ocultos.length, 4);
+  const ocultosTexto = html.match(/style="opacity:0;transform:translateY\(30%\)"/g) ?? [];
+  assert.equal(ocultosTexto.length, 3, 'los 3 bloques de texto no dependen de cuántos datos/cifras haya');
 });
 
-// ─── `TextoEnCascada` — a11y, no-JS y orden de las palabras ─────────────────────────────────────
+// ─── `TextoEnCascada` — a11y, no-JS y la pieza como unidad (ya NO hay palabras) ──────────────────
 
-test('eyebrow/título/párrafo llevan `aria-label` con el texto COMPLETO, sin partir — el lector de pantalla anuncia la frase entera', () => {
+test('eyebrow/título/párrafo YA NO llevan `aria-label` — sin tokenizar, el propio nodo ya contiene el texto completo', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
-  assert.ok(html.includes(`aria-label="${DEFAULTS.origen.eyebrow}"`));
-  assert.ok(html.includes(`aria-label="${DEFAULTS.origen.titulo}"`));
-  assert.ok(html.includes(`aria-label="${DEFAULTS.origen.lede}"`));
+  assert.ok(!html.includes('aria-label='), 'ningún nodo de Origen debe llevar aria-label — ya no hace falta el rodeo de accesibilidad de la cascada por palabra');
 });
 
-test('cada palabra queda `aria-hidden` dentro de un contenedor propio — tres contenedores (eyebrow, título, párrafo), uno por `TextoEnCascada`', () => {
-  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
-  const html = renderOrigen(content);
-  const contenedores = html.match(/<span aria-hidden="true">/g) ?? [];
-  assert.equal(contenedores.length, 3, 'eyebrow + título + párrafo');
-});
-
-test('SIN JS, el texto se ve completo — cada `TextoEnCascada` emite su `<noscript>` con la regla que fuerza opacidad 1 sobre `.sf-cascada-palabra`', () => {
-  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
-  const html = renderOrigen(content);
-  const noscripts = html.match(/<noscript><style>\.sf-cascada-palabra\{opacity:1!important;transform:none!important\}<\/style><\/noscript>/g) ?? [];
-  assert.equal(noscripts.length, 3, 'eyebrow + título + párrafo, cada uno con su propia regla (misma regla, repetida)');
-});
-
-test('el título rinde sus 8 palabras, en ORDEN, cada una su propio `.sf-cascada-palabra`', () => {
+test('el título rinde como UN SOLO bloque — el texto completo dentro de su propio `<h2>`, sin partir en palabras', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
   const idxH2 = html.indexOf('<h2');
   const idxFinH2 = html.indexOf('</h2>');
   const trozoH2 = html.slice(idxH2, idxFinH2);
-  const palabras = Array.from(trozoH2.matchAll(/class="sf-cascada-palabra" style="opacity:0;transform:translateY\(24px\)">([^<]*)</g)).map((m) => m[1]);
-  assert.deepEqual(palabras, ['Detrás', 'de', 'cada', 'producto', 'hay', 'un', 'origen', 'real']);
+  assert.ok(trozoH2.includes(DEFAULTS.origen.titulo), 'el texto completo debe vivir en el propio h2, no partido en nodos');
+  assert.match(trozoH2, /class="sf-cascada-bloque[^"]*"/);
+  assert.ok(!trozoH2.includes('aria-hidden'), 'sin tokenizar no hace falta ocultar nada del contenido real al lector de pantalla');
 });
 
-test('EN PREVIEW: las palabras del título también nacen YA visibles (opacity:1) — mismo gate que preview', () => {
+test('EN PREVIEW: el título también nace YA visible (opacity:1) — mismo gate que preview, como UN solo nodo', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content, { preview: true });
   const idxH2 = html.indexOf('<h2');
   const idxFinH2 = html.indexOf('</h2>');
   const trozoH2 = html.slice(idxH2, idxFinH2);
-  const palabras = Array.from(trozoH2.matchAll(/class="sf-cascada-palabra" style="opacity:1;transform:none">([^<]*)</g)).map((m) => m[1]);
-  assert.deepEqual(palabras, ['Detrás', 'de', 'cada', 'producto', 'hay', 'un', 'origen', 'real']);
+  assert.ok(trozoH2.includes(DEFAULTS.origen.titulo));
+  assert.match(trozoH2, /class="sf-cascada-bloque[^"]*" style="opacity:1;transform:none"/);
+});
+
+test('las TRES piezas (eyebrow, título, párrafo) llevan la clase `sf-cascada-bloque` — una por pieza, no una por palabra', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  const piezas = html.match(/class="sf-cascada-bloque/g) ?? [];
+  assert.equal(piezas.length, 3, 'eyebrow + título + párrafo');
+});
+
+test('SIN JS, el texto se ve completo — cada `TextoEnCascada` emite su `<noscript>` con la regla que fuerza opacidad 1 sobre `.sf-cascada-bloque`', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  const noscripts = html.match(/<noscript><style>\.sf-cascada-bloque\{opacity:1!important;transform:none!important\}<\/style><\/noscript>/g) ?? [];
+  assert.equal(noscripts.length, 3, 'eyebrow + título + párrafo, cada uno con su propia regla (misma regla, repetida)');
 });
 
 // ─── CORTE la enciende; los demás presets no tocan `content.origen` ─────────────────────────────

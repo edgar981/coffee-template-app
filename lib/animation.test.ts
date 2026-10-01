@@ -18,7 +18,7 @@ import {
   transicionEscalonada, REVELADO_GRUPO_DURACION_S, REVELADO_GRUPO_EASE, REVELADO_GRUPO_PASO_S,
   DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE, DRAWER_MOVIL_PASO_S, DRAWER_MOVIL_BASE_S,
   retardoEntradaDrawerMovil, retardoSalidaDrawerMovil,
-  transicionPalabra, CASCADA_PALABRA_PASO_S, CASCADA_PALABRA_DELAY_MAX_S, palabrasDeTexto,
+  transicionBloqueCascada, CASCADA_BLOQUE_DURACION_S, CASCADA_BLOQUE_EASE, CASCADA_BLOQUE_PASO_S, fadeUpCascadaBloque,
   revelaMascaraVertical, transicionTituloPostal, transicionFadePostal,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
@@ -863,59 +863,36 @@ test('retardoSalidaDrawerMovil: sin base (a diferencia de la entrada) — el pri
   assert.equal(retardoSalidaDrawerMovil(3, 4), 0, 'el cierre no necesita el margen que la entrada usa para separarse del click que abrió el panel');
 });
 
-// § ORIGEN-TEXTO-EN-CASCADA-1 — `transicionPalabra`/`palabrasDeTexto`, el tokenizador y el
-// escalonado de `TextoEnCascada`. Ver el docstring en `lib/animation.ts` para qué midió este
-// slice contra Cafeone real (block-level, NO por palabra) y por qué el split es por palabra igual.
+// § ORIGEN-TEXTO-POR-BLOQUE-1 — `transicionBloqueCascada`/`fadeUpCascadaBloque`, el escalonado
+// POR BLOQUE de `TextoEnCascada` (reemplaza la cascada por palabra de ORIGEN-TEXTO-EN-CASCADA-1 —
+// `transicionPalabra`/`palabrasDeTexto`/`TokenCascada`/`CASCADA_PALABRA_*` se retiraron con esta
+// tanda, sin consumidores restantes). Ver el docstring en `lib/animation.ts` para la RE-medición
+// contra `xo-cascade`: duración, curva, paso y propiedad, los cuatro leídos del JS/CSS del tema y
+// de `window.settings` embebido en la página viva (`.scratch/refs/cafeone-home.html`).
 
-test('transicionPalabra(0): sin retraso — la primera palabra entra de inmediato', () => {
-  assert.deepEqual(transicionPalabra(0), { duration: REVELADO_GRUPO_DURACION_S, ease: REVELADO_GRUPO_EASE, delay: 0 });
+test('transicionBloqueCascada(0): sin retraso — el primer bloque entra de inmediato', () => {
+  assert.deepEqual(transicionBloqueCascada(0), { duration: CASCADA_BLOQUE_DURACION_S, ease: CASCADA_BLOQUE_EASE, delay: 0 });
 });
 
-test('transicionPalabra: el retraso crece en pasos de 30ms hasta el tope — 1→30ms, 2→60ms, 10→300ms', () => {
-  for (const i of [1, 2, 10]) {
-    assert.equal(transicionPalabra(i).delay, i * CASCADA_PALABRA_PASO_S, `índice ${i}`);
+test('transicionBloqueCascada: el retraso crece en pasos de 75ms — el `--xo-constant` medido, literal en el JS del tema, no configurable', () => {
+  for (const i of [1, 2, 3]) {
+    assert.equal(transicionBloqueCascada(i).delay, i * CASCADA_BLOQUE_PASO_S, `índice ${i}`);
   }
 });
 
-test('transicionPalabra: el retraso NO sigue creciendo pasado el tope — un párrafo largo no tarda más en EMPEZAR a completarse que uno corto', () => {
-  const indiceDelTope = CASCADA_PALABRA_DELAY_MAX_S / CASCADA_PALABRA_PASO_S;
-  assert.equal(transicionPalabra(indiceDelTope).delay, CASCADA_PALABRA_DELAY_MAX_S);
-  assert.equal(transicionPalabra(indiceDelTope + 1).delay, CASCADA_PALABRA_DELAY_MAX_S, 'una palabra más allá del tope comparte el mismo delay, no sigue sumando pasos');
-  assert.equal(transicionPalabra(1000).delay, CASCADA_PALABRA_DELAY_MAX_S, 'un párrafo absurdamente largo tampoco rompe el tope');
+test('transicionBloqueCascada: duration 500ms y ease cubic-bezier(0,0,.3,1) — las cifras MEDIDAS de xo-cascade, no las de REVELADO_GRUPO_*', () => {
+  assert.equal(CASCADA_BLOQUE_DURACION_S, 0.5);
+  assert.deepEqual(CASCADA_BLOQUE_EASE, [0, 0, 0.3, 1]);
+  assert.equal(transicionBloqueCascada(0).duration, 0.5);
+  assert.deepEqual(transicionBloqueCascada(0).ease, [0, 0, 0.3, 1]);
 });
 
-test('transicionPalabra: duration/ease son los del revelado por grupo ya establecido — una palabra no entra con una curva distinta de una foto o una cifra', () => {
-  assert.equal(transicionPalabra(0).duration, REVELADO_GRUPO_DURACION_S);
-  assert.deepEqual(transicionPalabra(5).ease, REVELADO_GRUPO_EASE);
+test('CASCADA_BLOQUE_PASO_S es 75ms — el `--xo-constant` literal del JS del tema', () => {
+  assert.equal(CASCADA_BLOQUE_PASO_S, 0.075);
 });
 
-test('palabrasDeTexto: separa por espacio en blanco, numerando SÓLO las palabras — "El origen" da 2 tokens-palabra con índice 0 y 1', () => {
-  const tokens = palabrasDeTexto('El origen');
-  const palabras = tokens.filter((t) => t.esPalabra);
-  assert.equal(palabras.length, 2);
-  assert.deepEqual(palabras.map((t) => t.texto), ['El', 'origen']);
-  assert.deepEqual(palabras.map((t) => t.indice), [0, 1]);
-});
-
-test('palabrasDeTexto: preserva el espacio como su PROPIO token, sin índice de palabra (-1) — no se pierde ni se reconstruye a mano', () => {
-  const tokens = palabrasDeTexto('El origen');
-  assert.equal(tokens.length, 3, '"El", " ", "origen"');
-  assert.equal(tokens[1].esPalabra, false);
-  assert.equal(tokens[1].texto, ' ');
-  assert.equal(tokens[1].indice, -1);
-});
-
-test('palabrasDeTexto: reconstruir concatenando TODOS los tokens.texto (palabra o no) devuelve el texto original EXACTO', () => {
-  const original = 'Detrás de cada producto hay un origen real';
-  const reconstruido = palabrasDeTexto(original).map((t) => t.texto).join('');
-  assert.equal(reconstruido, original);
-});
-
-test('palabrasDeTexto: la lede real de Origen (29 palabras, con comas y puntos pegados) numera 0..28 sin huecos', () => {
-  const lede = 'Cada producto que ofrecemos nace en un lugar concreto, con personas que lo hacen posible. Contamos esa historia para que sepas exactamente de dónde viene lo que te llega.';
-  const palabras = palabrasDeTexto(lede).filter((t) => t.esPalabra);
-  assert.equal(palabras.length, 29);
-  assert.deepEqual(palabras.map((t) => t.indice), Array.from({ length: 29 }, (_, i) => i));
+test('fadeUpCascadaBloque: oculto = invisible y desplazado 30% de la propia caja (xo-fade-up, `--xo-strength:1`) — NO los 24px fijos de `fadeUp`', () => {
+  assert.deepEqual(fadeUpCascadaBloque, { hidden: { opacity: 0, y: '30%' }, visible: { opacity: 1, y: '0%' } });
 });
 
 // § SUSCRIPCION-TITULO-Y-RECARGA-1 — el revelado de la postal de suscripción: el título sube por

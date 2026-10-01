@@ -2,29 +2,28 @@
 
 import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
-import { fadeUp, palabrasDeTexto, transicionPalabra } from "@/lib/animation";
+import { fadeUpCascadaBloque, transicionBloqueCascada } from "@/lib/animation";
 
-// TextoEnCascada — § ORIGEN-TEXTO-EN-CASCADA-1. Divide `texto` en PALABRAS y revela cada una con
-// `fadeUp` + `transicionPalabra(indice)` (`lib/animation.ts`, con el docstring que explica qué mide
-// Cafeone real y por qué el split es por palabra IGUAL si el sitio real no lo hace así — requisito
-// explícito del slice, no fidelidad al mecanismo medido). Es el MISMO `whileInView`/`preview` que ya
-// usan las fotos, la lista de datos y las cifras de `Origen.tsx` — aplicado palabra por palabra en
-// vez de bloque por bloque.
+// TextoEnCascada — § ORIGEN-TEXTO-POR-BLOQUE-1 (reemplaza la cascada POR PALABRA de
+// ORIGEN-TEXTO-EN-CASCADA-1: el gate del owner sobre esa tanda — "la animación no me supe
+// explicar y efectivamente hazla por bloque de texto" — pidió exactamente esto). Cada instancia
+// es UN bloque: el `texto` ENTERO, sin tokenizar, revelado con `fadeUpCascadaBloque` +
+// `transicionBloqueCascada(indice)` (`lib/animation.ts`, con el docstring que trae la RE-medición
+// contra `xo-cascade`). `Origen.tsx` monta TRES instancias (eyebrow, título, párrafo) que
+// ESCALONAN ENTRE SÍ por su propio `indice` — la PIEZA, no la palabra, es la unidad de esta
+// cascada, igual que en Cafeone real (§ SHARED MOMENTS, medido: el eyebrow y el h4 son DOS
+// `<xo-animate xo-cascade>` propios, nunca palabras sueltas).
 //
-// SIN JS, EL TEXTO SE VE COMPLETO — requisito explícito, y el riesgo es real: framer-motion
-// hornea `initial="hidden"` como `style="opacity:0;…"` en el HTML del servidor (medido por
-// ejecución, `renderToStaticMarkup`), así que sin hidratación ese estilo nunca se revierte. La
-// salida NO es `initial={false}`: medido (también por ejecución) que con `whileInView` y sin
-// `animate`, eso deja al nodo SIN estilo en el primer render y SIN transición visible al entrar en
-// vista —framer-motion no tiene "desde dónde" animar—, perdiendo el efecto para quien SÍ tiene JS.
-// La salida es un `<noscript>` con una regla `!important` que el navegador sólo PARSEA como markup
-// real cuando el scripting está apagado (con JS encendido, el contenido de `<noscript>` nunca se
-// convierte en nodos reales): así la animación de siempre queda intacta para quien tiene JS, y
-// quien no lo tiene ve la frase entera, sin un solo opacity:0 que nadie vaya a revertir.
+// SIN JS, EL TEXTO SE VE COMPLETO — mismo requisito y mismo mecanismo que la versión por palabras:
+// framer-motion hornea `initial="hidden"` como `style="opacity:0;transform:translateY(30%)"` en
+// el HTML del servidor (medido por ejecución, `renderToStaticMarkup`), y sin hidratación ese
+// estilo nunca se revierte. La salida es un `<noscript>` con una regla `!important` que el
+// navegador sólo PARSEA como markup real cuando el scripting está apagado: con JS la animación
+// queda intacta, y sin JS el bloque se ve completo, sin opacidad/traslado residual.
 //
-// ACCESIBLE: cada palabra es decoración visual (`aria-hidden`); el texto COMPLETO, sin partir,
-// vive en el `aria-label` del envoltorio — un lector de pantalla anuncia la frase entera, nunca
-// palabra por palabra con pausas que el texto original no tiene.
+// YA NO HACE FALTA `aria-hidden`/`aria-label`: al no partir el texto en nodos, el propio elemento
+// YA contiene el texto completo — un lector de pantalla lo anuncia como cualquier `<p>`/`<h2>`
+// normal, sin el riesgo de pausas por palabra que sí existía al tokenizar.
 type EtiquetaCascada = "span" | "p" | "h2" | "h3";
 
 export default function TextoEnCascada({
@@ -33,44 +32,36 @@ export default function TextoEnCascada({
   className,
   style,
   preview = false,
-  indiceInicial = 0,
+  indice = 0,
 }: {
   texto: string;
   as?: EtiquetaCascada;
   className?: string;
   style?: CSSProperties;
   preview?: boolean;
-  indiceInicial?: number;
+  indice?: number;
 }) {
   if (!texto) return null;
 
-  const tokens = palabrasDeTexto(texto);
+  const MotionEtiqueta = motion[Etiqueta];
 
   return (
-    <Etiqueta className={className} style={style} aria-label={texto}>
+    <>
       <noscript>
-        <style>{".sf-cascada-palabra{opacity:1!important;transform:none!important}"}</style>
+        <style>{".sf-cascada-bloque{opacity:1!important;transform:none!important}"}</style>
       </noscript>
-      <span aria-hidden="true">
-        {tokens.map((token, i) =>
-          token.esPalabra ? (
-            <motion.span
-              key={i}
-              className="sf-cascada-palabra"
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              transition={preview ? undefined : transicionPalabra(indiceInicial + token.indice)}
-            >
-              {token.texto}
-            </motion.span>
-          ) : (
-            <span key={i}>{token.texto}</span>
-          ),
-        )}
-      </span>
-    </Etiqueta>
+      <MotionEtiqueta
+        className={className ? `sf-cascada-bloque ${className}` : "sf-cascada-bloque"}
+        style={style}
+        initial={preview ? false : "hidden"}
+        animate={preview ? "visible" : undefined}
+        whileInView={preview ? undefined : "visible"}
+        viewport={preview ? undefined : { once: true }}
+        variants={fadeUpCascadaBloque}
+        transition={preview ? undefined : transicionBloqueCascada(indice)}
+      >
+        {texto}
+      </MotionEtiqueta>
+    </>
   );
 }

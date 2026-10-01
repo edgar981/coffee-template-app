@@ -1178,69 +1178,54 @@ export function retardoSalidaDrawerMovil(indice: number, total: number): number 
   return (total - 1 - indice) * DRAWER_MOVIL_PASO_S;
 }
 
-// ── LA CASCADA DE PALABRAS — § ORIGEN-TEXTO-EN-CASCADA-1 ──────────────────────────────────────
+// ── LA CASCADA DE BLOQUES — § ORIGEN-TEXTO-POR-BLOQUE-1 (reemplaza a la cascada de palabras de
+// ORIGEN-TEXTO-EN-CASCADA-1) ───────────────────────────────────────────────────────────────────
 //
-// El gate del owner: *"Quiero implementar la forma de cómo salen las palabras al pasar por la
-// sección SHARED MOMENTS [de Cafeone real]… quiero aplicar eso a… El origen"*. Medido contra el
-// JS real del tema (`xo-webcomponents.min.js`, el mismo bundle ya leído en
-// CORTE-HERO-VELO-OFF-Y-TICKER-1) Y por EJECUCIÓN contra `x-cafeone.myshopify.com` en vivo
-// (Playwright, scroll real paso a paso): el `xo-cascade` de esa sección NO divide en palabras —
-// es un escalonado POR HERMANO. El eyebrow "SHARED MOMENTS" y el h4 son DOS `<xo-animate
-// xo-cascade>` distintos; un `IntersectionObserver` compartido les asigna `--xo-order` 0/1/2… al
-// entrar (`--xo-duration:500`, `--xo-constant:75` → delay = order·75ms, easing
-// `cubic-bezier(0,0,.3,1)`, los cuatro medidos por `getComputedStyle` en vivo). CENSO en vivo
-// sobre TODA la página (incluida esta sección): CERO nodos `xo-animate-item` — el mecanismo que
-// SÍ partiría en ítems, gateado por el atributo `xo-item-used`, que tampoco aparece ni una vez.
+// Gate del owner sobre el resultado de esa tanda: *"La animación no me supe explicar y
+// efectivamente hazla por bloque de texto."* — la cascada por PALABRA se retira; `TextoEnCascada`
+// deja de tokenizar y pasa a ser UN bloque (el texto ENTERO) por instancia, el mecanismo que
+// ORIGEN-TEXTO-EN-CASCADA-1 ya había leído de `xo-webcomponents.min.js` pero no reusaba (ese
+// slice reusaba a propósito `REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_EASE`, por consistencia
+// con el resto de los reveals — ver su commit). Esta tanda SÍ pide las cifras medidas.
 //
-// Y SIN EMBARGO el split acá es por PALABRA, a propósito: lo medido no manda sobre un REQUISITO
-// explícito de este slice que sólo tiene sentido si hay palabras partidas de verdad —*"el texto
-// sigue siendo un solo texto para lectores de pantalla (las palabras partidas no se leen
-// sueltas)"*. Es la desviación que el reporte de este slice declara: Cafeone real NO divide en
-// palabras; `TextoEnCascada` sí, por ese requisito, no por fidelidad al mecanismo medido.
+// RE-MEDIDO por EJECUCIÓN, no releído de memoria: `window.settings` embebido en
+// `.scratch/refs/cafeone-home.html` (la página viva, la misma usada por ORIGEN-TEXTO-EN-CASCADA-1)
+// trae `animate_duration: 500`, `animate_effect: 'fade-up'`, `animate_strength: 1` — los TRES
+// iguales a los defaults que el propio `xo-webcomponents.min.js` ya declara (`xoDuration` cae a
+// 500 y `xoType` a `'fade-up'` si `window.settings` no los trae), así que SHARED MOMENTS corre con
+// esos tres valores de fábrica o explícitos, da igual. `xoEasing:"easeLight"` es un LITERAL fijo
+// en el JS —NO viene de `window.settings`, no es configurable por tema— que el mapa de nombres de
+// easing del mismo bundle resuelve a `cubic-bezier(0, 0, 0.3, 1)`. Y `xoConstant` (el paso del
+// escalonado entre hermanos, asignado por el `IntersectionObserver` compartido vía `--xo-order`)
+// es **75, también literal en el JS**. El keyframe `xo-fade-up` (`xo-webcomponents.min.css`) anima
+// `opacity:0→1` junto a `transform:translate3d(0, calc(var(--xo-strength) * 30%), 0) → none` — con
+// `--xo-strength:1`, un `translateY(30%)` de la propia caja del bloque, no un píxel fijo.
 //
-// EL PASO NO REUSA `REVELADO_GRUPO_PASO_S` (90ms): ese paso se calibró para 2-5 HERMANOS (fotos,
-// filas de datos, cifras) — un párrafo de ~30 palabras a 90ms/palabra tardaría más de 2.5s en
-// siquiera EMPEZAR a mostrar su última palabra. `CASCADA_PALABRA_PASO_S` es un escalón más chico,
-// pensado para decenas de palabras, y `CASCADA_PALABRA_DELAY_MAX_S` topa el delay total: pasado
-// el tope, las palabras que siguen comparten el mismo instante de entrada en vez de seguir
-// alargando la espera (un párrafo largo no debe tardar más en EMPEZAR a completarse que uno
-// corto). La duración y la curva SÍ reusan `REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_EASE` — es
-// el revelado que este storefront ya estableció; una palabra no tiene motivo para entrar con una
-// curva distinta de una foto o una cifra.
-export const CASCADA_PALABRA_PASO_S = 0.03;
-export const CASCADA_PALABRA_DELAY_MAX_S = 0.6;
+// LAS CUATRO CIFRAS DE ESTA TANDA SON LAS MEDIDAS DE XO-CASCADE, NO LAS DEL STOREFRONT — a
+// diferencia de `transicionPalabra` (retirada, con esta tanda, junto a `palabrasDeTexto`/
+// `TokenCascada`/`CASCADA_PALABRA_*`: nada más los usaba — censo: sólo `Origen.tsx`,
+// `TextoEnCascada.tsx` y sus dos archivos de test — dejarlos vivos sería código muerto), el spec
+// de esta tanda pide explícitamente "las propiedades, duración, curva y escalonado que ese slice
+// midió de `xo-cascade`": 500ms, `cubic-bezier(0,0,.3,1)`, 75ms de paso, `opacity 0→1` +
+// `translateY(30%)→0%`.
+export const CASCADA_BLOQUE_DURACION_S = 0.5;
+export const CASCADA_BLOQUE_EASE: [number, number, number, number] = [0, 0, 0.3, 1];
+export const CASCADA_BLOQUE_PASO_S = 0.075;
 
-export function transicionPalabra(indice: number): { duration: number; ease: [number, number, number, number]; delay: number } {
+// `fadeUpCascadaBloque` es el GEMELO de `fadeUp` para esta cascada — NO SE REUSA `fadeUp` porque
+// su magnitud (24px fijos, § el docstring de `fadeUp` arriba) es la convención de ESTE storefront
+// para tarjetas/texto de cuerpo, mientras que acá la cifra a replicar es la de Cafeone: un
+// PORCENTAJE de la propia caja del bloque (30%, `--xo-strength:1`). Mismo principio que
+// `transformRevelaTextoDisplay` ya aplica al marquee del hero: un `translateY(N%)` escala con el
+// tamaño del propio bloque, nunca se vuelve a vencer en otra escala tipográfica.
+export const fadeUpCascadaBloque = { hidden: { opacity: 0, y: "30%" }, visible: { opacity: 1, y: "0%" } };
+
+export function transicionBloqueCascada(indice: number): { duration: number; ease: [number, number, number, number]; delay: number } {
   return {
-    duration: REVELADO_GRUPO_DURACION_S,
-    ease: REVELADO_GRUPO_EASE,
-    delay: Math.min(indice * CASCADA_PALABRA_PASO_S, CASCADA_PALABRA_DELAY_MAX_S),
+    duration: CASCADA_BLOQUE_DURACION_S,
+    ease: CASCADA_BLOQUE_EASE,
+    delay: indice * CASCADA_BLOQUE_PASO_S,
   };
-}
-
-// `palabrasDeTexto` — el ÚNICO tokenizador de `TextoEnCascada`: separa por espacio en blanco
-// PRESERVANDO el espacio como su propio token (así el salto de línea natural entre las palabras,
-// ahora cada una su propio `inline-block`, sigue cayendo donde el navegador decida — ningún token
-// se descarta ni se reconstruye a mano). Sólo los tokens de PALABRA llevan `indice` (0-based,
-// consecutivo); los de espacio quedan en `-1` y no participan del escalonado. Un segundo
-// tokenizador en el componente podría partir el texto distinto del que cuenta `indiceInicial` en
-// `Origen.tsx` y desalinear el escalonado entre eyebrow/título/párrafo — por eso vive una sola vez,
-// acá, y el componente y quien lo llama comparten esta misma función.
-export interface TokenCascada {
-  texto: string;
-  esPalabra: boolean;
-  indice: number;
-}
-
-export function palabrasDeTexto(texto: string): TokenCascada[] {
-  const trozos = texto.split(/(\s+)/).filter((trozo) => trozo.length > 0);
-  let indice = 0;
-  return trozos.map((trozo) => {
-    const esPalabra = !/^\s+$/.test(trozo);
-    const token: TokenCascada = { texto: trozo, esPalabra, indice: esPalabra ? indice : -1 };
-    if (esPalabra) indice++;
-    return token;
-  });
 }
 
 // ── EL REVELADO DE LA POSTAL DE SUSCRIPCIÓN — § SUSCRIPCION-TITULO-Y-RECARGA-1 ───────────────────
