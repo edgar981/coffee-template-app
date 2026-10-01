@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ShoppingBag, ArrowLeft, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,11 +12,11 @@ import { useCartStore } from "@/lib/cartStore";
 import { moliendasDisponibles, moliendaAceptada, imagenDeMolienda } from "@duna/core/moliendas-opciones";
 import { formatCOP } from "@duna/core/utils";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { fadeUp } from "@/lib/animation";
+import { fadeUp, transicionDestacadoFoto, transicionDestacadoTexto } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
-import { ejesSpotlight, etiquetaEjesSpotlight, grupoSpotlight, valoresDeEje, productoDeCombinacion } from "@/lib/config/spotlight";
+import { ejesSpotlight, etiquetaEjesSpotlight, grupoSpotlight, valoresDeEje, productoDeCombinacion, nombreCafeSpotlight } from "@/lib/config/spotlight";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 
@@ -40,6 +40,14 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 export default function Spotlight({ style }: { style?: React.CSSProperties } = {}) {
   const { spotlight, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  // EL FUNDIDO CRUZADO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) es disparado por un CLIC (elegir
+  // otra presentación/tamaño/molienda), no por scroll — a diferencia de `estatico = preview ||
+  // !!useReducedMotion()` que el resto del archivo usa para el revelado de entrada (que SÍ depende
+  // de un viewport real que el preview no tiene), acá sólo `prefers-reduced-motion` aplica: el
+  // preview es un storefront real renderizado en vivo (§ CLAUDE.md, "la vista previa es EN VIVO") y
+  // debe verse IGUAL que lo que el visitante ve, incluida esta transición.
+  const reduceMotion = useReducedMotion();
+  const estatico = !!reduceMotion;
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1, SPOTLIGHT-CIERRE-1) — mismo mecanismo que
   // FeaturedProductsGrilla.tsx: `undefined` sin escala declarada → NO se toca el `style`, el h2
   // sigue rindiendo `text-3xl sm:text-4xl` (byte-idéntico); sólo CORTE ('amplia') lo agranda.
@@ -120,6 +128,28 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
   if (!producto || !productoActivo) return null; // catálogo vacío (§ productoSpotlight — hide-on-empty)
 
   const activo = productoActivo;
+
+  // PRECARGA DE LAS FOTOS DEL GRUPO (§ el spec de este slice: "Precargá las fotos del grupo para
+  // que el fundido no espere la red") — TODA foto que CUALQUIER combinación del grupo podría
+  // mostrar (las moliendas de cada miembro, o su portada si no declara ninguna), no sólo las del
+  // producto ACTIVO: cambiar Presentación/Tamaño puede aterrizar en un miembro cuyas fotos el
+  // visitante nunca pidió todavía. Son `<Image>` REALES (nunca `new window.Image()` apuntando a la
+  // URL cruda): el navegador pide la URL OPTIMIZADA de next/image (`/_next/image?url=…`), la misma
+  // que la foto visible va a pedir — precargar la URL cruda calentaría un caché que nadie vuelve a
+  // consultar. 1×1, `loading="eager"` (NUNCA `display:none` ni el lazy-loading de fábrica: un
+  // recuadro de 1px con lazy nativo se trata como píxel de rastreo y el navegador lo salta) —
+  // invisibles, fuera del flujo, sin costo de layout.
+  const fotosDelGrupo = new Set<string>();
+  for (const m of grupo) {
+    const opcionesDeM = moliendasDisponibles(m.producto.moliendasOpciones);
+    if (opcionesDeM.length > 0) {
+      for (const o of opcionesDeM) {
+        fotosDelGrupo.add(imagenPortada(imagenDeMolienda(m.producto.moliendasOpciones, o.nombre, m.producto.imagen ?? '')));
+      }
+    } else {
+      fotosDelGrupo.add(imagenPortada(m.producto.imagen ?? ''));
+    }
+  }
 
   // LA ETIQUETA SOBRE LA FOTO (§ el spec de este slice: "siempre dice molienda y peso") — DOS
   // mecanismos, el MISMO par que gobierna el selector "Presentación" más abajo (nunca los dos a la
@@ -293,19 +323,62 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               )}
               {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1): `vistaActual` es la molienda
                   elegida del producto ACTIVO — Presentación/Tamaño ya no viven acá (switch
-                  COMPLETO de producto, § el comentario de `vistas`, arriba). */}
-              <Image
-                src={vistaActual.imagen}
-                alt={activo.nombre}
-                fill
-                sizes="(max-width: 1200px) 100vw, 33vw"
-                className="object-cover"
-              />
+                  COMPLETO de producto, § el comentario de `vistas`, arriba).
+
+                  EL FUNDIDO CRUZADO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — gate del owner:
+                  "se produce un cambio brusco entre saltos... lo ideal sería que cambie la imagen
+                  con su texto solamente, pero que la transición sea suave". `AnimatePresence` (modo
+                  SYNC, el default — NO `mode="wait"`: la foto saliente y la entrante tienen que
+                  animar A LA VEZ para ser un cruce, no una espera) + `motion.div key={…}
+                  className="absolute inset-0"` apilados dentro del tile de alto FIJO
+                  (`aspect-[3/4]`, arriba) — las dos capas se superponen sin mover el alto de la
+                  sección. La `key` es la URL de la foto: sólo re-anima cuando la foto VISIBLE
+                  cambia de verdad (dos celdas con la misma imagen no re-disparan nada). */}
+              <AnimatePresence initial={false}>
+                <motion.div
+                  key={vistaActual.imagen}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={transicionDestacadoFoto(estatico)}
+                  className="absolute inset-0"
+                >
+                  <Image
+                    src={vistaActual.imagen}
+                    alt={activo.nombre}
+                    fill
+                    sizes="(max-width: 1200px) 100vw, 33vw"
+                    className="object-cover"
+                  />
+                </motion.div>
+              </AnimatePresence>
               {/* `.bag-label` (css/app.css:453-458, tokens.css:112,128): 13px, uppercase, tracking
-                  .085em, color `text-muted`, 20px del borde (`--space-5`). */}
-              {vistaActual.etiqueta && (
-                <span className="absolute left-5 bottom-5 text-[13px] uppercase tracking-[0.085em] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{vistaActual.etiqueta}</span>
-              )}
+                  .085em, color `text-muted`, 20px del borde (`--space-5`). Fundido CORTO —
+                  `transicionDestacadoTexto`, la MITAD de la duración de la foto (texto puntual, no
+                  la superficie que el ojo sigue) —, independiente del de la foto: la foto es
+                  `transicionDestacadoFoto`. */}
+              <AnimatePresence initial={false}>
+                {vistaActual.etiqueta && (
+                  <motion.span
+                    key={vistaActual.etiqueta}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={transicionDestacadoTexto(estatico)}
+                    className="absolute left-5 bottom-5 text-[13px] uppercase tracking-[0.085em] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]"
+                  >
+                    {vistaActual.etiqueta}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+              {/* El preloader invisible (§ el comentario de `fotosDelGrupo`, arriba) — vive DENTRO
+                  del tile (ya es `overflow-hidden`, así que 1×1px acá no puede filtrarse fuera de
+                  su caja ni empujar nada). */}
+              <div aria-hidden="true" className="absolute left-0 top-0 h-px w-px overflow-hidden opacity-0">
+                {[...fotosDelGrupo].map((src) => (
+                  <Image key={src} src={src} alt="" width={1} height={1} loading="eager" />
+                ))}
+              </div>
             </div>
             {/* `.stage-nav` (css/app.css:462-468): 44×44px, cuadrados (`--radius-button`=0, vía
                 `sf-pildora` bajo 'recta'), borde `border-strong`, hover `surface-muted`. Recorren
@@ -334,8 +407,13 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
 
           {/* `.spotlight-buy` (css/app.css:180-224 del markup, roles en 95-116,470-503) */}
           <div className="space-y-6">
-            {/* `.h3` (tokens.css:104,116,121): 26px, line-height 1.14, weight regular(400) — no bold. */}
-            <h3 className="text-[26px] leading-[1.14] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{activo.nombre}</h3>
+            {/* `.h3` (tokens.css:104,116,121): 26px, line-height 1.14, weight regular(400) — no bold.
+                EL NOMBRE ES EL DEL GRUPO, FIJO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — `producto`
+                (el PIN), NUNCA `activo` (la celda elegida de la matriz, que cambia con la selección):
+                gate del owner, "el nombre que salga sea solamente café Onix", no "Café Onix — Molido
+                250 g" saltando entre celdas. `nombreCafeSpotlight` (lib/config/spotlight.ts) resuelve
+                el campo editorial o, vacío, corta la variante del nombre del producto principal. */}
+            <h3 className="text-[26px] leading-[1.14] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{nombreCafeSpotlight(producto, spotlight.nombreCafe)}</h3>
             {/* `.muted` sobre el párrafo (index.html:182): color `text-muted`, tamaño heredado del
                 body (`--text-body-m`=16px, `--leading-body`=1.5). */}
             <p className="text-base leading-[1.5] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{activo.descripcion}</p>
@@ -466,9 +544,28 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
 
             {/* `.price-row` (css/app.css:491-503, tokens.css:103,111): precio en 32px (`--text-h2`),
                 serif, peso regular (no bold); la nota "COP · impuestos incluidos" es COPY —
-                `spotlight.notaPrecio`, opcional; vacío = no se muestra. */}
+                `spotlight.notaPrecio`, opcional; vacío = no se muestra.
+
+                EL PRECIO FUNDE CORTO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — `mode="popLayout"`
+                en vez del SYNC de la foto/etiqueta (que viven ABSOLUTAMENTE posicionadas dentro de
+                un tile ya de alto fijo, así que superponerse no mueve nada): el precio es texto EN
+                FLUJO, junto a la nota ("COP · impuestos incluidos") en la MISMA fila — dos precios
+                de ancho distinto presentes a la vez empujarían esa nota. `popLayout` saca al que
+                sale de el flujo (lo posiciona donde estaba mientras se desvanece) y deja que el que
+                entra ocupe su lugar en flujo de inmediato, sin que la fila salte. */}
             <div className="flex items-baseline gap-3">
-              <span className="text-[32px] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{formatCOP(activo.precio)}</span>
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.span
+                  key={activo.precio}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={transicionDestacadoTexto(estatico)}
+                  className="text-[32px] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]"
+                >
+                  {formatCOP(activo.precio)}
+                </motion.span>
+              </AnimatePresence>
               {spotlight.notaPrecio && (
                 <span className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{spotlight.notaPrecio}</span>
               )}

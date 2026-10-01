@@ -171,6 +171,9 @@ const spotlightEditableSchema = z.object({
   eyebrow: z.string().optional(),
   titulo: z.string().optional(),
   badge: z.string().optional(),
+  // El título FIJO del café (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1, `SpotlightContent.nombreCafe`):
+  // COPY libre, opcional/SOFT como el resto — vacío se deriva del producto, nunca cae a un default.
+  nombreCafe: z.string().optional(),
   productoSlug: z.string().optional(),
   // Los otros tres miembros del GRUPO (§ DESTACADO-PRESENTACION-POR-TAMANO-1, SpotlightContent en
   // site-content-defaults.ts): mismo criterio que productoSlug — valida contra el catálogo VIVO en

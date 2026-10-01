@@ -1281,3 +1281,44 @@ export function transicionFadePostal(indice: number): { duration: number; ease: 
     delay: REVELADO_GRUPO_DURACION_S + indice * REVELADO_GRUPO_PASO_S,
   };
 }
+
+// ── EL FUNDIDO CRUZADO DEL DESTACADO — § DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1 ────────────────────
+//
+// Gate del owner tras DESTACADO-PRESENTACION-POR-TAMANO-1: «se produce un cambio brusco entre
+// saltos [al elegir otra presentación o tamaño]... lo ideal sería que cambie la imagen con su texto
+// solamente, pero que la transición sea suave». `Spotlight.tsx` reemplaza la foto/etiqueta/precio de
+// golpe (un `<Image src=…>` que cambia de `src` sin más) por un fundido cruzado vía
+// `AnimatePresence`+`motion.div` apilados (`position:absolute`, dentro de un contenedor de alto FIJO
+// — § `aspect-[3/4]` — así que el fundido nunca mueve el alto de la sección).
+//
+// LA CURVA ES LA ÚNICA QUE GOBIERNA TODO EL MOVIMIENTO DE CORTE — `[0.22,0.61,0.36,1]`, la MISMA que
+// `REVELADO_GRUPO_EASE`/`REVELADO_PAGINA_EASE` (arriba) Y la que `GaleriaProducto.tsx` ya usa,
+// inline, para el swap de foto del detalle de producto (`duration:0.22, ease:[0.22,0.61,0.36,1]`,
+// su propio comentario: "LOS TOKENS DE CORTE"). No se inventa una curva nueva.
+//
+// LA DURACIÓN DE LA FOTO REUSA, LITERAL, la ya medida para ESE MISMO GESTO — "cambiar la imagen de un
+// producto por una elección del visitante" (GaleriaProducto.tsx, flechas de la galería del PDP) —, no
+// la de 0.6s de un reveal por SCROLL (`REVELADO_GRUPO_DURACION_S`): son disparadores distintos (un
+// clic contra el viewport entrando en vista), y copiar el token de scroll habría sido la MISMA
+// confusión que esa sección ya advierte para `fadeUp` ("se diseñó para OTRO disparador, no se
+// reusa sin medir"). La etiqueta y el precio son texto PUNTUAL —no la superficie que el ojo sigue—,
+// así que su fundido es la MITAD de corto.
+export const TRANSICION_DESTACADO_EASE: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
+export const TRANSICION_DESTACADO_FOTO_DURACION_S = 0.22;
+export const TRANSICION_DESTACADO_TEXTO_DURACION_S = TRANSICION_DESTACADO_FOTO_DURACION_S / 2;
+
+/** `estatico` (reduced-motion, el MISMO gate que `transformAcomodo`/`veloOpacidad`: "movimiento
+ *  reducido: cambio directo" del spec) rinde `duration:0`. `AnimatePresence` sigue montando la
+ *  transición de salida/entrada (no se desactiva el mecanismo, se colapsa su duración a 0) — el
+ *  efecto visible es el swap directo que el spec pide, sin bifurcar el árbol de JSX entre dos
+ *  implementaciones. Mismo criterio que `transformMarquesinaTarjeta(progreso, estatico)`: `estatico`
+ *  cambia el VALOR que la función devuelve, no la forma del componente que la consume. */
+export function transicionDestacadoFoto(estatico: boolean): { duration: number; ease: [number, number, number, number] } {
+  return { duration: estatico ? 0 : TRANSICION_DESTACADO_FOTO_DURACION_S, ease: TRANSICION_DESTACADO_EASE };
+}
+
+/** La hermana de `transicionDestacadoFoto`, para la etiqueta sobre la foto y el precio — MISMA
+ *  curva, la MITAD de duración. */
+export function transicionDestacadoTexto(estatico: boolean): { duration: number; ease: [number, number, number, number] } {
+  return { duration: estatico ? 0 : TRANSICION_DESTACADO_TEXTO_DURACION_S, ease: TRANSICION_DESTACADO_EASE };
+}

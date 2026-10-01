@@ -90,18 +90,20 @@ test('spotlight TODAVÍA no es miembro de BANDA_IDS — el bloqueo medido de SPO
 });
 
 // DEVIACIÓN MECÁNICA (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, fuera de `touches:` de ese
-// slice; actualizada de nuevo por § DESTACADO-PRESENTACION-POR-TAMANO-1, también fuera de
-// `touches:` de ÉSE — mismo patrón, misma razón): `presentacionSlug`/`cuartoSlug` se sumaron a
-// `SpotlightContent`/`DEFAULTS.spotlight` como TERCER y CUARTO puntero del grupo (§ su docstring en
-// site-content-defaults.ts) y esta aserción, literal objeto por objeto, quedó desactualizada por
-// cada campo nuevo — se actualiza acá para que el gate siga verde; no cambia el CRITERIO que el
-// test afirma (nace OFF, todo campo de texto vacío), sólo su conteo de campos.
-test('DEFAULTS.spotlight nace OFF (visible:false) con los ocho campos vacíos — la ÚNICA sección ocultable con este default, y a propósito', () => {
+// slice; actualizada de nuevo por § DESTACADO-PRESENTACION-POR-TAMANO-1 y ahora por
+// § DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1, también fuera de `touches:` de ÉSTAS — mismo patrón,
+// misma razón): `presentacionSlug`/`cuartoSlug`/`nombreCafe` se sumaron a `SpotlightContent`/
+// `DEFAULTS.spotlight` (§ su docstring en site-content-defaults.ts) y esta aserción, literal
+// objeto por objeto, quedó desactualizada por cada campo nuevo — se actualiza acá para que el gate
+// siga verde; no cambia el CRITERIO que el test afirma (nace OFF, todo campo de texto vacío), sólo
+// su conteo de campos.
+test('DEFAULTS.spotlight nace OFF (visible:false) con los nueve campos vacíos — la ÚNICA sección ocultable con este default, y a propósito', () => {
   assert.deepEqual(DEFAULTS.spotlight, {
     visible: false,
     eyebrow: '',
     titulo: '',
     badge: '',
+    nombreCafe: '',
     productoSlug: '',
     presentacionSlug: '',
     otroTamanoSlug: '',

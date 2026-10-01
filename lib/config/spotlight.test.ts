@@ -6,6 +6,7 @@ import {
   valoresDeEje,
   productoDeCombinacion,
   etiquetaEjesSpotlight,
+  nombreCafeSpotlight,
 } from './spotlight';
 
 // ─── ejesSpotlight — DATO del producto, nunca un literal inventado ────────────────────────────────
@@ -109,4 +110,26 @@ test('etiquetaEjesSpotlight: "presentación · peso" cuando el producto declara 
 
 test('etiquetaEjesSpotlight: sin peso, sólo la presentación — nunca un peso vacío colgando', () => {
   assert.equal(etiquetaEjesSpotlight({ presentacion: 'En grano', tamano: null }), 'En grano');
+});
+
+// ─── nombreCafeSpotlight — el título FIJO, nunca el nombre con la variante pegada ──────────────────
+
+test('nombreCafeSpotlight: con el campo configurado, gana tal cual — ignora el nombre del producto', () => {
+  assert.equal(nombreCafeSpotlight({ nombre: 'Café Nayoli — Molido 250 g' }, 'Café Onix'), 'Café Onix');
+});
+
+test('nombreCafeSpotlight: sin el campo, corta en " — " — el nombre del café, sin la variante', () => {
+  assert.equal(nombreCafeSpotlight({ nombre: 'Café Nayoli — En grano 250 g' }, ''), 'Café Nayoli');
+});
+
+test('nombreCafeSpotlight: el campo configurado en blanco (sólo espacios) cuenta como vacío — cae a derivar', () => {
+  assert.equal(nombreCafeSpotlight({ nombre: 'Café Nayoli — Molido 500 g' }, '   '), 'Café Nayoli');
+});
+
+test('nombreCafeSpotlight: sin el separador " — ", el nombre entero — nunca lo corta de más', () => {
+  assert.equal(nombreCafeSpotlight({ nombre: 'Café Especial' }, ''), 'Café Especial');
+});
+
+test('nombreCafeSpotlight: un guion simple "-" no es el separador — sólo el em dash " — " exacto corta', () => {
+  assert.equal(nombreCafeSpotlight({ nombre: 'Café Nayoli - Molido 250 g' }, ''), 'Café Nayoli - Molido 250 g');
 });

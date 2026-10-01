@@ -40305,3 +40305,188 @@ slice, por instrucción del dispatch, no mergea.
   no corregido por no ser parte de lo que este slice necesita.
 
 **Cierra `MARCA-LOGO-IMAGEN-1`.**
+
+## 2026-10-01 — El título del destacado es el del CAFÉ, fijo, y foto/etiqueta/precio funden en vez de saltar (`DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`)
+
+Gate del owner sobre `DESTACADO-PRESENTACION-POR-TAMANO-1`, textual: *"En destacado hay alguna forma
+de hacer que el nombre que salga sea solamente café Onix, en lugar de: 'Café Onix — Molido 250 g'
+[…] ya que se produce un cambio brusco entre saltos, lo ideal sería que cambie la imagen con su
+texto solamente, pero que la transición sea suave, ahora mismo están cambiando de golpe, va 'en
+contra' de lo que estamos haciendo con la página."*
+
+### 1 · El título: `producto` (el pin), nunca `activo` (la celda elegida)
+
+El h3 de `Spotlight.tsx` mostraba `activo.nombre` — el nombre del producto de la CELDA elegida de
+la matriz (§ `productoDeCombinacion`, DESTACADO-PRESENTACION-POR-TAMANO-1), que CAMBIA con la
+selección — con la variante pegada ("<café> — <presentación> <peso>", el formato real de
+`prisma/seed-products.ts`). El defecto era DOBLE y corregir sólo uno de los dos no alcanzaba:
+cambiar la FUENTE sin recortar la variante habría dejado "Café Nayoli — Molido 250 g" saltando a
+"Café Nayoli — En grano 500 g"; recortar la variante sin fijar la fuente habría dejado el nombre
+saltando entre "Café Nayoli" y "Café Nayoli" (coincidencia de ESTE seed — dos productos del grupo
+pueden declarar nombres de café DISTINTOS a mano, y ahí seguiría saltando).
+
+**`nombreCafeSpotlight(principal, nombreCafe)`** (`lib/config/spotlight.ts`, puro, capa 1):
+
+1. `SpotlightContent.nombreCafe` (campo EDITORIAL nuevo, opcional) — si el dueño lo escribió, gana
+   tal cual. Cubre el nombre que el recorte automático no alcanza.
+2. Sin ese campo, corta el nombre del PRINCIPAL (`producto`, el pin — el único de los dos que
+   NUNCA cambia con la selección) en el separador EXACTO `" — "` y se queda con lo de ANTES. Sin
+   ese separador, el nombre entero — nunca una cadena vacía por cortar de más, ni un corte parcial
+   sobre un guion simple `"-"` que no es el separador declarado.
+
+`Spotlight.tsx` llama `nombreCafeSpotlight(producto, spotlight.nombreCafe)` — `producto`, no
+`activo`. El campo se declaró en las TRES capas que el patrón exige (interfaz + DEFAULTS +
+REGISTRY en `site-content-defaults.ts`, `spotlightEditableSchema` en `site-content-schema.ts`,
+`SPOTLIGHT.campos` en `tienda-secciones.ts`) — `panel-controles.ts` NO necesitó tocarse:
+`camposDeSeccionEditor` deriva automáticamente de los dos lados (REGISTRY.campos +
+SECCIONES_TIENDA.campos), mismo patrón que dejó `cuartoSlug` sin control manual en el slice
+anterior.
+
+### 2 · El fundido: `AnimatePresence` apilado dentro de un alto FIJO, nunca un `src` que salta
+
+Foto, etiqueta y precio cambiaban con un `<Image src=…>`/texto que se reemplazaba de golpe. El fix
+vive en `lib/animation.ts` (`transicionDestacadoFoto`/`transicionDestacadoTexto`,
+`TRANSICION_DESTACADO_EASE`) + `Spotlight.tsx`:
+
+- **La curva es la MISMA que gobierna todo el movimiento de CORTE** (`[0.22,0.61,0.36,1]`, idéntica
+  a `REVELADO_GRUPO_EASE` y a la cifra de `REVELADO_PAGINA_EASE`) — no se inventó una curva nueva.
+- **La duración de la foto reusa, literal, la ya medida para el MISMO gesto** ("cambiar la imagen
+  de un producto por una elección del visitante", `GaleriaProducto.tsx`, las flechas del PDP:
+  `duration:0.22`) — no la de 0.6s de un reveal por SCROLL (`REVELADO_GRUPO_DURACION_S`), que es
+  un disparador distinto y copiarla habría sido la misma confusión que el propio archivo ya
+  advierte para `fadeUp`. Etiqueta y precio son texto PUNTUAL: la MITAD de corto.
+- **`estatico` colapsa la duración a 0 sin bifurcar el JSX** — mismo criterio que
+  `transformMarquesinaTarjeta(progreso, estatico)`: el valor cambia, la forma del componente no.
+  Acá `estatico = !!useReducedMotion()`, SIN `preview` — a diferencia del revelado de entrada del
+  resto del archivo (`estatico = preview || !!useReducedMotion()`, que depende de un viewport real
+  que el preview no tiene), el fundido lo dispara un CLIC, no scroll, y el preview es un storefront
+  real renderizado en vivo (§ CLAUDE.md, "la vista previa es EN VIVO"): debe verse igual que lo que
+  el visitante ve, incluida esta transición.
+- **Foto y etiqueta: `AnimatePresence` en modo SYNC** (el default, NUNCA `mode="wait"` — la saliente
+  y la entrante tienen que animar A LA VEZ para ser un cruce) + `motion.div key={…}
+  className="absolute inset-0"` apiladas dentro del tile `aspect-[3/4]` (alto FIJO) — las dos capas
+  se superponen sin mover el alto de la sección. La `key` es la URL de la foto / el texto de la
+  etiqueta: sólo re-anima cuando el valor VISIBLE cambia de verdad.
+- **El precio: `mode="popLayout"`** — vive EN FLUJO, junto a la nota de precio en la misma fila
+  (no puede ir `absolute` sin encoger esa fila a lo más chico), y dos precios de ancho distinto
+  presentes a la vez empujarían la nota. `popLayout` saca al que sale del flujo (lo deja donde
+  estaba mientras se desvanece) y el que entra ocupa su lugar de inmediato, sin que la fila salte.
+- **Precarga de las fotos del GRUPO** (el spec: "para que el fundido no espere la red") — TODA foto
+  que cualquier combinación del grupo podría mostrar (las moliendas de cada miembro, o su portada
+  sin ellas), no sólo las del producto activo: cambiar Presentación/Tamaño puede aterrizar en un
+  miembro cuyas fotos el visitante nunca pidió. `<Image>` REALES (nunca `new window.Image()` contra
+  la URL cruda: el navegador next/image pide la URL OPTIMIZADA, `/_next/image?url=…`, y precargar
+  la cruda calentaría un caché que nadie vuelve a consultar), 1×1, `loading="eager"` (nunca
+  `display:none` ni el lazy de fábrica, que trata un recuadro de 1px como píxel de rastreo).
+
+### 3 · Verificado por EJECUCIÓN, no sólo por los tests puros
+
+`lib/config/spotlight.test.ts` (5 casos nuevos de `nombreCafeSpotlight`) y `lib/animation.test.ts`
+(4 casos nuevos de las dos transiciones) afirman las funciones puras en aislamiento; ninguno de los
+dos puede ver si `Spotlight.tsx` las está LLAMANDO bien, ni si el fundido se ve suave en vivo —
+mismo límite que el slice anterior ya documentó para su propio gate visual.
+
+Arnés propio (`.scratch/verificar-destacado.ts` + `.scratch/sembrar-onix.ts`, gitignorados, no en
+el diff): Postgres EFÍMERO (puerto 55442) → `migrate deploy` → preset CORTE
+(`prisma/aplicar-preset.ts`) → 4 productos **"Café Onix"** sembrados a mano (la matriz completa
+grano/molido × 250g/500g, reusando las CUATRO fotos estáticas de Nayoli —
+`cafe-nayoli-{250g,500g}-{grano,molido}[-v2].webp`— para que las cuatro combinaciones se vean
+visualmente DISTINTAS) con `spotlight.nombreCafe` vacío A PROPÓSITO (para demostrar la derivación,
+no el override) → `next build`/`next start` → Playwright headless, escritorio (1440×900) y teléfono
+(390×844). Para cada viewport: captura ANTES → clic "Molido" (cambio de PRESENTACIÓN) → captura
+DESPUÉS → clic "500 g" (cambio de TAMAÑO) → captura DESPUÉS. El script además AFIRMA por código que
+el `h3` mide exactamente `"Café Onix"` en los tres estados (falla si no), no sólo lo muestra.
+
+**Medido, los tres estados en escritorio:** título "Café Onix" constante; foto 250g-en-grano →
+250g-molido → 500g-molido (empaque visualmente distinto en cada paso); etiqueta "EN GRANO · 250 G" →
+"MOLIDO · 250 G" → "MOLIDO · 500 G"; precio "$ 28.000" (sin cambio entre grano/molido del mismo
+tamaño, correcto — ambos productos de 250g cuestan igual) → "$ 48.000" (al cambiar a 500g); la caja
+de la foto (`aspect-[3/4]`) midió el MISMO tamaño en los tres estados — el alto de la sección no se
+movió. Repetido en 390×844 con el mismo resultado. El script se vio pasar end-to-end (exit 0, la
+aserción del h3 no lanzó en ningún viewport).
+
+**El follow-up `CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` (coined en el slice anterior) sigue ABIERTO**:
+este arnés es un script SCRATCH propio, no la extensión de `scripts/capturar-seccion.ts` que ese
+follow-up pide (fuera de `touches:` de este slice) — demuestra que el mecanismo FUNCIONA, no deja
+una herramienta reusable committeada para el próximo slice sobre esta banda.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `next build` | OK — 0 errores, JSX/SWC |
+| `npm test` | **2976/2976** |
+| `npm run test:integracion` | **271/271** |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (Spotlight nunca monta para Nayoli — `featured·cuadricula`, no `·spotlight` — así que el resultado esperado es "sin efecto", medido) |
+
+`npm run verificar:nayoli:visual` NO se corrió: `main`/`origin/main` siguen anclados en `9a7ab97`
+(medido: `git rev-parse main` == `git rev-parse origin/main` == `git merge-base HEAD main`), el
+MISMO sha que `DESTACADO-PRESENTACION-POR-TAMANO-1` ya documentó como stale — no daría una cifra
+útil sobre ESTE diff.
+
+### `touches:` — una declaración sin diff, dos deviaciones mecánicas (mismo patrón que el slice anterior)
+
+`git diff --stat` contra `main`: 11 archivos, 312 inserciones, 26 eliminaciones. `lib/config/
+panel-controles.ts` estaba en `touches:` y **no necesitó una sola línea** (§1, arriba) — medido
+leyéndolo antes de descartarlo, no por omisión.
+
+Dos archivos FUERA de `touches:`, el mismo patrón ya documentado por
+`DESTACADO-PRESENTACION-POR-TAMANO-1` para `cuartoSlug`/`presentacionSlug` — una aserción literal,
+objeto-por-objeto, de `DEFAULTS.spotlight`/`SpotlightContent` que un campo nuevo desactualiza
+mecánicamente, sin cambiar el CRITERIO que el test afirma:
+
+- **`lib/config/spotlight-banda.test.ts`** — el literal de `DEFAULTS.spotlight` ("los ocho campos
+  vacíos") ganó `nombreCafe: ''` y pasó a "los nueve campos vacíos".
+- **`lib/config/admin-tienda-preset.test.ts`** — el literal `contenidoSpotlightLleno` (un
+  `SpotlightContent` completo a mano, para acercarse a "spotlight lleno" dentro del límite de SSR
+  sin jsdom) ganó `nombreCafe: 'Café Nariño'`; sin él no compila (campo requerido de la interfaz).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `nombreCafeSpotlight`, `ProductoNombreSpotlight`,
+`SpotlightContent.nombreCafe`, `transicionDestacadoFoto`, `transicionDestacadoTexto`,
+`TRANSICION_DESTACADO_EASE`, `TRANSICION_DESTACADO_FOTO_DURACION_S`,
+`TRANSICION_DESTACADO_TEXTO_DURACION_S`, y los archivos `Spotlight.tsx`, `spotlight.ts`,
+`animation.ts`, `tienda-secciones.ts`, `site-content-schema.ts`, `site-content-defaults.ts`,
+`spotlight-banda.test.ts`, `admin-tienda-preset.test.ts`, `spotlight-resto.test.ts`.
+
+Grepeado `spotlight`/`Spotlight` (case-insensitive) contra `CLAUDE.md`: **CERO apariciones** —
+igual que el slice anterior ya midió, el archivo nunca nombra esta banda. `AnimatePresence`/
+`reducedMotion`/`reduced-motion` aparecen sólo en secciones ajenas (el sheet/scrim del admin, el
+marcador "ahora" de la curva del Dashboard) — ninguna habla del storefront ni de este patrón.
+`animation.ts` no aparece. `panel-controles.ts` no aparece. `site-content-schema.ts`/
+`site-content-defaults.ts` SÍ aparecen (están en la lista de superficies Tier 1, y en la prosa de
+"el schema editable STRIPPEA lo no declarado") — ninguna de esas frases queda falsa: este slice
+declaró `nombreCafe` en las DOS listas (DEFAULTS y schema) a la vez, exactamente la disciplina que
+esa sección exige para no repetir el defecto que describe. **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** Bajo el preset CORTE con `spotlight` configurado y el grupo con ≥2 productos,
+el destacado de la home ahora muestra el nombre del CAFÉ (fijo) en vez del nombre del producto con
+su variante (que antes saltaba al cambiar Presentación/Tamaño), y la foto/etiqueta/precio cambian
+con una transición suave en vez de un salto — visible para cualquier visitante bajo ese preset con
+esa sección publicada y ≥2 productos en el grupo. `strings`: un campo editorial NUEVO
+("Nombre del café en el destacado", sólo en el panel) — ningún string nuevo en el storefront; lo
+que cambia es QUÉ nombre se muestra y CÓMO se anima el cambio, no un literal.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración (el
+campo nuevo vive en el JSON de `SiteContent.content`, no en una columna), sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cinco capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su gate
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice,
+por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` (coined en `DESTACADO-PRESENTACION-POR-TAMANO-1`) sigue
+  ABIERTO — el arnés de este slice (§3) demuestra el mecanismo con un script scratch propio, no
+  extiende `scripts/capturar-seccion.ts` committeado.
+
+**Cierra `DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`.**

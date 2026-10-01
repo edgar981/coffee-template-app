@@ -490,11 +490,19 @@ export interface PresentacionesContent {
 //
 // `cuartoSlug` es OPCIONAL, como los otros tres — vacío = la matriz se arma con lo que el grupo
 // tenga (1 a 3 productos), igual que hoy.
+//
+// `nombreCafe` (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — el título FIJO del café, que NO cambia al
+// elegir otra celda de la matriz. Gate del owner tras este mismo slice anterior: el h3 mostraba el
+// nombre del producto ACTIVO con su variante pegada ("Café Onix — Molido 250 g"), que además
+// CAMBIABA con la selección. OPCIONAL: vacío → se DERIVA del nombre del producto PRINCIPAL cortando
+// en el separador " — " (`nombreCafeSpotlight`, `lib/config/spotlight.ts`) — nunca de `activo`, el
+// producto de la celda elegida.
 export interface SpotlightContent {
   visible: boolean;
   eyebrow: string;
   titulo: string;
   badge: string;
+  nombreCafe: string;
   productoSlug: string;
   presentacionSlug: string;
   otroTamanoSlug: string;
@@ -1703,6 +1711,7 @@ export const DEFAULTS: SiteContentData = {
     eyebrow: '',
     titulo: '',
     badge: '',
+    nombreCafe: '',
     productoSlug: '',
     presentacionSlug: '',
     otroTamanoSlug: '',
@@ -2309,6 +2318,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       eyebrow: 'opcional',
       titulo: 'opcional',
       badge: 'opcional',
+      // El título FIJO del café (§ SpotlightContent.nombreCafe, arriba): opcional, vacío → se
+      // deriva del nombre del producto principal (`nombreCafeSpotlight`), nunca una cadena vacía.
+      nombreCafe: 'opcional',
       productoSlug: 'opcional',
       // Los otros tres miembros del GRUPO (§ DESTACADO-PRESENTACION-POR-TAMANO-1, el docstring de
       // `SpotlightContent`): hasta cuatro productos del mismo café que arman la matriz

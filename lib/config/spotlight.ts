@@ -145,3 +145,51 @@ export function productoDeCombinacion<T>(
 export function etiquetaEjesSpotlight(ejes: EjesSpotlight): string {
   return ejes.tamano ? `${ejes.presentacion} · ${ejes.tamano}` : ejes.presentacion;
 }
+
+// ── EL NOMBRE FIJO DEL CAFÉ — § DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1 ─────────────────────────────
+//
+// Gate del owner tras DESTACADO-PRESENTACION-POR-TAMANO-1: «En destacado... el nombre que salga sea
+// solamente café Onix, en lugar de: "Café Onix — Molido 250 g"... se produce un cambio brusco entre
+// saltos». El DEFECTO era DOBLE: el h3 de `Spotlight.tsx` mostraba `activo.nombre` —el nombre del
+// producto de la CELDA elegida de la matriz, que CAMBIA con la selección (§ `productoDeCombinacion`)—
+// en vez del nombre del GRUPO entero (fijo); y ese nombre, además, lleva la variante pegada
+// ("<café> — <presentación> <peso>", medido: `prisma/seed-products.ts`, las cuatro variantes reales
+// de Café Nayoli). Corregir sólo el recorte sin fijar la FUENTE (`activo` → `producto`, el pin, que
+// NUNCA cambia con la selección) habría dejado el nombre saltando igual entre "Café Nayoli" (En
+// grano) y "Café Nayoli" (Molido) — coincidencia de ESTE seed, no garantía del modelo: dos
+// productos del grupo pueden declarar nombres de café DISTINTOS a mano.
+
+/** Los datos MÍNIMOS que `nombreCafeSpotlight` necesita del producto PRINCIPAL del grupo (el pin) —
+ *  genérico, mismo criterio que `ProductoEjesSpotlight`: este módulo de CONFIG no depende del tipo
+ *  de dominio del catálogo. */
+export interface ProductoNombreSpotlight {
+  nombre: string;
+}
+
+const SEPARADOR_VARIANTE = ' — ';
+
+/**
+ * El nombre FIJO que el título de la ficha muestra — nunca el del producto ACTIVO (que cambia con
+ * la selección de Presentación/Tamaño), siempre el del PRINCIPAL (el pin, `producto` en
+ * `Spotlight.tsx` — el único de los dos que no cambia con la selección). DOS caminos, en ese orden —
+ * el mismo criterio que `presentacionDeProducto` (arriba): "medí si se puede derivar, y si no, el
+ * producto mismo declara la diferencia":
+ *
+ *  1. `nombreCafe` (`SpotlightContent.nombreCafe`, el campo EDITORIAL del panel) — si el dueño lo
+ *     escribió, GANA tal cual. Cubre el caso en que el recorte automático de abajo no alcanza (un
+ *     nombre sin el separador, o uno que lo necesita distinto).
+ *  2. Sin ese campo (vacío), se DERIVA del nombre del producto: corta en el separador EXACTO
+ *     " — " (el que usa `prisma/seed-products.ts`) y se queda con lo de ANTES — el nombre del café,
+ *     sin la variante. Sin ese separador (un nombre que no lo trae), el nombre ENTERO — nunca una
+ *     cadena vacía por cortar de más, ni un corte parcial sobre un guion simple ("-") que no es el
+ *     separador declarado.
+ */
+export function nombreCafeSpotlight(principal: ProductoNombreSpotlight, nombreCafe: string): string {
+  const configurado = nombreCafe.trim();
+  if (configurado) return configurado;
+  const nombre = principal.nombre;
+  const idx = nombre.indexOf(SEPARADOR_VARIANTE);
+  if (idx < 0) return nombre;
+  const resto = nombre.slice(0, idx).trim();
+  return resto || nombre;
+}

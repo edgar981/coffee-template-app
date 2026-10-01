@@ -85,3 +85,24 @@ test('presentacionSlug (el tercer pin, "otra presentación") sobrevive borrador�
   assert.equal(publicado.spotlight.presentacionSlug, 'cafe-la-ceiba-molido-500');
   assert.equal(publicado.spotlight.otroTamanoSlug, 'cafe-la-ceiba-grano-250');
 });
+
+// § DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1 — el título FIJO del café (`nombreCafe`), por el MISMO
+// viaje de punta a punta: parsear con el schema real → guardar borrador → publicar → releer. La
+// derivación (sin el campo, se corta el nombre del producto en " — ") la prueba
+// `lib/config/spotlight.test.ts` (`nombreCafeSpotlight`, capa 1, pura) — acá sólo se afirma que el
+// campo EDITORIAL sobrevive el schema, como el resto de `spotlight`.
+test('nombreCafe (el título fijo del café) sobrevive borrador→publicar→releer', async () => {
+  await guardarComoElRoute({ nombreCafe: 'Café Onix' });
+  await publicarSeccion('spotlight');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.spotlight.nombreCafe, 'Café Onix');
+});
+
+test('nombreCafe vacío publica spotlight byte-idéntico a DEFAULTS.spotlight, igual que eyebrow/titulo/badge', async () => {
+  await guardarComoElRoute({ nombreCafe: '' });
+  await publicarSeccion('spotlight');
+
+  const publicado = await readSiteContent();
+  assert.deepEqual(publicado.spotlight, DEFAULTS.spotlight);
+});

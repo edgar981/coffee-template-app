@@ -253,6 +253,10 @@ function contenidoSpotlightLleno(clave: string | null): SiteContentData {
       eyebrow: 'Nuestro café',
       titulo: 'Un café que cuenta su origen',
       badge: 'Edición limitada',
+      // § DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1 (fuera de `touches:`, misma deviación mecánica de
+      // abajo): `nombreCafe` se sumó a `SpotlightContent` y este literal lo necesita para seguir
+      // compilando — no cambia lo que el test afirma.
+      nombreCafe: 'Café Nariño',
       productoSlug: 'cafe-narino-1kg',
       // § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1 (fuera de `touches:`, deviación mecánica): el
       // tercer puntero se sumó a `SpotlightContent` y este objeto literal lo necesita para seguir

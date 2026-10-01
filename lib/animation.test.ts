@@ -20,6 +20,8 @@ import {
   retardoEntradaDrawerMovil, retardoSalidaDrawerMovil,
   transicionBloqueCascada, CASCADA_BLOQUE_DURACION_S, CASCADA_BLOQUE_EASE, CASCADA_BLOQUE_PASO_S, fadeUpCascadaBloque,
   revelaMascaraVertical, transicionTituloPostal, transicionFadePostal,
+  transicionDestacadoFoto, transicionDestacadoTexto, TRANSICION_DESTACADO_EASE,
+  TRANSICION_DESTACADO_FOTO_DURACION_S, TRANSICION_DESTACADO_TEXTO_DURACION_S,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -926,4 +928,31 @@ test('transicionFadePostal: duration/ease son los tokens de movimiento YA establ
 
 test('transicionFadePostal: el eyebrow (0) entra ANTES que el botón (1) — nunca al revés', () => {
   assert.ok(transicionFadePostal(0).delay < transicionFadePostal(1).delay);
+});
+
+// ── EL FUNDIDO CRUZADO DEL DESTACADO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — sin React, sin
+// navegador. `transicionDestacadoFoto`/`transicionDestacadoTexto` son las dos mitades que
+// `Spotlight.tsx` pasa a `transition` del `motion.div`/`motion.span` que crossfadea foto/etiqueta/
+// precio al elegir otra presentación o tamaño.
+
+test('TRANSICION_DESTACADO_EASE es la MISMA curva que gobierna todo el movimiento de CORTE — idéntica a REVELADO_GRUPO_EASE (y a la cifra de REVELADO_PAGINA_EASE, "cubic-bezier(0.22, 0.61, 0.36, 1)")', () => {
+  assert.deepEqual(TRANSICION_DESTACADO_EASE, REVELADO_GRUPO_EASE);
+  assert.equal(REVELADO_PAGINA_EASE, `cubic-bezier(${TRANSICION_DESTACADO_EASE.join(', ')})`);
+});
+
+test('transicionDestacadoTexto dura EXACTAMENTE la mitad de transicionDestacadoFoto — "fundido corto" para texto puntual', () => {
+  assert.equal(TRANSICION_DESTACADO_TEXTO_DURACION_S, TRANSICION_DESTACADO_FOTO_DURACION_S / 2);
+});
+
+test('transicionDestacadoFoto/Texto: estatico=false usa la curva y duración declaradas', () => {
+  assert.deepEqual(transicionDestacadoFoto(false), { duration: TRANSICION_DESTACADO_FOTO_DURACION_S, ease: TRANSICION_DESTACADO_EASE });
+  assert.deepEqual(transicionDestacadoTexto(false), { duration: TRANSICION_DESTACADO_TEXTO_DURACION_S, ease: TRANSICION_DESTACADO_EASE });
+});
+
+test('transicionDestacadoFoto/Texto: estatico=true colapsa la duración a 0 — "movimiento reducido: cambio directo" del spec, sin desactivar AnimatePresence', () => {
+  assert.equal(transicionDestacadoFoto(true).duration, 0);
+  assert.equal(transicionDestacadoTexto(true).duration, 0);
+  // la curva se conserva (irrelevante a duration:0, pero no debe mutar la forma del objeto devuelto)
+  assert.deepEqual(transicionDestacadoFoto(true).ease, TRANSICION_DESTACADO_EASE);
+  assert.deepEqual(transicionDestacadoTexto(true).ease, TRANSICION_DESTACADO_EASE);
 });

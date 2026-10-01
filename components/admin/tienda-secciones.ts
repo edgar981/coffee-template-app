@@ -623,6 +623,11 @@ const TESTIMONIOS: SeccionConfig = {
 // condicionalmente (`spotlight.eyebrow &&`, `spotlight.titulo &&`, `spotlight.badge &&`), así que
 // "vacío no se muestra" ya era el comportamiento; lo que faltaba era el control para escribirlos.
 //
+// `nombreCafe` SE SUMÓ EN DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1 (§ `SpotlightContent.nombreCafe`,
+// site-content-defaults.ts): a diferencia de los tres de arriba, vacío NO se omite — se DERIVA del
+// nombre del producto principal (`nombreCafeSpotlight`, lib/config/spotlight.ts), nunca queda sin
+// título.
+//
 // `ocultable: true` — ahora sí: `camposDeSeccionEditor` suma `visible` a lo controlado cuando
 // `config.ocultable` es `true` (§ panel-controles.ts), así que el interruptor de la sección aparece
 // en el editor y cierra `spotlight.visible` en `PENDIENTE_PANEL`. Efecto colateral que se destraba de
@@ -667,6 +672,7 @@ const SPOTLIGHT: SeccionConfig = {
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
     { name: 'titulo', label: 'Titular', opcional: true, textarea: true, hint: 'El titular de la banda destacada. Un salto de línea acá se respeta en la tienda. Vacío: no se muestra.' },
     { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
+    { name: 'nombreCafe', label: 'Nombre del café en el destacado', opcional: true, hint: 'El nombre fijo que se muestra bajo la foto — no cambia al elegir otra presentación o tamaño. Vacío: se deriva del nombre del producto destacado (lo que va antes de " — ").' },
     { name: 'productoSlug', label: 'Producto destacado', opcional: true, producto: true, mostrarEjes: true, hint: 'El producto que se destaca en la banda, elegido del catálogo. Sus notas de cata, precio y foto se leen de ahí — nunca se copian acá. Vacío: la banda no muestra nada.' },
     { name: 'presentacionSlug', label: 'Otro producto del grupo (1)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: la banda se arma sólo con los productos que SÍ estén elegidos.' },
     { name: 'otroTamanoSlug', label: 'Otro producto del grupo (2)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: no se muestra.' },
