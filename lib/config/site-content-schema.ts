@@ -431,8 +431,10 @@ const carritoEnvioEditableSchema = z.object({
 // `filete` (la línea inferior del encabezado), `cta` (la forma/color del CTA COMPRAR + el badge de
 // menú), `posicion` (la geometría del contenedor de contenido) y `subrayado` (el subrayado al hover
 // de los links) SE SUMARON como campos de ESTA meta, no metas nuevas — mismo razonamiento que el
-// docstring de `NavTratamientoContent.direccion`/`.filete`/`.cta`/`.posicion`/`.subrayado`. Las SEIS
-// claves SÍ tienen editor: `EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado`.
+// docstring de `NavTratamientoContent.direccion`/`.filete`/`.cta`/`.posicion`/`.subrayado`.
+// `buscarMovil` (§ NAV-MOVIL-SIN-BUSCAR-1, ¿se muestra el buscar de la barra en el teléfono?) se
+// sumó por la MISMA razón. Las SIETE claves SÍ tienen editor: `EncabezadoSeccion.tsx`, vía
+// `/api/site-content/encabezado`.
 const navTratamientoEditableSchema = z.object({
   activo: z.boolean().optional(),
   direccion: z.boolean().optional(),
@@ -446,6 +448,11 @@ const navTratamientoEditableSchema = z.object({
   // docstring de cabecera: "se valida sólo el TIPO"): el formato de hex lo exige
   // `resolverNavTratamiento` (SOFT, nunca lanza) al leer, no este schema al escribir.
   badgeColor: z.string().nullable().optional(),
+  // OCTAVO CAMPO (§ NAV-MOVIL-SIN-BUSCAR-1): ¿el ícono de buscar se muestra en la barra del
+  // encabezado en ancho de teléfono? Ver `NavTratamientoContent.buscarMovil` (site-content-
+  // defaults.ts) para el porqué completo — a diferencia de los siete de arriba, su default es
+  // `true`, no un eje de preset.
+  buscarMovil: z.boolean().optional(),
 });
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1): MISMA forma que

@@ -40490,3 +40490,191 @@ por instrucción del dispatch, no mergea.
   extiende `scripts/capturar-seccion.ts` committeado.
 
 **Cierra `DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`.**
+
+## 2026-10-01 — El buscar de la barra móvil se puede apagar por tenant; sigue adentro del menú (`NAV-MOVIL-SIN-BUSCAR-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Gate del owner viendo la demo
+de Café Las Chamisas en el teléfono (2026-10-01): *"convendría un poco más de espacio entre el
+nombre y el ícono de buscar no sé si quitarlo y dejar solo el carrito y el botón del side panel"*,
+y luego, acotando: *"Pero quitarlo solo en las chamisas no en onix"*.
+
+### El cambio
+
+Un OCTAVO campo de `navTratamiento` (§ el mismo dominio que `activo`/`direccion`/`filete`/`cta`/
+`posicion`/`subrayado`/`badgeColor`, misma ruta `/api/site-content/encabezado`):
+`buscarMovil: boolean`, default **`true`** — a diferencia de los siete anteriores (todos
+`false`=HOY, ejes que sólo CORTE enciende vía preset), éste nace `true` para TODO tenant: no es un
+eje de preset (ningún preset del catálogo lo declara), es una preferencia por-tienda que el dueño
+apaga desde el panel.
+
+`StoreNav.tsx` oculta el ícono de buscar de la barra SÓLO en ancho de teléfono (`<lg`, el mismo
+breakpoint del `<nav>`/hamburguesa) y SÓLO cuando `navDrawerMovil.variante==='pantallaCompleta'`:
+
+```
+const ocultarBuscarEnBarraMovil = navDrawerMovil.variante === 'pantallaCompleta' && !navTratamiento.buscarMovil;
+```
+
+### La PRECONDICIÓN que el spec pedía confirmar por ejecución — confirmada, y acotada en consecuencia
+
+El spec exigía: *"confirmá por ejecución que el menú móvil ya trae buscar en su cabecera... Si no
+lo trae, no lo ocultes: parate y decilo."* Medido leyendo `StoreNav.tsx`: el drawer
+`'pantallaCompleta'` (§ `MENU-MOVIL-COMO-CAFEONE-1`) SÍ trae su propio botón de buscar en la
+cabecera (`aria-label="Buscar"`, dispara `setSearchOpen(true)`) — confirmado. El drawer
+`'dropdown'` (default, 5 de 6 presets del catálogo, incluido Onix/Nayoli) **NO lo trae** — su menú
+es sólo `links.map(...)` + CTA + "Rastrear Pedido", sin ningún control de búsqueda.
+
+**La precondición no se satisface para TODOS los tenants, así que el campo NO se ofrece ni tiene
+efecto fuera de `'pantallaCompleta'`** — no es una limitación teórica dejada para después, es la
+decisión que el "parate y decilo" exigía tomar: en vez de bloquear el slice entero, se acotó el
+alcance al único drawer donde apagar la barra es seguro.
+
+- **El SWITCH del panel está ANIDADO bajo "Drawer móvil de pantalla completa"**
+  (`EncabezadoSeccion.tsx`), visible SÓLO con ese switch encendido — mismo patrón que `badgeColor`
+  anidado bajo `ctaBadge`. Un tenant `'dropdown'` (Onix) nunca ve el control: ofrecerlo ahí sería un
+  control que, si se usara, rompería la búsqueda en el teléfono sin que nada lo frenara.
+- **El RENDER tiene su PROPIA guarda, independiente del panel** (`navDrawerMovil.variante ===
+  'pantallaCompleta' && ...`): aunque el campo llegara en `false` por otra vía (basura, un bug en
+  otra pantalla), el ícono de la barra NUNCA se oculta fuera de `'pantallaCompleta'`. Defensa en
+  profundidad, no sólo "el panel no lo ofrece".
+
+### Onix no cambia — medido, no supuesto
+
+Onix/Nayoli corren `navDrawerMovil.variante==='dropdown'` (el default), así que
+`ocultarBuscarEnBarraMovil` es `false` SIEMPRE para ese tenant, sin importar el valor de
+`buscarMovil` — la guarda de arriba lo hace imposible, no sólo poco probable. Confirmado por
+`npm run guarda:color`: **0px** en las 6 rutas + 2 hovers contra el fixture de Nayoli (§Gate).
+
+### El HUECO MEDIDO de `mergePresetEnContent` — fuera de `touches:`, declarado y acotado
+
+`mergePresetEnContent` (`themes.ts`) reconstruye `navTratamiento` ENTERO, campo por campo, en un
+objeto literal nuevo cada vez que corre — y NO incluye `buscarMovil` (`themes.ts` no está en
+`touches:` de este slice). Esto tiene DOS consecuencias medidas, no una sola teórica:
+
+1. **`aplicarPreset` (onboarding, manual, con confirmación del nombre del tenant)**: si se vuelve a
+   correr sobre un tenant que ya personalizó este campo a mano, la elección se resetea a `true`
+   (silenciosamente, en la fila cruda) — pero todo READ posterior (`readSiteContent`, el GET del
+   panel, el storefront real) pasa de nuevo por `resolverSiteContent`/`resolverNavTratamiento`, cuyo
+   `bool()` cae al DEFAULT (`true`) ante la ausencia. Confirmado contra Postgres real:
+   `tests/integracion/panel-encabezado.test.ts`, "default del preset" — `aplicarPreset(CORTE)` deja
+   `publicado.navTratamiento.buscarMovil === true`, nunca `undefined`.
+2. **El MIRADOR de preview `?tema=CLAVE`** (`theme-mirador.ts`, `contenidoConPresetDeVista`, gateado
+   a `esDespliegueDemo()`) **NO vuelve a resolver** — pasa la salida cruda de `mergePresetEnContent`
+   directo al storefront (`app/(storefront)/page.tsx`). Ahí `buscarMovil` SÍ llega `undefined`, y
+   `!undefined` evalúa `true` — bajo `?tema=CORTE` (que fuerza `pantallaCompleta`), el preview
+   mostraría el buscar de la barra OCULTO aunque el tenant real lo tenga en `true`. **Medido por
+   ejecución**, no supuesto: `lib/config/nav-internas.test.ts`, el test se escribió primero
+   esperando `true`, se lo vio fallar con `undefined`, y se corrigió a lo que el código realmente
+   produce.
+
+**Acotado, no bloqueante**: el camino real de cualquier tenant (una visita normal al storefront,
+sin `?tema=`) nunca pasa por `mergePresetEnContent` — sólo por `resolverSiteContent`, que sí
+defaultea a `true`. El hueco vive enteramente en (a) una operación de onboarding manual y poco
+frecuente, y (b) un preview de demo que no persiste nada. Documentado en el docstring de
+`NavTratamientoContent.buscarMovil` (`site-content-defaults.ts`) para quien toque `themes.ts`
+después.
+
+### DEVIACIÓN MEDIDA, fuera de `touches:` — `lib/config/cromo-nav-tratamiento.test.ts`
+
+Mismo patrón ya documentado por `DESTACADO-PRESENTACION-POR-TAMANO-1`/
+`DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1` para `spotlight-banda.test.ts`/
+`admin-tienda-preset.test.ts`: un campo NUEVO y REQUERIDO de `NavTratamientoContent` desactualiza
+MECÁNICAMENTE todo literal exhaustivo de `navTratamiento` en ese archivo (compile error con
+`npm run typecheck`, luego 4 fallos runtime con `npm test`), sin cambiar el CRITERIO que cada test
+afirma. Se corrigió — no se amplió con un test nuevo propio, sólo se mantuvieron vivos los que ya
+existían:
+
+- `NAV_TRATAMIENTO_HOY` (el literal de "resolver sin `{}` de defaults") gana `buscarMovil: false` —
+  el PROPIO fallback interno de `resolverNavTratamiento` cuando NI lo guardado NI el default pasado
+  son boolean, igual que los otros siete campos.
+- **Dos variantes nuevas, porque este campo es el PRIMERO de los ocho cuyo "HOY" DIFIERE según el
+  camino que se mida** (los siete anteriores coincidían siempre en `false`/`null`, un solo literal
+  les alcanzaba): `NAV_TRATAMIENTO_HOY_APP` (= `{...NAV_TRATAMIENTO_HOY, buscarMovil: true}`) para
+  las dos aserciones contra `DEFAULTS.navTratamiento`/`resolverSiteContent({})` (la app REAL
+  resuelve a `true`); `NAV_TRATAMIENTO_HOY_MERGE` (= `NAV_TRATAMIENTO_HOY` SIN la clave) para la
+  aserción contra la salida CRUDA de `mergePresetEnContent` (que no escribe la clave en absoluto,
+  § el hueco medido arriba).
+- Los seis `assert.deepEqual` restantes con literales inline (`{ activo: true }`/`{ direccion: true
+  }`/etc. contra `{}` de defaults) ganan `buscarMovil: false`, mismo fallback interno.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2981/2981** (+5 sobre el floor de `DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`, 2976/2976 — los 5 tests nuevos de `nav-internas.test.ts`) |
+| `npm run test:integracion` | **271/271** (sin cambio de conteo — más aserciones dentro de tests existentes, cero `test()` nuevos) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (Nayoli, `dropdown`, sin efecto — medido, no supuesto) |
+| `npm run lint` (no forma parte de `npm run gate`) | 221 errores/3540 warnings preexistentes en TODO el repo, CERO en las líneas que este diff toca (confirmado grepeando cada archivo modificado contra el output completo) |
+
+`npm run verificar:nayoli:visual` no se corrió aparte: `main`/`origin/main` siguen anclados en
+`9a7ab97` (medido: `git rev-parse main` == `git rev-parse origin/main` == `git merge-base HEAD
+main`), el MISMO sha que las dos tandas anteriores ya documentaron como stale — `guarda:color`
+reusa el mismo arnés contra el fixture committeado, que SÍ es la vara vigente.
+
+### `touches:` — una deviación de archivo, dos de omisión
+
+`git diff --stat` contra `main`: 9 archivos (incluido este asiento), 434 inserciones, 47
+eliminaciones. `lib/config/cromo-nav-tratamiento.test.ts` es la ÚNICA deviación
+por archivo FUERA de `touches:` (§ arriba, mecánica). Dos archivos DENTRO de `touches:` no
+necesitaron tocarse: `app/api/site-content/encabezado/route.ts` (su `.pick()` ya incluye
+`navTratamiento: true` entero; ninguna línea de lógica depende de qué campos trae esa clave) y
+`lib/config/menu-como-dato.test.ts` (medido leyéndolo entero: es exclusivamente sobre la sección
+`menu`/`itemsDeMenu`, sin una sola referencia a `navTratamiento`/`navDrawerMovil`/StoreNav — nada en
+ese archivo acopla con este campo).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `buscarMovil`, `NavTratamientoContent.buscarMovil`,
+`ocultarBuscarEnBarraMovil`, `NAV_TRATAMIENTO_HOY_APP`, `NAV_TRATAMIENTO_HOY_MERGE`,
+`CONTROLADOS_ENCABEZADO_SECCION`, y los archivos `StoreNav.tsx`, `EncabezadoSeccion.tsx`,
+`site-content-defaults.ts`, `site-content-schema.ts`, `panel-controles.ts`,
+`cromo-nav-tratamiento.test.ts`, `nav-internas.test.ts`, `panel-encabezado.test.ts`.
+
+Grepeado uno por uno contra `CLAUDE.md`: **CERO coincidencias** de `buscarMovil`/
+`ocultarBuscarEnBarraMovil`/`NAV_TRATAMIENTO_HOY`/`CONTROLADOS_ENCABEZADO_SECCION` (el doctring de
+esta pieza vive en `site-content-defaults.ts`/este asiento, fuera del archivo de instrucciones del
+repo — MEDIDO, no sólo "navDrawerMovil"/"navTratamiento" tampoco aparecen nombrados en ningún lado
+del archivo). `StoreNav.tsx` como RUTA LITERAL no aparece, pero `components/storefront/layout/
+StoreNav.tsx` cae bajo el SUBÁRBOL Tier 1 `components/storefront/` (§ "LA LISTA TAMBIÉN GANA
+SUBÁRBOLES") — ese bullet describe el PORQUÉ del subárbol (bytes del visitante), no un hecho sobre
+el contenido de `StoreNav.tsx` que este diff pudiera volver falso. `site-content-defaults.ts` y
+`site-content-schema.ts` SÍ aparecen, nombrados en la lista canónica de Tier 1 (línea 39) y en la
+prosa de "el schema editable STRIPPEA lo no declarado" (§ #65-B) — ninguna de esas frases queda
+falsa: este slice declaró `buscarMovil` en LAS DOS listas (`NavTratamientoContent`/`DEFAULTS` y
+`navTratamientoEditableSchema`) a la vez, exactamente la disciplina que esa sección exige.
+`EncabezadoSeccion.tsx` y `panel-controles.ts` no aparecen nombrados en ningún lado del archivo.
+**Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`, acotado.** Bajo `navDrawerMovil.variante==='pantallaCompleta'` (hoy, CORTE) Y
+`navTratamiento.buscarMovil===false` (el dueño lo apagó) Y ancho `<lg` (teléfono), el ícono de
+buscar deja de aparecer en la barra del encabezado — visible para cualquier visitante bajo esas
+tres condiciones. Para TODO lo demás (Onix/Nayoli, cualquier tenant `'dropdown'`, cualquier ancho
+`≥lg`, o un tenant `'pantallaCompleta'` que no toque el switch) **byte-idéntico**, medido 0px
+(§Gate). `strings`: el texto nuevo es sólo del PANEL ("Mostrar buscar en la barra del teléfono" +
+su hint) — ningún string nuevo en el storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración (el
+campo vive en el JSON de `SiteContent.content`, no en una columna), sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cinco capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su gate
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice,
+por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `NAV-MOVIL-SIN-BUSCAR-MERGEPRESET-1` — `mergePresetEnContent` (`themes.ts`) no escribe
+  `navTratamiento.buscarMovil`, así que un re-`aplicarPreset` sobre un tenant ya personalizado lo
+  resetea en la fila cruda (aunque todo READ real caiga al default `true` igual, § el hueco medido
+  arriba) y el mirador `?tema=CLAVE` muestra el campo `undefined` (→ oculto) en vez de resolver al
+  default. Por qué no ahora: `themes.ts` fuera de `touches:` de este slice.
+- `CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` (coined en `DESTACADO-PRESENTACION-POR-TAMANO-1`) sigue
+  ABIERTO — sin relación con este slice.
+
+**Cierra `NAV-MOVIL-SIN-BUSCAR-1`.**

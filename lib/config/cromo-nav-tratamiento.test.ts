@@ -50,7 +50,28 @@ import { siteContentEditableSchema } from './site-content-schema';
 // razonamiento — CAMPO, no meta nueva — ver el docstring de `NavTratamientoContent.badgeColor`), la
 // ÚNICA diferencia es que no es booleano: es un hex de 6 dígitos o `null` (el default). El literal
 // de HOY y las aserciones exhaustivas se amplían otra vez, sin dejar de afirmar los seis anteriores.
-const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null };
+//
+// § NAV-MOVIL-SIN-BUSCAR-1 (DEVIACIÓN MEDIDA, fuera de `touches:` de ese slice — mismo patrón ya
+// documentado para `spotlight-banda.test.ts`/`admin-tienda-preset.test.ts`: un campo NUEVO y
+// REQUERIDO de `NavTratamientoContent` desactualiza mecánicamente todo literal exhaustivo de este
+// archivo, sin cambiar el CRITERIO que cada test afirma) suma `buscarMovil` como OCTAVO CAMPO, y es
+// el PRIMERO de los ocho cuyo "HOY" DIFIERE según el camino que se mida — los siete anteriores
+// coincidían siempre en `false`/`null`, así que un solo literal les alcanzaba:
+//
+//   - `resolverNavTratamiento(_, {})` (SIN defaults reales) cae a su propio fallback interno
+//     (`false`) — `NAV_TRATAMIENTO_HOY`, abajo, es ESTE caso.
+//   - `DEFAULTS.navTratamiento`/`resolverSiteContent({})` (la app REAL, con `DEFAULTS` como
+//     defaults) resuelven `buscarMovil` a `true` (§ `nav-internas.test.ts`,
+//     `panel-encabezado.test.ts`) — `NAV_TRATAMIENTO_HOY_APP`, abajo.
+//   - `mergePresetEnContent` (raw, sin pasar por el resolver) NO ESCRIBE este campo en absoluto
+//     (§ el docstring de `NavTratamientoContent.buscarMovil`, site-content-defaults.ts: hueco
+//     conocido, fuera de `touches:` de este slice) — `NAV_TRATAMIENTO_HOY_MERGE`, abajo, es
+//     `NAV_TRATAMIENTO_HOY` SIN la clave, para que el `deepEqual` no exija una clave que el merge
+//     crudo nunca produce.
+const NAV_TRATAMIENTO_HOY: NavTratamientoContent = { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null, buscarMovil: false };
+const NAV_TRATAMIENTO_HOY_APP = { ...NAV_TRATAMIENTO_HOY, buscarMovil: true };
+const { buscarMovil: _navTratamientoHoyMergeOmitido, ...NAV_TRATAMIENTO_HOY_MERGE } = NAV_TRATAMIENTO_HOY;
+void _navTratamientoHoyMergeOmitido;
 
 // ── resolverNavTratamiento — dominio CERRADO de 1 clave, gemelo de resolverRielSocial ────────────
 
@@ -67,17 +88,17 @@ test('resolverNavTratamiento: un tipo equivocado (string donde va boolean) cae a
 });
 
 test('resolverNavTratamiento: un boolean real guardado se respeta', () => {
-  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null });
+  assert.deepEqual(resolverNavTratamiento({ activo: true }, {}), { activo: true, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null, buscarMovil: false });
 });
 
 test('resolverNavTratamiento: sin guardado, un DEFAULT explícito manda (defensa simétrica, como resolverCromo)', () => {
-  const def = { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#111111' };
+  const def = { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#111111', buscarMovil: true };
   assert.deepEqual(resolverNavTratamiento(undefined, def), def);
   assert.deepEqual(resolverNavTratamiento({}, def), def);
   // guardado presente con el TIPO correcto sigue ganando sobre el default
-  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#111111' });
+  assert.deepEqual(resolverNavTratamiento({ activo: false }, def), { activo: false, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#111111', buscarMovil: true });
   // un hex guardado gana sobre el default de `badgeColor`, igual que cualquier otro campo
-  assert.deepEqual(resolverNavTratamiento({ badgeColor: '#222222' }, def), { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#222222' });
+  assert.deepEqual(resolverNavTratamiento({ badgeColor: '#222222' }, def), { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#222222', buscarMovil: true });
 });
 
 // § CROMO-NAV-DIRECCION-SCROLL-1 — `direccion` se resuelve INDEPENDIENTE de `activo` (mismo `bool()`
@@ -88,7 +109,7 @@ test('resolverNavTratamiento: sin guardado, un DEFAULT explícito manda (defensa
 // el SEXTO campo, mismo mecanismo.
 
 test('resolverNavTratamiento: un guardado que sólo trae `direccion` no toca `activo` ni `filete` ni `cta` ni `posicion` ni `subrayado` ni `badgeColor` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null });
+  assert.deepEqual(resolverNavTratamiento({ direccion: true }, {}), { activo: false, direccion: true, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null, buscarMovil: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va boolean) cae al default', () => {
@@ -98,7 +119,7 @@ test('resolverNavTratamiento: un tipo equivocado en `direccion` (string donde va
 });
 
 test('resolverNavTratamiento: un guardado que sólo trae `filete` no toca `activo` ni `direccion` ni `cta` ni `posicion` ni `subrayado` ni `badgeColor` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ filete: true }, {}), { activo: false, direccion: false, filete: true, cta: false, posicion: false, subrayado: false, badgeColor: null });
+  assert.deepEqual(resolverNavTratamiento({ filete: true }, {}), { activo: false, direccion: false, filete: true, cta: false, posicion: false, subrayado: false, badgeColor: null, buscarMovil: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `filete` (string donde va boolean) cae al default', () => {
@@ -109,7 +130,7 @@ test('resolverNavTratamiento: un tipo equivocado en `filete` (string donde va bo
 });
 
 test('resolverNavTratamiento: un guardado que sólo trae `cta` no toca `activo`/`direccion`/`filete`/`posicion`/`subrayado`/`badgeColor` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ cta: true }, {}), { activo: false, direccion: false, filete: false, cta: true, posicion: false, subrayado: false, badgeColor: null });
+  assert.deepEqual(resolverNavTratamiento({ cta: true }, {}), { activo: false, direccion: false, filete: false, cta: true, posicion: false, subrayado: false, badgeColor: null, buscarMovil: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `cta` (string donde va boolean) cae al default', () => {
@@ -121,7 +142,7 @@ test('resolverNavTratamiento: un tipo equivocado en `cta` (string donde va boole
 });
 
 test('resolverNavTratamiento: un guardado que sólo trae `posicion` no toca `activo`/`direccion`/`filete`/`cta`/`subrayado`/`badgeColor` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ posicion: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: true, subrayado: false, badgeColor: null });
+  assert.deepEqual(resolverNavTratamiento({ posicion: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: true, subrayado: false, badgeColor: null, buscarMovil: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `posicion` (string donde va boolean) cae al default', () => {
@@ -134,7 +155,7 @@ test('resolverNavTratamiento: un tipo equivocado en `posicion` (string donde va 
 });
 
 test('resolverNavTratamiento: un guardado que sólo trae `subrayado` no toca `activo`/`direccion`/`filete`/`cta`/`posicion`/`badgeColor` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ subrayado: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: true, badgeColor: null });
+  assert.deepEqual(resolverNavTratamiento({ subrayado: true }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: true, badgeColor: null, buscarMovil: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `subrayado` (string donde va boolean) cae al default', () => {
@@ -153,7 +174,7 @@ test('resolverNavTratamiento: un tipo equivocado en `subrayado` (string donde va
 // para las raíces de paleta (`HEX6_TEMA`, reusado acá).
 
 test('resolverNavTratamiento: un guardado que sólo trae `badgeColor` no toca `activo`/`direccion`/`filete`/`cta`/`posicion`/`subrayado` (cada campo cae a SU PROPIO default)', () => {
-  assert.deepEqual(resolverNavTratamiento({ badgeColor: '#f5b36a' }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: '#f5b36a' });
+  assert.deepEqual(resolverNavTratamiento({ badgeColor: '#f5b36a' }, {}), { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: '#f5b36a', buscarMovil: false });
 });
 
 test('resolverNavTratamiento: un tipo equivocado en `badgeColor` (number donde va string) cae al default null', () => {
@@ -177,11 +198,13 @@ test('resolverNavTratamiento: `badgeColor` con hex-6 válido sobrevive tal cual'
 // ── resolverSiteContent / DEFAULTS — sin fila, byte-idéntico ────────────────────────────────────
 
 test('DEFAULTS.navTratamiento (el literal de site-content-defaults.ts) === el navTratamiento de HOY', () => {
-  assert.deepEqual(DEFAULTS.navTratamiento, NAV_TRATAMIENTO_HOY);
+  // § NAV-MOVIL-SIN-BUSCAR-1: `NAV_TRATAMIENTO_HOY_APP`, no `NAV_TRATAMIENTO_HOY` — acá `buscarMovil`
+  // SÍ tiene un default real de la app (`true`), a diferencia del fallback interno del resolver.
+  assert.deepEqual(DEFAULTS.navTratamiento, NAV_TRATAMIENTO_HOY_APP);
 });
 
 test('resolverSiteContent({}).navTratamiento === el navTratamiento de HOY (Nayoli, sin fila)', () => {
-  assert.deepEqual(resolverSiteContent({}).navTratamiento, NAV_TRATAMIENTO_HOY);
+  assert.deepEqual(resolverSiteContent({}).navTratamiento, NAV_TRATAMIENTO_HOY_APP);
 });
 
 // ── El catálogo de presets: AUSENTE = hoy exacto; sólo CORTE lo declara ─────────────────────────
@@ -274,7 +297,10 @@ test('mergePresetEnContent: los otros 5 presets escriben `content.navTratamiento
   for (const preset of PRESETS) {
     if (preset.clave === 'CORTE') continue;
     const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, preset);
-    assert.deepEqual(out.navTratamiento, NAV_TRATAMIENTO_HOY, `${preset.clave} debe dejar navTratamiento en su default de hoy`);
+    // § NAV-MOVIL-SIN-BUSCAR-1: `NAV_TRATAMIENTO_HOY_MERGE` (sin `buscarMovil`) — el merge CRUDO no
+    // escribe este campo (hueco conocido, fuera de `touches:` de ese slice); exigir la clave acá
+    // haría fallar el test por una ausencia ESPERADA, no por un defecto.
+    assert.deepEqual(out.navTratamiento, NAV_TRATAMIENTO_HOY_MERGE, `${preset.clave} debe dejar navTratamiento en su default de hoy`);
   }
 });
 

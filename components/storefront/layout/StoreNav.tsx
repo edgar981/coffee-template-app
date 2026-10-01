@@ -508,6 +508,18 @@ export default function StoreNav() {
   // `w-5 h-5`, byte-idéntico a hoy.
   const navIconoClase = navTratamiento.posicion ? 'w-[22px] h-[22px] sf-icono-nav-exacto' : 'w-5 h-5';
 
+  // § NAV-MOVIL-SIN-BUSCAR-1 — el ícono de buscar de la BARRA (más abajo, "Actions") se puede ocultar
+  // en ancho de TELÉFONO (`<lg`), por tenant. SÓLO bajo `navDrawerMovil.variante==='pantallaCompleta'`
+  // (§ MENU-MOVIL-COMO-CAFEONE-1): ES EL ÚNICO drawer móvil que trae su PROPIO botón de buscar en la
+  // cabecera (más abajo, el bloque "Mobile Menu — PANTALLA COMPLETA", `aria-label="Buscar"`) — el
+  // `'dropdown'` de HOY (el resto del catálogo) no lo tiene, así que para ese drawer el ícono de la
+  // barra NUNCA se oculta, aunque `navTratamiento.buscarMovil` esté en `false` (un estado que el panel
+  // ya evita ofrecer, § `EncabezadoSeccion.tsx`, pero esta guarda es la que lo hace IMPOSIBLE, no sólo
+  // no-ofrecido). `navTratamiento.buscarMovil` default `true` → `false` acá siempre → byte-idéntico a
+  // hoy para todo tenant que no apague el switch. En ESCRITORIO nunca se oculta, en ningún caso: el
+  // `lg:inline-flex` del className de abajo cubre ESE breakpoint, no éste.
+  const ocultarBuscarEnBarraMovil = navDrawerMovil.variante === 'pantallaCompleta' && !navTratamiento.buscarMovil;
+
   // EL LINK ACTIVO era INVISIBLE sobre nav oscuro (§ NAV-LINK-ACTIVO-INVISIBLE-1): el `!important`
   // pisaba `linkColor` con `--sf-acento-texto` SIEMPRE, sin mirar `navClaro`. Para CORTE ese token
   // no es "el acento como texto" — `origenTexto:'tinta'` (themes.ts) lo re-deriva a
@@ -851,7 +863,7 @@ export default function StoreNav() {
                   (`rounded-full`, sin branch) al radio chico de la forma (`sf-radio-lg`) bajo
                   `formaCustom`, MISMO swap que el ojo/carrito de las tarjetas. Suave/Nayoli conserva
                   `rounded-full` literal, byte a byte. */}
-              <button ref={searchTriggerRef} className={`p-2 cursor-pointer transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor}`} onClick={() => setSearchOpen(true)}>
+              <button ref={searchTriggerRef} className={`p-2 cursor-pointer transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor}${ocultarBuscarEnBarraMovil ? ' hidden lg:inline-flex' : ''}`} onClick={() => setSearchOpen(true)}>
                 <Search className={navIconoClase} />
               </button>
               <button onClick={openCart} className={`relative p-2 transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor} cursor-pointer`}>

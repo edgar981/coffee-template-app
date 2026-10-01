@@ -64,6 +64,13 @@ import { CORTE } from '../../lib/config/themes';
 // razonamiento — los bodies de abajo llevan `badgeColor` junto a los otros seis porque `wireDe`
 // sigue mandando el objeto COMPLETO.
 //
+// § NAV-MOVIL-SIN-BUSCAR-1: `navTratamiento` gana un OCTAVO campo (`buscarMovil`) — los bodies de
+// abajo lo llevan junto a los otros siete porque `wireDe` sigue mandando el objeto COMPLETO. A
+// DIFERENCIA de los siete anteriores, éste NO es un eje de preset: ningún preset lo declara
+// (`mergePresetEnContent`, `themes.ts`, no lo toca — § el test "default del preset", abajo, que lo
+// afirma contra Postgres real), así que su default (`true`, `DEFAULTS.navTratamiento.buscarMovil`)
+// es la única fuente para TODO tenant, con o sin preset.
+//
 // § MARCA-LOGO-IMAGEN-1 — DEVIACIÓN MEDIDA, fuera de `touches:` de ese slice (mismo patrón ya
 // documentado arriba para § CROMO-NAV-DIRECCION-SCROLL-1 y hermanas: este archivo es un ESPEJO del
 // `.pick()`/`METAS_ENCABEZADO` reales de `app/api/site-content/encabezado/route.ts`, y ampliar la
@@ -104,7 +111,10 @@ test('guardar: las cuatro metas + logo quedan en el BORRADOR y sinPublicar.encab
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
+    // § NAV-MOVIL-SIN-BUSCAR-1: `buscarMovil: false` ejercita la dirección que motivó el slice — el
+    // dueño apaga el buscar de la barra móvil (default `true`, los otros siete campos van a su
+    // NO-default `true` por la razón de siempre: ejercitar el camino de escritura, no el de lectura).
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a', buscarMovil: false },
     navDrawerMovil: { variante: 'pantallaCompleta' },
     logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: 'https://blob.example/logo-claro.svg', alt: 'Logo de Café Las Chamisas' },
   });
@@ -122,6 +132,7 @@ test('guardar: las cuatro metas + logo quedan en el BORRADOR y sinPublicar.encab
   assert.equal(contenido.navTratamiento.posicion, true);
   assert.equal(contenido.navTratamiento.subrayado, true);
   assert.equal(contenido.navTratamiento.badgeColor, '#f5b36a');
+  assert.equal(contenido.navTratamiento.buscarMovil, false);
   assert.equal(contenido.navDrawerMovil.variante, 'pantallaCompleta');
   assert.equal(contenido.logo.oscuro, 'https://blob.example/logo-oscuro.svg');
   assert.equal(contenido.logo.claro, 'https://blob.example/logo-claro.svg');
@@ -132,6 +143,7 @@ test('guardar: las cuatro metas + logo quedan en el BORRADOR y sinPublicar.encab
   assert.equal(publicado.cromo.navTinta, false, 'guardar el borrador no debe tocar lo publicado');
   assert.equal(publicado.navWordmark.activo, false);
   assert.equal(publicado.navTratamiento.badgeColor, null, 'guardar el borrador no debe tocar lo publicado');
+  assert.equal(publicado.navTratamiento.buscarMovil, true, 'guardar el borrador no debe tocar lo publicado (default true)');
   assert.equal(publicado.navDrawerMovil.variante, 'dropdown');
   assert.equal(publicado.logo.oscuro, '', 'guardar el borrador no debe tocar lo publicado');
   assert.equal(publicado.logo.claro, '', 'guardar el borrador no debe tocar lo publicado');
@@ -141,7 +153,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil,logo} q
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a', buscarMovil: false },
     navDrawerMovil: { variante: 'pantallaCompleta' },
     logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: 'https://blob.example/logo-claro.svg', alt: 'Logo de Café Las Chamisas' },
   });
@@ -158,6 +170,7 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil,logo} q
   assert.equal(publicado.navTratamiento.posicion, true);
   assert.equal(publicado.navTratamiento.subrayado, true);
   assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a');
+  assert.equal(publicado.navTratamiento.buscarMovil, false, '§ NAV-MOVIL-SIN-BUSCAR-1 — el dueño lo apagó y publicó');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
   assert.equal(publicado.logo.oscuro, 'https://blob.example/logo-oscuro.svg');
   assert.equal(publicado.logo.claro, 'https://blob.example/logo-claro.svg');
@@ -184,21 +197,22 @@ test('publicar sólo deja HUÉRFANO el logo REEMPLAZADO — blobsABorrar lo nomb
 });
 
 test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
-  // Semilla: un Encabezado ya PUBLICADO con los switches encendidos…
+  // Semilla: un Encabezado ya PUBLICADO con los switches encendidos… y el buscar móvil YA apagado
+  // (§ NAV-MOVIL-SIN-BUSCAR-1) — es la elección del dueño que "descartar" tiene que PRESERVAR.
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a', buscarMovil: false },
     navDrawerMovil: { variante: 'pantallaCompleta' },
     logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: '', alt: '' },
   });
   await publicarComoLaRuta();
 
-  // …y un borrador nuevo que los APAGA, sin publicar.
+  // …y un borrador nuevo que los APAGA (y vuelve a encender el buscar móvil), sin publicar.
   await guardarComoLaRuta({
     cromo: { navTinta: false, navSubtitulo: false, navBadge: '' },
     navWordmark: { activo: false },
-    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null },
+    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null, buscarMovil: true },
     navDrawerMovil: { variante: 'dropdown' },
     logo: { oscuro: '', claro: '', alt: '' },
   });
@@ -214,6 +228,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   assert.equal(publicado.navTratamiento.posicion, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.subrayado, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a', 'descartar no debe tocar lo YA publicado');
+  assert.equal(publicado.navTratamiento.buscarMovil, false, 'descartar no debe tocar lo YA publicado (el dueño lo había apagado)');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta', 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.logo.oscuro, 'https://blob.example/logo-oscuro.svg', 'descartar no debe tocar lo YA publicado');
 
@@ -243,6 +258,12 @@ test('default del preset: los diez controles arrancan con el valor que puso merg
   // un eje de theme — `aplicarPreset` no lo toca y queda en su default vacío.
   assert.equal(publicado.logo.oscuro, '', 'ningún preset escribe logo');
   assert.equal(publicado.logo.claro, '', 'ningún preset escribe logo');
+  // `buscarMovil` (§ NAV-MOVIL-SIN-BUSCAR-1) TAMPOCO es parte de ningún preset — a diferencia de
+  // `logo`, `mergePresetEnContent` SÍ reconstruye `navTratamiento` entero (y por tanto no deja este
+  // campo en la fila cruda), pero `readSiteContent` resuelve la lectura (`resolverNavTratamiento`)
+  // y su `bool()` cae al DEFAULT (`true`) ante la ausencia — confirmado acá contra Postgres real,
+  // no sólo contra el merge en memoria (§ nav-internas.test.ts).
+  assert.equal(publicado.navTratamiento.buscarMovil, true, 'ningún preset lo toca; resuelve al default');
 });
 
 test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se reenvía sin editarlo', async () => {
@@ -258,7 +279,7 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
     // VIGENTE, como hace el componente (nunca a medias).
     cromo: { navTinta: false, navSubtitulo: true, navBadge: 'Cosecha 2026' },
     navWordmark: { activo: true },
-    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
+    navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a', buscarMovil: true },
     navDrawerMovil: { variante: 'pantallaCompleta' },
     logo: { oscuro: '', claro: '', alt: '' },
   });

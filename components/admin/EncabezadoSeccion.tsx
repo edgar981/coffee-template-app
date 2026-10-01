@@ -100,6 +100,12 @@ interface Form {
   // DORADO-1). SÓLO tiene efecto con `ctaBadge` encendido — el badge fijo es lo que este color
   // pinta; sin `ctaBadge` el badge sigue el par translúcido de `navClaro`, que este campo no toca.
   badgeColor: string;        // navTratamiento.badgeColor
+  // § NAV-MOVIL-SIN-BUSCAR-1 — ¿el ícono de buscar aparece en la barra del encabezado en ancho de
+  // teléfono? Default `true` (HOY: se muestra). SÓLO TIENE EFECTO con `drawerMovil` encendido —
+  // el drawer `'dropdown'` (default) no trae buscar en su propio panel, así que apagarlo ahí dejaría
+  // al visitante sin ninguna vía de búsqueda en el teléfono; `StoreNav.tsx` lo ignora fuera de
+  // `pantallaCompleta`, igual que el render no lo expone acá (§ el bloque anidado, abajo).
+  buscarMovil: boolean;      // navTratamiento.buscarMovil
   // LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1): tres strings, NO un switch — '' = esa versión no
   // está subida. `logo.oscuro`/`logo.claro`/`logo.alt`.
   logoOscuro: string;
@@ -110,7 +116,7 @@ interface Form {
 interface Wire {
   cromo: { navTinta: boolean; navSubtitulo: boolean; navBadge: string };
   navWordmark: { activo: boolean };
-  navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null };
+  navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null; buscarMovil: boolean };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
   logo: { oscuro: string; claro: string; alt: string };
 }
@@ -161,6 +167,7 @@ export default function EncabezadoSeccion() {
       activo: f.tratamientoNav, direccion: f.direccionScroll, filete: f.filete, cta: f.ctaBadge,
       posicion: f.posicion, subrayado: f.subrayado,
       badgeColor: HEX6_BADGE.test(f.badgeColor) ? f.badgeColor : null,
+      buscarMovil: f.buscarMovil,
     },
     navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
     logo: { oscuro: f.logoOscuro, claro: f.logoClaro, alt: f.logoAlt },
@@ -186,7 +193,7 @@ export default function EncabezadoSeccion() {
       const contenido = (d.contenido ?? {}) as {
         cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
         navWordmark?: { activo?: unknown };
-        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown };
+        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown; buscarMovil?: unknown };
         navDrawerMovil?: { variante?: unknown };
         logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown };
       };
@@ -202,6 +209,10 @@ export default function EncabezadoSeccion() {
         posicion: !!contenido.navTratamiento?.posicion,
         subrayado: !!contenido.navTratamiento?.subrayado,
         badgeColor: typeof contenido.navTratamiento?.badgeColor === 'string' ? contenido.navTratamiento.badgeColor : '',
+        // § NAV-MOVIL-SIN-BUSCAR-1 — `resolverNavTratamiento` SIEMPRE devuelve un boolean concreto
+        // (default `true`); `!== false` es sólo la red defensiva de siempre (§ los demás campos de
+        // este objeto), nunca la fuente del default.
+        buscarMovil: contenido.navTratamiento?.buscarMovil !== false,
         logoOscuro: typeof contenido.logo?.oscuro === 'string' ? contenido.logo.oscuro : '',
         logoClaro: typeof contenido.logo?.claro === 'string' ? contenido.logo.claro : '',
         logoAlt: typeof contenido.logo?.alt === 'string' ? contenido.logo.alt : '',
@@ -479,6 +490,32 @@ export default function EncabezadoSeccion() {
                           Vacío: el badge sigue con el color de acento cálido de siempre.
                         </p>
                       )}
+                    </div>
+                  )}
+                  {/* Sub-control de "Drawer móvil de pantalla completa" (§ NAV-MOVIL-SIN-BUSCAR-1):
+                      SÓLO tiene efecto con ESE switch encendido — es el ÚNICO drawer móvil que trae
+                      su propio buscar en la cabecera (verificado leyendo `StoreNav.tsx`); el drawer
+                      `'dropdown'` de hoy no lo tiene, así que ahí apagarlo dejaría al visitante sin
+                      ninguna vía de búsqueda en el teléfono. Por eso NO es una entrada más de
+                      `CONTROLES` (quedaría encendida/ofrecida también para `'dropdown'`): se anida
+                      bajo su hint, mismo patrón que `badgeColor` bajo `ctaBadge`. */}
+                  {c.name === 'drawerMovil' && form.drawerMovil && (
+                    <div style={{ marginTop: 'var(--duna-space-3)', marginLeft: 'calc(2.5rem + var(--duna-space-3))' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+                        <button
+                          type="button" role="switch" aria-checked={form.buscarMovil}
+                          aria-label="Mostrar buscar en la barra del teléfono"
+                          onClick={() => cambiar({ buscarMovil: !form.buscarMovil })}
+                          className={`duna-switch${form.buscarMovil ? ' is-on' : ''}`}
+                        >
+                          <span className="duna-switch__thumb" />
+                        </button>
+                        <span className="duna-field__label" style={{ margin: 0 }}>Mostrar buscar en la barra del teléfono</span>
+                      </div>
+                      <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
+                        En el teléfono, el ícono de buscar aparece en la barra del encabezado. Apágalo para
+                        quitarlo de ahí — sigue disponible dentro del menú.
+                      </p>
                     </div>
                   )}
                 </div>

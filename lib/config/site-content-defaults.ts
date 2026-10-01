@@ -1273,6 +1273,48 @@ export interface NavTratamientoContent {
   // `mergePresetEnContent` (`themes.ts`) lo escribe, con `preset.navTratamientoBadgeColor`; de los
   // 6 presets del catálogo, sólo CORTE lo declara (`#f5b36a`).
   badgeColor: string | null;
+  // ¿El ícono de buscar aparece en la barra del encabezado cuando el nav está en ancho de TELÉFONO
+  // (§ NAV-MOVIL-SIN-BUSCAR-1)? `true` = HOY: se muestra, byte-idéntico — a diferencia de los SIETE
+  // campos de arriba (todos `false`=HOY, un eje que sólo CORTE enciende vía preset), ÉSTE nace
+  // `true` para TODO tenant: no es un eje de preset, es una preferencia por-tienda que el dueño
+  // apaga desde el panel para dar aire al nombre cuando el encabezado se siente apretado (gate del
+  // owner, 2026-10-01, viendo la demo de Café Las Chamisas en el teléfono).
+  //
+  // `false` SÓLO TIENE EFECTO bajo `navDrawerMovil.variante==='pantallaCompleta'` — comprobado por
+  // EJECUCIÓN, no asumido: ese drawer trae su PROPIA cabecera con buscar/carrito/cerrar (§
+  // MENU-MOVIL-COMO-CAFEONE-1, `StoreNav.tsx`, el botón `aria-label="Buscar"` de la rama
+  // `pantallaCompleta`), así que apagar el de la barra deja al visitante con una vía de búsqueda
+  // intacta dentro del menú. El `'dropdown'` de HOY (los otros 5 presets del catálogo) NO trae
+  // buscar en su panel — medido leyendo esa rama del componente, cero búsqueda ahí—, así que
+  // `StoreNav.tsx` IGNORA este campo fuera de `pantallaCompleta`: el ícono de la barra sigue
+  // mostrándose siempre para esos tenants, aunque el dueño lo apague (el switch del panel se oculta
+  // en ese caso, § `EncabezadoSeccion.tsx`, para no ofrecer un control que no tiene adónde apuntar).
+  // En ESCRITORIO nunca se oculta, en ningún caso: el eje es `<lg` únicamente (el breakpoint del
+  // propio `<nav>`/hamburguesa de este archivo).
+  //
+  // CONTROL: vive ANIDADO bajo el switch "Drawer móvil de pantalla completa"
+  // (`EncabezadoSeccion.tsx`), nunca suelto en la lista de interruptores — mismo patrón que
+  // `badgeColor` anidado bajo `cta`, arriba: su efecto depende por completo del switch que lo
+  // gobierna.
+  //
+  // HUECO CONOCIDO, MEDIDO (no sólo teórico), fuera de `touches:` de este slice:
+  // `mergePresetEnContent` (`themes.ts`) reconstruye `navTratamiento` entero por campo y NO incluye
+  // éste, así que su salida CRUDA queda sin la clave (`undefined`, no `false`/`true`). Dos caminos
+  // consumen esa salida, con consecuencia DISTINTA:
+  //   - `aplicarPreset` (onboarding, `prisma/aplicar-preset.ts`, manual y con confirmación explícita
+  //     del nombre del tenant) PERSISTE esa salida cruda, pero todo READ posterior pasa de nuevo por
+  //     `resolverSiteContent`/`resolverNavTratamiento`, cuyo `bool()` cae al DEFAULT (`true`) ante la
+  //     ausencia — confirmado contra Postgres real, § `panel-encabezado.test.ts`, "default del
+  //     preset". Sólo se pierde la elección del dueño si `aplicarPreset` se vuelve a correr SOBRE un
+  //     tenant que ya la había personalizado a mano (caso raro, operación manual).
+  //   - el MIRADOR de preview `?tema=CLAVE` (`theme-mirador.ts`, `contenidoConPresetDeVista`,
+  //     gateado a `esDespliegueDemo()`) NO vuelve a resolver: pasa la salida cruda directo al
+  //     storefront. Ahí `buscarMovil` SÍ llega `undefined` a `StoreNav.tsx`, y `!undefined` evalúa
+  //     `true` — bajo `navDrawerMovil.variante==='pantallaCompleta'` (que el mirador de CORTE SÍ
+  //     fuerza), el buscar de la barra se vería OCULTO en la vista previa aunque el tenant real lo
+  //     tenga en `true` (mostrado). Confirmado por ejecución, § `nav-internas.test.ts`, "HUECO
+  //     MEDIDO". Acotado al preview de demo; no afecta lo que un visitante real ve.
+  buscarMovil: boolean;
 }
 
 // META de TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1) — MISMA forma y MISMO porqué que
@@ -1962,6 +2004,11 @@ export const DEFAULTS: SiteContentData = {
     // BADGE COLOR por defecto (§ RIEL-SCROLL-Y-BADGE-DORADO-1): `null` = el badge sigue pintando
     // con `--sf-tostado`, byte-idéntico. Sólo CORTE lo enciende, vía `mergePresetEnContent`.
     badgeColor: null,
+    // BUSCAR EN LA BARRA MÓVIL por defecto (§ NAV-MOVIL-SIN-BUSCAR-1): `true` = HOY, se muestra —
+    // a diferencia de los siete campos de arriba, éste NO es un eje de preset (ningún preset lo
+    // declara, § el docstring de `NavTratamientoContent.buscarMovil`); nace `true` para TODO
+    // tenant, y el dueño lo apaga por su cuenta desde el panel.
+    buscarMovil: true,
   },
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
@@ -2956,6 +3003,10 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
     activo: bool('activo'), direccion: bool('direccion'), filete: bool('filete'), cta: bool('cta'),
     posicion: bool('posicion'), subrayado: bool('subrayado'),
     badgeColor: hex('badgeColor'),
+    // § NAV-MOVIL-SIN-BUSCAR-1: MISMO `bool()` que el resto — su default (`true`, § DEFAULTS.
+    // navTratamiento arriba) es lo que hace que una fila SIN este campo (de antes de este slice)
+    // resuelva a "se muestra", byte-idéntico a hoy.
+    buscarMovil: bool('buscarMovil'),
   };
 }
 

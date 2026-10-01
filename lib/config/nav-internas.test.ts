@@ -156,3 +156,51 @@ test('CORTE sigue siendo el ÚNICO preset del catálogo que declara navTinta:tru
     assert.equal(preset.navTinta, undefined, `${preset.clave} no debe declarar navTinta`);
   }
 });
+
+// ─── `navTratamiento.buscarMovil` (§ NAV-MOVIL-SIN-BUSCAR-1) ───────────────────────────────────────
+//
+// A diferencia de los siete campos de arriba, éste NO es un eje de preset: ningún preset del
+// catálogo lo declara (`mergePresetEnContent`, `themes.ts`, ni lo toca), así que el default de
+// `DEFAULTS.navTratamiento` es la única fuente, para TODO tenant, con o sin preset superpuesto.
+
+test('sin fila de SiteContent (Nayoli/defaults) → navTratamiento.buscarMovil es true — se muestra, byte-idéntico a hoy', () => {
+  assert.equal(resolverSiteContent({}).navTratamiento.buscarMovil, true);
+});
+
+test('HUECO MEDIDO (fuera de `touches:`, § el docstring de NavTratamientoContent.buscarMovil): el mirador `?tema=CORTE` pierde el campo — `mergePresetEnContent` (themes.ts) reconstruye `navTratamiento` entero SIN `buscarMovil`, así que acá queda `undefined`, no `true`', () => {
+  // ESTO NO ES EL CAMINO REAL de un tenant: `app/(storefront)/page.tsx` sólo llama a esto bajo
+  // `esDespliegueDemo()`, y el resultado se pasa DIRECTO al storefront SIN volver a pasar por
+  // `resolverSiteContent` — por eso el hueco de `mergePresetEnContent` SÍ llega a filtrarse hasta
+  // acá, a diferencia de `readSiteContent()` (§ `panel-encabezado.test.ts`, "default del preset"),
+  // que SÍ resuelve de nuevo y cae al default `true`. Medido, no asumido — este test se vio fallar
+  // esperando `true` antes de corregirlo a lo que el código realmente produce.
+  const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
+  assert.equal(conCorte.navTratamiento.buscarMovil, undefined);
+});
+
+test('de los 6 presets del catálogo, ninguno declara navTratamientoBuscarMovil (no es un eje de preset)', () => {
+  for (const preset of PRESETS) {
+    assert.equal(
+      (preset as unknown as Record<string, unknown>).navTratamientoBuscarMovil,
+      undefined,
+      `${preset.clave} no debería declarar navTratamientoBuscarMovil`,
+    );
+  }
+});
+
+// ─── `ocultarBuscarEnBarraMovil` (StoreNav.tsx) — reproducida por SUSTITUCIÓN, mismo método que
+// `estadoNav` arriba: StoreNav.tsx NO se renderiza acá (§ el docstring de cabecera de este archivo).
+
+function ocultarBuscarEnBarraMovil(variante: 'dropdown' | 'pantallaCompleta', buscarMovil: boolean): boolean {
+  return variante === 'pantallaCompleta' && !buscarMovil;
+}
+
+test("'dropdown' (HOY, 5 de 6 presets): el buscar de la barra NUNCA se oculta, ni con buscarMovil:false — ese drawer no trae buscar propio", () => {
+  assert.equal(ocultarBuscarEnBarraMovil('dropdown', true), false);
+  assert.equal(ocultarBuscarEnBarraMovil('dropdown', false), false);
+});
+
+test("'pantallaCompleta' (CORTE): buscarMovil:true (default) → se muestra; buscarMovil:false → se oculta de la barra (sigue en el menú)", () => {
+  assert.equal(ocultarBuscarEnBarraMovil('pantallaCompleta', true), false);
+  assert.equal(ocultarBuscarEnBarraMovil('pantallaCompleta', false), true);
+});
