@@ -38061,3 +38061,93 @@ del 2026-09-30 sobre `PANEL-PREVIEW-COLORES-REALES-1`, citado arriba) — el MER
 aparte.
 
 Cierra `PALETA-GUARDAR-CONSERVA-EJES-1`.
+
+## 2026-09-30 — El carrito vacío de /checkout ya no manda a la home (`CHECKOUT-VACIO-A-TIENDA-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Gate del owner del 2026-09-30:
+*"si estoy en /checkout y elimino los productos del carrito, me sale la pantalla de: 'Tu carrito
+está vacío / Explorar productos'. Sin embargo, 'Explorar productos' no me lleva a /tienda, sino al
+home, revisa si pasa en Nayoli también."*
+
+### El defecto, medido
+
+`app/(storefront)/checkout/page.tsx:508-517` — la rama `items.length === 0 && !confirmation`
+renderizaba `<Link href="/" …>← Explorar productos</Link>`. El texto promete el catálogo; el
+destino era la home. Es la MISMA página para todos los presets (no hay rama por
+`navTratamiento`/preset en este bloque), así que Nayoli tiene el mismo defecto que CORTE —el owner
+lo reportó probando CORTE y pidió explícito verificar Nayoli también, y es la misma línea de
+código—.
+
+### El fix
+
+Un cambio de atributo: `href="/"` → `href="/tienda"`. El texto del enlace ("← Explorar
+productos"), su clase y su posición no se tocaron.
+
+### Censo del resto de la tienda (grep, sin tocar nada)
+
+El spec pedía censar si otro estado vacío/error promete productos y manda a la home:
+
+- `grep -rn 'href="/"'` en `app/(storefront)` + `components/storefront`: sólo DOS sitios más, los
+  dos correctos — el logo de `StoreNav.tsx` (dos apariciones, enlace a inicio, es lo que un logo
+  debe hacer) y el breadcrumb "Inicio" de `tienda/[slug]/page.tsx:188` (dice "Inicio", lleva a
+  inicio).
+- "Producto no encontrado" (`tienda/[slug]/page.tsx:119-127`) ya enlaza a `/tienda` ("← Volver a la
+  tienda") — correcto, no es el defecto.
+- El carrito vacío del `CartDrawer.tsx:282-310` ("Tu carrito está vacío" / "Explora nuestros
+  productos y agrega tu café favorito.") NO navega a ningún lado: su botón llama `closeCart()` (el
+  drawer se cierra y el visitante queda en la página de catálogo en la que ya estaba). No hay
+  destino que corregir.
+
+**Censo limpio: ningún otro sitio queda fuera de `touches:` con este defecto.**
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2871/2871** (incluye las 2 nuevas de `lib/config/checkout-vacio.test.ts`) |
+| `npm run test:integracion` | **245/245** |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset, `main` vs. esta rama — un cambio de `href` no mueve un solo píxel |
+
+### `customer_bytes`
+
+**`changed: true`, universal — NO gateado a CORTE.** Ningún STRING nuevo ni cambiado (`strings:
+[]`; "← Explorar productos" es el mismo texto). Lo que cambia es el DESTINO de un enlace: todo
+visitante (de cualquier tenant, Nayoli incluida) que vacíe el carrito en `/checkout` y clickee
+"Explorar productos" aterriza en `/tienda` en vez de en la home. `verificar:nayoli:visual` confirma
+0px porque el cambio es de atributo `href`, invisible a una captura de píxeles — se declara la
+diferencia de método, no se oculta (misma salvedad que `CHECKOUT-RASTREAR-TRANSICIONES-1`).
+
+### Deviations
+
+Ninguna respecto del spec.
+
+### Open follow-ups
+
+Ninguno. El censo (arriba) no encontró otro sitio del mismo defecto.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `app/(storefront)/checkout/page.tsx`, el `href` del enlace de
+carrito vacío, `lib/config/checkout-vacio.test.ts`, `CHECKOUT-VACIO-A-TIENDA-1`. Grepeados contra
+`CLAUDE.md`:
+
+- `"checkout/page.tsx"` (el archivo, literal): **CERO** apariciones.
+- `"Explorar productos"`, `"carrito está vacío"`, `"CHECKOUT-VACIO-A-TIENDA"`, `"checkout-vacio"`:
+  **CERO** apariciones.
+- `"/checkout"` / `"app/(storefront)/checkout"` (más amplio): aparece en la frase canónica de
+  Tier 1 (línea 39, como parte del subárbol `app/(storefront)/`) y en los bullets sobre
+  `lib/checkout/`, `app/api/checkout/route.ts` y `app/api/checkout/reintento/route.ts` — ninguno
+  describe la rama de carrito vacío del `page.tsx` ni su destino; todos hablan de otras superficies
+  (rutas API, `lib/checkout/metodos-pago.ts`, `transferencia.ts`). Nada se vuelve falso.
+
+**Nada en `CLAUDE.md` afirma algo sobre el enlace de carrito vacío que este diff vuelva falso.**
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia el destino de un enlace que todo
+visitante puede alcanzar (§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (su propio reporte del defecto,
+citado arriba, es la `approval-reason` del spec) — el MERGE sigue gateado aparte.
+
+Cierra `CHECKOUT-VACIO-A-TIENDA-1`.

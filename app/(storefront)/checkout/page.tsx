@@ -510,7 +510,9 @@ export default function Checkout() {
         <div className={`min-h-[60vh] flex items-center justify-center ${offsetClase}`}>
           <div className="text-center">
             <p className="text-xl font-playfair mb-4">Tu carrito está vacío</p>
-            <Link href="/" className="text-[var(--sf-acento-texto)] underline text-sm">← Explorar productos</Link>
+            {/* § CHECKOUT-VACIO-A-TIENDA-1: el enlace promete "productos" — su destino es el
+                catálogo (/tienda), no la home. Antes apuntaba a "/", que no muestra productos. */}
+            <Link href="/tienda" className="text-[var(--sf-acento-texto)] underline text-sm">← Explorar productos</Link>
           </div>
         </div>
     );
