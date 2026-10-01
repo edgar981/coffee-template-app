@@ -24,6 +24,7 @@ import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { remuxMovAMp4 } from '@/lib/video-remux';
+import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
 import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import {
   MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES, TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_VIDEO,
@@ -640,6 +641,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     // Gemelo de `destinoInexistente`, para un PIN de producto (§ `campo.producto`, arriba): el slug
     // guardado ya no matchea ningún producto del catálogo real.
     const productoInexistente = !!campo.producto && productosListos && value.trim() !== '' && !catalogoReal.some((p) => p.slug === value);
+    // La COMBINACIÓN del producto elegido (§ `campo.mostrarEjes`, DESTACADO-PRESENTACION-POR-TAMANO-1):
+    // derivada con la MISMA función que arma la matriz en la tienda (`ejesSpotlight`) — nunca un
+    // texto propio de este editor que pudiera divergir de lo que el visitante ve.
+    const productoConEjes = campo.mostrarEjes ? catalogoReal.find((p) => p.slug === value) : undefined;
+    const ejesProducto = productoConEjes ? ejesSpotlight(productoConEjes) : null;
     // Rótulo POR TÍTULO: «En grano» lleva a: usando el título en vivo de la misma tarjeta.
     const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
     const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
@@ -684,6 +690,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         {productoInexistente && (
           <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
             Este producto ya no existe en el catálogo — elegí uno de la lista.
+          </p>
+        )}
+        {ejesProducto && (
+          <p className="duna-field__hint" style={{ marginBottom: 0 }}>
+            → {etiquetaEjesSpotlight(ejesProducto)}
           </p>
         )}
         <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>

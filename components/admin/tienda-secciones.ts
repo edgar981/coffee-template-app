@@ -94,7 +94,11 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // `categoria: true` (destino de catálogo, aviso de "ya no existe"), pero sobre PRODUCTOS en vez de
 // categorías — dos combobox DISTINTOS porque las dos listas (productos con foto, categorías de
 // texto) no comparten forma. Excluye `textarea`/`categoria`.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
+// `mostrarEjes: true` (§ DESTACADO-PRESENTACION-POR-TAMANO-1) — SÓLO con `producto: true`: bajo el
+// combobox, la cáscara muestra la combinación (presentación · tamaño) DERIVADA del producto elegido
+// (`ejesSpotlight`, lib/config/spotlight.ts) — "con la combinación de cada uno visible" del spec de
+// ese slice. Sin esto el picker no anuncia qué celda de la matriz ocupa cada producto.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -629,13 +633,20 @@ const TESTIMONIOS: SeccionConfig = {
 // SIN `imagenes`: el contenido visual (la portada) se LEE del `Product` pineado en cada render —el
 // pin es puntero, no copia (§ el docstring de `SpotlightContent`)—, nunca se sube acá.
 //
-// LOS TRES PINES SON PICKERS (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, `producto: true` — ya NO
+// LOS CUATRO PINES SON PICKERS (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, `producto: true` — ya NO
 // texto libre): el gate del owner pidió explícito "elegir, no escribir" — el slug sigue siendo lo
 // que se GUARDA (`z.string()` en `spotlightEditableSchema`, valida contra el catálogo VIVO en
 // LECTURA, nunca contra un set fijo al guardar — un pin a un producto borrado después de guardarse
-// sigue siendo un valor válido del schema), sólo cambia CÓMO se escribe. `presentacionSlug` es el
-// TERCER pin (§ SpotlightContent.presentacionSlug): la otra presentación del mismo café, para el
-// tenant que la modela como un producto distinto.
+// sigue siendo un valor válido del schema), sólo cambia CÓMO se escribe.
+//
+// § DESTACADO-PRESENTACION-POR-TAMANO-1 — LOS TRES ALTERNOS DEJARON DE SER "otra presentación"/"otro
+// tamaño" ATADOS A UN EJE FIJO: son, junto al principal, hasta CUATRO productos de un GRUPO que
+// arma la matriz presentación×tamaño (§ el docstring de `SpotlightContent`, site-content-
+// defaults.ts, para el porqué completo). `mostrarEjes: true` en los cuatro — la cáscara muestra,
+// bajo cada combobox, la combinación (presentación · tamaño) que ESE producto ocupa en la matriz,
+// derivada de sus propios datos ("con la combinación de cada uno visible", el spec de ese slice).
+// Los NOMBRES de los tres punteros viejos no cambiaron (cero migración de datos necesaria);
+// `cuartoSlug` es el cuarto, nuevo en ese slice, para la celda que los tres viejos no alcanzaban.
 const SPOTLIGHT: SeccionConfig = {
   seccion: 'spotlight',
   pagina: 'home',
@@ -656,9 +667,10 @@ const SPOTLIGHT: SeccionConfig = {
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
     { name: 'titulo', label: 'Titular', opcional: true, textarea: true, hint: 'El titular de la banda destacada. Un salto de línea acá se respeta en la tienda. Vacío: no se muestra.' },
     { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
-    { name: 'productoSlug', label: 'Producto destacado', opcional: true, producto: true, hint: 'El producto que se destaca en la banda, elegido del catálogo. Sus notas de cata, precio y foto se leen de ahí — nunca se copian acá. Vacío: la banda no muestra nada.' },
-    { name: 'presentacionSlug', label: 'Otra presentación (opcional)', opcional: true, producto: true, hint: 'El mismo café en otra presentación (por ejemplo Molido, si el destacado es En grano) — se ofrece como opción junto al destacado, con su propia foto y precio. Vacío: la Presentación de la banda se arma sólo con las moliendas que ya declara el producto destacado.' },
-    { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, producto: true, hint: 'El mismo café en otro tamaño — se ofrece como opción junto al destacado, con su propia foto y precio. Vacío: no se muestra.' },
+    { name: 'productoSlug', label: 'Producto destacado', opcional: true, producto: true, mostrarEjes: true, hint: 'El producto que se destaca en la banda, elegido del catálogo. Sus notas de cata, precio y foto se leen de ahí — nunca se copian acá. Vacío: la banda no muestra nada.' },
+    { name: 'presentacionSlug', label: 'Otro producto del grupo (1)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: la banda se arma sólo con los productos que SÍ estén elegidos.' },
+    { name: 'otroTamanoSlug', label: 'Otro producto del grupo (2)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: no se muestra.' },
+    { name: 'cuartoSlug', label: 'Otro producto del grupo (3)', opcional: true, producto: true, mostrarEjes: true, hint: 'El cuarto producto del grupo, si el catálogo lo tiene — completa la matriz Presentación × Tamaño (hasta 2×2). Vacío: no se muestra.' },
     { name: 'notaPrecio', label: 'Nota junto al precio', opcional: true, placeholder: 'COP · impuestos incluidos', hint: 'Aclaración corta junto al precio, por ejemplo "COP · impuestos incluidos". Vacío: no se muestra.' },
   ],
 };

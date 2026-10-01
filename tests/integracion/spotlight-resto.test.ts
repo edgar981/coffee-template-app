@@ -68,7 +68,10 @@ test('texto vacío: eyebrow/titulo/badge en blanco publican spotlight byte-idén
 
 // § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1 — el TERCER puntero (`presentacionSlug`), gemelo de
 // `otroTamanoSlug`, por el MISMO viaje de punta a punta (parsear con el schema real → guardar
-// borrador → publicar → releer).
+// borrador → publicar → releer). El NOMBRE y el viaje no cambiaron con § DESTACADO-PRESENTACION-
+// POR-TAMANO-1 (que agregó el cuarto puntero, `cuartoSlug`, probado en spotlight-pin.test.ts): los
+// tres punteros de este test siguen sobreviviendo el MISMO schema sin tocar una línea — es la
+// migración sin pérdida que ese slice pedía.
 test('presentacionSlug (el tercer pin, "otra presentación") sobrevive borrador→publicar→releer, igual que productoSlug/otroTamanoSlug', async () => {
   await guardarComoElRoute({
     productoSlug: 'cafe-la-ceiba-grano-500',

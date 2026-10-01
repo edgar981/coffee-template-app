@@ -16,7 +16,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
-import { etiquetaVarianteSpotlight, productoActivoSpotlight } from "@/lib/config/spotlight";
+import { ejesSpotlight, etiquetaEjesSpotlight, grupoSpotlight, valoresDeEje, productoDeCombinacion } from "@/lib/config/spotlight";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 
@@ -52,24 +52,49 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
 
   const { addItem } = useCartStore();
   const producto = productoSpotlight(catalog, spotlight.productoSlug);
-  // LOS DOS ALTERNOS (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) — INDEPENDIENTES entre sí, cada
-  // uno un SEGUNDO producto que REEMPLAZA entero al principal al elegirlo (no una vista de
-  // sólo-vistazo, a diferencia de `otroTamano` ANTES de este slice): `presentacionAlt` es la OTRA
-  // presentación (molido/grano como productos distintos, § SpotlightContent.presentacionSlug);
-  // `tamanoAlt` es el OTRO tamaño, el MISMO campo/resolver de siempre (`productoOtraTalla`), sólo con
-  // efecto nuevo en la tienda. Ninguno cae a ningún fallback — vacío o sin match es "no hay otro que
-  // ofrecer" (mismo criterio que ya documenta `productoOtraTalla`).
+  // EL GRUPO (§ DESTACADO-PRESENTACION-POR-TAMANO-1) — hasta CUATRO productos del mismo café que
+  // juntos arman la matriz presentación×tamaño del muestrario (`.scratch/refs/muestrario-destacado-
+  // pickers.webp`: PRESENTACIÓN Molido/En grano · TAMAÑO 250 g/500 g, INDEPENDIENTES entre sí — ver
+  // el docstring de `SpotlightContent`, site-content-defaults.ts, para el porqué completo). Los tres
+  // alternos NO caen a ningún fallback — vacío o sin match simplemente no suma un miembro al grupo
+  // (mismo criterio que ya documenta `productoOtraTalla`); deduplicados por slug, porque el pin y un
+  // alterno mal configurado al mismo slug no deben contar dos veces la misma celda.
   const presentacionAlt = productoOtraTalla(catalog, spotlight.presentacionSlug);
   const tamanoAlt = productoOtraTalla(catalog, spotlight.otroTamanoSlug);
+  const cuartoAlt = productoOtraTalla(catalog, spotlight.cuartoSlug);
+  const miembrosDelGrupo: Product[] = [];
+  const slugsVistos = new Set<string>();
+  for (const p of [producto, presentacionAlt, tamanoAlt, cuartoAlt]) {
+    if (p && !slugsVistos.has(p.slug)) { slugsVistos.add(p.slug); miembrosDelGrupo.push(p); }
+  }
+  const grupo = grupoSpotlight(miembrosDelGrupo);
+  // Los valores ÚNICOS de cada eje dentro del grupo (§ `valoresDeEje`) — con un solo valor, el
+  // selector de ESE eje no se muestra (nada entre qué elegir, mismo criterio que ya regía las
+  // flechas del escenario con una sola vista, más abajo).
+  const presentacionesDelGrupo = valoresDeEje(grupo, 'presentacion');
+  const tamanosDelGrupo = valoresDeEje(grupo, 'tamano');
 
-  // EL PRODUCTO ACTIVO DEL ESCENARIO — el principal, salvo que el visitante haya elegido un alterno
-  // (§ productoActivoSpotlight, lib/config/spotlight.ts). Declarado con `producto` que puede ser
-  // `null` todavía (el catálogo no cargó): `productoActivoSpotlight` exige un `T`, así que se calcula
-  // con un principal "vacío" seguro y se descarta tras el early-return — los HOOKS de abajo leen
-  // `productoActivo?.slug`, nunca `productoActivo` a secas antes del return.
-  const [activoSlug, setActivoSlug] = useState<string | null>(null);
+  // LA ELECCIÓN DEL VISITANTE, por EJE — INDEPENDIENTE (§ el spec de este slice: "dos selectores,
+  // independientes, que juntos eligen el producto correcto"). Se refija al PIN del producto principal
+  // cuando éste cambia (nunca a mitad de un render con `producto` todavía `null`): los HOOKS de abajo
+  // leen `producto?.slug`, nunca `producto` a secas antes del early-return.
+  const [presentacionElegida, setPresentacionElegida] = useState<string | null>(null);
+  const [tamanoElegida, setTamanoElegida] = useState<string | null>(null);
+  useEffect(() => {
+    if (producto) {
+      const ejesPin = ejesSpotlight(producto);
+      setPresentacionElegida(ejesPin.presentacion);
+      setTamanoElegida(ejesPin.tamano);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [producto?.slug]);
+
+  // EL PRODUCTO ACTIVO DEL ESCENARIO — la CELDA de la matriz que corresponde a la elección actual
+  // (§ `productoDeCombinacion`), o el principal si esa celda no tiene producto (el grupo no cubre esa
+  // combinación, p. ej. antes de que el primer effect corra, o un grupo migrado con sólo 2-3
+  // miembros). Nunca un producto "a medias".
   const productoActivo = producto
-    ? productoActivoSpotlight(producto, [presentacionAlt, tamanoAlt], activoSlug)
+    ? (productoDeCombinacion(grupo, presentacionElegida, tamanoElegida) ?? producto)
     : null;
 
   // Molienda elegida — por defecto la primera opción DISPONIBLE del producto ACTIVO. Se refija cada
@@ -96,6 +121,30 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
 
   const activo = productoActivo;
 
+  // LA ETIQUETA SOBRE LA FOTO (§ el spec de este slice: "siempre dice molienda y peso") — DOS
+  // mecanismos, el MISMO par que gobierna el selector "Presentación" más abajo (nunca los dos a la
+  // vez, por la MISMA condición: `presentacionesDelGrupo.length > 1`).
+  //
+  //  · CON el eje matriz activo (≥2 presentaciones en el GRUPO): la etiqueta es SIEMPRE la del
+  //    producto ACTIVO, derivada con `ejesSpotlight`/`etiquetaEjesSpotlight` — navegar entre fotos
+  //    de molienda (las flechas, abajo) no cambia presentación ni tamaño, así que no debe cambiar
+  //    lo que la etiqueta anuncia.
+  //  · SIN el eje matriz (un solo producto, con sus propias `moliendasOpciones` como únicas
+  //    "presentaciones" — el mecanismo de SIEMPRE): la etiqueta vuelve a ser la de la OPCIÓN que se
+  //    está viendo (`o.nombre · peso`, como antes de este slice) — ahí SÍ hay algo que cambie entre
+  //    vistas, porque la opción de molienda ES la presentación que el visitante eligió. Usar
+  //    `ejesSpotlight` acá sería el defecto a la INVERSA: el badge ignoraría la opción que el
+  //    visitante seleccionó en el chip de Presentación (medido en la captura `destacado-
+  //    presentacion-despues-desktop`: con "Molido" pulsado, el badge seguía diciendo "En grano" —
+  //    porque `ejesSpotlight` no sabe de la molienda ELEGIDA, sólo de los datos fijos del producto).
+  //
+  // Sin NINGUNA `moliendasOpciones` (el caso que tenía el bug: `.scratch/refs/onix-destacado-250-
+  // sin-molienda.webp`, un producto Molido sin esas opciones), no hay "vista" propia que mostrar —
+  // siempre el derivado, que es exactamente el fix.
+  const ejesActivo = ejesSpotlight(activo);
+  const etiquetaActivo = etiquetaEjesSpotlight(ejesActivo);
+  const usaEjeMatriz = presentacionesDelGrupo.length > 1;
+
   // LAS VISTAS DEL ESCENARIO — cada molienda DISPONIBLE del producto ACTIVO (imagen propia si la
   // declaró, § imagenDeMolienda; producto SIN moliendas → una sola vista con su portada). Con una
   // sola vista, las flechas no se muestran.
@@ -104,12 +153,12 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
     ? opcionesMolienda.map((o) => ({
         key: o.nombre,
         imagen: imagenPortada(imagenDeMolienda(activo.moliendasOpciones, o.nombre, activo.imagen ?? '')),
-        etiqueta: activo.peso_gramos != null ? `${o.nombre} · ${activo.peso_gramos} g` : o.nombre,
+        etiqueta: usaEjeMatriz ? etiquetaActivo : (activo.peso_gramos != null ? `${o.nombre} · ${activo.peso_gramos} g` : o.nombre),
       }))
     : [{
         key: '__base__',
         imagen: imagenPortada(activo.imagen ?? ''),
-        etiqueta: activo.peso_gramos != null ? `${activo.peso_gramos} g` : '',
+        etiqueta: etiquetaActivo,
       }];
 
   const indiceActual = Math.min(vistaIndex, vistas.length - 1);
@@ -127,11 +176,11 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
     if (idx >= 0) setVistaIndex(idx);
   };
 
-  // ELEGIR UN ALTERNO (Presentación/Tamaño) — switch COMPLETO: foto, precio, "Agregar al carrito" y
-  // molienda pasan a ser los del producto elegido. `null` vuelve al principal.
-  const elegirVariante = (slug: string | null) => {
-    setActivoSlug(slug === producto.slug ? null : slug);
-  };
+  // ELEGIR UN EJE (Presentación o Tamaño), INDEPENDIENTE del otro — switch COMPLETO del producto
+  // activo: foto, precio, "Agregar al carrito" y molienda pasan a ser los de la celda de la matriz
+  // que resulte (§ productoDeCombinacion, arriba).
+  const elegirPresentacion = (p: string) => setPresentacionElegida(p);
+  const elegirTamano = (t: string) => setTamanoElegida(t);
 
   const handleAdd = () => {
     // Se comprueba con `moliendaAceptada`, LA MISMA función que decide en el servidor — igual que
@@ -305,32 +354,40 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             )}
 
             {/* "Presentación" (index.html:189-194, css/app.css:476-490) — DOS mecanismos, nunca los
-                dos a la vez: con `presentacionAlt` configurado, el grupo switchea el PRODUCTO
-                ACTIVO entero (foto/precio/CTA/molienda, § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1,
-                el tenant que modela molido/grano como productos distintos); SIN alterno, cae al
-                mecanismo de SIEMPRE —las moliendas propias del producto activo— sin romper el caso
-                de un producto con varias moliendas (Nayoli). El `.opt` PULSADO se pinta LLENO de
-                acento (`aria-pressed=true`), no un 5% de tinte — la divergencia #1 de este slice. */}
-            {presentacionAlt ? (
+                dos a la vez (§ DESTACADO-PRESENTACION-POR-TAMANO-1): con ≥2 presentaciones en el
+                GRUPO, el selector elige el EJE presentación de la matriz (foto/precio/CTA/molienda
+                pasan a ser los de la celda resultante, § productoDeCombinacion); con una sola
+                presentación en el grupo, cae al mecanismo de SIEMPRE —las moliendas propias del
+                producto activo— sin romper el caso de un producto con varias moliendas (Nayoli). El
+                `.opt` PULSADO se pinta LLENO de acento (`aria-pressed=true`), no un 5% de tinte — la
+                divergencia #1 de la tanda que introdujo este patrón. Una combinación sin producto en
+                el grupo deja la opción DESHABILITADA, nunca oculta (§ el spec: "la opción se ve
+                deshabilitada, no desaparece el selector"). */}
+            {presentacionesDelGrupo.length > 1 ? (
               <div>
                 <span className="block mb-3 text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">Presentación</span>
                 <div className="flex flex-wrap gap-2">
-                  {[producto, presentacionAlt].map((p) => {
-                    const selected = activo.slug === p.slug;
+                  {presentacionesDelGrupo.map((p) => {
+                    const selected = ejesActivo.presentacion === p;
+                    const disponible = productoDeCombinacion(grupo, p, tamanoElegida) !== null;
                     return (
                       <button
-                        key={p.slug}
+                        key={p}
                         type="button"
-                        onClick={() => elegirVariante(p.slug)}
+                        disabled={!disponible}
+                        onClick={() => disponible && elegirPresentacion(p)}
                         aria-pressed={selected}
-                        className={`px-[22px] py-[13px] sf-pildora sf-borde text-left transition-colors cursor-pointer ${
+                        title={disponible ? undefined : 'No disponible en este tamaño'}
+                        className={`px-[22px] py-[13px] sf-pildora sf-borde text-left transition-colors ${
                           selected
                             ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]'
-                            : 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)]'
+                            : disponible
+                              ? 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)] cursor-pointer'
+                              : 'border-[var(--sf-linea)] opacity-40 cursor-not-allowed'
                         }`}
                       >
                         <span className={`block text-sm font-medium ${selected ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-sobre-banda,var(--sf-tinta))]'}`}>
-                          {etiquetaVarianteSpotlight(p)}
+                          {p}
                         </span>
                       </button>
                     );
@@ -368,31 +425,37 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               </div>
             )}
 
-            {/* "Tamaño" (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) — switch COMPLETO de producto,
-                YA NO un enlace a la página de la otra talla (§ Backlog #62, que este slice sigue
-                sin disparar: sólo DOS productos por eje, nunca una matriz completa). Sin
-                `otroTamanoSlug` el control simplemente no aparece (preferir callar a un link roto).
-                Mismo tratamiento de `.opt` que "Presentación". */}
-            {tamanoAlt && (
+            {/* "Tamaño" (§ DESTACADO-PRESENTACION-POR-TAMANO-1) — el EJE gemelo de "Presentación",
+                INDEPENDIENTE: elegir acá no pisa la presentación elegida, conserva su celda de la
+                matriz (§ productoDeCombinacion). Con un solo tamaño en el grupo, el control
+                simplemente no aparece (preferir callar a un selector sin opciones). Mismo
+                tratamiento de `.opt`, y misma regla de "deshabilitada, no oculta" para una
+                combinación sin producto. */}
+            {tamanosDelGrupo.length > 1 && (
               <div>
                 <span className="block mb-3 text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">Tamaño</span>
                 <div className="flex flex-wrap gap-2">
-                  {[producto, tamanoAlt].map((p) => {
-                    const selected = activo.slug === p.slug;
+                  {tamanosDelGrupo.map((t) => {
+                    const selected = ejesActivo.tamano === t;
+                    const disponible = productoDeCombinacion(grupo, presentacionElegida, t) !== null;
                     return (
                       <button
-                        key={p.slug}
+                        key={t}
                         type="button"
-                        onClick={() => elegirVariante(p.slug)}
+                        disabled={!disponible}
+                        onClick={() => disponible && elegirTamano(t)}
                         aria-pressed={selected}
-                        className={`px-[22px] py-[13px] sf-pildora sf-borde text-left transition-colors cursor-pointer ${
+                        title={disponible ? undefined : 'No disponible en esta presentación'}
+                        className={`px-[22px] py-[13px] sf-pildora sf-borde text-left transition-colors ${
                           selected
                             ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]'
-                            : 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)]'
+                            : disponible
+                              ? 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)] cursor-pointer'
+                              : 'border-[var(--sf-linea)] opacity-40 cursor-not-allowed'
                         }`}
                       >
                         <span className={`block text-sm font-medium ${selected ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-sobre-banda,var(--sf-tinta))]'}`}>
-                          {etiquetaVarianteSpotlight(p)}
+                          {t}
                         </span>
                       </button>
                     );

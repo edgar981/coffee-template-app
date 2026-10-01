@@ -466,6 +466,30 @@ export interface PresentacionesContent {
 // migra de verdad: sigue siendo el MISMO campo, mismo nombre, mismo significado de puntero — sólo
 // cambia su UI (picker, no texto libre) y su efecto en la tienda (switch COMPLETO del producto
 // activo, no una vista de sólo-vistazo), ninguno de los dos exige tocar el dato ya guardado.
+//
+// § DESTACADO-PRESENTACION-POR-TAMANO-1 — LOS CUATRO PUNTEROS SON UN GRUPO, NO TRES EJES DISTINTOS.
+// El gate del owner (2026-10-01, contra `.scratch/refs/onix-destacado-pickers-mal.webp`) midió que
+// el modelo de arriba —`presentacionSlug` atado a "mismo tamaño", `otroTamanoSlug` atado a "misma
+// presentación"— no alcanza para DOS selectores INDEPENDIENTES: elegir Presentación y luego Tamaño
+// (o al revés) tiene que converger al MISMO producto que si se eligieran en el otro orden, y con
+// sólo dos punteros de eje fijo eso no es posible (el muestrario, `.scratch/refs/muestrario-
+// destacado-pickers.webp`, tiene CUATRO productos — grano/molido × 250g/500g — los cuatro
+// alcanzables desde cualquiera de los dos selectores).
+//
+// La salida: `productoSlug`/`presentacionSlug`/`otroTamanoSlug`/`cuartoSlug` (el CUARTO, nuevo en
+// este slice) son simplemente "hasta cuatro productos del grupo" — ya NO "el principal + la otra
+// presentación + el otro tamaño". Cada uno DERIVA su propia (presentación, tamaño) de sus datos
+// (`ejesSpotlight`, `lib/config/spotlight.ts`), y el storefront arma la matriz con lo que el grupo
+// aporte (`grupoSpotlight`/`productoDeCombinacion`, mismo archivo). **LOS NOMBRES DE LOS TRES
+// PUNTEROS VIEJOS NO CAMBIARON** —es la migración sin pérdida que pide el spec de este slice—: una
+// fila guardada bajo la semántica vieja (p. ej. `presentacionSlug` = "la otra presentación, mismo
+// tamaño") sigue siendo una matriz VÁLIDA bajo la nueva, porque sus ejes se derivan igual sin
+// importar POR QUÉ campo llegó el slug. Un grupo con sólo 2-3 productos (el caso migrado, sin el
+// cuarto puntero configurado) simplemente deja una celda de la matriz sin producto — la "opción
+// deshabilitada" del spec, no un error.
+//
+// `cuartoSlug` es OPCIONAL, como los otros tres — vacío = la matriz se arma con lo que el grupo
+// tenga (1 a 3 productos), igual que hoy.
 export interface SpotlightContent {
   visible: boolean;
   eyebrow: string;
@@ -474,6 +498,9 @@ export interface SpotlightContent {
   productoSlug: string;
   presentacionSlug: string;
   otroTamanoSlug: string;
+  /** El cuarto producto del grupo (§ el docstring de arriba) — la celda de la matriz que los tres
+   *  punteros viejos no podían alcanzar por sí solos. */
+  cuartoSlug: string;
   notaPrecio: string;
 }
 
@@ -1678,6 +1705,7 @@ export const DEFAULTS: SiteContentData = {
     productoSlug: '',
     presentacionSlug: '',
     otroTamanoSlug: '',
+    cuartoSlug: '',
     notaPrecio: '',
   },
   subscriptionCTA: {
@@ -2272,10 +2300,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       titulo: 'opcional',
       badge: 'opcional',
       productoSlug: 'opcional',
-      // El tercer puntero (§ SpotlightContent.presentacionSlug, arriba): opcional, vacío = la
-      // Presentación se arma sólo con las moliendas del producto pineado.
+      // Los otros tres miembros del GRUPO (§ DESTACADO-PRESENTACION-POR-TAMANO-1, el docstring de
+      // `SpotlightContent`): hasta cuatro productos del mismo café que arman la matriz
+      // presentación×tamaño. Opcionales, vacío = la matriz se arma con los que el grupo tenga.
       presentacionSlug: 'opcional',
       otroTamanoSlug: 'opcional',
+      cuartoSlug: 'opcional',
       // La nota del precio (§ SpotlightContent.notaPrecio, arriba): opcional, vacía = no se muestra.
       notaPrecio: 'opcional',
     },

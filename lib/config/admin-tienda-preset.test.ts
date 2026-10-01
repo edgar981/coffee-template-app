@@ -259,6 +259,10 @@ function contenidoSpotlightLleno(clave: string | null): SiteContentData {
       // compilando — no cambia lo que el test afirma (sigue siendo "spotlight lleno").
       presentacionSlug: 'cafe-narino-1kg-molido',
       otroTamanoSlug: 'cafe-narino-250g',
+      // § DESTACADO-PRESENTACION-POR-TAMANO-1 (fuera de `touches:`, misma deviación mecánica de
+      // arriba): el cuarto puntero del grupo se sumó a `SpotlightContent` y este literal lo necesita
+      // para seguir compilando — no cambia lo que el test afirma.
+      cuartoSlug: 'cafe-narino-500g-molido',
       notaPrecio: 'COP · impuestos incluidos',
     },
   };

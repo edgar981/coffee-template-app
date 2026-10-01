@@ -46,3 +46,19 @@ test('pin vacío: productoSlug/otroTamanoSlug en blanco publican spotlight byte-
   const publicado = await readSiteContent();
   assert.deepEqual(publicado.spotlight, DEFAULTS.spotlight, 'sin pin, spotlight publicado debe ser byte-idéntico al default (visible sigue en false)');
 });
+
+// § DESTACADO-PRESENTACION-POR-TAMANO-1 — el CUARTO puntero del grupo (`cuartoSlug`), el mismo
+// viaje de punta a punta que los otros tres. Sin él, la matriz presentación×tamaño sólo alcanza 3 de
+// las 4 celdas del muestrario (§ el docstring de `SpotlightContent`).
+test('cuartoSlug (el cuarto miembro del grupo) sobrevive borrador→publicar→releer, igual que los otros tres punteros', async () => {
+  await guardarComoElRoute({
+    productoSlug: 'cafe-la-ceiba-grano-500',
+    presentacionSlug: 'cafe-la-ceiba-molido-500',
+    otroTamanoSlug: 'cafe-la-ceiba-grano-250',
+    cuartoSlug: 'cafe-la-ceiba-molido-250',
+  });
+  await publicarSeccion('spotlight');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.spotlight.cuartoSlug, 'cafe-la-ceiba-molido-250');
+});
