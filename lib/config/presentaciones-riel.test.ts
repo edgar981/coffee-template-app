@@ -204,9 +204,9 @@ test('TarjetaRiel: sin foto en absoluto, cae al placeholder de marca — nunca u
 // RE-MEDIDO por § SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1 (2026-10-01): "cuadrado" (0px,
 // `sf-pildora` bajo 'recta') resultó DEMASIADO recto — gate del owner: "redondea las esquinas sólo
 // un poco". El test deja de afirmar `sf-pildora` y pasa a afirmar `sf-radio-lg` (el rol "chips/
-// controles pequeños" de `formas.ts`, 2px en 'recta'/6px en 'minima') — nunca `rounded-full` (el
-// círculo de antes de TODO este eje) ni `sf-pildora` (el radio de botón/chrome, el "muy recto" que
-// este slice corrige).
+// controles pequeños" de `formas.ts`, 4px en 'recta' desde § RADIO-UN-POCO-MAS-1 — antes 2px — /6px
+// en 'minima', sin cambios) — nunca `rounded-full` (el círculo de antes de TODO este eje) ni
+// `sf-pildora` (el radio de botón/chrome, el "muy recto" que este slice corrige).
 
 test('TarjetaRiel: el ojo y el carrito llevan esquinas APENAS redondeadas (`sf-radio-lg`), nunca `rounded-full` ni `sf-pildora` — gate del owner: "redondea las esquinas sólo un poco"', () => {
   const html = renderTarjeta();

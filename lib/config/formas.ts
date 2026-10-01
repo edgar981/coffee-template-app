@@ -83,6 +83,15 @@
 // (`validarPreset` lo rechaza: pide variantes que el REGISTRY no declara, § `PRESETS`), así que esta
 // unificación no mueve ningún tenant vivo más allá de CORTE, pero el día que PLIEGO se complete
 // heredará el mismo radio — es la MISMA forma, no una copia con otro número.
+//
+// § RADIO-UN-POCO-MAS-1 (2026-10-01) — el valor único SUBE de 2px a 4px, SIN tocar el mecanismo que
+// RADIOS-UN-SOLO-RITMO-1 acaba de fijar (las siete claves siguen convergiendo a UNA constante; sigue
+// siendo 'recta' la única forma que cambia). Gate del owner sobre esa tanda: «El redondeo me gustaría
+// ajustarlo, solo un poco más redondeado que el actual, pero que no llegue a parecerse a la forma
+// "Mínima"». MEDIDO antes de tocar el valor: el radio más chico de 'minima' es 6px (`radiusXl`/
+// `radioLg`, la fila de abajo) — 4px queda por debajo de ese piso, así que la nueva CORTE sigue sin
+// parecerse a Mínima por construcción, no por coincidencia. `pildoraReal`/`sombraImagen` siguen sin
+// tocarse, por las mismas razones de arriba.
 
 // El tuple runtime del set cerrado — para el `z.enum` del schema del PUT (una sola fuente con el tipo).
 export const CLAVES_FORMAS = ['suave', 'recta', 'minima'] as const;
@@ -148,11 +157,12 @@ export interface Forma {
 // campos siguen siendo cuatro porque 'minima' y una 'recta' futura podrían volver a diferenciarlos;
 // hoy no lo hacen.
 
-// El radio ÚNICO de 'recta' (§ RADIOS-UN-SOLO-RITMO-1, el docstring de cabecera): el valor aprobado
-// del rol `sf-radio-lg` (el ojo/carrito), reusado por los SIETE campos de radio que antes divergían
-// (0/2/20/16px). Una constante, no siete literales repetidos, para que "son el MISMO radio" sea
-// verificable leyendo el código, no sólo el resultado.
-const RADIO_UNIFICADO_RECTA = '2px';
+// El radio ÚNICO de 'recta' (§ RADIOS-UN-SOLO-RITMO-1, el docstring de cabecera): reusado por los
+// SIETE campos de radio que antes divergían (0/2/20/16px). Una constante, no siete literales
+// repetidos, para que "son el MISMO radio" sea verificable leyendo el código, no sólo el resultado.
+// § RADIO-UN-POCO-MAS-1: 2px → 4px (gate del owner, "un poco más redondeado, sin llegar a Mínima");
+// 4px < 6px (el radio más chico de 'minima'), medido contra la fila de abajo antes de cambiar esto.
+const RADIO_UNIFICADO_RECTA = '4px';
 
 // El registro. `suave` va PRIMERO (es el default) y su muestra en el picker representa "la de hoy".
 export const FORMAS: readonly Forma[] = [

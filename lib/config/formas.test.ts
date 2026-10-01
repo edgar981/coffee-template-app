@@ -74,18 +74,19 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   const v = varsDeForma('recta');
   // § RADIOS-UN-SOLO-RITMO-1: los SIETE radios de 'recta' (los 3 escalones var-backed LEÍDOS hoy +
   // radioLg/radioTile/radioImagen/pildora) comparten el MISMO valor chico — ya no 0/2/20/16px por
-  // separado. `pildoraReal` es la ÚNICA excepción (círculo, decisión anterior).
-  assert.equal(v['--radius-3xl'], '2px');
-  assert.equal(v['--radius-2xl'], '2px');
-  assert.equal(v['--radius-xl'], '2px');
+  // separado. `pildoraReal` es la ÚNICA excepción (círculo, decisión anterior). § RADIO-UN-POCO-MAS-1
+  // subió ese valor único de 2px a 4px (gate del owner: "un poco más redondeado, sin llegar a Mínima").
+  assert.equal(v['--radius-3xl'], '4px');
+  assert.equal(v['--radius-2xl'], '4px');
+  assert.equal(v['--radius-xl'], '4px');
   // los 9 tokens propios de superficie (§ NUESTRO-CAFE-RADIO-TILE-1: radioTile YA cableado, no inerte;
   // § BACKTOTOP-REDONDO-Y-ORDEN-1: pildoraReal, ídem; § HISTORIA-COLLAGE-COMO-PROTOTIPO-1: radioImagen/
   // sombraImagen, ídem — los tres nacen ya conectados, no en el período inerte de la mitad 1)
-  assert.equal(v['--sf-radio-lg'], '2px');
-  assert.equal(v['--sf-radio-tile'], '2px'); // UNIFICADO — era 20px (§ RADIOS-UN-SOLO-RITMO-1)
-  assert.equal(v['--sf-radio-imagen'], '2px'); // UNIFICADO — era 16px (§ RADIOS-UN-SOLO-RITMO-1)
+  assert.equal(v['--sf-radio-lg'], '4px');
+  assert.equal(v['--sf-radio-tile'], '4px'); // UNIFICADO — era 20px (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1)
+  assert.equal(v['--sf-radio-imagen'], '4px'); // UNIFICADO — era 16px (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1)
   assert.equal(v['--sf-sombra-imagen'], '0 18px 44px rgba(16,36,7,0.14)'); // la sombra NO se toca
-  assert.equal(v['--sf-pildora'], '2px'); // UNIFICADO — era 0 (§ RADIOS-UN-SOLO-RITMO-1)
+  assert.equal(v['--sf-pildora'], '4px'); // UNIFICADO — era 0 (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1)
   // la excepción explícita: `pildoraReal` (el círculo genuino, § el docstring de `Forma.pildoraReal`)
   // sigue siendo un círculo completo — "el volver-arriba sigue siendo un círculo" (decisión anterior).
   assert.equal(v['--sf-pildora-real'], '9999px'); // MEDIDO contra el prototipo (tokens.css:170)
@@ -178,6 +179,8 @@ test("'recta' conserva su trazo de HOY (1.25) tras § CORTE-CUERPO-LETRA-E-ICONO
 // mismo valor. Un valor que vuelva a divergir aquí reintroduce el ritmo quebrado que el owner reportó
 // ("hay cards con puntas un poco redondeadas pero hay otras totalmente rectas"). 'minima' NO se afirma
 // acá: el owner no pidió su unificación interna, sólo descartó aplicarla entera por redondear de más.
+// § RADIO-UN-POCO-MAS-1 (2026-10-01): el valor único subió de 2px a 4px (gate del owner: "un poco más
+// redondeado, sin llegar a Mínima"); el GUARDIÁN de la convergencia no cambia, sólo la cifra que afirma.
 test("'recta' — las SIETE claves de radio convergen a UN SOLO valor; pildoraReal sigue siendo círculo", () => {
   const recta = FORMAS.find((f) => f.clave === 'recta')!;
   const unificadas = [
@@ -185,8 +188,22 @@ test("'recta' — las SIETE claves de radio convergen a UN SOLO valor; pildoraRe
     recta.radioLg, recta.radioTile, recta.radioImagen, recta.pildora,
   ];
   assert.ok(unificadas.every((r) => r === unificadas[0]), `no todas iguales: ${JSON.stringify(unificadas)}`);
-  assert.equal(unificadas[0], '2px');
+  assert.equal(unificadas[0], '4px');
   // la excepción nombrada: un círculo real, no un radio chico.
   assert.equal(recta.pildoraReal, '9999px');
   assert.notEqual(recta.pildoraReal, unificadas[0]);
+});
+
+// § RADIO-UN-POCO-MAS-1 (2026-10-01) — el PISO que justifica "4px no se parece a Mínima": el radio más
+// chico de 'minima' (`radiusXl`/`radioLg`, 6px) tiene que seguir por ENCIMA del único valor de 'recta'.
+// Si algún día 'minima' bajara ese piso, este test lo dice ANTES de que alguien suba 'recta' sin mirar.
+test("'minima' — su radio más chico (6px) sigue por encima del único valor de 'recta' (4px)", () => {
+  const recta = FORMAS.find((f) => f.clave === 'recta')!;
+  const minima = FORMAS.find((f) => f.clave === 'minima')!;
+  const pisoMinima = Math.min(
+    ...[minima.radius3xl, minima.radius2xl, minima.radiusXl, minima.radioLg, minima.radioTile, minima.radioImagen, minima.pildora]
+      .map((v) => parseFloat(v)),
+  );
+  assert.equal(pisoMinima, 6);
+  assert.ok(parseFloat(recta.radius3xl) < pisoMinima, `'recta' (${recta.radius3xl}) debe quedar por debajo del piso de 'minima' (${pisoMinima}px)`);
 });

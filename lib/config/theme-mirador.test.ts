@@ -91,11 +91,12 @@ test('con CORTE aplicado → las CUATRO piezas del eje completo, no sólo la pal
   // el par y la forma nunca llegaban al `:root`).
   assert.match(out!.fuentesCss!, /--sf-fuente-titulo:'Roboto Serif'/);
   assert.ok(out!.fuentesLink!.includes('Roboto+Serif') && out!.fuentesLink!.includes('Figtree'));
-  // forma: CORTE usa 'recta' — un solo radio chico de 2px en todos los roles (§ RADIOS-UN-SOLO-RITMO-1,
-  // gate del owner "un solo estilo"); antes 0/0/0, la regla del prototipo.
-  assert.match(out!.formaCss!, /--radius-3xl:2px/);
-  assert.match(out!.formaCss!, /--radius-2xl:2px/);
-  assert.match(out!.formaCss!, /--radius-xl:2px/);
+  // forma: CORTE usa 'recta' — un solo radio chico en todos los roles (§ RADIOS-UN-SOLO-RITMO-1, gate
+  // del owner "un solo estilo"; antes 0/0/0, la regla del prototipo), hoy 4px (§ RADIO-UN-POCO-MAS-1,
+  // "un poco más redondeado, sin llegar a Mínima").
+  assert.match(out!.formaCss!, /--radius-3xl:4px/);
+  assert.match(out!.formaCss!, /--radius-2xl:4px/);
+  assert.match(out!.formaCss!, /--radius-xl:4px/);
 });
 
 test('clave inválida o preset incompleto → contenidoConPresetDeVista ya devolvió la MISMA referencia, así que cssMiradorTema también da null', () => {
