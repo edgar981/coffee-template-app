@@ -39754,3 +39754,159 @@ textual como `approval-reason`); el merge sigue pendiente del gate del orquestad
 instrucción del dispatch, no mergea.
 
 **Cierra `RADIO-UN-POCO-MAS-1`.**
+
+## 2026-10-01 — El destacado arma una MATRIZ presentación×tamaño con dos selectores independientes, migrando los tres punteros viejos sin perder la elección del dueño (`DESTACADO-PRESENTACION-POR-TAMANO-1`)
+
+Gate del owner sobre `DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1`, con capturas del destacado propio y
+del muestrario: *"La sección del destacado no está como en el muestrario, en el muestrario lo que
+existe es: Un picker de 'presentación' y otro de 'tamaño'. […] cuando escojo cualquiera de las dos
+presentaciones de 250g, un bug, no sale si es molido o en grano sobre la imagen, sale solamente
+250g."*
+
+### 1 · El modelo — CUATRO punteros son un GRUPO, no tres ejes atados a un fallback fijo
+
+El modelo viejo (`productoSlug` + `presentacionSlug` "misma talla" + `otroTamanoSlug` "misma
+presentación") no podía dar dos selectores INDEPENDIENTES: con sólo tres productos no hay celda
+para "la otra presentación Y el otro tamaño a la vez" — la 4ª esquina de la matriz 2×2 del
+muestrario (grano/molido × 250g/500g). La salida: los tres campos viejos se REINTERPRETAN como
+"hasta cuatro productos del grupo" (se suma `cuartoSlug`, la cuarta esquina), y cada uno DERIVA su
+propia (presentación, tamaño) de sus datos — `ejesSpotlight` (`lib/config/spotlight.ts`): el tamaño
+sale de `peso_gramos` (campo estructurado, siempre confiable); la presentación se parte del
+`variante` del producto ("Molido · 250 g" → "Molido", medido contra las 4 variantes reales de
+`prisma/seed-products.ts`) y, sin `variante` utilizable, cae a la ficha técnica `molienda` (con ella
+→ "Molido", sin ella → "En grano" — nunca una presentación vacía).
+
+**Los NOMBRES de los tres punteros viejos NO cambiaron** — es la migración sin pérdida que pedía el
+spec: una fila guardada bajo la semántica vieja sigue siendo una matriz válida bajo la nueva, sus
+ejes se derivan igual sin importar por qué campo llegó el slug. `grupoSpotlight`/`valoresDeEje`/
+`productoDeCombinacion` arman la matriz y resuelven la celda exacta de una combinación elegida, o
+`null` si esa celda no tiene producto — la "opción deshabilitada, no oculta" del spec.
+
+### 2 · El defecto que la CAPTURA destapó — la etiqueta ignoraba la molienda que el visitante eligió
+
+La primera versión hacía que la etiqueta sobre la foto fuera SIEMPRE `ejesSpotlight(activo)`,
+incluso cuando el grupo no alcanza el eje matriz (un solo producto, con sus propias
+`moliendasOpciones` como únicas "presentaciones" — el mecanismo de SIEMPRE). Capturando el
+`--sembrar-spotlight` existente (1 producto con 2 moliendas disponibles + 1 alterno de tamaño) se
+vio el defecto en vivo: con "Molido" pulsado en el chip de Presentación, la etiqueta seguía diciendo
+"En grano" — porque `ejesSpotlight` no sabe de la molienda ELEGIDA, sólo de los datos fijos del
+producto. Los TESTS PUROS no lo atrapaban (prueban las funciones en aislamiento, no la interacción
+con el mecanismo viejo de `moliendasOpciones`); sólo la captura visual lo hizo.
+
+El fix: la etiqueta usa DOS mecanismos, el MISMO par que gobierna el selector "Presentación" —con
+el eje matriz activo (`presentacionesDelGrupo.length > 1`), la etiqueta es siempre la del producto
+activo (derivada); sin él, vuelve a ser la de la OPCIÓN de molienda que se está viendo (`o.nombre ·
+peso`, el comportamiento de antes de este slice) — ahí sí hay algo que cambie entre vistas, porque
+la opción de molienda ES la presentación elegida. Re-capturado tras el fix: la imagen dice "MOLIDO ·
+250 G" con "Molido" pulsado, consistente.
+
+### 3 · El panel — picker de producto, nunca un slug a mano, con la combinación visible
+
+Los cuatro campos (`productoSlug`/`presentacionSlug`/`otroTamanoSlug`/`cuartoSlug`) siguen siendo
+`ProductoCombobox` (elegir de la lista, no texto libre). `CampoTexto` ganó `mostrarEjes?: boolean`:
+bajo cada combobox con la bandera, `TiendaSeccionEditor` muestra "→ Molido · 250 g" —la combinación
+DERIVADA del producto elegido, con la MISMA `ejesSpotlight` que arma la matriz en la tienda, nunca
+un texto propio del editor que pudiera divergir— satisfaciendo "con la combinación de cada uno
+visible" del spec. `panel-controles.ts` no necesitó tocarse: `camposDeSeccionEditor` deriva
+automáticamente de `SPOTLIGHT.campos` (tienda-secciones.ts), así que `cuartoSlug` quedó controlado
+sin una segunda declaración.
+
+### 4 · Capturas — antes/después, escritorio y teléfono
+
+**Antes (`--url`, el muestrario YA desplegado)**: `coffee-template-app-onix.vercel.app` — medido, no
+reproduce el bug de etiquetas mezcladas de las referencias (`.scratch/refs/onix-destacado-pickers-
+mal.webp`): el `content.spotlight` PUBLICADO hoy en ese deployment sólo tiene un producto con una
+sola molienda disponible ("Grano entero") y sin alternos — las referencias con los dos selectores
+mezclados corresponden a un estado del PANEL (borrador/preview) con `presentacionSlug`/
+`otroTamanoSlug` configurados, no al storefront publicado que `--url` puede leer. Capturado igual
+para que quede el estado real de HOY, desktop (`destacado-presentacion-antes-desktop`) y móvil 390px
+(`destacado-presentacion-antes-movil`).
+
+**Después (local, `--preset CORTE --sembrar-spotlight`)**: el seed existente del arnés (1 producto +
+su alterno de tamaño, 2 moliendas disponibles) — "Presentación" cae al mecanismo de SIEMPRE (un
+solo valor derivado en el grupo, moliendasOpciones como fallback) y "Tamaño" SÍ ejercita el eje
+nuevo (250 g / 500 g, derivados de `peso_gramos`, ya no el texto combinado). Desktop
+(`destacado-presentacion-despues-desktop`) y móvil (`destacado-presentacion-despues-movil`) — fue
+ahí donde se vio y se arregló el defecto de §2.
+
+**DEVIACIÓN MEDIDA, declarada: no se capturaron las CUATRO combinaciones del muestrario
+(grano/molido × 250g/500g como productos DISTINTOS).** `scripts/capturar-seccion.ts` (fuera de
+`touches:`) no tiene forma de simular clics (no hay modo de interacción, sólo captura estática de un
+selector al cargar) ni un flag que siembre 4 productos con ejes distintos —el único seed de
+spotlight que trae (`--sembrar-spotlight`) es 1 producto + 1 alterno de tamaño, con una sola
+presentación derivada—; extender ese arnés es trabajo fuera de este slice. La matriz completa
+(las 4 combinaciones, incluida la celda deshabilitada cuando falta un producto) está afirmada
+exhaustivamente en `lib/config/spotlight.test.ts` (14 tests: las 4 combinaciones exactas + el caso
+de 3 productos con una celda sin match → `null`) y se revisó a mano que `Spotlight.tsx` llama a esas
+mismas funciones sin una segunda implementación.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2946/2946** |
+| `npm run test:integracion` | **254/254** |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (comparación COMPLETA; Spotlight nunca monta para Nayoli, así que el resultado es el esperado) |
+
+`npm run verificar:nayoli:visual` NO se corrió: `main` sigue anclado en `9a7ab97` (medido:
+`git rev-parse main` == `git merge-base HEAD main`), el MISMO sha que `RADIO-UN-POCO-MAS-1` ya
+documentó como stale — no daría una cifra útil sobre ESTE diff.
+
+### `touches:` — DOS deviaciones mecánicas, fuera de la lista, documentadas en el código
+
+`git diff --numstat` contra `main`: 11 archivos, 424 inserciones, 149 eliminaciones. NUEVE calzan
+exacto con `touches:`. Las DOS que no:
+
+- **`lib/config/spotlight-banda.test.ts`** — su aserción `DEFAULTS.spotlight` literal, objeto por
+  objeto, quedó desactualizada por `cuartoSlug` (mismo patrón ya documentado ahí mismo para
+  `presentacionSlug`, de `DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1`, también fuera de `touches:` de
+  ESE slice). Se actualizó el literal y el comentario, sin tocar el CRITERIO que el test afirma.
+- **`lib/config/admin-tienda-preset.test.ts`** — su fixture `contenidoSpotlightLleno` construye un
+  `SpotlightContent` literal completo; sin `cuartoSlug` no compila (campo requerido en la interfaz,
+  como los otros ocho). Mismo patrón, mismo precedente ya escrito en ese archivo.
+
+Ninguna de las dos cambia lo que su test afirma — sólo las mantienen compilando/actualizadas contra
+un campo nuevo del modelo. `lib/config/panel-controles.ts`, en `touches:`, NO necesitó tocarse: la
+derivación automática (`camposDeSeccionEditor`) ya cubre `cuartoSlug` en cuanto se declara en
+`SPOTLIGHT.campos`.
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `presentacionSlug`, `otroTamanoSlug`, `cuartoSlug`,
+`SpotlightContent`, `etiquetaVarianteSpotlight` (retirada), `productoActivoSpotlight` (retirada),
+`ejesSpotlight`, `grupoSpotlight`, `valoresDeEje`, `productoDeCombinacion`, `etiquetaEjesSpotlight`,
+`Spotlight.tsx`, `spotlight.ts`, `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `CampoTexto`,
+`mostrarEjes`, `site-content-schema.ts`, `site-content-defaults.ts`, `panel-controles.ts`. Grepeado
+`spotlight`/`Spotlight` (case-insensitive) contra `CLAUDE.md`: **CERO apariciones** — el archivo
+nunca nombra esta banda. Los demás símbolos tampoco aparecen, salvo los NOMBRES DE ARCHIVO
+`site-content-schema.ts`/`site-content-defaults.ts`/`TiendaSeccionEditor`/`tienda-secciones`
+(presentes en la lista de superficies Tier 1 y en prosa general sobre el patrón "todo campo debe
+declararse en el schema o zod lo strippea", § El schema editable STRIPPEA lo no declarado) — ninguna
+de esas frases queda falsa: siguen siendo Tier 1, y este slice SÍ declaró los campos nuevos en el
+schema (§1), cumpliendo exactamente la regla que esa sección describe. **Nada que corregir en
+`CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** Bajo el preset CORTE con `spotlight` configurado con ≥2 productos del mismo
+café, el destacado de la home muestra selectores de Presentación/Tamaño que antes mezclaban nombre
+de producto y ahora muestran sólo su eje, y la etiqueta sobre la foto ahora siempre nombra
+presentación+peso — visible para cualquier visitante bajo ese preset con esa sección publicada.
+`strings`: ninguno nuevo en código (las dos etiquetas de grupo "Presentación"/"Tamaño" ya existían);
+lo que cambia es QUÉ texto deriva cada selector a partir del producto, no un literal nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración (el
+campo nuevo vive en el JSON de `SiteContent.content`, no en una columna), sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cuatro capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte
+textual como `approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por
+instrucción del dispatch, no mergea.
+
+**Cierra `DESTACADO-PRESENTACION-POR-TAMANO-1`.**
