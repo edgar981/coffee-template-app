@@ -18,6 +18,7 @@ import {
   transicionEscalonada, REVELADO_GRUPO_DURACION_S, REVELADO_GRUPO_EASE, REVELADO_GRUPO_PASO_S,
   DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE, DRAWER_MOVIL_PASO_S, DRAWER_MOVIL_BASE_S,
   retardoEntradaDrawerMovil, retardoSalidaDrawerMovil,
+  transicionPalabra, CASCADA_PALABRA_PASO_S, CASCADA_PALABRA_DELAY_MAX_S, palabrasDeTexto,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -859,4 +860,59 @@ test('retardoSalidaDrawerMovil: el orden de salida es el ESPEJO exacto del de en
 
 test('retardoSalidaDrawerMovil: sin base (a diferencia de la entrada) — el primer ítem en salir no espera los 80ms que sí separan la apertura del click', () => {
   assert.equal(retardoSalidaDrawerMovil(3, 4), 0, 'el cierre no necesita el margen que la entrada usa para separarse del click que abrió el panel');
+});
+
+// § ORIGEN-TEXTO-EN-CASCADA-1 — `transicionPalabra`/`palabrasDeTexto`, el tokenizador y el
+// escalonado de `TextoEnCascada`. Ver el docstring en `lib/animation.ts` para qué midió este
+// slice contra Cafeone real (block-level, NO por palabra) y por qué el split es por palabra igual.
+
+test('transicionPalabra(0): sin retraso — la primera palabra entra de inmediato', () => {
+  assert.deepEqual(transicionPalabra(0), { duration: REVELADO_GRUPO_DURACION_S, ease: REVELADO_GRUPO_EASE, delay: 0 });
+});
+
+test('transicionPalabra: el retraso crece en pasos de 30ms hasta el tope — 1→30ms, 2→60ms, 10→300ms', () => {
+  for (const i of [1, 2, 10]) {
+    assert.equal(transicionPalabra(i).delay, i * CASCADA_PALABRA_PASO_S, `índice ${i}`);
+  }
+});
+
+test('transicionPalabra: el retraso NO sigue creciendo pasado el tope — un párrafo largo no tarda más en EMPEZAR a completarse que uno corto', () => {
+  const indiceDelTope = CASCADA_PALABRA_DELAY_MAX_S / CASCADA_PALABRA_PASO_S;
+  assert.equal(transicionPalabra(indiceDelTope).delay, CASCADA_PALABRA_DELAY_MAX_S);
+  assert.equal(transicionPalabra(indiceDelTope + 1).delay, CASCADA_PALABRA_DELAY_MAX_S, 'una palabra más allá del tope comparte el mismo delay, no sigue sumando pasos');
+  assert.equal(transicionPalabra(1000).delay, CASCADA_PALABRA_DELAY_MAX_S, 'un párrafo absurdamente largo tampoco rompe el tope');
+});
+
+test('transicionPalabra: duration/ease son los del revelado por grupo ya establecido — una palabra no entra con una curva distinta de una foto o una cifra', () => {
+  assert.equal(transicionPalabra(0).duration, REVELADO_GRUPO_DURACION_S);
+  assert.deepEqual(transicionPalabra(5).ease, REVELADO_GRUPO_EASE);
+});
+
+test('palabrasDeTexto: separa por espacio en blanco, numerando SÓLO las palabras — "El origen" da 2 tokens-palabra con índice 0 y 1', () => {
+  const tokens = palabrasDeTexto('El origen');
+  const palabras = tokens.filter((t) => t.esPalabra);
+  assert.equal(palabras.length, 2);
+  assert.deepEqual(palabras.map((t) => t.texto), ['El', 'origen']);
+  assert.deepEqual(palabras.map((t) => t.indice), [0, 1]);
+});
+
+test('palabrasDeTexto: preserva el espacio como su PROPIO token, sin índice de palabra (-1) — no se pierde ni se reconstruye a mano', () => {
+  const tokens = palabrasDeTexto('El origen');
+  assert.equal(tokens.length, 3, '"El", " ", "origen"');
+  assert.equal(tokens[1].esPalabra, false);
+  assert.equal(tokens[1].texto, ' ');
+  assert.equal(tokens[1].indice, -1);
+});
+
+test('palabrasDeTexto: reconstruir concatenando TODOS los tokens.texto (palabra o no) devuelve el texto original EXACTO', () => {
+  const original = 'Detrás de cada producto hay un origen real';
+  const reconstruido = palabrasDeTexto(original).map((t) => t.texto).join('');
+  assert.equal(reconstruido, original);
+});
+
+test('palabrasDeTexto: la lede real de Origen (29 palabras, con comas y puntos pegados) numera 0..28 sin huecos', () => {
+  const lede = 'Cada producto que ofrecemos nace en un lugar concreto, con personas que lo hacen posible. Contamos esa historia para que sepas exactamente de dónde viene lo que te llega.';
+  const palabras = palabrasDeTexto(lede).filter((t) => t.esPalabra);
+  assert.equal(palabras.length, 29);
+  assert.deepEqual(palabras.map((t) => t.indice), Array.from({ length: 29 }, (_, i) => i));
 });

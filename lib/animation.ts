@@ -1177,3 +1177,68 @@ export function retardoEntradaDrawerMovil(indice: number): number {
 export function retardoSalidaDrawerMovil(indice: number, total: number): number {
   return (total - 1 - indice) * DRAWER_MOVIL_PASO_S;
 }
+
+// ── LA CASCADA DE PALABRAS — § ORIGEN-TEXTO-EN-CASCADA-1 ──────────────────────────────────────
+//
+// El gate del owner: *"Quiero implementar la forma de cómo salen las palabras al pasar por la
+// sección SHARED MOMENTS [de Cafeone real]… quiero aplicar eso a… El origen"*. Medido contra el
+// JS real del tema (`xo-webcomponents.min.js`, el mismo bundle ya leído en
+// CORTE-HERO-VELO-OFF-Y-TICKER-1) Y por EJECUCIÓN contra `x-cafeone.myshopify.com` en vivo
+// (Playwright, scroll real paso a paso): el `xo-cascade` de esa sección NO divide en palabras —
+// es un escalonado POR HERMANO. El eyebrow "SHARED MOMENTS" y el h4 son DOS `<xo-animate
+// xo-cascade>` distintos; un `IntersectionObserver` compartido les asigna `--xo-order` 0/1/2… al
+// entrar (`--xo-duration:500`, `--xo-constant:75` → delay = order·75ms, easing
+// `cubic-bezier(0,0,.3,1)`, los cuatro medidos por `getComputedStyle` en vivo). CENSO en vivo
+// sobre TODA la página (incluida esta sección): CERO nodos `xo-animate-item` — el mecanismo que
+// SÍ partiría en ítems, gateado por el atributo `xo-item-used`, que tampoco aparece ni una vez.
+//
+// Y SIN EMBARGO el split acá es por PALABRA, a propósito: lo medido no manda sobre un REQUISITO
+// explícito de este slice que sólo tiene sentido si hay palabras partidas de verdad —*"el texto
+// sigue siendo un solo texto para lectores de pantalla (las palabras partidas no se leen
+// sueltas)"*. Es la desviación que el reporte de este slice declara: Cafeone real NO divide en
+// palabras; `TextoEnCascada` sí, por ese requisito, no por fidelidad al mecanismo medido.
+//
+// EL PASO NO REUSA `REVELADO_GRUPO_PASO_S` (90ms): ese paso se calibró para 2-5 HERMANOS (fotos,
+// filas de datos, cifras) — un párrafo de ~30 palabras a 90ms/palabra tardaría más de 2.5s en
+// siquiera EMPEZAR a mostrar su última palabra. `CASCADA_PALABRA_PASO_S` es un escalón más chico,
+// pensado para decenas de palabras, y `CASCADA_PALABRA_DELAY_MAX_S` topa el delay total: pasado
+// el tope, las palabras que siguen comparten el mismo instante de entrada en vez de seguir
+// alargando la espera (un párrafo largo no debe tardar más en EMPEZAR a completarse que uno
+// corto). La duración y la curva SÍ reusan `REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_EASE` — es
+// el revelado que este storefront ya estableció; una palabra no tiene motivo para entrar con una
+// curva distinta de una foto o una cifra.
+export const CASCADA_PALABRA_PASO_S = 0.03;
+export const CASCADA_PALABRA_DELAY_MAX_S = 0.6;
+
+export function transicionPalabra(indice: number): { duration: number; ease: [number, number, number, number]; delay: number } {
+  return {
+    duration: REVELADO_GRUPO_DURACION_S,
+    ease: REVELADO_GRUPO_EASE,
+    delay: Math.min(indice * CASCADA_PALABRA_PASO_S, CASCADA_PALABRA_DELAY_MAX_S),
+  };
+}
+
+// `palabrasDeTexto` — el ÚNICO tokenizador de `TextoEnCascada`: separa por espacio en blanco
+// PRESERVANDO el espacio como su propio token (así el salto de línea natural entre las palabras,
+// ahora cada una su propio `inline-block`, sigue cayendo donde el navegador decida — ningún token
+// se descarta ni se reconstruye a mano). Sólo los tokens de PALABRA llevan `indice` (0-based,
+// consecutivo); los de espacio quedan en `-1` y no participan del escalonado. Un segundo
+// tokenizador en el componente podría partir el texto distinto del que cuenta `indiceInicial` en
+// `Origen.tsx` y desalinear el escalonado entre eyebrow/título/párrafo — por eso vive una sola vez,
+// acá, y el componente y quien lo llama comparten esta misma función.
+export interface TokenCascada {
+  texto: string;
+  esPalabra: boolean;
+  indice: number;
+}
+
+export function palabrasDeTexto(texto: string): TokenCascada[] {
+  const trozos = texto.split(/(\s+)/).filter((trozo) => trozo.length > 0);
+  let indice = 0;
+  return trozos.map((trozo) => {
+    const esPalabra = !/^\s+$/.test(trozo);
+    const token: TokenCascada = { texto: trozo, esPalabra, indice: esPalabra ? indice : -1 };
+    if (esPalabra) indice++;
+    return token;
+  });
+}

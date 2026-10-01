@@ -39126,3 +39126,141 @@ preview» y «Un solo estilo, si no me gusta como se ve simplemente se pide el c
   en las 8 capturas. `verificar:nayoli:visual` no se re-corrió: compara contra `main`, anclado 226 commits
   atrás desde el 2026-09-22 (§ `CIERRE-EDITOR-GATE-1`), y no da una cifra útil hasta que `main` se ponga al día.
 - Para verlo, el tenant debe tener aplicada la forma 'recta' (si el owner dejó 'minima', volver a 'recta').
+
+## 2026-10-01 — El texto de "El origen" entra en cascada de PALABRAS, como SHARED MOMENTS de Cafeone (`ORIGEN-TEXTO-EN-CASCADA-1`)
+
+Gate del owner: *"Quiero implementar la forma de cómo salen las palabras al pasar por la sección
+SHARED MOMENTS [de Cafeone real]… quiero aplicar eso a… El origen / Detrás de cada producto hay un
+origen real / Cada producto que ofrecemos nace en un lugar concreto […]. Es lo único de esa sección
+que no tiene una animación"*.
+
+### 1 · Lo medido contra Cafeone real — y la DESVIACIÓN que resultó de medirlo
+
+Se descargó `xo-webcomponents.min.js` (el mismo bundle ya leído en `CORTE-HERO-VELO-OFF-Y-TICKER-1`)
+y se visitó `x-cafeone.myshopify.com` en vivo con Playwright (scroll real, paso a paso, 24 cuadros +
+censo de atributos en runtime). **El `xo-cascade` de SHARED MOMENTS NO divide en palabras.** Es un
+escalonado POR HERMANO: el eyebrow `<xo-animate xo-cascade>` ("SHARED MOMENTS") y el h4 ("Our coffee
+has quietly brewed…") son dos elementos distintos; un `IntersectionObserver` compartido les asigna
+`--xo-order` 0/1/2… al entrar en vista (`--xo-duration:500`, `--xo-constant:75` → delay=order·75ms,
+`--xo-easing:cubic-bezier(0,0,.3,1)`, los cuatro leídos por `getComputedStyle` en vivo). **Censo en
+runtime sobre TODA la página, incluida esta sección: CERO nodos `xo-animate-item`** — el mecanismo
+que SÍ partiría el texto en ítems, gateado por el atributo `xo-item-used`, que tampoco aparece ni una
+vez en ningún `<xo-animate>` de la home.
+
+**La desviación, declarada:** pese a esa medición, `TextoEnCascada` SÍ divide en palabras. El
+requisito explícito del slice sólo tiene sentido si hay palabras partidas de verdad —*"el texto sigue
+siendo un solo texto para lectores de pantalla (las palabras partidas no se leen sueltas)"*—, así que
+lo medido no manda sobre ese requisito. Lo que SÍ se reusó de lo medido: la duración/curva del
+revelado (`REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_EASE`, ya establecidas en este storefront) y el
+PRINCIPIO del escalonado por `IntersectionObserver`+orden — no el valor de 75ms por ítem, que se
+calibró para 2 HERMANOS y habría hecho que un párrafo de 29 palabras tardara más de 2s en siquiera
+empezar a mostrar su última palabra.
+
+### 2 · `TextoEnCascada` — el componente, y las dos decisiones que no eran obvias
+
+`components/storefront/TextoEnCascada.tsx` tokeniza su `texto` por espacio en blanco
+(`palabrasDeTexto`, `lib/animation.ts`) y revela cada PALABRA con `fadeUp` (la variante compartida de
+~20 secciones, SIN traslado propio — mismo criterio que ya fijó `ORIGEN-FOTOS-REVELADO-Y-CONTEO-1`
+para las fotos/cifras) + `transicionPalabra(indice)`, un escalonado NUEVO (`CASCADA_PALABRA_PASO_S
+=0.03s`, tope `CASCADA_PALABRA_DELAY_MAX_S=0.6s`) que reusa la duración/curva de
+`REVELADO_GRUPO_*` pero con un paso más chico y un techo — pensado para decenas de palabras, no para
+2-5 hermanos.
+
+- **SIN JS, el texto se ve completo — y la salida NO es `initial={false}`.** Medido por ejecución
+  (`renderToStaticMarkup`): con `whileInView` y sin `animate`, `initial={false}` deja al nodo SIN
+  estilo en el primer render Y sin transición visible al entrar en vista (no hay "desde dónde"
+  animar) — se pierde el efecto para quien SÍ tiene JS. La salida real: la animación normal
+  (`initial="hidden"`, que SÍ hornea `opacity:0` en el HTML del servidor) + un `<noscript><style>
+  .sf-cascada-palabra{opacity:1!important;transform:none!important}</style></noscript>` por
+  instancia — el navegador sólo PARSEA ese bloque como markup real cuando el scripting está apagado,
+  así que con JS la animación queda intacta y sin JS el texto se ve entero, sin un solo `opacity:0`
+  que nadie vaya a revertir.
+- **ACCESIBLE por `aria-label` + `aria-hidden`, no por estructura semántica de las palabras.** El
+  envoltorio (`p`/`h2`) lleva `aria-label={texto}` con la frase COMPLETA; el contenedor de palabras es
+  `aria-hidden="true"` — un lector de pantalla anuncia la frase entera, nunca palabra por palabra.
+- **Un escalonado CONTINUO entre las tres piezas**, no tres ráfagas que reinician en 0:
+  `Origen.tsx` calcula `palabrasEyebrow`/`palabrasTitulo` y pasa `indiceInicial` acumulado (eyebrow
+  arranca en 0, título retoma en `palabrasEyebrow`, el párrafo en `palabrasEyebrow+palabrasTitulo`) —
+  la cascada se lee como UNA secuencia (eyebrow → título → párrafo), como en Cafeone (eyebrow antes
+  que el heading).
+- **Revierte, en parte, una decisión de `ORIGEN-FOTOS-REVELADO-Y-CONTEO-1`**: esa tanda dejó
+  eyebrow+h2+lede como "SU PROPIO bloque único" a propósito (el `data-reveal` del prototipo no lo
+  escalona). Este slice lo reemplaza por pedido explícito del owner — el `motion.div` de bloque
+  desaparece; la animación vive palabra por palabra.
+- **`.sf-cascada-palabra` en `app/globals.css`** (`@layer utilities`) sólo fija `display:inline-block`
+  — la regla de visibilidad sin JS vive DENTRO del `<noscript>` del componente, nunca en
+  `globals.css` (un `!important` ahí se cargaría CON o SIN JS y apagaría la animación para todos).
+
+### 3 · Byte-identidad de Nayoli — por construcción, no por coincidencia
+
+`DEFAULTS.origen.visible = false` (sin cambios), así que `Origen.tsx` sigue devolviendo `null` sin un
+solo nodo para Nayoli — la banda entera, con o sin `TextoEnCascada`, no le llega. Confirmado por
+ejecución (`npm run verificar:nayoli:visual`/`guarda:color`, §4). El efecto es visible sólo bajo un
+preset que encienda `bandasVisibles.origen` (hoy, sólo CORTE).
+
+### 4 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2920/2920** — reconciliado contra el piso del commit inmediato anterior (`d57973f`, `RADIOS-UN-SOLO-RITMO-1`, 2907/2907): `2907 + 13 = 2920`. El `+13` es el diff de los 2 archivos de test tocados: 8 tests nuevos en `lib/animation.test.ts` (`transicionPalabra`×4, `palabrasDeTexto`×4) + 5 en `lib/config/origen-banda.test.ts` (aria-label, aria-hidden, noscript, orden de palabras del título, preview) |
+| `npm run test:integracion` | **253/253** — sin cambio en el conteo (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers (main `9a7ab97` vs. esta rama) |
+| `npm run guarda:color` | **0px**, Nayoli sin preset vs. fixture |
+
+Serie de cuadros capturada (Playwright, scratch, no versionada): Cafeone real (SHARED MOMENTS,
+24 cuadros + timeline de opacidad/orden por elemento) y la banda Origen bajo `?tema=CORTE` (29
+cuadros, timeline de palabras-visibles — progresión medida 5→7→8→10→15→23→39/39, confirmando revelado
+PROGRESIVO, no un salto único) a escalas de tiempo comparables.
+
+**Leftover de infraestructura, no de este slice:** `npm run verificar:nayoli:visual` falló al primer
+intento ("El puerto 55439 está ocupado") — un cluster Postgres efímero de una corrida anterior de ESE
+MISMO script (PID con datadir `verificar-nayoli-visual-pg-kXzLTN`, arrancado antes de este slice)
+había quedado vivo. Se detuvo (`process.kill` vía `node -e`, igual que el propio script intenta con
+`pg_ctl stop -m immediate`) y se borró su datadir temporal; el re-intento corrió limpio.
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/home/Origen.tsx` (+40/-26), `components/storefront/TextoEnCascada.tsx` (nuevo,
+76 líneas), `lib/animation.ts` (+65/-0: `transicionPalabra`, `CASCADA_PALABRA_PASO_S`,
+`CASCADA_PALABRA_DELAY_MAX_S`, `palabrasDeTexto`, `TokenCascada`), `lib/animation.test.ts` (+56/-0),
+`lib/config/origen-banda.test.ts` (+61/-11), `app/globals.css` (+8/-0), este asiento. Medido con
+`git diff --numstat`: 5 archivos modificados + 1 nuevo, los 6 en la lista de `touches:` (más este
+asiento en `DECISIONS.md`, también declarado).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `TextoEnCascada`, `transicionPalabra`, `palabrasDeTexto`,
+`CASCADA_PALABRA_PASO_S`, `CASCADA_PALABRA_DELAY_MAX_S`, `.sf-cascada-palabra`, `Origen.tsx`,
+`OrigenContador`, `transicionEscalonada`, `REVELADO_GRUPO_PASO_S`, `fadeUp`. Grepeados uno por uno
+contra `CLAUDE.md` (`grep -c`): **CERO apariciones para los once.** Se buscó además cualquier mención
+de la banda Origen del storefront ("la banda origen", "origen-banda", "#origen", "El origen"): las
+seis coincidencias que CLAUDE.md trae de la palabra "origen" son todas de OTROS subsistemas (el
+origen de una orden en Order.canal, el origen del eje de la curva del Dashboard) — ninguna describe
+esta sección del storefront. **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA (contra `main`) ya trae varios slices con `customer_bytes.changed: true`
+propio (CORTE); este commit suma el suyo: bajo un preset que encienda `bandasVisibles.origen` (hoy
+CORTE), el eyebrow/título/párrafo de la sección "El origen" dejan de entrar como un bloque único y
+pasan a revelarse palabra por palabra — cambio VISIBLE para cualquier visitante bajo ese preset.
+`strings`: **ninguno nuevo** — ni un carácter de copy cambia (siguen siendo `origen.eyebrow/titulo/
+lede`, tal cual los escribe el dueño); lo que cambia es sólo la FORMA en que esas mismas palabras
+entran en pantalla.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es un componente de presentación nuevo, lógica pura en `lib/animation.ts`
+y su cableado en un componente de storefront ya existente.
+
+### Verdicto
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cinco capas (§4), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract`
+NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su reporte textual como
+`approval-reason`); el merge sigue pendiente del gate del orquestador — este slice, por instrucción
+del dispatch, no mergea.
+
+**Cierra `ORIGEN-TEXTO-EN-CASCADA-1`.**

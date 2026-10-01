@@ -693,6 +693,14 @@ html {
      Suscripción) — NUNCA en un chip/control (el filtro de notas de ProductCard, el contador del
      carrito). Fallbacks `none`/`normal` = la caja y el tracking de HOY → Suave byte-idéntica. */
   .sf-badge { text-transform: var(--sf-badge-caja, none); letter-spacing: var(--sf-badge-tracking, normal); }
+
+  /* LA PALABRA de `TextoEnCascada` (§ ORIGEN-TEXTO-EN-CASCADA-1) — sólo el DISPLAY (para que cada
+     palabra sea su propio `inline-block` y el `transform`/`translateY` de framer-motion no la
+     empuje fuera del flujo de texto). La regla de VISIBILIDAD sin JS vive aparte, DENTRO de un
+     `<noscript>` en el propio componente — nunca acá: una regla en `globals.css` se carga CON o
+     SIN JS, así que un `opacity:1!important` acá apagaría la animación también para quien SÍ
+     tiene JS. Sin token de tema: no es paleta ni forma del tenant, es mecánica de layout fija. */
+  .sf-cascada-palabra { display: inline-block; }
 }
 
 /* TRAZO de ícono (§ eje 4, forma). UNA regla sobre los íconos lucide del storefront: lucide

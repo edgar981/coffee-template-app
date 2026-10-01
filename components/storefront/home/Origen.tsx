@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { fadeUp, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
+import { fadeUp, palabrasDeTexto, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
+import TextoEnCascada from "@/components/storefront/TextoEnCascada";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, type OrigenContent } from "@/lib/config/site-content-defaults";
@@ -117,6 +118,14 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
   const datosVisibles = datosDeOrigen(origen);
   const statsVisibles = statsDeOrigen(origen);
 
+  // ÍNDICES DE LA CASCADA DE PALABRAS (§ ORIGEN-TEXTO-EN-CASCADA-1): eyebrow, título y párrafo son
+  // TRES `TextoEnCascada` independientes (cada uno tokeniza su propio texto, § el docstring de
+  // `palabrasDeTexto`), pero comparten UN solo escalonado continuo — el título retoma el índice
+  // donde el eyebrow terminó, y el párrafo donde el título terminó — así la cascada se LEE como una
+  // sola secuencia (eyebrow → título → párrafo), no como tres ráfagas que reinician en 0.
+  const palabrasEyebrow = origen.eyebrow ? palabrasDeTexto(origen.eyebrow).filter((t) => t.esPalabra).length : 0;
+  const palabrasTitulo = palabrasDeTexto(origen.titulo).filter((t) => t.esPalabra).length;
+
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1): `contenedorAnchoClase` reemplaza el literal
   // `max-w-6xl px-4 sm:px-6 lg:px-8` de siempre — `false` (todo tenant salvo CORTE) devuelve ESE
   // MISMO literal, byte a byte; `true` (CORTE) da el `--content-max`/`--page-gutter` EXACTOS del
@@ -189,36 +198,41 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
             </motion.div>
           </div>
 
-          {/* La columna de copy YA NO es un único `motion.div` (antes: eyebrow+h2+lede+dl entraban
-              como UN bloque, "de un golpe" — el reporte del owner). El TEXTO (eyebrow+h2+lede) sigue
-              siendo SU PROPIO bloque único —`.origen-copy[data-reveal]` del prototipo no lo
-              escalona internamente (`index.html:286-301`)—; la LISTA DE DATOS pasa a escalonar CADA
-              fila por separado, pedido explícito del spec que el `data-reveal` simple del prototipo
-              no cubre pero cuyos TOKENS sí toma (§ `transicionEscalonada`). El `<div>` envolvente
-              reemplaza al `motion.div` que antes ocupaba esta celda del grid — mismo lugar, misma
-              ausencia de className (el grid de arriba la posiciona), sin animación propia. */}
+          {/* La columna de copy YA NO envuelve eyebrow+h2+lede en un único `motion.div` de bloque
+              (§ ORIGEN-TEXTO-EN-CASCADA-1, revierte la decisión de ORIGEN-FOTOS-REVELADO-Y-CONTEO-1:
+              "el TEXTO sigue siendo su propio bloque único" — el gate del owner pidió explícitamente
+              la cascada de palabras que esa tanda dejó afuera). Cada uno de los tres es un
+              `TextoEnCascada` independiente que tokeniza y revela SUS PROPIAS palabras (§ el
+              docstring de `TextoEnCascada.tsx`); el `<div>` envolvente ya no anima — la animación
+              vive palabra por palabra, no por bloque. La LISTA DE DATOS sigue escalonando cada fila
+              por separado (§ `transicionEscalonada`, sin cambios en esta tanda). */}
           <div>
-            <motion.div
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              transition={preview ? undefined : transicionEscalonada(0)}
-            >
+            <div>
               {origen.eyebrow && (
-                <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
-                  {origen.eyebrow}
-                </p>
+                <TextoEnCascada
+                  as="p"
+                  texto={origen.eyebrow}
+                  className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-4"
+                  preview={preview}
+                  indiceInicial={0}
+                />
               )}
-              <h2
+              <TextoEnCascada
+                as="h2"
+                texto={origen.titulo}
                 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] leading-tight mb-5"
                 style={displayL ? { fontSize: displayL } : undefined}
-              >
-                {origen.titulo}
-              </h2>
-              <p className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base">{origen.lede}</p>
-            </motion.div>
+                preview={preview}
+                indiceInicial={palabrasEyebrow}
+              />
+              <TextoEnCascada
+                as="p"
+                texto={origen.lede}
+                className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base"
+                preview={preview}
+                indiceInicial={palabrasEyebrow + palabrasTitulo}
+              />
+            </div>
 
             {datosVisibles.length > 0 && (
               // `.spec-list`/`.spec-list div`/`dt`/`dd` del prototipo (`css/app.css:591-599`) —

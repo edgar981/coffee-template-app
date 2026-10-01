@@ -315,18 +315,24 @@ test('el contador queda a la IZQUIERDA en todo ancho — ya NO sm:text-center (e
   assert.doesNotMatch(html, /text-center/);
 });
 
-// ─── EL REVELADO ESCALONADO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1 ────────────────────────────────
+// ─── EL REVELADO ESCALONADO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, § ORIGEN-TEXTO-EN-CASCADA-1 ────
 //
 // El gate del owner: «los datos deberían ir apareciendo progresivamente, no cargar de un golpe; los
 // números deberían cargar como en el muestrario, como si estuvieran aumentando». Framer-motion
 // hornea el estado `hidden` como estilo inline en el SSR (verificado por ejecución:
-// `renderToStaticMarkup` de un `motion.div` con `initial="hidden"` da
+// `renderToStaticMarkup` de un `motion.div`/`motion.span` con `initial="hidden"` da
 // `style="opacity:0;transform:translateY(24px)"` — sin preview/reduced-motion, el HTML nace oculto
 // hasta que JS + el `IntersectionObserver` de `whileInView` lo revele), así que ESTE string es el
 // discriminador entre "entra como un bloque" (1 aparición por grupo) y "entra escalonado" (una
-// aparición por HIJO). Antes de este slice: 2 fotos + 1 bloque texto+datos = 2 divs con el string
-// (las fotos como UN bloque; texto+dl como el otro) y CERO en los contadores (no tenían wrapper de
-// revelado). Después: cada foto, el texto, cada fila de dato y cada cifra son su PROPIO motion.div.
+// aparición por HIJO/PALABRA). Hasta ORIGEN-FOTOS-REVELADO-Y-CONTEO-1: 2 fotos + 1 bloque
+// texto+datos = 2 divs con el string y CERO en los contadores. Después de esa tanda: cada foto, el
+// bloque de TEXTO completo (1), cada fila de dato y cada cifra, su PROPIO motion.div — EL TEXTO
+// seguía siendo un solo bloque.
+//
+// ORIGEN-TEXTO-EN-CASCADA-1 reemplaza esa única aparición de "texto" por UNA POR PALABRA: eyebrow
+// (2) + título (8) + párrafo/lede (29) = 39 `motion.span` ocultos donde antes había 1 `motion.div`
+// (§ `TextoEnCascada.tsx`, § `palabrasDeTexto` en `lib/animation.ts`). El conteo total pasa de
+// 10 (2 fotos + 1 texto + 4 datos + 3 cifras) a **48** (2 fotos + 39 palabras + 4 datos + 3 cifras).
 
 const CONTENT_ORIGEN_COMPLETO = {
   ...DEFAULTS,
@@ -343,27 +349,71 @@ const CONTENT_ORIGEN_COMPLETO = {
   },
 } as SiteContentData;
 
-test('SIN preview: 10 motion.div nacen ocultos — 2 fotos + 1 texto + 4 datos + 3 cifras, cada uno su PROPIO hijo (antes: 2, uno por bloque, y cero en las cifras)', () => {
+test('SIN preview: 48 motion.div/span nacen ocultos — 2 fotos + 39 palabras (eyebrow 2 + título 8 + párrafo 29) + 4 datos + 3 cifras, cada uno su PROPIO hijo', () => {
   const html = renderOrigen(CONTENT_ORIGEN_COMPLETO);
   const ocultos = html.match(/style="opacity:0;transform:translateY\(24px\)"/g) ?? [];
-  assert.equal(ocultos.length, 10, 'fotos(2) + texto(1) + datos(4) + cifras(3) = 10 revelados independientes');
+  assert.equal(ocultos.length, 48, 'fotos(2) + palabras(39) + datos(4) + cifras(3) = 48 revelados independientes');
 });
 
-test('EN PREVIEW: los mismos 10 nacen YA visibles (opacity:1) — nunca ocultos esperando un scroll que el editor no dispara', () => {
+test('EN PREVIEW: los mismos 48 nacen YA visibles (opacity:1) — nunca ocultos esperando un scroll que el editor no dispara', () => {
   const html = renderOrigen(CONTENT_ORIGEN_COMPLETO, { preview: true });
   assert.equal(html.match(/style="opacity:0/g), null, 'ningún nodo debe quedar oculto en preview');
   const visibles = html.match(/style="opacity:1;transform:none"/g) ?? [];
-  assert.equal(visibles.length, 10);
+  assert.equal(visibles.length, 48);
 });
 
-test('con SÓLO 2 datos y sin stats: 2 fotos + 1 texto + 2 datos = 5 ocultos — el conteo sigue la CANTIDAD real, no un tope fijo', () => {
+test('con SÓLO 2 datos y sin stats: 2 fotos + 39 palabras + 2 datos = 43 ocultos — el conteo sigue la CANTIDAD real, no un tope fijo', () => {
   const content = {
     ...DEFAULTS,
     origen: { ...DEFAULTS.origen, visible: true, dato1Valor: '1.500 – 1.800 msnm', dato2Valor: 'Caturra y Colombia' },
   } as SiteContentData;
   const html = renderOrigen(content);
   const ocultos = html.match(/style="opacity:0;transform:translateY\(24px\)"/g) ?? [];
-  assert.equal(ocultos.length, 5);
+  assert.equal(ocultos.length, 43);
+});
+
+// ─── `TextoEnCascada` — a11y, no-JS y orden de las palabras ─────────────────────────────────────
+
+test('eyebrow/título/párrafo llevan `aria-label` con el texto COMPLETO, sin partir — el lector de pantalla anuncia la frase entera', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.ok(html.includes(`aria-label="${DEFAULTS.origen.eyebrow}"`));
+  assert.ok(html.includes(`aria-label="${DEFAULTS.origen.titulo}"`));
+  assert.ok(html.includes(`aria-label="${DEFAULTS.origen.lede}"`));
+});
+
+test('cada palabra queda `aria-hidden` dentro de un contenedor propio — tres contenedores (eyebrow, título, párrafo), uno por `TextoEnCascada`', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  const contenedores = html.match(/<span aria-hidden="true">/g) ?? [];
+  assert.equal(contenedores.length, 3, 'eyebrow + título + párrafo');
+});
+
+test('SIN JS, el texto se ve completo — cada `TextoEnCascada` emite su `<noscript>` con la regla que fuerza opacidad 1 sobre `.sf-cascada-palabra`', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  const noscripts = html.match(/<noscript><style>\.sf-cascada-palabra\{opacity:1!important;transform:none!important\}<\/style><\/noscript>/g) ?? [];
+  assert.equal(noscripts.length, 3, 'eyebrow + título + párrafo, cada uno con su propia regla (misma regla, repetida)');
+});
+
+test('el título rinde sus 8 palabras, en ORDEN, cada una su propio `.sf-cascada-palabra`', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  const idxH2 = html.indexOf('<h2');
+  const idxFinH2 = html.indexOf('</h2>');
+  const trozoH2 = html.slice(idxH2, idxFinH2);
+  const palabras = Array.from(trozoH2.matchAll(/class="sf-cascada-palabra" style="opacity:0;transform:translateY\(24px\)">([^<]*)</g)).map((m) => m[1]);
+  assert.deepEqual(palabras, ['Detrás', 'de', 'cada', 'producto', 'hay', 'un', 'origen', 'real']);
+});
+
+test('EN PREVIEW: las palabras del título también nacen YA visibles (opacity:1) — mismo gate que preview', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content, { preview: true });
+  const idxH2 = html.indexOf('<h2');
+  const idxFinH2 = html.indexOf('</h2>');
+  const trozoH2 = html.slice(idxH2, idxFinH2);
+  const palabras = Array.from(trozoH2.matchAll(/class="sf-cascada-palabra" style="opacity:1;transform:none">([^<]*)</g)).map((m) => m[1]);
+  assert.deepEqual(palabras, ['Detrás', 'de', 'cada', 'producto', 'hay', 'un', 'origen', 'real']);
 });
 
 // ─── CORTE la enciende; los demás presets no tocan `content.origen` ─────────────────────────────
