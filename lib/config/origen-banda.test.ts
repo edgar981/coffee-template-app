@@ -124,13 +124,28 @@ test('la grilla de fotos usa gap-3 (12px, mobile) con sm:gap-5 (20px, ≥640px) 
 test('el PRIMER marco de foto lleva mt-8 (32px, mobile) con sm:mt-12 (48px, ≥640px) — ya NO mt-8 fijo siempre', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
-  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12"/);
+  assert.match(html, /class="relative aspect-\[2\/3\] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12"/);
 });
 
 test('el SEGUNDO marco de foto sigue SIN desfase — sólo el primero (first-child, como en el prototipo) se empuja', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
-  assert.match(html, /class="relative aspect-\[3\/4\] overflow-hidden sf-radio-imagen sf-sombra-imagen"/, 'debe existir un marco SIN clases de margen (el segundo)');
+  assert.match(html, /class="relative aspect-\[2\/3\] overflow-hidden sf-radio-imagen sf-sombra-imagen"/, 'debe existir un marco SIN clases de margen (el segundo)');
+});
+
+// ─── EL MARCO PASA A 2/3 — MÁS ALARGADO QUE EL 3/4 DEL PROTOTIPO ─────────────────────────────────
+//
+// § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1: decisión del orquestador sobre "más alargado" que el 3:4
+// MEDIDO del prototipo (`css/app.css:586`, `ORIGEN-DATOS-EXACTO-1` no lo tocó — esa tanda midió
+// tipografía/espaciado, no el aspect-ratio). Es la ÚNICA cifra de este slice que NO viene del
+// prototipo; el resto (escalonado, conteo) sí.
+
+test('el marco de foto es aspect-[2/3] — ya NO aspect-[3/4] (el del prototipo, más cuadrado)', () => {
+  const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
+  const html = renderOrigen(content);
+  assert.doesNotMatch(html, /aspect-\[3\/4\]/, 'no debe quedar ningún marco con la proporción vieja');
+  const marcos = html.match(/aspect-\[2\/3\]/g) ?? [];
+  assert.equal(marcos.length, 2, 'las DOS figuras deben usar el marco alargado');
 });
 
 // ─── EL ROL DE FORMA "IMAGEN" — cada figura consume `sf-radio-imagen`/`sf-sombra-imagen`, nunca
@@ -141,7 +156,7 @@ test('el SEGUNDO marco de foto sigue SIN desfase — sólo el primero (first-chi
 test('las DOS figuras de foto usan el rol de forma imagen (sf-radio-imagen/sf-sombra-imagen) — ya NO rounded-2xl crudo', () => {
   const content = { ...DEFAULTS, origen: { ...DEFAULTS.origen, visible: true } } as SiteContentData;
   const html = renderOrigen(content);
-  const figuras = html.match(/class="relative aspect-\[3\/4\] overflow-hidden [^"]*"/g) ?? [];
+  const figuras = html.match(/class="relative aspect-\[2\/3\] overflow-hidden [^"]*"/g) ?? [];
   assert.equal(figuras.length, 2, 'deben existir exactamente dos figuras de foto');
   for (const figura of figuras) {
     assert.match(figura, /\bsf-radio-imagen\b/);
@@ -298,6 +313,57 @@ test('el contador queda a la IZQUIERDA en todo ancho — ya NO sm:text-center (e
   const html = renderOrigen(CONTENT_CON_STATS);
   assert.match(html, /class="text-left"/);
   assert.doesNotMatch(html, /text-center/);
+});
+
+// ─── EL REVELADO ESCALONADO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1 ────────────────────────────────
+//
+// El gate del owner: «los datos deberían ir apareciendo progresivamente, no cargar de un golpe; los
+// números deberían cargar como en el muestrario, como si estuvieran aumentando». Framer-motion
+// hornea el estado `hidden` como estilo inline en el SSR (verificado por ejecución:
+// `renderToStaticMarkup` de un `motion.div` con `initial="hidden"` da
+// `style="opacity:0;transform:translateY(24px)"` — sin preview/reduced-motion, el HTML nace oculto
+// hasta que JS + el `IntersectionObserver` de `whileInView` lo revele), así que ESTE string es el
+// discriminador entre "entra como un bloque" (1 aparición por grupo) y "entra escalonado" (una
+// aparición por HIJO). Antes de este slice: 2 fotos + 1 bloque texto+datos = 2 divs con el string
+// (las fotos como UN bloque; texto+dl como el otro) y CERO en los contadores (no tenían wrapper de
+// revelado). Después: cada foto, el texto, cada fila de dato y cada cifra son su PROPIO motion.div.
+
+const CONTENT_ORIGEN_COMPLETO = {
+  ...DEFAULTS,
+  origen: {
+    ...DEFAULTS.origen,
+    visible: true,
+    dato1Valor: '1.500 – 1.800 msnm',
+    dato2Valor: 'Caturra y Colombia',
+    dato3Valor: 'Lavado, secado al sol',
+    dato4Valor: 'Marzo – junio',
+    statNumero1: '1600', statEtiqueta1: 'msnm promedio',
+    statNumero2: '12', statEtiqueta2: 'hectáreas sembradas',
+    statNumero3: '52', statEtiqueta3: 'años de tradición',
+  },
+} as SiteContentData;
+
+test('SIN preview: 10 motion.div nacen ocultos — 2 fotos + 1 texto + 4 datos + 3 cifras, cada uno su PROPIO hijo (antes: 2, uno por bloque, y cero en las cifras)', () => {
+  const html = renderOrigen(CONTENT_ORIGEN_COMPLETO);
+  const ocultos = html.match(/style="opacity:0;transform:translateY\(24px\)"/g) ?? [];
+  assert.equal(ocultos.length, 10, 'fotos(2) + texto(1) + datos(4) + cifras(3) = 10 revelados independientes');
+});
+
+test('EN PREVIEW: los mismos 10 nacen YA visibles (opacity:1) — nunca ocultos esperando un scroll que el editor no dispara', () => {
+  const html = renderOrigen(CONTENT_ORIGEN_COMPLETO, { preview: true });
+  assert.equal(html.match(/style="opacity:0/g), null, 'ningún nodo debe quedar oculto en preview');
+  const visibles = html.match(/style="opacity:1;transform:none"/g) ?? [];
+  assert.equal(visibles.length, 10);
+});
+
+test('con SÓLO 2 datos y sin stats: 2 fotos + 1 texto + 2 datos = 5 ocultos — el conteo sigue la CANTIDAD real, no un tope fijo', () => {
+  const content = {
+    ...DEFAULTS,
+    origen: { ...DEFAULTS.origen, visible: true, dato1Valor: '1.500 – 1.800 msnm', dato2Valor: 'Caturra y Colombia' },
+  } as SiteContentData;
+  const html = renderOrigen(content);
+  const ocultos = html.match(/style="opacity:0;transform:translateY\(24px\)"/g) ?? [];
+  assert.equal(ocultos.length, 5);
 });
 
 // ─── CORTE la enciende; los demás presets no tocan `content.origen` ─────────────────────────────

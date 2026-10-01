@@ -14,6 +14,39 @@ import { BANDA_IDS, type VeloIntensidad, type TickerVelocidad } from "./config/s
 // animaciones de scroll-in del storefront (`whileInView`/`initial+animate` + `variants`).
 export const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
+// ── EL REVELADO ESCALONADO POR GRUPO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1 ─────────────────────────
+//
+// Hasta este slice, cada `whileInView`+`transition={{ delay: i*N }}` de una lista (Testimonios,
+// FeaturedProducts, GrindChooser*) elegía su propio paso (0.06/0.08/0.1) sin atarlo a ningún token
+// del prototipo — el `duration`/`ease` quedaban en el spring por defecto de framer-motion. El gate
+// del owner sobre "El origen" pidió explícitamente reproducir «la gramática y los tokens del
+// revelado del prototipo», y ORIGEN-DATOS-EXACTO-1 ya dejó el precedente de medir esos tokens en
+// vez de aproximarlos: `[data-reveal-group]` (`docs/prototipos/cafeone/css/app.css:948-958`) declara
+// duración 600ms/curva `cubic-bezier(.22,.61,.36,1)` (`--duration-reveal`/`--ease-reveal=--ease-out`,
+// `tokens.css:189,213-214` — LOS MISMOS que ya reproduce `REVELADO_PAGINA_*` más abajo, pero para el
+// mount de PÁGINA completa vía CSS puro) y un paso de 90ms por hijo directo
+// (`:nth-child(1..5){transition-delay:0/90/180/270/360ms}`).
+//
+// ACÁ el consumidor es framer-motion disparado por VIEWPORT (`whileInView`), no CSS puro al montar
+// —Origen está bajo el pliegue, así que "la página cambió" no sirve de disparador—, así que los
+// tokens van en SEGUNDOS (la unidad que espera `transition`), no en ms como `REVELADO_PAGINA_*`.
+// `transicionEscalonada(indice)` es la ÚNICA función que arma ese objeto: los CUATRO grupos de Origen
+// (fotos, texto, cada fila de datos, cada cifra) la llaman con su propio índice 0-based, así que
+// ninguno puede declarar un paso o una curva distintos de los otros tres sin tocar esta función.
+//
+// LO QUE NO REPRODUCE, para no afirmar una fidelidad que no es: `fadeUp` (arriba) traslada 24px, no
+// los 28px del prototipo (`app.css:943`) — es la MISMA variante compartida que usan ya ~20 secciones
+// del storefront, y darle a Origen su propio traslado de 28px lo volvería la ÚNICA sección con un
+// `y` distinto sin que nadie lo pidiera; el pedido del owner fue sobre el ESCALONADO y el CONTEO, no
+// sobre el traslado en píxeles.
+export const REVELADO_GRUPO_DURACION_S = 0.6;
+export const REVELADO_GRUPO_EASE: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
+export const REVELADO_GRUPO_PASO_S = 0.09;
+
+export function transicionEscalonada(indice: number): { duration: number; ease: [number, number, number, number]; delay: number } {
+  return { duration: REVELADO_GRUPO_DURACION_S, ease: REVELADO_GRUPO_EASE, delay: indice * REVELADO_GRUPO_PASO_S };
+}
+
 // ── ACOMODO DE SCROLL — el motor de scroll-scrub, TEMAS-BRANDSTORY-DIRECCION-ARTE-1 ──────────────
 //
 // La variante `centrada` de brandStory (§ CORTE-BRANDSTORY-COLLAGE-1) dejó escrito en su propio
@@ -819,7 +852,13 @@ export function valorContador(destino: number, progreso: number): number {
 }
 
 export interface ContadorAnimado {
-  ref: RefObject<HTMLElement | null>;
+  // `HTMLDivElement`, no `HTMLElement` — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1: `OrigenContador` (el
+  // único consumidor) adjunta este `ref` a un `motion.div` (el mismo nodo que la animación de
+  // entrada), y TypeScript trata `RefObject<T>` como INVARIANTE en `.current` — un
+  // `RefObject<HTMLElement|null>` no es asignable al `ref` de un `<div>` aunque `HTMLDivElement`
+  // extienda `HTMLElement` (`tsc` lo rechaza: "Property 'align' is missing…"). Antes de este slice el
+  // tipo daba igual porque el `ref` NUNCA se adjuntaba a nada — ésa era la mitad del bug del conteo.
+  ref: RefObject<HTMLDivElement | null>;
   valor: number;
 }
 
@@ -836,7 +875,7 @@ export interface ContadorAnimado {
 // `EscalaDesktop` (`transform:scale`) un `IntersectionObserver` puede no disparar — medido:
 // ORIGEN-BANDA-CENSO-1 —, así que el preview no puede depender de él para mostrar un número.
 export function useContadorAnimado(destino: number, estatico: boolean): ContadorAnimado {
-  const ref = useRef<HTMLElement | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
   const [valor, setValor] = useState(estatico ? destino : 0);
   const disparado = useRef(false);
 

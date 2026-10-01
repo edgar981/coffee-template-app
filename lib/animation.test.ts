@@ -15,6 +15,7 @@ import {
   MARQUEE_MASCARA_RELLENO_EM, parametrosAcomodoCollage, RESORTE_ACOMODO,
   cssRevelaPagina, REVELADO_PAGINA_DURACION_MS, REVELADO_PAGINA_TRASLADO_PX,
   REVELADO_PAGINA_EASE, REVELADO_PAGINA_PASO_MS,
+  transicionEscalonada, REVELADO_GRUPO_DURACION_S, REVELADO_GRUPO_EASE, REVELADO_GRUPO_PASO_S,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -754,4 +755,38 @@ test('cssRevelaPagina: el escalonado se EXTIENDE más allá del 5º hijo del pro
     !css.includes(`nth-child(${BANDA_IDS.length + 1})`),
     'no hay regla de más — el tope es BANDA_IDS.length, no infinito',
   );
+});
+
+// § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1 — `transicionEscalonada`, el revelado por GRUPO que consume
+// Origen (fotos, texto, cada fila de datos, cada cifra) vía `whileInView` de framer-motion — mismos
+// tokens que `REVELADO_PAGINA_*` arriba miden para el `[data-reveal-group]` del prototipo
+// (`docs/prototipos/cafeone/css/tokens.css:189,213-214`, `css/app.css:948-958`), pero en SEGUNDOS
+// (la unidad de `transition`) y disparado por VIEWPORT, no por el mount de página.
+
+test('REVELADO_GRUPO_*: 600ms de duración, 90ms de paso — LOS MISMOS números que REVELADO_PAGINA_*, sólo que en segundos', () => {
+  assert.equal(REVELADO_GRUPO_DURACION_S, REVELADO_PAGINA_DURACION_MS / 1000, 'misma duración del prototipo, --duration-reveal:600ms');
+  assert.equal(REVELADO_GRUPO_PASO_S, REVELADO_PAGINA_PASO_MS / 1000, 'mismo paso del prototipo, 90ms por hijo');
+});
+
+test('REVELADO_GRUPO_EASE: la curva cubic-bezier(.22,.61,.36,1) — la misma que REVELADO_PAGINA_EASE parsea como string CSS', () => {
+  assert.deepEqual(REVELADO_GRUPO_EASE, [0.22, 0.61, 0.36, 1]);
+  assert.equal(REVELADO_PAGINA_EASE, `cubic-bezier(${REVELADO_GRUPO_EASE.join(', ')})`, 'las dos formas del mismo token no deben divergir');
+});
+
+test('transicionEscalonada(0): sin retraso — el primer hijo del grupo entra de inmediato', () => {
+  assert.deepEqual(transicionEscalonada(0), { duration: REVELADO_GRUPO_DURACION_S, ease: REVELADO_GRUPO_EASE, delay: 0 });
+});
+
+test('transicionEscalonada: el retraso crece en pasos de 90ms — 1→90ms, 2→180ms, 3→270ms, 4→360ms (los mismos 5 slots que el prototipo declara para su [data-reveal-group])', () => {
+  for (let i = 1; i <= 4; i++) {
+    assert.equal(transicionEscalonada(i).delay, i * REVELADO_GRUPO_PASO_S, `índice ${i}`);
+  }
+});
+
+test('transicionEscalonada: duration/ease no cambian con el índice — sólo el delay escalona', () => {
+  const a = transicionEscalonada(0);
+  const b = transicionEscalonada(3);
+  assert.equal(a.duration, b.duration);
+  assert.deepEqual(a.ease, b.ease);
+  assert.notEqual(a.delay, b.delay);
 });

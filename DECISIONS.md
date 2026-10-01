@@ -37477,3 +37477,189 @@ la ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30 sobre `MENU-MOV
 citado arriba) — el MERGE sigue gateado aparte.
 
 Cierra `CHECKOUT-RASTREAR-TRANSICIONES-1`.
+
+## 2026-09-30 — El origen: fotos más alargadas, revelado escalonado y el BUG del conteo que nunca contó (`ORIGEN-FOTOS-REVELADO-Y-CONTEO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el
+gate del 2026-09-30 con captura de "El origen" publicado: *"El tamaño de las imágenes de esta
+sección debería ser más alargado. Los datos deberían ir apareciendo progresivamente, no cargar de
+un golpe. Y los números de abajo […] deberían cargar como en el muestrario, como si estuvieran
+aumentando."* Cierra `ORIGEN-DATOS-EXACTO-1` (arriba) con los tres pedidos.
+
+### 1 · El BUG: el contador nunca contó, desde `ORIGEN-BANDA-1`, y el motivo es un `ref` sin adjuntar
+
+`ORIGEN-DATOS-EXACTO-1` había verificado la matemática del conteo (`valorContador`,
+`DURACION_CONTADOR_MS=1100`, umbral 0.4) **leyendo el código**, y la dio por correcta porque
+reproducía `js/home.js:320-327` exacto. Era correcta — y nunca se ejecutaba. `useContadorAnimado`
+(`lib/animation.ts`) devuelve un `ref` cuyo EFECTO decide si observa el viewport:
+
+```ts
+const el = ref.current;
+if (!el || typeof IntersectionObserver === "undefined") { setValor(destino); return; }
+```
+
+`OrigenContador` (`components/storefront/home/Origen.tsx`) **destructuraba `ref` pero nunca lo
+adjuntaba a ningún nodo** — el `<div>` que envolvía la cifra no llevaba `ref={ref}`, en NINGUNA
+versión desde `ORIGEN-BANDA-1` (2026-09-21). Con `ref.current` SIEMPRE `null`, la rama `!el` es
+SIEMPRE cierta: el efecto corre `setValor(destino)` en el primer render, sin montar el
+`IntersectionObserver` ni el loop de `requestAnimationFrame` — el número aparece YA en su valor
+final. Exactamente el reporte del owner. **Un residuo lo delataba sin que nadie lo leyera:**
+`Origen.tsx` importaba `RefObject` de `"react"` y nunca lo usaba — alguien había tipado el `ref`
+para adjuntarlo y el adjunte mismo quedó afuera.
+
+**El fix:** el `ref` se adjunta al `motion.div` raíz de `OrigenContador` — framer-motion reenvía su
+`ref` externo al nodo DOM real, así que el MISMO elemento sirve para el fade-in Y para el
+`IntersectionObserver` del conteo, sin un envoltorio de más. `ContadorAnimado.ref` cambia de tipo
+`RefObject<HTMLElement | null>` a `RefObject<HTMLDivElement | null>` (`lib/animation.ts`): TypeScript
+trata `RefObject<T>` como INVARIANTE en `.current`, así que un `RefObject<HTMLElement|null>` no es
+asignable al `ref` de un `<div>` aunque `HTMLDivElement` extienda `HTMLElement` (medido:
+`tsc` rechaza con "Property 'align' is missing…" hasta hacer el cambio). El único consumidor del
+hook es `OrigenContador`, así que el tipo más estrecho no rompe nada más (verificado:
+`grep -rn useContadorAnimado` fuera de `lib/animation.ts` da sólo `Origen.tsx`).
+
+### 2 · El escalonado: `transicionEscalonada`, los tokens EXACTOS del `[data-reveal-group]` del prototipo
+
+El spec pidió reproducir «la gramática y los tokens del revelado del prototipo» para fotos, texto,
+cada fila de datos y cada cifra. El prototipo declara `[data-reveal-group]`
+(`docs/prototipos/cafeone/css/app.css:948-958`, `tokens.css:189,213-214`): duración 600ms, curva
+`cubic-bezier(.22,.61,.36,1)` (`--ease-reveal=--ease-out`), paso de 90ms por hijo directo
+(`nth-child(1..5)` → 0/90/180/270/360ms). `transicionEscalonada(indice)` (nuevo, `lib/animation.ts`)
+devuelve `{ duration: 0.6, ease: [0.22,0.61,0.36,1], delay: indice*0.09 }` — los MISMOS números, en
+segundos (framer-motion), no en ms (CSS puro, como ya hace `REVELADO_PAGINA_*` para la entrada de
+PÁGINA completa — dos constantes, mismo valor, porque cada mecanismo declara sus propios tokens
+aunque coincidan).
+
+- **Fotos** (`.origen-media[data-reveal-group]`, 2 hijos): cada figura es ahora su propio
+  `motion.div` con `transicionEscalonada(0)`/`(1)` — antes las dos entraban como UN bloque (el grid
+  entero era el `motion.div`).
+- **Texto** (eyebrow+h2+lede): sigue siendo UN bloque único — `.origen-copy[data-reveal]` del
+  prototipo NO lo escalona internamente (`index.html:286-301`, un solo `data-reveal`, no un grupo).
+- **Lista de datos**: cada fila (`dt`/`dd`) pasa a ser su propio `motion.div` con
+  `transicionEscalonada(i)`, i=0..3 — esto es una elaboración DELIBERADA sobre el prototipo: su
+  `.origen-copy` no stageguea el `<dl>` (va dentro del mismo `data-reveal` que el texto), pero el
+  spec pidió explícitamente «cada fila de la lista de datos […] entran escalonados» en el cuerpo
+  del documento (§1), no sólo en la línea de `surface`. Se construyó así; el prototipo aporta los
+  TOKENS (90ms/600ms/la curva), no la agrupación.
+- **Cifras**: cada `OrigenContador` es ahora un `motion.div` con `transicionEscalonada(indice)` —
+  antes era un `<div>` plano, sin NINGÚN revelado (ni fade ni escalonado), más allá del bug del §1.
+
+### 3 · El marco de foto: `aspect-[2/3]`, la única cifra que NO viene del prototipo
+
+El prototipo mide `aspect-ratio:3/4` (`app.css:586`). El `cifras-decision` del spec (`2/3`) es la
+decisión del ORQUESTADOR sobre "más alargado" — 2:3 es más angosto/alto que 3:4. Las dos figuras
+(`imagen1`/`imagen2`) cambian de `aspect-[3/4]` a `aspect-[2/3]`; nada más del marco se tocó (el
+rol de forma `sf-radio-imagen`/`sf-sombra-imagen`, el gap y el desfase del primer marco quedan
+intactos).
+
+### MEDIDO POR EJECUCIÓN — antes y después, con el contador contando
+
+`.scratch/origen-timelapse.ts` (ad-hoc, NO comiteado): reusa el arnés exportado de
+`scripts/verificar-nayoli-visual.ts` (Postgres efímero propio, puerto 55450, base
+`origentimelapse`; `next build`+`next start`; Playwright aislado) — sin `activarModoDeterminista`
+(acá se quiere ver la animación EN CURSO, no congelarla). Siembra `content.origen` (visible + los
+4 datos + 3 stats del prototipo, los mismos valores de `ORIGEN-DATOS-EXACTO-1`) por `psql` directo
+sobre la fila `SiteContent`, navega `/?tema=CORTE` y captura una serie de instantes (0/150/400/700/
+1600ms para fotos+texto+datos; 0/200/400/600/800/1100/1600ms para las cifras) a 1440×900 y 390×844.
+
+El **antes** se capturó temporalmente escribiendo el `Origen.tsx` de HEAD (pre-slice, vía
+`git show HEAD:…`) sobre el archivo real, corriendo el arnés, y restaurando el archivo arreglado
+inmediatamente después — verificado con `git diff --stat` idéntico al de antes de la maniobra
+(264 inserciones/57 borrados en los 4 archivos, sin cambio) y con `npx tsc --noEmit` +
+`npx tsx --test lib/animation.test.ts lib/config/origen-banda.test.ts` (134/134) corridos de nuevo
+tras restaurar.
+
+| instante | **antes** (`.scratch/origen-timelapse/before/1440x900-stats-t0000ms.png`) | **después** (`…/after/…`) |
+| --- | --- | --- |
+| t=0ms | "1.600" / "12" / "52" — YA el valor final, nunca "0" | "0" / "0" / "0" |
+| t=400ms | "1.600" / "12" / "52" (sin cambio — nunca contó) | "1.444" / "11" / "47" — a mitad de camino |
+| t=1600ms | "1.600" / "12" / "52" | "1.600" / "12" / "52" — mismo valor final, llegado CONTANDO |
+
+Y para el revelado (`1440x900-grid-t0000ms.png`): **antes**, las DOS fotos y las CUATRO filas de
+datos aparecen con la MISMA opacidad parcial en el mismo instante (un solo bloque); **después**, a
+t=0ms sólo la primera foto (delay 0) y el primer dato están en marcha, la segunda foto y los datos
+2-4 siguen invisibles — el escalonado real. Capturas en `.scratch/origen-timelapse/{before,after}/`
+(gitignoreadas, no comiteadas, mismo tratamiento que el resto del arnés visual).
+
+### Tests nuevos — 9, ninguno de navegador
+
+`lib/animation.test.ts` gana 5 (`REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_PASO_S` igualan a
+`REVELADO_PAGINA_*`/1000; `REVELADO_GRUPO_EASE` coincide con el string de `REVELADO_PAGINA_EASE`;
+`transicionEscalonada(0)` sin retraso; el retraso escalona en pasos de 90ms para 1-4; duration/ease
+no cambian con el índice). `lib/config/origen-banda.test.ts` gana 4: el marco es `aspect-[2/3]` (ya
+no `aspect-[3/4]`, en las dos figuras); y TRES tests de CONTEO DE REVELADOS INDEPENDIENTES —
+`renderToStaticMarkup` de un `motion.div` con `initial="hidden"` hornea
+`style="opacity:0;transform:translateY(24px)"` (verificado por ejecución, `.scratch/ssr-check.tsx`,
+no comiteado), así que contar esa cadena en el HTML discrimina "entra como bloque" (pocas
+apariciones) de "entra escalonado" (una por hijo): sin preview y con contenido completo (2 fotos +
+1 texto + 4 datos + 3 cifras) da **10** ocultos (antes del slice habrían sido 2 — las fotos como un
+bloque, el texto+dl como el otro — y CERO en las cifras, que no tenían revelado); en preview, los
+mismos 10 nacen YA visibles (`opacity:1`); con sólo 2 datos y sin stats, da 5 — el conteo sigue la
+cantidad real, no un tope fijo. `npm test`: **2846/2846** (2837 del piso previo + 9 nuevos).
+
+### Por qué NO se tocó `app/globals.css`
+
+Estaba en `touches:` como candidato. El mecanismo entero es framer-motion (`whileInView` +
+`variants` + `transition`), el MISMO idioma que ya usan ~20 secciones del storefront — no se
+introdujo ningún CSS nuevo (clase, variable, keyframe) porque no hacía falta ninguno: el
+escalonado se expresa con `transition.delay` por ítem (el patrón YA establecido en
+`TestimonialSection`/`FeaturedProductsCuadricula`/`GrindChooser*`, sólo que con los tokens exactos
+del prototipo en vez de un paso arbitrario). Mismo criterio que `CHECKOUT-RASTREAR-TRANSICIONES-1`
+(arriba) con `lib/animation.ts`: un archivo en `touches:` que no necesitó cambios se deja sin
+tocar, declarado.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2846/2846** (2837 del piso previo + 9 nuevos) |
+| `npm run test:integracion` | **242/242** |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset vs. fixture (la intersección contra `SISTEMA_DE_COLOR` de la RAMA completa contra `main` es no vacía —heredada de slices previos—, así que corrió el arnés completo) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE con `content.origen` cargado por el dueño.** Un visitante con
+CORTE activo vería: las dos fotos más alargadas (2:3 en vez de 3:4); las fotos, el texto, cada fila
+de dato y cada cifra apareciendo en cascada al hacer scroll (antes: dos bloques sin escalonado
+interno, y las cifras sin ningún fade); y los tres contadores contando de 0 a su valor en vez de
+aparecer ya resueltos. **Nayoli no ve nada de esto**: `origen.visible` sigue en `false` por default
+y Nayoli no tiene fila propia en `SiteContent` para esta sección — medido, `verificar:nayoli:
+visual` y `guarda:color` dan 0px en las 6 rutas públicas + 2 hovers. `strings:` ninguno — los tres
+cambios son forma/temporización, no copy nuevo.
+
+### Deviations
+
+- **La lista de datos escalona CADA FILA, más allá de lo que el prototipo literalmente hace**
+  (`.origen-copy` es un `data-reveal` simple, no un grupo). Se construyó así porque el CUERPO del
+  spec (§1) lo pide explícito —"cada fila de la lista de datos […] entran escalonados"—, no por
+  desviarse del prototipo sin pedido: se documenta porque alguien que compare contra
+  `index.html:286-301` byte a byte encontraría una divergencia real en la AGRUPACIÓN (no en los
+  tokens, que sí son los del prototipo).
+- **`app/globals.css` en `touches:` no se tocó** — § arriba, sin necesidad medida.
+
+### Open follow-ups
+
+Ninguno nuevo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `Origen.tsx`, `OrigenContador`, `useContadorAnimado`,
+`ContadorAnimado`, `transicionEscalonada`, `REVELADO_GRUPO_DURACION_S`, `REVELADO_GRUPO_EASE`,
+`REVELADO_GRUPO_PASO_S`, `datosDeOrigen`, `statsDeOrigen`, `origen-banda`, `ORIGEN-BANDA`,
+`ORIGEN-DATOS-EXACTO`, `aspect-[3/4]`, `aspect-[2/3]`. Grepeados uno por uno contra `CLAUDE.md`:
+**CERO coincidencias** en los catorce. La palabra suelta `origen` da 14 apariciones y "El origen" 1
+—todas sobre `Product.origen` (atributo de ficha), "origen de una orden" (`canal`/code-path) o el
+eje "origen" de una gráfica del Dashboard, ninguna sobre esta banda del storefront de CORTE (mismo
+hallazgo que `ORIGEN-DATOS-EXACTO-1` ya documentó). **Ninguna sentencia de `CLAUDE.md` queda falsa
+por este diff** — CLAUDE.md no documenta el sistema de bandas de CORTE ni esta sección; esa
+doctrina vive enteramente en `DECISIONS.md` (`ORIGEN-BANDA-1`, `ORIGEN-DATOS-EXACTO-1`).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes visuales que un visitante con CORTE
+activo y datos cargados en Origen vería (§ `customer_bytes`, arriba). El owner ya aprobó la
+ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30 con la captura de "El origen"
+publicado, citado arriba) — el MERGE sigue gateado aparte (`exec: no`).
+
+Cierra `ORIGEN-FOTOS-REVELADO-Y-CONTEO-1`.

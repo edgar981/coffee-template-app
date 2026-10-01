@@ -1,9 +1,8 @@
 "use client";
 
-import type { RefObject } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { fadeUp, useContadorAnimado } from "@/lib/animation";
+import { fadeUp, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, type OrigenContent } from "@/lib/config/site-content-defaults";
@@ -46,7 +45,19 @@ function statsDeOrigen(origen: OrigenContent): Array<{ key: string; numero: stri
 // cadena VACÍA que `Number('')` lee como 0 —un cero FABRICADO, exactamente lo que este componente
 // existe para no hacer—. Exigir que el string ENTERO (recortado) sean sólo dígitos rechaza
 // cualquier basura de una — no hay resto que parsear a medias.
-function OrigenContador({ valor, etiqueta, estatico }: { valor: string; etiqueta: string; estatico: boolean }) {
+//
+// POR QUÉ NO CONTABA (§ ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, medido leyendo el código, no supuesto):
+// `useContadorAnimado` devuelve un `ref` que su EFECTO usa para decidir si observa el viewport
+// (`const el = ref.current; if (!el || …) { setValor(destino); return; }`, `lib/animation.ts`). Este
+// componente lo DESTRUCTURABA pero nunca lo ADJUNTABA a ningún nodo — el `<div>` de abajo no llevaba
+// `ref={ref}` en NINGUNA versión desde ORIGEN-BANDA-1. Con `ref.current` SIEMPRE `null`, la rama
+// `!el` es SIEMPRE cierta: el efecto corre `setValor(destino)` de inmediato, en el primer render, sin
+// montar el `IntersectionObserver` ni el loop de `requestAnimationFrame` — el número aparece YA en su
+// valor final, exactamente el defecto que el owner reportó ("deberían cargar… como si estuvieran
+// aumentando"). El fix es adjuntar el ref al nodo que la animación mide — abajo, en el `motion.div`
+// raíz (framer-motion reenvía su `ref` externo al nodo DOM real, así que el mismo elemento sirve para
+// el fade-in Y para el IntersectionObserver del conteo, sin un envoltorio de más).
+function OrigenContador({ valor, etiqueta, estatico, preview, indice }: { valor: string; etiqueta: string; estatico: boolean; preview: boolean; indice: number }) {
   const limpio = valor.trim();
   const numeroValido = /^-?\d+$/.test(limpio);
   const destino = numeroValido ? Number(limpio) : 0;
@@ -60,12 +71,28 @@ function OrigenContador({ valor, etiqueta, estatico }: { valor: string; etiqueta
     // `.stat b`: 40px fijo (`--text-display-m`, SIN variación por breakpoint — no es
     // `--text-display-l`, que sí es un clamp), line-height 39.2px (0.98 · 40) y letter-spacing
     // -0.6px (-.015em · 40), los tres medidos en vivo, no derivados de la hoja a ojo.
-    <div className="text-left">
+    //
+    // Cada cifra escalona su ENTRADA con `indice` (§ ORIGEN-FOTOS-REVELADO-Y-CONTEO-1,
+    // `transicionEscalonada`, `lib/animation.ts`) — el mismo `[data-reveal-group]` de 3 hijos que el
+    // prototipo declara para `.stats` (`app.css:948-958`, nth-child 1/2/3 → 0/90/180ms). El `ref` del
+    // conteo y el `whileInView` del fade-in comparten el MISMO nodo: los dos disparan al entrar en
+    // viewport, por umbrales propios (0.4 el conteo, el default de framer-motion el fade), pero sobre
+    // el mismo elemento — no hace falta un envoltorio extra para cada mecanismo.
+    <motion.div
+      ref={ref}
+      initial={preview ? false : "hidden"}
+      animate={preview ? "visible" : undefined}
+      whileInView={preview ? undefined : "visible"}
+      viewport={preview ? undefined : { once: true }}
+      variants={fadeUp}
+      transition={preview ? undefined : transicionEscalonada(indice)}
+      className="text-left"
+    >
       <b className="block font-playfair text-[40px] leading-[0.98] tracking-[-0.015em] font-normal text-[var(--sf-tinta)]">
         {numeroValido ? Math.round(valorActual).toLocaleString("es-CO") : valor}
       </b>
       <span className="block mt-2 text-base text-[var(--sf-texto-suave)]">{etiqueta}</span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -101,19 +128,15 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
     <section id="origen" className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          <motion.div
-            initial={preview ? false : "hidden"}
-            animate={preview ? "visible" : undefined}
-            whileInView={preview ? undefined : "visible"}
-            viewport={preview ? undefined : { once: true }}
-            variants={fadeUp}
-            className="grid grid-cols-2 gap-3 sm:gap-5 items-start"
-          >
-            {/* `.origen-media` del prototipo (css/app.css:584,589,1013-1014) — gap 20px desde 641px
-                (`--space-5`), 12px bajo 640 (`--space-3`); el desfase del primer marco es 48px desde
-                641px (`--space-12`), 32px bajo 640 (`--space-8`). Medido contra `PARIDAD-CAFE-Y-
-                ORIGEN-1`: acá vivían fijos en 16px/32px siempre, sin la variación por ancho — las
-                fotos quedaban menos escalonadas que en el prototipo. */}
+          {/* `.origen-media[data-reveal-group]` del prototipo (`css/app.css:584,589,1013-1014,
+              948-958`) — dos figuras, cada una un HIJO que escalona su entrada 0/90ms
+              (§ ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, `transicionEscalonada`). El envoltorio del grid
+              deja de animarse ÉL MISMO (antes las dos fotos entraban como UN solo bloque, sin el
+              escalonado del prototipo) — sigue fijando el layout (gap 20px desde 641px/`--space-5`,
+              12px bajo 640/`--space-3`; el desfase del primer marco 48px desde 641px/`--space-12`,
+              32px bajo 640/`--space-8`, § PARIDAD-CAFE-Y-ORIGEN-1), sólo que ahora es un `<div>`
+              plano y cada figura es el `motion.div` que se revela. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 items-start">
             {/* `.origen-media figure` del prototipo (`css/app.css:585`) — MEDIDO contra el
                 muestrario desplegado (§ ORIGEN-RADIO-SOMBRA-IMAGEN-1, el mismo defecto ya cerrado
                 en el collage de Historia, § HISTORIA-COLLAGE-COMO-PROTOTIPO-1): `rounded-2xl` crudo
@@ -125,8 +148,20 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 OFF para Nayoli (`visible:false`, § el docstring de `OrigenContent`) y este componente
                 retorna `null` sin fila (afirmado: "LA INVARIANTE… rinde la banda VACÍA — ni un
                 nodo", `origen-banda.test.ts`), así que ni el radio ni la sombra nuevos le llegan a
-                Nayoli — byte-idéntica por construcción, no por coincidencia de valores. */}
-            <div className="relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12">
+                Nayoli — byte-idéntica por construcción, no por coincidencia de valores.
+                `aspect-[2/3]` (antes `aspect-[3/4]`, el prototipo): marco MÁS ALARGADO por decisión
+                del orquestador sobre "más alargado" que el 3:4 medido del prototipo, § el spec de
+                ORIGEN-FOTOS-REVELADO-Y-CONTEO-1 — la ÚNICA cifra de este slice que no viene del
+                prototipo. */}
+            <motion.div
+              initial={preview ? false : "hidden"}
+              animate={preview ? "visible" : undefined}
+              whileInView={preview ? undefined : "visible"}
+              viewport={preview ? undefined : { once: true }}
+              variants={fadeUp}
+              transition={preview ? undefined : transicionEscalonada(0)}
+              className="relative aspect-[2/3] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12"
+            >
               <Image
                 src={origen.imagen1}
                 alt="Cerezas de café secándose al sol"
@@ -134,8 +169,16 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 sizes="(max-width: 1024px) 50vw, 25vw"
                 className="object-cover"
               />
-            </div>
-            <div className="relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen">
+            </motion.div>
+            <motion.div
+              initial={preview ? false : "hidden"}
+              animate={preview ? "visible" : undefined}
+              whileInView={preview ? undefined : "visible"}
+              viewport={preview ? undefined : { once: true }}
+              variants={fadeUp}
+              transition={preview ? undefined : transicionEscalonada(1)}
+              className="relative aspect-[2/3] overflow-hidden sf-radio-imagen sf-sombra-imagen"
+            >
               <Image
                 src={origen.imagen2}
                 alt="Las manos de un recolector con cerezas de café maduras"
@@ -143,28 +186,39 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 sizes="(max-width: 1024px) 50vw, 25vw"
                 className="object-cover"
               />
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
 
-          <motion.div
-            initial={preview ? false : "hidden"}
-            animate={preview ? "visible" : undefined}
-            whileInView={preview ? undefined : "visible"}
-            viewport={preview ? undefined : { once: true }}
-            variants={fadeUp}
-          >
-            {origen.eyebrow && (
-              <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
-                {origen.eyebrow}
-              </p>
-            )}
-            <h2
-              className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] leading-tight mb-5"
-              style={displayL ? { fontSize: displayL } : undefined}
+          {/* La columna de copy YA NO es un único `motion.div` (antes: eyebrow+h2+lede+dl entraban
+              como UN bloque, "de un golpe" — el reporte del owner). El TEXTO (eyebrow+h2+lede) sigue
+              siendo SU PROPIO bloque único —`.origen-copy[data-reveal]` del prototipo no lo
+              escalona internamente (`index.html:286-301`)—; la LISTA DE DATOS pasa a escalonar CADA
+              fila por separado, pedido explícito del spec que el `data-reveal` simple del prototipo
+              no cubre pero cuyos TOKENS sí toma (§ `transicionEscalonada`). El `<div>` envolvente
+              reemplaza al `motion.div` que antes ocupaba esta celda del grid — mismo lugar, misma
+              ausencia de className (el grid de arriba la posiciona), sin animación propia. */}
+          <div>
+            <motion.div
+              initial={preview ? false : "hidden"}
+              animate={preview ? "visible" : undefined}
+              whileInView={preview ? undefined : "visible"}
+              viewport={preview ? undefined : { once: true }}
+              variants={fadeUp}
+              transition={preview ? undefined : transicionEscalonada(0)}
             >
-              {origen.titulo}
-            </h2>
-            <p className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base">{origen.lede}</p>
+              {origen.eyebrow && (
+                <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
+                  {origen.eyebrow}
+                </p>
+              )}
+              <h2
+                className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] leading-tight mb-5"
+                style={displayL ? { fontSize: displayL } : undefined}
+              >
+                {origen.titulo}
+              </h2>
+              <p className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base">{origen.lede}</p>
+            </motion.div>
 
             {datosVisibles.length > 0 && (
               // `.spec-list`/`.spec-list div`/`dt`/`dd` del prototipo (`css/app.css:591-599`) —
@@ -175,29 +229,42 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
               // 0.025em, un tercio de lo medido); `dd` es `text-base` (16px, `--text-body-m` —
               // ERA `text-sm`/14px) en `var(--sf-texto)` (el rol `--text-body`, NO `--sf-tinta`:
               // ese es el rol `--text-heading` que usan el h2/los contadores, no la fila del dato).
+              //
+              // Cada fila es su propio `motion.div` (antes: un `<div>` plano dentro del bloque de
+              // texto, sin revelado propio) — el índice recorre los mismos 4 slots que
+              // `[data-reveal-group]` declara en el prototipo para su primer hijo (`nth-child(1..5)`,
+              // `app.css:954-958`), § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1.
               <dl className="border-t border-[var(--sf-linea)]">
-                {datosVisibles.map(({ key, label, valor }) => (
-                  <div
+                {datosVisibles.map(({ key, label, valor }, i) => (
+                  <motion.div
                     key={key}
+                    initial={preview ? false : "hidden"}
+                    animate={preview ? "visible" : undefined}
+                    whileInView={preview ? undefined : "visible"}
+                    viewport={preview ? undefined : { once: true }}
+                    variants={fadeUp}
+                    transition={preview ? undefined : transicionEscalonada(i)}
                     className="flex justify-between gap-6 py-4 border-b border-[var(--sf-linea)]"
                   >
                     <dt className="text-[var(--sf-texto-suave)] text-xs uppercase tracking-[0.11em]">{label}</dt>
                     <dd className="text-[var(--sf-texto)] text-base text-right m-0">{valor}</dd>
-                  </div>
+                  </motion.div>
                 ))}
               </dl>
             )}
-          </motion.div>
+          </div>
         </div>
 
         {statsVisibles.length > 0 && (
-          // `.stats` del prototipo (`css/app.css:600-604` + su variante `max-width:640px`,
-          // `:992`) — MEDIDO por computed-style (§ ORIGEN-DATOS-EXACTO-1): gap 24px bajo 640px
-          // (`--space-6`) y 32px desde 641px (`--space-8`) — ERA `gap-8` fijo siempre, sin la
-          // variación por ancho (mt-16/pt-12 sí eran correctos: 64px/48px en las DOS anchuras).
+          // `.stats[data-reveal-group]` del prototipo (`css/app.css:600-604,948-958` + su variante
+          // `max-width:640px`, `:992`) — MEDIDO por computed-style (§ ORIGEN-DATOS-EXACTO-1): gap
+          // 24px bajo 640px (`--space-6`) y 32px desde 641px (`--space-8`) — ERA `gap-8` fijo
+          // siempre, sin la variación por ancho (mt-16/pt-12 sí eran correctos: 64px/48px en las DOS
+          // anchuras). Cada cifra escalona su entrada Y su conteo (§ el docstring de `OrigenContador`
+          // para el bug del `ref` sin adjuntar, § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1).
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mt-16 pt-12 border-t border-[var(--sf-linea)]">
-            {statsVisibles.map(({ key, numero, etiqueta }) => (
-              <OrigenContador key={key} valor={numero} etiqueta={etiqueta} estatico={estatico} />
+            {statsVisibles.map(({ key, numero, etiqueta }, i) => (
+              <OrigenContador key={key} valor={numero} etiqueta={etiqueta} estatico={estatico} preview={preview} indice={i} />
             ))}
           </div>
         )}
