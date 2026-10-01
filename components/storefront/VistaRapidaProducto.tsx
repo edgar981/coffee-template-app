@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import type { Product } from "@/types/product";
 import { useCartStore } from "@/lib/cartStore";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { esClickAfuera } from "@/lib/cierre-afuera";
 import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
 import GaleriaProducto from "@/components/storefront/pdp/GaleriaProducto";
@@ -54,12 +56,45 @@ import { formatCOP } from "@duna/core/utils";
 // `CartDrawer.tsx`/`NavSearch.tsx` no lo bloquean), así que este modal lo hace por su cuenta, como
 // cualquier diálogo que cubre la pantalla.
 //
-// SIN PORTAL (`createPortal`): ningún componente del storefront usa uno (censo:
-// `grep -rln createPortal` da cero en todo el repo) — el patrón establecido es `position:fixed`
-// dentro del propio árbol, como `CartDrawer.tsx`. Un portal a `document.body` escaparía además del
-// `transform:scale` de la vista previa en vivo del panel (`EscalaDesktop`), que es justo lo que un
-// `position:fixed` normal NO hace (un ancestro con `transform` es su containing block) — mantiene el
-// modal consistente entre el storefront real y la vista previa del panel.
+// PORTAL A `document.body`, CONDICIONAL A `!preview` — § VISTA-RAPIDA-CENTRADA-1 (2026-09-30),
+// PRIMER `createPortal` del storefront (censo previo a este slice: `grep -rln createPortal` daba
+// cero en todo el repo; el "SIN PORTAL" de esta sección era cierto HASTA este slice).
+//
+// EL DEFECTO, MEDIDO (gate del owner: "el modal no sale centrado, depende en qué parte me
+// encuentre puede salir más arriba o abajo"): sin portal, el `fixed inset-0` de abajo depende de que
+// NINGÚN ancestro declare un containing block (`transform`/`filter`/`contain`/`backdrop-filter` ≠
+// `none`) — y el riel SÍ tiene uno, aunque no se vea leyendo el JSX. `EntradaPagina.tsx` (§ su
+// docstring) envuelve cada banda de primer nivel —incluida la `<section>` de `GrindChooserRiel.tsx`,
+// ancestro directo de este modal— en la regla `[data-entrada-pagina]>*{transform:translateY(28px);
+// animation:sf-entrada-pagina 600ms … both}` cuyo keyframe final es `transform:none`. Medido en un
+// harness aislado (Playwright, mismo CSS que emite `cssRevelaPagina()`, § `.scratch/` de este
+// slice): el `transform` COMPUTADO de la banda, una vez la animación termina, **no vuelve a ser el
+// keyword `none`** — queda en `matrix(1,0,0,1,0,0)` (la identidad, porque `animation-fill-mode:both`
+// sigue sosteniendo el keyframe final bajo control de la animación) — y una matriz identidad SIGUE
+// siendo "un valor de `transform` distinto de `none`" para el spec de containing block. El resultado:
+// la `<section>` del riel es containing block del modal PARA SIEMPRE tras el primer render, no sólo
+// durante el tramo animado — el `fixed inset-0` pasa a posicionarse contra la caja de esa `<section>`
+// (que scrollea con la página) en vez de contra el viewport, y por eso el panel "sale más arriba o
+// más abajo según el scroll": es exactamente lo que predice el defecto. Confirmado con
+// `getBoundingClientRect` a tres posiciones de scroll (repetido en el harness real contra
+// `localhost:3000/?tema=CORTE` y en el aislado): el `top` del panel se desplaza píxel a píxel con
+// `window.scrollY` mientras queda anidado; montado como hijo DIRECTO de `<body>` (fuera de
+// `[data-entrada-pagina]` y de cualquier `<section>`), el `top` es el MISMO en las tres posiciones.
+//
+// EL FIX PRESERVA EL PATRÓN VIEJO EN LA VISTA PREVIA DEL PANEL — no es "siempre portal". La razón
+// documentada de "SIN PORTAL" seguía siendo válida para UN caso: `EscalaDesktop` (§ ese archivo)
+// monta el riel con `transform:scale(...)` DELIBERADO, para que la vista en vivo de `/admin/tienda`
+// escale el storefront real a 1280px lógicos reducidos al ancho del pane — un portal a
+// `document.body` escaparía TAMBIÉN de esa escala (el modal aparecería a tamaño completo, fuera del
+// pane, en el documento del panel). `useIsPreview()` (ya la señal que usa este mismo riel, § el
+// `preview` de `GrindChooserRiel.tsx`) decide: en preview (`true`) el modal se queda ANIDADO, igual
+// que antes de este slice —confinado por el `transform` de `EscalaDesktop`, el comportamiento
+// correcto ahí—; en la tienda real (`false`, sin `EscalaDesktop` de por medio) se porta-lea a
+// `document.body`, fuera de CUALQUIER ancestro, así que ningún containing block futuro (de
+// `EntradaPagina`, del track del riel, o de cualquier otro) puede volver a atraparlo. El contexto de
+// React (`useSiteContent`/`useCartStore`) sigue intacto a través del portal — React preserva el árbol
+// de contexto, sólo cambia DÓNDE se monta el nodo en el DOM— y los listeners de `document`/`window`
+// (Escape/click-afuera/scroll-lock, abajo) no dependen de dónde vive el nodo.
 //
 // SÓLO EL RIEL LO USA HOY — componente reutilizable, sin conocimiento de quién lo monta: recibe el
 // producto y el disparador por prop, nada de `useSiteContent()` fuera de lo que ya necesita
@@ -122,7 +157,16 @@ export interface VistaRapidaProductoProps {
 export default function VistaRapidaProducto({ producto, disparador, onClose }: VistaRapidaProductoProps) {
   const { addItem } = useCartStore();
   const { tema } = useSiteContent();
-  const { primario: claseBotonComprar, secundario: claseBotonAgregar } = clasesBotonesCompra(tema.origenAccion);
+  // `preview` decide si este modal porta-lea a `document.body` (§ el docstring de cabecera,
+  // "PORTAL A document.body") — `false` en la tienda real, `true` dentro de la vista en vivo del
+  // panel (donde `EscalaDesktop` ya lo confina correctamente sin portal).
+  const preview = useIsPreview();
+  const {
+    primario: claseBotonComprar,
+    secundario: claseBotonAgregar,
+    cantidad: claseCantidad,
+    cantidadBoton: claseCantidadBoton,
+  } = clasesBotonesCompra(tema.origenAccion);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const cerrarBtnRef = useRef<HTMLButtonElement>(null);
@@ -233,7 +277,10 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
     cerrarYDevolverFoco();
   }
 
-  return (
+  // `contenido` es el ÚNICO árbol que se renderiza; lo que cambia es DÓNDE (§ el docstring de
+  // cabecera, "PORTAL A document.body"): anidado en preview, porta-leado a `document.body` en la
+  // tienda real.
+  const contenido = (
     <AnimatePresence>
       {abierto && (
         <motion.div
@@ -316,16 +363,27 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
 
           {productoMostrado.disponible ? (
             <div className="mt-auto flex flex-col gap-3">
-              <div className="flex items-center gap-2 self-start rounded-xl bg-[var(--sf-superficie)] px-1">
+              {/* El selector de cantidad REUSA `clasesBotonesCompra(...).cantidad/.cantidadBoton`
+                  (`lib/storefront/pdp-botones.ts`) — la MISMA pieza que `/tienda/[slug]` (§
+                  PDP-CANTIDAD-VISTA-RAPIDA-1, el asiento de DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1
+                  que dejó esto pendiente: "el spec de este slice pidió sólo CORTE… la ficha, no la
+                  vista rápida"). Antes tenía su PROPIA fórmula de alto (`h-9` fijo dentro de un
+                  contenedor sin padding vertical) — distinta de la de la ficha, que ya comparte
+                  `py-[18px]` con "Agregar al carrito" (§ el docstring de `CANTIDAD_CORTE`). `self-
+                  start` se conserva: `claseCantidad` no fija un ancho propio, y sin él el selector se
+                  estiraría al ancho completo de este contenedor `flex-col` (`align-items:stretch` por
+                  defecto) — cosa que NO le pasa a la ficha, cuyo contenedor es una fila, no una
+                  columna. */}
+              <div className={`${claseCantidad} self-start`}>
                 <button
                   type="button"
                   onClick={() => setCantidad((c) => clampCantidadVistaRapida(c - 1, maxCompra))}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)]"
+                  className={claseCantidadBoton}
                   aria-label="Quitar una unidad"
                 >
                   <Minus className="h-4 w-4" />
                 </button>
-                <span className="w-8 text-center font-semibold text-[var(--sf-tinta)]">{cantidad}</span>
+                <span className="w-8 text-center font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">{cantidad}</span>
                 <button
                   type="button"
                   onClick={() =>
@@ -337,7 +395,7 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
                       return clampCantidadVistaRapida(c + 1, maxCompra);
                     })
                   }
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)]"
+                  className={claseCantidadBoton}
                   aria-label="Agregar una unidad"
                 >
                   <Plus className="h-4 w-4" />
@@ -362,4 +420,6 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
       )}
     </AnimatePresence>
   );
+
+  return preview ? contenido : createPortal(contenido, document.body);
 }

@@ -98,8 +98,21 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // SIN TARJETA "ACTIVA" AGRANDADA: `useIndiceCentrado`/el resaltado por-scroll (`.pres-card.is-active`)
 // se RETIRARON (§ el docstring que queda en su lugar en `lib/animation.ts`). En su reemplazo, CADA
 // tarjeta cambia a su PROPIA "foto de atrás" —la primera adicional de su galería, `galeriaCompleta`—
-// al pasar el mouse (o con foco, `group-hover`/`group-focus-within`) — un crossfade de opacidad, sin
-// escalar ni atenuar las vecinas. Sin foto de atrás, la portada se queda quieta.
+// al pasar el mouse (o con foco de TECLADO, § VISTA-RAPIDA-CENTRADA-1 abajo) — un crossfade de
+// opacidad, sin escalar ni atenuar las vecinas. Sin foto de atrás, la portada se queda quieta.
+//
+// FOCO DE TECLADO, NO `:focus-within` A SECAS — § VISTA-RAPIDA-CENTRADA-1 (2026-09-30). El gate del
+// owner: "si doy click en el 'ojo' para la vista previa, y me salgo, luego la imagen del producto
+// que persiste es la que sale solamente cuando se hace hover. Así haga hover de nuevo sobre la
+// tarjeta no se quita." `group-focus-within:` reacciona a CUALQUIER foco dentro de `.group`, no sólo
+// al de teclado — y `VistaRapidaProducto.tsx` (§ `cerrarYDevolverFoco`) le devuelve el foco al botón
+// "ojo" (DENTRO de `.group`) al cerrar el modal. Ese `.focus()` programático deja la tarjeta en
+// `:focus-within` HASTA que el foco salga de ella por otro camino, así que la foto de atrás —y los
+// botones de acción— quedaban pegados aunque el mouse ya no estuviera encima. Reemplazado por
+// `group-has-[:focus-visible]:` (CSS `:has()`, soportado en Chrome/Firefox/Safari desde 2023): sólo
+// reacciona cuando un DESCENDIENTE muestra el anillo de foco VISIBLE —el caso real de Tab, nunca el
+// de un clic de mouse ni el de un `.focus()` programático tras cerrar el modal, que los navegadores
+// no marcan `:focus-visible`—. Con mouse sigue siendo sólo `group-hover:`.
 //
 // EL NOMBRE LLEVA EL SUBRAYADO DEL NAV — MISMOS TOKENS, GRAMÁTICA DISTINTA (§ RIEL-SUBRAYADO-
 // CURSOR-NITIDEZ-1, gate del owner del 2026-09-30 con captura del riel desplegado: "como hacemos
@@ -141,7 +154,8 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // § `lib/cartStore.tsx`); con varias, abre la MISMA vista rápida para elegir. Los dos botones son
 // SIBLINGS del `<Link>` de la imagen (nunca hijos: un `<button>` dentro de un `<a>` es HTML inválido y
 // además su click navegaría) — posicionados absolutos sobre la tarjeta, visibles en `group-hover`/
-// `group-focus-within`.
+// `group-has-[:focus-visible]:` (§ VISTA-RAPIDA-CENTRADA-1, arriba — el mismo cambio que la foto de
+// atrás, por la misma razón: el foco devuelto al cerrar la vista rápida no debe dejarlos pegados).
 //
 // ── ACCIONES-RAPIDAS-CUADRADAS-1 (2026-09-30) — FORMA CUADRADA + ENTRADA DEL PROTOTIPO ─────────────
 //
@@ -258,7 +272,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             fill
             sizes="(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"
             quality={90}
-            className={`object-cover transition-opacity duration-500 ${fotoAtras ? 'group-hover:opacity-0 group-focus-within:opacity-0' : ''}`}
+            className={`object-cover transition-opacity duration-500 ${fotoAtras ? 'group-hover:opacity-0 group-has-[:focus-visible]:opacity-0' : ''}`}
           />
           {/* La foto de atrás (§ el docstring de cabecera): crossfade al hover de la TARJETA
               entera, no sólo de la imagen — pedido explícito del owner. */}
@@ -269,7 +283,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
               fill
               sizes="(max-width: 640px) 78vw, (max-width: 1000px) 260px, 360px"
               quality={90}
-              className="object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus-within:opacity-100"
+              className="object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100"
             />
           )}
         </div>
@@ -296,7 +310,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
           type="button"
           onClick={(e) => onEye(producto, e.currentTarget)}
           aria-label={`Vista rápida de ${producto.nombre}`}
-          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
+          className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
         >
           <Eye className="h-[18px] w-[18px]" />
         </button>
@@ -305,7 +319,7 @@ export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, 
             type="button"
             onClick={(e) => onCart(producto, e.currentTarget)}
             aria-label={`Agregar ${producto.nombre} al carrito`}
-            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
+            className="pointer-events-auto flex h-10 w-10 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] opacity-0 transition-all delay-[60ms] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100 hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))]"
           >
             <ShoppingBag className="h-[18px] w-[18px]" />
           </button>

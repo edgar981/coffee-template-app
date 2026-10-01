@@ -170,7 +170,19 @@ export default function ProductCard({
               acción), igual que `GrindChooserRiel.tsx` (mismo docstring, con la medición completa
               del mapeo `--surface-page`→`--sf-fondo`/`--action-primary`→`--sf-accion`). La rama SIN
               `formaCustom` (Suave/Nayoli) NO se toca — sigue `bg-white`+`shadow-md`+`--sf-acento`,
-              byte a byte. */}
+              byte a byte.
+
+              FOCO DE TECLADO, SÓLO BAJO `formaCustom` (§ VISTA-RAPIDA-CENTRADA-1, 2026-09-30,
+              "aplicalo igual… en ProductCard"): antes el botón sólo se revelaba con `group-hover:` —
+              un Tab lo enfocaba SIN mostrarlo (`opacity-0` no tiene variante de foco).
+              `group-has-[:focus-visible]:` (el MISMO mecanismo que `GrindChooserRiel.tsx` adopta
+              para su "foto de atrás", § ese archivo) lo revela cuando el foco de TECLADO cae en él —
+              este botón no tiene el problema de "foco pegado" del riel (nada le devuelve el foco
+              tras cerrar un modal: esta card no abre ninguno), así que acá es sólo la paridad de
+              accesibilidad que faltaba, no un fix de un defecto de sticking. Va SÓLO en la rama
+              `formaCustom`: la rama Suave/Nayoli es BYTE-IDÉNTICA a la de antes de este slice (línea
+              arriba, "la única con 0px medido") y agregar una clase ahí —aunque sea inerte en
+              reposo/hover— cambiaría el string de `className` que `verificar-nayoli.ts` compara. */}
           {product.disponible && (
               <button
                 onClick={handleAdd}
@@ -182,7 +194,7 @@ export default function ProductCard({
                 title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
                 className={
                   formaCustom
-                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))] group-hover:translate-x-0 group-hover:opacity-100"
+                    ? "absolute right-3 bottom-3 flex h-9 w-9 translate-x-[14px] cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] opacity-0 transition-all duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:bg-[var(--sf-accion,var(--sf-tostado))] hover:text-[var(--sf-accion-txt,var(--sf-tinta))] group-hover:translate-x-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-x-0 group-has-[:focus-visible]:opacity-100"
                     : "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
                 }
               >
