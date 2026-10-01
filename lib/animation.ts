@@ -259,6 +259,24 @@ export function transformMarquesinaTarjeta(progreso: number, estatico: boolean):
   return `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
 }
 
+// `transformSubscripcionParallax` reproduce, PURA y sin React, `[data-parallax]` del prototipo
+// (`docs/prototipos/cafeone/js/home.js:303-307`): `img.style.transform = translateY((p-0.5)*-10%)`
+// sobre el progreso CRUDO que ya da `useProgresoScroll` — el MISMO hook que `Marquesina.tsx` usa para
+// su texto/tarjeta, ahora un TERCER consumidor (§ SUSCRIPCION-POSTAL-DE-CIERRE-1,
+// `SubscriptionCTALinea.tsx`). Hasta esa tanda la cuenta vivía INLINE dentro del componente (una sola
+// línea, "no amerita una función nueva… fuera de `touches:` de ese slice" — su propio docstring lo
+// decía); esta tanda SÍ declara `lib/animation.ts`/`lib/animation.test.ts` en su `touches:`, así que
+// se extrae — mismo criterio que `transformMarquesinaTexto`/`Tarjeta`: una transformación con
+// decisión (el recorte a [0,1], el "estático" congelado) se afirma con un test, no se confía a una
+// lectura del JSX. `estatico` (reduced motion, o la vista previa del editor que no puede scrollear de
+// verdad) deja la imagen QUIETA en `"0%"` — nunca a medio camino de un recorrido que no avanza, mismo
+// criterio que las dos hermanas de Marquesina.
+export function transformSubscripcionParallax(progreso: number, estatico: boolean): string {
+  if (estatico) return "0%";
+  const p = Math.max(0, Math.min(1, progreso));
+  return `${((p - 0.5) * -10).toFixed(2)}%`;
+}
+
 // ── EL PROGRESO DESDE EL TOPE — hermana de `useProgresoScroll`, § CORTE-HERO-STICKY-RONDA-2-1 ─────
 //
 // EL DEFECTO (reportado por el owner sobre HeroMediaMarquesina.tsx, la variante `sticky` del hero):

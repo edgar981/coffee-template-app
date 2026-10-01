@@ -78,6 +78,40 @@ test('CON imagenFondo: el título pasa a `text-white` LITERAL — ya NO depende 
   assert.doesNotMatch(clase, /--sf-sobre-banda/);
 });
 
+// ─── EL ALTO/ESCALA DE SECCIÓN (§ SUSCRIPCION-POSTAL-DE-CIERRE-1) — el título sube a `text-4xl`
+// fijo, la MISMA escala que `SubscriptionCTABloque.tsx` ya usa para esta sección en los otros cinco
+// presets; y gana el MISMO override `escalaDisplay` que featured/brandStory/presentaciones/
+// testimonials/origen ya aplican bajo CORTE, que esta variante nunca llamaba. ────────────────────────
+
+function extraerStyleDelTitulo(html: string): string | null {
+  const m = html.match(/<h2 class="[^"]*" style="([^"]*)">/);
+  return m ? m[1] : null;
+}
+
+test('el título usa la escala FIJA de sección (`text-4xl`) — ya no `text-xl sm:text-2xl`', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  const clase = extraerTitulo(html);
+  assert.match(clase, /\btext-4xl\b/);
+  assert.doesNotMatch(clase, /\btext-xl\b/);
+  assert.doesNotMatch(clase, /\btext-2xl\b/);
+});
+
+test('SIN `tema.escalaDisplay` (DEFAULTS, null — el caso de Nayoli y de los otros cinco presets): el título NO lleva ningún `style` — sigue su clase Tailwind de hoy', () => {
+  const html = renderLinea(DEFAULTS as unknown as SiteContentData);
+  assert.equal(extraerStyleDelTitulo(html), null);
+});
+
+test('CON `tema.escalaDisplay: "amplia"` (el caso de CORTE): el título toma el font-size de display-l — el MISMO override que featured/brandStory/presentaciones/testimonials/origen ya aplican', () => {
+  const contenidoAmplio: SiteContentData = {
+    ...DEFAULTS,
+    tema: { ...DEFAULTS.tema, escalaDisplay: 'amplia' },
+  } as SiteContentData;
+  const html = renderLinea(contenidoAmplio);
+  const estilo = extraerStyleDelTitulo(html);
+  assert.ok(estilo, 'el h2 debe llevar un style inline con escalaDisplay:"amplia"');
+  assert.match(estilo!, /font-size:clamp\(48px, 5vw, 76px\)/);
+});
+
 // ─── EL CASO QUE REPRODUCE EL GATE: una banda con esquema CLARO asignado (CORTE·crema) + foto ──────
 // `esquemaStyle` inyecta `--sf-sobre-banda` como `style` INLINE en la <section> raíz (§ esquema-
 // style.ts); acá se simula pasando el MISMO `style` que `app/(storefront)/page.tsx` compondría para

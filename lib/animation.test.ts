@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { MotionConfig } from 'framer-motion';
 import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
-  transformMarquesinaTexto, transformMarquesinaTarjeta,
+  transformMarquesinaTexto, transformMarquesinaTarjeta, transformSubscripcionParallax,
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, OPACIDAD_REVELADO_TECHO,
   UMBRAL_REVELADO_TEXTO,
@@ -133,6 +133,30 @@ test('transformMarquesinaTarjeta: el recorte interno [0.12, 0.57] deja la tarjet
 test('transformMarquesinaTarjeta: progreso se acota a [0,1] — fuera de rango no sobre-escala ni invierte', () => {
   assert.equal(transformMarquesinaTarjeta(-0.5, false), transformMarquesinaTarjeta(0, false));
   assert.equal(transformMarquesinaTarjeta(1.5, false), transformMarquesinaTarjeta(1, false));
+});
+
+// ── `transformSubscripcionParallax` (§ SUSCRIPCION-POSTAL-DE-CIERRE-1) — extraída del inline de
+// `SubscriptionCTALinea.tsx`, reproduce `[data-parallax]` del prototipo (`js/home.js:303-307`).
+
+test('transformSubscripcionParallax: estatico=true SIEMPRE "0%" — la imagen QUIETA, sin importar el progreso', () => {
+  assert.equal(transformSubscripcionParallax(0, true), '0%');
+  assert.equal(transformSubscripcionParallax(0.5, true), '0%');
+  assert.equal(transformSubscripcionParallax(1, true), '0%');
+  assert.equal(transformSubscripcionParallax(-0.5, true), '0%', 'estatico gana incluso con progreso fuera de rango');
+});
+
+test('transformSubscripcionParallax: estatico=false, progreso=0.5 (el centro del recorrido) — sin desplazamiento', () => {
+  assert.equal(transformSubscripcionParallax(0.5, false), '0.00%');
+});
+
+test('transformSubscripcionParallax: estatico=false, progreso=0 y progreso=1 — los dos extremos opuestos de ±5%', () => {
+  assert.equal(transformSubscripcionParallax(0, false), '5.00%');
+  assert.equal(transformSubscripcionParallax(1, false), '-5.00%');
+});
+
+test('transformSubscripcionParallax: progreso se acota a [0,1] — fuera de rango no sobre-desplaza ni invierte el signo', () => {
+  assert.equal(transformSubscripcionParallax(-0.5, false), transformSubscripcionParallax(0, false));
+  assert.equal(transformSubscripcionParallax(1.5, false), transformSubscripcionParallax(1, false));
 });
 
 // ── EL PROGRESO DESDE EL TOPE (§ CORTE-HERO-STICKY-RONDA-2-1) — sin React, sin navegador ──────────

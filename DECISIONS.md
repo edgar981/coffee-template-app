@@ -38922,3 +38922,187 @@ OBSERVED-1`); el MERGE sigue gateado aparte, y requiere además el walkthrough i
 que este slice no pudo ejecutar (arriba).
 
 Cierra `EDITOR-TIENDA-IFRAME-VISTA-1`.
+
+## 2026-10-01 — La franja de Suscripción de CORTE deja la línea de 108 px pegada al pie y pasa a ser una postal de cierre, con el alto del RITMO de la página, no el exagerado del prototipo (`SUSCRIPCION-POSTAL-DE-CIERRE-1`)
+
+Gate del owner (2026-10-01), textual: *"La sección PLAN DE SUSCRIPCIÓN se ve off con respecto a las
+otras secciones de la página, como si estuviera ahí olvidada"* y, tras la propuesta del
+orquestador: *"Haz la franja, pero veo que la del muestrario es exageradamente grande, hazla pero
+acorde al ritmo de la página."* El `observed-report` de este spec
+(`SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1`, arriba en este archivo) ya había resuelto la
+LEGIBILIDAD del texto sobre foto; este slice es sobre la FORMA de la franja — su alto, su escala de
+título, su composición, y el aire que la separa del pie.
+
+### 1 · El alto — medido contra el RITMO de la página, no contra el prototipo
+
+Re-medido contra el muestrario YA DESPLEGADO (`https://coffee-template-app-onix.vercel.app/`,
+Playwright directo sobre el elemento, no un offset de página completa estimado a ojo —
+`section:has(a:has-text("VER LOS PLANES"))` da su `boundingBox()` exacto): **108 px de alto a
+1440×900** (`x:0 y:5408.36 width:1440 height:108`), **172 px a 390×844** (móvil, el texto se apila
+sobre el botón) — confirma el número que trajo el spec, no asumido. Capturado también el ANTES en
+contexto (banda anterior + postal + arranque del pie), desktop y móvil — ver § Gate.
+
+El `.cta-strip` del prototipo (`docs/prototipos/cafeone/css/app.css:615`, `min-height:62vh` — 558 px
+a un viewport de 900) es la referencia de FORMA (foto a sangre + velo + parallax), **no de alto**: el
+owner lo calificó "exageradamente grande" antes de pedir esta tanda. El alto que SÍ se adopta es el
+de las bandas que YA conviven con ésta en el `orden` de CORTE (`lib/config/themes.ts:1029`): `py-20`
+— `Spotlight.tsx:163`, `Origen.tsx:128`, `GrindChooserRiel.tsx:464`, y la propia variante hermana
+`SubscriptionCTABloque.tsx:48` (la MISMA sección, en los otros cinco presets del catálogo) — tres de
+cuatro bandas visibles de CORTE comparten ese valor; sólo `BrandStoryCentrada.tsx:209` usa `py-24`
+(la banda de más contenido, un collage de 4 fotos — no el patrón típico). `py-8` (32 px×2 + el botón)
+→ `py-20` (80 px×2).
+
+**Medido DESPUÉS, contra una base efímera con CORTE aplicado** (mismo mecanismo que
+`scripts/verificar-nayoli-visual.ts` reusado por un harness propio en `.scratch/`, no comiteado —
+Postgres efímero, `next build`/`next start`, Playwright, el MISMO selector por elemento): **264 px**
+a 1440×900 (`sin imagen` y con cualquiera de las dos fotos sembradas — la foto no cambia el alto,
+sólo lo que se ve detrás), **366.66 px** a 390×844. Es ~2.4× el alto viejo — sustancial, lejos de los
+558 px del prototipo.
+
+### 2 · El título sube a la escala de SECCIÓN — cerrando un hueco que `themes.ts` ya documentaba
+
+Tenía `text-xl sm:text-2xl` — menor que CUALQUIER título de banda de la home. `SubscriptionCTABloque.
+tsx:77` (la misma sección, en los otros cinco presets) usa `text-4xl` FIJO, el tamaño que
+`lib/config/escala-display.ts` (el comentario de `fontSizeDisplay`) ya documenta como el de "esta
+sección" junto a featured/brandStory/presentaciones/testimonials/origen. Se adopta el MISMO
+`text-4xl` fijo.
+
+Y gana el MISMO override `escalaDisplay` que las otras cinco bandas de CORTE ya aplican bajo
+`tema.escalaDisplay:'amplia'` (`themes.ts:1086-1089`, que YA listaba "subscriptionCTA" entre sus
+cinco consumidores) — `SubscriptionCTALinea` (la variante que CORTE monta de verdad,
+`variantes.subscriptionCTA:'linea'`) nunca llamaba `fontSizeDisplay`; sólo `SubscriptionCTABloque`
+(que CORTE NO usa) la tenía. El comentario describía una intención que el código de la variante
+activa no cumplía — cerrado con el MISMO patrón de los otros cinco consumidores
+(`style={displayL ? { fontSize: displayL } : undefined}`).
+
+### 3 · La composición — eyebrow ARRIBA del título (apilado, no en línea), botones más grandes
+
+El gancho y el título vivían `items-baseline flex-wrap gap-x-3` —adyacentes en la MISMA fila—, y el
+spec pide "el gancho arriba" del título, como CUALQUIER otra banda (Spotlight/Origen/
+GrindChooserRiel: un `<p>` eyebrow seguido de un `<h2>`, apilados). Con el título en escala de
+sección esa adyacencia además se habría visto ilegible (el gancho aplastado contra un titular 2-3×
+más grande). Pasa a `flex-col gap-2` dentro del bloque de texto; el acomodo texto↔botones de la
+franja (columna centrada <sm, fila texto-izquierda/botones-derecha ≥sm) **no cambia** — sigue siendo
+el patrón de la "Bottom Bar" del pie que el componente ya reusaba.
+
+Los botones suben a `px-8 py-4` (de `px-6 py-3`) — el mismo padding que `SubscriptionCTABloque.
+tsx:87` y el CTA primario/secundario de `HeroCurtina.tsx:216,226`: con un título 2-3× más grande, un
+botón del tamaño de antes se habría visto menudo al lado.
+
+### 4 · Aire antes del pie — `mb-16`, la MISMA unidad que `BrandStoryCentrada` ya usa
+
+`<main>{children}</main>` y `<StoreFooter/>` se tocan DIRECTO (`app/(storefront)/layout.tsx:159-160`,
+fuera de `touches:`), así que la ÚLTIMA banda de `orden` siempre choca con el pie
+(`bg-[var(--sf-tinta)]`, `StoreFooter.tsx:103`) sin ningún respiro — exactamente "se ve como una sola
+pieza", empeorado por una foto oscura con velo justo encima de un pie igual de oscuro (medido en el
+ANTES, § Gate: cero separación visible). `mb-16` (64 px) en la `<section>` —margen, no padding: cae
+FUERA de la caja de la sección, así que no lo pinta su propio fondo/velo— deja ver la superficie
+crema del wrapper de la página (`layout.tsx:157`, `bg-[var(--sf-fondo)]`) entre la postal y el pie.
+`16` no es arbitrario: es el MISMO valor que `BrandStoryCentrada.tsx:242` ya usa como margen de
+respiro (`mt-16 mb-16` alrededor de su collage).
+
+### 5 · El parallax se extrae a `lib/animation.ts` — `transformSubscripcionParallax`
+
+La cuenta (`translateY((p-0.5)*-10%)`, `[data-parallax]` del prototipo) vivía INLINE en el
+componente, con su propio docstring diciendo por qué: "una sola línea, no amerita una función nueva…
+fuera de `touches:`" de la tanda que la escribió. Esta tanda SÍ declara `lib/animation.ts`/
+`lib/animation.test.ts`, así que se extrae — mismo criterio que `transformMarquesinaTexto`/
+`Tarjeta`: una transformación con decisión (el recorte a [0,1], el "estático" congelado) se afirma
+con un test, no se confía a una lectura del JSX. Cuatro tests nuevos en `lib/animation.test.ts`
+(estático, los dos extremos, el recorte fuera de rango) — mismo patrón que sus dos hermanas.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2906/2906** (incluye 4 tests nuevos de `transformSubscripcionParallax` + 3 de la escala/override de título) |
+| `npm run test:integracion` | **253/253** |
+| `npm run build` | `✓ Compiled successfully` |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama (Nayoli usa `variante:'bloque'`, nunca monta `SubscriptionCTALinea` — el cero es por DISEÑO, no casualidad) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers contra el fixture de Nayoli — la rama SÍ toca el sistema de color (acumulado de slices anteriores de esta misma rama; ninguno nuevo de este slice) |
+
+**Captura ANTES/DESPUÉS** (Playwright directo sobre el elemento, desktop 1440×900 y móvil 390×844;
+el ANTES contra el muestrario desplegado, el DESPUÉS contra una base efímera propia con CORTE
+aplicado — mecanismo descrito en § 1, no comiteado, vive en `.scratch/`):
+
+- **ANTES** (`https://coffee-template-app-onix.vercel.app/`): 108 px / 172 px, pegada al pie sin
+  separación, foto de fondo real (montaña), texto legible pero la franja entera ilegible como
+  SECCIÓN — se lee fundida con el pie.
+- **DESPUÉS, sin imagen** (el fallback sólido de hoy — el byte real de `subscriptionCTA.imagenFondo`
+  vacío): eyebrow+título a escala de sección, botón "Ver los planes" grande, aire crema visible antes
+  del pie.
+- **DESPUÉS, foto CLARA** (`/images/historia-1-v1.jpg`, brillo medido ~111/255 vía `sharp`): texto
+  blanco legible sobre el velo, aire antes del pie.
+- **DESPUÉS, foto OSCURA** (`/images/hero-beans-v1.jpg`, brillo medido ~31/255): mismo resultado,
+  contraste aún mayor.
+
+Las tres variantes DESPUÉS muestran la MISMA composición (sólo cambia el fondo) — confirma que el
+alto/escala/aire no dependen de si hay foto o no.
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA entera (no sólo este commit) ya cambia bytes que un visitante de CORTE
+lee — esta tanda se la suma a las de `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1` sobre el
+MISMO componente. Visible SÓLO bajo `variantes.subscriptionCTA:'linea'` (hoy, únicamente CORTE):
+
+- la franja de Suscripción pasa de 108 px a 264 px de alto (172→366 px en móvil);
+- el eyebrow+título suben a la escala de título de sección (antes, la más chica de toda la home);
+- el gancho pasa de estar en línea con el título a estar apilado arriba;
+- los dos botones (primario y el secundario opcional) crecen de `px-6 py-3` a `px-8 py-4`;
+- aparece un respiro de 64 px (crema) entre la postal y el pie, que antes no existía.
+
+Nayoli (variante `bloque`, nunca `linea`) y cualquier tenant sin `variantes.subscriptionCTA:'linea'`
+quedan byte-idénticos — MEDIDO 0px en las dos herramientas de diff de píxeles (§ Gate), no sólo
+argumentado.
+
+**`strings:`** ninguno — no hay copy nuevo; el `subscriptionCTA.eyebrow`/`.titulo`/`.ctaLabel` que ya
+existían se siguen leyendo tal cual, sólo cambia su presentación.
+
+### Deviations
+
+Ninguna respecto al spec. `lib/config/themes.ts`, `lib/config/themes.test.ts` y `app/globals.css`
+estaban en `touches:` como superficie DISPONIBLE y no se tocaron: no hizo falta ningún token CSS
+nuevo (`--sf-velo`/`--sf-tinta`/`--sf-banda`/`--sf-accion`/`--sf-sobre-banda` ya cubrían todo) ni
+ningún cambio al catálogo de presets (`CORTE.escalaDisplay`/`variantes.subscriptionCTA` ya declaraban
+lo que esta tanda necesitaba — el hueco estaba en el COMPONENTE, no en el preset).
+
+### Unknowns
+
+Ninguno declarado — las tres piezas del spec (alto, composición, aire) se verificaron por ejecución
+(captura real, antes y después, con y sin foto, desktop y móvil), no sólo por lectura de clases.
+
+### Open follow-ups
+
+- **`SUBSCRIPTION-CTA-SECUNDARIO-PADDING-1`**: el botón secundario opcional
+  (`ctaSecundarioLabel`/`ctaSecundarioDestino`) ya tenía, antes de este slice, el mismo riesgo de
+  contraste bajo esquema claro + foto que `SUBSCRIPTION-CTA-SECUNDARIO-FOTO-LEGIBLE-1` (abierto por
+  `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1`, arriba) ya nombró sin resolver — no se re-abre
+  acá, sólo se nota que el bump de padding (`px-6 py-3`→`px-8 py-4`) de esta tanda lo tocó de paso sin
+  afectar esa deuda pendiente.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `SubscriptionCTALinea` (componente), `subscription-linea.test`,
+`transformSubscripcionParallax`, `lib/animation.ts`, `py-8`/`py-20`, `text-xl sm:text-2xl`/`text-4xl`,
+`escalaDisplay`, `fontSizeDisplay`. Grepeados uno por uno contra `CLAUDE.md`: **CERO apariciones** de
+`SubscriptionCTALinea`, `transformSubscripcionParallax`, `subscription-linea.test`, `fontSizeDisplay`
+— `CLAUDE.md` no documenta este componente ni este mecanismo de CORTE (viven en `DECISIONS.md`/
+`lib/config/escala-display.ts`, no en `CLAUDE.md`). `subscriptionCTA` aparece en `CLAUDE.md` tres
+veces (§ Config del contenido — SiteContent, sobre `imagenFondo`/bullets/el schema editable): las
+tres son sobre el MODELO de datos de la sección (qué campos tiene, cómo se validan), no sobre su
+layout/alto/escala — ninguna de las tres queda falsa por este diff, que sólo cambia CÓMO se presenta
+el mismo dato, no qué dato existe. `escalaDisplay` no aparece en `CLAUDE.md` en absoluto (vive en
+`lib/config/escala-display.ts` y en este archivo). Nada en `CLAUDE.md` afirma algo sobre estas piezas
+que este diff vuelva falso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la RAMA cambia bytes que un visitante con
+`variantes.subscriptionCTA:'linea'` (hoy, CORTE) lee (§ `customer_bytes`, arriba). El owner ya aprobó
+la ESCRITURA de este slice específico (§ `approval-reason` del spec: gate del 2026-10-01, "se ve off…
+como si estuviera ahí olvidada" + "hazla pero acorde al ritmo de la página" — las dos piezas se
+implementaron y se verificaron con captura real antes/después); el MERGE sigue gateado aparte — la
+aprobación de escritura nunca fue aprobación de merge.
+
+Cierra `SUSCRIPCION-POSTAL-DE-CIERRE-1`.
