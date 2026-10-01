@@ -133,8 +133,13 @@ const CANTIDAD_BOTON_CORTE =
   'flex items-center justify-center cursor-pointer hover:text-[var(--sf-accion-hover,var(--sf-tostado-4))] transition-colors duration-[120ms]';
 // Base compartida por los DOS estados de favoritos (sin wishlist/con wishlist) — el color es lo
 // único que cambia entre ellos, § `claseBotonFavoritos`, abajo.
+// § PDP-FAVORITOS-CUADRADO-1 (owner 2026-10-01, "El arreglo del botón de favoritos quedó peor"):
+// `aspect-square` sobre la altura ESTIRADA del flex row no resuelve el ancho (la altura no es
+// definida para aspect-ratio antes del layout) y el botón colapsaba a una franja. El cuadrado sale
+// del RELLENO: `p-[18px]` + ícono de 20px + borde = el mismo alto que "Agregar al carrito"
+// (`py-[18px]` + línea de 20px de `text-sm` + borde) y el mismo ancho.
 const FAVORITOS_CORTE_BASE =
-  'aspect-square shrink-0 flex items-center justify-center sf-pildora sf-borde transition-colors duration-[120ms] active:translate-y-px cursor-pointer';
+  'shrink-0 flex items-center justify-center p-[18px] sf-pildora sf-borde transition-colors duration-[120ms] active:translate-y-px cursor-pointer';
 // BYTE-IDÉNTICO al `<button>` de favoritos que `page.tsx` traía ANTES de este slice.
 const FAVORITOS_DEFECTO_BASE = 'w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all';
 

@@ -109,9 +109,10 @@ test('claseBotonFavoritos(null/"tostado", …): BYTE-IDÉNTICO a lo que `page.ts
   assert.deepEqual(claseBotonFavoritos('tostado', false), claseBotonFavoritos(null, false));
 });
 
-test('claseBotonFavoritos("acento", …): SIN alto propio — `aspect-square` deriva el ancho del alto del flex row que comparte con "Agregar al carrito" ("el corazón, cuadrado del alto del botón")', () => {
+test('claseBotonFavoritos("acento", …): cuadrado por RELLENO igual al de "Agregar al carrito" (py-[18px]), sin `aspect-square` que colapsaba a franja (PDP-FAVORITOS-CUADRADO-1)', () => {
   const sinWishlist = claseBotonFavoritos('acento', false);
-  assert.match(sinWishlist, /\baspect-square\b/);
+  assert.match(sinWishlist, /\bp-\[18px\]/);
+  assert.doesNotMatch(sinWishlist, /\baspect-square\b/);
   assert.doesNotMatch(sinWishlist, /\bh-12\b/);
   assert.doesNotMatch(sinWishlist, /\bw-12\b/);
 });
