@@ -72,20 +72,22 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   assert.deepEqual(varsDeForma(null), {});
   assert.deepEqual(varsDeForma('suave'), {});
   const v = varsDeForma('recta');
-  // los 3 escalones var-backed LEÍDOS hoy
-  assert.equal(v['--radius-3xl'], '0');
-  assert.equal(v['--radius-2xl'], '0');
-  assert.equal(v['--radius-xl'], '0');
+  // § RADIOS-UN-SOLO-RITMO-1: los SIETE radios de 'recta' (los 3 escalones var-backed LEÍDOS hoy +
+  // radioLg/radioTile/radioImagen/pildora) comparten el MISMO valor chico — ya no 0/2/20/16px por
+  // separado. `pildoraReal` es la ÚNICA excepción (círculo, decisión anterior).
+  assert.equal(v['--radius-3xl'], '2px');
+  assert.equal(v['--radius-2xl'], '2px');
+  assert.equal(v['--radius-xl'], '2px');
   // los 9 tokens propios de superficie (§ NUESTRO-CAFE-RADIO-TILE-1: radioTile YA cableado, no inerte;
   // § BACKTOTOP-REDONDO-Y-ORDEN-1: pildoraReal, ídem; § HISTORIA-COLLAGE-COMO-PROTOTIPO-1: radioImagen/
   // sombraImagen, ídem — los tres nacen ya conectados, no en el período inerte de la mitad 1)
   assert.equal(v['--sf-radio-lg'], '2px');
-  assert.equal(v['--sf-radio-tile'], '20px'); // MEDIDO contra el prototipo (tokens.css:169)
-  assert.equal(v['--sf-radio-imagen'], '16px'); // MEDIDO contra el prototipo (tokens.css:168)
-  assert.equal(v['--sf-sombra-imagen'], '0 18px 44px rgba(16,36,7,0.14)'); // MEDIDO (tokens.css:182)
-  assert.equal(v['--sf-pildora'], '0');
-  // el punto de esta tanda: bajo 'recta', `pildora` (botón) es RECTO (0) pero `pildoraReal` (el
-  // círculo genuino, § el docstring de `Forma.pildoraReal`) sigue siendo un círculo completo.
+  assert.equal(v['--sf-radio-tile'], '2px'); // UNIFICADO — era 20px (§ RADIOS-UN-SOLO-RITMO-1)
+  assert.equal(v['--sf-radio-imagen'], '2px'); // UNIFICADO — era 16px (§ RADIOS-UN-SOLO-RITMO-1)
+  assert.equal(v['--sf-sombra-imagen'], '0 18px 44px rgba(16,36,7,0.14)'); // la sombra NO se toca
+  assert.equal(v['--sf-pildora'], '2px'); // UNIFICADO — era 0 (§ RADIOS-UN-SOLO-RITMO-1)
+  // la excepción explícita: `pildoraReal` (el círculo genuino, § el docstring de `Forma.pildoraReal`)
+  // sigue siendo un círculo completo — "el volver-arriba sigue siendo un círculo" (decisión anterior).
   assert.equal(v['--sf-pildora-real'], '9999px'); // MEDIDO contra el prototipo (tokens.css:170)
   assert.equal(v['--sf-borde'], '1.5px');
   assert.equal(v['--sf-divisor'], '1px');
@@ -169,4 +171,22 @@ test('#65-B · forma sobrevive el schema y el resolver (no se strippea, no se re
 test("'recta' conserva su trazo de HOY (1.25) tras § CORTE-CUERPO-LETRA-E-ICONOS-1 — PLIEGO no se tocó", () => {
   const recta = FORMAS.find((f) => f.clave === 'recta')!;
   assert.equal(recta.trazo, '1.25');
+});
+
+// § RADIOS-UN-SOLO-RITMO-1 (2026-10-01) — el GUARDIÁN del "un solo radio": las SIETE claves de radio
+// de 'recta' (menos `pildoraReal`, la excepción explícita del círculo) tienen que ser EXACTAMENTE el
+// mismo valor. Un valor que vuelva a divergir aquí reintroduce el ritmo quebrado que el owner reportó
+// ("hay cards con puntas un poco redondeadas pero hay otras totalmente rectas"). 'minima' NO se afirma
+// acá: el owner no pidió su unificación interna, sólo descartó aplicarla entera por redondear de más.
+test("'recta' — las SIETE claves de radio convergen a UN SOLO valor; pildoraReal sigue siendo círculo", () => {
+  const recta = FORMAS.find((f) => f.clave === 'recta')!;
+  const unificadas = [
+    recta.radius3xl, recta.radius2xl, recta.radiusXl,
+    recta.radioLg, recta.radioTile, recta.radioImagen, recta.pildora,
+  ];
+  assert.ok(unificadas.every((r) => r === unificadas[0]), `no todas iguales: ${JSON.stringify(unificadas)}`);
+  assert.equal(unificadas[0], '2px');
+  // la excepción nombrada: un círculo real, no un radio chico.
+  assert.equal(recta.pildoraReal, '9999px');
+  assert.notEqual(recta.pildoraReal, unificadas[0]);
 });

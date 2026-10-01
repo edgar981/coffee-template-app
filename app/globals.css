@@ -667,6 +667,14 @@ html {
   .sf-radio-imagen  { border-radius: var(--sf-radio-imagen, 1rem); }
   .sf-sombra-imagen { box-shadow: var(--sf-sombra-imagen, 0 18px 44px rgba(16,36,7,0.14)); }
 
+  /* NOTA DE LECTURA (§ RADIOS-UN-SOLO-RITMO-1): los dos párrafos de arriba explican por qué
+     `.sf-radio-tile`/`.sf-radio-imagen` son CLASES separadas de `.sf-radio-lg` —roles distintos que
+     el prototipo medía en valores distintos (20px/16px vs 2px)—; esa separación sigue en pie. Lo
+     que cambió es el VALOR que `--sf-radio-tile`/`--sf-radio-imagen`/`--sf-pildora` reciben bajo
+     'recta': las tres, más los tres escalones `--radius-3xl/2xl/xl`, convergen hoy al MISMO radio
+     chico que `--sf-radio-lg` (2px) — ver `lib/config/formas.ts`. Sólo los FALLBACKS de acá (Suave)
+     quedan como estaban: 1.5rem/1rem, byte-idénticos a Nayoli.
+
   /* BORDE (ciñe una tarjeta/control) vs DIVISOR (separa dos bandas de página). Se SEPARAN para
      que Mínima pueda APAGAR los divisores (divisor:0) sin apagar el borde de una tarjeta —que
      obligaría a tocar el RELLENO, y el relleno es PALETA (§ el spec, los dos ejes se pisarían)—.

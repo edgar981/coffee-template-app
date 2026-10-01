@@ -94,6 +94,13 @@ export default function StoreNav() {
   // más abajo (que sigue siendo su otro consumidor): el listener de scroll también lo necesita, para
   // decidir si CONGELA el tratamiento al bajar (§ CROMO-NAV-SIN-DESTELLO-1, el bloque de abajo).
   const navDireccionActiva = navTratamiento.direccion;
+  // § RADIOS-UN-SOLO-RITMO-1 — gate del owner: "botones (incluido… los del nav)" toman el mismo radio
+  // chico que el ojo/carrito de las tarjetas (`sf-radio-lg`, § SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-
+  // REDONDEADAS-1). Los botones de ícono del nav (buscar/carrito, acá y en el drawer móvil) eran
+  // `rounded-full` SIEMPRE, sin branch por tema — el mismo patrón que `ProductCard.tsx`/
+  // `GrindChooserRiel.tsx` ya resolvieron para el ojo/carrito. `formaCustom` es el MISMO gate que esos
+  // dos archivos (`tema.forma !== null`): Suave/Nayoli conserva `rounded-full` byte a byte.
+  const formaCustom = tema.forma !== null;
 
   const [scrolled, setScrolled] = useState(false);
   // COMPORTAMIENTO POR DIRECCIÓN (§ CROMO-NAV-DIRECCION-SCROLL-1, `navTratamiento.direccion`):
@@ -833,10 +840,14 @@ export default function StoreNav() {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-              <button ref={searchTriggerRef} className={`p-2 cursor-pointer rounded-full transition-colors ${iconColor}`} onClick={() => setSearchOpen(true)}>
+              {/* § RADIOS-UN-SOLO-RITMO-1 — "botones… del nav": buscar/carrito pasan del círculo pleno
+                  (`rounded-full`, sin branch) al radio chico de la forma (`sf-radio-lg`) bajo
+                  `formaCustom`, MISMO swap que el ojo/carrito de las tarjetas. Suave/Nayoli conserva
+                  `rounded-full` literal, byte a byte. */}
+              <button ref={searchTriggerRef} className={`p-2 cursor-pointer transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor}`} onClick={() => setSearchOpen(true)}>
                 <Search className={navIconoClase} />
               </button>
-              <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>
+              <button onClick={openCart} className={`relative p-2 transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor} cursor-pointer`}>
                 <ShoppingBag className={navIconoClase} />
                 {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 (2026-09-30) -- CORRIGE `CARRITO-Y-MENU-MOVIL-
                     CAFEONE-1`: ese slice movió el contador del "crema" (`--sf-acento`/`--sf-acento-
@@ -1030,11 +1041,14 @@ export default function StoreNav() {
                 </Link>
                 {/* "buscar si existe, carrito, cerrar" — § CARRITO-Y-MENU-MOVIL-CAFEONE-1, sin
                     cambio de alcance: "Cuenta" sigue sin entrar (`/cuenta` oculta, v1). */}
+                {/* § RADIOS-UN-SOLO-RITMO-1 — mismo swap que las dos de arriba (desktop): el círculo
+                    pleno de los tres botones de este header móvil pasa al radio chico de la forma bajo
+                    `formaCustom`; Suave/Nayoli conserva `rounded-full` literal. */}
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => { setMobileOpen(false); setSearchOpen(true); }}
-                    className={`rounded-full p-2 transition-colors ${drawerTextoClase}`}
+                    className={`p-2 transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${drawerTextoClase}`}
                     aria-label="Buscar"
                   >
                     <Search className={navIconoClase} />
@@ -1042,7 +1056,7 @@ export default function StoreNav() {
                   <button
                     type="button"
                     onClick={() => { setMobileOpen(false); openCart(); }}
-                    className={`relative rounded-full p-2 transition-colors ${drawerTextoClase}`}
+                    className={`relative p-2 transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${drawerTextoClase}`}
                     aria-label="Ver carrito"
                   >
                     <ShoppingBag className={navIconoClase} />
@@ -1066,7 +1080,7 @@ export default function StoreNav() {
                   <button
                     type="button"
                     onClick={cerrarMobileYDevolverFoco}
-                    className={`rounded-full p-2 transition-colors ${drawerTextoClase}`}
+                    className={`p-2 transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${drawerTextoClase}`}
                     aria-label="Cerrar el menú"
                   >
                     <X className="w-5 h-5" />

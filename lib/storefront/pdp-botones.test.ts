@@ -61,7 +61,7 @@ test('clasesBotonesCompra("acento"): el TEXTO del secundario va en `--sf-acento`
   assert.doesNotMatch(secundario, /text-\[var\(--sf-acento-texto\)\]/);
 });
 
-test('clasesBotonesCompra("acento"): los dos toman el radio del TEMA (`sf-pildora`, 0 bajo `forma:\'recta\'` de CORTE) — nunca un radio fijo', () => {
+test('clasesBotonesCompra("acento"): los dos toman el radio del TEMA (`sf-pildora`, el radio chico único de `forma:\'recta\'` de CORTE desde § RADIOS-UN-SOLO-RITMO-1) — nunca un radio fijo', () => {
   const { primario, secundario } = clasesBotonesCompra('acento');
   assert.match(primario, /\bsf-pildora\b/);
   assert.match(secundario, /\bsf-pildora\b/);

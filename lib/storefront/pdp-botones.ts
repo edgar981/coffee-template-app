@@ -67,7 +67,8 @@ const CANTIDAD_BOTON_DEFECTO =
 // CORTE (`origenAccion:'acento'`) — MISMO tratamiento `.btn--primary`/`.btn--secondary` ya vetado
 // contra el prototipo en `Spotlight.tsx:361` (el "Agregar al carrito" de la banda spotlight) y
 // `StoreNav.tsx:712` (el CTA "Comprar" del encabezado, § CROMO-NAV-CTA-Y-BADGE-1): `sf-pildora`
-// para el radio (0 bajo `forma:'recta'` de CORTE), `sf-borde` para el grosor del borde del contorno,
+// para el radio (el radio chico ÚNICO de `forma:'recta'` de CORTE desde § RADIOS-UN-SOLO-RITMO-1 —
+// era 0 antes de esa unificación, § formas.ts), `sf-borde` para el grosor del borde del contorno,
 // mayúscula + tracking .085em + semibold, `py-[18px] px-[28px]` (`--button-pad-y`/`-x`), hover/active
 // vía `--sf-accion-hover`/`--sf-accion-active` (§ CTA-HOVER-RESTO-FAMILIA-1, `palette-derive.ts`) —
 // ningún valor de esta lista es inventado para este slice, todos ya circulan en el storefront bajo

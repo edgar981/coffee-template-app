@@ -39106,3 +39106,23 @@ implementaron y se verificaron con captura real antes/después); el MERGE sigue 
 aprobación de escritura nunca fue aprobación de merge.
 
 Cierra `SUSCRIPCION-POSTAL-DE-CIERRE-1`.
+
+## 2026-10-01 — Un solo radio en CORTE ('recta' → 2px en todos los roles) (`RADIOS-UN-SOLO-RITMO-1`)
+
+Gate del owner: «el estilo de la página no sigue un ritmo — hay cards con puntas un poco redondeadas
+pero hay otras totalmente rectas», «me gusta con el que quedó los botones de agregar al carrito y el
+preview» y «Un solo estilo, si no me gusta como se ve simplemente se pide el cambio de nuevo».
+
+- 'recta' unifica sus siete roles de radio (`radius3xl/2xl/xl`, `radioLg`, `radioTile`, `radioImagen`,
+  `pildora`) en `RADIO_UNIFICADO_RECTA = '2px'` (`lib/config/formas.ts`), el radio aprobado del ojo/carrito.
+  Antes: 0 (botón/chrome), 2px (ojo/carrito), 20px (tile), 16px (fotos de sección). Fotos de Historia,
+  Origen y Nosotros incluidas, por pedido explícito del owner; su sombra se conserva.
+- Fuera de la unificación: `pildoraReal` (el volver-arriba sigue siendo círculo, `BACKTOTOP-REDONDO-Y-ORDEN-1`).
+  'minima' no se toca (el owner la rechazó por redondear de más). 'recta' es compartida con PLIEGO, hoy
+  incompleto (no mueve ningún tenant vivo fuera de CORTE).
+- El worker dejó el diff sin commit (BLOCKED: `lib/config/theme-mirador.test.ts` fuera de `touches:` seguía
+  afirmando `--radius-*:0`). El orquestador terminó el slice: actualizó esas tres aserciones a `2px` y corrió
+  el gate en primer plano: `tsc` 0, `npm test` 2907/2907, `test:integracion` 253/253, `guarda:color` **0px**
+  en las 8 capturas. `verificar:nayoli:visual` no se re-corrió: compara contra `main`, anclado 226 commits
+  atrás desde el 2026-09-22 (§ `CIERRE-EDITOR-GATE-1`), y no da una cifra útil hasta que `main` se ponga al día.
+- Para verlo, el tenant debe tener aplicada la forma 'recta' (si el owner dejó 'minima', volver a 'recta').

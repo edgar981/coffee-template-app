@@ -65,6 +65,24 @@
 //
 // PURO / client-safe: sin red, sin `server-only`. Lo consumen `forma-style` (el `<style>` del server),
 // el layout del storefront (via forma-style) y el picker del panel (`PaletaSeccion`).
+//
+// § RADIOS-UN-SOLO-RITMO-1 (2026-10-01) — 'recta' deja de perseguir el valor EXACTO que cada rol medía
+// contra el prototipo (0 para botón/chrome, 20px para tile, 16px para imagen) y los UNIFICA a UN SOLO
+// radio chico: `RADIO_UNIFICADO_RECTA` (abajo), el mismo 2px que ya aprobó el owner para el ojo/carrito
+// del riel (`sf-radio-lg`, § SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1). Gate del owner: "el
+// estilo de la página no sigue un ritmo — hay cards con puntas un poco redondeadas pero hay otras
+// totalmente rectas" — las "totalmente rectas" eran `radius3xl/2xl/xl`/`pildora` en 0, las "un poco
+// redondeadas" eran `radioLg`/`radioTile`/`radioImagen` en 2/20/16px; las SIETE convergen. `minima` NO
+// se tocó —el owner la probó entera y la rechazó por REDONDEAR DE MÁS ("las redondea mucho"), no por
+// estar internamente inconsistente; el criterio ganador es el de 'recta'—. `pildoraReal` queda FUERA
+// de la unificación a propósito ("el volver-arriba sigue siendo un círculo", decisión anterior,
+// § BACKTOTOP-REDONDO-Y-ORDEN-1): una píldora REAL no es un matiz de radio, es una forma ajena al
+// chrome recto, y el prototipo mismo la declara constante en las tres formas. `sombraImagen` tampoco
+// se toca: la sombra de las fotos de sección se conserva, sólo cambia su esquina. 'recta' es
+// COMPARTIDA con PLIEGO (`PLIEGO.forma==='recta'`, abajo en `themes.ts`) — PLIEGO sigue INCOMPLETO hoy
+// (`validarPreset` lo rechaza: pide variantes que el REGISTRY no declara, § `PRESETS`), así que esta
+// unificación no mueve ningún tenant vivo más allá de CORTE, pero el día que PLIEGO se complete
+// heredará el mismo radio — es la MISMA forma, no una copia con otro número.
 
 // El tuple runtime del set cerrado — para el `z.enum` del schema del PUT (una sola fuente con el tipo).
 export const CLAVES_FORMAS = ['suave', 'recta', 'minima'] as const;
@@ -123,6 +141,19 @@ export interface Forma {
   badgeTracking: string;  // --sf-badge-tracking  (letter-spacing del badge)
 }
 
+// NOTA DE LECTURA (§ RADIOS-UN-SOLO-RITMO-1): los docstrings de `radioTile`/`radioImagen`/`pildora`
+// arriba explican por qué son CAMPOS separados de `radioLg` (roles distintos, que podían divergir en
+// valor) — esa separación sigue siendo cierta y no se tocó. Lo que cambió es el VALOR que 'recta' les
+// asigna: los cuatro (más `radius3xl/2xl/xl`) convergen al mismo `RADIO_UNIFICADO_RECTA`, abajo. Los
+// campos siguen siendo cuatro porque 'minima' y una 'recta' futura podrían volver a diferenciarlos;
+// hoy no lo hacen.
+
+// El radio ÚNICO de 'recta' (§ RADIOS-UN-SOLO-RITMO-1, el docstring de cabecera): el valor aprobado
+// del rol `sf-radio-lg` (el ojo/carrito), reusado por los SIETE campos de radio que antes divergían
+// (0/2/20/16px). Una constante, no siete literales repetidos, para que "son el MISMO radio" sea
+// verificable leyendo el código, no sólo el resultado.
+const RADIO_UNIFICADO_RECTA = '2px';
+
 // El registro. `suave` va PRIMERO (es el default) y su muestra en el picker representa "la de hoy".
 export const FORMAS: readonly Forma[] = [
   {
@@ -143,17 +174,24 @@ export const FORMAS: readonly Forma[] = [
   {
     clave: 'recta', label: 'Recta',
     descripcion: 'Esquina viva y regla tipográfica.',
-    radius3xl: '0', radius2xl: '0', radiusXl: '0',
-    // radioTile: 20px, MEDIDO contra el prototipo (`docs/prototipos/cafeone/css/tokens.css:169`,
-    // `--radius-tile:20px`) — NO los 2px de `radioLg` (§ el docstring del campo, arriba).
-    // pildoraReal: 9999px, MEDIDO contra el prototipo (`tokens.css:170`, `--radius-pill:999px`) — NO
-    // los 0 de `pildora` (§ BACKTOTOP-REDONDO-Y-ORDEN-1, el docstring del campo, arriba).
-    radioLg: '2px', radioTile: '20px',
-    // radioImagen/sombraImagen: 16px / `0 18px 44px rgba(16,36,7,.14)`, MEDIDOS contra el prototipo
-    // (`tokens.css:168` `--radius-image:16px`, `:182` `--shadow-image`) — NO los 0px de `--radius-2xl`
-    // que 'recta' ya pisa para botones/tarjetas (§ el docstring de cabecera, el defecto que esto cierra).
-    radioImagen: '16px', sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
-    pildora: '0', pildoraReal: '9999px',
+    // § RADIOS-UN-SOLO-RITMO-1 — las SIETE claves de abajo (radius3xl/2xl/xl, radioLg, radioTile,
+    // radioImagen, pildora) comparten `RADIO_UNIFICADO_RECTA`. Antes: 0/0/0 (botón/chrome, "Buttons
+    // and interface chrome are SQUARE", el valor medido del prototipo) + 2px (radioLg, el ojo/carrito)
+    // + 20px (radioTile, el tile de Spotlight/riel) + 16px (radioImagen, el collage de fotos) — CUATRO
+    // valores medidos por separado, cada uno "correcto" contra su propio rol del prototipo y a la vez
+    // la causa del ritmo quebrado que el owner reportó. El gate de esta vez pesa más que la exactitud
+    // por rol: un solo radio, en TODO lo que es tarjeta/botón/campo/chip/caja/panel — fotos de sección
+    // incluidas (§ el docstring de `radioImagen`, abajo). `pildoraReal` queda AFUERA, a propósito
+    // (sigue en `9999px`, ver el docstring de ese campo y el de cabecera): un círculo real no es un
+    // matiz de radio.
+    radius3xl: RADIO_UNIFICADO_RECTA, radius2xl: RADIO_UNIFICADO_RECTA, radiusXl: RADIO_UNIFICADO_RECTA,
+    radioLg: RADIO_UNIFICADO_RECTA, radioTile: RADIO_UNIFICADO_RECTA,
+    // radioImagen UNIFICADO (§ RADIOS-UN-SOLO-RITMO-1): antes 16px, medido contra `--radius-image` del
+    // prototipo (`tokens.css:168`) — el owner pidió el MISMO radio chico también para las fotos de
+    // sección (Historia, Origen, Nosotros), "sin excepciones". `sombraImagen` NO se toca: la sombra se
+    // conserva, sólo la esquina cambia.
+    radioImagen: RADIO_UNIFICADO_RECTA, sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
+    pildora: RADIO_UNIFICADO_RECTA, pildoraReal: '9999px',
     borde: '1.5px', divisor: '1px', trazo: '1.25',
     badgeCaja: 'uppercase', badgeTracking: '0.12em',
   },

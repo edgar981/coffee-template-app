@@ -918,6 +918,15 @@ export const CORTE: PresetTema = {
   // grep de arriba queda desactualizado en un sentido MENOR (`rounded-2xl` ya no aparece en
   // `BrandStoryCentrada.tsx`, migrado a `.sf-radio-imagen`), pero la ADVERTENCIA sigue siendo válida
   // para cualquier imagen FUTURA que use `rounded-2xl`/`rounded-xl` crudo en vez de un rol de forma.
+  //
+  // ESTE PÁRRAFO QUEDÓ VENCIDO EN SUS NÚMEROS, NO EN LA ELECCIÓN (§ RADIOS-UN-SOLO-RITMO-1,
+  // 2026-10-01): el "0/0/0" de arriba y el "20px"/"16px" de radioTile/radioImagen eran correctos
+  // contra el prototipo cuando se escribieron — hoy las SIETE claves de radio de 'recta' (formas.ts)
+  // convergen a un único radio chico (2px), por gate del owner: "hay cards con puntas un poco
+  // redondeadas pero hay otras totalmente rectas… mantener un mismo estilo en toda la página". La
+  // elección de FORMA sigue siendo 'recta' —sigue siendo el único match del set cerrado para un
+  // chrome de botón recto, y además ahora para TODO lo demás—, pero sus valores exactos ya no son los
+  // medidos acá. Ver formas.ts para el valor vigente.
   forma: 'recta',
   // `brandStory: 'centrada'` (§ CORTE-BRANDSTORY-COLLAGE-1) — hasta ese slice CORTE pedía la
   // canónica ('columnas') porque era la ÚNICA clave que `brandStory.variantes` declaraba; el estándar
