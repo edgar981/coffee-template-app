@@ -21,6 +21,8 @@ import { cssForma } from "@/lib/config/forma-style";
 import { coloresPWA } from "@/lib/config/pwa-colores";
 import { ReducedMotionProvider } from "@/lib/animation";
 import { modoEditorActivo, metadataRobotsSegunModo } from "@/lib/config/modo-editor-gate";
+import { openGraphDeTienda } from "@/lib/config/og-tienda";
+import { corteAplicado } from "@/lib/config/themes";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -49,9 +51,10 @@ export const dynamic = 'force-dynamic';
 // MISMA URL que usa el probe ciego, así que no hay puerta de atrás; no una ruta /api/favicon.
 // El color del tema y el mark del `Logo` (wordmark-first) salen de SiteSetting en el commit 4.
 export async function generateMetadata(): Promise<Metadata> {
-  const [{ nombre, descripcionFooter }, enModoEditor] = await Promise.all([
+  const [{ nombre, descripcionFooter }, enModoEditor, content] = await Promise.all([
     getSiteSettings(),
     modoEditorActivo(),
+    getSiteContent(),
   ]);
   return {
     // `absolute` (NO `default`) + `template`: un `title.default` de segmento hijo SIGUE
@@ -66,6 +69,14 @@ export async function generateMetadata(): Promise<Metadata> {
     // Ver el docstring de esa función para el porqué del `no-store` (ya cubierto, nada que agregar
     // acá) y § 9.2 de `docs/editor-tienda/DISENO.md`.
     ...metadataRobotsSegunModo(enModoEditor),
+    // La vista previa al compartir (§ OG-IMAGEN-TIENDA-1, `lib/config/og-tienda.ts`): sólo bajo CORTE.
+    ...openGraphDeTienda({
+      esCorte: corteAplicado(content.tema.origenAccion),
+      nombre,
+      descripcion: descripcionFooter,
+      imagenPoster: content.hero.imagenPoster,
+      imagen: content.hero.imagen,
+    }),
     // El manifest PWA del cliente. Se declara acá (por grupo) desde que se retiró la convención
     // `app/manifest.ts` —que auto-inyectaba su link en TODA la app y ganaba sobre `metadata.manifest`,
     // así que el panel no podía tener el suyo (§ el route handler /api/manifest, § Identidad)—.
