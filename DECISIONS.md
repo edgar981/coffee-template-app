@@ -37478,6 +37478,216 @@ citado arriba) — el MERGE sigue gateado aparte.
 
 Cierra `CHECKOUT-RASTREAR-TRANSICIONES-1`.
 
+## 2026-10-01 — El destacado se arma completo desde el panel (presentación/tamaño/etiquetas/COP) y los botones de la ficha quedan parejos (`DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el
+gate del 2026-09-30, con capturas (muestrario, panel, ficha): *"La sección para editar los campos
+de 'destacado' está incompleta en el panel. Faltan las etiquetas, el poder elegir de presentación y
+peso. El 'COP'. En el detalle del producto estos botones se ven un poco off, especialmente el
+tamaño de 'favoritos'."*
+
+### 1 · El destacado — TRES punteros al catálogo, elegidos con un picker, nunca tecleados
+
+**EL MODELO DEL TENANT, MEDIDO ANTES DE DISEÑAR NADA:** `prisma/seed-products.ts` (el catálogo
+canónico) modela presentación×tamaño como CUATRO productos distintos — "Café Nayoli — En grano
+250 g", "— Molido 250 g", "— En grano 500 g", "— Molido 500 g" —, no como un único producto con
+`moliendasOpciones` cubriendo las dos presentaciones. El panel de hoy (captura
+`panel-destacado-hoy.webp`) sólo exponía DOS punteros de TEXTO LIBRE ("Producto destacado",
+"Otro tamaño") sin picker, y el owner había escrito "250 g" en el campo de slug — confirma que
+tecleaba a ciegas.
+
+**`SpotlightContent` gana un TERCER puntero, `presentacionSlug`** (gemelo de `otroTamanoSlug` en
+forma y en regla — `productoOtraTalla`, REUSADO tal cual, "sin match, sin fallback"): la otra
+presentación del mismo café (Molido cuando el pineado es En grano), para el tenant que la modela
+como un producto distinto. **`otroTamanoSlug` NO se migra de verdad** — mismo nombre, mismo tipo,
+mismo resolver; lo único que cambia es su UI (picker, no texto) y su EFECTO en la tienda (switch
+COMPLETO del producto activo: foto, precio, molienda y "Agregar al carrito", no una vista de
+sólo-vistazo con un `<Link>` a la otra página, que era el comportamiento de antes).
+
+**Los TRES campos (`productoSlug`/`presentacionSlug`/`otroTamanoSlug`) pasan a `producto: true`**
+— un modificador nuevo de `CampoTexto` (gemelo de `categoria: true`) que la cáscara
+(`TiendaSeccionEditor.tsx`) renderiza con un `ProductoCombobox` nuevo: Popover+Command de cmdk
+(el MISMO ensamblaje que `CategoriaCombobox`, no una primitiva nueva), con MINIATURA + nombre por
+fila — "selector con nombre y foto", el gate del owner, literal. Vive LOCAL al archivo (su único
+consumidor hoy); se extrae el día que un segundo campo lo necesite, mismo criterio que ya aplicó
+`CategoriaCombobox` antes de existir como archivo propio. Avisa si el slug guardado ya no matchea
+ningún producto (gemelo de `destinoInexistente`).
+
+**EL CATÁLOGO LO FETCHEA EL PROPIO EDITOR**, no `TiendaPaginas.tsx` (que ya lo fetchea para
+`categorias` pero queda FUERA de `touches:` — no se le puede agregar la prop que baje el catálogo
+completo sin tocarlo). Mismo patrón YA establecido por `cargarEsquemaTemaReal` (una promesa
+compartida a nivel de módulo, N instancias de la misma carga de página comparten el MISMO fetch,
+nunca uno por instancia), scopeado a `seccion === 'spotlight'` para no pagar el costo en las demás
+secciones.
+
+**"PRESENTACIÓN" EN LA TIENDA TIENE DOS MECANISMOS, NUNCA LOS DOS A LA VEZ** (`Spotlight.tsx`):
+con `presentacionAlt` configurado, el grupo switchea el producto activo ENTERO (dos chips, el
+pineado y el alterno, cada uno con su propio `producto.slug`); SIN alterno, cae al mecanismo de
+SIEMPRE — las `moliendasOpciones` propias del producto activo — **sin tocar una línea de ese
+camino**, así que un tenant con un producto de varias moliendas (Nayoli) no se rompe. "TAMAÑO"
+tiene un solo mecanismo (el switch completo), porque `otroTamanoSlug` siempre fue "la otra talla
+como producto", nunca moliendas.
+
+**EL PRODUCTO ACTIVO** (`lib/config/spotlight.ts`, nuevo, puro — `productoActivoSpotlight`): el
+pineado, salvo que el visitante haya elegido un slug que coincide con uno de los dos alternos; un
+slug que no coincide con ninguno (alterno retirado entre renders) cae al pineado, nunca a un
+producto a medias. `etiquetaVarianteSpotlight` deriva el texto de cada chip de `producto.variante`
+("En grano · 250 g") si está declarado, si no del peso, si no del nombre — los TRES caminos son
+DATO del producto, nunca un literal inventado (misma familia que el rating fabricado, § CLAUDE.md).
+
+**LÍMITE CONOCIDO, DECLARADO (no una matriz completa — Backlog #62 NO se dispara):** los dos
+alternos son INDEPENDIENTES, no una grilla 2×2. Si el visitante activa "Molido" (vía
+Presentación) y después abre la ficha con el grupo Tamaño, NINGÚN chip de Tamaño queda
+seleccionado (ni el pineado, porque el activo ya no es él; ni el alterno de tamaño, porque es un
+producto distinto de Molido) — verificado por ejecución (Playwright, click en "Molido": el chip
+de Tamaño queda sin resaltar, sin romper nada). Es el límite honesto de dos pines por eje, no una
+matriz; construir la matriz completa es el proyecto del Backlog #62, que este slice no dispara.
+
+**ETIQUETAS (notas de cata) — SÓLO LECTURA, nunca un campo nuevo que duplique el dato.** El gate
+decía "faltan las etiquetas": la tienda YA las mostraba (`activo.notasCata`, chips), lo que
+faltaba era que el PANEL dijera algo cuando el producto pineado no tiene ninguna. Se agregó un
+bloque de sólo lectura bajo los campos de Spotlight: chips si `notasCata.length>0`, si no un
+aviso muted con enlace a `/admin/productos`. **Deliberadamente NO editable acá**: escribirlas
+desde Spotlight abriría una SEGUNDA puerta al mismo campo que "Productos" ya edita, con las dos
+pantallas pudiendo divergir sobre cuál ganó — la misma trampa que `total_compras` (§ CLAUDE.md,
+#38) documenta para un campo con dos escritores. **Recomendación, no decisión:** si el owner pide
+poder escribirlas desde acá, es una decisión de producto aparte — este slice midió el costo
+(abrir una segunda puerta de escritura) y no lo tomó sin que se pida.
+
+**"NOTA JUNTO AL PRECIO" YA EXISTÍA; lo que faltaba era el EJEMPLO.** El campo `notaPrecio`
+estaba en el panel desde `PANEL-EDITOR-SPOTLIGHT-RESTO-1`; el gate del owner ("el 'COP'") señala
+que el campo vacío no sugería ningún formato. Se agregó `placeholder: 'COP · impuestos
+incluidos'` — mismo patrón ya establecido por `precio1..4` de Suscripción (§ CLAUDE.md, "el
+campo ENSEÑA el formato").
+
+### 2 · Los botones de la ficha — mismo alto, mismo borde, sin número mágico
+
+**MEDIDO, no asumido:** el defecto no era un error de píxeles, era que cantidad (`h-9` fijo sin
+padding vertical, ~38px), "Agregar al carrito" (`py-[18px]` + línea de texto, ~58px) y favoritos
+(`h-12` fijo, 48px) venían de TRES fórmulas de alto independientes que nunca se pensaron juntas.
+
+**`lib/storefront/pdp-botones.ts` gana `cantidad`/`cantidadBoton`** (en `clasesBotonesCompra`) y
+**`claseBotonFavoritos`** (función nueva, por el eje extra `wishlisted` que los demás controles no
+tienen). Bajo CORTE:
+- **CANTIDAD toma el MISMO `py-[18px]`** que `SECUNDARIO_CORTE` ("Agregar al carrito"), y sus
+  botones −/+ DEJAN de tener un alto propio (sin `h-9`: el ícono de 16px define la línea, igual
+  que el texto define la de "Agregar al carrito") — mismo padding + mismo contenido de línea =
+  mismo alto, por construcción, no por un píxel copiado a mano.
+- **FAVORITOS pierde su alto fijo** (`aspect-square`, sin `h-12`/`w-12`): como es flex-sibling de
+  "Agregar al carrito" en el MISMO `<div className="flex gap-3">` (cuyo `align-items` default es
+  `stretch`), su alto lo da automáticamente el de su hermano, y `aspect-square` deriva el ancho
+  de ese alto — "el corazón, cuadrado del alto del botón", literal, sin medir un número.
+- **Los TRES comparten `sf-borde border-[var(--sf-acento)]`** — el MISMO token/color que
+  "Agregar al carrito", no una aproximación.
+
+**Nayoli (y todo tenant sin `origenAccion:'acento'`) queda BYTE-IDÉNTICA**: las cuatro constantes
+`_DEFECTO` son copia literal de lo que `page.tsx` tenía inline antes de este slice —verificado por
+test (`pdp-botones.test.ts`, comparación de igualdad de cadena completa)—.
+
+### 3 · La vista rápida — misma galería que la ficha, cierra dos follow-ups heredados
+
+Cierra `VISTA-RAPIDA-MISMO-BORDE-1` y `GALERIA-VISTA-RAPIDA-SIN-FLECHAS-1` (open_followups de
+`FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1`, 2026-09-30).
+
+- **`object-contain p-6` → `object-cover`** (sin relleno): mismo defecto, mismo fix de dos clases
+  que ya cerró `Spotlight.tsx`/`TarjetaRiel` — un borde visible del fondo de estudio de la foto
+  dentro del marco. **Sin gate de preset**: `VistaRapidaProducto` sólo lo monta `GrindChooserRiel`
+  (la variante "riel" de Presentaciones), y hoy sólo CORTE la elige — Nayoli (mosaico) nunca
+  monta este componente, confirmado por lectura (`grep` de consumidores, un solo resultado).
+- **La galería CON flechas/teclado/deslizar se REUSA de la ficha** (`GaleriaProducto`, montada tal
+  cual, `key={productoMostrado.slug}` para que remonte —y resetee su índice— cada vez que el
+  producto activo cambia, incluido el caso "dos ojos clickeados sin que el modal pase por
+  cerrado"). Se retiran `imgIdx`/`galeriaTocada`/`cambiarFoto` y los imports que sólo servían a
+  la implementación vieja (`Image`, `ChevronLeft/Right`, `imagenPortada`, `heroDeGaleria`,
+  `entradaHeroInicial`) — sin segunda implementación de la misma lógica.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2865/2865** (2846 del piso previo + 19 nuevos: 11 en `lib/config/spotlight.test.ts`, 8 en `lib/storefront/pdp-botones.test.ts` — `git diff \| grep '^+test('` en cada uno) |
+| `npm run test:integracion` | **243/243** (242 del piso previo + 1 nuevo, `presentacionSlug` de punta a punta) |
+| `next build` (SWC) | compiló limpio, 0 errores — autoridad sobre `tsc` para JSX (§ CLAUDE.md) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset vs. fixture. Primera corrida dio diffs difusos en las 8 capturas (flake de arranque en frío, medido: SEGUNDA corrida inmediata, mismo árbol, 0px en las 8 — se re-corrió para confirmar determinismo, no se aceptó el primer resultado) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| Captura propia (ad-hoc, `.scratch/`, no comiteada) | CORTE con el catálogo canónico de Nayoli (4 productos, un producto por molienda×peso — "el modelo real del tenant"): destacado desktop/móvil con Presentación+Tamaño funcionando (incluido el click en "Molido" cambiando foto/molienda en vivo), ficha con cantidad/Agregar/favoritos parejos, y el panel `/admin/tienda?seccion=spotlight` con los tres pickers poblados + las etiquetas + "COP · impuestos incluidos" |
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** Un visitante con CORTE activo y `presentacionSlug`/
+`otroTamanoSlug` configurados vería dos grupos de chips nuevos en el destacado (Presentación/
+Tamaño con switch completo de producto) y, en la ficha de cualquier producto, cantidad/Agregar/
+favoritos con alto y borde parejos. Nayoli y todo tenant sin `origenAccion:'acento'` quedan
+byte-idénticos — MEDIDO 0px, §Gate arriba, en las dos corridas visuales.
+
+**`strings:`** ninguna cadena de copy nueva fija en código — los labels del panel ("Otra
+presentación (opcional)", hints) son texto del PANEL (admin), no de la tienda; lo que el
+visitante ve (etiquetas de chip) sale de `producto.variante`/`peso_gramos`/`nombre`, dato real,
+no un literal de este slice.
+
+### Deviations
+
+- **Dos archivos FUERA de `touches:` se tocaron, ambos mecánicos, de una línea**:
+  `lib/config/spotlight-banda.test.ts` (una aserción `deepEqual` contra el objeto literal de
+  `DEFAULTS.spotlight` necesitaba la llave nueva) y `lib/config/admin-tienda-preset.test.ts` (un
+  objeto literal de prueba, mismo motivo — `TS2741`, campo requerido faltante). Las dos son
+  consecuencia DIRECTA del campo que `site-content-defaults.ts` (SÍ en `touches:`) agrega; sin
+  tocarlas el gate queda ROJO (`tsc`/`npm test` fallan) — medido, no supuesto: se corrió el gate
+  completo CON y SIN el fix para confirmar que el fallo era exactamente ése y nada más. Ninguna
+  cambia el CRITERIO que su test afirma, sólo el conteo de campos.
+- **El pin `otroTamanoSlug` cambia de EFECTO** (de "vista de sólo-vistazo + enlace a otra página"
+  a "switch completo del producto activo") sin cambiar de NOMBRE ni de TIPO — es la lectura más
+  literal de "migrá `otroTamanoSlug` sin perder lo guardado": cero filas tocadas, cero migración
+  de datos, el slug ya guardado por cualquier tenant sigue significando lo mismo (el otro
+  tamaño), sólo con mejor comportamiento.
+
+### Open follow-ups
+
+- **`VARIANTES-SPOTLIGHT-MATRIZ-1`** — los dos alternos (Presentación/Tamaño) son independientes,
+  no una matriz 2×2; combinar ambos ejes a la vez dentro de un mismo clic deja al grupo no-tocado
+  sin chip resaltado (§1, "límite conocido"). No es un bug — es el borde explícito de un diseño de
+  dos pines por eje —, pero si un tenant real lo reporta como confuso, la salida es el proyecto de
+  variantes completo (Backlog #62, CLAUDE.md), no un parche de este slice.
+- **`ETIQUETAS-SPOTLIGHT-EDITABLES-1`** — si el owner pide poder escribir/editar notas de cata
+  desde el editor de Spotlight (en vez de sólo leerlas), es una decisión de producto que abre una
+  segunda puerta de escritura al mismo campo que "Productos" ya edita — medida y NO tomada en este
+  slice (§1, "Etiquetas").
+- **`PDP-CANTIDAD-VISTA-RAPIDA-1`** — el selector de cantidad de `VistaRapidaProducto.tsx` (el
+  modal del "ojo" del riel) tiene el MISMO patrón de altura fija (`h-9` sin padding vertical) que
+  la ficha tenía antes de este slice; el spec de este slice pidió "sólo CORTE... la ficha", no la
+  vista rápida, así que no se tocó. Costo si se pide: idéntico al de §2 — reusar
+  `clasesBotonesCompra(...).cantidad/.cantidadBoton`, ya construidas.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió o creó: `Spotlight.tsx`, `SpotlightContent.presentacionSlug`,
+`productoActivoSpotlight`, `etiquetaVarianteSpotlight` (`lib/config/spotlight.ts`, nuevo),
+`TiendaSeccionEditor.tsx`, `ProductoCombobox`, `cargarCatalogoReal`, `tienda-secciones.ts`,
+`CampoTexto.producto`, `spotlightEditableSchema`, `pdp-botones.ts`, `clasesBotonesCompra`,
+`claseBotonFavoritos`, `VistaRapidaProducto.tsx`, `GaleriaProducto` (reuso),
+`app/(storefront)/tienda/[slug]/page.tsx`. Grepeados uno por uno contra `CLAUDE.md`: **CERO
+coincidencias** en `Spotlight`, `SpotlightContent`, `presentacionSlug`, `otroTamanoSlug` (como
+campo — 0 hits), `productoActivoSpotlight`, `etiquetaVarianteSpotlight`, `ProductoCombobox`,
+`cargarCatalogoReal`, `pdp-botones`, `clasesBotonesCompra`, `claseBotonFavoritos`,
+`VistaRapidaProducto`, `GaleriaProducto`, `vista-rapida` — toda esta rama de prototipo-CORTE sigue
+siendo trabajo que `CLAUDE.md` no absorbió (consistente con los cinco slices previos de esta
+rama). `TiendaSeccionEditor` da 6 coincidencias y `tienda-secciones` 1 — las siete describen el
+mecanismo GENÉRICO de bloques/autoguardado/uploader/`categoria: true` que este diff no altera
+(sólo AGREGA una rama `producto: true` nueva, paralela); ninguna se vuelve falsa.
+`moliendasOpciones` da 4 y `notasCata` 2 — las seis describen el modal de edición de producto
+(`ProductFormModal`) y el PATCH parcial, superficies que este diff no toca (Spotlight sólo LEE
+esos campos); ninguna se vuelve falsa.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante con CORTE ve
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"LA APROBACIÓN AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE"* / *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA
+(gate del 2026-09-30, citado arriba) — el MERGE sigue gateado aparte.
+
+Cierra `DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1`.
+
 ## 2026-09-30 — El origen: fotos más alargadas, revelado escalonado y el BUG del conteo que nunca contó (`ORIGEN-FOTOS-REVELADO-Y-CONTEO-1`)
 
 Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el

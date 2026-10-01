@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { ShoppingBag, ArrowLeft, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +16,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
+import { etiquetaVarianteSpotlight, productoActivoSpotlight } from "@/lib/config/spotlight";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 
@@ -52,58 +52,65 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
 
   const { addItem } = useCartStore();
   const producto = productoSpotlight(catalog, spotlight.productoSlug);
+  // LOS DOS ALTERNOS (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) — INDEPENDIENTES entre sí, cada
+  // uno un SEGUNDO producto que REEMPLAZA entero al principal al elegirlo (no una vista de
+  // sólo-vistazo, a diferencia de `otroTamano` ANTES de este slice): `presentacionAlt` es la OTRA
+  // presentación (molido/grano como productos distintos, § SpotlightContent.presentacionSlug);
+  // `tamanoAlt` es el OTRO tamaño, el MISMO campo/resolver de siempre (`productoOtraTalla`), sólo con
+  // efecto nuevo en la tienda. Ninguno cae a ningún fallback — vacío o sin match es "no hay otro que
+  // ofrecer" (mismo criterio que ya documenta `productoOtraTalla`).
+  const presentacionAlt = productoOtraTalla(catalog, spotlight.presentacionSlug);
+  const tamanoAlt = productoOtraTalla(catalog, spotlight.otroTamanoSlug);
 
-  // Molienda elegida — por defecto la primera opción DISPONIBLE del producto pineado. Mismo
-  // mecanismo que el detalle de producto (§ app/(storefront)/tienda/[slug]/page.tsx): se fija una
-  // sola vez, cuando el producto llega.
+  // EL PRODUCTO ACTIVO DEL ESCENARIO — el principal, salvo que el visitante haya elegido un alterno
+  // (§ productoActivoSpotlight, lib/config/spotlight.ts). Declarado con `producto` que puede ser
+  // `null` todavía (el catálogo no cargó): `productoActivoSpotlight` exige un `T`, así que se calcula
+  // con un principal "vacío" seguro y se descarta tras el early-return — los HOOKS de abajo leen
+  // `productoActivo?.slug`, nunca `productoActivo` a secas antes del return.
+  const [activoSlug, setActivoSlug] = useState<string | null>(null);
+  const productoActivo = producto
+    ? productoActivoSpotlight(producto, [presentacionAlt, tamanoAlt], activoSlug)
+    : null;
+
+  // Molienda elegida — por defecto la primera opción DISPONIBLE del producto ACTIVO. Se refija cada
+  // vez que el producto activo cambia (el principal al montar, o un alterno al elegirlo): la
+  // molienda del producto VIEJO no tiene por qué existir en el nuevo.
   const [molienda, setMolienda] = useState<string | null>(null);
   useEffect(() => {
-    if (producto && molienda === null) {
-      setMolienda(moliendasDisponibles(producto.moliendasOpciones)[0]?.nombre ?? null);
+    if (productoActivo) {
+      setMolienda(moliendasDisponibles(productoActivo.moliendasOpciones)[0]?.nombre ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [producto]);
+  }, [productoActivo?.slug]);
 
   // EL ESCENARIO (`.bag-card`/`.stage-nav` del prototipo, index.html:169-178) — el índice de la
-  // "vista" que las flechas recorren. Declarado ANTES de los early-return de abajo: los hooks se
-  // llaman siempre, incondicionalmente (regla de React), aunque `vistas` (que sí depende de
-  // `producto`) se construya después.
+  // "vista" que las flechas recorren, SÓLO entre las moliendas del producto ACTIVO (ya no incluye la
+  // "otra talla": esa ahora es el grupo Tamaño, con switch COMPLETO de producto, no una vista de
+  // sólo-vistazo dentro del escenario, § arriba). Declarados ANTES de los early-return de abajo: los
+  // hooks se llaman siempre, incondicionalmente (regla de React).
   const [vistaIndex, setVistaIndex] = useState(0);
+  useEffect(() => { setVistaIndex(0); }, [productoActivo?.slug]);
 
   if (!seccionEsVisible(REGISTRY.spotlight, spotlight)) return null;
-  if (!producto) return null; // catálogo vacío (§ productoSpotlight — hide-on-empty)
+  if (!producto || !productoActivo) return null; // catálogo vacío (§ productoSpotlight — hide-on-empty)
 
-  const otroTamano = productoOtraTalla(catalog, spotlight.otroTamanoSlug);
+  const activo = productoActivo;
 
-  // LAS VISTAS DEL ESCENARIO — primero cada molienda DISPONIBLE del producto pineado (imagen propia
-  // si la declaró, § imagenDeMolienda; producto SIN moliendas → una sola vista con su portada), y al
-  // final —si existe— la OTRA TALLA como una vista MÁS de sólo-vistazo (§ Backlog #62: el tamaño
-  // sigue siendo un ENLACE a otro producto, nunca una variante agrupada con su propio precio en este
-  // panel — recorrerla actualiza el escenario, JAMÁS `molienda` ni el precio/CTA de abajo, que
-  // siguen comprometidos con el producto pineado; el control "Tamaño" de más abajo es el único
-  // camino real a esa otra talla). Con una sola vista, las flechas no se muestran.
-  const opcionesMolienda = moliendasDisponibles(producto.moliendasOpciones);
-  const vistasMolienda = opcionesMolienda.length > 0
+  // LAS VISTAS DEL ESCENARIO — cada molienda DISPONIBLE del producto ACTIVO (imagen propia si la
+  // declaró, § imagenDeMolienda; producto SIN moliendas → una sola vista con su portada). Con una
+  // sola vista, las flechas no se muestran.
+  const opcionesMolienda = moliendasDisponibles(activo.moliendasOpciones);
+  const vistas = opcionesMolienda.length > 0
     ? opcionesMolienda.map((o) => ({
         key: o.nombre,
-        imagen: imagenPortada(imagenDeMolienda(producto.moliendasOpciones, o.nombre, producto.imagen ?? '')),
-        etiqueta: producto.peso_gramos != null ? `${o.nombre} · ${producto.peso_gramos} g` : o.nombre,
-        esOtraTalla: false,
+        imagen: imagenPortada(imagenDeMolienda(activo.moliendasOpciones, o.nombre, activo.imagen ?? '')),
+        etiqueta: activo.peso_gramos != null ? `${o.nombre} · ${activo.peso_gramos} g` : o.nombre,
       }))
     : [{
         key: '__base__',
-        imagen: imagenPortada(producto.imagen ?? ''),
-        etiqueta: producto.peso_gramos != null ? `${producto.peso_gramos} g` : '',
-        esOtraTalla: false,
+        imagen: imagenPortada(activo.imagen ?? ''),
+        etiqueta: activo.peso_gramos != null ? `${activo.peso_gramos} g` : '',
       }];
-  const vistas = otroTamano
-    ? [...vistasMolienda, {
-        key: '__otra_talla__',
-        imagen: imagenPortada(otroTamano.imagen ?? ''),
-        etiqueta: otroTamano.peso_gramos != null ? `${otroTamano.peso_gramos} g` : otroTamano.nombre,
-        esOtraTalla: true,
-      }]
-    : vistasMolienda;
 
   const indiceActual = Math.min(vistaIndex, vistas.length - 1);
   const vistaActual = vistas[indiceActual];
@@ -111,8 +118,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
   const irAVista = (direccion: 1 | -1) => {
     const siguiente = (indiceActual + direccion + vistas.length) % vistas.length;
     setVistaIndex(siguiente);
-    const frame = vistas[siguiente];
-    if (!frame.esOtraTalla) setMolienda(frame.key);
+    setMolienda(vistas[siguiente].key);
   };
 
   const elegirMolienda = (nombre: string) => {
@@ -121,15 +127,21 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
     if (idx >= 0) setVistaIndex(idx);
   };
 
+  // ELEGIR UN ALTERNO (Presentación/Tamaño) — switch COMPLETO: foto, precio, "Agregar al carrito" y
+  // molienda pasan a ser los del producto elegido. `null` vuelve al principal.
+  const elegirVariante = (slug: string | null) => {
+    setActivoSlug(slug === producto.slug ? null : slug);
+  };
+
   const handleAdd = () => {
     // Se comprueba con `moliendaAceptada`, LA MISMA función que decide en el servidor — igual que
     // el detalle de producto: la UI y el checkout no pueden discrepar sobre qué molienda es válida.
-    if (!moliendaAceptada(producto.moliendasOpciones, molienda)) {
+    if (!moliendaAceptada(activo.moliendasOpciones, molienda)) {
       toast.error("Selecciona una molienda disponible");
       return;
     }
-    addItem(producto, 1, { ...(molienda ? { molienda } : {}) });
-    toast.success(`${producto.nombre} agregado al carrito`);
+    addItem(activo, 1, { ...(molienda ? { molienda } : {}) });
+    toast.success(`${activo.nombre} agregado al carrito`);
   };
 
   // SIN ENCABEZADO, LA GRILLA NO PUEDE SEGUIR SIENDO DE TRES COLUMNAS (§ PARIDAD-CAFE-Y-ORIGEN-1,
@@ -230,12 +242,12 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                   style={navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
                 >{spotlight.badge}</span>
               )}
-              {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1, extendido acá a la OTRA TALLA):
-                  `vistaActual` es la molienda elegida, o —al llegar al final del ciclo, si existe—
-                  la otra talla en modo sólo-vistazo (§ el comentario de `vistas`, arriba). */}
+              {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1): `vistaActual` es la molienda
+                  elegida del producto ACTIVO — Presentación/Tamaño ya no viven acá (switch
+                  COMPLETO de producto, § el comentario de `vistas`, arriba). */}
               <Image
                 src={vistaActual.imagen}
-                alt={vistaActual.esOtraTalla ? (otroTamano?.nombre ?? producto.nombre) : producto.nombre}
+                alt={activo.nombre}
                 fill
                 sizes="(max-width: 1200px) 100vw, 33vw"
                 className="object-cover"
@@ -254,7 +266,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 <button
                   type="button"
                   onClick={() => irAVista(-1)}
-                  aria-label="Presentación anterior"
+                  aria-label="Foto anterior"
                   className="w-11 h-11 sf-pildora sf-borde border-[var(--sf-linea)] flex items-center justify-center text-[var(--sf-tinta)] hover:bg-[var(--sf-superficie)] transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-[18px] h-[18px]" />
@@ -262,7 +274,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 <button
                   type="button"
                   onClick={() => irAVista(1)}
-                  aria-label="Presentación siguiente"
+                  aria-label="Foto siguiente"
                   className="w-11 h-11 sf-pildora sf-borde border-[var(--sf-linea)] flex items-center justify-center text-[var(--sf-tinta)] hover:bg-[var(--sf-superficie)] transition-colors cursor-pointer"
                 >
                   <ArrowRight className="w-[18px] h-[18px]" />
@@ -274,30 +286,62 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
           {/* `.spotlight-buy` (css/app.css:180-224 del markup, roles en 95-116,470-503) */}
           <div className="space-y-6">
             {/* `.h3` (tokens.css:104,116,121): 26px, line-height 1.14, weight regular(400) — no bold. */}
-            <h3 className="text-[26px] leading-[1.14] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{producto.nombre}</h3>
+            <h3 className="text-[26px] leading-[1.14] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{activo.nombre}</h3>
             {/* `.muted` sobre el párrafo (index.html:182): color `text-muted`, tamaño heredado del
                 body (`--text-body-m`=16px, `--leading-body`=1.5). */}
-            <p className="text-base leading-[1.5] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{producto.descripcion}</p>
+            <p className="text-base leading-[1.5] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{activo.descripcion}</p>
 
             {/* `.notes`/`.note-chip` (css/app.css:470-474, tokens.css:112,128,164): SIN encabezado
                 propio (el prototipo no lleva un label "Notas de cata" sobre `.notes`, index.html:
-                184-188) — chips sin relleno, sólo borde, 13px, color muted. */}
-            {(producto.notasCata?.length ?? 0) > 0 && (
+                184-188) — chips sin relleno, sólo borde, 13px, color muted. Las "etiquetas" del
+                panel (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) son ESTE mismo dato —
+                `activo.notasCata`, del producto, nunca un texto separado que pudiera divergir. */}
+            {(activo.notasCata?.length ?? 0) > 0 && (
               <div className="flex flex-wrap gap-2">
-                {producto.notasCata!.map((n) => (
+                {activo.notasCata!.map((n) => (
                   <span key={n} className="text-[13px] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))] px-3 py-1.5 sf-pildora sf-borde border-[var(--sf-linea)]">{n}</span>
                 ))}
               </div>
             )}
 
-            {/* `.variant`/`.opts`/`.opt` — "Presentación" (index.html:189-194, css/app.css:476-490):
-                el `.opt` PULSADO se pinta LLENO de acento (`aria-pressed=true` → `background:
-                action-primary`), no un 5% de tinte — la divergencia #1 de este slice. */}
-            {(producto.moliendasOpciones?.length ?? 0) > 0 && (
+            {/* "Presentación" (index.html:189-194, css/app.css:476-490) — DOS mecanismos, nunca los
+                dos a la vez: con `presentacionAlt` configurado, el grupo switchea el PRODUCTO
+                ACTIVO entero (foto/precio/CTA/molienda, § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1,
+                el tenant que modela molido/grano como productos distintos); SIN alterno, cae al
+                mecanismo de SIEMPRE —las moliendas propias del producto activo— sin romper el caso
+                de un producto con varias moliendas (Nayoli). El `.opt` PULSADO se pinta LLENO de
+                acento (`aria-pressed=true`), no un 5% de tinte — la divergencia #1 de este slice. */}
+            {presentacionAlt ? (
               <div>
                 <span className="block mb-3 text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">Presentación</span>
                 <div className="flex flex-wrap gap-2">
-                  {producto.moliendasOpciones!.map((o) => {
+                  {[producto, presentacionAlt].map((p) => {
+                    const selected = activo.slug === p.slug;
+                    return (
+                      <button
+                        key={p.slug}
+                        type="button"
+                        onClick={() => elegirVariante(p.slug)}
+                        aria-pressed={selected}
+                        className={`px-[22px] py-[13px] sf-pildora sf-borde text-left transition-colors cursor-pointer ${
+                          selected
+                            ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]'
+                            : 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)]'
+                        }`}
+                      >
+                        <span className={`block text-sm font-medium ${selected ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-sobre-banda,var(--sf-tinta))]'}`}>
+                          {etiquetaVarianteSpotlight(p)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (activo.moliendasOpciones?.length ?? 0) > 0 && (
+              <div>
+                <span className="block mb-3 text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">Presentación</span>
+                <div className="flex flex-wrap gap-2">
+                  {activo.moliendasOpciones!.map((o) => {
                     const selected = molienda === o.nombre;
                     return (
                       <button
@@ -324,33 +368,44 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               </div>
             )}
 
-            {/* Tamaño como ENLACE a la otra talla (otro producto, otro slug) — NO una variante
-                agrupada (§ Backlog #62, que este slice no dispara). Sin `otroTamanoSlug` el
-                control simplemente no aparece (preferir callar a un link roto). Mismo tratamiento
-                de `.opt` que "Presentación" — la talla activa PINEADA se pinta llena de acento. */}
-            {otroTamano && (
+            {/* "Tamaño" (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) — switch COMPLETO de producto,
+                YA NO un enlace a la página de la otra talla (§ Backlog #62, que este slice sigue
+                sin disparar: sólo DOS productos por eje, nunca una matriz completa). Sin
+                `otroTamanoSlug` el control simplemente no aparece (preferir callar a un link roto).
+                Mismo tratamiento de `.opt` que "Presentación". */}
+            {tamanoAlt && (
               <div>
                 <span className="block mb-3 text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">Tamaño</span>
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-[22px] py-[13px] sf-pildora sf-borde border-[var(--sf-acento)] bg-[var(--sf-acento)] text-sm font-medium text-[var(--sf-acento-txt)]">
-                    {producto.peso_gramos != null ? `${producto.peso_gramos} g` : producto.nombre}
-                  </span>
-                  <Link
-                    href={`/tienda/${otroTamano.slug}`}
-                    className="px-[22px] py-[13px] sf-pildora sf-borde border-[var(--sf-linea)] hover:border-[var(--sf-acento)] text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-colors"
-                  >
-                    {otroTamano.peso_gramos != null ? `${otroTamano.peso_gramos} g` : otroTamano.nombre}
-                  </Link>
+                  {[producto, tamanoAlt].map((p) => {
+                    const selected = activo.slug === p.slug;
+                    return (
+                      <button
+                        key={p.slug}
+                        type="button"
+                        onClick={() => elegirVariante(p.slug)}
+                        aria-pressed={selected}
+                        className={`px-[22px] py-[13px] sf-pildora sf-borde text-left transition-colors cursor-pointer ${
+                          selected
+                            ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]'
+                            : 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)]'
+                        }`}
+                      >
+                        <span className={`block text-sm font-medium ${selected ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-sobre-banda,var(--sf-tinta))]'}`}>
+                          {etiquetaVarianteSpotlight(p)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {/* `.price-row` (css/app.css:491-503, tokens.css:103,111): precio en 32px (`--text-h2`),
                 serif, peso regular (no bold); la nota "COP · impuestos incluidos" es COPY —
-                `spotlight.notaPrecio`, opcional; vacío = no se muestra (§ el campo nuevo de este
-                slice, `SpotlightContent.notaPrecio`). */}
+                `spotlight.notaPrecio`, opcional; vacío = no se muestra. */}
             <div className="flex items-baseline gap-3">
-              <span className="text-[32px] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{formatCOP(producto.precio)}</span>
+              <span className="text-[32px] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{formatCOP(activo.precio)}</span>
               {spotlight.notaPrecio && (
                 <span className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{spotlight.notaPrecio}</span>
               )}

@@ -254,6 +254,10 @@ function contenidoSpotlightLleno(clave: string | null): SiteContentData {
       titulo: 'Un café que cuenta su origen',
       badge: 'Edición limitada',
       productoSlug: 'cafe-narino-1kg',
+      // § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1 (fuera de `touches:`, deviación mecánica): el
+      // tercer puntero se sumó a `SpotlightContent` y este objeto literal lo necesita para seguir
+      // compilando — no cambia lo que el test afirma (sigue siendo "spotlight lleno").
+      presentacionSlug: 'cafe-narino-1kg-molido',
       otroTamanoSlug: 'cafe-narino-250g',
       notaPrecio: 'COP · impuestos incluidos',
     },

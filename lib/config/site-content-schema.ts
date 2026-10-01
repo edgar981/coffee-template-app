@@ -172,6 +172,9 @@ const spotlightEditableSchema = z.object({
   titulo: z.string().optional(),
   badge: z.string().optional(),
   productoSlug: z.string().optional(),
+  // El tercer puntero (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, SpotlightContent.presentacionSlug):
+  // mismo criterio que los otros dos — valida contra el catálogo VIVO en lectura, no al guardar.
+  presentacionSlug: z.string().optional(),
   otroTamanoSlug: z.string().optional(),
   // La nota junto al precio (§ NUESTRO-CAFE-COMO-MUESTRARIO-1, `SpotlightContent.notaPrecio`):
   // COPY libre, opcional/SOFT como el resto — el resolver la omite vacía.

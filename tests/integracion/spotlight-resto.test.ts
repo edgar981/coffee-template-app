@@ -65,3 +65,20 @@ test('texto vacío: eyebrow/titulo/badge en blanco publican spotlight byte-idén
     'sin texto, spotlight publicado debe ser byte-idéntico al default (visible sigue en false)',
   );
 });
+
+// § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1 — el TERCER puntero (`presentacionSlug`), gemelo de
+// `otroTamanoSlug`, por el MISMO viaje de punta a punta (parsear con el schema real → guardar
+// borrador → publicar → releer).
+test('presentacionSlug (el tercer pin, "otra presentación") sobrevive borrador→publicar→releer, igual que productoSlug/otroTamanoSlug', async () => {
+  await guardarComoElRoute({
+    productoSlug: 'cafe-la-ceiba-grano-500',
+    presentacionSlug: 'cafe-la-ceiba-molido-500',
+    otroTamanoSlug: 'cafe-la-ceiba-grano-250',
+  });
+  await publicarSeccion('spotlight');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.spotlight.productoSlug, 'cafe-la-ceiba-grano-500');
+  assert.equal(publicado.spotlight.presentacionSlug, 'cafe-la-ceiba-molido-500');
+  assert.equal(publicado.spotlight.otroTamanoSlug, 'cafe-la-ceiba-grano-250');
+});

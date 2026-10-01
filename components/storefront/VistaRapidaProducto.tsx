@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import { ChevronLeft, ChevronRight, Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import type { Product } from "@/types/product";
 import { useCartStore } from "@/lib/cartStore";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { esClickAfuera } from "@/lib/cierre-afuera";
-import { imagenPortada } from "@/lib/producto-imagen";
-import { heroDeGaleria, entradaHeroInicial } from "@/lib/storefront/pdp-galeria";
 import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
+import GaleriaProducto from "@/components/storefront/pdp/GaleriaProducto";
 import {
   galeriaVistaRapida,
   moliendaInicialVistaRapida,
@@ -67,6 +65,19 @@ import { formatCOP } from "@duna/core/utils";
 // producto y el disparador por prop, nada de `useSiteContent()` fuera de lo que ya necesita
 // (`tema.origenAccion`, compartido con la ficha).
 //
+// LA GALERÍA ES LA MISMA QUE LA FICHA (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, cierra
+// `VISTA-RAPIDA-MISMO-BORDE-1` y `GALERIA-VISTA-RAPIDA-SIN-FLECHAS-1`): este modal montaba su PROPIA
+// foto (`object-contain p-6`, dejando ver el fondo de estudio de la imagen como un borde — el MISMO
+// defecto que `FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1` ya cerró en `Spotlight.tsx`/`TarjetaRiel`) y
+// un PAR de flechas manuales, sin teclado ni swipe. En vez de duplicar esa lógica una tercera vez, se
+// monta `GaleriaProducto` (`components/storefront/pdp/GaleriaProducto.tsx`) TAL CUAL — las mismas
+// flechas/teclado/deslizar/miniaturas que `/tienda/[slug]`, sin una segunda implementación. Se le da
+// `key={productoMostrado.slug}` para que REMONTE (y resetee su índice) cada vez que el producto
+// mostrado cambia — el mismo efecto que antes lograba el `useEffect` de abajo con `setImgIdx(0)`,
+// necesario porque el modal puede pasar DIRECTO de un producto a otro sin que `abierto` pase por
+// `false` (dos "ojos" distintos clickeados mientras el modal ya estaba abierto).
+
+//
 // CURSOR: pointer explícito en cerrar/flechas de galería/cantidad (§ RIEL-SUBRAYADO-CURSOR-
 // NITIDEZ-1) — MEDIDO, no supuesto: Tailwind v4 no agrega `cursor:pointer` a `<button>` (a
 // diferencia de Tailwind v3, que sí lo hacía en Preflight), y el UA no lo pone solo, así que sin la
@@ -78,8 +89,9 @@ import { formatCOP } from "@duna/core/utils";
 // tocan.
 //
 // EL MODAL ENTERO ABRÍA/CERRABA DE GOLPE — § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1 (censo de
-// transiciones, 2026-09-30). El `<motion.div key={imgIdx}>` de la galería (abajo) SÍ crossfadea al
-// cambiar de foto, pero el CONTENEDOR del modal (velo + panel) era un `<div>` plano: con
+// transiciones, 2026-09-30). El `<motion.div key={imgIdx}>` de la galería (entonces propia de este
+// archivo; hoy vive DENTRO de `GaleriaProducto`, § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) SÍ
+// crossfadeaba al cambiar de foto, pero el CONTENEDOR del modal (velo + panel) era un `<div>` plano: con
 // `if (!producto) return null` como única puerta, React lo desmonta/monta en el MISMO tick que
 // cambia `producto` — sin `AnimatePresence` de por medio no hay exit que animar, así que aparecía y
 // desaparecía en un frame. Es la MISMA familia de defecto que el drawer móvil de `StoreNav.tsx`
@@ -117,8 +129,6 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
 
   const abierto = producto !== null;
 
-  const [imgIdx, setImgIdx] = useState(0);
-  const [galeriaTocada, setGaleriaTocada] = useState(false);
   const [cantidad, setCantidad] = useState(1);
   const [molienda, setMolienda] = useState<string | null>(null);
   // El SNAPSHOT del último producto no-nulo (§ el docstring de cabecera) — sobrevive el tic en que
@@ -137,11 +147,11 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
   }
 
   // Reinicia el estado interno CADA VEZ que se abre un producto — el mismo producto reabierto (o
-  // otro distinto) no debe heredar la cantidad/molienda/foto que había dejado el anterior.
+  // otro distinto) no debe heredar la cantidad/molienda que había dejado el anterior. La FOTO ya no
+  // vive acá: `GaleriaProducto` se remonta sola por su `key={productoMostrado.slug}` (§ el docstring
+  // de cabecera).
   useEffect(() => {
     if (!producto) return;
-    setImgIdx(0);
-    setGaleriaTocada(false);
     setCantidad(1);
     setMolienda(moliendaInicialVistaRapida(producto.moliendasOpciones));
   }, [producto]);
@@ -207,14 +217,8 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
   if (!productoMostrado) return null;
 
   const galeria = galeriaVistaRapida(productoMostrado);
-  const heroSrc = imagenPortada(heroDeGaleria(galeria, imgIdx));
   const maxCompra = productoMostrado.maxCompra ?? 1;
   const accion = accionVistaRapida(productoMostrado.moliendasOpciones, molienda);
-
-  function cambiarFoto(direccion: 1 | -1) {
-    setGaleriaTocada(true);
-    setImgIdx((i) => (i + direccion + galeria.length) % galeria.length);
-  }
 
   function confirmar() {
     if (!accion.puede) {
@@ -262,46 +266,11 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
           <X className="h-5 w-5" />
         </button>
 
-        {/* Galería — hero en `contain` (nunca cropea el empaque) + flechas, sólo con más de una
-            foto. Mismo criterio de entrada inicial que /tienda/[slug] (§ pdp-galeria.ts): la
-            PRIMERA foto no depende de que una animación de JS complete para verse. */}
-        <motion.div
-          key={imgIdx}
-          initial={entradaHeroInicial(galeriaTocada)}
-          animate={{ opacity: 1 }}
-          className="relative aspect-square overflow-hidden rounded-2xl bg-[var(--sf-superficie)]"
-        >
-          {heroSrc && (
-            <Image
-              src={heroSrc}
-              alt={productoMostrado.nombre}
-              fill
-              sizes="(max-width: 640px) 90vw, 420px"
-              quality={90}
-              className="object-contain p-6"
-            />
-          )}
-          {galeria.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={() => cambiarFoto(-1)}
-                aria-label="Foto anterior"
-                className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)]/90 text-[var(--sf-tinta)] shadow transition-colors hover:bg-[var(--sf-tarjeta)]"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => cambiarFoto(1)}
-                aria-label="Foto siguiente"
-                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--sf-tarjeta)]/90 text-[var(--sf-tinta)] shadow transition-colors hover:bg-[var(--sf-tarjeta)]"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </>
-          )}
-        </motion.div>
+        {/* Galería — la MISMA que la ficha (§ el docstring de cabecera): llena su marco
+            (`object-cover`, sin el relleno que dejaba ver el fondo de estudio como un borde) y
+            comparte flechas/teclado/deslizar vía `GaleriaProducto`, sin una segunda
+            implementación. `key` por slug: remonta (y resetea su índice) con cada producto. */}
+        <GaleriaProducto key={productoMostrado.slug} galeria={galeria} nombre={productoMostrado.nombre} />
 
         {/* Info */}
         <div className="flex flex-col gap-4">

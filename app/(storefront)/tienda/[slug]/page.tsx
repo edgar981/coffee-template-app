@@ -32,7 +32,7 @@ import { TOSTION_LABELS } from "@/constants/roast-levels";
 import Chip from "@/components/storefront/ProductChip";
 import { galeriaCompleta } from "@duna/core/product-gallery";
 import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria";
-import { clasesBotonesCompra } from "@/lib/storefront/pdp-botones";
+import { clasesBotonesCompra, claseBotonFavoritos } from "@/lib/storefront/pdp-botones";
 import GaleriaProducto from "@/components/storefront/pdp/GaleriaProducto";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { contenedorAnchoClase, navOffsetClase } from "@/lib/config/themes";
@@ -60,7 +60,9 @@ export default function ProductPage({
   // § PARIDAD-PDP-BOTONES-1 (`lib/storefront/pdp-botones.ts`): la jerarquía/color de los dos botones
   // de compra sigue al eje EXISTENTE `tema.origenAccion`, no un campo nuevo de SiteContent.
   const { tema, navTratamiento } = useSiteContent();
-  const { primario: claseBotonComprar, secundario: claseBotonAgregar } = clasesBotonesCompra(tema.origenAccion);
+  // § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1: cantidad/favoritos se suman a la misma función, con
+  // el mismo gate `tema.origenAccion` — Nayoli y el resto quedan byte a byte en lo de siempre.
+  const { primario: claseBotonComprar, secundario: claseBotonAgregar, cantidad: claseCantidad, cantidadBoton: claseCantidadBoton } = clasesBotonesCompra(tema.origenAccion);
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
@@ -366,8 +368,8 @@ export default function ProductPage({
                           migrado al par `var(--sf-sobre-superficie,<token de hoy>)`. El span de la
                           cantidad (fallback `--sf-tinta`, no `--sf-texto`) migró en PALETA-MIGRAR-
                           ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
-                      <div className="flex items-center gap-2 bg-[var(--sf-superficie)] rounded-xl px-1">
-                        <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
+                      <div className={claseCantidad}>
+                        <button onClick={() => setQty(Math.max(1, qty - 1))} className={claseCantidadBoton}><Minus className="w-4 h-4" /></button>
                         <span className="w-8 text-center font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">{qty}</span>
                         <button
                           onClick={() =>
@@ -380,7 +382,7 @@ export default function ProductPage({
                               return q + 1;
                             })
                           }
-                          className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer"
+                          className={claseCantidadBoton}
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -390,7 +392,7 @@ export default function ProductPage({
                       <button onClick={handleAdd} className={claseBotonAgregar}>
                         <ShoppingBag className="w-4 h-4" /> Agregar al carrito
                       </button>
-                      <button onClick={() => setWishlisted(!wishlisted)} className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${wishlisted ? 'border-red-400 bg-red-50 text-red-500' : 'border-[var(--sf-linea)] text-[var(--sf-tostado-3)] hover:border-red-300'}`}>
+                      <button onClick={() => setWishlisted(!wishlisted)} className={claseBotonFavoritos(tema.origenAccion, wishlisted)}>
                         <Heart className={`w-5 h-5 ${wishlisted ? 'fill-red-400' : ''}`} />
                       </button>
                     </div>

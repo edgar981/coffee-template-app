@@ -453,12 +453,26 @@ export interface PresentacionesContent {
 // `SuscripcionPlanesContent` — el dueño escribe la frase que aplique a su negocio. OPCIONAL, vacío
 // = no se muestra (§ la frontera fina de defaults-como-fallback, CLAUDE.md): un campo opcional
 // vacío se OMITE, nunca cae a un default de copy.
+//
+// `presentacionSlug` (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) — un TERCER puntero, GEMELO de
+// `otroTamanoSlug` en forma y en regla ("sin match, sin fallback" — § `productoOtraTalla`, el
+// mismo resolver que ya usa `otroTamanoSlug`, reusado acá tal cual): la OTRA presentación del
+// mismo café (p. ej. "Molido" cuando el producto pineado es "En grano"), para el tenant que modela
+// cada combinación presentación×tamaño como un PRODUCTO DISTINTO (medido contra el catálogo real:
+// `prisma/seed-products.ts` tiene CUATRO productos — grano/molido × 250g/500g —, no un producto
+// con `moliendasOpciones` cubriendo las dos presentaciones). Vacío = la Presentación de la banda se
+// arma SÓLO con `producto.moliendasOpciones` (el mecanismo de SIEMPRE, sin romper el caso de un
+// producto con varias moliendas propias — § Spotlight.tsx). `otroTamanoSlug` NO se renombra ni se
+// migra de verdad: sigue siendo el MISMO campo, mismo nombre, mismo significado de puntero — sólo
+// cambia su UI (picker, no texto libre) y su efecto en la tienda (switch COMPLETO del producto
+// activo, no una vista de sólo-vistazo), ninguno de los dos exige tocar el dato ya guardado.
 export interface SpotlightContent {
   visible: boolean;
   eyebrow: string;
   titulo: string;
   badge: string;
   productoSlug: string;
+  presentacionSlug: string;
   otroTamanoSlug: string;
   notaPrecio: string;
 }
@@ -1662,6 +1676,7 @@ export const DEFAULTS: SiteContentData = {
     titulo: '',
     badge: '',
     productoSlug: '',
+    presentacionSlug: '',
     otroTamanoSlug: '',
     notaPrecio: '',
   },
@@ -2257,6 +2272,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       titulo: 'opcional',
       badge: 'opcional',
       productoSlug: 'opcional',
+      // El tercer puntero (§ SpotlightContent.presentacionSlug, arriba): opcional, vacío = la
+      // Presentación se arma sólo con las moliendas del producto pineado.
+      presentacionSlug: 'opcional',
       otroTamanoSlug: 'opcional',
       // La nota del precio (§ SpotlightContent.notaPrecio, arriba): opcional, vacía = no se muestra.
       notaPrecio: 'opcional',

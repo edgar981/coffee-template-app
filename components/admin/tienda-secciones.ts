@@ -88,7 +88,13 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // MARCADOR serializable (string, no función: el config es serializable). El select nativo es la regla del
 // panel para opciones fijas (§ Controles de formulario). `placeholder` → texto-guía del input (el ejemplo
 // de formato del precio). Excluyen `textarea`/`categoria`.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
+// `producto: true` (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) → el campo es un PIN al catálogo: la
+// cáscara lo renderiza con el ProductoCombobox (nombre + foto, elegido de la lista REAL — NUNCA un
+// slug tecleado a mano) y avisa si el valor ya no matchea ningún producto. MISMO criterio que
+// `categoria: true` (destino de catálogo, aviso de "ya no existe"), pero sobre PRODUCTOS en vez de
+// categorías — dos combobox DISTINTOS porque las dos listas (productos con foto, categorías de
+// texto) no comparten forma. Excluye `textarea`/`categoria`.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -623,11 +629,13 @@ const TESTIMONIOS: SeccionConfig = {
 // SIN `imagenes`: el contenido visual (la portada) se LEE del `Product` pineado en cada render —el
 // pin es puntero, no copia (§ el docstring de `SpotlightContent`)—, nunca se sube acá.
 //
-// Los dos campos del pin siguen siendo TEXTO LIBRE, no `categoria: true` — ese modificador es para
-// el combobox de categorías reales (§ CategoriaCombobox); un slug de producto valida contra el
-// catálogo VIVO en LECTURA (`productoSpotlight`/`productoOtraTalla`), nunca contra un set fijo al
-// guardar (§ `spotlightEditableSchema`, site-content-schema.ts) — un pin a un producto borrado
-// después de guardarse sigue siendo un valor válido del schema.
+// LOS TRES PINES SON PICKERS (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, `producto: true` — ya NO
+// texto libre): el gate del owner pidió explícito "elegir, no escribir" — el slug sigue siendo lo
+// que se GUARDA (`z.string()` en `spotlightEditableSchema`, valida contra el catálogo VIVO en
+// LECTURA, nunca contra un set fijo al guardar — un pin a un producto borrado después de guardarse
+// sigue siendo un valor válido del schema), sólo cambia CÓMO se escribe. `presentacionSlug` es el
+// TERCER pin (§ SpotlightContent.presentacionSlug): la otra presentación del mismo café, para el
+// tenant que la modela como un producto distinto.
 const SPOTLIGHT: SeccionConfig = {
   seccion: 'spotlight',
   pagina: 'home',
@@ -641,14 +649,17 @@ const SPOTLIGHT: SeccionConfig = {
   // site-content-defaults.ts): la nota junto al precio ("COP · impuestos incluidos" en el
   // prototipo). Va AL FINAL de `campos` — el orden del array es el orden visual (§ el comentario de
   // arriba), y esta nota se lee pegada al precio, que es lo último que la banda muestra antes del
-  // botón.
+  // botón. `placeholder` ENSEÑA el formato exacto del prototipo (mismo patrón que `precio1..4` de
+  // Suscripción, § CLAUDE.md) — el gate del owner lo pidió explícito ("el 'COP'"): sin el
+  // placeholder, el campo vacío no sugiere ningún formato y el dueño no sabe qué escribir ahí.
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
     { name: 'titulo', label: 'Titular', opcional: true, textarea: true, hint: 'El titular de la banda destacada. Un salto de línea acá se respeta en la tienda. Vacío: no se muestra.' },
     { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
-    { name: 'productoSlug', label: 'Producto destacado', opcional: true, hint: 'El slug del producto que se destaca en la banda; se importa por CSV y podés ajustarlo acá. Vacío: la banda no muestra nada.' },
-    { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, hint: 'El mismo café en otra presentación, si aplica — se muestra como un enlace a esa otra talla. Vacío: no se muestra.' },
-    { name: 'notaPrecio', label: 'Nota junto al precio', opcional: true, hint: 'Aclaración corta junto al precio, por ejemplo "COP · impuestos incluidos". Vacío: no se muestra.' },
+    { name: 'productoSlug', label: 'Producto destacado', opcional: true, producto: true, hint: 'El producto que se destaca en la banda, elegido del catálogo. Sus notas de cata, precio y foto se leen de ahí — nunca se copian acá. Vacío: la banda no muestra nada.' },
+    { name: 'presentacionSlug', label: 'Otra presentación (opcional)', opcional: true, producto: true, hint: 'El mismo café en otra presentación (por ejemplo Molido, si el destacado es En grano) — se ofrece como opción junto al destacado, con su propia foto y precio. Vacío: la Presentación de la banda se arma sólo con las moliendas que ya declara el producto destacado.' },
+    { name: 'otroTamanoSlug', label: 'Otro tamaño (opcional)', opcional: true, producto: true, hint: 'El mismo café en otro tamaño — se ofrece como opción junto al destacado, con su propia foto y precio. Vacío: no se muestra.' },
+    { name: 'notaPrecio', label: 'Nota junto al precio', opcional: true, placeholder: 'COP · impuestos incluidos', hint: 'Aclaración corta junto al precio, por ejemplo "COP · impuestos incluidos". Vacío: no se muestra.' },
   ],
 };
 

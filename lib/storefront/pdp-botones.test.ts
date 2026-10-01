@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { clasesBotonesCompra } from './pdp-botones';
+import { clasesBotonesCompra, claseBotonFavoritos } from './pdp-botones';
 
 // § PARIDAD-PDP-BOTONES-1 — el porqué completo (el mecanismo, por qué `origenAccion` y no `forma`,
 // por qué ningún campo nuevo de SiteContent) vive en el docstring de `pdp-botones.ts`. Lo PURO y por
@@ -67,4 +67,66 @@ test('clasesBotonesCompra("acento"): los dos toman el radio del TEMA (`sf-pildor
   assert.match(secundario, /\bsf-pildora\b/);
   assert.doesNotMatch(primario, /rounded-2xl/);
   assert.doesNotMatch(secundario, /rounded-2xl/);
+});
+
+// § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1 — cantidad/favoritos parejos en alto/borde/color con
+// "Agregar al carrito", sólo bajo CORTE; Nayoli byte-idéntica.
+
+test('clasesBotonesCompra(null/"tostado"): cantidad es BYTE-IDÉNTICA a lo que `page.tsx` tenía antes de este slice', () => {
+  const { cantidad, cantidadBoton } = clasesBotonesCompra(null);
+  assert.equal(cantidad, 'flex items-center gap-2 bg-[var(--sf-superficie)] rounded-xl px-1');
+  assert.equal(cantidadBoton, 'w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer');
+  assert.deepEqual(clasesBotonesCompra('tostado'), clasesBotonesCompra(null));
+});
+
+test('clasesBotonesCompra("acento"): CANTIDAD toma el MISMO padding vertical que "Agregar al carrito" (`py-[18px]`) — mismo padding + mismo alto de línea es lo que garantiza el mismo alto final', () => {
+  const { cantidad, secundario } = clasesBotonesCompra('acento');
+  assert.match(cantidad, /py-\[18px\]/);
+  assert.match(secundario, /py-\[18px\]/);
+});
+
+test('clasesBotonesCompra("acento"): CANTIDAD usa el MISMO borde/color que "Agregar al carrito" (`sf-borde border-[var(--sf-acento)]`) — el mismo token, no una aproximación', () => {
+  const { cantidad } = clasesBotonesCompra('acento');
+  assert.match(cantidad, /\bsf-borde\b/);
+  assert.match(cantidad, /border-\[var\(--sf-acento\)\]/);
+});
+
+test('clasesBotonesCompra("acento"): los botones −/+ NO llevan un alto propio (`h-9` ni ningún `h-`) — su línea la da el ícono, igual que el texto define la de "Agregar al carrito"', () => {
+  const { cantidadBoton } = clasesBotonesCompra('acento');
+  assert.doesNotMatch(cantidadBoton, /\bh-9\b/);
+  assert.doesNotMatch(cantidadBoton, /\bh-\[/);
+});
+
+test('claseBotonFavoritos(null/"tostado", …): BYTE-IDÉNTICO a lo que `page.tsx` tenía antes de este slice, en los dos estados', () => {
+  assert.equal(
+    claseBotonFavoritos(null, false),
+    'w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all border-[var(--sf-linea)] text-[var(--sf-tostado-3)] hover:border-red-300',
+  );
+  assert.equal(
+    claseBotonFavoritos(null, true),
+    'w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all border-red-400 bg-red-50 text-red-500',
+  );
+  assert.deepEqual(claseBotonFavoritos('tostado', false), claseBotonFavoritos(null, false));
+});
+
+test('claseBotonFavoritos("acento", …): SIN alto propio — `aspect-square` deriva el ancho del alto del flex row que comparte con "Agregar al carrito" ("el corazón, cuadrado del alto del botón")', () => {
+  const sinWishlist = claseBotonFavoritos('acento', false);
+  assert.match(sinWishlist, /\baspect-square\b/);
+  assert.doesNotMatch(sinWishlist, /\bh-12\b/);
+  assert.doesNotMatch(sinWishlist, /\bw-12\b/);
+});
+
+test('claseBotonFavoritos("acento", …): MISMO borde/token que "Agregar al carrito" en los DOS estados', () => {
+  const sinWishlist = claseBotonFavoritos('acento', false);
+  const conWishlist = claseBotonFavoritos('acento', true);
+  assert.match(sinWishlist, /\bsf-borde\b/);
+  assert.match(sinWishlist, /border-\[var\(--sf-acento\)\]/);
+  assert.match(conWishlist, /\bsf-borde\b/);
+  assert.match(conWishlist, /border-\[var\(--sf-acento\)\]/);
+});
+
+test('claseBotonFavoritos("acento", true): ya en la lista de deseos, se pinta LLENO de acento — mismo tratamiento "seleccionado" que un chip de molienda activo', () => {
+  const conWishlist = claseBotonFavoritos('acento', true);
+  assert.match(conWishlist, /bg-\[var\(--sf-acento\)\]/);
+  assert.match(conWishlist, /text-\[var\(--sf-acento-txt\)\]/);
 });

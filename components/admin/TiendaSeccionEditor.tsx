@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown } from 'lucide-react';
+import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
@@ -10,8 +10,14 @@ import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import PosterScrubber from '@/components/admin/PosterScrubber';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from '@/components/ui/command';
+import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import { esSesionVencida } from '@/lib/api/upload';
+import { getProducts } from '@/lib/api/products';
+import type { Product } from '@/types/product';
+import { cn } from '@duna/core/utils';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano } from '@/components/admin/tienda-secciones';
 import { gatePorCampo } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
@@ -83,6 +89,131 @@ function cargarEsquemaTemaReal() {
   return promesaEsquemaTema;
 }
 
+// ── EL CATÁLOGO REAL, PARA EL PICKER DE PRODUCTO (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) ─────
+//
+// MISMO patrón que `cargarEsquemaTemaReal` arriba, por la MISMA razón: `TiendaPaginas.tsx` (el
+// padre) YA fetchea el catálogo completo —para derivar `categorias`, § `categoriasDelCatalogo`— pero
+// queda FUERA de `touches:` de este slice (no se le puede agregar la prop que baje el catálogo
+// entero a cada editor sin tocarlo), así que este editor hace su PROPIO fetch, compartido entre las
+// N instancias montadas en la misma carga de página vía una promesa a nivel de módulo — nunca un
+// fetch por instancia. Se usa SÓLO en la sección `spotlight` (el único picker de producto hoy); las
+// demás secciones nunca llaman a `cargarCatalogoReal`.
+//
+// `getProducts()` (no `getCatalog()`): el picker necesita ver TODO el catálogo —incluidos
+// inactivos/agotados, que el dueño puede querer destacar igual— y `getProducts` es el endpoint ADMIN
+// (con sesión), el mismo que ya usa `TiendaPaginas.tsx` para derivar categorías.
+let promesaCatalogoReal: Promise<Product[]> | null = null;
+function cargarCatalogoReal() {
+  if (!promesaCatalogoReal) {
+    promesaCatalogoReal = getProducts().catch(() => []);
+  }
+  return promesaCatalogoReal;
+}
+
+// ── EL COMBOBOX DE PRODUCTO · elegir de la lista por nombre + foto, nunca un slug a mano ──────────
+//
+// MISMO ensamblaje que `CategoriaCombobox` (Popover + Command de cmdk, § su docstring: "no es una
+// primitiva nueva, es lo que shadcn ya trae"), portaleado al MISMO puente (`useContenedorDunaPortal`)
+// por la MISMA razón (aparece sobre el sheet del editor). La diferencia es la FORMA de la lista: acá
+// cada fila lleva una MINIATURA además del nombre —"selector con nombre y foto", el gate del
+// owner—, así que es un componente separado en vez de una opción más de `CategoriaCombobox` (las dos
+// listas, productos-con-foto y categorías-de-texto, no comparten forma de fila).
+//
+// Vive en ESTE archivo (no en uno propio) porque `touches:` de este slice no declara un path nuevo
+// para una primitiva — es LOCAL a `TiendaSeccionEditor.tsx`, su único consumidor hoy (el campo
+// `producto: true` del picker de Spotlight). El día que un segundo consumidor lo necesite, se
+// extrae, mismo criterio que ya aplicó `CategoriaCombobox` antes de existir como archivo propio.
+function ProductoCombobox({ value, onChange, productos, productosListos, id, placeholder = 'Elige un producto', ariaDescribedby }: {
+  value: string;
+  onChange: (v: string) => void;
+  /** El catálogo REAL (§ cargarCatalogoReal, arriba). Puede venir vacío mientras el fetch no resolvió. */
+  productos: Product[];
+  /** Si el catálogo YA cargó — el aviso de "ya no existe" no se muestra hasta saberlo (mismo
+   *  criterio que `categoriasListas` de `CategoriaCombobox`: un fetch fallido no puede afirmar que
+   *  un producto no existe). */
+  productosListos: boolean;
+  id?: string;
+  placeholder?: string;
+  ariaDescribedby?: string;
+}) {
+  const contenedor = useContenedorDunaPortal();
+  const [abierto, setAbierto] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const seleccionado = productos.find((p) => p.slug === value) ?? null;
+  const q = query.trim().toLowerCase();
+  const filtrados = q ? productos.filter((p) => p.nombre.toLowerCase().includes(q)) : productos;
+
+  const elegir = (slug: string) => { onChange(slug); setQuery(''); setAbierto(false); };
+
+  return (
+    <Popover open={abierto} onOpenChange={(o) => { setAbierto(o); if (!o) setQuery(''); }}>
+      <PopoverTrigger asChild>
+        {/* `duna-input` para medir y verse EXACTAMENTE como los campos de al lado (como
+            `CategoriaCombobox`/`DateField`): es un campo, no un botón que abre algo. */}
+        <button
+          type="button"
+          id={id}
+          role="combobox"
+          aria-expanded={abierto}
+          aria-describedby={ariaDescribedby}
+          className="duna-input"
+          style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+            {seleccionado ? (
+              <>
+                <span className="duna-tile" style={{ width: 24, height: 24, flexShrink: 0 }}>
+                  {seleccionado.imagen
+                    ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={seleccionado.imagen} alt="" />
+                    : <ImageIcon aria-hidden width={12} height={12} />}
+                </span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{seleccionado.nombre}</span>
+              </>
+            ) : (
+              <span style={{ color: 'var(--duna-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {value || placeholder}
+              </span>
+            )}
+          </span>
+          <ChevronsUpDown style={{ width: 14, height: 14, opacity: 0.5, flexShrink: 0 }} aria-hidden />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0" align="start" container={contenedor} style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '16rem' }}>
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="Buscar producto…" value={query} onValueChange={setQuery} />
+          <CommandList>
+            {!productosListos && <CommandEmpty>Cargando catálogo…</CommandEmpty>}
+            {productosListos && filtrados.length === 0 && <CommandEmpty>Ningún producto coincide.</CommandEmpty>}
+            {value && (
+              <CommandGroup>
+                <CommandItem value="__quitar__" onSelect={() => elegir('')}>
+                  <X className="mr-2 h-4 w-4" /> Quitar
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {filtrados.length > 0 && (
+              <CommandGroup heading="Productos">
+                {filtrados.map((p) => (
+                  <CommandItem key={p.slug} value={p.slug} onSelect={() => elegir(p.slug)}>
+                    <span className="duna-tile" style={{ width: 20, height: 20, marginRight: 8, flexShrink: 0 }}>
+                      {p.imagen
+                        ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.imagen} alt="" />
+                        : <ImageIcon aria-hidden width={10} height={10} />}
+                    </span>
+                    <Check className={cn('mr-2 h-4 w-4', value === p.slug ? 'opacity-100' : 'opacity-0')} />
+                    {p.nombre}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga }: {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
@@ -119,6 +250,18 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     cargarEsquemaTemaReal().then((v) => { if (vivo) setEsquemaTemaReal(v); });
     return () => { vivo = false; };
   }, []);
+
+  // El catálogo REAL (§ cargarCatalogoReal, arriba) — SÓLO para `spotlight`, el único picker de
+  // producto hoy; las demás secciones nunca disparan este fetch. `productosListos` distingue
+  // "cargando" de "catálogo vacío de verdad" (mismo criterio que `categoriasListas`, arriba).
+  const [catalogoReal, setCatalogoReal] = useState<Product[]>([]);
+  const [productosListos, setProductosListos] = useState(false);
+  useEffect(() => {
+    if (seccion !== 'spotlight') return;
+    let vivo = true;
+    cargarCatalogoReal().then((v) => { if (vivo) { setCatalogoReal(v); setProductosListos(true); } });
+    return () => { vivo = false; };
+  }, [seccion]);
 
   const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
@@ -559,6 +702,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     const value = String(form[campo.name] ?? '');
     // Aviso: el destino elegido ya no está en el catálogo (sólo si el catálogo YA cargó).
     const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
+    // Gemelo de `destinoInexistente`, para un PIN de producto (§ `campo.producto`, arriba): el slug
+    // guardado ya no matchea ningún producto del catálogo real.
+    const productoInexistente = !!campo.producto && productosListos && value.trim() !== '' && !catalogoReal.some((p) => p.slug === value);
     // Rótulo POR TÍTULO: «En grano» lleva a: usando el título en vivo de la misma tarjeta.
     const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
     const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
@@ -579,6 +725,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         {campo.categoria ? (
           <CategoriaCombobox id={id} value={value} categorias={categorias}
                              onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
+        ) : campo.producto ? (
+          <ProductoCombobox id={id} value={value} productos={catalogoReal} productosListos={productosListos}
+                             onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
         ) : opciones ? (
           // SELECT NATIVO (§ Controles de formulario) — `destacadoSlot`, con opciones derivadas.
           <select id={id} className="duna-input duna-select" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`}>
@@ -595,6 +744,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         {destinoInexistente && (
           <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
             Ningún producto tiene la categoría «{value}» todavía — la tarjeta no traerá resultados.
+          </p>
+        )}
+        {productoInexistente && (
+          <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+            Este producto ya no existe en el catálogo — elegí uno de la lista.
           </p>
         )}
         <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
@@ -854,12 +1008,50 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   };
 
+  // LAS ETIQUETAS (notas de cata) de `spotlight` — SÓLO LECTURA (§ DESTACADO-PANEL-COMPLETO-Y-
+  // BOTONES-PDP-1, el gate del owner: "faltan las etiquetas"). NO es un campo editable nuevo: el
+  // dato YA se muestra en la tienda como chips (`Spotlight.tsx`, `activo.notasCata`) leído del
+  // producto pineado — duplicarlo acá como texto propio del destacado sería la MISMA trampa que
+  // `CLAUDE.md` ya nombra para `total_compras` (un dato que vive en dos lados puede divergir). Lo
+  // que faltaba era que el PANEL dijera algo cuando no hay nada que mostrar: antes el bloque de
+  // notas simplemente desaparecía de la vista previa sin explicación. CONVIENE escribirlas desde acá
+  // tiene su propio costo —abriría una SEGUNDA puerta de escritura al mismo campo que "Productos" ya
+  // edita, con las dos pantallas pudiendo divergir sobre cuál ganó— así que NO se construye sin medir
+  // que el dueño lo pida; por ahora sólo LEE y, si faltan, enlaza a editarlas en su lugar de siempre.
+  const renderEtiquetasSpotlight = () => {
+    if (!productosListos) return null;
+    const slugPin = String(form.productoSlug ?? '').trim();
+    if (!slugPin) return null;
+    const pin = catalogoReal.find((p) => p.slug === slugPin);
+    if (!pin) return null; // sin match: ya lo dice el aviso del campo de arriba, no se duplica acá.
+    const notas = pin.notasCata ?? [];
+    return (
+      <div className="duna-field duna-form__full">
+        <span className="duna-field__label">Etiquetas (notas de cata)</span>
+        {notas.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-1)' }}>
+            {notas.map((n) => (
+              <span key={n} className="duna-badge duna-badge--neutral">{n}</span>
+            ))}
+          </div>
+        ) : (
+          <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-1)' }}>
+            «{pin.nombre}» no tiene notas de cata todavía. <a href="/admin/productos" className="duna-link">Editarlas en Productos.</a>
+          </p>
+        )}
+      </div>
+    );
+  };
+
   // Bloque SECCIÓN: imágenes (miniatura, § rule 1) + campos. Sin encabezados de grupo (se retiraron).
   const renderBloqueSeccion = (bloque: Extract<BloqueResuelto, { tipo: 'seccion' }>) => (
     <>
       {bloque.imagenes.map(renderMiniatura)}
       {bloque.campos.length > 0 && (
-        <div className="duna-form">{bloque.campos.map(renderCampo)}</div>
+        <div className="duna-form">
+          {bloque.campos.map(renderCampo)}
+          {seccion === 'spotlight' && renderEtiquetasSpotlight()}
+        </div>
       )}
     </>
   );
