@@ -38151,3 +38151,159 @@ visitante puede alcanzar (§ `customer_bytes`, arriba). El spec lo pide explíci
 citado arriba, es la `approval-reason` del spec) — el MERGE sigue gateado aparte.
 
 Cierra `CHECKOUT-VACIO-A-TIENDA-1`.
+
+## 2026-09-30 — El cierre del drawer móvil recorre la entrada en reversa (`MENU-MOVIL-CIERRE-DESLIZANDO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner sobre el
+gate de `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`: *"cuando se colapsa el sidebar en la vista
+móvil, no tiene efecto de transición y cierra de golpe."*
+
+### 1 · Medido primero en WebKit-iPhone Y Chromium móvil — el "golpe" NO estaba donde el slice anterior lo había medido
+
+El slice previo midió el fade de salida del PANEL en **Chromium de escritorio con viewport
+angosto** (`.scratch/medir-cierre-drawer.mjs`, sin perfil de dispositivo) y concluyó que sí
+animaba. Este slice repitió la medición cuadro a cuadro —`getComputedStyle` cada ~15-40ms, Y
+capturas de pantalla reales con luminosidad promedio del área del panel (para no confiar sólo en
+que framer-motion sigue ESCRIBIENDO el estilo cada frame, que no prueba que el navegador lo
+PINTE)— en **WebKit con el perfil `devices['iPhone 15']`** y en **Chromium con viewport/táctil
+móvil**, por las tres salidas (X, Esc, enlace).
+
+**Resultado: el panel (`fixed inset-0`, opacity+y:-8px, 220ms) YA se desvanecía y deslizaba
+simétrico a su propia entrada en los DOS motores, por las TRES salidas — ningún "golpe"
+reproducible ahí.** La asimetría real estaba un nivel más abajo: `ENTRADA_ESCALONADA_DRAWER`
+(`StoreNav.tsx`) declaraba `hidden`/`visible` para cada fila del menú —cada ítem entra
+deslizándose 14px con un paso escalonado de 420ms, la pieza que de verdad se lee como
+"deslizando"— pero **no tenía variante `exit`**: al cerrar, las filas se quedaban en `visible`
+(opacity:1) y sólo se apagaban por el fade DEL PANEL, nunca por su propio desplazamiento. El
+"golpe" que el owner reportaba no era la ausencia de transición — era la ausencia del ÚNICO
+movimiento que de verdad se percibe como deslizar.
+
+### 2 · El fix — `exit` recorre la entrada en reversa, por índice invertido
+
+`lib/animation.ts` gana las constantes/funciones puras (`DRAWER_MOVIL_DISTANCIA_PX`,
+`DRAWER_MOVIL_DURACION_S`, `DRAWER_MOVIL_EASE`, `retardoEntradaDrawerMovil`,
+`retardoSalidaDrawerMovil`), extraídas del literal que vivía inline en `StoreNav.tsx` por el
+criterio de siempre: la MATEMÁTICA del stagger es lo que hay que poder afirmar en un test sin
+montar React. `retardoSalidaDrawerMovil(i, total)` es el espejo EXACTO de
+`retardoEntradaDrawerMovil(i)` con el índice invertido (`total - 1 - i`): el ítem que apareció
+ÚLTIMO es el PRIMERO en retirarse, deshaciendo la cascada en el orden exacto opuesto al que la
+construyó — "recorre la entrada en reversa", literal. Misma propiedad (opacity+y), misma
+distancia (14px) y misma duración/curva (0.42s, el `--ease-out` del prototipo) que la entrada;
+sólo el ORDEN del stagger se invierte.
+
+**`exit="exit"` tuvo que declararse EXPLÍCITO en cada `motion.div` de fila — la propagación
+automática de variantes NO alcanzó.** La primera versión del fix sólo agregó la clave `exit` al
+objeto de variantes, asumiendo que Framer Motion la propagaría a los hijos sin más (como hacen
+algunos ejemplos de "staggered list exit" de la documentación). **Medido, no asumido**: con eso
+solo, las filas se quedaban en `opacity:1` durante TODO el cierre y recién desaparecían junto con
+el panel a los ~220-250ms — exactamente el defecto original, sin cambio. Agregar `exit="exit"`
+explícito a los cuatro `motion.div` de fila (el ítem con panel, el ítem plano, "Rastrear Pedido",
+el CTA) fue lo que hizo que framer-motion empezara a animarlos. **Re-medido tras el fix** (WebKit-
+iPhone15 y Chromium móvil, X y Esc): cada fila ahora interpola su propio opacity/transform, en
+orden invertido — el ítem "Rastrear Pedido" (el último en aparecer) es el primero en llegar a
+opacity:0/y:14px (~366-400ms), y el primer ítem del menú (el primero en aparecer) es el último
+(~556-608ms).
+
+### 3 · El efecto lateral que el stagger-en-reversa introdujo, y su fix — `BloqueaClicksAlSalir`
+
+Invertir el stagger estira el cierre total de ~220ms (sólo el panel) a ~600ms (el último ítem en
+terminar). Mientras tanto el panel (`fixed inset-0 z-50`) sigue en el DOM —AnimatePresence espera
+al ítem más lento antes de desmontar el árbol entero—, **invisible desde los ~220ms de siempre,
+pero todavía capaz de bloquear clics sobre la página de abajo durante esa cola de ~300-400ms**.
+Medido con `elementFromPoint` 30ms después de disparar el cierre: SIN el fix, ese punto resolvía
+dentro del panel (`dentroDelPanel: true`, aunque invisible); un clic ahí no llegaba a la página.
+
+**Un `style` condicional a `mobileOpen` en el propio JSX no alcanza.** En el instante en que
+`mobileOpen` pasa a `false`, la expresión `mobileOpen && (<motion.div .../>)` deja de crear un
+elemento nuevo — AnimatePresence sigue animando el ÚLTIMO elemento que SÍ se creó, con las props
+que tenía AL CREARSE (`pointerEvents: 'auto'` congelado), así que nunca llega una actualización.
+El fix usa `useIsPresent()` (lee CONTEXTO, que AnimatePresence actualiza en vivo al empezar el
+exit, no props heredadas) dentro de un componente propio, `BloqueaClicksAlSalir`, que envuelve al
+panel y pone `pointer-events:none` desde el primer instante del cierre. **Re-medido**: el mismo
+`elementFromPoint` a los 30ms ya resuelve FUERA del panel (`dentroDelPanel: false`) en WebKit y
+Chromium.
+
+### 4 · Lo que se re-verificó para no romper nada al estirar el cierre
+
+- **La navegación por enlace no se retrasa.** Una primera medición con un loop de polling dio
+  ~550-567ms hasta el cambio de URL, lo que habría violado "la navegación no se retrasa más que
+  la salida" — pero ese número era un ARTEFACTO del propio arnés de medición (el polling compitiendo
+  por el mismo canal CDP que la navegación). Re-medido con `page.waitForURL` (nativo de Playwright,
+  sin polling concurrente), 3 intentos por motor: **57-90ms**, igual que antes del fix — la
+  navegación de Next.js no depende de ni espera a la animación del drawer.
+- **El foco vuelve igual que hoy.** Tras X y Esc, `document.activeElement` es el botón hamburguesa,
+  sin cambio — `cerrarMobileYDevolverFoco` no se tocó.
+- **Movimiento reducido.** Medido con `reducedMotion: 'reduce'` en Playwright: el `transform` (y)
+  salta instantáneo a su valor final, pero `opacity` sigue interpolando con el delay completo del
+  stagger (~600ms de cola), en los dos motores. **Esto NO es una regresión de este slice**: la
+  MISMA característica parcial (transform instantáneo, opacity gradual con el delay del stagger)
+  se midió en la ENTRADA (`visible`), código que este slice no tocó. El comentario preexistente en
+  `StoreNav.tsx` afirmaba que `MotionConfig reducedMotion="user"` "congela sola" las animaciones
+  declarativas sin guard propio — medido, eso es cierto sólo para el TRANSFORM, no para la opacidad
+  ni el delay. Se deja anotado como hallazgo (§ Open follow-ups), no se corrige acá: tocar la
+  entrada para "arreglar" un comportamiento que no cambió con este diff sería ensanchar el alcance.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **2878/2878 ejecutados, 2876 pass, 2 fail** — los 2 fallos viven en `lib/config/presentaciones-riel.test.ts`, **fuera de `touches:`**, heredados sin cambio del floor del commit inmediatamente anterior (`9146232` VISTA-RAPIDA-CENTRADA-1, que ya los reportó como bloqueo del gate sin tocarlos "por disciplina de touches"). Los 7 tests nuevos de este slice (`lib/animation.test.ts`) están entre los 2876 que pasan. |
+| `npm run test:integracion` | **245/245** (corrido aparte: `npm run gate` encadena con `&&`, así que el fallo preexistente de `npm test` corta la cadena antes de este paso — se corrió solo para no dejarlo sin medir) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers, Nayoli sin preset vs. fixture |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| `npm run lint` (no forma parte de `npm run gate`, corrido igual) | 206 errores/3519 warnings preexistentes en todo el repo (ninguno nuevo); en los tres archivos de `touches:` sólo hay warnings YA presentes antes de este diff — `StoreNav.tsx:140/145/146` (el mismo `set-state-in-effect` ya aceptado en slices anteriores) y `lib/animation.ts:11` (`TickerVelocidad` sin usar, preexistente); `lib/animation.test.ts` no tiene ningún hallazgo |
+
+### `customer_bytes`
+
+**`changed: true`, sólo bajo CORTE.** El cierre del drawer móvil `pantallaCompleta` ahora desliza
+ítem por ítem en reversa en vez de desaparecer de golpe junto con el panel; Nayoli
+(`navDrawerMovil.variante==='dropdown'`) queda byte-idéntica — MEDIDO 0px en los dos guards, §Gate.
+
+**`strings:`** ninguna cadena de copy nueva ni cambiada.
+
+### Deviations
+
+Ninguna respecto del spec. La medición SÍ contradijo una premisa implícita del slice anterior (que
+el "golpe" vivía en el panel): el panel ya animaba en los dos motores, y la asimetría real estaba
+en los ítems. Se corrigió el defecto REAL medido (los ítems sin `exit`), no se re-trabajó el panel,
+que ya cumplía.
+
+### Unknowns
+
+- **El CTA del pie del drawer (`ctaHref`) no se ejercitó en la medición por ejecución** — el
+  tenant usado para levantar CORTE (`aplicarPreset`) no tiene el CTA encendido, así que
+  `custom={{ i: links.length + 1, total }}` nunca se montó en los arneses de Playwright de este
+  slice. Por construcción usa la MISMA `ENTRADA_ESCALONADA_DRAWER.exit` que las demás filas, así
+  que debería comportarse igual — pero no se vio por ejecución.
+
+### Open follow-ups
+
+- **`MOVIMIENTO-REDUCIDO-DRAWER-OPACIDAD-PARCIAL-1`** — bajo `prefers-reduced-motion: reduce`, el
+  drawer móvil (entrada Y ahora salida) deja el `transform` instantáneo pero la `opacity` sigue
+  interpolando con el delay completo del stagger (hasta ~600ms de cola). Medido en WebKit y
+  Chromium, § arriba. No es una regresión de este slice (la entrada ya lo hacía); queda para quien
+  revise accesibilidad del storefront bajo CORTE.
+- **`MENU-DRAWER-DEFAULTS-DOCSTRING-1`**, **`MENU-DRAWER-SUBMENU-SIN-TENANT-1`** — siguen abiertos
+  de `MENU-MOVIL-COMO-CAFEONE-1`, sin relación con este slice.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `components/storefront/layout/StoreNav.tsx`,
+`lib/animation.ts`, `lib/animation.test.ts`, `ENTRADA_ESCALONADA_DRAWER`,
+`DRAWER_MOVIL_DISTANCIA_PX`, `DRAWER_MOVIL_DURACION_S`, `DRAWER_MOVIL_EASE`,
+`retardoEntradaDrawerMovil`, `retardoSalidaDrawerMovil`, `BloqueaClicksAlSalir`,
+`totalEntradasDrawerMovil`, `useIsPresent`. Grepeados uno por uno contra `CLAUDE.md`: **CERO
+coincidencias** para todos salvo `StoreNav` (sin el `.tsx`), que aparece 4 veces — las cuatro sobre
+`/nosotros`/`Suscripciones` data-driven y el wordmark/mark del logo, ninguna sobre el drawer móvil
+ni su animación de cierre. Nada en `CLAUDE.md` afirma algo sobre estas piezas que este diff vuelva
+falso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante con CORTE ve
+(§ `customer_bytes`, arriba). El spec lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: el gate del 2026-09-30
+sobre `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`) — el MERGE sigue gateado aparte.
+
+Cierra `MENU-MOVIL-CIERRE-DESLIZANDO-1`.

@@ -1121,3 +1121,41 @@ export function cssRevelaPagina(): string {
   ).join("");
   return base + keyframes + pasos;
 }
+
+// ── EL CIERRE del drawer móvil RECORRE la entrada EN REVERSA — § MENU-MOVIL-CIERRE-DESLIZANDO-1 ──
+//
+// Gate del owner tras MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1 (ese slice ya había medido, cuadro a
+// cuadro en Chromium, que el PANEL del drawer `pantallaCompleta` de CORTE SÍ se desvanecía al cerrar
+// —opacity 1→0 en ~220ms—; lo que arregló fue Escape/foco): *"cuando se colapsa el sidebar en la
+// vista móvil, no tiene efecto de transición y cierra de golpe."* Medido de nuevo para este slice,
+// en WebKit con perfil de iPhone 15 Y en Chromium móvil, cuadro a cuadro (computed style) Y por
+// PÍXELES reales de pantalla (screenshot + luminosidad promedio, para no confiar sólo en que
+// framer-motion sigue ESCRIBIENDO el estilo cada frame — eso no prueba que el navegador lo PINTE):
+// en los dos motores, por las tres salidas (X, Esc, enlace), el PANEL YA fade+desliza simétrico a su
+// propia entrada (opacity 0,y:-8 → 1,0 al abrir; 1,0 → 0,y:-8 al cerrar, mismos 220ms, misma curva) —
+// confirmado también por píxeles reales (la luminosidad del área del panel cae gradualmente, no en
+// un solo salto). Ningún "golpe" reproducible ahí, en ninguno de los dos motores.
+//
+// LA ASIMETRÍA REAL es la de los ÍTEMS: `ENTRADA_ESCALONADA_DRAWER` (`StoreNav.tsx`) sólo declaraba
+// `hidden`/`visible` — cada fila entra deslizándose 14px con un paso escalonado de 420ms por ítem,
+// pero al cerrar no tenía variante `exit` propia, así que se apagaba ÚNICAMENTE por el fade del
+// PANEL (8px/220ms) y nunca ejercía su propio desplazamiento de 14px/420ms. Es la pieza que no
+// "recorría la entrada en reversa" en el sentido literal del gate — misma propiedad (opacity+y),
+// misma distancia y misma duración/curva que la entrada, pero el STAGGER invertido por índice: el
+// ítem que apareció ÚLTIMO es el PRIMERO en retirarse, deshaciendo la cascada en el orden exacto
+// opuesto al que la construyó. `retardoSalidaDrawerMovil`/`retardoEntradaDrawerMovil` son las dos
+// mitades del mismo cálculo —comparten paso y constantes— para que un ajuste futuro al paso no
+// pueda mover una sin la otra.
+export const DRAWER_MOVIL_DISTANCIA_PX = 14;
+export const DRAWER_MOVIL_DURACION_S = 0.42;
+export const DRAWER_MOVIL_EASE: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
+export const DRAWER_MOVIL_PASO_S = 0.06;
+export const DRAWER_MOVIL_BASE_S = 0.08;
+
+export function retardoEntradaDrawerMovil(indice: number): number {
+  return indice * DRAWER_MOVIL_PASO_S + DRAWER_MOVIL_BASE_S;
+}
+
+export function retardoSalidaDrawerMovil(indice: number, total: number): number {
+  return (total - 1 - indice) * DRAWER_MOVIL_PASO_S;
+}

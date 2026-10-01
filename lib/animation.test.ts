@@ -16,6 +16,8 @@ import {
   cssRevelaPagina, REVELADO_PAGINA_DURACION_MS, REVELADO_PAGINA_TRASLADO_PX,
   REVELADO_PAGINA_EASE, REVELADO_PAGINA_PASO_MS,
   transicionEscalonada, REVELADO_GRUPO_DURACION_S, REVELADO_GRUPO_EASE, REVELADO_GRUPO_PASO_S,
+  DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE, DRAWER_MOVIL_PASO_S, DRAWER_MOVIL_BASE_S,
+  retardoEntradaDrawerMovil, retardoSalidaDrawerMovil,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -789,4 +791,48 @@ test('transicionEscalonada: duration/ease no cambian con el índice — sólo el
   assert.equal(a.duration, b.duration);
   assert.deepEqual(a.ease, b.ease);
   assert.notEqual(a.delay, b.delay);
+});
+
+// § MENU-MOVIL-CIERRE-DESLIZANDO-1 — el cierre del drawer móvil `pantallaCompleta` de CORTE RECORRE
+// la entrada EN REVERSA. `retardoEntradaDrawerMovil`/`retardoSalidaDrawerMovil` son las dos mitades
+// del mismo cálculo escalonado (comparten paso y base); el asiento completo —qué medición cuadro a
+// cuadro (WebKit+Chromium, computed style y píxeles reales) descartó y qué asimetría de código sí
+// confirmó— vive en `lib/animation.ts`, junto a las constantes.
+
+test('DRAWER_MOVIL_*: 14px/420ms/ease-out — LOS MISMOS tokens que medía ya ENTRADA_ESCALONADA_DRAWER en StoreNav.tsx (m-link del prototipo, app.css:311-321)', () => {
+  assert.equal(DRAWER_MOVIL_DISTANCIA_PX, 14);
+  assert.equal(DRAWER_MOVIL_DURACION_S, 0.42);
+  assert.deepEqual(DRAWER_MOVIL_EASE, [0.22, 0.61, 0.36, 1]);
+});
+
+test('retardoEntradaDrawerMovil(0) = la base (80ms) — el primer ítem no espera un paso completo', () => {
+  assert.equal(retardoEntradaDrawerMovil(0), DRAWER_MOVIL_BASE_S);
+  assert.equal(retardoEntradaDrawerMovil(0), 0.08);
+});
+
+test('retardoEntradaDrawerMovil: crece en pasos de 60ms — 1→140ms, 2→200ms, 3→260ms', () => {
+  for (let i = 1; i <= 3; i++) {
+    assert.equal(retardoEntradaDrawerMovil(i), i * DRAWER_MOVIL_PASO_S + DRAWER_MOVIL_BASE_S, `índice ${i}`);
+  }
+});
+
+test('retardoSalidaDrawerMovil: EN REVERSA — con 4 ítems, el índice 3 (el que entró último) sale PRIMERO (delay 0)', () => {
+  assert.equal(retardoSalidaDrawerMovil(3, 4), 0);
+});
+
+test('retardoSalidaDrawerMovil: con 4 ítems, el índice 0 (el que entró primero) sale ÚLTIMO (delay = 3 pasos)', () => {
+  assert.equal(retardoSalidaDrawerMovil(0, 4), 3 * DRAWER_MOVIL_PASO_S);
+});
+
+test('retardoSalidaDrawerMovil: el orden de salida es el ESPEJO exacto del de entrada — mismo paso, índices invertidos', () => {
+  const total = 5;
+  for (let i = 0; i < total; i++) {
+    const salida = retardoSalidaDrawerMovil(i, total);
+    const entradaDelEspejo = (total - 1 - i) * DRAWER_MOVIL_PASO_S;
+    assert.equal(salida, entradaDelEspejo, `índice ${i} de ${total}`);
+  }
+});
+
+test('retardoSalidaDrawerMovil: sin base (a diferencia de la entrada) — el primer ítem en salir no espera los 80ms que sí separan la apertura del click', () => {
+  assert.equal(retardoSalidaDrawerMovil(3, 4), 0, 'el cierre no necesita el margen que la entrada usa para separarse del click que abrió el panel');
 });

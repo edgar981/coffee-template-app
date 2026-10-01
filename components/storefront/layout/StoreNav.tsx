@@ -1,11 +1,11 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ShoppingBag, Menu, X, Search, ChevronDown } from 'lucide-react';
 import { useCartStore } from '@/lib/cartStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useIsPresent } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
@@ -13,7 +13,11 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
-import { direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll } from '@/lib/animation';
+import {
+  direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll,
+  DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE,
+  retardoEntradaDrawerMovil, retardoSalidaDrawerMovil,
+} from '@/lib/animation';
 import { esClickAfuera } from '@/lib/cierre-afuera';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 
@@ -29,13 +33,45 @@ import { contenedorAnchoClase } from '@/lib/config/themes';
 // (a diferencia de `useProgresoAcomodo`/`useScroll`+`useTransform` de `BrandStoryCentrada`, que SÍ
 // necesitan `useReducedMotion()` explícito porque ese provider sólo intercepta animaciones
 // DISPARADAS por `.start()` — ver el comentario de esa sección).
+// § MENU-MOVIL-CIERRE-DESLIZANDO-1 — `exit` RECORRE la entrada EN REVERSA: misma propiedad
+// (opacity+y), misma distancia y misma duración/curva que `visible` (las cinco constantes/funciones
+// puras viven en `lib/animation.ts`, § el bloque "EL CIERRE del drawer móvil RECORRE la entrada EN
+// REVERSA" — el asiento completo del porqué está ahí, no acá), pero el STAGGER se invierte por
+// índice — el ítem que apareció ÚLTIMO es el PRIMERO en retirarse, deshaciendo la cascada en el
+// orden exacto opuesto al que la construyó. Antes `exit` no existía: los ítems no tenían variante de
+// salida propia, así que al desmontar el panel se quedaban en `visible` (opacity:1) y sólo se
+// apagaban por el fade DEL PANEL (8px/220ms) — nunca por su propio desplazamiento de 14px/420ms.
+// `custom` pasa a `{i, total}` (antes sólo `i`) porque el reverso necesita saber cuántos ítems hay en
+// total para invertir el índice.
 const ENTRADA_ESCALONADA_DRAWER = {
-  hidden: { opacity: 0, y: 14 },
-  visible: (i: number) => ({
+  hidden: { opacity: 0, y: DRAWER_MOVIL_DISTANCIA_PX },
+  visible: ({ i }: { i: number; total: number }) => ({
     opacity: 1, y: 0,
-    transition: { duration: 0.42, ease: [0.22, 0.61, 0.36, 1] as const, delay: i * 0.06 + 0.08 },
+    transition: { duration: DRAWER_MOVIL_DURACION_S, ease: DRAWER_MOVIL_EASE, delay: retardoEntradaDrawerMovil(i) },
+  }),
+  exit: ({ i, total }: { i: number; total: number }) => ({
+    opacity: 0, y: DRAWER_MOVIL_DISTANCIA_PX,
+    transition: { duration: DRAWER_MOVIL_DURACION_S, ease: DRAWER_MOVIL_EASE, delay: retardoSalidaDrawerMovil(i, total) },
   }),
 };
+
+// § MENU-MOVIL-CIERRE-DESLIZANDO-1 — el stagger EN REVERSA estira el cierre de ~220ms (el panel
+// solo) a ~600ms (el último ítem en terminar de salir, índice 0, con el retardo más largo). Mientras
+// tanto el panel es un `fixed inset-0 z-50` — SIGUE en el DOM (AnimatePresence espera a que el ÍTEM
+// más lento termine antes de desmontar el árbol entero), y sin esto bloquearía clics sobre la página
+// de abajo durante esa cola, AUNQUE ya sea invisible (opacity llega a 0 a los ~220ms, el mismo
+// momento de siempre — sólo el DOM tarda más en irse). Un `style` condicional a `mobileOpen` en el
+// propio JSX NO alcanza: en el instante en que `mobileOpen` pasa a `false`, la expresión
+// `mobileOpen && (<motion.div .../>)` deja de crear un elemento nuevo —AnimatePresence sigue
+// animando el ÚLTIMO elemento que SÍ se creó, con las props que tenía AL CREARSE (`pointerEvents:
+// 'auto'` congelado)—, así que nunca llega una actualización. `useIsPresent()` sí sirve porque lee
+// CONTEXTO (que AnimatePresence actualiza en vivo al empezar el exit), no props heredadas — por eso
+// vive en un componente PROPIO: el hook sólo resuelve bien dentro del árbol que AnimatePresence
+// gestiona, no en `StoreNav` (que está POR ENCIMA, es quien la renderiza).
+function BloqueaClicksAlSalir({ children }: { children: ReactNode }) {
+  const presente = useIsPresent();
+  return <div style={presente ? undefined : { pointerEvents: 'none' }}>{children}</div>;
+}
 
 export default function StoreNav() {
   const { nombre, tagline } = useSiteSettings();
@@ -50,6 +86,10 @@ export default function StoreNav() {
   const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
+  // § MENU-MOVIL-CIERRE-DESLIZANDO-1 — el total de filas de la cascada del drawer móvil
+  // `pantallaCompleta` (los `links`, más "Rastrear Pedido", más el CTA si está encendido), que
+  // `ENTRADA_ESCALONADA_DRAWER.exit` necesita para invertir el índice del stagger al cerrar.
+  const totalEntradasDrawerMovil = links.length + 1 + (ctaHref ? 1 : 0);
   // `navDireccionActiva` (§ CROMO-NAV-DIRECCION-SCROLL-1) se lee ACÁ ARRIBA, no sólo junto a `oculto`
   // más abajo (que sigue siendo su otro consumidor): el listener de scroll también lo necesita, para
   // decidir si CONGELA el tratamiento al bajar (§ CROMO-NAV-SIN-DESTELLO-1, el bloque de abajo).
@@ -972,6 +1012,7 @@ export default function StoreNav() {
         // sale gratis del mismo token que ya usa el CTA del encabezado, sin un segundo valor.
         <AnimatePresence>
           {mobileOpen && (
+            <BloqueaClicksAlSalir>
             <motion.div
               initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
@@ -1039,7 +1080,7 @@ export default function StoreNav() {
                     const abierto = mobileSubAbierto === l.id;
                     const enlaces = l.panel.columnas.flatMap((col) => col.enlaces);
                     return (
-                      <motion.div key={l.path} custom={i} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                      <motion.div key={l.path} custom={{ i, total: totalEntradasDrawerMovil }} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible" exit="exit">
                         <button
                           type="button"
                           aria-expanded={abierto}
@@ -1087,7 +1128,7 @@ export default function StoreNav() {
                     );
                   }
                   return (
-                    <motion.div key={l.path} custom={i} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                    <motion.div key={l.path} custom={{ i, total: totalEntradasDrawerMovil }} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible" exit="exit">
                       <Link href={l.path} onClick={() => setMobileOpen(false)} className={filaClase}>
                         <span className="inline-flex items-center gap-2">
                           {l.label}
@@ -1098,7 +1139,7 @@ export default function StoreNav() {
                     </motion.div>
                   );
                 })}
-                <motion.div custom={links.length} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible">
+                <motion.div custom={{ i: links.length, total: totalEntradasDrawerMovil }} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible" exit="exit">
                   <Link
                     href="/rastrear-pedido"
                     onClick={() => setMobileOpen(false)}
@@ -1114,8 +1155,8 @@ export default function StoreNav() {
                   desktop, `navTratamiento.cta` más abajo en este archivo). */}
               {ctaHref && (
                 <motion.div
-                  custom={links.length + 1}
-                  variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible"
+                  custom={{ i: links.length + 1, total: totalEntradasDrawerMovil }}
+                  variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible" exit="exit"
                   className="px-6 pb-8 pt-5"
                 >
                   <Link
@@ -1128,6 +1169,7 @@ export default function StoreNav() {
                 </motion.div>
               )}
             </motion.div>
+            </BloqueaClicksAlSalir>
           )}
         </AnimatePresence>
       ) : (
