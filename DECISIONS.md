@@ -39840,6 +39840,12 @@ exhaustivamente en `lib/config/spotlight.test.ts` (14 tests: las 4 combinaciones
 de 3 productos con una celda sin match → `null`) y se revisó a mano que `Spotlight.tsx` llama a esas
 mismas funciones sin una segunda implementación.
 
+**Follow-up coined acá: `CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1`** — sumar a `scripts/capturar-
+seccion.ts` un modo de siembra con 4 productos de ejes distintos (grano/molido × 250g/500g, con
+`variante` poblado) y/o una forma de clickear un selector antes de capturar, para que un slice
+futuro sobre `Spotlight.tsx` pueda demostrar las 4 combinaciones con el arnés en vez de depender
+sólo de los tests puros. No se construye acá: el arnés no está en `touches:` de este slice.
+
 ### Gate
 
 | capa | resultado |
