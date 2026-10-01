@@ -17,6 +17,7 @@ import {
   estadoInicialEstabilizacion,
   siguienteEstadoEstabilizacion,
   listoParaRestaurar,
+  EVENTOS_QUE_CANCELAN_RESTAURACION,
 } from "@/lib/storefront/scroll-inercia";
 
 // ScrollInercia (§ SCROLL-INERCIA-CORTE-1) — gemelo de comportamiento de `initSmoothScroll`/
@@ -186,6 +187,20 @@ export default function ScrollInercia() {
     let detenido = false;
     let rafId: number | null = null;
 
+    // EL VISITANTE MANDA — § RESTAURACION-CEDE-AL-USUARIO-1 (owner 2026-10-01: al deslizar el riel en el
+    // teléfono "la página hace como un rebote hacia arriba"). La espera de estabilidad de altura podía
+    // seguir corriendo segundos después de la carga (las fotos del riel cargan al deslizar y reinician la
+    // espera) y, al asentarse, saltaba a la posición VIEJA aunque el visitante ya se hubiera movido. En
+    // cuanto el visitante toca, arrastra, gira la rueda o usa el teclado, la restauración se cancela.
+    const cancelarRestauracion = () => {
+      detenido = true;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+    };
+    for (const ev of EVENTOS_QUE_CANCELAN_RESTAURACION) {
+      window.addEventListener(ev, cancelarRestauracion, { passive: true, once: true });
+    }
+
     if (guardado !== null) {
       const inicio = performance.now();
       let estado = estadoInicialEstabilizacion(document.documentElement.scrollHeight, inicio);
@@ -223,6 +238,7 @@ export default function ScrollInercia() {
     return () => {
       detenido = true;
       if (rafId !== null) cancelAnimationFrame(rafId);
+      for (const ev of EVENTOS_QUE_CANCELAN_RESTAURACION) window.removeEventListener(ev, cancelarRestauracion);
       window.removeEventListener("scroll", guardar);
       window.removeEventListener("pagehide", guardar);
       if ('scrollRestoration' in historial) {

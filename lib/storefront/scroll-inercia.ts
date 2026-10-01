@@ -232,3 +232,11 @@ export const MS_TOPE_ESPERA_ESTABILIZACION = 6000;
 export function listoParaRestaurar(estado: EstadoEstabilizacion, ahoraMs: number, inicioMs: number): boolean {
   return (ahoraMs - estado.ultimoCambioMs) >= MS_ALTURA_ESTABLE || (ahoraMs - inicioMs) >= MS_TOPE_ESPERA_ESTABILIZACION;
 }
+
+/**
+ * § RESTAURACION-CEDE-AL-USUARIO-1 — los eventos con los que el visitante toma el control del scroll.
+ * Cualquiera de ellos cancela la restauración pendiente al recargar: si el visitante ya se movió, la
+ * posición guardada dejó de ser la que quiere (el "rebote hacia arriba" al deslizar el riel en el
+ * teléfono). `scroll` NO está: la propia restauración y el navegador también lo disparan.
+ */
+export const EVENTOS_QUE_CANCELAN_RESTAURACION = ["wheel", "touchstart", "pointerdown", "keydown"] as const;

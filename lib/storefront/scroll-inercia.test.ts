@@ -241,3 +241,9 @@ test('listoParaRestaurar: las DOS salidas son independientes — un tope de tiem
   assert.equal(listoParaRestaurar(estado, 510, 0), false, 'ni estable ni se agotó el tiempo total');
   assert.equal(listoParaRestaurar(estado, 0 + MS_TOPE_ESPERA_ESTABILIZACION, 0), true, 'el tope total manda aunque la altura acabe de cambiar');
 });
+
+test("RESTAURACION-CEDE-AL-USUARIO-1: tocar, arrastrar, rueda o teclado cancelan la restauración; scroll no", async () => {
+  const { EVENTOS_QUE_CANCELAN_RESTAURACION } = await import("./scroll-inercia");
+  for (const ev of ["wheel", "touchstart", "pointerdown", "keydown"]) assert.ok((EVENTOS_QUE_CANCELAN_RESTAURACION as readonly string[]).includes(ev), ev);
+  assert.ok(!(EVENTOS_QUE_CANCELAN_RESTAURACION as readonly string[]).includes("scroll"));
+});
