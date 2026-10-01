@@ -48,20 +48,51 @@ export async function guardarBorrador(data: SiteContentEditable): Promise<{ blob
   });
 }
 
-// GUARDAR EL TEMA: escribe `borrador.tema` COMPLETO (las 3 raíces + el par tipográfico). Es el guardar
-// del TEMA —clave no-sección (§ site-content-defaults), validado por `paletaEditableSchema` (3 hex o
-// null + par del set cerrado), no por el schema de secciones—, así que tiene su propio guardar en vez
-// de pasar por `guardarBorrador`. PUBLICAR/DESCARTAR el tema SÍ reusan `publicarSeccion('tema')`/
-// `descartarSeccion('tema')` (son key-agnósticas). El editor manda el tema COMPLETO —las 3 raíces Y el
-// par a la vez—, así que el objeto se guarda entero y publicar no puede pisar uno con el otro (un solo
-// borrador, un solo publicar; § por qué el editor es UNIFICADO). Sin blobs: el tema son strings, no
-// imágenes —`imagenesDe` no toca `tema` (no está en el REGISTRY)—, así que no devuelve `blobsABorrar`.
+// EL MERGE PURO que usa `guardarTemaBorrador` (§ PALETA-GUARDAR-CONSERVA-EJES-1): fusiona los CINCO
+// campos que el panel edita (raíces + par + forma) SOBRE el tema existente, en vez de reemplazarlo
+// entero. `TemaContent` tiene DOS ejes aditivos más (`origenTexto`/`origenAccion`/`escalaDisplay`,
+// § site-content-defaults.ts) que SÓLO escribe `mergePresetEnContent` (un preset como CORTE, aplicado
+// desde un runbook) — el panel no los conoce ni los edita (`paletaEditableSchema` no los declara).
+// Antes de este fix, `guardarTemaBorrador` hacía `{...borrador, tema}` — un reemplazo TOTAL de la
+// clave `tema` — así que el PRIMER guardado de un color desde el panel, sobre un tenant con esos ejes
+// ya puestos, los resetearía a `null` EN SILENCIO al publicar (quedaban documentados como riesgo en
+// `site-content-defaults.ts`, § el docstring de `CromoContent`, y confirmados por el censo de
+// `PANEL-PREVIEW-COLORES-REALES-1`). El `{ ...base, ...nuevo }` preserva CUALQUIER campo del tema
+// existente que el panel no declara —no sólo estos tres, cualquier eje futuro de la misma familia—,
+// sin que `guardarTemaBorrador` tenga que conocerlos por nombre.
+//
+// Extraída PURA (sin `tx`, sin prisma) para afirmarla en el carril rápido sin tocar Postgres
+// (`lib/config/site-content-write.test.ts`); el viaje completo contra una base real vive en
+// `tests/integracion/paleta-ejes.test.ts`.
+export function fusionarTema(
+  base: Record<string, unknown>,
+  nuevo: { fondo: string | null; tinta: string | null; acento: string | null; fuentePar: string | null; forma: string | null },
+): Record<string, unknown> {
+  return { ...base, ...nuevo };
+}
+
+// GUARDAR EL TEMA: escribe `borrador.tema` FUSIONADO (los cinco campos del panel sobre lo que ya
+// había). Es el guardar del TEMA —clave no-sección (§ site-content-defaults), validado por
+// `paletaEditableSchema` (3 hex o null + par del set cerrado + forma, no por el schema de
+// secciones)—, así que tiene su propio guardar en vez de pasar por `guardarBorrador`.
+// PUBLICAR/DESCARTAR el tema SÍ reusan `publicarSeccion('tema')`/`descartarSeccion('tema')` (son
+// key-agnósticas) — y como `publicarSeccion` copia `borrador.tema` a `content.tema` ENTERO, el punto
+// único donde hay que preservar lo no-editado es ACÁ, al escribir el borrador, no en el publish.
+//
+// LA BASE DEL MERGE ES EL BORRADOR SI YA HAY UNO, SI NO LO PUBLICADO: dos guardados seguidos sin
+// publicar de por medio fusionan sobre el borrador anterior (que ya trae los ejes preservados de la
+// primera vez), no sobre lo publicado —si no, un segundo guardado "olvidaría" lo que el primero ya
+// había preservado en el borrador y volvería a leer `content`, que en ese punto todavía no cambió—.
+//
+// Sin blobs: el tema son strings, no imágenes —`imagenesDe` no toca `tema` (no está en el
+// REGISTRY)—, así que no devuelve `blobsABorrar`.
 export async function guardarTemaBorrador(
   tema: { fondo: string | null; tinta: string | null; acento: string | null; fuentePar: string | null; forma: string | null },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const { borrador } = await leerFila(tx);
-    const nuevoBorrador = { ...borrador, tema };
+    const { content, borrador } = await leerFila(tx);
+    const base = esObj(borrador.tema) ? borrador.tema : (esObj(content.tema) ? content.tema : {});
+    const nuevoBorrador = { ...borrador, tema: fusionarTema(base, tema) };
     const json = nuevoBorrador as unknown as Prisma.InputJsonValue;
     await tx.siteContent.upsert({
       where: { id: 'default' },

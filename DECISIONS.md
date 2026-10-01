@@ -37873,3 +37873,191 @@ NUNCA EL MERGE"* / *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya ap
 (gate del 2026-09-30, citado arriba) — el MERGE sigue gateado aparte.
 
 Cierra `DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1`.
+
+## 2026-09-30 — Guardar un color en Paleta deja de borrar los ejes del tema que el panel no edita (`PALETA-GUARDAR-CONSERVA-EJES-1`)
+
+Gate del owner del 2026-09-30 sobre `/admin/tienda` (`PANEL-PREVIEW-COLORES-REALES-1`), que nombró
+este riesgo pendiente: *"Guardar colores en la sección Paleta del panel deja de borrar los ajustes
+del tema que el panel no edita (`origenTexto`, `origenAccion`, `escalaDisplay`)."* La aprobación de
+ESE gate autoriza la ESCRITURA de este slice, no su merge — el spec lo repite textual: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."*
+
+### 1 · El defecto, medido en la base efímera del arnés ANTES de tocar código
+
+`TemaContent` (`lib/config/site-content-defaults.ts`) tiene OCHO campos: las 3 raíces + el par
+tipográfico + la forma —los CINCO que el panel edita (`paletaEditableSchema`, `PaletaSeccion.tsx`)—
+y TRES ejes aditivos (`origenTexto`/`origenAccion`/`escalaDisplay`) que **sólo** escribe
+`mergePresetEnContent` cuando se aplica un preset como CORTE, desde un runbook — nunca el panel.
+
+`guardarTemaBorrador` (`lib/config/site-content-write.ts`) hacía `{ ...borrador, tema }` — un
+REEMPLAZO TOTAL de la clave `tema` con el objeto de 5 campos que el PUT de
+`/api/site-content/tema` arma. Un tenant con CORTE aplicado que guarda un solo color desde el panel
+perdía, al publicar, los tres ejes aditivos: `content.tema` quedaba con 5 claves donde antes tenía
+8, y `resolverTema` resuelve lo ausente a `null` — el storefront seguía mostrando colores, pero con
+el color de TEXTO y de ACCIÓN derivados de la raíz equivocada (el defecto exacto que
+`PANEL-PREVIEW-COLORES-REALES-1` había medido en el PREVIEW del panel; éste es el mismo defecto del
+lado de la ESCRITURA, que sobrevive al preview).
+
+**Reproducido contra Postgres real, con el código SIN el fix** (revertido a mano, corrida de
+`npm run test:integracion` completa): `aplicarPreset(CORTE)` → `guardarComoLaRuta` (parsea con
+`paletaEditableSchema`, mapea a `guardarTemaBorrador` como hace la ruta) con un solo cambio de
+fondo → `publicarSeccion('tema')` → `readSiteContent()`. Resultado: `origenTexto: null` (esperado
+`'tinta'`), 2 de 245 tests fallando — exactamente los dos de `tests/integracion/paleta-ejes.test.ts`
+nuevos, el resto (243) en verde. El propio `site-content-defaults.ts` ya documentaba este riesgo,
+sin cerrarlo, en el docstring de `CromoContent` (§ por qué `cromo` vive APARTE de `tema`, no dentro).
+
+### 2 · El arreglo — fusionar en vez de reemplazar, en el ÚNICO punto de escritura del borrador
+
+`guardarTemaBorrador` ahora fusiona los cinco campos del panel SOBRE el tema existente —del
+BORRADOR si ya hay uno, si no de lo PUBLICADO— en vez de reemplazarlo entero:
+
+```ts
+const base = esObj(borrador.tema) ? borrador.tema : (esObj(content.tema) ? content.tema : {});
+const nuevoBorrador = { ...borrador, tema: fusionarTema(base, tema) };
+```
+
+- **`fusionarTema(base, nuevo) = { ...base, ...nuevo }`**, extraída PURA (sin `tx`, sin prisma) para
+  afirmarla en el carril rápido sin Postgres — `lib/config/site-content-write.test.ts` (nuevo, 4
+  casos: base vacía, preserva ejes aditivos de CORTE, un `null` explícito SÍ pisa el valor existente
+  —"volver a fábrica" es una edición real, no un no-op—, y dos guardados seguidos sin publicar de
+  por medio siguen preservando lo ajeno).
+- **El punto único es la ESCRITURA del borrador, no el publish.** `publicarSeccion('tema')` sigue
+  copiando `borrador.tema` a `content.tema` ENTERO (mecanismo key-agnóstico, compartido con las
+  demás secciones) — no se tocó, porque con el borrador ya fusionado, lo que se publica ya trae
+  todo. Tocar `publicarSeccion` habría sido arreglarlo en el lugar equivocado y además genérico
+  (afecta a toda sección, no sólo a `tema`).
+- **La base del merge prioriza el BORRADOR sobre lo publicado** a propósito: dos guardados seguidos
+  sin publicar fusionan sobre lo que el primero ya dejó en el borrador (que ya preserva los ejes),
+  no sobre `content` —que en ese punto todavía no cambió— para que el segundo guardado no "olvide"
+  lo que el primero ya resolvió.
+- **Preserva CUALQUIER campo del tema existente que el panel no declara**, no sólo estos tres por
+  nombre — un cuarto eje aditivo futuro de la misma familia queda cubierto sin tocar
+  `guardarTemaBorrador` de nuevo.
+
+### 3 · Deviation medida: tres archivos de `touches:` no hicieron falta tocar
+
+El `touches:` del spec nombraba `lib/config/palette-schema.ts`, `lib/config/palette-schema.test.ts`,
+`components/admin/PaletaSeccion.tsx` y `lib/config/panel-controles.ts` además de los archivos
+tocados. Medido antes de escribir código: el bug vive enteramente en CÓMO `guardarTemaBorrador`
+escribe el borrador, no en qué valida el schema (`paletaEditableSchema` sigue validando exactamente
+los mismos 5 campos, sin cambios) ni en qué manda el componente (`wireDe`/`guardarTema`/
+`resetFabrica` de `PaletaSeccion.tsx` siguen mandando el mismo wire de 5 campos, sin tocar una
+línea). `panel-controles.ts` censa qué campos tienen EDITOR en el panel —`origenTexto`/
+`origenAccion`/`escalaDisplay` siguen en `PENDIENTE_PANEL` con su razón intacta ("sin campo en
+`paletaEditableSchema` ni en PaletaSeccion", `cierra: 'PANEL-EDITOR-TEMA-EJES-1'`)— y este slice no
+les da editor, sólo evita que se BORREN sin tenerlo; su gate (`panel-controles.test.ts`, 30/30)
+corrió sin cambios y sigue verde. `touches:` es un techo, no un piso — se deja constancia de que
+tres de sus siete archivos quedaron sin un solo byte tocado, medido, no asumido.
+
+### 4 · `resetFabrica` ("Volver a los colores de fábrica") — medido, no una excepción nueva
+
+El spec pedía explícito: *"Si al medir resulta que otro escritor depende del reemplazo total (p.
+ej. «restablecer de fábrica»), conservá esa conducta explícita para ese caso y decilo."* Medido:
+`resetFabrica` (`PaletaSeccion.tsx`) llama al MISMO PUT con los 5 campos en `null` — mismo
+`guardarTemaBorrador`, mismo merge. Su propio docstring (sin tocar en este slice) sólo promete
+resetear *"las 3 raíces Y el par"* —y la forma— a fábrica; nunca mencionó los ejes aditivos del
+preset, que el panel ni siquiera conoce. Preservarlos tras "volver a fábrica" es consistente con lo
+que ese botón siempre dijo hacer, no una ampliación de alcance: **no hizo falta conservar un
+reemplazo total como caso especial** — el segundo test de `paleta-ejes.test.ts` lo afirma contra
+Postgres real.
+
+### 5 · Tests
+
+- **`lib/config/site-content-write.test.ts`** (nuevo, capa 1, SIN Postgres): 4 casos sobre
+  `fusionarTema`, la mitad pura. Verificado que importar el módulo (que trae `prisma from
+  '@duna/core'`) no revienta sin `DATABASE_URL` — la construcción del adapter es lazy, confirmado
+  corriendo el archivo con `DATABASE_URL` deliberadamente unset.
+- **`tests/integracion/paleta-ejes.test.ts`** (nuevo, carril de integración): el viaje de punta a
+  punta, `aplicarPreset(CORTE)` → `guardarComoLaRuta` (parsea con el schema real, como la ruta) →
+  `publicarComoLaRuta` → `readSiteContent`. Dos casos: guardar un color, y "volver a fábrica". **Se
+  vieron fallar los dos** contra el código revertido (`null !== 'tinta'`, el síntoma exacto del
+  defecto reportado) y pasar los dos contra el fix, en la MISMA corrida de Postgres efímero (no se
+  reconstruyó el arnés entre medio, sólo se revirtió y restauró `site-content-write.ts`).
+- **`tests/integracion/borrador-endpoints.test.ts`** (existente, fuera de `touches:`, no tocado):
+  sus 4 tests de TEMA (`GUARDAR TEMA…`, `PUBLICAR TEMA…`, `DESCARTAR TEMA…`) construyen la fila
+  directo por Prisma con `content.tema` de 3 claves —sin ejes aditivos—, así que la base del merge
+  no aporta nada extra y el resultado sigue siendo byte-idéntico a lo que esos tests ya afirmaban
+  (`assert.deepEqual(borrador!.tema, RAICES)`, con `RAICES` de 5 claves). Verificado por ejecución,
+  no por lectura: los 245/245 del carril los incluyen en verde.
+
+### 6 · Gate
+
+- `npm run typecheck`: limpio, cero errores (corrido dos veces: antes y después del fix).
+- `npm test`: **2869/2869** (sube de 2830 citado en el ledger anterior más reciente que lo midió;
+  incluye los 4 casos nuevos de `site-content-write.test.ts` y el resto de slices mergeados desde
+  entonces en esta rama).
+- `npm run test:integracion`: **245/245** (243 preexistentes + 2 nuevos de `paleta-ejes.test.ts`).
+  Corrido DOS veces: una contra el código revertido (243 pass / 2 fail, reproduciendo el defecto) y
+  una contra el fix (245/245), en arranques de Postgres efímero separados.
+- `npm run verificar:nayoli:visual`: **0px en las 6 rutas públicas + los 2 hovers** (home, tienda,
+  producto, checkout, nosotros, suscripciones; hover en modo `'automatica'` y `'eleccion'`),
+  consciente de antialiasing y crudo. Nayoli no tiene preset aplicado —sus 8 claves de `tema` nacen
+  en `null`—, así que este slice no podía mover un píxel suyo; el 0px lo confirma. **Capa que queda
+  explícitamente FUERA**: el gate visual REAL del owner sobre `/admin/tienda` con CORTE aplicado y
+  un guardado de color real desde el navegador (capa 3) — esta sesión no tiene sesión de admin; la
+  corrección se afirma por ejecución contra Postgres real (`paleta-ejes.test.ts`), no por captura de
+  pantalla del panel.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `guardarTemaBorrador` (`lib/config/site-content-write.ts`),
+`fusionarTema` (nuevo, mismo archivo), `lib/config/site-content-write.test.ts` (nuevo),
+`tests/integracion/paleta-ejes.test.ts` (nuevo). Grepeados uno por uno contra `CLAUDE.md`:
+
+- **`guardarTemaBorrador`: 3 apariciones** (líneas 1098, 2256, 2346). Las de 1098 y 2256 sólo lo
+  NOMBRAN como parte del mecanismo de guardar/publicar/descartar del tema —qué función existe, no
+  CÓMO escribe internamente—; ninguna se vuelve falsa. **La de 2346 SÍ merece decirse, aunque no la
+  considero estrictamente falsa**: *"`guardarTemaBorrador` escribe el tema COMPLETO"*, en una frase
+  que justifica por qué `fuentePar` es REQUERIDO en `paletaEditableSchema` ("el tema se escribe
+  wholesale, omitirlo lo resetearía en silencio"). Esa justificación SIGUE siendo cierta — la ruta
+  sigue armando el objeto de 5 claves completo antes de llamar a la función, así que omitir
+  `fuentePar` del schema seguiría reseteándolo en silencio, con o sin este fix—, pero la frase
+  "escribe el tema COMPLETO" ya no describe el mecanismo interno con precisión: antes era un
+  reemplazo total de `tema` con lo que el caller mandaba; ahora es una FUSIÓN sobre lo existente.
+  No la edito —`CLAUDE.md` no está en `touches:` de este slice— y la dejo nombrada en
+  `open_followups`.
+- **`fusionarTema`, `paleta-ejes`, `origenTexto`, `origenAccion`, `escalaDisplay`: CERO
+  apariciones** en `CLAUDE.md` — esa doctrina vive en los comentarios de `site-content-write.ts`/
+  `site-content-defaults.ts`/`themes.ts` y en este ledger, no en `CLAUDE.md`.
+- **`PaletaSeccion`: 3 apariciones** (líneas 56, 2260, 2808) — las tres describen el componente
+  (`components/admin/PaletaSeccion.tsx`), que este diff **no tocó** (confirmado por `git status`:
+  sólo `site-content-write.ts` modificado + 2 archivos nuevos). No aplica la pregunta de "¿mi cambio
+  la vuelve falsa?" porque mi cambio no tocó ese archivo.
+- **`site-content-write`: 2 apariciones** (líneas 2592, 2882) — nombran el archivo como el lugar de
+  la lógica de escritura extraída (como `aplicarAjusteInventario`) y como ejemplo del "mismo race
+  aceptado" del flujo borrador; ninguna describe el mecanismo interno de `guardarTemaBorrador` que
+  este diff cambió, así que ninguna se vuelve falsa.
+
+### `customer_bytes`
+
+**`changed: true`.** Para NAYOLI (producción hoy, sin preset aplicado) el diff es byte-idéntico —
+medido, 0px en las 6 rutas + 2 hovers (§ Gate). Pero el diff cambia lo que un VISITANTE del
+storefront de un tenant con un preset no-trivial (hoy, CORTE) vería DESPUÉS de que su dueño guarde
+un color desde `/admin/tienda`: antes del fix, ese guardado borraba en silencio los ejes
+`origenTexto`/`origenAccion`, y el texto/la acción primaria de la tienda pasaban a derivar de la
+raíz equivocada; con el fix, siguen derivando de donde el preset los puso. **Ningún STRING nuevo**
+(no hay copy nuevo): es exclusivamente qué raíz de color deriva el texto/la acción, una vez que el
+dueño guarda. El mismo criterio que `PANEL-PREVIEW-COLORES-REALES-1` ya aplicó al preview del mismo
+panel.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-GUARDARTEMABORRADOR-WHOLESALE-1`** — qué: la frase de `CLAUDE.md:2346`
+  (*"`guardarTemaBorrador` escribe el tema COMPLETO"*) describe el reemplazo total que este slice
+  reemplazó por una fusión; su justificación (por qué `fuentePar` es requerido) sigue siendo
+  cierta, pero la frase ya no describe el mecanismo con precisión. Por qué no ahora: `CLAUDE.md` no
+  está en `touches:` de este slice.
+- El gap que `PANEL-EDITOR-TEMA-EJES-1` nombra (`panel-controles.ts`, `PENDIENTE_PANEL`) sigue
+  exactamente igual de abierto y por la misma razón: el panel sigue sin EDITOR para
+  `origenTexto`/`origenAccion`/`escalaDisplay` — este slice sólo evita que SE BORREN, nunca los
+  expone para editar. No es un follow-up nuevo, es el mismo, confirmado sin cambios.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia lo que un visitante de un tenant con
+preset no-trivial ve una vez que su dueño guarda un color (§ `customer_bytes`, arriba). El spec lo
+pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (gate
+del 2026-09-30 sobre `PANEL-PREVIEW-COLORES-REALES-1`, citado arriba) — el MERGE sigue gateado
+aparte.
+
+Cierra `PALETA-GUARDAR-CONSERVA-EJES-1`.
