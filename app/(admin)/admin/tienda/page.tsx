@@ -5,6 +5,7 @@ import FooterSeccion from '@/components/admin/FooterSeccion';
 import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
 import DetallesSitioSeccion from '@/components/admin/DetallesSitioSeccion';
 import TiendaPaginas from '@/components/admin/TiendaPaginas';
+import ModoEditorActivo from '@/components/admin/ModoEditorActivo';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
@@ -35,6 +36,11 @@ import TiendaPaginas from '@/components/admin/TiendaPaginas';
 export default function Tienda() {
   return (
     <div>
+      {/* MODO EDITOR (§ EDITOR-TIENDA-IFRAME-VISTA-1): enciende la cookie del gate de
+          EDITOR-TIENDA-IFRAME-GATE-1 mientras esta pantalla está montada, para que el iframe de
+          TiendaPaginas (y cualquier otra pieza que navegue la tienda real desde acá) vea el
+          borrador. Sin esto la cookie nunca se activa y el iframe mostraría siempre lo publicado. */}
+      <ModoEditorActivo />
       <div style={{ minWidth: 0, marginBottom: 'var(--duna-space-4)' }}>
         <h1 className="duna-display-m">Contenido de la tienda</h1>
         <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>

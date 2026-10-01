@@ -38697,3 +38697,228 @@ para el tráfico sin cookie.
 
 No cierra `CIERRE-EDITOR-GATE-1` en verde — queda abierto `VERIFICAR-NAYOLI-MAIN-STALE-1` (arriba)
 como la condición que, resuelta, permitiría un re-run con 0 diffs/0px reales.
+
+## 2026-10-01 — El iframe reemplaza las vistas previas sueltas por sección en `/admin/tienda`: UN `VistaTiendaIframe` compartido por página, con la lista de secciones a un costado (`EDITOR-TIENDA-IFRAME-VISTA-1`)
+
+Slice 2 del plan de `docs/editor-tienda/DISENO.md`, sobre el gate de `EDITOR-TIENDA-IFRAME-GATE-1`
+(§ `modoEditorActivo`/`COOKIE_MODO_EDITOR`, ya construido, sin tocar en esta tanda). Tras el "Iniciemos"
+del owner y el censo `EDITOR-TIENDA-OBSERVED-1`, el owner pidió explícitamente que la página se vea
+COMPLETA y "no creo que cada seccion deberia verse aislada" — eso AMPLIÓ el alcance de la fila 2 de
+§ 6 de DISENO.md más allá de "el iframe reemplaza la vista dentro de `TiendaSeccionEditor`": absorbe
+también la composición lista↔iframe y la mitad lista→iframe de la selección en contexto que § 6
+atribuía a la fila 4 (`EDITOR-TIENDA-SELECCION-1`). El detalle completo del alcance entregado contra
+el planeado vive en `docs/editor-tienda/DISENO.md`, § 10 (nuevo).
+
+### Qué se construyó
+
+- **`lib/admin/editor-iframe.ts`** (+ test, 7 casos): tres funciones puras — `urlDePagina` (la ruta
+  real por pestaña), `marcadorDeSeccion`/`selectorDeSeccion` (el atributo `data-editor-seccion` que
+  ubica cada sección dentro del documento del iframe; `spotlight`→`'featured'` por ser su variante
+  sin `bandaId` propio, las tres de Suscripciones→`'suscripciones'` por la razón de abajo), y
+  `scrollSeguro` (normaliza el scrollY guardado antes de un reload).
+- **`components/admin/ModoEditorActivo.tsx`** (nuevo, sin UI): POST al montar /admin/tienda, DELETE
+  al desmontar. Sin esto la cookie del gate de `EDITOR-TIENDA-IFRAME-GATE-1` nunca se activa.
+- **`components/admin/VistaTiendaIframe.tsx`** (nuevo): el iframe mismo-origen a la ruta real, con
+  `irASeccion`/`recargar` expuestos por `forwardRef`+`useImperativeHandle`. "Ir a la sección" y el
+  resalte son manipulación DIRECTA del DOM del iframe (mismo origen, sin `postMessage` — eso sigue
+  siendo la fila 3/4 de § 6) — `scrollIntoView` + un `outline` inline con timeout, con un `ref`
+  propio (`resaltadoRef`) que limpia el resalte ANTERIOR antes de pintar uno nuevo (un bug real que
+  el primer borrador tenía: con sólo un timer, resaltar una segunda sección mientras la primera
+  seguía iluminada dejaba el outline de la primera pegado para siempre — corregido antes del gate,
+  no en producción). `recargar()` lee `contentWindow.scrollY`, recarga, y lo restaura en `onLoad`.
+  Lleva un botón "Actualizar" propio para el caso DEGRADADO (abajo).
+- **`components/admin/TiendaSeccionEditor.tsx`**: se retiran las TRES `VistaTiendaEnVivo` (tarjeta
+  compacta en lectura, vista grande + el puente de Presentaciones en edición), el IntersectionObserver
+  de lazy-mount que las montaba, y el fetch compartido de esquema/tema real que sólo alimentaba a esas
+  tres. La LECTURA pasa a una fila compacta (título + badges + estado + "Editar", sin miniatura); la
+  EDICIÓN pasa a sólo el form (sin columna de vista). Dos props nuevas, opcionales:
+  `onAbrir?(seccion)` (llamado desde `abrirEdicion` y desde el deep-link del aviso de config del
+  Dashboard) y `onCambioPublicado?()` (llamado en la transición REAL `'guardando'→'guardado'` del
+  autoguardado — nunca en el montaje, que ya nace en `'guardado'` — y tras Publicar/Descartar
+  exitosos). `onClicTarjeta` (el handler del puente vista→formulario de Presentaciones, § Backlog
+  #46) se retira: sin la vista previa LOCAL que lo disparaba, queda sin disparador — `tarjetaActiva`/
+  `bloquesRef`/`slotOpcional`/`slotVacio` SIGUEN vivos, los sigue usando el deep-link del aviso de
+  config (mecanismo DISTINTO, no tocado).
+- **`components/admin/TiendaPaginas.tsx`**: monta UN `VistaTiendaIframe` por pestaña de página
+  (ref compartido), en un grid de dos columnas (lista | iframe) que se apila (iframe arriba, lista
+  abajo, 60vh) por debajo de 960px — reusando `useSheetDesdeAbajo()` (el hook YA existente para la
+  pregunta "¿es una pantalla táctil de una mano?", § `DUNA_MQ_SHEET_ABAJO`) para esa decisión, en vez
+  de abrir un segundo listener de `matchMedia` para la misma pregunta. El iframe queda en la MISMA
+  posición del árbol en los dos casos (`order` CSS, no remonte) para no perder su estado al cruzar
+  el umbral.
+- **`app/(admin)/admin/tienda/page.tsx`**: monta `<ModoEditorActivo />`.
+- **`app/(storefront)/page.tsx` / `nosotros/page.tsx` / `suscripciones/page.tsx`**: cada una llama
+  `modoEditorActivo()` (ya existía, de `EDITOR-TIENDA-IFRAME-GATE-1`) y, SÓLO si está activo, envuelve
+  cada banda en un `<div data-editor-seccion={id}>`. Sin la cookie (el tráfico público), `bandaNodo`
+  devuelve el render tal cual — cero bytes de más. Verificado que no hay CSS en el repo que dependa
+  de que una banda sea hija directa de `<main>` (`grep -rn "main >"`, cero resultados).
+
+### Suscripciones — la excepción medida, no un descuido
+
+Sus tres secciones (`suscripcionPlanes`/`suscripcionPasos`/`suscripcionFaq`) viven dentro de
+`app/(storefront)/suscripciones/Contenido.tsx`, que **no está en `touches:`** de este slice. No hay
+forma de marcarlas por separado sin tocarlo, así que comparten UN marcador de página
+(`data-editor-seccion="suscripciones"`, el wrapper que `suscripciones/page.tsx` agrega sobre
+`<SuscripcionesContenido />`): "ir a la sección" para esas tres sólo lleva al TOPE de la página, no
+al bloque exacto. Documentado en `lib/admin/editor-iframe.ts` (el docstring de `marcadorDeSeccion`),
+en el propio `suscripciones/page.tsx`, y en `DISENO.md` § 10.
+
+### El caso DEGRADADO — piezas store-wide que el iframe no refresca solo
+
+`PaletaSeccion`/`MenuSeccion`/`EncabezadoSeccion`/`DetallesSitioSeccion`/`FooterSeccion` (las cinco
+piezas "cromo transversal" de `/admin/tienda`, § su propio docstring) NO están en `touches:` de este
+slice, así que no se les agregó un callback de recarga: si el dueño cambia un color en Paleta, el
+iframe compartido NO se recarga solo — necesita el botón "Actualizar" de `VistaTiendaIframe` (o
+cambiar de pestaña de página, que remonta el iframe). Es un límite ACEPTADO, no un bug: agregar el
+callback a esos cinco archivos los habría traído a `touches:` sin que el spec los pidiera.
+
+### Gate
+
+| comando | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2899/2899** (2892 heredados + 7 nuevos de `editor-iframe.test.ts`) |
+| `npm run test:integracion` | **253/253**, sin cambios respecto al heredado |
+| `npm run gate` (el canónico, los dos carriles en secuencia) | **verde** |
+| `npm run guarda:color` (la vara vigente, fixture commiteado de Nayoli) | **0px en las 8 capturas** (consciente de AA y crudo) |
+| `npm run verificar:nayoli` (bytes, sin cookie) | **NO vacío** — caracterizado abajo |
+| `npm run verificar:nayoli:visual` | **0px en las 8 capturas** — ver el HALLAZGO abajo, no se toma como prueba sola |
+
+### `verificar:nayoli` sigue sin dar 0 — MISMA causa que `CIERRE-EDITOR-GATE-1`, no de este slice
+
+`main` sigue anclado en `9a7ab97` (no se movió; `CIERRE-EDITOR-GATE-1` ya lo midió 9 días atrás y es
+la razón por la que esos dos scripts no pueden dar 0 contra esta rama — fuera de `touches:`, no se
+intentó corregir). Lo que SÍ se verificó, específico de este slice: **`grep -c "data-editor-seccion"`
+sobre las 4 capturas de la rama (`/`, `/checkout`, `/tienda`, `/tienda/<slug>`) y sobre las 4 de
+`main` da CERO en las ocho** — el marcador nuevo nunca aparece sin la cookie, confirmando por
+ejecución (no sólo por lectura del código) que `bandaNodo`/`enModoEditor` no agregan nada al tráfico
+público. `verificar:nayoli` no cubre `/nosotros` ni `/suscripciones` (nunca las cubrió; limitación
+del script, no de este slice) — ésas las cubre `guarda:color`, que sí dio 0px en las dos.
+
+### HALLAZGO: `verificar:nayoli:visual` dio 0px hoy, pero `CIERRE-EDITOR-GATE-1` midió NO-CERO para LA MISMA comparación hace un commit
+
+`CIERRE-EDITOR-GATE-1` (el commit inmediatamente anterior en esta rama, `67e691c`) corrió
+`verificar:nayoli:visual` contra el MISMO `main` (`9a7ab97`, sin moverse) y midió diffs no-cero en
+las 8 capturas (938/4.608.000 px en home, etc. — tabla completa arriba en este archivo). Este slice
+corrió el MISMO script, sobre un árbol que es un descendiente directo de ese commit (con cambios que
+—medido por `guarda:color`— no tocan un solo píxel del tráfico sin cookie), y midió **0px en las 8**.
+
+**No se re-corrió para "ver cuál número gana"** (siguiendo la instrucción de no perseguir una
+métrica): se reporta la discrepancia como lo que es — el mismo patrón que `CIERRE-EDITOR-GATE-1` ya
+documentó para la cifra de `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1` (§ HALLAZGO, arriba en
+este archivo): esta comparación contra `main` (build fresco de `main` en cada corrida, fuente de
+streaming/orden no determinista ya normalizada para bytes pero no necesariamente para una captura de
+pantalla completa) **no es estable entre corridas**, y no debería tratarse como prueba por sí sola.
+**`guarda:color`** —que compara contra un FIXTURE COMMITEADO, no un build de `main` reconstruido cada
+vez— es la vara que se sostiene: midió 0px en AMBAS corridas de esta sesión (antes y después del fix
+de la carrera de `resaltadoRef`, que no toca storefront). Se añade a `VERIFICAR-NAYOLI-MAIN-STALE-1`
+como segunda evidencia de que estos dos scripts, mientras `main` siga sin moverse, no dan una lectura
+confiable — la causa de fondo sigue siendo la misma y sigue fuera de `touches:`.
+
+### Lo que NO se verificó por ejecución — el walkthrough interactivo del owner
+
+El spec pedía, como cierre, abrir `/admin/tienda` con una sesión de admin real sobre la base EFÍMERA
+del arnés: ver la home completa en el iframe, abrir una sección y verla desplazarse, editar y guardar
+y ver el reload en el mismo punto, salir y ver la cookie borrada. **Esto NO se ejecutó en esta
+sesión.** Se evaluó construirlo (Postgres efímero vía `scripts/postgres-efimero.sh` + `next dev` +
+Playwright, el mismo patrón que `scripts/guarda-color.ts`/`verificar-nayoli-visual.ts` ya usan) y se
+descartó: `source` está bloqueado en el entorno de este worker (no se puede reusar la librería bash
+sin reescribirla), y levantar un servidor en segundo plano con variables de entorno propias excede
+los comandos concedidos a este slice (`Bash(node:*)`/`Bash(npm:*)`/`Bash(npx:*)`, sin un `export`
+genérico). En su lugar: (a) se verificó el MECANISMO por lectura cuidadosa (dos veces — la primera
+encontró la carrera de `resaltadoRef`, corregida antes de este gate); (b) se corrió el gate completo
+automatizado (arriba); (c) se verificó la seguridad pública por ejecución (bytes/píxeles, arriba). El
+walkthrough interactivo del owner —que es, de todos modos, el GATE DE CAPA 3 de `CLAUDE.md`, con su
+propia precondición de server frío y rama declarada— queda como lo que siempre fue: la verificación
+que sólo el owner puede dar, no una que este slice pueda sustituir.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` — confirmado por los touches REALES, no por la suposición original de DISENO.md § 6 fila 2
+(que decía Tier 2 porque asumía que el único archivo tocado sería `TiendaSeccionEditor.tsx`). Esta
+tanda SÍ toca `app/(storefront)/page.tsx`, `nosotros/page.tsx` y `suscripciones/page.tsx` directo —
+los tres NOMBRADOS en la lista de Tier 1 de `CLAUDE.md`. `DISENO.md` § 6/§10 (este slice) corrige la
+fila 2 a Tier 1. El censo `EDITOR-TIENDA-OBSERVED-1` (read-only, previo a `EDITOR-TIENDA-IFRAME-GATE-1`)
+y el "Continue with the editor steps" del owner tras ese censo son la aprobación de ESCRITURA citada
+en el spec — nunca aprobación de MERGE.
+
+**`customer_bytes.changed = true`**: la admin UI de `/admin/tienda` (TiendaPaginas/TiendaSeccionEditor)
+cambió de forma visible para el OPERADOR — se retira la miniatura/vista grande por sección, aparece el
+panel del iframe compartido con su botón "Actualizar", cambia el copy de la vista expandida. El
+tráfico PÚBLICO (sin cookie) queda byte-idéntico (medido arriba), pero la regla mide la RAMA contra
+quien LEE —incluido el operador/dueño del panel—, no sólo al visitante del storefront.
+
+### `customer_bytes.strings` — lo visible que cambia (todo en el panel, nada en el storefront público)
+
+- "Edita y los cambios se guardan solos; publica cuando estén listos. Mira el resultado en la vista
+  de la tienda." (reemplaza a "Así se ve en la tienda. Edita y los cambios se guardan solos;
+  publica cuando estén listos.", en la vista expandida de cada sección).
+- "No se muestra en la tienda — {motivo}" ahora aparece también en la fila de LECTURA (antes sólo en
+  el thumb, sin el motivo concatenado).
+- El botón "Actualizar" del panel del iframe (nuevo).
+- Se retira la miniatura/vista grande por sección; aparece el panel compartido del iframe con la
+  página real adentro.
+
+### Deviations
+
+- **El alcance de escritura se AMPLIÓ** respecto a la fila 2 original de `DISENO.md` § 6 (que sólo
+  preveía tocar `TiendaSeccionEditor.tsx`), por el pedido explícito del owner citado en
+  `approval-reason` del spec. Detallado en `DISENO.md` § 10.
+- **`verificar:nayoli:visual` midió 0px**, donde el spec (siguiendo el precedente de
+  `CIERRE-EDITOR-GATE-1`) esperaba caracterizar un no-cero. Reportado como HALLAZGO (arriba), no
+  tomado como mejora real — la medición contra `main` no es estable.
+- **El walkthrough interactivo del owner no se ejecutó** (arriba, con la razón medida: herramientas
+  de shell no concedidas a este slice).
+
+### Open follow-ups
+
+- **`CLAUDE-MD-PANTALLA-CASCADA-STALE-1`**: `CLAUDE.md` § "La PANTALLA — vista previa EN VIVO…" y
+  § "La CASCADA de /admin/tienda — LAZY-MOUNT…" describen la arquitectura ANTERIOR de
+  `TiendaSeccionEditor` (una `VistaTiendaEnVivo` LOCAL por sección, lectura=tarjeta-con-miniatura,
+  edición=vista-grande-sticky-con-split, un `IntersectionObserver` de lazy-mount) que este slice
+  reemplazó, para home/nosotros/suscripciones, por un `VistaTiendaIframe` compartido + filas de texto.
+  La frase literal **"LA VISTA PREVIA ES EN VIVO — componentes REALES, no un iframe"** (`CLAUDE.md:2614`)
+  es ahora FALSA para esta superficie — es, con ironía, exactamente lo que este slice cambió. También
+  falsas: "LECTURA = TARJETA; EDICIÓN = VISTA GRANDE" (`:2632`), "LA MINIATURA es la MISMA vista…"
+  (`:2641`), "STICKY sólo en EDICIÓN… `.tienda-vivo__vista`…" (`:2654-2657`, y el residuo en `:3807-3808`),
+  y los puntos [1]/[2] de "La CASCADA" (`:2786-2799`, el lazy-mount y el placeholder del thumb — ya no
+  existen). Siguen siendo CIERTAS para `PaletaSeccion`/`FragmentoTienda` (su propia
+  `VistaTiendaEnVivo`, sin tocar), así que no son enteramente obsoletas — están mal ALCANZADAS, no
+  mal escritas. Fuera de `touches:` de este slice (`CLAUDE.md` no está en la lista).
+- **`CLAUDE-MD-PUENTE-ORPHANED-1`**: `CLAUDE.md:2757-2764` ("EL PUENTE MAPEA slot→BLOQUE…
+  `onClicTarjeta` scrollea por slot") describe un handler que este slice RETIRÓ de
+  `TiendaSeccionEditor.tsx` (sin disparador: la vista previa LOCAL que lo invocaba ya no existe, y el
+  iframe compartido no emite `data-sf-tarjeta` porque no monta con `PreviewProvider`/`useIsPreview`).
+  El mecanismo completo (`lib/tienda/puente-tarjetas.ts`, el atributo `data-sf-tarjeta` en
+  `GrindChooserMosaico.tsx`, la clase CSS `.puente-tarjetas`) queda VIVO en el código pero sin
+  NINGÚN consumidor activo desde este commit — DISENO.md § 6 fila 7 (`EDITOR-TIENDA-RETIRO-1`) ya
+  preveía retirarlo, "reemplazado por el puente generalizado del slice 4"; lo que este follow-up
+  nombra es que la ventana de orfandad EMPEZÓ acá (slice 2), no en el slice 7. Fuera de `touches:`.
+  También `CLAUDE.md:2269` ("la pieza de la paleta NO usa el split `.tienda-vivo--editando` — las
+  OTRAS CUATRO secciones sí") es ahora falsa: ninguna sección usa ya esa clase.
+- **`TIENDA-COOKIE-MULTI-TAB-1`**: `ModoEditorActivo` hace POST al montar `/admin/tienda` y DELETE al
+  desmontar. Con DOS pestañas del mismo navegador abiertas en `/admin/tienda` a la vez, cerrar UNA
+  dispara el DELETE y apaga el modo editor para la OTRA, que no se entera hasta su próxima recarga.
+  Riesgo bajo (uso interno, un operador) y no pedido por el spec; nombrado para no re-descubrirlo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Grep de cada símbolo/ruta que este diff cambia: `TiendaSeccionEditor` (6 apariciones, ver los dos
+follow-ups de arriba), `TiendaPaginas` (4, una de ellas en la sección de la CASCADA ya nombrada; las
+otras tres — el selector de página, el fetch 5→1, el catálogo de categorías — intactas, no las toca
+este diff), `VistaTiendaEnVivo` (5, todas siguen ciertas para su único consumidor restante,
+`PaletaSeccion`), `data-sf-tarjeta`/`puente-tarjetas.ts`/`onClicTarjeta`/`.tienda-vivo--editando`/
+`.tienda-vivo__vista`/`.tienda-tarjeta__thumb` (ver los dos follow-ups). `VistaTiendaIframe`,
+`ModoEditorActivo`, `editor-iframe.ts`, `modo-editor-gate`, `modoEditorActivo`, `EDITOR-TIENDA-IFRAME-
+VISTA-1` — CERO apariciones en `CLAUDE.md` (todavía no documentado ahí; es doctrina de slice, vive en
+`DISENO.md` y en este archivo).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — la admin UI de `/admin/tienda` cambió de forma visible
+para el operador/dueño (arriba, § `customer_bytes.strings`); el tráfico público queda byte-idéntico
+(medido). El owner ya aprobó la ESCRITURA (§ `approval-reason` del spec, sobre `EDITOR-TIENDA-
+OBSERVED-1`); el MERGE sigue gateado aparte, y requiere además el walkthrough interactivo de capa 3
+que este slice no pudo ejecutar (arriba).
+
+Cierra `EDITOR-TIENDA-IFRAME-VISTA-1`.

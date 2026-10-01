@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
-import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import PosterScrubber from '@/components/admin/PosterScrubber';
 import BarraProgreso from '@/components/admin/BarraProgreso';
@@ -18,76 +17,35 @@ import { esSesionVencida } from '@/lib/api/upload';
 import { getProducts } from '@/lib/api/products';
 import type { Product } from '@/types/product';
 import { cn } from '@duna/core/utils';
-import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano } from '@/components/admin/tienda-secciones';
+import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano, SeccionVista } from '@/components/admin/tienda-secciones';
 import { gatePorCampo } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { remuxMovAMp4 } from '@/lib/video-remux';
-import { DEFAULTS, type SuscripcionPlanesContent, type TemaContent, type EsquemasContent } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import {
   MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES, TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_VIDEO,
   MSG_VIDEO_NO_ADMITIDO, CONTENEDORES_REMUXEABLES, MAX_VIDEO_HERO_BYTES, MSG_VIDEO_HERO_LARGO,
 } from '@/constants/upload';
 
 // LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
-// sección vive acá —VISTA PREVIA EN VIVO + read↔edit + autoguardado + publicar/descartar + el
-// indicador + beforeunload-en-error—; lo específico (campos, imágenes, toggle, identidad) llega por
-// `config` (§ tienda-secciones). Segundo consumidor de este patrón: no se duplica la lógica de
-// autoguardado ni la de publicación —un bug arreglado en un sitio y no en el otro sería el peor
-// modo de falla—.
+// sección vive acá —read↔edit + autoguardado + publicar/descartar + el indicador +
+// beforeunload-en-error—; lo específico (campos, imágenes, toggle, identidad) llega por `config`
+// (§ tienda-secciones). Segundo consumidor de este patrón: no se duplica la lógica de autoguardado
+// ni la de publicación —un bug arreglado en un sitio y no en el otro sería el peor modo de falla—.
 //
-// La vista en vivo (componentes reales del storefront alimentados por el form) es la LECTURA;
-// "Editar" abre el formulario junto a ella; "Listo" cierra. El form AUTOGUARDA mientras se edita
-// (§ lib/autoguardado); la vista cambia en el mismo render. Sin gesto de guardar; Publicar y
-// Descartar son las acciones del borrador.
+// LA VISTA EN VIVO YA NO ES LOCAL (§ EDITOR-TIENDA-IFRAME-VISTA-1): hasta este slice, cada sección
+// montaba su propia `VistaTiendaEnVivo` —una SEGUNDA implementación del cálculo de colores/
+// tipografía/forma que la página real ya resuelve, la causa de fondo de más de un bug (§ DISENO.md,
+// § 1.3)—. Ahora `TiendaPaginas` monta UN solo `VistaTiendaIframe` que navega a la ruta REAL del
+// storefront en modo borrador; esta cáscara es SÓLO form —"Editar" abre los campos, "Listo" cierra,
+// el autoguardado dispara como siempre— y notifica al padre por los dos callbacks opcionales
+// (`onAbrir`/`onCambioPublicado`) para que el iframe compartido se desplace o se recargue. `config`,
+// `carga`, `categorias`/`categoriasListas` y `resaltar` no cambiaron de contrato.
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
-
-// ── EL ESQUEMA/TEMA REAL, PARA LA VISTA PREVIA (§ HISTORIA-COMO-MUESTRARIO-1) ─────────────────────
-//
-// EL DEFECTO MEDIDO: `VistaTiendaEnVivo` sintetiza su contenido con `{ ...DEFAULTS, [seccion]: valor
-// }` — `DEFAULTS.tema`/`.esquemas` son la FÁBRICA (raíces null, `{}`), así que la vista previa SIEMPRE
-// pintaba una banda con esquema asignado (p. ej. `brandStory` bajo CORTE, 'neutro') como si el tenant
-// no tuviera paleta ni esquema — el "lienzo de Nayoli" que el owner reportó. La tienda REAL no tiene
-// este problema porque `app/(storefront)/page.tsx` lee `content.esquemas`/`.tema` de la base en cada
-// request; el editor del panel nunca los leía.
-//
-// POR QUÉ UN PROMISE COMPARTIDO A NIVEL DE MÓDULO, NO UN FETCH POR INSTANCIA: `TiendaSeccionEditor` se
-// monta UNA VEZ POR SECCIÓN (hasta ~9 en la página Home), y `esquemas`/`tema` son dos claves MÁS del
-// MISMO doc que `TiendaPaginas` ya trae completo (`doc.contenido`) — pero `TiendaPaginas.tsx` queda
-// FUERA del `touches:` de este slice (no se le puede agregar el prop que baje esos dos campos a cada
-// editor sin tocarlo), así que este editor no puede recibirlos por prop. La alternativa que SÍ está en
-// `touches:` —y la que NO reintroduce el N-duplicados que § "El fetch bajó de 5 a 1" (CLAUDE.md)
-// cerró— es que las N instancias montadas en la MISMA carga de página resuelvan la MISMA promesa: el
-// costo es SIEMPRE una request de más por carga de `/admin/tienda` (iguala al patrón ya aceptado de
-// `PaletaSeccion`/`MenuSeccion`/`FooterSeccion`/`EncabezadoSeccion`/`DetallesSitioSeccion`, que YA
-// hacen su propio fetch independiente de `/api/site-content` en esa misma página — iría de 6 a 7
-// fetches totales en la carga de la página, nunca de 1 a N), no N como sería un fetch por instancia.
-//
-// LÍMITE DECLARADO: la promesa se resuelve UNA vez por carga de página y no se invalida — si el
-// operador edita la paleta en `PaletaSeccion` (otra sección de la misma página) y NO recarga, esta
-// vista previa sigue mostrando el esquema/tema con el que cargó la página. Es la MISMA clase de
-// límite que ya tiene el resto del panel (ningún editor de `/admin/tienda` escucha los cambios de
-// otro sin recargar); no es peor que el estado de hoy, y se documenta acá en vez de resolverse con
-// un mecanismo de invalidación cross-componente que este slice no pidió.
-//
-// El fallback (fetch fallido, sesión sin rol admin, etc.) es `DEFAULTS.tema`/`.esquemas` — EXACTAMENTE
-// el comportamiento de ANTES de este slice, nunca peor que el defecto que se está cerrando.
-let promesaEsquemaTema: Promise<{ tema: TemaContent; esquemas: EsquemasContent }> | null = null;
-function cargarEsquemaTemaReal() {
-  if (!promesaEsquemaTema) {
-    promesaEsquemaTema = fetch('/api/site-content')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('no-ok'))))
-      .then((d) => ({
-        tema: (d?.contenido?.tema ?? DEFAULTS.tema) as TemaContent,
-        esquemas: (d?.contenido?.esquemas ?? DEFAULTS.esquemas) as EsquemasContent,
-      }))
-      .catch(() => ({ tema: DEFAULTS.tema, esquemas: DEFAULTS.esquemas }));
-  }
-  return promesaEsquemaTema;
-}
 
 // ── EL CATÁLOGO REAL, PARA EL PICKER DE PRODUCTO (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1) ─────
 //
@@ -214,7 +172,7 @@ function ProductoCombobox({ value, onChange, productos, productosListos, id, pla
   );
 }
 
-export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga }: {
+export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado }: {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
@@ -237,19 +195,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     error: boolean;         // el fetch del padre falló
     recargar: () => Promise<{ contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> }>;
   };
+  /** Se llama al abrir esta sección (manual o por deep-link) — el padre (`TiendaPaginas`) lo usa para
+   *  desplazar+resaltar el iframe compartido hasta el marcador de esta sección (§ EDITOR-TIENDA-
+   *  IFRAME-VISTA-1). Ausente = sin iframe que notificar (no debería ocurrir fuera de un test). */
+  onAbrir?: (seccion: SeccionVista) => void;
+  /** Se llama cuando el autoguardado ASIENTA (transición real 'guardando'→'guardado', nunca en el
+   *  montaje) y tras Publicar/Descartar exitosos — el padre recarga el iframe compartido preservando
+   *  el scroll. Un 'error' de autoguardado NO dispara esto: nada cambió para el visitante todavía. */
+  onCambioPublicado?: () => void;
 }) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
-
-  // El esquema/tema REAL del tenant, para la vista previa (§ cargarEsquemaTemaReal, arriba). `null`
-  // hasta que resuelve; `VistaTiendaEnVivo` ya trata `undefined` como "usa DEFAULTS" — este editor no
-  // necesita distinguir "cargando" de "sin esquema", así que no hay un tercer estado que modelar acá.
-  const [esquemaTemaReal, setEsquemaTemaReal] = useState<{ tema: TemaContent; esquemas: EsquemasContent } | null>(null);
-  useEffect(() => {
-    let vivo = true;
-    cargarEsquemaTemaReal().then((v) => { if (vivo) setEsquemaTemaReal(v); });
-    return () => { vivo = false; };
-  }, []);
 
   // El catálogo REAL (§ cargarCatalogoReal, arriba) — SÓLO para `spotlight`, el único picker de
   // producto hoy; las demás secciones nunca disparan este fetch. `productosListos` distingue
@@ -278,32 +234,19 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
   const formRef = useRef<Datos | null>(null); formRef.current = form;
 
-  // ── EL PUENTE vista→formulario (§ Backlog #46) — SÓLO Presentaciones ──────────────────────────
-  // Clic en una tarjeta de la VISTA salta a su BLOQUE-tarjeta del FORM. `tarjetaActiva` es el SLOT de
-  // la última clicada; la vista la resalta (anillo) y el bloque del form la resalta ("puesto") + hace
-  // scroll a él. El mapeo es POR SLOT (el marcador `data-sf-tarjeta` lo lleva); acá va lo del DOM.
+  // ── EL RESALTE de tarjeta, SÓLO Presentaciones ────────────────────────────────────────────────
+  // `tarjetaActiva` es el SLOT que el deep-link del aviso de config (§ más abajo) pide resaltar; el
+  // bloque del form se marca "puesto" (`is-activo`) y recibe scroll. HASTA ESTE SLICE también lo
+  // escribía un clic DENTRO de la vista previa local (el puente vista→formulario, § Backlog #46) —
+  // ese disparador se fue CON la vista previa local (§ EDITOR-TIENDA-IFRAME-VISTA-1, arriba): no hay
+  // más `VistaTiendaEnVivo`/`data-sf-tarjeta` que clickear acá. La dirección iframe→form (clic en la
+  // tarjeta DENTRO del iframe compartido) es selección en contexto, `EDITOR-TIENDA-SELECCION-1` —
+  // slice 4 del plan, fuera de `touches:` de éste.
   const puenteTarjetas = seccion === 'presentaciones';
   const [tarjetaActiva, setTarjetaActiva] = useState<number | null>(null);
   // Los BLOQUES-tarjeta del form, por SLOT — el destino del scroll. Callback ref que limpia al
   // desmontar (un nodo viejo tras remontaje es el defecto del observer, § EscalaDesktop).
   const bloquesRef = useRef<Map<number, HTMLElement>>(new Map());
-
-  // CAPTURE en un ancestro de EscalaDesktop → corre ANTES que su neutralización de enlaces (que es un
-  // DESCENDIENTE) y NO llama stopPropagation, así que ambos coexisten: yo leo el slot, EscalaDesktop
-  // mata la navegación. Sólo actúo si el clic cae sobre una tarjeta (`data-sf-tarjeta`, que sólo existe
-  // en preview); un clic al fondo/eyebrow no hace nada. El scroll va al bloque registrado por SLOT.
-  const onClicTarjeta = useCallback((e: React.MouseEvent) => {
-    const el = (e.target as HTMLElement | null)?.closest?.('[data-sf-tarjeta]') as HTMLElement | null;
-    if (!el) return;
-    const slot = Number(el.dataset.sfTarjeta);
-    if (!Number.isInteger(slot)) return;
-    setTarjetaActiva(slot);
-    const nodo = bloquesRef.current.get(slot);
-    if (nodo) {
-      const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-    }
-  }, []);
 
   // ── LA PIEZA OPCIONAL (rule 3) — SÓLO Presentaciones ──────────────────────────────────────────
   // Una tarjeta opcional (slot 3-4) con TODOS sus campos en blanco NO aparece: se ofrece con "+
@@ -463,6 +406,16 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }, [seccion]);
   const auto = useAutoguardado(guardarSeccion);
 
+  // RECARGA EL IFRAME COMPARTIDO cuando el autoguardado ASIENTA (§ EDITOR-TIENDA-IFRAME-VISTA-1):
+  // la transición REAL 'guardando'→'guardado', nunca el estado inicial (que YA es 'guardado' al
+  // montar, § `useAutoguardado`) ni un 'error' (nada cambió para el visitante todavía). El ref evita
+  // re-disparar en renders donde `auto.estado` no cambió.
+  const estadoAnteriorRef = useRef(auto.estado);
+  useEffect(() => {
+    if (estadoAnteriorRef.current === 'guardando' && auto.estado === 'guardado') onCambioPublicado?.();
+    estadoAnteriorRef.current = auto.estado;
+  }, [auto.estado, onCambioPublicado]);
+
   // SIEMBRA del form desde el dato que bajó el padre (§ fetch 6→1). Una sola vez —guarda `form === null`—;
   // de ahí en más el editor es DUEÑO de su form (edita/autoguarda local), así que un re-render del padre
   // (p. ej. otro editor descartó y el doc se recargó) NO pisa los cambios de esta sección. `cargando`/
@@ -541,7 +494,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // `campoActivoRef` se limpia en las dos puntas (abrir/cerrar): es un ref de vida CORTA —sólo vale
   // mientras la acción que lo fijó está en vuelo (§ marcarCampoActivo)— y un ciclo cerrar→reabrir no
   // debe dejarlo apuntando a un control de una sesión de edición anterior.
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; };
+  // `onAbrir` (§ EDITOR-TIENDA-IFRAME-VISTA-1): abrir NO muta nada —ni autoguardado ni borrador—,
+  // así que notificar al padre acá es seguro incluso si el iframe todavía no cargó.
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
   const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; };
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
@@ -560,6 +515,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     if (!editando) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link: abrir edición desde el enlace del aviso (sin mutar); el bloque se monta en el próximo render y el re-run scrollea. `objetivoSlot` puede ser null (sección sin tarjetas) → sin resaltar, sólo abre.
       setEditando(true); setExpandidos(new Set()); setMostradosLista(new Map()); setTarjetaActiva(objetivoSlot);
+      onAbrir?.(seccion); // el deep-link también desplaza el iframe compartido, como un "Editar" manual
       return;
     }
     // Edición abierta: sin slot (sección sin tarjetas) con abrir alcanza; con slot, scrollear al bloque.
@@ -569,37 +525,13 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     deepLinkHecho.current = true;
     const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `onAbrir`/`seccion` son estables por render (seccion es prop fija, onAbrir se memoiza en el padre); agregarlos no cambia el disparo, sólo evita un lint ruidoso.
   }, [esObjetivo, objetivoSlot, cargando, editando, form]);
 
-  // ── LAZY-MOUNT de la vista previa de la tarjeta de LECTURA ──────────────────────────────────────
-  // La preview compacta monta un componente REAL del storefront a 1280px + dos ResizeObserver
-  // (§ VistaTiendaEnVivo / EscalaDesktop): es PESADA. Montar las N secciones de lectura a la vez pinta
-  // la pantalla en cascada —el defecto que el deep-link EXPONE (el censo: cada sección es un mount
-  // pesado, gateado sólo por su propio fetch)—. Se monta cuando la tarjeta ENTRA EN VISTA
-  // (IntersectionObserver con margen para adelantarse al scroll): en carga montan 1-2 en vez de 5, y en
-  // el deep-link la sección enlazada abre en EDICIÓN (monta igual) mientras las otras quedan como
-  // placeholder barato → el objetivo es lo único pesado montándose y aterriza rápido. NO toca cómo
-  // TiendaPaginas ordena las secciones: el aterrizaje temprano sale como efecto lateral.
-  //
-  // EL ALTO DEL PLACEHOLDER NO SALTA porque el thumb es una CAJA FIJA: `.tienda-tarjeta__thumb` fija su
-  // alto con `aspect-ratio: 16/9` sobre un ancho `clamp(...)` —INDEPENDIENTE del hijo (así funciona el
-  // scale-to-fit compacto)—, así que el placeholder reserva EXACTAMENTE la caja que la preview ocupará.
-  // El alto NO varía por sección: es la misma caja para todas.
-  //
-  // Callback ref (no efecto `[]`): el observer se engancha/desengancha con el nodo y se DESCONECTA al
-  // primer cruce (montada la preview, no hay que seguir observando) — el mismo patrón robusto que
-  // EscalaDesktop. Sin `IntersectionObserver` (entorno sin DOM) monta directo, para no esconder nunca.
-  const [previaVisible, setPreviaVisible] = useState(false);
-  const ioPrevia = useRef<IntersectionObserver | null>(null);
-  const thumbRef = useCallback((nodo: HTMLDivElement | null) => {
-    ioPrevia.current?.disconnect(); ioPrevia.current = null;
-    if (!nodo) return;
-    if (typeof IntersectionObserver === 'undefined') { setPreviaVisible(true); return; }
-    const io = new IntersectionObserver(entradas => {
-      if (entradas.some(e => e.isIntersecting)) { setPreviaVisible(true); io.disconnect(); ioPrevia.current = null; }
-    }, { rootMargin: '300px 0px' });
-    io.observe(nodo); ioPrevia.current = io;
-  }, []);
+  // EL LAZY-MOUNT de la tarjeta de lectura (IntersectionObserver sobre `VistaTiendaEnVivo` a 1280px)
+  // SE RETIRÓ CON SU CAUSA (§ EDITOR-TIENDA-IFRAME-VISTA-1): la tarjeta de lectura ya no monta un
+  // componente pesado del storefront por sección — sólo título + estado + "Editar". El iframe
+  // compartido de `TiendaPaginas` es la única vista en vivo, montada una vez por página.
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     // Publicar/descartar NO tienen un control-imagen propio: su error se queda SOLO al pie
@@ -629,6 +561,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         setHayBorrador(false);
         toast.success('Cambios descartados — volviste a lo publicado.');
       }
+      // Las DOS mutan lo que el visitante ve (publicar lo escribe; descartar lo revierte a lo
+      // publicado) — el iframe compartido recarga en los dos casos (§ EDITOR-TIENDA-IFRAME-VISTA-1).
+      onCambioPublicado?.();
     } finally { setProcesando(false); }
   };
 
@@ -1131,31 +1066,21 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
   const agregarTarjeta = () => { const primera = tarjetasColapsadas[0]; if (primera) expandir(primera.slot); };
 
-  // ── LECTURA: la sección es una TARJETA compacta (miniatura + título + estado + Editar). La vista
-  //    grande (con sticky) sólo existe en edición; en lectura no hay scroller interno que atrape la
-  //    página. Publicar/Descartar viven en la vista expandida.
+  // ── LECTURA: la sección es una FILA compacta (título + estado + Editar), SIN miniatura propia
+  //    (§ EDITOR-TIENDA-IFRAME-VISTA-1): la vista en vivo es el iframe compartido de `TiendaPaginas`,
+  //    no una reconstrucción por sección. Publicar/Descartar viven en la vista expandida.
   if (!editando) {
     return (
       <div className="tienda-tarjeta">
-        <div ref={thumbRef} className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
-          {noSeMuestra ? (
-            <div className="tienda-tarjeta__oculta">
-              <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
-            </div>
-          ) : previaVisible ? (
-            <VistaTiendaEnVivo seccion={seccion} valor={form} compacto bandaId={config.bandaId} esquemas={esquemaTemaReal?.esquemas} tema={esquemaTemaReal?.tema} />
-          ) : (
-            // La tarjeta esperando: el esqueleto del panel rellena la caja (alto reservado por el
-            // `aspect-ratio` del thumb) hasta que entra en vista y la preview monta. Sin salto.
-            <div className="duna-skel" aria-hidden style={{ width: '100%', height: '100%', borderRadius: 0 }} />
-          )}
-        </div>
         <div className="tienda-tarjeta__meta">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
             <h2 className="duna-title">{config.titulo}</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
             {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
           </div>
+          {noSeMuestra && (
+            <p className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda — {avisoNoSeMuestra}</p>
+          )}
           {/* El estado va ENTRE el título y la acción: se lee qué es → cómo está → qué hacer. En el
               caso normal ('guardado') no renderiza nada y la tarjeta queda idéntica a antes. */}
           {indicadorEstado}
@@ -1169,7 +1094,8 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   }
 
-  // ── EDICIÓN: la vista grande (sticky) + el form. El hero conserva su comportamiento exacto.
+  // ── EDICIÓN: sólo el form — la vista en vivo es el iframe compartido de `TiendaPaginas`, no una
+  //    columna local. El hero conserva su comportamiento exacto.
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
@@ -1180,7 +1106,8 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
             {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
           </div>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-            Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
+            Edita y los cambios se guardan solos; publica cuando estén listos. Mira el resultado en
+            la vista de la tienda.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
           {/* El indicador de GUARDADO (Guardando… / Guardado / error) va en la cabecera, SIN sticky: el
@@ -1212,41 +1139,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         </div>
       </div>
 
-      <div className="tienda-vivo tienda-vivo--editando" style={{ marginTop: 'var(--duna-space-4)' }}>
-        {/* La VISTA — componentes reales alimentados por el form. Oculta: la sección se auto-oculta
-            en el storefront (self-gate), así que la vista quedaría vacía; se muestra un aviso.
-            `tienda-vivo__vista` es sticky: sólo existe en edición, así que al dar "Listo" se
-            desmonta y no queda ningún elemento pinneado. */}
-        <div className="tienda-vivo__vista">
-          {noSeMuestra ? (
-            <div className="duna-card duna-card__pad" style={{ display: 'grid', placeItems: 'center', minHeight: '160px', textAlign: 'center' }}>
-              <div>
+      <div className="tienda-vivo__form" style={{ marginTop: 'var(--duna-space-4)' }}>
+            {/* Oculta: la sección se auto-oculta en el storefront (self-gate) y el iframe compartido
+                no muestra nada de ella — este aviso es lo único que lo dice acá. */}
+            {noSeMuestra && (
+              <div className="duna-card duna-card__pad" style={{ marginBottom: 'var(--duna-space-4)' }}>
                 <p className="duna-title" style={{ margin: 0 }}>No se muestra en la tienda</p>
                 <p className="duna-sub" style={{ marginTop: '4px' }}>{avisoNoSeMuestra}</p>
               </div>
-            </div>
-          ) : puenteTarjetas ? (
-            // El puente vive SÓLO en Presentaciones. La leyenda da la INSTRUCCIÓN ("clic para editar")
-            // en tamaño legible —dentro de la vista escalada (0.3-0.6×) el texto sería ilegible—; el
-            // hover sobre la tarjeta sólo confirma "esta responde" (§ duna.css .puente-tarjetas). El
-            // wrapper es `display:contents` (cero efecto en layout/escala) y captura el clic.
-            <>
-              <p className="duna-caption" style={{ margin: '0 0 var(--duna-space-2)' }}>
-                Haz clic en una tarjeta para editar sus campos.
-              </p>
-              <div className="puente-tarjetas" data-tarjeta-activa={tarjetaActiva ?? undefined} onClickCapture={onClicTarjeta}>
-                <VistaTiendaEnVivo seccion={seccion} valor={form} bandaId={config.bandaId} esquemas={esquemaTemaReal?.esquemas} tema={esquemaTemaReal?.tema} />
-              </div>
-            </>
-          ) : (
-            <VistaTiendaEnVivo seccion={seccion} valor={form} bandaId={config.bandaId} esquemas={esquemaTemaReal?.esquemas} tema={esquemaTemaReal?.tema} />
-          )}
-        </div>
-
-        {/* El FORM — junto a la vista (esta rama es siempre edición). El contenedor es un PANEL
-            RECESADO (--duna-bg) que CONTIENE las piezas; cada bloque es una PIEZA elevada
-            (--duna-surface) → los bloques se leen separados, no como un formulario plano (§ Fix 2). */}
-        <div className="tienda-vivo__form">
+            )}
+            {/* El PANEL RECESADO (--duna-bg) que CONTIENE las piezas; cada bloque es una PIEZA elevada
+                (--duna-surface) → los bloques se leen separados, no como un formulario plano (§ Fix 2). */}
             <div className="admin-bloques">
               <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
               {/* Segundo input para el flujo "elegir sin subir" (alta de vídeo); su `accept` lo fija
@@ -1348,7 +1251,6 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 </p>
               )}
             </div>
-        </div>
       </div>
 
       <ConfirmDescartarDialog

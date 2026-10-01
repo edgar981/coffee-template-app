@@ -437,7 +437,7 @@ cada fila.
 | # | Slice | Alcance | Tier | Criterio "igual a la página" | Qué retira |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `EDITOR-TIENDA-IFRAME-GATE-1` | El gate de modo-borrador (§ 5.2): cookie de sesión de edición, chequeo de rol server-side, `no-store`+`noindex` condicional. SIN UI nueva todavía — sólo el mecanismo, verificable por curl/test de integración. | 1 (toca `app/(storefront)/layout.tsx`) | `verificar:nayoli` (bytes) da 0 diffs con la cookie AUSENTE — el tráfico público no cambia un byte |
-| 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b) | 2 — corregido, § 9.2 (el único archivo que toca es `components/admin/TiendaSeccionEditor.tsx`, fuera de la lista Tier 1) | Captura lado a lado (`capturar:seccion`) del iframe contra la ruta real publicada, mismos valores computados | — (conviven con `VistaTiendaEnVivo` hasta el slice 7) |
+| 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` **— ENTREGADO, § 10** | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b). Alcance AMPLIADO por encargo del owner: la composición lista↔iframe (no una vista por sección) y la mitad lista→iframe de la selección en contexto, § 10. | 1 (toca `app/(storefront)/page.tsx`/`nosotros/page.tsx`/`suscripciones/page.tsx`, en la lista Tier 1 — corregido otra vez, § 10) | Verificado por ejecución: `npm run gate` verde, `guarda:color` 0px (8 capturas), `verificar:nayoli`/`:visual` caracterizados contra el `main` stale (§ CIERRE-EDITOR-GATE-1) | VistaTiendaEnVivo/data-sf-tarjeta SIGUEN vivos — ver § 10, el retiro de la fila 7 queda más chico |
 | 3 | `EDITOR-TIENDA-POSTMESSAGE-1` | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla | 1 (el listener vive en el storefront, gateado a `useIsPreview()`) | Medido por ejecución: cero `navigation`/reload del iframe durante una sesión de tecleo, con el valor reflejado en <100ms |
 | 4 | `EDITOR-TIENDA-SELECCION-1` | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe | 1 (el atributo nuevo vive en los componentes de `components/storefront/`, gateado a preview) | Verificado por ejecución (clic en iframe abre la sección correcta en la lista, y viceversa) |
 | 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe | 2 (sólo toca `components/admin/`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 375px |
@@ -534,3 +534,43 @@ re-medir sus propias listas en vez de confiar en que sigan vigentes).
 
 Esta sección no cambia el plan de § 6 más allá de la columna Tier de la fila 2 (ya corregida ahí) —
 ningún slice se agrega, se quita, ni cambia de alcance por lo escrito acá.
+
+---
+
+## 10 · Lo que `EDITOR-TIENDA-IFRAME-VISTA-1` entregó, contra lo que § 6 planeaba
+
+El dispatch de este slice amplió el alcance de la fila 2 de § 6 por encargo explícito del owner
+("la lista de secciones y sus campos a un costado, la pagina al centro" — nunca secciones aisladas,
+§ 9.1). Lo entregado:
+
+- **El iframe reemplaza las tres `VistaTiendaEnVivo`** que `TiendaSeccionEditor` montaba (tarjeta
+  compacta en lectura, vista grande + puente de Presentaciones en edición) — tal como planeaba la
+  fila 2.
+- **La composición cambia de verdad** (eso NO estaba en la fila 2 original, que suponía sólo
+  reemplazar la vista DENTRO de cada `TiendaSeccionEditor`): `TiendaPaginas` ahora monta UN solo
+  `VistaTiendaIframe` compartido por página, con la lista de secciones a un costado — no una vista
+  por sección. Esto absorbe, parcialmente y por anticipado, una porción de lo que la fila 4
+  (`EDITOR-TIENDA-SELECCION-1`) tenía planeado: el marcador `data-editor-seccion` y el desplazamiento
+  "ir a la sección" (abrir una sección → el iframe se desplaza y resalta) SE CONSTRUYERON acá, por
+  manipulación directa del DOM (mismo origen, sin `postMessage` — eso sigue siendo
+  `EDITOR-TIENDA-POSTMESSAGE-1`/`EDITOR-TIENDA-SELECCION-1`, slices 3 y 4). Lo que la fila 4 TODAVÍA
+  debe agregar: la dirección INVERSA (clic DENTRO del iframe → abre la sección en la lista) y el
+  `postMessage` bidireccional — esta tanda sólo resuelve lista→iframe, nunca iframe→lista.
+- **Suscripciones es la excepción medida, no la regla**: sus tres secciones
+  (`suscripcionPlanes`/`suscripcionPasos`/`suscripcionFaq`) viven dentro de
+  `app/(storefront)/suscripciones/Contenido.tsx`, que quedó FUERA de `touches:` de este slice — así
+  que comparten un marcador ÚNICO de página (`data-editor-seccion="suscripciones"`), y "ir a la
+  sección" para esas tres sólo lleva al tope de /suscripciones, no al bloque exacto. Si
+  `EDITOR-TIENDA-SELECCION-1` entra a `Contenido.tsx`, esta limitación se cierra ahí.
+- **`EDITOR-TIENDA-RETIRO-1` (fila 7) queda MÁS CHICO de lo planeado**: `VistaTiendaEnVivo.tsx` y
+  `lib/config/esquema-style.ts` (`varsDeTienda`) SIGUEN VIVOS — `PaletaSeccion`/`FragmentoTienda` es
+  su único consumidor restante, sin tocar en esta tanda (fuera de `touches:`). El puente
+  `data-sf-tarjeta`/`lib/tienda/puente-tarjetas.ts` también sigue vivo con el MISMO alcance de
+  siempre (sólo Presentaciones) — nada de esto se retiró, porque nada de esto se usaba ya desde
+  `TiendaSeccionEditor`: `onClicTarjeta` (el handler que lo disparaba desde la vista previa LOCAL) sí
+  se retiró, por quedar sin disparador tras este slice.
+- **El selector de ancho (fila 5) y el reordenar/ocultar (fila 6) siguen intactos, sin construir.**
+
+No se tocó código de `components/storefront/` en este slice (el `data-editor-seccion` de las tres
+páginas de `app/(storefront)/` no cuenta — Tier 1 por estar en la lista `app/(storefront)/`
+nombrada, no por tocar el subárbol `components/storefront/`).

@@ -15,12 +15,16 @@ import { resolverOrden, type BandaId } from "@/lib/config/site-content-defaults"
 import { contenidoConPresetDeVista, cssMiradorTema } from "@/lib/config/theme-mirador";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { esDespliegueDemo } from "@/next.config";
+import { modoEditorActivo } from "@/lib/config/modo-editor-gate";
 // v1: Newsletter hidden — restore import when the newsletter feature ships
 // import Newsletter from "@/components/storefront/home/Newsletter";
 
-// La home lee el contenido PUBLICADO por el SiteContentProvider del layout. El borrador ya no se
-// sirve acá: la vista previa del panel renderiza los componentes reales alimentados por el form
-// (§ /admin/tienda), así que se retiró el gate de sesión / `?borrador` que existía para el iframe.
+// La home lee `getSiteContent()`, que bifurca PUBLICADO/BORRADOR según el modo editor
+// (§ EDITOR-TIENDA-IFRAME-GATE-1, `lib/config/site-content.ts`): sin la cookie de edición —el
+// 99.99% del tráfico— es exactamente lo PUBLICADO, byte-idéntico a antes de esos slices. CON la
+// cookie (el iframe de `/admin/tienda`, § EDITOR-TIENDA-IFRAME-VISTA-1) es el borrador, y cada
+// banda se envuelve en un marcador `data-editor-seccion` para que el panel la ubique (ver
+// `enModoEditor`/`bandaNodo`, abajo).
 //
 // `negocio` sale de SiteSetting (identidad) y se PASA a GrindChooser para el alt de sus imágenes —no
 // lo lee el componente por hook, porque también se monta en la vista previa del panel (§ GrindChooser).
@@ -76,7 +80,11 @@ export default async function Home({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const [{ nombre }, contentPublicado] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  const [{ nombre }, contentPublicado, enModoEditor] = await Promise.all([
+    getSiteSettings(),
+    getSiteContent(),
+    modoEditorActivo(),
+  ]);
   const { tema: temaPedido } = await searchParams;
   const content = esDespliegueDemo()
     ? contenidoConPresetDeVista(contentPublicado, Array.isArray(temaPedido) ? temaPedido[0] : temaPedido)
@@ -108,10 +116,21 @@ export default async function Home({
     testimonials: (style) => <TestimonialSection style={style} />,
   };
 
+  // EL MARCADOR `data-editor-seccion` (§ EDITOR-TIENDA-IFRAME-VISTA-1): SÓLO en modo editor, cada
+  // banda se envuelve en un `<div>` con el atributo que el panel usa para desplazar+resaltar el
+  // iframe. Sin modo editor (el 99.99% del tráfico) `bandaNodo` devuelve el render tal cual —CERO
+  // bytes de más, byte-idéntico a antes de este slice—. El wrapper es un `<div>` llano: no hay CSS
+  // en este repo que dependa de que una banda sea hija DIRECTA de `<main>` (verificado por grep), y
+  // esto sólo se renderiza con la cookie de edición puesta.
+  const bandaNodo = (id: BandaId) => {
+    const render = BANDAS[id](bandaStyle(id));
+    return enModoEditor ? <div data-editor-seccion={id}>{render}</div> : render;
+  };
+
   const bandas = (
     <>
       {resolverOrden(orden).map((id) => (
-        <Fragment key={id}>{BANDAS[id](bandaStyle(id))}</Fragment>
+        <Fragment key={id}>{bandaNodo(id)}</Fragment>
       ))}
       {/* v1: Newsletter hidden — restore when the newsletter feature ships */}
       {/* <Newsletter style={bandaStyle('newsletter')} /> */}

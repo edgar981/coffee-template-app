@@ -8,6 +8,7 @@ import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
 import NosotrosCierre from "@/components/storefront/nosotros/NosotrosCierre";
 import { resolverOrdenNosotros, type BandaNosotrosId } from "@/lib/config/site-content-defaults";
 import { navOffsetClase } from "@/lib/config/themes";
+import { modoEditorActivo } from "@/lib/config/modo-editor-gate";
 
 // Sólo "Nosotros": el layout del storefront aplica el template `%s · {nombre}` desde
 // SiteSetting (app/(storefront)/layout.tsx), así que el título resuelve a "Nosotros · {nombre}".
@@ -35,7 +36,7 @@ export default async function NosotrosPage() {
 
   // El nombre del negocio alimenta el fallback del alt de la galería (§ NosotrosGaleria): va por PROP
   // desde el server, no por `useSiteSettings()`, para que la vista en vivo del editor no lo exija.
-  const settings = await getSiteSettings();
+  const [settings, enModoEditor] = await Promise.all([getSiteSettings(), modoEditorActivo()]);
 
   const BANDAS: Record<BandaNosotrosId, () => React.ReactNode> = {
     nosotrosHistoria: () => <NosotrosHistoria />,
@@ -43,9 +44,16 @@ export default async function NosotrosPage() {
     nosotrosCierre: () => <NosotrosCierre />,
   };
 
+  // EL MARCADOR `data-editor-seccion` (§ EDITOR-TIENDA-IFRAME-VISTA-1) — mismo mecanismo que la home:
+  // sólo en modo editor, y sin bytes de más para el resto del tráfico.
+  const bandaNodo = (id: BandaNosotrosId) => {
+    const render = BANDAS[id]();
+    return enModoEditor ? <div data-editor-seccion={id}>{render}</div> : render;
+  };
+
   // El provider de SiteContent lo monta el layout del storefront → las secciones leen el contenido.
   const bandas = resolverOrdenNosotros().map((id) => (
-    <Fragment key={id}>{BANDAS[id]()}</Fragment>
+    <Fragment key={id}>{bandaNodo(id)}</Fragment>
   ));
   // EL ALTO DEL HEADER FIJO — § NOSOTROS-OFFSET-NAV-1: con el nav de CORTE (88px) la primera banda
   // (`py-24`) quedaba a 8px del filete. Bajo `navTratamiento.posicion` se reserva el alto del header,

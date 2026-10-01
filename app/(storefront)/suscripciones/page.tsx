@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSiteContent } from "@/lib/config/site-content";
+import { modoEditorActivo } from "@/lib/config/modo-editor-gate";
 import SuscripcionesContenido from "./Contenido";
 
 // El layout del storefront aplica `%s · {nombre}` desde SiteSetting → "Suscripciones · {nombre}".
@@ -16,8 +17,16 @@ export const metadata: Metadata = { title: "Suscripciones" };
 // tanda, así que migró su `pt-16` directo a `navOffsetClase(navTratamiento.posicion)` — la forma
 // UNIFORME que las otras seis páginas internas ya tienen. El wrapper con `navOffsetDeltaClase` (la
 // DIFERENCIA que faltaba mientras `Contenido.tsx` estaba fuera de alcance) se retiró con él.
+// EL MARCADOR `data-editor-seccion="suscripciones"` (§ EDITOR-TIENDA-IFRAME-VISTA-1) es ÚNICO para
+// TODA la página, no uno por sección: sus tres secciones editables (`suscripcionPlanes`/
+// `suscripcionPasos`/`suscripcionFaq`) viven dentro de `./Contenido.tsx`, fuera de `touches:` de
+// este slice, así que no hay forma de marcarlas por separado sin tocarlo. "Ir a la sección" para
+// esas tres sólo lleva al TOPE de /suscripciones (§ `lib/admin/editor-iframe.ts`,
+// `marcadorDeSeccion`) — limitación conocida, documentada en `DECISIONS.md`.
 export default async function SuscripcionesPage() {
   const content = await getSiteContent();
   if (!content.paginas.suscripciones.visible) redirect("/");
-  return <SuscripcionesContenido />;
+  const enModoEditor = await modoEditorActivo();
+  if (!enModoEditor) return <SuscripcionesContenido />;
+  return <div data-editor-seccion="suscripciones"><SuscripcionesContenido /></div>;
 }
