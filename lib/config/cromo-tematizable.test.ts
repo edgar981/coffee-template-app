@@ -117,15 +117,23 @@ test('CORTE declara `navDrawerMovilVariante` (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1)
 });
 
 // ── Logo — el ÚNICO componente de esta superficie renderizable sin contexto de ruteo ────────────
-// Sin `subtitle` (el default en TODO caller salvo que `cromo.navSubtitulo` sea `true`), el HTML es
-// BYTE-IDÉNTICO al de antes de este slice — medido contra `git show HEAD:components/storefront/
-// Logo.tsx` (la rama sin `subtitle` no cambió un carácter) y confirmado por render.
+// Sin `subtitle` (el default en TODO caller salvo que `cromo.navSubtitulo` sea `true`), el HTML de
+// `renderToStaticMarkup` gana el `min-w-0` del `<div>` raíz (layout-only, medido sin efecto de
+// píxel) y un SEGUNDO `<span>` oculto (`aria-hidden`, § `NombreEncogible` en `Logo.tsx`) — el
+// MEDIDOR del ajuste de "no partir en dos líneas", que NUNCA se ve (`invisible`) y nunca entra al
+// árbol de accesibilidad. El `<span>` VISIBLE sigue byte-idéntico al de HOY: el ajuste de tamaño es
+// CONDICIONAL POR ESTADO, decidido en `useLayoutEffect` — que NO corre en `renderToStaticMarkup`
+// (sin DOM real) — así que nunca muestra las clases de recorte acá; eso se verifica por EJECUCIÓN
+// en el navegador (capa 3), no en este render estático.
 
-test('Logo SIN subtitle: HTML idéntico al de HOY (Nayoli, y todo tenant que no declare navSubtitulo)', () => {
+test('Logo SIN subtitle: HTML idéntico al de HOY + el medidor oculto del ajuste (§ MARCA-LOGO-IMAGEN-1)', () => {
   const html = renderToStaticMarkup(React.createElement(Logo, { nombre: 'Café Nayoli' }));
   assert.equal(
     html,
-    '<div class="flex items-center gap-2.5"><span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span></div>',
+    '<div class="flex min-w-0 items-center gap-2.5">'
+      + '<span aria-hidden="true" class="font-display text-[22px] leading-none text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
+      + '<span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span>'
+      + '</div>',
   );
 });
 
@@ -133,14 +141,17 @@ test('Logo CON subtitle (§ CROMO-NAV-FOOTER-TEMATIZABLE-1, cromo.navSubtitulo):
   const html = renderToStaticMarkup(React.createElement(Logo, { nombre: 'Finca San Adolfo', subtitle: 'San Adolfo · Huila' }));
   assert.ok(html.includes('Finca San Adolfo'));
   assert.ok(html.includes('San Adolfo · Huila'));
-  assert.ok(html.includes('flex flex-col'), 'el sub-encabezado envuelve nombre+tagline en su propio bloque vertical');
+  assert.ok(html.includes('flex-col'), 'el sub-encabezado envuelve nombre+tagline en su propio bloque vertical');
 });
 
 test('Logo CON subtitle VACÍO ("") se comporta como AUSENTE — no cuelga un sub-encabezado vacío', () => {
   const html = renderToStaticMarkup(React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: '' }));
   assert.equal(
     html,
-    '<div class="flex items-center gap-2.5"><span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span></div>',
+    '<div class="flex min-w-0 items-center gap-2.5">'
+      + '<span aria-hidden="true" class="font-display text-[22px] leading-none text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
+      + '<span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span>'
+      + '</div>',
   );
 });
 

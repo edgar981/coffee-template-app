@@ -135,14 +135,24 @@ test('navWordmark: ausente no rompe el parse (es opcional, como las otras metas)
 //
 // Cadenas medidas por EJECUCIÓN (`renderToStaticMarkup`), no transcritas a mano — igual que
 // `cromo-tematizable.test.ts` mide el HTML de la rama `subtitle` sin tratamiento.
+//
+// § MARCA-LOGO-IMAGEN-1 agregó `min-w-0` al `<div>` raíz (layout-only, sin efecto de píxel — § el
+// docstring de `Logo.tsx`) y un SEGUNDO `<span>` oculto (`aria-hidden`, el MEDIDOR del ajuste) +
+// un ajuste CONDICIONAL POR ESTADO en el `<span>` visible del nombre, para que un nombre de
+// negocio largo nunca se parta en dos líneas (§ `NombreEncogible`). El ajuste se decide en
+// `useLayoutEffect`, que NO corre en `renderToStaticMarkup` — así que estas cadenas, medidas
+// contra ese render estático, siguen sin las clases de recorte en el `<span>` visible (`ajuste`
+// nace `null`); el medidor SÍ aparece siempre (es parte fija del markup), pero está oculto
+// (`invisible`, fuera del árbol de accesibilidad).
 
-test('Logo CON subtitle, SIN wordmarkTratado (todo tenant salvo CORTE): HTML idéntico al de HOY, byte a byte', () => {
+test('Logo CON subtitle, SIN wordmarkTratado (todo tenant salvo CORTE): HTML idéntico al de HOY + el medidor oculto', () => {
   const html = renderToStaticMarkup(
     React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila' }),
   );
   assert.equal(
     html,
-    '<div class="flex items-center gap-2.5"><span class="flex flex-col leading-none">'
+    '<div class="flex min-w-0 items-center gap-2.5"><span class="flex min-w-0 flex-col leading-none">'
+      + '<span aria-hidden="true" class="font-display text-[22px] leading-none text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
       + '<span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span>'
       + '<span class="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'
       + '</span></div>',
@@ -155,7 +165,8 @@ test('Logo CON subtitle Y wordmarkTratado (CORTE, variant="light"): nombre en ma
   );
   assert.equal(
     html,
-    '<div class="flex items-center gap-2.5"><span class="flex flex-col leading-none">'
+    '<div class="flex min-w-0 items-center gap-2.5"><span class="flex min-w-0 flex-col leading-none">'
+      + '<span aria-hidden="true" class="font-display uppercase tracking-[0.01em] text-[30px] leading-none text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
       + '<span class="font-display uppercase tracking-[0.01em] text-[30px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span>'
       + '<span class="mt-1 font-inter font-normal tracking-[0.11em] text-[11px] text-[var(--sf-tinta)]/60">San Adolfo · Huila</span>'
       + '</span></div>',
@@ -171,11 +182,14 @@ test('Logo CON subtitle Y wordmarkTratado, variant="dark" (el estado real del na
   assert.doesNotMatch(html, /italic/, 'sin itálica, aunque esté tratado');
 });
 
-test('Logo SIN subtitle, con wordmarkTratado=true: no hay rama `subtitle` que tratar — HTML idéntico al de HOY', () => {
+test('Logo SIN subtitle, con wordmarkTratado=true: no hay rama `subtitle` que tratar — HTML idéntico al de HOY + el medidor oculto', () => {
   const html = renderToStaticMarkup(React.createElement(Logo, { nombre: 'Café Nayoli', wordmarkTratado: true }));
   assert.equal(
     html,
-    '<div class="flex items-center gap-2.5"><span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span></div>',
+    '<div class="flex min-w-0 items-center gap-2.5">'
+      + '<span aria-hidden="true" class="font-display text-[22px] leading-none text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
+      + '<span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span>'
+      + '</div>',
   );
 });
 
@@ -185,7 +199,8 @@ test('Logo `stacked` (el footer) con wordmarkTratado=true: NO SE TOCA — el sub
   );
   assert.equal(
     html,
-    '<div class="flex flex-col items-center gap-3"><div class="flex flex-col items-center gap-0.5">'
+    '<div class="flex min-w-0 flex-col items-center gap-3"><div class="flex min-w-0 max-w-full flex-col items-center gap-0.5">'
+      + '<span aria-hidden="true" class="font-display text-2xl text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
       + '<span class="font-display text-2xl text-[var(--sf-tinta)]">Café Nayoli</span>'
       + '<span class="font-display text-[13px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'
       + '</div></div>',

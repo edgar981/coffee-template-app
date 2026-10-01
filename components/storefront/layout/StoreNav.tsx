@@ -83,7 +83,7 @@ export default function StoreNav() {
   // Cada ítem puede llevar además un `panel` (§ MUESTRARIO-MEGA-MENU-1) — AUSENTE para todo tenant
   // que no lo declare (Nayoli), así que el `.map` de abajo sigue byte-idéntico sin tocar nada.
   const content = useSiteContent();
-  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil } = content;
+  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil, logo } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
   // § MENU-MOVIL-CIERRE-DESLIZANDO-1 — el total de filas de la cascada del drawer móvil
@@ -596,8 +596,14 @@ export default function StoreNav() {
   // (arriba), para que el filete y el wordmark transicionen JUNTOS al alternar `navClaro` (flotando↔
   // sólido, home↔interna). `false` (todo tenant salvo CORTE) → `Logo` ignora la prop (default
   // `false`) y el wordmark sigue saltando de golpe, byte a byte.
+  //
+  // `logo` (§ MARCA-LOGO-IMAGEN-1): el logo SUBIDO del dueño, `content.logo`. Sin ninguna versión
+  // subida (todo tenant que no lo configure, incluido Nayoli) `Logo` ignora la prop y renderiza
+  // mark+wordmark como siempre — byte a byte. Con logo, `Logo` ya resuelve sola QUÉ versión mostrar
+  // según `variant` (claro flotando sobre el hero, oscuro en páginas internas/nav sólido, § la prop
+  // `variant` arriba) — este componente no decide nada nuevo, sólo reenvía el dato.
   const logoLink = (
-    <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
+    <Link href="/" aria-label={`${nombre} — inicio`} className="min-w-0 transition-colors">
       {/* Cream lockup over the transparent hero, espresso once scrolled */}
       <Logo
         nombre={nombre}
@@ -606,6 +612,7 @@ export default function StoreNav() {
         subtitle={cromo.navSubtitulo ? tagline : undefined}
         wordmarkTratado={navWordmark.activo}
         transicionColor={navTratamiento.posicion}
+        logo={logo}
       />
     </Link>
   );
@@ -1030,13 +1037,14 @@ export default function StoreNav() {
               className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-[var(--sf-fondo)]"
             >
               <div className="flex items-center justify-between border-b border-[var(--sf-linea)] px-6 py-5">
-                <Link href="/" onClick={() => setMobileOpen(false)} aria-label={`${nombre} — inicio`}>
+                <Link href="/" onClick={() => setMobileOpen(false)} aria-label={`${nombre} — inicio`} className="min-w-0">
                   <Logo
                     nombre={nombre}
                     variant="light"
                     conMark={STOREFRONT_TIENE_MARK}
                     subtitle={cromo.navSubtitulo ? tagline : undefined}
                     wordmarkTratado={navWordmark.activo}
+                    logo={logo}
                   />
                 </Link>
                 {/* "buscar si existe, carrito, cerrar" — § CARRITO-Y-MENU-MOVIL-CAFEONE-1, sin

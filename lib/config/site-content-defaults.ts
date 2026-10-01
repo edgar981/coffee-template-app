@@ -1375,6 +1375,7 @@ export interface SiteContentData {
   suscripcionFaq: SuscripcionFaqContent;
   menu: MenuContent;
   footer: FooterContent;
+  logo: LogoContent;
   paginas: PaginasContent;
   tema: TemaContent;
   cromo: CromoContent;
@@ -1868,6 +1869,15 @@ export const DEFAULTS: SiteContentData = {
     tarjetaImagen: '',
     tarjetaTexto: '',
     items: [],
+  },
+  // LOGO por defecto (§ MARCA-LOGO-IMAGEN-1): las tres claves vacías → sin logo subido, el
+  // storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) →
+  // byte-idéntico sin depender de una fila.
+  logo: {
+    visible: true,
+    oscuro: '',
+    claro: '',
+    alt: '',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -2557,7 +2567,45 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       },
     },
   },
+  // EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1) — MISMO precedente que `menu`/`footer`: `ocultable:false`
+  // (el logo no se "apaga" como una banda de contenido; su presencia la decide tener o no una imagen
+  // subida, § `hayLogoImagen`, lib/config/marca-logo.ts), editor BESPOKE
+  // (`EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado` — el logo viaja en el MISMO
+  // borrador/publish que los diez switches del Encabezado, no una sección aparte del selector de
+  // páginas). `imagenes: ['oscuro', 'claro']` para que el borrado de blobs reemplazados
+  // (`imagenesDe`, site-content-blobs.ts) los vea — sin nombrarlos acá, reemplazar un logo dejaría
+  // el blob viejo HUÉRFANO para siempre (mismo mecanismo que `hero.imagenPoster`/
+  // `menu.panelTarjetaImagen`). Los tres campos son 'opcional': vacíos = sin logo subido, el
+  // storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) —
+  // exactamente lo de hoy.
+  logo: {
+    label: 'Logo',
+    ocultable: false,
+    imagenes: ['oscuro', 'claro'],
+    campos: {
+      // Versión OSCURA (tinta): para fondos CLAROS — páginas internas, encabezado sólido.
+      oscuro: 'opcional',
+      // Versión CLARA: para fondos OSCUROS — la portada flotando sobre el hero, el pie de página.
+      claro: 'opcional',
+      // ALT opcional con FALLBACK CONTEXTUAL (§ NosotrosGaleria, "opcional con fallback
+      // contextual, no requerido"): vacío → el nombre del negocio, resuelto por el CONSUMIDOR
+      // (`altDeLogo`, lib/config/marca-logo.ts) — nunca un default de código inventado.
+      alt: 'opcional',
+    },
+  },
 };
+
+/** El contrato de dato del LOGO subido (§ MARCA-LOGO-IMAGEN-1): dos versiones de imagen + su alt.
+ *  `''` en `oscuro`/`claro` = esa versión no está subida; `''` en ambas = sin logo (el storefront
+ *  cae al wordmark de texto). Ver `REGISTRY.logo` arriba para el porqué de cada campo. `visible` es
+ *  el campo BASELINE que toda sección lleva (§ `HeroContent`/`MenuContent`/`FooterContent`) — inerte
+ *  acá porque `REGISTRY.logo.ocultable` es `false`, igual que en `menu`/`footer`. */
+export interface LogoContent {
+  visible: boolean;
+  oscuro: string;
+  claro: string;
+  alt: string;
+}
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.
 // variantes` para bandas que NO son `SeccionKey` —hoy sólo `featured`, sin entrada en

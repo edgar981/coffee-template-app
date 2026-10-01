@@ -62,10 +62,22 @@ import { CORTE } from '../../lib/config/themes';
 //
 // § RIEL-SCROLL-Y-BADGE-DORADO-1: `navTratamiento` gana un SÉPTIMO campo (`badgeColor`), mismo
 // razonamiento — los bodies de abajo llevan `badgeColor` junto a los otros seis porque `wireDe`
-// sigue mandando el objeto COMPLETO. Único matiz: es un hex-o-`null`, no un booleano.
+// sigue mandando el objeto COMPLETO.
+//
+// § MARCA-LOGO-IMAGEN-1 — DEVIACIÓN MEDIDA, fuera de `touches:` de ese slice (mismo patrón ya
+// documentado arriba para § CROMO-NAV-DIRECCION-SCROLL-1 y hermanas: este archivo es un ESPEJO del
+// `.pick()`/`METAS_ENCABEZADO` reales de `app/api/site-content/encabezado/route.ts`, y ampliar la
+// ruta a una QUINTA clave sin actualizar este espejo lo habría dejado probando sólo 4 de las 5
+// claves reales — el mismo defecto que este archivo existe para prevenir). `logo` es DISTINTA de
+// las cuatro de arriba: no es una meta excluida del REGISTRY, ES una sección de verdad (§
+// `REGISTRY.logo`, site-content-defaults.ts), así que viaja por la MISMA `guardarBorrador`/
+// `publicarSeccion`/`descartarSeccion` sin que ninguna de las tres necesitara cambiar de firma — su
+// borrado de blobs (`blobsHuerfanos`) ya la reconoce por default. Los bodies de abajo llevan `logo`
+// junto a las otras cuatro porque `wireDe` de `EncabezadoSeccion.tsx` manda el objeto COMPLETO en
+// cada guardado (nunca a medias), igual que con las demás.
 
-const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true });
-const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
+const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true, logo: true });
+const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil', 'logo'] as const;
 
 /** Simula EXACTAMENTE el PUT de la ruta: parsea el body con el schema real, ACOTADO a las cuatro
  *  claves del Encabezado (como hace la ruta con `.pick()`), y guarda el resultado en el borrador. */
@@ -88,12 +100,13 @@ async function descartarComoLaRuta() {
 beforeEach(async () => { await prisma.siteContent.deleteMany({}); });
 after(async () => { await prisma.siteContent.deleteMany({}); await prisma.$disconnect(); });
 
-test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado es true', async () => {
+test('guardar: las cuatro metas + logo quedan en el BORRADOR y sinPublicar.encabezado es true', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
     navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
+    logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: 'https://blob.example/logo-claro.svg', alt: 'Logo de Café Las Chamisas' },
   });
 
   const { contenido, sinPublicar } = await readSiteContentParaEditor();
@@ -110,6 +123,9 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   assert.equal(contenido.navTratamiento.subrayado, true);
   assert.equal(contenido.navTratamiento.badgeColor, '#f5b36a');
   assert.equal(contenido.navDrawerMovil.variante, 'pantallaCompleta');
+  assert.equal(contenido.logo.oscuro, 'https://blob.example/logo-oscuro.svg');
+  assert.equal(contenido.logo.claro, 'https://blob.example/logo-claro.svg');
+  assert.equal(contenido.logo.alt, 'Logo de Café Las Chamisas');
 
   // Y lo PUBLICADO todavía NO cambió — guardar el borrador no publica.
   const publicado = await readSiteContent();
@@ -117,14 +133,17 @@ test('guardar: las cuatro metas quedan en el BORRADOR y sinPublicar.encabezado e
   assert.equal(publicado.navWordmark.activo, false);
   assert.equal(publicado.navTratamiento.badgeColor, null, 'guardar el borrador no debe tocar lo publicado');
   assert.equal(publicado.navDrawerMovil.variante, 'dropdown');
+  assert.equal(publicado.logo.oscuro, '', 'guardar el borrador no debe tocar lo publicado');
+  assert.equal(publicado.logo.claro, '', 'guardar el borrador no debe tocar lo publicado');
 });
 
-test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan actualizadas y el borrador de las CUATRO queda limpio', async () => {
+test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil,logo} quedan actualizadas y el borrador queda limpio', async () => {
   await guardarComoLaRuta({
     cromo: { navTinta: true, navSubtitulo: true, navBadge: '' },
     navWordmark: { activo: true },
     navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
+    logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: 'https://blob.example/logo-claro.svg', alt: 'Logo de Café Las Chamisas' },
   });
   await publicarComoLaRuta();
 
@@ -140,9 +159,28 @@ test('publicar: content.{cromo,navWordmark,navTratamiento,navDrawerMovil} quedan
   assert.equal(publicado.navTratamiento.subrayado, true);
   assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
+  assert.equal(publicado.logo.oscuro, 'https://blob.example/logo-oscuro.svg');
+  assert.equal(publicado.logo.claro, 'https://blob.example/logo-claro.svg');
+  assert.equal(publicado.logo.alt, 'Logo de Café Las Chamisas');
 
   const { sinPublicar } = await readSiteContentParaEditor();
-  assert.equal(sinPublicar.encabezado, false, 'publicar debe limpiar el borrador de las cuatro metas');
+  assert.equal(sinPublicar.encabezado, false, 'publicar debe limpiar el borrador de las cinco claves');
+});
+
+test('publicar sólo deja HUÉRFANO el logo REEMPLAZADO — blobsABorrar lo nombra (§ MARCA-LOGO-IMAGEN-1)', async () => {
+  // `logo` SÍ es sección REGISTRY (a diferencia de las otras cuatro metas de este bloque), así que
+  // el borrado de blobs GENÉRICO (`blobsHuerfanos`, site-content-blobs.ts) ya la reconoce sin que
+  // esta ruta necesite una línea propia de lógica de blobs — esto lo prueba contra Postgres real.
+  await guardarComoLaRuta({ logo: { oscuro: 'A.svg', claro: '', alt: '' } });
+  await publicarComoLaRuta();
+
+  // Reemplaza la versión oscura por otra — A.svg deja de estar en uso en cuanto esto se publique.
+  await guardarComoLaRuta({ logo: { oscuro: 'B.svg', claro: '', alt: '' } });
+  const { blobsABorrar } = await publicarSeccion('logo');
+  assert.deepEqual(blobsABorrar, ['A.svg'], 'A.svg ya no está referenciada tras publicar B.svg');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.logo.oscuro, 'B.svg');
 });
 
 test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
@@ -152,6 +190,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
     navWordmark: { activo: true },
     navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
+    logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: '', alt: '' },
   });
   await publicarComoLaRuta();
 
@@ -161,6 +200,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
     navWordmark: { activo: false },
     navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null },
     navDrawerMovil: { variante: 'dropdown' },
+    logo: { oscuro: '', claro: '', alt: '' },
   });
   await descartarComoLaRuta();
 
@@ -175,6 +215,7 @@ test('descartar: el borrador se limpia SIN tocar lo publicado', async () => {
   assert.equal(publicado.navTratamiento.subrayado, true, 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a', 'descartar no debe tocar lo YA publicado');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta', 'descartar no debe tocar lo YA publicado');
+  assert.equal(publicado.logo.oscuro, 'https://blob.example/logo-oscuro.svg', 'descartar no debe tocar lo YA publicado');
 
   const { sinPublicar } = await readSiteContentParaEditor();
   assert.equal(sinPublicar.encabezado, false, 'descartar debe limpiar el borrador');
@@ -198,6 +239,10 @@ test('default del preset: los diez controles arrancan con el valor que puso merg
   assert.equal(publicado.navTratamiento.subrayado, true);
   assert.equal(publicado.navTratamiento.badgeColor, '#f5b36a');
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
+  // `logo` NO es parte de ningún preset (§ MARCA-LOGO-IMAGEN-1): es contenido que el dueño SUBE, no
+  // un eje de theme — `aplicarPreset` no lo toca y queda en su default vacío.
+  assert.equal(publicado.logo.oscuro, '', 'ningún preset escribe logo');
+  assert.equal(publicado.logo.claro, '', 'ningún preset escribe logo');
 });
 
 test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se reenvía sin editarlo', async () => {
@@ -215,6 +260,7 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
     navWordmark: { activo: true },
     navTratamiento: { activo: true, direccion: true, filete: true, cta: true, posicion: true, subrayado: true, badgeColor: '#f5b36a' },
     navDrawerMovil: { variante: 'pantallaCompleta' },
+    logo: { oscuro: '', claro: '', alt: '' },
   });
   await publicarComoLaRuta();
 
@@ -223,14 +269,32 @@ test('publicar el Encabezado NO borra cromo.navBadge puesto por un preset — se
   assert.equal(publicado.cromo.navTinta, false, 'y el cambio que sí se pidió se aplicó');
 });
 
-test('el drawer móvil se puede publicar/descartar de forma INDEPENDIENTE de los otros tres ejes (guarda sólo esa clave)', async () => {
+test('el drawer móvil se puede publicar/descartar de forma INDEPENDIENTE de los otros cuatro ejes/sección (guarda sólo esa clave)', async () => {
   // El dueño toca SÓLO el switch del drawer móvil — el body no trae `cromo`/`navWordmark`/
-  // `navTratamiento`, como hace `wireDe` de EncabezadoSeccion.tsx en cada guardado real (manda las
-  // CUATRO metas completas, pero esto prueba que el mecanismo de guardado no las EXIGE juntas).
+  // `navTratamiento`/`logo`, como hace `wireDe` de EncabezadoSeccion.tsx en cada guardado real
+  // (manda las CINCO claves completas, pero esto prueba que el mecanismo de guardado no las EXIGE
+  // juntas).
   await guardarComoLaRuta({ navDrawerMovil: { variante: 'pantallaCompleta' } });
   await publicarSeccion('navDrawerMovil');
 
   const publicado = await readSiteContent();
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
   assert.equal(publicado.cromo.navTinta, false, 'los otros ejes no se tocaron');
+  assert.equal(publicado.logo.oscuro, '', 'logo no se tocó');
+});
+
+test('el logo se puede guardar/publicar de forma INDEPENDIENTE de los otros cuatro ejes (§ MARCA-LOGO-IMAGEN-1)', async () => {
+  // Gemelo del test de arriba, del lado de `logo`: el dueño sube sólo una imagen, sin tocar
+  // ningún switch — el body no trae `cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil`.
+  await guardarComoLaRuta({ logo: { oscuro: 'https://blob.example/logo-oscuro.svg', claro: '', alt: '' } });
+
+  const { sinPublicar } = await readSiteContentParaEditor();
+  assert.equal(sinPublicar.encabezado, true, 'la píldora debe prenderse aunque sólo cambie logo');
+
+  await publicarSeccion('logo');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.logo.oscuro, 'https://blob.example/logo-oscuro.svg');
+  assert.equal(publicado.cromo.navTinta, false, 'los otros ejes no se tocaron');
+  assert.equal(publicado.navWordmark.activo, false, 'los otros ejes no se tocaron');
 });

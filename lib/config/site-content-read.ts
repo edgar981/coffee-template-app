@@ -31,11 +31,22 @@ export async function readSiteContentParaEditor(): Promise<{
   // `tema` (la paleta) NO está en el REGISTRY —es clave no-sección, como `paginas`— pero también se
   // borronea: su píldora "Sin publicar" y sus botones Publicar/Descartar salen de este mismo flag.
   sinPublicar.tema = 'tema' in borrador;
-  // EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1): TRES metas no-sección (`cromo`, `navWordmark`,
-  // `navTratamiento`) editadas como UNA sola sección del panel (`EncabezadoSeccion.tsx`, con su
-  // propia ruta de publicar/descartar, `/api/site-content/encabezado`, patrón `tema/route.ts`). La
-  // píldora "Sin publicar" se prende si CUALQUIERA de las tres está en el borrador — el operador
-  // edita las tres juntas, así que el flag es UNO solo, gemelo del de `tema`.
-  sinPublicar.encabezado = 'cromo' in borrador || 'navWordmark' in borrador || 'navTratamiento' in borrador;
+  // EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por § MARCA-LOGO-IMAGEN-1): metas/secciones
+  // no-sección y sección `logo` editadas como UN solo bloque del panel (`EncabezadoSeccion.tsx`, con
+  // su propia ruta de publicar/descartar, `/api/site-content/encabezado`, patrón `tema/route.ts`). La
+  // píldora "Sin publicar" se prende si CUALQUIERA de las partes está en el borrador — el operador
+  // las edita juntas, así que el flag es UNO solo, gemelo del de `tema`.
+  //
+  // `logo` SE AGREGA ACÁ A PROPÓSITO (§ MARCA-LOGO-IMAGEN-1, deviación medida fuera de `touches:` —
+  // necesaria para que el editor funcione: sin esto, subir un logo y guardar el borrador dejaría la
+  // píldora apagada y los botones Publicar/Descartar ausentes, aunque `sinPublicar.logo` —ya
+  // encendido por el loop genérico de arriba, porque `logo` SÍ es REGISTRY— diga la verdad por su
+  // cuenta). `navDrawerMovil` sigue AUSENTE de esta condición — un hueco PRE-EXISTENTE a este
+  // slice (la lista decía "TRES metas" desde antes de que `navDrawerMovil` existiera, y nunca se
+  // sumó acá al agregarlo) que no se corrige en esta tanda: no es parte de `touches:` y arreglarlo
+  // excede lo que este slice necesita para funcionar. Ver `open_followups` del reporte de este
+  // slice.
+  sinPublicar.encabezado =
+    'cromo' in borrador || 'navWordmark' in borrador || 'navTratamiento' in borrador || 'logo' in borrador;
   return { contenido, sinPublicar };
 }

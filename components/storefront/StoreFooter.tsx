@@ -17,7 +17,7 @@ import {
 } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
-import { columnasDeFooter, type FooterContent } from "@/lib/config/site-content-defaults";
+import { columnasDeFooter, type FooterContent, type LogoContent } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 
 // EL PIE DE PÁGINA como SECCIÓN del REGISTRY (§ MUESTRARIO-FOOTER-TEMA-1). Antes `footerNav`/
@@ -29,6 +29,11 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 //
 // LAS TRES COLUMNAS (con sus hrefs de ESTRUCTURA y el filtrado por página visible) se arman en
 // `columnasDeFooter` (site-content-defaults.ts, PURA — capa 1 la prueba sin jsdom).
+//
+// EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1, `content.logo`) viaja a las DOS variantes como prop —
+// `Logo` resuelve sola cuál versión mostrar (siempre `variant="dark"` acá, sobre `--sf-tinta`: la
+// versión CLARA). Sin ninguna versión subida, `Logo` ignora la prop y el wordmark apilado de hoy
+// no cambia un byte.
 //
 // EL HOVER DEL LINK DE WHATSAPP NO TRANSICIONABA — § MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1
 // (censo de transiciones, 2026-09-30). Todo enlace de este archivo lleva `transition-colors`
@@ -72,7 +77,7 @@ const LABEL_RED_FOOTER: Record<RedSocialGuardada["tipo"], string> = {
 export default function StoreFooter() {
   const settings = useSiteSettings();
   const content = useSiteContent();
-  const { footer, navTratamiento } = content;
+  const { footer, navTratamiento, logo } = content;
   const { tienda, ayuda, empresa } = columnasDeFooter(content);
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
@@ -81,8 +86,8 @@ export default function StoreFooter() {
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return footer.variante === "apilado"
-    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} />
-    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} />;
+    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} />
+    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} />;
 }
 
 type SettingsFooter = ReturnType<typeof useSiteSettings>;
@@ -94,11 +99,14 @@ interface VariantProps {
   ayuda: { label: string; href: string }[];
   empresa: { label: string; href: string }[];
   contenedorClase: string;
+  /** El logo SUBIDO del dueño (§ MARCA-LOGO-IMAGEN-1). Sin ninguna versión subida, `Logo` ignora
+   *  la prop y renderiza el wordmark apilado de siempre — byte a byte, las dos variantes. */
+  logo: LogoContent;
 }
 
 // VARIANTE 'franjas' — LA CANÓNICA: el pie de HOY, VERBATIM (byte-idéntico a antes de este slice;
 // sólo cambió DE DÓNDE salen los textos — de `siteConfig.footerNav`/`legalNav` a `content.footer`).
-function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase }: VariantProps) {
+function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo }: VariantProps) {
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
       <div className={`mx-auto ${contenedorClase} py-16`}>
@@ -114,6 +122,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
                 subtitle={settings.tagline}
                 conMark={STOREFRONT_TIENE_MARK}
                 className="items-start [&>div]:items-start"
+                logo={logo}
               />
             </div>
 
@@ -272,7 +281,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
 // SIN wrapper de grid extra (byte-idéntico); con imagen, la marca pasa a la columna izquierda de un
 // grid `1.1fr 1fr` (§ `.footer-top` del prototipo) y la tarjeta ocupa la derecha. `tarjetaTexto`
 // SOLO, sin `tarjetaImagen`, NO rinde nada — sería un pie de foto flotando sobre nada.
-function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase }: VariantProps) {
+function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo }: VariantProps) {
   const columnas: { titulo: string; links: { label: string; href: string }[] }[] = [
     { titulo: footer.columnaTienda, links: tienda },
     { titulo: footer.columnaAyuda, links: ayuda },
@@ -289,6 +298,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
         subtitle={settings.tagline}
         conMark={STOREFRONT_TIENE_MARK}
         className="items-start [&>div]:items-start"
+        logo={logo}
       />
       <p className="mt-4 max-w-[40ch] text-base leading-relaxed text-[var(--sf-sobre)]/50">
         {settings.descripcionFooter}

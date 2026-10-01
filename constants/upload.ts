@@ -30,6 +30,19 @@ export const MAX_SUBIDA_DIRECTA_MB = MAX_SUBIDA_DIRECTA_BYTES / (1024 * 1024);
 /** Formatos aceptados. Lista blanca explícita, no un `startsWith('image/')`. */
 export const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
+/**
+ * Formatos del LOGO subido (§ MARCA-LOGO-IMAGEN-1): SVG o PNG con fondo transparente — un JPG no
+ * admite transparencia, y aunque WebP sí la tiene, el producto pide sólo estos dos. Lista PROPIA,
+ * distinta de `TIPOS_PERMITIDOS` (que no admite SVG): el logo es la ÚNICA imagen de contenido que
+ * puede ser vectorial. El SVG subido se sirve SIEMPRE como `<img src>` (§ Logo.tsx) — nunca
+ * inyectado inline como HTML —, así que no hay superficie de ejecución de script que este formato
+ * nuevo abra.
+ */
+export const TIPOS_LOGO = ['image/svg+xml', 'image/png'] as const;
+
+/** Para el `accept` del input de archivo del logo. */
+export const ACCEPT_LOGO = TIPOS_LOGO.join(',');
+
 /** Contenedores de VÍDEO que se SUBEN (y que el token firma): mp4 y webm. El .mov (`video/quicktime`) NO
  *  está acá porque **nunca se sube como .mov**: se re-envasa a .mp4 en el navegador antes de subir
  *  (§ lib/video-remux, § CONTENEDORES_REMUXEABLES). Firefox no reproduce el contenedor .mov, así que
@@ -65,21 +78,26 @@ export const MAX_VIDEO_HERO_BYTES = 8 * 1024 * 1024;
 
 /**
  * El "kind" que el cliente declara al pedir un token de subida directa (§ subirDirecto). Acota qué
- * `allowedContentTypes` firma el token: 'imagen' (portadas, hero, fotos de galería) o 'imagen-o-video'
- * (el slot de vídeo de la galería). Es una de DOS listas CONOCIDAS —nunca un comodín ni los tipos que
- * mande el cliente—, así que un token nunca sirve para "cualquier cosa".
+ * `allowedContentTypes` firma el token: 'imagen' (portadas, hero, fotos de galería), 'imagen-o-video'
+ * (el slot de vídeo de la galería) o 'logo' (§ MARCA-LOGO-IMAGEN-1, SVG/PNG). Es una de TRES listas
+ * CONOCIDAS —nunca un comodín ni los tipos que mande el cliente—, así que un token nunca sirve para
+ * "cualquier cosa".
  */
-export const KINDS_UPLOAD = ['imagen', 'imagen-o-video'] as const;
+export const KINDS_UPLOAD = ['imagen', 'imagen-o-video', 'logo'] as const;
 export type KindUpload = (typeof KINDS_UPLOAD)[number];
 
 /** Mapea un kind (posiblemente basura del cliente) a su lista de content-types para el TOKEN. Un valor
- *  DESCONOCIDO cae a sólo-imágenes: lo más restrictivo, nunca a vídeo por accidente. El token acota el
- *  CONTENEDOR a mp4/webm (+ imágenes) —NO quicktime: el .mov se re-envasa a .mp4 antes de subir, así que
- *  nunca llega a Blob como .mov (§ TIPOS_VIDEO, § lib/video-remux)—, más tamaño + pathname; el CÓDEC lo
- *  filtra el cliente antes de subir (§ lib/video-codec), que es un gate de CALIDAD, no de seguridad —un
- *  admin ya puede subir basura; el gate lo protege de PUBLICAR un vídeo que sus clientes no verían—. */
+ *  DESCONOCIDO cae a sólo-imágenes: lo más restrictivo, nunca a vídeo (ni a SVG) por accidente. El
+ *  token acota el CONTENEDOR a mp4/webm (+ imágenes) —NO quicktime: el .mov se re-envasa a .mp4 antes
+ *  de subir, así que nunca llega a Blob como .mov (§ TIPOS_VIDEO, § lib/video-remux)—, más tamaño +
+ *  pathname; el CÓDEC lo filtra el cliente antes de subir (§ lib/video-codec), que es un gate de
+ *  CALIDAD, no de seguridad —un admin ya puede subir basura; el gate lo protege de PUBLICAR un vídeo
+ *  que sus clientes no verían—. 'logo' es su PROPIA rama, no una unión con `TIPOS_PERMITIDOS`: el SVG
+ *  es EXCLUSIVO del logo, nunca un formato general de contenido (§ TIPOS_LOGO). */
 export function contentTypesParaKind(kind: unknown): string[] {
-  return kind === 'imagen-o-video' ? [...TIPOS_PERMITIDOS, ...TIPOS_VIDEO] : [...TIPOS_PERMITIDOS];
+  if (kind === 'imagen-o-video') return [...TIPOS_PERMITIDOS, ...TIPOS_VIDEO];
+  if (kind === 'logo') return [...TIPOS_LOGO];
+  return [...TIPOS_PERMITIDOS];
 }
 
 /**

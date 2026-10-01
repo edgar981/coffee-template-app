@@ -1,3 +1,5 @@
+'use client';
+
 // El lockup de marca del STOREFRONT: mark (ícono) + wordmark (el nombre del negocio).
 //
 // EL WORDMARK ES `nombre`, de SiteSetting — lo pasa el CONSUMIDOR (StoreNav/StoreFooter,
@@ -13,6 +15,16 @@
 // segundo cliente con mark propio lo reemplaza. La identidad portable es el WORDMARK (`nombre`); el
 // logo subido, cuando exista, se RESPETA nunca se tiñe. Doctrina: § El WORDMARK carga la identidad.
 //
+// EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1, prop `logo`) es una TERCERA identidad, distinta del mark
+// (asset por-despliegue) y del wordmark de texto: una imagen que el DUEÑO sube desde el panel
+// (`content.logo`, § site-content-defaults.ts), con una versión OSCURA (para fondo claro) y una
+// CLARA (para fondo oscuro/tinta). `logoParaVariante` (lib/config/marca-logo.ts) elige cuál mostrar
+// según `variant`, con fallback a la otra si falta una. CON logo subido, la imagen REEMPLAZA el
+// mark + el wordmark de texto ENTEROS — nunca conviven: el logo subido YA es el lockup completo del
+// cliente (§ CLAUDE.md, "El logo subido se RESPETA, nunca se tiñe"). SIN logo (`logo` ausente o sin
+// ninguna versión subida), `Logo` renderiza EXACTAMENTE como hoy — mark + wordmark de texto, byte a
+// byte. Se sirve como `<img src>` SIEMPRE, incluido el SVG — nunca inyectado inline como HTML.
+//
 // Usage:
 //   <LogoMark className="h-7 w-7" />                                                 — sólo el ícono
 //   <Logo nombre={settings.nombre} conMark={STOREFRONT_TIENE_MARK} />                — lockup del nav
@@ -25,8 +37,98 @@
 //     ESTILO del `.wordmark`/`.wordmark small` del prototipo (§ CORTE-LOGO-APILADO-1, opt-in por
 //     `content.navWordmark.activo` — sólo ajusta la rama `subtitle`, ya apilada; NO toca `stacked`
 //     (el footer), que sigue exactamente igual)
+//   <Logo nombre={…} logo={content.logo} conMark={…} />                               — con logo
+//     subido (§ MARCA-LOGO-IMAGEN-1): la imagen reemplaza mark+wordmark; sin ninguna versión
+//     subida, cae a la rama de siempre con el resto de las props intactas.
 
+import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@duna/core/utils";
+import type { LogoContent } from "@/lib/config/site-content-defaults";
+import { logoParaVariante, altDeLogo } from "@/lib/config/marca-logo";
+
+// EL NOMBRE EN TEXTO NUNCA SE PARTE EN DOS LÍNEAS (§ MARCA-LOGO-IMAGEN-1) — un nombre de negocio
+// largo ("Café Las Chamisas") envolvía a dos líneas en el ancho de un teléfono, defecto que esta
+// tanda destapó capturando el caso SIN logo (el nombre en texto es justo lo que queda cuando no
+// hay imagen subida). El fix es CONTENT-AWARE (mide el ancho real), NO un breakpoint de CSS: un
+// breakpoint (`text-[Npx] sm:text-[22px]`) encogería el wordmark de TODO tenant en móvil, incluida
+// Nayoli ("Café Nayoli", corto) — violando la vara de esta tanda.
+//
+// MÉTODO: un MEDIDOR invisible (`visibility:hidden`, fuera de flujo) renderiza el MISMO texto, con
+// las MISMAS clases, pero SIEMPRE en una sola línea y SIN que su propio `fontSize` cambie nunca —
+// su `scrollWidth` es entonces el ancho NATURAL del nombre al tamaño BASE, sin importar qué haga
+// el `<span>` visible. El `<span>` visible aporta `clientWidth`, el espacio REAL que el layout de
+// flexbox le asignó. Si el natural excede el disponible (con tolerancia de redondeo), se guarda en
+// estado un `fontSize` reducido en la proporción exacta que hace falta — nunca trunca con "…",
+// conserva el nombre COMPLETO, sólo más chico (§ el spec: "ajuste de tamaño… en esa anchura").
+//
+// EL MEDIDOR AISLADO (en vez de medir sobre el MISMO nodo que se encoge) es lo que evita una
+// OSCILACIÓN: medir contra un nodo cuyo tamaño el propio ajuste ya cambió hace que la SIGUIENTE
+// medición (disparada por el `ResizeObserver` al cambiar ese tamaño) vea "ya cabe" al tamaño
+// REDUCIDO, concluya que no hace falta ajuste, y lo devuelva al tamaño COMPLETO — que vuelve a no
+// caber, dispara otra medición, se encoge de nuevo… alternando sin parar (medido: el nombre largo
+// alternaba entre una línea encogida y dos líneas sin encoger según el instante de la captura). El
+// medidor nunca se toca, así que siempre reporta el mismo ancho natural.
+//
+// Un `ResizeObserver` sobre el `<span>` visible re-mide al cambiar el ancho disponible (achicar la
+// ventana, rotar el teléfono); `document.fonts.ready` re-mide una vez más por si la fuente real
+// (Playfair/Inter, `@import`) no había cargado en el primer layout.
+//
+// EL AJUSTE ES CONDICIONAL POR ESTADO, NO UNA CLASE ESTÁTICA — medido con `guarda:color`: agregar
+// `block`/`overflow-hidden`/`whitespace-nowrap` SIEMPRE (aunque el nombre corto de Nayoli nunca
+// necesite encogerse) cambiaba el render de texto en Chromium por una fracción de píxel —14-15 px
+// de diff en la zona del wordmark, sobre millones—, porque `display:block` en un `<span>` que
+// antes era inline (aunque "blockificado" igual por ser hijo flex) no es un no-op bit a bit en el
+// motor de texto. Con el ajuste detrás de un `useState` que arranca en `null`, el `<span>` de
+// Nayoli renderiza EXACTAMENTE las mismas clases de HOY —cero diferencia, medida— y sólo gana las
+// clases de recorte + el `fontSize` reducido cuando la medición confirma que hacen falta.
+function NombreEncogible({ nombre, className }: { nombre: string; className: string }) {
+  const medidorRef = useRef<HTMLSpanElement>(null);
+  const visibleRef = useRef<HTMLSpanElement>(null);
+  const [ajuste, setAjuste] = useState<{ fontSizePx: number } | null>(null);
+  useLayoutEffect(() => {
+    const medidor = medidorRef.current;
+    const visible = visibleRef.current;
+    if (!medidor || !visible) return;
+    const medir = () => {
+      const disponible = visible.clientWidth;
+      const natural = medidor.scrollWidth;
+      // TOLERANCIA de 2px: `clientWidth`/`scrollWidth` redondean a entero, y el redondeo por sí
+      // solo puede reportar `natural` 1px por encima de `disponible` con el texto cabiendo exacto.
+      if (disponible > 0 && natural > disponible + 2) {
+        const base = parseFloat(getComputedStyle(medidor).fontSize);
+        setAjuste({ fontSizePx: (base * disponible) / natural });
+      } else {
+        setAjuste(null);
+      }
+    };
+    medir();
+    document.fonts?.ready?.then(medir).catch(() => {});
+    const ro = new ResizeObserver(medir);
+    ro.observe(visible);
+    return () => ro.disconnect();
+  }, [nombre]);
+  return (
+    <>
+      {/* MEDIDOR invisible: SIEMPRE una sola línea, al tamaño BASE, nunca mutado por el ajuste —
+          es lo que hace posible medir sin oscilar (§ el comentario de arriba). `aria-hidden`
+          porque el nombre YA está en el árbol de accesibilidad vía el `<span>` visible de abajo. */}
+      <span
+        ref={medidorRef}
+        aria-hidden="true"
+        className={cn(className, "pointer-events-none invisible absolute whitespace-nowrap")}
+      >
+        {nombre}
+      </span>
+      <span
+        ref={visibleRef}
+        className={cn(className, ajuste && "block min-w-0 overflow-hidden whitespace-nowrap")}
+        style={ajuste ? { fontSize: `${ajuste.fontSizePx}px` } : undefined}
+      >
+        {nombre}
+      </span>
+    </>
+  );
+}
 
 const PETAL = "M50 42 C 44 33 44 20 50 13 C 56 20 56 33 50 42";
 const ROTS = [0, 72, 144, 216, 288];
@@ -95,9 +197,44 @@ type LogoProps = {
       Tailwind no declara curva propia en ninguna de las dos, así que las dos comparten también la
       curva default del navegador — no hay una segunda curva que igualar. */
   transicionColor?: boolean;
+  /** El logo SUBIDO del tenant (§ MARCA-LOGO-IMAGEN-1, `content.logo`). AUSENTE o sin ninguna
+      versión subida (`oscuro`/`claro` ambos vacíos) → Logo renderiza EXACTAMENTE la rama de abajo
+      (mark + wordmark de texto), byte a byte. Con al menos una subida, la imagen REEMPLAZA el
+      lockup entero — nunca conviven con el mark ni con el wordmark de texto. */
+  logo?: LogoContent;
 };
 
-export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false }: LogoProps) {
+export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false, logo }: LogoProps) {
+  // `logoSrc` vacío (prop ausente, o presente sin ninguna versión subida) → las ramas de abajo no
+  // cambian ni un byte: es la MISMA condición que gatea todo lo demás en este componente.
+  const logoSrc = logo ? logoParaVariante(logo, variant) : "";
+
+  if (logoSrc) {
+    const alt = altDeLogo(logo as LogoContent, nombre);
+    if (stacked) {
+      return (
+        <div className={cn("flex flex-col items-center gap-0.5", className)}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
+          <img src={logoSrc} alt={alt} className="h-12 w-auto" />
+          {subtitle && (
+            <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+          )}
+        </div>
+      );
+    }
+    return (
+      <div className={cn("flex items-center gap-2.5", className)}>
+        <span className="flex flex-col leading-none">
+          {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
+          <img src={logoSrc} alt={alt} className="h-7 w-auto" />
+          {subtitle && (
+            <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
   // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
   // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
   // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
@@ -116,10 +253,10 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
 
   if (stacked) {
     return (
-      <div className={cn("flex flex-col items-center gap-3", className)}>
-        {conMark && <LogoMark className="h-12 w-12" cherry={cherry} />}
-        <div className="flex flex-col items-center gap-0.5">
-          <span className={cn("font-display text-2xl", wordmark, transicionClase)}>{nombre}</span>
+      <div className={cn("flex min-w-0 flex-col items-center gap-3", className)}>
+        {conMark && <LogoMark className="h-12 w-12 shrink-0" cherry={cherry} />}
+        <div className="flex min-w-0 max-w-full flex-col items-center gap-0.5">
+          <NombreEncogible nombre={nombre} className={cn("font-display text-2xl", wordmark, transicionClase)} />
           {subtitle && (
             <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
           )}
@@ -143,16 +280,16 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   // nuevo. `false` (todo tenant salvo CORTE) → la rama de abajo es BYTE-IDÉNTICA a la de siempre.
   if (subtitle) {
     return (
-      <div className={cn("flex items-center gap-2.5", className)}>
-        {conMark && <LogoMark className="h-7 w-7" cherry={cherry} />}
-        <span className="flex flex-col leading-none">
-          <span className={cn(
+      <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
+        {conMark && <LogoMark className="h-7 w-7 shrink-0" cherry={cherry} />}
+        <span className="flex min-w-0 flex-col leading-none">
+          <NombreEncogible nombre={nombre} className={cn(
             wordmarkTratado
               ? "font-display uppercase tracking-[0.01em] text-[30px] leading-none"
               : "font-display text-[22px] leading-none",
             wordmark,
             transicionClase,
-          )}>{nombre}</span>
+          )} />
           <span className={
             wordmarkTratado
               ? cn("mt-1 font-inter font-normal tracking-[0.11em] text-[11px]", `${wordmark}/60`)
@@ -164,11 +301,9 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   }
 
   return (
-    <div className={cn("flex items-center gap-2.5", className)}>
-      {conMark && <LogoMark className="h-7 w-7" cherry={cherry} />}
-      <span className={cn("font-display text-[22px] leading-none", wordmark, transicionClase)}>
-        {nombre}
-      </span>
+    <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
+      {conMark && <LogoMark className="h-7 w-7 shrink-0" cherry={cherry} />}
+      <NombreEncogible nombre={nombre} className={cn("font-display text-[22px] leading-none", wordmark, transicionClase)} />
     </div>
   );
 }

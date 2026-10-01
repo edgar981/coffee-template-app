@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
+import { Pencil, Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
+import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
+import BarraProgreso from '@/components/admin/BarraProgreso';
+import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/upload';
 
 // ─── Bloque ENCABEZADO — vive en /admin/tienda, junto a Colores y el Menú ────────────────────────
 //
@@ -70,6 +73,17 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 // (`Logo.tsx`: "sólo ajusta la rama subtitle, ya apilada"; `StoreNav.tsx`: `subtitle={cromo.
 // navSubtitulo ? tagline : undefined}`). Con el sub-encabezado apagado, prender el Logo no cambia
 // nada visible — el hint de abajo lo dice para que el dueño no lo reporte como "no funciona".
+//
+// LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1, `content.logo`) es un QUINTO bloque, distinto de los
+// diez switches: dos imágenes (oscura/clara) + su alt. A diferencia de `cromo`/`navWordmark`/
+// `navTratamiento`/`navDrawerMovil` —metas EXCLUIDAS del REGISTRY—, `logo` SÍ es una SECCIÓN de
+// verdad (§ `REGISTRY.logo`, site-content-defaults.ts, mismo precedente que `menu`/`footer`): lleva
+// imágenes y participa del borrado de blobs GENÉRICO (`imagenesDe`/`blobsHuerfanos`,
+// site-content-blobs.ts) sin código propio en esta ruta. Se agrupa acá, en el MISMO borrador/
+// publish que el resto del Encabezado, porque es la MISMA decisión de producto para el dueño —"cómo
+// se ve mi marca en el encabezado"—, no una sección aparte del selector de páginas. Con AMBAS
+// imágenes vacías (el caso de hoy, Nayoli), el storefront no cambia: cae al wordmark de texto (o la
+// flor de Nayoli, § STOREFRONT_TIENE_MARK) exactamente como siempre.
 
 interface Form {
   logo: boolean;             // navWordmark.activo
@@ -86,6 +100,11 @@ interface Form {
   // DORADO-1). SÓLO tiene efecto con `ctaBadge` encendido — el badge fijo es lo que este color
   // pinta; sin `ctaBadge` el badge sigue el par translúcido de `navClaro`, que este campo no toca.
   badgeColor: string;        // navTratamiento.badgeColor
+  // LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1): tres strings, NO un switch — '' = esa versión no
+  // está subida. `logo.oscuro`/`logo.claro`/`logo.alt`.
+  logoOscuro: string;
+  logoClaro: string;
+  logoAlt: string;
 }
 
 interface Wire {
@@ -93,12 +112,13 @@ interface Wire {
   navWordmark: { activo: boolean };
   navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
+  logo: { oscuro: string; claro: string; alt: string };
 }
 
 const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
 
-const CONTROLES: { name: Exclude<keyof Form, 'badgeColor'>; label: string; hint: string }[] = [
-  { name: 'logo', label: 'Logo', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido.' },
+const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt'>; label: string; hint: string }[] = [
+  { name: 'logo', label: 'Estilo del nombre', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido, y sólo si no subiste una imagen de logo abajo — con imagen, este interruptor no tiene efecto.' },
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
   { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).' },
   { name: 'tratamientoNav', label: 'Tratamiento del menú', hint: 'Los enlaces del menú van en mayúscula, con más espacio entre letras.' },
@@ -120,12 +140,20 @@ export default function EncabezadoSeccion() {
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [procesando, setProcesando]       = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  // LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1): `subiendoCual` nombra QUÉ versión está subiendo —
+  // el uploader compartido (`useSubidaImagen`) es UNA sola instancia (las dos subidas son
+  // secuenciales, nunca a la vez), así que sin esto no habría forma de mostrar el progreso/error
+  // bajo el botón correcto.
+  const [subiendoCual, setSubiendoCual] = useState<'oscuro' | 'claro' | null>(null);
+  const [errorLogo, setErrorLogo] = useState<string | null>(null);
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
   const navBadgeRef = useRef(''); navBadgeRef.current = navBadge;
+  const subidaImagen = useSubidaImagen({ onError: setErrorLogo });
 
-  // El WIRE que viaja al PUT: las tres metas COMPLETAS (`cromo` con su `navBadge` reenviado tal
-  // cual, § arriba) — nunca un objeto parcial, porque el write reemplaza cada clave entera.
+  // El WIRE que viaja al PUT: las CUATRO metas COMPLETAS (`cromo` con su `navBadge` reenviado tal
+  // cual, § arriba) MÁS la sección `logo` COMPLETA — nunca un objeto parcial, porque el write
+  // reemplaza cada clave entera.
   const wireDe = (f: Form, badge: string): Wire => ({
     cromo: { navTinta: f.colorNav, navSubtitulo: f.subEncabezado, navBadge: badge },
     navWordmark: { activo: f.logo },
@@ -135,6 +163,7 @@ export default function EncabezadoSeccion() {
       badgeColor: HEX6_BADGE.test(f.badgeColor) ? f.badgeColor : null,
     },
     navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
+    logo: { oscuro: f.logoOscuro, claro: f.logoClaro, alt: f.logoAlt },
   });
 
   const guardarEncabezado = useCallback(async (w: Wire) => {
@@ -147,8 +176,8 @@ export default function EncabezadoSeccion() {
   const auto = useAutoguardado(guardarEncabezado);
 
   // Carga el encabezado draft-merged (GET /api/site-content → `contenido.{cromo,navWordmark,
-  // navTratamiento}` + `sinPublicar.encabezado`) — el mismo endpoint que lee cada sección; sólo se
-  // toma la rebanada de estas tres metas.
+  // navTratamiento,logo}` + `sinPublicar.encabezado`) — el mismo endpoint que lee cada sección;
+  // sólo se toma la rebanada de estas CUATRO metas/secciones.
   const cargar = useCallback(async (inicial = false) => {
     try {
       const r = await fetch('/api/site-content');
@@ -159,6 +188,7 @@ export default function EncabezadoSeccion() {
         navWordmark?: { activo?: unknown };
         navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown };
         navDrawerMovil?: { variante?: unknown };
+        logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown };
       };
       setForm({
         logo: !!contenido.navWordmark?.activo,
@@ -172,6 +202,9 @@ export default function EncabezadoSeccion() {
         posicion: !!contenido.navTratamiento?.posicion,
         subrayado: !!contenido.navTratamiento?.subrayado,
         badgeColor: typeof contenido.navTratamiento?.badgeColor === 'string' ? contenido.navTratamiento.badgeColor : '',
+        logoOscuro: typeof contenido.logo?.oscuro === 'string' ? contenido.logo.oscuro : '',
+        logoClaro: typeof contenido.logo?.claro === 'string' ? contenido.logo.claro : '',
+        logoAlt: typeof contenido.logo?.alt === 'string' ? contenido.logo.alt : '',
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
       setHayBorrador(!!d.sinPublicar?.encabezado);
@@ -201,8 +234,31 @@ export default function EncabezadoSeccion() {
 
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
 
+  // SUBIR una versión del logo (§ MARCA-LOGO-IMAGEN-1). Usa el camino "elegir sin subir / subir
+  // aparte" de `useSubidaImagen` (`elegir`+`subir`, NO el `pedir` simple) porque el logo acepta SVG
+  // —`pedir`/`alElegir` validan contra `TIPOS_PERMITIDOS`, que NO incluye SVG—, así que hace falta
+  // pasar `tipos`/`accept` propios. Subida ATÓMICA (elige y sube en el mismo gesto, a diferencia del
+  // video+póster del hero): una imagen de logo no tiene un segundo archivo que esperar.
+  const subirLogo = (cual: 'oscuro' | 'claro') => {
+    setErrorLogo(null);
+    subidaImagen.elegir(
+      async (file) => {
+        setSubiendoCual(cual);
+        try {
+          const { url } = await subidaImagen.subir(file, { kind: 'logo' });
+          cambiar(cual === 'oscuro' ? { logoOscuro: url } : { logoClaro: url });
+        } catch (err) {
+          setErrorLogo(err instanceof Error ? err.message : 'No se pudo subir el logo. Reintenta.');
+        } finally {
+          setSubiendoCual(null);
+        }
+      },
+      { tipos: TIPOS_LOGO, accept: ACCEPT_LOGO, msgError: 'Formato no admitido. Usa SVG o PNG.' },
+    );
+  };
+
   // Publicar / Descartar el borrador del Encabezado (POST /api/site-content/encabezado, que mueve/
-  // limpia las TRES metas juntas, § la ruta).
+  // limpia las CUATRO metas + la sección `logo` juntas, § la ruta).
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
     try {
@@ -253,7 +309,13 @@ export default function EncabezadoSeccion() {
     </div>
   ) : null;
 
-  const resumenActivos = CONTROLES.filter((c) => form[c.name]).map((c) => c.label);
+  // § MARCA-LOGO-IMAGEN-1 — el resumen de lectura nombra el logo subido ANTES que los switches:
+  // es el cambio de mayor impacto visual del bloque (reemplaza mark+wordmark enteros).
+  const tieneLogoImagen = form.logoOscuro.trim() !== '' || form.logoClaro.trim() !== '';
+  const resumenActivos = [
+    ...(tieneLogoImagen ? ['Imagen de logo'] : []),
+    ...CONTROLES.filter((c) => form[c.name]).map((c) => c.label),
+  ];
 
   return (
     <>
@@ -301,6 +363,71 @@ export default function EncabezadoSeccion() {
           </p>
         </div>
       ) : (
+        <>
+        {/* LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1) — tarjeta PROPIA, antes de los switches: es
+            una decisión distinta ("¿tengo un logo?"), no un ajuste más del nav. */}
+        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
+          <h3 className="duna-field__label" style={{ margin: 0, fontSize: '0.9375rem' }}>Imagen del logo</h3>
+          <p className="duna-field__hint" style={{ marginTop: '4px' }}>
+            Reemplaza el nombre en texto del encabezado, el pie de página y el menú móvil. Sin ninguna imagen,
+            se muestra el nombre de tu negocio (o la flor, si tu despliegue la tiene). SVG o PNG con fondo
+            transparente, máx {MAX_SUBIDA_DIRECTA_MB} MB. Si subes sólo una versión, se usa también para la otra.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-4)', marginTop: 'var(--duna-space-3)' }}>
+            {([
+              { cual: 'oscuro' as const, url: form.logoOscuro, titulo: 'Versión oscura', hint: 'Para fondos claros — páginas internas, encabezado sólido.' },
+              { cual: 'claro' as const, url: form.logoClaro, titulo: 'Versión clara', hint: 'Para fondos oscuros — la portada flotando, el pie de página.' },
+            ]).map(({ cual, url, titulo, hint }) => (
+              <div key={cual} style={{ flex: '1 1 260px', minWidth: 0 }}>
+                <span className="duna-field__label">{titulo}</span>
+                <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-1)' }}>
+                  <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
+                    {url
+                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={url} alt="" />
+                      : <ImageIcon aria-hidden width={20} height={20} />}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => subirLogo(cual)}
+                        className="duna-btn duna-btn--secondary duna-btn--sm"
+                        disabled={subidaImagen.subiendo}
+                      >
+                        <Upload /> {url ? 'Cambiar' : 'Subir imagen'}
+                      </button>
+                      {url && (
+                        <button
+                          type="button"
+                          onClick={() => cambiar(cual === 'oscuro' ? { logoOscuro: '' } : { logoClaro: '' })}
+                          className="duna-btn duna-btn--ghost duna-btn--sm"
+                          disabled={subidaImagen.subiendo}
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                    <span className="duna-field__hint" style={{ margin: 0 }}>
+                      {subiendoCual === cual ? `Subiendo… ${subidaImagen.progreso ?? 0}%` : hint}
+                    </span>
+                    {subiendoCual === cual && <BarraProgreso pct={subidaImagen.progreso ?? 0} />}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {errorLogo && <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)' }}>{errorLogo}</p>}
+          <div className="duna-field" style={{ marginTop: 'var(--duna-space-3)' }}>
+            <label className="duna-field__label" htmlFor="enc-logo-alt">Texto alternativo</label>
+            <input
+              id="enc-logo-alt" className="duna-input"
+              value={form.logoAlt} onChange={(e) => cambiar({ logoAlt: e.target.value })}
+              placeholder="Ej. Logo de Café Las Chamisas"
+            />
+            <p className="duna-field__hint">Vacío: se usa el nombre de tu negocio.</p>
+          </div>
+          <input ref={subidaImagen.inputHoldRef} type="file" onChange={subidaImagen.alElegirHold} hidden />
+        </div>
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
             {CONTROLES.map((c) => {
@@ -359,6 +486,7 @@ export default function EncabezadoSeccion() {
             })}
           </div>
         </div>
+        </>
       )}
 
       <ConfirmDescartarDialog

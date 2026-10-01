@@ -40099,3 +40099,209 @@ ESCRITURA (`approved: yes`, citando `EDITOR-TIENDA-OBSERVED-1` como `approval-re
 sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`.**
+
+## 2026-10-01 — Logo subido (oscuro/clara) reemplaza el wordmark de texto, y el nombre nunca se parte en dos líneas en el teléfono (`MARCA-LOGO-IMAGEN-1`)
+
+Gate del owner sobre la demo de Café Las Chamisas (2026-10-01): *"El logo de la marca no se puede
+mostrar porque la tienda sólo admite el nombre en texto o la flor de Nayoli, y en el teléfono el
+nombre se parte en dos líneas."* Dos defectos, un slice: (1) ninguna tienda puede subir su propio
+logo; (2) el wordmark de texto envuelve a dos líneas con un nombre largo, en CUALQUIER tenant,
+logo subido o no.
+
+### El logo es una SECCIÓN del REGISTRY, no una meta excluida — y eso da el borrado de blobs GRATIS
+
+La decisión de diseño que simplificó todo lo demás: `logo` (`content.logo`, `LogoContent =
+{visible, oscuro, claro, alt}`) se declaró como una SECCIÓN de verdad en `REGISTRY`
+(`site-content-defaults.ts`), **mismo precedente que `menu`/`footer`** — REGISTRY-pero-con-editor-
+BESPOKE —, NO como una quinta meta excluida (como `cromo`/`navWordmark`/`navTratamiento`/
+`navDrawerMovil`, que SÍ están excluidas de `SeccionKey` porque el route GENÉRICO las rechaza).
+
+Con `logo` en REGISTRY, `imagenes: ['oscuro', 'claro']` hace que `imagenesDe`/`blobsHuerfanos`
+(`lib/config/site-content-blobs.ts`) la reconozcan por el registro DEFAULT — **sin tocar ese
+archivo ni `site-content-write.ts`**, ninguno de los dos en `touches:`. El reemplazo/retiro de un
+logo deja el blob viejo huérfano y lo limpia solo, exactamente como `hero.imagenPoster`/
+`menu.panelTarjetaImagen`. Medido contra Postgres real (`tests/integracion/encabezado-logo.test.ts`):
+reemplazar una versión deja huérfana SÓLO esa, la otra sigue en uso; un guardado de borrador que
+reemplaza una imagen YA PUBLICADA no la libera todavía (`EN USO = content ∪ borrador`, la unión que
+`site-content-blobs.ts` ya documenta) — sólo al publicar.
+
+`logo` viaja en el MISMO borrador/publish que los diez switches del Encabezado
+(`EncabezadoSeccion.tsx`, `/api/site-content/encabezado`) porque es la MISMA decisión de producto
+para el dueño ("cómo se ve mi marca"), no una sección aparte del selector de páginas — la ruta pasó
+de CUATRO a CINCO claves en su `.pick()`/`METAS_ENCABEZADO`, sin una sola línea de lógica de blobs
+propia.
+
+**DEVIACIÓN MEDIDA, fuera de `touches:` — necesaria, no opcional:** `lib/config/site-content-
+read.ts` (`readSiteContentParaEditor`) calculaba `sinPublicar.encabezado` con un OR manual de
+`'cromo' in borrador || 'navWordmark' in borrador || 'navTratamiento' in borrador` — sin `logo`, la
+píldora "Sin publicar" y los botones Publicar/Descartar no se habrían encendido al subir sólo un
+logo sin tocar ningún switch, rompiendo la propia función que este slice construye. Se agregó
+`|| 'logo' in borrador`. **Hueco PRE-EXISTENTE, no mío, dejado sin tocar**: esa misma condición
+nunca incluyó `navDrawerMovil` —la lista decía "TRES metas" desde antes de que ese cuarto eje
+existiera, y nunca se actualizó al agregarlo (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1)—; corregirlo excede
+lo que este slice necesita. Follow-up `SINPUBLICAR-ENCABEZADO-DRAWERMOVIL-GAP-1` abajo.
+
+**Otra deviación medida, mismo patrón ya documentado en este archivo para cada eje nuevo del
+Encabezado:** `tests/integracion/panel-encabezado.test.ts` es un ESPEJO del `.pick()`/
+`METAS_ENCABEZADO` reales de la ruta — fuera de `touches:`, pero dejarlo en CUATRO claves mientras
+la ruta real tiene CINCO lo habría vuelto el mismo defecto que ese archivo existe para prevenir
+(§ el asiento de MUESTRARIO-DRAWER-MOVIL-TEMA-1, "ampliar la ruta sin actualizar el espejo deja
+probando sólo 3 de las 4 claves reales"). Se amplió a `logo` con sus propios tests (guardar/
+publicar/descartar/blob-diff/independencia de los otros ejes).
+
+### El nombre en texto nunca se parte en dos líneas — content-aware, NO un breakpoint de CSS
+
+El fix tuvo que resolverse en CUATRO iteraciones, cada una midiendo contra `npm run guarda:color`
+(el fixture de píxeles de Nayoli) — se documenta la secuencia porque cada bug encontrado es
+exactamente la clase de defecto que "parece arreglado" hasta que se mide:
+
+1. **Clases estáticas (`overflow-hidden whitespace-nowrap block min-w-0`) en el `<span>` SIEMPRE**:
+   funcionaba (capturado con Playwright, nombre largo en una línea), pero `guarda:color` midió
+   14-15 px de diff en la caja del wordmark de Nayoli — `display:block` en un `<span>` que antes
+   era inline (aunque "blockificado" igual por ser hijo flex) no es un no-op bit a bit en el motor
+   de texto de Chromium. Medido, no asumido.
+2. **Mismo mecanismo, pero CONDICIONAL por `useState`** (null = sin ajuste, byte-idéntico): resolvió
+   el diff de píxeles (`guarda:color` volvió a 0px), pero el nombre largo volvió a partirse en dos
+   líneas EN PANTALLA — medir el ancho NATURAL contra el MISMO nodo que el propio ajuste ya había
+   encogido producía una OSCILACIÓN: encoge → la siguiente medición (disparada por el
+   `ResizeObserver` al cambiar ese tamaño) ve que "ya cabe" al tamaño reducido → concluye que no
+   hace falta ajuste → lo devuelve al tamaño completo → vuelve a no caber → se repite. La captura
+   sólo mostraba la fase "sin encoger" porque el navegador headless la tomó en ese instante.
+3. **Resetear `fontSize`/`whiteSpace` ANTES de medir**: mismo síntoma, no lo resolvió — el reseteo
+   seguía compartiendo el nodo con el resultado anterior.
+4. **MEDIDOR aislado** (un `<span aria-hidden invisible absolute>` SIEMPRE al tamaño base, nunca
+   mutado por el ajuste, hermano del `<span>` visible): resuelve las dos cosas —el medidor nunca
+   cambia, así que no hay con qué oscilar, y `guarda:color` sigue en 0px porque el `<span>` visible
+   de Nayoli nunca gana clases de recorte—. Confirmado ESTABLE en 3 corridas consecutivas del
+   arnés de captura.
+
+El mecanismo final vive en `NombreEncogible`/`Logo.tsx`: `scrollWidth` del medidor = ancho natural
+al tamaño base; `clientWidth` del `<span>` visible = espacio que el layout de flexbox le asignó
+(`min-w-0` tiene que llegar hasta ahí desde el `<Link>` del nav, § `StoreNav.tsx` — layout-only,
+medido SIN efecto de píxel); si el natural excede el disponible (con tolerancia de 2px por
+redondeo), el `fontSize` se reduce en la proporción exacta — NUNCA trunca con "…", conserva el
+nombre COMPLETO, más chico. `document.fonts.ready` re-mide una vez más por si la fuente real
+(Playfair/Inter, `@import`) no cargó a tiempo para la primera medición (medido: sin esto, el
+nombre quedaba RECORTADO por `overflow-hidden` tras el reflow de la fuente real).
+
+**Por qué NO un breakpoint de CSS** (`text-[Npx] sm:text-[22px]`): encogería el wordmark de TODO
+tenant en móvil, incluida Nayoli — violando "Nayoli byte-idéntica" del spec. La medición
+content-aware sólo se activa cuando el texto REALMENTE excede el espacio; para "Café Nayoli"
+(corto) esa condición nunca se cumple.
+
+### SVG/PNG, kind propio en la subida directa
+
+`TIPOS_LOGO = ['image/svg+xml', 'image/png']` (`constants/upload.ts`), rama PROPIA de
+`contentTypesParaKind` — nunca unida a `TIPOS_PERMITIDOS` (el logo es la ÚNICA imagen de contenido
+que puede ser vectorial; abrir SVG a todo upload de contenido sería una superficie de riesgo mayor
+sin necesidad). El SVG se sirve SIEMPRE como `<img src>` (`Logo.tsx`), nunca inyectado inline como
+HTML — cero superficie de ejecución de script. `EncabezadoSeccion.tsx` usa el camino "elegir sin
+subir / subir aparte" de `useSubidaImagen` (`elegir`+`subir`, no el `pedir` simple, que valida
+contra `TIPOS_PERMITIDOS` y rechazaría SVG).
+
+### El ALT es opcional con fallback contextual — mismo patrón que NosotrosGaleria
+
+`logo.alt` vacío → `altDeLogo(logo, nombreNegocio)` cae al NOMBRE DEL NEGOCIO, nunca a un string
+inventado — mismo criterio que la galería de /nosotros. `logoParaVariante(logo, variant)` elige
+oscuro/claro según `variant` ('light'→oscuro, 'dark'→claro) con fallback a la OTRA versión si falta
+una, tal como pide el spec textual ("si falta una versión, usa la otra").
+
+### HALLAZGO contra CLAUDE.md — una tensión real, no resuelta unilateralmente
+
+El chequeo mecánico de cierre (grep de cada símbolo/ruta que este diff cambia contra `CLAUDE.md`)
+encontró **una sección escrita en anticipación de este exacto feature** (§ "El WORDMARK carga la
+identidad" / "El logo subido se RESPETA, nunca se tiñe", líneas ~4479-4518) que ahora está en
+TENSIÓN con lo construido, no simplemente desactualizada:
+
+- *"NO hay campo de logo en `SiteSetting`... no hay subida de logo todavía"* — ahora FALSO: la
+  subida existe, en `SiteContent` (no en `SiteSetting`, así que la letra literal sobre `SiteSetting`
+  sigue siendo cierta, pero la premisa que sostenía — "no hay subida" — ya no lo es).
+- *"Logo oscuro que desaparecería sobre el HERO → WORDMARK de fallback, no teñir... la salida es
+  caer al wordmark... NUNCA recolorear"* — esto es una PRESCRIPCIÓN para el caso "sólo una versión
+  subida, y la que falta es la que el fondo necesita". El SPEC de este slice (ya aprobado por el
+  owner) pide explícitamente lo contrario para ese caso: *"si falta una versión, usa la otra"* — mi
+  implementación sigue el SPEC (fallback a la otra versión subida), no esta prescripción vieja de
+  CLAUDE.md (fallback al wordmark de texto). Es una tensión genuina entre dos fuentes autoritativas
+  que no resolví unilateralmente — ver `open_followups`, `LOGO-FALLBACK-CONTRASTE-VS-WORDMARK-1`.
+- *"cuando el logo sea SUBIBLE desde el panel (§ Backlog #54), el mark se muda a `SiteSetting` y el
+  flag [`STOREFRONT_TIENE_MARK`] se deriva de 'hay logo o no'"* — la CONDICIÓN ("cuando sea
+  subible") se cumple HOY, pero la ACCIÓN que describe (mudar el mark, derivar el flag) es del
+  mecanismo de la FLOR (`LogoMark`/`conMark`), que este slice no toca — sigue siendo env-based. Ver
+  `MARK-SUBIBLE-TRIGGER-1`.
+
+No se corrigió `CLAUDE.md` en esta tanda: ninguna de las tres cae dentro de `touches:`, y la
+primera es una decisión de producto que no es mía para resolver.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2966/2966** |
+| `npm run test:integracion` | **269/269** |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (confirmado en la corrida FINAL, después del fix #4 de la oscilación) |
+
+`npm run verificar:nayoli:visual` no se corrió aparte: `guarda:color` reusa el mismo arnés
+(`verificar-nayoli-visual.ts`) y ya construyó+corrió la rama completa contra el fixture commiteado.
+
+### Capturas de cierre (arnés propio, `.scratch/capturar-logo.ts` — gitignorado, no en el diff)
+
+Sembradas en Postgres EFÍMERO (puerto 55441, nunca `development`/producción): un SVG oscuro y uno
+claro (data-URI, sin tocar Blob), `navDrawerMovil.variante='pantallaCompleta'` para ejercitar el
+SEGUNDO punto de montaje del logo (el drawer móvil a pantalla completa, además del header fijo).
+Verificado por ejecución (Playwright, Chromium headless):
+
+- **Desktop, home**: logo CLARO flotando sobre el hero oscuro (nav), logo CLARO en el pie (tinta).
+- **Desktop, /nosotros (página interna)**: logo OSCURO en el nav sólido (fondo claro), CLARO en el pie.
+- **Móvil (390×844), home**: logo CLARO en el header.
+- **Móvil, drawer de pantalla completa abierto**: logo OSCURO (el panel del drawer es SIEMPRE claro,
+  `variant="light"` fijo) — confirma el segundo `<Logo logo=.../>` de `StoreNav.tsx`.
+- **Móvil, SIN logo, nombre largo** ("Café Las Chamisas de la Montaña"): una sola línea, texto
+  completo, encogido — el defecto reportado por el owner, resuelto y confirmado estable en 3
+  corridas.
+
+### `touches:` — dos archivos declarados NO necesitaron tocarse, medido
+
+`components/admin/tienda-secciones.ts`: `logo` no pasa por `TiendaSeccionEditor`/`SECCIONES_TIENDA`
+(editor bespoke, § arriba) — nada en ese archivo gobierna una sección REGISTRY con editor propio
+(mismo caso que `menu`/`footer`, que tampoco están ahí). `lib/storage.ts`: `pathnameSubidaValido`/
+`sanitizeFilename` son agnósticos de extensión — un `.svg` no necesita ninguna rama nueva; el
+`contentType` ya sale de `file.type`. Ninguno de los dos se tocó porque no hacía falta, no por
+omisión — medido leyendo ambos antes de descartarlos.
+
+### `customer_bytes`
+
+**`changed: true`.** Con un logo subido y publicado, el storefront reemplaza el nombre en texto (y
+la flor de Nayoli, si el despliegue la tiene) por la imagen, en el header, el pie y el menú móvil —
+visible para cualquier visitante. **`strings: []`** — ningún texto nuevo; lo que cambia es una
+IMAGEN (dato que el dueño sube) y el tamaño del wordmark de texto en anchos de teléfono angostos
+cuando el nombre es largo (ambos comportamientos nuevos, cero copy). Con `content.logo` en su
+default vacío (Nayoli, y todo tenant que no suba nada), el storefront es BYTE-IDÉNTICO — medido,
+`guarda:color` 0px.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma` (el logo vive en el
+JSON de `SiteContent.content`, no en una columna), sin migración, sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cuatro capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, gate textual
+sobre la demo de Café Las Chamisas); el merge sigue pendiente del gate del orquestador — este
+slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `LOGO-FALLBACK-CONTRASTE-VS-WORDMARK-1` — decidir si el fallback "falta una versión, usa la otra"
+  (lo construido, por spec explícito) debe ceder ante "falta la versión necesaria para el fondo →
+  cae al wordmark" (CLAUDE.md, § El logo subido se RESPETA) para el caso de un solo logo subido con
+  bajo contraste sobre el hero/pie. Pregunta de producto, no técnica.
+- `MARK-SUBIBLE-TRIGGER-1` — CLAUDE.md anticipaba que "el logo sea subible desde el panel" movería
+  el mark (`LogoMark`/`STOREFRONT_TIENE_MARK`) a dato derivado; la condición ya se cumple, la
+  migración del mark no se hizo (fuera de `touches:` de este slice).
+- `SINPUBLICAR-ENCABEZADO-DRAWERMOVIL-GAP-1` — `sinPublicar.encabezado` (`site-content-read.ts`)
+  sigue sin incluir `navDrawerMovil` en su OR — hueco PRE-EXISTENTE a este slice (ver arriba),
+  no corregido por no ser parte de lo que este slice necesita.
+
+**Cierra `MARCA-LOGO-IMAGEN-1`.**

@@ -7,13 +7,14 @@ import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config
 
 // EL ENCABEZADO (§ PANEL-EDITOR-ENCABEZADO-1, ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, §
 // CROMO-NAV-DIRECCION-SCROLL-1, § CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1, §
-// CROMO-NAV-POSICION-TEMA-REAL-1 y § CROMO-NAV-EXACTO-PROTOTIPO-1): logo, sub-encabezado, color del
-// nav, tratamiento tipográfico del nav, el drawer móvil de pantalla completa, el comportamiento por
-// dirección de scroll, el filete inferior, la forma/color del CTA COMPRAR + el badge de menú, la
-// geometría del contenedor de contenido, y el subrayado al hover de los links — DIEZ ejes que hasta
-// hoy sólo escribía un preset (`mergePresetEnContent`, `themes.ts`). Los DIEZ viven en CUATRO
-// claves META que `SeccionKey` EXCLUYE del REGISTRY (`cromo`, `navWordmark`, `navTratamiento` —con
-// SEIS campos, `activo`/`direccion`/`filete`/`cta`/`posicion`/`subrayado`—, `navDrawerMovil`; §
+// CROMO-NAV-POSICION-TEMA-REAL-1, § CROMO-NAV-EXACTO-PROTOTIPO-1 y § MARCA-LOGO-IMAGEN-1): logo-
+// estilo, sub-encabezado, color del nav, tratamiento tipográfico del nav, el drawer móvil de
+// pantalla completa, el comportamiento por dirección de scroll, el filete inferior, la forma/color
+// del CTA COMPRAR + el badge de menú, la geometría del contenedor de contenido, y el subrayado al
+// hover de los links — DIEZ ejes que hasta hoy sólo escribía un preset (`mergePresetEnContent`,
+// `themes.ts`). Los DIEZ viven en CUATRO claves META que `SeccionKey` EXCLUYE del REGISTRY
+// (`cromo`, `navWordmark`, `navTratamiento` —con SEIS campos,
+// `activo`/`direccion`/`filete`/`cta`/`posicion`/`subrayado`—, `navDrawerMovil`; §
 // site-content-defaults.ts) — NO son una sección, así que el PUT/POST GENÉRICO de `/api/site-
 // content` no sirve para publicarlas/descartarlas: su gate `seccion in REGISTRY` (route.ts:88) las
 // rechaza con 400. El PUT genérico SÍ las acepta al borrador (`siteContentEditableSchema` ya las
@@ -23,22 +24,33 @@ import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config
 // El único precedente de una meta no-sección con flujo borrador/publicar es `tema`
 // (`app/api/site-content/tema/route.ts`), resuelto con su PROPIA ruta reusando las funciones
 // key-agnósticas del write (`guardarBorrador`/`publicarSeccion`/`descartarSeccion`) SIN tocar el
-// route genérico ni su gate. Ésta es la MISMA forma, para TRES metas en vez de una:
+// route genérico ni su gate. Ésta es la MISMA forma, para las cuatro metas MÁS la sección `logo`:
 //
-//   PUT                                        = guardar el borrador de las TRES metas del Encabezado.
-//   POST { accion: 'publicar' | 'descartar' }  = mover las tres al PUBLICADO / limpiarlas del borrador.
+//   PUT                                        = guardar el borrador del Encabezado completo.
+//   POST { accion: 'publicar' | 'descartar' }  = mover todo al PUBLICADO / limpiarlo del borrador.
+//
+// LA QUINTA CLAVE, `logo` (§ MARCA-LOGO-IMAGEN-1), ES DISTINTA DE LAS OTRAS CUATRO: no es una meta
+// excluida del REGISTRY — ES una sección de verdad (§ `REGISTRY.logo`, site-content-defaults.ts,
+// mismo precedente que `menu`/`footer`, ambas también REGISTRY-pero-con-editor-bespoke). Se agrupa
+// en ESTA ruta porque su UX es la MISMA del resto del Encabezado (un solo borrador, un solo botón
+// "Publicar"), no porque necesite su propia ruta como `cromo`/`navWordmark`/`navTratamiento`/
+// `navDrawerMovil` — esos SÍ la necesitan porque el route genérico los rechaza (`seccion in
+// REGISTRY`); `logo` SÍ pasaría ese gate, y de hecho `guardarBorrador`/`publicarSeccion`/
+// `descartarSeccion` (reusadas abajo, sin cambio de firma) YA la reconocen por default —son
+// key-agnósticas, y su borrado de blobs (`blobsHuerfanos`, site-content-blobs.ts) itera el REGISTRY
+// completo— así que agregarla a esta ruta NO necesitó ni una línea de lógica de blobs propia.
 //
 // La validación es `siteContentEditableSchema` (LA MISMA del route genérico) acotada con `.pick()` a
-// sólo estas tres claves. El pick no es cosmético: sin él, esta ruta aceptaría (y escribiría)
-// cualquiera de las 22 claves del schema completo — una segunda puerta genérica con otro nombre, que
+// sólo estas CINCO claves. El pick no es cosmético: sin él, esta ruta aceptaría (y escribiría)
+// cualquiera de las claves del schema completo — una segunda puerta genérica con otro nombre, que
 // es justo lo que el gate `seccion in REGISTRY` del route genérico existe para acotar del otro lado.
 //
-// LAS TRES PUBLICACIONES SON SECUENCIALES, NO ATÓMICAS — decisión, no descuido. Es la MISMA
+// LAS CINCO PUBLICACIONES SON SECUENCIALES, NO ATÓMICAS — decisión, no descuido. Es la MISMA
 // tolerancia ya aceptada en `site-content-write.ts` para el race guardar↔publicar de una sección: un
 // operador humano no alcanza la ventana de milisegundos entre dos escrituras, y un fallo a mitad de
-// camino (dos de tres metas publicadas) es visible en el editor (la píldora "Sin publicar" seguiría
-// prendida para la que falló) y recuperable reintentando "Publicar" — no un libro contable
-// corrompido. Si algún día hiciera falta una publicación atómica de las tres, es una extensión de
+// camino (algunas metas/secciones publicadas) es visible en el editor (la píldora "Sin publicar"
+// seguiría prendida para la que falló) y recuperable reintentando "Publicar" — no un libro contable
+// corrompido. Si algún día hiciera falta una publicación atómica de las cinco, es una extensión de
 // `site-content-write.ts` (fuera de `touches:` de este slice), no algo que esta ruta deba resolver
 // por su cuenta.
 
@@ -51,26 +63,28 @@ async function requireAdmin() {
   return {};
 }
 
-// Acota el schema COMPLETO a las cuatro claves del Encabezado — ver el docstring de arriba.
+// Acota el schema COMPLETO a las cinco claves del Encabezado — ver el docstring de arriba.
 const encabezadoEditableSchema = siteContentEditableSchema.pick({
   cromo: true,
   navWordmark: true,
   navTratamiento: true,
   navDrawerMovil: true,
+  logo: true,
 });
 
-const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
+const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil', 'logo'] as const;
 
-// Borrado de blobs huérfanos, best-effort, DESPUÉS del write (§ route genérico). El Encabezado no
-// tiene imágenes propias, así que `blobsABorrar` es siempre `[]` hoy — el contrato se mantiene por
-// si una de las tres metas gana un blob mañana.
+// Borrado de blobs huérfanos, best-effort, DESPUÉS del write (§ route genérico). Antes de §
+// MARCA-LOGO-IMAGEN-1 esto era siempre `[]` (ninguna de las cuatro metas tenía imágenes) — el
+// contrato se mantuvo listo para el día en que una ganara un blob, y éste es ese día: `logo` SÍ
+// tiene imágenes (§ arriba), así que `blobsABorrar` ahora puede traer URLs reales.
 async function borrarBlobs(urls: string[]) {
   await Promise.allSettled(
     urls.map((u) => storage.delete(u).catch((e) => console.error('[site-content/encabezado] no se pudo borrar blob:', u, e))),
   );
 }
 
-// PUT = GUARDAR el borrador de las tres metas del Encabezado.
+// PUT = GUARDAR el borrador de las cuatro metas + la sección `logo` del Encabezado.
 export async function PUT(req: NextRequest) {
   const { error } = await requireAdmin();
   if (error) return error;
@@ -91,7 +105,8 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// POST = PUBLICAR / DESCARTAR las tres metas del Encabezado, una por una (§ no-atómico, arriba).
+// POST = PUBLICAR / DESCARTAR las cuatro metas + la sección `logo` del Encabezado, una por una (§
+// no-atómico, arriba).
 export async function POST(req: NextRequest) {
   const { error } = await requireAdmin();
   if (error) return error;
