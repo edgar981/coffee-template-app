@@ -39916,3 +39916,186 @@ textual como `approval-reason`); el merge sigue pendiente del gate del orquestad
 instrucción del dispatch, no mergea.
 
 **Cierra `DESTACADO-PRESENTACION-POR-TAMANO-1`.**
+
+## 2026-10-01 — El modo editor deja de ser una cookie de sesión: una marca POR REQUEST (`?editor=1` → header → gate), y el iframe vuelve solo a su página si el admin navega afuera (`MODO-EDITOR-SOLO-EN-EL-IFRAME-1`)
+
+Gate del owner, textual: *"Los cambios que hice en el panel, sin dar click en publicar, se veían en
+la página real, enseguida."* Medido por el orquestador ANTES de este slice: la cookie
+`modo_editor_tienda` (2h, `EDITOR-TIENDA-IFRAME-GATE-1`) no se borraba de forma fiable al cerrar la
+pestaña del editor (el `DELETE` de limpieza es un `useEffect` de React, que no corre en un cierre
+abrupto), así que el borrador quedaba visible en CUALQUIER pestaña del navegador del dueño, no sólo
+en el iframe. Primera corrida de este slice (BLOCKED, sin cambios): midió que en Next 16 un LAYOUT
+no recibe `searchParams` (sólo `page.tsx`), y el orquestador decidió el camino A —
+`proxy.ts` traduce `?editor=1` a un header de request que el layout lee con `headers()`.
+
+### Qué se construyó
+
+- **`lib/admin/editor-iframe.ts`** gana el contrato compartido: `PARAM_MODO_EDITOR='editor'`,
+  `VALOR_MODO_EDITOR='1'`, `ENCABEZADO_MODO_EDITOR='x-editor-modo'`, y `urlDePaginaEnEditor(pagina)`
+  (= `urlDePagina(pagina) + '?editor=1'`). Viven en este módulo PURO —sin `next/headers`, sin
+  Prisma, sin Better Auth— porque `proxy.ts` no debe arrastrar esos tres a su propio bundle (la doc
+  de Next lo dice: Proxy no debería depender de módulos compartidos pesados); una sola definición
+  del nombre, consumida por `proxy.ts`, `modo-editor-gate.ts` y `VistaTiendaIframe.tsx`.
+- **`proxy.ts`** amplía su `matcher` de `['/admin(.*)']` a `['/admin(.*)', '/', '/nosotros',
+  '/suscripciones']` (las tres rutas que `urlDePagina` conoce — medido contra el compilador real de
+  Next, `tryToParsePath`, que un patrón literal como `/nosotros` NO hace prefix-match de subrutas,
+  contra lo que la prosa de la doc sugiere para otro caso). La lógica de `/admin/*` (sesión + los
+  seis redirects de rutas retiradas) queda IDÉNTICA, sólo movida dentro de un `if` explícito; la
+  rama nueva, para las tres rutas del storefront, cuesta `NextResponse.next()` SIN clonar headers
+  cuando no hay parámetro ni header-del-cliente (el 100% del tráfico público), y clona + reescribe
+  el header SÓLO cuando hace falta — nunca confía en un `x-editor-modo` que el cliente ya traiga.
+- **`lib/config/modo-editor-gate.ts`**: `modoEditorActivo()` deja de leer `cookies()` — ahora lee
+  `headers()` y `marcaModoEditorDesdeHeaders(h)` (nueva, pura: `h.get('x-editor-modo') === '1'`).
+  `decidirModoEditor` conserva el MISMO criterio (sesión OWNER/MANAGER activa) con su primer
+  parámetro renombrado de `cookiePresente` a `marcaPresente` — es el mismo booleano, ahora derivado
+  de un header en vez de una cookie. `COOKIE_MODO_EDITOR`/`MODO_EDITOR_MAX_AGE_S` se retiran: nada
+  los necesita.
+- **`app/api/site-content/modo-editor/route.ts`** pierde su `POST` entero (no hay nada que "prender"
+  entre requests); el `DELETE` se queda, SIN chequeo de sesión, sólo para borrar la cookie vieja de
+  un navegador real que haya visitado el preview público antes de este cambio (higiene, no
+  corrección de un bug activo — el gate nuevo ni siquiera lee esa cookie).
+- **`components/admin/ModoEditorActivo.tsx`**: ya no hace POST al montar ni DELETE al desmontar —
+  llama al DELETE de limpieza UNA vez, al montar. Sigue montado por `app/(admin)/admin/tienda/
+  page.tsx` sin tocar ese archivo (fuera de `touches:`).
+- **`components/admin/VistaTiendaIframe.tsx`**: el `src` del iframe pasa a `urlDePaginaEnEditor(
+  pagina)`. Gana el VIGÍA DE RUTA: un `setInterval` de 400ms compara `contentWindow.location.
+  pathname` contra la ruta de la pestaña activa (`urlDePagina(pagina)`, sin el parámetro) y, si
+  divergió, hace `location.replace(urlDePaginaEnEditor(pagina))` — vuelve a la página del editor,
+  CON el parámetro puesto. Es un POLL y no un `onLoad` porque la navegación client-side de Next
+  (`<Link>`, `router.push`) cambia `contentWindow.location` vía `history.pushState` SIN disparar el
+  evento `load` del iframe — un chequeo "al cargar" nunca vería ese caso.
+
+### La decisión de navegación: "vuelve a la página del editor", no "conserva el parámetro en cada link"
+
+Dos opciones medidas para cuando el admin hace clic en un enlace dentro del iframe (nav, tarjeta de
+producto, carrito…) que lleva a OTRA ruta sin `?editor=1`:
+
+- **"Conservar el parámetro"** exigiría interceptar el clic en fase de CAPTURA y forzar una
+  navegación COMPLETA en cada enlace del storefront — porque la navegación client-side de Next ya
+  capturó el `href` original en el handler de `<Link>` antes de que cualquier reescritura del DOM
+  llegue a tiempo. Tocaría `components/storefront/` entero, fuera de `touches:`.
+- **"Vuelve a la página del editor"** (la construida) se resuelve ENTERO dentro de
+  `VistaTiendaIframe.tsx`, sin tocar una sola página del storefront. Costo aceptado: un reload extra
+  si el admin se desvía. `EDITOR-TIENDA-POSTMESSAGE-1` (slice 3 del plan, `docs/editor-tienda/
+  DISENO.md` § 6) sigue siendo el lugar correcto para una experiencia más fina.
+- **Límite nombrado, no resuelto:** una navegación a un dominio EXTERNO deja `contentWindow.location`
+  verdaderamente cross-origin; el vigía lo detecta (la lectura de `pathname` lanza) y se queda
+  quieto — ni corrige ni rompe. Preexistente al diseño del iframe, no nuevo de este slice.
+
+### Tests
+
+- **Capa 1**: `lib/config/modo-editor-gate.test.ts` pasa de 7 a 11 tests (+4 —
+  `marcaModoEditorDesdeHeaders` con el header exacto, sin header, con la COOKIE VIEJA presente sin
+  el header nuevo [→ `false`, la cookie no decide nada], y con un valor distinto de `'1'`);
+  `lib/admin/editor-iframe.test.ts` pasa de 7 a 8 (+1 — `urlDePaginaEnEditor`, un test con tres
+  aserciones, una por página). Cinco tests nuevos en total.
+- **Carril** (`tests/integracion/modo-editor-gate.test.ts`, 8 → 10, +2): se reescriben ENTRAR/SALIR
+  para pasar por `marcaModoEditorDesdeHeaders(h)` (el camino COMPLETO: header → marca → decisión, no
+  sólo la mitad de la sesión como antes) y se agregan dos tests — rol insuficiente (STAFF) con el
+  header puesto sigue viendo lo PUBLICADO, y una sesión OWNER con la cookie vieja (`modo_editor_
+  tienda=1`) presente PERO sin el header nuevo también ve lo PUBLICADO (`marcaModoEditorDesdeHeaders`
+  da `false` sobre esos headers — afirmado explícito antes de la aserción de contenido).
+- Siete tests nuevos en total (5 capa 1 + 2 carril), los siete vistos correr en verde contra el
+  código ya escrito. No se los vio fallar contra un código "viejo" porque el mecanismo que
+  reemplazan (la cookie) ya no existe en este árbol para comparar — el contraste con el defecto
+  original es conceptual y queda documentado arriba, no un test que se hizo fallar a propósito.
+
+### Gate
+
+| comando | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2951/2951** |
+| `npm run test:integracion` | **256/256** |
+| `npm run gate` (typecheck + los dos carriles, en secuencia) | verde — el pipeline es `&&`, y `test:integracion` corrió completo hasta su resumen final, así que typecheck y `npm test` tuvieron que pasar antes |
+| `npm run guarda:color` (vara vigente, fixture commiteado de Nayoli) | **0px en las 8 capturas** (consciente de AA y crudo), incluido un `next build` fresco con el `matcher` nuevo de `proxy.ts` — confirma que el build compila y que el tráfico público (sin `?editor=1`) sigue byte-idéntico |
+
+### Tier / clasificación de merge policy — MEDIDO, no asumido del spec
+
+El spec llegó con `tier: 1` y `touches:` incluyendo `app/(storefront)/layout.tsx`. **Medido**: el
+diff final de este slice **no toca ningún archivo de la lista Tier 1 de `CLAUDE.md` ni de sus
+subárboles ganados** (`app/(storefront)/`, `components/storefront/`, `lib/checkout/`,
+`packages/core/src/pagos/`) — `layout.tsx` no necesitó cambios porque `modoEditorActivo()` conservó
+su firma (`(): Promise<boolean>`, cero argumentos), así que sus tres llamadores
+(`layout.tsx`/`page.tsx`/`nosotros/page.tsx`/`suscripciones/page.tsx`) siguen funcionando sin
+tocarlos. Es el MISMO precedente que `EDITOR-TIENDA-IFRAME-VISTA-1` ya escribió en `DISENO.md` § 9.2
+para su slice 2: un archivo que APUNTA A o CONSULTA una ruta Tier 1 no se vuelve Tier 1 por eso —
+necesita estar nombrado o vivir en un subárbol ganado. La aprobación de ESCRITURA ya la dio el owner
+(`approved: yes`, citando `EDITOR-TIENDA-OBSERVED-1`), así que esto no cambia qué se pudo escribir;
+se deja medido para que el próximo censo de Tier 1 no asuma que este slice tocó la superficie
+protegida sólo porque el spec lo declaraba.
+
+### `customer_bytes`
+
+**`changed: true`, `strings: []`.** Ningún texto nuevo (ni botones, ni labels, ni copy) — lo que
+cambia es COMPORTAMIENTO, visible sólo dentro de `/admin/tienda`: si el admin navega DENTRO del
+iframe a una ruta distinta de la que está editando (clic en el nav, una tarjeta, el carrito), antes
+no pasaba nada especial (la cookie vieja hacía que esa otra página también mostrara el borrador);
+ahora el iframe vuelve solo, en ~400ms, a la página que estaba editando. Es un cambio de ROBUSTEZ
+—cierra exactamente el defecto que el owner reportó—, no de producto: ningún string nuevo, ningún
+control nuevo. El tráfico PÚBLICO (sin `?editor=1`) queda byte-idéntico, medido por `guarda:color`
+(0px) y por el costo-mínimo del propio `proxy.ts` (sin el parámetro, `NextResponse.next()` sin
+clonar headers, igual que antes de este slice).
+
+### `schema` / `cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo (todo el mecanismo es interno a este repo — `proxy.ts`, un header HTTP propio,
+un endpoint propio).
+
+### Deviations
+
+- **El `?editor=1` navega por URL pública, invirtiendo el argumento original de `DISENO.md` § 5.2
+  punto 2** ("un query param se copia y se comparte por accidente; una cookie no sale del
+  navegador"). Medido que ese argumento protegía contra el riesgo EQUIVOCADO: el parámetro nunca es
+  la credencial (la sesión server-side sí lo es), y el riesgo real —medido por el owner— era que la
+  cookie SOBREVIVIERA más de lo esperado, no que el parámetro se compartiera. Documentado en
+  `docs/editor-tienda/DISENO.md` § 5.2 (nota de reversión) y § 11 (el mecanismo completo).
+- **Tier re-medido de 1 a "no toca superficie Tier 1" por el diff real** — ver la sección de arriba.
+  No cambia nada de lo ya autorizado; se reporta porque el spec asumía un touch a `layout.tsx` que
+  no ocurrió.
+
+### Unknowns
+
+- Ninguno declarado: el mecanismo se verificó por lectura, por los dos carriles automatizados, y por
+  `guarda:color` (ejecución real de `next build` + `next start` + Playwright). El walkthrough
+  interactivo del owner sobre una sesión real de `/admin/tienda` (ver la cookie vieja limpiarse, ver
+  el vigía de ruta corregir una navegación real) sigue siendo el GATE DE CAPA 3 que sólo el owner
+  puede dar — no sustituido por este slice, igual que en `EDITOR-TIENDA-IFRAME-VISTA-1`.
+
+### Open follow-ups
+
+- **`EDITOR-TIENDA-POSTMESSAGE-1`** (ya en el plan, `docs/editor-tienda/DISENO.md` § 6, fila 3): el
+  lugar correcto para una navegación DENTRO del iframe que conserve el modo editor sin el reload del
+  vigía de ruta.
+- **`MODO-EDITOR-MATCHER-SUBARBOL-1`**: si una página nueva del storefront gana secciones editables
+  (hoy sólo home/nosotros/suscripciones), su ruta necesita sumarse al `matcher` de `proxy.ts` Y a
+  `PaginaKey`/`urlDePagina` (`lib/admin/editor-iframe.ts`) — los dos tienen que moverse juntos, o el
+  parámetro llegaría a la URL sin que el proxy lo traduzca a header.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Grep de cada símbolo/ruta que este diff cambia: `proxy.ts` (5 apariciones — la sesión de `/admin/*`,
+la cadena de seis redirects, y la regla "en `proxy.ts` y no en `next.config.ts`"; las tres siguen
+ciertas, la rama `/admin` no cambió de comportamiento), `modo-editor-gate`/`COOKIE_MODO_EDITOR`/
+`MODO_EDITOR_MAX_AGE_S`/`decidirModoEditor`/`usuarioDeSesion`/`modoEditorActivo`/
+`metadataRobotsSegunModo`/`marcaModoEditorDesdeHeaders`/`ENCABEZADO_MODO_EDITOR`/`site-content.ts`/
+`resolverSegunModo`/`ModoEditorActivo`/`VistaTiendaIframe`/`editor-iframe`/`urlDePagina`/
+`PARAM_MODO_EDITOR`/`VALOR_MODO_EDITOR`/`modo_editor_tienda` — **CERO apariciones**, los dieciocho,
+en `CLAUDE.md` (la doctrina de este editor vive en `DISENO.md`/este archivo, no sintetizada ahí
+todavía). `getSiteContent` aparece 1 vez (el par SOFT/HARD de loaders, sin relación con el mecanismo
+de modo editor — sigue cierto). `TiendaPaginas` aparece 4 veces, las cuatro sobre arquitectura PREVIA
+a `EDITOR-TIENDA-IFRAME-VISTA-1` (un slice anterior, no éste) y ya señaladas como parcialmente
+obsoletas por el follow-up `CLAUDE-MD-PANTALLA-CASCADA-STALE-1` (`DECISIONS.md`, arriba) — este diff
+no tocó `TiendaPaginas.tsx` y no agrega ninguna falsedad nueva ahí. Nada en `CLAUDE.md` afirma algo
+que este diff vuelva falso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck 0 errores, `npm test` 2951/2951,
+`test:integracion` 256/256, `guarda:color` 0px), commiteado en `slice/corte-reescritura-prototipo-1`.
+`stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la
+ESCRITURA (`approved: yes`, citando `EDITOR-TIENDA-OBSERVED-1` como `approval-reason`); el merge
+sigue pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`.**
