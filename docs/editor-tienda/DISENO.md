@@ -437,7 +437,7 @@ cada fila.
 | # | Slice | Alcance | Tier | Criterio "igual a la página" | Qué retira |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `EDITOR-TIENDA-IFRAME-GATE-1` | El gate de modo-borrador (§ 5.2): cookie de sesión de edición, chequeo de rol server-side, `no-store`+`noindex` condicional. SIN UI nueva todavía — sólo el mecanismo, verificable por curl/test de integración. | 1 (toca `app/(storefront)/layout.tsx`) | `verificar:nayoli` (bytes) da 0 diffs con la cookie AUSENTE — el tráfico público no cambia un byte |
-| 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b) | 1 (el consumidor vive en `components/admin/`, pero el iframe apunta a rutas Tier 1) | Captura lado a lado (`capturar:seccion`) del iframe contra la ruta real publicada, mismos valores computados | — (conviven con `VistaTiendaEnVivo` hasta el slice 7) |
+| 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b) | 2 — corregido, § 9.2 (el único archivo que toca es `components/admin/TiendaSeccionEditor.tsx`, fuera de la lista Tier 1) | Captura lado a lado (`capturar:seccion`) del iframe contra la ruta real publicada, mismos valores computados | — (conviven con `VistaTiendaEnVivo` hasta el slice 7) |
 | 3 | `EDITOR-TIENDA-POSTMESSAGE-1` | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla | 1 (el listener vive en el storefront, gateado a `useIsPreview()`) | Medido por ejecución: cero `navigation`/reload del iframe durante una sesión de tecleo, con el valor reflejado en <100ms |
 | 4 | `EDITOR-TIENDA-SELECCION-1` | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe | 1 (el atributo nuevo vive en los componentes de `components/storefront/`, gateado a preview) | Verificado por ejecución (clic en iframe abre la sección correcta en la lista, y viceversa) |
 | 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe | 2 (sólo toca `components/admin/`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 375px |
@@ -474,3 +474,63 @@ el iframe.
 
 Estas tres son preguntas para el owner, no obstáculos para aprobar el resto del documento — ninguna
 bloquea el slice 1.
+
+---
+
+## 9 · Decisiones del owner (2026-09-30) y correcciones del censo `EDITOR-TIENDA-OBSERVED-1`
+
+El owner aprobó este plan ("Iniciemos", 2026-09-30) con tres decisiones de producto, y el censo
+`EDITOR-TIENDA-OBSERVED-1` — la sesión read-only previa al slice 1 (`EDITOR-TIENDA-IFRAME-GATE-1`) —
+midió dos correcciones sobre lo escrito arriba. Las cinco quedan asentadas acá porque ninguna cambia
+el plan de siete slices de § 6 — cambian lo que ESE plan ASUME, y no asentarlas dejaría el documento
+describiendo un terreno que ya no es el medido (la misma razón por la que `CLAUDE.md` exige fechar y
+re-medir sus propias listas en vez de confiar en que sigan vigentes).
+
+### 9.1 · Decisiones del owner
+
+- **Página completa, nunca secciones aisladas.** El iframe siempre muestra la PÁGINA real completa
+  (home, /nosotros, /suscripciones, /tienda, /tienda/[slug]) — nunca una sección sola renderizada
+  fuera de su página. Confirma la recomendación de § 3 (iframe de ruta real, opción (a) vía (b)) y
+  descarta cualquier variante que aislara una banda del resto de su página — ninguno de los siete
+  slices de § 6 proponía eso, así que esta decisión no cambia el plan; lo cierra para que no se
+  reabra como alternativa más barata en algún slice futuro.
+- **La edición de texto DIRECTO sobre la página es diseño NUEVO, pendiente.** El owner pidió poder
+  editar el texto de una sección haciendo clic en ella DENTRO del iframe (edición in-situ), no sólo
+  seleccionarla y resaltarla. **El censo midió que este pedido NO TIENE LUGAR en los 7 slices de
+  § 6**: el slice 4 (`EDITOR-TIENDA-SELECCION-1`) sólo RESALTA y abre la sección en la lista
+  lateral — el formulario de edición sigue viviendo FUERA del iframe, sin cambio (§ 4.5 no lo toca).
+  Editar DENTRO del iframe (un campo editable superpuesto al texto real, o `contentEditable` sobre
+  el nodo, con su propio mecanismo de guardado y su propio riesgo de que el DOM editado diverja del
+  dato) es una pieza de diseño que este documento no cubre y que no se improvisa dentro de un slice
+  ya aprobado con otro alcance. Queda **pendiente de su propio documento de diseño**, con su propio
+  disparador — no se asume como parte implícita del slice 4 ni de ningún otro de los siete.
+- **El precio NO se edita desde el editor.** Ninguna de las piezas de § 4 (selección, orden,
+  edición de texto futura) alcanza el precio de un producto. El precio sigue siendo dato del
+  catálogo (`/admin/productos`), ajeno a `SiteContent` y a este editor — confirmado explícitamente
+  para que nadie lo infiera del alcance amplio de "editar sobre la página" cuando llegue el diseño
+  de edición de texto del punto anterior.
+
+### 9.2 · Correcciones medidas (censo `EDITOR-TIENDA-OBSERVED-1`)
+
+- **`no-store` YA está cubierto — § 5.2 punto 3 sobrestima el trabajo del slice 1.** Todo
+  `app/(storefront)/` ya es `force-dynamic` (`layout.tsx:35`), así que CADA request —con o sin
+  cookie de modo editor— ya sale sin caché, por construcción; no hace falta declarar
+  `Cache-Control: private, no-store` aparte para el modo editor. Lo único que el slice 1 agrega en
+  este eje es el `noindex` **POR REQUEST** (`robots:{index:false,follow:false}` en
+  `generateMetadata`, vía `metadataRobotsSegunModo`) cuando el modo editor está activo — el
+  `X-Robots-Tag` de `next.config.ts` cubre el caso "todo el deployment es demo", no el caso "esta
+  request puntual trae el borrador puesto", que es un eje distinto y nuevo.
+- **Tier del slice 2 (`EDITOR-TIENDA-IFRAME-VISTA-1`): corregido de 1 a 2** (ya reflejado en la
+  tabla de § 6). La tabla original lo marcaba Tier 1 con el argumento "el iframe apunta a rutas
+  Tier 1". Medido contra el criterio real de `CLAUDE.md` § Tier 1 — un archivo entra por estar
+  NOMBRADO en la lista o por vivir en uno de los subárboles que la ganan (`components/storefront/`,
+  `lib/checkout/`, `packages/core/src/pagos/`), nunca por "consultar" o "navegar hacia" una ruta
+  protegida —: el ÚNICO archivo que el slice 2 toca es `components/admin/TiendaSeccionEditor.tsx`,
+  que no está en la lista ni en ningún subárbol ganado. Un `<iframe src="/...">` apuntando a una
+  ruta Tier 1 no trae al archivo que lo contiene a Tier 1, por la misma distinción que la lista ya
+  traza para `packages/core/src/timezone.ts` (alcance genérico, conexión indirecta con la puerta de
+  dinero → queda AFUERA pese a alimentarla). El slice 2 corre como Tier 2 — investigación plegada en
+  la implementación detrás de un gate bloqueante, no una sesión OBSERVED aparte.
+
+Esta sección no cambia el plan de § 6 más allá de la columna Tier de la fila 2 (ya corregida ahí) —
+ningún slice se agrega, se quita, ni cambia de alcance por lo escrito acá.

@@ -20,6 +20,7 @@ import { linkFuentePar } from "@/lib/config/fuentes";
 import { cssForma } from "@/lib/config/forma-style";
 import { coloresPWA } from "@/lib/config/pwa-colores";
 import { ReducedMotionProvider } from "@/lib/animation";
+import { modoEditorActivo, metadataRobotsSegunModo } from "@/lib/config/modo-editor-gate";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -48,7 +49,10 @@ export const dynamic = 'force-dynamic';
 // MISMA URL que usa el probe ciego, así que no hay puerta de atrás; no una ruta /api/favicon.
 // El color del tema y el mark del `Logo` (wordmark-first) salen de SiteSetting en el commit 4.
 export async function generateMetadata(): Promise<Metadata> {
-  const { nombre, descripcionFooter } = await getSiteSettings();
+  const [{ nombre, descripcionFooter }, enModoEditor] = await Promise.all([
+    getSiteSettings(),
+    modoEditorActivo(),
+  ]);
   return {
     // `absolute` (NO `default`) + `template`: un `title.default` de segmento hijo SIGUE
     // pasando por el `template` de la RAÍZ (`%s · Café Nayoli`) → la home salía duplicada
@@ -57,6 +61,11 @@ export async function generateMetadata(): Promise<Metadata> {
     // "{nombre}"; una hija con `title: "X"` (p.ej. /nosotros) → "X · {nombre}".
     title: { absolute: nombre, template: `%s · ${nombre}` },
     description: descripcionFooter,
+    // EL `noindex` POR REQUEST del modo editor (§ EDITOR-TIENDA-IFRAME-GATE-1), vía la función
+    // pura `metadataRobotsSegunModo` (afirmada en capa 1, `lib/config/modo-editor-gate.test.ts`).
+    // Ver el docstring de esa función para el porqué del `no-store` (ya cubierto, nada que agregar
+    // acá) y § 9.2 de `docs/editor-tienda/DISENO.md`.
+    ...metadataRobotsSegunModo(enModoEditor),
     // El manifest PWA del cliente. Se declara acá (por grupo) desde que se retiró la convención
     // `app/manifest.ts` —que auto-inyectaba su link en TODA la app y ganaba sobre `metadata.manifest`,
     // así que el panel no podía tener el suyo (§ el route handler /api/manifest, § Identidad)—.
