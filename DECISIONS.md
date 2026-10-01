@@ -39513,3 +39513,157 @@ textual como `approval-reason`); el merge sigue pendiente del gate del orquestad
 instrucción del dispatch, no mergea.
 
 **Cierra `SUSCRIPCION-TITULO-Y-RECARGA-1`.**
+
+## 2026-10-01 — El texto de "El origen" entra por BLOQUE (eyebrow/título/párrafo), no por palabra, con las cifras MEDIDAS de `xo-cascade` de Cafeone (`ORIGEN-TEXTO-POR-BLOQUE-1`)
+
+Gate del owner sobre `ORIGEN-TEXTO-EN-CASCADA-1`: *"La animación no me supe explicar y
+efectivamente hazla por bloque de texto."* Esa tanda ya había medido `xo-cascade` contra Cafeone
+real y documentado que NO divide en palabras — pero a propósito reusaba la duración/curva YA
+establecidas del storefront (`REVELADO_GRUPO_*`) en vez de las cifras medidas, por consistencia.
+Esta tanda invierte esa elección: el split pasa de palabra a BLOQUE, y las cifras pasan a ser las
+medidas de `xo-cascade`, no las del storefront.
+
+### 1 · Re-medición — por ejecución contra los dos archivos que el spec señaló, no por memoria
+
+`node --import tsx` contra `.scratch/refs/cafeone-home.html` (la página viva, cacheada) y
+`.scratch/xo-webcomponents.min.js`/`.css` (el bundle del tema, ambos ya presentes en el repo de
+tandas anteriores — no se pidió red):
+
+- **`window.settings` embebido en la página** trae `animate_duration: 500`, `animate_effect:
+  'fade-up'`, `animate_strength: 1` — los tres iguales a los DEFAULTS que el propio JS declara
+  (`xoDuration` cae a 500 y `xoType` a `'fade-up'` si `window.settings` no los trae), así que
+  SHARED MOMENTS corre con esos tres valores de fábrica o explícitos, da igual.
+- **`xoEasing:"easeLight"` es un LITERAL fijo en el JS** (no sale de `window.settings`, no es
+  configurable por tema) que el mapa de nombres de easing del mismo bundle resuelve a
+  `cubic-bezier(0, 0, 0.3, 1)` — confirma el valor que `ORIGEN-TEXTO-EN-CASCADA-1` ya había leído
+  por `getComputedStyle` en vivo.
+- **`xoConstant` (el paso del escalonado entre hermanos) es 75, también literal en el JS**, no
+  configurable.
+- **El keyframe `xo-fade-up`** (`xo-webcomponents.min.css`) anima `opacity:0→1` junto a
+  `transform:translate3d(0, calc(var(--xo-strength) * 30%), 0) → none` — con `--xo-strength:1`, un
+  `translateY(30%)` de la propia caja del bloque, no un píxel fijo.
+- El mecanismo del escalonado (`IntersectionObserver` compartido, `--xo-order` 0/1/2… asignado a
+  cada hermano según entra en vista) es el MISMO que `ORIGEN-TEXTO-EN-CASCADA-1` ya documentó —
+  no se re-midió, no cambió.
+
+### 2 · `lib/animation.ts` — retiro de la cascada por palabra, alta de la cascada por bloque
+
+`transicionPalabra`, `palabrasDeTexto`, `TokenCascada`, `CASCADA_PALABRA_PASO_S`,
+`CASCADA_PALABRA_DELAY_MAX_S` se RETIRAN — censo antes de tocar: sólo los usaban `Origen.tsx`,
+`TextoEnCascada.tsx` y sus dos archivos de test; sin consumidores restantes, dejarlos vivos sería
+código muerto.
+
+Alta: `CASCADA_BLOQUE_DURACION_S` (0.5), `CASCADA_BLOQUE_EASE` (`[0,0,.3,1]`), `CASCADA_BLOQUE_
+PASO_S` (0.075), `fadeUpCascadaBloque` (`{hidden:{opacity:0,y:'30%'},visible:{opacity:1,y:'0%'}}`)
+y `transicionBloqueCascada(indice)`. **`fadeUpCascadaBloque` NO reusa `fadeUp`** (instrucción ya
+escrita en el repo: `fadeUp` es compartida por ~21 consumidores y su magnitud de 24px es la
+convención del storefront, no la cifra que esta tanda pide replicar — un `y` en PORCENTAJE escala
+con la propia caja del bloque, igual que `transformRevelaTextoDisplay` ya hace para el marquee).
+
+### 3 · `TextoEnCascada.tsx` — deja de tokenizar
+
+Cada instancia es ahora UN bloque: el `texto` completo dentro de un único `motion[Etiqueta]`
+(`motion.p`/`motion.h2`/indexado dinámico, verificado por ejecución que tipa limpio con `tsc`),
+revelado con `fadeUpCascadaBloque` + `transicionBloqueCascada(indice)`. Se pierde el rodeo de
+accesibilidad de la versión por palabra (`aria-label` en el envoltorio + `aria-hidden` en el
+contenedor de palabras): sin tokenizar, el propio nodo YA contiene el texto completo, y un lector
+de pantalla lo anuncia como cualquier `<p>`/`<h2>` normal. El `<noscript>` que fuerza
+`opacity:1!important` sin JS se conserva, con la clase marcadora renombrada a `.sf-cascada-bloque`.
+
+`Origen.tsx`: `indiceInicial` (conteo acumulado de palabras) se reemplaza por `indice` (la
+posición de la PIEZA — 0/1/2), con el eyebrow opcional corriendo el índice del resto si falta.
+
+### 4 · `app/globals.css` — retiro de `.sf-cascada-palabra`
+
+`display:inline-block` existía sólo para que cada PALABRA fuera su propio `inline-block`; sin
+tokenizar, ningún consumidor la necesita. Grep antes de retirarla: cero referencias fuera de los
+dos archivos de test que ya se reescribieron contra el mecanismo nuevo.
+
+### 5 · Verificación de la ENTRADA — numérica y por cuadros, contra un servidor real
+
+`.scratch/capturar-cascada-bloques.ts` (scratch, no versionado): Postgres efímero propio (puerto
+55443, libre) + `migrate deploy` + seed canónico, reusando `levantarPostgres`/`migrarYSembrar`/
+`entornoArbol`/`arrancar`/`cargarPlaywright` de `scripts/verificar-nayoli-visual.ts` — **sin** su
+modo determinista (ese modo congela `requestAnimationFrame`, que habría pinneado la animación real
+en su primer keyframe). `next start` reusó el `.next/` que `guarda:color` ya había construido para
+esta misma rama. Navegación a `/?tema=CORTE`, scroll real (`page.mouse.wheel`) hasta traer la
+sección completa a la vista, lectura de `getComputedStyle(...).opacity` de los tres
+`.sf-cascada-bloque` en una serie de instantes, más 4 capturas PNG.
+
+Medido: con la sección recién entrando en viewport, los TRES bloques arrancan en opacidad < 1 y
+suben progresivamente hasta 1 en ~300-400ms, **en el orden eyebrow > título > párrafo en cada
+instante** (p. ej. a 52ms: 0.907 / 0.815 / 0.649) — el orden y la separación que produce un delay
+0/75/150ms sobre una curva compartida. Un bloque que todavía no entraba en el viewport (la prueba
+movió el scroll para dejar el párrafo justo en el borde) se quedó en `opacity:0` hasta que de
+verdad entró en vista en una corrida posterior con más margen — confirma que cada bloque dispara
+por SU PROPIA intersección, no por un reloj compartido que ignore si está a la vista.
+
+### 6 · Byte-identidad de Nayoli
+
+`DEFAULTS.origen.visible` sigue en `false` (sin tocar), así que `Origen.tsx` sigue devolviendo
+`null` sin un solo nodo para Nayoli. `npm run guarda:color` corrió la comparación COMPLETA (la
+intersección con `SISTEMA_DE_COLOR` NO fue vacía — `app/globals.css` está en la lista) y dio
+**0px** en las 6 rutas + 2 hovers.
+
+`npm run verificar:nayoli:visual` NO se corrió: `main` sigue anclado en `9a7ab97` (medido:
+`git merge-base HEAD main` == `git rev-parse main`, el MISMO sha que `CIERRE-EDITOR-GATE-1` ya
+documentó 9+ días atrás como stale), así que repetiría el mismo ruido ya diagnosticado y conocido,
+ajeno a este diff — correrlo no habría dado una cifra útil sobre ESTE cambio.
+
+### 7 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2942/2942** — reconciliado contra el piso del commit inmediato anterior (`0a2daab`, `SUSCRIPCION-TITULO-Y-RECARGA-1`, 2944/2944): `git diff 0a2daab HEAD -- lib/animation.test.ts lib/config/origen-banda.test.ts` da 14 `test(` agregados y 16 retirados → `2944 - 2 = 2942` |
+| `npm run test:integracion` | **253/253** — sin cambio en el conteo (ningún archivo de `tests/integracion/` está en `touches:`). Un run intermedio mostró 1 fallo aislado en `wompi-reconciliador.test.ts` ("CONCURRENCIA…"), un test de carrera entre dos procesos async cuyo propio nombre declara que mide una condición de carrera; el re-run inmediato, sin tocar nada, dio 253/253 — confirma FLAKE pre-existente, ajeno a este diff (`packages/core/src/pagos/` no está en `touches:` y no se tocó un byte de ese subsistema) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (comparación COMPLETA, no salteada) |
+
+### `touches:` — todo escrito estaba declarado
+
+`components/storefront/home/Origen.tsx`, `components/storefront/TextoEnCascada.tsx`,
+`lib/animation.ts`, `lib/animation.test.ts`, `lib/config/origen-banda.test.ts`,
+`app/globals.css`, este asiento. Medido con `git diff --stat 0a2daab..532c9d5`: 6 archivos
+modificados (171 inserciones, 221 eliminaciones), los 6 en la lista de `touches:` (más este
+asiento en `DECISIONS.md`, también declarado). `lib/config/subscription-linea.test.ts` NO se tocó
+—no está en `touches:`— y se corrió igual (177/177 en el grupo targeted) para confirmar que su
+aserción `doesNotMatch(html, /sf-cascada-palabra/)` sigue pasando (ahora trivialmente cierta: la
+clase no existe en ningún lado, no sólo ausente de esa sección).
+
+### CHEQUEO MECÁNICO CONTRA `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `TextoEnCascada`, `palabrasDeTexto`, `transicionPalabra`,
+`CASCADA_PALABRA_PASO_S`, `CASCADA_PALABRA_DELAY_MAX_S`, `TokenCascada`, `transicionBloqueCascada`,
+`CASCADA_BLOQUE_DURACION_S`/`EASE`/`PASO_S`, `fadeUpCascadaBloque`, `.sf-cascada-palabra`,
+`.sf-cascada-bloque`, `Origen.tsx`, `indiceInicial`, `origen-banda.test.ts`,
+`ORIGEN-TEXTO-EN-CASCADA-1`. Grepeados uno por uno contra `CLAUDE.md` (`grep -c`): **CERO
+apariciones para los quince**. Se buscó además "El origen"/"banda origen"/"#origen"/
+"origen-banda": la única coincidencia de "origen" es de OTRO subsistema ("El origen de una orden NO
+es `Order.canal`" — el canal de venta, no esta sección del storefront). **Nada que corregir en
+`CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`** — misma clasificación y mismo razonamiento que `ORIGEN-TEXTO-EN-CASCADA-1`: la
+RAMA (contra `main`) ya trae `customer_bytes.changed: true` propio por los slices de CORTE
+anteriores, y este commit suma el suyo. Bajo un preset que encienda `bandasVisibles.origen` (hoy
+CORTE), el eyebrow/título/párrafo dejan de revelarse palabra por palabra y pasan a revelarse como
+TRES piezas enteras escalonadas — cambio VISIBLE para cualquier visitante bajo ese preset.
+`strings`: **ninguno nuevo** — ni un carácter de copy cambia; lo que cambia es sólo la FORMA en que
+esas mismas palabras entran en pantalla.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es lógica pura en `lib/animation.ts`, un componente de presentación
+existente reescrito, su cableado en `Origen.tsx`, y los tests.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las tres capas (§7) + `guarda:color` en
+0px, commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` —
+`schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con
+su reporte textual como `approval-reason`); el merge sigue pendiente del gate del orquestador —
+este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `ORIGEN-TEXTO-POR-BLOQUE-1`.**
