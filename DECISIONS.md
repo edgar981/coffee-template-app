@@ -38307,3 +38307,67 @@ MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec: el gate
 sobre `MENU-MOVIL-MARGEN-Y-CENSO-TRANSICIONES-1`) — el MERGE sigue gateado aparte.
 
 Cierra `MENU-MOVIL-CIERRE-DESLIZANDO-1`.
+
+## 2026-09-30 — Cierra el gate rojo heredado de VISTA-RAPIDA-CENTRADA-1 en el carril del riel (`CIERRE-VISTA-RAPIDA-TESTS-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner: cierra el
+follow-up `VISTA-RAPIDA-RIEL-TEST-STALE-1` que `VISTA-RAPIDA-CENTRADA-1` (`9146232`) dejó abierto —
+esa tanda cambió `group-focus-within:` a `group-has-[:focus-visible]:` en `GrindChooserRiel.tsx`
+(el foco que `cerrarYDevolverFoco` le devuelve al botón "ojo" al cerrar la vista rápida es
+programático, no `:focus-visible`, así que la clase vieja dejaba la foto de atrás y las acciones
+pegadas sin hover) y reportó, sin tocarlas por disciplina de `touches:`, dos aserciones de
+`lib/config/presentaciones-riel.test.ts` que seguían afirmando la clase vieja: `npm test` corría
+2869/2871 (y, en el commit siguiente que tampoco las tocó, 2876/2878).
+
+**El fix es sólo el test.** Las dos aserciones (la del crossfade de la foto de atrás y la de la
+entrada deslizante del ojo/carrito) pasan a afirmar `group-has-[:focus-visible]:opacity-0/100` y
+`group-has-[:focus-visible]:translate-x-0/opacity-100`, cada una con un `assert.doesNotMatch(html,
+/group-focus-within/)` agregado — así el test protege la INTENCIÓN (que el foco programático no
+deje nada pegado), no sólo el literal de la clase nueva.
+
+**Reproducido antes de tocar**: corriendo sólo ese archivo contra el código actual, las mismas dos
+fallaban (`group-focus-within` ausente del HTML real, que ya trae `group-has-[:focus-visible]`) y
+las otras 18 pasaban — confirma que el gate rojo era exactamente el que el spec describe, nada más.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2878/2878** (0 fail; antes 2876 pass/2 fail, los 2 de este archivo) |
+| `npm run test:integracion` | **245/245** |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs. esta rama |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers contra el fixture de Nayoli — la rama SÍ toca el sistema de color (11 archivos, acumulados de slices anteriores de esta misma rama), así que corrió el pipeline completo, no el short-circuit |
+
+### `customer_bytes`
+
+**`changed: false`.** El diff es un archivo de test (`lib/config/presentaciones-riel.test.ts`) y
+este asiento; cero bytes que un visitante o el dueño lean cambian.
+
+### Deviations
+
+Ninguna. Lo que el spec describía (dos aserciones afirmando `group-focus-within`, el gate rojo en
+`npm test`) se verificó byte a byte contra el archivo y el componente antes de tocar nada.
+
+### Unknowns
+
+Ninguno.
+
+### Open follow-ups
+
+Ninguno nuevo. `VISTA-RAPIDA-RIEL-TEST-STALE-1` queda cerrado por este slice.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `lib/config/presentaciones-riel.test.ts`,
+`group-has-[:focus-visible]`, `group-focus-within` (la clase que el test deja de afirmar).
+Grepeados contra `CLAUDE.md`: **CERO coincidencias** para los tres. Nada en `CLAUDE.md` afirma algo
+sobre esta prueba o estas clases que este diff vuelva falso.
+
+### Verdict
+
+**COMPLETE** — el diff no cambia bytes de cliente, no toca schema ni contrato cruzado; el gate
+corrió verde en el árbol final (tabla arriba), committed en `slice/corte-reescritura-prototipo-1`.
+El merge lo gatea el orquestador aparte.
+
+Cierra `CIERRE-VISTA-RAPIDA-TESTS-1`.
