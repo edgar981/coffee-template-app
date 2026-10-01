@@ -159,7 +159,8 @@ el iframe.
 ### 2.a · Iframe + `postMessage` (vista en vivo, sin reload en cada tecla)
 
 El iframe navega a la ruta REAL del storefront (`/`, `/nosotros`, `/suscripciones`, `/tienda`,
-`/tienda/[slug]`) en un modo que lee el BORRADOR en vez de lo publicado (mecanismo nuevo, § 5.2).
+`/tienda/[slug]`) en un modo que lee el BORRADOR en vez de lo publicado (mecanismo nuevo, § 5.2 —
+REVERTIDO y reemplazado por un parámetro de URL POR REQUEST, § 11).
 Mientras el dueño edita, el panel NO recarga el iframe: le manda el cambio por `window.postMessage`
 (mismo origen, sin restricción de CORS) y un listener del lado del storefront actualiza el
 `SiteContentProvider` de ESE documento con el dato nuevo — el mismo mecanismo que hoy usa
@@ -180,7 +181,8 @@ página, o si el operador pide "Actualizar" — no en cada tecla.
   la única que amerita una sesión Tier 1 de sólo lectura antes de escribir una línea.
 - **SEO / noindex:** el modo borrador necesita su propio `noindex` (metadata por-request, no el
   header estático y por-deployment que ya existe en `next.config.ts:63-68`) — factible con
-  `generateMetadata` leyendo la cookie de sesión de edición (§ 5.2).
+  `generateMetadata` leyendo la marca de modo editor (§ 5.2; hoy un header por-request, no una
+  cookie — § 11).
 - **Costo en Vercel:** un GET dinámico (`force-dynamic`, dos queries por fila) por CADA navegación
   dentro del editor (abrir la pantalla, cambiar de pestaña de página, pedir "Actualizar") — el mismo
   costo que visitar la tienda real una vez. Bajo a la escala actual (un solo operador, uso interno).
@@ -393,10 +395,18 @@ reglas:
    sesión + rol (OWNER/MANAGER) que ya usa `app/(admin)/admin/layout.tsx:44-55` (consulta la fila
    real de `User`, no confía en el payload de la cookie), reusado o llamado desde el layout del
    storefront cuando el flag de editor está presente.
-2. **El flag de activación viaja en una COOKIE, no en un query param público.** Un query param se
-   copia y se comparte por accidente (un link pegado en un chat); una cookie de sesión de edición,
-   con el mismo alcance/TTL que la sesión admin, no sale del navegador del dueño. Sin esa cookie, la
-   ruta real se comporta EXACTAMENTE como hoy — lee lo publicado, nada cambia para un visitante.
+2. **REVERTIDO en `MODO-EDITOR-SOLO-EN-EL-IFRAME-1` (2026-10-01) — ver § 11.** Esta fila decía
+   originalmente: *"El flag de activación viaja en una COOKIE, no en un query param público. Un
+   query param se copia y se comparte por accidente (un link pegado en un chat); una cookie de
+   sesión de edición, con el mismo alcance/TTL que la sesión admin, no sale del navegador del
+   dueño."* El gate del owner tras construir `EDITOR-TIENDA-IFRAME-GATE-1` midió el defecto que este
+   argumento no había anticipado: una cookie de sesión de 2h, puesta al ENTRAR a `/admin/tienda`, no
+   se limpia de forma fiable al cerrar la pestaña (el cleanup es un `useEffect` de React, que no
+   corre en un cierre abrupto de pestaña) — así que el borrador quedaba visible en CUALQUIER pestaña
+   del navegador del dueño, no sólo en el iframe del editor. El riesgo que esta fila quería evitar
+   (que alguien AJENO vea el borrador por un link compartido) nunca era el riesgo real: el parámetro
+   nunca fue la credencial, la sesión server-side sí lo es, y compartir el link sólo le muestra el
+   borrador a quien YA podía verlo. § 11 tiene el mecanismo nuevo completo.
 3. **Nunca se cachea ni se indexa.** `Cache-Control: private, no-store` en la respuesta cuando el
    flag está activo, y `generateMetadata`/`robots:{index:false}` cuando lo detecta — control
    por-request, no el header estático y por-deployment que ya existe en `next.config.ts:63-68` (ese
@@ -436,7 +446,7 @@ cada fila.
 
 | # | Slice | Alcance | Tier | Criterio "igual a la página" | Qué retira |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `EDITOR-TIENDA-IFRAME-GATE-1` | El gate de modo-borrador (§ 5.2): cookie de sesión de edición, chequeo de rol server-side, `no-store`+`noindex` condicional. SIN UI nueva todavía — sólo el mecanismo, verificable por curl/test de integración. | 1 (toca `app/(storefront)/layout.tsx`) | `verificar:nayoli` (bytes) da 0 diffs con la cookie AUSENTE — el tráfico público no cambia un byte |
+| 1 | `EDITOR-TIENDA-IFRAME-GATE-1` **— la cookie se retiró en `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`, § 11** | El gate de modo-borrador (§ 5.2): cookie de sesión de edición, chequeo de rol server-side, `no-store`+`noindex` condicional. SIN UI nueva todavía — sólo el mecanismo, verificable por curl/test de integración. | 1 (toca `app/(storefront)/layout.tsx`) | `verificar:nayoli` (bytes) da 0 diffs con la cookie AUSENTE — el tráfico público no cambia un byte |
 | 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` **— ENTREGADO, § 10** | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b). Alcance AMPLIADO por encargo del owner: la composición lista↔iframe (no una vista por sección) y la mitad lista→iframe de la selección en contexto, § 10. | 1 (toca `app/(storefront)/page.tsx`/`nosotros/page.tsx`/`suscripciones/page.tsx`, en la lista Tier 1 — corregido otra vez, § 10) | Verificado por ejecución: `npm run gate` verde, `guarda:color` 0px (8 capturas), `verificar:nayoli`/`:visual` caracterizados contra el `main` stale (§ CIERRE-EDITOR-GATE-1) | VistaTiendaEnVivo/data-sf-tarjeta SIGUEN vivos — ver § 10, el retiro de la fila 7 queda más chico |
 | 3 | `EDITOR-TIENDA-POSTMESSAGE-1` | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla | 1 (el listener vive en el storefront, gateado a `useIsPreview()`) | Medido por ejecución: cero `navigation`/reload del iframe durante una sesión de tecleo, con el valor reflejado en <100ms |
 | 4 | `EDITOR-TIENDA-SELECCION-1` | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe | 1 (el atributo nuevo vive en los componentes de `components/storefront/`, gateado a preview) | Verificado por ejecución (clic en iframe abre la sección correcta en la lista, y viceversa) |
@@ -574,3 +584,82 @@ El dispatch de este slice amplió el alcance de la fila 2 de § 6 por encargo ex
 No se tocó código de `components/storefront/` en este slice (el `data-editor-seccion` de las tres
 páginas de `app/(storefront)/` no cuenta — Tier 1 por estar en la lista `app/(storefront)/`
 nombrada, no por tocar el subárbol `components/storefront/`).
+
+---
+
+## 11 · `MODO-EDITOR-SOLO-EN-EL-IFRAME-1` — la cookie se retira, la marca pasa a ser POR REQUEST
+
+Gate del owner (2026-10-01), textual: *"Los cambios que hice en el panel, sin dar click en
+publicar, se veían en la página real, enseguida."* Medido por el orquestador ANTES de este slice:
+la cookie de `EDITOR-TIENDA-IFRAME-GATE-1` (`modo_editor_tienda`, `MODO_EDITOR_MAX_AGE_S = 2h`)
+sobrevivía a cerrar la pestaña del editor —el `DELETE` de limpieza de `ModoEditorActivo.tsx` es un
+`useEffect` de React y no corre en un cierre abrupto de pestaña— y mientras vivía, CUALQUIER pestaña
+del mismo navegador que visitara la tienda real veía el borrador como si estuviera publicado. Esto
+invierte § 5.2 punto 2 (ver la nota ahí) — queda escrito el mecanismo completo que lo reemplaza.
+
+### 11.1 · El mecanismo: `?editor=1` → header de request → el mismo gate de sesión de siempre
+
+- **El iframe carga la página con `?editor=1`** (`urlDePaginaEnEditor`, `lib/admin/editor-iframe.ts`
+  — gemela de `urlDePagina`, que sigue siendo la ruta "pelada" usada para COMPARAR, no para cargar).
+- **`proxy.ts` lo traduce a un header de REQUEST** (`x-editor-modo: 1`), sólo para esa request. La
+  razón de pasar por un header y no dejar que el storefront lea el `searchParams` directo: **en
+  Next 16 un LAYOUT no recibe `searchParams`** (medido en la primera corrida de este slice, BLOCKED
+  sin cambios — sólo `page.tsx` los recibe), y el gate real vive en `app/(storefront)/layout.tsx`
+  porque tiene que cubrir la página ENTERA (incluida `generateMetadata`, el `<style>` de paleta/
+  fuentes/forma), no sólo el cuerpo de `page.tsx`. Un header de request SÍ atraviesa `headers()` en
+  cualquier Server Component de la misma request, layout incluido.
+- **El proxy NUNCA confía en un header que el cliente ya traiga.** Antes de decidir, borra cualquier
+  `x-editor-modo` que haya venido en la request entrante; lo vuelve a poner SÓLO si el parámetro de
+  la URL lo pedía. Sin esto, cualquiera podría mandar el header a mano (sin pasar por el iframe) y
+  llegar al gate con la marca puesta — el parámetro de la URL es la ÚNICA fuente.
+- **`lib/config/modo-editor-gate.ts` no cambió de CRITERIO, sólo de FUENTE**: `decidirModoEditor`
+  (sesión OWNER/MANAGER activa + la marca) es exactamente el mismo que antes; lo único nuevo es
+  `marcaModoEditorDesdeHeaders(h)`, que reemplaza a `cookies().has(COOKIE_MODO_EDITOR)`. El gate
+  sigue siendo el MÁS ESTRICTO de los dos que conviven en el repo (§ 5.2 punto 1, sin cambios).
+- **El parámetro en la URL no es, por sí mismo, una credencial nueva.** Compartir un link con
+  `?editor=1` no le muestra nada a quien no tuviera YA sesión OWNER/MANAGER activa — exactamente la
+  misma garantía que la cookie daba, sin el problema de que la cookie sobreviviera a cerrar la
+  pestaña. El `?editor=1` desaparece con la request; no hay nada que expire, nada que limpiar al
+  salir.
+- **`app/api/site-content/modo-editor/route.ts` pierde su `POST`** (ya no hay nada que "prender"
+  entre requests) y conserva un `DELETE` sin chequeo de sesión, para limpiar la cookie vieja de un
+  navegador real que haya visitado el preview antes de este cambio — higiene, no corrección de un
+  bug activo (el gate nuevo ni siquiera lee esa cookie). `ModoEditorActivo.tsx` lo llama UNA vez al
+  montar, nunca más al desmontar.
+
+### 11.2 · Navegar DENTRO del iframe — el vigía de ruta, no `postMessage` todavía
+
+La tienda real adentro del iframe es completamente interactiva: un clic en el nav, una tarjeta de
+producto o el carrito navega a OTRA ruta (`/tienda`, `/tienda/[slug]`, `/checkout`…) que no lleva
+`?editor=1`. Dos salidas posibles, y se eligió la segunda:
+
+- **"Conservar el parámetro" en cada navegación** exigiría reescribir el destino de cada enlace del
+  storefront ANTES de que navegue. Medido: la mayoría de esa navegación es client-side de Next
+  (`<Link>`, `router.push`) — no dispara el evento `load` del iframe ni reusa el `href` del DOM al
+  momento del clic (el handler de `Link` ya capturó el destino original), así que "conservarlo"
+  habría exigido interceptar el clic en fase de captura y forzar una navegación COMPLETA en cada
+  caso, tocando `components/storefront/` entero — fuera de `touches:` de este slice.
+- **"El iframe vuelve a la página del editor"** (la opción construida) se resuelve ENTERO dentro de
+  `VistaTiendaIframe.tsx`: un POLL de 400ms compara `contentWindow.location.pathname` contra la
+  ruta de la pestaña activa, y si divergió —por CUALQUIER causa: clic, redirect de un submit,
+  `router.push`— lo manda de vuelta con `location.replace(urlDePaginaEnEditor(pagina))`. Un POLL y
+  no un `onLoad` porque la navegación client-side de Next cambia `contentWindow.location` vía
+  `history.pushState` SIN disparar `load` — un chequeo "al cargar" nunca vería ese caso.
+- **Costo aceptado**: un reload extra si el admin se desvía (clic accidental en el nav, por
+  ejemplo). `EDITOR-TIENDA-POSTMESSAGE-1` (fila 3 de § 6) sigue siendo el lugar correcto para una
+  experiencia más fina (el storefront avisa su propia ruta por `postMessage`, sin reload); mientras
+  tanto, el editor es de UNA página a la vez y volver a ella es la expectativa correcta.
+- **Límite nombrado, no resuelto acá**: una navegación a un dominio EXTERNO (un link de red social
+  en el pie, por ejemplo) dentro del iframe deja `contentWindow.location` verdaderamente
+  cross-origin — el vigía lo detecta (la lectura de `pathname` lanza) y se queda quieto (no insiste
+  en corregir algo que ya no puede leer). El botón "Actualizar" tampoco lo recupera en ese caso
+  (lee `contentWindow.scrollY`, también cross-origin). Es un límite preexistente del diseño iframe
+  —ya existía antes de este slice, para cualquier link externo del storefront— y no se resuelve acá.
+
+### 11.3 · Qué queda igual
+
+- **Quién puede verlo (§ 5.2 punto 1) no cambió**: sesión OWNER/MANAGER activa, `activo` en la fila
+  de `User`, nunca el payload de la sesión.
+- **El `noindex` por-request (§ 5.2 punto 3, § 9.2)** sigue viviendo en `metadataRobotsSegunModo`,
+  sin tocar — consume el MISMO booleano que `modoEditorActivo()` siempre produjo.
+- **CSP/`frame-ancestors` (§ 5.2 punto 5)** sigue sin resolverse, sin cambios por este slice.

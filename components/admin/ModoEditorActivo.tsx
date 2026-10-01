@@ -2,28 +2,23 @@
 
 import { useEffect } from 'react';
 
-// ENCIENDE/APAGA la cookie de modo editor (§ EDITOR-TIENDA-IFRAME-VISTA-1, sobre el gate de
-// EDITOR-TIENDA-IFRAME-GATE-1) mientras /admin/tienda está montado: POST al entrar, DELETE al
-// salir — así el iframe de esta misma pantalla ve el BORRADOR aplicado (§ resolverSegunModo,
-// lib/config/site-content.ts) y un visitante real nunca hereda el modo editor de una pestaña de
-// admin que quedó abierta.
+// YA NO ENCIENDE/APAGA NADA (§ MODO-EDITOR-SOLO-EN-EL-IFRAME-1, reemplaza a EDITOR-TIENDA-IFRAME-
+// GATE-1/EDITOR-TIENDA-IFRAME-VISTA-1). El modo editor dejó de ser una cookie de sesión —hoy es un
+// parámetro POR REQUEST (`?editor=1`) que `VistaTiendaIframe` pone en la URL del iframe, válido
+// sólo para ESA request y sólo si la sesión en vuelo es OWNER/MANAGER (§ `modo-editor-gate.ts`). No
+// hay nada que "prender" al entrar a `/admin/tienda`: no afecta a ninguna otra pestaña ni persiste.
 //
-// Sin UI propia: es un efecto puro de ciclo de vida, montado UNA vez por `app/(admin)/admin/
-// tienda/page.tsx` (toda la pantalla, no por pestaña de página dentro de `TiendaPaginas`) — las
-// piezas store-wide (Paleta, Menú, Encabezado, Detalles, Pie) también quieren el borrador activo
-// mientras se edita acá, aunque esta tanda no les dé vista previa propia.
+// Este componente se queda SÓLO para LIMPIAR la cookie vieja (`modo_editor_tienda`) que un
+// navegador real pudo haber recibido mientras el mecanismo retirado estaba en pie —el deploy de
+// `EDITOR-TIENDA-IFRAME-VISTA-1` ya era público—: un DELETE, UNA vez, al montar. El gate de hoy ni
+// siquiera lee esa cookie (`marcaModoEditorDesdeHeaders` sólo mira el header), así que dejarla
+// puesta es inofensivo; borrarla es higiene, no corrección de un bug activo.
 //
-// El DELETE va con `fetch` normal (no `navigator.sendBeacon`, que sólo admite POST): cubre salir
-// de la pantalla DENTRO del panel (navegación client-side, donde el efecto de limpieza SÍ corre).
-// Un cierre abrupto de la pestaña (cerrar el navegador, Alt+F4) no dispara el cleanup de React —
-// la cookie expira sola a las 2h (§ MODO_EDITOR_MAX_AGE_S), el mismo riesgo ya aceptado al diseñar
-// el gate (§ DISENO.md, "vida CORTA y RENOVABLE").
+// Sigue montado por `app/(admin)/admin/tienda/page.tsx` sin cambios ahí: retirar el componente
+// entero habría exigido tocar ese archivo, fuera de `touches:` de este slice.
 export default function ModoEditorActivo() {
   useEffect(() => {
-    fetch('/api/site-content/modo-editor', { method: 'POST' }).catch(() => {});
-    return () => {
-      fetch('/api/site-content/modo-editor', { method: 'DELETE' }).catch(() => {});
-    };
+    fetch('/api/site-content/modo-editor', { method: 'DELETE' }).catch(() => {});
   }, []);
   return null;
 }

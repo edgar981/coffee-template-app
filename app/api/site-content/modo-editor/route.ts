@@ -1,47 +1,25 @@
 import { NextResponse } from 'next/server';
-import { cookies, headers } from 'next/headers';
-import {
-  COOKIE_MODO_EDITOR,
-  MODO_EDITOR_MAX_AGE_S,
-  decidirModoEditor,
-  usuarioDeSesion,
-} from '@/lib/config/modo-editor-gate';
+import { cookies } from 'next/headers';
 
-// EL ENCENDIDO/APAGADO del modo editor del storefront (§ EDITOR-TIENDA-IFRAME-GATE-1). Sin UI
-// todavía — este endpoint es el mecanismo que la UI del plan (slice 2 en adelante,
-// `docs/editor-tienda/DISENO.md`) va a llamar al abrir/cerrar el editor.
+// EL MODO EDITOR DEJÓ DE SER UNA COOKIE (§ MODO-EDITOR-SOLO-EN-EL-IFRAME-1, gate del owner,
+// 2026-10-01: *"Los cambios que hice en el panel, sin dar click en publicar, se veían en la página
+// real, enseguida."*). Antes este endpoint PONÍA (`POST`) y QUITABA (`DELETE`) una cookie de 2h que
+// activaba el borrador para TODO el tráfico de ese navegador — y el `DELETE` de limpieza al salir
+// (`components/admin/ModoEditorActivo.tsx`) no corría de forma fiable al cerrar la pestaña, así que
+// la cookie sobrevivía y filtraba el borrador a la tienda real.
 //
-//   POST   = pone la cookie — SÓLO si quien pide tiene, EN ESTE MOMENTO, sesión OWNER/MANAGER
-//            activa. Reusa `decidirModoEditor`+`usuarioDeSesion` de `lib/config/modo-editor-gate`:
-//            es el MISMO criterio que `modoEditorActivo()` revalida en cada request del storefront,
-//            una sola definición — dos chequeos del mismo hecho es cómo terminan divergiendo
-//            (§ CLAUDE.md, `razonDelServidor`/`cruzoMinimo`).
-//   DELETE = la quita, SIN chequeo de sesión. Salir del modo editor tiene que poder hacerse aunque
-//            la sesión ya haya vencido a mitad de la edición — es una acción inofensiva (apaga el
-//            flag, no concede nada) y bloquearla dejaría al operador sin forma de cerrar el modo.
-
-export async function POST() {
-  const usuario = await usuarioDeSesion(await headers());
-  if (!decidirModoEditor(true, usuario)) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  }
-
-  const jar = await cookies();
-  jar.set(COOKIE_MODO_EDITOR, '1', {
-    httpOnly: true,
-    sameSite: 'strict',
-    // Sólo PRODUCCIÓN cuenta como HTTPS garantizado — mismo criterio que `envPrefix` de
-    // `lib/storage.ts`. En local/preview sin TLS, `secure:true` dejaría la cookie sin enviarse
-    // nunca y el modo editor jamás se activaría.
-    secure: process.env.VERCEL_ENV === 'production',
-    path: '/',
-    maxAge: MODO_EDITOR_MAX_AGE_S,
-  });
-  return NextResponse.json({ ok: true });
-}
-
+// El mecanismo nuevo es POR REQUEST (`?editor=1` en la URL del iframe → `proxy.ts` lo traduce a un
+// header → `lib/config/modo-editor-gate.ts` lo valida contra la sesión EN ESA MISMA request): no
+// hay nada que encender ni apagar entre requests, así que el `POST` se RETIRA entero.
+//
+// El `DELETE` SE QUEDA, único, SIN chequeo de sesión, por una sola razón: LIMPIAR la cookie vieja
+// que pudo quedar puesta en un navegador real que haya visitado el preview antes de este cambio
+// (el deploy de `EDITOR-TIENDA-IFRAME-VISTA-1` ya estaba público). `modo-editor-gate.ts` ya NO lee
+// esa cookie para nada —`marcaModoEditorDesdeHeaders` sólo mira el header—, así que dejarla puesta
+// es inofensivo, pero borrarla es higiene barata y sin motivo para pedir sesión (borrar una cookie
+// que ya no hace nada no concede nada). `ModoEditorActivo.tsx` la llama una vez al montar.
 export async function DELETE() {
   const jar = await cookies();
-  jar.delete(COOKIE_MODO_EDITOR);
+  jar.delete('modo_editor_tienda');
   return NextResponse.json({ ok: true });
 }

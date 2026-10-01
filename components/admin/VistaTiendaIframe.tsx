@@ -3,20 +3,48 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import type { PaginaKey, SeccionVista } from '@/components/admin/tienda-secciones';
-import { urlDePagina, selectorDeSeccion, scrollSeguro } from '@/lib/admin/editor-iframe';
+import {
+  urlDePagina,
+  urlDePaginaEnEditor,
+  selectorDeSeccion,
+  scrollSeguro,
+} from '@/lib/admin/editor-iframe';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
 // Reemplaza las vistas previas sueltas por sección (`VistaTiendaEnVivo`) que montaba cada
 // `TiendaSeccionEditor`: en vez de reconstruir cada banda con una segunda implementación del
 // cálculo de colores/tipografía/forma, el iframe navega a la RUTA REAL del storefront en modo
-// borrador (§ EDITOR-TIENDA-IFRAME-GATE-1) — mismo origen, sin `postMessage` todavía (ésa es
-// `EDITOR-TIENDA-POSTMESSAGE-1`, slice 3 del plan): cada guardado asentado, publicar o descartar
-// recargan el documento, conservando el scroll.
+// borrador (§ EDITOR-TIENDA-IFRAME-GATE-1, reescrito en `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`: el
+// borrador se activa por el `?editor=1` de la URL del iframe, no por una cookie de sesión) — mismo
+// origen, sin `postMessage` todavía (ésa es `EDITOR-TIENDA-POSTMESSAGE-1`, slice 3 del plan): cada
+// guardado asentado, publicar o descartar recargan el documento, conservando el scroll.
 //
 // "Ir a la sección" y el resalte se resuelven por MANIPULACIÓN DIRECTA del DOM del iframe —mismo
 // origen, así que `contentDocument`/`contentWindow` son accesibles sin restricción— en vez de con
 // una clase CSS que el storefront tendría que declarar: el storefront no necesita saber que un
 // resalte existe, y el estilo nunca puede quedar "pegado" en una recarga.
+//
+// NAVEGAR DENTRO DEL IFRAME — decisión y por qué (§ MODO-EDITOR-SOLO-EN-EL-IFRAME-1). La tienda
+// real adentro es completamente interactiva: un clic en el nav, una tarjeta de producto o el
+// carrito puede llevar a OTRA ruta (`/tienda`, `/tienda/[slug]`, `/checkout`…) que no lleva
+// `?editor=1`. Dos salidas posibles —"conservar el parámetro" en cada navegación, o "el iframe
+// vuelve a la página del editor"— y se elige la SEGUNDA:
+//   - "Conservar el parámetro" exigiría reescribir el destino de CADA enlace del storefront antes
+//     de que navegue. La mayoría de esa navegación es client-side de Next (`<Link>`, `router.push`),
+//     que NO dispara el evento `load` del iframe ni reusa el `href` del DOM en el momento del clic
+//     (el handler de `Link` ya capturó el destino original) — habría que interceptar el CLIC en fase
+//     de captura y forzar una navegación completa por cada uno, tocando el comportamiento de TODO el
+//     storefront (fuera de `touches:` de este slice) a cambio de evitar un reload.
+//   - "Vuelve a la página del editor" se resuelve ENTERO acá, sin tocar una sola página del
+//     storefront: un POLL (no un `onLoad`, que tampoco vería una navegación client-side — mismo
+//     motivo de arriba) compara el pathname real del iframe contra el de la pestaña activa, y si
+//     divergió —por CUALQUIER causa: clic, redirect de un submit, `router.push`— lo manda de vuelta
+//     con `location.replace`, CON el parámetro. Cuesta un reload extra si el admin se desvía, pero
+//     es robusto a cualquier mecanismo de navegación y no depende de qué construya cada página.
+// `EDITOR-TIENDA-POSTMESSAGE-1` (slice 3 del plan) es el lugar correcto para una experiencia de
+// navegación más fina (el storefront avisa su propia ruta por `postMessage`); acá el editor es de
+// UNA página a la vez, y volver a ella es la expectativa correcta mientras tanto.
+const INTERVALO_VIGIA_RUTA_MS = 400;
 export interface VistaTiendaIframeHandle {
   /** Desplaza el iframe hasta la sección y la resalta brevemente. No hace nada si el documento
    *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`, el
@@ -46,8 +74,14 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
     // pintar la nueva, en vez de fiarse de un valor "previo" capturado a mitad de una animación.
     const resaltadoRef = useRef<{ nodo: HTMLElement; timeout: number } | null>(null);
     const [cargando, setCargando] = useState(true);
+    // Espejo SÍNCRONO de `cargando` para el vigía de ruta (abajo): el `setInterval` se crea UNA vez
+    // por `pagina` y su callback, si leyera `cargando` por closure, vería siempre el valor del
+    // momento en que se creó el efecto — no el actual. El ref se actualiza en cada render.
+    const cargandoRef = useRef(cargando);
+    cargandoRef.current = cargando;
 
-    const url = urlDePagina(pagina);
+    const rutaEditor = urlDePaginaEnEditor(pagina);
+    const rutaPagina = urlDePagina(pagina);
 
     const limpiarResalte = () => {
       const activo = resaltadoRef.current;
@@ -90,6 +124,42 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
     // iframe ya fuerza el remonte; este efecto sólo repone el estado "cargando" para esa carga.
     useEffect(() => { setCargando(true); }, [pagina]);
 
+    // EL VIGÍA DE RUTA (§ el comentario grande de arriba, "NAVEGAR DENTRO DEL IFRAME"). Un POLL, no
+    // un `onLoad`: la navegación client-side de Next (`<Link>`, `router.push`) cambia
+    // `contentWindow.location` vía `history.pushState` SIN disparar el evento `load` del iframe, así
+    // que un chequeo "al cargar" nunca vería ese caso — sólo comparar la ruta a intervalos lo
+    // atrapa, sea cual sea el mecanismo que la cambió.
+    useEffect(() => {
+      const id = window.setInterval(() => {
+        // Mientras el documento está a mitad de cargar (incluida la primera carga, antes del
+        // primer `onLoad`), `contentWindow.location` puede ser `about:blank` o el documento VIEJO
+        // todavía — comparar en ese instante daría un falso positivo y dispararía un `replace`
+        // sobre una navegación que ya estaba en curso.
+        if (cargandoRef.current) return;
+        const win = iframeRef.current?.contentWindow;
+        if (!win) return;
+        let actual: string;
+        try {
+          actual = win.location.pathname;
+        } catch {
+          // Cross-origin momentáneo a mitad de una transición de navegación — se reintenta en el
+          // próximo tick, nunca se trata como "se fue a otra página".
+          return;
+        }
+        if (actual === rutaPagina) return;
+        // El admin navegó FUERA de la página que está editando (un clic en el nav/una tarjeta,
+        // un redirect de un submit...): vuelve a ESTA página, con el modo editor puesto.
+        limpiarResalte();
+        cargandoRef.current = true;
+        setCargando(true);
+        win.location.replace(rutaEditor);
+      }, INTERVALO_VIGIA_RUTA_MS);
+      return () => window.clearInterval(id);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `rutaEditor`/`rutaPagina` se derivan
+      // de `pagina`, ya en las deps; `limpiarResalte` no es estable entre renders pero no necesita
+      // serlo acá (lee `resaltadoRef`, no estado de render).
+    }, [pagina, rutaPagina, rutaEditor]);
+
     const onLoad = useCallback(() => {
       setCargando(false);
       const win = iframeRef.current?.contentWindow;
@@ -120,7 +190,7 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
           <iframe
             ref={iframeRef}
             key={pagina}
-            src={url}
+            src={rutaEditor}
             title="Vista previa de la tienda"
             onLoad={onLoad}
             style={{ width: '100%', height: '100%', border: 0, display: 'block' }}

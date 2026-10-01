@@ -6,63 +6,113 @@ import { destinoDesdeProductos } from "@/lib/redirect-productos";
 import { destinoDesdeInventario } from "@/lib/redirect-inventario";
 import { destinoDesdeEntregas } from "@/lib/redirect-entregas";
 import { destinoDesdeConfig } from "@/lib/redirect-config";
+import { PARAM_MODO_EDITOR, VALOR_MODO_EDITOR, ENCABEZADO_MODO_EDITOR } from "@/lib/admin/editor-iframe";
 
 export function proxy(request: NextRequest) {
-  const session = getSessionCookie(request);
+  const { pathname } = request.nextUrl;
 
-  // LA SESIÓN VA PRIMERO, sin cambios: sin cookie, cualquier `/admin/*` sigue
-  // yendo a `/login`. Poner el redirect de la ruta retirada antes sólo cambiaría
-  // a qué URL llega alguien que de todos modos va a rebotar al login.
-  if (!session && request.nextUrl.pathname.startsWith("/admin")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (pathname.startsWith("/admin")) {
+    const session = getSessionCookie(request);
+
+    // LA SESIÓN VA PRIMERO, sin cambios: sin cookie, cualquier `/admin/*` sigue
+    // yendo a `/login`. Poner el redirect de la ruta retirada antes sólo cambiaría
+    // a qué URL llega alguien que de todos modos va a rebotar al login.
+    if (!session) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    // ── LAS PANTALLAS RETIRADAS ────────────────────────────────────────────────
+    //
+    // `/admin/ordenes` murió y `/admin/pedidos` habla otro vocabulario de URL; lo
+    // mismo pasó con la Clientes vieja y con la Productos vieja, cuyas rutas heredó
+    // el rediseño, con Entregas (que se fundió en Pedidos), y con la subruta
+    // `/configuracion/usuarios` (la pantalla de equipo subió a `/admin/configuracion`).
+    // La TRADUCCIÓN vive en `lib/redirect-{ordenes,clientes,productos,inventario,entregas,config}`
+    // —puras y con sus tests de capa 1— y acá sólo se las llama: el mapeo es la
+    // decisión, esto es plomería. Son módulos SEPARADOS porque no comparten nada
+    // salvo esta mecánica; fusionarlos daría un helper que tiene que conocer los
+    // vocabularios de todos para decidir cuál aplica.
+    //
+    // Va en el middleware y no en `next.config.ts` porque los `redirects()` de la
+    // config pueden arrastrar el query pero NO renombrar sus claves, y renombrar es
+    // justo lo que hay que hacer (`order`→`pedido`, `cobrar`→`f`,
+    // `/clientes/<id>`→`?cliente=<id>`, `recurrentes`→`f`).
+    //
+    // 307 y no 308: un permanente se cachea en el navegador sin forma cómoda de
+    // deshacerlo, y en un panel el costo de un 308 mal cacheado es un operador que
+    // no llega a una ruta hasta limpiar la caché. No hay SEO que ganar — el sitio
+    // entero va `noindex`.
+    //
+    // SON SEIS y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
+    // supuesto: los tests de los redirects recorren las rutas de los retiros
+    // comprobando que ninguna caiga en más de uno (`redirect-config.test.ts` incluye
+    // a los seis). Sin ese test, el día que un mapeo se ensanche el síntoma sería un
+    // redirect que gana por estar escrito antes.
+    //
+    // INVENTARIO tiene un matiz único: su `?stock=bajo-minimo` sale de la sección
+    // hacia `/admin/productos?f=reponer` (la cola de reposición se mudó allá). Ese
+    // destino es de OTRO retiro, así que la cadena podría, en principio, re-capturarlo
+    // — no lo hace (es la ruta pelada de Productos, pasa en `null`). El mismo test
+    // afirma el destino FINAL, no sólo la disjunción: la cadena converge en dos
+    // pasadas, sin loop.
+    const destino =
+      destinoDesdeOrdenes(pathname, request.nextUrl.searchParams) ??
+      destinoDesdeClientes(pathname, request.nextUrl.searchParams) ??
+      destinoDesdeProductos(pathname, request.nextUrl.searchParams) ??
+      destinoDesdeInventario(pathname, request.nextUrl.searchParams) ??
+      destinoDesdeEntregas(pathname, request.nextUrl.searchParams) ??
+      destinoDesdeConfig(pathname, request.nextUrl.searchParams);
+    if (destino) return NextResponse.redirect(new URL(destino, request.url), 307);
+
+    return NextResponse.next();
   }
 
-  // ── LAS PANTALLAS RETIRADAS ────────────────────────────────────────────────
+  // ── EL MODO EDITOR DEL STOREFRONT (§ MODO-EDITOR-SOLO-EN-EL-IFRAME-1) ──────────
   //
-  // `/admin/ordenes` murió y `/admin/pedidos` habla otro vocabulario de URL; lo
-  // mismo pasó con la Clientes vieja y con la Productos vieja, cuyas rutas heredó
-  // el rediseño, con Entregas (que se fundió en Pedidos), y con la subruta
-  // `/configuracion/usuarios` (la pantalla de equipo subió a `/admin/configuracion`).
-  // La TRADUCCIÓN vive en `lib/redirect-{ordenes,clientes,productos,inventario,entregas,config}`
-  // —puras y con sus tests de capa 1— y acá sólo se las llama: el mapeo es la
-  // decisión, esto es plomería. Son módulos SEPARADOS porque no comparten nada
-  // salvo esta mecánica; fusionarlos daría un helper que tiene que conocer los
-  // vocabularios de todos para decidir cuál aplica.
+  // El iframe de `/admin/tienda` carga la página real con `?editor=1`
+  // (`urlDePaginaEnEditor`, `lib/admin/editor-iframe.ts`). En Next 16 un LAYOUT no
+  // recibe `searchParams` (sólo `page.tsx` los recibe, y el gate real vive en
+  // `app/(storefront)/layout.tsx` — tiene que cubrir TODA la página, no sólo su
+  // `page.tsx`), así que el parámetro por sí solo no le llega al gate. Acá se
+  // TRADUCE a un header de REQUEST (`x-editor-modo`), que SÍ atraviesa `headers()`
+  // en cualquier Server Component de la misma request — layout incluido
+  // (§ `modo-editor-gate.ts`, `modoEditorActivo`).
   //
-  // Va en el middleware y no en `next.config.ts` porque los `redirects()` de la
-  // config pueden arrastrar el query pero NO renombrar sus claves, y renombrar es
-  // justo lo que hay que hacer (`order`→`pedido`, `cobrar`→`f`,
-  // `/clientes/<id>`→`?cliente=<id>`, `recurrentes`→`f`).
+  // El parámetro NUNCA es la credencial — sólo el flag. `modoEditorActivo()`
+  // revalida la sesión (OWNER/MANAGER activo) EN CADA request antes de servir el
+  // borrador; sin esa sesión, el header no sirve de nada. Lo único que este bloque
+  // decide es si la marca VIAJA, nunca si se CONCEDE algo.
   //
-  // 307 y no 308: un permanente se cachea en el navegador sin forma cómoda de
-  // deshacerlo, y en un panel el costo de un 308 mal cacheado es un operador que
-  // no llega a una ruta hasta limpiar la caché. No hay SEO que ganar — el sitio
-  // entero va `noindex`.
-  //
-  // SON SEIS y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
-  // supuesto: los tests de los redirects recorren las rutas de los retiros
-  // comprobando que ninguna caiga en más de uno (`redirect-config.test.ts` incluye
-  // a los seis). Sin ese test, el día que un mapeo se ensanche el síntoma sería un
-  // redirect que gana por estar escrito antes.
-  //
-  // INVENTARIO tiene un matiz único: su `?stock=bajo-minimo` sale de la sección
-  // hacia `/admin/productos?f=reponer` (la cola de reposición se mudó allá). Ese
-  // destino es de OTRO retiro, así que la cadena podría, en principio, re-capturarlo
-  // — no lo hace (es la ruta pelada de Productos, pasa en `null`). El mismo test
-  // afirma el destino FINAL, no sólo la disjunción: la cadena converge en dos
-  // pasadas, sin loop.
-  const destino =
-    destinoDesdeOrdenes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeClientes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeProductos(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeInventario(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeEntregas(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeConfig(request.nextUrl.pathname, request.nextUrl.searchParams);
-  if (destino) return NextResponse.redirect(new URL(destino, request.url), 307);
+  // COSTO MÍNIMO para el caso común (sin el parámetro, que es el 100% del tráfico
+  // público): dos chequeos baratos (`has`/`get`) y, si ninguno aplica, el MISMO
+  // `NextResponse.next()` de siempre — sin clonar headers. Sólo se clona cuando hay
+  // algo que cambiar: el parámetro viene puesto, O el cliente ya traía el header
+  // (caso raro, pero hay que neutralizarlo — ver abajo).
+  const marcaDelCliente = request.headers.has(ENCABEZADO_MODO_EDITOR);
+  const pideModoEditor = request.nextUrl.searchParams.get(PARAM_MODO_EDITOR) === VALOR_MODO_EDITOR;
+  if (!marcaDelCliente && !pideModoEditor) {
+    return NextResponse.next();
+  }
 
-  return NextResponse.next();
+  // El header SE RECONSTRUYE siempre que se toca esta rama: si el CLIENTE ya lo
+  // traía (alguien mandando `x-editor-modo` a mano, sin pasar por el iframe), se
+  // BORRA antes de decidir — la única fuente válida es el parámetro de ESTA
+  // request, nunca lo que el request entrante ya diga. Después se vuelve a poner
+  // SÓLO si el parámetro vino.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(ENCABEZADO_MODO_EDITOR);
+  if (pideModoEditor) {
+    requestHeaders.set(ENCABEZADO_MODO_EDITOR, VALOR_MODO_EDITOR);
+  }
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
-  matcher: ["/admin(.*)"],
+  // Las tres rutas que el iframe de `/admin/tienda` puede cargar (`urlDePagina`,
+  // `lib/admin/editor-iframe.ts`: home/nosotros/suscripciones). No hace falta un
+  // patrón más ancho: el modo editor sólo se activa donde el iframe navega a
+  // propósito, y cualquier desvío dentro del iframe vuelve ahí solo
+  // (`VistaTiendaIframe.tsx`, el vigía de ruta) — nunca por un `?editor=1` colado
+  // en otra ruta.
+  matcher: ["/admin(.*)", "/", "/nosotros", "/suscripciones"],
 };

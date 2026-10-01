@@ -1,14 +1,43 @@
 import type { PaginaKey, SeccionVista } from '@/components/admin/tienda-secciones';
 
 // LA PIEZA PURA del iframe de /admin/tienda (§ EDITOR-TIENDA-IFRAME-VISTA-1, slice 2 del plan de
-// `docs/editor-tienda/DISENO.md`). Tres responsabilidades sin DOM ni red, testeadas en capa 1: qué
-// URL real corresponde a cada pestaña de página, qué selector ubica el marcador de una sección
-// dentro del documento del iframe, y cómo normalizar un scrollY guardado antes de un reload. El
-// componente (`VistaTiendaIframe.tsx`) es la mitad impura que USA esto.
+// `docs/editor-tienda/DISENO.md`). Responsabilidades sin DOM ni red, testeadas en capa 1: qué URL
+// real corresponde a cada pestaña de página (con y sin el marcador de modo editor), qué selector
+// ubica el marcador de una sección dentro del documento del iframe, y cómo normalizar un scrollY
+// guardado antes de un reload. El componente (`VistaTiendaIframe.tsx`) es la mitad impura que USA
+// esto.
+
+/**
+ * EL CONTRATO entre `proxy.ts`, `lib/config/modo-editor-gate.ts` y `VistaTiendaIframe.tsx`
+ * (§ MODO-EDITOR-SOLO-EN-EL-IFRAME-1): el parámetro que el iframe pone en la URL, y el header de
+ * REQUEST al que `proxy.ts` lo traduce para que el storefront lo vea con `headers()` — en Next 16
+ * un LAYOUT no recibe `searchParams` (sólo `page.tsx`), así que el parámetro por sí solo no le
+ * llega a `app/(storefront)/layout.tsx`, que es donde vive el gate real (§ `modoEditorActivo`).
+ *
+ * Viven en este módulo —puro, sin `next/headers` ni Prisma ni Better Auth— porque `proxy.ts` NO
+ * puede importar `lib/config/modo-editor-gate.ts` directo sin arrastrar esos tres a su propio
+ * bundle (la doc de Next lo dice explícito: "Proxy... you should not attempt relying on shared
+ * modules or globals" — `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/
+ * proxy.md`). Una sola definición del nombre, no dos que puedan divergir (§ CLAUDE.md,
+ * `razonDelServidor`/`cruzoMinimo`).
+ */
+export const PARAM_MODO_EDITOR = 'editor';
+export const VALOR_MODO_EDITOR = '1';
+export const ENCABEZADO_MODO_EDITOR = 'x-editor-modo';
 
 /** La ruta REAL del storefront para cada pestaña del editor (`PaginaKey`, § tienda-secciones.ts). */
 export function urlDePagina(pagina: PaginaKey): string {
   return pagina === 'home' ? '/' : `/${pagina}`;
+}
+
+/**
+ * La URL que el iframe carga de verdad: la ruta real + el parámetro de modo editor. `proxy.ts` lo
+ * lee y lo reenvía como header; sin sesión OWNER/MANAGER válida en ESA request, el gate lo ignora
+ * y sirve lo publicado igual (§ `decidirModoEditor`) — el parámetro nunca es, por sí mismo, una
+ * credencial.
+ */
+export function urlDePaginaEnEditor(pagina: PaginaKey): string {
+  return `${urlDePagina(pagina)}?${PARAM_MODO_EDITOR}=${VALOR_MODO_EDITOR}`;
 }
 
 /**

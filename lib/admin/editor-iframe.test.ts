@@ -1,11 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { urlDePagina, marcadorDeSeccion, selectorDeSeccion, scrollSeguro } from './editor-iframe';
+import {
+  urlDePagina,
+  urlDePaginaEnEditor,
+  marcadorDeSeccion,
+  selectorDeSeccion,
+  scrollSeguro,
+  PARAM_MODO_EDITOR,
+  VALOR_MODO_EDITOR,
+} from './editor-iframe';
 
 test('urlDePagina: home es la raíz; las demás páginas, su propia ruta', () => {
   assert.equal(urlDePagina('home'), '/');
   assert.equal(urlDePagina('nosotros'), '/nosotros');
   assert.equal(urlDePagina('suscripciones'), '/suscripciones');
+});
+
+test('urlDePaginaEnEditor: la misma ruta de urlDePagina, con el parámetro de modo editor', () => {
+  assert.equal(urlDePaginaEnEditor('home'), `/?${PARAM_MODO_EDITOR}=${VALOR_MODO_EDITOR}`);
+  assert.equal(urlDePaginaEnEditor('nosotros'), `/nosotros?${PARAM_MODO_EDITOR}=${VALOR_MODO_EDITOR}`);
+  assert.equal(urlDePaginaEnEditor('suscripciones'), `/suscripciones?${PARAM_MODO_EDITOR}=${VALOR_MODO_EDITOR}`);
 });
 
 test('marcadorDeSeccion: home/nosotros usan el nombre de la sección tal cual', () => {
