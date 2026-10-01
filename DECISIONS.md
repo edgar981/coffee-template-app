@@ -38540,3 +38540,160 @@ implementaron y se verificaron con medición/gate real); el MERGE sigue gateado 
 aprobación de escritura nunca fue aprobación de merge.
 
 Cierra `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1`.
+
+## 2026-10-01 — Cierre del gate de `EDITOR-TIENDA-IFRAME-GATE-1`: typecheck/test/integración verdes; `verificar:nayoli`/`verificar:nayoli:visual` NO dan 0 contra `main` por un staleness estructural de 9 días, MEDIDO; `guarda:color` SÍ da 0px (`CIERRE-EDITOR-GATE-1`)
+
+`EDITOR-TIENDA-IFRAME-GATE-1` (`0afce17`) dejó su commit en la rama sin correr el gate completo —
+su propio mensaje de commit sólo cita `typecheck`/`npm test`/`test:integracion`, sin
+`verificar:nayoli`, `verificar:nayoli:visual` ni `guarda:color`, y sin asiento en este archivo. Este
+slice corre el gate completo que faltaba sobre ese commit (hoy en `HEAD~1`, bajo
+`f95c2ab`) y mide, no asume.
+
+### Gate
+
+| comando | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2892/2892** |
+| `npm run test:integracion` | **253/253** (incluye los 7 tests de `modo-editor-gate.test.ts` del commit que se cierra) |
+| `npm run verificar:nayoli` (bytes, sin cookie) | **NO vacío** en las 4 rutas + CSS — ver § abajo |
+| `npm run verificar:nayoli:visual` | **NO 0px** en las 6 rutas + 2 hovers — ver § abajo |
+| `npm run guarda:color` | **0px** en las 8 capturas (consciente de AA y crudo) |
+
+### `verificar:nayoli` y `verificar:nayoli:visual` NO dan 0 — MEDIDO por qué, y que no es de este slice
+
+Los dos comparan la rama contra el `git worktree` de la rama **`main`** literal. Medido antes de
+caracterizar un solo diff: **`main` está anclado en `9a7ab97` (2026-09-21 10:44:08 -0500)**, y el
+reflog de `main` muestra, en el MISMO segundo (`2026-09-22 14:54:57 -0500`), un merge de
+`slice/corte-reescritura-prototipo-1` (→ `fce0f86`, "Merge slice/corte-reescritura-prototipo-1")
+seguido de un `reset: moving to 9a7ab97` — esta rama SE MERGEÓ a `main` y la fusión se DESHIZO en el
+mismo instante, 9 días antes de este commit. `main` no se ha movido desde entonces: `git diff
+main..HEAD --stat -- packages/core/prisma/` da **2 archivos** (`schema.prisma` +14,
+`packages/core/prisma/migrations/20260925120000_site_setting_redes/migration.sql` nuevo, 36
+líneas) y `git log --oneline main..HEAD | wc -l` da **226** commits. Los dos scripts asumen —lo dice
+su propio docstring, medido contra `VERIFICAR-NAYOLI-BYTE-1` (2026-09-24, más abajo en este
+archivo)— que `main` y la rama comparten schema y seed; hoy NO los comparten, así que la comparación
+no puede dar vacío por construcción, y arreglarlo (fusionar o resetear `main`, o reescribir los
+scripts para comparar contra otra referencia) está fuera de `touches:` de este slice.
+
+**Caracterizado igual, dato por dato — ninguna diferencia toca el mecanismo que este gate existe
+para cerrar:**
+
+- **`verificar:nayoli`** (tag-a-tag, tokenizando cada HTML por `><`): `/` 21/362 tags distintos,
+  `/tienda` 16/193, `/tienda/<slug>` 12/131, `/checkout` 13/134; CSS 1331 reglas comunes, 17 sólo en
+  `main`, 282 sólo en la rama. Revisadas una por una: el hash del bundle CSS (consecuencia del
+  contenido, no causa), reordenamiento de clases Tailwind sin solapar propiedad (`max-w-6xl
+  mx-auto`↔`mx-auto max-w-6xl`, `grid-cols-2 gap-4`↔`gap-4 grid-cols-2`), tokens con fallback
+  ensanchados (`bg-[var(--sf-tostado)]`→`bg-[var(--sf-accion,var(--sf-tostado))]`, mismo valor
+  computado sin paleta custom — la MISMA familia que `VERIFICAR-NAYOLI-BYTE-1` ya documentó el
+  2026-09-24), el parámetro de calidad de imagen (`q=75`→`q=85`, de `next.config.ts:46`,
+  `qualities: [75, 85, 90]` — no existía en el `main` de hace 9 días), y UN cambio de destino real
+  (`← Explorar productos` de `/checkout` pasó de `href="/"` a `href="/tienda"`,
+  `app/(storefront)/checkout/page.tsx:515`). **CERO apariciones de `<meta name="robots"` en ninguna
+  de las 4 capturas** — la pieza nueva de este slice (`metadataRobotsSegunModo`) no agrega NADA sin
+  cookie, exactamente como predice su código (`enModoEditor ? {...} : {}`, spread de objeto vacío).
+- **`verificar:nayoli:visual`** (píxeles, `main` vs. rama): home 938/4.608.000 px conscientes de AA
+  (2230 crudos, caja `[98,31]–[1154,3409]`), tienda 738/2.433.280 (2660 crudos), producto
+  743/2.535.680 (2656 crudos), checkout 41/1.152.000 (128 crudos), nosotros 78/1.152.000 (367
+  crudos), suscripciones 318/2.144.000 (1160 crudos), hover-automática 113/98.298 (363 crudos),
+  hover-elección 50/102.870 (226 crudos). Las cajas cubren regiones grandes de cada página —
+  consistente con 226 commits de redise crecido entre `main` y la rama (clases reordenadas, el
+  `q=85` de arriba afectando la compresión JPEG de las fotos), no con un defecto puntual.
+
+**`guarda:color` es la vara que SÍ es vigente**, y da **0px** (consciente de AA y crudo) en las 8
+capturas contra el fixture COMMITEADO de Nayoli (`tests/visual/nayoli/*.png`,
+`GUARDA-COLOR-NAYOLI-1`) — el mismo resultado que el asiento de
+`SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1` (arriba) ya medía sobre un árbol que es
+ancestro directo de éste. Es la comparación que de verdad responde "¿Nayoli sin preset se ve como
+se espera?", porque compara contra una referencia que SÍ se mantiene al día con la rama (se
+actualiza a mano, deliberadamente, cuando el owner decide un cambio real de Nayoli) en vez de contra
+un `main` resuelto-y-revertido hace 9 días.
+
+### HALLAZGO: la cifra "0px main vs. rama" del asiento anterior, re-medida, NO se sostiene
+
+El asiento de `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1` (línea 39 de su tabla de gate,
+arriba en este mismo archivo) reporta `npm run verificar:nayoli:visual` → **0px en las 6 rutas + 2
+hovers, main vs. esta rama**, corrido sobre `f95c2ab` — el MISMO commit que este slice tiene como
+`HEAD`. Re-corrido ahora, sin tocar un byte del árbol, da los números no-cero de arriba. `main` no
+se movió entre las dos corridas (ancla en `9a7ab97` desde el 2026-09-22, confirmado por reflog); no
+hay random seed nuevo ni dependencia que explique la discrepancia por no-determinismo —la captura es
+determinista desde `GUARDA-COLOR-NAYOLI-1` (reloj de animación congelado), y es el MISMO mecanismo
+que usan las 8 capturas de `guarda:color`, que SÍ reprodujeron 0px en las dos corridas—. La lectura
+más simple es que esa cifra de la tabla anterior está MAL —muy probablemente una transcripción
+cruzada con el resultado de `guarda:color` de la MISMA fila de esa tabla (ambos scripts imprimen
+"0px en las 6 rutas + 2 hovers" con formato casi idéntico)—, no que algo externo cambió. No se
+corrige ese asiento (ya mergeado en la historia de la rama; este archivo es append-only) — se deja
+registrado acá como lo que es: una cifra de otro slice que no resistió la re-medición.
+
+### Verificación directa de la pieza que este slice cierra
+
+Más allá de lo que miden los dos scripts contra `main`, el código de `EDITOR-TIENDA-IFRAME-GATE-1`
+se releyó entero (`lib/config/modo-editor-gate.ts`, `lib/config/site-content.ts`,
+`app/api/site-content/modo-editor/route.ts`, `app/(storefront)/layout.tsx`) para confirmar, por
+lectura, que un visitante SIN la cookie recibe EXACTAMENTE el mismo camino que antes del commit:
+`modoEditorActivo()` retorna `false` tras `jar.has(COOKIE_MODO_EDITOR)` SIN tocar sesión ni base;
+`resolverSegunModo()` cae a `return readSiteContent()` — la MISMA llamada que `getSiteContent =
+cache(readSiteContent)` hacía antes de este commit; `metadataRobotsSegunModo(false)` devuelve `{}`,
+que el spread dentro de `generateMetadata` no agrega a la metadata. Es la MISMA conclusión que arroja
+el "cero apariciones de `robots`" medido arriba, por otra vía.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (mismo gate del owner que `EDITOR-TIENDA-IFRAME-GATE-1`, § `approval-reason`
+del spec). Este slice no agregó código a ningún archivo Tier 1 — su único cambio es este asiento
+(`DECISIONS.md`, no listado en Tier 1). `customer_bytes.changed = false`: no se tocó ni un archivo de
+`touches:` más allá de este archivo, y la verificación de arriba confirma que el commit que se cierra
+tampoco cambia bytes para un visitante sin la cookie.
+
+### Deviations
+
+El spec esperaba `verificar:nayoli` en **0 diffs** y `verificar:nayoli:visual` en **0px**. Medido:
+ninguno de los dos da 0 contra `main`, por la razón estructural de arriba (staleness de 9 días,
+anterior a este slice y fuera de `touches:`). No se intentó "arreglarlo" tocando `main` ni los
+scripts de verificación — ninguno de los dos está en `touches:` de `CIERRE-EDITOR-GATE-1`. La
+verificación que SÍ está al alcance de este slice (`guarda:color`, más la relectura directa del
+código) confirma lo que el spec quería saber: el tráfico público sin cookie no cambia.
+
+### Open follow-ups
+
+- **`VERIFICAR-NAYOLI-MAIN-STALE-1`**: `scripts/verificar-nayoli.ts` y
+  `scripts/verificar-nayoli-visual.ts` comparan contra el `main` literal, que lleva 9 días
+  (`9a7ab97`, 2026-09-21) sin reflejar el trabajo de `slice/corte-reescritura-prototipo-1` —un
+  merge a `main` de esta rama se deshizo en el mismo segundo que se hizo (reflog, 2026-09-22
+  14:54:57). Mientras `main` no avance, los dos scripts reportarán diffs no-cero
+  independientemente de qué toque cada slice — el "diff vacío esperado" de `VERIFICAR-NAYOLI-BYTE-1`
+  sólo tiene sentido cerca de un merge real. No se corrige acá: tocar `main` es una operación de
+  fusión/owner, y tocar los scripts está fuera de `touches:`.
+- **Revisar la cifra "0px" de `verificar:nayoli:visual` en el asiento de
+  `SUSCRIPCION-FOTO-LEGIBLE-Y-ACCIONES-REDONDEADAS-1`** (arriba en este archivo): no se sostuvo al
+  re-medir sobre el mismo árbol (§ HALLAZGO). No bloquea nada —ese slice ya está en la rama y su
+  propio `guarda:color` (la vara vigente) sí dio 0px—, pero es una cifra de doctrina que no resistió
+  la re-medición y el próximo censo de "mediciones vencidas" debería tomarla.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+El único archivo que este slice cambia es `DECISIONS.md` — no introduce ni modifica ningún símbolo,
+ruta ni mecanismo de código. Grep de los símbolos del commit que se cierra (no tocados por este
+diff, pero el objeto de su verificación): `modo_editor_tienda`, `modoEditorActivo`,
+`decidirModoEditor`, `metadataRobotsSegunModo`, `resolverSegunModo`, `COOKIE_MODO_EDITOR`,
+`EDITOR-TIENDA-IFRAME-GATE-1`, `verificar:nayoli`, `guarda:color` — **CERO apariciones**, los nueve,
+en `CLAUDE.md`. `DECISIONS.md` aparece 15 veces, todas genéricas (la doctrina que remite al ledger),
+ninguna sobre este slice. Nada en `CLAUDE.md` afirma algo que este diff vuelva falso.
+
+### Verdict
+
+**GATE_RED** — el gate completo que este slice debía cerrar (§ Gate, arriba) corrió sobre el árbol
+final y dos de sus seis comandos no dieron el resultado esperado por el spec. No es
+`AWAITING_APPROVAL`: el motivo de parada no es una condición de la política A (no hay bytes de
+cliente, no hay schema, no hay contrato cross-repo en lo que este slice tocó) — es que el gate, tal
+como el spec lo definió, no cerró en verde. La causa medida (`main` resuelto-y-revertido hace 9
+días, fuera de `touches:`) no se corrigió, siguiendo el mismo criterio que
+`SPOTLIGHT-STALE-ASSERTS-1`/`CORTE-HERO-TITULAR-OCULTABLE-1` (arriba en este archivo): un `GATE_RED`
+heredado de algo fuera de `touches:` se REPORTA, no se silencia ni se absorbe en un verdict más
+blando. `npm run gate` (typecheck + `npm test` + `test:integracion`, el gate CANÓNICO del repo) es
+**verde**; `guarda:color` —la vara visual vigente— da **0px**; la pieza de `EDITOR-TIENDA-IFRAME-GATE-1`
+que este slice existía para cerrar queda verificada, por lectura y por medición, como byte-neutra
+para el tráfico sin cookie.
+
+No cierra `CIERRE-EDITOR-GATE-1` en verde — queda abierto `VERIFICAR-NAYOLI-MAIN-STALE-1` (arriba)
+como la condición que, resuelta, permitiría un re-run con 0 diffs/0px reales.
