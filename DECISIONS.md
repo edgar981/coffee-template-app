@@ -43041,3 +43041,157 @@ hallazgo preexistente de `ruta-home` queda registrado y no bloquea este slice (m
 diff). Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `MARQUESINA-TARJETA-PRODUCTO-1`.**
+
+## 2026-10-02 — La tarjeta de la marquesina entra DESPUÉS de la frase, el tramo fijo se acorta, y el modo deja de parpadear entre recargas (`MARQUESINA-TARJETA-SECUENCIA-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02,
+sobre la demo de Café Las Chamisas (con dos capturas de la tarjeta del hero, una con borde blanco y
+otra completa): tres defectos sobre el trabajo de `MARQUESINA-TARJETA-PRODUCTO-1` — la tarjeta "no
+debe salir al tiempo con el marquee, sino una vez las letras han salido, luego salga el producto";
+"luego de que la imagen salió completa hice scroll 3 veces antes de poder iniciar a bajar en la
+página"; y "si refresco sale con los bordes, si vuelvo y refresco sale la otra, se cambian en cada
+refresh". Los otros pedidos del mismo gate (rounding de tarjetas, hover de 2ª foto en `/tienda`,
+logo del nav móvil) **no están en el `touches:` de este slice** y no se tocan acá.
+
+### 1 · La secuencia — `UMBRAL_ENTRADA_TARJETA_MARQUESINA`, derivada
+
+`MARQUESINA-TARJETA-PRODUCTO-1` alineó la "entrada" de la tarjeta a la MISMA ventana que la frase
+(`UMBRAL_REVELADO_TEXTO`, [0,0.2]) — eso las hace entrar JUNTAS, confirmado por el reporte del owner
+y por el reproduce de este slice (medido ANTES del fix: a progreso=0.1, con la frase a mitad de
+camino, la tarjeta ya estaba acompañándola en vez de esperar).
+
+`lib/animation.ts` gana `UMBRAL_ENTRADA_TARJETA_MARQUESINA` — DERIVADA de `UMBRAL_REVELADO_TEXTO`, no
+un segundo par de números: arranca EXACTO donde la de la frase termina
+(`desde = UMBRAL_REVELADO_TEXTO.hasta`) y dura el MISMO ancho (`hasta - desde` igual). Con los
+valores de hoy, [0.2, 0.4]. `HeroMediaMarquesina.tsx` pasa esta ventana a `transformMarquesinaTarjeta`
+(escala/rotación) Y a `opacidadEntradaTarjetaMarquesina` (que gana un tercer parámetro `ventana`,
+mismo patrón que la primera función, default = la nueva constante — sin otro consumidor, no cambia
+nada para nadie más). `progresoRevelado` (privada) se generalizó a `progresoEnVentana(progreso,
+ventana)`, reusada por las dos rampas en vez de que cada una reimplemente el mismo recorte.
+
+### 2 · El tramo muerto — el presupuesto CON tarjeta baja de 200vh a 100vh
+
+Con el presupuesto viejo (100svh+200vh, H=300vh en unidades de viewport), la tarjeta terminaba de
+aparecer en progreso 0.2 (antes de este slice) o 0.4 (con el fix de arriba) mientras el
+`position:sticky` no se despineaba hasta progreso≈0.667 — un tramo de scroll sin nada nuevo que
+mostrar, exactamente la forma del "scroll 3 veces" reportado.
+
+`claseAlturaAncestroMarquesina(true, false)` pasa de `min-h-[calc(100svh+200vh)]` a
+`min-h-[calc(100svh+100vh)]`, DERIVADO (no un número suelto): se define un respiro corto —la mitad
+del ancho de `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (0.1)— y se elige el presupuesto para que el sticky
+se despinee JUSTO al terminar ese respiro (`pUnpin = 0.4+0.1 = 0.5` → `H = 100/(1-0.5) = 200` →
+`extra = H-100 = 100`). La rama SIN tarjeta (65vh) **no cambia** — el spec lo pide explícito ("Sin
+tarjeta: todo como hoy") y no hay ventana de tarjeta que alinear ahí.
+
+**MEDIDO CONTRA EL NAVEGADOR REAL**, no sólo por aritmética — Playwright, Postgres efímero + preset
+CORTE + un producto 3:4 por `marquesina.productoSlug` (fuera de `touches:`, `.scratch/
+verificar-secuencia.ts`, no comiteado), opacidad de la frase y de la tarjeta en 11 puntos de scroll
+(progreso 0 a 0.5) + `position:sticky` localizado por búsqueda binaria sobre `getBoundingClientRect().
+top`:
+
+| motor/viewport | opTarjeta en [0, 0.2] | opTarjeta en [0.2, 0.4] | scroll "tarjeta 100%" | scroll despineo | DISTANCIA |
+| --- | --- | --- | --- | --- | --- |
+| Chromium 1440×900 | 0.000 en los 5 puntos medidos | 0→0.25→0.50→0.75→1.00 | 720px | 901px | **181px** |
+| WebKit iPhone 13 (390×664) | 0.000–0.002 en los 5 puntos medidos | 0→0.25→0.50→0.75→1.00 | 531px | 665px | **134px** |
+
+La frase (`opacidadRevelaTextoDisplay`) sube 0→0.9 en el mismo tramo [0,0.2] y queda FIJA en 0.9
+durante todo [0.2,0.5] en los dos motores — confirma la secuencia en las dos direcciones: la tarjeta
+no se mueve mientras la frase sigue saliendo, y la frase ya terminó cuando la tarjeta empieza. La
+distancia "tarjeta al 100% → el panel deja de estar pineado" quedó en 134–181px en los dos
+viewports — un gesto de scroll, no tres.
+
+**Hallazgo de método, declarado:** `window.scrollTo(x,y)` SIN `behavior:'instant'` anima en vez de
+saltar (`app/globals.css` pone `scroll-behavior:smooth` en el root) — en WebKit esa animación no
+terminaba dentro del timeout del arnés y el primer intento midió valores a mitad de camino,
+reportando un "despineo" falso. Corregido en el arnés (no es un defecto del producto); documentado
+para que el próximo arnés de scroll no repita la medición.
+
+### 3 · El parpadeo entre recargas — `tamanoSiCompleta`, medir sin depender de `onLoad`
+
+El modo (`'tile'`/`'completa'`) dependía exclusivamente del `onLoad` de `next/image`, que puede no
+llegarle nunca a React para una carga dada — el resultado quedaba decidido por una carrera de timing
+del navegador, no por el código. `lib/storefront/marquesina-tarjeta.ts` gana `tamanoSiCompleta(img)`
+(pura, sin DOM — recibe `{complete, naturalWidth, naturalHeight}`): devuelve el tamaño si la imagen
+YA terminó de cargar, `null` si no. `HeroMediaMarquesina.tsx` la llama en un efecto que corre al
+montar (o al cambiar de producto) leyendo `imgTarjetaRef.current` — si la imagen ya estaba completa
+(el caso cacheado), mide ahí mismo; si no, el `onLoad` de siempre sigue cubriendo el caso en que
+todavía está cargando. Las dos vías escriben el mismo estado.
+
+Por qué esto no pinta un modo para luego cambiar al otro: la tarjeta entera nace a opacidad 0 y no
+empieza a aparecer hasta `UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde` — la medición-al-montar corre
+antes de que exista ese scroll, así que para el caso cacheado el modo queda resuelto desde el primer
+frame, a opacidad 0.
+
+**MEDIDO: diez recargas seguidas, caché caliente, los dos motores** — mismo arnés de arriba, mismo
+producto 3:4. Chromium: `[false×10]` (modo 'completa' las diez veces). WebKit: `[false×10]`. Las dos
+listas monocromáticas — nunca alternó.
+
+### Gate
+
+`npm run typecheck` — limpio. `npm test` (capa 1, suite completa): **3077/3078**, UN fallo:
+`lib/config/hero-marquesina.test.ts:250` ("claseAlturaAncestroMarquesina: CON tarjeta sigue siendo el
+presupuesto de SIEMPRE... 100svh+200vh"), que afirma el literal VIEJO del § 2 de arriba — ese archivo
+**no está en `touches:` de este slice** y el cambio que el spec pide invalida esa aserción por
+construcción (no hay forma de acortar el presupuesto sin que ese número deje de ser 200vh). No se
+editó, por la regla del contrato de slice: un path no declarado no está cubierto por esta aprobación.
+El fix es mecánico, una línea:
+
+```diff
+-  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
++  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+100vh)]');
+```
+
+(y el título del test, que cita "100svh+200vh" en su propio texto). `lib/animation.test.ts` (155/155,
+incluidas las pruebas nuevas de secuencia/derivación) y `lib/storefront/marquesina-tarjeta.test.ts`
+(21/21, incluidas las de `tamanoSiCompleta`) — los DOS archivos de test que SÍ están en `touches:` —
+pasan limpio. `npm run test:integracion`: **286/286**, sin cambios de figura contra el piso de
+`MARQUESINA-TARJETA-PRODUCTO-1`. `npm run guarda:color` y `npm run verificar:nayoli:visual`: la MISMA
+diferencia preexistente ya registrada en `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — `ruta-home`
+164889/4608000 px, caja idéntica `[105,862]–[1183,3166]` — todas las demás rutas y los dos hovers
+IDÉNTICOS. Figura exacta, caja exacta: confirma que sigue siendo el mismo hallazgo ajeno, no algo que
+este diff introduce (ninguno de sus archivos toca BrandStory ni las tarjetas de suscripción).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `HeroMediaMarquesina.tsx`, `claseAlturaAncestroMarquesina`,
+`UMBRAL_ENTRADA_TARJETA_MARQUESINA`, `opacidadEntradaTarjetaMarquesina`, `progresoEnVentana`,
+`tamanoSiCompleta`, `lib/storefront/marquesina-tarjeta.ts`. Grepeados uno por uno (y "marquesina" a
+secas, case-insensitive): **CERO coincidencias en `CLAUDE.md`** para cada uno — el archivo no nombra
+esta banda ni sus funciones. Nada que declarar falso.
+
+### `customer_bytes`
+
+**`changed: true`.** Mismo razonamiento que `MARQUESINA-TARJETA-PRODUCTO-1`: `HeroMediaMarquesina.tsx`
+sólo renderiza bajo `hero:'sticky'` (hoy CORTE), y **Café Onix ya tiene la tarjeta encendida en
+vivo**. Este diff cambia, para un visitante de Onix: (a) el MOMENTO en que la tarjeta aparece —ahora
+después de la frase, no a la vez—, (b) CUÁNTO scroll fijo hay después de que aparece —más corto—, y
+(c) si el recorte de la imagen es consistente entre recargas —antes podía alternar, ahora no—. Los
+tres son bytes/movimiento que un visitante VE. `strings: []` — ningún texto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo, sin contrato cross-repo.
+
+### Open follow-ups
+
+- `HERO-MARQUESINA-TEST-SYNC-1` — `lib/config/hero-marquesina.test.ts:250` sigue afirmando el
+  presupuesto VIEJO (100svh+200vh) para `claseAlturaAncestroMarquesina(true, false)`, que este slice
+  cambió a 100vh. Es el ÚNICO test rojo de `npm test` (3077/3078). El fix es el diff de una línea de
+  la sección Gate de arriba (más el texto del nombre del test). Fuera de `touches:` de este slice;
+  necesita su propio sign-off o una ampliación de alcance para aplicarse.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — RE-CONFIRMADO, sin cambios: `ruta-home` de Nayoli sin
+  preset sigue en 164889/4608000 px de diferencia contra el fixture/`main`, misma caja
+  `[105,862]–[1183,3166]`. Sigue sin investigarse acá (ajeno a los archivos de este diff).
+
+### Verdict
+
+**GATE_RED.** `npm test` corre con UN fallo (`lib/config/hero-marquesina.test.ts`, fuera de
+`touches:`, invalidado por construcción por el cambio aprobado del § 2) — el resto del gate
+(typecheck, los dos archivos de test DENTRO de `touches:`, el carril de integración) está verde, y
+la implementación se verificó además por ejecución directa en navegador (Playwright, dos motores,
+dos viewports): secuencia confirmada, distancia de scroll corta confirmada, diez recargas sin
+parpadeo confirmado en los dos motores. No se mergea — ni por el veredicto, ni porque el dispatch ya
+lo pedía explícito por `customer-bytes`. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**No cierra `MARQUESINA-TARJETA-SECUENCIA-1`** — queda abierto hasta que `HERO-MARQUESINA-TEST-SYNC-1`
+se resuelva (ampliando este slice o como follow-up) y el gate completo corra verde.
