@@ -656,6 +656,7 @@ export default function StoreNav() {
         conMark={STOREFRONT_TIENE_MARK}
         subtitle={cromo.navSubtitulo ? tagline : undefined}
         wordmarkTratado={navWordmark.activo}
+        taglineColor={navWordmark.taglineColor}
         transicionColor={navTratamiento.posicion}
         logo={logo}
         // § NAV-LOGO-Y-NOMBRE-AJUSTE-1 — SÓLO este mount (el `<header>`) pasa el alto de SU
@@ -1093,6 +1094,7 @@ export default function StoreNav() {
                     conMark={STOREFRONT_TIENE_MARK}
                     subtitle={cromo.navSubtitulo ? tagline : undefined}
                     wordmarkTratado={navWordmark.activo}
+                    taglineColor={navWordmark.taglineColor}
                     logo={logo}
                   />
                 </Link>

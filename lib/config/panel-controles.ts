@@ -352,6 +352,16 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // fuera a propósito ("son 'Detalles del sitio', fuera de este slice, con su propio disparador
   // futuro") ya tienen control (`DetallesSitioSeccion.tsx`, § CONTROLADOS_DETALLES_SECCION arriba) —
   // las dos entradas del grupo `PANEL-EDITOR-CHROME-METAS-1` se retiraron de acá.
+
+  // `navWordmark.taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1): dato mínimo —el color del tagline
+  // apilado del nav, 'atenuado'|'acento'— sin control en el panel todavía. A diferencia de las
+  // demás entradas de esta lista, el porqué no es "sólo mergePresetEnContent lo escribe" (ningún
+  // preset lo declara, § su propio docstring en `NavWordmarkContent`): es que el DISEÑO del control
+  // —cómo se le ofrecen colores al dueño en el editor— es una decisión de producto pendiente, que el
+  // owner aclaró explícitamente que NO es parte de este slice ("aún no sabría bien cómo sería la
+  // forma de incorporar la feature"). Hoy se escribe DIRECTO (operación de datos, § el asiento de
+  // este slice), no desde el panel.
+  { campo: 'navWordmark.taglineColor', razon: 'tendrá control cuando se diseñe la sugerencia de colores del editor', cierra: 'EDITOR-SUGERENCIA-COLORES-1' },
 ];
 
 // ─── EL CHEQUEO ─────────────────────────────────────────────────────────────────────────────────────

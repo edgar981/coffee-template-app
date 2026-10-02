@@ -82,6 +82,14 @@ import { CORTE } from '../../lib/config/themes';
 // borrado de blobs (`blobsHuerfanos`) ya la reconoce por default. Los bodies de abajo llevan `logo`
 // junto a las otras cuatro porque `wireDe` de `EncabezadoSeccion.tsx` manda el objeto COMPLETO en
 // cada guardado (nunca a medias), igual que con las demás.
+//
+// § NAV-LOGO-MOVIL-CON-AIRE-1: `navWordmark` gana un SEGUNDO campo (`taglineColor`) — no una SEXTA
+// clave, el `.pick()`/`METAS_ENCABEZADO` de abajo NO cambian. A DIFERENCIA de todas las
+// ampliaciones anteriores de este archivo, ÉSTA no tiene editor en `EncabezadoSeccion.tsx` todavía
+// (§ el docstring de `NavWordmarkContent.taglineColor`, site-content-defaults.ts: `EncabezadoSeccion.
+// tsx` sigue fuera de `touches:` de este slice y su `wireDe` real sigue mandando sólo `{activo}`) —
+// así que el test nuevo de abajo ejercita el MECANISMO (el viaje borrador→publicar→releer funciona
+// para el campo), no la UX real del panel, que todavía no lo manda.
 
 const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true, logo: true });
 const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil', 'logo'] as const;
@@ -302,6 +310,30 @@ test('el drawer móvil se puede publicar/descartar de forma INDEPENDIENTE de los
   assert.equal(publicado.navDrawerMovil.variante, 'pantallaCompleta');
   assert.equal(publicado.cromo.navTinta, false, 'los otros ejes no se tocaron');
   assert.equal(publicado.logo.oscuro, '', 'logo no se tocó');
+});
+
+// § NAV-LOGO-MOVIL-CON-AIRE-1 — `navWordmark` gana un SEGUNDO campo (`taglineColor`): el body de
+// abajo lo manda junto a `activo` porque `wireDe` de `EncabezadoSeccion.tsx` manda el objeto
+// COMPLETO en cada guardado — MISMO patrón que las demás metas de esta ruta. A diferencia de las
+// otras ocho ampliaciones de arriba, ÉSTA no tiene editor en el panel todavía (§ el docstring de
+// `NavWordmarkContent.taglineColor`): el viaje borrador→publicar→releer sigue siendo el MISMO
+// mecanismo (`guardarBorrador`/`publicarSeccion`/`descartarSeccion`), así que se afirma igual.
+test('taglineColor viaja borrador→publicar→releer, junto a activo, por el MISMO mecanismo', async () => {
+  await guardarComoLaRuta({ navWordmark: { activo: true, taglineColor: 'acento' } });
+
+  const { contenido } = await readSiteContentParaEditor();
+  assert.equal(contenido.navWordmark.activo, true);
+  assert.equal(contenido.navWordmark.taglineColor, 'acento');
+
+  await publicarSeccion('navWordmark');
+  const publicado = await readSiteContent();
+  assert.equal(publicado.navWordmark.activo, true);
+  assert.equal(publicado.navWordmark.taglineColor, 'acento');
+});
+
+test('taglineColor: sin dato guardado, resuelve a "atenuado" (el default byte-idéntico) — Onix/Nayoli no cambian', async () => {
+  const publicado = await readSiteContent();
+  assert.equal(publicado.navWordmark.taglineColor, 'atenuado');
 });
 
 test('el logo se puede guardar/publicar de forma INDEPENDIENTE de los otros cuatro ejes (§ MARCA-LOGO-IMAGEN-1)', async () => {

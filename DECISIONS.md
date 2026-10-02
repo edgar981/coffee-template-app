@@ -45160,3 +45160,201 @@ paso 0, no el paso de Pago donde vive el cambio (§ arriba) — la evidencia rea
 la ejecución en el arnés (checkout a 1440 y en iPhone WebKit, campo vacío → imagen → confirmación →
 panel, § arriba), no el guard de píxeles. Commiteado en `slice/corte-reescritura-prototipo-1`; el
 merge de la rama entera sigue pendiente de ese gate separado, ajeno a este slice.
+
+## 2026-10-02 — el logo de `logoYNombre` gana AIRE vertical en el teléfono, y el tagline gana un color POR TIENDA (`NAV-LOGO-MOVIL-CON-AIRE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Observed-report del
+orquestador (Playwright WebKit "iPhone 15" contra la demo) tras `NAV-LOGO-Y-NOMBRE-AJUSTE-1`: el
+`<img>` del logo en modo `'logoYNombre'` mide EXACTAMENTE el alto de la barra (76px en el
+teléfono) — el sello se sale visualmente de su propia caja, el texto curvo de arriba toca el borde
+superior y el de abajo se monta sobre el filete. Y un segundo pedido del owner sobre la MISMA demo:
+el tagline "SAN ADOLFO · HUILA" tenía un tono dorado (`--sf-tostado-5`) en una versión anterior y
+el owner prefiere recuperarlo, **sólo para Café Las Chamisas** — "en Onix queda igual", aclarando
+que las variantes de color eran un ejemplo, no un pedido literal de un selector. La aprobación
+autoriza la escritura, nunca el merge.
+
+### Causa — el prop `altoBarraClase` llenaba la barra BORDE A BORDE, por diseño del slice anterior
+
+`NAV-LOGO-Y-NOMBRE-AJUSTE-1` derivó el alto del logo del alto DISPONIBLE de la barra
+(`altoLogoNavMovilClase`, marca-logo.ts) explícitamente para que "llene la barra borde a borde" —
+su propio asiento lo dice así, y medía exactamente eso (64px de `<img>` en una barra de 64px, 76px
+en una de 76px). Era el comportamiento PEDIDO en ese momento; esta tanda es el ajuste del owner
+sobre cómo se ve ese resultado en la demo real.
+
+### El fix — un AIRE explícito y nombrado, nunca interpolado
+
+`altoLogoNavMovilClase` resta `2×AIRE_VERTICAL_LOGO_MOVIL_PX` (8px por lado, 16px total — del mismo
+orden que el `gap-2` que ya separa los íconos de "Actions") del alto de barra de cada tramo: 64→48,
+76→60, 88→72. **Los tres valores son LITERALES, no interpolados en un template** (§ CLAUDE.md,
+"Literal y no interpolado, para que el JIT de Tailwind vea las clases" —
+`gridColsPresentaciones`—): un `` `h-[${64-a}px]` `` no aparece como texto `h-[48px]` en ningún
+archivo fuente, así que el JIT de Tailwind v4 no generaría la clase y el alto no se aplicaría en
+producción — el mismo defecto que ese comentario ya nombra, en una superficie nueva. El alto de la
+barra, el filete y el `items-center` que centra el logo NO se tocan: el aire aparece sólo porque la
+caja del `<img>` es más chica, nunca por un `margin`/`padding` agregado.
+
+`AIRE_VERTICAL_LOGO_MOVIL_PX` se exporta y un test cruza la aritmética contra los literales
+(`marca-logo.test.ts`, `nav-internas.test.ts`) — el mismo patrón que ya cruzaba
+`altoLogoNavMovilClase` contra `navOffsetClase`, ahora con el aire de por medio.
+
+### `taglineColor` — un campo nuevo en `NavWordmarkContent`, DATO sin control todavía
+
+`navWordmark.taglineColor: 'atenuado' | 'acento'` (dominio CERRADO de 2, resuelto en
+`resolverNavWordmark` con el mismo patrón que `navDrawerMovil.variante`/`carrito.variante`).
+`'atenuado'` (default) es el comportamiento de SIEMPRE, byte a byte. `'acento'` pinta el tagline con
+`--sf-tostado-5` (el dorado medido) **salvo que falle el piso de 4.5:1 a 11px**, caso en el que cae
+al par "texto sobre" que el motor de paleta ya ofrece para ese fondo: `--sf-acento-texto` — el MISMO
+mecanismo que `colorActivo` (`StoreNav.tsx`, § NAV-LINK-ACTIVO-INVISIBLE-1) ya usa para este mismo
+problema sobre este mismo header. `colorTaglineAcento`/`usaColorAcento` (marca-logo.ts) resuelven
+la decisión; `BloqueNombreTagline` (Logo.tsx) la aplica como override de SÓLO el color, preservando
+la tipografía (itálica incluida) de la rama que ya estuviera activa — "el tono dorado… sin la
+cursiva" (el pedido del owner) es el color, no un tratamiento tipográfico nuevo.
+
+**La medición de contraste tuvo una corrección propia, encontrada por EJECUCIÓN, no por lectura:**
+la primera pasada (`.scratch/medir-tagline-acento.ts`) llamó `derivarPaleta(raices)` sin el segundo
+argumento (`ejes`), y dio `acento-texto` = `#a70004` (7.68:1 contra fondo) para CORTE — un número
+que CORTE **nunca produce** en el storefront real, porque declara `origenTexto:'tinta'`
+(`themes.ts:1048`), y ese eje re-deriva `acento-texto` a partir de `tinta` (`derivarPaleta`,
+`palette-derive.ts:277-283`). El harness de Cierre (abajo) midió el color COMPUTADO en el
+navegador — `rgb(16,36,7)` = `#102407` = `tinta`, no `#a70004` — y la discrepancia con la cifra
+documentada disparó la corrección: `.scratch/medir-tagline-acento-2.ts`, pasando los ejes reales de
+CORTE, da `acento-texto` = `tinta`, **15.90:1 contra `fondo`** (16.44:1 contra `tarjeta`). La
+conclusión (pasa el piso) no cambió; el número documentado, sí — y queda escrita la garantía GENERAL
+que no depende de CORTE: `acento-texto` es siempre `pisoContraste(…, fondo, 4.5)`, así que el
+fallback es seguro para cualquier raíz/eje que un tenant declare, no por coincidencia de este preset.
+
+### EXENCIÓN TEMPORAL — sin control de panel, y el hueco de reenvío que eso deja
+
+`navWordmark.taglineColor` se registró en `panel-controles.ts` (`PENDIENTE_PANEL`) con la razón
+exacta que pidió el spec: *"tendrá control cuando se diseñe la sugerencia de colores del editor"*
+(`cierra: EDITOR-SUGERENCIA-COLORES-1`, coined por este slice). El owner aclaró explícitamente que
+el diseño de cómo se ofrecen colores en el editor **no es parte de este slice** — "aún no sabría
+bien cómo sería la forma de incorporar la feature".
+
+**Consecuencia medida, documentada en el propio código (`NavWordmarkContent.taglineColor`,
+site-content-defaults.ts):** `EncabezadoSeccion.tsx` (fuera de `touches:` de este slice) sigue
+mandando `navWordmark: {activo: f.logo}` en CADA guardado del Encabezado — sin `taglineColor`. Como
+`guardarBorrador`/`publicarSeccion` reemplazan la clave `navWordmark` ENTERA (no por campo), **HOY
+publicar el Encabezado por cualquier otro motivo revierte `taglineColor` a `'atenuado'` en
+silencio** — el mismo modo de falla que `guardarTemaBorrador`/`fusionarTema` ya cerró para los ejes
+aditivos de `tema` (y que `cromo.navBadge` cierra con un ref-y-reenvío en `EncabezadoSeccion.tsx`).
+El mismo hueco existe en `mergePresetEnContent` (`themes.ts`, también fuera de `touches:`):
+`out.navWordmark = {activo: …}` no lee `taglineColor`, así que un `aplicarPreset` también lo
+revertiría — EXACTAMENTE el hueco ya documentado y aceptado para `navTratamiento.buscarMovil`.
+**El harness de Cierre lo reprodujo en carne propia**: el primer intento de sembrar
+`taglineColor:'acento'` en el `base` ANTES de `mergePresetEnContent(base, CORTE)` perdía el campo
+—confirmado midiendo `rgb(255,255,255)`, ni tostado-5 ni acento-texto—; el fix fue aplicar
+`content.navWordmark = {...content.navWordmark, taglineColor:'acento'}` DESPUÉS del merge, que es
+la misma operación que el owner/orquestador deberá hacer contra la base real de Las Chamisas.
+
+El campo se escribe HOY por fuera del panel (operación de datos); el orquestador es quien lo
+enciende en Las Chamisas, no este slice (§ el spec).
+
+### Deviaciones medidas
+
+- **La medición de contraste de `acento-texto` se corrigió** (§ arriba): el número documentado
+  pasó de 7.68:1 (paleta sin los ejes de CORTE) a 15.90:1 (paleta real) — detectado por el harness
+  de Cierre, no por el spec ni por lectura. No cambia la conclusión ni el código.
+- **Ninguna otra respecto al spec.** El prop `taglineColor` se agregó a `Logo.tsx`
+  (`components/storefront/Logo.tsx`, en `touches:`) y se conectó en los DOS mounts de `StoreNav.tsx`
+  (el `<header>` y el drawer móvil `pantallaCompleta`) — el spec no acotaba a un solo mount, y el
+  tagline también se muestra en el drawer cuando `cromo.navSubtitulo` está encendido.
+
+### El TECHO del TRINQUETE de `PENDIENTE_PANEL` — RATCHET FUERA DE `touches:`, no resuelto por este slice
+
+`lib/config/panel-controles.test.ts` (NO en `touches:` de este slice) afirma
+`PENDIENTE_PANEL.length <= 10` — un trinquete deliberado (§ GUARDA-PRE-MERGE-TRINQUETE-BUILD-1) que
+exige bajar el techo A MANO, con explicación, cuando una exención se CIERRA, y lo sube a propósito
+sólo si alguien lo escribe explícitamente ahí. Agregar la exención de `navWordmark.taglineColor`
+(que el spec pide textual) sube `PENDIENTE_PANEL` de 10 a 11, y esa única aserción pasa a fallar.
+
+**No se tocó `panel-controles.test.ts`**: el dispatch de este slice es explícito —"YOUR DIFF MUST
+STAY INSIDE `touches:`… If the work turns out to need a file outside it, stop and say so — do not
+widen it yourself"— y ese archivo no está en la lista aprobada. Medido en el árbol final: `npm test`
+da **3138/3139**, con la ÚNICA falla siendo esa aserción del techo; las otras 3138 (incluidas las 24
+nuevas de este slice) pasan. `npm run test:integracion` da **305/305**. El fix mecánico es una línea
+(`<= 10` → `<= 11`, con la explicación que el propio test pide) en un archivo fuera de alcance — se
+reporta como hallazgo, no se aplica.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3138/3139** — la única falla es el trinquete de `PENDIENTE_PANEL` (§ arriba), fuera de `touches:` |
+| `npm run test:integracion` | **305/305** (+2: el viaje borrador→publicar→releer de `taglineColor`) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA** que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/`NAV-LOGO-Y-NOMBRE-AJUSTE-1` (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`); las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, misma caja |
+
+Nayoli no sube logo (`modoLogoResuelto` da `'soloNombre'`) y su `navWordmark.taglineColor` resuelve
+al default (`'atenuado'`), así que `logoYNombre`/`colorTaglineAcento` nunca se ejercitan en su
+render — el drift reconfirmado es el mismo preexistente, ajeno a este slice.
+
+**Evidencia manual del Cierre — base efímera con "Café Las Chamisas", el mismo logo redondo de
+prueba + tagline "SAN ADOLFO · HUILA", `navWordmark.activo:true` + `taglineColor:'acento'`, preset
+CORTE.** Harness ad-hoc (`.scratch/nav-logo-movil-con-aire-cierre.ts`, gitignorado): Postgres
+efímero (`:55444`), `migrate deploy` sin el seed de Nayoli, build + `next start` (`:3498`),
+Playwright aislado (WebKit `'iPhone 15'`, Chromium 768 y 1440). Capturas de home (sobre el hero) e
+interna, en los tres anchos.
+
+Alturas y márgenes MEDIDOS (`getBoundingClientRect`), por `page.evaluate`:
+
+| escenario | alto `<img>` | alto barra | margen arriba | margen abajo | toca el filete |
+| --- | --- | --- | --- | --- | --- |
+| iPhone 15 (WebKit), home | 60px | 76px | 7.5px | 8.5px | no |
+| iPhone 15 (WebKit), interna | 60px | 76px | 7.5px | 8.5px | no |
+| 768px (Chromium), home | 72px | 88px | 7.5px | 8.5px | no |
+| 768px (Chromium), interna | 72px | 88px | 7.5px | 8.5px | no |
+| 1440px (Chromium), home/interna | 48px | — | — | — | n/a (desktop, sin filete en el logo) |
+
+La asimetría 7.5/8.5 (en vez de 8/8 exactos) es el filete (`border-bottom:1px`) de CORTE comiéndose
+1px del área de centrado de la fila — ambos márgenes siguen `> 0`, que es la afirmación del spec; el
+alto del `<img>` es EXACTO a los literales (`altoLogoNavMovilClase`). 1440px: `imgHeight` se quedó
+en 48px, igual que antes de este slice (la rama de escritorio no se tocó) — confirmado por
+`page.evaluate`, no supuesto.
+
+Color del tagline MEDIDO (`getComputedStyle(…).color`), `taglineColor:'acento'`:
+
+| escenario | variant | color computado | hex | contraste medido |
+| --- | --- | --- | --- | --- |
+| 1440, home (flotando sobre el hero) | `dark` | `rgb(211,145,99)` | `#d39163` (`--sf-tostado-5`) | 6.26:1 vs `tinta` |
+| 1440, interna (nav sólido) | `light` | `rgb(16,36,7)` | `#102407` (`--sf-acento-texto`, = `tinta` por `origenTexto`) | 15.90:1 vs `fondo` |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `altoLogoNavMovilClase`, `AIRE_VERTICAL_LOGO_MOVIL_PX`,
+`colorTaglineAcento`, `usaColorAcento` (`lib/config/marca-logo.ts`); `NavWordmarkContent`,
+`ColorTagline`, `resolverNavWordmark`, `DEFAULTS.navWordmark` (`lib/config/site-content-defaults.
+ts`); `navWordmarkEditableSchema` (`lib/config/site-content-schema.ts`); `PENDIENTE_PANEL`
+(`lib/config/panel-controles.ts`); `BloqueNombreTagline`, el prop `taglineColor` de `Logo`
+(`components/storefront/Logo.tsx`); `StoreNav.tsx` (los dos mounts de `<Logo>`); `NAV-LOGO-Y-
+NOMBRE-AJUSTE-1` (referenciado, no reabierto). Grepeados contra `CLAUDE.md`:
+
+- `NAV-LOGO-Y-NOMBRE-AJUSTE-1` → **una coincidencia**, en la entrada de ese slice (propio
+  DECISIONS.md, no CLAUDE.md — CLAUDE.md no lo nombra). Sin coincidencias en CLAUDE.md.
+- `altoLogoNavMovilClase`, `AIRE_VERTICAL_LOGO_MOVIL_PX`, `colorTaglineAcento`, `usaColorAcento`,
+  `NavWordmarkContent`, `ColorTagline`, `resolverNavWordmark`, `navWordmarkEditableSchema`,
+  `PENDIENTE_PANEL`, `BloqueNombreTagline`, `taglineColor` → **CERO coincidencias** en CLAUDE.md.
+- `StoreNav.tsx` / `Logo.tsx` → coinciden con las menciones YA vigentes y sin relación con este diff
+  (`Logo.tsx` → el comentario sobre `LogoMark`/el SVG de la flor; `StoreNav.tsx` → ninguna mención
+  directa). Nada de lo que este diff cambió está descrito en CLAUDE.md.
+
+Nada queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA (no sólo este commit) sigue cargando customer-bytes sin aprobar desde
+`MARQUESINA-TARJETA-COMO-LETRAS-1` (§ los asientos de cada slice posterior) — éste suma otro: el
+alto del logo en `'logoYNombre'` cambia (de llenar la barra a dejar aire) y el tagline gana un color
+posible (`'acento'`). `strings: []` — no hay copy nuevo (el texto "SAN ADOLFO · HUILA" ya existía).
+`approved: null` — Nayoli no sube logo y su `taglineColor` resuelve al default; confirmado por
+`guarda:color`/`verificar:nayoli:visual` con la MISMA cifra exacta que antes de este slice (el
+drift preexistente, ajeno).
+
+### `schema`/`cross-repo-contract`
+
+No aplica — sin migración, sin modelo Prisma nuevo, sin contrato cruzado (`SiteContent.content` es
+el mismo JSON de siempre, con una clave más dentro de `navWordmark`).
+
+Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente de
+ese gate separado, ajeno a este slice.

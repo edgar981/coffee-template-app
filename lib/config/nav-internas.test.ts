@@ -5,7 +5,7 @@ import { navOffsetClase, PRESETS, CORTE } from './themes';
 import { resolverSiteContent, resolverOrden, varianteDeBanda } from './site-content-defaults';
 import { tratamientoNav } from './esquema-style';
 import { contenidoConPresetDeVista } from './theme-mirador';
-import { altoLogoNavMovilClase } from './marca-logo';
+import { altoLogoNavMovilClase, AIRE_VERTICAL_LOGO_MOVIL_PX } from './marca-logo';
 
 // § NAV-INTERNAS-CLARO-Y-OFFSET-1 — dos defectos que el owner reportó sobre el mismo gate visual
 // (2026-09-29, capturas de la ficha de producto y de una página interna del tema real):
@@ -230,18 +230,24 @@ test('buscar OCULTO en el teléfono (CORTE con buscarMovil:false): invisible + l
   assert.doesNotMatch(claseBuscarBarraMovil(true), /\bhidden\b/);
 });
 
-// ─── `altoLogoNavMovilClase` (marca-logo.ts, § NAV-LOGO-Y-NOMBRE-AJUSTE-1) NO PUEDE DIVERGIR del
-// alto REAL del header que `navOffsetClase` ya afirma arriba (76/88px CORTE, pt-16=64px el resto):
-// las dos funciones describen el MISMO `<header>` desde dos ángulos distintos (padding-top de la
-// página vs. alto del logo en `logoYNombre`) — un cambio futuro a `navFilaAltoClase`
-// (StoreNav.tsx) que actualice una y no la otra queda atrapado acá, no sólo por lectura.
+// ─── `altoLogoNavMovilClase` (marca-logo.ts, § NAV-LOGO-Y-NOMBRE-AJUSTE-1, § NAV-LOGO-MOVIL-CON-
+// AIRE-1) NO PUEDE DIVERGIR del alto REAL del header que `navOffsetClase` ya afirma arriba (76/88px
+// CORTE, pt-16=64px el resto) — MENOS el aire vertical (§ `AIRE_VERTICAL_LOGO_MOVIL_PX`,
+// marca-logo.ts): las dos funciones describen el MISMO `<header>` desde dos ángulos distintos
+// (padding-top de la página vs. alto del logo en `logoYNombre`) — un cambio futuro a
+// `navFilaAltoClase` (StoreNav.tsx) que actualice una y no la otra queda atrapado acá, no sólo por
+// lectura. Antes de § NAV-LOGO-MOVIL-CON-AIRE-1 el logo llenaba la barra BORDE A BORDE (mismo
+// número que `navOffsetClase`); ahora es ese número MENOS `2×AIRE_VERTICAL_LOGO_MOVIL_PX`.
 
-test('altoLogoNavMovilClase(false) da el MISMO número de px que navOffsetClase(false) — 64px (h-16 ≡ pt-16)', () => {
-  assert.equal(altoLogoNavMovilClase(false), 'h-16');
+test('altoLogoNavMovilClase(false) = el alto de barra (64px, pt-16/h-16) MENOS 2×aire — 48px', () => {
   assert.equal(navOffsetClase(false), 'pt-16');
+  assert.equal(altoLogoNavMovilClase(false), 'h-[48px]');
+  assert.equal(48, 64 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
 });
 
-test('altoLogoNavMovilClase(true) da los MISMOS dos números de px que navOffsetClase(true) — 76/88', () => {
-  assert.equal(altoLogoNavMovilClase(true), 'h-[76px] min-[640px]:h-[88px]');
+test('altoLogoNavMovilClase(true) = los dos altos de barra de CORTE (76/88px) MENOS 2×aire — 60/72px', () => {
   assert.equal(navOffsetClase(true), 'pt-[76px] min-[640px]:pt-[88px] cortenav:pt-[88px]');
+  assert.equal(altoLogoNavMovilClase(true), 'h-[60px] min-[640px]:h-[72px]');
+  assert.equal(60, 76 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
+  assert.equal(72, 88 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
 });

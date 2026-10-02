@@ -28,11 +28,19 @@ import { siteContentEditableSchema } from './site-content-schema';
 // DATOS (`resolverNavWordmark`, el catálogo de presets, `mergePresetEnContent`) y el componente
 // `Logo`, que no depende de ningún contexto de ruteo y SÍ se renderiza de verdad.
 
-const NAV_WORDMARK_HOY: NavWordmarkContent = { activo: false };
+// `NAV_WORDMARK_HOY` es el navWordmark RESUELTO de hoy (lo que `resolverNavWordmark`/
+// `resolverSiteContent`/`DEFAULTS` dan) — incluye `taglineColor:'atenuado'` (§ NAV-LOGO-MOVIL-CON-
+// AIRE-1). `NAV_WORDMARK_RAW_HOY` es la forma CRUDA que `mergePresetEnContent` escribe —SIN
+// `taglineColor`, porque ningún preset es su eje (misma familia que `navTratamiento.buscarMovil`,
+// § su propio docstring: "ningún preset lo declara… nace `true` para TODO tenant", y el docstring
+// de `NavWordmarkContent.taglineColor` documenta el MISMO hueco para este campo) — las dos formas
+// son DISTINTAS a propósito, no un error de una de las dos.
+const NAV_WORDMARK_HOY: NavWordmarkContent = { activo: false, taglineColor: 'atenuado' };
+const NAV_WORDMARK_RAW_HOY = { activo: false };
 
-// ── resolverNavWordmark — dominio CERRADO de 1 clave, gemelo de resolverNavTratamiento ───────────
+// ── resolverNavWordmark — dominio CERRADO de 1+1 claves, gemelo de resolverNavTratamiento ────────
 
-test('resolverNavWordmark: sin guardado (undefined/null/basura) → activo:false (el HOY)', () => {
+test('resolverNavWordmark: sin guardado (undefined/null/basura) → activo:false, taglineColor:atenuado (el HOY)', () => {
   assert.deepEqual(resolverNavWordmark(undefined, {}), NAV_WORDMARK_HOY);
   assert.deepEqual(resolverNavWordmark(null, {}), NAV_WORDMARK_HOY);
   assert.deepEqual(resolverNavWordmark('basura', {}), NAV_WORDMARK_HOY);
@@ -44,16 +52,16 @@ test('resolverNavWordmark: un tipo equivocado (string donde va boolean) cae al d
   assert.equal(r.activo, false);
 });
 
-test('resolverNavWordmark: un boolean real guardado se respeta', () => {
-  assert.deepEqual(resolverNavWordmark({ activo: true }, {}), { activo: true });
+test('resolverNavWordmark: un boolean real guardado se respeta (taglineColor sigue su propio default, sin fila)', () => {
+  assert.deepEqual(resolverNavWordmark({ activo: true }, {}), { activo: true, taglineColor: 'atenuado' });
 });
 
-test('resolverNavWordmark: sin guardado, un DEFAULT explícito manda (defensa simétrica, como resolverNavTratamiento)', () => {
+test('resolverNavWordmark: sin guardado, un DEFAULT explícito de `activo` manda (defensa simétrica, como resolverNavTratamiento)', () => {
   const def = { activo: true };
-  assert.deepEqual(resolverNavWordmark(undefined, def), def);
-  assert.deepEqual(resolverNavWordmark({}, def), def);
+  assert.deepEqual(resolverNavWordmark(undefined, def), { activo: true, taglineColor: 'atenuado' });
+  assert.deepEqual(resolverNavWordmark({}, def), { activo: true, taglineColor: 'atenuado' });
   // guardado presente con el TIPO correcto sigue ganando sobre el default
-  assert.deepEqual(resolverNavWordmark({ activo: false }, def), { activo: false });
+  assert.deepEqual(resolverNavWordmark({ activo: false }, def), { activo: false, taglineColor: 'atenuado' });
 });
 
 // ── resolverSiteContent / DEFAULTS — sin fila, byte-idéntico ────────────────────────────────────
@@ -81,22 +89,22 @@ test('validarPreset(CORTE) sigue devolviendo [] (completo) — el eje nuevo es o
   assert.ok(presetCompleto(CORTE));
 });
 
-test('mergePresetEnContent: CORTE escribe `content.navWordmark.activo:true`', () => {
+test('mergePresetEnContent: CORTE escribe `content.navWordmark.activo:true` — SIN taglineColor (no es eje de preset, § NAV_WORDMARK_RAW_HOY)', () => {
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, CORTE);
   assert.deepEqual(out.navWordmark, { activo: true });
 });
 
-test('mergePresetEnContent: PATIO no declara el eje — la meta queda en su default de HOY (false)', () => {
+test('mergePresetEnContent: PATIO no declara el eje — la meta queda en su default de HOY (false), crudo', () => {
   assert.equal(PATIO.navWordmarkActivo, undefined);
   const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, PATIO);
-  assert.deepEqual(out.navWordmark, { activo: false });
+  assert.deepEqual(out.navWordmark, NAV_WORDMARK_RAW_HOY);
 });
 
-test('mergePresetEnContent: los otros 5 presets escriben `content.navWordmark` = el de HOY, byte-idéntico', () => {
+test('mergePresetEnContent: los otros 5 presets escriben `content.navWordmark` = el de HOY crudo (sin taglineColor), byte-idéntico', () => {
   for (const preset of PRESETS) {
     if (preset.clave === 'CORTE') continue;
     const out = mergePresetEnContent(DEFAULTS as unknown as Record<string, unknown>, preset);
-    assert.deepEqual(out.navWordmark, NAV_WORDMARK_HOY, `${preset.clave} debe dejar navWordmark en su default de hoy`);
+    assert.deepEqual(out.navWordmark, NAV_WORDMARK_RAW_HOY, `${preset.clave} debe dejar navWordmark en su default de hoy`);
   }
 });
 
@@ -129,6 +137,30 @@ test('navWordmark: un TIPO equivocado se rechaza (el write es estricto; el resol
 test('navWordmark: ausente no rompe el parse (es opcional, como las otras metas)', () => {
   const parsed = siteContentEditableSchema.parse({});
   assert.equal(parsed.navWordmark, undefined);
+});
+
+// ── `navWordmark.taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1) — MISMO patrón de `navDrawerMovil.
+// variante`/`carrito.variante`: `z.enum` de 2 miembros, declarado para que un futuro write general
+// no lo STRIPPEE en silencio (§65-B).
+
+test('navWordmark.taglineColor: "atenuado"/"acento" SOBREVIVEN al parse', () => {
+  assert.deepEqual(
+    siteContentEditableSchema.parse({ navWordmark: { activo: true, taglineColor: 'atenuado' } }).navWordmark,
+    { activo: true, taglineColor: 'atenuado' },
+  );
+  assert.deepEqual(
+    siteContentEditableSchema.parse({ navWordmark: { activo: true, taglineColor: 'acento' } }).navWordmark,
+    { activo: true, taglineColor: 'acento' },
+  );
+});
+
+test('navWordmark.taglineColor: un valor fuera del set CERRADO se rechaza (el write es estricto)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ navWordmark: { taglineColor: 'dorado' } }));
+});
+
+test('navWordmark.taglineColor: ausente no rompe el parse — es opcional, como `activo`', () => {
+  const parsed = siteContentEditableSchema.parse({ navWordmark: { activo: true } });
+  assert.deepEqual(parsed.navWordmark, { activo: true });
 });
 
 // ── El COMPONENTE `Logo` — la rama `subtitle`, ESTILO por `wordmarkTratado` ─────────────────────
@@ -205,4 +237,69 @@ test('Logo `stacked` (el footer) con wordmarkTratado=true: NO SE TOCA — el sub
       + '<span class="font-display text-[13px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'
       + '</div></div>',
   );
+});
+
+// ── `taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1) — EJECUTADO a través del componente REAL, no sólo
+// de `colorTaglineAcento`/`usaColorAcento` en aislado (§ marca-logo.test.ts): esto prueba que
+// `Logo.tsx` efectivamente los CONECTA al render, para las dos ramas (tratada/sin tratar) y las
+// dos variantes (light/dark).
+
+test('taglineColor ausente (default "atenuado"): HTML IDÉNTICO a los dos tests de arriba — byte a byte, Onix/Nayoli no cambian', () => {
+  const tratado = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', wordmarkTratado: true }),
+  );
+  assert.ok(tratado.includes('<span class="mt-1 font-inter font-normal tracking-[0.11em] text-[11px] text-[var(--sf-tinta)]/60">San Adolfo · Huila</span>'));
+  const sinTratar = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila' }),
+  );
+  assert.ok(sinTratar.includes('<span class="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'));
+});
+
+test('taglineColor="acento", variant="dark" (tratado): el sub cae a --sf-tostado-5 literal, en vez de `${wordmark}/60` — SIN itálica (sigue sans, sólo cambia el color)', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', wordmarkTratado: true, variant: 'dark', taglineColor: 'acento' }),
+  );
+  assert.ok(html.includes('<span class="mt-1 font-inter font-normal tracking-[0.11em] text-[11px] text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'));
+  assert.doesNotMatch(html, /italic/, 'el color cambia, la itálica no vuelve');
+});
+
+test('taglineColor="acento", variant="light" (tratado): el piso de contraste falla con tostado-5 (2.54:1 medido) — cae a --sf-acento-texto (15.90:1 en CORTE, que resuelve a tinta por origenTexto:\'tinta\')', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', wordmarkTratado: true, variant: 'light', taglineColor: 'acento' }),
+  );
+  assert.ok(html.includes('<span class="mt-1 font-inter font-normal tracking-[0.11em] text-[11px] text-[var(--sf-acento-texto)]">San Adolfo · Huila</span>'));
+});
+
+test('taglineColor="acento", SIN wordmarkTratado (sin tratar), variant="dark": sigue en --sf-tostado-5 — mismo literal que "atenuado" acá, LA ITÁLICA SE CONSERVA (sólo el color cambia, § el docstring de BloqueNombreTagline)', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', variant: 'dark', taglineColor: 'acento' }),
+  );
+  assert.ok(html.includes('<span class="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'));
+});
+
+test('taglineColor="acento", SIN wordmarkTratado, variant="light": el piso también aplica fuera de la rama tratada — cae a --sf-acento-texto, itálica conservada', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', variant: 'light', taglineColor: 'acento' }),
+  );
+  assert.ok(html.includes('<span class="mt-0.5 font-display text-[11px] italic text-[var(--sf-acento-texto)]">San Adolfo · Huila</span>'));
+});
+
+test('taglineColor="acento" SIN subtitle: no hay nada que colorear — HTML idéntico al de siempre (usaColorAcento da false)', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', wordmarkTratado: true, taglineColor: 'acento' }),
+  );
+  assert.equal(
+    html,
+    '<div class="flex min-w-0 items-center gap-2.5">'
+      + '<span aria-hidden="true" class="font-display text-[22px] leading-none text-[var(--sf-tinta)] pointer-events-none invisible absolute whitespace-nowrap">Café Nayoli</span>'
+      + '<span class="font-display text-[22px] leading-none text-[var(--sf-tinta)]">Café Nayoli</span>'
+      + '</div>',
+  );
+});
+
+test('taglineColor="acento" en `stacked` (el footer): NO SE TOCA, mismo precedente que wordmarkTratado — sigue --sf-tostado-5 itálico', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', stacked: true, wordmarkTratado: true, taglineColor: 'acento' }),
+  );
+  assert.ok(html.includes('<span class="font-display text-[13px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'));
 });

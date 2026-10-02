@@ -1344,6 +1344,10 @@ export interface NavTratamientoContent {
 // `NavTratamientoContent` para las dos cosas habría hecho que un preset futuro que quisiera SÓLO uno
 // de los dos ejes no pudiera, y habría obligado a re-redactar el docstring/test ya cerrados de ESE
 // eje para que dijeran algo que no midieron. Meta NUEVA y PROPIA, no un 2º campo de `navTratamiento`.
+// El set CERRADO de `NavWordmarkContent.taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1) — ver su
+// docstring, abajo, para el porqué completo de los dos valores y de la medición que los respalda.
+export type ColorTagline = 'atenuado' | 'acento';
+
 export interface NavWordmarkContent {
   // ¿El wordmark apilado del nav (nombre + sub-encabezado, rama `subtitle` de `Logo.tsx` — el apilado
   // YA EXISTE, gateado por `cromo.navSubtitulo`; esto es sólo el ESTILO) calza el `.wordmark`/
@@ -1357,6 +1361,68 @@ export interface NavWordmarkContent {
   // escribe, con `preset.navWordmarkActivo`; de los 6 presets del catálogo, sólo CORTE lo declara
   // `true`.
   activo: boolean;
+  // EL COLOR DEL TAGLINE APILADO (§ NAV-LOGO-MOVIL-CON-AIRE-1) — campo PROPIO, no un ajuste de
+  // `activo`: un tenant puede querer el tratamiento apilado (`activo:true`) con el tagline en SU
+  // color de siempre, y otro puede querer el dorado sin tocar el resto del tratamiento — son ejes
+  // independientes, aunque el segundo sólo tenga efecto visible junto al primero (sin tagline no
+  // hay nada que colorear, § `BloqueNombreTagline`: la rama `subtitle` ausente no renderiza el sub).
+  //
+  // `'atenuado'` (default) = el comportamiento de SIEMPRE: tratado → `${wordmark}/60` (atenuado al
+  // color del nombre); sin tratar → `--sf-tostado-5` (el literal de hoy, sin cambio). `'acento'` =
+  // el tono DORADO que la primera versión de `logoYNombre` mostraba antes de § NAV-LOGO-Y-NOMBRE-
+  // AJUSTE-1 (`--sf-tostado-5`, SIN la itálica que esa versión también traía — el pedido del owner
+  // es el color, no volver al tratamiento viejo) — PERO sólo donde ese literal PASA el piso de
+  // 4.5:1 a 11px: MEDIDO contra la paleta REAL de CORTE (`derivarPaleta({fondo:'#fdfbf7',
+  // tinta:'#102407', acento:'#a70004'}, {origenTexto:'tinta', origenAccion:'acento'})` — LOS DOS
+  // ejes que CORTE declara, `themes.ts:1048,1050`; `.scratch/medir-tagline-acento-2.ts`, no parte
+  // del producto — la PRIMERA medición, sin pasar `ejes`, dio un número que ESTE preset nunca usa,
+  // § la corrección abajo): `tostado-5` da **6.26:1** contra `tinta` (el nav FLOTANDO sobre el hero
+  // oscuro, `variant:'dark'`) — pasa, se usa tal cual — pero **2.54:1** contra `fondo`/`tarjeta` (el
+  // nav SÓLIDO claro, `variant:'light'`) — falla, y ahí `colorTaglineAcento` (marca-logo.ts) cae al
+  // par "texto sobre" que el motor de paleta YA ofrece para ese fondo: `--sf-acento-texto` — que
+  // para CORTE, con `origenTexto:'tinta'`, resuelve LITERAL a `tinta` (`#102407`, § la rama de
+  // `derivarPaleta` que ese eje activa) — **15.90:1** medido contra `fondo` (16.44:1 contra
+  // `tarjeta`). El MISMO par que `colorActivo` (`StoreNav.tsx`, § NAV-LINK-ACTIVO-INVISIBLE-1) ya
+  // usa para este MISMO problema (un literal decorativo del nav que no pasa contraste en una de las
+  // dos superficies donde el header puede aparecer), no un segundo literal inventado.
+  //
+  // LA CORRECCIÓN QUE QUEDA ESCRITA: la PRIMERA medición (`.scratch/medir-tagline-acento.ts`) llamó
+  // `derivarPaleta(raices)` SIN el segundo argumento — por default `{}`, "ningún eje declarado" —, y
+  // esa versión da `acento-texto` = `#a70004` (7.68:1 contra fondo), un número que CORTE JAMÁS
+  // produce en el storefront real (`cssPaleta`, invocado desde `app/(storefront)/layout.tsx`, SÍ
+  // pasa los ejes de `content.tema`). El error se detectó por EJECUCIÓN —el harness de Cierre de
+  // este slice (`.scratch/nav-logo-movil-con-aire-cierre.ts`) midió el color COMPUTADO real en el
+  // navegador y no coincidía con la cifra documentada—, no por lectura. El NÚMERO que sobrevive es
+  // el de arriba (15.90:1); la CONCLUSIÓN (pasa el piso, igual que antes) no cambió.
+  //
+  // LA GARANTÍA NO DEPENDE DE CORTE NI DE SUS EJES: `acento-texto` es SIEMPRE
+  // `pisoContraste(…, fondo, 4.5)` (§ `derivarPaleta`, palette-derive.ts) — por CONSTRUCCIÓN pasa
+  // ≥4.5:1 contra `fondo` para CUALQUIER raíz/eje que un tenant declare, aunque el hex exacto
+  // cambie (CORTE da tinta por `origenTexto:'tinta'`; un preset sin ese eje daría el acento
+  // floreado, ~7.68:1 en los mismos tres hex). El 15.90:1 de arriba es la medición de ESTE preset,
+  // no el único valor posible — el fallback es seguro en general, no por coincidencia de CORTE.
+  //
+  // EXENCIÓN TEMPORAL (§ panel-controles.ts, PENDIENTE_PANEL): sin control en el panel todavía —
+  // "cómo se ofrecen colores en el editor" es un diseño pendiente, no el de este slice. Y por lo
+  // mismo, **`EncabezadoSeccion.tsx` (fuera de `touches:` de este slice) NO reenvía este campo en su
+  // `wireDe`** — a diferencia de `cromo.navBadge` (que SÍ sobrevive a un guardado no relacionado
+  // porque el componente lo lee a un ref y lo reenvía sin editarlo, mismo riesgo que documenta su
+  // propio docstring) — así que HOY, publicar el Encabezado desde el panel por CUALQUIER otro motivo
+  // (un switch cualquiera) sobreescribe `navWordmark` ENTERO con `{activo}` y VUELVE este campo a
+  // `'atenuado'` en silencio. Es el MISMO modo de falla que `guardarTemaBorrador`/`fusionarTema` ya
+  // cerró para los ejes aditivos de `tema` (§ ese docstring) — la misma clase de arreglo (reenvío
+  // explícito, o un merge por-campo en vez de reemplazo por-clave) lo cierra acá, en el slice que
+  // construya su editor (`cierra`, abajo). Hasta entonces, el campo es DATO que el owner pone una
+  // vez por fuera del panel (operación directa, § el asiento de este slice) y que una visita
+  // cualquiera al Encabezado puede revertir sin avisar.
+  //
+  // MISMO HUECO, por la MISMA razón, en `mergePresetEnContent` (`themes.ts`, también fuera de
+  // `touches:`): `out.navWordmark = {activo: ...}` reconstruye el objeto SIN leer este campo, así
+  // que un `aplicarPreset` sobre un tenant que ya lo tenía en `'acento'` también lo revertiría —
+  // EXACTAMENTE el hueco ya documentado y aceptado para `navTratamiento.buscarMovil` (§ su propio
+  // docstring: "ningún preset lo declara... nace `true` para TODO tenant"), no uno nuevo que este
+  // campo introduzca.
+  taglineColor: ColorTagline;
 }
 
 // El set CERRADO de composiciones del drawer móvil (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1).
@@ -2036,8 +2102,13 @@ export const DEFAULTS: SiteContentData = {
   // TRATAMIENTO DEL WORDMARK APILADO por defecto (§ CORTE-LOGO-APILADO-1): sin mayúscula/tracking en
   // el nombre y sub itálico `--sf-tostado-5` de HOY, byte-idéntico. Sólo CORTE lo enciende, vía
   // `mergePresetEnContent`.
+  //
+  // COLOR DEL TAGLINE por defecto (§ NAV-LOGO-MOVIL-CON-AIRE-1): 'atenuado' = la rama de SIEMPRE
+  // (§ `NavWordmarkContent.taglineColor`), byte-idéntico. Ningún preset lo declara — es DATO que el
+  // owner pone directo (§ el docstring del campo), no un eje de `mergePresetEnContent`.
   navWordmark: {
     activo: false,
+    taglineColor: 'atenuado',
   },
   // VARIANTE DEL DRAWER MÓVIL por defecto (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1): 'dropdown' → el panel
   // angosto bajo el header de HOY, byte-idéntico. Sólo CORTE lo cambia a 'pantallaCompleta', vía
@@ -3061,6 +3132,11 @@ export function resolverNavTratamiento(stored: unknown, defaults: unknown): NavT
   };
 }
 
+// El set CERRADO de `taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1) — mismo patrón de validación que
+// `CLAVES_DRAWER_MOVIL`/`CLAVES_CARRITO` (abajo): sólo un miembro del set sobrevive, cualquier otra
+// cosa (ausente, basura, un string fuera del set) cae al default.
+const CLAVES_COLOR_TAGLINE = new Set<ColorTagline>(['atenuado', 'acento']);
+
 // Resuelve el TRATAMIENTO DEL WORDMARK APILADO (§ CORTE-LOGO-APILADO-1), gemelo de
 // `resolverNavTratamiento` en FORMA (dominio CERRADO, SOFT, nunca lanza) pero meta PROPIA — ver el
 // docstring de `NavWordmarkContent` para el porqué de que no comparta objeto con `cromo`,
@@ -3069,9 +3145,15 @@ export function resolverNavWordmark(stored: unknown, defaults: unknown): NavWord
   const st = esObj(stored) ? stored : {};
   const def = esObj(defaults) ? defaults : {};
   const sv = st['activo'];
-  if (typeof sv === 'boolean') return { activo: sv };
-  const dv = def['activo'];
-  return { activo: typeof dv === 'boolean' ? dv : false };
+  const activo = typeof sv === 'boolean' ? sv : (typeof def['activo'] === 'boolean' ? def['activo'] : false);
+  // `taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1): mismo patrón de los dos `bool()`/closed-set de
+  // arriba — stored válido gana; si no, el default válido; si tampoco, 'atenuado' (byte-idéntico a
+  // hoy, ninguna fila lo declara todavía).
+  const validoColor = (v: unknown): v is ColorTagline => CLAVES_COLOR_TAGLINE.has(v as ColorTagline);
+  const svColor = st['taglineColor'];
+  const dvColor = def['taglineColor'];
+  const taglineColor = validoColor(svColor) ? svColor : (validoColor(dvColor) ? dvColor : 'atenuado');
+  return { activo, taglineColor };
 }
 
 const CLAVES_DRAWER_MOVIL = new Set<ClaveDrawerMovil>(['dropdown', 'pantallaCompleta']);

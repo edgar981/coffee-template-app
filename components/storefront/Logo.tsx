@@ -52,10 +52,11 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@duna/core/utils";
-import type { LogoContent } from "@/lib/config/site-content-defaults";
+import type { LogoContent, ColorTagline } from "@/lib/config/site-content-defaults";
 import {
   logoParaVariante, altDeLogo, modoLogoResuelto,
   altoLogoNavMovilClase, altoLogoNavEscritorioClase,
+  colorTaglineAcento, usaColorAcento,
 } from "@/lib/config/marca-logo";
 
 // EL NOMBRE EN TEXTO NUNCA SE PARTE EN DOS LÍNEAS (§ MARCA-LOGO-IMAGEN-1) — un nombre de negocio
@@ -155,12 +156,20 @@ function NombreEncogible({ nombre, className }: { nombre: string; className: str
 // abajo—, porque el tratamiento apilado (mayúscula+tracking+30px) sólo tiene sentido junto a una
 // segunda línea. Con `subtitle` SIEMPRE presente (como en la rama de abajo, guardada por `if
 // (subtitle)`), `tratado === wordmarkTratado` — BYTE-IDÉNTICO a lo que esa rama ya hacía.
-function BloqueNombreTagline({ nombre, subtitle, wordmarkTratado, wordmark, transicionClase }: {
+//
+// `colorAcento` (§ NAV-LOGO-MOVIL-CON-AIRE-1, `NavWordmarkContent.taglineColor`) — `undefined`
+// (el default, `taglineColor:'atenuado'`) deja las DOS ramas de color de abajo EXACTAMENTE como
+// estaban: `${wordmark}/60` tratada, `--sf-tostado-5` sin tratar. Con un valor (el dueño eligió
+// `'acento'`, resuelto por `colorTaglineAcento` en el consumidor — Logo.tsx, abajo), REEMPLAZA sólo
+// el COLOR en las dos ramas, SIN tocar tipografía/peso/itálica — "el tono dorado… sin la cursiva"
+// (§ el spec de este slice) es justo eso: el color cambia, el tratamiento tipográfico no.
+function BloqueNombreTagline({ nombre, subtitle, wordmarkTratado, wordmark, transicionClase, colorAcento }: {
   nombre: string;
   subtitle?: string;
   wordmarkTratado: boolean;
   wordmark: string;
   transicionClase: string;
+  colorAcento?: string;
 }) {
   const tratado = wordmarkTratado && !!subtitle;
   return (
@@ -175,8 +184,8 @@ function BloqueNombreTagline({ nombre, subtitle, wordmarkTratado, wordmark, tran
       {subtitle && (
         <span className={
           tratado
-            ? cn("mt-1 font-inter font-normal tracking-[0.11em] text-[11px]", `${wordmark}/60`)
-            : "mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]"
+            ? cn("mt-1 font-inter font-normal tracking-[0.11em] text-[11px]", colorAcento ?? `${wordmark}/60`)
+            : cn("mt-0.5 font-display text-[11px] italic", colorAcento ?? "text-[var(--sf-tostado-5)]")
         }>{subtitle}</span>
       )}
     </>
@@ -266,9 +275,15 @@ type LogoProps = {
       LLENA esa barra en el teléfono y, en escritorio (`lg:`), pasa a igualar (o superar un poco) el
       alto del bloque nombre+tagline (`altoLogoNavEscritorioClase`) — nunca el alto de la barra. */
   altoBarraClase?: string;
+  /** El COLOR del tagline apilado (§ NAV-LOGO-MOVIL-CON-AIRE-1, `NavWordmarkContent.taglineColor`,
+      vía `StoreNav.tsx`). Default `'atenuado'` = el comportamiento de SIEMPRE, byte a byte — todo
+      consumidor que no lo pase (el footer `stacked`, el preview del panel) queda exactamente como
+      estaba. `'acento'` sólo tiene efecto CON `subtitle` presente (§ `usaColorAcento`,
+      marca-logo.ts): sin tagline no hay nada que colorear. */
+  taglineColor?: ColorTagline;
 };
 
-export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false, logo, altoBarraClase }: LogoProps) {
+export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false, logo, altoBarraClase, taglineColor = 'atenuado' }: LogoProps) {
   // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
   // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
   // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
@@ -288,6 +303,14 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   // Sólo el NOMBRE (no el `subtitle`/tagline, que ya es un color fijo `--sf-tostado-5` en la rama sin
   // tratar, y que el gate del owner no nombró): "el wordmark cambia de color de golpe" es del nombre.
   const transicionClase = transicionColor ? "transition-colors duration-300" : "";
+
+  // EL COLOR DEL TAGLINE EN MODO 'acento' (§ NAV-LOGO-MOVIL-CON-AIRE-1) — se resuelve ACÁ, antes de
+  // las DOS ramas que montan `BloqueNombreTagline` (abajo), para que no puedan divergir sobre qué
+  // color corresponde. `undefined` (taglineColor:'atenuado', o sin `subtitle` que colorear, §
+  // `usaColorAcento`) deja a `BloqueNombreTagline` en su color de SIEMPRE. NO se pasa a la rama
+  // `stacked` (el footer, arriba) — mismo precedente que `wordmarkTratado`, que tampoco la toca
+  // (§ el test "Logo `stacked` … NO SE TOCA").
+  const colorAcento = usaColorAcento(taglineColor, !!subtitle) ? colorTaglineAcento(variant) : undefined;
 
   // `logoSrcCrudo` es la URL cruda del logo subido para esta variante — SIN mirar `logo.modo`
   // todavía. La rama STACKED (sólo el footer, § Logo.tsx, "Usage") la usa TAL CUAL: el ajuste de
@@ -362,7 +385,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
         {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
         <img src={logoSrc} alt={alt} className={cn(altoLogoClase, "w-auto shrink-0")} />
         <span className="hidden min-w-0 flex-col leading-none lg:flex">
-          <BloqueNombreTagline nombre={nombre} subtitle={subtitle} wordmarkTratado={wordmarkTratado} wordmark={wordmark} transicionClase={transicionClase} />
+          <BloqueNombreTagline nombre={nombre} subtitle={subtitle} wordmarkTratado={wordmarkTratado} wordmark={wordmark} transicionClase={transicionClase} colorAcento={colorAcento} />
         </span>
       </div>
     );
@@ -401,7 +424,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
       <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
         {conMark && <LogoMark className="h-7 w-7 shrink-0" cherry={cherry} />}
         <span className="flex min-w-0 flex-col leading-none">
-          <BloqueNombreTagline nombre={nombre} subtitle={subtitle} wordmarkTratado={wordmarkTratado} wordmark={wordmark} transicionClase={transicionClase} />
+          <BloqueNombreTagline nombre={nombre} subtitle={subtitle} wordmarkTratado={wordmarkTratado} wordmark={wordmark} transicionClase={transicionClase} colorAcento={colorAcento} />
         </span>
       </div>
     );

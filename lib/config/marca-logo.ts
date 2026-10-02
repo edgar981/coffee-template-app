@@ -7,7 +7,7 @@
 // fondo, no qué se guarda. Mismo criterio de separación que `lib/config/email-colors.ts` o
 // `lib/productos/categorias.ts` — un módulo puro, chico, testeado aparte de la mecánica de guardado.
 
-import type { LogoContent } from './site-content-defaults';
+import type { LogoContent, ColorTagline } from './site-content-defaults';
 
 /** ¿Hay AL MENOS una imagen de logo subida (oscura o clara)? Si no, el storefront muestra el
  *  wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) — exactamente lo de hoy. */
@@ -70,24 +70,54 @@ export function altDeLogo(logo: LogoContent, nombreNegocio: string): string {
   return logo.alt.trim() !== '' ? logo.alt : nombreNegocio;
 }
 
+// EL AIRE que separa el logo del borde de la barra, arriba y abajo (§ NAV-LOGO-MOVIL-CON-AIRE-1,
+// corrige NAV-LOGO-Y-NOMBRE-AJUSTE-1): ese slice hizo que el `<img>` llenara la barra BORDE A
+// BORDE — midió 64px/76px de alto de `<img>` == el alto EXACTO de la barra en los dos escenarios
+// (§ su asiento, "llena la barra borde a borde") — y un sello con ilustración + texto curvo pintado
+// hasta el borde de su propio cuadro se SALE visualmente de la barra: el texto de arriba toca el
+// borde superior y el de abajo se monta sobre el filete inferior (medido por el orquestador contra
+// la demo, WebKit iPhone 15, § el spec de este slice).
+//
+// 8px POR LADO (16px total), EXPLÍCITO y NOMBRADO — NO el aire del ÍCONO: el ícono del nav
+// (`navIconoClase`, StoreNav.tsx) mide 22px dentro de una barra de 76px (CORTE), o sea ~27px de
+// aire por lado — replicar esa proporción dejaría el logo en ~22px de alto, literalmente el
+// defecto ILEGIBLE que NAV-LOGO-Y-NOMBRE-AJUSTE-1 corrigió (§ el docstring de abajo). 8px es del
+// mismo orden que el `gap-2` (8px) que ya separa los íconos de "Actions" entre sí (StoreNav.tsx) —
+// un valor del vocabulario de espaciado del nav, no un número inventado para este slice.
+//
+// SÓLO PARA DOCUMENTAR LA ARITMÉTICA — `altoLogoNavMovilClase` NO la usa en un template literal
+// interpolado: Tailwind v4 genera CSS escaneando texto LITERAL de las clases en el código fuente
+// (§ CLAUDE.md, "Literal y no interpolado, para que el JIT de Tailwind vea las clases" —
+// `gridColsPresentaciones`, el mismo defecto que ese comentario ya nombra). Un `` `h-[${64 -
+// a}px]` `` no aparece como texto `h-[48px]` en ningún archivo, así que el JIT no generaría la
+// clase y el alto NO se aplicaría en producción. Los tres valores de `altoLogoNavMovilClase` son
+// por eso LITERALES, escritos a mano como `64/76/88 − 16`.
+export const AIRE_VERTICAL_LOGO_MOVIL_PX = 8;
+
 /**
- * EL ALTO DEL LOGO EN `'logoYNombre'` (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1, corrige NAV-LOGO-Y-NOMBRE-1):
- * el logo dejó de ser un ícono FIJO de 28px (`h-7`, ilegible para un sello con ilustración — medido
- * ~22px de alto REAL de tinta en la demo de Café Las Chamisas) y pasa a un alto DERIVADO en los dos
- * anchos, nunca un número suelto.
+ * EL ALTO DEL LOGO EN `'logoYNombre'` (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1, corrige NAV-LOGO-Y-NOMBRE-1;
+ * NAV-LOGO-MOVIL-CON-AIRE-1 resta el aire vertical, § arriba): el logo dejó de ser un ícono FIJO de
+ * 28px (`h-7`, ilegible para un sello con ilustración — medido ~22px de alto REAL de tinta en la
+ * demo de Café Las Chamisas) y pasa a un alto DERIVADO en los dos anchos, nunca un número suelto.
  *
  * EN EL TELÉFONO (`<lg`, el único hijo visible — el bloque nombre+tagline está `hidden`): el alto
- * DISPONIBLE de la barra, el MISMO valor que ya fija `navFilaAltoClase` (StoreNav.tsx) para ese
- * tramo — 64px para el resto del catálogo, 76/88px para CORTE (§ NAV-ALTURA-CON-FILETE-1, ya
- * afirmado en `nav-internas.test.ts` vía `navOffsetClase`). Se REPLICA, no se importa: este módulo
- * es puro (sin JSX) y `navFilaAltoClase` vive en el componente — mismo criterio que ya separa
- * `navOffsetClase` (themes.ts) de la barra que describe. La fila no lleva padding vertical propio
- * (§ StoreNav.tsx, `navContenedorClase`/el `<header>`), así que este alto LLENA la barra borde a
- * borde — "que ocupe la altura útil… sin cambiar el alto de la barra" (§ el spec de este slice),
- * ni más ni menos.
+ * DISPONIBLE de la barra MENOS `2×AIRE_VERTICAL_LOGO_MOVIL_PX` — el mismo alto de barra que ya fija
+ * `navFilaAltoClase` (StoreNav.tsx) para ese tramo — 64px para el resto del catálogo, 76/88px para
+ * CORTE (§ NAV-ALTURA-CON-FILETE-1, ya afirmado en `nav-internas.test.ts` vía `navOffsetClase`). Se
+ * REPLICA, no se importa: este módulo es puro (sin JSX) y `navFilaAltoClase` vive en el componente
+ * — mismo criterio que ya separa `navOffsetClase` (themes.ts) de la barra que describe.
+ *
+ * EL ALTO DE LA BARRA Y EL FILETE NO CAMBIAN — sólo la CAJA del `<img>` se achica dentro de ella;
+ * el `items-center` que YA envuelve al logo (`StoreNav.tsx`, la fila `flex items-center…`, y el
+ * `<div className="flex min-w-0 items-center gap-2.5">` de la rama `logoYNombre`, `Logo.tsx`) lo
+ * CENTRA verticalmente dentro de la fila sin que esta función toque un solo píxel de margen: el
+ * aire aparece SOLO porque la caja del logo ya no es tan alta como la barra, no porque se le haya
+ * agregado un `margin`/`padding` propio.
  */
 export function altoLogoNavMovilClase(posicion: boolean): string {
-  return posicion ? 'h-[76px] min-[640px]:h-[88px]' : 'h-16';
+  // LITERALES a propósito (§ el comentario de `AIRE_VERTICAL_LOGO_MOVIL_PX`, arriba): 64/76/88,
+  // el alto de barra de `navFilaAltoClase`, menos 16 (2×8px de aire) — 48/60/72.
+  return posicion ? 'h-[60px] min-[640px]:h-[72px]' : 'h-[48px]';
 }
 
 /**
@@ -115,4 +145,34 @@ export function altoLogoNavMovilClase(posicion: boolean): string {
 export function altoLogoNavEscritorioClase(wordmarkTratado: boolean, hayTagline: boolean): string {
   if (!hayTagline) return 'min-[1024px]:h-6';
   return wordmarkTratado ? 'min-[1024px]:h-12' : 'min-[1024px]:h-9';
+}
+
+/**
+ * EL COLOR DEL TAGLINE EN MODO `'acento'` (§ NAV-LOGO-MOVIL-CON-AIRE-1, ver el docstring de
+ * `NavWordmarkContent.taglineColor` en site-content-defaults.ts para el porqué completo y la
+ * medición). `'atenuado'` (default) no pasa por acá — `Logo.tsx` sigue con su color de SIEMPRE,
+ * byte a byte; esta función sólo resuelve el color cuando el dueño elige `'acento'`.
+ *
+ * `variant==='dark'` (el nav FLOTANDO sobre el hero oscuro, o el pie de página) → `--sf-tostado-5`
+ * literal, el dorado medido (6.26:1 contra `tinta` en CORTE — pasa el piso de 11px). `variant===
+ * 'light'` (el nav SÓLIDO claro) → ese mismo literal da 2.54:1 contra `fondo`/`tarjeta` (falla), así
+ * que cae a `--sf-acento-texto` — que para CORTE (`origenTexto:'tinta'`, themes.ts:1048) resuelve
+ * LITERAL a `tinta`: 15.90:1 medido contra `fondo` (§ el docstring de `NavWordmarkContent.
+ * taglineColor` para la corrección completa — la primera medición, sin pasar los ejes de CORTE a
+ * `derivarPaleta`, dio 7.68:1, un número que este preset nunca produce) — el MISMO par que
+ * `colorActivo` (`StoreNav.tsx`, § NAV-LINK-ACTIVO-INVISIBLE-1) ya usa para este mismo problema
+ * sobre este mismo header, no un tercer literal inventado para la misma superficie.
+ */
+export function colorTaglineAcento(variant: 'light' | 'dark'): string {
+  return variant === 'light' ? 'text-[var(--sf-acento-texto)]' : 'text-[var(--sf-tostado-5)]';
+}
+
+/**
+ * ¿Esta instancia del tagline debe pintarse con `colorTaglineAcento`? Sólo si el dueño eligió
+ * `'acento'` (§ `NavWordmarkContent.taglineColor`) Y hay tagline que pintar — un `taglineColor`
+ * sin `subtitle` no tiene nada sobre qué aplicarse (mismo guard que ya hace `BloqueNombreTagline`
+ * para el resto de sus clases, § Logo.tsx).
+ */
+export function usaColorAcento(taglineColor: ColorTagline, hayTagline: boolean): boolean {
+  return taglineColor === 'acento' && hayTagline;
 }

@@ -477,8 +477,16 @@ const navTratamientoEditableSchema = z.object({
 // PROPIA — ver el docstring de `NavWordmarkContent` (`site-content-defaults.ts`) para el porqué de
 // que no comparta objeto con `cromo`, `volverArriba`, `rielSocial` ni `navTratamiento`. HOY no hay
 // editor que la escriba —sólo `aplicarPreset` (`themes.ts`).
+//
+// `taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1): `z.enum` de 2 miembros, MISMO patrón que
+// `navDrawerMovilEditableSchema.variante`/`carritoEditableSchema.variante` abajo — declarado por la
+// MISMA razón (§65-B), aunque hoy tampoco tenga editor (§ `NavWordmarkContent.taglineColor`, el
+// hueco de reenvío que ESE docstring documenta: `EncabezadoSeccion.tsx`, fuera de `touches:` de
+// este slice, no lo manda todavía, así que esta declaración por sí sola no lo protege de un
+// guardado no relacionado — sólo evita que un body que SÍ lo traiga se lo trague en silencio).
 const navWordmarkEditableSchema = z.object({
   activo: z.boolean().optional(),
+  taglineColor: z.enum(['atenuado', 'acento']).optional(),
 });
 
 // META de VARIANTE DEL DRAWER MÓVIL (§ MUESTRARIO-DRAWER-MOVIL-TEMA-1): MISMA forma que

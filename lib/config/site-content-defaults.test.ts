@@ -1814,3 +1814,32 @@ test('logo.modo: un valor de los tres SOBREVIVE al resolver, tal cual', () => {
 test('logo.modo: basura SOBREVIVE tal cual — el resolver no clampa, SOFT (el clamp es de modoLogoResuelto, no de acá)', () => {
   assert.equal(resolverSiteContent({ logo: { modo: 'lo-que-sea' } }).logo.modo, 'lo-que-sea');
 });
+
+// ─── `navWordmark.taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1) — dominio CERRADO de 2, mismo patrón
+// de validación que `navDrawerMovil.variante`/`carrito.variante` (§ sus propios tests): sólo un
+// miembro del set sobrevive, cualquier otra cosa cae al default ('atenuado'). A diferencia de
+// `logo.modo` (arriba, SOFT/raw), ACÁ el clamp vive en `resolverNavWordmark` mismo — el default es
+// FIJO, no condicional a otro campo que el resolver no pueda mirar.
+
+test('DEFAULTS.navWordmark.taglineColor es "atenuado" (el default byte-idéntico)', () => {
+  assert.equal(DEFAULTS.navWordmark.taglineColor, 'atenuado');
+});
+
+test('navWordmark.taglineColor: sin fila guardada, resuelve al DEFAULT ("atenuado")', () => {
+  assert.equal(resolverSiteContent({}).navWordmark.taglineColor, 'atenuado');
+});
+
+test('navWordmark.taglineColor: "acento" guardado SOBREVIVE tal cual', () => {
+  assert.equal(resolverSiteContent({ navWordmark: { taglineColor: 'acento' } }).navWordmark.taglineColor, 'acento');
+});
+
+test('navWordmark.taglineColor: basura (ni "atenuado" ni "acento") cae al default, NUNCA lanza — SOFT', () => {
+  assert.equal(resolverSiteContent({ navWordmark: { taglineColor: 'dorado' } }).navWordmark.taglineColor, 'atenuado');
+  assert.equal(resolverSiteContent({ navWordmark: { taglineColor: 123 } }).navWordmark.taglineColor, 'atenuado');
+});
+
+test('navWordmark.taglineColor convive con navWordmark.activo sin pisarse — ejes independientes', () => {
+  const r = resolverSiteContent({ navWordmark: { activo: true, taglineColor: 'acento' } });
+  assert.equal(r.navWordmark.activo, true);
+  assert.equal(r.navWordmark.taglineColor, 'acento');
+});

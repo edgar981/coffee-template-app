@@ -45,6 +45,13 @@ import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config
 // cualquiera de las claves del schema completo — una segunda puerta genérica con otro nombre, que
 // es justo lo que el gate `seccion in REGISTRY` del route genérico existe para acotar del otro lado.
 //
+// `navWordmark` GANÓ UN SEGUNDO CAMPO (§ NAV-LOGO-MOVIL-CON-AIRE-1, `taglineColor`) — SIN cambio
+// de código acá: `.pick({navWordmark: true})` acota por CLAVE, no por campo dentro de ella, así que
+// el objeto completo (`activo` + `taglineColor`) viaja por este mismo PUT/POST sin tocar una línea
+// de esta ruta. El campo nuevo HOY no tiene editor en el panel (§ `NavWordmarkContent.
+// taglineColor`, site-content-defaults.ts, y su exención en `panel-controles.ts`) — se escribe por
+// fuera (operación de datos), y esta ruta es sólo la que ya existía, sin saberlo.
+//
 // LAS CINCO PUBLICACIONES SON SECUENCIALES, NO ATÓMICAS — decisión, no descuido. Es la MISMA
 // tolerancia ya aceptada en `site-content-write.ts` para el race guardar↔publicar de una sección: un
 // operador humano no alcanza la ventana de milisegundos entre dos escrituras, y un fallo a mitad de

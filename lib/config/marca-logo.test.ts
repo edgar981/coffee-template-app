@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hayLogoImagen, logoParaVariante, altDeLogo, modoLogoResuelto,
-  altoLogoNavMovilClase, altoLogoNavEscritorioClase,
+  altoLogoNavMovilClase, altoLogoNavEscritorioClase, AIRE_VERTICAL_LOGO_MOVIL_PX,
+  colorTaglineAcento, usaColorAcento,
 } from './marca-logo';
 import type { LogoContent } from './site-content-defaults';
 
@@ -96,12 +97,42 @@ test('modoLogoResuelto: basura (ni vacío ni uno de los tres) cae al default CON
 // ── altoLogoNavMovilClase / altoLogoNavEscritorioClase (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1) — el alto
 // DERIVADO del logo en 'logoYNombre', nunca un número suelto ───────────────────────────────────
 
-test('altoLogoNavMovilClase: sin CORTE → 64px (h-16), el MISMO valor que navFilaAltoClase para ese tramo', () => {
-  assert.equal(altoLogoNavMovilClase(false), 'h-16');
+test('altoLogoNavMovilClase: sin CORTE → 48px (64px de barra MENOS 2×aire, § NAV-LOGO-MOVIL-CON-AIRE-1, corrige NAV-LOGO-Y-NOMBRE-AJUSTE-1)', () => {
+  assert.equal(altoLogoNavMovilClase(false), 'h-[48px]');
 });
 
-test('altoLogoNavMovilClase: con CORTE → 76/88px, el MISMO valor que navFilaAltoClase/navOffsetClase (§ NAV-ALTURA-CON-FILETE-1)', () => {
-  assert.equal(altoLogoNavMovilClase(true), 'h-[76px] min-[640px]:h-[88px]');
+test('altoLogoNavMovilClase: con CORTE → 60/72px (76/88px de barra, § NAV-ALTURA-CON-FILETE-1, MENOS 2×aire)', () => {
+  assert.equal(altoLogoNavMovilClase(true), 'h-[60px] min-[640px]:h-[72px]');
+});
+
+test('AIRE_VERTICAL_LOGO_MOVIL_PX es 8 — los literales de altoLogoNavMovilClase son 64/76/88 menos 2×8 (16), escritos a mano', () => {
+  assert.equal(AIRE_VERTICAL_LOGO_MOVIL_PX, 8);
+  assert.equal(64 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 48);
+  assert.equal(76 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 60);
+  assert.equal(88 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 72);
+});
+
+// ── colorTaglineAcento / usaColorAcento (§ NAV-LOGO-MOVIL-CON-AIRE-1) ───────────────────────────────
+
+test('colorTaglineAcento: variant "dark" (nav flotando sobre el hero oscuro) → --sf-tostado-5 literal (6.26:1 medido contra CORTE tinta, pasa el piso)', () => {
+  assert.equal(colorTaglineAcento('dark'), 'text-[var(--sf-tostado-5)]');
+});
+
+test('colorTaglineAcento: variant "light" (nav sólido claro) → --sf-acento-texto (2.54:1 de tostado-5 contra fondo/tarjeta FALLA el piso; acento-texto da 15.90:1 en CORTE —resuelve a tinta, origenTexto:\'tinta\'—, el MISMO par de colorActivo)', () => {
+  assert.equal(colorTaglineAcento('light'), 'text-[var(--sf-acento-texto)]');
+});
+
+test('usaColorAcento: "acento" CON tagline → true', () => {
+  assert.equal(usaColorAcento('acento', true), true);
+});
+
+test('usaColorAcento: "acento" SIN tagline → false (nada que colorear)', () => {
+  assert.equal(usaColorAcento('acento', false), false);
+});
+
+test('usaColorAcento: "atenuado" → false, con o sin tagline (el comportamiento de siempre no pasa por acá)', () => {
+  assert.equal(usaColorAcento('atenuado', true), false);
+  assert.equal(usaColorAcento('atenuado', false), false);
 });
 
 test('altoLogoNavEscritorioClase: sin tagline → 24px (h-6) sin importar wordmarkTratado — MEDIDO: el bloque sin tagline renderiza a 22px en los dos casos, porque wordmarkTratado sólo afecta la rama CON tagline', () => {
