@@ -40,6 +40,22 @@ export function urlDePaginaEnEditor(pagina: PaginaKey): string {
   return `${urlDePagina(pagina)}?${PARAM_MODO_EDITOR}=${VALOR_MODO_EDITOR}`;
 }
 
+/** El nombre del atributo que el storefront emite por sección en modo editor, UNA sola vez (nunca
+ *  el literal `'data-editor-seccion'` repetido en cada sitio que lo lee o lo escribe) —
+ *  `selectorDeSeccion` abajo, el `setAttribute` imperativo de `app/(storefront)/suscripciones/
+ *  Contenido.tsx` (§ EDITOR-TIENDA-SELECCION-1), y el `closest()` que lee `EditorPuenteVivo.tsx`. */
+export const ATRIBUTO_EDITOR_SECCION = 'data-editor-seccion';
+
+/**
+ * El marcador de PÁGINA que `app/(storefront)/suscripciones/page.tsx` escribe (literal, fuera de
+ * `touches:` de `EDITOR-TIENDA-SELECCION-1` — no se pudo mover a una constante compartida ahí
+ * tampoco). `Contenido.tsx` lo usa como ANCLA de detección (§ su docstring): si existe, está dentro
+ * del borrador verificado por sesión (el ÚNICO caso en que `page.tsx` lo escribe); si no, es
+ * tráfico público y no se toca nada. Ya NO es el marcador que `marcadorDeSeccion` devuelve para
+ * ninguna `SeccionVista` (ver abajo) — queda vivo sólo como esa ancla.
+ */
+export const MARCADOR_SUSCRIPCIONES = 'suscripciones';
+
 /**
  * El marcador `data-editor-seccion` que el storefront emite para esta sección, EN MODO EDITOR
  * (§ EDITOR-TIENDA-IFRAME-VISTA-1). Home y Nosotros: un marcador por BANDA (el mismo id que
@@ -47,27 +63,39 @@ export function urlDePaginaEnEditor(pagina: PaginaKey): string {
  * `spotlight` — variante de la banda estructural `featured`, sin `bandaId` propio (§ su docstring
  * en `tienda-secciones.ts`) — que comparte el marcador de esa banda.
  *
- * Suscripciones es DISTINTA: sus tres secciones (`suscripcionPlanes`/`suscripcionPasos`/
- * `suscripcionFaq`) viven DENTRO de `app/(storefront)/suscripciones/Contenido.tsx`, un archivo
- * FUERA de `touches:` de este slice — no hay forma de marcar cada una por separado sin tocarlo.
- * Comparten un marcador ÚNICO de PÁGINA (`'suscripciones'`, el wrapper que
- * `app/(storefront)/suscripciones/page.tsx` agrega sobre `<SuscripcionesContenido />` sólo en modo
- * editor): "ir a la sección" en esas tres sólo lleva al TOPE de /suscripciones, nunca al bloque
- * exacto. Limitación conocida, documentada en `DECISIONS.md` (`EDITOR-TIENDA-IFRAME-VISTA-1`) — se
- * cierra si/cuando `Contenido.tsx` entre a `touches:` de un slice futuro (p. ej. el de selección en
- * contexto, `EDITOR-TIENDA-SELECCION-1`).
+ * Suscripciones YA NO comparte un marcador único de página (§ EDITOR-TIENDA-SELECCION-1, cierra la
+ * limitación que esta función documentaba hasta ese slice): sus tres secciones
+ * (`suscripcionPlanes`/`suscripcionPasos`/`suscripcionFaq`) ahora marcan su propio nodo DENTRO de
+ * `app/(storefront)/suscripciones/Contenido.tsx` —imperativamente, por DOM, no por JSX condicionado
+ * (ver el docstring de ese archivo para el porqué)— así que, como el resto, caen a la identidad.
  */
 export function marcadorDeSeccion(seccion: SeccionVista): string {
-  if (seccion === 'spotlight') return 'featured';
-  if (seccion === 'suscripcionPlanes' || seccion === 'suscripcionPasos' || seccion === 'suscripcionFaq') {
-    return 'suscripciones';
-  }
-  return seccion;
+  return seccion === 'spotlight' ? 'featured' : seccion;
 }
 
 /** El selector CSS para `querySelector` dentro del documento (mismo origen) del iframe. */
 export function selectorDeSeccion(seccion: SeccionVista): string {
-  return `[data-editor-seccion="${marcadorDeSeccion(seccion)}"]`;
+  return `[${ATRIBUTO_EDITOR_SECCION}="${marcadorDeSeccion(seccion)}"]`;
+}
+
+/**
+ * La inversa PARCIAL de `marcadorDeSeccion` (§ EDITOR-TIENDA-SELECCION-1, § 4.1 de DISENO.md —
+ * iframe→lista): dado el marcador que llega del storefront por el `postMessage` de un clic,
+ * ¿a qué sección del editor corresponde? Sólo resuelve la ÚNICA ambigüedad real —`'featured'`
+ * comparte marcador con `spotlight`, y `'featured'` en sí NO es una `SeccionVista` editable
+ * (no tiene `SeccionConfig` propia, § su docstring en `tienda-secciones.ts`)—, así que ante ese
+ * marcador apunta a `'spotlight'`. Cualquier OTRO marcador se devuelve TAL CUAL: hoy es exactamente
+ * el nombre de su `SeccionVista` (identidad), incluidas las tres de Suscripciones desde que dejaron
+ * de compartir `'suscripciones'` (arriba).
+ *
+ * Devuelve `string`, no `SeccionVista`: este módulo NO importa `SECCIONES_TIENDA` (el registro
+ * runtime, pesado — íconos, zod, campos — y `proxy.ts` también importa este archivo, que debe
+ * seguir liviano para el middleware, § el comentario de arriba). El LLAMADOR (`TiendaPaginas.tsx`),
+ * que sí tiene ese registro, es quien valida si el resultado es una sección EXISTENTE en la página
+ * activa antes de usarlo — un marcador que no resuelve a nada conocido se ignora ahí, no acá.
+ */
+export function seccionDesdeMarcador(marcador: string): string {
+  return marcador === 'featured' ? 'spotlight' : marcador;
 }
 
 /**

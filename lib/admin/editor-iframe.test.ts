@@ -5,9 +5,12 @@ import {
   urlDePaginaEnEditor,
   marcadorDeSeccion,
   selectorDeSeccion,
+  seccionDesdeMarcador,
   scrollSeguro,
   PARAM_MODO_EDITOR,
   VALOR_MODO_EDITOR,
+  ATRIBUTO_EDITOR_SECCION,
+  MARCADOR_SUSCRIPCIONES,
   ANCHOS_DISPOSITIVO,
   DISPOSITIVO_DEFECTO,
   CLAVE_DISPOSITIVO_EDITOR,
@@ -45,16 +48,30 @@ test('marcadorDeSeccion: spotlight comparte el marcador de la banda featured que
   assert.equal(marcadorDeSeccion('spotlight'), 'featured');
 });
 
-test('marcadorDeSeccion: las tres secciones de Suscripciones comparten un marcador único de página', () => {
-  assert.equal(marcadorDeSeccion('suscripcionPlanes'), 'suscripciones');
-  assert.equal(marcadorDeSeccion('suscripcionPasos'), 'suscripciones');
-  assert.equal(marcadorDeSeccion('suscripcionFaq'), 'suscripciones');
+test('marcadorDeSeccion: las tres secciones de Suscripciones YA marcan su propio nombre (§ EDITOR-TIENDA-SELECCION-1)', () => {
+  assert.equal(marcadorDeSeccion('suscripcionPlanes'), 'suscripcionPlanes');
+  assert.equal(marcadorDeSeccion('suscripcionPasos'), 'suscripcionPasos');
+  assert.equal(marcadorDeSeccion('suscripcionFaq'), 'suscripcionFaq');
 });
 
 test('selectorDeSeccion: construye el atributo data-editor-seccion a partir del marcador', () => {
   assert.equal(selectorDeSeccion('hero'), '[data-editor-seccion="hero"]');
   assert.equal(selectorDeSeccion('spotlight'), '[data-editor-seccion="featured"]');
-  assert.equal(selectorDeSeccion('suscripcionFaq'), '[data-editor-seccion="suscripciones"]');
+  assert.equal(selectorDeSeccion('suscripcionFaq'), '[data-editor-seccion="suscripcionFaq"]');
+});
+
+test('ATRIBUTO_EDITOR_SECCION / MARCADOR_SUSCRIPCIONES: los dos literales que selectorDeSeccion/Contenido.tsx comparten', () => {
+  assert.equal(ATRIBUTO_EDITOR_SECCION, 'data-editor-seccion');
+  assert.equal(MARCADOR_SUSCRIPCIONES, 'suscripciones');
+});
+
+test('seccionDesdeMarcador: la inversa — identidad salvo "featured", que resuelve a spotlight', () => {
+  assert.equal(seccionDesdeMarcador('hero'), 'hero');
+  assert.equal(seccionDesdeMarcador('suscripcionPlanes'), 'suscripcionPlanes');
+  assert.equal(seccionDesdeMarcador('suscripcionPasos'), 'suscripcionPasos');
+  assert.equal(seccionDesdeMarcador('suscripcionFaq'), 'suscripcionFaq');
+  assert.equal(seccionDesdeMarcador('featured'), 'spotlight');
+  assert.equal(seccionDesdeMarcador('no-existe'), 'no-existe'); // el llamador valida membresía, no esta función
 });
 
 test('scrollSeguro: valores positivos finitos pasan redondeados', () => {

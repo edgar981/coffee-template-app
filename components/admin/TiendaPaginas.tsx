@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import TiendaSeccionEditor from '@/components/admin/TiendaSeccionEditor';
+import TiendaSeccionEditor, { type TiendaSeccionEditorHandle } from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import TogglePagina from '@/components/admin/TogglePagina';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
-import { DISPOSITIVO_DEFECTO, type DispositivoKey } from '@/lib/admin/editor-iframe';
+import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, type DispositivoKey } from '@/lib/admin/editor-iframe';
 
 export interface TiendaPaginasProps {
   /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
@@ -46,6 +46,37 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
     (seccion: SeccionVista, datos: Record<string, unknown>) => iframeRef.current?.enviarCambio(seccion, datos),
     [],
   );
+
+  // LA SELECCIÓN EN CONTEXTO, dirección iframe→lista (§ EDITOR-TIENDA-SELECCION-1): un `Map` de
+  // handles, UNO por sección montada —callback ref que se registra/retira con cada
+  // `TiendaSeccionEditor`, nunca una lista de `RefObject` creada por adelantado (las secciones de
+  // la página activa cambian con `pagina`, § `secciones` abajo)—. Cuando llega el `postMessage` de
+  // un clic DENTRO del iframe, `VistaTiendaIframe` entrega el MARCADOR crudo; acá se resuelve a una
+  // `SeccionVista` (`seccionDesdeMarcador`, la inversa PARCIAL de `marcadorDeSeccion`) y se valida
+  // contra `secciones` —la lista de la PÁGINA ACTIVA— antes de llamar: un marcador que no resuelve a
+  // nada conocido (chrome global sin sección, o una sección de otra página) simplemente se ignora,
+  // nunca lanza.
+  const seccionRefs = useRef<Map<SeccionVista, TiendaSeccionEditorHandle>>(new Map());
+  // Un callback ref ESTABLE por sección (cacheado en `callbacksRefSeccion`, NUNCA `(seccion) => (h)
+  // => {...}` invocado inline en el `.map` de abajo): React compara por IDENTIDAD de función, así
+  // que una fábrica llamada en cada render devolvería una función NUEVA cada vez y React volvería a
+  // disparar `null`→`handle` en TODOS los renders de `TiendaPaginas`, no sólo al montar/desmontar.
+  const callbacksRefSeccion = useRef<Map<SeccionVista, (handle: TiendaSeccionEditorHandle | null) => void>>(new Map());
+  const registrarRefSeccion = useCallback((seccion: SeccionVista) => {
+    const existente = callbacksRefSeccion.current.get(seccion);
+    if (existente) return existente;
+    const nuevo = (handle: TiendaSeccionEditorHandle | null) => {
+      if (handle) seccionRefs.current.set(seccion, handle);
+      else seccionRefs.current.delete(seccion);
+    };
+    callbacksRefSeccion.current.set(seccion, nuevo);
+    return nuevo;
+  }, []);
+  const manejarSeleccionDesdeIframe = useCallback((marcador: string) => {
+    const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
+    if (!secciones.some(c => c.seccion === candidato)) return;
+    seccionRefs.current.get(candidato)?.seleccionar();
+  }, [secciones]);
 
   // ANGOSTO reusa la pregunta de `useSheetDesdeAbajo` ("¿es una pantalla táctil de una mano?",
   // umbral 960 — § DUNA_MQ_SHEET_ABAJO) para una decisión DISTINTA de la suya (de qué borde sale un
@@ -127,6 +158,7 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
           {secciones.map(config => (
             <TiendaSeccionEditor
               key={config.seccion}
+              ref={registrarRefSeccion(config.seccion)}
               config={config}
               categorias={categorias}
               categoriasListas={categoriasListas}
@@ -150,7 +182,12 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
           order: angosto ? 1 : 2,
           ...(angosto ? { height: '50vh', flexShrink: 0 } : { height: '100%' }),
         }}>
-          <VistaTiendaIframe ref={iframeRef} pagina={pagina} dispositivo={dispositivo} />
+          <VistaTiendaIframe
+            ref={iframeRef}
+            pagina={pagina}
+            dispositivo={dispositivo}
+            onSeccionSeleccionada={manejarSeleccionDesdeIframe}
+          />
         </div>
       </div>
     </div>

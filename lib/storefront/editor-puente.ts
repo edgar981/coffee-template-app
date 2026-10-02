@@ -48,6 +48,52 @@ export function esSeccionDelRegistro(seccion: string): seccion is keyof typeof R
   return Object.prototype.hasOwnProperty.call(REGISTRY, seccion);
 }
 
+// ─── LOS DOS MENSAJES NUEVOS (§ EDITOR-TIENDA-SELECCION-1) ─────────────────────────────────────
+//
+// Cierran la mitad que `EDITOR-TIENDA-POSTMESSAGE-1` dejó pendiente (§ DISENO.md § 13.3): el canal
+// de ARRIBA es panel→iframe para CONTENIDO; estos dos son la selección en contexto (§ 4.1) — uno
+// por dirección, cada uno con su propio discriminador (nunca el mismo que `TIPO_MENSAJE_CONTENIDO_
+// SECCION`, por la misma razón que ésa: que una extensión del navegador u otra librería no pueda
+// parecer un mensaje de este puente por casualidad).
+
+/** iframe→panel: "el dueño clickeó esta sección dentro de la tienda real" (§ 4.1). Emitido por
+ *  `EditorPuenteVivo.tsx` cuando el clic cae dentro de un `[data-editor-seccion]`; recibido por
+ *  `VistaTiendaIframe.tsx`, que no vive en este módulo (storefront-puro) así que no puede resolver
+ *  el marcador a una `SeccionVista` — eso lo hace `seccionDesdeMarcador`, `lib/admin/editor-iframe.ts`. */
+export const TIPO_MENSAJE_SECCION_CLICK = 'editor-tienda:seccion-click' as const;
+
+export interface MensajeSeccionClick {
+  tipo: typeof TIPO_MENSAJE_SECCION_CLICK;
+  /** El valor LITERAL de `data-editor-seccion` en el nodo clickeado — no necesariamente una
+   *  `SeccionVista` válida todavía (ver el docstring de arriba). */
+  seccion: string;
+}
+
+export function esMensajeSeccionClick(data: unknown): data is MensajeSeccionClick {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return m.tipo === TIPO_MENSAJE_SECCION_CLICK && typeof m.seccion === 'string' && m.seccion.trim() !== '';
+}
+
+/** panel→iframe: "el interruptor Navegar cambió" (§ 4.1, "Decidí cómo se vuelve a «usar» la
+ *  tienda"). `navegar:true` apaga la selección en contexto —un clic vuelve a comportarse como en la
+ *  tienda real— y `false` (el DEFAULT con el que nace `EditorPuenteVivo`) la mantiene activa. Vive
+ *  acá, junto al resto del puente, por la misma razón que todo lo demás: una sola definición del
+ *  nombre del mensaje, compartida por quien lo manda (`VistaTiendaIframe.tsx`) y quien lo recibe
+ *  (`EditorPuenteVivo.tsx`). */
+export const TIPO_MENSAJE_MODO_NAVEGAR = 'editor-tienda:modo-navegar' as const;
+
+export interface MensajeModoNavegar {
+  tipo: typeof TIPO_MENSAJE_MODO_NAVEGAR;
+  navegar: boolean;
+}
+
+export function esMensajeModoNavegar(data: unknown): data is MensajeModoNavegar {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return m.tipo === TIPO_MENSAJE_MODO_NAVEGAR && typeof m.navegar === 'boolean';
+}
+
 /**
  * Fusiona el borrador EN VUELO de UNA sección sobre el contenido YA RESUELTO que el storefront
  * tiene en memoria (lo que `getSiteContent()` mandó en el render del servidor, o el resultado de

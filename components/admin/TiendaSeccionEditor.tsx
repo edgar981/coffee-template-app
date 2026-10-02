@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, Fragment } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
@@ -53,6 +53,14 @@ import {
 //     eso era el "refresca con cada cambio" que el owner reportó, y `onCambio` lo reemplaza para ese
 //     caso — recargar en cada tecla nunca fue necesario para que el iframe se viera al día.
 // `config`, `carga`, `categorias`/`categoriasListas` y `resaltar` no cambiaron de contrato.
+//
+// LA DIRECCIÓN INVERSA, iframe→lista (§ EDITOR-TIENDA-SELECCION-1): un clic DENTRO del iframe
+// manda un `postMessage` que `TiendaPaginas` resuelve a esta sección y llama por `ref` —el
+// componente expone `TiendaSeccionEditorHandle.seleccionar()` (`forwardRef`/`useImperativeHandle`,
+// ver más abajo)—. Es un mecanismo APARTE del deep-link (`resaltar`): ese corre UNA vez por montaje
+// (`deepLinkHecho`); éste debe poder repetirse —clickear la MISMA sección dos veces en el iframe
+// tiene que volver a desplazarla las dos veces—, así que usa un CONTADOR (`pedidoExterno`), no un
+// booleano ni el mismo flag.
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
@@ -181,7 +189,19 @@ function ProductoCombobox({ value, onChange, productos, productosListos, id, pla
   );
 }
 
-export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio }: {
+// EL HANDLE IMPERATIVO (§ EDITOR-TIENDA-SELECCION-1): la dirección iframe→lista de la selección en
+// contexto. `TiendaPaginas` guarda un ref por sección (ver su docstring) y llama a `seleccionar()`
+// cuando llega un `postMessage` de "clic DENTRO del iframe" que resuelve a ESTA sección. No se reusa
+// el `resaltar` del deep-link (§ más abajo, "DEEP-LINK"): ese mecanismo corre UNA sola vez por sección
+// montada (`deepLinkHecho`), a propósito — reusarlo para un clic repetible habría significado que
+// clickear la MISMA sección dos veces en el iframe sólo funcionara la primera.
+export interface TiendaSeccionEditorHandle {
+  /** Abre esta sección si está cerrada (como "Editar") y la desplaza a la vista dentro de la
+   *  columna de la lista — REPETIBLE: cada llamada vuelve a desplazar, a diferencia del deep-link. */
+  seleccionar: () => void;
+}
+
+interface TiendaSeccionEditorProps {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
@@ -204,9 +224,10 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     error: boolean;         // el fetch del padre falló
     recargar: () => Promise<{ contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> }>;
   };
-  /** Se llama al abrir esta sección (manual o por deep-link) — el padre (`TiendaPaginas`) lo usa para
-   *  desplazar+resaltar el iframe compartido hasta el marcador de esta sección (§ EDITOR-TIENDA-
-   *  IFRAME-VISTA-1). Ausente = sin iframe que notificar (no debería ocurrir fuera de un test). */
+  /** Se llama al abrir esta sección (manual, deep-link o selección en contexto) — el padre
+   *  (`TiendaPaginas`) lo usa para desplazar+resaltar el iframe compartido hasta el marcador de esta
+   *  sección (§ EDITOR-TIENDA-IFRAME-VISTA-1). Ausente = sin iframe que notificar (no debería ocurrir
+   *  fuera de un test). */
   onAbrir?: (seccion: SeccionVista) => void;
   /** Se llama tras Publicar/Descartar exitosos — el padre recarga el iframe compartido preservando
    *  el scroll. YA NO se llama al asentar el autoguardado (§ `onCambio`, abajo, lo reemplaza para el
@@ -217,7 +238,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
    *  lo reenvía al iframe compartido por `postMessage`, SIN recargar (§ EDITOR-TIENDA-POSTMESSAGE-1).
    *  Ausente = sin iframe que notificar (no debería ocurrir fuera de un test). */
   onCambio?: (seccion: SeccionVista, datos: Datos) => void;
-}) {
+}
+
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -593,6 +616,52 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // así que notificar al padre acá es seguro incluso si el iframe todavía no cargó.
   const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
   const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; };
+
+  // ── LA SELECCIÓN EN CONTEXTO (§ EDITOR-TIENDA-SELECCION-1) — iframe→lista ─────────────────────
+  // `rootRef` apunta a la raíz de CUALQUIERA de las dos ramas de render (la tarjeta cerrada o el
+  // encabezado de la edición abierta, § los dos `ref={rootRef}` del render abajo): es lo que
+  // `seleccionar()` desplaza a la vista DENTRO de la columna de la lista, que es su propio scroller
+  // (`overflowY:auto`, `TiendaPaginas.tsx`) — `scrollIntoView` resuelve contra ÉSE, no contra la
+  // ventana, sin que este componente necesite saber nada de ese scroller.
+  //
+  // `pedidoExterno` es un CONTADOR, no un booleano: cada clic DENTRO del iframe debe volver a
+  // desplazar aunque la sección ya esté abierta y aunque sea la MISMA que la vez anterior — un
+  // booleano que ya está en `true` no dispara un segundo efecto. El efecto hace DOS cosas según el
+  // estado al momento del pedido: si está cerrada, la abre (como "Editar"; el scroll llega en el
+  // SIGUIENTE efecto, cuando `editando` ya cambió — abrir YA agranda el bloque, scrollear antes
+  // apuntaría a la posición de la tarjeta COLAPSADA); si ya está abierta, sólo desplaza.
+  //
+  // `procesadoHastaRef`/`desplazarPendienteRef` — EL BUG QUE ESTO ARREGLA, encontrado por EJECUCIÓN
+  // (no por lectura): el efecto depende de `editando` ADEMÁS de `pedidoExterno`, así que CUALQUIER
+  // cambio de `editando` lo vuelve a correr — también el de "Cerrar" MANUAL, horas después de que el
+  // último pedido externo ya se atendió. Sin esta guarda, cerrar una sección que alguna vez se abrió
+  // por selección en contexto la REABRÍA sola en el acto (`pedidoExterno` seguía siendo no-cero, así
+  // que `!editando` volvía a leer "hay que abrir"). `procesadoHastaRef` recuerda el ÚLTIMO pedido ya
+  // atendido —si `pedidoExterno` no cambió desde entonces, un cambio de `editando` es OTRA cosa (un
+  // cierre manual), y el efecto no hace nada—; `desplazarPendienteRef` es el puente entre los DOS
+  // pasos de abrir-y-luego-desplazar (abrir dispara un re-render con `editando` nuevo, y recién ahí,
+  // con el pedido YA marcado procesado, se cumple la condición para desplazar).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [pedidoExterno, setPedidoExterno] = useState(0);
+  const procesadoHastaRef = useRef(0);
+  const desplazarPendienteRef = useRef(false);
+  const seleccionar = useCallback(() => setPedidoExterno(n => n + 1), []);
+  useEffect(() => {
+    if (pedidoExterno !== procesadoHastaRef.current) {
+      procesadoHastaRef.current = pedidoExterno;
+      if (!editando) { desplazarPendienteRef.current = true; abrirEdicion(); return; }
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    if (desplazarPendienteRef.current && editando) {
+      desplazarPendienteRef.current = false;
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `abrirEdicion` se redefine cada render
+    // (no está memoizada); incluirla reharía correr este efecto en cada tecla sin razón. Lo que
+    // importa es EL PEDIDO (`pedidoExterno`) y si YA está editando (`editando`), ambos en deps.
+  }, [pedidoExterno, editando]);
+  useImperativeHandle(ref, () => ({ seleccionar }), [seleccionar]);
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
@@ -1243,7 +1312,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   //    no una reconstrucción por sección. Publicar/Descartar viven en la vista expandida.
   if (!editando) {
     return (
-      <div className="tienda-tarjeta">
+      <div className="tienda-tarjeta" ref={rootRef}>
         <div className="tienda-tarjeta__meta">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
             <h2 className="duna-title">{config.titulo}</h2>
@@ -1270,7 +1339,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   //    columna local. El hero conserva su comportamiento exacto.
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
+      <div ref={rootRef} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
             <h2 className="duna-title">{config.titulo}</h2>
@@ -1436,4 +1505,8 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
       />
     </>
   );
-}
+});
+
+TiendaSeccionEditor.displayName = 'TiendaSeccionEditor';
+
+export default TiendaSeccionEditor;

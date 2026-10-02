@@ -6,6 +6,10 @@ import {
   esMensajeContenidoSeccion,
   esSeccionDelRegistro,
   fusionarContenidoSeccion,
+  TIPO_MENSAJE_SECCION_CLICK,
+  esMensajeSeccionClick,
+  TIPO_MENSAJE_MODO_NAVEGAR,
+  esMensajeModoNavegar,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -103,6 +107,46 @@ test('fusionarContenidoSeccion: una seccion fuera del REGISTRY (meta o inventada
   assert.equal(resultado1, DEFAULTS);
   const resultado2 = fusionarContenidoSeccion(DEFAULTS, 'no-existe', { x: 1 });
   assert.equal(resultado2, DEFAULTS);
+});
+
+// § EDITOR-TIENDA-SELECCION-1 — los dos mensajes nuevos de la selección en contexto (§ 4.1).
+
+test('esMensajeSeccionClick acepta la forma correcta', () => {
+  assert.equal(esMensajeSeccionClick({ tipo: TIPO_MENSAJE_SECCION_CLICK, seccion: 'hero' }), true);
+});
+
+test('esMensajeSeccionClick rechaza tipo ausente/distinto y seccion ausente/vacía/no-string', () => {
+  assert.equal(esMensajeSeccionClick({ seccion: 'hero' }), false);
+  assert.equal(esMensajeSeccionClick({ tipo: 'otra-cosa', seccion: 'hero' }), false);
+  assert.equal(esMensajeSeccionClick({ tipo: TIPO_MENSAJE_SECCION_CLICK }), false);
+  assert.equal(esMensajeSeccionClick({ tipo: TIPO_MENSAJE_SECCION_CLICK, seccion: '' }), false);
+  assert.equal(esMensajeSeccionClick({ tipo: TIPO_MENSAJE_SECCION_CLICK, seccion: '   ' }), false);
+  assert.equal(esMensajeSeccionClick({ tipo: TIPO_MENSAJE_SECCION_CLICK, seccion: 3 }), false);
+});
+
+test('esMensajeSeccionClick rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeSeccionClick(null), false);
+  assert.equal(esMensajeSeccionClick(undefined), false);
+  assert.equal(esMensajeSeccionClick('hola'), false);
+});
+
+test('esMensajeModoNavegar acepta la forma correcta, en los dos sentidos', () => {
+  assert.equal(esMensajeModoNavegar({ tipo: TIPO_MENSAJE_MODO_NAVEGAR, navegar: true }), true);
+  assert.equal(esMensajeModoNavegar({ tipo: TIPO_MENSAJE_MODO_NAVEGAR, navegar: false }), true);
+});
+
+test('esMensajeModoNavegar rechaza tipo ausente/distinto y navegar no-booleano', () => {
+  assert.equal(esMensajeModoNavegar({ navegar: true }), false);
+  assert.equal(esMensajeModoNavegar({ tipo: 'otra-cosa', navegar: true }), false);
+  assert.equal(esMensajeModoNavegar({ tipo: TIPO_MENSAJE_MODO_NAVEGAR }), false);
+  assert.equal(esMensajeModoNavegar({ tipo: TIPO_MENSAJE_MODO_NAVEGAR, navegar: 'si' }), false);
+  assert.equal(esMensajeModoNavegar({ tipo: TIPO_MENSAJE_MODO_NAVEGAR, navegar: 1 }), false);
+});
+
+test('esMensajeModoNavegar rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeModoNavegar(null), false);
+  assert.equal(esMensajeModoNavegar(undefined), false);
+  assert.equal(esMensajeModoNavegar(42), false);
 });
 
 test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el servidor', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { RotateCw } from 'lucide-react';
+import { RotateCw, Navigation } from 'lucide-react';
 import type { PaginaKey, SeccionVista } from '@/components/admin/tienda-secciones';
 import {
   urlDePagina,
@@ -25,10 +25,10 @@ import {
   listoParaRestaurar,
   objetivoDeRestauracion,
 } from '@/lib/storefront/scroll-inercia';
-// EL MENSAJE del puente EN VIVO (§ EDITOR-TIENDA-POSTMESSAGE-1) — la MISMA forma que valida
-// `EditorPuenteVivo.tsx` del lado del iframe (`lib/storefront/editor-puente.ts`, pura): una sola
-// definición del nombre del mensaje, no dos que puedan divergir.
-import { TIPO_MENSAJE_CONTENIDO_SECCION } from '@/lib/storefront/editor-puente';
+// LOS MENSAJES del puente (§ EDITOR-TIENDA-POSTMESSAGE-1 / EDITOR-TIENDA-SELECCION-1) — la MISMA
+// forma que valida/emite `EditorPuenteVivo.tsx` del lado del iframe (`lib/storefront/editor-
+// puente.ts`, pura): una sola definición del nombre de cada mensaje, no dos que puedan divergir.
+import { TIPO_MENSAJE_CONTENIDO_SECCION, TIPO_MENSAJE_MODO_NAVEGAR, esMensajeSeccionClick } from '@/lib/storefront/editor-puente';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
 // Reemplaza las vistas previas sueltas por sección (`VistaTiendaEnVivo`) que montaba cada
@@ -72,11 +72,18 @@ import { TIPO_MENSAJE_CONTENIDO_SECCION } from '@/lib/storefront/editor-puente';
 // ruta de vuelta. Esa experiencia más fina (que evitaría el reload extra de abajo) sigue sin
 // construirse; acá el editor es de UNA página a la vez, y volver a ella es la expectativa correcta
 // mientras tanto.
+//
+// DOS "NAVEGAR" DISTINTOS EN ESTE ARCHIVO, A PROPÓSITO (§ EDITOR-TIENDA-SELECCION-1): el de arriba
+// es ESTE vigía —corrige una desviación de ruta, siempre quería quedarse en la página que se edita—.
+// El interruptor "Navegar" de la barra (abajo, `navegando`/`alternarNavegar`) es OTRA cosa: decide
+// si un clic DENTRO del iframe selecciona una sección (el default) o navega de verdad. El vigía
+// respeta ese interruptor (`navegandoRef.current`, ver su propio `useEffect`): con "Navegar"
+// encendido, SE APAGA — si no, el vigía deshacía en 400ms exactamente lo que el interruptor
+// prometía permitir.
 const INTERVALO_VIGIA_RUTA_MS = 400;
 export interface VistaTiendaIframeHandle {
   /** Desplaza el iframe hasta la sección y la resalta brevemente. No hace nada si el documento
-   *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`, el
-   *  caso de Suscripciones). */
+   *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`). */
   irASeccion: (seccion: SeccionVista) => void;
   /** Recarga la página real preservando el scroll — se llama tras Publicar/Descartar
    *  (§ `TiendaSeccionEditor`, `onCambioPublicado`; el guardado asentado YA NO recarga, § `onCambio`
@@ -95,8 +102,19 @@ export interface VistaTiendaIframeHandle {
 const COLOR_RESALTE = '#f59e0b';
 const DURACION_RESALTE_MS = 1500;
 
-const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKey; dispositivo?: DispositivoKey }>(
-  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO }, ref) {
+interface VistaTiendaIframeProps {
+  pagina: PaginaKey;
+  dispositivo?: DispositivoKey;
+  /** § EDITOR-TIENDA-SELECCION-1 — llamado cuando llega un `postMessage` de "clic DENTRO del
+   *  iframe" válido (`esMensajeSeccionClick`), con el MARCADOR tal cual (no resuelto todavía a una
+   *  `SeccionVista`: eso lo hace el padre, `TiendaPaginas.tsx`, que es quien conoce el registro de
+   *  secciones de la página activa). Ausente = sin padre que notificar (no debería ocurrir fuera de
+   *  un test). */
+  onSeccionSeleccionada?: (seccion: string) => void;
+}
+
+const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeProps>(
+  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
     // TOKEN de la restauración EN VUELO (§ el docstring de `onLoad`, abajo): el poll de
@@ -203,6 +221,51 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
       win.postMessage({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion, datos }, window.location.origin);
     }, []);
 
+    // ── EL INTERRUPTOR "NAVEGAR" (§ EDITOR-TIENDA-SELECCION-1, § 4.1 de DISENO.md) ────────────────
+    // Decisión de esta tanda: el modo por defecto dentro del iframe es SELECCIÓN —un clic abre la
+    // sección en la lista, nunca navega—, y "Navegar" (este botón, en la barra de abajo) es la
+    // salida explícita para volver a usar la tienda como un visitante real. El estado vive ACÁ (no
+    // en `EditorTiendaPantallaCompleta.tsx`, fuera de `touches:` de este slice) porque esta barra ya
+    // existe y ya es el lugar donde vive el otro control de esta vista ("Actualizar").
+    //
+    // Persiste entre CAMBIOS DE PÁGINA (el `<iframe key={pagina}>` remonta, pero ESTE componente —y
+    // su estado— no), y se RE-ENVÍA tras cada carga del iframe (`onLoad`, abajo): el documento nuevo
+    // arranca en su propio default (selección activa, `EditorPuenteVivo.tsx`), así que si el
+    // operador ya había activado Navegar hay que avisarle otra vez al documento nuevo.
+    const [navegando, setNavegando] = useState(false);
+    const navegandoRef = useRef(navegando);
+    navegandoRef.current = navegando;
+
+    const enviarModoNavegar = useCallback((valor: boolean) => {
+      const win = iframeRef.current?.contentWindow;
+      if (!win) return;
+      win.postMessage({ tipo: TIPO_MENSAJE_MODO_NAVEGAR, navegar: valor }, window.location.origin);
+    }, []);
+
+    const alternarNavegar = useCallback(() => {
+      setNavegando(prev => {
+        const next = !prev;
+        enviarModoNavegar(next);
+        return next;
+      });
+    }, [enviarModoNavegar]);
+
+    // ── LA SELECCIÓN EN CONTEXTO, dirección iframe→panel (§ EDITOR-TIENDA-SELECCION-1) ────────────
+    // `EditorPuenteVivo.tsx` manda este mensaje cuando el dueño clickea DENTRO de una sección
+    // marcada. Se verifica `e.source` (no sólo `e.origin`) contra el `contentWindow` de ESTE mismo
+    // iframe: con un solo iframe montado por vez alcanzaría con el origen, pero comprobar la fuente
+    // es la verificación completa y no cuesta nada más.
+    useEffect(() => {
+      const onMessage = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return;
+        if (e.source !== iframeRef.current?.contentWindow) return;
+        if (!esMensajeSeccionClick(e.data)) return;
+        onSeccionSeleccionada?.(e.data.seccion);
+      };
+      window.addEventListener('message', onMessage);
+      return () => window.removeEventListener('message', onMessage);
+    }, [onSeccionSeleccionada]);
+
     useImperativeHandle(ref, () => ({ irASeccion, recargar, enviarCambio }), [irASeccion, recargar, enviarCambio]);
 
     // Cambiar de pestaña de página es una NAVEGACIÓN real (otra URL) — el `key={pagina}` del
@@ -214,8 +277,16 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
     // `contentWindow.location` vía `history.pushState` SIN disparar el evento `load` del iframe, así
     // que un chequeo "al cargar" nunca vería ese caso — sólo comparar la ruta a intervalos lo
     // atrapa, sea cual sea el mecanismo que la cambió.
+    //
+    // GATEADO a `!navegandoRef.current` (§ EDITOR-TIENDA-SELECCION-1): este vigía es OTRO "navegar"
+    // —el que trae al iframe DE VUELTA a la página que se edita cuando el admin se desvía— y hasta
+    // este slice corría SIEMPRE. Con el interruptor "Navegar" encendido el dueño quiere exactamente
+    // lo que este vigía deshace: moverse de verdad por la tienda. Sin este gate, prender "Navegar" y
+    // clickear una tarjeta de producto habría navegado un instante y el vigía lo habría devuelto a
+    // los 400ms — el interruptor habría parecido roto.
     useEffect(() => {
       const id = window.setInterval(() => {
+        if (navegandoRef.current) return;
         // Mientras el documento está a mitad de cargar (incluida la primera carga, antes del
         // primer `onLoad`), `contentWindow.location` puede ser `about:blank` o el documento VIEJO
         // todavía — comparar en ese instante daría un falso positivo y dispararía un `replace`
@@ -270,6 +341,20 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
     // sin el período de "pegado a mitad de página" de arriba. Funciona para CUALQUIER tenant: no
     // depende de `corteAplicado`, porque el autómata que reusa tampoco depende de eso.
     const onLoad = useCallback(() => {
+      // RE-SINCRONIZA el modo Navegar (§ el bloque de arriba) en CADA carga — primera carga, cambio
+      // de página, `recargar()` —: el documento nuevo arranca en su propio default (selección
+      // activa). Reintentos cortos por la MISMA clase de carrera que `enviarCambio` ya acepta sin
+      // reintentar (ahí la cubre el hecho de que el dueño tipea varias veces; acá no hay tecla que
+      // lo repita solo): el listener del lado del iframe se adjunta en un `useEffect`, DESPUÉS de
+      // hidratar, y `load` puede disparar antes de que ese efecto corra — un envío único puede
+      // perderse en el aire (`postMessage` no encola para un listener que llega después). Reenviar
+      // el MISMO booleano es idempotente, así que no hay costo real en insistir.
+      const reenviarNavegar = () => enviarModoNavegar(navegandoRef.current);
+      reenviarNavegar();
+      window.setTimeout(reenviarNavegar, 150);
+      window.setTimeout(reenviarNavegar, 600);
+      window.setTimeout(reenviarNavegar, 1500);
+
       const win = iframeRef.current?.contentWindow;
       const guardado = scrollPendiente.current;
       scrollPendiente.current = null;
@@ -314,6 +399,9 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
         window.requestAnimationFrame(intentar);
       };
       window.requestAnimationFrame(intentar);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `enviarModoNavegar` es estable
+      // (deps `[]`, § su propia definición) y `navegandoRef` es un ref: ninguno de los dos cambia
+      // de identidad entre renders, así que agregarlos no cambia cuándo corre este callback.
     }, []);
 
     // Invalida cualquier restauración en vuelo si el componente se desmonta (cambio de página, que
@@ -322,7 +410,21 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 'var(--duna-space-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+          {/* "Navegar" (§ EDITOR-TIENDA-SELECCION-1): apagado por defecto —un clic adentro SELECCIONA
+              la sección, nunca navega—; encendido, la tienda se usa como un visitante real. Mismo
+              patrón de pill-toggle que las pestañas de página/dispositivo de la barra superior. */}
+          <button
+            type="button"
+            aria-pressed={navegando}
+            onClick={alternarNavegar}
+            className={`duna-pill${navegando ? ' is-on' : ''}`}
+            title={navegando
+              ? 'Los clics navegan de verdad, como un visitante — desactiva para volver a seleccionar secciones'
+              : 'Los clics seleccionan la sección que tocás — activa para usar la tienda como un visitante'}
+          >
+            <Navigation aria-hidden /> Navegar
+          </button>
           <button type="button" onClick={recargar} className="duna-btn duna-btn--ghost duna-btn--sm" title="Volver a cargar la vista con los últimos cambios">
             <RotateCw /> Actualizar
           </button>

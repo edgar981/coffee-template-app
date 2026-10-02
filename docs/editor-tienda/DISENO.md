@@ -449,7 +449,7 @@ cada fila.
 | 1 | `EDITOR-TIENDA-IFRAME-GATE-1` **— la cookie se retiró en `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`, § 11** | El gate de modo-borrador (§ 5.2): cookie de sesión de edición, chequeo de rol server-side, `no-store`+`noindex` condicional. SIN UI nueva todavía — sólo el mecanismo, verificable por curl/test de integración. | 1 (toca `app/(storefront)/layout.tsx`) | `verificar:nayoli` (bytes) da 0 diffs con la cookie AUSENTE — el tráfico público no cambia un byte |
 | 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` **— ENTREGADO, § 10** | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b). Alcance AMPLIADO por encargo del owner: la composición lista↔iframe (no una vista por sección) y la mitad lista→iframe de la selección en contexto, § 10. | 1 (toca `app/(storefront)/page.tsx`/`nosotros/page.tsx`/`suscripciones/page.tsx`, en la lista Tier 1 — corregido otra vez, § 10) | Verificado por ejecución: `npm run gate` verde, `guarda:color` 0px (8 capturas), `verificar:nayoli`/`:visual` caracterizados contra el `main` stale (§ CIERRE-EDITOR-GATE-1) | VistaTiendaEnVivo/data-sf-tarjeta SIGUEN vivos — ver § 10, el retiro de la fila 7 queda más chico |
 | 3 | `EDITOR-TIENDA-POSTMESSAGE-1` **— ENTREGADO, § 13** | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla. De paso, diagnostica y cierra el salto de scroll al recargar (§ 1 del spec de este slice) | 1 (el listener vive en el storefront — `EditorPuenteVivo.tsx`, gateado a `modoEditorActivo()`, NO a `useIsPreview()` como se planeaba acá: `useIsPreview` es del mecanismo viejo de `VistaTiendaEnVivo`/preview local, sin relación con el modo-borrador-por-request de este iframe) | Verificado por ejecución contra producción (`next build && next start`), preset CORTE, sesión real: cero navegaciones del frame principal, el valor reflejado en 5ms (frío) / 2.4ms (caliente); el salto de scroll medido y cerrado — ver § 13 |
-| 4 | `EDITOR-TIENDA-SELECCION-1` | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe | 1 (el atributo nuevo vive en los componentes de `components/storefront/`, gateado a preview) | Verificado por ejecución (clic en iframe abre la sección correcta en la lista, y viceversa) |
+| 4 | `EDITOR-TIENDA-SELECCION-1` **— ENTREGADO, § 14** | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe. Alcance AMPLIADO por el spec: el interruptor "Navegar" (decisión de esta tanda), y el cierre de la limitación de Suscripciones (§ 10/§ 9.1) | 1 (el marcador y el listener de clic viven en `components/storefront/EditorPuenteVivo.tsx`, gateados a `activo`/`modoEditorActivo()` — NO `useIsPreview()`, mismo criterio que `EDITOR-TIENDA-POSTMESSAGE-1`) | Verificado por ejecución — ver § 14 |
 | 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` **— alcance AMPLIADO por encargo del owner, § 12** | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe, **más la vista propia a pantalla completa** (§ 12, fuera del plan original de esta fila) | 2 (no toca `app/(storefront)/` ni `components/storefront/` — el criterio de Tier de esta tabla; el dispatch que ejecutó este slice lo etiquetó Tier 1 por cautela propia del orquestador, no porque este slice cumpla el criterio de la lista de `CLAUDE.md`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 393px (teléfono) y 768px (tablet); sin sesión, `/editor/tienda` rebota a `/login` |
 | 6 | `EDITOR-TIENDA-ORDEN-1` | Reordenar/ocultar bandas desde la lista lateral (§ 4.2): endpoint `orden` nuevo + UI de arrastre | 1 (el endpoint nuevo y `page.tsx` leen `content.orden`) | El orden que muestra el iframe tras arrastrar coincide con el que la home pública muestra tras publicar |
 | 7 | `EDITOR-TIENDA-RETIRO-1` | Retira `VistaTiendaEnVivo`, `varsDeTienda`, `FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay`, el puente `data-sf-tarjeta`/`puente-tarjetas.ts` y `preview-colores.test.ts` (ya no hay dos pipelines que comparar) | 1 (retira código de `components/admin/` que monta `components/storefront/`) | `npm run gate` verde sin esos archivos; censo por grep confirmando cero importadores restantes |
@@ -845,3 +845,177 @@ esto mismo:
   400ms se queda como está.
 
 **Cierra `EDITOR-TIENDA-POSTMESSAGE-1`.**
+
+---
+
+## 14 · `EDITOR-TIENDA-SELECCION-1` — selección en contexto, el interruptor Navegar, y Suscripciones
+    deja de compartir un marcador único
+
+Fila 4 de § 6, con dos ampliaciones que el spec pedía resolver (no quedar como diseño pendiente):
+**"decidí cómo se vuelve a «usar» la tienda… y decilo"** (§ 4.1) y cerrar la limitación de
+Suscripciones que § 10/§ 9.2 dejaron anotada (sus tres secciones compartían el marcador de página).
+
+### 14.1 · El canal iframe→panel, y el gate correcto del clic
+
+`EditorPuenteVivo.tsx` gana el SEGUNDO sentido del puente —hasta `EDITOR-TIENDA-POSTMESSAGE-1` sólo
+recibía (panel→iframe, contenido); ahora también ENVÍA (iframe→panel, selección)—, con dos mensajes
+nuevos en `lib/storefront/editor-puente.ts` (`TIPO_MENSAJE_SECCION_CLICK`,
+`TIPO_MENSAJE_MODO_NAVEGAR`), la misma forma pura/impura de siempre.
+
+**Un clic en CUALQUIER parte de la página, en modo editor, se intercepta en fase de CAPTURA sobre
+`document`** —antes de que cualquier `<Link>`/`onClick` de React corra—: `preventDefault()` +
+`stopPropagation()` siempre que el interruptor "Navegar" esté apagado (el DEFAULT), y si el clic cae
+dentro de un `[data-editor-seccion]` además manda el marcador al panel por `postMessage`. Un clic
+FUERA de cualquier marcador (el nav, el pie, el carrito — chrome global, fuera de `<main>`) sólo se
+frena: no hay sección que abrir, y frenarlo es lo que cumple "enlaces, botones, carrito y ojo no se
+disparan" (el pedido textual del spec), sin necesitar una lista de excepciones por componente.
+
+El afordance de hover (outline punteado, el mismo ámbar del resalte del panel) lo pinta una clase
+(`duna-editor-seleccion` en `<html>`) que este mismo componente pone/quita — nunca en `globals.css`,
+nunca un listener por nodo.
+
+### 14.2 · "Navegar" — la decisión de cómo se vuelve a usar la tienda
+
+Un botón nuevo en la barra de `VistaTiendaIframe.tsx` (junto a "Actualizar"), apagado por defecto.
+Manda `TIPO_MENSAJE_MODO_NAVEGAR` por `postMessage`; `EditorPuenteVivo` lo guarda en un REF (no en
+estado — nada de lo que depende de su valor necesita un re-render del lado del iframe) y, mientras
+esté encendido, el listener de clic de § 14.1 no hace nada: la tienda se usa como un visitante real.
+
+**Se re-envía tras CADA carga del iframe** (primera carga, cambio de página, `recargar()`), con
+reintentos cortos (150/600/1500ms): el documento nuevo arranca en su propio default y el listener del
+lado del iframe se adjunta en un `useEffect`, DESPUÉS de hidratar — un envío único puede perderse si
+`load` dispara antes de que ese efecto corra. Reenviar el mismo booleano es idempotente.
+
+**HALLAZGO MEDIDO, no anticipado por el diseño: el vigía de ruta (§ 11.2, el POLL que devuelve el
+iframe a la página editada si el admin se desvía) y "Navegar" compiten por la MISMA cosa —adónde
+apunta el iframe— y hasta corregirlo el vigía GANABA SIEMPRE.** Con "Navegar" encendido y un clic
+real navegando el iframe a otra ruta, el vigía (que corre cada 400ms, sin saber nada del interruptor)
+detectaba la divergencia y lo mandaba DE VUELTA con `location.replace` — el interruptor habría parecido
+roto: se prende, se clickea, y 400ms después se está de nuevo donde se empezó. Se cierra gateando el
+vigía al MISMO ref (`if (navegandoRef.current) return;`, antes de cualquier otro chequeo del poll):
+con "Navegar" encendido el vigía se apaga entero; al apagar "Navegar" vuelve a traer al iframe de
+vuelta a la página que se edita, como siempre. **Verificado por ejecución** (§ 14.4): un clic real con
+Navegar ON deja al iframe en `/tienda` más de 1.2s después (> el intervalo de 400ms del vigía) sin
+que lo revierta.
+
+### 14.3 · Suscripciones deja de compartir un marcador único — por qué fue imperativo, no JSX
+
+`app/(storefront)/suscripciones/Contenido.tsx` (el único archivo de `components/storefront`-
+adyacente en `touches:` de este slice) etiqueta sus TRES secciones (`suscripcionPlanes`/
+`suscripcionPasos`/`suscripcionFaq`) por separado, cerrando la limitación de § 10/§ 9.2 ("ir a la
+sección" sólo llevaba al TOPE de la página).
+
+**El problema real, medido ANTES de escribir código:** este archivo no puede recibir `enModoEditor`
+por prop (`app/(storefront)/suscripciones/page.tsx`, quien lo sabría, está FUERA de `touches:`), no
+puede leerlo de un context (ninguno de los dos providers del storefront lo expone, y agregarle uno
+exige tocar el layout, también fuera de `touches:`), y no puede usar `useSearchParams()` (exige un
+`<Suspense>` que ningún ancestro de este árbol tiene — medido: `app/(admin)/editor/tienda/page.tsx`
+SÍ envuelve en `<Suspense>` por esto mismo, pero el storefront no).
+
+**La salida: el componente mira su propio DOM.** `page.tsx` (sin tocar) YA escribe
+`<div data-editor-seccion="suscripciones">` ÚNICAMENTE cuando `modoEditorActivo()` —sesión real,
+server-side— lo decidió. `Contenido.tsx` usa `closest()` sobre ESE marcador como ancla: si existe, es
+el ÚNICO caso en que puede existir (borrador verificado por sesión real); si no (el tráfico público),
+el efecto no hace NADA. Encontrado el ancla, el efecto ESCRIBE el atributo imperativamente
+(`setAttribute`) sobre los nodos reales que YA existen —nunca una nueva `<div>` en el JSX, que sí
+rompería el byte-a-byte de la sección "sin modo editor, cero atributos nuevos"—, ubicados por
+POSICIÓN (`:scope > section` para los dos de Planes + el de Pasos —que puede estar AUSENTE,
+`ocultable:true`—, `:scope > main` para la FAQ). Documentado en el código como la limitación
+estructural que es: si alguno de los tres componentes cambia su número de raíces, esto falla
+CALLADO —el clic en esa zona deja de resolver—, el mismo límite de hoy, no uno peor.
+
+`marcadorDeSeccion`/`selectorDeSeccion` (`lib/admin/editor-iframe.ts`) se simplifican: las tres de
+Suscripciones caen a la identidad (ya no comparten `'suscripciones'`). Nueva función inversa
+`seccionDesdeMarcador` (identidad salvo `'featured'`→`'spotlight'`, la única ambigüedad real) resuelve
+el marcador que llega del clic a una sección del panel; `TiendaPaginas.tsx` valida el resultado contra
+el registro de la página activa antes de usarlo — un marcador que no resuelve a nada conocido se
+ignora, nunca lanza.
+
+### 14.4 · El bug que sólo la EJECUCIÓN encontró — `pedidoExterno` reabriendo una sección cerrada
+
+`TiendaSeccionEditor` gana `TiendaSeccionEditorHandle.seleccionar()` (forwardRef), llamado por
+`TiendaPaginas` cuando un clic DENTRO del iframe resuelve a esa sección. El PRIMER diseño (un
+contador `pedidoExterno` + un efecto con deps `[pedidoExterno, editando]`) pasó `tsc`/`npm test` y
+SE ROMPIÓ en la primera corrida con sesión real: cerrar una sección que alguna vez se abrió por
+selección en contexto la REABRÍA sola, en el acto. Causa: el efecto corre con CUALQUIER cambio de
+`editando`, no sólo con un `pedidoExterno` nuevo — y "Cerrar" (manual, del operador) también cambia
+`editando`. Con `pedidoExterno` todavía distinto de cero, ese cambio se leía como "hay un pedido sin
+atender: abrir". Se cierra con dos refs (`procesadoHastaRef`/`desplazarPendienteRef`, § el código,
+el comentario completo) que distinguen "llegó un pedido NUEVO" de "`editando` cambió por otra razón".
+**Es la razón de fondo de por qué este slice exigía verificación por EJECUCIÓN y no sólo gate**: el
+bug sólo se manifiesta con una secuencia real de clics (abrir A → cerrarlo con el botón → abrir B), que
+ningún test de capa 1/2 ejercita.
+
+### 14.5 · Verificación por ejecución
+
+Contra DB efímera propia (nunca `development`/producción), sin preset (Nayoli), `next build && next
+start`, login real (`admin@sierranativa.co`/`ChangeMe123!`), sesión OWNER real — script ad-hoc en
+`.scratch/` (no committed, por diseño: es arnés de verificación de ESTE slice, no una pieza del
+producto). **14/14 verificaciones en verde**, entre ellas:
+
+| verificación | resultado |
+| --- | --- |
+| home: clic en el hero DENTRO del iframe | abre "Portada" en la lista |
+| home: "Editar" en la lista (lista→iframe, mecanismo heredado de `EDITOR-TIENDA-IFRAME-VISTA-1`) | resalta (outline) el nodo correcto DENTRO del iframe |
+| nosotros: clic en "Historia" DENTRO del iframe | abre "Historia" en la lista |
+| suscripciones: clic en `suscripcionPlanes`/`suscripcionPasos`/`suscripcionFaq` (tres clics, tres marcadores DISTINTOS, verificados por `count()`) | cada uno abre "Planes" / "Cómo funciona" / "Preguntas frecuentes" — nunca la misma de la vez anterior |
+| Navegar OFF (default): clic en un `<a>` del nav | el iframe sigue en `/suscripciones` |
+| Navegar ON: el MISMO clic | el iframe navega a `/tienda`, y sigue ahí 1.2s después (el vigía no lo revierte) |
+
+### 14.6 · Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3042/3042** |
+| `npm run test:integracion` | **283/283** — sin cambio sobre el piso (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra, al píxel, que el piso heredado**: 355.138/4.608.000 px (consciente de AA), caja [96,862]–[1183,3306]; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run guarda:color` | Misma cifra, misma caja; las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+
+### `schema`/`cross-repo-contract`
+
+Ninguno aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo.
+
+### CLAUDE.md — grep de los símbolos que este diff cambió
+
+Grepeados: `VistaTiendaIframe` (0), `TiendaSeccionEditor` (6 — ninguna la vuelve falsa: describen el
+contrato de borrador, el patrón de bloques/`bloquesRef`, el uploader extraído, `categoriasListas` —
+ninguno de esos cuatro ejes cambió), `TiendaPaginas` (4 — ídem, el fetch 6→1 y el agrupado por página
+no cambiaron), `EditorPuenteVivo`/`editor-puente`/`editor-iframe`/`data-editor-seccion`/
+`marcadorDeSeccion`/`EDITOR-TIENDA-SELECCION-1`/`EDITOR-TIENDA-POSTMESSAGE-1`/
+`EDITOR-TIENDA-IFRAME-VISTA-1` (0 cada uno). `Contenido.tsx` (1, línea 2968 — "page.tsx server +
+Contenido.tsx cliente", sigue siendo exactamente ese reparto). `suscripcionPlanes`/`suscripcionPasos`/
+`suscripcionFaq` (1 cada uno, describen que son secciones editables — sigue siendo cierto).
+
+**DOS HALLAZGOS, pre-existentes a este slice, NO causados por este diff** (encontrados por el mismo
+grep, reportados porque el mecanismo no distingue "lo encontré" de "lo causé"): la línea 2759 de
+CLAUDE.md menciona `onClicTarjeta` como vivo en `TiendaSeccionEditor.tsx` —ese handler se RETIRÓ en
+`EDITOR-TIENDA-IFRAME-VISTA-1` (§ 10 de este mismo documento ya lo dice: "`onClicTarjeta`… sí se
+retiró, por quedar sin disparador")—, y la línea 2884 dice "`TiendaPaginas` agrupa… SIN GATE" como si
+el selector de página siguiera viviendo ahí, cuando `EDITOR-TIENDA-DISPOSITIVOS-1` lo subió a
+`EditorTiendaPantallaCompleta`. Ninguna de las dos está en `touches:` de este slice — quedan como
+open follow-up, no corregidas acá.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3042 + 283), `verificar:nayoli:
+visual`/`guarda:color` sin un píxel nuevo sobre el piso heredado, las dos direcciones del puente y el
+interruptor Navegar verificados por ejecución contra producción con sesión real, un bug real
+(`pedidoExterno` reabriendo una sección cerrada) encontrado y cerrado por esa misma ejecución.
+Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL`
+sin merge.
+
+**Open follow-ups:**
+- `CLAUDE-MD-ONCLICTARJETA-STALE-1` — CLAUDE.md:2759 describe `onClicTarjeta` como vivo en
+  `TiendaSeccionEditor.tsx`; se retiró en `EDITOR-TIENDA-IFRAME-VISTA-1`. No corregido acá:
+  `CLAUDE.md` no está en `touches:` para ese párrafo (sólo se agregó, no se corrigió, el asiento de
+  este slice).
+- `CLAUDE-MD-TIENDAPAGINAS-SELECTOR-STALE-1` — CLAUDE.md:2884 describe a `TiendaPaginas` agrupando
+  con el selector de página "SIN GATE"; el selector subió a `EditorTiendaPantallaCompleta` en
+  `EDITOR-TIENDA-DISPOSITIVOS-1`. Mismo motivo, no corregido acá.
+- `EDITOR-TIENDA-ORDEN-1`/`EDITOR-TIENDA-RETIRO-1` (filas 6/7 del plan) — siguen pendientes, sin
+  relación con este slice.
+
+**Cierra `EDITOR-TIENDA-SELECCION-1`.**
