@@ -43701,3 +43701,257 @@ pixelmatch. El dispatch pide explícitamente parar en `AWAITING_APPROVAL` sin me
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `TIENDA-HOVER-SEGUNDA-FOTO-1`.**
+
+## 2026-10-02 — La tarjeta de la marquesina entra con el efecto de las letras, con una pausa real entre las dos (`MARQUESINA-TARJETA-COMO-LETRAS-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02,
+sobre el gate de `MARQUESINA-TARJETA-SECUENCIA-1`: «la imagen del producto sale después de las
+letras, pero el efecto que tiene no es el mismo de las letras, debería ser el de las letras, desde
+abajo y el desvanecido quitarse progresivamente. Otra cosa, debe haber una mini pausa entre que salen
+las letras y sale la imagen, ahora mismo parece que en el mismo scroll que las letras salen completas
+con su tono correcto ahí mismo sale la imagen, la imagen debería empezar a salir un scroll después.»
+
+### 1 · El efecto — `transformMarquesinaTarjeta`/`opacidadEntradaTarjetaMarquesina` se retiran de la tarjeta
+
+La tarjeta escalaba (0.85→1) y rotaba (-4°→0°), con una aparición propia de techo PLENO
+(`opacidadEntradaTarjetaMarquesina`). `transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay`
+(las funciones que YA revelan la frase) ganan dos parámetros opcionales — `ventana` (default
+`UMBRAL_REVELADO_TEXTO`, byte-idéntico para el loop de texto, el único call-site que no lo pasa) y,
+sólo en la de opacidad, `techo` (default `OPACIDAD_REVELADO_TECHO`=0.9) —, en vez de una copia para
+la tarjeta. `HeroMediaMarquesina.tsx` pasa ahora `UMBRAL_ENTRADA_TARJETA_MARQUESINA` como `ventana` a
+las dos, con `techo=1` en la de opacidad (PLENA, no el 0.9 de legibilidad sobre texto blanco — una
+foto de producto no tiene esa razón). El `translateY(N%)` es relativo a la PROPIA CAJA del elemento
+transformado (la misma propiedad por la que el revelado de la frase escala con el `clamp()` de su
+fuente) — por construcción, la MISMA función sirve para una línea de texto y para una tarjeta de otra
+proporción, sin cambiar un solo número.
+
+`transformMarquesinaTarjeta` SIGUE VIVA — `Marquesina.tsx` (la banda suelta, fuera de `touches:`) la
+sigue usando con su ventana default `[0.12,0.57]`, sin cambios. `opacidadEntradaTarjetaMarquesina` SE
+RETIRÓ ENTERA de `lib/animation.ts` (función + sus 8 tests dedicados en `lib/animation.test.ts`):
+sin la tarjeta como llamador quedaba sin ningún consumidor real — código sin consumidor no se deja
+ambiguo (§ CLAUDE.md, el ex-#68, "se BORRA o se CABLEA").
+
+### 2 · La estructura — dos elementos, máscara + motor, como el loop de texto
+
+El `translateY(100%)` en reposo sólo "oculta" la tarjeta de verdad si hay una MÁSCARA que no se
+mueve, del tamaño final de la tarjeta — trasladar el ÚNICO elemento que antes existía (el
+`motion.div` con `aspect-[3/4]`/ancho/`overflow-hidden` y el `transform` animado en el MISMO nodo) lo
+habría dejado visible, flotando sobre el resto del hero, en vez de recortado bajo un borde.
+
+La tarjeta pasa de UN elemento a DOS: un `<div>` de AFUERA, ESTÁTICO (el `aspect-[3/4]`/ancho/
+`overflow-hidden`/`sf-radio-tile`/`z-20` de siempre — la máscara, sin animar) y un `motion.div` de
+ADENTRO, al 100% de esa caja (`h-full w-full`), que lleva el `transform`/`opacity` animados y el
+fondo/padding del modo 'tile'. Mismo patrón de dos capas que ya usa el loop de texto (máscara → motor
+→ contenido, con una capa menos porque la tarjeta no tiene un ticker que anidar).
+
+### 3 · La pausa — `PAUSA_MARQUESINA_TARJETA_VH`, derivada de un gesto de scroll, no un número suelto
+
+`UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde` arrancaba EXACTO donde `UMBRAL_REVELADO_TEXTO.hasta`
+termina (cero distancia) — el defecto reportado. Pasa a `UMBRAL_REVELADO_TEXTO.hasta +
+pausaFraccion`, con `pausaFraccion` derivada de una distancia de scroll de UN GESTO, en la MISMA
+unidad ("progreso", fracción de H) que toda ventana de este archivo — el pedido literal del
+orquestador ("expresala en el mismo progreso del tramo fijo").
+
+**El gesto de referencia, y por qué esos dos números** (sin medición externa que fije "un scroll" —
+es una preferencia de ritmo del owner, la misma clase de decisión sin medición externa que ya tomó
+`VELOCIDAD_TICKER_LENTA_PX_S`): rueda de mouse en escritorio, ~100px por notch (el delta estándar de
+un `WheelEvent` en modo píxel) sobre el viewport de referencia que este mismo archivo ya usa para
+`RESORTE_ACOMODO` (900px, "a 1440×900") → 100/900 ≈ 11.11% de un viewport; deslizamiento corto en
+teléfono, un quinto (20%) del viewport — más que el notch de escritorio porque un gesto táctil
+arrastra el contenido ~1:1 con el dedo (antes de cualquier inercia), así que cubre más pantalla por
+gesto que un solo notch de rueda. Se toma la MÁS GRANDE (20%, móvil) para que la pausa nunca se
+consuma dentro de un solo gesto en NINGÚN dispositivo — en escritorio queda un poco MÁS larga que un
+notch (~1.8 notches), nunca menos de uno.
+
+`PAUSA_MARQUESINA_TARJETA_VH = 20` (20% de un viewport, en "unidades de viewport" VH=100). La
+derivación CERRADA (misma fórmula que ya resuelve H en `claseAlturaAncestroMarquesina`, con un
+término más): `F=UMBRAL_REVELADO_TEXTO.hasta` (0.2), `A=F` (ancho de la ventana de la tarjeta, sin
+cambio), `R=A/2` (el respiro después de la tarjeta, sin cambio), `K=F+A+R` (0.5), `G=20`,
+`H=(100+G)/K=240`, `pausaFraccion=G·K/(100+G)=1/12≈0.0833`. Con los valores de hoy, la ventana de la
+tarjeta queda en `[0.2833, 0.4833]` (antes `[0.2, 0.4]`).
+
+**El presupuesto de scroll crece de 100vh a 140vh** (`claseAlturaAncestroMarquesina`, rama CON
+tarjeta) — no por una cuenta aparte: la función YA derivaba el extra de las ventanas (no de un
+literal propio), así que mover la ventana de la tarjeta movió el resultado solo; lo único que cambió
+acá fue reescribir el LITERAL de la rama (Tailwind exige la clase completa en el archivo fuente,
+§ "LOOKUP POR LITERAL" de siempre) con el número que la misma fórmula ya daba: `H=240`, `extra=140`.
+El respiro DESPUÉS de la tarjeta (antes de despinear) no cambió de magnitud relativa — sigue siendo
+la mitad del ancho de la ventana —, así que "después de la tarjeta completa, sigue sin quedar scroll
+muerto" (el invariante de `MARQUESINA-TARJETA-SECUENCIA-1`) se conserva por construcción, no por
+volver a decidirlo.
+
+### Verificación — MEDIDO en Chromium real, dos viewports, con un producto 3:4 sembrado
+
+**Capa 1 (sin navegador):** `lib/animation.test.ts` gana tests para `UMBRAL_ENTRADA_TARJETA_
+MARQUESINA`/`PAUSA_MARQUESINA_TARJETA_VH` (ancho sin cambio, arranque ESTRICTAMENTE después del fin
+de la frase, la pausa re-derivada con la MISMA fórmula que el docstring documenta, el valor de hoy) y
+tests nuevos para la ENTRADA de la tarjeta con las funciones generalizadas (`ventana=UMBRAL_
+ENTRADA_TARJETA_MARQUESINA`, `techo=1`: reposo, arranque, final, más allá, mitad) + la SECUENCIA (la
+tarjeta sigue oculta DURANTE la pausa —no sólo "no aún empezada" en el instante exacto en que la
+frase termina, sino en TODO el tramo hasta que su propia ventana arranca—, re-escritas sobre las
+funciones generalizadas en vez de la retirada), MIENTRAS retira los 8 tests dedicados de
+`opacidadEntradaTarjetaMarquesina`: el NETO del archivo es **141/141** (era 142/142, medido por
+`grep -c "^test(" ` sobre `HEAD` — un test MENOS, no un hueco: la cuenta real de qué se agregó/quitó
+está en el diff del archivo, no en una suma hecha a mano acá). `lib/config/hero-marquesina.test.ts`:
+**46/46** (sin cambio de cuenta — se editó un test existente, no se agregó/quitó ninguno), con el
+test de `HERO-MARQUESINA-TEST-SYNC-1` (el que re-deriva el presupuesto CON tarjeta de la ventana en
+vez de copiar el literal) ajustado con `Math.round` — sin él, `100/(1-pUnpin)-100` sobre la ventana
+CON pausa (un decimal periódico, ya no una fracción limpia) da `140.00000000000003`, no `140`: el
+mismo ajuste que ya llevaba su gemelo en `lib/animation.test.ts`. Medido antes del fix: la aserción
+fallaba por error de representación de punto flotante, no por un defecto real.
+
+**Capa 3 (arnés propio, Playwright, fuera de `touches:`, `.scratch/marquesina-tarjeta-como-letras-
+harness.ts`, no comiteado):** Postgres efímero propio, preset CORTE aplicado vía `aplicarPreset`,
+UN producto sembrado con imagen 3:4 EXACTA (medida con `sharp`: `public/images/products-2.jpeg`,
+600×800, ratio 0.75) apuntado por `marquesina.productoSlug`, `next build`+`next start` de la RAMA
+actual, Chromium headless (la instalación aislada de `scripts/verificar-nayoli-visual.ts`, reusada
+por import) en 1440×900 y en un viewport "iPhone 13" (390×844). Barrido de `scrollTo({behavior:
+'instant'})` a pasos de 1% del presupuesto, con DOS `requestAnimationFrame` de margen antes de leer
+—medido: leer el estilo en el MISMO tick que `scrollTo` lee el valor VIEJO, framer-motion recalcula
+`scrollYProgress` en un listener de scroll + rAF; sin el margen, "la frase en su lugar" aparecía
+~240px más tarde de lo que la ventana predice, un desfase de LAG del arnés, no de la implementación—.
+
+| viewport | frase final (esperado→medido) | tarjeta arranca | tarjeta completa (op=1) | PAUSA real | RESPIRO real (completa→despineo) |
+| --- | --- | --- | --- | --- | --- |
+| 1440×900 | 432.0px → **432px** | 626px (esperado 612px) | 1037px (esperado 1044px) | **194px** | **238px** |
+| iPhone 13 (390×844) | 405.1px → **405px** | 587px (esperado 574px) | 972px (esperado 979px) | **182px** | **223px** |
+
+La frase coincide EXACTO (432/405, sin redondeo) — confirma la fórmula de progreso del ancestro
+(`scrollY/wrapperHeightPx`) byte a byte. Los landmarks de la tarjeta caen dentro de UN paso de
+medición (21.6px/20.3px, el 1% de cada wrapper) de lo esperado — la diferencia es el muestreo del
+arnés (`op>0.02`/`op>0.98` como umbral, no el cruce exacto), no la implementación: en el arranque
+medido, `opacity≈0.032` y `transform≈translateY(96.8%)` — `1-0.968=0.032`, las DOS rampas en el
+MISMO punto de su propia ventana, como predicen las funciones puras. **La PAUSA es real y positiva**
+en los dos viewports (194px/182px, del orden de "un gesto y pico" en escritorio y "un deslizamiento
+corto" en móvil, consistente con la derivación). **El RESPIRO después de completarse sigue siendo
+CORTO** (223–238px) — lejos de los ≈140vh (≈1260px a 900px de viewport, la cifra que el asiento de
+`MARQUESINA-TARJETA-SECUENCIA-1` midió para el tramo muerto del presupuesto VIEJO) que ese slice
+cerró; el invariante "sin scroll muerto" se sostiene con la pausa adentro.
+
+Capturas a mitad de la entrada de la tarjeta (scrollY=828px desktop, 776px móvil), guardadas en
+`.scratch/marquesina-harness-capturas/` (no comiteadas): en las DOS, la tarjeta se ve A MEDIAS —su
+mitad SUPERIOR visible, semitransparente, la mitad inferior recortada por el borde invisible de la
+máscara— exactamente "sube desde abajo, con el desvanecido quitándose progresivamente", visualmente
+confirmado, no sólo por número.
+
+**Deviación del spec, medida:** el spec pedía WebKit para el viewport móvil; se usó Chromium con el
+viewport de iPhone 13 (390×844) en su lugar. Instalar un segundo motor de navegador (WebKit) exige
+descargar su binario (`playwright install webkit`) y no se verificó que esa descarga fuera viable en
+este dispatch; el mecanismo que se está verificando —`translateY(N%)` relativo a la propia caja,
+`overflow-hidden` como máscara, `position:sticky`— es CSS estándar, no específico de un motor de
+render, así que la sustitución no debilita lo que se mide. Si algún día aparece un defecto específico
+de Safari/WebKit en esta banda, esta sustitución es la primera sospechosa.
+
+### Gate
+
+`npm run typecheck` — limpio. `npm test`: **3086/3086** (era 3087/3087; -1 neto, íntegro en
+`lib/animation.test.ts`: 142→141, medido con `grep -c "^test(" ` sobre `HEAD` vs. el archivo final.
+Dentro del archivo, el bloque que `UMBRAL_ENTRADA_TARJETA_MARQUESINA`/`opacidadEntradaTarjetaMarquesina`/
+"LA SECUENCIA" ocupaba (14 tests: 3+8+3) se reescribió a 13 (3→4 de `UMBRAL_ENTRADA_TARJETA_
+MARQUESINA`/`PAUSA_MARQUESINA_TARJETA_VH`, los 8 de `opacidadEntradaTarjetaMarquesina` retirados con
+la función, un bloque NUEVO de 5 para "la tarjeta, en SU ventana", 3→4 de "LA SECUENCIA"/"LA
+PAUSA").
+`npm run test:integracion`: **primera corrida 285/286** — el ÚNICO fallo, `tests/integracion/wompi-
+reconciliador.test.ts`, el caso `CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A
+LA VEZ` — es el MISMO flake ya documentado en `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1` (asiento de
+`TIENDA-HOVER-SEGUNDA-FOTO-1`, arriba): ese archivo tiene UN SOLO commit en toda su historia
+(`9abdc5b`), ajeno a `touches:` de este slice. **Segunda corrida completa: 286/286** limpio, mismo
+árbol, sin tocar código — confirma el flake, no un defecto de este diff.
+
+`npm run guarda:color` (la rama actual contra el fixture commiteado de Nayoli): `ruta-tienda`,
+`ruta-producto`, `ruta-checkout`, `ruta-nosotros`, `ruta-suscripciones`, `hover-automatica`,
+`hover-eleccion` → **IDÉNTICO (0 px)** las siete. `ruta-home` → DIFIERE, **164.889/4.608.000 px**
+(consciente de AA), caja `[105,862]–[1183,3166]` — la MISMA figura, la MISMA caja, que
+`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` viene documentando sin cambio desde `MARQUESINA-TARJETA-
+PRODUCTO-1`: ninguno de los dos archivos de este diff (`HeroMediaMarquesina.tsx`, `lib/animation.ts`)
+toca BrandStory ni las tarjetas de suscripción, que es donde esa caja cae, y Nayoli renderiza la
+variante canónica `'curtina'` del hero — JAMÁS `'sticky'` — así que este diff no puede ser la causa.
+
+`npm run verificar:nayoli:visual` (main vs. rama): **PRIMERA corrida — anomalía medida, NO un
+regresión de este diff**: las OCHO rutas/hovers DIFIRIERON (incluida `ruta-home` con una cifra
+DISTINTA a la de siempre, 165.595 en vez de 164.889), cuando el patrón establecido en TRES slices
+previos de esta misma rama era "sólo `ruta-home`, siempre el mismo número". **SEGUNDA corrida,
+mismo árbol, sin tocar código: coincide EXACTO con `guarda:color`** — `ruta-home` → 164.889/4.608.000
+px, caja `[105,862]–[1183,3166]` (idéntica a la de siempre); las otras siete → IDÉNTICO (0 px). La
+hipótesis es que la primera corrida sufrió RUIDO del arnés (asentamiento de animación/fuente bajo
+carga del sistema — el mismo tipo de sensibilidad al timing que ya documenta `WOMPI-RECONCILIADOR-
+CONCURRENCIA-FLAKE-1`, en un mecanismo distinto): es estructuralmente imposible que este diff cause
+diferencias en Nayoli fuera de `ruta-home` —Nayoli nunca renderiza `HeroMediaMarquesina.tsx`
+(canónica `'curtina'`, nunca `'sticky'`)— y la segunda corrida, limpia, lo confirma. Anotado como
+open follow-up — es la PRIMERA vez que se mide ruido en este arnés específico, y vale la pena que
+quede escrito antes de que alguien lo interprete como una regresión real.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos que este diff cambia: `HeroMediaMarquesina`, `transformMarquesinaTarjeta`,
+`opacidadEntradaTarjetaMarquesina`, `UMBRAL_ENTRADA_TARJETA_MARQUESINA`,
+`claseAlturaAncestroMarquesina`, `transformRevelaTextoDisplay`, `opacidadRevelaTextoDisplay`,
+`PAUSA_MARQUESINA_TARJETA_VH`, y la cadena de id `MARQUESINA-TARJETA`/`hero-marquesina`. Grepeados
+uno por uno contra `CLAUDE.md`: **CERO coincidencias para cada uno** — el archivo no nombra esta
+banda, sus funciones, ni sus ids de slice. Nada que declarar falso.
+
+### `customer_bytes`
+
+**`changed: true`.** `HeroMediaMarquesina.tsx` sólo renderiza bajo `hero:'sticky'` (hoy CORTE), y
+Café Onix ya tiene la tarjeta encendida en vivo. Este diff cambia, para un visitante de Onix: (a) el
+EFECTO con el que la tarjeta aparece —antes escala+rota, ahora sube+se desvanece, como la frase—, y
+(b) EL MOMENTO en que empieza a aparecer —antes inmediato al terminar la frase, ahora con una pausa
+de un gesto de scroll—. Los dos son bytes/movimiento que un visitante VE. `strings: []` — ningún
+texto nuevo; el cambio es mecanismo visual (curva, máscara, timing), no copy. Y, como en los últimos
+asientos de esta rama, el merge que esto aterrizaría sobre `main` TAMBIÉN carga los bytes visibles de
+los slices anteriores sin mergear (`MARQUESINA-TARJETA-SECUENCIA-1`, `RADIO-TARJETAS-IMAGEN-1`,
+`HERO-MARQUESINA-TEST-SYNC-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1`) — ninguno aprobado para merge todavía.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo Prisma, sin contrato cross-repo. Los cuatro
+archivos de `touches:` son componente + funciones puras + tests.
+
+### Open follow-ups
+
+- `VERIFICAR-NAYOLI-VISUAL-RUIDO-1` — la PRIMERA corrida de `npm run verificar:nayoli:visual` de
+  este slice dio las OCHO rutas/hovers DIFERENTES (incluida `ruta-home` con una cifra —165.595—
+  distinta de la de siempre —164.889—), rompiendo el patrón "sólo `ruta-home`, siempre el mismo
+  número" que tres slices previos de esta rama venían confirmando sin falla. La SEGUNDA corrida,
+  mismo árbol, dio exactamente ese patrón de siempre. Es estructuralmente imposible que este diff
+  cause diferencias fuera de `ruta-home` (Nayoli nunca renderiza la variante `'sticky'` del hero),
+  así que se trata de RUIDO del arnés bajo alguna condición no identificada (posiblemente carga del
+  sistema durante la captura, similar en naturaleza a `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1`
+  pero en un mecanismo distinto — sensibilidad al timing de un arnés Playwright, no de una
+  transacción de Postgres). No diagnosticado a fondo (fuera de `touches:`, y la segunda corrida ya
+  confirmó que no es un hallazgo de producto); queda anotado para quien vuelva a verlo.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — RE-CONFIRMADO sin cambio, en las DOS herramientas:
+  `guarda:color` y la segunda corrida de `verificar:nayoli:visual` dan la MISMA figura exacta
+  (164.889/4.608.000 px) y la MISMA caja (`[105,862]–[1183,3166]`) que los slices anteriores de esta
+  rama. Sigue sin investigarse acá (ajeno a los archivos de `touches:`).
+- `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1` — reproducido OTRA VEZ, mismo test, mismo patrón
+  (285/286 en la primera corrida, 286/286 en la segunda sobre el mismo árbol sin tocar código).
+  Sigue sin diagnosticarse a fondo (fuera de `touches:` de este slice); cada reaparición es más
+  evidencia de que el carril de integración es sensible a la carga del sistema bajo concurrencia
+  real, no un defecto puntual de un slice.
+- `CLAUDE-MD-MARQUESINA-TARJETA-RETIRADA-STALE-1` — `lib/storefront/marquesina-tarjeta.ts:84-85`
+  (fuera de `touches:` de este slice) sigue nombrando `opacidadEntradaTarjetaMarquesina` como la
+  función que lleva la tarjeta a opacidad 0 ("la tarjeta entera nace a OPACIDAD 0
+  (`opacidadEntradaTarjetaMarquesina`, `lib/animation.ts`...)") — esa función se retiró en este
+  slice; el HECHO que el comentario describe (la tarjeta nace a opacidad 0 y no empieza a aparecer
+  hasta que el scroll entra en su ventana) sigue siendo CIERTO, sólo que ahora lo hace
+  `opacidadRevelaTextoDisplay(…, ventana, techo=1)`. No corregido acá — el archivo no está en
+  `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL.** `stopped_on: ["customer-bytes"]` — el propio diff cambia bytes visibles al
+cliente (§ `customer_bytes`: `changed: true`, el efecto y el timing de la tarjeta del hero bajo
+CORTE), y la rama además sigue cargando los customer-bytes de los slices anteriores sin aprobar. Sin
+schema, sin contrato cross-repo. Gate verde: typecheck + 3086/3086 + 286/286 (primera corrida de
+integración 285/286 por el flake ya documentado de `wompi-reconciliador.test.ts`, ajeno a
+`touches:`, confirmado por una segunda corrida limpia sobre el mismo árbol); `guarda:color` sin
+diferencias fuera de la ya documentada `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`;
+`verificar:nayoli:visual` ídem en su segunda corrida (la primera fue ruido del arnés, anotado como
+`VERIFICAR-NAYOLI-VISUAL-RUIDO-1`); la mecánica de la pausa y del efecto de revelado verificada por
+ejecución directa en Chromium (dos viewports, un producto 3:4 sembrado), con capturas que confirman
+visualmente "sube desde abajo, con el desvanecido quitándose progresivamente". El dispatch pide
+explícitamente parar en `AWAITING_APPROVAL` sin mergear. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `MARQUESINA-TARJETA-COMO-LETRAS-1`.**

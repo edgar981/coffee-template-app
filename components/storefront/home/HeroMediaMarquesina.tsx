@@ -11,8 +11,8 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
-  useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
-  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, opacidadEntradaTarjetaMarquesina,
+  useProgresoScrollDesdeTope, veloOpacidad, rangoVeloDeIntensidad,
+  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay,
   claseAlturaAncestroMarquesina, UMBRAL_ENTRADA_TARJETA_MARQUESINA,
   duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
@@ -61,7 +61,9 @@ import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } fro
 // revelado por scroll, § RONDA 3 más abajo) no cambió: sigue siendo scroll-scrubbed, sin tocar. La
 // TARJETA sigue usando `transformMarquesinaTarjeta` (scroll-driven, sin cambios) — el pedido del
 // owner es sobre el TEXTO, no sobre la tarjeta, y no hay evidencia de que la tarjeta deba cambiar de
-// motor.
+// motor. **ESTO YA NO ES CIERTO desde § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02)** — un gate
+// POSTERIOR sí pidió que la tarjeta cambiara de motor (de escala/rotación al mismo revelado
+// enmascarado que la frase); ver "LA ENTRADA DE LA TARJETA" en el cuerpo del componente, más abajo.
 //
 // `docs/prototipos/cafeone/` DERIVA DEL TEMA Y YA NO ES LA AUTORIDAD PARA ESTA BANDA. Su `.marquee`
 // (que `Marquesina.tsx` reproduce fielmente) es una SEGUNDA sección, aparte del `.hero`, con su
@@ -489,6 +491,27 @@ import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } fro
 //       `tamanoSiCompleta` (`lib/storefront/marquesina-tarjeta.ts`, su docstring para el porqué
 //       completo) miden la imagen YA cargada al montar, sin depender de ese evento — ver "EL MODO DE
 //       LA TARJETA" más abajo.
+//
+// DOS DEFECTOS MÁS DE LA MISMA TARJETA — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02), el gate
+// del owner sobre la versión de arriba YA aplicada: «la imagen del producto sale después de las
+// letras, pero el efecto que tiene no es el mismo de las letras, debería ser el de las letras,
+// desde abajo y el desvanecido quitarse progresivamente. Otra cosa, debe haber una mini pausa entre
+// que salen las letras y sale la imagen, ahora mismo parece que en el mismo scroll que las letras
+// salen completas con su tono correcto ahí mismo sale la imagen, la imagen debería empezar a salir
+// un scroll después.»
+//   (4) EL EFECTO: escala+rotación (`transformMarquesinaTarjeta`) reemplazado por el MISMO revelado
+//       enmascarado que ya usa la frase (`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay`,
+//       § "LA ENTRADA DE LA TARJETA" más abajo, en el cuerpo) — sube desde abajo (recortada por una
+//       máscara, no sólo trasladada) y se desvanece PROGRESIVAMENTE, en vez de escalar/rotar.
+//       `opacidadEntradaTarjetaMarquesina` (su aparición de techo pleno) se RETIRÓ de
+//       `lib/animation.ts`: sin este llamador quedaba sin ningún consumidor real.
+//   (5) LA PAUSA: `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (lib/animation.ts) ganó una fracción de
+//       separación antes de arrancar —derivada de un gesto de scroll completo, no un número suelto,
+//       § su docstring— para que la tarjeta no empiece a aparecer en el MISMO scroll en que la frase
+//       termina. El presupuesto CON tarjeta crece de 100vh a 140vh para que, con la pausa adentro,
+//       siga sin quedar scroll muerto tras completarse la tarjeta (el MISMO invariante del punto (2)
+//       arriba, no uno nuevo — `claseAlturaAncestroMarquesina` ya derivaba el extra de las ventanas,
+//       no de un literal aparte).
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -565,18 +588,23 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // comparten `UMBRAL_REVELADO_TEXTO` por construcción (las dos derivan del `progresoRevelado`
   // privado de `lib/animation.ts`), así que terminan de subir y de aclarar en el MISMO instante.
   const opacidadRevelaTexto = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico));
-  // LA ENTRADA DE LA TARJETA, DESPUÉS DE LA DE LA FRASE — § MARQUESINA-TARJETA-PRODUCTO-1,
-  // RE-SECUENCIADA por § MARQUESINA-TARJETA-SECUENCIA-1 (`lib/animation.ts`, los docstrings de
-  // `transformMarquesinaTarjeta`/`opacidadEntradaTarjetaMarquesina`/
-  // `UMBRAL_ENTRADA_TARJETA_MARQUESINA` para la medición completa). El primer intento pasaba la
-  // MISMA ventana que la frase (`UMBRAL_REVELADO_TEXTO`, [0,0.2]) — las hacía entrar JUNTAS, que es
-  // justo lo que el owner reportó mal ("no debe salir al tiempo con el marquee"). Ahora las DOS
-  // capas de abajo pasan `UMBRAL_ENTRADA_TARJETA_MARQUESINA` ([0.2,0.4]: arranca donde la ventana de
-  // la frase termina, dura lo mismo) sobre el MISMO `progreso` que ya mueve la frase — el tercer
-  // argumento de `transformMarquesinaTarjeta` sigue siendo [0.12,0.57] para `Marquesina.tsx`, sin
-  // tocar.
-  const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA));
-  const opacidadTarjeta = useTransform(progreso, (p) => opacidadEntradaTarjetaMarquesina(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA));
+  // LA ENTRADA DE LA TARJETA — "EL EFECTO DE LAS LETRAS", § MARQUESINA-TARJETA-COMO-LETRAS-1
+  // (2026-10-02, `lib/animation.ts`, los docstrings de `transformRevelaTextoDisplay`/
+  // `opacidadRevelaTextoDisplay`/`UMBRAL_ENTRADA_TARJETA_MARQUESINA` para la derivación completa).
+  // Las dos rondas anteriores (MARQUESINA-TARJETA-PRODUCTO-1, -SECUENCIA-1) le daban a la tarjeta su
+  // propio mecanismo —`transformMarquesinaTarjeta` (escala+rotación) y `opacidadEntradaTarjetaMarquesina`
+  // (su aparición)— secuenciado tras la frase. El owner, sobre esa versión: «el efecto [de la
+  // tarjeta] no es el mismo de las letras, debería ser el de las letras, desde abajo y el
+  // desvanecido quitarse progresivamente». Las DOS capas de abajo pasan ahora a las MISMAS funciones
+  // que ya revelan la frase —`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay`—,
+  // parametrizadas por `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (la ventana, con la PAUSA que esa misma
+  // ronda agregó: ya no arranca apenas termina la frase, § su docstring) sobre el MISMO `progreso`
+  // que ya mueve la frase. El `techo` de la opacidad es `1` (PLENO, no `OPACIDAD_REVELADO_TECHO`):
+  // una foto de producto no tiene la razón de legibilidad-sobre-texto-blanco que recorta la de la
+  // frase. `transformMarquesinaTarjeta` sigue viva para `Marquesina.tsx` (su ventana [0.12,0.57] sin
+  // tocar); este componente ya no la llama.
+  const transformTarjeta = useTransform(progreso, (p) => transformRevelaTextoDisplay(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA));
+  const opacidadTarjeta = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA, 1));
   // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
   // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
   // par piso/techo que `veloOpacidad` ya sabía usar con su DEFAULT — acá se lo pasamos explícito.
@@ -793,36 +821,48 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             se ve cuando la foto trae su propio fondo de estudio y el padding del tile deja ver el
             fondo de la TARJETA alrededor (el mismo defecto, con la misma causa, que
             § FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1 ya midió y cerró para el destacado y el riel).
-            `overflow-hidden` es compartido por los dos modos — en 'tile' no recorta nada (el padding
-            ya deja la foto adentro); en 'completa' es la red de seguridad por si el redondeo de la
-            proporción medida cae justo en el borde de la tolerancia.
 
             RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-tile`, no `rounded-2xl` crudo — gate del
             owner, "un poco de redondeo pero sólo a las card de imágenes", y ésta ES "la tarjeta del
             hero" que el gate nombró. `sf-radio-tile` es además el rol EXACTO del prototipo: su
             `.marquee-card` (`docs/prototipos/cafeone/css/app.css:423-429`) ya usa `--radius-tile`,
-            el MISMO token que este rol lee. */}
+            el MISMO token que este rol lee.
+
+            DOS ELEMENTOS, NO UNO — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02): la tarjeta pasó
+            a animarse con "el efecto de las letras" —sube desde abajo y se desvanece
+            progresivamente, § `transformTarjeta`/`opacidadTarjeta` arriba—, y ese `translateY(N%)`
+            es relativo a la PROPIA CAJA del elemento que se mueve (§ el docstring de
+            `transformRevelaTextoDisplay`, `lib/animation.ts`). Para que eso OCULTE a la tarjeta de
+            verdad —no sólo la traslade, visible, por encima del resto del hero— hace falta una
+            MÁSCARA que no se mueva, del tamaño FINAL de la tarjeta: el `<div>` de AFUERA (estático,
+            `aspect-[3/4]`/ancho/`overflow-hidden`/radio — lo que antes era la ÚNICA caja) y el
+            `motion.div` de ADENTRO, al 100% de esa caja (`h-full w-full`), que es el que lleva el
+            `transform`/`opacity` animados y el fondo/padding del modo 'tile'. Mismo patrón de
+            máscara-más-motor que ya usa el loop de texto (§ "EL REVELADO ENMASCARADO"), con dos
+            elementos en vez de tres porque la tarjeta no tiene un ticker que anidar. */}
         {producto && (
-          <motion.div
-            className={`relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden sf-radio-tile ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
-            style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
-          >
-            <div className="relative h-full w-full">
-              <Image
-                key={producto.slug}
-                ref={imgTarjetaRef}
-                src={imagenPortada(producto.imagen)}
-                alt={producto.nombre}
-                fill
-                sizes={SIZES_TARJETA_MARQUESINA}
-                className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
-                onLoad={(e) => {
-                  const img = e.currentTarget;
-                  setTamanoImagenTarjeta(tamanoSiCompleta(img));
-                }}
-              />
-            </div>
-          </motion.div>
+          <div className="relative z-20 aspect-[3/4] w-[min(340px,62vw)] overflow-hidden sf-radio-tile">
+            <motion.div
+              className={`grid h-full w-full place-items-center ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
+              style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
+            >
+              <div className="relative h-full w-full">
+                <Image
+                  key={producto.slug}
+                  ref={imgTarjetaRef}
+                  src={imagenPortada(producto.imagen)}
+                  alt={producto.nombre}
+                  fill
+                  sizes={SIZES_TARJETA_MARQUESINA}
+                  className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setTamanoImagenTarjeta(tamanoSiCompleta(img));
+                  }}
+                />
+              </div>
+            </motion.div>
+          </div>
         )}
 
         {/* FRASE AL PIE (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1, § el docstring de cabecera "LA FRASE AL

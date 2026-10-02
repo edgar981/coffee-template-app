@@ -254,14 +254,24 @@ test('SIN producto (DEFAULTS, hide-on-empty): el ancestro usa el presupuesto COR
 // nunca vio la divergencia). En vez de otro literal copiado a mano —el mismo modo de falla que
 // volvió a dejar esta aserción atrás—, se DERIVA el presupuesto de `UMBRAL_ENTRADA_TARJETA_MARQUESINA`
 // con la MISMA fórmula que el docstring de `claseAlturaAncestroMarquesina` documenta (§ "RONDA
-// SECUENCIA", `lib/animation.ts`): el `position:sticky` se despinea medio "respiro" —la mitad del
-// ancho de la ventana de entrada de la tarjeta— después de que la tarjeta termina de entrar. Si esa
-// ventana vuelve a cambiar, esta aserción se mueve con ella en vez de quedar rancia otra vez.
-test('claseAlturaAncestroMarquesina: CON tarjeta el presupuesto SE DERIVA de UMBRAL_ENTRADA_TARJETA_MARQUESINA (el sticky se despinea medio respiro después de que la tarjeta termina de entrar, § MARQUESINA-TARJETA-SECUENCIA-1) y sigue siendo MAYOR que SIN tarjeta (65vh, intacto)', () => {
+// SECUENCIA"/"RONDA PAUSA", `lib/animation.ts`): el `position:sticky` se despinea medio "respiro"
+// —la mitad del ancho de la ventana de entrada de la tarjeta— después de que la tarjeta termina de
+// entrar. Si esa ventana vuelve a cambiar, esta aserción se mueve con ella en vez de quedar rancia
+// otra vez — y § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02, la pausa antes de la ventana) ya lo
+// ejercitó sin tocar este test: el presupuesto subió de 100vh a 140vh y la aserción sigue en verde,
+// porque se deriva de la ventana real en vez de copiar el número.
+//
+// `Math.round` — necesario DESDE que la ventana deja de ser una fracción "limpia" (con la pausa,
+// `desde`/`hasta` son decimales periódicos, § el docstring de `UMBRAL_ENTRADA_TARJETA_MARQUESINA`):
+// `100/(1-pUnpin)-100` arrastra el error de redondeo de IEEE754 de ese decimal periódico y da
+// `140.00000000000003`, no `140` — el MISMO ajuste que ya lleva la aserción gemela de
+// `lib/animation.test.ts` ("el extra CON tarjeta se DERIVA de las ventanas…"). Sin el redondeo, esta
+// aserción fallaría por un error de representación de punto flotante, no por un defecto real.
+test('claseAlturaAncestroMarquesina: CON tarjeta el presupuesto SE DERIVA de UMBRAL_ENTRADA_TARJETA_MARQUESINA (el sticky se despinea medio respiro después de que la tarjeta termina de entrar) y sigue siendo MAYOR que SIN tarjeta (65vh, intacto)', () => {
   const { desde, hasta } = UMBRAL_ENTRADA_TARJETA_MARQUESINA;
   const respiro = (hasta - desde) / 2;
   const pUnpin = hasta + respiro;
-  const extraConTarjetaVh = 100 / (1 - pUnpin) - 100;
+  const extraConTarjetaVh = Math.round(100 / (1 - pUnpin) - 100);
 
   assert.equal(
     claseAlturaAncestroMarquesina(true, false),
@@ -272,7 +282,8 @@ test('claseAlturaAncestroMarquesina: CON tarjeta el presupuesto SE DERIVA de UMB
   assert.equal(sinTarjeta, 'min-h-[calc(100svh+65vh)]');
 
   // La relación que importa, no sólo el número: CON tarjeta sigue reservando MÁS presupuesto de
-  // scroll que SIN ella — hay más contenido (la entrada de la tarjeta + su respiro) que mostrar.
+  // scroll que SIN ella — hay más contenido (la pausa + la entrada de la tarjeta + su respiro) que
+  // mostrar.
   assert.ok(extraConTarjetaVh > 65, 'con tarjeta debe reservar más presupuesto que sin ella');
 });
 

@@ -282,10 +282,17 @@ export function transformMarquesinaTexto(progreso: number, travelPx: number, est
 // sobre Café Las Chamisas: pasar la MISMA `UMBRAL_REVELADO_TEXTO` como ventana de la tarjeta hace
 // que las dos entren JUNTAS, a la vez, con la misma duración — el owner la pidió SECUENCIAL
 // ("no debe salir al tiempo con el marquee, sino una vez las letras han salido, luego salga el
-// producto"). `HeroMediaMarquesina.tsx` pasa ahora `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (declarada
-// más abajo, junto a `UMBRAL_REVELADO_TEXTO`): la MISMA fuente de progreso de siempre, pero una
-// ventana DERIVADA que arranca justo donde la de la frase termina, no la propia ventana de la
-// frase — ver el docstring de esa constante para la derivación completa.
+// producto"). EN ESE MOMENTO, `HeroMediaMarquesina.tsx` pasó a usar `UMBRAL_ENTRADA_TARJETA_
+// MARQUESINA` (declarada más abajo, junto a `UMBRAL_REVELADO_TEXTO`) como `ventana` de ESTA
+// función — la MISMA fuente de progreso de siempre, pero una ventana DERIVADA que arranca justo
+// donde la de la frase termina, no la propia ventana de la frase.
+//
+// YA NO ES CIERTO — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02): el gate SIGUIENTE pidió que la
+// tarjeta usara el EFECTO de las letras (sube+se desvanece, nunca escala/rota), así que
+// `HeroMediaMarquesina.tsx` dejó de llamar a esta función — hoy pasa `UMBRAL_ENTRADA_TARJETA_
+// MARQUESINA` a `transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay` (arriba). Esta función
+// SIGUE VIVA, sin cambios de forma, porque `Marquesina.tsx` (la banda suelta) la sigue usando con su
+// ventana DEFAULT — ver el docstring de `VENTANA_TARJETA_MARQUESINA_PROTOTIPO`, abajo.
 const VENTANA_TARJETA_MARQUESINA_PROTOTIPO = { desde: 0.12, hasta: 0.57 };
 
 export function transformMarquesinaTarjeta(
@@ -584,41 +591,90 @@ export function rangoVeloDeIntensidad(intensidad: string): VeloRango {
 // tiempo, § más abajo) y la tarjeta (`transformMarquesinaTarjeta`, recortada a [0.12,0.57]).
 export const UMBRAL_REVELADO_TEXTO = { desde: 0, hasta: 0.2 } as const;
 
-// `UMBRAL_ENTRADA_TARJETA_MARQUESINA` — § MARQUESINA-TARJETA-SECUENCIA-1 (2026-10-02). El gate del
-// owner sobre Café Las Chamisas, literal: «No debe salir al tiempo con el marquee, sino una vez
-// las letras han salido, luego salga el producto». `MARQUESINA-TARJETA-PRODUCTO-1` había alineado
-// la tarjeta a la MISMA ventana que la frase (`UMBRAL_REVELADO_TEXTO`, [0,0.2]) — eso las hace
-// entrar JUNTAS, que es justo lo que el owner reportó mal.
+// `UMBRAL_ENTRADA_TARJETA_MARQUESINA` — NACIÓ en § MARQUESINA-TARJETA-SECUENCIA-1 (2026-10-02). El
+// gate del owner sobre Café Las Chamisas, literal: «No debe salir al tiempo con el marquee, sino una
+// vez las letras han salido, luego salga el producto». `MARQUESINA-TARJETA-PRODUCTO-1` había
+// alineado la tarjeta a la MISMA ventana que la frase (`UMBRAL_REVELADO_TEXTO`, [0,0.2]) — eso las
+// hace entrar JUNTAS, que es justo lo que el owner reportó mal.
 //
-// LA VENTANA SE DERIVA, NO SE INVENTA: arranca exactamente donde `UMBRAL_REVELADO_TEXTO` termina
-// (`desde = UMBRAL_REVELADO_TEXTO.hasta`) — la frase y la tarjeta nunca se superponen, por
-// construcción, no por coincidencia de números elegidos a mano — y dura el MISMO ancho que la
-// ventana de la frase (`hasta - desde` igual en las dos). Mismo ancho porque es la opción que no
-// inventa una MAGNITUD nueva: la "duración de una entrada" ya la fijó `UMBRAL_REVELADO_TEXTO`, y
-// la tarjeta hereda esa misma cadencia en vez de tener la suya propia. Con los valores de hoy
-// ([0, 0.2] → [0.2, 0.4]): la frase sube completa, y RECIÉN AHÍ la tarjeta empieza a aparecer.
+// LA VENTANA SE DERIVA, NO SE INVENTA: dura el MISMO ancho que la ventana de la frase (`hasta -
+// desde` igual en las dos) — no inventa una MAGNITUD nueva, la "duración de una entrada" ya la fijó
+// `UMBRAL_REVELADO_TEXTO`, y la tarjeta hereda esa misma cadencia en vez de tener la suya propia.
 //
-// Consumida por `HeroMediaMarquesina.tsx` como el tercer argumento (`ventana`) de
-// `transformMarquesinaTarjeta` (escala/rotación) Y como el default de `opacidadEntradaTarjetaMarquesina`
-// (más abajo) — las DOS transformaciones de la tarjeta comparten esta única ventana, así que no
-// pueden desincronizarse entre sí (una terminando de escalar mientras la otra sigue apareciendo).
+// GANA UNA PAUSA ANTES DE ARRANCAR — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02). La primera
+// versión arrancaba EXACTO donde la frase termina (`desde = UMBRAL_REVELADO_TEXTO.hasta`, cero
+// distancia) — el gate del owner sobre esa versión: «debe haber una mini pausa entre que salen las
+// letras y sale la imagen, ahora mismo parece que en el mismo scroll que las letras salen completas
+// con su tono correcto ahí mismo sale la imagen, la imagen debería empezar a salir un scroll
+// después». `desde` pasa a `UMBRAL_REVELADO_TEXTO.hasta + pausaFraccion` — la tarjeta sigue sin
+// superponerse jamás con la frase (la pausa sólo puede alejarlas más, nunca acercarlas), y encima ya
+// no arrancan en el MISMO instante.
+//
+// `pausaFraccion` ES LA PAUSA, CONVERTIDA A LA MISMA UNIDAD QUE TODA VENTANA DE ESTE ARCHIVO
+// ("progreso", una fracción de H, el presupuesto total que da `claseAlturaAncestroMarquesina` más
+// abajo) — "Expresala en el mismo progreso del tramo fijo", el pedido del orquestador, tomado
+// literal. No es un número suelto: se deriva de una DISTANCIA DE SCROLL DE UN GESTO (`PAUSA_
+// MARQUESINA_TARJETA_VH`, abajo), convertida vía la MISMA relación cerrada que ya resuelve el
+// presupuesto H en `claseAlturaAncestroMarquesina` ("RONDA SECUENCIA" → "RONDA PAUSA", su docstring
+// para la derivación completa) — así que agregar la pausa no es una segunda cuenta aparte, es la
+// MISMA cuenta con un término más.
+//
+//   F = UMBRAL_REVELADO_TEXTO.hasta           (dónde termina la frase — SIN CAMBIO, 0.2)
+//   A = F                                      (ancho de la ventana de la tarjeta — SIN CAMBIO: "dura lo mismo")
+//   R = A / 2                                   (el respiro DESPUÉS de la tarjeta, antes de despinear — SIN CAMBIO)
+//   K = F + A + R                               (la suma de fracciones FIJAS del sistema, sin la pausa — con hoy, 0.5)
+//   G = PAUSA_MARQUESINA_TARJETA_VH              (la pausa, en "unidades de viewport", VH=100)
+//   H = (100 + G) / K                            (el presupuesto que hace que pUnpin = K + G/H — ver abajo)
+//   pausaFraccion = G / H = G·K / (100 + G)      (la pausa, YA en fracción de H — lo que `desde` suma)
+//
+// Con los valores de hoy (F=0.2, K=0.5, G=20): H=240 (extra=140vh, el literal que
+// `claseAlturaAncestroMarquesina` usa), pausaFraccion = 20·0.5/120 = 1/12 ≈ 0.0833 → ventana
+// ≈ [0.2833, 0.4833] (antes [0.2, 0.4], sin pausa).
+//
+// Consumida por `HeroMediaMarquesina.tsx` como `ventana` de `transformRevelaTextoDisplay` Y de
+// `opacidadRevelaTextoDisplay` (arriba, con `techo=1`) — las DOS capas de la tarjeta comparten esta
+// única ventana, así que no pueden desincronizarse entre sí (una terminando de subir mientras la
+// otra sigue aclarando). `transformMarquesinaTarjeta`/`opacidadEntradaTarjetaMarquesina` (su
+// consumidor anterior, RETIRADA — ver el hueco que deja más abajo) ya no la consumen.
+export const PAUSA_MARQUESINA_TARJETA_VH = 20; // ver la derivación del gesto, arriba del bloque siguiente
+
+// EL GESTO DE REFERENCIA, Y POR QUÉ ESOS DOS NÚMEROS — § MARQUESINA-TARJETA-COMO-LETRAS-1. No hay
+// una medición externa que fije "un scroll" (no hay prototipo que lo declare — es una preferencia de
+// RITMO del owner, la misma clase de decisión sin medición externa que ya tomó
+// `VELOCIDAD_TICKER_LENTA_PX_S`: "elegida, no derivada de ninguna medición"). Se eligen DOS
+// referencias de gesto —una por plataforma— y se toma la MÁS GRANDE, para que la pausa nunca se
+// consuma DENTRO de un solo gesto en NINGÚN dispositivo:
+//   - RUEDA DE MOUSE, escritorio: ~100px por notch (el delta estándar de un `WheelEvent` en modo
+//     píxel en la mayoría de navegadores), sobre el viewport de referencia que este mismo archivo ya
+//     usa para `RESORTE_ACOMODO` ("a 1440×900") → 100/900 ≈ 11.11% de un viewport.
+//   - DESLIZAMIENTO CORTO, teléfono: un touch arrastra el contenido ~1:1 con el dedo (antes de
+//     cualquier inercia), así que cubre MÁS pantalla por gesto que un solo notch de rueda — se toma
+//     un quinto (20%) del viewport como "corto" (menos que un swipe largo, que cubriría más).
+// 20% (móvil) > 11.11% (escritorio): la pausa queda calibrada para que un deslizamiento corto típico
+// la cruce casi exacto (es la fracción que define `PAUSA_MARQUESINA_TARJETA_VH`), y en escritorio
+// quede un poco MÁS larga que un solo notch (~1.8 notches) — nunca al revés. Una pausa que se
+// consume en MENOS de un gesto no se lee como pausa; una que dura un poco más de uno, sí.
+const anchoVentanaEntradaTarjeta = UMBRAL_REVELADO_TEXTO.hasta - UMBRAL_REVELADO_TEXTO.desde;
+const sumaFraccionesFijasEntradaTarjeta =
+  UMBRAL_REVELADO_TEXTO.hasta + anchoVentanaEntradaTarjeta + anchoVentanaEntradaTarjeta / 2;
+const pausaFraccionEntradaTarjeta =
+  (PAUSA_MARQUESINA_TARJETA_VH * sumaFraccionesFijasEntradaTarjeta) / (100 + PAUSA_MARQUESINA_TARJETA_VH);
+
 export const UMBRAL_ENTRADA_TARJETA_MARQUESINA = {
-  desde: UMBRAL_REVELADO_TEXTO.hasta,
-  hasta: UMBRAL_REVELADO_TEXTO.hasta + (UMBRAL_REVELADO_TEXTO.hasta - UMBRAL_REVELADO_TEXTO.desde),
+  desde: UMBRAL_REVELADO_TEXTO.hasta + pausaFraccionEntradaTarjeta,
+  hasta: UMBRAL_REVELADO_TEXTO.hasta + pausaFraccionEntradaTarjeta + anchoVentanaEntradaTarjeta,
 } as const;
 
-// `progresoEnVentana` — la fórmula de recorte [0,1] que `progresoRevelado` (texto, bajo
-// `UMBRAL_REVELADO_TEXTO`) y `opacidadEntradaTarjetaMarquesina` (tarjeta, bajo
-// `UMBRAL_ENTRADA_TARJETA_MARQUESINA`) comparten — generalizada § MARQUESINA-TARJETA-SECUENCIA-1
-// para que las dos ventanas usen la MISMA aritmética sin duplicarla.
+// `progresoEnVentana` — la fórmula de recorte [0,1] que `transformRevelaTextoDisplay`/
+// `opacidadRevelaTextoDisplay` (bajo `ventana`, con default `UMBRAL_REVELADO_TEXTO`) comparten —
+// generalizada § MARQUESINA-TARJETA-SECUENCIA-1 para que dos ventanas usen la MISMA aritmética sin
+// duplicarla, y vuelta a usar directo (sin el envoltorio privado `progresoRevelado`, RETIRADO) por
+// § MARQUESINA-TARJETA-COMO-LETRAS-1 cuando las dos funciones ganaron `ventana` como parámetro
+// explícito — ver el docstring de cada una, más abajo.
 function progresoEnVentana(progreso: number, ventana: { desde: number; hasta: number }): number {
   const p = Math.max(0, Math.min(1, progreso));
   const { desde, hasta } = ventana;
   return Math.max(0, Math.min(1, (p - desde) / (hasta - desde)));
-}
-
-function progresoRevelado(progreso: number): number {
-  return progresoEnVentana(progreso, UMBRAL_REVELADO_TEXTO);
 }
 
 // El traslado en reposo: 100% de la caja del propio elemento — completamente fuera del área que la
@@ -633,9 +689,26 @@ const REVELADO_TRASLADO_PCT = 100;
 // `transformAcomodo`) rinde `translateY(0%)` — el texto EN SU LUGAR, visible por completo: un gate de
 // movimiento apaga el DESPLAZAMIENTO, nunca el CONTENIDO, y acá "en su lugar" es lo que dentro de la
 // máscara SIGNIFICA visible (0% = ninguna porción recortada).
-export function transformRevelaTextoDisplay(progreso: number, estatico: boolean): string {
+//
+// `ventana` — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02). El owner, sobre el gate de
+// MARQUESINA-TARJETA-SECUENCIA-1: «el efecto [de la tarjeta] no es el mismo de las letras, debería
+// ser el de las letras, desde abajo y el desvanecido quitarse progresivamente». En vez de una COPIA
+// de esta función para la tarjeta, gana un segundo parámetro `ventana` (default
+// `UMBRAL_REVELADO_TEXTO`, byte-idéntico para el único call-site de hoy que no lo pasa, el loop de
+// texto) — el mismo patrón que `transformMarquesinaTarjeta` ya tenía. `HeroMediaMarquesina.tsx` pasa
+// `UMBRAL_ENTRADA_TARJETA_MARQUESINA` para la tarjeta — ver su docstring, abajo, para la derivación
+// de ESA ventana (con la pausa). EL `translateY(N%)` SIGUE SIENDO RELATIVO A LA PROPIA CAJA DEL
+// ELEMENTO TRANSFORMADO (la misma razón por la que escala con el `clamp()` de la fuente del marquee,
+// § "PORCENTAJE, NO PÍXELES" arriba) — por eso la MISMA función, sin cambiar un solo número, sirve
+// para una línea de texto y para una tarjeta de proporción distinta: el recorrido se mide contra lo
+// que sea que el llamador haga `h-full`/`w-full` de la máscara, nunca contra un píxel fijo.
+export function transformRevelaTextoDisplay(
+  progreso: number,
+  estatico: boolean,
+  ventana: { desde: number; hasta: number } = UMBRAL_REVELADO_TEXTO,
+): string {
   if (estatico) return 'translateY(0%)';
-  const pct = REVELADO_TRASLADO_PCT * (1 - progresoRevelado(progreso));
+  const pct = REVELADO_TRASLADO_PCT * (1 - progresoEnVentana(progreso, ventana));
   return `translateY(${pct.toFixed(1)}%)`;
 }
 
@@ -655,17 +728,18 @@ export function transformRevelaTextoDisplay(progreso: number, estatico: boolean)
 // (`UMBRAL_REVELADO_TEXTO`, sin tocar) y terminan JUNTAS — al completar la ventana el texto está a la
 // vez en su lugar (0% de traslado) y a peso completo (opacidad 1), nunca una sin la otra.
 //
-// `opacidadRevelaTextoDisplay` REUSA `progresoRevelado` (el mismo mapeo [0,1] de
-// `transformRevelaTextoDisplay`, privado a este módulo) en vez de declarar su propio tramo: si
-// alguna vez `UMBRAL_REVELADO_TEXTO` cambia, las dos rampas se mueven juntas por construcción — dos
-// funciones leyendo la MISMA ventana no pueden divergir en cuándo terminan, que es justo la garantía
-// que el spec pide ("termina de aclarar cuando termina de subir"). Es MONÓTONA porque
-// `progresoRevelado` ya lo es (un cociente clamped de una resta creciente en `progreso`): no puede
-// oscurecerse a mitad de camino.
+// `opacidadRevelaTextoDisplay` REUSA `progresoEnVentana` (el mismo mapeo [0,1] que
+// `transformRevelaTextoDisplay` ya usa) en vez de declarar su propio tramo: con la MISMA `ventana`
+// que su hermana (el default de las dos, o la que pase el llamador — § MARQUESINA-TARJETA-COMO-
+// LETRAS-1, abajo), las dos rampas se mueven juntas por construcción — dos funciones leyendo la
+// MISMA ventana no pueden divergir en cuándo terminan, que es justo la garantía que el spec pide
+// ("termina de aclarar cuando termina de subir"). Es MONÓTONA porque `progresoEnVentana` ya lo es
+// (un cociente clamped de una resta creciente en `progreso`): no puede oscurecerse a mitad de camino.
 //
-// `estatico` (reduced-motion/preview, el MISMO gate que `transformRevelaTextoDisplay`) rinde 1 —
-// PESO COMPLETO, nunca a medio aclarar para siempre: un gate de movimiento apaga el DESPLAZAMIENTO
-// temporal de la rampa, nunca deja el contenido en un estado transitorio permanente.
+// `estatico` (reduced-motion/preview, el MISMO gate que `transformRevelaTextoDisplay`) rinde el
+// `techo` — PESO COMPLETO (o, con `techo=1`, opacidad PLENA), nunca a medio aclarar para siempre: un
+// gate de movimiento apaga el DESPLAZAMIENTO temporal de la rampa, nunca deja el contenido en un
+// estado transitorio permanente.
 //
 // SE COMPONE EN EL MISMO ELEMENTO QUE `transformRevelaTextoDisplay` (el `motion.div` del MEDIO en
 // `HeroMediaMarquesina.tsx`, vía un segundo `style.opacity` junto al `style.transform` ya existente)
@@ -680,55 +754,39 @@ export function transformRevelaTextoDisplay(progreso: number, estatico: boolean)
 // (peso pleno) como destino de la rampa — un escalón MODERADO por debajo del pleno, no una segunda
 // curva: `opacidadRevelaTextoDisplay` sigue siendo la MISMA rampa (0 en reposo, lineal dentro de la
 // ventana) ESCALADA por este techo. Sigue MONÓTONA por construcción: escalar una función
-// no-decreciente (`progresoRevelado`) por una constante positiva preserva el orden — no hace falta
+// no-decreciente (`progresoEnVentana`) por una constante positiva preserva el orden — no hace falta
 // una prueba nueva de monotonía, la que ya existe (`lib/animation.test.ts`) sigue afirmándola tal
 // cual sobre la función escalada.
 //
-// `estatico` (reduced-motion/preview) TAMBIÉN rinde el TECHO, nunca `1`: bajo esa preferencia el
-// texto debe llegar al MISMO peso final que cualquier otro modo alcanza al completar la rampa — el
-// mismo criterio de siempre («estatico gana con el estado FINAL, no un punto intermedio, y nunca uno
-// que sólo exista bajo esa preferencia»).
+// `ventana`/`techo` — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02), MISMA razón que el parámetro
+// `ventana` de `transformRevelaTextoDisplay` (arriba): la tarjeta necesita la MISMA rampa, en SU
+// PROPIA ventana (`UMBRAL_ENTRADA_TARJETA_MARQUESINA`, con la pausa — ver su docstring más abajo) y
+// con un TECHO DISTINTO — PLENO (`1`), no `OPACIDAD_REVELADO_TECHO` (0.9): ese 0.9 es una decisión de
+// LEGIBILIDAD sobre texto blanco ("que no sea un blanco tan claro al que llegan"), ajena a una foto
+// de producto, que debe llegar a su opacidad completa. Los DOS parámetros son opcionales, con el
+// default de SIEMPRE (`UMBRAL_REVELADO_TEXTO`/`OPACIDAD_REVELADO_TECHO`) para el único call-site que
+// no los pasa hoy (el loop de texto) — byte-idéntico.
 export const OPACIDAD_REVELADO_TECHO = 0.9;
 
-export function opacidadRevelaTextoDisplay(progreso: number, estatico: boolean): number {
-  if (estatico) return OPACIDAD_REVELADO_TECHO;
-  return progresoRevelado(progreso) * OPACIDAD_REVELADO_TECHO;
-}
-
-// `opacidadEntradaTarjetaMarquesina` — § MARQUESINA-TARJETA-PRODUCTO-1 (2026-10-02). Medido contra
-// la frase del marquee: la TARJETA de `HeroMediaMarquesina.tsx` no tenía ninguna "aparición" —
-// `transformMarquesinaTarjeta` sólo ESCALA y ROTA una tarjeta que ya está a opacidad 1 desde el
-// primer frame, nunca estuvo OCULTA. La frase, en cambio, SÍ nace recortada por la máscara y a
-// opacidad 0 (`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay`, arriba). El spec pide que
-// las dos "entren" igual —mismo momento de arranque, misma duración— y la tarjeta no tenía ningún
-// momento de arranque que alinear: esta función se lo da.
-//
-// LA VENTANA PASÓ A SER `UMBRAL_ENTRADA_TARJETA_MARQUESINA`, NO `UMBRAL_REVELADO_TEXTO` —
-// § MARQUESINA-TARJETA-SECUENCIA-1 (2026-10-02). La primera versión REUSABA `progresoRevelado`
-// (privada, construida sobre `UMBRAL_REVELADO_TEXTO`) por la misma razón que vale para
-// `opacidadRevelaTextoDisplay` — "dos funciones leyendo el mismo mapeo no pueden divergir en cuándo
-// arrancan ni en cuándo terminan" — pero esa razón sólo es válida cuando las DOS cosas que miden
-// deben MOVERSE JUNTAS. Acá el owner pidió lo contrario: la tarjeta entra DESPUÉS de la frase, no
-// a la vez. `ventana` ahora es un parámetro explícito —el mismo patrón que `transformMarquesinaTarjeta`
-// ya usa— con DEFAULT `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (§ su docstring, junto a
-// `UMBRAL_REVELADO_TEXTO`, para la derivación): arranca donde la frase termina, dura lo mismo.
-// Sigue sin inventar una ventana propia por call-site — `HeroMediaMarquesina.tsx` es el único
-// consumidor y no pasa el argumento, así que usa el default siempre.
-//
-// EL TECHO ES 1, NO `OPACIDAD_REVELADO_TECHO` (0.9): ese 0.9 es una decisión de LEGIBILIDAD sobre
-// texto blanco ("que no sea un blanco tan claro al que llegan", § arriba) — ajena a una foto de
-// producto, que debe llegar a su opacidad PLENA, no a un 90% permanente.
-//
-// `estatico` (reduced-motion/preview, el MISMO gate de siempre) rinde 1 — la tarjeta visible por
-// completo, nunca a medio aparecer para siempre.
-export function opacidadEntradaTarjetaMarquesina(
+export function opacidadRevelaTextoDisplay(
   progreso: number,
   estatico: boolean,
-  ventana: { desde: number; hasta: number } = UMBRAL_ENTRADA_TARJETA_MARQUESINA,
+  ventana: { desde: number; hasta: number } = UMBRAL_REVELADO_TEXTO,
+  techo: number = OPACIDAD_REVELADO_TECHO,
 ): number {
-  if (estatico) return 1;
-  return progresoEnVentana(progreso, ventana);
+  if (estatico) return techo;
+  return progresoEnVentana(progreso, ventana) * techo;
 }
+
+// `opacidadEntradaTarjetaMarquesina` — RETIRADA, § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02).
+// Nació en § MARQUESINA-TARJETA-PRODUCTO-1 para darle a la tarjeta una "aparición" que no tenía
+// (`transformMarquesinaTarjeta` sólo escalaba/rotaba una tarjeta ya a opacidad 1); § MARQUESINA-
+// TARJETA-SECUENCIA-1 le dio su propia ventana, secuencial a la frase. El gate del owner sobre ESA
+// versión pidió que la tarjeta usara "el efecto de las letras" —no su propia rampa, la MISMA que ya
+// usa la frase—, así que `opacidadRevelaTextoDisplay` (arriba) ganó los parámetros `ventana`/`techo`
+// que la generalizan, y esta función quedó sin ningún llamador real (sólo sus propios tests). Código
+// sin consumidor vivo no se deja ambiguo (§ CLAUDE.md, el ex-#68: "se BORRA o se CABLEA, nunca se
+// deja AMBIGUO") — se retira entera, con sus tests (`lib/animation.test.ts`).
 
 // ── EL TAMAÑO DEL TEXTO Y SU MÁSCARA — MEDIDO CONTRA EL TEMA REAL, § CORTE-HERO-MARQUEE-RONDA-5-1 ──
 //
@@ -826,12 +884,14 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // ronda** — el spec de § MARQUESINA-TARJETA-SECUENCIA-1 es explícito: "Sin tarjeta: todo como hoy".
 //
 // EL PÁRRAFO DE ARRIBA DESCRIBE EL DEFAULT DE `transformMarquesinaTarjeta`, NO YA LO QUE
-// `HeroMediaMarquesina.tsx` ANIMA — § MARQUESINA-TARJETA-PRODUCTO-1 (2026-10-02): ese componente
-// pasa su PROPIA `ventana` para alinear la entrada de la tarjeta con la de la frase (§ el docstring
-// de `transformMarquesinaTarjeta`/`opacidadEntradaTarjetaMarquesina`, arriba; la ventana que pasa
-// cambió de nuevo en la ronda de abajo); el recorte [0.12,0.57] que justifica el 135vh de este
-// párrafo sigue siendo el DEFAULT de la función —y el que `Marquesina.tsx` sigue usando—, pero ya no
-// el que la tarjeta de este componente recorre.
+// `HeroMediaMarquesina.tsx` ANIMA — § MARQUESINA-TARJETA-PRODUCTO-1 (2026-10-02): ese componente pasa
+// su PROPIA `ventana` para alinear la entrada de la tarjeta con la de la frase (la ventana cambió de
+// nuevo en la ronda de abajo, y la FORMA que esa ventana anima cambió otra vez en § MARQUESINA-
+// TARJETA-COMO-LETRAS-1 — ver el docstring de `transformRevelaTextoDisplay`/
+// `opacidadRevelaTextoDisplay`, arriba: ya no es `transformMarquesinaTarjeta`/
+// `opacidadEntradaTarjetaMarquesina` quien la consume); el recorte [0.12,0.57] que justifica el 135vh
+// de este párrafo sigue siendo el DEFAULT de la función —y el que `Marquesina.tsx` sigue usando—,
+// pero ya no el que la tarjeta de este componente recorre.
 //
 // ── RONDA SECUENCIA — § MARQUESINA-TARJETA-SECUENCIA-1 (2026-10-02): el presupuesto CON TARJETA SÍ
 // SE RE-DERIVA, y es la primera vez que se toca ──
@@ -841,21 +901,19 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // completa hice scroll 3 veces antes de poder iniciar a bajar en la página». Con el presupuesto
 // VIEJO (100svh+200vh, H=300vh en unidades de viewport, VH=100): la tarjeta de `HeroMediaMarquesina.
 // tsx` terminaba de escalar/rotar/aparecer en progreso 0.2 (compartía `UMBRAL_REVELADO_TEXTO` con la
-// frase, § el docstring de `opacidadEntradaTarjetaMarquesina`) y el `position:sticky` no se despinea
-// hasta progreso ≈(H-VH)/H = 200/300 ≈ 0.667 (el punto en que el excedente del ancestro, H-VH, se
-// termina de consumir — ahí el panel deja de poder quedarse "pegado" sin desbordar su propio
-// contenedor) — un tramo de ≈0.47 de progreso (≈140vh de scroll) donde NADA nuevo pasa (texto y
-// tarjeta ya quietos, sólo el velo se sigue oscureciendo) antes de que la página empiece a avanzar.
-// Es EXACTAMENTE la forma del "scroll 3 veces" reportado.
+// frase) y el `position:sticky` no se despinea hasta progreso ≈(H-VH)/H = 200/300 ≈ 0.667 (el punto
+// en que el excedente del ancestro, H-VH, se termina de consumir — ahí el panel deja de poder
+// quedarse "pegado" sin desbordar su propio contenedor) — un tramo de ≈0.47 de progreso (≈140vh de
+// scroll) donde NADA nuevo pasa (texto y tarjeta ya quietos, sólo el velo se sigue oscureciendo)
+// antes de que la página empiece a avanzar. Es EXACTAMENTE la forma del "scroll 3 veces" reportado.
 //
 // LA RE-DERIVACIÓN, EN FUNCIÓN DE LAS VENTANAS — no un número ajustado a ojo. Con la tarjeta ahora
-// en su PROPIA ventana secuencial (`UMBRAL_ENTRADA_TARJETA_MARQUESINA` = [0.2, 0.4], § su
-// docstring), se define un RESPIRO corto —la MITAD del ancho de esa ventana (0.1)— para que la
-// tarjeta completa quede un instante quieta y visible antes de que el panel se libere, y se elige
-// el presupuesto (H) de modo que el `position:sticky` se despinee EXACTAMENTE al terminar ese
-// respiro, no mucho después:
-//   cardEnd  = UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta = 0.4
-//   respiro  = (UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta - .desde) / 2 = 0.1
+// en su PROPIA ventana secuencial (`UMBRAL_ENTRADA_TARJETA_MARQUESINA`, § su docstring), se define
+// un RESPIRO corto —la MITAD del ancho de esa ventana (0.1)— para que la tarjeta completa quede un
+// instante quieta y visible antes de que el panel se libere, y se elige el presupuesto (H) de modo
+// que el `position:sticky` se despinee EXACTAMENTE al terminar ese respiro, no mucho después:
+//   cardEnd  = UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta  (con los valores de ESTA ronda, 0.4)
+//   respiro  = (UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta - .desde) / 2  (0.1)
 //   pUnpin   = cardEnd + respiro = 0.5          (el progreso donde QUEREMOS que se despinee)
 //   H        = VH / (1 - pUnpin) = 100 / 0.5 = 200   (VH=100, "unidades de viewport")
 //   extra    = H - VH = 100                      → +100vh, la mitad del 200vh de antes
@@ -871,6 +929,23 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // viewports — la derivación de arriba predice el punto exacto, la medición confirma que es corta
 // (un gesto de scroll, no tres).
 //
+// ── RONDA PAUSA — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02): LA MISMA FÓRMULA, UN TÉRMINO MÁS ──
+//
+// `UMBRAL_ENTRADA_TARJETA_MARQUESINA` ganó la pausa (§ su docstring, arriba, para el gesto de
+// referencia y la derivación de `pausaFraccion`) — `cardEnd`/`respiro`/`pUnpin`/`H` arriba NO
+// cambiaron de FÓRMULA, sólo de VALOR, porque `UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta`/`.desde` ya
+// no son [0.4, 0.2] sino los que incluyen la pausa:
+//   cardEnd  = UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta ≈ 0.4833   (antes 0.4)
+//   respiro  = (hasta - desde) / 2 = 0.1                          (SIN CAMBIO: la MITAD del ancho, que tampoco cambió)
+//   pUnpin   = cardEnd + respiro ≈ 0.5833
+//   H        = 100 / (1 - pUnpin) = 100 / 0.41666... = 240        (antes 200)
+//   extra    = H - VH = 140                                       → +140vh (antes 100vh)
+// Esta función NO tuvo que cambiar de MECANISMO para absorber la pausa — ya derivaba el presupuesto
+// genéricamente de `UMBRAL_ENTRADA_TARJETA_MARQUESINA`, nunca de un literal propio aparte de su
+// `return`; cambiar la ventana (arriba) ya le movió el resultado. Lo único que cambia AQUÍ es el
+// LITERAL que `return` entrega para la rama CON tarjeta (100vh → 140vh, abajo) — LOOKUP POR LITERAL,
+// no por interpolación, § el bloque de siempre.
+//
 // LOOKUP POR LITERAL, NO INTERPOLACIÓN — mismo criterio que `gridColsPresentaciones`
 // (`lib/storefront/presentaciones.ts`): Tailwind escanea el TEXTO de los archivos buscando
 // substrings de clase COMPLETOS; una clase construida por template literal
@@ -882,17 +957,17 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1). El owner, sobre el panel: «la imagen de la sección "Hero de la
 // home" no se está renderizando correctamente… cubre sólo una parte del marco y el resto queda en
 // el fondo oscuro». MEDIDO por ARITMÉTICA de las propias clases (no una captura): el `<section>`
-// pineado mide `h-[100svh]`; el ANCESTRO (`wrapperRef`, este mismo cálculo) mide `100svh+100vh` CON
-// tarjeta (§ RONDA SECUENCIA, arriba — era `100svh+200vh` antes de esta ronda) o `100svh+65vh` SIN
-// ella — la sección visible es sólo 100/200=0.5 (CON) o 100/165≈0.606 (SIN) de ese total. En el
-// storefront REAL eso es invisible: `position:sticky` PINEA la sección sobre el resto mientras se
-// scrollea, así que el visitante nunca ve el tramo extra — es justamente el "presupuesto de scroll"
-// (§ el bloque de arriba). Pero `VistaTiendaEnVivo` (`EscalaDesktop`, § su docstring) NO scrollea:
-// mide el alto NATURAL completo del contenido sin escalar (`ResizeObserver` sobre `contenidoRef`) y
-// lo escala ENTERO — así que el tramo que el storefront real esconde queda VISIBLE, plano, como el
-// fondo `--sf-tinta` del propio `wrapperRef` sin nada pintado encima. Coincide exacto con el
-// reporte: la media (dentro del `<section>`) cubre sólo una fracción del marco, y el resto es el
-// fondo oscuro.
+// pineado mide `h-[100svh]`; el ANCESTRO (`wrapperRef`, este mismo cálculo) mide `100svh+140vh` CON
+// tarjeta (§ RONDA PAUSA, arriba — era `100svh+100vh` antes de esta ronda, `100svh+200vh` antes de
+// RONDA SECUENCIA) o `100svh+65vh` SIN ella — la sección visible es sólo 100/240≈0.417 (CON) o
+// 100/165≈0.606 (SIN) de ese total. En el storefront REAL eso es invisible: `position:sticky` PINEA
+// la sección sobre el resto mientras se scrollea, así que el visitante nunca ve el tramo extra — es
+// justamente el "presupuesto de scroll" (§ el bloque de arriba). Pero `VistaTiendaEnVivo`
+// (`EscalaDesktop`, § su docstring) NO scrollea: mide el alto NATURAL completo del contenido sin
+// escalar (`ResizeObserver` sobre `contenidoRef`) y lo escala ENTERO — así que el tramo que el
+// storefront real esconde queda VISIBLE, plano, como el fondo `--sf-tinta` del propio `wrapperRef`
+// sin nada pintado encima. Coincide exacto con el reporte: la media (dentro del `<section>`) cubre
+// sólo una fracción del marco, y el resto es el fondo oscuro.
 //
 // LA SALIDA: en `preview`, el ancestro se COLAPSA al tamaño EXACTO de la sección pineada
 // (`h-[100svh]`, el mismo literal que ya lleva el `<section>` — no hay recorrido que reservar
@@ -900,11 +975,11 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // el marco entero, el marquee y la frase al pie quietos en su lugar (`estatico` ya los rinde así,
 // § el resto de este archivo), sin el tramo muerto. `tieneTarjeta` deja de importar bajo `preview`
 // (las dos ramas no-preview convergen a la misma clase colapsada). **El storefront REAL no cambia
-// por `preview`**: `preview` es `false` ahí siempre, así que las dos ramas de siempre (100vh/65vh,
-// § RONDA SECUENCIA para el primero) quedan intactas.
+// por `preview`**: `preview` es `false` ahí siempre, así que las dos ramas de siempre (140vh/65vh,
+// § RONDA PAUSA para el primero) quedan intactas.
 export function claseAlturaAncestroMarquesina(tieneTarjeta: boolean, preview: boolean): string {
   if (preview) return 'h-[100svh]';
-  return tieneTarjeta ? 'min-h-[calc(100svh+100vh)]' : 'min-h-[calc(100svh+65vh)]';
+  return tieneTarjeta ? 'min-h-[calc(100svh+140vh)]' : 'min-h-[calc(100svh+65vh)]';
 }
 
 // ── EL TICKER HORIZONTAL — por TIEMPO, no por scroll, § CORTE-HERO-VELO-OFF-Y-TICKER-1 ─────────────
