@@ -15,12 +15,21 @@ import { BANDA_IDS, type VeloIntensidad, type TickerVelocidad } from "./config/s
 //
 // § SECCIONES-ENTRAN-VIVAS-1 (2026-10-01): el RESTO de la home (incluida Nayoli) migró su entrada por
 // scroll de `fadeUp`/un `motion.div` inline a `RevelarBloque` (components/storefront/RevelarBloque.tsx)
-// + `lib/storefront/revelado-bloque.ts` — disparo tardío, repetición, 50px/0.8s/cubic-bezier(0.22,1,
-// 0.36,1). `fadeUp` SIGUE vivo acá: lo consumen "El origen" (`TextoEnCascada`/Origen.tsx, sus fotos/
-// datos/cifras) y `GrindChooserRiel.tsx` (las TARJETAS del riel, a propósito sin tocar — su `y:24px`
-// es la mitad de la razón de `overflow-y-hidden` en el track, § RIEL-SIN-SCROLL-VERTICAL-1), que el
-// spec de ese slice deja explícitamente SIN tocar. No reusar `fadeUp` para una sección NUEVA de la
-// home: la primitiva vigente para eso es `RevelarBloque`.
+// + `lib/storefront/revelado-bloque.ts`. `fadeUp` SIGUE vivo acá: lo consumen "El origen"
+// (`TextoEnCascada`/Origen.tsx, sus fotos/datos/cifras) y `GrindChooserRiel.tsx` (las TARJETAS del
+// riel, a propósito sin tocar — su `y:24px` es la mitad de la razón de `overflow-y-hidden` en el
+// track, § RIEL-SIN-SCROLL-VERTICAL-1).
+//
+// § SECCIONES-ENTRAN-COMO-ORIGEN-1 (2026-10-02) CORRIGE la frase de arriba: hasta esa tanda,
+// `RevelarBloque` tenía su PROPIA magnitud/disparo (disparo tardío por margen, 50px/0.8s/
+// `cubic-bezier(0.22,1,0.36,1)`) — el owner, sobre el gate de `SECCIONES-ENTRAN-VIVAS-1`/
+// `SECCIONES-ENTRAN-UNA-VEZ-1`, midió que ese disparo tardío SE LEE como "página vacía" al scrollear
+// (una sección ya en pantalla, todavía sin arrancar), mientras que "El origen"/Suscripción —que
+// DISPARAN sin margen— no tienen ese problema. `RevelarBloque` pasa a REUSAR `fadeUp` y
+// `transicionEscalonada` (abajo) DIRECTO, sin su propia copia de cifras — ver
+// `lib/storefront/revelado-bloque.ts` para el porqué completo. No reusar `fadeUp` INLINE para una
+// sección NUEVA de la home: la primitiva vigente para eso sigue siendo `RevelarBloque`, que ahora
+// entrega EXACTAMENTE esta variante.
 export const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
 // ── EL REVELADO ESCALONADO POR GRUPO — § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1 ─────────────────────────

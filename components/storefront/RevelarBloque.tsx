@@ -5,26 +5,30 @@ import { motion } from "framer-motion";
 import {
   variantesRevelaBloque,
   transicionRevelaBloque,
-  REVELA_BLOQUE_MARGEN,
 } from "@/lib/storefront/revelado-bloque";
 
-// RevelarBloque — § SECCIONES-ENTRAN-VIVAS-1, corregido por § SECCIONES-ENTRAN-UNA-VEZ-1. La
-// primitiva GENÉRICA de entrada por scroll para el resto de la home (texto Y media): sube 50px
-// mientras funde opacidad, con disparo TARDÍO desde abajo (sólo cuando el bloque ya está bien adentro
-// de la pantalla, § `REVELA_BLOQUE_MARGEN`) y entra UNA SOLA VEZ (`once:true`) — las cifras y el
-// porqué viven en `lib/storefront/revelado-bloque.ts`.
+// RevelarBloque — § SECCIONES-ENTRAN-VIVAS-1, corregido por § SECCIONES-ENTRAN-UNA-VEZ-1, y
+// REEMPLAZADO de magnitudes por § SECCIONES-ENTRAN-COMO-ORIGEN-1 (2026-10-02). La primitiva GENÉRICA
+// de entrada por scroll para el resto de la home (texto Y media): sube mientras funde opacidad,
+// dispara EN CUANTO el bloque asoma por el borde inferior del viewport — SIN margen, el MISMO
+// disparador que "El origen"/Suscripción — y entra UNA SOLA VEZ (`once:true`). Las cifras (24px,
+// 0.6s, `cubic-bezier(0.22,0.61,0.36,1)`, 0.09s de paso) viven en `lib/storefront/revelado-bloque.ts`,
+// REUSADAS de `fadeUp`/`transicionEscalonada` (lib/animation.ts) — no son propias de esta primitiva.
 //
-// `once:true` Y el margen ASIMÉTRICO (sólo el fondo se encoge) son LA MISMA corrección, no dos: el
-// slice anterior (`SECCIONES-ENTRAN-VIVAS-1`) puso `once:false` + margen simétrico razonando que la
-// referencia (homeburgers.com) "se repite" al volver a pasar por un bloque — era un ERROR DE MEDICIÓN
-// DEL ORQUESTADOR (§ el spec de este slice). Re-medido: en la referencia un bloque entra UNA VEZ y
-// queda visible para siempre — al pasar arriba, al salir por arriba, al volver a bajar y al volver a
-// entrar desde abajo. Con `once:false` + margen simétrico, un bloque que ya había cruzado la mitad de
-// la pantalla hacia arriba volvía a ocultarse MIENTRAS el visitante todavía lo estaba leyendo.
+// EL MARGEN DE DISPARO TARDÍO SE RETIRÓ (`REVELA_BLOQUE_MARGEN`, `-20%` en el fondo): gate del owner
+// sobre el resultado de `SECCIONES-ENTRAN-VIVAS-1`/`SECCIONES-ENTRAN-UNA-VEZ-1` — «el efecto... está
+// como demorado, hay un momento al hacer scroll en el que pareciera que estuviera navegando en una
+// página vacía porque demoran en salir las secciones, pero con 'El Origen' y Suscripción no pasa» —
+// esas dos secciones YA disparaban sin margen; la demora era la diferencia. `once:true` (de
+// `SECCIONES-ENTRAN-UNA-VEZ-1`) NO cambia: un bloque revelado sigue sin volver a ocultarse.
 //
-// NO es la primitiva de "El origen"/Suscripción (variante `linea`): esas dos ya tenían la entrada que
-// el owner pidió reproducir y el spec de este slice las deja explícitamente sin tocar
-// (`TextoEnCascada.tsx`, `fadeUp`/`fadeUpCascadaBloque`/`revelaMascaraVertical` en lib/animation.ts).
+// AHORA ES LA MISMA PRIMITIVA QUE "El origen"/Suscripción, NO UNA DISTINTA: hasta esta tanda
+// `RevelarBloque` tenía su propio disparo/cifras, separados a propósito de `fadeUp`+
+// `transicionEscalonada` (`Origen.tsx`) y de `transicionTituloPostal`/`transicionFadePostal`
+// (`SubscriptionCTALinea.tsx`) — las tres resuelven hoy a los MISMOS tokens
+// (`REVELADO_GRUPO_*`, lib/animation.ts). `TextoEnCascada.tsx` (la cascada de palabras-por-bloque del
+// texto de Origen, `fadeUpCascadaBloque`/`CASCADA_BLOQUE_*`) sigue sin tocarse — es un mecanismo
+// aparte, no el que esta tanda iguala.
 //
 // MISMO contrato `preview` que `TextoEnCascada`/el resto de los `motion.*` de la home: en la vista
 // previa EN VIVO del editor (`VistaTiendaEnVivo.tsx`), el árbol se renderiza dentro de un contenedor
@@ -33,8 +37,8 @@ import {
 // asentado, sin esperar un scroll que el editor no puede dar.
 //
 // `indice` es la posición del bloque dentro de su grupo de hermanos (0-based, orden de lectura) — lo
-// consume `transicionRevelaBloque` para el escalonado de 0.1s. El default 0 sirve a un bloque único
-// sin hermanos (nunca retrasado).
+// consume `transicionRevelaBloque` para el escalonado de 0.09s (`REVELADO_GRUPO_PASO_S`). El default
+// 0 sirve a un bloque único sin hermanos (nunca retrasado).
 type EtiquetaRevelo = "div" | "p" | "h2" | "h3";
 
 export default function RevelarBloque({
@@ -61,7 +65,7 @@ export default function RevelarBloque({
       initial={preview ? false : "hidden"}
       animate={preview ? "visible" : undefined}
       whileInView={preview ? undefined : "visible"}
-      viewport={preview ? undefined : { once: true, margin: REVELA_BLOQUE_MARGEN }}
+      viewport={preview ? undefined : { once: true }}
       variants={variantesRevelaBloque}
       transition={preview ? undefined : transicionRevelaBloque(indice)}
     >

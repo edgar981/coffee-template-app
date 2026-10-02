@@ -42548,3 +42548,166 @@ AWAITING_APPROVAL sin mergear ("La aprobación autoriza la escritura, nunca el m
 condición de la política A aplica por su cuenta.
 
 **Cierra `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`.**
+
+## 2026-10-02 — `RevelarBloque` deja de tener disparo/magnitud PROPIOS y pasa a REUSAR los de "El origen" (`SECCIONES-ENTRAN-COMO-ORIGEN-1`)
+
+Slice de corrección, continúa `slice/corte-reescritura-prototipo-1`. Gate del owner sobre el resultado
+de `SECCIONES-ENTRAN-VIVAS-1`/`SECCIONES-ENTRAN-UNA-VEZ-1`, literal: *"el efecto que se agregó de la
+entrada de las secciones está como demorado, hay un momento al hacer scroll en el que pareciera que
+estuviera navegando en una página vacía porque demoran en salir las secciones, pero con 'El Origen' y
+Suscripción no pasa así que es defecto del nuevo efecto"*.
+
+### El defecto y el fix
+
+`RevelarBloque` tenía su propia magnitud/disparo (`REVELA_BLOQUE_*`, `lib/storefront/revelado-bloque.ts`):
+50px de recorrido, 0.8s de duración, `cubic-bezier(0.22,1,0.36,1)`, 0.09s de paso, y un disparo TARDÍO
+por margen (`REVELA_BLOQUE_MARGEN = '0px 0px -20% 0px'` — sólo dispara cuando el bloque ya cruzó el 20%
+inferior de la ventana). "El origen" (`Origen.tsx`, fotos/datos/cifras vía `fadeUp`+
+`transicionEscalonada`) y Suscripción (`SubscriptionCTALinea.tsx`, vía `transicionTituloPostal`/
+`transicionFadePostal`, que ya REUSABAN `REVELADO_GRUPO_DURACION_S`/`REVELADO_GRUPO_EASE`/
+`REVELADO_GRUPO_PASO_S`) disparan SIN margen — apenas el bloque asoma por el borde inferior. El owner
+midió, en su propio gate, que la demora del margen -20% se lee como "página vacía" al scrollear.
+
+El fix retira TODA la magnitud propia de `RevelarBloque` y la hace delegar en las constantes de "El
+origen":
+
+- `variantesRevelaBloque` pasa a ser literalmente `fadeUp` (misma referencia, no una copia de sus
+  valores: `opacity 0→1`, `y 24→0`).
+- `transicionRevelaBloque(indice)` delega en `transicionEscalonada(Math.max(0, indice))`
+  (`lib/animation.ts`, los tokens `REVELADO_GRUPO_*`: duración 0.6s, curva `cubic-bezier(0.22,0.61,
+  0.36,1)`, paso 0.09s) — se conserva el `Math.max(0, …)` defensivo de la versión anterior.
+- `viewport={{ once: true }}` SIN `margin` en `RevelarBloque.tsx` — "sin margen" es la AUSENCIA del
+  prop, no un nuevo valor. `once:true` (de `SECCIONES-ENTRAN-UNA-VEZ-1`) no cambia.
+- `REVELA_BLOQUE_DISTANCIA_PX`/`_DURACION_S`/`_EASE`/`_PASO_S`/`_MARGEN` se retiran enteras, con sus
+  aserciones en `revelado-bloque.test.ts` — quedaron sin un solo consumidor.
+
+Ninguna sección que usa `RevelarBloque` (TrustBadges, FeaturedProducts, GrindChooser*, BrandStory*,
+Spotlight, Testimonials, SubscriptionCTABloque) cambió de código — el cambio vive entero en la
+primitiva compartida. "El origen", Suscripción y `TextoEnCascada` (la cascada de palabras-por-bloque
+del texto de Origen, `fadeUpCascadaBloque`/`CASCADA_BLOQUE_*` — un mecanismo APARTE, con su propia
+duración de 0.5s y curva `cubic-bezier(0,0,.3,1)`, que esta tanda NO toca) tampoco cambiaron.
+
+### Por qué REVELADO_GRUPO_* y no CASCADA_BLOQUE_*
+
+Dentro de "El origen" conviven DOS mecanismos de entrada: las fotos/filas de datos/cifras
+(`fadeUp`+`transicionEscalonada`, familia `REVELADO_GRUPO_*`) y el eyebrow/título/párrafo de la
+columna de texto (`TextoEnCascada`, familia `CASCADA_BLOQUE_*`, medida contra `xo-cascade` del tema
+real). El spec de esta tanda nombra explícitamente `transicionEscalonada`/`REVELADO_GRUPO_*` como el
+blanco a reusar, y Suscripción ya resolvía ahí (`transicionTituloPostal`/`transicionFadePostal`
+reusan los mismos tres tokens) — es la familia que las DOS referencias del owner ya comparten, no una
+tercera cifra inventada por este slice.
+
+### El recorrido vertical: no hay una constante de "El origen" distinta de `fadeUp`
+
+El spec pedía decidir el recorrido vertical: "el de la entrada por bloque de El origen si existe como
+constante reutilizable; si no, el de `fadeUp`". Medido contra `Origen.tsx`: las fotos, filas de datos y
+cifras usan `variants={fadeUp}` DIRECTO — no hay una segunda constante de desplazamiento propia de
+Origen, distinta de `fadeUp` (24px). La columna de texto SÍ tiene su propia magnitud
+(`fadeUpCascadaBloque.hidden.y: "30%"`, un porcentaje de la propia caja), pero es del mecanismo
+`TextoEnCascada`/`CASCADA_BLOQUE_*` que el spec deja fuera (otra duración, otra curva — mezclar su `y`
+con los tiempos de `REVELADO_GRUPO_*` habría sido una combinación que ninguna de las dos referencias
+usa). Por tanto aplica la cláusula "si no": el recorrido es el de `fadeUp`, 24px — y como
+`variantesRevelaBloque` pasó a ser literalmente `fadeUp`, esto no es una elección aparte sino la misma
+consecuencia de reusar la variante completa.
+
+### Medición a mitad del scroll — por sección, Nayoli y CORTE, 1440 y iPhone (WebKit)
+
+Arnés propio (`.scratch/medir-secciones-como-origen.ts`, gitignoreado, mismo patrón de orquestación
+que `.scratch/medir-revelado-una-vez.ts`): Postgres efímero + build+start de la rama actual, Chromium
+1440×900 y WebKit "iPhone" 390×844. Por cada elemento se scrollea a RITMO CONSTANTE (12px cada 30ms,
+~400px/s) desde 1.5 ventanas antes del punto de intersección hasta después de la salida, muestreando
+`opacity`/`rect.top` en cada tick. Se reporta `topPct = rect.top/innerHeight*100` (alto = recién
+asomando por el borde inferior; bajo = ya subió adentro de la pantalla) en el tick en que la opacidad
+arranca a subir (>0.02) y en el que llega a 1 (≥0.99). La referencia "El origen" es su PRIMER bloque de
+FOTO (`fadeUp`+`transicionEscalonada(0)`, localizado por el `alt` de la imagen) — el bloque que
+realmente usa `REVELADO_GRUPO_*`, no el título/eyebrow (`TextoEnCascada`, otra familia). Las secciones
+`RevelarBloque` se midieron en su elemento de `indice={0}` (sin retraso escalonado), para comparar
+contra el `indice=0` de la foto de Origen sin que el paso de 0.09s distorsione la comparación.
+
+| sección | tema | viewport | inicioTopPct | finTopPct |
+| --- | --- | --- | --- | --- |
+| **ORIGEN foto 1 (referencia)** | CORTE | 1440 | **98.2** | **92.7** |
+| FeaturedProducts (antetítulo) | Nayoli | 1440 | 98.2 | 91.3 |
+| GrindChooserRiel (eyebrow) | CORTE | 1440 | 98.2 | 92.7 |
+| BrandStoryCentrada (eyebrow) | CORTE | 1440 | 98.2 | 91.3 |
+| **ORIGEN foto 1 (referencia)** | CORTE | iPhone | **97.0** | **76.1** |
+| FeaturedProducts (antetítulo) | Nayoli | iPhone | 98.0 | 75.7 |
+| GrindChooserRiel (eyebrow) | CORTE | iPhone | 97.1 | 76.2 |
+| BrandStoryCentrada (eyebrow) | CORTE | iPhone | 97.1 | 76.2 |
+
+Las CUATRO secciones `RevelarBloque` arrancan dentro de 0.1 puntos de `topPct` de la foto de Origen en
+1440, y dentro de 1.0 punto en iPhone — y completan su revelado dentro de 1.4 puntos (1440) y 0.5
+puntos (iPhone). La pequeña dispersión en `finTopPct` es jitter de muestreo discreto (paso de 12px/
+30ms, alturas de elemento distintas), no una discrepancia de temporización: las cuatro secciones ya
+delegan en las MISMAS `REVELADO_GRUPO_*` que la foto de referencia.
+
+**LÍMITE DECLARADO del arnés: TrustBadges no se pudo medir por este método.** Su primera insignia ya
+está dentro del viewport inicial (scroll=0) en las dos resoluciones — el `whileInView` ya disparó al
+montar, antes de que el script empezara a scrollear, así que `inicioTopPct`/`finTopPct` midieron el
+MISMO valor (94.8/95.0, tick 0): no hay recorrido de scroll que muestrear para un bloque que nace
+visible. No es un defecto del fix — es consistente con "sin margen, dispara apenas intersecta", que
+para un bloque ya intersectado al cargar significa "dispara de inmediato" —, pero el método de esta
+medición (comparar posiciones DURANTE un scroll) no tiene nada que decir sobre un bloque que nunca
+necesitó scrollear para entrar. Las otras cuatro secciones sí cubren el caso que el spec pide (un
+bloque que entra scrolleando).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3039/3039** (3042 del piso heredado − 3: `revelado-bloque.test.ts` pasó de 8 tests a 5 — las aserciones de las constantes retiradas murieron con ellas) |
+| `npm run test:integracion` | **283/283** |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **cifra DISTINTA a la del piso heredado** (355.138/428.107 px, caja […–[1183,3306]]): 164.889/4.608.000 px (consciente de AA), 174.350/4.608.000 px (crudo), caja [105,862]–[1183,3166]; las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra que `guarda:color`** (164.889/174.350 px, caja [105,862]–[1183,3166]); las otras 5 rutas + 2 hovers IDÉNTICO |
+
+**LA CIFRA CAMBIÓ RESPECTO AL PISO HEREDADO, Y ES EL PROPIO DIFF QUIEN LO EXPLICA.** Igual que
+`SECCIONES-ENTRAN-UNA-VEZ-1` ya documentó para su propio cambio de disparador: `scrollearYAsentar`
+dispara TODO `whileInView` scrolleando la página entera y vuelve a `scrollTo(0,0)` antes de capturar.
+Sin margen de disparo tardío, MÁS bloques quedan en opacidad 1 tras ese `scrollTo(0,0)` que con el
+margen -20% viejo (que algunos bloques, ya fuera de la franja activa al volver arriba, podían perder) —
+el número de píxeles distintos contra el fixture (generado con el comportamiento PRE-`RevelarBloque`)
+sigue siendo no-cero por la misma razón de siempre (`GUARDA-COLOR-FIXTURE-ENTRADA-PENDIENTE-1`, sin
+regenerar — instrucción explícita de la tanda, no decisión de este slice) pero su magnitud exacta se
+mueve con cada cambio al disparador. **No se regeneró el fixture.**
+
+### `touches:`
+
+`git diff --stat` contra `main`: 4 archivos modificados (`components/storefront/RevelarBloque.tsx`,
+`lib/storefront/revelado-bloque.ts`, `lib/storefront/revelado-bloque.test.ts`, `lib/animation.ts`) +
+este asiento (`DECISIONS.md`) — los cinco dentro de `touches:`. Sin deviación.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas de este diff: `RevelarBloque`, `revelado-bloque`, `REVELA_BLOQUE_*`,
+`variantesRevelaBloque`, `transicionRevelaBloque`, `fadeUp`, `transicionEscalonada`,
+`REVELADO_GRUPO_*`, `SECCIONES-ENTRAN-*`, `lib/animation.ts`. Grepeados contra `CLAUDE.md`: **CERO
+coincidencias** para los diez — ninguno de estos símbolos, rutas o IDs de slice está nombrado en la
+doctrina. Nada que corregir.
+
+### `customer_bytes`
+
+**`changed: true`.** El rastro visible es de TRANSICIÓN, igual que los dos slices anteriores de esta
+misma primitiva: ningún texto, color, imagen ni layout en reposo cambia. Lo que el visitante percibe
+cambia de FORMA: una sección que antes tardaba en aparecer (disparo a los -20% del fondo) ahora entra
+tan pronto como asoma, igual que "El origen"/Suscripción. `strings: []` — cero texto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son dos constantes delegadas, un prop de viewport retirado y comentarios.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3039 + 283), `guarda:color` y
+`verificar:nayoli:visual` dan la MISMA cifra entre sí (164.889/174.350 px, caja [105,862]–[1183,3166])
+pero DISTINTA a la del piso heredado — drift EXPLICADO por el propio diff (§ Gate, arriba), medición a
+mitad de scroll 4/4 secciones `RevelarBloque` arrancando dentro de 1 punto de `topPct` de la foto de
+referencia de "El origen", en Nayoli y CORTE, 1440 y iPhone WebKit (con el límite de TrustBadges
+declarado — nace ya visible, nada que scrollear). Commiteado en `slice/corte-reescritura-prototipo-1`.
+`stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la
+ESCRITURA (`approved: yes`, `approval-reason` cita su propio gate sobre el resultado de
+`SECCIONES-ENTRAN-VIVAS-1`/`SECCIONES-ENTRAN-UNA-VEZ-1`); el merge sigue pendiente del gate del
+orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Cierra `SECCIONES-ENTRAN-COMO-ORIGEN-1`.**
