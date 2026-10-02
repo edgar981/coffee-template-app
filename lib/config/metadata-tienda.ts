@@ -49,31 +49,73 @@ function tipoDeIconoSubido(url: string): 'image/svg+xml' | 'image/png' {
 }
 
 /**
+ * Fingerprint corto y determinístico de la URL de un ícono subido — la VERSIÓN de la dirección
+ * MISMO-ORIGEN que `urlIconoVersionada` arma (§ FAVICON-MISMO-ORIGEN-1), derivada del DATO, nunca
+ * un número a mano: si el ícono cambia, la URL cambia, y si no cambia, no cambia. Vercel Blob ya
+ * sufija cada subida con un random suffix (`addRandomSuffix: true`, § Storage, CLAUDE.md), así que
+ * la URL del blob YA es distinta en cada ícono nuevo — hashear la URL entera basta; no hace falta
+ * leer los bytes del archivo para versionar. DJB2: no-criptográfico a propósito, esto es
+ * cache-busting, no integridad. Hex, 8 caracteres — colisión improbable para el puñado de íconos
+ * que una tienda sube en su vida, y un string corto en la URL.
+ */
+export function huellaIcono(url: string): string {
+  let hash = 5381;
+  for (let i = 0; i < url.length; i++) {
+    hash = (hash * 33 + url.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+/** La ruta del route handler que sirve los bytes del ícono por el MISMO dominio de la tienda
+ *  (§ `app/api/icono-tienda/route.ts`). */
+export const RUTA_ICONO_MISMO_ORIGEN = '/api/icono-tienda';
+
+/**
+ * La dirección que los `<link>` del `<head>` y el manifest PWA declaran para un ícono SUBIDO: el
+ * MISMO origen que la tienda (nunca la URL del blob, en OTRO dominio) y VERSIONADA (`?v=<huella>`)
+ * para que un ícono nuevo sea una URL nueva y pueda cachearse largo (§ FAVICON-MISMO-ORIGEN-1 —
+ * Safari descarta un ícono de otro origen o alcanzado por redirección y cae al que ya conocía;
+ * `cacheControlIconoTienda` abajo es el otro lado de esta decisión). `icono` debe venir NO-VACÍO —
+ * el caller ya decidió "hay ícono subido" antes de llamar esto.
+ */
+export function urlIconoVersionada(icono: string): string {
+  return `${RUTA_ICONO_MISMO_ORIGEN}?v=${huellaIcono(icono)}`;
+}
+
+/**
  * Los íconos del `<head>` (favicon · apple-touch-icon · shortcut): el ÍCONO SUBIDO por el tenant
  * (`content.logo.icono`, § METADATA-ICONOS-Y-LANG-POR-TIENDA-1) si lo hay, o los estáticos de Nayoli
  * si no — mismo patrón que el logo de nav (§ `logoParaVariante`, `lib/config/marca-logo.ts`): vacío
  * cae al default de código, nunca una URL rota. Es DISTINTO del logo de nav: ESE es el wordmark/mark
  * (típicamente rectangular), esto es un ícono CUADRADO dedicado — usar el logo acá lo recortaría mal
  * a 16×16.
+ *
+ * LA URL declarada es MISMO-ORIGEN y VERSIONADA (`urlIconoVersionada`), NO la del blob
+ * (§ FAVICON-MISMO-ORIGEN-1): antes de este slice apuntaba directo al blob, en OTRO dominio, y
+ * Safari lo descartaba — el `type` sigue derivándose de la EXTENSIÓN del ícono subido (el único
+ * dato que la tiene; la URL versionada no lleva extensión).
  */
 export function iconosDeTienda(icono: string): NonNullable<Metadata['icons']> {
   const url = icono.trim();
   if (url === '') return ICONOS_ESTATICOS_POR_DEFECTO;
   const type = tipoDeIconoSubido(url);
+  const mismoOrigen = urlIconoVersionada(url);
   return {
-    icon: [{ url, type }],
-    apple: { url, type },
-    shortcut: url,
+    icon: [{ url: mismoOrigen, type }],
+    apple: { url: mismoOrigen, type },
+    shortcut: mismoOrigen,
   };
 }
 
 /** El gemelo de `iconosDeTienda` para el manifest PWA (§ `GET /api/manifest`): mismo ícono subido si
  *  existe (con `sizes: 'any'` — no conocemos sus dimensiones reales, y `'any'` es válido para SVG
- *  **y** aceptable para un PNG cuadrado dedicado), o los tres PNG de Nayoli si no. */
+ *  **y** aceptable para un PNG cuadrado dedicado), o los tres PNG de Nayoli si no. Misma URL
+ *  MISMO-ORIGEN/VERSIONADA que `iconosDeTienda` (§ FAVICON-MISMO-ORIGEN-1) — las dos superficies no
+ *  pueden divergir en a qué apunta el ícono subido. */
 export function iconosManifestDeTienda(icono: string): IconoManifest[] {
   const url = icono.trim();
   if (url === '') return ICONOS_MANIFEST_POR_DEFECTO;
-  return [{ src: url, sizes: 'any', type: tipoDeIconoSubido(url) }];
+  return [{ src: urlIconoVersionada(url), sizes: 'any', type: tipoDeIconoSubido(url) }];
 }
 
 /**
@@ -105,21 +147,41 @@ export type VarianteIconoRuta = keyof typeof ICONOS_ESTATICOS_POR_RUTA;
 export const ENCABEZADO_VARIANTE_ICONO = 'x-icono-variante';
 
 export type DecisionIconoRuta =
-  | { tipo: 'subido'; url: string }
+  | { tipo: 'subido'; url: string; contentType: string }
   | { tipo: 'estatico'; archivo: string; contentType: string };
 
 /**
- * La decisión de `GET /api/icono-tienda` (§ FAVICON-RUTA-POR-TIENDA-1): con ícono subido
- * (`content.logo.icono`, la MISMA fuente que `iconosDeTienda` arriba), la ruta debe REDIRIGIR ahí;
- * vacío, cae al archivo estático de HOY para esa variante — nunca una URL rota, mismo criterio que
- * `iconosDeTienda`/`iconosManifestDeTienda`. Pura: DECIDE, no EJECUTA — el route handler hace el
- * redirect o la lectura de archivo reales; así la decisión se afirma en capa 1 sin tocar `fs` ni
- * `next/server`.
+ * La decisión de `GET /api/icono-tienda` (§ FAVICON-RUTA-POR-TIENDA-1, § FAVICON-MISMO-ORIGEN-1):
+ * con ícono subido (`content.logo.icono`, la MISMA fuente que `iconosDeTienda` arriba), la ruta debe
+ * OBTENER sus bytes del blob y servirlos por el MISMO origen (nunca redirigir a otro dominio — eso
+ * es justo lo que `FAVICON-MISMO-ORIGEN-1` cierra); vacío, cae al archivo estático de HOY para esa
+ * variante — nunca una URL rota, mismo criterio que `iconosDeTienda`/`iconosManifestDeTienda`. Pura:
+ * DECIDE, no EJECUTA — el route handler hace el `fetch` o la lectura de archivo reales; así la
+ * decisión se afirma en capa 1 sin tocar `fs` ni `next/server`. `contentType` viaja en LAS DOS ramas
+ * (antes sólo en la estática) para que el route handler no vuelva a derivar la extensión por su
+ * cuenta.
  */
 export function decidirIconoRuta(icono: string, variante: VarianteIconoRuta): DecisionIconoRuta {
   const url = icono.trim();
-  if (url !== '') return { tipo: 'subido', url };
+  if (url !== '') return { tipo: 'subido', url, contentType: tipoDeIconoSubido(url) };
   return { tipo: 'estatico', ...ICONOS_ESTATICOS_POR_RUTA[variante] };
+}
+
+/**
+ * El `Cache-Control` de `GET /api/icono-tienda` para el ícono SUBIDO (§ FAVICON-MISMO-ORIGEN-1): el
+ * estático de Nayoli siempre usa el suyo propio (3600s, sin cambio — Nayoli byte-idéntica), así que
+ * esto sólo aplica a la rama `subido`.
+ *
+ * LARGO cuando la URL es VERSIONADA (`versionado=true`: el hit directo desde el `<link>`/manifest,
+ * con `?v=<huella>` — § `urlIconoVersionada`): un ícono nuevo es una URL NUEVA, así que cachear
+ * "para siempre" es seguro — la URL vieja nunca se vuelve a pedir.
+ *
+ * CORTO cuando no lo es (`versionado=false`: el probe ciego vía `proxy.ts` — `/favicon.ico` y las
+ * dos `apple-touch-icon*`, rutas de nombre FIJO que no pueden versionarse): un caché largo ahí
+ * retendría el ícono viejo en el navegador tras un cambio, sin forma de invalidarlo por URL.
+ */
+export function cacheControlIconoTienda(versionado: boolean): string {
+  return versionado ? 'public, max-age=31536000, immutable' : 'public, max-age=300';
 }
 
 /**

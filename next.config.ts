@@ -75,11 +75,9 @@ const nextConfig: NextConfig = {
       // reemplazo quedaría cacheado eterno.
       //
       // La regla va sobre la URL del ARCHIVO, no sobre una ruta aparte, y eso es
-      // deliberado: cubre a la vez el `<link rel=icon>` Y el probe CIEGO a /favicon.ico
-      // —crawlers y algunos navegadores lo piden sin mirar el `<link>`—. Los dos comparten
-      // esta misma URL, así que la "puerta de atrás" del caché eterno queda cerrada por
-      // construcción. Una ruta /api/favicon separada dejaría el probe sobre el estático
-      // (puerta abierta) salvo rewrite + borrar el estático — más piezas para el mismo fin.
+      // deliberado: cubre el `<link rel=icon>` cuando la tienda NO subió su propio ícono
+      // (cae a estos estáticos, § `ICONOS_ESTATICOS_POR_DEFECTO`, `lib/config/
+      // metadata-tienda.ts`).
       //
       // max-age=3600 (1h): un favicon cambia rarísimo (rebranding, onboarding), así que 1h
       // de propagación alcanza, y 1h de caché toca el archivo ≤1 vez/hora/visitante, no en
@@ -87,17 +85,36 @@ const nextConfig: NextConfig = {
       // header —límite del navegador, no del server—; 3600 es la señal correcta para CDN,
       // crawlers y los que sí lo respetan, y el resto lo refresca al reabrir.
       //
-      // POR QUÉ NO UNA RUTA /api/favicon: con assets ESTÁTICOS por-despliegue no hay URL de
-      // blob, así que el motivo de la ruta —no fijar una URL de blob que se cachea sola—
-      // no aplica. La ruta se gana su lugar SÓLO cuando el favicon se vuelva SUBIBLE desde
-      // el panel (décimo cliente): ahí el `<link>` no puede apuntar a un blob sin
-      // reintroducir el caché eterno, y la ruta (URL estable + caché corto) es la
-      // indirección necesaria. Hasta entonces, headers() sobre el estático es más simple.
+      // `favicon\.ico` SALIÓ de este regex (§ FAVICON-MISMO-ORIGEN-1, cierra el
+      // open-followup `FAVICON-NEXTCONFIG-CACHE-PRECEDENCIA-1`): `proxy.ts` reescribe
+      // `/favicon.ico` hacia `GET /api/icono-tienda` SIEMPRE —con ícono subido o sin
+      // él—, nunca sirve `public/favicon.ico` como archivo estático directo. Mientras
+      // `favicon\.ico` seguía en este regex, `headers()` matchea sobre el PATH ORIGINAL de
+      // la request (medido: ganaba incluso cuando el destino real, tras el rewrite, era
+      // `/api/icono-tienda`), así que esta regla PISABA el `Cache-Control` que la propia
+      // ruta decide (`cacheControlIconoTienda`, corto/largo según esté versionada) —
+      // ambigüedad entre DOS fuentes del mismo header para la MISMA ruta. Con `favicon\.ico`
+      // afuera, la única fuente es la ruta: sin conflicto. `apple-touch-icon.png` y
+      // `apple-touch-icon-precomposed.png` NUNCA estuvieron en este regex (nombres
+      // distintos de los que nombra) y por eso nunca tuvieron el problema — no hace falta
+      // tocarlos.
+      //
+      // `apple-icon.png` SE QUEDA: es un nombre DISTINTO de `apple-touch-icon.png` —
+      // ningún rewrite de `proxy.ts` lo toca— y sigue sirviéndose como estático puro
+      // cuando el `<link rel="apple-touch-icon">` cae al default de Nayoli
+      // (`ICONOS_ESTATICOS_POR_DEFECTO.apple.url`). `icon.svg`/`icon-192.png`/
+      // `icon-512.png`/`icon-512-maskable.png`: mismo caso, estáticos puros, sin rewrite.
+      //
+      // POR QUÉ NO UNA RUTA /api/favicon PARA ESTOS: con assets ESTÁTICOS por-despliegue no
+      // hay URL de blob, así que el motivo de una ruta —no fijar una URL de blob que se
+      // cachea sola— no aplica. (El ícono SUBIDO SÍ tiene su ruta, `/api/icono-tienda`,
+      // § `app/api/icono-tienda/route.ts` — éste es el caso del ícono TODAVÍA no subible
+      // por-cliente que describía el bloque viejo.)
       //
       // Los iconos del ADMIN (/brand/*-duna.*) NO van acá: son de Duna, constantes entre
       // despliegues, así que su caché normal está bien.
       {
-        source: "/:icon(favicon\\.ico|icon\\.svg|apple-icon\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png)",
+        source: "/:icon(icon\\.svg|apple-icon\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png)",
         headers: [{ key: "Cache-Control", value: "public, max-age=3600" }],
       },
 

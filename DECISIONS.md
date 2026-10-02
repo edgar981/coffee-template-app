@@ -42711,3 +42711,155 @@ ESCRITURA (`approved: yes`, `approval-reason` cita su propio gate sobre el resul
 orquestador — este slice, por instrucción del dispatch, no mergea.
 
 **Cierra `SECCIONES-ENTRAN-COMO-ORIGEN-1`.**
+
+## 2026-10-02 — El ícono de la tienda se sirve del MISMO origen, con sus bytes, versionado — Safari deja de descartarlo (`FAVICON-MISMO-ORIGEN-1`)
+
+Gate del owner sobre Café Las Chamisas en Safari (2026-10-02), DESPUÉS de `FAVICON-RUTA-POR-TIENDA-1`:
+*"En Safari, aun sale el icono de nayoli y no el de las chamisas, en Brave si sale"* y, tras borrar los
+datos del sitio en Safari: *"En Safari borre la data pero aun persiste el icono"*. Lectura del
+orquestador (medida con `curl` contra la demo, no por este slice — sin red): con ícono subido, las tres
+rutas del probe ciego (`/favicon.ico`, las dos `apple-touch-icon*`) y el `<link>`/manifest apuntaban al
+ícono con un **307 a OTRO dominio** (el blob de Vercel). Safari es más estricto con íconos cross-origin
+y con redirecciones — los descarta y cae al que ya tenía cacheado, aun tras un borrado de datos del
+sitio (el favicon vive en un caché de perfil distinto del de "datos del sitio").
+
+### El fix: mismo origen, bytes directos, versión en la URL
+
+`GET /api/icono-tienda` YA NO redirige. Con ícono subido, OBTIENE sus bytes del blob del lado del
+SERVIDOR (`fetch`, el store es PÚBLICO — § Storage, `CLAUDE.md`) y los sirve ella misma, por el mismo
+dominio que la tienda; si el blob no responde, cae al estático de Nayoli para la variante pedida —
+**nunca un 500**. `decidirIconoRuta` gana `contentType` en la rama `subido` (antes sólo en la estática),
+así el route handler no re-deriva la extensión.
+
+Los `<link>` del `<head>` y el manifest PWA (`iconosDeTienda`/`iconosManifestDeTienda`,
+`lib/config/metadata-tienda.ts`) dejan de declarar la URL del blob: declaran
+`urlIconoVersionada(icono)` = `/api/icono-tienda?v=<huellaIcono(icono)>` — MISMO origen, y VERSIONADA
+para que un ícono nuevo sea una URL nueva. `huellaIcono` es DJB2 sobre la URL del blob entera —
+no-criptográfico a propósito (cache-busting, no integridad) — y basta porque Vercel Blob ya sufija
+cada subida con un random suffix (`addRandomSuffix: true`): la URL del blob YA cambia con cada ícono
+nuevo, así que hashearla entera versiona sin leer los bytes del archivo.
+
+`cacheControlIconoTienda(versionado)` separa los dos accesos a la misma ruta por su capacidad de
+versionarse: **LARGO e inmutable** (`max-age=31536000, immutable`) cuando la URL trae `?v=` (el hit
+directo desde `<link>`/manifest — una URL vieja nunca se vuelve a pedir); **CORTO** (`max-age=300`,
+sin cambio) cuando no (el probe ciego vía `proxy.ts`, de nombre FIJO — no se puede versionar). El
+estático de Nayoli sigue en 3600s, sin tocar, en los dos route handlers.
+
+### `FAVICON-NEXTCONFIG-CACHE-PRECEDENCIA-1`, cerrado
+
+El open-followup de `FAVICON-RUTA-POR-TIENDA-1`: `next.config.ts` § ICONOS DE MARCA DEL STOREFRONT
+tenía `favicon\.ico` en su regex de `headers()`, y ese header GANABA sobre el que la propia ruta pone
+(medido entonces: `headers()` matchea sobre el PATH ORIGINAL de la request, no sobre el destino tras el
+rewrite) — dos fuentes del mismo header para la misma ruta. Se sacó `favicon\.ico` del regex:
+`proxy.ts` reescribe `/favicon.ico` hacia `/api/icono-tienda` SIEMPRE (con ícono o sin él), nunca sirve
+`public/favicon.ico` directo, así que la entrada ya no tenía caso de uso — con ella afuera, la única
+fuente del header es la ruta. `apple-touch-icon.png`/`-precomposed.png` NUNCA estuvieron en ese regex
+(nombres distintos) y no tenían el problema; `apple-icon.png`/`icon.svg`/`icon-192.png`/`icon-512.png`/
+`icon-512-maskable.png` se quedan — son estáticos puros, sin rewrite, y la regla sigue aplicando sin
+conflicto.
+
+### Lo que NO se tocó
+
+`proxy.ts` no necesitó cambios: su rewrite (URL por el mismo mapa, header de variante) es correcto para
+el nuevo mecanismo tal cual estaba — lo que cambia es sólo qué hace `/api/icono-tienda` con la decisión,
+no cómo llega ahí. Su comentario de cabecera ("decide con una consulta a SiteContent") no afirma CÓMO
+decide, así que sigue siendo cierto.
+
+### El GATE
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npm test` (capa 1) | **3047/3047** |
+| `npm run test:integracion` (capa 2) | **286/286** |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra que el piso heredado de `SECCIONES-ENTRAN-COMO-ORIGEN-1`** (164.889/4.608.000 px consciente de AA, caja [105,862]–[1183,3166]) — medida DOS VECES, con y sin este diff aplicado (ver abajo); las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra** (164.889/174.350 px, misma caja); las otras 5 rutas + 2 hovers IDÉNTICO |
+
+**`npm run gate` = typecheck + test + test:integracion**; los dos scripts visuales se corrieron aparte,
+igual que en `FAVICON-RUTA-POR-TIENDA-1`, porque el spec los pide explícito.
+
+**La cifra de `ruta-home` se midió DOS VECES para aislar el aporte de este slice**, no sólo una: con el
+árbol de trabajo en el estado de HEAD (`SECCIONES-ENTRAN-COMO-ORIGEN-1`, revirtiendo los 5 archivos
+tocados vía `git checkout --`) y de nuevo con el diff completo reaplicado. Las DOS corridas de
+`guarda:color` dieron el **mismo número al píxel** (164.889/4.608.000, misma caja) — prueba de que este
+slice no agrega NINGÚN diff visual propio: el drift es 100% heredado de `SECCIONES-ENTRAN-COMO-ORIGEN-1`
+(documentado en su propio asiento, arriba), y el cambio de este slice es HTTP/servidor, invisible a una
+captura de pantalla.
+
+### Verificación — `global.fetch` stubeado, Postgres efímero real
+
+Sin acceso a red (ni a la demo ni al store de Blob real), `tests/integracion/icono-tienda.test.ts`
+stubea `global.fetch` (mismo patrón que `services/checkout.service.test.ts`/
+`lib/pagos/creacion-transaccion.test.ts`) para afirmar: con ícono subido, 200 con los bytes que el blob
+devolvió y SIN `location` (nunca una redirección); el cache LARGO con `?v=` y CORTO sin él; y que si el
+blob no responde (red caída) o responde con error, la ruta cae al estático de Nayoli para la variante —
+nunca un 500. Sin ícono, los mismos tres tests de `FAVICON-RUTA-POR-TIENDA-1` sin tocar (mismos bytes
+que `public/favicon.ico`/`public/apple-icon.png`).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas de este diff: `app/api/icono-tienda/route.ts`, `lib/config/metadata-tienda.ts`
+(`huellaIcono`, `urlIconoVersionada`, `RUTA_ICONO_MISMO_ORIGEN`, `cacheControlIconoTienda`,
+`decidirIconoRuta`, `iconosDeTienda`, `iconosManifestDeTienda`), `next.config.ts`. Grepeados:
+
+- `icono-tienda`, `huellaIcono`, `urlIconoVersionada`, `RUTA_ICONO_MISMO_ORIGEN`,
+  `cacheControlIconoTienda`, `decidirIconoRuta`, `iconosDeTienda`, `iconosManifestDeTienda`,
+  `FAVICON-NEXTCONFIG-CACHE-PRECEDENCIA-1`, `FAVICON-RUTA-POR-TIENDA-1` → **CERO coincidencias**
+  (detalle de slice; `CLAUDE.md` documenta la regla, no cada símbolo).
+- `favicon.ico` → cuatro coincidencias, todas en § Identidad (líneas ~4377-4406). La que importa:
+  *"con los archivos en `public/` y declarados desde `app/(storefront)/layout.tsx`, las URLs y los
+  bytes son los mismos de siempre (`/favicon.ico` responde 200 para los pedidos ciegos de
+  crawlers)"*. `FAVICON-RUTA-POR-TIENDA-1` ya la había marcado condicionalmente falsa
+  (`CLAUDE-MD-FAVICON-200-CRAWLER-STALE-1`: cierta sin ícono, falsa —307— con ícono). **ESTE SLICE LA
+  VUELVE CIERTA DE NUEVO, por una razón distinta a la que el open-followup asumía:** con ícono subido,
+  `/favicon.ico` ya no redirige — responde 200 con los bytes del ícono. El propio `CLAUDE-MD-FAVICON-
+  200-CRAWLER-STALE-1` queda STALE (su premisa, "con ícono ahora 307 no 200", ya no se sostiene). No se
+  edita `CLAUDE.md` (no está en `touches:`) — va a `open_followups`.
+- § Config del contenido, *"LOS ÍCONOS-IMAGEN (6 archivos) siguen siendo assets ESTÁTICOS
+  por-despliegue… hasta que el favicon sea SUBIBLE"* (líneas ~4469-4475) y Backlog #54 (*"Hoy el
+  favicon es un asset ESTÁTICO por-despliegue"*): el favicon YA es subible desde
+  `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`/`MARCA-LOGO-IMAGEN-1`, bastante antes de este slice —
+  `FAVICON-RUTA-POR-TIENDA-1` ya había medido esto como stale (`CLAUDE-MD-ICONOS-SWAP-STALE-1`, sin
+  tocar). Este slice opera sobre el mismo subsistema pero no lo vuelve MÁS falso de lo que ya estaba.
+- `apple-touch-icon` → una coincidencia, del `apple-touch-icon` del ADMIN (Duna), subsistema
+  no tocado por este diff.
+
+### `customer_bytes`
+
+**`changed: true`.** Mismo rastro que `FAVICON-RUTA-POR-TIENDA-1`: HTTP, no pantalla. Con ícono subido,
+un visitante o crawler en Safari que antes descartaba el ícono (cross-origin + redirect) ahora lo recibe
+(mismo origen, bytes directos) — es exactamente el reporte del owner. **Para Nayoli y cualquier tenant
+sin ícono subido, byte-idéntico a hoy** (mismos bytes, mismo content-type, mismo Cache-Control de
+3600s en los dos route handlers — medido en el carril). `strings: []` — sin texto nuevo; el cambio es
+mecanismo HTTP y bytes de ícono.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración (se sigue leyendo
+`content.logo.icono`, ya existente), sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3047 + 286), `guarda:color` y
+`verificar:nayoli:visual` dan la MISMA cifra que el piso heredado (medida DOS VECES, con y sin este
+diff, idéntica al píxel las dos veces — cero diff visual propio), verificación del mecanismo (fetch
+stubeado, sin redirect, versión en la URL, fallback sin red, cache corto/largo) contra Postgres
+efímero real. Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` —
+`schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su
+gate textual del 2026-10-02 sobre Café Las Chamisas en Safari como `approval-reason`); el merge sigue
+pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `CLAUDE-MD-FAVICON-200-CRAWLER-STALE-1-OBSOLETO` — el open-followup `CLAUDE-MD-FAVICON-200-
+  CRAWLER-STALE-1` (de `FAVICON-RUTA-POR-TIENDA-1`) decía que la sentencia de § Identidad sobre
+  `/favicon.ico` 200 para crawlers era falsa CON ícono subido (307). Este slice removió el 307: con
+  ícono subido, `/favicon.ico` vuelve a responder 200 (con los bytes del ícono, por fetch-y-servir en
+  vez de redirect). La sentencia de `CLAUDE.md` es, de nuevo, cierta en los dos casos — por un
+  mecanismo distinto del que describe (ruta dinámica, no archivo estático declarado), pero cierta en
+  el nivel de detalle que la frase afirma. `CLAUDE.md` no está en `touches:`; no se edita.
+- `FAVICON-ADMIN-PROBE-CIEGO-DOMINIO-1` (de `FAVICON-RUTA-POR-TIENDA-1`) sigue abierto, sin tocar por
+  este slice: el rewrite de `proxy.ts` sigue siendo por DOMINIO, no por grupo de rutas.
+- `CLAUDE-MD-ICONOS-SWAP-STALE-1` sigue abierto, sin tocar — este slice confirma que sigue describiendo
+  un estado anterior a `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, no lo vuelve más falso.
+
+**Cierra `FAVICON-MISMO-ORIGEN-1`.**
