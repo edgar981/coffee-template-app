@@ -269,7 +269,18 @@ const HERO: SeccionConfig = {
     { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto del viewport, en vez de dejar asomar el siguiente bloque.' },
     { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "sticky". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.', gatedFields: ['veloIntensidad'] },
   ],
-  imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
+  // `imagenMovil`/`imagenMovilPoster` (§ HERO-VIDEO-MOVIL-1) SE DECLARAN ACÁ —no se dejan pendientes
+  // como `imagenPoster` arriba— para que `camposDeSeccionEditor` (lib/config/panel-controles.ts) los
+  // vea CONTROLADOS desde el día uno, sin sumar una exención nueva a `PENDIENTE_PANEL` (el techo-
+  // trinquete no se mueve). Las DOS son `opcional: true`: sin video de teléfono, el campo simplemente
+  // no se muestra en pantalla (TiendaSeccionEditor.tsx `renderMediaHeroMovil` devuelve `null` fuera
+  // del modo video; `imagenMovilPoster` nunca tiene su propio control standalone — va DENTRO del
+  // flujo de `imagenMovil`, igual que `imagenPoster` vive dentro del flujo de `imagen`).
+  imagenes: [
+    { name: 'imagen', label: 'Imagen de fondo' },
+    { name: 'imagenMovil', label: 'Video para teléfono (vertical)', opcional: true },
+    { name: 'imagenMovilPoster', label: 'Póster del video de teléfono', opcional: true },
+  ],
   campos: [
     // EL PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1): junto a la imagen de fondo, ARRIBA de los campos de
     // texto — qué parte de la foto/video queda a la vista al recortar. Escalar clampado

@@ -9,6 +9,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
+import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
   useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, claseAlturaAncestroMarquesina,
@@ -532,7 +533,22 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   const videoRef = useRef<HTMLVideoElement>(null);
   const reproducir = esVideo && !preview && !reduce;
 
-  if (esVideo && hero.imagenPoster) {
+  // EL VIDEO DE TELÉFONO (§ HERO-VIDEO-MOVIL-1, lib/config/hero-video.ts) — MISMO mecanismo que
+  // HeroMedia.tsx: sin él, `src=`/`poster=` directos (byte-idéntico); con él, `<source>` dentro del
+  // `<video>` (el navegador elige por `media`, sólo al cargar) + un `<picture>` nativo para el
+  // póster (que SÍ re-evalúa `media` en cada cambio de viewport — el primer pintado es correcto sin
+  // JS). Ver el docstring completo en HeroMedia.tsx — no se repite acá una segunda vez.
+  const fuentesVideo = esVideo ? fuentesVideoHero(hero) : [];
+  const hayVideoMovil = esVideo && tieneVideoMovil(hero);
+  const posterMovil = hayVideoMovil ? posterVideoMovil(hero) : undefined;
+
+  // EL PRELOAD TAMBIÉN SE PARTE POR `media` — mismo defecto medido que HeroMedia.tsx: un `<link
+  // rel=preload>` es un mecanismo DISTINTO del `<picture>` de abajo y no hereda su elección. Sin
+  // video de teléfono, queda idéntico a siempre.
+  if (esVideo && hayVideoMovil) {
+    if (hero.imagenPoster) preload(hero.imagenPoster, { as: "image", fetchPriority: "high", media: HERO_VIDEO_ESCRITORIO_MEDIA });
+    if (posterMovil) preload(posterMovil, { as: "image", fetchPriority: "high", media: HERO_VIDEO_MOVIL_MEDIA });
+  } else if (esVideo && hero.imagenPoster) {
     preload(hero.imagenPoster, { as: "image", fetchPriority: "high" });
   }
 
@@ -543,6 +559,23 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
     if (reproducir) v.play().catch(() => {});
     else v.pause();
   }, [reproducir]);
+
+  // AL ROTAR EL TELÉFONO: mismo efecto que HeroMedia.tsx — un `<video><source media>` no se
+  // re-evalúa solo al cambiar el viewport; `.load()` lo fuerza. Única pieza de JS del mecanismo, y
+  // sólo reacciona DESPUÉS del primer pintado.
+  useEffect(() => {
+    if (!hayVideoMovil) return;
+    const mq = window.matchMedia(HERO_VIDEO_MOVIL_MEDIA);
+    const alCambiar = () => {
+      const v = videoRef.current;
+      if (!v) return;
+      v.load();
+      v.muted = true;
+      if (reproducir) v.play().catch(() => {});
+    };
+    mq.addEventListener('change', alCambiar);
+    return () => mq.removeEventListener('change', alCambiar);
+  }, [hayVideoMovil, reproducir]);
 
   return (
     <div
@@ -563,19 +596,45 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           style={{ top: 'calc((100svh - 100lvh) / 2)', height: '100lvh' }}
         >
           {esVideo ? (
-            <video
-              ref={videoRef}
-              src={hero.imagen}
-              poster={hero.imagenPoster || undefined}
-              muted
-              loop
-              playsInline
-              preload={reproducir ? 'auto' : 'none'}
-              controls={!!reduce && !preview}
-              aria-hidden="true"
-              className="absolute inset-0 h-full w-full object-cover"
-              style={estiloPuntoFocal}
-            />
+            hayVideoMovil ? (
+              <>
+                {/* EL PÓSTER — `<picture>` nativo (§ el docstring de arriba). Mismo mecanismo que
+                    HeroMedia.tsx: va DEBAJO del `<video>`, transparente hasta que el video tiene un
+                    frame que pintar. */}
+                <picture aria-hidden="true" className="absolute inset-0 block">
+                  <source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={hero.imagenPoster || undefined} alt="" className="h-full w-full object-cover" style={estiloPuntoFocal} />
+                </picture>
+                <video
+                  ref={videoRef}
+                  muted
+                  loop
+                  playsInline
+                  preload={reproducir ? 'auto' : 'none'}
+                  controls={!!reduce && !preview}
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  style={estiloPuntoFocal}
+                >
+                  {fuentesVideo.map((f) => <source key={f.src} src={f.src} media={f.media} />)}
+                </video>
+              </>
+            ) : (
+              <video
+                ref={videoRef}
+                src={hero.imagen}
+                poster={hero.imagenPoster || undefined}
+                muted
+                loop
+                playsInline
+                preload={reproducir ? 'auto' : 'none'}
+                controls={!!reduce && !preview}
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={estiloPuntoFocal}
+              />
+            )
           ) : (
             <Image
               src={hero.imagen}

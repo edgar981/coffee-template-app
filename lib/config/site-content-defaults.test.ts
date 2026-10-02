@@ -1358,8 +1358,8 @@ test('todo campo de `imagenes` (secciones NO-repeater) existe en DEFAULTS[seccio
   }
 });
 
-test('REGISTRY.hero.imagenes incluye AMBOS blobs del hero (imagen y su póster) — si no, el póster de un video reemplazado queda HUÉRFANO en el storage para siempre', () => {
-  assert.deepEqual(REGISTRY.hero.imagenes, ['imagen', 'imagenPoster']);
+test('REGISTRY.hero.imagenes incluye los CUATRO blobs del hero (video/póster de escritorio Y de teléfono) — si no, un blob reemplazado queda HUÉRFANO en el storage para siempre (§ HERO-VIDEO-MOVIL-1, amplía la lista de HERO-VIDEO-COMO-DATO-1)', () => {
+  assert.deepEqual(REGISTRY.hero.imagenes, ['imagen', 'imagenPoster', 'imagenMovil', 'imagenMovilPoster']);
 });
 
 // ── `bandaOscuraCanonica` (§ EJE-5-VARIANTES-HERO): la canónica de darkness, VARIANT-AWARE ────────

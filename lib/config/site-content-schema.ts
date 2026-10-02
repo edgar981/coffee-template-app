@@ -30,6 +30,13 @@ const heroEditableSchema = z.object({
   // VACÍO cuando `imagenTipo === 'video'` — ver ese comentario para el porqué de esta única regla
   // DURA en un schema que es SOFT a propósito en todo lo demás.
   imagenPoster: z.string().optional(),
+  // LA SEGUNDA VERSIÓN, VERTICAL, para teléfono (§ HERO-VIDEO-MOVIL-1, ver el docstring de
+  // `HeroContent.imagenMovil`/`.imagenMovilPoster` en site-content-defaults.ts). `z.string()` como
+  // `imagen`/`imagenPoster` — el modelo acepta path estático o URL de Blob. El `.refine()` de abajo
+  // exige el PAR (si hay video de teléfono, hay póster de teléfono), MISMA regla que `imagenPoster`
+  // para el video de escritorio.
+  imagenMovil: z.string().optional(),
+  imagenMovilPoster: z.string().optional(),
   // Los TRES agregados del hero-media del prototipo (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ver el
   // docstring de `HeroContent` en site-content-defaults.ts). Los DOS booleanos SOBREVIVEN al parse
   // igual que `visible` — sin declararlos, zod los STRIPPEARÍA al guardar (§ #65-B); `fraseAlPie`
@@ -71,6 +78,15 @@ const heroEditableSchema = z.object({
   // Presentaciones (§ #65-B): diez campos strippeados en silencio porque nadie los declaró aquí.
   (v) => v.imagenTipo !== 'video' || !!(v.imagenPoster && v.imagenPoster.trim() !== ''),
   { message: 'Un hero de video necesita un póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenPoster'] },
+).refine(
+  // LA SEGUNDA REGLA DURA (§ HERO-VIDEO-MOVIL-1), MISMO argumento que la de arriba, aplicada al PAR
+  // `imagenMovil`/`imagenMovilPoster`: el editor garantiza el orden póster-antes-que-video por
+  // construcción (§ TiendaSeccionEditor.tsx, `subirVideoYPosterMovilHero`), pero esa garantía deja
+  // de alcanzar el día que exista otro camino de escritura. NO exige `imagenTipo === 'video'` —un
+  // `imagenMovil` sin que el hero sea video queda simplemente DORMIDO (§ `fuentesVideoHero` sólo lo
+  // consulta con `esVideo`), así que no hace falta una regla cruzada con `imagenTipo` acá.
+  (v) => !v.imagenMovil || v.imagenMovil.trim() === '' || !!(v.imagenMovilPoster && v.imagenMovilPoster.trim() !== ''),
+  { message: 'Un video para teléfono necesita su propio póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenMovilPoster'] },
 );
 
 // MARQUESINA (§ MARQUESINA-BANDA-1): texto del loop + foto de fondo + el pin del producto de la

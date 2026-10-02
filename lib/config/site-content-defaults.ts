@@ -39,6 +39,21 @@ export interface HeroContent {
   // HeroFicha) — pero el WRITE no debe poder CREAR ese estado desde el editor. '' cuando
   // `imagenTipo` es 'imagen' (default, byte-idéntico).
   imagenPoster: string;
+  // LA SEGUNDA VERSIÓN, VERTICAL, para teléfono (§ HERO-VIDEO-MOVIL-1). OPCIONAL —a diferencia de
+  // `imagen` (requerido): sin ella, el teléfono sigue viendo el mismo video horizontal de siempre,
+  // recortado por `object-cover` como hoy — esto es una MEJORA aditiva, no un segundo requisito.
+  // Mismo tope de peso, tipos y verificación de códec que `imagen` (§ TiendaSeccionEditor.tsx,
+  // `agregarVideoMovilHero` reusa `MAX_VIDEO_HERO_BYTES`/`leerCodecVideo` vía el mismo
+  // `useSubidaImagen.elegir`). SÓLO tiene efecto con `imagenTipo === 'video'` — un hero de IMAGEN no
+  // tiene "versión de teléfono" que mostrar; `renderMediaHeroMovil` (TiendaSeccionEditor.tsx) oculta
+  // el control fuera de ese caso, y `fuentesVideoHero` (lib/config/hero-video.ts) sólo la consulta
+  // cuando `esVideo` es `true`. '' = sin video de teléfono, byte-idéntico (Nayoli incluida: nunca
+  // declara este campo).
+  imagenMovil: string;
+  // El PÓSTER del video de teléfono — MISMA regla que `imagenPoster` arriba, pero para
+  // `imagenMovil`: OBLIGATORIO cuando `imagenMovil` no está vacío (lo exige el `.refine()` de
+  // `heroEditableSchema`, no el resolver SOFT). '' cuando no hay video de teléfono.
+  imagenMovilPoster: string;
   // La VARIANTE de composición (§ eje 5, EJE-5-VARIANTES-HERO). 'curtina' (canónica, la de Nayoli) |
   // 'ficha'. Escalar de SECCIÓN —como `visible`—, no un `campos`: no lo toca el loop
   // requerido/opcional del resolver. Gemela de `presentaciones.variante` (§ eje 5e).
@@ -1592,6 +1607,9 @@ export const DEFAULTS: SiteContentData = {
     // póster (un póster sin video no significa nada).
     imagenTipo: 'imagen',
     imagenPoster: '',
+    // La canónica (§ HERO-VIDEO-MOVIL-1): sin video de teléfono, Nayoli queda byte-idéntica.
+    imagenMovil: '',
+    imagenMovilPoster: '',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
     variante: 'curtina',
     // Los TRES agregados (§ TEMAS-HERO-MEDIA-AGREGADOS-1): default = el hero-media de HOY, byte a
@@ -2152,8 +2170,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     ocultable: false,
     // `imagenPoster` ENTRA acá (§ HERO-VIDEO-COMO-DATO-1) — es el SEGUNDO blob del hero, y si no se
     // nombrara acá el borrado de blobs (`imagenesDe`, site-content-blobs.ts) nunca lo vería: el
-    // póster de un video reemplazado quedaría HUÉRFANO en el storage para siempre.
-    imagenes: ['imagen', 'imagenPoster'],
+    // póster de un video reemplazado quedaría HUÉRFANO en el storage para siempre. `imagenMovil`/
+    // `imagenMovilPoster` (§ HERO-VIDEO-MOVIL-1) entran por la MISMA razón — el video/póster de
+    // teléfono reemplazado también debe dejar de ser huérfano.
+    imagenes: ['imagen', 'imagenPoster', 'imagenMovil', 'imagenMovilPoster'],
     // VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO): 'curtina' es la canónica —el hero de
     // HOY, verbatim—; 'ficha' es la bi-tonal (tipografía en tinta sobre crema, foto a sangre a la
     // derecha, sin degradado); 'media' (§ TEMAS-HERO-MEDIA-1) es la TERCERA — la media (imagen o
@@ -2227,6 +2247,11 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // póster) es del `.refine()` de `heroEditableSchema`, no de este mapa requerido/opcional —el
       // mapa no puede expresar "requerido SI OTRO CAMPO vale X".
       imagenPoster: 'opcional',
+      // LA SEGUNDA VERSIÓN, VERTICAL, para teléfono (§ HERO-VIDEO-MOVIL-1, ver el docstring de
+      // `HeroContent.imagenMovil` arriba). AMBAS opcionales, vacío → SE OMITE (sin video de
+      // teléfono, byte-idéntico).
+      imagenMovil: 'opcional',
+      imagenMovilPoster: 'opcional',
       // OPCIONAL (§ TEMAS-HERO-MEDIA-AGREGADOS-1): vacío → SE OMITE, no cae a ningún texto de
       // relleno — el `.hero-caption` del prototipo es dato del tenant, nunca un default inventado
       // (misma regla que `eyebrow`/`tituloEnfasis`, § "la frontera fina de defaults-como-fallback").

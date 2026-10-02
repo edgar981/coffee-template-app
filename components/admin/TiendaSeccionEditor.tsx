@@ -392,8 +392,80 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // Volver a IMAGEN: cae al valor por defecto de `imagen` —el mismo gesto que "Por defecto" ya
   // ofrece para las demás imágenes fijas—, porque `imagen` guarda hoy la URL del VIDEO y no sirve
   // como imagen. Nunca deja `imagenTipo:'video'` apuntando a una url que no es video, ni viceversa.
+  // `imagenMovil`/`imagenMovilPoster` (§ HERO-VIDEO-MOVIL-1) se vacían con el mismo gesto: son
+  // DORMIDOS fuera del modo video (`fuentesVideoHero` sólo los consulta con `esVideo`), pero
+  // dejarlos puestos dejaría un video de teléfono "fantasma" esperando a que alguien vuelva a
+  // encender el video de escritorio — el mismo criterio que ya aplica `imagenPoster` acá.
   const volverAImagenHero = () => {
-    const nf = { ...(formRef.current as Datos), imagenTipo: 'imagen', imagen: defaults.imagen, imagenPoster: '' };
+    const nf = { ...(formRef.current as Datos), imagenTipo: 'imagen', imagen: defaults.imagen, imagenPoster: '', imagenMovil: '', imagenMovilPoster: '' };
+    setForm(nf); setHayBorrador(true);
+    auto.marcarSucio(nf); auto.flush();
+  };
+
+  // ── EL VIDEO DE TELÉFONO DEL HERO (§ HERO-VIDEO-MOVIL-1) — MISMA secuencia que el de escritorio
+  // arriba (video retenido hasta elegir el póster, remux si es .mov, póster-antes-que-video), sobre
+  // un SEGUNDO par de campos planos (`imagenMovil`/`imagenMovilPoster`). SÓLO tiene sentido con
+  // `imagenTipo === 'video'` ya puesto (renderMediaHeroMovil, más abajo, no se muestra si no) — a
+  // diferencia del video de escritorio, acá no hay toggle imagen↔video: es, de por sí, un AGREGADO
+  // opcional sobre un hero que ya es video.
+  const [heroVideoMovilPendiente, setHeroVideoMovilPendiente] = useState<File | null>(null);
+  const [heroMovilConvirtiendo, setHeroMovilConvirtiendo] = useState(false);
+  const [heroMovilSubiendoPaso, setHeroMovilSubiendoPaso] = useState<'convirtiendo' | 'póster' | 'vídeo' | null>(null);
+  const heroMovilOcupado = subida.subiendo || heroMovilConvirtiendo;
+  const heroMovilTextoPaso = () => (heroMovilSubiendoPaso === 'convirtiendo' ? 'Convirtiendo el video…' : `Subiendo ${heroMovilSubiendoPaso}… ${subida.progreso ?? 0}%`);
+
+  // MISMO TOPE que el video de escritorio (§ MAX_VIDEO_HERO_BYTES): el video de teléfono vive en el
+  // mismo viewport siempre visible, así que no hay razón para un presupuesto distinto.
+  const agregarVideoMovilHero = () => {
+    marcarCampoActivo('imagenMovil');
+    subida.elegir(f => {
+      const esMov = (CONTENEDORES_REMUXEABLES as readonly string[]).includes(f.type);
+      const limite = esMov ? MAX_VIDEO_HERO_BYTES * 1.5 : MAX_VIDEO_HERO_BYTES;
+      if (f.size > limite) { anunciarError(MSG_VIDEO_HERO_LARGO, 'imagenMovil'); return; }
+      setHeroVideoMovilPendiente(f);
+    }, { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
+  };
+
+  const subirVideoYPosterMovilHero = async (video: File, poster: File) => {
+    marcarCampoActivo('imagenMovil');
+    try {
+      let videoFinal = video;
+      if ((CONTENEDORES_REMUXEABLES as readonly string[]).includes(video.type)) {
+        setHeroMovilSubiendoPaso('convirtiendo');
+        setHeroMovilConvirtiendo(true);
+        try { videoFinal = await remuxMovAMp4(video); }
+        finally { setHeroMovilConvirtiendo(false); }
+        if (videoFinal.size > MAX_VIDEO_HERO_BYTES) throw new Error(MSG_VIDEO_HERO_LARGO);
+      }
+      setHeroMovilSubiendoPaso('póster');
+      const { url: posterUrl } = await subida.subir(poster, { kind: 'imagen' });
+      setHeroMovilSubiendoPaso('vídeo');
+      const { url: videoUrl } = await subida.subir(videoFinal, { kind: 'imagen-o-video' });
+      // LOS DOS A LA VEZ (§ el orden es la garantía, como el video de escritorio): nunca un estado
+      // persistido con `imagenMovil` sin su propio póster.
+      const nf = { ...(formRef.current as Datos), imagenMovil: videoUrl, imagenMovilPoster: posterUrl };
+      setForm(nf); setHayBorrador(true);
+      auto.marcarSucio(nf); auto.flush();
+      campoActivoRef.current = null;
+    } catch (err) {
+      anunciarError(err instanceof Error ? err.message : 'No se pudo subir el video. Reintenta.', 'imagenMovil');
+    } finally {
+      setHeroVideoMovilPendiente(null);
+      setHeroMovilSubiendoPaso(null);
+    }
+  };
+
+  const elegirPosterParaMovilHero = () => {
+    const v = heroVideoMovilPendiente;
+    if (!v) return;
+    marcarCampoActivo('imagenMovil');
+    subida.elegir(poster => subirVideoYPosterMovilHero(v, poster), { tipos: TIPOS_PERMITIDOS, accept: ACCEPT_IMAGENES, msgError: 'Formato no admitido. Usa JPG, PNG o WebP.' });
+  };
+
+  // Quitar el video de teléfono: vacía los DOS campos a la vez — nunca un `imagenMovil` sin su
+  // póster, ni al revés. El hero vuelve a mostrar sólo el video de escritorio en todo viewport.
+  const quitarVideoMovilHero = () => {
+    const nf = { ...(formRef.current as Datos), imagenMovil: '', imagenMovilPoster: '' };
     setForm(nf); setHayBorrador(true);
     auto.marcarSucio(nf); auto.flush();
   };
@@ -497,8 +569,8 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // debe dejarlo apuntando a un control de una sesión de edición anterior.
   // `onAbrir` (§ EDITOR-TIENDA-IFRAME-VISTA-1): abrir NO muta nada —ni autoguardado ni borrador—,
   // así que notificar al padre acá es seguro incluso si el iframe todavía no cargó.
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); campoActivoRef.current = null; };
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; };
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
@@ -828,6 +900,69 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   };
 
+  // LA SEGUNDA VERSIÓN, VERTICAL, para teléfono (§ HERO-VIDEO-MOVIL-1) — bloque APARTE de
+  // `renderMediaHero` (no una rama más ahí adentro), mismo criterio que separó a ésa de
+  // `renderMiniatura`: es un AGREGADO opcional, no una tercera dualidad. OCULTO del todo fuera del
+  // modo video (`esVideo` falso): ofrecer "video para teléfono" sobre un hero que hoy es una imagen
+  // no tiene a qué aplicarse — `fuentesVideoHero` (lib/config/hero-video.ts) nunca lo consulta en
+  // ese caso.
+  const renderMediaHeroMovil = (img: CampoImagen) => {
+    const esVideo = form.imagenTipo === 'video';
+    if (!esVideo) return null;
+    const url = String(form.imagenMovil ?? '');
+    const poster = String(form.imagenMovilPoster ?? '');
+    const tieneVideoMovil = url.trim() !== '';
+    const miniatura = tieneVideoMovil ? (poster || url) : '';
+    // Dos vías comparten el mismo campo lógico "imagenMovil": el alta/cambio del video COMPLETO
+    // (subiendoCampo==='imagenMovil', con `heroMovilSubiendoPaso` nombrando la etapa) — a diferencia
+    // del video de escritorio, acá no hay reemplazo SUELTO del póster: el par se sube siempre junto.
+    const subiendoEste = heroMovilOcupado && subiendoCampo === 'imagenMovil';
+    return (
+      <div key={img.name} className="duna-field" style={{ marginBottom: 'var(--duna-space-4)' }}>
+        <span className="duna-field__label">{img.label}</span>
+        {heroVideoMovilPendiente && !heroMovilOcupado ? (
+          <PosterScrubber
+            video={heroVideoMovilPendiente}
+            onPoster={(p) => subirVideoYPosterMovilHero(heroVideoMovilPendiente, p)}
+            onSubirImagen={elegirPosterParaMovilHero}
+            onCancelar={() => setHeroVideoMovilPendiente(null)}
+          />
+        ) : (
+          <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-1)' }}>
+            <span className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)', position: 'relative' }}>
+              {miniatura
+                ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={miniatura} alt="" />
+                : <ImageIcon aria-hidden width={20} height={20} />}
+              {tieneVideoMovil && (
+                <Film className="h-3 w-3" style={{ position: 'absolute', right: 4, bottom: 4, color: '#fff', filter: 'drop-shadow(0 0 2px rgba(0,0,0,.8))' }} aria-label="vídeo" />
+              )}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+                <button type="button" onClick={agregarVideoMovilHero} disabled={heroMovilOcupado || !!heroVideoMovilPendiente} className="duna-btn duna-btn--secondary duna-btn--sm">
+                  <Film className="h-3.5 w-3.5" /> {tieneVideoMovil ? 'Cambiar video' : 'Agregar video para teléfono'}
+                </button>
+                {tieneVideoMovil && (
+                  <button type="button" onClick={quitarVideoMovilHero} disabled={heroMovilOcupado} className="duna-btn duna-btn--ghost duna-btn--sm">
+                    Quitar
+                  </button>
+                )}
+              </div>
+              {errorInline('imagenMovil') ?? errorInline('imagenMovilPoster') ?? (
+                <span className="duna-field__hint" style={{ margin: 0 }}>
+                  {subiendoEste
+                    ? heroMovilTextoPaso()
+                    : 'MP4, WebM o MOV, vertical (9:16). Opcional: sin él, el teléfono muestra el video de arriba, recortado.'}
+                </span>
+              )}
+              {subiendoEste && heroMovilSubiendoPaso !== 'convirtiendo' && <BarraProgreso pct={subida.progreso ?? 0} />}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // MINIATURA (rule 1: la representación GRANDE es la vista previa; el form sólo identifica la foto y
   // ofrece "Cambiar"). Marco `.duna-tile` (DS): con foto la muestra recortada; VACÍO pinta un ícono
   // muted, NUNCA un `<img src="">` roto (§ Backlog #66).
@@ -836,6 +971,10 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     // `imagen` se desvía a su propio render ANTES de la rama genérica de abajo, que sigue sirviendo
     // tal cual a brandStory/presentaciones (sólo imagen, siempre).
     if (seccion === 'hero' && img.name === 'imagen') return renderMediaHero(img);
+    // El video de teléfono (§ HERO-VIDEO-MOVIL-1) tiene su propio bloque aparte; su póster NUNCA
+    // renderiza standalone —va DENTRO de ese bloque, mismo criterio que `imagenPoster` arriba—.
+    if (seccion === 'hero' && img.name === 'imagenMovil') return renderMediaHeroMovil(img);
+    if (seccion === 'hero' && img.name === 'imagenMovilPoster') return null;
     const val = String(form[img.name] ?? '');
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;

@@ -12,6 +12,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS, objectPositionDePuntoFocal } from "@/lib/config/site-content-defaults";
+import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
@@ -141,7 +142,24 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
   const videoRef = useRef<HTMLVideoElement>(null);
   const reproducir = esVideo && !preview && !reduce;
 
-  if (esVideo && hero.imagenPoster) {
+  // EL VIDEO DE TELÉFONO (§ HERO-VIDEO-MOVIL-1, lib/config/hero-video.ts). SIN video de teléfono
+  // (`hayVideoMovil` falso, el caso de HOY) el `<video>` sigue usando `src=`/`poster=` DIRECTOS, más
+  // abajo — byte-idéntico al de siempre. CON video de teléfono, el `<video>` pasa a `<source>` hijos
+  // (el navegador elige por `media`, SÓLO al cargar — ver el efecto de rotación abajo) y el póster se
+  // resuelve con un `<picture>` nativo (que SÍ re-evalúa `media` en cada cambio de viewport): el
+  // primer pintado muestra el póster correcto SIN una sola línea de JS.
+  const fuentesVideo = esVideo ? fuentesVideoHero(hero) : [];
+  const hayVideoMovil = esVideo && tieneVideoMovil(hero);
+  const posterMovil = hayVideoMovil ? posterVideoMovil(hero) : undefined;
+
+  // EL PRELOAD TAMBIÉN SE PARTE POR `media` (§ HERO-VIDEO-MOVIL-1, MEDIDO: sin esto, el preload del
+  // póster de escritorio se disparaba SIEMPRE, también en el teléfono — un `<link rel=preload>` es
+  // un mecanismo DISTINTO del `<picture>` de abajo, y no hereda su elección). Sin video de teléfono,
+  // el preload queda IDÉNTICO a siempre (sin `media`, byte-idéntico).
+  if (esVideo && hayVideoMovil) {
+    if (hero.imagenPoster) preload(hero.imagenPoster, { as: "image", fetchPriority: "high", media: HERO_VIDEO_ESCRITORIO_MEDIA });
+    if (posterMovil) preload(posterMovil, { as: "image", fetchPriority: "high", media: HERO_VIDEO_MOVIL_MEDIA });
+  } else if (esVideo && hero.imagenPoster) {
     preload(hero.imagenPoster, { as: "image", fetchPriority: "high" });
   }
 
@@ -152,6 +170,26 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
     if (reproducir) v.play().catch(() => {});
     else v.pause();
   }, [reproducir]);
+
+  // AL ROTAR EL TELÉFONO (§ HERO-VIDEO-MOVIL-1): el navegador NO re-evalúa el `media` de los
+  // `<source>` de un `<video>` solo porque el viewport cambió —a diferencia de `<picture>`, que sí
+  // lo hace, de ahí que el póster de arriba se resuelva sin JS—; sólo lo re-evalúa cuando se le pide
+  // explícitamente con `.load()`. Este efecto es la ÚNICA pieza de JS de todo el mecanismo, y sólo
+  // reacciona a un evento POSTERIOR al primer pintado (el spec exige "sin JS" sólo para el póster del
+  // primer pintado, no para la reacción a rotar). Sin video de teléfono, no hay nada que re-evaluar.
+  useEffect(() => {
+    if (!hayVideoMovil) return;
+    const mq = window.matchMedia(HERO_VIDEO_MOVIL_MEDIA);
+    const alCambiar = () => {
+      const v = videoRef.current;
+      if (!v) return;
+      v.load();
+      v.muted = true;
+      if (reproducir) v.play().catch(() => {});
+    };
+    mq.addEventListener('change', alCambiar);
+    return () => mq.removeEventListener('change', alCambiar);
+  }, [hayVideoMovil, reproducir]);
 
   // ALTURA LLENA (§ CORTE-HERO-VIEWPORT-LLENO-1, OPCIONAL, default `false`). `min-h-[92vh]` de HOY
   // SIEMPRE deja un resto visible de la banda siguiente (la marquesina asomando debajo), sea cual sea
@@ -167,19 +205,46 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
     <section className={`relative flex ${alturaClase} items-end overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`} style={style}>
       <div className="absolute inset-0">
         {esVideo ? (
-          <video
-            ref={videoRef}
-            src={hero.imagen}
-            poster={hero.imagenPoster || undefined}
-            muted
-            loop
-            playsInline
-            preload={reproducir ? 'auto' : 'none'}
-            controls={!!reduce && !preview}
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={estiloPuntoFocal}
-          />
+          hayVideoMovil ? (
+            <>
+              {/* EL PÓSTER — `<picture>` nativo (§ el docstring de arriba): va DEBAJO del `<video>`
+                  en el orden del documento. Antes de que el video tenga un frame para pintar, es
+                  TRANSPARENTE y el póster se ve a través; en cuanto pinta, lo cubre — sin fade por
+                  JS, ambos llenan exactamente la misma caja (`absolute inset-0 object-cover`). */}
+              <picture aria-hidden="true" className="absolute inset-0 block">
+                <source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={hero.imagenPoster || undefined} alt="" className="h-full w-full object-cover" style={estiloPuntoFocal} />
+              </picture>
+              <video
+                ref={videoRef}
+                muted
+                loop
+                playsInline
+                preload={reproducir ? 'auto' : 'none'}
+                controls={!!reduce && !preview}
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={estiloPuntoFocal}
+              >
+                {fuentesVideo.map((f) => <source key={f.src} src={f.src} media={f.media} />)}
+              </video>
+            </>
+          ) : (
+            <video
+              ref={videoRef}
+              src={hero.imagen}
+              poster={hero.imagenPoster || undefined}
+              muted
+              loop
+              playsInline
+              preload={reproducir ? 'auto' : 'none'}
+              controls={!!reduce && !preview}
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={estiloPuntoFocal}
+            />
+          )
         ) : (
           <Image
             src={hero.imagen}

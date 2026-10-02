@@ -41779,3 +41779,237 @@ del orquestador — este slice, por instrucción del dispatch, no mergea.
   este slice es `0%/-20%` (asimétrico). Fuera de `touches:`; no se editó.
 
 **Cierra `SECCIONES-ENTRAN-UNA-VEZ-1`.**
+
+## 2026-10-02 — El hero de video acepta una SEGUNDA versión vertical para teléfono, elegida sin JS en el primer pintado (`HERO-VIDEO-MOVIL-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Gate del owner del 2026-10-01
+sobre la demo de Café Las Chamisas: *"El video sigue viéndose en baja calidad"* en el teléfono.
+Medido por el orquestador ANTES de este slice (citado en el dispatch, no re-medido acá): subir el
+bitrate del hero al triple no cambia la nitidez percibida — el teléfono muestra una FRANJA CENTRAL
+del video 16:9 ampliada por `object-cover`, y ninguna cantidad de bitrate arregla que el recorte
+sea el problema, no la compresión. La salida: un SEGUNDO archivo, vertical (9:16), que el teléfono
+usa completo en vez de recortar el horizontal.
+
+### Lo construido
+
+- **Modelo** (`lib/config/site-content-defaults.ts`): `HeroContent` gana `imagenMovil`/
+  `imagenMovilPoster` (ambos opcionales, default `''`). `REGISTRY.hero.imagenes` pasa de
+  `['imagen','imagenPoster']` a los CUATRO blobs del hero — sin esto, el borrado de blobs
+  (`imagenesDe`, site-content-blobs.ts) nunca vería un video/póster de teléfono reemplazado, y
+  quedaría HUÉRFANO para siempre (la misma razón por la que `imagenPoster` ya estaba ahí).
+- **Schema** (`lib/config/site-content-schema.ts`): dos campos `z.string().optional()` + un
+  SEGUNDO `.refine()`, gemelo del que ya exige `imagenPoster` cuando `imagenTipo==='video'`: si
+  `imagenMovil` no está vacío, `imagenMovilPoster` es obligatorio. NO cruza con `imagenTipo` —un
+  `imagenMovil` sobre un hero de IMAGEN queda DORMIDO, no es un estado inválido (`fuentesVideoHero`
+  sólo lo consulta con `esVideo`).
+- **Lógica pura** (`lib/config/hero-video.ts`, nuevo, con `hero-video.test.ts`): `HERO_VIDEO_MOVIL_
+  MEDIA = '(max-aspect-ratio: 1/1)'` — el corte (viewport más alto que ancho); `HERO_VIDEO_
+  ESCRITORIO_MEDIA` su negación exacta (`not (...)`, § el defecto medido abajo); `tieneVideoMovil`;
+  `fuentesVideoHero` (las fuentes de `<video>`, móvil primero con su `media`, escritorio al final
+  sin `media` — comodín); `posterVideoMovil` (con fallback defensivo al póster de escritorio si el
+  de teléfono faltara, dato SOFT que el resolver nunca valida).
+- **El mecanismo de elección, SIN JS para el primer pintado:**
+  - el PÓSTER usa un `<picture>` nativo (`<source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil}>`
+    + `<img src={hero.imagenPoster}>` de respaldo), colocado DEBAJO del `<video>` en el orden del
+    documento — antes de que el video tenga un frame que pintar es transparente y el póster se ve a
+    través; en cuanto pinta, lo cubre, sin fade por JS. El navegador elige el `<source>` nativamente,
+    y re-evalúa `media` en cada cambio de viewport (la propiedad que hace que la rotación funcione
+    gratis para el póster);
+  - el VIDEO usa `<source>` hijos del `<video>` (móvil con su `media`, escritorio de comodín) — el
+    navegador los evalúa UNA vez al cargar, NO se re-evalúan solos al rotar (a diferencia de
+    `<picture>`), así que la ROTACIÓN necesita un `useEffect` con un listener de
+    `matchMedia(HERO_VIDEO_MOVIL_MEDIA)` que llama `videoRef.current.load()` — la ÚNICA pieza de JS
+    de todo el mecanismo, y reacciona DESPUÉS del primer pintado (el spec pide "sin JS" sólo para el
+    póster del primer pintado, no para la reacción a un evento posterior como rotar).
+  - **SIN video móvil, los dos componentes usan `src=`/`poster=` DIRECTOS como siempre** —ninguna
+    rama nueva se ejecuta, byte-idéntico, confirmado por `guarda:color` (§ Gate, abajo).
+- **Alcance de render: SÓLO `HeroMedia.tsx` (variante `'media'`) y `HeroMediaMarquesina.tsx`
+  (variante `'sticky'`, la que CORTE usa hoy)** — `touches:` no incluye `HeroCurtina.tsx`/
+  `HeroFicha.tsx`, que también leen `imagenTipo` pero quedan FUERA de este slice; un `imagenMovil`
+  guardado con esas dos variantes queda dormido, igual que con un hero de imagen.
+- **Panel** (`components/admin/tienda-secciones.ts` + `TiendaSeccionEditor.tsx`): `imagenMovil`/
+  `imagenMovilPoster` se declaran en `HERO.imagenes` (con label "Video para teléfono (vertical)" /
+  "Póster del video de teléfono") — CONTROLADOS desde el día uno, no una exención nueva en
+  `PENDIENTE_PANEL` (§ el techo-trinquete, abajo). `renderMediaHeroMovil` (nuevo, hermano de
+  `renderMediaHero`) ofrece "Agregar video para teléfono" / "Cambiar video" / "Quitar" SÓLO cuando
+  `imagenTipo==='video'` (si no, `null` — no tiene sentido ofrecer una versión de un video que no
+  existe); `imagenMovilPoster` nunca renderiza standalone, va DENTRO de ese flujo, mismo criterio
+  que `imagenPoster` dentro de `renderMediaHero`. Mismo tope/tipos/códec que el video de escritorio:
+  reusa `MAX_VIDEO_HERO_BYTES`/`TIPOS_VIDEO`/`leerCodecVideo` (vía `subida.elegir`, genérico, fuera
+  de `touches:`) — ninguna constante nueva en `constants/upload.ts`. Borrador→publicar pasa por el
+  MISMO `guardarSeccion`/`PUT /api/site-content` que el resto de la sección (sin endpoint nuevo).
+  `volverAImagenHero` vacía también el par móvil (dormido, pero no debe quedar un "video de
+  teléfono fantasma" esperando a que alguien vuelva a video).
+
+### EL DEFECTO MEDIDO — el `preload()` del póster de escritorio no sabía que existía un teléfono
+
+`HeroMedia.tsx`/`HeroMediaMarquesina.tsx` ya tenían, desde `HERO-VIDEO-POSTER-PRIORIDAD-1`, un
+`preload(hero.imagenPoster, {as:"image", fetchPriority:"high"})` incondicional —un `<link
+rel=preload>`, mecanismo DISTINTO del `<picture>`— para priorizar la carga del póster (LCP). Con el
+arnés de medición (`.scratch/medir-hero-video-movil.ts`, Postgres efímero + `next build`/`next
+start` real + Playwright aislado, Chromium para escritorio y **WebKit real** para teléfono,
+dispositivo `iPhone 15`), MEDIDO con `page.route()` interceptando los cuatro URLs (dos videos H.264
+reales de 2 s generados con `ffmpeg`, rojo horizontal / azul vertical, NO bytes basura — con bytes
+basura WebKit reintenta el `<source>` siguiente al fallar decodificar, que CONFUNDE la medición
+haciendo parecer que se piden los dos pares cuando es sólo el navegador reintentando sobre
+contenido inválido): el preload del póster de escritorio se disparaba SIEMPRE, también en el
+viewport de teléfono donde el `<picture>` ya había elegido el póster vertical — exactamente lo que
+"nunca se descargan los dos" prohíbe.
+
+**El fix: el preload se parte por `media`, igual que el `<picture>`** —`HERO_VIDEO_ESCRITORIO_
+MEDIA` (`not (max-aspect-ratio: 1/1)`, la negación exacta, sin el solapamiento que tendría
+`(min-aspect-ratio: 1/1)` en el caso límite aspecto=1) en el preload del póster de escritorio,
+`HERO_VIDEO_MOVIL_MEDIA` en el del móvil—. `<link rel=preload media=...>` es estándar y el
+navegador lo respeta igual que `<source media=...>`. **SIN video móvil, un solo preload sin
+`media`, byte-idéntico a siempre.**
+
+### MEDIDO, no supuesto — red + píxel, escritorio y WebKit real, antes y después del fix
+
+| | requests observados (1ª carga) | color del primer píxel del hero (RGB, tras el velo) |
+| --- | --- | --- |
+| **ANTES del fix** — móvil (iPhone 15, WebKit) | `poster-vertical.jpg`, `vertical.mp4`, **`poster-horizontal.jpg`**, **`horizontal.mp4`** | — |
+| **DESPUÉS del fix** — escritorio (1280×900, Chromium) | `poster-horizontal.jpg`, `horizontal.mp4` | `[118, 9, 5]` (rojo) |
+| **DESPUÉS del fix** — móvil, ANTES de rotar | `poster-vertical.jpg`, `vertical.mp4` | `[26, 23, 106]` (azul) |
+| **DESPUÉS del fix** — móvil, TRAS rotar (mismo contexto, viewport invertido, SIN navegar) | `poster-horizontal.jpg`, `horizontal.mp4` (nuevos, 2 más) | `[115, 23, 4]` (rojo) |
+
+Repetido para las DOS variantes tocadas (`sticky` vía `HeroMediaMarquesina.tsx` — la de CORTE hoy —
+y `media` vía `HeroMedia.tsx`): mismo patrón rojo/azul/rojo en las dos (`[121,8,4]` / `[27,23,112]`
+/ `[121,24,5]` para `media`). El color NO es rojo/azul PURO (255,0,0 / 0,0,255) porque el velo
+oscuro de la sección (`bg-linear-to-b from-[var(--sf-tinta)]/60…`) compone sobre el póster incluso
+en reposo — se tomó la lectura cruda del píxel, sin normalizar, y la distinción rojo-dominante
+(R≫G,B) vs azul-dominante (B≫R,G) es inequívoca en los seis casos. Las capturas (`desktop.png`,
+`movil-vertical.png`, `movil-rotado.png` por variante) y el SQL de siembra viven en
+`.scratch/medir-hero-video-movil/` (gitignoreado, no es parte del diff); el arnés mismo
+(`.scratch/medir-hero-video-movil.ts`) reusa `levantarPostgres`/`migrarYSembrar`/`entornoArbol`/
+`construir`/`arrancar`/`detener`/`esperarListo`/`cargarPlaywright` de
+`scripts/verificar-nayoli-visual.ts` (fuera de `touches:`, sin tocar — sólo IMPORTADAS) y siembra
+`SiteContent.hero` con SQL crudo (mismo motivo que `sembrarEstadosProductCard`: una import ESM
+estática de `@duna/core` fijaría `DATABASE_URL` antes de que el script pudiera setearla).
+
+**Las TRES afirmaciones del spec, verificadas una por una:**
+- *"Nunca se descargan los dos"* — CONFIRMADO tras el fix, en los DOS sentidos (escritorio nunca
+  pide el par vertical; teléfono nunca pide el par horizontal en la 1ª carga) — FALSO antes del fix
+  (§ la tabla, fila "ANTES"), que es exactamente el defecto que este slice encontró y cerró.
+- *"El primer pintado muestra el póster correcto, sin JS"* — CONFIRMADO por color de píxel en las
+  dos variantes y los dos viewports; el mecanismo (`<picture><source media>`) no ejecuta una sola
+  línea de JS para elegir.
+- *"Al rotar el teléfono, cambia sin recargar la página"* — CONFIRMADO: mismo `BrowserContext` (sin
+  `page.goto` de nuevo), el viewport se invierte con `setViewportSize`, y 2 requests NUEVOS
+  (póster+video de escritorio) + el color de píxel vuelven a rojo.
+
+### `touches:` — UNA deviación, medida y necesaria, fuera de la lista
+
+`git diff --numstat` contra la base: **10 archivos** (7 modificados + 3 nuevos), **351 inserciones,
+36 eliminaciones** (sin contar este asiento). NUEVE caen dentro de `touches:` —
+`components/storefront/home/HeroMediaMarquesina.tsx` (+95/-16), `components/storefront/home/
+HeroMedia.tsx` (+90/-16), `lib/config/site-content-defaults.ts` (+27/-2), `lib/config/
+site-content-schema.ts` (+16/-0), `components/admin/TiendaSeccionEditor.tsx` (+142/-3),
+`components/admin/tienda-secciones.ts` (+12/-1), `lib/config/hero-video.ts` (nuevo, 77 líneas),
+`lib/config/hero-video.test.ts` (nuevo, 59 líneas), `tests/integracion/hero-video-movil.test.ts`
+(nuevo, 116 líneas).
+
+**`lib/config/panel-controles.ts` SE QUEDÓ SIN TOCAR — deliberado, no un olvido.** Declarar
+`imagenMovil`/`imagenMovilPoster` en `HERO.imagenes` (tienda-secciones.ts) los hace CONTROLADOS por
+`camposDeSeccionEditor` automáticamente (deriva de `config.imagenes`, no de una lista a mano en
+`panel-controles.ts`); medido ANTES y DESPUÉS de ese cambio contra `panel-controles.test.ts` — sin
+él, la calibración `huecosDelPanel({conExenciones:false})` marcaba los dos campos como huecos; con
+él, CERO huecos nuevos, sin agregar entrada a `PENDIENTE_PANEL` ni mover su techo-trinquete (sigue
+en 10). `touches:` lo incluía por si hacía falta una exención; no hizo falta.
+
+**UNA deviación real, fuera de `touches:`: `lib/config/site-content-defaults.test.ts`.** Ese
+archivo tiene un test que fija el valor EXACTO de `REGISTRY.hero.imagenes` con
+`assert.deepEqual(REGISTRY.hero.imagenes, ['imagen', 'imagenPoster'])` — un regression-guard de
+`HERO-VIDEO-COMO-DATO-1`. Extender ese array a los cuatro blobs (requisito explícito del spec:
+"borrado de blobs viejos igual que el video de hoy", § arriba) VUELVE ESA ASERCIÓN FALSA por
+construcción, y **ningún archivo de `touches:` puede satisfacer el borrado de blobs sin tocar
+`REGISTRY.hero.imagenes`** (el único dato que lee `imagenesDe`/`site-content-blobs.ts`, fuera de
+`touches:` y no editable). Medido: sin este cambio, `npm test` da ROJO en esa única aserción —
+visto fallar antes de tocarla. Se editó la ÚNICA línea (`assert.deepEqual`, línea 1362) para listar
+los cuatro nombres, sin tocar nada más de ese archivo. Reportado acá en vez de ampliar `touches:`
+por cuenta propia.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `HeroMediaMarquesina`, `HeroMedia.tsx`, `imagenMovil`,
+`imagenMovilPoster`, `hero-video.ts`, `HERO_VIDEO_MOVIL_MEDIA`, `HERO_VIDEO_ESCRITORIO_MEDIA`,
+`renderMediaHeroMovil`, `panel-controles.ts`, `HERO-VIDEO-COMO-DATO-1`. Grepeados uno por uno:
+
+- `HeroMediaMarquesina`, `HeroMedia.tsx` (ruta literal), `imagenMovil`, `imagenMovilPoster`,
+  `hero-video.ts`, `HERO_VIDEO_MOVIL_MEDIA`, `HERO_VIDEO_ESCRITORIO_MEDIA`, `renderMediaHeroMovil`,
+  `panel-controles.ts`, `HERO-VIDEO-COMO-DATO-1` → **CERO coincidencias para los diez**, en
+  `CLAUDE.md` (la DOCTRINA; distinto de `DECISIONS.md`, el ledger, donde `HeroMediaMarquesina`
+  aparece decenas de veces en entradas anteriores de este mismo archivo que sí es por donde
+  se grepeó para entender el componente, § Pre-flight de este slice).
+- `site-content-defaults.ts`/`site-content-schema.ts` (10 y 5 coincidencias) → describen el
+  mecanismo GENERAL (REGISTRY/DEFAULTS/resolverSiteContent, el `.refine()`/strip-silencioso de
+  §65-B, la lista Tier 1 de la cabecera) — ninguna frase cuenta campos exactos del hero ni se
+  vuelve falsa; la de §65-B ("el test DERIVADO... modelo ⊆ schema") describe EXACTAMENTE el
+  mecanismo que este slice siguió (confirmado: `site-content-schema.test.ts` sigue en verde sin
+  tocarlo, § Gate).
+- `tienda-secciones` (1 coincidencia, sobre `PAGINAS`/pestañas) y `TiendaSeccionEditor` (6
+  coincidencias, sobre bloques/uploader/catálogo real) → ninguna describe `HERO.imagenes` ni un
+  conteo de campos; nada que este diff vuelva falso.
+- La lista Tier 1 de la cabecera (línea 39) sigue correcta: `lib/config/site-content-schema.ts`/
+  `lib/config/site-content-defaults.ts` siguen siendo Tier 1, consistente con el `tier: 1` del
+  dispatch.
+
+**Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`, acotado a quien CARGA un video de teléfono — hoy, nadie.** El dato
+(`imagenMovil`/`imagenMovilPoster`) nace vacío para todo tenant existente (Nayoli incluida), y
+`hayVideoMovil` es `false` sin él — los dos componentes renderizan EXACTAMENTE como antes
+(`src=`/`poster=` directos, sin `<picture>`, sin el segundo `<source>`, sin el efecto de rotación
+activo), confirmado por `guarda:color` dando la MISMA cifra que el piso heredado (§ Gate, abajo —
+cero diff nuevo de este slice). El cambio visible es FUTURO y CONDICIONAL: el día que CORTE (o
+cualquier tenant) suba un video de teléfono desde el panel, su visitante en un viewport angosto
+vertical verá ese video completo en vez del horizontal recortado. `strings`: dos textos nuevos,
+sólo del PANEL — "Video para teléfono (vertical)" y "Póster del video de teléfono" (labels de
+campo) — ningún string nuevo en el storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica en el sentido de Tier 1/migración: sin cambios a
+`packages/core/prisma/schema.prisma`, sin migración — los dos campos viven en el JSON de
+`SiteContent.content.hero`, no en columnas. Sin contrato cross-repo.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3009/3009** (2999 del piso de `SECCIONES-ENTRAN-UNA-VEZ-1` + 10 nuevos: 9 en `hero-video.test.ts` + 1 que afirma `HERO_VIDEO_ESCRITORIO_MEDIA`, agregado tras el fix del `preload`) |
+| `npm run test:integracion` | **283/283** (277 del piso + 6 nuevos en `tests/integracion/hero-video-movil.test.ts`) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra que el piso heredado de `SECCIONES-ENTRAN-UNA-VEZ-1`**: 355.138/4.608.000 px (consciente de AA), 428.107/4.608.000 px (crudo), caja [96,862]–[1183,3306]; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)**. Corrido DOS veces (antes y después del fix del preload) — misma cifra las dos veces, confirmando que ninguna de las dos versiones de este diff agrega un solo píxel de diferencia sobre Nayoli. |
+
+**`guarda:color` NO dio 0px — DEVIACIÓN del spec, medida y explicada, no causada por este
+slice.** El spec de cierre pedía "`guarda:color` 0px"; la cifra real es la staleness de fixture ya
+documentada por `SECCIONES-ENTRAN-UNA-VEZ-1`/`FAVICON-RUTA-POR-TIENDA-1` (`GUARDA-COLOR-FIXTURE-
+ENTRADA-PENDIENTE-1`, sin tocar — decisión del owner, pendiente). Nayoli nunca ejecuta `esVideo`
+(su `hero.imagenTipo` es `'imagen'`), así que ninguna línea nueva de este slice puede tocar su
+render — confirmado por la cifra IDÉNTICA al píxel entre las dos corridas de este slice y la del
+piso heredado.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3009 + 283), `guarda:color` da
+la MISMA cifra heredada del piso (no una nueva), el defecto del preload MEDIDO y corregido con
+Chromium + WebKit real (iPhone 15) sobre Postgres efímero + build real, confirmando las tres
+afirmaciones del spec (nunca los dos pares, póster correcto sin JS, rotación sin recargar).
+Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su gate
+textual del 2026-10-01 sobre la demo de Café Las Chamisas como `approval-reason`, más la medición
+del orquestador sobre bitrate/recorte); el merge sigue pendiente del gate del orquestador — este
+slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `HERO-VIDEO-MOVIL-CURTINA-FICHA-1` — `HeroCurtina.tsx`/`HeroFicha.tsx` también leen `imagenTipo`/
+  `imagenPoster` (§ HERO-VIDEO-COMO-DATO-1) pero quedaron FUERA de `touches:` de este slice; un
+  `imagenMovil` guardado con esas dos variantes activas queda dormido, sin segunda versión. Si
+  algún preset futuro usa 'curtina'/'ficha' CON video, este slice no le da video de teléfono.
+- `GUARDA-COLOR-FIXTURE-ENTRADA-PENDIENTE-1` — sigue abierto, sin relación con este slice (ya
+  nombrado por `SECCIONES-ENTRAN-UNA-VEZ-1`/`FAVICON-RUTA-POR-TIENDA-1`); la cifra de `ruta-home`
+  sigue heredada, idéntica, no empeorada ni mejorada por este diff.
+
+**Cierra `HERO-VIDEO-MOVIL-1`.**
