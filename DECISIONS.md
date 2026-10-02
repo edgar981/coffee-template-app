@@ -40815,3 +40815,170 @@ este slice, por instrucción del dispatch, no mergea.
 `CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` siguen abiertos, sin relación con este slice.
 
 **Cierra `RIEL-SIN-SCROLL-VERTICAL-1`.**
+
+## 2026-10-01 — El nombre del wordmark conserva su tamaño con el buscar apagado: el hueco queda como aire, no como fuente más grande (`NAV-MOVIL-NOMBRE-CON-AIRE-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Gate del owner sobre
+`NAV-MOVIL-SIN-BUSCAR-1`, viendo la demo de Café Las Chamisas en el teléfono (2026-10-01): *"el
+arreglo de las chamisas con el 'buscar' no era para que el nombre quedara mas grande sino el
+tamano que tenia cuando estaba con el icono, pero que tuviera espacio, para que 'respire' no este
+todo junto"*.
+
+### La causa — confirmada, no sólo leída
+
+La lectura del orquestador era correcta y se confirmó por ejecución: `NombreEncogible`
+(`Logo.tsx`) mide el ancho DISPONIBLE leyendo `clientWidth` del propio `<span>` del wordmark — un
+valor que el `flex` del encabezado (`justify-between`, sin `gap`) le asigna DESPUÉS de repartir el
+espacio entre el Logo y "Actions" (buscar + carrito + hamburguesa). El Logo es el ÚNICO flex item
+con `min-w-0` capaz de encoger; `ocultarBuscarEnBarraMovil` (`StoreNav.tsx`, § `NAV-MOVIL-SIN-
+BUSCAR-1`) ocultaba el botón con `hidden` (`display:none`), que RETIRA su caja del cálculo de
+flex — el presupuesto total de la fila baja y el Logo se queda con ese ancho de más: el wordmark
+se re-mide contra una `disponible` MAYOR que con el ícono presente, y su fuente crece.
+
+### El fix — `invisible`, no un número de reserva
+
+El spec describía un mecanismo de reserva MEDIDA, threadeada como prop desde `StoreNav.tsx` hasta
+`Logo.tsx`/`NombreEncogible` (restar del `clientWidth` el ancho real del botón). **Se construyó
+uno más simple y EXACTO en su lugar** (§ la deviación, abajo): `claseBuscarBarraMovil` cambia la
+clase del botón de buscar de `hidden lg:inline-flex` a **`invisible lg:visible`**.
+`visibility:hidden` CONSERVA la caja del botón en el flujo del flex —ocupa el mismo lugar, sólo
+deja de pintarse— así que el presupuesto total de la fila NO cambia: el Logo recibe EXACTAMENTE la
+misma `disponible` que con el ícono VISIBLE, byte a byte, sin que nadie tenga que medir ni restar
+nada. El hueco que el ícono dejó de pintar se ve como AIRE, inmediatamente antes del carrito.
+`visibility:hidden` ya saca el elemento del árbol de accesibilidad y de la cola de tabulación (como
+`display:none`), así que sigue sin ser alcanzable por teclado ni lector de pantalla. En escritorio
+nada cambia: `lg:visible` restaura la visibilidad desde `lg`, el mismo breakpoint que ya tenía
+`lg:inline-flex`.
+
+**`Logo.tsx` NO se tocó.** Es una deviación DE OMISIÓN frente a `touches:` (que lo listaba,
+anticipando el mecanismo threadeado): con el fix resuelto enteramente en la clase CSS del botón,
+`NombreEncogible` no necesita ningún cambio — mide `clientWidth` exactamente igual que antes, y
+ese valor YA es correcto porque la caja del botón sigue ahí.
+
+### DEVIACIÓN MEDIDA — por qué `invisible` en vez de la reserva threadeada que pedía el spec
+
+El spec prescribía un mecanismo concreto: "una reserva que StoreNav le pasa a Logo/NombreEncogible,
+derivada del tamaño real del botón". Antes de escribirlo se reconstruyó el layout a mano (flex,
+`justify-between`, qué ítems pueden encoger) y la conclusión fue que **conservar la caja del botón
+con `visibility:hidden` produce el MISMO resultado de forma exacta, sin necesitar medir nada por
+JS** — no es una aproximación con un número a mantener, es la misma caja. Se verificó por
+EJECUCIÓN, no sólo por análisis (§ el arnés, abajo): con el fix, el `fontSize` computado del
+wordmark con `buscarMovil:false` es IDÉNTICO, al bit, al que tiene con `buscarMovil:true` — no
+"parecido", el mismo valor exacto (`13.470589px` en los dos casos, § la tabla).
+
+**Por qué no se construyó igual el mecanismo threadeado:** habría exigido (a) medir el ancho real
+del botón con un `ref`+`ResizeObserver` en `StoreNav.tsx` (una pieza nueva de JS, con su propio
+primer-render-sin-medir y su propia reconciliación), (b) threadear ese número como prop nueva hasta
+`NombreEncogible`, y (c) restarlo de `disponible` en el cálculo existente — tres piezas nuevas para
+reproducir, de forma aproximada, lo que `visibility:hidden` ya da gratis y exacto. Se prefirió lo
+exacto y más simple; el deviation se reporta en vez de aplicarse en silencio.
+
+### El CONTENIDO DE PRUEBA literal del spec («Café Las Chamisas») NO reproduce el defecto — medido, y corregido en la verificación
+
+El spec pedía verificar "con el contenido de prueba «Café Las Chamisas»". Montado tal cual en el
+arnés (preset CORTE, WebKit-iPhone15, 393px): el wordmark nunca necesitaba encoger ni CON el ícono
+visible (`fontSize` se queda en el tamaño base, `22px`, en los dos estados) — el defecto no tiene
+dónde reproducirse, porque nunca hubo presupuesto que recuperar. `separacionNombreCarrito` pasa de
+`65.25px` (buscar visible) a `65.25px` (buscar oculto, código VIEJO): CERO cambio, el bug no se
+manifiesta con ese nombre a ese ancho.
+
+El nombre LARGO que el propio `Logo.tsx` ya usa como caso de estrés ("Café Las Chamisas de la
+Montaña", § el docstring de `NombreEncogible`, la lección de wrapping de `MARCA-LOGO-IMAGEN-1`) SÍ
+lo reproduce — y es, además, el nombre real más plausible del tenant detrás de "Café Las Chamisas"
+en esta serie de slices. Se usó ÉSE para la verificación de aceptación, con el nombre corto como
+control (para confirmar que un nombre que no necesita encoger queda intacto en los dos lados).
+**Deviación respecto al literal del spec**, medida y declarada — no silenciosa.
+
+### MEDIDO, no supuesto — Playwright WebKit, "iPhone 15" (viewport real 393×659), arnés EFÍMERO propio
+
+`.scratch/medir-nav-nombre.ts` (no commiteado): Postgres efímero propio (puertos 55443-55448, fuera
+de los seis ya nombrados en los arneses del repo), `migrate deploy` + `npm run db:seed` canónico +
+preset **CORTE** aplicado vía `aplicarPreset` directo (sin CLI, sin `--env-file`, sin tocar ningún
+`.env`) + el tenant renombrado por SQL crudo + `navTratamiento.buscarMovil` fijado explícito por
+SQL crudo (evita el hueco ya documentado en `NAV-MOVIL-SIN-BUSCAR-1`: `mergePresetEnContent` no
+escribe ese campo). `next build` + `next start`, UNA corrida por combinación (código×buscarMovil×
+nombre) — nunca reutilizando un build para dos estados distintos. `fontSize` computado y
+`separacionNombreCarrito` (`cartRect.left − nombreRect.right`) en home y en `/nosotros` (la
+interna), con `document.fonts.ready` + 500ms de settle antes de medir (CORTE trae un par
+tipográfico custom por `<link>`, § Las FUENTES son `content.tema`):
+
+| estado | código | buscarMovil | nombre | fontSize | separación nombre→carrito | captura |
+| --- | --- | --- | --- | --- | --- | --- |
+| buscar ENCENDIDO (antes del slice) | sin tocar | `true` | Chamisas de la Montaña | **13.470589px** | 46px (ocupado por el ícono) | `explora-largo-on-{home,nosotros}.png` |
+| buscar APAGADO, código VIEJO (el bug) | sin tocar | `false` | Chamisas de la Montaña | **16.17647px** | **0px** (pegado al carrito) | `explora-largo-off-{home,nosotros}.png` |
+| buscar APAGADO, con el FIX | este slice | `false` | Chamisas de la Montaña | **13.470589px** | **46px** (aire, mismo botón invisible) | `despues-largo-off-{home,nosotros}.png` |
+| control — nombre corto, buscar ENCENDIDO | sin tocar | `true` | Café Las Chamisas | 22px (base, sin encoger) | 65.25px | `antes-on-{home,nosotros}.png` |
+| control — nombre corto, buscar APAGADO, viejo | sin tocar | `false` | Café Las Chamisas | 22px (sin cambio) | 65.25px (sin cambio) | `antes-off-{home,nosotros}.png` |
+| control — nombre corto, buscar APAGADO, con el FIX | este slice | `false` | Café Las Chamisas | 22px (sin cambio) | 65.25px (sin cambio) | `despues-corto-off-{home,nosotros}.png` |
+
+**El primero y el tercero coinciden exactamente** (`13.470589px`, no una aproximación) — es la
+cifra que el Cierre del spec pedía verificar. Las capturas de pantalla (home e interna, los tres
+estados del nombre largo) lo confirman visualmente: el wordmark del estado 3 tiene el MISMO ancho
+que el del estado 1, con el hueco del ícono como espacio en blanco antes del carrito — ni fusionado
+con el nombre (estado 2, el bug) ni más grande que con el ícono.
+
+`carritoRect` (`left: 293, right: 331`) es IDÉNTICO en los seis estados: el carrito nunca se mueve
+de posición, en ningún escenario — consistente con que el fix no toca el ancho total de "Actions".
+
+### Gate
+
+Floor medido por el orquestador (`observed-report: NAV-MOVIL-SIN-BUSCAR-1`): `npm test` 2981/2981,
+`npm run test:integracion` 271/271. Reconciliado: el único cambio de conteo son los **2 tests
+nuevos** que este slice agrega a `nav-internas.test.ts`.
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2983/2983** (+2 sobre el floor — los 2 tests nuevos de `claseBuscarBarraMovil`) |
+| `npm run test:integracion` | **271/271** (sin cambio — este slice no toca el carril de integración) |
+| `npm run guarda:color` | **0px** en las 8 capturas (6 rutas + 2 hovers) de Nayoli — la rama SÍ toca el sistema de color (11 archivos, heredado de slices anteriores de esta misma rama, ninguno de este diff), así que corrió el diff visual completo, no el short-circuit |
+| `npm run verificar:nayoli:visual` | **0px** en las 8 capturas, `main` (`9a7ab97`, == `origin/main`) vs. la rama |
+
+### `touches:` — una deviación de archivo (por omisión)
+
+`git diff --stat` del código (sin este asiento): **2 archivos**, **55 inserciones, 2 eliminaciones**
+— `StoreNav.tsx` (33 inserciones, 2 eliminaciones: las dos líneas que `claseBuscarBarraMovil`
+reemplaza) y `nav-internas.test.ts` (24 inserciones). Con `DECISIONS.md`, **3 archivos** en total.
+`components/storefront/Logo.tsx` estaba en `touches:` y **no se tocó** — § el fix, arriba: el
+mecanismo elegido no lo necesita. Ningún archivo fuera de `touches:`.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `claseBuscarBarraMovil` (nuevo), `ocultarBuscarEnBarraMovil`
+(sólo su comentario), `StoreNav.tsx`, `nav-internas.test.ts`, y el id `NAV-MOVIL-NOMBRE-CON-AIRE-1`.
+Grepeados uno por uno contra `CLAUDE.md`: **CERO coincidencias** para `claseBuscarBarraMovil`,
+`NombreEncogible`, `StoreNav.tsx`, `ocultarBuscarEnBarraMovil`, `nav-internas` y el id del slice.
+`components/storefront/` (el subárbol Tier 1 que SÍ contiene a este archivo) aparece tres veces,
+las tres describiendo el PORQUÉ del subárbol (bytes del visitante) o nombrando otro directorio
+(`home/HeroCurtina.tsx`, `checkout/`, `SiteSettingsProvider`) — ninguna afirma algo sobre
+`StoreNav.tsx`/`Logo.tsx` que este diff vuelva falso. **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`, acotado y sin strings nuevos.** Bajo `navDrawerMovil.variante==='pantallaCompleta'`
+(hoy, CORTE) Y `navTratamiento.buscarMovil===false` (el dueño ya lo apagó, § `NAV-MOVIL-SIN-
+BUSCAR-1`) Y ancho `<lg` (teléfono) Y un nombre de negocio que necesite encoger a ese ancho: el
+wordmark deja de agrandarse y el hueco del ícono se ve como espacio en blanco antes del carrito —
+visible para cualquier visitante bajo esas condiciones. Para Onix/Nayoli y cualquier tenant
+`dropdown`, o `buscarMovil` encendido, o escritorio: **byte-idéntico**, medido 0px (§Gate,
+`verificar:nayoli:visual`/`guarda:color`) y por sustitución algebraica (`claseBuscarBarraMovil(false)
+=== ''`). `strings: []` — ningún texto nuevo, ni en el panel ni en el storefront; es sólo una clase
+CSS.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El fix es una clase CSS + un docstring + dos tests.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cinco capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su gate
+textual del 2026-10-01 sobre `NAV-MOVIL-SIN-BUSCAR-1` como `approval-reason`); el merge sigue
+pendiente del gate del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:** ninguno nuevo. `NAV-MOVIL-SIN-BUSCAR-MERGEPRESET-1` y
+`CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` siguen abiertos, sin relación con este slice.
+
+**Cierra `NAV-MOVIL-NOMBRE-CON-AIRE-1`.**

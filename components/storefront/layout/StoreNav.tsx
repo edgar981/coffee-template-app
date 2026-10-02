@@ -517,8 +517,37 @@ export default function StoreNav() {
   // ya evita ofrecer, § `EncabezadoSeccion.tsx`, pero esta guarda es la que lo hace IMPOSIBLE, no sólo
   // no-ofrecido). `navTratamiento.buscarMovil` default `true` → `false` acá siempre → byte-idéntico a
   // hoy para todo tenant que no apague el switch. En ESCRITORIO nunca se oculta, en ningún caso: el
-  // `lg:inline-flex` del className de abajo cubre ESE breakpoint, no éste.
+  // `lg:visible` de `claseBuscarBarraMovil` (abajo) cubre ESE breakpoint, no éste.
   const ocultarBuscarEnBarraMovil = navDrawerMovil.variante === 'pantallaCompleta' && !navTratamiento.buscarMovil;
+
+  // § NAV-MOVIL-NOMBRE-CON-AIRE-1 — gate del owner sobre la demo de Café Las Chamisas en el
+  // teléfono (2026-10-01): con el buscar apagado (arriba), el NOMBRE creció para ocupar el lugar
+  // del ícono — "no era para que el nombre quedara más grande sino el tamaño que tenía cuando
+  // estaba con el ícono, pero que tuviera espacio, para que 'respire'".
+  //
+  // LA CAUSA: `NombreEncogible` (`Logo.tsx`) mide el ancho DISPONIBLE del wordmark leyendo
+  // `clientWidth` del propio `<span>`, que es lo que el `flex` del encabezado (`justify-between`,
+  // sin `gap`) le asigna DESPUÉS de repartir el espacio entre el Logo y "Actions" (buscar+carrito+
+  // hamburguesa) — el ÚNICO flex item con `min-w-0` capaz de encoger es el Logo, así que CUALQUIER
+  // ancho que "Actions" deje de necesitar se lo queda el Logo entero. `ocultarBuscarEnBarraMovil`
+  // ocultaba el botón con `hidden` (`display:none`) — RETIRA su caja del cálculo de flex, así que
+  // el presupuesto total de la fila BAJA y el Logo recibe ese ancho de más: el wordmark se re-mide
+  // contra una `disponible` MAYOR que con el ícono presente, y su fuente CRECE (medido: de
+  // 13.47px a 16.18px con "Café Las Chamisas de la Montaña" en WebKit-iPhone15, § el asiento).
+  //
+  // EL FIX: `invisible` (`visibility:hidden`) en vez de `hidden`. `visibility:hidden` CONSERVA la
+  // caja del botón en el flujo —ocupa el mismo lugar, sólo deja de PINTARSE— así que el
+  // presupuesto total de la fila NO cambia: el Logo recibe EXACTAMENTE la misma `disponible` que
+  // con el ícono VISIBLE, y el wordmark queda del MISMO tamaño (medido: 13.47px en los dos casos,
+  // § el asiento). El hueco que el ícono dejó de pintar se ve como AIRE, inmediatamente antes del
+  // carrito — ni un número de reserva que mantener a mano: es, literalmente, la misma caja.
+  // `visibility:hidden` ya saca el botón del árbol de accesibilidad y de la cola de tabulación
+  // (como `display:none`), así que sigue sin ser alcanzable por teclado ni lector de pantalla.
+  //
+  // EN ESCRITORIO nada cambia: `lg:visible` restaura la visibilidad desde `lg` — ni un breakpoint
+  // nuevo, el mismo gate que ya tenía `lg:inline-flex`. Sin `ocultarBuscarEnBarraMovil` (todo
+  // tenant salvo CORTE con el switch apagado) la cadena sigue vacía, byte-idéntico a hoy.
+  const claseBuscarBarraMovil = ocultarBuscarEnBarraMovil ? ' invisible lg:visible' : '';
 
   // EL LINK ACTIVO era INVISIBLE sobre nav oscuro (§ NAV-LINK-ACTIVO-INVISIBLE-1): el `!important`
   // pisaba `linkColor` con `--sf-acento-texto` SIEMPRE, sin mirar `navClaro`. Para CORTE ese token
@@ -863,7 +892,7 @@ export default function StoreNav() {
                   (`rounded-full`, sin branch) al radio chico de la forma (`sf-radio-lg`) bajo
                   `formaCustom`, MISMO swap que el ojo/carrito de las tarjetas. Suave/Nayoli conserva
                   `rounded-full` literal, byte a byte. */}
-              <button ref={searchTriggerRef} className={`p-2 cursor-pointer transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor}${ocultarBuscarEnBarraMovil ? ' hidden lg:inline-flex' : ''}`} onClick={() => setSearchOpen(true)}>
+              <button ref={searchTriggerRef} className={`p-2 cursor-pointer transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor}${claseBuscarBarraMovil}`} onClick={() => setSearchOpen(true)}>
                 <Search className={navIconoClase} />
               </button>
               <button onClick={openCart} className={`relative p-2 transition-colors ${formaCustom ? 'sf-radio-lg' : 'rounded-full'} ${iconColor} cursor-pointer`}>

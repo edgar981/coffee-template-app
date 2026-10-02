@@ -204,3 +204,27 @@ test("'pantallaCompleta' (CORTE): buscarMovil:true (default) → se muestra; bus
   assert.equal(ocultarBuscarEnBarraMovil('pantallaCompleta', true), false);
   assert.equal(ocultarBuscarEnBarraMovil('pantallaCompleta', false), true);
 });
+
+// ─── `claseBuscarBarraMovil` (StoreNav.tsx, § NAV-MOVIL-NOMBRE-CON-AIRE-1) — reproducida por
+// SUSTITUCIÓN, mismo método que las de arriba.
+//
+// `invisible`, NO `hidden`: `display:none` retira la caja del botón del cálculo de flex de la fila
+// del encabezado, así que el Logo (el único flex item con `min-w-0`, capaz de encoger) recibe el
+// ancho que el ícono dejó de necesitar y su wordmark CRECE para llenarlo — el defecto que el owner
+// reportó viendo la demo de Café Las Chamisas en el teléfono. `visibility:hidden` CONSERVA la caja
+// en el flujo: el presupuesto total de la fila no cambia, así que el Logo recibe EXACTAMENTE la
+// misma `disponible` que con el ícono VISIBLE y el wordmark queda del mismo tamaño — el hueco que
+// el ícono dejó de PINTAR se ve como aire, inmediatamente antes del carrito.
+
+function claseBuscarBarraMovil(ocultar: boolean): string {
+  return ocultar ? ' invisible lg:visible' : '';
+}
+
+test('buscar VISIBLE (default, 5 de 6 presets + CORTE con buscarMovil:true): sin clase extra, byte-idéntico a hoy', () => {
+  assert.equal(claseBuscarBarraMovil(false), '');
+});
+
+test('buscar OCULTO en el teléfono (CORTE con buscarMovil:false): invisible + lg:visible, NUNCA hidden — conserva su caja en el cálculo de flex para que el nombre no crezca', () => {
+  assert.equal(claseBuscarBarraMovil(true), ' invisible lg:visible');
+  assert.doesNotMatch(claseBuscarBarraMovil(true), /\bhidden\b/);
+});
