@@ -40678,3 +40678,140 @@ por instrucción del dispatch, no mergea.
   ABIERTO — sin relación con este slice.
 
 **Cierra `NAV-MOVIL-SIN-BUSCAR-1`.**
+
+## 2026-10-01 — El track del riel deja de scrollear en vertical: cierra el rebote de Safari en las dos primeras tarjetas (`RIEL-SIN-SCROLL-VERTICAL-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Gate del owner en su iPhone
+sobre la demo de Café Las Chamisas, tras `RESTAURACION-CEDE-AL-USUARIO-1`: *"lo del bug de el
+'rebote' al hacer deslizar sobre el carrusel de productos aun pasa con los dos primeros"* — el
+mismo síntoma que `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1` había reportado y quedó sin cerrar: *"la página
+hace como un rebote hacia arriba, en vez de desplazarse suavemente al lado, y solo pasa en los dos
+primeros, ya en el tercero si se siente bien"*.
+
+### La causa, medida
+
+`.grind-riel-track` es `overflow-x-auto`, y por regla de la especificación CSS eso fuerza a que
+`overflow-y` se COMPUTE `auto` (no `visible`), aunque nadie lo pidió — el MISMO mecanismo que
+`RIEL-SCROLL-Y-BADGE-DORADO-1` ya documentó, con otra causa. La causa de ESTA vez: cada `TarjetaRiel`
+entra con `fadeUp` (`whileInView`, `y: 24→0`, § `lib/animation.ts`) — una tarjeta que todavía no
+intersectó el viewport (clipeada por el propio `overflow-x` del track mientras el riel está en
+reposo, sin desplazar) sigue trasladada 24px hacia abajo por `transform`, y ese desplazamiento de
+PINTADO cuenta para el `scrollHeight` de un contenedor con overflow no-visible — igual que el
+desborde de `scale` que motivó el fix anterior. Con `scrollHeight > clientHeight`, el track queda
+VERTICALMENTE scrolleable sin que nadie lo haya pedido, y la deriva vertical del dedo al deslizar
+horizontal lo mueve; Safari lo rebota (`rubber-banding`). Al llegar a la ÚLTIMA tarjeta (ya
+intersectada, ya asentada en `y:0`) la diferencia es cero — por eso el owner lo sentía sólo en las
+dos primeras, nunca en la tercera.
+
+**MEDIDO, no supuesto** — Playwright WebKit, dispositivo **"iPhone 15"** (viewport real **393×659**,
+`defaultBrowserType: webkit`; el spec decía "390", 393 es la cifra medida del dispositivo pedido),
+contra el árbol construido (Postgres efímero propio, `migrate deploy` + `npm run db:seed` canónico +
+el preset **CORTE** aplicado vía `aplicarPreset` directo — sin CLI, sin `--env-file`, sin tocar
+ningún `.env`), `next build` + `next start`, en reposo sobre la tarjeta 0 (sin desplazar el track):
+
+| | `overflowY` computado | `scrollHeight` | `clientHeight` | scroll vertical propio |
+| --- | --- | --- | --- | --- |
+| **ANTES** (código sin tocar) | `auto` | 505 | 489 | **16px** |
+| **DESPUÉS** (con el fix) | `hidden` | 505 | 489 | 0 (sin capacidad de scrollear) |
+
+### El fix
+
+`.grind-riel-track` gana `overflow-y-hidden`, EXPLÍCITO — la única línea de producto de este slice
+(`components/storefront/home/GrindChooserRiel.tsx`). `hidden` no cambia el PINTADO: `auto` ya
+recortaba igual que `hidden` (las tarjetas no-visibles siguen clipeadas, igual que antes); lo único
+que se retira es la CAPACIDAD de scrollear en vertical, que es exactamente lo que Safari rebotaba.
+La entrada de las tarjetas (`fadeUp`) queda intacta. Nada del snap, el ancho de las tarjetas ni
+`sm:py-6` se tocó.
+
+`lib/config/presentaciones-riel.test.ts` cambia de signo: la prohibición vieja
+(`doesNotMatch(clase, /overflow-y-(hidden|clip)/)`) nació para que la tarjeta RESALTADA
+(`sm:scale-[1.06]`, § `RIEL-SCROLL-Y-BADGE-DORADO-1`) no se recortara verticalmente, y ese resaltado
+**ya se retiró** (`RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1`, `useIndiceCentrado`). Se reemplazó por la
+aserción contraria (`assert.match(clase, /\boverflow-y-hidden\b/)`), con el porqué del cambio de
+signo en el propio comentario del test — no se borra silenciosamente una regla sin dejar dicho por
+qué ahora dice lo opuesto.
+
+### LECCIÓN DE MÉTODO — el cache de `next build` (Turbopack) contaminó la primera comparación de píxeles, y el cache-bust la resolvió
+
+Construí un arnés propio (no commiteado, `.scratch/medir-riel.ts`, gitignoreado) para capturar
+antes/después SIN worktree —edita el MISMO archivo dos veces en la MISMA sesión, revierte, mide,
+reaplica— porque el defecto es puramente de CSS y no ameritaba comparar `main` contra la rama (eso
+ya lo cubre `verificar:nayoli:visual`/`guarda:color`, abajo, y da 0px porque Nayoli nunca monta esta
+composición).
+
+La PRIMERA pasada (editar → `next build` → medir → revertir → `next build` → medir, sin borrar
+`.next/` entre medio) dio un diff de píxeles **NO CERO** entre "antes" y "después" (~41.302/2.330.883
+px conscientes de AA, ~53.618 crudo — concentrado en bordes de texto/foto, nunca en un bloque
+sólido). Investigado con checksums SHA-256 de cada captura: las imágenes resultaban IDÉNTICAS entre
+corridas que debían ser de CÓDIGOS DISTINTOS, y DISTINTAS entre corridas que debían ser del MISMO
+código — es decir, el resultado dependía de qué build había corrido ANTES en el mismo proceso, no
+del código fuente en disco en el momento de la captura. Causa: `next build` con Turbopack reusa
+`.next/cache` entre corridas, y dos ediciones rápidas del MISMO archivo en la MISMA sesión (sin
+reiniciar el proceso `node`) pueden servir un chunk compilado de la edición ANTERIOR.
+
+**El arreglo: `rmSync('.next', {recursive:true,force:true})` ANTES de cada `next build`** dentro del
+arnés (operación de `fs` dentro del propio proceso node, no una invocación nueva de Bash). Repetida
+la comparación con cache-bust: **antes y después dieron el MISMO SHA-256**
+(`d9fa6e0c379c7a14…`, 501.307 bytes) — **0/2.330.883 px de diferencia, byte-idéntico**, no sólo
+"visualmente igual". El diff de la primera pasada era 100% artefacto de build cache, no una
+diferencia real de `overflow-y: auto` vs `hidden` — documentado para que un arnés similar en otro
+slice no reproduzca el mismo falso positivo (o, peor, el falso NEGATIVO de creer que dos builds
+distintas son comparables sin cache-bust cuando SÍ importa cuál se construyó primero).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2981/2981** (sin cambio de conteo frente al floor de `NAV-MOVIL-SIN-BUSCAR-1` — un test de `presentaciones-riel.test.ts` se REEMPLAZÓ por otro, cero `test()` netos nuevos) |
+| `npm run test:integracion` | **271/271** (sin cambio frente al mismo floor — este slice no toca ningún archivo del carril de integración) |
+| `npm run guarda:color` | **0px** en las 6 rutas + 2 hovers (Nayoli nunca monta `GrindChooserRiel` — sólo CORTE declara `presentaciones.variante:'riel'`) |
+| `npm run verificar:nayoli:visual` | **0px** en las 6 rutas + 2 hovers, `main` vs la rama (`main`==`origin/main`==`9a7ab97`, medido con `git rev-parse` — mismo sha que la tanda anterior ya documentó) |
+
+Captura de la sección a 390 (viewport real 393, iPhone 15), en reposo, ANTES y DESPUÉS: mismo
+SHA-256 (§ arriba) — se ven, y SON, iguales.
+
+### `touches:` — sin deviación
+
+`git diff --stat` contra la base de este slice: **2 archivos** (más este asiento en `DECISIONS.md`),
+**33 inserciones, 4 eliminaciones** — exactamente los tres de `touches:`
+(`components/storefront/home/GrindChooserRiel.tsx`, `lib/config/presentaciones-riel.test.ts`,
+`DECISIONS.md`). Ningún archivo fuera de la lista.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `GrindChooserRiel.tsx` (la clase `overflow-y-hidden` del track
+y su docstring), `lib/config/presentaciones-riel.test.ts` (el test que afirma esa clase), y los IDs
+`RIEL-SIN-SCROLL-VERTICAL-1`/`RIEL-SCROLL-Y-BADGE-DORADO-1`/`RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1`.
+Grepeados uno por uno contra `CLAUDE.md`: **CERO coincidencias para los seis** —
+`GrindChooserRiel`, `presentaciones-riel`, `overflow-y-hidden`, `grind-riel-track`, y los tres IDs
+no aparecen en ningún lado del archivo. `components/storefront/` (el subárbol Tier 1 que SÍ
+contiene a este archivo) aparece, pero describe el PORQUÉ del subárbol (bytes del visitante) — un
+hecho que este diff no toca ni vuelve falso. **Nada que corregir en `CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`, acotado y sin strings nuevos.** El cambio es sólo-CORTE (Nayoli no monta este
+componente, medido 0px arriba): bajo `presentaciones.variante==='riel'` (hoy, CORTE/Café Las
+Chamisas), un visitante que desliza el riel con el dedo en Safari/iOS deja de sentir el rebote
+vertical en las dos primeras tarjetas — un cambio de ROBUSTEZ/interacción táctil, no de producto:
+cero texto nuevo, cero diferencia de píxel en una captura estática (§ Gate, byte-idéntico
+antes/después). `strings: []` — ningún string nuevo en ningún lado.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El fix es una clase CSS + un docstring + un test.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en las cinco capas (§Gate), commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su gate
+textual del 2026-10-01 como `approval-reason`); el merge sigue pendiente del gate del orquestador —
+este slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:** ninguno nuevo. `NAV-MOVIL-SIN-BUSCAR-MERGEPRESET-1` y
+`CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` siguen abiertos, sin relación con este slice.
+
+**Cierra `RIEL-SIN-SCROLL-VERTICAL-1`.**

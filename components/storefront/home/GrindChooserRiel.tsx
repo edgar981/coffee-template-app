@@ -498,14 +498,32 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             navegador sobre un contenedor con overflow, sin pasar por los botones. `sm:py-6` reserva
             espacio vertical (§ RIEL-SCROLL-Y-BADGE-DORADO-1) — su causa original (la tarjeta
             RESALTADA desbordando por `transform`) se retiró con `useIndiceCentrado` (§ el docstring
-            de cabecera), y esta reserva queda como respiro visual del track, sin costo. */}
+            de cabecera), y esta reserva queda como respiro visual del track, sin costo.
+
+            `overflow-y-hidden` (§ RIEL-SIN-SCROLL-VERTICAL-1, 2026-10-01) — EXPLÍCITO, no el default
+            del navegador. `overflow-x-auto` por sí solo fuerza, por regla de la especificación CSS,
+            que `overflow-y` se COMPUTE `auto` (no `visible`) aunque nadie lo haya pedido — el MISMO
+            mecanismo que § RIEL-SCROLL-Y-BADGE-DORADO-1 ya documentó para el resaltado retirado, pero
+            la causa de ESTA vez es otra: una tarjeta que TODAVÍA no entró a la vista (`whileInView`,
+            § `fadeUp` en `lib/animation.ts`, `y: 24→0`) sigue trasladada 24px hacia abajo por
+            `transform` — y ese desplazamiento de PINTADO cuenta para el `scrollHeight` de un
+            contenedor con overflow no-visible, igual que el desborde de `scale` de aquella vez.
+            MEDIDO (Playwright WebKit, dispositivo "iPhone 15", contra el árbol construido con
+            catálogo sembrado — § DECISIONS.md): en reposo sobre la tarjeta 0, `scrollHeight(505) −
+            clientHeight(489) = 16px` de scroll vertical propio del track — exactamente lo que el
+            dedo mueve por deriva vertical al deslizar horizontalmente, y lo que Safari interpreta
+            como "hay más contenido arriba/abajo" y rebota. Al llegar a la ÚLTIMA tarjeta (ya
+            entrada) la diferencia es cero — por eso el owner lo veía sólo en las dos primeras, nunca
+            en la tercera. `hidden` no cambia el PINTADO (`auto` ya recorta igual que `hidden`; lo
+            único que se retira es la capacidad de scrollear en vertical) — la entrada de las
+            tarjetas (`fadeUp`) se conserva intacta. */}
         <style>{".grind-riel-track::-webkit-scrollbar{display:none}"}</style>
         <div
           ref={trackRef}
           role="group"
           aria-label="Presentaciones disponibles"
           tabIndex={0}
-          className="grind-riel-track flex gap-6 overflow-x-auto snap-x snap-mandatory pb-2 sm:py-6"
+          className="grind-riel-track flex gap-6 overflow-x-auto overflow-y-hidden snap-x snap-mandatory pb-2 sm:py-6"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {tarjetas.map((producto, i) => (

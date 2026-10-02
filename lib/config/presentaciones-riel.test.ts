@@ -55,9 +55,20 @@ test('el track gana la reserva vertical del fix (sm:py-6) — el mismo valor med
   assert.match(clase, /\bsm:py-6\b/);
 });
 
-test('el fix NUNCA recorta verticalmente el track — ninguna clase overflow-y-hidden/overflow-y-clip', () => {
+// La prohibición de `overflow-y-hidden` de arriba (hoy abajo) nació para que la tarjeta RESALTADA
+// (`sm:scale-[1.06]`, § RIEL-SCROLL-Y-BADGE-DORADO-1) no se recortara verticalmente — y ese
+// resaltado SE RETIRÓ (§ RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1, `useIndiceCentrado`). La regla cambió de
+// signo por una causa DISTINTA y nueva (§ RIEL-SIN-SCROLL-VERTICAL-1): `overflow-x-auto` computa
+// `overflow-y: auto` por regla de la especificación CSS, y una tarjeta aún no entrada a la vista
+// (`whileInView`/`fadeUp`, trasladada 24px por `transform`) extiende el `scrollHeight` del track —
+// MEDIDO (Playwright WebKit "iPhone 15"): 505−489 = 16px de scroll vertical propio, en reposo sobre
+// la tarjeta 0. Ese scroll vertical es lo que el dedo mueve por deriva al deslizar horizontalmente,
+// y Safari lo rebota — el "rebote hacia arriba" que el owner reportó. El track ahora DECLARA
+// `overflow-y-hidden` para quitar esa capacidad de scroll sin tocar el pintado (`auto` ya recortaba
+// igual que `hidden`).
+test('el track declara `overflow-y-hidden` — cierra el scroll vertical propio que Safari rebotaba (§ RIEL-SIN-SCROLL-VERTICAL-1)', () => {
   const clase = claseDelTrack(renderRiel());
-  assert.doesNotMatch(clase, /overflow-y-(hidden|clip)/);
+  assert.match(clase, /\boverflow-y-hidden\b/);
 });
 
 test('LA INVARIANTE: Nayoli no monta esta composición — resolverSiteContent({}) no elige "riel" para presentaciones (sólo CORTE lo pide, vía GrindChooser)', () => {
