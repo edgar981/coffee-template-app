@@ -42183,3 +42183,179 @@ medición se deja escrita para que la clasificación de la PRÓXIMA fila de este
   pendientes, sin relación con este slice.
 
 **Cierra `EDITOR-TIENDA-DISPOSITIVOS-1`.**
+
+## 2026-10-02 — Los cambios de texto/imagen se ven en la tienda del editor SIN recargar (`postMessage`), y el salto de scroll al recargar se diagnosticó y se cerró (`EDITOR-TIENDA-POSTMESSAGE-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Fila 3 del plan de
+`docs/editor-tienda/DISENO.md` § 6. Pedido del owner del 2026-10-01 viendo `/admin/tienda`: *"aun no
+se siente como un editor inline, tambien lo de cada vez que se hace un cambio y refresca no siempre
+vuelve a donde se hizo el cambio sino a la mitad de la pagina"*. Dos mitades, las dos medidas por
+ejecución antes de tocar código.
+
+### §1 — El salto de scroll: LA CAUSA MEDIDA, no la que parecía obvia
+
+La hipótesis inicial (el documento crece DESPUÉS de `onLoad`, el `scrollTo` queda corto) era
+correcta pero INCOMPLETA. Medido con Playwright contra una DB efímera + preset **CORTE** real
+(el tema que esta rama construye) + timing FIEL al real (`addInitScript` registrando el `load`
+handler, no un `page.evaluate()` posterior — ese roundtrip de CDP es más lento que una llamada
+síncrona y esconde la carrera):
+
+- A `'load'`, el documento YA tiene layout (`scrollHeight` ≈4486px) pero NO es su altura final
+  (crece a ≈5930px por el fetch de catálogo/imágenes que siguen entrando).
+- `VistaTiendaIframe.onLoad` llamaba `win.scrollTo(0, y)` — la forma de DOS ARGUMENTOS, que
+  **hereda `scroll-behavior:smooth` de `app/globals.css` y ANIMA en vez de saltar**. Esa es la
+  pieza que la hipótesis inicial no tenía: no es sólo que el objetivo esté mal calculado, es que la
+  corrección es una ANIMACIÓN que el navegador ejecuta cuadro a cuadro contra un LÍMITE que todavía
+  es el viejo (≈3586px, `4486−900`) — la animación queda literalmente ATASCADA en ese tope mientras
+  el documento sigue creciendo, y el navegador no la retoma sola cuando el tope sube.
+- Medido el efecto: con `scrollAntes=4448`, la posición quedó VISIBLEMENTE pegada en **3586px**
+  (≈60% de una página de 5930px — "a mitad de la página", la frase exacta del owner) durante **más
+  de un segundo** antes de corregirse. Y esa corrección sólo ocurre en absoluto porque el preset
+  CORTE tiene su PROPIO mecanismo de restauración (`ScrollInercia.tsx`, gateado a
+  `corteAplicado`) corriendo en paralelo dentro del mismo documento, leyendo su propio
+  `sessionStorage` guardado en `pagehide` — **para cualquier tenant SIN CORTE, ese salto queda sin
+  corregir para siempre**, porque no hay nada más que lo arregle.
+
+**El fix: el mismo autómata que `ScrollInercia` ya usa para el MISMO problema** (esperar a que
+`scrollHeight` deje de cambiar, con `behavior:'instant'` al restaurar) — REUSADO, no reimplementado,
+importando directo las cuatro funciones puras de `lib/storefront/scroll-inercia.ts`
+(`estadoInicialEstabilizacion`/`siguienteEstadoEstabilizacion`/`listoParaRestaurar`/
+`objetivoDeRestauracion`) desde `VistaTiendaIframe.tsx` (admin). Esas cuatro funciones son genéricas
+sobre números — no dependen de `sessionStorage` ni de `corteAplicado` — así que funcionan igual para
+CUALQUIER tenant, no sólo CORTE. `scroll-inercia.ts` no cambió de comportamiento: sólo ganó un
+párrafo documentando al segundo consumidor, para que nadie reimplemente el mismo autómata una
+tercera vez.
+
+**Un `restauracionTokenRef` incremental** invalida una restauración en vuelo si un segundo
+`recargar()` llega antes de que la primera termine (doble click en "Actualizar", o el unmount por
+cambio de página) — comparación por identidad, no un booleano, porque un booleano no distingue
+"cancelado" de "ya lo reemplazó uno nuevo".
+
+**Medido DESPUÉS del fix, mismo timing fiel**: el scroll se queda en 0 (CERO posición visible
+incorrecta — nunca se mueve a 3586 ni a ningún valor intermedio) hasta que la altura se confirma
+estable (~1.9s), y ahí salta UNA vez, exacto. `delta = 0` en los cuatro fraccionamientos probados
+(0.55/0.75/0.85/0.95 de la altura final).
+
+**HALLAZGO LATERAL, no arreglado en este slice — dev-mode, no el código**: la primera verificación
+contra `next dev` mostró el frame PRINCIPAL (la pestaña del panel, no el iframe) navegando
+repetidas veces al clickear "Actualizar", con el scroll del iframe quedando en 0 para siempre. Contra
+**producción** (`next build && next start`, el MISMO método que `scroll-inercia.ts` ya usó para medir
+su propio defecto original — "nunca contra dev") el síntoma desaparece por completo y el fix se
+comporta exactamente como lo mide el autómata aislado. La explicación más probable: el iframe de
+`/editor/tienda` carga OTRA instancia del MISMO dev server (`next dev` embebiéndose a sí mismo), y el
+cliente HMR de Next, al decidir una recarga completa, puede apuntar a `window.top` — confundiendo la
+pestaña del panel con la página que de verdad falló. Ningún código de `VistaTiendaIframe`/
+`ScrollInercia`/`EditorPuenteVivo` navega la pestaña padre; el síntoma es privativo de `next dev`
+con el iframe apuntando al mismo server, y no se reprodujo contra producción. Anotado como
+open-followup (`EDITOR-TIENDA-HMR-IFRAME-SELF-1`) — no se investiga más en este slice.
+
+### §2 — El puente `postMessage`: texto e imagen en vivo, sin navegar
+
+- **`lib/storefront/editor-puente.ts`** (nuevo, puro, sin `window`/`zod`): `esMensajeContenidoSeccion`
+  (forma del mensaje), `esSeccionDelRegistro` (membresía en `REGISTRY` — las METAS como `tema`/
+  `paginas` quedan fuera a propósito, sus editores no están en `touches:`), y
+  `fusionarContenidoSeccion` — reusa `resolverSiteContent` (la MISMA función que resuelve el
+  documento completo en el servidor) sobre un registro de UNA sola clave, para heredar gratis sus
+  reglas (requerido vacío cae al DEFAULT de código — nunca al valor viejo en pantalla, para que la
+  previsualización en vivo coincida con lo que se vería publicado — opcional vacío se respeta,
+  repeaters se resuelven por `resolverItems`). 12 tests en `editor-puente.test.ts`.
+- **`components/storefront/EditorPuenteVivo.tsx`** (nuevo) — la mitad impura: escucha `message`,
+  valida mismo-origen, valida la forma (capa 1), y valida el CONTENIDO contra
+  `siteContentEditableSchema` (zod) cargado con **`import()` DINÁMICO** — zod + el schema no deben
+  viajar en el bundle de CADA visitante público, sólo en el del dueño editando (mismo criterio que
+  jsPDF/mp4box en este repo). Se precarga al activarse (no en el primer mensaje), para que el
+  `import()` no se note en la primera tecla. Montado SIEMPRE desde el layout del storefront, como
+  `ScrollInercia`/`BackToTop` — decide su propio silencio con la prop `activo`
+  (`modoEditorActivo()`, computado server-side, el MISMO booleano que ya gatea el `noindex`).
+- **`SiteContentProvider` pasó de `Context.Provider` dumb a STATEFUL**: un segundo context
+  (`useSiteContentActualizador`, SÓLO para `EditorPuenteVivo`) expone el setter. El estado interno
+  nace del `value` del servidor y se RE-SINCRONIZA si ese `value` cambia (una navegación real —
+  nunca un postMessage). Ningún otro componente del storefront debe usar el setter.
+- **`VistaTiendaIframe` gana `enviarCambio(seccion, datos)`** en su handle — `postMessage` al
+  `contentWindow` del iframe, con el ORIGEN EXACTO (nunca `'*'`). `TiendaSeccionEditor` gana un
+  `useEffect` sobre `form` (UN solo lugar cubre los ~10 call sites que lo tocan: `cambiar`,
+  `ponerImagen`, los videos del hero, descartar…) que llama a `onCambio?.(seccion, form)` en cada
+  cambio REAL (la siembra inicial se salta con un ref, para no reenviar al iframe el mismo
+  contenido que ya tiene).
+- **El reload-tras-autoguardado-asentado SE RETIRÓ** (`estadoAnteriorRef`/`onCambioPublicado` en la
+  transición `'guardando'→'guardado'`) — era exactamente el "refresca con cada cambio" que el owner
+  reportó. `onCambioPublicado` SIGUE llamándose tras Publicar/Descartar (una resincronización
+  completa ahí es la autoritativa; además, `onCambioPublicado` es también donde el fix de §1 se
+  ejercita).
+
+**CENSO (pedido del spec): qué secciones se actualizan solas.** Las ~40 componentes de
+`components/storefront/` que renderizan contenido de `SiteContent` (`HeroCurtina`/`HeroFicha`/
+`HeroMedia`/`HeroMediaMarquesina`, `BrandStory*`, `GrindChooser*`, `FeaturedProducts*`, `Marquesina`,
+`Origen`, `SubscriptionCTA*`, `TestimonialSection`, `NosotrosHistoria`/`Galeria`/`Cierre`,
+`Suscripcion{Planes,Pasos}`, `StoreNav`, `StoreFooter`…) leen **`useSiteContent()`** — TODAS se
+actualizan solas, sin tocar un archivo más, porque el contexto se volvió reactivo. **CERO
+componentes arman su slice de SiteContent server-side y lo pasan por props** (verificado por grep
+`useSiteContent` — 38 archivos, todos los que renderizan bandas o nav/footer). Lo que NO reacciona
+es lo que el layout inyecta como `<style>` server-rendered (paleta/fuentes/forma de `content.tema`,
+y las cinco secciones "cromo transversal" — `PaletaSeccion`/`MenuSeccion`/`EncabezadoSeccion`/
+`DetallesSitioSeccion`/`FooterSeccion` — que viven en `/admin/tienda`, FUERA del iframe, sin
+wiring de `onCambio`): ninguno de los dos está en `touches:` de este slice.
+
+### Verificación por ejecución
+
+Contra DB efímera propia (nunca `development`/producción), preset **CORTE**, `next build && next
+start`, login real (`admin@sierranativa.co`/`ChangeMe123!`), sesión OWNER real:
+
+| medición | resultado |
+| --- | --- |
+| postMessage, primer mensaje (import dinámico FRÍO) | reflejado en **5ms** |
+| postMessage, segundo mensaje (chunk ya cacheado) | reflejado en **2.4ms** |
+| navegaciones del frame principal durante los dos mensajes | **0** (confirmado también por una marca en `window` que sobrevive intacta) |
+| scroll del iframe real, antes de "Actualizar" | 5472px (de una altura final de 7052px) |
+| scroll del iframe real, muestreado cada 100-600ms tras "Actualizar" | **0px** (sin posición incorrecta visible) hasta ~1.8-2.2s |
+| scroll del iframe real, tras asentarse | **5472px — delta 0** |
+
+### `schema`/`cross-repo-contract`
+
+Ninguno aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin contrato
+cross-repo.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3034/3034** (3022 del piso heredado de `EDITOR-TIENDA-DISPOSITIVOS-1` + 12 nuevos, `editor-puente.test.ts`) |
+| `npm run test:integracion` | **283/283** — sin cambio sobre el piso (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra, al píxel, que el piso heredado** de `SECCIONES-ENTRAN-VIVAS-1`/.../`EDITOR-TIENDA-DISPOSITIVOS-1`: 355.138/4.608.000 px (consciente de AA), caja [96,862]–[1183,3306]; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)**. |
+| `npm run guarda:color` | Misma cifra, misma caja; las otras 5 rutas + 2 hovers IDÉNTICO (0px). |
+
+**Ningún píxel nuevo sobre el piso heredado** — este slice toca `app/(storefront)/layout.tsx` y
+`components/storefront/{SiteContentProvider,ScrollInercia,EditorPuenteVivo}.tsx`, pero los cambios
+son estructurales (estado interno, un segundo context, un componente que es `null` fuera de modo
+editor) y no afectan el tráfico público: `EditorPuenteVivo` no monta ni un listener sin la marca de
+modo editor, y `SiteContentProvider` renderiza el MISMO valor que antes mientras nadie llame al
+setter.
+
+### CLAUDE.md — grep de los símbolos que este diff cambió
+
+Grepeados: `VistaTiendaIframe`, `TiendaSeccionEditor`, `TiendaPaginas`, `SiteContentProvider`,
+`ScrollInercia`, `scroll-inercia`, `onCambioPublicado`, `EDITOR-TIENDA-POSTMESSAGE-1`,
+`EDITOR-TIENDA-IFRAME-VISTA-1`. Ninguno aparece en `CLAUDE.md` — la doctrina del editor de
+`/admin/tienda`/`/editor/tienda` vive en `docs/editor-tienda/DISENO.md`, no en `CLAUDE.md` (el
+mismo patrón que ya valía para `EDITOR-TIENDA-DISPOSITIVOS-1`, cuyo propio asiento lo señaló).
+Nada que corregir ni que declarar como falso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3034 + 283),
+`verificar:nayoli:visual`/`guarda:color` sin un píxel nuevo sobre el piso heredado, el puente
+postMessage y el fix de scroll verificados por ejecución contra producción con sesión real.
+Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL`
+sin merge.
+
+**Open follow-ups:**
+- `EDITOR-TIENDA-HMR-IFRAME-SELF-1` — en `next dev` (nunca en producción), el panel `/editor/tienda`
+  mostró el frame principal navegando repetidas veces al clickear "Actualizar", probablemente el
+  cliente HMR de Next apuntando a `window.top` al decidir una recarga completa — un dev server
+  iframeando a sí mismo. No reproducido en producción; no investigado más en este slice.
+- `EDITOR-TIENDA-SELECCION-1`/`EDITOR-TIENDA-ORDEN-1`/`EDITOR-TIENDA-RETIRO-1` (filas 4/6/7 del
+  plan) — siguen pendientes, sin relación con este slice.
+
+**Cierra `EDITOR-TIENDA-POSTMESSAGE-1`.**

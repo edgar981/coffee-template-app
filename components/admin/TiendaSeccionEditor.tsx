@@ -37,14 +37,22 @@ import {
 // (§ tienda-secciones). Segundo consumidor de este patrón: no se duplica la lógica de autoguardado
 // ni la de publicación —un bug arreglado en un sitio y no en el otro sería el peor modo de falla—.
 //
-// LA VISTA EN VIVO YA NO ES LOCAL (§ EDITOR-TIENDA-IFRAME-VISTA-1): hasta este slice, cada sección
+// LA VISTA EN VIVO YA NO ES LOCAL (§ EDITOR-TIENDA-IFRAME-VISTA-1): hasta ese slice, cada sección
 // montaba su propia `VistaTiendaEnVivo` —una SEGUNDA implementación del cálculo de colores/
 // tipografía/forma que la página real ya resuelve, la causa de fondo de más de un bug (§ DISENO.md,
-// § 1.3)—. Ahora `TiendaPaginas` monta UN solo `VistaTiendaIframe` que navega a la ruta REAL del
+// § 1.3)—. `TiendaPaginas` monta UN solo `VistaTiendaIframe` que navega a la ruta REAL del
 // storefront en modo borrador; esta cáscara es SÓLO form —"Editar" abre los campos, "Listo" cierra,
-// el autoguardado dispara como siempre— y notifica al padre por los dos callbacks opcionales
-// (`onAbrir`/`onCambioPublicado`) para que el iframe compartido se desplace o se recargue. `config`,
-// `carga`, `categorias`/`categoriasListas` y `resaltar` no cambiaron de contrato.
+// el autoguardado dispara como siempre— y notifica al padre por TRES callbacks opcionales para que
+// el iframe compartido se desplace, se actualice en vivo o se recargue:
+//   - `onAbrir` — desplaza+resalta el iframe hasta esta sección.
+//   - `onCambio` (§ EDITOR-TIENDA-POSTMESSAGE-1) — manda el form COMPLETO por `postMessage` en CADA
+//     cambio (tipear, subir una imagen, descartar…), sin recargar. Es el camino PRINCIPAL ahora: el
+//     iframe refleja el borrador en vivo sin que el documento navegue.
+//   - `onCambioPublicado` — recarga el iframe (con scroll preservado, § `VistaTiendaIframe`), SÓLO
+//     tras Publicar/Descartar exitosos. Antes TAMBIÉN corría en cada asentamiento del autoguardado;
+//     eso era el "refresca con cada cambio" que el owner reportó, y `onCambio` lo reemplaza para ese
+//     caso — recargar en cada tecla nunca fue necesario para que el iframe se viera al día.
+// `config`, `carga`, `categorias`/`categoriasListas` y `resaltar` no cambiaron de contrato.
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
@@ -173,7 +181,7 @@ function ProductoCombobox({ value, onChange, productos, productosListos, id, pla
   );
 }
 
-export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado }: {
+export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio }: {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
@@ -200,10 +208,15 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
    *  desplazar+resaltar el iframe compartido hasta el marcador de esta sección (§ EDITOR-TIENDA-
    *  IFRAME-VISTA-1). Ausente = sin iframe que notificar (no debería ocurrir fuera de un test). */
   onAbrir?: (seccion: SeccionVista) => void;
-  /** Se llama cuando el autoguardado ASIENTA (transición real 'guardando'→'guardado', nunca en el
-   *  montaje) y tras Publicar/Descartar exitosos — el padre recarga el iframe compartido preservando
-   *  el scroll. Un 'error' de autoguardado NO dispara esto: nada cambió para el visitante todavía. */
+  /** Se llama tras Publicar/Descartar exitosos — el padre recarga el iframe compartido preservando
+   *  el scroll. YA NO se llama al asentar el autoguardado (§ `onCambio`, abajo, lo reemplaza para el
+   *  contenido en vivo) — recargar en CADA asentamiento era el "refresca con cada cambio" que el
+   *  owner reportó (§ EDITOR-TIENDA-POSTMESSAGE-1). */
   onCambioPublicado?: () => void;
+  /** Se llama con el FORM COMPLETO en cada cambio (tipear, subir una imagen, descartar…) — el padre
+   *  lo reenvía al iframe compartido por `postMessage`, SIN recargar (§ EDITOR-TIENDA-POSTMESSAGE-1).
+   *  Ausente = sin iframe que notificar (no debería ocurrir fuera de un test). */
+  onCambio?: (seccion: SeccionVista, datos: Datos) => void;
 }) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
@@ -479,16 +492,6 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }, [seccion]);
   const auto = useAutoguardado(guardarSeccion);
 
-  // RECARGA EL IFRAME COMPARTIDO cuando el autoguardado ASIENTA (§ EDITOR-TIENDA-IFRAME-VISTA-1):
-  // la transición REAL 'guardando'→'guardado', nunca el estado inicial (que YA es 'guardado' al
-  // montar, § `useAutoguardado`) ni un 'error' (nada cambió para el visitante todavía). El ref evita
-  // re-disparar en renders donde `auto.estado` no cambió.
-  const estadoAnteriorRef = useRef(auto.estado);
-  useEffect(() => {
-    if (estadoAnteriorRef.current === 'guardando' && auto.estado === 'guardado') onCambioPublicado?.();
-    estadoAnteriorRef.current = auto.estado;
-  }, [auto.estado, onCambioPublicado]);
-
   // SIEMBRA del form desde el dato que bajó el padre (§ fetch 6→1). Una sola vez —guarda `form === null`—;
   // de ahí en más el editor es DUEÑO de su form (edita/autoguarda local), así que un re-render del padre
   // (p. ej. otro editor descartó y el doc se recargó) NO pisa los cambios de esta sección. `cargando`/
@@ -500,6 +503,25 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }, [carga.listo, carga.valor, carga.sinPublicar, form]);
   const cargando = form === null && !carga.error;
   const errorCarga = carga.error ? 'No se pudo cargar el contenido.' : null;
+
+  // § EDITOR-TIENDA-POSTMESSAGE-1 — EL CAMBIO EN VIVO, sin recargar. Antes, el iframe compartido
+  // recargaba CADA VEZ que el autoguardado asentaba (la transición 'guardando'→'guardado') — el
+  // "refresca con cada cambio" que el owner reportó. Ahora un solo `useEffect` sobre `form` cubre
+  // los ~10 call sites que lo tocan (`cambiar`, `ponerImagen`, los videos del hero, descartar…) sin
+  // instrumentar cada uno: la fuente de verdad es el STATE, no el gesto que lo produjo. `onCambio`
+  // manda el form COMPLETO (no un diff) porque así es como `TiendaSeccionEditor` ya lo guarda —y
+  // porque `fusionarContenidoSeccion` (el otro lado del puente) espera la sección completa, igual
+  // que el PUT del autoguardado.
+  //
+  // La SIEMBRA inicial (form pasa de `null` al primer valor real, arriba) NO cuenta como un cambio
+  // del dueño: mandarla sería re-aplicarle al iframe el mismo contenido que YA tiene (ruido, no un
+  // bug) — se salta con un ref que marca "ya sembrado", UNA vez por montaje de esta sección.
+  const sembradoRef = useRef(false);
+  useEffect(() => {
+    if (form === null) return;
+    if (!sembradoRef.current) { sembradoRef.current = true; return; }
+    onCambio?.(seccion, form);
+  }, [form, seccion, onCambio]);
 
   // beforeunload SÓLO en 'error' (§ decisión): pendiente/guardando es común y recuperable.
   useEffect(() => {

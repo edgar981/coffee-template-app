@@ -7,6 +7,7 @@ import CartDrawer from "@/components/storefront/CartDrawer";
 import BackToTop from "@/components/storefront/BackToTop";
 import RielSocial from "@/components/storefront/RielSocial";
 import ScrollInercia from "@/components/storefront/ScrollInercia";
+import EditorPuenteVivo from "@/components/storefront/EditorPuenteVivo";
 import ToasterTienda from "@/components/storefront/ToasterTienda";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
@@ -118,10 +119,15 @@ interface StorefrontLayoutProps {
 export default async function StorefrontLayout({
   children,
 }: StorefrontLayoutProps) {
-  // Identidad del negocio (settings) y CONTENIDO de la home (content), leídos UNA vez en el
-  // layout server (React.cache dedupe por request) e inyectados a sus providers. Son
-  // INDEPENDIENTES entre sí, así que van en un Promise.all — no en cadena.
-  const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  // Identidad del negocio (settings), CONTENIDO de la home (content) y el modo editor (§ EDITOR-
+  // TIENDA-POSTMESSAGE-1 — el MISMO booleano que ya gatea el `noindex` por-request en
+  // `generateMetadata`, acá para decidir si se monta `EditorPuenteVivo`), leídos UNA vez en el
+  // layout server (React.cache dedupe por request para `getSiteContent`/`getSiteSettings`;
+  // `modoEditorActivo()` NO está cacheado — ya se llama dos veces más en este árbol
+  // (`generateMetadata`, `Home()`) y las tres son baratas: sin la marca de modo editor en el header,
+  // retorna ANTES de tocar sesión o base, § su docstring). Son INDEPENDIENTES entre sí, así que van
+  // en un Promise.all — no en cadena.
+  const [settings, content, enModoEditor] = await Promise.all([getSiteSettings(), getSiteContent(), modoEditorActivo()]);
   // La PALETA del cliente, derivada de sus 3 raíces e inyectada como `:root{--sf-*}` en un
   // <style> SERVER-RENDERED (sin flash — va en el primer paint; gana a los defaults de
   // globals.css por orden de fuente). Las raíces salen de `content.tema` (lo PUBLICADO), no de
@@ -187,6 +193,11 @@ export default async function StorefrontLayout({
                     `corteAplicado(tema.origenAccion)` (AUSENTE/null → no-op, byte-idéntico). Sin
                     render propio (`return null` siempre): sólo adjunta/retira listeners de `window`. */}
                 <ScrollInercia />
+                {/* EditorPuenteVivo (§ EDITOR-TIENDA-POSTMESSAGE-1): MISMO mecanismo que BackToTop/
+                    RielSocial/ScrollInercia — montado SIEMPRE, decide su propio silencio adentro por
+                    `enModoEditor` (AUSENTE/false → cero listeners, byte-idéntico). Sin render propio.
+                    Va DENTRO de `<SiteContentProvider>` porque necesita su setter (§ `useSiteContentActualizador`). */}
+                <EditorPuenteVivo activo={enModoEditor} />
                 {/* ToasterTienda (§ TOAST-COMO-PROTOTIPO-1): MISMO mecanismo que BackToTop/RielSocial/
                     ScrollInercia, montado SIEMPRE — decide su propio estilo adentro por
                     `corteAplicado(content.tema.origenAccion)`. Es el ÚNICO Toaster de la tienda: el

@@ -13,6 +13,22 @@ import {
   calcularEscalaDispositivo,
   type DispositivoKey,
 } from '@/lib/admin/editor-iframe';
+// EL AUTÓMATA DE ESTABILIZACIÓN DE ALTURA (§ EDITOR-TIENDA-POSTMESSAGE-1, §1 del spec) — REUSADO,
+// no reimplementado, de `lib/storefront/scroll-inercia.ts`. Son funciones PURAS sobre números
+// (altura, reloj, scrollY) sin acoplamiento a la tienda ni a `corteAplicado`: la restauración de
+// `ScrollInercia` las usa para el mismo problema en la tienda real, y acá se usan para el mismo
+// problema en la copia que vive dentro del iframe del editor — ver el docstring de `onLoad` abajo
+// para la medición que lo justifica.
+import {
+  estadoInicialEstabilizacion,
+  siguienteEstadoEstabilizacion,
+  listoParaRestaurar,
+  objetivoDeRestauracion,
+} from '@/lib/storefront/scroll-inercia';
+// EL MENSAJE del puente EN VIVO (§ EDITOR-TIENDA-POSTMESSAGE-1) — la MISMA forma que valida
+// `EditorPuenteVivo.tsx` del lado del iframe (`lib/storefront/editor-puente.ts`, pura): una sola
+// definición del nombre del mensaje, no dos que puedan divergir.
+import { TIPO_MENSAJE_CONTENIDO_SECCION } from '@/lib/storefront/editor-puente';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
 // Reemplaza las vistas previas sueltas por sección (`VistaTiendaEnVivo`) que montaba cada
@@ -20,8 +36,14 @@ import {
 // cálculo de colores/tipografía/forma, el iframe navega a la RUTA REAL del storefront en modo
 // borrador (§ EDITOR-TIENDA-IFRAME-GATE-1, reescrito en `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`: el
 // borrador se activa por el `?editor=1` de la URL del iframe, no por una cookie de sesión) — mismo
-// origen, sin `postMessage` todavía (ésa es `EDITOR-TIENDA-POSTMESSAGE-1`, slice 3 del plan): cada
-// guardado asentado, publicar o descartar recargan el documento, conservando el scroll.
+// origen.
+//
+// LOS CAMBIOS DE TEXTO/IMAGEN YA NO RECARGAN (§ EDITOR-TIENDA-POSTMESSAGE-1): `enviarCambio` manda
+// el borrador por `postMessage` al documento del iframe, que lo aplica EN VIVO sobre su propio
+// `SiteContentProvider` (`EditorPuenteVivo.tsx`, del lado del storefront) sin navegar. `recargar`
+// —y el `<iframe>` entero volviendo a pedir la URL— sólo corre tras Publicar/Descartar y por el
+// botón "Actualizar": casos donde SÍ conviene una resincronización completa desde el servidor, no
+// un paso obligado de cada edición.
 //
 // "Ir a la sección" y el resalte se resuelven por MANIPULACIÓN DIRECTA del DOM del iframe —mismo
 // origen, así que `contentDocument`/`contentWindow` son accesibles sin restricción— en vez de con
@@ -45,18 +67,25 @@ import {
 //     divergió —por CUALQUIER causa: clic, redirect de un submit, `router.push`— lo manda de vuelta
 //     con `location.replace`, CON el parámetro. Cuesta un reload extra si el admin se desvía, pero
 //     es robusto a cualquier mecanismo de navegación y no depende de qué construya cada página.
-// `EDITOR-TIENDA-POSTMESSAGE-1` (slice 3 del plan) es el lugar correcto para una experiencia de
-// navegación más fina (el storefront avisa su propia ruta por `postMessage`); acá el editor es de
-// UNA página a la vez, y volver a ella es la expectativa correcta mientras tanto.
+// `EDITOR-TIENDA-POSTMESSAGE-1` (§ DISENO.md § 13) NO resolvió esto: el canal que construyó es
+// panel→iframe, para sincronizar CONTENIDO (texto/imagen) — no el storefront avisando su propia
+// ruta de vuelta. Esa experiencia más fina (que evitaría el reload extra de abajo) sigue sin
+// construirse; acá el editor es de UNA página a la vez, y volver a ella es la expectativa correcta
+// mientras tanto.
 const INTERVALO_VIGIA_RUTA_MS = 400;
 export interface VistaTiendaIframeHandle {
   /** Desplaza el iframe hasta la sección y la resalta brevemente. No hace nada si el documento
    *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`, el
    *  caso de Suscripciones). */
   irASeccion: (seccion: SeccionVista) => void;
-  /** Recarga la página real preservando el scroll — se llama tras cada guardado asentado,
-   *  publicar o descartar (§ `TiendaSeccionEditor`, `onCambioPublicado`). */
+  /** Recarga la página real preservando el scroll — se llama tras Publicar/Descartar
+   *  (§ `TiendaSeccionEditor`, `onCambioPublicado`; el guardado asentado YA NO recarga, § `onCambio`
+   *  abajo lo reemplaza para el contenido en vivo). */
   recargar: () => void;
+  /** Manda el borrador EN VIVO de una sección al iframe por `postMessage` (§ EDITOR-TIENDA-
+   *  POSTMESSAGE-1) — SIN recargar ni navegar. No hace nada si el documento todavía no tiene
+   *  `contentWindow` (p. ej. a mitad de un reload); el próximo cambio de `form` lo reintenta. */
+  enviarCambio: (seccion: SeccionVista, datos: Record<string, unknown>) => void;
 }
 
 // El color del resalte es un LITERAL, no una custom property: el documento del iframe es el
@@ -70,6 +99,12 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
   function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
+    // TOKEN de la restauración EN VUELO (§ el docstring de `onLoad`, abajo): el poll de
+    // estabilización vive varios frames, así que necesita saber si SIGUE SIENDO el pedido vigente —
+    // un segundo `recargar()` disparado antes de que el primero termine (doble click en "Actualizar",
+    // dos guardados seguidos) invalida al anterior; se compara por identidad (`=== miToken`), no por
+    // un booleano, porque un booleano no distingue "cancelado" de "ya lo reemplazó uno nuevo".
+    const restauracionTokenRef = useRef(0);
     // EL DISPOSITIVO (§ EDITOR-TIENDA-DISPOSITIVOS-1, § 4.3 de DISENO.md): el canvas que mide su
     // propio tamaño disponible (ResizeObserver, ancho Y alto — a diferencia de `EscalaDesktop`, que
     // sólo mide ancho porque su contenido tiene alto NATURAL; acá el iframe no lo tiene — su alto es
@@ -147,12 +182,28 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
       const win = iframeRef.current?.contentWindow;
       if (!win) return;
       limpiarResalte();
+      // Invalida cualquier restauración todavía en vuelo de un `recargar()` anterior (§ el token,
+      // arriba): ese poll, si siguiera corriendo, aplicaría un `scrollTo` viejo DESPUÉS del de esta
+      // recarga nueva.
+      restauracionTokenRef.current += 1;
       scrollPendiente.current = scrollSeguro(win.scrollY);
       setCargando(true);
       win.location.reload();
     }, []);
 
-    useImperativeHandle(ref, () => ({ irASeccion, recargar }), [irASeccion, recargar]);
+    // § EDITOR-TIENDA-POSTMESSAGE-1 — el envío EN VIVO, sin recargar. Mismo origen siempre (el
+    // iframe es el MISMO despliegue, § `rutaEditor`), así que el segundo argumento de `postMessage`
+    // puede ser el origen exacto del propio `window` del panel — nunca `'*'`, que mandaría el
+    // borrador a cualquier origen si el `src` del iframe alguna vez apuntara a otro lado por error.
+    // Si el iframe todavía no tiene `contentWindow` (a mitad de un reload, antes del primer load) el
+    // mensaje se descarta — no hay a quién mandárselo, y el próximo cambio de `form` lo reintenta.
+    const enviarCambio = useCallback((seccion: SeccionVista, datos: Record<string, unknown>) => {
+      const win = iframeRef.current?.contentWindow;
+      if (!win) return;
+      win.postMessage({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion, datos }, window.location.origin);
+    }, []);
+
+    useImperativeHandle(ref, () => ({ irASeccion, recargar, enviarCambio }), [irASeccion, recargar, enviarCambio]);
 
     // Cambiar de pestaña de página es una NAVEGACIÓN real (otra URL) — el `key={pagina}` del
     // iframe ya fuerza el remonte; este efecto sólo repone el estado "cargando" para esa carga.
@@ -194,14 +245,80 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
       // serlo acá (lee `resaltadoRef`, no estado de render).
     }, [pagina, rutaPagina, rutaEditor]);
 
+    // § EDITOR-TIENDA-POSTMESSAGE-1, §1 — EL SALTO AL RECARGAR, MEDIDO ANTES DE ARREGLARLO. Hasta
+    // este slice, acá vivía `win.scrollTo(0, scrollPendiente.current)` llamado DIRECTO en 'load'. Se
+    // midió por ejecución (Playwright, DB efímera + preset CORTE real, timing fiel vía
+    // `addInitScript` para que el 'load' nativo dispare el restore en el MISMO tick que en
+    // producción — un `page.evaluate()` posterior es más lento y esconde la carrera): a 'load' el
+    // documento YA tiene layout (`scrollHeight` ~4486px en la medición) pero TODAVÍA NO es su altura
+    // final (crece a ~5930px por el fetch de catálogo / imágenes que siguen entrando) — y
+    // `html{scroll-behavior:smooth}` (`app/globals.css`) convierte ese `scrollTo(0, y)` de DOS
+    // argumentos en una animación, no un salto. El resultado medido: el scroll queda VISIBLEMENTE
+    // pegado en la posición máxima que la altura TODAVÍA PERMITÍA (3586px en la medición — a mitad
+    // de una página de 5930px) durante más de un SEGUNDO, antes de corregirse solo — y sólo se
+    // corrige solo quien tiene el preset CORTE puesto, porque esa corrección la hace la restauración
+    // de `ScrollInercia` (gateada a `corteAplicado`), no este componente; sin CORTE el salto queda
+    // así para siempre. Es la misma familia de bug que el docstring de `scroll-inercia.ts` ya
+    // documentó para la restauración nativa de Chromium — acá el causante es este `scrollTo`
+    // prematuro, no el navegador.
+    //
+    // EL FIX: esperar a que `scrollHeight` dentro del iframe deje de cambiar (el MISMO autómata que
+    // ya usa `ScrollInercia`, reusado — ver el import de arriba) antes de restaurar, y restaurar con
+    // `behavior:'instant'` (nunca el `scrollTo` de dos argumentos, que anima). Medido tras el fix,
+    // mismo timing fiel: el scroll se queda en 0 (sin saltos visibles a una posición incorrecta)
+    // hasta que la altura se confirma estable (~1.9s en la medición) y ahí salta UNA vez, exacto —
+    // sin el período de "pegado a mitad de página" de arriba. Funciona para CUALQUIER tenant: no
+    // depende de `corteAplicado`, porque el autómata que reusa tampoco depende de eso.
     const onLoad = useCallback(() => {
-      setCargando(false);
       const win = iframeRef.current?.contentWindow;
-      if (win && scrollPendiente.current != null) {
-        win.scrollTo(0, scrollPendiente.current);
-        scrollPendiente.current = null;
+      const guardado = scrollPendiente.current;
+      scrollPendiente.current = null;
+      if (!win || guardado == null) {
+        // Primera carga de la página (sin `recargar()` de por medio) o sin acceso al documento: no
+        // hay scroll que restaurar, el skeleton se retira de inmediato como siempre.
+        setCargando(false);
+        return;
       }
+      const miToken = ++restauracionTokenRef.current;
+      const inicio = performance.now();
+      // TODO EL CUERPO en un solo try: si `win` se vuelve cross-origin/detached A MITAD del poll (el
+      // admin navegó fuera, o el nodo del iframe se removió por un cambio de página concurrente), la
+      // primera propiedad que falle lanza — y CUALQUIER lectura de `win.*` puede ser la primera, no
+      // sólo `scrollHeight`. Sin este try, esa excepción escapa de un callback de
+      // `requestAnimationFrame`, donde React no la atrapa — un error sin manejar ahí.
+      let estado: ReturnType<typeof estadoInicialEstabilizacion>;
+      try {
+        estado = estadoInicialEstabilizacion(win.document.documentElement.scrollHeight, inicio);
+      } catch {
+        setCargando(false);
+        return;
+      }
+      const intentar = () => {
+        if (restauracionTokenRef.current !== miToken) return; // un `recargar()` más nuevo lo reemplazó
+        try {
+          const alturaActual = win.document.documentElement.scrollHeight;
+          const ahora = performance.now();
+          estado = siguienteEstadoEstabilizacion(estado, alturaActual, ahora);
+          if (listoParaRestaurar(estado, ahora, inicio)) {
+            const objetivo = objetivoDeRestauracion(guardado, alturaActual, win.innerHeight);
+            win.scrollTo({ top: objetivo, behavior: 'instant' });
+            setCargando(false);
+            return;
+          }
+        } catch {
+          // Cross-origin momentáneo (el vigía de ruta ya cubre el caso real de navegación externa) —
+          // no insiste: retira el skeleton y deja el scroll donde el navegador lo haya dejado.
+          setCargando(false);
+          return;
+        }
+        window.requestAnimationFrame(intentar);
+      };
+      window.requestAnimationFrame(intentar);
     }, []);
+
+    // Invalida cualquier restauración en vuelo si el componente se desmonta (cambio de página, que
+    // ya remonta por `key={pagina}` — esto cierra el caso de un desmontaje por cualquier otra vía).
+    useEffect(() => () => { restauracionTokenRef.current += 1; }, []);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 'var(--duna-space-2)' }}>

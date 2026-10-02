@@ -448,7 +448,7 @@ cada fila.
 | --- | --- | --- | --- | --- | --- |
 | 1 | `EDITOR-TIENDA-IFRAME-GATE-1` **— la cookie se retiró en `MODO-EDITOR-SOLO-EN-EL-IFRAME-1`, § 11** | El gate de modo-borrador (§ 5.2): cookie de sesión de edición, chequeo de rol server-side, `no-store`+`noindex` condicional. SIN UI nueva todavía — sólo el mecanismo, verificable por curl/test de integración. | 1 (toca `app/(storefront)/layout.tsx`) | `verificar:nayoli` (bytes) da 0 diffs con la cookie AUSENTE — el tráfico público no cambia un byte |
 | 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` **— ENTREGADO, § 10** | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b). Alcance AMPLIADO por encargo del owner: la composición lista↔iframe (no una vista por sección) y la mitad lista→iframe de la selección en contexto, § 10. | 1 (toca `app/(storefront)/page.tsx`/`nosotros/page.tsx`/`suscripciones/page.tsx`, en la lista Tier 1 — corregido otra vez, § 10) | Verificado por ejecución: `npm run gate` verde, `guarda:color` 0px (8 capturas), `verificar:nayoli`/`:visual` caracterizados contra el `main` stale (§ CIERRE-EDITOR-GATE-1) | VistaTiendaEnVivo/data-sf-tarjeta SIGUEN vivos — ver § 10, el retiro de la fila 7 queda más chico |
-| 3 | `EDITOR-TIENDA-POSTMESSAGE-1` | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla | 1 (el listener vive en el storefront, gateado a `useIsPreview()`) | Medido por ejecución: cero `navigation`/reload del iframe durante una sesión de tecleo, con el valor reflejado en <100ms |
+| 3 | `EDITOR-TIENDA-POSTMESSAGE-1` **— ENTREGADO, § 13** | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla. De paso, diagnostica y cierra el salto de scroll al recargar (§ 1 del spec de este slice) | 1 (el listener vive en el storefront — `EditorPuenteVivo.tsx`, gateado a `modoEditorActivo()`, NO a `useIsPreview()` como se planeaba acá: `useIsPreview` es del mecanismo viejo de `VistaTiendaEnVivo`/preview local, sin relación con el modo-borrador-por-request de este iframe) | Verificado por ejecución contra producción (`next build && next start`), preset CORTE, sesión real: cero navegaciones del frame principal, el valor reflejado en 5ms (frío) / 2.4ms (caliente); el salto de scroll medido y cerrado — ver § 13 |
 | 4 | `EDITOR-TIENDA-SELECCION-1` | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe | 1 (el atributo nuevo vive en los componentes de `components/storefront/`, gateado a preview) | Verificado por ejecución (clic en iframe abre la sección correcta en la lista, y viceversa) |
 | 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` **— alcance AMPLIADO por encargo del owner, § 12** | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe, **más la vista propia a pantalla completa** (§ 12, fuera del plan original de esta fila) | 2 (no toca `app/(storefront)/` ni `components/storefront/` — el criterio de Tier de esta tabla; el dispatch que ejecutó este slice lo etiquetó Tier 1 por cautela propia del orquestador, no porque este slice cumpla el criterio de la lista de `CLAUDE.md`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 393px (teléfono) y 768px (tablet); sin sesión, `/editor/tienda` rebota a `/login` |
 | 6 | `EDITOR-TIENDA-ORDEN-1` | Reordenar/ocultar bandas desde la lista lateral (§ 4.2): endpoint `orden` nuevo + UI de arrastre | 1 (el endpoint nuevo y `page.tsx` leen `content.orden`) | El orden que muestra el iframe tras arrastrar coincide con el que la home pública muestra tras publicar |
@@ -646,9 +646,10 @@ producto o el carrito navega a OTRA ruta (`/tienda`, `/tienda/[slug]`, `/checkou
   no un `onLoad` porque la navegación client-side de Next cambia `contentWindow.location` vía
   `history.pushState` SIN disparar `load` — un chequeo "al cargar" nunca vería ese caso.
 - **Costo aceptado**: un reload extra si el admin se desvía (clic accidental en el nav, por
-  ejemplo). `EDITOR-TIENDA-POSTMESSAGE-1` (fila 3 de § 6) sigue siendo el lugar correcto para una
-  experiencia más fina (el storefront avisa su propia ruta por `postMessage`, sin reload); mientras
-  tanto, el editor es de UNA página a la vez y volver a ella es la expectativa correcta.
+  ejemplo). **`EDITOR-TIENDA-POSTMESSAGE-1` (§ 13) NO resolvió esto** — el canal `postMessage` que
+  construyó es panel→iframe, para sincronizar CONTENIDO (texto/imagen), no iframe→panel para avisar
+  una ruta. El storefront avisando su propia ruta por `postMessage` (lo que eliminaría este reload
+  extra) sigue sin construirse; el POLL de arriba se queda como está.
 - **Límite nombrado, no resuelto acá**: una navegación a un dominio EXTERNO (un link de red social
   en el pie, por ejemplo) dentro del iframe deja `contentWindow.location` verdaderamente
   cross-origin — el vigía lo detecta (la lectura de `pathname` lanza) y se queda quieto (no insiste
@@ -765,3 +766,82 @@ Tailwind ya usado como corte responsive del storefront, y el viewport del dispos
   colapsado (ícono de menú), que es el comportamiento RESPONSIVE real de la tienda, no una
   ilusión de escala. El botón "Abrir editor" de `/admin/tienda` y el cambio de página
   (Home → Nosotros) también se verificaron por ejecución.
+
+---
+
+## 13 · `EDITOR-TIENDA-POSTMESSAGE-1` — el contenido en vivo sin recargar, y el salto de scroll
+    cerrado (no sólo el canal del plan)
+
+Gate del owner (2026-10-01), el mismo que motivó § 12: *"tambien lo de cada vez que se hace un
+cambio y refresca no siempre vuelve a donde se hizo el cambio sino a la mitad de la pagina que esta
+renderizando"*. Dos mitades: el canal `postMessage` que la fila 3 de § 6 ya planeaba, y el
+diagnóstico+cierre del salto de scroll (§ 1 del prompt de este slice) — que terminó siendo una
+investigación más profunda que "el documento crece después de `onLoad`".
+
+### 13.1 · El salto de scroll — la causa medida no era la que parecía
+
+Medido con Playwright, timing FIEL al real (`addInitScript` registrando el handler de `'load'`, no
+un `page.evaluate()` posterior — ese roundtrip de CDP es más lento y esconde la carrera), contra una
+base efímera con el preset **CORTE** aplicado de verdad:
+
+- A `'load'` el documento tiene layout pero NO su altura final (≈4486px contra ≈5930px finales —
+  sigue creciendo por el catálogo/las imágenes).
+- `win.scrollTo(0, y)` —la forma de DOS argumentos, que hereda `scroll-behavior:smooth` de
+  `globals.css`— **ANIMA** en vez de saltar, y la animación queda atascada contra el límite VIEJO
+  (≈3586px) mientras el documento sigue creciendo. El navegador no la retoma sola cuando el límite
+  sube.
+- Medido el efecto: la posición quedó pegada en 3586px —≈60% de una página de 5930px, "a mitad de
+  la página"— durante más de un segundo antes de corregirse. Y esa corrección sólo existe porque
+  CORTE tiene su propio `ScrollInercia` corriendo en paralelo; sin CORTE, el salto queda sin
+  corregir para siempre.
+
+El fix REUSA el autómata de `lib/storefront/scroll-inercia.ts` (las cuatro funciones puras de
+estabilización de altura, ya usadas por `ScrollInercia` para el mismo problema) directo desde
+`VistaTiendaIframe.tsx` — nunca reimplementado. Son genéricas sobre números, así que funcionan para
+cualquier tenant, no sólo CORTE. `scroll-inercia.ts` no cambió de comportamiento: ganó un párrafo
+documentando al segundo consumidor.
+
+**Medido después del fix, mismo timing fiel**: cero posición visible incorrecta; el scroll se queda
+en 0 hasta que la altura se confirma estable (~1.9s) y ahí salta una vez, exacto.
+
+**Hallazgo lateral, NO arreglado — dev-mode, no el código** (anotado como `EDITOR-TIENDA-HMR-
+IFRAME-SELF-1`, DECISIONS.md): contra `next dev`, el frame PRINCIPAL (el panel, no el iframe)
+navegaba repetidas veces al clickear "Actualizar" — un dev server iframeando a sí mismo, el cliente
+HMR probablemente apuntando a `window.top`. No se reprodujo contra producción (`next build && next
+start`), que es donde se verificó el fix. Ningún código de este slice navega la pestaña padre.
+
+### 13.2 · El puente `postMessage` — panel→iframe, para CONTENIDO
+
+`lib/storefront/editor-puente.ts` (puro) + `components/storefront/EditorPuenteVivo.tsx` (la mitad
+impura, con el `import()` dinámico del schema zod — nunca estático, para no pagar su peso en el
+bundle de cada visitante público). `SiteContentProvider` pasó de dumb a STATEFUL (un segundo
+context, SÓLO para este componente, expone el setter). `VistaTiendaIframe` gana
+`enviarCambio(seccion, datos)`; `TiendaSeccionEditor` lo dispara con un `useEffect` sobre `form`
+(cubre los ~10 call sites que lo tocan sin instrumentar cada uno) y PIERDE el reload-tras-
+autoguardado-asentado — exactamente el "refresca con cada cambio" del reporte del owner.
+
+**Censo: las ~40 componentes que leen `useSiteContent()` se actualizan SOLAS** — ninguna arma su
+slice de `SiteContent` server-side y lo pasa por props, así que el contexto reactivo las cubre a
+todas sin tocarlas una por una. Lo único que NO reacciona es lo que el layout inyecta como `<style>`
+server-rendered (paleta/fuentes/forma) y las cinco secciones "cromo transversal" fuera del iframe
+— ninguno de los dos está en `touches:` de este slice.
+
+**Medido por ejecución, contra producción con sesión real**: el mensaje se refleja en 5ms (frío,
+primer `import()`) / 2.4ms (caliente); cero navegaciones del frame principal durante el cambio
+(confirmado también con una marca de `window` que sobrevive intacta — la prueba de que no hubo un
+documento nuevo).
+
+### 13.3 · Lo que NO se construyó acá, para que no se confunda con la fila 3 original
+
+La fila 3 de § 6 decía "elimina el reload por tecla" en términos genéricos; lo construido cubre
+EXACTAMENTE eso (texto/imagen de las secciones que pasan por `TiendaSeccionEditor`), pero NO
+construyó el canal INVERSO (iframe→panel) que § 10 y § 11.2 ya habían anotado como pendiente para
+esto mismo:
+
+- **La selección en contexto** (clic DENTRO del iframe → abre la sección en la lista) sigue siendo
+  `EDITOR-TIENDA-SELECCION-1` (fila 4), sin tocar.
+- **El storefront avisando su propia ruta por `postMessage`** (lo que evitaría el reload extra del
+  vigía de ruta cuando el admin se desvía de la página, § 11.2) tampoco se construyó — el POLL de
+  400ms se queda como está.
+
+**Cierra `EDITOR-TIENDA-POSTMESSAGE-1`.**

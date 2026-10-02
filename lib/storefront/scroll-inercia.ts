@@ -147,6 +147,16 @@ export function debeInterceptarRueda(c: CondicionesRueda): boolean {
 // recorte al límite ACTUAL del documento, y el pequeño autómata que decide "¿ya puedo confiar en esta
 // altura, o sigo esperando?" — el `window`/`sessionStorage`/`requestAnimationFrame` que los alimenta
 // vive en `ScrollInercia.tsx`, igual que el resto del mecanismo de rueda.
+//
+// SEGUNDO CONSUMIDOR (§ EDITOR-TIENDA-POSTMESSAGE-1): `estadoInicialEstabilizacion`/
+// `siguienteEstadoEstabilizacion`/`listoParaRestaurar`/`objetivoDeRestauracion` son GENÉRICAS sobre
+// números (altura, reloj, scrollY) — no dependen de `sessionStorage` ni de `corteAplicado`, así que
+// `VistaTiendaIframe.tsx` (admin) las reusa para el MISMO problema (un `scrollTo` disparado antes de
+// que la altura del documento se estabilice) al restaurar el scroll tras recargar el iframe del
+// editor — sin ese reuso, `VistaTiendaIframe` habría reimplementado el mismo autómata, y una
+// divergencia entre las dos copias habría sido el próximo bug de esta familia. Si se toca la forma de
+// alguna de estas cuatro funciones, revisar ese consumidor también (`npm run typecheck` ya lo
+// obliga: un cambio de firma rompe su import).
 
 /** El prefijo de la clave de `sessionStorage` — namespaced para no chocar con otra cosa que guarde
  *  bajo la misma pestaña, y para que un futuro censo de claves lo encuentre por nombre. */

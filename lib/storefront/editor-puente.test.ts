@@ -1,0 +1,119 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { DEFAULTS } from '@/lib/config/site-content-defaults';
+import {
+  TIPO_MENSAJE_CONTENIDO_SECCION,
+  esMensajeContenidoSeccion,
+  esSeccionDelRegistro,
+  fusionarContenidoSeccion,
+} from './editor-puente';
+
+// Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
+// zod — lo que se afirma es la forma del mensaje, la membresía en el REGISTRY, y que la fusión de
+// una sección reusa EXACTAMENTE las reglas de `resolverSiteContent` (requerido vacío cae al
+// default, opcional presente-vacío se respeta, las demás secciones no se tocan).
+
+test('esMensajeContenidoSeccion acepta la forma correcta', () => {
+  assert.equal(
+    esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: 'hero', datos: { titulo: 'X' } }),
+    true,
+  );
+});
+
+test('esMensajeContenidoSeccion rechaza tipo ausente o distinto', () => {
+  assert.equal(esMensajeContenidoSeccion({ seccion: 'hero', datos: {} }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: 'otra-cosa', seccion: 'hero', datos: {} }), false);
+});
+
+test('esMensajeContenidoSeccion rechaza seccion ausente, vacía o no-string', () => {
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, datos: {} }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: '', datos: {} }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: '   ', datos: {} }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: 3, datos: {} }), false);
+});
+
+test('esMensajeContenidoSeccion rechaza datos ausente, null, array o no-objeto', () => {
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: 'hero' }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: 'hero', datos: null }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: 'hero', datos: [] }), false);
+  assert.equal(esMensajeContenidoSeccion({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion: 'hero', datos: 'x' }), false);
+});
+
+test('esMensajeContenidoSeccion rechaza cosas que no son objetos (un mensaje ajeno del mismo window)', () => {
+  assert.equal(esMensajeContenidoSeccion(null), false);
+  assert.equal(esMensajeContenidoSeccion(undefined), false);
+  assert.equal(esMensajeContenidoSeccion('hola'), false);
+  assert.equal(esMensajeContenidoSeccion(42), false);
+});
+
+test('esSeccionDelRegistro acepta secciones reales y rechaza metas y claves inventadas', () => {
+  assert.equal(esSeccionDelRegistro('hero'), true);
+  assert.equal(esSeccionDelRegistro('marquesina'), true);
+  // Las METAS (tema/paginas/cromo…) no son secciones del REGISTRY — sus editores (PaletaSeccion…)
+  // quedan fuera de este slice y nunca deberían llegar por este puente.
+  assert.equal(esSeccionDelRegistro('tema'), false);
+  assert.equal(esSeccionDelRegistro('paginas'), false);
+  assert.equal(esSeccionDelRegistro('no-existe'), false);
+});
+
+test('fusionarContenidoSeccion aplica el cambio de texto a la sección pedida', () => {
+  const resultado = fusionarContenidoSeccion(DEFAULTS, 'hero', {
+    ...(DEFAULTS.hero as unknown as Record<string, unknown>),
+    titulo: 'Nuevo titular en vuelo',
+  });
+  assert.equal(resultado.hero.titulo, 'Nuevo titular en vuelo');
+});
+
+test('fusionarContenidoSeccion NO TOCA las demás secciones (misma referencia)', () => {
+  const resultado = fusionarContenidoSeccion(DEFAULTS, 'hero', {
+    ...(DEFAULTS.hero as unknown as Record<string, unknown>),
+    titulo: 'Otro titular',
+  });
+  assert.equal(resultado.marquesina, DEFAULTS.marquesina);
+  assert.equal(resultado.brandStory, DEFAULTS.brandStory);
+  assert.notEqual(resultado.hero, DEFAULTS.hero);
+});
+
+test('fusionarContenidoSeccion: un REQUERIDO vaciado a mitad de edición cae al DEFAULT — igual que al publicar, no al valor viejo', () => {
+  const actual = fusionarContenidoSeccion(DEFAULTS, 'hero', {
+    ...(DEFAULTS.hero as unknown as Record<string, unknown>),
+    titulo: 'Un titulo que ya estaba puesto',
+  });
+  const resultado = fusionarContenidoSeccion(actual, 'hero', {
+    ...(actual.hero as unknown as Record<string, unknown>),
+    titulo: '',
+  });
+  // Ni vacío ni "Un titulo que ya estaba puesto" — el DEFAULT de código, como resolverSiteContent
+  // ya hace para cualquier requerido vacío.
+  assert.equal(resultado.hero.titulo, DEFAULTS.hero.titulo);
+  assert.notEqual(resultado.hero.titulo, '');
+  assert.notEqual(resultado.hero.titulo, 'Un titulo que ya estaba puesto');
+});
+
+test('fusionarContenidoSeccion: un OPCIONAL presente-y-vacío se RESPETA (se omite en el render), no cae al default', () => {
+  const resultado = fusionarContenidoSeccion(DEFAULTS, 'hero', {
+    ...(DEFAULTS.hero as unknown as Record<string, unknown>),
+    tituloEnfasis: '',
+  });
+  assert.equal(resultado.hero.tituloEnfasis, '');
+});
+
+test('fusionarContenidoSeccion: una seccion fuera del REGISTRY (meta o inventada) devuelve el contenido SIN TOCAR', () => {
+  const resultado1 = fusionarContenidoSeccion(DEFAULTS, 'tema', { fondo: '#000000' });
+  assert.equal(resultado1, DEFAULTS);
+  const resultado2 = fusionarContenidoSeccion(DEFAULTS, 'no-existe', { x: 1 });
+  assert.equal(resultado2, DEFAULTS);
+});
+
+test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el servidor', () => {
+  // `name`/`text` son los REQUERIDOS del ítem (§ REGISTRY.testimonials.repeater.campos); `stars` no
+  // está declarado ahí — el resolver lo pasa tal cual (passthrough, § resolverItems).
+  const unTestimonio = { name: 'Ana', text: 'Excelente café', stars: 5 };
+  const resultado = fusionarContenidoSeccion(DEFAULTS, 'testimonials', {
+    ...(DEFAULTS.testimonials as unknown as Record<string, unknown>),
+    items: [unTestimonio],
+  });
+  assert.deepEqual((resultado.testimonials as unknown as { items: unknown[] }).items, [
+    { name: 'Ana', text: 'Excelente café', stars: 5, city: '', product: '' },
+  ]);
+});

@@ -39,6 +39,13 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
   const iframeRef = useRef<VistaTiendaIframeHandle>(null);
   const irASeccion = useCallback((seccion: SeccionVista) => iframeRef.current?.irASeccion(seccion), []);
   const recargarIframe = useCallback(() => iframeRef.current?.recargar(), []);
+  // § EDITOR-TIENDA-POSTMESSAGE-1 — el cambio EN VIVO de cada editor llega acá y se reenvía al
+  // iframe compartido por `postMessage`, sin recargar (reemplaza el reload-tras-autoguardado de
+  // `onCambioPublicado`, que ahora sólo corre tras Publicar/Descartar).
+  const enviarCambioIframe = useCallback(
+    (seccion: SeccionVista, datos: Record<string, unknown>) => iframeRef.current?.enviarCambio(seccion, datos),
+    [],
+  );
 
   // ANGOSTO reusa la pregunta de `useSheetDesdeAbajo` ("¿es una pantalla táctil de una mano?",
   // umbral 960 — § DUNA_MQ_SHEET_ABAJO) para una decisión DISTINTA de la suya (de qué borde sale un
@@ -126,6 +133,7 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
               resaltar={resaltar}
               onAbrir={irASeccion}
               onCambioPublicado={recargarIframe}
+              onCambio={enviarCambioIframe}
               carga={{
                 valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
                 sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
