@@ -43382,3 +43382,79 @@ ejecución directa en navegador (dos motores, dos viewports, 9 objetivos, radio 
 tocada y 4px sin cambio en todo lo demás)— está verde. No se mergea — ni por el veredicto, ni porque
 el diff cambia bytes visibles al cliente (`customer_bytes.changed: true`). Commiteado en
 `slice/corte-reescritura-prototipo-1`.
+
+## 2026-10-02 — El test de altura del hero se pone al día con la fórmula real; cierra el GATE_RED que dejó `MARQUESINA-TARJETA-SECUENCIA-1` (`HERO-MARQUESINA-TEST-SYNC-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02 —
+el mismo gate de Café Las Chamisas que aprobó `MARQUESINA-TARJETA-SECUENCIA-1` («Revisa el scroll
+luego de que la imagen ha salido… hice scroll 3 veces antes de poder iniciar a bajar en la página»):
+aquel slice re-derivó `claseAlturaAncestroMarquesina(true, false)` de `100svh+200vh` a
+`100svh+100vh`, pero su `touches:` no incluía `lib/config/hero-marquesina.test.ts` — el test que
+afirmaba el literal viejo quedó fuera, y el gate cerró en **GATE_RED** (1 fallo de 3078 en `npm
+test`, documentado como open follow-up en el asiento de aquel slice). Este slice cierra exactamente
+eso. **Sin cambio de producto**: no toca ningún componente ni función del storefront, sólo el test.
+
+### La causa — un `touches:` incompleto, no un defecto del código
+
+`claseAlturaAncestroMarquesina` (`lib/animation.ts:905`) está correcta y sin cambios en este slice.
+El único archivo que la ejercita fuera de un harness de render (`lib/config/hero-marquesina.test.ts:
+249-252`) seguía afirmando `claseAlturaAncestroMarquesina(true, false) === 'min-h-[calc(100svh+200vh)]'`
+— el valor de ANTES de `MARQUESINA-TARJETA-SECUENCIA-1`. Reproducido antes de tocar nada:
+`npx tsx --test lib/config/hero-marquesina.test.ts` daba 45/46, con el `AssertionError` mostrando
+`actual: 'min-h-[calc(100svh+100vh)]'` contra `expected: 'min-h-[calc(100svh+200vh)]'` — exactamente
+la divergencia que el asiento de aquel slice ya había nombrado.
+
+### El fix — la relación, derivada de la ventana, en vez de otro literal
+
+En vez de copiar el nuevo literal (`100vh`) a mano —el mismo modo de falla que dejó rancio al
+literal viejo—, la aserción se reescribió para DERIVAR el presupuesto CON tarjeta de
+`UMBRAL_ENTRADA_TARJETA_MARQUESINA` (ya exportada de `lib/animation.ts`, importada al test — no
+copiada), con la MISMA fórmula que el docstring de `claseAlturaAncestroMarquesina` documenta
+(§ "RONDA SECUENCIA"): el `position:sticky` se despinea medio "respiro" —la mitad del ancho de la
+ventana de entrada de la tarjeta— después de que la tarjeta termina de entrar
+(`pUnpin = hasta + (hasta-desde)/2`, `extra = 100/(1-pUnpin) - 100`). Si esa ventana vuelve a cambiar,
+la aserción se mueve con ella por construcción, en vez de quedar rancia otra vez. Se agregó además
+una aserción de la RELACIÓN que importa —CON tarjeta reserva más presupuesto que SIN ella (65vh,
+intacto)— para que el test afirme el invariante de producto, no sólo un número. El título del test y
+los dos comentarios adyacentes (que seguían describiendo "200vh… sin cambios") se corrigieron para no
+seguir afirmando el hecho viejo.
+
+### Gate
+
+`npx tsx --test lib/config/hero-marquesina.test.ts`: 46/46 (era 45/46). `npm run gate` completo en
+la rama final: **typecheck limpio**, `npm test` **3078/3078** (era 3077/3078, el mismo fallo de
+arriba), `npm run test:integracion` **286/286**. Los tres verdes; GATE_RED cerrado.
+
+### `customer_bytes`
+
+**`changed: true`**, por la rama, no por este commit. Este diff (el test + este asiento) no toca
+ningún byte que un visitante vea: `claseAlturaAncestroMarquesina` no cambió, y el fix es puramente
+de aserción. Pero la RAMA que este commit extiende ya trae bytes visibles sin aprobar para merge —
+introducidos por commits ANTERIORES de esta misma rama (`MARQUESINA-TARJETA-SECUENCIA-1`: momento y
+duración de la entrada de la tarjeta del hero, y la fijeza del recorte de imagen entre recargas;
+`RADIO-TARJETAS-IMAGEN-1`: el radio de las fotos pasa de 4px a 10px bajo CORTE) — ninguno mergeado
+todavía. `strings: []` — ni este commit ni los anteriores de la rama introducen texto nuevo; lo que
+cambia son bytes compilados (timing, geometría), nunca copy.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo, sin contrato cross-repo. Este diff en particular
+es test-only + doctrina.
+
+### Censo contra CLAUDE.md (lo que este diff tocó)
+
+`grep` de los símbolos que cambió este diff (`claseAlturaAncestroMarquesina`,
+`UMBRAL_ENTRADA_TARJETA_MARQUESINA`, `hero-marquesina.test.ts`) contra `CLAUDE.md`: cero apariciones.
+Nada en la doctrina nombra estos símbolos — no hay frase que este cambio pueda volver falsa.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, sin cambio (no tocado por este slice; ver
+  los asientos de `MARQUESINA-TARJETA-SECUENCIA-1` y `RADIO-TARJETAS-IMAGEN-1`, arriba).
+
+### Verdict
+
+**AWAITING_APPROVAL.** `stopped_on: ["customer-bytes"]` — por la rama, no por este diff: el merge
+que esto aterrizaría sobre `main` incluye los bytes visibles de `MARQUESINA-TARJETA-SECUENCIA-1` y
+`RADIO-TARJETAS-IMAGEN-1`, ninguno aprobado para merge todavía. El gate completo corre verde
+(typecheck + 3078/3078 + 286/286); no se mergea. Commiteado en `slice/corte-reescritura-prototipo-1`.
