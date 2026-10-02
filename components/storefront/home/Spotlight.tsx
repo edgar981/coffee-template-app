@@ -79,6 +79,11 @@ const SIZES_FOTO_DESTACADO = "(max-width: 1200px) 100vw, 33vw";
 // React simplemente desmonta ese `motion.div` (su `key` deja de estar en el array) sin ninguna
 // animación de salida, y la capa 'fija' —siempre opaca, debajo— queda expuesta tal cual estaba.
 // Ningún instante muestra el fondo: sólo puede pasar de "fija + entrando-vieja" a "fija" a secas.
+//
+// `data-cruce-capa` (abajo, en las dos ramas) es un gancho de VERIFICACIÓN, inerte — ningún CSS ni
+// comportamiento lee este atributo; existe para que un arnés de Playwright pueda ubicar cada capa
+// por rol y leer su `getComputedStyle(...).opacity` real, cuadro a cuadro, sin adivinar por
+// estructura de DOM (que también incluye el preloader invisible, § `fotosDelGrupo` más abajo).
 function FotoCruceDestacado({ src, alt, estatico }: { src: string; alt: string; estatico: boolean }) {
   const [estado, setEstado] = useState<EstadoCruceDestacado>(() => cruceInicial(src));
   useEffect(() => {
@@ -95,7 +100,7 @@ function FotoCruceDestacado({ src, alt, estatico }: { src: string; alt: string; 
           // de esta capa simplemente cambia de `src` (ya cacheado — es la MISMA URL que la capa
           // 'entrando' acababa de mostrar a opacidad 1) en vez de remontar, así que el handoff no
           // le pide al navegador nada que no tenga ya resuelto.
-          <div key="fija" className="absolute inset-0">
+          <div key="fija" data-cruce-capa={capa.rol} className="absolute inset-0">
             <Image src={capa.src} alt={alt} fill sizes={SIZES_FOTO_DESTACADO} className="object-cover" />
           </div>
         ) : (
@@ -104,6 +109,7 @@ function FotoCruceDestacado({ src, alt, estatico }: { src: string; alt: string; 
           // entrante a medio camino nunca deja un estado de animación a medias que limpiar.
           <motion.div
             key={capa.src}
+            data-cruce-capa={capa.rol}
             initial={false}
             animate={{ opacity: capa.opacidadObjetivo }}
             transition={transicion}
