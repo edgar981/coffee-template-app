@@ -13,7 +13,7 @@ import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, f
 import {
   useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, opacidadEntradaTarjetaMarquesina,
-  claseAlturaAncestroMarquesina, UMBRAL_REVELADO_TEXTO,
+  claseAlturaAncestroMarquesina, UMBRAL_ENTRADA_TARJETA_MARQUESINA,
   duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
   MARQUEE_MASCARA_RELLENO_EM,
@@ -21,7 +21,7 @@ import {
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { modoTarjetaMarquesina, SIZES_TARJETA_MARQUESINA } from "@/lib/storefront/marquesina-tarjeta";
+import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } from "@/lib/storefront/marquesina-tarjeta";
 
 // EL COMPONENTE DE LA VARIANTE "STICKY" DEL HERO (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1) — la
 // CUARTA composición (tras curtina/ficha/media, § HeroSection.tsx: `VARIANTES.sticky`), y la que
@@ -468,6 +468,27 @@ import { modoTarjetaMarquesina, SIZES_TARJETA_MARQUESINA } from "@/lib/storefron
 // pineada sigue SIN `overflow` propio (se retiró en la ronda anterior, sin cambios acá); la media
 // sigue midiendo `100lvh` centrada. Es un cambio de UN valor, en UN selector — de la propiedad que
 // causaba el scroll container al valor que recorta sin causarlo.
+//
+// TRES DEFECTOS DE LA TARJETA, CERRADOS JUNTOS — § MARQUESINA-TARJETA-SECUENCIA-1 (2026-10-02), el
+// gate del owner sobre Café Las Chamisas (el mismo gate pedía además rounding de tarjetas de imagen,
+// hover de segunda foto en `/tienda` y el logo del nav en móvil — fuera de `touches:` de este slice,
+// no tocado acá):
+//   (1) LA SECUENCIA: la tarjeta entraba A LA VEZ que la frase (compartían `UMBRAL_REVELADO_TEXTO`,
+//       § MARQUESINA-TARJETA-PRODUCTO-1) — el owner la pidió DESPUÉS. Ahora usa su propia ventana,
+//       `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (`lib/animation.ts`, derivada: arranca donde la de la
+//       frase termina, dura lo mismo) — ver "LA ENTRADA DE LA TARJETA" más abajo, en el cuerpo.
+//   (2) EL TRAMO MUERTO: con el presupuesto de scroll viejo (100svh+200vh), la tarjeta terminaba de
+//       aparecer bien antes de que el `position:sticky` se liberara — un tramo de scroll sin nada
+//       nuevo ("hice scroll 3 veces antes de poder iniciar a bajar"). El presupuesto CON tarjeta baja
+//       a 100svh+100vh, derivado de las mismas ventanas (§ el docstring de `claseAlturaAncestroMarquesina`,
+//       "RONDA SECUENCIA", `lib/animation.ts`) para que el panel se libere poco después de que la
+//       tarjeta queda quieta. El "sin tarjeta" (65vh) no se tocó.
+//   (3) EL PARPADEO ENTRE RECARGAS: el modo de la tarjeta ('tile'/'completa') dependía de que React
+//       viera el `onLoad` de la imagen, y ese evento podía no llegar nunca para una carga dada
+//       ("si refresco sale con los bordes, si vuelvo y refresco sale la otra"). `imgTarjetaRef` +
+//       `tamanoSiCompleta` (`lib/storefront/marquesina-tarjeta.ts`, su docstring para el porqué
+//       completo) miden la imagen YA cargada al montar, sin depender de ese evento — ver "EL MODO DE
+//       LA TARJETA" más abajo.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -483,15 +504,26 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
 
   // EL MODO DE LA TARJETA — § MARQUESINA-TARJETA-PRODUCTO-1 (lib/storefront/marquesina-tarjeta.ts,
   // el docstring de cabecera para el porqué): se mide la proporción REAL de la foto en el
-  // navegador, vía `onLoad` sobre el `<Image>` de más abajo (`naturalWidth`/`naturalHeight` del
-  // `<img>` ya decodificado) — nunca se asume. Antes de medir (o con un slug que cambia a mitad de
-  // sesión), `tamanoImagenTarjeta` es `null` y `modoTarjetaMarquesina` cae a `'tile'`, el modo que
-  // NUNCA recorta — exactamente el tile que este componente ya rendía antes de este slice. Se
-  // reinicia al cambiar de producto para que la proporción de la foto VIEJA no sobreviva un frame
-  // en el producto NUEVO mientras la foto nueva decodifica.
+  // navegador (`naturalWidth`/`naturalHeight` del `<img>` ya decodificado) — nunca se asume. Antes
+  // de medir (o con un slug que cambia a mitad de sesión), `tamanoImagenTarjeta` es `null` y
+  // `modoTarjetaMarquesina` cae a `'tile'`, el modo que NUNCA recorta — exactamente el tile que este
+  // componente ya rendía antes de ese slice. Se reinicia al cambiar de producto para que la
+  // proporción de la foto VIEJA no sobreviva un frame en el producto NUEVO mientras la foto nueva
+  // decodifica.
+  //
+  // DOS VÍAS DE MEDICIÓN, NO UNA SOLA — § MARQUESINA-TARJETA-SECUENCIA-1 (lib/storefront/
+  // marquesina-tarjeta.ts, el docstring de `tamanoSiCompleta`, para el porqué completo): medir
+  // SÓLO en el `onLoad` del `<Image>` dejaba el modo pegado a `'tile'` para sesiones enteras cuando
+  // ese evento no llegaba a dispararse para React — el "a veces sale con bordes, a veces sin" que
+  // el owner reportó en recargas sucesivas. `imgTarjetaRef` apunta al `<img>` real; el efecto de
+  // abajo —que YA reiniciaba la medición al cambiar de producto— ahora TAMBIÉN intenta leerla de
+  // inmediato con `tamanoSiCompleta` (la imagen puede haber llegado a la caché del navegador antes
+  // de que este componente exista). `onLoad` se queda como la segunda vía, para cuando la imagen
+  // TODAVÍA está cargando en ese instante.
+  const imgTarjetaRef = useRef<HTMLImageElement>(null);
   const [tamanoImagenTarjeta, setTamanoImagenTarjeta] = useState<{ w: number; h: number } | null>(null);
   useEffect(() => {
-    setTamanoImagenTarjeta(null);
+    setTamanoImagenTarjeta(tamanoSiCompleta(imgTarjetaRef.current));
   }, [producto?.slug]);
   const modoTarjeta = modoTarjetaMarquesina(tamanoImagenTarjeta?.w, tamanoImagenTarjeta?.h);
 
@@ -533,16 +565,18 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // comparten `UMBRAL_REVELADO_TEXTO` por construcción (las dos derivan del `progresoRevelado`
   // privado de `lib/animation.ts`), así que terminan de subir y de aclarar en el MISMO instante.
   const opacidadRevelaTexto = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico));
-  // LA ENTRADA DE LA TARJETA, ALINEADA A LA DE LA FRASE — § MARQUESINA-TARJETA-PRODUCTO-1
-  // (`lib/animation.ts`, los docstrings de `transformMarquesinaTarjeta`/
-  // `opacidadEntradaTarjetaMarquesina` para la medición completa): antes de este slice la tarjeta
-  // no tenía ninguna "aparición" — estaba a opacidad 1 desde el primer frame, sólo escalaba/rotaba
-  // en la ventana [0.12,0.57], mientras la frase revela en [0, `UMBRAL_REVELADO_TEXTO.hasta`] =
-  // [0,0.2]. Las DOS capas de abajo pasan ESA MISMA ventana —el tercer argumento de
-  // `transformMarquesinaTarjeta` sigue siendo [0.12,0.57] para `Marquesina.tsx`, sin tocar— sobre
-  // el MISMO `progreso` que ya mueve la frase: mismo arranque, misma duración, misma curva lineal.
-  const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico, UMBRAL_REVELADO_TEXTO));
-  const opacidadTarjeta = useTransform(progreso, (p) => opacidadEntradaTarjetaMarquesina(p, estatico));
+  // LA ENTRADA DE LA TARJETA, DESPUÉS DE LA DE LA FRASE — § MARQUESINA-TARJETA-PRODUCTO-1,
+  // RE-SECUENCIADA por § MARQUESINA-TARJETA-SECUENCIA-1 (`lib/animation.ts`, los docstrings de
+  // `transformMarquesinaTarjeta`/`opacidadEntradaTarjetaMarquesina`/
+  // `UMBRAL_ENTRADA_TARJETA_MARQUESINA` para la medición completa). El primer intento pasaba la
+  // MISMA ventana que la frase (`UMBRAL_REVELADO_TEXTO`, [0,0.2]) — las hacía entrar JUNTAS, que es
+  // justo lo que el owner reportó mal ("no debe salir al tiempo con el marquee"). Ahora las DOS
+  // capas de abajo pasan `UMBRAL_ENTRADA_TARJETA_MARQUESINA` ([0.2,0.4]: arranca donde la ventana de
+  // la frase termina, dura lo mismo) sobre el MISMO `progreso` que ya mueve la frase — el tercer
+  // argumento de `transformMarquesinaTarjeta` sigue siendo [0.12,0.57] para `Marquesina.tsx`, sin
+  // tocar.
+  const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA));
+  const opacidadTarjeta = useTransform(progreso, (p) => opacidadEntradaTarjetaMarquesina(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA));
   // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
   // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
   // par piso/techo que `veloOpacidad` ya sabía usar con su DEFAULT — acá se lo pasamos explícito.
@@ -770,6 +804,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             <div className="relative h-full w-full">
               <Image
                 key={producto.slug}
+                ref={imgTarjetaRef}
                 src={imagenPortada(producto.imagen)}
                 alt={producto.nombre}
                 fill
@@ -777,7 +812,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
                 className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
                 onLoad={(e) => {
                   const img = e.currentTarget;
-                  setTamanoImagenTarjeta({ w: img.naturalWidth, h: img.naturalHeight });
+                  setTamanoImagenTarjeta(tamanoSiCompleta(img));
                 }}
               />
             </div>

@@ -6,7 +6,7 @@ import {
   transformMarquesinaTexto, transformMarquesinaTarjeta, transformSubscripcionParallax,
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO, rangoVeloDeIntensidad,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, OPACIDAD_REVELADO_TECHO,
-  UMBRAL_REVELADO_TEXTO, opacidadEntradaTarjetaMarquesina,
+  UMBRAL_REVELADO_TEXTO, UMBRAL_ENTRADA_TARJETA_MARQUESINA, opacidadEntradaTarjetaMarquesina,
   claseAlturaAncestroMarquesina, fadeUp,
   direccionScroll, navOculto, UMBRAL_OCULTAR_NAV, debeActualizarTratamientoNav,
   duracionTickerS, VELOCIDAD_TICKER_PX_S, VELOCIDAD_TICKER_LENTA_PX_S,
@@ -140,20 +140,25 @@ test('transformMarquesinaTarjeta: progreso se acota a [0,1] — fuera de rango n
 });
 
 // ── `ventana` (§ MARQUESINA-TARJETA-PRODUCTO-1) — el tercer argumento que `HeroMediaMarquesina.tsx`
-// pasa para alinear la entrada de la tarjeta con la de la frase. Los tests de arriba (2 argumentos)
-// siguen afirmando el DEFAULT [0.12,0.57] — el que `Marquesina.tsx` sigue usando, sin cambios.
+// pasa para la entrada de la tarjeta. Los tests de arriba (2 argumentos) siguen afirmando el DEFAULT
+// [0.12,0.57] — el que `Marquesina.tsx` sigue usando, sin cambios. LA VENTANA REAL que
+// `HeroMediaMarquesina.tsx` pasa hoy es `UMBRAL_ENTRADA_TARJETA_MARQUESINA` ([0.2,0.4], § su
+// docstring en `lib/animation.ts`) — RE-SECUENCIADA por § MARQUESINA-TARJETA-SECUENCIA-1: la
+// primera versión pasaba `UMBRAL_REVELADO_TEXTO` ([0,0.2], la MISMA ventana que la frase), lo que
+// hacía entrar frase y tarjeta JUNTAS; ver el bloque de `opacidadEntradaTarjetaMarquesina` más abajo
+// para el test que afirma la SECUENCIA.
 
 test('transformMarquesinaTarjeta: con `ventana` explícita, el recorte interno usa ESA ventana, no el default', () => {
-  const ventana = UMBRAL_REVELADO_TEXTO; // { desde: 0, hasta: 0.2 }
-  assert.equal(transformMarquesinaTarjeta(0, false, ventana), 'scale(0.850) rotate(-4.00deg)');
-  assert.equal(transformMarquesinaTarjeta(0.2, false, ventana), 'scale(1.000) rotate(0.00deg)');
-  assert.equal(transformMarquesinaTarjeta(0.1, false, ventana), 'scale(0.925) rotate(-2.00deg)');
+  const ventana = UMBRAL_ENTRADA_TARJETA_MARQUESINA; // { desde: 0.2, hasta: 0.4 }
+  assert.equal(transformMarquesinaTarjeta(0.2, false, ventana), 'scale(0.850) rotate(-4.00deg)');
+  assert.equal(transformMarquesinaTarjeta(0.4, false, ventana), 'scale(1.000) rotate(0.00deg)');
+  assert.equal(transformMarquesinaTarjeta(0.3, false, ventana), 'scale(0.925) rotate(-2.00deg)');
 });
 
 test('transformMarquesinaTarjeta: `ventana` explícita respeta el mismo recorte [0,1] en los bordes — antes de `desde` queda en el INICIO, después de `hasta` en el FINAL', () => {
-  const ventana = UMBRAL_REVELADO_TEXTO;
-  assert.equal(transformMarquesinaTarjeta(-0.5, false, ventana), transformMarquesinaTarjeta(0, false, ventana));
-  assert.equal(transformMarquesinaTarjeta(0.5, false, ventana), transformMarquesinaTarjeta(0.2, false, ventana));
+  const ventana = UMBRAL_ENTRADA_TARJETA_MARQUESINA;
+  assert.equal(transformMarquesinaTarjeta(-0.5, false, ventana), transformMarquesinaTarjeta(0.2, false, ventana));
+  assert.equal(transformMarquesinaTarjeta(0.5, false, ventana), transformMarquesinaTarjeta(0.4, false, ventana));
 });
 
 test('transformMarquesinaTarjeta: sin `ventana`, el default reproduce EXACTO el mismo resultado que antes de este slice (byte-idéntico para `Marquesina.tsx`)', () => {
@@ -162,8 +167,29 @@ test('transformMarquesinaTarjeta: sin `ventana`, el default reproduce EXACTO el 
   assert.equal(transformMarquesinaTarjeta(0.345, false), transformMarquesinaTarjeta(0.345, false, { desde: 0.12, hasta: 0.57 }));
 });
 
+// ── `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (§ MARQUESINA-TARJETA-SECUENCIA-1) — DERIVADA de
+// `UMBRAL_REVELADO_TEXTO`, no un segundo par de números suelto: arranca donde la de la frase
+// termina, y dura el MISMO ancho.
+
+test('UMBRAL_ENTRADA_TARJETA_MARQUESINA: arranca EXACTO donde UMBRAL_REVELADO_TEXTO termina — la frase y la tarjeta nunca se superponen', () => {
+  assert.equal(UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde, UMBRAL_REVELADO_TEXTO.hasta);
+});
+
+test('UMBRAL_ENTRADA_TARJETA_MARQUESINA: el mismo ANCHO que UMBRAL_REVELADO_TEXTO — misma cadencia de entrada, no una inventada', () => {
+  const anchoTexto = UMBRAL_REVELADO_TEXTO.hasta - UMBRAL_REVELADO_TEXTO.desde;
+  const anchoTarjeta = UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta - UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde;
+  assert.equal(anchoTarjeta, anchoTexto);
+});
+
+test('UMBRAL_ENTRADA_TARJETA_MARQUESINA: con los valores de hoy, [0.2, 0.4]', () => {
+  assert.equal(UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde, 0.2);
+  assert.equal(UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta, 0.4);
+});
+
 // ── `opacidadEntradaTarjetaMarquesina` (§ MARQUESINA-TARJETA-PRODUCTO-1) — la "aparición" que la
-// tarjeta no tenía: antes de este slice estaba a opacidad 1 constante desde el primer frame.
+// tarjeta no tenía: antes de ese slice estaba a opacidad 1 constante desde el primer frame.
+// RE-SECUENCIADA por § MARQUESINA-TARJETA-SECUENCIA-1: ya NO comparte ventana con la frase — ver el
+// bloque "LA SECUENCIA" más abajo para el test que afirma que las dos NO aparecen juntas.
 
 test('opacidadEntradaTarjetaMarquesina: estatico=true SIEMPRE 1 — la tarjeta visible por completo, nunca a medio aparecer para siempre', () => {
   assert.equal(opacidadEntradaTarjetaMarquesina(0, true), 1);
@@ -172,12 +198,16 @@ test('opacidadEntradaTarjetaMarquesina: estatico=true SIEMPRE 1 — la tarjeta v
   assert.equal(opacidadEntradaTarjetaMarquesina(-0.5, true), 1, 'estatico gana incluso con progreso fuera de rango');
 });
 
-test('opacidadEntradaTarjetaMarquesina: estatico=false, progreso=0 — 0, oculta en reposo, igual arranque que la frase', () => {
+test('opacidadEntradaTarjetaMarquesina: estatico=false, progreso=0 — 0, muy antes de que su propia ventana empiece', () => {
   assert.equal(opacidadEntradaTarjetaMarquesina(0, false), 0);
 });
 
-test('opacidadEntradaTarjetaMarquesina: estatico=false, progreso=UMBRAL_REVELADO_TEXTO.hasta — 1, PLENA (no el 0.9 de la frase) EN EL MISMO instante en que la frase termina de revelarse', () => {
-  assert.equal(opacidadEntradaTarjetaMarquesina(UMBRAL_REVELADO_TEXTO.hasta, false), 1);
+test('opacidadEntradaTarjetaMarquesina: estatico=false, progreso=UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde — 0, el ARRANQUE de su propia ventana, no 1', () => {
+  assert.equal(opacidadEntradaTarjetaMarquesina(UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde, false), 0);
+});
+
+test('opacidadEntradaTarjetaMarquesina: estatico=false, progreso=UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta — 1, PLENA (no el 0.9 de la frase)', () => {
+  assert.equal(opacidadEntradaTarjetaMarquesina(UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta, false), 1);
 });
 
 test('opacidadEntradaTarjetaMarquesina: más allá de la ventana — sigue en 1, nunca se pasa de la opacidad plena', () => {
@@ -185,14 +215,44 @@ test('opacidadEntradaTarjetaMarquesina: más allá de la ventana — sigue en 1,
   assert.equal(opacidadEntradaTarjetaMarquesina(1, false), 1);
 });
 
-test('opacidadEntradaTarjetaMarquesina: a mitad de la ventana, a mitad de camino — el MISMO punto donde `opacidadRevelaTextoDisplay` está a mitad de su propio techo', () => {
-  const medio = (UMBRAL_REVELADO_TEXTO.desde + UMBRAL_REVELADO_TEXTO.hasta) / 2;
-  assert.equal(opacidadEntradaTarjetaMarquesina(medio, false), 0.5);
-  assert.equal(opacidadRevelaTextoDisplay(medio, false), 0.5 * OPACIDAD_REVELADO_TECHO);
+test('opacidadEntradaTarjetaMarquesina: a mitad de SU PROPIA ventana — 0.5', () => {
+  const medio = (UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde + UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta) / 2;
+  assert.ok(Math.abs(opacidadEntradaTarjetaMarquesina(medio, false) - 0.5) < 1e-9);
 });
 
 test('opacidadEntradaTarjetaMarquesina: progreso se acota a [0,1] antes de mapear a la ventana — un negativo no pasa de 0', () => {
   assert.equal(opacidadEntradaTarjetaMarquesina(-0.5, false), opacidadEntradaTarjetaMarquesina(0, false));
+});
+
+test('opacidadEntradaTarjetaMarquesina: con `ventana` explícita, usa ESA ventana y no el default — mismo patrón que `transformMarquesinaTarjeta`', () => {
+  const ventana = { desde: 0, hasta: 0.2 };
+  assert.equal(opacidadEntradaTarjetaMarquesina(0, false, ventana), 0);
+  assert.equal(opacidadEntradaTarjetaMarquesina(0.1, false, ventana), 0.5);
+  assert.equal(opacidadEntradaTarjetaMarquesina(0.2, false, ventana), 1);
+});
+
+// ── LA SECUENCIA (§ MARQUESINA-TARJETA-SECUENCIA-1) — la frase TERMINA de aparecer antes de que la
+// tarjeta EMPIECE, nunca al mismo tiempo. Es el pedido literal del owner: "no debe salir al tiempo
+// con el marquee, sino una vez las letras han salido, luego salga el producto".
+
+test('LA SECUENCIA: mientras la frase SIGUE revelándose (dentro de su propia ventana, antes de terminar), la tarjeta sigue en 0 — no entran juntas', () => {
+  const dentroDeLaFrase = (UMBRAL_REVELADO_TEXTO.desde + UMBRAL_REVELADO_TEXTO.hasta) / 2; // 0.1
+  assert.ok(opacidadRevelaTextoDisplay(dentroDeLaFrase, false) > 0, 'la frase ya está apareciendo en ese punto');
+  assert.equal(opacidadEntradaTarjetaMarquesina(dentroDeLaFrase, false), 0, 'la tarjeta todavía no empezó');
+});
+
+test('LA SECUENCIA: en el instante EXACTO en que la frase termina de revelarse, la tarjeta recién ARRANCA (0), no está completa (1)', () => {
+  const finDeLaFrase = UMBRAL_REVELADO_TEXTO.hasta;
+  assert.equal(transformRevelaTextoDisplay(finDeLaFrase, false), 'translateY(0.0%)', 'la frase ya está en su lugar');
+  assert.equal(opacidadRevelaTextoDisplay(finDeLaFrase, false), OPACIDAD_REVELADO_TECHO, 'la frase ya terminó de aclarar');
+  assert.equal(opacidadEntradaTarjetaMarquesina(finDeLaFrase, false), 0, 'la tarjeta arranca desde 0, no estaba ya aparecida');
+});
+
+test('LA SECUENCIA: una vez la tarjeta está apareciendo, la frase YA está quieta en su lugar — no retrocede', () => {
+  const mediaTarjeta = (UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde + UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta) / 2;
+  assert.ok(opacidadEntradaTarjetaMarquesina(mediaTarjeta, false) > 0 && opacidadEntradaTarjetaMarquesina(mediaTarjeta, false) < 1);
+  assert.equal(transformRevelaTextoDisplay(mediaTarjeta, false), 'translateY(0.0%)');
+  assert.equal(opacidadRevelaTextoDisplay(mediaTarjeta, false), OPACIDAD_REVELADO_TECHO);
 });
 
 // ── `transformSubscripcionParallax` (§ SUSCRIPCION-POSTAL-DE-CIERRE-1) — extraída del inline de
@@ -584,11 +644,19 @@ test('MARQUEE_MASCARA_RELLENO_EM: un relleno MEDIDO (0.04em), menor que el 0.08e
 // `claseAlturaAncestroMarquesina` es lookup por LITERAL (mismo criterio que `gridColsPresentaciones`,
 // `lib/storefront/presentaciones.ts`): las TRES ramas son strings COMPLETOS para que Tailwind los vea.
 
-test('claseAlturaAncestroMarquesina: CON tarjeta, el presupuesto de SIEMPRE — 100svh + 200vh, MEDIDO contra `<xo-parallax class="h:300vh">`', () => {
-  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
+test('claseAlturaAncestroMarquesina: CON tarjeta, el presupuesto se ACORTÓ a 100svh + 100vh — § MARQUESINA-TARJETA-SECUENCIA-1, cierra el tramo muerto tras la tarjeta completa (antes: 200vh)', () => {
+  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+100vh)]');
 });
 
-test('claseAlturaAncestroMarquesina: SIN tarjeta, 100svh + 65vh — 200vh menos la ventana [0.12,0.57] de `transformMarquesinaTarjeta` (0.45×300vh=135vh), la porción sin nada que animar', () => {
+test('claseAlturaAncestroMarquesina: el extra CON tarjeta se DERIVA de las ventanas, no es un número suelto — H tal que el sticky se despinea justo al terminar el respiro', () => {
+  const cardEnd = UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta;
+  const respiro = (UMBRAL_ENTRADA_TARJETA_MARQUESINA.hasta - UMBRAL_ENTRADA_TARJETA_MARQUESINA.desde) / 2;
+  const pUnpin = cardEnd + respiro;
+  const extra = Math.round(100 / (1 - pUnpin) - 100);
+  assert.equal(claseAlturaAncestroMarquesina(true, false), `min-h-[calc(100svh+${extra}vh)]`);
+});
+
+test('claseAlturaAncestroMarquesina: SIN tarjeta, 100svh + 65vh — SIN CAMBIO en esta ronda ("sin tarjeta: todo como hoy")', () => {
   assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
 });
 
@@ -602,8 +670,8 @@ test('claseAlturaAncestroMarquesina: EN PREVIEW, el ancestro se colapsa a h-[100
   assert.equal(claseAlturaAncestroMarquesina(false, true), 'h-[100svh]');
 });
 
-test('claseAlturaAncestroMarquesina: fuera de preview, las dos ramas de SIEMPRE (200vh/65vh) quedan intactas — el storefront real no cambia', () => {
-  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
+test('claseAlturaAncestroMarquesina: fuera de preview, las dos ramas (100vh/65vh) quedan intactas por `preview` — `preview` no las afecta', () => {
+  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+100vh)]');
   assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
 });
 

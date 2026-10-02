@@ -5,6 +5,7 @@ import {
   ASPECTO_TARJETA_MARQUESINA,
   TOLERANCIA_ASPECTO_TARJETA_MARQUESINA,
   SIZES_TARJETA_MARQUESINA,
+  tamanoSiCompleta,
 } from './marquesina-tarjeta';
 
 // Capa 1 de la regla "borde a borde si coincide, el tile si no" (§ MARQUESINA-TARJETA-PRODUCTO-1).
@@ -59,4 +60,34 @@ test('SIZES_TARJETA_MARQUESINA: el breakpoint declarado es el viewport donde 62v
   );
   assert.match(SIZES_TARJETA_MARQUESINA, /340px/);
   assert.match(SIZES_TARJETA_MARQUESINA, /62vw/);
+});
+
+// ── `tamanoSiCompleta` (§ MARQUESINA-TARJETA-SECUENCIA-1) — el parpadeo entre recargas ───────────
+// Sin DOM: objetos planos que imitan la forma mínima de un `HTMLImageElement` que a esta función le
+// importa (`complete`/`naturalWidth`/`naturalHeight`), por eso corre en capa 1 sin jsdom.
+
+test('tamanoSiCompleta: imagen completa con dimensiones válidas → el tamaño', () => {
+  assert.deepEqual(tamanoSiCompleta({ complete: true, naturalWidth: 1500, naturalHeight: 2000 }), { w: 1500, h: 2000 });
+});
+
+test('tamanoSiCompleta: imagen TODAVÍA cargando (complete=false) → null, aunque ya tenga dimensiones parciales', () => {
+  assert.equal(tamanoSiCompleta({ complete: false, naturalWidth: 1500, naturalHeight: 2000 }), null);
+});
+
+test('tamanoSiCompleta: ausente (ref sin montar todavía) → null', () => {
+  assert.equal(tamanoSiCompleta(null), null);
+  assert.equal(tamanoSiCompleta(undefined), null);
+});
+
+test('tamanoSiCompleta: completa pero con dimensiones basura (imagen rota, error de carga) → null, no basura', () => {
+  assert.equal(tamanoSiCompleta({ complete: true, naturalWidth: 0, naturalHeight: 0 }), null);
+  assert.equal(tamanoSiCompleta({ complete: true, naturalWidth: 0, naturalHeight: 2000 }), null);
+  assert.equal(tamanoSiCompleta({ complete: true, naturalWidth: 1500, naturalHeight: 0 }), null);
+});
+
+test('tamanoSiCompleta: el resultado alimenta modoTarjetaMarquesina exactamente igual que el onLoad de siempre', () => {
+  const t = tamanoSiCompleta({ complete: true, naturalWidth: 1500, naturalHeight: 2000 });
+  assert.equal(modoTarjetaMarquesina(t?.w, t?.h), 'completa');
+  const cuadrada = tamanoSiCompleta({ complete: true, naturalWidth: 1000, naturalHeight: 1000 });
+  assert.equal(modoTarjetaMarquesina(cuadrada?.w, cuadrada?.h), 'tile');
 });
