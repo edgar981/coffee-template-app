@@ -19,6 +19,8 @@ import { decidirMolienda } from "@duna/core/moliendas-opciones";
 
 import { formatCOP } from "@duna/core/utils";
 
+import { fotoHover } from "@/lib/storefront/foto-hover";
+
 interface ProductCardProps {
   product: Product;
   /**
@@ -69,6 +71,18 @@ export default function ProductCard({
   // checkout para todo el catálogo.
   const decision = decidirMolienda(product.moliendasOpciones);
   const agregaDirecto = decision.modo === 'ninguna' || decision.modo === 'automatica';
+
+  // LA FOTO DE ATRÁS (§ TIENDA-HOVER-SEGUNDA-FOTO-1) — MISMA regla que el riel de Presentaciones
+  // (`GrindChooserRiel.tsx`, `TarjetaRiel`): al pasar el mouse, la card cambia a su primera toma
+  // ADICIONAL (`fotoHover`, § lib/storefront/foto-hover.ts, que envuelve `galeriaCompleta`). Pedido
+  // explícito del owner: esto aplica a LAS TRES tiendas, Nayoli incluida — por eso NO va detrás de
+  // `formaCustom` (el gate de las otras piezas de esta card que SÍ se restringen a CORTE/Onix/Las
+  // Chamisas, § el docstring de arriba). `null` sin una segunda foto → el `{fotoAtras && …}` de abajo
+  // no monta nada, y el `className` del frente queda EXACTAMENTE igual que antes de este slice (ver
+  // el `${…}` condicional, abajo) — es lo que mantiene a Nayoli byte-idéntica en reposo: su catálogo
+  // sembrado no tiene ningún producto con una segunda foto REAL (la de `imagenes[]` es la portada
+  // duplicada, que `galeriaCompleta` dedupea, § CLAUDE.md "Galería de producto").
+  const fotoAtras = fotoHover(product).atras;
 
   const handleAdd = (
     e: React.MouseEvent<HTMLButtonElement>
@@ -122,7 +136,24 @@ export default function ProductCard({
               alt={product.nombre}
               fill
               sizes={sizes}
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              className={`object-cover transition-transform duration-500 group-hover:scale-105${fotoAtras ? ' group-hover:opacity-0' : ''}`}
+            />
+          )}
+
+          {/* La foto de atrás (§ TIENDA-HOVER-SEGUNDA-FOTO-1) — MISMO `sizes` y la MISMA calidad
+              (default de `next/image`, sin `quality` propio) que la de arriba, montada siempre que
+              exista para que el crossfade no tenga que esperar una descarga al primer hover — el
+              navegador la carga igual de "lazy" que a la de arriba (sin `priority` en ninguna de
+              las dos), así que no se descarga antes de estar cerca del viewport. Sin segunda foto,
+              este bloque no monta nada y el `className` de la portada queda byte a byte igual al de
+              antes de este slice (el `${…}` de arriba no agrega nada cuando `fotoAtras` es falsy). */}
+          {fotoAtras && (
+            <Image
+              src={fotoAtras}
+              alt=""
+              fill
+              sizes={sizes}
+              className="object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
             />
           )}
 

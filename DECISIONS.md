@@ -43464,3 +43464,220 @@ Nada en la doctrina nombra estos símbolos — no hay frase que este cambio pued
 que esto aterrizaría sobre `main` incluye los bytes visibles de `MARQUESINA-TARJETA-SECUENCIA-1` y
 `RADIO-TARJETAS-IMAGEN-1`, ninguno aprobado para merge todavía. El gate completo corre verde
 (typecheck + 3078/3078 + 286/286); no se mergea. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+## 2026-10-02 — Las tarjetas de producto de /tienda y "Nuestro Catálogo" ganan la foto de atrás al hover, la MISMA regla que ya tenía el riel (`TIENDA-HOVER-SEGUNDA-FOTO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02,
+sobre el gate de Café Las Chamisas: *"Las imagenes de productos en /tienda tambien deberian tener lo
+de al hacer hover, mostrar la 2da o tercera img que el producto tenga asociado"*, y luego, en el
+mismo intercambio: *"El hover no solo en Onix y Las Chamisas, Nayoli tambien."* y *"it should also
+apply at the section 'Nuestro Catalogo. Seleccion del mes' at Nayoli's."*
+
+### Qué se hizo
+
+`components/storefront/home/GrindChooserRiel.tsx` (`TarjetaRiel`) ya hacía el crossfade a la foto de
+atrás desde `RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1`: al pasar el mouse (o con foco de teclado), la tarjeta
+cambia de `producto.imagen` a la primera toma ADICIONAL de su galería (`galeriaCompleta`, § Galería
+de producto). Esa lógica estaba inline, calculando `galeriaCompleta(producto.imagen,
+producto.imagenes)` dentro del componente.
+
+Se extrajo a **`lib/storefront/foto-hover.ts`** (`fotoHover`, con `lib/storefront/foto-hover.test.ts`,
+9 casos — la dedupe de la portada duplicada en `imagenes[]`, la foto sin portada, sin ninguna foto,
+etc.) y **`ProductCard.tsx`** (/tienda, y "Nuestro Catálogo · Selección del mes" de la home —
+`FeaturedProductsCuadricula.tsx`/`FeaturedProductsGrilla.tsx` la montan sin cambios, porque las dos
+delegan en `ProductCard` — medido, no asumido: ninguna de las dos necesitó un solo byte de edición,
+confirmado re-leyendo las dos después del cambio) ahora la **reusa**, en vez de recalcularla.
+`GrindChooserRiel.tsx` pasó a consumir `fotoHover` también, quedando como el primer refactor sin
+cambio de comportamiento (medido abajo, § Gate — riel antes/después).
+
+- **`fotoHover(producto)` devuelve `{ frente, atras }`** en una sola pasada por `galeriaCompleta`:
+  `frente` es `galeria[0]` tal cual (cada consumidor decide su propio fallback — `imagenPortada` en
+  el riel, el cuadro crema de `{imagen && …}` en `ProductCard`), `atras` es `galeria[1] ?? null`.
+- **En `ProductCard.tsx`**: un segundo `<Image>` montado SIEMPRE que `fotoHover(product).atras` sea
+  verdadero, con el MISMO `sizes` que la portada y SIN `quality` propio (la calidad por defecto de
+  `next/image`, igual que la primera) — mismo `sizes`/calidad que pide el spec. `opacity-0
+  transition-opacity duration-500 group-hover:opacity-100`; la portada gana `group-hover:opacity-0`
+  SÓLO cuando hay `atras` — el `className` se arma con `${fotoAtras ? ' …' : ''}` (espacio adentro
+  del condicional, no afuera) para que sin segunda foto el string quede BYTE A BYTE igual al de antes
+  de este slice — es lo que mantiene a Nayoli pixel-idéntica en reposo (§ Gate, abajo).
+- **"No se descarga hasta que hace falta si es posible sin parpadeo"**: la decisión es la MISMA que ya
+  tomó el riel — se MONTAN las dos imágenes siempre (nunca se difiere el montaje al hover, porque
+  eso causaría el parpadeo de esperar una descarga en el primer hover), y la carga la gobierna
+  `next/image` con su `loading="lazy"` de fábrica (ninguna de las dos lleva `priority`): el navegador
+  no las pide hasta que están cerca del viewport, igual que la portada ya se comportaba. No hay forma
+  de diferir MÁS (hasta el hover mismo) sin parpadeo; es el límite que ya aceptó el riel.
+- **Sin segunda foto, no hay cambio**: `{fotoAtras && (<Image…/>)}` no monta nada, y el `className`
+  de la portada queda idéntico — verificado que ningún producto de Nayoli hoy tiene una segunda foto
+  real (los 4 seeds traen `imagenes: [<la misma URL que imagen>]`, § CLAUDE.md "Galería de producto",
+  y `galeriaCompleta` dedupea eso a longitud 1).
+
+### El hallazgo de CORTE: "Nuestro Catálogo · Selección del mes" NO existe bajo ese preset
+
+El spec pedía capturas de esa sección "bajo CORTE y bajo Nayoli". Medido contra `lib/config/
+themes.ts` (preset CORTE, `variantes.featured: 'spotlight'`, § `SPOTLIGHT-CABLEADO-HOME-1`): CORTE
+—el preset de Café Onix y Café Las Chamisas— reemplaza esa sección por `Spotlight.tsx` (un único
+"producto insignia", no la malla de `FeaturedProductsCuadricula`/`Grilla`). La cita del owner que
+aprobó este slice ya lo decía así — *"at Nayoli's"*, no "en las tres tiendas" — así que el hallazgo
+confirma la lectura correcta del pedido, no una discrepancia. `/tienda`, en cambio, SIEMPRE usa
+`ProductCard` sin importar el preset (medido: las dos apariciones en `app/(storefront)/tienda/
+page.tsx` no cambian por tema), así que es la superficie que SÍ prueba el hover bajo CORTE; el riel
+es la otra superficie de catálogo que CORTE sí monta en su home (`variantes.presentaciones: 'riel'`).
+
+### Gate — capturas propias, árbol del arnés
+
+Arnés propio, no comiteado (`.scratch/arnes-hover.ts`, reusa `levantarPostgres`/`migrarYSembrar`/
+`entornoArbol`/`construir`/`arrancar`/`cargarPlaywright` de `scripts/verificar-nayoli-visual.ts` en
+vez de reescribirlos): Postgres efímero → `migrate deploy` + el seed canónico (identidad de Nayoli +
+catálogo real) → 2 productos sintéticos por SQL crudo (`arnes-hover-dos-fotos`: `imagen` +
+`imagenes` con una foto REAL distinta de la portada; `arnes-hover-una-foto`: `imagenes: []`, sin
+segunda foto) con `createdAt` 2000-01-01/02 para que sean las dos PRIMERAS del catálogo (`orderBy:
+createdAt asc`, `/api/catalog`) y entren tanto al riel (`TOPE_RIEL_PRODUCTOS=8`) como a
+"Nuestro Catálogo" (`.slice(0,4)`) → `next build` + `next start` → Playwright, Chromium 1440×900,
+capturando reposo+hover bajo "Nayoli" (sin preset) y luego, EN CALIENTE sobre el MISMO servidor
+(`app/(storefront)/layout.tsx` es `force-dynamic`, re-lee por request), tras aplicar el preset CORTE.
+
+**Medido, visto en las capturas (`.scratch/capturas-hover/`, no comiteadas):**
+
+| superficie | Nayoli (sin preset) | CORTE |
+| --- | --- | --- |
+| /tienda reposo | igual que antes del slice | igual que antes del slice |
+| /tienda hover, "dos fotos" | cambia a la segunda foto | cambia a la segunda foto |
+| /tienda hover, "una foto" | sin cambio (sólo el scale-105 de siempre) | sin cambio |
+| home "Nuestro Catálogo" reposo/hover | igual patrón que /tienda (la sección SÍ monta) | **sección no existe** (`featured:'spotlight'`, § arriba) |
+| riel reposo/hover | **sección no existe** (Nayoli no declara `presentaciones:'riel'`) | cambia a la segunda foto en "dos fotos"; sin cambio en "una foto" |
+
+### Gate — riel antes/después, MEDIDO con pixelmatch, no sólo "se ve igual"
+
+El dispatch concedió `checkout`/`switch`/`branch`/`add`/`commit`, no `git stash` — así que el
+antes/después no usó stash. Se capturó primero el estado DESPUÉS (la tabla de arriba), después se
+hizo `git checkout HEAD -- components/storefront/home/GrindChooserRiel.tsx` (revierte el archivo al
+commit padre, con el working tree limpio salvo este slice — `checkout` SÍ está concedido), se corrió
+el mismo arnés en modo "sólo riel" bajo CORTE, y se restauró el archivo editado reconstruyendo el
+diff exacto (confirmado con `git diff --stat` dando el MISMO `44 insertions(+), 8 deletions(-)` que
+antes de revertir, y con `presentaciones-riel.test.ts` volviendo a dar 20/20).
+
+**El antes/después no se juzgó a ojo**: `pixelmatch` (ya dependencia del repo, `guarda:color`/
+`verificar:nayoli:visual` ya lo usan) comparó las 3 capturas del riel bajo CORTE, antes vs. después,
+pixel a pixel:
+
+| captura | píxeles distintos |
+| --- | --- |
+| riel-reposo.png | **0 / 826.976** |
+| riel-hover-dos-fotos.png | **0 / 173.160** |
+| riel-hover-una-foto.png | **0 / 173.160** |
+
+Cero en las tres. "El riel queda exactamente como se ve hoy" está medido, no sólo refactorizado con
+cuidado.
+
+### Gate — el oficial
+
+`npm run gate` (typecheck + `npm test` + `npm run test:integracion`): **typecheck limpio**, `npm
+test` **3087/3087** (era 3078/3078; +9 son los casos nuevos de `foto-hover.test.ts`), `npm run
+test:integracion` **286/286** (sin cambio — este slice no toca nada que ese carril ejercite).
+
+`npm run guarda:color` (corre el harness completo porque la rama toca `SISTEMA_DE_COLOR`, comparado
+contra el fixture commiteado): `ruta-tienda`, `ruta-producto`, `ruta-checkout`, `ruta-nosotros`,
+`ruta-suscripciones`, `hover-automatica` y `hover-eleccion` → **IDÉNTICO (0 px)** los siete.
+`ruta-home` → DIFIERE, **164.889/4.608.000 px** (consciente de AA), caja `[105,862]–[1183,3166]`.
+
+`npm run verificar:nayoli:visual` (Nayoli sin preset, main vs. rama): el MISMO patrón —
+`ruta:tienda`, `ruta:producto`, `ruta:checkout`, `ruta:nosotros`, `ruta:suscripciones`,
+`hover:automatica`, `hover:eleccion` → **IDÉNTICO (0 px)**; `ruta:home` → DIFIERE, **164.889/
+4.608.000 px**, MISMA caja `[105,862]–[1183,3166]`.
+
+**La diferencia de `ruta-home`/`ruta:home` es la MISMA, exacta, que `NAYOLI-HOME-DRIFT-RAMA-
+PREEXISTENTE-1`** (§ `MARQUESINA-TARJETA-PRODUCTO-1`, arriba) ya documentó: mismo conteo de píxeles,
+misma caja. Ninguno de los dos archivos que este slice toca (`ProductCard.tsx`,
+`GrindChooserRiel.tsx`) participa del collage de BrandStory ni de las tarjetas de planes de
+suscripción, que es donde esa caja cae — y el hecho de que el número sea IDÉNTICO al ya medido por
+slices anteriores (que no tocaron estos dos archivos tampoco) es la prueba de que este diff no lo
+originó ni lo agrandó. **Capturas en Nayoli reposo: las SIETE rutas/hovers que SÍ corresponden a este
+diff —incluidas las dos de hover— dan 0 px, confirmando "en reposo Nayoli da igual" y, de yapa, que
+los dos estados de hover del fixture (`cafe-nayoli-grano-250g` automática, `verificar-visual-
+eleccion` elección) tampoco cambiaron: ninguno de los dos tiene segunda foto real, así que el
+crossfade no se activa para ellos** — exactamente la guarda del spec, medida contra el fixture real.
+
+### Censo contra CLAUDE.md (lo que este diff tocó)
+
+`grep` de los símbolos que este diff cambia (`ProductCard`, `GrindChooserRiel`, `TarjetaRiel`,
+`foto-hover`, `fotoHover`, `galeriaCompleta`, `FeaturedProductsCuadricula`, `FeaturedProductsGrilla`)
+contra `CLAUDE.md`:
+
+- **`ProductCard`** (7 apariciones): § "Montar un componente en OTRO árbol de providers…" (ProductCard
+  fuera de `CartProvider` revienta en runtime) — sin relación, este diff no toca providers ni dónde se
+  monta el componente; sigue siendo verdad. § Planes de Suscripción ("el TAMAÑO es el de ProductCard
+  VERBATIM") — sobre el precio/tipografía, que este diff no tocó; sigue siendo verdad. § Galería de
+  producto ("Las cards con guarda propia… ProductCard… ya renderizan un fallback de marca crema…no
+  necesitan el helper [`imagenPortada`]") — el guard `{product.imagen && …}` de la portada no se
+  tocó, y la foto de atrás nueva usa el MISMO patrón (`{fotoAtras && …}`, sin `imagenPortada`); sigue
+  siendo verdad.
+- **`GrindChooserRiel`/`TarjetaRiel`**: **cero** apariciones en `CLAUDE.md` — esta banda vive
+  documentada en `DECISIONS.md` y en el propio código, no en la doctrina general.
+- **`foto-hover`/`fotoHover`**: cero apariciones — símbolo nuevo de este slice, nada que pudiera
+  volverse falso.
+- **`FeaturedProductsCuadricula`/`FeaturedProductsGrilla`**: cero apariciones.
+- **`galeriaCompleta`** (3 apariciones, § "Galería de producto — `imagen` vs `imagenes[]`"): las tres
+  describen la composición/dedupe de `galeriaCompleta` y afirman que vive en **`lib/product-
+  gallery.ts`** y que está testeada en **`lib/product-gallery.test.ts`**. Medido: esos dos archivos
+  **no existen** — la Fase A del monorepo (§ CLAUDE.md "Monorepo (Fase A)") movió la galería a
+  `packages/core/src/product-gallery.ts`/`.test.ts`, y `galeriaCompleta` se importa en todo el repo
+  (incluido este diff, vía `@duna/core/product-gallery`) desde esa ruta. **Esta staleness YA EXISTÍA
+  antes de este slice** —el movimiento del archivo es anterior a `TIENDA-HOVER-SEGUNDA-FOTO-1`, y
+  este diff sólo CONSUME `galeriaCompleta` desde su ubicación real, igual que ya lo hacía
+  `GrindChooserRiel.tsx` antes de este cambio—, así que este diff no la vuelve MÁS falsa de lo que ya
+  era. Se anota como open follow-up, no se corrige acá (fuera de `touches:`).
+
+### `customer_bytes`
+
+**`changed: true`.** El propio diff de este slice cambia bytes que un visitante VE: al pasar el mouse
+sobre una tarjeta de producto con dos o más fotos (en /tienda, en "Nuestro Catálogo" de la home, o en
+el riel), la imagen cambia a la segunda foto — comportamiento nuevo, en las TRES tiendas (Nayoli
+incluida, por pedido explícito del owner). `strings: []` — no hay texto nuevo; el cambio es mecanismo
+visual (qué imagen se muestra al hover), no copy. Y, como ya venía pasando en los últimos asientos de
+esta rama, el merge que esto aterrizaría sobre `main` TAMBIÉN carga los bytes visibles de los slices
+anteriores sin mergear (`MARQUESINA-TARJETA-SECUENCIA-1`, `RADIO-TARJETAS-IMAGEN-1`,
+`HERO-MARQUESINA-TEST-SYNC-1`) — ninguno de ellos aprobado para merge todavía.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo Prisma, sin contrato cross-repo. `lib/storefront/
+foto-hover.ts` es una función pura sobre tipos ya existentes (`Product.imagen`/`.imagenes`).
+
+### Deviaciones
+
+- **El spec pedía capturas de "Nuestro Catálogo" bajo CORTE; esa sección no existe bajo CORTE**
+  (§ arriba, "El hallazgo de CORTE"). Medido contra `themes.ts` antes de intentar forzarla; se
+  documentó en vez de simular algo que el propio sistema de temas no produce. La cita de aprobación
+  del owner ya acotaba el pedido a "at Nayoli's", así que el hallazgo confirma la lectura correcta.
+- **Sin `git stash`** (no concedido a este dispatch): el antes/después del riel se hizo con
+  `git checkout HEAD -- <archivo>` + reconstrucción manual del edit + verificación de que el
+  `git diff --stat` y el test suite volvieron exactamente a donde estaban. Más pasos que un stash,
+  mismo resultado verificado.
+- **`FeaturedProductsCuadricula.tsx`, `FeaturedProductsGrilla.tsx`, `app/(storefront)/tienda/
+  page.tsx`** estaban en `touches:` pero terminaron con diff CERO: los tres delegan en `ProductCard`
+  sin lógica de imagen propia, así que el cambio en `ProductCard.tsx` basta. Verificado releyendo los
+  tres después del cambio (ninguno necesitaba edición), no asumido de entrada.
+
+### Open follow-ups
+
+- `CLAUDE-MD-GALERIA-PRODUCTO-RUTA-VENCIDA-1` — § "Galería de producto — `imagen` vs `imagenes[]`"
+  de `CLAUDE.md` sigue nombrando `lib/product-gallery.ts`/`lib/product-gallery.test.ts`; la ubicación
+  real desde la Fase A del monorepo es `packages/core/src/product-gallery.ts`/`.test.ts`. Pre-
+  existente a este slice (no lo causó); fuera de `touches:` de `TIENDA-HOVER-SEGUNDA-FOTO-1`.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-medido por este slice con el MISMO
+  resultado exacto (164.889/4.608.000 px, caja `[105,862]–[1183,3166]`) vía `guarda:color` Y
+  `verificar:nayoli:visual` — confirma otra vez que no está en el collage/suscripción tocado por
+  ningún slice reciente de esta rama. No tocado por `TIENDA-HOVER-SEGUNDA-FOTO-1` (fuera de
+  `touches:`).
+
+### Verdict
+
+**AWAITING_APPROVAL.** `stopped_on: ["customer-bytes"]` — el propio diff cambia bytes visibles al
+cliente (§ `customer_bytes`: `changed: true`, el crossfade de hover en las tres tiendas), y la rama
+además sigue cargando los customer-bytes de los slices anteriores sin aprobar. Sin schema, sin
+contrato cross-repo. Gate verde: typecheck + 3087/3087 + 286/286; `guarda:color` y
+`verificar:nayoli:visual` sin diferencias fuera de la ya documentada `NAYOLI-HOME-DRIFT-RAMA-
+PREEXISTENTE-1`; riel antes/después en 0 px medido con pixelmatch. El dispatch pide explícitamente
+parar en `AWAITING_APPROVAL` sin mergear. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `TIENDA-HOVER-SEGUNDA-FOTO-1`.**

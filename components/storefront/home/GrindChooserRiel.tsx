@@ -14,7 +14,7 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { formatCOP } from "@duna/core/utils";
-import { galeriaCompleta } from "@duna/core/product-gallery";
+import { fotoHover } from "@/lib/storefront/foto-hover";
 import { decidirMolienda } from "@duna/core/moliendas-opciones";
 import { imagenPortada } from "@/lib/producto-imagen";
 import { useCartStore } from "@/lib/cartStore";
@@ -104,9 +104,15 @@ import RevelarBloque from "@/components/storefront/RevelarBloque";
 //
 // SIN TARJETA "ACTIVA" AGRANDADA: `useIndiceCentrado`/el resaltado por-scroll (`.pres-card.is-active`)
 // se RETIRARON (§ el docstring que queda en su lugar en `lib/animation.ts`). En su reemplazo, CADA
-// tarjeta cambia a su PROPIA "foto de atrás" —la primera adicional de su galería, `galeriaCompleta`—
-// al pasar el mouse (o con foco de TECLADO, § VISTA-RAPIDA-CENTRADA-1 abajo) — un crossfade de
-// opacidad, sin escalar ni atenuar las vecinas. Sin foto de atrás, la portada se queda quieta.
+// tarjeta cambia a su PROPIA "foto de atrás" —la primera adicional de su galería— al pasar el
+// mouse (o con foco de TECLADO, § VISTA-RAPIDA-CENTRADA-1 abajo) — un crossfade de opacidad, sin
+// escalar ni atenuar las vecinas. Sin foto de atrás, la portada se queda quieta.
+//
+// EL PAR frente/atrás SE EXTRAJO a `lib/storefront/foto-hover.ts` (§ TIENDA-HOVER-SEGUNDA-FOTO-1):
+// `fotoHover` envuelve `galeriaCompleta` para que `ProductCard.tsx` (/tienda y "Nuestro Catálogo"
+// de la home) reuse la MISMA regla en vez de recalcularla — el mismo criterio de siempre: dos
+// tarjetas que decidan "cuál es la foto de atrás" por su cuenta son dos sitios donde eso puede
+// divergir.
 //
 // FOCO DE TECLADO, NO `:focus-within` A SECAS — § VISTA-RAPIDA-CENTRADA-1 (2026-09-30). El gate del
 // owner: "si doy click en el 'ojo' para la vista previa, y me salgo, luego la imagen del producto
@@ -272,9 +278,8 @@ interface TarjetaRielProps {
 }
 
 export function TarjetaRiel({ producto, negocio, navHoverClase, preview, index, onEye, onCart }: TarjetaRielProps) {
-  const galeria = galeriaCompleta(producto.imagen, producto.imagenes);
-  const fotoFrente = imagenPortada(galeria[0]);
-  const fotoAtras = galeria[1];
+  const { frente, atras: fotoAtras } = fotoHover(producto);
+  const fotoFrente = imagenPortada(frente);
   const href = `/tienda/${producto.slug}`;
   return (
     <motion.div
