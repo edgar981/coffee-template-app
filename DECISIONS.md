@@ -42863,3 +42863,179 @@ pendiente del gate del orquestador — este slice, por instrucción del dispatch
   un estado anterior a `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, no lo vuelve más falso.
 
 **Cierra `FAVICON-MISMO-ORIGEN-1`.**
+
+## 2026-10-02 — La tarjeta de la marquesina llena el tile borde a borde con fotos 3:4, y su entrada se alinea a la de la frase (`MARQUESINA-TARJETA-PRODUCTO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02:
+*"Initially in Onix we were showing after the marquee, an image of the product on top of the marquee,
+when doing scroll, I'd like to add it to las chamisas. You need to verify that has the same transition
+entrance that the marquee's phrase and the image of the product is correctly shown, no extra borders,
+no crops, as in Cafeone."* El orquestador enciende el dato (`marquesina.productoSlug`) para Café Las
+Chamisas por fuera de este slice; acá va el código que hace que, cuando se encienda, se vea bien.
+
+### 1 · El marco — medido, no asumido
+
+`HeroMediaMarquesina.tsx` ("LA TARJETA") ya reproducía el tile del prototipo de Cafeone verbatim
+(`.marquee-card`, `docs/prototipos/cafeone/css/app.css:424-431`): `aspect-[3/4]` con fondo propio
+(`--sf-tarjeta`, blanco por defecto) y `p-8`, foto `object-contain` centrada. Esa forma asume que la
+foto NO llena la caja. Las fotos de Café Las Chamisas son generadas, 3:4, ≥1500px, **con su propio
+fondo de estudio** — dentro del padding, ese fondo (casi nunca idéntico al `--sf-tarjeta`) se ve como
+un anillo del color del tile alrededor del color de la foto: el "marco" que el owner no quiere.
+
+**Es el MISMO defecto, con la MISMA causa, que `FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1` (2026-09-30,
+esta misma rama) ya midió y cerró para el destacado (`Spotlight.tsx`) y el riel (`GrindChooserRiel.tsx`)**:
+"la premisa que justificaba `contain` —una foto cuya proporción real no sea exactamente 3:4— ya no
+aplica: las fotos son 3:4, la MISMA proporción del tile". Esos dos sitios resolvieron pasando a
+`object-cover` **incondicional** (su catálogo siempre trae fotos 3:4 generadas a propósito para ese
+tile). Acá NO se pudo copiar esa salida tal cual: esta tarjeta muestra la portada del producto que el
+operador apunte con `marquesina.productoSlug` —la MISMA que ya usa en catálogo/PDP/carrito—, no una
+foto dedicada a este slot, así que no hay garantía de que sea 3:4 el día que alguien apunte a otro
+producto. La regla se **DERIVA** de la proporción real, en `lib/storefront/marquesina-tarjeta.ts`
+(nuevo, con test): `modoTarjetaMarquesina(ancho, alto)` → `'completa'` (borde a borde, sin padding ni
+fondo propio, `object-cover`) si la foto coincide con `aspect-[3/4]` (tolerancia 2%, para el redondeo
+de píxeles de una foto generada); `'tile'` (el prototipo, sin cambios) en cualquier otro caso —el modo
+que NUNCA recorta, y por eso también el default mientras no hay medición (`undefined`/0/negativo).
+
+**La proporción se mide en el navegador, nunca se asume**: `Product` no guarda ancho/alto (no hay ese
+campo en el schema), así que `HeroMediaMarquesina.tsx` lee `naturalWidth`/`naturalHeight` del `<img>`
+ya decodificado vía `onLoad` del `<Image>`, y resetea la medición al cambiar de producto (`useEffect`
+sobre `producto?.slug`) para que la proporción de la foto VIEJA no sobreviva un frame en la NUEVA.
+Antes de medir, cae a `'tile'` — el mismo look de siempre, byte-idéntico hasta que la medición llega.
+
+`SIZES_TARJETA_MARQUESINA` reemplaza el `sizes="340px"` plano (pedía el ancho del TECHO para todo
+viewport) por `"(min-width: 549px) 340px, 62vw"` — el breakpoint real donde `62vw` alcanza los 340px
+del tile (`w-[min(340px,62vw)]`, `340/0.62≈548.39px`). El DPR lo sigue resolviendo el navegador solo
+(combina `sizes` con el `srcset` de anchos que `next/image` ya genera), no hace falta una cuenta aparte.
+
+### 2 · La entrada — medida contra la propia frase, no contra un tema externo
+
+"Onix" acá es el preset **CORTE** (el mismo que usa Café Las Chamisas) aplicado sobre la base efímera
+— el spec de este slice monta la verificación sembrando CORTE + un producto en Postgres efímero, no
+contra ningún sitio de terceros. Medido en el código (ya existente, sin cambios hasta este slice):
+
+| | frase ("Calidad que se nota…") | tarjeta (antes de este slice) |
+| --- | --- | --- |
+| aparición | SÍ — máscara (`overflow-hidden`) + `translateY(100%→0%)` + opacidad `0→0.9` | **NO** — opacidad 1 desde el primer frame, nunca oculta |
+| arranque (progreso) | 0 | 0.12 |
+| duración (progreso) | hasta 0.2 (`UMBRAL_REVELADO_TEXTO`) | hasta 0.57 |
+| curva | lineal (clamped) | lineal (clamped) |
+
+Dos arranques y dos duraciones distintas para lo que el spec pide como UNA sola "entrada" — y la
+tarjeta, de fondo, no tenía ninguna aparición que alinear: estaba completamente visible (sólo
+escalaba/rotaba) desde el instante en que el visitante empezaba a scrollear.
+
+**El arreglo reusa la MISMA fuente de progreso (`progreso`, ya compartida por las dos en
+`HeroMediaMarquesina.tsx`) y la MISMA constante de ventana (`UMBRAL_REVELADO_TEXTO`), sin inventar
+números nuevos:**
+
+- `transformMarquesinaTarjeta` (`lib/animation.ts`) gana un tercer parámetro OPCIONAL `ventana`
+  (`{desde, hasta}`), con DEFAULT `{desde:0.12, hasta:0.57}` — el recorte original, byte-idéntico.
+  `Marquesina.tsx` (la banda SUELTA, fuera de `touches:` de este slice) sigue llamándola con dos
+  argumentos, así que **no cambia** — verificado por ejecución: con y sin el tercer argumento, el
+  mismo `progreso` produce el mismo string (`lib/animation.test.ts`, el bloque nuevo bajo `ventana`).
+  `HeroMediaMarquesina.tsx` pasa `UMBRAL_REVELADO_TEXTO` explícito.
+- `opacidadEntradaTarjetaMarquesina` (nueva): reusa `progresoRevelado` (privada, construida sobre
+  `UMBRAL_REVELADO_TEXTO`) — la MISMA función que ya usa `opacidadRevelaTextoDisplay` para la frase —,
+  pero el TECHO es 1 (opacidad plena), no `OPACIDAD_REVELADO_TECHO` (0.9): ese 0.9 es una decisión de
+  legibilidad sobre texto blanco ("que no sea un blanco tan claro al que llegan"), ajena a una foto de
+  producto. `estatico` (reduced-motion/preview) rinde 1, el mismo criterio de siempre.
+
+El párrafo de `claseAlturaAncestroMarquesina` que justifica el presupuesto de scroll (200vh con
+tarjeta) citando la ventana `[0.12,0.57]` de `transformMarquesinaTarjeta` se dejó ANOTADO (no
+reescrito): ese recorte sigue siendo el DEFAULT de la función y el que `Marquesina.tsx` usa; lo que
+cambió es que `HeroMediaMarquesina.tsx` ya no lo consume. El presupuesto de 200vh/65vh en sí **no se
+re-derivó** — no era parte de este pedido, y tocar el ritmo del scroll pineado es una decisión de
+producto aparte.
+
+### Verificación — Postgres efímero, preset CORTE, dos fotos de prueba, dos motores
+
+Fuera de `touches:`, sin comitear (`.scratch/verificar-marquesina.{sh,ts}`, `.scratch/` está
+gitignored): Postgres efímero propio (reusa `scripts/postgres-efimero.sh`) → `migrate deploy` →
+`aplicarPreset(CORTE)` + dos productos sembrados por `prisma.product.upsert` (A: foto 1500×2000,
+exactamente 3:4, con fondo MAGENTA y relleno CREMA — el "fondo propio" del spec; B: foto 1200×1200,
+1:1, mismos colores, para el caso "si no") + `guardarBorrador`/`publicarSeccion('marquesina')` apuntando
+`productoSlug` a cada uno por turno (el mismo camino de escritura real del panel, no un `UPDATE` a
+mano) → `next build` + `next start` → Playwright, Chromium 1440×900 y WebKit con el device `iPhone 13`
+(390×664 @3×, confirmado disponible en `.arnes-tooling/playwright`), tres posiciones de scroll
+(progreso ≈0.05, 0.15, 0.5) por producto y motor.
+
+**Medido (los dos motores dan el mismo resultado):**
+
+| producto | padding | background | object-fit | pixel borde @progreso≈0.5 | pixel centro @progreso≈0.5 |
+| --- | --- | --- | --- | --- | --- |
+| A (3:4, fondo propio) | `0px` | `rgba(0,0,0,0)` | `cover` | `(229,0,179)` ≈ magenta puro (230,0,180) | `(217,201,161)` ≈ crema puro (216,201,160) |
+| B (1:1) | `32px` (= `p-8`) | `rgb(255,255,255)` (= `--sf-tarjeta` default) | `contain` | `(255,255,255)` blanco — el tile, correcto | `(217,201,161)` ≈ crema puro |
+
+El pixel-borde de A en magenta puro (el color del BORDE de la foto, no un blanco de tile) confirma a
+la vez las dos cosas que el spec pide: **sin marco** (si hubiera un anillo del tile se vería blanco,
+no magenta) y **sin recorte** (el borde de la foto, a 40px del límite real de la imagen, sobrevive
+hasta el borde del tile — un `cover` que recortara lo habría comido). El pixel-borde de B en blanco
+puro confirma que el fallback `'tile'` sigue intacto (el prototipo de siempre, sin regresión). Capturas
+completas (3 posiciones × 2 productos × 2 motores) en `.scratch/capturas-marquesina/`, no comiteadas.
+Visualmente: a progreso≈0.15 (dentro de `[0,0.2]`) la frase y la tarjeta se ven apareciendo JUNTAS, a
+opacidad parcial las dos — antes de este slice la tarjeta ya habría estado 100% opaca ahí.
+
+**Límite declarado:** el "fondo propio" del spec se simuló con una foto sintética (magenta/crema), no
+con una foto real de Café Las Chamisas — no había ninguna disponible desde este carril (mismo límite
+que ya declaró `GrindChooserRiel.tsx`, "no hay acceso a las imágenes subidas de un tenant real desde
+este carril"). La regla depende sólo de la PROPORCIÓN, no del contenido de la foto, así que el
+mecanismo verificado es el mismo que aplicará a la foto real.
+
+### Gate
+
+`npm run gate` (typecheck + `npm test` + `npm run test:integracion`): typecheck limpio, **3064/3064**
+unitarios, **286/286** de integración. `npm run guarda:color` reporta `ruta-home` DISTINTA (164889/
+4608000 px) — medido DOS VECES, con y sin este diff (revirtiendo `HeroMediaMarquesina.tsx`/
+`lib/animation.ts`/`lib/animation.test.ts` al commit padre `2559a17` vía `git checkout`, re-corriendo,
+y restaurando), **la MISMA cifra exacta las dos veces, mismo recuadro `[105,862]–[1183,3166]`** — el
+diff vive en el collage de BrandStory ("Detrás de cada pedido") y las tarjetas de planes de
+suscripción, nada relacionado con el hero/la marquesina. `npm run verificar:nayoli:visual` (que
+compara contra `main` en vez del fixture commiteado) da el MISMO número exacto. **Es un piso heredado
+de la rama, no un efecto de este slice** — queda como `open_followup` (abajo), no se investiga más
+acá (fuera de `touches:`).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `HeroMediaMarquesina.tsx`, `transformMarquesinaTarjeta`,
+`opacidadEntradaTarjetaMarquesina`, `lib/storefront/marquesina-tarjeta.ts`, `modoTarjetaMarquesina`,
+`ASPECTO_TARJETA_MARQUESINA`, `SIZES_TARJETA_MARQUESINA`, `UMBRAL_REVELADO_TEXTO`,
+`claseAlturaAncestroMarquesina`. Grepeados uno por uno (y "marquesina" a secas, case-insensitive, por
+si acaso): **CERO coincidencias en `CLAUDE.md` para cada uno** — el archivo no nombra esta banda ni
+sus funciones. Nada que declarar falso.
+
+### `customer_bytes`
+
+**`changed: false`** hoy, para TODO tenant existente: `HeroMediaMarquesina.tsx` sólo renderiza bajo
+`hero:'sticky'` (hoy únicamente CORTE/Café Las Chamisas y Café Onix), y el cambio de comportamiento
+—el modo `'completa'`— sólo se activa cuando la foto apuntada por `marquesina.productoSlug` mide 3:4.
+**Café Onix YA tiene la tarjeta encendida**: si su producto pineado resulta ser 3:4, un visitante de
+Onix verá la foto borde a borde en vez de con el marco de antes (una MEJORA del mismo defecto, no una
+regresión) y la tarjeta entrará con fade sincronizado a la frase en vez de opaca desde el inicio.
+**Café Las Chamisas no ve nada todavía**: el dato (`marquesina.productoSlug`) lo enciende el
+orquestador en un slice aparte, fuera de este. `strings: []` — ningún texto nuevo; el cambio es
+mecanismo visual (object-fit/padding/opacidad), no copy.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo, sin contrato cross-repo.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — `ruta-home` de Nayoli sin preset difiere del fixture
+  commiteado (y de `main`) en 164889/4608000 px, en el collage de BrandStory y las tarjetas de planes
+  de suscripción — MEDIDO como preexistente a este slice (idéntico con y sin su diff, y medido
+  contra `main` con `verificar:nayoli:visual`). No se investiga acá: ninguno de los archivos de este
+  slice toca esas dos secciones. Alguien debe correr `guarda:color`/`verificar:nayoli:visual` en modo
+  bisección sobre los commits de `slice/corte-reescritura-prototipo-1` para encontrar qué slice lo
+  introdujo, o decidir si el fixture necesita regenerarse.
+
+### Verdict
+
+**AWAITING_APPROVAL (`owner-gate-requested`)** — el diff no toca schema, no cambia bytes de producto
+para ningún tenant existente hoy, y no toca un contrato cross-repo (§ `customer_bytes`: `changed:
+false`); el único motivo de parada es que el dispatch lo pide explícito. *"SEGUÍS LA RAMA… PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."* Gate verde (typecheck + 3064 + 286); el hallazgo preexistente de
+`ruta-home` queda registrado y no bloquea este slice (medido como ajeno a su diff). Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `MARQUESINA-TARJETA-PRODUCTO-1`.**
