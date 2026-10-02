@@ -77,6 +77,52 @@ export function iconosManifestDeTienda(icono: string): IconoManifest[] {
 }
 
 /**
+ * El fallback de CADA ruta literal que un navegador pide A CIEGAS, sin leer el `<link rel="icon">`
+ * del HTML (§ FAVICON-RUTA-POR-TIENDA-1, el open-followup `METADATA-FAVICON-PROBE-CIEGO-1` que
+ * este slice cierra): el archivo ESTÁTICO de hoy (Nayoli, bajo `public/`) y su `Content-Type` —para
+ * cuando la tienda NO subió su propio ícono. El `Content-Type` es el que un servidor estático
+ * resuelve por extensión (`image/vnd.microsoft.icon` para `.ico`, el tipo registrado en IANA — es
+ * el mismo bit que muchos llaman `image/x-icon`; `image/png` para el PNG cuadrado de Apple).
+ */
+export const ICONOS_ESTATICOS_POR_RUTA = {
+  favicon: { archivo: 'favicon.ico', contentType: 'image/vnd.microsoft.icon' },
+  apple: { archivo: 'apple-icon.png', contentType: 'image/png' },
+} as const;
+
+/** Las dos rutas literales que `GET /api/icono-tienda` resuelve (§ `proxy.ts`, el rewrite). */
+export type VarianteIconoRuta = keyof typeof ICONOS_ESTATICOS_POR_RUTA;
+
+/**
+ * El header de REQUEST por el que `proxy.ts` le dice a `GET /api/icono-tienda` qué variante pedir
+ * — NO un query param. Medido contra el dev server real: un `?variante=` puesto en el `URL` del
+ * rewrite (`NextResponse.rewrite(destino)`) no llegaba al route handler — `request.nextUrl.
+ * searchParams` resolvía siempre a la primera variante usada, da igual cuál (reproducido
+ * invirtiendo el orden: hitear `/apple-touch-icon.png` primero también daba el favicon estático).
+ * El header, en cambio, SÍ llega — mismo mecanismo, ya en uso en este archivo de proxy, que
+ * `ENCABEZADO_MODO_EDITOR` usa para pasarle al storefront si está en modo editor
+ * (`NextResponse.rewrite(destino, { request: { headers } })`, § `lib/admin/editor-iframe.ts`).
+ */
+export const ENCABEZADO_VARIANTE_ICONO = 'x-icono-variante';
+
+export type DecisionIconoRuta =
+  | { tipo: 'subido'; url: string }
+  | { tipo: 'estatico'; archivo: string; contentType: string };
+
+/**
+ * La decisión de `GET /api/icono-tienda` (§ FAVICON-RUTA-POR-TIENDA-1): con ícono subido
+ * (`content.logo.icono`, la MISMA fuente que `iconosDeTienda` arriba), la ruta debe REDIRIGIR ahí;
+ * vacío, cae al archivo estático de HOY para esa variante — nunca una URL rota, mismo criterio que
+ * `iconosDeTienda`/`iconosManifestDeTienda`. Pura: DECIDE, no EJECUTA — el route handler hace el
+ * redirect o la lectura de archivo reales; así la decisión se afirma en capa 1 sin tocar `fs` ni
+ * `next/server`.
+ */
+export function decidirIconoRuta(icono: string, variante: VarianteIconoRuta): DecisionIconoRuta {
+  const url = icono.trim();
+  if (url !== '') return { tipo: 'subido', url };
+  return { tipo: 'estatico', ...ICONOS_ESTATICOS_POR_RUTA[variante] };
+}
+
+/**
  * Título + descripción de la tienda, en la forma `absolute`+`template` que evita la trampa ya
  * documentada (§ Identidad, CLAUDE.md): un `title.default` de segmento hijo SIGUE pasando por el
  * `template` de la raíz (Nayoli), así que la home salía duplicada "Café Nayoli · Café Nayoli".

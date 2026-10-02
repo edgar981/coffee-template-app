@@ -7,9 +7,48 @@ import { destinoDesdeInventario } from "@/lib/redirect-inventario";
 import { destinoDesdeEntregas } from "@/lib/redirect-entregas";
 import { destinoDesdeConfig } from "@/lib/redirect-config";
 import { PARAM_MODO_EDITOR, VALOR_MODO_EDITOR, ENCABEZADO_MODO_EDITOR } from "@/lib/admin/editor-iframe";
+import { ENCABEZADO_VARIANTE_ICONO, type VarianteIconoRuta } from "@/lib/config/metadata-tienda";
+
+// ── EL ÍCONO DE LA PESTAÑA POR RUTA LITERAL (§ FAVICON-RUTA-POR-TIENDA-1) ──────────────────────
+//
+// Cierra el open-followup `METADATA-FAVICON-PROBE-CIEGO-1` (METADATA-ICONOS-Y-LANG-POR-TIENDA-1):
+// un navegador (o iOS, pidiendo el ícono para "Agregar a pantalla de inicio") solicita estas TRES
+// rutas LITERALES sin leer el `<link rel="icon">`/`apple-touch-icon` del `<head>` — así que una
+// tienda con su propio ícono (`content.logo.icono`) seguía mostrando el estático de Nayoli en la
+// pestaña real, aunque el `<link>` ya apuntara al suyo (§ `(storefront)/layout.tsx`, el LÍMITE
+// CONOCIDO que ese slice dejó anotado).
+//
+// Se REESCRIBEN (rewrite — el navegador NO ve cambiar la URL, a diferencia de un redirect) hacia
+// `/api/icono-tienda`, que decide con una consulta a `SiteContent` (§ ese route handler). No hay
+// riesgo de loop: el destino (`/api/icono-tienda`) nunca es una clave de este mapa, así que el
+// rewrite no puede volver a entrar acá. No se puede borrar ni mover `public/favicon.ico` ni
+// `public/apple-icon.png` (fuera de alcance de este slice) y un archivo de `public/` con el mismo
+// path que una ruta de `app/` choca en Next — por eso la decisión vive en OTRO path, nunca en
+// estos tres.
+//
+// La variante viaja por HEADER de request (`ENCABEZADO_VARIANTE_ICONO`), NUNCA por query param en
+// la URL del rewrite — medido contra el dev server real: un `?variante=` ahí no le llegaba al route
+// handler (`request.nextUrl.searchParams` resolvía siempre a la primera variante usada, sin importar
+// cuál). Mismo mecanismo que ya usa este archivo para el modo editor (abajo,
+// `NextResponse.next({ request: { headers } })`), aplicado acá vía `NextResponse.rewrite(destino, {
+// request: { headers } })`.
+const RUTA_A_VARIANTE_ICONO: Record<string, VarianteIconoRuta> = {
+  "/favicon.ico": "favicon",
+  "/apple-touch-icon.png": "apple",
+  "/apple-touch-icon-precomposed.png": "apple",
+};
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const varianteIcono = RUTA_A_VARIANTE_ICONO[pathname];
+  if (varianteIcono) {
+    const headersIcono = new Headers(request.headers);
+    headersIcono.set(ENCABEZADO_VARIANTE_ICONO, varianteIcono);
+    return NextResponse.rewrite(new URL("/api/icono-tienda", request.url), {
+      request: { headers: headersIcono },
+    });
+  }
 
   if (pathname.startsWith("/admin")) {
     const session = getSessionCookie(request);
@@ -114,5 +153,17 @@ export const config = {
   // propósito, y cualquier desvío dentro del iframe vuelve ahí solo
   // (`VistaTiendaIframe.tsx`, el vigía de ruta) — nunca por un `?editor=1` colado
   // en otra ruta.
-  matcher: ["/admin(.*)", "/", "/nosotros", "/suscripciones"],
+  //
+  // Las TRES últimas son `RUTA_A_VARIANTE_ICONO` (§ FAVICON-RUTA-POR-TIENDA-1, arriba):
+  // literales exactos, no un patrón — un matcher no puede matchear "por archivo público", y
+  // ampliarlo más de lo que ese mapa nombra dejaría pasar requests que no van a ese bloque.
+  matcher: [
+    "/admin(.*)",
+    "/",
+    "/nosotros",
+    "/suscripciones",
+    "/favicon.ico",
+    "/apple-touch-icon.png",
+    "/apple-touch-icon-precomposed.png",
+  ],
 };

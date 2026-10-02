@@ -41430,3 +41430,210 @@ deliberada del owner, § arriba) — eso sigue en rojo hasta que alguien con esa
   compartido — `REVELA_BLOQUE_MARGEN` es un solo valor hoy, a propósito.
 
 **Cierra `SECCIONES-ENTRAN-VIVAS-1`.**
+
+## 2026-10-01 — `/favicon.ico` y `apple-touch-icon(-precomposed).png` sirven el ícono de la tienda, no el estático de Nayoli — cierra el probe ciego (`FAVICON-RUTA-POR-TIENDA-1`)
+
+Gate del owner sobre la demo de Café Las Chamisas (2026-10-01), reportado DESPUÉS de
+`METADATA-ICONOS-Y-LANG-POR-TIENDA-1`: *"I opened the page in private still shows Nayolis
+favicon"*. Es el open-followup `METADATA-FAVICON-PROBE-CIEGO-1` que ese slice dejó nombrado y sin
+construir: el `<link rel="icon">` del `<head>` YA apuntaba al ícono subido (`content.logo.icono`),
+pero un navegador que pide la URL LITERAL `/favicon.ico` sin leer ese `<link>` —y lo mismo hace iOS
+con `apple-touch-icon(-precomposed).png` al "Agregar a pantalla de inicio"— seguía recibiendo el
+`.ico`/`.png` ESTÁTICO de `public/` (Nayoli), porque esas tres rutas literales nunca consultaban
+`SiteContent`.
+
+### Lo medido por el orquestador antes de este slice
+
+`curl` contra la demo: el HTML de la home ya traía `<link rel="icon">`/`shortcut icon`/
+`apple-touch-icon` apuntando al ícono subido; `GET /favicon.ico` en el MISMO dominio respondía 200
+con el `.ico` estático de `public/`, `cache-control: public, max-age=3600` (la regla ya existente
+de `next.config.ts`, § ICONOS DE MARCA DEL STOREFRONT).
+
+### La restricción de mecanismo, y por qué cae en `proxy.ts` + una ruta nueva
+
+No hay permiso para borrar/mover `public/favicon.ico` ni `public/apple-icon.png`, y un archivo de
+`public/` con el mismo path que una ruta de `app/` choca en Next — así que no se puede crear
+`app/favicon.ico/route.ts`. La salida: `proxy.ts` reescribe (REWRITE, no redirect — el navegador no
+ve cambiar la URL) las tres rutas literales hacia `GET /api/icono-tienda` (nuevo), que decide
+contra `SiteContent` real: con ícono subido, un 307 al ícono; sin él, los MISMOS bytes de hoy. Sin
+riesgo de loop — el destino nunca es una clave del mapa de rutas que dispara el rewrite.
+
+`decidirIconoRuta(icono, variante)` (`lib/config/metadata-tienda.ts`, puro) es la decisión; el
+route handler sólo la EJECUTA (redirect real o `fs.readFile` del estático). Lee `content.logo.icono`
+vía `readSiteContent` — el lector RAW, NO el `getSiteContent` cacheado que usan `(storefront)/
+layout.tsx` y `app/api/manifest/route.ts` —: esto es un route handler, no un render, y RAW es lo
+único que el test de integración puede importar sin que `server-only` reviente la resolución del
+módulo fuera de Next (medido: el paquete `server-only` no existe en `node_modules` — `require.
+resolve('server-only')` da `MODULE_NOT_FOUND`; sólo Next lo resuelve vía su propio bundler).
+
+### EL BUG MEDIDO, y por qué la variante viaja por HEADER y no por query param
+
+El primer diseño pasaba la variante (`favicon`/`apple`) como `?variante=` en la URL del
+`NextResponse.rewrite(destino)`. Contra un `next dev` real (Postgres efímero, migrate, `next dev
+-p 3999`, `fetch` directo): **la variante nunca le llegaba al route handler a través del rewrite**.
+`/favicon.ico` y `/apple-touch-icon.png` devolvían AMBOS el fallback de `favicon` (1389 bytes,
+`image/vnd.microsoft.icon`) sin importar cuál se pedía — reproducido invirtiendo el orden (pedir
+`/apple-touch-icon.png` ANTES de `/favicon.ico`: el resultado fue el MISMO, favicon para los dos),
+lo que descarta "la primera variante gana" y apunta a que `request.nextUrl.searchParams` del
+request REWRITEADO no refleja el query del `URL` que `proxy.ts` construyó. Hitear
+`/api/icono-tienda?variante=apple` DIRECTO (bypassando el rewrite) sí daba el resultado correcto
+(`image/png`, 4654 bytes) — aislando el defecto al tramo REWRITE, no a `decidirIconoRuta` ni al
+route handler en sí.
+
+**El fix: la variante viaja por un HEADER de REQUEST** (`ENCABEZADO_VARIANTE_ICONO =
+'x-icono-variante'`, `lib/config/metadata-tienda.ts`), seteado en `proxy.ts` con
+`NextResponse.rewrite(destino, { request: { headers } })` — el MISMO mecanismo que ese archivo ya
+usa para el modo editor del storefront (`ENCABEZADO_MODO_EDITOR`, § `lib/admin/editor-iframe.ts`).
+Re-medido contra el mismo arnés (Postgres efímero + `next dev` real) en los DOS órdenes y los DOS
+estados (sin ícono / con ícono): las tres rutas, en las dos direcciones, dan el resultado correcto.
+**No se investigó la causa raíz del query-param dentro de Next/Turbopack** (no es necesario para
+cerrar el slice, y re-derivarla habría significado seguir spelunkeando el bundler); el HEADER es
+un mecanismo ya probado en este mismo archivo, así que no es una solución ad-hoc.
+
+### El Content-Type del fallback estático, medido contra `mime-types`
+
+`image/vnd.microsoft.icon` para `.ico` (el tipo registrado en IANA — muchos lo llaman
+`image/x-icon`, mismo bit) y `image/png` para el PNG de Apple: medido con `mime.contentType()` del
+paquete `mime-types` (transitivamente instalado, NO declarado como dependencia directa — por eso no
+se importa en código de producción; se usó sólo para MEDIR el valor correcto a hardcodear). El
+mismo paquete es, con alta probabilidad, lo que usa el servidor estático de Next por dentro (`send`/
+`serve-static`), así que el valor coincide con lo que el `.ico` YA servía antes de este slice.
+
+### Lo que NO se tocó, y por qué (medido, no asumido)
+
+- **`next.config.ts` NO se tocó** (fuera de `touches:`). Su regla de `headers()` para
+  `Cache-Control` sobre `/:icon(favicon\.ico|...)` SIGUE matcheando `/favicon.ico` (pero NO
+  `apple-touch-icon.png`/`-precomposed.png`, nombres distintos de los que su regex nombra) — **y
+  medido que GANA sobre el header que esta ruta pone**: con ícono subido, `/favicon.ico` responde
+  307 con `cache-control: public, max-age=3600` (el de `next.config.ts`, NO el `max-age=300` que
+  esta ruta intenta poner para ese caso), mientras que `/apple-touch-icon.png` con el MISMO ícono
+  subido sí lleva `max-age=300` (nadie más que esta ruta lo toca). No es un bug que rompa algo: 3600
+  s ya es "corto" según el propio criterio de esa regla ("un favicon cambia rarísimo, 1h de
+  propagación alcanza"); es una ambigüedad de precedencia MEDIDA, no una suposición, y se deja
+  escrita para quien la vuelva a tocar.
+- **`app/(storefront)/layout.tsx` y el "LÍMITE CONOCIDO" que anotaba este mismo hueco NO se
+  tocaron** (fuera de `touches:`): ese comentario queda describiendo un límite que este slice YA
+  cerró. Ver el chequeo mecánico abajo.
+- **No se creó `app/icon.tsx`/`app/apple-icon.tsx`** (convención de archivo): reabriría el riesgo ya
+  documentado en `CLAUDE.md` § Identidad (un ícono por convención se filtra a TODA la app, incluido
+  `/admin`). La ruta nueva es un route handler explícito, no una convención.
+
+### El GATE
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | **verde** (0 errores) |
+| `npm test` (capa 1) | **2999/2999** (2997 del piso de `SECCIONES-ENTRAN-VIVAS-1` + 2 nuevos en `metadata-tienda.test.ts`) |
+| `npm run test:integracion` (capa 2) | **277/277** (271 del piso + 6 nuevos en `tests/integracion/icono-tienda.test.ts`) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra que el piso** (555.788/4.608.000 px, caja [96,862]–[1183,3280], heredada de `SECCIONES-ENTRAN-VIVAS-1`, fixture sin regenerar); las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra** que arriba (main vs. rama, heredada); las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+
+**`npm run gate` = typecheck + test + test:integracion** (no incluye los dos scripts visuales; se
+corrieron aparte porque el spec de este slice los pide explícito).
+
+**La cifra de `ruta-home`/`ruta:home` es IDÉNTICA, al píxel, a la del gate de `SECCIONES-ENTRAN-
+VIVAS-1`** (mismo rango de píxeles, misma caja) — confirma que este slice no agrega NINGÚN diff
+visual propio: el cambio es HTTP/mecanismo de servidor, invisible a una captura de pantalla. El
+fixture sigue sin regenerar por la misma razón que el slice anterior la dejó así (decisión del
+owner, pendiente de quien tenga esa autoridad).
+
+### Verificación "con el arnés" — `curl -I` equivalente, Postgres efímero + `next dev` real
+
+Sin `curl` disponible, se montó a mano con `node` (ephemeral Postgres en :55499 vía `initdb`/
+`pg_ctl`, `migrate deploy`, `next dev -p 3999`, `fetch` con `redirect: 'manual'`, un `INSERT …
+ON CONFLICT` directo sobre `SiteContent` para simular el ícono subido). Script en `.scratch/`
+(gitignored, no es parte del diff).
+
+| ruta | sin ícono subido | con ícono subido (`https://blob.example/contenido/icono-chamisas.png`) |
+| --- | --- | --- |
+| `/favicon.ico` | 200 · `image/vnd.microsoft.icon` · 1389 bytes (= `public/favicon.ico`) · `cache-control: max-age=3600` | 307 · `location` al ícono subido · `cache-control: max-age=3600` (next.config gana, § arriba) |
+| `/apple-touch-icon.png` | 200 · `image/png` · 4654 bytes (= `public/apple-icon.png`) · `cache-control: max-age=3600` | 307 · `location` al ícono subido · `cache-control: max-age=300` |
+| `/apple-touch-icon-precomposed.png` | 200 · `image/png` · 4654 bytes · `cache-control: max-age=3600` | 307 · `location` al ícono subido · `cache-control: max-age=300` |
+
+Verificado en los DOS órdenes de petición (favicon primero, apple primero) — el resultado no
+depende de cuál se pide primero, cerrando la duda que el bug del query param había abierto.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas de este diff: `proxy.ts` (`RUTA_A_VARIANTE_ICONO`, el rewrite), `app/api/icono-
+tienda/route.ts` (nuevo), `lib/config/metadata-tienda.ts` (`decidirIconoRuta`,
+`ICONOS_ESTATICOS_POR_RUTA`, `ENCABEZADO_VARIANTE_ICONO`), `/favicon.ico`, `/apple-touch-icon.png`,
+`/apple-touch-icon-precomposed.png`. Grepeados contra `CLAUDE.md`:
+
+- `icono-tienda`, `decidirIconoRuta`, `ENCABEZADO_VARIANTE_ICONO`, `METADATA-FAVICON-PROBE-CIEGO-1`
+  → **CERO coincidencias** (detalle de slice; `CLAUDE.md` documenta la regla, no cada símbolo).
+- `apple-touch-icon` → dos coincidencias, AMBAS del favicon del PANEL (Duna), no de la tienda:
+  *"El admin ganó el apple-touch-icon que le faltaba… apple-icon-duna.png"* (§ Identidad). No se
+  vuelven falsas — ese ícono sigue siendo el de Duna, declarado por `metadata.icons` del grupo
+  admin, y el rewrite de este slice no lo tocó. **Matiz no cubierto por ninguna sentencia existente,
+  así que no hay nada que corregir, pero sí algo que anotar**: el rewrite de `proxy.ts` es por
+  DOMINIO (no por grupo de rutas), así que un UA que ignore el `<link rel="apple-touch-icon">` del
+  admin y haga el probe ciego mientras el panel está abierto recibiría el ícono de la TIENDA, no el
+  de Duna — un caso ya potencialmente roto ANTES de este slice (esa URL literal 404eaba, tampoco
+  servía el ícono de Duna), así que no es una regresión de "funcionaba → se rompió", pero sí un caso
+  nuevo de "roto de una forma distinta". Ver `open_followups`.
+- `favicon.ico` → **UNA sentencia se vuelve FALSA, sin matiz**: § Identidad, *"con los archivos en
+  `public/` y declarados desde `app/(storefront)/layout.tsx`, las URLs y los bytes son los MISMOS de
+  siempre (`/favicon.ico` responde 200 para los pedidos ciegos de crawlers)"*. Para un tenant SIN
+  ícono subido sigue siendo cierta (200, medido arriba); para uno CON ícono subido, `/favicon.ico`
+  ahora responde **307**, no 200, a un crawler que no sigue redirects. La sentencia no distinguía
+  "con ícono"/"sin ícono" porque esa distinción no existía cuando se escribió (Fase A, antes de
+  `MARCA-LOGO-IMAGEN-1`). `CLAUDE.md` no está en `touches:` de este slice — no se edita; va a
+  `open_followups`.
+- El resto de las coincidencias (`app/favicon.ico` de convención, `apple-icon.png` del punto de
+  swap de los 6 archivos estáticos) describen el estado ANTERIOR a `MARCA-LOGO-IMAGEN-1`/
+  `METADATA-ICONOS-Y-LANG-POR-TIENDA-1` y ya estaban marcadas obsoletas por `CLAUDE-MD-ICONOS-SWAP-
+  STALE-1` (ese open-followup, no tocado ni duplicado acá); este slice no las vuelve MÁS falsas de
+  lo que ya estaban — sólo agrega dos entradas más (las rutas literales) a la lista de lugares donde
+  `content.logo.icono` ya manda sobre el estático.
+
+### `customer_bytes`
+
+**`changed: true`.** El rastro es de HTTP, no de pantalla: un visitante o un crawler que pida
+`/favicon.ico`/`apple-touch-icon(-precomposed).png` directo recibe el ícono de SU tienda (si subió
+uno) en vez del de Nayoli — es exactamente lo que el owner reportó como roto. **Para Nayoli y para
+cualquier tenant sin ícono subido, la respuesta es byte-idéntica a hoy** (medido arriba: mismos
+bytes, mismo content-type; sólo cambia el Cache-Control de las dos rutas apple, que antes 404eaban
+sin cache alguno). `strings: []` — ningún texto nuevo; el cambio es cabeceras HTTP y bytes de ícono,
+nunca copy.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración (se
+lee `content.logo.icono`, ya existente desde `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`), sin contrato
+cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 2999 + 277), `guarda:color` y
+`verificar:nayoli:visual` dan EXACTAMENTE la diferencia heredada del piso (misma caja, mismos
+píxeles, cero diff nuevo), verificación manual de las tres rutas en los dos estados y los dos
+órdenes contra Postgres efímero + `next dev` real. Commiteado en `slice/corte-reescritura-
+prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO aplican. El
+owner ya aprobó la ESCRITURA (`approved: yes`, con su gate textual del 2026-10-01 sobre la demo de
+Café Las Chamisas como `approval-reason`); el merge sigue pendiente del gate del orquestador — este
+slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `FAVICON-ADMIN-PROBE-CIEGO-DOMINIO-1` — el rewrite de `proxy.ts` es por DOMINIO: un UA que ignore
+  el `<link rel="apple-touch-icon">` del admin (Duna) y haga el probe ciego mientras `/admin` está
+  abierto recibiría el ícono de la TIENDA, no el de Duna. Ya era un caso roto antes de este slice
+  (esa URL 404eaba, tampoco servía el de Duna) — no es una regresión, pero es un caso nuevo de "roto
+  distinto" que nadie decidió. Fuera de `touches:`; no se construyó.
+- `CLAUDE-MD-FAVICON-200-CRAWLER-STALE-1` — § Identidad de `CLAUDE.md` afirma sin matiz que
+  `/favicon.ico` "responde 200 para los pedidos ciegos de crawlers"; con este slice eso es cierto
+  SÓLO para un tenant sin ícono subido (con ícono, responde 307). `CLAUDE.md` no está en
+  `touches:` de este slice, así que no se editó.
+- `FAVICON-NEXTCONFIG-CACHE-PRECEDENCIA-1` — `next.config.ts` § ICONOS DE MARCA DEL STOREFRONT
+  GANA sobre el `Cache-Control` que esta ruta intenta poner para `/favicon.ico` específicamente (no
+  para las dos rutas apple, que ese regex no nombra): medido que el redirect a un ícono subido sale
+  con `max-age=3600` en `/favicon.ico` en vez del `max-age=300` que el código pide. No rompe nada
+  (3600s ya es "corto" por el propio criterio de esa regla), pero es una ambigüedad de precedencia
+  entre `headers()` de `next.config.ts` y el header que pone un route handler alcanzado por rewrite,
+  sin resolver. Fuera de `touches:` (`next.config.ts` no está en la lista).
+- El query-param-no-llega-por-rewrite (§ arriba) se resolvió con un header, pero la CAUSA dentro de
+  Next/Turbopack 16.2.6 no se investigó — si alguna vez otro rewrite de este repo necesita pasar
+  datos por query string en vez de header, vale la pena saber si es un bug general o algo específico
+  de esta ruta/versión antes de repetir el patrón que falló acá.
+
+**Cierra `FAVICON-RUTA-POR-TIENDA-1`.**

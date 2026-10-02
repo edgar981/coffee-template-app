@@ -4,8 +4,10 @@ import {
   iconosDeTienda,
   iconosManifestDeTienda,
   tituloYDescripcionDeTienda,
+  decidirIconoRuta,
   ICONOS_ESTATICOS_POR_DEFECTO,
   ICONOS_MANIFEST_POR_DEFECTO,
+  ICONOS_ESTATICOS_POR_RUTA,
 } from "./metadata-tienda";
 
 test("iconosDeTienda: vacío cae a los estáticos de Nayoli", () => {
@@ -44,6 +46,17 @@ test("iconosManifestDeTienda: un ícono subido da UNA entrada sizes:'any' con su
   assert.deepEqual(iconosManifestDeTienda("https://blob.example/contenido/icono.svg"), [
     { src: "https://blob.example/contenido/icono.svg", sizes: "any", type: "image/svg+xml" },
   ]);
+});
+
+test("decidirIconoRuta: vacío cae al estático de la variante (§ FAVICON-RUTA-POR-TIENDA-1)", () => {
+  assert.deepEqual(decidirIconoRuta("", "favicon"), { tipo: "estatico", ...ICONOS_ESTATICOS_POR_RUTA.favicon });
+  assert.deepEqual(decidirIconoRuta("   ", "apple"), { tipo: "estatico", ...ICONOS_ESTATICOS_POR_RUTA.apple });
+});
+
+test("decidirIconoRuta: un ícono subido manda, sin importar la variante", () => {
+  const url = "https://blob.example/contenido/icono-chamisas.png";
+  assert.deepEqual(decidirIconoRuta(url, "favicon"), { tipo: "subido", url });
+  assert.deepEqual(decidirIconoRuta(url, "apple"), { tipo: "subido", url });
 });
 
 test("tituloYDescripcionDeTienda: absolute+template, para que un title hijo no vuelva a pasar por el template de la raíz", () => {
