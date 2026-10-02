@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   validarArchivoComprobante, esImagen, formatearTamano, estadoComprobante,
   accionAlVerificar, puedeDecidirse, tienePendienteDeVerificar, nombreArchivo,
+  COMPROBANTE_SUBIDO_POR_CLIENTE,
 } from './comprobante';
 import { MAX_COMPROBANTE_BYTES } from '@/constants/comprobante';
 
@@ -129,4 +130,11 @@ test('el sufijo aleatorio se conserva: es lo que distingue dos soportes homónim
 test('una URL basura no rompe la vista', () => {
   assert.equal(nombreArchivo(''), 'Comprobante');
   assert.equal(nombreArchivo('no-es-una-url'), 'no-es-una-url');
+});
+
+// ─── El nombre snapshoteado cuando sube el cliente ──────────────────────────
+
+test('COMPROBANTE_SUBIDO_POR_CLIENTE es texto no vacío, distinto de un nombre de operador', () => {
+  assert.ok(COMPROBANTE_SUBIDO_POR_CLIENTE.length > 0);
+  assert.notEqual(COMPROBANTE_SUBIDO_POR_CLIENTE, 'Operador Test');
 });

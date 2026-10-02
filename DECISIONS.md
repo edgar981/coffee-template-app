@@ -44966,3 +44966,197 @@ final (typecheck 0 errores, `npm test` 3105/3105, `npm run test:integracion` 291
 ajeno a este slice y re-confirmado por medición (misma cifra exacta, misma caja). Commiteado en
 `slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente de ese gate
 separado, ajeno a este slice.
+
+## 2026-10-02 — El checkout pide el COMPROBANTE, no una referencia de texto que nunca se guardaba (`CHECKOUT-COMPROBANTE-CLIENTE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Pedido del owner, textual:
+*"Al momento de realizar un pago no por pasarela, hay un cuadro 'Referencia de pago' opcional, sin
+embargo lo que deberia haber es un campo comprobante, sin la etiqueta (opcional) pero que sea
+opcional, que reciba imagenes, normalmente eso es lo que se hace cuando se compra, se adjunta el
+comprobante, no una referencia del mismo."* La aprobación autoriza la escritura, nunca el merge.
+
+### Lo medido ANTES de tocar nada — el campo viejo era texto que `/api/checkout` validaba y TIRABA
+
+`payment.referencia` (`app/api/checkout/route.ts:127`, `z.string().trim().min(1).optional()`) se
+parseaba y **nunca se pasaba a `createOrderWithCustomer`** — ni a `Order` (que no tiene columna
+`referencia`) ni a ningún `Payment` (el checkout nace `pendiente`, sin `immediatePayment`). Lo que el
+cliente tecleaba en "Referencia de pago (opcional)" se perdía en silencio desde el día uno. El punto
+5 del spec ("las órdenes viejas que la tengan la siguen mostrando donde ya se mostraba") asumía que
+había algo que preservar; medido, no lo había — no hace falta ninguna compatibilidad hacia atrás.
+
+### La PRUEBA de que el cliente creó la orden — email+numero_orden, NO un token, y por qué
+
+El spec ofrecía dos caminos: un token HMAC con vencimiento corto emitido por el endpoint que CREA la
+orden, o "el mecanismo que el checkout/rastreo ya use para identificar a su dueño". Antes de escribir
+una línea se midió CUÁL endpoint crea la orden del storefront: `services/checkout.service.ts` llama a
+`POST /api/checkout` (`app/api/checkout/route.ts`, 687 líneas, Tier 1), **no** a `POST /api/orders`
+(`app/api/orders/route.ts` es el alta MANUAL del admin, gateada OWNER/MANAGER — otro endpoint,
+otro propósito). `app/api/checkout/route.ts` **no está en el `touches:` de este slice** y es Tier 1:
+emitir el token ahí habría significado escribir en un archivo para el que esta aprobación no alcanza
+— `CheckoutResult` tampoco trae el `id` interno de la orden, sólo `numero_orden`, así que un token
+habría exigido ensanchar esa respuesta además.
+
+**Se eligió el segundo camino**: la MISMA prueba que ya usa `POST /api/orders/track`
+(`numero_orden` + el correo que el cliente escribió al pagar, comparado contra `Order.cliente_email`
+normalizado trim+lowercase), con el MISMO tratamiento de "no enumeration oracle" — un correo que no
+coincide se responde EXACTAMENTE igual que una orden que no existe (404 genérico), nunca distinguible.
+Está documentado con su razón completa en el docstring de `lib/checkout/comprobante-cliente.ts`
+(`admiteComprobanteCliente`) y en la cabecera de la ruta nueva. **Consecuencia sobre el spec**: no hay
+concepto de "vencida" (un correo no vence) — anotado explícitamente en
+`tests/integracion/comprobante-cliente.test.ts` para que nadie lo busque creyendo que falta.
+
+### La ruta nueva — `POST /api/orders/[id]/comprobante-cliente`, pública, SIN sesión
+
+`[id]` es el `numero_orden` (lo único que el cliente tiene), no el cuid interno — mismo nombre de
+segmento que sus rutas hermanas (`[id]/comprobantes`, `[id]/payments`) por consistencia de forma, pero
+lo que identifica es distinto, dicho en el docstring. Secuencia: rate-limit por IP (`rateLimit`,
+`@duna/core/rate-limit`, 5/60s — más estricto que `track` porque acá hay costo de storage de por
+medio) → parse de `email` (zod) → `file` → lookup de la orden por `numero_orden` → `validarArchivo
+Comprobante` (REUSADA, no copiada) → cuenta de comprobantes existentes → `admiteComprobanteCliente`
+(pura, `lib/checkout/comprobante-cliente.ts`) → `storage.put` → `crearComprobante` (REUSADA,
+`@duna/core/comprobantes`, SIN tocar ese archivo — ver más abajo). `subido_por: null`,
+`subido_por_nombre: COMPROBANTE_SUBIDO_POR_CLIENTE` ("El cliente", `lib/comprobante.ts`) — una sola
+fuente del texto que ve el panel, en vez de un literal repetido entre la ruta y quien lo compare.
+
+**Las reglas de admisión, en el orden en que se evalúan** (`admiteComprobanteCliente`): (1) el correo
+coincide — si no, 404 genérico, igual que "no existe"; (2) `orden.estado === 'pendiente'` (una orden
+pagada o cancelada no admite más comprobantes, mismo motivo `no_pendiente` para las dos); (3) el
+método es uno de los CUATRO que dejan evidencia (`METODOS_CON_COMPROBANTE_CLIENTE = ['nequi',
+'daviplata', 'breb', 'transferencia']` — la MISMA lista que ahora decide también si el checkout
+MUESTRA el campo, una sola fuente en vez del OR de cuatro strings que vivía antes en el JSX); (4) tope
+por orden (`TOPE_COMPROBANTES_CLIENTE = 3`, `TODO(cliente)` — alcanza para que el comprador se
+equivoque de foto y la corrija dos veces, no alcanza para convertir la ruta en un vertedero).
+
+**`packages/core/src/comprobantes.ts`, `components/admin/Comprobantes.tsx` y `app/api/orders/
+route.ts` están en el `touches:` y NO se tocaron — medido, no por omisión.** `crearComprobante`/
+`comprobantesDeOrden` ya eran genéricos (no distinguen quién sube); `ComprobanteVista` ya renderiza
+`Subido por ${subido_por_nombre}` para cualquier valor — "El cliente" cae ahí sin cambiar una línea;
+y `GET /api/orders` ya incluye `comprobantes` en su `include` (lo usa el detalle de Pedidos) — un
+comprobante de cliente es una fila más de la misma tabla, visible de inmediato. Confirmado por
+EJECUCIÓN (§ el arnés, abajo), no sólo por lectura.
+
+### El checkout — el campo, y lo que se quitó
+
+`app/(storefront)/checkout/page.tsx`: el `Field label="Referencia de pago (opcional)"` se reemplazó
+por un picker de archivo ("Comprobante", sin la palabra "opcional" en la etiqueta — pedido textual del
+owner —, con el hint "Opcional — ayuda a confirmar tu pago más rápido." debajo) que aparece para los
+mismos cuatro métodos, ahora vía `aceptaComprobanteCliente(metodoActivo)` en vez del OR literal. Sube
+DESPUÉS de crear la orden (`intentarSubirComprobante`, llamada dentro de `handleOrder` tras
+`setConfirmation`/`clearCart`, nunca antes — "primero el pedido, después la evidencia", misma
+asimetría que ya rige el adjunto de Registrar Pago en el admin). Si la subida falla, la orden
+confirmada NO se toca: la pantalla "¡Pedido recibido!" de siempre se muestra igual, con un bloque
+extra ("Tu pedido quedó registrado, pero no pudimos subir el comprobante." + "Reintentar subir el
+comprobante", que reintenta con el MISMO archivo, sin re-crear nada). Colores en tokens del tema
+(`--sf-*`), salvo el bloque de error en rojo Tailwind literal — mismo patrón que ya usan el aviso de
+stock y la validación de teléfono en ese mismo archivo (no son parte del sistema de color de Nayoli,
+§ `guarda:color` abajo).
+
+**Limpieza de paso**: `FieldProps.disabled` se retiró — su único motivo (bloquear "Referencia de
+pago" en su lugar, § CHECKOUT-SELECTOR-NO-SE-DESMONTA-1) desapareció con ese campo, y ningún llamador
+restante lo pasaba. Un prop sin consumidor es la misma mina inerte que `Customer.activo`/
+`Product.agotado` (CLAUDE.md) — se borró en vez de dejarlo ambiguo.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3118/3118** (+13: 12 en `lib/checkout/comprobante-cliente.test.ts`, 1 en `lib/comprobante.test.ts` para `COMPROBANTE_SUBIDO_POR_CLIENTE`) |
+| `npm run test:integracion` | **303/303** (+12, `tests/integracion/comprobante-cliente.test.ts` — admisión + creación contra Postgres real, réplica fiel de la secuencia de la ruta, mismo patrón que `comprobante-verificacion.test.ts`/`verificarComoLaRuta`) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`); `ruta-checkout` **IDÉNTICO (0px)** — las otras 4 rutas + 2 hovers también IDÉNTICO |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, misma caja; `ruta:checkout` IDÉNTICO |
+
+**`ruta-checkout` IDÉNTICO no significa "Nayoli no cambia un byte visible" — significa que el arnés
+no llega a verlo.** El harness de `guarda:color`/`verificar:nayoli-visual` carga `/checkout` y
+captura el paso 0 (Información); el campo Comprobante vive en el paso 1 (Pago), al que el arnés nunca
+navega. Dicho sin rodeos para no confundirlo con byte-idéntico: Nayoli SÍ ve el campo nuevo apenas
+llega al paso de pago con un método manual — es exactamente el cambio que el owner pidió.
+
+### Ejecución en el arnés — checkout a 1440 y en iPhone (WebKit), campo vacío → imagen elegida → confirmación → panel
+
+Harness ad hoc (`.scratch/verificar-comprobante-cliente.mjs`, gitignorado), reusando el mecanismo de
+`scripts/verificar-nayoli-visual.ts` (Postgres efímero propio `:55441`, `migrate deploy` + el seed
+canónico, `next build`+`next start` de la rama actual en `:3496`, Playwright aislado). El seed deja
+nequi/daviplata/transferencia con `datos` vacíos (incompletos, no se muestran) y sólo `efectivo`
+visible en Bogotá — se configuró `SiteSetting.metodosPago` con un `nequi` completo (vía `psql` sobre
+la base efímera, dato de prueba, no del repo) para poder ejercitar el picker.
+
+Flujo real por dispositivo (Chromium 1440×900 y WebKit `devices['iPhone 13']`): agregar el producto
+seed al carrito (dispara `setIsOpen(true)` de `addItem`, el carrito se abre solo) → clic en el enlace
+"/checkout" del cajón (navegación CLIENTE de Next, preserva el `CartContext`) → llenar Información →
+Pago, método Nequi por defecto → capturar el campo Comprobante VACÍO → `setInputFiles` con un PNG de
+prueba → capturar el preview (nombre+peso+miniatura) → "Confirmar pedido" → capturar "¡Pedido
+recibido!" sin el bloque de error → login como OWNER (`admin@sierranativa.co`, la credencial pública
+del seed) → `/admin/pedidos?pedido=<numero>` → capturar el detalle.
+
+**Las DOS órdenes (`CN-787787` desktop, `CN-584687` iPhone) aparecen en el panel con "1 comprobante
+sin verificar" (ámbar) y la fila "Recibido · 68 B · Subido por El cliente el 2 oct 2026", con
+Verificar/Rechazar — sin tocar una línea de `Comprobantes.tsx`.** Las 10 capturas (campo vacío,
+imagen elegida y confirmación × 2 dispositivos, + los 2 detalles de panel) quedan en
+`.scratch/verificar-comprobante-cliente/` (gitignorado, no se commitean).
+
+### Deviaciones medidas
+
+- **El mecanismo de prueba** (email+numero_orden en vez de token HMAC) — medido y justificado arriba;
+  el spec lo ofrecía como alternativa explícita ("decí cuál y por qué").
+- **`app/api/orders/route.ts`, `packages/core/src/comprobantes.ts`, `components/admin/
+  Comprobantes.tsx`** — en `touches:`, sin cambios, confirmado por ejecución que no hacía falta (no
+  por lectura solamente).
+- **El punto 5 del spec** ("las órdenes viejas... la siguen mostrando donde ya se mostraba") —
+  medido que no había nada que preservar: el campo viejo nunca se guardaba (§ arriba).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `app/(storefront)/checkout/page.tsx` (`comprobanteFile`,
+`intentarSubirComprobante`, `elegirComprobante`, `quitarComprobante`, retiro de `refTransfer`/
+`FieldProps.disabled`), `app/api/orders/[id]/comprobante-cliente/route.ts` (nuevo), `lib/comprobante.ts`
+(`COMPROBANTE_SUBIDO_POR_CLIENTE`), `lib/checkout/comprobante-cliente.ts` (nuevo —
+`aceptaComprobanteCliente`, `admiteComprobanteCliente`, `coincideEmail`,
+`mensajeRechazoComprobanteCliente`, `METODOS_CON_COMPROBANTE_CLIENTE`, `TOPE_COMPROBANTES_CLIENTE`),
+más sus tres `.test.ts`. Grepeados contra `CLAUDE.md`: **CERO coincidencias** para cada símbolo y cada
+ruta nueva, y CERO para `"Referencia de pago"` (el copy retirado). `CLAUDE.md` nombra "Comprobantes de
+pago" en 70 líneas (sección entera) — se leyó completa: ninguna afirma que sólo el admin puede crear
+un `Comprobante`, ninguna cuenta "dos puertas de subida" en el sentido de "exactamente dos en todo el
+sistema" (la frase "Las DOS puertas de Registrar Pago" describe los DOS MODOS del modal admin —
+Verificar/Directo—, no las fuentes de creación), y "`validarArchivoComprobante` es UNA función" sigue
+siendo cierto con un tercer llamador. Nada queda falso por este diff.
+
+La línea canónica de Tier 1 (`CLAUDE.md`, § el encabezado de la sección) no nombra la ruta nueva —
+consistente con que tampoco nombra a su hermana ya existente, `app/api/orders/[id]/comprobantes/
+route.ts`: un `Comprobante` es evidencia, no plata (la propia doctrina lo dice: "comprobante SIN pago"
+es el caso central de esta entidad), así que no es una "puerta de escritura de pagos" por el criterio
+de esa sección. No se propone agregarla — sería tratar como regla general una lectura mía, no una
+afirmada por la doctrina existente.
+
+### `customer_bytes`
+
+**`changed: true`.** Copy nuevo: "Comprobante" (reemplaza "Referencia de pago (opcional)"), "Adjuntar
+comprobante", el hint "Opcional — ayuda a confirmar tu pago más rápido.", "Tu pedido quedó registrado,
+pero no pudimos subir el comprobante." y "Reintentar subir el comprobante" (nuevos, sólo en el camino
+de error). Y la CAPACIDAD en sí —un campo de archivo en vez de uno de texto— es customer-bytes aunque
+no cambiara una palabra: el comprador ve y usa un control distinto. `approved: false` (propuesto,
+pendiente de revisión — es exactamente lo que pidió el owner, pero la aprobación de la escritura no es
+la aprobación del merge, § el encabezado de este slice).
+
+### `schema`/`cross-repo-contract`
+
+No aplica — sin migración, sin columna nueva, sin tocar `schema.prisma`. El campo `payment.referencia`
+del `CheckoutPayload`/`checkoutSchema` se queda declarado (tipo, no símbolo nuevo) aunque la UI ya no
+lo envíe — no se tocó `app/api/checkout/route.ts` (fuera de `touches:`), así que retirarlo del schema
+habría sido una segunda razón para no tocar ese archivo, no una necesidad de este slice.
+
+### Open follow-ups
+
+Ninguno nuevo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. El campo de comprobante es una capacidad
+visible nueva del checkout — falla la condición de customer-bytes de la política A por sí sola;
+`owner-gate-requested` no se declara junto a ella (ya hay otra razón). El gate completo corrió verde
+sobre el árbol final (typecheck 0 errores, `npm test` 3118/3118, `npm run test:integracion` 303/303);
+`guarda:color`/`verificar:nayoli:visual` dan `ruta-checkout` IDÉNTICO (0px) pero esa cifra mide el
+paso 0, no el paso de Pago donde vive el cambio (§ arriba) — la evidencia real del cambio visible es
+la ejecución en el arnés (checkout a 1440 y en iPhone WebKit, campo vacío → imagen → confirmación →
+panel, § arriba), no el guard de píxeles. Commiteado en `slice/corte-reescritura-prototipo-1`; el
+merge de la rama entera sigue pendiente de ese gate separado, ajeno a este slice.

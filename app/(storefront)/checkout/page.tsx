@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from "next/link";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { ArrowLeft, Shield, Lock, CreditCard, Clock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Shield, Lock, CreditCard, Clock, CheckCircle, Paperclip, FileText, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import {
@@ -24,6 +24,9 @@ import {
 } from '@duna/core/shipping-config';
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
 import { metodosDisponibles, type MetodoPagoTipo } from '@/lib/checkout/metodos-pago';
+import { aceptaComprobanteCliente } from '@/lib/checkout/comprobante-cliente';
+import { validarArchivoComprobante, esImagen, formatearTamano } from '@/lib/comprobante';
+import { ACCEPT_COMPROBANTE } from '@/constants/comprobante';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
@@ -61,7 +64,79 @@ export default function Checkout() {
   const [address, setAddress] = useState({ linea1: '', detalle: '', ciudad: '', departamento: '', cp: '' });
   const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState<MetodoPagoTipo>('nequi');
-  const [refTransfer, setRefTransfer] = useState('');
+  // § CHECKOUT-COMPROBANTE-CLIENTE-1: reemplaza al viejo "Referencia de pago
+  // (opcional)" — un campo de TEXTO que `/api/checkout` validaba pero nunca
+  // guardaba en ningún lado (ni en `Order` ni en ningún `Payment`; medido
+  // leyendo `app/api/checkout/route.ts` antes de tocar esto). Lo que el
+  // operador necesita para confirmar un pago manual es la FOTO del comprobante,
+  // no una cadena de texto que se perdía. `comprobanteFile` sobrevive a un
+  // intento de subida fallido (para poder reintentar con el MISMO archivo); se
+  // sube DESPUÉS de crear la orden, nunca antes (§ `intentarSubirComprobante`).
+  const comprobanteInputRef = useRef<HTMLInputElement | null>(null);
+  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
+  const [comprobantePreviewUrl, setComprobantePreviewUrl] = useState<string | null>(null);
+  const [comprobanteErrorSeleccion, setComprobanteErrorSeleccion] = useState<string | null>(null);
+  type EstadoSubidaComprobante = 'ninguno' | 'subiendo' | 'listo' | 'error';
+  const [comprobanteEstado, setComprobanteEstado] = useState<EstadoSubidaComprobante>('ninguno');
+  const [comprobanteErrorSubida, setComprobanteErrorSubida] = useState<string | null>(null);
+
+  // El preview de imagen es un object URL del archivo local — hay que revocarlo al
+  // cambiar de archivo o salir de la página, o la pestaña retiene el blob en memoria.
+  useEffect(() => {
+    if (!comprobanteFile || !esImagen(comprobanteFile.type)) { setComprobantePreviewUrl(null); return; }
+    const url = URL.createObjectURL(comprobanteFile);
+    setComprobantePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [comprobanteFile]);
+
+  const elegirComprobante = (file: File) => {
+    const problema = validarArchivoComprobante({ type: file.type, size: file.size, name: file.name });
+    if (problema) { setComprobanteErrorSeleccion(problema); return; }
+    setComprobanteErrorSeleccion(null);
+    setComprobanteEstado('ninguno');
+    setComprobanteErrorSubida(null);
+    setComprobanteFile(file);
+  };
+
+  const quitarComprobante = () => {
+    setComprobanteFile(null);
+    setComprobanteErrorSeleccion(null);
+    setComprobanteEstado('ninguno');
+    setComprobanteErrorSubida(null);
+  };
+
+  // Sube el comprobante YA ELEGIDO contra una orden YA CREADA — nunca antes
+  // (§ el reporte del slice: "primero la plata/el pedido, después la evidencia",
+  // la misma asimetría que ya rige el adjunto del modal de Registrar Pago). Si
+  // falla, NO se pierde el pedido ni se duplica nada: sólo queda `comprobanteEstado
+  // === 'error'`, y el botón de la pantalla de confirmación reintenta con el MISMO
+  // archivo — nunca lanza, así que nunca puede tumbar el flujo que ya tuvo éxito
+  // (crear la orden).
+  const intentarSubirComprobante = async (numeroOrden: string) => {
+    if (!comprobanteFile) return;
+    setComprobanteEstado('subiendo');
+    setComprobanteErrorSubida(null);
+    try {
+      const form = new FormData();
+      form.set('email', info.email);
+      form.set('file', comprobanteFile);
+      const res = await fetch(`/api/orders/${encodeURIComponent(numeroOrden)}/comprobante-cliente`, {
+        method: 'POST',
+        body:   form,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setComprobanteErrorSubida(data?.error ?? 'No se pudo subir el comprobante.');
+        setComprobanteEstado('error');
+        return;
+      }
+      setComprobanteEstado('listo');
+    } catch (e) {
+      setComprobanteErrorSubida(e instanceof Error ? `No pudimos comunicarnos con el servidor: ${e.message}` : 'No pudimos comunicarnos con el servidor.');
+      setComprobanteEstado('error');
+    }
+  };
+
   // (d), mitad encendido (§ WOMPI-TOGGLE-DISPONIBILIDAD-1): lee la env var de despliegue
   // (§ el docstring de `pasarelaDisponibleEnEsteDespliegue`). Sin `NEXT_PUBLIC_PASARELA_
   // HABILITADA=1` sigue SIEMPRE `false` — la opción "Tarjeta, PSE y más" no se renderiza y
@@ -242,7 +317,9 @@ export default function Checkout() {
       payment = { pasarela: true };
     } else if (metodoActivo) {
       // `CheckoutPayload.payment.metodo` acepta el mismo set cerrado que `metodoActivo`, sin cast.
-      payment = { metodo: metodoActivo, referencia: refTransfer.trim() || undefined };
+      // SIN `referencia`: el campo de texto que la llevaba se retiró (§ CHECKOUT-COMPROBANTE-
+      // CLIENTE-1, arriba) — el comprobante se sube APARTE, después de crear la orden.
+      payment = { metodo: metodoActivo };
     } else {
       return; // inalcanzable: el guard de arriba ya lo descarta.
     }
@@ -258,6 +335,13 @@ export default function Checkout() {
       // pase lo que pase con la pasarela — la limpieza del carrito no depende de `wompi`.
       setConfirmation(result);
       clearCart();
+      // El comprobante, si el comprador elegió uno, se sube DESPUÉS — contra la orden
+      // que el servidor acaba de confirmar, nunca antes (§ `intentarSubirComprobante`).
+      // Sólo aplica a los métodos manuales que lo aceptan; la pasarela nunca muestra
+      // este campo, así que `comprobanteFile` queda `null` en esa rama.
+      if (comprobanteFile && !pasarelaSeleccionada && metodoActivo && aceptaComprobanteCliente(metodoActivo)) {
+        await intentarSubirComprobante(result.numero_orden);
+      }
       // Este botón ("Confirmar pedido") sólo dispara para métodos MANUALES y para la pasarela
       // en modo WIDGET (§ CHECKOUT-UNA-SOLA-PANTALLA-1: en modo API DIRECTA la orden se crea
       // desde `crearOrdenPasarela`, dentro del click de "Pagar" del formulario — este botón no
@@ -492,6 +576,33 @@ export default function Checkout() {
                 </div>
               </div>
             </div>
+            {/* § CHECKOUT-COMPROBANTE-CLIENTE-1: el comprobante se sube DESPUÉS de crear la
+                orden (arriba, en `handleOrder`). Si eso falla, la orden NO se pierde ni se
+                duplica — queda exactamente como "¡Pedido recibido!" la muestra, y este bloque
+                es la única diferencia: dice que falta la foto y ofrece reintentar con el MISMO
+                archivo, sin tocar nada más del pedido ya confirmado. */}
+            {comprobanteEstado === 'subiendo' && (
+              <div className="bg-[var(--sf-superficie)] rounded-xl p-3 mb-4 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto-suave))] text-center">
+                Subiendo tu comprobante…
+              </div>
+            )}
+            {comprobanteEstado === 'error' && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 mb-4 text-left">
+                <p className="text-xs font-medium text-red-700">
+                  Tu pedido quedó registrado, pero no pudimos subir el comprobante.
+                </p>
+                {comprobanteErrorSubida && (
+                  <p className="text-xs text-red-600 mt-0.5">{comprobanteErrorSubida}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => intentarSubirComprobante(confirmation.numero_orden)}
+                  className="mt-2 text-xs font-semibold text-red-700 underline hover:no-underline"
+                >
+                  Reintentar subir el comprobante
+                </button>
+              </div>
+            )}
             <div className="flex flex-col gap-3">
               <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}`} className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors">Rastrear mi pedido</Link>
               <Link href="/tienda" className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Seguir comprando</Link>
@@ -741,8 +852,70 @@ export default function Checkout() {
                             </label>
                           )}
                         </div>
-                        {!pasarelaSeleccionada && (metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'breb' || metodoActivo === 'transferencia') && (
-                          <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" disabled={bloqueoMetodoDePago} />
+                        {/* § CHECKOUT-COMPROBANTE-CLIENTE-1: reemplaza al viejo campo de texto
+                            "Referencia de pago (opcional)" — el operador necesita la FOTO del
+                            comprobante, no una cadena que `/api/checkout` validaba y después no
+                            guardaba en ningún lado (medido). Opcional, sin decirlo con la palabra
+                            "(opcional)" en la etiqueta — el spec del slice lo pide así; el hint de
+                            abajo ya aclara que no bloquea nada. `aceptaComprobanteCliente` es la
+                            MISMA lista que decide esto en el servidor (`lib/checkout/comprobante-
+                            cliente.ts`), no un OR repetido de los cuatro ids a mano. */}
+                        {!pasarelaSeleccionada && aceptaComprobanteCliente(metodoActivo) && (
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Comprobante</label>
+                            <input
+                              ref={comprobanteInputRef}
+                              type="file"
+                              accept={ACCEPT_COMPROBANTE}
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                // Se limpia SIEMPRE: elegir el mismo archivo otra vez debe volver
+                                // a disparar `change` (igual que `SelectorComprobante` del admin).
+                                e.target.value = '';
+                                if (f) elegirComprobante(f);
+                              }}
+                            />
+                            {!comprobanteFile ? (
+                              <button
+                                type="button"
+                                onClick={() => comprobanteInputRef.current?.click()}
+                                disabled={bloqueoMetodoDePago}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-texto-suave)] hover:border-[var(--sf-acento)] hover:text-[var(--sf-texto)] transition-colors disabled:opacity-60 disabled:pointer-events-none"
+                              >
+                                <Paperclip className="w-4 h-4" /> Adjuntar comprobante
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-3 p-3 border-2 border-[var(--sf-linea)] rounded-xl">
+                                {esImagen(comprobanteFile.type) && comprobantePreviewUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={comprobantePreviewUrl} alt="Vista previa del comprobante" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                                ) : (
+                                  <span className="w-12 h-12 rounded-lg bg-[var(--sf-superficie)] flex items-center justify-center shrink-0">
+                                    <FileText className="w-5 h-5 text-[var(--sf-texto-suave)]" />
+                                  </span>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-medium text-[var(--sf-tinta)] truncate">{comprobanteFile.name}</p>
+                                  <p className="text-xs text-[var(--sf-texto-suave)]">{formatearTamano(comprobanteFile.size)}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={quitarComprobante}
+                                  disabled={bloqueoMetodoDePago}
+                                  className="p-1.5 rounded-lg hover:bg-[var(--sf-superficie)] text-[var(--sf-texto-suave)] disabled:opacity-60 disabled:pointer-events-none shrink-0"
+                                  aria-label="Quitar comprobante"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                            {comprobanteErrorSeleccion ? (
+                              <p className="mt-1 text-xs text-red-600">{comprobanteErrorSeleccion}</p>
+                            ) : (
+                              <p className="mt-1 text-xs text-[var(--sf-texto-suave)]">Opcional — ayuda a confirmar tu pago más rápido.</p>
+                            )}
+                          </div>
                         )}
                       </>
                     )}
@@ -938,22 +1111,22 @@ interface FieldProps {
   type?: string;
 
   placeholder?: string;
-
-  // § CHECKOUT-SELECTOR-NO-SE-DESMONTA-1: el bloque de método necesita bloquear "Referencia de
-  // pago" en su lugar en vez de desmontarla — mismo criterio que los campos de
-  // `FormularioTarjeta` (`disabled` + `disabled:opacity-60`). Los demás llamadores de `Field`
-  // no lo pasan, así que quedan sin cambio (`undefined` → no disabled).
-  disabled?: boolean;
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder, disabled }: FieldProps) {
+// § CHECKOUT-COMPROBANTE-CLIENTE-1: `disabled` se RETIRÓ de acá — su único motivo
+// (bloquear "Referencia de pago" en su lugar mientras la orden ya existe, §
+// CHECKOUT-SELECTOR-NO-SE-DESMONTA-1) desapareció con ese campo: ningún llamador
+// de `Field` lo pasaba. Un prop sin un solo consumidor es la misma mina inerte de
+// siempre (§ CLAUDE.md, `Customer.activo`/`Product.agotado`) — se borra, no se deja
+// ambiguo. El picker de comprobante que reemplazó al campo bloquea los SUYOS
+// (el input de archivo, el botón de quitar) directamente con `bloqueoMetodoDePago`.
+function Field({ label, value, onChange, type = 'text', placeholder }: FieldProps) {
   return (
     <div>
       <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        disabled={disabled}
-        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)] disabled:opacity-60 disabled:pointer-events-none"
+        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
       />
     </div>
   );

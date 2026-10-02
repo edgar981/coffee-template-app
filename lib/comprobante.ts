@@ -17,6 +17,15 @@ import type { SemaphoreTone } from '@/components/ui/StatusBadge';
 
 export type ComprobanteEstado = 'RECIBIDO' | 'VERIFICADO' | 'RECHAZADO';
 
+/**
+ * El nombre snapshoteado cuando SUBE EL CLIENTE, no un operador —
+ * `POST /api/orders/[id]/comprobante-cliente` (sin sesión, § lib/checkout/
+ * comprobante-cliente.ts) deja `subido_por: null` y `subido_por_nombre` con
+ * ESTA cadena. Una sola fuente para que la ruta y la pantalla que lo muestra
+ * (`ComprobanteVista`, "Subido por …") nunca puedan divergir sobre el texto.
+ */
+export const COMPROBANTE_SUBIDO_POR_CLIENTE = 'El cliente';
+
 // ─── Validación del archivo ──────────────────────────────────────────────────
 
 export interface ArchivoComprobante {
