@@ -41637,3 +41637,145 @@ slice, por instrucción del dispatch, no mergea.
   de esta ruta/versión antes de repetir el patrón que falló acá.
 
 **Cierra `FAVICON-RUTA-POR-TIENDA-1`.**
+
+## 2026-10-01 — Las secciones entran UNA VEZ, no se vuelven a ocultar al pasar arriba (`SECCIONES-ENTRAN-UNA-VEZ-1`)
+
+Slice de corrección, continúa `slice/corte-reescritura-prototipo-1`. Corrige `SECCIONES-ENTRAN-VIVAS-1`
+(este mismo día, entrada anterior): aquel slice reportó "8/8 se repiten" y leyó eso como el
+comportamiento de la referencia (homeburgers.com) — era un **ERROR DE MEDICIÓN DEL ORQUESTADOR**, no un
+pedido del owner. Re-medido contra la referencia: un bloque entra UNA VEZ y queda en opacidad 1 para
+siempre — al pasar arriba, al salir por arriba, al volver a bajar, al volver a entrar desde abajo.
+
+### El defecto
+
+Con `once:false` + `REVELA_BLOQUE_MARGEN` SIMÉTRICO (`-20%` arriba Y abajo), un bloque que ya había
+cruzado la mitad de la pantalla hacia arriba salía de la caja efectiva del `IntersectionObserver` (el
+20% superior real quedaba excluido) y `whileInView` revertía a `hidden`: el bloque se desvanecía
+MIENTRAS el visitante todavía lo estaba leyendo. Medido en iPhone (herencia del spec de este slice): el
+título del destacado a ~36px del borde superior ya estaba al 60% de opacidad.
+
+### El fix
+
+Dos cambios, LA MISMA corrección:
+- `once:false` → `once:true` (`RevelarBloque.tsx`).
+- `REVELA_BLOQUE_MARGEN`: `-20% 0px -20% 0px` → `0px 0px -20% 0px` — sólo el FONDO se encoge (conserva
+  el disparo tardío al entrar scrolleando desde abajo); el TOPE queda en el borde real del viewport, así
+  un bloque ya visible al cargar (o alcanzado de un salto) nunca arranca oculto.
+
+El valor del disparo tardío (20%) **no cambió** — seguía midiendo bien contra el gate visual de
+`SECCIONES-ENTRAN-VIVAS-1` (8/8 arrancando entre 71%–79% del alto de ventana). El defecto no estaba en
+la MAGNITUD, estaba en haber aplicado la misma magnitud también a la salida.
+
+Nada más se tocó: distancia (50px), duración (0.8s), curva (`cubic-bezier(0.22,1,0.36,1)`), paso
+escalonado (0.1s) y qué secciones usan `RevelarBloque` quedan idénticos a `SECCIONES-ENTRAN-VIVAS-1`.
+
+### Medición A MITAD DEL SCROLL — por sección, Nayoli y CORTE, 1440 y iPhone (WebKit)
+
+Arnés propio (`.scratch/medir-revelado-una-vez.ts`, gitignoreado — mismo patrón de orquestación que el
+arnés de `SECCIONES-ENTRAN-VIVAS-1`): Postgres efímero + build+start de la rama actual, Chromium
+1440×900 y WebKit "iPhone" 390×844, Nayoli (`/`) y CORTE (`/?tema=CORTE`). Por sección: opacidad de su
+título con el borde al 90%, 60%, 10% del alto de ventana y por encima de la pantalla (scroll más allá);
+después, scroll de vuelta hacia abajo hasta la posición de 60% — confirma que sigue en opacidad 1 (no
+re-oculta, no re-dispara).
+
+| sección | tema | viewport | 90% | 60% | 10% | fuera por arriba | vuelta a 60% |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| TrustBadges (1ª insignia) | Nayoli | 1440 | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| FeaturedProducts (antetítulo) | Nayoli | 1440 | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| GrindChooserRiel (título) | CORTE | 1440 | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| BrandStoryCentrada (eyebrow) | CORTE | 1440 | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| TrustBadges (1ª insignia) | Nayoli | iPhone | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| FeaturedProducts (antetítulo) | Nayoli | iPhone | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| GrindChooserRiel (título) | CORTE | iPhone | 0.00 | 0.999965 | 1.00 | 1.00 | 1.00 |
+| BrandStoryCentrada (eyebrow) | CORTE | iPhone | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+
+**8/8 en 0.00 al 90%** (todavía no entró — el disparo tardío se conserva) **y 8/8 en ~1.00 en el resto
+de las posiciones, incluida "fuera por arriba" y "vuelta a 60%"** — el bloque que ya entró no vuelve a
+ocultarse en ninguna dirección de scroll, que es exactamente el defecto que este slice cierra. El único
+valor que no redondea a 1.00 exacto (`riel-titulo-CORTE-iphone-webkit`, 60% → `0.999965`) es la curva
+`cubic-bezier(0.22,1,0.36,1)` todavía asentando en el instante exacto del muestreo (900ms de espera
+sobre una `duration` nominal de 800ms — WebKit corrió un pelo más lento ese frame), no un re-ocultado:
+sigue siendo visualmente opaco. 8 capturas (1 por sección, en la posición de 60%) en
+`.scratch/medir-revelado-una-vez/` (gitignoreadas).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **2999/2999** |
+| `npm run test:integracion` | **277/277** en la corrida final. Dos corridas intermedias dieron 276/277 — `wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador…", archivo AJENO a `touches:` de este slice (`git log -1` → `9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`), el mismo flake de timing ya documentado ≥12 veces en este libro (§ arriba, las entradas de otras tandas). Tercera corrida: 277/277 limpio. |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **cifra DISTINTA a la del piso heredado, explicada abajo**: 355.138/4.608.000 px (consciente de AA), 428.107/4.608.000 px (crudo), caja [96,862]–[1183,3306] (el piso de `SECCIONES-ENTRAN-VIVAS-1` era 555.788/4.608.000, caja …–[1183,3280]); las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra que `guarda:color`** (355.138/4.608.000 AA / 428.107/4.608.000 crudo, caja [96,862]–[1183,3306]); las otras 5 rutas + 2 hovers IDÉNTICO |
+
+**LA CIFRA CAMBIÓ RESPECTO AL PISO, Y ES EL PROPIO DIFF QUIEN LO EXPLICA — no es drift sin causa.**
+`scrollearYAsentar` (`scripts/verificar-nayoli-visual.ts`) scrollea la página entera (dispara TODO
+`whileInView`) y vuelve a `scrollTo(0,0)` antes de capturar `fullPage` — el mecanismo no cambió. Lo
+que cambió es QUÉ queda visible tras ese `scrollTo(0,0)`: con `once:false` (el piso de
+`SECCIONES-ENTRAN-VIVAS-1`), todo bloque fuera del 60%/80% activo a scroll=0 volvía a `hidden`
+(opacity:0); con `once:true` (este slice), un bloque que ya entró durante el scroll completo
+**se queda en opacity:1 aunque la página vuelva arriba** — exactamente el comportamiento que el spec
+pide. Eso significa que a scroll=0 la captura de la rama ahora tiene MÁS contenido en opacidad 1 (más
+parecido al fixture pre-feature, que nunca tuvo nada oculto) que antes, así que el número de píxeles
+distintos **BAJA** (355.138 < 555.788, consistente) y la caja del diff se ajusta levemente (fondo
+3280→3306: un bloque que antes quedaba a medio fundir en el borde de esa caja ahora está asentado del
+todo, cambiando el límite exacto del rectángulo que `pixelmatch` reporta). **No se regeneró el
+fixture** — sigue siendo decisión del owner (`GUARDA-COLOR-FIXTURE-ENTRADA-PENDIENTE-1`, sin tocar);
+esa deuda no la resuelve este slice, sólo cambia el NÚMERO exacto de la diferencia ya conocida.
+
+### `touches:`
+
+`git diff --stat` contra la base: 3 archivos modificados (`components/storefront/RevelarBloque.tsx`,
+`lib/storefront/revelado-bloque.ts`, `lib/storefront/revelado-bloque.test.ts`) + este asiento
+(`DECISIONS.md`) — los cuatro dentro de `touches:`. Sin deviación.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos de este diff: `RevelarBloque`, `revelado-bloque`, `REVELA_BLOQUE_MARGEN`,
+`SECCIONES-ENTRAN-VIVAS`, `SECCIONES-ENTRAN-UNA-VEZ`. Grepeados: **CERO coincidencias** en
+`CLAUDE.md` para los cinco — esta primitiva y su spec anterior no están nombradas ahí. Nada que
+corregir.
+
+**Fuera de `touches:` de este slice, nombrado y NO editado:** `lib/animation.ts:18` (comentario de
+`fadeUp`) dice "disparo tardío, **repetición**, 50px/0.8s/cubic-bezier(...)" sobre `RevelarBloque` —
+"repetición" queda falso tras este slice (ahora entra una sola vez). Y el open-follow-up
+`REVELADO-BLOQUE-SWIPE-TARJETAS-VARIABLES-1` (asiento de `SECCIONES-ENTRAN-VIVAS-1`, arriba) nombra "un
+margen distinto a -20%/-20%" — el margen vigente ya no es `-20%/-20%` (simétrico), es `0%/-20%`
+(asimétrico); la frase describe el valor VIEJO. Ninguno de los dos está en `touches:` de este slice; se
+nombran acá para que no se lean como vigentes sin que nadie los haya corregido.
+
+### `customer_bytes`
+
+**`changed: true`.** El rastro visible es de TRANSICIÓN, igual que `SECCIONES-ENTRAN-VIVAS-1`: ningún
+texto, color, imagen ni layout en reposo cambia. Lo que el visitante percibe cambia de forma: antes, un
+bloque que ya había entrado podía desvanecerse de nuevo al scrollear más allá (hacia arriba o abajo);
+ahora, una vez que entra, se queda visible para siempre — sin volver a animar. `strings: []` — cero
+texto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff son dos constantes/comentarios y un valor de prop booleano.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 2999 + 277, tras confirmar el flake
+pre-existente de `wompi-reconciliador.test.ts`), `guarda:color` y `verificar:nayoli:visual` dan la
+MISMA cifra entre sí (355.138/428.107 px, caja [96,862]–[1183,3306]) pero DISTINTA a la del piso
+heredado — drift EXPLICADO por el propio diff, no un hallazgo sin causa (§ Gate, arriba) —, mid-scroll
+medido 8/8 en Nayoli y CORTE, 1440 y iPhone WebKit, confirmando que el bloque ya no re-oculta en
+ninguna dirección. Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` —
+`schema` y `cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`,
+`approval-reason` cita el mismo pedido del owner de `SECCIONES-ENTRAN-VIVAS-1`, con la corrección
+explícita de que "se repite" fue error de medición del orquestador); el merge sigue pendiente del gate
+del orquestador — este slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `ANIMATION-TS-REPETICION-COMENTARIO-VENCIDO-1` — `lib/animation.ts:18` describe a `RevelarBloque`
+  como "disparo tardío, repetición" — "repetición" queda falso tras este slice. Fuera de `touches:`;
+  no se editó.
+- `REVELADO-BLOQUE-SWIPE-MARGEN-VALOR-VENCIDO-1` — el follow-up `REVELADO-BLOQUE-SWIPE-TARJETAS-
+  VARIABLES-1` (asiento de `SECCIONES-ENTRAN-VIVAS-1`) nombra el margen vigente como "-20%/-20%"; tras
+  este slice es `0%/-20%` (asimétrico). Fuera de `touches:`; no se editó.
+
+**Cierra `SECCIONES-ENTRAN-UNA-VEZ-1`.**

@@ -47,11 +47,12 @@ test('transicionRevelaBloque(indice negativo): se acota a 0 — un llamador no p
   assert.equal(transicionRevelaBloque(-3).delay, 0);
 });
 
-test('REVELA_BLOQUE_MARGEN: cuatro valores simétricos (arriba/abajo encogidos, izquierda/derecha en 0) — late trigger en las dos direcciones de scroll', () => {
-  assert.equal(REVELA_BLOQUE_MARGEN, '-20% 0px -20% 0px');
+test('REVELA_BLOQUE_MARGEN: sólo el fondo se encoge — el tope queda en el borde real del viewport, § SECCIONES-ENTRAN-UNA-VEZ-1', () => {
+  assert.equal(REVELA_BLOQUE_MARGEN, '0px 0px -20% 0px');
   const partes = REVELA_BLOQUE_MARGEN.split(' ');
   assert.equal(partes.length, 4);
-  assert.equal(partes[0], partes[2], 'arriba y abajo deben encogerse por igual (simetría de disparo/salida)');
+  assert.equal(partes[0], '0px', 'el tope NO se encoge: un bloque ya visible al cargar (o alcanzado de un salto) nunca debe quedar fuera de la caja activa');
   assert.equal(partes[1], '0px');
+  assert.equal(partes[2], '-20%', 'el fondo sigue encogido: conserva el disparo tardío al entrar scrolleando desde abajo');
   assert.equal(partes[3], '0px');
 });

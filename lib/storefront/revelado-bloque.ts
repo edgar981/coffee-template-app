@@ -41,22 +41,32 @@ export const REVELA_BLOQUE_EASE: [number, number, number, number] = [0.22, 1, 0.
 // LA VENTANA DE DISPARO TARDÍO — el margen que `viewport.margin` de framer-motion pasa DIRECTO como
 // `rootMargin` del `IntersectionObserver` nativo (verificado contra la fuente instalada,
 // `node_modules/framer-motion/dist/es/render/dom/viewport/index.mjs`: `margin: rootMargin` sin
-// transformación). Un margen NEGATIVO encoge la caja efectiva del viewport — con `-20%` arriba y
-// abajo, sólo el 60% central de la pantalla cuenta como "visible" para el observer, así que un bloque
-// no dispara al asomar por el borde: tiene que haber scrolleado bien adentro de la pantalla primero
-// (§0 del spec: "un título con su borde superior al 80% del alto de la ventana todavía NO había
-// arrancado"). SIMÉTRICO (mismo valor arriba y abajo) a propósito: así el bloque también SALE de la
-// zona activa temprano al scrollear en cualquier dirección, lo que es la otra mitad de "se repite"
-// (§0: "al volver arriba el bloque vuelve a quedar oculto") — sin el margen simétrico, reentrar por
-// arriba dispararía de inmediato en el borde superior real, una asimetría que no tiene motivo.
+// transformación). Un margen NEGATIVO encoge la caja efectiva del viewport desde ese borde — con
+// `-20%` en el FONDO, sólo el 80% superior de la pantalla cuenta como "visible" para el observer en
+// esa dirección, así que un bloque no dispara al asomar por el borde inferior: tiene que haber
+// scrolleado bien adentro de la pantalla primero (§0 del spec: "un título con su borde superior al
+// 80% del alto de la ventana todavía NO había arrancado").
 //
-// EL VALOR EXACTO (20%) ES UNA DECISIÓN DE ESTE SLICE, NO UNA MEDICIÓN DEL SPEC: `cifras-decision`
-// sólo fija distancia/duración/paso (arriba); el margen de disparo no tiene cifra dada. Se eligió
-// -20% por ser la que, en la medición de la sección 2 del spec (el gate visual, Playwright a 1440 y
-// iPhone), deja el disparo cómodamente dentro de la pantalla sin volverlo tan tardío que la mitad
-// inferior del bloque ya haya cruzado el centro antes de empezar a verse — el reporte de esta tanda
-// trae las posiciones medidas.
-export const REVELA_BLOQUE_MARGEN = '-20% 0px -20% 0px' as const;
+// SÓLO EL FONDO SE ENCOGE — ASIMÉTRICO A PROPÓSITO. CORRIGE `SECCIONES-ENTRAN-VIVAS-1`
+// (`SECCIONES-ENTRAN-UNA-VEZ-1`, 2026-10-01): aquel slice encogía TAMBIÉN el tope (`-20%` arriba),
+// razonando que la salida temprana simétrica era "la otra mitad de 'se repite'" en la referencia. Era
+// un ERROR DE MEDICIÓN DEL ORQUESTADOR, no un hecho de homeburgers.com (§ el spec de este slice, §0):
+// re-medido, un bloque de la referencia entra UNA VEZ y queda en opacidad 1 para siempre — al pasar
+// arriba, al salir por arriba, al volver a bajar y al volver a entrar desde abajo. Con el tope
+// también encogido Y `once:false` (abajo), un bloque que ya cruzó la mitad de la pantalla hacia
+// arriba salía de la caja efectiva (el 20% superior real quedaba fuera de ella) y el observer dejaba
+// de reportarlo "intersecting": `whileInView` revertía a `hidden` y el bloque se desvanecía MIENTRAS
+// el visitante todavía lo estaba leyendo (medido en iPhone: el título del destacado a ~36px del
+// borde superior ya estaba al 60% de opacidad). Dejar el TOPE en `0px` quita esa frontera: desde que
+// un bloque entra hasta que sale enteramente por arriba del viewport real, sigue "intersecting" — y
+// por tanto `visible` —, que es justo el punto en que ya no queda nada que desvanecer porque no se ve.
+//
+// EL VALOR EXACTO (20% en el fondo) SIGUE SIENDO EL MISMO QUE MIDIÓ `SECCIONES-ENTRAN-VIVAS-1`, NO
+// UNA CIFRA NUEVA: el defecto no estaba en LA MAGNITUD del disparo tardío (medida contra el gate
+// visual de aquel slice, 1440 e iPhone, 8/8 arrancando entre 71%–79% del alto de ventana) — estaba en
+// haber aplicado la misma magnitud también a la SALIDA. `cifras-decision` del spec de aquel slice
+// tampoco daba un número para el margen; éste lo sigue sin dar.
+export const REVELA_BLOQUE_MARGEN = '0px 0px -20% 0px' as const;
 
 // `hidden`/`visible` — igual forma que `fadeUp` (opacity + y), otra magnitud. `y` numérico es px por
 // defecto en framer-motion (sin unidad, a diferencia de `fadeUpCascadaBloque.y:"30%"`, que es un

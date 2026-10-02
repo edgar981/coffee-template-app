@@ -8,10 +8,20 @@ import {
   REVELA_BLOQUE_MARGEN,
 } from "@/lib/storefront/revelado-bloque";
 
-// RevelarBloque — § SECCIONES-ENTRAN-VIVAS-1. La primitiva GENÉRICA de entrada por scroll para el
-// resto de la home (texto Y media): sube 50px mientras funde opacidad, con disparo TARDÍO (sólo
-// cuando el bloque ya está bien adentro de la pantalla, § `REVELA_BLOQUE_MARGEN`) y SE REPITE al
-// volver a pasar (`once:false`) — las cifras y el porqué viven en `lib/storefront/revelado-bloque.ts`.
+// RevelarBloque — § SECCIONES-ENTRAN-VIVAS-1, corregido por § SECCIONES-ENTRAN-UNA-VEZ-1. La
+// primitiva GENÉRICA de entrada por scroll para el resto de la home (texto Y media): sube 50px
+// mientras funde opacidad, con disparo TARDÍO desde abajo (sólo cuando el bloque ya está bien adentro
+// de la pantalla, § `REVELA_BLOQUE_MARGEN`) y entra UNA SOLA VEZ (`once:true`) — las cifras y el
+// porqué viven en `lib/storefront/revelado-bloque.ts`.
+//
+// `once:true` Y el margen ASIMÉTRICO (sólo el fondo se encoge) son LA MISMA corrección, no dos: el
+// slice anterior (`SECCIONES-ENTRAN-VIVAS-1`) puso `once:false` + margen simétrico razonando que la
+// referencia (homeburgers.com) "se repite" al volver a pasar por un bloque — era un ERROR DE MEDICIÓN
+// DEL ORQUESTADOR (§ el spec de este slice). Re-medido: en la referencia un bloque entra UNA VEZ y
+// queda visible para siempre — al pasar arriba, al salir por arriba, al volver a bajar y al volver a
+// entrar desde abajo. Con `once:false` + margen simétrico, un bloque que ya había cruzado la mitad de
+// la pantalla hacia arriba volvía a ocultarse MIENTRAS el visitante todavía lo estaba leyendo.
+//
 // NO es la primitiva de "El origen"/Suscripción (variante `linea`): esas dos ya tenían la entrada que
 // el owner pidió reproducir y el spec de este slice las deja explícitamente sin tocar
 // (`TextoEnCascada.tsx`, `fadeUp`/`fadeUpCascadaBloque`/`revelaMascaraVertical` en lib/animation.ts).
@@ -51,7 +61,7 @@ export default function RevelarBloque({
       initial={preview ? false : "hidden"}
       animate={preview ? "visible" : undefined}
       whileInView={preview ? undefined : "visible"}
-      viewport={preview ? undefined : { once: false, margin: REVELA_BLOQUE_MARGEN }}
+      viewport={preview ? undefined : { once: true, margin: REVELA_BLOQUE_MARGEN }}
       variants={variantesRevelaBloque}
       transition={preview ? undefined : transicionRevelaBloque(indice)}
     >
