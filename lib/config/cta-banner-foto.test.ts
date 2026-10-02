@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import SubscriptionCTALinea from '@/components/storefront/home/SubscriptionCTALinea';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
+import { transformSubscripcionParallax } from '@/lib/animation';
 
 import { DEFAULTS, REGISTRY, type SiteContentData } from './site-content-defaults';
 import { camposControladosPorPanel } from './panel-controles';
@@ -92,15 +93,23 @@ test('SubscriptionCTABloque (la variante canónica) NO importa ni lee `imagenFon
 
 // ─── EL GATE ESTÁTICO — preview (proxy de movimiento reducido): la imagen queda QUIETA ────────────
 
-test('EN PREVIEW (proxy de movimiento reducido): el parallax queda en 0%, sin desplazamiento', () => {
+test('EN PREVIEW (proxy de movimiento reducido): el parallax queda QUIETO, sin desplazamiento', () => {
   const content = { ...DEFAULTS, subscriptionCTA: { ...DEFAULTS.subscriptionCTA, imagenFondo: '/images/historia-4-v1.jpg' } } as SiteContentData;
   const html = renderLinea(content, { preview: true });
-  assert.ok(html.includes('0%'), 'bajo el gate estático, el parallax debe rendir su forma QUIETA (0%)');
-  assert.ok(!/-?\d\.\d\d%/.test(html.replace('0%', '')), 'ningún desplazamiento con decimales debe sobrevivir al gate estático');
+  // `transformSubscripcionParallax(p, true)` siempre da '0vh' (estático) — pero framer-motion
+  // optimiza un `y` de valor CERO a `transform:none` en el render estático, nunca
+  // "translateY(0vh)" literal (verificado contra `motion.div` directo). Por eso esta prueba NO
+  // busca el string '0vh' en el HTML: afirma la AUSENCIA del desplazamiento DINÁMICO, importado
+  // de la misma función real, nunca un literal copiado.
+  assert.equal(transformSubscripcionParallax(0, true), '0vh', 'la forma estática de la función sigue siendo 0vh');
+  const conMovimiento = transformSubscripcionParallax(0, false);
+  assert.ok(!html.includes(conMovimiento), 'ningún desplazamiento con movimiento debe sobrevivir al gate estático');
+  assert.ok(!/translateY\(-?\d\.\d\d(vh|%)\)/.test(html), 'ningún translateY con decimales (desplazamiento real) debe aparecer bajo el gate estático');
 });
 
-test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0): el parallax arranca en 5.00% ((0-0.5)*-10)', () => {
+test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0): el parallax arranca en el valor que la función da para progreso=0', () => {
   const content = { ...DEFAULTS, subscriptionCTA: { ...DEFAULTS.subscriptionCTA, imagenFondo: '/images/historia-4-v1.jpg' } } as SiteContentData;
   const html = renderLinea(content);
-  assert.ok(html.includes('5.00%'), 'a progreso=0, sin el gate estático, el parallax debe arrancar en 5.00%');
+  const esperado = transformSubscripcionParallax(0, false);
+  assert.ok(html.includes(esperado), `a progreso=0, sin el gate estático, el parallax debe arrancar en ${esperado}`);
 });

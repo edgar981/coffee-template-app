@@ -44338,3 +44338,123 @@ MERGE. Commiteado en `slice/corte-reescritura-prototipo-1`.
 `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` se resuelva y el gate completo vuelva a correr limpio — el
 defecto visual que este slice existe para arreglar SÍ queda cerrado y verificado (§ Verificación,
 arriba).
+
+## 2026-10-02 — Cierre de `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`: el test rojo de `cta-banner-foto.test.ts` se pone al día con `transformSubscripcionParallax` real (`PARALLAX-TEST-SYNC-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Cierra el `GATE_RED` que
+`SUSCRIPCION-PARALLAX-VISIBLE-1` dejó declarado y que `MARQUESINA-TARJETA-SIN-MASCARA-1` y
+`TIENDA-HOVER-SEGUNDA-FOTO-1` re-confirmaron sin tocar, porque `lib/config/cta-banner-foto.test.ts`
+no estaba en el `touches:` de ninguno de los tres. Aprobación del owner sobre el MISMO gate que ya
+aprobó `SUSCRIPCION-PARALLAX-VISIBLE-1` (2026-10-02): la aprobación autoriza la escritura, nunca el
+merge.
+
+### La causa — `touches:` incompleto del spec que convirtió `%`→`vh`
+
+`SUSCRIPCION-PARALLAX-VISIBLE-1` cambió la unidad que `transformSubscripcionParallax`
+(`lib/animation.ts`) produce, de `%` a `vh`, con su propio `lib/animation.test.ts` y
+`lib/config/subscription-linea.test.ts` actualizados en el mismo slice — pero su `touches:` no
+nombraba `lib/config/cta-banner-foto.test.ts`, un SEGUNDO archivo de test con la misma dependencia
+literal del sufijo viejo. Ese slice lo midió, lo diagnosticó por completo y decidió correctamente NO
+tocarlo (un path fuera de `touches:` no está cubierto por la aprobación) — dejando el defecto
+nombrado como `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` para que una tanda propia lo cerrara. Éste es
+ese cierre.
+
+### Lo medido, que AMPLÍA el diagnóstico original en un punto
+
+El spec de este slice (y el diagnóstico de `SUSCRIPCION-PARALLAX-VISIBLE-1` del que deriva) describía
+UN SOLO test roto — el de la línea 105 (`'5.00%'` contra un cálculo que ahora da `'5.00vh'`). Medido
+antes de tocar nada: ESE era el único test que fallaba (10/11 verdes, 1 rojo — confirmado corriendo
+`npx tsx --test lib/config/cta-banner-foto.test.ts` sobre el árbol sin editar). Pero el test VECINO
+("EN PREVIEW… el parallax queda en 0%, sin desplazamiento") **también dependía del sufijo `%` y
+también estaba desactualizado** — sólo que pasaba por una SEGUNDA coincidencia, no por la que
+`SUSCRIPCION-PARALLAX-VISIBLE-1` ya había nombrado (ese slice documentó que `0%` matcheaba contra el
+`translateY(100%)` de la máscara de la tarjeta de Marquesina; `MARQUESINA-TARJETA-SIN-MASCARA-1`
+BORRÓ esa máscara dos commits después). Medido con un harness desechable
+(`renderToStaticMarkup` sobre el árbol real, mismo patrón que el test): en preview, `html.includes
+('0%')` da `true` porque matchea contra `style="position:absolute;height:100%;width:100%;…"` del
+`<img>` de `next/image` — una propiedad CSS no relacionada, nunca el parallax. El assert nunca
+verificó lo que su nombre dice, ni antes ni después de `MARQUESINA-TARJETA-SIN-MASCARA-1`: fue
+incidental dos veces seguidas, contra dos strings distintos, ninguno el mecanismo real.
+
+Un segundo hallazgo, verificado contra `framer-motion` directo (`motion.div` con `style={{ y: '0vh' }}`
+vs. `style={{ y: '5.00vh' }}`, renderizados con `renderToStaticMarkup`): framer-motion OPTIMIZA un
+valor `y` de CERO a `transform:none` en el render estático — nunca emite `"translateY(0vh)"` literal.
+Por eso `transformSubscripcionParallax(0, true)` (el valor estático real, `'0vh'`) NUNCA aparece
+como substring en el HTML renderizado, con o sin preview: no hay forma de que ese test busque el
+literal `'0vh'` y pase de verdad. El test corregido no lo busca — afirma la AUSENCIA del
+desplazamiento DINÁMICO (`transformSubscripcionParallax(0, false)`, importado, nunca copiado) y la
+ausencia de cualquier `translateY` con decimales.
+
+### El fix
+
+`lib/config/cta-banner-foto.test.ts` importa `transformSubscripcionParallax` de `@/lib/animation` (no
+existía el import) y:
+- el test de la línea 105 compara contra `transformSubscripcionParallax(0, false)` (el valor real,
+  `'5.00vh'`) en vez del literal copiado `'5.00%'`;
+- el test "EN PREVIEW" compara contra `transformSubscripcionParallax(0, true)` para afirmar que la
+  forma estática de la FUNCIÓN sigue siendo `'0vh'` (un contrato, no una búsqueda en el HTML — por el
+  hallazgo de framer-motion de arriba), contra `!html.includes(transformSubscripcionParallax(0,
+  false))` para la ausencia del valor dinámico, y contra una regex general
+  (`/translateY\(-?\d\.\d\d(vh|%)\)/`) para la ausencia de CUALQUIER desplazamiento con decimales,
+  en cualquiera de las dos unidades — robusto a que `transformSubscripcionParallax` cambie de número
+  sin que nadie tenga que volver a tocar este archivo.
+
+Cero cambio de producto: ni `lib/animation.ts` ni ningún componente se tocaron. El `touches:` de este
+slice (`lib/config/cta-banner-foto.test.ts`, `DECISIONS.md`) se respetó íntegro.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (vía `npm run typecheck`) | 0 errores |
+| `npm test` | **3088/3088** — el único rojo pre-existente (`CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`) ya no existe |
+| `npm run test:integracion` | **286/286** — el flake `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1` no se reprodujo en esta corrida |
+
+`guarda:color`/`verificar:nayoli:visual` NO se corrieron: este slice no toca ningún componente,
+estilo ni ruta del storefront — es un archivo de test puro (sin JSX, sin render al DOM real) y
+`DECISIONS.md`. No hay superficie visual que esas herramientas puedan medir que este diff pudiera
+mover.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `lib/config/cta-banner-foto.test.ts` (dos tests editados, un
+import agregado), `transformSubscripcionParallax` (sólo IMPORTADO, no modificado), los ids
+`PARALLAX-TEST-SYNC-1` y `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`. Grepeados uno por uno contra
+`CLAUDE.md`: **CERO coincidencias** para los cuatro. `CLAUDE.md` no documenta este archivo de test ni
+este mecanismo (igual que ya constataron los tres slices anteriores de esta cadena) — nada queda
+falso por este diff.
+
+Este slice SÍ tocó un `.md` (`DECISIONS.md`, este mismo asiento) pero no cierra ni referencia ninguna
+sección de `CLAUDE.md` por id/encabezado, así que el segundo grep (punteros a una sección) no aplica.
+
+### `customer_bytes`
+
+**`changed: false`.** El único archivo de producto tocado es un archivo de test
+(`*.test.ts`, no se compila al bundle del storefront ni del admin) más esta entrada de `DECISIONS.md`
+(no es texto de producto). Ningún visitante ni operador ve un byte distinto por este diff. `strings:
+[]`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin contrato cross-repo.
+
+### Open follow-ups
+
+Ninguno nuevo. `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` queda CERRADO: el archivo ya no tiene ninguna
+dependencia de un literal copiado del sufijo de unidad, y el gate completo (`npm run gate`
+equivalente: typecheck + `npm test` + `npm run test:integracion`) corre 100% verde sobre el árbol
+final.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [owner-gate-requested]`. Por SU PROPIO diff este slice no
+dispara ninguna de las tres condiciones de la política A (sin schema, sin customer-bytes — el único
+archivo de producto tocado es un `*.test.ts`, sin cross-repo contract), así que por sí solo habría
+calificado para `COMPLETE`. Pero el dispatch de este slice instruye explícitamente parar antes del
+merge («PARÁS EN `AWAITING_APPROVAL`. NO MERGEES.») — el caso declarado para `owner-gate-requested`:
+se pide la parada Y ninguna otra razón de política detendría este slice de todas formas. El gate
+completo corrió verde sobre el árbol final (typecheck 0 errores, `npm test` 3088/3088,
+`npm run test:integracion` 286/286). Commiteado en `slice/corte-reescritura-prototipo-1`; el merge
+de la rama entera —que sigue cargando los customer-bytes sin aprobar de
+`MARQUESINA-TARJETA-COMO-LETRAS-1`, `SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1` y
+`MARQUESINA-TARJETA-SIN-MASCARA-1`— sigue pendiente de ese gate separado, ajeno a este slice.
