@@ -1921,14 +1921,16 @@ export const DEFAULTS: SiteContentData = {
     tarjetaTexto: '',
     items: [],
   },
-  // LOGO por defecto (§ MARCA-LOGO-IMAGEN-1): las tres claves vacías → sin logo subido, el
-  // storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) →
+  // LOGO por defecto (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1):
+  // las cuatro claves vacías → sin logo subido (el storefront cae al wordmark de texto, o la flor
+  // de Nayoli, § STOREFRONT_TIENE_MARK) y sin ícono propio (cae a los estáticos de Nayoli) →
   // byte-idéntico sin depender de una fila.
   logo: {
     visible: true,
     oscuro: '',
     claro: '',
     alt: '',
+    icono: '',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -2631,16 +2633,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // subida, § `hayLogoImagen`, lib/config/marca-logo.ts), editor BESPOKE
   // (`EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado` — el logo viaja en el MISMO
   // borrador/publish que los diez switches del Encabezado, no una sección aparte del selector de
-  // páginas). `imagenes: ['oscuro', 'claro']` para que el borrado de blobs reemplazados
+  // páginas). `imagenes: ['oscuro', 'claro', 'icono']` para que el borrado de blobs reemplazados
   // (`imagenesDe`, site-content-blobs.ts) los vea — sin nombrarlos acá, reemplazar un logo dejaría
   // el blob viejo HUÉRFANO para siempre (mismo mecanismo que `hero.imagenPoster`/
-  // `menu.panelTarjetaImagen`). Los tres campos son 'opcional': vacíos = sin logo subido, el
-  // storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) —
-  // exactamente lo de hoy.
+  // `menu.panelTarjetaImagen`). Los cuatro campos son 'opcional': vacíos = sin logo/ícono subido, el
+  // storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) y a los
+  // íconos estáticos de hoy — exactamente lo de hoy.
   logo: {
     label: 'Logo',
     ocultable: false,
-    imagenes: ['oscuro', 'claro'],
+    imagenes: ['oscuro', 'claro', 'icono'],
     campos: {
       // Versión OSCURA (tinta): para fondos CLAROS — páginas internas, encabezado sólido.
       oscuro: 'opcional',
@@ -2650,20 +2652,29 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // contextual, no requerido"): vacío → el nombre del negocio, resuelto por el CONSUMIDOR
       // (`altDeLogo`, lib/config/marca-logo.ts) — nunca un default de código inventado.
       alt: 'opcional',
+      // EL ÍCONO DE LA PESTAÑA (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1): un cuadrado PNG/SVG propio
+      // para el favicon/apple-touch-icon/ícono de PWA, DISTINTO del logo de arriba (ESE es el
+      // wordmark/mark del nav — típicamente RECTANGULAR, pésimo recortado a 16×16). Vacío → los
+      // íconos ESTÁTICOS de hoy (Nayoli, § `lib/config/metadata-tienda.ts`), nunca una URL rota.
+      icono: 'opcional',
     },
   },
 };
 
-/** El contrato de dato del LOGO subido (§ MARCA-LOGO-IMAGEN-1): dos versiones de imagen + su alt.
- *  `''` en `oscuro`/`claro` = esa versión no está subida; `''` en ambas = sin logo (el storefront
- *  cae al wordmark de texto). Ver `REGISTRY.logo` arriba para el porqué de cada campo. `visible` es
- *  el campo BASELINE que toda sección lleva (§ `HeroContent`/`MenuContent`/`FooterContent`) — inerte
- *  acá porque `REGISTRY.logo.ocultable` es `false`, igual que en `menu`/`footer`. */
+/** El contrato de dato del LOGO subido (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-
+ *  LANG-POR-TIENDA-1): dos versiones de imagen + su alt, más el ícono de pestaña/PWA. `''` en
+ *  `oscuro`/`claro` = esa versión no está subida; `''` en ambas = sin logo (el storefront cae al
+ *  wordmark de texto). `''` en `icono` = sin ícono propio (cae a los estáticos de Nayoli, §
+ *  `lib/config/metadata-tienda.ts`). Ver `REGISTRY.logo` arriba para el porqué de cada campo.
+ *  `visible` es el campo BASELINE que toda sección lleva (§ `HeroContent`/`MenuContent`/
+ *  `FooterContent`) — inerte acá porque `REGISTRY.logo.ocultable` es `false`, igual que en
+ *  `menu`/`footer`. */
 export interface LogoContent {
   visible: boolean;
   oscuro: string;
   claro: string;
   alt: string;
+  icono: string;
 }
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.

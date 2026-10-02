@@ -23,7 +23,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+    // `lang="es"` (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1, 2026-10-01): era "en" — el ÚNICO `<html>`
+    // del repo (ni `(storefront)` ni `(admin)` declaran uno propio), así que gobierna TODAS las
+    // rutas, admin incluido. Corrección aprobada por el owner como cambio de bytes de Nayoli; no
+    // mueve un solo píxel (es un atributo, no contenido renderizado).
+    <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
         {children}
         {/* TOAST-COMO-PROTOTIPO-1: este Toaster ahora decide su propio alcance (admin/pre-auth) —

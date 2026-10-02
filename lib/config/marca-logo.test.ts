@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { hayLogoImagen, logoParaVariante, altDeLogo } from './marca-logo';
 import type { LogoContent } from './site-content-defaults';
 
-const SIN_LOGO: LogoContent = { visible: true, oscuro: '', claro: '', alt: '' };
-const AMBAS: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: 'https://blob.example/claro.svg', alt: '' };
-const SOLO_OSCURA: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: '', alt: '' };
-const SOLO_CLARA: LogoContent = { visible: true, oscuro: '', claro: 'https://blob.example/claro.svg', alt: '' };
+// `icono` (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) es ajeno a lo que este archivo prueba (wordmark/
+// mark, no el favicon) — '' en las cuatro fixtures, sólo para satisfacer `LogoContent`.
+const SIN_LOGO: LogoContent = { visible: true, oscuro: '', claro: '', alt: '', icono: '' };
+const AMBAS: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: 'https://blob.example/claro.svg', alt: '', icono: '' };
+const SOLO_OSCURA: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: '', alt: '', icono: '' };
+const SOLO_CLARA: LogoContent = { visible: true, oscuro: '', claro: 'https://blob.example/claro.svg', alt: '', icono: '' };
 
 // ── hayLogoImagen ────────────────────────────────────────────────────────────────────────────────
 

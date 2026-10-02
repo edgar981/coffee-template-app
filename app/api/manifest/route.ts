@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSiteSettings } from "@/lib/config/site-settings";
 import { getSiteContent } from "@/lib/config/site-content";
 import { coloresPWA } from "@/lib/config/pwa-colores";
+import { iconosManifestDeTienda } from "@/lib/config/metadata-tienda";
 
 // El manifest PWA del STOREFRONT (del CLIENTE): nombre, descripción e íconos del negocio, editables
 // desde el panel (SiteSetting). Vive como ROUTE HANDLER —NO como la convención `app/manifest.ts`— a
@@ -31,15 +32,14 @@ export async function GET() {
     display: "standalone",
     background_color: chrome,
     theme_color: pwaTheme,
-    // Los ÍCONOS son assets ESTÁTICOS por-despliegue (§ EL PUNTO DE SWAP): un cliente nuevo REEMPLAZA
-    // estos archivos en `public/` (mismos nombres) — cero código. Están inventariados con su regla de
-    // caché en `next.config.ts` (§ ICONOS DE MARCA DEL STOREFRONT). Derivarlos de la paleta (un
-    // monograma con ImageResponse) es el motor #54, fuera de C2.
-    icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-      { src: "/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-    ],
+    // Los ÍCONOS: desde § METADATA-ICONOS-Y-LANG-POR-TIENDA-1, el ícono SUBIDO (`content.logo.icono`)
+    // si existe, o los tres PNG estáticos de Nayoli si no (`iconosManifestDeTienda`, § `lib/config/
+    // metadata-tienda.ts` — la MISMA fuente que `icons` de `(storefront)/layout.tsx`, para que el
+    // favicon y el ícono de pantalla de inicio nunca diverjan). Antes de este slice eran SIEMPRE los
+    // tres estáticos (§ EL PUNTO DE SWAP); derivar un ícono de VARIAS resoluciones a partir de un
+    // único archivo subido (en vez de servir el mismo a `sizes:'any'`) es el motor #54, fuera de este
+    // slice.
+    icons: iconosManifestDeTienda(content.logo.icono),
   };
   // content-type de manifest (no application/json), como emitía la convención.
   return new NextResponse(JSON.stringify(manifest), {

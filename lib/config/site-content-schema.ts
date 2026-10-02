@@ -575,16 +575,18 @@ const footerEditableSchema = z.object({
   items: z.array(footerLegalItemSchema).optional(),
 });
 
-// EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1): `logo` SÍ es una SECCIÓN de verdad (§ REGISTRY.logo,
-// site-content-defaults.ts — mismo precedente que `menu`/`footer`), así que los tres campos son
-// SOFT strings planos, como el resto de esas dos secciones — el set cerrado de formatos (SVG/PNG)
-// lo impone la SUBIDA (`constants/upload.ts`, `TIPOS_LOGO`), no este schema de contenido. Editor
-// BESPOKE (`EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado`, `.pick({logo: true, ...})`).
+// EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1): `logo`
+// SÍ es una SECCIÓN de verdad (§ REGISTRY.logo, site-content-defaults.ts — mismo precedente que
+// `menu`/`footer`), así que los cuatro campos son SOFT strings planos, como el resto de esas dos
+// secciones — el set cerrado de formatos (SVG/PNG) lo impone la SUBIDA (`constants/upload.ts`,
+// `TIPOS_LOGO`), no este schema de contenido. Editor BESPOKE (`EncabezadoSeccion.tsx`, vía
+// `/api/site-content/encabezado`, `.pick({logo: true, ...})`).
 const logoEditableSchema = z.object({
   visible: z.boolean().optional(),
   oscuro: z.string().optional(),
   claro: z.string().optional(),
   alt: z.string().optional(),
+  icono: z.string().optional(),
 });
 
 export const siteContentEditableSchema = z.object({

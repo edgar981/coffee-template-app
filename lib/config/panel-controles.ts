@@ -227,13 +227,14 @@ const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscrip
  *  `cromo.navBadge` (§ PENDIENTE_PANEL, abajo — superseded por el badge del ítem de menú, que sí
  *  tiene control en `MenuSeccion.tsx`).
  *
- *  `logo.oscuro`/`logo.claro`/`logo.alt` (§ MARCA-LOGO-IMAGEN-1) SÍ son una SECCIÓN de verdad del
- *  REGISTRY (§ `REGISTRY.logo`, site-content-defaults.ts — mismo precedente que `menu`/`footer`),
- *  no una meta excluida como las cuatro de arriba, así que `camposDeSeccion('logo')` ya las deriva
- *  SOLA en `camposLeidosPorTienda()` (lado A) — esta entrada es sólo el lado B (lo controlado): la
- *  imagen de logo viaja en el MISMO borrador/publish que los once switches de arriba (misma UX,
- *  mismo botón "Publicar"), así que su editor es ESTE componente y no uno aparte. */
-const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navTratamiento.direccion', 'navTratamiento.filete', 'navTratamiento.cta', 'navTratamiento.posicion', 'navTratamiento.subrayado', 'navTratamiento.badgeColor', 'navTratamiento.buscarMovil', 'navDrawerMovil.variante', 'logo.oscuro', 'logo.claro', 'logo.alt'];
+ *  `logo.oscuro`/`logo.claro`/`logo.alt`/`logo.icono` (§ MARCA-LOGO-IMAGEN-1, + `icono` de §
+ *  METADATA-ICONOS-Y-LANG-POR-TIENDA-1) SÍ son una SECCIÓN de verdad del REGISTRY (§ `REGISTRY.logo`,
+ *  site-content-defaults.ts — mismo precedente que `menu`/`footer`), no una meta excluida como las
+ *  cuatro de arriba, así que `camposDeSeccion('logo')` ya las deriva SOLA en
+ *  `camposLeidosPorTienda()` (lado A) — esta entrada es sólo el lado B (lo controlado): la imagen de
+ *  logo y el ícono de pestaña viajan en el MISMO borrador/publish que los once switches de arriba
+ *  (misma UX, mismo botón "Publicar"), así que su editor es ESTE componente y no uno aparte. */
+const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitulo', 'cromo.navTinta', 'navTratamiento.activo', 'navTratamiento.direccion', 'navTratamiento.filete', 'navTratamiento.cta', 'navTratamiento.posicion', 'navTratamiento.subrayado', 'navTratamiento.badgeColor', 'navTratamiento.buscarMovil', 'navDrawerMovil.variante', 'logo.oscuro', 'logo.claro', 'logo.alt', 'logo.icono'];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `DetallesSitioSeccion.tsx` controla (§ PANEL-DETALLES-SITIO-1,
  *  ampliado por § MUESTRARIO-CARRITO-BARRA-ENVIO-1 y § MUESTRARIO-CARRITO-COMPOSICION-1):

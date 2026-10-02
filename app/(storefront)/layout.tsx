@@ -23,6 +23,7 @@ import { ReducedMotionProvider } from "@/lib/animation";
 import { modoEditorActivo, metadataRobotsSegunModo } from "@/lib/config/modo-editor-gate";
 import { openGraphDeTienda } from "@/lib/config/og-tienda";
 import { corteAplicado } from "@/lib/config/themes";
+import { tituloYDescripcionDeTienda, iconosDeTienda } from "@/lib/config/metadata-tienda";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -45,10 +46,21 @@ export const dynamic = 'force-dynamic';
 // Esto SOBREESCRIBE el `title.default`/`template` de la raíz (que es de Nayoli) para todo
 // el subárbol del storefront; la raíz queda como fallback muerto (siempre se sobreescribe).
 //
-// Los ICONOS son assets por archivo PER-CLIENTE (favicon, PWA, apple): hoy los de Nayoli,
-// un segundo cliente los REEMPLAZA por-despliegue. Su cache-safety la da una regla
-// `headers()` en `next.config.ts` (Cache-Control corto sobre /favicon.ico y hermanos) — la
-// MISMA URL que usa el probe ciego, así que no hay puerta de atrás; no una ruta /api/favicon.
+// Los ICONOS eran SÓLO assets por archivo PER-CLIENTE (favicon, PWA, apple) hasta § METADATA-ICONOS-
+// Y-LANG-POR-TIENDA-1: hoy, SI la tienda subió su propio ícono de pestaña (`content.logo.icono`), ÉSE
+// gana; si no, caen a los estáticos de Nayoli (§ `lib/config/metadata-tienda.ts`,
+// `iconosDeTienda`/`ICONOS_ESTATICOS_POR_DEFECTO`) — los mismos de siempre, por-despliegue. La
+// cache-safety de los estáticos la sigue dando la regla `headers()` en `next.config.ts` (Cache-
+// Control corto sobre /favicon.ico y hermanos); un ícono SUBIDO es una URL de Blob
+// content-hasheada (§ Storage, CLAUDE.md — "el nombre lo hace único el proveedor"), así que no
+// necesita esa regla: reemplazarlo cambia la URL, no el contenido de una ya cacheada.
+//
+// LÍMITE CONOCIDO, no resuelto en este slice: un navegador que haga el PROBE CIEGO a la URL literal
+// `/favicon.ico` (ignorando el `<link rel="icon">`, § el comentario de `next.config.ts`) seguiría
+// viendo el estático de Nayoli aunque la tienda haya subido su propio ícono — el `<link>` SÍ apunta
+// al ícono subido, pero `/favicon.ico` en sí no se reescribe. Cerrarlo del todo exige la indirección
+// que `next.config.ts` ya anticipaba ("la ruta se gana su lugar sólo cuando el favicon se vuelva
+// SUBIBLE") — una ruta propia + rewrite, fuera de `touches:` de este slice.
 // El color del tema y el mark del `Logo` (wordmark-first) salen de SiteSetting en el commit 4.
 export async function generateMetadata(): Promise<Metadata> {
   const [{ nombre, descripcionFooter }, enModoEditor, content] = await Promise.all([
@@ -57,13 +69,13 @@ export async function generateMetadata(): Promise<Metadata> {
     getSiteContent(),
   ]);
   return {
-    // `absolute` (NO `default`) + `template`: un `title.default` de segmento hijo SIGUE
-    // pasando por el `template` de la RAÍZ (`%s · Café Nayoli`) → la home salía duplicada
-    // "Café Nayoli · Café Nayoli". `absolute` ignora el template heredado, igual que hizo el
-    // admin con "Panel Duna" (§ Identidad — la trampa ya estaba documentada). Así: la home →
-    // "{nombre}"; una hija con `title: "X"` (p.ej. /nosotros) → "X · {nombre}".
-    title: { absolute: nombre, template: `%s · ${nombre}` },
-    description: descripcionFooter,
+    // `tituloYDescripcionDeTienda` (§ `lib/config/metadata-tienda.ts`) es `absolute`+`template`: un
+    // `title.default` de segmento hijo SIGUE pasando por el `template` de la RAÍZ (`%s · Café
+    // Nayoli`) → la home salía duplicada "Café Nayoli · Café Nayoli". `absolute` ignora el template
+    // heredado, igual que hizo el admin con "Panel Duna" (§ Identidad — la trampa ya estaba
+    // documentada). Así: la home → "{nombre}"; una hija con `title: "X"` (p.ej. /nosotros) → "X ·
+    // {nombre}". `app/not-found.tsx` (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) usa la MISMA función.
+    ...tituloYDescripcionDeTienda(nombre, descripcionFooter),
     // EL `noindex` POR REQUEST del modo editor (§ EDITOR-TIENDA-IFRAME-GATE-1), vía la función
     // pura `metadataRobotsSegunModo` (afirmada en capa 1, `lib/config/modo-editor-gate.test.ts`).
     // Ver el docstring de esa función para el porqué del `no-store` (ya cubierto, nada que agregar
@@ -81,18 +93,10 @@ export async function generateMetadata(): Promise<Metadata> {
     // `app/manifest.ts` —que auto-inyectaba su link en TODA la app y ganaba sobre `metadata.manifest`,
     // así que el panel no podía tener el suyo (§ el route handler /api/manifest, § Identidad)—.
     manifest: "/api/manifest",
-    // LOS ÍCONOS son assets ESTÁTICOS por-despliegue (§ #1, EL PUNTO DE SWAP): un cliente nuevo REEMPLAZA
-    // estos 6 archivos en `public/` (mismos nombres) → cero código. Inventariados con su regla de caché
-    // corto en `next.config.ts` (§ ICONOS DE MARCA DEL STOREFRONT). El COLOR de chrome/PWA sí se deriva
-    // de la paleta (§ generateViewport abajo + /api/manifest); el ícono-imagen no (eso es el motor #54).
-    icons: {
-      icon: [
-        { url: "/icon.svg", type: "image/svg+xml" },
-        { url: "/favicon.ico", sizes: "any" },
-      ],
-      apple: { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
-      shortcut: "/favicon.ico",
-    },
+    // LOS ÍCONOS: `iconosDeTienda` (§ arriba) resuelve el subido o los estáticos de Nayoli —el punto
+    // de swap de siempre (§ #1) sigue siendo la salida sin ícono propio—. El COLOR de chrome/PWA sí
+    // se deriva de la paleta (§ generateViewport abajo + /api/manifest).
+    icons: iconosDeTienda(content.logo.icono),
   };
 }
 

@@ -84,6 +84,13 @@ import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/uplo
 // se ve mi marca en el encabezado"—, no una sección aparte del selector de páginas. Con AMBAS
 // imágenes vacías (el caso de hoy, Nayoli), el storefront no cambia: cae al wordmark de texto (o la
 // flor de Nayoli, § STOREFRONT_TIENE_MARK) exactamente como siempre.
+//
+// EL ÍCONO DE LA PESTAÑA (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1, `content.logo.icono`) es un SEXTO
+// campo de la MISMA sección `logo` — no un bloque aparte: es "cómo me ve el navegador" igual que el
+// logo de arriba, viaja en el MISMO borrador/publish, y su borrado de blobs lo cubre el MISMO
+// mecanismo genérico (`REGISTRY.logo.imagenes` ya lo nombra). Vacío → los íconos ESTÁTICOS de Nayoli
+// (favicon/apple-touch/PWA), vía `lib/config/metadata-tienda.ts` — consumido por
+// `app/(storefront)/layout.tsx`, `app/not-found.tsx` y `app/api/manifest/route.ts`.
 
 interface Form {
   logo: boolean;             // navWordmark.activo
@@ -111,6 +118,11 @@ interface Form {
   logoOscuro: string;
   logoClaro: string;
   logoAlt: string;
+  // EL ÍCONO DE LA PESTAÑA (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1): UN string, campo propio —
+  // DISTINTO del logo de arriba (ese es el wordmark/mark del nav, típicamente rectangular; esto es
+  // un ícono cuadrado para favicon/apple-touch/PWA). '' = sin ícono subido, cae a los estáticos de
+  // Nayoli (§ `lib/config/metadata-tienda.ts`).
+  logoIcono: string;
 }
 
 interface Wire {
@@ -118,12 +130,12 @@ interface Wire {
   navWordmark: { activo: boolean };
   navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null; buscarMovil: boolean };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
-  logo: { oscuro: string; claro: string; alt: string };
+  logo: { oscuro: string; claro: string; alt: string; icono: string };
 }
 
 const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
 
-const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt'>; label: string; hint: string }[] = [
+const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt' | 'logoIcono'>; label: string; hint: string }[] = [
   { name: 'logo', label: 'Estilo del nombre', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido, y sólo si no subiste una imagen de logo abajo — con imagen, este interruptor no tiene efecto.' },
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
   { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).' },
@@ -146,11 +158,11 @@ export default function EncabezadoSeccion() {
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [procesando, setProcesando]       = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
-  // LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1): `subiendoCual` nombra QUÉ versión está subiendo —
-  // el uploader compartido (`useSubidaImagen`) es UNA sola instancia (las dos subidas son
-  // secuenciales, nunca a la vez), así que sin esto no habría forma de mostrar el progreso/error
-  // bajo el botón correcto.
-  const [subiendoCual, setSubiendoCual] = useState<'oscuro' | 'claro' | null>(null);
+  // LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1) Y EL ÍCONO DE LA PESTAÑA (§ METADATA-ICONOS-Y-LANG-
+  // POR-TIENDA-1): `subiendoCual` nombra QUÉ versión está subiendo — el uploader compartido
+  // (`useSubidaImagen`) es UNA sola instancia (las TRES subidas son secuenciales, nunca a la vez),
+  // así que sin esto no habría forma de mostrar el progreso/error bajo el botón correcto.
+  const [subiendoCual, setSubiendoCual] = useState<'oscuro' | 'claro' | 'icono' | null>(null);
   const [errorLogo, setErrorLogo] = useState<string | null>(null);
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
@@ -170,7 +182,7 @@ export default function EncabezadoSeccion() {
       buscarMovil: f.buscarMovil,
     },
     navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
-    logo: { oscuro: f.logoOscuro, claro: f.logoClaro, alt: f.logoAlt },
+    logo: { oscuro: f.logoOscuro, claro: f.logoClaro, alt: f.logoAlt, icono: f.logoIcono },
   });
 
   const guardarEncabezado = useCallback(async (w: Wire) => {
@@ -195,7 +207,7 @@ export default function EncabezadoSeccion() {
         navWordmark?: { activo?: unknown };
         navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown; buscarMovil?: unknown };
         navDrawerMovil?: { variante?: unknown };
-        logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown };
+        logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown; icono?: unknown };
       };
       setForm({
         logo: !!contenido.navWordmark?.activo,
@@ -216,6 +228,7 @@ export default function EncabezadoSeccion() {
         logoOscuro: typeof contenido.logo?.oscuro === 'string' ? contenido.logo.oscuro : '',
         logoClaro: typeof contenido.logo?.claro === 'string' ? contenido.logo.claro : '',
         logoAlt: typeof contenido.logo?.alt === 'string' ? contenido.logo.alt : '',
+        logoIcono: typeof contenido.logo?.icono === 'string' ? contenido.logo.icono : '',
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
       setHayBorrador(!!d.sinPublicar?.encabezado);
@@ -245,21 +258,27 @@ export default function EncabezadoSeccion() {
 
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
 
-  // SUBIR una versión del logo (§ MARCA-LOGO-IMAGEN-1). Usa el camino "elegir sin subir / subir
-  // aparte" de `useSubidaImagen` (`elegir`+`subir`, NO el `pedir` simple) porque el logo acepta SVG
-  // —`pedir`/`alElegir` validan contra `TIPOS_PERMITIDOS`, que NO incluye SVG—, así que hace falta
-  // pasar `tipos`/`accept` propios. Subida ATÓMICA (elige y sube en el mismo gesto, a diferencia del
-  // video+póster del hero): una imagen de logo no tiene un segundo archivo que esperar.
-  const subirLogo = (cual: 'oscuro' | 'claro') => {
+  // EL CAMPO del form que cada variante escribe (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1 suma
+  // 'icono' a las dos de § MARCA-LOGO-IMAGEN-1) — una tabla, no un ternario de dos ramas que ya no
+  // alcanza para tres.
+  const CAMPO_DE_VARIANTE = { oscuro: 'logoOscuro', claro: 'logoClaro', icono: 'logoIcono' } as const;
+
+  // SUBIR una versión del logo, o el ícono de la pestaña (§ MARCA-LOGO-IMAGEN-1, § METADATA-ICONOS-
+  // Y-LANG-POR-TIENDA-1). Usa el camino "elegir sin subir / subir aparte" de `useSubidaImagen`
+  // (`elegir`+`subir`, NO el `pedir` simple) porque las tres aceptan SVG —`pedir`/`alElegir` validan
+  // contra `TIPOS_PERMITIDOS`, que NO incluye SVG—, así que hace falta pasar `tipos`/`accept`
+  // propios. Subida ATÓMICA (elige y sube en el mismo gesto, a diferencia del video+póster del
+  // hero): ninguna de las tres tiene un segundo archivo que esperar.
+  const subirLogo = (cual: 'oscuro' | 'claro' | 'icono') => {
     setErrorLogo(null);
     subidaImagen.elegir(
       async (file) => {
         setSubiendoCual(cual);
         try {
           const { url } = await subidaImagen.subir(file, { kind: 'logo' });
-          cambiar(cual === 'oscuro' ? { logoOscuro: url } : { logoClaro: url });
+          cambiar({ [CAMPO_DE_VARIANTE[cual]]: url } as Partial<Form>);
         } catch (err) {
-          setErrorLogo(err instanceof Error ? err.message : 'No se pudo subir el logo. Reintenta.');
+          setErrorLogo(err instanceof Error ? err.message : 'No se pudo subir la imagen. Reintenta.');
         } finally {
           setSubiendoCual(null);
         }
@@ -321,10 +340,14 @@ export default function EncabezadoSeccion() {
   ) : null;
 
   // § MARCA-LOGO-IMAGEN-1 — el resumen de lectura nombra el logo subido ANTES que los switches:
-  // es el cambio de mayor impacto visual del bloque (reemplaza mark+wordmark enteros).
+  // es el cambio de mayor impacto visual del bloque (reemplaza mark+wordmark enteros). El ícono de
+  // pestaña (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) va justo después — mismo criterio, otra pieza
+  // de identidad fuera de la página.
   const tieneLogoImagen = form.logoOscuro.trim() !== '' || form.logoClaro.trim() !== '';
+  const tieneIconoPropio = form.logoIcono.trim() !== '';
   const resumenActivos = [
     ...(tieneLogoImagen ? ['Imagen de logo'] : []),
+    ...(tieneIconoPropio ? ['Ícono de pestaña propio'] : []),
     ...CONTROLES.filter((c) => form[c.name]).map((c) => c.label),
   ];
 
@@ -410,7 +433,7 @@ export default function EncabezadoSeccion() {
                       {url && (
                         <button
                           type="button"
-                          onClick={() => cambiar(cual === 'oscuro' ? { logoOscuro: '' } : { logoClaro: '' })}
+                          onClick={() => cambiar({ [CAMPO_DE_VARIANTE[cual]]: '' } as Partial<Form>)}
                           className="duna-btn duna-btn--ghost duna-btn--sm"
                           disabled={subidaImagen.subiendo}
                         >
@@ -427,6 +450,8 @@ export default function EncabezadoSeccion() {
               </div>
             ))}
           </div>
+          {/* `errorLogo` es el ÚNICO canal de error de las TRES subidas de esta sección (oscuro,
+              claro, icono) — se muestra UNA vez acá, no repetido en la tarjeta del ícono de abajo. */}
           {errorLogo && <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)' }}>{errorLogo}</p>}
           <div className="duna-field" style={{ marginTop: 'var(--duna-space-3)' }}>
             <label className="duna-field__label" htmlFor="enc-logo-alt">Texto alternativo</label>
@@ -438,6 +463,51 @@ export default function EncabezadoSeccion() {
             <p className="duna-field__hint">Vacío: se usa el nombre de tu negocio.</p>
           </div>
           <input ref={subidaImagen.inputHoldRef} type="file" onChange={subidaImagen.alElegirHold} hidden />
+        </div>
+        {/* EL ÍCONO DE LA PESTAÑA (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) — tarjeta PROPIA, aparte
+            del logo de arriba: es un ícono CUADRADO para favicon/apple-touch/PWA, distinto del
+            wordmark/mark del nav (que suele ser rectangular y se vería mal recortado a 16×16). Sin
+            ícono propio, la tienda usa los de Café Nayoli (§ `lib/config/metadata-tienda.ts`). */}
+        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
+          <h3 className="duna-field__label" style={{ margin: 0, fontSize: '0.9375rem' }}>Ícono de la pestaña</h3>
+          <p className="duna-field__hint" style={{ marginTop: '4px' }}>
+            El ícono de la pestaña del navegador, de la vista previa al compartir y de la pantalla de
+            inicio si tu tienda se instala como app. Sin uno propio, se usa el de Café Nayoli. Cuadrado,
+            SVG o PNG, máx {MAX_SUBIDA_DIRECTA_MB} MB.
+          </p>
+          <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-3)' }}>
+            <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
+              {form.logoIcono
+                ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={form.logoIcono} alt="" />
+                : <ImageIcon aria-hidden width={20} height={20} />}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => subirLogo('icono')}
+                  className="duna-btn duna-btn--secondary duna-btn--sm"
+                  disabled={subidaImagen.subiendo}
+                >
+                  <Upload /> {form.logoIcono ? 'Cambiar' : 'Subir imagen'}
+                </button>
+                {form.logoIcono && (
+                  <button
+                    type="button"
+                    onClick={() => cambiar({ logoIcono: '' })}
+                    className="duna-btn duna-btn--ghost duna-btn--sm"
+                    disabled={subidaImagen.subiendo}
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+              <span className="duna-field__hint" style={{ margin: 0 }}>
+                {subiendoCual === 'icono' ? `Subiendo… ${subidaImagen.progreso ?? 0}%` : 'Recomendado: cuadrado, de al menos 192×192 px.'}
+              </span>
+              {subiendoCual === 'icono' && <BarraProgreso pct={subidaImagen.progreso ?? 0} />}
+            </div>
+          </div>
         </div>
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>

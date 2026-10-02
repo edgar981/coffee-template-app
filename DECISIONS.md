@@ -40982,3 +40982,222 @@ pendiente del gate del orquestador — este slice, por instrucción del dispatch
 `CAPTURAR-SECCION-MATRIZ-SPOTLIGHT-1` siguen abiertos, sin relación con este slice.
 
 **Cierra `NAV-MOVIL-NOMBRE-CON-AIRE-1`.**
+
+## 2026-10-01 — El título/descripción/ícono de TODA ruta (incluida la de error) salen de la tienda, no de Nayoli fijos en el código, y las páginas se declaran en español (`METADATA-ICONOS-Y-LANG-POR-TIENDA-1`)
+
+Gate del owner sobre la demo de Café Las Chamisas (2026-10-01): se le reportó que el ícono de la
+pestaña y el título fuera de la tienda (p. ej. la página de error) seguían siendo los de Nayoli y que
+las páginas se declaraban en inglés. Respondió *"Y los ajustes mandalos a la cola también."*
+
+### Lo medido ANTES de tocar nada
+
+`app/(storefront)/layout.tsx` YA resolvía título/descripción desde `SiteSetting` por request
+(`force-dynamic`) — eso NO era el defecto. El defecto real: (1) `app/layout.tsx` (la raíz, ÚNICO
+`<html>` del repo) declara `title`/`description` FIJOS de Nayoli y `lang="en"`, y es lo único que se
+renderiza para una URL que no coincide con NINGUNA ruta —medido: `app/not-found.tsx` **no existía**,
+así que Next servía su 404 genérico por la raíz, sin pasar por `(storefront)`—; (2) los íconos
+(favicon/apple/PWA) eran, de punta a punta, assets ESTÁTICOS por-despliegue (`public/icon.svg` y
+hermanos) sin ningún campo de dato que los reemplazara — un segundo cliente sólo podía cambiarlos
+reemplazando archivos en el repo, no desde el panel. Medido también: `grep -rln "notFound(" app/` da
+**vacío** — nadie en el repo llama `notFound()` dentro de una ruta, así que TODO 404 (incluido uno
+disparado desde dentro de la tienda) cae por el 404 global, nunca por una página que ya calcule su
+propia metadata.
+
+### Lo que se construyó
+
+- **`lib/config/metadata-tienda.ts` (nuevo, puro)**: `iconosDeTienda(icono)` / `iconosManifestDeTienda
+  (icono)` — el ícono SUBIDO si existe, o los estáticos de Nayoli si no (`ICONOS_ESTATICOS_POR_
+  DEFECTO`/`ICONOS_MANIFEST_POR_DEFECTO`, los MISMOS literales que ya vivían inline en
+  `(storefront)/layout.tsx` y en `app/api/manifest/route.ts`, movidos acá para que no haya una
+  tercera copia) — y `tituloYDescripcionDeTienda(nombre, descripcion)` (`absolute`+`template`, la
+  misma forma que ya evitaba la trampa de "Café Nayoli · Café Nayoli"). Una definición, TRES
+  consumidores (`(storefront)/layout.tsx`, `app/not-found.tsx`, `app/api/manifest/route.ts`): la
+  alternativa —cada uno con su propio literal— es exactamente el patrón que `razonDelServidor`/
+  `cruzoMinimo` ya enseñó a no repetir.
+- **`app/not-found.tsx` (nuevo)** — el 404 GLOBAL que no existía. `generateMetadata` lee
+  `getSiteSettings()`+`getSiteContent()` (las MISMAS fuentes que el layout del storefront) y resuelve
+  título/descripción/ícono con el módulo de arriba; el body es una página mínima en español
+  (`<main>` con el nombre del negocio, "Página no encontrada", un link a `/`), con los tokens
+  `--sf-fondo`/`--sf-tinta`/`--sf-texto` (los mismos defaults de Nayoli cuando no hay paleta custom,
+  nunca un hex hardcodeado). `export const dynamic = 'force-dynamic'` — re-lee en cada request, como
+  el resto de la identidad de tienda.
+- **El ícono pasa a ser DATO**: `content.logo.icono` (§ `REGISTRY.logo`, `LogoContent`) — un CUARTO
+  campo de la sección `logo` que ya trae `oscuro`/`claro`/`alt` (§ MARCA-LOGO-IMAGEN-1), no un bloque
+  aparte: viaja en el MISMO borrador/publish, y su borrado de blobs lo cubre el MISMO mecanismo
+  genérico (`REGISTRY.logo.imagenes` ya lo nombra, cero código nuevo en `site-content-blobs.ts`).
+  `EncabezadoSeccion.tsx` gana una tarjeta propia "Ícono de la pestaña" (subida atómica, mismo
+  `kind:'logo'` → SVG/PNG, reusando `TIPOS_LOGO`/`useSubidaImagen`); `logoEditableSchema` y
+  `CONTROLADOS_ENCABEZADO_SECCION` (§ `lib/config/panel-controles.ts`, el chequeo derivado
+  "todo campo que la tienda lee tiene su control en el panel") se actualizaron juntos — sin el
+  segundo, el chequeo habría quedado en rojo con `logo.icono` como campo leído y sin controlar.
+- **`<html lang="es">`** en `app/layout.tsx` (el ÚNICO `<html>` del repo — ni `(storefront)` ni
+  `(admin)` declaran uno propio) — corrección de bytes de Nayoli aprobada explícitamente por el owner
+  en el gate citado arriba.
+- **`app/api/manifest/route.ts`** (el manifest PWA dinámico del storefront) pasa a usar
+  `iconosManifestDeTienda(content.logo.icono)` en vez de los tres PNG estáticos incondicionales —
+  mismo ícono que el favicon, para que pestaña y pantalla de inicio nunca diverjan.
+
+### Lo que NO se construyó, y por qué (medido, no asumido)
+
+- **NO se creó `app/icon.tsx`/`app/apple-icon.tsx` (convención de archivo de Next).** `CLAUDE.md`
+  § Identidad documenta, con el incidente que lo probó, que un ícono declarado por CONVENCIÓN DE
+  ARCHIVO en un segmento se vuelve el ícono de TODA la app por debajo de ese segmento, y que el
+  `metadata.icons` de un descendiente NO lo retira — sólo AGREGA otro link al lado (la cita textual:
+  *"metadata.icons de un hijo agrega sus links pero no retira los que la raíz emite por convención de
+  archivo"*). Es exactamente la razón por la que los íconos de hoy viven en `public/` referenciados
+  por OBJETO (`metadata.icons` en `generateMetadata`), no como archivos de convención bajo `app/`.
+  Reintroducir `icon.tsx`/`apple-icon.tsx` reabriría ese riesgo (filtración hacia `/admin`, que
+  declara su propio `icons` pero nunca tuvo que pelear contra una convención de archivo porque hoy
+  NINGUNA existe en el árbol). En su lugar, el ícono subido se referencia por URL directa (de Blob,
+  ya content-hasheada/inmutable por diseño, § Storage) dentro del MISMO objeto `metadata.icons` que
+  ya existía — cero riesgo nuevo de filtración.
+- **NO se creó `app/manifest.ts`.** Es la convención que `CLAUDE.md` § Identidad documenta como
+  RETIRADA a propósito (gana sobre `metadata.manifest` de cualquier grupo, y por eso el panel se
+  instalaba alguna vez como la tienda del cliente). Recrearla reabriría ese incidente. El manifest
+  del storefront sigue siendo `app/api/manifest/route.ts` (route handler dinámico) — el archivo que
+  de hecho implementa lo que `touches:` nombraba conceptualmente como `app/manifest.ts`; se tocó ÉSE,
+  no el literal listado, porque el literal ya no es el mecanismo real desde antes de este slice.
+- **NO se tocó `next.config.ts` ni `public/duna.webmanifest`.** Una URL de Blob subida ya es única por
+  diseño (`addRandomSuffix: true`, § Storage) — reemplazar el ícono cambia la URL, no el contenido de
+  una ya cacheada, así que la regla de caché corto existente (para los ESTÁTICOS) no necesitaba
+  ampliarse. `public/duna.webmanifest` es del PANEL (Duna), ajeno a esta superficie de tienda.
+- **Se reusó `content.logo` en vez de inventar un ESCRITOR por ImageResponse (Backlog #54).** El
+  spec ofrecía las dos rutas; derivar un favicon automáticamente desde el wordmark con `next/og`
+  exige cargar el binario de la fuente, cachear por nombre+paleta y generar 4 tamaños —superficie
+  real, para un resultado peor que dejar que el dueño suba un ícono ya pensado para verse bien
+  pequeño—. Reusar el campo de logo ya construido (mismo patrón de subida, mismo borrador/publish)
+  es la opción medible más barata y de mejor calidad visual garantizada.
+
+### Deviación medida — `lib/config/marca-logo.test.ts`, fuera de `touches:`
+
+Agregar `icono` a `LogoContent` (campo NO opcional del tipo, aunque su VALOR por defecto sea `''`)
+rompió el `tsc --noEmit` sobre cuatro fixtures de ese archivo (`SIN_LOGO`/`AMBAS`/`SOLO_OSCURA`/
+`SOLO_CLARA`), que construían objetos `LogoContent` literales con sólo tres campos. Es consecuencia
+MECÁNICA e inevitable del cambio de tipo —dejarlo roto habría puesto `npm run typecheck` en rojo—,
+no una ampliación de alcance: se agregó `icono: ''` a las cuatro, con un comentario que dice por qué
+ese campo es ajeno a lo que ese archivo prueba.
+
+### Verificación de punta a punta (ephemeral DB, dos tenants, mismo servidor)
+
+No hay runner propio para "curl de home/404/producto, para Nayoli y para otra tienda" — se montó a
+mano, vía `node --import tsx` (sin comandos de shell compuestos: Postgres efímero en :55441, `migrate
+deploy` + `prisma/seed.ts`, `next dev -p 3498`, fetch de las tres rutas, un `UPDATE`/`INSERT` SQL
+directo sobre `SiteSetting`/`SiteContent` para simular un segundo tenant, y las tres rutas de nuevo
+—el storefront es `force-dynamic`, así que no hizo falta reiniciar el server—). Script vivido en
+`.scratch/` (gitignored, no es parte del diff).
+
+| ruta | tenant | title | lang | description | iconLinks |
+| --- | --- | --- | --- | --- | --- |
+| `/` | seed fresco ("Configura tu tienda", el INSERT neutro de la migración) | Configura tu tienda | es | *(vacía → sin `<meta>`)* | `/favicon.ico`, `/icon.svg`, `/apple-icon.png` (estáticos) |
+| `/metadata-verificacion-404-no-existe` (404) | ídem | Configura tu tienda | es | *(vacía)* | mismos estáticos |
+| `/tienda/cafe-nayoli-grano-250g` | ídem | Configura tu tienda | es | *(vacía)* | mismos estáticos |
+| `/` | "Café Las Chamisas" + `logo.icono` subido | Café Las Chamisas | es | Café de altura de Las Chamisas. | `https://example.com/icono-chamisas.svg` ×3 |
+| `/metadata-verificacion-404-no-existe` (404) | ídem | Café Las Chamisas | es | Café de altura de Las Chamisas. | mismo ícono subido |
+| `/tienda/cafe-nayoli-grano-250g` | ídem | Café Las Chamisas | es | Café de altura de Las Chamisas. | mismo ícono subido |
+
+El 404 global y la ficha de producto cambian JUNTO con la home al cambiar el tenant — exactamente el
+defecto reportado, cerrado. El seed fresco no dice "Café Nayoli" porque el INSERT de la migración es
+NEUTRO (§ `SEED-SITESETTING-UPSERT-NOOP-1`, ya documentado) y este `metaverif` es una base nueva, no
+`development`; no es un defecto de este slice.
+
+### El GATE
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | **verde** (0 errores) |
+| `npm test` (capa 1) | **2989/2989** |
+| `npm run test:integracion` (capa 2) | **271/271** |
+| `npm run guarda:color` | **0px** en las 8 capturas (home · tienda · producto · checkout · nosotros · suscripciones · 2 hovers) — Nayoli visualmente idéntico |
+
+**`npm run gate` = typecheck + test + test:integracion, las tres verdes.** `guarda:color` se corrió
+aparte (no es parte de `npm run gate`) porque el spec de este slice lo pide explícito.
+
+**HALLAZGO AJENO, medido al intentar `next build` como autoridad SWC para el JSX tocado (§ CLAUDE.md,
+"tsc ≠ next build"):** el build falla, pero en un archivo que este slice NUNCA tocó —
+`app/api/checkout/retorno/route.ts` ("resolverRetorno" is not a valid Route export field), último
+commit `3ec30ae` del 2026-09-15, sin diff en esta sesión—. El paso SWC (`Compiled successfully in
+17.3s`) sí pasó ANTES de esa falla, que es la parte que este slice necesitaba confirmar (el JSX nuevo
+—`app/not-found.tsx`, la tarjeta nueva de `EncabezadoSeccion.tsx`— compila). El build completo de la
+rama está roto por una razón 100% ajena; queda como open follow-up, no se toca (fuera de `touches:`).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `app/layout.tsx` (`lang="es"`), `app/(storefront)/layout.tsx`,
+`app/not-found.tsx` (nuevo), `app/api/manifest/route.ts`, `lib/config/metadata-tienda.ts` (nuevo),
+`components/admin/EncabezadoSeccion.tsx`, `LogoContent`/`REGISTRY.logo` (+`icono`),
+`logoEditableSchema` (+`icono`), `CONTROLADOS_ENCABEZADO_SECCION` (+`'logo.icono'`),
+`lib/config/marca-logo.test.ts`. Grepeados uno por uno contra `CLAUDE.md`:
+
+- `lang="en"`, `app/not-found`, `app/icon.tsx`, `app/apple-icon.tsx` → **CERO coincidencias.**
+- `iconosDeTienda`, `metadata-tienda`, `LogoContent`, `logoEditableSchema`,
+  `CONTROLADOS_ENCABEZADO_SECCION`, `MARCA-LOGO-IMAGEN-1` → **CERO coincidencias** (son detalle de
+  slice; `CLAUDE.md` documenta la REGLA resultante, no cada símbolo — § "Quién decide qué").
+- `app/api/manifest`, `/duna.webmanifest`, `/favicon.ico` → coinciden en § Identidad / § "Los 3
+  colores de chrome/PWA…", **sin volverse falsas por este diff**: el storefront sigue apuntando a
+  `/api/manifest`, el admin sigue en `/duna.webmanifest`, y `/favicon.ico` sigue respondiendo 200
+  para el probe ciego cuando NINGÚN tenant subió ícono propio (el caso de Nayoli, verificado arriba).
+- **DOS SENTENCIAS SE VUELVEN FALSAS**, ninguna dentro de `touches:` de este slice (no se tocan,
+  van a `open_followups`):
+  1. § "Los 3 colores de chrome/PWA DERIVAN de la paleta…": *"LOS ÍCONOS-IMAGEN (6 archivos) siguen
+     siendo assets ESTÁTICOS por-despliegue — PUNTO DE SWAP, sin motor… cero código (ni el layout ni
+     el manifest cambian)."* Después de este slice, SÍ cambian: `(storefront)/layout.tsx` y
+     `app/api/manifest/route.ts` leen `content.logo.icono` y sirven un ícono por DATO cuando existe.
+     El swap-por-archivo sigue siendo el FALLBACK (Nayoli, medido arriba), pero ya no es el ÚNICO
+     mecanismo.
+  2. § Backlog #54, primera frase: *"Hoy el favicon es un asset ESTÁTICO por-despliegue."* Ya no es
+     cierto sin matiz — es el fallback, no la única vía. La precondición de su disparador (*"hasta
+     que el favicon sea SUBIBLE desde el panel"*, citada en el párrafo de arriba) **ya se cumplió**,
+     aunque el MOTOR que #54 describe (`ImageResponse` derivando del wordmark) sigue sin construirse
+     — eso sigue siendo cierto.
+
+### `customer_bytes`
+
+**`changed: true`.** Para CUALQUIER tenant: `<html lang="es">` (antes "en", un atributo no-visible
+pero sí leído por lectores de pantalla), el 404 global pasa de la UI genérica de Next a una página
+propia en español con el nombre del negocio ("Página no encontrada", "La página que buscas no existe
+o se movió de lugar.", "Volver al inicio"). **Para Nayoli específicamente**: cero cambio de título/
+descripción/ícono (sus valores por defecto ya producían el mismo resultado, medido 0px en
+`guarda:color` y por la tabla de arriba). **Para un tenant que suba un ícono propio**: su favicon/
+apple-touch-icon/ícono de manifest cambian al subido — es la superficie que el owner pidió.
+`strings`: "Página no encontrada", "La página que buscas no existe o se movió de lugar.", "Volver al
+inicio" (nuevas, en `app/not-found.tsx`); "Ícono de la pestaña" y su copy de ayuda (nuevas, en
+`EncabezadoSeccion.tsx`, sólo visibles en el panel para OWNER/MANAGER).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración (`logo.
+icono` vive dentro del `Json` ya existente de `SiteContent.content`), sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 2989 + 271), `guarda:color` 0px,
+verificación de punta a punta con dos tenants sobre una base efímera, commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El owner ya aprobó la ESCRITURA (`approved: yes`, con su gate
+textual del 2026-10-01 como `approval-reason`); el merge sigue pendiente del gate del orquestador —
+este slice, por instrucción del dispatch, no mergea.
+
+**Open follow-ups:**
+- `METADATA-FAVICON-PROBE-CIEGO-1` — un navegador que haga el probe CIEGO a la URL literal
+  `/favicon.ico` (ignorando `<link rel="icon">`) sigue viendo el estático de Nayoli aunque el tenant
+  haya subido su propio ícono; cerrarlo exige la indirección (ruta + rewrite) que `next.config.ts` ya
+  anticipaba para el día en que el favicon fuera subible — ese día es hoy. No se construyó: fuera de
+  `touches:` y de alcance proporcional a lo pedido.
+- `METADATA-404-ADMIN-IDENTIDAD-1` — una URL de `/admin/*` mal escrita cae por el mismo 404 global y
+  muestra la identidad de la TIENDA, no "Panel Duna" (nadie llama `notFound()` en el repo hoy, medido;
+  caso raro porque admin está gateado por sesión). Un `not-found.tsx` propio por grupo lo cerraría;
+  fuera de `touches:`.
+- `METADATA-ICONO-MIRROR-TEST-GAP-1` — `tests/integracion/panel-encabezado.test.ts` (el espejo de la
+  ruta `/api/site-content/encabezado`) no ganó casos específicos de guardar/publicar/blob-huérfano
+  para `logo.icono`, a diferencia de lo que hizo `oscuro`/`claro` en MARCA-LOGO-IMAGEN-1 — el campo sí
+  está cubierto GENÉRICAMENTE (mismo mecanismo que el resto de `logo`), pero sin un caso que lo
+  ejercite por nombre. Fuera de `touches:`; no bloquea el gate.
+- `CHECKOUT-RETORNO-ROUTE-EXPORT-INVALIDO-1` — `next build` está ROTO en esta rama por
+  `app/api/checkout/retorno/route.ts` ("resolverRetorno" no es un export válido de Route), ajeno a
+  este slice (último commit `3ec30ae`, 2026-09-15). `npm run gate` no lo detecta porque no corre
+  `next build`. Vale la pena que alguien lo mire antes del próximo deploy real.
+- `CLAUDE-MD-ICONOS-SWAP-STALE-1` — dos sentencias de `CLAUDE.md` (§ "Los 3 colores de chrome/PWA…" y
+  § Backlog #54) quedan desactualizadas por este slice (detalladas arriba, § Chequeo mecánico);
+  `CLAUDE.md` no está en `touches:` de este slice, así que no se editó.
+
+**Cierra `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`.**
