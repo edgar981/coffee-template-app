@@ -43955,3 +43955,188 @@ explícitamente parar en `AWAITING_APPROVAL` sin mergear. Commiteado en
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `MARQUESINA-TARJETA-COMO-LETRAS-1`.**
+
+## 2026-10-02 — El parallax de la foto de fondo de Suscripción pasa de `%` (de su propia caja, chica) a `vh` (del viewport, que no se achica con la postal) (`SUSCRIPCION-PARALLAX-VISIBLE-1`)
+
+Gate del owner (2026-10-02), textual: *"Antes había un efecto en la imagen de fondo que está en
+'Suscripción', como que se movía hacia arriba si uno bajaba y viceversa, no sé bien cómo
+describirlo, pero se veía bien. Parece que se quitó."* Medido por el orquestador (Playwright,
+1440×900, preset CORTE, demo de Las Chamisas): el contenedor del parallax recorría **~14px de
+punta a punta** — presente en el código, imperceptible en pantalla.
+
+### La causa: el `%` era relativo al alto de SU PROPIA CAJA — chica por diseño
+
+`transformSubscripcionParallax` (`lib/animation.ts`) reproduce `[data-parallax]` del prototipo
+(`translateY((p-0.5)*-10%)`), y ese `%` CSS **siempre** se resuelve contra el alto del propio
+elemento transformado — acá, el `motion.div` cuya caja es 112% del alto de la SECCIÓN
+(`top-[-6%] bottom-[-6%]`). `SUSCRIPCION-POSTAL-DE-CIERRE-1` (arriba en este archivo) subió esa
+sección de 108px (línea pegada al pie) a 264px a 1440×900 (la "postal") — pero sigue siendo una
+franja CORTA por diseño: el owner ya calificó de "exageradamente grande" agrandarla al 62vh del
+prototipo. Atar el desplazamiento al alto de esa caja la condena a ser leve con CUALQUIER alto que
+tenga — 108, 264, o lo que sea: la referencia se achica (o se mantiene chica) junto con la postal.
+**No era un bug de SUSCRIPCION-POSTAL-DE-CIERRE-1** (la fórmula no cambió ahí, sólo el tamaño del
+marco) — el defecto existía desde `MUESTRARIO-CTA-BANNER-FOTO-1`, sólo que con 108px era aún más
+chico y nadie lo notó hasta que la postal lo hizo visible como pregunta.
+
+### El fix: la unidad pasa a `vh`, los números NO cambian
+
+`(p-0.5)*-10` sigue siendo la fórmula; sólo el sufijo cambia de `%` a `vh`. `vh` es la ÚNICA
+magnitud de la ecuación que no se achica cuando la postal se achica (ni cuando cambie de alto en el
+futuro) — y es además la magnitud correcta: `useProgresoScroll` recorre 0→1 sobre una distancia de
+`alto-sección + alto-viewport`; para una franja corta esa distancia la domina el VIEWPORT, no la
+sección. A 900px de viewport (1440×900), 5vh=45px — un recorrido TEÓRICO total de 90px de punta a
+punta (ver más abajo cuánto de eso es alcanzable en la práctica).
+
+El búfer del contenedor (`top-[-6vh] bottom-[-6vh]`, antes `top-[-6%] bottom-[-6%]`) cambia de
+unidad JUNTO con el desplazamiento — misma holgura de siempre (6 contra un máximo de 5), pero en
+`vh`: un búfer en `%` de una caja chica no alcanzaría para un desplazamiento en `vh` (grande) y
+expondría el borde de la foto.
+
+### MEDIDO con un arnés propio (Postgres efímero + CORTE + `subscriptionCTA.imagenFondo`), chromium 1440×900 y webkit "iPhone" 390×844
+
+No comiteado (`.scratch/verificar-parallax-suscripcion.ts`, gitignored): Postgres efímero propio
+(`levantarPostgres`/`entornoArbol`/`construir`/`arrancar`/`esperarListo`/`cargarPlaywright`,
+reusados de `scripts/verificar-nayoli-visual.ts` — mismo mecanismo, sin reescribirlo), `migrate
+deploy` + el seed canónico, el preset CORTE aplicado con `aplicarPreset` +
+`subscriptionCTA.imagenFondo` fijado a `/images/historia-4-v1.jpg` (mismo patrón que
+`.scratch/aplicar-preset-con-foto.ts`, heredado de `SUSCRIPCION-POSTAL-DE-CIERRE-1`), `next build` +
+`next start`, y Playwright con **chromium (1440×900)** y **webkit (390×844, "iPhone")** — los dos
+binarios ya estaban cacheados (`.arnes-tooling/playwright`), sin tocar red.
+
+**Hallazgo de método: `html{scroll-behavior:smooth}` (`app/globals.css`) rompe un barrido rápido de
+`scrollTo` sin esperar entre llamadas** — el mismo gotcha que `ScrollInercia.tsx` ya documenta. Un
+primer barrido con `window.scrollTo(0,y)` (forma de 2 argumentos, que SÍ hereda el `scroll-behavior`
+CSS) sin esperas intermedias dio en WebKit una "primera aparición" FALSA en el último scrollY
+posible — el scroll real iba muy rezagado del pedido. Se corrigió con
+`window.scrollTo({top,left,behavior:'instant'})`, que ignora el CSS, en los TRES sitios donde el
+arnés mueve el scroll. Documentado para que el próximo arnés de este tipo no lo repita.
+
+**Resultado, 9-10 posiciones DENTRO de la ventana visible en cada browser, captura en 3 de cada
+una:**
+
+| | desktop 1440×900 (chromium) | iPhone 390×844 (webkit) |
+| --- | --- | --- |
+| `translateY` visible | 41.04px → -0.72px | 42.20px → -26.16px |
+| swing medido | **45.72px** | **68.36px** |
+| bordes de la foto expuestos | 0/10 posiciones | 0/10 posiciones |
+| saturación DENTRO del tramo visible (2 muestras visibles consecutivas iguales) | **false** | **false** |
+
+El movimiento es CONTINUO y MONÓTONO en las dos ventanas (ninguna meseta mientras la sección está en
+pantalla) — la "saturación antes de que termine" que el orquestador midió contra el muestrario real
+era, en las condiciones que este arnés pudo reproducir, un artefacto de MUESTREO GRUESO (pocas
+posiciones, la mayoría cayendo en el tramo —largo— donde la sección TODAVÍA no apareció, donde el
+valor está legítimamente congelado en `+5vh` porque nada se mueve todavía), no una meseta real
+dentro del tramo visible. Con 9-10 posiciones DENTRO de ese tramo, en NINGÚN caso dos consecutivas
+dieron el mismo valor.
+
+### HALLAZGO ESTRUCTURAL, no de este slice: el recorrido TEÓRICO completo (±5vh, "hasta que sale")
+### no es alcanzable hoy en `/` — el pie es más corto que el viewport
+
+Medido: a 1440×900, el `scrollY` MÁXIMO del documento (`documentElement.scrollHeight -
+innerHeight`) es **5348px**; la sección se vuelve visible (su marco entra en el viewport) recién en
+**scrollY≈4740**, y en el tope físico del scroll (5348) el `translateY` llega sólo a **-0.72px**
+(progreso ≈0.508 del recorrido teórico 0→1) — el marco de la postal SIGUE visible
+(`frame=[309,573]`) cuando el documento se queda sin más scroll que dar. En móvil (390×844) el
+recorrido alcanzado es mayor (progreso ≈0.81, `translateY=-26.16px` de un máximo de -42.2px) pero
+tampoco completa.
+
+**La causa es aritmética, no del componente:** `useProgresoScroll` ancla el progreso 1 a
+`scrollY=T+H` (el instante en que el FONDO de la sección toca el TOPE del viewport, es decir, la
+sección recién terminó de salir). Esa posición sólo es alcanzable si lo que sigue a la sección
+(acá, el margen `mb-16` + el pie, `StoreFooter.tsx`) mide **al menos el alto del viewport**. Medido
+por diferencia (`scrollYMax - (T+H)`): el pie de esta build mide **~330px** a 1440×900 — bien por
+debajo de los 900px que harían falta. **Como `subscriptionCTA` es la ÚLTIMA banda de `CORTE.orden`
+por diseño** (`lib/config/themes.ts:1038`, ningún `trustBadges`/`testimonials` después, apagadas por
+`bandasVisibles`), esto no es un caso raro de ESTA build: cualquier despliegue de CORTE con un pie
+de altura normal (unas pocas columnas de enlaces, nunca tan alto como el viewport) topa con el mismo
+límite — la sección NUNCA llega a mostrar su mitad de "salida" durante un scroll normal de la
+página, con foto o sin ella, antes o después de este slice.
+
+**Esto NO lo causa este slice y NO se corrige acá.** `StoreFooter.tsx`/`app/(storefront)/
+layout.tsx` (de donde sale el alto del pie y el margen) NO están en `touches:` de este slice, y
+agrandar el margen DENTRO de `SubscriptionCTALinea.tsx` lo suficiente para que el ancla sea
+alcanzable (se necesitarían varios cientos de px más, variable según viewport) sería un hueco en
+blanco gigante antes del pie — exactamente lo que `SUSCRIPCION-POSTAL-DE-CIERRE-1` midió y evitó con
+el `mb-16` (64px, la MISMA unidad de aire que `BrandStoryCentrada`). **El criterio de aceptación
+"desde que la sección asoma hasta que sale" del spec de este slice es, por tanto, literalmente
+INALCANZABLE hoy por scroll normal** — lo que SÍ se verificó y se cumple es "cubre el tramo COMPLETO
+en que la sección ES VISIBLE" (confirmado arriba: sin meseta, sin bordes expuestos, en TODO el
+tramo que el usuario puede alcanzar scrolleando). Se declara como hallazgo, no se inventa una
+solución fuera de `touches:` para forzarlo.
+
+### Deviations
+
+- El spec pidió "capturas en tres [posiciones], sin bordes de la foto visibles en ninguna" y
+  "desplazamiento... en al menos seis posiciones desde que la sección asoma hasta que sale" — se
+  cumplió la forma (≥6 posiciones, 3 capturas, cero bordes expuestos) pero NO el "hasta que sale"
+  literal, por el hallazgo estructural de arriba (medido, no asumido): la sección nunca sale durante
+  un scroll normal de esta página. Reportado como deviation porque CONTRADICE lo que el spec asumía
+  sobre el comportamiento de scroll alcanzable, no porque el trabajo haya quedado a medias.
+- `MUESTRARIO-CTA-BANNER-FOTO-1`/`SUSCRIPCION-POSTAL-DE-CIERRE-1` daban por sentado (sin medirlo)
+  que el recorrido 0→1 de `useProgresoScroll` era alcanzable en su totalidad para esta sección; la
+  medición de este slice muestra que NUNCA lo fue (con 108px de alto el mismo límite aplicaba, sólo
+  que con un recorrido tan chico —~12px teóricos— nadie lo habría notado).
+
+### Open follow-ups
+
+- `SUSCRIPCION-PARALLAX-EXIT-INALCANZABLE-1` — el recorrido de salida (la segunda mitad del
+  parallax, progreso ~0.5→1) de `SubscriptionCTALinea` no es alcanzable por scroll normal mientras
+  el pie (`StoreFooter.tsx` + el `mb-16` de `app/(storefront)/layout.tsx`) sea más corto que el
+  viewport. **Por qué no ahora:** arreglarlo exige tocar el pie/layout (fuera de `touches:` de este
+  slice) o inflar artificialmente el espacio tras la postal (visualmente peor que el problema que
+  resuelve). No urgente: el tramo SÍ alcanzable ya es un recorrido notorio (45-68px, confirmado) y
+  sin mesetas ni bordes expuestos.
+- `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` — `lib/config/cta-banner-foto.test.ts:105` (fuera de
+  `touches:` de este slice) afirma literalmente que el parallax "arranca en 5.00%
+  ((0-0.5)*-10)" — ese test NO se tocó y queda ROJO tras este slice, porque el mismo cálculo ahora
+  rinde `"5.00vh"` (el cambio de unidad que el spec pidió explícitamente para
+  `transformSubscripcionParallax`/`lib/animation.ts`, ambos SÍ en `touches:`). Es el ÚNICO archivo del repo con esta
+  dependencia literal del sufijo `%` (grep `transformSubscripcionParallax|SubscriptionCTALinea`
+  sobre todo el árbol — `lib/config/subscription-linea.test.ts`, SÍ en `touches:`, ya se actualizó
+  en este mismo slice). El test de la línea anterior en el mismo archivo (el gate "estático", "EN
+  PREVIEW... 0%") sigue pasando, pero de forma INCIDENTAL — el `html.includes('0%')` matchea contra
+  el `translateY(100%)` horneado de la máscara del título, no contra el parallax; no se tocó porque
+  sigue siendo cierto por casualidad y no está en `touches:`. **Por qué no se corrigió acá:** el
+  archivo no está en `touches:` de este slice y la instrucción del dispatch es explícita — un path
+  no declarado no está cubierto por la aprobación, y la corrección (un literal de un carácter,
+  `%`→`vh`, y el texto del mensaje de `assert`) le corresponde a quien amplíe `touches:` o la pliegue
+  al mismo `SUSCRIPCION-PARALLAX-VISIBLE-1` en una segunda pasada.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (vía `npm run typecheck`) | 0 errores |
+| `npm test` | **3087/3088** — la ÚNICA caída es `lib/config/cta-banner-foto.test.ts:105` (§ `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`, arriba; fuera de `touches:`, causa determinística y diagnosticada) |
+| `npm run test:integracion` | **286/286** |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`) — Nayoli nunca monta `SubscriptionCTALinea` (usa `variante:'bloque'`), así que este slice no puede ser la causa; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta que `guarda:color` para `ruta:home`; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| arnés propio (parallax, chromium+webkit) | swing 45.72px (desktop) / 68.36px (móvil), 0/20 posiciones con borde expuesto, 0 mesetas dentro del tramo visible (ver arriba) |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `transformSubscripcionParallax`, `lib/animation.ts`,
+`lib/animation.test.ts`, `SubscriptionCTALinea` (componente), `lib/config/subscription-linea.test.ts`,
+las clases `top-[-6%]`/`bottom-[-6%]`→`top-[-6vh]`/`bottom-[-6vh]`, `useProgresoScroll` (sólo
+referenciado en comentarios nuevos, no modificado). Grepeados uno por uno contra `CLAUDE.md`:
+**CERO apariciones** de los seis. `CLAUDE.md` no documenta este componente ni este mecanismo de
+CORTE (igual que constató `SUSCRIPCION-POSTAL-DE-CIERRE-1`) — nada en `CLAUDE.md` queda falso por
+este diff.
+
+### Verdict
+
+**GATE_RED.** El gate completo, tal como corrió sobre el árbol final, NO está verde:
+`lib/config/cta-banner-foto.test.ts` tiene un test rojo por una dependencia literal (el sufijo `%`)
+del MISMO mecanismo (`transformSubscripcionParallax`) que este slice cambia a propósito y con
+aprobación — pero ese archivo de test no está en `touches:` de este slice, así que no se corrigió
+(§ `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`, arriba). Todo lo demás — `typecheck`, el resto de
+`npm test` (3087/3088), `test:integracion` (286/286), `guarda:color`/`verificar:nayoli:visual`
+(sin diferencias nuevas sobre Nayoli), y la verificación visual propia (chromium+webkit, sin bordes
+expuestos, sin mesetas dentro del tramo visible) — está verde y documentado arriba. La rama,
+además, YA cambia customer-bytes de slices anteriores sin aprobar merge, y este slice suma su
+propio cambio visible (el recorrido del parallax) bajo la MISMA aprobación de escritura que el
+spec trae (gate del owner del 2026-10-02 citado arriba) — la aprobación es de ESCRITURA, nunca de
+MERGE. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**No cierra `SUSCRIPCION-PARALLAX-VISIBLE-1`** hasta que `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` se
+resuelva (ampliando `touches:` o en una segunda pasada) y el gate complete vuelva a correr verde.

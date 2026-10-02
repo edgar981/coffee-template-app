@@ -286,28 +286,37 @@ test('LA SECUENCIA: una vez la tarjeta está apareciendo, la frase YA está quie
   assert.equal(opacidadRevelaTextoDisplay(mediaTarjeta, false), OPACIDAD_REVELADO_TECHO);
 });
 
-// ── `transformSubscripcionParallax` (§ SUSCRIPCION-POSTAL-DE-CIERRE-1) — extraída del inline de
-// `SubscriptionCTALinea.tsx`, reproduce `[data-parallax]` del prototipo (`js/home.js:303-307`).
+// ── `transformSubscripcionParallax` (§ SUSCRIPCION-POSTAL-DE-CIERRE-1, unidad cambiada a `vh` en
+// § SUSCRIPCION-PARALLAX-VISIBLE-1) — extraída del inline de `SubscriptionCTALinea.tsx`, reproduce
+// `[data-parallax]` del prototipo (`js/home.js:303-307`), MISMOS números (±10, rango ±5), ahora en
+// `vh` en vez de `%` de su propia caja — § el docstring de la función para el porqué: `vh` es la
+// única magnitud que no se achica cuando la postal (la caja) se achica.
 
-test('transformSubscripcionParallax: estatico=true SIEMPRE "0%" — la imagen QUIETA, sin importar el progreso', () => {
-  assert.equal(transformSubscripcionParallax(0, true), '0%');
-  assert.equal(transformSubscripcionParallax(0.5, true), '0%');
-  assert.equal(transformSubscripcionParallax(1, true), '0%');
-  assert.equal(transformSubscripcionParallax(-0.5, true), '0%', 'estatico gana incluso con progreso fuera de rango');
+test('transformSubscripcionParallax: estatico=true SIEMPRE "0vh" — la imagen QUIETA, sin importar el progreso', () => {
+  assert.equal(transformSubscripcionParallax(0, true), '0vh');
+  assert.equal(transformSubscripcionParallax(0.5, true), '0vh');
+  assert.equal(transformSubscripcionParallax(1, true), '0vh');
+  assert.equal(transformSubscripcionParallax(-0.5, true), '0vh', 'estatico gana incluso con progreso fuera de rango');
 });
 
 test('transformSubscripcionParallax: estatico=false, progreso=0.5 (el centro del recorrido) — sin desplazamiento', () => {
-  assert.equal(transformSubscripcionParallax(0.5, false), '0.00%');
+  assert.equal(transformSubscripcionParallax(0.5, false), '0.00vh');
 });
 
-test('transformSubscripcionParallax: estatico=false, progreso=0 y progreso=1 — los dos extremos opuestos de ±5%', () => {
-  assert.equal(transformSubscripcionParallax(0, false), '5.00%');
-  assert.equal(transformSubscripcionParallax(1, false), '-5.00%');
+test('transformSubscripcionParallax: estatico=false, progreso=0 y progreso=1 — los dos extremos opuestos de ±5vh', () => {
+  assert.equal(transformSubscripcionParallax(0, false), '5.00vh');
+  assert.equal(transformSubscripcionParallax(1, false), '-5.00vh');
 });
 
 test('transformSubscripcionParallax: progreso se acota a [0,1] — fuera de rango no sobre-desplaza ni invierte el signo', () => {
   assert.equal(transformSubscripcionParallax(-0.5, false), transformSubscripcionParallax(0, false));
   assert.equal(transformSubscripcionParallax(1.5, false), transformSubscripcionParallax(1, false));
+});
+
+test('transformSubscripcionParallax: la unidad es `vh`, NUNCA `%` — decoupled del alto de su propia caja', () => {
+  assert.match(transformSubscripcionParallax(0, false), /vh$/);
+  assert.match(transformSubscripcionParallax(1, false), /vh$/);
+  assert.doesNotMatch(transformSubscripcionParallax(0, false), /%/);
 });
 
 // ── EL PROGRESO DESDE EL TOPE (§ CORTE-HERO-STICKY-RONDA-2-1) — sin React, sin navegador ──────────

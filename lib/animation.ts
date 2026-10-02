@@ -317,13 +317,47 @@ export function transformMarquesinaTarjeta(
 // decía); esta tanda SÍ declara `lib/animation.ts`/`lib/animation.test.ts` en su `touches:`, así que
 // se extrae — mismo criterio que `transformMarquesinaTexto`/`Tarjeta`: una transformación con
 // decisión (el recorte a [0,1], el "estático" congelado) se afirma con un test, no se confía a una
-// lectura del JSX. `estatico` (reduced motion, o la vista previa del editor que no puede scrollear de
-// verdad) deja la imagen QUIETA en `"0%"` — nunca a medio camino de un recorrido que no avanza, mismo
-// criterio que las dos hermanas de Marquesina.
+// lectura del JSX.
+//
+// § SUSCRIPCION-PARALLAX-VISIBLE-1 (2026-10-02) — LA UNIDAD CAMBIA DE `%` A `vh`; LOS NÚMEROS NO.
+// Gate del owner: «antes había un efecto en la imagen de fondo de Suscripción… se veía bien. Parece
+// que se quitó». MEDIDO (Playwright, 1440×900, preset CORTE, § DECISIONS.md de este slice): el
+// contenedor recorría ~14px de punta a punta — se lee como si no existiera.
+//
+// LA CAUSA: el `%` de la fórmula SIEMPRE fue relativo al alto de SU PROPIA CAJA (112% del alto de
+// la SECCIÓN, `top-[-6%] bottom-[-6%]` en el componente — ver ahí el porqué de esos dos números).
+// `SUSCRIPCION-POSTAL-DE-CIERRE-1` convirtió la franja de una línea de 108px pegada al pie a una
+// "postal" más alta (264px a 1440×900) — pero SIGUE SIENDO CHICA frente al viewport, porque es una
+// franja corta por DISEÑO (el owner ya calificó de "exageradamente grande" agrandarla al 62vh del
+// prototipo, § el docstring de `SUSCRIPCION-POSTAL-DE-CIERRE-1` en el componente). Atar el
+// desplazamiento al alto de esa caja la condena a ser leve sea cual sea su alto exacto — 108, 264,
+// o cualquier otro: la referencia (su propio alto) se achica (o se mantiene chica) CON la postal.
+//
+// LA REFERENCIA PASA A SER EL VIEWPORT (`vh`), lo único de la ecuación que NO se achica cuando la
+// postal se achica. Es además la magnitud correcta para este caso: `useProgresoScroll` recorre su
+// rango 0→1 sobre una distancia de scroll de `alto-sección + alto-viewport` (§ el docstring de
+// cabecera de `useProgresoScroll`); para una franja CORTA esa distancia la domina el VIEWPORT, no
+// la sección — atar el desplazamiento a esa misma unidad lo ata a la cantidad que de verdad
+// gobierna cuánto se scrollea mientras la postal está en pantalla.
+//
+// LOS NÚMEROS NO CAMBIAN, SÓLO LA UNIDAD: `(p-0.5)*-10` sigue dando el rango ±5 en los extremos;
+// `estatico` sigue congelando en el CENTRO del rango (cero desplazamiento, ahora `"0vh"`). A
+// 900px de viewport (1440×900, el gate), 5vh=45px — un recorrido total de 90px de punta a punta,
+// del orden de lo que un parallax necesita para notarse, y del mismo orden que el `.cta-strip` del
+// prototipo (`min-height:62vh`, ±5% de 558px≈28px por lado) lograba atando su desplazamiento a una
+// caja GRANDE: acá, en vez de agrandar la postal (ya descartado), se ata el desplazamiento a una
+// unidad que no depende del alto de la caja.
+//
+// EL BÚFER DEL CONTENEDOR CAMBIA DE UNIDAD JUNTO CON EL DESPLAZAMIENTO, EN EL COMPONENTE (la caja
+// del `motion.div` vive en `SubscriptionCTALinea.tsx`, no acá): `top-[-6vh] bottom-[-6vh]`, el
+// MISMO margen de antes (6 contra un máximo de 5, la misma holgura de 1) pero en la unidad que
+// ahora gobierna el desplazamiento — un búfer en `%` (de una caja chica) no alcanzaría para un
+// desplazamiento en `vh` (grande): expondría el borde de la foto. Las dos unidades tienen que
+// coincidir SIEMPRE; ver el comentario del contenedor en el componente para el detalle completo.
 export function transformSubscripcionParallax(progreso: number, estatico: boolean): string {
-  if (estatico) return "0%";
+  if (estatico) return "0vh";
   const p = Math.max(0, Math.min(1, progreso));
-  return `${((p - 0.5) * -10).toFixed(2)}%`;
+  return `${((p - 0.5) * -10).toFixed(2)}vh`;
 }
 
 // ── EL PROGRESO DESDE EL TOPE — hermana de `useProgresoScroll`, § CORTE-HERO-STICKY-RONDA-2-1 ─────

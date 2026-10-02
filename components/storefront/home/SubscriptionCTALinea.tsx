@@ -57,6 +57,17 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // tenía), así que la cuenta pasa a ser pura y testeada, mismo criterio que
 // `transformMarquesinaTexto`/`Tarjeta`.
 //
+// § SUSCRIPCION-PARALLAX-VISIBLE-1 — EL DESPLAZAMIENTO Y SU BÚFER VAN EN `vh`, NO EN `%` DE LA
+// CAJA. Ver el docstring de `transformSubscripcionParallax` (`lib/animation.ts`) para el porqué
+// completo: el `%` de antes era relativo al alto de ESTA MISMA caja —que es chica por diseño, una
+// franja corta, no un héroe a pantalla completa— así que el efecto era casi imperceptible (~14px de
+// punta a punta a 1440×900, medido) sea cual sea el alto exacto de la postal. `vh` es la única
+// magnitud de la ecuación que NO se achica cuando la postal se achica (ni cuando cambie de alto en
+// el futuro). El búfer del contenedor de abajo (`top-[-6vh] bottom-[-6vh]`) tiene que usar la MISMA
+// unidad que el desplazamiento —nunca una mezcla— o el máximo recorrido (±5vh) podría exceder el
+// margen y exponer el borde de la foto; 6 contra un máximo de 5 es la MISMA holgura de 1 que ya
+// regía en `%`, sólo en la unidad nueva.
+//
 // EL VELO reusa `--sf-velo` (`app/globals.css`), el MISMO token que Marquesina/HeroMedia — nunca un
 // rgba nuevo. Es un degradado de DOS paradas, no las tres de `HeroMedia.tsx`
 // (`from-tinta/60 via-transparent to-velo`): esa `via-transparent` deja CERO protección a medio
@@ -210,9 +221,12 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
     >
       {tieneImagenFondo && (
         <div className="absolute inset-0" aria-hidden="true">
-          {/* La caja del parallax se extiende 6% arriba/abajo (§ arriba): el `translateY` de
-              ±5% de su propio alto (≤ 5% de 112%) nunca expone un borde vacío. */}
-          <motion.div className="absolute inset-x-0 top-[-6%] bottom-[-6%]" style={{ y: parallaxY }}>
+          {/* La caja del parallax se extiende 6vh arriba/abajo — EN `vh`, no en `%` de su propio
+              alto (§ SUSCRIPCION-PARALLAX-VISIBLE-1, arriba): el `translateY` de ±5vh que
+              `transformSubscripcionParallax` produce nunca excede ese búfer de 6vh, así que la
+              imagen (siempre más alta que su marco) nunca expone un borde vacío — sea cual sea el
+              alto de ESTA sección (chico por diseño), porque el búfer ya no depende de él. */}
+          <motion.div className="absolute inset-x-0 top-[-6vh] bottom-[-6vh]" style={{ y: parallaxY }}>
             <Image src={subscriptionCTA.imagenFondo} alt="" fill sizes="100vw" className="object-cover" />
           </motion.div>
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)]" />

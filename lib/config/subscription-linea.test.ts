@@ -83,6 +83,18 @@ test('CON imagenFondo: el título pasa a `text-white` LITERAL — ya NO depende 
   assert.doesNotMatch(clase, /--sf-sobre-banda/);
 });
 
+// ─── § SUSCRIPCION-PARALLAX-VISIBLE-1 — EL BÚFER DEL CONTENEDOR ES `vh`, NUNCA `%` ─────────────────
+// El búfer tiene que usar la MISMA unidad que `transformSubscripcionParallax` (`lib/animation.ts`,
+// `vh`) o el recorrido máximo (±5vh) podría exceder un búfer medido en `%` de una caja chica y
+// exponer el borde de la foto (§ el docstring del componente). Este test afirma el BYTE del
+// contenedor, no sólo la fórmula pura — las dos piezas tienen que coincidir en unidad.
+
+test('CON imagenFondo: el contenedor del parallax usa búfer `vh` (`top-[-6vh] bottom-[-6vh]`), NUNCA `%`', () => {
+  const html = renderLinea(CON_IMAGEN);
+  assert.match(html, /class="absolute inset-x-0 top-\[-6vh\] bottom-\[-6vh\]"/);
+  assert.doesNotMatch(html, /top-\[-6%\]|bottom-\[-6%\]/, 'el búfer viejo en % no debe sobrevivir junto al desplazamiento en vh');
+});
+
 // ─── EL ALTO/ESCALA DE SECCIÓN (§ SUSCRIPCION-POSTAL-DE-CIERRE-1) — el título sube a `text-4xl`
 // fijo, la MISMA escala que `SubscriptionCTABloque.tsx` ya usa para esta sección en los otros cinco
 // presets; y gana el MISMO override `escalaDisplay` que featured/brandStory/presentaciones/
