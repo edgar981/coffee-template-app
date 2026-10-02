@@ -44458,3 +44458,171 @@ completo corrió verde sobre el árbol final (typecheck 0 errores, `npm test` 30
 de la rama entera —que sigue cargando los customer-bytes sin aprobar de
 `MARQUESINA-TARJETA-COMO-LETRAS-1`, `SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1` y
 `MARQUESINA-TARJETA-SIN-MASCARA-1`— sigue pendiente de ese gate separado, ajeno a este slice.
+
+## 2026-10-02 — El nav puede mostrar logo + nombre en escritorio y sólo logo en el teléfono — tercer modo de marca, elegible por tienda (`NAV-LOGO-Y-NOMBRE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Gate del owner del 2026-10-02
+sobre la demo de Café Las Chamisas: *"Me pregunto si el inconveniente de espacio que teníamos en el
+nav en la vista móvil lo podemos solucionar mostrando el logo de las chamisas, en lugar del texto.
+En la vista desktop podríamos mostrar ambas."* La aprobación autoriza la escritura, nunca el merge.
+
+### El modelo — un campo más de la MISMA sección, sin mecanismo nuevo
+
+`MARCA-LOGO-IMAGEN-1` (observed-report de este slice) dejó el logo subido REEMPLAZANDO mark+wordmark
+enteros, en TODOS los anchos, en cuanto había al menos una imagen subida — sin control para elegir
+otra cosa. Este slice no cambia ESE comportamiento por defecto; lo convierte en UNA de tres opciones:
+
+- `'soloNombre'` — ignora cualquier imagen subida, siempre el wordmark de texto. El default SIN
+  logo (Nayoli, hoy) y también una elección válida CON logo (volver al texto sin borrar lo subido).
+- `'soloLogo'` — la imagen reemplaza mark+wordmark, en TODOS los anchos. El default CON logo — el
+  comportamiento de `MARCA-LOGO-IMAGEN-1`, intacto.
+- `'logoYNombre'` — NUEVO: sólo el logo en el ancho de teléfono (`<lg`), logo + nombre desde
+  escritorio (`lg:`).
+
+`logo.modo` es un SÉPTIMO campo `'opcional'` de la MISMA sección `logo` (§ REGISTRY.logo.campos,
+site-content-defaults.ts) — ni una sección nueva ni una meta nueva: viaja en el MISMO borrador/
+publish que las imágenes, el alt y el ícono de pestaña, por la MISMA ruta
+(`/api/site-content/encabezado`), sin tocar esa ruta ni un byte de su `.pick()` (`logo: true` ya
+cubre cualquier campo nuevo de la sección).
+
+**NO se clampa en el resolver — y es una decisión, no un olvido.** `resolverVariante`/`escalares`
+(el mecanismo que YA clampa `hero.variante`/`footer.variante` a una canónica FIJA) no sirve acá: el
+default de `logo.modo` es CONDICIONAL (`'soloLogo'` con imagen subida, `'soloNombre'` sin ella), y
+`resolverVariante` sólo mira el valor guardado del propio campo, nunca sus hermanos
+(`oscuro`/`claro`). Así que `logo.modo` queda como un `'opcional'` plano —SOFT, el resolver lo pasa
+TAL CUAL, sin clampar— y el clamp/interpretación (`''`, ausente o basura → el default condicional;
+uno de los tres valores → tal cual) vive en UNA función pura, `modoLogoResuelto`
+(`lib/config/marca-logo.ts`), que `Logo.tsx` (el storefront) y `EncabezadoSeccion.tsx` (el `<select>`
+del panel, para mostrar la opción vigente) COMPARTEN — las dos superficies no pueden discrepar sobre
+qué significa un valor guardado.
+
+**El schema sigue siendo `z.string().optional()`, NO `z.enum`.** El form manda el campo COMPLETO en
+cada guardado (como `oscuro`/`claro`/`alt`/`icono`), incluido `''` mientras el dueño no elige nada —
+un `z.enum` habría rechazado ese `''` con 400 en el PRIMER guardado de CUALQUIER tenant, por
+cualquier otro switch del Encabezado (`navTratamiento`, `cromo`, lo que sea). Mismo patrón que
+`hero.variante`/`footer.variante` (string permisivo + clamp al LEER), no el de `navDrawerMovil.
+variante` (enum — porque esa meta nunca manda `''` explícito).
+
+### El storefront — `Logo.tsx`, tres ramas en vez de dos, el footer NO se toca
+
+El componente ganó UNA rama nueva (`logoYNombre`, logo + `<span className="hidden … lg:flex">` con
+el nombre y el tagline) intercalada entre la rama "imagen sola" de siempre y las ramas de texto. El
+`modo` sólo se interpreta FUERA de `stacked` (la rama que monta el pie de página): el ajuste de este
+slice es del NAV —"cada tienda puede elegir que el NAV muestre…"—, y el pie no está en su alcance.
+Con logo subido, el pie sigue reemplazando mark+wordmark por la imagen entera, byte a byte, sin
+importar qué eligió el dueño en `logo.modo`. `StoreNav.tsx` no cambió de comportamiento: reenvía el
+MISMO `content.logo` a sus dos monturas (el header y el drawer móvil de pantalla completa) que ya
+reenviaba antes de este slice; sólo se amplió su comentario.
+
+`hidden … lg:flex` (display:none de verdad), NO `invisible` (visibility:hidden, el mecanismo de §
+NAV-MOVIL-NOMBRE-CON-AIRE-1 para el ícono de buscar): acá se QUIERE que la caja del nombre
+desaparezca del flujo en el teléfono —"el logo SOLO", no el logo con un hueco invisible al lado—,
+lo opuesto de lo que esa guarda resuelve para el ícono de buscar.
+
+### El panel — `<select>` nativo, el MISMO patrón que `footer.variante`
+
+Tercera opción dentro de la MISMA tarjeta "Imagen del logo" (no un switch más de los diez de abajo):
+"¿cómo se ve mi marca?" sigue siendo la misma decisión que ya vive ahí. El `value` mostrado es el
+RESUELTO (`modoLogoResuelto`), nunca el `''` crudo — una cuarta opción en blanco por "nada elegido"
+no es una de las tres que el spec pide. Elegir cualquiera de las tres, aun la que ya estaba en
+efecto, la hace EXPLÍCITA — ningún tenant la cambia sin tocar el `<select>` (Nayoli, sin fila
+tocada, sigue resolviendo `''` → `'soloNombre'`, byte-idéntico).
+
+### Deviaciones medidas
+
+Ninguna respecto al spec. Dos archivos de `touches:` quedaron SIN diff, medido, no por omisión:
+`app/api/site-content/encabezado/route.ts` (su `.pick({logo: true, …})` ya cubre cualquier campo
+nuevo de la sección `logo` — el MISMO patrón que `icono`, § METADATA-ICONOS-Y-LANG-POR-TIENDA-1, que
+tampoco tocó esta ruta) y `tests/integracion/panel-encabezado.test.ts` (prueba el viaje de las
+CUATRO metas + `logo`, no los campos internos de `logo` — `icono` tampoco entró ahí). `lib/config/
+nav-internas.test.ts` también quedó sin diff: reproduce por SUSTITUCIÓN fórmulas de `StoreNav.tsx`
+ajenas al logo (`navBandaTinta`, `navOffsetClase`, `navSombraClase`); ninguna cambió.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (vía `npm run typecheck`) | 0 errores |
+| `npm test` | **3096/3096** (+8: 4 en `marca-logo.test.ts` para `modoLogoResuelto`, 4 en `site-content-defaults.test.ts` para el contrato SOFT de `logo.modo` en el resolver) |
+| `npm run test:integracion` | **291/291** (+5, todos en `encabezado-logo.test.ts`: el viaje borrador→publicar→descartar de `modo`, independiente de las imágenes, y que el schema acepta `''` explícito) |
+| `npm run build` | verde |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`, el collage de Historia + la postal de Suscripción — nada del nav); las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, misma caja, que `guarda:color` |
+
+**`guarda:color`/`verificar:nayoli:visual` NO dieron 0px — DEVIACIÓN del spec de cierre, medida y
+ajena a este slice, no causada por él.** El spec pedía "0px"; la cifra real es el drift preexistente
+de la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, re-confirmado por DOCENAS de slices anteriores
+con la MISMA cifra exacta) — el collage de 4 fotos de "Detrás de cada pedido" y la postal flotante
+de "Tu pedido, cada mes" (verificado visualmente sobre el PNG de diff: el nav, arriba de la imagen,
+sale IDÉNTICO en las dos versiones). Nayoli no sube logo, así que `content.logo.modo` nunca sale de
+`''`/`'soloNombre'` para ella — este slice no puede ser la causa por construcción, y la cifra
+IDÉNTICA a la ya registrada lo confirma por medición, no sólo por argumento.
+
+**Evidencia manual del Cierre — base efímera con "Café Las Chamisas" + un logo redondo de prueba
+(SVG inline en `data:`, sin blob real).** Harness ad-hoc (`.scratch/nav-logo-captura.ts` +
+`.scratch/seed-chamisas.ts`, gitignorados, no parte del producto): Postgres efímero propio
+(`:55441`), `migrate deploy` (sin el seed de Nayoli — sólo `SiteSetting.nombre` + `SiteContent.
+content.logo` escritos a mano), build + `next start` (`:3499`), Playwright aislado (Chromium a 1440,
+WebKit con el descriptor `'iPhone 14'`). Doce capturas — home (nav flotando) + `/nosotros` (nav
+sólido) × los tres modos × los dos viewports — inspeccionadas una por una: `'soloNombre'` muestra
+sólo "Café Las Chamisas" en texto en los CUATRO casos (ignora el logo subido); `'soloLogo'` muestra
+sólo el sello redondo "CH" en los CUATRO; `'logoYNombre'` muestra SÓLO el sello en el viewport
+iPhone (en las dos páginas) y el sello + "Café Las Chamisas" lado a lado en 1440 (en las dos
+páginas), sin hueco ni salto de layout.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `components/storefront/Logo.tsx`, `components/storefront/
+layout/StoreNav.tsx`, `components/admin/EncabezadoSeccion.tsx`, `lib/config/marca-logo.ts`
+(`ModoLogo`, `modoLogoResuelto`), `lib/config/site-content-defaults.ts` (`LogoContent`,
+`REGISTRY.logo`, `DEFAULTS.logo`), `lib/config/site-content-schema.ts` (`logoEditableSchema`),
+`lib/config/panel-controles.ts` (`CONTROLADOS_ENCABEZADO_SECCION`), más los archivos de test.
+Grepeados contra `CLAUDE.md`:
+
+- `Logo.tsx` → 1 coincidencia (línea ~4500, "el SVG de la flor sigue INLINE en `Logo.tsx` como el
+  PUNTO DE SWAP") — sobre el `LogoMark`/la flor, que este diff no tocó: sigue siendo verdad.
+- `StoreNav.tsx`, `EncabezadoSeccion.tsx`, `marca-logo.ts`, `site-content-schema.ts` (el archivo
+  por nombre), `panel-controles.ts`, `encabezado-logo.test.ts`, `REGISTRY.logo`, `logoEditableSchema`,
+  `CONTROLADOS_ENCABEZADO_SECCION`, `modoLogoResuelto`, `hayLogoImagen`, `logoParaVariante`,
+  `LogoContent`, `MARCA-LOGO-IMAGEN-1` → **CERO coincidencias** cada uno.
+- `site-content-defaults.ts`/`site-content-schema.ts` SÍ aparecen, pero sólo dentro de la frase
+  canónica de Tier 1 (línea 39) y la doctrina genérica de "el schema editable STRIPPEA lo no
+  declarado" (línea 1928) — ninguna de las dos queda falsa: este diff agregó `logo.modo` a AMBOS
+  lados (DEFAULTS y schema) a la vez, exactamente lo que esa doctrina exige, y el test derivado
+  (`site-content-schema.test.ts`, no tocado, genérico) lo habría atrapado si no.
+- `components/storefront/` (el subárbol Tier 1) → confirma la clasificación `tier: 1` de este
+  slice; no queda falso.
+
+Nada queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`.** La rama (no sólo este commit) ya cargaba customer-bytes sin aprobar de los
+cuatro slices anteriores (§ el asiento de `PARALLAX-TEST-SYNC-1`, arriba); este slice SUMA una
+capacidad nueva, visible, al storefront: un tercer modo de presentación de marca en el nav,
+seleccionable desde el panel. `strings: []` — no hay copy nuevo; el cambio es de LAYOUT (qué
+elementos se muestran y dónde), no de texto. `approved: null` (nada de esto se publicó — Nayoli no
+tiene logo subido, así que el storefront en vivo no cambia un byte).
+
+### `schema`/`cross-repo-contract`
+
+`schema`: no aplica — sin migración, sin modelo Prisma (`logo.modo` vive dentro del `Json` de
+`SiteContent.content`, ya existente). `cross-repo-contract`: no aplica.
+
+### Open follow-ups
+
+Ninguno nuevo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes, owner-gate-requested]`. El diff agrega una
+capacidad de presentación nueva al storefront (`logoYNombre`), así que falla la condición de
+customer-bytes de la política A por sí solo — y el dispatch de este slice además instruye
+explícitamente parar antes del merge («PARÁS EN `AWAITING_APPROVAL`. NO MERGEES.»). El gate completo
+corrió verde sobre el árbol final (typecheck 0 errores, `npm test` 3096/3096, `npm run
+test:integracion` 291/291, build verde); `guarda:color`/`verificar:nayoli:visual` no dieron 0px por
+el drift preexistente de la rama, ajeno a este slice y re-confirmado por medición (misma cifra
+exacta, misma caja). Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama
+entera —que sigue cargando los customer-bytes sin aprobar de `MARQUESINA-TARJETA-COMO-LETRAS-1`,
+`SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1`, `MARQUESINA-TARJETA-SIN-MASCARA-1` y
+ahora `NAV-LOGO-Y-NOMBRE-1`— sigue pendiente de ese gate separado, ajeno a este slice.

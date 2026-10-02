@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hayLogoImagen, logoParaVariante, altDeLogo } from './marca-logo';
+import { hayLogoImagen, logoParaVariante, altDeLogo, modoLogoResuelto } from './marca-logo';
 import type { LogoContent } from './site-content-defaults';
 
 // `icono` (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) es ajeno a lo que este archivo prueba (wordmark/
-// mark, no el favicon) — '' en las cuatro fixtures, sólo para satisfacer `LogoContent`.
-const SIN_LOGO: LogoContent = { visible: true, oscuro: '', claro: '', alt: '', icono: '' };
-const AMBAS: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: 'https://blob.example/claro.svg', alt: '', icono: '' };
-const SOLO_OSCURA: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: '', alt: '', icono: '' };
-const SOLO_CLARA: LogoContent = { visible: true, oscuro: '', claro: 'https://blob.example/claro.svg', alt: '', icono: '' };
+// mark, no el favicon) — '' en las cinco fixtures, sólo para satisfacer `LogoContent`. `modo` (§
+// NAV-LOGO-Y-NOMBRE-1) también '' por defecto — las fixtures con un modo EXPLÍCITO lo declaran.
+const SIN_LOGO: LogoContent = { visible: true, oscuro: '', claro: '', alt: '', icono: '', modo: '' };
+const AMBAS: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: 'https://blob.example/claro.svg', alt: '', icono: '', modo: '' };
+const SOLO_OSCURA: LogoContent = { visible: true, oscuro: 'https://blob.example/oscuro.svg', claro: '', alt: '', icono: '', modo: '' };
+const SOLO_CLARA: LogoContent = { visible: true, oscuro: '', claro: 'https://blob.example/claro.svg', alt: '', icono: '', modo: '' };
 
 // ── hayLogoImagen ────────────────────────────────────────────────────────────────────────────────
 
@@ -62,4 +63,29 @@ test('altDeLogo: alt vacío cae al nombre del negocio (fallback CONTEXTUAL, no u
 test('altDeLogo: alt en blanco (sólo espacios) cuenta como vacío', () => {
   const logo: LogoContent = { ...AMBAS, alt: '   ' };
   assert.equal(altDeLogo(logo, 'Café Las Chamisas'), 'Café Las Chamisas');
+});
+
+// ── modoLogoResuelto (§ NAV-LOGO-Y-NOMBRE-1) — el default CONDICIONAL, y el clamp de basura ───────
+
+test('modoLogoResuelto: sin logo y sin modo elegido → "soloNombre" (el caso de HOY, Nayoli)', () => {
+  assert.equal(modoLogoResuelto(SIN_LOGO), 'soloNombre');
+});
+
+test('modoLogoResuelto: con logo y sin modo elegido → "soloLogo" (el caso de HOY, un tenant que ya subió uno)', () => {
+  assert.equal(modoLogoResuelto(AMBAS), 'soloLogo');
+  assert.equal(modoLogoResuelto(SOLO_OSCURA), 'soloLogo');
+  assert.equal(modoLogoResuelto(SOLO_CLARA), 'soloLogo');
+});
+
+test('modoLogoResuelto: los TRES valores explícitos sobreviven tal cual, con o sin logo subido', () => {
+  assert.equal(modoLogoResuelto({ ...SIN_LOGO, modo: 'soloNombre' }), 'soloNombre');
+  assert.equal(modoLogoResuelto({ ...SIN_LOGO, modo: 'soloLogo' }), 'soloLogo');
+  assert.equal(modoLogoResuelto({ ...SIN_LOGO, modo: 'logoYNombre' }), 'logoYNombre');
+  assert.equal(modoLogoResuelto({ ...AMBAS, modo: 'soloNombre' }), 'soloNombre', 'una elección válida AUN con logo subido — el dueño puede volver al texto sin borrar las imágenes');
+  assert.equal(modoLogoResuelto({ ...AMBAS, modo: 'logoYNombre' }), 'logoYNombre');
+});
+
+test('modoLogoResuelto: basura (ni vacío ni uno de los tres) cae al default CONDICIONAL, nunca lanza — SOFT', () => {
+  assert.equal(modoLogoResuelto({ ...SIN_LOGO, modo: 'da' }), 'soloNombre');
+  assert.equal(modoLogoResuelto({ ...AMBAS, modo: 'basura-que-nadie-escribió' }), 'soloLogo');
 });

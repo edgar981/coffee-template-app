@@ -593,16 +593,26 @@ const footerEditableSchema = z.object({
 
 // EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1): `logo`
 // SÍ es una SECCIÓN de verdad (§ REGISTRY.logo, site-content-defaults.ts — mismo precedente que
-// `menu`/`footer`), así que los cuatro campos son SOFT strings planos, como el resto de esas dos
-// secciones — el set cerrado de formatos (SVG/PNG) lo impone la SUBIDA (`constants/upload.ts`,
-// `TIPOS_LOGO`), no este schema de contenido. Editor BESPOKE (`EncabezadoSeccion.tsx`, vía
-// `/api/site-content/encabezado`, `.pick({logo: true, ...})`).
+// `menu`/`footer`), así que los cuatro campos de imagen son SOFT strings planos, como el resto de
+// esas dos secciones — el set cerrado de formatos (SVG/PNG) lo impone la SUBIDA
+// (`constants/upload.ts`, `TIPOS_LOGO`), no este schema de contenido. Editor BESPOKE
+// (`EncabezadoSeccion.tsx`, vía `/api/site-content/encabezado`, `.pick({logo: true, ...})`).
+//
+// `modo` (§ NAV-LOGO-Y-NOMBRE-1) es el MISMO tipo permisivo, `z.string().optional()`, NO
+// `z.enum([...])`: el formulario manda el campo COMPLETO en cada guardado (como `oscuro`/`claro`/
+// `alt`/`icono`), incluido `''` mientras el dueño no elige nada — un `z.enum` rechazaría ese `''`
+// con 400 en el PRIMER guardado de cualquier tenant, por cualquier otro switch del Encabezado. El
+// set cerrado de los tres valores válidos lo impone `modoLogoResuelto` (marca-logo.ts) al LEER, no
+// este schema al escribir — mismo patrón que `hero.variante`/`footer.variante` (string permisivo +
+// clamp en el resolver), no el de `navDrawerMovil.variante` (enum — porque esa meta NUNCA manda ''
+// explícito, § su propio `wireDe`).
 const logoEditableSchema = z.object({
   visible: z.boolean().optional(),
   oscuro: z.string().optional(),
   claro: z.string().optional(),
   alt: z.string().optional(),
   icono: z.string().optional(),
+  modo: z.string().optional(),
 });
 
 export const siteContentEditableSchema = z.object({

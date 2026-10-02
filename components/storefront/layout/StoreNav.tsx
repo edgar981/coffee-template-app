@@ -642,7 +642,10 @@ export default function StoreNav() {
   // subida (todo tenant que no lo configure, incluido Nayoli) `Logo` ignora la prop y renderiza
   // mark+wordmark como siempre — byte a byte. Con logo, `Logo` ya resuelve sola QUÉ versión mostrar
   // según `variant` (claro flotando sobre el hero, oscuro en páginas internas/nav sólido, § la prop
-  // `variant` arriba) — este componente no decide nada nuevo, sólo reenvía el dato.
+  // `variant` arriba) Y, desde § NAV-LOGO-Y-NOMBRE-1, si el logo CONVIVE con el nombre en
+  // escritorio (`logo.modo === 'logoYNombre'`, vía `modoLogoResuelto`) — este componente tampoco
+  // decide eso: sólo reenvía el MISMO `logo` a las DOS monturas de abajo (el header y el drawer
+  // móvil de pantalla completa), así que las dos responden igual al modo elegido.
   const logoLink = (
     <Link href="/" aria-label={`${nombre} — inicio`} className="min-w-0 transition-colors">
       {/* Cream lockup over the transparent hero, espresso once scrolled */}

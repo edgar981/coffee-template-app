@@ -1939,16 +1939,19 @@ export const DEFAULTS: SiteContentData = {
     tarjetaTexto: '',
     items: [],
   },
-  // LOGO por defecto (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1):
-  // las cuatro claves vacías → sin logo subido (el storefront cae al wordmark de texto, o la flor
-  // de Nayoli, § STOREFRONT_TIENE_MARK) y sin ícono propio (cae a los estáticos de Nayoli) →
-  // byte-idéntico sin depender de una fila.
+  // LOGO por defecto (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1, +
+  // `modo` de § NAV-LOGO-Y-NOMBRE-1): las cuatro claves de imagen vacías → sin logo subido (el
+  // storefront cae al wordmark de texto, o la flor de Nayoli, § STOREFRONT_TIENE_MARK) y sin ícono
+  // propio (cae a los estáticos de Nayoli); `modo: ''` → el default CONDICIONAL según haya o no
+  // imagen subida (§ `modoLogoResuelto`, marca-logo.ts) — para Nayoli (sin imagen) eso es
+  // 'soloNombre', el wordmark de texto de siempre → byte-idéntico sin depender de una fila.
   logo: {
     visible: true,
     oscuro: '',
     claro: '',
     alt: '',
     icono: '',
+    modo: '',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -2661,9 +2664,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // páginas). `imagenes: ['oscuro', 'claro', 'icono']` para que el borrado de blobs reemplazados
   // (`imagenesDe`, site-content-blobs.ts) los vea — sin nombrarlos acá, reemplazar un logo dejaría
   // el blob viejo HUÉRFANO para siempre (mismo mecanismo que `hero.imagenPoster`/
-  // `menu.panelTarjetaImagen`). Los cuatro campos son 'opcional': vacíos = sin logo/ícono subido, el
-  // storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) y a los
-  // íconos estáticos de hoy — exactamente lo de hoy.
+  // `menu.panelTarjetaImagen`). Los cuatro campos de imagen son 'opcional': vacíos = sin logo/ícono
+  // subido, el storefront cae al wordmark de texto (o la flor de Nayoli, § STOREFRONT_TIENE_MARK) y
+  // a los íconos estáticos de hoy — exactamente lo de hoy.
   logo: {
     label: 'Logo',
     ocultable: false,
@@ -2682,24 +2685,36 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // wordmark/mark del nav — típicamente RECTANGULAR, pésimo recortado a 16×16). Vacío → los
       // íconos ESTÁTICOS de hoy (Nayoli, § `lib/config/metadata-tienda.ts`), nunca una URL rota.
       icono: 'opcional',
+      // CÓMO SE MUESTRA LA MARCA EN EL NAV (§ NAV-LOGO-Y-NOMBRE-1): 'opcional', NO `escalares` —
+      // ese mecanismo clampa a una canónica FIJA (`resolverVariante`), y el default de este campo
+      // es CONDICIONAL (depende de `hayLogoImagen`, que `resolverVariante` no puede mirar). SOFT,
+      // raw: el resolver lo pasa TAL CUAL —sin clampar— y el clamp/interpretación de '', ausente o
+      // basura vive en `modoLogoResuelto` (lib/config/marca-logo.ts), que `Logo.tsx` (el storefront)
+      // y `EncabezadoSeccion.tsx` (el admin) comparten. Vacío → el comportamiento de HOY según haya
+      // o no imagen subida — ningún tenant cambia sin elegirlo.
+      modo: 'opcional',
     },
   },
 };
 
 /** El contrato de dato del LOGO subido (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-
- *  LANG-POR-TIENDA-1): dos versiones de imagen + su alt, más el ícono de pestaña/PWA. `''` en
- *  `oscuro`/`claro` = esa versión no está subida; `''` en ambas = sin logo (el storefront cae al
- *  wordmark de texto). `''` en `icono` = sin ícono propio (cae a los estáticos de Nayoli, §
- *  `lib/config/metadata-tienda.ts`). Ver `REGISTRY.logo` arriba para el porqué de cada campo.
- *  `visible` es el campo BASELINE que toda sección lleva (§ `HeroContent`/`MenuContent`/
- *  `FooterContent`) — inerte acá porque `REGISTRY.logo.ocultable` es `false`, igual que en
- *  `menu`/`footer`. */
+ *  LANG-POR-TIENDA-1, + `modo` de § NAV-LOGO-Y-NOMBRE-1): dos versiones de imagen + su alt, más el
+ *  ícono de pestaña/PWA y el modo de presentación. `''` en `oscuro`/`claro` = esa versión no está
+ *  subida; `''` en ambas = sin logo (el storefront cae al wordmark de texto). `''` en `icono` = sin
+ *  ícono propio (cae a los estáticos de Nayoli, § `lib/config/metadata-tienda.ts`). `modo` es
+ *  `'' | 'soloNombre' | 'soloLogo' | 'logoYNombre'` en espíritu, pero el TIPO se queda `string` —
+ *  como el resto de los campos SOFT de esta interfaz— porque `resolverSiteContent` no lo clampa
+ *  (§ REGISTRY.logo.campos.modo, arriba); `modoLogoResuelto` (lib/config/marca-logo.ts) es quien
+ *  estrecha el tipo al leerlo. Ver `REGISTRY.logo` arriba para el porqué de cada campo. `visible`
+ *  es el campo BASELINE que toda sección lleva (§ `HeroContent`/`MenuContent`/`FooterContent`) —
+ *  inerte acá porque `REGISTRY.logo.ocultable` es `false`, igual que en `menu`/`footer`. */
 export interface LogoContent {
   visible: boolean;
   oscuro: string;
   claro: string;
   alt: string;
   icono: string;
+  modo: string;
 }
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.

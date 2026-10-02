@@ -1788,3 +1788,29 @@ test('productoMarquesina comparte el criterio "sin fallback" de productoOtraTall
     assert.deepEqual(productoMarquesina(CATALOGO_PRUEBA, slug), productoOtraTalla(CATALOGO_PRUEBA, slug));
   }
 });
+
+// ── LOGO: `modo` (§ NAV-LOGO-Y-NOMBRE-1) — campo 'opcional' más, SIN clamp en el resolver ─────────
+//
+// El resolver NO clampa `logo.modo` al set cerrado de tres valores: es un campo `opcional` plano
+// (§ REGISTRY.logo.campos), y el mecanismo que SÍ clampa (`variantes`/`escalares`, vía
+// `resolverVariante`) exige una canónica FIJA que este campo no tiene —su default es CONDICIONAL,
+// según haya o no imagen subida, algo que `resolverVariante` no puede mirar—. El clamp vive en
+// `modoLogoResuelto` (marca-logo.ts), afirmado en su propio archivo de test; acá sólo se afirma el
+// contrato del RESOLVER: ausente → el default (''); presente, aunque sea basura → tal cual.
+
+test('DEFAULTS.logo.modo es "" (el default byte-idéntico, sin un valor inventado)', () => {
+  assert.equal(DEFAULTS.logo.modo, '');
+});
+
+test('logo.modo: sin fila guardada, resuelve al DEFAULT ("")', () => {
+  assert.equal(resolverSiteContent({}).logo.modo, '');
+});
+
+test('logo.modo: un valor de los tres SOBREVIVE al resolver, tal cual', () => {
+  assert.equal(resolverSiteContent({ logo: { modo: 'logoYNombre' } }).logo.modo, 'logoYNombre');
+  assert.equal(resolverSiteContent({ logo: { modo: 'soloNombre' } }).logo.modo, 'soloNombre');
+});
+
+test('logo.modo: basura SOBREVIVE tal cual — el resolver no clampa, SOFT (el clamp es de modoLogoResuelto, no de acá)', () => {
+  assert.equal(resolverSiteContent({ logo: { modo: 'lo-que-sea' } }).logo.modo, 'lo-que-sea');
+});

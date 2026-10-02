@@ -32,6 +32,35 @@ export function logoParaVariante(logo: LogoContent, variant: 'light' | 'dark'): 
 }
 
 /**
+ * CÓMO SE MUESTRA LA MARCA (§ NAV-LOGO-Y-NOMBRE-1) — tres modos, uno elegido EXPLÍCITAMENTE por el
+ * dueño (`logo.modo`), los otros dos el default según haya o no imagen subida (§ el spec de este
+ * slice: "Default: el comportamiento de hoy según haya o no logo"):
+ *
+ *  · `'soloNombre'` — ignora cualquier imagen subida, siempre mark+wordmark de texto. Es el default
+ *    SIN logo (el caso de HOY, Nayoli) y también una elección válida CON logo (el dueño puede
+ *    querer volver al texto sin borrar las imágenes que ya subió).
+ *  · `'soloLogo'` — la imagen REEMPLAZA mark+wordmark enteros, en TODOS los anchos. Es el default
+ *    CON logo (el caso de HOY para cualquier tenant que ya subió uno, § MARCA-LOGO-IMAGEN-1).
+ *  · `'logoYNombre'` — NUEVO: sólo el logo en el ancho de teléfono, logo + nombre en escritorio
+ *    (Café Las Chamisas, con su sello redondo).
+ *
+ * `logo.modo` es un campo 'opcional' más (§ REGISTRY.logo.campos, site-content-defaults.ts): SOFT,
+ * nunca lanza, y el resolver lo pasa TAL CUAL —sin clampar— porque `resolverVariante`/`escalares`
+ * exige una canónica FIJA y el default de este campo es CONDICIONAL (depende de `hayLogoImagen`,
+ * que `resolverVariante` no puede mirar). El clamp —y la interpretación de `''`, ausente o basura—
+ * vive ACÁ, en la única función que lo resuelve: `Logo.tsx` (el storefront, § el prop `logo`) y
+ * `EncabezadoSeccion.tsx` (el admin, para mostrar la opción vigente en el `<select>`) la comparten,
+ * así que las dos superficies no pueden discrepar sobre qué significa un valor guardado.
+ */
+export type ModoLogo = 'soloNombre' | 'soloLogo' | 'logoYNombre';
+const MODOS_LOGO = new Set<ModoLogo>(['soloNombre', 'soloLogo', 'logoYNombre']);
+
+export function modoLogoResuelto(logo: LogoContent): ModoLogo {
+  if (MODOS_LOGO.has(logo.modo as ModoLogo)) return logo.modo as ModoLogo;
+  return hayLogoImagen(logo) ? 'soloLogo' : 'soloNombre';
+}
+
+/**
  * El texto alternativo de la imagen del logo: lo que el dueño escribió, o —vacío— el nombre del
  * negocio. Mismo patrón que la galería de /nosotros (§ NosotrosGaleria, "ALT opcional con
  * FALLBACK CONTEXTUAL, no requerido"): un campo requerido que el operador no llena se rellenaría

@@ -8,6 +8,7 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/upload';
+import { modoLogoResuelto, type ModoLogo } from '@/lib/config/marca-logo';
 
 // ─── Bloque ENCABEZADO — vive en /admin/tienda, junto a Colores y el Menú ────────────────────────
 //
@@ -91,6 +92,19 @@ import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/uplo
 // mecanismo genérico (`REGISTRY.logo.imagenes` ya lo nombra). Vacío → los íconos ESTÁTICOS de Nayoli
 // (favicon/apple-touch/PWA), vía `lib/config/metadata-tienda.ts` — consumido por
 // `app/(storefront)/layout.tsx`, `app/not-found.tsx` y `app/api/manifest/route.ts`.
+//
+// CÓMO SE MUESTRA LA MARCA EN EL NAV (§ NAV-LOGO-Y-NOMBRE-1, `content.logo.modo`) es un SÉPTIMO
+// campo de la MISMA sección `logo`, no un bloque aparte: sigue siendo "cómo se ve mi marca",
+// decisión que ya vive en esta tarjeta. Tres opciones — "Sólo nombre", "Sólo logo" y "Logo en el
+// teléfono, logo y nombre en escritorio" (Café Las Chamisas la usará con su sello redondo) —, pero
+// el control NO es un switch: un `<select>` nativo, el mismo patrón que `footer.variante`
+// (`FooterSeccion.tsx`) para un set cerrado de más de dos strings. El `value` mostrado es el
+// RESUELTO (`modoLogoResuelto`, lib/config/marca-logo.ts — la MISMA función que interpreta
+// `Logo.tsx` en el storefront, para que panel y tienda nunca discrepen sobre qué significa un
+// valor guardado), nunca el `''` crudo: mostrar una cuarta opción en blanco por "no elegido todavía"
+// sería inventar una opción que el spec no pide. Elegir cualquiera de las tres, aun la que ya
+// estaba en efecto, la hace EXPLÍCITA (`cambiar({ logoModo: … })`) — ningún tenant la cambia sin
+// tocar el `<select>`.
 
 interface Form {
   logo: boolean;             // navWordmark.activo
@@ -123,6 +137,11 @@ interface Form {
   // un ícono cuadrado para favicon/apple-touch/PWA). '' = sin ícono subido, cae a los estáticos de
   // Nayoli (§ `lib/config/metadata-tienda.ts`).
   logoIcono: string;
+  // CÓMO SE MUESTRA LA MARCA EN EL NAV (§ NAV-LOGO-Y-NOMBRE-1): '' mientras el dueño no elige nada
+  // —el `<select>` MUESTRA el valor RESUELTO (`modoLogoResuelto`), pero el FORM guarda '' hasta que
+  // se toca el control, así que ningún tenant lo cambia sin elegirlo— o uno de los tres valores de
+  // `ModoLogo` una vez elegido.
+  logoModo: string;
 }
 
 interface Wire {
@@ -130,12 +149,12 @@ interface Wire {
   navWordmark: { activo: boolean };
   navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null; buscarMovil: boolean };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
-  logo: { oscuro: string; claro: string; alt: string; icono: string };
+  logo: { oscuro: string; claro: string; alt: string; icono: string; modo: string };
 }
 
 const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
 
-const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt' | 'logoIcono'>; label: string; hint: string }[] = [
+const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt' | 'logoIcono' | 'logoModo'>; label: string; hint: string }[] = [
   { name: 'logo', label: 'Estilo del nombre', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido, y sólo si no subiste una imagen de logo abajo — con imagen, este interruptor no tiene efecto.' },
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
   { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).' },
@@ -147,6 +166,15 @@ const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logo
   { name: 'posicion', label: 'Posición del encabezado', hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.' },
   { name: 'subrayado', label: 'Subrayado al pasar el mouse', hint: 'Los enlaces del menú dibujan una línea debajo al pasar el mouse por encima.' },
 ];
+
+// CÓMO SE MUESTRA LA MARCA (§ NAV-LOGO-Y-NOMBRE-1) — las tres etiquetas del `<select>`, en el
+// MISMO orden que `ModoLogo` declara el set cerrado (marca-logo.ts), y el label que el resumen de
+// lectura usa cuando el dueño elige explícitamente uno de los tres (§ `resumenActivos`, abajo).
+const LABEL_MODO: Record<ModoLogo, string> = {
+  soloNombre: 'Sólo nombre',
+  soloLogo: 'Sólo logo',
+  logoYNombre: 'Logo en el teléfono, logo y nombre en escritorio',
+};
 
 export default function EncabezadoSeccion() {
   const [cargando, setCargando]           = useState(true);
@@ -182,7 +210,7 @@ export default function EncabezadoSeccion() {
       buscarMovil: f.buscarMovil,
     },
     navDrawerMovil: { variante: f.drawerMovil ? 'pantallaCompleta' : 'dropdown' },
-    logo: { oscuro: f.logoOscuro, claro: f.logoClaro, alt: f.logoAlt, icono: f.logoIcono },
+    logo: { oscuro: f.logoOscuro, claro: f.logoClaro, alt: f.logoAlt, icono: f.logoIcono, modo: f.logoModo },
   });
 
   const guardarEncabezado = useCallback(async (w: Wire) => {
@@ -207,7 +235,7 @@ export default function EncabezadoSeccion() {
         navWordmark?: { activo?: unknown };
         navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown; buscarMovil?: unknown };
         navDrawerMovil?: { variante?: unknown };
-        logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown; icono?: unknown };
+        logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown; icono?: unknown; modo?: unknown };
       };
       setForm({
         logo: !!contenido.navWordmark?.activo,
@@ -229,6 +257,7 @@ export default function EncabezadoSeccion() {
         logoClaro: typeof contenido.logo?.claro === 'string' ? contenido.logo.claro : '',
         logoAlt: typeof contenido.logo?.alt === 'string' ? contenido.logo.alt : '',
         logoIcono: typeof contenido.logo?.icono === 'string' ? contenido.logo.icono : '',
+        logoModo: typeof contenido.logo?.modo === 'string' ? contenido.logo.modo : '',
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
       setHayBorrador(!!d.sinPublicar?.encabezado);
@@ -345,9 +374,15 @@ export default function EncabezadoSeccion() {
   // de identidad fuera de la página.
   const tieneLogoImagen = form.logoOscuro.trim() !== '' || form.logoClaro.trim() !== '';
   const tieneIconoPropio = form.logoIcono.trim() !== '';
+  // § NAV-LOGO-Y-NOMBRE-1 — el modo sólo entra al resumen cuando el dueño lo ELIGIÓ (`form.logoModo
+  // !== ''`): mientras sigue en el default condicional, "Imagen de logo" de arriba ya cuenta la
+  // historia completa, y repetir "Sólo logo" ahí sería afirmar una elección que nadie hizo.
+  const logoComoObjeto = { visible: true, oscuro: form.logoOscuro, claro: form.logoClaro, alt: form.logoAlt, icono: form.logoIcono, modo: form.logoModo };
+  const modoActual = modoLogoResuelto(logoComoObjeto);
   const resumenActivos = [
     ...(tieneLogoImagen ? ['Imagen de logo'] : []),
     ...(tieneIconoPropio ? ['Ícono de pestaña propio'] : []),
+    ...(form.logoModo !== '' ? [LABEL_MODO[modoActual]] : []),
     ...CONTROLES.filter((c) => form[c.name]).map((c) => c.label),
   ];
 
@@ -461,6 +496,28 @@ export default function EncabezadoSeccion() {
               placeholder="Ej. Logo de Café Las Chamisas"
             />
             <p className="duna-field__hint">Vacío: se usa el nombre de tu negocio.</p>
+          </div>
+          {/* CÓMO SE MUESTRA LA MARCA EN EL NAV (§ NAV-LOGO-Y-NOMBRE-1) — DENTRO de esta tarjeta,
+              no de los switches de abajo: sigue siendo la MISMA decisión ("¿cómo se ve mi marca?"),
+              no un ajuste más del nav. El `value` es el RESUELTO (`modoActual`), nunca `form.
+              logoModo` crudo — mostrar un `''` como cuarta opción en blanco no es una de las tres
+              que el spec pide. */}
+          <div className="duna-field" style={{ marginTop: 'var(--duna-space-3)' }}>
+            <label className="duna-field__label" htmlFor="enc-logo-modo">Cómo se muestra la marca</label>
+            <select
+              id="enc-logo-modo" className="duna-input duna-select"
+              value={modoActual}
+              onChange={(e) => cambiar({ logoModo: e.target.value })}
+            >
+              <option value="soloNombre">Sólo nombre</option>
+              <option value="soloLogo">Sólo logo</option>
+              <option value="logoYNombre">Logo en el teléfono, logo y nombre en escritorio</option>
+            </select>
+            <p className="duna-field__hint">
+              {tieneLogoImagen
+                ? 'Sin elegir, se usa sólo el logo en todos los anchos — el comportamiento de hoy.'
+                : 'Sin una imagen subida arriba, siempre se muestra el nombre, sea cual sea esta opción.'}
+            </p>
           </div>
           <input ref={subidaImagen.inputHoldRef} type="file" onChange={subidaImagen.alElegirHold} hidden />
         </div>

@@ -20,10 +20,18 @@
 // (`content.logo`, § site-content-defaults.ts), con una versión OSCURA (para fondo claro) y una
 // CLARA (para fondo oscuro/tinta). `logoParaVariante` (lib/config/marca-logo.ts) elige cuál mostrar
 // según `variant`, con fallback a la otra si falta una. CON logo subido, la imagen REEMPLAZA el
-// mark + el wordmark de texto ENTEROS — nunca conviven: el logo subido YA es el lockup completo del
-// cliente (§ CLAUDE.md, "El logo subido se RESPETA, nunca se tiñe"). SIN logo (`logo` ausente o sin
-// ninguna versión subida), `Logo` renderiza EXACTAMENTE como hoy — mark + wordmark de texto, byte a
-// byte. Se sirve como `<img src>` SIEMPRE, incluido el SVG — nunca inyectado inline como HTML.
+// mark + el wordmark de texto ENTEROS por default — nunca conviven con el mark (§ CLAUDE.md, "El
+// logo subido se RESPETA, nunca se tiñe"). SIN logo (`logo` ausente o sin ninguna versión subida),
+// `Logo` renderiza EXACTAMENTE como hoy — mark + wordmark de texto, byte a byte. Se sirve como
+// `<img src>` SIEMPRE, incluido el SVG — nunca inyectado inline como HTML.
+//
+// EL MODO (§ NAV-LOGO-Y-NOMBRE-1, `logo.modo`, vía `modoLogoResuelto`) decide si el logo subido
+// CONVIVE con el nombre: `'soloNombre'`/`'soloLogo'` son las dos ramas de arriba (texto solo / logo
+// solo, en TODOS los anchos — el comportamiento de HOY, según haya o no imagen); `'logoYNombre'`
+// es la TERCERA rama, NUEVA: logo solo en el ancho de teléfono (`<lg`), logo + nombre desde
+// escritorio (`lg:`). SÓLO se interpreta FUERA de `stacked` —el footer ignora `modo` a propósito,
+// § el comentario de `logoSrcCrudo` más abajo—, así que esta tercera rama es exclusiva del NAV
+// (los dos `<Logo>` que monta `StoreNav.tsx`: el header y el drawer móvil).
 //
 // Usage:
 //   <LogoMark className="h-7 w-7" />                                                 — sólo el ícono
@@ -38,13 +46,14 @@
 //     `content.navWordmark.activo` — sólo ajusta la rama `subtitle`, ya apilada; NO toca `stacked`
 //     (el footer), que sigue exactamente igual)
 //   <Logo nombre={…} logo={content.logo} conMark={…} />                               — con logo
-//     subido (§ MARCA-LOGO-IMAGEN-1): la imagen reemplaza mark+wordmark; sin ninguna versión
-//     subida, cae a la rama de siempre con el resto de las props intactas.
+//     subido (§ MARCA-LOGO-IMAGEN-1): la imagen reemplaza mark+wordmark (o convive con el nombre en
+//     escritorio, § NAV-LOGO-Y-NOMBRE-1, según `logo.modo`); sin ninguna versión subida, cae a la
+//     rama de siempre con el resto de las props intactas.
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@duna/core/utils";
 import type { LogoContent } from "@/lib/config/site-content-defaults";
-import { logoParaVariante, altDeLogo } from "@/lib/config/marca-logo";
+import { logoParaVariante, altDeLogo, modoLogoResuelto } from "@/lib/config/marca-logo";
 
 // EL NOMBRE EN TEXTO NUNCA SE PARTE EN DOS LÍNEAS (§ MARCA-LOGO-IMAGEN-1) — un nombre de negocio
 // largo ("Café Las Chamisas") envolvía a dos líneas en el ancho de un teléfono, defecto que esta
@@ -199,42 +208,14 @@ type LogoProps = {
   transicionColor?: boolean;
   /** El logo SUBIDO del tenant (§ MARCA-LOGO-IMAGEN-1, `content.logo`). AUSENTE o sin ninguna
       versión subida (`oscuro`/`claro` ambos vacíos) → Logo renderiza EXACTAMENTE la rama de abajo
-      (mark + wordmark de texto), byte a byte. Con al menos una subida, la imagen REEMPLAZA el
-      lockup entero — nunca conviven con el mark ni con el wordmark de texto. */
+      (mark + wordmark de texto), byte a byte. Con al menos una subida, `logo.modo` (§
+      NAV-LOGO-Y-NOMBRE-1, vía `modoLogoResuelto`) decide si la imagen REEMPLAZA el lockup entero
+      ('soloLogo', el default de HOY) o CONVIVE con el nombre en escritorio ('logoYNombre', nuevo) —
+      nunca conviven con el MARK, en ninguno de los dos casos. */
   logo?: LogoContent;
 };
 
 export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false, logo }: LogoProps) {
-  // `logoSrc` vacío (prop ausente, o presente sin ninguna versión subida) → las ramas de abajo no
-  // cambian ni un byte: es la MISMA condición que gatea todo lo demás en este componente.
-  const logoSrc = logo ? logoParaVariante(logo, variant) : "";
-
-  if (logoSrc) {
-    const alt = altDeLogo(logo as LogoContent, nombre);
-    if (stacked) {
-      return (
-        <div className={cn("flex flex-col items-center gap-0.5", className)}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
-          <img src={logoSrc} alt={alt} className="h-12 w-auto" />
-          {subtitle && (
-            <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
-          )}
-        </div>
-      );
-    }
-    return (
-      <div className={cn("flex items-center gap-2.5", className)}>
-        <span className="flex flex-col leading-none">
-          {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
-          <img src={logoSrc} alt={alt} className="h-7 w-auto" />
-          {subtitle && (
-            <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
-          )}
-        </span>
-      </div>
-    );
-  }
-
   // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
   // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
   // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
@@ -245,13 +226,37 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   // (`` `${wordmark}/60` ``, el modificador de opacidad de Tailwind, que sólo es válido pegado a UNA
   // utilidad) — mezclar `transition-colors duration-300` acá adentro habría roto esa concatenación
   // (`…duration-300/60` en vez de `…tinta)]/60`). La transición vive aparte, en `transicionClase`.
+  //
+  // Se computan ACÁ ARRIBA, antes de cualquier `return` — § NAV-LOGO-Y-NOMBRE-1 las necesita
+  // también la rama `logoYNombre` (logo + nombre en escritorio, abajo), que antes de este slice no
+  // existía: ningún camino con logo subido llegaba a necesitar el color del NOMBRE.
   const wordmark = variant === "light" ? "text-[var(--sf-tinta)]" : "text-[var(--sf-sobre-tinta,var(--sf-fondo))]";
   const cherry = variant === "light" ? "var(--sf-tinta)" : "var(--sf-sobre-tinta,var(--sf-fondo))";
   // Sólo el NOMBRE (no el `subtitle`/tagline, que ya es un color fijo `--sf-tostado-5` en la rama sin
   // tratar, y que el gate del owner no nombró): "el wordmark cambia de color de golpe" es del nombre.
   const transicionClase = transicionColor ? "transition-colors duration-300" : "";
 
+  // `logoSrcCrudo` es la URL cruda del logo subido para esta variante — SIN mirar `logo.modo`
+  // todavía. La rama STACKED (sólo el footer, § Logo.tsx, "Usage") la usa TAL CUAL: el ajuste de
+  // este slice (§ NAV-LOGO-Y-NOMBRE-1) es del NAV — "cada tienda puede elegir que el NAV
+  // muestre…" —, y el pie de página no está en su alcance. Con logo subido, el pie sigue
+  // reemplazando mark+wordmark por la imagen, byte a byte, sin importar qué eligió el dueño en
+  // `logo.modo`.
+  const logoSrcCrudo = logo ? logoParaVariante(logo, variant) : "";
+
   if (stacked) {
+    if (logoSrcCrudo) {
+      const alt = altDeLogo(logo as LogoContent, nombre);
+      return (
+        <div className={cn("flex flex-col items-center gap-0.5", className)}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
+          <img src={logoSrcCrudo} alt={alt} className="h-12 w-auto" />
+          {subtitle && (
+            <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+          )}
+        </div>
+      );
+    }
     return (
       <div className={cn("flex min-w-0 flex-col items-center gap-3", className)}>
         {conMark && <LogoMark className="h-12 w-12 shrink-0" cherry={cherry} />}
@@ -261,6 +266,53 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
             <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // EL MODO (§ NAV-LOGO-Y-NOMBRE-1) — sólo se interpreta ACÁ, FUERA de `stacked` (arriba). `''`,
+  // ausente o basura → el default CONDICIONAL de `modoLogoResuelto` (marca-logo.ts): 'soloLogo' con
+  // imagen subida, 'soloNombre' sin ella — el comportamiento de HOY. `'soloNombre'` EXPLÍCITO
+  // ignora cualquier imagen subida —`logoSrc` queda '' aunque `logoSrcCrudo` no lo esté—, así el
+  // dueño puede volver al texto sin borrar lo que subió.
+  const modoResuelto = logo ? modoLogoResuelto(logo) : "soloNombre";
+  const logoSrc = modoResuelto === "soloNombre" ? "" : logoSrcCrudo;
+
+  // `'logoYNombre'` (§ NAV-LOGO-Y-NOMBRE-1, Café Las Chamisas con su sello redondo): el logo SOLO
+  // en el ancho de teléfono (`<lg`, el único flex item visible — igual que la rama "sólo logo" de
+  // abajo), logo + nombre desde escritorio (`lg:`, el bloque de texto oculto hasta ese breakpoint
+  // con `hidden … lg:flex` — `display:none` de verdad, no `invisible`: a diferencia del ícono de
+  // buscar de StoreNav, § NAV-MOVIL-NOMBRE-CON-AIRE-1, acá SÍ queremos que su caja desaparezca del
+  // flujo en el teléfono — "el logo SOLO", no el logo con un hueco invisible al lado). El tagline
+  // (`subtitle`) sigue al nombre: oculto junto con él en el teléfono, visible bajo el nombre en
+  // escritorio — no hay otra regla mejor que probar (el tagline sin el nombre encima no se lee).
+  if (logoSrc && modoResuelto === "logoYNombre") {
+    const alt = altDeLogo(logo as LogoContent, nombre);
+    return (
+      <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
+        <img src={logoSrc} alt={alt} className="h-7 w-auto shrink-0" />
+        <span className="hidden min-w-0 flex-col leading-none lg:flex">
+          <NombreEncogible nombre={nombre} className={cn("font-display text-[22px] leading-none", wordmark, transicionClase)} />
+          {subtitle && (
+            <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
+  if (logoSrc) {
+    const alt = altDeLogo(logo as LogoContent, nombre);
+    return (
+      <div className={cn("flex items-center gap-2.5", className)}>
+        <span className="flex flex-col leading-none">
+          {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
+          <img src={logoSrc} alt={alt} className="h-7 w-auto" />
+          {subtitle && (
+            <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
+          )}
+        </span>
       </div>
     );
   }

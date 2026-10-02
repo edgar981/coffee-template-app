@@ -23,7 +23,7 @@ import { DEFAULTS } from '../../lib/config/site-content-defaults';
 const LOGO_SCHEMA = siteContentEditableSchema.pick({ logo: true });
 
 /** Simula EXACTAMENTE el tramo de `logo` del PUT de la ruta: parsea con el schema real y guarda. */
-async function guardarComoLaRuta(logo: { oscuro?: string; claro?: string; alt?: string }) {
+async function guardarComoLaRuta(logo: { oscuro?: string; claro?: string; alt?: string; modo?: string }) {
   const parsed = LOGO_SCHEMA.parse({ logo });
   return guardarBorrador(parsed);
 }
@@ -33,12 +33,13 @@ after(async () => { await prisma.siteContent.deleteMany({}); await prisma.$disco
 
 // ── Sin fila — byte-idéntico a HOY (Nayoli, sin logo) ───────────────────────────────────────────
 
-test('sin fila guardada: readSiteContent().logo resuelve a las tres claves vacías (el caso de HOY)', async () => {
+test('sin fila guardada: readSiteContent().logo resuelve a las claves vacías (el caso de HOY)', async () => {
   const publicado = await readSiteContent();
   assert.deepEqual(publicado.logo, DEFAULTS.logo);
   assert.equal(publicado.logo.oscuro, '');
   assert.equal(publicado.logo.claro, '');
   assert.equal(publicado.logo.alt, '');
+  assert.equal(publicado.logo.modo, '', '§ NAV-LOGO-Y-NOMBRE-1 — sin fila, el modo también es el default vacío');
 });
 
 // ── El viaje completo: guardar → publicar → releer ──────────────────────────────────────────────
@@ -154,4 +155,53 @@ test('el schema rechaza un tipo equivocado en vez de aceptarlo en silencio', () 
 test('el schema acepta logo ausente (ningún campo tocado) sin romper el parse', () => {
   const parsed = LOGO_SCHEMA.parse({});
   assert.equal(parsed.logo, undefined);
+});
+
+// ── `modo` (§ NAV-LOGO-Y-NOMBRE-1) — el viaje completo, contra Postgres real ─────────────────────
+
+test('el schema acepta "" explícito en modo sin rechazarlo — NO es z.enum (el form lo manda en cada guardado, aun sin elegir nada)', () => {
+  const parsed = LOGO_SCHEMA.parse({ logo: { oscuro: '', claro: '', alt: '', modo: '' } });
+  assert.equal(parsed.logo?.modo, '');
+});
+
+test('guardar: modo queda en el BORRADOR, sin tocar lo PUBLICADO', async () => {
+  await guardarComoLaRuta({ oscuro: 'https://blob.example/logo-oscuro.svg', claro: '', alt: '', modo: 'logoYNombre' });
+
+  const { contenido, sinPublicar } = await readSiteContentParaEditor();
+  assert.equal(sinPublicar.logo, true);
+  assert.equal(contenido.logo.modo, 'logoYNombre');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.logo.modo, '', 'guardar el borrador no debe tocar lo publicado');
+});
+
+test('publicar: content.logo.modo queda actualizado', async () => {
+  await guardarComoLaRuta({ oscuro: 'https://blob.example/logo-oscuro.svg', claro: '', alt: '', modo: 'logoYNombre' });
+  await publicarSeccion('logo');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.logo.modo, 'logoYNombre');
+});
+
+test('descartar: el modo del borrador se limpia SIN tocar el modo YA publicado', async () => {
+  await guardarComoLaRuta({ oscuro: 'A.svg', claro: '', alt: '', modo: 'soloNombre' });
+  await publicarSeccion('logo');
+
+  await guardarComoLaRuta({ oscuro: 'A.svg', claro: '', alt: '', modo: 'logoYNombre' });
+  await descartarSeccion('logo');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.logo.modo, 'soloNombre', 'descartar no debe tocar el modo YA publicado');
+});
+
+test('modo se puede guardar/publicar de forma INDEPENDIENTE de las imágenes — un campo más de la MISMA sección', async () => {
+  // Sin ninguna imagen subida, elegir 'soloNombre' explícito es la elección "nada cambia, pero lo
+  // digo yo" — § modoLogoResuelto, marca-logo.ts: con logo ausente el default YA es 'soloNombre',
+  // así que esto afirma que el dato persiste igual aunque coincida con el default.
+  await guardarComoLaRuta({ oscuro: '', claro: '', alt: '', modo: 'soloNombre' });
+  await publicarSeccion('logo');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.logo.oscuro, '');
+  assert.equal(publicado.logo.modo, 'soloNombre');
 });
