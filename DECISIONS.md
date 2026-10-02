@@ -43451,6 +43451,12 @@ Nada en la doctrina nombra estos símbolos — no hay frase que este cambio pued
 
 - `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, sin cambio (no tocado por este slice; ver
   los asientos de `MARQUESINA-TARJETA-SECUENCIA-1` y `RADIO-TARJETAS-IMAGEN-1`, arriba).
+- `HERO-TEST-SYNC-STALE-POINTERS-1` — tres líneas de asientos ANTERIORES de este mismo archivo
+  (el "Open follow-ups" de `MARQUESINA-TARJETA-SECUENCIA-1`, y dos menciones en `RADIO-TARJETAS-
+  IMAGEN-1`) afirman "`HERO-MARQUESINA-TEST-SYNC-1` sigue abierto" — ese hecho lo vuelve falso este
+  mismo asiento, de arriba. No se editan: son entradas de un ledger APPEND-ONLY, y el spec de este
+  slice no pidió tocarlas (sólo agregar el asiento propio). Quien lea esos asientos viejos debe
+  seguir la cadena hasta acá para saber que ya se resolvió.
 
 ### Verdict
 
