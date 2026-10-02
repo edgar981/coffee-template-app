@@ -42459,3 +42459,92 @@ cerrados por esa misma ejecución. Commiteado en `slice/corte-reescritura-protot
 - `EDITOR-TIENDA-ORDEN-1`/`EDITOR-TIENDA-RETIRO-1` (filas 6/7 del plan) — siguen pendientes.
 
 **Cierra `EDITOR-TIENDA-SELECCION-1`.**
+
+## 2026-10-02 — Documento de diseño para la edición de texto DIRECTO sobre la página, pendiente desde § 9.1 (`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`)
+
+**Verdict:** AWAITING_APPROVAL (`owner-gate-requested`). Sólo documentación — ningún archivo de código
+del producto en `touches:`. `npm test` **3042/3042** (sin cambio sobre el piso ya heredado de
+`EDITOR-TIENDA-SELECCION-1`, § su propio asiento), prueba de que nada de código se tocó.
+
+Entrega `docs/editor-tienda/EDICION-INLINE.md`, el documento que § 9.1 de `DISENO.md` dejó pendiente:
+*"Editar DENTRO del iframe … es una pieza de diseño que este documento no cubre … Queda pendiente de su
+propio documento de diseño."* `DISENO.md` § 9.1 gana una línea apuntando a él.
+
+### El censo (§ 1 de `EDICION-INLINE.md`), medido contra `REGISTRY` — no a mano
+
+Las 15 secciones de home/nosotros/suscripciones declaran **152 campos** en `REGISTRY` (contado
+programáticamente, no estimado): **18** son imagen, **13** son selector/pointer (categoría, destino de
+CTA, producto, plan destacado — se eligen de una lista cerrada, no se tipean), **121** son texto libre
+—los candidatos reales a edición directa—, más **7 plantillas de campo de ítem de repeater**
+(testimonios, el `alt` de la galería, la FAQ) de cardinalidad variable. El precio de un plan
+(`precio1..4` de `suscripcionPlanes`) ES técnicamente texto libre de `SiteContent`, y queda igual
+EXCLUIDO por alcance (§ 9.1 del owner no distinguió precio-de-producto de precio-de-plan). Nav y pie
+(`content.menu`/`content.footer`) SÍ son `SiteContent` pero viven fuera de `SECCIONES_TIENDA`
+("cromo transversal", § 1.1 de `DISENO.md`) — no alcanzables desde el iframe hoy, ni por selección ni
+por edición directa; quedan fuera de este diseño por eso, no porque el mecanismo no aplicara.
+
+### El mecanismo recomendado: campo flotante DENTRO del iframe, nunca `contentEditable` sobre el nodo real
+
+`CLAUDE.md` § El editor VISUAL, FASE 2 ya había rechazado `contentEditable` directo, pero contra el
+mecanismo VIEJO (`VistaTiendaEnVivo`, renderizado SIEMPRE a 1280px y escalado con `transform`, ratios
+0.30–0.44). Ese rechazo NO se hereda automáticamente al mecanismo NUEVO (`EDITOR-TIENDA-DISPOSITIVOS-1`
+renderiza al ancho LITERAL del dispositivo; el `transform: scale()` vive en el CONTENEDOR del iframe,
+nunca dentro de su documento) — pero el documento SIGUE recomendando el campo flotante, por CUATRO
+razones independientes de la escala, medidas contra el código real: **(1)** `marquesina.texto` se
+renderiza EN DOS `<span>` distintos para el loop sin costura (`Marquesina.tsx` Y
+`HeroMediaMarquesina.tsx`, el MISMO campo) — un `contentEditable` editaría uno y dejaría el otro
+desincronizado; **(2)** los tres contadores de `origen` (`statNumero1..3`) muestran un número que una
+animación VA CALCULANDO (`useContadorAnimado`, cuenta de 0 al entrar en vista) — el nodo real nunca
+muestra el dato, sólo un intermedio; **(3)** `contentEditable` acumula HTML con cualquier pegado con
+formato, contra el string plano que el schema exige; **(4)** su historial de undo no es el mecanismo
+confiable que ya dan `<input>`/`<textarea>` nativos. El campo flotante cierra los cuatro por diseño: es
+un `<input>`/`<textarea>` real posicionado sobre el nodo (medido con `getBoundingClientRect()` DENTRO
+del MISMO documento — sin la traducción de coordenadas cross-frame que § 4.1.1 de `DISENO.md` ya
+rechazó para el resalte), nunca lee `innerHTML`, y el valor viaja SIEMPRE por el MISMO `form`/puente que
+ya usa la lista lateral (`TIPO_MENSAJE_CAMPO_CAMBIO`, tercer mensaje del puente existente) — nunca el
+DOM manda sobre el dato.
+
+**Costo real medido, no de plomería**: ningún componente de sección sabe hoy que está en modo editor
+(`page.tsx` envuelve cada banda en `<div data-editor-seccion>` DESDE AFUERA — el componente de adentro
+no recibe nada nuevo). Instrumentar 121 campos exige tocar ~15 componentes de sección Y sus VARIANTES
+(5 secciones declaran `variantes`, hasta 4 implementaciones del MISMO campo — `hero` sola tiene 4: Curtina/
+Ficha/Media/MarquesinaSticky, y CORTE ya usa varias de las no-canónicas). Si una variante queda sin
+instrumentar, el modo de falla es SILENCIOSO (el clic simplemente no abre nada, cae al "clic fuera de
+cualquier marcador" ya existente) — razón por la que el plan de 5 filas empieza por `hero` (la de más
+variantes) para medir el costo real antes de comprometer el resto, y cada slice debe verificar TODAS las
+variantes activas en el preset que se esté probando, no sólo la canónica.
+
+### Guardado, imágenes, alcance
+
+Guardado: reusa el borrador→publicar/autoguardado de siempre, sin mecanismo nuevo — deshacer es nativo
+del navegador DENTRO del campo (es un input real) y "Descartar" sigue siendo el undo de SECCIÓN; § 4.6
+de `DISENO.md` (sesión vencida) se reusa igual, con un aviso NUEVO dentro del propio overlay (la
+atención del dueño está en el iframe, no en el panel, cuando esto pasa). Imágenes: SÍ, un clic abre el
+selector — pero el de SIEMPRE (el `<input type="file">` oculto de la lista, disparado por el panel), no
+uno nuevo dentro del iframe — evita una segunda implementación de la subida. Fuera de alcance,
+explícito: precio (toda fuente), catálogo, reordenar, nav/pie, los campos selector/pointer, y las
+insignias fijas de `trustBadges`.
+
+### Preguntas para el owner (§ 7 de `EDICION-INLINE.md`)
+
+1. ¿El plan de 5 slices empieza por `hero` (más variantes, mide el costo real primero) o por otra
+   sección? Recomendado: `hero`.
+2. ¿Un clic en un campo selector/pointer (categoría, destino, producto) debe seguir abriendo la sección
+   en la lista (comportamiento de hoy) o quedar inerte? Recomendado: que siga abriendo la lista — no
+   inventa una tercera categoría de clic.
+3. ¿Nav/pie entran algún día al alcance de "editor inline"? No bloquea nada del plan; sin respuesta,
+   el diseño asume que NO por ahora.
+
+### CLAUDE.md — grep de lo que este diff cambió
+
+`docs/editor-tienda/`, `EDICION-INLINE`, `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`: **cero resultados**
+en `CLAUDE.md` — nada ahí nombra lo que este diff cambió.
+
+### `schema`/`cross-repo-contract`/`customer-bytes`
+
+Ninguno aplica: sin código de producto en `touches:`, sin migración, sin bytes que un visitante o un
+operador vea. El `stopped_on` es `owner-gate-requested` — el dispatch pidió explícitamente parar en
+AWAITING_APPROVAL sin mergear ("La aprobación autoriza la escritura, nunca el merge"), y ninguna otra
+condición de la política A aplica por su cuenta.
+
+**Cierra `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`.**

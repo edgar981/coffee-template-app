@@ -513,7 +513,9 @@ re-medir sus propias listas en vez de confiar en que sigan vigentes).
   el nodo, con su propio mecanismo de guardado y su propio riesgo de que el DOM editado diverja del
   dato) es una pieza de diseño que este documento no cubre y que no se improvisa dentro de un slice
   ya aprobado con otro alcance. Queda **pendiente de su propio documento de diseño**, con su propio
-  disparador — no se asume como parte implícita del slice 4 ni de ningún otro de los siete.
+  disparador — no se asume como parte implícita del slice 4 ni de ningún otro de los siete —
+  **diseñado en `docs/editor-tienda/EDICION-INLINE.md` (`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`);
+  sigue sin construirse, y sigue necesitando su propia aprobación de escritura.**
 - **El precio NO se edita desde el editor.** Ninguna de las piezas de § 4 (selección, orden,
   edición de texto futura) alcanza el precio de un producto. El precio sigue siendo dato del
   catálogo (`/admin/productos`), ajeno a `SiteContent` y a este editor — confirmado explícitamente
