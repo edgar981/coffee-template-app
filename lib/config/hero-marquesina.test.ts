@@ -21,6 +21,7 @@ import {
   VELO_OPACIDAD_PISO, UMBRAL_REVELADO_TEXTO, claseAlturaAncestroMarquesina,
   OPACIDAD_REVELADO_TECHO, MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT,
   MARQUEE_TITULO_LETTER_SPACING, MARQUEE_MASCARA_RELLENO_EM,
+  UMBRAL_ENTRADA_TARJETA_MARQUESINA,
 } from '@/lib/animation';
 
 // MUESTRARIO-HERO-MARQUESINA-STICKY-1 — la CUARTA variante del hero (tras curtina/ficha/media,
@@ -237,18 +238,42 @@ test('el panel visible es `sticky top-0`, a `h-[100svh]` SIEMPRE (no lee `altura
 // defaults.ts), así que `productoMarquesina` (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1 — antes
 // `productoSpotlight`, que caía al primer producto del catálogo) SIEMPRE devuelve `null` acá — sin
 // producto que pinear, el ancestro usa el presupuesto CORTO (`claseAlturaAncestroMarquesina(false)`), no el de siempre.
-// El caso CON tarjeta (200vh) queda sin cambios y afirmado directo sobre la función pura, abajo — el
-// mismo límite SSR de `getCatalog()`/`useEffect` que ya documentan los otros tests de esta sección
-// (líneas 122-126) impide resolver un `producto` real a través de este harness de render.
-test('SIN producto (DEFAULTS, hide-on-empty): el ancestro usa el presupuesto CORTO — no arrastra 200vh cuando no hay tarjeta que mostrar', () => {
+// El caso CON tarjeta (§ MARQUESINA-TARJETA-SECUENCIA-1: re-derivado, ya NO 200vh) queda afirmado
+// directo sobre la función pura, abajo — el mismo límite SSR de `getCatalog()`/`useEffect` que ya
+// documentan los otros tests de esta sección (líneas 122-126) impide resolver un `producto` real a
+// través de este harness de render.
+test('SIN producto (DEFAULTS, hide-on-empty): el ancestro usa el presupuesto CORTO — no arrastra el presupuesto CON tarjeta cuando no hay tarjeta que mostrar', () => {
   const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
   assert.match(html, /min-h-\[calc\(100svh\+65vh\)\]/);
   assert.doesNotMatch(html, /min-h-\[calc\(100svh\+200vh\)\]/);
 });
 
-test('claseAlturaAncestroMarquesina: CON tarjeta sigue siendo el presupuesto de SIEMPRE (100svh+200vh, MEDIDO contra `<xo-parallax class="h:300vh">`); SIN tarjeta, 100svh+65vh (200vh menos la ventana [0.12,0.57] de la tarjeta: 0.45×300vh=135vh)', () => {
-  assert.equal(claseAlturaAncestroMarquesina(true, false), 'min-h-[calc(100svh+200vh)]');
-  assert.equal(claseAlturaAncestroMarquesina(false, false), 'min-h-[calc(100svh+65vh)]');
+// HERO-MARQUESINA-TEST-SYNC-1 (2026-10-02) — esta aserción se quedó afirmando el presupuesto VIEJO
+// (100svh+200vh) después de que § MARQUESINA-TARJETA-SECUENCIA-1 re-derivara el caso CON tarjeta a
+// 100svh+100vh (GATE_RED: el `touches:` de aquel slice no incluía este archivo, así que el gate
+// nunca vio la divergencia). En vez de otro literal copiado a mano —el mismo modo de falla que
+// volvió a dejar esta aserción atrás—, se DERIVA el presupuesto de `UMBRAL_ENTRADA_TARJETA_MARQUESINA`
+// con la MISMA fórmula que el docstring de `claseAlturaAncestroMarquesina` documenta (§ "RONDA
+// SECUENCIA", `lib/animation.ts`): el `position:sticky` se despinea medio "respiro" —la mitad del
+// ancho de la ventana de entrada de la tarjeta— después de que la tarjeta termina de entrar. Si esa
+// ventana vuelve a cambiar, esta aserción se mueve con ella en vez de quedar rancia otra vez.
+test('claseAlturaAncestroMarquesina: CON tarjeta el presupuesto SE DERIVA de UMBRAL_ENTRADA_TARJETA_MARQUESINA (el sticky se despinea medio respiro después de que la tarjeta termina de entrar, § MARQUESINA-TARJETA-SECUENCIA-1) y sigue siendo MAYOR que SIN tarjeta (65vh, intacto)', () => {
+  const { desde, hasta } = UMBRAL_ENTRADA_TARJETA_MARQUESINA;
+  const respiro = (hasta - desde) / 2;
+  const pUnpin = hasta + respiro;
+  const extraConTarjetaVh = 100 / (1 - pUnpin) - 100;
+
+  assert.equal(
+    claseAlturaAncestroMarquesina(true, false),
+    `min-h-[calc(100svh+${extraConTarjetaVh}vh)]`,
+  );
+
+  const sinTarjeta = claseAlturaAncestroMarquesina(false, false);
+  assert.equal(sinTarjeta, 'min-h-[calc(100svh+65vh)]');
+
+  // La relación que importa, no sólo el número: CON tarjeta sigue reservando MÁS presupuesto de
+  // scroll que SIN ella — hay más contenido (la entrada de la tarjeta + su respiro) que mostrar.
+  assert.ok(extraConTarjetaVh > 65, 'con tarjeta debe reservar más presupuesto que sin ella');
 });
 
 // ─── LA MEDIA CUBRE `lvh` CENTRADA — § HERO-MOVIL-SIN-FRANJA-VERDE-1 ──────────────────────────────
