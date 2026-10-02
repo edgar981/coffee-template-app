@@ -44807,3 +44807,162 @@ los customer-bytes sin aprobar de `MARQUESINA-TARJETA-COMO-LETRAS-1`,
 `SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1`, `MARQUESINA-TARJETA-SIN-MASCARA-1`,
 `NAV-LOGO-Y-NOMBRE-1` y ahora `GALERIA-PRODUCTO-RADIO-1`— sigue pendiente de ese gate separado, ajeno
 a este slice.
+
+## 2026-10-02 — `logoYNombre` corrige dos defectos medidos en la demo de Las Chamisas: el nombre vuelve a su tratamiento de siempre y el logo gana un alto DERIVADO (`NAV-LOGO-Y-NOMBRE-AJUSTE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Observed-report del orquestador
+(`NAV-LOGO-Y-NOMBRE-1`, arriba) tras subir un logo real a la demo de Café Las Chamisas: en el modo
+`'logoYNombre'` el nombre+tagline NO calzaba el tratamiento de siempre (salía "Café Las Chamisas" en
+mayúscula/minúscula con un tagline naranja itálico chico, en vez de "CAFÉ LAS CHAMISAS" + "SAN
+ADOLFO · HUILA" como el modo solo-nombre) y el logo salía a ~22px de alto, ilegible para un sello con
+ilustración. El pedido del owner que `NAV-LOGO-Y-NOMBRE-1` ya había aprobado ("mostrando el logo…
+en vista desktop podríamos mostrar ambas") implica el nombre TAL COMO el owner ya lo aprobó, no un
+tratamiento distinto — la aprobación de ESTE slice es la misma, medida por el orquestador tras subir
+el logo. La aprobación autoriza la escritura, nunca el merge.
+
+### Causa — una copia inline que nunca leyó `wordmarkTratado`, y un número suelto
+
+`logoYNombre` (`Logo.tsx`, nacido en `NAV-LOGO-Y-NOMBRE-1`) tenía su PROPIA copia del bloque
+nombre+tagline, escrita a mano con las clases de la rama SIN tratar (`font-display text-[22px]
+leading-none` + tagline itálico `--sf-tostado-5`) — **sin mirar la prop `wordmarkTratado`** que la
+rama `subtitle` (de siempre) SÍ respeta. Cualquier tenant con `navWordmark.activo` (el tratamiento
+apilado de `CORTE-LOGO-APILADO-1`) perdía ese tratamiento apenas convivía con un logo subido. Y el
+logo era `h-7` (28px) fijo, el MISMO número para el teléfono y el escritorio, sin relación con nada
+que lo rodeara.
+
+### El fix — un componente compartido, y DOS derivaciones (no dos números sueltos)
+
+**El bloque nombre+tagline se extrajo a `BloqueNombreTagline`** (`Logo.tsx`), usado por la rama
+`subtitle` (de siempre) Y por `logoYNombre` — el MISMO componente, no una segunda copia que pudiera
+volver a divergir. `wordmarkTratado` sólo afecta la rama CON tagline (`tratado = wordmarkTratado &&
+!!subtitle`): sin tagline el nombre sigue a 22px sin importar la prop, igual que ya hacía la rama
+`subtitle` (guardada por `if (subtitle)`, tagline siempre presente ahí) y la rama sin-subtitle de
+abajo (que nunca miró `wordmarkTratado`). Esto no es nuevo comportamiento: es la regla que YA regía,
+ahora imposible de romper por una segunda copia.
+
+**El alto del logo (`lib/config/marca-logo.ts`) se DERIVA, en los dos anchos:**
+
+- **Teléfono (`<lg`, el único hijo visible):** `altoLogoNavMovilClase(posicion)` — el MISMO valor
+  que `navFilaAltoClase` (StoreNav.tsx) ya fija para ese tramo: 64px (`h-16`) para el resto del
+  catálogo, 76/88px para CORTE (§ NAV-ALTURA-CON-FILETE-1, ya afirmado en `nav-internas.test.ts` vía
+  `navOffsetClase` — este slice agrega una tercera aserción cruzando los dos, para que una futura
+  edición de `navFilaAltoClase` que actualice una y no la otra quede atrapada por un test, no sólo
+  por lectura). Se REPLICA, no se importa: `marca-logo.ts` es un módulo puro sin JSX.
+- **Escritorio (`min-[1024px]:`, logo + nombre lado a lado):** `altoLogoNavEscritorioClase
+  (wordmarkTratado, hayTagline)` — MEDIDO contra el componente real (Chromium 1440×900, harness ad-
+  hoc `.scratch/medir-logo-nav.ts`, gitignorado), no una fórmula de línea-de-texto adivinada: el
+  `line-height` del tagline (`text-[11px]`, sin `leading-none` propio) HEREDA el `leading-none` del
+  `<span>` que lo envuelve (propiedad CSS heredada), así que renderiza a 11px exactos — no a los
+  ~16.5px que la línea ambiente (1.5, Tailwind preflight) habría hecho suponer sin medir. Los tres
+  casos medidos: sin tagline → 22px (ambos `wordmarkTratado`) → logo `h-6` (24px); con tagline sin
+  tratar → 35px → logo `h-9` (36px); con tagline tratado → 45px → logo `h-12` (48px). Cada uno
+  "iguala o supera un poco" el bloque que acompaña, nunca menos.
+- **`min-[1024px]:`, no `lg:`** (§ PARIDAD-CORTENAV-CASCADA-1, no reabierto, sólo aplicado): bajo
+  CORTE el ancho móvil se expresa con un breakpoint `px` arbitrario (`min-[640px]:`); mezclarlo con
+  `lg:` (el scale `rem`) en la MISMA declaración de altura haría que Tailwind v4 agrupe las dos
+  variantes por UNIDAD, no por magnitud, y la de `rem` SIEMPRE gane sin importar el orden textual —
+  el mismo defecto que ese slice ya documentó para el padding del header. `min-[1024px]:` cae en el
+  MISMO bloque `px` ascendente que `min-[640px]:`, así que ordena por valor correctamente. Medido
+  por ejecución (abajo): a 1440px bajo CORTE el logo da 48px (el derivado de escritorio), NUNCA 88px
+  (el alto de LA BARRA en ese ancho) — confirma que no hay inversión de cascada.
+
+**El prop `altoBarraClase` es OPCIONAL y acota el alcance al ÚNICO mount que la evidencia midió** (el
+`<header>`, vía `StoreNav.tsx`): el mount del drawer móvil de pantalla completa (su propia fila
+`px-6 py-5`, otra geometría, no un alto fijo) NO lo pasa, así que su logo sigue en `h-7` — el tamaño
+de HOY, sin cambio. Ampliar el ajuste a esa fila, si hiciera falta, es su propia decisión (no hay
+evidencia de que lo necesite: el spec/la evidencia del orquestador miden el header, home e interna,
+no el drawer abierto).
+
+### Deviaciones medidas
+
+Ninguna respecto al spec. `altoLogoNavMovilClase`/`altoLogoNavEscritorioClase` no se midieron por
+fórmula de texto a mano sino por ejecución real (§ arriba) — el spec pedía "derivado... decí los
+valores medidos", y la medición cambió un número: mi primer cálculo a mano del tagline (11px ×
+line-height ambiente 1.5 ≈ 16.5px) no coincidía con lo medido (11px exactos, por herencia de
+`leading-none`); se usó el valor medido, no el calculado.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3105/3105** (+7: 2 en `marca-logo.test.ts` para `altoLogoNavMovilClase`, 3 para `altoLogoNavEscritorioClase`, 2 en `nav-internas.test.ts` cruzando `altoLogoNavMovilClase` contra `navOffsetClase`) |
+| `npm run test:integracion` | **291/291**, sin cambio — este slice no tocó ningún carril de escritura |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`); las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, misma caja |
+
+`guarda:color`/`verificar:nayoli:visual` siguen sin dar 0px por el MISMO drift preexistente de la
+rama, re-confirmado por medición exacta — ajeno a este slice (Nayoli no sube logo, así que
+`modoLogoResuelto` nunca sale de `'soloNombre'` para ella; `logoYNombre`/`BloqueNombreTagline` nunca
+se ejercitan en su render).
+
+**Evidencia manual del Cierre — base efímera con "Café Las Chamisas" + el mismo logo redondo de
+prueba, `navWordmark.activo:true` + tagline "SAN ADOLFO · HUILA".** Harness ad-hoc
+(`.scratch/nav-logo-ajuste-cierre.ts`, gitignorado): Postgres efímero (`:55443`), `migrate deploy`
+sin el seed de Nayoli, build + `next start` (`:3497`), Playwright aislado (Chromium 1440, WebKit
+`'iPhone 14'`). Capturas de home + `/nosotros`, en `'logoYNombre'` y `'soloNombre'`, a la misma
+escala — inspeccionadas: el sello se ve legible y proporcionado junto a "CAFÉ LAS CHAMISAS"/"SAN
+ADOLFO · HUILA" en escritorio, sin salto de layout ni hueco; en el teléfono el sello llena la barra
+borde a borde. Estilos computados del bloque nombre+tagline, comparados `'logoYNombre'` vs.
+`'soloNombre'` en la MISMA page.evaluate: `fontSize`, `textTransform`, `letterSpacing`, `fontWeight`,
+`lineHeight` y `color` del nombre y del tagline **IDÉNTICOS byte a byte** en los dos modos — confirma
+"EXACTAMENTE el mismo componente" por medición, no sólo por lectura del código.
+
+Alturas MEDIDAS (`getBoundingClientRect`), por page.evaluate:
+
+| escenario | alto del `<img>` | alto de la barra | nota |
+| --- | --- | --- | --- |
+| sin preset, escritorio 1440 | 48px | — | wordmarkTratado:true + tagline → `h-12`, igual al derivado |
+| sin preset, teléfono (iPhone 14, 390px) | 64px | 64px | llena la barra borde a borde |
+| CORTE, escritorio 1440 | 48px | 88px | el logo NO sigue a la barra (88) — sigue al bloque de texto (48), confirma que `min-[1024px]:` gana sobre `min-[640px]:` |
+| CORTE, teléfono (390px, <640) | 76px | 76px | llena la barra borde a borde (76, no 64 ni 88) |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `components/storefront/Logo.tsx` (`BloqueNombreTagline`,
+`altoBarraClase`), `components/storefront/layout/StoreNav.tsx` (el import de `altoLogoNavMovilClase`
+y el prop nuevo en `logoLink`), `lib/config/marca-logo.ts` (`altoLogoNavMovilClase`,
+`altoLogoNavEscritorioClase`), más `marca-logo.test.ts`/`nav-internas.test.ts`. Grepeados contra
+`CLAUDE.md`:
+
+- `Logo.tsx` → 1 coincidencia (la misma de siempre, sobre el SVG de la flor/`LogoMark`, que este
+  diff no toca) — sigue siendo verdad.
+- `StoreNav.tsx`, `marca-logo.ts`, `marca-logo.test.ts`, `nav-internas.test.ts`,
+  `modoLogoResuelto`, `logoParaVariante`, `altDeLogo`, `NombreEncogible`, `navFilaAltoClase`,
+  `navOffsetClase`, `BloqueNombreTagline`, `altoBarraClase`, `altoLogoNavMovilClase`,
+  `altoLogoNavEscritorioClase`, `NAV-LOGO-Y-NOMBRE-1`, `wordmarkTratado` → **CERO coincidencias**
+  cada uno. Nada en `CLAUDE.md` nombra lo que este diff cambió, más allá de la mención ya vigente
+  sobre `LogoMark`.
+
+Nada queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA (no sólo este commit) sigue cargando customer-bytes sin aprobar desde
+`MARQUESINA-TARJETA-COMO-LETRAS-1` (§ el asiento de cada slice posterior, arriba) — éste SUMA otro:
+corrige la presentación visible de `logoYNombre` (el tamaño del logo, el tratamiento del nombre).
+`strings: []` — no hay copy nuevo, el cambio es de LAYOUT/tamaño. `approved: null` (Nayoli no sube
+logo; el storefront en vivo de Nayoli no cambia un byte, confirmado por `guarda:color`/
+`verificar:nayoli:visual` con la MISMA cifra exacta que antes de este slice).
+
+### `schema`/`cross-repo-contract`
+
+No aplica — sin migración, sin modelo Prisma, sin contrato cruzado. `lib/config/marca-logo.ts` es
+un módulo puro nuevo-sólo-en-funciones, consumido únicamente dentro de este repo.
+
+### Open follow-ups
+
+Ninguno nuevo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. El diff corrige la presentación visible de
+una capacidad ya existente (`logoYNombre`), así que falla la condición de customer-bytes de la
+política A por sí sola — `owner-gate-requested` no se declara junto a ella (sólo aplica cuando
+ninguna otra razón pararía el slice de todas formas, y acá sí hay otra). El dispatch de este slice
+instruye además, explícitamente, parar antes del merge. El gate completo corrió verde sobre el árbol
+final (typecheck 0 errores, `npm test` 3105/3105, `npm run test:integracion` 291/291);
+`guarda:color`/`verificar:nayoli:visual` no dieron 0px por el MISMO drift preexistente de la rama,
+ajeno a este slice y re-confirmado por medición (misma cifra exacta, misma caja). Commiteado en
+`slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente de ese gate
+separado, ajeno a este slice.

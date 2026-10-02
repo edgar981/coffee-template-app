@@ -69,3 +69,50 @@ export function modoLogoResuelto(logo: LogoContent): ModoLogo {
 export function altDeLogo(logo: LogoContent, nombreNegocio: string): string {
   return logo.alt.trim() !== '' ? logo.alt : nombreNegocio;
 }
+
+/**
+ * EL ALTO DEL LOGO EN `'logoYNombre'` (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1, corrige NAV-LOGO-Y-NOMBRE-1):
+ * el logo dejó de ser un ícono FIJO de 28px (`h-7`, ilegible para un sello con ilustración — medido
+ * ~22px de alto REAL de tinta en la demo de Café Las Chamisas) y pasa a un alto DERIVADO en los dos
+ * anchos, nunca un número suelto.
+ *
+ * EN EL TELÉFONO (`<lg`, el único hijo visible — el bloque nombre+tagline está `hidden`): el alto
+ * DISPONIBLE de la barra, el MISMO valor que ya fija `navFilaAltoClase` (StoreNav.tsx) para ese
+ * tramo — 64px para el resto del catálogo, 76/88px para CORTE (§ NAV-ALTURA-CON-FILETE-1, ya
+ * afirmado en `nav-internas.test.ts` vía `navOffsetClase`). Se REPLICA, no se importa: este módulo
+ * es puro (sin JSX) y `navFilaAltoClase` vive en el componente — mismo criterio que ya separa
+ * `navOffsetClase` (themes.ts) de la barra que describe. La fila no lleva padding vertical propio
+ * (§ StoreNav.tsx, `navContenedorClase`/el `<header>`), así que este alto LLENA la barra borde a
+ * borde — "que ocupe la altura útil… sin cambiar el alto de la barra" (§ el spec de este slice),
+ * ni más ni menos.
+ */
+export function altoLogoNavMovilClase(posicion: boolean): string {
+  return posicion ? 'h-[76px] min-[640px]:h-[88px]' : 'h-16';
+}
+
+/**
+ * EN ESCRITORIO (`lg:` ≡ `min-[1024px]:`, logo + nombre lado a lado): el alto del BLOQUE
+ * nombre+tagline que el logo acompaña (`BloqueNombreTagline`, `Logo.tsx`) — MEDIDO contra el
+ * componente real, no una fórmula de línea-de-texto adivinada (Chromium 1440×900, harness ad-hoc
+ * `.scratch/medir-logo-nav.ts`, gitignorado, no parte del producto):
+ *
+ *   | wordmarkTratado | tagline | alto MEDIDO del bloque | logo (iguala + un poco) |
+ *   |---|---|---|---|
+ *   | — (cualquiera) | ausente  | 22px | `h-6`  (24px) |
+ *   | false          | presente | 35px | `h-9`  (36px) |
+ *   | true           | presente | 45px | `h-12` (48px) |
+ *
+ * SIN tagline el nombre SIEMPRE renderiza a 22px sin importar `wordmarkTratado` —es la rama SIN
+ * `subtitle` de `BloqueNombreTagline`, que ignora esa prop por diseño: "Sólo afecta la rama
+ * `subtitle`" (§ el docstring de `wordmarkTratado`, `Logo.tsx`), porque el tratamiento apilado sólo
+ * tiene sentido junto a una segunda línea—, por eso las dos primeras filas comparten destino.
+ *
+ * El `line-height` del tagline (`text-[11px]`, sin `leading-none` propio) HEREDA el `leading-none`
+ * del `<span>` que lo envuelve (`line-height` es una propiedad CSS heredada), así que renderiza a
+ * 11px exactos — no a los ~16.5px que la línea-de-texto AMBIENTE (1.5, Tailwind preflight) habría
+ * hecho suponer sin medir. Es la razón de medir contra el componente real y no de calcular a mano.
+ */
+export function altoLogoNavEscritorioClase(wordmarkTratado: boolean, hayTagline: boolean): string {
+  if (!hayTagline) return 'min-[1024px]:h-6';
+  return wordmarkTratado ? 'min-[1024px]:h-12' : 'min-[1024px]:h-9';
+}

@@ -53,7 +53,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@duna/core/utils";
 import type { LogoContent } from "@/lib/config/site-content-defaults";
-import { logoParaVariante, altDeLogo, modoLogoResuelto } from "@/lib/config/marca-logo";
+import {
+  logoParaVariante, altDeLogo, modoLogoResuelto,
+  altoLogoNavMovilClase, altoLogoNavEscritorioClase,
+} from "@/lib/config/marca-logo";
 
 // EL NOMBRE EN TEXTO NUNCA SE PARTE EN DOS LÍNEAS (§ MARCA-LOGO-IMAGEN-1) — un nombre de negocio
 // largo ("Café Las Chamisas") envolvía a dos líneas en el ancho de un teléfono, defecto que esta
@@ -139,6 +142,47 @@ function NombreEncogible({ nombre, className }: { nombre: string; className: str
   );
 }
 
+// EL BLOQUE nombre+tagline (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1) — extraído para que la rama `subtitle`
+// (de siempre) y la rama `logoYNombre` (§ NAV-LOGO-Y-NOMBRE-1, logo+nombre en escritorio) rendericen
+// el MISMO componente, no dos versiones que puedan divergir. Antes de este slice, `logoYNombre`
+// tenía su PROPIA copia inline del bloque que ignoraba `wordmarkTratado` por completo —siempre
+// "font-display text-[22px] leading-none" + tagline itálico `--sf-tostado-5`, el estilo de SIN
+// tratar—, así que un tenant con `navWordmark.activo` (CORTE-LOGO-APILADO-1) perdía su tratamiento
+// apilado apenas convivía con un logo subido. Esta extracción lo hace IMPOSIBLE de volver a divergir.
+//
+// `wordmarkTratado` SÓLO afecta la rama CON tagline (`tratado = wordmarkTratado && !!subtitle`): sin
+// tagline el nombre renderiza SIEMPRE a `text-[22px]` —la MISMA talla que la rama sin `subtitle` más
+// abajo—, porque el tratamiento apilado (mayúscula+tracking+30px) sólo tiene sentido junto a una
+// segunda línea. Con `subtitle` SIEMPRE presente (como en la rama de abajo, guardada por `if
+// (subtitle)`), `tratado === wordmarkTratado` — BYTE-IDÉNTICO a lo que esa rama ya hacía.
+function BloqueNombreTagline({ nombre, subtitle, wordmarkTratado, wordmark, transicionClase }: {
+  nombre: string;
+  subtitle?: string;
+  wordmarkTratado: boolean;
+  wordmark: string;
+  transicionClase: string;
+}) {
+  const tratado = wordmarkTratado && !!subtitle;
+  return (
+    <>
+      <NombreEncogible nombre={nombre} className={cn(
+        tratado
+          ? "font-display uppercase tracking-[0.01em] text-[30px] leading-none"
+          : "font-display text-[22px] leading-none",
+        wordmark,
+        transicionClase,
+      )} />
+      {subtitle && (
+        <span className={
+          tratado
+            ? cn("mt-1 font-inter font-normal tracking-[0.11em] text-[11px]", `${wordmark}/60`)
+            : "mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]"
+        }>{subtitle}</span>
+      )}
+    </>
+  );
+}
+
 const PETAL = "M50 42 C 44 33 44 20 50 13 C 56 20 56 33 50 42";
 const ROTS = [0, 72, 144, 216, 288];
 
@@ -213,9 +257,18 @@ type LogoProps = {
       ('soloLogo', el default de HOY) o CONVIVE con el nombre en escritorio ('logoYNombre', nuevo) —
       nunca conviven con el MARK, en ninguno de los dos casos. */
   logo?: LogoContent;
+  /** El alto DISPONIBLE de la barra que monta este lockup, SÓLO para `logo.modo==='logoYNombre'`
+      (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1 — `altoLogoNavMovilClase`, `marca-logo.ts`). AUSENTE (todo
+      consumidor que no lo pase, p.ej. el drawer móvil de pantalla completa) → el logo de ESE modo
+      sigue a `h-7` (28px), el tamaño de HOY, sin cambio — así que el ajuste de este slice queda
+      acotado al ÚNICO mount que la evidencia midió (el `<header>`, vía `StoreNav.tsx`), sin tocar
+      la fila propia del drawer (otra geometría: `px-6 py-5`, no un alto fijo). CON el prop, el logo
+      LLENA esa barra en el teléfono y, en escritorio (`lg:`), pasa a igualar (o superar un poco) el
+      alto del bloque nombre+tagline (`altoLogoNavEscritorioClase`) — nunca el alto de la barra. */
+  altoBarraClase?: string;
 };
 
-export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false, logo }: LogoProps) {
+export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false, wordmarkTratado = false, transicionColor = false, logo, altoBarraClase }: LogoProps) {
   // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
   // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
   // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
@@ -286,17 +339,30 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
   // flujo en el teléfono — "el logo SOLO", no el logo con un hueco invisible al lado). El tagline
   // (`subtitle`) sigue al nombre: oculto junto con él en el teléfono, visible bajo el nombre en
   // escritorio — no hay otra regla mejor que probar (el tagline sin el nombre encima no se lee).
+  //
+  // EL BLOQUE nombre+tagline ES `BloqueNombreTagline` (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1) — EXACTAMENTE
+  // el mismo componente que la rama `subtitle` de abajo, no una segunda copia que pudiera divergir
+  // sobre `wordmarkTratado` (como ocurría antes de este slice: esta rama ignoraba la prop por
+  // completo y SIEMPRE mostraba el nombre sin tratar + el tagline itálico, aun con
+  // `navWordmark.activo`).
+  //
+  // EL ALTO DEL LOGO (`altoBarraClase`, § marca-logo.ts) — DERIVADO, nunca un número suelto: en el
+  // teléfono llena la barra que lo monta (el prop AUSENTE, p.ej. el drawer móvil, conserva `h-7` —
+  // el tamaño de HOY, § el docstring de la prop); en escritorio (`min-[1024px]:`, el MISMO valor que
+  // `lg`, § PARIDAD-CORTENAV-CASCADA-1 — necesario para no mezclar un breakpoint `px` arbitrario con
+  // uno del scale `rem` en la MISMA declaración, bajo CORTE) iguala o supera un poco el alto del
+  // bloque de texto que acompaña.
   if (logoSrc && modoResuelto === "logoYNombre") {
     const alt = altDeLogo(logo as LogoContent, nombre);
+    const altoLogoClase = altoBarraClase
+      ? cn(altoBarraClase, altoLogoNavEscritorioClase(wordmarkTratado, !!subtitle))
+      : "h-7";
     return (
       <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
         {/* eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), ancho auto sobre alto fijo */}
-        <img src={logoSrc} alt={alt} className="h-7 w-auto shrink-0" />
+        <img src={logoSrc} alt={alt} className={cn(altoLogoClase, "w-auto shrink-0")} />
         <span className="hidden min-w-0 flex-col leading-none lg:flex">
-          <NombreEncogible nombre={nombre} className={cn("font-display text-[22px] leading-none", wordmark, transicionClase)} />
-          {subtitle && (
-            <span className="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
-          )}
+          <BloqueNombreTagline nombre={nombre} subtitle={subtitle} wordmarkTratado={wordmarkTratado} wordmark={wordmark} transicionClase={transicionClase} />
         </span>
       </div>
     );
@@ -335,18 +401,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
       <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
         {conMark && <LogoMark className="h-7 w-7 shrink-0" cherry={cherry} />}
         <span className="flex min-w-0 flex-col leading-none">
-          <NombreEncogible nombre={nombre} className={cn(
-            wordmarkTratado
-              ? "font-display uppercase tracking-[0.01em] text-[30px] leading-none"
-              : "font-display text-[22px] leading-none",
-            wordmark,
-            transicionClase,
-          )} />
-          <span className={
-            wordmarkTratado
-              ? cn("mt-1 font-inter font-normal tracking-[0.11em] text-[11px]", `${wordmark}/60`)
-              : "mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]"
-          }>{subtitle}</span>
+          <BloqueNombreTagline nombre={nombre} subtitle={subtitle} wordmarkTratado={wordmarkTratado} wordmark={wordmark} transicionClase={transicionClase} />
         </span>
       </div>
     );

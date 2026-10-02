@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hayLogoImagen, logoParaVariante, altDeLogo, modoLogoResuelto } from './marca-logo';
+import {
+  hayLogoImagen, logoParaVariante, altDeLogo, modoLogoResuelto,
+  altoLogoNavMovilClase, altoLogoNavEscritorioClase,
+} from './marca-logo';
 import type { LogoContent } from './site-content-defaults';
 
 // `icono` (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) es ajeno a lo que este archivo prueba (wordmark/
@@ -88,4 +91,28 @@ test('modoLogoResuelto: los TRES valores explícitos sobreviven tal cual, con o 
 test('modoLogoResuelto: basura (ni vacío ni uno de los tres) cae al default CONDICIONAL, nunca lanza — SOFT', () => {
   assert.equal(modoLogoResuelto({ ...SIN_LOGO, modo: 'da' }), 'soloNombre');
   assert.equal(modoLogoResuelto({ ...AMBAS, modo: 'basura-que-nadie-escribió' }), 'soloLogo');
+});
+
+// ── altoLogoNavMovilClase / altoLogoNavEscritorioClase (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1) — el alto
+// DERIVADO del logo en 'logoYNombre', nunca un número suelto ───────────────────────────────────
+
+test('altoLogoNavMovilClase: sin CORTE → 64px (h-16), el MISMO valor que navFilaAltoClase para ese tramo', () => {
+  assert.equal(altoLogoNavMovilClase(false), 'h-16');
+});
+
+test('altoLogoNavMovilClase: con CORTE → 76/88px, el MISMO valor que navFilaAltoClase/navOffsetClase (§ NAV-ALTURA-CON-FILETE-1)', () => {
+  assert.equal(altoLogoNavMovilClase(true), 'h-[76px] min-[640px]:h-[88px]');
+});
+
+test('altoLogoNavEscritorioClase: sin tagline → 24px (h-6) sin importar wordmarkTratado — MEDIDO: el bloque sin tagline renderiza a 22px en los dos casos, porque wordmarkTratado sólo afecta la rama CON tagline', () => {
+  assert.equal(altoLogoNavEscritorioClase(false, false), 'min-[1024px]:h-6');
+  assert.equal(altoLogoNavEscritorioClase(true, false), 'min-[1024px]:h-6');
+});
+
+test('altoLogoNavEscritorioClase: con tagline, SIN tratar → 36px (h-9) — MEDIDO: el bloque renderiza a 35px', () => {
+  assert.equal(altoLogoNavEscritorioClase(false, true), 'min-[1024px]:h-9');
+});
+
+test('altoLogoNavEscritorioClase: con tagline, TRATADO (wordmarkTratado) → 48px (h-12) — MEDIDO: el bloque renderiza a 45px', () => {
+  assert.equal(altoLogoNavEscritorioClase(true, true), 'min-[1024px]:h-12');
 });

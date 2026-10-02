@@ -8,6 +8,7 @@ import { useCartStore } from '@/lib/cartStore';
 import { motion, AnimatePresence, useIsPresent } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
+import { altoLogoNavMovilClase } from '@/lib/config/marca-logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
@@ -657,6 +658,10 @@ export default function StoreNav() {
         wordmarkTratado={navWordmark.activo}
         transicionColor={navTratamiento.posicion}
         logo={logo}
+        // § NAV-LOGO-Y-NOMBRE-AJUSTE-1 — SÓLO este mount (el `<header>`) pasa el alto de SU
+        // propia barra; el mount del drawer móvil (más abajo) NO lo pasa, así que su fila
+        // (`px-6 py-5`, otra geometría) queda sin tocar — `Logo` cae a `h-7` sin el prop.
+        altoBarraClase={altoLogoNavMovilClase(navTratamiento.posicion)}
       />
     </Link>
   );
