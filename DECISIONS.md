@@ -44140,3 +44140,201 @@ MERGE. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **No cierra `SUSCRIPCION-PARALLAX-VISIBLE-1`** hasta que `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` se
 resuelva (ampliando `touches:` o en una segunda pasada) y el gate complete vuelva a correr verde.
+
+## 2026-10-02 — La tarjeta de la marquesina deja de verse cortada al empezar a salir: vuelve a ser UN elemento, sin máscara (`MARQUESINA-TARJETA-SIN-MASCARA-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02,
+sobre el gate de `MARQUESINA-TARJETA-COMO-LETRAS-1` en su iPhone (captura con la tarjeta a medio
+salir, recortada horizontalmente bajo la frase): «Cuando empieza a salir la tarjeta se ve cortada».
+Su pedido original para la entrada se mantiene: «debería ser el de las letras, desde abajo y el
+desvanecido quitarse progresivamente» — lo que cambia es CÓMO se logra eso, no el efecto pedido.
+
+### El defecto — una máscara pensada para una LÍNEA, aplicada a una FOTO entera
+
+`MARQUESINA-TARJETA-COMO-LETRAS-1` le dio a la tarjeta el MISMO patrón de dos elementos que ya usa
+el loop de texto: un `<div>` de AFUERA, estático, del tamaño FINAL (`aspect-[3/4]`/ancho/
+`overflow-hidden`/radio — la MÁSCARA), y un `motion.div` de ADENTRO, `h-full w-full`, que es el que
+lleva el `transform: translateY(N%)` (el MOTOR). Para una línea de texto eso es exactamente el
+efecto deseado: la letra sube detrás de un borde fijo y aparece completa de una vez que su altura
+cabe en una línea. Para una foto entera, a mitad de camino el resultado es matemáticamente otra
+cosa: `translateY(X%)` dentro de una máscara de su mismo tamaño deja visible, dentro de la máscara,
+sólo el tramo `[0, 1-X]` de la imagen — un RECORTE parcial con un borde recto, con sólo la mitad
+superior visible, no una tarjeta entera a medio aparecer. Es exactamente lo que el owner reportó.
+
+### El fix — un solo elemento, sin máscara de entrada
+
+La tarjeta vuelve a ser UN SOLO elemento (el patrón que ya tenía ANTES de
+`MARQUESINA-TARJETA-COMO-LETRAS-1`, confirmado leyendo su propio diff: `git show cb1d801 --
+components/storefront/home/HeroMediaMarquesina.tsx` muestra que la versión pre-COMO-LETRAS ya era
+un único `motion.div` con `relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center
+overflow-hidden sf-radio-tile` + `style={{transform, opacity}}` directo — sólo cambiaban las
+funciones que alimentaban `transform`/`opacity`, de `transformMarquesinaTarjeta`/
+`opacidadEntradaTarjetaMarquesina` a las de "el efecto de las letras"). El `transform`/`opacity` se
+aplican ahora DIRECTAMENTE al elemento que ya tiene su tamaño final — no a un hijo que se traslada
+dentro de un padre estático.
+
+`overflow-hidden` SE CONSERVA en ese único elemento (sigue redondeando las esquinas cuadradas de la
+`<Image fill>` al `sf-radio-tile`, igual que `Spotlight.tsx`/`GrindChooserRiel.tsx`), pero deja de
+funcionar como máscara de ENTRADA: nada se mueve RELATIVO a esta caja (la imagen, con `fill`, nunca
+se traslada dentro de su padre — siempre ocupa el 100%), así que aplicar el `transform` al MISMO
+elemento que tiene el `overflow-hidden` hace que recorte y movimiento viajen JUNTOS — la caja
+entera, con su contenido adentro, se traslada en pantalla como una unidad rígida, nunca a medio
+recortar. "Sube desde abajo, con el desvanecido quitándose progresivamente" sigue cumplido: la
+tarjeta sigue llegando desde una posición desplazada y aclarándose — sólo que ahora ENTERA en todo
+punto del recorrido.
+
+**MISMAS funciones, MISMA ventana, MISMA curva — nada de eso cambió.**
+`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay` con `UMBRAL_ENTRADA_TARJETA_MARQUESINA`/
+`techo=1` (`lib/animation.ts`) son las mismas que `MARQUESINA-TARJETA-COMO-LETRAS-1` dejó; el
+`translateY(N%)` sigue relativo a la PROPIA CAJA del elemento, así que retirar el envoltorio de dos
+capas no cambia el recorrido en píxeles ni el timing (la pausa, el arranque, el final) — sólo deja
+de haber una máscara ajena que lo recorte a medio camino. El LOOP DE TEXTO no se tocó: sigue con su
+máscara+motor de tres elementos, que ahí es el mecanismo correcto.
+
+El único cambio en `lib/animation.ts` es de DOCSTRING: el párrafo que describía "el recorrido se
+mide contra lo que sea que el llamador haga `h-full`/`w-full` de la máscara" generalizaba de más —
+describía el ÚNICO wiring que existía cuando se escribió. Se corrige para decir que el wiring
+DIVERGE por consumidor (texto: máscara+motor de dos piezas; tarjeta, desde este slice: una pieza
+sola) y que la función no sabe ni le importa cuál de los dos use el llamador.
+
+### Verificación — capa 1 (sin cambio de valores) y capa 3 (Chromium + WebKit real, con capturas)
+
+**Capa 1:** cero cambios de VALOR en las funciones puras (`transformRevelaTextoDisplay`/
+`opacidadRevelaTextoDisplay`, `UMBRAL_ENTRADA_TARJETA_MARQUESINA`) — el fix es puramente de wiring
+del componente. `node --import tsx --test lib/animation.test.ts lib/config/hero-marquesina.test.ts`:
+**188/188** sin cambio de conteo (142+46, medido con `grep -c "^test("` sobre los dos archivos antes
+de tocar nada) — ninguno de los dos archivos necesitó una sola edición: la tarjeta nunca renderiza
+en el harness SSR de `hero-marquesina.test.ts` (sin catálogo resuelto, `getCatalog()`/`useEffect` no
+corre bajo `renderToStaticMarkup`), así que ningún test ahí afirmaba la estructura de DOM de la
+tarjeta que este slice cambió; y los tests de `animation.test.ts` afirman sólo la MATEMÁTICA de las
+funciones, inalterada. **No se agregó ningún test nuevo** en ninguno de los dos archivos —medido que
+no hacía falta, no que se olvidó—.
+
+**Capa 3 (arnés propio, Playwright, `.scratch/marquesina-tarjeta-sin-mascara-harness.ts`, NO
+comiteado):** Postgres efímero propio (puerto 55499, base `marquesina_sin_mascara_harness`),
+`migrate deploy` (57 migraciones), UN producto sembrado con imagen 3:4 EXACTA (la MISMA que
+`MARQUESINA-TARJETA-COMO-LETRAS-1` usó: `public/images/products-2.jpeg`, medida con `sharp`:
+600×800, ratio 0.75) vía Prisma directo, `marquesina.productoSlug` apuntándolo (`guardarBorrador` +
+`publicarSeccion('marquesina')`, el camino de escritura REAL), preset CORTE aplicado (`aplicarPreset`,
+`hero:'sticky'`), `next build`+`next start` de la RAMA actual, **Chromium real a 1440×900 Y WEBKIT
+REAL (el motor del spec, no una emulación de viewport en Chromium) a 390×844** — los dos navegadores
+ya estaban instalados en `.arnes-tooling/playwright/` (WebKit se verificó/instaló con `cli.js install
+webkit`, sin deviación del spec a diferencia de `MARQUESINA-TARJETA-COMO-LETRAS-1`, que sí tuvo que
+sustituir WebKit por un viewport de Chromium).
+
+Tres posiciones dentro de la ventana de entrada (`UMBRAL_ENTRADA_TARJETA_MARQUESINA` =
+`[0.28333, 0.48333]`), en las fracciones 25%/50%/75% de esa ventana (progreso 0.33333/0.38333/0.43333):
+
+| viewport/motor | scrollY | `full` rect == `visible` rect (ningún ancestro recorta) | opacidad medida | `transform` (translateY px, decreciente) |
+| --- | --- | --- | --- | --- |
+| 1440×900, Chromium | 720 | **true**, `clippingAncestors: []` | 0.25 | 339.996 (= 75% de 453.33px de alto) |
+| 1440×900, Chromium | 828 | **true**, `clippingAncestors: []` | 0.5 | 226.664 (= 50%) |
+| 1440×900, Chromium | 936 | **true**, `clippingAncestors: []` | 0.75 | 113.332 (= 25%) |
+| 390×844, WebKit real | 675 | **true**, `clippingAncestors: []` | 0.249 | 242.12 (≈ 75% de 322.39px de alto) |
+| 390×844, WebKit real | 776 | **true**, `clippingAncestors: []` | 0.498 | 161.84 (≈ 50%) |
+| 390×844, WebKit real | 878 | **true**, `clippingAncestors: []` | 0.750 | 80.60 (≈ 25%) |
+
+La medición camina TODOS los ancestros del primer `.sf-radio-tile` del documento (la tarjeta del hero
+es la primera en orden de DOM; Spotlight/GrindChooserRiel, que también usan ese rol, viven más abajo
+de la página y no se alcanzan con estos scrollY) y, para cada uno con `overflow` que recorte
+(hidden/clip/auto/scroll en cualquier eje), intersecta el rect visible contra su rect — el rect
+`visible` final coincide EXACTO con el `full` (rect propio del elemento, sin intersecar) en las SEIS
+muestras, en los DOS motores. La opacidad y el `transform` medidos coinciden con la rampa lineal que
+predicen las funciones puras (opacidad == fracción de ventana; `translateY` == `(1-fracción)×altura`),
+confirmando que ni la curva ni la ventana cambiaron.
+
+**Capturas** (`.scratch/marquesina-sin-mascara-capturas/`, 6 PNG, NO comiteadas) confirman
+VISUALMENTE lo que el número dice: en las tres posiciones de cada motor, la silueta rectangular
+completa de la tarjeta es visible (semitransparente, creciendo en opacidad), con la foto de producto
+ENTERA dentro —nunca un borde recto bisectando la foto con sólo la mitad superior mostrada, el
+defecto reportado—.
+
+### Gate
+
+`npm run typecheck`: 0 errores. `npm test`: **3087/3088** — la ÚNICA caída sigue siendo
+`lib/config/cta-banner-foto.test.ts:105` (§ `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`, coinado por
+`SUSCRIPCION-PARALLAX-VISIBLE-1`, arriba en este mismo archivo) — **PRE-EXISTENTE a este slice, NO
+causada por él**: medido, el único cambio de este diff en `lib/animation.ts` es un PÁRRAFO DE
+COMENTARIO (`git diff lib/animation.ts` — cero líneas de código ejecutable tocadas,
+`transformSubscripcionParallax` ni se menciona en el diff), y `HeroMediaMarquesina.tsx` no importa ni
+referencia `SubscriptionCTALinea`/`transformSubscripcionParallax` en ningún punto. El test falla
+EXACTAMENTE igual (`html.includes('5.00%')` contra un `"5.00vh"` real) con o sin este diff aplicado —
+es el mismo 3087/3088 que `SUSCRIPCION-PARALLAX-VISIBLE-1` ya reportó y dejó documentado como
+GATE_RED declarado, sin cerrarse todavía. `lib/config/cta-banner-foto.test.ts` no está en `touches:`
+de este slice tampoco, así que no se corrige acá.
+
+`npm run test:integracion`: **286/286** limpio (incluido el caso de
+`WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1`, que esta corrida no reprodujo). `npm run guarda:color`:
+`ruta-home` DIFIERE — **MISMA cifra EXACTA** que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`
+(164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`) — Nayoli nunca
+renderiza `HeroMediaMarquesina` (usa la variante canónica `'curtina'`), así que este diff no puede
+ser la causa; las otras 7 rutas/hovers **IDÉNTICO (0 px)**. `npm run verificar:nayoli:visual`: MISMA
+cifra exacta para `ruta:home`; las otras 7 rutas/hovers **IDÉNTICO (0 px)**.
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3087/3088** — único rojo PRE-EXISTENTE, fuera de `touches:` (§ `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`) |
+| `npm run test:integracion` | **286/286** |
+| `npm run guarda:color` | `ruta-home` DIFIERE, MISMA cifra que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`; las otras 7 IDÉNTICO |
+| `npm run verificar:nayoli:visual` | ídem |
+| arnés propio (tarjeta sin máscara, chromium+webkit real) | 6/6 muestras `fullyVisible:true`, `clippingAncestors:[]`, capturas confirmadas |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/ids que este diff cambia: `HeroMediaMarquesina`, `transformTarjeta`, `opacidadTarjeta`,
+`transformRevelaTextoDisplay`, `opacidadRevelaTextoDisplay`, `sf-radio-tile`,
+`UMBRAL_ENTRADA_TARJETA_MARQUESINA`, y los ids `MARQUESINA-TARJETA-COMO-LETRAS-1`/
+`MARQUESINA-TARJETA-SIN-MASCARA-1`. Grepeados uno por uno contra `CLAUDE.md`: **CERO coincidencias**
+para cada uno — el archivo no documenta esta banda, sus funciones ni sus ids de slice (igual que
+constató `MARQUESINA-TARJETA-COMO-LETRAS-1`). Nada que declarar falso. Este slice no tocó ningún
+`.md` fuera de este mismo asiento, así que tampoco aplica el grep de punteros a secciones.
+
+### `customer_bytes`
+
+**`changed: true`.** `HeroMediaMarquesina.tsx` sólo renderiza bajo `hero:'sticky'` (hoy CORTE), y
+Café Onix/Las Chamisas ya tienen la tarjeta encendida en vivo. Este diff cambia, para un visitante de
+esos despliegues: durante la entrada de la tarjeta, deja de verse un rectángulo cortado (sólo la
+mitad superior de la foto, con un borde recto) y pasa a verse la tarjeta ENTERA, semitransparente,
+creciendo en opacidad — el EFECTO visible durante el tramo de scroll en que la tarjeta aparece
+cambia. `strings: []` — ningún texto nuevo; es mecanismo visual (qué se ve durante la transición), no
+copy. La rama sigue cargando, además, los customer-bytes de los slices anteriores sin aprobar merge
+(`MARQUESINA-TARJETA-COMO-LETRAS-1`, `SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1`,
+`HERO-MARQUESINA-TEST-SYNC-1`, `RADIO-TARJETAS-IMAGEN-1`), ninguno aprobado para merge todavía.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo Prisma, sin contrato cross-repo. Los dos archivos
+de `touches:` que este diff tocó son componente + docstring de funciones puras; `lib/animation.test.ts`
+y `lib/config/hero-marquesina.test.ts` (en `touches:`, no tocados — medido que no hacía falta, §
+arriba).
+
+### Open follow-ups
+
+- `CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` (ya coinado por `SUSCRIPCION-PARALLAX-VISIBLE-1`, arriba en
+  este archivo) — SIGUE abierto: `lib/config/cta-banner-foto.test.ts:105` sigue hardcodeando `'5.00%'`
+  contra un `transformSubscripcionParallax` que rinde `vh` desde esa ronda. Este slice lo RE-CONFIRMA
+  (misma línea, mismo mensaje, mismo 3087/3088) sin tocarlo — sigue fuera de `touches:`. No cierra
+  hasta que alguien amplíe `touches:` sobre ese archivo o lo pliegue a una tanda propia.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — RE-CONFIRMADO sin cambio, en las DOS herramientas
+  (`guarda:color` y `verificar:nayoli:visual`): misma cifra exacta (164.889/4.608.000 px) y misma caja
+  que los slices anteriores de esta rama.
+
+### Verdict
+
+**GATE_RED**, por el MISMO motivo que ya dejó rojo a `SUSCRIPCION-PARALLAX-VISIBLE-1`
+(`CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1`) — un test pre-existente, fuera de `touches:` de este slice,
+que no se corrigió porque corregirlo excede el alcance aprobado. Medido y declarado que NO es este
+diff el que lo causa (§ Gate, arriba: el único cambio de este slice en `lib/animation.ts` es un
+comentario). Todo lo demás —`typecheck`, el resto de `npm test` (3087/3088), `test:integracion`
+(286/286), `guarda:color`/`verificar:nayoli:visual` (sin diferencias nuevas sobre Nayoli), y la
+verificación propia del fix (Chromium + WebKit real, 6/6 muestras sin recorte, con capturas)— está
+verde y documentado arriba. La rama, además, ya carga customer-bytes de slices anteriores sin
+aprobar merge, y este slice suma su propio cambio visible bajo la MISMA aprobación de escritura que
+el spec trae (gate del owner del 2026-10-02 citado arriba) — la aprobación es de ESCRITURA, nunca de
+MERGE. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**No cierra `MARQUESINA-TARJETA-SIN-MASCARA-1`** como gate-verde hasta que
+`CTA-BANNER-FOTO-TEST-UNIDAD-STALE-1` se resuelva y el gate completo vuelva a correr limpio — el
+defecto visual que este slice existe para arreglar SÍ queda cerrado y verificado (§ Verificación,
+arriba).

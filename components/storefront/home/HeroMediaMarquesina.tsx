@@ -512,6 +512,38 @@ import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } fro
 //       siga sin quedar scroll muerto tras completarse la tarjeta (el MISMO invariante del punto (2)
 //       arriba, no uno nuevo — `claseAlturaAncestroMarquesina` ya derivaba el extra de las ventanas,
 //       no de un literal aparte).
+//
+// LA TARJETA SE VEÍA CORTADA AL EMPEZAR A SALIR — § MARQUESINA-TARJETA-SIN-MASCARA-1 (2026-10-02).
+// El owner, con captura sobre la demo de Café Las Chamisas (la tarjeta a medio salir, recortada
+// horizontalmente bajo la frase): «Cuando empieza a salir la tarjeta se ve cortada». El punto (4) de
+// arriba —§ MARQUESINA-TARJETA-COMO-LETRAS-1— le dio a la tarjeta el MISMO patrón de dos elementos
+// (máscara estática + motor interno) que ya usa el loop de texto, y para una LÍNEA de texto ese
+// recorte ES el efecto ("las letras suben detrás de un borde"); para una FOTO entera, a mitad de
+// camino el resultado es exactamente lo que el owner reportó: un borde recto a la mitad de la imagen,
+// con sólo la mitad SUPERIOR visible (la matemática: `translateY(X%)` del hijo deja visible, dentro
+// de la máscara, el tramo `[0, 1-X]` de la caja — un recorte parcial, no una tarjeta entera a medio
+// aparecer).
+//
+// EL FIX: la tarjeta vuelve a ser UN SOLO elemento (§ el comentario "UN SOLO ELEMENTO, SIN MÁSCARA"
+// en el cuerpo del componente, más abajo, junto al JSX) — el `transform`/`opacity` se aplican
+// DIRECTAMENTE al elemento que ya tiene el tamaño final (`aspect-[3/4]`/ancho/`overflow-hidden`/
+// radio), no a un hijo que se traslada dentro de un padre estático. El `overflow-hidden` se
+// CONSERVA en ese único elemento —sigue redondeando las esquinas cuadradas de la `<Image fill>` al
+// `sf-radio-tile`, como en `Spotlight.tsx`— pero deja de funcionar como máscara de ENTRADA: nada se
+// mueve RELATIVO a esta caja (la imagen nunca se traslada dentro de su padre), así que aplicar el
+// `transform` al MISMO elemento que tiene el recorte hace que recorte y movimiento viajen juntos —la
+// caja entera se traslada como una unidad rígida, nunca a medio recortar. "Sube desde abajo, con el
+// desvanecido quitándose progresivamente" (el pedido original de MARQUESINA-TARJETA-COMO-LETRAS-1)
+// sigue cumplido: la tarjeta sigue llegando desde una posición desplazada y aclarándose, sólo que
+// ahora ENTERA en todo punto del recorrido, nunca recortada por un borde ajeno.
+//
+// LAS FUNCIONES/VENTANA NO CAMBIAN: `transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay` con
+// `UMBRAL_ENTRADA_TARJETA_MARQUESINA`/`techo=1` siguen siendo las mismas (§ `transformTarjeta`/
+// `opacidadTarjeta` en el cuerpo) — el `translateY(N%)` sigue relativo a la PROPIA CAJA del elemento,
+// así que retirar el envoltorio de dos capas no cambia el recorrido en píxeles ni el timing (la
+// pausa, el arranque, el final). El loop de TEXTO (§ "EL LOOP DE TEXTO" más abajo) no se tocó: ahí
+// el revelado enmascarado sigue siendo tres elementos, sin cambio — el defecto era específico de
+// envolver una FOTO con el mismo mecanismo pensado para una LÍNEA de texto.
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
@@ -828,41 +860,58 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             `.marquee-card` (`docs/prototipos/cafeone/css/app.css:423-429`) ya usa `--radius-tile`,
             el MISMO token que este rol lee.
 
-            DOS ELEMENTOS, NO UNO — § MARQUESINA-TARJETA-COMO-LETRAS-1 (2026-10-02): la tarjeta pasó
-            a animarse con "el efecto de las letras" —sube desde abajo y se desvanece
-            progresivamente, § `transformTarjeta`/`opacidadTarjeta` arriba—, y ese `translateY(N%)`
-            es relativo a la PROPIA CAJA del elemento que se mueve (§ el docstring de
-            `transformRevelaTextoDisplay`, `lib/animation.ts`). Para que eso OCULTE a la tarjeta de
-            verdad —no sólo la traslade, visible, por encima del resto del hero— hace falta una
-            MÁSCARA que no se mueva, del tamaño FINAL de la tarjeta: el `<div>` de AFUERA (estático,
-            `aspect-[3/4]`/ancho/`overflow-hidden`/radio — lo que antes era la ÚNICA caja) y el
-            `motion.div` de ADENTRO, al 100% de esa caja (`h-full w-full`), que es el que lleva el
-            `transform`/`opacity` animados y el fondo/padding del modo 'tile'. Mismo patrón de
-            máscara-más-motor que ya usa el loop de texto (§ "EL REVELADO ENMASCARADO"), con dos
-            elementos en vez de tres porque la tarjeta no tiene un ticker que anidar. */}
+            UN SOLO ELEMENTO, SIN MÁSCARA — § MARQUESINA-TARJETA-SIN-MASCARA-1 (2026-10-02), REVIERTE
+            el "DOS ELEMENTOS" de § MARQUESINA-TARJETA-COMO-LETRAS-1 (ver el docstring de cabecera,
+            bloque con este mismo id, para el reporte completo del defecto). Aquella ronda envolvió la
+            tarjeta en una MÁSCARA estática (`<div>` de AFUERA, tamaño FINAL fijo + `overflow-hidden`)
+            con un `motion.div` de ADENTRO (`h-full w-full`) llevando el `transform`/`opacity` — el
+            MISMO patrón máscara+motor del loop de texto. Para una LÍNEA de texto eso es el efecto
+            correcto (letras que suben recortadas por un borde); para una FOTO entera, a mitad de
+            camino el resultado es un rectángulo con un borde recto y sólo la MITAD SUPERIOR de la
+            imagen visible — exactamente lo que el gate del owner reportó como "se ve CORTADA".
+
+            El `transform`/`opacity` ahora van en el MISMO elemento que YA es del tamaño final
+            (`aspect-[3/4]`/ancho/radio/`overflow-hidden`) — no en un hijo trasladándose DENTRO de un
+            padre estático. `overflow-hidden` SOBREVIVE en este elemento, pero ya no hace de máscara
+            de ENTRADA: nada se mueve RELATIVO a esta caja (la `<Image fill>` de adentro nunca se
+            traslada; siempre ocupa el 100% de su padre) — su único trabajo es seguir redondeando las
+            esquinas cuadradas de la imagen al `sf-radio-tile` de la caja, igual que en
+            `Spotlight.tsx`/`GrindChooserRiel.tsx`. Cuando el CSS `transform` se aplica al elemento
+            que YA tiene el `overflow-hidden` (en vez de a un hijo suyo), el recorte y el movimiento
+            viajan JUNTOS: la caja entera —con su contenido adentro, sin que nada se desborde de sí
+            misma— se traslada en pantalla como una unidad rígida, nunca a medio recortar. Por eso
+            "sube desde abajo" ahora significa POSICIÓN (la caja completa, bajo su lugar final,
+            volviéndose opaca a la vez), no un recorte progresivo de su contenido.
+
+            MISMA VENTANA/CURVA, SIN CAMBIO — sólo se retira el envoltorio de dos elementos; las
+            funciones (`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay` con
+            `UMBRAL_ENTRADA_TARJETA_MARQUESINA`/`techo=1`, § `transformTarjeta`/`opacidadTarjeta`
+            arriba) y el momento en que la tarjeta arranca/completa NO cambian — el `translateY(N%)`
+            sigue relativo a la PROPIA CAJA del elemento (ahora la única caja que existe), así que el
+            recorrido en píxeles es idéntico al de antes de esta ronda. El loop de texto (arriba,
+            § "EL LOOP DE TEXTO") SIGUE con su máscara+motor de tres elementos — ahí el efecto
+            enmascarado es el deseado y no se toca. */}
         {producto && (
-          <div className="relative z-20 aspect-[3/4] w-[min(340px,62vw)] overflow-hidden sf-radio-tile">
-            <motion.div
-              className={`grid h-full w-full place-items-center ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
-              style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
-            >
-              <div className="relative h-full w-full">
-                <Image
-                  key={producto.slug}
-                  ref={imgTarjetaRef}
-                  src={imagenPortada(producto.imagen)}
-                  alt={producto.nombre}
-                  fill
-                  sizes={SIZES_TARJETA_MARQUESINA}
-                  className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
-                  onLoad={(e) => {
-                    const img = e.currentTarget;
-                    setTamanoImagenTarjeta(tamanoSiCompleta(img));
-                  }}
-                />
-              </div>
-            </motion.div>
-          </div>
+          <motion.div
+            className={`relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden sf-radio-tile ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
+            style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
+          >
+            <div className="relative h-full w-full">
+              <Image
+                key={producto.slug}
+                ref={imgTarjetaRef}
+                src={imagenPortada(producto.imagen)}
+                alt={producto.nombre}
+                fill
+                sizes={SIZES_TARJETA_MARQUESINA}
+                className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  setTamanoImagenTarjeta(tamanoSiCompleta(img));
+                }}
+              />
+            </div>
+          </motion.div>
         )}
 
         {/* FRASE AL PIE (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1, § el docstring de cabecera "LA FRASE AL

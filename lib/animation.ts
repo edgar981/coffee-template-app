@@ -734,8 +734,22 @@ const REVELADO_TRASLADO_PCT = 100;
 // de ESA ventana (con la pausa). EL `translateY(N%)` SIGUE SIENDO RELATIVO A LA PROPIA CAJA DEL
 // ELEMENTO TRANSFORMADO (la misma razón por la que escala con el `clamp()` de la fuente del marquee,
 // § "PORCENTAJE, NO PÍXELES" arriba) — por eso la MISMA función, sin cambiar un solo número, sirve
-// para una línea de texto y para una tarjeta de proporción distinta: el recorrido se mide contra lo
-// que sea que el llamador haga `h-full`/`w-full` de la máscara, nunca contra un píxel fijo.
+// para una línea de texto y para una tarjeta de proporción distinta: el recorrido se mide contra la
+// propia caja del elemento que el llamador transforma, nunca contra un píxel fijo.
+//
+// EL WIRING POR CONSUMIDOR DIVERGE — § MARQUESINA-TARJETA-SIN-MASCARA-1 (2026-10-02), corrige lo que
+// este párrafo decía hasta esa ronda ("el recorrido se mide contra lo que sea que el llamador haga
+// `h-full`/`w-full` de la MÁSCARA"): esa frase describía el ÚNICO wiring que existía entonces —un
+// elemento estático de tamaño final con `overflow-hidden` (la máscara) conteniendo un hijo `h-full
+// w-full` que es el que esta función transforma (el motor)—, y por eso generalizaba de más. Hoy sólo
+// el LOOP DE TEXTO (§ "EL REVELADO ENMASCARADO" más abajo) sigue ese wiring de dos capas; la TARJETA
+// (`HeroMediaMarquesina.tsx`, § "LA ENTRADA DE LA TARJETA" en su cuerpo) aplica el `transform` al
+// MISMO elemento que ya tiene su tamaño final y su `overflow-hidden` —sin una máscara estática
+// aparte—, porque envolver una FOTO ENTERA en una máscara-más-motor (en vez de una línea de texto) la
+// dejaba viéndose cortada a mitad de la entrada (un borde recto, sólo la mitad superior visible). La
+// FUNCIÓN no sabe ni le importa cuál de los dos wirings use el llamador: el `%` siempre es relativo a
+// la caja del elemento al que se le asigna el `style.transform`, sea esa caja una máscara-y-motor de
+// dos piezas o una pieza sola.
 export function transformRevelaTextoDisplay(
   progreso: number,
   estatico: boolean,
