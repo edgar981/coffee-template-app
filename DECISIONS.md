@@ -44615,10 +44615,13 @@ Ninguno nuevo.
 
 ### Verdict
 
-**AWAITING_APPROVAL**, `stopped_on: [customer-bytes, owner-gate-requested]`. El diff agrega una
-capacidad de presentación nueva al storefront (`logoYNombre`), así que falla la condición de
-customer-bytes de la política A por sí solo — y el dispatch de este slice además instruye
-explícitamente parar antes del merge («PARÁS EN `AWAITING_APPROVAL`. NO MERGEES.»). El gate completo
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. El diff agrega una capacidad de presentación
+nueva al storefront (`logoYNombre`) y al panel (el `<select>` "Cómo se muestra la marca"), así que
+falla la condición de customer-bytes de la política A por sí solo — `owner-gate-requested` NO se
+declara junto a ella: esa cuarta razón sólo aplica cuando NINGUNA otra detendría el slice de todas
+formas, y acá sí hay otra (customer-bytes). El dispatch de este slice instruye además,
+explícitamente, parar antes del merge («PARÁS EN `AWAITING_APPROVAL`. NO MERGEES.») — coincide con
+lo que la clasificación por diff ya exigía, no es una razón aparte. El gate completo
 corrió verde sobre el árbol final (typecheck 0 errores, `npm test` 3096/3096, `npm run
 test:integracion` 291/291, build verde); `guarda:color`/`verificar:nayoli:visual` no dieron 0px por
 el drift preexistente de la rama, ajeno a este slice y re-confirmado por medición (misma cifra
