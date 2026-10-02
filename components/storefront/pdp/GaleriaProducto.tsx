@@ -106,11 +106,21 @@ export default function GaleriaProducto({ galeria, nombre }: GaleriaProductoProp
 
   return (
     <div className="space-y-3">
+      {/* RADIO (§ GALERIA-PRODUCTO-RADIO-1): `sf-radio-imagen`, no `rounded-3xl` crudo — cierra
+          `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1`, el follow-up de `RADIO-TARJETAS-IMAGEN-1` que
+          dejó esta galería afuera por un `touches:` incompleto. El fallback de `.sf-radio-imagen`
+          (1rem) NO coincide con el 1.5rem que `rounded-3xl` ya resolvía bajo Suave — a diferencia de
+          `NosotrosHistoria.tsx`/`ProductCard.tsx` (que venían de `rounded-2xl`, 1rem exacto), esto
+          SÍ sería un cambio de Nayoli SI este componente llegara a renderizarse bajo Suave. No pasa:
+          este archivo es la versión CON FLECHAS, montada SÓLO para CORTE en sus DOS usos — la ficha
+          (gateada por `navTratamiento.posicion`, § el docstring de cabecera) y la vista rápida (sólo
+          la monta `GrindChooserRiel`, que sólo monta bajo `presentaciones.variante==='riel'`, que
+          SÓLO CORTE declara). Nayoli nunca importa ni renderiza este árbol. */}
       <div
         onKeyDown={onKeyDownHero}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="relative aspect-square overflow-hidden rounded-3xl bg-[var(--sf-superficie)]"
+        className="relative aspect-square overflow-hidden sf-radio-imagen bg-[var(--sf-superficie)]"
       >
         <motion.div
           key={imgIdx}
@@ -161,7 +171,11 @@ export default function GaleriaProducto({ galeria, nombre }: GaleriaProductoProp
             <button
               key={i}
               onClick={() => irA(i)}
-              className={`h-16 w-16 overflow-hidden rounded-xl border-2 transition-all ${
+              // RADIO (§ GALERIA-PRODUCTO-RADIO-1): `sf-radio-imagen`, no `rounded-xl` crudo — misma
+              // razón que el hero, arriba. `rounded-xl` resolvía 0.75rem bajo Suave; el fallback de
+              // `.sf-radio-imagen` es 1rem. No hay cambio para Nayoli: este componente no renderiza
+              // bajo Suave (ver el comentario del hero).
+              className={`h-16 w-16 overflow-hidden sf-radio-imagen border-2 transition-all ${
                 imgIdx === i
                   ? "border-[var(--sf-acento)]"
                   : "border-transparent opacity-60 hover:opacity-100"

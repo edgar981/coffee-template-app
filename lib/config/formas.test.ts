@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   FORMAS, FORMA_DEFECTO, CLAVES_FORMAS, resolverForma, formaDeForma, varsDeForma,
 } from './formas';
 import { cssForma } from './forma-style';
 import { paletaEditableSchema } from './palette-schema';
 import { resolverTema, DEFAULTS } from './site-content-defaults';
+import GaleriaProducto from '@/components/storefront/pdp/GaleriaProducto';
 
 // El SET CERRADO de personalidades de forma y sus derivados (§ eje 4, mitad 1). GEMELO del test de
 // `fuentes`/`fuentes-style`. Puro; capa 1.
@@ -217,4 +220,37 @@ test("'minima' — su radio más chico (6px) sigue por encima del único valor d
   );
   assert.equal(pisoMinima, 6);
   assert.ok(parseFloat(recta.radius3xl) < pisoMinima, `'recta' (${recta.radius3xl}) debe quedar por debajo del piso de 'minima' (${pisoMinima}px)`);
+});
+
+// § GALERIA-PRODUCTO-RADIO-1 (2026-10-02) — cierra `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1`
+// (§ RADIO-TARJETAS-IMAGEN-1, DECISIONS.md): la galería de la ficha/vista rápida
+// (`components/storefront/pdp/GaleriaProducto.tsx`) quedó fuera de aquel slice por un `touches:`
+// incompleto, con su hero (`rounded-3xl`) y sus miniaturas (`rounded-xl`) todavía en el radio de
+// CHROME en vez del radio de IMAGEN que ya comparten el resto de las fotos. Este test renderiza el
+// componente REAL (`renderToStaticMarkup`, sin jsdom — el patrón de `origen-banda.test.ts`/
+// `presentaciones-riel.test.ts`) y afirma que las DOS superficies leen `sf-radio-imagen`, nunca los
+// literales `rounded-3xl`/`rounded-xl` crudos — el mismo guardián que impidió que un re-skin futuro
+// reintroduzca el radio de chrome por accidente.
+test('GaleriaProducto: el hero Y las miniaturas usan sf-radio-imagen, no rounded-3xl/rounded-xl crudo', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(GaleriaProducto, { galeria: ['/a.jpg', '/b.jpg'], nombre: 'Café de prueba' }),
+  );
+  // el hero (1) + las dos miniaturas (una por foto) = TRES superficies con el rol imagen.
+  assert.equal((html.match(/sf-radio-imagen/g) ?? []).length, 3);
+  assert.ok(!html.includes('rounded-3xl'), 'el hero no debe volver al radio de chrome (rounded-3xl)');
+  assert.ok(!html.includes('rounded-xl'), 'las miniaturas no deben volver al radio de chrome (rounded-xl)');
+  // las flechas y botones se quedan en el radio de píldora/chrome — sin cambio por este slice.
+  assert.ok(html.includes('sf-pildora'), 'las flechas deben seguir en sf-pildora, sin tocar');
+});
+
+// Con UNA sola foto no hay flechas ni miniaturas (`puedeNavegar`) — el hero sigue siendo la ÚNICA
+// superficie con el rol imagen, y el guardián no puede confundir "0 ocurrencias" con "no se tocó".
+test('GaleriaProducto con UNA sola foto: sólo el hero lleva sf-radio-imagen (sin flechas/miniaturas)', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(GaleriaProducto, { galeria: ['/a.jpg'], nombre: 'Café de prueba' }),
+  );
+  assert.equal((html.match(/sf-radio-imagen/g) ?? []).length, 1);
+  assert.ok(!html.includes('sf-pildora'), 'sin más de una foto no hay flechas que navegar');
+  assert.ok(!html.includes('rounded-3xl'));
+  assert.ok(!html.includes('rounded-xl'));
 });

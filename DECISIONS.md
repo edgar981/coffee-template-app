@@ -44629,3 +44629,181 @@ exacta, misma caja). Commiteado en `slice/corte-reescritura-prototipo-1`; el mer
 entera —que sigue cargando los customer-bytes sin aprobar de `MARQUESINA-TARJETA-COMO-LETRAS-1`,
 `SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1`, `MARQUESINA-TARJETA-SIN-MASCARA-1` y
 ahora `NAV-LOGO-Y-NOMBRE-1`— sigue pendiente de ese gate separado, ajeno a este slice.
+
+## 2026-10-02 — La galería de la ficha y de la vista rápida (hero + miniaturas) pasa al radio de IMAGEN; cierra `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1` (`GALERIA-PRODUCTO-RADIO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Mismo gate del owner del
+2026-10-02 que ya aprobó `RADIO-TARJETAS-IMAGEN-1` («Agrega en un poco de redondeo a los bordes pero
+solo a las card de imagenes. Los de botones y demas se quedan como estan.») — esa tanda dejó la
+galería de `components/storefront/pdp/GaleriaProducto.tsx` AFUERA por un `touches:` incompleto
+(§ su propio asiento, "Open follow-ups": `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1`), con una
+pregunta de producto pendiente ("¿pasan a `sf-radio-imagen`/`sf-radio-tile`, o se quedan en chrome
+por ser miniaturas/control de galería?"). Este slice responde la pregunta tal como el `touches:` del
+dispatch la resolvió: la foto grande Y las miniaturas pasan al radio de IMAGEN; flechas y botones se
+quedan en el radio de chrome, sin tocar.
+
+### El cambio — dos `className`, sin tocar `formas.ts`
+
+`GaleriaProducto.tsx` tenía DOS literales de radio-de-chrome, nunca migrados en
+`RADIO-TARJETAS-IMAGEN-1` porque el archivo no estaba en su `touches:`:
+
+| elemento | antes | después |
+| --- | --- | --- |
+| contenedor del hero (`aspect-square`, la foto grande) | `rounded-3xl` | `sf-radio-imagen` |
+| botón de cada miniatura (`h-16 w-16`) | `rounded-xl` | `sf-radio-imagen` |
+
+Las flechas (`sf-pildora`) y el botón de cerrar de la vista rápida **no se tocaron** — el spec lo
+pide explícito y el `touches:` de este slice no incluye `formas.ts` ni ningún rol nuevo: el radio de
+imagen (10px bajo CORTE, `RADIO_IMAGEN_RECTA`) ya existe y ya lo comparten `ProductCard.tsx`,
+`BrandStoryColumnas.tsx`/`BrandStoryCentrada.tsx`, `NosotrosHistoria.tsx`, `NosotrosGaleria.tsx` y
+`Origen.tsx` (§ `RADIO-TARJETAS-IMAGEN-1`) — este slice sólo suma DOS consumidores más a una clase
+que ya estaba cableada, sin crear ningún valor ni rol nuevo.
+
+### Por qué el fallback NO coincidía con el valor de hoy — y por qué no importa
+
+A diferencia de los consumidores migrados por `RADIO-TARJETAS-IMAGEN-1` —todos venían de
+`rounded-2xl`, cuyo valor bajo Suave (1rem) es EXACTO al fallback de `.sf-radio-imagen`—, acá el
+hero venía de `rounded-3xl` (1.5rem bajo Suave) y las miniaturas de `rounded-xl` (0.75rem bajo
+Suave). Si este componente renderizara bajo Suave, el swap SÍ movería un píxel para Nayoli — el
+fallback de `.sf-radio-imagen` es un literal fijo de 1rem (`app/globals.css:667`,
+`border-radius: var(--sf-radio-imagen, 1rem)`), no "lo que la clase vieja ya resolvía".
+
+**No renderiza bajo Suave, medido por lectura de los DOS llamadores, no supuesto:**
+
+- **La ficha** (`app/(storefront)/tienda/[slug]/page.tsx:220`): `{navTratamiento.posicion ? <GaleriaProducto …/> : <markup viejo>}`. `navTratamiento.posicion:true` aparece UNA sola vez en todo `lib/config/themes.ts` (grepeado), dentro de `export const CORTE` (línea 877 en adelante) — ningún otro preset lo declara.
+- **La vista rápida** (`VistaRapidaProducto.tsx:320`): sólo la monta `GrindChooserRiel.tsx:575`, y ese componente **sólo se importa/monta desde `GrindChooser.tsx`** bajo `riel: GrindChooserRiel` (el mapa de variantes), que resuelve cuando `presentaciones.variante==='riel'`. Esa clave aparece UNA sola vez en todo `lib/config/themes.ts` (grepeado: `presentaciones: 'riel'`, línea 966), también dentro de `export const CORTE`.
+
+O sea: los DOS caminos a `GaleriaProducto.tsx` están gateados, independientemente, al MISMO preset
+—CORTE—. Nayoli (Suave, sin preset) nunca importa ni renderiza este árbol, en ninguno de sus dos
+usos; es el mismo hecho que el docstring de cabecera del archivo ya documentaba para el preset de
+posición y que este slice confirma que también vale para el preset de variante del riel. El
+comentario inline (en el código, junto a cada `className`) deja esta cadena escrita para que no haga
+falta re-trazarla.
+
+### Verificación por ejecución — 8 mediciones, 2 motores × 2 superficies × {hero, miniatura}
+
+Arnés propio no comiteado (`.scratch/verificar-galeria-radio-full.ts`, un solo proceso Node — ver
+la nota de deviación abajo sobre por qué un solo proceso y no el `.sh` + Postgres-efímero-compartido
+de slices anteriores): Postgres efímero propio (`:55443`), `migrate deploy` + seed canónico, preset
+**CORTE aplicado DE VERDAD** (`aplicarPreset`, no `?tema=`), el producto canónico
+(`cafe-nayoli-grano-250g`) con `imagenes` ampliado a DOS fotos distintas (para que
+`puedeNavegar` sea `true` y la fila de miniaturas + las flechas rindan), `next build` + `next start`,
+Playwright AISLADO (Chromium 1440×900, WebKit **"iPhone 14"**) midiendo `getComputedStyle(...)
+.borderRadius` de tres elementos — el hero (`.sf-radio-imagen` primero), una miniatura
+(`.sf-radio-imagen` segundo) y una flecha (`button[aria-label="Foto anterior"]`) — en la ficha y en
+la vista rápida (`[role="dialog"] …`, tras clickear el "ojo" del riel):
+
+| motor | superficie | hero | miniatura | flecha |
+| --- | --- | --- | --- | --- |
+| Chromium 1440×900 | ficha | **10px** | **10px** | 4px |
+| Chromium 1440×900 | vista rápida | **10px** | **10px** | 4px |
+| WebKit "iPhone 14" | ficha | **10px** | **10px** | 4px |
+| WebKit "iPhone 14" | vista rápida | **10px** | **10px** | 4px |
+
+Las ocho mediciones son el resultado esperado: hero y miniatura en el radio de imagen (10px, el
+MISMO `RADIO_IMAGEN_RECTA` que ya rinden `ProductCard`/`Origen`/etc. bajo CORTE), y la flecha SIN
+TOCAR en el radio de chrome (4px, `RADIO_UNIFICADO_RECTA`, la misma `sf-pildora` de siempre). Cuatro
+capturas en `.scratch/galeria-radio-capturas/` (gitignorado, no comiteado): el hero de la ficha y el
+panel completo de la vista rápida, en los dos motores — las de vista rápida muestran a simple vista
+el hero Y las dos miniaturas con la esquina redondeada, y las dos flechas circulares sin cambio.
+
+### Deviación medida — un harness en UN SOLO proceso Node, no un `.sh`
+
+El dispatch de este slice concede `Bash(node:*)`/`Bash(npm:*)`/`Bash(npx:*)` como comandos de nivel
+superior — NO `bash <script>.sh` ni `chmod` sueltos. El primer intento (un `.sh` que hacía `source
+scripts/postgres-efimero.sh` + `psql` + `npm run build/start` por separado, calcado de
+`.scratch/arnes-corte.sh` de una tanda anterior) no se pudo ejecutar: `chmod`/`bash` como comando de
+nivel superior piden aprobación que este dispatch no concede. Se reescribió como UN proceso
+`npx tsx` que hace todo adentro —Postgres/`psql`/`next build`/`next start` como SUBPROCESOS de ese
+proceso Node, el mismo mecanismo que ya usan `scripts/guarda-color.ts`/`scripts/verificar-nayoli-
+visual.ts` (reusando sus exports: `levantarPostgres`, `migrarYSembrar`, `entornoArbol`, `construir`,
+`arrancar`, `detener`, `esperarListo`)—, invocado con `npx tsx .scratch/verificar-galeria-radio-
+full.ts`. No cambia qué se verificó, sólo CÓMO se invocó.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (vía `npm run typecheck`) | 0 errores |
+| `npm test` | **3098/3098** (+2: los dos tests nuevos en `lib/config/formas.test.ts`, § abajo) |
+| `npm run test:integracion` | **291/291** — sin cambio de figura (este slice no toca el carril) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA** que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`); las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, misma caja (exit 0 — el script reporta el hallazgo, no lo convierte en fallo, § su propio comentario de cierre) |
+| harness propio (Playwright, CORTE real) | 8/8 mediciones en el valor esperado, § arriba |
+
+`guarda:color`/`verificar:nayoli:visual` NO dieron 0px por el MISMO drift preexistente de la rama,
+ajeno a este diff — `ruta:tienda`/`ruta:producto` (las dos únicas rutas que montan
+`ProductCard.tsx`, tocado por `RADIO-TARJETAS-IMAGEN-1` pero no por este slice) dan **0px**, y
+`GaleriaProducto.tsx` no es Nayoli-visible por construcción (§ arriba) — ninguna de las dos
+herramientas puede estar viendo ESTE diff en su número.
+
+### Los DOS tests nuevos — `lib/config/formas.test.ts`, render real, sin jsdom
+
+Siguiendo el patrón ya establecido por `origen-banda.test.ts`/`presentaciones-riel.test.ts`
+(`renderToStaticMarkup`, sin jsdom — el repo no lo tiene, § CLAUDE.md), se agregaron dos tests que
+renderizan `GaleriaProducto` de verdad:
+
+- con 2 fotos: el hero + las 2 miniaturas (3 ocurrencias de `sf-radio-imagen`) y ninguna aparición de
+  `rounded-3xl`/`rounded-xl`; las flechas siguen en `sf-pildora`.
+- con 1 foto (`puedeNavegar=false`): sólo el hero lleva el rol imagen (1 ocurrencia), y no hay
+  flechas ni miniaturas que confundir con "0 ocurrencias = no se tocó".
+
+Los dos se vieron pasar contra el código YA arreglado (no se reprodujo el defecto viejo porque el fix
+y el test se escribieron en el mismo paso) — la garantía de que no retrocede es el guardián en sí:
+si alguien reintroduce `rounded-3xl`/`rounded-xl` en este archivo, el assert de ausencia falla.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `GaleriaProducto.tsx`, `sf-radio-imagen`, `rounded-3xl`,
+`rounded-xl`, `GALERIA-PRODUCTO-RADIO-1`, `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1`,
+`formas.test.ts`. Grepeados uno por uno contra `CLAUDE.md`: **CERO coincidencias** para los siete —
+`CLAUDE.md` no documenta `GaleriaProducto.tsx` ni el sistema de radio/forma en absoluto (vive sólo en
+este libro y en los comentarios del código, igual que constató `RADIO-TARJETAS-IMAGEN-1`). Nada
+queda falso por este diff.
+
+Este slice SÍ tocó un `.md` (`DECISIONS.md`, este mismo asiento) y SÍ cierra una sección de un asiento
+anterior por id (`GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1`, el "Open follow-up" de
+`RADIO-TARJETAS-IMAGEN-1`): grepeado ese id contra `DECISIONS.md`, la única coincidencia previa a
+este asiento es la línea que lo nombra como pendiente, en el asiento de `RADIO-TARJETAS-IMAGEN-1`.
+Por la regla ya establecida en esta misma rama (§ el asiento de `HERO-MARQUESINA-TEST-SYNC-1`,
+"`HERO-TEST-SYNC-STALE-POINTERS-1`"): esa línea vieja **NO se edita** —es un ledger APPEND-ONLY—, y
+queda desactualizada por este asiento nuevo. Se nombra como open follow-up abajo, no se corrige in
+situ.
+
+### `customer_bytes`
+
+**`changed: true`.** Bajo CORTE (hoy, Onix/Las Chamisas), la foto grande y las miniaturas de la
+galería de producto —en la ficha y en la vista rápida— pasan de 4px a 10px de radio; un visitante
+bajo ese preset lo ve. `strings: []` — ningún texto nuevo. `approved: null` — Nayoli no renderiza
+este componente (§ arriba), así que su storefront en vivo no cambia un byte, medido por las dos
+herramientas de arriba dando la misma cifra de drift preexistente.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo, sin contrato cross-repo.
+
+### Open follow-ups
+
+- `HERO-TEST-SYNC-STALE-POINTERS-1` (ya abierto, sin cambio por este slice) gana una CUARTA mención
+  vieja: el "Open follow-ups" del asiento de `RADIO-TARJETAS-IMAGEN-1` (arriba) sigue listando
+  `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1` como pendiente — este mismo asiento lo resuelve. No se
+  edita esa línea (ledger append-only); quien la lea debe seguir la cadena hasta acá.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — RE-CONFIRMADO con la MISMA figura exacta, sin cambio
+  (ajeno a los archivos de este diff).
+
+### Verdict
+
+**AWAITING_APPROVAL.** `stopped_on: [customer-bytes]` — por SU PROPIO diff: cambia el radio
+VISIBLE de la foto grande y las miniaturas de la galería de producto bajo CORTE (ficha y vista
+rápida), así que falla esa condición de la política A por sí sola. El dispatch de este slice
+instruye además, explícitamente, parar antes del merge («PARÁS EN `AWAITING_APPROVAL`. NO
+MERGEES.») — coincide con lo que la clasificación por diff ya exigía, no es una razón aparte
+(`owner-gate-requested` no se declara junto a `customer-bytes`, por la misma regla que ya fijó
+`NAV-LOGO-Y-NOMBRE-1`). El gate completo corrió verde sobre el árbol final (typecheck 0 errores,
+`npm test` 3098/3098, `npm run test:integracion` 291/291) y la verificación por ejecución directa
+(Playwright, CORTE real, 2 motores × 2 superficies) dio las 8/8 mediciones esperadas.
+Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama entera —que sigue cargando
+los customer-bytes sin aprobar de `MARQUESINA-TARJETA-COMO-LETRAS-1`,
+`SUSCRIPCION-PARALLAX-VISIBLE-1`, `TIENDA-HOVER-SEGUNDA-FOTO-1`, `MARQUESINA-TARJETA-SIN-MASCARA-1`,
+`NAV-LOGO-Y-NOMBRE-1` y ahora `GALERIA-PRODUCTO-RADIO-1`— sigue pendiente de ese gate separado, ajeno
+a este slice.
