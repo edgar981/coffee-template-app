@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
 import TiendaSeccionEditor from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import TogglePagina from '@/components/admin/TogglePagina';
@@ -9,26 +8,27 @@ import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { DISPOSITIVO_DEFECTO, type DispositivoKey } from '@/lib/admin/editor-iframe';
 
-// El editor del storefront agrupado por PÁGINA (Home / Nosotros). El selector se renderiza SIEMPRE:
-// el config define siempre ≥2 páginas (Home con sus secciones, Nosotros con la suya), así que hay
-// dos elecciones reales — un gate "≥2 páginas" nunca se ejercería, sería código muerto. El día que
-// un deployment pudiera tener una sola página, el guard entra ahí, con ese caso real.
-export default function TiendaPaginas() {
-  // DEEP-LINK del aviso de config del Dashboard (§ Backlog #65): `?seccion=&tarjeta=` abre esa sección
-  // en su página y resalta el bloque de la tarjeta. Precedente de query-params en el panel: `?pedido=`
-  // de Pedidos (por eso el page envuelve esto en <Suspense>, como Pedidos). El deep-link se pasa a cada
-  // editor; sólo el de la sección objetivo actúa. La lógica de abrir/resaltar/scrollear vive en el editor
-  // (reusa el puente vista→formulario), no acá.
-  const params = useSearchParams();
-  const seccionParam = params.get('seccion');
-  const tarjetaNum = params.get('tarjeta') != null ? Number(params.get('tarjeta')) : NaN;
-  const resaltar = seccionParam
-    ? { seccion: seccionParam, slot: Number.isInteger(tarjetaNum) ? tarjetaNum : null }
-    : null;
-  // La página INICIAL = la de la sección del deep-link (Presentaciones → home); sin deep-link, home.
-  const paginaObjetivo = seccionParam ? SECCIONES_TIENDA.find(c => c.seccion === seccionParam)?.pagina : undefined;
-  const [pagina, setPagina] = useState<PaginaKey>(paginaObjetivo ?? 'home');
+export interface TiendaPaginasProps {
+  /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
+   *  DISPOSITIVOS-1): el selector de página subió a la barra superior del editor de pantalla
+   *  completa, así que este componente ya no lo dibuja ni es dueño de su propio estado. */
+  pagina: PaginaKey;
+  /** El deep-link del aviso de config del Dashboard (§ Backlog #65), ya resuelto por el padre —
+   *  antes este componente leía `useSearchParams` por su cuenta; ahora sólo recibe el resultado. */
+  resaltar: { seccion: string; slot: number | null } | null;
+  /** El ancho literal al que se arma el iframe (§ 4.3 de DISENO.md). Default Escritorio si se omite
+   *  —`VistaTiendaIframe` también lo asume por su cuenta—, para que este componente siga siendo
+   *  usable sin que el consumidor tenga que decidir un dispositivo. */
+  dispositivo?: DispositivoKey;
+}
+
+// El editor del storefront agrupado por PÁGINA (Home / Nosotros), montado DENTRO del editor de
+// pantalla completa (§ EDITOR-TIENDA-DISPOSITIVOS-1 — antes vivía directo en `/admin/tienda`). El
+// selector de página y el de dispositivo ya no son responsabilidad de este componente: los dos
+// llegan por prop desde `EditorTiendaPantallaCompleta`, que los pone en su barra superior.
+export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO }: TiendaPaginasProps) {
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
@@ -79,46 +79,44 @@ export default function TiendaPaginas() {
   useEffect(() => { recargarDoc().catch(() => setErrorDoc(true)); }, [recargarDoc]);
 
   return (
-    <div>
-      {/* Selector de página. Visual de pill, semántica de tab (una página es un destino, no un toggle).
-          Suscripciones es una PESTAÑA como Home/Nosotros (§ PAGINAS): su interruptor vive DENTRO de su
-          pestaña —igual que el de Nosotros—, no suelto arriba, así no hay "dos clases de página" que
-          nada explique. Hoy su pestaña sólo tiene el interruptor (sus planes están en código, § #49). */}
-      <div role="tablist" aria-label="Página del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-5)' }}>
-        {PAGINAS.map(p => (
-          <button
-            key={p.key}
-            role="tab"
-            aria-selected={p.key === pagina}
-            onClick={() => setPagina(p.key)}
-            className={`duna-pill${p.key === pagina ? ' is-on' : ''}`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {/* El toggle de encender/apagar, DENTRO de la pestaña de la página apagable (Nosotros · Suscripciones). */}
-      {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
-
-      {/* La `nota` de la página — hoy sólo Suscripciones: dice QUÉ gobierna el interruptor (las 5
-          superficies que apaga/enciende). */}
-      {paginaMeta.nota && (
-        <p className="duna-sub" style={{ marginTop: 'var(--duna-space-3)', maxWidth: '42rem' }}>{paginaMeta.nota}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* El toggle de encender/apagar y la nota de la página apagable (Nosotros · Suscripciones) — el
+          selector de PÁGINA en sí ya no vive acá, subió a la barra superior del editor de pantalla
+          completa (§ EDITOR-TIENDA-DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). */}
+      {(paginaMeta.apagable || paginaMeta.nota) && (
+        <div style={{ flexShrink: 0, marginBottom: 'var(--duna-space-5)' }}>
+          {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
+          {paginaMeta.nota && (
+            <p className="duna-sub" style={{ marginTop: 'var(--duna-space-3)', maxWidth: '42rem' }}>{paginaMeta.nota}</p>
+          )}
+        </div>
       )}
 
       {/* LA COMPOSICIÓN (§ EDITOR-TIENDA-IFRAME-VISTA-1): la lista de secciones a un costado, la
           página REAL al centro — nunca secciones aisladas (decisión del owner). Columnas lado a lado
           ≥960; apiladas (iframe arriba, lista abajo) por debajo, donde no hay ancho para las dos.
-          El iframe queda en la MISMA posición del árbol en los dos casos (sólo cambia su envoltura
-          por `order`/alto/sticky) para no remontarlo —y perder su scroll— al cruzar el umbral. */}
+          SIN sticky/document-scroll (§ EDITOR-TIENDA-DISPOSITIVOS-1): el editor de pantalla completa
+          ya no es una página de scroll de documento — es su PROPIA región de alto fijo (la barra
+          superior + este cuerpo llenan el viewport), así que la lista scrollea DENTRO de su columna
+          y el iframe toma el alto DISPONIBLE completo, sin calcular contra `--duna-topbar-h` (que acá
+          no existe: no hay topbar del panel). */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: angosto ? '1fr' : 'minmax(0, 1fr) minmax(360px, 1fr)',
+        display: angosto ? 'flex' : 'grid',
+        flexDirection: angosto ? 'column' : undefined,
+        gridTemplateColumns: angosto ? undefined : 'minmax(0, 1fr) minmax(360px, 1fr)',
         gap: 'var(--duna-space-6)',
-        alignItems: 'start',
+        flex: '1 1 auto',
+        minHeight: 0,
       }}>
-        <div style={{ display: 'grid', gap: 'var(--duna-space-4)', minWidth: 0, order: angosto ? 2 : 1 }}>
+        <div style={{
+          display: 'grid',
+          gap: 'var(--duna-space-4)',
+          minWidth: 0,
+          order: angosto ? 2 : 1,
+          overflowY: 'auto',
+          alignContent: 'start',
+          ...(angosto ? { flex: '1 1 auto', minHeight: 0 } : { height: '100%' }),
+        }}>
           {secciones.map(config => (
             <TiendaSeccionEditor
               key={config.seccion}
@@ -140,12 +138,11 @@ export default function TiendaPaginas() {
         </div>
         <div style={{
           minWidth: 0,
+          minHeight: 0,
           order: angosto ? 1 : 2,
-          position: angosto ? 'static' : 'sticky',
-          top: angosto ? undefined : 'calc(var(--duna-topbar-h) + var(--duna-space-4))',
-          height: angosto ? '60vh' : 'calc(100dvh - var(--duna-topbar-h) - var(--duna-space-8))',
+          ...(angosto ? { height: '50vh', flexShrink: 0 } : { height: '100%' }),
         }}>
-          <VistaTiendaIframe ref={iframeRef} pagina={pagina} />
+          <VistaTiendaIframe ref={iframeRef} pagina={pagina} dispositivo={dispositivo} />
         </div>
       </div>
     </div>

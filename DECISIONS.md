@@ -42013,3 +42013,173 @@ slice, por instrucción del dispatch, no mergea.
   sigue heredada, idéntica, no empeorada ni mejorada por este diff.
 
 **Cierra `HERO-VIDEO-MOVIL-1`.**
+
+## 2026-10-02 — El editor de la tienda se abre en su PROPIA vista a pantalla completa, con un
+    selector de dispositivo que arma el iframe al ancho REAL (`EDITOR-TIENDA-DISPOSITIVOS-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Gate del owner del 2026-10-01
+viendo el editor de `/admin/tienda` que `EDITOR-TIENDA-IFRAME-VISTA-1` dejó montado: *"Se ve bien
+sin embargo se ve como en la vista movil, aun no se siente como un editor inline"*, y sobre la
+forma pedida: *"Escritorio por defecto, sino cabe en el panel, se puede abrir una nueva vista, es
+lo que hace Shopify el editor abre en una nueva vista no sale nada del panel de navegacion."* Es la
+fila 5 del plan de `docs/editor-tienda/DISENO.md` § 6, con el alcance AMPLIADO por este pedido —
+igual que `EDITOR-TIENDA-IFRAME-VISTA-1` amplió su propia fila (§ 10 de ese documento) — documentado
+en el § 12 nuevo de ese archivo.
+
+### Lo construido
+
+- **El gate de acceso se EXTRAJO a `lib/admin/acceso-admin.ts`** (`requerirSesionAdmin` + la mitad
+  pura `decidirAccesoAdmin`, testeada en `lib/admin/acceso-admin.test.ts`, 5 casos): hasta este
+  slice vivía inline, una sola vez, dentro de `app/(admin)/admin/layout.tsx`. Con una segunda ruta
+  que exige el MISMO acceso (`/editor/*`), dos layouts necesitaban una sola definición — el modo de
+  falla de siempre (`razonDelServidor`/`cruzoMinimo`, CLAUDE.md). `app/(admin)/admin/layout.tsx`
+  pasó a llamarla; su comportamiento no cambió (misma sesión, misma consulta a la fila de `User`,
+  mismo `/login?motivo=`), y ganó ADEMÁS más paralelismo: antes sólo `getSession` corría junto a
+  `getSiteSettings()`; ahora la cadena entera (sesión + fila de usuario) corre junto a eso.
+- **`app/(admin)/editor/` — ruta hermana de `app/(admin)/admin/`, dentro del MISMO grupo `(admin)`**
+  (hereda tema Duna/fuentes/`.admin-shell` de `app/(admin)/layout.tsx`, sin tocarlo). Su
+  `layout.tsx` llama a `requerirSesionAdmin()` y NO monta `AdminChrome` — sin sidebar, sin topbar.
+  `app/(admin)/editor/tienda/page.tsx` renderiza `EditorTiendaPantallaCompleta` (nuevo,
+  `components/admin/`) dentro de un `<Suspense>` (usa `useSearchParams`, igual que Pedidos con
+  `?pedido=`).
+- **`EditorTiendaPantallaCompleta`** — el chrome de la vista propia: `position:fixed;inset:0`, una
+  barra superior fina (volver al panel · pestañas de página Home/Nosotros/Suscripciones · selector
+  de dispositivo) y el cuerpo (`TiendaPaginas`) llenando el resto. El deep-link del aviso de config
+  (`?seccion=&tarjeta=`) y el cálculo de la página inicial, que antes vivían DENTRO de
+  `TiendaPaginas`, subieron acá.
+- **`TiendaPaginas` se volvió CONTROLADO**: recibe `pagina`/`resaltar`/`dispositivo` por prop en vez
+  de gestionar su propio estado y su propio `role="tablist"` (que subió a
+  `EditorTiendaPantallaCompleta`). Su layout interno dejó el `sticky`/`--duna-topbar-h` —que asumía
+  vivir DENTRO del chrome del panel, con document-scroll— por `display:flex;height:100%`: la vista
+  propia ya es su propia región de alto fijo, sin topbar de la que calcular un offset.
+- **`/admin/tienda` se queda como PORTADA, no redirige entera.** Los cinco ejes "cromo transversal"
+  (`PaletaSeccion`/`MenuSeccion`/`EncabezadoSeccion`/`DetallesSitioSeccion`/`FooterSeccion`) — fuera
+  de `touches:`, no reubicables — se quedan ahí tal cual, y al final gana una tarjeta "Secciones de
+  la tienda" con un botón primario "Abrir editor" → `/editor/tienda`.
+- **El deep-link del Dashboard sigue funcionando sin tocar `lib/config/avisos-configuracion.ts`**
+  (fuera de `touches:`, sigue generando `/admin/tienda?seccion=…&tarjeta=…`): `page.tsx` pasó a
+  Server Component con `searchParams`; si trae `seccion`, reenvía el query COMPLETO a
+  `/editor/tienda?…` con `redirect()` antes de renderizar la portada.
+- **`proxy.ts` gana `/editor(.*)` al matcher**, en el MISMO bloque que ya bota `/admin/*` sin cookie
+  de sesión — el pre-chequeo barato antes del gate autoritativo del layout.
+- **El selector de dispositivo (§ 4.3 de DISENO.md), lógica pura en `lib/admin/editor-iframe.ts`**
+  (`DispositivoKey`, `ANCHOS_DISPOSITIVO`, `DISPOSITIVO_DEFECTO`, `CLAVE_DISPOSITIVO_EDITOR`,
+  `dispositivoDesdeStorage`, `calcularEscalaDispositivo` — 8 tests nuevos en
+  `editor-iframe.test.ts`, que pasó de 8 a 16). Los tres anchos están MEDIDOS contra lo que el repo
+  ya usa para medir, no inventados: **escritorio 1280** (`ANCHO_VIEWPORT`,
+  `scripts/verificar-nayoli-visual.ts:202`), **tablet 768** (el breakpoint `md` de Tailwind, sin
+  redefinir en este repo — `app/globals.css`; ya usado como corte responsive del storefront, p. ej.
+  `GrindChooserMosaico.tsx:73`, `sizes="(max-width: 768px) 100vw, 50vw"`), **teléfono 393**
+  (`devices['iPhone 15'].viewport.width`, medido contra el Playwright instalado en
+  `.arnes-tooling/playwright` — el mismo dispositivo ya nombrado en comentarios de medición del
+  repo: `GrindChooserRiel.tsx:514`, `lib/animation.ts:1158`,
+  `lib/config/presentaciones-riel.test.ts:64`).
+- **`VistaTiendaIframe` arma el iframe al ANCHO LITERAL del dispositivo, nunca reflowado.** Mide su
+  canvas (ancho Y alto, `ResizeObserver`) y arma dos cajas: una caja de recorte con el ancho
+  VISIBLE (`anchoDispositivo × escala`, centrada por `justify-content:center`) y, adentro, una caja
+  SIN escalar con el ancho LITERAL del dispositivo y un alto calculado para que, multiplicado por la
+  escala, llene EXACTAMENTE el alto disponible — nunca hueco, nunca recorte, nunca scroll del
+  canvas. El `<iframe>` vive dentro de esa segunda caja: su viewport interno ES el ancho real del
+  dispositivo (393px de verdad en teléfono), así que las clases `sm:`/`md:` del storefront se
+  activan de verdad. `transform:scale()` SÓLO se aplica si el dispositivo no entra en el canvas —
+  "Escritorio" (1280) no escala casi nunca; "Tablet"/"Teléfono" sí, centrados.
+- **Escritorio es el default**, recordado en `localStorage` (`admin:editor-tienda:dispositivo`, con
+  `try/catch`). Resuelve el síntoma textual del owner: el editor viejo medía SIEMPRE el ancho de la
+  columna del panel (angosta, dentro de un grid de dos columnas), así que el iframe rendía SIEMPRE
+  con breakpoints móviles activos sin que nadie lo hubiera elegido.
+
+### Verificación por ejecución (no sólo gate)
+
+Sesión real contra un seed efímero (Postgres propio, `migrate deploy` + `prisma/seed.ts` sin
+overrides de env → `admin@sierranativa.co`/`ChangeMe123!`, NUNCA contra `development`/producción),
+`next build` + `next start`, login real por el formulario, ventana del navegador fija a 1280×900
+(el tamaño de escritorio del arnés de `verificar-nayoli-visual.ts`). Capturas en
+`.scratch/capturas-editor/` (no versionadas):
+
+- **Sin sesión, `/editor/tienda` rebota a `/login`** — igual que `/admin/*`.
+- **Escritorio (default) muestra el nav COMPLETO del storefront** (Tienda · Suscripciones ·
+  Nosotros) — nunca el botón de menú de teléfono. Tablet y Teléfono muestran el nav colapsado
+  (ícono de menú), el comportamiento RESPONSIVE real de la tienda, no una ilusión de escala.
+- **"Ir a la sección" sigue funcionando en los tres modos**: clic en "Editar" abre el formulario de
+  la sección y el iframe se desplaza/resalta igual, a cualquier escala — la escala es puramente
+  visual (`transform` sobre un ancestro), así que `contentDocument`/`contentWindow` (de donde salen
+  `querySelector`, `scrollIntoView`, el vigía de ruta) no cambian de comportamiento.
+- **El botón "Abrir editor" de `/admin/tienda`** y el cambio de página (Home → Nosotros, con su
+  toggle y su iframe) también verificados.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. La ruta nueva y el gate compartido son superficie de aplicación, no de dato.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3022/3022** (3009 del piso de `HERO-VIDEO-MOVIL-1` + 13 nuevos: 8 en `editor-iframe.test.ts` + 5 en `acceso-admin.test.ts`, archivo nuevo) |
+| `npm run test:integracion` | **283/283** — sin cambio sobre el piso (este slice no agrega tests de integración; ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE — **MISMA cifra, al píxel, que el piso heredado de `SECCIONES-ENTRAN-VIVAS-1`/`SECCIONES-ENTRAN-UNA-VEZ-1`/`HERO-VIDEO-MOVIL-1`**: 355.138/4.608.000 px (consciente de AA), 428.107/4.608.000 px (crudo), caja [96,862]–[1183,3306]; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)**. Este slice no toca `app/(storefront)/` ni `components/storefront/` — no agrega un solo píxel sobre el piso. |
+| `npm run guarda:color` | Misma cifra que arriba, `ruta-home` DIFIERE con la cifra heredada; las otras 5 rutas + 2 hovers IDÉNTICO (0px). |
+
+**`guarda:color`/`verificar:nayoli:visual` NO dieron 0px en `ruta:home` — MISMA deviación ya
+documentada por los tres slices anteriores (`SECCIONES-ENTRAN-VIVAS-1`, `SECCIONES-ENTRAN-UNA-VEZ-1`,
+`HERO-VIDEO-MOVIL-1`), no causada por éste.** El spec de cierre pedía "0px"; medido, la cifra es
+IDÉNTICA al píxel a la ya heredada — la prueba de que este diff (que no toca una sola línea de
+`app/(storefront)/` ni `components/storefront/`) no agrega nada sobre ese piso.
+
+### CLAUDE.md — grep de los símbolos y rutas que este diff cambió
+
+Grepeados: `/admin/tienda`, `TiendaPaginas`, `VistaTiendaIframe`, `AdminLayout`, `acceso-admin`,
+`editor-iframe`, `proxy.ts`, `EditorTiendaPantallaCompleta`, `AdminChrome`. La mayoría de las
+apariciones de `/admin/tienda` describen piezas que NO se movieron (`PaletaSeccion`/`MenuSeccion`/
+`EncabezadoSeccion`/`DetallesSitioSeccion`/`FooterSeccion`, el write de `content.tema`, el repeater
+de footer) y siguen siendo ciertas. Tres grupos SÍ quedaron falsos por este diff, fuera de
+`touches:` (no se tocan acá):
+
+- `CLAUDE.md:2260` — "El editor (`PaletaSeccion`) vive en `/admin/tienda` **SOBRE el selector de
+  página**" — el selector de página (Home/Nosotros/Suscripciones) ya NO vive en `/admin/tienda`;
+  se mudó a la barra superior de `/editor/tienda`. `PaletaSeccion` sigue en `/admin/tienda`, sin
+  moverse; sólo la relación espacial con el selector es la que quedó falsa.
+- `CLAUDE.md:2581` (encabezado de sección, "...(`/admin/tienda`)"), `:4332` ("el editor de
+  `/admin/tienda` lo AVISA", el aviso de destino rancio de Presentaciones) y `:4347-4353`
+  ("### `/admin/tienda` carga el catálogo…", "`TiendaPaginas` hace UN `getProducts()`…") — las tres
+  describen al editor de secciones por página (`TiendaPaginas`/`TiendaSeccionEditor`, su aviso de
+  categoría inexistente, su fetch de catálogo) como viviendo EN `/admin/tienda`. Las tres son falsas
+  ahora: ese editor vive en `/editor/tienda`.
+- **Grep de `DISENO.md`/`EDITOR-TIENDA-DISPOSITIVOS-1` en `CLAUDE.md` y en este archivo**: cero
+  apariciones previas a este asiento — nada apuntaba a esta fila antes, así que no hay un pointer
+  roto que cerrar además del contenido de arriba.
+- **No se corrige nada de lo de arriba acá** (fuera de `touches:` — `CLAUDE.md` no está en la lista
+  de este slice): queda como open follow-up.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3022 + 283), `verificar:nayoli:
+visual`/`guarda:color` sin un píxel nuevo sobre el piso heredado, el editor verificado por ejecución
+con sesión real en los tres modos de dispositivo (incluido el rebote a `/login` sin sesión).
+Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch de este slice instruyó explícitamente parar en
+`AWAITING_APPROVAL` sin merge, independientemente de la clasificación — coincide con lo medido: el
+diff cambia bytes que un operador/owner lee (el editor nuevo, el botón "Abrir editor", el título de
+pestaña "Editor de la tienda").
+
+**DEVIACIÓN medida, del encabezado del dispatch:** el spec llegó marcado `tier: 1`. Medido contra el
+criterio LITERAL de Tier 1 de `CLAUDE.md` (archivos nombrados o subárboles ganados — `app/
+(storefront)/`, `components/storefront/`, `lib/checkout/`, `packages/core/src/pagos/`, …): este
+diff no toca ninguno — `app/(admin)/*`, `lib/admin/*` y `proxy.ts` no están en esa lista. El propio
+`docs/editor-tienda/DISENO.md` § 6 ya clasificaba esta fila como Tier 2 ("sólo toca
+`components/admin/`"). Se ejecutó igual como Tier 1 por instrucción explícita del dispatch
+(sesión de escritura autorizada, `approved: yes`, parar en `AWAITING_APPROVAL` sin merge) — la
+medición se deja escrita para que la clasificación de la PRÓXIMA fila de este plan no hereda un
+"Tier 1" que el criterio de `CLAUDE.md` no sostiene para esta superficie.
+
+**Open follow-ups:**
+- `CLAUDE-MD-TIENDA-EDITOR-RUTA-MOVIDA-1` — `CLAUDE.md:2260,2581,4332,4347-4353` describen al editor
+  de secciones por página y al selector de página como viviendo en `/admin/tienda`; se mudaron a
+  `/editor/tienda`. `CLAUDE.md` no está en `touches:` de este slice — corregir esas líneas es
+  trabajo de quien toque esa sección por otra razón, o de una pasada de higiene dedicada.
+- `EDITOR-TIENDA-ORDEN-1`/`EDITOR-TIENDA-RETIRO-1` (filas 6/7 del plan, sin tocar) — siguen
+  pendientes, sin relación con este slice.
+
+**Cierra `EDITOR-TIENDA-DISPOSITIVOS-1`.**

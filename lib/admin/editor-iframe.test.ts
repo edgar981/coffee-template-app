@@ -8,6 +8,11 @@ import {
   scrollSeguro,
   PARAM_MODO_EDITOR,
   VALOR_MODO_EDITOR,
+  ANCHOS_DISPOSITIVO,
+  DISPOSITIVO_DEFECTO,
+  CLAVE_DISPOSITIVO_EDITOR,
+  dispositivoDesdeStorage,
+  calcularEscalaDispositivo,
 } from './editor-iframe';
 
 test('urlDePagina: home es la raíz; las demás páginas, su propia ruta', () => {
@@ -63,4 +68,48 @@ test('scrollSeguro: negativos, NaN e Infinity caen a 0', () => {
   assert.equal(scrollSeguro(NaN), 0);
   assert.equal(scrollSeguro(Infinity), 0);
   assert.equal(scrollSeguro(-Infinity), 0);
+});
+
+test('ANCHOS_DISPOSITIVO: los tres anchos medidos contra lo que el repo ya usa', () => {
+  assert.equal(ANCHOS_DISPOSITIVO.escritorio, 1280);
+  assert.equal(ANCHOS_DISPOSITIVO.tablet, 768);
+  assert.equal(ANCHOS_DISPOSITIVO.telefono, 393);
+});
+
+test('DISPOSITIVO_DEFECTO: escritorio, por decisión del owner', () => {
+  assert.equal(DISPOSITIVO_DEFECTO, 'escritorio');
+});
+
+test('CLAVE_DISPOSITIVO_EDITOR: namespaced, no choca con otras claves de localStorage del admin', () => {
+  assert.equal(CLAVE_DISPOSITIVO_EDITOR, 'admin:editor-tienda:dispositivo');
+});
+
+test('dispositivoDesdeStorage: las tres claves válidas pasan tal cual', () => {
+  assert.equal(dispositivoDesdeStorage('escritorio'), 'escritorio');
+  assert.equal(dispositivoDesdeStorage('tablet'), 'tablet');
+  assert.equal(dispositivoDesdeStorage('telefono'), 'telefono');
+});
+
+test('dispositivoDesdeStorage: null, vacío o cualquier otra cosa cae al default', () => {
+  assert.equal(dispositivoDesdeStorage(null), DISPOSITIVO_DEFECTO);
+  assert.equal(dispositivoDesdeStorage(''), DISPOSITIVO_DEFECTO);
+  assert.equal(dispositivoDesdeStorage('movil'), DISPOSITIVO_DEFECTO);
+  assert.equal(dispositivoDesdeStorage('Escritorio'), DISPOSITIVO_DEFECTO);
+});
+
+test('calcularEscalaDispositivo: el dispositivo cabe entero → escala 1, sin reducir', () => {
+  assert.equal(calcularEscalaDispositivo(1600, 1280), 1);
+  assert.equal(calcularEscalaDispositivo(1280, 1280), 1);
+  assert.equal(calcularEscalaDispositivo(900, 393), 1);
+});
+
+test('calcularEscalaDispositivo: el dispositivo NO cabe → reduce entero, nunca recorta', () => {
+  assert.equal(calcularEscalaDispositivo(640, 1280), 0.5);
+  assert.equal(calcularEscalaDispositivo(960, 1280), 0.75);
+});
+
+test('calcularEscalaDispositivo: sin medir todavía (0/negativo) → cabe, no reduce a cero', () => {
+  assert.equal(calcularEscalaDispositivo(0, 1280), 1);
+  assert.equal(calcularEscalaDispositivo(-10, 1280), 1);
+  assert.equal(calcularEscalaDispositivo(1600, 0), 1);
 });

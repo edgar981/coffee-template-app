@@ -50,12 +50,16 @@ export function proxy(request: NextRequest) {
     });
   }
 
-  if (pathname.startsWith("/admin")) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/editor")) {
     const session = getSessionCookie(request);
 
-    // LA SESIÓN VA PRIMERO, sin cambios: sin cookie, cualquier `/admin/*` sigue
-    // yendo a `/login`. Poner el redirect de la ruta retirada antes sólo cambiaría
-    // a qué URL llega alguien que de todos modos va a rebotar al login.
+    // LA SESIÓN VA PRIMERO, sin cambios: sin cookie, cualquier `/admin/*` o
+    // `/editor/*` (§ EDITOR-TIENDA-DISPOSITIVOS-1 — el editor de pantalla completa
+    // exige EXACTAMENTE el mismo acceso que el panel, § `lib/admin/acceso-admin.ts`)
+    // sigue yendo a `/login`. Es sólo el pre-chequeo BARATO (lee la cookie, no
+    // consulta la base); el gate AUTORITATIVO sigue siendo el layout del servidor.
+    // Poner el redirect de la ruta retirada antes sólo cambiaría a qué URL llega
+    // alguien que de todos modos va a rebotar al login.
     if (!session) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -147,18 +151,23 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Las tres rutas que el iframe de `/admin/tienda` puede cargar (`urlDePagina`,
-  // `lib/admin/editor-iframe.ts`: home/nosotros/suscripciones). No hace falta un
-  // patrón más ancho: el modo editor sólo se activa donde el iframe navega a
-  // propósito, y cualquier desvío dentro del iframe vuelve ahí solo
-  // (`VistaTiendaIframe.tsx`, el vigía de ruta) — nunca por un `?editor=1` colado
-  // en otra ruta.
+  // `/editor(.*)` (§ EDITOR-TIENDA-DISPOSITIVOS-1): el editor de pantalla completa vive fuera de
+  // `/admin/*` (su propio layout, sin `AdminChrome`), pero exige el MISMO pre-chequeo de sesión que
+  // el panel — sin esto, un visitante sin cookie llegaría hasta el layout del servidor antes de
+  // rebotar, en vez del bounce barato que `/admin(.*)` ya da.
+  //
+  // Las tres rutas del storefront son las que el iframe de `/editor/tienda` puede cargar
+  // (`urlDePagina`, `lib/admin/editor-iframe.ts`: home/nosotros/suscripciones — antes las cargaba
+  // `/admin/tienda`, que se mudó). No hace falta un patrón más ancho: el modo editor sólo se activa
+  // donde el iframe navega a propósito, y cualquier desvío dentro del iframe vuelve ahí solo
+  // (`VistaTiendaIframe.tsx`, el vigía de ruta) — nunca por un `?editor=1` colado en otra ruta.
   //
   // Las TRES últimas son `RUTA_A_VARIANTE_ICONO` (§ FAVICON-RUTA-POR-TIENDA-1, arriba):
   // literales exactos, no un patrón — un matcher no puede matchear "por archivo público", y
   // ampliarlo más de lo que ese mapa nombra dejaría pasar requests que no van a ese bloque.
   matcher: [
     "/admin(.*)",
+    "/editor(.*)",
     "/",
     "/nosotros",
     "/suscripciones",

@@ -79,3 +79,61 @@ export function selectorDeSeccion(seccion: SeccionVista): string {
 export function scrollSeguro(y: number): number {
   return Number.isFinite(y) && y > 0 ? Math.round(y) : 0;
 }
+
+// ─── EL SELECTOR DE DISPOSITIVO (§ EDITOR-TIENDA-DISPOSITIVOS-1, § 4.3 de DISENO.md) ───────────────
+//
+// El iframe de `VistaTiendaIframe` deja de medirse SIEMPRE al ancho del panel: toma el ancho LITERAL
+// del dispositivo elegido (así se activan los breakpoints REALES de la tienda, Tailwind `sm:`/`md:`
+// incluidos — § DISENO.md § 4.3, "con el iframe a 375px de ancho VERDADERO, el propio CSS responsive
+// de la tienda hace el trabajo"), y SÓLO si ese ancho no cabe en la columna del panel se reduce
+// ENTERO con `transform: scale` — nunca se recorta ni se desplaza en horizontal.
+//
+// LOS TRES ANCHOS SALEN DE LO QUE EL REPO YA USA PARA MEDIR, no de un valor inventado para esta
+// tanda (el propio spec lo pide así):
+//   · escritorio = 1280 — `ANCHO_VIEWPORT` de `scripts/verificar-nayoli-visual.ts:202`, el viewport
+//     de escritorio de TODO arnés de captura visual del repo.
+//   · tablet = 768 — el breakpoint `md` de Tailwind (sin redefinir en este repo, § `app/globals.css`
+//     `--breakpoint-*`), ya usado como el corte móvil/escritorio del propio storefront (p. ej.
+//     `components/storefront/home/GrindChooserMosaico.tsx:73`, `sizes="(max-width: 768px) 100vw,
+//     50vw"`).
+//   · telefono = 393 — el viewport del dispositivo Playwright "iPhone 15", el mismo nombrado en los
+//     comentarios de medición de este repo (`components/storefront/home/GrindChooserRiel.tsx:514`,
+//     `lib/animation.ts:1158`, `lib/config/presentaciones-riel.test.ts:64`) — medido contra
+//     `devices['iPhone 15']` del propio Playwright instalado en `.arnes-tooling/playwright`.
+export type DispositivoKey = 'escritorio' | 'tablet' | 'telefono';
+
+export const ANCHOS_DISPOSITIVO: Record<DispositivoKey, number> = {
+  escritorio: 1280,
+  tablet: 768,
+  telefono: 393,
+};
+
+/** Escritorio por defecto (owner, EDITOR-TIENDA-DISPOSITIVOS-1: "Escritorio por defecto"). */
+export const DISPOSITIVO_DEFECTO: DispositivoKey = 'escritorio';
+
+/** La clave de `localStorage` donde se recuerda el último dispositivo elegido, por navegador. */
+export const CLAVE_DISPOSITIVO_EDITOR = 'admin:editor-tienda:dispositivo';
+
+/**
+ * El valor guardado en `localStorage` puede ser cualquier string (otra versión, una clave vieja,
+ * algo corrupto) o `null` (nunca se eligió, o el storage no es accesible — modo privado). Sólo las
+ * tres claves válidas pasan; cualquier otra cosa cae al default, nunca a un dispositivo inventado.
+ */
+export function dispositivoDesdeStorage(valor: string | null): DispositivoKey {
+  return valor === 'escritorio' || valor === 'tablet' || valor === 'telefono' ? valor : DISPOSITIVO_DEFECTO;
+}
+
+/**
+ * La escala del dispositivo dentro del ancho DISPONIBLE del panel: 1 si el dispositivo entero cabe
+ * (se muestra a su ancho real, sin reducir), o `anchoDisponible / anchoDispositivo` si no cabe —
+ * nunca más de 1 (nunca se AGRANDA el dispositivo para llenar un panel más ancho que él; sólo se
+ * centra, que es trabajo del componente, no de esta función).
+ *
+ * `anchoDisponible <= 0` es "todavía no medido" (antes del primer `ResizeObserver`, o un nodo que
+ * salió del DOM — mismo caso que ya documenta `EscalaDesktop.tsx`): se trata como "cabe", para que
+ * el primer paint no muestre un dispositivo reducido a cero por una medición que aún no llegó.
+ */
+export function calcularEscalaDispositivo(anchoDisponible: number, anchoDispositivo: number): number {
+  if (!(anchoDisponible > 0) || !(anchoDispositivo > 0)) return 1;
+  return anchoDisponible >= anchoDispositivo ? 1 : anchoDisponible / anchoDispositivo;
+}

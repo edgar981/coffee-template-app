@@ -8,6 +8,10 @@ import {
   urlDePaginaEnEditor,
   selectorDeSeccion,
   scrollSeguro,
+  ANCHOS_DISPOSITIVO,
+  DISPOSITIVO_DEFECTO,
+  calcularEscalaDispositivo,
+  type DispositivoKey,
 } from '@/lib/admin/editor-iframe';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
@@ -62,10 +66,40 @@ export interface VistaTiendaIframeHandle {
 const COLOR_RESALTE = '#f59e0b';
 const DURACION_RESALTE_MS = 1500;
 
-const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKey }>(
-  function VistaTiendaIframe({ pagina }, ref) {
+const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKey; dispositivo?: DispositivoKey }>(
+  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
+    // EL DISPOSITIVO (§ EDITOR-TIENDA-DISPOSITIVOS-1, § 4.3 de DISENO.md): el canvas que mide su
+    // propio tamaño disponible (ResizeObserver, ancho Y alto — a diferencia de `EscalaDesktop`, que
+    // sólo mide ancho porque su contenido tiene alto NATURAL; acá el iframe no lo tiene — su alto es
+    // el que el canvas le dé, como un viewport real). No se remonta cuando cambia `pagina` (sólo el
+    // `<iframe key={pagina}>` de abajo lo hace), así que un `useEffect(() => {...}, [])` normal —sin
+    // el patrón de callback-ref de `EscalaDesktop`— es correcto acá: este nodo nunca es el que se
+    // desmonta y remonta.
+    const canvasRef = useRef<HTMLDivElement>(null);
+    const [medida, setMedida] = useState({ ancho: 0, alto: 0 });
+    useEffect(() => {
+      const nodo = canvasRef.current;
+      if (!nodo || typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(entries => {
+        const entry = entries[0];
+        if (!entry) return;
+        setMedida({ ancho: Math.round(entry.contentRect.width), alto: Math.round(entry.contentRect.height) });
+      });
+      ro.observe(nodo);
+      return () => ro.disconnect();
+    }, []);
+    const anchoDispositivo = ANCHOS_DISPOSITIVO[dispositivo];
+    const medido = medida.ancho > 0 && medida.alto > 0;
+    const escala = medido ? calcularEscalaDispositivo(medida.ancho, anchoDispositivo) : 1;
+    // El ancho VISIBLE del stage (<= ancho disponible, por construcción de `escala`); el alto
+    // INTERNO (sin escalar) se dimensiona para que, al multiplicarlo por `escala`, ocupe EXACTAMENTE
+    // el alto disponible — ni hueco ni recorte, nunca scroll del canvas. `medido` gatea los dos: sin
+    // medición todavía, el stage toma el 100% del canvas sin transformar (el primer paint, antes de
+    // que el ResizeObserver reporte — un sub-frame, no un estado visible de verdad).
+    const anchoVisible = medido ? Math.round(anchoDispositivo * escala) : anchoDispositivo;
+    const altoInterno = medido ? medida.alto / escala : undefined;
     // EL resalte ACTIVO (nodo + su timer de limpieza), no sólo el timer: con sólo el timer, resaltar
     // una SEGUNDA sección mientras la primera seguía iluminada cancelaría el timer de la primera sin
     // limpiar su outline (queda pegado para siempre), y resaltar la MISMA sección dos veces seguidas
@@ -177,6 +211,7 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
           </button>
         </div>
         <div
+          ref={canvasRef}
           style={{
             position: 'relative',
             flex: '1 1 auto',
@@ -185,16 +220,35 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, { pagina: PaginaKe
             borderRadius: 'var(--duna-r-l)',
             overflow: 'hidden',
             background: 'var(--duna-bg)',
+            display: 'flex',
+            justifyContent: 'center',
           }}
         >
-          <iframe
-            ref={iframeRef}
-            key={pagina}
-            src={rutaEditor}
-            title="Vista previa de la tienda"
-            onLoad={onLoad}
-            style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
-          />
+          {/* EL STAGE DEL DISPOSITIVO: ancho LITERAL del dispositivo elegido (así se activan los
+              breakpoints reales de la tienda — § 4.3 de DISENO.md), reducido ENTERO con
+              `transform: scale` sólo si no cabe en el canvas — nunca recortado, nunca con scroll
+              horizontal. El `<iframe>` ve su propio tamaño REAL (anchoDispositivo × altoInterno)
+              ANTES de la transformación: el scale es puramente visual, no cambia qué CSS responsivo
+              corre adentro. */}
+          <div style={{ width: anchoVisible, height: '100%', overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
+            <div
+              style={{
+                width: anchoDispositivo,
+                height: altoInterno ?? '100%',
+                transform: medido ? `scale(${escala})` : undefined,
+                transformOrigin: 'top left',
+              }}
+            >
+              <iframe
+                ref={iframeRef}
+                key={pagina}
+                src={rutaEditor}
+                title="Vista previa de la tienda"
+                onLoad={onLoad}
+                style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+              />
+            </div>
+          </div>
           {cargando && (
             <div className="duna-skel" aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 0 }} />
           )}

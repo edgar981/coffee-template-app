@@ -450,7 +450,7 @@ cada fila.
 | 2 | `EDITOR-TIENDA-IFRAME-VISTA-1` **— ENTREGADO, § 10** | El iframe reemplaza a `VistaTiendaEnVivo` dentro de `TiendaSeccionEditor`: navega a la ruta real en modo borrador, recarga tras cada guardado asentado (opción (b), § 2.b). Alcance AMPLIADO por encargo del owner: la composición lista↔iframe (no una vista por sección) y la mitad lista→iframe de la selección en contexto, § 10. | 1 (toca `app/(storefront)/page.tsx`/`nosotros/page.tsx`/`suscripciones/page.tsx`, en la lista Tier 1 — corregido otra vez, § 10) | Verificado por ejecución: `npm run gate` verde, `guarda:color` 0px (8 capturas), `verificar:nayoli`/`:visual` caracterizados contra el `main` stale (§ CIERRE-EDITOR-GATE-1) | VistaTiendaEnVivo/data-sf-tarjeta SIGUEN vivos — ver § 10, el retiro de la fila 7 queda más chico |
 | 3 | `EDITOR-TIENDA-POSTMESSAGE-1` | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla | 1 (el listener vive en el storefront, gateado a `useIsPreview()`) | Medido por ejecución: cero `navigation`/reload del iframe durante una sesión de tecleo, con el valor reflejado en <100ms |
 | 4 | `EDITOR-TIENDA-SELECCION-1` | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe | 1 (el atributo nuevo vive en los componentes de `components/storefront/`, gateado a preview) | Verificado por ejecución (clic en iframe abre la sección correcta en la lista, y viceversa) |
-| 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe | 2 (sólo toca `components/admin/`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 375px |
+| 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` **— alcance AMPLIADO por encargo del owner, § 12** | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe, **más la vista propia a pantalla completa** (§ 12, fuera del plan original de esta fila) | 2 (no toca `app/(storefront)/` ni `components/storefront/` — el criterio de Tier de esta tabla; el dispatch que ejecutó este slice lo etiquetó Tier 1 por cautela propia del orquestador, no porque este slice cumpla el criterio de la lista de `CLAUDE.md`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 393px (teléfono) y 768px (tablet); sin sesión, `/editor/tienda` rebota a `/login` |
 | 6 | `EDITOR-TIENDA-ORDEN-1` | Reordenar/ocultar bandas desde la lista lateral (§ 4.2): endpoint `orden` nuevo + UI de arrastre | 1 (el endpoint nuevo y `page.tsx` leen `content.orden`) | El orden que muestra el iframe tras arrastrar coincide con el que la home pública muestra tras publicar |
 | 7 | `EDITOR-TIENDA-RETIRO-1` | Retira `VistaTiendaEnVivo`, `varsDeTienda`, `FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay`, el puente `data-sf-tarjeta`/`puente-tarjetas.ts` y `preview-colores.test.ts` (ya no hay dos pipelines que comparar) | 1 (retira código de `components/admin/` que monta `components/storefront/`) | `npm run gate` verde sin esos archivos; censo por grep confirmando cero importadores restantes |
 
@@ -663,3 +663,105 @@ producto o el carrito navega a OTRA ruta (`/tienda`, `/tienda/[slug]`, `/checkou
 - **El `noindex` por-request (§ 5.2 punto 3, § 9.2)** sigue viviendo en `metadataRobotsSegunModo`,
   sin tocar — consume el MISMO booleano que `modoEditorActivo()` siempre produjo.
 - **CSP/`frame-ancestors` (§ 5.2 punto 5)** sigue sin resolverse, sin cambios por este slice.
+
+---
+
+## 12 · `EDITOR-TIENDA-DISPOSITIVOS-1` — la vista propia de pantalla completa, y el selector de
+    dispositivo (§ 4.3) tal como se construyó
+
+Gate del owner (2026-10-01), viendo el editor que `EDITOR-TIENDA-IFRAME-VISTA-1` dejó montado
+DENTRO de `/admin/tienda`: *"Se ve bien sin embargo se ve como en la vista movil, aun no se siente
+como un editor inline"* — y, sobre la forma: *"Escritorio por defecto, sino cabe en el panel, se
+puede abrir una nueva vista, es lo que hace Shopify el editor abre en una nueva vista no sale nada
+del panel de navegacion."* El ítem de § 6 (fila 5) sólo planeaba el selector de dispositivo; la
+vista propia es alcance NUEVO, por encargo explícito, igual que § 10 amplió la fila 2.
+
+### 12.1 · La vista propia — `app/(admin)/editor/`
+
+Hermana de `app/(admin)/admin/`, DENTRO del mismo grupo de rutas `(admin)` (hereda tema Duna,
+fuentes, `.admin-shell` de `app/(admin)/layout.tsx` sin tocar ese archivo) pero con su PROPIO
+`layout.tsx` que NO monta `AdminChrome` — sin sidebar, sin topbar del panel. `EditorTiendaPantalla
+Completa` (`components/admin/EditorTiendaPantallaCompleta.tsx`) es el único chrome de la ruta: una
+barra superior fina (volver al panel · pestañas de página · selector de dispositivo) y el cuerpo
+—`TiendaPaginas`— llenando el resto del viewport (`position: fixed; inset: 0`), sin scroll de
+documento.
+
+- **El gate de acceso se EXTRAJO, no se copió.** `lib/admin/acceso-admin.ts`
+  (`requerirSesionAdmin` + la mitad pura `decidirAccesoAdmin`, testeada en
+  `lib/admin/acceso-admin.test.ts`) es la ÚNICA definición de "sesión Better Auth válida + rol
+  OWNER/MANAGER activo contra la fila de `User`", compartida por `app/(admin)/admin/layout.tsx`
+  (que la llamaba inline desde 2026-08) y por `app/(admin)/editor/layout.tsx` (nuevo). Verificado
+  por ejecución: sin cookie de sesión, `/editor/tienda` rebota a `/login` — igual que `/admin/*`.
+- **`proxy.ts` gana `/editor(.*)` al matcher**, en el MISMO bloque que ya bota `/admin/*` sin
+  cookie — el pre-chequeo barato antes de llegar al layout del servidor.
+- **`TiendaPaginas` se volvió CONTROLADO.** Antes era dueño de su propio `pagina`/`resaltar`
+  (leídos de `useSearchParams`) y dibujaba su propio `role="tablist"`. Ahora recibe `pagina`,
+  `resaltar` y `dispositivo` por props — el tablist y el deep-link del aviso de config
+  (`?seccion=&tarjeta=`) subieron a `EditorTiendaPantallaCompleta`. Su layout interno dejó el
+  `sticky`/`--duna-topbar-h` (que asumía estar DENTRO del chrome del panel, con document-scroll) por
+  un `display:flex;height:100%` que llena la región que la vista propia le da — ya no hay topbar del
+  panel de la que calcular un offset.
+- **`/admin/tienda` se queda como PORTADA**, no redirige entera: los cinco ejes "cromo transversal"
+  (`PaletaSeccion`/`MenuSeccion`/`EncabezadoSeccion`/`DetallesSitioSeccion`/`FooterSeccion`) no
+  están en `touches:` de este slice —no se pueden reubicar— y no tienen vista previa en vivo (su
+  propio motivo, § 1.1). Se quedan en `/admin/tienda`, con una tarjeta "Secciones de la tienda" +
+  botón primario "Abrir editor" al final que lleva a `/editor/tienda`.
+- **El deep-link del aviso de config (`lib/config/avisos-configuracion.ts`, fuera de `touches:`)
+  sigue apuntando a `/admin/tienda?seccion=…&tarjeta=…`.** En vez de dejarlo roto o editar ese
+  archivo, `/admin/tienda/page.tsx` pasó a Server Component con `searchParams`: si trae `seccion`,
+  REENVÍA el query completo a `/editor/tienda?…` con `redirect()` antes de renderizar la portada.
+  El mecanismo vive en el propio `page.tsx`, no en `proxy.ts` (no hay una tabla de rutas que
+  traducir — sólo reenviar el query tal cual, mismo principio que § Backlog/`lib/redirect-*` de
+  CLAUDE.md pero sin esa plomería porque es un solo destino).
+
+### 12.2 · El selector de dispositivo (§ 4.3), construido
+
+`lib/admin/editor-iframe.ts` gana la parte PURA: `DispositivoKey`, `ANCHOS_DISPOSITIVO`
+(escritorio 1280 · tablet 768 · teléfono 393 — medidos contra lo que el repo YA usa, no
+inventados: `ANCHO_VIEWPORT` de `scripts/verificar-nayoli-visual.ts`, el breakpoint `md` de
+Tailwind ya usado como corte responsive del storefront, y el viewport del dispositivo Playwright
+"iPhone 15" ya nombrado en los comentarios de medición del repo), `DISPOSITIVO_DEFECTO` (escritorio),
+`CLAVE_DISPOSITIVO_EDITOR` (la clave de `localStorage`) y `calcularEscalaDispositivo` — con test en
+`lib/admin/editor-iframe.test.ts`.
+
+- **El iframe toma el ANCHO LITERAL, nunca se reflowa a otro ancho.** `VistaTiendaIframe` mide su
+  canvas (ancho Y alto, por `ResizeObserver`) y arma DOS cajas: una caja de recorte con el ancho
+  VISIBLE (`anchoDispositivo × escala`, centrada por `justify-content: center` del canvas) y, adentro,
+  una caja SIN escalar con el ancho LITERAL del dispositivo (`anchoDispositivo`) y un alto calculado
+  para que, multiplicado por la escala, llene EXACTAMENTE el alto disponible — nunca hueco, nunca
+  recorte, nunca scroll del canvas. El `<iframe>` vive dentro de esa segunda caja, así que su propio
+  viewport interno es el ancho REAL del dispositivo (393px de verdad para teléfono) — las clases
+  `sm:`/`md:` de Tailwind del storefront se activan de verdad, no por una ilusión de escala.
+  `transform: scale()` sólo se aplica cuando el dispositivo no entra en el canvas disponible —
+  verificado por ejecución: a 1280×900 de ventana del admin, Escritorio (1280) no escala (nav
+  completo visible); Tablet (768) y Teléfono (393) sí, centrados, con letterbox a los lados.
+- **Escritorio es el default**, recordado en `localStorage` (`admin:editor-tienda:dispositivo`, con
+  `try/catch` — sin storage accesible, se queda en el default) — resuelve el síntoma textual del
+  owner ("se ve como en la vista movil"): el editor viejo medía SIEMPRE el ancho del panel (una
+  columna angosta dentro del grid), así que el iframe rendía SIEMPRE con los breakpoints móviles
+  activos, sin que nadie lo hubiera elegido.
+- **"Ir a la sección" y el resalte siguen funcionando en los tres modos** (verificado por
+  ejecución): la escala es puramente VISUAL (CSS `transform` sobre un ancestro), así que
+  `contentDocument`/`contentWindow` del iframe —de donde salen `querySelector`, `scrollIntoView` y
+  el vigía de ruta— no cambian de comportamiento. El `onLoad`/scroll-preservado de `recargar()`
+  tampoco: opera sobre `win.scrollY`, coordenadas del documento del iframe, ajenas al scale del
+  contenedor.
+
+### 12.3 · Verificación — tráfico público, gate, y el editor en vivo
+
+- **`npm run gate`**: verde — `npm run typecheck` (0 errores), `npm test` (3022/3022), `npm run
+  test:integracion` (283/283).
+- **`npm run verificar:nayoli:visual` y `npm run guarda:color`**: las SEIS rutas públicas + los dos
+  hovers de `ProductCard` dan **0px** salvo `ruta:home`/`ruta-home`, que DIFIERE con la MISMA cifra
+  —al píxel— que el piso YA heredado de `SECCIONES-ENTRAN-VIVAS-1`/`SECCIONES-ENTRAN-UNA-VEZ-1`
+  (355.138/4.608.000 px consciente de AA, caja [96,862]–[1183,3306], documentado en
+  `DECISIONS.md`): este slice no toca `app/(storefront)/` ni `components/storefront/`, así que no
+  agrega ni un píxel sobre ese piso ya conocido.
+- **El editor en vivo**, con sesión real (seed efímero, `admin@sierranativa.co` / `ChangeMe123!`,
+  nunca contra `development`/producción): capturado en los tres modos de dispositivo, con la
+  ventana del navegador fija a 1280×900 (el tamaño de escritorio del arnés de
+  `verificar-nayoli-visual.ts`) — Escritorio muestra el nav completo del storefront (Tienda ·
+  Suscripciones · Nosotros), nunca el botón de menú de teléfono; Tablet y Teléfono muestran el nav
+  colapsado (ícono de menú), que es el comportamiento RESPONSIVE real de la tienda, no una
+  ilusión de escala. El botón "Abrir editor" de `/admin/tienda` y el cambio de página
+  (Home → Nosotros) también se verificaron por ejecución.
