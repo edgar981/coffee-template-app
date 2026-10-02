@@ -66,13 +66,17 @@ export default function NosotrosHistoria() {
       <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           {texto}
+          {/* RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-imagen`, no `rounded-2xl` crudo — gate del
+              owner, "un poco de redondeo pero sólo a las card de imágenes", y ésta es "la foto de
+              historia" que nombró. Fallback 1rem = el mismo `--radius-2xl` que `rounded-2xl` ya
+              resolvía bajo Suave → byte-idéntico para Nayoli. */}
           <motion.div
             initial={preview ? false : { opacity: 0, scale: 0.95 }}
             animate={preview ? { opacity: 1, scale: 1 } : undefined}
             whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
             viewport={preview ? undefined : { once: true }}
             transition={preview ? undefined : { duration: 0.6 }}
-            className="relative aspect-[3/4] overflow-hidden rounded-2xl"
+            className="relative aspect-[3/4] overflow-hidden sf-radio-imagen"
           >
             <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
           </motion.div>

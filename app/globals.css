@@ -667,13 +667,17 @@ html {
   .sf-radio-imagen  { border-radius: var(--sf-radio-imagen, 1rem); }
   .sf-sombra-imagen { box-shadow: var(--sf-sombra-imagen, 0 18px 44px rgba(16,36,7,0.14)); }
 
-  /* NOTA DE LECTURA (§ RADIOS-UN-SOLO-RITMO-1): los dos párrafos de arriba explican por qué
-     `.sf-radio-tile`/`.sf-radio-imagen` son CLASES separadas de `.sf-radio-lg` —roles distintos que
-     el prototipo medía en valores distintos (20px/16px vs 2px)—; esa separación sigue en pie. Lo
-     que cambió es el VALOR que `--sf-radio-tile`/`--sf-radio-imagen`/`--sf-pildora` reciben bajo
-     'recta': las tres, más los tres escalones `--radius-3xl/2xl/xl`, convergen hoy al MISMO radio
-     chico que `--sf-radio-lg` (2px) — ver `lib/config/formas.ts`. Sólo los FALLBACKS de acá (Suave)
-     quedan como estaban: 1.5rem/1rem, byte-idénticos a Nayoli.
+  /* NOTA DE LECTURA (§ RADIOS-UN-SOLO-RITMO-1, re-anotada por § RADIO-TARJETAS-IMAGEN-1): los dos
+     párrafos de arriba explican por qué `.sf-radio-tile`/`.sf-radio-imagen` son CLASES separadas de
+     `.sf-radio-lg` —roles distintos que el prototipo medía en valores distintos (20px/16px vs 2px)—;
+     esa separación sigue en pie. RADIOS-UN-SOLO-RITMO-1 hizo converger `--sf-radio-tile`/
+     `--sf-radio-imagen`/`--sf-pildora`, más los tres escalones `--radius-3xl/2xl/xl`, al MISMO radio
+     chico (`--sf-radio-lg`, entonces 2px). RADIO-TARJETAS-IMAGEN-1 (gate del owner: "un poco más de
+     redondeo, pero sólo a las card de imágenes") VUELVE A SEPARAR `--sf-radio-tile`/
+     `--sf-radio-imagen` de esa convergencia — las dos pasan a un radio PROPIO, más grande, mientras
+     `--sf-radio-lg`/`--sf-pildora`/`--radius-3xl/2xl/xl` siguen juntas en el radio chico — ver
+     `lib/config/formas.ts`. Sólo los FALLBACKS de acá (Suave) quedan como estaban: 1.5rem/1rem,
+     byte-idénticos a Nayoli. */
 
   /* BORDE (ciñe una tarjeta/control) vs DIVISOR (separa dos bandas de página). Se SEPARAN para
      que Mínima pueda APAGAR los divisores (divisor:0) sin apagar el borde de una tarjeta —que

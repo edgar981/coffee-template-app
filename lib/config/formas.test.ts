@@ -73,9 +73,11 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   assert.deepEqual(varsDeForma('suave'), {});
   const v = varsDeForma('recta');
   // § RADIOS-UN-SOLO-RITMO-1: los SIETE radios de 'recta' (los 3 escalones var-backed LEÍDOS hoy +
-  // radioLg/radioTile/radioImagen/pildora) comparten el MISMO valor chico — ya no 0/2/20/16px por
+  // radioLg/radioTile/radioImagen/pildora) compartieron el MISMO valor chico — ya no 0/2/20/16px por
   // separado. `pildoraReal` es la ÚNICA excepción (círculo, decisión anterior). § RADIO-UN-POCO-MAS-1
   // subió ese valor único de 2px a 4px (gate del owner: "un poco más redondeado, sin llegar a Mínima").
+  // § RADIO-TARJETAS-IMAGEN-1 separó `radioTile`/`radioImagen` de ese valor único (gate del owner: "un
+  // poco de redondeo, pero sólo a las card de imágenes") — ver más abajo, donde divergen a 10px.
   assert.equal(v['--radius-3xl'], '4px');
   assert.equal(v['--radius-2xl'], '4px');
   assert.equal(v['--radius-xl'], '4px');
@@ -83,8 +85,11 @@ test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 1
   // § BACKTOTOP-REDONDO-Y-ORDEN-1: pildoraReal, ídem; § HISTORIA-COLLAGE-COMO-PROTOTIPO-1: radioImagen/
   // sombraImagen, ídem — los tres nacen ya conectados, no en el período inerte de la mitad 1)
   assert.equal(v['--sf-radio-lg'], '4px');
-  assert.equal(v['--sf-radio-tile'], '4px'); // UNIFICADO — era 20px (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1)
-  assert.equal(v['--sf-radio-imagen'], '4px'); // UNIFICADO — era 16px (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1)
+  // § RADIO-TARJETAS-IMAGEN-1: radioTile/radioImagen YA NO comparten el valor único de arriba — era
+  // 20px (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1), ahora 10px, su PROPIO radio,
+  // más grande que el del resto del chrome.
+  assert.equal(v['--sf-radio-tile'], '10px');
+  assert.equal(v['--sf-radio-imagen'], '10px');
   assert.equal(v['--sf-sombra-imagen'], '0 18px 44px rgba(16,36,7,0.14)'); // la sombra NO se toca
   assert.equal(v['--sf-pildora'], '4px'); // UNIFICADO — era 0 (§ RADIOS-UN-SOLO-RITMO-1), luego 4px (§ RADIO-UN-POCO-MAS-1)
   // la excepción explícita: `pildoraReal` (el círculo genuino, § el docstring de `Forma.pildoraReal`)
@@ -174,24 +179,30 @@ test("'recta' conserva su trazo de HOY (1.25) tras § CORTE-CUERPO-LETRA-E-ICONO
   assert.equal(recta.trazo, '1.25');
 });
 
-// § RADIOS-UN-SOLO-RITMO-1 (2026-10-01) — el GUARDIÁN del "un solo radio": las SIETE claves de radio
-// de 'recta' (menos `pildoraReal`, la excepción explícita del círculo) tienen que ser EXACTAMENTE el
-// mismo valor. Un valor que vuelva a divergir aquí reintroduce el ritmo quebrado que el owner reportó
-// ("hay cards con puntas un poco redondeadas pero hay otras totalmente rectas"). 'minima' NO se afirma
-// acá: el owner no pidió su unificación interna, sólo descartó aplicarla entera por redondear de más.
-// § RADIO-UN-POCO-MAS-1 (2026-10-01): el valor único subió de 2px a 4px (gate del owner: "un poco más
-// redondeado, sin llegar a Mínima"); el GUARDIÁN de la convergencia no cambia, sólo la cifra que afirma.
-test("'recta' — las SIETE claves de radio convergen a UN SOLO valor; pildoraReal sigue siendo círculo", () => {
+// § RADIOS-UN-SOLO-RITMO-1 (2026-10-01) — el GUARDIÁN del "un solo radio" nació afirmando que las
+// SIETE claves de radio de 'recta' (menos `pildoraReal`) eran EXACTAMENTE el mismo valor, para que un
+// valor que volviera a divergir reintrodujera a propósito el ritmo quebrado que el owner reportó
+// ("hay cards con puntas un poco redondeadas pero hay otras totalmente rectas"). § RADIO-TARJETAS-
+// IMAGEN-1 (2026-10-02) VOLVIÓ a hacerlas divergir, A PROPÓSITO y por pedido del owner ("un poco de
+// redondeo, pero sólo a las card de imágenes; botones y demás se quedan como están"): ya no son
+// SIETE las que convergen, son CINCO (el chrome: radius3xl/2xl/xl, radioLg, pildora); `radioTile`/
+// `radioImagen` ganan su PROPIO valor, mayor, junto con `pildoraReal` (el círculo) como las dos
+// excepciones nombradas. El guardián pasa a afirmar las DOS mitades del eje, no una sola convergencia.
+// 'minima' sigue sin afirmarse acá: el owner no pidió su unificación interna.
+test("'recta' — CINCO claves de CHROME convergen a UN radio chico; radioTile/radioImagen tienen su PROPIO radio más grande; pildoraReal sigue siendo círculo", () => {
   const recta = FORMAS.find((f) => f.clave === 'recta')!;
-  const unificadas = [
-    recta.radius3xl, recta.radius2xl, recta.radiusXl,
-    recta.radioLg, recta.radioTile, recta.radioImagen, recta.pildora,
-  ];
-  assert.ok(unificadas.every((r) => r === unificadas[0]), `no todas iguales: ${JSON.stringify(unificadas)}`);
-  assert.equal(unificadas[0], '4px');
-  // la excepción nombrada: un círculo real, no un radio chico.
+  const chrome = [recta.radius3xl, recta.radius2xl, recta.radiusXl, recta.radioLg, recta.pildora];
+  assert.ok(chrome.every((r) => r === chrome[0]), `no todas iguales: ${JSON.stringify(chrome)}`);
+  assert.equal(chrome[0], '4px');
+  // las DOS claves de imagen/tile (§ RADIO-TARJETAS-IMAGEN-1): su propio valor, mayor que el chrome,
+  // y las dos IGUALES entre sí (el pedido del owner no distinguió "tile" de "imagen").
+  assert.equal(recta.radioTile, '10px');
+  assert.equal(recta.radioImagen, '10px');
+  assert.notEqual(recta.radioTile, chrome[0]);
+  // la excepción nombrada: un círculo real, no un radio chico — y tampoco el radio de imagen/tile.
   assert.equal(recta.pildoraReal, '9999px');
-  assert.notEqual(recta.pildoraReal, unificadas[0]);
+  assert.notEqual(recta.pildoraReal, chrome[0]);
+  assert.notEqual(recta.pildoraReal, recta.radioTile);
 });
 
 // § RADIO-UN-POCO-MAS-1 (2026-10-01) — el PISO que justifica "4px no se parece a Mínima": el radio más

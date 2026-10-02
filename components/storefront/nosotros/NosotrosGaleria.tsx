@@ -136,13 +136,17 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
             // El break-inside va en un envoltorio ESTÁTICO; la animación (transform) va dentro, para
             // no mezclar el transform con la regla de corte de columna.
             <div key={i} className="mb-4 break-inside-avoid">
+              {/* RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-imagen`, no `rounded-2xl` crudo — gate
+                  del owner, "un poco de redondeo pero sólo a las card de imágenes", y ésta es "la
+                  galería de /nosotros" que nombró. Fallback 1rem = el mismo `--radius-2xl` que
+                  `rounded-2xl` ya resolvía bajo Suave → byte-idéntico para Nayoli. */}
               <motion.div
                 initial={preview ? false : "hidden"}
                 animate={preview ? "visible" : undefined}
                 whileInView={preview ? undefined : "visible"}
                 viewport={preview ? undefined : { once: true }}
                 variants={fadeUp}
-                className="relative overflow-hidden rounded-2xl bg-[var(--sf-linea)]"
+                className="relative overflow-hidden sf-radio-imagen bg-[var(--sf-linea)]"
                 style={{ aspectRatio: f.w && f.h ? `${f.w} / ${f.h}` : "4 / 3" }}
               >
                 {f.tipo === "video" ? (

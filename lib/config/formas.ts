@@ -92,6 +92,19 @@
 // `radioLg`, la fila de abajo) — 4px queda por debajo de ese piso, así que la nueva CORTE sigue sin
 // parecerse a Mínima por construcción, no por coincidencia. `pildoraReal`/`sombraImagen` siguen sin
 // tocarse, por las mismas razones de arriba.
+//
+// § RADIO-TARJETAS-IMAGEN-1 (2026-10-02) — gate del owner sobre la demo de Café Las Chamisas: «Agrega
+// en un poco de redondeo a los bordes pero solo a las card de imagenes. Los de botones y demas se
+// quedan como estan.» `radioTile`/`radioImagen` SE SEPARAN de `RADIO_UNIFICADO_RECTA`: las imágenes/
+// media (fotos de producto, el riel, la tarjeta del hero, las fotos de historia/origen/nosotros, la
+// galería de /nosotros) pasan a un radio PROPIO y más grande (`RADIO_IMAGEN_RECTA`, 10px); botones,
+// píldoras, badges, campos y chrome en general —`radius3xl/2xl/xl`, `radioLg`, `pildora`— SE QUEDAN
+// en `RADIO_UNIFICADO_RECTA` (4px), sin tocar. No es deshacer RADIOS-UN-SOLO-RITMO-1: ese slice
+// cerró CUATRO valores medidos por separado contra el prototipo (0/2/20/16px) en UN solo radio para
+// terminar con el ritmo quebrado que el owner reportó entonces; éste abre un EJE DE DOS, no de
+// cuatro —imagen/tile vs. el resto del chrome—, y los CINCO campos que quedan en
+// `RADIO_UNIFICADO_RECTA` siguen siendo exactamente el mismo único valor entre sí. `pildoraReal`/
+// `sombraImagen` siguen sin tocarse, por las mismas razones de siempre.
 
 // El tuple runtime del set cerrado — para el `z.enum` del schema del PUT (una sola fuente con el tipo).
 export const CLAVES_FORMAS = ['suave', 'recta', 'minima'] as const;
@@ -150,19 +163,31 @@ export interface Forma {
   badgeTracking: string;  // --sf-badge-tracking  (letter-spacing del badge)
 }
 
-// NOTA DE LECTURA (§ RADIOS-UN-SOLO-RITMO-1): los docstrings de `radioTile`/`radioImagen`/`pildora`
-// arriba explican por qué son CAMPOS separados de `radioLg` (roles distintos, que podían divergir en
-// valor) — esa separación sigue siendo cierta y no se tocó. Lo que cambió es el VALOR que 'recta' les
-// asigna: los cuatro (más `radius3xl/2xl/xl`) convergen al mismo `RADIO_UNIFICADO_RECTA`, abajo. Los
-// campos siguen siendo cuatro porque 'minima' y una 'recta' futura podrían volver a diferenciarlos;
-// hoy no lo hacen.
+// NOTA DE LECTURA (§ RADIOS-UN-SOLO-RITMO-1, re-anotada por § RADIO-TARJETAS-IMAGEN-1): los
+// docstrings de `radioTile`/`radioImagen`/`pildora` arriba explican por qué son CAMPOS separados de
+// `radioLg` (roles distintos, que podían divergir en valor) — esa separación sigue siendo cierta y
+// no se tocó. RADIOS-UN-SOLO-RITMO-1 hizo converger los SIETE al mismo `RADIO_UNIFICADO_RECTA`;
+// RADIO-TARJETAS-IMAGEN-1 vuelve a separar DOS de ellos (`radioTile`/`radioImagen`) a su propio radio
+// más grande (`RADIO_IMAGEN_RECTA`, abajo) — los otros CINCO (`radius3xl/2xl/xl`, `radioLg`,
+// `pildora`) siguen convergiendo entre sí. Los campos siguen siendo cuatro (más `pildoraReal`) porque
+// 'minima' y una 'recta' futura podrían volver a diferenciarlos más; hoy sólo el eje imagen/chrome
+// los separa.
 
-// El radio ÚNICO de 'recta' (§ RADIOS-UN-SOLO-RITMO-1, el docstring de cabecera): reusado por los
-// SIETE campos de radio que antes divergían (0/2/20/16px). Una constante, no siete literales
+// El radio ÚNICO del CHROME de 'recta' (§ RADIOS-UN-SOLO-RITMO-1, el docstring de cabecera): reusado
+// por los CINCO campos de radio de botón/chip/campo/chrome (antes siete, hasta que
+// RADIO-TARJETAS-IMAGEN-1 separó `radioTile`/`radioImagen`, abajo). Una constante, no literales
 // repetidos, para que "son el MISMO radio" sea verificable leyendo el código, no sólo el resultado.
 // § RADIO-UN-POCO-MAS-1: 2px → 4px (gate del owner, "un poco más redondeado, sin llegar a Mínima");
 // 4px < 6px (el radio más chico de 'minima'), medido contra la fila de abajo antes de cambiar esto.
 const RADIO_UNIFICADO_RECTA = '4px';
+
+// El radio de IMAGEN/TILE de 'recta' (§ RADIO-TARJETAS-IMAGEN-1, el docstring de cabecera): sólo
+// `radioTile`/`radioImagen` lo usan — el "un poco más de redondeo" que el gate del owner pidió
+// EXCLUSIVAMENTE para las tarjetas de imagen, sin tocar `RADIO_UNIFICADO_RECTA` (botones/píldoras/
+// badges/campos). Valor dado por el spec, no derivado de una medición contra el prototipo (a
+// diferencia de RADIOS-UN-SOLO-RITMO-1): el prototipo no tiene esta separación de dos ejes, es un
+// pedido de producto sobre la unificación que CORTE ya tenía.
+const RADIO_IMAGEN_RECTA = '10px';
 
 // El registro. `suave` va PRIMERO (es el default) y su muestra en el picker representa "la de hoy".
 export const FORMAS: readonly Forma[] = [
@@ -185,22 +210,28 @@ export const FORMAS: readonly Forma[] = [
     clave: 'recta', label: 'Recta',
     descripcion: 'Esquina viva y regla tipográfica.',
     // § RADIOS-UN-SOLO-RITMO-1 — las SIETE claves de abajo (radius3xl/2xl/xl, radioLg, radioTile,
-    // radioImagen, pildora) comparten `RADIO_UNIFICADO_RECTA`. Antes: 0/0/0 (botón/chrome, "Buttons
+    // radioImagen, pildora) compartían `RADIO_UNIFICADO_RECTA`. Antes: 0/0/0 (botón/chrome, "Buttons
     // and interface chrome are SQUARE", el valor medido del prototipo) + 2px (radioLg, el ojo/carrito)
     // + 20px (radioTile, el tile de Spotlight/riel) + 16px (radioImagen, el collage de fotos) — CUATRO
     // valores medidos por separado, cada uno "correcto" contra su propio rol del prototipo y a la vez
-    // la causa del ritmo quebrado que el owner reportó. El gate de esta vez pesa más que la exactitud
+    // la causa del ritmo quebrado que el owner reportó. El gate de esa vez pesó más que la exactitud
     // por rol: un solo radio, en TODO lo que es tarjeta/botón/campo/chip/caja/panel — fotos de sección
     // incluidas (§ el docstring de `radioImagen`, abajo). `pildoraReal` queda AFUERA, a propósito
     // (sigue en `9999px`, ver el docstring de ese campo y el de cabecera): un círculo real no es un
     // matiz de radio.
+    //
+    // § RADIO-TARJETAS-IMAGEN-1 — `radioTile`/`radioImagen` SE SEPARAN de ese unificado (ver el
+    // docstring de cabecera del archivo): gate del owner, "un poco de redondeo pero sólo a las card de
+    // imágenes; botones y demás se quedan como están". Los CINCO campos de abajo siguen convergiendo
+    // en `RADIO_UNIFICADO_RECTA`; `radioTile`/`radioImagen` pasan a `RADIO_IMAGEN_RECTA` (10px), un
+    // SEGUNDO valor, más grande, sólo para imagen/media.
     radius3xl: RADIO_UNIFICADO_RECTA, radius2xl: RADIO_UNIFICADO_RECTA, radiusXl: RADIO_UNIFICADO_RECTA,
-    radioLg: RADIO_UNIFICADO_RECTA, radioTile: RADIO_UNIFICADO_RECTA,
-    // radioImagen UNIFICADO (§ RADIOS-UN-SOLO-RITMO-1): antes 16px, medido contra `--radius-image` del
-    // prototipo (`tokens.css:168`) — el owner pidió el MISMO radio chico también para las fotos de
-    // sección (Historia, Origen, Nosotros), "sin excepciones". `sombraImagen` NO se toca: la sombra se
-    // conserva, sólo la esquina cambia.
-    radioImagen: RADIO_UNIFICADO_RECTA, sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
+    radioLg: RADIO_UNIFICADO_RECTA, radioTile: RADIO_IMAGEN_RECTA,
+    // radioImagen (§ RADIO-TARJETAS-IMAGEN-1): el MISMO `RADIO_IMAGEN_RECTA` que `radioTile` —no hay
+    // evidencia de que el owner quiera un tercer valor para "imagen" distinto de "tile"; el pedido fue
+    // "las card de imágenes", sin distinguir fotos de sección de tiles de producto. `sombraImagen` NO
+    // se toca: la sombra se conserva, sólo la esquina cambia.
+    radioImagen: RADIO_IMAGEN_RECTA, sombraImagen: '0 18px 44px rgba(16,36,7,0.14)',
     pildora: RADIO_UNIFICADO_RECTA, pildoraReal: '9999px',
     borde: '1.5px', divisor: '1px', trazo: '1.25',
     badgeCaja: 'uppercase', badgeTracking: '0.12em',

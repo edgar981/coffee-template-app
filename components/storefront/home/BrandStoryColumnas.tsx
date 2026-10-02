@@ -89,8 +89,12 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
             preview={preview}
             className={`grid gap-4 ${imagenesLlenas.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
           >
+            {/* RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-imagen`, no `rounded-2xl` crudo — gate del
+                owner, "un poco de redondeo pero sólo a las card de imágenes". Fallback 1rem = el
+                mismo `--radius-2xl` que `rounded-2xl` ya resolvía bajo Suave → byte-idéntico para
+                Nayoli, que monta ESTA variante canónica. */}
             {imagenesLlenas.map(({ campo, alt, offset }) => (
-              <div key={campo} className={`relative h-48 overflow-hidden rounded-2xl ${offset}`}>
+              <div key={campo} className={`relative h-48 overflow-hidden sf-radio-imagen ${offset}`}>
                 <Image
                   src={brandStory[campo]}
                   alt={alt}

@@ -99,10 +99,19 @@ export default function ProductCard({
       href={`/tienda/${product.slug}`}
       className="group block"
     >
+      {/* `sf-radio-imagen` (§ RADIO-TARJETAS-IMAGEN-1) en vez de `rounded-2xl` crudo — gate del owner:
+          "un poco de redondeo pero sólo a las card de imágenes". Esta es LA card de la foto del
+          producto: el cuerpo visible es `aspect-square` de foto, el `p-4` de abajo (nombre/precio) es
+          leyenda. El radio va en el ÚNICO contenedor con `overflow-hidden` que ya existía — no se le
+          agrega un radio PROPIO a la foto interior (línea de abajo), que seguiría sin el suyo: con
+          DOS radios distintos anidados (el de la foto > el de la card) el recorte de la foto
+          revelaría una curva de fondo DENTRO de la curva de la card, un artefacto visual que ningún
+          otro contenedor de imagen de esta tanda tiene — por eso el valor sube en el contenedor que
+          YA clipea, no en uno nuevo. */}
       <motion.div
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
-        className="overflow-hidden rounded-2xl sf-borde border-[var(--sf-linea)] bg-[var(--sf-tarjeta)] transition-all duration-300 hover:shadow-lg"
+        className="overflow-hidden sf-radio-imagen sf-borde border-[var(--sf-linea)] bg-[var(--sf-tarjeta)] transition-all duration-300 hover:shadow-lg"
       >
         {/* Image — el contenedor crema de marca queda como fallback si el
             producto no tiene imagen (evita pasar undefined a next/image). */}

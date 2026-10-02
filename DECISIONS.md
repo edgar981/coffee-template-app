@@ -43195,3 +43195,190 @@ lo pedía explícito por `customer-bytes`. Commiteado en `slice/corte-reescritur
 
 **No cierra `MARQUESINA-TARJETA-SECUENCIA-1`** — queda abierto hasta que `HERO-MARQUESINA-TEST-SYNC-1`
 se resuelva (ampliando este slice o como follow-up) y el gate completo corra verde.
+
+## 2026-10-02 — Las tarjetas de IMAGEN ganan su PROPIO radio bajo CORTE, separado del chrome (`RADIO-TARJETAS-IMAGEN-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobación del owner, 2026-10-02,
+sobre la demo de Café Las Chamisas: «Agrega en un poco de redondeo a los bordes pero solo a las card
+de imagenes. Los de botones y demas se quedan como estan.» Los otros pedidos del mismo gate (la
+secuencia de la tarjeta del hero — `MARQUESINA-TARJETA-SECUENCIA-1`, arriba —, el hover de 2ª/3ª foto
+en `/tienda`, el logo del nav móvil) **no están en el `touches:` de este slice** y no se tocan acá.
+
+### 1 · El split — `RADIO_IMAGEN_RECTA`, separado de `RADIO_UNIFICADO_RECTA`
+
+Bajo 'recta' (CORTE), `RADIOS-UN-SOLO-RITMO-1` (2026-10-01) había hecho converger SIETE claves de
+radio —`radius3xl/2xl/xl`, `radioLg`, `radioTile`, `radioImagen`, `pildora`— a UN SOLO valor
+(`RADIO_UNIFICADO_RECTA`, 4px tras `RADIO-UN-POCO-MAS-1`). Este slice separa DOS de esas siete
+—`radioTile`/`radioImagen`— a un radio PROPIO y más grande, `RADIO_IMAGEN_RECTA = '10px'`
+(`lib/config/formas.ts`); las CINCO que quedan (`radius3xl/2xl/xl`, `radioLg`, `pildora` — botones,
+píldoras, badges, campos, chrome) siguen convergiendo entre sí en `RADIO_UNIFICADO_RECTA`, sin
+tocar. No es deshacer la unificación de `RADIOS-UN-SOLO-RITMO-1`: aquélla cerró CUATRO valores
+medidos por separado contra el prototipo (0/2/20/16px) en uno solo para terminar con el ritmo
+quebrado que el owner reportó entonces; ésta abre un EJE DE DOS —imagen/tile vs. el resto del
+chrome—, no una vuelta a cuatro. `pildoraReal`/`sombraImagen` siguen sin tocarse, por las mismas
+razones de siempre (§ el docstring de cabecera de `formas.ts`).
+
+El valor (10px) lo da el spec, no una medición contra el prototipo: el prototipo (cafeone) no
+declara este eje de dos niveles — es un pedido de producto sobre la unificación que CORTE ya tenía,
+no una paridad con `docs/prototipos/`.
+
+`lib/config/formas.test.ts` se actualizó: el guardián "las SIETE convergen" (§ `RADIOS-UN-SOLO-
+RITMO-1`) pasa a afirmar las DOS mitades — CINCO claves de chrome convergen a 4px, `radioTile`/
+`radioImagen` tienen su propio 10px, y `pildoraReal` sigue aparte de las dos. `lib/config/theme-
+mirador.test.ts` gana dos aserciones (`--sf-radio-tile:10px`, `--sf-radio-imagen:10px`) junto a las
+tres de chrome que ya tenía, en el mismo test del eje completo. Las DOS suites, verdes.
+
+### 2 · El censo — qué contenedor de foto lee qué, y qué se tocó
+
+Dentro del `touches:`, cada contenedor cuyo contenido es una foto, bajo CORTE:
+
+| Archivo | Contenedor | Antes | Después | Tocado |
+| --- | --- | --- | --- | --- |
+| `ProductCard.tsx` | card completa (foto + nombre/precio, el ÚNICO elemento con `overflow-hidden`+radio del componente) | `rounded-2xl` | `sf-radio-imagen` | sí |
+| `HeroMediaMarquesina.tsx` | tarjeta flotante del hero (`aspect-[3/4]`, = `.marquee-card` del prototipo) | `rounded-2xl` | `sf-radio-tile` | sí |
+| `BrandStoryColumnas.tsx` | celda del collage 2×2 (variante CANÓNICA/Nayoli, no la que CORTE monta) | `rounded-2xl` | `sf-radio-imagen` | sí |
+| `NosotrosHistoria.tsx` | foto de la columna (rama con imagen) | `rounded-2xl` | `sf-radio-imagen` | sí |
+| `NosotrosGaleria.tsx` | celda del masonry | `rounded-2xl` | `sf-radio-imagen` | sí |
+| `GrindChooserRiel.tsx` | tile del riel | ya `sf-radio-tile` | sin cambio | no (ya correcto) |
+| `Spotlight.tsx` | stage (`.bag-card`) | ya `sf-radio-tile` | sin cambio | no (ya correcto) |
+| `Origen.tsx` | las dos fotos | ya `sf-radio-imagen` | sin cambio | no (ya correcto) |
+| `BrandStoryCentrada.tsx` | collage (variante que CORTE monta) | ya `sf-radio-imagen` | sin cambio | no (ya correcto) |
+| `SubscriptionCTALinea.tsx` | fondo `absolute inset-0` | SIN radio (a sangre) | sin cambio | no (no es tarjeta, es banner a sangre) |
+| `VistaRapidaProducto.tsx` | panel del modal | `rounded-3xl` (chrome del diálogo, no foto) | sin cambio | no (la galería que SÍ es foto vive en `GaleriaProducto.tsx`, fuera de `touches:`, § abajo) |
+
+**`ProductCard.tsx` — por qué el radio sube en el contenedor de la CARD, no en un radio nuevo sobre
+la foto interior.** El `<div aspect-square>` de la foto no tiene radio propio hoy — el redondeo
+visible de sus esquinas superiores sale del ÚNICO contenedor con `overflow-hidden` que lo envuelve,
+el `motion.div` de la card entera (foto + `p-4` de nombre/precio). Dos radios anidados con valores
+distintos (10px en la foto, 4px en la card) habrían dejado una curva de fondo visible DENTRO de una
+curva más cerrada — un artefacto, no un "poco más de redondeo". El valor sube en el contenedor que
+YA clipea.
+
+**`BrandStoryColumnas.tsx` NO es lo que CORTE renderiza** — CORTE pide `brandStory:'centrada'`
+(`BrandStoryCentrada.tsx`, ya correcto); `columnas` es la variante CANÓNICA (Nayoli, sin preset). Se
+tocó de todos modos porque su contenedor SÍ lee `rounded-2xl` crudo bajo el mismo mecanismo
+(`--radius-2xl`, hoy 4px bajo CORTE), y el fallback de `sf-radio-imagen` (1rem) es EXACTO al que
+`rounded-2xl` ya resolvía bajo Suave — el cambio es correcto para Nayoli/canónica, aunque CORTE no
+lo ejercite.
+
+### 3 · Lo que NO se pudo tocar — `GaleriaProducto.tsx`, fuera de `touches:`
+
+El spec nombra "la galería de la vista rápida y de la ficha" como una de las superficies a
+redondear. **Las dos galerías son el MISMO componente, `components/storefront/pdp/GaleriaProducto.
+tsx`** — lo monta `VistaRapidaProducto.tsx` (vista rápida) Y `app/(storefront)/tienda/[slug]/
+page.tsx` (ficha, bajo `navTratamiento.posicion`, que CORTE enciende), confirmado leyendo las dos
+líneas de import. **Ese archivo no está en `touches:`** de este slice — `VistaRapidaProducto.tsx` sí
+lo está, pero su propio contenido no tiene ningún contenedor de foto (sólo el panel del modal,
+chrome, y delega la galería entera a `GaleriaProducto`). No se tocó: un path no declarado no está
+cubierto por esta aprobación. Las dos fotos que `GaleriaProducto.tsx` sí redondea (`rounded-3xl` en
+el hero, `rounded-xl` en las miniaturas) **se quedan en 4px**, sin la bajada a este slice — medido
+por ejecución (§ Gate, abajo): tanto en la ficha como en la vista rápida, su radio sigue en 4px,
+sin cambio.
+
+### Gate
+
+`npm run typecheck` (`tsc --noEmit`) — limpio. `npm test`: **3077/3078**, el MISMO fallo preexistente
+de `MARQUESINA-TARJETA-SECUENCIA-1` (`lib/config/hero-marquesina.test.ts:250`, fuera de `touches:` de
+ESTE slice también, abierto como `HERO-MARQUESINA-TEST-SYNC-1`) — `lib/config/formas.test.ts`
+(16/16) y `lib/config/theme-mirador.test.ts` (13/13), los dos archivos de test DENTRO de `touches:`,
+pasan limpio. `npm run test:integracion`: **286/286**, mismo piso que el slice anterior, sin cambio
+de figura.
+
+**MEDIDO CONTRA EL NAVEGADOR REAL, no sólo por los tests** — Playwright, Postgres efímero propio
+(`.scratch/verificar-radios.ts`, no comiteado) + seed canónico + preset CORTE + siembra de
+`marquesina.productoSlug`/`nosotrosHistoria.imagen`/`nosotrosGaleria.items` (vacíos por defecto,
+hide-on-empty — sin sembrarlos esas secciones no rinden nada que fotografiar, mismo mecanismo que
+`sembrarSpotlight`/`sembrarOrigen` de `scripts/capturar-seccion.ts`) + `next build`/`next start`,
+`getComputedStyle(...).borderRadius` en DOS motores (Chromium 1440×900, WebKit iPhone 390×844) sobre
+9 objetivos — home (riel, destacado, tarjeta del hero, origen), `/tienda`, una ficha
+(`/tienda/cafe-nayoli-grano-250g`), `/nosotros` (historia, galería), y la vista rápida (clic en el
+ojo del riel):
+
+| objetivo | contenedor | Chromium 1440×900 | WebKit iPhone 390×844 |
+| --- | --- | --- | --- |
+| home-riel | riel tile | **10px** | **10px** |
+| home-destacado | spotlight bag-card | **10px** | **10px** |
+| home-hero-tarjeta | tarjeta hero | **10px** | **10px** |
+| home-origen | foto origen | **10px** | **10px** |
+| tienda | ProductCard | **10px** | **10px** |
+| tienda | botón vecino (control, no foto) | 4px | 4px |
+| ficha | hero de `GaleriaProducto` (fuera de `touches:`) | 4px | 4px |
+| nosotros-historia | foto historia | **10px** | **10px** |
+| nosotros-galeria | foto galería | **10px** | **10px** |
+| vista-rapida | hero de `GaleriaProducto` en el modal (fuera de `touches:`) | 4px | 4px |
+
+Las 18 capturas (9 objetivos × 2 motores) quedaron en `.capturas/radio-tarjetas-imagen-1/`
+(gitignorado, no comiteado). Dos de ellas (`home-hero-tarjeta`, `nosotros-galeria`) muestran el
+estado PRE-scroll de la página (el arnés no scrollea) — el `getComputedStyle` SÍ midió el elemento
+real fuera de vista (la propiedad CSS no depende de si el elemento está en viewport), pero el PNG de
+esos dos no es una confirmación visual, sólo numérica. El resto (p. ej. `nosotros-historia`,
+`tienda`) sí muestra el redondeo a simple vista, en los dos motores.
+
+**`npm run guarda:color` y `npm run verificar:nayoli:visual` — NO están en 0px, por el MISMO
+hallazgo ajeno que `MARQUESINA-TARJETA-SECUENCIA-1` ya documentó y aceptó
+(`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`), RE-CONFIRMADO SIN CAMBIO DE FIGURA:** `ruta-home`
+(`ruta:home` en `verificar:nayoli:visual`) difiere en **164889/4608000 px** (consciente de AA),
+caja **[105,862]–[1183,3166]** — el MISMO número, la MISMA caja, que la medición de
+`MARQUESINA-TARJETA-SECUENCIA-1` sobre esta misma rama. Las demás 5 rutas y los 2 hovers: **IDÉNTICO
+(0 px)** en las dos corridas. Que `ruta:tienda` y `ruta:nosotros` den **0 px** es la prueba más
+fuerte de que este diff no mueve un píxel para Nayoli: esas dos rutas SÍ montan
+`ProductCard.tsx`/`NosotrosHistoria.tsx`/`NosotrosGaleria.tsx` —los archivos que este slice edita—, y
+su diff contra `main` es CERO. La figura de `ruta-home` sin cambiar confirma además que
+`BrandStoryColumnas.tsx` (que SÍ monta en la home de Nayoli) tampoco movió un píxel: si lo hubiera
+hecho, el número habría cambiado respecto a la medición anterior, y no cambió. No se investiga de
+nuevo acá — sigue siendo el mismo hallazgo ajeno a los archivos de este diff (ninguno de los
+archivos que mueven `ruta-home` bajo Nayoli está en el `touches:` de este slice, salvo
+`BrandStoryColumnas.tsx`, y su propio byte-a-byte da 0 en las rutas donde SÍ se ejercita).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambia: `RADIO_UNIFICADO_RECTA`, `RADIO_IMAGEN_RECTA`, `Forma.radioTile`,
+`Forma.radioImagen`, `.sf-radio-tile`, `.sf-radio-imagen`, `ProductCard.tsx`, `HeroMediaMarquesina.
+tsx`, `BrandStoryColumnas.tsx`, `NosotrosHistoria.tsx`, `NosotrosGaleria.tsx`. Grepeados uno por uno:
+`RADIO_UNIFICADO_RECTA`/`RADIO_IMAGEN_RECTA`/`radioTile`/`radioImagen`/`sf-radio-tile`/
+`sf-radio-imagen`/`RADIOS-UN-SOLO-RITMO`/`RADIO-UN-POCO-MAS`/`eje 4`/`lib/config/formas` — **CERO
+coincidencias** en `CLAUDE.md`: el archivo no documenta el sistema de forma/radio en absoluto (vive
+sólo en este libro y en los comentarios del código). `CORTE` da 3 coincidencias, las tres ajenas
+(`CORTE-BRANDSTORY-COLLAGE-1` como parte de un id de slice, y "EL CORTE" de `ESTADOS_HISTORIAL` en
+automatizaciones — "corte" como recorte de historial, dominio distinto). `ProductCard` da 7
+coincidencias (provider tree de `CartContext`, tratamiento tipográfico del precio, guardas de imagen
+`{imagen && …}`) — ninguna sobre radio/redondeo. `NosotrosGaleria` da 2 (el prop `negocio`/
+`SiteSettingsProvider`) — tampoco sobre radio. Nada que declarar falso.
+
+### `customer_bytes`
+
+**`changed: true`.** Bajo CORTE (hoy, Onix/Las Chamisas), las esquinas de las tarjetas de producto,
+el riel, la tarjeta del hero, las fotos de historia/origen y la galería de /nosotros pasan de 4px a
+10px de radio — un visitante lo ve. `strings: []` — ningún texto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo, sin contrato cross-repo.
+
+### Open follow-ups
+
+- `GALERIA-PRODUCTO-RADIO-FUERA-DE-TOUCHES-1` — `components/storefront/pdp/GaleriaProducto.tsx`
+  (el hero `rounded-3xl` y las miniaturas `rounded-xl`, compartidos por la ficha y la vista rápida)
+  siguen en el radio de CHROME (4px), no en el de imagen (10px) — el spec nombraba ambas galerías
+  pero el archivo que las implementa no estaba en `touches:`. Necesita su propio sign-off: ¿pasan a
+  `sf-radio-imagen`/`sf-radio-tile`, o se quedan en chrome por ser miniaturas/control de galería y
+  no "la foto" en sí? Es una pregunta de producto, no una omisión técnica.
+- `HERO-MARQUESINA-TEST-SYNC-1` — sigue abierto, sin cambio (no tocado por este slice; ver el
+  asiento de `MARQUESINA-TARJETA-SECUENCIA-1`, arriba).
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — RE-CONFIRMADO con la MISMA figura exacta (164889/4608000
+  px, caja [105,862]–[1183,3166]), dos mediciones independientes (`guarda:color` y
+  `verificar:nayoli:visual`). Sigue sin investigarse acá (ajeno a los archivos de este diff, § Gate).
+
+### Verdict
+
+**GATE_RED.** `npm test` corre con UN fallo preexistente (`lib/config/hero-marquesina.test.ts`, fuera
+de `touches:` de este slice) y `guarda:color`/`verificar:nayoli:visual` reportan el mismo drift
+preexistente de `ruta-home` (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, re-confirmado sin cambio de
+figura) — ninguno de los dos lo causa este diff (medido: los dos archivos de test dentro de
+`touches:` pasan limpio, el carril de integración no cambió de figura, y las rutas/hovers que SÍ
+ejercitan los archivos que este diff toca dan 0px de diferencia contra Nayoli). El resto del gate
+—typecheck, los dos test DENTRO de `touches:`, el carril de integración, y la verificación por
+ejecución directa en navegador (dos motores, dos viewports, 9 objetivos, radio 10px en toda foto
+tocada y 4px sin cambio en todo lo demás)— está verde. No se mergea — ni por el veredicto, ni porque
+el diff cambia bytes visibles al cliente (`customer_bytes.changed: true`). Commiteado en
+`slice/corte-reescritura-prototipo-1`.

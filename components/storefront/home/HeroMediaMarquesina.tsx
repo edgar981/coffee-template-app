@@ -795,10 +795,16 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             § FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1 ya midió y cerró para el destacado y el riel).
             `overflow-hidden` es compartido por los dos modos — en 'tile' no recorta nada (el padding
             ya deja la foto adentro); en 'completa' es la red de seguridad por si el redondeo de la
-            proporción medida cae justo en el borde de la tolerancia. */}
+            proporción medida cae justo en el borde de la tolerancia.
+
+            RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-tile`, no `rounded-2xl` crudo — gate del
+            owner, "un poco de redondeo pero sólo a las card de imágenes", y ésta ES "la tarjeta del
+            hero" que el gate nombró. `sf-radio-tile` es además el rol EXACTO del prototipo: su
+            `.marquee-card` (`docs/prototipos/cafeone/css/app.css:423-429`) ya usa `--radius-tile`,
+            el MISMO token que este rol lee. */}
         {producto && (
           <motion.div
-            className={`relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden rounded-2xl ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
+            className={`relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden sf-radio-tile ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
             style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
           >
             <div className="relative h-full w-full">
