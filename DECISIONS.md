@@ -43005,15 +43005,17 @@ sus funciones. Nada que declarar falso.
 
 ### `customer_bytes`
 
-**`changed: false`** hoy, para TODO tenant existente: `HeroMediaMarquesina.tsx` sólo renderiza bajo
-`hero:'sticky'` (hoy únicamente CORTE/Café Las Chamisas y Café Onix), y el cambio de comportamiento
-—el modo `'completa'`— sólo se activa cuando la foto apuntada por `marquesina.productoSlug` mide 3:4.
-**Café Onix YA tiene la tarjeta encendida**: si su producto pineado resulta ser 3:4, un visitante de
-Onix verá la foto borde a borde en vez de con el marco de antes (una MEJORA del mismo defecto, no una
-regresión) y la tarjeta entrará con fade sincronizado a la frase en vez de opaca desde el inicio.
-**Café Las Chamisas no ve nada todavía**: el dato (`marquesina.productoSlug`) lo enciende el
-orquestador en un slice aparte, fuera de este. `strings: []` — ningún texto nuevo; el cambio es
-mecanismo visual (object-fit/padding/opacidad), no copy.
+**`changed: true`.** `HeroMediaMarquesina.tsx` sólo renderiza bajo `hero:'sticky'` (hoy CORTE: Café
+Onix y, cuando el orquestador encienda el dato, Café Las Chamisas), pero **Café Onix YA TIENE la
+tarjeta encendida** (`marquesina.productoSlug` apuntando a un producto real, en vivo) — no es un
+tenant hipotético. Si su producto pineado mide 3:4, un visitante de Onix verá, a partir de este
+merge, la foto borde a borde en vez de con el marco de antes (una MEJORA del mismo defecto, no una
+regresión) y la tarjeta entrará con fade sincronizado a la frase en vez de opaca desde el inicio —son
+bytes/movimiento que un visitante VE, así que es `customer-bytes` sin ambigüedad, y la primera versión
+de este párrafo (que decía `changed: false` razonando sólo sobre Café Las Chamisas) estaba mal: Onix
+es el tenant que sí los cambia hoy. **Café Las Chamisas no ve nada todavía** — el dato lo enciende el
+orquestador en un slice aparte. `strings: []` — ningún texto nuevo; el cambio es mecanismo visual
+(object-fit/padding/opacidad), no copy.
 
 ### `schema`/`cross-repo-contract`
 
@@ -43031,11 +43033,11 @@ Ninguna aplica: sin migración, sin cambio de modelo, sin contrato cross-repo.
 
 ### Verdict
 
-**AWAITING_APPROVAL (`owner-gate-requested`)** — el diff no toca schema, no cambia bytes de producto
-para ningún tenant existente hoy, y no toca un contrato cross-repo (§ `customer_bytes`: `changed:
-false`); el único motivo de parada es que el dispatch lo pide explícito. *"SEGUÍS LA RAMA… PARÁS EN
-`AWAITING_APPROVAL`. NO MERGEES."* Gate verde (typecheck + 3064 + 286); el hallazgo preexistente de
-`ruta-home` queda registrado y no bloquea este slice (medido como ajeno a su diff). Commiteado en
-`slice/corte-reescritura-prototipo-1`.
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia bytes que un visitante de Café Onix ve HOY
+(§ `customer_bytes`: `changed: true`); no toca schema ni un contrato cross-repo. El dispatch además lo
+pide explícito ("PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."), pero la razón de fondo ya era
+`customer-bytes` por sí sola, no sólo la instrucción del spec. Gate verde (typecheck + 3064 + 286); el
+hallazgo preexistente de `ruta-home` queda registrado y no bloquea este slice (medido como ajeno a su
+diff). Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `MARQUESINA-TARJETA-PRODUCTO-1`.**
