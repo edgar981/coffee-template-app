@@ -268,10 +268,28 @@ export function transformMarquesinaTexto(progreso: number, travelPx: number, est
 // `transformMarquesinaTarjeta` reproduce, PURA y sin React, `js/home.js:274-279`. `estatico` rinde
 // el estado YA ACOMODADO de la tarjeta (escala 1, sin rotar) — el mismo criterio que
 // `transformAcomodo(…, estatico=true)` devuelve `'none'` en vez del arranque a medio inclinar.
-export function transformMarquesinaTarjeta(progreso: number, estatico: boolean): string {
+//
+// `ventana` — § MARQUESINA-TARJETA-PRODUCTO-1 (2026-10-02): PARAMETRIZA el recorte interno que
+// antes era [0.12, 0.57] a secas (`t = clamp((p-0.12)/0.45, 0, 1)`). El DEFAULT reproduce ese
+// mismo recorte, byte-idéntico, para `Marquesina.tsx` (la banda SUELTA, fuera de `touches:` de
+// este slice) — sigue llamando a la función con dos argumentos, sin pasar `ventana`, así que no
+// cambia. El NUEVO consumidor es `HeroMediaMarquesina.tsx`: medido contra su propia frase de
+// marquee, la tarjeta arrancaba en progreso 0.12 y tardaba hasta 0.57, mientras la frase revela en
+// [0, `UMBRAL_REVELADO_TEXTO.hasta`] = [0, 0.2] — dos arranques y dos duraciones distintas para lo
+// que el spec de ese slice pide como UNA sola "entrada". Ese componente pasa `UMBRAL_REVELADO_
+// TEXTO` explícito para alinear arranque y duración con la frase, reusando la MISMA fuente de
+// progreso (`progreso`, ya compartida por las dos) y la MISMA constante de ventana — no un segundo
+// par de números inventado para la ocasión.
+const VENTANA_TARJETA_MARQUESINA_PROTOTIPO = { desde: 0.12, hasta: 0.57 };
+
+export function transformMarquesinaTarjeta(
+  progreso: number,
+  estatico: boolean,
+  ventana: { desde: number; hasta: number } = VENTANA_TARJETA_MARQUESINA_PROTOTIPO,
+): string {
   if (estatico) return "none";
   const p = Math.max(0, Math.min(1, progreso));
-  const t = Math.max(0, Math.min(1, (p - 0.12) / 0.45));
+  const t = Math.max(0, Math.min(1, (p - ventana.desde) / (ventana.hasta - ventana.desde)));
   const scale = 0.85 + 0.15 * t;
   const rot = -4 + 4 * t;
   return `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
@@ -640,6 +658,29 @@ export function opacidadRevelaTextoDisplay(progreso: number, estatico: boolean):
   return progresoRevelado(progreso) * OPACIDAD_REVELADO_TECHO;
 }
 
+// `opacidadEntradaTarjetaMarquesina` — § MARQUESINA-TARJETA-PRODUCTO-1 (2026-10-02). Medido contra
+// la frase del marquee: la TARJETA de `HeroMediaMarquesina.tsx` no tenía ninguna "aparición" —
+// `transformMarquesinaTarjeta` sólo ESCALA y ROTA una tarjeta que ya está a opacidad 1 desde el
+// primer frame, nunca estuvo OCULTA. La frase, en cambio, SÍ nace recortada por la máscara y a
+// opacidad 0 (`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay`, arriba). El spec pide que
+// las dos "entren" igual —mismo momento de arranque, misma duración— y la tarjeta no tenía ningún
+// momento de arranque que alinear: esta función se lo da.
+//
+// REUSA `progresoRevelado` (privada a este módulo, construida sobre `UMBRAL_REVELADO_TEXTO`) EN
+// VEZ de declarar su propia ventana — la misma razón que ya vale para `opacidadRevelaTextoDisplay`:
+// dos funciones leyendo el mismo mapeo no pueden divergir en cuándo arrancan ni en cuándo terminan.
+//
+// EL TECHO ES 1, NO `OPACIDAD_REVELADO_TECHO` (0.9): ese 0.9 es una decisión de LEGIBILIDAD sobre
+// texto blanco ("que no sea un blanco tan claro al que llegan", § arriba) — ajena a una foto de
+// producto, que debe llegar a su opacidad PLENA, no a un 90% permanente.
+//
+// `estatico` (reduced-motion/preview, el MISMO gate de siempre) rinde 1 — la tarjeta visible por
+// completo, nunca a medio aparecer para siempre.
+export function opacidadEntradaTarjetaMarquesina(progreso: number, estatico: boolean): number {
+  if (estatico) return 1;
+  return progresoRevelado(progreso);
+}
+
 // ── EL TAMAÑO DEL TEXTO Y SU MÁSCARA — MEDIDO CONTRA EL TEMA REAL, § CORTE-HERO-MARQUEE-RONDA-5-1 ──
 //
 // EL PEDIDO DEL OWNER, LITERAL, sobre el gate visual de RONDA 4 ya reaplicada (2026-09-27): «el
@@ -732,6 +773,17 @@ export const MARQUEE_MASCARA_RELLENO_EM = 0.04;
 // (135vh = 0.45×300vh, la misma ventana [0.12,0.57] de `transformMarquesinaTarjeta`) — lo que queda
 // (65vh) alcanza para el reveal temprano del texto (§ `UMBRAL_REVELADO_TEXTO`, arriba) y el arrastre
 // continuo del texto/velo, sin arrastrar un tramo que no tiene contenido nuevo que mostrar.
+//
+// EL PÁRRAFO DE ARRIBA DESCRIBE EL DEFAULT DE `transformMarquesinaTarjeta`, NO YA LO QUE
+// `HeroMediaMarquesina.tsx` ANIMA — § MARQUESINA-TARJETA-PRODUCTO-1 (2026-10-02): ese componente
+// pasa su PROPIA `ventana` (`UMBRAL_REVELADO_TEXTO`, [0,0.2]) para alinear la entrada de la tarjeta
+// con la de la frase (§ el docstring de `transformMarquesinaTarjeta`/`opacidadEntradaTarjetaMarquesina`,
+// arriba); el recorte [0.12,0.57] que justifica el 135vh de este párrafo sigue siendo el DEFAULT de
+// la función —y el que `Marquesina.tsx` sigue usando—, pero ya no el que la tarjeta de este
+// componente recorre. EL PRESUPUESTO DE 200vh/65vh NO SE RE-DERIVÓ: ese slice no tocó el ritmo de
+// scroll de la sección pineada, sólo CUÁNDO entra la tarjeta dentro de ese presupuesto —hay el
+// mismo recorrido para que el ticker siga corriendo y el visitante siga teniendo scroll que hacer
+// mientras la sección queda pineada, la tarjeta simplemente llega a su forma final más temprano.
 //
 // LOOKUP POR LITERAL, NO INTERPOLACIÓN — mismo criterio que `gridColsPresentaciones`
 // (`lib/storefront/presentaciones.ts`): Tailwind escanea el TEXTO de los archivos buscando

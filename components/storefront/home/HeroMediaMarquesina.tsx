@@ -12,7 +12,8 @@ import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/sit
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
   useProgresoScrollDesdeTope, transformMarquesinaTarjeta, veloOpacidad, rangoVeloDeIntensidad,
-  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, claseAlturaAncestroMarquesina,
+  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, opacidadEntradaTarjetaMarquesina,
+  claseAlturaAncestroMarquesina, UMBRAL_REVELADO_TEXTO,
   duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
   MARQUEE_MASCARA_RELLENO_EM,
@@ -20,6 +21,7 @@ import {
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { imagenPortada } from "@/lib/producto-imagen";
+import { modoTarjetaMarquesina, SIZES_TARJETA_MARQUESINA } from "@/lib/storefront/marquesina-tarjeta";
 
 // EL COMPONENTE DE LA VARIANTE "STICKY" DEL HERO (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1) — la
 // CUARTA composición (tras curtina/ficha/media, § HeroSection.tsx: `VARIANTES.sticky`), y la que
@@ -479,6 +481,20 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   }, []);
   const producto = productoMarquesina(catalog, marquesina.productoSlug);
 
+  // EL MODO DE LA TARJETA — § MARQUESINA-TARJETA-PRODUCTO-1 (lib/storefront/marquesina-tarjeta.ts,
+  // el docstring de cabecera para el porqué): se mide la proporción REAL de la foto en el
+  // navegador, vía `onLoad` sobre el `<Image>` de más abajo (`naturalWidth`/`naturalHeight` del
+  // `<img>` ya decodificado) — nunca se asume. Antes de medir (o con un slug que cambia a mitad de
+  // sesión), `tamanoImagenTarjeta` es `null` y `modoTarjetaMarquesina` cae a `'tile'`, el modo que
+  // NUNCA recorta — exactamente el tile que este componente ya rendía antes de este slice. Se
+  // reinicia al cambiar de producto para que la proporción de la foto VIEJA no sobreviva un frame
+  // en el producto NUEVO mientras la foto nueva decodifica.
+  const [tamanoImagenTarjeta, setTamanoImagenTarjeta] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    setTamanoImagenTarjeta(null);
+  }, [producto?.slug]);
+  const modoTarjeta = modoTarjetaMarquesina(tamanoImagenTarjeta?.w, tamanoImagenTarjeta?.h);
+
   // El TICKER (§ el docstring de cabecera, "EL TICKER — RONDA 3", ampliado por RONDA 4): `trackRef`
   // apunta al `<motion.div>` con las dos copias del texto; se mide el ancho de la PRIMERA
   // (`children[0]`) para derivar la duración de un ciclo a la velocidad ELEGIDA por el tema
@@ -517,7 +533,16 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // comparten `UMBRAL_REVELADO_TEXTO` por construcción (las dos derivan del `progresoRevelado`
   // privado de `lib/animation.ts`), así que terminan de subir y de aclarar en el MISMO instante.
   const opacidadRevelaTexto = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico));
-  const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
+  // LA ENTRADA DE LA TARJETA, ALINEADA A LA DE LA FRASE — § MARQUESINA-TARJETA-PRODUCTO-1
+  // (`lib/animation.ts`, los docstrings de `transformMarquesinaTarjeta`/
+  // `opacidadEntradaTarjetaMarquesina` para la medición completa): antes de este slice la tarjeta
+  // no tenía ninguna "aparición" — estaba a opacidad 1 desde el primer frame, sólo escalaba/rotaba
+  // en la ventana [0.12,0.57], mientras la frase revela en [0, `UMBRAL_REVELADO_TEXTO.hasta`] =
+  // [0,0.2]. Las DOS capas de abajo pasan ESA MISMA ventana —el tercer argumento de
+  // `transformMarquesinaTarjeta` sigue siendo [0.12,0.57] para `Marquesina.tsx`, sin tocar— sobre
+  // el MISMO `progreso` que ya mueve la frase: mismo arranque, misma duración, misma curva lineal.
+  const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico, UMBRAL_REVELADO_TEXTO));
+  const opacidadTarjeta = useTransform(progreso, (p) => opacidadEntradaTarjetaMarquesina(p, estatico));
   // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
   // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
   // par piso/techo que `veloOpacidad` ya sabía usar con su DEFAULT — acá se lo pasamos explícito.
@@ -724,19 +749,36 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             loop). Hide-on-empty de UN elemento (el pin), como en `Marquesina.tsx`: sin `productoSlug`,
             con el catálogo vacío, O con un slug que no matchea ningún producto — `productoMarquesina`
             (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1) NO cae a ningún fallback — simplemente no se muestra;
-            el texto del loop no depende de ella. */}
+            el texto del loop no depende de ella.
+
+            EL MODO — § MARQUESINA-TARJETA-PRODUCTO-1 (`lib/storefront/marquesina-tarjeta.ts`, el
+            docstring de cabecera): `'tile'` es el prototipo de Cafeone verbatim (`.marquee-card`,
+            padding + fondo propio + `object-contain`, el tile de SIEMPRE — nunca recorta). `'completa'`
+            es borde a borde (`object-cover`, SIN padding ni fondo propio) — el modo que una foto 3:4
+            habilita, porque ahí `cover` no recorta nada: es exactamente lo que cierra el "marco" que
+            se ve cuando la foto trae su propio fondo de estudio y el padding del tile deja ver el
+            fondo de la TARJETA alrededor (el mismo defecto, con la misma causa, que
+            § FOTOS-SIN-BORDE-LINEA-NAV-FLECHAS-PDP-1 ya midió y cerró para el destacado y el riel).
+            `overflow-hidden` es compartido por los dos modos — en 'tile' no recorta nada (el padding
+            ya deja la foto adentro); en 'completa' es la red de seguridad por si el redondeo de la
+            proporción medida cae justo en el borde de la tolerancia. */}
         {producto && (
           <motion.div
-            className="relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center rounded-2xl bg-[var(--sf-tarjeta,white)] p-8"
-            style={{ transform: transformTarjeta }}
+            className={`relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden rounded-2xl ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
+            style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
           >
             <div className="relative h-full w-full">
               <Image
+                key={producto.slug}
                 src={imagenPortada(producto.imagen)}
                 alt={producto.nombre}
                 fill
-                sizes="340px"
-                className="object-contain"
+                sizes={SIZES_TARJETA_MARQUESINA}
+                className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  setTamanoImagenTarjeta({ w: img.naturalWidth, h: img.naturalHeight });
+                }}
               />
             </div>
           </motion.div>
