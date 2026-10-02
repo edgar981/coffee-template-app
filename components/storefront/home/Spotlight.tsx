@@ -13,6 +13,14 @@ import { moliendasDisponibles, moliendaAceptada, imagenDeMolienda } from "@duna/
 import { formatCOP } from "@duna/core/utils";
 import { imagenPortada } from "@/lib/producto-imagen";
 import { transicionDestacadoFoto, transicionDestacadoTexto } from "@/lib/animation";
+import {
+  cruceInicial,
+  cruceConNuevoObjetivo,
+  cruceConEntrandoListo,
+  cruceConFundidoCompleto,
+  capasDeCruceDestacado,
+  type EstadoCruceDestacado,
+} from "@/lib/storefront/destacado-cruce";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
@@ -38,6 +46,99 @@ import RevelarBloque from "@/components/storefront/RevelarBloque";
 // contra el prototipo, no contra "lo de antes". Las clases siguen usando los tokens `--sf-*` (nunca
 // un hex horneado) para que un preset FUTURO que también elija `featured·spotlight`, con otra
 // paleta/forma, herede la fidelidad sin tocar este archivo.
+
+// EL `sizes` DE LA FOTO DEL ESCENARIO — UNA SOLA constante, compartida por la foto VISIBLE y por
+// la PRECARGA del grupo (§ DESTACADO-CRUCE-SIN-PARPADEO-1, el comentario de `fotosDelGrupo` más
+// abajo): la precarga sólo calienta el caché del navegador/optimizador para la URL que REALMENTE
+// se va a mostrar si pide el mismo `src`+`sizes`+calidad — dos literales que puedan divergir son
+// dos solicitudes distintas.
+const SIZES_FOTO_DESTACADO = "(max-width: 1200px) 100vw, 33vw";
+
+// FOTO-CRUCE-DESTACADO (§ DESTACADO-CRUCE-SIN-PARPADEO-1) — reemplaza el `AnimatePresence` en
+// modo SYNC que antes crossfadeaba foto saliente (1→0) y entrante (0→1) A LA VEZ. Gate del owner:
+// "the transition... I feel like a blink and not something smooth" — con las dos animando juntas,
+// a mitad de camino las dos están ~0.5 de opacidad y el fondo del tile se filtra entre las dos.
+//
+// LA LÓGICA DEL ESTADO Y DEL ORDEN vive en `lib/storefront/destacado-cruce.ts` (pura, con su
+// test): este componente sólo la ORQUESTA contra el DOM — nunca decide el orden por su cuenta.
+// La capa 'fija' (abajo) pinta SIEMPRE a opacidad 1, sin animar; la capa 'entrando' (encima) funde
+// 0→1 SÓLO cuando su foto ya cargó y decodificó (`onLoad` + `decode()`) — mientras no lo haga, se
+// queda invisible y 'fija' sigue de pie, nunca un hueco. Al terminar el fundido, 'entrando' se
+// PROMUEVE a 'visible' y el cruce se cierra — nunca hay un `exit` animado para la foto vieja: una
+// vez que la nueva es opaca encima, la vieja desaparece sin que nada deba desvanecerse.
+//
+// ES UN COMPONENTE PROPIO, no estado inline de `Spotlight` — `useState`/`useEffect` acá adentro
+// no pelean con la regla de "hooks SIEMPRE antes del early-return" que gobierna el resto del
+// archivo (§ el comentario de `vistaIndex`, abajo): `vistaActual.imagen` sólo existe DESPUÉS de
+// ese `return`, así que un hook que lo necesitara como dependencia tendría que vivir en un árbol
+// que recién se MONTA cuando `Spotlight` ya decidió no retornar `null` — un componente hijo
+// nuevo, no un hook más adentro de la misma función.
+//
+// SIN `AnimatePresence`: no hace falta — cuando un objetivo nuevo reemplaza al que estaba
+// entrando (el visitante clickeó dos veces antes de que la primera elección cargara o fundiera),
+// React simplemente desmonta ese `motion.div` (su `key` deja de estar en el array) sin ninguna
+// animación de salida, y la capa 'fija' —siempre opaca, debajo— queda expuesta tal cual estaba.
+// Ningún instante muestra el fondo: sólo puede pasar de "fija + entrando-vieja" a "fija" a secas.
+function FotoCruceDestacado({ src, alt, estatico }: { src: string; alt: string; estatico: boolean }) {
+  const [estado, setEstado] = useState<EstadoCruceDestacado>(() => cruceInicial(src));
+  useEffect(() => {
+    setEstado((e) => cruceConNuevoObjetivo(e, src));
+  }, [src]);
+
+  const transicion = transicionDestacadoFoto(estatico);
+
+  return (
+    <>
+      {capasDeCruceDestacado(estado).map((capa) =>
+        capa.rol === 'fija' ? (
+          // Key ESTABLE ('fija'), no por `src`: al promoverse una entrante a visible, el `<img>`
+          // de esta capa simplemente cambia de `src` (ya cacheado — es la MISMA URL que la capa
+          // 'entrando' acababa de mostrar a opacidad 1) en vez de remontar, así que el handoff no
+          // le pide al navegador nada que no tenga ya resuelto.
+          <div key="fija" className="absolute inset-0">
+            <Image src={capa.src} alt={alt} fill sizes={SIZES_FOTO_DESTACADO} className="object-cover" />
+          </div>
+        ) : (
+          // Key por `src`: cada objetivo nuevo es un `motion.div` FRESCO — `initial={false}`
+          // arranca directo en su `animate` (0 mientras no está lista), así que reemplazar una
+          // entrante a medio camino nunca deja un estado de animación a medias que limpiar.
+          <motion.div
+            key={capa.src}
+            initial={false}
+            animate={{ opacity: capa.opacidadObjetivo }}
+            transition={transicion}
+            onAnimationComplete={() => {
+              if (capa.opacidadObjetivo === 1) setEstado((e) => cruceConFundidoCompleto(e, capa.src));
+            }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={capa.src}
+              alt={alt}
+              fill
+              sizes={SIZES_FOTO_DESTACADO}
+              className="object-cover"
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                const marcarListo = () => setEstado((est) => cruceConEntrandoListo(est, capa.src));
+                // `decode()` deja que el navegador decodifique el bitmap ANTES de que arranque el
+                // fundido (evita un frame de jank de decodificación a mitad de la animación). Si
+                // falla (o no existe en el navegador), se marca lista igual — "si la carga tarda,
+                // la saliente sigue visible", nunca "se queda esperando para siempre".
+                if (typeof img.decode === "function") {
+                  img.decode().then(marcarListo, marcarListo);
+                } else {
+                  marcarListo();
+                }
+              }}
+            />
+          </motion.div>
+        )
+      )}
+    </>
+  );
+}
+
 export default function Spotlight({ style }: { style?: React.CSSProperties } = {}) {
   const { spotlight, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
@@ -318,33 +419,13 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                   elegida del producto ACTIVO — Presentación/Tamaño ya no viven acá (switch
                   COMPLETO de producto, § el comentario de `vistas`, arriba).
 
-                  EL FUNDIDO CRUZADO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — gate del owner:
-                  "se produce un cambio brusco entre saltos... lo ideal sería que cambie la imagen
-                  con su texto solamente, pero que la transición sea suave". `AnimatePresence` (modo
-                  SYNC, el default — NO `mode="wait"`: la foto saliente y la entrante tienen que
-                  animar A LA VEZ para ser un cruce, no una espera) + `motion.div key={…}
-                  className="absolute inset-0"` apilados dentro del tile de alto FIJO
-                  (`aspect-[3/4]`, arriba) — las dos capas se superponen sin mover el alto de la
-                  sección. La `key` es la URL de la foto: sólo re-anima cuando la foto VISIBLE
-                  cambia de verdad (dos celdas con la misma imagen no re-disparan nada). */}
-              <AnimatePresence initial={false}>
-                <motion.div
-                  key={vistaActual.imagen}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={transicionDestacadoFoto(estatico)}
-                  className="absolute inset-0"
-                >
-                  <Image
-                    src={vistaActual.imagen}
-                    alt={activo.nombre}
-                    fill
-                    sizes="(max-width: 1200px) 100vw, 33vw"
-                    className="object-cover"
-                  />
-                </motion.div>
-              </AnimatePresence>
+                  EL CRUCE SIN PARPADEO (§ DESTACADO-CRUCE-SIN-PARPADEO-1, reemplaza el
+                  `AnimatePresence` SYNC que crossfadeaba saliente+entrante A LA VEZ — gate del
+                  owner: "I feel like a blink and not something smooth"). `FotoCruceDestacado`
+                  (arriba) hace que la foto VIEJA se quede opaca, sin animar, hasta que la NUEVA
+                  —ya cargada y decodificada— termina de fundir encima: nunca las dos translúcidas
+                  a la vez, así que el fondo del tile jamás se filtra entre ellas. */}
+              <FotoCruceDestacado src={vistaActual.imagen} alt={activo.nombre} estatico={estatico} />
               {/* `.bag-label` (css/app.css:453-458, tokens.css:112,128): 13px, uppercase, tracking
                   .085em, color `text-muted`, 20px del borde (`--space-5`). Fundido CORTO —
                   `transicionDestacadoTexto`, la MITAD de la duración de la foto (texto puntual, no
@@ -365,11 +446,21 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 )}
               </AnimatePresence>
               {/* El preloader invisible (§ el comentario de `fotosDelGrupo`, arriba) — vive DENTRO
-                  del tile (ya es `overflow-hidden`, así que 1×1px acá no puede filtrarse fuera de
-                  su caja ni empujar nada). */}
+                  del tile (ya es `overflow-hidden`, así que la cajita de 1×1px acá no puede
+                  filtrarse fuera de su caja ni empujar nada).
+
+                  MISMA URL QUE LA VISIBLE (§ DESTACADO-CRUCE-SIN-PARPADEO-1, cierra el defecto
+                  medido: antes era `width={1} height={1}`, SIN `sizes` — `next/image` sin `sizes`
+                  genera un `srcset` de 1x/2x atado a un ancho de 1px, así que el navegador pedía
+                  una URL del optimizador DISTINTA de la que `FotoCruceDestacado` iba a mostrar, y
+                  la precarga no calentaba nada que la foto real fuera a reusar). `fill` +
+                  `SIZES_FOTO_DESTACADO` (la MISMA constante que usa la foto visible, arriba) hacen
+                  que el navegador evalúe el MISMO `sizes` contra el viewport real y elija la MISMA
+                  entrada del `srcset` — el tamaño de la cajita (1×1px) no importa: `sizes` se
+                  resuelve contra el viewport, no contra el layout de este contenedor invisible. */}
               <div aria-hidden="true" className="absolute left-0 top-0 h-px w-px overflow-hidden opacity-0">
                 {[...fotosDelGrupo].map((src) => (
-                  <Image key={src} src={src} alt="" width={1} height={1} loading="eager" />
+                  <Image key={src} src={src} alt="" fill sizes={SIZES_FOTO_DESTACADO} loading="eager" />
                 ))}
               </div>
             </div>
