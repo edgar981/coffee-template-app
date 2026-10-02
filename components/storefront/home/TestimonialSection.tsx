@@ -1,13 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Star } from "lucide-react";
-import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // "Lo que dicen nuestros clientes" — la 1ª sección REPEATER: encabezado (eyebrow/titulo) + una LISTA
 // de testimonios leída de SiteContent. Cada ítem: name/text (requeridos, vienen resueltos), city y
@@ -17,6 +16,10 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // Los tres testimonios que vivían acá eran FABRICADOS (citaban productos que Nayoli no vende); se
 // retiraron del CÓDIGO (§ SiteContent — el repeater). La sección sigue existiendo — vuelve con testimonios REALES cuando
 // el owner los cargue como dato por el editor.
+//
+// LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): antetítulo y título entran por separado (`RevelarBloque`),
+// y cada testimonio entra escalonado por índice — mismo mecanismo que antes (un paso por tarjeta),
+// ahora con las cifras/curva/disparo tardío/repetición de la primitiva compartida.
 export default function TestimonialSection({ style }: { style?: React.CSSProperties } = {}) {
   const { testimonials, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
@@ -35,34 +38,23 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
         <div className={`${contenedorClase} mx-auto`}>
-          <motion.div
-            initial={preview ? false : "hidden"}
-            animate={preview ? "visible" : undefined}
-            whileInView={preview ? undefined : "visible"}
-            viewport={preview ? undefined : { once: true }}
-            variants={fadeUp}
-            className="text-center mb-12"
-          >
+          <div className="text-center mb-12">
             {/* Eyebrow/título SOBRE EL FONDO de la banda: `--sf-sobre-banda` con el literal de hoy
                 como fallback (§ eje 5b, home-2). Las tarjetas de testimonio de abajo NO se tocan:
                 su texto va sobre `--sf-tarjeta`. */}
-            {eyebrow && <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
-            <h2 className="text-3xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{titulo}</h2>
-          </motion.div>
+            {eyebrow && <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</RevelarBloque>}
+            <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{titulo}</RevelarBloque>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {items.map((t, i) => {
               // CINCO estrellas (llenas/vacías), no sólo las llenas: un 3 se lee "3 de 5", no tres sueltas.
               const estrellas = Math.max(0, Math.min(5, Math.round(Number(t.stars) || 0)));
               const atribucion = [t.city, t.product].filter(Boolean).join(" · ");
               return (
-                <motion.div
+                <RevelarBloque
                   key={i}
-                  initial={preview ? false : "hidden"}
-                  animate={preview ? "visible" : undefined}
-                  whileInView={preview ? undefined : "visible"}
-                  viewport={preview ? undefined : { once: true }}
-                  variants={fadeUp}
-                  transition={preview ? undefined : { delay: i * 0.1 }}
+                  indice={i}
+                  preview={preview}
                   className="bg-[var(--sf-tarjeta)] rounded-2xl p-6 shadow-sm sf-borde border-[var(--sf-linea)]"
                 >
                   <div className="flex gap-1 mb-4">
@@ -91,7 +83,7 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
                       {atribucion && <p className="text-xs text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]">{atribucion}</p>}
                     </div>
                   </div>
-                </motion.div>
+                </RevelarBloque>
               );
             })}
           </div>

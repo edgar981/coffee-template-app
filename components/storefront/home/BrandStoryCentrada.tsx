@@ -4,12 +4,13 @@ import { useRef } from "react";
 import { motion, useReducedMotion, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { fadeUp, parametrosAcomodoCollage, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
+import { parametrosAcomodoCollage, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE "CENTRADA" (§ CORTE-BRANDSTORY-COLLAGE-1, MEDIDA contra la sección `.historia` de
 // `docs/prototipos/cafeone/index.html:250-273` + `css/app.css:561-578`). El BrandStory de siempre
@@ -148,6 +149,12 @@ const IMAGENES = [
 const CLASE_FIGURA_LADO = 'w-[min(320px,82vw)] sm:w-[clamp(200px,24vw,340px)]';
 const CLASE_FIGURA_MEDIO = 'z-10 w-[min(320px,82vw)] sm:w-[clamp(240px,28vw,400px)]';
 
+// LA ENTRADA DE TEXTO (§ SECCIONES-ENTRAN-VIVAS-1): eyebrow/título por un lado y párrafo(s)/CTA por
+// el otro pasan de un `fadeUp` combinado (todo el grupo entra a la vez) a `RevelarBloque` por bloque
+// (§ su docstring) — el COLLAGE NO se toca: es scroll-scrub continuo (`useProgresoAcomodo`), ya "vivo"
+// por construcción, y mezclar un disparo único de `whileInView` ahí sería un SEGUNDO mecanismo sobre
+// el mismo elemento.
+
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
   const { brandStory, tema, paginas, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
@@ -208,28 +215,23 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
   return (
     <section id="nuestra-historia" className="overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] py-24" style={style}>
       <div className={`mx-auto ${contenedorClase} text-center`}>
-        <motion.div
-          initial={preview ? false : "hidden"}
-          animate={preview ? "visible" : undefined}
-          whileInView={preview ? undefined : "visible"}
-          viewport={preview ? undefined : { once: true }}
-          variants={fadeUp}
+        {/* Mismos tokens que `BrandStoryColumnas` (§ ahí, el razonamiento completo de contraste):
+            `--sf-sobre-banda`/`--sf-sobre-banda-suave` con los mismos fallbacks, sólo que acá
+            centrados en vez de alineados a la izquierda. */}
+        {brandStory.eyebrow && (
+          <RevelarBloque as="p" indice={0} preview={preview} className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-tostado))]">
+            {brandStory.eyebrow}
+          </RevelarBloque>
+        )}
+        <RevelarBloque
+          as="h2"
+          indice={1}
+          preview={preview}
+          className="font-playfair text-4xl leading-tight text-[var(--sf-sobre-banda,white)] sm:text-5xl"
+          style={displayL ? { fontSize: displayL } : undefined}
         >
-          {/* Mismos tokens que `BrandStoryColumnas` (§ ahí, el razonamiento completo de contraste):
-              `--sf-sobre-banda`/`--sf-sobre-banda-suave` con los mismos fallbacks, sólo que acá
-              centrados en vez de alineados a la izquierda. */}
-          {brandStory.eyebrow && (
-            <p className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-tostado))]">
-              {brandStory.eyebrow}
-            </p>
-          )}
-          <h2
-            className="font-playfair text-4xl leading-tight text-[var(--sf-sobre-banda,white)] sm:text-5xl"
-            style={displayL ? { fontSize: displayL } : undefined}
-          >
-            {brandStory.titulo}
-          </h2>
-        </motion.div>
+          {brandStory.titulo}
+        </RevelarBloque>
 
         {/* El collage A LO ANCHO — figuras en fila (columna bajo 640px, § el comentario de cabecera),
             centradas verticalmente (`items-center`, como el prototipo: la figura del medio protruye
@@ -260,31 +262,26 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
           })}
         </div>
 
-        <motion.div
-          initial={preview ? false : "hidden"}
-          animate={preview ? "visible" : undefined}
-          whileInView={preview ? undefined : "visible"}
-          viewport={preview ? undefined : { once: true }}
-          variants={fadeUp}
-          className="mx-auto max-w-2xl"
-        >
-          <p className="text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
+        <div className="mx-auto max-w-2xl">
+          <RevelarBloque as="p" indice={2} preview={preview} className="text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
             {brandStory.parrafo1}
-          </p>
+          </RevelarBloque>
           {brandStory.parrafo2 && (
-            <p className="mt-6 text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
+            <RevelarBloque as="p" indice={3} preview={preview} className="mt-6 text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
               {brandStory.parrafo2}
-            </p>
+            </RevelarBloque>
           )}
           {ctaHref && (
-            <Link
-              href={ctaHref}
-              className="mt-8 inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
-            >
-              {brandStory.ctaLabel}
-            </Link>
+            <RevelarBloque indice={4} preview={preview} className="mt-8">
+              <Link
+                href={ctaHref}
+                className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
+              >
+                {brandStory.ctaLabel}
+              </Link>
+            </RevelarBloque>
           )}
-        </motion.div>
+        </div>
       </div>
     </section>
   );

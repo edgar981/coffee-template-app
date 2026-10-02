@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 const BADGES = [
   {
@@ -43,8 +45,15 @@ const BADGES = [
 // site-content-defaults.ts): MISMO mecanismo que Marquesina/Origen — se lee `content.trustBadges` y
 // `seccionEsVisible` decide si la sección se apaga (`null`). SE APAGA, NO SE BORRA: el array
 // `BADGES` de arriba sigue siendo estructura de código; sólo el "¿se muestra?" es dato.
+//
+// LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): hasta este slice la banda era 100% ESTÁTICA, sin un solo
+// `motion.*` — la banda más estática de la home, literalmente. Cada insignia entra con `RevelarBloque`
+// (§ su docstring), escalonada por índice. Esta sección SÍ monta en la vista previa EN VIVO del panel
+// (`VistaTiendaEnVivo.tsx`, `COMPONENTES.trustBadges`), así que necesita el gate `preview` — a
+// diferencia de `FeaturedProducts*`, que esa vista nunca monta.
 export default function TrustBadges({ style }: { style?: React.CSSProperties } = {}) {
   const { trustBadges, navTratamiento } = useSiteContent();
+  const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.trustBadges, trustBadges)) return null;
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
@@ -56,9 +65,11 @@ export default function TrustBadges({ style }: { style?: React.CSSProperties } =
       <div className={`mx-auto ${contenedorClase}`}>
         <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
           {BADGES.map(
-            ({ icon: Icon, text }) => (
-              <div
+            ({ icon: Icon, text }, i) => (
+              <RevelarBloque
                 key={text}
+                indice={i}
+                preview={preview}
                 className="flex items-center gap-3"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--sf-tostado)]/20">
@@ -68,7 +79,7 @@ export default function TrustBadges({ style }: { style?: React.CSSProperties } =
                 <span className="text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-2))]">
                   {text}
                 </span>
-              </div>
+              </RevelarBloque>
             )
           )}
         </div>

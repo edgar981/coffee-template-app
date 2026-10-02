@@ -3,15 +3,13 @@
 import { useEffect, useState } from "react";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import ProductCard from "../ProductCard";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
-
-const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE "grilla" (§ TEMAS-FEATURED-GRILLA-1, pedida por CORTE/PATIO/VITRINA — `lib/config/
 // themes.ts`): la MALLA de 6, distinta de la fila de 4 de `FeaturedProductsCuadricula` — más celdas,
@@ -20,6 +18,10 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // el MISMO que ya usa el catálogo completo de `/tienda` para esta misma tarjeta
 // (`app/(storefront)/tienda/page.tsx`, grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 + su `sizes`) — la
 // retícula que el repositorio ya usa para una grilla de ProductCard con más de 4 ítems.
+//
+// LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1) — mismo cambio que `FeaturedProductsCuadricula`: cada
+// bloque entra con `RevelarBloque`, sin gate `preview` por la misma razón (esta variante no es una
+// `SeccionVista` del editor).
 export default function FeaturedProductsGrilla({ style }: { style?: React.CSSProperties } = {}) {
   // Fuente única: catálogo público desde la DB (petición compartida/memoizada).
   const [catalog, setCatalog] = useState<Product[]>([]);
@@ -49,20 +51,22 @@ export default function FeaturedProductsGrilla({ style }: { style?: React.CSSPro
           {/* Eyebrow/título/link SOBRE EL FONDO de la banda: `--sf-sobre-banda` con el literal de hoy
               como fallback (§ eje 5b, home-2). Las ProductCard de la grilla NO se tocan: su texto va
               sobre `--sf-tarjeta`, no sobre la banda. */}
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
+          <div className="flex items-end justify-between mb-12">
             <div>
-              <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>Selección del mes</h2>
+              <RevelarBloque as="p" indice={0} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</RevelarBloque>
+              <RevelarBloque as="h2" indice={1} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>Selección del mes</RevelarBloque>
             </div>
-            <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))] hover:text-[var(--sf-acento-3)] transition-colors">
-              Ver todo <ArrowRight className="w-4 h-4" />
-            </Link>
-          </motion.div>
+            <RevelarBloque indice={2} className="hidden sm:block">
+              <Link href="/tienda" className="flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))] hover:text-[var(--sf-acento-3)] transition-colors">
+                Ver todo <ArrowRight className="w-4 h-4" />
+              </Link>
+            </RevelarBloque>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {featured.map((p, i) => (
-              <motion.div key={p.id} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} transition={{ delay: i * 0.06 }}>
+              <RevelarBloque key={p.id} indice={i}>
                 <ProductCard product={p} sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" />
-              </motion.div>
+              </RevelarBloque>
             ))}
           </div>
           <div className="mt-8 text-center sm:hidden">

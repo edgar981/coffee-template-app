@@ -12,13 +12,14 @@ import { useCartStore } from "@/lib/cartStore";
 import { moliendasDisponibles, moliendaAceptada, imagenDeMolienda } from "@duna/core/moliendas-opciones";
 import { formatCOP } from "@duna/core/utils";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { fadeUp, transicionDestacadoFoto, transicionDestacadoTexto } from "@/lib/animation";
+import { transicionDestacadoFoto, transicionDestacadoTexto } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
 import { ejesSpotlight, etiquetaEjesSpotlight, grupoSpotlight, valoresDeEje, productoDeCombinacion, nombreCafeSpotlight } from "@/lib/config/spotlight";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA BANDA SPOTLIGHT (§ SPOTLIGHT-BANDA-1) — un solo producto PINEADO, con su selector de
 // molienda, notas de cata y "Agregar al carrito" REUSADOS VERBATIM (medido:
@@ -254,19 +255,14 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
           }`}
         >
           {tieneEncabezado && (
-            <motion.div
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              className="min-[820px]:col-span-2 min-[1200px]:col-span-1"
-            >
+            <div className="min-[820px]:col-span-2 min-[1200px]:col-span-1">
               {/* `.eyebrow` (css/app.css:83-87, tokens.css:113,128): 12px, semibold, uppercase,
                   tracking .085em, color `text-muted` — NO el acento (el prototipo no colorea el
-                  eyebrow de "Nuestro café"; era la divergencia de esta banda). */}
+                  eyebrow de "Nuestro café"; era la divergencia de esta banda).
+                  LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): eyebrow y título entran por separado con
+                  `RevelarBloque`, ya no como un único bloque fadeUp. */}
               {spotlight.eyebrow && (
-                <p className="text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{spotlight.eyebrow}</p>
+                <RevelarBloque as="p" indice={0} preview={preview} className="text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{spotlight.eyebrow}</RevelarBloque>
               )}
               {/* `.spotlight-head .display-l` (css/app.css:441, tokens.css:99-100,115,131): margin-top
                   20px (`--space-5`), line-height .98, tracking -.015em. El tamaño fluido en sí
@@ -274,11 +270,14 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               {/* La línea entera (tag, className CON whitespace-pre-line, interpolación y cierre)
                   va en UN solo renglón a propósito: `titulares-saltos.test.ts` (fuera de
                   `touches:` — no se toca) lee la FUENTE y exige que la MISMA línea traiga las
-                  tres cosas juntas. */}
+                  tres cosas juntas. Por eso el `<h2>` literal queda intacto y la entrada la aporta
+                  un `RevelarBloque` ENVOLVENTE (as="div"), no el propio `h2`. */}
               {spotlight.titulo && (
-                <h2 className="mt-5 text-3xl sm:text-4xl font-playfair leading-[0.98] tracking-[-0.015em] text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line text-balance" style={displayL ? { fontSize: displayL } : undefined}>{spotlight.titulo}</h2>
+                <RevelarBloque indice={1} preview={preview}>
+                  <h2 className="mt-5 text-3xl sm:text-4xl font-playfair leading-[0.98] tracking-[-0.015em] text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line text-balance" style={displayL ? { fontSize: displayL } : undefined}>{spotlight.titulo}</h2>
+                </RevelarBloque>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* EL ESCENARIO — `.spotlight-stage`/`.bag-card`/`.stage-nav` (css/app.css:442-468,
@@ -299,13 +298,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               el tile borde a borde, con el radio de `sf-radio-tile` (`overflow-hidden` en el
               ancestro). Sin el `div` intermedio de padding: un hijo `fill` llena directo al
               ancestro con `overflow-hidden`. */}
-          <motion.div
-            initial={preview ? false : "hidden"}
-            animate={preview ? "visible" : undefined}
-            whileInView={preview ? undefined : "visible"}
-            viewport={preview ? undefined : { once: true }}
-            variants={fadeUp}
-          >
+          <RevelarBloque indice={2} preview={preview}>
             <div className="relative aspect-[3/4] sf-radio-tile overflow-hidden bg-[var(--sf-superficie)]">
               {/* El `.bag-card .badge` del prototipo (§ RIEL-SCROLL-Y-BADGE-DORADO-1, el censo de
                   consumidores, DECISIONS.md) — mismo `style` inline condicional que StoreNav/
@@ -403,10 +396,16 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 </button>
               </div>
             )}
-          </motion.div>
+          </RevelarBloque>
 
-          {/* `.spotlight-buy` (css/app.css:180-224 del markup, roles en 95-116,470-503) */}
-          <div className="space-y-6">
+          {/* `.spotlight-buy` (css/app.css:180-224 del markup, roles en 95-116,470-503)
+              LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): toda la columna de compra entra como UN bloque
+              (nombre+descripción+notas+selectores+precio+CTA) — se trató como una unidad, no
+              granular por campo, porque adentro conviven el fundido cruzado del precio
+              (`AnimatePresence`/`popLayout`) y los selectores interactivos de Presentación/Tamaño;
+              envolverlos cada uno en su propio `RevelarBloque` multiplicaría el riesgo de pisar esas
+              transiciones por un beneficio marginal (ver el censo del asiento de este slice). */}
+          <RevelarBloque indice={3} preview={preview} className="space-y-6">
             {/* `.h3` (tokens.css:104,116,121): 26px, line-height 1.14, weight regular(400) — no bold.
                 EL NOMBRE ES EL DEL GRUPO, FIJO (§ DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1) — `producto`
                 (el PIN), NUNCA `activo` (la celda elegida de la matriz, que cambia con la selección):
@@ -587,7 +586,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
             >
               <ShoppingBag className="w-4 h-4" /> Agregar al carrito
             </button>
-          </div>
+          </RevelarBloque>
         </div>
       </div>
     </section>

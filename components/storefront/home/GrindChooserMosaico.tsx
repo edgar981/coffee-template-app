@@ -1,15 +1,14 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE CANÓNICA (§ eje 5e): "¿Cómo tomas tu café?" en cortinas fotográficas — el GrindChooser
 // de SIEMPRE, extraído VERBATIM al separar el mecanismo de variantes del dispatcher (`GrindChooser.tsx`).
@@ -22,6 +21,10 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // del storefront → el hook LANZARÍA). La home lo pasa desde el nombre del negocio; el preview va sin
 // prop → alt genérico (irrelevante en un preview). Mismo patrón que NosotrosGaleria (§ el {negocio}
 // del fallback llega por PROP).
+//
+// LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): antetítulo/título por separado, y cada tarjeta escalonada
+// por índice — `RevelarBloque` reemplaza al `fadeUp`+`delay:i*0.08` de antes con la primitiva
+// compartida (disparo tardío, repetición, 0.1s de paso).
 export default function GrindChooserMosaico({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
   const { presentaciones, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
@@ -41,35 +44,18 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className={`${contenedorClase} mx-auto`}>
-        {/* En el preview escalado, `whileInView` no dispara (la intersección no llega) → se cambia a
-            `animate` con `initial={false}`, asentado desde el primer render. Fuera de preview, idéntico. */}
-        <motion.div
-          initial={preview ? false : "hidden"}
-          animate={preview ? "visible" : undefined}
-          whileInView={preview ? undefined : "visible"}
-          viewport={preview ? undefined : { once: true }}
-          variants={fadeUp}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12">
           {/* Eyebrow/título SOBRE EL FONDO de la banda (no una tarjeta): `--sf-sobre-banda` con el
               literal de hoy como fallback (§ eje 5b, home-2) — las tarjetas de abajo (`op.label`/
               `op.copy`) NO se tocan: viven sobre el gradiente oscuro de su propia tile, no de la banda. */}
           {presentaciones.eyebrow && (
-            <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
+            <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</RevelarBloque>
           )}
-          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
-        </motion.div>
+          <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</RevelarBloque>
+        </div>
         <div className={`grid grid-cols-1 ${gridCols} gap-6`}>
           {tarjetas.map((op, i) => (
-            <motion.div
-              key={i}
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              transition={{ delay: i * 0.08 }}
-            >
+            <RevelarBloque key={i} indice={i} preview={preview}>
               {/* `data-sf-tarjeta`: marcador INERTE del slot (1-4) para el puente vista→formulario del
                   editor (§ Backlog #46). Se emite SÓLO en preview (`useIsPreview`) → en la tienda del
                   visitante la propiedad es `undefined` y React OMITE el atributo: markup byte-idéntico,
@@ -105,7 +91,7 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
                   </span>
                 </div>
               </Link>
-            </motion.div>
+            </RevelarBloque>
           ))}
         </div>
       </div>

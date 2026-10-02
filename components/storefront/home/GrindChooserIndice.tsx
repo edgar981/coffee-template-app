@@ -1,13 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
-import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE "ÍNDICE" (§ eje 5e): de dos cortinas oscuras gemelas a un índice — filas numeradas,
 // encabezado alineado a la izquierda, foto chica al margen y divisor entre ítems. Ya no hay texto
@@ -25,6 +24,9 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 // EL `negocio` DEL ALT LLEGA POR PROP, no por `useSiteSettings()` — mismo motivo que el mosaico
 // (§ GrindChooserMosaico): se monta también en la vista previa del panel, sin el SiteSettingsProvider
 // del storefront.
+//
+// LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1) — mismo cambio que el mosaico: antetítulo/título por
+// separado, cada fila escalonada por índice, con `RevelarBloque`.
 export default function GrindChooserIndice({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
   const { presentaciones, tema } = useSiteContent();
   const preview = useIsPreview();
@@ -38,33 +40,16 @@ export default function GrindChooserIndice({ negocio, style }: { negocio?: strin
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* En el preview escalado, `whileInView` no dispara (la intersección no llega) → se cambia a
-            `animate` con `initial={false}`, asentado desde el primer render. Fuera de preview, idéntico. */}
-        <motion.div
-          initial={preview ? false : "hidden"}
-          animate={preview ? "visible" : undefined}
-          whileInView={preview ? undefined : "visible"}
-          viewport={preview ? undefined : { once: true }}
-          variants={fadeUp}
-          className="mb-12 text-left"
-        >
+        <div className="mb-12 text-left">
           {presentaciones.eyebrow && (
-            <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
+            <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</RevelarBloque>
           )}
-          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
-        </motion.div>
+          <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</RevelarBloque>
+        </div>
 
         <div className="divide-y divide-[var(--sf-linea)] border-t border-[var(--sf-linea)]">
           {tarjetas.map((op, i) => (
-            <motion.div
-              key={i}
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              transition={{ delay: i * 0.08 }}
-            >
+            <RevelarBloque key={i} indice={i} preview={preview}>
               {/* `data-sf-tarjeta`: marcador INERTE del slot (1-4) para el puente vista→formulario del
                   editor (§ Backlog #46), gemelo del mosaico — el mecanismo (`onClicTarjeta` +
                   `.closest('[data-sf-tarjeta]')`) es agnóstico de markup. Sólo en preview; en la tienda
@@ -99,7 +84,7 @@ export default function GrindChooserIndice({ negocio, style }: { negocio?: strin
                   )}
                 </div>
               </Link>
-            </motion.div>
+            </RevelarBloque>
           ))}
         </div>
       </div>

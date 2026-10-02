@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
@@ -8,8 +7,7 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { planesDeSuscripcion, planesDelTeaser, gridColsTeaser } from "@/lib/storefront/planes-suscripcion";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
-
-const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE "BLOQUE" (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): la CANÓNICA — el layout de HOY,
 // verbatim (texto a un lado, tarjetas de plan del teaser al otro, `grid-cols-1 lg:grid-cols-2`). Es
@@ -24,6 +22,12 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // es un anzuelo que enlaza a /suscripciones, no el grid completo. El destaque sale del dato
 // (`plan.destacado`, el `destacadoSlot` de la sección), no del `i===1` hardcodeado de antes. El href del
 // CTA es estructura (`/suscripciones`), sólo el label es editable.
+//
+// LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1) — ésta ES la variante canónica (Nayoli, sin preset): hasta
+// este slice era un único bloque `fadeUp` por columna, sin curva/duración declaradas (un `fadeUp`
+// local, redeclarado acá en vez de importado de `lib/animation.ts`). Eyebrow/título/subtítulo/
+// beneficios/CTA entran por separado con `RevelarBloque`, y las tarjetas del teaser pasan del
+// `scale`+`x:30` propio a la misma entrada uniforme (opacidad+50px) que el resto de la home.
 export default function SubscriptionCTABloque({ style }: { style?: React.CSSProperties } = {}) {
   const { subscriptionCTA, suscripcionPlanes, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
@@ -48,15 +52,7 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
     <section className="py-20 bg-[var(--sf-banda,var(--sf-tinta-2))]" style={style}>
         <div className={`${contenedorClase} mx-auto`}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
-                la intersección (como HeroSection/BrandStory). Fuera de preview, idéntico a hoy. */}
-            <motion.div
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-            >
+            <div>
               {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
                   `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por
                   esquema. El bullet-dot y las tarjetas de plan del teaser NO se tocan: el primero es
@@ -72,28 +68,27 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
                   genera para `/NN` — así que sin esquema el resultado es el mismo píxel que
                   `text-white/NN` de siempre). */}
               {subscriptionCTA.eyebrow && (
-                <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
+                <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</RevelarBloque>
               )}
-              <h2 className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4" style={displayL ? { fontSize: displayL } : undefined}>{subscriptionCTA.titulo}</h2>
-              <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
-              <div className="space-y-3 mb-8">
+              <RevelarBloque as="h2" indice={1} preview={preview} className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4" style={displayL ? { fontSize: displayL } : undefined}>{subscriptionCTA.titulo}</RevelarBloque>
+              <RevelarBloque as="p" indice={2} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</RevelarBloque>
+              <RevelarBloque indice={3} preview={preview} className="space-y-3 mb-8">
                 {beneficios.map((b, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--sf-tostado)]" />
                     {b}
                   </div>
                 ))}
-              </div>
-              <Link href="/suscripciones" className="inline-flex items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5">
-                {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
-              </Link>
-            </motion.div>
-            <motion.div
-              initial={preview ? false : { opacity: 0, x: 30 }}
-              animate={preview ? { opacity: 1, x: 0 } : undefined}
-              whileInView={preview ? undefined : { opacity: 1, x: 0 }}
-              viewport={preview ? undefined : { once: true }}
-              transition={preview ? undefined : { duration: 0.6 }}
+              </RevelarBloque>
+              <RevelarBloque indice={4} preview={preview}>
+                <Link href="/suscripciones" className="inline-flex items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5">
+                  {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
+                </Link>
+              </RevelarBloque>
+            </div>
+            <RevelarBloque
+              indice={5}
+              preview={preview}
               className={`grid grid-cols-1 ${gridColsTeaser(planesTeaser.length)} gap-4`}
             >
               {planesTeaser.map(p => (
@@ -111,7 +106,7 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
                   <p className="opacity-70 text-xs leading-snug">{p.descripcion}</p>
                 </div>
               ))}
-            </motion.div>
+            </RevelarBloque>
           </div>
         </div>
       </section>

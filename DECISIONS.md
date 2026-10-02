@@ -41201,3 +41201,232 @@ este slice, por instrucción del dispatch, no mergea.
   `CLAUDE.md` no está en `touches:` de este slice, así que no se editó.
 
 **Cierra `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`.**
+
+## 2026-10-01 — Las secciones de la home entran VIVAS al hacer scroll — en TODAS las tiendas, Nayoli incluida (`SECCIONES-ENTRAN-VIVAS-1`)
+
+Slice de escritura, continúa `slice/corte-reescritura-prototipo-1`. Pedido del owner (2026-10-01):
+*"revisa la página de homeburgers.com... el ingreso a cada sección se siente como vivo; en el demo
+de las Chamisas o en Onix, las secciones tienen los textos estáticos a excepción de cuando entramos
+al origen y suscripción"* — y, aclarando el alcance: *"agrega el ajuste... a Nayoli, es la página más
+estática de las 3"* y *"aplicar la misma entrada a todas no tan literal, la entrada que tiene
+suscripciones y el origen en Chamisas y Onix está perfecta"*.
+
+### El diagnóstico
+
+Medido contra las secciones AFECTADAS (Spotlight, los tres GrindChooser, BrandStoryColumnas,
+SubscriptionCTABloque, TestimonialSection, FeaturedProducts×2, TrustBadges): todas disparaban con
+`whileInView` + `viewport:{once:true}` **sin margen** — la intersección cuenta apenas un píxel del
+bloque asoma por el borde inferior del viewport, así que para cuando el visitante llega a mirarlo la
+animación (corta, sin curva declarada en la mayoría de los casos) ya había terminado. `TrustBadges`
+no tenía NINGÚN `motion.*`: la banda más estática de las nueve. `FeaturedProductsCuadricula`/`Grilla`
+(la variante CANÓNICA, la que Nayoli monta) ni siquiera tenían el switch de `preview`. "El origen"
+(`Origen.tsx`/`TextoEnCascada`) y Suscripción-variante-`linea` (`SubscriptionCTALinea.tsx`) ya tenían
+la entrada pedida como referencia — ambas quedan **sin tocar**, confirmado abajo.
+
+### La primitiva — `RevelarBloque` + `lib/storefront/revelado-bloque.ts`
+
+Nueva, compartida por TODO el resto de la home (Nayoli incluida): `translateY(50px)→0` + opacidad
+`0→1`, `duration:0.8s`, `cubic-bezier(0.22,1,0.36,1)` (una salida más fuerte que
+`REVELADO_GRUPO_EASE`, `[0.22,0.61,0.36,1]` — el segundo punto de control sube de 0.61 a 1), paso de
+`0.1s` entre hermanos — las TRES cifras del `cifras-decision` del spec, no inventadas. El disparo
+TARDÍO es `viewport.margin:'-20% 0px -20% 0px'` (pasa DIRECTO a `rootMargin` del
+`IntersectionObserver`, verificado contra `node_modules/framer-motion/dist/es/render/dom/viewport/
+index.mjs`): encoge el viewport efectivo al 60% central, SIMÉTRICO para que la salida sea tan
+temprana como la entrada es tardía — la mitad de "se repite". `once:false` es la otra mitad. El
+**valor exacto del margen (-20%) es una decisión de ESTE slice**, no una cifra del spec — medida y
+reportada abajo (§ Medición A mitad del scroll).
+
+`fadeUp`/`REVELADO_GRUPO_*`/`CASCADA_BLOQUE_*`/`revelaMascaraVertical` (`lib/animation.ts`) **NO se
+tocan**: siguen siendo de "El origen" y de Suscripción-`linea`, con un comentario nuevo en `fadeUp`
+que apunta a `RevelarBloque` para que nadie la reuse en una sección nueva.
+
+### Censo — qué sección usa qué entrada, y por qué dos quedan afuera
+
+| sección | Nayoli (canónica) | CORTE (Onix/Chamisas) | tocada |
+| --- | --- | --- | --- |
+| hero | curtina | sticky | NO — ya tiene su propia entrada al cargar (spec, §1) |
+| marquesina | OFF por default | OFF (`bandasVisibles.marquesina:false`) | NO — scroll-scrub continuo, sin bloques de texto estáticos que entren por viewport; ya "vivo" por construcción |
+| trustBadges | ON (default) | OFF (`bandasVisibles`) | SÍ — por-insignia, `RevelarBloque` |
+| featured | cuadricula | spotlight | SÍ — las dos variantes |
+| brandStory | columnas | centrada | SÍ — las dos; el COLLAGE de `centrada` (scroll-scrub) no se toca |
+| origen | OFF (default) | ON | **NO** — "El origen", el propio patrón de referencia |
+| presentaciones | mosaico | riel | SÍ — mosaico/índice completos; riel SÓLO la cabecera (las TARJETAS no, § abajo) |
+| subscriptionCTA | bloque | linea | bloque SÍ; **linea NO** — el propio patrón de referencia |
+| testimonials | ON si hay items (repeater, hide-on-empty) | OFF (`bandasVisibles`) | SÍ |
+
+**El riel: sólo la cabecera.** `TarjetaRiel` sigue con `fadeUp` (24px) a propósito —
+`RIEL-SIN-SCROLL-VERTICAL-1` (este mismo día) cerró un rebote de Safari causado por ese MISMO
+desplazamiento de 24px contando para el `scrollHeight` de un `overflow-x-auto`; subir esa distancia a
+50px habría agrandado el defecto que ese fix cierra, dentro del MISMO track.
+
+**Por qué "antetítulo, título" se separan.** `origen-banda.test.ts` fija que Origen trata eyebrow/
+título/párrafo como TRES bloques independientes (`fadeUpCascadaBloque`, uno por pieza) — "al nivel
+de" esa referencia significa la misma granularidad, no un combinado. Cada eyebrow/título/párrafo/CTA/
+grid de imagen de las nueve secciones tocadas entra por SU CUENTA, con su propio `indice` en orden de
+lectura. Excepción declarada: el "escenario de compra" de `Spotlight` (nombre+descripción+notas+
+selectores+precio+CTA) entra como UN bloque — adentro conviven `AnimatePresence`/`popLayout` (el
+fundido del precio) y selectores interactivos; granularlo multiplicaba el riesgo de pisar esas
+transiciones por un beneficio marginal.
+
+**Una excepción de FORMA, no de fondo** (`titulares-saltos.test.ts`, fuera de `touches:`): ese test
+lee la FUENTE y exige que la línea con `{spotlight.titulo}` contenga literal `<h2`. `Spotlight.tsx`
+envuelve el `<h2>` en un `RevelarBloque as="div"` en vez de usar `RevelarBloque as="h2"` — el
+`<h2 className="...">` queda intacto, byte a byte, como hijo. Medido ANTES de decidirlo: con
+`as="h2"` el test fallaba (visto fallar, revertido antes de seguir).
+
+### Medición A MITAD DEL SCROLL — Nayoli y CORTE, 1440 y iPhone (WebKit)
+
+Arnés propio (`.scratch/medir-revelado.ts`, gitignoreado — reusa `levantarPostgres`/`migrarYSembrar`/
+`construir`/`arrancar`/`cargarPlaywright` de `scripts/verificar-nayoli-visual.ts`): Postgres efímero +
+build+start de la rama actual, Chromium 1440×900 y WebKit "iPhone" 390×844, Nayoli (`/`) y CORTE
+(`/?tema=CORTE`, el mirador). Por sección: scroll lento muestreando `getComputedStyle(...).opacity` y
+`getBoundingClientRect().top/innerHeight`, hasta cruzar opacidad>0.05 (posición de arranque) y
+~0.98 (fin visible); después, scroll arriba-del-todo → confirma oculto → vuelve a la posición de
+arranque → confirma que re-anima.
+
+| caso | tema | viewport | arranca a (% alto ventana) | visible en ~ | se repite |
+| --- | --- | --- | --- | --- | --- |
+| TrustBadges (1ª insignia) | Nayoli | 1440 Chromium | 76.4% | 415ms | sí |
+| FeaturedProducts (antetítulo) | Nayoli | 1440 Chromium | 76.6% | 492ms | sí |
+| GrindChooserRiel (título) | CORTE | 1440 Chromium | 73.7% | 405ms | sí |
+| BrandStoryCentrada (eyebrow) | CORTE | 1440 Chromium | 78.5% | 454ms | sí |
+| TrustBadges (1ª insignia) | Nayoli | iPhone WebKit | 79.0% | 478ms | sí |
+| FeaturedProducts (antetítulo) | Nayoli | iPhone WebKit | 78.9% | 462ms | sí |
+| GrindChooserRiel (título) | CORTE | iPhone WebKit | 71.4% | 465ms | sí |
+| BrandStoryCentrada (eyebrow) | CORTE | iPhone WebKit | 76.8% | 460ms | sí |
+
+**8/8 arrancan entre 71% y 79%** del alto de ventana — tardío, consistente con §0 del spec ("un
+título con el borde superior al 80% todavía NO había arrancado") y con el margen `-20%/-20%`
+elegido. **8/8 completan visualmente en ~400–500ms** (la `duration` nominal es 800ms; la curva
+`cubic-bezier(0.22,1,0.36,1)` se acerca a 1 bastante antes del final nominal — coherente con "una
+salida fuerte"). **8/8 se repiten** al volver arriba y bajar de nuevo. Tres capturas por sección a
+mitad de la entrada en `.scratch/medir-revelado/` (23 PNG, gitignoreadas). Un primer intento sin
+`waitForTimeout` entre paso-de-scroll y lectura de opacidad daba falsos negativos en WebKit (el
+round-trip de Chromium alcanzaba a dejar correr el frame; el de WebKit no) — corregido agregando
+20ms por paso; quedó escrito para que un arnés similar no lo repita.
+
+### `npm run verificar:nayoli:visual` — la diferencia es SÓLO la entrada
+
+Primer intento: `next build` de la rama falló por un fetch de red a Google Fonts (admin layout,
+ajeno a este slice) — confirmado TRANSITORIO reconstruyendo con `npx next build` solo, que compiló
+limpio. Segunda corrida, completa:
+
+| ruta/hover | resultado |
+| --- | --- |
+| `ruta:home` | **DIFIERE** — 555.788/4.608.000 px (consciente de AA), caja [96,862]–[1183,3280] |
+| `ruta:tienda` / `producto` / `checkout` / `nosotros` / `suscripciones` | **IDÉNTICO** (0 px) |
+| `hover:automatica` / `hover:eleccion` | **IDÉNTICO** (0 px) |
+
+**Sólo `home` difiere, y la caja empieza en y=862 — justo DESPUÉS del hero** (que no se tocó). El
+arnés escanea la página entera y vuelve a `scrollTo(0,0)` antes de la captura `fullPage` — con
+`once:false`, todo lo que queda fuera del 60% activo a scroll=0 (es decir, casi todo lo que está
+bajo el pliegue) vuelve a su estado oculto. Es la advertencia LITERAL del spec ("si el arnés captura
+la página entera sin recorrerla, los bloques fuera de pantalla saldrán ocultos").
+
+**Verificación alterna — "reposo, todo entrado"** (`.scratch/comparar-reposo.ts`, gitigneado): por
+cada `<section>` de Nayoli, se centra en el viewport (entra al 60% activo), se espera el asentado, y
+se recorta con `locator.screenshot()`; se compara contra el MISMO rectángulo recortado del
+`ruta-home.png` de `main` (que, con `once:true`, ya tiene cada sección asentada para siempre). El
+control —el Hero, sin tocar— dio **0 px, idéntico**, confirmando que el método es válido. Las demás
+secciones NO dieron 0px exacto; inspección visual directa (recorte de BrandStory, `main` vs. `rama`)
+mostró el mismo texto, el mismo color, las mismas CUATRO fotos — **desplazadas verticalmente unos
+25px**, consistente con que este script usa una base de datos EFÍMERA PROPIA (reseed independiente),
+no la ÚNICA base que `verificar:nayoli:visual` comparte entre `main` y `rama` — una diferencia de
+layout aguas arriba (p. ej. el conteo de filas de "Selección del mes") desplaza todo lo que sigue.
+**No es una diferencia de contenido ni de estilo — es un artefacto de comparar dos siembras
+independientes**, y queda declarado así en vez de reportado como 0px sin serlo.
+
+### `npm run guarda:color`
+
+`ruta-home` **DIFIERE** (mismas cifras que arriba — la rama actual incluye este diff aunque no esté
+commiteado todavía, porque el build lee el árbol de trabajo). **NO se regeneró el fixture.**
+`CLAUDE.md` es explícito: "Actualizar el fixture... es decisión del owner — corre
+`--generar-fixture` a mano, nunca en silencio desde esta guarda." El cambio es exactamente el
+autorizado (`approval-reason` del spec cita al owner pidiendo esto para Nayoli), pero regenerar el
+fixture es una acción deliberada sobre una base de regresión que otros slices consultan — queda
+señalada para que el owner (o el orquestador, con su visto bueno) la corra.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (con `.next` fresco — 3 errores de `.next/types/app/api/{checkout/retorno,pasarela/redireccion,webhooks/wompi}` resultaron ser artefacto rancio de una build previa, desaparecen al borrar `.next` sin tocar código) | 0 errores |
+| `npm test` | **2997/2997** |
+| `npm run test:integracion` | **271/271** |
+| `npm run guarda:color` | `ruta-home` DIFIERE (esperado, § arriba); las otras 5 rutas + 2 hovers IDÉNTICO |
+| `npm run verificar:nayoli:visual` | `ruta:home` DIFIERE (esperado, § arriba); las otras 5 rutas + 2 hovers IDÉNTICO |
+
+**Hallazgo no pedido, reportado por la regla "la medición gana":** el open-follow-up
+`CHECKOUT-RETORNO-ROUTE-EXPORT-INVALIDO-1` (asiento anterior, mismo día) afirma que `next build` está
+roto por un export inválido en `app/api/checkout/retorno/route.ts`. Medido CUATRO veces en esta
+sesión (el `next build` de `main` y de `rama` dentro de `verificar:nayoli:visual`, y dos builds
+propios de los arneses de medición) con `.next` fresco: **las cuatro completaron sin error**,
+incluida esa ruta. No se investiga más a fondo (fuera de `touches:`) ni se cierra el follow-up —se
+deja la medición contradictoria escrita para quien lo re-abra.
+
+### `touches:` — sin deviación, dos archivos del spec deliberadamente sin tocar
+
+`git diff --stat` contra la base: **13 archivos modificados + 3 nuevos** (`components/storefront/
+RevelarBloque.tsx`, `lib/storefront/revelado-bloque.ts`, `lib/storefront/revelado-bloque.test.ts`),
+todos dentro de `touches:`. **`components/storefront/home/Marquesina.tsx`,
+`components/storefront/home/Origen.tsx`, `components/storefront/home/SubscriptionCTALinea.tsx`,
+`lib/config/origen-banda.test.ts`, `lib/config/subscription-linea.test.ts`,
+`lib/config/presentaciones-riel.test.ts` y `lib/animation.test.ts` quedan en 0 diff** — estaban en
+`touches:` (permitidos), no obligados: Marquesina no tiene bloques de texto que entren por viewport
+(scroll-scrub continuo); Origen/SubscriptionCTALinea son el propio patrón de referencia, protegido
+además por aserciones exactas en sus tests (`origen-banda.test.ts` cuenta 9+3 nodos `fadeUp`/
+`fadeUpCascadaBloque` exactos; `subscription-linea.test.ts` fija las clases `sf-postal-*`); tocarlos
+habría sido precisamente lo que el spec pide NO hacer.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas de este diff: `RevelarBloque`, `revelado-bloque`, `TrustBadges`, `GrindChooserMosaico`,
+`GrindChooserIndice`, `GrindChooserRiel`, `BrandStoryColumnas`, `BrandStoryCentrada`,
+`SubscriptionCTABloque`, `TestimonialSection`, `FeaturedProductsCuadricula`,
+`FeaturedProductsGrilla`, `fadeUp`, `Spotlight`, `SECCIONES-ENTRAN-VIVAS`. Grepeados uno por uno:
+**CERO coincidencias** para los quince, salvo `GrindChooserMosaico`/`GrindChooserIndice` (1 cada
+uno, la MISMA línea, § "LA LISTA TAMBIÉN GANA SUBÁRBOLES" — los nombra como ejemplo de "variantes
+del selector de molienda" cubiertas por el subárbol `components/storefront/`; este diff no cambia
+que sean variantes de esa sección, la frase sigue siendo verdadera). **Nada que corregir en
+`CLAUDE.md`.**
+
+### `customer_bytes`
+
+**`changed: true`.** El rastro VISIBLE es sólo de TRANSICIÓN: ningún texto, color, imagen ni layout
+en reposo cambia (confirmado: `guarda:color`/`verificar:nayoli:visual` sólo difieren mientras hay
+contenido fuera del 60% activo del viewport tras un `scrollTo(0,0)`, nunca en una ruta distinta de
+home, nunca en un hover). Lo que el visitante percibe: cada bloque de texto/imagen de la home (en
+Nayoli, Onix y Café Las Chamisas) sube 50px mientras aparece, escalonado, al cruzar hacia el centro
+de la pantalla — y vuelve a ocurrir si vuelve a pasar por ahí. `strings: []` — cero texto nuevo.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. El diff es componentes de React + una primitiva de animación + sus tests.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 2997 + 271), `guarda:color` y
+`verificar:nayoli:visual` dan la diferencia ESPERADA y acotada (sólo home, sólo mientras hay
+contenido oculto por el margen de disparo tras `scrollTo(0,0)`; medido y explicado arriba), mid-scroll
+medido 8/8 en Nayoli y CORTE, 1440 y iPhone WebKit. Commiteado en `slice/corte-reescritura-
+prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO aplican. El owner
+ya aprobó la ESCRITURA (`approved: yes`, con su gate textual del 2026-10-01 como `approval-reason`,
+incluyendo explícitamente a Nayoli); el merge sigue pendiente del gate del orquestador — este slice,
+por instrucción del dispatch, no mergea. **El fixture de `guarda:color` NO se regeneró** (acción
+deliberada del owner, § arriba) — eso sigue en rojo hasta que alguien con esa autoridad lo corra.
+
+**Open follow-ups:**
+- `GUARDA-COLOR-FIXTURE-ENTRADA-PENDIENTE-1` — el fixture de Nayoli en `tests/visual/nayoli/
+  ruta-home.png` queda desactualizado a propósito por este slice (la entrada ya no es byte-idéntica,
+  pedido explícito del owner); regenerarlo con `tsx scripts/verificar-nayoli-visual.ts
+  --generar-fixture` es la acción pendiente, a mano, de quien tenga esa autoridad — no de este slice.
+- `CHECKOUT-RETORNO-ROUTE-EXPORT-INVALIDO-1` (asiento anterior) — medido CUATRO veces en esta sesión
+  con `.next` fresco y **no reprodujo**; se deja la medición contradictoria sin cerrar el
+  follow-up (fuera de `touches:` de este slice).
+- `REVELADO-BLOQUE-SWIPE-TARJETAS-VARIABLES-1` — ninguno nuevo sobre el mecanismo en sí; si una
+  sección futura necesita un margen de disparo distinto a -20%/-20% (p. ej. una banda muy corta que
+  nunca llega a estar "bien adentro" del 60% activo), ese ajuste es por sección, no del token
+  compartido — `REVELA_BLOQUE_MARGEN` es un solo valor hoy, a propósito.
+
+**Cierra `SECCIONES-ENTRAN-VIVAS-1`.**

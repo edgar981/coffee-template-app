@@ -1,12 +1,11 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Image from "next/image";
-import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
 // texto de un lado, collage del otro — el BrandStory de SIEMPRE, extraído VERBATIM al separar el
@@ -43,22 +42,15 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
   // completa en el MISMO orden, así que el `.map` de abajo rinde EXACTO lo de siempre.
   const imagenesLlenas = IMAGENES.filter(({ campo }) => !!brandStory[campo]);
 
-  // En la VISTA PREVIA del panel, las entradas por `whileInView` quedarían INVISIBLES: dentro del
-  // contenedor escalado (`transform: scale`) la intersección con el viewport no llega. Se cambia
-  // `whileInView`→`animate` con `initial={false}`: el elemento descansa en su estado visible desde
-  // el primer render, sin animación de entrada. Fuera de preview, idéntico a hoy. (Mismo criterio
-  // que HeroSection, ahí escrito para esta sección.)
+  // LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): eyebrow/título/párrafo(s)/collage entran cada uno por su
+  // cuenta con `RevelarBloque` (§ su docstring: gate `preview` incluido, mismo criterio que el resto
+  // de la home) — reemplaza al ÚNICO bloque de texto combinado (eyebrow+título+párrafos) y al
+  // `scale`+`opacity` propio del collage, que no seguía la curva/duración/disparo tardío del resto.
   return (
     <section id="nuestra-historia" className="py-24 bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
       <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <motion.div
-            initial={preview ? false : "hidden"}
-            animate={preview ? "visible" : undefined}
-            whileInView={preview ? undefined : "visible"}
-            viewport={preview ? undefined : { once: true }}
-            variants={fadeUp}
-          >
+          <div>
             {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
                 `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por esquema.
                 EL TÍTULO/PÁRRAFOS (§ eje 5b, home-3) estaban en `--sf-sobre` —floreado contra la
@@ -70,31 +62,31 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
                 MISMA fórmula que Tailwind genera para `/60` — así que sin esquema el resultado es el
                 mismo píxel que `text-white/60` de siempre). */}
             {brandStory.eyebrow && (
-              <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
+              <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
                 {brandStory.eyebrow}
-              </p>
+              </RevelarBloque>
             )}
-            <h2
+            <RevelarBloque
+              as="h2"
+              indice={1}
+              preview={preview}
               className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre-banda,white)] leading-tight mb-6"
               style={displayL ? { fontSize: displayL } : undefined}
             >
               {brandStory.titulo}
-            </h2>
-            <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-6 text-base">
+            </RevelarBloque>
+            <RevelarBloque as="p" indice={2} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-6 text-base">
               {brandStory.parrafo1}
-            </p>
+            </RevelarBloque>
             {brandStory.parrafo2 && (
-              <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-8 text-base">
+              <RevelarBloque as="p" indice={3} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-8 text-base">
                 {brandStory.parrafo2}
-              </p>
+              </RevelarBloque>
             )}
-          </motion.div>
-          <motion.div
-            initial={preview ? false : { opacity: 0, scale: 0.95 }}
-            animate={preview ? { opacity: 1, scale: 1 } : undefined}
-            whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
-            viewport={preview ? undefined : { once: true }}
-            transition={preview ? undefined : { duration: 0.6 }}
+          </div>
+          <RevelarBloque
+            indice={4}
+            preview={preview}
             className={`grid gap-4 ${imagenesLlenas.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
           >
             {imagenesLlenas.map(({ campo, alt, offset }) => (
@@ -108,7 +100,7 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
                 />
               </div>
             ))}
-          </motion.div>
+          </RevelarBloque>
         </div>
       </div>
     </section>

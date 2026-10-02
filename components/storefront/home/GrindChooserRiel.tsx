@@ -21,6 +21,7 @@ import { useCartStore } from "@/lib/cartStore";
 import { toast } from "sonner";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
+import RevelarBloque from "@/components/storefront/RevelarBloque";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -54,6 +55,12 @@ import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 // `resolverCtaSeccion` — vacío = sin botón, byte-idéntico. La canónica `GrindChooserMosaico` sigue
 // sin CTA propio (esa banda no lo lleva, § site-content-defaults.ts, "LA PÁGINA /nosotros" y su nota
 // sobre el anzuelo de la home) — no es un hueco, es que nadie lo pidió ahí.
+//
+// LA ENTRADA DE LA CABECERA (§ SECCIONES-ENTRAN-VIVAS-1): antetítulo/título/CTA entran con
+// `RevelarBloque` — las TARJETAS (`TarjetaRiel`) NO cambian, a propósito: su `fadeUp` de 24px es la
+// mitad de la razón por la que el track declara `overflow-y-hidden`
+// (§ RIEL-SIN-SCROLL-VERTICAL-1, arriba); subir esa distancia a 50px habría agrandado ese mismo
+// desborde de pintado, no achicado el problema que ese fix cierra.
 //
 // LOS CONTROLES DE AVANCE VIVEN DEBAJO DEL TRACK, NO EN LA CABECERA (§ PARIDAD-RIEL-TARJETAS-1,
 // MEDIDO contra `riel-antes-1440`/`riel-antes-390`, DECISIONS.md, y `.car-nav` del prototipo,
@@ -467,27 +474,23 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
             avance, que ahora viven DEBAJO del track (§ el docstring de cabecera). En columna en
             móvil, como el prototipo (`.pres-head{flex-direction:column}` bajo 640px). */}
         <div className="flex flex-col items-start gap-5 mb-10 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
-          <motion.div
-            initial={preview ? false : "hidden"}
-            animate={preview ? "visible" : undefined}
-            whileInView={preview ? undefined : "visible"}
-            viewport={preview ? undefined : { once: true }}
-            variants={fadeUp}
-          >
+          <div>
             {presentaciones.eyebrow && (
-              <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
+              <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</RevelarBloque>
             )}
-            <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</h2>
-          </motion.div>
+            <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</RevelarBloque>
+          </div>
           {/* El CTA (§ MUESTRARIO-SECCION-CTA-1), SOLO — `.pres-head` del prototipo no lleva nada
               más a la derecha (`index.html:228-234`: título de un lado, `.btn--primary` del otro). */}
           {ctaHref && (
-            <Link
-              href={ctaHref}
-              className="inline-flex shrink-0 items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
-            >
-              {presentaciones.ctaLabel}
-            </Link>
+            <RevelarBloque as="div" indice={2} preview={preview} className="shrink-0">
+              <Link
+                href={ctaHref}
+                className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
+              >
+                {presentaciones.ctaLabel}
+              </Link>
+            </RevelarBloque>
           )}
         </div>
 

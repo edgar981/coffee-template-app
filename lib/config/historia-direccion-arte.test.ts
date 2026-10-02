@@ -133,10 +133,20 @@ test('BrandStoryColumnas no importa el motor de scroll-scrub nuevo — la canón
     /useProgresoAcomodo|transformAcomodo|useScroll|useReducedMotion/,
     'columnas no debe consumir ninguna pieza del motor nuevo (ni el hook, ni la función pura, ni framer-motion directo)',
   );
+  // § SECCIONES-ENTRAN-VIVAS-1 (re-medido sobre este archivo): la entrada por bloque pasó de `fadeUp`
+  // (lib/animation.ts) inline a la primitiva compartida `RevelarBloque` — la afirmación vieja ("sólo
+  // `fadeUp`, sin ampliarse") describía el import de ANTES de ese slice; hoy columnas no importa nada
+  // de `lib/animation` en absoluto (ni `fadeUp` ni el motor de scroll-scrub, que ya estaba cubierto
+  // arriba).
+  assert.doesNotMatch(
+    src,
+    /from "@\/lib\/animation"/,
+    'columnas ya no depende de lib/animation — su entrada por bloque usa RevelarBloque',
+  );
   assert.match(
     src,
-    /^import \{ fadeUp \} from "@\/lib\/animation";$/m,
-    'el import de lib/animation en columnas se queda igual — sólo `fadeUp`, sin ampliarse',
+    /^import RevelarBloque from "@\/components\/storefront\/RevelarBloque";$/m,
+    'la entrada por bloque de columnas usa la primitiva compartida',
   );
 });
 
