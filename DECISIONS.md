@@ -43669,15 +43669,35 @@ foto-hover.ts` es una función pura sobre tipos ya existentes (`Product.imagen`/
   `verificar:nayoli:visual` — confirma otra vez que no está en el collage/suscripción tocado por
   ningún slice reciente de esta rama. No tocado por `TIENDA-HOVER-SEGUNDA-FOTO-1` (fuera de
   `touches:`).
+- `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1` — el gate de este slice corrió `npm run gate` DOS
+  veces sobre el mismo árbol final: la primera dio **285/286** en `test:integracion`, con el ÚNICO
+  fallo en `tests/integracion/wompi-reconciliador.test.ts`, el caso `CONCURRENCIA: webhook y
+  reconciliador procesando el MISMO evento A LA VEZ` (`resultadoWebhook.motivo` no cayó en ninguno
+  de los dos valores esperados). Diagnosticado ANTES de re-correr el gate completo (no "re-correr
+  hasta que dé verde" a ciegas): ese archivo tiene UN SOLO commit en toda su historia
+  (`9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`), ajeno por completo a `touches:` de este slice, y
+  corriendo SÓLO ese archivo 5 veces contra Postgres efímeros frescos y aislados (`.scratch/
+  repro-wompi-flake.ts`, no comiteado) dio **5/5 verde** — la carrera real que el test simula
+  (`SELECT…FOR UPDATE` serializando dos transacciones concurrentes) es sensible al timing del
+  sistema, y la corrida que falló coincidió con la carga pesada de Postgres/Next/Playwright de los
+  arneses de captura de este mismo slice corriendo en paralelo. La segunda corrida completa de
+  `npm run gate` (árbol idéntico, sin cambios de código) dio **286/286** limpio. No es un hallazgo
+  de este slice sobre SU código — es un dato sobre la fragilidad del test bajo carga, que queda
+  anotado para quien toque `wompi-reconciliador.test.ts` o el carril de integración bajo contención
+  real (p. ej. correr el gate en paralelo con otro arnés pesado). Fuera de `touches:` de
+  `TIENDA-HOVER-SEGUNDA-FOTO-1`.
 
 ### Verdict
 
 **AWAITING_APPROVAL.** `stopped_on: ["customer-bytes"]` — el propio diff cambia bytes visibles al
 cliente (§ `customer_bytes`: `changed: true`, el crossfade de hover en las tres tiendas), y la rama
 además sigue cargando los customer-bytes de los slices anteriores sin aprobar. Sin schema, sin
-contrato cross-repo. Gate verde: typecheck + 3087/3087 + 286/286; `guarda:color` y
-`verificar:nayoli:visual` sin diferencias fuera de la ya documentada `NAYOLI-HOME-DRIFT-RAMA-
-PREEXISTENTE-1`; riel antes/después en 0 px medido con pixelmatch. El dispatch pide explícitamente
-parar en `AWAITING_APPROVAL` sin mergear. Commiteado en `slice/corte-reescritura-prototipo-1`.
+contrato cross-repo. Gate verde: typecheck + 3087/3087 + 286/286 — `npm run gate` corrido DOS veces
+sobre el árbol final (§ `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKE-1`, arriba: la primera 285/286 por
+un flake ajeno a `touches:`, diagnosticado antes de re-correr; la segunda **286/286** limpio, mismo
+árbol, sin tocar código); `guarda:color` y `verificar:nayoli:visual` sin diferencias fuera de la ya
+documentada `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`; riel antes/después en 0 px medido con
+pixelmatch. El dispatch pide explícitamente parar en `AWAITING_APPROVAL` sin mergear. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
 
 **Cierra `TIENDA-HOVER-SEGUNDA-FOTO-1`.**
