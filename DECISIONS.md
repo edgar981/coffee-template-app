@@ -46684,3 +46684,189 @@ sessionStorage, reload, vía vieja rechazada, código alterado rechazado, reinte
 Chromium 1440 y WebKit iPhone. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `CHECKOUT-COMPROBANTE-TOKEN-1`.**
+
+## 2026-10-02 — El tagline dorado de Café Las Chamisas deja de caer a la tinta sobre el nav claro: el MISMO tono, oscurecido (`TAGLINE-DORADO-PROFUNDO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Gate del owner sobre el tagline
+de Las Chamisas en el nav claro (§ NAV-LOGO-MOVIL-CON-AIRE-1, que cae a tinta por contraste), pedido
+textual: *"The current one doesn't look that bad, but try with the deeper gold."* La aprobación
+autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `6805a69`, == `origin/slice/corte-reescritura-prototipo-1`) |
+| `main` local == `origin/main` | sí, `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` |
+| los 5 archivos de `touches:` existen | sí — `components/storefront/Logo.tsx`, `lib/config/marca-logo.ts` (`colorTaglineAcento`), `lib/config/marca-logo.test.ts`, `lib/config/corte-logo-apilado.test.ts`, `DECISIONS.md` |
+| el mecanismo que el spec pide reusar (`pisoContraste`, `palette-derive.ts`) existe y es exportado | sí, `lib/config/palette-derive.ts:162` |
+
+### Lo medido ANTES de tocar nada
+
+- `colorTaglineAcento(variant)` (`lib/config/marca-logo.ts`) devolvía, para `'light'`, **`text-[var(--sf-acento-texto)]`** — un token GENÉRICO (gana piso contra `fondo` para cualquier raíz de cualquier tenant) que para CORTE (`origenTexto:'tinta'`, `themes.ts:1048`) resuelve LITERAL a la raíz `tinta` (`#102407`) — un matiz verde AJENO al dorado, no "el mismo tono más oscuro".
+- **`--sf-tostado-5` (el dorado) no pasa el piso sobre el nav sólido claro**: medido contra la paleta REAL de CORTE declarada en `themes.ts` (`raices: {fondo:'#fdfbf7', tinta:'#102407', acento:'#a70004'}`, `origenTexto:'tinta'`, `origenAccion:'acento'`) con `derivarPaleta` (REUSADA, `.scratch/medir-tagline-dorado-profundo.ts`, no parte del producto): `tostado-5 = #d39163`, **2.54:1 contra `fondo`** (FALLA el piso de 4.5:1 a 11px) — el mismo número que el docstring de `NavWordmarkContent.taglineColor` ya documentaba.
+- **No hay token existente que ya sea "el dorado, oscurecido".** Censados los ocho `tostado-N` de la RECETA contra `fondo`: ninguno pasa 4.5 (el más cercano, `tostado-3`, da 4.31 — y además es un peso de mezcla DISTINTO, más rojizo). Generalizar el fallback (un token nuevo, floreado en el motor para cualquier tenant) tocaría `palette-derive.ts`, fuera de `touches:` de este slice.
+
+### El fix — un literal CORTE-específico, derivado del motor (reusado, no copiado)
+
+- **`pisoContraste(tostado-5, fondo, 4.5)`** (la MISMA función exportada de `palette-derive.ts` que floréa el resto de los roles de texto del motor — "1. caminar L", preserva TONO y CROMA) sobre la paleta REAL de CORTE da **`#a16336`** — **4.67:1 contra `fondo`, 4.82:1 contra `tarjeta`** (el fondo real del nav sólido, `bg-[var(--sf-tarjeta)]/95`). La escalera convergió en el paso 1 (caminar L): el resultado no es `#000000` ni el extremo — es el MISMO tono (H, C intactos), sólo más oscuro, exactamente lo que el gate pidió.
+- **`colorTaglineAcento('light')` devuelve `'text-[#a16336]'`** — un literal, no `var(--sf-tostado-5)` oscurecido en runtime: Tailwind v4 escanea TEXTO LITERAL de las clases en el código fuente (§ CLAUDE.md, el mismo límite que ya documenta `altoLogoNavMovilClase` en este archivo), así que un `` `text-[${pisoContraste(...)}]` `` interpolado NO generaría la clase. El número se derivó UNA vez (`.scratch/medir-tagline-dorado-profundo.ts`) y se escribió a mano en el código, con su docstring mostrando la derivación completa.
+- **`variant==='dark'` (sobre el hero) NO SE TOCA** — sigue en `text-[var(--sf-tostado-5)]`, el dorado de siempre: el spec lo pide explícito ("Sobre el hero, el dorado de hoy") y el gate del owner sólo nombró el nav claro.
+- **Es un literal ESPECÍFICO de CORTE, a propósito, no una regla general.** A diferencia de `--sf-acento-texto` (el fallback de ANTES, genérico para cualquier raíz), `#a16336` sólo es correcto para la paleta declarada de CORTE en `themes.ts`. Generalizarlo (un token derivado en el motor para cualquier tenant) queda fuera de `touches:` — documentado en el docstring de la función y en Open follow-ups, abajo.
+- **Los tests se reescribieron, no se agregaron por separado**: `marca-logo.test.ts` y `corte-logo-apilado.test.ts` tenían 3 aserciones que esperaban `--sf-acento-texto` para `variant:'light'`; se actualizaron a `#a16336` y se agregó un CUARTO test (`marca-logo.test.ts`) que deriva el literal esperado llamando a `derivarPaleta`/`pisoContraste` EN VIVO sobre las raíces de CORTE y lo compara contra `colorTaglineAcento('light')` — si el motor o las raíces de CORTE cambian algún día, este test se cae señalando la deriva, en vez de quedar un literal mudo.
+
+### Cierre — gate, evidencia en el arnés, hallazgo sobre la cifra del spec
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **3180/3180** (+1 sobre los 3179 del commit anterior — el test nuevo que deriva el literal del motor) |
+| `npm run test:integracion` | **308/308**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | `ruta-home` DIFIERE (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]`) + las otras 5 rutas DIFIEREN (163/361 px c/u) + los 2 hovers IDÉNTICO (0px) — **CIFRA Y CAJA EXACTAS a las ya documentadas en `NAV-LOGO-TAMANOS-FINOS-1`/`CHECKOUT-COMPROBANTE-TOKEN-1`**, la misma deriva heredada de la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`) |
+| `npm run verificar:nayoli:visual` (main vs. rama, build fresco) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**No hizo falta revertir y re-correr para reconciliar**: las cifras de `guarda:color`/
+`verificar:nayoli:visual` de este árbol son BIT A BIT las mismas que las que `NAV-LOGO-TAMANOS-
+FINOS-1` y `CHECKOUT-COMPROBANTE-TOKEN-1` ya midieron y atribuyeron a la rama (no a un commit
+puntual). Coincidir exacto con una cifra ya reconciliada ES la reconciliación — este slice no
+agrega ni un píxel de drift nuevo, y es coherente con que Nayoli (sin `taglineColor:'acento'`, sin
+CORTE) nunca pasa por `colorTaglineAcento`.
+
+**Evidencia manual — base EFÍMERA con "Café Las Chamisas", preset CORTE, `navWordmark.
+taglineColor:'acento'` (DATO directo, sin editor en el panel aún, § su docstring).** Harness ad-hoc
+(`.scratch/verificar-tagline-dorado-profundo.ts`, gitignorado, calcado del patrón de
+`NAV-LOGO-TAMANOS-FINOS-1`): Postgres efímero (`:55447`), `migrate deploy` sin el seed de Nayoli,
+`mergePresetEnContent({}, CORTE)` + `taglineColor:'acento'` escrito encima (no es eje de preset,
+§ `corte-logo-apilado.test.ts`), build + `next start` (`:3501`), Playwright aislado (Chromium 1440 y
+WebKit `'iPhone 15'`). Mide el color COMPUTADO (`getComputedStyle`) del `<span>` del tagline —
+seleccionado por ser HOJA del DOM con texto propio exacto, no por `textContent.includes(...)` sobre
+un ancestro (el primer intento del arnés cayó en esa trampa: un `<span>` de layout sin clase de
+color, cuyo `color` HEREDADO no es el de la clase real — corregido antes de medir nada en serio):
+
+| escenario | motor | color computado | contraste medido | ¿coincide con lo derivado? |
+| --- | --- | --- | --- | --- |
+| home, nav sobre el hero (`variant:'dark'`, SIN tocar) | Chromium 1440 | `rgb(211,145,99)` = `#d39163` | 6.26:1 contra `tinta` | sí — el `tostado-5` de siempre |
+| home, nav sobre el hero | WebKit iPhone 15 | `rgb(211,145,99)` | 6.26:1 | sí |
+| `/tienda`, nav sólido claro (`variant:'light'`, EL FIX) | Chromium 1440 | `rgb(161,99,54)` = `#a16336` | 4.82:1 contra `tarjeta` real (`getComputedStyle(header).backgroundColor`, blanco/95%+blur), 4.67:1 contra `fondo` | sí — EXACTO al literal escrito |
+| `/tienda`, nav sólido claro | WebKit iPhone 15 | `rgb(161,99,54)` | 4.82:1 / 4.67:1 | sí |
+
+Las CUATRO corridas (2 motores × 2 escenarios) dan el color EXACTO que el código ahora escribe —
+cero diferencia entre lo derivado offline y lo que el navegador renderiza. Capturas en
+`.scratch/tagline-dorado-profundo-capturas/`, revisadas visualmente: el tagline se lee con
+claridad sobre el nav claro, y sobre el hero no cambió un píxel.
+
+### HALLAZGO — la cifra del `observed-report` del spec no coincide con lo medido contra el código
+
+El spec citaba, del Playwright del orquestador contra "la demo": `rgb(216, 160, 117)` para el
+dorado sobre el hero y `rgb(42, 37, 34)` para la tinta vieja sobre `/tienda`. **Lo medido en este
+slice, contra las raíces de CORTE tal como `themes.ts` las declara HOY en esta rama** (`#fdfbf7`/
+`#102407`/`#a70004`, con `origenTexto:'tinta'`/`origenAccion:'acento'`), da `rgb(211,145,99)` para
+el dorado y `rgb(16,36,7)` para lo que `--sf-acento-texto` habría resuelto (el fallback VIEJO,
+antes de este fix) — NINGUNO de los dos coincide con la cifra del spec.
+
+**Se investigó, no se descartó.** Se probaron dos candidatos para explicar la cifra del spec: las
+raíces de CORTE en `main` ANTES de la reescritura de esta misma rama (`#efece6`/`#0c0b0a`/
+`#a3643a`, SIN los ejes `origenTexto`/`origenAccion` — `main` no los declara) dan `tostado-5 =
+rgb(197,167,135)` y `acento-texto = rgb(153,91,49)` — tampoco coinciden. **No se encontró ningún
+par de raíces del catálogo de presets (ni la versión de esta rama, ni la de `main`) que reproduzca
+los dos números del spec.** La explicación más probable, sin forma de confirmarla sin acceso a la
+base de la demo: el tenant real "Café Las Chamisas" tiene un `content.tema` CUSTOMIZADO vía el
+editor de paleta, distinto del preset CORTE "de catálogo" que este slice (y los anteriores de la
+misma función) usan como fuente de verdad — o la demo que el orquestador alcanzó por red servía un
+deploy MERGEADO (`main`/producción), no esta rama sin mergear, con datos que tampoco calzan con la
+reconstrucción de `main` de arriba.
+
+**Por qué esto NO bloquea el slice**: el MISMO patrón —medir contra las raíces de CORTE declaradas
+en `themes.ts`, no contra la base de un tenant real— es el que ya usan `NavWordmarkContent.
+taglineColor` (el docstring que originó `--sf-acento-texto` como fallback) y el resto de los
+comentarios de `colorTaglineAcento`; es la única fuente reproducible sin acceso a la base de datos
+de producción, y el spec mismo pidió reusar `pisoContraste` "sobre la paleta real de CORTE" sin
+dar una ruta a la base. **UNKNOWN**: si el `content.tema` real de Café Las Chamisas difiere de las
+raíces de catálogo, el literal `#a16336` sería correcto en DIRECCIÓN (mismo tono, más oscuro) pero
+no necesariamente en el VALOR EXACTO para esa base específica — no verificable sin acceso a esa
+base. Anotado como open follow-up, abajo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `colorTaglineAcento` (`lib/config/marca-logo.ts`), el literal
+`#a16336`, `components/storefront/Logo.tsx` (sin editar — sólo se LEYÓ para confirmar que no hace
+falta tocarlo, `colorAcento` ya es agnóstico de qué literal devuelve `colorTaglineAcento`), y los
+dos archivos de test. Grepeados contra `CLAUDE.md` (`colorTaglineAcento`, `marca-logo.ts`,
+`acento-texto`, `taglineColor`, `NavWordmarkContent`, `tostado-5`, `a16336`, `CORTE`, `Logo.tsx`):
+**CERO coincidencias** para los siete símbolos propios de este cambio — la doctrina de esta
+función vive sólo en `DECISIONS.md` (`NAV-LOGO-MOVIL-CON-AIRE-1`), nunca se promovió a
+`CLAUDE.md`. `CORTE`/`Logo.tsx` SÍ aparecen, pero en secciones ajenas (`CORTE-BRANDSTORY-
+COLLAGE-1`, "El CORTE es ENVIADO + FALLIDO" de automatizaciones, "§ El WORDMARK carga la
+identidad" sobre el MARK subido) — ninguna nombra `colorTaglineAcento`, `taglineColor` ni el
+tagline, y ninguna se vuelve falsa por este diff. Nada en `CLAUDE.md` nombra lo que este diff
+cambió.
+
+**Segundo grep, sobre el documento que SÍ cambió** (`DECISIONS.md`, § la instrucción sobre
+identificadores de sección): `TAGLINE-DORADO-PROFUNDO-1` es un id nuevo, sin referencias previas
+que pudieran quedar colgando. `NAV-LOGO-MOVIL-CON-AIRE-1` (el id que esta entrada referencia) tiene
+decenas de apariciones en el ledger — ninguna afirma que el fallback de `'light'` SEA genérico de
+forma permanente ni cierra el tema; la entrada original ya quedaba con el defecto de contraste
+medido y sin resolver ("cae a `--sf-acento-texto`… el MISMO par que `colorActivo`… usa para este
+mismo problema"), así que esta entrada EXTIENDE esa historia, no la contradice. El docstring en
+código (`lib/config/marca-logo.ts`, dentro de `touches:`) sí quedó actualizado con una nota
+"DESACTUALIZADA en la rama `variant==='light'`" apuntando acá, en vez de reescribir la medición
+original — la entrada de `NAV-LOGO-MOVIL-CON-AIRE-1` NO se reescribe (ledger append-only); el
+docstring de `NavWordmarkContent.taglineColor` en `site-content-defaults.ts` (fuera de
+`touches:`) sigue describiendo el fallback VIEJO sin nota — queda nombrado en Open follow-ups.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que
+`CHECKOUT-COMPROBANTE-TOKEN-1` lo reportó). **De este COMMIT en particular**: el byte que cambia es
+COLOR, no texto — un tenant con `navWordmark.taglineColor:'acento'` (hoy, sólo Café Las Chamisas,
+puesto como DATO directo sin editor) ve su tagline en un dorado MÁS OSCURO sobre el nav sólido
+claro (`/tienda`, la ficha, `/nosotros`…), en vez de la tinta verde de antes. **`strings: []`** —
+ningún texto visible cambia, sólo un color. Sobre el hero (home sin scroll) NO HAY CAMBIO —
+confirmado medido arriba. Nayoli (`taglineColor:'atenuado'` default) y cualquier otro tenant sin
+este eje explícito **no ven nada** — confirmado por `guarda:color`/`verificar:nayoli:visual` dando
+la MISMA cifra exacta que antes de este diff. `approved: null` — Nayoli nunca ejercita esta rama.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva. `colorTaglineAcento` es una
+función pura que devuelve un string; no hay contrato cruzado (el valor sólo lo consume este mismo
+repo, dentro de `Logo.tsx`).
+
+### Open follow-ups
+
+- **`TAGLINE-DORADO-PROFUNDO-DEMO-DESCONOCIDA-1`** (coined acá): la cifra RGB que el
+  `observed-report` de este spec citó para "la demo" no coincide con lo que `derivarPaleta`
+  produce para las raíces de CORTE declaradas en `themes.ts`, ni en esta rama ni en `main`
+  (§ el Hallazgo, arriba). El literal `#a16336` que este slice escribió es correcto CONTRA EL
+  CATÁLOGO DE PRESETS, la única fuente reproducible sin acceso a la base; si el `content.tema` real
+  del tenant "Café Las Chamisas" diverge del preset CORTE de catálogo (p.ej. por edición manual vía
+  el editor de paleta), el literal podría no calzar EXACTO contra esa base específica, aunque la
+  DIRECCIÓN (mismo tono, más oscuro) seguiría siendo correcta. No se investiga más acá: exige
+  consultar la base real del tenant, fuera del alcance de este slice (sin acceso a producción).
+- **`presentacionesEditableSchema`-style generalización del fallback** (sin coining nuevo, ya
+  nombrado en el docstring de `colorTaglineAcento`): si un segundo tenant necesitara el mismo
+  mecanismo con OTRAS raíces, el literal CORTE-específico de este slice no sirve — haría falta un
+  token derivado en `palette-derive.ts` (p.ej. `tostado-5-profundo`, floreado por el motor para
+  cualquier raíz), fuera de `touches:` de este slice.
+- El docstring de `NavWordmarkContent.taglineColor` (`lib/config/site-content-defaults.ts`, fuera
+  de `touches:`) sigue describiendo el fallback VIEJO (`--sf-acento-texto`) para `variant:'light'`
+  sin nota de que cambió — queda desactualizado hasta que un slice con ese archivo en `touches:` lo
+  actualice. El docstring de `colorTaglineAcento` (dentro de `touches:`, sí actualizado) ya apunta
+  acá.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Cierre).
+  Ajeno a `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — el dispatch lo pide explícito: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec,
+citado arriba); el MERGE de la rama sigue gateado aparte. Gate verde en sus tres capas obligatorias
+(typecheck 0 errores, `npm test` 3180/3180, `npm run test:integracion` 308/308);
+`guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que la ya documentada y
+atribuida a la rama — cero píxeles de drift nuevo. Evidencia manual (Playwright, Chromium 1440 y
+WebKit iPhone 15, contra una base efímera con CORTE + el dato real del eje) confirma el mecanismo
+completo: el hero no cambia, el nav claro pasa de la tinta al dorado profundo, EXACTO al literal
+escrito, en los dos motores. El hallazgo sobre la cifra del spec queda documentado, no silenciado,
+con su propio open follow-up. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `TAGLINE-DORADO-PROFUNDO-1`.**
