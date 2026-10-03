@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from '@/components/ui/command';
 import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
-import { esSesionVencida } from '@/lib/api/upload';
+import { esSesionVencida, MSG_SESION_VENCIDA } from '@/lib/api/upload';
 import { getProducts } from '@/lib/api/products';
 import type { Product } from '@/types/product';
 import { cn } from '@duna/core/utils';
@@ -24,6 +24,9 @@ import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
+import {
+  TIPO_MENSAJE_SESION_VENCIDA, esMensajeSeccionClick, esMensajeCampoCambio, esMensajeCampoImagenClick,
+} from '@/lib/storefront/editor-puente';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
 import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
@@ -285,6 +288,12 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const [errorCampo, setErrorCampo] = useState<string | null>(null);
   const [procesando, setProcesando]   = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  // § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — el autoguardado de ESTA sección acaba de fallar con
+  // 401 (§ `guardarSeccion`, abajo). Aparte de `auto.estado` (que sólo sabe "error", no POR QUÉ):
+  // es el mismo criterio que ya separa `esSesionVencida`/`MSG_SESION_VENCIDA` del coordinador
+  // genérico de subidas (`useSubidaImagen`) en este mismo archivo — el COORDINADOR no necesita
+  // conocer la razón del fallo para debounce/encolar/reintentar, sólo el LLAMADOR que hizo el fetch.
+  const [sesionVencida, setSesionVencida] = useState(false);
 
   const formRef = useRef<Datos | null>(null); formRef.current = form;
 
@@ -523,13 +532,58 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     auto.marcarSucio(nf); auto.flush();
   };
 
+  // § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — la ventana del iframe, capturada del propio
+  // `MessageEvent.source` de CUALQUIER mensaje iframe→panel que YA llega por el puente (§ editor-
+  // puente.ts): todo mensaje de ese sentido trae, por especificación, la ventana que lo mandó. Deja
+  // avisarle DIRECTO al campo flotante sin el `ref` imperativo que sólo `VistaTiendaIframe.tsx`
+  // tiene (fuera de `touches:` de este slice) — mismo patrón que `TiendaPaginas.tsx` ya usa para su
+  // propio listener de `TIPO_MENSAJE_CAMPO_IMAGEN_CLICK`, sin tocar ese archivo. Se re-captura en
+  // CADA mensaje (no "sólo si está vacío"): un cambio de página remonta el `<iframe>`
+  // (`key={pagina}`, `VistaTiendaIframe.tsx`) y la ventana vieja deja de ser la correcta.
+  const iframeVentanaRef = useRef<Window | null>(null);
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || !e.source) return;
+      if (esMensajeSeccionClick(e.data) || esMensajeCampoCambio(e.data) || esMensajeCampoImagenClick(e.data)) {
+        iframeVentanaRef.current = e.source as Window;
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Avisa sesión vencida/recuperada — AL PANEL (`sesionVencida`, el estado de arriba) y, si el
+  // campo abierto en el iframe es de ESTA sección, AL CAMPO FLOTANTE (postMessage directo a la
+  // ventana capturada arriba; el iframe decide si le corresponde, § `EditorPuenteVivo.tsx`).
+  // `sesionVencidaRef` evita re-mandar el MISMO valor en cada guardado EXITOSO —que corre cada
+  // ~1 s mientras se tipea— cuando nunca hubo nada que avisar.
+  const sesionVencidaRef = useRef(false);
+  const avisarSesionVencida = useCallback((vencida: boolean) => {
+    if (sesionVencidaRef.current === vencida) return;
+    sesionVencidaRef.current = vencida;
+    setSesionVencida(vencida);
+    iframeVentanaRef.current?.postMessage(
+      { tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion, vencida, mensaje: vencida ? MSG_SESION_VENCIDA : undefined },
+      window.location.origin,
+    );
+  }, [seccion]);
+
+  // El 401 es el MISMO gate de sesión que ya firma el token de subida (`esSesionVencida`,
+  // `lib/api/upload.ts`) — acá en el PUT de autoguardado. `avisarSesionVencida` reusa el MISMO
+  // texto (`MSG_SESION_VENCIDA`, nunca copiado) para que el mensaje al campo flotante y el que
+  // lanza esta función digan exactamente lo mismo.
   const guardarSeccion = useCallback(async (data: Datos) => {
     const res = await fetch('/api/site-content', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [seccion]: data }),
     });
+    if (res.status === 401) {
+      avisarSesionVencida(true);
+      throw new Error(MSG_SESION_VENCIDA);
+    }
     if (!res.ok) throw new Error('No se pudo guardar');
-  }, [seccion]);
+    avisarSesionVencida(false);
+  }, [seccion, avisarSesionVencida]);
   const auto = useAutoguardado(guardarSeccion);
 
   // SIEMBRA del form desde el dato que bajó el padre (§ fetch 6→1). Una sola vez —guarda `form === null`—;
@@ -853,8 +907,12 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
   // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
   const mostrarEstado = editando || auto.estado !== 'guardado';
+  // § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — con `sesionVencida`, el texto es el MISMO que ya usa
+  // la subida de imágenes (`MSG_SESION_VENCIDA`, reusado): un "No se pudo guardar" genérico ahí
+  // mentiría sobre la causa, y "Reintentar" prometería algo que no se va a lograr mientras la
+  // sesión siga vencida (§ abajo, el link reemplaza al botón).
   const estadoTexto = auto.estado === 'guardando' ? 'Guardando…'
-    : auto.estado === 'error' ? 'No se pudo guardar'
+    : auto.estado === 'error' ? (sesionVencida ? MSG_SESION_VENCIDA : 'No se pudo guardar')
     : 'Guardado';
 
   // UNA sola definición del indicador, renderizada en las DOS ramas. Vivía sólo en el editor, y eso
@@ -866,8 +924,9 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
       <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
         {estadoTexto}
       </span>
-      {enError && (
-        <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
+      {enError && (sesionVencida
+        ? <a href="/login" className="duna-link">Iniciar sesión</a>
+        : <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
       )}
     </div>
   ) : null;

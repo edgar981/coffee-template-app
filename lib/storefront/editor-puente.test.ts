@@ -14,6 +14,8 @@ import {
   esMensajeCampoCambio,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK,
   esMensajeCampoImagenClick,
+  TIPO_MENSAJE_SESION_VENCIDA,
+  esMensajeSesionVencida,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -227,6 +229,47 @@ test('esMensajeCampoImagenClick rechaza cosas que no son objetos', () => {
   assert.equal(esMensajeCampoImagenClick(undefined), false);
   assert.equal(esMensajeCampoImagenClick('hola'), false);
   assert.equal(esMensajeCampoImagenClick(42), false);
+});
+
+// § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — el quinto mensaje, panel→iframe para el aviso de sesión
+// vencida dentro del campo flotante abierto.
+
+test('esMensajeSesionVencida acepta la forma correcta, vencida true y false, con y sin mensaje', () => {
+  assert.equal(
+    esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: 'hero', vencida: true, mensaje: 'Tu sesión expiró.' }),
+    true,
+  );
+  assert.equal(
+    esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: 'hero', vencida: false }),
+    true,
+  );
+});
+
+test('esMensajeSesionVencida rechaza tipo ausente/distinto', () => {
+  assert.equal(esMensajeSesionVencida({ seccion: 'hero', vencida: true }), false);
+  assert.equal(esMensajeSesionVencida({ tipo: 'otra-cosa', seccion: 'hero', vencida: true }), false);
+  // No se confunde con el mensaje de modo-navegar (otro panel→iframe con un booleano suelto).
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_MODO_NAVEGAR, navegar: true }), false);
+});
+
+test('esMensajeSesionVencida rechaza seccion ausente/vacía/no-string, y vencida no-booleano', () => {
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, vencida: true }), false);
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: '', vencida: true }), false);
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: '   ', vencida: true }), false);
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: 3, vencida: true }), false);
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: 'hero' }), false);
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: 'hero', vencida: 'si' }), false);
+});
+
+test('esMensajeSesionVencida rechaza un `mensaje` no-string cuando está presente', () => {
+  assert.equal(esMensajeSesionVencida({ tipo: TIPO_MENSAJE_SESION_VENCIDA, seccion: 'hero', vencida: true, mensaje: 42 }), false);
+});
+
+test('esMensajeSesionVencida rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeSesionVencida(null), false);
+  assert.equal(esMensajeSesionVencida(undefined), false);
+  assert.equal(esMensajeSesionVencida('hola'), false);
+  assert.equal(esMensajeSesionVencida(42), false);
 });
 
 test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el servidor', () => {

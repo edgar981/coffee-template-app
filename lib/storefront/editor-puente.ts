@@ -158,6 +158,46 @@ export function esMensajeCampoImagenClick(data: unknown): data is MensajeCampoIm
   );
 }
 
+// ─── EL QUINTO MENSAJE (§ EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1) ───────────────────────────────
+//
+// panel→iframe: "el autoguardado de ESTA sección acaba de fallar/volver a funcionar por 401"
+// (docs/editor-tienda/EDICION-INLINE.md § 3, "Lo que SÍ es nuevo" — el banner de sesión vencida del
+// panel puede pasar inadvertido mientras el dueño teclea DENTRO del iframe). A diferencia de
+// `TIPO_MENSAJE_CONTENIDO_SECCION`/`TIPO_MENSAJE_MODO_NAVEGAR` (los otros dos panel→iframe), éste NO
+// viaja por el `ref` imperativo de `VistaTiendaIframe.tsx` (fuera de `touches:` de este slice): el
+// emisor (`TiendaSeccionEditor.tsx`) captura la ventana del iframe del propio `MessageEvent.source`
+// de cualquier mensaje iframe→panel que YA le llega (todo mensaje de ese sentido trae, por
+// especificación, la ventana que lo mandó) y le contesta DIRECTO ahí — sin necesitar un segundo
+// camino al iframe. El `mensaje` viaja como STRING ya resuelto (`MSG_SESION_VENCIDA`,
+// `lib/api/upload.ts`, reusado por el emisor — nunca copiado) para que el lado del iframe
+// (`EditorPuenteVivo.tsx`, storefront público) no tenga que importar ese módulo: arrastraría
+// `@vercel/blob/client` al bundle de CADA visitante (§ "el peso es un costo real", CLAUDE.md).
+export const TIPO_MENSAJE_SESION_VENCIDA = 'editor-tienda:sesion-vencida' as const;
+
+export interface MensajeSesionVencida {
+  tipo: typeof TIPO_MENSAJE_SESION_VENCIDA;
+  /** La sección del REGISTRY cuyo autoguardado cambió de estado — el aviso sólo se muestra si el
+   *  campo ABIERTO en el iframe pertenece a ESTA sección (nunca el de otra, aunque comparta
+   *  ventana). */
+  seccion: string;
+  /** `true`: el guardado acaba de fallar con 401 — el campo abierto de esta sección muestra
+   *  `mensaje`. `false`: un guardado posterior tuvo éxito — retira el aviso si seguía puesto. */
+  vencida: boolean;
+  /** El texto a mostrar; sólo relevante cuando `vencida` es `true`. */
+  mensaje?: string;
+}
+
+export function esMensajeSesionVencida(data: unknown): data is MensajeSesionVencida {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return (
+    m.tipo === TIPO_MENSAJE_SESION_VENCIDA &&
+    typeof m.seccion === 'string' && m.seccion.trim() !== '' &&
+    typeof m.vencida === 'boolean' &&
+    (m.mensaje === undefined || typeof m.mensaje === 'string')
+  );
+}
+
 /**
  * Fusiona el borrador EN VUELO de UNA sección sobre el contenido YA RESUELTO que el storefront
  * tiene en memoria (lo que `getSiteContent()` mandó en el render del servidor, o el resultado de

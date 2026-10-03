@@ -362,7 +362,7 @@ bueno del owner, después el slice de escritura (igual que todo lo demás de `DI
 | 2 | `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` **— ENTREGADO, § 9** | Instrumenta **las 4 variantes** de `hero` (Curtina/Ficha/Media/MarquesinaSticky) — el caso con más multiplicidad, primero, para medir el costo real antes de comprometerse al resto. Incluye la MEDICIÓN de legibilidad pendiente (§ 2.2) en los tres anchos de dispositivo. | Verificado por ejecución, sesión real, preset CORTE (que usa variantes no-canónicas): clic en título/subtítulo/CTA en CADA una de las 4 variantes abre el overlay correcto; capturas en Escritorio/Tablet/Teléfono confirmando legibilidad; el campo duplicado de `marquesina`/`HeroMediaMarquesina` NO diverge tras tipear (ambas copias muestran el valor nuevo) — ver § 9. |
 | 3 | `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` **— ENTREGADO, § 10** | El mensaje/flujo de imagen (§ 4): clic en una imagen marcada abre el selector real del panel. | Clic en `hero.imagen` dentro del iframe abre el picker de archivos del sistema; la subida y el resultado se ven sin recargar, igual que hoy desde la lista. |
 | 4 | `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N` **— ENTREGADO salvo `suscripcionFaq`, § 10 (home) y § 11 (/nosotros, /suscripciones)** | El resto de home/nosotros/suscripciones, UNA o pocas secciones por slice (brandStory, origen, presentaciones×3 variantes, subscriptionCTA×2, testimonials+repeater, spotlight, nosotrosHistoria, nosotrosGaleria+repeater, nosotrosCierre, suscripcionPlanes, suscripcionPasos, suscripcionFaq+repeater) — el orden y el agrupado los decide quien planifique la implementación, no este documento. `suscripcionFaq` queda SIN tocar: vive en `PreguntasFrecuentes.tsx`, compartido con `/preguntas-frecuentes` y `/tienda`, fuera de `touches:` de `EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1` — necesita su propio slice. | Mismo patrón que el slice 2, por sección: todas sus variantes, todos sus campos de texto libre, `verificar:nayoli:visual` sin píxel nuevo — ver § 10/§ 11. |
-| 5 | `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1` | El aviso inline de sesión vencida DENTRO del overlay (§ 3). | Reproducido por ejecución: sesión invalidada a mitad de edición → el overlay muestra el aviso, el panel sigue mostrando el suyo, ninguno de los dos pierde el valor ya tecleado. |
+| 5 | `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1` **— ENTREGADO, § 12** | El aviso inline de sesión vencida DENTRO del overlay (§ 3). | Reproducido por ejecución: sesión invalidada a mitad de edición → el overlay muestra el aviso, el panel sigue mostrando el suyo, ninguno de los dos pierde el valor ya tecleado. |
 
 **Nav/pie (§ 5) y reordenar (fila 6 de `DISENO.md` § 6) quedan fuera de este plan**, con su propio
 disparador si algún día se deciden.
@@ -884,8 +884,9 @@ PREMATURA: `nosotrosHistoria`/`nosotrosGaleria`/`nosotrosCierre`/`suscripcionPla
 cero resultados en `components/storefront/nosotros/` y `components/storefront/suscripciones/` al
 cerrar este slice). Las cierra `EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1`, abajo — salvo
 `suscripcionFaq`, que queda como el único hueco nombrado de toda la fila 4. La fila 5
-(`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`, el aviso de sesión vencida dentro del overlay) y nav/pie
-(§ 5, fuera de alcance de todo este plan) siguen sin construir.
+(`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`, el aviso de sesión vencida dentro del overlay) **se
+cerró después, en § 12** — esta frase describía el estado al cerrar ESTE slice (`-HOME-1`), no el
+estado de hoy. Nav/pie (§ 5, fuera de alcance de todo este plan) siguen sin construir.
 
 ---
 
@@ -996,5 +997,99 @@ con sesión real (`admin@sierranativa.co`):
   `data-editor-campo-imagen=` — byte-idéntico.
 
 **Cierra la fila 4 de § 6.4, salvo `suscripcionFaq`** (§ el hueco de alcance, arriba). La fila 5
-(`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`), nav/pie (§ 5) y `suscripcionFaq` quedan como las piezas
-sin construir de `EDICION-INLINE.md`.
+(`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`) se cierra en § 12. Nav/pie (§ 5) y `suscripcionFaq`
+quedan como las piezas sin construir de `EDICION-INLINE.md`.
+
+---
+
+## 12 · Lo que `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1` entregó
+
+Cierra la fila 5 de § 6.4: el aviso inline de sesión vencida, dentro del overlay, sin tocar la
+plomería que las filas 1-4 ya construyeron (`ModoEditorProvider`, `CampoEditable`, el overlay/
+mensajes del puente, `fusionCampoEditable`).
+
+- **El QUINTO mensaje del puente** (`TIPO_MENSAJE_SESION_VENCIDA`, `lib/storefront/editor-
+  puente.ts`), panel→iframe: `{seccion, vencida, mensaje?}`. **NO viaja por el `ref` imperativo de
+  `VistaTiendaIframe.tsx`** (fuera de `touches:` de este slice, igual que `TIPO_MENSAJE_CAMPO_
+  IMAGEN_CLICK` no pasaba por ahí en `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`): el panel
+  (`TiendaSeccionEditor.tsx`) captura la ventana del iframe del propio `MessageEvent.source` de
+  CUALQUIER mensaje iframe→panel que YA le llega (`esMensajeSeccionClick`/`esMensajeCampoCambio`/
+  `esMensajeCampoImagenClick`, re-capturada en cada mensaje para sobrevivir al remonte del
+  `<iframe>` entre páginas) y le contesta DIRECTO ahí — standard `MessageEvent.source`, sin
+  necesitar un segundo camino al iframe ni tocar `VistaTiendaIframe.tsx`/`TiendaPaginas.tsx`.
+- **El TEXTO viaja en el mensaje, no se reimporta del lado del iframe.** `guardarSeccion` detecta
+  el 401 del PUT de autoguardado (`res.status === 401`) y lanza `new Error(MSG_SESION_VENCIDA)` —
+  el MISMO texto/función que ya usa la subida de imágenes (`esSesionVencida`/`MSG_SESION_VENCIDA`,
+  `lib/api/upload.ts`), **reusado, nunca copiado**. El mensaje al iframe manda ese string ya
+  resuelto (`mensaje: MSG_SESION_VENCIDA`) para que `EditorPuenteVivo.tsx` (storefront, PÚBLICO) no
+  tenga que importar `lib/api/upload.ts` —arrastraría `@vercel/blob/client` al bundle de CADA
+  visitante, § "el peso es un costo real"—.
+- **El coordinador genérico (`lib/autoguardado.ts`) NO se tocó.** La razón del fallo (401 vs. red
+  vs. 500) es un concern del LLAMADOR (`guardarSeccion`), no del coordinador — mismo criterio que
+  ya separa `esSesionVencida`/`MSG_SESION_VENCIDA` del coordinador genérico de subidas
+  (`useSubidaImagen`) en el mismo archivo. `guardarSeccion` guarda su propio estado
+  (`sesionVencida`, con un `sesionVencidaRef` que evita re-mandar el mismo valor en cada guardado
+  EXITOSO) ORTOGONAL a `auto.estado` — dos conceptos distintos (QUÉ pasó vs. POR QUÉ), nunca dos
+  fuentes del mismo hecho.
+- **El panel reemplaza "No se pudo guardar" + "Reintentar" por `MSG_SESION_VENCIDA` + "Iniciar
+  sesión"** cuando `auto.estado==='error' && sesionVencida` — mismo argumento que ya cerró
+  `PANEL-ERROR-SUBIDA-VISIBLE-1`: un "Reintentar" sobre un 401 no arregla nada mientras la sesión
+  siga vencida.
+- **El campo flotante muestra el aviso SÓLO si pertenece a su propia sección** (compara
+  `campoAbiertoRef.current.ruta.seccion === mensaje.seccion`): un guardado fallido de OTRA sección
+  (si hubiera dos editores con campos simultáneos, hoy sólo uno puede estar abierto a la vez) no
+  debe aparecer junto a un campo que no tiene nada que ver con ese guardado. Se limpia al cerrar el
+  campo o abrir OTRO, y se retira (`vencida:false`) en el PRÓXIMO guardado exitoso — sin que el
+  dueño tenga que hacer nada en esa pestaña: el reintento automático del coordinador (cada 5 s, sin
+  cambio) lo logra solo en cuanto la sesión se renueva.
+- **El chip del aviso, estilo LITERAL** (nunca un token `--duna-*`/`--sf-*`): el documento es el
+  storefront, y este chrome es EFÍMERO del editor superpuesto por JS — mismo criterio que
+  `COLOR_RESALTE` de `VistaTiendaIframe.tsx` (fuera de `touches:`).
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-sesion.ts` (no committed, gitignored) + el helper
+`.scratch/revocar-sesion.ts` (borra la fila `Session` del usuario, DIRECTO en la base — el MISMO
+mecanismo que `tests/integracion/modo-editor-gate.test.ts`, "sesión revocada"), contra una build
+de PRODUCCIÓN (`next build` + `next start`). **13/13 verificaciones en verde**:
+
+| verificación | resultado |
+| --- | --- |
+| clic en `hero.titulo` abre su overlay; tipear llega al panel | sí, el mismo valor en el input de la lista |
+| sesión revocada server-side (fila `Session` borrada) a mitad de edición → el PUT de autoguardado falla 401 | — |
+| el PANEL muestra `MSG_SESION_VENCIDA`, con "Iniciar sesión", SIN "Reintentar" | count=1 / count=1 / count=0 |
+| el CAMPO FLOTANTE (dentro del iframe) muestra el MISMO texto, junto al overlay | texto idéntico, byte a byte |
+| el valor tecleado sigue en el overlay Y en el panel | los dos, sin pérdida |
+| "volver a entrar" — login REAL en una SEGUNDA pestaña del MISMO contexto (cookie compartida), SIN tocar la pestaña 1 | — |
+| el reintento automático (cada 5 s, sin cambio) guarda solo: el panel vuelve a "Guardado" y el aviso del campo se retira | Guardado=1, sesión-vencida-todavía-visible=0, aviso-campo=0 |
+| publicado y releído SIN sesión: el `h1` de la home trae el valor tecleado durante todo el episodio | sí |
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`, UN comando, árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3307/3307** (+5 sobre los 3302 que § 11 (PAGINAS-1) reportó al cerrar — las 5 nuevas de `esMensajeSesionVencida`, `lib/storefront/editor-puente.test.ts`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja [105,862]–[1183,3581]; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: `TIPO_MENSAJE_SESION_VENCIDA` y el chip del aviso sólo existen
+DENTRO de `campoAbierto`/`avisoSesion` (modo editor, con un campo abierto Y un guardado fallido) —
+fuera de ese caso, byte-idéntico a antes.
+
+### DEVIACIÓN MEDIDA sobre el propio `touches:`: `lib/autoguardado.ts`/`lib/autoguardado.test.ts` listados, no tocados
+
+`touches:` de este slice los nombraba a los dos. **Medido, no asumido, que no hacía falta
+tocarlos**: el coordinador (`crearAutoguardado`) ya distingue "éxito"/"fallo" y reintenta solo —
+eso es TODO lo que `guardarSeccion` necesita de él. La RAZÓN del fallo (401 vs. cualquier otro) es
+conocimiento exclusivo del LLAMADOR que hizo el `fetch`, y el repo YA separa esa responsabilidad
+así en el mismo archivo (`esSesionVencida`/`MSG_SESION_VENCIDA` viven en `lib/api/upload.ts`,
+fuera de `useSubidaImagen`, el coordinador de subidas). Extender `Autoguardado<T>` para exponer el
+mensaje de error habría sido, además, inútil para este slice sin TAMBIÉN tocar `hooks/
+useAutoguardado.ts` (el hook que envuelve al coordinador y que `TiendaSeccionEditor.tsx` consume)
+— y ESE archivo tampoco está en `touches:`. `components/admin/EditorTiendaPantallaCompleta.tsx`
+(también listado) tampoco hizo falta: no tiene ninguna relación con el autoguardado de una
+sección ni con el puente — es la barra superior del editor de pantalla completa (página/
+dispositivo), ajena a este mecanismo.

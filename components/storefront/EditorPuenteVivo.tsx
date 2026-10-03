@@ -6,7 +6,7 @@ import { useSiteContentActualizador } from '@/components/storefront/SiteContentP
 import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
-  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK,
+  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida,
 } from '@/lib/storefront/editor-puente';
 // `ATRIBUTO_EDITOR_SECCION`/`ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` son admin-level por
 // historia (nacieron junto a `proxy.ts`/`modo-editor-gate.ts`, § su docstring), pero son literales
@@ -110,6 +110,17 @@ import {
 // `<input type="file">` oculto que ya monta el control "Cambiar imagen"/"Cambiar video" de la lista
 // (`TiendaSeccionEditor.abrirSelectorImagen`). El `seccion-click` de abajo se manda IGUAL para este
 // clic (la sección se abre en la lista, como cualquier otro clic dentro de ella).
+//
+// EL AVISO DE SESIÓN VENCIDA (§ EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1, EDICION-INLINE.md § 3): si el
+// autoguardado de la sección del campo ABIERTO falla con 401 mientras el dueño teclea DENTRO del
+// iframe, su atención no está en el panel —el banner que éste ya muestra puede pasar inadvertido—.
+// El panel manda `TIPO_MENSAJE_SESION_VENCIDA` (`{seccion, vencida, mensaje}`) con el MISMO texto
+// que ya usa para su propio aviso (`MSG_SESION_VENCIDA`, reusado, nunca copiado); este componente lo
+// muestra como un chip FIJO justo debajo del overlay, SÓLO si el campo abierto es de esa sección.
+// Nada se cierra ni se pierde: el valor tecleado sigue viajando por tecla como siempre (§ el
+// principio de § 2.1 del diseño — el campo nunca es la fuente de verdad), y el mismo canal lo retira
+// (`vencida:false`) en cuanto un guardado posterior tiene éxito (tras volver a iniciar sesión, el
+// reintento automático del autoguardado lo logra solo, sin que el dueño tenga que hacer nada acá).
 const CLASE_SELECCION_ACTIVA = 'duna-editor-seleccion';
 
 /** El estado del ÚNICO campo flotante que puede estar abierto a la vez. `ruta` ya viene PARSEADA
@@ -158,10 +169,18 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   // mismo (§ el comentario grande, "EL CLIC DENTRO DEL OVERLAY").
   const overlayNodoRef = useRef<HTMLElement | null>(null);
 
+  // EL AVISO DE SESIÓN VENCIDA (§ EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1, EDICION-INLINE.md § 3): el
+  // texto ya resuelto que llega por `TIPO_MENSAJE_SESION_VENCIDA` cuando el autoguardado del CAMPO
+  // ABIERTO falla con 401 — `null` = nada que mostrar. Vive SIEMPRE atado al campo abierto (se limpia
+  // al cerrar/abrir OTRO), nunca sobrevive a un cierre: no hay nada que "descartar" acá, el panel
+  // sigue siendo la fuente de verdad del estado real.
+  const [avisoSesion, setAvisoSesion] = useState<string | null>(null);
+
   const cerrarCampo = () => {
     const abierto = campoAbiertoRef.current;
     if (abierto) abierto.nodo.style.visibility = '';
     setCampoAbierto(null);
+    setAvisoSesion(null);
   };
 
   const abrirCampo = (nodo: HTMLElement) => {
@@ -183,6 +202,7 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       leerTipografia(nodo),
     );
     nodo.style.visibility = 'hidden';
+    setAvisoSesion(null); // un campo nuevo nace sin el aviso del campo anterior
     setCampoAbierto({ nodo, ruta, multilinea, valor: nodo.textContent ?? '', estilo });
   };
 
@@ -207,6 +227,18 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       if (esMensajeModoNavegar(e.data)) {
         navegarRef.current = e.data.navegar;
         document.documentElement.classList.toggle(CLASE_SELECCION_ACTIVA, !e.data.navegar);
+        return;
+      }
+
+      // § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — el quinto mensaje: el autoguardado de ESTA
+      // sección falló/volvió a funcionar. Sólo importa si pertenece al campo que está ABIERTO
+      // ahora mismo (comparando `ruta.seccion`, no el nodo) — un aviso de otra sección no debe
+      // aparecer junto a un campo que no tiene nada que ver con ese guardado.
+      if (esMensajeSesionVencida(e.data)) {
+        const abierto = campoAbiertoRef.current;
+        if (abierto && abierto.ruta.seccion === e.data.seccion) {
+          setAvisoSesion(e.data.vencida ? (e.data.mensaje ?? 'Tu sesión expiró.') : null);
+        }
         return;
       }
 
@@ -341,9 +373,37 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
           // `key` por RUTA: fuerza un nodo NUEVO (con `autoFocus` real) al abrir un campo distinto —
           // sin esto, pasar de un campo de una línea a otro TAMBIÉN de una línea reusaría el MISMO
           // `<input>` (React no remonta por props, sólo por tipo+posición) y el foco no saltaría.
-          return multilinea
+          const campo = multilinea
             ? <textarea key={`${ruta.seccion}.${ruta.campo}`} {...comun} />
             : <input key={`${ruta.seccion}.${ruta.campo}`} {...comun} />;
+          if (!avisoSesion) return campo;
+          // EL AVISO DE SESIÓN (§ arriba): un chip FIJO justo debajo del campo, mismo `left`/ancho
+          // mínimo que el overlay. Color LITERAL, no un token `--duna-*`/`--sf-*` — este documento es
+          // el storefront, el chrome es EFÍMERO del editor superpuesto por JS (mismo criterio que
+          // `COLOR_RESALTE`, `VistaTiendaIframe.tsx`, fuera de `touches:`). El TEXTO es el que ya
+          // resolvió el panel (`MSG_SESION_VENCIDA`, reusado — nunca copiado acá).
+          const avisoEstilo: Record<string, string | number> = {
+            position: 'fixed',
+            top: Number(campoAbierto.estilo.top) + Number(campoAbierto.estilo.height) + 4,
+            left: Number(campoAbierto.estilo.left),
+            maxWidth: Math.max(240, Number(campoAbierto.estilo.width)),
+            zIndex: 2147483647,
+            background: '#fff',
+            color: '#A0472F',
+            border: '1px solid #A0472F',
+            fontSize: 12,
+            lineHeight: 1.35,
+            padding: '4px 8px',
+            borderRadius: 6,
+            boxShadow: '0 2px 10px rgba(0,0,0,.25)',
+            fontFamily: 'system-ui, sans-serif',
+          };
+          return (
+            <>
+              {campo}
+              <div role="alert" style={avisoEstilo} data-editor-aviso-sesion="">{avisoSesion}</div>
+            </>
+          );
         })(),
         document.body,
       )}

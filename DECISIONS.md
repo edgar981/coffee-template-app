@@ -47726,3 +47726,200 @@ producción con sesión real — 45/45 en verde. `stopped_on: [customer-bytes]` 
 sin merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra la fila 4 de § 6.4 salvo `suscripcionFaq`** (`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`, arriba).
+
+## 2026-10-03 — el aviso de sesión vencida, dentro del campo flotante (`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Fila 5 de § 6.4 de
+`docs/editor-tienda/EDICION-INLINE.md`. Mismo pedido del owner, misma autorización que
+`EDITOR-TIENDA-CAMPO-EDITABLE-1`/`-HERO-1`/`-IMAGEN-1`/`-HOME-1`/`-PAGINAS-1` (2026-10-02); el
+`observed-report` que lo habilita es `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`. La aprobación
+autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `959c326`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (305 commits adelante de ese merge-base, 0 atrás) |
+| los archivos de `touches:` que ya existían | sí — los 9 nombrados (`EditorPuenteVivo.tsx`, `editor-puente.ts`/`.test.ts`, `TiendaSeccionEditor.tsx`, `EditorTiendaPantallaCompleta.tsx`, `lib/autoguardado.ts`/`.test.ts`, `EDICION-INLINE.md`, `DECISIONS.md`), confirmados con `Read`/`ls` antes de escribir |
+| archivos de `touches:` que NO hizo falta tocar | `lib/autoguardado.ts`/`.test.ts` y `EditorTiendaPantallaCompleta.tsx` — razón medida, § abajo |
+| base EFÍMERA para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55449`, seed estándar (`admin@sierranativa.co`) |
+
+### El obstáculo real: "el panel avisa al iframe" sin tocar `VistaTiendaIframe.tsx`/`TiendaPaginas.tsx`
+
+El spec pide que el panel avise al campo flotante — pero el ÚNICO lugar que tiene el `ref`
+imperativo hacia `contentWindow` del iframe es `VistaTiendaIframe.tsx` (`enviarCambio`/
+`enviarModoNavegar`), y NINGUNO de los dos mensajes panel→iframe existentes viaja por otro
+camino. Ni `VistaTiendaIframe.tsx` ni `TiendaPaginas.tsx` (quien lo instancia) están en
+`touches:`. **Medido antes de escribir código, no asumido**: `MessageEvent.source` —el objeto
+`Window` que YA trae cualquier mensaje iframe→panel, por especificación— es una referencia válida
+y utilizable para `postMessage` de VUELTA, sin pasar por ningún `ref`. Es el MISMO patrón que
+`TiendaPaginas.tsx` ya usa para su propio listener de `TIPO_MENSAJE_CAMPO_IMAGEN_CLICK`
+(`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`, un `window.addEventListener` propio que no toca
+`VistaTiendaIframe.tsx`), aplicado del lado del PANEL en vez del lado de `TiendaPaginas`.
+`TiendaSeccionEditor.tsx` ganó su propio listener (filtrado a los 3 mensajes iframe→panel ya
+conocidos, `esMensajeSeccionClick`/`esMensajeCampoCambio`/`esMensajeCampoImagenClick` — nunca
+cualquier mensaje mismo-origen) que captura y RE-captura (sobrevive al remonte del `<iframe>`
+entre pestañas de página) la ventana, y le contesta directo cuando el autoguardado falla/se
+recupera. Cero cambios en `VistaTiendaIframe.tsx`/`TiendaPaginas.tsx`.
+
+### El quinto mensaje, y por qué el texto viaja en vez de reimportarse
+
+`TIPO_MENSAJE_SESION_VENCIDA` (`lib/storefront/editor-puente.ts`): `{seccion, vencida, mensaje?}`.
+El panel detecta el 401 (`guardarSeccion`, `res.status === 401`) y lanza `new Error(MSG_SESION_
+VENCIDA)` — **reusando** `esSesionVencida`/`MSG_SESION_VENCIDA` de `lib/api/upload.ts` (ya
+importaba `esSesionVencida`; se agregó `MSG_SESION_VENCIDA` al mismo import), nunca una copia. El
+mensaje al iframe manda ese string YA resuelto (`mensaje: MSG_SESION_VENCIDA`) en vez de que
+`EditorPuenteVivo.tsx` importe `lib/api/upload.ts` — ese módulo importa `@vercel/blob/client`
+(para `subirDirecto`), y `EditorPuenteVivo.tsx` es storefront PÚBLICO: importarlo arrastraría esa
+dependencia al bundle de cada visitante, aunque sólo se usara la constante de texto. Medido antes
+de decidir (no asumido): un `import` estático de un módulo CON side-effects de import ajenos
+(`@vercel/blob/client`) no se puede confiar en que el tree-shaking lo elimine sólo porque la
+función que lo usa (`subirDirecto`) nunca se llama desde el importador — el riesgo de bundle
+público pesó más que la duplicación de UN string.
+
+### El coordinador genérico (`lib/autoguardado.ts`) no se tocó — deviación medida sobre el propio `touches:`
+
+`touches:` nombraba `lib/autoguardado.ts`/`lib/autoguardado.test.ts`. Medido, no asumido, que no
+hacía falta: el coordinador (`crearAutoguardado`) ya distingue éxito/fallo y reintenta solo cada
+`reintentoMs` (5000, sin cambio) — es TODO lo que `guardarSeccion` necesita de él para que "tras
+volver a entrar, se guarda" ocurra SOLO. La RAZÓN del fallo (401 vs. cualquier otro) es
+conocimiento exclusivo del LLAMADOR que hizo el `fetch` — el repo YA separa esa responsabilidad
+así en el MISMO archivo (`esSesionVencida`/`MSG_SESION_VENCIDA` viven en `lib/api/upload.ts`,
+fuera de `useSubidaImagen`, el coordinador de subidas de imágenes). `guardarSeccion` guarda su
+propio estado (`sesionVencida` + un `sesionVencidaRef` que evita re-mandar el mismo valor en cada
+guardado EXITOSO, que corre cada ~1 s mientras se tipea) ORTOGONAL a `auto.estado`. Extender
+`Autoguardado<T>` para exponer el mensaje de error habría sido, además, INÚTIL para este slice sin
+TAMBIÉN tocar `hooks/useAutoguardado.ts` (el hook que lo envuelve y que `TiendaSeccionEditor.tsx`
+consume) — y ESE archivo tampoco está en `touches:`. `components/admin/
+EditorTiendaPantallaCompleta.tsx` (también listado) tampoco hizo falta: es la barra superior del
+editor de pantalla completa (página/dispositivo elegidos) — sin relación con el autoguardado de
+una sección ni con el puente.
+
+### Lo construido, en corto (detalle completo en `EDICION-INLINE.md` § 12)
+
+- `lib/storefront/editor-puente.ts`: `TIPO_MENSAJE_SESION_VENCIDA`/`MensajeSesionVencida`/
+  `esMensajeSesionVencida` — el quinto mensaje, panel→iframe.
+- `components/storefront/EditorPuenteVivo.tsx`: estado `avisoSesion`; lo muestra como un chip FIJO
+  junto al overlay (color LITERAL, mismo criterio que `COLOR_RESALTE` de `VistaTiendaIframe.tsx`
+  por ser chrome efímero del storefront) SÓLO si el campo abierto es de la sección del mensaje; se
+  limpia al cerrar/abrir otro campo.
+- `components/admin/TiendaSeccionEditor.tsx`: el listener que captura `MessageEvent.source`; el
+  estado `sesionVencida`/`sesionVencidaRef`; `avisarSesionVencida(vencida)` (panel + postMessage al
+  iframe); `guardarSeccion` detecta el 401; el indicador reemplaza "No se pudo guardar"+"Reintentar"
+  por `MSG_SESION_VENCIDA`+"Iniciar sesión" cuando corresponde.
+- `lib/storefront/editor-puente.test.ts`: 5 tests nuevos para `esMensajeSesionVencida`.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-sesion.ts` (no committed, gitignored) + el helper
+`.scratch/revocar-sesion.ts` (borra la fila `Session` del usuario DIRECTO en la base — el MISMO
+mecanismo que `tests/integracion/modo-editor-gate.test.ts`, "sesión revocada"), contra una build
+de PRODUCCIÓN (`next build` + `next start`). **13/13 verificaciones en verde**: clic en
+`hero.titulo` abre su overlay; se tipea un valor; la sesión se revoca server-side A MITAD de la
+edición (el navegador sigue mandando la cookie vieja); el autoguardado debounced falla 401; el
+PANEL muestra `MSG_SESION_VENCIDA` con "Iniciar sesión" (no "No se pudo guardar"/"Reintentar"); el
+CAMPO FLOTANTE (dentro del iframe) muestra el MISMO texto, byte a byte, junto al overlay; el valor
+tecleado sigue en el overlay Y en el panel; un login REAL en una SEGUNDA pestaña del MISMO
+contexto de navegador (cookie compartida, SIN tocar la pestaña 1) deja que el reintento automático
+del coordinador (cada 5 s, sin cambio) guarde solo — el panel vuelve a "Guardado", el aviso del
+campo se retira; publicado y releído SIN sesión, el `h1` de la home trae el valor tecleado durante
+todo el episodio.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3307/3307** (+5 sobre los 3302 que `-PAGINAS-1` reportó al cerrar — los 5 tests nuevos de `esMensajeSesionVencida`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` (el comando combinado) | corrido completo sobre el árbol final: GREEN |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+Cero píxeles de drift nuevo: `TIPO_MENSAJE_SESION_VENCIDA` y el chip del aviso sólo existen DENTRO
+de `campoAbierto`/`avisoSesion` (modo editor, campo abierto Y guardado fallido) — fuera de ese
+caso, byte-idéntico a antes. Confirmado también por ejecución: la home pública sin `?editor=1` no
+ejercita ninguno de los dos.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió, grepeados contra `CLAUDE.md`: `TIPO_MENSAJE_SESION_
+VENCIDA`, `MensajeSesionVencida`, `esMensajeSesionVencida`, `avisoSesion`, `sesionVencida`,
+`avisarSesionVencida`, `iframeVentanaRef`, `data-editor-aviso-sesion`, `EditorPuenteVivo`,
+`guardarSeccion`, `editor-puente`, `MSG_SESION_VENCIDA`, `esSesionVencida` (bare, SIN extensión de
+archivo) → 0 apariciones cada uno, nada que verificar.
+
+**`TiendaSeccionEditor` (bare) SÍ aparece — 6 veces (líneas 2261/2387/2719/2759/2938/4351)**,
+ninguna sobre el autoguardado/indicador de error: adopción del contrato de borrador por
+`PaletaSeccion`, "Suscripción... sobre la cáscara genérica", el dibujo por BLOQUES, `bloquesRef`,
+la extracción de `useSubidaImagen`, y el prop `categorias` de `/admin/tienda`. Las 6 SIGUEN
+VERDADERAS — este diff no tocó ninguno de esos ejes.
+
+**HALLAZGO — una SÍ queda imprecisa, y no se corrige acá (fuera de `touches:`): § La PANTALLA,
+el párrafo "AUTOGUARDADO — el guardado no es un gesto"** (`lib/autoguardado.ts`, línea ~2602-2605)
+dice *"El indicador 'Guardando…/Guardado/No se pudo guardar' (con Reintentar) es PERSISTENTE"* —
+como si esa fuera la ÚNICA forma del estado de error, para TODO consumidor de `useAutoguardado`.
+Con este slice, en `TiendaSeccionEditor.tsx` específicamente, un error por sesión vencida muestra
+`MSG_SESION_VENCIDA` + "Iniciar sesión" — NUNCA "No se pudo guardar"/"Reintentar". Los otros cinco
+consumidores de `useAutoguardado` (`EncabezadoSeccion`/`MenuSeccion`/`DetallesSitioSeccion`/
+`PaletaSeccion`/`FooterSeccion`) siguen sin esta distinción —la frase sigue siendo literalmente
+cierta PARA ELLOS—, así que no es falsa en general, pero deja de ser universal. Anotado como
+`CLAUDE-MD-INDICADOR-AUTOGUARDADO-NO-CUBRE-SESION-1` en los open follow-ups — corregir ese párrafo
+es editar `CLAUDE.md`, que no está en `touches:` de este slice.
+
+### Open follow-ups
+
+- La fila 5 de § 6.4 ya no es un follow-up — queda cerrada por este slice. Nav/pie (§ 5) y
+  `suscripcionFaq` (`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`) siguen sin construir, sin cambio.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno
+  a `touches:` de este slice.
+- **`EDICION-INLINE-HEADING-11-DUPLICADO-1`** (coined acá) — `docs/editor-tienda/EDICION-INLINE.md`
+  tiene DOS encabezados `## 11 ·` (uno para `-HOME-1`, otro para `-PAGINAS-1`, heredado de slices
+  anteriores a éste); este slice agregó `## 12` sin renumerar los anteriores — fuera de `touches:`
+  en el sentido de que corregirlo tocaría secciones escritas por slices previos que no son parte
+  de este encargo. Cosmético (Markdown no exige números de encabezado únicos), anotado para quien
+  quiera limpiarlo.
+- El episodio verificado por el arnés (sesión revocada, la fila `Session` borrada, el valor
+  tecleado) vive en la base efímera del arnés, que se destruye al terminar — no hay rastro en
+  ninguna base real.
+- **`CLAUDE-MD-INDICADOR-AUTOGUARDADO-NO-CUBRE-SESION-1`** (coined acá, § el chequeo mecánico
+  arriba) — § La PANTALLA de `CLAUDE.md` (línea ~2602-2605) describe el indicador de error del
+  autoguardado como siempre "No se pudo guardar" (con "Reintentar"), y ya no es universal: en
+  `TiendaSeccionEditor.tsx` un 401 muestra `MSG_SESION_VENCIDA` + "Iniciar sesión" en su lugar. Los
+  otros cinco consumidores de `useAutoguardado` siguen con la forma vieja, así que la frase no es
+  falsa, sólo dejó de cubrir a TODOS. Editar `CLAUDE.md` es de quien tenga ese archivo en su propio
+  `touches:` — no corregido acá.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que las entradas
+anteriores de este plan). **De este COMMIT en particular**: `strings: []` — confirmado por
+EJECUCIÓN en los dos sentidos: (a) `guarda:color`/`verificar:nayoli:visual` dan la cifra EXACTA ya
+heredada, cero píxeles de drift nuevo; (b) el arnés mide `0` apariciones de `data-editor-aviso-
+sesion`/`[role="alert"]` nuevo en la home pública SIN `?editor=1`. Lo que cambia son bytes
+COMPILADOS del bundle del storefront (el quinto mensaje + el chip del aviso, gateados a
+`campoAbierto`/`avisoSesion` dentro de `ModoEditorProvider`) y del bundle del panel (admin,
+irrelevante para `customer_bytes`) — los del storefront, neutros visualmente, medido.
+`approved: null` — Nayoli no ejercita esta rama de código hasta que el editor se use en modo
+editor real y, dentro de él, un guardado falle por sesión vencida.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (`npm run gate`: typecheck 0, 3307/3307,
+308/308); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado —
+cero píxeles de drift nuevo. El mecanismo completo (el quinto mensaje del puente, capturado por
+`MessageEvent.source` sin tocar `VistaTiendaIframe.tsx`/`TiendaPaginas.tsx`, el texto reusado sin
+copiar, el aviso en el panel Y en el campo flotante, nada perdido, el reintento automático tras
+volver a entrar) verificado por ejecución contra una build de producción con sesión real —
+13/13 en verde. `stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO aplican. El
+dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin merge. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra la fila 5 de § 6.4** (`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`). Del plan de § 6.4 de
+`EDICION-INLINE.md`, quedan sólo nav/pie (§ 5, fuera de alcance por decisión) y
+`suscripcionFaq` (`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`) sin construir.
