@@ -47063,3 +47063,162 @@ método del propio arnés corregido antes de reportar nada. `stopped_on: [custom
 merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-CAMPO-EDITABLE-1`.**
+
+## 2026-10-02 — El campo editable, aplicado a las 4 variantes del hero y a `Marquesina.tsx` (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Fila 2 de § 6.4 de
+`docs/editor-tienda/EDICION-INLINE.md`. Mismo pedido del owner, misma autorización que
+`EDITOR-TIENDA-CAMPO-EDITABLE-1` (2026-10-02, "After the queue start over with the editor changes
+keep working all night on that…"); el `observed-report` que lo habilita es
+`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`. La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `db25a88`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (la rama está 299 commits adelante; `main` no se movió; 0 adelante / 0 atrás de `origin/main`) |
+| los archivos de `touches:` que ya existían | sí — las 4 variantes del hero, `Marquesina.tsx`, `CampoEditable.tsx`, `EditorPuenteVivo.tsx`, `lib/storefront/campo-editable.ts`(+`.test.ts`), `lib/config/hero-marquesina.test.ts`, `docs/editor-tienda/EDICION-INLINE.md`, `DECISIONS.md` — todos confirmados con `ls`/lectura antes de escribir |
+| archivos de `touches:` que NO hizo falta tocar | `components/storefront/EditorPuenteVivo.tsx` y `lib/storefront/campo-editable.ts`: el mecanismo que `EDITOR-TIENDA-CAMPO-EDITABLE-1` construyó ya soportaba aplicarse a secciones reales sin cambios — este slice sólo CONSUME `<CampoEditable>`, no tocó su implementación ni la del overlay |
+| base EFÍMERA para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55446`, seed estándar (`admin@sierranativa.co`) |
+
+### Lo que se construyó
+
+Las CUATRO variantes del hero (`HeroCurtina`/`HeroFicha`/`HeroMedia`/`HeroMediaMarquesina`, dispatcher
+`HeroSection.tsx`) y la banda suelta `Marquesina.tsx` ganaron `<CampoEditable>` en cada texto libre que
+declara `REGISTRY.hero.campos`/`REGISTRY.marquesina.campos` (`tienda-secciones.ts`) — sin tocar un solo
+`className` ni la plomería de `EDITOR-TIENDA-CAMPO-EDITABLE-1`. Detalle completo, con el censo de qué
+campo va en qué variante y el porqué de cada decisión de alcance, en
+`docs/editor-tienda/EDICION-INLINE.md` § 9 (agregado en este commit):
+
+- **Los seis campos comunes** (eyebrow/titulo/tituloEnfasis/subtitulo/ctaPrimarioLabel/
+  ctaSecundarioLabel) en Curtina/Ficha/Media, con la `multilinea` que ya declaraba `tienda-secciones.ts`.
+- **`hero.fraseAlPie`** sólo en Media y en la composición "sticky" — las otras dos no lo leen.
+- **El campo DUPLICADO `marquesina.texto`** (dos `<span>` por loop, en CADA una de las DOS
+  composiciones que lo leen — `Marquesina.tsx` y `HeroMediaMarquesina.tsx`): sólo el PRIMER `<span>` de
+  cada composición lleva el marcador; el gemelo se sincroniza solo vía `useSiteContent()`, sin caso
+  especial — confirmado por ejecución (§ abajo) que editar desde cualquiera de los dos marcadores
+  actualiza las 4 copias visibles (2 por composición) sin divergencia.
+- **Selector/pointer y precio**: sin cambios — ningún campo de ese tipo vive en el hero.
+
+### DEVIACIÓN MEDIDA — "preset CORTE" no cubre las 4 variantes
+
+El criterio de verificación de § 6.4 asumía que el preset CORTE alcanzaba para ejercitar "variantes
+no-canónicas" en plural. **Medido contra `lib/config/themes.ts`, antes de escribir el arnés**: CORTE
+fija `hero:'sticky'` nada más; ningún preset del catálogo usa `'ficha'` ni `'media'`
+(Nayoli/sin-preset usa la canónica `'curtina'`). Dos de las cuatro variantes nunca se habían
+renderizado contra un navegador real. Se fijó `hero.variante` (y `fraseAlPie`/`marquesina.visible`
+donde hacía falta) DIRECTO en la fila `SiteContent` de la base efímera, vía un script de una línea
+(`.scratch/set-hero-variante.ts`, no committed) — no un preset nuevo, no código de producto.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera)
+
+Arnés `.scratch/verificar-campo-editable-hero.ts` (no committed, gitignored): cuatro fases contra una
+build de PRODUCCIÓN (`next build` + `next start`) con sesión real — Curtina (default del seed) → Ficha
+→ Media → Sticky (preset CORTE + `marquesina.visible:true` a propósito, para ejercitar las DOS
+composiciones de `marquesina.texto` en la misma carga). **96/96 verificaciones en verde**, en
+Escritorio/Tablet/Teléfono (1280/768/393px literales):
+
+| verificación | resultado |
+| --- | --- |
+| nodo marcado + overlay abre + alineado al píxel (medido DENTRO del iframe) | 4 variantes × campos aplicables × 3 anchos representativos — Δ = 0.00px en los 3 |
+| ticker duplicado: DOS marcadores en la página, editar desde cualquiera actualiza las 4 copias visibles | count=2; antes=4 ocurrencias del texto viejo, después=4 del nuevo |
+| Publicar → releer en pestaña nueva, SIN sesión, SIN `?editor=1` | el nuevo `hero.titulo` aparece en la home pública |
+| fuera de modo editor, la home pública | 0 `data-editor-campo` |
+
+**Legibilidad** (la medición pendiente de § 2.2 de `EDICION-INLINE.md`) **confirmada por inspección
+visual** de 8 de las 27 capturas que el arnés guardó (`.scratch/capturas-campo-editable-hero/`, no
+committed): el overlay hereda el MISMO `transform:scale()` que el stage le aplica al dispositivo
+elegido (medido: Escritorio ~0.47× el tamaño lógico, Tablet ~0.79×, Teléfono sin reducir) — nunca es
+más ni menos legible que el texto que tapa, porque los dos escalan juntos. Las 8 inspeccionadas
+(título/subtítulo de Curtina en Escritorio, título de Curtina/Ficha en Tablet/Teléfono, fraseAlPie de
+Media, el ticker de Sticky en Tablet/Teléfono) muestran texto nítido en los tres anchos.
+
+**DOS HALLAZGOS DE MÉTODO DEL ARNÉS, no del mecanismo (detalle completo en `EDICION-INLINE.md` § 9)**:
+el dispositivo elegido se recuerda en `localStorage` por navegador y una navegación fresca NO lo
+resetea a Escritorio (el primer intento dejó una fase en Teléfono y la siguiente corrió "Escritorio"
+a 393px real, pareciendo un defecto de layout de `ficha`); y el autoguardado snapshotea el FORM
+COMPLETO de la sección en cada tecla, así que un borrador sin publicar de una fase anterior le gana a
+una escritura directa de `hero.variante`/`fraseAlPie` en la siguiente — corregido publicando la
+sección antes de cada mutación directa. Los dos costaron una corrida completa cada uno (4 fallos → 0
+tras el primero, 80/84 → 96/96 tras el segundo); ninguno tocó código de producto.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`, corrido como UN comando en el árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3214/3214** (+14 sobre los 3200 previos: 8 en `lib/storefront/campo-editable.test.ts` — render de Curtina/Ficha/Media —, 6 en `lib/config/hero-marquesina.test.ts` — Sticky + `Marquesina.tsx`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: `CampoEditable` sigue devolviendo `children` sin envoltorio fuera de
+modo editor — las cuatro variantes y `Marquesina.tsx` quedan byte-idénticas fuera del iframe del
+editor, confirmado tanto por el diff de píxeles (dos arneses independientes, misma cifra heredada) como
+por el arnés de ejecución (§ arriba, "fuera de modo editor, la home pública" → 0).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados contra `CLAUDE.md`: `HeroFicha`/`HeroMedia`/
+`HeroMediaMarquesina`/`Marquesina`/`CampoEditable` (0, salvo lo de abajo), `EditorPuenteVivo` (0),
+`ModoEditorProvider` (0), `campo-editable` (0), `fraseAlPie` (0), `data-editor-campo` (0),
+`marquesina.texto` (0). **`HeroCurtina.tsx` y `HeroFicha.tsx` aparecen UNA vez cada uno**, en § Tier 1 —
+la lista de ejemplos que justifica por qué `components/storefront/` entra ENTERO al subárbol protegido
+("las VARIANTES de una sección que ya existen y quedaban afuera por vivir en este árbol…
+`HeroCurtina.tsx`, `HeroFicha.tsx`, variantes del hero"). Leída la frase completa: sigue siendo VERDAD
+— los dos archivos siguen siendo variantes del hero viviendo en `components/storefront/home/`; este
+diff no los movió ni cambió su rol, sólo agregó marcadores inertes fuera de modo editor. Ninguna
+sentencia de `CLAUDE.md` quedó falsa por este cambio.
+
+### Segundo grep — el documento que SÍ cambió (`docs/editor-tienda/EDICION-INLINE.md`)
+
+Los identificadores que este diff agregó/tocó (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`, § 9, la fila 2 de
+§ 6.4) se grepearon contra el repo: `DECISIONS.md` ya apuntaba a `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`
+en el open-followup de `EDITOR-TIENDA-CAMPO-EDITABLE-1` ("Las filas 2-5 de § 6.4 … siguen pendientes,
+sin relación con este slice") — esa frase sigue siendo verdad DEL COMMIT en el que se escribió (una
+entrada de ledger es append-only, no se reescribe); esta entrada nueva es la que registra que la fila 2
+dejó de estar pendiente. Ningún otro `.md` del repo apunta a la fila 2 ni a § 9.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que los tres anteriores
+de la misma rama). **De este COMMIT en particular**: `strings: []` — confirmado por EJECUCIÓN en los
+DOS sentidos: (a) `guarda:color`/`verificar:nayoli:visual` dan la cifra EXACTA ya heredada, cero
+píxeles de drift nuevo en las 6 rutas públicas; (b) el arnés de Playwright mide `0` ocurrencias de
+`data-editor-campo` en el HTML de la home pública sin `?editor=1`. Lo que SÍ cambia son bytes
+COMPILADOS: el bundle del storefront gana los marcadores (inertes, gateados a `ModoEditorProvider`) en
+cuatro componentes de sección más — un cambio de CAPACIDAD LATENTE, no de producto visible.
+`approved: null` — Nayoli (y cualquier tenant real) no ejercita esta rama de código hasta que el editor
+visual se use en modo editor real.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo.
+
+### Open follow-ups
+
+- Las filas 3-5 de § 6.4 de `EDICION-INLINE.md` (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`,
+  `-RESTO-1..N`, `-SESION-1`) siguen pendientes, sin relación con este slice.
+- **`EDICION-INLINE-SECCION-9-PENDIENTE-1`** (coined en el intento BLOCKED anterior de este mismo
+  slice, dentro de esta misma sesión): la tabla de § 6.4 quedó apuntando a una § 9 que todavía no
+  existía. **CERRADO en este commit** — § 9 ya está escrita, con los números reales.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno a
+  `touches:` de este slice.
+- Los dos hallazgos de método del arnés (§ arriba) quedan documentados en `EDICION-INLINE.md` § 9 para
+  que el próximo arnés de este puente (fila 3+) no los repita; no ameritan su propio id porque no
+  tocaron código de producto ni dejan nada pendiente de arreglar.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (`npm run gate`: typecheck 0, 3214/3214,
+308/308); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado —
+cero píxeles de drift nuevo. El mecanismo completo (las 4 variantes + `Marquesina.tsx`, el campo
+duplicado sin divergencia, Publicar→releer, legibilidad en los 3 anchos) verificado por ejecución
+contra una build de producción con sesión real — 96/96 en verde, con dos hallazgos de método del
+propio arnés corregidos antes de reportar nada. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin
+merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra la fila 2 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`).**
