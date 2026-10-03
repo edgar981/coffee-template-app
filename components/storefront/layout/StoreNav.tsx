@@ -8,7 +8,7 @@ import { useCartStore } from '@/lib/cartStore';
 import { motion, AnimatePresence, useIsPresent } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
-import { altoLogoNavMovilClase } from '@/lib/config/marca-logo';
+import { altoLogoNavMovilClase, altoLogoMenuLateralClase } from '@/lib/config/marca-logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
@@ -659,9 +659,11 @@ export default function StoreNav() {
         taglineColor={navWordmark.taglineColor}
         transicionColor={navTratamiento.posicion}
         logo={logo}
-        // § NAV-LOGO-Y-NOMBRE-AJUSTE-1 — SÓLO este mount (el `<header>`) pasa el alto de SU
-        // propia barra; el mount del drawer móvil (más abajo) NO lo pasa, así que su fila
-        // (`px-6 py-5`, otra geometría) queda sin tocar — `Logo` cae a `h-7` sin el prop.
+        // § NAV-LOGO-Y-NOMBRE-AJUSTE-1 — este mount (el `<header>`) pasa el alto DERIVADO de SU
+        // propia barra (`altoLogoNavMovilClase`, § NAV-LOGO-TAMANOS-FINOS-1 lo achicó un poco más).
+        // El mount del drawer móvil (más abajo) pasa su PROPIO literal
+        // (`altoLogoMenuLateralClase`, § NAV-LOGO-TAMANOS-FINOS-1) — más grande, no derivado del
+        // alto de ESTA barra, porque su fila (`px-6 py-5`) es otra geometría sin alto fijo propio.
         altoBarraClase={altoLogoNavMovilClase(navTratamiento.posicion)}
       />
     </Link>
@@ -1096,6 +1098,12 @@ export default function StoreNav() {
                     wordmarkTratado={navWordmark.activo}
                     taglineColor={navWordmark.taglineColor}
                     logo={logo}
+                    // § NAV-LOGO-TAMANOS-FINOS-1 — el gate del owner pidió el logo de ESTA
+                    // cabecera "un poco más grande" (antes `h-7` por no recibir el prop, § el
+                    // docstring de `altoBarraClase`, Logo.tsx). Literal propio, no derivado del
+                    // alto de la barra del header (`altoLogoNavMovilClase`): esta fila no tiene
+                    // un alto de barra que heredar.
+                    altoBarraClase={altoLogoMenuLateralClase()}
                   />
                 </Link>
                 {/* "buscar si existe, carrito, cerrar" — § CARRITO-Y-MENU-MOVIL-CAFEONE-1, sin

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   hayLogoImagen, logoParaVariante, altDeLogo, modoLogoResuelto,
   altoLogoNavMovilClase, altoLogoNavEscritorioClase, AIRE_VERTICAL_LOGO_MOVIL_PX,
+  altoLogoMenuLateralClase, ALTO_LOGO_MENU_LATERAL_PX,
   colorTaglineAcento, usaColorAcento,
 } from './marca-logo';
 import type { LogoContent } from './site-content-defaults';
@@ -97,19 +98,31 @@ test('modoLogoResuelto: basura (ni vacío ni uno de los tres) cae al default CON
 // ── altoLogoNavMovilClase / altoLogoNavEscritorioClase (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1) — el alto
 // DERIVADO del logo en 'logoYNombre', nunca un número suelto ───────────────────────────────────
 
-test('altoLogoNavMovilClase: sin CORTE → 48px (64px de barra MENOS 2×aire, § NAV-LOGO-MOVIL-CON-AIRE-1, corrige NAV-LOGO-Y-NOMBRE-AJUSTE-1)', () => {
-  assert.equal(altoLogoNavMovilClase(false), 'h-[48px]');
+test('altoLogoNavMovilClase: sin CORTE → 40px (64px de barra MENOS 2×aire, § NAV-LOGO-TAMANOS-FINOS-1, corrige NAV-LOGO-MOVIL-CON-AIRE-1)', () => {
+  assert.equal(altoLogoNavMovilClase(false), 'h-[40px]');
 });
 
-test('altoLogoNavMovilClase: con CORTE → 60/72px (76/88px de barra, § NAV-ALTURA-CON-FILETE-1, MENOS 2×aire)', () => {
-  assert.equal(altoLogoNavMovilClase(true), 'h-[60px] min-[640px]:h-[72px]');
+test('altoLogoNavMovilClase: con CORTE → 52/64px (76/88px de barra, § NAV-ALTURA-CON-FILETE-1, MENOS 2×aire)', () => {
+  assert.equal(altoLogoNavMovilClase(true), 'h-[52px] min-[640px]:h-[64px]');
 });
 
-test('AIRE_VERTICAL_LOGO_MOVIL_PX es 8 — los literales de altoLogoNavMovilClase son 64/76/88 menos 2×8 (16), escritos a mano', () => {
-  assert.equal(AIRE_VERTICAL_LOGO_MOVIL_PX, 8);
-  assert.equal(64 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 48);
-  assert.equal(76 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 60);
-  assert.equal(88 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 72);
+test('AIRE_VERTICAL_LOGO_MOVIL_PX es 12 — los literales de altoLogoNavMovilClase son 64/76/88 menos 2×12 (24), escritos a mano', () => {
+  assert.equal(AIRE_VERTICAL_LOGO_MOVIL_PX, 12);
+  assert.equal(64 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 40);
+  assert.equal(76 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 52);
+  assert.equal(88 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 64);
+});
+
+// ── altoLogoMenuLateralClase (§ NAV-LOGO-TAMANOS-FINOS-1) — el literal de la cabecera del menú
+// lateral, NO derivado del alto de la barra del header ───────────────────────────────────────────
+
+test('altoLogoMenuLateralClase: 40px, literal fijo — la cabecera del drawer no tiene un alto de barra del que restar aire', () => {
+  assert.equal(altoLogoMenuLateralClase(), 'h-[40px]');
+});
+
+test('ALTO_LOGO_MENU_LATERAL_PX es 40 — el literal de altoLogoMenuLateralClase lo refleja', () => {
+  assert.equal(ALTO_LOGO_MENU_LATERAL_PX, 40);
+  assert.equal(altoLogoMenuLateralClase(), `h-[${ALTO_LOGO_MENU_LATERAL_PX}px]`);
 });
 
 // ── colorTaglineAcento / usaColorAcento (§ NAV-LOGO-MOVIL-CON-AIRE-1) ───────────────────────────────

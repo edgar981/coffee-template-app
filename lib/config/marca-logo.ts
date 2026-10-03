@@ -78,12 +78,16 @@ export function altDeLogo(logo: LogoContent, nombreNegocio: string): string {
 // borde superior y el de abajo se monta sobre el filete inferior (medido por el orquestador contra
 // la demo, WebKit iPhone 15, § el spec de este slice).
 //
-// 8px POR LADO (16px total), EXPLÍCITO y NOMBRADO — NO el aire del ÍCONO: el ícono del nav
-// (`navIconoClase`, StoreNav.tsx) mide 22px dentro de una barra de 76px (CORTE), o sea ~27px de
-// aire por lado — replicar esa proporción dejaría el logo en ~22px de alto, literalmente el
-// defecto ILEGIBLE que NAV-LOGO-Y-NOMBRE-AJUSTE-1 corrigió (§ el docstring de abajo). 8px es del
-// mismo orden que el `gap-2` (8px) que ya separa los íconos de "Actions" entre sí (StoreNav.tsx) —
-// un valor del vocabulario de espaciado del nav, no un número inventado para este slice.
+// 12px POR LADO (24px total), EXPLÍCITO y NOMBRADO — SUBIDO de 8px a 12px por § NAV-LOGO-TAMANOS-
+// FINOS-1: el gate del owner sobre la demo real (Café Las Chamisas, capturas de su iPhone) pidió el
+// logo de la barra "un poco más chico" — un AJUSTE FINO sobre un aire que ya existía y ya resolvía
+// el defecto de arriba (el sello que se salía de la barra), no un defecto nuevo. 12px sigue siendo
+// del MISMO vocabulario de espaciado del nav que ya justificaba los 8px (`gap-2`=8px entre los
+// íconos de "Actions"): `gap-3`=12px, el siguiente paso de la escala de Tailwind, no un número
+// inventado para este ajuste. NO el aire del ÍCONO: el ícono del nav (`navIconoClase`,
+// StoreNav.tsx) mide 22px dentro de una barra de 76px (CORTE), o sea ~27px de aire por lado —
+// replicar esa proporción dejaría el logo en ~22px de alto, literalmente el defecto ILEGIBLE que
+// NAV-LOGO-Y-NOMBRE-AJUSTE-1 corrigió (§ el docstring de abajo).
 //
 // SÓLO PARA DOCUMENTAR LA ARITMÉTICA — `altoLogoNavMovilClase` NO la usa en un template literal
 // interpolado: Tailwind v4 genera CSS escaneando texto LITERAL de las clases en el código fuente
@@ -91,8 +95,8 @@ export function altDeLogo(logo: LogoContent, nombreNegocio: string): string {
 // `gridColsPresentaciones`, el mismo defecto que ese comentario ya nombra). Un `` `h-[${64 -
 // a}px]` `` no aparece como texto `h-[48px]` en ningún archivo, así que el JIT no generaría la
 // clase y el alto NO se aplicaría en producción. Los tres valores de `altoLogoNavMovilClase` son
-// por eso LITERALES, escritos a mano como `64/76/88 − 16`.
-export const AIRE_VERTICAL_LOGO_MOVIL_PX = 8;
+// por eso LITERALES, escritos a mano como `64/76/88 − 24`.
+export const AIRE_VERTICAL_LOGO_MOVIL_PX = 12;
 
 /**
  * EL ALTO DEL LOGO EN `'logoYNombre'` (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1, corrige NAV-LOGO-Y-NOMBRE-1;
@@ -116,8 +120,36 @@ export const AIRE_VERTICAL_LOGO_MOVIL_PX = 8;
  */
 export function altoLogoNavMovilClase(posicion: boolean): string {
   // LITERALES a propósito (§ el comentario de `AIRE_VERTICAL_LOGO_MOVIL_PX`, arriba): 64/76/88,
-  // el alto de barra de `navFilaAltoClase`, menos 16 (2×8px de aire) — 48/60/72.
-  return posicion ? 'h-[60px] min-[640px]:h-[72px]' : 'h-[48px]';
+  // el alto de barra de `navFilaAltoClase`, menos 24 (2×12px de aire, § NAV-LOGO-TAMANOS-FINOS-1)
+  // — 40/52/64.
+  return posicion ? 'h-[52px] min-[640px]:h-[64px]' : 'h-[40px]';
+}
+
+/**
+ * EL ALTO DEL LOGO EN LA CABECERA DEL MENÚ LATERAL (§ NAV-LOGO-TAMANOS-FINOS-1) — el SEGUNDO
+ * `<Logo>` de `StoreNav.tsx`, el drawer móvil de pantalla completa (`mobileOpen`, su fila `px-6
+ * py-5` — otra geometría, sin un alto de barra que heredar como el `<header>`). Antes de este slice
+ * no recibía `altoBarraClase` y caía al `h-7` (28px) fijo de siempre (§ el docstring de esa prop en
+ * `Logo.tsx`) — el mismo tamaño ilegible para un sello con ilustración que ya motivó el ajuste del
+ * logo del header (§ NAV-LOGO-Y-NOMBRE-AJUSTE-1).
+ *
+ * A diferencia de `altoLogoNavMovilClase` (arriba), ACÁ el alto NO se deriva restando aire de una
+ * barra existente: la fila del drawer no declara un alto fijo que medir (es `items-center` sobre
+ * contenido de altura intrínseca, junto a los tres botones de ícono de la cabecera) — es un literal
+ * MEDIDO contra el segundo pedido del gate del owner sobre la MISMA demo ("un poco más grande"), a
+ * propósito más grande que el logo del header: en la cabecera del menú el sello no compite por
+ * espacio con el resto del contenido de la barra, así que puede crecer sin pisar nada.
+ * `items-center` en esa fila (StoreNav.tsx) centra el `<img>` sin que esta función agregue un
+ * margen propio — mismo mecanismo que `altoLogoNavMovilClase`.
+ *
+ * SÓLO ese mount, y SÓLO en `logoYNombre` (`Logo.tsx` ya acota `altoBarraClase` a ese modo, § el
+ * docstring de la prop): el logo del header (`altoLogoNavMovilClase`, arriba) no cambia, y los
+ * otros dos modos (`soloLogo`/`soloNombre`) nunca leen este prop.
+ */
+export const ALTO_LOGO_MENU_LATERAL_PX = 40;
+
+export function altoLogoMenuLateralClase(): string {
+  return 'h-[40px]';
 }
 
 /**

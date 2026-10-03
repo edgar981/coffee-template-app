@@ -231,23 +231,25 @@ test('buscar OCULTO en el teléfono (CORTE con buscarMovil:false): invisible + l
 });
 
 // ─── `altoLogoNavMovilClase` (marca-logo.ts, § NAV-LOGO-Y-NOMBRE-AJUSTE-1, § NAV-LOGO-MOVIL-CON-
-// AIRE-1) NO PUEDE DIVERGIR del alto REAL del header que `navOffsetClase` ya afirma arriba (76/88px
-// CORTE, pt-16=64px el resto) — MENOS el aire vertical (§ `AIRE_VERTICAL_LOGO_MOVIL_PX`,
-// marca-logo.ts): las dos funciones describen el MISMO `<header>` desde dos ángulos distintos
-// (padding-top de la página vs. alto del logo en `logoYNombre`) — un cambio futuro a
-// `navFilaAltoClase` (StoreNav.tsx) que actualice una y no la otra queda atrapado acá, no sólo por
-// lectura. Antes de § NAV-LOGO-MOVIL-CON-AIRE-1 el logo llenaba la barra BORDE A BORDE (mismo
-// número que `navOffsetClase`); ahora es ese número MENOS `2×AIRE_VERTICAL_LOGO_MOVIL_PX`.
+// AIRE-1, § NAV-LOGO-TAMANOS-FINOS-1) NO PUEDE DIVERGIR del alto REAL del header que
+// `navOffsetClase` ya afirma arriba (76/88px CORTE, pt-16=64px el resto) — MENOS el aire vertical
+// (§ `AIRE_VERTICAL_LOGO_MOVIL_PX`, marca-logo.ts): las dos funciones describen el MISMO `<header>`
+// desde dos ángulos distintos (padding-top de la página vs. alto del logo en `logoYNombre`) — un
+// cambio futuro a `navFilaAltoClase` (StoreNav.tsx) que actualice una y no la otra queda atrapado
+// acá, no sólo por lectura. Antes de § NAV-LOGO-MOVIL-CON-AIRE-1 el logo llenaba la barra BORDE A
+// BORDE (mismo número que `navOffsetClase`); desde entonces es ese número MENOS
+// `2×AIRE_VERTICAL_LOGO_MOVIL_PX` — § NAV-LOGO-TAMANOS-FINOS-1 subió el aire de 8px a 12px por lado
+// (el pedido del owner, "un poco más chico"), sin tocar `navOffsetClase` ni el alto de la barra.
 
-test('altoLogoNavMovilClase(false) = el alto de barra (64px, pt-16/h-16) MENOS 2×aire — 48px', () => {
+test('altoLogoNavMovilClase(false) = el alto de barra (64px, pt-16/h-16) MENOS 2×aire — 40px', () => {
   assert.equal(navOffsetClase(false), 'pt-16');
-  assert.equal(altoLogoNavMovilClase(false), 'h-[48px]');
-  assert.equal(48, 64 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
+  assert.equal(altoLogoNavMovilClase(false), 'h-[40px]');
+  assert.equal(40, 64 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
 });
 
-test('altoLogoNavMovilClase(true) = los dos altos de barra de CORTE (76/88px) MENOS 2×aire — 60/72px', () => {
+test('altoLogoNavMovilClase(true) = los dos altos de barra de CORTE (76/88px) MENOS 2×aire — 52/64px', () => {
   assert.equal(navOffsetClase(true), 'pt-[76px] min-[640px]:pt-[88px] cortenav:pt-[88px]');
-  assert.equal(altoLogoNavMovilClase(true), 'h-[60px] min-[640px]:h-[72px]');
-  assert.equal(60, 76 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
-  assert.equal(72, 88 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
+  assert.equal(altoLogoNavMovilClase(true), 'h-[52px] min-[640px]:h-[64px]');
+  assert.equal(52, 76 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
+  assert.equal(64, 88 - 2 * AIRE_VERTICAL_LOGO_MOVIL_PX, 'la aritmética que el literal de arriba debe reflejar');
 });
