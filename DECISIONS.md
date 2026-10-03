@@ -45677,3 +45677,163 @@ en `EncabezadoSeccion.tsx`. `why_not_now`: fuera de `touches:` de este slice.
 
 Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente,
 ajeno a este slice.
+
+## 2026-10-02 — El panel "Filtrar y ordenar" de /tienda bajo CORTE pierde "Aplicar filtro": cada control ya aplicaba al cambiar (`FILTRAR-SIN-BOTON-APLICAR-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Pedido del owner, 2026-10-02:
+*"el botón de 'Aplicar Filtro' no hace nada ya que los filtros se aplican automáticamente al
+ajustarlos, quitemos el botón en Chamisas, si en las otras páginas el filtro automático no
+funciona dejar el botón o corregir acorde."* El orquestador midió en el código ANTES del dispatch
+que el botón sólo hace `onAbiertoChange(false)` y que el componente es el MISMO para Onix y Las
+Chamisas (ambas bajo CORTE) — la aprobación autoriza la escritura, nunca el merge.
+
+### 1 · Confirmado por lectura — los cinco controles YA aplicaban al cambiar
+
+Antes de tocar nada: `ShopCorte` (`app/(storefront)/tienda/page.tsx:253-401`) pasa
+`setCatFilter`/`setTostadoFilter`/`setDisponibilidad`/`setPrecioRango` (vía `onPrecio`)/`setSortBy`
+DIRECTO a `FiltrarOrdenar` como `onCatFilter`/`onTostadoFilter`/`onDisponibilidad`/`onPrecio`/
+`onSortBy`, y su `useMemo` de `filtered` (`page.tsx:288-299`) depende de los cinco
+(`catFilter, tostadoFilter, disponibilidad, precioActivo[0], precioActivo[1], sortBy`). Cada
+control re-renderiza la grilla en el MISMO tick que cambia — el botón "Aplicar filtro"
+(`FiltrarOrdenar.tsx`, antes de este slice) sólo llamaba `onAbiertoChange(false)`: cerraba el
+panel, no aplicaba nada. No hizo falta hacer que ningún control "empiece" a aplicar al cambiar —
+los cinco ya lo hacían.
+
+### 2 · El fix — se retira el botón y su contenedor, el comentario documenta la ausencia
+
+`FiltrarOrdenar.tsx`: se retiró el `<div className="mt-8 flex justify-end">` con el botón
+"Aplicar filtro" entero. El panel se sigue cerrando con su botón de apertura (la fila
+ícono+título "Filtrar y ordenar", único mecanismo que tenía desde `TIENDA-ENCABEZADO-Y-FILTRAR-
+ORDENAR-1`): el panel es una disclosure INLINE, no un overlay — sin backdrop ni listener de
+`Escape`, así que clic-afuera/Esc nunca cerraban el panel y siguen sin hacerlo; no hay nada que
+"seguir" en ese frente porque nunca existió.
+
+El comentario de cabecera que describía "EL BOTÓN APLICAR FILTRO USA EL PAR HOVER/ACTIVE..."
+(§ CTA-APLICAR-FILTRO-HOVER-1) se reemplazó por uno que documenta la ausencia del botón, cita el
+pedido textual del owner, y nombra por qué clic-afuera/Esc no aplican.
+
+### 3 · `lib/config/cta-primario.test.ts` — `FiltrarOrdenar.tsx` sale de `CONSUMIDORES_HOVER_ACTIVE`
+
+El censo exhaustivo de la familia CTA-primario tenía a `FiltrarOrdenar.tsx` en
+`CONSUMIDORES_HOVER_ACTIVE` (10 archivos) porque el botón "Aplicar filtro" llevaba el hover/active
+de esa familia (§ CTA-APLICAR-FILTRO-HOVER-1). Sin botón, el archivo no tiene ningún CTA de esta
+familia que afirmar — se retiró del array (10→9) y el comentario que explicaba su entrada se
+reemplazó por uno que explica la salida, citando este ledger-id. Los dos títulos de los barridos
+EXHAUSTIVOS que citaban el conteo ("esos 20 archivos" / "esos 10 archivos") se actualizaron a 19/9
+— son sólo las ETIQUETAS de los tests; las aserciones mismas se derivan de los arrays
+(`CONSUMIDORES`/`CONSUMIDORES_HOVER_ACTIVE`) y no necesitaban tocarse.
+
+### 4 · Cierre — arnés con catálogo sembrado, preset CORTE, 1440 + iPhone 13 WebKit
+
+`.scratch/levantar-corte.mjs` (reusado, ya existente en el repo de una tanda anterior de esta
+misma rama): Postgres efímero (`:55450`) → `migrate deploy` → `prisma/seed.ts` (seed canónico, 4
+productos Nayoli: 2 a $20.000, 2 a $35.000, los 4 "disponible" con `Agotado(0)`, los 4
+`tostado:'medio'`) → `aplicarPreset(CORTE)` PERSISTIDO (no el mirador `?tema=`) → `next build` +
+`next start` en `:3499`. Script throwaway `.scratch/verificar-filtrar-sin-aplicar.mjs`, Playwright
+vía `.arnes-tooling/playwright` (Chromium a 1440×1200 y WebKit con el device `iPhone 13`):
+
+| control | acción | señal medida | 1440 Chromium | iPhone 13 WebKit |
+| --- | --- | --- | --- | --- |
+| — | abrir panel | botón "Aplicar filtro" presente | **0** | **0** |
+| Disponibilidad | marcar "Agotado" (0 agotados reales) | conteo + "Sin resultados" | "0 productos", visible=1 | "0 productos", visible=1 |
+| Categoría | clic "Café en Grano" | conteo (4→2) | "2 productos" | "2 productos" |
+| Nivel de Tostado | clic "Ligero" (los 4 son "medio") | conteo + "Sin resultados" | "0 productos", visible=1 | "0 productos", visible=1 |
+| Precio | max=min=$20.000 | conteo (4→2) | "2 productos" | "2 productos" |
+| Ordenar por | clic "Nombre: Z-A" | orden de las tarjetas | cambia (confirmado) | cambia (confirmado) |
+| — | cerrar panel (botón de apertura) | "Disponibilidad" visible | **0** | **0** |
+
+Los seis controles se verificaron con una señal DECISIVA (el conteo cambia de 4 a un número menor,
+o la grilla pasa a "Sin resultados", o el orden de las tarjetas difiere) — no sólo "no reventó".
+Capturas en `.scratch/filtrar-sin-aplicar-capturas/` (gitignored, no comiteadas): panel abierto sin
+botón, tras estrechar precio (2 productos), panel cerrado en iPhone 13 WebKit mostrando "2
+productos" con el orden Z-A ya aplicado.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3157/3157** (era 3160/3160 antes de este slice; −3, íntegro en `lib/config/cta-primario.test.ts`: los tres tests por-archivo de `FiltrarOrdenar.tsx` dentro del loop `CONSUMIDORES_HOVER_ACTIVE` que se retiraron junto con la entrada) |
+| `npm run test:integracion` | **306/306**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`); las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, MISMA caja, que `guarda:color` — las otras 5 rutas + 2 hovers IDÉNTICO (0px) |
+
+**El drift de `ruta-home` es PRE-EXISTENTE a este slice, no causado por él — verificado por DOS
+argumentos independientes, no sólo uno:**
+
+1. **Ninguno de los dos archivos de `touches:` dispara el gate que lo mide.** `archivosCambiados`
+   (`scripts/guarda-color.ts`) intersecta `git diff --name-only mergeBase(main,HEAD)..HEAD` contra
+   `SISTEMA_DE_COLOR` (derivado: todo archivo de `lib/config/` que importa DIRECTO a
+   `palette-derive.ts`/`fuentes.ts`/`formas.ts`). Esa intersección —11 archivos— viene de commits
+   YA presentes en la rama ANTES de este dispatch (`esquema-style.ts`, `formas.ts`,
+   `fuentes-style.ts`, `fuentes.ts`, `palette-derive.ts`, `palette-style.ts`,
+   `site-content-defaults.ts`, `site-content-schema.ts`, `theme-mirador.ts`, `themes.ts`,
+   `app/globals.css`); ni `FiltrarOrdenar.tsx` ni `cta-primario.test.ts` están en esa lista ni la
+   amplían.
+2. **Ninguno de los dos archivos puede alcanzar la ruta `/`.** `FiltrarOrdenar.tsx` sólo se monta
+   desde `ShopCorte` en `/tienda` (nunca en `/`, y nunca para Nayoli sin CORTE — gateado por
+   `navTratamiento.posicion`); `cta-primario.test.ts` es un archivo `.test.ts`, no se importa en
+   ningún camino de ejecución del storefront.
+
+Es la MISMA cifra exacta (`164.889/4.608.000` px, caja `[105,862]–[1183,3166]`) que
+`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` viene re-confirmando sin cambio desde
+`MARQUESINA-TARJETA-PRODUCTO-1` — RE-CONFIRMADO una vez más, por un slice cuyo `touches:` no tiene
+ninguna relación posible con el collage de BrandStory ni las tarjetas de planes de suscripción
+(donde esa caja cae). No se investiga acá (fuera de `touches:` de este slice; el hallazgo sigue
+abierto para quien lo bisecte).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `FiltrarOrdenar.tsx` (componente, el botón "Aplicar filtro"
+retirado), `CONSUMIDORES_HOVER_ACTIVE` (`lib/config/cta-primario.test.ts`, 10→9), la cadena
+`CTA-APLICAR-FILTRO-HOVER-1`/`TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` (citadas en los comentarios
+editados), `ShopCorte`, `filtrar-ordenar` (el módulo puro, sin tocar). Grepeados uno por uno contra
+`CLAUDE.md`: **CERO coincidencias en los ocho** (`FiltrarOrdenar`, `"Aplicar filtro"`,
+`CONSUMIDORES_HOVER_ACTIVE`, `cta-primario`, `CTA-APLICAR-FILTRO-HOVER-1`,
+`TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`, `filtrar-ordenar`, `ShopCorte`). `CLAUDE.md` no documenta
+esta pantalla ni este componente en absoluto — nada queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`, y sólo bajo CORTE.** Un visitante de Café Onix o Café Las Chamisas que abra
+"Filtrar y ordenar" en /tienda deja de ver el botón "Aplicar filtro" al final del panel; el
+comportamiento de los cinco controles (aplican al cambiar) y el cierre del panel (su botón de
+apertura) no cambian — sólo desaparece un botón que no hacía nada. Nayoli (y todo tenant sin CORTE,
+que nunca monta `FiltrarOrdenar.tsx`) queda byte-idéntico — MEDIDO 0px en `ruta-tienda` (§ Gate; esa
+ruta usa `ShopLegacy`, no `ShopCorte`, así que ni siquiera la ejercita, pero igual dio 0px).
+
+**`strings:`** "Aplicar filtro" — **RETIRADA**, no agregada (la única entrada de `strings:` de este
+slice es una remoción; `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1` la había listado como agregada el
+2026-09-30).
+
+Como en los últimos asientos de esta rama, el merge que esto aterrizaría sobre `main` TAMBIÉN carga
+los bytes visibles de los slices anteriores sin mergear (286 commits adelante de `main`, incluido el
+de este slice) — ninguno aprobado para merge todavía.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma nuevo, sin contrato cross-repo. Los dos archivos de
+`touches:` (aparte de `DECISIONS.md`) son un componente y un archivo de test.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — RE-CONFIRMADO sin cambio, en las DOS herramientas:
+  `guarda:color` y `verificar:nayoli:visual` dan la MISMA figura exacta (164.889/4.608.000 px) y la
+  MISMA caja (`[105,862]–[1183,3166]`) que todos los slices anteriores de esta rama desde
+  `MARQUESINA-TARJETA-PRODUCTO-1`. Sigue sin investigarse (ajeno a los dos archivos de `touches:` de
+  este slice, y ninguno de los dos puede alcanzar `/` por ejecución — § Gate, arriba).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff retira un botón que un visitante de Café Onix o
+Café Las Chamisas ve HOY en /tienda (§ `customer_bytes`: `changed: true`); no toca schema ni un
+contrato cross-repo. El dispatch lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."*
+El owner ya aprobó la ESCRITURA (`approval-reason` del spec, citado arriba) — el MERGE de la rama
+sigue gateado aparte, igual que los slices anteriores de `slice/corte-reescritura-prototipo-1`.
+
+Gate verde en sus tres capas obligatorias (typecheck + 3157 + 306); `guarda:color`/
+`verificar:nayoli:visual` reportan el MISMO drift pre-existente de `ruta-home` que viene
+re-confirmándose sin cambio desde hace muchos slices, medido como ajeno a este diff por dos
+argumentos independientes (§ Gate). Commiteado en `slice/corte-reescritura-prototipo-1` (`493106a`).
+
+**Cierra `FILTRAR-SIN-BOTON-APLICAR-1`.**
