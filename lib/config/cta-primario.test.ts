@@ -87,12 +87,11 @@ for (const archivo of CONSUMIDORES) {
 // migrar). Ninguno de los siete tenía active previo; los siete ganan `active:bg-[var(--sf-accion-
 // active,var(--sf-tostado-3))]` de cero, junto con el hover, cerrando la familia entera.
 //
-// § CTA-APLICAR-FILTRO-HOVER-1 sumó `FiltrarOrdenar.tsx` (el botón "Aplicar filtro" del panel de
-// /tienda bajo CORTE, § TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1): a diferencia de los siete de
-// arriba, su fondo/texto YA usaba el par `--sf-accion,var(--sf-tostado)` /
-// `--sf-accion-txt,var(--sf-tinta)` (el patrón de `CONSUMIDORES`, no el `--sf-acento` crudo de
-// este grupo) — pero como el follow-up pedía HOVER Y ACTIVE juntos, y este bloque es el único que
-// afirma las dos cosas a la vez (`CONSUMIDORES` sólo afirma hover), entra acá.
+// § CTA-APLICAR-FILTRO-HOVER-1 había sumado `FiltrarOrdenar.tsx` (el botón "Aplicar filtro" del
+// panel de /tienda bajo CORTE, § TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1) a esta lista. **SALIÓ
+// (§ FILTRAR-SIN-BOTON-APLICAR-1, 2026-10-02):** el owner pidió retirar ese botón porque cada
+// filtro del panel ya aplica al cambiar — el botón sólo cerraba el panel sin aplicar nada. Sin
+// botón, `FiltrarOrdenar.tsx` no tiene ningún CTA de esta familia que afirmar.
 const CONSUMIDORES_HOVER_ACTIVE = [
   'components/storefront/layout/StoreNav.tsx',
   'components/storefront/home/Spotlight.tsx',
@@ -103,7 +102,6 @@ const CONSUMIDORES_HOVER_ACTIVE = [
   'components/storefront/checkout/FormularioTarjeta.tsx',
   'components/storefront/suscripciones/SuscripcionPlanes.tsx',
   'components/storefront/checkout/FormularioOtroMetodoPasarela.tsx',
-  'components/storefront/tienda/FiltrarOrdenar.tsx',
 ] as const;
 
 for (const archivo of CONSUMIDORES_HOVER_ACTIVE) {
@@ -169,7 +167,7 @@ test('barrido: ningún .tsx de components/storefront/ o app/(storefront)/ conser
   assert.deepEqual(ofensores, [], `patrón viejo aún presente en: ${ofensores.join(', ')}`);
 });
 
-test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 20 archivos + palette-derive.ts', () => {
+test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 19 archivos + palette-derive.ts', () => {
   const conAccionHover: string[] = [];
   for (const raiz of RAICES_STOREFRONT) {
     for (const archivo of walkTsx(path.join(RAIZ, raiz))) {
@@ -182,7 +180,7 @@ test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — 
   assert.deepEqual(conAccionHover.sort(), [...CONSUMIDORES, ...CONSUMIDORES_HOVER_ACTIVE].sort());
 });
 
-test('barrido: `CONSUMIDORES_HOVER_ACTIVE` es EXHAUSTIVA para `--sf-accion-active` — ningún .tsx del storefront la usa fuera de esos 10 archivos + palette-derive.ts (pdp-botones.ts es .ts, fuera de este barrido de .tsx — cubierto por su propio test PURO)', () => {
+test('barrido: `CONSUMIDORES_HOVER_ACTIVE` es EXHAUSTIVA para `--sf-accion-active` — ningún .tsx del storefront la usa fuera de esos 9 archivos + palette-derive.ts (pdp-botones.ts es .ts, fuera de este barrido de .tsx — cubierto por su propio test PURO)', () => {
   const conAccionActive: string[] = [];
   for (const raiz of RAICES_STOREFRONT) {
     for (const archivo of walkTsx(path.join(RAIZ, raiz))) {

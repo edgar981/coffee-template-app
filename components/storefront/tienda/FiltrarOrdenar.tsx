@@ -16,7 +16,7 @@ import {
 // El panel "Filtrar y ordenar" de /tienda bajo CORTE (§ TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1),
 // medido contra la referencia del owner (`.scratch/refs/cafeone-filtrar-ordenar.png`): una fila
 // ícono+título con un filete debajo, que despliega columnas (Disponibilidad · Categoría · Tostado
-// si el catálogo lo puebla · Precio · Ordenar por) y cierra con un botón primario "Aplicar filtro".
+// si el catálogo lo puebla · Precio · Ordenar por).
 //
 // SÓLO SE MONTA BAJO CORTE — `app/(storefront)/tienda/page.tsx` decide (`navTratamiento.posicion`)
 // entre esta rama y la rama Nayoli/no-CORTE (que no importa este archivo). Por eso NO hay
@@ -34,13 +34,16 @@ import {
 // `--background`), no los `--sf-*` del storefront, así que montarlo acá pintaría colores ajenos al
 // tema del cliente.
 //
-// EL BOTÓN "APLICAR FILTRO" USA EL PAR HOVER/ACTIVE DE LA FAMILIA CTA-PRIMARIO
-// (§ CTA-APLICAR-FILTRO-HOVER-1, cierra el follow-up `CTA-PRIMARIO-APLICAR-FILTRO-HOVER-1` de
-// `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`): mismo fondo/texto que ya tenía
-// (`--sf-accion`/`--sf-accion-txt`) más el hover/active que oscurecen el MISMO rojo
-// (`--sf-accion-hover`/`--sf-accion-active`, § CTA-PRIMARIO-COLOR-Y-HOVER-1), en vez del
-// `hover:opacity-90` genérico que dejaba `TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1`. Este archivo
-// está listado en `CONSUMIDORES_HOVER_ACTIVE` de `lib/config/cta-primario.test.ts`.
+// NO HAY BOTÓN "APLICAR FILTRO" (§ FILTRAR-SIN-BOTON-APLICAR-1, 2026-10-02): cada control de este
+// panel YA aplica AL CAMBIAR — `onCatFilter`/`onTostadoFilter`/`onDisponibilidad`/`onPrecio`/
+// `onSortBy` escriben directo el estado de `ShopCorte` (`app/(storefront)/tienda/page.tsx`), que
+// recalcula `filtered` en el MISMO render; el botón de antes sólo llamaba `onAbiertoChange(false)`
+// y no aplicaba nada. Pedido del owner (2026-10-02): *"el botón... no hace nada ya que los filtros
+// se aplican automáticamente al ajustarlos, quitemos el botón"*. El panel se sigue cerrando con su
+// botón de apertura (la fila ícono+título de arriba); no es un overlay ni lleva backdrop, así que
+// clic-afuera/Esc nunca aplicaron acá y siguen sin aplicar. Este archivo SALIÓ de
+// `CONSUMIDORES_HOVER_ACTIVE` en `lib/config/cta-primario.test.ts`: el CTA que motivaba su entrada
+// (§ CTA-APLICAR-FILTRO-HOVER-1) ya no existe.
 //
 // LOS RADIOS SIGUEN LOS ROLES DE `formas.ts`: `sf-pildora` en botones/chips/inputs (0 bajo 'recta',
 // el chrome cuadrado del prototipo) y `sf-pildora-real` en los thumbs del slider (SIEMPRE
@@ -279,16 +282,6 @@ export default function FiltrarOrdenar({
                 ))}
               </div>
             </div>
-          </div>
-
-          <div className="mt-8 flex justify-end">
-            <button
-              type="button"
-              onClick={() => onAbiertoChange(false)}
-              className="sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))]"
-            >
-              Aplicar filtro
-            </button>
           </div>
         </div>
           </motion.div>
