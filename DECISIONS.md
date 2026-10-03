@@ -46228,3 +46228,169 @@ Gate verde en sus tres capas obligatorias (typecheck + 3169 + 306); `guarda:colo
 (§ arriba, la suma aritmética cierra sin resto) — este slice no agrega ni un píxel de drift nuevo.
 
 **Cierra `HISTORIA-FOTOS-ENTRAN-MOVIL-1`.**
+
+## 2026-10-02 — El logo de `logoYNombre` cambia de tamaño en DOS lugares del teléfono: un poco más chico en la barra, un poco más grande en la cabecera del menú (`NAV-LOGO-TAMANOS-FINOS-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Observed-report del
+orquestador (`NAV-LOGO-MOVIL-CON-AIRE-1`): gate del owner sobre capturas de su iPhone (barra del nav
+sobre el hero, y el menú lateral abierto) de la demo de Café Las Chamisas, pedido textual: *"The
+logo in the nav make it just a little bit smaller. And the one when the sidebar is open a little
+bigger."* La aprobación autoriza la escritura, nunca el merge.
+
+### Lo medido ANTES de tocar nada
+
+- **La barra del nav** ya tenía un aire explícito (`AIRE_VERTICAL_LOGO_MOVIL_PX = 8`, § NAV-LOGO-
+  MOVIL-CON-AIRE-1) que resta del alto de barra (`altoLogoNavMovilClase`): 64→48, 76→60, 88→72. Es
+  EXACTAMENTE el ajuste que el owner pide achicar un poco más — no un defecto nuevo, el siguiente
+  paso del mismo mecanismo.
+- **La cabecera del menú lateral** (el SEGUNDO `<Logo>` de `StoreNav.tsx`, el drawer móvil de
+  pantalla completa) **no recibía `altoBarraClase`** — confirmado leyendo el call site
+  (`StoreNav.tsx`, antes de este diff) y el docstring de la prop en `Logo.tsx`: sin el prop, el logo
+  de `'logoYNombre'` cae a `h-7` (28px) fijo. Es el tamaño de "hoy" que el owner pide agrandar.
+
+### El fix — dos literales nombrados, ninguno interpolado
+
+- **`AIRE_VERTICAL_LOGO_MOVIL_PX` sube de 8 a 12** (`lib/config/marca-logo.ts`): el siguiente paso
+  del MISMO vocabulario de espaciado del nav que ya justificaba los 8px (`gap-2`=8px entre los
+  íconos de "Actions"; `gap-3`=12px es el próximo valor de la escala de Tailwind, no un número
+  inventado). `altoLogoNavMovilClase` pasa de `48/60/72` a `40/52/64` (64/76/88 menos 2×12).
+- **`altoLogoMenuLateralClase()` (nueva, `h-[40px]`) + `ALTO_LOGO_MENU_LATERAL_PX = 40`** — a
+  diferencia de la de arriba, ACÁ el alto NO se deriva restando aire de una barra existente: la fila
+  del drawer (`px-6 py-5`) no declara un alto de barra que medir, es `items-center` sobre contenido
+  de altura intrínseca. Es un literal MEDIDO contra el segundo pedido del gate ("un poco más
+  grande"), a propósito más grande que el logo del header porque en esa cabecera el sello no compite
+  por espacio con el resto del contenido de la fila.
+- **Los dos literales son TEXTO LITERAL, no interpolados** (§ CLAUDE.md, "Literal y no interpolado,
+  para que el JIT de Tailwind vea las clases"): `h-[40px]`/`h-[52px] min-[640px]:h-[64px]`/`h-[40px]`
+  aparecen tal cual en el código fuente.
+- **`StoreNav.tsx` conecta el segundo mount**: el `<Logo>` del drawer (antes sin `altoBarraClase`)
+  ahora pasa `altoBarraClase={altoLogoMenuLateralClase()}`. El mount del `<header>` sigue pasando
+  `altoLogoNavMovilClase(navTratamiento.posicion)`, sin cambio de mecanismo — sólo el literal que esa
+  función devuelve cambió.
+- **Alcance, confirmado por lectura**: `altoBarraClase` sólo lo consume la rama `modoResuelto ===
+  'logoYNombre'` de `Logo.tsx` (línea 378 antes de este diff) — pasarlo al drawer no afecta
+  `soloLogo`/`soloNombre` ni ningún tenant sin logo subido (Nayoli cae a `'soloNombre'` y nunca lee
+  el prop).
+
+### Cierre — pre-flight, tests, gate
+
+**Pre-flight:**
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `3b71239`) |
+| los 6 archivos/símbolos de `touches:` existen | sí — `lib/config/marca-logo.ts` (`AIRE_VERTICAL_LOGO_MOVIL_PX`, `altoLogoNavMovilClase`), `lib/config/marca-logo.test.ts`, `components/storefront/Logo.tsx` (la prop `altoBarraClase`, sin editar — sólo se LEYÓ para confirmar el alcance), `components/storefront/layout/StoreNav.tsx` (los dos mounts de `<Logo>`), `lib/config/nav-internas.test.ts`, `DECISIONS.md` |
+| `cifras-decision` del spec (12, 40) | coinciden con `AIRE_VERTICAL_LOGO_MOVIL_PX = 12` y `ALTO_LOGO_MENU_LATERAL_PX = 40` |
+
+**Tests actualizados** (`marca-logo.test.ts`, `nav-internas.test.ts`): los literales viejos (48/60/72)
+se reemplazaron por los nuevos (40/52/64) y se agregaron 2 tests para `altoLogoMenuLateralClase`/
+`ALTO_LOGO_MENU_LATERAL_PX`. Corridos ambos archivos juntos: **49/49**.
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3171/3171** |
+| `npm run test:integracion` | **306/306**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | `ruta-home` DIFIERE (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]`) + las otras 5 rutas DIFIEREN (163/361 px c/u, cajas `[445,Y]–[541,Y+10]`) — **MISMA cifra EXACTA con el diff aplicado y con el diff revertido** (§ abajo, reconciliado a mano); los 2 hovers IDÉNTICO (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, build fresco) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Reconciliación del drift, hecha a mano porque el spec sólo nombraba `ruta-home` como preexistente**
+(y hoy drifean 6 rutas, no 1): se corrió `npm run guarda:color` con el diff de este slice aplicado,
+después se revirtieron los 4 archivos tocados (`git checkout --`) y se corrió DE NUEVO contra el
+árbol pre-slice. **Las dos corridas dieron el NÚMERO Y LA CAJA EXACTOS en las 8 claves** (home +
+5 rutas + 2 hovers) — la expansión del drift de 1 ruta a 6 ya estaba en `HEAD` antes de que este
+slice tocara un archivo (heredada de los merges posteriores a `NAV-LOGO-MOVIL-CON-AIRE-1`:
+`PIE-HECHO-POR-DUNA-1`, `HISTORIA-FOTOS-ENTRAN-MOVIL-1`, `FILTRAR-SIN-BOTON-APLICAR-1`). Este slice
+no agrega ni un píxel de drift nuevo. El spec citaba la cifra vieja (sólo `ruta-home`) porque su
+`observed-report` es anterior a esos merges — es la misma familia que § Backlog técnico, "un número
+en doctrina es una frase con fecha de vencimiento", ahora en un dato de un spec. No se investiga el
+origen de las 5 rutas nuevas acá: ningún archivo de `touches:` de este slice las toca.
+
+**Evidencia manual del Cierre — base EFÍMERA con "Café Las Chamisas", un logo redondo de prueba,
+`modo:'logoYNombre'`, preset CORTE.** Harness ad-hoc (`.scratch/nav-logo-tamanos-finos-cierre.ts`,
+gitignorado, calcado del patrón de `NAV-LOGO-MOVIL-CON-AIRE-1`): Postgres efímero (`:55445`),
+`migrate deploy` sin el seed de Nayoli, build + `next start` (`:3499`), Playwright aislado (WebKit
+`'iPhone 15'` — el motor/dispositivo del gate del owner —, Chromium 768 y 1440). Para cada ruta
+(home e interna `/nosotros`), mide la barra del nav cerrada y, abriendo el drawer (clic en el
+hamburger, medir, cerrar con su propio botón "Cerrar el menú" — el hamburger del header queda
+tapado por el panel `fixed inset-0 z-50` mientras está abierto), el logo de la cabecera del menú:
+
+| escenario | alto `<img>` NAV BARRA | alto barra | alto `<img>` MENÚ LATERAL | alto fila menú |
+| --- | --- | --- | --- | --- |
+| iPhone 15 (WebKit), home | **52px** (antes 60) | 76px | **40px** (antes 28, `h-7`) | 81px |
+| iPhone 15 (WebKit), interna | **52px** | 76px | **40px** | 81px |
+| 768px (Chromium), home | **64px** (antes 72) | 88px | n/a (drawer no se abrió a este ancho) | — |
+| 768px (Chromium), interna | **64px** | 88px | n/a | — |
+| 1440px (Chromium), home/interna | 24px — **sin cambio** | — | n/a (drawer no existe en escritorio) | — |
+
+Los tres valores de la barra del nav (52/64/24) son EXACTOS a los literales nuevos de
+`altoLogoNavMovilClase`/`altoLogoNavEscritorioClase` (ésta última NO tocada por este slice). El logo
+del menú lateral mide 40px EXACTO en los dos anchos probados (home e interna), confirmando que
+`altoLogoMenuLateralClase()` no depende de `navTratamiento.posicion` (CORTE), como declara su
+docstring. Capturas en `.scratch/nav-logo-tamanos-finos-capturas/` — revisadas visualmente: la barra
+se ve un poco más chica que antes, la cabecera del menú un poco más grande, ambas centradas sin
+tocar los íconos vecinos.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `AIRE_VERTICAL_LOGO_MOVIL_PX`, `altoLogoNavMovilClase`,
+`altoLogoMenuLateralClase`, `ALTO_LOGO_MENU_LATERAL_PX` (`lib/config/marca-logo.ts`);
+`components/storefront/layout/StoreNav.tsx` (los dos mounts de `<Logo>`); los dos archivos de test.
+Grepeados contra `CLAUDE.md`:
+
+- `AIRE_VERTICAL_LOGO_MOVIL_PX`, `altoLogoNavMovilClase`, `altoLogoMenuLateralClase`,
+  `ALTO_LOGO_MENU_LATERAL_PX`, `StoreNav.tsx`, `marca-logo.ts`, `NAV-LOGO-Y-NOMBRE-AJUSTE-1`,
+  `NAV-LOGO-MOVIL-CON-AIRE-1` → **CERO coincidencias** en los 7823 renglones de `CLAUDE.md` — la
+  doctrina de esos slices vive sólo en `DECISIONS.md` (el ledger), nunca se promovió a `CLAUDE.md`.
+  Nada en `CLAUDE.md` nombra lo que este diff cambió.
+- `Logo.tsx` → 1 coincidencia (§ "El WORDMARK carga la identidad… — SVG de la flor sigue INLINE en
+  `Logo.tsx` como el PUNTO DE SWAP"), sobre el SVG del mark y el flag `STOREFRONT_TIENE_MARK` — ajena
+  a `altoBarraClase`/los modos de logo. No se vuelve falsa: este diff no toca el mark ni ese flag.
+
+Nada queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`.** El byte que cambia es TAMAÑO, no texto: un despliegue con `logo.modo:
+'logoYNombre'` (hoy, Café Onix y Café Las Chamisas) en viewport `<lg` ve el logo de la barra del nav
+un poco MÁS CHICO (52/64px en vez de 60/72px) y, al abrir el menú lateral, el logo de su cabecera un
+poco MÁS GRANDE (40px en vez de 28px). **`strings: []`** — no hay copy nuevo, el cambio es de
+tamaño/layout. Nayoli sin logo subido (`modoLogoResuelto` → `'soloNombre'`) **no ve nada** —
+confirmado por `guarda:color`/`verificar:nayoli:visual` dando la MISMA cifra exacta que `HEAD` antes
+de este diff (§ arriba).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin contrato cruzado. Los archivos tocados son un
+módulo puro, un componente de cliente, y dos archivos de test.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio. Ajeno a
+  `touches:` de este slice.
+- **`NAV-LOGO-SPEC-CIFRA-DRIFT-VENCIDA-1`** (coined acá): el `observed-report` que originó este spec
+  describía el drift de `guarda:color` como "preexistente de `ruta-home`" (singular); medido hoy son
+  6 rutas (home + 5 internas, 163/361 px c/u). No es causado por este slice (§ la reconciliación de
+  arriba) ni por `touches:` de este slice — es una cifra de spec que venció entre el momento en que se
+  escribió y el momento en que este slice corrió el gate, por los merges intermedios ya nombrados
+  (`PIE-HECHO-POR-DUNA-1` y siguientes). **Por qué no se cierra acá**: cerrarlo exigiría decidir si la
+  expansión de 1 a 6 rutas es un hallazgo del orquestador (actualizar el `observed-report` base) o si
+  ya está cubierta por el crédito que `PIE-HECHO-POR-DUNA-1`/`HISTORIA-FOTOS-ENTRAN-MOVIL-1` ya
+  documentaron en sus propios asientos — una decisión de quién mantiene esa cifra, no de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia el TAMAÑO de un elemento que un visitante
+de un tenant con logo subido en modo `'logoYNombre'` ve en el teléfono (§ `customer_bytes`:
+`changed: true`); no toca schema ni un contrato cross-repo. El dispatch lo pide explícito: *"PARÁS
+EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec,
+citado arriba) — el MERGE de la rama sigue gateado aparte, igual que los slices anteriores de
+`slice/corte-reescritura-prototipo-1`.
+
+Gate verde en sus tres capas obligatorias (typecheck + 3171 + 306); `guarda:color`/
+`verificar:nayoli:visual` reportan la MISMA cifra exacta con y sin este diff (§ la reconciliación de
+arriba) — este slice no agrega ni un píxel de drift nuevo. Evidencia manual (Playwright/WebKit contra
+una base efímera) confirma los dos tamaños pedidos por el owner, en los dos mounts, sin tocar
+escritorio.
+
+**Cierra `NAV-LOGO-TAMANOS-FINOS-1`.**
