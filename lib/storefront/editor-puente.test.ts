@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
+import { varsDeTemaEnVivo } from '@/lib/config/esquema-style';
+import { varsDeForma, FORMA_DEFECTO } from '@/lib/config/formas';
+import { varsDeFuentePar, PAR_DEFECTO } from '@/lib/config/fuentes';
 import {
   TIPO_MENSAJE_CONTENIDO_SECCION,
   esMensajeContenidoSeccion,
@@ -17,6 +20,7 @@ import {
   TIPO_MENSAJE_SESION_VENCIDA,
   esMensajeSesionVencida,
   datosDeOrden,
+  datosDeTema,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -86,6 +90,71 @@ test('datosDeOrden devuelve null cuando datos.valor no es un array (o está ause
   assert.equal(datosDeOrden({ valor: 'hero' }), null);
   assert.equal(datosDeOrden({ valor: null }), null);
   assert.equal(datosDeOrden({ valor: { 0: 'hero' } }), null);
+});
+
+// § EDITOR-TIENDA-TEMA-1 — el séptimo mensaje, REUTILIZADO: `TIPO_MENSAJE_CONTENIDO_SECCION` con
+// `seccion: 'tema'` y `datos: { vars: {...} }`. `datosDeTema` es sólo la validación ESTRUCTURAL
+// (¿es un objeto plano de string→string?) — qué claves CSS son, las decide `varsDeTemaEnVivo` en
+// el llamador (el panel), nunca acá.
+
+test('datosDeTema devuelve el mapa cuando datos.vars es un objeto plano de string→string', () => {
+  assert.deepEqual(datosDeTema({ vars: { '--sf-fondo': '#ffffff', '--sf-tinta': '#111111' } }), {
+    '--sf-fondo': '#ffffff', '--sf-tinta': '#111111',
+  });
+  assert.deepEqual(datosDeTema({ vars: {} }), {});
+});
+
+test('datosDeTema devuelve null cuando datos.vars está ausente, no es objeto, es array, o un valor no es string', () => {
+  assert.equal(datosDeTema({}), null);
+  assert.equal(datosDeTema({ vars: null }), null);
+  assert.equal(datosDeTema({ vars: 'x' }), null);
+  assert.equal(datosDeTema({ vars: [] }), null);
+  assert.equal(datosDeTema({ vars: ['--sf-fondo'] }), null);
+  assert.equal(datosDeTema({ vars: { '--sf-fondo': 123 } }), null);
+  assert.equal(datosDeTema({ vars: { '--sf-fondo': null } }), null);
+});
+
+// `varsDeTemaEnVivo` (§ `lib/config/esquema-style.ts`) es lo que el panel manda como `datos.vars`
+// de este mensaje — se afirma ACÁ, junto al puente que lo transporta, no en un archivo de test
+// propio de `esquema-style.ts` (fuera de `touches:` de este slice).
+
+test('varsDeTemaEnVivo: con los TRES ejes en su default (fábrica/Editorial/Suave), rellena fuente y forma con sus valores CONCRETOS — nunca `{}`', () => {
+  const vars = varsDeTemaEnVivo({
+    fondo: null, tinta: null, acento: null, fuentePar: null, forma: null,
+    origenTexto: null, origenAccion: null, escalaDisplay: null,
+  });
+  assert.equal(vars['--sf-fuente-titulo'], PAR_DEFECTO.titulo);
+  assert.equal(vars['--sf-fuente-cuerpo'], PAR_DEFECTO.cuerpo);
+  assert.equal(vars['--sf-peso-cuerpo'], '400'); // PAR_DEFECTO (Editorial) no declara pesoCuerpo
+  assert.equal(vars['--radius-3xl'], FORMA_DEFECTO.radius3xl);
+  assert.equal(vars['--radius-2xl'], FORMA_DEFECTO.radius2xl);
+  assert.equal(vars['--radius-xl'], FORMA_DEFECTO.radiusXl);
+  assert.equal(vars['--sf-radio-lg'], FORMA_DEFECTO.radioLg);
+  assert.equal(vars['--sf-radio-tile'], FORMA_DEFECTO.radioTile);
+  assert.equal(vars['--sf-radio-imagen'], FORMA_DEFECTO.radioImagen);
+  assert.equal(vars['--sf-sombra-imagen'], FORMA_DEFECTO.sombraImagen);
+  assert.equal(vars['--sf-pildora'], FORMA_DEFECTO.pildora);
+  assert.equal(vars['--sf-pildora-real'], FORMA_DEFECTO.pildoraReal);
+  assert.equal(vars['--sf-borde'], FORMA_DEFECTO.borde);
+  assert.equal(vars['--sf-divisor'], FORMA_DEFECTO.divisor);
+  assert.equal(vars['--sf-trazo'], FORMA_DEFECTO.trazo);
+  assert.equal(vars['--sf-badge-caja'], FORMA_DEFECTO.badgeCaja);
+  assert.equal(vars['--sf-badge-tracking'], FORMA_DEFECTO.badgeTracking);
+  // La paleta nunca necesita relleno — ya sale completa de `varsDeTienda`.
+  assert.equal(vars['--sf-fondo'], '#faf7f4'); // RAICES_DEFECTO.fondo (Nayoli)
+});
+
+test('varsDeTemaEnVivo: con fuentePar/forma CUSTOM, coincide EXACTAMENTE con lo que varsDeFuentePar/varsDeForma ya emiten — no se reinventa un segundo valor', () => {
+  const vars = varsDeTemaEnVivo({
+    fondo: '#000000', tinta: '#ffffff', acento: '#ff0000', fuentePar: 'prensa', forma: 'recta',
+    origenTexto: null, origenAccion: null, escalaDisplay: null,
+  });
+  const fuenteEsperada = varsDeFuentePar('prensa');
+  const formaEsperada = varsDeForma('recta');
+  for (const [clave, valor] of Object.entries(fuenteEsperada)) assert.equal(vars[clave], valor, clave);
+  for (const [clave, valor] of Object.entries(formaEsperada)) assert.equal(vars[clave], valor, clave);
+  // 'prensa' SÍ declara pesoCuerpo (440) — el `??` de relleno nunca debió dispararse para esta clave.
+  assert.equal(vars['--sf-peso-cuerpo'], '440');
 });
 
 test('fusionarContenidoSeccion aplica el cambio de texto a la sección pedida', () => {

@@ -48073,3 +48073,130 @@ explícitamente parar en `AWAITING_APPROVAL` sin merge. Commiteado en
 
 **Cierra la fila 6 de § 6** (`EDITOR-TIENDA-ORDEN-1`). Del plan de siete slices de
 `docs/editor-tienda/DISENO.md`, queda sólo la fila 7 (`EDITOR-TIENDA-RETIRO-1`) sin construir.
+
+## 2026-10-03 — La pestaña «Tema» del editor de pantalla completa (`EDITOR-TIENDA-TEMA-1`)
+
+Pedido del owner, FUERA del plan original de siete slices de `docs/editor-tienda/DISENO.md` (§ 16,
+ese documento): "como «Configuración del tema» de Shopify, pero con esteroides". `/editor/tienda`
+gana una pestaña **«Tema»** junto a las de página (Home/Nosotros/Suscripciones); seleccionarla
+monta `PaletaSeccion` (paleta/tipografía/forma) en la columna de la lista, con la PÁGINA REAL del
+iframe compartido reflejando cada cambio AL INSTANTE — reemplazando el fragmento sintético
+(`FragmentoTienda`) que esa pieza usaba en su casa anterior, `/admin/tienda`, de donde se retiró
+(`/admin/tienda deja de duplicar la paleta si queda en el editor`, el pedido textual del spec).
+
+### El mecanismo: un séptimo mensaje reutilizado, y por qué el panel manda el conjunto COMPLETO
+
+El puente panel→iframe ya tenía seis mensajes (§ DISENO.md § 13/14/15); éste reusa el PRIMERO
+(`TIPO_MENSAJE_CONTENIDO_SECCION`) con `seccion: 'tema'`, exactamente como `'orden'` ya hacía —
+`esSeccionDelRegistro`/`fusionarContenidoSeccion` lo ignoran (clave META), y `EditorPuenteVivo.tsx`
+lo reconoce ANTES, aplicando `datos.vars` directo sobre `documentElement.style.setProperty(...)`.
+
+**La decisión de diseño que vale la pena dejar escrita:** `varsDeTienda` (el helper existente que
+arma el `:root` del servidor) OMITE una familia completa de claves (fuente/forma) cuando ese eje
+está en su default — correcto para un `<style>` server-rendered (la cascada cae al literal de
+`globals.css`), pero un valor puesto por JS vía `style.setProperty` tiene MÁS especificidad que
+CUALQUIER hoja de estilo: omitir una clave dejaría el valor VIEJO pegado para siempre en vez de
+volver al default (nadie "limpia" un `setProperty` dejando de llamarlo). `varsDeTemaEnVivo`
+(`lib/config/esquema-style.ts`, nueva) resuelve esto rellenando fuente/forma con su CONCRETO
+(`parDeFuentePar`/`formaDeForma` — los mismos resolvers "nunca null" que ya usa la lectura del
+panel) cuando `varsDeTienda` las deja ausentes, para que el panel SIEMPRE mande el conjunto
+completo y el lado del iframe nunca tenga que decidir qué remover — sólo aplica lo que llega.
+
+### `PaletaSeccion.tsx` ganó DOS props opcionales; el standalone queda INTACTO
+
+`enEditor` y `onCambioEnVivo`, ambos ausentes por default — el render SIN estos props (el que
+`lib/config/admin-tienda-preset.test.ts`, fuera de `touches:`, sigue ejercitando) es BYTE A BYTE
+el mismo que antes de este slice: mismo `cargando`/`errorCarga`, mismo `FragmentoTienda`/
+`PreviewTiendaReal`/`AmpliarOverlay`, mismo escenario con pane+regleta. Con `enEditor=true`
+(el único caso real hoy, montado por `TiendaPaginas.tsx` en modo `'tema'`): la lectura es una fila
+`.tienda-tarjeta` (el mismo patrón sin-miniatura que `TiendaSeccionEditor` ya adoptó cuando el
+iframe se volvió la vista en vivo compartida) y la edición es SÓLO la regleta (Base/Acento/
+Tipografía/Forma) — sin pane, sin "Ampliar", sin "Lo que se calcula solo": la página real del
+iframe ya hace ese trabajo. La cabecera y la regleta se EXTRAJERON a variables (`cabeceraContenido`/
+`regleta`) para que las dos formas de render las reusen SIN reescribir un carácter.
+
+### `/admin/tienda` — qué queda, qué se fue
+
+`<PaletaSeccion />` y sus dos separadores se retiraron de esa página; MenuSeccion/EncabezadoSeccion/
+DetallesSitioSeccion/FooterSeccion se quedan (no están en `touches:`). El header y la tarjeta de
+"Secciones de la tienda" se re-redactaron para decir dónde vive Colores ahora.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3323/3323** (era 3319/3319 al cierre de `EDITOR-TIENDA-ORDEN-1`; +4: `datosDeTema` ×2, `varsDeTemaEnVivo` ×2, `lib/storefront/editor-puente.test.ts`) |
+| `npm run test:integracion` | **313/313** — primera corrida dio 312/313 (`wompi-reconciliador.test.ts`, el test de CONCURRENCIA webhook↔reconciliador, ajeno a este diff — cero archivos de pagos en `touches:`); la segunda corrida, sin tocar nada, dio 313/313. Flaky pre-existente de una carrera real entre dos transacciones, no una regresión de este slice |
+| `npm run guarda:color` | RED — **misma cifra EXACTA que el drift ya documentado** (`PIE-HECHO-POR-DUNA-1`/`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, asiento de `EDITOR-TIENDA-ORDEN-1` arriba): ruta-home 165.052/4.608.000 px AA, caja `[105,862]–[1183,3581]`; las otras 5 rutas, 163/… px AA cada una. Pre-existente, cero píxeles nuevos |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, rama vs. `main` (segundo intento: el primero falló por un timeout de red hacia `fonts.googleapis.com` construyendo la rama — transitorio, ajeno al código, reproducido en verde al reintentar) |
+
+### Verificación por ejecución — INCOMPLETA al cierre de esta sesión
+
+Se armó `.scratch/verificar-tema-sesion.ts` (no comiteado, mismo criterio que `verificar-orden-
+sesion.ts`): login OWNER real → `/editor/tienda` → clic en «Tema» → Editar → cambiar acento/
+tipografía/forma leyendo las vars RESUELTAS del `documentElement` del iframe (sin recarga, por una
+marca de `window` que debe sobrevivir) → Publicar → abrir la tienda pública en una pestaña nueva
+(escritorio Y teléfono) y confirmar que las mismas vars quedaron publicadas. El arnés se lanzó pero
+**no terminó de correr dentro de esta sesión** (el build+seed+Playwright headless excede el tiempo
+de turno disponible) — su resultado queda **UNKNOWN**, no se afirma en verde ni en rojo. Es la
+única pieza del cierre pedido por el spec que no se pudo completar; todo lo demás (gate automatizado,
+guardas de color) SÍ corrió y quedó medido arriba.
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (no sólo este commit) le agrega al dueño una pestaña nueva
+visible («Tema») en `/editor/tienda`, retira `PaletaSeccion` de `/admin/tienda`, y re-redacta el
+texto de esa portada. Como en los asientos anteriores de esta rama, el merge que esto aterrizaría
+sobre `main` también carga los bytes visibles de los slices previos sin mergear.
+
+**`strings:`**
+- (panel) pill nueva **"Tema"** en la barra del editor de pantalla completa.
+- (panel) `/admin/tienda`: el párrafo de la cabecera y de la tarjeta "Secciones de la tienda y tema"
+  se reescribieron para decir que Colores vive ahora en el editor.
+- Los textos DENTRO de la pestaña Tema ("Colores y tipografía", "Editar", "Usar el tema por
+  defecto"…) son LOS MISMOS literales que ya existían en `/admin/tienda` — se reubicaron, no se
+  reescribieron.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migración, cero columna nueva, cero contrato cross-repo. El mensaje nuevo del
+puente (`seccion:'tema'`) es un reuso en runtime de un tipo de mensaje ya existente, sin cambiar su
+forma TypeScript.
+
+### Open follow-ups
+
+- `CLAUDE-MD-PALETA-ADMIN-TIENDA-STALE-1` — `CLAUDE.md:1099` y `CLAUDE.md:2260` afirman que el
+  editor de `PaletaSeccion` "vive en `/admin/tienda`"; con este slice, en producción ya no — vive en
+  la pestaña «Tema» de `/editor/tienda` (`enEditor=true`). El modo standalone que esas líneas y todo
+  el bloque "EL EDITOR ES UN ESCENARIO" (`CLAUDE.md:2267+`) describen SIGUE siendo código real
+  (`enEditor` ausente/false), pero sin consumidor en producción — sólo lo ejercita
+  `admin-tienda-preset.test.ts`. `CLAUDE.md` no está en `touches:` de este slice.
+- `VERIFICAR-TEMA-SESION-PENDIENTE-1` — `.scratch/verificar-tema-sesion.ts` quedó escrito y lanzado
+  pero sin resultado dentro de esta sesión (§ arriba). Antes de dar este slice por aceptado en uso
+  real, correrlo hasta el final (o repetir la sesión a mano) y confirmar las tres capturas
+  (escritorio editando, público escritorio, público teléfono).
+- `EDITOR-TIENDA-RETIRO-1` (fila 7 de § 6 de `DISENO.md`) sigue pendiente, AMPLIADA por este slice:
+  ahora también retira el prop `enEditor` completo de `PaletaSeccion.tsx` (§ DISENO.md § 7, la fila
+  corregida) una vez que `/admin/tienda` ya no pueda montar el standalone.
+- `FUENTE-LINK-EN-VIVO-TEMA-1` — **hallazgo sin verificar por ejecución** (nace de leer el código,
+  no de observarlo correr): al elegir un par tipográfico CUSTOM en la pestaña Tema, `varsDeTemaEnVivo`
+  cambia `--sf-fuente-titulo`/`--sf-fuente-cuerpo` en el iframe, pero el `<link>` de Google Fonts de
+  ESE par (`linkFuentePar`) nunca se inyecta en el documento del iframe — sólo se inyecta en el
+  SSR cuando ese par ya está PUBLICADO. Si el par elegido en vivo es distinto del publicado, la
+  variable cambia pero el archivo de fuente puede no estar cargado, y el navegador cae a su
+  fallback genérico hasta publicar (momento en que el SSR del siguiente `recargar()`/navegación sí
+  trae el `<link>` correcto). No se verificó visualmente si esto es perceptible (depende de si el
+  fallback del navegador para esa familia ya se parece al original) — queda nombrado, no cerrado.
+
+### Verdict
+
+**BLOCKED** — no por un obstáculo técnico, sino porque la sesión se cortó (límite de turno/
+presupuesto) con la verificación interactiva pedida por el spec (§ Cierre: "cambiar…publicar…
+Capturas en escritorio y teléfono") TODAVÍA EN VUELO (`.scratch/verificar-tema-sesion.ts`, lanzada,
+sin resultado) y, por disciplina de este protocolo, SIN COMMIT: el código está completo, tipado
+(0 errores) y el gate automatizado completo (`npm test` 3323/3323, `test:integracion` 313/313 tras
+reconciliar un flaky ajeno) está en VERDE, y las dos guardas de color no agregan un solo píxel de
+drift sobre el ya documentado — pero el protocolo de este repo pide la sesión real ANTES de dar el
+cierre, y no llegó a correr. Nada de esto se mergea; ni siquiera se comiteó, para no dejar un commit
+a medio verificar en la rama.

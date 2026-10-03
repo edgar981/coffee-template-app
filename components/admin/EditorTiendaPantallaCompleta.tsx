@@ -20,9 +20,18 @@ import {
 // completa, sin el chrome del panel — el pedido textual del owner tras ver el editor viejo: *"Se ve
 // bien sin embargo se ve como en la vista movil, aun no se siente como un editor inline"* y *"el
 // editor abre en una nueva vista, no sale nada del panel de navegacion"* (referencia: el editor de
-// temas de Shopify). La barra superior fina (volver al panel · página · dispositivo) reemplaza al
-// `role="tablist"` que antes vivía dentro de `TiendaPaginas` — ahora ese selector vive ACÁ, y
+// temas de Shopify). La barra superior fina (volver al panel · página/tema · dispositivo) reemplaza
+// al `role="tablist"` que antes vivía dentro de `TiendaPaginas` — ahora ese selector vive ACÁ, y
 // `TiendaPaginas` lo recibe por prop (controlado), junto con el dispositivo elegido.
+//
+// LA PESTAÑA «TEMA» (§ EDITOR-TIENDA-TEMA-1) — ganada JUNTO a las de página, como el pedido del
+// spec ("como «Configuración del tema» de Shopify"): es un MODO del editor, no una página — el
+// `<iframe>` de `VistaTiendaIframe` sigue mostrando la MISMA `pagina` que ya estaba activa (el tema
+// es store-wide, se ve en cualquier página), lo único que cambia es qué columna de la izquierda
+// monta `TiendaPaginas` (la lista de secciones, o `PaletaSeccion` en modo `enEditor`). Por eso es un
+// estado APARTE (`modo`), no un valor más de `PaginaKey`: `pagina` sigue siendo SIEMPRE una de las
+// tres páginas reales —nunca 'tema'— para que el resto del árbol (el `<iframe key={pagina}>`, el
+// deep-link, el dispositivo) no tenga que aprender un cuarto valor que no es una página de verdad.
 //
 // EL DEEP-LINK DEL AVISO DE CONFIGURACIÓN (§ El AVISO DE CONFIGURACIÓN del Dashboard, CLAUDE.md) —
 // `?seccion=&tarjeta=` — se movió ACÁ desde `TiendaPaginas` (que antes lo leía con su propio
@@ -30,12 +39,15 @@ import {
 // resaltar; `TiendaPaginas` sólo recibe el resultado ya resuelto. `lib/config/avisos-configuracion.ts`
 // (fuera de `touches:` de este slice) sigue generando el link hacia `/admin/tienda?seccion=…`, que
 // esa ruta —todavía viva como portada— reenvía para acá sin tocar ese archivo (§ `/admin/tienda/
-// page.tsx`).
+// page.tsx`). Un deep-link siempre apunta a una SECCIÓN de página, nunca al tema, así que arranca
+// siempre en `modo: 'paginas'`.
 const DISPOSITIVOS: { key: DispositivoKey; label: string; Icon: typeof Monitor }[] = [
   { key: 'escritorio', label: 'Escritorio', Icon: Monitor },
   { key: 'tablet', label: 'Tablet', Icon: Tablet },
   { key: 'telefono', label: 'Teléfono', Icon: Smartphone },
 ];
+
+type ModoEditor = 'paginas' | 'tema';
 
 export default function EditorTiendaPantallaCompleta() {
   const params = useSearchParams();
@@ -46,6 +58,7 @@ export default function EditorTiendaPantallaCompleta() {
     : null;
   const paginaObjetivo = seccionParam ? SECCIONES_TIENDA.find(c => c.seccion === seccionParam)?.pagina : undefined;
   const [pagina, setPagina] = useState<PaginaKey>(paginaObjetivo ?? 'home');
+  const [modo, setModo] = useState<ModoEditor>('paginas');
 
   // EL DISPOSITIVO ELEGIDO, recordado por navegador (§ 4.3 de DISENO.md: "recordado por el
   // navegador del admin"). Arranca en el default (Escritorio) y se re-lee de `localStorage` tras
@@ -83,18 +96,29 @@ export default function EditorTiendaPantallaCompleta() {
           <ArrowLeft /> Volver al panel
         </Link>
 
-        <div role="tablist" aria-label="Página del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
+        <div role="tablist" aria-label="Página y tema del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
           {PAGINAS.map(p => (
             <button
               key={p.key}
               role="tab"
-              aria-selected={p.key === pagina}
-              onClick={() => setPagina(p.key)}
-              className={`duna-pill${p.key === pagina ? ' is-on' : ''}`}
+              aria-selected={modo === 'paginas' && p.key === pagina}
+              onClick={() => { setPagina(p.key); setModo('paginas'); }}
+              className={`duna-pill${modo === 'paginas' && p.key === pagina ? ' is-on' : ''}`}
             >
               {p.label}
             </button>
           ))}
+          {/* § EDITOR-TIENDA-TEMA-1 — «Tema» junto a las páginas, no la propia página: elegirla no
+              cambia qué `pagina` muestra el iframe (store-wide, se ve en cualquiera), sólo qué
+              columna monta la lista de la izquierda (§ el comentario grande, arriba). */}
+          <button
+            role="tab"
+            aria-selected={modo === 'tema'}
+            onClick={() => setModo('tema')}
+            className={`duna-pill${modo === 'tema' ? ' is-on' : ''}`}
+          >
+            Tema
+          </button>
         </div>
 
         <div role="group" aria-label="Dispositivo" style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
@@ -114,7 +138,7 @@ export default function EditorTiendaPantallaCompleta() {
       </div>
 
       <div style={{ flex: '1 1 auto', minHeight: 0, padding: 'var(--duna-space-6)' }}>
-        <TiendaPaginas pagina={pagina} resaltar={resaltar} dispositivo={dispositivo} />
+        <TiendaPaginas pagina={pagina} resaltar={resaltar} dispositivo={dispositivo} modo={modo} />
       </div>
     </div>
   );

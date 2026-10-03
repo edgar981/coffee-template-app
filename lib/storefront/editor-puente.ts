@@ -48,6 +48,10 @@ export function esMensajeContenidoSeccion(data: unknown): data is MensajeConteni
  * mensaje (`TIPO_MENSAJE_CONTENIDO_SECCION`) — `EditorPuenteVivo.tsx` la reconoce ANTES de llamar a
  * esta función (nunca llega acá con `seccion === 'orden'`, así que esta función sigue devolviendo
  * `false` para esa clave; el llamador bifurca antes).
+ *
+ * SEGUNDA EXCEPCIÓN (§ EDITOR-TIENDA-TEMA-1): `'tema'` es la MISMA clase de caso que `'orden'` —
+ * reusa `TIPO_MENSAJE_CONTENIDO_SECCION`, `EditorPuenteVivo.tsx` la reconoce ANTES de esta función,
+ * y por tanto nunca llega acá con `seccion === 'tema'` tampoco.
  */
 export function esSeccionDelRegistro(seccion: string): seccion is keyof typeof REGISTRY {
   return Object.prototype.hasOwnProperty.call(REGISTRY, seccion);
@@ -74,6 +78,43 @@ export function esSeccionDelRegistro(seccion: string): seccion is keyof typeof R
  *  mensajes de este módulo. */
 export function datosDeOrden(datos: Record<string, unknown>): unknown[] | null {
   return Array.isArray(datos.valor) ? datos.valor : null;
+}
+
+// ─── EL SÉPTIMO MENSAJE — REUTILIZADO (§ EDITOR-TIENDA-TEMA-1) ─────────────────────────────────
+//
+// panel→iframe: "la paleta/tipografía/forma del tema cambiaron". Mismo patrón que 'orden' arriba:
+// NO es un mensaje nuevo — reusa `TIPO_MENSAJE_CONTENIDO_SECCION` con `seccion: 'tema'`, también
+// documentado como excepción en `esSeccionDelRegistro` (abajo). La razón de reusar: la forma que
+// necesita ({tipo, seccion, datos}) ya existe, y la decisión de con qué SECCIÓN se identifica un
+// mensaje panel→iframe ya está resuelta — inventar un OCTAVO tipo de mensaje por cada clave META
+// (tema, paginas, cromo…) que algún día quiera hablarle al iframe sería la misma forma repetida
+// sin ganar nada. `EditorPuenteVivo.tsx` reconoce `seccion === 'tema'` ANTES de
+// `esSeccionDelRegistro`/`fusionarContenidoSeccion` (que sólo fusionan CONTENIDO editorial dentro
+// del `SiteContentProvider`) y aplica las variables DIRECTO sobre `documentElement.style` — un
+// tema no es contenido que el árbol de React deba re-renderizar, es presentación que CSS ya lee
+// por cascada; fusionarlo en el contexto no movería un solo píxel por sí solo.
+//
+// `datos.vars` viaja SIEMPRE COMPLETO (§ `varsDeTemaEnVivo`, `lib/config/esquema-style.ts`): el
+// panel —no el iframe— es quien rellena fuente/forma con su valor CONCRETO incluso cuando el eje
+// está en su default, así que el lado del iframe nunca necesita decidir qué `removeProperty`: basta
+// con aplicar cada clave que llega. Esa decisión se tomó para no tener que importar `fuentes.ts`/
+// `formas.ts` (los resolvers "nunca null", `parDeFuentePar`/`formaDeForma`) en este archivo —PÚBLICO,
+// vía `EditorPuenteVivo.tsx`, que se monta en TODO visitante del storefront— por una lista de 17
+// nombres de variable que sólo hacía falta para decidir qué limpiar.
+
+/** `datos.vars` del mensaje, cuando `seccion === 'tema'` — el mapa de variables CSS YA RESUELTAS
+ *  por `varsDeTemaEnVivo` (`lib/config/esquema-style.ts`, el lado del panel). Validación
+ *  ESTRUCTURAL únicamente (¿es un objeto plano de string→string?) — el contenido semántico (que
+ *  cada clave sea realmente una custom property conocida) no se verifica acá: aplicar una clave
+ *  CSS inventada vía `style.setProperty` no hace nada peligroso, el navegador la ignora. */
+export function datosDeTema(datos: Record<string, unknown>): Record<string, string> | null {
+  const vars = datos.vars;
+  if (!vars || typeof vars !== 'object' || Array.isArray(vars)) return null;
+  const entradas = Object.entries(vars as Record<string, unknown>);
+  for (const [clave, valor] of entradas) {
+    if (typeof clave !== 'string' || typeof valor !== 'string') return null;
+  }
+  return vars as Record<string, string>;
 }
 
 // ─── LOS DOS MENSAJES NUEVOS (§ EDITOR-TIENDA-SELECCION-1) ─────────────────────────────────────

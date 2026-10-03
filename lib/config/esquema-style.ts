@@ -1,7 +1,7 @@
 import { derivarPaleta, derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta, type EjesPaleta } from './palette-derive';
 import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent, type TemaContent } from './site-content-defaults';
-import { varsDeFuentePar } from './fuentes';
-import { varsDeForma } from './formas';
+import { varsDeFuentePar, parDeFuentePar } from './fuentes';
+import { varsDeForma, formaDeForma } from './formas';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -158,6 +158,50 @@ export function varsDeTienda(
     ...varsDeFuentePar(tema.fuentePar),
     ...varsDeForma(tema.forma),
     ...esquemaStyleDeBanda(bandaId, esquemas, tema),
+  };
+}
+
+/**
+ * Variante de `varsDeTienda` (arriba) que NUNCA omite una clave de fuente/forma — para EL EDITOR EN
+ * VIVO (§ EDITOR-TIENDA-TEMA-1): el panel manda este mapa por el puente (`postMessage`) y el lado
+ * del iframe lo aplica como `documentElement.style.setProperty(...)` (§ `editor-puente.ts`,
+ * `datosDeTema`). Un valor puesto así tiene MÁS especificidad que CUALQUIER regla de hoja de estilo
+ * —incluido el `:root{…}` server-rendered—, así que omitir una clave (lo que `varsDeTienda` hace a
+ * propósito cuando un eje está en su default, correcto para dejar que la cascada de CSS caiga al
+ * literal de `globals.css`) dejaría el valor VIEJO pegado para siempre en vez de volver al default:
+ * nadie "limpia" un `setProperty` dejando de llamarlo, sólo removiéndolo explícitamente. Esta
+ * función le ahorra esa contabilidad al llamador devolviendo SIEMPRE el conjunto COMPLETO, para
+ * que el lado del iframe nunca tenga que decidir qué remover.
+ *
+ * La PALETA nunca necesita relleno (`varsDeTienda` ya la devuelve completa, § su docstring — las
+ * raíces siempre se resuelven a un hex concreto, fábrica o custom). Fuente y forma se rellenan con
+ * `parDeFuentePar`/`formaDeForma` — los MISMOS resolvers "nunca null" que ya usa la LECTURA del
+ * panel (`PaletaSeccion.tsx`, `parActual`/`formaActual`) — sólo cuando `varsDeTienda` las dejó
+ * ausentes; si ya vinieron (eje CUSTOM), se usan tal cual, sin recalcular.
+ */
+export function varsDeTemaEnVivo(tema: TemaContent): Record<string, string> {
+  const base = varsDeTienda(tema);
+  const par = parDeFuentePar(tema.fuentePar);
+  const forma = formaDeForma(tema.forma);
+  return {
+    ...base,
+    '--sf-fuente-titulo': base['--sf-fuente-titulo'] ?? par.titulo,
+    '--sf-fuente-cuerpo': base['--sf-fuente-cuerpo'] ?? par.cuerpo,
+    '--sf-peso-cuerpo': base['--sf-peso-cuerpo'] ?? String(par.pesoCuerpo ?? 400),
+    '--radius-3xl': base['--radius-3xl'] ?? forma.radius3xl,
+    '--radius-2xl': base['--radius-2xl'] ?? forma.radius2xl,
+    '--radius-xl': base['--radius-xl'] ?? forma.radiusXl,
+    '--sf-radio-lg': base['--sf-radio-lg'] ?? forma.radioLg,
+    '--sf-radio-tile': base['--sf-radio-tile'] ?? forma.radioTile,
+    '--sf-radio-imagen': base['--sf-radio-imagen'] ?? forma.radioImagen,
+    '--sf-sombra-imagen': base['--sf-sombra-imagen'] ?? forma.sombraImagen,
+    '--sf-pildora': base['--sf-pildora'] ?? forma.pildora,
+    '--sf-pildora-real': base['--sf-pildora-real'] ?? forma.pildoraReal,
+    '--sf-borde': base['--sf-borde'] ?? forma.borde,
+    '--sf-divisor': base['--sf-divisor'] ?? forma.divisor,
+    '--sf-trazo': base['--sf-trazo'] ?? forma.trazo,
+    '--sf-badge-caja': base['--sf-badge-caja'] ?? forma.badgeCaja,
+    '--sf-badge-tracking': base['--sf-badge-tracking'] ?? forma.badgeTracking,
   };
 }
 

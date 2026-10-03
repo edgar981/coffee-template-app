@@ -6,7 +6,7 @@ import { useSiteContentActualizador } from '@/components/storefront/SiteContentP
 import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
-  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden,
+  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden, datosDeTema,
 } from '@/lib/storefront/editor-puente';
 // `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
 // (que importa el módulo completo para `REGISTRY`/`DEFAULTS`/`resolverSiteContent`), así que
@@ -272,6 +272,22 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
           const nodo = document.querySelector<HTMLElement>(`[data-editor-seccion="${id}"]`);
           if (nodo) contenedor.appendChild(nodo);
         }
+        return;
+      }
+
+      // § EDITOR-TIENDA-TEMA-1 — el séptimo mensaje: 'tema' es clave META (como 'orden'), fuera del
+      // REGISTRY a propósito, así que tampoco pasa por `fusionarContenidoSeccion` ni por el context
+      // —un tema no es contenido que React deba re-renderizar, es presentación que CSS ya lee por
+      // cascada—. Las vars viajan SIEMPRE COMPLETAS (`varsDeTemaEnVivo`, el lado del panel, § el
+      // docstring de `datosDeTema`), así que acá basta con APLICARLAS: nunca hay que decidir qué
+      // `removeProperty`. Van en `documentElement.style` —no en un `<style>` nuevo— porque un valor
+      // puesto ahí gana sobre CUALQUIER regla de hoja de estilo, incluido el `:root{…}` server-
+      // rendered que ya pintó esta carga con el tema PUBLICADO.
+      if (seccion === 'tema') {
+        const vars = datosDeTema(datos);
+        if (!vars) return;
+        const raiz = document.documentElement.style;
+        for (const [clave, valor] of Object.entries(vars)) raiz.setProperty(clave, valor);
         return;
       }
 

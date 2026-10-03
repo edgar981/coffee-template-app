@@ -458,6 +458,21 @@ Extender el modelo de secciones a `/tienda` y `/tienda/[slug]` (§ 4.4) **no est
 una decisión de producto aparte, con su propio disparador, no una consecuencia automática de tener
 el iframe.
 
+**`EDITOR-TIENDA-TEMA-1` (§ 16) NO es la fila 7 — ES UN OCTAVO SLICE, fuera de la numeración
+original.** Pedido del owner tras ver el editor (2026-10-03: "el editor abre…que ya se siente más
+como el de Shopify… agregale ahora una pestaña de Tema"), no parte de los siete que este documento
+planeó el 2026-09-30. Mueve la EDICIÓN de `PaletaSeccion` (paleta/tipografía/forma) de `/admin/
+tienda` a una pestaña «Tema» dentro de `/editor/tienda` (§ 12.1), con la PÁGINA REAL del iframe
+compartido como preview en vez del fragmento sintético (`FragmentoTienda`) — PERO el fragmento
+sintético **NO se retiró**: sigue viviendo en `PaletaSeccion.tsx` para el modo standalone
+(`enEditor` ausente/false), que el smoke test `admin-tienda-preset.test.ts` (fuera de `touches:`
+de este slice) sigue ejercitando. La fila 7 (`EDITOR-TIENDA-RETIRO-1`, abajo) sigue siendo la que
+retira esa mitad de una vez por todas — y GANA UN CUARTO ÍTEM con este slice: el prop `enEditor` (y
+su rama de render completa dentro de `PaletaSeccion.tsx`) deja de tener un segundo consumidor real
+el día que `/admin/tienda` ya no pueda montar el standalone (porque el archivo entero se retiró), y
+en ese punto `enEditor` puede colapsarse a "siempre true" — simplificación que la fila 7 hereda,
+no una decisión de este slice.
+
 ---
 
 ## 7 · Qué se retira, y cuándo
@@ -465,8 +480,8 @@ el iframe.
 | Pieza | Se retira en | Por qué sobrevive hasta entonces |
 | --- | --- | --- |
 | `components/admin/VistaTiendaEnVivo.tsx` | Slice 7 | Sigue siendo la vista previa de CADA sección hasta que el iframe (slice 2) cubra las 15 |
-| `lib/config/esquema-style.ts` → `varsDeTienda` | Slice 7 | Único consumidor es `VistaTiendaEnVivo`/`PaletaSeccion` — se retira junto con ambos. `esquemaStyle`/`esquemaStyleDeBanda`/`bandaEsOscura`/`tratamientoNav` (los exports que SÍ usa la página real) no se tocan |
-| `components/admin/PaletaSeccion.tsx` → `FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay` | Slice 7 (la parte de PREVIEW); el resto del archivo (el formulario de paleta/tipografía/forma, `guardarTema`/`accionBorrador`/`resetFabrica`) se queda — sigue siendo el control que edita el tema, sólo cambia su vista previa por el iframe | El formulario no es parte del problema; sólo su vista previa sintética lo es |
+| `lib/config/esquema-style.ts` → `varsDeTienda` | **VENCIDO por `EDITOR-TIENDA-TEMA-1` (§ 16) — YA NO se retira en el Slice 7.** Ganó un SEGUNDO consumidor que sobrevive a la fila 7: `varsDeTemaEnVivo` (misma archivo, § 16) lo llama para computar las vars que la pestaña «Tema» manda EN VIVO al iframe — ese camino NO depende de `VistaTiendaEnVivo.tsx` ni de la mitad de PREVIEW de `PaletaSeccion.tsx`, así que retirar esos dos (lo que sigue vigente) ya NO se lleva a `varsDeTienda` por delante. `esquemaStyle`/`esquemaStyleDeBanda`/`bandaEsOscura`/`tratamientoNav` sin cambio, como siempre | Fila escrita antes de que existiera el segundo consumidor; se corrige acá en vez de borrarse, para que quede el porqué |
+| `components/admin/PaletaSeccion.tsx` → `FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay` | Slice 7 (la parte de PREVIEW); el resto del archivo (el formulario de paleta/tipografía/forma, `guardarTema`/`accionBorrador`/`resetFabrica`) se queda — sigue siendo el control que edita el tema, sólo cambia su vista previa por el iframe. **AMPLIADO por `EDITOR-TIENDA-TEMA-1` (§ 16): la fila 7 también retira el prop `enEditor` ENTERO** (y su rama de render paralela: `.tienda-tarjeta`/regleta-sin-pane) — con el standalone de `/admin/tienda` retirado, `enEditor` deja de tener un segundo valor real que distinguir y la rama `false` se vuelve código muerto | El formulario no es parte del problema; sólo su vista previa sintética lo es — y, desde § 16, el SELECTOR de cuál preview mostrar tampoco lo es mientras exista el standalone |
 | `lib/tienda/puente-tarjetas.ts` + `data-sf-tarjeta` (`GrindChooserMosaico.tsx`/`GrindChooserIndice.tsx`) | Slice 7, reemplazado por el puente generalizado del slice 4 (`data-editor-seccion`) | El puente viejo sólo cubre Presentaciones; el nuevo cubre cualquier sección |
 | `lib/config/preview-colores.test.ts` | Slice 7 | Ya no hay un segundo pipeline que comparar contra el real |
 | `components/admin/EscalaDesktop.tsx` | **No se retira.** Lo usan `components/storefront/VistaRapidaProducto.tsx` y `components/storefront/suscripciones/SuscripcionPlanes.tsx`, ajenos a este editor | Es un componente compartido, no exclusivo de `/admin/tienda` |

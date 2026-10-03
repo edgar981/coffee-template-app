@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
+import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import TogglePagina from '@/components/admin/TogglePagina';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
@@ -26,13 +27,19 @@ export interface TiendaPaginasProps {
    *  —`VistaTiendaIframe` también lo asume por su cuenta—, para que este componente siga siendo
    *  usable sin que el consumidor tenga que decidir un dispositivo. */
   dispositivo?: DispositivoKey;
+  /** § EDITOR-TIENDA-TEMA-1 — qué monta la columna de la izquierda: la lista de secciones de
+   *  `pagina` (`'paginas'`, el default) o el editor de tema (`'tema'`, `PaletaSeccion` en modo
+   *  `enEditor`). El `<iframe>` de la derecha NO cambia con esto — sigue mostrando `pagina`, el
+   *  tema es store-wide y se ve en cualquier página (§ el comentario grande de
+   *  `EditorTiendaPantallaCompleta.tsx`). */
+  modo?: 'paginas' | 'tema';
 }
 
 // El editor del storefront agrupado por PÁGINA (Home / Nosotros), montado DENTRO del editor de
 // pantalla completa (§ EDITOR-TIENDA-DISPOSITIVOS-1 — antes vivía directo en `/admin/tienda`). El
 // selector de página y el de dispositivo ya no son responsabilidad de este componente: los dos
 // llegan por prop desde `EditorTiendaPantallaCompleta`, que los pone en su barra superior.
-export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO }: TiendaPaginasProps) {
+export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas' }: TiendaPaginasProps) {
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
@@ -210,6 +217,18 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
     enviar?.('orden', { valor });
   }, []);
 
+  // EL ENVÍO EN VIVO del TEMA al iframe compartido (§ EDITOR-TIENDA-TEMA-1) — MISMO cruce que
+  // 'orden', arriba: `VistaTiendaIframe.tsx` sigue fuera de `touches:`, su `enviarCambio` ya es
+  // genérico en runtime, y 'tema' tampoco es una `SeccionVista` real. `PaletaSeccion`
+  // (`enEditor`/`onCambioEnVivo`) ya manda las vars SIEMPRE COMPLETAS (`varsDeTemaEnVivo`), así que
+  // acá no hay nada que resolver — sólo reenviar.
+  const enviarTemaIframe = useCallback((vars: Record<string, string>) => {
+    const enviar = iframeRef.current?.enviarCambio as
+      | ((seccion: string, datos: Record<string, unknown>) => void)
+      | undefined;
+    enviar?.('tema', { vars });
+  }, []);
+
   const [arrastrandoId, setArrastrandoId] = useState<BandaId | null>(null);
 
   const aplicarNuevoOrden = useCallback((siguiente: BandaId[], anterior: BandaId[]) => {
@@ -296,8 +315,9 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* El toggle de encender/apagar y la nota de la página apagable (Nosotros · Suscripciones) — el
           selector de PÁGINA en sí ya no vive acá, subió a la barra superior del editor de pantalla
-          completa (§ EDITOR-TIENDA-DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). */}
-      {(paginaMeta.apagable || paginaMeta.nota) && (
+          completa (§ EDITOR-TIENDA-DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). SÓLO en modo
+          'paginas' (§ EDITOR-TIENDA-TEMA-1): son cosas de LA PÁGINA, no del tema store-wide. */}
+      {modo === 'paginas' && (paginaMeta.apagable || paginaMeta.nota) && (
         <div style={{ flexShrink: 0, marginBottom: 'var(--duna-space-5)' }}>
           {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
           {paginaMeta.nota && (
@@ -309,8 +329,9 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
       {/* § EDITOR-TIENDA-ORDEN-1 — el orden de las bandas se publica/descarta COMO SECCIÓN, pero no
           es una tarjeta de la lista: no hay un bloque único donde mostrar este estado, así que vive
           en su propia barra, arriba de la lista. Mismo vocabulario que cada tarjeta (duna-badge/
-          duna-btn) para que no se lea como un control distinto. */}
-      {hayBorradorOrden && (
+          duna-btn) para que no se lea como un control distinto. SÓLO en modo 'paginas' (§ EDITOR-
+          TIENDA-TEMA-1): el orden es de LA PÁGINA home, no del tema. */}
+      {modo === 'paginas' && hayBorradorOrden && (
         <div style={{
           flexShrink: 0, marginBottom: 'var(--duna-space-4)', display: 'flex', alignItems: 'center',
           flexWrap: 'wrap', gap: 'var(--duna-space-3)', padding: 'var(--duna-space-3) var(--duna-space-4)',
@@ -355,27 +376,36 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
           alignContent: 'start',
           ...(angosto ? { flex: '1 1 auto', minHeight: 0 } : { height: '100%' }),
         }}>
-          {seccionesOrdenadas.map(config => (
-            <TiendaSeccionEditor
-              key={config.seccion}
-              ref={registrarRefSeccion(config.seccion)}
-              config={config}
-              categorias={categorias}
-              categoriasListas={categoriasListas}
-              resaltar={resaltar}
-              onAbrir={irASeccion}
-              onCambioPublicado={recargarIframe}
-              onCambio={enviarCambioIframe}
-              orden={asaDeSeccion(config.bandaId, config.titulo)}
-              carga={{
-                valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
-                sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
-                listo: !!doc,
-                error: errorDoc,
-                recargar: recargarDoc,
-              }}
-            />
-          ))}
+          {/* § EDITOR-TIENDA-TEMA-1 — en modo 'tema' la columna monta `PaletaSeccion` (en vez de la
+              lista de secciones de `pagina`): es la pestaña «Tema», store-wide, ortogonal a qué
+              página se está viendo. `enEditor` le quita la vista previa sintética propia —la PÁGINA
+              REAL de la derecha ya hace ese trabajo (§ el spec)— y `onCambioEnVivo` reenvía al MISMO
+              iframe compartido por el puente (`enviarTemaIframe`, arriba). */}
+          {modo === 'tema' ? (
+            <PaletaSeccion enEditor onCambioEnVivo={enviarTemaIframe} />
+          ) : (
+            seccionesOrdenadas.map(config => (
+              <TiendaSeccionEditor
+                key={config.seccion}
+                ref={registrarRefSeccion(config.seccion)}
+                config={config}
+                categorias={categorias}
+                categoriasListas={categoriasListas}
+                resaltar={resaltar}
+                onAbrir={irASeccion}
+                onCambioPublicado={recargarIframe}
+                onCambio={enviarCambioIframe}
+                orden={asaDeSeccion(config.bandaId, config.titulo)}
+                carga={{
+                  valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
+                  sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
+                  listo: !!doc,
+                  error: errorDoc,
+                  recargar: recargarDoc,
+                }}
+              />
+            ))
+          )}
         </div>
         <div style={{
           minWidth: 0,

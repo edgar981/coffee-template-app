@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import MenuSeccion from '@/components/admin/MenuSeccion';
 import FooterSeccion from '@/components/admin/FooterSeccion';
 import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
@@ -11,13 +10,13 @@ import ModoEditorActivo from '@/components/admin/ModoEditorActivo';
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
 // El contenido EDITORIAL del storefront. Distinto de Configuración, que edita la IDENTIDAD del
-// negocio (§ negocio≠tienda). CINCO ejes "cromo transversal" en esta pantalla, y un SEXTO —las
-// secciones agrupadas por página— que VIVE EN OTRA RUTA desde EDITOR-TIENDA-DISPOSITIVOS-1:
-//   · COLORES (`PaletaSeccion`) — la PIEL de todo el storefront, store-wide (§ content.tema, clave
-//     no-sección);
-//   · MENÚ (`MenuSeccion`, § CROMO-MENU-PANEL-EDITOR-1) — el mismo cromo TRANSVERSAL que la paleta
-//     (el nav aparece en toda página). Editor BESPOKE sin vista previa en vivo (patrón
-//     `PaletaSeccion`, no `TiendaSeccionEditor` — la RULING de `CROMO-MENU-COMO-DATO-1`);
+// negocio (§ negocio≠tienda). CUATRO ejes "cromo transversal" en esta pantalla, un QUINTO —COLORES—
+// que se MUDÓ a la pestaña «Tema» del editor de pantalla completa (§ EDITOR-TIENDA-TEMA-1, abajo), y
+// un SEXTO —las secciones agrupadas por página— que VIVE EN OTRA RUTA desde EDITOR-TIENDA-
+// DISPOSITIVOS-1:
+//   · MENÚ (`MenuSeccion`, § CROMO-MENU-PANEL-EDITOR-1) — cromo TRANSVERSAL (el nav aparece en toda
+//     página). Editor BESPOKE sin vista previa en vivo (patrón ex-`PaletaSeccion` standalone, no
+//     `TiendaSeccionEditor` — la RULING de `CROMO-MENU-COMO-DATO-1`);
 //   · ENCABEZADO (`EncabezadoSeccion`, § PANEL-EDITOR-ENCABEZADO-1) — logo, sub-encabezado, color y
 //     tratamiento del nav: TRES metas no-sección (`cromo`, `navWordmark`, `navTratamiento`) con su
 //     propia ruta de publicar/descartar (patrón `tema`). Sin vista previa en vivo (misma razón que
@@ -28,20 +27,29 @@ import ModoEditorActivo from '@/components/admin/ModoEditorActivo';
 //   · PIE DE PÁGINA (`FooterSeccion`, § MUESTRARIO-FOOTER-TEMA-1) — el mismo cromo TRANSVERSAL que
 //     Menú (el pie aparece en toda página, vía el layout). Sin vista previa en vivo, MISMO porqué
 //     que `MenuSeccion`: `StoreFooter` importa `useSiteSettings()` del storefront.
-// Las CINCO adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
+// Las CUATRO que quedan acá adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
+//
+// COLORES SE MUDÓ (§ EDITOR-TIENDA-TEMA-1): `PaletaSeccion` ya NO se monta en esta portada — vive
+// AHORA en la pestaña «Tema» de `/editor/tienda` (como "Configuración del tema" de Shopify), con la
+// PÁGINA REAL al lado reflejando cada cambio al instante por el puente en vivo, en vez de su
+// fragmento sintético propio. Es el MISMO componente (`PaletaSeccion.tsx`, prop `enEditor`) — nada
+// de su lógica de datos cambió, sólo DÓNDE vive y qué sirve de preview. Mantenerla acá ADEMÁS
+// habría sido la duplicación exacta que el spec pide evitar ("`/admin/tienda` deja de duplicar la
+// paleta si queda en el editor").
 //
 // LAS SECCIONES AGRUPADAS POR PÁGINA (Home · Nosotros · Suscripciones, antes `<TiendaPaginas>`
 // montada acá dentro de un `<Suspense>`) SE MUDARON a `/editor/tienda` (§ EDITOR-TIENDA-
 // DISPOSITIVOS-1): una vista PROPIA, a pantalla completa, sin el chrome del panel — el pedido del
 // owner tras ver el editor viejo ("se ve como en la vista movil… el editor abre en una nueva vista,
 // no sale nada del panel de navegacion", referencia: el editor de temas de Shopify). Esta página
-// queda como PORTADA: los cinco ejes store-wide de arriba (que no tienen vista previa en vivo y no
-// son "edición de página") se quedan acá, y el botón de abajo lleva al editor nuevo.
+// queda como PORTADA: los cuatro ejes store-wide de arriba (que no tienen vista previa en vivo y no
+// son "edición de página") se quedan acá, y el botón de abajo lleva al editor nuevo (que ahora
+// también cubre Colores, vía su pestaña «Tema»).
 //
 // POR QUÉ ESTA PÁGINA SIGUE VIVA EN VEZ DE REDIRIGIR DIRECTO: moverla entera habría dejado a los
-// cinco ejes store-wide sin pantalla —`PaletaSeccion`/`MenuSeccion`/`EncabezadoSeccion`/
+// cuatro ejes store-wide que quedan sin pantalla —`MenuSeccion`/`EncabezadoSeccion`/
 // `DetallesSitioSeccion`/`FooterSeccion` no están en `touches:` de este slice, así que no se pueden
-// reubicar—. "Portada con botón" es la opción que no toca esos cinco archivos y conserva su acceso.
+// reubicar—. "Portada con botón" es la opción que no toca esos cuatro archivos y conserva su acceso.
 export default async function Tienda({
   searchParams,
 }: {
@@ -80,34 +88,29 @@ export default async function Tienda({
         </p>
       </div>
 
-      {/* COLORES — store-wide: la paleta no es de una página (§ content.tema, clave no-sección). */}
-      <PaletaSeccion />
-
-      {/* Separador entre las dos piezas store-wide (colores · menú). */}
-      <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
-
-      {/* MENÚ — store-wide, junto a Colores: el nav es cromo transversal, no contenido de una
-          página (§ MenuSeccion, el porqué de "sin vista previa"). */}
+      {/* MENÚ — store-wide: el nav es cromo transversal, no contenido de una página (§ MenuSeccion,
+          el porqué de "sin vista previa"). Colores se fue a la pestaña «Tema» del editor
+          (§ EDITOR-TIENDA-TEMA-1, arriba). */}
       <MenuSeccion />
 
-      {/* Separador entre las piezas store-wide (colores · menú · encabezado). */}
+      {/* Separador entre las piezas store-wide (menú · encabezado). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
-      {/* ENCABEZADO — store-wide, junto a Colores y Menú: logo, sub-encabezado, color y tratamiento
+      {/* ENCABEZADO — store-wide, junto a Menú: logo, sub-encabezado, color y tratamiento
           del nav (§ EncabezadoSeccion, PANEL-EDITOR-ENCABEZADO-1). */}
       <EncabezadoSeccion />
 
-      {/* Separador entre las piezas store-wide (colores · menú · encabezado · detalles del sitio). */}
+      {/* Separador entre las piezas store-wide (menú · encabezado · detalles del sitio). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
-      {/* DETALLES DEL SITIO — store-wide, junto a Colores/Menú/Encabezado: el botón "volver arriba" y
+      {/* DETALLES DEL SITIO — store-wide, junto a Menú/Encabezado: el botón "volver arriba" y
           el riel social (§ DetallesSitioSeccion, PANEL-DETALLES-SITIO-1). */}
       <DetallesSitioSeccion />
 
-      {/* Separador entre las piezas store-wide (colores · menú · encabezado · detalles del sitio · pie). */}
+      {/* Separador entre las piezas store-wide (menú · encabezado · detalles del sitio · pie). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
-      {/* PIE DE PÁGINA — store-wide, junto a Colores/Menú/Encabezado/Detalles del sitio: el pie es
+      {/* PIE DE PÁGINA — store-wide, junto a Menú/Encabezado/Detalles del sitio: el pie es
           cromo transversal, no contenido de una página (§ FooterSeccion, MUESTRARIO-FOOTER-TEMA-1,
           mismo porqué que Menú). */}
       <FooterSeccion />
@@ -117,7 +120,8 @@ export default async function Tienda({
 
       {/* EL ACCESO AL EDITOR DE PANTALLA COMPLETA (§ EDITOR-TIENDA-DISPOSITIVOS-1) — Home, Nosotros
           y Suscripciones se editan ahí: la tienda real, con nav, pie y breakpoints de verdad, al
-          lado de sus campos. */}
+          lado de sus campos. Colores/tipografía/forma también viven ahí, en la pestaña «Tema»
+          (§ EDITOR-TIENDA-TEMA-1). */}
       <div
         className="duna-card"
         style={{
@@ -130,10 +134,12 @@ export default async function Tienda({
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <h2 className="duna-display-s">Secciones de la tienda</h2>
+          <h2 className="duna-display-s">Secciones de la tienda y tema</h2>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '38rem' }}>
             Home, Nosotros y Suscripciones se editan en el editor de pantalla completa: la tienda
             real, con su navegación, su pie y sus tamaños de pantalla de verdad, junto a sus campos.
+            Ahí también vive la pestaña «Tema» — colores, tipografía y forma, con la tienda real
+            reflejando cada cambio al instante.
           </p>
         </div>
         <Link href="/editor/tienda" className="duna-btn duna-btn--primary" style={{ flexShrink: 0 }}>
