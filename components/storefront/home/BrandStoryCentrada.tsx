@@ -151,9 +151,33 @@ const CLASE_FIGURA_MEDIO = 'z-10 w-[min(320px,82vw)] sm:w-[clamp(240px,28vw,400p
 
 // LA ENTRADA DE TEXTO (§ SECCIONES-ENTRAN-VIVAS-1): eyebrow/título por un lado y párrafo(s)/CTA por
 // el otro pasan de un `fadeUp` combinado (todo el grupo entra a la vez) a `RevelarBloque` por bloque
-// (§ su docstring) — el COLLAGE NO se toca: es scroll-scrub continuo (`useProgresoAcomodo`), ya "vivo"
-// por construcción, y mezclar un disparo único de `whileInView` ahí sería un SEGUNDO mecanismo sobre
-// el mismo elemento.
+// (§ su docstring) — el COLLAGE sigue sin tocarse EN ESCRITORIO: ahí es scroll-scrub continuo
+// (`useProgresoAcomodo`), ya "vivo" por construcción, y mezclar un disparo único de `whileInView`
+// sería un SEGUNDO mecanismo sobre el MISMO elemento.
+//
+// § HISTORIA-FOTOS-ENTRAN-MOVIL-1 (pedido del owner, 2026-10-02: «en el teléfono las fotos son lo
+// más estático de la página») le da a las fotos la MISMA entrada que los bloques de texto, pero
+// SÓLO bajo el umbral angosto (<640px, el mismo que ya fuerza `max-sm:transform-none!` sobre el
+// scrub): bajo ese umbral el scrub queda forzado a `none` (arriba) y el collage pasa a COLUMNA, así
+// que sin esta entrada las fotos no tenían NINGÚN movimiento — ni scrub (apagado) ni reveal (nunca
+// existió). Cada figura se envuelve en un `RevelarBloque` PROPIO (una por una, en orden de columna;
+// `once:true` como el resto) en vez de meterle `variants`/`whileInView` al MISMO `motion.div` que ya
+// anima el scrub: Framer gestiona el `transform` de `y` de los variants por su cuenta, y el `style.
+// transform` del scrub es un string ya compuesto — combinarlos en un solo nodo es la receta del
+// "mixed transform values" de Framer. Dos nodos (uno por mecanismo) evita el choque sin tocar la
+// matemática del scrub.
+//
+// EN ESCRITORIO (≥640px) NADA CAMBIA, y la garantía NO depende sólo de que el JS evalúe bien el
+// breakpoint en el primer render (hidratación/SSR pueden mentir sobre el ancho real): las clases
+// `sm:opacity-100!`/`sm:transform-none!` del envoltorio FUERZAN en CSS, con `!important`, que a
+// ≥640px quede siempre opacidad 1 y transform `none` — pisando lo que sea que Framer haya escrito
+// inline en ese instante. Es la MISMA técnica que `max-sm:transform-none!` ya usa arriba para el
+// scrub: una regla CSS que gana siempre en su rango, sin pedirle nada a React. El envoltorio no lleva
+// clases de tamaño propias (ni `aspect-[3/4]` ni el ancho `CLASE_FIGURA_*`): como es un `div` de
+// bloque sin layout propio (no flex/grid), su caja se ajusta sola al tamaño de su único hijo — el
+// `motion.div` de siempre, que sigue siendo el que rota/traslada y el que lleva el radio/sombra/
+// recorte (tocar ESE reparto habría separado la sombra+el recorte de la rotación, rompiendo el look
+// de tarjeta inclinada que § HISTORIA-COLLAGE-COMO-PROTOTIPO-1 ya fijó).
 
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
   const { brandStory, tema, paginas, navTratamiento } = useSiteContent();
@@ -245,19 +269,25 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
           {imagenesLlenas.map(({ campo, alt, i }, pos) => {
             const esMedia = totalVisible === 3 && pos === 1;
             return (
-              <motion.div
+              <RevelarBloque
                 key={campo}
-                style={{ transform: transformsPorImagen[i] }}
-                className={`relative aspect-[3/4] shrink-0 overflow-hidden sf-radio-imagen sf-sombra-imagen [will-change:transform] max-sm:transform-none! ${esMedia ? CLASE_FIGURA_MEDIO : CLASE_FIGURA_LADO}`}
+                as="div"
+                preview={preview}
+                className="shrink-0 sm:opacity-100! sm:transform-none!"
               >
-                <Image
-                  src={brandStory[campo]}
-                  alt={alt}
-                  fill
-                  sizes="(max-width: 640px) 82vw, 28vw"
-                  className="object-cover"
-                />
-              </motion.div>
+                <motion.div
+                  style={{ transform: transformsPorImagen[i] }}
+                  className={`relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen [will-change:transform] max-sm:transform-none! ${esMedia ? CLASE_FIGURA_MEDIO : CLASE_FIGURA_LADO}`}
+                >
+                  <Image
+                    src={brandStory[campo]}
+                    alt={alt}
+                    fill
+                    sizes="(max-width: 640px) 82vw, 28vw"
+                    className="object-cover"
+                  />
+                </motion.div>
+              </RevelarBloque>
             );
           })}
         </div>

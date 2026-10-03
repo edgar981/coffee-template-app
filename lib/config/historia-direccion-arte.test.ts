@@ -120,6 +120,51 @@ test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — la
   assert.ok(!html.includes('transform:none'), 'sin el gate estático, ninguna figura debe rendir ya-acomodada en el primer render');
 });
 
+// ─── § HISTORIA-FOTOS-ENTRAN-MOVIL-1 — las fotos ganan la MISMA entrada que el texto vecino,
+// NEUTRALIZADA EN CSS a ≥640px para que el scrub de escritorio siga siendo el único movimiento ─────
+//
+// Cada figura quedó envuelta en su PROPIO `RevelarBloque` (`shrink-0 sm:opacity-100!
+// sm:transform-none!`), sin tocar el `motion.div` interno que hace el scrub — así que la prueba es
+// por SUBSTRING LITERAL (no regex, para no pelear con los paréntesis de `translateY(24px)`), contra
+// el wrapper exacto que `BrandStoryCentrada` ahora emite.
+
+function contarOcurrencias(html: string, literal: string): number {
+  return html.split(literal).length - 1;
+}
+
+test('§ HISTORIA-FOTOS-ENTRAN-MOVIL-1 — SSR sin preview: las 4 fotos arrancan OCULTAS con el MISMO fadeUp que el título/párrafos vecinos (opacity:0, translateY 24px)', () => {
+  const html = renderCentrada();
+  const envoltorioOculto = '<div class="shrink-0 sm:opacity-100! sm:transform-none!" style="opacity:0;transform:translateY(24px)">';
+  assert.equal(contarOcurrencias(html, envoltorioOculto), 4, 'las 4 fotos deben nacer en el estado "hidden" de fadeUp, como el título (mismo style exacto)');
+  // El título (ya usaba RevelarBloque antes de esta tanda) sirve de control: el MISMO fadeUp.hidden.
+  assert.ok(html.includes('style="opacity:0;transform:translateY(24px)">Detrás de cada pedido'), 'el título arranca con el mismo estado — confirma que es la MISMA transición, no una parecida');
+});
+
+test('§ HISTORIA-FOTOS-ENTRAN-MOVIL-1 — preview (proxy de reduced-motion): las 4 fotos resuelven visibles AL INSTANTE, igual que el texto — nunca a medio fundir', () => {
+  const html = renderCentrada({ preview: true });
+  const envoltorioVisible = '<div class="shrink-0 sm:opacity-100! sm:transform-none!" style="opacity:1;transform:none">';
+  assert.equal(contarOcurrencias(html, envoltorioVisible), 4, 'las 4 fotos deben resolver ya-visibles en preview/reduced-motion, sin depender del scroll');
+});
+
+test('§ HISTORIA-FOTOS-ENTRAN-MOVIL-1 — el envoltorio NO toca el motor de scrub: el `motion.div` interno sigue siendo el único que lleva radio/sombra/recorte y la rotación de arranque (±6°)', () => {
+  const html = renderCentrada();
+  // La clase del `motion.div` interno (radio/sombra/overflow/clamp) sigue INTACTA — empieza igual
+  // que antes de esta tanda, sin `shrink-0` (que se movió al envoltorio) y sin clases de entrada.
+  assert.ok(
+    html.includes('<div style="transform:translateX(0.0px) rotate(-6.00deg)" class="relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen [will-change:transform] max-sm:transform-none!'),
+    'el motion.div del scrub conserva su propio style/clases, sin heredar nada de la entrada nueva',
+  );
+});
+
+test('§ HISTORIA-FOTOS-ENTRAN-MOVIL-1 — la neutralización de escritorio es CSS (`sm:opacity-100!`/`sm:transform-none!`), no un cómputo de ancho en JS: aparece en las 4 fotos sin condicionar sobre `window`', () => {
+  const src = readFileSync(
+    path.join(fileURLToPath(new URL('.', import.meta.url)), '../../components/storefront/home/BrandStoryCentrada.tsx'),
+    'utf8',
+  );
+  assert.match(src, /sm:opacity-100!\s+sm:transform-none!/, 'el envoltorio de cada foto fuerza opacidad y transform a ≥640px por CSS');
+  assert.doesNotMatch(src, /window\.innerWidth|matchMedia/, 'la neutralización de escritorio no depende de medir el ancho en JS — así no hay ventana de primer-pintado mal resuelto');
+});
+
 // ─── LA INVARIANTE: `columnas` (Nayoli) NO CONSUME EL MOTOR NUEVO ───────────────────────────────
 
 test('BrandStoryColumnas no importa el motor de scroll-scrub nuevo — la canónica (Nayoli) queda intacta', () => {
