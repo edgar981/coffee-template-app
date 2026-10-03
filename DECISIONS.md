@@ -46082,3 +46082,149 @@ verificables (Nayoli sin preset, CORTE) — 2.66:1 y 2.68:1, el MISMO tono ya es
 esa franja, reportado sin disimular que está bajo el piso AA de texto normal.
 
 **Cierra `PIE-HECHO-POR-DUNA-1`.**
+
+## 2026-10-02 — Las fotos de "Nuestra Historia" entran como el texto vecino en el teléfono (`HISTORIA-FOTOS-ENTRAN-MOVIL-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Pedido del owner, textual:
+*"Transicion de las imagenes en la seccion nuestra historia en la vista movil igual a la que tienen
+los bloques de texto, ahora mismo las imagenes son lo mas estatico de la pagina en movil, en desktop
+no por el efecto que usan"* (observado en `SECCIONES-ENTRAN-COMO-ORIGEN-1`). La aprobación autoriza
+la escritura, nunca el merge.
+
+### Lo medido ANTES de tocar nada
+
+- **`BrandStoryCentrada.tsx`** (la variante que usa CORTE, hoy en vivo en Café Onix/Las Chamisas)
+  acomoda su collage con scroll-scrub (`useProgresoAcomodo`/`transformAcomodo`); bajo 640px ese scrub
+  se fuerza a `none` (`max-sm:transform-none!`, ya existente) y el collage pasa a columna — así que en
+  el teléfono las fotos **nunca tuvieron ningún movimiento**: ni scrub (apagado a propósito) ni reveal
+  (nunca existió).
+- **`BrandStoryColumnas.tsx`** (la canónica — `DEFAULTS.brandStory.variante = 'columnas'`, la que
+  Nayoli sin preset renderiza) **YA** envuelve el grid 2×2 completo en un `RevelarBloque`
+  (`indice={4}`), **sin gate de ancho** — sus fotos ya entran, en cualquier ancho, desde
+  `SECCIONES-ENTRAN-VIVAS-1`. Confirmado leyendo el componente y por el test ya existente
+  ("BrandStoryColumnas sigue renderizando sin cambios de contenido"). **No se tocó.**
+
+### El fix — un `RevelarBloque` por foto, NEUTRALIZADO EN CSS a ≥640px
+
+Cada figura del collage de `BrandStoryCentrada` quedó envuelta en su PROPIO `RevelarBloque`
+(`className="shrink-0 sm:opacity-100! sm:transform-none!"`), uno por una en orden de columna (igual
+que el texto vecino: mismo `fadeUp`, mismo `transicionEscalonada`, `once:true`) — **sin tocar** el
+`motion.div` interno que hace el scrub (radio/sombra/recorte/rotación quedan intactos, mismas
+clases).
+
+- **Por qué DOS nodos y no uno**: Framer gestiona el `transform` de `y` de los `variants` por su
+  cuenta, y el `style.transform` del scrub ya es un string compuesto (`translateX(...)
+  rotate(...)`) escrito a mano — combinar los dos en el MISMO nodo es la receta documentada de
+  Framer para "mixed transform values". Dos nodos (uno por mecanismo) evita el choque sin tocar la
+  matemática del scrub, verificado contra los tests pre-existentes de esa matemática (ninguno se
+  tocó y los 9 siguen verdes).
+- **Por qué la neutralización de escritorio es CSS y no un cómputo de ancho en JS**: `sm:opacity-100!
+  sm:transform-none!` (Tailwind v4, mismo patrón `!important` que `max-sm:transform-none!` ya usaba
+  en este archivo) fuerza, a ≥640px, que CUALQUIER estado que Framer haya escrito inline (opacity/
+  transform del fadeUp) quede pisado. Es una garantía de CSS, no de JS: no depende de que React/
+  hidratación resuelvan bien el ancho en el primer pintado — la regla gana siempre en su rango,
+  sin pedirle nada al runtime. Medido (`grep` sobre el componente): no hay `window.innerWidth` ni
+  `matchMedia` en el archivo.
+- **Movimiento reducido**: `RevelarBloque` usa `whileInView`/`variants` — el `MotionConfig
+  reducedMotion="user"` (`ReducedMotionProvider`, montado en `app/(storefront)/layout.tsx`) YA
+  congela esa clase de animación (es la MISMA razón por la que el título/párrafos vecinos ya la
+  respetan sin código propio); las fotos heredan la misma garantía sin agregar un segundo guard.
+
+### El envoltorio NO toca el motor de scrub — medido por render, no leído
+
+Render SSR (`renderToStaticMarkup`, sin preview): el `motion.div` interno conserva exactamente su
+`style`/clases de antes (`transform:translateX(0.0px) rotate(-6.00deg)`, `relative aspect-[3/4]
+overflow-hidden sf-radio-imagen sf-sombra-imagen [will-change:transform] max-sm:transform-none!
+w-[min(320px,82vw)] sm:w-[clamp(200px,24vw,340px)]`), y el ENVOLTORIO nuevo rinde
+`opacity:0;transform:translateY(24px)` — el MISMO estado `hidden` de `fadeUp` que ya rinde el título
+("Detrás de cada pedido") al lado. En preview (proxy de `prefers-reduced-motion`) el envoltorio
+resuelve `opacity:1;transform:none` de inmediato, igual que el texto.
+
+### Cierre — pre-flight, tests, gate
+
+**Pre-flight:**
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status --porcelain` vacío antes de empezar) |
+| los 6 archivos de `touches:` existen | 5 de 6 ya existían (`BrandStoryCentrada.tsx`, `BrandStoryColumnas.tsx`, `RevelarBloque.tsx`, `revelado-bloque.ts`, `revelado-bloque.test.ts`, `historia-direccion-arte.test.ts`); `revelado-bloque.ts`/su test no se tocaron (la primitiva ya alcanzaba sin cambios) |
+| `DEFAULTS.brandStory.variante` por defecto | `'columnas'` (medido en `site-content-defaults.ts:1765`) — confirma que Nayoli sin preset nunca monta `BrandStoryCentrada` |
+
+**Tests nuevos, vistos fallar contra el código PRE-slice** (se escribió el código viejo a mano sobre
+el componente, se corrió `historia-direccion-arte.test.ts`, 4 de 4 tests nuevos fallaron con los
+mensajes esperados — `0 !== 4` en los dos conteos de envoltorio, el `motion.div` sin el nuevo
+contexto, y el `match` de las clases CSS—, y se restauró la implementación; los 10 tests
+pre-existentes del archivo (matemática del scrub + invariante de `columnas`) pasaron sin tocar en
+las dos corridas):
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3169/3169** |
+| `npm run test:integracion` | **306/306**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA** que la que `PIE-HECHO-POR-DUNA-1` dejó en `HEAD` (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]` = 164889/174350/`[…,3166]` de `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` + 163/361 del crédito de `PIE-HECHO-POR-DUNA-1`); las otras 5 rutas, MISMA cifra que el crédito (163/361 px c/u); los 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` (main vs. rama, build fresco de los dos árboles) | **MISMA cifra EXACTA** que `guarda:color`, en las 8 claves — confirma que el drift ya estaba en `HEAD` antes de este diff, no que un fixture esté desactualizado |
+
+**Por qué este slice no puede ser la causa**: `BrandStoryCentrada` —el único archivo visual que
+toca— **no se monta** bajo `variante:'columnas'` (el default de Nayoli, medido arriba); y las dos
+corridas (fixture-vs-rama, main-vs-rama-fresca) dan el MISMO número que `PIE-HECHO-POR-DUNA-1` ya
+reportó en su propio asiento ANTES de que este slice tocara un archivo — la suma aritmética
+(164889+163=165052, 174350+361=174711) cierra sin resto. **`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`
+sigue abierto, re-confirmado sin cambio; no se investiga acá (ninguno de los dos archivos de este
+diff toca el collage de `BrandStoryColumnas` ni la banda de Suscripción).**
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `BrandStoryCentrada.tsx` (el envoltorio `RevelarBloque` por
+foto, las clases `sm:opacity-100!`/`sm:transform-none!`), `historia-direccion-arte.test.ts` (4 tests
+nuevos). `RevelarBloque.tsx`/`revelado-bloque.ts` se IMPORTAN sin editarse. Grepeados contra
+`CLAUDE.md`:
+
+- `BrandStoryCentrada`, `BrandStoryColumnas`, `RevelarBloque` → **CERO coincidencias** literales por
+  nombre de archivo/componente.
+- `collage` → 5 coincidencias, ninguna describe el mecanismo de entrada de esta variante: una es la
+  corrección histórica de un párrafo ya marcado como superado ("Antes decía 'brandStory (el collage
+  2×2)'…", § La PANTALLA), una nombra `brandStory·centrada` sólo para decir que tiene
+  "título+collage+párrafo apilados" (cierto antes y después — esta tanda no cambia esa composición,
+  sólo agrega una entrada bajo 640px), y las otras tres son del editor de bloques del panel o de la
+  galería de /nosotros — mecanismos distintos, sin relación con el collage de brandStory. Ninguna se
+  vuelve falsa.
+
+Nada queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`, el de este commit ES NUEVO — la rama ya venía cargando customer-bytes sin aprobar
+desde slices anteriores (§ cada asiento de arriba), y éste suma el suyo.** El byte que cambia es
+MOVIMIENTO, no texto: en un despliegue con preset CORTE (hoy, Café Onix y Café Las Chamisas) y
+viewport <640px, un visitante que scrollea hasta "Nuestra Historia" ve cada foto del collage
+aparecer con un fundido+desplazamiento hacia arriba (idéntico al del título/párrafos vecinos) en vez
+de aparecer ya asentada sin ningún movimiento, como hasta ahora. **`strings: []`** — no hay copy
+nuevo, el cambio es mecanismo de animación. Nayoli sin preset **no ve nada** (monta
+`BrandStoryColumnas`, no tocado; confirmado byte a byte por `guarda:color`/`verificar:nayoli:visual`
+con la MISMA cifra de antes de este diff).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin contrato cruzado. Los dos archivos tocados son
+un componente de cliente y un test.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (164889/174350
+  px, caja `[…,3166]`, descontado el crédito de `PIE-HECHO-POR-DUNA-1`). Ajeno a `touches:` de este
+  slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff cambia un mecanismo de animación visible por un
+visitante de un tenant CORTE en teléfono (§ `customer_bytes`: `changed: true`); no toca schema ni un
+contrato cross-repo. El dispatch lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El
+owner ya aprobó la ESCRITURA (`approval-reason` del spec, citado arriba) — el MERGE de la rama sigue
+gateado aparte, igual que los slices anteriores de `slice/corte-reescritura-prototipo-1`.
+
+Gate verde en sus tres capas obligatorias (typecheck + 3169 + 306); `guarda:color`/
+`verificar:nayoli:visual` reportan la MISMA cifra exacta que ya estaba en `HEAD` antes de este diff
+(§ arriba, la suma aritmética cierra sin resto) — este slice no agrega ni un píxel de drift nuevo.
+
+**Cierra `HISTORIA-FOTOS-ENTRAN-MOVIL-1`.**
