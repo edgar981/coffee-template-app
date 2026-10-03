@@ -6,6 +6,7 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
 // texto de un lado, collage del otro — el BrandStory de SIEMPRE, extraído VERBATIM al separar el
@@ -63,7 +64,7 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
                 mismo píxel que `text-white/60` de siempre). */}
             {brandStory.eyebrow && (
               <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
-                {brandStory.eyebrow}
+                <CampoEditable campo="brandStory.eyebrow">{brandStory.eyebrow}</CampoEditable>
               </RevelarBloque>
             )}
             <RevelarBloque
@@ -73,14 +74,14 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
               className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre-banda,white)] leading-tight mb-6"
               style={displayL ? { fontSize: displayL } : undefined}
             >
-              {brandStory.titulo}
+              <CampoEditable campo="brandStory.titulo">{brandStory.titulo}</CampoEditable>
             </RevelarBloque>
             <RevelarBloque as="p" indice={2} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-6 text-base">
-              {brandStory.parrafo1}
+              <CampoEditable campo="brandStory.parrafo1" multilinea>{brandStory.parrafo1}</CampoEditable>
             </RevelarBloque>
             {brandStory.parrafo2 && (
               <RevelarBloque as="p" indice={3} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-8 text-base">
-                {brandStory.parrafo2}
+                <CampoEditable campo="brandStory.parrafo2" multilinea>{brandStory.parrafo2}</CampoEditable>
               </RevelarBloque>
             )}
           </div>
@@ -95,13 +96,15 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
                 Nayoli, que monta ESTA variante canónica. */}
             {imagenesLlenas.map(({ campo, alt, offset }) => (
               <div key={campo} className={`relative h-48 overflow-hidden sf-radio-imagen ${offset}`}>
-                <Image
-                  src={brandStory[campo]}
-                  alt={alt}
-                  fill
-                  sizes="(max-width: 768px) 50vw, 25vw"
-                  className="object-cover"
-                />
+                <CampoEditable campo={`brandStory.${campo}`} tipo="imagen">
+                  <Image
+                    src={brandStory[campo]}
+                    alt={alt}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                    className="object-cover"
+                  />
+                </CampoEditable>
               </div>
             ))}
           </RevelarBloque>

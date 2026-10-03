@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import VistaRapidaProducto from "@/components/storefront/VistaRapidaProducto";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "RIEL" (§ CORTE-PRESENTACIONES-RIEL-1, MEDIDA contra
 // `docs/prototipos/cafeone/index.html:225-247` + `css/app.css:508-559` + `js/home.js:90-190`). Mosaico
@@ -481,9 +482,9 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
         <div className="flex flex-col items-start gap-5 mb-10 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
           <div>
             {presentaciones.eyebrow && (
-              <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</RevelarBloque>
+              <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2"><CampoEditable campo="presentaciones.eyebrow">{presentaciones.eyebrow}</CampoEditable></RevelarBloque>
             )}
-            <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</RevelarBloque>
+            <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line" style={displayL ? { fontSize: displayL } : undefined}><CampoEditable campo="presentaciones.titulo" multilinea>{presentaciones.titulo}</CampoEditable></RevelarBloque>
           </div>
           {/* El CTA (§ MUESTRARIO-SECCION-CTA-1), SOLO — `.pres-head` del prototipo no lleva nada
               más a la derecha (`index.html:228-234`: título de un lado, `.btn--primary` del otro). */}
@@ -493,7 +494,7 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
                 href={ctaHref}
                 className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
               >
-                {presentaciones.ctaLabel}
+                <CampoEditable campo="presentaciones.ctaLabel">{presentaciones.ctaLabel}</CampoEditable>
               </Link>
             </RevelarBloque>
           )}

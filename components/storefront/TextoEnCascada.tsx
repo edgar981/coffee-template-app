@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { fadeUpCascadaBloque, transicionBloqueCascada } from "@/lib/animation";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // TextoEnCascada — § ORIGEN-TEXTO-POR-BLOQUE-1 (reemplaza la cascada POR PALABRA de
 // ORIGEN-TEXTO-EN-CASCADA-1: el gate del owner sobre esa tanda — "la animación no me supe
@@ -24,6 +25,16 @@ import { fadeUpCascadaBloque, transicionBloqueCascada } from "@/lib/animation";
 // YA NO HACE FALTA `aria-hidden`/`aria-label`: al no partir el texto en nodos, el propio elemento
 // YA contiene el texto completo — un lector de pantalla lo anuncia como cualquier `<p>`/`<h2>`
 // normal, sin el riesgo de pausas por palabra que sí existía al tokenizar.
+//
+// `campo` (§ EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1, docs/editor-tienda/EDICION-INLINE.md § 2.3, "los
+// textos en cascada: el campo se monta sobre el bloque asentado"): esta primitiva toma `texto` como
+// PROP (no `children`), así que un consumidor NO puede envolver `<TextoEnCascada .../>` desde afuera
+// con `<CampoEditable>` — no hay nodo de hijos que envolver. El marcador se monta ACÁ, DENTRO del
+// `MotionEtiqueta` ya "asentado" (el elemento que YA tiene su tipografía/geometría finales; el
+// `<noscript>` hermano no es el bloque, es la red sin-JS) — nunca un `<span>` extra ENVOLVIENDO el
+// `MotionEtiqueta` desde afuera, que mediría/clickearía el contenedor en vez del texto. `CampoEditable`
+// sigue devolviendo `children` sin envoltorio fuera de modo editor (cero bytes), así que un consumidor
+// que no pase `campo` (`undefined`) rinde IDÉNTICO a antes de este slice.
 type EtiquetaCascada = "span" | "p" | "h2" | "h3";
 
 export default function TextoEnCascada({
@@ -33,6 +44,8 @@ export default function TextoEnCascada({
   style,
   preview = false,
   indice = 0,
+  campo,
+  multilinea = false,
 }: {
   texto: string;
   as?: EtiquetaCascada;
@@ -40,10 +53,18 @@ export default function TextoEnCascada({
   style?: CSSProperties;
   preview?: boolean;
   indice?: number;
+  /** La ruta "seccion.campo" del editor inline — sin esto, byte-idéntico a antes (§ el docstring de
+   *  cabecera). */
+  campo?: string;
+  /** Sólo aplica con `campo`: `<textarea>` (Enter inserta salto) si `true`, `<input>` si `false`. */
+  multilinea?: boolean;
 }) {
   if (!texto) return null;
 
   const MotionEtiqueta = motion[Etiqueta];
+  const contenido = campo
+    ? <CampoEditable campo={campo} multilinea={multilinea}>{texto}</CampoEditable>
+    : texto;
 
   return (
     <>
@@ -60,7 +81,7 @@ export default function TextoEnCascada({
         variants={fadeUpCascadaBloque}
         transition={preview ? undefined : transicionBloqueCascada(indice)}
       >
-        {texto}
+        {contenido}
       </MotionEtiqueta>
     </>
   );

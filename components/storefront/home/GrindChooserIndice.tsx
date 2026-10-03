@@ -7,6 +7,7 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { tarjetasDePresentaciones } from "@/lib/storefront/presentaciones";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "ÍNDICE" (§ eje 5e): de dos cortinas oscuras gemelas a un índice — filas numeradas,
 // encabezado alineado a la izquierda, foto chica al margen y divisor entre ítems. Ya no hay texto
@@ -42,9 +43,9 @@ export default function GrindChooserIndice({ negocio, style }: { negocio?: strin
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-left">
           {presentaciones.eyebrow && (
-            <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</RevelarBloque>
+            <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2"><CampoEditable campo="presentaciones.eyebrow">{presentaciones.eyebrow}</CampoEditable></RevelarBloque>
           )}
-          <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</RevelarBloque>
+          <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}><CampoEditable campo="presentaciones.titulo" multilinea>{presentaciones.titulo}</CampoEditable></RevelarBloque>
         </div>
 
         <div className="divide-y divide-[var(--sf-linea)] border-t border-[var(--sf-linea)]">
@@ -66,22 +67,29 @@ export default function GrindChooserIndice({ negocio, style }: { negocio?: strin
                 </span>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-xl sm:text-2xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))] mb-1 group-hover:underline">
-                    {op.label}
+                    <CampoEditable campo={`presentaciones.label${op.slot}`}>{op.label}</CampoEditable>
                   </h3>
-                  <p className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto))] max-w-md">{op.copy}</p>
+                  <p className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto))] max-w-md"><CampoEditable campo={`presentaciones.copy${op.slot}`} multilinea>{op.copy}</CampoEditable></p>
                 </div>
                 {/* Foto chica al margen. Sin foto: hueco de marca (`--sf-linea`) — nunca un
                     `<img src="">` roto, mismo criterio que el mosaico. */}
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-[var(--sf-linea)] sm:h-24 sm:w-24">
-                  {op.img && (
-                    <Image
-                      src={op.img}
-                      alt={negocio ? `${negocio} ${op.label}` : op.label}
-                      fill
-                      sizes="96px"
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  )}
+                  {/* El marcador vive en un `<div>` SIEMPRE presente (§ el mismo razonamiento de
+                      GrindChooserMosaico.tsx): sin él, una tarjeta 1-2 con imagen vacía —el estado
+                      real de Nayoli, § DEFAULTS.presentaciones— no tendría nodo clickeable. */}
+                  <CampoEditable campo={`presentaciones.imagen${op.slot}`} tipo="imagen">
+                    <div className="absolute inset-0">
+                      {op.img && (
+                        <Image
+                          src={op.img}
+                          alt={negocio ? `${negocio} ${op.label}` : op.label}
+                          fill
+                          sizes="96px"
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      )}
+                    </div>
+                  </CampoEditable>
                 </div>
               </Link>
             </RevelarBloque>

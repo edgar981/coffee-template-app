@@ -4,6 +4,8 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { fadeUp, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
 import TextoEnCascada from "@/components/storefront/TextoEnCascada";
+import CampoEditable from "@/components/storefront/CampoEditable";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, type OrigenContent } from "@/lib/config/site-content-defaults";
@@ -58,11 +60,21 @@ function statsDeOrigen(origen: OrigenContent): Array<{ key: string; numero: stri
 // aumentando"). El fix es adjuntar el ref al nodo que la animación mide — abajo, en el `motion.div`
 // raíz (framer-motion reenvía su `ref` externo al nodo DOM real, así que el mismo elemento sirve para
 // el fade-in Y para el IntersectionObserver del conteo, sin un envoltorio de más).
-function OrigenContador({ valor, etiqueta, estatico, preview, indice }: { valor: string; etiqueta: string; estatico: boolean; preview: boolean; indice: number }) {
+function OrigenContador({ valor, etiqueta, estatico, preview, indice, campoNumero, campoEtiqueta }: { valor: string; etiqueta: string; estatico: boolean; preview: boolean; indice: number; campoNumero: string; campoEtiqueta: string }) {
   const limpio = valor.trim();
   const numeroValido = /^-?\d+$/.test(limpio);
   const destino = numeroValido ? Number(limpio) : 0;
-  const { ref, valor: valorActual } = useContadorAnimado(destino, estatico || !numeroValido);
+  // EL CAMPO FLOTANTE EDITA EL STRING DEL DATO, NUNCA EL NÚMERO A MEDIO CONTAR (§ EDITOR-TIENDA-
+  // CAMPO-EDITABLE-HOME-1, EDICION-INLINE.md § "casos especiales"): en modo editor el contador NO
+  // anima (se suma a `estatico`, igual que `preview`/movimiento reducido — ninguna de las tres
+  // razones es nueva para `useContadorAnimado`) Y el nodo marcado muestra el `valor` CRUDO, nunca
+  // `Math.round(valorActual).toLocaleString("es-CO")`. Sin esto, abrir el overlay sobre "1.600"
+  // (formateado con separador de miles) y cerrarlo sin tocar nada habría escrito "1.600" de vuelta
+  // al campo — un string que `Number()` lee como 1.6, no 1600, corrompiendo el dato en el primer
+  // clic. Fuera de modo editor (el 99.99% del tráfico) nada cambia: `editando` es `false` y el
+  // contador sigue animando/mostrando el valor formateado de siempre.
+  const editando = useModoEditorActivo();
+  const { ref, valor: valorActual } = useContadorAnimado(destino, estatico || !numeroValido || editando);
 
   return (
     // `.stat`/`.stat b`/`.stat span` del prototipo (`css/app.css:600-610`) — MEDIDO por
@@ -90,9 +102,11 @@ function OrigenContador({ valor, etiqueta, estatico, preview, indice }: { valor:
       className="text-left"
     >
       <b className="block font-playfair text-[40px] leading-[0.98] tracking-[-0.015em] font-normal text-[var(--sf-tinta)]">
-        {numeroValido ? Math.round(valorActual).toLocaleString("es-CO") : valor}
+        <CampoEditable campo={campoNumero}>
+          {editando ? valor : (numeroValido ? Math.round(valorActual).toLocaleString("es-CO") : valor)}
+        </CampoEditable>
       </b>
-      <span className="block mt-2 text-base text-[var(--sf-texto-suave)]">{etiqueta}</span>
+      <span className="block mt-2 text-base text-[var(--sf-texto-suave)]"><CampoEditable campo={campoEtiqueta}>{etiqueta}</CampoEditable></span>
     </motion.div>
   );
 }
@@ -173,13 +187,15 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
               transition={preview ? undefined : transicionEscalonada(0)}
               className="relative aspect-[2/3] overflow-hidden sf-radio-imagen sf-sombra-imagen mt-8 sm:mt-12"
             >
-              <Image
-                src={origen.imagen1}
-                alt="Cerezas de café secándose al sol"
-                fill
-                sizes="(max-width: 1024px) 50vw, 25vw"
-                className="object-cover"
-              />
+              <CampoEditable campo="origen.imagen1" tipo="imagen">
+                <Image
+                  src={origen.imagen1}
+                  alt="Cerezas de café secándose al sol"
+                  fill
+                  sizes="(max-width: 1024px) 50vw, 25vw"
+                  className="object-cover"
+                />
+              </CampoEditable>
             </motion.div>
             <motion.div
               initial={preview ? false : "hidden"}
@@ -190,13 +206,15 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
               transition={preview ? undefined : transicionEscalonada(1)}
               className="relative aspect-[2/3] overflow-hidden sf-radio-imagen sf-sombra-imagen"
             >
-              <Image
-                src={origen.imagen2}
-                alt="Las manos de un recolector con cerezas de café maduras"
-                fill
-                sizes="(max-width: 1024px) 50vw, 25vw"
-                className="object-cover"
-              />
+              <CampoEditable campo="origen.imagen2" tipo="imagen">
+                <Image
+                  src={origen.imagen2}
+                  alt="Las manos de un recolector con cerezas de café maduras"
+                  fill
+                  sizes="(max-width: 1024px) 50vw, 25vw"
+                  className="object-cover"
+                />
+              </CampoEditable>
             </motion.div>
           </div>
 
@@ -215,6 +233,7 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                   className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-4"
                   preview={preview}
                   indice={0}
+                  campo="origen.eyebrow"
                 />
               )}
               <TextoEnCascada
@@ -224,6 +243,7 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 style={displayL ? { fontSize: displayL } : undefined}
                 preview={preview}
                 indice={indiceTitulo}
+                campo="origen.titulo"
               />
               <TextoEnCascada
                 as="p"
@@ -231,6 +251,8 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                 className="text-[var(--sf-texto)] leading-relaxed mb-6 text-base"
                 preview={preview}
                 indice={indiceParrafo}
+                campo="origen.lede"
+                multilinea
               />
             </div>
 
@@ -260,8 +282,8 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
                     transition={preview ? undefined : transicionEscalonada(i)}
                     className="flex justify-between gap-6 py-4 border-b border-[var(--sf-linea)]"
                   >
-                    <dt className="text-[var(--sf-texto-suave)] text-xs uppercase tracking-[0.11em]">{label}</dt>
-                    <dd className="text-[var(--sf-texto)] text-base text-right m-0">{valor}</dd>
+                    <dt className="text-[var(--sf-texto-suave)] text-xs uppercase tracking-[0.11em]"><CampoEditable campo={`origen.${key}Label`}>{label}</CampoEditable></dt>
+                    <dd className="text-[var(--sf-texto)] text-base text-right m-0"><CampoEditable campo={`origen.${key}Valor`}>{valor}</CampoEditable></dd>
                   </motion.div>
                 ))}
               </dl>
@@ -277,9 +299,24 @@ export default function Origen({ style }: { style?: React.CSSProperties } = {}) 
           // anchuras). Cada cifra escalona su entrada Y su conteo (§ el docstring de `OrigenContador`
           // para el bug del `ref` sin adjuntar, § ORIGEN-FOTOS-REVELADO-Y-CONTEO-1).
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mt-16 pt-12 border-t border-[var(--sf-linea)]">
-            {statsVisibles.map(({ key, numero, etiqueta }, i) => (
-              <OrigenContador key={key} valor={numero} etiqueta={etiqueta} estatico={estatico} preview={preview} indice={i} />
-            ))}
+            {statsVisibles.map(({ key, numero, etiqueta }, i) => {
+              // El SLOT (1-3) sale del propio `key` ("stat1".."stat3"), no del índice `i` entre los
+              // VISIBLES: si stat2 está vacío y stat3 no, `i` sería 1 para stat3 — el slot real es
+              // "3", no "2". `key.slice(4)` es el dígito final de "statN".
+              const slot = key.slice(4);
+              return (
+                <OrigenContador
+                  key={key}
+                  valor={numero}
+                  etiqueta={etiqueta}
+                  estatico={estatico}
+                  preview={preview}
+                  indice={i}
+                  campoNumero={`origen.statNumero${slot}`}
+                  campoEtiqueta={`origen.statEtiqueta${slot}`}
+                />
+              );
+            })}
           </div>
         )}
       </div>

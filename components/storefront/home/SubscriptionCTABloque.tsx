@@ -8,6 +8,7 @@ import { planesDeSuscripcion, planesDelTeaser, gridColsTeaser } from "@/lib/stor
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "BLOQUE" (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): la CANÓNICA — el layout de HOY,
 // verbatim (texto a un lado, tarjetas de plan del teaser al otro, `grid-cols-1 lg:grid-cols-2`). Es
@@ -41,12 +42,15 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
+  // `slot` sobrevive al filtro (§ lista-plana, CLAUDE.md): si bullet2 está vacío y bullet3 no, el
+  // campo editable de la segunda fila visible tiene que seguir siendo "bullet3", no "bullet2" — el
+  // slot ORIGINAL, no la posición entre los visibles.
   const beneficios = [
-    subscriptionCTA.bullet1,
-    subscriptionCTA.bullet2,
-    subscriptionCTA.bullet3,
-    subscriptionCTA.bullet4,
-  ].filter(b => b.trim() !== ""); // vacíos omitidos → la lista se cierra sin hueco
+    { slot: 1, valor: subscriptionCTA.bullet1 },
+    { slot: 2, valor: subscriptionCTA.bullet2 },
+    { slot: 3, valor: subscriptionCTA.bullet3 },
+    { slot: 4, valor: subscriptionCTA.bullet4 },
+  ].filter(b => b.valor.trim() !== ""); // vacíos omitidos → la lista se cierra sin hueco
 
   return (
     <section className="py-20 bg-[var(--sf-banda,var(--sf-tinta-2))]" style={style}>
@@ -68,21 +72,21 @@ export default function SubscriptionCTABloque({ style }: { style?: React.CSSProp
                   genera para `/NN` — así que sin esquema el resultado es el mismo píxel que
                   `text-white/NN` de siempre). */}
               {subscriptionCTA.eyebrow && (
-                <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</RevelarBloque>
+                <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3"><CampoEditable campo="subscriptionCTA.eyebrow">{subscriptionCTA.eyebrow}</CampoEditable></RevelarBloque>
               )}
-              <RevelarBloque as="h2" indice={1} preview={preview} className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4" style={displayL ? { fontSize: displayL } : undefined}>{subscriptionCTA.titulo}</RevelarBloque>
-              <RevelarBloque as="p" indice={2} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</RevelarBloque>
+              <RevelarBloque as="h2" indice={1} preview={preview} className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4" style={displayL ? { fontSize: displayL } : undefined}><CampoEditable campo="subscriptionCTA.titulo">{subscriptionCTA.titulo}</CampoEditable></RevelarBloque>
+              <RevelarBloque as="p" indice={2} preview={preview} className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed"><CampoEditable campo="subscriptionCTA.subtitulo" multilinea>{subscriptionCTA.subtitulo}</CampoEditable></RevelarBloque>
               <RevelarBloque indice={3} preview={preview} className="space-y-3 mb-8">
-                {beneficios.map((b, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
+                {beneficios.map((b) => (
+                  <div key={b.slot} className="flex items-center gap-3 text-sm text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--sf-tostado)]" />
-                    {b}
+                    <CampoEditable campo={`subscriptionCTA.bullet${b.slot}`}>{b.valor}</CampoEditable>
                   </div>
                 ))}
               </RevelarBloque>
               <RevelarBloque indice={4} preview={preview}>
                 <Link href="/suscripciones" className="inline-flex items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5">
-                  {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
+                  <CampoEditable campo="subscriptionCTA.ctaLabel">{subscriptionCTA.ctaLabel}</CampoEditable> <ArrowRight className="w-4 h-4" />
                 </Link>
               </RevelarBloque>
             </div>

@@ -51,6 +51,13 @@ const BADGES = [
 // (§ su docstring), escalonada por índice. Esta sección SÍ monta en la vista previa EN VIVO del panel
 // (`VistaTiendaEnVivo.tsx`, `COMPONENTES.trustBadges`), así que necesita el gate `preview` — a
 // diferencia de `FeaturedProducts*`, que esa vista nunca monta.
+//
+// SIN `CampoEditable` A PROPÓSITO (§ EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1): censado contra el
+// REGISTRY (`site-content-defaults.ts`, § 1.1 de `EDICION-INLINE.md`) — `trustBadges` declara
+// CERO campos de texto libre. El `text` de cada insignia (arriba, `BADGES`) es estructura de
+// CÓDIGO, no `SiteContent`; lo único editable de esta sección es el switch "Mostrar", que ya se
+// edita por la lista (no es un campo de texto que el clic inline pudiera tocar). Ampliar `BADGES`
+// a dato editable es, por su propio comentario, "una decisión aparte" — no de este slice.
 export default function TrustBadges({ style }: { style?: React.CSSProperties } = {}) {
   const { trustBadges, navTratamiento } = useSiteContent();
   const preview = useIsPreview();

@@ -47393,3 +47393,189 @@ nodo aparte) corregidos y documentados antes de reportar nada. `stopped_on: [cus
 `AWAITING_APPROVAL` sin merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra la fila 3 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`).**
+
+## 2026-10-03 — El resto de la home gana el campo editable, texto e imagen (`EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Fila 4 de § 6.4 de
+`docs/editor-tienda/EDICION-INLINE.md`. Mismo pedido del owner, misma autorización que
+`EDITOR-TIENDA-CAMPO-EDITABLE-1`/`-HERO-1`/`-IMAGEN-1` (2026-10-02); el `observed-report` que lo
+habilita es `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`. La aprobación autoriza la escritura, nunca el
+merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `aba803d`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (0 adelante / 0 atrás de `origin/main`) |
+| los archivos de `touches:` que ya existían | sí — los 18 archivos de código + los 4 de test + `docs/editor-tienda/EDICION-INLINE.md` + `DECISIONS.md`, confirmados con `Read`/`grep` antes de escribir |
+| archivos de `touches:` que NO hizo falta tocar | `lib/storefront/campo-editable.ts` (la lógica pura ya cubre campo plano + ítem de repeater, nada nuevo que afirmar ahí) y `components/storefront/CampoEditable.tsx` (`multilinea`/`tipo` ya alcanzan; sólo se tocó su CONSUMO, no el componente) — mismo criterio que slices anteriores dejaron `EditorPuenteVivo.tsx` sin tocar cuando no hacía falta |
+| base EFÍMERA para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55448`, seed estándar (`admin@sierranativa.co`) |
+
+### El censo y el patrón, en corto
+
+**53 usos de `<CampoEditable campo=…>` (texto + imagen combinados), medido por
+`grep -c "<CampoEditable campo="` por archivo**, en 10 componentes (`BrandStoryColumnas`/
+`BrandStoryCentrada`, `Origen`, `GrindChooserMosaico`/`GrindChooserIndice`/`GrindChooserRiel` —sólo
+encabezado, § doc—, `Spotlight`, `SubscriptionCTABloque`/`SubscriptionCTALinea`,
+`TestimonialSection`) + el fondo de `Marquesina` (hueco real: la fila 2 sólo cubrió su texto). El
+53 CUENTA SITIOS DE CÓDIGO, no campos de `SiteContent` — algunos (`presentaciones.label${op.slot}`,
+los `statNumero${slot}` de Origen, los `items.${i}.campo` del repeater de Testimonios) son UNA línea
+de JSX que cubre VARIOS campos reales según cuántos ítems/slots tenga el borrador; por eso no se
+cita un segundo número "de campos" — sería una segunda cuenta que puede divergir de ésta sin que
+nadie lo note, la misma trampa que ya mordió la reconciliación de `npm test` más abajo. `TrustBadges`
+censada y confirmada en CERO campos — su único dato es un switch que ya se edita por la lista.
+Detalle completo, con los dos casos
+especiales (el contador de Origen, `TextoEnCascada` tomando `texto` por prop) y las dos deviaciones
+medidas (la imagen vacía sin nodo clickeable, el degradado de Mosaico tapando el clic), en
+`EDICION-INLINE.md` § 11 — no se repite acá.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`, UN comando, árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3281/3281** (+49 sobre el piso de 3232 que `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` reportó al cerrar — medido por EJECUCIÓN aislada del archivo, no por grep de `test(` en el source, § el párrafo de reconciliación más abajo) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: `CampoEditable` sigue devolviendo `children` sin envoltorio fuera de
+modo editor (texto, imagen, y el `<div>` siempre-presente de la imagen vacía); `pointer-events-none`
+en el degradado de Mosaico no cambia un solo píxel (es un degradado semitransparente de por sí); las
+10 secciones quedan byte-idénticas fuera del iframe del editor, confirmado por el diff de píxeles
+(dos arneses independientes, misma cifra heredada que las CUATRO entradas anteriores de esta rama) y
+por el arnés de ejecución (0 `data-editor-campo=`/`data-editor-campo-imagen=` en la home pública).
+
+**Reconciliado contra el piso que `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` reportó al cerrar
+(3232), MEDIDO, no por aritmética de grep sobre el source.** Un primer intento de reconciliar por
+`git diff | grep -c '^+test('` dio números que no cerraban (31, luego 35) contra el delta real —
+**el discriminador que falla es que varios tests de este archivo están generados por un `for (…
+of ARRAY) { test(…) }`, tanto en el HEAD de IMAGEN-1 como en lo que este slice agregó**: un `grep`
+de `^test(` cuenta SITIOS de llamada en el código fuente, no ejecuciones — un solo `test(` dentro
+de un `for` de 4 elementos corre 4 veces, y el grep lo cuenta una. Se resolvió por EJECUCIÓN
+aislada, no por grep: `git show HEAD:lib/storefront/campo-editable.test.ts` a un archivo temporal
+(`.scratch/campo-editable-HEAD.test.ts`, import corregido a ruta relativa) y `node --import tsx
+--test` sobre ÉSE archivo solo da **35** tests; el mismo comando sobre el archivo ACTUAL (con todo
+lo de este slice) da **84**. Delta real: **+49**. `3232 (IMAGEN-1) + 49 = 3281` — CIERRA EXACTO
+con el total final medido abajo. El piso de IMAGEN-1 era correcto; las cifras intermedias que este
+slice escribió mientras trabajaba (3240, 3271) eran del mismo error de método, nunca se citan como
+`measured` en el reporte final.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-home.ts` (no committed, gitignored) + el helper genérico
+`.scratch/set-content.ts` (merge por SECCIÓN sobre `SiteContent.content`, generalización de
+`set-hero-imagen.ts`/`set-hero-variante.ts` a cualquier sección), contra una build de PRODUCCIÓN
+(`next build` + `next start`) con sesión real (`admin@sierranativa.co`). **42/42 verificaciones en
+verde**, en dos configuraciones (Nayoli sin preset, y las variantes que sólo CORTE pide — fijadas
+por SQL directo, sin aplicar el preset completo): texto + imagen + publicar→releer de Historia,
+Origen (el contador en su valor CRUDO), Presentaciones (la imagen VACÍA sigue disparando el
+filechooser — el fix de abajo), Suscripción, Testimonios (el repeater); texto + imagen de las
+variantes de CORTE (Historia centrada, Suscripción línea, el Destacado). Fuera de modo editor, la
+home pública no lleva ningún marcador. Detalle de las 42 en `EDICION-INLINE.md` § 11.
+
+**HALLAZGO DE MÉTODO, para el próximo arnés de este puente:** `SiteContent` es SOFT (§ CLAUDE.md,
+"HARD vs SOFT") — sin fila, el loader resuelve a los DEFAULTS de código; a diferencia de
+`SiteSetting`, el SEED no la garantiza. El primer `set-content.ts` con `findUniqueOrThrow` (copiado
+de `set-hero-imagen.ts`) falló con P2025 sobre una base recién migrada/sembrada, ANTES de que el
+panel hiciera su primer guardado (que crea la fila vía `upsert`, § `site-content-write.ts`). Se
+corrigió a `upsert` en el propio helper. Los dos helpers de HERO-1/IMAGEN-1 (`set-hero-imagen.ts`/
+`set-hero-variante.ts`) nunca pisaron este caso porque sus arneses SIEMPRE editaban un campo del
+hero por el panel ANTES de la primera llamada SQL directa —esa escritura ya había creado la fila—;
+este arnés llama `set-content.ts` como su PRIMERA acción contra la base, antes de cualquier
+guardado real.
+
+### DOS DEFECTOS DE HIT-TEST DEL PRODUCTO, medidos por ejecución y corregidos antes de reportar nada
+
+1. **La imagen VACÍA de una tarjeta siempre-visible no tenía NINGÚN nodo clickeable.**
+   `GrindChooserMosaico`/`GrindChooserIndice` envolvían `{op.img && <Image/>}` — con `imagen1`/
+   `imagen2` vacíos (Nayoli, DEFAULTS reales), no había NADA en el DOM para que el dueño clickeara y
+   AGREGARA la primera foto desde la página. Fix: el marcador envuelve un `<div className="absolute
+   inset-0">` SIEMPRE presente (con el `<Image>` condicional COMO SU HIJO), ocupando el mismo hueco
+   que ya pintaba `bg-[var(--sf-linea)]` del `<Link>` — cero cambio visual, gana área clickeable.
+2. **El degradado de Mosaico se llevaba el clic.** Consecuencia directa del fix anterior: el
+   degradado decorativo (`absolute inset-0 bg-gradient-to-t…`, pintado DESPUÉS en el DOM, misma caja)
+   no tenía `pointer-events-none` — mientras no había nada clickeable debajo no importaba; en cuanto
+   el fix 1 agregó el marcador, el degradado se lo robó. Medido por ejecución (`filechooser` nunca
+   disparaba). Mismo defecto, mismo fix, que `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` ya cerró para el
+   velo del hero — en un sitio nuevo que ese slice no pudo prever porque Mosaico no tenía, hasta este
+   slice, nada clickeable debajo de su degradado.
+
+Los dos quedan documentados en `EDICION-INLINE.md` § 11 con su razonamiento completo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió, grepeados contra `CLAUDE.md`: `CampoEditable`/`ModoEditor`/
+`TextoEnCascada`/`OrigenContador`/`BrandStoryColumnas`/`BrandStoryCentrada`/`SubscriptionCTABloque`/
+`SubscriptionCTALinea`/`TestimonialSection`/`TrustBadges`/`Marquesina`/`Origen.tsx`/`Spotlight.tsx`/
+`data-editor-campo-imagen`/`pointer-events-none` → **0** apariciones en todos. `GrindChooserMosaico`/
+`GrindChooserIndice` aparecen 1 vez cada uno, en § Tier 1 (la lista de ejemplos de variantes dentro
+del subárbol protegido `components/storefront/`) — sigue siendo VERDAD: los dos siguen siendo
+variantes del selector de molienda viviendo en `components/storefront/home/`, y este diff no cambió
+su rol, sólo agregó marcadores inertes + un `pointer-events-none` en un degradado decorativo.
+`subscriptionCTA`/`SubscriptionCTA` (6 apariciones) y `presentaciones` (14) son todas sobre el MODELO
+de datos (visibilidad, slots, `imagenFondo`, el tipo `'imagen'` del REGISTRY de SiteContent — otro
+namespace que el `tipo='imagen'` de `CampoEditable`) — ninguna sobre el mecanismo del editor inline
+que este diff agregó, y ninguna sentencia quedó falsa.
+
+### Segundo grep — el documento que SÍ cambió (`docs/editor-tienda/EDICION-INLINE.md`)
+
+Los identificadores que este diff agregó/tocó (`EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1`, § 11, la fila
+4 de § 6.4) se grepearon contra el repo. **Tres punteros quedaron desactualizados por este cierre**,
+los tres en entradas de ledger ANTERIORES de esta misma rama (`EDITOR-TIENDA-CAMPO-EDITABLE-1`/
+`-HERO-1`/`-IMAGEN-1`, arriba), cada una con una frase del tipo *"las filas 4-5… siguen pendientes,
+sin relación con este slice"*. Esas frases siguen siendo VERDAD del commit en el que se escribieron
+(una entrada de ledger es append-only, § la misma doctrina que cada una de las tres ya aplicó al
+cerrar la fila anterior); esta entrada nueva es la que registra que la fila 4 dejó de estar
+pendiente. Ningún otro `.md` del repo apunta a la fila 4 ni a § 11.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que las cuatro
+entradas anteriores de la misma rama). **De este COMMIT en particular**: `strings: []` — confirmado
+por EJECUCIÓN en los dos sentidos: (a) `guarda:color`/`verificar:nayoli:visual` dan la cifra EXACTA
+ya heredada, cero píxeles de drift nuevo en las 6 rutas públicas; (b) el arnés de Playwright mide `0`
+ocurrencias de `data-editor-campo=`/`data-editor-campo-imagen=` en el HTML de la home pública sin
+`?editor=1`. Lo que SÍ cambia son bytes COMPILADOS: el bundle del storefront gana 33 marcadores
+inertes más (gateados a `ModoEditorProvider`) y dos `<div>` siempre-presentes + un
+`pointer-events-none` (los dos neutros visualmente, medido). `approved: null` — Nayoli no ejercita
+esta rama de código hasta que el editor se use en modo editor real.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo.
+
+### Open follow-ups
+
+- La fila 5 de § 6.4 de `EDICION-INLINE.md` (`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`, el aviso de
+  sesión vencida dentro del overlay) y nav/pie (§ 5, fuera de alcance de todo el plan) quedan como
+  las únicas piezas sin construir del documento de diseño.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno a
+  `touches:` de este slice.
+- **`CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1`** (coined acá) — el fix de la "imagen vacía
+  siempre clickeable" (§ arriba) sólo se aplicó a Presentaciones (tarjetas 1-2, siempre visibles).
+  `brandStory.imagen2/3/4` (opcionales, vía `.filter()`) y `subscriptionCTA.imagenFondo` (vía `&&`)
+  tienen la MISMA clase de hueco si un cliente real los deja vacíos: sin nodo, sin forma de AGREGAR
+  la primera foto desde el editor inline (sólo desde el formulario de la lista). No se tocó porque
+  Nayoli los tiene todos llenos (nada que verificar hoy) y porque el fix ahí tocaría la estructura
+  condicional de la SECCIÓN entera (`.filter()`/`&&` decide si el BLOQUE completo se omite, no sólo
+  la imagen), no sólo el marcador — retrofit de mayor alcance que lo que este slice medía necesario.
+  Necesita su propio sign-off si un cliente real lo topa.
+- El testimonio de prueba sembrado por el arnés (`"Valentina Torres"`, `.scratch/
+  verificar-campo-editable-home.ts`) vive en la base efímera del arnés, que se destruye al terminar
+  — no hay rastro en ninguna base real.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (`npm run gate`: typecheck 0, 3281/3281,
+308/308); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado —
+cero píxeles de drift nuevo. El mecanismo completo (53 sitios de `<CampoEditable campo=…>`, texto +
+imagen, en 10 componentes, el caso especial del contador, el caso especial de `TextoEnCascada`, las dos
+deviaciones de hit-test corregidas) verificado por ejecución contra una build de producción con
+sesión real — 42/42 en verde. `stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO
+aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin merge. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra la fila 4 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`).**

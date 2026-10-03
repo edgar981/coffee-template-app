@@ -28,6 +28,7 @@ import { ejesSpotlight, etiquetaEjesSpotlight, grupoSpotlight, valoresDeEje, pro
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA BANDA SPOTLIGHT (§ SPOTLIGHT-BANDA-1) — un solo producto PINEADO, con su selector de
 // molienda, notas de cata y "Agregar al carrito" REUSADOS VERBATIM (medido:
@@ -369,7 +370,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                   LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): eyebrow y título entran por separado con
                   `RevelarBloque`, ya no como un único bloque fadeUp. */}
               {spotlight.eyebrow && (
-                <RevelarBloque as="p" indice={0} preview={preview} className="text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{spotlight.eyebrow}</RevelarBloque>
+                <RevelarBloque as="p" indice={0} preview={preview} className="text-[12px] font-semibold tracking-[0.085em] uppercase text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]"><CampoEditable campo="spotlight.eyebrow">{spotlight.eyebrow}</CampoEditable></RevelarBloque>
               )}
               {/* `.spotlight-head .display-l` (css/app.css:441, tokens.css:99-100,115,131): margin-top
                   20px (`--space-5`), line-height .98, tracking -.015em. El tamaño fluido en sí
@@ -381,7 +382,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                   un `RevelarBloque` ENVOLVENTE (as="div"), no el propio `h2`. */}
               {spotlight.titulo && (
                 <RevelarBloque indice={1} preview={preview}>
-                  <h2 className="mt-5 text-3xl sm:text-4xl font-playfair leading-[0.98] tracking-[-0.015em] text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line text-balance" style={displayL ? { fontSize: displayL } : undefined}>{spotlight.titulo}</h2>
+                  <h2 className="mt-5 text-3xl sm:text-4xl font-playfair leading-[0.98] tracking-[-0.015em] text-[var(--sf-sobre-banda,var(--sf-tinta))] whitespace-pre-line text-balance" style={displayL ? { fontSize: displayL } : undefined}><CampoEditable campo="spotlight.titulo" multilinea>{spotlight.titulo}</CampoEditable></h2>
                 </RevelarBloque>
               )}
             </div>
@@ -419,7 +420,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 <span
                   className={`absolute top-4 left-4 z-10 text-xs font-semibold bg-[var(--sf-tostado)] ${navTratamiento.cta ? "text-[var(--sf-acento-txt)]" : "text-[var(--sf-tinta)]"} px-3 py-1 sf-pildora sf-badge`}
                   style={navTratamiento.badgeColor ? { backgroundColor: navTratamiento.badgeColor } : undefined}
-                >{spotlight.badge}</span>
+                ><CampoEditable campo="spotlight.badge">{spotlight.badge}</CampoEditable></span>
               )}
               {/* EL MUESTRARIO (§ MUESTRARIO-VARIANTE-IMAGEN-1): `vistaActual` es la molienda
                   elegida del producto ACTIVO — Presentación/Tamaño ya no viven acá (switch
@@ -509,7 +510,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 gate del owner, "el nombre que salga sea solamente café Onix", no "Café Onix — Molido
                 250 g" saltando entre celdas. `nombreCafeSpotlight` (lib/config/spotlight.ts) resuelve
                 el campo editorial o, vacío, corta la variante del nombre del producto principal. */}
-            <h3 className="text-[26px] leading-[1.14] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]">{nombreCafeSpotlight(producto, spotlight.nombreCafe)}</h3>
+            <h3 className="text-[26px] leading-[1.14] font-playfair font-normal text-[var(--sf-sobre-banda,var(--sf-tinta))]"><CampoEditable campo="spotlight.nombreCafe">{nombreCafeSpotlight(producto, spotlight.nombreCafe)}</CampoEditable></h3>
             {/* `.muted` sobre el párrafo (index.html:182): color `text-muted`, tamaño heredado del
                 body (`--text-body-m`=16px, `--leading-body`=1.5). */}
             <p className="text-base leading-[1.5] text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{activo.descripcion}</p>
@@ -663,7 +664,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
                 </motion.span>
               </AnimatePresence>
               {spotlight.notaPrecio && (
-                <span className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]">{spotlight.notaPrecio}</span>
+                <span className="text-sm text-[var(--sf-sobre-banda-suave,var(--sf-texto-suave))]"><CampoEditable campo="spotlight.notaPrecio">{spotlight.notaPrecio}</CampoEditable></span>
               )}
             </div>
 

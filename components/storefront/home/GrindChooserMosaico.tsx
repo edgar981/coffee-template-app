@@ -9,6 +9,7 @@ import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefro
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE CANÓNICA (§ eje 5e): "¿Cómo tomas tu café?" en cortinas fotográficas — el GrindChooser
 // de SIEMPRE, extraído VERBATIM al separar el mecanismo de variantes del dispatcher (`GrindChooser.tsx`).
@@ -49,9 +50,9 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
               literal de hoy como fallback (§ eje 5b, home-2) — las tarjetas de abajo (`op.label`/
               `op.copy`) NO se tocan: viven sobre el gradiente oscuro de su propia tile, no de la banda. */}
           {presentaciones.eyebrow && (
-            <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</RevelarBloque>
+            <RevelarBloque as="p" indice={0} preview={preview} className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2"><CampoEditable campo="presentaciones.eyebrow">{presentaciones.eyebrow}</CampoEditable></RevelarBloque>
           )}
-          <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{presentaciones.titulo}</RevelarBloque>
+          <RevelarBloque as="h2" indice={1} preview={preview} className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}><CampoEditable campo="presentaciones.titulo" multilinea>{presentaciones.titulo}</CampoEditable></RevelarBloque>
         </div>
         <div className={`grid grid-cols-1 ${gridCols} gap-6`}>
           {tarjetas.map((op, i) => (
@@ -65,15 +66,26 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
                 {/* Imagen condicional: una tarjeta opcional puede mostrarse SÓLO con título (criterio
                     OR); sin foto se ve el fondo `--sf-linea` de la tarjeta —un hueco VISIBLE que el
                     cliente sabe llenar—, nunca un `<img src="">` roto que pide la URL de la página. */}
-                {op.img && (
-                  <Image
-                    src={op.img}
-                    alt={negocio ? `${negocio} ${op.label}` : op.label}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                )}
+                {/* El marcador vive en un `<div>` SIEMPRE presente (`absolute inset-0`), no en el
+                    `<Image>` condicional: una tarjeta 1-2 (siempre visible) con imagen VACÍA —el
+                    estado real de Nayoli hoy, § DEFAULTS.presentaciones— no tendría ningún nodo
+                    clickeable si el marcador sólo envolviera `{op.img && …}`. El `<div>` ocupa el
+                    MISMO hueco que ya pintaba `bg-[var(--sf-linea)]` del `<Link>`, inerte sin
+                    imagen — cero cambio visual, sólo gana superficie clickeable para AGREGAR la
+                    primera foto. */}
+                <CampoEditable campo={`presentaciones.imagen${op.slot}`} tipo="imagen">
+                  <div className="absolute inset-0">
+                    {op.img && (
+                      <Image
+                        src={op.img}
+                        alt={negocio ? `${negocio} ${op.label}` : op.label}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    )}
+                  </div>
+                </CampoEditable>
                 {/* El gradiente de la tile es `--sf-tinta` CRUDO —la raíz, no un token que el
                     esquema mueva—, así que SIEMPRE queda oscuro sin importar qué esquema se le
                     asigne a la SECCIÓN (§ eje 5b, home-3). `op.label`/`op.copy` habían pasado por
@@ -82,10 +94,17 @@ export default function GrindChooserMosaico({ negocio, style }: { negocio?: stri
                     fundiéndose con el overlay siempre-oscuro (~1.00:1, medido). Es el caso (b): una
                     superficie FIJA que el esquema no mueve exige texto CLARO FIJO, no banda-scoped.
                     Revertido al blanco de su diseño original (pre mitad B). */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[var(--sf-tinta)]/80 via-[var(--sf-tinta)]/20 to-transparent" />
+                {/* `pointer-events-none` (§ DEVIACIÓN MEDIDA, EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1 —
+                    mismo defecto que el velo del hero, § HeroCurtina.tsx): sin esto el gradiente
+                    —pintado DESPUÉS del `<div>` de imagen en el DOM, en la misma caja `absolute
+                    inset-0`— se lleva el hit-test del clic, y el marcador de imagen de ABAJO
+                    (visible sólo cuando la tarjeta está vacía, sin `<img>` que lo tape) nunca
+                    recibe el clic. Neutro para un visitante real: el gradiente nunca tuvo
+                    propósito interactivo. */}
+                <div className="absolute inset-0 bg-gradient-to-t from-[var(--sf-tinta)]/80 via-[var(--sf-tinta)]/20 to-transparent pointer-events-none" />
                 <div className="relative p-8">
-                  <h3 className="text-2xl sm:text-3xl font-playfair text-white mb-1">{op.label}</h3>
-                  <p className="text-white/80 text-sm mb-4 max-w-xs">{op.copy}</p>
+                  <h3 className="text-2xl sm:text-3xl font-playfair text-white mb-1"><CampoEditable campo={`presentaciones.label${op.slot}`}>{op.label}</CampoEditable></h3>
+                  <p className="text-white/80 text-sm mb-4 max-w-xs"><CampoEditable campo={`presentaciones.copy${op.slot}`} multilinea>{op.copy}</CampoEditable></p>
                   <span className="inline-flex items-center gap-2 text-[var(--sf-tostado)] font-semibold text-sm group-hover:gap-3 transition-all">
                     Ver café {op.label.toLowerCase()} <ArrowRight className="w-4 h-4" />
                   </span>

@@ -81,7 +81,9 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
       style={style}
     >
       <div className="absolute inset-0">
-        <Image src={marquesina.imagen} alt="" fill sizes="100vw" className="object-cover opacity-55" />
+        <CampoEditable campo="marquesina.imagen" tipo="imagen">
+          <Image src={marquesina.imagen} alt="" fill sizes="100vw" className="object-cover opacity-55" />
+        </CampoEditable>
         {/* EL VELO lee `--sf-velo` (§ CORTE-MARQUESINA-VELO-1, `app/globals.css`), la MISMA variable
             que el PIE del velo de HeroMedia.tsx, para que la banda se lea continua con el hero justo
             arriba — una sola superficie oscura, sin costura. Antes era un literal propio (`/70`,

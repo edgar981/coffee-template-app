@@ -11,6 +11,7 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "CENTRADA" (§ CORTE-BRANDSTORY-COLLAGE-1, MEDIDA contra la sección `.historia` de
 // `docs/prototipos/cafeone/index.html:250-273` + `css/app.css:561-578`). El BrandStory de siempre
@@ -244,7 +245,7 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
             centrados en vez de alineados a la izquierda. */}
         {brandStory.eyebrow && (
           <RevelarBloque as="p" indice={0} preview={preview} className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-tostado))]">
-            {brandStory.eyebrow}
+            <CampoEditable campo="brandStory.eyebrow">{brandStory.eyebrow}</CampoEditable>
           </RevelarBloque>
         )}
         <RevelarBloque
@@ -254,7 +255,7 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
           className="font-playfair text-4xl leading-tight text-[var(--sf-sobre-banda,white)] sm:text-5xl"
           style={displayL ? { fontSize: displayL } : undefined}
         >
-          {brandStory.titulo}
+          <CampoEditable campo="brandStory.titulo">{brandStory.titulo}</CampoEditable>
         </RevelarBloque>
 
         {/* El collage A LO ANCHO — figuras en fila (columna bajo 640px, § el comentario de cabecera),
@@ -279,13 +280,15 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
                   style={{ transform: transformsPorImagen[i] }}
                   className={`relative aspect-[3/4] overflow-hidden sf-radio-imagen sf-sombra-imagen [will-change:transform] max-sm:transform-none! ${esMedia ? CLASE_FIGURA_MEDIO : CLASE_FIGURA_LADO}`}
                 >
-                  <Image
-                    src={brandStory[campo]}
-                    alt={alt}
-                    fill
-                    sizes="(max-width: 640px) 82vw, 28vw"
-                    className="object-cover"
-                  />
+                  <CampoEditable campo={`brandStory.${campo}`} tipo="imagen">
+                    <Image
+                      src={brandStory[campo]}
+                      alt={alt}
+                      fill
+                      sizes="(max-width: 640px) 82vw, 28vw"
+                      className="object-cover"
+                    />
+                  </CampoEditable>
                 </motion.div>
               </RevelarBloque>
             );
@@ -294,11 +297,11 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
 
         <div className="mx-auto max-w-2xl">
           <RevelarBloque as="p" indice={2} preview={preview} className="text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
-            {brandStory.parrafo1}
+            <CampoEditable campo="brandStory.parrafo1" multilinea>{brandStory.parrafo1}</CampoEditable>
           </RevelarBloque>
           {brandStory.parrafo2 && (
             <RevelarBloque as="p" indice={3} preview={preview} className="mt-6 text-base leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))]">
-              {brandStory.parrafo2}
+              <CampoEditable campo="brandStory.parrafo2" multilinea>{brandStory.parrafo2}</CampoEditable>
             </RevelarBloque>
           )}
           {ctaHref && (
@@ -307,7 +310,7 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
                 href={ctaHref}
                 className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
               >
-                {brandStory.ctaLabel}
+                <CampoEditable campo="brandStory.ctaLabel">{brandStory.ctaLabel}</CampoEditable>
               </Link>
             </RevelarBloque>
           )}

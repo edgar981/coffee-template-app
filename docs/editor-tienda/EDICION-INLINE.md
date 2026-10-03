@@ -747,3 +747,137 @@ independientes, misma cifra heredada) y por el arnés de ejecución (0 `data-edi
 la home pública).
 
 **Cierra la fila 3 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`).**
+
+---
+
+## 11 · Lo que `EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1` entregó
+
+Instrumentó el RESTO de la home — historia (columnas/centrada), el origen, presentaciones
+(mosaico/índice/riel), el destacado, suscripción (bloque/línea), testimonios (con su repeater),
+sellos de confianza y la marquesina suelta —, cerrando de una vez la fila 4 de § 6.4
+(`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`), sin tocar la plomería (`ModoEditorProvider`,
+`CampoEditable`, el overlay/mensajes del puente) que las filas 1-3 ya construyeron.
+
+- **Patrón repetido 53 veces** (`grep -c "<CampoEditable campo=" components/storefront/home/*.tsx`,
+  sumado; CUENTA SITIOS DE CÓDIGO, no campos de `SiteContent` — algunos cubren varios campos reales
+  por slot/ítem, § abajo): cada JSX que escribía `{seccion.campo}` pasó a `<CampoEditable
+  campo="seccion.campo">{seccion.campo}</CampoEditable>`, con `multilinea` siguiendo el
+  `textarea:true`/`false` que ya declara `tienda-secciones.ts` por campo — sin inventar una segunda
+  fuente de esa decisión.
+- **Las tarjetas de cardinalidad variable (Presentaciones, los bullets de Suscripción) marcan por
+  SLOT, no por posición visible** (`op.slot` / un `{slot,valor}` que sobrevive al `.filter()`): una
+  tarjeta 3 vacía y una 4 llena deja a la 4ª como la segunda VISIBLE, y su campo editable sigue
+  siendo `presentaciones.label4`, no `label2` — verificado en capa 1 con la config fuera-de-orden, y
+  por ejecución en el harness de abajo.
+- **TrustBadges NO gana ningún marcador** — censado contra el REGISTRY: la sección declara CERO
+  campos de texto libre (`BADGES` es estructura de código, § su docstring); el único dato es el
+  switch `visible`, que ya se edita por la lista.
+- **Marquesina y FeaturedProducts no se tocan** (ya completos / dispatchers puros, respectivamente) —
+  salvo un hueco real que SÍ se cerró: `marquesina.imagen` (el fondo) nunca había ganado su marcador
+  de IMAGEN en `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` (esa fila sólo cubrió `marquesina.texto`). Se
+  agrega acá.
+
+### Los DOS casos especiales del documento (§ 2.2/2.3 de este archivo)
+
+- **El contador de Origen** (`OrigenContador`, `Origen.tsx`): el campo flotante tiene que editar el
+  STRING del dato (`origen.statNumeroN`), nunca el número a medio contar ni el formateado con
+  separador de miles — `nodo.textContent` es lo que el overlay usa como valor inicial
+  (`EditorPuenteVivo.abrirCampo`), y `Math.round(valorActual).toLocaleString("es-CO")` da "1.600"
+  para un dato guardado como `"1600"`: cerrar el overlay sin tocar nada habría escrito "1.600" de
+  vuelta, y `Number("1.600")` lo lee como `1.6`, no `1600` — corrompiendo el dato en el primer clic.
+  Se resuelve con `useModoEditorActivo()` sumado a la condición de "no animar" de
+  `useContadorAnimado` (igual que `preview`/movimiento reducido, sin tocar esa función) Y mostrando
+  el `valor` CRUDO en vez del formateado mientras `editando` es `true`. Fuera de modo editor, cero
+  cambio de comportamiento.
+- **`TextoEnCascada`** (usado por Origen para eyebrow/título/párrafo): a diferencia del resto de la
+  home, este componente toma `texto` como PROP, no `children` — no hay nodo de hijos que un
+  consumidor externo pueda envolver con `<CampoEditable>`. Gana un `campo?`/`multilinea?` opcional
+  propio: cuando se pasa, el marcador se monta DENTRO del `MotionEtiqueta` ya "asentado" (el
+  elemento con la tipografía/geometría finales), nunca envolviendo desde afuera el fragmento que
+  incluye el `<noscript>` de la red sin-JS. Sin `campo` (todo consumidor existente, hoy ninguno
+  fuera de Origen), byte-idéntico.
+
+### DEVIACIÓN MEDIDA, encontrada construyendo: la imagen VACÍA de una tarjeta siempre-visible no tenía NINGÚN nodo que clickear
+
+El plan ingenuo —envolver `{op.img && <Image .../>}` con `<CampoEditable tipo="imagen">`— falla para
+`GrindChooserMosaico`/`GrindChooserIndice`: **medido contra `DEFAULTS.presentaciones`, las tarjetas 1
+y 2 (SIEMPRE visibles, nunca opcionales) nacen con `imagen1`/`imagen2` VACÍOS** — Nayoli hoy. Con el
+marcador sólo alrededor del `<Image>` condicional, una imagen vacía no deja NINGÚN nodo en el DOM, y
+el dueño no tendría cómo clickear para AGREGAR la primera foto desde la página — sólo podría hacerlo
+desde el formulario de la lista, exactamente el estorbo que este programa existe para evitar.
+
+El fix: el marcador envuelve un `<div className="absolute inset-0">` SIEMPRE presente (con el
+`<Image>` condicional COMO SU HIJO, no como el hijo directo de `CampoEditable`) — ese `<div>` ocupa
+el mismo hueco que ya pintaba `bg-[var(--sf-linea)]` del `<Link>` contenedor, inerte sin imagen, así
+que no cambia un píxel visible; sólo gana área clickeable. Aplicado en `GrindChooserMosaico.tsx` y
+`GrindChooserIndice.tsx` (las dos tarjetas 1-2, y las 3-4 cuando se agregan). **No aplicado** a
+`brandStory.imagen2/3/4` ni a `subscriptionCTA.imagenFondo`: esos campos usan un `.filter()`
+(`imagenesLlenas`) o un `&&` que, si está vacío, OMITE el bloque entero (no sólo la imagen) —
+retrofitear el mismo patrón ahí tocaría la estructura condicional de la sección completa, no sólo la
+imagen, y **Nayoli los tiene todos llenos** (ningún caso real que verificar hoy). Queda como
+`CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1` en los open follow-ups de abajo.
+
+### DEVIACIÓN MEDIDA, encontrada construyendo: el gradiente de GrindChooserMosaico se llevaba el clic de la imagen
+
+Mismo defecto que ya cerró `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` para el velo del hero, en un
+sitio nuevo: `GrindChooserMosaico.tsx` pinta un degradado (`absolute inset-0 bg-gradient-to-t…`)
+ENCIMA del área de imagen, en la MISMA caja, sin `pointer-events-none`. Mientras no había nada
+clickeable debajo no importaba; en cuanto el fix de arriba agregó un marcador de imagen SIEMPRE
+presente debajo del degradado, el degradado se llevó el clic — medido por ejecución (el
+`filechooser` nunca disparaba). Se agrega `pointer-events-none` al degradado. Neutro para un
+visitante real (nunca tuvo propósito interactivo); `GrindChooserIndice` no tiene degradado
+equivalente y no necesitó el mismo fix.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`, UN comando, árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3281/3281** (+49 sobre el piso de 3232 que § 10 reportó al cerrar `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**EL DELTA (+49) SE MIDE POR EJECUCIÓN AISLADA, NUNCA POR `grep -c '^test('` SOBRE EL SOURCE** —
+una trampa de método que vale la pena nombrar porque se cayó en ella dos veces mientras se escribía
+este asiento. `lib/storefront/campo-editable.test.ts` tiene, desde la fila 2 (HERO-1), varios tests
+generados por `for (const … of ARRAY) { test(…) }` — un `grep` de `test(` cuenta SITIOS de llamada
+en el código, no ejecuciones, y un sitio dentro de un `for` de 4 elementos corre 4 veces por una
+sola línea de grep. El número correcto sale de `git show HEAD:… > temp.ts` (import corregido a ruta
+relativa) + `node --import tsx --test temp.ts` sobre el HEAD de este slice (dio **35**, no los 15
+que el grep de source sugería) contra el mismo comando sobre el archivo final (**84**) — delta real
+**+49**, y `3232 + 49 = 3281` cierra EXACTO con el total medido abajo. El piso que § 10 dejó (3232)
+era correcto desde el principio.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-home.ts` (no committed, gitignored) + el helper genérico
+`.scratch/set-content.ts` (merge por SECCIÓN sobre `SiteContent.content`, igual mecanismo que
+`set-hero-imagen.ts`/`set-hero-variante.ts` de las filas 2-3, generalizado a cualquier sección en vez
+de sólo `hero`), contra una build de PRODUCCIÓN (`next build` + `next start`) con sesión real
+(`admin@sierranativa.co`). **42/42 verificaciones en verde**, en DOS configuraciones:
+
+- **Nayoli, sin preset** (historia=columnas, presentaciones=mosaico, suscripción=bloque,
+  destacado=apagado — encendiendo sólo `origen.visible` y cargando un testimonio, ambos OFF/vacío
+  por defecto): texto + imagen de Historia; texto + el contador (valor crudo) + imagen de Origen;
+  texto + imagen-vacía-clickeable de Presentaciones; texto de Suscripción (bullet, sin `<input id>`);
+  texto del repeater de Testimonios (fila colapsada, sin `<input id>`); publicar cada sección y
+  releer la home pública SIN sesión confirma que lo publicado coincide, los 5 valores.
+- **Las variantes que sólo CORTE pide** (fijadas por SQL directo sobre `content.*.variante`/
+  `content.variantesBandas.featured`, sin aplicar el preset completo — igual decisión que
+  `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` tomó para `hero.variante`): texto de BrandStoryCentrada
+  (`ctaLabel`), texto + marcador de imagen de SubscriptionCTALinea (`ctaSecundarioLabel` +
+  `imagenFondo`), texto de Spotlight (`eyebrow`, con `variantesBandas.featured:'spotlight'` +
+  `productoSlug` pineado a un producto real del seed).
+- **Fuera de modo editor**: la home pública no lleva ni `data-editor-campo=` ni
+  `data-editor-campo-imagen=` — byte-idéntico.
+
+Capturas con el campo abierto (overlay visible, el marcador alineado al nodo real): historia,
+origen (el contador), presentaciones, destacado — en `.scratch/capturas-campo-editable-home/` (no
+committed).
+
+**Cierra la fila 4 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`).** La fila 5
+(`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`, el aviso de sesión vencida dentro del overlay) y nav/pie
+(§ 5, fuera de alcance de todo este plan) quedan como las únicas piezas sin construir de
+`EDICION-INLINE.md`.

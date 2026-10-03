@@ -14,6 +14,7 @@ import {
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "LÍNEA" (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): del BLOQUE apilado de hoy
 // (§ SubscriptionCTABloque — texto en una columna, tarjetas de plan en la otra) a una FRANJA
@@ -227,7 +228,9 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
               imagen (siempre más alta que su marco) nunca expone un borde vacío — sea cual sea el
               alto de ESTA sección (chico por diseño), porque el búfer ya no depende de él. */}
           <motion.div className="absolute inset-x-0 top-[-6vh] bottom-[-6vh]" style={{ y: parallaxY }}>
-            <Image src={subscriptionCTA.imagenFondo} alt="" fill sizes="100vw" className="object-cover" />
+            <CampoEditable campo="subscriptionCTA.imagenFondo" tipo="imagen">
+              <Image src={subscriptionCTA.imagenFondo} alt="" fill sizes="100vw" className="object-cover" />
+            </CampoEditable>
           </motion.div>
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)]" />
         </div>
@@ -262,7 +265,7 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
                 transition={preview ? undefined : transicionFadePostal(0)}
                 className={`sf-postal-fade text-xs tracking-[0.2em] uppercase ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,var(--sf-tostado))]"}`}
               >
-                {subscriptionCTA.eyebrow}
+                <CampoEditable campo="subscriptionCTA.eyebrow">{subscriptionCTA.eyebrow}</CampoEditable>
               </motion.p>
             )}
             {/* LA MÁSCARA — `<div>` ESTÁTICO (sin motion, nunca se anima), `overflow-hidden` del alto
@@ -279,7 +282,7 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
                 className={`sf-postal-titulo text-4xl font-playfair ${tieneImagenFondo ? "text-white" : "text-[var(--sf-sobre-banda,white)]"}`}
                 style={displayL ? { fontSize: displayL } : undefined}
               >
-                {subscriptionCTA.titulo}
+                <CampoEditable campo="subscriptionCTA.titulo">{subscriptionCTA.titulo}</CampoEditable>
               </motion.h2>
             </div>
           </div>
@@ -296,14 +299,14 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
               href="/suscripciones"
               className="inline-flex shrink-0 items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5"
             >
-              {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
+              <CampoEditable campo="subscriptionCTA.ctaLabel">{subscriptionCTA.ctaLabel}</CampoEditable> <ArrowRight className="w-4 h-4" />
             </Link>
             {ctaSecundarioHref && (
               <Link
                 href={ctaSecundarioHref}
                 className="inline-flex shrink-0 items-center gap-2 border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 sf-pildora text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
               >
-                {subscriptionCTA.ctaSecundarioLabel}
+                <CampoEditable campo="subscriptionCTA.ctaSecundarioLabel">{subscriptionCTA.ctaSecundarioLabel}</CampoEditable>
               </Link>
             )}
           </motion.div>
