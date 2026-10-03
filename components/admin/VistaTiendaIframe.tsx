@@ -28,7 +28,9 @@ import {
 // LOS MENSAJES del puente (§ EDITOR-TIENDA-POSTMESSAGE-1 / EDITOR-TIENDA-SELECCION-1) — la MISMA
 // forma que valida/emite `EditorPuenteVivo.tsx` del lado del iframe (`lib/storefront/editor-
 // puente.ts`, pura): una sola definición del nombre de cada mensaje, no dos que puedan divergir.
-import { TIPO_MENSAJE_CONTENIDO_SECCION, TIPO_MENSAJE_MODO_NAVEGAR, esMensajeSeccionClick } from '@/lib/storefront/editor-puente';
+import {
+  TIPO_MENSAJE_CONTENIDO_SECCION, TIPO_MENSAJE_MODO_NAVEGAR, esMensajeSeccionClick, esMensajeCampoCambio,
+} from '@/lib/storefront/editor-puente';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
 // Reemplaza las vistas previas sueltas por sección (`VistaTiendaEnVivo`) que montaba cada
@@ -111,10 +113,15 @@ interface VistaTiendaIframeProps {
    *  secciones de la página activa). Ausente = sin padre que notificar (no debería ocurrir fuera de
    *  un test). */
   onSeccionSeleccionada?: (seccion: string) => void;
+  /** § EDITOR-TIENDA-CAMPO-EDITABLE-1 — llamado cuando llega un `postMessage` de "el campo
+   *  flotante cambió" válido (`esMensajeCampoCambio`), con el MARCADOR de sección (igual que
+   *  `onSeccionSeleccionada`, sin resolver todavía) y el campo/valor tal cual. El padre resuelve la
+   *  sección y llama a `TiendaSeccionEditorHandle.escribirCampo(campo, valor)`. */
+  onCampoCambio?: (seccion: string, campo: string, valor: string) => void;
 }
 
 const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeProps>(
-  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada }, ref) {
+  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
     // TOKEN de la restauración EN VUELO (§ el docstring de `onLoad`, abajo): el poll de
@@ -259,12 +266,15 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       const onMessage = (e: MessageEvent) => {
         if (e.origin !== window.location.origin) return;
         if (e.source !== iframeRef.current?.contentWindow) return;
-        if (!esMensajeSeccionClick(e.data)) return;
-        onSeccionSeleccionada?.(e.data.seccion);
+        if (esMensajeSeccionClick(e.data)) { onSeccionSeleccionada?.(e.data.seccion); return; }
+        // § EDITOR-TIENDA-CAMPO-EDITABLE-1 — el tercer mensaje, el campo flotante en vivo. Mismo
+        // chequeo de origen/fuente que el de arriba; `seccion` llega como MARCADOR, sin resolver
+        // todavía (lo hace `TiendaPaginas.tsx`, igual que con la selección).
+        if (esMensajeCampoCambio(e.data)) { onCampoCambio?.(e.data.seccion, e.data.campo, e.data.valor); return; }
       };
       window.addEventListener('message', onMessage);
       return () => window.removeEventListener('message', onMessage);
-    }, [onSeccionSeleccionada]);
+    }, [onSeccionSeleccionada, onCampoCambio]);
 
     useImperativeHandle(ref, () => ({ irASeccion, recargar, enviarCambio }), [irASeccion, recargar, enviarCambio]);
 

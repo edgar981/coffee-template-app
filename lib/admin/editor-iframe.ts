@@ -47,6 +47,26 @@ export function urlDePaginaEnEditor(pagina: PaginaKey): string {
 export const ATRIBUTO_EDITOR_SECCION = 'data-editor-seccion';
 
 /**
+ * EL MARCADOR DE CAMPO (§ EDITOR-TIENDA-CAMPO-EDITABLE-1, docs/editor-tienda/EDICION-INLINE.md
+ * § 2.3): `CampoEditable.tsx` lo escribe con la ruta COMPLETA ("hero.titulo",
+ * "testimonials.items.0.text" — § `parsearRutaCampo`, `lib/storefront/campo-editable.ts`), SÓLO en
+ * modo editor. `EditorPuenteVivo.tsx` lo lee con `closest()` para decidir si un clic abre el campo
+ * flotante, ANTES de mirar `ATRIBUTO_EDITOR_SECCION` (un campo vive DENTRO de una sección marcada,
+ * nunca al revés). Una sola definición del nombre, misma razón que el de sección: que quien lo
+ * escribe y quien lo lee no puedan divergir sobre la cadena literal.
+ */
+export const ATRIBUTO_EDITOR_CAMPO = 'data-editor-campo';
+
+/**
+ * Si el campo es de una sola línea (`'unica'`, un `<input>`) o de varias (`'multiple'`, un
+ * `<textarea>`) — el mismo booleano `multilinea` que `CampoEditable` ya recibe por prop, serializado
+ * a atributo porque el overlay lo necesita leer desde FUERA de React (el click que lo abre llega
+ * por un listener de DOM, no por un handler de React sobre ese nodo). Decide si Enter COMMITEA y
+ * cierra el overlay, o inserta un salto de línea (§ EDICION-INLINE.md § 2.2).
+ */
+export const ATRIBUTO_EDITOR_LINEA = 'data-editor-linea';
+
+/**
  * El marcador de PÁGINA que `app/(storefront)/suscripciones/page.tsx` escribe (literal, fuera de
  * `touches:` de `EDITOR-TIENDA-SELECCION-1` — no se pudo mover a una constante compartida ahí
  * tampoco). `Contenido.tsx` lo usa como ANCLA de detección (§ su docstring): si existe, está dentro

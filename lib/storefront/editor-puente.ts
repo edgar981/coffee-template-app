@@ -94,6 +94,41 @@ export function esMensajeModoNavegar(data: unknown): data is MensajeModoNavegar 
   return m.tipo === TIPO_MENSAJE_MODO_NAVEGAR && typeof m.navegar === 'boolean';
 }
 
+// ─── EL TERCER MENSAJE (§ EDITOR-TIENDA-CAMPO-EDITABLE-1) ──────────────────────────────────────
+//
+// iframe→panel: "el campo flotante de ESTE nodo cambió a este valor" (§ EDICION-INLINE.md § 2.1,
+// "el nodo contentEditable (o el campo flotante) NUNCA es la fuente de verdad"). Emitido por el
+// overlay que vive en `EditorPuenteVivo.tsx` en CADA tecla; recibido por `VistaTiendaIframe.tsx`,
+// que lo reenvía a `TiendaPaginas.tsx` (resuelve `seccion` igual que `TIPO_MENSAJE_SECCION_CLICK`,
+// § `seccionDesdeMarcador`) y de ahí a `TiendaSeccionEditorHandle.escribirCampo()` — el MISMO
+// setter (`cambiar()`) que ya usa el `onChange` del input de la lista, nunca un segundo camino de
+// datos (§ el docstring de `fusionarContenidoSeccion`, abajo, que ya fija este principio para el
+// mensaje panel→iframe; este es el inverso).
+
+export const TIPO_MENSAJE_CAMPO_CAMBIO = 'editor-tienda:campo-cambio' as const;
+
+export interface MensajeCampoCambio {
+  tipo: typeof TIPO_MENSAJE_CAMPO_CAMBIO;
+  /** La sección del REGISTRY a la que pertenece el campo (p. ej. 'hero') — `parsearRutaCampo`
+   *  (`lib/storefront/campo-editable.ts`) ya separó esto de la ruta completa del nodo. */
+  seccion: string;
+  /** El campo RELATIVO dentro de esa sección — plano ('titulo') o de ítem de repeater
+   *  ('items.0.text'), § `fusionCampoEditable`. */
+  campo: string;
+  valor: string;
+}
+
+export function esMensajeCampoCambio(data: unknown): data is MensajeCampoCambio {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return (
+    m.tipo === TIPO_MENSAJE_CAMPO_CAMBIO &&
+    typeof m.seccion === 'string' && m.seccion.trim() !== '' &&
+    typeof m.campo === 'string' && m.campo.trim() !== '' &&
+    typeof m.valor === 'string'
+  );
+}
+
 /**
  * Fusiona el borrador EN VUELO de UNA sección sobre el contenido YA RESUELTO que el storefront
  * tiene en memoria (lo que `getSiteContent()` mandó en el render del servidor, o el resultado de

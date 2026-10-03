@@ -10,6 +10,8 @@ import {
   esMensajeSeccionClick,
   TIPO_MENSAJE_MODO_NAVEGAR,
   esMensajeModoNavegar,
+  TIPO_MENSAJE_CAMPO_CAMBIO,
+  esMensajeCampoCambio,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -147,6 +149,46 @@ test('esMensajeModoNavegar rechaza cosas que no son objetos', () => {
   assert.equal(esMensajeModoNavegar(null), false);
   assert.equal(esMensajeModoNavegar(undefined), false);
   assert.equal(esMensajeModoNavegar(42), false);
+});
+
+// § EDITOR-TIENDA-CAMPO-EDITABLE-1 — el tercer mensaje, iframe→panel para el campo editable.
+
+test('esMensajeCampoCambio acepta la forma correcta', () => {
+  assert.equal(
+    esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'titulo', valor: 'Texto nuevo' }),
+    true,
+  );
+});
+
+test('esMensajeCampoCambio acepta campo de ítem de repeater y valor vacío', () => {
+  assert.equal(
+    esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'testimonials', campo: 'items.0.text', valor: '' }),
+    true,
+  );
+});
+
+test('esMensajeCampoCambio rechaza tipo ausente/distinto', () => {
+  assert.equal(esMensajeCampoCambio({ seccion: 'hero', campo: 'titulo', valor: 'x' }), false);
+  assert.equal(esMensajeCampoCambio({ tipo: 'otra-cosa', seccion: 'hero', campo: 'titulo', valor: 'x' }), false);
+});
+
+test('esMensajeCampoCambio rechaza seccion/campo ausentes, vacíos o no-string', () => {
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, campo: 'titulo', valor: 'x' }), false);
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: '', campo: 'titulo', valor: 'x' }), false);
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', valor: 'x' }), false);
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: '   ', valor: 'x' }), false);
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 3, campo: 'titulo', valor: 'x' }), false);
+});
+
+test('esMensajeCampoCambio rechaza valor ausente o no-string', () => {
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'titulo' }), false);
+  assert.equal(esMensajeCampoCambio({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'titulo', valor: 3 }), false);
+});
+
+test('esMensajeCampoCambio rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeCampoCambio(null), false);
+  assert.equal(esMensajeCampoCambio(undefined), false);
+  assert.equal(esMensajeCampoCambio('hola'), false);
 });
 
 test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el servidor', () => {

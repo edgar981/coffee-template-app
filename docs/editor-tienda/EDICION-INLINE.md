@@ -358,7 +358,7 @@ bueno del owner, después el slice de escritura (igual que todo lo demás de `DI
 
 | # | Slice | Alcance | Criterio de verificación por ejecución |
 | --- | --- | --- | --- |
-| 1 | `EDITOR-TIENDA-CAMPO-EDITABLE-1` | La plomería: `ModoEditorProvider`/`useModoEditorActivo()`, el componente `CampoEditable` (sin overlay todavía — sólo marca el nodo), el TERCER mensaje del puente (`TIPO_MENSAJE_CAMPO_CAMBIO`) y su manejo en `EditorPuenteVivo`/`fusionarContenidoSeccion`. SIN aplicarlo a ninguna sección real todavía. | `npm run gate` verde; `verificar:nayoli:visual`/`guarda:color` sin un píxel nuevo (nada se instrumentó aún); un test de integración que simula el mensaje contra un documento de prueba. |
+| 1 | `EDITOR-TIENDA-CAMPO-EDITABLE-1` **— ENTREGADO, alcance AMPLIADO por encargo del owner, § 8** | La plomería: `ModoEditorProvider`/`useModoEditorActivo()`, el componente `CampoEditable`, el TERCER mensaje del puente (`TIPO_MENSAJE_CAMPO_CAMBIO`) y su manejo en `EditorPuenteVivo`/el panel. **El campo flotante YA SE CONSTRUYÓ en este slice** (no se dejó para el 2: el spec de esta tanda lo pidió completo, § 8) — overlay posicionado/tipografiado desde el nodo real, un solo campo abierto a la vez, Escape/Tab/clic-afuera cierran, Enter commitea en campo de una línea. SIN aplicarlo a ninguna sección real todavía (verificado con dos nodos de ARNÉS inyectados a mano, § 8). | `npm run gate` verde; `verificar:nayoli:visual`/`guarda:color` sin un píxel nuevo; verificado por ejecución (Playwright, sesión real, Escritorio y Teléfono) — ver § 8. |
 | 2 | `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` | Instrumenta **las 4 variantes** de `hero` (Curtina/Ficha/Media/MarquesinaSticky) — el caso con más multiplicidad, primero, para medir el costo real antes de comprometerse al resto. Incluye la MEDICIÓN de legibilidad pendiente (§ 2.2) en los tres anchos de dispositivo. | Verificado por ejecución, sesión real, preset CORTE (que usa variantes no-canónicas): clic en título/subtítulo/CTA en CADA una de las 4 variantes abre el overlay correcto; capturas en Escritorio/Tablet/Teléfono confirmando legibilidad; el campo duplicado de `marquesina`/`HeroMediaMarquesina` NO diverge tras tipear (ambas copias muestran el valor nuevo). |
 | 3 | `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` | El mensaje/flujo de imagen (§ 4): clic en una imagen marcada abre el selector real del panel. | Clic en `hero.imagen` dentro del iframe abre el picker de archivos del sistema; la subida y el resultado se ven sin recargar, igual que hoy desde la lista. |
 | 4 | `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N` | El resto de home/nosotros/suscripciones, UNA o pocas secciones por slice (brandStory, origen, presentaciones×3 variantes, subscriptionCTA×2, testimonials+repeater, spotlight, nosotrosHistoria, nosotrosGaleria+repeater, nosotrosCierre, suscripcionPlanes, suscripcionPasos, suscripcionFaq+repeater) — el orden y el agrupado los decide quien planifique la implementación, no este documento. | Mismo patrón que el slice 2, por sección: todas sus variantes, todos sus campos de texto libre, `verificar:nayoli:visual` sin píxel nuevo. |
@@ -393,3 +393,97 @@ disparador si algún día se deciden.
 DIRECTO sobre la página es diseño NUEVO, pendiente" ahora cierra con *"— diseñado en
 `docs/editor-tienda/EDICION-INLINE.md` (`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`); sigue sin construirse,
 y sigue necesitando su propia aprobación de escritura."*
+
+---
+
+## 8 · Lo que `EDITOR-TIENDA-CAMPO-EDITABLE-1` entregó, y las respuestas de § 7
+
+Aprobado por el owner el 2026-10-02 con las recomendaciones de este mismo documento: empezar por
+`hero` (pregunta 1, § 7 — pero DIFERIDO a `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`, fila 2, sin tocar en
+este slice); los campos selector/pointer abren la sección en la lista, nunca inertes (pregunta 2, § 7
+— sin cambio de código en ESTE slice: ningún campo selector lleva `CampoEditable` todavía, así que la
+respuesta rige para cuando la fila 2+ los toque); nav y pie quedan FUERA (pregunta 3, § 7 — confirmado,
+sin cambio sobre lo ya escrito en § 5).
+
+**El spec de este slice AMPLIÓ el alcance de la fila 1 de § 6.4**: donde la fila decía "sin overlay
+todavía — sólo marca el nodo", el encargo pidió el campo flotante COMPLETO en este mismo slice —
+"the final version got to look like the one from Shopify but with roids" (el pedido del owner que
+autorizó esta tanda). Lo entregado, contra lo planeado:
+
+- **`ModoEditorProvider`/`useModoEditorActivo()`** (`components/storefront/ModoEditor.tsx`): hermano
+  de `SiteContentProvider`, montado en `app/(storefront)/layout.tsx` con el MISMO `enModoEditor` que
+  ya recibe `EditorPuenteVivo`. Tal como planeaba la fila 1.
+- **`CampoEditable`** (`components/storefront/CampoEditable.tsx`): marca el nodo con
+  `data-editor-campo`/`data-editor-linea` SÓLO en modo editor; fuera de él, `children` tal cual. Tal
+  como planeaba la fila 1 — pero el MARCADOR no es lo único construido (ver el punto siguiente).
+- **EL CAMPO FLOTANTE SE CONSTRUYÓ ACÁ, NO EN LA FILA 2.** Vive dentro de
+  `EditorPuenteVivo.tsx` (§ 2.2 de este documento ya anticipaba que podía vivir "en `EditorPuenteVivo`
+  o un componente suyo" — terminó siendo DENTRO del mismo archivo, un sub-árbol JSX portaleado con
+  `createPortal`, no un componente separado, porque `touches:` de este slice no nombraba un archivo
+  nuevo para eso). Mecánica, verificada por ejecución (§ abajo): clic en un nodo marcado (Navegar
+  apagado) mide `getBoundingClientRect()`/`getComputedStyle()` DEL NODO REAL y monta un
+  `<input>`/`<textarea>` con la MISMA geometría/tipografía (`estiloCampoFlotante`, puro,
+  `lib/storefront/campo-editable.ts`); el nodo real pasa a `visibility:hidden` (conserva su layout);
+  un solo campo abierto a la vez (abrir OTRO cierra el anterior, restaurando su `visibility`); Escape/
+  Tab/clic-afuera cierran sin preguntar (cada tecla YA viajó por el puente, así que no hay nada que
+  "descartar"); Enter commitea y cierra en un campo de una línea, inserta salto en uno multilínea.
+  Pegar es SIEMPRE texto plano, GRATIS, por ser un `<input>`/`<textarea>` real (nunca
+  `contentEditable`) — no hizo falta código para esto, confirma lo que § 2.2 ya preveía.
+- **El tercer mensaje** (`TIPO_MENSAJE_CAMPO_CAMBIO`, `lib/storefront/editor-puente.ts`): manda
+  `{seccion, campo, valor}` en CADA tecla, sin debounce propio. `VistaTiendaIframe.tsx` lo reenvía a
+  `TiendaPaginas.tsx` (misma resolución de marcador que ya usa la selección en contexto,
+  `seccionDesdeMarcador`), que llama a `TiendaSeccionEditorHandle.escribirCampo(campo, valor)` — NUEVO
+  en el handle, junto a `seleccionar()` — que abre la sección si estaba cerrada y aplica el MISMO
+  `cambiar()` que ya usa el `onChange` de la lista, con el parcial que arma `fusionCampoEditable`
+  (soporta campo plano Y de ítem de repeater, aunque ningún repeater lo use todavía). El ciclo
+  panel→iframe de `EDITOR-TIENDA-POSTMESSAGE-1` hace el resto: la validación zod contra el schema de
+  guardado ocurre ahí, SIN código nuevo — un campo que el schema no conoce se STRIPEA al volver
+  (comportamiento ya existente de `z.object()`, § CLAUDE.md), nunca se construyó una validación
+  aparte para esto.
+- **"El precio se ignora"**: no hay código que lo decida — es una consecuencia de que NINGÚN campo de
+  precio lleva `CampoEditable` todavía (no hay secciones instrumentadas). La exclusión sigue siendo
+  disciplina de la fila 2+, tal como § 5 ya la declara.
+- **SIN aplicarlo a ninguna sección real**: ni `HeroSection` ni ningún otro componente de
+  `components/storefront/home|nosotros|suscripciones` importa `CampoEditable`. Verificado por grep
+  (cero resultados) y por ejecución: la home pública (sin `?editor=1`) no lleva un solo
+  `[data-editor-campo]` en su HTML.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés ad-hoc en `.scratch/verificar-campo-editable.ts` (no committed): como ninguna sección real usa
+`CampoEditable` todavía, el arnés INYECTA dos nodos de prueba (`data-editor-campo="hero.eyebrow"` /
+`"hero.titulo"`) dentro de `[data-editor-seccion="hero"]` — un ancla real que SIEMPRE existe
+(`ocultable:false`) — y ejercita el mecanismo DOM-puro de `EditorPuenteVivo` sobre ellos, sin tocar
+código de producto. **14/14 verificaciones en verde**, en Escritorio (1280) y Teléfono (393, el ancho
+LITERAL de `EDITOR-TIENDA-DISPOSITIVOS-1`):
+
+| verificación | resultado |
+| --- | --- |
+| fuera de modo editor, la home no lleva `[data-editor-campo]` | 0 nodos |
+| clic en el nodo de prueba abre el overlay (`[data-editor-overlay="hero.eyebrow"]`) | 1 overlay |
+| el nodo real pasa a `visibility:hidden` mientras edita | `hidden` |
+| el overlay alinea al píxel con el nodo real (medido DENTRO del iframe, Escritorio) | Δtop/Δleft/Δwidth/Δheight = 0.00px |
+| el panel abre "hero" en la lista (antes cerrada) | `#hero-eyebrow` aparece |
+| tipear en el overlay llega al input `#hero-eyebrow` del panel, sin recargar el iframe | valor idéntico |
+| clic en OTRO nodo marcado cierra el anterior (restaura `visibility`) y abre el nuevo | viejo=0, nuevo=1 |
+| Escape cierra el overlay y restaura la visibilidad | 0 overlays, `visibility=""` |
+| MISMO mecanismo en Teléfono (393px literal) — overlay alineado al píxel | Δ = 0.00px |
+
+**HALLAZGO DE MÉTODO, del propio arnés (no del mecanismo):** el primer intento midió el overlay con
+`locator(...).boundingBox()` de Playwright (coordenadas de la PÁGINA de arriba, atravesando el
+`transform:scale()` del stage de dispositivo) contra el nodo medido con `getBoundingClientRect()`
+DENTRO del iframe (sin escalar) — dio un Δ de cientos de píxeles que parecía un defecto de
+alineación. Era comparar dos sistemas de coordenadas distintos, no un bug del overlay: medido
+DENTRO del iframe para los dos lados, el Δ es exactamente 0.00px. Corregido antes de reportar nada
+como verde.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3200/3200** (+20 sobre los 3180 previos: 13 de `campo-editable.test.ts`, 6 de los casos nuevos de `editor-puente.test.ts`, 1 de `editor-iframe.test.ts`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` / `npm run verificar:nayoli:visual` | MISMA cifra exacta que el piso ya heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — cero píxeles de drift nuevo |
+
+**Cierra la fila 1 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-1`).**

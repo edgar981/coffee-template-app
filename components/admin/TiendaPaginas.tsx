@@ -77,6 +77,15 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
     if (!secciones.some(c => c.seccion === candidato)) return;
     seccionRefs.current.get(candidato)?.seleccionar();
   }, [secciones]);
+  // § EDITOR-TIENDA-CAMPO-EDITABLE-1 — el campo flotante, MISMA resolución de marcador que la
+  // selección de arriba (un campo vive DENTRO de una sección marcada, así que su mensaje trae el
+  // MISMO marcador de sección). Un marcador que no resuelve a una sección de la página activa se
+  // ignora, nunca lanza — mismo criterio que `manejarSeleccionDesdeIframe`.
+  const manejarCampoCambioDesdeIframe = useCallback((marcador: string, campo: string, valor: string) => {
+    const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
+    if (!secciones.some(c => c.seccion === candidato)) return;
+    seccionRefs.current.get(candidato)?.escribirCampo(campo, valor);
+  }, [secciones]);
 
   // ANGOSTO reusa la pregunta de `useSheetDesdeAbajo` ("¿es una pantalla táctil de una mano?",
   // umbral 960 — § DUNA_MQ_SHEET_ABAJO) para una decisión DISTINTA de la suya (de qué borde sale un
@@ -187,6 +196,7 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
             pagina={pagina}
             dispositivo={dispositivo}
             onSeccionSeleccionada={manejarSeleccionDesdeIframe}
+            onCampoCambio={manejarCampoCambioDesdeIframe}
           />
         </div>
       </div>

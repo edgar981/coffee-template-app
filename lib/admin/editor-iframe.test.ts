@@ -10,6 +10,8 @@ import {
   PARAM_MODO_EDITOR,
   VALOR_MODO_EDITOR,
   ATRIBUTO_EDITOR_SECCION,
+  ATRIBUTO_EDITOR_CAMPO,
+  ATRIBUTO_EDITOR_LINEA,
   MARCADOR_SUSCRIPCIONES,
   ANCHOS_DISPOSITIVO,
   DISPOSITIVO_DEFECTO,
@@ -63,6 +65,11 @@ test('selectorDeSeccion: construye el atributo data-editor-seccion a partir del 
 test('ATRIBUTO_EDITOR_SECCION / MARCADOR_SUSCRIPCIONES: los dos literales que selectorDeSeccion/Contenido.tsx comparten', () => {
   assert.equal(ATRIBUTO_EDITOR_SECCION, 'data-editor-seccion');
   assert.equal(MARCADOR_SUSCRIPCIONES, 'suscripciones');
+});
+
+test('ATRIBUTO_EDITOR_CAMPO / ATRIBUTO_EDITOR_LINEA (§ EDITOR-TIENDA-CAMPO-EDITABLE-1): los literales que CampoEditable.tsx/EditorPuenteVivo.tsx comparten', () => {
+  assert.equal(ATRIBUTO_EDITOR_CAMPO, 'data-editor-campo');
+  assert.equal(ATRIBUTO_EDITOR_LINEA, 'data-editor-linea');
 });
 
 test('seccionDesdeMarcador: la inversa — identidad salvo "featured", que resuelve a spotlight', () => {

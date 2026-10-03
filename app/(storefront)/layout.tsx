@@ -8,6 +8,7 @@ import BackToTop from "@/components/storefront/BackToTop";
 import RielSocial from "@/components/storefront/RielSocial";
 import ScrollInercia from "@/components/storefront/ScrollInercia";
 import EditorPuenteVivo from "@/components/storefront/EditorPuenteVivo";
+import { ModoEditorProvider } from "@/components/storefront/ModoEditor";
 import ToasterTienda from "@/components/storefront/ToasterTienda";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
@@ -171,40 +172,49 @@ export default async function StorefrontLayout({
         {formaCss && <style dangerouslySetInnerHTML={{ __html: formaCss }} />}
         <SiteSettingsProvider value={settings}>
           <SiteContentProvider value={content}>
-            <CartProvider>
-              {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
-                  del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
-                  MISMAS clases (`bg-[var(--sf-fondo)] font-inter`) para no cambiar el aspecto de la tienda. */}
-              <div className="min-h-screen bg-[var(--sf-fondo)] font-inter">
-                <StoreNav />
-                <main>{children}</main>
-                <StoreFooter />
-                <CartDrawer />
-                {/* BackToTop (§ CROMO-VOLVER-ARRIBA-1): montado SIEMPRE, como sus hermanos de arriba
-                    — decide su propio silencio adentro por `content.volverArriba.visible`
-                    (AUSENTE/false → `null`, byte-idéntico). */}
-                <BackToTop />
-                {/* RielSocial (§ CROMO-RIEL-SOCIAL-1): MISMO mecanismo que BackToTop, montado SIEMPRE
-                    — decide su propio silencio adentro por `content.rielSocial.visible` (AUSENTE/false
-                    → `null`, byte-idéntico) y por si `SiteSetting.instagram`/`.whatsapp` están vacíos. */}
-                <RielSocial />
-                {/* ScrollInercia (§ SCROLL-INERCIA-CORTE-1): MISMO mecanismo que BackToTop/RielSocial,
-                    montado SIEMPRE — decide su propio silencio adentro por
-                    `corteAplicado(tema.origenAccion)` (AUSENTE/null → no-op, byte-idéntico). Sin
-                    render propio (`return null` siempre): sólo adjunta/retira listeners de `window`. */}
-                <ScrollInercia />
-                {/* EditorPuenteVivo (§ EDITOR-TIENDA-POSTMESSAGE-1): MISMO mecanismo que BackToTop/
-                    RielSocial/ScrollInercia — montado SIEMPRE, decide su propio silencio adentro por
-                    `enModoEditor` (AUSENTE/false → cero listeners, byte-idéntico). Sin render propio.
-                    Va DENTRO de `<SiteContentProvider>` porque necesita su setter (§ `useSiteContentActualizador`). */}
-                <EditorPuenteVivo activo={enModoEditor} />
-                {/* ToasterTienda (§ TOAST-COMO-PROTOTIPO-1): MISMO mecanismo que BackToTop/RielSocial/
-                    ScrollInercia, montado SIEMPRE — decide su propio estilo adentro por
-                    `corteAplicado(content.tema.origenAccion)`. Es el ÚNICO Toaster de la tienda: el
-                    genérico de `app/layout.tsx` se apaga fuera de admin/pre-auth para dejarle el paso. */}
-                <ToasterTienda />
-              </div>
-            </CartProvider>
+            {/* ModoEditorProvider (§ EDITOR-TIENDA-CAMPO-EDITABLE-1): HERMANO de SiteContentProvider,
+                nunca un campo más de su `Ctx` (§ el docstring de `ModoEditor.tsx` — ese contexto expone
+                `SiteContentData` DIRECTO y lo destructuran ~40 componentes). El MISMO `enModoEditor`
+                que ya recibe `EditorPuenteVivo activo={enModoEditor}` abajo — gratis en cómputo, una
+                sola fuente. `CampoEditable` (y cualquier componente de sección futuro) lo lee con
+                `useModoEditorActivo()`; fuera de modo editor (el 99.99% del tráfico) es `false` y
+                `CampoEditable` devuelve `children` tal cual, sin un byte de más. */}
+            <ModoEditorProvider activo={enModoEditor}>
+              <CartProvider>
+                {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
+                    del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
+                    MISMAS clases (`bg-[var(--sf-fondo)] font-inter`) para no cambiar el aspecto de la tienda. */}
+                <div className="min-h-screen bg-[var(--sf-fondo)] font-inter">
+                  <StoreNav />
+                  <main>{children}</main>
+                  <StoreFooter />
+                  <CartDrawer />
+                  {/* BackToTop (§ CROMO-VOLVER-ARRIBA-1): montado SIEMPRE, como sus hermanos de arriba
+                      — decide su propio silencio adentro por `content.volverArriba.visible`
+                      (AUSENTE/false → `null`, byte-idéntico). */}
+                  <BackToTop />
+                  {/* RielSocial (§ CROMO-RIEL-SOCIAL-1): MISMO mecanismo que BackToTop, montado SIEMPRE
+                      — decide su propio silencio adentro por `content.rielSocial.visible` (AUSENTE/false
+                      → `null`, byte-idéntico) y por si `SiteSetting.instagram`/`.whatsapp` están vacíos. */}
+                  <RielSocial />
+                  {/* ScrollInercia (§ SCROLL-INERCIA-CORTE-1): MISMO mecanismo que BackToTop/RielSocial,
+                      montado SIEMPRE — decide su propio silencio adentro por
+                      `corteAplicado(tema.origenAccion)` (AUSENTE/null → no-op, byte-idéntico). Sin
+                      render propio (`return null` siempre): sólo adjunta/retira listeners de `window`. */}
+                  <ScrollInercia />
+                  {/* EditorPuenteVivo (§ EDITOR-TIENDA-POSTMESSAGE-1): MISMO mecanismo que BackToTop/
+                      RielSocial/ScrollInercia — montado SIEMPRE, decide su propio silencio adentro por
+                      `enModoEditor` (AUSENTE/false → cero listeners, byte-idéntico). Sin render propio.
+                      Va DENTRO de `<SiteContentProvider>` porque necesita su setter (§ `useSiteContentActualizador`). */}
+                  <EditorPuenteVivo activo={enModoEditor} />
+                  {/* ToasterTienda (§ TOAST-COMO-PROTOTIPO-1): MISMO mecanismo que BackToTop/RielSocial/
+                      ScrollInercia, montado SIEMPRE — decide su propio estilo adentro por
+                      `corteAplicado(content.tema.origenAccion)`. Es el ÚNICO Toaster de la tienda: el
+                      genérico de `app/layout.tsx` se apaga fuera de admin/pre-auth para dejarle el paso. */}
+                  <ToasterTienda />
+                </div>
+              </CartProvider>
+            </ModoEditorProvider>
           </SiteContentProvider>
         </SiteSettingsProvider>
       </StorefrontThemeProvider>

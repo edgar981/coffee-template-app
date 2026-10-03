@@ -23,6 +23,7 @@ import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
+import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
 import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
@@ -199,6 +200,13 @@ export interface TiendaSeccionEditorHandle {
   /** Abre esta sección si está cerrada (como "Editar") y la desplaza a la vista dentro de la
    *  columna de la lista — REPETIBLE: cada llamada vuelve a desplazar, a diferencia del deep-link. */
   seleccionar: () => void;
+  /** § EDITOR-TIENDA-CAMPO-EDITABLE-1 — llamado por cada tecla del campo flotante que resuelve a
+   *  ESTA sección. Abre la edición si está cerrada (SIN desplazar — a diferencia de `seleccionar`,
+   *  el dueño ya está mirando el campo DENTRO del iframe, no hace falta llevarle la vista a la
+   *  lista) y aplica el mismo `cambiar()` que usa el `onChange` del input de la lista, vía
+   *  `fusionCampoEditable` (soporta tanto un campo PLANO como uno de ítem de repeater). Un `campo`
+   *  que `fusionCampoEditable` no puede aplicar (ruta inválida, índice fuera de rango) se IGNORA. */
+  escribirCampo: (campo: string, valor: string) => void;
 }
 
 interface TiendaSeccionEditorProps {
@@ -617,6 +625,20 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
   const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; };
 
+  // ── EL CAMPO FLOTANTE (§ EDITOR-TIENDA-CAMPO-EDITABLE-1) — iframe→lista, un campo por tecla ────
+  // Llamado desde `TiendaPaginas` cuando un `TIPO_MENSAJE_CAMPO_CAMBIO` resuelve a ESTA sección
+  // (§ `TiendaSeccionEditorHandle.escribirCampo`, arriba). Abre la edición si estaba cerrada —SIN
+  // desplazar, a diferencia de `seleccionar`: el dueño ya está mirando el campo DENTRO del iframe—
+  // y aplica el MISMO `cambiar()` que el `onChange` de un input de la lista, con el parcial que
+  // `fusionCampoEditable` arma a partir del `form` actual (soporta tanto un campo plano como uno de
+  // ítem de repeater). Un `campo` que no se puede aplicar (ruta inválida, índice fuera de rango) se
+  // IGNORA — el próximo mensaje (la próxima tecla) lo reintenta igual.
+  const escribirCampo = (campo: string, valor: string) => {
+    if (!editando) abrirEdicion();
+    const parcial = fusionCampoEditable((formRef.current ?? {}) as Datos, campo, valor);
+    if (parcial) cambiar(parcial);
+  };
+
   // ── LA SELECCIÓN EN CONTEXTO (§ EDITOR-TIENDA-SELECCION-1) — iframe→lista ─────────────────────
   // `rootRef` apunta a la raíz de CUALQUIERA de las dos ramas de render (la tarjeta cerrada o el
   // encabezado de la edición abierta, § los dos `ref={rootRef}` del render abajo): es lo que
@@ -661,7 +683,11 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // (no está memoizada); incluirla reharía correr este efecto en cada tecla sin razón. Lo que
     // importa es EL PEDIDO (`pedidoExterno`) y si YA está editando (`editando`), ambos en deps.
   }, [pedidoExterno, editando]);
-  useImperativeHandle(ref, () => ({ seleccionar }), [seleccionar]);
+  // `escribirCampo` NO está memoizada (como `cambiar`/`abrirEdicion`, de las que depende): va en las
+  // deps de `useImperativeHandle` igual, así que el handle se recompone en cada render y SIEMPRE
+  // expone la versión fresca — más barato que encadenar `useCallback`s sobre closures que ya de por
+  // sí se redefinen cada render.
+  useImperativeHandle(ref, () => ({ seleccionar, escribirCampo }), [seleccionar, escribirCampo]);
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
