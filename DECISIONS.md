@@ -46394,3 +46394,293 @@ una base efímera) confirma los dos tamaños pedidos por el owner, en los dos mo
 escritorio.
 
 **Cierra `NAV-LOGO-TAMANOS-FINOS-1`.**
+
+## 2026-10-02 — El comprobante del cliente se autoriza con un CÓDIGO privado, no con numero+email (`CHECKOUT-COMPROBANTE-TOKEN-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Observed-report del
+orquestador (`CHECKOUT-COMPROBANTE-CLIENTE-1`): hoy la subida del comprobante del cliente se
+autoriza con `numero_orden` + el correo que escribió al pagar —datos que otra persona puede
+conocer—; con `app/api/checkout/route.ts` ya en el `touches:` (Tier 1, aprobado), un código
+privado entregado al crear la orden reemplaza esa vía. Aprobación del owner, textual: *"Add it to
+the queue."* La aprobación autoriza la escritura, nunca el merge.
+
+Un primer despacho de este slice terminó en un reporte vacío con cambios sin commitear —el
+orquestador los guardó en stash y en `.scratch/wip-comprobante-token.patch`—. Ese WIP se leyó
+como REFERENCIA (nunca aplicado a ciegas): el diseño que proponía —HMAC-SHA256 con separación de
+dominio, formato `numero_orden.vence.firma`, `sessionStorage` + ref en memoria— se verificó pieza
+por pieza contra este spec y resultó correcto; se reescribió a mano para no heredar un estado a
+medias.
+
+### Lo medido ANTES de tocar nada
+
+- `services/checkout.service.ts` confirma que `createOrder` llama a `POST /api/checkout`
+  (`app/api/checkout/route.ts`), nunca a `/api/orders` — el mismo endpoint que
+  `CHECKOUT-COMPROBANTE-CLIENTE-1` midió como fuera de su `touches:`. Con la aprobación de hoy,
+  emitir el código ahí deja de ser un problema de alcance.
+- `lib/pagos/wompi-firma.ts` ya establece el patrón a seguir: `createHash`/`createHmac` +
+  `timingSafeEqual`, el secreto SIEMPRE como parámetro (nunca `process.env` dentro del módulo
+  puro), y un helper `compararConstante` que resuelve el caso de largos distintos ANTES de
+  `timingSafeEqual` (el largo de un sha256 hex es fijo y público, así que no filtra nada). Este
+  slice sigue el mismo patrón, en su propio módulo, con su propio secreto de dominio — no se
+  reusa el comparador de `wompi-firma.ts` por ser un módulo aparte con otro propósito.
+- `BETTER_AUTH_SECRET` ya se lee por nombre en 5 archivos del repo (`prisma/crear-owner.ts`,
+  3 scripts) — ninguno para HMAC; es la primera vez que esta env var firma algo. Por eso la
+  SEPARACIÓN DE DOMINIO no es opcional: una firma de otro propósito (la sesión de Better Auth,
+  o un HMAC futuro que reuse la misma variable) no debe validar acá por accidente, y viceversa.
+
+### El CÓDIGO — formato, vencimiento, separación de dominio
+
+`lib/checkout/comprobante-cliente.ts` gana `emitirCodigoComprobante`/`verificarCodigoComprobante`,
+puras, sin `process.env` (el secreto entra como parámetro, igual que `firmarIntegridadWompi`):
+
+- **Formato**: `numero_orden.vence.firma` (tres partes separadas por `.`), con
+  `firma = HMAC-SHA256(claveFirma(secreto), "numero_orden.vence")`. El `.` nunca aparece en un
+  `numero_orden` (prefijo `CN-` + dígitos) ni en un epoch-ms, así que el `split('.')` es
+  inambiguo; con cualquier otra forma (menos o más de 3 partes, un `vence` no numérico) la
+  verificación devuelve `false` sin excepción.
+- **Clave derivada, no el secreto crudo**: `claveFirma(secreto) = "comprobante-cliente:" + secreto`.
+  Es la SEPARACIÓN DE DOMINIO que el spec pedía — un HMAC calculado con el secreto crudo para
+  OTRO propósito nunca coincide con éste, porque la clave efectiva es distinta. Afirmado con test:
+  un código válido deja de verificar contra un secreto "distinto" (string arbitraria), y contra el
+  secreto correcto pero prefijado distinto (equivalente a una colisión de dominio) también falla
+  — no hay caso en que dos propósitos compartan clave efectiva.
+- **Vencimiento: 24 horas** (`VENCIMIENTO_CODIGO_COMPROBANTE_MS`). Nequi/Daviplata/Bre-B/
+  transferencia pueden tardar minutos u horas en confirmarse del lado del comprador antes de que
+  tenga la foto para subir, y el comprador puede necesitar volver a la MISMA pestaña más tarde
+  (`sessionStorage` sobrevive mientras la pestaña esté abierta). 24h acota sin estrechar ese caso
+  real; un código filtrado (por ejemplo, un log de red capturado) deja de servir al día siguiente.
+  `TODO(cliente)`: el número es razonable, no medido contra un caso real de confirmación lenta.
+- **Comparación en tiempo constante** (`compararConstante`, propio de este módulo — no el de
+  `wompi-firma.ts`, que es de OTRO archivo con OTRO propósito): mismo criterio que el resto del
+  repo, resolver el caso de largos distintos ANTES de `timingSafeEqual`.
+- **`verificarCodigoComprobante` confirma TRES cosas a la vez**: la firma (sin alterar), la
+  pertenencia a la orden que la ruta pide (comparando `ordenFirmada` contra el `numeroOrden` que
+  llegó por la URL — un código de la orden B nunca sirve para la A, porque cambiar el
+  `numero_orden` en el payload invalida la firma), y el vencimiento. Las tres fallan al mismo
+  `false`, sin distinguir cuál — la ruta las trata todas como "orden no encontrada" (ver abajo).
+- **Falla CERRADA sin secreto, en los dos sentidos**: `emitirCodigoComprobante` devuelve `null`
+  sin `BETTER_AUTH_SECRET` (nunca una clave por defecto — el campo de comprobante simplemente no
+  se ofrece en la respuesta), y `verificarCodigoComprobante` devuelve `false` sin secreto (si no
+  hay con qué firmar, tampoco hay con qué verificar). En cualquier despliegue real la variable
+  existe siempre —Better Auth entero depende de ella—, así que las dos ramas son defensivas.
+
+### `OrdenParaComprobanteCliente` pierde `cliente_email`; `coincideEmail` se borra
+
+El correo deja de autorizar NADA en esta ruta. `admiteComprobanteCliente` cambia su primer
+parámetro de `emailDado: string` a `codigoValido: boolean` —la verificación del código ahora la
+hace el LLAMADOR (la ruta), no la función de admisión—, y el motivo `email_no_coincide` se
+renombra a `codigo_invalido`, con el MISMO contrato: la ruta lo trata exactamente como "la orden
+no existe" (mismo 404 genérico, nunca un mensaje distinto — un código roto no distingue "la orden
+no existe" de "la orden existe pero éste no es su código", y no hay por qué dárselo a elegir a
+quien lo intenta). Las otras tres razones (`no_pendiente`, `metodo_no_admite`, `tope_alcanzado`)
+no cambian: para llegar ahí, el código ya probó que es quien creó la orden.
+
+### La ruta — `POST /api/orders/[id]/comprobante-cliente`
+
+`bodySchema` cambia de `{ email: z.string().email() }` a `{ codigo: z.string().min(1) }`. La
+secuencia se mantiene (rate-limit 5/60s por IP, sin cambio → lookup de la orden → validar archivo
+→ contar comprobantes existentes → verificar código → `admiteComprobanteCliente` → `storage.put` →
+`crearComprobante`), sólo cambia QUÉ prueba se evalúa. `verificarCodigoComprobante` se llama con
+`process.env.BETTER_AUTH_SECRET` leído en la ruta (nunca en el módulo puro) y el `numeroOrden` del
+segmento `[id]` — el MISMO valor contra el que se hizo el `findUnique`, así que el código tiene
+que corresponder EXACTAMENTE a la orden de la URL, no a una orden cualquiera del mismo comprador
+(no hay "comprador", sólo "quien tiene el código de ESTA orden").
+
+### `POST /api/checkout` — el código SÓLO en la respuesta a ESTE navegador
+
+`order.numero_orden` ya existe en el `order` que `createOrderWithCustomer` devuelve;
+`emitirCodigoComprobante(order.numero_orden, process.env.BETTER_AUTH_SECRET)` se calcula UNA vez,
+después de que la orden ya se creó y antes de armar la respuesta, y se agrega al JSON con el
+mismo patrón que `wompi` (`...(codigoComprobante ? { codigoComprobante } : {})` — spread
+condicional, nunca un `null` de relleno). Se emite para CUALQUIER método de pago, incluido
+`efectivo`/`wompi`: el servidor que lo VERIFICA (`admiteComprobanteCliente`, en la ruta de
+subida) ya decide si el método de la orden admite comprobante, así que condicionar la emisión acá
+sería una segunda copia de esa decisión — un código de más para una orden que no lo necesita es
+inerte, nunca usable (la ruta de subida lo rechazaría igual por `metodo_no_admite`).
+
+**No se toca nada del eje de pago** (Wompi, el bloque `wompi`, el PATCH de creación de
+transacción): el código de comprobante es un campo adicional e independiente en la misma
+respuesta JSON, calculado antes de la rama de Wompi y agregado después, sin interactuar con ella.
+
+### El checkout — DOS lugares, nunca la URL
+
+`CheckoutResult.codigoComprobante?: string` (`services/checkout.service.ts`) — opcional,
+ausente SÓLO si falta el secreto en el servidor.
+
+`app/(storefront)/checkout/page.tsx`:
+- `codigosComprobanteRef` (un `useRef<Record<string, string>>`, no `useState`): se escribe en el
+  MISMO tick que `setConfirmation(result)` —antes de que React vuelva a renderizar—, así que un
+  `useState` con un closure sobre `confirmation` leería el valor del render ANTERIOR. Clave =
+  `numero_orden`, por si alguna vez coexistieran dos órdenes en la misma carga de página.
+- `sessionStorage`, clave `checkout:codigoComprobante:<numero_orden>` — las dos funciones de
+  storage (`guardarCodigoComprobante`/`leerCodigoComprobante`) van en `try/catch`: en navegación
+  privada/bloqueada, `sessionStorage` puede lanzar, y perderlo ahí sólo baja la resiliencia
+  (queda el ref), nunca debe tumbar el checkout.
+- **Nunca la URL** — confirmado por lectura: `registrarCodigoComprobante` sólo escribe al ref y a
+  `sessionStorage`; ningún `router.push`/`searchParams` del archivo toca el código.
+- `registrarCodigoComprobante(result)` se llama en los DOS sitios donde `setConfirmation(result)`
+  ya se llamaba (el flujo manual de `handleOrder` y `crearOrdenPasarela`, el camino de Wompi) —
+  simétrico, aunque la pasarela nunca ofrece el campo de comprobante: el código queda inerte en
+  sessionStorage para esa orden, sin costo.
+- `intentarSubirComprobante` cambia `form.set('email', info.email)` por
+  `form.set('codigo', codigo)`, con `codigo = codigosComprobanteRef.current[numeroOrden] ??
+  leerCodigoComprobante(numeroOrden)` — el ref primero (fresco, sin problema de closure stale),
+  `sessionStorage` como respaldo. **Si NINGUNO de los dos tiene el código, la función ya NO
+  intenta la subida**: cae directo al estado de error ("No pudimos verificar tu pedido para subir
+  el comprobante.") sin tocar la red — antes, con la vía vieja, un `info.email` vacío todavía
+  viajaba al servidor y volvía con un 404 genérico; ahora el checkout lo sabe de antemano.
+
+### El límite medido, dicho sin rodeos: un reload REAL de la pestaña pierde la pantalla de confirmación
+
+`confirmation` es `useState`, sin persistencia propia, y `cartStore` (`lib/cartStore.tsx`) tampoco
+persiste (`useState` plano, sin `localStorage`). Un `page.reload()` real, por tanto, NO reconstruye
+la pantalla "¡Pedido recibido!" — cae al estado de carrito vacío. El mecanismo de `sessionStorage`
+de este slice no resuelve ESO (reconstruir la confirmación exigiría un endpoint para refetchear el
+resumen de la orden por `numero_orden`, fuera de `touches:`); lo que SÍ resuelve, y es lo que el
+spec pedía textualmente ("para que un reintento... siga funcionando"), es que el CÓDIGO en sí
+sobrevive al reload — confirmado por ejecución (§ abajo): `sessionStorage` da el MISMO valor,
+byte a byte, antes y después de `page.reload()`, en Chromium y en WebKit. Si una tanda futura
+reconstruye la confirmación tras un reload, el código ya está esperando ahí.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3179/3179** (+8, los 8 tests nuevos de `lib/checkout/comprobante-cliente.test.ts` — emisión/verificación del código: válido, sin secreto en emisión, sin secreto en verificación, otra orden, vencido en el borde, 3 variantes de "alterado", secreto distinto; sobre 20 tests totales del archivo, los 12 de `admiteComprobanteCliente`/`aceptaComprobanteCliente`/mensajes se reescribieron en su sitio) |
+| `npm run test:integracion` | **308/308** (+2 sobre 306 — `tests/integracion/comprobante-cliente.test.ts` pasó de 12 a 14 tests: se sumó "código VENCIDO" y "secreto DISTINTO en la verificación"; los 12 restantes se reescribieron para construir el código con `emitirCodigoComprobante` en vez de un correo) |
+| `npm run guarda:color` | **MISMA cifra EXACTA, con el diff aplicado y con el diff revertido** (`ruta-home` 165.052/4.608.000 px AA / 174.711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u — idéntico a lo que `NAV-LOGO-TAMANOS-FINOS-1` ya dejó documentado); los 2 hovers IDÉNTICO (0px). Este slice no agrega ni un píxel de drift — es puro backend/lógica, cero JSX tocado. |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta que `guarda:color`, main vs. rama |
+
+**Reconciliación, hecha a mano** (mismo método que `NAV-LOGO-TAMANOS-FINOS-1`): se corrió
+`guarda:color` con el commit de este slice (`ea61f95`), después se hizo `git checkout` al commit
+PADRE (`1fa3cfd`, detached) y se corrió de nuevo. **Las dos corridas dieron el NÚMERO Y LA CAJA
+EXACTOS en las 8 claves** — el drift es heredado de la rama (`NAYOLI-HOME-DRIFT-RAMA-
+PREEXISTENTE-1` + el crédito de `PIE-HECHO-POR-DUNA-1`), no causado por este diff. Se volvió a la
+rama (`git checkout slice/corte-reescritura-prototipo-1`) sin pérdida de commits.
+
+### Ejecución en el arnés — checkout a 1440 y en iPhone (WebKit), la vía vieja, un código alterado, y el reload
+
+Harness ad hoc (`.scratch/verificar-comprobante-token.mjs`, gitignorado), mismo mecanismo que
+`verificar-nayoli-visual.ts` (Postgres efímero `:55442`, `migrate deploy` + seed canónico,
+`next build`+`next start` de la rama en `:3497`, Playwright aislado — WebKit se instala acá
+porque `cargarPlaywright()` sólo verifica Chromium). `SiteSetting.metodosPago` se configuró con
+un `nequi` completo (psql sobre la base efímera, dato de prueba) para ejercitar el picker.
+
+Flujo por dispositivo (Chromium 1440×900, WebKit `devices['iPhone 13']`): agregar el producto seed
+→ `/checkout` → llenar Información → Pago (Nequi) → elegir el comprobante → "Confirmar pedido" →
+"¡Pedido recibido!" sin bloque de error → leer `numero_orden` → **leer `sessionStorage` y
+confirmar la forma `numero_orden.vence.firma`, con el `numero_orden` correcto** → (sólo en
+desktop, para no chocar con el rate-limit de 5/60s de la ruta, compartido por IP entre los dos
+dispositivos de este mismo arnés) **fetch directo con el campo `email` viejo, sin `codigo` → 404
+"Orden no encontrada"**; **fetch con el código con la FIRMA alterada (un bit del último
+carácter) → 404** → **`page.reload()` → `sessionStorage` da el MISMO código, byte a byte** →
+login OWNER (`admin@sierranativa.co`) → `/admin/pedidos?pedido=<numero>` → "Subido por El
+cliente" visible, sin tocar `Comprobantes.tsx`.
+
+**Reintento SIN reload, en una página aparte**: se intercepta la PRIMERA llamada a
+`comprobante-cliente` con un 500 inyectado (`page.route`, nunca llega al servidor real) →
+"¡Pedido recibido!" con el bloque "Tu pedido quedó registrado, pero no pudimos subir el
+comprobante." + "Reintentar subir el comprobante" → clic en Reintentar → la SEGUNDA llamada
+(MISMO código, desde el ref en memoria, sin recargar la página) pasa al servidor real y el
+bloque de error desaparece. Confirma que `intentarSubirComprobante` reenvía el MISMO código en
+un reintento dentro de la misma carga de página — el caso central que el spec pedía.
+
+**Las DOS órdenes (desktop, iPhone) aparecen en el panel con "1 comprobante sin verificar"
+(ámbar) y "Recibido · … · Subido por El cliente"**, igual que en `CHECKOUT-COMPROBANTE-CLIENTE-1`
+— sin tocar una línea de `Comprobantes.tsx`/`crearComprobante`, ninguno de los dos en `touches:`.
+
+### Hallazgo — el `NOT_FOUND` compartido pierde el CUERPO (no el status) en su segundo uso por proceso
+
+Al correr DOS peticiones que caen en la rama `NOT_FOUND` dentro del MISMO proceso del servidor
+(la vía vieja, luego el código alterado), la PRIMERA devolvió `{error:"Orden no encontrada"}`
+completo y la SEGUNDA devolvió el status 404 correcto pero el CUERPO VACÍO (`texto=""`). La causa
+más probable: `const NOT_FOUND = NextResponse.json(...)` es un ÚNICO objeto a nivel de módulo,
+devuelto desde DOS sitios de la ruta (el fallo de forma del `codigo` y el motivo
+`codigo_invalido`), y el `body` de un `Response`/`NextResponse` es un stream de un solo uso — la
+segunda vez que se ENVÍA el mismo objeto por la red, el stream ya está consumido. **No es un
+defecto de este slice**: el MISMO patrón (`const NOT_FOUND = NextResponse.json(...)`, devuelto
+desde 3 sitios) ya existe, SIN TOCAR, en `app/api/orders/track/route.ts` — un archivo que no está
+en el `touches:` de este slice y que comparte la misma forma. **No es un riesgo de seguridad**: el
+status 404 sigue siendo correcto en los dos casos (la rama de rechazo SÍ corrió), lo único que se
+pierde es el TEXTO del mensaje — el cliente ya tiene un fallback genérico para esa respuesta
+(`data?.error ?? 'No se pudo subir el comprobante.'`). Se anota como `COMPROBANTE-NOT-FOUND-
+SINGLETON-CUERPO-VACIO-1` en los Open follow-ups — corregirlo tocaría `track/route.ts`, fuera de
+`touches:`.
+
+### Deviaciones medidas
+
+- **El vencimiento de 24h** — el spec pedía "decí cuánto y por qué"; no hay una cifra del spec
+  contra la cual desviarse, se midió y se justificó arriba (`TODO(cliente)`).
+- **El formato `orden.vence.firma` con `.` como separador** — el spec no prescribía un formato;
+  se verificó que `.` nunca aparece en un `numero_orden` real (prefijo `CN-` + dígitos) antes de
+  elegirlo.
+- **El WIP abandonado** (`.scratch/wip-comprobante-token.patch`) se usó como REFERENCIA de diseño,
+  no se aplicó con `git apply` — cada pieza se verificó contra este spec y se reescribió a mano.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `emitirCodigoComprobante`, `verificarCodigoComprobante`,
+`VENCIMIENTO_CODIGO_COMPROBANTE_MS`, `codigo_invalido` (`lib/checkout/comprobante-cliente.ts`,
+retiro de `coincideEmail`/`email_no_coincide`/`cliente_email` del tipo); `app/api/orders/[id]/
+comprobante-cliente/route.ts` (bodySchema `codigo`); `app/api/checkout/route.ts`
+(`emitirCodigoComprobante`, el campo `codigoComprobante` en la respuesta); `services/
+checkout.service.ts` (`CheckoutResult.codigoComprobante`); `app/(storefront)/checkout/page.tsx`
+(`codigosComprobanteRef`, `registrarCodigoComprobante`, `guardarCodigoComprobante`,
+`leerCodigoComprobante`, `claveCodigoComprobante`), más los tres `.test.ts`. Grepeados contra
+`CLAUDE.md`: **CERO coincidencias** para cada símbolo y cada ruta —incluidos
+`comprobante-cliente`, `cliente_email`, `BETTER_AUTH_SECRET`, `CheckoutResult`, `/api/orders/
+track`—. `CLAUDE.md` nombra "Comprobantes de pago" en una sección de 70 líneas; se leyó entera (ya
+lo había hecho `CHECKOUT-COMPROBANTE-CLIENTE-1`): ninguna frase afirma CÓMO se autoriza la subida
+SIN sesión, así que ninguna queda falsa por este diff. La línea canónica de Tier 1 no nombra
+`app/api/orders/[id]/comprobante-cliente/route.ts` (ya era así antes de este slice, por la misma
+razón que tampoco nombra a `[id]/comprobantes`: un `Comprobante` es evidencia, no plata). Nada
+queda falso por este diff.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice: `slice/corte-
+reescritura-prototipo-1` trae customer-bytes sin aprobar desde los slices de nav/footer/fotos
+anteriores). **De este COMMIT en particular, `strings: ["No pudimos verificar tu pedido para
+subir el comprobante."]`** — una frase nueva, pero de una rama de error que en un despliegue real
+prácticamente no se alcanza (`BETTER_AUTH_SECRET` siempre está definido, así que el código
+siempre llega con la respuesta de `/api/checkout`; esta rama sólo dispara si, además, el ref Y
+`sessionStorage` fallan los dos al mismo tiempo). Ningún otro byte visible cambia: el campo
+"Comprobante" se ve y se comporta IGUAL —mismo picker, mismo preview, mismo "Confirmar pedido"—;
+lo único que cambia es el valor de un campo OCULTO del `FormData` (`codigo` en vez de `email`) y
+un campo nuevo en la respuesta JSON del servidor que ningún componente renderiza. `approved:
+null` — Nayoli nunca ve esta frase en uso normal, y no hay preset ni default que la toque.
+
+### `schema`/`cross-repo-contract`
+
+No aplica — sin migración, sin columna nueva, sin tocar `schema.prisma` (el código es una firma
+calculada, no un dato persistido). `CheckoutResult.codigoComprobante` es un campo opcional nuevo
+en un wire-shape que sólo consume ESTE repo (el storefront y su propio backend, en el mismo
+proceso Next.js) — no hay otro repositorio que refleje este DTO, así que no es
+`cross-repo-contract`.
+
+### Open follow-ups
+
+- **`COMPROBANTE-NOT-FOUND-SINGLETON-CUERPO-VACIO-1`** (coined acá): el `NOT_FOUND` de
+  `app/api/orders/[id]/comprobante-cliente/route.ts` (y el mismo patrón, sin tocar, en
+  `app/api/orders/track/route.ts`) es un único `NextResponse.json(...)` de módulo devuelto desde
+  varios sitios; medido que la SEGUNDA vez que se envía en el mismo proceso, el cuerpo llega
+  vacío (el status 404 sigue siendo correcto). No se corrige acá: tocar `track/route.ts` está
+  fuera de `touches:` de este slice, y el status correcto ya es suficiente para la seguridad
+  (sólo se pierde el texto del mensaje, con fallback genérico del lado del cliente).
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate).
+  Ajeno a `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — el dispatch lo pide explícito: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec,
+citado arriba); el MERGE de la rama sigue gateado aparte. Gate verde en sus tres capas
+obligatorias (typecheck 0 errores, `npm test` 3179/3179, `npm run test:integracion` 308/308);
+`guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta con y sin este diff (§ la
+reconciliación de arriba) — cero píxeles de drift nuevo, consistente con que el cambio es
+enteramente backend/lógica. Ejecución en el arnés confirma el mecanismo completo —emisión,
+sessionStorage, reload, vía vieja rechazada, código alterado rechazado, reintento sin reload— en
+Chromium 1440 y WebKit iPhone. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `CHECKOUT-COMPROBANTE-TOKEN-1`.**
