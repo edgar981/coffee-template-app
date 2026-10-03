@@ -47222,3 +47222,174 @@ propio arnés corregidos antes de reportar nada. `stopped_on: [customer-bytes]` 
 merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra la fila 2 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`).**
+
+## 2026-10-03 — El clic en imagen/video del hero abre el selector real del panel (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Fila 3 de § 6.4 de
+`docs/editor-tienda/EDICION-INLINE.md`. Mismo pedido del owner, misma autorización que
+`EDITOR-TIENDA-CAMPO-EDITABLE-1`/`-HERO-1` (2026-10-02); el `observed-report` que lo habilita es
+`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`. La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `38cf040`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (0 adelante / 0 atrás de `origin/main`) |
+| los archivos de `touches:` que ya existían | sí — los 12 archivos de código + `docs/editor-tienda/EDICION-INLINE.md` + `DECISIONS.md`, confirmados con `Read`/`grep` antes de escribir |
+| archivo de `touches:` que NO hizo falta tocar | `components/admin/EditorTiendaPantallaCompleta.tsx`: el diseño resultante no necesitó cambiar esa pantalla — el nuevo mensaje se resuelve entero dentro de `TiendaPaginas.tsx`/`TiendaSeccionEditor.tsx` (mismo patrón que el slice anterior dejó `EditorPuenteVivo.tsx`/`campo-editable.ts` sin tocar cuando no hacía falta) |
+| base EFÍMERA para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55447`, seed estándar (`admin@sierranativa.co`) |
+
+### DESVÍO DE DISEÑO MEDIDO, respecto de § 4 de `EDICION-INLINE.md` — un marcador DOM propio, no el mismo que el texto
+
+El documento de diseño recomendaba (sin mandato: era una recomendación de pre-código) reusar
+`data-editor-campo` para imágenes y que el panel decidiera el tipo por el REGISTRY. Medido el
+costo real al construir: eso obligaría a `EditorPuenteVivo.tsx` (storefront) a importar/consultar
+`REGISTRY` (`site-content-defaults.ts`) en CADA clic para saber si el campo resuelto es imagen o
+texto. Se optó por un atributo DOM propio —`ATRIBUTO_EDITOR_CAMPO_IMAGEN = 'data-editor-campo-
+imagen'` (`lib/storefront/campo-editable.ts`)—, declarado una vez por `CampoEditable tipo="imagen"`
+en el punto donde ya se sabe el tipo. Es una decisión de IMPLEMENTACIÓN, no una deviación del
+REQUERIMIENTO (el spec de esta tanda no prescribía el mecanismo interno, sólo el comportamiento
+observable: clic en imagen → selector real).
+
+### DOS DEFECTOS MEDIDOS POR EJECUCIÓN, no previstos por el spec ni por el diseño
+
+**1. El velo decorativo del hero interceptaba el clic.** Las tres variantes con velo
+(`HeroCurtina.tsx`, `HeroMedia.tsx`, `HeroMediaMarquesina.tsx`) lo pintan DESPUÉS del medio, en el
+MISMO `absolute inset-0` — sin `pointer-events-none`, el navegador le entrega el hit-test al velo
+(el último en pintar), nunca al medio debajo. El primer intento de verificación por ejecución no
+producía NI `seccion-click` (código no tocado por este slice) al clickear el hero — el síntoma
+apuntaba a algo mucho más profundo que lo que realmente era. Fix: `pointer-events-none` en el velo
+de las tres variantes (`HeroFicha.tsx` no tiene velo). Cierra de paso un defecto latente: los
+controles nativos de `<video controls>` en reduced-motion tampoco podían recibir clics antes de
+este fix.
+
+**2. El póster, como nodo clickeable APARTE del video, es físicamente inalcanzable.** Con video de
+teléfono configurado (`hayVideoMovil`), el diseño inicial marcaba `hero.imagenPoster` sobre el
+`<picture>` del póster, separado de `hero.imagen` sobre el `<video>` — pero los dos son
+`absolute inset-0` en la MISMA caja y el `<video>` SIEMPRE pinta encima (va después en el DOM): el
+`<picture>` nunca recibe el hit-test, en ningún punto de esa caja. Era un marcador fantasma: existe
+en el DOM, inalcanzable por el puntero. Fix: UN SOLO `<CampoEditable campo="hero.imagen">`
+envolviendo el FRAGMENTO completo (`<picture>` + `<video>`); `hero.imagenPoster` deja de tener
+marcador propio en ese estado. `hero.imagenMovil`/`hero.imagenMovilPoster` heredan la misma
+consecuencia (sin nodo DOM separado al que atarlos) y quedan como DEVIATION CONFIRMADA — fuera de
+alcance resolverlo con JS de media query, ya anotado como tal en § 2.2 del diseño para el caso
+gemelo del `<video>` con `<source media>` múltiples.
+
+Las DOS correcciones viven en los 4 archivos de Hero (ya en `touches:`), con el detalle completo y
+la deviación documentada en `docs/editor-tienda/EDICION-INLINE.md` § 10.
+
+### TRES HALLAZGOS DE MÉTODO DEL ARNÉS (no del mecanismo ni del producto)
+
+1. `locator.click({ position })` dentro de un `<iframe>` cuyo ancestro tiene `transform:scale()`
+   (§ el stage de dispositivo) no traduce el offset — el clic no llega a ningún marcador. El fix
+   del arnés compone el punto a mano (rect del `<iframe>` × la escala real) y clickea con
+   `page.mouse.click` en coordenadas de página.
+2. El medio llena todo el hero y el texto se centra dentro del mismo hero — sus centros de masa
+   casi siempre coinciden, así que el click-al-centro-por-default de Playwright clickea el texto,
+   no la imagen. El arnés elige un punto lejos del bloque de texto (extremo derecho, altura media).
+3. `display:contents` no tiene caja propia (`getBoundingClientRect` da 0×0×0×0) — hay que medir/
+   clickear el descendiente con caja real, nunca el marcador `CampoEditable` mismo.
+
+Ninguno de los tres es un defecto del producto (un clic real de un visitante no pasa por
+`locator.click`/cálculo de coordenadas); los tres están documentados en `EDICION-INLINE.md` § 10
+para que el próximo arnés de este puente no los repita.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-imagen.ts` (no committed, gitignored) contra una build de
+PRODUCCIÓN (`next build` + `next start`). **20/20 verificaciones en verde**, incluida una subida
+REAL a Vercel Blob (el proceso hijo de `next build`/`next start` cargó `.env` por su cuenta —
+confirmado que este mismo proceso de shell NO tiene `BLOB_READ_WRITE_TOKEN` en su `process.env`,
+sin inspeccionar ningún `.env*`) con propagación al iframe SIN RECARGAR, medida por el `postMessage`
+de `editor-tienda:contenido-seccion` trayendo la URL nueva. Detalle completo de las 20
+verificaciones en `EDICION-INLINE.md` § 10 — no se repite la tabla acá.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`, UN comando, árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3232/3232** (+18 sobre los 3214 previos: 4 en `editor-puente.test.ts`, 14 en `campo-editable.test.ts`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: `pointer-events-none` en un degradado decorativo no cambia un solo
+píxel visible; `CampoEditable tipo="imagen"` sigue devolviendo `children` sin envoltorio fuera de
+modo editor; confirmado por el diff de píxeles (dos arneses independientes, misma cifra heredada
+que las dos entradas anteriores de esta rama) y por el arnés de ejecución (0
+`data-editor-campo-imagen` en la home pública).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados contra `CLAUDE.md`: `CampoEditable`/
+`EditorPuenteVivo`/`data-editor-campo`/`abrirSelectorImagen`/`VistaTiendaIframe`/
+`EDITOR-TIENDA-CAMPO-EDITABLE`/`editor-puente`/`ATRIBUTO_EDITOR` → **0** apariciones en todos. `Hero
+Curtina`/`HeroFicha` aparecen 1 vez cada uno, en § Tier 1 (la lista de ejemplos de por qué
+`components/storefront/` entra ENTERO al subárbol protegido) — leída la frase completa, sigue
+siendo VERDAD: los dos archivos siguen siendo variantes del hero viviendo en
+`components/storefront/home/`, y este diff no cambió su rol, sólo agregó marcadores inertes y un
+`pointer-events-none` en un overlay decorativo. `TiendaSeccionEditor`/`TiendaPaginas` aparecen 6 y 4
+veces respectivamente, todas sobre comportamiento que este diff NO tocó (bloques, puente-tarjetas,
+fetch 6→1, selector de página, uploader compartido) — ninguna sentencia quedó falsa.
+`pointer-events` aparece 3 veces, las tres sobre el mecanismo PREEXISTENTE de `EscalaDesktop`/la
+vista previa de paleta (otra superficie, otro propósito) — no afectadas por el `pointer-events-none`
+que este diff agregó al velo del hero.
+
+### Segundo grep — el documento que SÍ cambió (`docs/editor-tienda/EDICION-INLINE.md`)
+
+Los identificadores que este diff agregó/tocó (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`, § 10, la
+fila 3 de § 6.4) se grepearon contra el repo. **Un puntero quedó desactualizado por este cierre**:
+el open-followup de la entrada `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` (arriba, en esta misma
+rama) dice *"Las filas 3-5 de § 6.4 de `EDICION-INLINE.md` (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`,
+`-RESTO-1..N`, `-SESION-1`) siguen pendientes, sin relación con este slice"* — la fila 3 DEJÓ de
+estar pendiente con este commit. Esa entrada vieja NO se reescribe (es append-only, § la misma
+doctrina que la entrada anterior ya aplicó al cerrar la fila 2); esta entrada nueva es la que
+registra que la fila 3 se cerró. Ningún otro `.md` del repo apunta a la fila 3 ni a § 10.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que las tres
+entradas anteriores de la misma rama). **De este COMMIT en particular**: `strings: []` —
+confirmado por EJECUCIÓN en los DOS sentidos: (a) `guarda:color`/`verificar:nayoli:visual` dan la
+cifra EXACTA ya heredada, cero píxeles de drift nuevo en las 6 rutas públicas; (b) el arnés de
+Playwright mide `0` ocurrencias de `data-editor-campo-imagen` en el HTML de la home pública sin
+`?editor=1`. Lo que SÍ cambia son bytes COMPILADOS: el bundle del storefront gana el marcador de
+imagen (inerte, gateado a `ModoEditorProvider`) y el `pointer-events-none` del velo (visualmente
+neutro) en cuatro componentes de sección — capacidad latente, no producto visible. `approved: null`
+— Nayoli no ejercita esta rama de código hasta que el editor visual se use en modo editor real.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo.
+
+### Open follow-ups
+
+- Las filas 4-5 de § 6.4 de `EDICION-INLINE.md` (`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`,
+  `-SESION-1`) siguen pendientes, sin relación con este slice.
+- **El límite de `hero.imagenMovil`/`hero.imagenMovilPoster` sin marcador propio** (§ arriba, "DOS
+  DEFECTOS MEDIDOS") queda documentado en `EDICION-INLINE.md` § 10 como deviation aceptada, no como
+  bug a arreglar: resolverlo exige JS de resolución de media query dentro del click handler, fuera
+  de alcance de este slice y ya anotado como tal en § 2.2 del diseño original.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno
+  a `touches:` de este slice.
+- El blob de prueba subido durante la verificación (`dev/contenido/pixel-prueba-*.png`,
+  namespace `dev/`, aislado de producción por `envPrefijo` — § Storage, `CLAUDE.md`) queda como
+  basura barata en el store de desarrollo, igual que cualquier blob huérfano que la doctrina del
+  repo ya acepta como costo — no se intentó borrar, no hay tooling de borrado en este arnés.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (`npm run gate`: typecheck 0, 3232/3232,
+308/308); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado —
+cero píxeles de drift nuevo. El mecanismo completo (clic → filechooser real, en modo imagen/video/
+video+móvil, con una subida REAL a Blob y propagación sin recargar) verificado por ejecución contra
+una build de producción con sesión real — 20/20 en verde, con tres hallazgos de método del propio
+arnés y dos defectos de hit-test del producto (velo interceptando el clic; póster inalcanzable como
+nodo aparte) corregidos y documentados antes de reportar nada. `stopped_on: [customer-bytes]` —
+`schema` y `cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en
+`AWAITING_APPROVAL` sin merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra la fila 3 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`).**
