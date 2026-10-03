@@ -6,6 +6,7 @@ import { useSiteContentActualizador } from '@/components/storefront/SiteContentP
 import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
+  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK,
 } from '@/lib/storefront/editor-puente';
 // `ATRIBUTO_EDITOR_SECCION`/`ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` son admin-level por
 // historia (nacieron junto a `proxy.ts`/`modo-editor-gate.ts`, § su docstring), pero son literales
@@ -14,7 +15,9 @@ import {
 // escribe (`app/(storefront)/page.tsx`, `nosotros/page.tsx`, `suscripciones/Contenido.tsx`,
 // `CampoEditable.tsx`).
 import { ATRIBUTO_EDITOR_SECCION, ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor-iframe';
-import { parsearRutaCampo, estiloCampoFlotante, type RutaCampo } from '@/lib/storefront/campo-editable';
+import {
+  parsearRutaCampo, estiloCampoFlotante, ATRIBUTO_EDITOR_CAMPO_IMAGEN, type RutaCampo,
+} from '@/lib/storefront/campo-editable';
 
 // EL PUENTE panel→iframe, mitad IMPURA (§ EDITOR-TIENDA-POSTMESSAGE-1). La lógica de forma/fusión
 // vive en `lib/storefront/editor-puente.ts` (pura, testeada sin DOM); este componente es el
@@ -97,6 +100,16 @@ import { parsearRutaCampo, estiloCampoFlotante, type RutaCampo } from '@/lib/sto
 // overlay abierto, POR CONSTRUCCIÓN: el nodo real queda `visibility: hidden` mientras edita, y un
 // elemento no renderizado no puede recibir `:hover` — el overlay, aparte en el DOM (portal), nunca
 // lleva el atributo `[data-editor-campo]` que ese selector CSS apunta. Nada que reconciliar a mano.
+//
+// EL CLIC EN UNA IMAGEN/VIDEO (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1, EDICION-INLINE.md § 4): un
+// nodo marcado `[data-editor-campo-imagen]` (`CampoEditable tipo="imagen"`) se revisa ANTES que
+// `[data-editor-campo]` (texto) — los dos atributos nunca coexisten en el mismo nodo, así que no hay
+// ambigüedad que resolver. En vez de abrir un overlay, manda `TIPO_MENSAJE_CAMPO_IMAGEN_CLICK` (sin
+// `valor`, sólo la ruta) y cierra cualquier overlay de TEXTO que hubiera quedado abierto de un clic
+// anterior — nunca monta un selector de archivos propio: el panel dispara PROGRAMÁTICAMENTE el mismo
+// `<input type="file">` oculto que ya monta el control "Cambiar imagen"/"Cambiar video" de la lista
+// (`TiendaSeccionEditor.abrirSelectorImagen`). El `seccion-click` de abajo se manda IGUAL para este
+// clic (la sección se abre en la lista, como cualquier otro clic dentro de ella).
 const CLASE_SELECCION_ACTIVA = 'duna-editor-seleccion';
 
 /** El estado del ÚNICO campo flotante que puede estar abierto a la vez. `ruta` ya viene PARSEADA
@@ -253,11 +266,26 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       e.preventDefault();
       e.stopPropagation();
 
-      const nodoCampo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO}]`);
-      if (nodoCampo) {
-        abrirCampo(nodoCampo);
-      } else if (campoAbiertoRef.current) {
-        cerrarCampo();
+      // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
+      // arriba): un campo-imagen nunca abre el overlay de texto.
+      const nodoCampoImagen = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO_IMAGEN}]`);
+      if (nodoCampoImagen) {
+        if (campoAbiertoRef.current) cerrarCampo();
+        const rutaAtributo = nodoCampoImagen.getAttribute(ATRIBUTO_EDITOR_CAMPO_IMAGEN);
+        const ruta = rutaAtributo ? parsearRutaCampo(rutaAtributo) : null;
+        if (ruta) {
+          window.parent.postMessage(
+            { tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: ruta.seccion, campo: ruta.campo },
+            window.location.origin,
+          );
+        }
+      } else {
+        const nodoCampo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO}]`);
+        if (nodoCampo) {
+          abrirCampo(nodoCampo);
+        } else if (campoAbiertoRef.current) {
+          cerrarCampo();
+        }
       }
 
       const nodo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_SECCION}]`);

@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { parsearRutaCampo, fusionCampoEditable, estiloCampoFlotante } from './campo-editable';
+import { parsearRutaCampo, fusionCampoEditable, estiloCampoFlotante, ATRIBUTO_EDITOR_CAMPO_IMAGEN } from './campo-editable';
 
 import HeroCurtina from '@/components/storefront/home/HeroCurtina';
 import HeroFicha from '@/components/storefront/home/HeroFicha';
 import HeroMedia from '@/components/storefront/home/HeroMedia';
+import HeroMediaMarquesina from '@/components/storefront/home/HeroMediaMarquesina';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { ModoEditorProvider } from '@/components/storefront/ModoEditor';
 import { ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor-iframe';
@@ -182,3 +183,80 @@ test('HeroCurtina/HeroFicha, CON modo editor: NO existe un marcador "hero.fraseA
     assert.equal(contarMarcador(html, 'hero.fraseAlPie'), 0);
   }
 });
+
+// ─── § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — el campo IMAGEN/VIDEO, en las 4 variantes del hero ──
+//
+// Usa un marcador DISTINTO (`ATRIBUTO_EDITOR_CAMPO_IMAGEN`, no `ATRIBUTO_EDITOR_CAMPO`): un clic ahí
+// nunca abre el overlay de texto. `HeroMediaMarquesina` (la variante "sticky") se afirma ACÁ y no en
+// `lib/config/hero-marquesina.test.ts` —que ya tiene su propia infraestructura de render para esa
+// composición, § EDICION-INLINE.md § 9— porque ese archivo NO está en `touches:` de este slice; el
+// único sitio permitido para afirmar su marcador de imagen es éste.
+
+function contarMarcadorImagen(html: string, campo: string): number {
+  const re = new RegExp(`${ATRIBUTO_EDITOR_CAMPO_IMAGEN}="${campo.replace(/[.]/g, '\\.')}"`, 'g');
+  return (html.match(re) ?? []).length;
+}
+
+function renderMarquesinaSticky(content: SiteContentData, opts: { activo?: boolean } = {}): string {
+  let arbol: React.ReactElement = React.createElement(SiteContentProvider, { value: content, children: React.createElement(HeroMediaMarquesina) });
+  if (opts.activo) arbol = React.createElement(ModoEditorProvider, { activo: true, children: arbol });
+  return renderToStaticMarkup(arbol);
+}
+
+const VARIANTES_HERO_TODAS: { nombre: string; render: (c: SiteContentData, activo: boolean) => string }[] = [
+  ...VARIANTES_SIN_TICKER.map(({ nombre, Componente }) => ({
+    nombre,
+    render: (c: SiteContentData, activo: boolean) => renderVariante(Componente, c, { activo }),
+  })),
+  { nombre: 'HeroMediaMarquesina', render: (c: SiteContentData, activo: boolean) => renderMarquesinaSticky(c, { activo }) },
+];
+
+for (const { nombre, render } of VARIANTES_HERO_TODAS) {
+  test(`${nombre}, SIN modo editor: cero \`data-editor-campo-imagen\` — byte-idéntico`, () => {
+    const html = render(DEFAULTS as SiteContentData, false);
+    assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+  });
+
+  test(`${nombre}, CON modo editor, modo IMAGEN (default): marca \`hero.imagen\` una sola vez`, () => {
+    const html = render(DEFAULTS as SiteContentData, true);
+    assert.equal(contarMarcadorImagen(html, 'hero.imagen'), 1);
+  });
+
+  test(`${nombre}, CON modo editor, modo VIDEO (sin video de teléfono): marca \`hero.imagen\` una sola vez, sin \`hero.imagenPoster\` suelto`, () => {
+    const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, imagenTipo: 'video', imagenPoster: '/images/poster.jpg' } } as unknown as SiteContentData;
+    const html = render(content, true);
+    assert.equal(contarMarcadorImagen(html, 'hero.imagen'), 1);
+    assert.equal(contarMarcadorImagen(html, 'hero.imagenPoster'), 0);
+  });
+}
+
+// SÓLO HeroMedia/HeroMediaMarquesina leen `imagenMovil` (§ EDICION-INLINE.md § 1.1: HeroCurtina/
+// HeroFicha no tienen rama de video de teléfono). CON él presente, el `<picture>` del póster y el
+// `<video>` son `absolute inset-0` en la MISMA caja — MEDIDO por ejecución (Playwright): el
+// navegador siempre entrega el hit-test al `<video>` (pinta encima), nunca al `<picture>`, así que
+// marcarlos como DOS nodos clickeables dejaba al póster como un selector FANTASMA (existe en el DOM,
+// inalcanzable por el puntero). El fix es UN SOLO marcador (`hero.imagen`) para el PAR — `hero.
+// imagenPoster` NO debe tener marcador propio en este estado.
+const VARIANTES_CON_VIDEO_MOVIL: { nombre: string; render: (c: SiteContentData, activo: boolean) => string }[] = [
+  { nombre: 'HeroMedia', render: (c: SiteContentData, activo: boolean) => renderVariante(HeroMedia, c, { activo }) },
+  { nombre: 'HeroMediaMarquesina', render: (c: SiteContentData, activo: boolean) => renderMarquesinaSticky(c, { activo }) },
+];
+
+for (const { nombre, render } of VARIANTES_CON_VIDEO_MOVIL) {
+  test(`${nombre}, CON modo editor, modo VIDEO + video de teléfono: UN SOLO marcador \`hero.imagen\` cubre el PAR picture+video`, () => {
+    const content = {
+      ...DEFAULTS,
+      hero: {
+        ...DEFAULTS.hero,
+        imagenTipo: 'video',
+        imagenPoster: '/images/poster.jpg',
+        imagenMovil: '/images/video-movil.mp4',
+        imagenMovilPoster: '/images/poster-movil.jpg',
+      },
+    } as unknown as SiteContentData;
+    const html = render(content, true);
+    assert.equal(contarMarcadorImagen(html, 'hero.imagen'), 1);
+    // `hero.imagenPoster` NO lleva marcador propio acá — sería un selector fantasma (§ arriba).
+    assert.equal(contarMarcadorImagen(html, 'hero.imagenPoster'), 0);
+  });
+}

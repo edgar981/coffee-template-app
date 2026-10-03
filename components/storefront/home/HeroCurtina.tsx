@@ -117,31 +117,41 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
           //
           // EL PÓSTER ES OTRA COSA — un recurso de imagen aparte, que SÍ puede llevar prioridad; ver
           // el `preload(...)` de ReactDOM más arriba (§ HERO-VIDEO-POSTER-PRIORIDAD-1).
-          <video
-            ref={videoRef}
-            src={hero.imagen}
-            poster={hero.imagenPoster || undefined}
-            muted
-            loop
-            playsInline
-            preload={reproducir ? 'auto' : 'none'}
-            controls={!!reduce && !preview}
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover opacity-40"
-          />
+          <CampoEditable campo="hero.imagen" tipo="imagen">
+            <video
+              ref={videoRef}
+              src={hero.imagen}
+              poster={hero.imagenPoster || undefined}
+              muted
+              loop
+              playsInline
+              preload={reproducir ? 'auto' : 'none'}
+              controls={!!reduce && !preview}
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover opacity-40"
+            />
+          </CampoEditable>
         ) : (
-          <Image
-            src={hero.imagen}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            quality={85}
-            className="object-cover opacity-40"
-          />
+          <CampoEditable campo="hero.imagen" tipo="imagen">
+            <Image
+              src={hero.imagen}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              quality={85}
+              className="object-cover opacity-40"
+            />
+          </CampoEditable>
         )}
 
-        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80" />
+        {/* `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1, MEDIDO por ejecución):
+            este velo decorativo pinta DESPUÉS del medio en el mismo `absolute inset-0`, así que sin
+            esto el navegador le entrega el clic a ÉL, no al `<CampoEditable>` que envuelve el medio
+            —aunque el medio esté "debajo" en el árbol DOM, el VELO gana el hit-test por ser el
+            último en pintar—. Nunca tuvo un propósito interactivo (es sólo un degradado), así que
+            dejarlo pasar el clic no cambia nada para un visitante real. */}
+        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80 pointer-events-none" />
       </div>
 
       <div className={`relative z-10 mx-auto w-full ${contenedorClase}`}>

@@ -18,6 +18,20 @@ export interface RutaCampo {
   campo: string;
 }
 
+// ─── EL MARCADOR DE IMAGEN/VIDEO (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1) ─────────────────────────
+//
+// Un clic en una imagen/video marcado NUNCA abre el overlay de texto — abre el selector de archivos
+// REAL del panel (§ EDICION-INLINE.md § 4). Por eso lleva su PROPIO atributo DOM, distinto de
+// `ATRIBUTO_EDITOR_CAMPO` (el de texto, `lib/admin/editor-iframe.ts`): los dos marcadores nunca
+// compiten por el mismo nodo, y `EditorPuenteVivo.tsx` decide el comportamiento mirando CUÁL de los
+// dos matchea, sin tener que consultar el REGISTRY (`site-content-defaults.ts`) en cada clic.
+//
+// Vive ACÁ y no junto a `ATRIBUTO_EDITOR_CAMPO` en `lib/admin/editor-iframe.ts` porque ese archivo
+// no está en `touches:` de este slice; los dos comparten la MISMA convención de nombre
+// (`data-editor-campo*`), no el mismo módulo — ambos son leídos por `CampoEditable.tsx` (quien los
+// escribe) y `EditorPuenteVivo.tsx` (quien los lee), los dos SÍ en `touches:`.
+export const ATRIBUTO_EDITOR_CAMPO_IMAGEN = 'data-editor-campo-imagen';
+
 /**
  * Parsea la ruta COMPLETA que `CampoEditable` declara (`campo="hero.titulo"` o
  * `campo="testimonials.items.0.text"`) en su sección y su campo relativo — el primer punto separa

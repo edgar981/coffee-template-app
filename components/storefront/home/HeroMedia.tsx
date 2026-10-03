@@ -207,18 +207,49 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
       <div className="absolute inset-0">
         {esVideo ? (
           hayVideoMovil ? (
-            <>
-              {/* EL PÓSTER — `<picture>` nativo (§ el docstring de arriba): va DEBAJO del `<video>`
-                  en el orden del documento. Antes de que el video tenga un frame para pintar, es
-                  TRANSPARENTE y el póster se ve a través; en cuanto pinta, lo cubre — sin fade por
-                  JS, ambos llenan exactamente la misma caja (`absolute inset-0 object-cover`). */}
-              <picture aria-hidden="true" className="absolute inset-0 block">
-                <source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil} />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={hero.imagenPoster || undefined} alt="" className="h-full w-full object-cover" style={estiloPuntoFocal} />
-              </picture>
+            // UN SOLO marcador (`hero.imagen`) para el PAR picture+video (§ EDITOR-TIENDA-CAMPO-
+            // EDITABLE-IMAGEN-1, MEDIDO por ejecución): el `<picture>` del póster va DEBAJO del
+            // `<video>` en el orden del documento —transparente hasta que el video tiene un frame
+            // que pintar, § el comentario de arriba—, y los dos son `absolute inset-0` en la MISMA
+            // caja: el navegador SIEMPRE le da el hit-test al `<video>` (pinta encima), nunca al
+            // `<picture>` — marcar el póster COMO NODO APARTE lo deja clickeable en el DOM pero
+            // INALCANZABLE por el puntero, un selector fantasma. Un solo marcador que cubra el PAR
+            // evita ese fantasma; la ambigüedad desktop/móvil del propio `<video>` (dos `<source
+            // media>` que un clic no puede distinguir sin JS extra) queda documentada en
+            // EDICION-INLINE.md § 2.2 — el campo sigue editable desde la lista en los dos casos.
+            <CampoEditable campo="hero.imagen" tipo="imagen">
+              <>
+                {/* EL PÓSTER — `<picture>` nativo (§ el docstring de arriba): va DEBAJO del
+                    `<video>` en el orden del documento. Antes de que el video tenga un frame para
+                    pintar, es TRANSPARENTE y el póster se ve a través; en cuanto pinta, lo cubre —
+                    sin fade por JS, ambos llenan exactamente la misma caja
+                    (`absolute inset-0 object-cover`). */}
+                <picture aria-hidden="true" className="absolute inset-0 block">
+                  <source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={hero.imagenPoster || undefined} alt="" className="h-full w-full object-cover" style={estiloPuntoFocal} />
+                </picture>
+                <video
+                  ref={videoRef}
+                  muted
+                  loop
+                  playsInline
+                  preload={reproducir ? 'auto' : 'none'}
+                  controls={!!reduce && !preview}
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  style={estiloPuntoFocal}
+                >
+                  {fuentesVideo.map((f) => <source key={f.src} src={f.src} media={f.media} />)}
+                </video>
+              </>
+            </CampoEditable>
+          ) : (
+            <CampoEditable campo="hero.imagen" tipo="imagen">
               <video
                 ref={videoRef}
+                src={hero.imagen}
+                poster={hero.imagenPoster || undefined}
                 muted
                 loop
                 playsInline
@@ -227,36 +258,22 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
                 aria-hidden="true"
                 className="absolute inset-0 h-full w-full object-cover"
                 style={estiloPuntoFocal}
-              >
-                {fuentesVideo.map((f) => <source key={f.src} src={f.src} media={f.media} />)}
-              </video>
-            </>
-          ) : (
-            <video
-              ref={videoRef}
-              src={hero.imagen}
-              poster={hero.imagenPoster || undefined}
-              muted
-              loop
-              playsInline
-              preload={reproducir ? 'auto' : 'none'}
-              controls={!!reduce && !preview}
-              aria-hidden="true"
-              className="absolute inset-0 h-full w-full object-cover"
-              style={estiloPuntoFocal}
-            />
+              />
+            </CampoEditable>
           )
         ) : (
-          <Image
-            src={hero.imagen}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            quality={85}
-            className="object-cover"
-            style={estiloPuntoFocal}
-          />
+          <CampoEditable campo="hero.imagen" tipo="imagen">
+            <Image
+              src={hero.imagen}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              quality={85}
+              className="object-cover"
+              style={estiloPuntoFocal}
+            />
+          </CampoEditable>
         )}
 
         {/* EL VELO — full-height, § comentario de cabecera. Verbatim el de `HeroCurtina.tsx`: oscurece
@@ -264,8 +281,12 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             pie), transparente en el medio — ahí "la media domina". El PIE lee `--sf-velo` (§ CORTE-
             MARQUESINA-VELO-1, `app/globals.css`), la MISMA variable que Marquesina.tsx, para que los
             dos velos coincidan en la juntura — antes eran dos literales de opacidad (`/80` acá, `/70`
-            en la marquesina) que podían divergir sin avisar. */}
-        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-velo)]" />
+            en la marquesina) que podían divergir sin avisar.
+            `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1, MEDIDO por ejecución):
+            sin esto el navegador le entrega el clic a ESTE velo, no al `<CampoEditable>` que
+            envuelve el medio de abajo (pinta DESPUÉS en el mismo `absolute inset-0`, así que gana
+            el hit-test aunque esté "detrás" en el árbol). Nunca tuvo propósito interactivo. */}
+        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-velo)] pointer-events-none" />
       </div>
 
       <div className={`relative z-10 mx-auto w-full ${contenedorClase} pb-12 sm:pb-16 lg:pb-20`}>

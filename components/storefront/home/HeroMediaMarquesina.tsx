@@ -717,17 +717,43 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
         >
           {esVideo ? (
             hayVideoMovil ? (
-              <>
-                {/* EL PÓSTER — `<picture>` nativo (§ el docstring de arriba). Mismo mecanismo que
-                    HeroMedia.tsx: va DEBAJO del `<video>`, transparente hasta que el video tiene un
-                    frame que pintar. */}
-                <picture aria-hidden="true" className="absolute inset-0 block">
-                  <source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil} />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={hero.imagenPoster || undefined} alt="" className="h-full w-full object-cover" style={estiloPuntoFocal} />
-                </picture>
+              // UN SOLO marcador (`hero.imagen`) para el PAR picture+video — mismo defecto medido y
+              // mismo fix que HeroMedia.tsx (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1): los dos son
+              // `absolute inset-0` en la MISMA caja y el `<video>` SIEMPRE gana el hit-test (pinta
+              // encima); marcar el póster como nodo aparte lo dejaba clickeable en el DOM pero
+              // INALCANZABLE por el puntero. La ambigüedad desktop/móvil del `<video>` mismo queda
+              // documentada en EDICION-INLINE.md § 2.2.
+              <CampoEditable campo="hero.imagen" tipo="imagen">
+                <>
+                  {/* EL PÓSTER — `<picture>` nativo (§ el docstring de arriba). Mismo mecanismo que
+                      HeroMedia.tsx: va DEBAJO del `<video>`, transparente hasta que el video tiene
+                      un frame que pintar. */}
+                  <picture aria-hidden="true" className="absolute inset-0 block">
+                    <source media={HERO_VIDEO_MOVIL_MEDIA} srcSet={posterMovil} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={hero.imagenPoster || undefined} alt="" className="h-full w-full object-cover" style={estiloPuntoFocal} />
+                  </picture>
+                  <video
+                    ref={videoRef}
+                    muted
+                    loop
+                    playsInline
+                    preload={reproducir ? 'auto' : 'none'}
+                    controls={!!reduce && !preview}
+                    aria-hidden="true"
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={estiloPuntoFocal}
+                  >
+                    {fuentesVideo.map((f) => <source key={f.src} src={f.src} media={f.media} />)}
+                  </video>
+                </>
+              </CampoEditable>
+            ) : (
+              <CampoEditable campo="hero.imagen" tipo="imagen">
                 <video
                   ref={videoRef}
+                  src={hero.imagen}
+                  poster={hero.imagenPoster || undefined}
                   muted
                   loop
                   playsInline
@@ -736,44 +762,33 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
                   aria-hidden="true"
                   className="absolute inset-0 h-full w-full object-cover"
                   style={estiloPuntoFocal}
-                >
-                  {fuentesVideo.map((f) => <source key={f.src} src={f.src} media={f.media} />)}
-                </video>
-              </>
-            ) : (
-              <video
-                ref={videoRef}
-                src={hero.imagen}
-                poster={hero.imagenPoster || undefined}
-                muted
-                loop
-                playsInline
-                preload={reproducir ? 'auto' : 'none'}
-                controls={!!reduce && !preview}
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-cover"
-                style={estiloPuntoFocal}
-              />
+                />
+              </CampoEditable>
             )
           ) : (
-            <Image
-              src={hero.imagen}
-              alt=""
-              fill
-              priority
-              sizes="100vw"
-              quality={85}
-              className="object-cover"
-              style={estiloPuntoFocal}
-            />
+            <CampoEditable campo="hero.imagen" tipo="imagen">
+              <Image
+                src={hero.imagen}
+                alt=""
+                fill
+                priority
+                sizes="100vw"
+                quality={85}
+                className="object-cover"
+                style={estiloPuntoFocal}
+              />
+            </CampoEditable>
           )}
 
           {/* EL VELO — OPT-IN DESDE RONDA 3 (§ el docstring de cabecera, "EL VELO ES OPT-IN"):
               `hero.veloVisible` decide si este nodo se MONTA. Cuando se monta, mismo `bg-[var(
               --sf-velo)]` de siempre (el color sigue del TOKEN, sin tocar) con su `opacity` siguiendo
-              el scroll — casi transparente en reposo, densa al final del recorrido. */}
+              el scroll — casi transparente en reposo, densa al final del recorrido.
+              `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1, MEDIDO por ejecución):
+              sin esto el navegador le entrega el clic a ESTE velo, no al `<CampoEditable>` que
+              envuelve el medio de abajo — mismo defecto que HeroCurtina/HeroMedia. */}
           {hero.veloVisible && (
-            <motion.div className="absolute inset-0 bg-[var(--sf-velo)]" style={{ opacity: opacidadVelo }} />
+            <motion.div className="absolute inset-0 bg-[var(--sf-velo)] pointer-events-none" style={{ opacity: opacidadVelo }} />
           )}
         </div>
 

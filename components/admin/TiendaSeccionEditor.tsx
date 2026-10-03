@@ -207,6 +207,15 @@ export interface TiendaSeccionEditorHandle {
    *  `fusionCampoEditable` (soporta tanto un campo PLANO como uno de ítem de repeater). Un `campo`
    *  que `fusionCampoEditable` no puede aplicar (ruta inválida, índice fuera de rango) se IGNORA. */
   escribirCampo: (campo: string, valor: string) => void;
+  /** § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — llamado por el clic en una imagen/video marcada que
+   *  resuelve a ESTA sección. Abre la edición si está cerrada (SIN desplazar, mismo criterio que
+   *  `escribirCampo`) y dispara el MISMO flujo de subida que el control equivalente de la lista
+   *  ("Cambiar"/"Cambiar video"/"Cambiar póster" — nunca un selector propio): el `<input type="file">`
+   *  oculto que ese flujo abre sólo existe en el DOM una vez que la sección está en edición, así que
+   *  si había que abrirla, el disparo se DIFIERE al próximo render (§ el comentario de
+   *  `campoImagenPendienteRef`). Un `campo` sin flujo equivalente en el modo actual (p. ej.
+   *  `imagenPoster` fuera de modo video) no hace nada. */
+  abrirSelectorImagen: (campo: string) => void;
 }
 
 interface TiendaSeccionEditorProps {
@@ -639,6 +648,54 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     if (parcial) cambiar(parcial);
   };
 
+  // ── EL CLIC EN IMAGEN/VIDEO (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1) — iframe→lista ───────────
+  // Nunca una segunda implementación de "elegir y subir": dispara el MISMO flujo que su botón
+  // equivalente en la lista (`ponerImagen`/`agregarVideoHero`/`agregarVideoMovilHero`, ya definidos
+  // arriba). Para el HERO, "cambiar la imagen" significa algo distinto según el campo Y el modo
+  // actual (imagen/video) — se resuelve con el MISMO criterio que ya usan los botones de
+  // `renderMediaHero`/`renderMediaHeroMovil`, sin inventar un cuarto camino:
+  //   - `imagen`: en modo imagen, "Cambiar" (`ponerImagen`); en modo video, "Cambiar video"
+  //     (`agregarVideoHero`) — es el elemento que el clic tocó.
+  //   - `imagenPoster`: sólo tiene flujo PROPIO en modo video ("Cambiar póster",
+  //     `ponerImagen('imagenPoster')`); fuera de modo video no existe ese botón, así que no hace nada.
+  //   - `imagenMovil`/`imagenMovilPoster`: comparten el MISMO flujo ("Agregar/Cambiar video para
+  //     teléfono", `agregarVideoMovilHero` — el par se sube siempre junto, § su propio comentario),
+  //     sólo con video de escritorio ya puesto.
+  // Cualquier otro campo-imagen (otras secciones, sin la dualidad del hero) cae al flujo genérico
+  // `ponerImagen(campo)` — el mismo que usaría su botón "Cambiar" en la lista.
+  const dispararSelectorImagen = (campo: string) => {
+    if (subida.subiendo || heroConvirtiendo || heroMovilConvirtiendo) return; // una subida ya en vuelo
+    if (seccion === 'hero') {
+      const esVideo = (formRef.current as Datos | null)?.imagenTipo === 'video';
+      if (campo === 'imagen') { if (esVideo) agregarVideoHero(); else ponerImagen('imagen'); return; }
+      if (campo === 'imagenPoster') { if (esVideo) ponerImagen('imagenPoster'); return; }
+      if (campo === 'imagenMovil' || campo === 'imagenMovilPoster') { if (esVideo) agregarVideoMovilHero(); return; }
+    }
+    ponerImagen(campo);
+  };
+
+  // El `<input type="file">` que `dispararSelectorImagen` dispara SÓLO existe en el DOM dentro de la
+  // rama de EDICIÓN (§ más abajo, "EL PANEL RECESADO"): si la sección estaba cerrada, hay que abrirla
+  // primero y esperar al RE-RENDER donde ese input ya está montado antes de hacer `.click()` —
+  // llamarlo en el MISMO tick que `abrirEdicion()` apuntaría a un ref todavía `null`. Este ref es el
+  // puente entre los dos pasos (abrir → disparar en el próximo render), mismo principio que
+  // `desplazarPendienteRef` usa un poco más abajo para "seleccionar".
+  const campoImagenPendienteRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editando) return;
+    const pendiente = campoImagenPendienteRef.current;
+    if (!pendiente) return;
+    campoImagenPendienteRef.current = null;
+    dispararSelectorImagen(pendiente);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `dispararSelectorImagen` se redefine en
+    // cada render (lee `formRef`/funciones no memoizadas); sólo importa CUÁNDO `editando` pasa a true.
+  }, [editando]);
+
+  const abrirSelectorImagen = (campo: string) => {
+    if (!editando) { campoImagenPendienteRef.current = campo; abrirEdicion(); return; }
+    dispararSelectorImagen(campo);
+  };
+
   // ── LA SELECCIÓN EN CONTEXTO (§ EDITOR-TIENDA-SELECCION-1) — iframe→lista ─────────────────────
   // `rootRef` apunta a la raíz de CUALQUIERA de las dos ramas de render (la tarjeta cerrada o el
   // encabezado de la edición abierta, § los dos `ref={rootRef}` del render abajo): es lo que
@@ -683,11 +740,11 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // (no está memoizada); incluirla reharía correr este efecto en cada tecla sin razón. Lo que
     // importa es EL PEDIDO (`pedidoExterno`) y si YA está editando (`editando`), ambos en deps.
   }, [pedidoExterno, editando]);
-  // `escribirCampo` NO está memoizada (como `cambiar`/`abrirEdicion`, de las que depende): va en las
-  // deps de `useImperativeHandle` igual, así que el handle se recompone en cada render y SIEMPRE
-  // expone la versión fresca — más barato que encadenar `useCallback`s sobre closures que ya de por
-  // sí se redefinen cada render.
-  useImperativeHandle(ref, () => ({ seleccionar, escribirCampo }), [seleccionar, escribirCampo]);
+  // `escribirCampo`/`abrirSelectorImagen` NO están memoizadas (como `cambiar`/`abrirEdicion`, de las
+  // que dependen): van en las deps de `useImperativeHandle` igual, así que el handle se recompone en
+  // cada render y SIEMPRE expone la versión fresca — más barato que encadenar `useCallback`s sobre
+  // closures que ya de por sí se redefinen cada render.
+  useImperativeHandle(ref, () => ({ seleccionar, escribirCampo, abrirSelectorImagen }), [seleccionar, escribirCampo, abrirSelectorImagen]);
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el

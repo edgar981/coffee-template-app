@@ -12,6 +12,8 @@ import {
   esMensajeModoNavegar,
   TIPO_MENSAJE_CAMPO_CAMBIO,
   esMensajeCampoCambio,
+  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK,
+  esMensajeCampoImagenClick,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -189,6 +191,42 @@ test('esMensajeCampoCambio rechaza cosas que no son objetos', () => {
   assert.equal(esMensajeCampoCambio(null), false);
   assert.equal(esMensajeCampoCambio(undefined), false);
   assert.equal(esMensajeCampoCambio('hola'), false);
+});
+
+// § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — el cuarto mensaje, iframe→panel para el clic en imagen/video.
+
+test('esMensajeCampoImagenClick acepta la forma correcta (sin `valor`, a diferencia del campo de texto)', () => {
+  assert.equal(
+    esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: 'hero', campo: 'imagen' }),
+    true,
+  );
+  assert.equal(
+    esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: 'hero', campo: 'imagenPoster' }),
+    true,
+  );
+});
+
+test('esMensajeCampoImagenClick rechaza tipo ausente/distinto', () => {
+  assert.equal(esMensajeCampoImagenClick({ seccion: 'hero', campo: 'imagen' }), false);
+  assert.equal(esMensajeCampoImagenClick({ tipo: 'otra-cosa', seccion: 'hero', campo: 'imagen' }), false);
+  // No se confunde con el mensaje HERMANO (campo-cambio, que SÍ lleva `valor`): un mismo shape salvo
+  // el discriminador no debe pasar por casualidad.
+  assert.equal(esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'imagen', valor: 'x' }), false);
+});
+
+test('esMensajeCampoImagenClick rechaza seccion/campo ausentes, vacíos o no-string', () => {
+  assert.equal(esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, campo: 'imagen' }), false);
+  assert.equal(esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: '', campo: 'imagen' }), false);
+  assert.equal(esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: 'hero' }), false);
+  assert.equal(esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: 'hero', campo: '   ' }), false);
+  assert.equal(esMensajeCampoImagenClick({ tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: 3, campo: 'imagen' }), false);
+});
+
+test('esMensajeCampoImagenClick rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeCampoImagenClick(null), false);
+  assert.equal(esMensajeCampoImagenClick(undefined), false);
+  assert.equal(esMensajeCampoImagenClick('hola'), false);
+  assert.equal(esMensajeCampoImagenClick(42), false);
 });
 
 test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el servidor', () => {

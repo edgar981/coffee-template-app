@@ -80,28 +80,32 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
       {/* Foto a sangre, SIN degradado encima — banda superior en móvil, mitad derecha en desktop. */}
       <div className="relative h-[42vh] w-full shrink-0 lg:h-auto lg:w-1/2">
         {esVideo ? (
-          <video
-            ref={videoRef}
-            src={hero.imagen}
-            poster={hero.imagenPoster || undefined}
-            muted
-            loop
-            playsInline
-            preload={reproducir ? 'auto' : 'none'}
-            controls={!!reduce && !preview}
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
-          />
+          <CampoEditable campo="hero.imagen" tipo="imagen">
+            <video
+              ref={videoRef}
+              src={hero.imagen}
+              poster={hero.imagenPoster || undefined}
+              muted
+              loop
+              playsInline
+              preload={reproducir ? 'auto' : 'none'}
+              controls={!!reduce && !preview}
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          </CampoEditable>
         ) : (
-          <Image
-            src={hero.imagen}
-            alt=""
-            fill
-            priority
-            sizes="(min-width: 1024px) 50vw, 100vw"
-            quality={85}
-            className="object-cover"
-          />
+          <CampoEditable campo="hero.imagen" tipo="imagen">
+            <Image
+              src={hero.imagen}
+              alt=""
+              fill
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              quality={85}
+              className="object-cover"
+            />
+          </CampoEditable>
         )}
       </div>
 

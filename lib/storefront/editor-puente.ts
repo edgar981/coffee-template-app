@@ -129,6 +129,35 @@ export function esMensajeCampoCambio(data: unknown): data is MensajeCampoCambio 
   );
 }
 
+// ─── EL CUARTO MENSAJE (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1) ───────────────────────────────
+//
+// iframe→panel: "el dueño clickeó esta imagen/video" (§ EDICION-INLINE.md § 4). A diferencia del
+// campo de TEXTO (arriba, `TIPO_MENSAJE_CAMPO_CAMBIO`), una imagen NUNCA se edita tecleando dentro
+// del iframe — el mensaje no lleva `valor`, sólo la ruta. El panel abre la sección en la lista (como
+// `TIPO_MENSAJE_SECCION_CLICK`, que el emisor sigue mandando IGUAL para este clic) y dispara
+// PROGRAMÁTICAMENTE el mismo `<input type="file">` oculto que el control "Cambiar imagen"/"Cambiar
+// video" de esa sección ya monta — nunca un selector de archivos propio dentro del iframe: la
+// subida entera (Blob directo, progreso, tope de tamaño) vive SOLO en la lista.
+export const TIPO_MENSAJE_CAMPO_IMAGEN_CLICK = 'editor-tienda:campo-imagen-click' as const;
+
+export interface MensajeCampoImagenClick {
+  tipo: typeof TIPO_MENSAJE_CAMPO_IMAGEN_CLICK;
+  /** La sección del REGISTRY, igual que `MensajeCampoCambio.seccion`. */
+  seccion: string;
+  /** El campo RELATIVO dentro de esa sección — p. ej. 'imagen', 'imagenPoster', 'imagenMovil'. */
+  campo: string;
+}
+
+export function esMensajeCampoImagenClick(data: unknown): data is MensajeCampoImagenClick {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return (
+    m.tipo === TIPO_MENSAJE_CAMPO_IMAGEN_CLICK &&
+    typeof m.seccion === 'string' && m.seccion.trim() !== '' &&
+    typeof m.campo === 'string' && m.campo.trim() !== ''
+  );
+}
+
 /**
  * Fusiona el borrador EN VUELO de UNA sección sobre el contenido YA RESUELTO que el storefront
  * tiene en memoria (lo que `getSiteContent()` mandó en el render del servidor, o el resultado de

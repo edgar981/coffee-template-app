@@ -9,6 +9,7 @@ import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, type DispositivoKey } from '@/lib/admin/editor-iframe';
+import { esMensajeCampoImagenClick } from '@/lib/storefront/editor-puente';
 
 export interface TiendaPaginasProps {
   /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
@@ -85,6 +86,28 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
     const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
     if (!secciones.some(c => c.seccion === candidato)) return;
     seccionRefs.current.get(candidato)?.escribirCampo(campo, valor);
+  }, [secciones]);
+
+  // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — el clic en una imagen/video DENTRO del iframe. Mensaje
+  // CUARTO del puente (`TIPO_MENSAJE_CAMPO_IMAGEN_CLICK`), que a diferencia de los otros TRES no pasa
+  // por `VistaTiendaIframe.tsx` (fuera de `touches:` de este slice, § DECISIONS.md): el iframe lo
+  // manda a `window.parent` —el MISMO `window` donde vive este componente—, así que un listener
+  // PROPIO acá lo recibe exactamente igual que el que ya tiene `VistaTiendaIframe` para los otros
+  // dos, sin tocar ese archivo. Mismo chequeo de ORIGEN que el resto del puente (mismo-origen
+  // SIEMPRE, § EditorPuenteVivo.tsx); sin comparar `e.source` contra el iframe real porque este
+  // componente no tiene esa referencia (sólo el HANDLE imperativo de `VistaTiendaIframe`, que no
+  // expone el nodo DOM) — el chequeo de origen ya es la verificación que la doctrina del puente
+  // exige (mismo-origen implica que sólo este mismo despliegue pudo mandarlo).
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (!esMensajeCampoImagenClick(e.data)) return;
+      const candidato = seccionDesdeMarcador(e.data.seccion) as SeccionVista;
+      if (!secciones.some(c => c.seccion === candidato)) return;
+      seccionRefs.current.get(candidato)?.abrirSelectorImagen(e.data.campo);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
   }, [secciones]);
 
   // ANGOSTO reusa la pregunta de `useSheetDesdeAbajo` ("¿es una pantalla táctil de una mano?",

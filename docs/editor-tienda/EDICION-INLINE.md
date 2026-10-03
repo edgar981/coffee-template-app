@@ -360,7 +360,7 @@ bueno del owner, después el slice de escritura (igual que todo lo demás de `DI
 | --- | --- | --- | --- |
 | 1 | `EDITOR-TIENDA-CAMPO-EDITABLE-1` **— ENTREGADO, alcance AMPLIADO por encargo del owner, § 8** | La plomería: `ModoEditorProvider`/`useModoEditorActivo()`, el componente `CampoEditable`, el TERCER mensaje del puente (`TIPO_MENSAJE_CAMPO_CAMBIO`) y su manejo en `EditorPuenteVivo`/el panel. **El campo flotante YA SE CONSTRUYÓ en este slice** (no se dejó para el 2: el spec de esta tanda lo pidió completo, § 8) — overlay posicionado/tipografiado desde el nodo real, un solo campo abierto a la vez, Escape/Tab/clic-afuera cierran, Enter commitea en campo de una línea. SIN aplicarlo a ninguna sección real todavía (verificado con dos nodos de ARNÉS inyectados a mano, § 8). | `npm run gate` verde; `verificar:nayoli:visual`/`guarda:color` sin un píxel nuevo; verificado por ejecución (Playwright, sesión real, Escritorio y Teléfono) — ver § 8. |
 | 2 | `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` **— ENTREGADO, § 9** | Instrumenta **las 4 variantes** de `hero` (Curtina/Ficha/Media/MarquesinaSticky) — el caso con más multiplicidad, primero, para medir el costo real antes de comprometerse al resto. Incluye la MEDICIÓN de legibilidad pendiente (§ 2.2) en los tres anchos de dispositivo. | Verificado por ejecución, sesión real, preset CORTE (que usa variantes no-canónicas): clic en título/subtítulo/CTA en CADA una de las 4 variantes abre el overlay correcto; capturas en Escritorio/Tablet/Teléfono confirmando legibilidad; el campo duplicado de `marquesina`/`HeroMediaMarquesina` NO diverge tras tipear (ambas copias muestran el valor nuevo) — ver § 9. |
-| 3 | `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` | El mensaje/flujo de imagen (§ 4): clic en una imagen marcada abre el selector real del panel. | Clic en `hero.imagen` dentro del iframe abre el picker de archivos del sistema; la subida y el resultado se ven sin recargar, igual que hoy desde la lista. |
+| 3 | `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` **— ENTREGADO, § 10** | El mensaje/flujo de imagen (§ 4): clic en una imagen marcada abre el selector real del panel. | Clic en `hero.imagen` dentro del iframe abre el picker de archivos del sistema; la subida y el resultado se ven sin recargar, igual que hoy desde la lista. |
 | 4 | `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N` | El resto de home/nosotros/suscripciones, UNA o pocas secciones por slice (brandStory, origen, presentaciones×3 variantes, subscriptionCTA×2, testimonials+repeater, spotlight, nosotrosHistoria, nosotrosGaleria+repeater, nosotrosCierre, suscripcionPlanes, suscripcionPasos, suscripcionFaq+repeater) — el orden y el agrupado los decide quien planifique la implementación, no este documento. | Mismo patrón que el slice 2, por sección: todas sus variantes, todos sus campos de texto libre, `verificar:nayoli:visual` sin píxel nuevo. |
 | 5 | `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1` | El aviso inline de sesión vencida DENTRO del overlay (§ 3). | Reproducido por ejecución: sesión invalidada a mitad de edición → el overlay muestra el aviso, el panel sigue mostrando el suyo, ninguno de los dos pierde el valor ya tecleado. |
 
@@ -581,3 +581,169 @@ texto nítido y legible en los tres anchos — ningún caso de texto cortado, so
 | `npm run guarda:color` / `npm run verificar:nayoli:visual` | MISMA cifra exacta que el piso ya heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — cero píxeles de drift nuevo |
 
 **Cierra la fila 2 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`).**
+
+---
+
+## 10 · Lo que `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` entregó
+
+El flujo de § 4: clic en una imagen o video marcado dentro del iframe abre el selector de archivos
+REAL del panel (nunca uno propio del iframe), la subida corre por el camino de siempre
+(`useSubidaImagen`, Blob directo), y el resultado se ve en el iframe SIN RECARGAR — el mismo ciclo
+`onCambio` → `enviarCambioIframe` → `postMessage` → `fusionarContenidoSeccion` que ya movía el
+campo de TEXTO (§ 8/§ 9), ahora disparado por una subida en vez de un tecleo.
+
+- **Cuarto mensaje del puente** (`TIPO_MENSAJE_CAMPO_IMAGEN_CLICK`, `lib/storefront/editor-
+  puente.ts`): iframe→panel, `{seccion, campo}`, SIN `valor` — una imagen nunca se edita tecleando.
+- **Un marcador DOM PROPIO** (`ATRIBUTO_EDITOR_CAMPO_IMAGEN = 'data-editor-campo-imagen'`,
+  `lib/storefront/campo-editable.ts`), DISTINTO de `ATRIBUTO_EDITOR_CAMPO` (el de texto) — a
+  propósito, y NO lo que § 4 de este documento recomendaba ("mismo atributo que el texto, el panel
+  decide por el REGISTRY"): esa recomendación habría obligado a `EditorPuenteVivo.tsx` a resolver
+  tipos contra el REGISTRY en cada clic; un atributo propio deja que CAMPOEDITABLE declare su tipo
+  una sola vez, en el punto donde ya se sabe (`tipo="imagen"` en el JSX de la sección), y que el
+  puente sólo mire CUÁL de los dos atributos matchea — más simple, afirmable en capa 1 sin tocar el
+  REGISTRY. Documentado como la decisión de implementación que es, no como una desviación del
+  REQUERIMIENTO (el spec de esta tanda no prescribía el mecanismo interno).
+- **`CampoEditable` gana `tipo?: 'texto'|'imagen'`** (default `'texto'`, sin tocar ningún call site
+  existente). Para `'imagen'` envuelve con `<span style="display:contents">` — NUNCA el `<span>`
+  inline del texto: `display:contents` es invisible para el LAYOUT (imprescindible para no romper
+  el `fill` de `<Image>`/el `absolute inset-0` del `<video>`, que exigen que su padre tenga
+  `position`/`display:block`) pero sigue siendo un ancestro válido para `closest()` en el click
+  handler — el mismo patrón que `.puente-tarjetas` (`display:contents`) ya usaba para lo mismo.
+- **`EditorPuenteVivo.tsx`**: el click handler revisa `[data-editor-campo-imagen]` ANTES de
+  `[data-editor-campo]` — un campo-imagen nunca abre el overlay de texto (y cierra uno que hubiera
+  quedado abierto). El `seccion-click` se sigue mandando igual, así que la sección también se abre
+  en la lista — comportamiento ya resuelto por la fila 1, sin tocar.
+- **`TiendaSeccionEditorHandle` gana `abrirSelectorImagen(campo)`** (`TiendaSeccionEditor.tsx`): abre
+  la sección si estaba cerrada (como `escribirCampo`) y dispara el MISMO flujo de subida que el
+  control equivalente de la lista — nunca un selector propio. Para el HERO, el campo Y el modo
+  actual (imagen/video) deciden cuál flujo (`ponerImagen`/`agregarVideoHero`/`agregarVideoMovilHero`
+  — los MISMOS que ya usan los botones "Cambiar"/"Cambiar video" de `renderMediaHero`); cualquier
+  otra sección cae al genérico `ponerImagen(campo)`, dejando el mecanismo listo para la fila 4 sin
+  más cambios acá.
+- **El disparo se DIFIERE un render si la sección estaba cerrada** (`campoImagenPendienteRef` +
+  `useEffect` sobre `editando`): el `<input type="file">` oculto que `ponerImagen`/`agregarVideoHero`
+  disparan sólo existe en el DOM dentro de la rama de EDICIÓN de la cáscara — llamarlo en el MISMO
+  tick que `abrirEdicion()` apuntaría a un ref todavía `null`. Mismo principio que
+  `desplazarPendienteRef` ya usa para "seleccionar" (dos pasos: abrir, y en el render siguiente,
+  actuar).
+- **`TiendaPaginas.tsx` gana su PROPIO listener de `window.addEventListener('message', …)`**
+  para este mensaje — a diferencia de los otros tres, que `VistaTiendaIframe.tsx` centraliza y
+  reenvía por props. `VistaTiendaIframe.tsx` NO está en `touches:` de este slice, así que extenderlo
+  habría sido ensanchar el alcance; el mensaje llega igual porque `window.postMessage` desde el
+  iframe se dispara contra `window.parent` — el MISMO objeto `window` donde vive `TiendaPaginas`,
+  no algo privado de `VistaTiendaIframe` — así que un segundo listener independiente lo recibe sin
+  tocar ese archivo. Mismo chequeo de origen que el resto del puente; sin comparar `e.source` contra
+  el iframe real porque este componente no tiene esa referencia (sólo el handle imperativo de
+  `VistaTiendaIframe`, que no expone el nodo DOM) — el chequeo de origen ya es la verificación que
+  la doctrina del puente exige.
+
+### DEVIACIÓN MEDIDA, encontrada construyendo (no en el spec): el velo del hero interceptaba el clic
+
+Las CUATRO variantes pintan un overlay decorativo ("el velo", un degradado) ENCIMA del medio
+(`<Image>`/`<video>`), en el MISMO `absolute inset-0` de su contenedor, DESPUÉS en el DOM. Sin
+`pointer-events-none`, el navegador le entrega el hit-test al velo —el ÚLTIMO en pintar, en la
+misma caja—, nunca al medio que está debajo: un clic en "la imagen" nunca llegaba al marcador de
+`CampoEditable`. Medido por ejecución (Playwright): el primer intento no producía NI SIQUIERA
+`seccion-click` (que no depende de nada nuevo de este slice) al clickear sobre el hero. Se corrigió
+agregando `pointer-events-none` al velo en las TRES variantes que lo pintan (`HeroCurtina.tsx`,
+`HeroMedia.tsx`, `HeroMediaMarquesina.tsx` — `HeroFicha.tsx` no tiene velo). Es neutro para un
+visitante real: el velo nunca tuvo propósito interactivo, y de hecho esto CIERRA un defecto latente
+—los controles nativos del `<video>` en reduced-motion (`controls={!!reduce}`) tampoco podían
+recibir clics antes de este fix, sin que nadie lo hubiera notado—.
+
+### DEVIACIÓN MEDIDA, encontrada construyendo: el póster NO puede ser un nodo clickeable aparte
+
+El plan inicial (§ 4, y el primer intento de esta implementación) marcaba `hero.imagenPoster` como
+un `<CampoEditable>` PROPIO sobre el `<picture>` del póster, separado del `<video>`, para el caso
+`hayVideoMovil` (video de escritorio + video de teléfono, ambos configurados). **Medido por
+ejecución que es físicamente imposible de alcanzar por clic**: el `<picture>` y el `<video>` son los
+dos `absolute inset-0` en la MISMA caja, y el `<video>` SIEMPRE pinta encima (va después en el DOM)
+— el navegador le entrega el hit-test al video, nunca al picture, en TODO punto de esa caja. Un
+marcador de `hero.imagenPoster` ahí era un selector FANTASMA: existe en el DOM, inalcanzable por el
+puntero (y Playwright lo habría rechazado con "element is covered" si se hubiera forzado el click
+exacto sobre el `<img>`). El fix: UN SOLO `<CampoEditable campo="hero.imagen">` envolviendo el
+FRAGMENTO completo (picture + video) — `CampoEditable` ya acepta cualquier `ReactNode` como
+children, no sólo un elemento único, así que envolver un `<>…</>`  no pidió cambiar el componente.
+La ambigüedad resultante (clic en esa caja siempre abre el flujo de ESCRITORIO, nunca el de
+teléfono) es la misma que § 2.2 de este documento ya aceptaba por escrito para el `<video>` con
+`<source media>` múltiples — no es nueva, sólo se confirma que también aplica al póster.
+
+### DEVIACIÓN MEDIDA: `hero.imagenMovil`/`hero.imagenMovilPoster` NO ganan marcador propio
+
+Consecuencia directa de la deviación anterior: como el `<picture>`/`<video>` del caso `hayVideoMovil`
+comparten UN marcador (`hero.imagen`), no existe un nodo DOM separado al que atar
+`hero.imagenMovil`/`hero.imagenMovilPoster`. Resolver esto por viewport (qué `<source media>` está
+activo) exigiría JS de resolución de media query en el click handler — EXPLÍCITAMENTE fuera de
+alcance, ya anotado en § 2.2: "dos `<source media>` en el mismo nodo no se pueden distinguir por
+clic sin JS extra". El campo sigue siendo editable desde el formulario de la lista, como siempre; el
+clic inline sólo alcanza `hero.imagen`/`hero.imagenPoster` (los dos en el caso `hayVideoMovil`,
+fusionados en uno).
+
+### HALLAZGOS DE MÉTODO DEL ARNÉS (no del mecanismo) — para que el próximo arnés de este puente no los repita
+
+1. **`locator.click({ position })` dentro de un `<iframe>` cuyo ANCESTRO tiene `transform:scale()`
+   (§ el stage de dispositivo, `EDITOR-TIENDA-DISPOSITIVOS-1`) no traduce el offset.** Medido: con
+   `position` explícito el clic no llegaba a NINGÚN marcador — ni siquiera `seccion-click`, que no
+   depende de nada nuevo de este slice. El click al CENTRO por DEFAULT (sin `position`, el que ya
+   usaba la fila 1/2 para el campo de texto) sí llega. El fix del arnés: componer el punto a mano
+   (rect del `<iframe>` en la página de arriba × la escala real) y clickear con `page.mouse.click`
+   en coordenadas de PÁGINA, nunca de frame. No afecta a un visitante real —no hay Playwright de
+   por medio—, y no afecta al click por defecto (sin `position`) que la fila 1/2 ya verificó.
+2. **El medio llena TODO el hero y el texto se centra DENTRO del mismo hero** (`items-center`/
+   `items-end`) — sus centros de masa casi siempre coinciden. Clickear "la imagen" en su centro
+   (el default de Playwright) clickea en realidad el texto que pinta encima. El arnés clickea un
+   punto lejos del bloque de texto (angosto, `max-w-xl/2xl`): extremo derecho, altura media.
+3. **`display:contents` no tiene caja propia** — `getBoundingClientRect()` da 0×0×0×0, así que hay
+   que medir/clickear el DESCENDIENTE con caja real (`<img>`/`<video>`), nunca el marcador
+   `CampoEditable` mismo.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-imagen.ts` (no committed, gitignored), contra una build de
+PRODUCCIÓN (`next build` + `next start`) con sesión real (`admin@sierranativa.co`). **20/20
+verificaciones en verde**:
+
+| verificación | resultado |
+| --- | --- |
+| SANITY: el campo de texto (slice anterior) sigue abriendo su overlay | sí |
+| MODO IMAGEN (curtina, default del seed): clic en `hero.imagen` dispara un `filechooser` REAL | sí |
+| el `<input>` disparado acepta `ACCEPT_IMAGENES` ("image/jpeg,image/png,image/webp") | sí |
+| el clic en la imagen NO abre ningún overlay de texto | 0 overlays |
+| la sección "Portada" se abre sola (el input oculto sólo existe en edición) | sí |
+| seleccionar un archivo REAL — subida completa a Vercel Blob | URL `*.public.blob.vercel-storage.com/dev/contenido/...` |
+| la subida se ve SIN RECARGAR — el `<img>` del iframe cambia de `src` vía `postMessage` | sí, sin navegación |
+| MODO VIDEO (fijado por SQL, `.scratch/set-hero-imagen.ts`): clic en `hero.imagen` dispara filechooser — "Cambiar video", no "Cambiar imagen" | sí |
+| el `<input>` disparado acepta `ACCEPT_VIDEO` ("video/\*"), no el de imagen | sí |
+| sin video de teléfono: NO hay marcador suelto `hero.imagenPoster` (vive en el atributo `poster=`) | 0 |
+| MODO VIDEO + video de TELÉFONO: UN SOLO marcador `hero.imagen` cubre el PAR picture+video | sí |
+| ese marcador dispara el flujo de VIDEO (ambigüedad desktop/móvil documentada) | `accept="video/*"` |
+| `hero.imagenMovil` NO tiene marcador DOM propio (deviation confirmada) | 0 |
+| fuera de modo editor, la home pública NO lleva `data-editor-campo-imagen` | 0 |
+
+**Sobre Blob real:** este proceso de shell no tiene `BLOB_READ_WRITE_TOKEN` en su propio
+`process.env` (confirmado sin inspeccionar ningún `.env*`, por instrucción del dispatch), pero
+`next build`/`next start` cargan `.env` por su cuenta (Next.js lo hace siempre) — así que el
+PROCESO HIJO (la build real) sí tuvo el token, y la verificación de MODO IMAGEN completó una subida
+REAL a Vercel Blob (namespace `dev/`, aislado de producción por `envPrefijo`, § Storage de CLAUDE.md)
+con propagación en vivo confirmada por el `postMessage` de tipo `editor-tienda:contenido-seccion`
+trayendo la URL nueva. No fue necesario mockear nada del protocolo de Blob.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`, UN comando, árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3232/3232** (+18 sobre los 3214 previos: 4 en `lib/storefront/editor-puente.test.ts` — `esMensajeCampoImagenClick` —, 14 en `lib/storefront/campo-editable.test.ts` — el marcador de imagen en las 4 variantes × 3 escenarios, más el caso picture+video fusionado) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: `CampoEditable` sigue devolviendo `children` sin envoltorio fuera de
+modo editor (ahora en las dos ramas, texto e imagen); `pointer-events-none` en el velo no cambia un
+solo píxel visible (es un degradado transparente de por sí); las cuatro variantes quedan
+byte-idénticas fuera del iframe del editor, confirmado por el diff de píxeles (dos arneses
+independientes, misma cifra heredada) y por el arnés de ejecución (0 `data-editor-campo-imagen` en
+la home pública).
+
+**Cierra la fila 3 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1`).**
