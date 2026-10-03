@@ -45837,3 +45837,248 @@ re-confirmándose sin cambio desde hace muchos slices, medido como ajeno a este 
 argumentos independientes (§ Gate). Commiteado en `slice/corte-reescritura-prototipo-1` (`493106a`).
 
 **Cierra `FILTRAR-SIN-BOTON-APLICAR-1`.**
+
+## 2026-10-02 — El pie de las tres tiendas gana "Hecho por Duna", apagable por sección (`PIE-HECHO-POR-DUNA-1`)
+
+Pedido del owner (2026-10-02): *"None of the pages have a 'made by duna' or by duna, or something
+similar, should we use it? I've seen it in pages."* El orquestador propuso texto "Hecho por Duna",
+enlace a duna.solutions, línea discreta en la franja baja del pie, interruptor por tienda en la
+sección Pie del panel ENCENDIDO por defecto, las tres tiendas — el owner respondió "Encola".
+**`approval-reason` autoriza la ESCRITURA, nunca el merge** — el dispatch pide parar en
+`AWAITING_APPROVAL`.
+
+### El mecanismo: un BOOLEANO de sección, mismo patrón que `hero.ctasVisibles`
+
+`FooterContent` gana `creditoDunaVisible: boolean` (`lib/config/site-content-defaults.ts`). El
+nombre sigue la convención YA establecida del archivo —`titularVisible`/`subtituloVisible`/
+`veloVisible`, sufijo `Visible`— y NO `mostrarCreditoDuna`: es el único patrón que este archivo usa
+para un switch true/false de sección, y usar uno distinto habría sido la DIVERGENCIA que este mismo
+archivo existe para no tener (§ el mecanismo `def.booleanos` de `resolverSiteContent`).
+
+- **`REGISTRY.footer.booleanos: ['creditoDunaVisible']`** — el campo entra al lado "leído por la
+  tienda" de `panel-controles.ts` (`camposDeSeccion`) por el MISMO mecanismo que cualquier otro
+  booleano de sección, sin tocar el resolver.
+- **`DEFAULTS.footer.creditoDunaVisible: true`** — las TRES tiendas (Nayoli incluida) nacen con el
+  crédito visible, byte-idéntico sin fila (el loader SOFT de `SiteContent`).
+- **`footerEditableSchema` (site-content-schema.ts) gana `creditoDunaVisible: z.boolean().optional()`**
+  — sin esto, zod lo STRIPPEA en silencio al guardar (§65-B, la trampa ya documentada en este
+  archivo para cualquier campo nuevo de una sección existente).
+- **`CONTROLADOS_FOOTER_SECCION` (panel-controles.ts) gana `'footer.creditoDunaVisible'`** — control
+  DE ENTRADA, en el mismo commit que lo suma al REGISTRY: nunca pasa por `PENDIENTE_PANEL`. El
+  trinquete de `PENDIENTE_PANEL` (11) no se mueve.
+- **Texto y destino son FIJOS, nunca dato de tenant.** El switch sólo decide si la línea se
+  renderiza — no hay campo para editar "Hecho por Duna" ni la URL. Es la única sección del REGISTRY
+  cuyo default beneficia a la PLATAFORMA antes que al cliente, y por eso el apagado existe: un
+  cliente que no lo quiera lo apaga desde el panel, sin tocar código.
+
+### El panel: `FooterSeccion.tsx` gana un switch más
+
+Mismo patrón `role="switch"` + `.duna-switch` que `buscarMovil` en `EncabezadoSeccion.tsx` — un
+botón con `aria-checked`, sin inventar un componente nuevo. Ubicado en la sección de edición, antes
+de "Enlaces legales (opcional)" (misma franja conceptual: las dos cosas viven en la bottom bar del
+pie). Viaja por el mismo autoguardado/borrador→publicar que el resto de la sección — no es un
+camino de escritura nuevo.
+
+### El storefront: UN componente compartido, NUNCA duplicado entre variantes
+
+`StoreFooter.tsx` tiene DOS variantes (`FooterColumnas`/`'franjas'`, la canónica; `FooterApilado`/
+`'apilado'`, la del muestrario), y las dos repiten su "Bottom Bar" byte a byte. Un `CreditoDuna()`
+único, montado `{footer.creditoDunaVisible && <CreditoDuna />}` dentro del MISMO `<p>` del
+copyright en las DOS variantes — así las dos no pueden divergir sobre qué dice o adónde enlaza.
+
+- **Va INLINE dentro del `<p>` existente, no en un slot de flex nuevo.** El spec pide "en el
+  teléfono, sin empujar ni partir el resto": agregar un hijo más al `flex justify-between` de la
+  bottom bar habría re-arreglado la fila a 3 elementos y roto esa garantía. Apendizado al párrafo
+  del copyright, el texto simplemente FLUYE (confirmado en la captura de iPhone 13: envuelve a su
+  propia línea dentro del mismo párrafo, sin mover los enlaces legales ni el layout).
+- **El tono es el YA establecido de esa franja — hereda `/30`, sin token nuevo.** El `<a>` no
+  declara `color` propio, sólo `hover:text-[var(--sf-sobre)]/60` (el MISMO valor de hover que ya
+  usan los enlaces legales de al lado) — hereda por cascada CSS de `text-[var(--sf-sobre)]/30` del
+  contenedor de la bottom bar. Es el tono "suave" que el spec pide, reusando el rol existente en vez
+  de inventar uno — y por construcción no puede desalinearse del resto de esa franja.
+- **`target="_blank"` + `rel="noopener"`** — mismo patrón que los demás enlaces externos del
+  storefront (ej. WhatsApp del footer, íconos sociales).
+
+### El contraste — MEDIDO con los colores COMPUTADOS por el navegador, no los hex de la fuente
+
+Arnés throwaway (`.scratch/capturar-credito-duna.mjs`, Postgres efímero + `migrate deploy` +
+`prisma/seed.ts` [+ `aplicarPreset(CORTE)` para el segundo tema] + `next build`/`next start` +
+Playwright). Se leyó `getComputedStyle` del `<a>` y del `<footer>` DESPUÉS de renderizar — no se
+asumió el hex de `globals.css` — porque Tailwind v4 compila `text-[var(--sf-sobre)]/30` a
+`color-mix(in oklab, …)`, y Chromium reporta el computado como `oklab(L a b / alpha)`, no `rgba()`.
+Se escribió un conversor oklab→sRGB (fórmula de referencia, Björn Ottosson) para componer el color
+real contra el fondo del `<footer>` y calcular el contraste WCAG (luminancia relativa).
+
+| tema | `--sf-tinta` (fondo del pie) | color computado del crédito | contraste medido |
+| --- | --- | --- | --- |
+| Nayoli (sin preset) | `rgb(26,15,8)` (= `#1a0f08`, el default de `globals.css`) | `oklab(0.999994 … / 0.3)` (blanco compuesto a `/30`) | **2.66:1** |
+| CORTE | `rgb(16,36,7)` (= `#102407`, la raíz `tinta` del preset) | ídem | **2.68:1** |
+
+**El número es bajo frente al piso AA de texto normal (4.5:1), y es DELIBERADO, no un descuido: es
+EXACTAMENTE el mismo tono que ya lleva el copyright y los enlaces legales de esa misma franja** —el
+spec pidió "en el tono suave del texto (sus tokens — nada de colores fijos)", y ésa es la definición
+operativa de "suave" que ya existe en el componente. `--sf-sobre` es un token FIJO (`#ffffff`,
+globals.css, "texto sobre TINTA… footer, botones, nav… su default de :root es correcto" — doctrina
+ya escrita, no tocada por este slice) — no deriva de la paleta por tema, así que el número apenas
+varía entre Nayoli y CORTE (2.66 vs 2.68) aunque sus tintas sean colores muy distintos (café oscuro
+vs. verde oscuro): la franja baja del pie es oscura por diseño en TODO tema, por construcción. No
+se sube el contraste del crédito por separado del resto de esa franja — hacerlo lo destacaría MÁS
+que el copyright que lo acompaña, que es lo contrario de "discreto".
+
+### Lo verificado por EJECUCIÓN, las 8 combinaciones (2 temas × 2 viewports × on/off)
+
+Capturas en `.scratch/credito-duna-{nayoli,corte}-{1440,iphone13}-{on,off}.png` (gitignored, no
+comiteadas). Confirmado visualmente en las 8:
+
+- **ENCENDIDO** (default): la línea "· Hecho por Duna" aparece al final del copyright, en las dos
+  resoluciones y los dos temas; en iPhone 13 WebKit ENVUELVE a su propia línea dentro del mismo
+  párrafo, sin desplazar ni partir "Tienda/Ayuda/Empresa" ni los enlaces legales.
+- **APAGADO** (`creditoDunaVisible:false`, escrito por el camino REAL del panel —
+  `guardarBorrador`+`publicarSeccion('footer')`, el mismo que usa `FooterSeccion.tsx`, no un mock):
+  la línea desaparece SIN dejar hueco — el párrafo del copyright vuelve a su alto de una sola línea
+  en escritorio. Confirmado también por contenido: el HTML servido deja de contener la cadena
+  `"duna.solutions"`.
+- **Las dos variantes de composición** (`'franjas'`/canónica y `'apilado'`/muestrario) heredan el
+  gate — cubierto en el carril (`footer-tema.test.ts`, abajo), no sólo por ejecución manual.
+
+### `guarda:color`/`verificar:nayoli:visual` — el pie de Nayoli CAMBIA, nombrado y aislado
+
+`creditoDunaVisible` nace `true` para las TRES tiendas, así que el pie de NAYOLI (el único con
+fixture commiteado) cambia de verdad — es el cambio que el owner pidió, no un efecto colateral.
+**`tests/visual/nayoli/*.png` NO está en `touches:` de este slice**, y la propia doctrina de
+`guarda-color.ts` dice que regenerar el fixture es *"decisión del owner — corre…
+`--generar-fixture` a mano, nunca en silencio desde esta guarda"*: se decidió a propósito NO
+regenerarlo acá (se probó una vez para confirmar el mecanismo —ver abajo— y se revirtió con `git
+checkout -- tests/visual/nayoli/` antes del commit). El gate de este slice reporta la DIFERENCIA,
+no la esconde regenerando el fixture por su cuenta.
+
+Medido (`npm run guarda:color`, rama actual vs. el fixture YA commiteado, sin tocar):
+
+| ruta | diff | caja |
+| --- | --- | --- |
+| `ruta-home` | DIFIERE: 165052/4608000 px (AA), 174711/4608000 crudo | `[105,862]–[1183,3581]` |
+| `ruta-tienda` | DIFIERE: 163/2433280 px (AA), 361/2433280 crudo | `[445,1872]–[541,1882]` |
+| `ruta-producto` | DIFIERE: 163/2535680 px (AA), 361/2535680 crudo | `[445,1952]–[541,1962]` |
+| `ruta-checkout` | DIFIERE: 163/1152000 px (AA), 361/1152000 crudo | `[445,774]–[541,784]` |
+| `ruta-nosotros` | DIFIERE: 163/1152000 px (AA), 361/1152000 crudo | `[445,716]–[541,726]` |
+| `ruta-suscripciones` | DIFIERE: 163/2144000 px (AA), 361/2144000 crudo | `[445,1646]–[541,1656]` |
+| `hover-automatica`/`hover-eleccion` | IDÉNTICO (0px) | — |
+
+`npm run verificar:nayoli:visual` (rama vs. `main`, NO el fixture) da la MISMA cifra exacta en las
+mismas 6 rutas — consistente con que el fixture commiteado y `main` coinciden en todo lo que no es
+este diff.
+
+**La diferencia está AISLADA al crédito, medido por DOS argumentos independientes:**
+
+1. **Aritmética exacta.** `ruta-home` tenía un drift PRE-EXISTENTE y ya documentado (§
+   `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, re-confirmado sin cambio en el asiento anterior de esta
+   misma rama): 164.889/4.608.000 px (AA), 174.350 crudo, caja `[105,862]–[1183,3166]`. El número de
+   HOY es 165.052/174.711 — exactamente **+163 px (AA) / +361 px (crudo)** más, el MISMO delta,
+   dígito por dígito, que las otras 5 rutas reportan COMPLETO (163/361 cada una). La caja también lo
+   confirma: creció de `y=3166` a `y=3581` — hacia ABAJO, hacia el pie, nunca hacia los lados ni
+   hacia arriba (donde vive el drift viejo de BrandStory/tarjetas de suscripción).
+2. **Recorte visual.** Se recortó la región del diff-overlay (`.scratch/guarda-color/diffs/ruta-
+   tienda.png`, `.../ruta-home.png`) en la franja baja: en las dos, lo único resaltado es
+   exactamente "· Hecho por Duna" junto al copyright ya existente — nada más en esa caja.
+
+**El fixture queda SIN regenerar** — `git status` confirma `tests/visual/nayoli/` limpio. Regenerar
+el fixture (`tsx scripts/verificar-nayoli-visual.ts --generar-fixture`, ya probado y reversible en
+este slice: se corrió una vez, dio determinismo 0px en 2 corridas y calibración OK, y se revirtió)
+queda como decisión del owner, fuera de `touches:`.
+
+### La base RECIÉN sembrada no dice "Café Nayoli" — defecto preexistente, no de este slice
+
+Las 8 capturas del arnés throwaway (Postgres efímero + `migrate deploy` + `prisma/seed.ts`, sin
+`UPDATE` manual) muestran **"Configura tu tienda"**, no "Café Nayoli", como nombre del negocio.
+Verificado que NO es un bug de mi arnés: el fixture `tests/visual/nayoli/ruta-home.png` YA
+COMMITEADO (producido por el MISMO mecanismo — `migrarYSembrar` en `verificar-nayoli-visual.ts`,
+"la identidad real de Nayoli" dice su comentario) muestra el MISMO "Configura tu tienda" al
+recortarlo. Es exactamente el defecto que CLAUDE.md ya documenta (§ `HIGIENE-SEED-Y-DOCTRINA-1`):
+el INSERT de la migración ya crea la fila de `SiteSetting` con los valores neutros, así que el
+`upsert({ update: {} })` de `prisma/seed.ts` siempre toma la rama `update` (no-op) en una base recién
+migrada — el `create` con "Café Nayoli" es inalcanzable por ese camino. Preexistente a este slice,
+no tocado por `touches:` (ni el seed ni la migración están en la lista) — se nombra para que no se
+lea como un defecto nuevo de las capturas.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3165/3165** (era 3157/3157 antes de este slice; +8, todos en `lib/config/footer-tema.test.ts` [+7] y `lib/config/panel-controles.test.ts` [+1]) |
+| `npm run test:integracion` | **306/306**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | RED, nombrado y aislado al crédito — § arriba (fixture sin tocar, a propósito) |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta que `guarda:color` — § arriba |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `StoreFooter.tsx` (+`CreditoDuna`), `FooterSeccion.tsx`,
+`FooterContent`/`DEFAULTS.footer`/`REGISTRY.footer` (`site-content-defaults.ts`),
+`footerEditableSchema` (`site-content-schema.ts`), `CONTROLADOS_FOOTER_SECCION`
+(`panel-controles.ts`), el campo nuevo `creditoDunaVisible`. Grepeados uno por uno contra
+`CLAUDE.md`:
+
+- **`StoreFooter`** — 8 coincidencias, ninguna describe el contenido exacto de la bottom bar (son
+  sobre `footerNav`/`legalNav` como estructura vieja, ya marcadas VENCIDAS por `§
+  HIGIENE-SEED-Y-DOCTRINA-1` por razones AJENAS a este diff, y sobre `useSiteSettings()`/el patrón
+  `'use client'`, que no cambié). Ninguna se vuelve falsa.
+- **`REGISTRY.footer`** (1 coincidencia, § Backlog #60) — afirma "cero referencia al catálogo de
+  productos" en esa sección. Sigue siendo CIERTO: `creditoDunaVisible` no referencia el catálogo;
+  el ítem #60 sigue abierto por la misma razón que ya tenía.
+- **`FooterSeccion`, `FooterContent`, `footerEditableSchema`, `CONTROLADOS_FOOTER_SECCION`,
+  `creditoDunaVisible`, `CreditoDuna`, `panel-controles`, `footer-tema.test.ts`,
+  `PENDIENTE_PANEL`** — **CERO coincidencias** en `CLAUDE.md`. Nada que falsificar.
+
+### `customer_bytes`
+
+**`changed: true`, en las TRES tiendas (no sólo CORTE) — el alcance más amplio posible, por
+diseño: es lo que el owner pidió.** `DEFAULTS.footer.creditoDunaVisible` es `true`, así que CUALQUIER
+visitante de CUALQUIER tienda que no haya apagado el interruptor desde el panel ve la línea "· Hecho
+por Duna" al pie de las 6 rutas públicas del storefront (home, tienda, producto, checkout, nosotros,
+suscripciones), con "Duna" enlazando a `https://duna.solutions` en pestaña nueva.
+
+**`strings:`**
+- `"· Hecho por "` — texto nuevo, fijo (no editable por tenant).
+- `"Duna"` — texto nuevo, fijo, es el enlace.
+- (panel) `'Mostrar "Hecho por Duna"'` — label del switch nuevo en `/admin/tienda`, sección Pie.
+- (panel) `'Una línea discreta en la franja más baja del pie, con un enlace a duna.solutions.'` —
+  hint del switch.
+
+Como en los últimos asientos de esta rama, el merge que esto aterrizaría sobre `main` TAMBIÉN carga
+los bytes visibles de los slices anteriores sin mergear (289 commits adelante de `main`, incluido el
+de este slice) — ninguno aprobado para merge todavía.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración (`SiteContent.content` es `Json`, el campo nuevo vive DENTRO de ese
+blob — cero cambio de columna), sin contrato cross-repo. Los seis archivos de `touches:` (aparte de
+`DECISIONS.md`) son dos componentes, dos archivos de config/schema y dos archivos de test.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue sin investigarse; re-confirmado sin cambio en su
+  componente original (164.889/174.350 px, caja original `[105,862]–[1183,3166]`) — este slice sólo
+  le AGREGÓ, aritméticamente, su propia franja nueva (+163/+361 px, caja extendida a y=3581), nunca
+  lo tocó. Ajeno a `touches:` de este slice.
+- **Regenerar `tests/visual/nayoli/*.png`** — decisión del owner, no de este slice (`tests/visual/
+  nayoli/` no está en `touches:`). El comando ya está probado y es reversible:
+  `tsx scripts/verificar-nayoli-visual.ts --generar-fixture`. Hasta que se corra, `npm run
+  guarda:color` queda RED de forma esperada y documentada para cualquier slice futuro que lo corra
+  sobre esta rama — no es una regresión nueva que diagnosticar.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — el diff agrega texto y un enlace nuevos, visibles por
+defecto, a las TRES tiendas (§ `customer_bytes`: `changed: true`); no toca schema ni un contrato
+cross-repo. El dispatch lo pide explícito: *"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* El owner ya
+aprobó la ESCRITURA (`approval-reason` del spec, citado arriba) — el MERGE de la rama sigue gateado
+aparte, igual que los slices anteriores de `slice/corte-reescritura-prototipo-1`.
+
+Gate verde en sus tres capas obligatorias (typecheck + 3165 + 306); `guarda:color`/
+`verificar:nayoli:visual` reportan la diferencia ESPERADA y NOMBRADA (§ arriba), aislada al crédito
+por dos argumentos independientes, con el fixture deliberadamente sin tocar (decisión del owner,
+fuera de `touches:`). Contraste medido con colores COMPUTADOS (no hex de fuente) en los dos temas
+verificables (Nayoli sin preset, CORTE) — 2.66:1 y 2.68:1, el MISMO tono ya establecido del resto de
+esa franja, reportado sin disimular que está bajo el piso AA de texto normal.
+
+**Cierra `PIE-HECHO-POR-DUNA-1`.**
