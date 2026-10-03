@@ -26,6 +26,7 @@ import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
+import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { ModoEditorProvider } from '@/components/storefront/ModoEditor';
 import { CartProvider } from '@/lib/cartStore';
@@ -618,6 +619,27 @@ for (const { nombre, Componente } of [
     }
     assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="brandStory\\.imagen`), 'una imagen nunca lleva el atributo de TEXTO');
   });
+
+  // § EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1`:
+  // imagen2/3/4 vacíos (opcionales) quedaban sin NINGÚN nodo donde clickear para agregar la primera
+  // foto — el `.filter()` que compone el collage las omitía enteras. `imagen1` es requerida (el
+  // resolver la rellena con el default) y por tanto nunca puede estar vacía en este fixture.
+  test(`${nombre}, CON modo editor e imagen2/3/4 VACÍOS: cada uno marca el HUECO "Agregar foto" con el atributo de IMAGEN — imagen1 (requerida, con valor) sigue marcando el nodo real`, () => {
+    const content = { ...DEFAULTS, brandStory: { ...DEFAULTS.brandStory, imagen2: '', imagen3: '', imagen4: '' } } as SiteContentData;
+    const html = renderConProvider(React.createElement(Componente), content, { activo: true });
+    assert.equal(contarMarcadorImagen(html, 'brandStory.imagen1'), 1);
+    for (const n of [2, 3, 4]) {
+      assert.equal(contarMarcadorImagen(html, `brandStory.imagen${n}`), 1, `imagen${n} debería marcar el hueco`);
+    }
+    assert.equal((html.match(/Agregar foto/g) || []).length, 3, 'un hueco por cada opcional vacía');
+  });
+
+  test(`${nombre}, SIN modo editor e imagen2/3/4 VACÍOS: SIN huecos — byte-idéntico (sólo imagen1 se rinde, como antes de este slice)`, () => {
+    const content = { ...DEFAULTS, brandStory: { ...DEFAULTS.brandStory, imagen2: '', imagen3: '', imagen4: '' } } as SiteContentData;
+    const html = renderConProvider(React.createElement(Componente), content);
+    assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+    assert.ok(!html.includes('Agregar foto'));
+  });
 }
 
 test('Origen, CON modo editor: imagen1/imagen2 (requeridas) marcan su nodo con el atributo de IMAGEN', () => {
@@ -650,6 +672,24 @@ test('SubscriptionCTALinea, CON modo editor e imagenFondo cargada: `subscription
   const content = { ...DEFAULTS, subscriptionCTA: { ...DEFAULTS.subscriptionCTA, imagenFondo: '/images/historia-1-v1.jpg' } } as SiteContentData;
   const html = renderConProvider(React.createElement(SubscriptionCTALinea), content, { activo: true });
   assert.equal(contarMarcadorImagen(html, 'subscriptionCTA.imagenFondo'), 1);
+});
+
+test('SubscriptionCTALinea, CON modo editor e imagenFondo cargada: el velo decorativo lleva `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, mismo defecto ya cerrado para NosotrosCierre/GrindChooserMosaico)', () => {
+  const content = { ...DEFAULTS, subscriptionCTA: { ...DEFAULTS.subscriptionCTA, imagenFondo: '/images/historia-1-v1.jpg' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(SubscriptionCTALinea), content, { activo: true });
+  assert.match(html, /bg-linear-to-b from-\[var\(--sf-tinta\)\]\/60 to-\[var\(--sf-velo\)\] pointer-events-none/);
+});
+
+test('SubscriptionCTALinea, CON modo editor e imagenFondo VACÍA (DEFAULTS): marca el HUECO "Agregar foto" (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1)', () => {
+  const html = renderConProvider(React.createElement(SubscriptionCTALinea), DEFAULTS as SiteContentData, { activo: true });
+  assert.equal(contarMarcadorImagen(html, 'subscriptionCTA.imagenFondo'), 1);
+  assert.ok(html.includes('Agregar foto'));
+});
+
+test('SubscriptionCTALinea, SIN modo editor e imagenFondo VACÍA (DEFAULTS): SIN hueco — byte-idéntico a antes de este slice', () => {
+  const html = renderConProvider(React.createElement(SubscriptionCTALinea), DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+  assert.ok(!html.includes('Agregar foto'));
 });
 
 test('SubscriptionCTABloque, CON modo editor: SIN marcador de imagen — la canónica NO lee `imagenFondo` (§ cta-banner-foto.test.ts, fuera de touches, no se toca)', () => {
@@ -702,9 +742,16 @@ test('NosotrosHistoria, CON modo editor y parrafo2 VACÍO/parrafo3 cargado: el s
   assert.equal(contarMarcador(html, 'nosotrosHistoria.parrafo3'), 1);
 });
 
-test('NosotrosHistoria, CON modo editor, imagen VACÍA (DEFAULTS): SIN marcador de imagen — la rama CON imagen está ausente del árbol (§ CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1)', () => {
+test('NosotrosHistoria, CON modo editor, imagen VACÍA (DEFAULTS): marca el HUECO "Agregar foto" (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1) — la rama de DOS columnas ahora existe también sin imagen, en modo editor', () => {
   const html = renderConProvider(React.createElement(NosotrosHistoria), DEFAULTS as SiteContentData, { activo: true });
+  assert.equal(contarMarcadorImagen(html, 'nosotrosHistoria.imagen'), 1);
+  assert.ok(html.includes('Agregar foto'));
+});
+
+test('NosotrosHistoria, SIN modo editor, imagen VACÍA (DEFAULTS): SIN hueco — cero `data-editor-campo-imagen`, byte-idéntico a antes de este slice', () => {
+  const html = renderConProvider(React.createElement(NosotrosHistoria), DEFAULTS as SiteContentData);
   assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+  assert.ok(!html.includes('Agregar foto'));
 });
 
 test('NosotrosHistoria, CON modo editor e imagen cargada: `nosotrosHistoria.imagen` marca su nodo con el atributo de IMAGEN', () => {
@@ -792,13 +839,20 @@ test('NosotrosCierre, CON modo editor: titulo/parrafo/ctaLabel marcan su nodo de
   assert.equal(contarMarcadorImagen(html, 'nosotrosCierre.imagenFondo'), 1);
 });
 
-test('NosotrosCierre, CON modo editor y SÓLO titulo cargado (parrafo/cta/imagenFondo vacíos): sólo titulo marca — los demás no tienen nodo que envolver, y el componente no revienta', () => {
+test('NosotrosCierre, CON modo editor y SÓLO titulo cargado (parrafo/cta/imagenFondo vacíos): titulo marca su nodo de texto, imagenFondo marca el HUECO "Agregar foto" (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1) — parrafo/ctaLabel SIGUEN sin nodo, y el componente no revienta', () => {
   const content = { ...DEFAULTS, nosotrosCierre: { ...DEFAULTS.nosotrosCierre, titulo: 'Ven a conocer la finca' } } as SiteContentData;
   const html = renderConProvider(React.createElement(NosotrosCierre), content, { activo: true });
   assert.equal(contarMarcador(html, 'nosotrosCierre.titulo'), 1);
   assert.equal(contarMarcador(html, 'nosotrosCierre.parrafo'), 0);
   assert.equal(contarMarcador(html, 'nosotrosCierre.ctaLabel'), 0);
+  assert.equal(contarMarcadorImagen(html, 'nosotrosCierre.imagenFondo'), 1, 'el hueco "Agregar foto" ocupa el lugar del fondo vacío');
+});
+
+test('NosotrosCierre, SIN modo editor y SÓLO titulo cargado (imagenFondo vacío): SIN hueco — cero `data-editor-campo-imagen`, byte-idéntico a antes de este slice', () => {
+  const content = { ...DEFAULTS, nosotrosCierre: { ...DEFAULTS.nosotrosCierre, titulo: 'Ven a conocer la finca' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(NosotrosCierre), content);
   assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+  assert.ok(!html.includes('Agregar foto'));
 });
 
 test('NosotrosCierre, CON modo editor e imagenFondo cargada: el velo decorativo NO tiene marcador, y lleva `pointer-events-none` (§ DEVIACIÓN MEDIDA, mismo defecto ya cerrado para GrindChooserMosaico)', () => {
@@ -879,5 +933,39 @@ test('SuscripcionPasos, CON modo editor (DEFAULTS, cardinalidad FIJA 4): titulo 
     assert.equal(contarMarcador(html, `suscripcionPasos.paso${n}Label`), 1, `paso${n}Label debería marcar un nodo`);
     assert.equal(contarMarcador(html, `suscripcionPasos.paso${n}Desc`), 1, `paso${n}Desc debería marcar un nodo`);
     assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="suscripcionPasos\\.paso${n}Desc"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
+  }
+});
+
+// ─── PreguntasFrecuentes (`suscripcionFaq`) — § EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1 ──────────────
+//
+// Cierra el único hueco nombrado de la fila 4 de § 6.4 de EDICION-INLINE.md: este componente vive
+// FUERA de `app/(storefront)/suscripciones/`/`components/storefront/{home,nosotros,suscripciones}/`
+// (es compartido con `/tienda` y `/preguntas-frecuentes`, § su propio docstring) y por eso quedó sin
+// instrumentar en `-PAGINAS-1`. `items: []` (DEFAULTS) es hide-on-empty — el componente entero rinde
+// `null`; el fixture de abajo trae ítems propios, como ya hacen testimonios/galería.
+
+const FAQ_FIXTURE = {
+  ...DEFAULTS,
+  suscripcionFaq: {
+    ...DEFAULTS.suscripcionFaq,
+    items: [
+      { question: '¿Puedo pausar mi suscripción?', answer: 'Sí, escríbenos por WhatsApp.' },
+      { question: '¿Cómo cambio mi dirección?', answer: 'Desde el mismo chat, antes del próximo envío.' },
+    ],
+  },
+} as SiteContentData;
+
+test('PreguntasFrecuentes, SIN modo editor: cero `data-editor-campo` — byte-idéntico', () => {
+  const html = renderConProvider(React.createElement(PreguntasFrecuentes), FAQ_FIXTURE);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+});
+
+test('PreguntasFrecuentes, CON modo editor: titulo marca su nodo, y question/answer de CADA ítem marcan su ruta `suscripcionFaq.items.N.campo` — answer multilinea', () => {
+  const html = renderConProvider(React.createElement(PreguntasFrecuentes), FAQ_FIXTURE, { activo: true });
+  assert.equal(contarMarcador(html, 'suscripcionFaq.titulo'), 1);
+  for (let i = 0; i < 2; i++) {
+    assert.equal(contarMarcador(html, `suscripcionFaq.items.${i}.question`), 1, `items.${i}.question debería marcar un nodo`);
+    assert.equal(contarMarcador(html, `suscripcionFaq.items.${i}.answer`), 1, `items.${i}.answer debería marcar un nodo`);
+    assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="suscripcionFaq\\.items\\.${i}\\.answer"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
   }
 });

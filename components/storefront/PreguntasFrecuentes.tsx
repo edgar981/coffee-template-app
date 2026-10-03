@@ -2,6 +2,7 @@
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // La FAQ de /suscripciones — REPEATER (§ SUSCRIPCIONES-FAQ-DATO-1, sobre § SiteContent — el
 // repeater). `constants/subscription-faq.ts` (RETIRADO) tenía cuatro respuestas FALSAS: prometía
@@ -9,6 +10,15 @@ import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 // ciclo" (no hay cobro recurrente en el sistema) y "envío gratis a nivel nacional" (no existe esa
 // regla). La sección NACE VACÍA y se auto-oculta (hide-on-empty) hasta que el owner cargue preguntas
 // REALES por el editor. El `titulo` es DATO (antes un `<h2>` fijo).
+//
+// EL CAMPO EDITABLE (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1): este componente era el ÚNICO hueco
+// nombrado de toda la fila 4 de § 6.4 de EDICION-INLINE.md — `EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1`
+// lo dejó sin instrumentar porque vive FUERA de su `touches:` (es compartido con `/tienda` y
+// `/preguntas-frecuentes`, § el grep de sus 3 importadores). Esta tanda SÍ lo toca: `titulo` y cada
+// `question`/`answer` del repeater marcan su ruta por ÍNDICE (`suscripcionFaq.items.${i}.question`),
+// como `testimonials`/`nosotrosGaleria` — acá no hace falta preservar el índice ORIGINAL frente a un
+// filtro: `items.map` recorre el array completo sin saltar ninguno (sin hide-on-empty POR ÍTEM), así
+// que la posición visible y el índice real coinciden siempre.
 export default function PreguntasFrecuentes() {
   const { suscripcionFaq } = useSiteContent();
   if (!seccionEsVisible(REGISTRY.suscripcionFaq, suscripcionFaq)) return null;
@@ -17,12 +27,12 @@ export default function PreguntasFrecuentes() {
   return (
     <section className="py-16 bg-[var(--sf-fondo)]">
       <div className="max-w-2xl mx-auto px-4">
-        <h2 className="text-2xl font-playfair text-[var(--sf-tinta)] text-center mb-8">{titulo}</h2>
+        <h2 className="text-2xl font-playfair text-[var(--sf-tinta)] text-center mb-8"><CampoEditable campo="suscripcionFaq.titulo">{titulo}</CampoEditable></h2>
         <div className="space-y-4">
           {items.map((faq, i) => (
             <div key={i} className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-5">
-              <p className="font-semibold text-[var(--sf-tinta)] text-sm mb-2">{faq.question}</p>
-              <p className="text-sm text-[var(--sf-texto)]">{faq.answer}</p>
+              <p className="font-semibold text-[var(--sf-tinta)] text-sm mb-2"><CampoEditable campo={`suscripcionFaq.items.${i}.question`}>{faq.question}</CampoEditable></p>
+              <p className="text-sm text-[var(--sf-texto)]"><CampoEditable campo={`suscripcionFaq.items.${i}.answer`} multilinea>{faq.answer}</CampoEditable></p>
             </div>
           ))}
         </div>

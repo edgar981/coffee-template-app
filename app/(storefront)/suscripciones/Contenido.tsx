@@ -23,12 +23,12 @@ import { ATRIBUTO_EDITOR_SECCION, MARCADOR_SUSCRIPCIONES } from '@/lib/admin/edi
 //
 // `suscripcionPlanes`/`suscripcionPasos` GANARON el campo editable INLINE (§ EDITOR-TIENDA-CAMPO-
 // EDITABLE-PAGINAS-1, dentro de `SuscripcionPlanes.tsx`/`SuscripcionPasos.tsx`). La FAQ de ABAJO
-// (`PreguntasFrecuentes.tsx`) **NO lo ganó en esta tanda**: ese componente no está en `touches:` de
-// este slice —es compartido con `/preguntas-frecuentes` y con `/tienda`, § el grep de sus 3
-// importadores— así que instrumentarlo exigía ampliar el alcance aprobado. El marcador de SECCIÓN
-// (`data-editor-seccion="suscripcionFaq"`, abajo) sigue intacto: el repeater se sigue editando desde
-// la lista del panel, sólo que todavía no directo sobre la página. Queda nombrado como follow-up
-// (§ DECISIONS.md, EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1).
+// (`PreguntasFrecuentes.tsx`) lo ganó DESPUÉS, en `EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1` —ese
+// componente es compartido con `/preguntas-frecuentes` y con `/tienda` (§ el grep de sus 3
+// importadores), y no estaba en `touches:` de `-PAGINAS-1`, así que quedó como el único hueco
+// nombrado de toda la fila 4 de § 6.4 de EDICION-INLINE.md hasta que esta tanda lo cerró. El
+// marcador de SECCIÓN (`data-editor-seccion="suscripcionFaq"`, abajo) no cambió: sigue marcando la
+// sección entera, y ahora ADEMÁS cada `titulo`/`question`/`answer` marca su propio campo adentro.
 //
 // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1, cierra SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-
 // DE-TOUCHES-1): usa `navOffsetClase(navTratamiento.posicion)`, la MISMA pieza que ya usan las otras

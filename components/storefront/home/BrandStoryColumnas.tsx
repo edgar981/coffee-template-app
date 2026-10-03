@@ -3,10 +3,11 @@
 import Image from "next/image";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
 // texto de un lado, collage del otro — el BrandStory de SIEMPRE, extraído VERBATIM al separar el
@@ -28,6 +29,7 @@ const IMAGENES = [
 export default function BrandStoryColumnas({ style }: { style?: React.CSSProperties } = {}) {
   const { brandStory, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  const activo = useModoEditorActivo();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h2, que sigue rindiendo exactamente `text-4xl sm:text-5xl` (2.25rem/3rem, medido) —
   // byte-idéntico.
@@ -42,6 +44,14 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
   // llenó (§ el comentario de cabecera, arriba). Con las cuatro llenas (Nayoli) da la lista
   // completa en el MISMO orden, así que el `.map` de abajo rinde EXACTO lo de siempre.
   const imagenesLlenas = IMAGENES.filter(({ campo }) => !!brandStory[campo]);
+  // LAS VACÍAS (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-
+  // OPCIONAL-1): `imagen2/3/4` vacíos quedaban SIN NINGÚN nodo donde clickear para agregar la
+  // primera foto — el `.filter()` de arriba omite el bloque entero, no sólo la imagen. SÓLO en modo
+  // editor se agrega, DESPUÉS de las llenas, un hueco "Agregar foto" por cada opcional vacío —
+  // `imagen1` nunca puede estar en esta lista (es requerida, el resolver la rellena con el default).
+  // `activo` en `false` (el tráfico público) deja la lista vacía sin correr el `.filter()`: cero
+  // costo de más, cero nodos de más.
+  const imagenesVacias = activo ? IMAGENES.filter(({ campo }) => !brandStory[campo]) : [];
 
   // LA ENTRADA (§ SECCIONES-ENTRAN-VIVAS-1): eyebrow/título/párrafo(s)/collage entran cada uno por su
   // cuenta con `RevelarBloque` (§ su docstring: gate `preview` incluido, mismo criterio que el resto
@@ -106,6 +116,9 @@ export default function BrandStoryColumnas({ style }: { style?: React.CSSPropert
                   />
                 </CampoEditable>
               </div>
+            ))}
+            {imagenesVacias.map(({ campo }) => (
+              <HuecoImagenOpcional key={campo} campo={`brandStory.${campo}`} className="relative h-48" />
             ))}
           </RevelarBloque>
         </div>

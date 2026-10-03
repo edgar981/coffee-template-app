@@ -48283,3 +48283,138 @@ ejecución de punta a punta (§ arriba). Commiteado en `slice/corte-reescritura-
 `stopped_on: [customer-bytes]`. El dispatch instruyó parar en `AWAITING_APPROVAL` sin merge.
 
 **Cierra `EDITOR-TIENDA-DESHACER-1`.**
+
+## 2026-10-03 — Cierra los tres huecos del campo editable: FAQ, huecos "Agregar foto", el clic tapado de SubscriptionCTALinea (`EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Cierra los tres follow-ups
+nombrados por `EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1`/`-PAGINAS-1`: `EDITOR-TIENDA-CAMPO-EDITABLE-
+FAQ-1`, `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1` y `CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-
+TEXTO-1`. Mismo pedido del owner, misma autorización que el resto de la serie (2026-10-02); el
+`observed-report` que lo habilita es `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`. La aprobación
+autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `576ba68`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (0 adelante / 0 atrás de `origin/main`) |
+| los 9 archivos de `touches:` que ya existían | sí — confirmados con `Read`/`grep` antes de escribir |
+| `lib/config/subscription-linea.test.ts`/`lib/config/historia-direccion-arte.test.ts` (en `touches:`) | existían; NO hizo falta tocarlos — ninguno monta `ModoEditorProvider`, así que `activo` resuelve `false` en sus renders y nada de lo agregado (gateado a `activo`) les afecta; se corrieron igual para confirmarlo (30/30 verde, sin cambio) |
+
+### El censo de la implementación, en corto
+
+El detalle completo —mecanismo de `HuecoImagenOpcional`, por qué `NosotrosHistoria` toca la
+bifurcación y los otros cuatro sólo el `&&`/`.filter()`, las dos deviaciones del velo/el clic
+tapado, el hallazgo de método del arnés (dos capas de scroll independientes en `/editor/tienda`)—
+vive en `docs/editor-tienda/EDICION-INLINE.md` § 13; no se repite acá.
+
+- **FAQ**: `suscripcionFaq.titulo` + `.items.N.question`/`.answer` por índice, en
+  `PreguntasFrecuentes.tsx` (antes fuera de `touches:` de `-PAGINAS-1`, compartido con `/tienda` y
+  `/preguntas-frecuentes`).
+- **Los seis huecos**: `brandStory.imagen2/3/4` (columnas Y centrada), `subscriptionCTA.imagenFondo`
+  (sólo `SubscriptionCTALinea` — `SubscriptionCTABloque` no lee ese campo, medido), `nosotrosHistoria.
+  imagen`, `nosotrosCierre.imagenFondo`. Un componente nuevo, `HuecoImagenOpcional` (named export de
+  `CampoEditable.tsx`), reusado en los seis sitios.
+- **El clic tapado**: `pointer-events-none` en el velo de `SubscriptionCTALinea` (mismo defecto que
+  `NosotrosCierre`/`GrindChooserMosaico` ya tenían cerrado), más el punto de clic correcto (margen
+  superior, lejos del bloque de texto/botones) documentado en el arnés y en el docstring del
+  componente — sin tocar la composición del componente.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3345/3345** (era 3334/3334 al cierre de `EDITOR-TIENDA-DESHACER-1`; +11, reconciliado por ejecución — ver § 13 de `EDICION-INLINE.md`) |
+| `npm run test:integracion` | **323/323**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` (los tres juntos, árbol final) | GREEN |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-cierre.ts` (no committed, gitignored), contra una build de
+PRODUCCIÓN (`next build` + `next start`) con sesión real (`admin@sierranativa.co`). **33/33
+verificaciones en verde** — la tabla completa, fase por fase, vive en `EDICION-INLINE.md` § 13.
+Incluye la confirmación del `postMessage` real (`editor-tienda:campo-imagen-click`) para el caso
+que más costó cerrar (`nosotrosHistoria.imagen`), y la confirmación de que las tres rutas públicas
+(`/`, `/nosotros`, `/suscripciones`) siguen en CERO `data-editor-campo`/`-imagen` y CERO texto
+"Agregar foto" fuera de modo editor.
+
+### El hallazgo de método del arnés — dos capas de scroll independientes en `/editor/tienda`
+
+El defecto no era del mecanismo de clic en imagen (ya probado contra esta misma página en
+`-PAGINAS-1`, con imágenes CARGADAS de `NosotrosCierre`): era que el arnés sólo sabía centrar el
+elemento DENTRO del iframe (`window.scrollTo` interno — `Element.scrollIntoView()` midió CERO
+efecto ahí, con o sin `behavior:'instant'`), sin saber que `/editor/tienda` usa además un layout de
+ALTO FIJO (§ CLAUDE.md, "Los DOS modelos de scroll del panel") con una REGIÓN exterior que scrollea
+por su cuenta (`window.scrollBy` sobre la página del admin también midió CERO efecto). El síntoma:
+un punto calculado correctamente en coordenadas del iframe (confirmado con `elementFromPoint`
+DENTRO del iframe, apuntando al nodo correcto) producía una coordenada de PÁGINA fuera de la banda
+visible del contenedor exterior, y el clic físico no dejaba rastro dentro del iframe (confirmado
+con un listener de `click` en captura — array vacío tras el clic). Se corrigió encontrando el
+ANCESTRO real del `<iframe>` con `scrollHeight>clientHeight` y moviendo SU `scrollTop` hasta que el
+punto cayera dentro de su banda visible. Defecto del ARNÉS, no del código de producto.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió, grepeados contra `CLAUDE.md`: `PreguntasFrecuentes`,
+`NosotrosHistoria`, `NosotrosCierre`, `BrandStoryColumnas`, `BrandStoryCentrada`,
+`SubscriptionCTALinea`, `CampoEditable`, `HuecoImagenOpcional`, `pointer-events-none`, `imagen2`,
+`imagen3`, `imagen4`, `modo editor`, `ModoEditor`, `EDITOR-TIENDA-CAMPO-EDITABLE` → **CERO
+apariciones en los 17**; `CLAUDE.md` no documenta este mecanismo (vive en `docs/editor-tienda/` y
+acá). Las dos excepciones con resultado: `suscripcionFaq` (`CLAUDE.md:1875`, "hoy es una sección de
+`SiteContent` editable… con su propio editor en el panel") — SIGUE VERDADERO, este slice agrega una
+SEGUNDA vía de edición (inline) sin retirar la del panel; `imagenFondo` (`CLAUDE.md:2383`, "fondo
+sólido si vacío, byte-idéntico") — SIGUE VERDADERO, el hueco es chrome de editor que no toca el
+comportamiento público byte-idéntico. Nada que corregir.
+
+### Segundo grep — el documento que cambié (`docs/editor-tienda/EDICION-INLINE.md`)
+
+Los tres identificadores que este slice cierra (`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`,
+`CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1`, `CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1`) se
+grepearon contra TODO el repo. Los únicos pointers externos son entradas DE ESTE MISMO archivo
+(`DECISIONS.md:47557/47695/47698/47708/47728/47874/47925`) — las de `-HOME-1`/`-PAGINAS-1`, que los
+nombraban como pendientes. **No se editan**: son append-only, la verdad del commit en que se
+escribieron (mismo criterio que `-PAGINAS-1` ya aplicó para la frase prematura de `-HOME-1`); esta
+entrada nueva es la que los cierra. Ningún otro `.md` del repo los menciona.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que las seis
+entradas anteriores de esta serie). **De este COMMIT en particular**: `strings: []` — confirmado
+por EJECUCIÓN en los dos sentidos: (a) `guarda:color`/`verificar:nayoli:visual` dan la cifra EXACTA
+ya heredada, cero píxeles de drift nuevo en las 6 rutas públicas; (b) el arnés mide CERO ocurrencias
+de `data-editor-campo=`/`data-editor-campo-imagen=`/el texto "Agregar foto" en el HTML de `/`,
+`/nosotros` y `/suscripciones` SIN `?editor=1`. Lo que SÍ cambia son bytes COMPILADOS: el bundle del
+storefront gana los marcadores/el componente `HuecoImagenOpcional` (gateados a
+`ModoEditorProvider`) y un `pointer-events-none` en un velo decorativo — los dos neutros
+visualmente, medido. `approved: null` — Nayoli no ejercita esta rama de código hasta que el editor
+se use en modo editor real.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno
+  a `touches:` de este slice.
+- Nav/pie (§ 5 de `EDICION-INLINE.md`) sigue fuera de alcance de todo el documento, sin disparador
+  propio — es lo único que queda sin construir del plan de § 6.4.
+- El contenido de prueba sembrado por el arnés (las dos preguntas de FAQ, `brandStory.imagen2/3/4`
+  vaciados, `subscriptionCTA.variante:'linea'`, `nosotrosCierre.titulo`) vive en la base efímera del
+  arnés, que se destruye al terminar — no hay rastro en ninguna base real.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (`npm run gate`: typecheck 0, 3345/3345,
+323/323); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado —
+cero píxeles de drift nuevo. El mecanismo completo (FAQ + 6 huecos + el fix del velo) verificado por
+ejecución contra una build de producción con sesión real — 33/33 en verde, incluida la confirmación
+del `postMessage` real. `stopped_on: [customer-bytes]` — `schema` y `cross-repo-contract` NO
+aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin merge. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1`.**

@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import { contenedorAnchoClase } from "@/lib/config/themes";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
 
 // La HISTORIA LARGA de /nosotros. `eyebrow` y `parrafo2/3` son opcionales → se omiten vacíos;
 // `titulo` y `parrafo1` vienen resueltos. Preview ESTÁTICO (`whileInView`→`animate` con
@@ -14,14 +15,23 @@ import CampoEditable from "@/components/storefront/CampoEditable";
 // commit 3) no lo deje invisible.
 //
 // `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL. **Vacía → EXACTAMENTE el render de antes de este
-// slice, byte a byte** (la bifurcación ocurre ANTES de tocar el layout, así que el árbol de la rama
-// sin imagen es literalmente el JSX de siempre, sólo factorizado en `texto`). Con imagen: composición
-// imagen-con-texto a DOS COLUMNAS en escritorio, apiladas en móvil — medida contra el `image_with_text`
-// con el que abre el about del tema real (§ CENSO-NOSOTROS-TEMA-REAL-1). El `alt=""` es decorativo,
-// mismo criterio que `marquesina.imagen` (Marquesina.tsx): el texto adjunto ya cuenta la historia.
+// slice, byte a byte, FUERA de modo editor** (la bifurcación ocurre ANTES de tocar el layout, así
+// que el árbol de la rama sin imagen es literalmente el JSX de siempre, sólo factorizado en
+// `texto`). Con imagen: composición imagen-con-texto a DOS COLUMNAS en escritorio, apiladas en móvil
+// — medida contra el `image_with_text` con el que abre el about del tema real (§ CENSO-NOSOTROS-
+// TEMA-REAL-1). El `alt=""` es decorativo, mismo criterio que `marquesina.imagen` (Marquesina.tsx):
+// el texto adjunto ya cuenta la historia.
+//
+// SÓLO EN MODO EDITOR (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra `CAMPO-EDITABLE-IMAGEN-
+// SLOT-VACIO-OPCIONAL-1): sin imagen, la rama de UNA columna dejaba de existir todo rastro de dónde
+// clickear para agregar la primera foto. En modo editor, vacía también entra a la rama de DOS
+// columnas —la misma composición que tendría CON imagen— pero la segunda columna es un hueco
+// "Agregar foto" en vez del `<Image>` real. Fuera de modo editor, `activo` es `false` y la condición
+// de arriba (`!tieneImagen && !activo`) sigue cayendo en la rama de SIEMPRE.
 export default function NosotrosHistoria() {
   const { nosotrosHistoria, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  const activo = useModoEditorActivo();
   const { eyebrow, titulo, parrafo1, parrafo2, parrafo3, imagen } = nosotrosHistoria;
   // `campo` sobrevive al filtro (§ EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N — "slot, no posición"):
   // si parrafo2 está vacío y parrafo3 no, el campo editable del segundo párrafo VISIBLE tiene que
@@ -60,7 +70,7 @@ export default function NosotrosHistoria() {
     </motion.div>
   );
 
-  if (!tieneImagen) {
+  if (!tieneImagen && !activo) {
     return (
       <section className="py-24 bg-[var(--sf-fondo)]">
         {/* Contenedor de LECTURA — angosto a propósito, NO `contenedorAnchoClase` (§ arriba). */}
@@ -88,14 +98,15 @@ export default function NosotrosHistoria() {
             transition={preview ? undefined : { duration: 0.6 }}
             className="relative aspect-[3/4] overflow-hidden sf-radio-imagen"
           >
-            {/* SIN marcador cuando `imagen` está vacía — la rama CON imagen entera está ausente del
-                árbol (§ `tieneImagen`), así que no hay ningún nodo donde montarlo (misma clase que
-                `brandStory.imagen2/3/4`/`subscriptionCTA.imagenFondo`, § CAMPO-EDITABLE-IMAGEN-SLOT-
-                VACIO-OPCIONAL-1 — retrofitear exigiría reestructurar la bifurcación de la sección
-                entera, no sólo la imagen). */}
-            <CampoEditable campo="nosotrosHistoria.imagen" tipo="imagen">
-              <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
-            </CampoEditable>
+            {tieneImagen ? (
+              <CampoEditable campo="nosotrosHistoria.imagen" tipo="imagen">
+                <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+              </CampoEditable>
+            ) : (
+              // SÓLO EN MODO EDITOR (§ arriba, el docstring de cabecera): sin imagen Y fuera de modo
+              // editor esta rama es inalcanzable (`!tieneImagen && !activo` ya retornó arriba).
+              <HuecoImagenOpcional campo="nosotrosHistoria.imagen" className="absolute inset-0" />
+            )}
           </motion.div>
         </div>
       </div>

@@ -1093,3 +1093,152 @@ useAutoguardado.ts` (el hook que envuelve al coordinador y que `TiendaSeccionEdi
 (también listado) tampoco hizo falta: no tiene ninguna relación con el autoguardado de una
 sección ni con el puente — es la barra superior del editor de pantalla completa (página/
 dispositivo), ajena a este mecanismo.
+
+---
+
+## 13 · Lo que `EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1` entregó — cierra los tres huecos nombrados
+
+Cierra los tres follow-ups que `-HOME-1`/`-PAGINAS-1` dejaron nombrados (§ 11/§ 12, arriba):
+`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1` (la FAQ de /suscripciones), `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-
+OPCIONAL-1` (los seis sitios donde una imagen opcional vacía dejaba al JSX sin ningún nodo que
+marcar) y `CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1` (la medición pendiente sobre
+`SubscriptionCTALinea.tsx`). Sin tocar la plomería de las filas 1-5 (`ModoEditorProvider`,
+`CampoEditable`, el overlay/mensajes del puente, `fusionCampoEditable`) — las tres piezas se
+construyeron sobre esa base, igual que todas las anteriores.
+
+### La FAQ (`PreguntasFrecuentes.tsx`) — el único hueco de ALCANCE
+
+Estaba fuera de `touches:` de `-PAGINAS-1` porque el componente es compartido con `/tienda` y
+`/preguntas-frecuentes` (3 importadores). Esta tanda lo tenía en su propio `touches:`, así que se
+instrumentó entero: `suscripcionFaq.titulo` (texto plano) y, por cada ítem del repeater,
+`suscripcionFaq.items.N.question`/`.answer` — la MISMA convención por-índice que `testimonials`/
+`nosotrosGaleria`, y sin la preservación de índice-original que esos dos necesitan (`items.map`
+recorre el array completo sin hide-on-empty POR ÍTEM, así que la posición visible y el índice real
+siempre coinciden; no hay huecos en medio que preservar). `app/(storefront)/suscripciones/
+Contenido.tsx` gana sólo un ajuste de comentario —la frase que decía "la FAQ no lo ganó en esta
+tanda" ya no era cierta— sin tocar el mecanismo posicional de marcado de sección (`ATRIBUTO_EDITOR_
+SECCION` vía `closest()`) que ya cubría a `<main>` desde `EDITOR-TIENDA-SELECCION-1`.
+
+### El HUECO "Agregar foto" — `HuecoImagenOpcional`, un componente nuevo en `CampoEditable.tsx`
+
+Los seis sitios nombrados por `-HOME-1` (`brandStory.imagen2/3/4` en sus DOS variantes —columnas y
+centrada—, `subscriptionCTA.imagenFondo` en `SubscriptionCTALinea`, `nosotrosHistoria.imagen`,
+`nosotrosCierre.imagenFondo`) comparten la misma forma del defecto: un campo de imagen OPCIONAL
+vacío hace que el `.filter()`/`&&`/la bifurcación de la sección entera OMITA el bloque completo, no
+sólo la imagen — así que no quedaba NINGÚN nodo donde clickear para agregar la primera foto desde
+la página; sólo se podía desde el formulario de la lista.
+
+- **`HuecoImagenOpcional({campo, className})`** (`components/storefront/CampoEditable.tsx`, export
+  nombrado junto al `default`): se gatea a sí mismo con `useModoEditorActivo()` —devuelve `null`
+  fuera de modo editor, el MISMO contrato que `CampoEditable`— y envuelve un `<div className={...
+  className}>` (el tamaño/posición los decide el llamador, igual que el nodo de imagen real que
+  reemplaza) con un `<CampoEditable tipo="imagen">` por dentro: el MISMO mensaje al puente
+  (`TIPO_MENSAJE_CAMPO_IMAGEN_CLICK`) y el MISMO flujo de subida real del panel que ya usa cualquier
+  imagen llena — no hay diferencia de MECANISMO entre "cambiar una foto que ya existe" y "agregar la
+  primera".
+- **LO VISIBLE es un CHIP CHICO centrado ("+ Agregar foto"), no un rectángulo opaco** — la caja
+  clickeable ocupa todo el espacio que ocuparía la imagen real (consistente con cómo se comporta esa
+  imagen), pero el fondo sólido/la imagen de abajo siguen viéndose detrás del chip. Estilo LITERAL
+  (`border-black/30`, `bg-white/90`…), nunca un token `--sf-*`/`--duna-*` — mismo criterio que el
+  chip de sesión vencida de `EditorPuenteVivo.tsx` (§ 12): es chrome del EDITOR sobre el documento
+  del visitante, no contenido de ese documento.
+- **brandStory (columnas Y centrada)**: tras el `.map()` de las imágenes llenas, un segundo `.map()`
+  —sólo cuando `activo`— sobre las OPCIONALES vacías (`imagen1` nunca puede estar ahí: es requerida,
+  el resolver la rellena con el default). En Centrada el hueco se agrega FUERA del cálculo de
+  rotación/apertura del scroll-scrub (`imagenesLlenas`/`totalVisible`/los cuatro `useTransform`
+  siguen sin tocar) — es un invite ESTÁTICO, no una figura más del collage.
+- **`SubscriptionCTALinea`/`NosotrosCierre`**: el `{tieneImagenFondo && (...)}` pasó a
+  `{tieneImagenFondo ? (...) : <HuecoImagenOpcional .../>}` — el fondo SÓLIDO de siempre se queda
+  cuando no hay foto; sólo se agrega el hueco encima.
+- **`NosotrosHistoria`** es el único de los seis donde el cambio toca la ESTRUCTURA de la
+  bifurcación, no sólo una rama: `if (!tieneImagen)` pasó a `if (!tieneImagen && !activo)` — en modo
+  editor, sin imagen TAMBIÉN entra a la composición de DOS columnas (la misma que con imagen), con
+  el hueco en la segunda en vez del `<Image>` real. Fuera de modo editor la condición sigue cayendo
+  exactamente en la rama de una sola columna de siempre.
+- **`SubscriptionCTABloque` NO ganó ningún hueco** — medido, no asumido: ese componente no lee
+  `imagenFondo` en absoluto (la variante canónica de Nayoli nunca tuvo esa capacidad, § el docstring
+  de `-HOME-1`), así que no hay ninguna rama vacía que llenar.
+
+### El clic tapado — medido, no sólo heredado del follow-up
+
+`CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1` pedía verificar por ejecución si
+`SubscriptionCTALinea.tsx` (y, de aplicar, `SubscriptionCTABloque.tsx`) repetía el defecto que
+`NosotrosCierre` ya había cerrado. `SubscriptionCTABloque` no aplica (no tiene imagen, arriba). Para
+`SubscriptionCTALinea`, DOS hallazgos, los dos confirmados con `document.elementFromPoint` dentro de
+un arnés de Playwright contra una build de producción real (no se infirió de la clase CSS):
+
+1. **El velo (`bg-linear-to-b … to-[var(--sf-velo)]`) NO tenía `pointer-events-none`** —
+   exactamente el mismo defecto que `NosotrosCierre`/`GrindChooserMosaico` ya tenían cerrado, nunca
+   corregido acá porque nadie lo había medido. Se agregó `pointer-events-none`. Neutro para un
+   visitante real: el velo nunca tuvo propósito interactivo.
+2. **Con el velo arreglado, el CENTRO de la imagen sigue sin ser alcanzable**: el bloque de
+   contenido (`<div className="relative z-10 … flex … sm:justify-between">`, texto a la izquierda +
+   botones a la derecha) no es `absolute`, pero su banda vertical —inmediatamente después del
+   padding superior (`py-20`)— coincide con el centro de una franja corta, y `z-10` lo pone encima
+   del fondo. **No se tocó el componente**: el margen superior/inferior (`py-20`, fuera de esa
+   banda) SÍ es sólo imagen, y es donde un dueño real clickearía para cambiarla. El arnés de
+   verificación usa ese punto (`ratioY: 0.05`), tanto para el hueco vacío como para la imagen ya
+   cargada.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-cierre.ts` (no committed, gitignored), contra una build de
+PRODUCCIÓN (`next build` + `next start`) con sesión real (`admin@sierranativa.co`). **33/33
+verificaciones en verde**:
+
+| fase | verificación | resultado |
+| --- | --- | --- |
+| FAQ | `titulo` + `items.0.question` + `items.1.answer` abren su overlay, el panel ve el valor | sí, los tres |
+| FAQ | "Publicar" aplica, y los tres valores aparecen en `/suscripciones` SIN sesión | sí |
+| brandStory·columnas | imagen1 (requerida, llena) marca el nodo REAL; imagen2/3/4 (vacías) marcan el HUECO | sí, los 4 |
+| brandStory·columnas | clic en el hueco `imagen3` dispara un `filechooser` real | sí |
+| brandStory·centrada | imagen2/3/4 (mismos valores vacíos, variante cambiada por SQL) marcan el HUECO | sí, los 3 |
+| brandStory·centrada | clic en el hueco `imagen2` dispara un `filechooser` real | sí |
+| SubscriptionCTALinea | imagenFondo vacía (DEFAULTS) marca el HUECO; clic (margen superior) dispara `filechooser` | sí |
+| SubscriptionCTALinea | imagenFondo CARGADA: clic (esquina sup-izq, lejos del texto) dispara `filechooser` — el velo con `pointer-events-none` no se lo lleva | sí |
+| NosotrosHistoria | imagen vacía (DEFAULTS) marca el HUECO; clic dispara `filechooser` real, confirmado por el `postMessage` real (`editor-tienda:campo-imagen-click`, `seccion:'nosotrosHistoria'`) | sí |
+| NosotrosCierre | imagenFondo vacía (titulo sembrado) marca el HUECO; clic (margen lateral) dispara `filechooser` | sí |
+| Fuera de modo editor | `/`, `/nosotros`, `/suscripciones`: cero `data-editor-campo`/`-imagen`, cero texto "Agregar foto" | sí, las 3 rutas |
+
+**HALLAZGO DE MÉTODO DEL ARNÉS (no del mecanismo) — el más caro de esta tanda, dos capas de scroll
+que no son la misma.** El editor de pantalla completa tiene DOS niveles de scroll independientes, y
+el arnés sólo sabía manejar el de adentro:
+
+1. **El documento DENTRO del iframe scrollea con `scrollTop`/`window.scrollTo`, pero
+   `Element.scrollIntoView()` midió CERO efecto ahí** (con o sin `behavior:'instant'`) — se mide a
+   mano (offset documento-absoluto del marcador menos medio viewport del iframe) y se centra con
+   `window.scrollTo` directo.
+2. **La página EXTERIOR del admin —`window.scrollBy` sobre ESA página midió CERO efecto también—,
+   porque `/editor/tienda` usa un layout de ALTO FIJO (§ CLAUDE.md, "Los DOS modelos de scroll del
+   panel") con una REGIÓN interna (`overflow-y` con `scrollHeight>clientHeight`) que scrollea, no el
+   documento.** El síntoma, antes de encontrar esto: un punto calculado correctamente en coordenadas
+   del iframe (confirmado con `elementFromPoint` DENTRO del iframe, apuntando al nodo correcto)
+   producía `puntoPagina.y` cerca de 0 o fuera de la banda VISIBLE del contenedor exterior, y el clic
+   físico (`page.mouse.click`) no dejaba NINGÚN rastro dentro del iframe —confirmado con un listener
+   de `click` en captura sobre `document` del frame, array vacío tras el clic—. El fix: encontrar el
+   ANCESTRO real del `<iframe>` con scroll propio y mover SU `scrollTop` hasta que el punto caiga
+   dentro de su banda visible (`[top+margen, top+clientHeight-margen]`), no sólo dentro del viewport
+   del navegador. Esto es un defecto del ARNÉS —el mecanismo de clic en imagen ya estaba probado
+   contra esta misma página en `-PAGINAS-1` (imágenes CARGADAS de `NosotrosCierre`)—, no del código
+   de producto: una vez centrado el punto en la banda correcta, el mismo `page.mouse.click` de
+   siempre disparó el `filechooser` en el primer intento.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3345/3345** (era 3334/3334 al cierre de `EDITOR-TIENDA-DESHACER-1`; +11 — reconciliado por EJECUCIÓN, no por grep de `test(`: el delta exacto de 11 ejecuciones nuevas se verificó sumando call-sites fuera de loop (1+1+3+2=7) más las 4 ejecuciones del loop de BrandStory (2 call-sites × 2 iteraciones) = 11, 3334+11=3345 cierra exacto) |
+| `npm run test:integracion` | **323/323**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo.** `HuecoImagenOpcional` sigue devolviendo `null` fuera de modo
+editor, en los seis sitios; el `pointer-events-none` del velo de `SubscriptionCTALinea` no cambia un
+solo píxel visible (es un degradado transparente de por sí); el ajuste de comentario en
+`Contenido.tsx` no es código ejecutable.
+
+**Cierra los tres follow-ups nombrados: `EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`,
+`CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1` y `CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1`.**
+Con esto, el plan por slices de § 6.4 queda completo salvo nav/pie (§ 5, fuera de alcance explícito
+de todo este documento, sin disparador propio).

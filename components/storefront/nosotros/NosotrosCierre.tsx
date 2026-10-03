@@ -8,7 +8,7 @@ import { fadeUp, useProgresoScroll } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, resolverCtaSeccion } from "@/lib/config/site-content-defaults";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
 
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — la banda final antes del pie, en el
 // mismo lugar donde el tema real cierra la página con titular + párrafo + botón (medido, §
@@ -48,7 +48,7 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
       className={`relative overflow-hidden py-24${tieneImagenFondo ? "" : " bg-[var(--sf-tinta-2)]"}`}
       style={style}
     >
-      {tieneImagenFondo && (
+      {tieneImagenFondo ? (
         <div className="absolute inset-0" aria-hidden="true">
           {/* La caja del parallax se extiende 6% arriba/abajo: el `translateY` de ±5% de su propio
               alto (≤ 5% de 112%) nunca expone un borde vacío — MISMA cuenta que SubscriptionCTALinea. */}
@@ -65,6 +65,11 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
               interactivo. */}
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)] pointer-events-none" />
         </div>
+      ) : (
+        // SIN imagen: el fondo sólido (`--sf-tinta-2`, arriba) se queda — el hueco es sólo el chip
+        // chico de HuecoImagenOpcional, no un rectángulo que tape el título (§ EDITOR-TIENDA-CAMPO-
+        // EDITABLE-CIERRE-1, cierra CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1).
+        <HuecoImagenOpcional campo="nosotrosCierre.imagenFondo" className="absolute inset-0" />
       )}
       <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara la

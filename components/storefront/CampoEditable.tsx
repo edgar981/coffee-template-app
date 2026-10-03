@@ -70,3 +70,55 @@ export default function CampoEditable({
     </span>
   );
 }
+
+// EL HUECO de una imagen OPCIONAL VACÍA (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra
+// `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1`, nombrado en `EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1`).
+// Seis sitios (`brandStory.imagen2/3/4` en sus dos variantes, `subscriptionCTA.imagenFondo` en
+// `SubscriptionCTALinea`, `nosotrosHistoria.imagen`, `nosotrosCierre.imagenFondo`) OMITEN el bloque
+// entero —no sólo la imagen— cuando el campo está vacío (`.filter()`/`&&`), así que no quedaba NINGÚN
+// nodo donde clickear para AGREGAR la primera foto: el dueño sólo podía hacerlo desde el formulario
+// de la lista, el estorbo que este programa existe para evitar (§ EDICION-INLINE.md § 0).
+//
+// SÓLO EN MODO EDITOR, igual que `CampoEditable`: fuera de él devuelve `null` — CERO nodos, nunca el
+// chip visible sin su gate de clic. El llamador decide CUÁNDO llamarlo (sólo cuando el campo real
+// está vacío); este componente no vuelve a comprobar el valor, porque no lo recibe — sería una
+// tercera fuente de la misma condición que el llamador ya evaluó para decidir qué rama renderizar.
+//
+// REUSA `tipo="imagen"` de `CampoEditable` — el MISMO mensaje al puente
+// (`TIPO_MENSAJE_CAMPO_IMAGEN_CLICK`) y el MISMO flujo de subida real del panel (§ EDITOR-TIENDA-
+// CAMPO-EDITABLE-IMAGEN-1) — nunca un selector propio. No hay diferencia de MECANISMO entre "cambiar
+// una foto que ya existe" y "agregar la primera": las dos terminan en el mismo
+// `abrirSelectorImagen(campo)`.
+//
+// EL CLICK ABARCA TODA LA CAJA (`className` del llamador — el MISMO tamaño/posición que ocuparía la
+// imagen real: `absolute inset-0`, `aspect-[3/4]`…), pero LO VISIBLE es un CHIP CHICO centrado — no
+// un rectángulo opaco que tape el fondo/el texto de la sección. "Discreto" es sobre todo esto: en los
+// casos full-bleed (`subscriptionCTA.imagenFondo`/`nosotrosCierre.imagenFondo`) el fondo sólido de
+// siempre sigue viéndose detrás del chip, y el texto de la banda sigue legible.
+//
+// ESTILO LITERAL, nunca un token `--sf-*`/`--duna-*` (mismo criterio que el chip de sesión vencida
+// de `EditorPuenteVivo.tsx`, § su docstring): es chrome del EDITOR superpuesto sobre el documento del
+// VISITANTE, no contenido de ese documento — no tiene que adaptarse al tema del tenant, sólo verse
+// igual de discreto sobre cualquier fondo (claro u oscuro).
+export function HuecoImagenOpcional({
+  campo,
+  className = '',
+}: {
+  /** La ruta COMPLETA del campo de imagen — igual que `CampoEditable campo=` con `tipo="imagen"`. */
+  campo: string;
+  /** El tamaño/posición de la caja clickeable, decidido por el llamador: el MISMO que ocuparía el
+   *  nodo de imagen real que este hueco reemplaza. */
+  className?: string;
+}) {
+  const activo = useModoEditorActivo();
+  if (!activo) return null;
+  return (
+    <CampoEditable campo={campo} tipo="imagen">
+      <div className={`flex cursor-pointer items-center justify-center ${className}`}>
+        <span className="rounded-md border-2 border-dashed border-black/30 bg-white/90 px-3 py-2 text-xs font-medium whitespace-nowrap text-black/60 shadow-sm">
+          + Agregar foto
+        </span>
+      </div>
+    </CampoEditable>
+  );
+}

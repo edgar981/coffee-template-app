@@ -14,7 +14,7 @@ import {
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "LÍNEA" (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): del BLOQUE apilado de hoy
 // (§ SubscriptionCTABloque — texto en una columna, tarjetas de plan en la otra) a una FRANJA
@@ -220,7 +220,7 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
       className={`relative mb-16 overflow-hidden py-20${tieneImagenFondo ? "" : " bg-[var(--sf-banda,var(--sf-tinta-2))]"}`}
       style={style}
     >
-      {tieneImagenFondo && (
+      {tieneImagenFondo ? (
         <div className="absolute inset-0" aria-hidden="true">
           {/* La caja del parallax se extiende 6vh arriba/abajo — EN `vh`, no en `%` de su propio
               alto (§ SUSCRIPCION-PARALLAX-VISIBLE-1, arriba): el `translateY` de ±5vh que
@@ -232,8 +232,15 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
               <Image src={subscriptionCTA.imagenFondo} alt="" fill sizes="100vw" className="object-cover" />
             </CampoEditable>
           </motion.div>
-          <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)]" />
+          {/* `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, DEVIACIÓN MEDIDA — el
+              mismo defecto ya cerrado para el velo de `GrindChooserMosaico`/`NosotrosCierre`): este
+              velo pinta DESPUÉS del `motion.div` de la imagen, en la MISMA caja `absolute inset-0`,
+              así que sin esto se lleva el hit-test del clic sobre el marcador de imagen de arriba.
+              Neutro para un visitante real: el velo nunca tuvo propósito interactivo. */}
+          <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)] pointer-events-none" />
         </div>
+      ) : (
+        <HuecoImagenOpcional campo="subscriptionCTA.imagenFondo" className="absolute inset-0" />
       )}
       <noscript>
         <style>{".sf-postal-titulo{transform:none!important}.sf-postal-fade{opacity:1!important;transform:none!important}"}</style>

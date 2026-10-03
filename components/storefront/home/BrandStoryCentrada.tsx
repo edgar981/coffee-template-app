@@ -7,11 +7,12 @@ import Link from "next/link";
 import { parametrosAcomodoCollage, transformAcomodo, useProgresoAcomodo } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
 
 // LA VARIANTE "CENTRADA" (§ CORTE-BRANDSTORY-COLLAGE-1, MEDIDA contra la sección `.historia` de
 // `docs/prototipos/cafeone/index.html:250-273` + `css/app.css:561-578`). El BrandStory de siempre
@@ -183,6 +184,7 @@ const CLASE_FIGURA_MEDIO = 'z-10 w-[min(320px,82vw)] sm:w-[clamp(240px,28vw,400p
 export default function BrandStoryCentrada({ style }: { style?: React.CSSProperties } = {}) {
   const { brandStory, tema, paginas, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  const activo = useModoEditorActivo();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: CORTE (`brandStory:
   // 'centrada'`) es el ÚNICO preset que usa esta variante y el ÚNICO que declara `escalaDisplay:
   // 'amplia'`. `undefined` sin escala declarada → NO se toca el `style`, que sigue rindiendo
@@ -217,6 +219,12 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
     .map((img, i) => ({ ...img, i }))
     .filter(({ campo }) => !!brandStory[campo]);
   const totalVisible = imagenesLlenas.length;
+  // LAS VACÍAS (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-
+  // OPCIONAL-1): sólo en modo editor, un hueco "Agregar foto" por cada opcional sin valor —
+  // DESPUÉS de las llenas, FUERA del scroll-scrub (no participa de `imagenesLlenas`/`totalVisible`/
+  // los `useTransform` de arriba: es un invite ESTÁTICO a agregar la foto, no una figura del collage
+  // que rotar). `imagen1` nunca puede estar acá (requerida, el resolver la rellena con el default).
+  const imagenesVacias = activo ? IMAGENES.filter(({ campo }) => !brandStory[campo]) : [];
   // El parámetro de CADA slot (0..3), por su posición dentro de las visibles — `null` para un slot
   // vacío (nunca se lee: `imagenesLlenas` no lo incluye en el `.map()` de render, abajo).
   const posicionPorSlot = new Map(imagenesLlenas.map(({ i }, pos) => [i, pos]));
@@ -293,6 +301,11 @@ export default function BrandStoryCentrada({ style }: { style?: React.CSSPropert
               </RevelarBloque>
             );
           })}
+          {imagenesVacias.map(({ campo }) => (
+            <div key={campo} className={`shrink-0 relative aspect-[3/4] overflow-hidden sf-radio-imagen ${CLASE_FIGURA_LADO}`}>
+              <HuecoImagenOpcional campo={`brandStory.${campo}`} className="absolute inset-0" />
+            </div>
+          ))}
         </div>
 
         <div className="mx-auto max-w-2xl">
