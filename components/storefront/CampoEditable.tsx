@@ -15,9 +15,10 @@ import { ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor
 // React ni este componente saben si hay un overlay abierto encima; el marcador es toda la
 // responsabilidad.
 //
-// NINGUNA sección de la tienda usa este componente todavía (§ EDICION-INLINE.md § 6.4, fila 1 —
-// "SIN aplicarlo todavía a ninguna sección real"): esto es sólo la PLOMERÍA, ejercitada por su
-// propio test y por un nodo de arnés (§ el slice), no por `HeroSection`/`BrandStory`/etc.
+// PRIMER CONSUMIDOR REAL (§ EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1, fila 2 de § 6.4): las cuatro
+// variantes del hero (`HeroCurtina`/`HeroFicha`/`HeroMedia`/`HeroMediaMarquesina`) y la banda suelta
+// `Marquesina.tsx`. El resto de las secciones (brandStory, origen, presentaciones…) sigue sin
+// instrumentar — fila 4 de § 6.4, `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`.
 export default function CampoEditable({
   campo,
   multilinea = false,

@@ -1,10 +1,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { parsearRutaCampo, fusionCampoEditable, estiloCampoFlotante } from './campo-editable';
+
+import HeroCurtina from '@/components/storefront/home/HeroCurtina';
+import HeroFicha from '@/components/storefront/home/HeroFicha';
+import HeroMedia from '@/components/storefront/home/HeroMedia';
+import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { ModoEditorProvider } from '@/components/storefront/ModoEditor';
+import { ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor-iframe';
+import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
 
 // Capa 1 del campo editable (§ EDITOR-TIENDA-CAMPO-EDITABLE-1). Puro, sin DOM/React/postMessage —
 // lo que se afirma es el parseo de la ruta que `CampoEditable` marca en el DOM, la fusión que
 // produce el parcial de `cambiar()`, y la forma del `style` del overlay.
+//
+// § EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1 agrega una SEGUNDA mitad, al final de este archivo: la
+// APLICACIÓN real de `CampoEditable` a las TRES variantes del hero sin ticker (curtina/ficha/
+// media — la cuarta, "sticky", comparte el campo `marquesina.texto` con `Marquesina.tsx` y vive en
+// `lib/config/hero-marquesina.test.ts`, que ya tenía la infraestructura de render para esa
+// composición). Esa mitad SÍ renderiza (`renderToStaticMarkup`), porque lo que hay que afirmar no es
+// la lógica pura sino que el componente REAL —el que ve el visitante— queda byte-idéntico fuera del
+// modo editor y marca el nodo correcto dentro de él; una aserción sobre `fusionCampoEditable` a
+// secas no vería un campo que el JSX de la sección se olvidó de envolver.
 
 test('parsearRutaCampo: plano — el primer punto separa sección y campo', () => {
   assert.deepEqual(parsearRutaCampo('hero.titulo'), { seccion: 'hero', campo: 'titulo' });
@@ -93,4 +112,73 @@ test('estiloCampoFlotante: geometría en fixed + tipografía spread + z-index al
   assert.equal(estilo.border, 'none');
   assert.equal(estilo.boxSizing, 'border-box');
   assert.equal(estilo.zIndex, 2147483647);
+});
+
+// ─── § EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1 — curtina/ficha/media, APLICADO (no sólo la plomería) ──
+//
+// Las TRES comparten los MISMOS seis campos de texto libre (eyebrow/titulo/tituloEnfasis/subtitulo/
+// los dos CTA, § EDICION-INLINE.md § 1.1) — se recorre con una tabla en vez de triplicar el cuerpo
+// del test, para que agregar una variante futura a esta lista sea una fila, no una función nueva.
+
+const CAMPOS_COMUNES: { campo: string; linea: 'unica' | 'multiple' }[] = [
+  { campo: 'hero.eyebrow', linea: 'unica' },
+  { campo: 'hero.titulo', linea: 'unica' },
+  { campo: 'hero.tituloEnfasis', linea: 'unica' },
+  { campo: 'hero.subtitulo', linea: 'multiple' },
+  { campo: 'hero.ctaPrimarioLabel', linea: 'unica' },
+  { campo: 'hero.ctaSecundarioLabel', linea: 'unica' },
+];
+
+const VARIANTES_SIN_TICKER: { nombre: string; Componente: typeof HeroCurtina }[] = [
+  { nombre: 'HeroCurtina', Componente: HeroCurtina },
+  { nombre: 'HeroFicha', Componente: HeroFicha },
+  { nombre: 'HeroMedia', Componente: HeroMedia },
+];
+
+function renderVariante(Componente: typeof HeroCurtina, content: SiteContentData, opts: { activo?: boolean } = {}): string {
+  let arbol: React.ReactElement = React.createElement(SiteContentProvider, { value: content, children: React.createElement(Componente) });
+  if (opts.activo) arbol = React.createElement(ModoEditorProvider, { activo: true, children: arbol });
+  return renderToStaticMarkup(arbol);
+}
+
+function contarMarcador(html: string, campo: string): number {
+  const re = new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="${campo.replace(/[.]/g, '\\.')}"`, 'g');
+  return (html.match(re) ?? []).length;
+}
+
+for (const { nombre, Componente } of VARIANTES_SIN_TICKER) {
+  test(`${nombre}, SIN modo editor: cero \`data-editor-campo\` — byte-idéntico (el contrato que ya cumple data-editor-seccion)`, () => {
+    const html = renderVariante(Componente, DEFAULTS as SiteContentData);
+    assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+  });
+
+  test(`${nombre}, CON modo editor: los seis campos comunes marcan su nodo, cada uno UNA sola vez, con la línea correcta`, () => {
+    const html = renderVariante(Componente, DEFAULTS as SiteContentData, { activo: true });
+    for (const { campo, linea } of CAMPOS_COMUNES) {
+      assert.equal(contarMarcador(html, campo), 1, `${campo} debería marcar exactamente un nodo`);
+      assert.match(
+        html,
+        new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="${campo.replace(/[.]/g, '\\.')}"[^>]*${ATRIBUTO_EDITOR_LINEA}="${linea}"`),
+        `${campo} debería declarar data-editor-linea="${linea}"`,
+      );
+    }
+  });
+}
+
+// `hero.fraseAlPie` es EXCLUSIVO de HeroMedia entre las tres sin ticker (curtina/ficha no lo leen,
+// § EDICION-INLINE.md § 1.1 — "Sólo lo rinden las composiciones 'media' o 'sticky'"): se afirma
+// aparte, no en la tabla común, para no sugerir que curtina/ficha también lo marcan.
+test('HeroMedia, CON modo editor: `hero.fraseAlPie` (no común a curtina/ficha) marca su párrafo, multilinea', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Tueste artesanal, lote por lote.' } } as SiteContentData;
+  const html = renderVariante(HeroMedia, content, { activo: true });
+  assert.equal(contarMarcador(html, 'hero.fraseAlPie'), 1);
+  assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="hero\\.fraseAlPie"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
+});
+
+test('HeroCurtina/HeroFicha, CON modo editor: NO existe un marcador "hero.fraseAlPie" — ninguna de las dos lee ese campo', () => {
+  for (const Componente of [HeroCurtina, HeroFicha]) {
+    const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Tueste artesanal, lote por lote.' } } as SiteContentData;
+    const html = renderVariante(Componente, content, { activo: true });
+    assert.equal(contarMarcador(html, 'hero.fraseAlPie'), 0);
+  }
 });

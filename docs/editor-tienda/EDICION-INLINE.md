@@ -359,7 +359,7 @@ bueno del owner, después el slice de escritura (igual que todo lo demás de `DI
 | # | Slice | Alcance | Criterio de verificación por ejecución |
 | --- | --- | --- | --- |
 | 1 | `EDITOR-TIENDA-CAMPO-EDITABLE-1` **— ENTREGADO, alcance AMPLIADO por encargo del owner, § 8** | La plomería: `ModoEditorProvider`/`useModoEditorActivo()`, el componente `CampoEditable`, el TERCER mensaje del puente (`TIPO_MENSAJE_CAMPO_CAMBIO`) y su manejo en `EditorPuenteVivo`/el panel. **El campo flotante YA SE CONSTRUYÓ en este slice** (no se dejó para el 2: el spec de esta tanda lo pidió completo, § 8) — overlay posicionado/tipografiado desde el nodo real, un solo campo abierto a la vez, Escape/Tab/clic-afuera cierran, Enter commitea en campo de una línea. SIN aplicarlo a ninguna sección real todavía (verificado con dos nodos de ARNÉS inyectados a mano, § 8). | `npm run gate` verde; `verificar:nayoli:visual`/`guarda:color` sin un píxel nuevo; verificado por ejecución (Playwright, sesión real, Escritorio y Teléfono) — ver § 8. |
-| 2 | `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` | Instrumenta **las 4 variantes** de `hero` (Curtina/Ficha/Media/MarquesinaSticky) — el caso con más multiplicidad, primero, para medir el costo real antes de comprometerse al resto. Incluye la MEDICIÓN de legibilidad pendiente (§ 2.2) en los tres anchos de dispositivo. | Verificado por ejecución, sesión real, preset CORTE (que usa variantes no-canónicas): clic en título/subtítulo/CTA en CADA una de las 4 variantes abre el overlay correcto; capturas en Escritorio/Tablet/Teléfono confirmando legibilidad; el campo duplicado de `marquesina`/`HeroMediaMarquesina` NO diverge tras tipear (ambas copias muestran el valor nuevo). |
+| 2 | `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` **— ENTREGADO, § 9** | Instrumenta **las 4 variantes** de `hero` (Curtina/Ficha/Media/MarquesinaSticky) — el caso con más multiplicidad, primero, para medir el costo real antes de comprometerse al resto. Incluye la MEDICIÓN de legibilidad pendiente (§ 2.2) en los tres anchos de dispositivo. | Verificado por ejecución, sesión real, preset CORTE (que usa variantes no-canónicas): clic en título/subtítulo/CTA en CADA una de las 4 variantes abre el overlay correcto; capturas en Escritorio/Tablet/Teléfono confirmando legibilidad; el campo duplicado de `marquesina`/`HeroMediaMarquesina` NO diverge tras tipear (ambas copias muestran el valor nuevo) — ver § 9. |
 | 3 | `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` | El mensaje/flujo de imagen (§ 4): clic en una imagen marcada abre el selector real del panel. | Clic en `hero.imagen` dentro del iframe abre el picker de archivos del sistema; la subida y el resultado se ven sin recargar, igual que hoy desde la lista. |
 | 4 | `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N` | El resto de home/nosotros/suscripciones, UNA o pocas secciones por slice (brandStory, origen, presentaciones×3 variantes, subscriptionCTA×2, testimonials+repeater, spotlight, nosotrosHistoria, nosotrosGaleria+repeater, nosotrosCierre, suscripcionPlanes, suscripcionPasos, suscripcionFaq+repeater) — el orden y el agrupado los decide quien planifique la implementación, no este documento. | Mismo patrón que el slice 2, por sección: todas sus variantes, todos sus campos de texto libre, `verificar:nayoli:visual` sin píxel nuevo. |
 | 5 | `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1` | El aviso inline de sesión vencida DENTRO del overlay (§ 3). | Reproducido por ejecución: sesión invalidada a mitad de edición → el overlay muestra el aviso, el panel sigue mostrando el suyo, ninguno de los dos pierde el valor ya tecleado. |
@@ -487,3 +487,97 @@ como verde.
 | `npm run guarda:color` / `npm run verificar:nayoli:visual` | MISMA cifra exacta que el piso ya heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — cero píxeles de drift nuevo |
 
 **Cierra la fila 1 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-1`).**
+
+---
+
+## 9 · Lo que `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` entregó
+
+Instrumentó las CUATRO variantes del hero (Curtina/Ficha/Media/MarquesinaSticky, `HeroSection.tsx`) y la
+banda suelta `Marquesina.tsx` (comparte el campo `marquesina.texto` con la composición "sticky", § 2.2
+punto 1) con `CampoEditable`, sin tocar la plomería que `EDITOR-TIENDA-CAMPO-EDITABLE-1` ya construyó
+(`ModoEditorProvider`, el componente, el overlay dentro de `EditorPuenteVivo.tsx`, el tercer mensaje):
+cada JSX que escribía `{hero.titulo}` pasó a `<CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>`,
+sin cambiar un solo `className`.
+
+- **Los SEIS campos comunes** (eyebrow/titulo/tituloEnfasis/subtitulo/los dos CTA) se marcaron en las
+  TRES variantes que los comparten (Curtina/Ficha/Media), cada uno con la `multilinea` que declara
+  `tienda-secciones.ts` (`subtitulo`:`multiple`, el resto `unica`).
+- **`hero.fraseAlPie`** se marcó SÓLO en Media y en la composición "sticky" (`HeroMediaMarquesina.tsx`)
+  — Curtina/Ficha no lo leen (§ 1.1), y no se le agregó un marcador que nunca tendría efecto.
+- **El campo DUPLICADO** (`marquesina.texto`, dos `<span>` por el loop sin costura, EN CADA una de las
+  DOS composiciones que lo leen — `Marquesina.tsx` y `HeroMediaMarquesina.tsx`): sólo el PRIMER `<span>`
+  de cada composición lleva el marcador; el gemelo se actualiza solo, desde el mismo `useSiteContent()`
+  — ningún caso especial de sincronización, tal como anticipaba § 2.2.
+- **Los campos selector/pointer** (`puntoFocal`, `veloIntensidad`, `tickerVelocidad`) NO se tocaron —
+  siguen abriendo sólo la sección en la lista, como pregunta la § 7.2 ya resuelta por la fila 1.
+- **El precio** sigue sin campo que lo toque — no hay precio en el hero.
+
+### Deviación MEDIDA sobre el propio spec: "preset CORTE" NO cubre las 4 variantes
+
+El criterio de verificación de § 6.4 decía *"preset CORTE (que usa variantes no-canónicas)"*, dando a
+entender que un preset bastaba para ejercitar lo necesario. **Medido contra `lib/config/themes.ts`,
+no asumido**: CORTE fija `hero:'sticky'`; NINGÚN preset del catálogo fija `'ficha'` ni `'media'` —
+Nayoli/sin-preset usa la canónica `'curtina'`. Dos de las cuatro variantes nunca se habían renderizado
+contra un navegador real antes de este slice. Se fijó `hero.variante` (y, para media/sticky,
+`hero.fraseAlPie`/`marquesina.visible`) DIRECTO en la fila `SiteContent` de una base efímera (un script
+de una línea, no un preset) para poder verificar las cuatro en una sola sesión.
+
+### DOS HALLAZGOS DE MÉTODO DEL ARNÉS (no del mecanismo) — para que el próximo arnés de este puente no los repita
+
+1. **El dispositivo elegido se RECUERDA en `localStorage`, por navegador** (`lib/admin/editor-iframe.ts`,
+   `CLAVE_DISPOSITIVO_EDITOR`) — una navegación fresca (`page.goto('/editor/tienda')`) NO lo resetea a
+   Escritorio, hereda lo último elegido EN ESE MISMO navegador. El primer intento de este arnés asumía
+   el reset (como el arnés de la fila 1, que nunca cambiaba de dispositivo dentro de la misma sesión);
+   dejar una fase en Teléfono y entrar a la siguiente asumiendo Escritorio hizo que "ficha·Escritorio"
+   corriera en realidad a 393px, y el `eyebrow` cayó bajo el `StoreNav` (`position:fixed`, z-50) —
+   parecía un defecto de layout de `ficha`, y era el arnés probando el ancho equivocado. Se corrigió
+   fijando Escritorio EXPLÍCITO al entrar a cada fase, nunca asumiendo el default.
+2. **El autoguardado snapshotea el FORM COMPLETO de la sección, no un delta por campo** — cada tecla
+   persiste el `hero` ENTERO en `content.borrador.hero`, y ese borrador sin publicar le gana a una
+   escritura DIRECTA a `content.hero` (la que este arnés usa para cambiar de variante) en la lectura
+   fusionada del editor. Encadenar fases SIN publicar entre medio dejaba la variante/frase nueva
+   enmascaradas por el borrador viejo de la fase anterior — 4 fallos en el primer intento completo
+   (`hero.fraseAlPie` ausente en media, el conteo de marcadores del ticker en 1 en vez de 2 bajo
+   sticky). Se corrigió publicando la sección abierta al final de cada fase, antes de la siguiente
+   escritura directa. Ninguno de los dos hallazgos tocó código de producto — los dos eran supuestos
+   del arnés sobre un mecanismo (persistencia de dispositivo, forma del borrador) que ya se comportaba
+   así desde slices anteriores.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-hero.ts` (no committed, gitignored), cuatro fases contra una
+build de PRODUCCIÓN (`next build` + `next start`) con sesión real (`admin@sierranativa.co`):
+Curtina (default del seed) → Ficha → Media → Sticky (preset CORTE + `marquesina.visible:true` a
+propósito, para ejercitar las DOS composiciones de `marquesina.texto` en la misma carga). **96/96
+verificaciones en verde**, tras corregir los dos hallazgos de método de arriba:
+
+| verificación (por variante × dispositivo) | resultado |
+| --- | --- |
+| existe el nodo `[data-editor-campo="hero.X"]` para cada campo aplicable | sí, en las 4 variantes |
+| clic abre su `[data-editor-overlay="hero.X"]` | 1, siempre |
+| overlay alineado al píxel con el nodo real, medido DENTRO del iframe | Δtop/Δleft/Δwidth = 0.00px en Escritorio/Tablet/Teléfono, las 4 variantes |
+| ticker duplicado (`marquesina.texto`): DOS marcadores en la página (uno por composición), editar desde CUALQUIERA actualiza las 4 copias visibles | count=2; antes=4 ocurrencias del texto viejo, después=4 del nuevo — 0 divergencia |
+| Publicar → releer en una pestaña nueva, SIN sesión, SIN `?editor=1` | el nuevo `hero.titulo` aparece en la home pública |
+| fuera de modo editor, la home pública | 0 `data-editor-campo` |
+
+**Legibilidad (la medición pendiente de § 2.2) — confirmada por inspección visual, 8 capturas
+representativas de las 27 que el arnés guardó** (`.scratch/capturas-campo-editable-hero/`, no
+committed): el overlay vive DENTRO del mismo documento/stage que el texto real que reemplaza, así que
+hereda el MISMO `transform:scale()` que el stage le aplica al dispositivo elegido (medido: el recorte
+de Escritorio sale a ~0.47× el tamaño lógico que reporta `getBoundingClientRect()`, Tablet a ~0.79×,
+Teléfono sin reducir) — el overlay nunca es MÁS NI MENOS legible que el texto que tapa, porque los dos
+escalan juntos. Las 8 capturas inspeccionadas (titulo y subtitulo de Curtina en Escritorio, titulo de
+Curtina/Ficha en Tablet/Teléfono, fraseAlPie de Media, el ticker de Sticky en Tablet/Teléfono) muestran
+texto nítido y legible en los tres anchos — ningún caso de texto cortado, solapado o ilegible.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (`tsc --noEmit` + `npm test` + `npm run test:integracion`) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3214/3214** (+14 sobre los 3200 previos: 8 en `lib/storefront/campo-editable.test.ts` — render de las 3 variantes sin ticker, curtina/ficha/media —, 6 en `lib/config/hero-marquesina.test.ts` — sticky + `Marquesina.tsx`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` / `npm run verificar:nayoli:visual` | MISMA cifra exacta que el piso ya heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — cero píxeles de drift nuevo |
+
+**Cierra la fila 2 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`).**

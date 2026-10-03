@@ -11,6 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import CampoEditable from "@/components/storefront/CampoEditable";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
@@ -119,7 +120,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
               variants={fadeUp}
               className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-acento-texto))]"
             >
-              {hero.eyebrow}
+              <CampoEditable campo="hero.eyebrow">{hero.eyebrow}</CampoEditable>
             </motion.p>
           )}
 
@@ -128,11 +129,13 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
             className="font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-5xl lg:text-6xl"
             style={displayXl ? { fontSize: displayXl } : undefined}
           >
-            {hero.titulo}
+            <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
             {hero.tituloEnfasis && (
               <>
                 {' '}
-                <em className="italic text-[var(--sf-sobre-banda,var(--sf-acento-texto))]">{hero.tituloEnfasis}</em>
+                <em className="italic text-[var(--sf-sobre-banda,var(--sf-acento-texto))]">
+                  <CampoEditable campo="hero.tituloEnfasis">{hero.tituloEnfasis}</CampoEditable>
+                </em>
               </>
             )}
           </motion.h1>
@@ -144,7 +147,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
             variants={fadeUp}
             className="mb-10 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,var(--sf-texto))]"
           >
-            {hero.subtitulo}
+            <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
           </motion.p>
 
           <motion.div variants={fadeUp} className="flex flex-wrap gap-4">
@@ -152,7 +155,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
               href={HERO_HREFS.primario}
               className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
             >
-              {hero.ctaPrimarioLabel}
+              <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
 
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -162,7 +165,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
                 href={HERO_HREFS.secundario}
                 className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea)] px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-all duration-200 hover:bg-[var(--sf-linea)]/40"
               >
-                {hero.ctaSecundarioLabel}
+                <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
               </Link>
             )}
           </motion.div>

@@ -11,6 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import CampoEditable from "@/components/storefront/CampoEditable";
 import { HERO_HREFS, objectPositionDePuntoFocal } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import { fadeUp } from "@/lib/animation";
@@ -283,7 +284,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
               variants={fadeUp}
               className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-tostado))]"
             >
-              {hero.eyebrow}
+              <CampoEditable campo="hero.eyebrow">{hero.eyebrow}</CampoEditable>
             </motion.p>
           )}
 
@@ -296,11 +297,13 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
               className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
               style={displayXl ? { fontSize: displayXl } : undefined}
             >
-              {hero.titulo}
+              <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
               {hero.tituloEnfasis && (
                 <>
                   <br />
-                  <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">{hero.tituloEnfasis}</em>
+                  <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">
+                    <CampoEditable campo="hero.tituloEnfasis">{hero.tituloEnfasis}</CampoEditable>
+                  </em>
                 </>
               )}
             </motion.h1>
@@ -313,7 +316,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
               variants={fadeUp}
               className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
             >
-              {hero.subtitulo}
+              <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
             </motion.p>
           )}
 
@@ -329,7 +332,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
                 href={HERO_HREFS.primario}
                 className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
               >
-                {hero.ctaPrimarioLabel}
+                <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
 
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -339,7 +342,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
                   href={HERO_HREFS.secundario}
                   className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
                 >
-                  {hero.ctaSecundarioLabel}
+                  <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
                 </Link>
               )}
             </motion.div>
@@ -353,7 +356,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             de la sección — igual que el cue, abajo. */}
         {hero.fraseAlPie && (
           <p className="mt-8 ml-auto max-w-[34ch] text-right text-sm leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
-            {hero.fraseAlPie}
+            <CampoEditable campo="hero.fraseAlPie" multilinea>{hero.fraseAlPie}</CampoEditable>
           </p>
         )}
       </div>

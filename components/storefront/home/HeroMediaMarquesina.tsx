@@ -8,6 +8,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import CampoEditable from "@/components/storefront/CampoEditable";
 import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
@@ -833,7 +834,12 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
                   entrega) los colapsa a UN solo mecanismo — `pr-[0.5em]` — así la separación total
                   es de media letra y escala con `MARQUEE_TITULO_FONT_SIZE`, en vez de quedar fija
                   en píxeles como el `pr-8` de antes. */}
-              <span className="pr-[0.5em]">{marquesina.texto}</span>
+              {/* SÓLO el PRIMER <span> lleva el marcador editable (§ EDITOR-TIENDA-CAMPO-EDITABLE-
+                  HERO-1, docs/editor-tienda/EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados"): el
+                  segundo es la copia gemela que cierra el loop sin salto, y se actualiza solo desde
+                  el MISMO `useSiteContent()` cuando el overlay del primero escribe en el form — nunca
+                  los dos a la vez (un segundo overlay sobre el mismo campo sería redundante). */}
+              <span className="pr-[0.5em]"><CampoEditable campo="marquesina.texto">{marquesina.texto}</CampoEditable></span>
               <span className="pr-[0.5em]">{marquesina.texto}</span>
             </motion.div>
           </motion.div>
@@ -925,7 +931,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             un 400 fijo — fallback 400 para cualquier otro tenant. */}
         {hero.fraseAlPie && (
           <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-[13px] sf-peso-normal leading-relaxed text-balance text-[var(--sf-sobre-banda,white)] sm:bottom-10 sm:right-6 sm:text-sm lg:bottom-12 lg:right-8">
-            {hero.fraseAlPie}
+            <CampoEditable campo="hero.fraseAlPie" multilinea>{hero.fraseAlPie}</CampoEditable>
           </p>
         )}
 

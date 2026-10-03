@@ -7,6 +7,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { useProgresoScroll, transformMarquesinaTexto, transformMarquesinaTarjeta } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import CampoEditable from "@/components/storefront/CampoEditable";
 import { REGISTRY, seccionEsVisible, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
@@ -104,7 +105,12 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
             UN solo mecanismo — `pr-[0.5em]` — así la separación total es de media letra y escala
             con el tamaño de fuente del propio loop (`text-[clamp(...)]`), en vez de quedar fija en
             píxeles como el `pr-8` de antes. */}
-        <span className="pr-[0.5em]">{marquesina.texto}</span>
+        {/* SÓLO el PRIMER <span> lleva el marcador editable (§ EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1,
+            docs/editor-tienda/EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados" — el MISMO campo
+            vive también en `HeroMediaMarquesina.tsx`, otra composición): el segundo `<span>` es la
+            copia gemela que cierra el loop sin salto, y se actualiza sola desde el MISMO
+            `useSiteContent()` cuando el overlay del primero escribe en el form. */}
+        <span className="pr-[0.5em]"><CampoEditable campo="marquesina.texto">{marquesina.texto}</CampoEditable></span>
         <span className="pr-[0.5em]">{marquesina.texto}</span>
       </motion.div>
 

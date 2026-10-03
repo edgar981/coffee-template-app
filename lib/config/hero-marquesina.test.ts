@@ -5,8 +5,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import HeroSection from '@/components/storefront/home/HeroSection';
 import HeroMediaMarquesina from '@/components/storefront/home/HeroMediaMarquesina';
+import Marquesina from '@/components/storefront/home/Marquesina';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
+import { ModoEditorProvider } from '@/components/storefront/ModoEditor';
+import { ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor-iframe';
 
 import {
   DEFAULTS,
@@ -57,12 +60,23 @@ function renderHeroSection(content: SiteContentData, opts: { preview?: boolean }
   return renderToStaticMarkup(opts.preview ? React.createElement(PreviewProvider, { children: arbol }) : arbol);
 }
 
-function renderHeroMediaMarquesina(content: SiteContentData, opts: { preview?: boolean } = {}): string {
-  const arbol = React.createElement(SiteContentProvider, {
+function renderHeroMediaMarquesina(content: SiteContentData, opts: { preview?: boolean; activo?: boolean } = {}): string {
+  let arbol: React.ReactElement = React.createElement(SiteContentProvider, {
     value: content,
     children: React.createElement(HeroMediaMarquesina),
   });
+  if (opts.activo) arbol = React.createElement(ModoEditorProvider, { activo: true, children: arbol });
   return renderToStaticMarkup(opts.preview ? React.createElement(PreviewProvider, { children: arbol }) : arbol);
+}
+
+// § EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1 — `activo` encadena `ModoEditorProvider` (el contexto que
+// `CampoEditable` lee, § ModoEditor.tsx) ALREDEDOR de `SiteContentProvider`; sin `activo` (el caso
+// por defecto en el resto de este archivo, arriba) no hay provider y `useModoEditorActivo()` cae al
+// `false` de `createContext` — el mismo camino que ya ejercitan las decenas de tests existentes de
+// este archivo, que por eso NO necesitan tocarse para seguir siendo la prueba del byte-idéntico.
+function renderMarquesina(content: SiteContentData, opts: { activo?: boolean } = {}): string {
+  const arbol = React.createElement(SiteContentProvider, { value: content, children: React.createElement(Marquesina) });
+  return renderToStaticMarkup(opts.activo ? React.createElement(ModoEditorProvider, { activo: true, children: arbol }) : arbol);
 }
 
 // ─── EL MODELO — la clave nueva entra al set cerrado; la canónica NO cambia ───────────────────────
@@ -540,4 +554,67 @@ test('HeroSection con `variante:"media"` sigue enrutando a HeroMedia — sin cam
   // HeroMedia usa min-h-[92vh]/[100svh], nunca el ancestro de presupuesto de scroll de la nueva variante.
   assert.doesNotMatch(html, /min-h-\[calc\(100svh\+200vh\)\]/);
   assert.doesNotMatch(html, /sticky top-0/);
+});
+
+// ─── § EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1 — el marcador editable en la variante "sticky" y en la
+// banda `Marquesina.tsx` suelta (§ EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados": el MISMO
+// `marquesina.texto` rinde DOS veces dentro de CADA composición para el loop sin costura, y las DOS
+// composiciones leen el MISMO campo — Marquesina.tsx:111-112, HeroMediaMarquesina.tsx:841-842 al
+// escribir esto). Fuera de `ModoEditorProvider` (el resto de este archivo, arriba, y toda la
+// superficie pública) el contexto cae a `false` por default — CampoEditable devuelve `children` sin
+// envoltorio, así que estos tests NO son nuevos huecos de byte-idéntico: son la MISMA invariante que
+// ya exigen los ~40 tests de arriba, afirmada explícitamente para el campo flotante.
+
+function contarMarcador(html: string, campo: string): number {
+  const re = new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="${campo.replace(/[.]/g, '\\.')}"`, 'g');
+  return (html.match(re) ?? []).length;
+}
+
+test('sticky, SIN modo editor: cero `data-editor-campo` — byte-idéntico (el contrato que ya cumple data-editor-seccion)', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, variante: 'sticky' as const, fraseAlPie: 'Tueste artesanal, lote por lote.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+});
+
+test('sticky, CON modo editor: el ticker duplicado marca UN SOLO `<span>` con "marquesina.texto" — el gemelo queda sin marcar', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, variante: 'sticky' as const } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content, { activo: true });
+  // El texto del campo rinde TRES veces — DOS en el loop sin costura (el gemelo), UNA en el
+  // `aria-label` de la sección (§ el test de arriba, "más la 3ª aparición del aria-label") — y el
+  // MARCADOR, una sola.
+  assert.equal((html.match(new RegExp(DEFAULTS.marquesina.texto, 'g')) ?? []).length, 3);
+  assert.equal(contarMarcador(html, 'marquesina.texto'), 1);
+  // La ruta es de UNA línea ("texto del loop" no declara `textarea` en `tienda-secciones.ts`).
+  assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="marquesina\\.texto"[^>]*${ATRIBUTO_EDITOR_LINEA}="unica"`));
+});
+
+test('sticky, CON modo editor: `hero.fraseAlPie` marca su único párrafo, `multilinea` (data-editor-linea="multiple")', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, variante: 'sticky' as const, fraseAlPie: 'Tueste artesanal, lote por lote.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content, { activo: true });
+  assert.equal(contarMarcador(html, 'hero.fraseAlPie'), 1);
+  assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="hero\\.fraseAlPie"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
+});
+
+test('sticky, CON modo editor: `hero.fraseAlPie` vacío (DEFAULTS) — el párrafo no rinde, así que tampoco su marcador', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, variante: 'sticky' as const } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content, { activo: true });
+  assert.equal(contarMarcador(html, 'hero.fraseAlPie'), 0);
+});
+
+// `DEFAULTS.marquesina.visible` es `false` ("nace OFF", § CLAUDE.md) — `Marquesina.tsx` no rinde
+// NADA contra los DEFAULTS crudos (`seccionEsVisible` la apaga antes de llegar a ningún campo). Para
+// ejercitar el marcador hace falta `visible:true`, igual que cualquier test de esta banda que quiera
+// ver su cuerpo (§ `marquesina-banda.test.ts`, fuera de `touches:` de este slice, hace lo mismo).
+test('Marquesina.tsx, SIN modo editor: cero `data-editor-campo` — byte-idéntico', () => {
+  const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
+  const html = renderMarquesina(content);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+});
+
+test('Marquesina.tsx, CON modo editor: el ticker duplicado marca UN SOLO `<span>` con "marquesina.texto" — el MISMO campo que la variante sticky, cada composición con su propio marcador independiente', () => {
+  const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
+  const html = renderMarquesina(content, { activo: true });
+  // Mismo patrón que la variante sticky: DOS en el loop + UNA en el `aria-label` de la sección.
+  assert.equal((html.match(new RegExp(DEFAULTS.marquesina.texto, 'g')) ?? []).length, 3);
+  assert.equal(contarMarcador(html, 'marquesina.texto'), 1);
 });
