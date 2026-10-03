@@ -45654,5 +45654,26 @@ No aplica — sin migración, sin modelo Prisma nuevo, sin contrato cruzado. `ta
 en el schema editable (`z.enum(['atenuado','acento']).optional()`, `site-content-schema.ts`) desde
 `NAV-LOGO-MOVIL-CON-AIRE-1`; este slice no tocó validación, sólo quién lo manda en el body.
 
+### Follow-up — una FRASE del docstring de `NavWordmarkContent.taglineColor` quedó FALSA, fuera de `touches:`
+
+`lib/config/site-content-defaults.ts:1405-1417` (NO en `touches:` de este slice) documenta el MISMO
+hueco que este slice cierra, y dice textualmente: *"`EncabezadoSeccion.tsx` (fuera de `touches:` de
+este slice) NO reenvía este campo en su `wireDe`... así que HOY, publicar el Encabezado desde el
+panel por CUALQUIER otro motivo (un switch cualquiera) sobreescribe `navWordmark` ENTERO con
+`{activo}` y VUELVE este campo a `'atenuado'` en silencio."* Esa frase era cierta cuando
+`NAV-LOGO-MOVIL-CON-AIRE-1` la escribió y **dejó de serlo con este slice**: `EncabezadoSeccion.tsx`
+SÍ reenvía `taglineColor` ahora (§ arriba). La MITAD siguiente del mismo bloque —"MISMO HUECO, por
+la MISMA razón, en `mergePresetEnContent`"— **sigue siendo verdad**: ese slice no tocó `themes.ts`,
+así que `aplicarPreset` sobre un tenant con `taglineColor:'acento'` todavía lo revierte en silencio.
+No se corrige acá — está fuera de `touches:` de `TAGLINE-COLOR-CIERRE-1`.
+
+**`TAGLINE-COLOR-DOCSTRING-STALE-1`** (coined acá): actualizar `lib/config/site-content-defaults.ts:
+1405-1417` para que deje de afirmar que `EncabezadoSeccion.tsx` no reenvía el campo, y para acotar
+la advertencia de "se revierte en silencio" al único camino que sigue abierto
+(`mergePresetEnContent`/`aplicarPreset`). Mismo slice candidato para cerrar ESE hueco de raíz
+(`out.navWordmark = {activo: ...}` en `themes.ts` tampoco reenvía `taglineColor`), si se decide
+arreglarlo en vez de sólo redactarlo — el patrón de fix es el mismo reenvío que este slice ya aplicó
+en `EncabezadoSeccion.tsx`. `why_not_now`: fuera de `touches:` de este slice.
+
 Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente,
 ajeno a este slice.
