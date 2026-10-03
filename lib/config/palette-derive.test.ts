@@ -23,10 +23,10 @@ test('las 3 raíces se copian tal cual', () => {
   assert.equal(p.acento, '#8b4513');
 });
 
-test('deriva las 35 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2 + accion/accion-txt/accion-hover de §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1/§CTA-PRIMARIO-COLOR-Y-HOVER-1 + accion-active de §CTA-HOVER-RESTO-FAMILIA-1)', () => {
+test('deriva las 36 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2 + accion/accion-txt/accion-hover de §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1/§CTA-PRIMARIO-COLOR-Y-HOVER-1 + accion-active de §CTA-HOVER-RESTO-FAMILIA-1 + tagline-acento-claro de §TAGLINE-DORADO-DERIVADO-1)', () => {
   const p = derivarPaleta(NAYOLI);
-  assert.equal(Object.keys(p).length, 35);
-  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2','accion','accion-txt','accion-hover','accion-active']) {
+  assert.equal(Object.keys(p).length, 36);
+  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2','accion','accion-txt','accion-hover','accion-active','tagline-acento-claro']) {
     assert.match(p[k], /^#[0-9a-f]{6}$/, `${k} debe ser hex`);
   }
 });
@@ -641,6 +641,60 @@ test('derivarEsquema: `ejes` NO mueve `fondo` — bandaEsOscura/tratamientoNav (
     const conEjes = derivarEsquema(CORTE_RAICES, id, { origenTexto: 'tinta', origenAccion: 'acento' }).fondo;
     assert.equal(conEjes, sinEjes, `${id}: fondo no debe moverse por los ejes de texto/acción`);
   }
+});
+
+// ── §TAGLINE-DORADO-DERIVADO-1 — `tagline-acento-claro`, el dorado del tagline sobre el nav claro,
+// generalizado del literal CORTE-específico que TAGLINE-DORADO-PROFUNDO-1 escribió a mano ─────────
+
+// La paleta REAL de un segundo tenant (dato del owner, no de catálogo) — para probar que el token
+// deriva de la paleta de CADA tienda, no sólo de la de CORTE.
+const LAS_CHAMISAS: RaicesPaleta = { fondo: '#FAF4EB', tinta: '#2A2522', acento: '#B8461A' };
+
+test('tagline-acento-claro: pasa AA (≥4.5:1) contra `fondo` SIEMPRE — el piso PRIMARIO, garantizado por `pisoContraste`, en las 3 raíces de muestrario + CORTE + Las Chamisas', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES, LAS_CHAMISAS]) {
+    const p = derivarPaleta(raices);
+    assert.ok(
+      contraste(p['tagline-acento-claro'], p.fondo) >= 4.5,
+      `contra fondo (fue ${contraste(p['tagline-acento-claro'], p.fondo).toFixed(2)})`,
+    );
+  }
+});
+
+test('tagline-acento-claro: pasa AA TAMBIÉN contra `tarjeta` en las raíces donde `fondo` es razonablemente CLARO (el caso común: NAYOLI, NEON, CORTE, Las Chamisas)', () => {
+  for (const raices of [NAYOLI, NEON, CORTE_RAICES, LAS_CHAMISAS]) {
+    const p = derivarPaleta(raices);
+    assert.ok(
+      contraste(p['tagline-acento-claro'], p.tarjeta) >= 4.5,
+      `contra tarjeta (fue ${contraste(p['tagline-acento-claro'], p.tarjeta).toFixed(2)})`,
+    );
+  }
+});
+
+test('tagline-acento-claro: con un `fondo` lo bastante OSCURO (MEDIO, luminancia ~0.0063), pasar AMBOS a la vez es IMPOSIBLE (demostrado algebraicamente: se necesitaría L≥0.2036 para `fondo` y L≤0.1833 para `tarjeta`) — la función PREFIERE `fondo`, el piso que el spec nombra como primario, y NO rompe esa garantía por perseguir `tarjeta`', () => {
+  const p = derivarPaleta(MEDIO);
+  assert.ok(contraste(p['tagline-acento-claro'], p.fondo) >= 4.5, 'fondo se mantiene SIEMPRE');
+  assert.ok(contraste(p['tagline-acento-claro'], p.tarjeta) < 4.5, 'tarjeta NO se alcanza — es matemáticamente incompatible con este fondo, no un defecto');
+});
+
+test('tagline-acento-claro: es EXACTAMENTE "pisoContraste(tostado-5, fondo, 4.5), re-floreado oportunista contra tarjeta SÓLO SI no rompe el piso de fondo" — derivado del motor, no un número a mano', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES, LAS_CHAMISAS]) {
+    const p = derivarPaleta(raices);
+    const pisoFondo = pisoContraste(p['tostado-5'], p.fondo, 4.5);
+    const pisoFondoYTarjeta = pisoContraste(pisoFondo, p.tarjeta, 4.5);
+    const esperado = contraste(pisoFondoYTarjeta, p.fondo) >= 4.5 ? pisoFondoYTarjeta : pisoFondo;
+    assert.equal(p['tagline-acento-claro'], esperado);
+  }
+});
+
+test('tagline-acento-claro: para CORTE (paleta de catálogo que TAGLINE-DORADO-PROFUNDO-1 declaró), converge EXACTO al literal `#a16336` que ese slice escribió a mano — mismo resultado visual, ahora derivado', () => {
+  const p = derivarPaleta(CORTE_RAICES);
+  assert.equal(p['tagline-acento-claro'], '#a16336');
+});
+
+test('tagline-acento-claro: NO depende de `origenTexto`/`origenAccion` — ni tostado-5 ni tarjeta (raíz) se mueven con esos ejes', () => {
+  const sinEjes = derivarPaleta(CORTE_RAICES)['tagline-acento-claro'];
+  const conAmbosEjes = derivarPaleta(CORTE_RAICES, { origenTexto: 'tinta', origenAccion: 'acento' })['tagline-acento-claro'];
+  assert.equal(conAmbosEjes, sinEjes);
 });
 
 // VISTO FALLAR con el hex viejo (#a07050) antes de este slice: tostado-3/superficie 3.511,

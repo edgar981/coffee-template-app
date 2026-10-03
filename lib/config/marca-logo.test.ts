@@ -6,7 +6,7 @@ import {
   altoLogoMenuLateralClase, ALTO_LOGO_MENU_LATERAL_PX,
   colorTaglineAcento, usaColorAcento,
 } from './marca-logo';
-import { derivarPaleta, pisoContraste, contraste } from './palette-derive';
+import { derivarPaleta, contraste } from './palette-derive';
 import type { LogoContent } from './site-content-defaults';
 
 // `icono` (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) es ajeno a lo que este archivo prueba (wordmark/
@@ -132,17 +132,34 @@ test('colorTaglineAcento: variant "dark" (nav flotando sobre el hero oscuro) →
   assert.equal(colorTaglineAcento('dark'), 'text-[var(--sf-tostado-5)]');
 });
 
-test('colorTaglineAcento: variant "light" (nav sólido claro) → #a16336, DORADO PROFUNDO — el MISMO tono de tostado-5 (2.54:1 FALLA el piso), oscurecido vía pisoContraste hasta 4.67:1 contra fondo (§ TAGLINE-DORADO-PROFUNDO-1; ya NO cae a --sf-acento-texto/tinta, un hue ajeno al dorado)', () => {
-  assert.equal(colorTaglineAcento('light'), 'text-[#a16336]');
+test('colorTaglineAcento: variant "light" (nav sólido claro) → el TOKEN derivado --sf-tagline-acento-claro, con respaldo --sf-tostado-5 (§ TAGLINE-DORADO-DERIVADO-1, corrige TAGLINE-DORADO-PROFUNDO-1 — el literal #a16336 de CORTE se RETIRA, generalizado por tenant)', () => {
+  assert.equal(colorTaglineAcento('light'), 'text-[var(--sf-tagline-acento-claro,var(--sf-tostado-5))]');
 });
 
-test('colorTaglineAcento: el literal "light" es EXACTAMENTE pisoContraste(tostado-5, fondo, 4.5) sobre las raíces REALES de CORTE — derivado del motor, no un número a mano (§ TAGLINE-DORADO-PROFUNDO-1)', () => {
+test('colorTaglineAcento "light": el token --sf-tagline-acento-claro, sobre las raíces REALES de CORTE, converge EXACTO al literal #a16336 que TAGLINE-DORADO-PROFUNDO-1 escribió a mano (§ TAGLINE-DORADO-DERIVADO-1 — mismo resultado visual, derivado en vez de hardcodeado)', () => {
   const raices = { fondo: '#fdfbf7', tinta: '#102407', acento: '#a70004' };
   const paleta = derivarPaleta(raices, { origenTexto: 'tinta', origenAccion: 'acento' });
-  const esperado = pisoContraste(paleta['tostado-5'], paleta.fondo, 4.5);
-  assert.equal(colorTaglineAcento('light'), `text-[${esperado}]`);
-  assert.ok(contraste(esperado, paleta.fondo) >= 4.5, 'pasa el piso contra fondo');
-  assert.ok(contraste(esperado, paleta.tarjeta) >= 4.5, 'pasa el piso contra tarjeta (el bg real del nav sólido)');
+  assert.equal(paleta['tagline-acento-claro'], '#a16336');
+  assert.ok(contraste(paleta['tagline-acento-claro'], paleta.fondo) >= 4.5, 'pasa el piso contra fondo');
+  assert.ok(contraste(paleta['tagline-acento-claro'], paleta.tarjeta) >= 4.5, 'pasa el piso contra tarjeta (el bg real del nav sólido)');
+});
+
+test('colorTaglineAcento "light": para CORTE y Café Las Chamisas (los dos de `fondo` claro) el token pasa AA contra `fondo` Y contra `tarjeta` — la fórmula general (§ palette-derive.test.ts) se afirma ahí; acá sólo se mide el resultado contra las dos raíces reales de esta función', () => {
+  for (const raices of [
+    { fondo: '#fdfbf7', tinta: '#102407', acento: '#a70004' }, // CORTE (catálogo)
+    { fondo: '#FAF4EB', tinta: '#2A2522', acento: '#B8461A' }, // Café Las Chamisas (dato del owner)
+  ]) {
+    const paleta = derivarPaleta(raices);
+    assert.ok(contraste(paleta['tagline-acento-claro'], paleta.fondo) >= 4.5);
+    assert.ok(contraste(paleta['tagline-acento-claro'], paleta.tarjeta) >= 4.5);
+  }
+});
+
+test('colorTaglineAcento "light": sin paleta custom (Nayoli/Suave), nada cambia — el var() cae al respaldo --sf-tostado-5, mismo literal con o sin el token nuevo', () => {
+  // `--sf-tagline-acento-claro` sólo existe cuando `cssPaleta` inyecta un `<style>` (raíces custom).
+  // Sin él, `colorTaglineAcento('light')` sigue devolviendo el MISMO string — el fallback del `var()`
+  // es quien resuelve al dorado crudo de siempre, no esta función (que no sabe si hay paleta o no).
+  assert.equal(colorTaglineAcento('light'), 'text-[var(--sf-tagline-acento-claro,var(--sf-tostado-5))]');
 });
 
 test('usaColorAcento: "acento" CON tagline → true', () => {

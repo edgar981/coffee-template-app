@@ -181,47 +181,53 @@ export function altoLogoNavEscritorioClase(wordmarkTratado: boolean, hayTagline:
 
 /**
  * EL COLOR DEL TAGLINE EN MODO `'acento'` (§ NAV-LOGO-MOVIL-CON-AIRE-1, ver el docstring de
- * `NavWordmarkContent.taglineColor` en site-content-defaults.ts para el porqué completo y la
- * medición ORIGINAL — DESACTUALIZADA en la rama `variant==='light'`, § TAGLINE-DORADO-PROFUNDO-1
- * abajo). `'atenuado'` (default) no pasa por acá — `Logo.tsx` sigue con su color de SIEMPRE, byte
- * a byte; esta función sólo resuelve el color cuando el dueño elige `'acento'`.
+ * `NavWordmarkContent.taglineColor` en site-content-defaults.ts para el porqué completo — ese
+ * docstring sigue describiendo el fallback `--sf-acento-texto` original, DESACTUALIZADO desde
+ * `TAGLINE-DORADO-PROFUNDO-1` y otra vez acá). `'atenuado'` (default) no pasa por acá — `Logo.tsx`
+ * sigue con su color de SIEMPRE, byte a byte; esta función sólo resuelve el color cuando el dueño
+ * elige `'acento'`.
  *
  * `variant==='dark'` (el nav FLOTANDO sobre el hero oscuro, o el pie de página) → `--sf-tostado-5`
- * literal, el dorado medido (6.26:1 contra `tinta` en CORTE — pasa el piso de 11px). SIN CAMBIO en
- * este slice: el gate del owner (`TAGLINE-DORADO-PROFUNDO-1`) sólo nombró el nav claro.
+ * literal, el dorado medido (6.26:1 contra `tinta` en CORTE — pasa el piso de 11px). SIN CAMBIO
+ * desde `NAV-LOGO-MOVIL-CON-AIRE-1`: el gate del owner de `TAGLINE-DORADO-PROFUNDO-1` sólo nombró
+ * el nav claro, y este slice (`TAGLINE-DORADO-DERIVADO-1`) corrige SÓLO esa rama.
  *
  * `variant==='light'` (el nav SÓLIDO claro, `bg-[var(--sf-tarjeta)]/95`, § StoreNav.tsx) → ese
- * mismo `tostado-5` da 2.54:1 contra `fondo`/`tarjeta` (FALLA el piso de 4.5:1 a 11px). La versión
- * ANTERIOR de este slice caía a `--sf-acento-texto` —que para CORTE resuelve a la TINTA verde
- * (`origenTexto:'tinta'`, themes.ts:1048), un matiz AJENO al dorado—. El gate del owner
- * (2026-10-02, § TAGLINE-DORADO-PROFUNDO-1, `DECISIONS.md`) sobre la demo real: *"The current one
- * doesn't look that bad, but try with the deeper gold"* — pide el MISMO tono, no otro.
+ * mismo `tostado-5` da 2.54:1 contra `fondo`/`tarjeta` en CORTE (FALLA el piso de 4.5:1 a 11px).
  *
- * `'#a16336'` es ESE dorado, OSCURECIDO: `pisoContraste(tostado-5, fondo, 4.5)`
- * (`palette-derive.ts`, REUSADA, no reimplementada — camina sólo L en OKLCH preservando el TONO,
- * § su docstring "1. caminar L") sobre la paleta REAL de CORTE
- * (`derivarPaleta({fondo:'#fdfbf7', tinta:'#102407', acento:'#a70004'}, {origenTexto:'tinta',
- * origenAccion:'acento'})`, las MISMAS raíces/ejes que la medición original de
- * `NavWordmarkContent.taglineColor` ya usa — `.scratch/medir-tagline-dorado-profundo.ts`, no parte
- * del producto): `tostado-5` = `#d39163` → `#a16336`, **4.67:1 contra `fondo`, 4.82:1 contra
- * `tarjeta`** — pasa el piso, y la escalera no llegó a bajar croma (el resultado no es ni
- * `#000000` ni el extremo: `pisoContraste` convergió en el paso 1, L pura, H y C intactos — "el
- * mismo tono", no uno distinto).
+ * **HISTORIA DE ESTA RAMA, para que no se repita el error:** `NAV-LOGO-MOVIL-CON-AIRE-1` cayó a
+ * `--sf-acento-texto` (genérico, pero resolvía a la TINTA verde para CORTE — un matiz ajeno al
+ * dorado). `TAGLINE-DORADO-PROFUNDO-1` lo corrigió a `'#a16336'`, un LITERAL escrito a mano —
+ * `pisoContraste(tostado-5, fondo, 4.5)` sobre la paleta de CATÁLOGO de CORTE
+ * (`{fondo:'#fdfbf7', tinta:'#102407', acento:'#a70004'}`), NO la paleta real de ningún tenant —
+ * así que CUALQUIER tenant que pusiera `taglineColor:'acento'` con raíces DISTINTAS de las de
+ * CORTE (p.ej. Café Las Chamisas, con su propio `content.tema`) vería el dorado DE CORTE, no el
+ * suyo. Ese slice lo dejó nombrado en su propio Open follow-up
+ * (`TAGLINE-DORADO-PROFUNDO-DEMO-DESCONOCIDA-1`, DECISIONS.md) — exactamente lo que este slice
+ * (`TAGLINE-DORADO-DERIVADO-1`) construye.
  *
- * ES UN LITERAL ESPECÍFICO DE CORTE, a diferencia de `--sf-acento-texto` (el fallback de ANTES,
- * genérico — gana piso para CUALQUIER raíz de CUALQUIER tenant, § su propio comentario en
- * `palette-derive.ts`, "LA GARANTÍA NO DEPENDE DE CORTE NI DE SUS EJES"). El spec de este slice
- * pide el mismo tono PARA ESTE tenant (Café Las Chamisas/CORTE), no una regla general para
- * cualquier raíz — generalizarla (un token `--sf-tostado-5` ya floreado, derivado en el motor para
- * cualquier tenant) tocaría `palette-derive.ts`, fuera de `touches:` de este slice. Un hex literal,
- * no `var(--sf-tostado-5)`: Tailwind v4 escanea TEXTO LITERAL de las clases en el código fuente
- * (§ el comentario de `AIRE_VERTICAL_LOGO_MOVIL_PX`, arriba) — un valor oscurecido en RUNTIME
- * (`` `text-[${pisoContraste(...)}]` ``) no aparecería como texto en este archivo y el JIT no
- * generaría la clase; por eso el número se DERIVA una vez (el scratch, arriba) y se escribe A
- * MANO, no se computa en esta función.
+ * **EL FIX: `--sf-tagline-acento-claro` (palette-derive.ts), un TOKEN derivado por el motor para
+ * CUALQUIER raíz** — ya no un literal de CORTE. El piso PRIMARIO (siempre garantizado) es
+ * `pisoContraste(tostado-5, fondo, 4.5)`; DESPUÉS se intenta, oportunista, re-florear contra
+ * `tarjeta` también — pero sólo si eso no rompe el piso de `fondo` (§ su docstring en
+ * `palette-derive.ts`: para un `fondo` lo bastante oscuro, pasar ambos a la vez es matemáticamente
+ * imposible, y la función prefiere `fondo`, el que el spec nombra textual). `cssPaleta`/
+ * `varsDeTienda` lo emiten junto al resto de las tintas del `:root` (iteran `Object.entries` del
+ * objeto derivado, sin lista propia) — para CORTE converge en el MISMO `#a16336` que el literal
+ * retirado (afirmado en `palette-derive.test.ts`); para Café Las Chamisas (u otro tenant), su
+ * PROPIA paleta.
+ *
+ * **EL RESPALDO ES `--sf-tostado-5`, no un segundo literal.** `--sf-tagline-acento-claro` no tiene
+ * default en `globals.css` (mismo patrón que `--sf-sobre-tinta`/`--sf-sobre-tarjeta`): un tenant
+ * SIN paleta custom (Nayoli/Suave, raíces null → `cssPaleta` devuelve `null`, sin `<style>`
+ * inyectado) deja la var sin definir, y el `var(…, var(--sf-tostado-5))` cae al dorado crudo de
+ * siempre — nada cambia (ese caso nunca ejercita `taglineColor:'acento'` de todos modos, §
+ * `usaColorAcento`: ningún preset lo declara, es DATO por-tenant).
  */
 export function colorTaglineAcento(variant: 'light' | 'dark'): string {
-  return variant === 'light' ? 'text-[#a16336]' : 'text-[var(--sf-tostado-5)]';
+  return variant === 'light'
+    ? 'text-[var(--sf-tagline-acento-claro,var(--sf-tostado-5))]'
+    : 'text-[var(--sf-tostado-5)]';
 }
 
 /**

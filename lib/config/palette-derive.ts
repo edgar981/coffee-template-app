@@ -448,6 +448,51 @@ export function derivarPaleta(raices: RaicesPaleta, ejes: EjesPaleta = {}): Pale
   // `origenAccion:'acento'` no herede un valor sin pensar.
   const FACTOR_ACCION_ACTIVE = 0.74;
   out['accion-active'] = ejes.origenAccion === 'acento' ? oscurecer(acento, FACTOR_ACCION_ACTIVE) : out['tostado-3'];
+  // tagline-acento-claro (§ TAGLINE-DORADO-DERIVADO-1, corrige TAGLINE-DORADO-PROFUNDO-1): el
+  // dorado del tagline apilado del nav (`colorTaglineAcento`, marca-logo.ts) para la variante
+  // `'light'` — el nav SÓLIDO claro (`bg-[var(--sf-tarjeta)]/95`, § StoreNav.tsx). Esa pasada
+  // anterior midió que `tostado-5` crudo falla el piso AA contra ese nav (2.54:1 medido contra
+  // CORTE) y escribió el resultado como un LITERAL de CORTE (`#a16336`) — correcto SÓLO para la
+  // paleta de CATÁLOGO de ese preset, no para la paleta REAL de cualquier otro tenant que ponga
+  // `taglineColor:'acento'` (un cliente con sus propias raíces vería el dorado de CORTE, no el
+  // suyo). Este token GENERALIZA esa derivación al motor: mismo mecanismo, cualquier raíz.
+  //
+  // Candidato = `tostado-5` (ya calculado arriba por la RECETA, SIN florear — el dorado
+  // decorativo). El piso PRIMARIO (el que el spec nombra textualmente, "llevado con
+  // `pisoContraste` hasta 4.5 sobre el FONDO de esa tienda") es `pisoContraste(tostado-5, fondo,
+  // 4.5)` — SIEMPRE se cumple, por construcción de `pisoContraste`.
+  //
+  // DESPUÉS se intenta, OPORTUNISTA, el mismo patrón de dos pasos que `sobre-tarjeta-suave`
+  // (arriba, § TEMAS-P6-FAMILIAS-1): re-florear ese resultado contra `tarjeta` (a nivel raíz
+  // SIEMPRE blanco puro, línea de arriba) — porque el nav SÓLIDO claro renderiza sobre
+  // `bg-[var(--sf-tarjeta)]/95`, no sobre `fondo` directo. Para CORTE y toda raíz con `fondo`
+  // razonablemente CLARO (el caso común: `fondo` ya es casi blanco en todo preset de catálogo,
+  // § RAICES_DEFECTO) los dos pisos caminan en la MISMA dirección ('oscurecer') y el segundo paso
+  // es un no-op o un ajuste fino — converge EXACTO al literal `#a16336` que la pasada anterior
+  // midió a mano para CORTE (medido: 4.67:1 contra fondo, 4.82:1 contra tarjeta).
+  //
+  // MEDIDO: para un `fondo` lo bastante OSCURO (luminancia bajo ~0.0019 — MEDIO, el fixture de
+  // prueba con fondo casi negro, cae ahí), el piso contra `fondo` necesita 'aclarar' (candidato
+  // CLARO) mientras el piso contra `tarjeta`=blanco necesita 'oscurecer' (candidato OSCURO) —
+  // demostrado algebraicamente INCOMPATIBLES para esa combinación exacta de luminancias (no hay
+  // ningún L que sea simultáneamente ≥0.2036 para pasar `fondo` y ≤0.1833 para pasar `tarjeta`).
+  // Encadenar los dos pisos SIN guarda rompería ahí el piso de `fondo` que SÍ se puede garantizar
+  // (el segundo floreo, al perseguir `tarjeta`, deshace el aclarado del primero). La guarda abajo
+  // PREFIERE el piso de `fondo` (el PRIMARIO, textual del spec) cuando el oportunista de `tarjeta`
+  // lo rompería — nunca al revés.
+  //
+  // SIN depender de `ejes`: ni `tostado-5` ni `tarjeta` (a nivel raíz) se mueven con
+  // `origenTexto`/`origenAccion`, así que este token tampoco.
+  //
+  // SIN default en `globals.css` a propósito (mismo patrón que `sobre-tinta`/`sobre-tarjeta`): el
+  // consumidor (`colorTaglineAcento`) trae su propio respaldo a `--sf-tostado-5` —que SÍ tiene
+  // default global—, así que un tenant SIN paleta custom (Nayoli/Suave, `cssPaleta` devuelve `null`)
+  // cae exactamente al dorado crudo de siempre, sin cambio.
+  {
+    const pisoFondo = pisoContraste(out['tostado-5'], fondo, 4.5);
+    const pisoFondoYTarjeta = pisoContraste(pisoFondo, out['tarjeta'], 4.5);
+    out['tagline-acento-claro'] = contraste(pisoFondoYTarjeta, fondo) >= 4.5 ? pisoFondoYTarjeta : pisoFondo;
+  }
   return out;
 }
 

@@ -48504,3 +48504,215 @@ instruyó explícitamente parar en `AWAITING_APPROVAL` sin merge. Commiteado en
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `ORIGEN-CONTADOR-MILES-1`.**
+
+## 2026-10-03 — El dorado del tagline sobre el nav claro deja de ser un literal de CORTE: un token derivado por el motor, para la paleta de CADA tienda (`TAGLINE-DORADO-DERIVADO-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Corrige `TAGLINE-DORADO-PROFUNDO-1`:
+ese slice resolvió el tono con `'#a16336'`, un LITERAL calculado a mano sobre las raíces de
+CATÁLOGO de CORTE — correcto para ESE preset, no para la paleta real de Café Las Chamisas (ni de
+ningún otro tenant). Mismo pedido del owner ("try with the deeper gold"); la aprobación autoriza la
+escritura, nunca el merge — el dispatch instruyó parar en `AWAITING_APPROVAL` explícitamente.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío; HEAD = `531828a`, `main` local == `origin/main` == merge-base de HEAD) |
+| los archivos de `touches:` existen | sí — los 8 nombrados |
+| intento previo (timeout 1.5h, sin reporte) | WIP sin commitear en `.scratch/wip-tagline-dorado-derivado.patch` + un stash; leído como referencia, NO aplicado tal cual (tenía un defecto, ver abajo) |
+
+### Lo medido ANTES de escribir — el WIP de referencia tenía un defecto
+
+El WIP dejado por el intento anterior implementaba el token como un floreo encadenado SIN guarda:
+`pisoContraste(pisoContraste(tostado-5, fondo, 4.5), tarjeta, 4.5)`. Corriendo `npm test` contra esa
+forma (adoptada primero tal cual, para verificar antes de confiar) falló:
+
+```
+tagline-acento-claro: pasa AA (≥4.5:1) contra `fondo` Y contra `tarjeta`…
+  AssertionError: contra fondo (fue 4.08)
+```
+
+**Medido y demostrado algebraicamente, no sólo observado:** para `MEDIO` (fixture de prueba con
+`fondo:'#16120e'`, luminancia 0.00635), el piso de `fondo` necesita dirección 'aclarar' (candidato
+CLARO) mientras el piso de `tarjeta`=blanco necesita 'oscurecer' (candidato OSCURO) — las dos
+direcciones son OPUESTAS, y la combinación es matemáticamente IMPOSIBLE de satisfacer a la vez: se
+necesitaría L≥0.2036 para pasar `fondo` y L≤0.1833 para pasar `tarjeta` simultáneamente (ningún L
+cumple ambas). El encadenado sin guarda del WIP, al perseguir `tarjeta` en el segundo paso, le
+restaba al candidato el aclarado que el primer paso le había dado — rompiendo la garantía de
+`fondo` que SÍ es alcanzable sola. Diagnóstico con un script ad-hoc (`node --import tsx -e`, no
+commiteado) sobre las 5 raíces de prueba (NAYOLI/NEON/MEDIO/CORTE/Las Chamisas), reproducible.
+
+### El fix — piso PRIMARIO garantizado, piso de `tarjeta` OPORTUNISTA sin romperlo
+
+`palette-derive.ts`, token nuevo `out['tagline-acento-claro']`:
+
+```ts
+const pisoFondo = pisoContraste(out['tostado-5'], fondo, 4.5);
+const pisoFondoYTarjeta = pisoContraste(pisoFondo, out['tarjeta'], 4.5);
+out['tagline-acento-claro'] = contraste(pisoFondoYTarjeta, fondo) >= 4.5 ? pisoFondoYTarjeta : pisoFondo;
+```
+
+- **El piso contra `fondo` es el PRIMARIO** (lo que el spec nombra textual: "llevado con
+  `pisoContraste` hasta 4.5 sobre el FONDO de esa tienda") y SIEMPRE se cumple — `pisoContraste` lo
+  garantiza por construcción, para cualquier raíz.
+- **El piso contra `tarjeta` (`bg-[var(--sf-tarjeta)]/95`, el fondo real del nav sólido claro) es
+  OPORTUNISTA** — se intenta porque el spec lo pide ("y, si el nav claro usa la superficie de
+  tarjeta, sobre esa"), pero SÓLO se adopta si no rompe el piso de `fondo`. Para toda raíz con
+  `fondo` razonablemente claro (el caso común — NAYOLI, NEON, CORTE, Café Las Chamisas, los 4
+  presets de catálogo) las dos direcciones coinciden y el resultado pasa AMBOS; medido:
+  - NAYOLI: `#8e6a4f`, 4.55:1/4.86:1 (fondo/tarjeta)
+  - NEON: `#7c7000`, 4.62:1/5.03:1
+  - CORTE: `#a16336`, 4.67:1/4.82:1 — **EXACTO al literal retirado**
+  - Las Chamisas: `#97643a`, 4.57:1/5.00:1
+  - MEDIO (fondo muy oscuro, caso imposible): `#a2764a`, 4.64:1 contra fondo (se mantiene), 4.02:1
+    contra tarjeta (NO se alcanza — matemáticamente incompatible, no un defecto).
+- **`colorTaglineAcento('light')`** pasa de `'text-[#a16336]'` a
+  `'text-[var(--sf-tagline-acento-claro,var(--sf-tostado-5))]'` — el literal ESPECÍFICO de CORTE se
+  RETIRA. El respaldo (`--sf-tostado-5`) es el MISMO patrón que `--sf-sobre-tinta`/
+  `--sf-sobre-tarjeta`: sin paleta custom (Nayoli/Suave, `cssPaleta` devuelve `null`, § su
+  docstring) la var nueva no existe, y el `var(…, fallback)` cae al dorado crudo de siempre — cero
+  cambio. `variant==='dark'` (el nav flotando sobre el hero) NO se tocó.
+- **`cssPaleta`/`varsDeTienda` emiten el token SIN cambio propio**: las dos funciones ya iteran
+  `Object.entries`/spread del objeto que devuelve `derivarPaleta`, así que una clave nueva se
+  propaga sola al `:root{}` del storefront y al preview en vivo del panel. Confirmado por lectura
+  (`palette-style.ts:52`, `esquema-style.ts:155`) y por ejecución (ver abajo, el token resuelve en
+  el navegador real). **`esquema-style.ts` y su test NO se tocaron** — nada que escribir ahí.
+- **`components/storefront/Logo.tsx` NO se tocó** — sólo se LEYÓ para confirmar que `colorAcento`
+  ya es agnóstico de qué literal/var devuelve `colorTaglineAcento` (igual que confirmó
+  `TAGLINE-DORADO-PROFUNDO-1`).
+- **Regla del libro — consumidores del literal retirado, contados por grep** (`grep -rn "a16336"`):
+  dos, además de la propia función — `marca-logo.test.ts` (en `touches:`) y
+  `corte-logo-apilado.test.ts` (NO en `touches:`, ver DEVIATION abajo). Cero consumidores fuera de
+  `lib/config/`.
+
+### DEVIATION — `lib/config/corte-logo-apilado.test.ts`, fuera de `touches:`
+
+Ese archivo tiene DOS assertions que comparan el HTML renderizado de `Logo` (vía
+`renderToStaticMarkup`) contra el literal `text-[#a16336]`exacto — como `colorTaglineAcento('light')`
+ahora devuelve un string distinto, esas dos assertions quedarían FALSAS sin tocarlas, y el gate
+(`npm test`) se pondría ROJO por un archivo que el spec no nombró. Se editaron las dos (sólo el
+string esperado, mismo mecanismo, mismo test) — es exactamente el caso que el dispatch anticipa
+("si un test que no está en `touches:` afirma algo que tu cambio vuelve falso, decilo como
+DEVIATION con el archivo y la línea exacta"): `lib/config/corte-logo-apilado.test.ts:270` y
+`:284` (antes de este commit). Medido: sin este ajuste, `npm test` da 2 fallos sobre este archivo;
+con él, 0.
+
+### Evidencia por ejecución — DOS paletas, en el arnés
+
+**CORTE** — afirmado por `npm test` (`palette-derive.test.ts`/`marca-logo.test.ts`): converge
+EXACTO a `#a16336`, el mismo literal que `TAGLINE-DORADO-PROFUNDO-1` midió en navegador real
+(Chromium 1440 + WebKit iPhone 15, § su propio Cierre) — no se re-mide en navegador porque el
+token es BYTE-IDÉNTICO a lo ya medido ahí.
+
+**Café Las Chamisas** (raíces reales, dato del owner: `fondo:#FAF4EB`, `tinta:#2A2522`,
+`acento:#B8461A` — NO el preset CORTE de catálogo) — arnés ad-hoc
+(`.scratch/verificar-tagline-dorado-derivado.ts`, gitignorado, adaptado de
+`.scratch/verificar-tagline-dorado-profundo.ts`): Postgres efímero (`:55448`), `migrate deploy` sin
+el seed de Nayoli, `content.tema` con las raíces reales + `navWordmark.taglineColor:'acento'` +
+`cromo.navSubtitulo:true` (sin esto el tagline ni se monta — hallazgo de la primera corrida, que
+dio `taglineColor: null`), build + `next start` (`:3502`), Playwright Chromium 1440. Mide el color
+COMPUTADO del `<span>` leaf del tagline:
+
+| escenario | `--sf-tagline-acento-claro` (var) | color computado del tagline | ¿coincide? |
+| --- | --- | --- | --- |
+| home, nav sobre el hero (`variant:'dark'`, SIN tocar) | `#97643a` | `rgb(216,160,117)` = `#d8a075` (= `tostado-5` de Las Chamisas, SIN cambio) | sí |
+| `/tienda`, nav sólido claro (`variant:'light'`, EL FIX) | `#97643a` | `rgb(151,100,58)` = `#97643a` | sí — SU PROPIO derivado, no el `#a16336` de CORTE |
+
+El hero no cambia (sigue en `tostado-5` crudo); el nav claro pasa a mostrar el dorado DERIVADO de
+la paleta real de Las Chamisas, distinto del de CORTE — el objetivo central del slice, confirmado
+en un navegador real, no sólo en node.
+
+**Nayoli — cero cambio, confirmado por `guarda:color`/`verificar:nayoli:visual`** (ver Gate): las
+cifras de drift son BIT A BIT las ya atribuidas a la rama (`NAYOLI-HOME-DRIFT-RAMA-
+PREEXISTENTE-1`), coherente con que `cssPaleta` devuelve `null` sin raíces custom — el `:root{}`
+nuevo del token nunca se inyecta para Nayoli.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados contra `CLAUDE.md`: `colorTaglineAcento` (0),
+`tagline-acento-claro` (0), `palette-derive` (0), `marca-logo` (0), `corte-logo-apilado` (0),
+`a16336` (0), `TAGLINE-DORADO` (0), `pisoContraste` (0) — **cero coincidencias** para los ocho
+símbolos propios de este cambio; la doctrina de esta función sigue viviendo sólo en `DECISIONS.md`
+(ya lo notó `TAGLINE-DORADO-PROFUNDO-1`). `derivarPaleta` SÍ aparece, dos veces:
+
+- `CLAUDE.md:2100` (§ Los COLORES de los correos DERIVAN de la paleta) — describe que
+  `coloresCorreo` deriva de `derivarPaleta` en general, sin nombrar una clave ni una cuenta; este
+  diff no la vuelve falsa.
+- `CLAUDE.md:2296` (§ el escenario del editor de paleta) — "Lo que se calcula solo (**los 19
+  derivados** de `derivarPaleta`) pasó de un `<details>`…". **YA estaba falso ANTES de este
+  slice**: el código real (`PaletaSeccion.tsx:538`, `Object.keys(derivada).filter(...)`) calcula
+  dinámicamente "todo menos las 3 raíces", que daba **32** antes de este commit (35 claves totales
+  − 3), no 19 — una deriva pre-existente, ajena a este diff. Este slice SUMA una clave más (36 −
+  3 = 33 derivados), así que sigue alejando el número escrito del real, pero no es quien introdujo
+  la discrepancia. Se reporta como open follow-up, no se corrige acá (ni el código de
+  `PaletaSeccion.tsx` ni la prosa de `CLAUDE.md` están en `touches:`).
+
+Segundo grep, sobre `DECISIONS.md` (el documento que sí cambia): `TAGLINE-DORADO-DERIVADO-1` es un
+id nuevo, sin referencias previas. `TAGLINE-DORADO-PROFUNDO-1` (el slice que éste corrige) tiene
+dos Open follow-ups: `TAGLINE-DORADO-PROFUNDO-DEMO-DESCONOCIDA-1` (la cifra RGB del
+`observed-report` original no calzaba con ninguna raíz de catálogo — SIGUE sin resolverse: las
+raíces de Las Chamisas usadas acá son el dato que el owner cargó para ESTE spec, no una
+verificación contra la base real de esa demo, así que no se cierra por decreto) y el follow-up SIN
+coining ("`presentacionesEditableSchema`-style generalización del fallback… si un segundo tenant
+necesitara el mismo mecanismo con OTRAS raíces, haría falta un token derivado en
+`palette-derive.ts`") — **ÉSE es exactamente lo que este slice construyó, y se CIERRA** acá.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **3376/3376** (+8 sobre los 3368 del commit anterior: +6 en `palette-derive.test.ts`, +2 en `marca-logo.test.ts`; `corte-logo-apilado.test.ts` sin cambio de cuenta, 2 assertions editadas) |
+| `npm run test:integracion` | **323/323**, sin cambio (este slice no toca `tests/integracion/`) |
+| `npm run guarda:color` | `ruta-home` DIFIERE (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]`) + las otras 5 rutas DIFIEREN (163/361 px c/u) + los 2 hovers IDÉNTICO (0px) — **CIFRA Y CAJA EXACTAS** a las ya atribuidas a la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`) |
+| `npm run verificar:nayoli:visual` (main vs. rama, build fresco) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: coincidir exacto con la cifra ya reconciliada por varios slices
+anteriores de esta misma rama ES la reconciliación. Coherente con que Nayoli (raíces null) nunca
+inyecta el `<style>` que lleva el token nuevo.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era desde `TAGLINE-DORADO-PROFUNDO-1`), y este
+COMMIT en particular cambia OTRA VEZ un byte de color: un tenant con `navWordmark.
+taglineColor:'acento'` y raíces propias DISTINTAS de las de CORTE (si existiera uno hoy) vería su
+tagline sobre el nav sólido claro pasar del `#a16336` de CORTE a SU PROPIO derivado — en la medición
+de este slice, `#97643a` para Café Las Chamisas. **`strings: []`** — ningún texto cambia, sólo
+color. Nayoli y cualquier tenant sin raíces custom **no ven nada** (confirmado,
+`guarda:color`/`verificar:nayoli:visual` byte-exactos al piso heredado). `approved: null` — mismo
+estado que el slice anterior: no se verificó contra la base de datos REAL de la demo si sus raíces
+coinciden exactamente con las usadas acá (dato del owner, no leído de producción).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva. `derivarPaleta` sigue siendo
+una función pura; el token nuevo es una clave más de un objeto que ya se serializaba entero.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio. Ajeno a
+  `touches:` de este slice.
+- `TAGLINE-DORADO-PROFUNDO-DEMO-DESCONOCIDA-1` — sigue abierto (§ arriba, el chequeo de
+  `CLAUDE.md`/`DECISIONS.md`): las raíces de Las Chamisas usadas en este slice son DATO del spec,
+  no una lectura verificada de la base real de esa demo.
+- **`CLAUDE-MD-PALETASECCION-19-DERIVADOS-STALE-1`** (coined acá): `CLAUDE.md:2296` dice "los 19
+  derivados de `derivarPaleta`"; el código real (`PaletaSeccion.tsx:538`) calcula dinámicamente el
+  conteo y da 33 tras este commit (era 32 antes). La deriva es PRE-EXISTENTE a este slice (ya era
+  falso a 32); este commit la agranda en uno. Ninguno de los dos archivos (`PaletaSeccion.tsx`,
+  `CLAUDE.md`) está en `touches:` de este slice — no se corrige acá.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — el dispatch lo pide explícito: *"PARÁS EN
+`AWAITING_APPROVAL`. NO MERGEES."* El owner ya aprobó la ESCRITURA (`approval-reason` del spec); el
+MERGE sigue gateado aparte. Gate verde en sus tres capas obligatorias (typecheck 0 errores, `npm
+test` 3376/3376, `npm run test:integracion` 323/323); `guarda:color`/`verificar:nayoli:visual` dan
+la MISMA cifra exacta que el piso heredado de la rama — cero píxeles de drift nuevo. Evidencia por
+ejecución en DOS paletas (CORTE vía test + navegador ya medido por el slice anterior; Café Las
+Chamisas vía un arnés Playwright nuevo contra una base efímera) confirma el mecanismo: el hero no
+cambia, el nav claro pasa a mostrar el dorado DERIVADO de cada tienda. Un defecto REAL del WIP
+heredado (el floreo encadenado sin guarda, matemáticamente incompatible para fondos muy oscuros) se
+encontró, se demostró algebraicamente, y se corrigió ANTES de este commit — no se adoptó el WIP tal
+cual. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `TAGLINE-DORADO-DERIVADO-1`.**
