@@ -263,11 +263,11 @@ test('taglineColor="acento", variant="dark" (tratado): el sub cae a --sf-tostado
   assert.doesNotMatch(html, /italic/, 'el color cambia, la itálica no vuelve');
 });
 
-test('taglineColor="acento", variant="light" (tratado): el piso de contraste falla con tostado-5 (2.54:1 medido) — cae a --sf-acento-texto (15.90:1 en CORTE, que resuelve a tinta por origenTexto:\'tinta\')', () => {
+test('taglineColor="acento", variant="light" (tratado): el piso de contraste falla con tostado-5 (2.54:1 medido) — cae al DORADO PROFUNDO #a16336 (§ TAGLINE-DORADO-PROFUNDO-1, el mismo tono oscurecido, ya no a --sf-acento-texto/tinta)', () => {
   const html = renderToStaticMarkup(
     React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', wordmarkTratado: true, variant: 'light', taglineColor: 'acento' }),
   );
-  assert.ok(html.includes('<span class="mt-1 font-inter font-normal tracking-[0.11em] text-[11px] text-[var(--sf-acento-texto)]">San Adolfo · Huila</span>'));
+  assert.ok(html.includes('<span class="mt-1 font-inter font-normal tracking-[0.11em] text-[11px] text-[#a16336]">San Adolfo · Huila</span>'));
 });
 
 test('taglineColor="acento", SIN wordmarkTratado (sin tratar), variant="dark": sigue en --sf-tostado-5 — mismo literal que "atenuado" acá, LA ITÁLICA SE CONSERVA (sólo el color cambia, § el docstring de BloqueNombreTagline)', () => {
@@ -277,11 +277,11 @@ test('taglineColor="acento", SIN wordmarkTratado (sin tratar), variant="dark": s
   assert.ok(html.includes('<span class="mt-0.5 font-display text-[11px] italic text-[var(--sf-tostado-5)]">San Adolfo · Huila</span>'));
 });
 
-test('taglineColor="acento", SIN wordmarkTratado, variant="light": el piso también aplica fuera de la rama tratada — cae a --sf-acento-texto, itálica conservada', () => {
+test('taglineColor="acento", SIN wordmarkTratado, variant="light": el piso también aplica fuera de la rama tratada — cae al DORADO PROFUNDO #a16336 (§ TAGLINE-DORADO-PROFUNDO-1), itálica conservada', () => {
   const html = renderToStaticMarkup(
     React.createElement(Logo, { nombre: 'Café Nayoli', subtitle: 'San Adolfo · Huila', variant: 'light', taglineColor: 'acento' }),
   );
-  assert.ok(html.includes('<span class="mt-0.5 font-display text-[11px] italic text-[var(--sf-acento-texto)]">San Adolfo · Huila</span>'));
+  assert.ok(html.includes('<span class="mt-0.5 font-display text-[11px] italic text-[#a16336]">San Adolfo · Huila</span>'));
 });
 
 test('taglineColor="acento" SIN subtitle: no hay nada que colorear — HTML idéntico al de siempre (usaColorAcento da false)', () => {
