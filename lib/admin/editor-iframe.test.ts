@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import {
   urlDePagina,
   urlDePaginaEnEditor,
@@ -136,4 +139,56 @@ test('calcularEscalaDispositivo: sin medir todavía (0/negativo) → cabe, no re
   assert.equal(calcularEscalaDispositivo(0, 1280), 1);
   assert.equal(calcularEscalaDispositivo(-10, 1280), 1);
   assert.equal(calcularEscalaDispositivo(1600, 0), 1);
+});
+
+// ─── EDITOR-TIENDA-TEMA-PROVEEDOR-1 — el layout de /editor monta SiteSettingsProvider ─────────────
+//
+// La causa medida: `PaletaSeccion` (la pestaña «Tema») llama `useSiteSettings()`, que lanza fuera de
+// `<SiteSettingsProvider>`. Sólo `app/(admin)/admin/layout.tsx` lo montaba; `app/(admin)/editor/
+// layout.tsx` verificaba la sesión y devolvía `children` sin él — de ahí el "This page couldn't
+// load" al abrir «Tema» en `/editor/tienda`.
+//
+// Este archivo NO PUEDE montar `EditorLayout` por ejecución: es un Server Component async que llama
+// `headers()` (next/headers, exige un request real de Next) y `auth.api.getSession` + `prisma.user.
+// findUnique` (Better Auth + DB) — justo lo que el carril rápido (capa 1, SIN base, § CLAUDE.md "El
+// GATE DE UN SLICE") no tiene. Y el repo no tiene jsdom para montar `.test.tsx` de componente
+// (§ CLAUDE.md, "El glob NO incluye *.test.tsx"). Así que se sigue el patrón ya establecido para este
+// mismo límite (`lib/preauth-chasis.test.ts`): leer el ARCHIVO FUENTE que de verdad se despliega y
+// afirmar, por su contenido, que el árbol de «Tema» queda envuelto — el test más cercano a la
+// ejecución real que el arnés permite.
+
+function leerFuente(rutaRelativaDesdeAca: string): string {
+  const ruta = path.join(fileURLToPath(new URL('.', import.meta.url)), rutaRelativaDesdeAca);
+  return readFileSync(ruta, 'utf8');
+}
+
+test('app/(admin)/editor/layout.tsx importa y monta SiteSettingsProvider alrededor de children', () => {
+  const fuente = leerFuente('../../app/(admin)/editor/layout.tsx');
+
+  assert.match(
+    fuente,
+    /import\s*\{\s*SiteSettingsProvider\s*\}\s*from\s*["']@\/components\/admin\/SiteSettingsProvider["']/,
+    'debe importar el MISMO provider que monta app/(admin)/admin/layout.tsx — no una copia',
+  );
+  assert.match(
+    fuente,
+    /<SiteSettingsProvider\s+value=\{[^}]+\}>\s*\{children\}\s*<\/SiteSettingsProvider>/,
+    'children debe quedar DENTRO de <SiteSettingsProvider>, o PaletaSeccion (la pestaña «Tema») vuelve a lanzar',
+  );
+});
+
+test('app/(admin)/editor/layout.tsx reusa getSiteSettings() — no una segunda lectura de la config', () => {
+  const fuente = leerFuente('../../app/(admin)/editor/layout.tsx');
+
+  assert.match(
+    fuente,
+    /import\s*\{\s*getSiteSettings\s*\}\s*from\s*["']@\/lib\/config\/site-settings["']/,
+    'debe reusar la MISMA función server-only + cache() que lee app/(admin)/admin/layout.tsx',
+  );
+  // El valor que viaja al provider sale de getSiteSettings(), no de un objeto armado a mano.
+  assert.match(
+    fuente,
+    /getSiteSettings\(\)/,
+    'getSiteSettings() debe invocarse de verdad, no sólo importarse',
+  );
 });

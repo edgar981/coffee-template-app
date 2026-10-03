@@ -196,7 +196,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 
 | # | Slice | Toca | Tier |
 |---|---|---|---|
-| 1 | `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — «Tema» deja de caerse | `app/(admin)/editor/layout.tsx` | 2 |
+| 1 | `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — «Tema» deja de caerse — **ENTREGADO** (2026-10-03) | `app/(admin)/editor/layout.tsx` | 2 |
 | 2 | `EDITOR-TIENDA-CAMPO-ANCLADO-1` — campo anclado al documento, mide el bloque, gemelos ocultos (errores 1, 3, 4) | `EditorPuenteVivo.tsx`, `campo-editable.ts`, marcadores de gemelo en el hero y la marquesina | **1** |
 | 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) | `tienda-secciones.ts`, enrutamiento del puente | 2 (+1 si toca storefront) |
 | 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx` | 2 |

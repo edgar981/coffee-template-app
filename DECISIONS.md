@@ -48716,3 +48716,163 @@ encontró, se demostró algebraicamente, y se corrigió ANTES de este commit —
 cual. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `TAGLINE-DORADO-DERIVADO-1`.**
+
+## 2026-10-03 — `/editor` monta `SiteSettingsProvider`: la pestaña «Tema» deja de caerse
+`EDITOR-TIENDA-TEMA-PROVEEDOR-1` (slice 1 del plan de `docs/editor-tienda/REDISENO.md` § 9)
+
+**El síntoma reportado por el owner (2026-10-03):** `/editor/tienda` → pestaña «Tema» → *"This
+page couldn't load"*.
+
+**La causa, confirmada leyendo el código antes de tocar nada** (coincide con la medida ya escrita
+en `REDISENO.md:43`): `PaletaSeccion.tsx:276` llama `useSiteSettings()` —sólo para el `nombre` del
+wordmark del preview—, y ese hook (`components/admin/SiteSettingsProvider.tsx:23-26`) **lanza** si
+no hay `<SiteSettingsProvider>` por encima. `app/(admin)/admin/layout.tsx` monta ese provider (en
+un `Promise.all` con `requerirSesionAdmin()`); `app/(admin)/editor/layout.tsx` sólo verificaba la
+sesión y devolvía `children` — sin él.
+
+**La elección: reusar `getSiteSettings()`, el MISMO patrón que ya usa `/admin/layout.tsx`** —no una
+segunda lectura de la config, no un provider nuevo—. El layout de `/editor` queda:
+
+```
+const [, settings] = await Promise.all([requerirSesionAdmin(), getSiteSettings()]);
+return <SiteSettingsProvider value={settings}>{children}</SiteSettingsProvider>;
+```
+
+**Qué otro provider de `/admin/layout.tsx` SE EVALUÓ y se descartó:** `AdminChrome` monta
+`TooltipProvider` (Radix) además del sidebar/topbar que `/editor` ya rechaza a propósito (§
+EDITOR-TIENDA-DISPOSITIVOS-1, el comentario de cabecera del layout). Grepeado `Tooltip|DunaTooltip`
+contra todo el árbol que monta la pestaña «Tema» (`PaletaSeccion.tsx`, `TiendaSeccionEditor.tsx`,
+`EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `MenuSeccion.tsx`,
+`VistaTiendaEnVivo.tsx`, `VistaTiendaIframe.tsx`): **cero coincidencias** — ningún consumidor de
+Tooltip bajo ese árbol, así que `TooltipProvider` no hacía falta. El resto del árbol de «Tema»
+(`SiteContentProvider`, `CartProvider`) ya los monta `PaletaSeccion`/`FragmentoTienda` LOCALMENTE
+(`PaletaSeccion.tsx:192,196`) — es el patrón que CLAUDE.md ya documenta ("montar el provider que
+falta, LOCAL", § Las tres capas — un hook con nombre de store puede ser un context con throw duro),
+no algo que este slice tuviera que agregar.
+
+### Cierre por ejecución
+
+El arnés de capa 1 (`npm test`, SIN base) no monta jsdom (`*.test.tsx`, § CLAUDE.md) ni puede
+ejecutar `EditorLayout` de verdad: es un Server Component async que llama `headers()` (exige un
+request real de Next) y `auth.api.getSession` + `prisma.user.findUnique` (Better Auth + DB) — nada
+de eso corre en el carril rápido sin reventar. Se siguió el patrón ya establecido para este mismo
+límite (`lib/preauth-chasis.test.ts`): leer el ARCHIVO FUENTE real y afirmar, por su contenido, que
+el árbol de «Tema» queda envuelto. Dos tests nuevos en `lib/admin/editor-iframe.test.ts` (el
+archivo más cercano del área; no hay un test de layout dedicado):
+
+- que `app/(admin)/editor/layout.tsx` importa `SiteSettingsProvider` desde el módulo del admin y
+  envuelve `{children}` con él;
+- que reusa `getSiteSettings()` (no una lectura propia).
+
+**Vistos fallar contra el código viejo** (medido con un `node -e` que corre las mismas regexes
+contra `git show HEAD:"app/(admin)/editor/layout.tsx"` del commit anterior a este slice: las dos
+dan `false`), y pasar contra el fix — confirma que el test afirma el mecanismo real, no una
+tautología.
+
+Sesión real en el arnés (abrir `/editor/tienda` → «Tema» → cambiar una raíz de color → ver el
+iframe cambiar) **NO se corrió**: este dispatch no tiene navegador ni dev server disponible para
+una captura de escritorio. Queda como UNKNOWN — el cierre por ejecución (arriba) es la evidencia
+disponible; una verificación visual del owner sigue siendo el gate de capa 3 de este cambio.
+
+### `touches:` — lo que el spec listó y no se tocó, con su razón
+
+`components/admin/SiteSettingsProvider.tsx` y `components/admin/PaletaSeccion.tsx` estaban en
+`touches:` pero **no necesitaron ningún cambio**, medido antes de escribir: `PaletaSeccion` ya
+monta sus propios `SiteContentProvider`/`CartProvider` locales y sólo le faltaba el ancestro
+`SiteSettingsProvider`, que es exactamente lo que este slice agrega en el layout. Tocarlos de
+todas formas habría sido escribir sin necesidad.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos que este diff cambia: `app/(admin)/editor/layout.tsx` (contenido), `EditorLayout`,
+`SiteSettingsProvider` (import nuevo en ese archivo), `getSiteSettings` (import nuevo en ese
+archivo), `PaletaSeccion` (sin cambios), `lib/admin/editor-iframe.test.ts`. Grepeados contra
+`CLAUDE.md`:
+
+- `editor/layout.tsx`, `EditorLayout`, `editor-iframe` (como ruta de archivo): **0 coincidencias**.
+- `SiteSettingsProvider`: 3 coincidencias (`CLAUDE.md:2002,2474,2932`) — las tres hablan de los DOS
+  providers (storefront vs. admin) como piezas SEPARADAS, o del `useSiteSettings()` del
+  **storefront** (`components/storefront/SiteSettingsProvider`, en el árbol de `GrindChooser`/
+  `NosotrosGaleria` montado SIN providers de storefront). Ninguna nombra `/editor/layout.tsx` ni el
+  provider de ADMIN en ese contexto — este diff no las vuelve falsas.
+- `getSiteSettings`: 4 coincidencias (`CLAUDE.md:1983,1986,2006,2017`), todas describiendo el
+  contrato general del loader (server-only + cache, quién puede/no puede importarlo) y que
+  `/admin/layout.tsx` lo usa. Ninguna dice "sólo `/admin/layout.tsx` lo usa" — no se vuelven
+  falsas al sumar un segundo llamador con el mismo patrón.
+- `PaletaSeccion`: 3 coincidencias (`CLAUDE.md:56,2260,2808`) — ninguna sobre el provider que lo
+  envuelve; sin cambio.
+- **UN HALLAZGO QUE EL GREP DESTAPÓ, AJENO A ESTE DIFF (no se corrige acá, fuera de `touches:`):**
+  `CLAUDE.md:2012` enumera "Los 5 lectores cliente (perfil, pedidos, pagos, clientes,
+  ScheduleDeliveryModal)" de `useSiteSettings()` en el admin. Medido por grep (`grep -rn "import.*
+  useSiteSettings.*from ['\"]@/components/admin/SiteSettingsProvider['\"]"`, contando sólo imports
+  reales del HOOK, no menciones en comentario): hay **10**, no 5 — a los cinco ya nombrados se
+  suman `dashboard/page.tsx`, `PaletaSeccion.tsx`, `DatosNegocioSeccion.tsx`, `Sidebar.tsx` y
+  `RegisterPaymentModal.tsx`. La enumeración YA estaba incompleta ANTES de este slice —los cinco que
+  faltan, incluido `PaletaSeccion`, ya consumían el hook desde antes (`PaletaSeccion` ya vivía bajo
+  `/admin/tienda`, cubierta por el mismo provider)—; este diff no agrega un consumidor nuevo ni
+  cambia la lista, sólo le da a `PaletaSeccion` (uno de los cinco YA existentes) un segundo árbol
+  (`/editor/tienda`) donde montarse. Se reporta como open follow-up de doctrina, no se corrige (el
+  archivo no está en `touches:` de este slice).
+
+Segundo grep, sobre el propio `docs/editor-tienda/REDISENO.md`: `EDITOR-TIENDA-TEMA-PROVEEDOR-1`
+tenía UNA sola referencia (la fila 1 de la tabla del § 9), ya actualizada con **ENTREGADO
+(2026-10-03)** en este mismo commit — sin otro puntero que quedara colgando.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **3378/3378** (+2 sobre los 3376 previos: los dos tests nuevos de `editor-iframe.test.ts`) |
+| `npm run test:integracion` | **323/323**, sin cambio (este slice no toca `tests/integracion/`) |
+| `npm run verificar:nayoli:visual` (main vs. rama, build fresco) | `ruta-home` DIFIERE (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]`) + las otras 5 rutas DIFIEREN (163/361 px c/u) + los 2 hovers IDÉNTICO (0px) — **CIFRA Y CAJA EXACTAS** a las ya reconciliadas por `TAGLINE-DORADO-DERIVADO-1` (commit inmediatamente anterior de esta rama) y por `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` (coined en una tanda previa) |
+
+**Cero píxeles de drift nuevo.** Este slice no toca ningún archivo bajo `app/(storefront)/` ni
+`components/storefront/` (confirmado: `touches:` son sólo `app/(admin)/editor/layout.tsx`,
+`lib/admin/editor-iframe.test.ts`, `docs/editor-tienda/REDISENO.md`, `DECISIONS.md` — ninguno
+alcanza al storefront), así que la figura medida sólo puede ser el piso heredado de la rama, y así
+resultó: idéntica, byte por byte, a la que `TAGLINE-DORADO-DERIVADO-1` ya reconcilió un commit
+atrás.
+
+### `customer_bytes`
+
+**`changed: false`.** `/editor/*` está gateado por `requerirSesionAdmin()` (OWNER/MANAGER) — no es
+tráfico público ni de cliente, es una herramienta interna del dueño del negocio. Ningún archivo de
+este diff vive bajo `app/(storefront)/` ni `components/storefront/`. El drift medido en
+`verificar:nayoli:visual` (arriba) es el piso YA conocido y reconciliado por slices anteriores de
+esta misma rama, no algo que este diff introduzca — confirmado por la cifra exacta, no inferido.
+**`strings: []`** — ningún texto de cara al cliente cambia; el único string nuevo
+("Editor de la tienda") ya existía en `metadata.title`, sin tocar.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin contrato cross-repo. El cambio es wiring de
+un Server Component (dos imports + un `Promise.all` + un wrapper JSX).
+
+### Open follow-ups
+
+- **`CLAUDE-MD-ADMIN-SITESETTINGS-LECTORES-STALE-1`** (coined acá): `CLAUDE.md:2012` enumera
+  "5 lectores cliente" de `useSiteSettings()` en el admin; el grep real (imports reales del hook,
+  no menciones en comentario) da 10 archivos — a los cinco nombrados se suman `dashboard/page.tsx`,
+  `PaletaSeccion.tsx`, `DatosNegocioSeccion.tsx`, `Sidebar.tsx` y `RegisterPaymentModal.tsx`. La
+  deriva es PRE-EXISTENTE a este slice (`PaletaSeccion` ya consumía el hook desde `/admin/tienda`
+  antes de hoy); este diff no la agranda ni la encoge, sólo le da a `PaletaSeccion` un segundo
+  árbol donde montarse. Ninguno de los dos archivos (el código, `CLAUDE.md`) está en `touches:` de
+  este slice — no se corrige acá.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio de figura (ver
+  § Gate). Ajeno a `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [owner-gate-requested]` — el dispatch lo pide explícito:
+*"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES."* y el spec lo dice en su propia razón de aprobación
+("LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). No es `customer-bytes`: el diff no toca
+una sola ruta pública ni un archivo de storefront, y la figura de `verificar:nayoli:visual` es
+idéntica al piso ya reconciliado por la rama (cero drift nuevo). No es `schema` ni
+`cross-repo-contract` (ninguno de los dos aplica). Las tres condiciones de la política A están
+limpias; el único motivo de parada es que el owner pidió mirar este diff antes del merge, que es
+justo lo que el valor `owner-gate-requested` existe para nombrar. Gate verde en sus dos capas
+obligatorias (typecheck 0 errores, `npm test` 3378/3378, `npm run test:integracion` 323/323).
+Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-TEMA-PROVEEDOR-1`.**
