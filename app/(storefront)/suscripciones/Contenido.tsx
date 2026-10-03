@@ -21,6 +21,15 @@ import { ATRIBUTO_EDITOR_SECCION, MARCADOR_SUSCRIPCIONES } from '@/lib/admin/edi
 // respuestas de código (RETIRADAS) prometían cobro recurrente, ciclos y envío gratis que no existen
 // en el sistema. Se auto-oculta (hide-on-empty) hasta que el owner cargue preguntas reales.
 //
+// `suscripcionPlanes`/`suscripcionPasos` GANARON el campo editable INLINE (§ EDITOR-TIENDA-CAMPO-
+// EDITABLE-PAGINAS-1, dentro de `SuscripcionPlanes.tsx`/`SuscripcionPasos.tsx`). La FAQ de ABAJO
+// (`PreguntasFrecuentes.tsx`) **NO lo ganó en esta tanda**: ese componente no está en `touches:` de
+// este slice —es compartido con `/preguntas-frecuentes` y con `/tienda`, § el grep de sus 3
+// importadores— así que instrumentarlo exigía ampliar el alcance aprobado. El marcador de SECCIÓN
+// (`data-editor-seccion="suscripcionFaq"`, abajo) sigue intacto: el repeater se sigue editando desde
+// la lista del panel, sólo que todavía no directo sobre la página. Queda nombrado como follow-up
+// (§ DECISIONS.md, EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1).
+//
 // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1, cierra SUSCRIPCIONES-OFFSET-CONTENIDO-FUERA-
 // DE-TOUCHES-1): usa `navOffsetClase(navTratamiento.posicion)`, la MISMA pieza que ya usan las otras
 // seis páginas internas (tienda, la ficha, preguntas-frecuentes, rastrear-pedido, checkout y su

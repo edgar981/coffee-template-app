@@ -21,6 +21,11 @@ import GrindChooserRiel from '@/components/storefront/home/GrindChooserRiel';
 import SubscriptionCTABloque from '@/components/storefront/home/SubscriptionCTABloque';
 import SubscriptionCTALinea from '@/components/storefront/home/SubscriptionCTALinea';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
+import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
+import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
+import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
+import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
+import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { ModoEditorProvider } from '@/components/storefront/ModoEditor';
 import { CartProvider } from '@/lib/cartStore';
@@ -664,4 +669,215 @@ test('TestimonialSection, CON modo editor: city/product marcan CADA UNO su propi
   // Ítem 1: city="" y product="" — ninguno de los dos marca (hide-on-empty, ni siquiera el separador).
   assert.equal(contarMarcador(html, 'testimonials.items.1.city'), 0);
   assert.equal(contarMarcador(html, 'testimonials.items.1.product'), 0);
+});
+
+// ─── § EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1 — /nosotros y /suscripciones ────────────────────────
+//
+// Mismo patrón que § EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1 (render con/sin `ModoEditorProvider`,
+// `renderConProvider`/`contarMarcador`/`contarMarcadorImagen` ya definidos arriba). El PRECIO de los
+// planes queda EXPLÍCITAMENTE sin marcador (§ el spec de este slice, aprobación del owner) — se
+// afirma la AUSENCIA, no sólo se omite la aserción.
+
+// ─── NosotrosHistoria ──────────────────────────────────────────────────────────────────────────────
+
+test('NosotrosHistoria, SIN modo editor: cero `data-editor-campo` — byte-idéntico', () => {
+  const html = renderConProvider(React.createElement(NosotrosHistoria), DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+});
+
+test('NosotrosHistoria, CON modo editor (DEFAULTS): eyebrow/titulo/parrafo1/parrafo2 marcan su nodo (parrafo* multilinea) — parrafo3 vacío no marca (sin nodo que envolver)', () => {
+  const html = renderConProvider(React.createElement(NosotrosHistoria), DEFAULTS as SiteContentData, { activo: true });
+  for (const campo of ['nosotrosHistoria.eyebrow', 'nosotrosHistoria.titulo', 'nosotrosHistoria.parrafo1', 'nosotrosHistoria.parrafo2']) {
+    assert.equal(contarMarcador(html, campo), 1, `${campo} debería marcar un nodo`);
+  }
+  assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="nosotrosHistoria\\.parrafo1"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
+  assert.equal(contarMarcador(html, 'nosotrosHistoria.parrafo3'), 0);
+});
+
+test('NosotrosHistoria, CON modo editor y parrafo2 VACÍO/parrafo3 cargado: el segundo párrafo VISIBLE sigue marcando "parrafo3" (su slot real), no "parrafo2"', () => {
+  const content = { ...DEFAULTS, nosotrosHistoria: { ...DEFAULTS.nosotrosHistoria, parrafo2: '', parrafo3: 'Seguimos creciendo cada año.' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(NosotrosHistoria), content, { activo: true });
+  assert.equal(contarMarcador(html, 'nosotrosHistoria.parrafo2'), 0);
+  assert.equal(contarMarcador(html, 'nosotrosHistoria.parrafo3'), 1);
+});
+
+test('NosotrosHistoria, CON modo editor, imagen VACÍA (DEFAULTS): SIN marcador de imagen — la rama CON imagen está ausente del árbol (§ CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1)', () => {
+  const html = renderConProvider(React.createElement(NosotrosHistoria), DEFAULTS as SiteContentData, { activo: true });
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+});
+
+test('NosotrosHistoria, CON modo editor e imagen cargada: `nosotrosHistoria.imagen` marca su nodo con el atributo de IMAGEN', () => {
+  const content = { ...DEFAULTS, nosotrosHistoria: { ...DEFAULTS.nosotrosHistoria, imagen: '/images/historia-1-v1.jpg' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(NosotrosHistoria), content, { activo: true });
+  assert.equal(contarMarcadorImagen(html, 'nosotrosHistoria.imagen'), 1);
+});
+
+// ─── NosotrosGaleria ───────────────────────────────────────────────────────────────────────────────
+//
+// `items: []` (DEFAULTS) hace que el componente entero rinda `null` (hide-on-empty) — todos los
+// fixtures de este bloque traen ítems propios.
+
+const NOSOTROS_GALERIA_FIXTURE = {
+  ...DEFAULTS,
+  nosotrosGaleria: {
+    ...DEFAULTS.nosotrosGaleria,
+    items: [
+      { url: '', alt: '' }, // índice 0 — SIN url, no se renderiza ningún nodo
+      { url: '/images/galeria-1.jpg', alt: 'La finca' }, // índice 1
+      { url: '', alt: '' }, // índice 2 — SIN url, hueco en medio
+      { url: '/images/galeria-2.mp4', alt: 'El proceso', tipo: 'video' as const, poster: '/images/galeria-2-poster.jpg' }, // índice 3
+    ],
+  },
+} as SiteContentData;
+
+test('NosotrosGaleria, SIN modo editor: cero `data-editor-campo`/`data-editor-campo-imagen` — byte-idéntico', () => {
+  const html = renderConProvider(React.createElement(NosotrosGaleria), NOSOTROS_GALERIA_FIXTURE);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+  assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}=`));
+});
+
+test('NosotrosGaleria, CON modo editor: eyebrow/titulo marcan su nodo', () => {
+  const html = renderConProvider(React.createElement(NosotrosGaleria), NOSOTROS_GALERIA_FIXTURE, { activo: true });
+  assert.equal(contarMarcador(html, 'nosotrosGaleria.eyebrow'), 1);
+  assert.equal(contarMarcador(html, 'nosotrosGaleria.titulo'), 1);
+});
+
+test('NosotrosGaleria, CON modo editor: cada ítem con `url` marca `items.IDX.url` por su ÍNDICE ORIGINAL en `items`, no por su posición entre los medios filtrados — un marcador, imagen Y video', () => {
+  const html = renderConProvider(React.createElement(NosotrosGaleria), NOSOTROS_GALERIA_FIXTURE, { activo: true });
+  // Índices 0 y 2 (url vacía): sin url no hay NINGÚN nodo que envolver.
+  assert.equal(contarMarcadorImagen(html, 'nosotrosGaleria.items.0.url'), 0);
+  assert.equal(contarMarcadorImagen(html, 'nosotrosGaleria.items.2.url'), 0);
+  // Índice 1 (imagen) e índice 3 (video): el MISMO marcador de imagen cubre los dos tipos.
+  assert.equal(contarMarcadorImagen(html, 'nosotrosGaleria.items.1.url'), 1);
+  assert.equal(contarMarcadorImagen(html, 'nosotrosGaleria.items.3.url'), 1);
+  // Nunca el atributo de TEXTO sobre un ítem de la galería.
+  assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="nosotrosGaleria\\.items`));
+});
+
+test('NosotrosGaleria, CON modo editor: `alt`/`poster`/`tipo` de un ítem NO llevan marcador propio — ninguno es un nodo de TEXTO visible (atributos, o un selector)', () => {
+  const html = renderConProvider(React.createElement(NosotrosGaleria), NOSOTROS_GALERIA_FIXTURE, { activo: true });
+  assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO_IMAGEN}="nosotrosGaleria\\.items\\.\\d\\.(alt|poster|tipo)"`));
+  assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="nosotrosGaleria\\.items\\.\\d\\.(alt|poster|tipo)"`));
+});
+
+// ─── NosotrosCierre ────────────────────────────────────────────────────────────────────────────────
+//
+// `titulo: ''` (DEFAULTS) hace que el componente entero rinda `null` (hide-on-empty por título) —
+// todos los fixtures de este bloque traen `titulo` cargado.
+
+const NOSOTROS_CIERRE_FIXTURE = {
+  ...DEFAULTS,
+  nosotrosCierre: {
+    ...DEFAULTS.nosotrosCierre,
+    titulo: 'Ven a conocer la finca',
+    parrafo: 'Te esperamos con un café.',
+    ctaLabel: 'Visítanos',
+    ctaDestino: '/tienda',
+    imagenFondo: '/images/historia-1-v1.jpg',
+  },
+} as SiteContentData;
+
+test('NosotrosCierre, SIN modo editor: cero `data-editor-campo`/`data-editor-campo-imagen` — byte-idéntico', () => {
+  const html = renderConProvider(React.createElement(NosotrosCierre), NOSOTROS_CIERRE_FIXTURE);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+  assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}=`));
+});
+
+test('NosotrosCierre, CON modo editor: titulo/parrafo/ctaLabel marcan su nodo de TEXTO, imagenFondo marca su nodo de IMAGEN', () => {
+  const html = renderConProvider(React.createElement(NosotrosCierre), NOSOTROS_CIERRE_FIXTURE, { activo: true });
+  assert.equal(contarMarcador(html, 'nosotrosCierre.titulo'), 1);
+  assert.equal(contarMarcador(html, 'nosotrosCierre.parrafo'), 1);
+  assert.equal(contarMarcador(html, 'nosotrosCierre.ctaLabel'), 1);
+  assert.equal(contarMarcadorImagen(html, 'nosotrosCierre.imagenFondo'), 1);
+});
+
+test('NosotrosCierre, CON modo editor y SÓLO titulo cargado (parrafo/cta/imagenFondo vacíos): sólo titulo marca — los demás no tienen nodo que envolver, y el componente no revienta', () => {
+  const content = { ...DEFAULTS, nosotrosCierre: { ...DEFAULTS.nosotrosCierre, titulo: 'Ven a conocer la finca' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(NosotrosCierre), content, { activo: true });
+  assert.equal(contarMarcador(html, 'nosotrosCierre.titulo'), 1);
+  assert.equal(contarMarcador(html, 'nosotrosCierre.parrafo'), 0);
+  assert.equal(contarMarcador(html, 'nosotrosCierre.ctaLabel'), 0);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO_IMAGEN));
+});
+
+test('NosotrosCierre, CON modo editor e imagenFondo cargada: el velo decorativo NO tiene marcador, y lleva `pointer-events-none` (§ DEVIACIÓN MEDIDA, mismo defecto ya cerrado para GrindChooserMosaico)', () => {
+  const html = renderConProvider(React.createElement(NosotrosCierre), NOSOTROS_CIERRE_FIXTURE, { activo: true });
+  // El velo es el `<div>` con el gradiente `--sf-velo`; confirmamos que la clase trae `pointer-events-none`
+  // en la MISMA etiqueta que el gradiente, para que el marcador de imagen que está debajo sea alcanzable.
+  assert.match(html, /bg-linear-to-b from-\[var\(--sf-tinta\)\]\/60 to-\[var\(--sf-velo\)\] pointer-events-none/);
+});
+
+// ─── SuscripcionPlanes — ENCABEZADO + PLANES ──────────────────────────────────────────────────────
+//
+// DEFAULTS trae 3 planes visibles (nombre1..3; nombre4 vacío → plan 4 oculto) con 3 beneficios cada
+// uno (benN_4 vacío, un hueco al FINAL — no prueba la preservación de slot). El `whatsapp` prop se
+// pasa para que el CTA de WhatsApp se renderice (§ `(whatsapp || preview) && …`).
+
+test('SuscripcionPlanes, SIN modo editor: cero `data-editor-campo` — byte-idéntico', () => {
+  const html = renderConProvider(React.createElement(SuscripcionPlanes, { whatsapp: '+573000000000' }), DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+});
+
+test('SuscripcionPlanes, CON modo editor (DEFAULTS): el encabezado (eyebrow/titulo/tituloEnfasis/subtitulo/planesTitulo/planesSubtitulo) marca su nodo — subtitulo/planesSubtitulo multilinea', () => {
+  const html = renderConProvider(React.createElement(SuscripcionPlanes, { whatsapp: '+573000000000' }), DEFAULTS as SiteContentData, { activo: true });
+  for (const campo of ['suscripcionPlanes.eyebrow', 'suscripcionPlanes.titulo', 'suscripcionPlanes.tituloEnfasis', 'suscripcionPlanes.subtitulo', 'suscripcionPlanes.planesTitulo', 'suscripcionPlanes.planesSubtitulo']) {
+    assert.equal(contarMarcador(html, campo), 1, `${campo} debería marcar un nodo`);
+  }
+  assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="suscripcionPlanes\\.subtitulo"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
+});
+
+test('SuscripcionPlanes, CON modo editor (DEFAULTS): los TRES planes visibles (1..3) marcan `nombreN`/`descripcionN` por su SLOT — plan 4 (sin nombre) no marca nada, y `ctaLabel` marca UNA vez por tarjeta visible', () => {
+  const html = renderConProvider(React.createElement(SuscripcionPlanes, { whatsapp: '+573000000000' }), DEFAULTS as SiteContentData, { activo: true });
+  for (const n of [1, 2, 3]) {
+    assert.equal(contarMarcador(html, `suscripcionPlanes.nombre${n}`), 1, `nombre${n} debería marcar un nodo`);
+    assert.equal(contarMarcador(html, `suscripcionPlanes.descripcion${n}`), 1, `descripcion${n} debería marcar un nodo`);
+  }
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.nombre4'), 0, 'el plan 4 está oculto (sin nombre) — nada que marcar');
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.descripcion4'), 0);
+  // `ctaLabel` es el MISMO campo repetido en cada tarjeta visible (3) — mismo criterio aceptado que
+  // el campo duplicado de marquesina/HeroMediaMarquesina (§ EDICION-INLINE.md § 9): editar cualquiera
+  // de las copias debe escribir el mismo campo.
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.ctaLabel'), 3);
+});
+
+test('SuscripcionPlanes, CON modo editor (DEFAULTS): los beneficios VISIBLES del plan 1 marcan `ben1_1..3` por su N real — `ben1_4` (vacío) no marca nada', () => {
+  const html = renderConProvider(React.createElement(SuscripcionPlanes, { whatsapp: '+573000000000' }), DEFAULTS as SiteContentData, { activo: true });
+  for (const n of [1, 2, 3]) {
+    assert.equal(contarMarcador(html, `suscripcionPlanes.ben1_${n}`), 1, `ben1_${n} debería marcar un nodo`);
+  }
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.ben1_4'), 0);
+});
+
+test('SuscripcionPlanes, CON modo editor y ben2_2 VACÍO (hueco en MEDIO, no al final): el segundo beneficio VISIBLE del plan 2 sigue marcando "ben2_3" (su N real), no "ben2_2"', () => {
+  const content = { ...DEFAULTS, suscripcionPlanes: { ...DEFAULTS.suscripcionPlanes, ben2_2: '' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(SuscripcionPlanes, { whatsapp: '+573000000000' }), content, { activo: true });
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.ben2_1'), 1);
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.ben2_2'), 0);
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.ben2_3'), 1);
+});
+
+test('SuscripcionPlanes, CON modo editor y precio1 cargado: el PRECIO se sigue viendo pero SIN marcador — no se edita desde el editor (§ el spec de este slice, decisión del owner)', () => {
+  const content = { ...DEFAULTS, suscripcionPlanes: { ...DEFAULTS.suscripcionPlanes, precio1: '$50.000/mes' } } as SiteContentData;
+  const html = renderConProvider(React.createElement(SuscripcionPlanes, { whatsapp: '+573000000000' }), content, { activo: true });
+  assert.ok(html.includes('$50.000/mes'), 'el precio debe seguir viéndose');
+  assert.equal(contarMarcador(html, 'suscripcionPlanes.precio1'), 0, 'el precio NUNCA lleva marcador de campo editable');
+  assert.doesNotMatch(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO_IMAGEN}="suscripcionPlanes\\.precio1"`));
+});
+
+// ─── SuscripcionPasos ──────────────────────────────────────────────────────────────────────────────
+
+test('SuscripcionPasos, SIN modo editor: cero `data-editor-campo` — byte-idéntico', () => {
+  const html = renderConProvider(React.createElement(SuscripcionPasos), DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
+});
+
+test('SuscripcionPasos, CON modo editor (DEFAULTS, cardinalidad FIJA 4): titulo y los CUATRO pares paso*Label/paso*Desc marcan su nodo, cada uno una sola vez', () => {
+  const html = renderConProvider(React.createElement(SuscripcionPasos), DEFAULTS as SiteContentData, { activo: true });
+  assert.equal(contarMarcador(html, 'suscripcionPasos.titulo'), 1);
+  for (const n of [1, 2, 3, 4]) {
+    assert.equal(contarMarcador(html, `suscripcionPasos.paso${n}Label`), 1, `paso${n}Label debería marcar un nodo`);
+    assert.equal(contarMarcador(html, `suscripcionPasos.paso${n}Desc`), 1, `paso${n}Desc debería marcar un nodo`);
+    assert.match(html, new RegExp(`${ATRIBUTO_EDITOR_CAMPO}="suscripcionPasos\\.paso${n}Desc"[^>]*${ATRIBUTO_EDITOR_LINEA}="multiple"`));
+  }
 });

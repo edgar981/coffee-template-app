@@ -47579,3 +47579,150 @@ aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin 
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra la fila 4 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`).**
+
+## 2026-10-03 — /nosotros y /suscripciones ganan el campo editable (`EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Fila 4 de § 6.4 de
+`docs/editor-tienda/EDICION-INLINE.md`. Mismo pedido del owner, misma autorización que
+`EDITOR-TIENDA-CAMPO-EDITABLE-1`/`-HERO-1`/`-IMAGEN-1`/`-HOME-1` (2026-10-02); el `observed-report`
+que lo habilita es `EDITOR-TIENDA-EDICION-INLINE-DISENO-1`. La aprobación autoriza la escritura,
+nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `a0ea671`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (0 adelante / 0 atrás de `origin/main`, sin `fetch` — refs ya en caché) |
+| los archivos de `touches:` que ya existían | sí — los 7 de código (`NosotrosHistoria.tsx`, `NosotrosGaleria.tsx`, `NosotrosCierre.tsx`, `SuscripcionPlanes.tsx`, `SuscripcionPasos.tsx`, `Contenido.tsx`, `nosotros/page.tsx`) + `CampoEditable.tsx` + `campo-editable.ts`/`.test.ts` + `EDICION-INLINE.md` + `DECISIONS.md`, confirmados con `Read`/`grep` antes de escribir |
+| archivos de `touches:` que NO hizo falta tocar | `app/(storefront)/nosotros/page.tsx` (ya marca `data-editor-seccion` por banda desde `EDITOR-TIENDA-IFRAME-VISTA-1`; nada que agregar), `components/storefront/CampoEditable.tsx` y `lib/storefront/campo-editable.ts` (la API ya cubre plano/ítem-de-repeater/imagen; mismo criterio que `-HOME-1` dejó estos dos sin tocar) |
+| base EFÍMERA para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55449`, seed estándar (`admin@sierranativa.co`) |
+
+### El hallazgo de alcance ANTES de escribir: `suscripcionFaq` no es alcanzable desde `touches:`
+
+El spec pide instrumentar "preguntas frecuentes con su repeater", pero `Contenido.tsx` monta
+`<PreguntasFrecuentes />` para esa sección, y ese componente vive en `components/storefront/
+PreguntasFrecuentes.tsx` — **NO está en `touches:`**, y es compartido con `/preguntas-frecuentes`
+y `/tienda` (grep: 3 importadores). Por la regla del dispatch ("si el trabajo necesita un archivo
+fuera de `touches:`, parar y decirlo — no ampliar el alcance"), se dejó SIN tocar. El resto del
+alcance (historia/galería/cierre de /nosotros; planes/pasos de /suscripciones) SÍ estaba
+enteramente dentro de `touches:` y se completó entero. Documentado en `EDICION-INLINE.md` § 11 y
+con un comentario propio en `Contenido.tsx`.
+
+### El censo, en corto
+
+**24 usos de `<CampoEditable campo=…>` nuevos** (texto + imagen combinados, medido por
+`git diff -- <los 5 archivos> | grep -c '^+.*<CampoEditable campo='`), en 5 componentes (`NosotrosHistoria`,
+`NosotrosGaleria`, `NosotrosCierre`, `SuscripcionPlanes`, `SuscripcionPasos`). El precio de cada
+plan (`precio1..4`) se dejó explícitamente SIN envolver — única exclusión de contenido-visible de
+todo el plan, por decisión del owner (§ el spec de este slice). Detalle completo, con los dos
+casos especiales (el índice original del repeater de galería, el hit-test del velo de
+`NosotrosCierre`), en `EDICION-INLINE.md` § 11 — no se repite acá.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3302/3302** (+21 sobre los 3281 que `EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1` reportó al cerrar — reconciliado por `git diff \| grep -c '^+test('` = 21, SIN tests generados por loop en este diff, a diferencia de HOME-1; 3281+21=3302 cierra exacto) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas (incluidas `ruta-nosotros`/`ruta-suscripciones`) 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+`npm run gate` (el comando combinado) se corrió también completo, árbol final: GREEN.
+
+### DEVIACIÓN MEDIDA: el velo de `NosotrosCierre` se llevaba el clic — y, ya con eso arreglado, el CENTRO de la imagen caía sobre el texto
+
+Dos hallazgos, los dos por EJECUCIÓN real (Playwright + `document.elementFromPoint`, nunca grep):
+
+1. El gradiente velo (`bg-linear-to-b … to-[var(--sf-velo)]`) no tenía `pointer-events-none` —
+   EXACTAMENTE el defecto que `-HOME-1` cerró para el degradado de `GrindChooserMosaico`. Se
+   agregó `pointer-events-none`.
+2. Con el velo arreglado, el clic en el CENTRO de la imagen seguía sin disparar el filechooser:
+   medido con `elementFromPoint`, el punto caía sobre `<span data-editor-campo="nosotrosCierre.
+   parrafo">`, no sobre el velo ni la imagen — la imagen es full-bleed y el texto es una columna
+   centrada en el MISMO punto medio. **No se tocó el componente**: el margen lateral del
+   full-bleed (10% del ancho en vez de 50%) es parte de la imagen, sin texto encima, y es el punto
+   que un dueño real clickearía. Se corrigió el PUNTO DE CLIC del arnés, no el componente.
+
+Las dos están en `EDICION-INLINE.md` § 11 con su razonamiento completo. La segunda abre un
+follow-up sobre un archivo AJENO a `touches:` (abajo).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió, grepeados contra `CLAUDE.md`: `NosotrosHistoria` (0),
+`NosotrosCierre` (0), `SuscripcionPlanes` (0), `SuscripcionPasos` (0), `pointer-events-none` (0),
+`data-editor-campo` (0), `CampoEditable` (0) → nada que verificar, cero menciones. `NosotrosGaleria`
+(2 apariciones, líneas 2472/2932): las dos son sobre el prop `negocio`/el preview sin
+`SiteSettingsProvider` — mecanismo que este diff NO tocó (sólo agregó `CampoEditable` alrededor de
+`eyebrow`/`titulo`/`items.N.url`); las dos SIGUEN VERDADERAS. `nosotrosHistoria`/`nosotrosGaleria`
+(minúsculas, el campo de REGISTRY — 2472/2850/2895/2945/2530): todas sobre el MODELO/esquema/
+resolver (el test derivado de § 67, el meta `paginas`, el borrado de blobs por ítem) — este diff no
+tocó el modelo, el resolver ni el REGISTRY, ninguna sentencia quedó falsa. `suscripcionPlanes`
+(1, línea 1571): dice que la pestaña se edita "con el editor de bloques" — SIGUE VERDADERO, este
+diff AGREGA una segunda vía (inline), no retira la del editor de bloques. `suscripcionFaq` (1,
+línea 1875): sobre que es una sección repeater de SiteContent — sin relación con editabilidad
+inline, sigue verdadero.
+
+### Segundo grep — el documento que SÍ cambié (`docs/editor-tienda/EDICION-INLINE.md`)
+
+Los identificadores que toqué (la fila 4 de § 6.4, el cierre de `-HOME-1` al final de § 10, § 11
+nuevo) se grepearon contra TODO el repo. Un solo puntero externo relevante:
+`DECISIONS.md:47581` — la línea de cierre de la entrada de `-HOME-1` ("Cierra la fila 4…"), que
+este mismo slice midió como PREMATURA (nosotros/suscripciones seguían en cero `CampoEditable`).
+**No se edita esa entrada** (es append-only, la verdad del commit en que se escribió); la
+corrección vive en `EDICION-INLINE.md` § 10 (el párrafo nuevo que reemplaza esa frase) y en esta
+entrada nueva. Ningún otro `.md` del repo apunta a la fila 4 ni a § 11.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que las cinco
+entradas anteriores). **De este COMMIT en particular**: `strings: []` — confirmado por EJECUCIÓN en
+los dos sentidos: (a) `guarda:color`/`verificar:nayoli:visual` dan la cifra EXACTA ya heredada,
+cero píxeles de drift nuevo en las 6 rutas públicas (incluidas `/nosotros`/`/suscripciones`); (b)
+el arnés de Playwright mide `0` ocurrencias de `data-editor-campo=`/`data-editor-campo-imagen=` en
+el HTML de `/nosotros` y `/suscripciones` SIN `?editor=1`. Lo que SÍ cambia son bytes COMPILADOS:
+el bundle gana 24 marcadores inertes más (gateados a `ModoEditorProvider`) y un
+`pointer-events-none` en un velo decorativo — los dos neutros visualmente, medido. `approved:
+null` — Nayoli no ejercita esta rama de código hasta que el editor se use en modo editor real.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo.
+
+### Open follow-ups
+
+- **`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`** (coined acá) — instrumentar `suscripcionFaq` exige
+  tocar `components/storefront/PreguntasFrecuentes.tsx` (compartido con `/preguntas-frecuentes` y
+  `/tienda`), fuera de `touches:` de este slice. Único hueco nombrado de la fila 4 de § 6.4.
+- **`CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1`** (coined acá) — `SubscriptionCTALinea.tsx`
+  reusa la MISMA composición que `NosotrosCierre` (imagen full-bleed + contenido ancho superpuesto
+  en el mismo punto medio), y su propio arnés de verificación (`-HOME-1`, `.scratch/
+  verificar-campo-editable-home.ts`, FASE 6) nunca clickeó de verdad su `imagenFondo`: sólo contó
+  el marcador (`.count()===1`), nunca esperó un `filechooser`. No se verificó de nuevo (el archivo
+  no está en `touches:` de este slice) — queda como pregunta abierta para quien lo tenga en el suyo.
+- La fila 5 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`) y nav/pie (§ 5) siguen sin construir,
+  sin cambio por este slice.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno
+  a `touches:` de este slice.
+- `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1` (de `-HOME-1`) — gana DOS instancias más:
+  `nosotrosHistoria.imagen` (vacía → la rama CON imagen entera está ausente del árbol) y
+  `nosotrosCierre.imagenFondo` (vacía → el bloque de fondo entero se omite). Mismo criterio que las
+  ya nombradas: Nayoli no las topa hoy (las dos nacen vacías en los defaults), y el fix tocaría la
+  bifurcación de la sección completa, no sólo la imagen.
+- Los contenidos de prueba sembrados por el arnés (la galería con 4 ítems, el cierre con su texto,
+  `ben2_2` vacío, `precio1`) viven en la base efímera del arnés, que se destruye al terminar — no
+  hay rastro en ninguna base real.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (`npm run gate`: typecheck 0, 3302/3302,
+308/308); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado —
+cero píxeles de drift nuevo. El mecanismo completo (24 sitios de `<CampoEditable campo=…>`, texto +
+imagen, en 5 componentes, el índice-original del repeater de galería, el fix del velo de
+`NosotrosCierre`, la exclusión explícita del precio) verificado por ejecución contra una build de
+producción con sesión real — 45/45 en verde. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL`
+sin merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra la fila 4 de § 6.4 salvo `suscripcionFaq`** (`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1`, arriba).

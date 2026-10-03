@@ -6,6 +6,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // La HISTORIA LARGA de /nosotros. `eyebrow` y `parrafo2/3` son opcionales → se omiten vacíos;
 // `titulo` y `parrafo1` vienen resueltos. Preview ESTÁTICO (`whileInView`→`animate` con
@@ -22,7 +23,14 @@ export default function NosotrosHistoria() {
   const { nosotrosHistoria, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const { eyebrow, titulo, parrafo1, parrafo2, parrafo3, imagen } = nosotrosHistoria;
-  const parrafos = [parrafo1, parrafo2, parrafo3].filter(p => p.trim() !== "");
+  // `campo` sobrevive al filtro (§ EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N — "slot, no posición"):
+  // si parrafo2 está vacío y parrafo3 no, el campo editable del segundo párrafo VISIBLE tiene que
+  // seguir siendo "parrafo3", no "parrafo2".
+  const parrafos = [
+    { campo: "parrafo1", valor: parrafo1 },
+    { campo: "parrafo2", valor: parrafo2 },
+    { campo: "parrafo3", valor: parrafo3 },
+  ].filter(p => p.valor.trim() !== "");
   const tieneImagen = imagen.trim() !== "";
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — SÓLO para la rama CON imagen (dos columnas,
   // abajo). La rama SIN imagen (`max-w-3xl`, unas líneas más abajo) es un CONTENEDOR DE LECTURA
@@ -39,12 +47,14 @@ export default function NosotrosHistoria() {
       viewport={preview ? undefined : { once: true }}
       variants={fadeUp}
     >
-      {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-3">{eyebrow}</p>}
+      {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-3"><CampoEditable campo="nosotrosHistoria.eyebrow">{eyebrow}</CampoEditable></p>}
       {/* h1: es el encabezado principal de la PÁGINA (la home usa h2 por sección). */}
-      <h1 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-tinta)] leading-tight mb-8">{titulo}</h1>
+      <h1 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-tinta)] leading-tight mb-8"><CampoEditable campo="nosotrosHistoria.titulo">{titulo}</CampoEditable></h1>
       <div className="space-y-6">
-        {parrafos.map((p, i) => (
-          <p key={i} className="text-[var(--sf-acento-2)]/80 leading-relaxed text-lg">{p}</p>
+        {parrafos.map((p) => (
+          <p key={p.campo} className="text-[var(--sf-acento-2)]/80 leading-relaxed text-lg">
+            <CampoEditable campo={`nosotrosHistoria.${p.campo}`} multilinea>{p.valor}</CampoEditable>
+          </p>
         ))}
       </div>
     </motion.div>
@@ -78,7 +88,14 @@ export default function NosotrosHistoria() {
             transition={preview ? undefined : { duration: 0.6 }}
             className="relative aspect-[3/4] overflow-hidden sf-radio-imagen"
           >
-            <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+            {/* SIN marcador cuando `imagen` está vacía — la rama CON imagen entera está ausente del
+                árbol (§ `tieneImagen`), así que no hay ningún nodo donde montarlo (misma clase que
+                `brandStory.imagen2/3/4`/`subscriptionCTA.imagenFondo`, § CAMPO-EDITABLE-IMAGEN-SLOT-
+                VACIO-OPCIONAL-1 — retrofitear exigiría reestructurar la bifurcación de la sección
+                entera, no sólo la imagen). */}
+            <CampoEditable campo="nosotrosHistoria.imagen" tipo="imagen">
+              <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+            </CampoEditable>
           </motion.div>
         </div>
       </div>

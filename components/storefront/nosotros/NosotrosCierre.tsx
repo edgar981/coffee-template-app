@@ -8,6 +8,7 @@ import { fadeUp, useProgresoScroll } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, resolverCtaSeccion } from "@/lib/config/site-content-defaults";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — la banda final antes del pie, en el
 // mismo lugar donde el tema real cierra la página con titular + párrafo + botón (medido, §
@@ -52,9 +53,17 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
           {/* La caja del parallax se extiende 6% arriba/abajo: el `translateY` de ±5% de su propio
               alto (≤ 5% de 112%) nunca expone un borde vacío — MISMA cuenta que SubscriptionCTALinea. */}
           <motion.div className="absolute inset-x-0 top-[-6%] bottom-[-6%]" style={{ y: parallaxY }}>
-            <Image src={nosotrosCierre.imagenFondo} alt="" fill sizes="100vw" className="object-cover" />
+            <CampoEditable campo="nosotrosCierre.imagenFondo" tipo="imagen">
+              <Image src={nosotrosCierre.imagenFondo} alt="" fill sizes="100vw" className="object-cover" />
+            </CampoEditable>
           </motion.div>
-          <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)]" />
+          {/* `pointer-events-none` (§ DEVIACIÓN MEDIDA, EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1 — mismo
+              defecto que ya cerró EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1 para el gradiente de
+              GrindChooserMosaico): este velo pinta DESPUÉS del `motion.div` de la imagen, en la MISMA
+              caja `absolute inset-0`, así que sin esto se lleva el hit-test del clic sobre el marcador
+              de imagen de arriba. Neutro para un visitante real: el velo nunca tuvo propósito
+              interactivo. */}
+          <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 to-[var(--sf-velo)] pointer-events-none" />
         </div>
       )}
       <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -68,11 +77,11 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
           variants={fadeUp}
         >
           <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre)] leading-tight mb-6">
-            {nosotrosCierre.titulo}
+            <CampoEditable campo="nosotrosCierre.titulo">{nosotrosCierre.titulo}</CampoEditable>
           </h2>
           {nosotrosCierre.parrafo && (
             <p className="text-[var(--sf-sobre)]/80 leading-relaxed text-lg mb-8">
-              {nosotrosCierre.parrafo}
+              <CampoEditable campo="nosotrosCierre.parrafo" multilinea>{nosotrosCierre.parrafo}</CampoEditable>
             </p>
           )}
           {ctaHref && (
@@ -80,7 +89,7 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
               href={ctaHref}
               className="inline-flex items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] text-[var(--sf-accion-txt,var(--sf-tinta))] font-semibold px-8 py-4 sf-pildora text-sm transition-all hover:-translate-y-0.5"
             >
-              {nosotrosCierre.ctaLabel}
+              <CampoEditable campo="nosotrosCierre.ctaLabel">{nosotrosCierre.ctaLabel}</CampoEditable>
             </Link>
           )}
         </motion.div>

@@ -8,6 +8,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import CampoEditable from "@/components/storefront/CampoEditable";
 
 // Una celda de VÍDEO de la galería. NO usa el atributo `autoplay` —medido: `preload="none"` + autoplay
 // se contradicen y Chrome DESCARGA igual, y estar fuera del fold TAMPOCO lo difiere; con el atributo,
@@ -106,7 +107,13 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
   if (!seccionEsVisible(REGISTRY.nosotrosGaleria, nosotrosGaleria)) return null;
 
   const { eyebrow, titulo, items } = nosotrosGaleria;
-  const medios = items.filter((f) => f.url.trim() !== ""); // defensivo: sin url no se renderiza un ítem
+  // EL ÍNDICE ORIGINAL sobrevive al filtro (§ EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N — "slot, no
+  // posición", mismo criterio que Presentaciones/los bullets de Suscripción): el campo editable de
+  // un ítem tiene que seguir apuntando a SU posición real en `nosotrosGaleria.items`, no a su
+  // posición entre los ítems con `url` no vacía.
+  const medios = items
+    .map((f, idx) => ({ f, idx }))
+    .filter(({ f }) => f.url.trim() !== ""); // defensivo: sin url no se renderiza un ítem
   // Fallback del alt: describe el CONTEXTO, no el índice (§ decisión del owner). El alt del ítem, si
   // el owner lo escribió, manda —es mejor para un lector de pantalla que cualquier genérico—.
   const altFallback = negocio ? `Foto de la galería de ${negocio}` : "Foto de la galería";
@@ -127,15 +134,16 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
             variants={fadeUp}
             className="text-center mb-12"
           >
-            {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
-            {titulo && <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]">{titulo}</h2>}
+            {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2"><CampoEditable campo="nosotrosGaleria.eyebrow">{eyebrow}</CampoEditable></p>}
+            {titulo && <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]"><CampoEditable campo="nosotrosGaleria.titulo">{titulo}</CampoEditable></h2>}
           </motion.div>
         )}
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
-          {medios.map((f, i) => (
+          {medios.map(({ f, idx }) => (
             // El break-inside va en un envoltorio ESTÁTICO; la animación (transform) va dentro, para
-            // no mezclar el transform con la regla de corte de columna.
-            <div key={i} className="mb-4 break-inside-avoid">
+            // no mezclar el transform con la regla de corte de columna. `key`/el campo editable usan
+            // `idx` (el índice ORIGINAL en `items`), no la posición entre los `medios` filtrados.
+            <div key={idx} className="mb-4 break-inside-avoid">
               {/* RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-imagen`, no `rounded-2xl` crudo — gate
                   del owner, "un poco de redondeo pero sólo a las card de imágenes", y ésta es "la
                   galería de /nosotros" que nombró. Fallback 1rem = el mismo `--radius-2xl` que
@@ -149,17 +157,25 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
                 className="relative overflow-hidden sf-radio-imagen bg-[var(--sf-linea)]"
                 style={{ aspectRatio: f.w && f.h ? `${f.w} / ${f.h}` : "4 / 3" }}
               >
-                {f.tipo === "video" ? (
-                  <VideoCelda src={f.url} poster={f.poster} alt={f.alt.trim() || altFallback} />
-                ) : (
-                  <Image
-                    src={f.url}
-                    alt={f.alt.trim() || altFallback}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover"
-                  />
-                )}
+                {/* Un solo marcador de IMAGEN cubre los dos tipos (§ CampoEditable.tsx, "marca una
+                    IMAGEN o un VIDEO") — clic en cualquiera de los dos abre el MISMO selector real
+                    del panel. `alt`/`poster`/`tipo` NO llevan marcador propio: ninguno de los tres
+                    es un nodo de TEXTO visible que un visitante pueda leer (alt/poster son atributos,
+                    tipo es un selector), así que no hay children que envolver — se editan desde el
+                    formulario de la lista, como `destacadoSlot`/`ctaDestino` en otras secciones. */}
+                <CampoEditable campo={`nosotrosGaleria.items.${idx}.url`} tipo="imagen">
+                  {f.tipo === "video" ? (
+                    <VideoCelda src={f.url} poster={f.poster} alt={f.alt.trim() || altFallback} />
+                  ) : (
+                    <Image
+                      src={f.url}
+                      alt={f.alt.trim() || altFallback}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
+                    />
+                  )}
+                </CampoEditable>
               </motion.div>
             </div>
           ))}

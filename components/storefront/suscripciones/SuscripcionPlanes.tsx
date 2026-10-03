@@ -6,6 +6,7 @@ import { whatsappUrl } from '@/lib/config/site';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { planesDeSuscripcion, gridColsPlanes } from '@/lib/storefront/planes-suscripcion';
+import CampoEditable from '@/components/storefront/CampoEditable';
 
 // El ENCABEZADO + los PLANES de /suscripciones, desde SiteContent (§ Backlog #49). Antes eran literales
 // + `SUBSCRIPTION_PLANS`; ahora la sección `suscripcionPlanes`, editable. Los DOS surfaces (esta página
@@ -22,17 +23,28 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
   const planes = planesDeSuscripcion(c);
   const interesHref = (nombre: string) =>
     whatsappUrl(whatsapp ?? '', `Hola, me interesa el plan de suscripción de ${nombre}`);
+  // Los benN_1..4 por SLOT, para reconstruir el campo editable de cada beneficio VISIBLE (§ EDITOR-
+  // TIENDA-CAMPO-EDITABLE-RESTO-1..N — "slot, no posición"): `planesDeSuscripcion` ya los filtra a
+  // `string[]` sin su índice n (1-4), así que acá se recalcula LOCAL, sobre `c` directo, sin tocar
+  // `lib/storefront/planes-suscripcion.ts` (fuera de `touches:` de este slice).
+  const bensPorSlot: Record<number, [string, string, string, string]> = {
+    1: [c.ben1_1, c.ben1_2, c.ben1_3, c.ben1_4],
+    2: [c.ben2_1, c.ben2_2, c.ben2_3, c.ben2_4],
+    3: [c.ben3_1, c.ben3_2, c.ben3_3, c.ben3_4],
+    4: [c.ben4_1, c.ben4_2, c.ben4_3, c.ben4_4],
+  };
 
   return (
     <>
       {/* Hero */}
       <section className="bg-[var(--sf-tinta)] py-20 text-center px-4">
         <motion.div initial={preview ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          {c.eyebrow && <p className="text-[var(--sf-tostado)] text-xs tracking-widest uppercase mb-4">{c.eyebrow}</p>}
+          {c.eyebrow && <p className="text-[var(--sf-tostado)] text-xs tracking-widest uppercase mb-4"><CampoEditable campo="suscripcionPlanes.eyebrow">{c.eyebrow}</CampoEditable></p>}
           <h1 className="text-5xl sm:text-6xl font-playfair text-[var(--sf-sobre)] mb-4">
-            {c.titulo}{c.tituloEnfasis && (<><br /><em className="text-[var(--sf-tostado)] italic">{c.tituloEnfasis}</em></>)}
+            <CampoEditable campo="suscripcionPlanes.titulo">{c.titulo}</CampoEditable>
+            {c.tituloEnfasis && (<><br /><em className="text-[var(--sf-tostado)] italic"><CampoEditable campo="suscripcionPlanes.tituloEnfasis">{c.tituloEnfasis}</CampoEditable></em></>)}
           </h1>
-          <p className="text-[var(--sf-sobre)]/60 text-lg max-w-xl mx-auto">{c.subtitulo}</p>
+          <p className="text-[var(--sf-sobre)]/60 text-lg max-w-xl mx-auto"><CampoEditable campo="suscripcionPlanes.subtitulo" multilinea>{c.subtitulo}</CampoEditable></p>
         </motion.div>
       </section>
 
@@ -40,8 +52,8 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
       <section className="py-20 bg-[var(--sf-fondo)]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">{c.planesTitulo}</h2>
-            {c.planesSubtitulo && <p className="text-[var(--sf-texto)] text-sm max-w-lg mx-auto">{c.planesSubtitulo}</p>}
+            <h2 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2"><CampoEditable campo="suscripcionPlanes.planesTitulo">{c.planesTitulo}</CampoEditable></h2>
+            {c.planesSubtitulo && <p className="text-[var(--sf-texto)] text-sm max-w-lg mx-auto"><CampoEditable campo="suscripcionPlanes.planesSubtitulo" multilinea>{c.planesSubtitulo}</CampoEditable></p>}
           </div>
 
           <div className={`grid grid-cols-1 ${gridColsPlanes(planes.length)} gap-6`}>
@@ -62,7 +74,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                 <div className="w-10 h-10 rounded-xl mb-4 flex items-center justify-center bg-[var(--sf-acento)]/10">
                   <Coffee className="w-5 h-5 text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]" />
                 </div>
-                <h3 className="text-xl font-playfair text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] mb-1">{plan.nombre}</h3>
+                <h3 className="text-xl font-playfair text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] mb-1"><CampoEditable campo={`suscripcionPlanes.nombre${plan.slot}`}>{plan.nombre}</CampoEditable></h3>
                 {/* El PRECIO es TEXTO libre (§ site-content-defaults). Lleva la clase de precio de
                     ProductCard VERBATIM —`font-bold text-[var(--sf-tinta)]`— tras MEDIR los estilos
                     computados (§ Backlog #49, FIX B): ProductCard y el detalle de producto ya coincidían con
@@ -73,20 +85,27 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     entra en una línea para cualquier precio. UNDER el nombre (nombre → precio → qué es →
                     beneficios → CTA). Vacío → NO se muestra; Nayoli no lo lleva → byte-idéntico.
                     El color pasó a `--sf-sobre-tarjeta` (§ TEMAS-P6-FAMILIAS-1, familia `tarjeta`, floreado
-                    contra ELLA) con fallback al `--sf-tinta` de siempre — Nayoli no cambia. */}
+                    contra ELLA) con fallback al `--sf-tinta` de siempre — Nayoli no cambia.
+                    SIN CampoEditable, A PROPÓSITO (§ el spec de este slice, aprobación del owner): el
+                    precio NO se edita desde el editor — fuera de alcance. */}
                 {plan.precio && <p className="font-bold text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] mb-1">{plan.precio}</p>}
                 {/* descripcion/beneficios (§ TEMAS-P6-FAMILIAS-CIERRE-1): mismo par `tarjeta`, miembro
                     SUAVE — son texto de APOYO bajo el nombre/precio (que ya son principal), no un
                     encabezado. Fallback al token PROPIO de cada uno (no al de otro consumidor): con eso
                     Nayoli (sin esquema, sin inyección) queda byte-idéntico, y sólo un esquema asignado
                     (§ derivarEsquema) hace que el valor real gane sobre el fallback. */}
-                {plan.descripcion && <p className="text-sm text-[var(--sf-sobre-tarjeta-suave,var(--sf-texto-suave))] mb-4">{plan.descripcion}</p>}
+                {plan.descripcion && <p className="text-sm text-[var(--sf-sobre-tarjeta-suave,var(--sf-texto-suave))] mb-4"><CampoEditable campo={`suscripcionPlanes.descripcion${plan.slot}`} multilinea>{plan.descripcion}</CampoEditable></p>}
                 <div className="space-y-2 mb-6">
-                  {plan.beneficios.map(b => (
-                    <div key={b} className="flex items-center gap-2 text-sm text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-2))]">
-                      <CheckCircle className="w-4 h-4 text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] shrink-0" /> {b}
-                    </div>
-                  ))}
+                  {/* `n` sobrevive al filtro de `planesDeSuscripcion` (§ arriba, `bensPorSlot`): el
+                      campo editable del beneficio VISIBLE sigue apuntando a `ben{slot}_{n}` real. */}
+                  {bensPorSlot[plan.slot]
+                    .map((valor, i) => ({ n: i + 1, valor }))
+                    .filter(b => b.valor.trim() !== '')
+                    .map(b => (
+                      <div key={b.n} className="flex items-center gap-2 text-sm text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-2))]">
+                        <CheckCircle className="w-4 h-4 text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] shrink-0" /> <CampoEditable campo={`suscripcionPlanes.ben${plan.slot}_${b.n}`}>{b.valor}</CampoEditable>
+                      </div>
+                    ))}
                 </div>
                 {/* El CTA es un enlace a WhatsApp. En la TIENDA REAL se OCULTA sin número (un `wa.me/` sin
                     número es un botón muerto, § los enlaces se ocultan si el campo está vacío). En el PREVIEW
@@ -108,7 +127,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     rel="noopener noreferrer"
                     className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
                   >
-                    {c.ctaLabel} <ArrowRight className="w-4 h-4" />
+                    <CampoEditable campo="suscripcionPlanes.ctaLabel">{c.ctaLabel}</CampoEditable> <ArrowRight className="w-4 h-4" />
                   </a>
                 )}
               </motion.div>

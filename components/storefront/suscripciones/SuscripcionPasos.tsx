@@ -4,6 +4,7 @@ import { Star, Coffee, Zap, CheckCircle, type LucideIcon } from 'lucide-react';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { pasosDeSuscripcion } from '@/lib/storefront/planes-suscripcion';
+import CampoEditable from '@/components/storefront/CampoEditable';
 
 // Los pasos "¿Cómo funciona?" de /suscripciones, desde SiteContent (§ Backlog #49 · e). El TEXTO
 // (label + descripción) es DATO editable; el ÍCONO y el número "0N" son ESTRUCTURA —secuencia, no
@@ -27,18 +28,21 @@ export default function SuscripcionPasos() {
     // TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md.
     <section className="py-16 bg-[var(--sf-superficie)]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-center mb-10">{c.titulo}</h2>
+        <h2 className="text-2xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-center mb-10"><CampoEditable campo="suscripcionPasos.titulo">{c.titulo}</CampoEditable></h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
           {pasos.map((paso, i) => {
             const Icono = ICONOS[i];
+            // Cardinalidad FIJA 4 sin filtro: `i` mapea 1:1 a `paso{i+1}Label/Desc`, sin el riesgo de
+            // desplazamiento que sí tienen los repeaters-pobres filtrados (galería, planes).
+            const n = i + 1;
             return (
               <div key={i} className="text-center">
                 <div className="w-12 h-12 bg-[var(--sf-acento)] rounded-2xl flex items-center justify-center mx-auto mb-3">
                   <Icono className="w-5 h-5 text-[var(--sf-acento-txt)]" />
                 </div>
-                <p className="text-[var(--sf-tostado)] text-xs font-bold mb-1">{String(i + 1).padStart(2, '0')}</p>
-                <p className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-1 text-sm">{paso.label}</p>
-                <p className="text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">{paso.descripcion}</p>
+                <p className="text-[var(--sf-tostado)] text-xs font-bold mb-1">{String(n).padStart(2, '0')}</p>
+                <p className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-1 text-sm"><CampoEditable campo={`suscripcionPasos.paso${n}Label`}>{paso.label}</CampoEditable></p>
+                <p className="text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]"><CampoEditable campo={`suscripcionPasos.paso${n}Desc`} multilinea>{paso.descripcion}</CampoEditable></p>
               </div>
             );
           })}

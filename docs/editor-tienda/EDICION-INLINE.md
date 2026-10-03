@@ -361,7 +361,7 @@ bueno del owner, después el slice de escritura (igual que todo lo demás de `DI
 | 1 | `EDITOR-TIENDA-CAMPO-EDITABLE-1` **— ENTREGADO, alcance AMPLIADO por encargo del owner, § 8** | La plomería: `ModoEditorProvider`/`useModoEditorActivo()`, el componente `CampoEditable`, el TERCER mensaje del puente (`TIPO_MENSAJE_CAMPO_CAMBIO`) y su manejo en `EditorPuenteVivo`/el panel. **El campo flotante YA SE CONSTRUYÓ en este slice** (no se dejó para el 2: el spec de esta tanda lo pidió completo, § 8) — overlay posicionado/tipografiado desde el nodo real, un solo campo abierto a la vez, Escape/Tab/clic-afuera cierran, Enter commitea en campo de una línea. SIN aplicarlo a ninguna sección real todavía (verificado con dos nodos de ARNÉS inyectados a mano, § 8). | `npm run gate` verde; `verificar:nayoli:visual`/`guarda:color` sin un píxel nuevo; verificado por ejecución (Playwright, sesión real, Escritorio y Teléfono) — ver § 8. |
 | 2 | `EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1` **— ENTREGADO, § 9** | Instrumenta **las 4 variantes** de `hero` (Curtina/Ficha/Media/MarquesinaSticky) — el caso con más multiplicidad, primero, para medir el costo real antes de comprometerse al resto. Incluye la MEDICIÓN de legibilidad pendiente (§ 2.2) en los tres anchos de dispositivo. | Verificado por ejecución, sesión real, preset CORTE (que usa variantes no-canónicas): clic en título/subtítulo/CTA en CADA una de las 4 variantes abre el overlay correcto; capturas en Escritorio/Tablet/Teléfono confirmando legibilidad; el campo duplicado de `marquesina`/`HeroMediaMarquesina` NO diverge tras tipear (ambas copias muestran el valor nuevo) — ver § 9. |
 | 3 | `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` **— ENTREGADO, § 10** | El mensaje/flujo de imagen (§ 4): clic en una imagen marcada abre el selector real del panel. | Clic en `hero.imagen` dentro del iframe abre el picker de archivos del sistema; la subida y el resultado se ven sin recargar, igual que hoy desde la lista. |
-| 4 | `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N` | El resto de home/nosotros/suscripciones, UNA o pocas secciones por slice (brandStory, origen, presentaciones×3 variantes, subscriptionCTA×2, testimonials+repeater, spotlight, nosotrosHistoria, nosotrosGaleria+repeater, nosotrosCierre, suscripcionPlanes, suscripcionPasos, suscripcionFaq+repeater) — el orden y el agrupado los decide quien planifique la implementación, no este documento. | Mismo patrón que el slice 2, por sección: todas sus variantes, todos sus campos de texto libre, `verificar:nayoli:visual` sin píxel nuevo. |
+| 4 | `EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N` **— ENTREGADO salvo `suscripcionFaq`, § 10 (home) y § 11 (/nosotros, /suscripciones)** | El resto de home/nosotros/suscripciones, UNA o pocas secciones por slice (brandStory, origen, presentaciones×3 variantes, subscriptionCTA×2, testimonials+repeater, spotlight, nosotrosHistoria, nosotrosGaleria+repeater, nosotrosCierre, suscripcionPlanes, suscripcionPasos, suscripcionFaq+repeater) — el orden y el agrupado los decide quien planifique la implementación, no este documento. `suscripcionFaq` queda SIN tocar: vive en `PreguntasFrecuentes.tsx`, compartido con `/preguntas-frecuentes` y `/tienda`, fuera de `touches:` de `EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1` — necesita su propio slice. | Mismo patrón que el slice 2, por sección: todas sus variantes, todos sus campos de texto libre, `verificar:nayoli:visual` sin píxel nuevo — ver § 10/§ 11. |
 | 5 | `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1` | El aviso inline de sesión vencida DENTRO del overlay (§ 3). | Reproducido por ejecución: sesión invalidada a mitad de edición → el overlay muestra el aviso, el panel sigue mostrando el suyo, ninguno de los dos pierde el valor ya tecleado. |
 
 **Nav/pie (§ 5) y reordenar (fila 6 de `DISENO.md` § 6) quedan fuera de este plan**, con su propio
@@ -877,7 +877,124 @@ Capturas con el campo abierto (overlay visible, el marcador alineado al nodo rea
 origen (el contador), presentaciones, destacado — en `.scratch/capturas-campo-editable-home/` (no
 committed).
 
-**Cierra la fila 4 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`).** La fila 5
+**Cierra la MITAD de home de la fila 4 de § 6.4 (`EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N`), no la
+fila entera** — la frase anterior de este asiento decía que cerraba la fila 4 completa, y era
+PREMATURA: `nosotrosHistoria`/`nosotrosGaleria`/`nosotrosCierre`/`suscripcionPlanes`/
+`suscripcionPasos`/`suscripcionFaq` seguían sin un solo `CampoEditable` (verificado por grep,
+cero resultados en `components/storefront/nosotros/` y `components/storefront/suscripciones/` al
+cerrar este slice). Las cierra `EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1`, abajo — salvo
+`suscripcionFaq`, que queda como el único hueco nombrado de toda la fila 4. La fila 5
 (`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`, el aviso de sesión vencida dentro del overlay) y nav/pie
-(§ 5, fuera de alcance de todo este plan) quedan como las únicas piezas sin construir de
-`EDICION-INLINE.md`.
+(§ 5, fuera de alcance de todo este plan) siguen sin construir.
+
+---
+
+## 11 · `EDITOR-TIENDA-CAMPO-EDITABLE-PAGINAS-1` — /nosotros y /suscripciones
+
+Instrumentó /nosotros (historia, galería con su repeater, cierre) y /suscripciones (planes —sin
+precios— y pasos), cerrando la fila 4 de § 6.4 salvo `suscripcionFaq` (§ el hueco de alcance,
+abajo). Mismo patrón que `EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1`: ningún cambio a la plomería
+(`ModoEditorProvider`, `CampoEditable`, el overlay/mensajes del puente, `fusionCampoEditable`) —
+ya soportaba repeaters, imágenes y campos planos sin ajustes.
+
+### El hueco de alcance: `suscripcionFaq` NO se instrumentó — `PreguntasFrecuentes.tsx` no está en `touches:`
+
+`app/(storefront)/suscripciones/Contenido.tsx` monta `<PreguntasFrecuentes />` para la sección
+`suscripcionFaq` (un repeater), pero ese componente vive en `components/storefront/
+PreguntasFrecuentes.tsx` — **compartido con `/preguntas-frecuentes` y `/tienda`** (verificado por
+grep: 3 importadores) — y ese archivo NO estaba en `touches:` de este slice. Instrumentarlo habría
+ampliado el alcance aprobado sin autorización nueva, así que se dejó SIN tocar; el marcador de
+SECCIÓN (`data-editor-seccion="suscripcionFaq"`, ya existente desde `EDITOR-TIENDA-SELECCION-1`)
+sigue intacto, y el repeater se sigue editando desde la lista del panel. Documentado inline en
+`Contenido.tsx` para que no se lea como un olvido. **Sigue como el único hueco de la fila 4 de
+§ 6.4** — su propio slice (`EDITOR-TIENDA-CAMPO-EDITABLE-FAQ-1` o el nombre que se le dé) toca
+`PreguntasFrecuentes.tsx` cuando se apruebe.
+
+### Los dos casos especiales medidos construyendo
+
+- **El ÍNDICE ORIGINAL de un repeater sobrevive al filtro** (`nosotrosGaleria`, mismo criterio que
+  `presentaciones`/los bullets de Suscripción en HOME-1): `items.map((f,idx)=>({f,idx})).filter(…)`
+  en vez de `items.filter(…)`, para que un ítem con hueco en medio (url vacía en el índice 0 y 2,
+  llena en 1 y 3) siga marcando `items.1.url`/`items.3.url` — nunca `items.0`/`items.1` por
+  posición entre los visibles. `alt`/`poster`/`tipo` de un ítem NO llevan marcador: ninguno es un
+  nodo de TEXTO visible (atributos del `<video>`/`<img>`, o un selector), así que no hay children
+  que envolver.
+- **El PRECIO de los planes NO lleva `CampoEditable`, a propósito** (§ el spec de este slice,
+  aprobación del owner, 2026-10-02): es la única exclusión explícita de contenido-que-sí-se-ve en
+  toda la fila 4. Afirmado en capa 1 (el texto sigue viéndose, sin marcador) y por ejecución (clic
+  donde se ve el precio no abre ningún overlay).
+
+### DEVIACIÓN MEDIDA, encontrada construyendo: el velo de NosotrosCierre se llevaba el clic de la imagen — Y el centro de la imagen coincide con el texto
+
+Dos hallazgos superpuestos en el mismo componente, los dos por EJECUCIÓN real (no por grep de
+clases), porque el primero ESCONDÍA al segundo:
+
+1. **El velo decorativo (gradiente `--sf-velo`) no tenía `pointer-events-none`** — EXACTAMENTE el
+   defecto que `EDITOR-TIENDA-CAMPO-EDITABLE-HOME-1` ya cerró para el gradiente de
+   `GrindChooserMosaico`: pinta DESPUÉS de la imagen, en la MISMA caja `absolute inset-0`, y se
+   lleva el hit-test. Se agregó `pointer-events-none` a esa clase.
+2. **Con el velo arreglado, el clic SEGUÍA sin disparar el filechooser** — medido con
+   `document.elementFromPoint` dentro del iframe: el punto CENTRAL de la imagen (`ratioX:0.5` del
+   harness, el mismo que usan todas las demás imágenes de la fila 4) cae sobre el `<span
+   data-editor-campo="nosotrosCierre.parrafo">`, no sobre el velo ni la imagen. **Causa: la imagen
+   es full-bleed (`absolute inset-0`, ancho completo de la sección) y el texto (`max-w-3xl
+   mx-auto text-center`) es una columna angosta CENTRADA en el MISMO punto medio** — el centro de
+   ambos coincide. **No se tocó el componente para esto**: el margen lateral del full-bleed (fuera
+   de la columna de texto, p. ej. a 10% del ancho de la imagen en vez de al 50%) SÍ es parte de la
+   imagen y no tiene ningún texto encima — es el punto que un dueño real clickearía con el mouse, y
+   es el que el arnés usa ahora para este campo (`clickCampoImagen(…, { ratioX: 0.1 })`). El
+   `titulo`/`parrafo`/`ctaLabel` SIGUEN clickeables para su propio overlay de texto —nada ahí
+   cambió—; sólo cambió DÓNDE el arnés clickea la IMAGEN.
+
+**HALLAZGO ADICIONAL, fuera de `touches:`, NO corregido — `SubscriptionCTALinea.tsx` reusa la MISMA
+composición (imagen full-bleed + contenido ancho superpuesto) y su propio arnés (`EDITOR-TIENDA-
+CAMPO-EDITABLE-HOME-1`, FASE 6) nunca clickeó realmente su `imagenFondo`: sólo contó el marcador
+(`.count()===1`), nunca esperó un `filechooser`.** Verificado leyendo ese script committed-como-
+scratch (no se ejecutó de nuevo, no está en `touches:` de este slice): el mismo patrón de clic
+fallido que NosotrosCierre tenía ANTES de este hallazgo podría estar presente ahí también, sin que
+el "42/42 en verde" de ese cierre lo hubiera detectado — su aserción nunca ejercitó la ruta del
+filechooser. Queda nombrado como `CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1` en los open
+follow-ups (abajo); su verificación y, si aplica, su fix son de quien tenga `SubscriptionCTALinea.tsx`
+en su propio `touches:`.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3302/3302** (+21 sobre los 3281 que § 10 (HOME-1) reportó al cerrar) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo; las otras 5 rutas (incluidas `ruta-nosotros`/`ruta-suscripciones`, nuevas en el fixture de 6 rutas) 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera — nunca `development`/producción)
+
+Arnés `.scratch/verificar-campo-editable-paginas.ts` (no committed, gitignored), mismo mecanismo
+que `verificar-campo-editable-home.ts` **adaptado a páginas con pestaña propia**: `TiendaPaginas`
+sólo resuelve un campo hacia su sección si la página ACTIVA coincide (`secciones =
+SECCIONES_TIENDA.filter(c => c.pagina === pagina)`), así que cada fase cambia de pestaña
+(`button[role="tab"]:has-text("Nosotros"|"Suscripciones")`) ANTES de clickear dentro del iframe —
+un paso que `verificar-campo-editable-home.ts` no necesitaba (home es la pestaña por defecto).
+**45/45 verificaciones en verde**, contra una build de PRODUCCIÓN (`next build` + `next start`)
+con sesión real (`admin@sierranativa.co`):
+
+- **Historia**: `eyebrow` (texto) + el panel ve el valor; imagen VACÍA (DEFAULTS de Nayoli) SIN
+  marcador — confirmado por AUSENCIA, no se intenta clickear nada.
+- **Galería**: `eyebrow`; 4 ítems sembrados con hueco en medio (índices 0/2 sin url) — los dos SIN
+  marcador; índice 1 (imagen) dispara filechooser real; índice 3 (el 2º ítem VISIBLE) marca
+  `items.3.url`, su índice real.
+- **Cierre**: `titulo` (texto) + el panel ve el valor; `imagenFondo` dispara filechooser real
+  clickeando el margen lateral del full-bleed (§ el hallazgo de arriba) — el velo no se lo lleva.
+- **Planes**: `titulo` + `nombre2`; el hueco en medio de los beneficios del plan 2 (`ben2_2`
+  vacío, sembrado) deja al segundo beneficio VISIBLE marcando `ben2_3`, su N real; el PRECIO
+  (`precio1`, cargado por SQL) NO tiene marcador de texto NI de imagen.
+- **Pasos**: `paso1Label`.
+- Publicar cada sección y releer `/nosotros`/`/suscripciones` SIN sesión confirma que lo
+  publicado coincide — los 6 valores editados, más el precio (sembrado por SQL, nunca por overlay)
+  visible sin marcador también en la página pública.
+- **Fuera de modo editor**: ninguna de las dos páginas lleva `data-editor-campo=` ni
+  `data-editor-campo-imagen=` — byte-idéntico.
+
+**Cierra la fila 4 de § 6.4, salvo `suscripcionFaq`** (§ el hueco de alcance, arriba). La fila 5
+(`EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`), nav/pie (§ 5) y `suscripcionFaq` quedan como las piezas
+sin construir de `EDICION-INLINE.md`.
