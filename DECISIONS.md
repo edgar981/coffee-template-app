@@ -46870,3 +46870,196 @@ escrito, en los dos motores. El hallazgo sobre la cifra del spec queda documenta
 con su propio open follow-up. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `TAGLINE-DORADO-PROFUNDO-1`.**
+
+## 2026-10-02 — La plomería del campo editable: contexto de modo editor, el marcador, el tercer mensaje del puente, y el campo flotante completo (`EDITOR-TIENDA-CAMPO-EDITABLE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Autoriza el pedido del owner del
+2026-10-02 ("After the queue start over with the editor changes keep working all night on that. The
+final version got to look like the one from Shopify but with roids"), sobre la base de
+`docs/editor-tienda/EDICION-INLINE.md` (`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`) y `DISENO.md`; las
+preguntas abiertas de su § 7 se resuelven con las recomendaciones del propio documento. La aprobación
+autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `eb6a0fa`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (la rama está 297 commits adelante; `main` no se movió) |
+| los archivos de `touches:` que ya existían | sí — `app/(storefront)/layout.tsx`, `components/storefront/EditorPuenteVivo.tsx`, `lib/storefront/editor-puente.ts`(+`.test.ts`), `components/admin/TiendaSeccionEditor.tsx`/`TiendaPaginas.tsx`/`VistaTiendaIframe.tsx`, `lib/admin/editor-iframe.ts`(+`.test.ts`), `docs/editor-tienda/EDICION-INLINE.md`, `DECISIONS.md` |
+| los archivos de `touches:` que NO existían (nuevos) | `components/storefront/ModoEditor.tsx`, `components/storefront/CampoEditable.tsx`, `lib/storefront/campo-editable.ts`(+`.test.ts`) — confirmado por `ls` antes de escribir, ninguno preexistía |
+| `components/admin/EditorTiendaPantallaCompleta.tsx` (en `touches:`) | leído, NO hizo falta tocarlo — el selector de dispositivo/página ya pasa por props a `TiendaPaginas`, sin cambio de contrato |
+| base EFÍMERA para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55442`, seed estándar (`admin@sierranativa.co`) |
+
+### Lo que se construyó, contra el plan de § 6.4 de `EDICION-INLINE.md`
+
+La fila 1 del plan decía *"sin overlay todavía — sólo marca el nodo"*; el spec de esta tanda amplió
+el alcance y pidió el campo flotante COMPLETO en este mismo slice. Documentado en detalle en
+`docs/editor-tienda/EDICION-INLINE.md` § 8 (agregado en este commit); resumen:
+
+- **`ModoEditorProvider`/`useModoEditorActivo()`** (`components/storefront/ModoEditor.tsx`) — contexto
+  nuevo, hermano de `SiteContentProvider`, montado en `app/(storefront)/layout.tsx` con el MISMO
+  `enModoEditor` que ya recibe `EditorPuenteVivo activo={enModoEditor}`.
+- **`CampoEditable`** (`components/storefront/CampoEditable.tsx`) — marca el nodo con
+  `data-editor-campo`/`data-editor-linea` (constantes compartidas, `ATRIBUTO_EDITOR_CAMPO`/
+  `ATRIBUTO_EDITOR_LINEA`, `lib/admin/editor-iframe.ts`) SÓLO en modo editor; fuera de él, `children`
+  tal cual — cero bytes, cero atributos, mismo contrato que `data-editor-seccion`.
+- **El campo flotante** — dentro de `EditorPuenteVivo.tsx` (no un archivo nuevo: `touches:` no nombraba
+  uno para el overlay, y el propio diseño ya anticipaba "en `EditorPuenteVivo` o un componente suyo").
+  Clic en un nodo marcado (Navegar apagado) mide `getBoundingClientRect()`/`getComputedStyle()` del
+  nodo real, monta un `<input>`/`<textarea>` con la MISMA geometría/tipografía
+  (`estiloCampoFlotante`, puro, `lib/storefront/campo-editable.ts`), oculta el nodo real
+  (`visibility:hidden`, conserva layout). Un solo campo abierto a la vez (abrir otro cierra el
+  anterior). Escape/Tab/clic-afuera cierran sin preguntar (cada tecla ya viajó por el puente). Enter
+  commitea y cierra en un campo de una línea; inserta salto en uno multilínea. Pegar es SIEMPRE texto
+  plano, gratis, por ser un `<input>`/`<textarea>` real (nunca `contentEditable`).
+- **El tercer mensaje** (`TIPO_MENSAJE_CAMPO_CAMBIO`, `{seccion, campo, valor}`,
+  `lib/storefront/editor-puente.ts`) — manda en CADA tecla, sin debounce propio.
+  `VistaTiendaIframe.tsx` lo reenvía a `TiendaPaginas.tsx` (misma resolución de marcador que la
+  selección en contexto), que llama a `TiendaSeccionEditorHandle.escribirCampo(campo, valor)` —NUEVO
+  en el handle, junto a `seleccionar()`— que abre la sección si estaba cerrada y aplica el MISMO
+  `cambiar()` que usa el `onChange` de la lista, con el parcial que arma `fusionCampoEditable` (campo
+  plano o de ítem de repeater — ningún repeater lo usa todavía, pero la función ya lo soporta). El
+  ciclo panel→iframe de `EDITOR-TIENDA-POSTMESSAGE-1` cierra el lazo: la validación zod contra el
+  schema de guardado ocurre ahí, SIN código nuevo (un campo que el schema no conoce se descarta por
+  el comportamiento ya existente de `z.object()`).
+- **"El precio se ignora"**: no hay código que lo decida — ningún campo de precio lleva
+  `CampoEditable` todavía. La exclusión sigue siendo disciplina de la fila 2+ (§ 5 de
+  `EDICION-INLINE.md`).
+- **SIN aplicarlo a ninguna sección real**: verificado por grep (`grep -rl CampoEditable
+  components/storefront/home components/storefront/nosotros components/storefront/suscripciones` →
+  cero resultados) y por ejecución (la home pública, sin `?editor=1`, no lleva un solo
+  `[data-editor-campo]`).
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera)
+
+Arnés ad-hoc `.scratch/verificar-campo-editable.ts` (no committed, gitignored): como ninguna sección
+real usa `CampoEditable`, INYECTA dos nodos de prueba (`data-editor-campo="hero.eyebrow"`/
+`"hero.titulo"`) dentro de `[data-editor-seccion="hero"]` (ancla real, `ocultable:false`, siempre
+presente) y ejercita el mecanismo DOM-puro de `EditorPuenteVivo` sobre ellos. **14/14 en verde**, en
+Escritorio (1280) y Teléfono (393, el ancho literal de `EDITOR-TIENDA-DISPOSITIVOS-1`):
+
+| verificación | resultado |
+| --- | --- |
+| fuera de modo editor, cero `[data-editor-campo]` en la home | 0 |
+| clic abre el overlay (`[data-editor-overlay="hero.eyebrow"]`) | 1 |
+| el nodo real pasa a `visibility:hidden` | `hidden` |
+| overlay alineado al píxel con el nodo real (medido DENTRO del iframe, Escritorio) | Δ = 0.00px en las 4 dimensiones |
+| el panel abre "hero" en la lista (antes cerrada) | `#hero-eyebrow` aparece |
+| tipear en el overlay llega al input `#hero-eyebrow` del panel, SIN recargar el iframe | valor idéntico |
+| clic en OTRO nodo marcado cierra el anterior (restaura `visibility`) y abre el nuevo | viejo=0, nuevo=1 |
+| Escape cierra el overlay y restaura la visibilidad | 0 overlays, `visibility=""` |
+| MISMO mecanismo en Teléfono (393px literal) | Δ = 0.00px |
+
+**HALLAZGO DE MÉTODO, del propio arnés (no del mecanismo):** el primer intento midió el overlay con
+`locator(...).boundingBox()` de Playwright (coordenadas de la PÁGINA de arriba, atravesando el
+`transform:scale()` del stage de dispositivo cuando el canvas disponible es más angosto que 1280px)
+contra el nodo medido con `getBoundingClientRect()` DENTRO del iframe (sin escalar) — dio un Δ de
+cientos de píxeles que parecía un defecto de alineación (Δtop=586.94 Δleft=653.00
+Δwidth=133.31 Δheight=21.72). Era comparar dos sistemas de coordenadas distintos, no un bug del
+overlay: medido DENTRO del iframe para los DOS lados, el Δ es exactamente 0.00px. Corregido en el
+arnés antes de reportar nada como verde — queda escrito para que el próximo arnés de este mecanismo
+no repita la misma comparación.
+
+### Mecánico, no de diseño: `const crear = (...) => {...}` dentro de un `page.evaluate`/`frame.evaluate` revienta con `__name is not defined`
+
+Encontrado construyendo el arnés, no el producto — anotado porque es reusable para cualquier slice
+futuro que escriba Playwright contra este repo con `tsx`: una función interna con NOMBRE (declarada
+o una const arrow function) dentro del callback de `.evaluate()` hace que esbuild/`tsx` la envuelva
+con un helper `__name(fn, "nombre")` para preservar `.name` en stack traces; ese helper no viaja
+cuando Playwright serializa el callback para ejecutarlo DENTRO del navegador, y revienta. Se resuelve
+inlineando el cuerpo (sin declarar el helper con nombre) — las arrow functions ANÓNIMAS pasadas
+directo como argumento de `.evaluate(fn, arg)` no lo disparan.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3200/3200** (+20 sobre los 3180 previos: 13 de `campo-editable.test.ts` nuevo, 6 de los casos nuevos de `TIPO_MENSAJE_CAMPO_CAMBIO` en `editor-puente.test.ts`, 1 de `ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` en `editor-iframe.test.ts`) |
+| `npm run test:integracion` | **308/308**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run guarda:color` | `ruta-home` DIFIERE (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]`) + las otras 5 rutas DIFIEREN (163/361 px c/u) + los 2 hovers IDÉNTICO (0px) — **CIFRA Y CAJA EXACTAS** a las ya documentadas en `NAV-LOGO-TAMANOS-FINOS-1`/`CHECKOUT-COMPROBANTE-TOKEN-1`/`TAGLINE-DORADO-PROFUNDO-1` (la misma deriva heredada de la rama, `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`) |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo**: coincidir exacto con una cifra ya reconciliada por tres slices
+anteriores de esta misma rama ES la reconciliación — `ModoEditorProvider` y `CampoEditable` devuelven
+exactamente el mismo árbol fuera de modo editor, confirmado también por el arnés de ejecución (§
+arriba, "fuera de modo editor, cero `[data-editor-campo]` en la home").
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados contra `CLAUDE.md`: `ModoEditor`/`useModoEditorActivo`
+(0), `CampoEditable` (0), `EditorPuenteVivo` (0), `editor-puente` (0), `TIPO_MENSAJE_CAMPO_CAMBIO` (0),
+`campo-editable` (0), `VistaTiendaIframe` (0), `editor-iframe` (0), `escribirCampo` (0) — **nada en
+`CLAUDE.md` nombra lo que este diff cambió**. `TiendaSeccionEditor` (6 coincidencias) y `TiendaPaginas`
+(4 coincidencias) SÍ aparecen; leídas una por una, ninguna la vuelve falsa (describen el contrato de
+borrador, el patrón de bloques/`bloquesRef`, el uploader extraído, `categoriasListas`, el fetch 6→1,
+el agrupado por página — ninguno de esos ejes cambió). Dos de esas seis/cuatro coincidencias son los
+dos hallazgos YA conocidos y YA reportados como open follow-up por `EDITOR-TIENDA-SELECCION-1`
+(`CLAUDE-MD-ONCLICTARJETA-STALE-1` en la línea de `onClicTarjeta`, `CLAUDE-MD-TIENDAPAGINAS-
+SELECTOR-STALE-1` en la línea del selector "SIN GATE") — pre-existentes a este slice, no causados ni
+agravados por él.
+
+### Segundo grep — el documento que SÍ cambió (`docs/editor-tienda/EDICION-INLINE.md`)
+
+Los identificadores de sección que este diff tocó/agregó (`EDITOR-TIENDA-CAMPO-EDITABLE-1`, § 8) se
+grepearon contra el repo: ningún otro `.md` apunta a ellos (sólo el propio `EDICION-INLINE.md` se
+referencia a sí mismo, en la tabla § 6.4 y el cierre de § 8) — nada queda colgando.
+
+**HALLAZGO, fuera de `touches:` — `docs/editor-tienda/DISENO.md:517-518` queda FALSO por este
+commit.** Esa línea dice, sobre la edición de texto directo: *"diseñado en
+`docs/editor-tienda/EDICION-INLINE.md` (`EDITOR-TIENDA-EDICION-INLINE-DISENO-1`); **sigue sin
+construirse**, y **sigue necesitando su propia aprobación de escritura**."* Las dos cláusulas en
+negrita ya no son ciertas: la fila 1 del plan de `EDICION-INLINE.md` (la plomería + el campo
+flotante) SE CONSTRUYÓ en este commit, y la aprobación de escritura YA SE OTORGÓ (el `approval-reason`
+de este mismo spec). `DISENO.md` no está en `touches:` de este slice — se reporta como open follow-up,
+no se corrige acá.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA (ya lo era antes de este slice, igual que
+`TAGLINE-DORADO-PROFUNDO-1`/`CHECKOUT-COMPROBANTE-TOKEN-1` lo reportaron). **De este COMMIT en
+particular**: `strings: []` — ningún texto visible cambia para NINGÚN visitante ni para el dueño en
+ninguna pantalla HOY alcanzable por la UI real, confirmado por ejecución (`guarda:color`/
+`verificar:nayoli:visual` byte-exactos al piso heredado; `/editor/tienda` no gana ningún control
+nuevo en su barra ni en la lista — el mecanismo entero vive detrás de un marcador DOM
+(`data-editor-campo`) que NINGÚN componente de sección emite todavía). Lo que SÍ cambia son bytes
+COMPILADOS: el bundle del storefront gana el código de `ModoEditorProvider`/`CampoEditable`/el
+overlay (inerte, gateado a `activo`/a la presencia del marcador), y el bundle del admin gana
+`escribirCampo`/el manejo del tercer mensaje — un cambio de ROBUSTEZ/CAPACIDAD LATENTE, no de
+producto visible. `approved: null` — Nayoli (y cualquier tenant real) no ejercita esta rama de
+código hasta que un slice futuro instrumente una sección con `CampoEditable`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo (el
+tercer mensaje es `postMessage` mismo-origen, interno a este repo, igual que los otros dos).
+
+### Open follow-ups
+
+- **`DISENO-EDICION-INLINE-PENDIENTE-STALE-1`** (coined acá): `docs/editor-tienda/DISENO.md:517-518`
+  describe la edición de texto directo como "sin construirse" y "necesitando su propia aprobación de
+  escritura" — las dos cláusulas quedaron falsas con este commit (§ el grep de arriba). No corregido:
+  `DISENO.md` no está en `touches:` de este slice.
+- Las filas 2-5 de § 6.4 de `EDICION-INLINE.md` (`EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1`,
+  `-IMAGEN-1`, `-RESTO-1..N`, `-SESION-1`) siguen pendientes, sin relación con este slice — el plan
+  no cambió, sólo la fila 1 se cerró.
+- `CLAUDE-MD-ONCLICTARJETA-STALE-1`/`CLAUDE-MD-TIENDAPAGINAS-SELECTOR-STALE-1` — re-confirmados sin
+  cambio (§ el chequeo mecánico de arriba), ya reportados por `EDITOR-TIENDA-SELECCION-1`. Ajenos a
+  `touches:` de este slice.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Gate). Ajeno a
+  `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck 0, `npm test` 3200/3200,
+`npm run test:integracion` 308/308); `guarda:color`/`verificar:nayoli:visual` dan la MISMA cifra
+exacta que el piso ya heredado — cero píxeles de drift nuevo. El mecanismo completo (contexto de modo
+editor, marcador, tercer mensaje, campo flotante con geometría/tipografía calcadas, un solo campo
+abierto a la vez, Escape/Tab/clic-afuera, el round-trip al panel) verificado por ejecución contra una
+build de producción con sesión real, en Escritorio y Teléfono — 14/14 en verde, con un hallazgo de
+método del propio arnés corregido antes de reportar nada. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin
+merge. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-CAMPO-EDITABLE-1`.**
