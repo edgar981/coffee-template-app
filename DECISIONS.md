@@ -45551,3 +45551,108 @@ No aplica — sin migración, sin modelo Prisma nuevo, sin contrato cruzado. El 
 
 Commiteado en `slice/corte-reescritura-prototipo-1` (`0123c58` el fix, `cc8b360` el gancho de
 verificación); el merge de la rama entera sigue pendiente de ese gate separado, ajeno a este slice.
+
+## 2026-10-02 — cierre del GATE_RED de `NAV-LOGO-MOVIL-CON-AIRE-1`: el trinquete sube a 11, y
+`EncabezadoSeccion.tsx` deja de borrar `taglineColor` en silencio (`TAGLINE-COLOR-CIERRE-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Aprobado por el owner con el
+MISMO pedido que ya había aprobado `NAV-LOGO-MOVIL-CON-AIRE-1` (el tagline "SAN ADOLFO · HUILA" en
+dorado para Café Las Chamisas, "en Onix queda igual") — la aprobación autoriza la escritura, nunca
+el merge.
+
+### Causa — dos defectos del MISMO `touches:` incompleto, no dos slices distintos
+
+`NAV-LOGO-MOVIL-CON-AIRE-1` (`bd0102a`) agregó `navWordmark.taglineColor` como campo y lo sumó a
+`PENDIENTE_PANEL` (coined `EDITOR-SUGERENCIA-COLORES-1` como el slice que le dará control), pero su
+`touches:` no nombraba `lib/config/panel-controles.test.ts` ni la mitad del PUT que lo persiste
+dentro de `EncabezadoSeccion.tsx`. Dos consecuencias, medidas antes de tocar nada:
+
+1. **El trinquete quedó ROJO en `main`.** `PENDIENTE_PANEL.length` pasó de 10 a 11 con la entrada
+   nueva, pero el techo `<= 10` del test no se subió en el mismo commit — el propio asiento de
+   `NAV-LOGO-MOVIL-CON-AIRE-1` ya lo declaraba textualmente ("npm test 3138/3139… el trinquete de
+   PENDIENTE_PANEL, fuera de touches: de este slice"), y el slice siguiente de la rama
+   (`DESTACADO-CRUCE-SIN-PARPADEO-1`) heredó el mismo rojo sin tocarlo tampoco (3159/3160, misma
+   aserción). Confirmado en este árbol ANTES del fix: `npx tsx --test
+   lib/config/panel-controles.test.ts` falla 1/30 con `PENDIENTE_PANEL creció a 11`.
+2. **`EncabezadoSeccion.tsx` BORRA `taglineColor` en cada guardado.** `wireDe` escribía `navWordmark:
+   { activo: f.logo }` a secas — sin el campo nuevo — y el write reemplaza la clave `navWordmark`
+   ENTERA (spread por clave top-level, § `site-content-write.ts`). Como el dato de Las Chamisas se
+   escribe por fuera del panel (operación de datos directa, `taglineColor` no tiene editor todavía),
+   la PRIMERA vez que el dueño tocara cualquier OTRO switch del Encabezado y guardara, el PUT real
+   habría pisado `navWordmark` con `{activo}` solo y el dorado habría desaparecido del publicado sin
+   ningún error ni aviso — el mismo modo de falla que `cromo.navBadge` ya tenía resuelto
+   (§ CLAUDE.md, "la supresión deja rastro" no aplica acá, pero el patrón de reenvío sí).
+
+### El fix
+
+1. **El trinquete sube de 10 a 11, A MANO, con la explicación que el propio test pide**
+   (`lib/config/panel-controles.test.ts`): cita `NAV-LOGO-MOVIL-CON-AIRE-1` como la causa, nombra el
+   `touches:` incompleto como la razón real del rojo (no "código sin exención válida"), y deja
+   escrito que el techo vuelve a bajar cuando `EDITOR-SUGERENCIA-COLORES-1` le dé su control a
+   `taglineColor` y retire la entrada.
+2. **`EncabezadoSeccion.tsx` REENVÍA `taglineColor`, mismo patrón que `navBadge`.** Nuevo estado
+   `taglineColor` (+ `taglineColorRef`), cargado en `cargar()` desde `contenido.navWordmark.
+   taglineColor` (siempre resuelto por `resolverNavWordmark`, nunca `undefined`), y `wireDe` ahora
+   escribe `navWordmark: { activo: f.logo, taglineColor: colorTagline }`. Sin control nuevo en el
+   formulario — sigue sin UI, como pide el spec — sólo deja de perderse al guardar cualquier otro
+   switch del bloque.
+3. **Test de integración nuevo** (`tests/integracion/panel-encabezado.test.ts`): publica
+   `taglineColor:'acento'` por el camino directo (reproduce el estado real de Las Chamisas), simula
+   el guardado+publicado de OTRO switch con el body que el `wireDe` YA ARREGLADO manda (`navWordmark:
+   {activo, taglineColor:'acento'}` reenviado, junto a las otras cuatro claves completas), y afirma
+   que `taglineColor` sigue en `'acento'` tras publicar — el caso que de verdad importaba, no sólo
+   que el campo PUEDE viajar (eso ya lo probaba el test que `NAV-LOGO-MOVIL-CON-AIRE-1` dejó). El
+   docstring del archivo (§ NAV-LOGO-MOVIL-CON-AIRE-1, arriba del test viejo) se actualizó para dejar
+   de afirmar que `EncabezadoSeccion.tsx` sigue mandando sólo `{activo}` — eso era cierto cuando se
+   escribió y dejó de serlo con este slice.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3160/3160** — el trinquete de `PENDIENTE_PANEL` vuelve a verde (techo 11, largo real 11) |
+| `npm run test:integracion` | **306/306** — +1 sobre el piso heredado (305, § el asiento de `DESTACADO-CRUCE-SIN-PARPADEO-1`), el test nuevo de `taglineColor` |
+
+Medido en `node --test` directo antes de correr `npm run gate` completo: `lib/config/panel-
+controles.test.ts` 30/30 (era 29/30) y `npx tsc --noEmit` limpio. El run completo de `npm run gate`
+confirmó los tres números de la tabla sin divergencia.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `PENDIENTE_PANEL.length <= 11` (antes `<= 10`,
+`lib/config/panel-controles.test.ts`); el estado `taglineColor`/`taglineColorRef` y el segundo
+parámetro de `wireDe` (`components/admin/EncabezadoSeccion.tsx`); el test nuevo y el docstring
+editado (`tests/integracion/panel-encabezado.test.ts`). Grepeados contra `CLAUDE.md`:
+
+- `EncabezadoSeccion`, `navWordmark`, `taglineColor`, `PENDIENTE_PANEL`, `NAV-LOGO-MOVIL-CON-AIRE-1`,
+  `panel-controles`, `PANEL-EDITOR-ENCABEZADO-1`, `Encabezado` → **CERO coincidencias** en
+  `CLAUDE.md`.
+- `wireDe` → **una coincidencia** (línea ~2332, § "Las FUENTES son `content.tema.fuentePar`"), pero
+  nombra el `wireDe` del route de TEMA (`app/api/site-content/tema/route.ts`, fuentes/colores) — una
+  función homónima y no relacionada, local a otro archivo; no la que este diff tocó. No queda falsa.
+
+`CLAUDE.md` no documenta el Encabezado, `navWordmark` ni el mecanismo de `PENDIENTE_PANEL` en
+absoluto — nada en ese archivo describe lo que este diff cambió, así que nada queda falso por este
+diff.
+
+### `customer_bytes`
+
+**`changed: true`** — heredado de la RAMA, no de este commit: `slice/corte-reescritura-prototipo-1`
+ya cargaba customer-bytes sin aprobar desde antes de este slice (§ los asientos de
+`NAV-LOGO-MOVIL-CON-AIRE-1` en adelante). Este slice en particular **no agrega texto ni control
+nuevo** (`strings: []`) — es un fix de persistencia que hace que un dato YA aprobado (el tagline
+dorado de Las Chamisas) deje de borrarse solo. **`approved: null`**: Nayoli no tiene
+`navWordmark.taglineColor` distinto de `'atenuado'` (el default byte-idéntico) y este slice no
+tocó ningún preset ni default — para la tienda de referencia, nada cambia. No se corrió
+`npm run guarda:color`/`verificar:nayoli:visual` en esta tanda (`exec: no` del spec; el gate pedido
+fue `npm run gate`, no `pre-merge`).
+
+### `schema`/`cross-repo-contract`
+
+No aplica — sin migración, sin modelo Prisma nuevo, sin contrato cruzado. `taglineColor` ya existía
+en el schema editable (`z.enum(['atenuado','acento']).optional()`, `site-content-schema.ts`) desde
+`NAV-LOGO-MOVIL-CON-AIRE-1`; este slice no tocó validación, sólo quién lo manda en el body.
+
+Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente,
+ajeno a este slice.

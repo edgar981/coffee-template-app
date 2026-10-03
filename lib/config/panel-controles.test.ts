@@ -74,12 +74,19 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // `.titulo`/`.badge` —, PANEL-DETALLES-SITIO-1 — bajándolo de 13 a 11, cerrando
 // `volverArriba.visible`/`rielSocial.visible` —, y HERO-FRASE-AL-PIE-Y-PREVIEW-1 — bajándolo de 11 a
 // 10, cerrando `hero.fraseAlPie` —, cada uno bajando PENDIENTE_PANEL), baja el número de acá A MANO
-// en el MISMO commit; nunca sube en silencio. El valor de hoy (10) es el largo actual medido
-// (`PENDIENTE_PANEL.length`) — la aserción pasa hoy porque coincide; el día que alguien la vea
-// fallar, la respuesta es cerrar el hueco con un CONTROL, no subir el techo.
+// en el MISMO commit; nunca sube en silencio.
+//
+// SUBIDO A MANO de 10 a 11 por TAGLINE-COLOR-CIERRE-1 (owner, cierre de GATE_RED): NAV-LOGO-MOVIL-
+// CON-AIRE-1 agregó una exención legítima (`navWordmark.taglineColor` — el color del tagline apilado
+// del nav, escrito directo porque el DISEÑO del control de color es una decisión de producto
+// pendiente, no una omisión) pero su `touches:` no declaró este archivo, así que el techo se quedó
+// en 10 mientras la lista creció a 11 — el gate quedó ROJO en `main` por un `touches:` incompleto del
+// spec anterior, no por código sin exención válida. Este slice cierra ese GATE_RED subiendo el techo
+// al largo real (11); la entrada sigue viva hasta que `EDITOR-SUGERENCIA-COLORES-1` le dé su control
+// y la retire, bajando el techo de nuevo.
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 10,
+    PENDIENTE_PANEL.length <= 11,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );

@@ -84,12 +84,18 @@ import { CORTE } from '../../lib/config/themes';
 // cada guardado (nunca a medias), igual que con las demás.
 //
 // § NAV-LOGO-MOVIL-CON-AIRE-1: `navWordmark` gana un SEGUNDO campo (`taglineColor`) — no una SEXTA
-// clave, el `.pick()`/`METAS_ENCABEZADO` de abajo NO cambian. A DIFERENCIA de todas las
-// ampliaciones anteriores de este archivo, ÉSTA no tiene editor en `EncabezadoSeccion.tsx` todavía
-// (§ el docstring de `NavWordmarkContent.taglineColor`, site-content-defaults.ts: `EncabezadoSeccion.
-// tsx` sigue fuera de `touches:` de este slice y su `wireDe` real sigue mandando sólo `{activo}`) —
-// así que el test nuevo de abajo ejercita el MECANISMO (el viaje borrador→publicar→releer funciona
-// para el campo), no la UX real del panel, que todavía no lo manda.
+// clave, el `.pick()`/`METAS_ENCABEZADO` de abajo NO cambian. Al nacer, ESTA ampliación no tenía
+// editor en `EncabezadoSeccion.tsx` (§ el docstring de `NavWordmarkContent.taglineColor`,
+// site-content-defaults.ts) y el `wireDe` real de ese slice mandaba sólo `{activo}` — así que
+// `publicarComoLaRuta()`/`guardarComoLaRuta()` BORRABAN `taglineColor` en silencio la primera vez
+// que el dueño tocara cualquier OTRO switch del Encabezado (el mismo modo de falla que el `navBadge`
+// de arriba ya tenía resuelto). El test de abajo ejercitaba sólo el MECANISMO (el viaje
+// borrador→publicar→releer funciona para el campo si alguien lo manda), no la UX real del panel.
+//
+// CERRADO por TAGLINE-COLOR-CIERRE-1: `EncabezadoSeccion.tsx` ahora REENVÍA `taglineColor` en cada
+// guardado (mismo patrón que `navBadge`, vía un estado+ref propios leídos en `wireDe`), así que el
+// test "taglineColor publicado sobrevive…" de abajo prueba el caso que de verdad importaba —no sólo
+// que el campo PUEDE viajar, sino que un guardado de OTRO switch no lo borra.
 
 const ENCABEZADO_SCHEMA = siteContentEditableSchema.pick({ cromo: true, navWordmark: true, navTratamiento: true, navDrawerMovil: true, logo: true });
 const METAS_ENCABEZADO = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil', 'logo'] as const;
@@ -334,6 +340,31 @@ test('taglineColor viaja borrador→publicar→releer, junto a activo, por el MI
 test('taglineColor: sin dato guardado, resuelve a "atenuado" (el default byte-idéntico) — Onix/Nayoli no cambian', async () => {
   const publicado = await readSiteContent();
   assert.equal(publicado.navWordmark.taglineColor, 'atenuado');
+});
+
+test('taglineColor publicado ("acento", § NAV-LOGO-MOVIL-CON-AIRE-1) sobrevive a guardar y publicar el Encabezado (TAGLINE-COLOR-CIERRE-1)', async () => {
+  // El color del tagline nace por una operación de datos directa (sin editor en el panel todavía,
+  // § PENDIENTE_PANEL) — reproduce el estado real de Café Las Chamisas: dorado, ya publicado.
+  await guardarComoLaRuta({ navWordmark: { activo: true, taglineColor: 'acento' } });
+  await publicarSeccion('navWordmark');
+
+  // El dueño abre "Encabezado" y toca OTRO switch (el color del nav). `EncabezadoSeccion.tsx`
+  // REENVÍA el `taglineColor` VIGENTE ('acento') junto con `activo` —el mismo patrón que ya usa para
+  // `cromo.navBadge`—, así que el body de un guardado real lleva las CINCO claves completas con el
+  // color intacto. Antes de TAGLINE-COLOR-CIERRE-1 este body habría llevado `navWordmark: {activo:
+  // true}` a secas, borrando el dorado al publicar.
+  await guardarComoLaRuta({
+    cromo: { navTinta: true, navSubtitulo: false, navBadge: '' },
+    navWordmark: { activo: true, taglineColor: 'acento' },
+    navTratamiento: { activo: false, direccion: false, filete: false, cta: false, posicion: false, subrayado: false, badgeColor: null, buscarMovil: true },
+    navDrawerMovil: { variante: 'dropdown' },
+    logo: { oscuro: '', claro: '', alt: '' },
+  });
+  await publicarComoLaRuta();
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.navWordmark.taglineColor, 'acento', 'el color del tagline no debe borrarse al guardar/publicar otro eje del Encabezado');
+  assert.equal(publicado.cromo.navTinta, true, 'y el cambio que sí se pidió (otro switch) se aplicó');
 });
 
 test('el logo se puede guardar/publicar de forma INDEPENDIENTE de los otros cuatro ejes (§ MARCA-LOGO-IMAGEN-1)', async () => {

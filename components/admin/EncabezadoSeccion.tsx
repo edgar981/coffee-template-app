@@ -146,7 +146,7 @@ interface Form {
 
 interface Wire {
   cromo: { navTinta: boolean; navSubtitulo: boolean; navBadge: string };
-  navWordmark: { activo: boolean };
+  navWordmark: { activo: boolean; taglineColor: string };
   navTratamiento: { activo: boolean; direccion: boolean; filete: boolean; cta: boolean; posicion: boolean; subrayado: boolean; badgeColor: string | null; buscarMovil: boolean };
   navDrawerMovil: { variante: 'dropdown' | 'pantallaCompleta' };
   logo: { oscuro: string; claro: string; alt: string; icono: string; modo: string };
@@ -181,6 +181,12 @@ export default function EncabezadoSeccion() {
   const [errorCarga, setErrorCarga]       = useState<string | null>(null);
   const [form, setForm]                   = useState<Form | null>(null);
   const [navBadge, setNavBadge]           = useState('');   // reenviado, no editable acá (§ arriba)
+  // `navWordmark.taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1, TAGLINE-COLOR-CIERRE-1): mismo patrón
+  // de reenvío que `navBadge` de arriba — sin editor en el panel todavía (§ su exención en
+  // `panel-controles.ts`), así que esta sección debe REENVIAR el valor vigente en cada guardado o
+  // `wireDe` reescribiría la clave `navWordmark` entera (sólo `activo`) y borraría en silencio el
+  // color que la operación de datos de NAV-LOGO-MOVIL-CON-AIRE-1 haya puesto.
+  const [taglineColor, setTaglineColor]   = useState('atenuado');
   const [hayBorrador, setHayBorrador]     = useState(false);
   const [editando, setEditando]           = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
@@ -195,14 +201,16 @@ export default function EncabezadoSeccion() {
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
   const navBadgeRef = useRef(''); navBadgeRef.current = navBadge;
+  const taglineColorRef = useRef('atenuado'); taglineColorRef.current = taglineColor;
   const subidaImagen = useSubidaImagen({ onError: setErrorLogo });
 
   // El WIRE que viaja al PUT: las CUATRO metas COMPLETAS (`cromo` con su `navBadge` reenviado tal
-  // cual, § arriba) MÁS la sección `logo` COMPLETA — nunca un objeto parcial, porque el write
-  // reemplaza cada clave entera.
-  const wireDe = (f: Form, badge: string): Wire => ({
+  // cual, § arriba; `navWordmark` con su `taglineColor` reenviado tal cual, § TAGLINE-COLOR-
+  // CIERRE-1) MÁS la sección `logo` COMPLETA — nunca un objeto parcial, porque el write reemplaza
+  // cada clave entera.
+  const wireDe = (f: Form, badge: string, colorTagline: string): Wire => ({
     cromo: { navTinta: f.colorNav, navSubtitulo: f.subEncabezado, navBadge: badge },
-    navWordmark: { activo: f.logo },
+    navWordmark: { activo: f.logo, taglineColor: colorTagline },
     navTratamiento: {
       activo: f.tratamientoNav, direccion: f.direccionScroll, filete: f.filete, cta: f.ctaBadge,
       posicion: f.posicion, subrayado: f.subrayado,
@@ -232,7 +240,7 @@ export default function EncabezadoSeccion() {
       const d = await r.json();
       const contenido = (d.contenido ?? {}) as {
         cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
-        navWordmark?: { activo?: unknown };
+        navWordmark?: { activo?: unknown; taglineColor?: unknown };
         navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown; buscarMovil?: unknown };
         navDrawerMovil?: { variante?: unknown };
         logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown; icono?: unknown; modo?: unknown };
@@ -260,6 +268,7 @@ export default function EncabezadoSeccion() {
         logoModo: typeof contenido.logo?.modo === 'string' ? contenido.logo.modo : '',
       });
       setNavBadge(String(contenido.cromo?.navBadge ?? ''));
+      setTaglineColor(typeof contenido.navWordmark?.taglineColor === 'string' ? contenido.navWordmark.taglineColor : 'atenuado');
       setHayBorrador(!!d.sinPublicar?.encabezado);
       if (inicial) setCargando(false);
     } catch {
@@ -282,7 +291,7 @@ export default function EncabezadoSeccion() {
     const nf = { ...(formRef.current as Form), ...parcial };
     setForm(nf);
     setHayBorrador(true);
-    auto.marcarSucio(wireDe(nf, navBadgeRef.current));
+    auto.marcarSucio(wireDe(nf, navBadgeRef.current, taglineColorRef.current));
   };
 
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
