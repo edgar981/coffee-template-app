@@ -1261,3 +1261,318 @@ sesión real con capturas (§ 15.5), el dato publicado confirmado por `psql` dir
 sin merge.
 
 **Cierra `EDITOR-TIENDA-ORDEN-1`.**
+
+---
+
+## 17 · `EDITOR-TIENDA-DESHACER-1` — deshacer/rehacer de verdad, y el estado agregado de la barra
+
+**NACE EN 17, NO EN 16, Y ES DELIBERADO.** `EDITOR-TIENDA-TEMA-1` (§ 6/§ 7, arriba) se refiere a sí
+mismo como "`§ 16`" en tres sitios (líneas 461/483/484) pero **nunca construyó un encabezado `## 16`
+propio** — esos tres son referencias adelantadas a una sección que no llegó a existir. Numerar ESTE
+slice como `## 16` habría hecho que esas tres referencias, escritas por TEMA-1 para describir SU
+PROPIO mecanismo, apuntaran en silencio al mecanismo de ÉSTE —el error exacto que el chequeo
+mecánico de este protocolo existe para atrapar (§ el pointer-check, "cerrar una sección es el caso
+que muerde")—. Se numera `## 17` para no pisarlas; `§ 16` sigue siendo el hueco de TEMA-1, sin
+contenido, tal como estaba antes de este diff.
+
+Pedido del owner, FUERA de la numeración original de § 6 (mismo caso que `EDITOR-TIENDA-TEMA-1`,
+§ el párrafo que lo marca "OCTAVO slice" en § 6 arriba — éste es el NOVENO). El editor gana
+deshacer/rehacer REAL —Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z y botones en la barra— sobre lo editado en la
+sesión (textos, imágenes, orden), un indicador agregado («Guardando…»/«Guardado» + «N cambios sin
+publicar») y un «Publicar»/«Descartar» que actúan sobre TODAS las secciones pendientes de la página
+abierta de una vez.
+
+### 17.1 · El historial es un COMMAND STACK genérico, sin conocimiento de `SiteContent`
+
+`lib/admin/historial-editor.ts` (`crearHistorialEditor`) es la MISMA forma que `lib/autoguardado.ts`
+—un coordinador PURO, sin React— pero más simple: dos pilas (deshacer/rehacer) de `PasoHistorial =
+{ deshacer: () => void; rehacer: () => void }`. El módulo nunca sabe QUÉ hay detrás de un paso —el
+llamador (`TiendaSeccionEditor.tsx`/`TiendaPaginas.tsx`) construye el paso con SUS PROPIOS closures
+(p. ej. "vuelve el form de esta sección al valor X"). `registrar` corta la pila de rehacer —el
+comportamiento estándar de cualquier undo/redo: editar tras deshacer descarta la rama vieja—.
+`sonIguales` (mismo archivo) es la igualdad ESTRUCTURAL que decide si un lote de ediciones es un
+no-op (tipear y borrar lo mismo no debe empujar un paso vacío).
+
+**EL PASO ES "UN LOTE", no una tecla — y el límite del lote es el MISMO debounce del autoguardado
+que YA existía, no un concepto nuevo.** `TiendaSeccionEditor.tsx` consolidó los ~8 sitios que
+mutaban el form (`cambiar`, cada video del hero, `ponerImagen`/`usarPorDefecto`/`vaciarImagen`) en
+UN punto único, `aplicarCambioForm`, que: (a) si no hay un lote abierto, congela el valor ANTERIOR
+en un ref (`loteAntesRef`); (b) deja que el autoguardado haga lo suyo (debounce de 1000ms o flush
+inmediato, según la acción). Un efecto sobre `auto.estado` detecta la transición a `'guardado'`
+—el lote se asentó— y empuja `{ deshacer: () => restaurarForm(antes), rehacer: () =>
+restaurarForm(despues) }` al historial, vía `onPaso` (prop nueva). `TiendaPaginas.tsx` hace LO
+MISMO para `'orden'` (que vive en ese componente, no en una sección), sobre `autoOrden.estado`. Una
+RESTAURACIÓN (`restaurarForm`/`restaurarOrden`) marca un ref de supresión (`aplicandoHistorialRef`)
+ANTES de aplicar el valor, para que el propio asentamiento de ESE guardado no se re-empuje a sí
+mismo como un paso nuevo — sin esa guarda, cada deshacer generaría otro deshacer disponible, y la
+pila nunca convergería.
+
+**`TiendaPaginas` es el DUEÑO ÚNICO del historial** (una instancia por `pagina`/`modo` — se
+`limpiar()` al cambiar cualquiera de los dos, § 17.4): las N secciones montadas empujan ahí sus
+pasos vía la MISMA prop `onPaso`, y el orden (que vive en `TiendaPaginas` mismo) empuja directo.
+Deshacer/rehacer siempre operan sobre el ÚLTIMO paso de CUALQUIER tipo, en el orden real en que se
+asentaron — no hay una pila por sección.
+
+### 17.2 · El estado agregado — por qué necesita DOS canales, no uno
+
+La barra necesita mostrar algo que NINGÚN componente individual conoce por sí solo: cuántas
+secciones de la página activa tienen borrador AHORA MISMO, y si CUALQUIERA está guardando/falló.
+`TiendaSeccionEditor` reporta su propio `{ hayBorrador, estado }` en cada cambio real (prop nueva
+`onEstado`); `TiendaPaginas` junta esos reportes en un `Map` + su propio `hayBorradorOrden`/
+`autoOrden.estado` + `doc.sinPublicar.tema` (el único canal que SÍ venía ya calculado, § GET
+genérico), y reporta el AGREGADO hacia `EditorTiendaPantallaCompleta` por un CALLBACK
+(`onEstadoGlobal`), no por `ref` — un método imperativo no puede disparar un re-render del padre
+por sí solo, y la barra necesita re-renderizarse cada vez que el agregado cambia. Las ACCIONES
+(`deshacer`/`rehacer`/`publicarPendientes`/`descartarPendientes`), en cambio, SÍ van por `ref`
+(`TiendaPaginasHandle`, `forwardRef`/`useImperativeHandle`) — son comandos, no estado.
+
+**EL FILTRO DE DEDUPE QUE EVITA EL BUCLE INFINITO.** `secciones` (`SECCIONES_TIENDA.filter(...)`) NO
+está memoizado en este archivo —nunca lo estuvo, y no es parte de `touches:` cambiar eso—, así que
+el efecto de agregado correría en CADA render con una referencia nueva. Sin cuidado, eso dispara
+`onEstadoGlobal` con un objeto nuevo en cada render → el padre hace `setState` → el padre re-renderiza
+→ `TiendaPaginas` se re-renderiza → el efecto corre de nuevo → bucle. Se cierra comparando el
+agregado CALCULADO contra el último reportado (`ultimoEstadoGlobalRef`) antes de llamar al
+callback: el efecto puede correr de más, pero sólo NOTIFICA cuando algo cambió de verdad. Verificado
+por ejecución (§ 17.5): la sesión completa (login, abrir el editor, tres ediciones, deshacer×4,
+rehacer×3, publicar) no colgó el navegador ni mostró el síntoma de un loop (CPU al 100%, pestaña sin
+responder).
+
+### 17.3 · El "Publicar todo" es ATÓMICO — pero vive en el ROUTE, no en `site-content-write.ts`
+
+**DESVIACIÓN MEDIDA contra `touches:`.** El spec pedía construir el publish-en-lote "sobre
+`publicarSeccion` (atómica: o todas o ninguna)" — pero `publicarSeccion`/`descartarSeccion`
+(`lib/config/site-content-write.ts`) cada una abre SU PROPIA `prisma.$transaction`; llamarla N
+veces en un loop sería N transacciones separadas, atómicas por sección y NO atómicas como
+CONJUNTO (un fallo a mitad de camino dejaría publicadas sólo las primeras). Para que "o todas o
+ninguna" sea literal hacía falta UNA sola transacción sobre la lista completa — y
+`lib/config/site-content-write.ts` **no está en `touches:` de este slice**.
+
+La salida: `publicarVariasSecciones`/`descartarVariasSecciones`, dos funciones NUEVAS exportadas
+DIRECTO desde `app/api/site-content/route.ts` (no desde `site-content-write.ts`), que repiten la
+MISMA lógica de `publicarSeccion`/`descartarSeccion` (mover `borrador[s]`→`content[s]`, o
+descartarlo) para TODA la lista dentro de UNA `prisma.$transaction`. Son key-agnósticas igual que
+sus hermanas de una sección —`'orden'`/`'tema'` pasan por acá como cualquier clave del REGISTRY,
+sin un `if` especial—, y se EXPORTAN (no quedan privadas al módulo) para que el carril
+(`tests/integracion/publicar-pagina.test.ts`) las importe DIRECTO sin montar HTTP. **Medido, no
+asumido, que importar un archivo de ruta de Next fuera de un request es seguro**: `next/headers`
+sólo revienta si se LLAMA fuera de contexto (`headers()`), nunca por el mero `import` del módulo —
+confirmado con un `import()` de una línea antes de escribir el test (sólo un warning de Better Auth
+sobre `BETTER_AUTH_URL`, no un error).
+
+El route (`POST`, acciones nuevas `'publicarVarias'`/`'descartarVarias'`, body `{ secciones:
+string[] }`) valida la lista ENTERA antes de llamar a cualquiera de las dos: cada elemento debe ser
+`'orden'`, `'tema'`, o una clave del REGISTRY — una lista con UN valor inválido se rechaza completa
+(400), nunca se publica una parte y se ignora el resto en silencio.
+
+### 17.4 · El TEMA queda FUERA del historial y del agregado en vivo — dos límites distintos, el mismo origen
+
+**DESVIACIÓN MEDIDA, la más grande de este slice.** El spec nombra "el tema" entre lo que
+deshacer/rehacer debe cubrir ("sobre todo lo editado en la sesión… imágenes, orden, tema"). Medido
+contra el código: `PaletaSeccion.tsx` —el componente que posee el form del tema, su propio
+`guardarTema`/`cargar`/`hayBorrador`— **no está en `touches:` de este slice**, y no expone NINGÚN
+punto de control externo más que `enEditor`/`onCambioEnVivo` (ya existentes, de `EDITOR-TIENDA-
+TEMA-1`). Sin un método imperativo o un prop controlado que diga "tu valor es X" o "reporta tu
+estado acá", no hay forma de construir un `PasoHistorial` para el tema sin tocar ese archivo — y
+tocarlo habría ampliado `touches:` sin autorización.
+
+**Dos huecos DISTINTOS, con DOS soluciones distintas:**
+
+1. **Deshacer/rehacer de un cambio de color: NO CONSTRUIDO.** Mientras el dueño está en la pestaña
+   Tema, Ctrl+Z no revierte un cambio de paleta — sólo afecta a lo que haya editado en secciones/
+   orden ANTES de entrar a esa pestaña (y el historial se `limpiar()` de todas formas al cambiar de
+   `modo`, § abajo). Queda nombrado como open follow-up (`EDITOR-TIENDA-DESHACER-TEMA-1`): requiere
+   que `PaletaSeccion.tsx` gane un método imperativo o un callback de "paso confirmado", en su propio
+   slice, con su propio `touches:`.
+2. **"Publicar/Descartar TODO" SÍ incluye al tema** — esto NO necesita tocar `PaletaSeccion.tsx`
+   para nada, porque publicar/descartar en lote opera sobre la BASE (`publicarVariasSecciones`,
+   arriba), nunca sobre el estado interno de ese componente. El ÚNICO problema es que, tras un
+   publish/discard en lote, `PaletaSeccion` seguiría mostrando SU propio "Sin publicar" (no sabe
+   que se publicó por otro lado). Se resuelve con el MISMO truco que `VistaTiendaIframe` ya usa
+   (`key={pagina}`): `<PaletaSeccion key={temaReloadKey} .../>` — un contador que se incrementa
+   tras un lote que incluyó `'tema'` fuerza un REMONTE completo, y el `useEffect` de carga de
+   `PaletaSeccion` (ya existente, dispara al montar) vuelve a leer `/api/site-content` por su
+   cuenta. Cero líneas tocadas en `PaletaSeccion.tsx`.
+
+**EL CONTADOR DE PENDIENTES DEL TEMA, EN VIVO, TAMBIÉN QUEDA UN PASO ATRÁS — hueco DECLARADO, no
+construido.** El `doc.sinPublicar.tema` que alimenta la cuenta de "N sin publicar" sólo se
+refresca: al montar `TiendaPaginas`, y al ENTRAR a la pestaña Tema (`useEffect` nuevo sobre
+`modo`). Mientras el dueño EDITA dentro de esa pestaña, sus guardados propios (los de
+`PaletaSeccion`) no le avisan a `TiendaPaginas` — no hay canal para eso sin tocar ese archivo—, así
+que la píldora puede mostrar un número desactualizado hasta el próximo refetch. No bloquea nada
+(el publish/discard en lote sigue actuando sobre el ÚLTIMO valor conocido, que puede ser
+correcto o no según cuándo se refrescó por última vez); es una limitación de FRESCURA, no de
+corrección estructural.
+
+### 17.5 · El KEYDOWN del iframe — tercera fuente obligada a desviarse de `touches:`
+
+**DESVIACIÓN MEDIDA, la tercera de este slice.** El spec exige que Ctrl/Cmd+Z funcione también con
+el foco DENTRO del iframe (salvo en un campo editable, donde manda el undo nativo). Eso requiere un
+mensaje iframe→panel nuevo — y por el patrón establecido en TODO el resto del puente
+(`TIPO_MENSAJE_SECCION_CLICK`, `TIPO_MENSAJE_CAMPO_CAMBIO`…), ese discriminador debería vivir en
+`lib/storefront/editor-puente.ts`, el módulo compartido. **Ese archivo no está en `touches:` de
+este slice.** La salida: `TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer` se declaran DIRECTO en
+`components/storefront/EditorPuenteVivo.tsx` (el componente, no el módulo puro) — el único archivo
+del puente que SÍ está en `touches:` y que además es, por construcción, el ÚNICO emisor de este
+mensaje. `TiendaPaginas.tsx` (el único receptor) los IMPORTA de ahí directo, en vez de un módulo
+compartido. Es el mismo nombre/forma que cualquier otro mensaje del puente —roto sólo en DÓNDE
+vive—, documentado en el propio código para que no se lea como un descuido.
+
+El propio `EditorPuenteVivo.tsx` hace el chequeo de foco —`document.activeElement` es `INPUT`/
+`TEXTAREA`/`isContentEditable` → no intercepta, deja el undo nativo del navegador— ANTES de
+reenviar, así que `TiendaPaginas.tsx` (y el listener gemelo en `EditorTiendaPantallaCompleta.tsx`
+para cuando el foco está en el PANEL, no en el iframe) no necesitan repetir esa lógica: cuando el
+mensaje llega, ya se decidió que corresponde actuar.
+
+### 17.6 · Verificado por ejecución — sesión real, Postgres efímero propio
+
+Arnés `.scratch/verificar-deshacer.ts` (no comiteado, gitignored — mismo criterio que
+`verificar-orden-sesion.ts`/`verificar-tema-sesion.ts`), contra una build de PRODUCCIÓN (`next
+build` + `next start`, puertos propios 55443/3499) con sesión real (`admin@sierranativa.co`),
+Postgres efímero con el seed canónico de Nayoli. **Secuencia completa, en verde tras un ajuste de
+selector del propio arnés** (el primer intento chocó con que "Publicar" aparece TRES veces en
+pantalla —el botón global de la barra y dos de sección que quedaron abiertas—, y el arnés
+desambiguaba mal; corregido con `.first()`, apuntando al botón global por ser el primero en el DOM,
+sin tocar nada del mecanismo):
+
+| paso | medido |
+| --- | --- |
+| estado inicial | `Guardado`, 0 pendientes |
+| editar `hero.eyebrow` (texto, vía el input de la lista) | asienta en `Guardado`, 1 pendiente |
+| mover Marquesina con teclado (`ArrowDown` en el asa) | el DOM del iframe reordena; asienta en `Guardado`, 2 pendientes |
+| ocultar "Nuestra Historia" (el ojo, `brandStory`) | el toggle cambia; asienta en `Guardado`, 3 pendientes |
+| Deshacer ×1/×2/×3 | cada uno asienta en `Guardado` (nunca se queda colgado en `Guardando…`) |
+| tras deshacer×3: `hero.eyebrow` | vuelve EXACTO al valor original (`Calidad en cada pedido`) |
+| tras deshacer×3: el orden del DOM del iframe | vuelve EXACTO al array original (9 bandas, mismo orden) |
+| tras deshacer×3: `aria-pressed` del ojo de Historia | vuelve EXACTO a `false` (no-oculta, el original) |
+| un 4º deshacer (pila vacía) | no-op confirmado — no mueve el eyebrow ni revienta |
+| Rehacer ×1/×2/×3 | cada uno asienta en `Guardado` |
+| tras rehacer×3: los tres valores | EXACTOS a los de después de los 3 cambios originales (`EYEBROW-DESHACER-1`, el orden movido, el ojo oculto) |
+| "Publicar" (el botón global) | pendientes → 0 |
+| lo PUBLICADO, leído directo con `psql` | `content.hero.eyebrow = "EYEBROW-DESHACER-1"`; `content.orden` = el array reordenado; `content.brandStory.visible = false` — los TRES valores REHECHOS, no los originales ni algo intermedio |
+
+**UN HALLAZGO DE MÉTODO, no un defecto:** el primer intento del arnés esperaba que "pendientes"
+volviera a 0 después de deshacer×3 (vuelta exacta al VALOR inicial). **Midió 3, no 0, y eso es
+correcto** — `hayBorrador` (§ `site-content-write.ts`, `guardarBorrador`) marca PRESENCIA en el
+borrador, no diferencia de VALOR contra lo publicado; deshacer vuelve a escribir un borrador (con
+el valor original) por el MISMO camino que cualquier edición, así que sigue "sin publicar" hasta
+publicar/descartar — EXACTAMENTE lo que ya pasa hoy si alguien teclea algo y lo vuelve a escribir a
+mano, con o sin esta pieza. Se corrigió la EXPECTATIVA del arnés, no el código; lo que debe volver
+exacto (y volvió) es el VALOR, no el contador de pendientes.
+
+**LO QUE NO SE VERIFICÓ POR EJECUCIÓN, nombrado:**
+
+- `EDITOR-TIENDA-DESHACER-OVERLAY-TECLADO-1` — el atajo de teclado CON el foco DENTRO del overlay
+  flotante de texto (§ EDITOR-TIENDA-CAMPO-EDITABLE-1) — este arnés editó por el INPUT DE LA LISTA,
+  no por el campo flotante dentro del iframe, así que el camino de reenvío de
+  `EditorPuenteVivo.tsx` (§ 17.5) corrió en producción pero no bajo un arnés automatizado.
+- El cambio de color del tema tampoco se ejercitó (§ 17.4: no construido, no un hueco de
+  verificación — no hay nada que verificar de algo que no existe).
+- `EDITOR-TIENDA-DESHACER-BOTONES-1` — los BOTONES de Deshacer/Rehacer de la barra (en vez del
+  atajo de teclado) no se clickearon en este arnés —se usó el teclado para las dos direcciones—,
+  aunque llaman exactamente a los mismos dos métodos del handle (`TiendaPaginasHandle.deshacer`/
+  `.rehacer`) que el atajo ya ejercitó.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3334/3334** (era 3323/3323 al cierre de `EDITOR-TIENDA-TEMA-1`; +11, todos en `lib/admin/historial-editor.test.ts`, el módulo nuevo) |
+| `npm run test:integracion` | **323/323** (era 313/313, mismo asiento; +10, `tests/integracion/publicar-pagina.test.ts`) |
+| `npm run guarda:color` | RED — **MISMA cifra EXACTA** que el drift ya documentado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/`PIE-HECHO-POR-DUNA-1`): `ruta-home` 165.052/4.608.000 px AA · 174.711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/… px AA cada una (361 crudo), caja `[445,Y]–[541,Y+10]`; los 2 hovers IDÉNTICOS (0 px). Cero píxeles nuevos |
+| `npm run verificar:nayoli:visual` (rama vs. `main`) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Por qué `guarda:color` SÍ corrió completo (no salió en el `exit 0` barato):** la RAMA —no sólo
+este commit— ya toca 11 archivos del sistema de color derivado (`lib/config/esquema-style.ts`,
+`palette-derive.ts`, `fuentes.ts`, `formas.ts`… heredados de `EDITOR-TIENDA-TEMA-1`), así que la
+intersección contra `SISTEMA_DE_COLOR` no es vacía y el script corre el diff de píxeles completo —
+tal como ya le pasó a `EDITOR-TIENDA-TEMA-1`. Este slice en particular no agrega ni quita ningún
+archivo de esa lista.
+
+**Cero píxeles de drift nuevo, por construcción:** `EditorPuenteVivo.tsx` gana un `useEffect` nuevo
+y dos exports (`TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer`) pero CERO JSX nuevo — el efecto de
+teclado está gateado por `activo` igual que todos los demás de ese archivo, y fuera de modo editor
+(el 99.99% del tráfico) ni siquiera se adjunta el listener. Los otros cuatro archivos tocados son
+100% admin (`components/admin/*`, `app/api/*`) — nunca se sirven al visitante público.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados uno por uno contra `CLAUDE.md`: `historial-editor`,
+`crearHistorialEditor`, `PasoHistorial`, `publicarVariasSecciones`, `descartarVariasSecciones`,
+`TIPO_MENSAJE_DESHACER`, `esMensajeDeshacer`, `TiendaPaginasHandle`, `EstadoGlobalEditor`,
+`marcarPublicado`, `restaurarDesdePublicado`, `onPaso`, `onEstado` — **0 cada uno**, CLAUDE.md no
+nombra ninguno. `EditorPuenteVivo`/`editor-puente` — **0** (CLAUDE.md no los nombra tampoco, mismo
+resultado que ya midió `EDITOR-TIENDA-ORDEN-1` § 15.6 para otros símbolos del puente).
+`TiendaSeccionEditor`/`TiendaPaginas` — los MISMOS ~10 hits que § 14.6/§ 15.6 ya midieron y
+marcaron: ninguno describe el mecanismo de deshacer/agregado que este slice agrega (son sobre
+bloques/catálogo/fetch-6→1), y las dos entradas YA marcadas stale
+(`CLAUDE-MD-ONCLICTARJETA-STALE-1`/`CLAUDE-MD-TIENDAPAGINAS-SELECTOR-STALE-1`) siguen igual de
+stale, por una razón ajena a este diff. `app/api/site-content/route.ts`, `site-content-write.ts`,
+`publicarSeccion`/`descartarSeccion`, `lib/autoguardado.ts`/`useAutoguardado`,
+`EditorTiendaPantallaCompleta` — **0 cada uno**: `CLAUDE.md` no describe el comportamiento interno
+de ninguno (las pocas menciones de `publicarSeccion('tema')`/`autoguardado` que SÍ aparecen hablan
+de OTRO mecanismo —§ El TEMA, § La PANTALLA— que este diff no toca ni contradice). **Nada que
+falsificar.**
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (no sólo este commit) agrega, sobre `main`: dos botones nuevos
+(Deshacer/Rehacer) y un indicador de estado agregado + una píldora "N sin publicar" con
+Publicar/Descartar en la barra de `/editor/tienda` — bytes que el DUEÑO lee al editar. Como en los
+asientos anteriores de esta rama, el merge que esto aterrizaría sobre `main` también carga los
+bytes visibles de los slices previos sin mergear.
+
+**`strings:`**
+- (panel) aria-label/title de los dos botones nuevos: `"Deshacer"` / `"Deshacer (Ctrl/Cmd+Z)"`,
+  `"Rehacer"` / `"Rehacer (Ctrl/Cmd+Shift+Z)"`.
+- (panel) el indicador agregado: `"Guardando…"` / `"Guardado"` / `"No se pudo guardar"` — MISMOS
+  tres literales que cada tarjeta de sección ya usa (`estadoTexto`, `TiendaSeccionEditor.tsx`),
+  reusados en la barra, no reescritos.
+- (panel) la píldora: `"{N} sin publicar"` (nueva, en vez del `"Sin publicar"` sin número que cada
+  tarjeta ya mostraba) + `"Descartar"`/`"Publicar"`/`"Publicando…"` — los TRES últimos byte-idénticos
+  a los que cada tarjeta y la barra del orden (§ 15) ya usaban.
+- Ningún texto nuevo llega al storefront público: `EditorPuenteVivo.tsx` no agrega JSX, sólo un
+  `postMessage` sin interfaz visible.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migración, cero columna nueva (el nuevo endpoint opera sobre `SiteContent.
+content`/`.borrador`, ya `Json`). Sin contrato cross-repo — el mensaje nuevo del puente
+(`TIPO_MENSAJE_DESHACER`) es interno al mismo despliegue, mismo-origen, nunca cruza a otro sistema.
+
+### Open follow-ups
+
+- `EDITOR-TIENDA-DESHACER-TEMA-1` — deshacer/rehacer de un cambio de PALETA/tipografía/forma sigue
+  sin construirse (§ 17.4): necesita que `PaletaSeccion.tsx` gane un método imperativo o un
+  callback de paso confirmado, en su propio slice con su propio `touches:` (ese archivo no está en
+  el de éste).
+- `EDITOR-TIENDA-TEMA-PENDIENTES-EN-VIVO-1` — el contador de "sin publicar" del tema no sigue en
+  vivo los guardados propios de `PaletaSeccion` mientras el dueño edita dentro de esa pestaña
+  (§ 17.4); sólo se refresca al montar o al entrar a la pestaña. Mismo archivo fuera de `touches:`.
+- `EDITOR-TIENDA-DESHACER-MENSAJE-COMPARTIDO-1` — `TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer` viven
+  en `EditorPuenteVivo.tsx` en vez de `lib/storefront/editor-puente.ts` (§ 17.5), rompiendo el
+  patrón de TODOS los demás discriminadores del puente. Si `lib/storefront/editor-puente.ts` entra
+  a `touches:` de un slice futuro, mover la definición ahí (sin cambiar la forma del mensaje) cierra
+  esta deuda.
+- `EDITOR-TIENDA-DESHACER-OVERLAY-TECLADO-1` — el atajo de teclado con foco DENTRO del overlay
+  flotante (campo editable, § EDITOR-TIENDA-CAMPO-EDITABLE-1) no se verificó por ejecución
+  (§ 17.6) — corre en producción por el mismo código ya verificado con el foco en el input de la
+  lista, pero sin un arnés que lo haya ejercitado DENTRO del iframe.
+- `EDITOR-TIENDA-DESHACER-BOTONES-1` — los botones Deshacer/Rehacer de la barra (clic, no atajo)
+  no se clickearon en el arnés (§ 17.6) — llaman al mismo handle que el atajo ya ejercitó.
+- `CLAUDE-MD-ONCLICTARJETA-STALE-1`/`CLAUDE-MD-TIENDAPAGINAS-SELECTOR-STALE-1` — siguen vivos, sin
+  relación con este slice.
+- `EDITOR-TIENDA-RETIRO-1` (fila 7 de § 6) — sigue pendiente, sin relación con este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck 0 + 3334 + 323), `guarda:color`/
+`verificar:nayoli:visual` con la MISMA cifra exacta que el drift heredado (cero píxeles nuevos),
+deshacer×3/rehacer×3/4º-deshacer-no-op/publicar-todo verificados por ejecución contra una sesión
+real (§ 17.6), los tres valores publicados confirmados por `psql` directo. El tema queda FUERA del
+historial (§ 17.4, deviación medida — `PaletaSeccion.tsx` no está en `touches:`), nombrado como open
+follow-up, no como bloqueo. Commiteado en `slice/corte-reescritura-prototipo-1`. `stopped_on:
+[customer-bytes]` — `schema` y `cross-repo-contract` NO aplican. El dispatch instruyó
+explícitamente parar en `AWAITING_APPROVAL` sin merge.
+
+**Cierra `EDITOR-TIENDA-DESHACER-1`.**

@@ -48200,3 +48200,86 @@ reconciliar un flaky ajeno) está en VERDE, y las dos guardas de color no agrega
 drift sobre el ya documentado — pero el protocolo de este repo pide la sesión real ANTES de dar el
 cierre, y no llegó a correr. Nada de esto se mergea; ni siquiera se comiteó, para no dejar un commit
 a medio verificar en la rama.
+
+## 2026-10-03 — Deshacer/rehacer de verdad + la barra de estado agregada (`EDITOR-TIENDA-DESHACER-1`)
+
+**Numerado `§ 17` en DISENO.md, no `§ 16`:** `EDITOR-TIENDA-TEMA-1` (arriba, 2026-10-03) se nombra a
+sí mismo "`§ 16`" tres veces sin haber construido ese encabezado — tomar ese número habría hecho que
+esas referencias, escritas para describir el mecanismo de TEMA-1, apuntaran al de ESTE slice. El
+detalle vive en DISENO.md § 17, en su primer párrafo.
+
+Pedido del owner, NOVENO slice fuera de la numeración original de siete de `docs/editor-tienda/
+DISENO.md` § 6 (mismo caso que `EDITOR-TIENDA-TEMA-1`, el octavo). El editor gana deshacer/rehacer
+REAL —Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, y dos botones en la barra— sobre lo editado en la sesión
+(textos, imágenes, orden), un indicador agregado («Guardando…»/«Guardado» + «N cambios sin
+publicar») y un «Publicar»/«Descartar» que actúan sobre TODAS las secciones pendientes de la
+página abierta de una vez, atómico. El asiento completo —mecanismo, las TRES desviaciones medidas
+contra `touches:`, la verificación por ejecución, el gate— vive en `docs/editor-tienda/DISENO.md`
+§ 17 (`EDITOR-TIENDA-DESHACER-1`); acá sólo el resumen que un lector de este libro necesita.
+
+### Las tres desviaciones, en una línea cada una (el detalle completo vive en DISENO.md § 17)
+
+1. **El "Publicar todo" atómico vive en `app/api/site-content/route.ts`, no en `lib/config/
+   site-content-write.ts`** (§ 17.3): ese archivo no está en `touches:`, y `publicarSeccion`/
+   `descartarSeccion` abren UNA transacción POR SECCIÓN —llamarlas N veces no sería atómico como
+   CONJUNTO—. `publicarVariasSecciones`/`descartarVariasSecciones` repiten su misma lógica en UNA
+   sola `prisma.$transaction` sobre la lista completa, exportadas para que el carril las importe
+   directo sin montar HTTP.
+2. **El tema (paleta/tipografía/forma) queda FUERA del historial** (§ 17.4): `PaletaSeccion.tsx`
+   —dueña de su propio form/guardado— no está en `touches:` y no expone ningún punto de control
+   para construir un paso de deshacer. El "Publicar todo" SÍ lo incluye (opera sobre la base, no
+   sobre el componente) y se re-sincroniza remontándolo (`key={temaReloadKey}`), pero deshacer un
+   cambio de color específicamente queda como open follow-up (`EDITOR-TIENDA-DESHACER-TEMA-1`).
+3. **El mensaje de teclado del iframe (`TIPO_MENSAJE_DESHACER`) vive en `EditorPuenteVivo.tsx`, no
+   en `lib/storefront/editor-puente.ts`** (§ 17.5): ese módulo compartido —donde vive CADA otro
+   discriminador del puente— tampoco está en `touches:`. Mismo nombre/forma que el resto, roto sólo
+   en dónde está declarado.
+
+### El hallazgo de método del propio arnés (no un defecto del código)
+
+El arnés de verificación (`.scratch/verificar-deshacer.ts`) midió, tras deshacer×3, que "N sin
+publicar" se queda en 3 — no vuelve a 0 — aunque los TRES valores (texto, orden, visibilidad)
+vuelven EXACTOS al estado original. Es correcto: `hayBorrador`/`sinPublicar` (`site-content-write.ts`
+`guardarBorrador`) marcan PRESENCIA en el borrador, no diferencia de VALOR contra lo publicado —
+deshacer escribe un borrador nuevo (con el valor original) por el MISMO camino que cualquier
+edición, así que sigue "sin publicar" hasta que se publique o descarte. Es el mismo comportamiento
+que ya existía para cualquier campo del editor, con o sin esta pieza; se corrigió la expectativa
+del arnés, no el código.
+
+### Verificado por ejecución — las tres clases de paso, deshacer×3 → rehacer×3 → publicar, round-trip completo
+
+Arnés contra una build de producción real (Postgres efímero propio, seed canónico de Nayoli,
+sesión OWNER real): editar `hero.eyebrow` (texto) → mover Marquesina con teclado (orden) → ocultar
+"Nuestra Historia" (visibilidad) → deshacer×3 (los tres valores vuelven exactos al original,
+incluido un 4º deshacer de control que no-opera sobre la pila vacía) → rehacer×3 (los tres valores
+vuelven exactos a como quedaron tras los cambios) → "Publicar" (el botón global, desambiguado de
+los de sección por `.first()`) → `psql` directo confirma que lo PUBLICADO trae los tres valores
+REHECHOS (`hero.eyebrow = "EYEBROW-DESHACER-1"`, el orden movido, `brandStory.visible = false`).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3334/3334** (era 3323/3323 al cierre de `EDITOR-TIENDA-TEMA-1`; +11, `lib/admin/historial-editor.test.ts`) |
+| `npm run test:integracion` | **323/323** (era 313/313; +10, `tests/integracion/publicar-pagina.test.ts`) |
+| `npm run guarda:color` | RED — MISMA cifra exacta que el drift ya documentado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`), cero píxeles nuevos |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, rama vs. `main` |
+
+### `customer_bytes`
+
+**`changed: true`** — la rama agrega, sobre `main`: botones Deshacer/Rehacer, el indicador agregado
+y la píldora "N sin publicar" con Publicar/Descartar en la barra de `/editor/tienda`. Ningún texto
+nuevo llega al storefront público (`EditorPuenteVivo.tsx` no agrega JSX, sólo un `postMessage`).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica. Cero migración, cero columna nueva, sin contrato cross-repo.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde, visual sin drift nuevo, verificado por
+ejecución de punta a punta (§ arriba). Commiteado en `slice/corte-reescritura-prototipo-1`.
+`stopped_on: [customer-bytes]`. El dispatch instruyó parar en `AWAITING_APPROVAL` sin merge.
+
+**Cierra `EDITOR-TIENDA-DESHACER-1`.**

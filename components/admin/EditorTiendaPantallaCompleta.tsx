@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Monitor, Smartphone, Tablet } from 'lucide-react';
-import TiendaPaginas from '@/components/admin/TiendaPaginas';
+import { toast } from 'sonner';
+import { ArrowLeft, Monitor, Redo2, Smartphone, Tablet, Undo2 } from 'lucide-react';
+import TiendaPaginas, { type EstadoGlobalEditor, type TiendaPaginasHandle } from '@/components/admin/TiendaPaginas';
 import { PAGINAS, SECCIONES_TIENDA, type PaginaKey } from '@/components/admin/tienda-secciones';
 import {
   ANCHOS_DISPOSITIVO,
@@ -59,6 +60,62 @@ export default function EditorTiendaPantallaCompleta() {
   const paginaObjetivo = seccionParam ? SECCIONES_TIENDA.find(c => c.seccion === seccionParam)?.pagina : undefined;
   const [pagina, setPagina] = useState<PaginaKey>(paginaObjetivo ?? 'home');
   const [modo, setModo] = useState<ModoEditor>('paginas');
+
+  // § EDITOR-TIENDA-DESHACER-1 — el historial, el autoguardado agregado y el "Publicar todo" viven
+  // en `TiendaPaginas` (dueña de `seccionRefs`/`ordenLocal`/`autoOrden`); esta pantalla sólo PIDE
+  // acciones por el handle y DIBUJA el estado que `onEstadoGlobal` le reporta.
+  const tiendaPaginasRef = useRef<TiendaPaginasHandle>(null);
+  const [estadoGlobal, setEstadoGlobal] = useState<EstadoGlobalEditor>({
+    estado: 'guardado', pendientes: 0, puedeDeshacer: false, puedeRehacer: false,
+  });
+  const [procesandoPublicacion, setProcesandoPublicacion] = useState(false);
+
+  const deshacer = useCallback(() => tiendaPaginasRef.current?.deshacer(), []);
+  const rehacer = useCallback(() => tiendaPaginasRef.current?.rehacer(), []);
+
+  // ATAJOS DE TECLADO (§ el spec: "Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z… salvo dentro de un input con foco,
+  // donde manda el deshacer nativo del campo"). El foco dentro del IFRAME se cubre por otro lado —
+  // `EditorPuenteVivo.tsx` hace el MISMO chequeo sobre SU documento y reenvía por `postMessage`
+  // (§ su docstring grande) — así que este listener sólo necesita mirar el foco de ESTA ventana
+  // (la lista lateral, los botones de esta barra).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const modificador = e.metaKey || e.ctrlKey;
+      if (!modificador || e.key.toLowerCase() !== 'z') return;
+      const foco = document.activeElement;
+      const esEditable = foco instanceof HTMLElement
+        && (foco.tagName === 'INPUT' || foco.tagName === 'TEXTAREA' || foco.isContentEditable);
+      if (esEditable) return;
+      e.preventDefault();
+      if (e.shiftKey) rehacer(); else deshacer();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deshacer, rehacer]);
+
+  const publicarTodo = useCallback(async () => {
+    setProcesandoPublicacion(true);
+    try {
+      await tiendaPaginasRef.current?.publicarPendientes();
+      toast.success('Publicado — ya está en vivo.');
+    } catch {
+      toast.error('No se pudo publicar.');
+    } finally {
+      setProcesandoPublicacion(false);
+    }
+  }, []);
+
+  const descartarTodo = useCallback(async () => {
+    setProcesandoPublicacion(true);
+    try {
+      await tiendaPaginasRef.current?.descartarPendientes();
+      toast.success('Cambios descartados — volviste a lo publicado.');
+    } catch {
+      toast.error('No se pudo descartar.');
+    } finally {
+      setProcesandoPublicacion(false);
+    }
+  }, []);
 
   // EL DISPOSITIVO ELEGIDO, recordado por navegador (§ 4.3 de DISENO.md: "recordado por el
   // navegador del admin"). Arranca en el default (Escritorio) y se re-lee de `localStorage` tras
@@ -121,6 +178,62 @@ export default function EditorTiendaPantallaCompleta() {
           </button>
         </div>
 
+        {/* § EDITOR-TIENDA-DESHACER-1 — el cluster de estado: deshacer/rehacer, el indicador de
+            autoguardado AGREGADO, y "Publicar"/"Descartar" SÓLO cuando hay algo pendiente (una
+            píldora vacía — "0 sin publicar" — no le dice nada al dueño que no sepa ya). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexShrink: 0 }}>
+          <div role="group" aria-label="Deshacer y rehacer" style={{ display: 'flex', gap: 'var(--duna-space-1)' }}>
+            <button
+              type="button"
+              className="duna-btn duna-btn--ghost duna-btn--sm"
+              onClick={deshacer}
+              disabled={!estadoGlobal.puedeDeshacer}
+              aria-label="Deshacer"
+              title="Deshacer (Ctrl/Cmd+Z)"
+            >
+              <Undo2 aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="duna-btn duna-btn--ghost duna-btn--sm"
+              onClick={rehacer}
+              disabled={!estadoGlobal.puedeRehacer}
+              aria-label="Rehacer"
+              title="Rehacer (Ctrl/Cmd+Shift+Z)"
+            >
+              <Redo2 aria-hidden />
+            </button>
+          </div>
+
+          <span className="duna-caption" role="status" aria-live="polite">
+            {estadoGlobal.estado === 'guardando' ? 'Guardando…'
+              : estadoGlobal.estado === 'error' ? 'No se pudo guardar'
+              : 'Guardado'}
+          </span>
+
+          {estadoGlobal.pendientes > 0 && (
+            <>
+              <span className="duna-badge duna-badge--attention">{estadoGlobal.pendientes} sin publicar</span>
+              <button
+                type="button"
+                className="duna-btn duna-btn--ghost duna-btn--sm"
+                onClick={descartarTodo}
+                disabled={estadoGlobal.estado !== 'guardado' || procesandoPublicacion}
+              >
+                Descartar
+              </button>
+              <button
+                type="button"
+                className="duna-btn duna-btn--primary duna-btn--sm"
+                onClick={publicarTodo}
+                disabled={estadoGlobal.estado !== 'guardado' || procesandoPublicacion}
+              >
+                {procesandoPublicacion ? 'Publicando…' : 'Publicar'}
+              </button>
+            </>
+          )}
+        </div>
+
         <div role="group" aria-label="Dispositivo" style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
           {DISPOSITIVOS.map(({ key, label, Icon }) => (
             <button
@@ -138,7 +251,14 @@ export default function EditorTiendaPantallaCompleta() {
       </div>
 
       <div style={{ flex: '1 1 auto', minHeight: 0, padding: 'var(--duna-space-6)' }}>
-        <TiendaPaginas pagina={pagina} resaltar={resaltar} dispositivo={dispositivo} modo={modo} />
+        <TiendaPaginas
+          ref={tiendaPaginasRef}
+          pagina={pagina}
+          resaltar={resaltar}
+          dispositivo={dispositivo}
+          modo={modo}
+          onEstadoGlobal={setEstadoGlobal}
+        />
       </div>
     </div>
   );

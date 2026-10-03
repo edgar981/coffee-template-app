@@ -125,6 +125,35 @@ import {
 // principio de § 2.1 del diseño — el campo nunca es la fuente de verdad), y el mismo canal lo retira
 // (`vencida:false`) en cuanto un guardado posterior tiene éxito (tras volver a iniciar sesión, el
 // reintento automático del autoguardado lo logra solo, sin que el dueño tenga que hacer nada acá).
+//
+// DESHACER/REHACER (§ EDITOR-TIENDA-DESHACER-1, iframe→panel): Ctrl/Cmd+Z (y +Shift para rehacer)
+// presionados DENTRO del iframe —el dueño mirando la página, no el panel— se reenvían al padre, que
+// tiene el historial (`TiendaPaginas.tsx`, fuera de este árbol). SALVO que el foco esté en un campo
+// editable del PROPIO documento del iframe —el overlay flotante (`campoAbierto`, abajo) o cualquier
+// otro `<input>`/`<textarea>`/`contentEditable`—, donde manda el deshacer NATIVO del navegador sobre
+// ESE campo (el pedido textual del spec, § `docs/editor-tienda/EDICION-INLINE.md`).
+//
+// EL DISCRIMINADOR VIVE ACÁ, NO EN `lib/storefront/editor-puente.ts` — y es una DESVIACIÓN MEDIDA
+// contra `touches:`: ese módulo es donde CUALQUIER otro mensaje del puente declara su discriminador
+// (`TIPO_MENSAJE_SECCION_CLICK`, `TIPO_MENSAJE_CAMPO_CAMBIO`…), pero no está en la lista de archivos
+// de este slice y ampliarla no estaba autorizado. `TiendaPaginas.tsx` (el único receptor, SÍ en
+// `touches:`) importa este const y esta función DIRECTO de este componente en vez de un módulo
+// compartido — mismo patrón de nombre/forma que el resto del puente, roto sólo en DÓNDE vive.
+export const TIPO_MENSAJE_DESHACER = 'editor-tienda:deshacer' as const;
+
+export interface MensajeDeshacer {
+  tipo: typeof TIPO_MENSAJE_DESHACER;
+  /** `false` = deshacer, `true` = rehacer — un solo tipo de mensaje con un booleano, como
+   *  `TIPO_MENSAJE_MODO_NAVEGAR` ya hace para su propio booleano. */
+  rehacer: boolean;
+}
+
+export function esMensajeDeshacer(data: unknown): data is MensajeDeshacer {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return m.tipo === TIPO_MENSAJE_DESHACER && typeof m.rehacer === 'boolean';
+}
+
 const CLASE_SELECCION_ACTIVA = 'duna-editor-seleccion';
 
 /** El estado del ÚNICO campo flotante que puede estar abierto a la vez. `ruta` ya viene PARSEADA
@@ -322,6 +351,29 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       document.documentElement.classList.remove(CLASE_SELECCION_ACTIVA);
     };
   }, [activo, actualizar]);
+
+  // DESHACER/REHACER (§ el comentario grande, arriba) — efecto PROPIO, independiente del de clics:
+  // no depende de `navegarRef` (deshacer no es "seleccionar", corre con Navegar en cualquier
+  // estado) ni de `actualizar` (no toca el contenido DIRECTO, sólo avisa al panel).
+  useEffect(() => {
+    if (!activo) return;
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      const modificador = e.metaKey || e.ctrlKey;
+      if (!modificador || e.key.toLowerCase() !== 'z') return;
+      const foco = document.activeElement;
+      // El deshacer NATIVO del campo manda — tanto el overlay flotante (un `<input>`/`<textarea>`
+      // real, § el principio de § 2.2 del diseño) como cualquier otro control editable del
+      // documento. Sin esta guarda, Ctrl+Z dentro del overlay deshace la ÚLTIMA tecla (undo del
+      // navegador) Y el paso del historial del panel a la vez — dos deshacer por un solo gesto.
+      const esEditable = foco instanceof HTMLElement
+        && (foco.tagName === 'INPUT' || foco.tagName === 'TEXTAREA' || foco.isContentEditable);
+      if (esEditable) return;
+      e.preventDefault();
+      window.parent.postMessage({ tipo: TIPO_MENSAJE_DESHACER, rehacer: e.shiftKey }, window.location.origin);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [activo]);
 
   // EL CLIC INTERCEPTADO (§ el comentario grande de arriba). Efecto SEPARADO del de los mensajes:
   // no depende de `actualizar` (la selección en contexto no toca el contenido), y así un eventual

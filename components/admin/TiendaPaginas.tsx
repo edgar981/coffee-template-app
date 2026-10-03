@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
@@ -11,9 +11,15 @@ import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, type DispositivoKey } from '@/lib/admin/editor-iframe';
 import { esMensajeCampoImagenClick } from '@/lib/storefront/editor-puente';
+// `TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer` NO vienen de `lib/storefront/editor-puente.ts`: viven
+// en el COMPONENTE que las define (`EditorPuenteVivo.tsx`, § su docstring grande — desviación
+// medida, ese módulo compartido no está en `touches:` de este slice).
+import { esMensajeDeshacer } from '@/components/storefront/EditorPuenteVivo';
 import { resolverOrden, type BandaId } from '@/lib/config/site-content-defaults';
 import { moverBandaAIndice, moverBandaConDestino, moverBandaEnDireccion, ordenarPorBanda } from '@/lib/admin/orden-secciones';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
+import { crearHistorialEditor, sonIguales, type HistorialEditor, type PasoHistorial } from '@/lib/admin/historial-editor';
+import type { EstadoAutoguardado } from '@/lib/autoguardado';
 
 export interface TiendaPaginasProps {
   /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
@@ -33,13 +39,44 @@ export interface TiendaPaginasProps {
    *  tema es store-wide y se ve en cualquier página (§ el comentario grande de
    *  `EditorTiendaPantallaCompleta.tsx`). */
   modo?: 'paginas' | 'tema';
+  /** § EDITOR-TIENDA-DESHACER-1 — el AGREGADO de toda la página abierta (+ el tema, store-wide):
+   *  cuántos cambios sin publicar, en qué estado está el autoguardado, y si hay algo que deshacer/
+   *  rehacer en este momento. El padre (`EditorTiendaPantallaCompleta`) lo usa para dibujar la
+   *  barra de estado; llega por CALLBACK (no por ref) porque tiene que disparar un re-render del
+   *  padre cada vez que cambia, cosa que un método de `ref` no puede hacer por sí solo. */
+  onEstadoGlobal?: (estado: EstadoGlobalEditor) => void;
+}
+
+/** § EDITOR-TIENDA-DESHACER-1 — ver el docstring de `onEstadoGlobal`, arriba. */
+export interface EstadoGlobalEditor {
+  estado: EstadoAutoguardado;
+  /** Secciones de la página activa con borrador + `'orden'` (home) + `'tema'` (store-wide), todas
+   *  juntas — el número que la píldora de la barra muestra. */
+  pendientes: number;
+  puedeDeshacer: boolean;
+  puedeRehacer: boolean;
+}
+
+/** § EDITOR-TIENDA-DESHACER-1 — lo que `EditorTiendaPantallaCompleta` necesita PEDIRLE a este
+ *  componente: los atajos de teclado y los botones de la barra no pueden mutar el historial ni
+ *  publicar/descartar por sí mismos —viven acá, junto a `seccionRefs`/`ordenLocal`/`autoOrden`—,
+ *  así que el padre los dispara por este handle imperativo. */
+export interface TiendaPaginasHandle {
+  deshacer: () => void;
+  rehacer: () => void;
+  /** Publica TODAS las secciones con borrador de la página activa + 'orden'/'tema' si corresponde,
+   *  en un solo gesto atómico (`publicarVariasSecciones`, `app/api/site-content/route.ts`). Lanza
+   *  si el POST falla — el llamador decide cómo avisarlo (toast). No-op si no hay nada pendiente. */
+  publicarPendientes: () => Promise<void>;
+  /** Gemelo de `publicarPendientes` para descartar — misma lista, mismo criterio de no-op. */
+  descartarPendientes: () => Promise<void>;
 }
 
 // El editor del storefront agrupado por PÁGINA (Home / Nosotros), montado DENTRO del editor de
 // pantalla completa (§ EDITOR-TIENDA-DISPOSITIVOS-1 — antes vivía directo en `/admin/tienda`). El
 // selector de página y el de dispositivo ya no son responsabilidad de este componente: los dos
 // llegan por prop desde `EditorTiendaPantallaCompleta`, que los pone en su barra superior.
-export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas' }: TiendaPaginasProps) {
+const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas', onEstadoGlobal }, ref) {
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
@@ -158,6 +195,62 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
   }, []);
   useEffect(() => { recargarDoc().catch(() => setErrorDoc(true)); }, [recargarDoc]);
 
+  // ── § EDITOR-TIENDA-DESHACER-1 — EL HISTORIAL COMPARTIDO, dueño de TiendaPaginas ────────────────
+  //
+  // UNA sola pila para toda la página abierta (secciones + 'orden'): cada `TiendaSeccionEditor`
+  // construye su propio paso (closures sobre su `form`/`auto`, § ese archivo) y lo EMPUJA acá por
+  // `onPaso`; `aplicarNuevoOrden` (abajo) hace lo mismo directo, porque el orden ya vive en este
+  // componente. El historial NUNCA sabe qué hay detrás de un paso — sólo los apila.
+  //
+  // Init perezoso por ref (mismo patrón que `useAutoguardado.ts`: `crearHistorialEditor()` crea un
+  // objeto NUEVO, así que no puede ir en `useState(crearHistorialEditor())` sin memoizar — y
+  // tampoco hace falta: no es estado de render, nadie lo lee directo en el JSX).
+  const historialRef = useRef<HistorialEditor | null>(null);
+  if (historialRef.current === null) historialRef.current = crearHistorialEditor();
+  // Las mutaciones del historial (registrar/deshacer/rehacer) NO son estado de React — este
+  // contador es lo que fuerza al efecto de agregado (más abajo) a releer `puedeDeshacer()`/
+  // `puedeRehacer()` después de cada una.
+  const [historialVersion, setHistorialVersion] = useState(0);
+  const tocarHistorial = useCallback(() => setHistorialVersion((v) => v + 1), []);
+
+  // LIMPIAR AL CAMBIAR DE PÁGINA/MODO: un paso viejo puede cerrar sobre el `setForm` de una sección
+  // que está a punto de desmontarse (`secciones` cambia con `pagina`) — más seguro cortar la rama
+  // entera que arriesgar un deshacer que ya no tiene a quién aplicarse (§ el docstring de
+  // `HistorialEditor.limpiar`). Corre también al MONTAR (pagina/modo iniciales): limpiar un
+  // historial recién creado es un no-op.
+  useEffect(() => {
+    historialRef.current?.limpiar();
+    tocarHistorial();
+  }, [pagina, modo, tocarHistorial]);
+
+  const deshacerGlobal = useCallback(() => { historialRef.current?.deshacer(); tocarHistorial(); }, [tocarHistorial]);
+  const rehacerGlobal = useCallback(() => { historialRef.current?.rehacer(); tocarHistorial(); }, [tocarHistorial]);
+  // Lo que cada `TiendaSeccionEditor` empuja cuando UN LOTE de sus propias ediciones se asienta
+  // (§ `TiendaSeccionEditor.tsx`, `aplicarCambioForm`). Una sola identidad de función para las N
+  // secciones montadas —el componente no necesita saber CUÁL sección empujó qué, el paso ya trae
+  // sus propios closures—.
+  const onPasoSeccion = useCallback((paso: PasoHistorial) => {
+    historialRef.current?.registrar(paso);
+    tocarHistorial();
+  }, [tocarHistorial]);
+
+  // § EDITOR-TIENDA-DESHACER-1 — EL AGREGADO "N cambios sin publicar"/"Guardando…" por SECCIÓN. El
+  // padre no puede leer el estado interno de cada `TiendaSeccionEditor` montado; cada uno lo
+  // REPORTA acá (`onEstado`) en cada cambio real de su `hayBorrador`/`auto.estado`. Entradas de
+  // secciones que ya no están en `secciones` (otra página) quedan SUELTAS en el Map a propósito —
+  // el cálculo de `pendientes` (más abajo) sólo mira las de la página ACTIVA, así que un residuo
+  // de otra página no cuenta de más; nunca hace falta purgarlas a mano.
+  const [seccionesEstado, setSeccionesEstado] = useState<Map<SeccionVista, { hayBorrador: boolean; estado: EstadoAutoguardado }>>(new Map());
+  const manejarEstadoSeccion = useCallback((seccion: SeccionVista, info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => {
+    setSeccionesEstado((prev) => {
+      const actual = prev.get(seccion);
+      if (actual && actual.hayBorrador === info.hayBorrador && actual.estado === info.estado) return prev; // sin cambio real
+      const siguiente = new Map(prev);
+      siguiente.set(seccion, info);
+      return siguiente;
+    });
+  }, []);
+
   // ── § EDITOR-TIENDA-ORDEN-1 — EL ORDEN de las bandas del home, reordenable/ocultable desde la
   //    lista lateral (§ DISENO.md § 4.2, fila 6 del plan). SÓLO 'home' tiene `content.orden`
   //    (BANDA_IDS, site-content-defaults.ts) — nosotros/suscripciones no declaran este campo, así
@@ -168,6 +261,10 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
   //    carga, este componente pasa a ser DUEÑO del array — switch de página y vuelta NO re-siembra
   //    (`TiendaPaginas` no se remonta al cambiar `pagina`, sólo cambia qué `secciones` renderiza).
   const [ordenLocal, setOrdenLocal] = useState<BandaId[] | null>(null);
+  // § EDITOR-TIENDA-DESHACER-1 — espejo síncrono de `ordenLocal`, para leer el valor "despues" de
+  // un lote desde el efecto de abajo sin que ese efecto dependa de `ordenLocal` (lo que lo correría
+  // en cada reorden, no sólo al asentar).
+  const ordenLocalRef = useRef<BandaId[] | null>(null); ordenLocalRef.current = ordenLocal;
   const [hayBorradorOrden, setHayBorradorOrden] = useState(false);
   const [procesandoOrden, setProcesandoOrden] = useState(false);
   const [errorOrden, setErrorOrden] = useState<string | null>(null);
@@ -231,13 +328,54 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
 
   const [arrastrandoId, setArrastrandoId] = useState<BandaId | null>(null);
 
+  // § EDITOR-TIENDA-DESHACER-1 — el "lote" del orden, MISMO criterio que `aplicarCambioForm` de
+  // `TiendaSeccionEditor.tsx`: el PRIMER reorder desde el último asentamiento fija `loteOrdenAntesRef`;
+  // los siguientes (mientras el debounce del autoguardado sigue abierto) no lo tocan — así una
+  // ráfaga de flechas o un arrastre con varios `dragenter` cuenta como UN solo paso de historial.
+  const loteOrdenAntesRef = useRef<BandaId[] | null>(null);
+  // Suprime el push de abajo cuando el PROPIO deshacer/rehacer del orden disparó el asentamiento
+  // (mismo rol que `aplicandoHistorialRef` en `TiendaSeccionEditor.tsx` — sin esto, cada deshacer
+  // empujaría un paso nuevo a su propia pila).
+  const aplicandoHistorialOrdenRef = useRef(false);
+
   const aplicarNuevoOrden = useCallback((siguiente: BandaId[], anterior: BandaId[]) => {
     if (siguiente === anterior) return; // sin cambio real (§ moverBanda*: misma referencia)
+    if (loteOrdenAntesRef.current === null) loteOrdenAntesRef.current = anterior;
     setOrdenLocal(siguiente);
     setHayBorradorOrden(true);
     autoOrden.marcarSucio(siguiente);
     enviarOrdenIframe(siguiente);
   }, [autoOrden, enviarOrdenIframe]);
+
+  // Deshacer/rehacer del orden: aplica un array COMPLETO por el MISMO camino que cualquier reorder
+  // (nunca un segundo camino de datos) y lo persiste YA (`flush`), igual que `restaurarForm` de
+  // `TiendaSeccionEditor.tsx`.
+  const restaurarOrden = useCallback((valor: BandaId[]) => {
+    aplicandoHistorialOrdenRef.current = true;
+    setOrdenLocal(valor);
+    setHayBorradorOrden(true);
+    autoOrden.marcarSucio(valor);
+    autoOrden.flush();
+    enviarOrdenIframe(valor);
+  }, [autoOrden, enviarOrdenIframe]);
+
+  // El PASO de historial del orden — mismo mecanismo que el efecto gemelo de `TiendaSeccionEditor.tsx`
+  // sobre `auto.estado`, acá sobre `autoOrden.estado`.
+  const prevEstadoOrdenRef = useRef(autoOrden.estado);
+  useEffect(() => {
+    const prevEstado = prevEstadoOrdenRef.current;
+    prevEstadoOrdenRef.current = autoOrden.estado;
+    if (prevEstado === autoOrden.estado || autoOrden.estado !== 'guardado') return;
+    const antes = loteOrdenAntesRef.current;
+    loteOrdenAntesRef.current = null;
+    const fueHistorial = aplicandoHistorialOrdenRef.current;
+    aplicandoHistorialOrdenRef.current = false;
+    if (fueHistorial || antes === null) return;
+    const despues = ordenLocalRef.current;
+    if (!despues || sonIguales(antes, despues)) return;
+    historialRef.current?.registrar({ deshacer: () => restaurarOrden(antes), rehacer: () => restaurarOrden(despues) });
+    tocarHistorial();
+  }, [autoOrden.estado, restaurarOrden, tocarHistorial]);
 
   const moverOrden = useCallback((id: BandaId, dir: -1 | 1) => {
     setOrdenLocal((prev) => {
@@ -311,6 +449,118 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
   const seccionesOrdenadas = ordenLocal ? ordenarPorBanda(secciones, ordenLocal) : secciones;
   const puedePublicarOrden = autoOrden.estado === 'guardado' && !procesandoOrden;
 
+  // § EDITOR-TIENDA-DESHACER-1 — "Publicar"/"Descartar" DE LA BARRA actúan sobre TODAS las secciones
+  // con borrador de la página activa + 'orden' (home) + 'tema' (store-wide) de una vez. `tema` SE
+  // RE-SINCRONIZA REMONTANDO `PaletaSeccion` (§ `temaReloadKey`, abajo) en vez de leer/escribir su
+  // estado interno — ese componente no está en `touches:` de este slice, así que no hay forma de
+  // decirle "tu borrador se publicó" salvo forzar el mismo `useEffect` de carga que ya corre al
+  // montar (cambiar su `key` lo remonta, y remontado vuelve a pedir `/api/site-content` por su
+  // cuenta — mismo patrón que el `key={pagina}` de `VistaTiendaIframe`).
+  const [temaReloadKey, setTemaReloadKey] = useState(0);
+
+  // Al ENTRAR a la pestaña Tema, un refetch de `doc` pone `sinPublicar.tema` razonablemente al día
+  // (HUECO CONOCIDO, declarado: mientras se EDITA dentro de esa pestaña, `doc.sinPublicar.tema` no
+  // sigue en vivo los guardados propios de `PaletaSeccion` —ese componente no reporta su estado
+  // acá, fuera de `touches:`—, así que la píldora puede quedar un paso atrás hasta la próxima vez
+  // que `doc` se refresque. No bloquea nada: el Publicar/Descartar en lote sigue funcionando sobre
+  // el último valor conocido).
+  useEffect(() => { if (modo === 'tema') recargarDoc().catch(() => {}); }, [modo, recargarDoc]);
+
+  // La lista de claves con borrador AHORA MISMO: las secciones de la página activa (del Map que
+  // cada editor reporta en vivo, § `manejarEstadoSeccion`) + 'orden' + 'tema'. NO memoizada — se
+  // recalcula en cada llamada con el estado más fresco, igual que el resto de los helpers de este
+  // archivo que leen refs/estado sin pasar por `useCallback`.
+  const listaPendientes = (): string[] => {
+    const secs: string[] = [];
+    for (const c of secciones) if (seccionesEstado.get(c.seccion)?.hayBorrador) secs.push(c.seccion);
+    if (ordenLocal && hayBorradorOrden) secs.push('orden');
+    if (doc?.sinPublicar.tema) secs.push('tema');
+    return secs;
+  };
+
+  const publicarPendientes = async () => {
+    const secs = listaPendientes();
+    if (secs.length === 0) return;
+    const res = await fetch('/api/site-content', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'publicarVarias', secciones: secs }),
+    });
+    if (!res.ok) throw new Error('No se pudo publicar.');
+    for (const s of secs) {
+      if (s === 'orden') { setHayBorradorOrden(false); continue; }
+      if (s === 'tema') { setTemaReloadKey((k) => k + 1); continue; }
+      seccionRefs.current.get(s as SeccionVista)?.marcarPublicado();
+    }
+    recargarIframe();
+  };
+
+  const descartarPendientes = async () => {
+    const secs = listaPendientes();
+    if (secs.length === 0) return;
+    const res = await fetch('/api/site-content', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'descartarVarias', secciones: secs }),
+    });
+    if (!res.ok) throw new Error('No se pudo descartar.');
+    // UN SOLO refetch para TODAS las secciones descartadas (nunca N) — mismo mecanismo que
+    // `publicarOrDescartarOrden('descartar')` ya usa para 'orden'.
+    const fresco = await recargarDoc();
+    for (const s of secs) {
+      if (s === 'orden') { setOrdenLocal(resolverOrden(fresco.contenido?.orden)); setHayBorradorOrden(false); continue; }
+      if (s === 'tema') { setTemaReloadKey((k) => k + 1); continue; }
+      seccionRefs.current.get(s as SeccionVista)?.restaurarDesdePublicado((fresco.contenido?.[s] ?? {}) as Record<string, unknown>);
+    }
+    recargarIframe();
+  };
+
+  // DESHACER/REHACER reenviado DESDE EL IFRAME (§ EditorPuenteVivo.tsx, el comentario grande de la
+  // deviación sobre `touches:`): el iframe YA decidió que el foco no estaba en un campo editable —
+  // acá no hay nada más que verificar, sólo aplicar.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (!esMensajeDeshacer(e.data)) return;
+      if (e.data.rehacer) rehacerGlobal(); else deshacerGlobal();
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [deshacerGlobal, rehacerGlobal]);
+
+  // EL AGREGADO, hacia el padre (§ el docstring de `onEstadoGlobal`). Corre en CADA render (porque
+  // `secciones` no está memoizado, § el resto del archivo), pero sólo llama a `onEstadoGlobal` si
+  // el valor CALCULADO cambió de verdad (`ultimoEstadoGlobalRef`) — sin ese filtro, un padre que
+  // guarda esto en estado re-renderizaría, este componente volvería a renderizar, y el efecto
+  // correría otra vez con el MISMO resultado: un bucle que nunca converge porque nunca compara.
+  const ultimoEstadoGlobalRef = useRef<EstadoGlobalEditor | null>(null);
+  useEffect(() => {
+    const pendientesSecciones = secciones.filter((c) => seccionesEstado.get(c.seccion)?.hayBorrador).length;
+    const pendientes = pendientesSecciones + (ordenLocal && hayBorradorOrden ? 1 : 0) + (doc?.sinPublicar.tema ? 1 : 0);
+    const estadosSecciones = secciones.map((c) => seccionesEstado.get(c.seccion)?.estado ?? 'guardado');
+    const todosLosEstados: EstadoAutoguardado[] = [...estadosSecciones, autoOrden.estado];
+    const estado: EstadoAutoguardado = todosLosEstados.includes('guardando') ? 'guardando'
+      : todosLosEstados.includes('error') ? 'error' : 'guardado';
+    const nuevo: EstadoGlobalEditor = {
+      estado, pendientes,
+      puedeDeshacer: historialRef.current?.puedeDeshacer() ?? false,
+      puedeRehacer: historialRef.current?.puedeRehacer() ?? false,
+    };
+    const anterior = ultimoEstadoGlobalRef.current;
+    if (anterior && anterior.estado === nuevo.estado && anterior.pendientes === nuevo.pendientes
+        && anterior.puedeDeshacer === nuevo.puedeDeshacer && anterior.puedeRehacer === nuevo.puedeRehacer) return;
+    ultimoEstadoGlobalRef.current = nuevo;
+    onEstadoGlobal?.(nuevo);
+  }, [secciones, seccionesEstado, ordenLocal, hayBorradorOrden, doc, autoOrden.estado, historialVersion, onEstadoGlobal]);
+
+  // § EDITOR-TIENDA-DESHACER-1 — el handle que `EditorTiendaPantallaCompleta` usa para los atajos de
+  // teclado y los botones de la barra. NO memoizado (como `escribirCampo`/`abrirSelectorImagen` de
+  // `TiendaSeccionEditor.tsx`): se recompone en cada render y siempre expone la versión fresca.
+  useImperativeHandle(ref, () => ({
+    deshacer: deshacerGlobal,
+    rehacer: rehacerGlobal,
+    publicarPendientes,
+    descartarPendientes,
+  }));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* El toggle de encender/apagar y la nota de la página apagable (Nosotros · Suscripciones) — el
@@ -382,7 +632,11 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
               REAL de la derecha ya hace ese trabajo (§ el spec)— y `onCambioEnVivo` reenvía al MISMO
               iframe compartido por el puente (`enviarTemaIframe`, arriba). */}
           {modo === 'tema' ? (
-            <PaletaSeccion enEditor onCambioEnVivo={enviarTemaIframe} />
+            // `key={temaReloadKey}` (§ EDITOR-TIENDA-DESHACER-1): remonta el editor de tema tras un
+            // Publicar/Descartar EN LOTE que lo incluyó, para que vuelva a leer `/api/site-content`
+            // por su cuenta (§ el comentario grande de `temaReloadKey`, arriba) — nunca cambia por
+            // nada más (ni al teclear, ni al cambiar de página).
+            <PaletaSeccion key={temaReloadKey} enEditor onCambioEnVivo={enviarTemaIframe} />
           ) : (
             seccionesOrdenadas.map(config => (
               <TiendaSeccionEditor
@@ -395,6 +649,8 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
                 onAbrir={irASeccion}
                 onCambioPublicado={recargarIframe}
                 onCambio={enviarCambioIframe}
+                onPaso={onPasoSeccion}
+                onEstado={manejarEstadoSeccion}
                 orden={asaDeSeccion(config.bandaId, config.titulo)}
                 carga={{
                   valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
@@ -424,4 +680,6 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
       </div>
     </div>
   );
-}
+});
+
+export default TiendaPaginas;

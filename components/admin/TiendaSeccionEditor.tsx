@@ -30,6 +30,8 @@ import {
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
 import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
+import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
+import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import {
   MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES, TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_VIDEO,
   MSG_VIDEO_NO_ADMITIDO, CONTENEDORES_REMUXEABLES, MAX_VIDEO_HERO_BYTES, MSG_VIDEO_HERO_LARGO,
@@ -219,6 +221,19 @@ export interface TiendaSeccionEditorHandle {
    *  `campoImagenPendienteRef`). Un `campo` sin flujo equivalente en el modo actual (p. ej.
    *  `imagenPoster` fuera de modo video) no hace nada. */
   abrirSelectorImagen: (campo: string) => void;
+  /** § EDITOR-TIENDA-DESHACER-1 — llamado por `TiendaPaginas` tras un "Publicar" EN LOTE
+   *  (`publicarVariasSecciones`, `app/api/site-content/route.ts`) que incluyó esta sección. Sólo
+   *  baja la píldora "Sin publicar" LOCAL (`hayBorrador=false`) — el `form` ya mostraba exactamente
+   *  lo que se acaba de publicar (es lo que el borrador YA tenía), así que no hay nada que
+   *  re-sembrar. Mismo efecto que la rama `accion==='publicar'` de `accionBorrador`, sin el toast
+   *  (el lote muestra UN solo toast, no uno por sección). */
+  marcarPublicado: () => void;
+  /** § EDITOR-TIENDA-DESHACER-1 — llamado por `TiendaPaginas` tras un "Descartar" EN LOTE
+   *  (`descartarVariasSecciones`) que incluyó esta sección: re-siembra el `form` con el valor YA
+   *  PUBLICADO que el padre bajó de su ÚNICO refetch (`recargarDoc()`, una vez para todo el lote —
+   *  nunca N fetches, uno por sección). Mismo efecto que la rama `accion==='descartar'` de
+   *  `accionBorrador`, salvo que el refetch lo hace el padre una sola vez para todas. */
+  restaurarDesdePublicado: (valor: Record<string, unknown>) => void;
 }
 
 // § EDITOR-TIENDA-ORDEN-1 — el asa de arrastre + flechas de teclado de la lista lateral (SÓLO las
@@ -279,9 +294,20 @@ interface TiendaSeccionEditorProps {
    *  lo reenvía al iframe compartido por `postMessage`, SIN recargar (§ EDITOR-TIENDA-POSTMESSAGE-1).
    *  Ausente = sin iframe que notificar (no debería ocurrir fuera de un test). */
   onCambio?: (seccion: SeccionVista, datos: Datos) => void;
+  /** § EDITOR-TIENDA-DESHACER-1 — un LOTE de ediciones de esta sección se asentó (el autoguardado
+   *  pasó de 'guardando' a 'guardado' con un valor real distinto del que tenía al empezar el lote,
+   *  § `aplicarCambioForm`). El padre (`TiendaPaginas`) lo empuja al historial COMPARTIDO — esta
+   *  cáscara no sabe nada de la pila de deshacer/rehacer, sólo construye el PASO con sus propios
+   *  closures (`restaurarForm`). Ausente = sin historial que alimentar (no debería ocurrir fuera
+   *  de un test). */
+  onPaso?: (paso: PasoHistorial) => void;
+  /** § EDITOR-TIENDA-DESHACER-1 — reporta, en cada cambio, si ESTA sección tiene borrador y en qué
+   *  estado está su autoguardado — el padre agrega esto con las demás secciones + 'orden' para el
+   *  "N cambios sin publicar"/"Guardando…" de la barra. Ausente = sin agregado que alimentar. */
+  onEstado?: (seccion: SeccionVista, info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
 }
 
-const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio, orden }, ref) {
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio, onPaso, onEstado, orden }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -454,8 +480,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
       // LOS TRES A LA VEZ (§ el orden es la garantía): nunca un estado persistido con video sin
       // póster, ni con `imagenTipo` desincronizado de qué url hay en `imagen`.
       const nf = { ...(formRef.current as Datos), imagen: videoUrl, imagenPoster: posterUrl, imagenTipo: 'video' };
-      setForm(nf); setHayBorrador(true);
-      auto.marcarSucio(nf); auto.flush();
+      aplicarCambioForm(nf); auto.flush();
       campoActivoRef.current = null; // éxito: no queda pegado a un error de otro control
     } catch (err) {
       anunciarError(err instanceof Error ? err.message : 'No se pudo subir el video. Reintenta.', 'imagen');
@@ -481,8 +506,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // encender el video de escritorio — el mismo criterio que ya aplica `imagenPoster` acá.
   const volverAImagenHero = () => {
     const nf = { ...(formRef.current as Datos), imagenTipo: 'imagen', imagen: defaults.imagen, imagenPoster: '', imagenMovil: '', imagenMovilPoster: '' };
-    setForm(nf); setHayBorrador(true);
-    auto.marcarSucio(nf); auto.flush();
+    aplicarCambioForm(nf); auto.flush();
   };
 
   // ── EL VIDEO DE TELÉFONO DEL HERO (§ HERO-VIDEO-MOVIL-1) — MISMA secuencia que el de escritorio
@@ -527,8 +551,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
       // LOS DOS A LA VEZ (§ el orden es la garantía, como el video de escritorio): nunca un estado
       // persistido con `imagenMovil` sin su propio póster.
       const nf = { ...(formRef.current as Datos), imagenMovil: videoUrl, imagenMovilPoster: posterUrl };
-      setForm(nf); setHayBorrador(true);
-      auto.marcarSucio(nf); auto.flush();
+      aplicarCambioForm(nf); auto.flush();
       campoActivoRef.current = null;
     } catch (err) {
       anunciarError(err instanceof Error ? err.message : 'No se pudo subir el video. Reintenta.', 'imagenMovil');
@@ -549,8 +572,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // póster, ni al revés. El hero vuelve a mostrar sólo el video de escritorio en todo viewport.
   const quitarVideoMovilHero = () => {
     const nf = { ...(formRef.current as Datos), imagenMovil: '', imagenMovilPoster: '' };
-    setForm(nf); setHayBorrador(true);
-    auto.marcarSucio(nf); auto.flush();
+    aplicarCambioForm(nf); auto.flush();
   };
 
   // § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — la ventana del iframe, capturada del propio
@@ -646,16 +668,76 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     return () => window.removeEventListener('beforeunload', h);
   }, [auto.estado]);
 
+  // ── § EDITOR-TIENDA-DESHACER-1 — EL PUNTO ÚNICO de mutación del form, para el historial ────────
+  //
+  // Antes había ~8 sitios que repetían `setForm(nf); setHayBorrador(true); auto.marcarSucio(nf);`
+  // (texto vía `cambiar`, cada video del hero, `ponerImagen`/`usarPorDefecto`/`vaciarImagen`) — un
+  // lote de historial necesita UN solo lugar que sepa "acá empieza un cambio del dueño", así que los
+  // ocho se consolidaron acá. `loteAntesRef` guarda el valor de ANTES del PRIMER cambio desde el
+  // último asentamiento (null = no hay lote abierto); el efecto de abajo, sobre `auto.estado`, lo
+  // consume cuando el lote se asienta y empuja el paso.
+  const loteAntesRef = useRef<Datos | null>(null);
+  // `true` mientras un `deshacer()`/`rehacer()` está aplicando su propio valor (`restaurarForm`,
+  // abajo): sin esta guarda, la restauración volvería a disparar el mismo efecto de abajo y
+  // empujaría un paso NUEVO al historial por cada deshacer/rehacer — la pila de `historial-editor.ts`
+  // ya lleva su propia cuenta de qué deshacer/rehacer; duplicarla acá la corrompería.
+  const aplicandoHistorialRef = useRef(false);
+  const aplicarCambioForm = (nf: Datos) => {
+    if (loteAntesRef.current === null) loteAntesRef.current = formRef.current as Datos;
+    setForm(nf);
+    setHayBorrador(true);
+    auto.marcarSucio(nf);
+  };
+
   // Un cambio de campo/toggle: pisa el form, marca borrador y ensucia el autoguardado — SIEMPRE,
   // incluso durante una subida. Una subida directa puede durar minutos y NO puede pausar la edición:
   // el texto se sigue guardando con la url VIEJA (o sin el ítem nuevo, que se crea al terminar), y la
   // url nueva llega en el flush post-subida. Nunca se guarda un ítem a medias (§ subirDirecto).
   const cambiar = (parcial: Datos) => {
-    const nf = { ...(formRef.current as Datos), ...parcial };
-    setForm(nf);
-    setHayBorrador(true);
-    auto.marcarSucio(nf);
+    aplicarCambioForm({ ...(formRef.current as Datos), ...parcial });
   };
+
+  // Deshacer/rehacer: aplica un valor COMPLETO de esta sección por el MISMO camino que cualquier
+  // edición (§ el principio de EDICION-INLINE.md § 2.1 — "nunca un segundo camino de datos") y lo
+  // persiste YA (`auto.flush()`), en vez de esperar el debounce: un deshacer que tarda 1s en
+  // guardarse se siente roto aunque funcione.
+  const restaurarForm = (valor: Datos) => {
+    aplicandoHistorialRef.current = true;
+    aplicarCambioForm(valor);
+    auto.flush();
+  };
+
+  // EL PASO DE HISTORIAL: cuando el autoguardado se ASIENTA ('guardando'→'guardado', incluida la
+  // recuperación de un 'error' anterior) y el lote abierto cambió algo de verdad (§ `sonIguales` —
+  // sin esto, tipear y borrar lo mismo empujaría un paso vacío), se empuja `{deshacer, rehacer}` con
+  // los dos extremos del lote. Suprimido (`aplicandoHistorialRef`) cuando el propio asentamiento lo
+  // disparó un deshacer/rehacer — ver el comentario de arriba.
+  const prevEstadoAutoRef = useRef(auto.estado);
+  useEffect(() => {
+    const prevEstado = prevEstadoAutoRef.current;
+    prevEstadoAutoRef.current = auto.estado;
+    if (prevEstado === auto.estado || auto.estado !== 'guardado') return;
+    const antes = loteAntesRef.current;
+    loteAntesRef.current = null;
+    const fueHistorial = aplicandoHistorialRef.current;
+    aplicandoHistorialRef.current = false;
+    if (fueHistorial || antes === null) return;
+    const despues = formRef.current as Datos;
+    if (sonIguales(antes, despues)) return;
+    onPaso?.({ deshacer: () => restaurarForm(antes), rehacer: () => restaurarForm(despues) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo importa CUÁNDO `auto.estado`
+    // cambia; `onPaso`/`restaurarForm` leen refs y no memoizan, incluirlas reharía correr este
+    // efecto en cada render sin ganar nada (mismo criterio que el resto del archivo).
+  }, [auto.estado]);
+
+  // § EDITOR-TIENDA-DESHACER-1 — el AGREGADO de "N cambios sin publicar"/"Guardando…" de la barra
+  // del editor vive en `TiendaPaginas` (el padre no puede leer el estado interno de cada sección
+  // montada); esta sección sólo REPORTA el suyo en cada cambio real de `hayBorrador`/`auto.estado`.
+  useEffect(() => {
+    onEstado?.(seccion, { hayBorrador, estado: auto.estado });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `onEstado` no memoiza (closure fresca
+    // en cada render del padre); lo que importa es CUÁNDO `hayBorrador`/`auto.estado` cambian.
+  }, [seccion, hayBorrador, auto.estado]);
 
   const set = (name: string) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => cambiar({ [name]: e.target.value });
@@ -669,15 +751,13 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     subida.pedir(url => {
       campoActivoRef.current = null; // éxito: no queda pegado a un error de otro control
       const nf = { ...(formRef.current as Datos), [campo]: url };
-      setForm(nf); setHayBorrador(true);
-      auto.marcarSucio(nf); auto.flush();
+      aplicarCambioForm(nf); auto.flush();
     });
   };
 
   const usarPorDefecto = (campo: string) => {
     const nf = { ...(formRef.current as Datos), [campo]: defaults[campo] };
-    setForm(nf); setHayBorrador(true);
-    auto.marcarSucio(nf); auto.flush();
+    aplicarCambioForm(nf); auto.flush();
   };
 
   // Vacía un campo-imagen OPCIONAL (§ CampoImagen.opcional, HISTORIA-COMO-MUESTRARIO-1) — DISTINTO de
@@ -688,8 +768,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // este botón sólo agrega el CONTROL para escribir ese vacío, no cambia qué hace el resolver con él.
   const vaciarImagen = (campo: string) => {
     const nf = { ...(formRef.current as Datos), [campo]: '' };
-    setForm(nf); setHayBorrador(true);
-    auto.marcarSucio(nf); auto.flush();
+    aplicarCambioForm(nf); auto.flush();
   };
 
   // Abrir/cerrar edición RESETEA el estado efímero del editor —tarjeta activa del puente y grupos
@@ -771,6 +850,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     dispararSelectorImagen(campo);
   };
 
+  // § EDITOR-TIENDA-DESHACER-1 — las dos mitades de "Publicar/Descartar TODO" (§ el docstring de
+  // `TiendaSeccionEditorHandle`, arriba). NUNCA pasan por `aplicarCambioForm`: no son una edición
+  // del dueño, son el padre informando el RESULTADO de un publish/discard que YA ocurrió en el
+  // servidor — empujar un paso de historial acá dejaría "deshacer" revirtiendo una publicación en
+  // vez de una edición, que es otra cosa (§ el alcance declarado del historial, sólo ediciones).
+  const marcarPublicado = () => setHayBorrador(false);
+  const restaurarDesdePublicado = (valor: Record<string, unknown>) => {
+    setForm(valor as Datos);
+    setHayBorrador(false);
+  };
+
   // ── LA SELECCIÓN EN CONTEXTO (§ EDITOR-TIENDA-SELECCION-1) — iframe→lista ─────────────────────
   // `rootRef` apunta a la raíz de CUALQUIERA de las dos ramas de render (la tarjeta cerrada o el
   // encabezado de la edición abierta, § los dos `ref={rootRef}` del render abajo): es lo que
@@ -819,7 +909,11 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // que dependen): van en las deps de `useImperativeHandle` igual, así que el handle se recompone en
   // cada render y SIEMPRE expone la versión fresca — más barato que encadenar `useCallback`s sobre
   // closures que ya de por sí se redefinen cada render.
-  useImperativeHandle(ref, () => ({ seleccionar, escribirCampo, abrirSelectorImagen }), [seleccionar, escribirCampo, abrirSelectorImagen]);
+  useImperativeHandle(
+    ref,
+    () => ({ seleccionar, escribirCampo, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
+    [seleccionar, escribirCampo, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado],
+  );
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
