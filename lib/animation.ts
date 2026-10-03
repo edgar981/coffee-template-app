@@ -1139,6 +1139,13 @@ export function velocidadTickerPxS(velocidad: string): number {
 // que dispara UNA vez al 40% visible y un loop de `requestAnimationFrame` de 1100ms con ease-out
 // cúbica. Medido: ORIGEN-BANDA-CENSO-1 — el repo no tenía precedente de esto (cero
 // `requestAnimationFrame`/CountUp antes de este slice).
+//
+// `valorContador`/`useContadorAnimado` SÓLO conocen NÚMEROS — ni uno ni otro parsea el texto del
+// dato (`OrigenContent.statNumeroN`, p. ej. "1.600"). Reconocer el separador de miles y reformatear
+// cada paso del conteo CON ese mismo separador (§ ORIGEN-CONTADOR-MILES-1) vive en
+// `lib/storefront/cifra-contador.ts` — su propio módulo puro, consumido por `OrigenContador`
+// (`components/storefront/home/Origen.tsx`) ANTES de llamar a este hook. No se duplica acá: este
+// archivo sigue siendo agnóstico de cómo un consumidor derivó su `destino`.
 export const DURACION_CONTADOR_MS = 1100;
 
 // `valorContador` reproduce, PURA y sin React, el cálculo de `js/home.js:320-327`

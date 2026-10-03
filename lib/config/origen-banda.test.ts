@@ -280,6 +280,47 @@ test('un `statNumeroN` no numérico (basura) tampoco se anima ni rompe — el fi
   assert.ok(html.includes('Estado'));
 });
 
+// ─── EL FIX — "1.600" (separador de miles) AHORA anima, igual que "12"/"52" (§ ORIGEN-CONTADOR-
+// MILES-1). Antes de este slice `statNumero1: '1.600'` rendía LITERAL de inmediato (el mismo camino
+// que "N/D" arriba) — el regex viejo rechazaba el punto, así que el `estatico` del contador quedaba
+// forzado a `true` SIN preview y sin reduced-motion; estas dos pruebas son el discriminador: antes
+// del fix, la de SSR fallaba (el HTML YA incluía "1.600" sin haber contado).
+
+const CONTENT_CON_SEPARADOR_MILES = {
+  ...DEFAULTS,
+  origen: {
+    ...DEFAULTS.origen,
+    visible: true,
+    statNumero1: '1.600', statEtiqueta1: 'msnm promedio',
+    statNumero2: '12', statEtiqueta2: 'hectáreas sembradas',
+    statNumero3: '52', statEtiqueta3: 'años de tradición',
+  },
+} as SiteContentData;
+
+test('ORIGEN-CONTADOR-MILES-1 — SIN preview: "1.600" (punto de miles) TAMBIÉN arranca en "0", como las otras dos — antes se mostraba literal sin contar', () => {
+  const html = renderOrigen(CONTENT_CON_SEPARADOR_MILES);
+  const ceros = html.match(/>0</g) || [];
+  assert.equal(ceros.length, 3, 'las TRES, incluida la de separador de miles, deben arrancar en 0');
+  assert.ok(!html.includes('1.600'), 'sin el gate estático, el primer render no debe mostrar el literal final');
+});
+
+test('ORIGEN-CONTADOR-MILES-1 — EN PREVIEW: "1.600" cuenta hasta su valor final CON el mismo separador de miles del dato', () => {
+  const html = renderOrigen(CONTENT_CON_SEPARADOR_MILES, { preview: true });
+  assert.ok(html.includes('1.600'), 'statNumero1 ("1.600") debe rendir ya en su valor final, con su punto');
+  assert.ok(html.includes('>12<'), 'statNumero2 debe seguir rindiendo "12" ya en su valor final');
+  assert.ok(html.includes('>52<'), 'statNumero3 debe seguir rindiendo "52" ya en su valor final');
+});
+
+test('ORIGEN-CONTADOR-MILES-1 — separador COMA ("1,600") también anima, y cuenta con coma — nunca la reemplaza por un punto', () => {
+  const content = {
+    ...DEFAULTS,
+    origen: { ...DEFAULTS.origen, visible: true, statNumero1: '1,600', statEtiqueta1: 'msnm promedio' },
+  } as SiteContentData;
+  const html = renderOrigen(content, { preview: true });
+  assert.ok(html.includes('1,600'), 'debe formatear con el MISMO separador que el dato (coma)');
+  assert.ok(!html.includes('1.600'), 'no debe reemplazar la coma del dato por un punto');
+});
+
 // ─── LOS CONTADORES — gap responsive y tipografía, medidos contra `.stats`/`.stat b`/`.stat span` ──
 //
 // MEDIDO por computed-style contra el prototipo real (§ ORIGEN-DATOS-EXACTO-1, no derivado de la

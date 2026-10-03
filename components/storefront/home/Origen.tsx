@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { fadeUp, transicionEscalonada, useContadorAnimado } from "@/lib/animation";
+import { cifraContador, formatoCifraContador } from "@/lib/storefront/cifra-contador";
 import TextoEnCascada from "@/components/storefront/TextoEnCascada";
 import CampoEditable from "@/components/storefront/CampoEditable";
 import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
@@ -40,41 +41,48 @@ function statsDeOrigen(origen: OrigenContent): Array<{ key: string; numero: stri
 }
 
 // Un contador animado (§ `useContadorAnimado`, `lib/animation.ts`): cuenta de 0 a su valor final al
-// entrar en vista. `valor` es TEXTO (`OrigenContent.statNumeroN`) — se parsea acá; un valor no
-// numérico (o vacío) NO se anima y se muestra TAL CUAL, preferir callar/mostrar-literal a inventar
-// un cero (mismo criterio que el resto del storefront con datos que no se pueden validar).
+// entrar en vista. `valor` es TEXTO (`OrigenContent.statNumeroN`) — se parsea acá con `cifraContador`
+// (`lib/storefront/cifra-contador.ts`, puro, con test propio — la lógica de reconocer/reformatear
+// vive AHÍ, no acá, para poder afirmarla sin React); un valor no reconocido (vacío, no numérico) NO
+// se anima y se muestra TAL CUAL, preferir callar/mostrar-literal a inventar un cero (mismo criterio
+// que el resto del storefront con datos que no se pueden validar).
 //
-// `/^-?\d+$/` en vez de "despojar caracteres y parsear lo que quede": despojar "N/D" deja una
-// cadena VACÍA que `Number('')` lee como 0 —un cero FABRICADO, exactamente lo que este componente
-// existe para no hacer—. Exigir que el string ENTERO (recortado) sean sólo dígitos rechaza
-// cualquier basura de una — no hay resto que parsear a medias.
+// POR QUÉ "1.600" NO ANIMABA (§ ORIGEN-CONTADOR-MILES-1, medido leyendo el código, no supuesto): el
+// regex viejo (`/^-?\d+$/`) exigía el string ENTERO en dígitos — ningún separador de miles— así que
+// "1.600" (el punto que cualquiera tecleraría para "mil seiscientos" en es-CO) caía por el MISMO
+// camino que "N/D": se mostraba literal, sin contar. "12" y "52" (hectáreas, años) sí pasaban por
+// ser números chicos sin separador — de ahí la asimetría que el owner reportó (dos cifras contaban,
+// la tercera no). `cifraContador` reconoce AHORA también grupos de tres dígitos separados por punto
+// o coma ("1.600", "12.500", "1,600"); `Number("1.600")` sigue dando 1.6 y no 1600 —por eso no se
+// puede "despojar caracteres y parsear lo que quede"— así que el reconocimiento vive en su propia
+// función en vez de intentarlo acá a mano.
 //
-// POR QUÉ NO CONTABA (§ ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, medido leyendo el código, no supuesto):
-// `useContadorAnimado` devuelve un `ref` que su EFECTO usa para decidir si observa el viewport
-// (`const el = ref.current; if (!el || …) { setValor(destino); return; }`, `lib/animation.ts`). Este
-// componente lo DESTRUCTURABA pero nunca lo ADJUNTABA a ningún nodo — el `<div>` de abajo no llevaba
-// `ref={ref}` en NINGUNA versión desde ORIGEN-BANDA-1. Con `ref.current` SIEMPRE `null`, la rama
-// `!el` es SIEMPRE cierta: el efecto corre `setValor(destino)` de inmediato, en el primer render, sin
-// montar el `IntersectionObserver` ni el loop de `requestAnimationFrame` — el número aparece YA en su
-// valor final, exactamente el defecto que el owner reportó ("deberían cargar… como si estuvieran
-// aumentando"). El fix es adjuntar el ref al nodo que la animación mide — abajo, en el `motion.div`
-// raíz (framer-motion reenvía su `ref` externo al nodo DOM real, así que el mismo elemento sirve para
-// el fade-in Y para el IntersectionObserver del conteo, sin un envoltorio de más).
+// POR QUÉ NO CONTABA, el defecto ANTERIOR a éste (§ ORIGEN-FOTOS-REVELADO-Y-CONTEO-1, medido leyendo
+// el código, no supuesto): `useContadorAnimado` devuelve un `ref` que su EFECTO usa para decidir si
+// observa el viewport (`const el = ref.current; if (!el || …) { setValor(destino); return; }`,
+// `lib/animation.ts`). Este componente lo DESTRUCTURABA pero nunca lo ADJUNTABA a ningún nodo — el
+// `<div>` de abajo no llevaba `ref={ref}` en NINGUNA versión desde ORIGEN-BANDA-1. Con `ref.current`
+// SIEMPRE `null`, la rama `!el` es SIEMPRE cierta: el efecto corre `setValor(destino)` de inmediato,
+// en el primer render, sin montar el `IntersectionObserver` ni el loop de `requestAnimationFrame` —
+// el número aparece YA en su valor final, exactamente el defecto que el owner reportó ("deberían
+// cargar… como si estuvieran aumentando"). El fix fue adjuntar el ref al nodo que la animación mide —
+// abajo, en el `motion.div` raíz (framer-motion reenvía su `ref` externo al nodo DOM real, así que el
+// mismo elemento sirve para el fade-in Y para el IntersectionObserver del conteo, sin un envoltorio
+// de más).
 function OrigenContador({ valor, etiqueta, estatico, preview, indice, campoNumero, campoEtiqueta }: { valor: string; etiqueta: string; estatico: boolean; preview: boolean; indice: number; campoNumero: string; campoEtiqueta: string }) {
-  const limpio = valor.trim();
-  const numeroValido = /^-?\d+$/.test(limpio);
-  const destino = numeroValido ? Number(limpio) : 0;
+  const cifra = cifraContador(valor);
+  const destino = cifra ? cifra.valor : 0;
   // EL CAMPO FLOTANTE EDITA EL STRING DEL DATO, NUNCA EL NÚMERO A MEDIO CONTAR (§ EDITOR-TIENDA-
   // CAMPO-EDITABLE-HOME-1, EDICION-INLINE.md § "casos especiales"): en modo editor el contador NO
   // anima (se suma a `estatico`, igual que `preview`/movimiento reducido — ninguna de las tres
   // razones es nueva para `useContadorAnimado`) Y el nodo marcado muestra el `valor` CRUDO, nunca
-  // `Math.round(valorActual).toLocaleString("es-CO")`. Sin esto, abrir el overlay sobre "1.600"
+  // `formatoCifraContador(valorActual, cifra.separador)`. Sin esto, abrir el overlay sobre "1.600"
   // (formateado con separador de miles) y cerrarlo sin tocar nada habría escrito "1.600" de vuelta
   // al campo — un string que `Number()` lee como 1.6, no 1600, corrompiendo el dato en el primer
   // clic. Fuera de modo editor (el 99.99% del tráfico) nada cambia: `editando` es `false` y el
   // contador sigue animando/mostrando el valor formateado de siempre.
   const editando = useModoEditorActivo();
-  const { ref, valor: valorActual } = useContadorAnimado(destino, estatico || !numeroValido || editando);
+  const { ref, valor: valorActual } = useContadorAnimado(destino, estatico || !cifra || editando);
 
   return (
     // `.stat`/`.stat b`/`.stat span` del prototipo (`css/app.css:600-610`) — MEDIDO por
@@ -103,7 +111,7 @@ function OrigenContador({ valor, etiqueta, estatico, preview, indice, campoNumer
     >
       <b className="block font-playfair text-[40px] leading-[0.98] tracking-[-0.015em] font-normal text-[var(--sf-tinta)]">
         <CampoEditable campo={campoNumero}>
-          {editando ? valor : (numeroValido ? Math.round(valorActual).toLocaleString("es-CO") : valor)}
+          {editando ? valor : (cifra ? formatoCifraContador(valorActual, cifra.separador) : valor)}
         </CampoEditable>
       </b>
       <span className="block mt-2 text-base text-[var(--sf-texto-suave)]"><CampoEditable campo={campoEtiqueta}>{etiqueta}</CampoEditable></span>

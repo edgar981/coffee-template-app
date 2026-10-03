@@ -62,6 +62,11 @@ test('ReducedMotionProvider no descarta ni envuelve los children', () => {
 // timers reales; su cableado se verifica por render en `lib/config/origen-banda.test.ts` (proxy de
 // vista previa, mismo criterio que `historia-direccion-arte.test.ts` usa para el otro motor de
 // movimiento de este repo).
+//
+// EL PARSEO DEL TEXTO ("1.600" → 1600 + su separador, § ORIGEN-CONTADOR-MILES-1) NO SE PRUEBA ACÁ:
+// `valorContador` recibe un `destino` ya numérico, nunca el string del dato. Esa lógica (y su
+// reformateo del paso intermedio del conteo) tiene su propio módulo puro con su propio test —
+// `lib/storefront/cifra-contador.test.ts`.
 
 test('valorContador: progreso=0 da 0, sin importar el destino', () => {
   assert.equal(valorContador(1600, 0), 0);
