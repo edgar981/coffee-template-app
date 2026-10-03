@@ -9,6 +9,7 @@ import {
   direccionField, direccionDetalleField, ciudadField, departamentoField, telefonoColombiaField,
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
+import { emitirCodigoComprobante } from '@/lib/checkout/comprobante-cliente';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
 import { crearTransaccion } from '@/lib/pagos/wompi-api';
 import { obtenerBloqueAceptacionPasarela } from '@/app/api/pasarela/aceptaciones/route';
@@ -272,6 +273,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
   }
 
+  // § CHECKOUT-COMPROBANTE-TOKEN-1: el código privado de subida de comprobante, SÓLO en la
+  // respuesta a ESTE navegador (nunca se persiste — § `lib/checkout/comprobante-cliente.ts`,
+  // es una firma, no una fila). Se emite para CUALQUIER método: el servidor que lo verifica
+  // (`admiteComprobanteCliente`, en la ruta de subida) ya decide por su cuenta si el método de
+  // la orden admite comprobante, así que no hay que duplicar esa decisión acá para condicionar
+  // la emisión — un código de más para una orden `efectivo`/`wompi` es inerte, nunca usable.
+  // `null` sin `BETTER_AUTH_SECRET` (falla cerrada, ver el docstring de `emitirCodigoComprobante`)
+  // → el campo queda AUSENTE de la respuesta, nunca un `null` de relleno (mismo patrón que `wompi`).
+  const codigoComprobante = emitirCodigoComprobante(order.numero_orden, process.env.BETTER_AUTH_SECRET) ?? undefined;
+
   // ── WOMPI-WIDGET-EN-EL-CANONICO-1: el bloque firmado, TODAVÍA sin disparador real ──────
   // `order.paymentIntent` sólo existe si `pideWompi` pasó la guarda de disponibilidad de
   // arriba — y esa guarda devuelve `false` siempre hoy (§ `pasarelaDisponibleEnEsteDespliegue`,
@@ -343,6 +354,9 @@ export async function POST(req: NextRequest) {
       // llegaron completas (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1, arriba) — en los
       // dos casos, spread de `{}`, ninguna clave nueva, ningún `null` de relleno.
       ...(wompi ? { wompi } : {}),
+      // § CHECKOUT-COMPROBANTE-TOKEN-1: ausente SÓLO si falta `BETTER_AUTH_SECRET` (nunca en un
+      // despliegue real — ver el docstring de `emitirCodigoComprobante`).
+      ...(codigoComprobante ? { codigoComprobante } : {}),
     },
     { status: 201 },
   );

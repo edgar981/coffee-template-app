@@ -126,6 +126,12 @@ export interface CheckoutResult {
   direccion_detalle?: string | null;
   items: CheckoutResultItem[];
   wompi?: CheckoutResultWompi;
+  /** § CHECKOUT-COMPROBANTE-TOKEN-1: el código privado que autoriza subir un comprobante PARA
+   *  ESTA orden (`POST /api/orders/[id]/comprobante-cliente`) — una firma, no un id de nada.
+   *  Ausente SÓLO si el servidor no tenía `BETTER_AUTH_SECRET` (falla cerrada; nunca en un
+   *  despliegue real). El checkout lo guarda en memoria y en `sessionStorage`, nunca en la URL
+   *  (§ `lib/checkout/comprobante-cliente.ts`). */
+  codigoComprobante?: string;
 }
 
 // Error de checkout que conserva los IDs de producto rechazados por stock, para

@@ -33,6 +33,34 @@ import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 
 const STEPS = ['Información', 'Pago'];
 
+// § CHECKOUT-COMPROBANTE-TOKEN-1: el código privado que `POST /api/checkout` emite para ESTA
+// orden (`CheckoutResult.codigoComprobante`) se guarda en DOS lugares, NUNCA en la URL —
+// memoria de la página (el ref de abajo, siempre fresco, sin el problema de un closure stale) y
+// `sessionStorage`, para que un reintento de subida que ocurra tras un remonte de la pantalla de
+// confirmación siga teniendo con qué autorizar la subida. Las dos funciones de storage son
+// módulo-level porque no necesitan estado de React; las dos van en `try/catch` — `sessionStorage`
+// puede lanzar en navegación privada/bloqueada, y perderla ahí sólo baja la resiliencia, nunca
+// debe tumbar el checkout.
+function claveCodigoComprobante(numeroOrden: string): string {
+  return `checkout:codigoComprobante:${numeroOrden}`;
+}
+
+function guardarCodigoComprobante(numeroOrden: string, codigo: string): void {
+  try {
+    window.sessionStorage.setItem(claveCodigoComprobante(numeroOrden), codigo);
+  } catch {
+    // Privado/bloqueado: el código sigue disponible en memoria para ESTA carga de página.
+  }
+}
+
+function leerCodigoComprobante(numeroOrden: string): string | null {
+  try {
+    return window.sessionStorage.getItem(claveCodigoComprobante(numeroOrden));
+  } catch {
+    return null;
+  }
+}
+
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCartStore();
   const [step, setStep] = useState(0);
@@ -79,6 +107,17 @@ export default function Checkout() {
   type EstadoSubidaComprobante = 'ninguno' | 'subiendo' | 'listo' | 'error';
   const [comprobanteEstado, setComprobanteEstado] = useState<EstadoSubidaComprobante>('ninguno');
   const [comprobanteErrorSubida, setComprobanteErrorSubida] = useState<string | null>(null);
+  // § CHECKOUT-COMPROBANTE-TOKEN-1: el código de ESTA carga de página, por numero_orden — un
+  // `useRef` (no `useState`) porque se lee en el MISMO tick en que se escribe (justo después de
+  // `setConfirmation`, antes de que React vuelva a renderizar), y un closure sobre `confirmation`
+  // ahí leería el valor del render ANTERIOR, no el que `result` acaba de traer.
+  const codigosComprobanteRef = useRef<Record<string, string>>({});
+
+  const registrarCodigoComprobante = (result: CheckoutResult) => {
+    if (!result.codigoComprobante) return;
+    codigosComprobanteRef.current[result.numero_orden] = result.codigoComprobante;
+    guardarCodigoComprobante(result.numero_orden, result.codigoComprobante);
+  };
 
   // El preview de imagen es un object URL del archivo local — hay que revocarlo al
   // cambiar de archivo o salir de la página, o la pestaña retiene el blob en memoria.
@@ -114,11 +153,20 @@ export default function Checkout() {
   // (crear la orden).
   const intentarSubirComprobante = async (numeroOrden: string) => {
     if (!comprobanteFile) return;
+    // El código vive en el ref (fresco, sin el problema de closure stale) y, si no está ahí
+    // —por ejemplo tras un remonte de la página—, en `sessionStorage` (§ arriba). Sin ninguno
+    // de los dos no hay con qué autorizar la subida — nunca se intenta sin código.
+    const codigo = codigosComprobanteRef.current[numeroOrden] ?? leerCodigoComprobante(numeroOrden);
+    if (!codigo) {
+      setComprobanteErrorSubida('No pudimos verificar tu pedido para subir el comprobante.');
+      setComprobanteEstado('error');
+      return;
+    }
     setComprobanteEstado('subiendo');
     setComprobanteErrorSubida(null);
     try {
       const form = new FormData();
-      form.set('email', info.email);
+      form.set('codigo', codigo);
       form.set('file', comprobanteFile);
       const res = await fetch(`/api/orders/${encodeURIComponent(numeroOrden)}/comprobante-cliente`, {
         method: 'POST',
@@ -335,6 +383,7 @@ export default function Checkout() {
       // pase lo que pase con la pasarela — la limpieza del carrito no depende de `wompi`.
       setConfirmation(result);
       clearCart();
+      registrarCodigoComprobante(result);
       // El comprobante, si el comprador elegió uno, se sube DESPUÉS — contra la orden
       // que el servidor acaba de confirmar, nunca antes (§ `intentarSubirComprobante`).
       // Sólo aplica a los métodos manuales que lo aceptan; la pasarela nunca muestra
@@ -380,6 +429,7 @@ export default function Checkout() {
       const result = await createOrder(payloadDesdeFormulario({ pasarela: true }));
       setConfirmation(result);
       clearCart();
+      registrarCodigoComprobante(result);
       // `result.wompi` ausente es un caso raro (la disponibilidad cambió entre el fetch del
       // bloque y este submit) — la orden SÍ quedó creada (pendiente); el próximo render cae a
       // la confirmación manual de siempre (el early-return de arriba, `!confirmation.wompi`),
