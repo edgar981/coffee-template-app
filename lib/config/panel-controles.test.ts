@@ -299,6 +299,18 @@ test('calibración: footer.tarjetaImagen/.tarjetaTexto están controlados, sin e
   assert.ok(!pendientes.has('footer.tarjetaTexto'));
 });
 
+// § PIE-HECHO-POR-DUNA-1: `footer.creditoDunaVisible` (booleano de `REGISTRY.footer.booleanos`,
+// mismo mecanismo que `hero.veloVisible`) gana su control DE ENTRADA (`CONTROLADOS_FOOTER_SECCION`,
+// § panel-controles.ts), no como hallazgo tardío. El trinquete de PENDIENTE_PANEL (11) no se mueve.
+test('calibración: footer.creditoDunaVisible está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('footer.creditoDunaVisible'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('footer.creditoDunaVisible'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('footer.creditoDunaVisible'));
+});
+
 // § HERO-PUNTO-FOCAL-1: `hero.puntoFocal` (escalar clampado, § REGISTRY.hero.escalares) gana su
 // control DE ENTRADA (`HERO.campos` en tienda-secciones.ts, un select de opciones fijas), no como
 // hallazgo tardío. El trinquete de PENDIENTE_PANEL (11) no se mueve.

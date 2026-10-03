@@ -44,6 +44,8 @@ const FOOTER_HOY: Omit<FooterContent, 'visible' | 'variante'> = {
   tarjetaImagen: '',
   tarjetaTexto: '',
   items: [],
+  // § PIE-HECHO-POR-DUNA-1: el crédito nace VISIBLE — las tres tiendas lo muestran por defecto.
+  creditoDunaVisible: true,
 };
 
 const SETTINGS_BASE: SiteSettings = {
@@ -274,4 +276,51 @@ test('FooterColumnas (la canónica) NO referencia tarjetaImagen/tarjetaTexto en 
   const cuerpo = src.slice(inicio, fin);
   assert.ok(!cuerpo.includes('tarjetaImagen'));
   assert.ok(!cuerpo.includes('tarjetaTexto'));
+});
+
+// ── EL CRÉDITO "Hecho por Duna" (§ PIE-HECHO-POR-DUNA-1) ────────────────────────────────────────
+// Pedido del owner, 2026-10-02: una línea discreta en la franja más baja del pie, con "Duna"
+// enlazando a duna.solutions; apagable por tienda desde el panel; encendida por defecto. BOOLEANO
+// de sección, mismo mecanismo que `hero.ctasVisibles` (`REGISTRY.footer.booleanos`), no `campos`.
+
+test('REGISTRY.footer.booleanos declara `creditoDunaVisible` — el mecanismo de `hero.ctasVisibles`, no un campo string', () => {
+  assert.deepEqual(REGISTRY.footer.booleanos, ['creditoDunaVisible']);
+});
+
+test('DEFAULTS.footer.creditoDunaVisible nace TRUE — las tres tiendas (Nayoli incluida) lo muestran sin hacer nada', () => {
+  assert.equal(DEFAULTS.footer.creditoDunaVisible, true);
+});
+
+test('footer.creditoDunaVisible tiene CONTROL de panel (sin exención en PENDIENTE_PANEL)', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('footer.creditoDunaVisible'));
+});
+
+test('resolverSiteContent: un stored `false` explícito APAGA el crédito (no sólo el default)', () => {
+  const out = resolverSiteContent({ footer: { creditoDunaVisible: false } });
+  assert.equal(out.footer.creditoDunaVisible, false);
+});
+
+test('resolverSiteContent: basura/ausente en el stored cae al default TRUE (SOFT, como el resto de los booleanos)', () => {
+  const out = resolverSiteContent({ footer: { creditoDunaVisible: 'no-un-booleano' } });
+  assert.equal(out.footer.creditoDunaVisible, true);
+});
+
+test('ENCENDIDO (default): las DOS variantes rinden "Hecho por Duna" enlazando a https://duna.solutions', () => {
+  for (const variante of ['franjas', 'apilado'] as const) {
+    const content = { ...DEFAULTS, footer: { ...DEFAULTS.footer, variante } } as SiteContentData;
+    const html = renderFooter(content);
+    assert.ok(html.includes('Hecho por'), `variante "${variante}": debe rendir el texto del crédito`);
+    assert.ok(html.includes('href="https://duna.solutions"'), `variante "${variante}": "Duna" debe enlazar a duna.solutions`);
+    assert.ok(html.includes('target="_blank"'), `variante "${variante}": el enlace debe abrir en pestaña nueva`);
+  }
+});
+
+test('APAGADO (creditoDunaVisible:false): las DOS variantes NO rinden la línea — sin hueco', () => {
+  for (const variante of ['franjas', 'apilado'] as const) {
+    const content = { ...DEFAULTS, footer: { ...DEFAULTS.footer, variante, creditoDunaVisible: false } } as SiteContentData;
+    const html = renderFooter(content);
+    assert.ok(!html.includes('Hecho por'), `variante "${variante}": apagado no debe rendir el texto`);
+    assert.ok(!html.includes('duna.solutions'), `variante "${variante}": apagado no debe rendir el enlace`);
+  }
 });

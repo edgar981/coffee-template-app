@@ -949,6 +949,18 @@ export interface FooterContent {
   // en vez de leer `itemsKey`, así que un `itemsKey` distinto de `'items'` desalinea la ruta que ese
   // chequeo reporta de la ruta real del dato — seguir la convención lo evita.
   items: FooterLegalItem[];
+  // EL CRÉDITO "Hecho por Duna" (§ PIE-HECHO-POR-DUNA-1, pedido del owner: "None of the pages have a
+  // 'made by duna'... should we use it?"). BOOLEANO de sección (mismo mecanismo que `hero.ctasVisibles`
+  // — `def.booleanos`, resuelto en `resolverSiteContent` por NOMBRE, no un `campos` string), nombrado
+  // con el sufijo `Visible` de la convención ya establecida (`titularVisible`/`subtituloVisible`/
+  // `veloVisible`), no `mostrar*` — es el ÚNICO nombre que este archivo usa para un switch true/false.
+  // DEFAULT `true` (§ DEFAULTS.footer, abajo): el crédito es de la PLATAFORMA, no un dato que el
+  // dueño redacta — a diferencia de `tarjetaImagen`/`tarjetaTexto` (datos del cliente, default vacío),
+  // acá el texto y el destino (`https://duna.solutions`) son FIJOS en el componente, nunca editables;
+  // esta bandera sólo decide si la línea se renderiza. Las TRES tiendas (Nayoli incluida) nacen con el
+  // crédito visible — es la única sección cuyo default beneficia a la plataforma antes que al cliente,
+  // y por eso el apagado existe: un cliente que no lo quiera lo apaga desde el panel, sin tocar código.
+  creditoDunaVisible: boolean;
 }
 
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
@@ -2004,6 +2016,8 @@ export const DEFAULTS: SiteContentData = {
     tarjetaImagen: '',
     tarjetaTexto: '',
     items: [],
+    // § PIE-HECHO-POR-DUNA-1: default TRUE — las tres tiendas nacen con el crédito visible.
+    creditoDunaVisible: true,
   },
   // LOGO por defecto (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1, +
   // `modo` de § NAV-LOGO-Y-NOMBRE-1): las cuatro claves de imagen vacías → sin logo subido (el
@@ -2707,6 +2721,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     ocultable: false,
     imagenes: ['tarjetaImagen'],
     variantes: { claves: ['franjas', 'apilado'], canonica: 'franjas' },
+    // BOOLEANOS (§ PIE-HECHO-POR-DUNA-1): `creditoDunaVisible` apaga/enciende la línea "Hecho por
+    // Duna" de la franja baja, en LAS DOS variantes (franjas/apilado). Mismo mecanismo que
+    // `hero.ctasVisibles` — se resuelve en `resolverSiteContent` por NOMBRE, no por `campos` string.
+    booleanos: ['creditoDunaVisible'],
     campos: {
       columnaTienda: 'requerido',
       columnaAyuda: 'requerido',

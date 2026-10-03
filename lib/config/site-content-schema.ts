@@ -597,6 +597,9 @@ const footerEditableSchema = z.object({
   tarjetaImagen: z.string().optional(),
   tarjetaTexto: z.string().optional(),
   items: z.array(footerLegalItemSchema).optional(),
+  // § PIE-HECHO-POR-DUNA-1: el interruptor de la línea "Hecho por Duna" — booleano de sección, como
+  // `hero.ctasVisibles`.
+  creditoDunaVisible: z.boolean().optional(),
 });
 
 // EL LOGO SUBIDO (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-LANG-POR-TIENDA-1): `logo`

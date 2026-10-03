@@ -298,6 +298,25 @@ export default function FooterSeccion() {
               <p className="duna-field__hint">Ej. &quot;San Adolfo, Huila&quot;. Vacío: sin pie de texto.</p>
             </div>
 
+            {/* § PIE-HECHO-POR-DUNA-1: el crédito de la plataforma, en la franja baja del pie — el
+                texto y el destino (https://duna.solutions) son fijos, este switch sólo lo apaga. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+              <button
+                type="button" role="switch" aria-checked={form.creditoDunaVisible}
+                aria-label="Mostrar &quot;Hecho por Duna&quot;"
+                onClick={() => cambiar({ creditoDunaVisible: !form.creditoDunaVisible })}
+                className={`duna-switch${form.creditoDunaVisible ? ' is-on' : ''}`}
+              >
+                <span className="duna-switch__thumb" />
+              </button>
+              <div>
+                <span className="duna-field__label" style={{ margin: 0 }}>Mostrar &quot;Hecho por Duna&quot;</span>
+                <p className="duna-field__hint" style={{ margin: 0 }}>
+                  Una línea discreta en la franja más baja del pie, con un enlace a duna.solutions.
+                </p>
+              </div>
+            </div>
+
             <div>
               <span className="duna-field__label">Enlaces legales (opcional)</span>
               <RepeaterEditor

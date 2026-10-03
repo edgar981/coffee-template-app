@@ -74,6 +74,29 @@ const LABEL_RED_FOOTER: Record<RedSocialGuardada["tipo"], string> = {
   pinterest: "Pinterest",
 };
 
+// EL CRÉDITO "Hecho por Duna" (§ PIE-HECHO-POR-DUNA-1, pedido del owner, 2026-10-02). Gateado por
+// `footer.creditoDunaVisible` (booleano de sección, default `true` — § site-content-defaults.ts);
+// texto y destino son FIJOS, no dato de tenant — sólo el gate es config. UN SOLO componente,
+// compartido por las DOS variantes (en vez de duplicar el JSX), para que no puedan divergir. Va
+// INLINE dentro del `<p>` del copyright — misma franja, mismo tono de texto (hereda `/30` del
+// contenedor de la bottom bar; "Duna" sube a `/60` al hover, el MISMO par que ya usan los enlaces
+// legales de al lado), sin agregar un slot de flex nuevo — en el teléfono no empuja ni parte nada.
+function CreditoDuna() {
+  return (
+    <>
+      {" "}· Hecho por{" "}
+      <a
+        href="https://duna.solutions"
+        target="_blank"
+        rel="noopener"
+        className="transition-colors hover:text-[var(--sf-sobre)]/60"
+      >
+        Duna
+      </a>
+    </>
+  );
+}
+
 export default function StoreFooter() {
   const settings = useSiteSettings();
   const content = useSiteContent();
@@ -245,6 +268,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
           <p>
             © 2026 {settings.nombre}.
             Todos los derechos reservados.
+            {footer.creditoDunaVisible && <CreditoDuna />}
           </p>
 
           {footer.items.length > 0 && (
@@ -396,6 +420,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
           <p>
             © 2026 {settings.nombre}.
             Todos los derechos reservados.
+            {footer.creditoDunaVisible && <CreditoDuna />}
           </p>
 
           {footer.items.length > 0 && (

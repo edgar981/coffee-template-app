@@ -179,13 +179,15 @@ const CONTROLADOS_MENU_SECCION = [
  *  desde § MUESTRARIO-FOOTER-TARJETA-IMAGEN-1, controlados DE ENTRADA, en el mismo commit que
  *  los suma a `REGISTRY.footer.campos`/`.imagenes` — la tarjeta de imagen opcional
  *  (`tarjetaImagen`/`tarjetaTexto`). `footer.visible` no aplica — `REGISTRY.footer.ocultable`
- *  es `false` (§ arriba). */
+ *  es `false` (§ arriba). § PIE-HECHO-POR-DUNA-1 suma `footer.creditoDunaVisible` — el
+ *  interruptor "Mostrar 'Hecho por Duna'", controlado DE ENTRADA en el mismo commit que lo suma
+ *  a `REGISTRY.footer.booleanos`, mismo patrón que la tarjeta de imagen. */
 const CONTROLADOS_FOOTER_SECCION = [
   'footer.columnaTienda', 'footer.columnaAyuda', 'footer.columnaEmpresa',
   'footer.linkTienda', 'footer.linkSuscripciones', 'footer.linkRastrearPedido',
   'footer.linkPreguntasFrecuentes', 'footer.linkNuestraHistoria',
   'footer.tarjetaImagen', 'footer.tarjetaTexto',
-  'footer.variante',
+  'footer.variante', 'footer.creditoDunaVisible',
   'footer.items.label', 'footer.items.href',
 ];
 
