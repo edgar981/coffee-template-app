@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
+import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown, Eye, EyeOff, GripVertical } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
@@ -221,8 +221,29 @@ export interface TiendaSeccionEditorHandle {
   abrirSelectorImagen: (campo: string) => void;
 }
 
+// § EDITOR-TIENDA-ORDEN-1 — el asa de arrastre + flechas de teclado de la lista lateral (SÓLO las
+// bandas de la home, § `config.bandaId`). `TiendaPaginas` es DUEÑA del array de orden; esta cáscara
+// sólo pinta el asa y notifica — igual que el toggle de visibilidad de arriba, que manda a `cambiar`
+// en vez de tocar el borrador él mismo. `posicion`/`total` son 1-based, para el aria-label.
+export interface AsaOrdenProps {
+  posicion: number;
+  total: number;
+  /** Esta fila es la que se está arrastrando ahora mismo (para atenuarla visualmente). */
+  arrastrando: boolean;
+  onDragStart: () => void;
+  /** El drag entró sobre ESTA fila — reordena en el acto (reorder-on-dragover, sin librería). */
+  onDragEnter: () => void;
+  onDragEnd: () => void;
+  onMoverArriba: () => void;
+  onMoverAbajo: () => void;
+}
+
 interface TiendaSeccionEditorProps {
   config: SeccionConfig;
+  /** § EDITOR-TIENDA-ORDEN-1 — ausente para las páginas sin `content.orden` (nosotros/suscripciones:
+   *  no tienen este campo persistido, § BANDA_IDS en site-content-defaults.ts). Con el asa presente,
+   *  la fila COLAPSADA la pinta junto al título. */
+  orden?: AsaOrdenProps;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
   categorias?: string[];
@@ -260,7 +281,7 @@ interface TiendaSeccionEditorProps {
   onCambio?: (seccion: SeccionVista, datos: Datos) => void;
 }
 
-const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio }, ref) {
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio, orden }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -1449,14 +1470,56 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
   const agregarTarjeta = () => { const primera = tarjetasColapsadas[0]; if (primera) expandir(primera.slot); };
 
-  // ── LECTURA: la sección es una FILA compacta (título + estado + Editar), SIN miniatura propia
-  //    (§ EDITOR-TIENDA-IFRAME-VISTA-1): la vista en vivo es el iframe compartido de `TiendaPaginas`,
-  //    no una reconstrucción por sección. Publicar/Descartar viven en la vista expandida.
+  // ── LECTURA: la sección es una FILA compacta (asa de orden + ojo + título + estado + Editar),
+  //    SIN miniatura propia (§ EDITOR-TIENDA-IFRAME-VISTA-1): la vista en vivo es el iframe
+  //    compartido de `TiendaPaginas`, no una reconstrucción por sección. Publicar/Descartar viven
+  //    en la vista expandida. El asa (§ EDITOR-TIENDA-ORDEN-1, prop `orden`) y el ojo
+  //    (`config.ocultable`) SÓLO viven en esta fila colapsada — reordenar/ocultar es una acción de
+  //    LISTA, no de edición; con la sección abierta, el switch de "Mostrar en la tienda" de la
+  //    vista expandida (más abajo) sigue siendo el único control de visibilidad.
   if (!editando) {
     return (
-      <div className="tienda-tarjeta" ref={rootRef}>
+      <div
+        className="tienda-tarjeta"
+        ref={rootRef}
+        style={orden?.arrastrando ? { opacity: 0.4 } : undefined}
+        onDragOver={orden ? (e) => e.preventDefault() : undefined}
+        onDrop={orden ? (e) => e.preventDefault() : undefined}
+      >
+        {/* § EDITOR-TIENDA-ORDEN-1 — el ASA: mouse (drag nativo) Y teclado (flechas, con el foco acá).
+            Sólo para las bandas de la home (`orden` ausente en nosotros/suscripciones). Un botón, no
+            un `<div draggable>`: tiene que ser tabulable para que las flechas de teclado alcancen. */}
+        {orden && (
+          <button
+            type="button"
+            draggable
+            onDragStart={orden.onDragStart}
+            onDragEnter={orden.onDragEnter}
+            onDragEnd={orden.onDragEnd}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowUp') { e.preventDefault(); orden.onMoverArriba(); }
+              else if (e.key === 'ArrowDown') { e.preventDefault(); orden.onMoverAbajo(); }
+            }}
+            className="duna-btn duna-btn--ghost duna-btn--icon"
+            style={{ flexShrink: 0, cursor: 'grab', alignSelf: 'center' }}
+            aria-label={`Mover ${config.titulo} — posición ${orden.posicion} de ${orden.total}. Arrastra con el mouse o usa las flechas arriba/abajo.`}
+          >
+            <GripVertical />
+          </button>
+        )}
         <div className="tienda-tarjeta__meta">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+            {config.ocultable && (
+              <button
+                type="button"
+                onClick={() => cambiar({ visible: form.visible === false })}
+                className="duna-btn duna-btn--ghost duna-btn--icon"
+                aria-pressed={form.visible === false}
+                aria-label={form.visible === false ? `Mostrar ${config.titulo} en la tienda` : `Ocultar ${config.titulo} en la tienda`}
+              >
+                {form.visible === false ? <EyeOff /> : <Eye />}
+              </button>
+            )}
             <h2 className="duna-title">{config.titulo}</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
             {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}

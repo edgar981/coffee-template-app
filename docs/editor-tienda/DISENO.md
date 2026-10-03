@@ -451,7 +451,7 @@ cada fila.
 | 3 | `EDITOR-TIENDA-POSTMESSAGE-1` **— ENTREGADO, § 13** | Agrega `postMessage` para sincronizar cambios de TEXTO/imagen sin recargar el iframe — elimina el reload por tecla. De paso, diagnostica y cierra el salto de scroll al recargar (§ 1 del spec de este slice) | 1 (el listener vive en el storefront — `EditorPuenteVivo.tsx`, gateado a `modoEditorActivo()`, NO a `useIsPreview()` como se planeaba acá: `useIsPreview` es del mecanismo viejo de `VistaTiendaEnVivo`/preview local, sin relación con el modo-borrador-por-request de este iframe) | Verificado por ejecución contra producción (`next build && next start`), preset CORTE, sesión real: cero navegaciones del frame principal, el valor reflejado en 5ms (frío) / 2.4ms (caliente); el salto de scroll medido y cerrado — ver § 13 |
 | 4 | `EDITOR-TIENDA-SELECCION-1` **— ENTREGADO, § 14** | Selección en contexto (§ 4.1): `data-editor-seccion`, resalte, `postMessage` bidireccional panel↔iframe. Alcance AMPLIADO por el spec: el interruptor "Navegar" (decisión de esta tanda), y el cierre de la limitación de Suscripciones (§ 10/§ 9.1) | 1 (el marcador y el listener de clic viven en `components/storefront/EditorPuenteVivo.tsx`, gateados a `activo`/`modoEditorActivo()` — NO `useIsPreview()`, mismo criterio que `EDITOR-TIENDA-POSTMESSAGE-1`) | Verificado por ejecución — ver § 14 |
 | 5 | `EDITOR-TIENDA-DISPOSITIVOS-1` **— alcance AMPLIADO por encargo del owner, § 12** | Selector de ancho escritorio/tablet/teléfono (§ 4.3), ancho literal del iframe, **más la vista propia a pantalla completa** (§ 12, fuera del plan original de esta fila) | 2 (no toca `app/(storefront)/` ni `components/storefront/` — el criterio de Tier de esta tabla; el dispatch que ejecutó este slice lo etiquetó Tier 1 por cautela propia del orquestador, no porque este slice cumpla el criterio de la lista de `CLAUDE.md`) | Verificado por ejecución: clases `sm:`/`md:` activas en el DOM del iframe a 393px (teléfono) y 768px (tablet); sin sesión, `/editor/tienda` rebota a `/login` |
-| 6 | `EDITOR-TIENDA-ORDEN-1` | Reordenar/ocultar bandas desde la lista lateral (§ 4.2): endpoint `orden` nuevo + UI de arrastre | 1 (el endpoint nuevo y `page.tsx` leen `content.orden`) | El orden que muestra el iframe tras arrastrar coincide con el que la home pública muestra tras publicar |
+| 6 | `EDITOR-TIENDA-ORDEN-1` **— ENTREGADO, § 15** | Reordenar/ocultar bandas desde la lista lateral (§ 4.2): endpoint `orden` nuevo + UI de arrastre | 1 (`app/(storefront)/page.tsx` ya en la lista; el "endpoint nuevo" se volvió una extensión chica del genérico `app/api/site-content/route.ts` — § 15, sin archivo nuevo) | El orden que muestra el iframe tras un reorder de teclado coincide con el que queda PERSISTIDO tras publicar — verificado por ejecución (sesión real, § 15.5) Y por carril (`tests/integracion/orden-secciones.test.ts`); el drag con MOUSE específicamente no se ejecutó (§ 15.6) |
 | 7 | `EDITOR-TIENDA-RETIRO-1` | Retira `VistaTiendaEnVivo`, `varsDeTienda`, `FragmentoTienda`/`PreviewTiendaReal`/`AmpliarOverlay`, el puente `data-sf-tarjeta`/`puente-tarjetas.ts` y `preview-colores.test.ts` (ya no hay dos pipelines que comparar) | 1 (retira código de `components/admin/` que monta `components/storefront/`) | `npm run gate` verde sin esos archivos; censo por grep confirmando cero importadores restantes |
 
 Extender el modelo de secciones a `/tienda` y `/tienda/[slug]` (§ 4.4) **no está en este plan**: es
@@ -1018,6 +1018,231 @@ sin merge.
   con el selector de página "SIN GATE"; el selector subió a `EditorTiendaPantallaCompleta` en
   `EDITOR-TIENDA-DISPOSITIVOS-1`. Mismo motivo, no corregido acá.
 - `EDITOR-TIENDA-ORDEN-1`/`EDITOR-TIENDA-RETIRO-1` (filas 6/7 del plan) — siguen pendientes, sin
-  relación con este slice.
+  relación con este slice. **`EDITOR-TIENDA-ORDEN-1` ENTREGADO, § 15** — este bullet describe el
+  estado al cerrar `EDITOR-TIENDA-SELECCION-1`, no el de hoy.
 
 **Cierra `EDITOR-TIENDA-SELECCION-1`.**
+
+---
+
+## 15 · `EDITOR-TIENDA-ORDEN-1` — reordenar y ocultar desde la lista lateral (fila 6 de § 6)
+
+Fila 6 de § 6: la lista lateral de la página Home gana una asa de arrastre por sección (mouse +
+teclado) y un ojo por sección, al estilo del editor de temas de Shopify. El cambio va al borrador
+como cualquier sección y se publica/descarta igual; el iframe refleja el nuevo orden/visibilidad al
+instante, por el puente, sin recargar.
+
+### 15.1 · El HERO SÍ se reordena — § 4.2 asumía un piso que la medición no confirmó
+
+El spec de este slice pedía decir si el hero queda fijo arriba "si hoy es así por diseño". **Medido:
+NO lo es.** `resolverOrden`/`BANDA_IDS` (`site-content-defaults.ts`) tratan a `'hero'` como una
+`BandaId` más —ocupa la POSICIÓN 1ª por ser la primera entrada de `BANDA_IDS`, no por estar fijada—,
+y `app/(storefront)/page.tsx` la monta dentro del MISMO `.map(resolverOrden(orden))` que las otras
+8, sin excepción. La única pieza que en algún momento asumió "el hero es `orden[0]`" ya se corrigió
+ANTES de este slice: `tratamientoNav` (`lib/config/esquema-style.ts:168-186`) decide si el nav flota
+mirando la PRIMERA banda resuelta —sea cual sea—, no el hero por nombre; su propio docstring lo dice
+("`orden[0]`… YA NO es necesariamente el hero"). Por eso el hero se implementó **reordenable como
+cualquier otra banda**, sin pin especial: `HERO.ocultable` sigue en `false` (no gana ojo — una home
+sin encabezado no es un caso de v1, intacto desde antes de este slice), pero su asa de arrastre
+funciona igual que las de las otras 8.
+
+### 15.2 · El "endpoint nuevo" de § 4.2 se volvió una extensión chica del genérico — sin archivo nuevo
+
+§ 4.2 proponía `app/api/site-content/orden/route.ts`, mismo patrón que `/tema`/`/encabezado`. **No
+se construyó** — `touches:` de este slice no lo nombraba (sólo el genérico `app/api/site-content/
+route.ts`), y medido, no hacía falta uno nuevo:
+
+- **El PUT ya aceptaba `orden` sin tocar nada**: `ordenEditableSchema` ya está declarado en
+  `siteContentEditableSchema` (`lib/config/site-content-schema.ts:365-368`, desde ANTES de este
+  slice — `§ el bug #65-B`) — `guardarBorrador({ orden: [...] })` ya fusionaba la clave, porque
+  `guardarBorrador` es key-agnóstica sobre `Prisma.InputJsonValue`.
+- **El POST (publicar/descartar) sólo necesitaba una condición más.** `publicarSeccion`/
+  `descartarSeccion` (`site-content-write.ts`) YA son key-agnósticas —reciben cualquier `string`—;
+  lo único que bloqueaba `seccion:'orden'` era la validación del route (`seccion in REGISTRY`, y
+  `'orden'` está fuera del REGISTRY a propósito, como `tema`). Se agregó `seccion === 'orden' ||` a
+  esa condición — una línea, documentada en el propio archivo.
+
+### 15.3 · El canal en vivo REUSA el mensaje existente — `VistaTiendaIframe.tsx` quedó fuera de `touches:`
+
+**Restricción real, no elegida:** `components/admin/VistaTiendaIframe.tsx` —dueño del `<iframe>` y
+de `enviarCambio(seccion, datos)`, el ÚNICO camino panel→iframe— NO está en `touches:` de este
+slice, así que no podía ganar un método `enviarOrden` propio. La salida: `enviarCambio` YA es
+genérico en RUNTIME (manda `{tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion, datos}` tal cual, sin
+mirar el REGISTRY del lado del panel) — sólo está TIPADO a `SeccionVista`. `TiendaPaginas.tsx`
+(`enviarOrdenIframe`) lo llama con la clave `'orden'` vía un cast documentado, y
+`EditorPuenteVivo.tsx` —el lado RECEPTOR, SÍ en `touches:`— reconoce `seccion === 'orden'` ANTES de
+`esSeccionDelRegistro`/`fusionarContenidoSeccion` (que sólo fusionan claves DEL REGISTRY) y toma una
+rama distinta: en vez de fusionar contenido en el contexto (`actualizar`), **reordena el DOM real**
+con `appendChild` sobre los nodos `[data-editor-seccion]` que `page.tsx` ya emite —mismo origen,
+misma técnica que ya usa `VistaTiendaIframe.tsx` para "ir a la sección" (§ 4.1.1: manipulación
+directa del DOM en vez de reinventar con CSS lo que el DOM ya hace—. `appendChild` sobre un nodo ya
+en el árbol lo MUEVE; es seguro acá porque `Home` es un Server Component —su árbol no vuelve a
+reconciliarse del lado del cliente—, así que React nunca intenta deshacer este reordenamiento
+externo (verificado por ejecución, § 15.5: la marca de `window` sobrevive, cero navegaciones).
+
+**Por qué NO se fusiona `orden` en el context:** ningún band lee `content.orden` reactivamente — la
+secuencia la fija `page.tsx`, en el SERVIDOR, al momento del render. Patchear `orden` en el
+`SiteContentProvider` sería estado muerto; el efecto real es el DOM.
+
+`lib/storefront/editor-puente.ts` gana `datosDeOrden(datos)` — validación ESTRUCTURAL (¿hay un
+array en `datos.valor`?) — y el contenido semántico (ids conocidos, sin repetir) lo resuelve
+`resolverOrden` (SOFT, nunca lanza) en el llamador: `orden` es una permutación de un set YA
+CONOCIDO, no texto libre que el dueño tipea, así que coercionar defensivamente es más apropiado que
+rechazar con zod, a diferencia de los demás mensajes de este módulo.
+
+### 15.4 · `sinPublicar.orden` — por el fetch a `/publicado`, no por tocar `site-content-read.ts`
+
+`readSiteContentParaEditor` (`lib/config/site-content-read.ts`) calcula `sinPublicar[key]` por un
+loop sobre `Object.keys(REGISTRY)` más dos excepciones a mano (`tema`, `encabezado`) — **fuera de
+`touches:`** de este slice. En vez de sumar una tercera excepción ahí, `TiendaPaginas.tsx` siembra
+`hayBorradorOrden` comparando el `orden` draft-merged (ya bajado por el GET genérico) contra
+`GET /api/site-content/publicado` (endpoint YA existente, sin tocar) en el `useEffect` de siembra —
+un fetch extra, UNA vez al montar la página Home, no recurrente. Después de la siembra, cada
+reorder/drag local fuerza `hayBorradorOrden = true` directo (mismo patrón que `cambiar()` en
+`TiendaSeccionEditor` — un dirty-flag local, no una comparación continua), y Publicar/Descartar lo
+vuelven a `false`.
+
+**Deuda declarada, no cerrada:** el camino IDIOMÁTICO sería que `readSiteContentParaEditor` ganara
+`sinPublicar.orden = 'orden' in borrador` (una línea, mismo patrón que `tema`/`encabezado`) — se
+dejó fuera porque `site-content-read.ts` no está en `touches:` de este slice. Ver open follow-up
+`SITE-CONTENT-READ-SINPUBLICAR-ORDEN-1`.
+
+### 15.5 · Verificado por EJECUCIÓN — sesión real, Postgres efímero propio, con capturas
+
+Arnés ad-hoc (`.scratch/verificar-orden-sesion.ts`, no comiteado por diseño — mismo criterio que el
+arnés de `EDITOR-TIENDA-SELECCION-1`, § 14.5): reusa el bootstrap de `verificar-nayoli-visual.ts`
+(`levantarPostgres`/`migrarYSembrar`/`construir`/`arrancar`/`cargarPlaywright`, EXPORTADOS, sin
+reescribirlos), puertos propios (55441/3497), seed CANÓNICO (`prisma/seed.ts`, crea
+`admin@sierranativa.co`/`ChangeMe123!`), `next build && next start`, Chromium headless. Nunca contra
+`development`/producción.
+
+Secuencia, con capturas (`.scratch/verificar-orden-sesion/*.png`, no comiteadas):
+
+1. Login OWNER real → `/editor/tienda` → el orden inicial del DOM del iframe (vía
+   `[data-editor-seccion]`) es el canónico: `hero, marquesina, trustBadges, featured, brandStory,
+   origen, presentaciones, subscriptionCTA, testimonials`.
+2. Marca `window.__marcaOrden = 'viva'` en el `window` del iframe (mismo mecanismo que
+   `EDITOR-TIENDA-POSTMESSAGE-1` ya usó, § 13.2, para probar "no hubo un documento nuevo").
+3. Foco en el asa "Mover Marquesina…" (`getByRole('button', {name: /^Mover Marquesina/})`) +
+   `ArrowDown` (el mecanismo de TECLADO, § el pedido — mouse no se ejercitó por esta vía, ver
+   Unknowns). El DOM del iframe reordena EN EL ACTO: `hero, trustBadges, marquesina, featured, …` —
+   Marquesina y Confianza (trustBadges) intercambiaron posición, como pide `moverBandaEnDireccion`.
+   La marca de `window` SIGUE `'viva'` — cero navegación, confirmado.
+4. El ojo de Marquesina (nace `visible:false`, § `DEFAULTS.marquesina`): "Mostrar Marquesina" → el
+   wrapper `[data-editor-seccion="marquesina"]` pasa de vacío a con contenido, EN EL ACTO; "Ocultar
+   Marquesina" → vuelve a vacío. Las DOS direcciones del self-gate (`seccionEsVisible`, construido
+   ANTES de este slice) confirmadas en vivo, sin tocar ese mecanismo.
+5. "Publicar" (la barra nueva de `TiendaPaginas.tsx`) → `200` → la barra desaparece.
+6. **`psql` directo contra la base efímera** (no la UI): `SELECT content->'orden' FROM
+   "SiteContent"` da `["hero","trustBadges","marquesina","featured","brandStory","origen",
+   "presentaciones","subscriptionCTA","testimonials"]` — EXACTAMENTE el orden que el paso 3 produjo
+   en el iframe. Es el mismo dato que `app/(storefront)/page.tsx` lee con `resolverOrden(orden)`
+   para CUALQUIER visitante real (el mapeo no se tocó, § 15.1 confirma que no hay excepción para
+   el hero) — así que el criterio de aceptación de la fila 6 de § 6 ("el orden que muestra el
+   iframe tras arrastrar coincide con el que la home pública muestra tras publicar") se verificó
+   por el DATO, no re-cargando la home pública en el mismo navegador (ver Unknowns).
+
+Capturas: `1-antes.png` (lista + iframe, orden canónico, Marquesina/Destacado con el ojo tachado y
+el badge "Oculta"), `2-tras-arrowdown.png` (la barra "Sin publicar — El orden de las secciones
+cambió" + Confianza ya antes de Marquesina en la lista + el hero completo renderizado en el iframe),
+`3-marquesina-mostrada.png` (el ojo abierto, "Guardando…"), `4-marquesina-ocultada-de-nuevo.png`,
+`5-tras-publicar.png` (la barra de orden ya no está; Marquesina conserva su PROPIO "Sin publicar" —
+el vaivén mostrar/ocultar del paso 4 deja un dirty-flag local en esa sección, aunque el valor neto
+sea igual al default — un residuo ESPERADO de la secuencia de prueba, no un defecto; nunca se
+publicó ese borrador).
+
+### 15.6 · Lo que NO se verificó por ejecución — nombrado, no escondido
+
+- **El DRAG CON MOUSE** (HTML5 nativo, `draggable`/`onDragStart`/`onDragEnter`/`onDragEnd`) no se
+  ejercitó vía Playwright — el drag-and-drop nativo headless es frágil de scriptear de forma
+  confiable, y el camino de TECLADO ejercita la MISMA tubería completa (estado→envío en
+  vivo→autoguardado→publicar) salvo por qué función pura calcula el array siguiente
+  (`moverBandaEnDireccion` para teclado, `moverBandaConDestino` para mouse) — la SEGUNDA está
+  afirmada en capa 1 (`lib/admin/orden-secciones.test.ts`, 10/10), pero su disparo real desde
+  `onDragEnter` (los tres handlers del asa) no se probó con un mouse de verdad.
+- **La home PÚBLICA** (sin sesión, sin `?editor=1`) no se recargó en el mismo navegador tras
+  publicar para confirmar visualmente el nuevo orden — se verificó por el DATO persistido (§ 15.5,
+  paso 6), que es lo que esa ruta consume. `npm run verificar:nayoli:visual`/`guarda:color` SÍ
+  corrieron contra la home pública real (§ Gate, abajo), pero con el orden CANÓNICO (sin reordenar)
+  — confirman "sin publicar un orden distinto, cero bytes nuevos", no "con un orden distinto, se ve
+  distinto" (eso último no tiene fixture contra el cual compararse — sería afirmar lo obvio).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3319/3319** (era 3307/3307 según el asiento de `EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1`, DECISIONS.md:47897 — el slice inmediato anterior en esta rama; +12, `lib/admin/orden-secciones.test.ts` ×10 + `lib/storefront/editor-puente.test.ts` ×2, confirmado por `git diff --stat`/`grep -c "^+test("`) |
+| `npm run test:integracion` | **313/313** (era 308/308, mismo asiento; +5, `tests/integracion/orden-secciones.test.ts`) |
+| `npm run guarda:color` | RED — **MISMA cifra EXACTA, en las 6 rutas**, que el drift YA documentado por `PIE-HECHO-POR-DUNA-1` (ruta-home 165.052/4.608.000 px AA, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/… px AA cada una, caja `[445,Y]–[541,Y+10]`) — pre-existente a este slice, sin cambio. Fixture sin regenerar, a propósito (decisión del owner). |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta que `guarda:color`, rama vs. `main` — consistente: este slice no agrega un solo píxel sobre el piso heredado. |
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados uno por uno: `moverBandaAIndice`/
+`moverBandaEnDireccion`/`moverBandaConDestino`/`ordenarPorBanda`/`datosDeOrden`/`AsaOrdenProps`/
+`orden-secciones`/`EDITOR-TIENDA-ORDEN-1` — **0 cada uno**, nada que falsificar. `TiendaPaginas` (4
+coincidencias) y `TiendaSeccionEditor` (6) — los MISMOS conteos que `EDITOR-TIENDA-SELECCION-1` ya
+midió (§ 14.6): ninguna de las 10 describe el mecanismo de orden/ojo que este slice agrega, y las
+DOS ya marcadas stale (`CLAUDE-MD-ONCLICTARJETA-STALE-1`, `CLAUDE-MD-TIENDAPAGINAS-SELECTOR-STALE-1`)
+siguen igual de stale, por una razón AJENA a este diff — no corregidas acá (mismo motivo: no están
+en `touches:` para ese párrafo). `EditorPuenteVivo`/`editor-puente`/`content.orden`/`BANDA_IDS`/
+`resolverOrden` — **0 cada uno**: CLAUDE.md no nombra ninguno de estos símbolos.
+
+**UN HALLAZGO fuera de `touches:`, nombrado como open follow-up:**
+`lib/config/site-content-schema.ts:357-358` (`ordenEditableSchema`, NO en `touches:` de este slice)
+dice, textual: *"NO es una sección —tampoco pasa por el flujo borrador/publicar—"*. Este slice hace
+que esa frase sea FALSA: `orden` SÍ pasa por el flujo borrador/publicar ahora (§ 15.2). No corregido
+acá — ver `SITE-CONTENT-SCHEMA-ORDEN-COMMENT-STALE-1` en Open follow-ups.
+
+### `customer_bytes`
+
+**`changed: true`** — la rama entera (no sólo este commit) agrega, sobre `main`: el asa de arrastre
++ ojo + barra "Sin publicar"/Publicar/Descartar del orden en `/editor/tienda` (bytes que el DUEÑO
+lee al editar), y la CAPACIDAD de que el orden de las bandas de la home pública cambie una vez que
+el dueño reordene y publique (hoy, sin esa acción, byte-idéntico — verificado, § Gate). Como en los
+asientos anteriores de esta rama, el merge que esto aterrizaría sobre `main` también carga los
+bytes visibles de los slices previos sin mergear.
+
+**`strings:`**
+- (panel) `'Mover {título de la sección} — posición N de 9. Arrastra con el mouse o usa las flechas
+  arriba/abajo.'` — aria-label del asa, por sección.
+- (panel) `'Mostrar {título} en la tienda'` / `'Ocultar {título} en la tienda'` — aria-label del ojo.
+- (panel) `'El orden de las secciones cambió.'`, `'Sin publicar'`, `'Descartar'`, `'Publicar'` —
+  la barra nueva (los tres últimos textos YA existían en cada tarjeta de sección; acá se reusan,
+  byte-idénticos).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: `SiteContent.content`/`.borrador` son `Json` — `orden` ya era una clave válida
+dentro de ese blob desde `site-content-defaults.ts` (eje 5, anterior a este slice); cero columna
+nueva, cero migración. Sin contrato cross-repo.
+
+### Open follow-ups
+
+- `SITE-CONTENT-SCHEMA-ORDEN-COMMENT-STALE-1` — `lib/config/site-content-schema.ts:357-358`
+  (`ordenEditableSchema`) describe `orden` como "NO pasa por el flujo borrador/publicar"; con este
+  slice, SÍ pasa. No corregido: el archivo no está en `touches:`.
+- `SITE-CONTENT-READ-SINPUBLICAR-ORDEN-1` — `readSiteContentParaEditor`
+  (`lib/config/site-content-read.ts`) podría ganar `sinPublicar.orden = 'orden' in borrador` (una
+  línea, mismo patrón que `tema`/`encabezado`) y ahorrarle a `TiendaPaginas.tsx` el fetch extra a
+  `/api/site-content/publicado` en la siembra (§ 15.4). No construido: el archivo no está en
+  `touches:` de este slice.
+- **El drag con MOUSE no se verificó por ejecución** (§ 15.6) — si alguna vez se reporta un defecto
+  ahí, el primer sospechoso es el trío `onDragStart`/`onDragEnter`/`onDragEnd` de
+  `TiendaPaginas.tsx` (`asaDeSeccion`), nunca ejercitado contra un mouse real.
+- `CLAUDE-MD-ONCLICTARJETA-STALE-1`/`CLAUDE-MD-TIENDAPAGINAS-SELECTOR-STALE-1` — siguen vivos, sin
+  relación con este slice (§ 14.6, sin cambio).
+- `EDITOR-TIENDA-RETIRO-1` (fila 7 del plan) — sigue pendiente, sin relación con este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde (typecheck + 3319 + 313), `guarda:color`/
+`verificar:nayoli:visual` con la MISMA cifra exacta que el drift heredado de `PIE-HECHO-POR-DUNA-1`
+(cero píxeles nuevos), reorden por teclado + ojo + publicar verificados por ejecución contra una
+sesión real con capturas (§ 15.5), el dato publicado confirmado por `psql` directo. Commiteado en
+`slice/corte-reescritura-prototipo-1`. `stopped_on: [customer-bytes]` — `schema` y
+`cross-repo-contract` NO aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL`
+sin merge.
+
+**Cierra `EDITOR-TIENDA-ORDEN-1`.**

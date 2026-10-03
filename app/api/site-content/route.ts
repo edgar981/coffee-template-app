@@ -84,8 +84,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // 'orden' (§ EDITOR-TIENDA-ORDEN-1) es clave META —el orden de las bandas del home,
+  // `site-content-defaults.ts`— fuera del REGISTRY a propósito (como `tema`/`paginas`): `tema` tiene
+  // su propia ruta (`/api/site-content/tema`) por su validación dura; `orden` no la necesita —su
+  // guardado YA pasa por este mismo PUT genérico (`ordenEditableSchema` ya declarado en
+  // `siteContentEditableSchema`)— así que sólo falta aceptar esta clave acá, junto al REGISTRY.
+  // `publicarSeccion`/`descartarSeccion` ya son key-agnósticas (site-content-write.ts) — no cambian.
   const seccion = body?.seccion;
-  if ((accion !== 'publicar' && accion !== 'descartar') || !seccion || !(seccion in REGISTRY)) {
+  if ((accion !== 'publicar' && accion !== 'descartar') || !seccion || !(seccion === 'orden' || seccion in REGISTRY)) {
     return NextResponse.json({ error: 'Acción o sección inválida.' }, { status: 400 });
   }
 

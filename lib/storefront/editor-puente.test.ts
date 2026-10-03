@@ -16,6 +16,7 @@ import {
   esMensajeCampoImagenClick,
   TIPO_MENSAJE_SESION_VENCIDA,
   esMensajeSesionVencida,
+  datosDeOrden,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -64,6 +65,27 @@ test('esSeccionDelRegistro acepta secciones reales y rechaza metas y claves inve
   assert.equal(esSeccionDelRegistro('tema'), false);
   assert.equal(esSeccionDelRegistro('paginas'), false);
   assert.equal(esSeccionDelRegistro('no-existe'), false);
+  // 'orden' (§ EDITOR-TIENDA-ORDEN-1) también es META, aunque SÍ reusa TIPO_MENSAJE_CONTENIDO_SECCION
+  // — `EditorPuenteVivo.tsx` la intercepta ANTES de llamar a esta función, así que acá sigue dando
+  // `false` igual que las demás metas.
+  assert.equal(esSeccionDelRegistro('orden'), false);
+});
+
+// § EDITOR-TIENDA-ORDEN-1 — el sexto mensaje, REUTILIZADO: `TIPO_MENSAJE_CONTENIDO_SECCION` con
+// `seccion: 'orden'` y `datos: { valor: [...] }`. `datosDeOrden` es sólo la validación ESTRUCTURAL
+// (¿hay un array ahí?) — el contenido semántico (ids conocidos, sin repetir) lo decide
+// `resolverOrden`, SOFT, en el llamador (`EditorPuenteVivo.tsx`), no acá.
+
+test('datosDeOrden devuelve el array cuando datos.valor es un array', () => {
+  assert.deepEqual(datosDeOrden({ valor: ['hero', 'marquesina'] }), ['hero', 'marquesina']);
+  assert.deepEqual(datosDeOrden({ valor: [] }), []);
+});
+
+test('datosDeOrden devuelve null cuando datos.valor no es un array (o está ausente)', () => {
+  assert.equal(datosDeOrden({}), null);
+  assert.equal(datosDeOrden({ valor: 'hero' }), null);
+  assert.equal(datosDeOrden({ valor: null }), null);
+  assert.equal(datosDeOrden({ valor: { 0: 'hero' } }), null);
 });
 
 test('fusionarContenidoSeccion aplica el cambio de texto a la sección pedida', () => {

@@ -49,6 +49,16 @@ import { modoEditorActivo } from "@/lib/config/modo-editor-gate";
 // queda FUERA del registro y de `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en
 // `orden`.
 //
+// `orden` SE EDITA desde la lista lateral de `/editor/tienda` (§ EDITOR-TIENDA-ORDEN-1): arrastrar
+// o usar las flechas del asa escribe `BandaId[]` en el borrador, publica/descarta como cualquier
+// sección (clave META, fuera del REGISTRY). ESTE archivo no cambió para eso —el `.map` de abajo ya
+// leía `content.orden`, y seguía siendo el único lector—; la vista EN VIVO dentro del iframe (sin
+// recargar, mientras se arrastra) la resuelve `EditorPuenteVivo.tsx` reordenando los nodos
+// `data-editor-seccion` del DOM directo, no releyendo este render: `Home` es un Server Component,
+// así que su árbol no vuelve a renderizarse del lado del cliente para reflejar un cambio de
+// contexto — sólo un reload (tras Publicar/Descartar) vuelve a correr este `.map` con el `orden`
+// fresco.
+//
 // EL MIRADOR DE `?tema=CLAVE` (§ TEMAS-MIRADOR-PRESET-1). `aplicarPreset` (`site-content-write.ts`)
 // PERSISTE un preset y no tiene llamador — no hay forma de MIRAR una variante nueva sin mover al
 // tenant que corre en la misma base que el despliegue de desarrollo comparte. Esta rama NUNCA

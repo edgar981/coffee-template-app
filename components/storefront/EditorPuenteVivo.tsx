@@ -6,8 +6,12 @@ import { useSiteContentActualizador } from '@/components/storefront/SiteContentP
 import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
-  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida,
+  TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden,
 } from '@/lib/storefront/editor-puente';
+// `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
+// (que importa el módulo completo para `REGISTRY`/`DEFAULTS`/`resolverSiteContent`), así que
+// importarla acá directo no agrega peso nuevo — ninguna razón para pasarla por un re-export.
+import { resolverOrden } from '@/lib/config/site-content-defaults';
 // `ATRIBUTO_EDITOR_SECCION`/`ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` son admin-level por
 // historia (nacieron junto a `proxy.ts`/`modo-editor-gate.ts`, § su docstring), pero son literales
 // PUROS —sin `next/headers` ni Prisma—, así que importarlos acá no arrastra nada pesado: una sola
@@ -244,6 +248,33 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
 
       if (!esMensajeContenidoSeccion(e.data)) return;
       const { seccion, datos } = e.data;
+
+      // § EDITOR-TIENDA-ORDEN-1 — 'orden' es clave META (como 'tema'/'paginas'), fuera del REGISTRY
+      // a propósito (`SeccionKey` la excluye, site-content-defaults.ts), así que NO pasa por
+      // `fusionarContenidoSeccion` (key-agnóstica sólo para claves DEL registro) ni por el
+      // context —ningún band lee `content.orden` reactivamente: la secuencia la fija `page.tsx` en
+      // el SERVIDOR, una sola vez por carga del documento—. Lo que SÍ hay que mover es el DOM real:
+      // cada banda deja su propio marcador `data-editor-seccion` (sólo en modo editor, § page.tsx),
+      // mismo origen, así que reordenar sus nodos con `appendChild` es la MISMA técnica que
+      // `VistaTiendaIframe.tsx` ya usa para desplazar/resaltar — manipulación directa en vez de
+      // reinventar con CSS lo que el DOM ya puede hacer (§ DISENO.md § 4.1.1). `appendChild` sobre
+      // un nodo YA EN EL ÁRBOL lo MUEVE (no lo duplica); es seguro acá porque `Home` es un Server
+      // Component — su árbol de bandas no vuelve a reconciliarse del lado del cliente, así que
+      // React nunca intenta deshacer este reordenamiento externo.
+      if (seccion === 'orden') {
+        const crudo = datosDeOrden(datos);
+        if (!crudo) return;
+        const nuevoOrden = resolverOrden(crudo);
+        const primerNodo = document.querySelector<HTMLElement>(`[data-editor-seccion="${nuevoOrden[0]}"]`);
+        const contenedor = primerNodo?.parentElement;
+        if (!contenedor) return; // otra página (ningún marcador coincide) — no-op, nunca un error
+        for (const id of nuevoOrden) {
+          const nodo = document.querySelector<HTMLElement>(`[data-editor-seccion="${id}"]`);
+          if (nodo) contenedor.appendChild(nodo);
+        }
+        return;
+      }
+
       if (!esSeccionDelRegistro(seccion)) return;
 
       const aplicar = (schema: typeof import('@/lib/config/site-content-schema')) => {

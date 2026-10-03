@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import TiendaSeccionEditor, { type TiendaSeccionEditorHandle } from '@/components/admin/TiendaSeccionEditor';
+import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import TogglePagina from '@/components/admin/TogglePagina';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/components/admin/tienda-secciones';
@@ -10,6 +10,9 @@ import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, type DispositivoKey } from '@/lib/admin/editor-iframe';
 import { esMensajeCampoImagenClick } from '@/lib/storefront/editor-puente';
+import { resolverOrden, type BandaId } from '@/lib/config/site-content-defaults';
+import { moverBandaAIndice, moverBandaConDestino, moverBandaEnDireccion, ordenarPorBanda } from '@/lib/admin/orden-secciones';
+import { useAutoguardado } from '@/hooks/useAutoguardado';
 
 export interface TiendaPaginasProps {
   /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
@@ -148,6 +151,147 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
   }, []);
   useEffect(() => { recargarDoc().catch(() => setErrorDoc(true)); }, [recargarDoc]);
 
+  // ── § EDITOR-TIENDA-ORDEN-1 — EL ORDEN de las bandas del home, reordenable/ocultable desde la
+  //    lista lateral (§ DISENO.md § 4.2, fila 6 del plan). SÓLO 'home' tiene `content.orden`
+  //    (BANDA_IDS, site-content-defaults.ts) — nosotros/suscripciones no declaran este campo, así
+  //    que `ordenLocal` se queda `null` para esas páginas y ningún `SeccionConfig` recibe la prop
+  //    `orden` (sin asa, sin reordenar).
+  //
+  //    SIEMBRA ÚNICA (mismo patrón que el `form` de cada `TiendaSeccionEditor`): una vez que `doc`
+  //    carga, este componente pasa a ser DUEÑO del array — switch de página y vuelta NO re-siembra
+  //    (`TiendaPaginas` no se remonta al cambiar `pagina`, sólo cambia qué `secciones` renderiza).
+  const [ordenLocal, setOrdenLocal] = useState<BandaId[] | null>(null);
+  const [hayBorradorOrden, setHayBorradorOrden] = useState(false);
+  const [procesandoOrden, setProcesandoOrden] = useState(false);
+  const [errorOrden, setErrorOrden] = useState<string | null>(null);
+  const sembradoOrdenRef = useRef(false);
+  useEffect(() => {
+    if (sembradoOrdenRef.current || !doc) return;
+    sembradoOrdenRef.current = true;
+    const draftMerged = resolverOrden(doc.contenido.orden);
+    setOrdenLocal(draftMerged);
+    // `sinPublicar.orden` NO lo calcula el GET genérico (orden es META, fuera del REGISTRY, § el
+    // mismo motivo por el que `tema`/`encabezado` lo calculan A MANO en `site-content-read.ts` —
+    // acá se resuelve comparando contra lo PUBLICADO, un único fetch extra al montar, nunca
+    // recurrente): sin esto, reabrir el editor tras reordenar en una sesión anterior sin publicar
+    // mostraría la píldora "Sin publicar" apagada, mintiendo sobre un borrador que sigue pendiente.
+    fetch('/api/site-content/publicado')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((pub: { orden?: unknown } | null) => {
+        if (!pub) return;
+        const publicado = resolverOrden(pub.orden);
+        setHayBorradorOrden(publicado.some((id, i) => id !== draftMerged[i]));
+      })
+      .catch(() => {}); // sin esto, "Sin publicar" se queda apagado — preferible a afirmar sin base
+  }, [doc]);
+
+  // El AUTOGUARDADO del orden — MISMO coordinador que cada sección (`useAutoguardado`), guardando
+  // la clave META `orden` en vez de una sección del REGISTRY (el PUT genérico ya la acepta:
+  // `ordenEditableSchema` está declarado en `siteContentEditableSchema`, § site-content-schema.ts).
+  const guardarOrden = useCallback(async (data: BandaId[]) => {
+    const res = await fetch('/api/site-content', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orden: data }),
+    });
+    if (!res.ok) throw new Error('No se pudo guardar');
+  }, []);
+  const autoOrden = useAutoguardado(guardarOrden);
+
+  // EL ENVÍO EN VIVO al iframe compartido (§ EDITOR-TIENDA-POSTMESSAGE-1), reusado para 'orden'.
+  // `VistaTiendaIframe.tsx` queda FUERA de `touches:` de este slice, así que no gana un método
+  // `enviarOrden` propio — su `enviarCambio` YA es genérico en RUNTIME (sólo manda {tipo, seccion,
+  // datos} tal cual por `postMessage`; no mira el REGISTRY del lado del panel). El cast documenta
+  // el cruce: 'orden' no es una `SeccionVista` real, y `EditorPuenteVivo.tsx` (§ editor-puente.ts)
+  // la reconoce ANTES de tratarla como una sección del REGISTRY.
+  const enviarOrdenIframe = useCallback((valor: BandaId[]) => {
+    const enviar = iframeRef.current?.enviarCambio as
+      | ((seccion: string, datos: Record<string, unknown>) => void)
+      | undefined;
+    enviar?.('orden', { valor });
+  }, []);
+
+  const [arrastrandoId, setArrastrandoId] = useState<BandaId | null>(null);
+
+  const aplicarNuevoOrden = useCallback((siguiente: BandaId[], anterior: BandaId[]) => {
+    if (siguiente === anterior) return; // sin cambio real (§ moverBanda*: misma referencia)
+    setOrdenLocal(siguiente);
+    setHayBorradorOrden(true);
+    autoOrden.marcarSucio(siguiente);
+    enviarOrdenIframe(siguiente);
+  }, [autoOrden, enviarOrdenIframe]);
+
+  const moverOrden = useCallback((id: BandaId, dir: -1 | 1) => {
+    setOrdenLocal((prev) => {
+      if (!prev) return prev;
+      const siguiente = moverBandaEnDireccion(prev, id, dir);
+      aplicarNuevoOrden(siguiente, prev);
+      return siguiente;
+    });
+  }, [aplicarNuevoOrden]);
+
+  const moverOrdenA = useCallback((idArrastrado: BandaId, idDestino: BandaId) => {
+    setOrdenLocal((prev) => {
+      if (!prev) return prev;
+      const siguiente = moverBandaConDestino(prev, idArrastrado, idDestino);
+      aplicarNuevoOrden(siguiente, prev);
+      return siguiente;
+    });
+  }, [aplicarNuevoOrden]);
+
+  // El asa por sección — `undefined` para toda página sin `content.orden` o mientras `ordenLocal`
+  // no sembró todavía (ninguna lista reordenable antes de saber el orden real evita un "salto"
+  // visual al llegar el primer render con datos).
+  const asaDeSeccion = useCallback((bandaId: BandaId | undefined, titulo: string): AsaOrdenProps | undefined => {
+    if (!bandaId || !ordenLocal) return undefined;
+    const i = ordenLocal.indexOf(bandaId);
+    if (i < 0) return undefined;
+    return {
+      posicion: i + 1,
+      total: ordenLocal.length,
+      arrastrando: arrastrandoId === bandaId,
+      onDragStart: () => setArrastrandoId(bandaId),
+      onDragEnter: () => { if (arrastrandoId && arrastrandoId !== bandaId) moverOrdenA(arrastrandoId, bandaId); },
+      onDragEnd: () => setArrastrandoId(null),
+      onMoverArriba: () => moverOrden(bandaId, -1),
+      onMoverAbajo: () => moverOrden(bandaId, 1),
+    };
+    // `titulo` no se usa en el cálculo — queda en la firma para que el aria-label del asa (en
+    // `TiendaSeccionEditor`) tenga un nombre sin que este callback dependa de él.
+  }, [ordenLocal, arrastrandoId, moverOrdenA, moverOrden]);
+
+  const publicarOrDescartarOrden = async (accion: 'publicar' | 'descartar') => {
+    setErrorOrden(null); setProcesandoOrden(true);
+    try {
+      const res = await fetch('/api/site-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion, seccion: 'orden' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setErrorOrden(d?.error ?? (accion === 'publicar' ? 'No se pudo publicar.' : 'No se pudo descartar.'));
+        return;
+      }
+      if (accion === 'descartar') {
+        // Re-lee lo PUBLICADO (mismo mecanismo que cada sección: `recargar()` re-lee el doc draft-
+        // merged — tras descartar, "draft-merged" vuelve a ser exactamente lo publicado).
+        const fresco = await recargarDoc();
+        setOrdenLocal(resolverOrden(fresco.contenido?.orden));
+      }
+      setHayBorradorOrden(false);
+      recargarIframe(); // la MISMA resincronización completa que usa cada sección tras publicar/descartar
+    } catch {
+      setErrorOrden(accion === 'publicar' ? 'No se pudo publicar.' : 'No se pudo descartar.');
+    } finally {
+      setProcesandoOrden(false);
+    }
+  };
+
+  // Las `SeccionConfig` de la página activa, en el orden elegido — SÓLO home tiene `ordenLocal`; las
+  // demás páginas quedan en el orden fijo del registro (`ordenarPorBanda` con `orden: []` sería
+  // destructivo — items sin bandaId irían al final — así que se evita llamarla sin dato real).
+  const seccionesOrdenadas = ordenLocal ? ordenarPorBanda(secciones, ordenLocal) : secciones;
+  const puedePublicarOrden = autoOrden.estado === 'guardado' && !procesandoOrden;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* El toggle de encender/apagar y la nota de la página apagable (Nosotros · Suscripciones) — el
@@ -159,6 +303,30 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
           {paginaMeta.nota && (
             <p className="duna-sub" style={{ marginTop: 'var(--duna-space-3)', maxWidth: '42rem' }}>{paginaMeta.nota}</p>
           )}
+        </div>
+      )}
+
+      {/* § EDITOR-TIENDA-ORDEN-1 — el orden de las bandas se publica/descarta COMO SECCIÓN, pero no
+          es una tarjeta de la lista: no hay un bloque único donde mostrar este estado, así que vive
+          en su propia barra, arriba de la lista. Mismo vocabulario que cada tarjeta (duna-badge/
+          duna-btn) para que no se lea como un control distinto. */}
+      {hayBorradorOrden && (
+        <div style={{
+          flexShrink: 0, marginBottom: 'var(--duna-space-4)', display: 'flex', alignItems: 'center',
+          flexWrap: 'wrap', gap: 'var(--duna-space-3)', padding: 'var(--duna-space-3) var(--duna-space-4)',
+          border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-l)', background: 'var(--duna-surface)',
+        }}>
+          <span className="duna-badge duna-badge--attention">Sin publicar</span>
+          <span className="duna-sub" style={{ flex: 1, minWidth: '12rem' }}>El orden de las secciones cambió.</span>
+          {errorOrden && <span className="duna-field__error" role="alert">{errorOrden}</span>}
+          <div style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
+            <button type="button" onClick={() => publicarOrDescartarOrden('descartar')} className="duna-btn duna-btn--ghost" disabled={!puedePublicarOrden}>
+              Descartar
+            </button>
+            <button type="button" onClick={() => publicarOrDescartarOrden('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicarOrden}>
+              {procesandoOrden ? 'Publicando…' : 'Publicar'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -187,7 +355,7 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
           alignContent: 'start',
           ...(angosto ? { flex: '1 1 auto', minHeight: 0 } : { height: '100%' }),
         }}>
-          {secciones.map(config => (
+          {seccionesOrdenadas.map(config => (
             <TiendaSeccionEditor
               key={config.seccion}
               ref={registrarRefSeccion(config.seccion)}
@@ -198,6 +366,7 @@ export default function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSIT
               onAbrir={irASeccion}
               onCambioPublicado={recargarIframe}
               onCambio={enviarCambioIframe}
+              orden={asaDeSeccion(config.bandaId, config.titulo)}
               carga={{
                 valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
                 sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,

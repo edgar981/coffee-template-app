@@ -40,12 +40,40 @@ export function esMensajeContenidoSeccion(data: unknown): data is MensajeConteni
 /**
  * ¿`seccion` es una sección DECLARADA en el REGISTRY (`site-content-defaults.ts`)? Las claves META
  * (`tema`, `paginas`, `cromo`…) NO lo son — sus editores (`PaletaSeccion`, `MenuSeccion`…) quedan
- * fuera de `touches:` de este slice y nunca emiten este mensaje; uno que llegara con una de esas
+ * fuera de `touches:` de ese slice y nunca emiten este mensaje; uno que llegara con una de esas
  * claves se rechaza acá, en vez de fallar en silencio más abajo contra un `REGISTRY[seccion]`
  * `undefined`.
+ *
+ * EXCEPCIÓN (§ EDITOR-TIENDA-ORDEN-1): `'orden'` también es clave META, pero SÍ reusa este mismo
+ * mensaje (`TIPO_MENSAJE_CONTENIDO_SECCION`) — `EditorPuenteVivo.tsx` la reconoce ANTES de llamar a
+ * esta función (nunca llega acá con `seccion === 'orden'`, así que esta función sigue devolviendo
+ * `false` para esa clave; el llamador bifurca antes).
  */
 export function esSeccionDelRegistro(seccion: string): seccion is keyof typeof REGISTRY {
   return Object.prototype.hasOwnProperty.call(REGISTRY, seccion);
+}
+
+// ─── EL SEXTO MENSAJE — REUTILIZADO (§ EDITOR-TIENDA-ORDEN-1) ──────────────────────────────────
+//
+// panel→iframe: "el orden de las bandas del home cambió". NO es un mensaje NUEVO — reusa
+// `TIPO_MENSAJE_CONTENIDO_SECCION` con `seccion: 'orden'`, documentado como excepción en
+// `esSeccionDelRegistro` arriba. La razón de reusar en vez de inventar un séptimo mensaje: la forma
+// que necesita ({tipo, seccion, datos}) ya existe, y `VistaTiendaIframe.tsx` (`enviarCambio`, fuera
+// de `touches:` de este slice) ya la manda genéricamente en runtime — sólo tipada a `SeccionVista`,
+// que `TiendaPaginas.tsx` cruza con un cast documentado en el call site. `EditorPuenteVivo.tsx`
+// reconoce `seccion === 'orden'` ANTES de `esSeccionDelRegistro`/`fusionarContenidoSeccion` (que
+// sólo fusionan secciones DEL REGISTRY) y reordena el DOM directo — ningún band lee `content.orden`
+// reactivamente (la secuencia la fija `page.tsx`, en el SERVIDOR, una sola vez), así que fusionar
+// `orden` en el contexto no reordenaría nada por sí solo.
+//
+/** `datos.valor` del mensaje, cuando `seccion === 'orden'` — el array crudo, SIN resolver todavía
+ *  (`resolverOrden`, `lib/config/site-content-defaults.ts`, lo hace el llamador: SOFT, nunca
+ *  lanza). Validación ESTRUCTURAL únicamente (¿hay un array ahí?) — `orden` es una permutación de
+ *  un set YA CONOCIDO (`BANDA_IDS`), no texto libre que el dueño tipea, así que coercionar
+ *  defensivamente con el resolver es más apropiado que rechazar con zod, como hacen los demás
+ *  mensajes de este módulo. */
+export function datosDeOrden(datos: Record<string, unknown>): unknown[] | null {
+  return Array.isArray(datos.valor) ? datos.valor : null;
 }
 
 // ─── LOS DOS MENSAJES NUEVOS (§ EDITOR-TIENDA-SELECCION-1) ─────────────────────────────────────
