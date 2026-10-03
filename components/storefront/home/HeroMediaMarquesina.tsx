@@ -8,7 +8,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { CampoEditableGemelo, useRutaEnEdicion } from "@/components/storefront/CampoEditable";
 import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
@@ -551,6 +551,14 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   const preview = useIsPreview();
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
+  // EL CAMPO `marquesina.texto` SE ESTÁ EDITANDO AHORA MISMO (§ EDITOR-TIENDA-CAMPO-ANCLADO-1,
+  // cierra el error 1 de REDISENO.md § 1). Congela el ticker en `x:0%` y DETIENE la recalculación
+  // de `duracionTicker` (abajo) — ésta última es la que importa de verdad: `duracionTicker` cambia
+  // en CADA tecla (el ancho medido del texto cambia con casi cada carácter), y el track remonta por
+  // `key={duracionTicker}`. Sin la guarda, el nodo marcado se reemplazaría varias veces por
+  // segundo mientras se tipea, y el overlay (anclado a ESE nodo) perdería su referencia.
+  const rutaAbierta = useRutaEnEdicion();
+  const editandoTicker = rutaAbierta === 'marquesina.texto';
 
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => {
@@ -593,6 +601,11 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   const trackRef = useRef<HTMLDivElement>(null);
   const [duracionTicker, setDuracionTicker] = useState(() => duracionTickerFallbackS(velocidadTicker));
   useEffect(() => {
+    // CONGELADO mientras se edita (§ el comentario de `editandoTicker`, arriba): ni medir ni
+    // recalcular — es lo que mantiene a `duracionTicker` (y por tanto a `key={duracionTicker}` del
+    // track, abajo) QUIETO durante la edición, para que el nodo marcado no se reemplace a mitad de
+    // una tecla.
+    if (editandoTicker) return;
     function medir() {
       const primero = trackRef.current?.children[0] as HTMLElement | undefined;
       if (!primero) return;
@@ -602,7 +615,7 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
     medir();
     window.addEventListener('resize', medir);
     return () => window.removeEventListener('resize', medir);
-  }, [marquesina.texto, velocidadTicker]);
+  }, [marquesina.texto, velocidadTicker, editandoTicker]);
 
   // El ANCESTRO del sticky (§ el docstring de cabecera) — el target de `useProgresoScrollDesdeTope`,
   // nunca la `<section>` pineada.
@@ -838,8 +851,8 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
               // loop saltaba en vez de empalmar.
               className="flex w-max whitespace-nowrap"
               initial={{ x: '0%' }}
-              animate={estatico ? { x: '0%' } : { x: ['0%', '-50%'] }}
-              transition={estatico ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
+              animate={estatico || editandoTicker ? { x: '0%' } : { x: ['0%', '-50%'] }}
+              transition={estatico || editandoTicker ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
             >
               {/* SIN RAYA, ESPACIO CORTO — § MARQUEE-SIN-RAYA-1 (2026-09-29) retiró la raya (—) del
                   prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;") y dejó
@@ -853,9 +866,12 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
                   HERO-1, docs/editor-tienda/EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados"): el
                   segundo es la copia gemela que cierra el loop sin salto, y se actualiza solo desde
                   el MISMO `useSiteContent()` cuando el overlay del primero escribe en el form — nunca
-                  los dos a la vez (un segundo overlay sobre el mismo campo sería redundante). */}
+                  los dos a la vez (un segundo overlay sobre el mismo campo sería redundante).
+                  `CampoEditableGemelo` (§ EDITOR-TIENDA-CAMPO-ANCLADO-1) la deja de renderizar POR
+                  COMPLETO mientras `marquesina.texto` se edita — ya no basta con que sea "la que no
+                  lleva overlay": sin esto quedaba VISIBLE detrás del overlay abierto. */}
               <span className="pr-[0.5em]"><CampoEditable campo="marquesina.texto">{marquesina.texto}</CampoEditable></span>
-              <span className="pr-[0.5em]">{marquesina.texto}</span>
+              <span className="pr-[0.5em]"><CampoEditableGemelo campo="marquesina.texto">{marquesina.texto}</CampoEditableGemelo></span>
             </motion.div>
           </motion.div>
         </div>

@@ -18,6 +18,18 @@ export interface RutaCampo {
   campo: string;
 }
 
+// ─── EL MARCADOR DE "QUÉ CAMPO ESTÁ ABIERTO" (§ EDITOR-TIENDA-CAMPO-ANCLADO-1) ─────────────────────
+//
+// `EditorPuenteVivo.tsx` escribe la ruta completa del campo ABIERTO ("seccion.campo") como atributo
+// de `document.documentElement` mientras su overlay está montado, y la BORRA al cerrar. Es el ÚNICO
+// canal que una composición con copias duplicadas del mismo campo (hoy: la marquesina, § abajo)
+// necesita para saber "¿se está editando MI copia ahora mismo?", sin un Provider nuevo — un
+// Provider que envolviera tanto `EditorPuenteVivo` como el resto de la página exigiría tocar
+// `app/(storefront)/layout.tsx`, fuera de `touches:` de este slice. `CampoEditable.tsx` expone
+// `useRutaEnEdicion()` (un hook chico sobre `useSyncExternalStore` + `MutationObserver`) para leerlo
+// de forma reactiva.
+export const ATRIBUTO_RUTA_EN_EDICION = 'data-editor-ruta-abierta';
+
 // ─── EL MARCADOR DE IMAGEN/VIDEO (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1) ─────────────────────────
 //
 // Un clic en una imagen/video marcado NUNCA abre el overlay de texto — abre el selector de archivos
@@ -102,8 +114,16 @@ export function fusionCampoEditable(
 // pasa el resultado acá para construir el `style` del overlay — así la FORMA del objeto de estilo
 // (qué propiedades, cómo se combinan) queda afirmable en un test sin montar nada en un navegador.
 
-/** Lo que `getBoundingClientRect()` ya da en coordenadas de VIEWPORT — las mismas que usa
- *  `position: fixed`, así que no hace falta sumar `scrollX`/`scrollY`. */
+/**
+ * Coordenadas del DOCUMENTO del iframe, no de la pantalla (§ EDITOR-TIENDA-CAMPO-ANCLADO-1,
+ * cierra el error 4 de `docs/editor-tienda/REDISENO.md` § 1). `top`/`left` son los que da
+ * `getBoundingClientRect()` del elemento de BLOQUE (§ `TipografiaCampo` abajo) MÁS el scroll actual
+ * del documento (`rect.top + window.scrollY`, `rect.left + window.scrollX`) — es responsabilidad
+ * del llamador (impuro, lee `window`) sumar ese scroll ANTES de pasar la geometría acá. Con
+ * `position: absolute` (abajo) el navegador mueve el overlay junto con el resto del documento al
+ * scrollear, sin que haga falta re-medir sólo por eso; el re-medido sigue haciendo falta ante
+ * `resize`/`ResizeObserver` (el bloque cambia de ancho/alto por el viewport o por el contenido).
+ */
 export interface GeometriaCampo {
   top: number;
   left: number;
@@ -113,7 +133,12 @@ export interface GeometriaCampo {
 
 /** El subconjunto de `getComputedStyle(nodo)` que hace que el overlay se vea "visualmente
  *  indistinguible del texto que tapa" (§ EDICION-INLINE.md § 2.2) — tipografía, color y el padding
- *  que ya tuviera el nodo real (un título con padding propio no debe perder su caja). Claves ya en
+ *  que ya tuviera el nodo real (un título con padding propio no debe perder su caja). `whiteSpace`
+ *  se agrega en § EDITOR-TIENDA-CAMPO-ANCLADO-1 (cierra el error 3): copiado del elemento de
+ *  BLOQUE, no del `<span>` marcado, para que un `\n` que el bloque colapsa (`white-space: normal`,
+ *  el default de un `<p>`) también se colapse en el overlay — sin esto un `<textarea>` nativo
+ *  (`white-space: pre-wrap` por UA stylesheet) renderiza una línea más de las que el bloque real
+ *  muestra, y pide scroll para un contenido que visualmente nunca se desborda. Claves ya en
  *  camelCase de CSSProperties, para poder spread-earlas directo en el `style` de React. */
 export interface TipografiaCampo {
   fontFamily: string;
@@ -124,17 +149,19 @@ export interface TipografiaCampo {
   letterSpacing: string;
   textAlign: string;
   textTransform: string;
+  whiteSpace: string;
   color: string;
   padding: string;
 }
 
 /**
- * El `style` del `<input>`/`<textarea>` flotante: geometría `position: fixed` (coincide con
- * `getBoundingClientRect`, sin traducir nada — mismo origen, mismo documento, § EDICION-INLINE.md
- * § 2.2 "ese costo desaparece porque el overlay vive DENTRO del MISMO documento"), tipografía
- * calcada del nodo real, y lo que hace falta para que un `<input>`/`<textarea>` NATIVO deje de
- * parecerlo (sin borde, sin fondo propio, sin resize de usuario, `box-sizing: border-box` para que
- * el padding copiado no agrande la caja medida).
+ * El `style` del `<input>`/`<textarea>` flotante: geometría `position: absolute` anclada al
+ * DOCUMENTO del iframe (§ `GeometriaCampo` arriba — cierra el error 4), tipografía calcada del
+ * elemento de BLOQUE que contiene el marcador (cierra el error 3), y lo que hace falta para que un
+ * `<input>`/`<textarea>` NATIVO deje de parecerlo (sin borde, sin fondo propio, sin resize de
+ * usuario, `box-sizing: border-box` para que el padding copiado no agrande la caja medida).
+ * `overflow: hidden` — nunca barra de desplazamiento: el alto se re-mide junto con el bloque real
+ * (`ResizeObserver` en el llamador), así que un desajuste es, a lo sumo, de un frame.
  *
  * `zIndex` al máximo de un entero de 32 bits: el overlay tiene que quedar SIEMPRE por encima de
  * cualquier contenido de la página (el storefront no declara z-index propios por encima de ningún
@@ -145,7 +172,7 @@ export function estiloCampoFlotante(
   tipografia: TipografiaCampo,
 ): Record<string, string | number> {
   return {
-    position: 'fixed',
+    position: 'absolute',
     top: geometria.top,
     left: geometria.left,
     width: geometria.width,
@@ -156,6 +183,7 @@ export function estiloCampoFlotante(
     boxSizing: 'border-box',
     background: 'transparent',
     resize: 'none',
+    overflow: 'hidden',
     ...tipografia,
     zIndex: 2147483647,
   };

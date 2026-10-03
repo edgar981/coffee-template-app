@@ -35,7 +35,14 @@ Segundo, no hay interruptores: si algo se quiere, se agrega en su zona; si no, s
 ## 1 · Los cinco errores: causa y arreglo
 
 Medidos leyendo el código (sesión de sólo lectura). Los errores 2 y 5 quedan confirmados por el
-código solo. Los errores 1, 3 y 4 tienen la causa ubicada, pero falta reproducirlos en ejecución.
+código solo. Los errores 1, 3 y 4 tenían la causa ubicada pero sin reproducir en ejecución —
+`EDITOR-TIENDA-CAMPO-ANCLADO-1` los reprodujo en un arnés de Playwright ANTES de arreglarlos (contra
+el código sin tocar): las tres causas de abajo coincidieron EXACTAMENTE con lo medido —
+`marquesina.texto` mostraba las DOS copias con texto a la vez; el overlay de `nosotrosHistoria.
+parrafo3` medía 476.5×79.5px contra los 512×87.75px reales del `<p>` (necesitaba scrollbar: 88px de
+contenido en una caja de 80); y tras scrollear 700px el overlay (`position:fixed`) se quedó en su
+sitio mientras el nodo real se fue a −698px, una distancia de exactamente el scroll aplicado. Los
+tres cerraron con el mismo arnés, re-ejecutado sobre el código arreglado: 19/19 verificaciones.
 
 | # | Síntoma | Causa | Arreglo |
 |---|---|---|---|
@@ -197,7 +204,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | # | Slice | Toca | Tier |
 |---|---|---|---|
 | 1 | `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — «Tema» deja de caerse — **ENTREGADO** (2026-10-03) | `app/(admin)/editor/layout.tsx` | 2 |
-| 2 | `EDITOR-TIENDA-CAMPO-ANCLADO-1` — campo anclado al documento, mide el bloque, gemelos ocultos (errores 1, 3, 4) | `EditorPuenteVivo.tsx`, `campo-editable.ts`, marcadores de gemelo en el hero y la marquesina | **1** |
+| 2 | `EDITOR-TIENDA-CAMPO-ANCLADO-1` — campo anclado al documento, mide el bloque, gemelos ocultos (errores 1, 3, 4) — **ENTREGADO** (2026-10-03) | `EditorPuenteVivo.tsx`, `campo-editable.ts`, marcadores de gemelo en el hero y la marquesina | **1** |
 | 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) | `tienda-secciones.ts`, enrutamiento del puente | 2 (+1 si toca storefront) |
 | 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx` | 2 |
 | 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas | variantes del hero (`data-editor-zona`), panel del hero | **1** |

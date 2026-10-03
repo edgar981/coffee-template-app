@@ -113,25 +113,27 @@ test('fusionCampoEditable: índice negativo o no entero se ignora', () => {
   assert.equal(fusionCampoEditable(form, 'items.1.5.text', 'x'), null);
 });
 
-test('estiloCampoFlotante: geometría en fixed + tipografía spread + z-index al tope', () => {
+test('estiloCampoFlotante: geometría ABSOLUTA (documento, § EDITOR-TIENDA-CAMPO-ANCLADO-1) + tipografía spread (incluido whiteSpace) + z-index al tope + sin scrollbar', () => {
   const estilo = estiloCampoFlotante(
     { top: 10, left: 20, width: 300, height: 40 },
     {
       fontFamily: 'Inter', fontSize: '16px', fontWeight: '400', fontStyle: 'normal',
       lineHeight: '24px', letterSpacing: '0px', textAlign: 'left', textTransform: 'none',
-      color: 'rgb(0, 0, 0)', padding: '0px',
+      whiteSpace: 'normal', color: 'rgb(0, 0, 0)', padding: '0px',
     },
   );
-  assert.equal(estilo.position, 'fixed');
+  assert.equal(estilo.position, 'absolute');
   assert.equal(estilo.top, 10);
   assert.equal(estilo.left, 20);
   assert.equal(estilo.width, 300);
   assert.equal(estilo.height, 40);
   assert.equal(estilo.fontFamily, 'Inter');
+  assert.equal(estilo.whiteSpace, 'normal');
   assert.equal(estilo.color, 'rgb(0, 0, 0)');
   assert.equal(estilo.background, 'transparent');
   assert.equal(estilo.border, 'none');
   assert.equal(estilo.boxSizing, 'border-box');
+  assert.equal(estilo.overflow, 'hidden');
   assert.equal(estilo.zIndex, 2147483647);
 });
 

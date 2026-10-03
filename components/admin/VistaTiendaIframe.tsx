@@ -7,6 +7,7 @@ import {
   urlDePagina,
   urlDePaginaEnEditor,
   selectorDeSeccion,
+  seccionDesdeMarcador,
   scrollSeguro,
   ANCHOS_DISPOSITIVO,
   DISPOSITIVO_DEFECTO,
@@ -103,6 +104,9 @@ export interface VistaTiendaIframeHandle {
 // decisión de estilo del storefront. Es el valor de `--duna-sol` (ámbar = atención).
 const COLOR_RESALTE = '#f59e0b';
 const DURACION_RESALTE_MS = 1500;
+// § EDITOR-TIENDA-CAMPO-ANCLADO-1 — ventana de frescura de `clicDesdeIframeRef` (§ su docstring,
+// junto a `irASeccion`).
+const UMBRAL_CLIC_DESDE_IFRAME_MS = 500;
 
 interface VistaTiendaIframeProps {
   pagina: PaginaKey;
@@ -186,7 +190,31 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       resaltadoRef.current = null;
     };
 
+    // § EDITOR-TIENDA-CAMPO-ANCLADO-1 — la MITAD de VistaTiendaIframe.tsx del error 4
+    // (REDISENO.md § 1): "un clic que nace en el iframe no vuelve a desplazar el iframe". El
+    // listener de `seccion-click` (abajo) marca `clicDesdeIframeRef` con la sección y el instante
+    // apenas recibe ese mensaje; `irASeccion` lo CONSUME (lo lee y lo borra) si todavía está
+    // FRESCO y es de la MISMA sección — en ese caso, el clic que lo disparó ya nació DENTRO del
+    // documento que el dueño está mirando, y desplazarlo/resaltarlo sería la página moviéndose
+    // justo cuando el campo flotante (`EditorPuenteVivo.tsx`) acaba de medir su posición para
+    // anclarse. Un "Editar" real desde la lista, o un deep-link, nunca pasan por ese mensaje —
+    // así que siguen desplazando/resaltando como siempre.
+    //
+    // La ventana (`UMBRAL_CLIC_DESDE_IFRAME_MS`) existe porque la cadena mensaje→`irASeccion` no es
+    // síncrona: el mensaje llega, `TiendaPaginas.tsx` (fuera de `touches:`) resuelve la sección y
+    // llama a `seleccionar()`, y el efecto que de ahí sale a `onAbrir`/`irASeccion` corre recién en
+    // el commit SIGUIENTE de React (después de pintar) — nunca en la misma pila de llamadas del
+    // `onMessage`. 500ms es generoso para ese salto de un frame y, a la vez, corto para no
+    // suprimir un "Editar" genuino sobre la MISMA sección que el dueño clickeó segundos antes
+    // dentro del iframe.
+    const clicDesdeIframeRef = useRef<{ seccion: string; marca: number } | null>(null);
+
     const irASeccion = useCallback((seccion: SeccionVista) => {
+      const reciente = clicDesdeIframeRef.current;
+      if (reciente && reciente.seccion === seccion && Date.now() - reciente.marca < UMBRAL_CLIC_DESDE_IFRAME_MS) {
+        clicDesdeIframeRef.current = null; // consumido — un "Editar" posterior sobre ESTA sección vuelve a desplazar
+        return;
+      }
       const doc = iframeRef.current?.contentDocument;
       const nodo = doc?.querySelector<HTMLElement>(selectorDeSeccion(seccion));
       if (!nodo) return;
@@ -266,7 +294,14 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       const onMessage = (e: MessageEvent) => {
         if (e.origin !== window.location.origin) return;
         if (e.source !== iframeRef.current?.contentWindow) return;
-        if (esMensajeSeccionClick(e.data)) { onSeccionSeleccionada?.(e.data.seccion); return; }
+        if (esMensajeSeccionClick(e.data)) {
+          // § EDITOR-TIENDA-CAMPO-ANCLADO-1 — marca ANTES de notificar al padre: la resolución a
+          // `SeccionVista` es la MISMA que usa `TiendaPaginas.tsx` (`seccionDesdeMarcador`), para
+          // que `irASeccion` compare contra el string que de verdad va a recibir.
+          clicDesdeIframeRef.current = { seccion: seccionDesdeMarcador(e.data.seccion), marca: Date.now() };
+          onSeccionSeleccionada?.(e.data.seccion);
+          return;
+        }
         // § EDITOR-TIENDA-CAMPO-EDITABLE-1 — el tercer mensaje, el campo flotante en vivo. Mismo
         // chequeo de origen/fuente que el de arriba; `seccion` llega como MARCADOR, sin resolver
         // todavía (lo hace `TiendaPaginas.tsx`, igual que con la selección).

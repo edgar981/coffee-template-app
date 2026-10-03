@@ -20,7 +20,8 @@ import { resolverOrden } from '@/lib/config/site-content-defaults';
 // `CampoEditable.tsx`).
 import { ATRIBUTO_EDITOR_SECCION, ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor-iframe';
 import {
-  parsearRutaCampo, estiloCampoFlotante, ATRIBUTO_EDITOR_CAMPO_IMAGEN, type RutaCampo,
+  parsearRutaCampo, estiloCampoFlotante, ATRIBUTO_EDITOR_CAMPO_IMAGEN, ATRIBUTO_RUTA_EN_EDICION,
+  type RutaCampo,
 } from '@/lib/storefront/campo-editable';
 
 // EL PUENTE panel→iframe, mitad IMPURA (§ EDITOR-TIENDA-POSTMESSAGE-1). La lógica de forma/fusión
@@ -158,22 +159,55 @@ const CLASE_SELECCION_ACTIVA = 'duna-editor-seleccion';
 
 /** El estado del ÚNICO campo flotante que puede estar abierto a la vez. `ruta` ya viene PARSEADA
  *  (`parsearRutaCampo`) — sección + campo relativo — para no volver a parsear el atributo en cada
- *  tecla. `estilo` se calcula UNA vez, al abrir (geometría/tipografía del instante del clic; no se
- *  re-mide mientras se tipea — un recálculo por tecla sería trabajo de layout que el texto tecleado
- *  no necesita, dado que ni la posición ni la fuente del nodo cambian mientras el overlay lo tapa). */
+ *  tecla. `bloque` es el elemento que de verdad se mide (§ `elementoDeBloque`, abajo) — se guarda
+ *  para que el `ResizeObserver`/los listeners de `scroll`/`resize` (§ EDITOR-TIENDA-CAMPO-ANCLADO-1)
+ *  tengan a qué re-medir sin tener que volver a buscar el nodo. `estilo` SÍ se re-calcula — ya no
+ *  "una vez al abrir": el documento puede cambiar de ancho (resize), el bloque puede crecer con el
+ *  contenido (RO) y el scroll mueve la VENTANA aunque `position:absolute` no necesite re-medir sólo
+ *  por eso (§ el docstring de `GeometriaCampo`, `lib/storefront/campo-editable.ts`). */
 interface EstadoCampoAbierto {
   nodo: HTMLElement;
+  bloque: HTMLElement;
   ruta: RutaCampo;
   multilinea: boolean;
   valor: string;
   estilo: Record<string, string | number>;
 }
 
-/** Lo que el overlay necesita COPIAR del nodo real para verse "visualmente indistinguible" (§ el
- *  diseño) — impuro (DOM), separado de `estiloCampoFlotante` (puro) para que la FORMA del `style`
- *  resultante se pueda testear sin montar nada en un navegador. */
-function leerTipografia(nodo: HTMLElement) {
-  const cs = window.getComputedStyle(nodo);
+/**
+ * El elemento de BLOQUE que de verdad hay que medir y copiar (§ EDITOR-TIENDA-CAMPO-ANCLADO-1,
+ * cierra el error 3 de `docs/editor-tienda/REDISENO.md` § 1) — nunca el `<span>` que
+ * `CampoEditable` marca, que es `display:inline` y por tanto mide su CAJA DE TEXTO, no la del
+ * párrafo que lo contiene.
+ *
+ * Sube EXACTAMENTE UN nivel: si el padre directo del marcador NO es `inline` (el caso de CASI
+ * todo el storefront — `CampoEditable` es casi siempre el único hijo de un `<p>`/`<h1>`/`<h2>`,
+ * medido contra el código: `NosotrosHistoria.tsx`, los `subtitulo`/`fraseAlPie` del hero, los
+ * párrafos de `BrandStoryColumnas`/`BrandStoryCentrada`, …), ESE padre es el bloque. Si el padre
+ * SIGUE siendo inline (el caso de `marquesina.texto`: `CampoEditable` vive dentro de un `<span
+ * className="pr-[0.5em]">` que a su vez vive dentro del `motion.div.flex` del ticker — ESE
+ * `motion.div` es `display:flex` y mide el ANCHO DE LAS DOS COPIAS juntas, no el de una línea de
+ * texto), la función se QUEDA en el marcador — el comportamiento de HOY para ese caso, que no
+ * tiene el defecto de las copias colapsadas que esto arregla (es una sola línea, sin `\n`). Subir
+ * SIN TOPE (hasta el primer `display` no-inline, sea el nivel que sea) fue la primera versión y
+ * medida contra `marquesina.texto` daba el `motion.div.flex` del ticker — el ancho de las DOS
+ * copias, no el de la línea — así que el tope de UN nivel es DELIBERADO, no una simplificación.
+ */
+function elementoDeBloque(nodo: HTMLElement): HTMLElement {
+  const padre = nodo.parentElement;
+  if (!padre) return nodo;
+  return window.getComputedStyle(padre).display === 'inline' ? nodo : padre;
+}
+
+/** Lo que el overlay necesita COPIAR del BLOQUE (§ `elementoDeBloque`) para verse "visualmente
+ *  indistinguible" (§ el diseño) — impuro (DOM), separado de `estiloCampoFlotante` (puro) para que
+ *  la FORMA del `style` resultante se pueda testear sin montar nada en un navegador. `whiteSpace`
+ *  (§ EDITOR-TIENDA-CAMPO-ANCLADO-1) es lo que hace que un `\n` que el bloque COLAPSA
+ *  (`white-space: normal`, el default de un `<p>`) también se colapse en el `<textarea>` — que sin
+ *  esto renderiza con `white-space: pre-wrap` (el default del navegador para ese control) y pide
+ *  una línea más de las que el bloque real muestra. */
+function leerTipografia(bloque: HTMLElement) {
+  const cs = window.getComputedStyle(bloque);
   return {
     fontFamily: cs.fontFamily,
     fontSize: cs.fontSize,
@@ -183,9 +217,17 @@ function leerTipografia(nodo: HTMLElement) {
     letterSpacing: cs.letterSpacing,
     textAlign: cs.textAlign,
     textTransform: cs.textTransform,
+    whiteSpace: cs.whiteSpace,
     color: cs.color,
     padding: cs.padding,
   };
+}
+
+/** La geometría DOCUMENTO-relativa del bloque, lista para `estiloCampoFlotante` (§ su docstring en
+ *  `lib/storefront/campo-editable.ts`): `getBoundingClientRect()` (viewport) + el scroll actual. */
+function medirGeometriaDocumento(bloque: HTMLElement) {
+  const rect = bloque.getBoundingClientRect();
+  return { top: rect.top + window.scrollY, left: rect.left + window.scrollX, width: rect.width, height: rect.height };
 }
 
 export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
@@ -201,6 +243,14 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   // callback del elemento renderizado abajo; lo lee el listener de clic para no interceptarse a sí
   // mismo (§ el comentario grande, "EL CLIC DENTRO DEL OVERLAY").
   const overlayNodoRef = useRef<HTMLElement | null>(null);
+  // EL RE-MEDIDO del campo abierto (§ EDITOR-TIENDA-CAMPO-ANCLADO-1, cierra el error 3 y la mitad
+  // de resize/contenido del error 4): un `ResizeObserver` sobre el BLOQUE (cambia de alto cuando el
+  // contenido crece — incluida la propia tecla que se está tipeando, porque el bloque real sigue
+  // renderizando el valor en vivo aunque esté `visibility:hidden`) + `scroll`/`resize` de `window`
+  // (por si algo MÁS arriba en la página cambia de alto mientras el campo está abierto). Guarda la
+  // función de limpieza del campo ACTUAL para poder cortarla antes de abrir otro — nunca dos
+  // observers vivos a la vez.
+  const limpiarMedicionRef = useRef<() => void>(() => {});
 
   // EL AVISO DE SESIÓN VENCIDA (§ EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1, EDICION-INLINE.md § 3): el
   // texto ya resuelto que llega por `TIPO_MENSAJE_SESION_VENCIDA` cuando el autoguardado del CAMPO
@@ -212,6 +262,9 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   const cerrarCampo = () => {
     const abierto = campoAbiertoRef.current;
     if (abierto) abierto.nodo.style.visibility = '';
+    limpiarMedicionRef.current();
+    limpiarMedicionRef.current = () => {};
+    document.documentElement.removeAttribute(ATRIBUTO_RUTA_EN_EDICION);
     setCampoAbierto(null);
     setAvisoSesion(null);
   };
@@ -226,18 +279,46 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     if (yaAbierto) {
       if (yaAbierto.nodo === nodo) return; // el mismo campo — nada que reabrir
       yaAbierto.nodo.style.visibility = ''; // cierra el anterior, comiteando su valor (ya viajó por tecla)
+      limpiarMedicionRef.current(); // corta el RE-MEDIDO del campo anterior antes de armar el nuevo
     }
 
     const multilinea = nodo.getAttribute(ATRIBUTO_EDITOR_LINEA) === 'multiple';
-    const rect = nodo.getBoundingClientRect();
-    const estilo = estiloCampoFlotante(
-      { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
-      leerTipografia(nodo),
-    );
+    const bloque = elementoDeBloque(nodo);
+    const estilo = estiloCampoFlotante(medirGeometriaDocumento(bloque), leerTipografia(bloque));
     nodo.style.visibility = 'hidden';
+    const rutaCompleta = `${ruta.seccion}.${ruta.campo}`;
+    document.documentElement.setAttribute(ATRIBUTO_RUTA_EN_EDICION, rutaCompleta);
     setAvisoSesion(null); // un campo nuevo nace sin el aviso del campo anterior
-    setCampoAbierto({ nodo, ruta, multilinea, valor: nodo.textContent ?? '', estilo });
+    setCampoAbierto({ nodo, bloque, ruta, multilinea, valor: nodo.textContent ?? '', estilo });
+
+    // EL RE-MEDIDO (§ el docstring de `limpiarMedicionRef`): cada disparo recalcula la geometría
+    // DESDE EL BLOQUE FRESCO (nunca desde un valor capturado) y actualiza sólo `estilo` —
+    // `valor`/`nodo`/`bloque`/`ruta` no cambian entre disparos de un mismo campo abierto.
+    const reMedir = () => {
+      const nuevoEstilo = estiloCampoFlotante(medirGeometriaDocumento(bloque), leerTipografia(bloque));
+      setCampoAbierto((prev) => (prev && prev.bloque === bloque ? { ...prev, estilo: nuevoEstilo } : prev));
+    };
+    const limpiezas: Array<() => void> = [];
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(reMedir);
+      ro.observe(bloque);
+      limpiezas.push(() => ro.disconnect());
+    }
+    window.addEventListener('scroll', reMedir, { passive: true });
+    limpiezas.push(() => window.removeEventListener('scroll', reMedir));
+    window.addEventListener('resize', reMedir);
+    limpiezas.push(() => window.removeEventListener('resize', reMedir));
+    limpiarMedicionRef.current = () => { for (const limpiar of limpiezas) limpiar(); };
   };
+
+  // Al DESMONTAR este componente (navegación del iframe, `activo` pasando a false) con un campo
+  // todavía abierto: corta el RE-MEDIDO y borra el atributo — sin esto, un `ResizeObserver`/listener
+  // de `scroll` quedaría observando un nodo de un documento que ya no es éste, y el atributo
+  // `ATRIBUTO_RUTA_EN_EDICION` seguiría puesto en un `<html>` que ya no tiene overlay que lo explique.
+  useEffect(() => () => {
+    limpiarMedicionRef.current();
+    document.documentElement.removeAttribute(ATRIBUTO_RUTA_EN_EDICION);
+  }, []);
 
   useEffect(() => {
     if (!activo) return;
@@ -476,13 +557,17 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
             ? <textarea key={`${ruta.seccion}.${ruta.campo}`} {...comun} />
             : <input key={`${ruta.seccion}.${ruta.campo}`} {...comun} />;
           if (!avisoSesion) return campo;
-          // EL AVISO DE SESIÓN (§ arriba): un chip FIJO justo debajo del campo, mismo `left`/ancho
-          // mínimo que el overlay. Color LITERAL, no un token `--duna-*`/`--sf-*` — este documento es
-          // el storefront, el chrome es EFÍMERO del editor superpuesto por JS (mismo criterio que
-          // `COLOR_RESALTE`, `VistaTiendaIframe.tsx`, fuera de `touches:`). El TEXTO es el que ya
-          // resolvió el panel (`MSG_SESION_VENCIDA`, reusado — nunca copiado acá).
+          // EL AVISO DE SESIÓN (§ arriba): un chip ANCLADO AL DOCUMENTO justo debajo del campo
+          // (§ EDITOR-TIENDA-CAMPO-ANCLADO-1 — `campoAbierto.estilo.top`/`left` ya son coordenadas
+          // de DOCUMENTO, no de pantalla, así que este chip tiene que ser `absolute` como el
+          // overlay, nunca `fixed`: con `fixed` quedaría mal ubicado en cuanto el documento
+          // scrolleara). Mismo `left`/ancho mínimo que el overlay. Color LITERAL, no un token
+          // `--duna-*`/`--sf-*` — este documento es el storefront, el chrome es EFÍMERO del editor
+          // superpuesto por JS (mismo criterio que `COLOR_RESALTE`, `VistaTiendaIframe.tsx`, fuera
+          // de `touches:`). El TEXTO es el que ya resolvió el panel (`MSG_SESION_VENCIDA`, reusado
+          // — nunca copiado acá).
           const avisoEstilo: Record<string, string | number> = {
-            position: 'fixed',
+            position: 'absolute',
             top: Number(campoAbierto.estilo.top) + Number(campoAbierto.estilo.height) + 4,
             left: Number(campoAbierto.estilo.left),
             maxWidth: Math.max(240, Number(campoAbierto.estilo.width)),

@@ -1242,3 +1242,88 @@ solo píxel visible (es un degradado transparente de por sí); el ajuste de come
 `CAMPO-EDITABLE-IMAGEN-SLOT-VACIO-OPCIONAL-1` y `CAMPO-EDITABLE-IMAGEN-CENTRO-TAPADO-POR-TEXTO-1`.**
 Con esto, el plan por slices de § 6.4 queda completo salvo nav/pie (§ 5, fuera de alcance explícito
 de todo este documento, sin disparador propio).
+
+## 14 · Lo que `EDITOR-TIENDA-CAMPO-ANCLADO-1` entregó — el campo anclado al DOCUMENTO
+
+Cierra los errores 1, 3 y 4 de `docs/editor-tienda/REDISENO.md` § 1, reproducidos en un arnés de
+Playwright ANTES de tocar código (contra el HEAD sin arreglar) y vueltos a correr contra el código
+arreglado — **19/19 verificaciones**, las tres causas coincidieron EXACTAMENTE con lo medido en la
+lectura. Se mantiene la decisión de § 2.2 (campo flotante, nunca `contentEditable`); lo que cambia
+es cómo se ancla y qué mide.
+
+- **DOCUMENTO, no PANTALLA.** `estiloCampoFlotante` (`lib/storefront/campo-editable.ts`) pasó de
+  `position: fixed` (coordenadas de VIEWPORT, leídas una vez al abrir) a `position: absolute`
+  (coordenadas de DOCUMENTO: `rect.top + window.scrollY`, `rect.left + window.scrollX`). Con esto el
+  navegador mueve el overlay junto con el resto del documento al scrollear, SIN que haga falta
+  re-medir sólo por eso — medido: tras scrollear 700px hasta la Galería de /nosotros, la distancia
+  overlay↔nodo real se mantuvo en 0px (antes: crecía exactamente el scroll aplicado).
+- **El BLOQUE, no el `<span>`.** `elementoDeBloque` (`EditorPuenteVivo.tsx`, impuro — usa
+  `getComputedStyle`) sube UN nivel desde el nodo marcado: si el padre directo NO es `inline`, es el
+  bloque (el caso general — un `<p>`/`<h1>`/`<h2>` con el `CampoEditable` como único hijo); si el
+  padre SIGUE siendo inline (el caso de `marquesina.texto`, envuelto en un `<span>` extra dentro del
+  `flex` del ticker), se queda en el nodo — subir SIN TOPE daba el ANCHO DE LAS DOS COPIAS del
+  ticker, no el de una línea. `leerTipografia` ahora copia `whiteSpace` del bloque (no del span):
+  un `\n` que el bloque colapsa (`white-space: normal`) también se colapsa en el `<textarea>`, que
+  por UA stylesheet trae `pre-wrap` — medido contra `nosotrosHistoria.parrafo3` con un salto de
+  línea real: antes, overlay 476.5×79.5px (necesitaba scrollbar: 88px de contenido en 80 de caja)
+  contra 512×87.75px del `<p>` real; después, 512×87.75px exacto, sin scrollbar.
+- **RE-MEDIDO vivo, por atributo — nunca por nodo guardado.** Un `ResizeObserver` sobre el BLOQUE +
+  `scroll`/`resize` de `window` (los tres en `abrirCampo`, con su limpieza en `limpiarMedicionRef`)
+  recalculan `estilo` ante cualquier cambio de tamaño del bloque — incluido el que el propio tecleo
+  produce, porque el bloque real sigue renderizando el valor en vivo aunque esté
+  `visibility:hidden`. Esto absorbe el "crece solo, sin barra" para CUALQUIER campo multilínea, sin
+  lógica de auto-grow aparte.
+- **LA MARQUESINA, dos copias ocultas por RENDER, no por nodo.** `CampoEditableGemelo`
+  (`CampoEditable.tsx`) deja de renderizar la copia gemela POR COMPLETO mientras
+  `useRutaEnEdicion() === campo` — una condición de render, no una regla CSS/atributo que un
+  remount pudiera dejar de matchear. `useRutaEnEdicion()` lee `ATRIBUTO_RUTA_EN_EDICION`
+  (`document.documentElement`, escrito/borrado por `EditorPuenteVivo.tsx` en `abrirCampo`/
+  `cerrarCampo`) vía `useSyncExternalStore` + `MutationObserver` — **sin Provider nuevo**: uno que
+  envolviera tanto a `EditorPuenteVivo` como al resto de la página habría exigido tocar
+  `app/(storefront)/layout.tsx`, fuera de `touches:`. Gated por `useModoEditorActivo()` para que el
+  `MutationObserver` nunca se cree fuera de modo editor (cero listeners para el 99.99% del tráfico).
+- **EL TICKER DE `HeroMediaMarquesina.tsx` SE CONGELA mientras se edita — no sólo visualmente.**
+  `duracionTicker` (y por tanto el `key={duracionTicker}` que remonta el track) se recalcula en
+  CADA tecla porque `marquesina.texto` cambia en cada tecla; la guarda `editandoTicker` (derivada
+  de `useRutaEnEdicion() === 'marquesina.texto'`) SALTA esa recalculación entera mientras se edita
+  — sin esto, el nodo marcado se habría reemplazado varias veces por segundo y el overlay habría
+  perdido su referencia. `animate`/`transition` del track caen a `estatico || editandoTicker`.
+  Verificado que el ticker VUELVE A CORRER al cerrar (el `transform` cambia con el tiempo: `none` →
+  `matrix(1,0,0,1,-128.214,0)` entre dos lecturas separadas por 1.5s).
+- **`VistaTiendaIframe.tsx`: un clic que nace DENTRO del iframe no lo vuelve a desplazar.**
+  `clicDesdeIframeRef` marca `{seccion, marca}` apenas llega un `seccion-click` por `postMessage`
+  (ANTES de notificar al padre); `irASeccion` lo CONSUME (si es la MISMA sección y está fresco,
+  `< 500ms`) y no desplaza/resalta esa vez — un "Editar" real desde la lista, o un deep-link, nunca
+  pasan por ese mensaje y siguen desplazando como siempre. Verificado: abrir un campo en una
+  sección recién cargada (antes disparaba `scrollIntoView` vía `abrirEdicion→onAbrir`) deja
+  `window.scrollY` sin cambios.
+- **El aviso de sesión vencida (chip bajo el overlay) pasó de `position:fixed` a `absolute`** — es
+  hijo del MISMO sistema de coordenadas que el overlay (`campoAbierto.estilo.top/left`, ya en
+  documento); con `fixed` habría quedado mal ubicado en cuanto el documento scrolleara.
+
+### El arnés — reproducción ANTES, verificación DESPUÉS
+
+`.scratch/verificar-campo-anclado.ts` (no committed, gitignored). Mismo mecanismo de Postgres
+efímero + `next build` + `next start` + sesión real que los arneses anteriores de esta rama. Corrido
+DOS veces: contra el código sin tocar (reproduce los tres errores, 12/18 y luego 12/19 en verde
+según la fase de ajuste del propio arnés) y contra el código arreglado (19/19). Sin
+`reducedMotion: 'reduce'` a propósito en la fase del ticker — con esa opción, `useReducedMotion()`
+deja el ticker SIEMPRE estático y la verificación de "vuelve a correr" no podría afirmar nada
+(nunca corrió para empezar).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3378/3378** |
+| `npm run test:integracion` | **323/323**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` + el crédito de `PIE-HECHO-POR-DUNA-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) |
+
+**Cero píxeles de drift nuevo.** Fuera de modo editor, `CampoEditableGemelo` devuelve `children` tal
+cual (cero wrapper) y el `useRutaEnEdicion()` que usa nunca crea su `MutationObserver` — los 263
+tests de `campo-editable.test.ts` (incluidos los de byte-identidad "SIN modo editor") siguen en
+verde sin tocarlos más que en la forma del `estiloCampoFlotante`/`TipografiaCampo` (geometría
+`absolute` + `whiteSpace`).
+
+**Cierra `EDITOR-TIENDA-CAMPO-ANCLADO-1`.**

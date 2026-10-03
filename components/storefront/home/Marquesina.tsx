@@ -7,7 +7,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { useProgresoScroll, transformMarquesinaTexto, transformMarquesinaTarjeta } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import CampoEditable from "@/components/storefront/CampoEditable";
+import CampoEditable, { CampoEditableGemelo } from "@/components/storefront/CampoEditable";
 import { REGISTRY, seccionEsVisible, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
@@ -111,9 +111,13 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
             docs/editor-tienda/EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados" — el MISMO campo
             vive también en `HeroMediaMarquesina.tsx`, otra composición): el segundo `<span>` es la
             copia gemela que cierra el loop sin salto, y se actualiza sola desde el MISMO
-            `useSiteContent()` cuando el overlay del primero escribe en el form. */}
+            `useSiteContent()` cuando el overlay del primero escribe en el form.
+            `CampoEditableGemelo` (§ EDITOR-TIENDA-CAMPO-ANCLADO-1) deja de renderizarla POR
+            COMPLETO mientras `marquesina.texto` se edita — queda sin congelar el movimiento propio
+            de esta banda (`transformTexto` es scroll-driven, no por tiempo, así que no hay nada que
+            remonte ni corra "detrás" mientras no se scrollea). */}
         <span className="pr-[0.5em]"><CampoEditable campo="marquesina.texto">{marquesina.texto}</CampoEditable></span>
-        <span className="pr-[0.5em]">{marquesina.texto}</span>
+        <span className="pr-[0.5em]"><CampoEditableGemelo campo="marquesina.texto">{marquesina.texto}</CampoEditableGemelo></span>
       </motion.div>
 
       {producto && (

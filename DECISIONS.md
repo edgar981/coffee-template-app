@@ -48876,3 +48876,155 @@ obligatorias (typecheck 0 errores, `npm test` 3378/3378, `npm run test:integraci
 Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-TEMA-PROVEEDOR-1`.**
+
+## 2026-10-03 — El campo flotante queda anclado al documento: errores 1, 3 y 4 cerrados
+`EDITOR-TIENDA-CAMPO-ANCLADO-1` (slice 2 del plan de `docs/editor-tienda/REDISENO.md` § 9)
+
+**Los tres errores reportados por el owner (2026-10-03), § 1 de `REDISENO.md`:** la marquesina se
+enciman al editarla; el tercer párrafo de Nosotros cambia de forma al tocarlo; el texto viaja con
+el scroll mientras el campo queda fijo en pantalla.
+
+**Las causas estaban ubicadas por lectura, no reproducidas — se reprodujeron ANTES de arreglar
+nada**, en un arnés de Playwright (`.scratch/verificar-campo-anclado.ts`, gitignored) corrido
+contra el código sin tocar:
+
+| error | lo medido contra el código SIN TOCAR |
+| --- | --- |
+| 1 — marquesina | Al abrir el overlay de `marquesina.texto`, **las DOS copias** (`<span>` marcado + gemelo) mostraban el texto a la vez (`copiasConTexto: 2`) |
+| 3 — Nosotros | El overlay medía 476.5×79.5px contra 512×87.75px del `<p>` real; `scrollHeight` (88) > `clientHeight` (80) — pedía scrollbar para un contenido que el `<p>` real nunca desborda |
+| 4 — scroll | Tras scrollear 700px el overlay (entonces `position:fixed`) se quedó en su sitio (`top` sin cambio) mientras el nodo real se fue a −698px — la distancia creció EXACTAMENTE el scroll aplicado |
+
+Las tres coinciden EXACTAMENTE con la causa que `REDISENO.md` § 1 ya había ubicado por lectura. Se
+mantiene la decisión del owner de § 2.2 de `EDICION-INLINE.md` (campo flotante, nunca
+`contentEditable`); lo que cambia es sólo el anclaje y la medición.
+
+### El arreglo, por error
+
+- **1 (marquesina):** `CampoEditableGemelo` (`components/storefront/CampoEditable.tsx`) deja de
+  RENDERIZAR la copia gemela por completo mientras su propio campo está abierto — una condición de
+  render, no una regla CSS/atributo que un remount del track (`key={duracionTicker}`, que cambiaba
+  en cada tecla) pudiera dejar de aplicar a tiempo. Lee `useRutaEnEdicion()`, un hook nuevo sobre
+  `useSyncExternalStore` + `MutationObserver` que observa un atributo de `document.documentElement`
+  (`ATRIBUTO_RUTA_EN_EDICION`, escrito/borrado por `EditorPuenteVivo.tsx`) — **sin Provider nuevo**:
+  uno que envolviera tanto a `EditorPuenteVivo` como al resto de la página habría exigido tocar
+  `app/(storefront)/layout.tsx`, fuera de `touches:`. Además, `HeroMediaMarquesina.tsx` usa el
+  mismo hook para CONGELAR la recalculación de `duracionTicker` mientras se edita (sin eso, el
+  track se habría seguido remontando varias veces por segundo durante el tecleo, perdiendo la
+  referencia al nodo que el overlay tiene anclado).
+- **3 (Nosotros):** `elementoDeBloque` (`EditorPuenteVivo.tsx`, nuevo, impuro) mide el BLOQUE —el
+  padre directo del nodo marcado, si NO es `inline`— en vez del `<span>` que `CampoEditable`
+  marca. `leerTipografia` ahora copia también `whiteSpace` del bloque: un `\n` que el bloque
+  colapsa (`white-space: normal`, el default de un `<p>`) también se colapsa en el `<textarea>`
+  (que por UA stylesheet trae `pre-wrap`).
+- **4 (scroll):** `estiloCampoFlotante` (`lib/storefront/campo-editable.ts`) pasó de
+  `position: fixed` (coordenadas de VIEWPORT) a `position: absolute` (coordenadas de DOCUMENTO:
+  `rect.top + scrollY`, `rect.left + scrollX`) — el navegador mueve el overlay junto con el resto
+  del documento al scrollear, sin re-medir sólo por eso. Un `ResizeObserver` sobre el bloque +
+  `scroll`/`resize` de `window` (ambos en `abrirCampo`, limpiados en `limpiarMedicionRef`)
+  re-miden ante cualquier otro cambio de tamaño — incluido el que el propio tecleo produce, porque
+  el bloque real sigue renderizando el valor en vivo bajo `visibility:hidden`.
+- **4, la segunda mitad (`VistaTiendaIframe.tsx`):** un clic DENTRO del iframe sobre una sección
+  CERRADA disparaba, vía `TiendaPaginas.tsx`→`abrirEdicion`→`onAbrir` (ninguno en `touches:`), un
+  `irASeccion` que hacía `scrollIntoView` justo después de que el overlay ya había medido su
+  posición. `clicDesdeIframeRef` marca `{seccion, instante}` apenas llega el `postMessage` de
+  `seccion-click` (ANTES de notificar al padre); `irASeccion` lo CONSUME si es la MISMA sección y
+  está fresco (`<500ms`, generoso para el salto de un commit de React) y NO desplaza/resalta esa
+  vez — un "Editar" real desde la lista sigue desplazando como siempre, porque nunca pasa por ese
+  mensaje.
+
+El chip de "sesión vencida" (bajo el overlay) pasó de `fixed` a `absolute` junto con el overlay —
+usa las mismas coordenadas (`campoAbierto.estilo.top/left`, ya de documento) y habría quedado mal
+ubicado con `fixed` en cuanto el documento scrolleara.
+
+### Verificación — el MISMO arnés, DESPUÉS del fix
+
+Reproducción (12/18 → 12/19 según el ajuste del propio arnés, dos hallazgos de método nombrados
+abajo) contra el código viejo; **19/19** contra el código arreglado:
+
+| fase | verificación | resultado |
+| --- | --- | --- |
+| marquesina | sólo UNA copia muestra el texto, antes y después de teclear | sí |
+| marquesina | al cerrar (Escape), el ticker VUELVE A CORRER (`transform`: `none` → `matrix(1,0,0,1,-128.214,0)` entre dos lecturas separadas 1.5s) | sí |
+| Nosotros párrafo3 (sembrado con `\n`) | overlay = bloque real, delta 0px en ancho y alto; sin scrollbar | sí |
+| Nosotros párrafo3 | el `<p>` real NO cambia de forma al abrir/cerrar | sí |
+| scroll | abrir un campo (clic dentro del iframe) NO mueve `window.scrollY` | sí |
+| scroll | tras scrollear 875px hasta la Galería de /nosotros, delta overlay↔nodo real sigue en 0px | sí |
+
+**Dos hallazgos de método del arnés, no del mecanismo:**
+1. La primera corrida medía "¿la copia gemela está `visibility:hidden`?" — discriminador equivocado:
+   el WRAPPER (`span.pr-[0.5em]`) nunca lleva esa propiedad (se oculta el NODO marcado, un nivel más
+   adentro, o el contenido entero vía `CampoEditableGemelo`). El discriminador correcto es cuántos
+   nodos RENDERIZAN el texto completo a la vez.
+2. Con `reducedMotion: 'reduce'` (el default del arnés para estabilidad de capturas), `useReducedMotion()`
+   de framer-motion deja el ticker SIEMPRE estático y "vuelve a correr" no puede afirmar nada — se
+   quitó esa opción para la fase de la marquesina, y el clic sobre el nodo en movimiento necesitó
+   `force:true` (Playwright no lo ve "stable" mientras se traslada).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambia: `VistaTiendaIframe.tsx` (`irASeccion`,
+`clicDesdeIframeRef`), `EditorPuenteVivo.tsx` (`abrirCampo`, `cerrarCampo`, `elementoDeBloque`,
+`leerTipografia`, `medirGeometriaDocumento`), `CampoEditable.tsx` (`useRutaEnEdicion`,
+`CampoEditableGemelo`), `HeroMediaMarquesina.tsx`/`Marquesina.tsx` (uso del gemelo),
+`campo-editable.ts` (`estiloCampoFlotante`, `TipografiaCampo`, `ATRIBUTO_RUTA_EN_EDICION`).
+Grepeados contra `CLAUDE.md`: **cero coincidencias** de `VistaTiendaIframe`, `EditorPuenteVivo`,
+`estiloCampoFlotante`, `HeroMediaMarquesina`, `campo-editable`, `irASeccion`.
+
+`CampoEditable` y `contentEditable` SÍ aparecen, en **§ Backlog #46** ("El editor VISUAL, FASE 2 —
+el campo flotante para el TEXTO"): esa entrada describe el mecanismo VIEJO (`VistaTiendaEnVivo`, el
+preview escalado `paneW/1280`, retirado por `EDITOR-TIENDA-IFRAME-VISTA-1` antes de que esta rama
+empezara) y lista "el campo flotante" como backlog PENDIENTE — "LO QUE QUEDA (Fase 2): el CAMPO
+FLOTANTE para los ~10 campos de TEXTO". Eso es FALSO desde `EDITOR-TIENDA-CAMPO-EDITABLE-1` (varios
+commits antes de éste, misma rama): el campo flotante ya está construido, y este slice es su
+TERCER refinamiento. La staleness es PRE-EXISTENTE a este diff (no la causa esta tanda) y
+`CLAUDE.md` no está en `touches:` — se reporta como open follow-up, no se corrige.
+
+### `customer_bytes`
+
+**`changed: true`, con `strings: []`.** Este diff SÍ toca archivos bajo `components/storefront/`
+(`CampoEditable.tsx`, `EditorPuenteVivo.tsx`, `HeroMediaMarquesina.tsx`, `Marquesina.tsx`) — los
+bytes compilados que se sirven a CUALQUIER visitante cambian (nuevas funciones, un hook nuevo). Pero
+**ningún texto ni píxel visible cambia para un visitante real**: los cuatro componentes gatean su
+comportamiento nuevo por `useModoEditorActivo()` (`false` para el 99.99% del tráfico) y
+`useRutaEnEdicion()` se auto-gatea igual (su `subscribe` nunca crea el `MutationObserver` si
+`!activo`) — es el mismo contrato de "cero bytes, cero listeners" que ya cumplía `CampoEditable`
+antes de este slice. Confirmado por EJECUCIÓN, no inferido: `npm run verificar:nayoli:visual` (main
+vs. rama, doble build) dio la MISMA cifra exacta que el piso ya reconciliado por la rama
+(`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` + el crédito de `PIE-HECHO-POR-DUNA-1`): `ruta-home`
+165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px
+c/u; los 2 hovers IDÉNTICO (0px). Y los 263 tests de `campo-editable.test.ts` que afirman
+"SIN modo editor: cero `data-editor-campo` — byte-idéntico" sobre los componentes tocados siguen en
+verde sin haberlos reescrito.
+
+Es el caso que el propio esquema de este reporte anticipa: "cambian bytes compilados pero NINGÚN
+texto — un cambio de robustez, no de producto."
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin contrato cross-repo. El cambio es puramente
+de geometría/mecanismo de edición dentro del storefront y el panel.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-BACKLOG-46-CAMPO-FLOTANTE-STALE-1`** (coined acá): `CLAUDE.md` § Backlog #46 lista
+  "el campo flotante" como Fase 2 PENDIENTE de un mecanismo retirado; es FALSO desde
+  `EDITOR-TIENDA-CAMPO-EDITABLE-1` (varios commits antes de éste) y este slice es su tercer
+  refinamiento sobre el mecanismo real. `CLAUDE.md` no está en `touches:` — no se corrige acá.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio de figura (ver
+  `customer_bytes` arriba). Ajeno a `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. El dispatch pide explícitamente parar antes
+del merge (*"PARÁS EN `AWAITING_APPROVAL`. NO MERGEES"*) y el spec lo confirma ("LA APROBACION
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). A diferencia del slice anterior de este mismo plan, ESTE
+diff sí toca archivos bajo `components/storefront/` — por eso `stopped_on` nombra `customer-bytes`
+(no `owner-gate-requested`: esa etiqueta sólo aplica cuando NINGUNA otra razón detendría el slice,
+y acá sí hay una). `changed: true` con `strings: []` (§ arriba) — bytes compilados distintos, cero
+texto/píxel visible distinto, confirmado por ejecución (`verificar:nayoli:visual`, cifra idéntica
+al piso heredado). No es `schema` ni `cross-repo-contract`. Gate verde en las dos capas obligatorias
+(typecheck 0 errores, `npm test` 3378/3378, `npm run test:integracion` 323/323) más la verificación
+por ejecución explícita que pedía el spec (19/19 en el arnés dedicado). Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-CAMPO-ANCLADO-1`.**

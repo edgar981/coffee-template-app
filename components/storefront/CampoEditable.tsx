@@ -1,9 +1,9 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useCallback, useSyncExternalStore, type ReactNode } from 'react';
 import { useModoEditorActivo } from '@/components/storefront/ModoEditor';
 import { ATRIBUTO_EDITOR_CAMPO, ATRIBUTO_EDITOR_LINEA } from '@/lib/admin/editor-iframe';
-import { ATRIBUTO_EDITOR_CAMPO_IMAGEN } from '@/lib/storefront/campo-editable';
+import { ATRIBUTO_EDITOR_CAMPO_IMAGEN, ATRIBUTO_RUTA_EN_EDICION } from '@/lib/storefront/campo-editable';
 
 // MARCA un nodo de TEXTO como editable — SÓLO en modo editor (§ EDITOR-TIENDA-CAMPO-EDITABLE-1,
 // docs/editor-tienda/EDICION-INLINE.md § 2.3). Fuera de modo editor — el 99.99% del tráfico —
@@ -35,6 +35,38 @@ import { ATRIBUTO_EDITOR_CAMPO_IMAGEN } from '@/lib/storefront/campo-editable';
 //     patrón para un wrapper que sólo necesita existir para el `closest()` del clic, nunca para
 //     calcular una geometría — a diferencia del campo de texto, que SÍ mide su nodo con
 //     `getBoundingClientRect()` para posicionar el overlay encima).
+// LA RUTA del campo ABIERTO AHORA MISMO, o `null` (§ EDITOR-TIENDA-CAMPO-ANCLADO-1). Lee el
+// atributo que `EditorPuenteVivo.tsx` escribe/borra en `document.documentElement`
+// (`ATRIBUTO_RUTA_EN_EDICION`, `lib/storefront/campo-editable.ts`) — es el único canal que una
+// composición con DOS copias del mismo campo (hoy: la marquesina, § `CampoEditableGemelo` abajo)
+// necesita para saber "¿se está editando MI copia?", sin un Provider nuevo que tuviera que envolver
+// tanto a `EditorPuenteVivo` como al resto de la página desde `app/(storefront)/layout.tsx` —fuera
+// de `touches:` de este slice—. `useSyncExternalStore` (no `useState`+`useEffect` a mano) para que
+// React trate el valor como una fuente externa genuina, con su `getServerSnapshot` para SSR.
+//
+// SIN MutationObserver fuera de modo editor — el 99.99% del tráfico real: `activo` (de
+// `useModoEditorActivo()`, un simple `useContext`, ya barato) se lee SIEMPRE (las reglas de hooks
+// exigen llamar a `useSyncExternalStore` sin condición), pero la función `subscribe` que React
+// invoca sólo CREA el observer cuando `activo` es `true` — con `activo` en `false` devuelve un
+// no-op de inmediato. Es la MISMA garantía de "cero listeners" que ya cumple `CampoEditable` de
+// abajo, lograda sin partir este hook en dos componentes.
+export function useRutaEnEdicion(): string | null {
+  const activo = useModoEditorActivo();
+  const subscribe = useCallback((cb: () => void) => {
+    if (!activo || typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
+      return () => {};
+    }
+    const observador = new MutationObserver(cb);
+    observador.observe(document.documentElement, { attributes: true, attributeFilter: [ATRIBUTO_RUTA_EN_EDICION] });
+    return () => observador.disconnect();
+  }, [activo]);
+  const getSnapshot = useCallback(() => {
+    if (!activo || typeof document === 'undefined') return null;
+    return document.documentElement.getAttribute(ATRIBUTO_RUTA_EN_EDICION);
+  }, [activo]);
+  return useSyncExternalStore(subscribe, getSnapshot, () => null);
+}
+
 export default function CampoEditable({
   campo,
   tipo = 'texto',
@@ -69,6 +101,27 @@ export default function CampoEditable({
       {children}
     </span>
   );
+}
+
+// LA COPIA GEMELA de un campo que se repite SIN costura (§ EDITOR-TIENDA-CAMPO-ANCLADO-1, cierra el
+// error 1 de `docs/editor-tienda/REDISENO.md` § 1). Hoy, `marquesina.texto` se pinta DOS VECES
+// dentro del track del ticker (`HeroMediaMarquesina.tsx`, `Marquesina.tsx`): sólo la PRIMERA lleva
+// `CampoEditable` (§ su propio comentario, "Nodos duplicados"); la segunda es la que este
+// componente envuelve.
+//
+// Mientras el campo de ESTA ruta está abierto (`useRutaEnEdicion() === campo`), la copia gemela NO
+// SE RENDERIZA — no se oculta con una regla CSS/atributo que un remount pudiera dejar de matchear
+// (el track del ticker remonta con `key={duracionTicker}` cada vez que el ancho medido cambia;
+// § `HeroMediaMarquesina.tsx`, la guarda que detiene esa recalculación MIENTRAS se edita evita
+// justamente que haga falta "re-encontrar" el nodo correcto tras cada remount): es una condición de
+// RENDER, así que es imposible que la copia gemela "se olvide" de ocultarse por un nodo que ya no
+// existe. SIN modo editor, devuelve `children` TAL CUAL — cero wrapper, byte-idéntico a hoy.
+export function CampoEditableGemelo({ campo, children }: { campo: string; children: ReactNode }) {
+  const activo = useModoEditorActivo();
+  const rutaAbierta = useRutaEnEdicion();
+  if (!activo) return <>{children}</>;
+  if (rutaAbierta === campo) return null;
+  return <>{children}</>;
 }
 
 // EL HUECO de una imagen OPCIONAL VACÍA (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra
