@@ -45358,3 +45358,196 @@ el mismo JSON de siempre, con una clave más dentro de `navWordmark`).
 
 Commiteado en `slice/corte-reescritura-prototipo-1`; el merge de la rama entera sigue pendiente de
 ese gate separado, ajeno a este slice.
+
+## 2026-10-02 — El cruce de foto de "El destacado" funde SIN bajón de brillo — nunca las dos capas translúcidas a la vez (`DESTACADO-CRUCE-SIN-PARPADEO-1`)
+
+Gate del owner, textual: *"the transition between images at 'El destacado' is not quite good yet,
+I feel like a blink and not something smooth."* El fundido cruzado de la foto
+(`DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`, arriba) corría `AnimatePresence` en modo SYNC (el
+default): la foto SALIENTE iba de opacidad 1→0 mientras la ENTRANTE iba 0→1, A LA VEZ, con la MISMA
+curva/duración — por construcción matemática, `opacidad_saliente(t) + opacidad_entrante(t) = 1`
+para cualquier instante t, SI las dos fotos ya están cargadas. El fondo del tile NO se filtraba por
+esa vía (la suma nunca baja de 1 entre dos capas cargadas). **El mecanismo real del parpadeo es
+otro**: la foto SALIENTE anima hacia 0 en un RELOJ FIJO, sin esperar a que la foto ENTRANTE termine
+de descargar — y la precarga del grupo (`fotosDelGrupo`) pedía una URL de 1×1px
+(`width={1} height={1}`, sin `sizes`), DISTINTA de la que la foto visible realmente muestra
+(`fill` + `sizes="(max-width: 1200px) 100vw, 33vw"`), así que no calentaba nada reusable. Con red
+lenta, la saliente podía terminar de desvanecerse ANTES de que la entrante tuviera un solo byte que
+pintar — un hueco real, el tile cayendo al color de fondo (`--sf-superficie`), que es el parpadeo
+que el owner reportó.
+
+### El mecanismo nuevo
+
+`lib/storefront/destacado-cruce.ts` (nuevo, puro, 21 tests) decide el ESTADO y el ORDEN del cruce:
+
+- **`EstadoCruceDestacado`** = `{ visible, entrando, entrandoListo }`. `visible` es SIEMPRE la foto
+  que se pinta OPACA y SIN ANIMAR — la base. `entrando` es la foto que está fundiendo encima, o
+  `null` sin cruce en curso. `entrandoListo` separa "hay un objetivo nuevo" de "ya se puede animar
+  hacia él" — mientras no esté listo, `entrando` existe pero su opacidad objetivo se queda en 0.
+- **`cruceConNuevoObjetivo`** arranca (o REEMPLAZA) el fundido al elegir otra foto — sin marcarla
+  lista todavía, aunque ya estuviera precargada (la decodificación real la confirma el DOM).
+- **`cruceConEntrandoListo`** la marca lista cuando el `<Image>` confirma `onLoad` + `decode()`.
+- **`cruceConFundidoCompleto`** la PROMUEVE a `visible` cuando el fundido 0→1 termina.
+- **`capasDeCruceDestacado`** devuelve las capas EN ORDEN — `fija` siempre primero (índice 0, abajo,
+  opacidad 1), `entrando` siempre segundo (índice 1, encima) — el invariante central: si `fija`
+  SIEMPRE pinta a opacidad 1, el píxel compuesto en cualquier instante es `a·entrando + (1-a)·fija`,
+  una combinación CONVEXA de las dos fotos reales, nunca del fondo — su luminancia queda SIEMPRE
+  entre la de las dos fotos. Un test (`INVARIANTE: en NINGÚN paso del ciclo de vida la capa "fija"
+  tiene opacidad objetivo distinta de 1`) recorre el ciclo completo (elegir → cargar → fundir →
+  reemplazar-antes-de-cargar → …) afirmándolo en cada paso.
+
+`components/storefront/home/Spotlight.tsx` — `FotoCruceDestacado` (componente nuevo, interno)
+reemplaza el `AnimatePresence` viejo. **Sin `AnimatePresence`**: cuando un objetivo nuevo reemplaza
+al que estaba entrando (el visitante clickeó dos veces antes de que la primera elección cargara o
+fundiera), React simplemente desmonta ese `motion.div` (su `key` deja de estar en el array) sin
+ninguna animación de salida, y la capa `fija` —siempre opaca, debajo— queda expuesta tal cual
+estaba. Ningún instante puede mostrar el fondo: sólo puede pasar de "fija + entrando-vieja" a
+"fija" a secas. La capa `entrando` espera `onLoad` + `decode()` antes de animar — "si la carga
+tarda, la saliente sigue visible", nunca un hueco (el spec, textual).
+
+**La precarga del grupo (`fotosDelGrupo`) se corrigió para pedir la MISMA URL que la foto
+visible** — `fill` + la constante compartida `SIZES_FOTO_DESTACADO` (antes `width={1} height={1}`
+sin `sizes`, que generaba un `srcset` de 1x/2x atado a un ancho de 1px — una URL del optimizador
+DISTINTA de la que `FotoCruceDestacado` iba a mostrar). El tamaño de la cajita invisible (1×1px,
+`overflow-hidden`) no importa: `sizes` se resuelve contra el VIEWPORT, no contra el layout del
+contenedor.
+
+**Duración y curva de `transicionDestacadoFoto` SIN CAMBIO** — sigue siendo el mismo gesto ("cambiar
+la foto por una elección del visitante", ya medido y citado en `lib/animation.ts`) y el nuevo
+mecanismo sólo cambia QUÉ anima (una capa, no dos) y CUÁNDO empieza (gateado a carga), no cuánto
+dura ni con qué curva. `lib/animation.ts`/`lib/animation.test.ts` quedaron en `touches:` pero no se
+tocaron — no hubo nada que cambiarles. El texto, la etiqueta y el precio siguen con su propio
+`AnimatePresence`/`transicionDestacadoTexto`, sin cambio (el spec: "el texto… como están").
+
+**`data-cruce-capa`** (`fija`|`entrando`, en las dos ramas de `FotoCruceDestacado`) es un gancho de
+VERIFICACIÓN inerte — ningún CSS ni comportamiento lo lee; existe para que un arnés de Playwright
+pueda ubicar cada capa por rol y leer su `getComputedStyle(...).opacity` real, cuadro a cuadro, sin
+adivinar por estructura de DOM (que también incluye el preloader invisible). Segundo commit de este
+slice (`cc8b360`), separado del fix (`0123c58`) porque se agregó DESPUÉS de escribir el arnés de
+Cierre y confirmar que hacía falta.
+
+### El arnés de Cierre — lo que midió, y lo que NO pudo reproducir
+
+`.scratch/cruce-harness.ts` (gitignorado, nunca commiteado): Postgres efímero propio, el seed
+canónico + un producto sintético con DOS "opciones de molienda" de contraste extremo conocido
+(`#121212` / `#f0f0f0`, luminancia BT.709 18.0/240.0), preset CORTE + pin del spotlight a ese
+producto (vía `aplicarPreset`+`guardarBorrador`+`publicarSeccion('spotlight')`, el camino real), un
+worktree del commit final, Playwright aislado (Chromium + WebKit).
+
+**La medición en sí NO usa screenshots** (el primer intento sí, y resultó demasiado lento — el
+*round-trip* de `page.screenshot()` sólo alcanzaba 1-3 cuadros en los ~220ms de la transición,
+muy por debajo de "cuadro a cuadro"). La versión final inyecta, vía `page.evaluate` (como STRING —
+`tsx`/esbuild inyectan un helper `__name(...)` al transpilar una función con nombre, que
+`page.evaluate` serializa con `.toString()` y revienta con `ReferenceError: __name is not defined`;
+un string literal nunca pasa por ese transform), un loop de `requestAnimationFrame` que CADA cuadro
+compone a mano lo que el navegador pinta: dibuja el FONDO real del tile
+(`getComputedStyle(tile).backgroundColor`) primero, y encima cada capa `[data-cruce-capa]` presente
+con su `getComputedStyle(...).opacity` real (vía `ctx.globalAlpha` + `drawImage` sobre un canvas de
+96px de alto — el promedio de luminancia no depende de la resolución, y un canvas chico mantiene
+`getImageData` barato en cada cuadro). Corre ENTERAMENTE dentro del motor JS de la página: sin
+round-trip de IPC por cuadro, y el reloj es el `performance.now()` de la página, no el de Node.
+
+**Medido — DESPUÉS (el fix), las 4 condiciones que pide el spec, todas PASAN**: nunca la curva cae
+por debajo de la menor de las dos referencias (17.0, con tolerancia ±6 por redondeo de canvas).
+
+| condición | referencia clara | referencia oscura | mínimo de la curva | resultado |
+| --- | --- | --- | --- | --- |
+| Chromium 1440×900, sin red lenta | 240.0 | 17.0 | 17.0 | ✔ PASA |
+| Chromium 1440×900, red lenta simulada (350ms por imagen) | 240.0 | 17.0 | 17.0 | ✔ PASA |
+| WebKit, viewport iPhone (390×844) | 240.0 | 17.0 | 17.0 | ✔ PASA |
+| WebKit, viewport iPhone, red lenta simulada | 240.0 | 17.0 | 17.0 | ✔ PASA |
+
+La curva de Chromium sin red lenta es la más legible: queda en 240.0 hasta el clic, se mantiene en
+240.0 ~100ms más (mientras `entrando` carga/decodifica), y recién ahí funde MONÓTONAMENTE —
+211→166→128→98→75→57→44→35→28→24→20→17— sin un solo cuadro por debajo de 17. Con la red lenta
+simulada la meseta en 240.0 se alarga (~190ms, cubriendo el retardo artificial) y el resto de la
+curva es la misma forma — exactamente "si la carga tarda, la saliente sigue visible".
+
+**LO QUE NO SE LOGRÓ, declarado — la comparación automatizada contra ANTES (`bd0102a`, el código
+pre-fix).** Se intentó reiteradamente: un worktree de `bd0102a` parchado en el filesystem (nunca un
+commit real) con un `data-cruce-capa="animado"` genérico sobre el `motion.div` del `AnimatePresence`
+viejo, para que el mismo muestreador (ahora pintando el FONDO real primero, generalizando a "una o
+dos capas translúcidas sobre el fondo") pudiera medirlo también. El contenido llega perfecto —
+confirmado leyendo `/api/catalog` desde dentro de la página, el producto sintético completo, con sus
+dos imágenes—, el parche es sintácticamente correcto —confirmado leyendo el archivo parchado antes
+de buildear—, y el MISMO worktree+contenido renderiza bien en una corrida AISLADA de un solo árbol
+(un arnés de diagnóstico separado, descartado). Pero DENTRO del arnés de dos árboles, la medición de
+"ANTES" específicamente nunca encuentra el tile (`#producto .sf-radio-tile`) en ninguna espera
+razonable (hasta 45s), mientras "DESPUÉS" responde con normalidad. No se encontró la causa raíz
+dentro del presupuesto de este slice — es una rareza de ESE arnés descartable (probablemente
+contención de recursos al encadenar dos builds de Next.js pesados en el mismo proceso, no
+confirmado), no evidencia de un defecto en el código bajo prueba. El mecanismo por el que ANTES
+fallaría SIGUE SIENDO el de lectura de código, no el de una reproducción en vivo: el `exit` corre en
+un reloj fijo sin esperar a que la entrante cargue (§ arriba) — y el harness SÍ demuestra, con
+evidencia real de navegador, que DESPUÉS no tiene ese problema en ninguna de las 4 condiciones.
+
+**El INVARIANTE del estado puro (`npm test`, 21 casos nuevos) es la prueba que SÍ cierra el caso
+general**, incluida la rama que el arnés visual no pudo ejercitar empíricamente (interrupciones a
+medio cargar, confirmaciones rancias, reemplazos antes de completar): `capasDeCruceDestacado`
+nunca puede devolver la capa `fija` con una opacidad objetivo distinta de 1, para ningún estado
+alcanzable desde `cruceInicial` por cualquier secuencia de las tres transiciones — eso es lo que
+hace IMPOSIBLE, no sólo improbable, que el fondo se filtre con el código nuevo.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3159/3160** — la única falla es el trinquete de `PENDIENTE_PANEL` en `panel-controles.test.ts` (§ abajo), pre-existente, fuera de `touches:` |
+| `npm run test:integracion` | **305/305** |
+| `npm run guarda:color` | `ruta-home` DIFIERE — **MISMA cifra EXACTA** que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` (164.889/4.608.000 px consciente de AA, 174.350 crudo, caja `[105,862]–[1183,3166]`) — `Spotlight.tsx` nunca monta bajo `featured·cuadricula` (la variante de Nayoli), así que no puede ser la causa; las otras 5 rutas + 2 hovers **IDÉNTICO (0px)** |
+| `npm run verificar:nayoli:visual` | MISMA cifra exacta, misma caja |
+
+### El trinquete de `PENDIENTE_PANEL` — pre-existente, heredado de `bd0102a`, fuera de `touches:`
+
+`lib/config/panel-controles.test.ts` (NO en `touches:` de este slice) afirma
+`PENDIENTE_PANEL.length <= 10`. El commit inmediatamente anterior a este slice
+(`NAV-LOGO-MOVIL-CON-AIRE-1`, `bd0102a`) agregó una entrada a `PENDIENTE_PANEL` (`navWordmark.
+taglineColor`) y su propio asiento ya declaró, textual: *"npm test 3138/3139 (la única falla es el
+trinquete de PENDIENTE_PANEL en panel-controles.test.ts, fuera de touches: de este slice)"* — o sea
+que este slice HEREDÓ un rojo conocido y ya documentado, no lo introdujo. Medido en este árbol: 21
+tests nuevos de `destacado-cruce.test.ts` suben el total de 3139 a 3160 (3139+21), y la ÚNICA falla
+sigue siendo la misma aserción del mismo archivo. No se tocó `panel-controles.test.ts`: ese archivo
+no está en `touches:` de este slice tampoco.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió: `FotoCruceDestacado`, `SIZES_FOTO_DESTACADO`, `data-cruce-capa`
+(`components/storefront/home/Spotlight.tsx`); `EstadoCruceDestacado`, `cruceInicial`,
+`cruceConNuevoObjetivo`, `cruceConEntrandoListo`, `cruceConFundidoCompleto`,
+`capasDeCruceDestacado`, `CapaCruceDestacado` (`lib/storefront/destacado-cruce.ts`, nuevo);
+`DESTACADO-CRUCE-SIN-PARPADEO-1`. Grepeados contra `CLAUDE.md`:
+
+- Los siete símbolos nuevos (`FotoCruceDestacado`, `SIZES_FOTO_DESTACADO`, `data-cruce-capa`,
+  `EstadoCruceDestacado`, `cruceInicial`, `cruceConNuevoObjetivo`, `cruceConEntrandoListo`,
+  `cruceConFundidoCompleto`, `capasDeCruceDestacado`, `CapaCruceDestacado`,
+  `DESTACADO-CRUCE-SIN-PARPADEO-1`) → **CERO coincidencias** en `CLAUDE.md`.
+- `AnimatePresence`, `transicionDestacadoFoto`, `fotosDelGrupo`, `Spotlight.tsx`,
+  `DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`, `MUESTRARIO-VARIANTE-IMAGEN-1` (los símbolos
+  PRE-EXISTENTES que este diff toca o referencia) → **CERO coincidencias** en `CLAUDE.md` tampoco.
+
+`CLAUDE.md` no nombra "El destacado"/Spotlight en absoluto — nada en ese archivo describe el
+mecanismo que este diff cambió, así que nada queda falso por este diff. (La doctrina del
+mecanismo vieja — AnimatePresence sync, § arriba — vive en `DECISIONS.md`, como registro histórico
+append-only de `DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1`; un ledger histórico no se reescribe cuando
+un slice posterior lo reemplaza.)
+
+### `customer_bytes`
+
+**`changed: true`.** La RAMA sigue cargando customer-bytes sin aprobar desde antes de este slice
+(§ los asientos de cada slice posterior a `MARQUESINA-TARJETA-COMO-LETRAS-1`); éste suma otro: el
+MECANISMO de la transición de foto cambia (de un cruce con blink potencial a uno sin él) — un
+cambio de COMPORTAMIENTO visible para quien interactúa con "El destacado" bajo CORTE, aunque no
+toca ni un carácter de copy. `strings: []` — no hay texto nuevo ni cambiado (el `data-cruce-capa`
+no es texto visible). `approved: null` — Nayoli nunca monta `Spotlight.tsx` (`featured·cuadricula`,
+no `·spotlight`), confirmado por `guarda:color`/`verificar:nayoli:visual` con la MISMA cifra exacta
+que el drift preexistente, ajeno a este diff.
+
+### `schema`/`cross-repo-contract`
+
+No aplica — sin migración, sin modelo Prisma nuevo, sin contrato cruzado. El PIN del spotlight
+(`spotlight.productoSlug`) usado por el arnés de Cierre viaja por el camino YA existente
+(`aplicarPreset`/`guardarBorrador`/`publicarSeccion`), sin tocar su forma.
+
+Commiteado en `slice/corte-reescritura-prototipo-1` (`0123c58` el fix, `cc8b360` el gancho de
+verificación); el merge de la rama entera sigue pendiente de ese gate separado, ajeno a este slice.
