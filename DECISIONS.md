@@ -48418,3 +48418,89 @@ aplican. El dispatch instruyó explícitamente parar en `AWAITING_APPROVAL` sin 
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1`.**
+
+## 2026-10-03 — El contador de "1.600 msnm" en El Origen ahora anima: reconoce separador de miles y cuenta con el mismo formato (`ORIGEN-CONTADOR-MILES-1`)
+
+Slice de escritura; continúa `slice/corte-reescritura-prototipo-1`. Pedido del owner del
+2026-10-03, citado en el spec: *"el contador de '1.600 msnm' es el único que no está aumentando, el
+de hectáreas y años sí"*. El `observed-report` que lo habilita es
+`ORIGEN-FOTOS-REVELADO-Y-CONTEO-1`. La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `5b47d94`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf` (0 adelante / 0 atrás de `origin/main`) |
+| los 7 archivos de `touches:` | existían los 5 de código/doc (`Origen.tsx`, `lib/animation.ts`, `lib/animation.test.ts`, `lib/config/origen-banda.test.ts`, `DECISIONS.md`); `lib/storefront/cifra-contador.ts`/`.test.ts` NO existían — confirmado con `ls` antes de crearlos (son nuevos, el spec los nombra como tal) |
+| la causa leída por el orquestador en `Origen.tsx` | confirmada por lectura: `numeroValido = /^-?\d+$/.test(limpio)` (línea 66 de la versión vieja) rechaza cualquier punto/coma — "1.600" caía por el MISMO camino que "N/D" (literal, sin animar); "12"/"52" (hectáreas, años) pasaban por ser números chicos sin separador |
+
+### El fix
+
+- **`lib/storefront/cifra-contador.ts`** (puro, nuevo): `cifraContador(texto)` reconoce un entero
+  sin separador (el regex viejo, intacto: `/^-?\d+$/`) **o** con separador de miles consistente
+  —grupos de EXACTAMENTE tres dígitos, punto o coma, backreference al mismo carácter
+  (`/^-?\d{1,3}([.,])\d{3}(?:\1\d{3})*$/`)— y devuelve `{ valor, separador }`; cualquier otra cosa
+  (vacío, "N/D", "1.6", "1.60", separadores mezclados) sigue dando `null` → el llamador muestra el
+  string literal, sin animar. `formatoCifraContador(valor, separador)` reformatea cada paso del
+  conteo CON ese mismo separador; `separador: null` reproduce `toLocaleString('es-CO')` tal cual
+  —"sin separador, como hoy", literal—.
+- **`Origen.tsx` (`OrigenContador`)**: cambia `numeroValido`/`Number(limpio)`/
+  `Math.round(valorActual).toLocaleString("es-CO")` por `cifraContador(valor)` /
+  `formatoCifraContador(valorActual, cifra.separador)`. El modo editor (muestra el `valor` CRUDO) no
+  cambia — sigue leyendo el string original, nunca el formateado.
+- **`lib/animation.ts`/`lib/animation.test.ts`**: sólo DOC — una nota junto a `DURACION_CONTADOR_MS`
+  y al bloque de tests del contador aclarando que `valorContador`/`useContadorAnimado` sólo conocen
+  números; el parseo del texto (y su test) vive en `cifra-contador.ts`. Cero cambio de
+  comportamiento en este archivo.
+- **`lib/config/origen-banda.test.ts`**: 3 tests nuevos (grupo "EL FIX") que reproducen el bug real
+  —`statNumero1: '1.600'`— y afirman que SIN preview arranca en "0" (antes mostraba el literal
+  "1.600" de inmediato, sin contar) y que EN PREVIEW cuenta hasta "1.600" con su punto; un cuarto
+  caso afirma que `'1,600'` (coma) cuenta con coma, nunca la reemplaza por un punto.
+
+### Cierre — gate y reconciliación visual
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` (`npm run typecheck`) | 0 errores |
+| `npm test` | **3368/3368** (+23 sobre los 3345 del commit anterior: 20 en `cifra-contador.test.ts` + 3 en `origen-banda.test.ts`) |
+| `npm run test:integracion` | **323/323**, sin cambio (este slice no toca el eje de datos) |
+| `npm run guarda:color` | `ruta-home` DIFIERE (165052/4608000 px consciente de AA, 174711 crudo, caja `[105,862]–[1183,3581]`) + las otras 5 rutas DIFIEREN (163/361 px c/u) + los 2 hovers IDÉNTICO (0px) — **CIFRA Y CAJA EXACTAS** a las que `TAGLINE-DORADO-PROFUNDO-1`/`EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1` ya atribuyeron a la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`) |
+| `npm run verificar:nayoli:visual` (main vs. rama, build fresco) | MISMA cifra exacta que `guarda:color`, en las 8 claves |
+
+**Cero píxeles de drift nuevo, y por una razón adicional a la reconciliación por cifra: `Origen`
+nunca monta sobre Nayoli sin preset** (`REGISTRY.origen.ocultable:true`, `DEFAULTS.origen.visible:
+false`, § `site-content-defaults.ts` — Nayoli no declara `?tema=CORTE` en el arnés de
+`verificar-nayoli-visual.ts`), así que el componente que este slice tocó ni siquiera se ejecuta en
+las 6 rutas capturadas. El diff medido es ÍNTEGRAMENTE el heredado de la rama; confirmado también
+por construcción, no sólo por coincidencia de cifra.
+
+### `customer_bytes`
+
+**`changed: true`** — es un fix de RENDER del storefront (el texto que el contador muestra cambia
+de forma para cualquier tenant/sección que use un `statNumeroN` con separador de miles). **De este
+COMMIT en particular, sobre Nayoli**: `strings: []` — Nayoli no tiene la banda Origen encendida
+(arriba), así que no hay un solo byte visible que cambie en su storefront hoy. El cambio visible es
+real pero LATENTE: se activa el día que un tenant con Origen visible (CORTE, o un dato cargado a
+mano) tenga un `statNumeroN` con punto o coma.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin columna nueva, sin contrato cross-repo. Es
+lógica pura + un componente de cliente.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio (§ Cierre).
+  Ajeno a `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`)** — gate verde en sus tres capas obligatorias (typecheck 0
+errores, `npm test` 3368/3368, `npm run test:integracion` 323/323); `guarda:color`/
+`verificar:nayoli:visual` dan la MISMA cifra exacta que el piso heredado de la rama — cero píxeles
+de drift nuevo, y `Origen` no monta sobre Nayoli así que no puede ser la fuente. El dispatch
+instruyó explícitamente parar en `AWAITING_APPROVAL` sin merge. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `ORIGEN-CONTADOR-MILES-1`.**
