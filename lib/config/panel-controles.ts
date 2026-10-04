@@ -19,12 +19,16 @@
 // `volverArriba`, `rielSocial`, `carritoEnvio`, `carrito` (§ MUESTRARIO-CARRITO-COMPOSICION-1),
 // `navTratamiento`, `navWordmark`, `navDrawerMovil`), leídas de `DEFAULTS` en runtime.
 //
-// LO QUE QUEDA AFUERA A PROPÓSITO — `esquemas`, `orden`, `variantesBandas`, `presetSnapshot` — NO por
-// una lista de excepciones, sino porque NUNCA ENTRAN al lado "leído": son dominio ABIERTO (`esquemas`/
-// `variantesBandas`/`presetSnapshot` son `Record<string, X>` sin claves fijas — cualquier bandaId (o,
-// para `presetSnapshot`, cualquier ruta) puede tener entrada; `orden` es un array de reordenamiento,
-// no un objeto con campos nombrados). Un chequeo por-campo no tiene NADA que enumerar ahí — no es que
-// se decida omitirlos, es que la forma del dato no tiene "campos". Los primeros tres se componen en
+// LO QUE QUEDA AFUERA A PROPÓSITO — `esquemas`, `orden`, `variantesBandas`, `presetSnapshot`,
+// `seccionesHome` (§ EDITOR-AGREGAR-SECCION-1) — NO por una lista de excepciones, sino porque NUNCA
+// ENTRAN al lado "leído": son dominio ABIERTO (`esquemas`/`variantesBandas`/`presetSnapshot` son
+// `Record<string, X>` sin claves fijas — cualquier bandaId (o, para `presetSnapshot`, cualquier
+// ruta) puede tener entrada; `orden` es un array de reordenamiento, no un objeto con campos
+// nombrados; `seccionesHome` es un `Record<string, InstanciaContent>` cuyas claves el DUEÑO crea
+// al agregar una sección — ninguna lista cerrada podría enumerarlas de antemano, y sus campos
+// internos los gobierna su propio catálogo, § `DESCRIPTOR_INSTANCIA`/`secciones-instancias.test.ts`,
+// no este chequeo). Un chequeo por-campo no tiene NADA que enumerar ahí — no es que se decida
+// omitirlos, es que la forma del dato no tiene "campos". Los primeros tres se componen en
 // el onboarding (decisión del owner, ya asentada en CLAUDE.md, § el docstring de
 // `EsquemasContent`/`VariantesBandasContent`/`OrdenContent` en site-content-defaults.ts), no en un
 // picker del panel; `presetSnapshot` (§ REAPPLY-PRESERVA-OVERRIDES-1) NUNCA se compone a mano, en el
@@ -58,7 +62,8 @@ import { elementosEstiloDeSeccion } from './estilo-elemento';
 // ─── LADO A: lo que la tienda LEE ──────────────────────────────────────────────────────────────────
 
 /** Las DIEZ claves NO-sección con forma FIJA (un objeto con campos nombrados, no un `Record` abierto).
- *  `esquemas`/`orden`/`variantesBandas` NO están acá — dominio abierto, § el comentario de cabecera. */
+ *  `esquemas`/`orden`/`variantesBandas`/`seccionesHome` NO están acá — dominio abierto, § el
+ *  comentario de cabecera. */
 const METAS_CON_CAMPOS = ['paginas', 'tema', 'cromo', 'volverArriba', 'rielSocial', 'carritoEnvio', 'carrito', 'navTratamiento', 'navWordmark', 'navDrawerMovil'] as const;
 type MetaConCampos = (typeof METAS_CON_CAMPOS)[number];
 

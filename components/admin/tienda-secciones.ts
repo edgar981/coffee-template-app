@@ -19,7 +19,11 @@ export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' 
 // nombre "bonito" declarado en ningún lado que no sea la propia ruta) + `<option value="">Sin
 // destino</option>` primero. Un solo lugar para que `presentaciones.ctaDestino`/`brandStory.
 // ctaDestino`/`subscriptionCTA.ctaSecundarioDestino` no diverjan entre sí ni del menú.
-const OPCIONES_CTA_DESTINO: { value: string; label: string }[] = [
+// EXPORTADA (§ EDITOR-AGREGAR-SECCION-1): el editor BESPOKE de una sección agregada
+// (`InstanciaEditorForm.tsx`) no pasa por `SeccionConfig`/`renderCampo` —el dominio de instancias es
+// abierto, § secciones-instancias.ts—, pero su CTA tiene que ofrecer el MISMO set de destinos que
+// cualquier banda; reexportar la lista evita una segunda copia que pudiera divergir.
+export const OPCIONES_CTA_DESTINO: { value: string; label: string }[] = [
   { value: '', label: 'Sin destino' },
   ...MENU_CTA_DESTINOS.map((d) => ({ value: d, label: d })),
 ];

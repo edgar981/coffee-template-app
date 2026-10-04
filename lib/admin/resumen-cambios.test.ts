@@ -167,6 +167,62 @@ test('orden: el mismo orden no reporta nada', () => {
   assert.deepEqual(cambios, []);
 });
 
+// ── 5 · SECCIONES AGREGADAS (§ EDITOR-AGREGAR-SECCION-1) ───────────────────────────────────────────
+
+test('seccionesHome: una instancia nueva se resume con su NOMBRE DE CATÁLOGO y "nueva" (femenino)', () => {
+  const publicado = {};
+  const borrador = { 'inst:a': { tipo: 'imagenTexto', titulo: 'Nuestro café', antetitulo: '', texto: '', ctaLabel: '', ctaDestino: '', imagen: '', lado: 'izquierda' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Imagen con texto', tipo: 'nuevo',
+    etiqueta: 'Inicio · Imagen con texto · nueva',
+  }]);
+});
+
+test('seccionesHome: una instancia eliminada se resume "eliminada", nombrada por su tipo de ANTES', () => {
+  const publicado = { 'inst:a': { tipo: 'banner', titulo: 'Oferta', texto: '', ctaLabel: '', ctaDestino: '', ctaSecundarioLabel: '', ctaSecundarioDestino: '', imagen: '', alto: 'justo' } };
+  const borrador = {};
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Banner', tipo: 'quitado',
+    etiqueta: 'Inicio · Banner · eliminada',
+  }]);
+});
+
+test('seccionesHome: editar un campo de una instancia existente se resume "editada"', () => {
+  const base = { tipo: 'texto', antetitulo: '', titulo: 'T', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro' };
+  const publicado = { 'inst:a': base };
+  const borrador = { 'inst:a': { ...base, titulo: 'T2' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Texto', tipo: 'cambiado',
+    etiqueta: 'Inicio · Texto · editada',
+  }]);
+});
+
+test('seccionesHome: dos instancias cambiadas a la vez producen DOS filas, una por id', () => {
+  const baseTexto = { tipo: 'texto', antetitulo: '', titulo: 'T', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro' };
+  const publicado = { 'inst:a': baseTexto };
+  const borrador = {
+    'inst:a': { ...baseTexto, titulo: 'T2' },
+    'inst:b': { tipo: 'banner', titulo: 'Nuevo', texto: '', ctaLabel: '', ctaDestino: '', ctaSecundarioLabel: '', ctaSecundarioDestino: '', imagen: '', alto: 'justo' },
+  };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.equal(cambios.length, 2);
+  assert.deepEqual(new Set(cambios.map((c) => c.clave)), new Set(['inst:a', 'inst:b']));
+});
+
+test('seccionesHome: sin diferencias no reporta nada', () => {
+  const contenido = { 'inst:a': { tipo: 'texto', antetitulo: '', titulo: 'T', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: contenido }, { seccionesHome: { ...contenido } });
+  assert.deepEqual(cambios, []);
+});
+
+test('seccionesHome: sin fila ("" vs undefined) no revienta -- cae a mapas vacíos', () => {
+  assert.doesNotThrow(() => resumenCambios(['seccionesHome'], {}, {}));
+  assert.deepEqual(resumenCambios(['seccionesHome'], {}, {}), []);
+});
+
 // ── BONUS · imagen, booleano, repeater ──────────────────────────────────────────────────────────
 
 test('imagen: reemplazar la portada del hero es "cambiado"', () => {

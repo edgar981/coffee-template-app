@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import { toast } from 'sonner';
+import { Plus } from 'lucide-react';
 import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
@@ -8,23 +10,44 @@ import TogglePagina from '@/components/admin/TogglePagina';
 import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
 import MenuSeccion from '@/components/admin/MenuSeccion';
 import FooterSeccion from '@/components/admin/FooterSeccion';
-import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/components/admin/tienda-secciones';
+import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista, type SeccionConfig } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, marcadorDeSeccion, type DispositivoKey } from '@/lib/admin/editor-iframe';
 import { Migas } from '@/components/admin/editor/Migas';
+import { VistaNueva } from '@/components/admin/editor/VistaNueva';
+import { BibliotecaSecciones } from '@/components/admin/editor/BibliotecaSecciones';
+import { InstanciaTarjeta } from '@/components/admin/editor/InstanciaTarjeta';
+import { InstanciaEditorForm } from '@/components/admin/editor/InstanciaEditorForm';
+import { SeparadorAgregar } from '@/components/admin/editor/SeparadorAgregar';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { esMensajeCampoImagenClick } from '@/lib/storefront/editor-puente';
 // `TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer` NO vienen de `lib/storefront/editor-puente.ts`: viven
 // en el COMPONENTE que las define (`EditorPuenteVivo.tsx`, § su docstring grande — desviación
 // medida, ese módulo compartido no está en `touches:` de este slice).
 import { esMensajeDeshacer } from '@/components/storefront/EditorPuenteVivo';
-import { resolverOrden, type BandaId } from '@/lib/config/site-content-defaults';
-import { moverBandaAIndice, moverBandaConDestino, moverBandaEnDireccion, ordenarPorBanda } from '@/lib/admin/orden-secciones';
+import { BANDA_IDS, type TemaContent } from '@/lib/config/site-content-defaults';
+import { moverBandaConDestino, moverBandaEnDireccion, ordenarSeccionesConInstancias, type ItemOrdenMixto } from '@/lib/admin/orden-secciones';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { crearHistorialEditor, sonIguales, type HistorialEditor, type PasoHistorial } from '@/lib/admin/historial-editor';
 import { resumenCambios, type CambioResumen } from '@/lib/admin/resumen-cambios';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
+// § EDITOR-AGREGAR-SECCION-1 — EL CATÁLOGO CURADO Y SU MECANISMO (§ lib/config/secciones-instancias.ts,
+// construido por SECCIONES-INSTANCIAS-1; esta tanda le agrega la UI). `resolverOrdenCompleto`
+// generaliza `resolverOrden` a bandas ∪ instancias — el `orden` que YA llega en `doc.contenido` está
+// resuelto así server-side (§ `resolverSiteContent`), así que acá se corre de nuevo sólo como RED
+// defensiva (el WRITE puede ser más estricto que el loader, mismo criterio de siempre), nunca como
+// primera fuente de verdad.
+import {
+  resolverOrdenCompleto, nuevoIdInstancia, crearInstancia, esInstanciaId, nombreInstancia, TOPE_INSTANCIAS_HOME,
+  type InstanciaContent, type SeccionInstanciaTipo,
+} from '@/lib/config/secciones-instancias';
+// `moverBandaAIndice` quedó SIN consumidor en este archivo (§ EDITOR-AGREGAR-SECCION-1): el asa de
+// UNA fila mixta (banda o instancia) ahora mueve por `moverOrden`/`moverOrdenA`, que siguen usando
+// `moverBandaEnDireccion`/`moverBandaConDestino` — `moverBandaAIndice` sigue viva (la usan las otras
+// dos, y el test de `orden-secciones.ts` la ejercita directo), simplemente ningún llamador de ESTE
+// archivo la invoca por su nombre.
 
 // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — las secciones que son DESTINO de algún `seccionCruzada`
 // (§ `CampoTexto.seccionCruzada`, tienda-secciones.ts) — hoy sólo `marquesina` (sus campos `texto`/
@@ -137,7 +160,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // Los editores no la ven: le hablan por el `ref` a través de dos callbacks (abrir una sección,
   // recargar tras un cambio publicado), así que agregar/quitar secciones no toca este componente.
   const iframeRef = useRef<VistaTiendaIframeHandle>(null);
-  const irASeccion = useCallback((seccion: SeccionVista) => iframeRef.current?.irASeccion(seccion), []);
+  // `string`, no `SeccionVista` (§ EDITOR-AGREGAR-SECCION-1): sirve por igual a una banda y a un id
+  // de instancia — `VistaTiendaIframeHandle.irASeccion` ya acepta `string` (ese archivo SÍ está en
+  // `touches:` de este slice, a diferencia de cuando este wrapper se escribió).
+  const irASeccion = useCallback((seccion: string) => iframeRef.current?.irASeccion(seccion), []);
   const recargarIframe = useCallback(() => iframeRef.current?.recargar(), []);
 
   // ── § EDITOR-TIENDA-SHELL-1 — EL PANEL CON NIVELES (Inicio → sección → elemento, REDISENO.md § 3).
@@ -163,11 +189,18 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // `abrirNivelSeccion`). `nivelActivo` unifica los dos para las decisiones que no les importa
   // CUÁL de los dos tipos está activo —las migas, ocultar las demás filas de Inicio—.
   const [cromoActivo, setCromoActivo] = useState<CromoKey | null>(null);
-  const nivelActivo: string | null = seccionActiva ?? cromoActivo;
+  // § EDITOR-AGREGAR-SECCION-1 — el GEMELO de `seccionActiva`/`cromoActivo` para una SECCIÓN
+  // AGREGADA: un TERCER tipo de nivel, nunca junto a los otros dos. A diferencia del cromo, una
+  // instancia NO tiene un `TiendaSeccionEditor`/handle propio (§ `InstanciaEditorForm.tsx`, el
+  // docstring de cabecera: "CONTROLADO, sin estado propio") — este componente YA es dueño de
+  // `seccionesHomeLocal`, así que abrir/cerrar es sólo mover este estado, sin un ref que avisar.
+  const [instanciaActiva, setInstanciaActiva] = useState<string | null>(null);
+  const nivelActivo: string | null = seccionActiva ?? cromoActivo ?? instanciaActiva;
   const cromoRefs = useRef<Map<CromoKey, CromoHandle>>(new Map());
   const abrirNivelSeccion = useCallback((seccion: SeccionVista) => {
     irASeccion(seccion);
     setCromoActivo(null);
+    setInstanciaActiva(null);
     setSeccionActiva(seccion);
   }, [irASeccion]);
   const cerrarNivelSeccion = useCallback((seccion: SeccionVista) => {
@@ -178,19 +211,33 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // visibles en CUALQUIER página que esté mostrando el lienzo).
   const abrirNivelCromo = useCallback((key: CromoKey) => {
     setSeccionActiva(null);
+    setInstanciaActiva(null);
     setCromoActivo(key);
   }, []);
   const cerrarNivelCromo = useCallback((key: CromoKey) => {
     setCromoActivo((actual) => (actual === key ? null : actual));
   }, []);
-  // El «‹ Inicio» de las migas: colapsa la edición de lo que esté activo (sección o cromo) Y
-  // vuelve al nivel de arriba — las DOS salidas (el botón interno, éstas migas) deben terminar en
-  // el mismo sitio, nunca una tarjeta a medio abrir detrás de la lista.
+  // Gemelos otra vez, para una sección agregada — `irASeccion` SÍ aplica (una instancia tiene su
+  // propio marcador `data-editor-seccion` en el iframe, § `app/(storefront)/page.tsx`, fuera de
+  // `touches:`, no tocado por este slice).
+  const abrirNivelInstancia = useCallback((id: string) => {
+    irASeccion(id);
+    setSeccionActiva(null);
+    setCromoActivo(null);
+    setInstanciaActiva(id);
+  }, [irASeccion]);
+  const cerrarNivelInstancia = useCallback((id: string) => {
+    setInstanciaActiva((actual) => (actual === id ? null : actual));
+  }, []);
+  // El «‹ Inicio» de las migas: colapsa la edición de lo que esté activo (sección, cromo o
+  // instancia) Y vuelve al nivel de arriba — las DOS salidas (el botón interno, éstas migas) deben
+  // terminar en el mismo sitio, nunca una tarjeta a medio abrir detrás de la lista.
   const volverAInicio = useCallback(() => {
     if (seccionActiva) seccionRefs.current.get(seccionActiva)?.cerrar();
     if (cromoActivo) cromoRefs.current.get(cromoActivo)?.cerrar();
     setSeccionActiva(null);
     setCromoActivo(null);
+    setInstanciaActiva(null);
   }, [seccionActiva, cromoActivo]);
   // § EDITOR-TIENDA-POSTMESSAGE-1 — el cambio EN VIVO de cada editor llega acá y se reenvía al
   // iframe compartido por `postMessage`, sin recargar (reemplaza el reload-tras-autoguardado de
@@ -272,6 +319,14 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     callbacksRefCromo.current.set(key, nuevo);
     return nuevo;
   }, []);
+  // § EDITOR-AGREGAR-SECCION-1 — REF DE INDIRECCIÓN para `cambiarCampoInstancia`: esa función se
+  // declara MÁS ABAJO, junto al resto del estado de `seccionesHome` (que depende de `doc`); este
+  // handler —el campo flotante del iframe— se declara ACÁ ARRIBA. Un arreglo de dependencias de
+  // `useCallback` SE EVALÚA DE INMEDIATO, así que nombrar ahí algo que el propio `const` todavía no
+  // inicializó en este render (zona muerta de `const`) revienta en runtime — la ref lo evita: se lee
+  // sólo DENTRO del cuerpo (en tiempo de LLAMADA, siempre después de que el render entero terminó),
+  // y se actualiza con una asignación plana justo debajo de la función real, más abajo en el archivo.
+  const cambiarCampoInstanciaRef = useRef<(id: string, campo: string, valor: string) => void>(() => {});
   const manejarSeleccionDesdeIframe = useCallback((marcador: string) => {
     // § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO/MENÚ/PIE se revisan ANTES de resolver contra
     // `SECCIONES_TIENDA`: sus marcadores (`'encabezado'`/`'menu'`/`'footer'`) no son `SeccionVista`,
@@ -285,10 +340,20 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // acá sólo movería `cromoActivo` (deja de estar `display:none`) sin que el editor INTERNO de
     // la tarjeta saliera de su vista de lectura — el bug que el arnés de este slice atrapó.
     if (esCromoKey(marcador)) { cromoRefs.current.get(marcador)?.abrir(); return; }
-    const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
-    if (!secciones.some(c => c.seccion === candidato)) return;
-    seccionRefs.current.get(candidato)?.seleccionar();
-  }, [secciones]);
+    // § EDITOR-AGREGAR-SECCION-1 — una SECCIÓN AGREGADA se revisa ANTES de `SECCIONES_TIENDA` por la
+    // misma razón que el cromo: su id (`inst:…`) nunca va a estar en ese registro, así que
+    // resolvería a "nada conocido" y se ignoraría en silencio si no se intercepta acá. A diferencia
+    // del cromo, no hay un handle que "decida abrirse" — este componente YA es dueño del estado, así
+    // que abre directo.
+    const candidato = seccionDesdeMarcador(marcador);
+    if (esInstanciaId(candidato)) {
+      if (seccionesHomeLocalRef.current && candidato in seccionesHomeLocalRef.current) abrirNivelInstancia(candidato);
+      return;
+    }
+    const candidatoSeccion = candidato as SeccionVista;
+    if (!secciones.some(c => c.seccion === candidatoSeccion)) return;
+    seccionRefs.current.get(candidatoSeccion)?.seleccionar();
+  }, [secciones, abrirNivelInstancia]);
   // § EDITOR-TIENDA-CAMPO-EDITABLE-1 — el campo flotante, MISMA resolución de marcador que la
   // selección de arriba (un campo vive DENTRO de una sección marcada, así que su mensaje trae el
   // MISMO marcador de sección). Un marcador que no resuelve a una sección de la página activa se
@@ -304,10 +369,15 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // (§ `FooterSeccion.escribirCampo`); el clic ya abrió el nivel por el `TIPO_MENSAJE_SECCION_
     // CLICK` del MISMO clic, vía `manejarSeleccionDesdeIframe` — acá sólo queda escribir el campo.
     if (marcador === 'footer') { cromoRefs.current.get('footer')?.escribirCampo?.(campo, valor); return; }
-    const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
-    if (!secciones.some(c => c.seccion === candidato)) return;
-    const handle = seccionRefs.current.get(candidato);
-    const esCruzado = secciones.some(c => c.campos.some(f => f.seccionCruzada === candidato && f.name === campo));
+    // § EDITOR-AGREGAR-SECCION-1 — una SECCIÓN AGREGADA: el clic ya abrió su nivel por el
+    // `TIPO_MENSAJE_SECCION_CLICK` del MISMO clic (vía `manejarSeleccionDesdeIframe`, arriba) — acá
+    // sólo queda escribir el campo, mergeado sobre el valor ACTUAL (`cambiarCampoInstancia`).
+    const candidato = seccionDesdeMarcador(marcador);
+    if (esInstanciaId(candidato)) { cambiarCampoInstanciaRef.current(candidato, campo, valor); return; }
+    const candidatoSeccion = candidato as SeccionVista;
+    if (!secciones.some(c => c.seccion === candidatoSeccion)) return;
+    const handle = seccionRefs.current.get(candidatoSeccion);
+    const esCruzado = secciones.some(c => c.campos.some(f => f.seccionCruzada === candidatoSeccion && f.name === campo));
     if (esCruzado) handle?.escribirCampoSinAbrir(campo, valor);
     else handle?.escribirCampo(campo, valor);
   }, [secciones]);
@@ -326,13 +396,22 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
       if (!esMensajeCampoImagenClick(e.data)) return;
-      const candidato = seccionDesdeMarcador(e.data.seccion) as SeccionVista;
-      if (!secciones.some(c => c.seccion === candidato)) return;
-      seccionRefs.current.get(candidato)?.abrirSelectorImagen(e.data.campo);
+      const candidato = seccionDesdeMarcador(e.data.seccion);
+      // § EDITOR-AGREGAR-SECCION-1 — una SECCIÓN AGREGADA: abre su editor (no hay un selector de
+      // imagen que disparar PROGRAMÁTICAMENTE desde acá — `InstanciaEditorForm` no expone ese
+      // handle, § su docstring de cabecera — así que el dueño llega al campo con un clic más,
+      // "Cambiar", una vez el editor está abierto; simplificación DECLARADA, no un olvido).
+      if (esInstanciaId(candidato)) {
+        if (seccionesHomeLocalRef.current && candidato in seccionesHomeLocalRef.current) abrirNivelInstancia(candidato);
+        return;
+      }
+      const candidatoSeccion = candidato as SeccionVista;
+      if (!secciones.some(c => c.seccion === candidatoSeccion)) return;
+      seccionRefs.current.get(candidatoSeccion)?.abrirSelectorImagen(e.data.campo);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [secciones]);
+  }, [secciones, abrirNivelInstancia]);
 
   // ANGOSTO reusa la pregunta de `useSheetDesdeAbajo` ("¿es una pantalla táctil de una mano?",
   // umbral 960 — § DUNA_MQ_SHEET_ABAJO) para una decisión DISTINTA de la suya (de qué borde sale un
@@ -405,7 +484,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // porque ninguna coincidiría con un `seccionActiva` de otra página). NO depende de `modo`, a
   // propósito: "Abrir Estilo no pierde la selección" (REDISENO.md § 3) — ir y volver entre Secciones
   // y Estilo debe conservar el nivel donde se estaba.
-  useEffect(() => { setSeccionActiva(null); }, [pagina]);
+  // § EDITOR-AGREGAR-SECCION-1 — `instanciaActiva` por la MISMA razón: una instancia sólo existe en
+  // 'home' (nosotros/suscripciones no tienen `seccionesHome`), así que cambiar de página la deja
+  // apuntando a un id que nunca va a aparecer en `seccionesOrdenadas` de esa otra página.
+  useEffect(() => { setSeccionActiva(null); setInstanciaActiva(null); }, [pagina]);
 
   const deshacerGlobal = useCallback(() => { historialRef.current?.deshacer(); tocarHistorial(); }, [tocarHistorial]);
   const rehacerGlobal = useCallback(() => { historialRef.current?.rehacer(); tocarHistorial(); }, [tocarHistorial]);
@@ -460,11 +542,14 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   //    SIEMBRA ÚNICA (mismo patrón que el `form` de cada `TiendaSeccionEditor`): una vez que `doc`
   //    carga, este componente pasa a ser DUEÑO del array — switch de página y vuelta NO re-siembra
   //    (`TiendaPaginas` no se remonta al cambiar `pagina`, sólo cambia qué `secciones` renderiza).
-  const [ordenLocal, setOrdenLocal] = useState<BandaId[] | null>(null);
+  //
+  //    `string[]`, NO `BandaId[]` (§ EDITOR-AGREGAR-SECCION-1): el `orden` real puede mezclar bandas
+  //    con ids de instancia (`inst:…`, § secciones-instancias.ts) desde que `seccionesHome` existe.
+  const [ordenLocal, setOrdenLocal] = useState<string[] | null>(null);
   // § EDITOR-TIENDA-DESHACER-1 — espejo síncrono de `ordenLocal`, para leer el valor "despues" de
   // un lote desde el efecto de abajo sin que ese efecto dependa de `ordenLocal` (lo que lo correría
   // en cada reorden, no sólo al asentar).
-  const ordenLocalRef = useRef<BandaId[] | null>(null); ordenLocalRef.current = ordenLocal;
+  const ordenLocalRef = useRef<string[] | null>(null); ordenLocalRef.current = ordenLocal;
   const [hayBorradorOrden, setHayBorradorOrden] = useState(false);
   const [procesandoOrden, setProcesandoOrden] = useState(false);
   const [errorOrden, setErrorOrden] = useState<string | null>(null);
@@ -472,7 +557,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   useEffect(() => {
     if (sembradoOrdenRef.current || !doc) return;
     sembradoOrdenRef.current = true;
-    const draftMerged = resolverOrden(doc.contenido.orden);
+    // `doc.contenido.orden` YA LLEGA RESUELTO COMPLETO (bandas ∪ instancias, § `resolverSiteContent`
+    // en `site-content-defaults.ts`), así que correr `resolverOrdenCompleto` acá es una red
+    // DEFENSIVA, no la primera fuente de verdad (mismo criterio que el resto de este archivo: el
+    // WRITE puede ser más estricto que el loader, nunca al revés). Usar la vieja `resolverOrden`
+    // (sólo `BANDA_IDS`) descartaría en silencio cualquier instancia ya agregada.
+    const idsInstancia = Object.keys((doc.contenido.seccionesHome as Record<string, unknown> | undefined) ?? {});
+    const draftMerged = resolverOrdenCompleto(doc.contenido.orden, BANDA_IDS, idsInstancia);
     setOrdenLocal(draftMerged);
     // `sinPublicar.orden` NO lo calcula el GET genérico (orden es META, fuera del REGISTRY, § el
     // mismo motivo por el que `tema`/`encabezado` lo calculan A MANO en `site-content-read.ts` —
@@ -481,10 +572,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // mostraría la píldora "Sin publicar" apagada, mintiendo sobre un borrador que sigue pendiente.
     fetch('/api/site-content/publicado')
       .then((r) => (r.ok ? r.json() : null))
-      .then((pub: { orden?: unknown } | null) => {
+      .then((pub: { orden?: unknown; seccionesHome?: unknown } | null) => {
         if (!pub) return;
-        const publicado = resolverOrden(pub.orden);
-        setHayBorradorOrden(publicado.some((id, i) => id !== draftMerged[i]));
+        const idsInstanciaPublicados = Object.keys((pub.seccionesHome as Record<string, unknown> | undefined) ?? {});
+        const publicado = resolverOrdenCompleto(pub.orden, BANDA_IDS, idsInstanciaPublicados);
+        setHayBorradorOrden(!sonIguales(publicado, draftMerged));
       })
       .catch(() => {}); // sin esto, "Sin publicar" se queda apagado — preferible a afirmar sin base
   }, [doc]);
@@ -492,7 +584,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // El AUTOGUARDADO del orden — MISMO coordinador que cada sección (`useAutoguardado`), guardando
   // la clave META `orden` en vez de una sección del REGISTRY (el PUT genérico ya la acepta:
   // `ordenEditableSchema` está declarado en `siteContentEditableSchema`, § site-content-schema.ts).
-  const guardarOrden = useCallback(async (data: BandaId[]) => {
+  const guardarOrden = useCallback(async (data: string[]) => {
     const res = await fetch('/api/site-content', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orden: data }),
@@ -502,43 +594,76 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   const autoOrden = useAutoguardado(guardarOrden);
 
   // EL ENVÍO EN VIVO al iframe compartido (§ EDITOR-TIENDA-POSTMESSAGE-1), reusado para 'orden'.
-  // `VistaTiendaIframe.tsx` queda FUERA de `touches:` de este slice, así que no gana un método
-  // `enviarOrden` propio — su `enviarCambio` YA es genérico en RUNTIME (sólo manda {tipo, seccion,
-  // datos} tal cual por `postMessage`; no mira el REGISTRY del lado del panel). El cast documenta
-  // el cruce: 'orden' no es una `SeccionVista` real, y `EditorPuenteVivo.tsx` (§ editor-puente.ts)
-  // la reconoce ANTES de tratarla como una sección del REGISTRY.
-  const enviarOrdenIframe = useCallback((valor: BandaId[]) => {
-    const enviar = iframeRef.current?.enviarCambio as
-      | ((seccion: string, datos: Record<string, unknown>) => void)
-      | undefined;
-    enviar?.('orden', { valor });
+  // `VistaTiendaIframe.tsx` SÍ está en `touches:` de este slice (§ EDITOR-AGREGAR-SECCION-1) y su
+  // `enviarCambio` ya acepta `string` directo —el cast que este archivo necesitaba cuando ese
+  // archivo estaba fuera de alcance ya no hace falta—. 'orden' sigue sin ser una `SeccionVista`
+  // real; `EditorPuenteVivo.tsx` (§ editor-puente.ts) la reconoce ANTES de tratarla como sección.
+  const enviarOrdenIframe = useCallback((valor: string[]) => {
+    iframeRef.current?.enviarCambio('orden', { valor });
   }, []);
 
   // EL ENVÍO EN VIVO del TEMA al iframe compartido (§ EDITOR-TIENDA-TEMA-1) — MISMO cruce que
-  // 'orden', arriba: `VistaTiendaIframe.tsx` sigue fuera de `touches:`, su `enviarCambio` ya es
-  // genérico en runtime, y 'tema' tampoco es una `SeccionVista` real. `PaletaSeccion`
-  // (`enEditor`/`onCambioEnVivo`) ya manda las vars SIEMPRE COMPLETAS (`varsDeTemaEnVivo`), así que
-  // acá no hay nada que resolver — sólo reenviar.
+  // 'orden', arriba. `PaletaSeccion` (`enEditor`/`onCambioEnVivo`) ya manda las vars SIEMPRE
+  // COMPLETAS (`varsDeTemaEnVivo`), así que acá no hay nada que resolver — sólo reenviar.
   const enviarTemaIframe = useCallback((vars: Record<string, string>) => {
-    const enviar = iframeRef.current?.enviarCambio as
-      | ((seccion: string, datos: Record<string, unknown>) => void)
-      | undefined;
-    enviar?.('tema', { vars });
+    iframeRef.current?.enviarCambio('tema', { vars });
   }, []);
 
-  const [arrastrandoId, setArrastrandoId] = useState<BandaId | null>(null);
+  // ── § EDITOR-AGREGAR-SECCION-1 — LAS SECCIONES AGREGADAS, mismo patrón que 'orden' arriba ───────
+  //
+  // `seccionesHomeLocal` es el mapa id→instancia LOCAL que este componente posee, hermano de
+  // `ordenLocal`: UN autoguardado para el mapa completo (como 'orden' es UN autoguardado para el
+  // array completo), nunca uno por instancia — mismo criterio que escribe `content.tema` entero en
+  // cada guardado en vez de un campo a la vez. A diferencia de 'orden', el GET genérico YA calcula
+  // `sinPublicar.seccionesHome` (§ `site-content-read.ts`, construido por SECCIONES-INSTANCIAS-1),
+  // así que no hace falta el fetch extra a `/publicado` que 'orden' necesita para su píldora.
+  const [seccionesHomeLocal, setSeccionesHomeLocal] = useState<Record<string, InstanciaContent> | null>(null);
+  const seccionesHomeLocalRef = useRef<Record<string, InstanciaContent> | null>(null);
+  seccionesHomeLocalRef.current = seccionesHomeLocal;
+  const [hayBorradorSeccionesHome, setHayBorradorSeccionesHome] = useState(false);
+  const sembradoSeccionesHomeRef = useRef(false);
+  useEffect(() => {
+    if (sembradoSeccionesHomeRef.current || !doc) return;
+    sembradoSeccionesHomeRef.current = true;
+    const draftMerged = (doc.contenido.seccionesHome as Record<string, InstanciaContent> | undefined) ?? {};
+    setSeccionesHomeLocal(draftMerged);
+    setHayBorradorSeccionesHome(!!doc.sinPublicar.seccionesHome);
+  }, [doc]);
+
+  const guardarSeccionesHome = useCallback(async (data: Record<string, InstanciaContent>) => {
+    const res = await fetch('/api/site-content', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seccionesHome: data }),
+    });
+    if (!res.ok) throw new Error('No se pudo guardar');
+  }, []);
+  const autoSeccionesHome = useAutoguardado(guardarSeccionesHome);
+
+  /** Manda el borrador EN VIVO de UNA instancia al iframe — gemelo de `manejarCambioSeccion` para
+   *  una banda. `datos` es el objeto COMPLETO (§ el docstring de `InstanciaEditorForm.tsx`: el
+   *  puente resuelve el mensaje entero contra el descriptor, un parche parcial perdería los campos
+   *  ausentes a su default). */
+  const enviarInstanciaIframe = useCallback((id: string, datos: Record<string, unknown>) => {
+    iframeRef.current?.enviarCambio(id, datos);
+  }, []);
+
+  const [arrastrandoId, setArrastrandoId] = useState<string | null>(null);
 
   // § EDITOR-TIENDA-DESHACER-1 — el "lote" del orden, MISMO criterio que `aplicarCambioForm` de
   // `TiendaSeccionEditor.tsx`: el PRIMER reorder desde el último asentamiento fija `loteOrdenAntesRef`;
   // los siguientes (mientras el debounce del autoguardado sigue abierto) no lo tocan — así una
   // ráfaga de flechas o un arrastre con varios `dragenter` cuenta como UN solo paso de historial.
-  const loteOrdenAntesRef = useRef<BandaId[] | null>(null);
+  const loteOrdenAntesRef = useRef<string[] | null>(null);
   // Suprime el push de abajo cuando el PROPIO deshacer/rehacer del orden disparó el asentamiento
   // (mismo rol que `aplicandoHistorialRef` en `TiendaSeccionEditor.tsx` — sin esto, cada deshacer
-  // empujaría un paso nuevo a su propia pila).
+  // empujaría un paso nuevo a su propia pila). § EDITOR-AGREGAR-SECCION-1 — también la usan
+  // agregar/duplicar/eliminar: esas tres mutan `orden` y `seccionesHome` A LA VEZ y empujan UN solo
+  // paso combinado manualmente (§ `agregarSeccion`/`duplicarInstancia`/`eliminarInstancia`, abajo),
+  // así que necesitan suprimir el push automático de ESTE efecto — llaman a `restaurarOrden`, que ya
+  // pone la bandera.
   const aplicandoHistorialOrdenRef = useRef(false);
 
-  const aplicarNuevoOrden = useCallback((siguiente: BandaId[], anterior: BandaId[]) => {
+  const aplicarNuevoOrden = useCallback((siguiente: string[], anterior: string[]) => {
     if (siguiente === anterior) return; // sin cambio real (§ moverBanda*: misma referencia)
     if (loteOrdenAntesRef.current === null) loteOrdenAntesRef.current = anterior;
     setOrdenLocal(siguiente);
@@ -550,7 +675,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // Deshacer/rehacer del orden: aplica un array COMPLETO por el MISMO camino que cualquier reorder
   // (nunca un segundo camino de datos) y lo persiste YA (`flush`), igual que `restaurarForm` de
   // `TiendaSeccionEditor.tsx`.
-  const restaurarOrden = useCallback((valor: BandaId[]) => {
+  const restaurarOrden = useCallback((valor: string[]) => {
     aplicandoHistorialOrdenRef.current = true;
     setOrdenLocal(valor);
     setHayBorradorOrden(true);
@@ -577,7 +702,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     tocarHistorial();
   }, [autoOrden.estado, restaurarOrden, tocarHistorial]);
 
-  const moverOrden = useCallback((id: BandaId, dir: -1 | 1) => {
+  const moverOrden = useCallback((id: string, dir: -1 | 1) => {
     setOrdenLocal((prev) => {
       if (!prev) return prev;
       const siguiente = moverBandaEnDireccion(prev, id, dir);
@@ -586,7 +711,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     });
   }, [aplicarNuevoOrden]);
 
-  const moverOrdenA = useCallback((idArrastrado: BandaId, idDestino: BandaId) => {
+  const moverOrdenA = useCallback((idArrastrado: string, idDestino: string) => {
     setOrdenLocal((prev) => {
       if (!prev) return prev;
       const siguiente = moverBandaConDestino(prev, idArrastrado, idDestino);
@@ -597,20 +722,21 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
 
   // El asa por sección — `undefined` para toda página sin `content.orden` o mientras `ordenLocal`
   // no sembró todavía (ninguna lista reordenable antes de saber el orden real evita un "salto"
-  // visual al llegar el primer render con datos).
-  const asaDeSeccion = useCallback((bandaId: BandaId | undefined, titulo: string): AsaOrdenProps | undefined => {
-    if (!bandaId || !ordenLocal) return undefined;
-    const i = ordenLocal.indexOf(bandaId);
+  // visual al llegar el primer render con datos). `id: string` (§ EDITOR-AGREGAR-SECCION-1): sirve
+  // por igual a un `bandaId` y a un id de instancia — es la MISMA asa, el mismo array mixto.
+  const asaDeSeccion = useCallback((id: string | undefined, titulo: string): AsaOrdenProps | undefined => {
+    if (!id || !ordenLocal) return undefined;
+    const i = ordenLocal.indexOf(id);
     if (i < 0) return undefined;
     return {
       posicion: i + 1,
       total: ordenLocal.length,
-      arrastrando: arrastrandoId === bandaId,
-      onDragStart: () => setArrastrandoId(bandaId),
-      onDragEnter: () => { if (arrastrandoId && arrastrandoId !== bandaId) moverOrdenA(arrastrandoId, bandaId); },
+      arrastrando: arrastrandoId === id,
+      onDragStart: () => setArrastrandoId(id),
+      onDragEnter: () => { if (arrastrandoId && arrastrandoId !== id) moverOrdenA(arrastrandoId, id); },
       onDragEnd: () => setArrastrandoId(null),
-      onMoverArriba: () => moverOrden(bandaId, -1),
-      onMoverAbajo: () => moverOrden(bandaId, 1),
+      onMoverArriba: () => moverOrden(id, -1),
+      onMoverAbajo: () => moverOrden(id, 1),
     };
     // `titulo` no se usa en el cálculo — queda en la firma para que el aria-label del asa (en
     // `TiendaSeccionEditor`) tenga un nombre sin que este callback dependa de él.
@@ -632,7 +758,8 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         // Re-lee lo PUBLICADO (mismo mecanismo que cada sección: `recargar()` re-lee el doc draft-
         // merged — tras descartar, "draft-merged" vuelve a ser exactamente lo publicado).
         const fresco = await recargarDoc();
-        setOrdenLocal(resolverOrden(fresco.contenido?.orden));
+        const idsInstancia = Object.keys((fresco.contenido?.seccionesHome as Record<string, unknown> | undefined) ?? {});
+        setOrdenLocal(resolverOrdenCompleto(fresco.contenido?.orden, BANDA_IDS, idsInstancia));
       }
       setHayBorradorOrden(false);
       recargarIframe(); // la MISMA resincronización completa que usa cada sección tras publicar/descartar
@@ -643,10 +770,253 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     }
   };
 
-  // Las `SeccionConfig` de la página activa, en el orden elegido — SÓLO home tiene `ordenLocal`; las
-  // demás páginas quedan en el orden fijo del registro (`ordenarPorBanda` con `orden: []` sería
-  // destructivo — items sin bandaId irían al final — así que se evita llamarla sin dato real).
-  const seccionesOrdenadas = ordenLocal ? ordenarPorBanda(secciones, ordenLocal) : secciones;
+  // ── § EDITOR-AGREGAR-SECCION-1 — EL LOTE de `seccionesHome`, mismo mecanismo que el de 'orden' ──
+  //
+  // Gemelo exacto de `loteOrdenAntesRef`/`aplicandoHistorialOrdenRef`/`restaurarOrden`/el efecto de
+  // `autoOrden.estado`, de arriba — ver esos docstrings para el porqué de cada pieza, no repetido
+  // acá. La única diferencia es la CLAVE (`seccionesHome`, un mapa, no un array) y el autoguardado
+  // que observa (`autoSeccionesHome`, no `autoOrden`).
+  const loteSeccionesHomeAntesRef = useRef<Record<string, InstanciaContent> | null>(null);
+  const aplicandoHistorialSeccionesHomeRef = useRef(false);
+
+  const restaurarSeccionesHome = useCallback((valor: Record<string, InstanciaContent>) => {
+    aplicandoHistorialSeccionesHomeRef.current = true;
+    setSeccionesHomeLocal(valor);
+    setHayBorradorSeccionesHome(true);
+    autoSeccionesHome.marcarSucio(valor);
+    autoSeccionesHome.flush();
+  }, [autoSeccionesHome]);
+
+  const prevEstadoSeccionesHomeRef = useRef(autoSeccionesHome.estado);
+  useEffect(() => {
+    const prevEstado = prevEstadoSeccionesHomeRef.current;
+    prevEstadoSeccionesHomeRef.current = autoSeccionesHome.estado;
+    if (prevEstado === autoSeccionesHome.estado || autoSeccionesHome.estado !== 'guardado') return;
+    const antes = loteSeccionesHomeAntesRef.current;
+    loteSeccionesHomeAntesRef.current = null;
+    const fueHistorial = aplicandoHistorialSeccionesHomeRef.current;
+    aplicandoHistorialSeccionesHomeRef.current = false;
+    if (fueHistorial || antes === null) return;
+    const despues = seccionesHomeLocalRef.current;
+    if (!despues || sonIguales(antes, despues)) return;
+    historialRef.current?.registrar({ deshacer: () => restaurarSeccionesHome(antes), rehacer: () => restaurarSeccionesHome(despues) });
+    tocarHistorial();
+  }, [autoSeccionesHome.estado, restaurarSeccionesHome, tocarHistorial]);
+
+  /** Edita UNA instancia: escribe su OBJETO COMPLETO (nunca un parche, § `InstanciaEditorForm`) en
+   *  `seccionesHomeLocal`, con el MISMO lote-por-debounce que un campo de banda (una ráfaga de
+   *  teclas entre dos asentamientos del autoguardado es UN solo paso de historial) — `loteSeccio-
+   *  nesHomeAntesRef` lo fija en el PRIMER cambio desde el último asentamiento. Reenvía EN VIVO. */
+  const cambiarInstancia = useCallback((id: string, siguiente: InstanciaContent) => {
+    setSeccionesHomeLocal((prev) => {
+      const actual = prev ?? {};
+      if (loteSeccionesHomeAntesRef.current === null) loteSeccionesHomeAntesRef.current = actual;
+      const nuevoMapa = { ...actual, [id]: siguiente };
+      setHayBorradorSeccionesHome(true);
+      autoSeccionesHome.marcarSucio(nuevoMapa);
+      return nuevoMapa;
+    });
+    enviarInstanciaIframe(id, siguiente as unknown as Record<string, unknown>);
+  }, [autoSeccionesHome, enviarInstanciaIframe]);
+
+  /** Escribe UN campo de una instancia, mergeado sobre su valor ACTUAL — lo que llega del campo
+   *  flotante del iframe (un solo nombre+valor), a diferencia de `InstanciaEditorForm` (que ya
+   *  manda el objeto completo). Sin instancia actual que mergear, se ignora — mismo criterio de
+   *  siempre: un marcador que no resuelve a nada conocido no inventa nada. */
+  const cambiarCampoInstancia = useCallback((id: string, campo: string, valor: string) => {
+    const actual = seccionesHomeLocalRef.current?.[id];
+    if (!actual) return;
+    cambiarInstancia(id, { ...actual, [campo]: valor } as InstanciaContent);
+  }, [cambiarInstancia]);
+  // Mantiene viva la REF que `manejarCampoCambioDesdeIframe` (declarado arriba, antes de que esta
+  // función existiera en este render) necesita llamar — § el docstring de `cambiarCampoInstanciaRef`.
+  cambiarCampoInstanciaRef.current = cambiarCampoInstancia;
+
+  // ── § EDITOR-AGREGAR-SECCION-1 — AGREGAR / DUPLICAR / ELIMINAR una sección ─────────────────────
+  //
+  // Las TRES mutan `orden` Y `seccionesHome` A LA VEZ (una instancia nueva necesita las dos: un id
+  // en el mapa Y un lugar en la secuencia), así que las TRES siguen el MISMO patrón: calculan el
+  // array/mapa siguiente, los aplican por `restaurarOrden`/`restaurarSeccionesHome` —que YA ponen
+  // la bandera de supresión (§ sus docstrings), así que el efecto de lote de cada uno NO empuja un
+  // paso duplicado—, y registran UN SOLO paso de historial combinado a mano. `recargarIframe()`
+  // SIEMPRE corre al final: `Home` es un Server Component (§ `app/(storefront)/page.tsx`, fuera de
+  // `touches:`) y el puente en vivo sólo REORDENA nodos `data-editor-seccion` que YA EXISTEN
+  // (§ `EditorPuenteVivo.tsx`, el branch `seccion === 'orden'`) — nunca los crea ni los destruye, así
+  // que una sección que nace, se clona o se borra necesita el reload para que el DOM del iframe la
+  // refleje. El deshacer/rehacer de estas tres TAMBIÉN recarga, por la misma razón en cualquier
+  // dirección.
+  const [bibliotecaAbierta, setBibliotecaAbierta] = useState(false);
+  // El id DESPUÉS del cual insertar — `null` significa "al final" (el botón de pie de lista).
+  const [posicionInsercion, setPosicionInsercion] = useState<string | null>(null);
+  const [tipoInsertando, setTipoInsertando] = useState<SeccionInstanciaTipo | null>(null);
+  // El id a punto de borrarse — dueño del `ConfirmDeleteDialog` (§ render, abajo); `null` = cerrado.
+  const [instanciaAEliminar, setInstanciaAEliminar] = useState<string | null>(null);
+  // § CLAUDE.md "Doble-submit — la mitad SÍNCRONA": `tipoInsertando` (estado) por sí solo NO cierra
+  // la re-entrada del MISMO tick — dos clicks seguidos sobre la misma tarjeta, o un "Duplicar"/
+  // "Eliminar" disparado dos veces antes de que React re-renderice, leerían ambos el ref en `false`
+  // si sólo hubiera estado. Un ref compartido por las TRES mutaciones compuestas (agregar/duplicar/
+  // eliminar) es correcto porque son mutuamente exclusivas: las tres escriben la MISMA fila
+  // (`aplicarMutacionCompuesta`), así que sólo puede haber UNA en vuelo a la vez, sea cual sea.
+  const mutacionCompuestaEnVueloRef = useRef(false);
+
+  const abrirBiblioteca = useCallback((despuesDe: string | null) => {
+    setPosicionInsercion(despuesDe);
+    setBibliotecaAbierta(true);
+  }, []);
+
+  const totalInstancias = seccionesHomeLocal ? Object.keys(seccionesHomeLocal).length : 0;
+  const alTopeDeInstancias = totalInstancias >= TOPE_INSTANCIAS_HOME;
+
+  // UN SOLO PUT con las DOS claves — NUNCA dos autoguardados independientes disparando su propio
+  // `.flush()` al mismo tiempo. MEDIDO con el arnés de este slice (`.scratch/verificar-agregar-
+  // seccion.ts`, no comiteado): `restaurarOrden(nuevoOrden)` seguido de
+  // `restaurarSeccionesHome(nuevoMapa)` dispara DOS PUT en paralelo sobre la MISMA fila de
+  // `SiteContent` —cada uno hace su propio `findUnique` → fusiona → `update` (§ `guardarBorrador`,
+  // `site-content-write.ts`, fuera de `touches:`)— y el que COMMITEA SEGUNDO lee el estado de
+  // ANTES del primero y lo PISA: la instancia nueva (o la posición nueva) se perdía en silencio.
+  // Es la MISMA familia que CLAUDE.md ya documenta para otro par de escrituras ("SIN lock
+  // cross-operación… la que commitea segundo pisa completo") — acá el código de ESTE slice era
+  // quien creaba la carrera, no un race humano. La solución es la misma que ya usa
+  // `publicarVariasSecciones`: una escritura, no dos.
+  const guardarOrdenYSeccionesHome = useCallback(async (orden: string[], mapa: Record<string, InstanciaContent>) => {
+    const res = await fetch('/api/site-content', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orden, seccionesHome: mapa }),
+    });
+    if (!res.ok) throw new Error('No se pudo guardar');
+  }, []);
+
+  /** Aplica (optimista) y persiste (UN solo PUT, arriba) un cambio que toca `orden` Y
+   *  `seccionesHome` A LA VEZ — agregar/duplicar/eliminar una sección. Revierte el estado LOCAL
+   *  si el PUT falla, con un toast (mismo vehículo que `EditorTiendaPantallaCompleta.tsx` ya usa
+   *  para Publicar/Descartar, el otro par de acciones de alto nivel de esta pantalla). No pasa por
+   *  los dos `useAutoguardado` de 'orden'/'seccionesHome' (§ el docstring de arriba) — por eso NO
+   *  hace falta la bandera de supresión `aplicandoHistorial*Ref` acá: esos efectos sólo reaccionan
+   *  a SUS PROPIOS hooks, que esta función nunca toca. */
+  const aplicarMutacionCompuesta = useCallback(async (
+    nuevoOrden: string[], ordenAntes: string[],
+    nuevoMapa: Record<string, InstanciaContent>, mapaAntes: Record<string, InstanciaContent>,
+  ): Promise<boolean> => {
+    setOrdenLocal(nuevoOrden);
+    setHayBorradorOrden(true);
+    setSeccionesHomeLocal(nuevoMapa);
+    setHayBorradorSeccionesHome(true);
+    enviarOrdenIframe(nuevoOrden);
+    try {
+      await guardarOrdenYSeccionesHome(nuevoOrden, nuevoMapa);
+      return true;
+    } catch {
+      // Revierte el dato — "hayBorrador" se deja en `true`: no sabemos sin un refetch si el
+      // valor de ANTES todavía difiere de lo publicado, y sobre-reportar "sin publicar" es el
+      // lado seguro (un Publicar/Descartar de más sobre contenido que ya coincide es un no-op,
+      // § `publicarSeccion`/`descartarSeccion`: "sin borrador para esa sección no hace nada").
+      setOrdenLocal(ordenAntes);
+      setSeccionesHomeLocal(mapaAntes);
+      toast.error('No se pudo guardar. Intenta de nuevo.');
+      return false;
+    }
+  }, [enviarOrdenIframe, guardarOrdenYSeccionesHome]);
+
+  const agregarSeccion = useCallback(async (tipo: SeccionInstanciaTipo) => {
+    if (mutacionCompuestaEnVueloRef.current || !ordenLocal || !seccionesHomeLocal || tipoInsertando || alTopeDeInstancias) return;
+    mutacionCompuestaEnVueloRef.current = true;
+    setTipoInsertando(tipo);
+    try {
+      const id = nuevoIdInstancia(Object.keys(seccionesHomeLocal));
+      const instancia = crearInstancia(tipo);
+      const mapaAntes = seccionesHomeLocal;
+      const nuevoMapa = { ...mapaAntes, [id]: instancia };
+      const ordenAntes = ordenLocal;
+      // `posicionInsercion` es el id DESPUÉS del cual insertar; `null` → al final de la lista.
+      const idxDespues = posicionInsercion ? ordenAntes.indexOf(posicionInsercion) : ordenAntes.length - 1;
+      const nuevoOrden = ordenAntes.slice();
+      nuevoOrden.splice(idxDespues + 1, 0, id);
+
+      const ok = await aplicarMutacionCompuesta(nuevoOrden, ordenAntes, nuevoMapa, mapaAntes);
+      if (!ok) return;
+
+      historialRef.current?.registrar({
+        deshacer: () => { aplicarMutacionCompuesta(ordenAntes, nuevoOrden, mapaAntes, nuevoMapa).then(() => recargarIframe()); },
+        rehacer: () => { aplicarMutacionCompuesta(nuevoOrden, ordenAntes, nuevoMapa, mapaAntes).then(() => recargarIframe()); },
+      });
+      tocarHistorial();
+
+      setBibliotecaAbierta(false);
+      recargarIframe();
+      abrirNivelInstancia(id);
+    } finally {
+      mutacionCompuestaEnVueloRef.current = false;
+      setTipoInsertando(null);
+    }
+  }, [
+    ordenLocal, seccionesHomeLocal, tipoInsertando, alTopeDeInstancias, posicionInsercion,
+    aplicarMutacionCompuesta, recargarIframe, abrirNivelInstancia, tocarHistorial,
+  ]);
+
+  const duplicarInstancia = useCallback(async (id: string) => {
+    if (mutacionCompuestaEnVueloRef.current || !ordenLocal || !seccionesHomeLocal) return;
+    const origen = seccionesHomeLocal[id];
+    if (!origen) return;
+    mutacionCompuestaEnVueloRef.current = true;
+    try {
+      const nuevoId = nuevoIdInstancia(Object.keys(seccionesHomeLocal));
+      const mapaAntes = seccionesHomeLocal;
+      const nuevoMapa = { ...mapaAntes, [nuevoId]: { ...origen } };
+      const ordenAntes = ordenLocal;
+      const idx = ordenAntes.indexOf(id);
+      const nuevoOrden = ordenAntes.slice();
+      // "justo debajo" (§ el spec) — en la posición inmediatamente siguiente a la original, sin
+      // importar si `idx` es -1 (id ya no en orden: `splice(0, …)` la pondría primera, caso que no
+      // debería ocurrir porque toda instancia del mapa tiene su id en `orden`).
+      nuevoOrden.splice(idx + 1, 0, nuevoId);
+
+      const ok = await aplicarMutacionCompuesta(nuevoOrden, ordenAntes, nuevoMapa, mapaAntes);
+      if (!ok) return;
+
+      historialRef.current?.registrar({
+        deshacer: () => { aplicarMutacionCompuesta(ordenAntes, nuevoOrden, mapaAntes, nuevoMapa).then(() => recargarIframe()); },
+        rehacer: () => { aplicarMutacionCompuesta(nuevoOrden, ordenAntes, nuevoMapa, mapaAntes).then(() => recargarIframe()); },
+      });
+      tocarHistorial();
+      recargarIframe();
+    } finally {
+      mutacionCompuestaEnVueloRef.current = false;
+    }
+  }, [ordenLocal, seccionesHomeLocal, aplicarMutacionCompuesta, recargarIframe, tocarHistorial]);
+
+  const eliminarInstancia = useCallback(async (id: string) => {
+    if (mutacionCompuestaEnVueloRef.current || !ordenLocal || !seccionesHomeLocal) return;
+    mutacionCompuestaEnVueloRef.current = true;
+    try {
+      const mapaAntes = seccionesHomeLocal;
+      const nuevoMapa = { ...mapaAntes };
+      delete nuevoMapa[id];
+      const ordenAntes = ordenLocal;
+      const nuevoOrden = ordenAntes.filter((x) => x !== id);
+
+      const ok = await aplicarMutacionCompuesta(nuevoOrden, ordenAntes, nuevoMapa, mapaAntes);
+      if (!ok) return;
+
+      historialRef.current?.registrar({
+        deshacer: () => { aplicarMutacionCompuesta(ordenAntes, nuevoOrden, mapaAntes, nuevoMapa).then(() => recargarIframe()); },
+        rehacer: () => { aplicarMutacionCompuesta(nuevoOrden, ordenAntes, nuevoMapa, mapaAntes).then(() => recargarIframe()); },
+      });
+      tocarHistorial();
+      setInstanciaActiva((actual) => (actual === id ? null : actual));
+      recargarIframe();
+    } finally {
+      mutacionCompuestaEnVueloRef.current = false;
+    }
+  }, [ordenLocal, seccionesHomeLocal, aplicarMutacionCompuesta, recargarIframe, tocarHistorial]);
+
+  // Las `SeccionConfig` de la página activa, en el orden elegido, MEZCLADAS con las instancias de
+  // `seccionesHomeLocal` (§ `ordenarSeccionesConInstancias`, que GENERALIZA a `ordenarPorBanda` —
+  // ésta se queda intacta para quien no mezcla instancias, § su propio docstring) — SÓLO home tiene
+  // `ordenLocal`; las demás páginas quedan en el orden fijo del registro, envuelto en la MISMA forma
+  // `ItemOrdenMixto` para que el `.map` de abajo no tenga dos casos que distinguir.
+  const seccionesOrdenadas: ItemOrdenMixto<SeccionConfig>[] = ordenLocal
+    ? ordenarSeccionesConInstancias(secciones, Object.keys(seccionesHomeLocal ?? {}), ordenLocal)
+    : secciones.map((config) => ({ tipo: 'banda' as const, config }));
   const puedePublicarOrden = autoOrden.estado === 'guardado' && !procesandoOrden;
 
   // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — el valor que cada `TiendaSeccionEditor` recibe para pintar
@@ -690,6 +1060,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     const secs: string[] = [];
     for (const c of secciones) if (seccionesEstado.get(c.seccion)?.hayBorrador) secs.push(c.seccion);
     if (ordenLocal && hayBorradorOrden) secs.push('orden');
+    // § EDITOR-AGREGAR-SECCION-1 — 'seccionesHome' EN VIVO (`hayBorradorSeccionesHome`, como 'orden'
+    // arriba), no desde `doc.sinPublicar` — este componente es dueño del mapa local y lo sabe sin
+    // esperar un refetch.
+    if (hayBorradorSeccionesHome) secs.push('seccionesHome');
     if (doc?.sinPublicar.tema) secs.push('tema');
     // § EDITOR-TIENDA-CROMO-1 — a diferencia de 'tema' (que depende del refetch de `doc`, § el
     // HUECO CONOCIDO de arriba), el ENCABEZADO/MENÚ/PIE SÍ reportan en vivo (`cromoEstado`, §
@@ -745,6 +1119,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     }
     for (const s of secs) {
       if (s === 'orden') { setHayBorradorOrden(false); continue; }
+      if (s === 'seccionesHome') { setHayBorradorSeccionesHome(false); continue; }
       if (s === 'tema') { setTemaReloadKey((k) => k + 1); continue; }
       if (esCromoKey(s)) { cromoRefs.current.get(s)?.marcarPublicado(); continue; }
       seccionRefs.current.get(s as SeccionVista)?.marcarPublicado();
@@ -774,7 +1149,17 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // `publicarOrDescartarOrden('descartar')` ya usa para 'orden'.
     const fresco = await recargarDoc();
     for (const s of secs) {
-      if (s === 'orden') { setOrdenLocal(resolverOrden(fresco.contenido?.orden)); setHayBorradorOrden(false); continue; }
+      if (s === 'orden') {
+        const idsInstancia = Object.keys((fresco.contenido?.seccionesHome as Record<string, unknown> | undefined) ?? {});
+        setOrdenLocal(resolverOrdenCompleto(fresco.contenido?.orden, BANDA_IDS, idsInstancia));
+        setHayBorradorOrden(false);
+        continue;
+      }
+      if (s === 'seccionesHome') {
+        setSeccionesHomeLocal((fresco.contenido?.seccionesHome ?? {}) as Record<string, InstanciaContent>);
+        setHayBorradorSeccionesHome(false);
+        continue;
+      }
       if (s === 'tema') { setTemaReloadKey((k) => k + 1); continue; }
       if (s === 'encabezado') {
         cromoRefs.current.get('encabezado')?.restaurarDesdePublicado({
@@ -805,6 +1190,9 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     const publicado = (await rPublicado.json()) as Record<string, unknown>;
     const borrador: Record<string, unknown> = { ...(fresco.contenido ?? {}) };
     if (ordenLocal) borrador.orden = ordenLocal;
+    // § EDITOR-AGREGAR-SECCION-1 — MISMO criterio que `orden`: `seccionesHomeLocal` puede ir un paso
+    // adelante del refetch si el dueño acaba de agregar/editar/duplicar/eliminar una sección.
+    if (seccionesHomeLocal) borrador.seccionesHome = seccionesHomeLocal;
     return resumenCambios(secs, borrador, publicado);
   };
 
@@ -820,10 +1208,17 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // `manejarSeleccionDesdeIframe`, arriba: el handle es quien pone `editando=true` adentro, lo
     // que dispara `onAbrir` y recién ahí mueve `cromoActivo`.
     if (esCromoKey(clave)) { cromoRefs.current.get(clave)?.abrir(); return; }
+    // § EDITOR-AGREGAR-SECCION-1 — una FILA del resumen de una sección agregada manda el ID DE LA
+    // INSTANCIA (nunca 'seccionesHome', § el docstring de `CambioResumen.clave`,
+    // lib/admin/resumen-cambios.ts) — abre directo, sin ref/handle que llamar.
+    if (esInstanciaId(clave)) {
+      if (seccionesHomeLocalRef.current && clave in seccionesHomeLocalRef.current) abrirNivelInstancia(clave);
+      return;
+    }
     const candidato = clave as SeccionVista;
     if (!secciones.some((c) => c.seccion === candidato)) return;
     abrirNivelSeccion(candidato);
-  }, [secciones, abrirNivelSeccion]);
+  }, [secciones, abrirNivelSeccion, abrirNivelInstancia]);
 
   // DESHACER/REHACER reenviado DESDE EL IFRAME (§ EditorPuenteVivo.tsx, el comentario grande de la
   // deviación sobre `touches:`): el iframe YA decidió que el foco no estaba en un campo editable —
@@ -851,10 +1246,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // HUECO CONOCIDO que 'tema' sí tiene por estar fuera de `touches:`).
     const pendientesCromo = (['encabezado', 'menu', 'footer'] as const)
       .filter((k) => cromoEstado.get(k)?.hayBorrador).length;
-    const pendientes = pendientesSecciones + pendientesCromo + (ordenLocal && hayBorradorOrden ? 1 : 0) + (doc?.sinPublicar.tema ? 1 : 0);
+    const pendientes = pendientesSecciones + pendientesCromo + (ordenLocal && hayBorradorOrden ? 1 : 0)
+      + (hayBorradorSeccionesHome ? 1 : 0) + (doc?.sinPublicar.tema ? 1 : 0);
     const estadosSecciones = secciones.map((c) => seccionesEstado.get(c.seccion)?.estado ?? 'guardado');
     const estadosCromo = (['encabezado', 'menu', 'footer'] as const).map((k) => cromoEstado.get(k)?.estado ?? 'guardado');
-    const todosLosEstados: EstadoAutoguardado[] = [...estadosSecciones, ...estadosCromo, autoOrden.estado];
+    const todosLosEstados: EstadoAutoguardado[] = [...estadosSecciones, ...estadosCromo, autoOrden.estado, autoSeccionesHome.estado];
     const estado: EstadoAutoguardado = todosLosEstados.includes('guardando') ? 'guardando'
       : todosLosEstados.includes('error') ? 'error' : 'guardado';
     const nuevo: EstadoGlobalEditor = {
@@ -867,7 +1263,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         && anterior.puedeDeshacer === nuevo.puedeDeshacer && anterior.puedeRehacer === nuevo.puedeRehacer) return;
     ultimoEstadoGlobalRef.current = nuevo;
     onEstadoGlobal?.(nuevo);
-  }, [secciones, seccionesEstado, cromoEstado, ordenLocal, hayBorradorOrden, doc, autoOrden.estado, historialVersion, onEstadoGlobal]);
+  }, [secciones, seccionesEstado, cromoEstado, ordenLocal, hayBorradorOrden, hayBorradorSeccionesHome, doc, autoOrden.estado, autoSeccionesHome.estado, historialVersion, onEstadoGlobal]);
 
   // § EDITOR-TIENDA-DESHACER-1 — el handle que `EditorTiendaPantallaCompleta` usa para los atajos de
   // teclado y los botones de la barra. NO memoizado (como `escribirCampo`/`abrirSelectorImagen` de
@@ -1006,39 +1402,114 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                 />
               </div>
 
-              {seccionesOrdenadas.map(config => (
-                // § EDITOR-TIENDA-SHELL-1 — el PANEL CON NIVELES oculta por CSS las secciones que no
-                // son la activa (nunca las desmonta, § el docstring grande de `seccionActiva` arriba).
-                // En Inicio (`nivelActivo === null`) las muestra TODAS, como siempre.
-                <div
-                  key={config.seccion}
-                  style={nivelActivo && nivelActivo !== config.seccion ? { display: 'none' } : undefined}
+              {/* § EDITOR-AGREGAR-SECCION-1 — los separadores "+ Agregar sección" van DESPUÉS de cada
+                  fila (el spec: "entre tarjetas al pasar el mouse") — nunca antes de la primera: ese
+                  caso lo cubre el botón de PIE DE LISTA (abajo), que es el punto de entrada principal
+                  y el único garantizado cuando la lista está vacía de instancias. SOLO en Inicio (un
+                  nivel abierto ya filtró la lista a una fila) y SOLO si esta página tiene
+                  `seccionesHome` (home; nosotros/suscripciones no agregan secciones). */}
+              {seccionesOrdenadas.map((item) => {
+                if (item.tipo === 'instancia') {
+                  const id = item.id;
+                  const instancia = seccionesHomeLocal?.[id];
+                  if (!instancia) return null; // no debería pasar (§ ordenarSeccionesConInstancias ya filtra)
+                  const activa = instanciaActiva === id;
+                  return (
+                    <div key={id}>
+                      <div style={nivelActivo && nivelActivo !== id ? { display: 'none' } : undefined}>
+                        {activa ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
+                              <div style={{ minWidth: 0 }}>
+                                <h2 className="duna-title">{instancia.titulo.trim() || nombreInstancia(instancia.tipo)}</h2>
+                                <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+                                  Edita y los cambios se guardan solos; publica cuando estén listos. Mira el resultado en
+                                  la vista de la tienda.{' '}
+                                  <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => cerrarNivelInstancia(id)} className="duna-btn duna-btn--secondary">Cerrar</button>
+                            </div>
+                            <div className="tienda-vivo__form" style={{ marginTop: 'var(--duna-space-4)' }}>
+                              <InstanciaEditorForm tipo={instancia.tipo} instancia={instancia} onCambiar={(siguiente) => cambiarInstancia(id, siguiente)} />
+                            </div>
+                          </>
+                        ) : (
+                          <InstanciaTarjeta
+                            tipo={instancia.tipo}
+                            titulo={instancia.titulo}
+                            hayBorrador={hayBorradorSeccionesHome}
+                            orden={asaDeSeccion(id, instancia.titulo)}
+                            onAbrir={() => abrirNivelInstancia(id)}
+                            onDuplicar={() => duplicarInstancia(id)}
+                            onEliminar={() => setInstanciaAEliminar(id)}
+                          />
+                        )}
+                      </div>
+                      {/* El separador DESPUÉS de esta fila — nunca dentro del `display:none` de
+                          arriba: con un nivel abierto, la lista entera queda reducida a una fila y un
+                          separador ahí no tendría sentido (insertar "después de la única visible" no
+                          es lo que el dueño está mirando). */}
+                      {!nivelActivo && <SeparadorAgregar onClick={() => abrirBiblioteca(id)} />}
+                    </div>
+                  );
+                }
+                const config = item.config;
+                return (
+                  // § EDITOR-TIENDA-SHELL-1 — el PANEL CON NIVELES oculta por CSS las secciones que no
+                  // son la activa (nunca las desmonta, § el docstring grande de `seccionActiva` arriba).
+                  // En Inicio (`nivelActivo === null`) las muestra TODAS, como siempre.
+                  <div key={config.seccion}>
+                    <div style={nivelActivo && nivelActivo !== config.seccion ? { display: 'none' } : undefined}>
+                      <TiendaSeccionEditor
+                        ref={registrarRefSeccion(config.seccion)}
+                        config={config}
+                        categorias={categorias}
+                        categoriasListas={categoriasListas}
+                        resaltar={resaltar}
+                        onAbrir={abrirNivelSeccion}
+                        onCerrar={cerrarNivelSeccion}
+                        onCambioPublicado={recargarIframe}
+                        onCambio={manejarCambioSeccion}
+                        onPaso={onPasoSeccion}
+                        onEstado={manejarEstadoSeccion}
+                        orden={asaDeSeccion(config.bandaId, config.titulo)}
+                        valoresCruzados={valoresCruzados}
+                        onEscribirCruzado={escribirCruzado}
+                        carga={{
+                          valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
+                          sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
+                          listo: !!doc,
+                          error: errorDoc,
+                          recargar: recargarDoc,
+                        }}
+                      />
+                    </div>
+                    {/* `config.bandaId` — SÓLO una banda con asa (§ `ordenLocal`, home) ofrece
+                        "Agregar sección" tras ella; una página sin `orden` (nosotros/suscripciones)
+                        no tiene dónde insertar, y `ordenLocal`/`seccionesHomeLocal` ya lo garantizan
+                        arriba por el guard del separador INICIAL. */}
+                    {!nivelActivo && ordenLocal && seccionesHomeLocal && config.bandaId && (
+                      <SeparadorAgregar onClick={() => abrirBiblioteca(config.bandaId as string)} />
+                    )}
+                  </div>
+                );
+              })}
+              {/* El botón de PIE DE LISTA (§ el spec: "al final de la lista del nivel Inicio") —
+                  idéntico mecanismo que los separadores (inserta "después de null" = al final), pero
+                  SIEMPRE visible (no sólo al pasar el mouse): es el punto de entrada PRINCIPAL, el
+                  que un dueño que nunca agregó una sección va a encontrar primero. */}
+              {!nivelActivo && ordenLocal && seccionesHomeLocal && (
+                <button
+                  type="button"
+                  onClick={() => abrirBiblioteca(null)}
+                  disabled={alTopeDeInstancias}
+                  className="duna-btn duna-btn--secondary"
+                  style={{ alignSelf: 'flex-start' }}
                 >
-                  <TiendaSeccionEditor
-                    ref={registrarRefSeccion(config.seccion)}
-                    config={config}
-                    categorias={categorias}
-                    categoriasListas={categoriasListas}
-                    resaltar={resaltar}
-                    onAbrir={abrirNivelSeccion}
-                    onCerrar={cerrarNivelSeccion}
-                    onCambioPublicado={recargarIframe}
-                    onCambio={manejarCambioSeccion}
-                    onPaso={onPasoSeccion}
-                    onEstado={manejarEstadoSeccion}
-                    orden={asaDeSeccion(config.bandaId, config.titulo)}
-                    valoresCruzados={valoresCruzados}
-                    onEscribirCruzado={escribirCruzado}
-                    carga={{
-                      valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
-                      sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
-                      listo: !!doc,
-                      error: errorDoc,
-                      recargar: recargarDoc,
-                    }}
-                  />
-                </div>
-              ))}
+                  <Plus /> {alTopeDeInstancias ? `Llegaste al máximo de ${TOPE_INSTANCIAS_HOME} secciones agregadas` : 'Agregar sección'}
+                </button>
+              )}
 
               {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
                   la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}
@@ -1072,6 +1543,42 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           />
         </div>
       </div>
+
+      {/* § EDITOR-AGREGAR-SECCION-1 — LA BIBLIOTECA: la «vista nueva» abierta por "+ Agregar
+          sección", con una tarjeta por tipo del catálogo curado (§ BibliotecaSecciones.tsx). Elegir
+          una llama a `agregarSeccion`, que la cierra sola al terminar. */}
+      <VistaNueva
+        abierto={bibliotecaAbierta}
+        onCerrar={() => { if (!tipoInsertando) setBibliotecaAbierta(false); }}
+        titulo="Agregar sección"
+        descripcion="Elige un tipo de sección para agregar al home."
+      >
+        <BibliotecaSecciones
+          tema={doc ? (doc.contenido.tema as TemaContent) : null}
+          onElegir={agregarSeccion}
+          elegido={tipoInsertando}
+        />
+      </VistaNueva>
+
+      {/* La CONFIRMACIÓN de "Eliminar" del menú "⋯" de una sección agregada (§ el spec: "con
+          confirmación") — el MISMO `ConfirmDeleteDialog` que cualquier borrado sensible del panel
+          (§ CLAUDE.md, "Borrar CONFIRMA, en la PLATAFORMA"), no una segunda implementación. */}
+      <ConfirmDeleteDialog
+        open={instanciaAEliminar !== null}
+        onOpenChange={(open) => { if (!open) setInstanciaAEliminar(null); }}
+        title="Eliminar sección"
+        entityLabel={
+          instanciaAEliminar && seccionesHomeLocal?.[instanciaAEliminar]
+            ? (seccionesHomeLocal[instanciaAEliminar].titulo.trim() || nombreInstancia(seccionesHomeLocal[instanciaAEliminar].tipo))
+            : 'esta sección'
+        }
+        consequence="Se quita del home. Si ya la habías publicado, sigue visible en la tienda hasta que publiques este cambio — y puedes deshacerlo con Ctrl/Cmd+Z mientras no publiques."
+        confirmLabel="Eliminar sección"
+        onConfirm={async () => {
+          if (instanciaAEliminar) await eliminarInstancia(instanciaAEliminar);
+        }}
+        successMessage="Sección eliminada."
+      />
     </div>
   );
 });

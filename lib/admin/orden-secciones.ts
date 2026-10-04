@@ -1,18 +1,17 @@
 import type { BandaId } from '@/lib/config/site-content-defaults';
 
-// NO TOCADO por § SECCIONES-INSTANCIAS-1, a propósito — y vale decir por qué, ya que ese slice sí
-// tocó este ARCHIVO (lo declara en su `touches:`). `content.orden` ahora puede mezclar `BandaId`
-// con ids de instancia (`inst:…`, § `resolverOrdenCompleto`, secciones-instancias.ts), pero su
-// único llamador, `TiendaPaginas.tsx` (fuera de `touches:` de ese slice), sigue tipando
-// `ordenLocal`/`setOrdenLocal` como `BandaId[] | null` — AMPLIAR el tipo de retorno de
-// `moverBandaAIndice`/`moverBandaEnDireccion`/`moverBandaConDestino` de `BandaId[]` a `string[]`
-// ROMPERÍA la compilación de ese componente (`setOrdenLocal((prev) => { … return siguiente; })`
-// exige que `siguiente` siga siendo `BandaId[]`), así que estas tres funciones se quedan EXACTAS.
-// No hay UI todavía para agregar/reordenar una instancia (§ SECCIONES-INSTANCIAS-1, "sin UI de
-// agregar todavía"), así que esta limitación no le quita nada al dueño hoy — es el mismo límite
-// conocido que `StoreNav.tsx`/la `resolverOrden` vieja (§ DECISIONS.md, open follow-up): reordenar
-// una instancia desde el panel es trabajo de la tanda que construya esa UI, y ESE slice es quien
-// debe ensanchar `TiendaPaginas.tsx` y ESTE archivo juntos, en el mismo commit.
+// ENSANCHADO por § EDITOR-AGREGAR-SECCION-1 — la tanda que § SECCIONES-INSTANCIAS-1 ya anticipaba
+// (ver el commit anterior de esta rama para el límite que describía). `content.orden` mezcla
+// `BandaId` con ids de instancia (`inst:…`, § `resolverOrdenCompleto`, secciones-instancias.ts), y
+// `TiendaPaginas.tsx` (§ EDITOR-AGREGAR-SECCION-1, EN `touches:` de ESTE slice) ya tipa su
+// `ordenLocal`/`setOrdenLocal` como `string[] | null` — las tres funciones de abajo ganan un
+// parámetro de tipo `<T extends string>` para servir a los dos llamadores (el viejo, `BandaId[]`, y
+// el nuevo, `string[]`) SIN una segunda copia: el MECANISMO (mover un valor dentro de un array
+// corto) nunca supo ni le importó que un valor fuera un `BandaId` real — es sólo una cadena que el
+// array contiene, como el test de abajo ya lo confirmaba a nivel de VALOR antes de que el tipo lo
+// permitiera. `T extends string` preserva el tipo EXACTO en cada call site: con `BandaId[]` sigue
+// devolviendo `BandaId[]` (cero cambio para el único llamador de ayer), con `string[]` devuelve
+// `string[]`.
 
 // LA PIEZA PURA del reordenamiento de bandas del home (§ EDITOR-TIENDA-ORDEN-1, fila 6 del plan de
 // `docs/editor-tienda/DISENO.md`). Sin DOM, sin React, sin `postMessage`: el cálculo del nuevo
@@ -38,11 +37,11 @@ import type { BandaId } from '@/lib/config/site-content-defaults';
  * "no cambió" sin recorrer el array (evita marcar sucio el autoguardado o reenviar al iframe por un
  * drag que no movió nada).
  */
-export function moverBandaAIndice(orden: readonly BandaId[], id: BandaId, indiceDestino: number): BandaId[] {
+export function moverBandaAIndice<T extends string>(orden: readonly T[], id: T, indiceDestino: number): T[] {
   const actual = orden.indexOf(id);
-  if (actual < 0) return orden as BandaId[];
+  if (actual < 0) return orden as T[];
   const destino = Math.max(0, Math.min(orden.length - 1, indiceDestino));
-  if (destino === actual) return orden as BandaId[];
+  if (destino === actual) return orden as T[];
   const sinId = orden.filter((v) => v !== id);
   const nuevo = sinId.slice();
   nuevo.splice(destino, 0, id);
@@ -54,9 +53,9 @@ export function moverBandaAIndice(orden: readonly BandaId[], id: BandaId, indice
  * teclado: flechas para mover, accesible"). En el borde (primero/-1, último/+1) no hace nada: el
  * clamp de `moverBandaAIndice` ya devuelve la misma referencia.
  */
-export function moverBandaEnDireccion(orden: readonly BandaId[], id: BandaId, dir: -1 | 1): BandaId[] {
+export function moverBandaEnDireccion<T extends string>(orden: readonly T[], id: T, dir: -1 | 1): T[] {
   const actual = orden.indexOf(id);
-  if (actual < 0) return orden as BandaId[];
+  if (actual < 0) return orden as T[];
   return moverBandaAIndice(orden, id, actual + dir);
 }
 
@@ -66,9 +65,9 @@ export function moverBandaEnDireccion(orden: readonly BandaId[], id: BandaId, di
  * `idDestino` ya no está en `orden` (remontaje a mitad de un drag, o el id no existe) no hace nada
  * — un destino que desapareció no debe mover nada a ciegas.
  */
-export function moverBandaConDestino(orden: readonly BandaId[], idArrastrado: BandaId, idDestino: BandaId): BandaId[] {
+export function moverBandaConDestino<T extends string>(orden: readonly T[], idArrastrado: T, idDestino: T): T[] {
   const destino = orden.indexOf(idDestino);
-  if (destino < 0) return orden as BandaId[];
+  if (destino < 0) return orden as T[];
   return moverBandaAIndice(orden, idArrastrado, destino);
 }
 
@@ -99,4 +98,46 @@ export function ordenarPorBanda<T extends { bandaId?: BandaId }>(
     if (it) ordenados.push(it);
   }
   return [...ordenados, ...sinBanda];
+}
+
+// ── § EDITOR-AGREGAR-SECCION-1 — EL ORDEN MIXTO, bandas ∪ instancias ────────────────────────────
+//
+// `ordenarPorBanda` (arriba) sigue EXACTA — la usa `TiendaPaginas` para páginas sin instancias
+// (nosotros/suscripciones) y es el precedente directo de ésta—. Para la home, que SÍ puede llevar
+// instancias mezcladas con bandas en el mismo `orden`, la lista que la columna del editor dibuja
+// necesita decir, por POSICIÓN, si cada id es una banda (con su `SeccionConfig` ya en mano) o una
+// instancia (sólo el id — el contenido vive en `seccionesHome`, que el llamador ya tiene aparte).
+
+/** Un ítem de la lista mixta: una banda con su config ya resuelta, o sólo el id de una instancia. */
+export type ItemOrdenMixto<T extends { bandaId?: BandaId }> =
+  | { tipo: 'banda'; config: T }
+  | { tipo: 'instancia'; id: string };
+
+/**
+ * Combina `items` (las `SeccionConfig` de la página, cada una con su `bandaId`) con `instanciaIds`
+ * (los ids de `seccionesHome` que existen de verdad) en la secuencia de `orden` — bandas e
+ * instancias mezcladas, en el orden en que `orden` las trae. Un id de `orden` que no es ni una
+ * banda conocida ni una instancia de `instanciaIds` se OMITE (nunca inventa un hueco, mismo
+ * criterio que `ordenarPorBanda`); los ítems SIN `bandaId` (de otra página) quedan al final, en su
+ * orden original, igual que su gemela.
+ */
+export function ordenarSeccionesConInstancias<T extends { bandaId?: BandaId }>(
+  items: readonly T[],
+  instanciaIds: readonly string[],
+  orden: readonly string[],
+): ItemOrdenMixto<T>[] {
+  const porBanda = new Map<BandaId, T>();
+  const sinBanda: T[] = [];
+  for (const it of items) {
+    if (it.bandaId) porBanda.set(it.bandaId, it);
+    else sinBanda.push(it);
+  }
+  const instancias = new Set(instanciaIds);
+  const ordenados: ItemOrdenMixto<T>[] = [];
+  for (const id of orden) {
+    const banda = porBanda.get(id as BandaId);
+    if (banda) { ordenados.push({ tipo: 'banda', config: banda }); continue; }
+    if (instancias.has(id)) ordenados.push({ tipo: 'instancia', id });
+  }
+  return [...ordenados, ...sinBanda.map((config): ItemOrdenMixto<T> => ({ tipo: 'banda', config }))];
 }

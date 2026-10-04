@@ -1,11 +1,10 @@
-# Agregar secciones al home — el mecanismo (§ SECCIONES-INSTANCIAS-1)
+# Agregar secciones al home — el mecanismo (§ SECCIONES-INSTANCIAS-1) y la UI (§ EDITOR-AGREGAR-SECCION-1)
 
-Este documento describe el MECANISMO que este slice construyó: el contenido puede declarar
-INSTANCIAS de un catálogo curado de tres tipos genéricos (Texto, Imagen con texto, Banner) y
-mezclarlas en el orden del home junto con las bandas de siempre. **No hay UI de admin todavía
-para agregar una instancia desde el panel** — ese es el trabajo de la tanda siguiente. Lo que
-existe hoy es el modelo, el resolver, el schema, el render y el plumbing del editor en vivo,
-todo sin UI que lo dispare.
+Este documento describe el MECANISMO que SECCIONES-INSTANCIAS-1 construyó (el modelo, el
+resolver, el schema, el render y el plumbing del editor en vivo) y la UI que EDITOR-AGREGAR-
+SECCION-1 le agregó encima: el botón "Agregar sección", la biblioteca con vista previa, las
+tarjetas con asa/menú, y el formulario de edición. El estado "sin UI de admin todavía" quedó
+cerrado — lo que sigue describe el mecanismo (sin cambios) y, en su propia sección, la UI.
 
 ## El contrato
 
@@ -106,27 +105,129 @@ instancia" de "nunca hubo nada que preservar"). Ahora `nuevo` incluye explícita
 instancia presente en `content.orden` actual, así que sobrevive en el primer apply Y en los
 siguientes. Tres tests en `themes.test.ts` lo afirman, incluido el caso sin snapshot.
 
-## El plan — qué falta para "agregar sección" desde el panel
+## La UI (§ EDITOR-AGREGAR-SECCION-1) — qué se construyó
 
-1. **El editor de `/admin/tienda` gana un selector de "+ Agregar sección"** que ofrece el
-   catálogo curado (Texto / Imagen con texto / Banner), crea un id con `INSTANCIA_PREFIJO` +
-   un sufijo único, y escribe la instancia en el borrador vía el mismo flujo de
-   borrador/publicar que cualquier sección.
-2. **El editor de contenido de una instancia** reusa `TiendaSeccionEditor`-como-patrón, armado
-   DINÁMICAMENTE desde `DESCRIPTOR_INSTANCIA[tipo]` en vez de un `SeccionConfig` fijo escrito a
-   mano — es la razón de que el descriptor declare `campos`/`imagenes`/`escalares` en una forma
-   genérica, lista para ese consumo.
-3. **El reorden** (`TiendaPaginas.tsx`, `lib/admin/orden-secciones.ts`) ensancha su tipo de
-   `BandaId[]` a `string[]` para aceptar instancias — ver el docstring de cabecera de
-   `orden-secciones.ts` para por qué NO se hizo en este slice (rompería la compilación de
-   `TiendaPaginas.tsx` hoy, que no está en `touches:`) y por qué el mecanismo de abajo (mover un
-   valor dentro de un array corto) no necesita cambiar, sólo su tipo.
-4. **`StoreNav.tsx`** pasa `tipoInstancia` a `tratamientoNav` cuando `orden[0]` resuelve a una
-   instancia — una línea, una vez que ese archivo entre a `touches:` de la tanda que construye
-   el punto 1.
-5. **Borrar una instancia**: quitarla de `seccionesHome` (borrador) y de `orden` si estaba
-   explícita — el resolver ya tolera un id huérfano en `orden` (se descarta), así que no hace
-   falta limpiar `orden` atómicamente con `seccionesHome`.
+**El botón "+ Agregar sección"** vive al final de la lista del nivel «Inicio» (siempre visible,
+con el texto cambiando a "Llegaste al máximo de N secciones agregadas" en el tope,
+`TOPE_INSTANCIAS_HOME`) y, por Shopify, también entre cada par de tarjetas — un separador que
+sólo se revela con `onMouseEnter`/`onFocus` (`components/admin/editor/SeparadorAgregar.tsx`): sin
+CSS nuevo (`duna.css` no está en `touches:` de este slice), el hover/foco se resuelve con estado
+de React, no con una regla `:hover`.
 
-Ninguno de estos cinco puntos requiere cambiar el modelo, el resolver o el schema que este
-slice construyó — son, los cinco, trabajo de UI sobre un mecanismo que ya existe.
+**La biblioteca** (`components/admin/editor/BibliotecaSecciones.tsx`) abre dentro de `VistaNueva`
+(su segundo consumidor real, tras "Medios") con un buscador y una tarjeta por tipo del catálogo
+—`CATALOGO_INSTANCIAS`, § abajo—, cada una con una vista previa del **componente real**
+(`SeccionTexto`/`SeccionImagenTexto`/`SeccionBanner`) montado con sus `DEFAULTS_INSTANCIA`, bajo
+`varsDeTienda(tema)` del tenant y un `SiteContentProvider`/`PreviewProvider` locales — el MISMO
+patrón que `PaletaSeccion.tsx` (`FragmentoTienda`) ya usa para su preview, no una invención nueva.
+
+**DESVIACIÓN MEDIDA del spec, documentada:** el spec pide la vista previa "al pasar el mouse o
+con foco" (hover-reveal); se construyó SIEMPRE VISIBLE en cada tarjeta. La hoja es angosta
+(`min(480px, calc(100% - 2.75rem))`, § `VistaNueva`/`DunaSheet --lado`) y un hover-reveal
+competiría por el mismo espacio que la lista, además de no existir en táctil (sin hover). Mostrarla
+siempre cumple el mismo propósito ("ver antes de elegir") sin depender de un gesto ausente en un
+teléfono — el "siempre visible" implica trivialmente "al pasar el mouse o con foco", nunca menos.
+
+**Elegir un tipo** (`agregarSeccion`, `TiendaPaginas.tsx`) genera el id (`nuevoIdInstancia`),
+crea la instancia (`crearInstancia`, una copia de `DEFAULTS_INSTANCIA[tipo]`), la inserta en
+`orden` DESPUÉS de la posición pedida (el id tras el que se abrió la biblioteca, o al final desde
+el botón de pie de lista), autoguarda `orden` Y `seccionesHome` A LA VEZ (mismo "lote" que un
+reorden normal, § `restaurarOrden`/`restaurarSeccionesHome`), recarga el iframe (necesario:
+`Home` es un Server Component, y el puente en vivo sólo REORDENA nodos que YA EXISTEN — nunca los
+crea), y abre el nivel de la sección nueva.
+
+**Cada tarjeta de instancia** (`components/admin/editor/InstanciaTarjeta.tsx`) tiene asa
+(drag + flechas, el MISMO `AsaOrdenProps`/`asaDeSeccion` que una banda — `id: string` ensanchado,
+§ abajo), un menú "⋯" con Duplicar/Eliminar (`InstanciaAccionesMenu.tsx`, patrón
+`ProductoAccionesMenu.tsx`), y "Editar". **Duplicar** copia la instancia con un id nuevo justo
+debajo en `orden`; **Eliminar** abre el `ConfirmDeleteDialog` de siempre (nunca una segunda
+implementación de confirmación) y, al confirmar, quita el id de `orden` Y de `seccionesHome`.
+
+**EL "OJO" (toggle de visibilidad) NO SE CONSTRUYÓ, y es una DESVIACIÓN DEL SPEC, medida y
+documentada, no un olvido.** El spec pedía "asa, ojo y un menú"; el ojo de una banda
+(`config.ocultable` → `form.visible`) persiste porque esa sección YA declara `visible` en su
+sub-schema de `site-content-schema.ts`. Agregar un `visible` por instancia exige declararlo en
+los TRES sub-schemas de `seccionesHomeEditableSchema` (`instanciaTextoEditableSchema`/
+`instanciaImagenTextoEditableSchema`/`instanciaBannerEditableSchema`) — `lib/config/site-
+content-schema.ts` **no está en `touches:` de este slice**. Sin esa declaración, `z.object`
+STRIPPEA el campo en silencio al guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no
+declarado") y un botón de "ojo" que no persiste sería peor que no tenerlo — una apariencia de
+control sin efecto real. Ver el open follow-up en `DECISIONS.md`.
+
+**El formulario de edición** (`components/admin/editor/InstanciaEditorForm.tsx`) es BESPOKE,
+armado dinámicamente desde `DESCRIPTOR_INSTANCIA[tipo]` — "reusa `TiendaSeccionEditor`-como-
+PATRÓN" significó esto: la misma FORMA visual de campo (duna-field, el mismo trato de imagen con
+miniatura+Cambiar+Quitar), no literalmente la función `renderCampo` de ese archivo, que tiene
+casos especiales por NOMBRE de campo ajenos a este catálogo (p. ej. `campo.name === 'alto'`
+también escribe `alturaLlena`, un campo que ninguna instancia tiene). Es CONTROLADO: sin estado ni
+autoguardado propio — cada tecla llama a `onCambiar` con el objeto COMPLETO, y `TiendaPaginas.tsx`
+es la única dueña de `seccionesHomeLocal` y su autoguardado (mismo criterio que 'orden': UN
+autoguardado para el mapa completo, nunca uno por instancia).
+
+**El reorden** (`lib/admin/orden-secciones.ts`) ensanchó `moverBandaAIndice`/
+`moverBandaEnDireccion`/`moverBandaConDestino` a `<T extends string>` (preserva el tipo exacto por
+llamador: `BandaId[]` sigue dando `BandaId[]`) y sumó `ordenarSeccionesConInstancias` —gemela de
+`ordenarPorBanda`, que se queda intacta— para mezclar bandas e instancias en un solo `.map` de
+render. `ordenLocal` en `TiendaPaginas.tsx` pasó de `BandaId[] | null` a `string[] | null`.
+
+**`VistaTiendaIframe.tsx`** ensanchó `irASeccion`/`enviarCambio` de `SeccionVista` a `string`: el
+cast `as (seccion: string, …) => void` que 'orden'/'tema'/el cromo necesitaban (porque ese archivo
+estaba fuera de `touches:` cuando se escribieron) ya no hace falta para código nuevo.
+
+**El resumen de publicar** (`lib/admin/resumen-cambios.ts`) ganó `cambiosSeccionesHome`: a
+diferencia de 'orden' (un solo ítem, "cambiado"), produce UNA FILA POR INSTANCIA que cambió, con
+`clave` = el id de la instancia (no `'seccionesHome'`) y la palabra en FEMENINO
+("nueva"/"editada"/"eliminada", porque el sujeto es "una sección") — «Inicio · Imagen con texto ·
+nueva».
+
+**`StoreNav.tsx`** (`tipoInstancia` → `tratamientoNav` cuando `orden[0]` resuelve a una
+instancia) **NO entró a `touches:` de este slice y sigue sin construirse** — límite conocido
+heredado de SECCIONES-INSTANCIAS-1, sin cambios: una instancia que termine primera en la
+secuencia visual sigue siendo invisible para el cálculo de darkness del nav. No se amplió el
+alcance para cerrarlo.
+
+## Hallazgo del arnés real: una instancia NO se actualiza en vivo (sin recargar) — fuera de `touches:`
+
+El arnés de sesión real (`.scratch/verificar-agregar-seccion.ts`, gitignored) escribió el título
+de la instancia nueva y esperó verlo EN VIVO en el iframe, sin recargar — el mismo contrato que ya
+cumple cualquier banda (editar el título del hero se ve al teclear, sin F5). **Falló**: el título
+seguía mostrando el default hasta forzar una recarga del iframe.
+
+**Causa, confirmada por lectura de código, no supuesta:** `app/(storefront)/page.tsx` (Server
+Component, fuera de `touches:`) pasa `instancia={seccionesHome[id]}` como PROP fija al dispatcher
+`SeccionInstancia`, y los tres componentes (`Texto`/`ImagenTexto`/`Banner.tsx`, también fuera de
+`touches:`) leen esa prop directamente para `titulo`/`texto`/`imagen`/CTA — nunca
+`useSiteContent().seccionesHome[id]`. Toda BANDA hace lo contrario: `page.tsx` sólo le pasa `style`
+(el esquema de color) y el componente lee su propio contenido del hook `useSiteContent()`, que SÍ
+es reactivo al mensaje `postMessage` que el puente en vivo aplica. El mecanismo RECEPTOR que
+SECCIONES-INSTANCIAS-1 dejó "inerte hasta que exista UI" (`fusionarContenidoInstancia`,
+`EditorPuenteVivo.tsx`) SÍ se dispara correctamente con la UI de esta tanda — el mensaje llega, se
+valida contra el sub-schema, y se fusiona en el context — pero ningún componente del storefront lo
+LEE para una instancia, así que el context se actualiza sin que nada lo muestre.
+
+**Confirmado que el código de ESTA tanda no es la causa:** `cambiarInstancia`/
+`enviarInstanciaIframe` (`TiendaPaginas.tsx`) espejan EXACTO el camino ya existente de una banda
+(`manejarCambioSeccion`/`enviarCambio`) — mismo tipo de mensaje, mismo payload (el objeto completo).
+El defecto vive enteramente en los TRES componentes heredados y el Server Component que los monta,
+los cuatro fuera de `touches:` de este slice.
+
+**No se corrigió** (fuera del alcance declarado; `components/storefront/secciones/*.tsx` y
+`app/(storefront)/page.tsx` no están en `touches:`). El arnés se ajustó para verificar
+PERSISTENCIA (recarga forzada del iframe tras el autoguardado) en vez de "en vivo sin recargar" —
+la mutación en sí SÍ guarda y publica correctamente; lo que no funciona es sólo el reflejo
+instantáneo en el iframe mientras se edita. Abierto en `DECISIONS.md` como
+`SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`.
+
+## Guarda de re-entrada síncrona en `agregarSeccion`/`duplicarInstancia`/`eliminarInstancia`
+
+`tipoInsertando` (estado de React) por sí solo no cierra la re-entrada del MISMO tick —
+§ CLAUDE.md "Doble-submit — la mitad SÍNCRONA": dos clicks seguidos sobre la misma tarjeta de la
+biblioteca, o un "Duplicar" disparado dos veces antes del primer re-render, leerían ambos el
+mismo valor de estado (`false`) y pasarían los dos. Se agregó `mutacionCompuestaEnVueloRef`
+(`useRef<boolean>`), compartido por las TRES mutaciones compuestas porque son mutuamente
+exclusivas (las tres escriben la misma fila vía `aplicarMutacionCompuesta`): chequeado y puesto en
+`true` de forma SÍNCRONA al inicio de cada función, liberado en un `finally`. `tipoInsertando`
+se queda como la mitad VISIBLE (tarjetas deshabilitadas + "Agregando…") para `agregarSeccion`;
+`duplicarInstancia` no la necesita porque el ítem de menú que la dispara se cierra solo al
+elegirse (§ CLAUDE.md, "La FRONTERA del patrón: guarda donde el silencio invita al reintento" —
+un control que ya desapareció de la pantalla no invita a un segundo click).

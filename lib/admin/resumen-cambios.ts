@@ -2,9 +2,11 @@
 // REDISENO.md § 3/§ 9, slice 8). Módulo PURO —sin React, sin `fetch`, sin DOM— que compara el
 // contenido en BORRADOR contra lo PUBLICADO, sección por sección, y devuelve la lista que el
 // popover de «Publicar» muestra: «Hero · Titular · nuevo», «Hero · Composición «Portada»»,
-// «Nosotros · Tercer párrafo · nuevo». Los nombres son los que YA usa el panel —`SECCIONES_TIENDA`
-// (`components/admin/tienda-secciones.ts`, datos puros, sin JSX) y `ELEMENTOS_ESTILO`
-// (`lib/config/estilo-elemento.ts`, también puro)— nunca una segunda lista de labels.
+// «Nosotros · Tercer párrafo · nuevo», «Inicio · Imagen con texto · nueva» (§ EDITOR-AGREGAR-
+// SECCION-1, una sección agregada al home). Los nombres son los que YA usa el panel —
+// `SECCIONES_TIENDA` (`components/admin/tienda-secciones.ts`, datos puros, sin JSX),
+// `ELEMENTOS_ESTILO` (`lib/config/estilo-elemento.ts`, también puro) y `nombreInstancia`
+// (`lib/config/secciones-instancias.ts`, el catálogo curado)— nunca una segunda lista de labels.
 //
 // EL LLAMADOR decide QUÉ comparar y CÓMO conseguirlo (`lib/admin/resumen-cambios` no sabe de
 // `/api/site-content`, igual que `historial-editor.ts` no sabe de React): recibe el contenido
@@ -20,16 +22,21 @@
 import { SECCIONES_TIENDA, type SeccionConfig, type SeccionVista } from '@/components/admin/tienda-secciones';
 import { ELEMENTOS_ESTILO } from '@/lib/config/estilo-elemento';
 import { sonIguales } from '@/lib/admin/historial-editor';
+import { esSeccionInstanciaTipo, nombreInstancia } from '@/lib/config/secciones-instancias';
 
 export type TipoCambio = 'nuevo' | 'cambiado' | 'quitado';
 
 export interface CambioResumen {
-  /** La clave de lo que cambió: una `SeccionVista` del REGISTRY, o las dos claves META `'orden'`/
-   *  `'tema'` — el MISMO vocabulario que `TiendaPaginas.listaPendientes()` ya usa para "Publicar"/
-   *  "Descartar" en lote. Es lo que el popover manda a `onIrAItem` al tocar la fila. */
+  /** La clave de lo que cambió: una `SeccionVista` del REGISTRY, las claves META `'orden'`/`'tema'`
+   *  —el MISMO vocabulario que `TiendaPaginas.listaPendientes()` ya usa para "Publicar"/"Descartar"
+   *  en lote—, o (§ EDITOR-AGREGAR-SECCION-1) el ID DE UNA INSTANCIA (`inst:…`) cuando el cambio
+   *  viene de `seccionesHome`: ahí la clave NO es `'seccionesHome'` —esa meta se publica como
+   *  unidad, pero cada FILA de este resumen nombra la instancia exacta que cambió, para que el
+   *  popover navegue a ella—. Es lo que el popover manda a `onIrAItem` al tocar la fila. */
   clave: string;
-  /** El título que YA muestra el panel para esto (`SeccionConfig.titulo`, o "Orden de las
-   *  secciones"/"Estilo" para las dos claves META). */
+  /** El título que YA muestra el panel para esto (`SeccionConfig.titulo`, "Orden de las
+   *  secciones"/"Estilo" para las dos claves META de siempre, o "Inicio" para una sección agregada
+   *  — § `cambiosSeccionesHome`, abajo). */
   tituloSeccion: string;
   /** El nombre del campo/elemento que cambió, en las MISMAS palabras del panel (`.label`). */
   elemento: string;
@@ -216,6 +223,46 @@ function cambiosTema(publicado: unknown, borrador: unknown): CambioResumen[] {
   return out;
 }
 
+// EL ORDEN DE LAS SECCIONES AGREGADAS (§ EDITOR-AGREGAR-SECCION-1) — `seccionesHome` es la MISMA
+// clase de meta que `orden`: un mapa id→instancia, publicado/descartado COMO UNIDAD (§ CLAUDE.md,
+// "'seccionesHome' es la MISMA clase de caso: meta fuera del REGISTRY"). A diferencia de `orden`
+// —que resume el reordenamiento como UN hecho, sin decir qué banda subió o bajó— acá SÍ hay algo
+// concreto que nombrar por id: agregar/editar/eliminar una sección es la clase de cambio que el
+// dueño necesita identificar ANTES de publicar, no sólo saber que "algo en el mapa cambió". Por eso
+// esta función devuelve UNA fila POR INSTANCIA que cambió, con `clave` = el id de esa instancia
+// (no `'seccionesHome'`) — así el popover puede navegar a la sección exacta, el mismo contrato que
+// ya cumple cada fila de `cambiosDeSeccion`.
+//
+// El nombre que se muestra es el del CATÁLOGO (`nombreInstancia`, § secciones-instancias.ts) — "Imagen
+// con texto", nunca el id crudo (`inst:…`) ni la palabra genérica "Sección" salvo que el tipo no
+// resuelva a ninguno de los tres conocidos (una instancia rota, que ya no debería llegar acá viva).
+// El TIPO reusa el vocabulario de `TipoCambio` (programático, § CambioResumen.tipo), pero la
+// ETIQUETA lleva la palabra en FEMENINO —"nueva"/"editada"/"eliminada"— porque el sujeto es "una
+// sección", no "un campo": es la única sección de este archivo con su propio vocabulario de
+// palabras, a propósito.
+const PALABRA_INSTANCIA: Record<TipoCambio, string> = { nuevo: 'nueva', cambiado: 'editada', quitado: 'eliminada' };
+
+function nombreDeInstancia(valor: unknown): string {
+  const tipo = (valor as { tipo?: unknown } | undefined)?.tipo;
+  return esSeccionInstanciaTipo(tipo) ? nombreInstancia(tipo) : 'Sección';
+}
+
+function cambiosSeccionesHome(publicado: unknown, borrador: unknown): CambioResumen[] {
+  const a = (publicado ?? {}) as Record<string, unknown>;
+  const d = (borrador ?? {}) as Record<string, unknown>;
+  const out: CambioResumen[] = [];
+  const ids = new Set([...Object.keys(a), ...Object.keys(d)]);
+  for (const id of ids) {
+    const antes = a[id];
+    const despues = d[id];
+    if (sonIguales(antes, despues)) continue;
+    const tipo: TipoCambio = antes === undefined ? 'nuevo' : despues === undefined ? 'quitado' : 'cambiado';
+    const nombre = nombreDeInstancia(tipo === 'quitado' ? antes : despues);
+    out.push(hecho(id, 'Inicio', nombre, tipo, `Inicio · ${nombre} · ${PALABRA_INSTANCIA[tipo]}`));
+  }
+  return out;
+}
+
 /** Compara el BORRADOR contra lo PUBLICADO para cada clave de `pendientes` (una `SeccionVista` del
  *  REGISTRY, o las dos claves META `'orden'`/`'tema'` — el MISMO vocabulario que
  *  `TiendaPaginas.listaPendientes()`) y devuelve la lista EN PALABRAS que el popover de «Publicar»
@@ -238,6 +285,10 @@ export function resumenCambios(
     }
     if (clave === 'tema') {
       out.push(...cambiosTema(publicado.tema, borrador.tema));
+      continue;
+    }
+    if (clave === 'seccionesHome') {
+      out.push(...cambiosSeccionesHome(publicado.seccionesHome, borrador.seccionesHome));
       continue;
     }
     const config = SECCIONES_TIENDA.find((c) => c.seccion === clave);

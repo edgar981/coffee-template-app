@@ -5,6 +5,7 @@ import {
   esSeccionInstanciaTipo, esInstanciaId, INSTANCIA_PREFIJO,
   resolverInstancia, resolverSeccionesHome, resolverOrdenCompleto,
   imagenesDeInstancia, instanciaOscuraCanonica, instanciaEsUniforme,
+  CATALOGO_INSTANCIAS, nombreInstancia, nuevoIdInstancia, crearInstancia, TOPE_INSTANCIAS_HOME,
 } from './secciones-instancias';
 import { siteContentEditableSchema } from './site-content-schema';
 
@@ -179,6 +180,66 @@ test('DESCRIPTOR_INSTANCIA ⊆ schema: cada campo+escalar de cada tipo SOBREVIVE
     assert.deepEqual(new Set(Object.keys(resultado)), camposEsperados,
       `"${tipo}": el schema y el descriptor deben declarar EXACTAMENTE los mismos campos (faltantes o sobrantes = un campo se perdería en silencio al guardar)`);
   }
+});
+
+// ─── EL CATÁLOGO DE LA BIBLIOTECA (§ EDITOR-AGREGAR-SECCION-1) ──────────────────────────────────
+
+test('CATALOGO_INSTANCIAS: una entrada por cada tipo del catálogo, ni una de más ni de menos', () => {
+  assert.deepEqual(
+    new Set(CATALOGO_INSTANCIAS.map((c) => c.tipo)),
+    new Set(SECCION_INSTANCIA_TIPOS),
+    'un tipo nuevo en SECCION_INSTANCIA_TIPOS sin su entrada acá queda ausente de la biblioteca',
+  );
+  for (const c of CATALOGO_INSTANCIAS) {
+    assert.ok(c.nombre.trim() !== '', `"${c.tipo}": nombre vacío`);
+    assert.ok(c.frase.trim() !== '', `"${c.tipo}": frase vacía`);
+  }
+});
+
+test('nombreInstancia: el nombre en palabras del catálogo, "Sección" para un tipo desconocido', () => {
+  assert.equal(nombreInstancia('texto'), 'Texto');
+  assert.equal(nombreInstancia('imagenTexto'), 'Imagen con texto');
+  assert.equal(nombreInstancia('banner'), 'Banner');
+  assert.equal(nombreInstancia('inventado' as unknown as 'texto'), 'Sección');
+});
+
+test('nuevoIdInstancia: lleva el prefijo y nunca choca con los existentes', () => {
+  const a = nuevoIdInstancia([]);
+  assert.ok(esInstanciaId(a));
+  const b = nuevoIdInstancia([a]);
+  assert.notEqual(a, b);
+  assert.ok(esInstanciaId(b));
+});
+
+test('nuevoIdInstancia: evita la colisión aunque TODOS los intentos "al azar" repitan (determinista bajo mock)', () => {
+  const original = Math.random;
+  try {
+    let llamadas = 0;
+    // Simula dos colisiones seguidas antes de un valor libre: el bucle debe reintentar, no
+    // devolver un id que ya está en `existentes`.
+    Math.random = () => { llamadas += 1; return llamadas <= 2 ? 0.123456 : 0.654321; };
+    const chocado1 = `${INSTANCIA_PREFIJO}${Date.now().toString(36)}${(0.123456).toString(36).slice(2, 8)}`;
+    const id = nuevoIdInstancia([chocado1]);
+    assert.notEqual(id, chocado1);
+    assert.ok(esInstanciaId(id));
+  } finally {
+    Math.random = original;
+  }
+});
+
+test('TOPE_INSTANCIAS_HOME: un número positivo mayor que un home real de hoy (0 instancias)', () => {
+  assert.ok(TOPE_INSTANCIAS_HOME > 0);
+  assert.equal(Number.isInteger(TOPE_INSTANCIAS_HOME), true);
+});
+
+test('crearInstancia: una copia de los defaults, NO la misma referencia', () => {
+  const a = crearInstancia('texto');
+  const b = crearInstancia('texto');
+  assert.deepEqual(a, DEFAULTS_INSTANCIA.texto);
+  assert.notEqual(a, DEFAULTS_INSTANCIA.texto, 'no debe ser el mismo objeto que el default compartido');
+  assert.notEqual(a, b, 'dos creaciones no deben compartir referencia entre sí');
+  (a as { titulo: string }).titulo = 'editado';
+  assert.equal(DEFAULTS_INSTANCIA.texto.titulo, 'Un título para esta sección', 'mutar la copia no debe tocar el default');
 });
 
 test('instanciaOscuraCanonica / instanciaEsUniforme: banner oscuro y uniforme, imagenTexto no-uniforme, texto claro y uniforme', () => {

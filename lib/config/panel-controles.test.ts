@@ -440,6 +440,15 @@ test('esquemas/orden/variantesBandas no aparecen en camposLeidosPorTienda (domin
   assert.ok(!leidos.some((c) => c.startsWith('variantesBandas.')));
 });
 
+// § EDITOR-AGREGAR-SECCION-1 — `seccionesHome` es la MISMA familia: un `Record<string, …>` cuyas
+// claves el dueño crea al agregar una sección, nunca un set fijo de "campos" que este chequeo
+// pudiera enumerar.
+test('seccionesHome no aparece en camposLeidosPorTienda (dominio abierto, ids creados por el dueño)', () => {
+  const leidos = camposLeidosPorTienda();
+  assert.ok(!leidos.some((c) => c.startsWith('seccionesHome.')));
+  assert.ok(!leidos.includes('seccionesHome'));
+});
+
 // § REAPPLY-PRESERVA-OVERRIDES-1: `presetSnapshot` es la CUARTA meta de dominio abierto (contabilidad
 // del motor de presets, § site-content-defaults.ts) — MISMA familia que las tres de arriba, así que
 // tampoco debe entrar al lado "leído" ni obligar a ninguna exención nueva en PENDIENTE_PANEL. Si

@@ -88,16 +88,23 @@ import {
 const INTERVALO_VIGIA_RUTA_MS = 400;
 export interface VistaTiendaIframeHandle {
   /** Desplaza el iframe hasta la sección y la resalta brevemente. No hace nada si el documento
-   *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`). */
-  irASeccion: (seccion: SeccionVista) => void;
+   *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`).
+   *  `string`, no `SeccionVista` (§ EDITOR-AGREGAR-SECCION-1): las claves META ('orden'/'tema'/
+   *  'encabezado'/'menu'/'footer', ya en uso con un cast por el llamador) y ahora los ids de
+   *  instancia (`inst:…`) comparten este mismo canal — `selectorDeSeccion`/`marcadorDeSeccion`
+   *  (editor-iframe.ts, fuera de `touches:`) son identidad para cualquier cadena que no sea
+   *  'spotlight', así que ensanchar el parámetro acá no cambia su comportamiento para ningún
+   *  llamador de ayer, y le quita a los de hoy el cast que tenían que hacer. */
+  irASeccion: (seccion: string) => void;
   /** Recarga la página real preservando el scroll — se llama tras Publicar/Descartar
    *  (§ `TiendaSeccionEditor`, `onCambioPublicado`; el guardado asentado YA NO recarga, § `onCambio`
    *  abajo lo reemplaza para el contenido en vivo). */
   recargar: () => void;
   /** Manda el borrador EN VIVO de una sección al iframe por `postMessage` (§ EDITOR-TIENDA-
    *  POSTMESSAGE-1) — SIN recargar ni navegar. No hace nada si el documento todavía no tiene
-   *  `contentWindow` (p. ej. a mitad de un reload); el próximo cambio de `form` lo reintenta. */
-  enviarCambio: (seccion: SeccionVista, datos: Record<string, unknown>) => void;
+   *  `contentWindow` (p. ej. a mitad de un reload); el próximo cambio de `form` lo reintenta.
+   *  `string`, no `SeccionVista` — ver el docstring de `irASeccion`, arriba. */
+  enviarCambio: (seccion: string, datos: Record<string, unknown>) => void;
 }
 
 // El color del resalte es un LITERAL, no una custom property: el documento del iframe es el
@@ -266,14 +273,18 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
     // dentro del iframe.
     const clicDesdeIframeRef = useRef<{ seccion: string; marca: number } | null>(null);
 
-    const irASeccion = useCallback((seccion: SeccionVista) => {
+    const irASeccion = useCallback((seccion: string) => {
       const reciente = clicDesdeIframeRef.current;
       if (reciente && reciente.seccion === seccion && Date.now() - reciente.marca < UMBRAL_CLIC_DESDE_IFRAME_MS) {
         clicDesdeIframeRef.current = null; // consumido — un "Editar" posterior sobre ESTA sección vuelve a desplazar
         return;
       }
       const doc = iframeRef.current?.contentDocument;
-      const nodo = doc?.querySelector<HTMLElement>(selectorDeSeccion(seccion));
+      // `as SeccionVista`: `selectorDeSeccion` (editor-iframe.ts, fuera de `touches:`) sigue tipado a
+      // `SeccionVista`, pero su cuerpo es identidad para cualquier cadena que no sea 'spotlight' — un
+      // cast local, no una ampliación de ESE archivo (§ el docstring de `VistaTiendaIframeHandle.
+      // irASeccion`, arriba).
+      const nodo = doc?.querySelector<HTMLElement>(selectorDeSeccion(seccion as SeccionVista));
       if (!nodo) return;
       limpiarResalte();
       const reduce = iframeRef.current?.contentWindow?.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -309,7 +320,7 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
     // borrador a cualquier origen si el `src` del iframe alguna vez apuntara a otro lado por error.
     // Si el iframe todavía no tiene `contentWindow` (a mitad de un reload, antes del primer load) el
     // mensaje se descarta — no hay a quién mandárselo, y el próximo cambio de `form` lo reintenta.
-    const enviarCambio = useCallback((seccion: SeccionVista, datos: Record<string, unknown>) => {
+    const enviarCambio = useCallback((seccion: string, datos: Record<string, unknown>) => {
       const win = iframeRef.current?.contentWindow;
       if (!win) return;
       win.postMessage({ tipo: TIPO_MENSAJE_CONTENIDO_SECCION, seccion, datos }, window.location.origin);

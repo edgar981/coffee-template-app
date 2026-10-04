@@ -51370,3 +51370,172 @@ capturas visuales de los tres tipos, escritorio y teléfono, sobre CORTE, revisa
 `slice/editor-secciones-1`, encima de `97fd478`.
 
 **Cierra `SECCIONES-INSTANCIAS-1`.**
+
+## 2026-10-04 — El botón "+ Agregar sección": biblioteca, tarjetas, formulario — y un race condition que el arnés destapó (`EDITOR-AGREGAR-SECCION-1`)
+
+Pedido del owner (2026-10-04, delegación explícita): la UI que `SECCIONES-INSTANCIAS-1` dejó
+pendiente — el botón "+ Agregar sección" de `docs/editor-tienda/AGREGAR-SECCIONES.md`, "El plan".
+**Base real citada y verificada**: `SECCIONES-INSTANCIAS-1` (`36085d3`) existe en el repo, a
+diferencia del `SECCIONES-INSTANCIAS-CENSO-1` que esa misma tanda citó sin que existiera.
+
+### Lo construido
+
+El botón, la biblioteca con vista previa, las tarjetas con asa/menú, y el formulario de edición.
+El contrato completo y las decisiones de forma viven en `docs/editor-tienda/AGREGAR-SECCIONES.md`
+(§ "La UI — qué se construyó"), no se repiten acá. Dos desviaciones MEDIDAS y documentadas ahí: la
+vista previa de la biblioteca es SIEMPRE visible (no sólo hover/foco — una hoja angosta sin gesto
+de hover en táctil), y el "ojo" (toggle de visibilidad por instancia) **no se construyó** —
+`lib/config/site-content-schema.ts` no está en `touches:` y agregarlo a medias (un botón que no
+persiste) sería peor que no tenerlo.
+
+### El RACE CONDITION que el arnés encontró — y que esta tanda introducía, no heredaba
+
+El arnés real (`.scratch/verificar-agregar-seccion.ts`, gitignored) ejercitó "agregar una sección"
+de punta a punta contra Postgres real y encontró que el id nuevo **desaparecía del orden tras
+recargar** — una pérdida silenciosa de escritura, la misma familia que CLAUDE.md ya documenta para
+otro par de escrituras ("SIN lock cross-operación… la que commitea segundo pisa completo"), pero
+**no ES ese caso aceptado**: ahí el race es entre DOS SESIONES humanas editando a la vez, un costo
+aceptado a escala humana; acá eran DOS `useAutoguardado` (uno de `'orden'`, otro de `'seccionesHome'`)
+cada uno con su propio `.flush()`, disparados SECUENCIALMENTE por el MISMO código de
+`agregarSeccion`/`duplicarInstancia`/`eliminarInstancia` — dos PUT en paralelo contra la MISMA fila
+de `SiteContent`, cada uno con su propio `findUnique`→fusiona→`update`, y el que COMMITEA SEGUNDO
+pisaba el estado de ANTES del primero.
+
+**El fix: UN solo PUT con las dos claves** (`guardarOrdenYSeccionesHome` + `aplicarMutacionCompuesta`
+en `TiendaPaginas.tsx`), igual que ya hace `publicarVariasSecciones` para el mismo problema en
+Publicar. Las tres mutaciones compuestas (agregar/duplicar/eliminar) y sus deshacer/rehacer pasan
+por esa única función. **Visto fallar y visto arreglado con el MISMO arnés**: antes del fix,
+`orden tras agregar` no traía ningún `inst:` nuevo; después, sí, en la posición exacta pedida —
+confirmado en dos corridas limpias adicionales tras el fix.
+
+### La guarda de re-entrada síncrona — hallada por el chequeo mecánico contra CLAUDE.md
+
+El chequeo mecánico de cierre (grepear cada símbolo tocado contra CLAUDE.md) encontró que
+`agregarSeccion` dependía sólo de `tipoInsertando` (estado de React) para cortar la re-entrada, y
+`duplicarInstancia`/`eliminarInstancia` no tenían guarda alguna — exactamente el defecto que
+§ "Doble-submit — la mitad SÍNCRONA" de CLAUDE.md nombra: dos clicks en el MISMO tick leen ambos el
+mismo estado y pasan los dos. Se agregó `mutacionCompuestaEnVueloRef` (`useRef<boolean>`),
+compartido por las tres (mutuamente exclusivas: las tres escriben la misma fila), chequeado y
+puesto en `true` de forma síncrona al inicio de cada función, liberado en un `finally`.
+`tipoInsertando` se queda como la mitad VISIBLE de `agregarSeccion` (tarjetas deshabilitadas +
+"Agregando…"); `duplicarInstancia` no necesita una porque su control (un ítem de menú) desaparece
+solo al elegirse — la frontera que CLAUDE.md ya traza ("guarda donde el silencio invita al
+reintento"). Re-verificado con `tsc`, `npm test` y el arnés completo DESPUÉS de este fix — sin
+regresión.
+
+### Hallazgo CONFIRMADO, fuera de `touches:`, NO corregido: una instancia no se actualiza en vivo
+
+El arnés también intentó verificar que el título de la instancia nueva se viera EN VIVO en el
+iframe, sin recargar — el mismo contrato que cualquier banda ya cumple. **Falló**, y la causa,
+confirmada por lectura de código (no supuesta): `app/(storefront)/page.tsx` (Server Component)
+pasa `instancia={seccionesHome[id]}` como PROP FIJA al dispatcher `SeccionInstancia`, y los tres
+componentes (`Texto`/`ImagenTexto`/`Banner.tsx`) leen esa prop directo — nunca
+`useSiteContent().seccionesHome[id]`. Toda banda hace lo opuesto: `page.tsx` sólo le pasa `style`
+(el color) y el componente lee su contenido del hook, que SÍ es reactivo al `postMessage` del
+puente en vivo. El mecanismo RECEPTOR que `SECCIONES-INSTANCIAS-1` dejó "inerte hasta que exista
+UI" (`fusionarContenidoInstancia`) se dispara CORRECTO con la UI de esta tanda — el defecto vive
+enteramente en los cuatro archivos heredados, los cuatro fuera de `touches:` de este slice. El
+arnés se ajustó para verificar PERSISTENCIA (recarga forzada) en vez de "en vivo sin recargar"; la
+mutación en sí guarda y publica bien — sólo el reflejo instantáneo mientras se edita no funciona.
+**No corregido.** Abierto como `SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`.
+
+### Corrección de un open follow-up previo: `STOREFRONT-NAV-DARKNESS-INSTANCIA-1` NO se resolvió
+
+El asiento de `SECCIONES-INSTANCIAS-1` asumía que este follow-up "se resuelve junto con
+`EDITOR-SECCIONES-UI-AGREGAR-1`" — **medido: falso**. `StoreNav.tsx` no entró a `touches:` de este
+slice (no hacía falta tocarlo para el botón/biblioteca/tarjetas/formulario) y sigue sin pasar
+`tipoInstancia` a `tratamientoNav`; una instancia que termine primera en `orden` sigue invisible
+para el cálculo de darkness del nav. Queda abierto, sin cambios — la asunción del asiento anterior
+no se cumplió, y se corrige acá en vez de dejarla como un pointer falso.
+
+### Cierra `ORDEN-SECCIONES-TIPO-INSTANCIA-1`
+
+El otro follow-up de `SECCIONES-INSTANCIAS-1` SÍ se resolvió: `moverBandaAIndice`/
+`moverBandaEnDireccion`/`moverBandaConDestino` (`lib/admin/orden-secciones.ts`) ensancharon a
+`<T extends string>` (preservan el tipo exacto por llamador), y `ordenLocal` en `TiendaPaginas.tsx`
+pasó de `useState<BandaId[] | null>` a `useState<string[] | null>` — verificado por grep contra el
+árbol final, no supuesto de la intención.
+
+### Verificación
+
+- **Capa 1**: `secciones-instancias.test.ts` (+9, 34 totales en el archivo), `orden-secciones.test.ts`
+  (+1 de paridad de mecanismo para el tipo ensanchado), `resumen-cambios.test.ts` (+6, sección
+  "SECCIONES AGREGADAS"), `panel-controles.test.ts` (+1, exclusión del dominio abierto).
+- **`npm run gate`** (`tsc --noEmit` + `npm test` + `npm run test:integracion`), corrido en el árbol
+  FINAL (después del fix del race y de la guarda síncrona): `tsc` 0 errores · `npm test` 3629/3629 ·
+  `npm run test:integracion` 339/339.
+- **Arnés real** (`.scratch/verificar-agregar-seccion.ts`, Postgres efímero + `next build`+`next
+  start`, Playwright, sesión OWNER real): agregar "Imagen con texto" después de Destacado → título
+  en vivo del nombre pedido en el formulario → confirmado que persiste tras recargar el iframe →
+  subir una foto (URL real de Blob, prefijo `dev/contenido/`) → duplicar (copia justo debajo) →
+  mover la copia con las flechas del asa → eliminar la copia (confirm) → deshacer (la copia vuelve)
+  → publicar (0 pendientes) → la home PÚBLICA, fuera de modo editor, muestra el título publicado y
+  CERO marcadores `data-editor-seccion`. Las 4 rondas de la sesión (dos antes del fix del race —
+  donde la primera falló exactamente como se predijo — y dos después, incluida la ronda final sobre
+  el árbol con la guarda síncrona) quedan en el output del harness; no se commitea el script.
+- **Capturas**: 8 de escritorio (1440×900) + 3 de teléfono (393×844, `.scratch/
+  verificar-agregar-seccion/`, gitignored) — biblioteca con las 3 tarjetas de vista previa real,
+  formulario de edición con el preview en vivo del hero, tras subir foto, tras duplicar+mover, tras
+  eliminar la copia, tras deshacer, tras publicar, la home pública. La captura de la home pública
+  (`fullPage`) muestra el hero y la franja de confianza con su animación `whileInView` asentada
+  (se agregó una espera de 2s tras `networkidle` para eso); las bandas MÁS ABAJO de la página
+  (brandStory en adelante, pre-existentes, fuera de `touches:`) siguen con su fade-in sin asentar en
+  la captura de página completa — un artefacto conocido de cómo Playwright resuelve
+  `fullPage` contra animaciones `whileInView` en una sola resize, no un defecto de este slice (el
+  checkeo de contenido HTML, que SÍ pasa, confirma que el texto está presente). La captura de
+  teléfono de la biblioteca muestra que `/editor/tienda` no tiene su propio breakpoint responsive
+  bajo 960px (pre-existente, fuera de `touches:`): se ve el layout de escritorio recortado al ancho
+  del viewport, no una regresión de esta tanda.
+- **`npm run verificar:nayoli:visual`** (pixel-diff, main vs. rama, doble build): **reproduce la
+  MISMA cifra exacta, dígito a dígito**, que el piso ya documentado y re-confirmado por media docena
+  de slices de esta rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px
+  (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers
+  IDÉNTICO (0px). Cero píxeles de más atribuibles a esta tanda — exit code 1 del script es el
+  comportamiento esperado (hay diff heredado, clasificado), no una falla. `npm run verificar:nayoli`
+  (texto) **no se corrió**: no estaba entre lo pedido explícitamente para el cierre de ESTE slice
+  (a diferencia de `SECCIONES-INSTANCIAS-1`, que sí lo corrió), y el piso visual ya prueba cero
+  píxeles de más.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths tocados por el diff, grepeados contra CLAUDE.md: `TiendaPaginas`, `VistaTiendaIframe`,
+`tienda-secciones`, `orden-secciones`, `resumen-cambios`, `panel-controles`, `secciones-instancias`,
+`useAutoguardado`, `ConfirmDeleteDialog`, `useSubidaImagen`, `useAccionGuardada`. Un hallazgo real
+—`agregarSeccion`/`duplicarInstancia`/`eliminarInstancia` violaban la regla de doble-submit de
+CLAUDE.md— se corrigió DENTRO de esta misma tanda (§ arriba), no se dejó como follow-up: estaba en
+`touches:`. `toast.error('No se pudo guardar…')` para el fallo de la mutación compuesta sigue el
+MISMO vehículo que `EditorTiendaPantallaCompleta.tsx` ya usa para Publicar/Descartar (grepeado y
+confirmado, línea 113-127 de ese archivo) — ninguna sentencia de CLAUDE.md sobre "Toast = éxito,
+inline = error" queda falsa: esa regla distingue mutación-dentro-de-un-diálogo (ErrorDialogo) de
+acción de alto nivel del panel (toast), y esto es lo segundo. `AGREGAR-SECCIONES.md` es el único
+`.md` tocado por el diff; sus propios pointers internos (`§ El plan`, `§ SECCIONES-INSTANCIAS-1`)
+se actualizaron en el mismo diff, no quedó ninguno apuntando a un estado vencido.
+
+### `customer_bytes`
+
+**`changed: true`** sobre la RAMA (contra su base, `main`): la rama entera sigue cambiando bytes de
+cliente (CORTE, la reescritura de tema, etc. — heredado de +331 commits previos de esta misma rama,
+no de este slice). **Medido que este slice específico no agrega ninguno nuevo**: `seccionesHome`
+nace vacío para todo tenant real (incluida Nayoli, verificado por `verificar:nayoli:visual` arriba),
+y la UI de esta tanda sólo se renderiza DENTRO de `/editor/tienda`, gateado a sesión OWNER/MANAGER —
+no hay bytes de storefront público nuevos. **`strings`**: ninguno visible para un visitante real.
+
+### `schema`/`cross-repo-contract`
+
+Sin tocar — `lib/config/site-content-schema.ts` no está en `touches:` de este slice (es la razón
+documentada de por qué el "ojo" no se construyó). Ningún modelo Prisma ni migración.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama (la
+RAMA, no el commit, sigue sin mergear contra `main`; 332 commits adelante, medido). Gate verde en
+las dos capas obligatorias: `tsc --noEmit` 0 errores, `npm test` 3629/3629, `npm run test:integracion`
+339/339 — los tres medidos en el árbol FINAL, después del fix del race condition y de la guarda de
+re-entrada. `next build` compila (confirmado 3 veces: dos corridas del arnés real + el doble-build
+de `verificar:nayoli:visual`). Arnés real de punta a punta en verde (agregar · título en vivo tras
+recargar · subir foto · duplicar · mover · eliminar · deshacer · publicar · home pública), con
+capturas de escritorio y teléfono revisadas. `npm run verificar:nayoli:visual` reproduce el piso
+heredado exacto, cero píxeles de más. Commiteado en `slice/editor-secciones-1`, encima de `36085d3`.
+
+**Cierra `EDITOR-AGREGAR-SECCION-1` y `ORDEN-SECCIONES-TIPO-INSTANCIA-1`. Corrige el estado de
+`STOREFRONT-NAV-DARKNESS-INSTANCIA-1` (sigue abierto). Abre `SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`.**

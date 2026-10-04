@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { moverBandaAIndice, moverBandaEnDireccion, moverBandaConDestino, ordenarPorBanda } from './orden-secciones';
+import {
+  moverBandaAIndice, moverBandaEnDireccion, moverBandaConDestino, ordenarPorBanda,
+  ordenarSeccionesConInstancias,
+} from './orden-secciones';
 import type { BandaId } from '@/lib/config/site-content-defaults';
 
 const ORDEN: BandaId[] = ['hero', 'marquesina', 'trustBadges', 'featured', 'brandStory'];
@@ -63,14 +66,49 @@ test('ordenarPorBanda: un id de orden sin ítem correspondiente se omite (nunca 
   assert.deepEqual(r.map((i) => i.seccion), ['x']);
 });
 
-// § SECCIONES-INSTANCIAS-1 (no tocó este archivo — ver el docstring de cabecera para el porqué): el
-// MECANISMO (mover un valor dentro de un array corto) no sabe ni le importa que un valor sea un
-// `BandaId` real — es sólo una CADENA que el array contiene. Este test lo confirma a nivel de
-// VALOR (con un cast, ya que el TIPO sigue siendo `BandaId[]`, sin tocar): el día que
-// `TiendaPaginas.tsx` ensanche su `ordenLocal` para aceptar instancias, estas tres funciones no
-// necesitan cambiar NADA — sólo su firma de tipos.
-test('moverBandaAIndice: mecánicamente funciona igual con un id-de-instancia disfrazado de BandaId (el tipo no cambia; el valor sí podría ser cualquier string el día de mañana)', () => {
-  const conInstancia = ['hero', 'inst:a', 'marquesina'] as unknown as BandaId[];
-  const r = moverBandaAIndice(conInstancia, 'inst:a' as BandaId, 0);
+// § EDITOR-AGREGAR-SECCION-1 — EL TIPO SE ENSANCHÓ DE VERDAD (`<T extends string>`, ver el
+// docstring de cabecera): este test ya no necesita el cast a `BandaId` que tenía antes de esta
+// tanda — pasa un `string[]` genérico (bandas MÁS un id de instancia) y el genérico lo infiere sin
+// ayuda. Confirma el mismo mecanismo que ya valía a nivel de VALOR, ahora también a nivel de TIPO.
+test('moverBandaAIndice: funciona igual sobre un string[] que mezcla bandas e ids de instancia', () => {
+  const mixto = ['hero', 'inst:a', 'marquesina'];
+  const r = moverBandaAIndice(mixto, 'inst:a', 0);
   assert.deepEqual(r, ['inst:a', 'hero', 'marquesina']);
+});
+
+test('moverBandaAIndice: sigue funcionando EXACTO sobre un BandaId[] (el llamador de ayer no cambia)', () => {
+  assert.deepEqual(moverBandaAIndice(ORDEN, 'trustBadges', 0), ['trustBadges', 'hero', 'marquesina', 'featured', 'brandStory']);
+});
+
+// ─── ordenarSeccionesConInstancias ───────────────────────────────────────────────────────────────
+
+test('ordenarSeccionesConInstancias: mezcla bandas e instancias en la secuencia de `orden`', () => {
+  const items = [
+    { seccion: 'a', bandaId: 'hero' as BandaId },
+    { seccion: 'b', bandaId: 'marquesina' as BandaId },
+  ];
+  const r = ordenarSeccionesConInstancias(items, ['inst:x'], ['hero', 'inst:x', 'marquesina']);
+  assert.deepEqual(r, [
+    { tipo: 'banda', config: items[0] },
+    { tipo: 'instancia', id: 'inst:x' },
+    { tipo: 'banda', config: items[1] },
+  ]);
+});
+
+test('ordenarSeccionesConInstancias: un id de orden que no es banda conocida ni instancia viva se omite', () => {
+  const items = [{ seccion: 'a', bandaId: 'hero' as BandaId }];
+  const r = ordenarSeccionesConInstancias(items, [], ['hero', 'inst:fantasma', 'inventada']);
+  assert.deepEqual(r, [{ tipo: 'banda', config: items[0] }]);
+});
+
+test('ordenarSeccionesConInstancias: los ítems sin bandaId (otra página) quedan al final, en su orden original', () => {
+  const items = [
+    { seccion: 'a', bandaId: 'hero' as BandaId },
+    { seccion: 'sin-banda' },
+  ];
+  const r = ordenarSeccionesConInstancias(items, [], ['hero']);
+  assert.deepEqual(r, [
+    { tipo: 'banda', config: items[0] },
+    { tipo: 'banda', config: items[1] },
+  ]);
 });

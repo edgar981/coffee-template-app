@@ -285,6 +285,64 @@ export function resolverOrdenCompleto(
   return out;
 }
 
+// ─── EL CATÁLOGO CURADO, EN PALABRAS (§ EDITOR-AGREGAR-SECCION-1) ───────────────────────────────
+//
+// La biblioteca de «Agregar sección» NO enumera los tres tipos a mano: lee ESTE array, así que un
+// cuarto tipo que algún día se agregue a `SECCION_INSTANCIA_TIPOS`/`DESCRIPTOR_INSTANCIA` sin sumar
+// su entrada acá queda ausente de la biblioteca (y el test de paridad de abajo lo dice) — nunca una
+// biblioteca vieja mostrando menos tipos de los que el catálogo real tiene.
+
+export interface CatalogoInstanciaEntry {
+  tipo: SeccionInstanciaTipo;
+  /** El nombre en palabras que ve el dueño en la tarjeta de la biblioteca — nunca el `tipo` crudo. */
+  nombre: string;
+  /** Una frase corta, sin jerga, de qué es — lo que decide entre dos tarjetas parecidas. */
+  frase: string;
+}
+
+/** Tope de instancias que un home puede llevar (§ EDITOR-AGREGAR-SECCION-1, el spec: "Al tope de
+ *  instancias, el botón lo dice en palabras y no agrega"). No es técnico —el mecanismo (un mapa
+ *  JSON + un array de ids) no tiene un límite real cercano a este número—: es de CURADURÍA, la
+ *  misma razón que acota la galería de /nosotros a 12 fotos (§ CLAUDE.md, "Es de CURADURÍA: una
+ *  galería de 30 fotos no la mira nadie"). Un home con decenas de secciones agregadas, además de
+ *  las bandas fijas, deja de ser una página y pasa a ser una lista. */
+export const TOPE_INSTANCIAS_HOME = 20;
+
+export const CATALOGO_INSTANCIAS: readonly CatalogoInstanciaEntry[] = [
+  { tipo: 'texto', nombre: 'Texto', frase: 'Un bloque de texto, con un botón opcional.' },
+  { tipo: 'imagenTexto', nombre: 'Imagen con texto', frase: 'Una foto a un lado y el texto al otro.' },
+  { tipo: 'banner', nombre: 'Banner', frase: 'Una foto de fondo a sangre con un mensaje encima.' },
+];
+
+/** El nombre en palabras de un tipo — la MISMA fuente que la biblioteca, para que la tarjeta de la
+ *  lista y la tarjeta de la biblioteca nunca digan cosas distintas del mismo tipo. */
+export function nombreInstancia(tipo: SeccionInstanciaTipo): string {
+  return CATALOGO_INSTANCIAS.find((c) => c.tipo === tipo)?.nombre ?? 'Sección';
+}
+
+// ─── CREAR UNA INSTANCIA NUEVA ───────────────────────────────────────────────────────────────────
+
+/** Un id NUEVO, con el prefijo de instancia, que no choca contra ninguno de `existentes`. No usa
+ *  sólo `Date.now()`: dos instancias agregadas en el mismo milisegundo (plausible desde un test, o
+ *  un doble-submit que la guarda de UI no haya atajado) no deben competir por el mismo id — el
+ *  sufijo random más el bucle de colisión lo garantizan sin tocar `INSTANCIA_PREFIJO`. */
+export function nuevoIdInstancia(existentes: Iterable<string>): string {
+  const vistos = existentes instanceof Set ? existentes : new Set(existentes);
+  let id: string;
+  do {
+    id = `${INSTANCIA_PREFIJO}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  } while (vistos.has(id));
+  return id;
+}
+
+/** Una instancia nueva del tipo elegido: una COPIA de sus defaults neutros (§ el docstring de
+ *  cabecera — sin café, sin imagen), nunca la misma referencia que `DEFAULTS_INSTANCIA[tipo]`. Dos
+ *  instancias del mismo tipo no deben compartir objeto: editar una no puede mutar la otra ni el
+ *  propio default compartido por todo el catálogo. */
+export function crearInstancia(tipo: SeccionInstanciaTipo): InstanciaContent {
+  return { ...DEFAULTS_INSTANCIA[tipo] } as InstanciaContent;
+}
+
 // ─── LAS IMÁGENES — para `imagenesDe` (site-content-blobs.ts) ───────────────────────────────────
 
 /** Los campos de imagen de CADA instancia realmente presente en `seccionesHome` (ya resuelto, o
