@@ -60,6 +60,47 @@ test('imagenesDe con el REGISTRY REAL junta el fondo del CTA DE CIERRE de /nosot
   assert.deepEqual(imagenesDe(doc), ['/cierre.jpg']);
 });
 
+// ── SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): `seccionesHome` es META, no una clave
+//    de `registro` — el loop de arriba nunca la alcanza; esta rama es la que la cubre ─────────────
+
+test('imagenesDe: junta la imagen de una instancia "imagenTexto"/"banner" en seccionesHome', () => {
+  const doc = {
+    seccionesHome: {
+      'inst:a': { tipo: 'imagenTexto', titulo: 'x', imagen: '/a.jpg' },
+      'inst:b': { tipo: 'banner', titulo: 'y', imagen: '/b.jpg' },
+    },
+  };
+  assert.deepEqual(imagenesDe(doc, REG).sort(), ['/a.jpg', '/b.jpg']);
+});
+
+test('imagenesDe: una instancia "texto" no aporta ninguna imagen (no tiene campo imagen)', () => {
+  const doc = { seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'x' } } };
+  assert.deepEqual(imagenesDe(doc, REG), []);
+});
+
+test('imagenesDe: seccionesHome ausente, con basura, o con una instancia sin imagen (vacía) no rompe ni aporta nada', () => {
+  assert.deepEqual(imagenesDe({}, REG), []);
+  assert.deepEqual(imagenesDe({ seccionesHome: 'no-obj' }, REG), []);
+  assert.deepEqual(imagenesDe({ seccionesHome: { 'inst:a': { tipo: 'imagenTexto', imagen: '' } } }, REG), []);
+});
+
+test('imagenesDe: se junta CON las imágenes de las secciones del REGISTRY, en el mismo resultado', () => {
+  const doc = {
+    collage: { i1: 'a', i2: '', i3: '', i4: '' },
+    seccionesHome: { 'inst:a': { tipo: 'banner', imagen: 'b' } },
+  };
+  assert.deepEqual(imagenesDe(doc, REG).sort(), ['a', 'b']);
+});
+
+test('blobsHuerfanos: una imagen de instancia reemplazada en BORRADOR pero aún PUBLICADA no se borra (mismo contrato que las secciones del REGISTRY)', () => {
+  const antes = { content: { seccionesHome: { 'inst:a': { tipo: 'banner', imagen: 'A' } } }, borrador: null };
+  const despues = {
+    content: { seccionesHome: { 'inst:a': { tipo: 'banner', imagen: 'A' } } },
+    borrador: { seccionesHome: { 'inst:a': { tipo: 'banner', imagen: 'X' } } },
+  };
+  assert.deepEqual(blobsHuerfanos(antes, despues, REG), []);
+});
+
 // ── blobsAReemplazar: SET-diff, NO por índice (modo a) ──────────────────────────
 
 test('SWAP: reordenar slots NO borra nada (set-diff) — falla con un diff por índice', () => {

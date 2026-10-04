@@ -1,4 +1,5 @@
 import { REGISTRY, type SeccionDef } from './site-content-defaults';
+import { imagenesDeInstancia } from './secciones-instancias';
 
 // EL BORRADO DE BLOBS del contenido, generalizado. Puro (sin prisma, sin storage): decide QUÉ
 // URLs borrar; el llamador (el route) hace el `storage.delete` best-effort. Compartido por
@@ -30,6 +31,16 @@ export function imagenesDe(doc: unknown, registro: Record<string, SeccionDef> = 
     } else {
       for (const f of def.imagenes) empujarUrl(out, sec[f]);
     }
+  }
+  // SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): `seccionesHome` es una META, no una
+  // clave de `registro` (REGISTRY sólo nombra secciones) — así que el loop de arriba nunca la
+  // alcanza, y sin esta rama una imagen en uso por una instancia (`imagenTexto.imagen`,
+  // `banner.imagen`) nunca contaría como "en uso": el borrado de blobs la vería huérfana y la
+  // borraría mientras una instancia todavía la muestra. `imagenesDeInstancia` (secciones-
+  // instancias.ts) es quien sabe qué campo de cada TIPO es una imagen — éste sólo itera el mapa.
+  const instancias = doc.seccionesHome;
+  if (esObj(instancias)) {
+    for (const inst of Object.values(instancias)) out.push(...imagenesDeInstancia(inst));
   }
   return out;
 }

@@ -24,7 +24,9 @@ import {
   mensajesDeZonaHero,
   mensajeEstiloElemento,
   mensajesQuitarEstiloElemento,
+  fusionarContenidoInstancia,
 } from './editor-puente';
+import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
 // zod — lo que se afirma es la forma del mensaje, la membresía en el REGISTRY, y que la fusión de
@@ -207,6 +209,52 @@ test('fusionarContenidoSeccion: una seccion fuera del REGISTRY (meta o inventada
   assert.equal(resultado1, DEFAULTS);
   const resultado2 = fusionarContenidoSeccion(DEFAULTS, 'no-existe', { x: 1 });
   assert.equal(resultado2, DEFAULTS);
+});
+
+// ─── fusionarContenidoInstancia (§ SECCIONES-INSTANCIAS-1) ──────────────────────────────────────
+
+test('fusionarContenidoInstancia: escribe la instancia resuelta en seccionesHome[id], sin tocar el resto del contenido', () => {
+  const resultado = fusionarContenidoInstancia(DEFAULTS, 'inst:a', { tipo: 'texto', titulo: 'Un título nuevo' });
+  assert.equal((resultado.seccionesHome['inst:a'] as { titulo: string }).titulo, 'Un título nuevo');
+  assert.equal(resultado.hero, DEFAULTS.hero, 'el resto del contenido no se toca — misma referencia');
+});
+
+test('fusionarContenidoInstancia: un id SIN el prefijo de instancia devuelve el contenido SIN TOCAR', () => {
+  const resultado = fusionarContenidoInstancia(DEFAULTS, 'hero', { tipo: 'texto', titulo: 'x' });
+  assert.equal(resultado, DEFAULTS);
+});
+
+test('fusionarContenidoInstancia: datos con un tipo desconocido devuelven el contenido SIN TOCAR (preferir callar)', () => {
+  const resultado = fusionarContenidoInstancia(DEFAULTS, 'inst:a', { tipo: 'carrusel-inventado', titulo: 'x' });
+  assert.equal(resultado, DEFAULTS);
+});
+
+test('fusionarContenidoInstancia: actualizar DOS instancias distintas no se pisan entre sí', () => {
+  const unaVez = fusionarContenidoInstancia(DEFAULTS, 'inst:a', { tipo: 'texto', titulo: 'A' });
+  const dosVeces = fusionarContenidoInstancia(unaVez, 'inst:b', { tipo: 'banner', titulo: 'B' });
+  assert.equal((dosVeces.seccionesHome['inst:a'] as { titulo: string }).titulo, 'A');
+  assert.equal((dosVeces.seccionesHome['inst:b'] as { titulo: string }).titulo, 'B');
+});
+
+// EL MECANISMO REAL de `EditorPuenteVivo.tsx` (component .tsx, sin test propio — el glob del gate
+// no incluye `.test.tsx`, § CLAUDE.md): extrae el sub-schema de UNA instancia con
+// `siteContentEditableSchema.shape.seccionesHome.unwrap().valueType` — `.valueType`, NO
+// `.valueSchema` (el nombre de zod 3; este repo corre zod 4, verificado contra
+// `node_modules/zod/package.json`). Este test afirma el MISMO patrón de extracción, para que un
+// upgrade de zod que renombre otra vez esa propiedad lo rompa ACÁ, en capa 1, en vez de fallar en
+// silencio dentro de un componente sin cobertura automatizada.
+test('el patrón de extracción que usa EditorPuenteVivo.tsx — shape.seccionesHome.unwrap().valueType.safeParse — funciona de punta a punta contra el schema real', () => {
+  const subSchema = (siteContentEditableSchema.shape.seccionesHome as unknown as {
+    unwrap: () => { valueType: { safeParse: (v: unknown) => { success: boolean; data?: unknown } } };
+  }).unwrap().valueType;
+  const parsed = subSchema.safeParse({ tipo: 'texto', titulo: 'Desde el mensaje' });
+  assert.equal(parsed.success, true);
+  const resultado = fusionarContenidoInstancia(DEFAULTS, 'inst:a', parsed.data as Record<string, unknown>);
+  assert.equal((resultado.seccionesHome['inst:a'] as { titulo: string }).titulo, 'Desde el mensaje');
+
+  // Y el rechazo también se propaga de punta a punta: un tipo inválido no produce datos que fusionar.
+  const rechazado = subSchema.safeParse({ tipo: 'carrusel-inventado', titulo: 'x' });
+  assert.equal(rechazado.success, false);
 });
 
 // § EDITOR-TIENDA-SELECCION-1 — los dos mensajes nuevos de la selección en contexto (§ 4.1).

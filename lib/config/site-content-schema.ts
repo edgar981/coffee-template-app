@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BANDA_IDS, MENU_ITEM_IDS, MENU_CTA_DESTINOS } from './site-content-defaults';
+import { esInstanciaId } from './secciones-instancias';
 
 // EL ESTILO DE UN ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, ver el docstring de
 // `EstiloElementoResuelto` en `estilo-elemento.ts`): los CUATRO subcampos son `z.string()` SOFT, NO
@@ -404,10 +405,83 @@ const esquemasEditableSchema = z.record(z.string(), z.enum(['crema', 'superficie
 // el resolver filtra a ids conocidos, deduplica y completa lo faltante. Acá el WRITE puede ser más
 // estricto que el loader (como `esquemasEditableSchema`): un id fuera del set cerrado, o repetido,
 // se rechaza.
-const ordenEditableSchema = z.array(z.enum(BANDA_IDS)).refine(
+//
+// § SECCIONES-INSTANCIAS-1 ensanchó el DOMINIO: un elemento puede ser una banda del set cerrado DE
+// SIEMPRE, O un id de instancia (prefijo `inst:`, `esInstanciaId`) — el dominio de instancias es
+// ABIERTO (no hay un enum que enumerarlo, el dueño lo crea), así que acá sólo se valida la FORMA del
+// id (¿lleva el prefijo?), no que la instancia EXISTA — eso lo decide `resolverOrdenCompleto` al
+// leer ("el id entra a `orden` sólo si su instancia existe"), la MISMA relación WRITE-más-estricto-
+// que-el-loader de siempre, aplicada al borde de lo que el WRITE puede saber sin consultar la fila
+// completa. Una cadena que no es ni una banda ni un id con el prefijo (`'inventada'`) se sigue
+// rechazando — eso no cambió.
+const ordenEditableSchema = z.array(
+  z.union([
+    z.enum(BANDA_IDS),
+    z.string().refine(esInstanciaId, { message: 'orden: id desconocido (ni banda ni instancia)' }),
+  ]),
+).refine(
   (arr) => new Set(arr).size === arr.length,
   { message: 'orden: una banda no puede repetirse' },
 );
+
+// META de SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): el mapa id→instancia de un
+// catálogo CURADO de tres tipos. NO es una sección del REGISTRY —`SeccionKey` la excluye, igual que
+// `esquemas`/`orden`/`variantesBandas`— pero a diferencia de esas metas SÍ pasa por el flujo
+// borrador/publicar genérico (como cualquier clave del REGISTRY — ver `app/api/site-content/
+// route.ts`, que la suma a la lista de claves publicables junto a 'orden'/'tema').
+//
+// CADA instancia es una UNIÓN DISCRIMINADA por `tipo`, uno por miembro de `SECCION_INSTANCIA_TIPOS`
+// (`secciones-instancias.ts`, la fuente única del catálogo — DESCRIPTOR_INSTANCIA declara los
+// mismos campos que estos tres sub-schemas; `secciones-instancias.test.ts` afirma la paridad). Todo
+// opcional/SOFT como el resto de este archivo: el resolver (`resolverInstancia`) decide requerido-
+// vacío→default / opcional-presente→se respeta, igual que cualquier sección.
+const instanciaTextoEditableSchema = z.object({
+  tipo: z.literal('texto'),
+  antetitulo: z.string().optional(),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  // `z.string()`, no `z.enum` — mismo motivo que `hero.variante`/`presentaciones.variante`: el
+  // resolver SOFT (`resolverInstancia`, vía `DESCRIPTOR_INSTANCIA.texto.escalares.alineacion`) ya
+  // clampa al set cerrado o a la canónica.
+  alineacion: z.string().optional(),
+});
+const instanciaImagenTextoEditableSchema = z.object({
+  tipo: z.literal('imagenTexto'),
+  antetitulo: z.string().optional(),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  // Path estático o URL de Blob, como cualquier otra imagen de sección. Vacía = el hueco "Agregar
+  // foto" del editor — sin default (§ DEFAULTS_INSTANCIA.imagenTexto, secciones-instancias.ts).
+  imagen: z.string().optional(),
+  lado: z.string().optional(),
+});
+const instanciaBannerEditableSchema = z.object({
+  tipo: z.literal('banner'),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  ctaSecundarioLabel: z.string().optional(),
+  ctaSecundarioDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  imagen: z.string().optional(),
+  // `z.string()` — el resolver (vía `DESCRIPTOR_INSTANCIA.banner.escalares.alto`) clampa al mismo
+  // set cerrado de tres pasos que `hero.alto` ('justo'|'alto'|'pantalla').
+  alto: z.string().optional(),
+});
+const instanciaEditableSchema = z.discriminatedUnion('tipo', [
+  instanciaTextoEditableSchema,
+  instanciaImagenTextoEditableSchema,
+  instanciaBannerEditableSchema,
+]);
+// `z.record(z.string(), …)`, KEY-AGNÓSTICO como `esquemasEditableSchema`: el dominio de ids lo
+// decide el dueño, no hay un enum que enumerarlo acá. Una clave sin el prefijo de instancia, o un
+// valor cuyo `tipo` no matchea ninguno de los tres, falla la unión discriminada y el PUT entero se
+// rechaza con 400 — el mismo criterio "el WRITE puede ser más estricto que el loader" de `orden`.
+const seccionesHomeEditableSchema = z.record(z.string(), instanciaEditableSchema);
 
 // META de VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el mapa bandaId→variante
 // para bandas SIN sección (`featured`, hoy la única — § `VARIANTES_ESTRUCTURALES`,
@@ -700,6 +774,7 @@ export const siteContentEditableSchema = z.object({
   orden: ordenEditableSchema.optional(),
   variantesBandas: variantesBandasEditableSchema.optional(),
   presetSnapshot: presetSnapshotEditableSchema.optional(),
+  seccionesHome: seccionesHomeEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

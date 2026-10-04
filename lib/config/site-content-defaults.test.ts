@@ -6,9 +6,13 @@ import path from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import GrindChooser from '@/components/storefront/home/GrindChooser';
+import TrustBadges from '@/components/storefront/home/TrustBadges';
+import SeccionInstancia from '@/components/storefront/secciones/SeccionInstancia';
+import { DEFAULTS_INSTANCIA as DEFAULTS_INSTANCIA_FIXTURE } from '@/lib/config/secciones-instancias';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { CartProvider } from '@/lib/cartStore';
+import type { SiteContentData } from '@/lib/config/site-content-defaults';
 import {
   DEFAULTS,
   REGISTRY,
@@ -1494,6 +1498,23 @@ test('bandaUniforme: brandStory·columnas y ·centrada → true (sin `noUniforme
   assert.equal(bandaUniforme('brandStory', undefined), true);
 });
 
+// ── `bandaOscuraCanonica`/`bandaUniforme` CON `tipoInstancia` (§ SECCIONES-INSTANCIAS-1) ───────────
+// El parámetro es OPCIONAL y NUEVO: sin él, el comportamiento de arriba no cambia una línea (los
+// tests de arriba no lo pasan y siguen en verde). CON él, delega a `instanciaOscuraCanonica`/
+// `instanciaEsUniforme` (secciones-instancias.ts) en vez de mirar `BANDAS_OSCURAS`/`REGISTRY`.
+
+test('bandaOscuraCanonica: con tipoInstancia, delega SIEMPRE a instanciaOscuraCanonica — ignora que el id ni siquiera sea una banda real', () => {
+  assert.equal(bandaOscuraCanonica('inst:cualquiera', undefined, 'banner'), true);
+  assert.equal(bandaOscuraCanonica('inst:cualquiera', undefined, 'texto'), false);
+  assert.equal(bandaOscuraCanonica('inst:cualquiera', undefined, 'imagenTexto'), false);
+});
+
+test('bandaUniforme: con tipoInstancia, delega SIEMPRE a instanciaEsUniforme — ignora que el id ni siquiera sea una banda real', () => {
+  assert.equal(bandaUniforme('inst:cualquiera', undefined, 'imagenTexto'), false);
+  assert.equal(bandaUniforme('inst:cualquiera', undefined, 'texto'), true);
+  assert.equal(bandaUniforme('inst:cualquiera', undefined, 'banner'), true);
+});
+
 // ── `varianteDeBanda` (§ EJE-5-VARIANTES-HERO): la variante resuelta de una banda, para el nav ────
 
 test('varianteDeBanda: hero resuelve a "curtina" con los DEFAULTS resueltos (sin fila)', () => {
@@ -1590,6 +1611,105 @@ test('resolverOrden: SIEMPRE devuelve las 9 bandas — ninguna se cae, pase lo q
     assert.equal(resolverOrden(stored).length, BANDA_IDS.length);
     assert.deepEqual(new Set(resolverOrden(stored)), new Set(BANDA_IDS));
   }
+});
+
+// ── resolverSiteContent · seccionesHome + orden mezclado (§ SECCIONES-INSTANCIAS-1) ───────────────
+//
+// `resolverOrden` (arriba) queda INTACTA y sigue el loader de los otros tres consumidores
+// (TiendaPaginas.tsx/StoreNav.tsx/orden-secciones.ts, fuera de `touches:`); lo que se afirma acá es
+// el CABLEADO NUEVO dentro de `resolverSiteContent`: `out.seccionesHome` se resuelve y `out.orden`
+// pasa a ser `resolverOrdenCompleto(BANDA_IDS ∪ esas instancias)` — "sin la clave nueva, toda
+// tienda es byte-idéntica" es el PRIMER caso de esta suite.
+
+test('resolverSiteContent: SIN seccionesHome guardado, el resultado es BYTE-IDÉNTICO a antes (orden = sólo las 9 bandas, seccionesHome = {})', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.seccionesHome, {});
+  assert.deepEqual(r.orden, ORDEN_DEFAULT);
+});
+
+test('resolverSiteContent: una instancia válida en seccionesHome aparece resuelta, y su id entra a `orden`', () => {
+  const r = resolverSiteContent({
+    seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'Mi sección agregada' } },
+    orden: ['hero', 'inst:a', 'marquesina', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials'],
+  });
+  assert.equal(Object.keys(r.seccionesHome).length, 1);
+  assert.equal((r.seccionesHome['inst:a'] as { titulo: string }).titulo, 'Mi sección agregada');
+  assert.deepEqual(r.orden, ['hero', 'inst:a', 'marquesina', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials']);
+});
+
+test('resolverSiteContent: una instancia que existe pero NO está en `orden` se agrega AL FINAL (tras las 9 bandas)', () => {
+  const r = resolverSiteContent({
+    seccionesHome: { 'inst:a': { tipo: 'banner', titulo: 'Banner suelto' } },
+    orden: ORDEN_DEFAULT,
+  });
+  assert.deepEqual(r.orden, [...ORDEN_DEFAULT, 'inst:a']);
+});
+
+test('resolverSiteContent: un id en `orden` con prefijo de instancia pero SIN instancia real no ocupa un slot', () => {
+  const r = resolverSiteContent({
+    orden: ['hero', 'inst:fantasma', 'marquesina'],
+  });
+  assert.ok(!r.orden.includes('inst:fantasma'));
+  assert.deepEqual(new Set(r.orden), new Set(BANDA_IDS));
+});
+
+test('resolverSiteContent: una instancia de tipo desconocido o forma rota en seccionesHome se descarta entera, no aparece en orden', () => {
+  const r = resolverSiteContent({
+    seccionesHome: { 'inst:rota': { tipo: 'carrusel-que-no-existe', titulo: 'x' }, 'sin-prefijo': { tipo: 'texto', titulo: 'y' } },
+  });
+  assert.deepEqual(r.seccionesHome, {});
+  assert.deepEqual(r.orden, ORDEN_DEFAULT);
+});
+
+// ── EL HOME CON INSTANCIAS ENTRE BANDAS — render REAL, en memoria (§ SECCIONES-INSTANCIAS-1) ──────
+//
+// `renderToStaticMarkup`, sin jsdom (mismo arnés que `renderGrindChooser`, arriba): simula el MISMO
+// dispatch que `app/(storefront)/page.tsx` hace (`id in BANDAS ? BANDAS[id](...) : <SeccionInstancia
+// .../>`), con un `orden` sintético que intercala DOS instancias (una `texto`, una `banner`) entre
+// DOS bandas reales (`trustBadges`, sin dependencias externas — a diferencia del hero, que necesita
+// `claseAlturaHero` pero no media/producto). No se monta `page.tsx` en sí (es `async`, lee
+// `getSiteSettings`/`getSiteContent` — DB real), así que este test reproduce su MECANISMO de
+// dispatch, no el componente completo — igual que `renderGrindChooser` reproduce el dispatcher sin
+// montar la página entera.
+test('EL HOME CON DOS INSTANCIAS ENTRE BANDAS: renderToStaticMarkup no revienta, y el HTML trae el fingerprint de las CUATRO piezas', () => {
+  const content: SiteContentData = {
+    ...DEFAULTS,
+    seccionesHome: {
+      'inst:texto1': { ...DEFAULTS_INSTANCIA_FIXTURE.texto, titulo: 'Fingerprint del texto agregado' },
+      'inst:banner1': { ...DEFAULTS_INSTANCIA_FIXTURE.banner, titulo: 'Fingerprint del banner agregado' },
+    },
+    trustBadges: { visible: true },
+  };
+  const orden = ['trustBadges', 'inst:texto1', 'inst:banner1'];
+  const BANDAS: Record<string, () => React.ReactNode> = {
+    trustBadges: () => React.createElement(TrustBadges),
+  };
+  const arbol = React.createElement(SiteContentProvider, {
+    value: content,
+    children: orden.map((id) => React.createElement(
+      React.Fragment,
+      { key: id },
+      id in BANDAS ? BANDAS[id]() : React.createElement(SeccionInstancia, { id, instancia: content.seccionesHome[id] }),
+    )),
+  });
+  const html = renderToStaticMarkup(arbol);
+  assert.ok(html.includes('Fingerprint del texto agregado'), 'la instancia "texto" debe renderizar su título');
+  assert.ok(html.includes('Fingerprint del banner agregado'), 'la instancia "banner" debe renderizar su título');
+  // trustBadges no lleva texto propio editable; confirmamos que SÍ rindió un <section> (no null).
+  assert.ok(/<section/.test(html));
+});
+
+test('EL HOME CON DOS INSTANCIAS ENTRE BANDAS: "imagenTexto" SIN imagen muestra el hueco "+ Agregar foto" (modo editor) — nunca un <img src="">', () => {
+  // `HuecoImagenOpcional` sólo se renderiza en modo editor (§ CampoEditable.tsx) — fuera de modo
+  // editor, una `imagenTexto` sin foto simplemente no rinde ningún <img>, que también se afirma acá.
+  const sinModoEditor = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SeccionInstancia, { id: 'inst:a', instancia: DEFAULTS_INSTANCIA_FIXTURE.imagenTexto }),
+    }),
+  );
+  assert.ok(!sinModoEditor.includes('<img'), 'sin imagen y sin modo editor, no debe haber ningún <img>');
+  assert.ok(!sinModoEditor.includes('src=""'), 'nunca un src vacío');
 });
 
 // ── resolverOrdenNosotros / BANDA_NOSOTROS_IDS (§ NOSOTROS-SISTEMA-DE-BANDAS-1) — GEMELA reducida ──

@@ -1,5 +1,6 @@
 import { derivarPaleta, derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta, type EjesPaleta } from './palette-derive';
 import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent, type TemaContent } from './site-content-defaults';
+import type { SeccionInstanciaTipo } from './secciones-instancias';
 import { varsDeFuentePar, parDeFuentePar } from './fuentes';
 import { varsDeForma, formaDeForma } from './formas';
 
@@ -237,18 +238,27 @@ export function varsDeTemaEnVivo(tema: TemaContent): Record<string, string> {
  * a recibir la VARIANTE de la banda primera y delegarla a `bandaOscuraCanonica`. Sin este parámetro,
  * un hero·ficha primero-y-sin-esquema habría dejado el nav con texto claro sobre banda clara (el
  * mismo modo de falla de la mina #1, una capa más abajo).
+ *
+ * `tipoInstancia` (§ SECCIONES-INSTANCIAS-1, opcional y NUEVO): cuando `bandaId` es en realidad el
+ * id de una INSTANCIA de `seccionesHome` (no una banda), el llamador pasa su tipo para que, SIN
+ * esquema asignado, la canónica se calcule con `instanciaOscuraCanonica` en vez de `BANDAS_OSCURAS`
+ * (que nunca contiene un id de instancia). CON esquema asignado el cálculo de contraste de arriba
+ * ya es correcto para cualquier id —key-agnóstico—, así que `tipoInstancia` sólo importa en la rama
+ * SIN esquema. Ningún llamador de HOY lo pasa (`StoreNav.tsx`, fuera de `touches:`, sigue sin saber
+ * de instancias — § DECISIONS.md, open follow-up); queda listo para cuando lo haga.
  */
 export function bandaEsOscura(
-  bandaId: BandaId,
+  bandaId: string,
   variante: string | undefined,
   esquemas: EsquemasContent,
   fondo: string | null,
   tinta: string | null,
   acento: string | null,
+  tipoInstancia?: SeccionInstanciaTipo,
 ): boolean {
   const raices = raicesResueltas(fondo, tinta, acento);
   const id = esquemas[bandaId];
-  if (!id) return bandaOscuraCanonica(bandaId, variante);
+  if (!id) return bandaOscuraCanonica(bandaId, variante, tipoInstancia);
   const bandaFondo = derivarEsquema(raices, id).fondo;
   return contraste('#ffffff', bandaFondo) >= contraste(raices.tinta, bandaFondo);
 }
@@ -272,15 +282,21 @@ export function bandaEsOscura(
  * solo color derivado)—. La ficha del hero es bi-tonal, y el gate visual del owner encontró el nav
  * transparente con texto oscuro ilegible sobre su mitad de foto. Antes de preguntar si la banda es
  * oscura, hay que preguntar si tiene UN tono que preguntar eso.
+ *
+ * `bandaId: string` + `tipoInstancia?` (§ SECCIONES-INSTANCIAS-1): MISMO ensanche y misma razón que
+ * `bandaEsOscura`/`bandaOscuraCanonica`/`bandaUniforme` — seguro para `StoreNav.tsx` (fuera de
+ * `touches:`, que sigue llamando con sólo cuatro argumentos), listo para el día que ese archivo
+ * resuelva el orden completo (bandas+instancias) y pase el tipo de una instancia primera.
  */
 export function tratamientoNav(
-  bandaId: BandaId,
+  bandaId: string,
   variante: string | undefined,
   esquemas: EsquemasContent,
   fondo: string | null,
   tinta: string | null,
   acento: string | null,
+  tipoInstancia?: SeccionInstanciaTipo,
 ): { flotante: boolean; textoClaro: boolean } {
-  if (!bandaUniforme(bandaId, variante)) return { flotante: false, textoClaro: false };
-  return { flotante: true, textoClaro: bandaEsOscura(bandaId, variante, esquemas, fondo, tinta, acento) };
+  if (!bandaUniforme(bandaId, variante, tipoInstancia)) return { flotante: false, textoClaro: false };
+  return { flotante: true, textoClaro: bandaEsOscura(bandaId, variante, esquemas, fondo, tinta, acento, tipoInstancia) };
 }

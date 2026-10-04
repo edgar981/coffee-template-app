@@ -31,6 +31,11 @@ const leer = (rel: string) => readFileSync(path.join(RAIZ, rel), 'utf8');
 // `grep -rln "hover:bg-\[var(--sf-tostado-4)\]"` contra el repo completo. `CartDrawer.tsx` aporta
 // DOS de los usos de `--sf-accion` (la barra de envío gratis Y el CTA "Ir al Checkout") pero sólo
 // el CTA es parte de esta familia — la barra no lleva texto ni hover, es un relleno.
+// LOS TRES DE § SECCIONES-INSTANCIAS-1 (Texto/ImagenTexto/Banner, `components/storefront/
+// secciones/`) COPIAN el patrón de `BrandStoryCentrada.tsx` tal cual nacen — un CTA nuevo que
+// nace con el patrón VIEJO es justo lo que este censo existe para atrapar; nacer ya migrado evita
+// la migración futura, pero el censo sigue siendo exhaustivo: hay que nombrarlos acá para que el
+// barrido de abajo no los vea como "fuera de lista".
 const CONSUMIDORES = [
   'components/storefront/BackToTop.tsx',
   'components/storefront/CartDrawer.tsx',
@@ -42,6 +47,9 @@ const CONSUMIDORES = [
   'components/storefront/home/HeroCurtina.tsx',
   'components/storefront/home/HeroFicha.tsx',
   'components/storefront/nosotros/NosotrosCierre.tsx',
+  'components/storefront/secciones/Texto.tsx',
+  'components/storefront/secciones/ImagenTexto.tsx',
+  'components/storefront/secciones/Banner.tsx',
 ] as const;
 
 for (const archivo of CONSUMIDORES) {

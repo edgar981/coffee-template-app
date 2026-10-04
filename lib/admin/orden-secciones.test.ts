@@ -62,3 +62,15 @@ test('ordenarPorBanda: un id de orden sin ítem correspondiente se omite (nunca 
   const r = ordenarPorBanda(items, ['marquesina', 'hero', 'featured']);
   assert.deepEqual(r.map((i) => i.seccion), ['x']);
 });
+
+// § SECCIONES-INSTANCIAS-1 (no tocó este archivo — ver el docstring de cabecera para el porqué): el
+// MECANISMO (mover un valor dentro de un array corto) no sabe ni le importa que un valor sea un
+// `BandaId` real — es sólo una CADENA que el array contiene. Este test lo confirma a nivel de
+// VALOR (con un cast, ya que el TIPO sigue siendo `BandaId[]`, sin tocar): el día que
+// `TiendaPaginas.tsx` ensanche su `ordenLocal` para aceptar instancias, estas tres funciones no
+// necesitan cambiar NADA — sólo su firma de tipos.
+test('moverBandaAIndice: mecánicamente funciona igual con un id-de-instancia disfrazado de BandaId (el tipo no cambia; el valor sí podría ser cualquier string el día de mañana)', () => {
+  const conInstancia = ['hero', 'inst:a', 'marquesina'] as unknown as BandaId[];
+  const r = moverBandaAIndice(conInstancia, 'inst:a' as BandaId, 0);
+  assert.deepEqual(r, ['inst:a', 'hero', 'marquesina']);
+});

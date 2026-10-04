@@ -189,3 +189,19 @@ test('el viaje completo: PUT real (schema) de dos secciones, luego PUBLICAR VARI
   assert.equal(borrador!.hero, undefined);
   assert.equal(borrador!.brandStory, undefined);
 });
+
+// § SECCIONES-INSTANCIAS-1 — `seccionesHome` es META (fuera del REGISTRY), pero entra a la MISMA
+// lista whitelisteada que 'orden'/'tema' en `app/api/site-content/route.ts`, así que "PUBLICAR
+// VARIAS" debe aceptarla EN LA MISMA tanda que una sección real del REGISTRY, de una sola vez.
+test('PUBLICAR VARIAS acepta "seccionesHome" junto con una sección del REGISTRY, en el mismo gesto atómico', async () => {
+  await guardarComoElRoute({
+    hero: { titulo: 'El titular nuevo' },
+    seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'Agregada' } },
+  });
+  await publicarVariasSecciones(['hero', 'seccionesHome']);
+  const { content, borrador } = await fila();
+  assert.equal(content!.hero.titulo, 'El titular nuevo');
+  assert.equal((content!.seccionesHome['inst:a'] as { titulo: string }).titulo, 'Agregada');
+  assert.equal(borrador!.hero, undefined);
+  assert.equal(borrador!.seccionesHome, undefined);
+});

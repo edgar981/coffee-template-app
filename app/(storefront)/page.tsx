@@ -11,7 +11,8 @@ import TestimonialSection from "@/components/storefront/home/TestimonialSection"
 import { getSiteSettings } from "@/lib/config/site-settings";
 import { getSiteContent } from "@/lib/config/site-content";
 import { esquemaStyle } from "@/lib/config/esquema-style";
-import { resolverOrden, type BandaId } from "@/lib/config/site-content-defaults";
+import { type BandaId } from "@/lib/config/site-content-defaults";
+import SeccionInstancia from "@/components/storefront/secciones/SeccionInstancia";
 import { contenidoConPresetDeVista, cssMiradorTema } from "@/lib/config/theme-mirador";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { esDespliegueDemo } from "@/next.config";
@@ -38,16 +39,22 @@ import { modoEditorActivo } from "@/lib/config/modo-editor-gate";
 //
 // EL ORDEN (§ eje 5, parte c) se resuelve en `content.orden` y decide en qué SECUENCIA se montan las
 // 9 bandas (7 hasta § ORIGEN-BANDA-1, que sumó `origen`; 9 hasta § MARQUESINA-BANDA-1, que sumó
-// `marquesina`, 2ª tras `hero`) — antes JSX fijo, ahora un `.map` sobre `resolverOrden(orden)`
-// (SIEMPRE las 9, completo por construcción). `BANDAS` es el registro bandaId→render: GrindChooser
-// (id 'presentaciones') es la ÚNICA banda con un prop extra (`negocio`); las demás sólo toman
-// `style`. Sin fila, `orden` resuelve al orden de HOY → mismo árbol que el JSX fijo de ayer →
-// byte-idéntico. `origen`/`marquesina` NACEN `visible:false` (§ sus docstrings en `OrigenContent`/
-// `MarquesinaContent`, site-content-defaults.ts), así que aunque siempre ocupen un slot en `orden`,
-// Nayoli (sin fila propia) sigue sin montar un solo nodo suyo — la byte-identidad no depende de
-// que la banda esté fuera de la secuencia, depende de su propio gate de visibilidad. Newsletter
-// queda FUERA del registro y de `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en
-// `orden`.
+// `marquesina`, 2ª tras `hero`) — antes JSX fijo, ahora un `.map` sobre `orden` (SIEMPRE las 9 bandas,
+// completo por construcción). `BANDAS` es el registro bandaId→render: GrindChooser (id
+// 'presentaciones') es la ÚNICA banda con un prop extra (`negocio`); las demás sólo toman `style`.
+// Sin fila, `orden` resuelve al orden de HOY → mismo árbol que el JSX fijo de ayer → byte-idéntico.
+// `origen`/`marquesina` NACEN `visible:false` (§ sus docstrings en `OrigenContent`/`MarquesinaContent`,
+// site-content-defaults.ts), así que aunque siempre ocupen un slot en `orden`, Nayoli (sin fila propia)
+// sigue sin montar un solo nodo suyo — la byte-identidad no depende de que la banda esté fuera de la
+// secuencia, depende de su propio gate de visibilidad. Newsletter queda FUERA del registro y de
+// `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en `orden`.
+//
+// `orden` YA LLEGA RESUELTO COMPLETO (§ SECCIONES-INSTANCIAS-1): `resolverSiteContent`
+// (`lib/config/site-content-defaults.ts`) calcula `content.orden` con `resolverOrdenCompleto`
+// (secciones-instancias.ts), que mezcla `BANDA_IDS` CON los ids de `content.seccionesHome` —por eso
+// este archivo YA NO vuelve a pasar `orden` por `resolverOrden` acá: hacerlo descartaría cualquier id
+// de instancia (esa función SIGUE filtrando sólo a `BANDA_IDS`, sin tocar, para sus otros tres
+// llamadores fuera de `touches:` de ese slice). `.map` itera `orden` TAL CUAL llega.
 //
 // `orden` SE EDITA desde la lista lateral de `/editor/tienda` (§ EDITOR-TIENDA-ORDEN-1): arrastrar
 // o usar las flechas del asa escribe `BandaId[]` en el borrador, publica/descarta como cualquier
@@ -99,7 +106,7 @@ export default async function Home({
   const content = esDespliegueDemo()
     ? contenidoConPresetDeVista(contentPublicado, Array.isArray(temaPedido) ? temaPedido[0] : temaPedido)
     : contentPublicado;
-  const { esquemas, tema, orden } = content;
+  const { esquemas, tema, orden, seccionesHome } = content;
   // origenTexto/origenAccion (§ TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1, cierra el residuo que
   // TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 dejó nombrado): el MISMO mapeo null->undefined que ya
   // usa `cssMiradorTema` para el `:root` (§ theme-mirador.ts) -- acá para las bandas CON esquema
@@ -132,14 +139,27 @@ export default async function Home({
   // bytes de más, byte-idéntico a antes de este slice—. El wrapper es un `<div>` llano: no hay CSS
   // en este repo que dependa de que una banda sea hija DIRECTA de `<main>` (verificado por grep), y
   // esto sólo se renderiza con la cookie de edición puesta.
-  const bandaNodo = (id: BandaId) => {
-    const render = BANDAS[id](bandaStyle(id));
+  //
+  // SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): `id` ya NO es necesariamente un
+  // `BandaId` — `orden` (resuelto arriba, vía `resolverOrdenCompleto` dentro de `resolverSiteContent`,
+  // `lib/config/site-content-defaults.ts`) mezcla bandas CON instancias de `seccionesHome`. Por eso
+  // `bandaNodo` bifurca: `id in BANDAS` es una banda de siempre (el camino de HOY, sin tocar); si
+  // no, `id` SÓLO puede ser una instancia que existe de verdad (`resolverOrdenCompleto` ya descartó
+  // cualquier id huérfano, § su docstring) — se despacha por `SeccionInstancia`, el dispatcher por
+  // TIPO (gemelo de `BANDAS`, § components/storefront/secciones/SeccionInstancia.tsx). El `style`
+  // (el esquema de color, si el dueño le asignó uno) se calcula IGUAL que para una banda:
+  // `esquemas`/`tema` son KEY-AGNÓSTICOS (`esquemaStyle(esquemas[id], …)`), así que una instancia
+  // puede tener su propio esquema con el MISMO mecanismo, sin una segunda función.
+  const bandaNodo = (id: string) => {
+    const render = id in BANDAS
+      ? BANDAS[id as BandaId](bandaStyle(id))
+      : <SeccionInstancia id={id} instancia={seccionesHome[id]} style={bandaStyle(id)} />;
     return enModoEditor ? <div data-editor-seccion={id}>{render}</div> : render;
   };
 
   const bandas = (
     <>
-      {resolverOrden(orden).map((id) => (
+      {orden.map((id) => (
         <Fragment key={id}>{bandaNodo(id)}</Fragment>
       ))}
       {/* v1: Newsletter hidden — restore when the newsletter feature ships */}

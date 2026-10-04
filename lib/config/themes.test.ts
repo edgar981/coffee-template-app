@@ -725,6 +725,42 @@ test('BACKTOTOP-REDONDO-Y-ORDEN-1 · un tenant con el `orden` VIEJO de CORTE lo 
   assert.notDeepEqual(reaplicado.orden, ordenViejo);
 });
 
+// § SECCIONES-INSTANCIAS-1 — un preset JAMÁS declara instancias (sólo conoce `BANDA_IDS`); estas
+// dos pruebas afirman que una instancia que el dueño ya agregó a `content.orden` SOBREVIVE a
+// `mergePresetEnContent`, en el caso FRÁGIL (primer apply, sin `presetSnapshot` todavía, donde la
+// fusión por-ruta de "dueñoLoTocó" no puede distinguir "agregó una instancia" de "nunca hubo nada
+// que preservar") Y en el caso donde el snapshot YA existe.
+
+test('mergePresetEnContent: una instancia en `content.orden` SOBREVIVE el PRIMER apply (sin presetSnapshot todavía) — el caso que `[...preset.orden]` a secas perdería', () => {
+  const conInstancia = {
+    ...CONTENT_CON_DATOS_DEL_DUEÑO,
+    orden: ['hero', 'inst:a', 'marquesina', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA'],
+    // SIN presetSnapshot: simula el primer `aplicarPreset` de este tenant.
+  };
+  delete (conInstancia as Record<string, unknown>).presetSnapshot;
+  const despues = mergePresetEnContent(conInstancia, CORTE);
+  assert.ok((despues.orden as string[]).includes('inst:a'), 'la instancia no puede desaparecer en el primer apply');
+  assert.deepEqual(new Set(despues.orden as string[]), new Set([...CORTE.orden, 'inst:a']));
+});
+
+test('mergePresetEnContent: DOS instancias en `content.orden` sobreviven, y NINGÚN id de banda se duplica ni se cae', () => {
+  const conInstancias = {
+    ...CONTENT_CON_DATOS_DEL_DUEÑO,
+    orden: [...CORTE.orden, 'inst:a', 'inst:b'],
+    presetSnapshot: { orden: [...CORTE.orden] }, // snapshot YA existe, de un apply anterior sin instancias
+  };
+  const despues = mergePresetEnContent(conInstancias, CORTE);
+  const resultado = despues.orden as string[];
+  assert.ok(resultado.includes('inst:a') && resultado.includes('inst:b'));
+  assert.deepEqual(new Set(resultado), new Set([...CORTE.orden, 'inst:a', 'inst:b']));
+  assert.equal(new Set(resultado).size, resultado.length, 'sin duplicados');
+});
+
+test('mergePresetEnContent: SIN ninguna instancia, el comportamiento es BYTE-IDÉNTICO al de antes de este cambio', () => {
+  const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  assert.deepEqual(despues.orden, CORTE.orden);
+});
+
 test('esquemas: si el valor ACTUAL del blob difiere del snapshot (otro preset aplicado encima), se PRESERVA el blob completo', () => {
   const primerApply = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
   const conOtroEsquema = { ...primerApply, esquemas: { featured: 'oscuro' } }; // divergió del snapshot de CORTE

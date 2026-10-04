@@ -1,5 +1,19 @@
 import type { BandaId } from '@/lib/config/site-content-defaults';
 
+// NO TOCADO por § SECCIONES-INSTANCIAS-1, a propósito — y vale decir por qué, ya que ese slice sí
+// tocó este ARCHIVO (lo declara en su `touches:`). `content.orden` ahora puede mezclar `BandaId`
+// con ids de instancia (`inst:…`, § `resolverOrdenCompleto`, secciones-instancias.ts), pero su
+// único llamador, `TiendaPaginas.tsx` (fuera de `touches:` de ese slice), sigue tipando
+// `ordenLocal`/`setOrdenLocal` como `BandaId[] | null` — AMPLIAR el tipo de retorno de
+// `moverBandaAIndice`/`moverBandaEnDireccion`/`moverBandaConDestino` de `BandaId[]` a `string[]`
+// ROMPERÍA la compilación de ese componente (`setOrdenLocal((prev) => { … return siguiente; })`
+// exige que `siguiente` siga siendo `BandaId[]`), así que estas tres funciones se quedan EXACTAS.
+// No hay UI todavía para agregar/reordenar una instancia (§ SECCIONES-INSTANCIAS-1, "sin UI de
+// agregar todavía"), así que esta limitación no le quita nada al dueño hoy — es el mismo límite
+// conocido que `StoreNav.tsx`/la `resolverOrden` vieja (§ DECISIONS.md, open follow-up): reordenar
+// una instancia desde el panel es trabajo de la tanda que construya esa UI, y ESE slice es quien
+// debe ensanchar `TiendaPaginas.tsx` y ESTE archivo juntos, en el mismo commit.
+
 // LA PIEZA PURA del reordenamiento de bandas del home (§ EDITOR-TIENDA-ORDEN-1, fila 6 del plan de
 // `docs/editor-tienda/DISENO.md`). Sin DOM, sin React, sin `postMessage`: el cálculo del nuevo
 // `BandaId[]` se extrae para afirmarlo en un test en memoria, no en una sesión real con

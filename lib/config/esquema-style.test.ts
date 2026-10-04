@@ -306,6 +306,46 @@ test('tratamientoNav: hero·ficha CON esquema sigue SIN flotar — la uniformida
   );
 });
 
+// ── tipoInstancia (§ SECCIONES-INSTANCIAS-1): el mecanismo EXISTE, aunque hoy ningún caller real
+// (StoreNav.tsx, fuera de `touches:`) lo pase — ver DECISIONS.md para el límite conocido. ──────────
+
+test('bandaEsOscura: con tipoInstancia "banner" y SIN esquema asignado → true (oscuro, la canónica del banner — foto+velo)', () => {
+  assert.equal(bandaEsOscura('inst:x', undefined, {}, null, null, null, 'banner'), true);
+});
+
+test('bandaEsOscura: con tipoInstancia "texto"/"imagenTexto" y SIN esquema asignado → false (claro)', () => {
+  assert.equal(bandaEsOscura('inst:x', undefined, {}, null, null, null, 'texto'), false);
+  assert.equal(bandaEsOscura('inst:x', undefined, {}, null, null, null, 'imagenTexto'), false);
+});
+
+test('bandaEsOscura: con esquema asignado, tipoInstancia se IGNORA — el cálculo de contraste manda igual que para una banda', () => {
+  // Mismo esquema 'oscuro' que ya se afirma para 'hero' arriba: la rama CON esquema no distingue
+  // banda de instancia, es key-agnóstica desde siempre.
+  assert.equal(
+    bandaEsOscura('inst:x', undefined, { 'inst:x': 'oscuro' }, null, null, null, 'texto'),
+    bandaEsOscura('hero', undefined, { hero: 'oscuro' }, null, null, null),
+  );
+});
+
+test('tratamientoNav: con tipoInstancia "imagenTexto" (bi-tonal por layout, como la ficha) → NO flota, aunque no tenga esquema', () => {
+  assert.deepEqual(
+    tratamientoNav('inst:x', undefined, {}, null, null, null, 'imagenTexto'),
+    { flotante: false, textoClaro: false },
+  );
+});
+
+test('tratamientoNav: con tipoInstancia "banner" (uniforme, oscuro) → flota con texto claro, sin esquema — igual que hero·curtina', () => {
+  assert.deepEqual(
+    tratamientoNav('inst:x', undefined, {}, null, null, null, 'banner'),
+    { flotante: true, textoClaro: true },
+  );
+});
+
+test('tratamientoNav/bandaEsOscura: SIN tipoInstancia, el comportamiento es BYTE-IDÉNTICO al de antes de este parámetro (los callers de HOY no lo pasan)', () => {
+  assert.deepEqual(tratamientoNav('hero', 'curtina', {}, null, null, null), { flotante: true, textoClaro: true });
+  assert.equal(bandaEsOscura('hero', 'curtina', {}, null, null, null), true);
+});
+
 // ── esquemaStyleDeBanda — el envoltorio que arma `ejes` (§ HISTORIA-COMO-MUESTRARIO-1) ────────────
 
 test('esquemaStyleDeBanda: sin bandaId (una sección sin banda asignable) → {} — el mismo no-op que esquemaStyle(undefined, …)', () => {

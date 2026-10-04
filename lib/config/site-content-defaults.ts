@@ -11,6 +11,7 @@ import { resolverForma, type ClaveForma } from './formas';
 import type { EsquemaId, OrigenTexto, OrigenAccion } from './palette-derive';
 import { resolverEscalaDisplay, type ClaveEscalaDisplay } from './escala-display';
 import { resolverEstilosSeccion, elementosEstiloDeSeccion, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from './estilo-elemento';
+import { resolverSeccionesHome, resolverOrdenCompleto, type InstanciaContent, type SeccionInstanciaTipo, instanciaOscuraCanonica, instanciaEsUniforme } from './secciones-instancias';
 
 // Alias con el vocabulario de esta capa (§ eje 5b, mitad B — el EFECTO en el home). Es EL MISMO
 // tipo que `EsquemaId` de `palette-derive.ts` (el MOTOR ya lo declaró): 'crema' | 'superficie' |
@@ -1711,6 +1712,12 @@ export interface SiteContentData {
   orden: OrdenContent;
   variantesBandas: VariantesBandasContent;
   presetSnapshot: PresetSnapshotContent;
+  // SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): el mapa id→instancia de un catálogo
+  // CURADO de tipos genéricos (Texto, Imagen con texto, Banner). Meta, no sección —resuelto aparte
+  // del loop, KEY-AGNÓSTICO como `esquemas`/`variantesBandas`—, declarado y resuelto ENTERO en
+  // `lib/config/secciones-instancias.ts` (módulo hoja: ver su docstring de cabecera para el porqué
+  // de que ESTE archivo lo importe y no al revés).
+  seccionesHome: Record<string, InstanciaContent>;
 }
 
 // META de esquemas (§ eje 5b, mitad B): el mapa bandaId→esquema que decide sobre QUÉ superficie
@@ -1758,7 +1765,14 @@ export const BANDA_IDS = [
   'hero', 'marquesina', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials',
 ] as const;
 export type BandaId = typeof BANDA_IDS[number];
-export type OrdenContent = BandaId[];
+// `string[]`, no `BandaId[]` (§ SECCIONES-INSTANCIAS-1): desde que `seccionesHome` existe, `orden`
+// puede llevar ids de banda Y de instancia mezclados (§ `resolverOrdenCompleto`,
+// secciones-instancias.ts). Ensanchar este alias es SEGURO para los tres consumidores fuera de
+// `touches:` (`TiendaPaginas.tsx`, `StoreNav.tsx`, `lib/admin/orden-secciones.ts`): los tres
+// re-filtran con la `resolverOrden` VIEJA (sin tocar, abajo) antes de usar el valor, así que un id
+// de instancia que les llegue por `content.orden` se vuelve a descartar ahí, sin romper nada — es
+// el límite conocido documentado en DECISIONS.md: esos tres archivos siguen sin saber de instancias.
+export type OrdenContent = string[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
 // META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1)
@@ -1815,10 +1829,23 @@ export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'm
  *  tiene. Hoy sólo el HERO: 'curtina' y 'media' (§ TEMAS-HERO-MEDIA-1) son OSCURAS (fondo
  *  `--sf-tinta`), 'ficha' es CLARA (fondo `--sf-fondo`) — atado al fallback
  *  `bg-[var(--sf-banda,<token>)]` de cada componente, como `BANDAS_OSCURAS`. El resto de las
- *  bandas no varían con la variante → `BANDAS_OSCURAS`. */
-export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolean {
+ *  bandas no varían con la variante → `BANDAS_OSCURAS`.
+ *
+ *  `bandaId` SE ENSANCHÓ de `BandaId` a `string` (§ SECCIONES-INSTANCIAS-1) — ensanchar un
+ *  PARÁMETRO de un literal union a `string` es seguro para todo caller existente (un `BandaId` ya
+ *  es un `string`), así que `StoreNav.tsx`/`EncabezadoSeccion.tsx` (fuera de `touches:`) siguen
+ *  compilando sin tocar una línea. `tipoInstancia` es OPCIONAL y NUEVO: cuando el llamador sabe que
+ *  `bandaId` es en realidad el id de una INSTANCIA (no una banda), pasa su tipo y esta función
+ *  delega a `instanciaOscuraCanonica` en vez de mirar `BANDAS_OSCURAS` (que nunca va a contener un
+ *  id de instancia). Sin este parámetro (el caso de HOY, los tres callers de arriba) el
+ *  comportamiento es IDÉNTICO al de antes — es la mitad del mecanismo que deja listo "el nav sabe
+ *  si una instancia primera es clara u oscura": falta sólo que `StoreNav.tsx` (fuera de
+ *  `touches:`) lo invoque pasando el tipo de la instancia cuando `orden[0]` resulte ser una —
+ *  anotado como open follow-up en DECISIONS.md, no construido acá. */
+export function bandaOscuraCanonica(bandaId: string, variante?: string, tipoInstancia?: SeccionInstanciaTipo): boolean {
+  if (tipoInstancia) return instanciaOscuraCanonica(tipoInstancia);
   if (bandaId === 'hero') return variante !== 'ficha'; // curtina/media/sticky/ausente = oscura; ficha = clara
-  return BANDAS_OSCURAS.has(bandaId);
+  return BANDAS_OSCURAS.has(bandaId as BandaId);
 }
 
 /** ¿La banda `bandaId` en su `variante` es UNIFORME (un solo tono, § EJE-5-NAV-UNIFORME)? El nav
@@ -1830,8 +1857,13 @@ export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolea
  *  declara). Lookup SEGURO: `bandaId` puede no ser una `SeccionKey` (`featured` es banda
  *  ESTRUCTURAL, sin sección en `SiteContentData`; `trustBadges` SÍ es sección desde
  *  § CORTE-TRUSTBADGES-OCULTABLE-1, pero sin `variantes` propias) — sin `variantes` declaradas,
- *  uniforme por default en cualquiera de los dos casos. */
-export function bandaUniforme(bandaId: BandaId, variante?: string): boolean {
+ *  uniforme por default en cualquiera de los dos casos.
+ *
+ *  `bandaId: string` + `tipoInstancia?` opcional (§ SECCIONES-INSTANCIAS-1) — MISMO ensanche y
+ *  misma razón que `bandaOscuraCanonica`, arriba: seguro para los callers existentes, delega a
+ *  `instanciaEsUniforme` cuando el llamador declara que `bandaId` es en realidad una instancia. */
+export function bandaUniforme(bandaId: string, variante?: string, tipoInstancia?: SeccionInstanciaTipo): boolean {
+  if (tipoInstancia) return instanciaEsUniforme(tipoInstancia);
   const def = (REGISTRY as Record<string, SeccionDef | undefined>)[bandaId];
   const nu = def?.variantes?.noUniformes;
   return !(nu && variante !== undefined && nu.includes(variante));
@@ -2368,6 +2400,11 @@ export const DEFAULTS: SiteContentData = {
   // (o sobre una fila de antes de esta capacidad) encuentra este `{}` y por tanto escribe TODO lo
   // que el preset declara, byte a byte el comportamiento de siempre (§ `mergePresetEnContent`).
   presetSnapshot: {},
+  // SECCIONES AGREGADAS por defecto (§ SECCIONES-INSTANCIAS-1): el mapa nace VACÍO, gemelo de
+  // `esquemas`/`variantesBandas`/`presetSnapshot` arriba — ningún tenant tiene una instancia hasta
+  // que alguien la agrega, así que sin fila `resolverOrdenCompleto` recibe `instanciaIds: []` y se
+  // comporta EXACTAMENTE como la vieja `resolverOrden` → byte-idéntico, Nayoli incluida.
+  seccionesHome: {},
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -2467,7 +2504,7 @@ export interface SeccionDef {
 // `navTratamiento`, `navWordmark`, `navDrawerMovil`, `esquemas`, `orden`, `variantesBandas` y
 // `presetSnapshot`, que no son secciones). El REGISTRY las cubre a todas; las catorce metas quedan
 // fuera a propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'carritoEnvio' | 'carrito' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot'>;
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'cromo' | 'volverArriba' | 'rielSocial' | 'carritoEnvio' | 'carrito' | 'navTratamiento' | 'navWordmark' | 'navDrawerMovil' | 'esquemas' | 'orden' | 'variantesBandas' | 'presetSnapshot' | 'seccionesHome'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -3235,9 +3272,20 @@ export function resolverSiteContent(
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
   out.esquemas = resolverEsquemas(raw.esquemas);
-  // ORDEN (meta, no sección): la secuencia de bandas, resuelta aparte del loop igual que las otras
-  // tres — pero con dominio CERRADO (§ `resolverOrden`, abajo), a diferencia de `esquemas`.
-  out.orden = resolverOrden(raw.orden);
+  // SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, meta, no sección): el mapa id→instancia,
+  // KEY-AGNÓSTICO (como `esquemas`/`variantesBandas`) — resuelto ANTES de `orden` (abajo), que
+  // necesita saber qué ids de instancia EXISTEN de verdad para decidir cuáles son válidos en la
+  // secuencia. Delegado ENTERO a `secciones-instancias.ts` (módulo hoja, § su docstring de cabecera).
+  out.seccionesHome = resolverSeccionesHome(raw.seccionesHome);
+  // ORDEN (meta, no sección): la secuencia de bandas MÁS instancias, resuelta aparte del loop.
+  // `resolverOrdenCompleto` (secciones-instancias.ts) generaliza a `BANDA_IDS` ∪ las instancias que
+  // `seccionesHome` ya resolvió arriba — con `seccionesHome` vacío (todo tenant hoy, Nayoli
+  // incluida) es EXACTAMENTE `resolverOrden` sobre `BANDA_IDS`, byte-idéntico. La vieja `resolverOrden`
+  // (abajo) SIGUE EXPORTADA, sin tocar su comportamiento: sus otros tres llamadores
+  // (`TiendaPaginas.tsx`, `StoreNav.tsx`, `lib/admin/orden-secciones.ts`, los tres fuera de
+  // `touches:` de este slice) re-filtran con ella cualquier `orden` que reciban, así que un id de
+  // instancia que les llegue se descarta ahí sin romper nada — ver el docstring de `OrdenContent`.
+  out.orden = resolverOrdenCompleto(raw.orden, BANDA_IDS, Object.keys(out.seccionesHome as Record<string, unknown>));
   // VARIANTES DE BANDAS ESTRUCTURALES (meta, no sección): el mapa bandaId→variante para bandas sin
   // sección (`featured`), resuelto aparte del loop igual que `esquemas` — GEMELO exacto, mismo
   // dominio ABIERTO (§ `resolverVariantesBandas`, abajo).

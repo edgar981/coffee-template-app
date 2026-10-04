@@ -48,5 +48,11 @@ export async function readSiteContentParaEditor(): Promise<{
   // slice.
   sinPublicar.encabezado =
     'cromo' in borrador || 'navWordmark' in borrador || 'navTratamiento' in borrador || 'logo' in borrador;
+  // SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): `seccionesHome` es META —fuera del
+  // REGISTRY, como `tema`— así que el loop genérico de arriba no la toca; se publica/descarta por
+  // el flujo GENÉRICO de siempre (`app/api/site-content/route.ts`, la whitelist 'orden'/'tema'/
+  // REGISTRY-key gana `'seccionesHome'`), así que su píldora "Sin publicar" sigue el MISMO patrón
+  // que `tema`: un flag propio, no uno compuesto como `encabezado`.
+  sinPublicar.seccionesHome = 'seccionesHome' in borrador;
   return { contenido, sinPublicar };
 }

@@ -1,4 +1,5 @@
 import { REGISTRY, DEFAULTS, resolverSiteContent, type SiteContentData, type SeccionDef } from '@/lib/config/site-content-defaults';
+import { esInstanciaId, resolverInstancia } from '@/lib/config/secciones-instancias';
 
 // § EDITOR-TIENDA-POSTMESSAGE-1 — EL PUENTE panel→iframe para los cambios EN VIVO (texto/imagen),
 // sin recargar el documento. Dos mitades, como todo mecanismo delicado de este repo: ésta es la
@@ -414,4 +415,38 @@ export function fusionarContenidoSeccion(
     { [seccion]: defaultsSeccion },
   ) as unknown as Record<string, unknown>;
   return { ...actual, [seccion]: resuelto[seccion] } as SiteContentData;
+}
+
+// ─── EL NOVENO MENSAJE — REUTILIZADO (§ SECCIONES-INSTANCIAS-1) ────────────────────────────────
+//
+// panel→iframe: "el contenido de ESTA INSTANCIA cambió". MISMO patrón que 'orden'/'tema'/
+// 'encabezado' arriba: NO es un mensaje nuevo — reusa `TIPO_MENSAJE_CONTENIDO_SECCION` con
+// `seccion` = el ID de la instancia (`inst:…`, no una clave del REGISTRY). `EditorPuenteVivo.tsx`
+// reconoce `esInstanciaId(seccion)` ANTES de `esSeccionDelRegistro`/`fusionarContenidoSeccion` (que
+// sólo conocen claves DEL REGISTRY) y fusiona acá, contra `seccionesHome`.
+//
+// SIN UI DE ADMIN TODAVÍA QUE EMITA ESTE MENSAJE (§ SECCIONES-INSTANCIAS-1, "sin UI de agregar
+// todavía") — esta función es la mitad RECEPTORA, lista para cuando esa UI exista; hasta entonces
+// es plomería inerte, igual que los campos `estilos`/zonas del hero lo fueron antes de su propio
+// editor.
+
+/**
+ * Fusiona el borrador EN VUELO de UNA instancia sobre el contenido ya resuelto — gemela de
+ * `fusionarContenidoSeccion` (arriba) pero apuntando a `content.seccionesHome[instanciaId]` en vez
+ * de `content[seccion]`. `datosValidados` ya pasó por el sub-schema de la unión discriminada
+ * (`siteContentEditableSchema.shape.seccionesHome`, validado en el LLAMADOR, como el resto de este
+ * módulo) — por eso basta con `resolverInstancia` (secciones-instancias.ts), sin pasar por
+ * `resolverSiteContent` (que no sabe de `seccionesHome`, una clave META fuera de su loop de
+ * secciones). Un `instanciaId` sin el prefijo, o cuyo `tipo` no resuelve a ninguno de los tres del
+ * catálogo, devuelve `actual` SIN TOCAR — mismo criterio "preferir callar" que su gemela.
+ */
+export function fusionarContenidoInstancia(
+  actual: SiteContentData,
+  instanciaId: string,
+  datosValidados: Record<string, unknown>,
+): SiteContentData {
+  if (!esInstanciaId(instanciaId)) return actual;
+  const resuelto = resolverInstancia(datosValidados);
+  if (!resuelto) return actual;
+  return { ...actual, seccionesHome: { ...actual.seccionesHome, [instanciaId]: resuelto } };
 }

@@ -77,3 +77,21 @@ test('guardar el orden NO toca ninguna otra sección del borrador (otra clave qu
   const publicado = await readSiteContent();
   assert.equal(publicado.hero.titulo, 'Un titular en borrador', 'el guardado de orden no debe pisar el borrador de hero');
 });
+
+// § SECCIONES-INSTANCIAS-1 — `content.orden` resuelto YA NO es `BandaId[]` a secas cuando existe una
+// instancia (`readSiteContent().orden` pasa por `resolverOrdenCompleto`, no la `resolverOrden` que
+// este archivo importa arriba para sus propios tests — esa función SIGUE filtrando sólo a
+// `BANDA_IDS`, sin tocar). Este test lee `publicado.orden` DIRECTO, sin volver a pasarlo por
+// `resolverOrden` (que descartaría el id de instancia), para afirmar el comportamiento REAL que
+// `app/(storefront)/page.tsx` consume.
+test('un `orden` con una instancia mezclada se publica y se lee TAL CUAL — resolverOrden (la vieja) no es el camino que usa page.tsx', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'Mezclada' } },
+    orden: ['hero', 'inst:a', 'marquesina', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials'],
+  });
+  await publicarSeccion('seccionesHome');
+  await publicarSeccion('orden');
+
+  const publicado = await readSiteContent();
+  assert.deepEqual(publicado.orden, ['hero', 'inst:a', 'marquesina', 'trustBadges', 'featured', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials']);
+});

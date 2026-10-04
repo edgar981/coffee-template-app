@@ -176,3 +176,56 @@ test('orden: ausente no rompe el parse (es opcional, como las otras metas)', () 
   const parsed = siteContentEditableSchema.parse({});
   assert.equal(parsed.orden, undefined);
 });
+
+test('orden: un id con el prefijo de instancia SOBREVIVE al parse, mezclado con bandas (§ SECCIONES-INSTANCIAS-1)', () => {
+  const parsed = siteContentEditableSchema.parse({ orden: ['hero', 'inst:abc', 'featured'] });
+  assert.deepEqual(parsed.orden, ['hero', 'inst:abc', 'featured']);
+});
+
+test('orden: una cadena sin el prefijo de instancia y fuera del set de bandas se sigue rechazando', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ orden: ['hero', 'inventada'] }));
+});
+
+// ─── SECCIONES AGREGADAS DEL HOME (§ SECCIONES-INSTANCIAS-1): unión discriminada por tipo ─────────
+
+test('seccionesHome: una instancia "texto" válida SOBREVIVE al parse completa', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T', texto: 'cuerpo', ctaLabel: 'Ver más', ctaDestino: '/tienda', alineacion: 'derecha' } },
+  });
+  assert.deepEqual(parsed.seccionesHome, {
+    'inst:a': { tipo: 'texto', titulo: 'T', texto: 'cuerpo', ctaLabel: 'Ver más', ctaDestino: '/tienda', alineacion: 'derecha' },
+  });
+});
+
+test('seccionesHome: "imagenTexto" y "banner" también sobreviven, cada uno con sus propios campos', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:img': { tipo: 'imagenTexto', titulo: 'T', imagen: '/x.jpg', lado: 'derecha' },
+      'inst:ban': { tipo: 'banner', titulo: 'B', alto: 'pantalla', ctaSecundarioLabel: 'Otro', ctaSecundarioDestino: '/nosotros' },
+    },
+  });
+  assert.equal((parsed.seccionesHome!['inst:img'] as { imagen: string }).imagen, '/x.jpg');
+  assert.equal((parsed.seccionesHome!['inst:ban'] as { alto: string }).alto, 'pantalla');
+});
+
+test('seccionesHome: un `tipo` que no es ninguno de los tres se rechaza (unión discriminada)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'carrusel', titulo: 'x' } } }));
+});
+
+test('seccionesHome: un campo NO declarado para ese tipo se descarta (el strip sigue activo dentro de la unión)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T', imagen: 'esto no existe en "texto"' } },
+  });
+  assert.equal((parsed.seccionesHome!['inst:a'] as Record<string, unknown>).imagen, undefined);
+});
+
+test('seccionesHome: ctaDestino fuera del set cerrado MENU_CTA_DESTINOS se rechaza, igual que en las demás secciones', () => {
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T', ctaDestino: '/ruta-inventada' } },
+  }));
+});
+
+test('seccionesHome: ausente no rompe el parse (es opcional, como las otras metas)', () => {
+  const parsed = siteContentEditableSchema.parse({});
+  assert.equal(parsed.seccionesHome, undefined);
+});

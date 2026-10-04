@@ -8,7 +8,7 @@ import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden, datosDeTema,
-  datosDeEncabezado,
+  datosDeEncabezado, fusionarContenidoInstancia,
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
   mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
@@ -18,7 +18,12 @@ import {
 // importarla acá directo no agrega peso nuevo — ninguna razón para pasarla por un re-export.
 // `bandaOscuraCanonica` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) decide el fondo real de la zona del
 // hero para el filtro "se leen bien" de la barra flotante — MISMO motivo, ya viaja en el bundle.
-import { resolverOrden, bandaOscuraCanonica } from '@/lib/config/site-content-defaults';
+import { BANDA_IDS, bandaOscuraCanonica } from '@/lib/config/site-content-defaults';
+// `resolverOrdenCompleto`/`esInstanciaId` (§ SECCIONES-INSTANCIAS-1): MISMO motivo que
+// `resolverOrden` arriba — `secciones-instancias.ts` ya viaja en el bundle público vía
+// `site-content-defaults.ts` (que la importa para resolver `seccionesHome`/`orden`), así que
+// importarla acá directo no agrega peso nuevo.
+import { resolverOrdenCompleto, esInstanciaId } from '@/lib/config/secciones-instancias';
 // `ATRIBUTO_EDITOR_SECCION`/`ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` son admin-level por
 // historia (nacieron junto a `proxy.ts`/`modo-editor-gate.ts`, § su docstring), pero son literales
 // PUROS —sin `next/headers` ni Prisma—, así que importarlos acá no arrastra nada pesado: una sola
@@ -275,7 +280,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   // estilo-elemento.ts) — algo que ningún otro mensaje de este componente necesitaba hasta ahora
   // (el resto sólo ESCRIBE, vía `actualizar`/`postMessage`). Seguro siempre: este componente vive
   // SIEMPRE dentro de `<SiteContentProvider>` (§ app/(storefront)/layout.tsx).
-  const { hero, tema } = useSiteContent();
+  // `seccionesHome` (§ SECCIONES-INSTANCIAS-1): necesario para que el branch de 'orden' (abajo)
+  // sepa qué ids de instancia EXISTEN de verdad al re-resolver el DOM — mismo contrato que
+  // `resolverOrdenCompleto` en todo el resto del mecanismo.
+  const { hero, tema, seccionesHome } = useSiteContent();
   const schemaRef = useRef<typeof import('@/lib/config/site-content-schema') | null>(null);
   const navegarRef = useRef(false);
 
@@ -444,7 +452,11 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       if (seccion === 'orden') {
         const crudo = datosDeOrden(datos);
         if (!crudo) return;
-        const nuevoOrden = resolverOrden(crudo);
+        // § SECCIONES-INSTANCIAS-1: `resolverOrdenCompleto` (no la vieja `resolverOrden`, que sólo
+        // conoce `BANDA_IDS`) para que un reorder que incluya una instancia mueva TAMBIÉN su nodo
+        // `[data-editor-seccion]` — el mismo marcador que `page.tsx` ya pone, id de instancia o no
+        // (§ `bandaNodo`, `app/(storefront)/page.tsx`).
+        const nuevoOrden = resolverOrdenCompleto(crudo, BANDA_IDS, Object.keys(seccionesHome));
         const primerNodo = document.querySelector<HTMLElement>(`[data-editor-seccion="${nuevoOrden[0]}"]`);
         const contenedor = primerNodo?.parentElement;
         if (!contenedor) return; // otra página (ningún marcador coincide) — no-op, nunca un error
@@ -484,19 +496,37 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
         return;
       }
 
-      if (!esSeccionDelRegistro(seccion)) return;
+      // § SECCIONES-INSTANCIAS-1 — el noveno mensaje: `seccion` puede ser el id de una INSTANCIA de
+      // `seccionesHome` (`inst:…`) en vez de una clave del REGISTRY. SIN UI de admin todavía que
+      // emita este mensaje (§ el docstring de `fusionarContenidoInstancia`, editor-puente.ts) —
+      // plomería receptora lista, inerte hasta que esa UI exista.
+      const esInstancia = esInstanciaId(seccion);
+      if (!esInstancia && !esSeccionDelRegistro(seccion)) return;
 
       const aplicar = (schema: typeof import('@/lib/config/site-content-schema')) => {
-        const subSchema = (schema.siteContentEditableSchema.shape as Record<
-          string,
-          { safeParse: (v: unknown) => { success: boolean; data?: unknown } }
-        >)[seccion];
+        // El sub-schema de UNA instancia es el elemento del `z.record` de `seccionesHome` (la unión
+        // discriminada por tipo) — DISTINTO objeto que el sub-schema de una sección del REGISTRY
+        // (`shape[seccion]` directo), así que la validación bifurca ANTES de llegar al parse.
+        // `.valueType` (zod 4 — NO `.valueSchema`, el nombre de zod 3; verificado contra el paquete
+        // instalado, `node_modules/zod/package.json` dice "4.4.3") es el schema del VALOR del
+        // record — `.unwrap()` primero porque `shape.seccionesHome` es `ZodOptional<ZodRecord<…>>`.
+        const subSchema = esInstancia
+          ? (schema.siteContentEditableSchema.shape.seccionesHome as unknown as {
+              unwrap: () => { valueType: { safeParse: (v: unknown) => { success: boolean; data?: unknown } } };
+            }).unwrap().valueType
+          : (schema.siteContentEditableSchema.shape as Record<
+              string,
+              { safeParse: (v: unknown) => { success: boolean; data?: unknown } }
+            >)[seccion];
         const parsed = subSchema?.safeParse(datos);
         // Un mensaje que no valida (un shape a medio teclear que el schema rechaza, una sección sin
         // sub-schema) se IGNORA — preferir callar a aplicar un borrador a medias que el schema de
         // guardado tampoco aceptaría. El próximo mensaje (la próxima tecla) lo intenta de nuevo.
         if (!parsed || !parsed.success) return;
-        actualizar((prev) => fusionarContenidoSeccion(prev, seccion, parsed.data as Record<string, unknown>));
+        const datosValidados = parsed.data as Record<string, unknown>;
+        actualizar((prev) => (esInstancia
+          ? fusionarContenidoInstancia(prev, seccion, datosValidados)
+          : fusionarContenidoSeccion(prev, seccion, datosValidados)));
       };
 
       if (schemaRef.current) {

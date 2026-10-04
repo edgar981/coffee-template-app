@@ -151,7 +151,8 @@ export async function POST(req: NextRequest) {
     const secciones = body?.secciones;
     if (
       !Array.isArray(secciones) || secciones.length === 0 ||
-      !secciones.every((s): s is string => typeof s === 'string' && (s === 'orden' || s === 'tema' || s in REGISTRY))
+      !secciones.every((s): s is string =>
+        typeof s === 'string' && (s === 'orden' || s === 'tema' || s === 'seccionesHome' || s in REGISTRY))
     ) {
       return NextResponse.json({ error: 'Lista de secciones inválida.' }, { status: 400 });
     }
@@ -189,8 +190,14 @@ export async function POST(req: NextRequest) {
   // guardado YA pasa por este mismo PUT genérico (`ordenEditableSchema` ya declarado en
   // `siteContentEditableSchema`)— así que sólo falta aceptar esta clave acá, junto al REGISTRY.
   // `publicarSeccion`/`descartarSeccion` ya son key-agnósticas (site-content-write.ts) — no cambian.
+  //
+  // 'seccionesHome' (§ SECCIONES-INSTANCIAS-1) es la MISMA clase de caso: meta fuera del REGISTRY,
+  // sin validación dura propia, así que se publica/descarta por este mismo PUT genérico.
   const seccion = body?.seccion;
-  if ((accion !== 'publicar' && accion !== 'descartar') || !seccion || !(seccion === 'orden' || seccion in REGISTRY)) {
+  if (
+    (accion !== 'publicar' && accion !== 'descartar') ||
+    !seccion || !(seccion === 'orden' || seccion === 'seccionesHome' || seccion in REGISTRY)
+  ) {
     return NextResponse.json({ error: 'Acción o sección inválida.' }, { status: 400 });
   }
 

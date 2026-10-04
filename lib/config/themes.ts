@@ -50,6 +50,7 @@ import {
 } from './site-content-defaults';
 import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
 import type { ClaveEscalaDisplay } from './escala-display';
+import { esInstanciaId } from './secciones-instancias';
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -736,7 +737,22 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   };
   // `esquemas`/`orden` — fusión de BLOB ENTERO, no por banda (§ el docstring de arriba, "GRANULARIDAD").
   out.esquemas = fusionar('esquemas', { ...preset.esquemas });
-  out.orden = fusionar('orden', [...preset.orden]);
+  // `orden` LLEVA TAMBIÉN cualquier INSTANCIA que `content.orden` ya tuviera (§ SECCIONES-
+  // INSTANCIAS-1) — un preset JAMÁS declara instancias (son contenido del dueño, no composición de
+  // catálogo), así que `[...preset.orden]` a secas las perdería en el PRIMER `aplicarPreset` sobre
+  // un tenant que ya tuviera una: ese primer apply no tiene `presetSnapshot` todavía
+  // (`tieneSnapshot=false` en `fusionar`), así que la rama "dueñoLoTocó" —que en applies
+  // POSTERIORES sí preserva `content.orden` completo, instancias incluidas, porque para entonces
+  // difiere del snapshot que el apply anterior grabó— no puede distinguir "el dueño agregó una
+  // instancia" de "nunca hubo nada que preservar". Se agregan EXPLÍCITO acá, nunca vía el snapshot:
+  // toda instancia presente en el `content.orden` ACTUAL sigue en el `orden` nuevo, al FINAL de las
+  // bandas del preset — esta función no reconstruye la posición exacta que tenía en el array viejo
+  // (exigiría snapshotear el array completo elemento a elemento, no sólo su blob), sólo garantiza
+  // que la instancia SIGUE EXISTIENDO en la secuencia tras aplicar el preset.
+  const instanciasEnOrdenActual = Array.isArray(content.orden)
+    ? content.orden.filter((v): v is string => typeof v === 'string' && esInstanciaId(v))
+    : [];
+  out.orden = fusionar('orden', [...preset.orden, ...instanciasEnOrdenActual]);
 
   const registro = REGISTRY as Record<string, SeccionDef | undefined>;
   const variantesBandas: Record<string, string> = {};

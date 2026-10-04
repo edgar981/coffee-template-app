@@ -51166,3 +51166,207 @@ es byte-idéntica a hoy; la zona encendida no choca con la frase al pie en ning�
 Commiteado en `slice/corte-reescritura-prototipo-1`, encima de `bbd2772`.
 
 **Cierra `EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1`.**
+
+## 2026-10-04 — El mecanismo de SECCIONES AGREGADAS: tres tipos curados, sin UI de agregar todavía (`SECCIONES-INSTANCIAS-1`)
+
+Pedido del owner (2026-10-03): poder agregar secciones desde el editor como en Shopify
+("Collage", "Multirow", "Blog posts"…), con delegación explícita para construir sin asesoría
+previa. Esta tanda construye el MECANISMO — modelo, resolver, schema, render, el puente en
+vivo — sin el botón "+ Agregar sección" en el panel (eso es la tanda siguiente,
+§ `docs/editor-tienda/AGREGAR-SECCIONES.md`, "El plan").
+
+**NO había censo previo que citar.** El spec de este slice nombraba un `observed-report
+SECCIONES-INSTANCIAS-CENSO-1` como el "Base" a seguir, pero ese id no existe en ningún lado del
+repo — ni en este archivo, ni en `git log --all`, ni como archivo. Es coherente con la regla del
+propio protocolo: un slice `OBSERVED` no deja commit. Se trabajó directamente desde el contrato
+inlineado en el spec (§ "Lo que se hace"), midiendo cada pieza contra el código real antes de
+escribir — el mismo criterio que el propio `SECCIONES-INSTANCIAS-CENSO-1`, de haber existido,
+habría tenido que aplicar.
+
+### El contrato
+
+`content.seccionesHome: Record<id, instancia>` — meta key-agnóstica, como `esquemas`. Ids con
+prefijo `inst:` (nunca choca con un `BandaId`, que es siempre una palabra plana). `content.orden`
+mezcla bandas e instancias; el id de una instancia entra sólo si existe de verdad
+(`resolverOrdenCompleto`, `lib/config/secciones-instancias.ts`, SOFT — tipo desconocido o
+basura se descarta, lo que falta se agrega al final). Sin una sola instancia, el algoritmo es
+BYTE-IDÉNTICO al de antes: `resolverOrdenCompleto([], BANDA_IDS, [])` es la vieja `resolverOrden`.
+
+### `secciones-instancias.ts` es un MÓDULO HOJA — la decisión que evitó un ciclo de imports
+
+`site-content-defaults.ts` necesita `resolverSeccionesHome`/`resolverOrdenCompleto` de
+`secciones-instancias.ts` (para resolver `seccionesHome`/`orden`); si ESE archivo importara de
+vuelta `BandaId`/`BANDA_IDS`/`resolverVariante` de `site-content-defaults.ts` (lo obvio, para no
+duplicar nada), los dos módulos se necesitarían uno a otro en tiempo de EVALUACIÓN — un ciclo real
+entre los dos archivos más grandes de `lib/config/` (3900+ y 700+ líneas), con el riesgo de que
+uno lea el `export` del otro antes de inicializarse. Se resolvió con dirección ÚNICA:
+`secciones-instancias.ts` no importa NADA del otro archivo — `resolverOrdenCompleto` recibe
+`bandaIds` POR PARÁMETRO (el llamador, `site-content-defaults.ts`/`EditorPuenteVivo.tsx`, pasa
+`BANDA_IDS`), y el escalar `alto` del Banner declara su propio set cerrado de 3 valores en vez de
+importar `ALTURAS_HERO`. Costo: ~3 líneas duplicadas. Beneficio: cero riesgo de ciclo.
+
+### `OrdenContent` se ensanchó de `BandaId[]` a `string[]` — medido que es seguro para los TRES consumidores fuera de `touches:`
+
+`StoreNav.tsx`, `TiendaPaginas.tsx` y `lib/admin/orden-secciones.ts` leen `content.orden`, pero
+los TRES lo hacen SIEMPRE re-pasándolo por la vieja `resolverOrden` (sin tocar, sigue filtrando
+sólo a `BANDA_IDS`) antes de usarlo — verificado por grep, no por supuesto. Por eso ensanchar el
+TIPO de `content.orden` (lo que `resolverSiteContent` efectivamente escribe ahí) es seguro: un id
+de instancia que les llegue se vuelve a descartar en ese segundo paso, sin romper nada — los tres
+simplemente siguen sin saber de instancias, que es el límite conocido documentado abajo.
+
+**LO QUE SÍ SE PROBÓ Y SE DESCARTÓ:** ensanchar el RETORNO de
+`moverBandaAIndice`/`moverBandaEnDireccion`/`moverBandaConDestino` (`orden-secciones.ts`) de
+`BandaId[]` a `string[]` — ROMPE la compilación de `TiendaPaginas.tsx`
+(`setOrdenLocal((prev) => { … return siguiente; })` exige que el valor devuelto siga siendo
+`BandaId[] | null`, el tipo de su `useState`). Medido con `tsc` antes de comprometerse. Esas tres
+funciones quedan EXACTAS; sólo ganaron un comentario de cabecera explicando por qué, y un test que
+confirma que el MECANISMO (mover un valor en un array corto) no le importa si el valor es un
+`BandaId` real — sólo el TIPO necesitará ensancharse el día que `TiendaPaginas.tsx` entre a
+`touches:` de la tanda que construya "+ Agregar sección".
+
+### `mergePresetEnContent` — el fix del primer-apply
+
+Un preset nunca declara instancias. `out.orden = fusionar('orden', [...preset.orden])` a secas
+habría perdido cualquier instancia en el PRIMER `aplicarPreset` sobre un tenant que ya tuviera una
+(sin `presetSnapshot` todavía, la fusión de tres vías no puede distinguir "el dueño agregó una
+instancia" de "nunca hubo nada que preservar" — ver el docstring de `fusionar` en `themes.ts`).
+Se agregan EXPLÍCITO las instancias presentes en `content.orden` actual al `nuevo` que se fusiona,
+así que sobreviven tanto en el primer apply como en los siguientes (donde el mecanismo de snapshot
+ya las preservaba solo). Tres tests en `themes.test.ts`, incluido el caso sin snapshot —
+VISTO FALLAR sin el fix (`assert.ok(...includes('inst:a'))` fallaba).
+
+### zod 4, no zod 3 — `.valueType`, no `.valueSchema`
+
+`EditorPuenteVivo.tsx` necesita extraer el sub-schema de UNA instancia del `z.record` de
+`seccionesHome` para validar un mensaje del puente. El patrón de zod 3 (`.unwrap().valueSchema`)
+no existe en este repo — corre zod 4.4.3 (verificado contra `node_modules/zod/package.json`), cuya
+API es `.unwrap().valueType`. Medido con un script Node contra el schema real ANTES de escribirlo
+en el componente: `.valueSchema` da `undefined` en silencio (el código habría compilado con un
+cast, y fallado SIEMPRE en runtime, sin que ningún test lo viera — `EditorPuenteVivo.tsx` es un
+`.tsx` sin cobertura de capa 1, § CLAUDE.md "el glob NO incluye `*.test.tsx`"). Se afirma con un
+test de capa 1 en `editor-puente.test.ts` que ejercita el MISMO patrón de extracción contra el
+schema real, de punta a punta, para que un futuro upgrade de zod que vuelva a renombrar esa
+propiedad lo rompa ahí, no en silencio.
+
+### Verificación — las tres capas, más dos que el spec pidió explícitas
+
+- **Capa 1**: `secciones-instancias.test.ts` (20 tests: derivación descriptor↔schema↔defaults,
+  resolver SOFT, `resolverOrdenCompleto`, darkness/uniformidad), más adiciones en
+  `site-content-defaults.test.ts` (6, incluidos dos `renderToStaticMarkup` — home con dos
+  instancias entre bandas, y el hueco "+ Agregar foto" sin imagen), `site-content-schema.test.ts`
+  (10), `site-content-blobs.test.ts` (5), `esquema-style.test.ts` (6), `themes.test.ts` (3),
+  `editor-puente.test.ts` (5), `orden-secciones.test.ts` (1), `cta-primario.test.ts` (los 3
+  componentes nuevos sumados al censo `CONSUMIDORES` — ver "Deviation" abajo).
+- **Carril de integración**: `tests/integracion/secciones-instancias.test.ts` (9 tests nuevos,
+  viaje completo guardar→publicar→releer, orden mezclado, descartar, blobs huérfanos de imagen de
+  instancia), más 1 en `orden-secciones.test.ts` y 1 en `publicar-pagina.test.ts`.
+- **Render en memoria** (pedido explícito del spec): `renderToStaticMarkup` del home con DOS
+  instancias entre bandas (`trustBadges` + `texto` + `banner`), sin `.env` ni base — en
+  `site-content-defaults.test.ts`.
+- **Capturas en el arnés** (pedido explícito del spec, "escritorio y teléfono de los tres tipos
+  sobre CORTE"): el arnés real (`scripts/capturar-seccion.ts`) exige `--prototipo` —
+  SIEMPRE requerido— apuntando a una sección del prototipo cafeone; los tres tipos nuevos son un
+  catálogo genérico SIN contraparte en ese prototipo, así que no hay par `--prototipo`/
+  `--selector-prototipo` que tenga sentido, y el arnés no tiene flag para sembrar
+  `seccionesHome` (no es su trabajo: sembra `spotlight`/`origen`, datos de secciones YA
+  existentes). Se construyó un script DESECHABLE (`.scratch/capturar-instancias.ts`, gitignored,
+  no commiteado) que reusa el MISMO mecanismo (`postgres-efimero.sh`, reimplementado en Node
+  porque este entorno sólo puede invocar `node`/`npm`/`npx` como comando de tope, nunca `bash`
+  directo) + CORTE aplicado + Playwright (ya instalado en `.arnes-tooling/`) para capturar los
+  tres tipos, escritorio y teléfono — 6 capturas, revisadas: tipografía/color/forma de CORTE
+  correctos en los tres, el CTA del `banner` y de `texto` con el rojo de marca, `imagenTexto` con
+  el layout de dos columnas y la imagen a la izquierda como se configuró, el stack a una columna
+  en móvil. El `next build` que ese script corrió —sobre el ÁRBOL FINAL, con los tres componentes
+  nuevos— terminó con "✓ Compiled successfully" y la tabla de rutas completa, segunda confirmación
+  independiente de que la build de producción compila (la primera es `verificar:nayoli:visual`,
+  abajo).
+- **`npm run verificar:nayoli`** (byte-diff de texto, main vs. rama, Nayoli sin preset): **DIFIERE**
+  en las 4 rutas medidas. Medido y clasificado línea por línea (reformateando el HTML minificado a
+  un tag por línea para diffear de verdad): CADA diferencia es atribuible al drift YA documentado
+  de esta rama contra `main` —331 commits adelante, re-confirmado por slices previos de esta misma
+  rama como `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`— (orden de clases Tailwind, `sf-radio-imagen`
+  vs `rounded-2xl` de tandas anteriores de esta rama, la familia `--sf-accion*` de
+  `CTA-HOVER-CENSO-FINAL-1`, `lang="es"` vs `"en"`, calidad de imagen `q=85` vs `q=75`, el crédito
+  "Hecho por Duna" de `PIE-HECHO-POR-DUNA-1`, hashes de chunk no deterministas). **CERO menciones a
+  `inst:`, `seccionesHome`, o cualquier string de los tres componentes nuevos** en ninguno de los 4
+  diffs — la DEVIATION se registra abajo, con la medición que la sostiene.
+- **`npm run verificar:nayoli:visual`** (pixel-diff, main vs. rama, doble build): **reproduce la
+  MISMA cifra exacta, dígito a dígito**, que el piso YA documentado y re-confirmado por media
+  docena de slices anteriores de esta rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/
+  `PIE-HECHO-POR-DUNA-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja
+  `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO (0px). Esto es
+  la prueba RIGUROSA de "sin la clave nueva, toda tienda es byte-idéntica (Nayoli incluida)": el
+  piso heredado no se movió ni un píxel con este slice encima.
+
+### DEVIATION — `verificar:nayoli` (texto) no da diff vacío, y es correcto que no lo dé
+
+El spec pedía `npm run verificar:nayoli (diff vacío)`. **Medido: el diff NO está vacío**, en las 4
+rutas. La causa NO es este slice — es que esta rama (`slice/editor-secciones-1`, vía
+`slice/corte-reescritura-prototipo-1`) está **331 commits adelante de `main`** (medido,
+`git log --oneline main..HEAD | wc -l` en el pre-flight), con una reescritura completa del tema
+(CORTE, la familia `--sf-accion*`, `sf-radio-imagen`, el crédito del pie) que `main` no tiene. Ese
+drift es un HECHO YA ESTABLECIDO por slices anteriores de esta misma rama —
+`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, citado re-confirmado con la MISMA cifra en al menos 8
+asientos previos de este archivo—, no algo que este slice introduce. La medición que lo sostiene:
+`verificar:nayoli:visual` (pixel-diff, la comparación que SÍ tiene un piso numérico establecido)
+reproduce EXACTAMENTE ese piso, dígito a dígito — si este slice hubiera agregado una sola
+diferencia visual, el número habría cambiado, y no cambió. El diff de TEXTO no tiene un piso
+numérico tan preciso para comparar (el script normaliza `<script>` y orden de `<head>`, pero no
+el orden de clases Tailwind ni los literales de tema que ya cambiaron en tandas previas), así que
+se verificó a mano que su contenido no menciona nada de este slice — cero ocurrencias de `inst:`,
+`seccionesHome`, o cualquiera de los textos de los tres componentes nuevos, en los 4 diffs
+completos. **Lo que el spec pedía — demostrado, no el texto literal del comando que pedía.**
+
+### Lo que queda fuera (open follow-ups)
+
+- **`EDITOR-SECCIONES-UI-AGREGAR-1`**: no coined hasta que alguien lo tome — el panel no tiene
+  "+ Agregar sección" todavía. Plan completo en `docs/editor-tienda/AGREGAR-SECCIONES.md`.
+- **`STOREFRONT-NAV-DARKNESS-INSTANCIA-1`**: `StoreNav.tsx` no pasa `tipoInstancia` a
+  `tratamientoNav` — una instancia que termine primera en `orden` queda invisible para el cálculo
+  de darkness del nav (el mecanismo existe, el wiring no — ver `esquema-style.ts`). Fuera de
+  `touches:`; se resuelve junto con `EDITOR-SECCIONES-UI-AGREGAR-1`.
+- **`ORDEN-SECCIONES-TIPO-INSTANCIA-1`**: `lib/admin/orden-secciones.ts` y el `useState<BandaId[]
+  | null>` de `TiendaPaginas.tsx` siguen sin aceptar un id de instancia en su TIPO (el mecanismo de
+  mover-un-valor-en-un-array ya funciona a nivel de valor, medido con un test). Mismo disparador
+  que los dos de arriba.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths tocados por el diff, grepeados contra `CLAUDE.md`: `resolverOrden`,
+`OrdenContent`, `BANDA_IDS`, `content.orden`, `esquema-style.ts`, `themes.ts`/
+`mergePresetEnContent`, `site-content-schema.ts`, `site-content-defaults.ts`,
+`EditorPuenteVivo.tsx`/`editor-puente.ts`, `lib/admin/orden-secciones.ts`. Ninguna sentencia de
+CLAUDE.md que los nombra queda FALSA por este diff — todas describen el mecanismo de bandas/
+presets/schema en términos que siguen siendo ciertos (`resolverOrden` sigue siendo "SIEMPRE
+devuelve las 9 bandas", `mergePresetEnContent` sigue reemplazando `tema`/`esquemas`/`orden`/
+`variantesBandas` "enteros", el schema editable sigue "STRIPPEANDO lo no declarado"). CLAUDE.md
+no menciona `seccionesHome`/`SECCIONES-INSTANCIAS-1` en ningún lado (confirmado por grep, antes de
+este asiento) — no hay un pointer que cerrar.
+
+### `customer_bytes`
+
+**`changed: true`** — tres componentes nuevos de storefront
+(`components/storefront/secciones/{Texto,ImagenTexto,Banner}.tsx`), inertes para todo tenant
+real medido (`seccionesHome` nace vacío, § los defaults). **`strings`**: ninguno nuevo visible
+para un visitante real hoy —los textos de ejemplo del catálogo (`DEFAULTS_INSTANCIA`) sólo se
+verían si alguien agrega una instancia, y no hay UI para eso todavía—.
+
+### `schema`/`cross-repo-contract`
+
+Sin migraciones ni cambio de modelo Prisma — aprobado explícitamente ("El esquema de CONTENIDO…
+SÍ cambia: aprobado"). `site-content-schema.ts` gana `seccionesHome` y ensancha `orden`; es el
+JSON de `SiteContent`, no una tabla.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama (la
+RAMA, no el commit, sigue sin mergear). "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE".
+Gate verde en las dos capas obligatorias (`npm run gate`): `tsc --noEmit` 0 errores, `npm test`
+3612/3612, `npm run test:integracion` 339/339. `next build` compila (confirmado dos veces, vía el
+script de captura y vía `verificar:nayoli:visual`). `npm run verificar:nayoli` DIFIERE —
+clasificado línea por línea, ninguna diferencia atribuible a este slice (ver DEVIATION arriba).
+`npm run verificar:nayoli:visual` reproduce el piso heredado exacto, cero píxeles de más. Seis
+capturas visuales de los tres tipos, escritorio y teléfono, sobre CORTE, revisadas. Commiteado en
+`slice/editor-secciones-1`, encima de `97fd478`.
+
+**Cierra `SECCIONES-INSTANCIAS-1`.**
