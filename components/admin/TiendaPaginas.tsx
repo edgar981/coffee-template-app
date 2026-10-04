@@ -20,6 +20,7 @@ import { resolverOrden, type BandaId } from '@/lib/config/site-content-defaults'
 import { moverBandaAIndice, moverBandaConDestino, moverBandaEnDireccion, ordenarPorBanda } from '@/lib/admin/orden-secciones';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { crearHistorialEditor, sonIguales, type HistorialEditor, type PasoHistorial } from '@/lib/admin/historial-editor';
+import { resumenCambios, type CambioResumen } from '@/lib/admin/resumen-cambios';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 
 // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — las secciones que son DESTINO de algún `seccionCruzada`
@@ -79,6 +80,20 @@ export interface TiendaPaginasHandle {
   publicarPendientes: () => Promise<void>;
   /** Gemelo de `publicarPendientes` para descartar — misma lista, mismo criterio de no-op. */
   descartarPendientes: () => Promise<void>;
+  /** § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — la lista EN PALABRAS de qué va a publicarse AHORA mismo:
+   *  compara el borrador fresco (un refetch, para no mostrar un resumen rancio si el dueño editó
+   *  desde que `doc` se cargó) contra lo publicado (`GET /api/site-content/publicado`), sección por
+   *  sección, con `resumenCambios` (lib/admin/resumen-cambios.ts). Misma lista de claves que
+   *  `publicarPendientes` va a publicar — el resumen describe EXACTAMENTE lo que el botón hace, ni
+   *  más ni menos. `[]` si no hay nada pendiente (no-op, nunca un fetch de sobra). */
+  resumenPendientes: () => Promise<CambioResumen[]>;
+  /** § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — navega el panel/lienzo al elemento de un ítem del
+   *  resumen, al tocarlo en el popover. `'orden'` vuelve a Inicio (la barra de orden vive ahí, no
+   *  dentro de una tarjeta); una `SeccionVista` abre su nivel y desplaza el lienzo, igual que un
+   *  clic en la fila de la lista (`abrirNivelSeccion`). `'tema'` NO se resuelve acá — ese `modo` lo
+   *  posee `EditorTiendaPantallaCompleta`, no este componente; el padre cambia de `modo` antes de
+   *  llamar, y para 'tema' ni siquiera llama. */
+  irAItem: (clave: string) => void;
 }
 
 // El editor del storefront agrupado por PÁGINA (Home / Nosotros), montado DENTRO del editor de
@@ -608,6 +623,33 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     recargarIframe();
   };
 
+  // § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — ver el docstring de `TiendaPaginasHandle.resumenPendientes`.
+  // Dos fetches EN PARALELO: el borrador FRESCO (un refetch de `/api/site-content`, para no comparar
+  // contra el `doc` que puede llevar un rato sin refrescarse — § el HUECO CONOCIDO de `doc.sinPublicar.
+  // tema`, arriba) y lo PUBLICADO (`/api/site-content/publicado`, el MISMO lector que ya usa
+  // `publicarOrDescartarOrden` para la píldora de 'orden'). `ordenLocal` —el array EN VIVO de esta
+  // página, que puede ir un paso adelante del `doc` recién releído si el dueño soltó un drag hace un
+  // instante— pisa al `orden` del refetch para esa clave puntual.
+  const resumenPendientes = async (): Promise<CambioResumen[]> => {
+    const secs = listaPendientes();
+    if (secs.length === 0) return [];
+    const [fresco, rPublicado] = await Promise.all([recargarDoc(), fetch('/api/site-content/publicado')]);
+    if (!rPublicado.ok) throw new Error('No se pudo cargar lo publicado.');
+    const publicado = (await rPublicado.json()) as Record<string, unknown>;
+    const borrador: Record<string, unknown> = { ...(fresco.contenido ?? {}) };
+    if (ordenLocal) borrador.orden = ordenLocal;
+    return resumenCambios(secs, borrador, publicado);
+  };
+
+  // § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — ver el docstring de `TiendaPaginasHandle.irAItem`.
+  const irAItem = useCallback((clave: string) => {
+    if (clave === 'orden') { setSeccionActiva(null); return; }
+    if (clave === 'tema') return; // el padre cambia de `modo`; este componente no tiene nada que hacer
+    const candidato = clave as SeccionVista;
+    if (!secciones.some((c) => c.seccion === candidato)) return;
+    abrirNivelSeccion(candidato);
+  }, [secciones, abrirNivelSeccion]);
+
   // DESHACER/REHACER reenviado DESDE EL IFRAME (§ EditorPuenteVivo.tsx, el comentario grande de la
   // deviación sobre `touches:`): el iframe YA decidió que el foco no estaba en un campo editable —
   // acá no hay nada más que verificar, sólo aplicar.
@@ -654,6 +696,8 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     rehacer: rehacerGlobal,
     publicarPendientes,
     descartarPendientes,
+    resumenPendientes,
+    irAItem,
   }));
 
   return (

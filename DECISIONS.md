@@ -50457,3 +50457,191 @@ reconciliado, corrida en las dos herramientas). Commiteado en `slice/corte-reesc
 encima de `36fd61e` (§ Pre-flight, la desviación de base medida al cierre).
 
 **Cierra `EDITOR-TIENDA-BARRA-FLOTANTE-1`.**
+
+## 2026-10-04 — El popover de «Publicar», en palabras (`EDITOR-TIENDA-PUBLICAR-RESUMEN-1`)
+
+Slice 8 (el ÚLTIMO) de `docs/editor-tienda/REDISENO.md` § 9. Tier 2, `writes: yes`. Aprobado sobre el
+mismo documento que los siete slices anteriores de esta tanda — "el nuevo diseño está rozando la
+perfección" — con "Publicar: el botón cuenta los cambios. El popover los lista en palabras" como el
+único pendiente de § 3 de ese documento. La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1`, al ARRANCAR | sí (`git status` vacío; `HEAD` = `25235ce`, el commit de `EDITOR-TIENDA-BARRA-FLOTANTE-1`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf`, IDÉNTICO a `origin/main` |
+| rama adelante de `origin/main`, al arrancar | 326 commits |
+
+Sin desviación de base: `HEAD` siguió siendo `25235ce` durante todo el slice (ninguna sesión hermana
+tocó el checkout mientras corría este).
+
+### El modelo — `lib/admin/resumen-cambios.ts` (nuevo, puro)
+
+`resumenCambios(pendientes, borrador, publicado)` compara dos mapas clave→valor YA RESUELTOS (la
+forma que `readSiteContentParaEditor`/`readSiteContent` ya devuelven) y devuelve `CambioResumen[]`
+— `{clave, tituloSeccion, elemento, tipo, etiqueta}`, EN PALABRAS, usando los `.label`/`.titulo` que
+`SECCIONES_TIENDA` (`components/admin/tienda-secciones.ts`, datos puros) ya declara — nunca una
+segunda lista de nombres.
+
+- **Campos de texto/imagen**: vacío↔con-valor es "nuevo"/"quitado" (vía `esVacio`, el mismo criterio
+  que ya usa el resolver para un opcional vacío); con-valor↔con-valor-distinto es "cambiado".
+- **Selects de opciones fijas** (`alto`, `veloIntensidad`, `puntoFocal`…) y la **composición**
+  (`hero.variante`, vía `SeccionConfig.composiciones`) llevan el MISMO trato: nunca "nuevo"/
+  "quitado" (siempre tienen un valor), se muestra el NOMBRE elegido entre comillas —
+  `Hero de la home · Composición «Portada»», el ejemplo literal del spec.
+- **Booleanos** (switches): siempre "cambiado", con el nuevo estado (`: Sí`/`: No`).
+- **Estilo por elemento** (`hero.estilos.<elemento>`, § `EDITOR-TIENDA-BARRA-FLOTANTE-1`): se
+  compara el objeto `EstiloElementoResuelto` entero por elemento (vía `ELEMENTOS_ESTILO`,
+  `lib/config/estilo-elemento.ts`, importado SIN tocarlo — fuera de `touches:`), nunca sus cuatro
+  subcampos por separado — "Estilo de Titular · cambiado" basta, el dueño no necesita saber si fue
+  la letra o el color.
+- **Repeater** (ítems de lista): comparación POSICIONAL, no por identidad — un ítem nuevo en una
+  posición que antes no existía es "nuevo"; uno ausente, "quitado"; mismo índice con otro contenido,
+  "cambiado". Declarado como aproximación EN PALABRAS, no un diff de listas (no hay id estable por
+  ítem).
+- **`'orden'`**: un solo ítem si el array de bandas difiere ("Orden de las secciones · cambiado"),
+  sin intentar nombrar qué banda subió o bajó — el spec no pedía ese detalle ("Incluye… el orden",
+  sin ejemplo).
+- **`'tema'` (Estilo, la pestaña del riel)**: SÓLO los cinco campos que el panel deja escribir hoy
+  (fondo/tinta/acento/fuentePar/forma — `origenTexto`/`origenAccion`/`escalaDisplay` los escribe
+  únicamente un preset, nunca el panel); las etiquetas son las MISMAS palabras que `PaletaSeccion.tsx`
+  ya usa ("Fondo", "Tinta", "Letras"…). `null→valor` (volver a "Por defecto") también se reporta: es
+  una elección legítima, no un vacío.
+
+**CAMPOS CRUZADOS (`CampoTexto.seccionCruzada`) RESUELTOS CONTRA SU DUEÑO REAL, no contra la sección
+donde se muestran.** `camposEfectivos(seccion)` deriva, de `SECCIONES_TIENDA`, los campos propios de
+una sección MENOS los que son `seccionCruzada` de otra MÁS los que otra sección declara como
+`seccionCruzada` de ÉSTA — sin esto, `marquesina.texto`/`.productoSlug` (mostrados en la tarjeta
+"Hero de la home" pero guardados en `content.marquesina`, § `EDITOR-TIENDA-MARQUESINA-EN-HERO-1`)
+jamás aparecerían en el resumen: `HERO.campos` los declara con `seccionCruzada`, así que no
+pertenecen al contenido de `hero`, y `MARQUESINA.campos` no los declara en absoluto. Afirmado con un
+test dedicado (`lib/admin/resumen-cambios.test.ts`).
+
+`sonIguales` (de `lib/admin/historial-editor.ts`, YA existente — ninguna línea de ese archivo se
+tocó) es la MISMA igualdad estructural que ya usa el historial de deshacer/rehacer, reusada en vez
+de reescrita — misma doctrina que ya cerró dos defectos de "dos declaraciones del mismo conjunto".
+
+### El mecanismo — dos fetches al abrir, nunca en cada render
+
+`TiendaPaginasHandle` gana dos métodos: `resumenPendientes()` (pide `listaPendientes()`, un refetch
+fresco de `/api/site-content` + `/api/site-content/publicado` en PARALELO, y llama a
+`resumenCambios`) e `irAItem(clave)` (navega: `'orden'` vuelve a Inicio, una `SeccionVista` abre su
+nivel vía `abrirNivelSeccion` —el MISMO camino que un clic en la fila de la lista—, `'tema'` es
+no-op porque ese `modo` lo posee `EditorTiendaPantallaCompleta`, no `TiendaPaginas`).
+`EditorTiendaPantallaCompleta` resuelve `'tema'` cambiando de `modo` antes de delegar al handle.
+
+**EL BORRADOR SE RE-LEE FRESCO, no se usa el `doc` ya cargado en memoria** — el mismo hueco conocido
+que ya documenta `doc.sinPublicar.tema` (§ `TiendaPaginas.tsx`, el comentario de `temaReloadKey`):
+sin el refetch, un popover abierto justo después de editar dentro de la pestaña "Estilo" podría
+mostrar una lista rancia. `ordenLocal` —el array EN VIVO de la página, que puede ir un paso adelante
+del refetch si el dueño soltó un drag hace un instante— pisa al `orden` recién leído para esa clave
+puntual.
+
+`components/admin/editor/ResumenPublicar.tsx` (nuevo): el popover de Radix (`components/ui/popover.tsx`,
+ya en uso en el panel — `CategoriaCombobox`/`DateField`/`DateRangePicker`), portaleado a `.admin-shell`
+vía `useContenedorDunaPortal()` (el mismo mecanismo que esos tres consumidores). El trigger muestra
+"Publicar" + un badge ÁMBAR con `pendientes` (el conteo de CLAVES, el mismo número que la píldora
+vieja "N sin publicar" ya mostraba — § el ajuste de abajo); el popover calcula el resumen AL ABRIR
+(`cargando`/`errorCarga`/`cambios`, estado local), y "Publicar"/"Descartar todo" viven DENTRO (el
+spec: "con publicar todo o descartar"), reemplazando los dos botones sueltos que la barra tenía
+antes.
+
+**AJUSTE medido contra la primera corrida del arnés: el encabezado del popover cuenta las FILAS
+(`cambios.length`), no las CLAVES (`pendientes`).** La primera versión decía "Un cambio sin
+publicar" sobre una lista de TRES filas (una sola sección, "hero", con tres campos cambiados) — el
+screenshot del arnés lo mostró de inmediato: un conteo que no cuadra con lo que está debajo del
+propio encabezado. El badge del BOTÓN se queda en `pendientes` (claves, instantáneo, sin fetch,
+mismo número que la píldora vieja); el encabezado DENTRO del popover usa `cambios?.length ??
+pendientes` (el piso mientras carga).
+
+**EL ÁMBAR ES SÓLO DEL BADGE DENTRO DEL BOTÓN**, nunca del botón entero — § CLAUDE.md, "el ámbar es
+MARCA/DATO o ESTADO según el SITIO"; REDISENO.md § 3, "El ámbar se usa solo para lo que espera
+publicarse". El botón sigue siendo `duna-btn--primary` (tinta).
+
+### Verificado por EJECUCIÓN — sesión real, 7/7
+
+`.scratch/arnes-publicar-resumen.ts` (no comiteado): Postgres efímero, `migrate deploy` + seed
+canónico, `next build`/`next start`, Playwright con sesión real (`admin@sierranativa.co`). Sin
+cambios: el botón "Publicar" no existe → tres ediciones sobre Hero (Titular, Subtítulo, Composición
+a "Portada") guardadas (borrador) → el botón "Publicar" aparece con badge "1" (una clave, 'hero') →
+el popover lista EXACTAMENTE "Hero de la home · Composición «Portada»", "Hero de la home · Titular ·
+cambiado", "Hero de la home · Subtítulo · cambiado", con el encabezado "3 cambios sin publicar" →
+clic en "Publicar" dentro del popover → sin pendientes, el botón de la barra desaparece de la barra
+(`state: detached`) → una pestaña NUEVA contra la ruta pública (`/`, sin sesión) muestra el titular
+publicado ("Un titular de prueba para el resumen") — confirma que PUBLICÓ de verdad, no sólo cerró
+el popover. 4 capturas en `.scratch/capturas-publicar-resumen/` (no comiteadas).
+
+**Deviación medida: el selector del toast de éxito (sonner) no matcheó** (`[data-sonner-toast]` dio
+0 elementos en esta versión instalada) — se investigó aparte de resolverlo (no es parte de
+`touches:` depurar la librería de toasts) y se verificó el ÉXITO por el EFECTO en su lugar: el botón
+"Publicar" se desmonta (sin pendientes) y el storefront público sirve el contenido nuevo. `publicarTodo`
+(pre-existente, sin tocar) sigue teniendo su propio `try/catch` con `toast.success`/`toast.error`.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3528/3528** (+22 sobre los 3506 previos a este slice — los 22 de `lib/admin/resumen-cambios.test.ts`, el único archivo de test nuevo) |
+| `npm run test:integracion` | **328/328**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` (typecheck+test+integración, un comando) | GREEN |
+| `npx next build` | compiló sin error (54 rutas, el mismo árbol que antes de este slice) |
+| `npx eslint` sobre los 5 archivos de `touches:` | 0 problemas NUEVOS — los 3 warnings que aparecen (`EditorTiendaPantallaCompleta.tsx:154` el efecto de `localStorage` del dispositivo; `TiendaPaginas.tsx:20`/`:495` un import y un parámetro sin usar, el segundo con comentario explícito de por qué se conserva) son PRE-EXISTENTES, verificados por posición del diff (ninguno cae dentro de un hunk de este slice) |
+| `npm run verificar:nayoli:visual`/`npm run guarda:color` | **NO corridos — fuera de alcance de este slice.** Miden el DRIFT VISUAL del storefront PÚBLICO; este diff no toca un solo archivo bajo `components/storefront/` ni `app/(storefront)/` — el popover vive enteramente en `/editor/tienda` (admin, con sesión). Confirmado el cero-toque por `git diff --cached --stat` sobre el commit de este slice. |
+
+### `customer_bytes`
+
+**`changed: true`, con `strings`.** El eje es la RAMA, no el commit — sigue sin mergear, igual que
+los siete slices anteriores de esta tanda. El schema de `customer_bytes` es explícito: "any byte a
+customer, **operator or owner** reads" — el popover nuevo (`ResumenPublicar.tsx`) y sus textos
+("Publicar", "Descartar todo", "N cambios sin publicar", "Sin detalle para mostrar.", "Calculando…",
+"No se pudo calcular qué va a publicarse.") los lee el OWNER/MANAGER que usa el editor, así que
+cuentan. Ningún byte del storefront PÚBLICO cambia (§ Gate, arriba — cero archivos de
+`components/storefront/` en `touches:`).
+
+`strings`: "Publicar" (ya existía, ahora con badge de conteo en vez de pill separada), "Descartar
+todo" (antes "Descartar", ahora dentro del popover), "N cambios sin publicar" / "Un cambio sin
+publicar" (nuevo), "Calculando…" (nuevo), "No se pudo calcular qué va a publicarse." (nuevo), "Sin
+detalle para mostrar." (nuevo), y las ETIQUETAS en palabras del resumen mismo (construidas, no un
+literal fijo: "Hero de la home · Titular · cambiado" es un EJEMPLO, no un string estático del
+código).
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos aplica: sin migración, sin modelo Prisma, sin cambio al esquema de CONTENIDO
+(`site-content-schema.ts`/`site-content-defaults.ts` no están en `touches:` y no se tocaron). Sin
+DTO compartido con otro repo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió o introdujo, grepeados contra `CLAUDE.md`: `resumen-cambios`,
+`ResumenPublicar`, `CambioResumen`, `resumenCambios`, `resumenPendientes`, `irAItem`,
+`camposEfectivos`, `PUBLICAR-RESUMEN`, `EditorTiendaPantallaCompleta`, `historial-editor`,
+`sonIguales`, `TiendaPaginasHandle` — **CERO apariciones** en los doce (medido con `grep -c`, uno por
+uno). `TiendaPaginas` SÍ aparece, CUATRO veces (líneas 2793, 2802, 2884, 4349 — § "La CASCADA de
+/admin/tienda" y § "El editor GANA un selector de página" y § "El editor no cargaba el catálogo").
+Leídas las cuatro: ninguna describe el botón "Publicar" ni el mecanismo de fetch de este slice —
+hablan del fetch 5→1 al MONTAR (línea 2802: "El GET subió a TiendaPaginas (una vez)… Las ESCRITURAS
+… siguen POR SECCIÓN, sin tocar — sólo se consolidó la LECTURA"), del selector de página (2884) y de
+`getProducts()`/categorías (4349). Mi `resumenPendientes()` agrega un fetch ON-DEMAND disparado por
+el usuario (abrir el popover), no uno al montar, y no agrega ninguna escritura nueva — no contradice
+"el GET sube UNA VEZ al montar" (ese fetch sigue siendo uno) ni "las escrituras siguen por sección"
+(no escribo nada). Ninguna de las cuatro líneas queda falsa.
+
+### Open follow-ups
+
+Ninguno coined por este slice. El único pendiente que quedaba de `REDISENO.md` § 9 (slice 8) es
+exactamente lo que este slice entrega.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que los siete slices anteriores
+de esta tanda (el eje es la rama, no el commit; sigue sin mergear). "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE". Gate verde en las dos capas obligatorias (`npm run gate`: typecheck +
+3528/3528 + 328/328); `next build` compila; `npx eslint` sin problemas nuevos; verificado de punta a
+punta con sesión real (7/7, § arriba). Commiteado en `slice/corte-reescritura-prototipo-1`, encima
+de `25235ce`.
+
+**Cierra `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — y con él, el plan por slices de `docs/editor-tienda/
+REDISENO.md` § 9 (los 8 numerados, más los dos pedidos aparte del owner sobre Marquesina).**

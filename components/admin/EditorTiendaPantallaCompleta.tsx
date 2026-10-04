@@ -18,6 +18,7 @@ import {
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { Riel, type HerramientaRiel } from '@/components/admin/editor/Riel';
 import { VistaNueva } from '@/components/admin/editor/VistaNueva';
+import { ResumenPublicar } from '@/components/admin/editor/ResumenPublicar';
 
 // ─── EL EDITOR DE PANTALLA COMPLETA (§ EDITOR-TIENDA-DISPOSITIVOS-1) ───────────────────────────────
 //
@@ -129,6 +130,20 @@ export default function EditorTiendaPantallaCompleta() {
     }
   }, []);
 
+  // § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — el popover de «Publicar» pide su resumen por el handle
+  // (`TiendaPaginasHandle.resumenPendientes`) y, al tocar un ítem, navega por el MISMO handle —
+  // salvo 'tema', cuyo `modo` es dueño de ESTA pantalla, no de `TiendaPaginas` (§ el docstring
+  // grande de `ModoEditor`, arriba).
+  const cargarResumenPublicar = useCallback(
+    () => tiendaPaginasRef.current?.resumenPendientes() ?? Promise.resolve([]),
+    [],
+  );
+  const irAItemResumen = useCallback((clave: string) => {
+    if (clave === 'tema') { setModo('tema'); return; }
+    setModo('paginas');
+    tiendaPaginasRef.current?.irAItem(clave);
+  }, []);
+
   // EL DISPOSITIVO ELEGIDO, recordado por navegador (§ 4.3 de DISENO.md: "recordado por el
   // navegador del admin"). Arranca en el default (Escritorio) y se re-lee de `localStorage` tras
   // montar — nunca durante el render del servidor, que no tiene storage; leerlo en un efecto evita
@@ -205,8 +220,9 @@ export default function EditorTiendaPantallaCompleta() {
         </div>
 
         {/* § EDITOR-TIENDA-DESHACER-1 — el cluster de estado: deshacer/rehacer, el indicador de
-            autoguardado AGREGADO, y "Publicar"/"Descartar" SÓLO cuando hay algo pendiente (una
-            píldora vacía — "0 sin publicar" — no le dice nada al dueño que no sepa ya). */}
+            autoguardado AGREGADO, y el botón de `ResumenPublicar` (§ EDITOR-TIENDA-PUBLICAR-
+            RESUMEN-1, abajo) — que se oculta solo cuando no hay nada pendiente: un botón "Publicar"
+            sin nada que publicar no le dice nada al dueño que no sepa ya. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexShrink: 0 }}>
           <div role="group" aria-label="Deshacer y rehacer" style={{ display: 'flex', gap: 'var(--duna-space-1)' }}>
             <button
@@ -246,27 +262,19 @@ export default function EditorTiendaPantallaCompleta() {
             Vista previa
           </a>
 
-          {estadoGlobal.pendientes > 0 && (
-            <>
-              <span className="duna-badge duna-badge--attention">{estadoGlobal.pendientes} sin publicar</span>
-              <button
-                type="button"
-                className="duna-btn duna-btn--ghost duna-btn--sm"
-                onClick={descartarTodo}
-                disabled={estadoGlobal.estado !== 'guardado' || procesandoPublicacion}
-              >
-                Descartar
-              </button>
-              <button
-                type="button"
-                className="duna-btn duna-btn--primary duna-btn--sm"
-                onClick={publicarTodo}
-                disabled={estadoGlobal.estado !== 'guardado' || procesandoPublicacion}
-              >
-                {procesandoPublicacion ? 'Publicando…' : 'Publicar'}
-              </button>
-            </>
-          )}
+          {/* § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — "Descartar" y "Publicar" dejaron de ser dos
+              botones sueltos en la barra: viven DENTRO del popover de `ResumenPublicar`, junto a la
+              lista en palabras de qué va a publicarse. El botón de la barra ahora es uno solo
+              ("Publicar", con el recuento ámbar) y abre ese popover. */}
+          <ResumenPublicar
+            pendientes={estadoGlobal.pendientes}
+            deshabilitado={estadoGlobal.estado !== 'guardado'}
+            procesando={procesandoPublicacion}
+            cargarResumen={cargarResumenPublicar}
+            onPublicar={publicarTodo}
+            onDescartar={descartarTodo}
+            onIrAItem={irAItemResumen}
+          />
         </div>
 
         <div role="group" aria-label="Dispositivo" style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>

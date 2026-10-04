@@ -241,7 +241,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas — **ENTREGADO** (2026-10-03) | las 4 variantes del hero (`data-editor-zona-campo`/`-valor`), `EditorPuenteVivo.tsx`, `editor-puente.ts`, `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`, `site-content-defaults.ts`, `site-content-schema.ts` | **1** |
 | 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) — **ENTREGADO** (2026-10-03) | panel + hoja: `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `components/admin/editor/ComposicionHero.tsx` (nuevo), `panel-controles.ts` | 2 |
 | 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento — **ENTREGADO** (2026-10-04) | esquema + storefront (los 4 heros, el puente) + panel: `estilo-elemento.ts` (nuevo), `palette-derive.ts`, `fuentes.ts`, `site-content-{defaults,schema}.ts`, `campo-editable.ts`, `editor-puente.ts`, `EditorPuenteVivo.tsx`, HeroSection/Media/Curtina/Ficha/MediaMarquesina, `TiendaSeccionEditor.tsx`, `EstiloElementoControles.tsx` (nuevo) | **1** |
-| 8 | `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — el popover de publicar en palabras | barra superior | 2 |
+| 8 | `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — el popover de publicar en palabras — **ENTREGADO** (2026-10-04) | barra superior | 2 |
 
 Los slices 1 a 3 cierran los cinco errores sin esperar el rediseño. Del 4 al 8 son el rediseño
 en sí, en el orden en que cada uno se ve por su cuenta.
@@ -452,6 +452,68 @@ guarda:color` — la MISMA cifra exacta, dígito a dígito, del piso heredado
 (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja
 [105,862]–[1183,3581]; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO. Ver DECISIONS.md
 para la verificación de ejecución completa.
+
+**SLICE 8 ENTREGADO (2026-10-04) — EL ÚLTIMO DEL PLAN NUMERADO.** El botón «Publicar» de la barra
+superior dejó de ser dos botones sueltos (`Descartar`/`Publicar`) junto a una píldora "N sin
+publicar": ahora es UN botón con un badge ámbar de conteo que abre un POPOVER
+(`components/admin/editor/ResumenPublicar.tsx`, nuevo) listando EN PALABRAS qué va a publicarse —
+los ejemplos del spec, en la MISMA forma: «Hero de la home · Titular · cambiado»/«nuevo» (según si
+el campo estaba vacío antes) y «Hero de la home · Composición «Portada»», los dos VERIFICADOS por
+ejecución (§ el arnés, abajo). El tercer ejemplo del spec —un párrafo de Nosotros, "Nosotros ·
+Párrafo 3"— sale del MISMO mecanismo genérico sin caso especial (`nosotrosHistoria.parrafo3` tiene
+`.label: 'Tercer párrafo'` en `tienda-secciones.ts`, así que produciría «Nosotros · Tercer párrafo ·
+nuevo»); no se re-verificó por ejecución PARA ESA SECCIÓN puntual —el arnés edita Hero, no
+Nosotros—, pero SÍ está cubierto por el test unitario genérico de "texto" en
+`resumen-cambios.test.ts` (que no usa `nosotrosHistoria` como fixture, pero ejercita la misma rama
+de código que cualquier `CampoTexto` sin `opciones` recorre). "Publicar"/"Descartar todo" viven DENTRO del popover.
+
+**EL MODELO ES PURO Y REUSABLE: `lib/admin/resumen-cambios.ts`** (`resumenCambios(pendientes,
+borrador, publicado)`) compara dos `SiteContentData` YA RESUELTOS —la forma que
+`readSiteContentParaEditor`/`readSiteContent` devuelven— sección por sección, usando los nombres que
+`SECCIONES_TIENDA` ya declara (nunca una segunda lista de labels). Cubre texto (nuevo/cambiado/
+quitado), composición y selects de opciones fijas (el valor elegido entre comillas, nunca
+"cambiado" a secas — un select siempre tiene un valor), booleanos, estilo por elemento
+(`hero.estilos.*`, agregado completo, no por subcampo), repeaters (posicional), y las dos claves
+META `'orden'`/`'tema'` ("Estilo"). Los campos `seccionCruzada` (`marquesina.texto`/`.productoSlug`,
+mostrados en la tarjeta del hero pero guardados en `content.marquesina`) se resuelven contra su
+sección DUEÑA, no contra la que los muestra — sin esto habrían sido invisibles para el resumen.
+
+**EL RESUMEN SE CALCULA AL ABRIR EL POPOVER**, con un refetch fresco del borrador (no el `doc` ya en
+memoria, que puede llevar un rato sin refrescarse) + `/api/site-content/publicado` en paralelo —
+nunca en cada render. `TiendaPaginasHandle` ganó `resumenPendientes()`/`irAItem(clave)`; el segundo
+navega el panel/lienzo al tocar una fila (abre el nivel de la sección, o vuelve a Inicio para
+'orden'; 'tema' lo resuelve `EditorTiendaPantallaCompleta` cambiando de `modo`, porque ese estado no
+lo posee `TiendaPaginas`).
+
+**AJUSTE medido contra el arnés, no anticipado en el diseño:** el encabezado del popover cuenta las
+FILAS que la lista muestra (`cambios.length`), no las CLAVES pendientes (`pendientes`, el badge del
+botón) — la primera versión decía "Un cambio sin publicar" sobre una lista de TRES filas (las tres
+ediciones vivían en la MISMA sección, "hero"), y el desacuerdo entre el encabezado y lo que está
+debajo se vio de inmediato en la primera captura del arnés.
+
+**VERIFICADO POR EJECUCIÓN — sesión real, 7/7.** `.scratch/arnes-publicar-resumen.ts` (no
+comiteado): Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`,
+Playwright con sesión real (`admin@sierranativa.co`). Tres ediciones sobre Hero (Titular, Subtítulo,
+Composición → Portada), el popover lista las tres EN PALABRAS con el encabezado correcto, "Publicar"
+desde el popover publica de verdad (confirmado contra la ruta PÚBLICA, sin sesión: el titular nuevo
+aparece en `/`), y el botón de la barra desaparece al no quedar pendientes. 4 capturas en
+`.scratch/capturas-publicar-resumen/` (no comiteadas). Ver DECISIONS.md para la verificación
+completa, incluida la deviación medida del selector de toast de sonner (no afecta el resultado: se
+verificó por el EFECTO, no por el toast).
+
+**VERIFICADO**: `npm run gate` (typecheck + 3528/3528 + 328/328 integración) GREEN; `next build`
+compiló sin error; `npx eslint` sobre los 5 archivos de `touches:` — CERO problemas nuevos (los 3
+warnings que aparecen son PRE-EXISTENTES, confirmado por posición fuera de los hunks de este diff).
+`verificar:nayoli:visual`/`guarda:color` NO corridos — fuera de alcance: este diff no toca un solo
+archivo de `components/storefront/` ni `app/(storefront)/`, así que no hay drift visual público que
+medir.
+
+**CIERRA EL PLAN POR SLICES DE § 9.** Los ocho numerados están ENTREGADOS, más los dos pedidos
+aparte del owner sobre la sección Marquesina (`EDITOR-TIENDA-MARQUESINA-SECCION-1`,
+`EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`). Lo que queda de este documento es § 10, ya resuelto
+en su mayoría (ver abajo), y las mejoras futuras que cada slice fue anotando en su propio
+`open_followups` (`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`, `PANEL-EDITOR-VARIANTES-
+COMPOSICION-2`, entre otras) — ninguna bloquea el cierre de este plan.
 
 ---
 
