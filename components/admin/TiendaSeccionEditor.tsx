@@ -29,7 +29,7 @@ import {
 } from '@/lib/storefront/editor-puente';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
-import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, veloComboDeCampos, camposDeVeloCombo, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import {
@@ -819,6 +819,22 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
   const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onCerrar?.(seccion); };
 
+  // EL VALOR REMOTO (iframe→lista) es SIEMPRE un string en el mensaje (§ `MensajeCampoCambio.valor`,
+  // editor-puente.ts) — nunca cambia de forma para no tocar `VistaTiendaIframe.tsx`/`TiendaPaginas.
+  // tsx` (fuera de `touches:` de este slice). Un campo BOOLEANO de ESTA sección (§ `CampoBooleano`,
+  // `config.booleanos` — hoy sólo el hero, § EDITOR-TIENDA-ZONAS-1: las zonas "+ Titular"/"Quitar"/
+  // el segundo campo del velo postean `'true'`/`'false'` por este MISMO canal) necesita COERCIÓN: si
+  // se dejara pasar como string, `cambiar()` guardaría `titularVisible:'false'` —truthy SIEMPRE— y
+  // el PUT de autoguardado (`z.boolean().optional()`, site-content-schema.ts) lo rechazaría. Se
+  // detecta por NOMBRE contra `config.booleanos` —la MISMA lista que ya declara cuáles son
+  // booleanos, no una segunda—, así que sirve para CUALQUIER sección futura que postee un booleano
+  // por este canal, no sólo para el hero de hoy. Los demás campos (texto, escalares como `alto`/
+  // `veloIntensidad`) siguen por `fusionCampoEditable`, sin tocar.
+  const parcialDeCampoRemoto = (campo: string, valor: string): Datos | null => {
+    if (config.booleanos?.some((b) => b.name === campo)) return { [campo]: valor === 'true' };
+    return fusionCampoEditable((formRef.current ?? {}) as Datos, campo, valor);
+  };
+
   // ── EL CAMPO FLOTANTE (§ EDITOR-TIENDA-CAMPO-EDITABLE-1) — iframe→lista, un campo por tecla ────
   // Llamado desde `TiendaPaginas` cuando un `TIPO_MENSAJE_CAMPO_CAMBIO` resuelve a ESTA sección
   // (§ `TiendaSeccionEditorHandle.escribirCampo`, arriba). Abre la edición si estaba cerrada —SIN
@@ -829,7 +845,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // IGNORA — el próximo mensaje (la próxima tecla) lo reintenta igual.
   const escribirCampo = (campo: string, valor: string) => {
     if (!editando) abrirEdicion();
-    const parcial = fusionCampoEditable((formRef.current ?? {}) as Datos, campo, valor);
+    const parcial = parcialDeCampoRemoto(campo, valor);
     if (parcial) cambiar(parcial);
   };
 
@@ -838,7 +854,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // disparó el clic ya decidió abrir la OTRA (la que declara el campo visible). El mismo
   // `fusionCampoEditable` + `cambiar()` de siempre: un único escritor/autoguardado de esta sección.
   const escribirCampoSinAbrir = (campo: string, valor: string) => {
-    const parcial = fusionCampoEditable((formRef.current ?? {}) as Datos, campo, valor);
+    const parcial = parcialDeCampoRemoto(campo, valor);
     if (parcial) cambiar(parcial);
   };
 
@@ -1097,7 +1113,15 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // tarjeta, con bloques). Sin encabezado de grupo.
   const renderCampo = (campo: CampoTexto) => {
     const id = `${seccion}-${campo.name}`;
-    const value = String(form[campo.name] ?? '');
+    // `veloCombo` (§ EDITOR-TIENDA-ZONAS-1) NO es un campo real: su VALOR se COMPONE de
+    // `veloVisible`+`veloIntensidad` (`veloComboDeCampos`) para mostrar «Nada·Suave·Medio·Fuerte» en
+    // vez de los dos controles viejos. Detectado por NOMBRE, mismo criterio que
+    // `opcionesDinamicas:'destaquePlanes'` de abajo — un literal, no un mecanismo genérico, porque es
+    // el único campo compuesto que existe hoy.
+    const esVeloCombo = campo.name === 'veloCombo';
+    const value = esVeloCombo
+      ? veloComboDeCampos(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'))
+      : String(form[campo.name] ?? '');
     // Aviso: el destino elegido ya no está en el catálogo (sólo si el catálogo YA cargó).
     const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
     // Gemelo de `destinoInexistente`, para un PIN de producto (§ `campo.producto`, arriba): el slug
@@ -1133,7 +1157,18 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                              onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
         ) : opciones ? (
           // SELECT NATIVO (§ Controles de formulario) — `destacadoSlot`, con opciones derivadas.
-          <select id={id} className="duna-input duna-select" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`}>
+          // `alto`/`veloCombo` (§ EDITOR-TIENDA-ZONAS-1) escriben MÁS de un campo real a la vez —
+          // ver el `esVeloCombo` de arriba — nunca el `set(campo.name)` genérico, que pisaría un
+          // solo campo y dejaría al otro desincronizado.
+          <select
+            id={id} className="duna-input duna-select" value={value} aria-describedby={`${id}-hint`}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (campo.name === 'alto') cambiar({ alto: v, alturaLlena: v === 'pantalla' });
+              else if (esVeloCombo) cambiar(camposDeVeloCombo(v));
+              else cambiar({ [campo.name]: v });
+            }}
+          >
             {opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         ) : campo.textarea ? (
@@ -1222,6 +1257,42 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           <span className="duna-field__label" style={{ margin: 0 }}>{campo.label}</span>
         </div>
         {campo.hint && <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{campo.hint}</p>}
+      </div>
+    );
+  };
+
+  // LA LISTA DE ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 2/§ 4) — reemplaza a
+  // `config.booleanos.map(renderBooleano)` SÓLO para `seccion === 'hero'`. Cada fila es una zona de
+  // la página (Titular · Subtítulo · Botones · Indicador): su nombre, su estado en palabras, y
+  // "Agregar"/"Quitar" en vez de un switch — "una vacía ofrece «+ …» en su lugar; una llena se quita
+  // desde su barra" (la BARRA acá es esta fila, no una barra flotante sobre el lienzo). MISMO
+  // `cambiar({[name]: !on})` que `renderBooleano` ya usaba: el dato no cambia, sólo la presentación.
+  //
+  // `alturaLlena`/`veloVisible` NO entran a esta lista — § el pedido del spec los REEMPLAZA por el
+  // select de `alto` ("Justo·Alto·Pantalla completa") y el de `veloCombo` ("Nada·Suave·Medio·Fuerte"),
+  // ya en el flujo de `renderCampo`/`bloque.campos` más abajo. `config.booleanos` SIGUE declarando
+  // los seis nombres (bookkeeping de `panel-controles.ts`); esta lista sólo filtra CUÁLES pinta.
+  const ZONA_HERO_NOMBRES = new Set(['titularVisible', 'subtituloVisible', 'ctasVisibles', 'cueDesliza']);
+  const renderZonasHero = () => {
+    const zonas = (config.booleanos ?? []).filter((c) => ZONA_HERO_NOMBRES.has(c.name));
+    return (
+      <div className="admin-bloque">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
+          {zonas.map((campo) => {
+            const on = form[campo.name] !== false;
+            return (
+              <div key={campo.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}>
+                <div>
+                  <span className="duna-field__label" style={{ margin: 0 }}>{campo.label}</span>
+                  {campo.hint && <p className="duna-field__hint" style={{ margin: 0 }}>{campo.hint}</p>}
+                </div>
+                <button type="button" onClick={() => cambiar({ [campo.name]: !on })} className="duna-btn duna-btn--ghost duna-btn--sm">
+                  {on ? 'Quitar' : 'Agregar'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -1806,13 +1877,21 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
               )}
 
               {/* Los INTERRUPTORES de sección (§ CampoBooleano, PANEL-EDITOR-HERO-TOGGLES-1) — una
-                  pieza con todos los de esta sección, aparte del toggle de visibilidad de arriba. */}
+                  pieza con todos los de esta sección, aparte del toggle de visibilidad de arriba.
+                  EXCEPTO el hero (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 2: "los interruptores del
+                  hero desaparecen del panel"): sus seis switches se reemplazan por la lista de zonas
+                  de abajo — MISMO dato, MISMO `cambiar()`, sólo la presentación cambia de switch a
+                  fila-con-acción. `config.booleanos` SIGUE declarando los seis (§ panel-controles.ts,
+                  que deriva "controlado" de esa misma lista) — lo único que cambia es qué JSX los
+                  consume. */}
               {config.booleanos && config.booleanos.length > 0 && (
-                <div className="admin-bloque">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
-                    {config.booleanos.map(renderBooleano)}
+                seccion === 'hero' ? renderZonasHero() : (
+                  <div className="admin-bloque">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
+                      {config.booleanos.map(renderBooleano)}
+                    </div>
                   </div>
-                </div>
+                )
               )}
 
               {/* Cada bloque es una PIEZA. La `tarjeta` YA es su propia caja (`.bloque-tarjeta`), así

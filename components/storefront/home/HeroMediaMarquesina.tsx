@@ -8,6 +8,7 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable, { useRutaEnEdicion } from "@/components/storefront/CampoEditable";
 import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
@@ -541,9 +542,35 @@ import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/store
 // el revelado enmascarado sigue siendo tres elementos, sin cambio — el defecto era específico de
 // envolver una FOTO con el mismo mecanismo pensado para una LÍNEA de texto.
 
+// LAS ZONAS (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4) — misma pieza LOCAL que
+// `HeroMedia.tsx` (duplicada a propósito, no un módulo compartido: § el docstring de esa copia, el
+// mismo criterio ya aceptado en este repo para piezas chicas entre las 4 variantes del hero).
+function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-editor-zona-campo={onClic.campo}
+      data-editor-zona-valor={onClic.valor}
+      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
+      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
+        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
+        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
+        cursor: 'pointer', position: 'relative', zIndex: 20,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina } = useSiteContent();
   const preview = useIsPreview();
+  // LAS ZONAS — `useModoEditorActivo()`, NO `useIsPreview()` (§ el docstring equivalente en
+  // `HeroMedia.tsx`, el mismo desvío medido del texto literal del spec).
+  const activoEditor = useModoEditorActivo();
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
   // EL CAMPO `marquesina.texto` SE ESTÁ EDITANDO AHORA MISMO (§ EDITOR-TIENDA-CAMPO-ANCLADO-1,
@@ -728,6 +755,24 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           )}
         </div>
 
+        {/* LA ZONA «FONDO» — EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1): «Oscurecer para leer
+            mejor» — Nada · Suave · Medio · Fuerte. Escribe `veloVisible`+`veloIntensidad` juntos
+            (§ `camposDeVeloCombo`, site-content-defaults.ts) — el MISMO par que decide
+            `PaletaSeccion`/el select del panel, nunca una tercera fuente. SÓLO esta composición lee
+            estos dos campos (§ el docstring de cabecera, "EL VELO ES OPT-IN"), así que el control
+            vive SÓLO acá, no en `HeroMedia.tsx`. */}
+        {/* `top-24`, no `top-3` — el `<header>` fijo (z-50, StoreNav.tsx) cubre el borde superior
+            del hero; medido por ejecución, con `top-3` el clic no llegaba al chip. */}
+        {activoEditor && (
+          <div className="absolute top-24 left-3 z-20 flex flex-wrap">
+            <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Oscurecer para leer mejor</span>
+            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'false' }}>Nada</ZonaChip>
+            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'suave' }}>Suave</ZonaChip>
+            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'intermedia' }}>Medio</ZonaChip>
+            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'media' }}>Fuerte</ZonaChip>
+          </div>
+        )}
+
         {/* EL LOOP DE TEXTO — EXTRAÍDO a `MarquesinaMotor.tsx` (`MarquesinaFraseMotor`), §
             EDITOR-TIENDA-MARQUESINA-SECCION-1. Mismo JSX de siempre (máscara + motor + ticker, tres
             elementos — ver su docstring en `MarquesinaMotor.tsx` y "EL REVELADO ENMASCARADO"/"EL
@@ -843,6 +888,17 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
               />
             </div>
             <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
+          </div>
+        )}
+        {/* LA ZONA «INDICADOR» (§ EDITOR-TIENDA-ZONAS-1) — mismo criterio que `HeroMedia.tsx`:
+            esquina opuesta a "Desliza" para no superponerse. */}
+        {activoEditor && (
+          <div className="absolute right-4 bottom-8 z-20 sm:right-6 lg:right-8">
+            {hero.cueDesliza ? (
+              <ZonaChip onClic={{ campo: 'cueDesliza', valor: 'false' }}>Quitar Indicador</ZonaChip>
+            ) : (
+              <ZonaChip onClic={{ campo: 'cueDesliza', valor: 'true' }}>+ Indicador</ZonaChip>
+            )}
           </div>
         )}
       </section>

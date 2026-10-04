@@ -148,3 +148,61 @@ test('?tema=CORTE preserva el copy del hero que un tenant ya hubiera cargado —
   assert.equal(conCorte.hero.subtitulo, 'Mi propio subtítulo');
   assert.equal(conCorte.hero.alturaLlena, true);
 });
+
+// ─── EL ALTO DE TRES PASOS (§ EDITOR-TIENDA-ZONAS-1) — reemplaza al interruptor por un select,
+// SIN tocar el booleano legado (§ `claseAlturaHero`, site-content-defaults.ts) ───────────────────
+
+test('hero.alto:"alto" (el paso intermedio) — HeroMedia usa min-h-[96svh], ni 92vh ni 100svh', () => {
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, alto: 'alto' as const },
+  } as SiteContentData;
+  const html = renderHeroMedia(content);
+  assert.match(html, /min-h-\[96svh\]/);
+  assert.doesNotMatch(html, /min-h-\[92vh\]/);
+  assert.doesNotMatch(html, /min-h-\[100svh\]/);
+});
+
+test('hero.alto:"pantalla" manda AUNQUE alturaLlena esté en false — el escalar explícito gana', () => {
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, alto: 'pantalla' as const, alturaLlena: false },
+  } as SiteContentData;
+  const html = renderHeroMedia(content);
+  assert.match(html, /min-h-\[100svh\]/);
+  assert.doesNotMatch(html, /min-h-\[92vh\]/);
+});
+
+test('hero.alto:"justo" explícito, CON alturaLlena:true legado — SIGUE cayendo al legado (ambigüedad conocida, § el docstring de HeroContent.alto)', () => {
+  // Documenta el límite declarado: sólo el panel/los chips del canvas mantienen `alto` y
+  // `alturaLlena` sincronizados al escribir. Un documento armado a mano (como este test) con
+  // `alto:'justo'` y `alturaLlena:true` — la combinación que NINGÚN escritor real produce — cae al
+  // legado, porque el componente no puede distinguir "justo por default" de "justo elegido".
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, alto: 'justo' as const, alturaLlena: true },
+  } as SiteContentData;
+  const html = renderHeroMedia(content);
+  assert.match(html, /min-h-\[100svh\]/);
+});
+
+test('resolverSiteContent({}): hero.alto resuelve a "justo" sin fila — byte-idéntico', () => {
+  assert.equal(resolverSiteContent({}).hero.alto, 'justo');
+});
+
+test('resolverSiteContent: un alto guardado inválido cae a la canónica "justo", nunca lanza', () => {
+  assert.equal(resolverSiteContent({ hero: { alto: 'gigante' } }).hero.alto, 'justo');
+});
+
+test('resolverSiteContent: "alto"/"pantalla" guardados se respetan tal cual', () => {
+  assert.equal(resolverSiteContent({ hero: { alto: 'alto' } }).hero.alto, 'alto');
+  assert.equal(resolverSiteContent({ hero: { alto: 'pantalla' } }).hero.alto, 'pantalla');
+});
+
+// ─── LAS ZONAS SON SÓLO DE MODO EDITOR — sin `ModoEditorProvider`, cero marcadores nuevos ────────
+
+test('SIN modo editor, HeroMedia no emite ningún `data-editor-zona-campo` — byte-idéntico (las zonas son chrome del editor, nunca del visitante)', () => {
+  const nayoli = resolverSiteContent({});
+  const html = renderHeroMedia(nayoli);
+  assert.doesNotMatch(html, /data-editor-zona-campo/);
+});

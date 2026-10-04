@@ -34,6 +34,12 @@ import {
   PUNTOS_FOCALES,
   VELO_INTENSIDADES,
   TICKER_VELOCIDADES,
+  ALTURAS_HERO,
+  CLASES_ALTURA_HERO,
+  claseAlturaHero,
+  OPCIONES_VELO_COMBO,
+  veloComboDeCampos,
+  camposDeVeloCombo,
   productoSpotlight,
   productoOtraTalla,
   productoMarquesina,
@@ -1206,16 +1212,72 @@ test('hero: una `variante` guardada "sticky" se respeta (§ MUESTRARIO-HERO-MARQ
 
 test('REGISTRY.hero declara `escalares.imagenTipo` con el set cerrado y la canónica "imagen"', () => {
   // § HERO-PUNTO-FOCAL-1: `escalares` ganó un TERCER miembro (`puntoFocal`); § CORTE-HERO-REVELADO-
-  // MASCARA-1 sumó el CUARTO y el QUINTO (`veloIntensidad`/`tickerVelocidad`) — este deepEqual
-  // afirma el objeto COMPLETO, así que tiene que nombrar los cinco, o fallaría con un miembro
-  // "de más" apenas se agregue el próximo escalar clampado de esta sección. Su propia cobertura
-  // (canónica, set cerrado, clamp de basura) vive en `hero-punto-focal.test.ts`/`lib/animation.test.ts`.
+  // MASCARA-1 sumó el CUARTO y el QUINTO (`veloIntensidad`/`tickerVelocidad`); § EDITOR-TIENDA-
+  // ZONAS-1 suma el SEXTO (`alto`) — este deepEqual afirma el objeto COMPLETO, así que tiene que
+  // nombrar los seis, o fallaría con un miembro "de más" apenas se agregue el próximo escalar
+  // clampado de esta sección. Su propia cobertura (canónica, set cerrado, clamp de basura) vive en
+  // `hero-punto-focal.test.ts`/`lib/animation.test.ts`/`corte-hero-viewport.test.ts`.
   assert.deepEqual(REGISTRY.hero.escalares, {
     imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
     puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
     veloIntensidad: { claves: VELO_INTENSIDADES, canonica: 'media' },
     tickerVelocidad: { claves: TICKER_VELOCIDADES, canonica: 'media' },
+    alto: { claves: ALTURAS_HERO, canonica: 'justo' },
   });
+});
+
+// ── EL ALTO DE TRES PASOS (§ EDITOR-TIENDA-ZONAS-1, `claseAlturaHero`) ──────────────────────────
+
+test('DEFAULTS.hero.alto nace en "justo" — byte-idéntico', () => {
+  assert.equal(DEFAULTS.hero.alto, 'justo');
+});
+
+test('claseAlturaHero: "alto"/"pantalla" explícitos mandan, SIN mirar alturaLlena', () => {
+  assert.equal(claseAlturaHero('alto', false), CLASES_ALTURA_HERO.alto);
+  assert.equal(claseAlturaHero('alto', true), CLASES_ALTURA_HERO.alto);
+  assert.equal(claseAlturaHero('pantalla', false), CLASES_ALTURA_HERO.pantalla);
+  assert.equal(claseAlturaHero('pantalla', true), CLASES_ALTURA_HERO.pantalla);
+});
+
+test('claseAlturaHero: en la canónica ("justo", ausente o basura) cae a `alturaLlena` — SIN MIGRACIÓN', () => {
+  assert.equal(claseAlturaHero('justo', false), 'min-h-[92vh]');
+  assert.equal(claseAlturaHero('justo', true), 'min-h-[100svh]');
+  assert.equal(claseAlturaHero('', true), 'min-h-[100svh]');
+  assert.equal(claseAlturaHero('basura', false), 'min-h-[92vh]');
+});
+
+test('CLASES_ALTURA_HERO: las dos puntas son LITERALES las clases de HOY', () => {
+  assert.equal(CLASES_ALTURA_HERO.justo, 'min-h-[92vh]');
+  assert.equal(CLASES_ALTURA_HERO.pantalla, 'min-h-[100svh]');
+  assert.equal(CLASES_ALTURA_HERO.alto, 'min-h-[96svh]');
+});
+
+// ── EL VELO, COMO UNA SOLA PREGUNTA (§ EDITOR-TIENDA-ZONAS-1, `veloComboDeCampos`/`camposDeVeloCombo`) ──
+
+test('veloComboDeCampos: velo apagado es SIEMPRE "nada", cualquiera sea la intensidad guardada', () => {
+  assert.equal(veloComboDeCampos(false, 'suave'), 'nada');
+  assert.equal(veloComboDeCampos(false, 'media'), 'nada');
+});
+
+test('veloComboDeCampos: velo encendido sigue el orden claro→oscuro de VELO_INTENSIDADES', () => {
+  assert.equal(veloComboDeCampos(true, 'suave'), 'suave');
+  assert.equal(veloComboDeCampos(true, 'intermedia'), 'medio');
+  assert.equal(veloComboDeCampos(true, 'media'), 'fuerte');
+});
+
+test('camposDeVeloCombo: la dirección INVERSA, round-trip con veloComboDeCampos para los cuatro pasos', () => {
+  for (const combo of OPCIONES_VELO_COMBO) {
+    const { veloVisible, veloIntensidad } = camposDeVeloCombo(combo);
+    assert.equal(veloComboDeCampos(veloVisible, veloIntensidad), combo);
+  }
+});
+
+test('camposDeVeloCombo: "nada" no deja basura en veloIntensidad — cae a la canónica', () => {
+  assert.deepEqual(camposDeVeloCombo('nada'), { veloVisible: false, veloIntensidad: 'media' });
+});
+
+test('camposDeVeloCombo: basura cae a "fuerte" (la canónica, con el velo encendido) — preferir la canónica a adivinar', () => {
+  assert.deepEqual(camposDeVeloCombo('inventado'), { veloVisible: true, veloIntensidad: 'media' });
 });
 
 test('hero: sin fila, `imagenTipo` resuelve a la canónica "imagen" e `imagenPoster` a "" (byte-idéntico)', () => {

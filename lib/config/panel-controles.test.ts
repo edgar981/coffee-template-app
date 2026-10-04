@@ -335,6 +335,21 @@ test('calibración: hero.veloVisible está controlado, sin exención nueva', () 
   assert.ok(!huecos.includes('hero.veloVisible'));
 });
 
+// § EDITOR-TIENDA-ZONAS-1: `hero.alto` (SEXTO escalar de `REGISTRY.hero.escalares`) gana su control
+// DE ENTRADA — un `CampoTexto` más en `HERO.campos` (`name:'alto'`), aunque `TiendaSeccionEditor.tsx`
+// lo renderice en su propio bloque de zonas en vez del flujo genérico de campos: el chequeo deriva
+// de la DECLARACIÓN (`config.campos`), no de qué JSX la consume. `veloCombo` NO entra a este chequeo
+// —no es un campo real de `REGISTRY`, es presentación que decompone en `veloVisible`+`veloIntensidad`,
+// ambos YA controlados por su propia entrada—, así que no hace falta una calibración para él.
+test('calibración: hero.alto está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('hero.alto'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('hero.alto'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('hero.alto'));
+});
+
 // § HERO-FRASE-AL-PIE-Y-PREVIEW-1: `hero.fraseAlPie` estaba declarado en `REGISTRY.hero.campos`
 // (§ TEMAS-HERO-MEDIA-AGREGADOS-1) pero ausente de `HERO.campos` — un hueco MEDIDO, no un hallazgo
 // tardío de este slice (§ el docstring de `PENDIENTE_PANEL`, arriba). Este slice le da control

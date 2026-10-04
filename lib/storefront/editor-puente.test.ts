@@ -21,6 +21,7 @@ import {
   esMensajeSesionVencida,
   datosDeOrden,
   datosDeTema,
+  mensajesDeZonaHero,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -374,4 +375,33 @@ test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el 
   assert.deepEqual((resultado.testimonials as unknown as { items: unknown[] }).items, [
     { name: 'Ana', text: 'Excelente café', stars: 5, city: '', product: '' },
   ]);
+});
+
+// ─── LAS ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, `mensajesDeZonaHero`) ────────────────────────
+
+test('mensajesDeZonaHero: un solo par produce UN mensaje, siempre para la sección "hero"', () => {
+  const mensajes = mensajesDeZonaHero('titularVisible', 'true', null, null);
+  assert.deepEqual(mensajes, [
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'titularVisible', valor: 'true' },
+  ]);
+});
+
+test('mensajesDeZonaHero: el segundo par (opcional) agrega un SEGUNDO mensaje — el caso del velo combinado', () => {
+  const mensajes = mensajesDeZonaHero('veloVisible', 'true', 'veloIntensidad', 'suave');
+  assert.deepEqual(mensajes, [
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'veloVisible', valor: 'true' },
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'veloIntensidad', valor: 'suave' },
+  ]);
+});
+
+test('mensajesDeZonaHero: sin el campo principal (o sin su valor), no manda NADA — un nodo mal marcado no es un mensaje a medias', () => {
+  assert.deepEqual(mensajesDeZonaHero(null, 'true', null, null), []);
+  assert.deepEqual(mensajesDeZonaHero('alto', null, null, null), []);
+});
+
+test('mensajesDeZonaHero: el segundo par A MEDIAS (sólo el campo, o sólo el valor) se ignora en silencio — nunca un mensaje con `campo: null`', () => {
+  const soloCampo2 = mensajesDeZonaHero('alto', 'pantalla', 'alturaLlena', null);
+  assert.deepEqual(soloCampo2, [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'alto', valor: 'pantalla' }]);
+  const soloValor2 = mensajesDeZonaHero('alto', 'pantalla', null, 'true');
+  assert.deepEqual(soloValor2, [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'alto', valor: 'pantalla' }]);
 });

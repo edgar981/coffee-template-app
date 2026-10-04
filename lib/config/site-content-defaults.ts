@@ -113,6 +113,18 @@ export interface HeroContent {
   // switch en `HERO.booleanos` (`components/admin/tienda-secciones.ts`) con el mismo valor como punto
   // de partida. Antes, sólo `mergePresetEnContent` los escribía.
   alturaLlena: boolean;
+  // `alto` (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4/§ 8) — el VALOR INTERMEDIO
+  // que `alturaLlena` no podía expresar por ser booleano. ESCALAR de sección CLAMPADO (MISMO
+  // mecanismo que `veloIntensidad`/`puntoFocal`, `REGISTRY.hero.escalares.alto`), canónica `'justo'`.
+  //
+  // SIN MIGRACIÓN: `alturaLlena` NO se retira ni se deja de leer — `claseAlturaHero` (abajo) sigue
+  // cayendo en ÉL cuando `alto` está en su canónica (ausente, o elegida explícitamente como
+  // "Justo" ANTES de que el dueño toque el control nuevo). El panel nuevo escribe SIEMPRE los DOS
+  // campos en conjunto (`alto` + `alturaLlena:(alto==='pantalla')`, § tienda-secciones.ts) desde el
+  // primer uso del selector de tres vías, así que la ambigüedad "¿'justo' es el default o una
+  // elección?" sólo puede sobrevivir en contenido que el panel nuevo TODAVÍA no tocó — exactamente
+  // el caso que el fallback existe para cubrir. Ausente/inválido → `'justo'`, byte-idéntico.
+  alto: AlturaHero;
   // `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) — UN SEXTO booleano, mismo mecanismo que los
   // cinco de arriba. SÓLO lo lee `HeroMediaMarquesina.tsx` (la variante `'sticky'`, ver el docstring
   // de `HeroContent.variante`): controla si el overlay `bg-[var(--sf-velo)]` se monta sobre la media
@@ -227,6 +239,78 @@ export type VeloIntensidad = (typeof VELO_INTENSIDADES)[number];
 
 export const TICKER_VELOCIDADES = ['media', 'lenta'] as const;
 export type TickerVelocidad = (typeof TICKER_VELOCIDADES)[number];
+
+// EL ALTO DEL HERO — TRES PASOS (§ EDITOR-TIENDA-ZONAS-1, ver el docstring de `HeroContent.alto`
+// arriba). `alturaLlena` sólo podía decir SÍ/NO; "Alto" es el escalón que falta ENTRE los dos
+// extremos de hoy. MISMA forma que `VELO_INTENSIDADES`: tupla `as const` + tipo derivado.
+export const ALTURAS_HERO = ['justo', 'alto', 'pantalla'] as const;
+export type AlturaHero = (typeof ALTURAS_HERO)[number];
+
+/**
+ * La clase Tailwind de `min-h-*` para cada paso de `alto`. Las DOS puntas son LITERALES las clases
+ * de hoy (`min-h-[92vh]`/`min-h-[100svh]`, § `HeroContent.alturaLlena`); el intermedio usa `96svh`
+ * —`svh` (small viewport height, ESTÁTICA), NUNCA `vh`/`dvh`, por la MISMA razón que ya fijó
+ * `alturaLlena`: no corta el fondo cuando la barra del navegador móvil está visible (`vh`) ni salta
+ * al togglear la barra (`dvh`). El NÚMERO (96, a medio camino entre el 92 de "Justo" y el 100 de
+ * "Pantalla completa") es la MAGNITUD con la que "Alto" deja asomar un resto VISIBLE pero chico
+ * (4% del viewport) de la banda siguiente — ni el 8% de "Justo" ni el 0% de "Pantalla completa". Es
+ * la MISMA unidad en escritorio y en teléfono a propósito: en escritorio no hay barra de navegador
+ * que aparezca/desaparezca, así que `svh`/`vh`/`dvh` coinciden ahí — usar `svh` en los dos no cuesta
+ * nada en escritorio y evita el defecto conocido de `vh` en móvil, sin necesitar una rama por
+ * dispositivo.
+ */
+export const CLASES_ALTURA_HERO: Record<AlturaHero, string> = {
+  justo: 'min-h-[92vh]',
+  alto: 'min-h-[96svh]',
+  pantalla: 'min-h-[100svh]',
+};
+
+/**
+ * La clase de alto para una composición del hero, dados `alto` (el escalar de tres pasos) y
+ * `alturaLlena` (el booleano legado, § `HeroContent.alturaLlena`). `alto` EXPLÍCITO en un paso
+ * no-canónico (`'alto'`/`'pantalla'`) manda siempre. En la canónica (`'justo'` — ausente, basura, o
+ * elegida a propósito junto con `alturaLlena:false` desde el panel nuevo) cae al booleano legado,
+ * que es exactamente lo que preserva "sin migración": contenido de ANTES de este slice, con
+ * `alturaLlena:true` y sin `alto` en absoluto, sigue rindiendo `min-h-[100svh]` sin que nadie lo
+ * vuelva a tocar.
+ */
+export function claseAlturaHero(alto: string, alturaLlena: boolean): string {
+  if (alto === 'alto' || alto === 'pantalla') return CLASES_ALTURA_HERO[alto];
+  return alturaLlena ? CLASES_ALTURA_HERO.pantalla : CLASES_ALTURA_HERO.justo;
+}
+
+// EL VELO, COMO UNA SOLA PREGUNTA — «Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte
+// (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 4). Hoy son DOS campos (`veloVisible` + `veloIntensidad`,
+// § sus docstrings arriba) porque nacieron en rondas distintas; el dueño no piensa en dos preguntas
+// —"¿hay velo?" y, sólo si sí, "¿qué tan oscuro?"— piensa en UNA escala de cuatro pasos. Esto NO es
+// un campo nuevo del modelo: es la VISTA combinada de los dos que ya existen, con su propia
+// traducción en las dos direcciones — nunca una tercera fuente de verdad que pudiera divergir de
+// `veloVisible`/`veloIntensidad`.
+export const OPCIONES_VELO_COMBO = ['nada', 'suave', 'medio', 'fuerte'] as const;
+export type VeloCombo = (typeof OPCIONES_VELO_COMBO)[number];
+
+/** `veloVisible`+`veloIntensidad` → el paso combinado que el panel muestra. `veloVisible:false` es
+ *  SIEMPRE `'nada'`, cualquiera sea `veloIntensidad` (que en ese caso no tiene efecto, § su
+ *  `gatedFields`). Con el velo encendido, el orden es el MISMO de `VELO_INTENSIDADES` (claro→oscuro):
+ *  'suave'→'suave', 'intermedia'→'medio', 'media'→'fuerte' (la canónica, la más oscura). */
+export function veloComboDeCampos(veloVisible: boolean, veloIntensidad: string): VeloCombo {
+  if (!veloVisible) return 'nada';
+  if (veloIntensidad === 'suave') return 'suave';
+  if (veloIntensidad === 'intermedia') return 'medio';
+  return 'fuerte';
+}
+
+/** La dirección INVERSA: el paso combinado → los DOS campos reales que hay que escribir juntos.
+ *  `'nada'` escribe `veloIntensidad:'media'` (la canónica) aunque no tenga efecto con el velo
+ *  apagado — nunca deja basura en ese campo. Cualquier valor que no sea uno de los cuatro (basura)
+ *  cae a `'fuerte'`, la canónica de `VELO_INTENSIDADES` ('media'), por el mismo criterio que el
+ *  resolver: preferir la canónica a adivinar. */
+export function camposDeVeloCombo(combo: string): { veloVisible: boolean; veloIntensidad: VeloIntensidad } {
+  if (combo === 'nada') return { veloVisible: false, veloIntensidad: 'media' };
+  if (combo === 'suave') return { veloVisible: true, veloIntensidad: 'suave' };
+  if (combo === 'medio') return { veloVisible: true, veloIntensidad: 'intermedia' };
+  return { veloVisible: true, veloIntensidad: 'media' };
+}
 
 // EL SET CERRADO de transiciones de salida de la banda MARQUESINA (§ EDITOR-TIENDA-MARQUESINA-
 // TRANSICIONES-1), ver el docstring de `MarquesinaContent.transicion` más abajo para el porqué de
@@ -1771,6 +1855,9 @@ export const DEFAULTS: SiteContentData = {
     // `alturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1): default `false` = `min-h-[92vh]` de HOY,
     // byte-idéntico.
     alturaLlena: false,
+    // `alto` (§ EDITOR-TIENDA-ZONAS-1): la canónica `'justo'` — byte-idéntica, cae a `alturaLlena`
+    // vía `claseAlturaHero`.
+    alto: 'justo',
     // `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1): default `true` = el velo de HeroMediaMarquesina
     // SIEMPRE montado, byte-idéntico al comportamiento de hoy.
     veloVisible: true,
@@ -2397,6 +2484,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       puntoFocal: { claves: PUNTOS_FOCALES, canonica: 'centro' },
       veloIntensidad: { claves: VELO_INTENSIDADES, canonica: 'media' },
       tickerVelocidad: { claves: TICKER_VELOCIDADES, canonica: 'media' },
+      // `alto` (§ EDITOR-TIENDA-ZONAS-1, ver el docstring de `HeroContent.alto`): el SEXTO escalar,
+      // mismo mecanismo. La canónica `'justo'` es la que deja que `claseAlturaHero` caiga en
+      // `alturaLlena` — el fallback vive en el COMPONENTE, no acá (una sección no puede leer OTRO
+      // campo de sí misma dentro de este loop genérico sin un `if` hardcodeado por sección, § el
+      // docstring de `escalares` arriba).
+      alto: { claves: ALTURAS_HERO, canonica: 'justo' },
     },
     // BOOLEANOS (§ TEMAS-HERO-MEDIA-AGREGADOS-1, ampliado en § CORTE-HERO-TITULAR-OCULTABLE-1,
     // § CORTE-HERO-VIEWPORT-LLENO-1 y § CORTE-HERO-VELO-OFF-Y-TICKER-1): los SEIS agregados de

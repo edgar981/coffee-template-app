@@ -227,6 +227,50 @@ export function esMensajeCampoImagenClick(data: unknown): data is MensajeCampoIm
   );
 }
 
+// ─── LAS ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4) ──────────
+//
+// NO es un mensaje nuevo — REUTILIZA `TIPO_MENSAJE_CAMPO_CAMBIO` (arriba): "+ Titular"/"Quitar"/los
+// botones de Alto y de Velo son, los cuatro, la MISMA operación que ya existe ("escribir un campo
+// de la sección que el clic marcó"), disparada por un CLIC en un botón en vez de por una TECLA en
+// el campo flotante. Lo único nuevo es DE DÓNDE sale el mensaje: en vez de leer `nodo.textContent`
+// tras cada tecla (§ `abrirCampo`, `EditorPuenteVivo.tsx`), lee DOS atributos fijos del nodo
+// clickeado — el campo y el valor a escribir, declarados por el HERO en el JSX, nunca calculados—.
+//
+// `ATRIBUTO_EDITOR_ZONA_CAMPO`/`_VALOR` viven ACÁ y no junto a `ATRIBUTO_EDITOR_CAMPO` en
+// `lib/admin/editor-iframe.ts` por la MISMA razón que ya fijó `ATRIBUTO_EDITOR_CAMPO_IMAGEN`
+// (`lib/storefront/campo-editable.ts`, § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1): ese archivo no
+// está en `touches:` de este slice. Comparten la convención de nombre (`data-editor-*`), no el
+// módulo.
+//
+// UN SEGUNDO PAR OPCIONAL (`_CAMPO2`/`_VALOR2`) cubre el VELO: «Oscurecer para leer mejor» escribe
+// DOS campos reales a la vez (`veloVisible`+`veloIntensidad`, § `camposDeVeloCombo`,
+// site-content-defaults.ts) — un solo botón, dos mensajes en secuencia, nunca un mensaje compuesto
+// nuevo (el panel ya sabe aplicar `TIPO_MENSAJE_CAMPO_CAMBIO` uno por uno; inventar una forma de
+// mensaje "con dos campos" sería una SEGUNDA manera de decir lo mismo).
+export const ATRIBUTO_EDITOR_ZONA_CAMPO = 'data-editor-zona-campo';
+export const ATRIBUTO_EDITOR_ZONA_VALOR = 'data-editor-zona-valor';
+export const ATRIBUTO_EDITOR_ZONA_CAMPO2 = 'data-editor-zona-campo2';
+export const ATRIBUTO_EDITOR_ZONA_VALOR2 = 'data-editor-zona-valor2';
+
+/**
+ * De los CUATRO atributos ya leídos (`null` si el nodo no los trae), los mensajes
+ * `TIPO_MENSAJE_CAMPO_CAMBIO` a postear — SIEMPRE para la sección `'hero'` (hoy la única que declara
+ * zonas; § REDISENO.md § 4, "el hero por zonas"). Pura: no lee el DOM, sólo valida/arma la forma —
+ * `EditorPuenteVivo.tsx` hace el `getAttribute` y le pasa los cuatro strings-o-null acá.
+ *
+ * Devuelve `[]` si el primer par (campo/valor) no es válido — un nodo marcado sin su campo principal
+ * es una declaración rota, no hay nada que mandar; el segundo par es estrictamente OPCIONAL (sólo el
+ * velo lo usa) y se ignora en silencio si falta la mitad.
+ */
+export function mensajesDeZonaHero(
+  campo: string | null, valor: string | null, campo2: string | null, valor2: string | null,
+): MensajeCampoCambio[] {
+  if (!campo || valor === null) return [];
+  const out: MensajeCampoCambio[] = [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo, valor }];
+  if (campo2 && valor2 !== null) out.push({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: campo2, valor: valor2 });
+  return out;
+}
+
 // ─── EL QUINTO MENSAJE (§ EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1) ───────────────────────────────
 //
 // panel→iframe: "el autoguardado de ESTA sección acaba de fallar/volver a funcionar por 401"

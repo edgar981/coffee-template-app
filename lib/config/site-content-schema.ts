@@ -51,6 +51,11 @@ const heroEditableSchema = z.object({
   // UN TOGGLE MÁS (§ CORTE-HERO-VIEWPORT-LLENO-1), mismo mecanismo: sin declararlo, zod lo
   // STRIPPEARÍA al guardar (§ #65-B).
   alturaLlena: z.boolean().optional(),
+  // `alto` (§ EDITOR-TIENDA-ZONAS-1, ver el docstring de `HeroContent.alto` en site-content-
+  // defaults.ts). `z.string()` — MISMO motivo que `veloIntensidad`/`puntoFocal`: el resolver SOFT
+  // (`REGISTRY.hero.escalares.alto`) ya clampa a la canónica `'justo'`; sin declararlo, zod lo
+  // STRIPPEARÍA al guardar (§ #65-B).
+  alto: z.string().optional(),
   // UN SEXTO TOGGLE (§ CORTE-HERO-VELO-OFF-Y-TICKER-1), mismo mecanismo: sin declararlo, zod lo
   // STRIPPEARÍA al guardar (§ #65-B).
   veloVisible: z.boolean().optional(),

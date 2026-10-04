@@ -11,8 +11,9 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable from "@/components/storefront/CampoEditable";
-import { HERO_HREFS, objectPositionDePuntoFocal } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, objectPositionDePuntoFocal, claseAlturaHero } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
@@ -113,9 +114,49 @@ import { contenedorAnchoClase } from "@/lib/config/themes";
 // declara el campo, queda BYTE-IDÉNTICA. El resto del Backlog #58 (encuadre de TODA imagen subida,
 // con un selector visual de arrastre) sigue sin construirse — es un ALCANCE mayor, fuera de este
 // slice.
+//
+// LAS ZONAS (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4): esta variante es la
+// ÚNICA, de las cuatro, cuyos `titularVisible`/`subtituloVisible`/`ctasVisibles`/`cueDesliza`/
+// `alturaLlena` SIEMPRE tuvieron efecto (§ el docstring de cada campo, site-content-defaults.ts) —
+// curtina/ficha los ignoran por completo; sticky no rinde titular/subtítulo/botones EN NINGÚN caso
+// (medido: grep de `hero.titulo`/`hero.subtitulo`/`hero.ctaPrimarioLabel` en
+// `HeroMediaMarquesina.tsx` da CERO). Por eso el ciclo completo "+ zona / Quitar" (§ el spec, "una
+// vacía ofrece «+ Titular»…") se construye ACÁ. `ZonaChip` es presentación PURA, LOCAL a este
+// archivo —no se exporta: el mismo patrón ya aceptado en este repo de duplicar una pieza chica
+// entre las 4 variantes del hero (§ el efecto del video, idéntico en los 4 archivos) en vez de
+// crear un módulo nuevo fuera de `touches:`—. SÓLO EN MODO EDITOR (`useModoEditorActivo()`): fuera
+// de él, `null` — cero bytes, cero nodos nuevos, byte-idéntico al hero de siempre.
+function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-editor-zona-campo={onClic.campo}
+      data-editor-zona-valor={onClic.valor}
+      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
+      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
+        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
+        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
+        cursor: 'pointer', position: 'relative', zIndex: 20,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function HeroMedia({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, paginas, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  // LAS ZONAS (§ EDITOR-TIENDA-ZONAS-1) — `useModoEditorActivo()`, NO `useIsPreview()`: los
+  // marcadores de hoy (`data-editor-seccion`/`data-editor-campo`) usan ese hook, no éste —
+  // `useIsPreview` es el mecanismo VIEJO de la vista en vivo retirada (§ EDITOR-TIENDA-POSTMESSAGE-1,
+  // comentario de EditorPuenteVivo.tsx: "distinto de useIsPreview(), el mecanismo VIEJO… sin
+  // relación con el modo-borrador-por-request de este iframe"). El spec de este slice nombra
+  // `useIsPreview()` para "igual que los marcadores de hoy" — es una DESVIACIÓN medida: el texto
+  // literal del spec no coincide con el mecanismo real que los marcadores de hoy usan.
+  const activoEditor = useModoEditorActivo();
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1) — MEDIDO EXACTAMENTE ACÁ: la clase de hoy del h1
   // (`text-4xl sm:text-5xl lg:text-6xl` = 2.25rem/3rem/3.75rem) es la que la doctrina de este slice
   // cita como "el hero". CORTE (`hero: 'media'`) es el ÚNICO preset del catálogo que usa esta
@@ -192,15 +233,11 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
     return () => mq.removeEventListener('change', alCambiar);
   }, [hayVideoMovil, reproducir]);
 
-  // ALTURA LLENA (§ CORTE-HERO-VIEWPORT-LLENO-1, OPCIONAL, default `false`). `min-h-[92vh]` de HOY
-  // SIEMPRE deja un resto visible de la banda siguiente (la marquesina asomando debajo), sea cual sea
-  // el viewport — no es un caso borde, es la forma del valor. `100svh` (small viewport height,
-  // ESTÁTICA) es la unidad que llena el viewport COMPLETO en móvil SIN saltar: a diferencia de `100vh`
-  // (la altura CON la barra de navegación OCULTA — recorta el fondo cuando la barra está visible, la
-  // causa exacta del "cortado") y de `100dvh` (dinámica — REDIMENSIONA, y por tanto salta, al
-  // aparecer/desaparecer la barra), `100svh` mide siempre contra el viewport más chico posible: llena
-  // sin cortar y sin saltar. AUSENTE/`false` → byte-idéntico a HOY.
-  const alturaClase = hero.alturaLlena ? 'min-h-[100svh]' : 'min-h-[92vh]';
+  // ALTURA (§ CORTE-HERO-VIEWPORT-LLENO-1, ampliado por § EDITOR-TIENDA-ZONAS-1 — ver el docstring
+  // de `claseAlturaHero`/`HeroContent.alto`, site-content-defaults.ts, para el tercer paso y el
+  // porqué de `svh` en vez de `vh`/`dvh`). `alto` manda cuando es explícito (`'alto'`/`'pantalla'`);
+  // en su canónica cae a `alturaLlena` — AUSENTE los dos → byte-idéntico a HOY (`min-h-[92vh]`).
+  const alturaClase = claseAlturaHero(hero.alto, hero.alturaLlena);
 
   return (
     <section className={`relative flex ${alturaClase} items-end overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`} style={style}>
@@ -289,6 +326,21 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-velo)] pointer-events-none" />
       </div>
 
+      {/* ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1): tres chips, uno por paso. Cada uno
+          escribe `hero.alto` Y `hero.alturaLlena` juntos (§ `claseAlturaHero`) para que el control
+          del canvas y el select del panel nunca queden en valores inconsistentes. Esquina superior
+          izquierda, lejos del texto (que vive al pie, § `items-end` de la sección). */}
+      {/* `top-24`, no `top-3` — el `<header>` fijo (z-50, StoreNav.tsx) cubre el borde superior
+          del hero; medido por ejecución, con `top-3` el clic no llegaba al chip. */}
+      {activoEditor && (
+        <div className="absolute top-24 left-3 z-20 flex flex-wrap">
+          <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Alto</span>
+          <ZonaChip onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</ZonaChip>
+          <ZonaChip onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</ZonaChip>
+          <ZonaChip onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</ZonaChip>
+        </div>
+      )}
+
       <div className={`relative z-10 mx-auto w-full ${contenedorClase} pb-12 sm:pb-16 lg:pb-20`}>
         <motion.div
           // Mismo switch que curtina/ficha: en preview, asentado desde el primer render, sin
@@ -311,62 +363,79 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
 
           {/* TITULAR OCULTABLE (§ CORTE-HERO-TITULAR-OCULTABLE-1, espejo de `ctasVisibles`). Default
               `true` = el titular de HOY, byte-idéntico. `titulo`+`tituloEnfasis` son UN bloque —
-              el énfasis nunca rinde solo. */}
-          {hero.titularVisible && (
-            <motion.h1
-              variants={fadeUp}
-              className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
-              style={displayXl ? { fontSize: displayXl } : undefined}
-            >
-              <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
-              {hero.tituloEnfasis && (
-                <>
-                  <br />
-                  <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">
-                    <CampoEditable campo="hero.tituloEnfasis">{hero.tituloEnfasis}</CampoEditable>
-                  </em>
-                </>
-              )}
-            </motion.h1>
+              el énfasis nunca rinde solo.
+              LA ZONA (§ EDITOR-TIENDA-ZONAS-1): vacía ofrece "+ Titular" en su lugar; llena se quita
+              con el chip "Quitar Titular" al pie del bloque — los DOS sólo en modo editor. */}
+          {hero.titularVisible ? (
+            <>
+              <motion.h1
+                variants={fadeUp}
+                className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
+                style={displayXl ? { fontSize: displayXl } : undefined}
+              >
+                <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
+                {hero.tituloEnfasis && (
+                  <>
+                    <br />
+                    <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">
+                      <CampoEditable campo="hero.tituloEnfasis">{hero.tituloEnfasis}</CampoEditable>
+                    </em>
+                  </>
+                )}
+              </motion.h1>
+              {activoEditor && <ZonaChip onClic={{ campo: 'titularVisible', valor: 'false' }}>Quitar Titular</ZonaChip>}
+            </>
+          ) : activoEditor && (
+            <ZonaChip onClic={{ campo: 'titularVisible', valor: 'true' }}>+ Titular</ZonaChip>
           )}
 
           {/* SUBTÍTULO OCULTABLE (§ CORTE-HERO-TITULAR-OCULTABLE-1, espejo de `ctasVisibles`, apagador
               PROPIO — independiente de `titularVisible`). Default `true` = el subtítulo de HOY. */}
-          {hero.subtituloVisible && (
-            <motion.p
-              variants={fadeUp}
-              className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
-            >
-              <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
-            </motion.p>
+          {hero.subtituloVisible ? (
+            <>
+              <motion.p
+                variants={fadeUp}
+                className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+              >
+                <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
+              </motion.p>
+              {activoEditor && <ZonaChip onClic={{ campo: 'subtituloVisible', valor: 'false' }}>Quitar Subtítulo</ZonaChip>}
+            </>
+          ) : activoEditor && (
+            <ZonaChip onClic={{ campo: 'subtituloVisible', valor: 'true' }}>+ Subtítulo</ZonaChip>
           )}
 
           {/* CTAs OCULTABLES (§ TEMAS-HERO-MEDIA-AGREGADOS-1, agregado a). Default `true` = los dos
               botones de HOY, byte-idéntico. El prototipo no lleva botones en el hero; acá se apagan
               LOS DOS JUNTOS (no uno sí y otro no) — el mismo bloque, no dos flags. */}
-          {hero.ctasVisibles && (
-            <motion.div
-              variants={fadeUp}
-              className="flex flex-wrap gap-4"
-            >
-              <Link
-                href={HERO_HREFS.primario}
-                className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
+          {hero.ctasVisibles ? (
+            <>
+              <motion.div
+                variants={fadeUp}
+                className="flex flex-wrap gap-4"
               >
-                <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
-
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-
-              {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
                 <Link
-                  href={HERO_HREFS.secundario}
-                  className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                  href={HERO_HREFS.primario}
+                  className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
                 >
-                  <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
+                  <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
+
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
-              )}
-            </motion.div>
+
+                {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
+                  <Link
+                    href={HERO_HREFS.secundario}
+                    className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                  >
+                    <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
+                  </Link>
+                )}
+              </motion.div>
+              {activoEditor && <ZonaChip onClic={{ campo: 'ctasVisibles', valor: 'false' }}>Quitar Botones</ZonaChip>}
+            </>
+          ) : activoEditor && (
+            <ZonaChip onClic={{ campo: 'ctasVisibles', valor: 'true' }}>+ Botones</ZonaChip>
           )}
         </motion.div>
 
@@ -408,6 +477,18 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             />
           </div>
           <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
+        </div>
+      )}
+      {/* LA ZONA «INDICADOR» (§ EDITOR-TIENDA-ZONAS-1): el cue no tiene geometría propia fuera del
+          `!preview`/`cueDesliza`, así que su chip vive a la DERECHA, abajo, lejos del de "Desliza"
+          (que sale a la izquierda) para no superponerse cuando los dos están activos. */}
+      {activoEditor && (
+        <div className="absolute right-4 bottom-8 z-20 sm:right-6 lg:right-8">
+          {hero.cueDesliza ? (
+            <ZonaChip onClic={{ campo: 'cueDesliza', valor: 'false' }}>Quitar Indicador</ZonaChip>
+          ) : (
+            <ZonaChip onClic={{ campo: 'cueDesliza', valor: 'true' }}>+ Indicador</ZonaChip>
+          )}
         </div>
       )}
     </section>

@@ -11,10 +11,33 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable from "@/components/storefront/CampoEditable";
-import { HERO_HREFS } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, claseAlturaHero } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+
+// LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1) — ver el docstring equivalente en
+// `HeroCurtina.tsx`: misma pieza LOCAL duplicada, mismo argumento de riesgo bajo/aditivo.
+function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-editor-zona-campo={onClic.campo}
+      data-editor-zona-valor={onClic.valor}
+      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
+      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
+        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
+        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
+        cursor: 'pointer', position: 'relative', zIndex: 20,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 // LA VARIANTE "FICHA" (§ eje 5, EJE-5-VARIANTES-HERO): deja de ser una cortina fotográfica y pasa a
 // ser una FICHA PARTIDA — tipografía en TINTA sobre CREMA, foto a sangre a la derecha SIN degradado
@@ -37,6 +60,10 @@ import { fontSizeDisplay } from "@/lib/config/escala-display";
 export default function HeroFicha({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, paginas, tema } = useSiteContent();
   const preview = useIsPreview();
+  const activoEditor = useModoEditorActivo();
+  // EL ALTO (§ EDITOR-TIENDA-ZONAS-1) — mismo criterio que HeroCurtina.tsx: ADITIVO, byte-idéntico
+  // en la canónica.
+  const alturaClase = claseAlturaHero(hero.alto, false);
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h1, que sigue rindiendo exactamente `text-4xl sm:text-5xl lg:text-6xl` (2.25rem/3rem/
   // 3.75rem, medido) — byte-idéntico. Ver HeroCurtina.tsx para el razonamiento completo.
@@ -74,11 +101,24 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
 
   return (
     <section
-      className="relative flex min-h-[92vh] flex-col overflow-hidden bg-[var(--sf-banda,var(--sf-fondo))] lg:flex-row-reverse"
+      className={`relative flex ${alturaClase} flex-col overflow-hidden bg-[var(--sf-banda,var(--sf-fondo))] lg:flex-row-reverse`}
       style={style}
     >
       {/* Foto a sangre, SIN degradado encima — banda superior en móvil, mitad derecha en desktop. */}
       <div className="relative h-[42vh] w-full shrink-0 lg:h-auto lg:w-1/2">
+        {/* LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1): § el docstring de cabecera.
+            `top-24`, no `top-3` — el `<header>` del storefront es `fixed … z-50` sobre TODO el
+            viewport (StoreNav.tsx), así que un chip cerca del borde superior queda TAPADO: el
+            clic real (hit-test del navegador, no la caja que Playwright apunta) cae en el nav,
+            no en el chip. Medido por ejecución: con `top-3` el clic no producía ningún mensaje. */}
+        {activoEditor && (
+          <div className="absolute top-24 left-3 z-20 flex flex-wrap">
+            <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Alto</span>
+            <ZonaChip onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</ZonaChip>
+            <ZonaChip onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</ZonaChip>
+            <ZonaChip onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</ZonaChip>
+          </div>
+        )}
         {esVideo ? (
           <CampoEditable campo="hero.imagen" tipo="imagen">
             <video

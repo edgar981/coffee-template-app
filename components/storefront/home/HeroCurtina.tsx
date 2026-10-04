@@ -11,10 +11,37 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable from "@/components/storefront/CampoEditable";
-import { HERO_HREFS } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, claseAlturaHero } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+
+// LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4/§ 8). La
+// curtina/ficha nunca leyeron `alturaLlena` (§ el docstring de `HeroContent.alturaLlena`,
+// site-content-defaults.ts: "SÓLO HeroMedia lo lee") — ESTA variante GANA el control por primera
+// vez acá, ADITIVO y de riesgo bajo: `claseAlturaHero('justo', false)` sin tocar (la canónica) sigue
+// dando `min-h-[92vh]`, byte-idéntico al de siempre. Pieza LOCAL duplicada entre las 4 variantes
+// (mismo criterio ya aceptado en este repo, § el efecto de video de cada hero).
+function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-editor-zona-campo={onClic.campo}
+      data-editor-zona-valor={onClic.valor}
+      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
+      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
+        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
+        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
+        cursor: 'pointer', position: 'relative', zIndex: 20,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -34,6 +61,10 @@ const fadeUp = {
 export default function HeroCurtina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, paginas, tema, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  const activoEditor = useModoEditorActivo();
+  // EL ALTO (§ EDITOR-TIENDA-ZONAS-1): `hero.alto` ausente (`'justo'`) con `alturaLlena:false`
+  // (nunca leído por esta variante) → `min-h-[92vh]`, el de SIEMPRE.
+  const alturaClase = claseAlturaHero(hero.alto, false);
   // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1): `undefined` sin escala declarada → NO se toca el
   // `style` del h1, que sigue rindiendo exactamente `text-5xl sm:text-6xl lg:text-7xl` (3rem/3.75rem/
   // 4.5rem, medido) — byte-idéntico. Con `tema.escalaDisplay` declarado (hoy sólo CORTE), pisa esas
@@ -101,7 +132,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
   }, [reproducir]);
 
   return (
-    <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
+    <section className={`relative flex ${alturaClase} items-center overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`} style={style}>
       <div className="absolute inset-0">
         {esVideo ? (
           // VIDEO DE FONDO — autoplay simple, SIN scroll-scrub (esa es otra capacidad, con su propio
@@ -153,6 +184,20 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
             dejarlo pasar el clic no cambia nada para un visitante real. */}
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80 pointer-events-none" />
       </div>
+
+      {/* LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1): § el docstring de cabecera.
+          `top-24`, no `top-3` — el `<header>` del storefront es `fixed … z-50` sobre TODO el
+          viewport (StoreNav.tsx), así que un chip cerca del borde superior queda TAPADO: el
+          clic real (hit-test del navegador) cae en el nav, no en el chip. Medido por ejecución:
+          con `top-3` el clic no producía ningún mensaje. */}
+      {activoEditor && (
+        <div className="absolute top-24 left-3 z-20 flex flex-wrap">
+          <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Alto</span>
+          <ZonaChip onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</ZonaChip>
+          <ZonaChip onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</ZonaChip>
+          <ZonaChip onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</ZonaChip>
+        </div>
+      )}
 
       <div className={`relative z-10 mx-auto w-full ${contenedorClase}`}>
         <motion.div

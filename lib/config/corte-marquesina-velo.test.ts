@@ -161,3 +161,12 @@ test('?tema=CORTE: la marquesina suelta queda APAGADA (su velo/texto ya viven en
   const htmlHeroSticky = renderHeroMediaMarquesina(conCorte);
   assert.match(htmlHeroSticky, /--sf-velo/, 'con veloVisible de vuelta en true, el token del velo vuelve a aparecer bajo CORTE');
 });
+
+// ─── LAS ZONAS SON SÓLO DE MODO EDITOR (§ EDITOR-TIENDA-ZONAS-1) — sin provider, cero marcadores ──
+
+test('SIN modo editor, HeroMediaMarquesina no emite ningún `data-editor-zona-campo` — byte-idéntico', () => {
+  const nayoli = resolverSiteContent({});
+  const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
+  const html = renderHeroMediaMarquesina(conCorte);
+  assert.doesNotMatch(html, /data-editor-zona-campo/);
+});

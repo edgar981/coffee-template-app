@@ -49767,3 +49767,246 @@ verificaciones, 5 capturas inspeccionadas visualmente. Commiteado en
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-SHELL-1`.**
+
+## 2026-10-03 — El hero por zonas: «+ Titular»/«Quitar» en su lugar, el alto de tres pasos, el velo como una sola pregunta (`EDITOR-TIENDA-ZONAS-1`)
+
+Slice 5 de `docs/editor-tienda/REDISENO.md` § 9. Tier 1 (toca `components/storefront/`,
+`lib/config/site-content-schema.ts`, `lib/config/site-content-defaults.ts`), `writes: yes`,
+aprobado sobre el documento y el prototipo (`EDITOR-TIENDA-REDISENO-PROPUESTA-1`, "el nuevo diseño
+está rozando la perfección") — **con el TERCER valor de alto aprobado explícitamente** (§
+`approval-reason` del spec). La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar) |
+| HEAD al arrancar | `729600ec8c842c2eb3cb83cc6f498fad3cdc5af6` (el commit de `EDITOR-TIENDA-SHELL-1`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf`, IDÉNTICO a `origin/main` (0 adelante/0 atrás) |
+| rama adelante de `origin/main` | 321 commits (`git rev-list --count origin/main..HEAD`) |
+
+### El mecanismo, de punta a punta
+
+Cada variante del hero (`HeroCurtina`/`HeroFicha`/`HeroMedia`/`HeroMediaMarquesina`) marca sus
+zonas con dos atributos nuevos, `data-editor-zona-campo`/`-valor` (y un segundo par opcional
+`-campo2`/`-valor2`, para una escritura COMPUESTA — el velo combinado escribe `veloVisible`+
+`veloIntensidad` a la vez) — reusando el canal `TIPO_MENSAJE_CAMPO_CAMBIO` que ya existía para el
+campo flotante, nunca un mensaje nuevo. `EditorPuenteVivo.tsx` revisa ese marcador ANTES que
+campo-imagen/campo en su interceptor de clic (`lib/storefront/editor-puente.ts`,
+`mensajesDeZonaHero`, pura) y postea el/los mensaje(s) directo — sin abrir ningún overlay.
+
+- **"+ Titular"/"Quitar Subtítulo"/"+ Botones"/"+ Indicador"** — construidos ÚNICAMENTE en
+  `HeroMedia.tsx`: es la ÚNICA de las cuatro variantes donde `titularVisible`/`subtituloVisible`/
+  `ctasVisibles` tienen efecto real (medido, § docstrings de `HeroContent` en
+  `site-content-defaults.ts`: "SÓLO HeroMedia lo lee"). `HeroMediaMarquesina` ('sticky', la
+  composición que CORTE usa hoy) NO rinde titulo/subtitulo/cta EN NINGÚN CASO —medido por grep,
+  cero apariciones de `hero.titulo`/`hero.subtitulo`/`hero.ctaPrimarioLabel` en ese archivo—, así
+  que ahí sólo gana el zone-marker + el chip de velo + el de indicador (cue).
+- **El ALTO de TRES pasos** (`HeroContent.alto: 'justo'|'alto'|'pantalla'`, `ALTURAS_HERO`,
+  `CLASES_ALTURA_HERO`, `claseAlturaHero` — `site-content-defaults.ts`): reemplaza al interruptor
+  "Ocupar toda la pantalla" por un select de tres pasos en palabras, Y por tres chips "Justo · Alto
+  · Pantalla completa" en el canvas (HeroCurtina/HeroFicha/HeroMedia — NO en Sticky, cuya altura es
+  estructuralmente fija a `100svh` por su mecanismo de scroll-pineado, § la Desviación 1 abajo).
+  `alto: 'min-h-[96svh]'` es el paso nuevo —a medio camino entre 92vh (Justo, hoy) y 100svh
+  (Pantalla completa, hoy)—, en `svh` (no `vh`/`dvh`) por la MISMA razón que ya fijó `alturaLlena`.
+  **SIN MIGRACIÓN**: `alto` ausente/en su canónica cae a `alturaLlena` (el booleano legado) — el
+  panel y los chips del canvas escriben SIEMPRE los dos juntos desde el primer uso (`alto:'pantalla'
+  → alturaLlena:true`; los otros dos → `false`), así que la ambigüedad "¿es el default o una
+  elección?" sólo puede sobrevivir en contenido que el control nuevo TODAVÍA no tocó — exactamente
+  lo que el fallback existe para cubrir. El campo es el SEXTO escalar de `REGISTRY.hero.escalares`
+  (`claves: ALTURAS_HERO, canonica: 'justo'`), `z.string().optional()` en el schema (mismo patrón
+  que `veloIntensidad`/`puntoFocal` — el resolver SOFT clampa, el schema sólo valida el tipo).
+- **El VELO, como una sola pregunta** (`OPCIONES_VELO_COMBO`, `veloComboDeCampos`/
+  `camposDeVeloCombo` — site-content-defaults.ts): «Oscurecer para leer mejor» — Nada · Suave ·
+  Medio · Fuerte, en vez de los DOS controles viejos ("Mostrar el velo" + "Intensidad del velo").
+  NO es un campo nuevo del modelo: es la VISTA combinada de `veloVisible`+`veloIntensidad`, que
+  siguen siendo los campos reales (`REGISTRY.hero.booleanos`/`.escalares`, sin tocar) — el panel
+  (`TiendaSeccionEditor.tsx`, `renderCampo`, detectado por `campo.name==='veloCombo'`, el MISMO
+  criterio que ya usa `opcionesDinamicas:'destaquePlanes'`) decompone/compone en las dos
+  direcciones. Sólo tiene efecto con la composición "sticky" (el único archivo que lee esos dos
+  campos), así que el chip del canvas sólo vive en `HeroMediaMarquesina.tsx`.
+- **Los seis interruptores viejos DESAPARECEN DEL PANEL** (pedido textual del spec): `config.
+  booleanos.map(renderBooleano)` se reemplaza, SÓLO para `seccion==='hero'`, por
+  `renderZonasHero()` — una LISTA de filas (nombre + estado en palabras + "Agregar"/"Quitar") para
+  los CUATRO que siguen siendo capacidades independientes (titular/subtítulo/botones/indicador);
+  `alturaLlena`/`veloVisible` NO entran a esa lista —quedan representados por el select de Alto y
+  el de Velo, ya en el flujo normal de campos—. `HERO.booleanos` SIGUE declarando los SEIS nombres
+  sin tocar (bookkeeping de `panel-controles.ts`, que deriva "controlado" de esa misma lista —
+  cambiar sólo QUÉ JSX los consume no mueve ese chequeo).
+
+### UN DEFECTO MEDIDO Y CERRADO EN ESTE MISMO SLICE — el `postMessage` doble se pisaba a sí mismo
+
+Un chip que escribe DOS campos (el velo combinado, o el alto escribiendo también `alturaLlena` de
+respaldo) postea DOS mensajes `TIPO_MENSAJE_CAMPO_CAMBIO` seguidos desde el MISMO handler de clic.
+**Medido contra la base real, con un arnés de sesión completa** (abajo): el segundo mensaje
+mergeaba sobre `formRef.current` TODAVÍA VIEJO —ese ref sólo se re-sincroniza en el render
+siguiente a un `setForm`, y los dos `onMessage` (uno por mensaje) se procesaban ANTES de que React
+alcanzara a confirmar el primero— así que el `cambiar()` del segundo mensaje PISABA el resultado
+del primero. Síntoma observado: clickear "Pantalla completa" dejaba `hero.alto` en `'justo'` (el
+valor de ANTES) mientras `alturaLlena` sí quedaba en `true` — la mitad del par sobrevivía, la otra
+no. **Arreglo**: los mensajes se postean ESCALONADOS (`setTimeout` de 80ms entre el primero y el
+segundo, `EditorPuenteVivo.tsx`), dándole a React tiempo de confirmar el primer `setForm` antes de
+que llegue el segundo — se evaluó arreglar la causa de raíz (que `cambiar()` mergeara con el
+`setState` FUNCIONAL en vez de sobre un snapshot) y se descartó por tocar el merge GENÉRICO que
+usan TODOS los campos de texto de TODAS las secciones, muy por fuera del alcance de esta zona
+nueva. No es un parche cosmético: sin él, el velo combinado y el alto-con-respaldo habrían quedado
+rotos en producción desde el primer uso real.
+
+### Tres desviaciones medidas, declaradas antes de escribir el código que las resuelve
+
+**1 — el alcance real de "zona" varía por variante, y REDISENO.md § 4 lo describía distinto.** El
+spec listaba Titular/Subtítulo/Botón como zonas de "Marquesina" (la composición 'sticky'); medido
+contra el código ANTES de construir (`grep -c "hero.titulo\|hero.subtitulo\|hero.ctaPrimario"
+components/storefront/home/HeroMediaMarquesina.tsx` → 0), esa composición NUNCA rindió esos tres
+campos — son exclusivos de 'media'. Agregarlos a Sticky sería DECIDIR dónde viven dentro de una
+composición que ya tiene ticker + tarjeta flotante + velo + frase al pie, una decisión de producto
+que el spec no resuelve y que está fuera del alcance medido de este slice. Se construyó lo que el
+código HOY soporta: el ciclo completo (+/Quitar) en HeroMedia; el zone-marker + el control que SÍ
+aplica (Alto en Curtina/Ficha, Velo+Indicador en Sticky) en las otras tres.
+
+**2 — `useModoEditorActivo()`, no `useIsPreview()`.** El spec pedía "emitido SOLO bajo
+`useIsPreview()`, igual que los marcadores de hoy" — pero los marcadores de HOY
+(`data-editor-seccion`/`data-editor-campo`) usan `useModoEditorActivo()`; `useIsPreview()` es el
+mecanismo RETIRADO de la vista previa vieja (`PreviewProvider`, § su propio docstring: "Antes esto
+era el modo `?preview=1` del IFRAME... El iframe se retiró"), sin relación con el modo-editor de
+este iframe. Se siguió el mecanismo REAL que "igual que los marcadores de hoy" describe, no el
+nombre literal citado — mismo criterio que ya aplicó `EDITOR-TIENDA-CAMPO-ANCLADO-1` para una
+confusión de la misma familia.
+
+**3 — el Alto llega a Curtina y Ficha también, no sólo a Media.** `alturaLlena` NUNCA tuvo efecto
+en esas dos variantes (hardcodeaban `min-h-[92vh]`); `hero.alto` SÍ se extendió a las dos
+(`claseAlturaHero(hero.alto, false)` — el segundo parámetro fijo en `false` porque ninguna de las
+dos lee `alturaLlena`), porque "Alto" es, por el propio pedido del spec ("definí qué mide Alto…
+en escritorio y teléfono"), un control genérico de composición, no exclusivo de Media. Es
+estrictamente ADITIVO: en su canónica (`alto` ausente) el resultado es byte-idéntico al de hoy
+(`min-h-[92vh]`), afirmado en `corte-hero-viewport.test.ts`.
+
+### Verificado por ejecución — arnés de sesión real, 13/13
+
+`.scratch/arnes-zonas.ts` (no comiteado): Postgres efímero, `migrate deploy` + seed canónico,
+`next build`/`next start`, Playwright con sesión real (`admin@sierranativa.co`). TRES fases de
+contenido —cada una escrita DIRECTO a `SiteContent` vía `.scratch/escribir-hero.ts` (limpiando
+`borrador` en cada escritura: el GET del panel es draft-merged, y un borrador de una fase anterior
+le habría ganado al `content` nuevo — medido, fue la causa del primer falso-negativo de la FASE
+B)— porque `hero.variante` no tiene control de panel todavía (`PANEL-EDITOR-VARIANTES-
+COMPOSICION-1`, sigue fuera de alcance).
+
+| fase | composición | verificación | resultado |
+| --- | --- | --- | --- |
+| A | curtina (la canónica) | aparecen los 3 chips de Alto | ✔ |
+| A | curtina | arranca en `min-h-[92vh]` | ✔ |
+| A | curtina | clic "Pantalla completa" → `min-h-[100svh]` EN VIVO (round-trip completo, sin recargar) | ✔ |
+| A | curtina | clic "Justo" → vuelve a `min-h-[92vh]` | ✔ |
+| — | — | DIAGNÓSTICO (control): clic en `hero.titulo` abre el overlay flotante — confirma que el mecanismo de clic-en-iframe funciona para el caso YA probado por `EDITOR-TIENDA-CAMPO-ANCLADO-1` | ✔ |
+| B | media | el subtítulo real existe antes de tocar nada | ✔ |
+| B | media | "Quitar Subtítulo" lo retira — el nodo real (`[data-editor-campo="hero.subtitulo"]`) desaparece | ✔ |
+| B | media | en su lugar aparece "+ Subtítulo" | ✔ |
+| B | media | "+ Subtítulo" lo vuelve a agregar — el nodo real reaparece | ✔ |
+| C | sticky (la de CORTE) | con `veloVisible:false`, el velo real NO está montado | ✔ |
+| C | sticky | clic "Suave" monta el velo real | ✔ |
+| C | sticky | el indicador no está montado (`cueDesliza:false`, el default) | ✔ |
+| C | sticky | "+ Indicador" lo monta | ✔ |
+
+**13/13.** Ocho capturas en `.scratch/capturas-zonas/` (no comiteadas): `a1`/`a2` (curtina, antes/
+después de Pantalla completa), `b1`/`b2`/`b3` (media, subtítulo presente/quitado/de vuelta), `c1`/
+`c2`/`c3` (sticky, velo apagado/encendido/indicador). `b2` muestra el canvas con los CUATRO chips
+("Quitar Titular", "+ Subtítulo", "Quitar Botones", "+ Indicador") y el panel mostrando "Mostrar
+subtítulo · Agregar" en la lista de zonas — el estado se ve igual en las dos superficies.
+
+**HALLAZGO DE MÉTODO DEL ARNÉS, no del mecanismo:** la primera corrida reprodujo, EN VIVO, el
+hallazgo ya documentado por `EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1` sobre `locator.click({position})`
+dentro de un iframe con `transform:scale()` — resultó ser una pista falsa esta vez: un
+`locator.click()` PLANO (sin `force`, sin coordenadas a mano) funcionó correctamente una vez
+resueltos los DOS defectos reales de método: (a) los chips "Fondo" vivían en `top-3 left-3`, bajo
+el `<header>` `fixed … z-50` del storefront (`StoreNav.tsx`) — el clic real caía en el nav, no en
+el chip (medido, cero efecto); se movieron a `top-24`; (b) el chequeo del overlay buscaba
+`[data-editor-overlay]` en el documento de la PÁGINA del panel, pero `createPortal` lo monta en el
+`document.body` DEL IFRAME (EditorPuenteVivo corre dentro del storefront) — el chequeo daba 0
+siempre, aunque el overlay sí abriera. Los dos quedan documentados en los comentarios del código
+(`HeroCurtina.tsx` et al.) para que el próximo arnés no los repita.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3452/3452** (+22 sobre los 3430 previos a este slice: `site-content-defaults.test.ts` +12, `corte-hero-viewport.test.ts` +6, `corte-marquesina-velo.test.ts` +1, `editor-puente.test.ts` +4, `panel-controles.test.ts` +1 — reconciliado por conteo directo del runner, no por grep) |
+| `npm run test:integracion` | **328/328**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` (typecheck+test+integración, un comando) | GREEN |
+| `npx next build` | compiló sin error (la autoridad de JSX/SWC, § CLAUDE.md) |
+| `npx eslint` sobre los 15 archivos de código de `touches:` | 0 errores NUEVOS — los 12 `react-hooks/refs` de `TiendaSeccionEditor.tsx`, los 3+1 de `EditorPuenteVivo.tsx` y los 2 warnings de a11y de `HeroMedia.tsx`/`HeroMediaMarquesina.tsx` son PRE-EXISTENTES, confirmado línea por línea contra `git show HEAD:<archivo>` vía stdin (mismo texto de error, offset de línea consistente con las inserciones de este diff) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | **MISMA cifra exacta, dígito a dígito**, que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/`PIE-HECHO-POR-DUNA-1`, re-confirmado por `EDITOR-TIENDA-SHELL-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO. Corrido DOS veces —antes y después del fix del `postMessage` escalonado— con la MISMA cifra las dos veces. |
+
+### `customer_bytes`
+
+**`changed: true`, con `strings: []`.** Este diff toca `HeroCurtina.tsx`/`HeroFicha.tsx`/
+`HeroMedia.tsx`/`HeroMediaMarquesina.tsx`/`EditorPuenteVivo.tsx` (bajo `components/storefront/`) —
+los bytes compilados que se sirven a CUALQUIER visitante cambian (funciones/atributos nuevos). Pero
+TODO lo nuevo está gateado por `useModoEditorActivo()` (`false` para el 99.99% del tráfico) o es un
+campo con default byte-idéntico (`hero.alto` ausente → el `min-h-[92vh]`/`claseAlturaHero` de
+siempre); **ningún texto ni píxel visible cambia para un visitante real**, confirmado por EJECUCIÓN
+(no inferido): `npm run verificar:nayoli:visual` dio la cifra IDÉNTICA al piso ya reconciliado, y
+los tests `SIN modo editor, Hero* no emite ningún data-editor-zona-campo` (`corte-hero-viewport.
+test.ts`, `corte-marquesina-velo.test.ts`) lo afirman en memoria. Es el mismo caso que el propio
+esquema de este reporte anticipa: "cambian bytes compilados pero NINGÚN texto — un cambio de
+robustez, no de producto."
+
+### `schema`/`cross-repo-contract`
+
+`schema` NO aplica en el sentido de Tier 1 del título de la sección (sin migración, sin modelo
+Prisma) — pero SÍ hay un cambio de ESQUEMA DE CONTENIDO: `hero.alto` es un campo NUEVO en
+`heroEditableSchema` (`site-content-schema.ts`) y en `HeroContent`/`REGISTRY.hero.escalares`
+(`site-content-defaults.ts`). Es exactamente el cambio que el spec anticipaba y el owner aprobó
+("SIN CAMBIO DE ESQUEMA de base de datos... El esquema de CONTENIDO SÍ cambia (un campo opcional de
+alto): aprobado por el owner"). Sin `cross-repo-contract`: ningún DTO compartido con otro repo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió, grepeados contra `CLAUDE.md`: `HeroCurtina`/`HeroFicha`/
+`HeroMediaMarquesina`/`EditorPuenteVivo`/`TiendaSeccionEditor`/`tienda-secciones`/`site-content-
+defaults`/`site-content-schema`/`editor-puente`/`alturaLlena`/`veloVisible`/`veloIntensidad`/
+`titularVisible`/`subtituloVisible`/`ctasVisibles`/`cueDesliza` — las dos primeras (`HeroCurtina`,
+`HeroFicha`) aparecen en § Tier 1 (la lista de ejemplos de por qué `components/storefront/` entra
+ENTERO al subárbol protegido, líneas 51-52): leída la frase completa, SIGUE SIENDO VERDAD — los dos
+archivos siguen siendo variantes del hero viviendo en `components/storefront/home/`, este diff no
+cambió su rol, sólo agregó marcadores inertes (gateados) y el control de Alto. Los booleanos
+(`alturaLlena`/`veloVisible`/etc.) y los otros tres nombres de componente: **cero apariciones** —
+esos detalles viven en `DECISIONS.md`, no en `CLAUDE.md`.
+
+**UN PUNTERO YA ESTABA DESACTUALIZADO ANTES DE ESTE DIFF, y este diff lo desactualiza más.**
+`CLAUDE.md` (§ el párrafo "LA RAZÓN DE POR QUÉ TODAVÍA NO URGE ESTABA VENCIDA") cita
+`` `lib/config/site-content-defaults.ts:411` `` como la línea de `hero.titulo = "Productos que
+cuentan"`. Medido: a `HEAD` (antes de este slice) esa línea YA estaba en 1745, no 411 — la cita
+estaba vencida por trabajo de OTRAS tandas, no por ésta. Este diff la corre más, a 1829 (mis
+inserciones antes de ese punto del archivo: ~84 líneas de `ALTURAS_HERO`/`claseAlturaHero`/
+`veloCombo`, más el campo `alto` en `HeroContent`/`DEFAULTS.hero`). `CLAUDE.md` no está en
+`touches:` de este slice — no se corrige acá.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-LINEA-411-VENCIDA-1`** (coined acá): `CLAUDE.md`, § "LA RAZÓN DE POR QUÉ TODAVÍA NO
+  URGE ESTABA VENCIDA", cita `lib/config/site-content-defaults.ts:411` para `hero.titulo` — la
+  línea real es 1829 (medido). Vencida desde ANTES de este slice (ya estaba en 1745 a `HEAD`);
+  `CLAUDE.md` no está en `touches:`, no se corrige acá.
+- `PANEL-EDITOR-VARIANTES-COMPOSICION-1` — sigue sin control de panel para `hero.variante`; la
+  verificación de este slice lo escribió DIRECTO a la base (`.scratch/escribir-hero.ts`), nunca
+  desde el panel. Sin cambios, ajeno a este slice (ya estaba así).
+- **`EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1`** (coined acá): si el owner pide que Titular/Subtítulo/
+  Botón existan también en la composición "sticky" (como REDISENO.md § 4 los listaba), eso es una
+  RULING de producto —dónde viven dentro de una composición que ya tiene ticker+tarjeta+velo+frase
+  al pie— no construible por default de este slice. Ver la Desviación 1, arriba.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` / el crédito de `PIE-HECHO-POR-DUNA-1` — sigue abierto,
+  re-confirmado con la MISMA cifra exacta, DOS veces en este slice. Ajeno a `touches:`.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que los slices anteriores de
+esta tanda (el eje es la rama, no el commit; sigue sin mergear). "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE". Gate verde en las dos capas obligatorias; `next build` compila;
+`verificar:nayoli:visual` confirma CERO drift nuevo (cifra idéntica, dígito a dígito, corrida DOS
+veces). La sesión en el arnés (`.scratch/arnes-zonas.ts`, no comiteado) corrió login real → las
+TRES composiciones del hero → zonas visibles → agregar/quitar → alto en sus tres pasos → velo en
+sus cuatro: 13/13 verificaciones, 8 capturas inspeccionadas visualmente. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-ZONAS-1`.**

@@ -7,6 +7,8 @@ import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden, datosDeTema,
+  ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
+  ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
 } from '@/lib/storefront/editor-puente';
 // `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
 // (que importa el módulo completo para `REGISTRY`/`DEFAULTS`/`resolverSiteContent`), así que
@@ -478,25 +480,56 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       e.preventDefault();
       e.stopPropagation();
 
-      // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
-      // arriba): un campo-imagen nunca abre el overlay de texto.
-      const nodoCampoImagen = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO_IMAGEN}]`);
-      if (nodoCampoImagen) {
+      // § EDITOR-TIENDA-ZONAS-1 — se revisa ANTES que campo-imagen/campo (§ `mensajesDeZonaHero`,
+      // `lib/storefront/editor-puente.ts`): un botón de zona ("+ Titular", "Quitar", Alto, Velo)
+      // nunca abre el overlay de texto ni el selector de archivos — escribe el/los campo(s) que su
+      // propio marcador declara, directo.
+      const nodoZona = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_ZONA_CAMPO}]`);
+      if (nodoZona) {
         if (campoAbiertoRef.current) cerrarCampo();
-        const rutaAtributo = nodoCampoImagen.getAttribute(ATRIBUTO_EDITOR_CAMPO_IMAGEN);
-        const ruta = rutaAtributo ? parsearRutaCampo(rutaAtributo) : null;
-        if (ruta) {
-          window.parent.postMessage(
-            { tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: ruta.seccion, campo: ruta.campo },
-            window.location.origin,
-          );
-        }
+        const mensajes = mensajesDeZonaHero(
+          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO),
+          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR),
+          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO2),
+          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR2),
+        );
+        // ESCALONADOS, no en un `for` síncrono — MEDIDO por ejecución: el panel
+        // (`TiendaSeccionEditor.escribirCampo`) mergea cada mensaje sobre `formRef.current`, que
+        // sólo se re-sincroniza en el RENDER siguiente a un `setForm`. Dos `postMessage` posteados
+        // en la MISMA pila se procesan como dos eventos `message` separados, pero si React no
+        // alcanza a re-renderizar entre uno y otro, el segundo mergea sobre el `formRef` TODAVÍA
+        // viejo y PISA el resultado del primero — confirmado contra la base real: con el velo
+        // combinado, `alto` quedaba en su valor viejo y sólo `alturaLlena` sobrevivía. Un
+        // `setTimeout` de por medio le da tiempo a React a confirmar el primer `setForm` (un
+        // commit tarda microsegundos; 50ms es generoso) antes de que llegue el segundo — arreglar
+        // la causa de raíz (que `cambiar()` mergeara con el `setState` FUNCIONAL en vez de sobre
+        // un snapshot) tocaría el merge genérico que usan TODOS los campos de texto, fuera del
+        // alcance de esta zona nueva.
+        mensajes.forEach((m, i) => {
+          if (i === 0) window.parent.postMessage(m, window.location.origin);
+          else window.setTimeout(() => window.parent.postMessage(m, window.location.origin), 80 * i);
+        });
       } else {
-        const nodoCampo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO}]`);
-        if (nodoCampo) {
-          abrirCampo(nodoCampo);
-        } else if (campoAbiertoRef.current) {
-          cerrarCampo();
+        // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
+        // arriba): un campo-imagen nunca abre el overlay de texto.
+        const nodoCampoImagen = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO_IMAGEN}]`);
+        if (nodoCampoImagen) {
+          if (campoAbiertoRef.current) cerrarCampo();
+          const rutaAtributo = nodoCampoImagen.getAttribute(ATRIBUTO_EDITOR_CAMPO_IMAGEN);
+          const ruta = rutaAtributo ? parsearRutaCampo(rutaAtributo) : null;
+          if (ruta) {
+            window.parent.postMessage(
+              { tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: ruta.seccion, campo: ruta.campo },
+              window.location.origin,
+            );
+          }
+        } else {
+          const nodoCampo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO}]`);
+          if (nodoCampo) {
+            abrirCampo(nodoCampo);
+          } else if (campoAbiertoRef.current) {
+            cerrarCampo();
+          }
         }
       }
 

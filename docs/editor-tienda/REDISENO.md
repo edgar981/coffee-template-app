@@ -238,7 +238,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | 2 | `EDITOR-TIENDA-CAMPO-ANCLADO-1` — campo anclado al documento, mide el bloque, gemelos ocultos (errores 1, 3, 4) — **ENTREGADO** (2026-10-03) | `EditorPuenteVivo.tsx`, `campo-editable.ts`, marcadores de gemelo en el hero y la marquesina | **1** |
 | 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) — **ENTREGADO** (2026-10-03) | `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `TiendaPaginas.tsx`, `panel-controles.ts` | 2 |
 | 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta — **ENTREGADO** (2026-10-03) | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx`, `TiendaSeccionEditor.tsx`, `VistaTiendaIframe.tsx`, `components/admin/editor/` (nuevo), `lib/admin/editor-iframe.ts` | 2 |
-| 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas | variantes del hero (`data-editor-zona`), panel del hero | **1** |
+| 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas — **ENTREGADO** (2026-10-03) | las 4 variantes del hero (`data-editor-zona-campo`/`-valor`), `EditorPuenteVivo.tsx`, `editor-puente.ts`, `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`, `site-content-defaults.ts`, `site-content-schema.ts` | **1** |
 | 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) | panel + hoja | 2 |
 | 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento | esquema (gate) + storefront + puente | **1** |
 | 8 | `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — el popover de publicar en palabras | barra superior | 2 |
@@ -256,6 +256,44 @@ cliente contradice una decisión YA tomada y escrita (DECISIONS.md, "EL CLIENTE 
 SU COMPOSICIÓN" — el retiro de `EJE-5-ORDEN-EDITOR-1`/`EJE-5-VARIANTES-EDITOR`), así que cada tarjeta
 de Combinaciones es un ATAJO sobre los tres ejes que esta pantalla YA deja editar, no una puerta nueva
 a la composición. El nivel «elemento» (zonas del hero) queda para el slice 5, como estaba planeado.
+
+**SLICE 5 ENTREGADO (2026-10-03), con el TERCER valor de alto aprobado y TRES desviaciones medidas.**
+Cada variante marca sus zonas con `data-editor-zona-campo`/`-valor` (y un segundo par opcional,
+`-campo2`/`-valor2`, para el velo combinado) — EditorPuenteVivo.tsx detecta el clic ANTES que
+campo-imagen/campo y postea el/los `TIPO_MENSAJE_CAMPO_CAMBIO` directo (reusa el canal existente,
+sin mensaje nuevo). "+ Titular"/"Quitar Subtítulo"/etc. están construidos y FUNCIONAN de punta a
+punta (13/13 en un arnés con sesión real — login, las tres composiciones, capturas) — ver
+DECISIONS.md para la tabla completa. El alto ganó su tercer paso (`hero.alto: 'justo'|'alto'|
+'pantalla'`, `claseAlturaHero`) con fallback a `alturaLlena` SIN migración; el velo se volvió una
+sola pregunta («Nada · Suave · Medio · Fuerte», `veloComboDeCampos`/`camposDeVeloCombo`) que escribe
+`veloVisible`+`veloIntensidad` juntos.
+
+**DESVIACIÓN 1 — el alcance real de "zona" varía por variante, medido contra el código antes de
+construir.** `titularVisible`/`subtituloVisible`/`ctasVisibles` SÓLO tienen efecto en `HeroMedia`
+('media'); `HeroMediaMarquesina` ('sticky', la composición que CORTE usa hoy) NO rinde
+titulo/subtitulo/cta EN NINGÚN CASO (medido: grep de los tres da cero en ese archivo) — el "+/Quitar"
+completo vive en HeroMedia; Curtina/Ficha/Sticky sólo ganan el zone marker + el chip de Alto (Curtina/
+Ficha) o el de Velo (Sticky). El spec de REDISENO.md § 4 listaba Titular/Subtítulo/Botón como zonas de
+"Marquesina" (sticky) — eso no coincide con lo que el código de hoy renderiza, y agregar esos tres
+campos a `HeroMediaMarquesina` sería una decisión de producto (dónde viven, cómo conviven con el
+ticker/tarjeta) fuera de este slice.
+
+**DESVIACIÓN 2 — `useModoEditorActivo()`, no `useIsPreview()`.** El spec pedía "igual que los
+marcadores de hoy"; los marcadores de hoy (`data-editor-seccion`/`data-editor-campo`) usan
+`useModoEditorActivo()` — `useIsPreview()` es el mecanismo retirado de la vista previa vieja. Se
+siguió el mecanismo REAL, no el nombre literal del spec.
+
+**DESVIACIÓN 3 — el ALTO llega a Curtina y Ficha también, no sólo a Media.** `alturaLlena` nunca tuvo
+efecto ahí; `hero.alto` SÍ se extendió a las dos (aditivo, byte-idéntico en su canónica) porque el
+pedido del spec ("definí qué mide Alto… en escritorio y teléfono") es genérico a la composición, no
+sólo a `media`.
+
+**UN DEFECTO MEDIDO Y CERRADO EN ESTE MISMO SLICE:** dos `postMessage` consecutivos desde el MISMO
+clic (el velo combinado, el alto con su `alturaLlena` de respaldo) se procesaban como dos eventos
+`message` separados sin que React alcanzara a re-sincronizar `formRef.current` entre uno y otro — el
+segundo mergeaba sobre el snapshot VIEJO y pisaba el resultado del primero (medido contra la base
+real: `alto` quedaba en `'justo'` pese a clickear "Pantalla completa"). Se escalonan con un
+`setTimeout` breve en vez de tocar el merge genérico (`cambiar()`) que usan todos los campos de texto.
 
 **FUERA DE ESTA NUMERACIÓN (pedido aparte del owner, no del plan de rediseño de arriba):**
 `EDITOR-TIENDA-MARQUESINA-SECCION-1` — la banda suelta «Marquesina» pasa de interruptor-sin-contenido
@@ -298,7 +336,8 @@ tienda publicada.
 
 ## 10 · Lo que este documento NO decide
 
-- Si «Alto» gana un tercer valor (campo nuevo) o se queda en dos.
+- ~~Si «Alto» gana un tercer valor (campo nuevo) o se queda en dos.~~ DECIDIDO (slice 5, 2026-10-03):
+  gana el tercer valor, con la aprobación del owner citada en el ledger_id de ese slice.
 - Qué roles se ofrecen en el selector de color. El prototipo usa seis; la capa derivada tiene más.
 - Si la colección de letras por elemento es la de los diez pares o un subconjunto.
 - Los nombres finales de las composiciones («Marquesina», «Portada», «Ficha», «Cortina»).

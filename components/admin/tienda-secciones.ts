@@ -10,7 +10,7 @@
 // `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
 // `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
 // divergir de la que el resolver clampa.
-import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
+import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, OPCIONES_VELO_COMBO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -57,6 +57,30 @@ const OPCIONES_VELO_INTENSIDAD: { value: string; label: string }[] =
   VELO_INTENSIDADES.map((clave) => ({ value: clave, label: LABEL_VELO_INTENSIDAD[clave] }));
 const OPCIONES_TICKER_VELOCIDAD: { value: string; label: string }[] =
   TICKER_VELOCIDADES.map((clave) => ({ value: clave, label: clave === 'lenta' ? 'Más lenta' : 'Normal (medida contra el tema real)' }));
+
+// EL SELECT del ALTO del hero (§ EDITOR-TIENDA-ZONAS-1, `HeroContent.alto`) — MISMO patrón: las
+// claves salen de `ALTURAS_HERO` (el set cerrado del resolver), este archivo sólo agrega la etiqueta
+// EN PALABRAS que pide el spec («Justo · Alto · Pantalla completa», nunca "justo"/"pantalla" crudos).
+const LABEL_ALTURA_HERO: Record<(typeof ALTURAS_HERO)[number], string> = {
+  justo: 'Justo',
+  alto: 'Alto',
+  pantalla: 'Pantalla completa',
+};
+const OPCIONES_ALTURA_HERO: { value: string; label: string }[] =
+  ALTURAS_HERO.map((clave) => ({ value: clave, label: LABEL_ALTURA_HERO[clave] }));
+
+// EL SELECT del VELO combinado (§ EDITOR-TIENDA-ZONAS-1, `veloComboDeCampos`/`camposDeVeloCombo`,
+// site-content-defaults.ts) — «Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte, la frase
+// textual del spec. Escribe DOS campos reales (`veloVisible`+`veloIntensidad`) a la vez — ver
+// `TiendaSeccionEditor.tsx`, el único lugar que sabe decomponer el valor elegido.
+const LABEL_VELO_COMBO: Record<(typeof OPCIONES_VELO_COMBO)[number], string> = {
+  nada: 'Nada',
+  suave: 'Suave',
+  medio: 'Medio',
+  fuerte: 'Fuerte',
+};
+const OPCIONES_VELO_COMBO_HERO: { value: string; label: string }[] =
+  OPCIONES_VELO_COMBO.map((clave) => ({ value: clave, label: LABEL_VELO_COMBO[clave] }));
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -321,6 +345,24 @@ const HERO: SeccionConfig = {
       hint: 'Sólo con la composición "sticky" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
     { name: 'tickerVelocidad', label: 'Velocidad del texto en movimiento', opciones: OPCIONES_TICKER_VELOCIDAD,
       hint: 'Sólo con la composición "sticky". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
+    // EL ALTO (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 4/§ 8) — reemplaza al interruptor "Ocupar toda
+    // la pantalla" por un select de TRES pasos en palabras. `TiendaSeccionEditor.tsx` escribe SIEMPRE
+    // `alto` junto con `alturaLlena` (derivado: `pantalla` → `true`, los otros dos → `false`) para que
+    // los dos campos nunca queden inconsistentes una vez que el dueño toca este control — ver el
+    // docstring de `HeroContent.alto`. SIEMPRE tiene un valor (la canónica si nadie lo tocó), sin
+    // `opcional`.
+    { name: 'alto', label: 'Alto', opciones: OPCIONES_ALTURA_HERO,
+      hint: 'Cuánto del viewport ocupa el hero. "Justo" deja asomar el siguiente bloque; "Pantalla completa" lo llena entero.' },
+    // EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1) — reemplaza AL MISMO TIEMPO al interruptor "Mostrar
+    // el velo sobre el video" y al select "Intensidad del velo" por UNA sola pregunta de cuatro pasos
+    // («Oscurecer para leer mejor»). `name:'veloCombo'` NO es un campo real de `REGISTRY.hero` — es
+    // presentación: `TiendaSeccionEditor.tsx` lo detecta por NOMBRE (mismo criterio que
+    // `opcionesDinamicas:'destaquePlanes'`, arriba) y decompone el valor elegido en
+    // `veloVisible`+`veloIntensidad` con `camposDeVeloCombo` (site-content-defaults.ts) al escribir,
+    // y lo recompone con `veloComboDeCampos` al leer. Sólo tiene efecto con la composición "sticky"
+    // —el hint lo dice, como `veloIntensidad`/`tickerVelocidad` arriba—.
+    { name: 'veloCombo', label: 'Fondo: oscurecer para leer mejor', opciones: OPCIONES_VELO_COMBO_HERO,
+      hint: 'Sólo con la composición "sticky". Qué tan oscuro se pone el velo sobre el video para que el texto se lea.' },
     // EL GRUPO «MARQUESINA» (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, docs/editor-tienda/REDISENO.md § 1
     // error 5): la composición "sticky" dibuja la cinta de texto + la tarjeta flotante leyendo
     // `content.marquesina.texto`/`.productoSlug` (HeroMediaMarquesina.tsx) — los MISMOS dos campos que
