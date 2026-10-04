@@ -142,6 +142,10 @@ function camposDeSeccionEditor(config: SeccionConfig): string[] {
   for (const im of config.imagenes) campos.add(im.name);
   if (config.ocultable) campos.add('visible');
   for (const b of config.booleanos ?? []) campos.add(b.name);
+  // § EDITOR-TIENDA-COMPOSICION-1: `config.composiciones` declara la vista «¿Cómo se arma tu
+  // <sección>?» que escribe el escalar `variante` — mismo criterio que `visible`/`booleanos`
+  // arriba, presencia de la config ⇒ `variante` entra al lado controlado.
+  if (config.composiciones) campos.add('variante');
   for (const bloque of config.bloques ?? []) {
     if (bloque.tipo === 'lista') for (const slot of bloque.slots) campos.add(slot);
   }
@@ -314,12 +318,15 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // `.hero-caption` del prototipo ya tiene por dónde escribirse, y `HeroMediaMarquesina.tsx` (la
   // composición "sticky") ganó su lectura en el mismo slice (antes sólo `HeroMedia.tsx` la rendía).
 
-  // El eje `variante` (composición de sección, § eje 5/5e): las CUATRO secciones que lo declaran no
-  // tienen ningún control — ni `TiendaSeccionEditor` sabe leer `config.variantes` hoy.
-  { campo: 'hero.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-1' },
-  { campo: 'brandStory.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-1' },
-  { campo: 'presentaciones.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-1' },
-  { campo: 'subscriptionCTA.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-1' },
+  // CERRADO por EDITOR-TIENDA-COMPOSICION-1: `hero.variante` ganó su control (`HERO.composiciones`
+  // en tienda-secciones.ts — la vista nueva «¿Cómo se arma tu hero?») — su entrada de exención se
+  // retiró de acá. Las otras TRES secciones con `variante` siguen sin control; su `cierra` se
+  // re-etiquetó de `PANEL-EDITOR-VARIANTES-COMPOSICION-1` (ya usado por ESTE slice, que sólo cubrió
+  // el hero) a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`, para que el próximo slice que las cierre no
+  // cite un id que ya quedó asociado a otro trabajo.
+  { campo: 'brandStory.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
+  { campo: 'presentaciones.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
+  { campo: 'subscriptionCTA.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
 
   // CERRADO por PANEL-EDITOR-MARQUESINA-1: `marquesina` ganó su `SeccionConfig` (MARQUESINA en
   // tienda-secciones.ts, con `texto`/`productoSlug`/`imagen` + el toggle `visible`) — las cuatro

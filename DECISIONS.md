@@ -50010,3 +50010,208 @@ sus cuatro: 13/13 verificaciones, 8 capturas inspeccionadas visualmente. Commite
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-ZONAS-1`.**
+
+## 2026-10-03 — La vista «¿Cómo se arma tu hero?»: elegir composición desde el panel (`EDITOR-TIENDA-COMPOSICION-1`)
+
+Slice 6 de `docs/editor-tienda/REDISENO.md` § 9. Tier 2, `writes: yes`, aprobado sobre el documento
+y el prototipo (`EDITOR-TIENDA-REDISENO-PROPUESTA-1`, "el nuevo diseño está rozando la
+perfección") — campos nuevos en el esquema de contenido pre-aprobados, pero este slice **no
+necesitó ninguno** (medido abajo). La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1`, al ARRANCAR | sí (`git status` vacío; `HEAD` = `cae99e5`, el commit de `EDITOR-TIENDA-ZONAS-1`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf`, IDÉNTICO a `origin/main` (0 adelante/0 atrás) |
+| rama adelante de `origin/main`, al arrancar | 322 commits |
+| REDISENO.md § 4 (tabla de composiciones) existe y nombra las cuatro variantes | sí, medido contra `HeroSection.tsx`/`REGISTRY.hero.variantes.claves` (abajo) |
+
+**DESVIACIÓN DE PRE-FLIGHT, medida a mitad de sesión: la base se movió bajo este slice.** Al
+terminar el trabajo, `HEAD` ya no era `cae99e5` sino `e50da0f` — un commit **docs-only**
+("`PANEL-REDISENO-PROPUESTA-2`: Pagos y cobros…", `docs/panel/REDISENO.md`, autor "Edgar",
+co-autoría de Claude) aterrizó en la MISMA rama mientras esta sesión corría, desde una sesión
+hermana sobre el mismo checkout — no un `git pull`/`fetch` de este slice. Verificado que no hay
+solapamiento: `git show --stat e50da0f` toca un único archivo, `docs/panel/REDISENO.md` (un
+documento DISTINTO de `docs/editor-tienda/REDISENO.md`, el de este slice), cero intersección con
+`touches:`. El trabajo de este slice se commitea ENCIMA de `e50da0f`, como el siguiente commit de
+la secuencia — no hay conflicto que resolver ni base que re-elegir.
+
+### El mecanismo
+
+`components/admin/tienda-secciones.ts` gana `SeccionConfig.composiciones?: ComposicionOpcion[]`
+(value/label/zonas, cada zona con sus `campos` y un `label` en palabras) y `HERO.composiciones =
+OPCIONES_COMPOSICION_HERO` — el VALOR y el ORDEN se derivan de `REGISTRY.hero.variantes.claves`
+(`['curtina','ficha','media','sticky']`, importado de `site-content-defaults.ts`), igual que
+`OPCIONES_VELO_INTENSIDAD`/`OPCIONES_ALTURA_HERO` ya derivan sus opciones de un array exportado —
+sólo que acá se lee `REGISTRY` directo porque `hero.variantes.claves` no tiene un array suelto
+exportado como ésos. Las ZONAS por composición (`ZONAS_CORTINA`/`ZONAS_FICHA`/`ZONAS_PORTADA`/
+`ZONAS_MARQUESINA`) están MEDIDAS contra el código real de cada variante (`HeroCurtina.tsx`/
+`HeroFicha.tsx`/`HeroMedia.tsx`/`HeroMediaMarquesina.tsx`), no copiadas de la tabla de § 4 de
+REDISENO.md — esa tabla se escribió ANTES de que `EDITOR-TIENDA-ZONAS-1` midiera la Desviación 1:
+"sticky" no rinde titular/subtítulo/botones EN NINGÚN CASO (grep de los tres da cero en
+`HeroMediaMarquesina.tsx`). Repetir la tabla tal cual habría anunciado en el panel tres zonas que
+Marquesina nunca muestra.
+
+`components/admin/editor/ComposicionHero.tsx` (nuevo) monta `VistaNueva` (la hoja que
+`EDITOR-TIENDA-SHELL-1` ya construyó) con una tarjeta por composición: una miniatura ESQUEMÁTICA
+(§ la desviación de abajo), el nombre, "Trae: …" (las zonas que esa composición pinta) y, si no es
+la activa, "Se guarda: …" — las zonas de TEXTO (`textoVisible !== false`) que la composición
+ACTUAL muestra y la nueva NO, filtradas a las que tienen contenido real (`zonaTieneContenido`).
+Clic en una tarjeta no-activa llama `onElegir(value)`.
+
+`TiendaSeccionEditor.tsx` monta el botón «Composición: <nombre>» (sólo `seccion==='hero' &&
+config.composiciones`, ANTES de la lista de zonas — decide cuáles existen) y `<ComposicionHero>`
+al pie del árbol (junto a `ConfirmDescartarDialog`). `onElegir` es `cambiar({ variante: valor })` —
+el MISMO `cambiar()` partial-merge que cualquier campo de texto, así que NINGÚN otro campo del form
+se toca al cambiar de composición. El `valores` que recibe `ComposicionHero` funde `form` con los
+dos campos cruzados de la marquesina (`texto`/`productoSlug`, que viven en
+`valoresCruzados.marquesina`, no en `form`) para que la zona "Marquesina" pueda decidir si tiene
+contenido.
+
+**CIERRA, PARA EL HERO, EL HUECO `PANEL-EDITOR-VARIANTES-COMPOSICION-1`** (`panel-controles.ts`):
+`camposDeSeccionEditor` suma `if (config.composiciones) campos.add('variante');` — presencia de la
+config ⇒ `variante` entra al lado "controlado", mismo criterio que `visible`/`booleanos`. La
+entrada `hero.variante` se retiró de `PENDIENTE_PANEL` (el trinquete bajó de 11 a 10,
+`panel-controles.test.ts`). Las OTRAS TRES secciones con `variante` (`brandStory`/`presentaciones`/
+`subscriptionCTA`) siguen sin control — fuera de `touches:` de este slice — y su `cierra` se
+re-etiquetó de `PANEL-EDITOR-VARIANTES-COMPOSICION-1` (ya "gastado" por este slice, que sólo cubrió
+el hero) a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`.
+
+### Por qué miniatura ESQUEMÁTICA y no el componente real
+
+Medido ANTES de construir: la vista previa en vivo por React (`VistaTiendaEnVivo.tsx`/
+`VistaTiendaContenido`) quedó RETIRADA del camino del editor desde `EDITOR-TIENDA-IFRAME-VISTA-1`
+—`grep -n "^import.*VistaTienda" components/admin/TiendaSeccionEditor.tsx components/admin/
+TiendaPaginas.tsx` da CERO; la única mención en `TiendaPaginas.tsx` es un comentario histórico
+("reemplaza las `VistaTiendaEnVivo` sueltas…")—. El lienzo de hoy es un `<iframe>` a la página
+real (`VistaTiendaIframe.tsx`). Montar las CUATRO variantes del hero a la vez dentro de la hoja
+para compararlas de verdad habría exigido reconstruir esa vía retirada sólo para esta hoja — el
+costo que el propio spec autoriza esquivar ("si renderizar el hero en miniatura es caro, una
+captura esquemática fiel y decilo"). Cada miniatura es `style` inline con tokens `--duna-*` ya
+declarados (`--duna-wash-hover`/`-active`, `--duna-ink`, `--duna-r-s`, `--duna-surface`) — SIN una
+sola clase CSS nueva: `app/(admin)/duna.css` no está en `touches:`. Es fiel a la POSICIÓN de cada
+zona (texto centrado en Cortina, a un lado en Ficha, tarjeta flotante + indicador en Portada,
+ticker + tarjeta en Marquesina), no un pixel-perfect.
+
+**LA ELECCIÓN SÍ ES REAL, pese a la miniatura esquemática.** `onCambio` (`TiendaSeccionEditor.tsx`)
+ya mandaba el `form` COMPLETO por `postMessage` en cada cambio, hacia `TiendaPaginas.manejarCambioSeccion`
+→ `VistaTiendaIframe.enviarCambio` — mecanismo construido por `EDITOR-TIENDA-POSTMESSAGE-1`, sin
+tocar. `HeroSection.tsx` ya elegía el `Layout` según `hero.variante` (`VARIANTES[hero.variante]`).
+Ningún archivo de `components/storefront/`, `EditorPuenteVivo.tsx` ni `VistaTiendaIframe.tsx`
+necesitó un solo cambio — **cero archivos de esa familia en el diff**, confirmado por `git diff
+--stat` (abajo). El lienzo cambia al instante porque la tubería ya estaba completa; esta slice sólo
+agregó el control que la alimenta.
+
+### Verificado por ejecución — arnés de sesión real, 4/4
+
+`.scratch/arnes-composicion.ts` (no comiteado): replica el mecanismo de `scripts/postgres-
+efimero.sh` + `scripts/capturar-seccion.ts` (Postgres efímero propio, `:55461`/`arnescomposicion`;
+`migrate deploy` + seed canónico; `next build`/`next start`, NUNCA `next dev` — mismo motivo que
+`CROMO-DEV-HIDRATACION-SPA-1`: el lienzo del editor es la página real del storefront en un iframe,
+con las mismas animaciones framer-motion que requieren una build de producción para hidratar) +
+Playwright (instalación aislada ya cacheada por `verificar:nayoli:visual`), sesión real
+(`admin@sierranativa.co`/`ChangeMe123!`, el seed estándar — NUNCA `development`/producción, misma
+regla que TODO arnés anterior de esta rama).
+
+| # | paso | verificación | resultado |
+| --- | --- | --- | --- |
+| 1 | login real → `/editor/tienda` → Hero → Editar | el titular real ("Productos que cuentan") se lee de `#hero-titulo` | ✔ |
+| 1 | clic en «Composición: Cortina» | la hoja abre con las 4 tarjetas (Cortina/Ficha/Portada/Marquesina) + badge "Actual" en Cortina | ✔ |
+| 2 | clic en la tarjeta "Portada" | el botón pasa a «Composición: Portada»; en el canvas EN VIVO aparece `[data-editor-zona-campo="cueDesliza"]` — el chip de Indicador, que Cortina NUNCA monta | ✔ |
+| 2 | — | el valor de `#hero-titulo` no cambió sólo por cambiar de composición | ✔ |
+| 3 | reabrir la hoja | la tarjeta "Marquesina" muestra «Se guarda: Línea superior, Titular, Subtítulo, Botones» ANTES de elegirla | ✔ |
+| 3 | clic en "Marquesina" | el botón pasa a «Composición: Marquesina»; `[data-editor-campo="hero.titulo"]` desaparece del canvas (0 nodos) — confirma por EJECUCIÓN la Desviación 1 de `EDITOR-TIENDA-ZONAS-1` | ✔ |
+| 3 | — | `#hero-titulo` del FORM sigue igual | ✔ |
+| 4 | reabrir la hoja → clic en "Cortina" | el botón vuelve a «Composición: Cortina»; `[data-editor-campo="hero.titulo"]` reaparece en el canvas; `#hero-titulo` = "Productos que cuentan", idéntico al paso 1 | ✔ |
+
+**4/4** (contando cada fila de verificación compuesta como su propio paso: 9 aserciones, todas en
+verde). 5 capturas en `.scratch/capturas-composicion/` (no comiteadas): `1-vista-nueva.png`
+(la hoja abierta), `2-portada.png` (canvas en layout Media, chips "Quitar Titular/Subtítulo/Botones"
++ "+ Indicador" visibles, badge "Sin publicar"), `3-vista-con-se-guarda.png` (el aviso "Se guarda"
+sobre la tarjeta Marquesina), `4-marquesina.png`, `5-de-vuelta-en-cortina.png` (canvas de vuelta al
+layout Cortina, titular/énfasis intactos). Inspeccionadas visualmente — el canvas de `2-portada.png`
+y `5-de-vuelta-en-cortina.png` muestran, a simple vista, las DOS composiciones distintas sobre el
+MISMO contenido.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` (`tsc --noEmit`) | 0 errores |
+| `npm test` | **3453/3453** (+1 sobre los 3452 previos a este slice: `panel-controles.test.ts` ganó la calibración de `hero.variante`) |
+| `npm run test:integracion` | **328/328**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` (typecheck+test+integración, un comando) | GREEN — corrido como los dos pasos de arriba, en ese orden |
+| `npx eslint` sobre los 5 archivos de código de `touches:` (`TiendaSeccionEditor.tsx`, `tienda-secciones.ts`, `ComposicionHero.tsx`, `panel-controles.ts`, `panel-controles.test.ts`) | 0 errores/warnings NUEVOS — `ComposicionHero.tsx`/`tienda-secciones.ts`/`panel-controles.ts`/`panel-controles.test.ts`: **limpios, cero salida**; `TiendaSeccionEditor.tsx`: 35 problemas (12 errores `react-hooks/refs` + 23 warnings `no-img-element`/`unused eslint-disable`), **ninguno dentro del diff** — confirmado con `git diff components/admin/TiendaSeccionEditor.tsx`: las únicas líneas tocadas son el import (L22), el `useState` (L370-371), el bloque del botón "Composición" (L1882-1903) y el montaje de `<ComposicionHero>` (L2013-2032); los 12 errores reportados (L1852/1855×2/1924/1976-1985) son `subida.inputRef`/`subida.inputHoldRef`/`bloques.map`/props de `RepeaterEditor` — los MISMOS 12 que `EDITOR-TIENDA-ZONAS-1` ya documentó como PRE-EXISTENTES en este archivo |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | **MISMA cifra exacta, dígito a dígito**, que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/`PIE-HECHO-POR-DUNA-1`, re-confirmado por `EDITOR-TIENDA-SHELL-1`/`EDITOR-TIENDA-ZONAS-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO (0px). Es estructuralmente esperable — `git diff --stat` de ESTE SLICE (working tree contra `HEAD` antes de commitear) sobre `app/(storefront)`/`components/storefront` da VACÍO: los 6 archivos que cambié (`DECISIONS.md`, `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`, `REDISENO.md`, `panel-controles.test.ts`, `panel-controles.ts`) + el nuevo `ComposicionHero.tsx` no tocan esos directorios |
+
+### `customer_bytes`
+
+**`changed: true`, el eje es la RAMA, no el commit** (ya cargaba `true` por los cinco slices
+anteriores de esta tanda, ninguno mergeado). Este slice en particular AGREGA, dentro de
+`/editor/tienda` (visible sólo a OWNER/MANAGER con sesión — nunca a un visitante del storefront):
+el botón «Composición: <nombre>», la hoja «¿Cómo se arma tu hero?» con sus cuatro tarjetas
+(Cortina/Ficha/Portada/Marquesina), "Trae: …", "Se guarda: …", el badge "Actual". Cero bytes de
+`app/(storefront)` o `components/storefront` — confirmado por `touches:` y por el gate visual
+(arriba, idéntico dígito a dígito al piso heredado).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica. `hero.variante` YA EXISTÍA en el modelo (`HeroContent.variante`,
+`REGISTRY.hero.variantes`, desde `EJE-5-VARIANTES-HERO`) — este slice no agrega NINGÚN campo
+nuevo a `site-content-defaults.ts` ni a `site-content-schema.ts` (ninguno de los dos está en
+`touches:`, y no se tocaron): sólo construye el CONTROL de panel para un campo que el resolver y
+el schema ya sabían leer/escribir. Cero migración, cero modelo Prisma, cero contrato cross-repo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió, grepeados contra `CLAUDE.md`: `TiendaSeccionEditor`,
+`tienda-secciones`, `panel-controles`, `hero.variante`, `PANEL-EDITOR-VARIANTES-COMPOSICION-1`,
+`ComposicionHero`, `PENDIENTE_PANEL` — seis apariciones, TODAS de `TiendaSeccionEditor` (líneas
+2261, 2387, 2719, 2759, 2938, 2982, 4351 — § "El editor de la tienda dibuja por BLOQUES", § el
+uploader compartido, § el toggle de página), ninguna mencionando `variante`/composición/el hueco
+`PANEL-EDITOR-VARIANTES-COMPOSICION-1` (`CLAUDE.md` nunca nombró ese hueco — vivía sólo en
+`panel-controles.ts` y `DECISIONS.md`). Leídas completas, las seis siguen siendo VERDAD: este diff
+no tocó el mecanismo de bloques, el uploader compartido, ni el toggle de página. **Ninguna
+sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+### Open follow-ups
+
+- **`PANEL-EDITOR-VARIANTES-COMPOSICION-2`** (coined acá, re-etiquetando el id viejo que este
+  slice "gastó"): `brandStory.variante`/`presentaciones.variante`/`subscriptionCTA.variante` siguen
+  sin control de panel — el mismo patrón de picker (`ComposicionHero`-like, zonas medidas contra
+  el código real de cada variante) aplicaría, pero es trabajo de OTRO slice: `brandStory` tiene 2
+  variantes (`columnas`/`centrada`), `presentaciones` y `subscriptionCTA` cada una las suyas, y
+  ninguna se midió en éste.
+- **`VISTATIENDAENVIVO-SIN-CONSUMIDOR-RUNTIME-1`** (coined acá, hallazgo de investigación, NO un
+  defecto de este slice): `components/admin/VistaTiendaEnVivo.tsx` (`VistaTiendaContenido` +
+  default export) no tiene NINGÚN import en runtime — `grep -n "^import.*VistaTienda"
+  components/admin/TiendaSeccionEditor.tsx components/admin/TiendaPaginas.tsx` da CERO; su único
+  consumidor real es `lib/config/admin-tienda-preset.test.ts` (que lo prueba por SSR, sin
+  `EscalaDesktop`). Quedó huérfano desde `EDITOR-TIENDA-IFRAME-VISTA-1` (el reemplazo por el
+  `<iframe>`), que no lo borró —ver el comentario de `TiendaPaginas.tsx:93`, "reemplaza las
+  `VistaTiendaEnVivo` sueltas…"—. Si alguien confirma que no hay plan de reusarlo (p. ej. para las
+  miniaturas de este mismo slice, que se decidieron esquemáticas en su lugar, § arriba), es
+  candidato a retiro — junto con su test, que dejaría de tener qué probar. Fuera de `touches:` de
+  este slice, no se toca.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` / el crédito de `PIE-HECHO-POR-DUNA-1` — sigue abierto,
+  re-confirmado con la MISMA cifra exacta. Ajeno a `touches:`.
+- `EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1` — sigue siendo una RULING pendiente del owner (si
+  Titular/Subtítulo/Botón deben existir también en "sticky"), sin cambios de este slice. La vista
+  de composición de ESTE slice ya refleja la realidad medida —el aviso "Se guarda" avisa
+  correctamente al dueño que esos tres campos dejan de verse al elegir Marquesina— así que no urge
+  más que antes, pero sigue sin resolverse.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que los cinco slices
+anteriores de esta tanda (el eje es la rama, no el commit; sigue sin mergear). "LA APROBACION
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE". Gate verde en las dos capas obligatorias (`npm run gate`);
+`npx eslint` sin errores nuevos; `verificar:nayoli:visual` confirma CERO drift nuevo (cifra idéntica,
+dígito a dígito, al piso ya reconciliado). La sesión en el arnés (`.scratch/arnes-composicion.ts`,
+no comiteado) corrió login real → abrir la vista → Cortina→Portada→Marquesina→Cortina: 4/4 pasos
+(9 aserciones), 5 capturas inspeccionadas visualmente — el titular del form nunca cambió de valor
+en todo el recorrido. Commiteado en `slice/corte-reescritura-prototipo-1`, encima de `e50da0f`
+(§ Pre-flight, la desviación de base medida a mitad de sesión).
+
+**Cierra `EDITOR-TIENDA-COMPOSICION-1`.**

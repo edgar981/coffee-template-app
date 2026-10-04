@@ -10,7 +10,7 @@
 // `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
 // `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
 // divergir de la que el resolver clampa.
-import { MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, OPCIONES_VELO_COMBO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
+import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, OPCIONES_VELO_COMBO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -68,6 +68,77 @@ const LABEL_ALTURA_HERO: Record<(typeof ALTURAS_HERO)[number], string> = {
 };
 const OPCIONES_ALTURA_HERO: { value: string; label: string }[] =
   ALTURAS_HERO.map((clave) => ({ value: clave, label: LABEL_ALTURA_HERO[clave] }));
+
+// LA COMPOSICIÓN del hero (§ EDITOR-TIENDA-COMPOSICION-1, REDISENO.md § 4/§ 6/§ 9) — cierra, para
+// `hero.variante`, el hueco que `PENDIENTE_PANEL` venía nombrando como `PANEL-EDITOR-VARIANTES-
+// COMPOSICION-1` (§ panel-controles.ts). Las ZONAS de cada composición están MEDIDAS contra el
+// código real de cada variante (HeroCurtina.tsx/HeroFicha.tsx/HeroMedia.tsx/
+// HeroMediaMarquesina.tsx) — NO copiadas de la tabla de REDISENO.md § 4, escrita ANTES de que
+// `EDITOR-TIENDA-ZONAS-1` midiera la Desviación 1: `titularVisible`/`subtituloVisible`/
+// `ctasVisibles` SÓLO tienen efecto en 'media'; 'sticky' NO rinde titular/subtítulo/botones EN
+// NINGÚN CASO (grep de los tres da cero en `HeroMediaMarquesina.tsx`). Repetir esa tabla tal cual
+// habría anunciado en el panel tres zonas que la composición "Marquesina" nunca muestra.
+//
+// `textoVisible: false` marca una zona de FEATURE (el indicador "Desliza", el velo) en vez de
+// TEXTO: sólo las de texto alimentan el aviso "Se guarda: …" del picker — un booleano que deja de
+// tener efecto al cambiar de composición no es contenido que se pierda, es un ajuste sin blanco.
+export type ZonaComposicion = { campos: string[]; label: string; textoVisible?: boolean };
+export type ComposicionOpcion = { value: string; label: string; zonas: ZonaComposicion[] };
+
+// 'curtina' (canónica) y 'ficha' muestran los MISMOS cinco campos —ninguno de los dos gatea nada,
+// medido: `HeroCurtina.tsx`/`HeroFicha.tsx` rinden eyebrow/titular/subtítulo/botones/fondo sin
+// condición—; sólo el LAYOUT difiere (fondo a sangre vs. a la derecha), que la etiqueta del fondo
+// dice.
+const ZONAS_CORTINA: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo', 'tituloEnfasis'], label: 'Titular' },
+  { campos: ['subtitulo'], label: 'Subtítulo' },
+  { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
+  { campos: ['imagen'], label: 'Fondo' },
+];
+const ZONAS_FICHA: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo', 'tituloEnfasis'], label: 'Titular' },
+  { campos: ['subtitulo'], label: 'Subtítulo' },
+  { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
+  { campos: ['imagen'], label: 'Fondo (a la derecha)' },
+];
+// 'media' (Portada) GANA Leyenda/Indicador sobre Cortina/Ficha (`fraseAlPie`/`cueDesliza`, medido:
+// SÓLO `HeroMedia.tsx`/`HeroMediaMarquesina.tsx` los leen, § el docstring de `HeroContent.
+// fraseAlPie`/`.cueDesliza`).
+const ZONAS_PORTADA: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo', 'tituloEnfasis'], label: 'Titular' },
+  { campos: ['subtitulo'], label: 'Subtítulo' },
+  { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
+  { campos: ['fraseAlPie'], label: 'Leyenda' },
+  { campos: ['cueDesliza'], label: 'Indicador', textoVisible: false },
+  { campos: ['imagen'], label: 'Fondo' },
+];
+// 'sticky' (Marquesina) NO lee titular/subtítulo/botones en ningún caso (Desviación 1,
+// EDITOR-TIENDA-ZONAS-1, REDISENO.md § 9): sus zonas de texto son la frase del loop y el producto
+// pineado (`texto`/`productoSlug`, § `seccionCruzada: 'marquesina'` en `HERO.campos` abajo), no el
+// titular genérico.
+const ZONAS_MARQUESINA: ZonaComposicion[] = [
+  { campos: ['texto', 'productoSlug'], label: 'Marquesina' },
+  { campos: ['fraseAlPie'], label: 'Leyenda' },
+  { campos: ['cueDesliza'], label: 'Indicador', textoVisible: false },
+  { campos: ['veloVisible', 'veloIntensidad'], label: 'Velo', textoVisible: false },
+  { campos: ['imagen'], label: 'Fondo' },
+];
+const LABEL_COMPOSICION_HERO: Record<string, string> = {
+  curtina: 'Cortina', ficha: 'Ficha', media: 'Portada', sticky: 'Marquesina',
+};
+const ZONAS_COMPOSICION_HERO: Record<string, ZonaComposicion[]> = {
+  curtina: ZONAS_CORTINA, ficha: ZONAS_FICHA, media: ZONAS_PORTADA, sticky: ZONAS_MARQUESINA,
+};
+// EL VALOR y el ORDEN salen de `REGISTRY.hero.variantes.claves` —la MISMA fuente que clampa
+// `resolverVariante`—, no de una segunda lista a mano: MISMO patrón que `OPCIONES_VELO_INTENSIDAD`/
+// `OPCIONES_ALTURA_HERO` arriba, leyendo `REGISTRY` directo porque `hero.variantes.claves` no está
+// exportado como un array suelto (a diferencia de `VELO_INTENSIDADES`/`ALTURAS_HERO`).
+const OPCIONES_COMPOSICION_HERO: ComposicionOpcion[] = REGISTRY.hero.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_HERO[v], zonas: ZONAS_COMPOSICION_HERO[v],
+}));
 
 // EL SELECT del VELO combinado (§ EDITOR-TIENDA-ZONAS-1, `veloComboDeCampos`/`camposDeVeloCombo`,
 // site-content-defaults.ts) — «Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte, la frase
@@ -245,6 +316,13 @@ export interface SeccionConfig {
    *  sin pasarles `style`, y no existe un `content.esquemas` de /suscripciones) — no hay esquema real
    *  que aplicarles, así que quedan sin bandaId a propósito, no por omisión. */
   bandaId?: BandaId;
+  /** Opciones de COMPOSICIÓN elegibles desde el panel (§ EDITOR-TIENDA-COMPOSICION-1) — la vista
+   *  nueva «¿Cómo se arma tu <sección>?» que escribe el escalar `variante` de esta sección
+   *  (`REGISTRY.<seccion>.variantes`). Cada opción nombra su VALOR real, su nombre en palabras y las
+   *  ZONAS que trae — `panel-controles.ts` deriva `<seccion>.variante` como CONTROLADO con sólo esto
+   *  presente, sin una segunda declaración. Ausente = sin control de panel para `variante` (el eje
+   *  sigue existiendo en el modelo; sólo `mergePresetEnContent` lo escribe, § `PENDIENTE_PANEL`). */
+  composiciones?: ComposicionOpcion[];
 }
 
 // ── EL PATRÓN GENERAL DE ATENUACIÓN (§ PANEL-EDITOR-HERO-TOGGLES-1, item 1) — REUSABLE por todo
@@ -296,8 +374,12 @@ const HERO: SeccionConfig = {
   // ficha no los leen, § HeroMedia.tsx); `cueDesliza` lo lee TAMBIÉN `hero.variante === 'sticky'`
   // (§ HeroMediaMarquesina.tsx, RONDA 2); `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) lo lee
   // SÓLO `hero.variante === 'sticky'` — el overlay que `HeroMedia` no tiene (su propio velo es un
-  // degradado fijo, no toggleable). El eje `variante` mismo sigue sin control de panel, es su propio
-  // hueco, PANEL-EDITOR-VARIANTES-COMPOSICION-1, fuera del alcance de este slice.
+  // degradado fijo, no toggleable). El eje `variante` mismo GANA su control de panel en
+  // § EDITOR-TIENDA-COMPOSICION-1 (`composiciones`, abajo) — cierra, PARA EL HERO, el hueco
+  // `PANEL-EDITOR-VARIANTES-COMPOSICION-1`; `brandStory`/`presentaciones`/`subscriptionCTA` siguen
+  // sin control de panel, re-etiquetados a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`
+  // (§ panel-controles.ts, `PENDIENTE_PANEL`).
+  composiciones: OPCIONES_COMPOSICION_HERO,
   booleanos: [
     { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque.', gatedFields: ['titulo', 'tituloEnfasis'] },
     { name: 'subtituloVisible', label: 'Mostrar subtítulo',   gatedFields: ['subtitulo'] },

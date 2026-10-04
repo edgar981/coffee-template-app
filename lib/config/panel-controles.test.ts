@@ -84,9 +84,14 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 // spec anterior, no por código sin exención válida. Este slice cierra ese GATE_RED subiendo el techo
 // al largo real (11); la entrada sigue viva hasta que `EDITOR-SUGERENCIA-COLORES-1` le dé su control
 // y la retire, bajando el techo de nuevo.
+//
+// BAJADO de 11 a 10 por EDITOR-TIENDA-COMPOSICION-1: cerró `hero.variante` (`HERO.composiciones` en
+// tienda-secciones.ts) — la primera de las cuatro entradas de `variante` en ganar control de panel.
+// Las otras tres (`brandStory`/`presentaciones`/`subscriptionCTA.variante`) siguen pendientes, bajo
+// `PANEL-EDITOR-VARIANTES-COMPOSICION-2` (§ panel-controles.ts).
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 11,
+    PENDIENTE_PANEL.length <= 10,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );
@@ -348,6 +353,23 @@ test('calibración: hero.alto está controlado, sin exención nueva', () => {
   assert.ok(!pendientes.has('hero.alto'));
   const huecos = huecosDelPanel({ conExenciones: false });
   assert.ok(!huecos.includes('hero.alto'));
+});
+
+// § EDITOR-TIENDA-COMPOSICION-1: `hero.variante` CERRADO — ganó su control (`HERO.composiciones`
+// en tienda-secciones.ts, la vista nueva «¿Cómo se arma tu hero?») y se retiró su exención. Las
+// otras tres secciones con `variante` (`brandStory`/`presentaciones`/`subscriptionCTA`) SIGUEN sin
+// control y SIGUEN en `PENDIENTE_PANEL` (re-etiquetadas a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`,
+// § panel-controles.ts) — este test afirma SÓLO el hero, que es lo que este slice construyó.
+test('calibración: hero.variante está controlado por HERO.composiciones — ya no es hueco, ni siquiera SIN exenciones', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('hero.variante'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('hero.variante'));
+  assert.ok(pendientes.has('brandStory.variante'), 'brandStory.variante sigue pendiente — este slice no lo tocó');
+  assert.ok(pendientes.has('presentaciones.variante'), 'presentaciones.variante sigue pendiente — este slice no lo tocó');
+  assert.ok(pendientes.has('subscriptionCTA.variante'), 'subscriptionCTA.variante sigue pendiente — este slice no lo tocó');
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('hero.variante'));
 });
 
 // § HERO-FRASE-AL-PIE-Y-PREVIEW-1: `hero.fraseAlPie` estaba declarado en `REGISTRY.hero.campos`

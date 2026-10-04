@@ -19,6 +19,7 @@ import type { Product } from '@/types/product';
 import { cn } from '@duna/core/utils';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano, SeccionVista } from '@/components/admin/tienda-secciones';
 import { gatePorCampo, SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
+import { ComposicionHero } from '@/components/admin/editor/ComposicionHero';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -366,6 +367,8 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const [errorCampo, setErrorCampo] = useState<string | null>(null);
   const [procesando, setProcesando]   = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  // § EDITOR-TIENDA-COMPOSICION-1 — la vista «¿Cómo se arma tu hero?» (sólo hero, `config.composiciones`).
+  const [composicionAbierta, setComposicionAbierta] = useState(false);
   // § EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1 — el autoguardado de ESTA sección acaba de fallar con
   // 401 (§ `guardarSeccion`, abajo). Aparte de `auto.estado` (que sólo sabe "error", no POR QUÉ):
   // es el mismo criterio que ya separa `esSesionVencida`/`MSG_SESION_VENCIDA` del coordinador
@@ -1876,6 +1879,28 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                 </div>
               )}
 
+              {/* LA COMPOSICIÓN del hero (§ EDITOR-TIENDA-COMPOSICION-1, REDISENO.md § 4/§ 6): el
+                  botón «Composición: <nombre>» abre la vista nueva «¿Cómo se arma tu hero?» — va
+                  ANTES de la lista de zonas porque decide cuáles existen. Sólo el hero la declara
+                  (`config.composiciones`); las otras tres secciones con `variante` siguen sin este
+                  control (§ PENDIENTE_PANEL, panel-controles.ts). */}
+              {seccion === 'hero' && config.composiciones && (
+                <div className="admin-bloque">
+                  <button
+                    type="button"
+                    onClick={() => setComposicionAbierta(true)}
+                    className="duna-btn duna-btn--secondary"
+                    style={{ width: '100%', justifyContent: 'space-between' }}
+                  >
+                    <span>
+                      Composición: {config.composiciones.find((o) => o.value === String(form.variante ?? ''))?.label
+                        ?? config.composiciones[0]?.label}
+                    </span>
+                    <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
+              )}
+
               {/* Los INTERRUPTORES de sección (§ CampoBooleano, PANEL-EDITOR-HERO-TOGGLES-1) — una
                   pieza con todos los de esta sección, aparte del toggle de visibilidad de arriba.
                   EXCEPTO el hero (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 2: "los interruptores del
@@ -1985,6 +2010,25 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         confirmLabel="Descartar borrador"
         seguirLabel="Conservar"
       />
+
+      {/* § EDITOR-TIENDA-COMPOSICION-1 — `valores` funde el form de ESTA sección con los dos campos
+          cruzados de la marquesina (`texto`/`productoSlug`, § CampoTexto.seccionCruzada): viven en
+          `valoresCruzados.marquesina`, no en `form`, y la zona "Marquesina" los necesita para decidir
+          si "Se guarda" aplica al cambiar de composición. */}
+      {seccion === 'hero' && config.composiciones && (
+        <ComposicionHero
+          abierto={composicionAbierta}
+          onCerrar={() => setComposicionAbierta(false)}
+          opciones={config.composiciones}
+          activa={String(form.variante ?? config.composiciones[0]?.value ?? '')}
+          valores={{
+            ...form,
+            texto: valoresCruzados?.marquesina?.texto,
+            productoSlug: valoresCruzados?.marquesina?.productoSlug,
+          }}
+          onElegir={(valor) => { cambiar({ variante: valor }); setComposicionAbierta(false); }}
+        />
+      )}
     </>
   );
 });

@@ -239,7 +239,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) — **ENTREGADO** (2026-10-03) | `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `TiendaPaginas.tsx`, `panel-controles.ts` | 2 |
 | 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta — **ENTREGADO** (2026-10-03) | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx`, `TiendaSeccionEditor.tsx`, `VistaTiendaIframe.tsx`, `components/admin/editor/` (nuevo), `lib/admin/editor-iframe.ts` | 2 |
 | 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas — **ENTREGADO** (2026-10-03) | las 4 variantes del hero (`data-editor-zona-campo`/`-valor`), `EditorPuenteVivo.tsx`, `editor-puente.ts`, `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`, `site-content-defaults.ts`, `site-content-schema.ts` | **1** |
-| 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) | panel + hoja | 2 |
+| 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) — **ENTREGADO** (2026-10-03) | panel + hoja: `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `components/admin/editor/ComposicionHero.tsx` (nuevo), `panel-controles.ts` | 2 |
 | 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento | esquema (gate) + storefront + puente | **1** |
 | 8 | `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — el popover de publicar en palabras | barra superior | 2 |
 
@@ -331,6 +331,47 @@ se puede tipografiar"), y no hay otra forma de la misma tarea YA visible en el p
 reemplazarlo por un control compuesto (el criterio que sí justificó `CategoriaCombobox`). El `hint`
 del campo describe las cinco en una frase cada una; la vista real es la vista previa en vivo o la
 tienda publicada.
+
+**SLICE 6 ENTREGADO (2026-10-03).** El botón «Composición: <nombre>» (`TiendaSeccionEditor.tsx`,
+sólo `seccion==='hero'`) abre la vista nueva «¿Cómo se arma tu hero?» (`components/admin/editor/
+ComposicionHero.tsx`, nuevo — monta `VistaNueva`, la hoja ya construida por el slice 4): las CUATRO
+composiciones reales —Cortina/Ficha/Portada/Marquesina, en el orden de `REGISTRY.hero.variantes.
+claves`— cada una con su miniatura, su nombre, qué zonas trae («Trae: …») y qué se guarda si
+cambiás («Se guarda: …», sólo zonas de TEXTO con contenido real que la composición elegida no
+renderiza). Elegir una escribe `hero.variante` por el MISMO `cambiar()` de cualquier campo; el
+lienzo (el `<iframe>`) cambia al instante porque `onCambio`→`enviarCambio` YA mandaba el form
+completo en cada cambio — no hizo falta tocar el puente ni ningún archivo de
+`components/storefront/`.
+
+**CIERRA, PARA EL HERO, EL HUECO `PANEL-EDITOR-VARIANTES-COMPOSICION-1`** (`panel-controles.ts`,
+`PENDIENTE_PANEL`): `hero.variante` pasó a CONTROLADO (`config.composiciones` → `panel-controles.ts`
+deriva `variante` como campo controlado con sólo esa config presente) y su entrada se retiró; el
+trinquete de `PENDIENTE_PANEL` bajó de 11 a 10. Las otras TRES secciones con `variante`
+(`brandStory`/`presentaciones`/`subscriptionCTA`) **siguen sin este control** — este slice sólo
+tocó el hero, por `touches:` — y su `cierra` se re-etiquetó a `PANEL-EDITOR-VARIANTES-
+COMPOSICION-2` (el id viejo ya quedó asociado al trabajo de ESTE slice).
+
+**MINIATURA ESQUEMÁTICA, no el componente real — desviación medida y declarada, dentro de lo que
+el propio spec autoriza** ("si renderizar el hero en miniatura es caro, una captura esquemática
+fiel y decilo"): la vista previa en vivo por React (`VistaTiendaEnVivo.tsx`/`VistaTiendaContenido`)
+quedó RETIRADA del camino del editor desde `EDITOR-TIENDA-IFRAME-VISTA-1` —medido: cero imports en
+`TiendaSeccionEditor.tsx`/`TiendaPaginas.tsx`, sólo sobrevive en `admin-tienda-preset.test.ts`—; el
+lienzo de hoy es un `<iframe>` a la página real. Montar las CUATRO variantes del hero a la vez
+dentro de la hoja para compararlas de verdad habría exigido reconstruir esa vía retirada sólo para
+esta hoja. Cada miniatura es, en cambio, `style` inline con tokens `--duna-*` ya declarados —sin una
+sola clase CSS nueva, `app/(admin)/duna.css` no está en `touches:`— fiel a la POSICIÓN de cada zona
+(texto centrado vs. a un lado, tarjeta flotante, cinta de marquesina), no un pixel-perfect.
+
+**VERIFICADO POR EJECUCIÓN — sesión real, 4/4.** `.scratch/arnes-composicion.ts` (no comiteado):
+Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`, Playwright con
+sesión real (`admin@sierranativa.co`). Abrió la vista (4 composiciones + badge "Actual" visibles) →
+Cortina → Portada (el canvas gana el chip de Indicador, exclusivo de media/sticky — Cortina nunca
+lo monta) → Marquesina (la tarjeta avisa «Se guarda: Línea superior, Titular, Subtítulo, Botones»
+ANTES de elegirla; elegida, el canvas deja de tener NINGÚN nodo `[data-editor-campo="hero.titulo"]`
+— confirma por ejecución la Desviación 1 de `EDITOR-TIENDA-ZONAS-1`: 'sticky' nunca rinde el
+titular) → de vuelta a Cortina (el titular reaparece en el canvas; el campo del panel —"Productos
+que cuentan"— nunca cambió de valor en todo el recorrido). 5 capturas en
+`.scratch/capturas-composicion/` (no comiteadas).
 
 ---
 
