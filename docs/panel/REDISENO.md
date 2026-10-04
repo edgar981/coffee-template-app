@@ -96,14 +96,23 @@ son las que el prototipo trata a fondo.
 La pantalla deja de ser un feed cronológico con la atención salpicada entre filas. Se ordena por
 **lo que le toca al operador**, y el camino del pedido pasa a ser el filtro.
 
-- **Titular:** «5 pedidos necesitan tu atención». Debajo, un dato de la mesa: «13 pedidos en la
-  mesa por $1.131.000 · el más antiguo sin preparar lleva 7 h». No repite las cuentas de abajo.
+**Dos modos, arriba a la derecha: «En curso» e «Historial».** En curso es lo abierto, sea del día
+que sea; Historial es todo lo anterior. Nada en la pantalla supone un volumen ni un rubro: no hay
+«la mesa» ni «hoy» como marco fijo, para que sirva igual a quien despacha 3 pedidos por semana y a
+quien despacha 80 al día.
+
+**En curso**
+
+- **Titular:** «5 pedidos necesitan tu atención». Debajo: «10 pedidos abiertos por $963.000 · el
+  más antiguo sin preparar lleva 7 h». No repite las cuentas de abajo.
 - **Barra:** buscador (número, cliente o teléfono) y dos facetas que cruzan etapas: **Piden tu
   acción** y **Sin cobrar**. Con un filtro puesto aparece «Mostrando N de 13 · Ver todos».
 - **El camino (cuatro etapas):** Por preparar → Preparando → En camino → Entregados hoy. Cada
   etapa muestra su cuenta, su plata y cuántos piden tu acción (o, si ninguno, un dato tranquilo:
-  «Ninguno estancado», «Todos cobrados»). En Lista, tocar una etapa la filtra. En Tablero, la misma
-  franja se parte en cuatro y queda como encabezado de cada columna.
+  «Ninguno estancado»). En Lista, tocar una etapa la filtra. En Tablero, la misma franja se parte en
+  cuatro y queda como encabezado de cada columna. La cuarta etapa, **Entregados**, cuenta los
+  últimos 7 días y lleva al historial; en la lista y el tablero solo se ven los más recientes, con
+  un enlace al resto.
 - **Lista agrupada:** primero «Piden tu acción», con el botón que lo resuelve en la misma fila
   (Verificar, Registrar pago, Programar, Reprogramar). Después una sección por etapa, cada una con
   su cuenta y su total; «Entregados hoy» va atenuada.
@@ -111,6 +120,8 @@ La pantalla deja de ser un feed cronológico con la atención salpicada entre fi
     iniciales del cliente); cliente con lo que pidió debajo, o el motivo en ámbar si pide acción;
     pago con punto de color y quién lo lleva; total alineado a la derecha.
   - **Teclado:** ↑ ↓ (o j / k) mueve la selección y Enter hace el siguiente paso.
+  - **Buscar** mira lo abierto; si hay coincidencias más viejas lo dice al pie («Hay 25 pedidos más
+    con «tomas» en el historial →»). La búsqueda ignora tildes.
 - **Detalle como ficha:**
   1. «Pedido #1041 · WhatsApp · 2:05 p. m.», el cliente con teléfono, ciudad y un enlace a su
      historial («5 pedidos desde febrero»), y el total con su estado de pago.
@@ -125,6 +136,26 @@ La pantalla deja de ser un feed cronológico con la atención salpicada entre fi
   en cada columna, con una línea ámbar a la izquierda, el motivo y su botón. Las demás tarjetas
   dicen número, tiempo, cliente, total, lo que pidió, pago y quién lo lleva. Con «Piden tu acción»
   o «Sin cobrar» puesto, el tablero no esconde nada: atenúa lo que no aplica.
+
+**Historial**
+
+- **Titular:** el período en una frase, como en Pagos: «En los últimos 7 días: 41 pedidos por
+  $3.754.000», con «31 entregados · 10 en curso · 2 cancelados · promedio por pedido $91.561». Si
+  se filtra por estado, la frase lo dice («Desde el 17 de agosto: 16 pedidos cancelados»).
+- **Barra:** buscador en todo el historial (ignora el período), período (Hoy · 7 días · el mes en
+  curso · el mes pasado · Todo), estado en un select nativo (Todos · Entregados · En curso ·
+  Cancelados) y «Descargar CSV».
+- **Pedidos por día:** una barra por día del período. Con pocos días cada barra lleva su fecha; con
+  muchos, solo el primero y «hoy». Tocar un día muestra solo ese día (aparece como chip con ×).
+  Los días sin pedidos quedan como un trazo mínimo: también es información.
+- **Lista por día:** encabezado «Miércoles 30 de septiembre · 4 pedidos · $569.000» y filas con
+  número, hora, cliente, lo que pidió, estado (Entregado / Cancelado / En curso · etapa), pago y
+  total. Un cancelado va tachado y no suma. Carga de a 80 filas con «Mostrar 80 más».
+- **El detalle es la misma ficha** que en curso. Un pedido entregado dice «Completo»; uno
+  cancelado lo marca en el recorrido.
+
+**Formularios**
+
 - **Formularios:**
   - Registrar pago: método con un toque, «¿Cuándo entró?» (Hoy, Ayer, Otra fecha) y comprobante
     opcional.
@@ -222,6 +253,7 @@ interfaz que llama a las puertas de dinero; las puertas mismas no se tocan.
 | 1 | `PANEL-ANALITICA-COPIA-1` — quitar el texto de desarrollo y nombrar distinto «Cartera» y «Por cobrar» | `analitica/` | Solo texto. Se ve el mismo día. |
 | 2 | `PANEL-ROLES-HONESTOS-1` — sacar STAFF de la leyenda y de «Cambiar rol», confirmar promociones y ocultar el menú a quien no es dueño | `configuracion/page.tsx`, `InviteUserModal.tsx` | Cierra un camino que deja a alguien sin acceso. |
 | 3 | `PANEL-PEDIDOS-CAMINO-1` — buscador, facetas «Piden tu acción» y «Sin cobrar», franja de cuatro etapas y lista agrupada con la acción en la fila; «En camino» en todas partes | `pedidos/`, `lib/pedidos/filtros.ts` | Reemplaza los nueve carriles de hoy (§ Backlog #35). Las etapas y las facetas reusan los predicados que ya existen (`motivosDeAtencion`, `isPorCobrar`); no hay definición nueva. |
+| 3b | `PANEL-PEDIDOS-HISTORIAL-1` — modo Historial: período, estado, pedidos por día, lista por día con carga paginada, búsqueda en todo y CSV | `pedidos/`, `app/api/orders/route.ts` | Hoy `GET /api/orders` trae todo sin paginar. El historial necesita paginar y filtrar por fecha en el servidor; esa ruta está en Tier 1 (sesión de solo lectura primero). |
 | 4 | `PANEL-PEDIDOS-FICHA-1` — el detalle como ficha: siguiente paso, recorrido con horas, hechos en filas y recibo; tablero con encabezado por etapa; pasar los modales a Duna | `pedidos/`, `NewOrderModal.tsx`, `ScheduleDeliveryModal.tsx`, `RegisterPaymentModal.tsx` | |
 | 5 | `PANEL-INVENTARIO-EXISTENCIAS-1` — pestaña Existencias y ajuste con vista previa, «Llegó más» por defecto y motivos | `inventario/`, `AdjustStockModal.tsx` | El motivo sigue siendo texto: los chips solo lo escriben. |
 | 6 | `PANEL-CONFIG-POR-BLOQUES-1` — subsecciones con edición por bloque | `configuracion/`, `DatosNegocioSeccion.tsx` | |
@@ -253,6 +285,8 @@ interfaz que llama a las puertas de dinero; las puertas mismas no se tocan.
   la pantalla donde se trabaja (§ «un número de layout sólo vale si viene de la pantalla donde se
   TRABAJA»). Esta propuesta la cambia. Antes de construirla hay que medir en esa pantalla cuántas
   filas caben con la fila nueva (unos 58 px).
+- **Qué cuenta como «en curso»**: la propuesta lo define como todo lo que no está entregado y
+  pagado ni cancelado, sin importar la fecha. Un pedido entregado y sin cobrar sigue en curso.
 - **Teclado en la lista** (↑ ↓, Enter): es capacidad nueva. Enter dispara el siguiente paso, así
   que necesita la misma guarda de doble envío que los botones (`useAccionGuardada`).
 - Las **cifras del prototipo** son de una tienda de ejemplo (Finca San Adolfo); no son datos reales.
