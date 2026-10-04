@@ -424,18 +424,19 @@ const ordenEditableSchema = z.array(
   { message: 'orden: una banda no puede repetirse' },
 );
 
-// META de SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1): el mapa id→instancia de un
-// catálogo CURADO de tres tipos. NO es una sección del REGISTRY —`SeccionKey` la excluye, igual que
-// `esquemas`/`orden`/`variantesBandas`— pero a diferencia de esas metas SÍ pasa por el flujo
-// borrador/publicar genérico (como cualquier clave del REGISTRY — ver `app/api/site-content/
-// route.ts`, que la suma a la lista de claves publicables junto a 'orden'/'tema').
+// META de SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado a seis tipos por
+// § SECCIONES-TIPOS-2): el mapa id→instancia de un catálogo CURADO. NO es una sección del REGISTRY
+// —`SeccionKey` la excluye, igual que `esquemas`/`orden`/`variantesBandas`— pero a diferencia de
+// esas metas SÍ pasa por el flujo borrador/publicar genérico (como cualquier clave del REGISTRY —
+// ver `app/api/site-content/route.ts`, que la suma a la lista de claves publicables junto a
+// 'orden'/'tema').
 //
 // CADA instancia es una UNIÓN DISCRIMINADA por `tipo`, uno por miembro de `SECCION_INSTANCIA_TIPOS`
 // (`secciones-instancias.ts`, la fuente única del catálogo — DESCRIPTOR_INSTANCIA declara los
-// mismos campos que estos tres sub-schemas; `secciones-instancias.test.ts` afirma la paridad). Todo
+// mismos campos que estos sub-schemas; `secciones-instancias.test.ts` afirma la paridad). Todo
 // opcional/SOFT como el resto de este archivo: el resolver (`resolverInstancia`) decide requerido-
 // vacío→default / opcional-presente→se respeta, igual que cualquier sección.
-// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS TRES: el ojo de la lista (`InstanciaTarjeta.tsx`)
+// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS SEIS: el ojo de la lista (`InstanciaTarjeta.tsx`)
 // escribe este booleano con el MISMO autoguardado que cualquier otro campo de la instancia
 // (`cambiarInstancia`, `TiendaPaginas.tsx`) — sin declararlo acá, `z.object` lo STRIPPEA en silencio
 // al guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado") y el ojo parecería
@@ -481,14 +482,62 @@ const instanciaBannerEditableSchema = z.object({
   alto: z.string().optional(),
   visible: z.boolean().optional(),
 });
+// § SECCIONES-TIPOS-2 — los tres tipos REPEATER del catálogo (`secciones-instancias.ts`,
+// `DESCRIPTOR_INSTANCIA.{preguntas,columnas,filas}.items.descriptor`). MISMA forma SOFT que
+// `testimonialItemSchema`/`galeriaItemSchema` arriba: todos los campos de ítem opcionales strings —
+// el requerido/opcional del descriptor es del EDITOR (asterisco, mínimo de ítems), no de este
+// schema; acá sólo se valida el TIPO, igual que el resto de este archivo.
+const instanciaPreguntaItemSchema = z.object({
+  pregunta: z.string().optional(),
+  respuesta: z.string().optional(),
+});
+const instanciaPreguntasEditableSchema = z.object({
+  tipo: z.literal('preguntas'),
+  titulo: z.string().optional(),
+  items: z.array(instanciaPreguntaItemSchema).optional(),
+  visible: z.boolean().optional(),
+});
+
+// `enlace` — mismo set cerrado que `ctaDestino` en los tres tipos de arriba: la columna ENTERA es
+// el enlace (no hay un `enlaceLabel` separado), así que valida contra el MISMO `MENU_CTA_DESTINOS`.
+const instanciaColumnaItemSchema = z.object({
+  imagen: z.string().optional(),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  enlace: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+});
+const instanciaColumnasEditableSchema = z.object({
+  tipo: z.literal('columnas'),
+  titulo: z.string().optional(),
+  items: z.array(instanciaColumnaItemSchema).optional(),
+  visible: z.boolean().optional(),
+});
+
+const instanciaFilaItemSchema = z.object({
+  imagen: z.string().optional(),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+});
+const instanciaFilasEditableSchema = z.object({
+  tipo: z.literal('filas'),
+  titulo: z.string().optional(),
+  items: z.array(instanciaFilaItemSchema).optional(),
+  visible: z.boolean().optional(),
+});
+
 const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaTextoEditableSchema,
   instanciaImagenTextoEditableSchema,
   instanciaBannerEditableSchema,
+  instanciaPreguntasEditableSchema,
+  instanciaColumnasEditableSchema,
+  instanciaFilasEditableSchema,
 ]);
 // `z.record(z.string(), …)`, KEY-AGNÓSTICO como `esquemasEditableSchema`: el dominio de ids lo
 // decide el dueño, no hay un enum que enumerarlo acá. Una clave sin el prefijo de instancia, o un
-// valor cuyo `tipo` no matchea ninguno de los tres, falla la unión discriminada y el PUT entero se
+// valor cuyo `tipo` no matchea ninguno de los seis, falla la unión discriminada y el PUT entero se
 // rechaza con 400 — el mismo criterio "el WRITE puede ser más estricto que el loader" de `orden`.
 const seccionesHomeEditableSchema = z.record(z.string(), instanciaEditableSchema);
 

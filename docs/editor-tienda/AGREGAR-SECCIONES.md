@@ -339,3 +339,184 @@ modo editor, server-side), así que un visitante real no ejecuta ni un byte de e
 sesión real con el arnés (Playwright, build de producción + Postgres efímero) ejercitó el escenario
 completo — hover entre Hero y Destacado, clic en el «+», biblioteca abierta, Banner insertado justo
 ahí — con capturas.
+
+## TRES tipos más — Preguntas, Columnas, Filas, y el REPEATER a nivel de INSTANCIA (§ SECCIONES-TIPOS-2)
+
+El catálogo pasó de tres tipos de campos planos a **seis**: los tres de siempre (Texto/ImagenTexto/
+Banner) más **Preguntas** (acordeón pregunta/respuesta), **Columnas** (de dos a seis, con imagen
+opcional/título/texto/enlace) y **Filas** (filas de imagen con texto que alternan de lado). La
+UNIDAD DE EXTENSIÓN del mecanismo es nueva: hasta esta tanda `InstanciaDescriptor` sólo sabía de
+`campos` planos + `escalares`; ahora declara, opcionalmente, `items` (`InstanciaItemsDef`) — un
+descriptor de ÍTEM (`InstanciaItemDescriptor`, misma forma que `campos`/`imagenes`, un nivel más
+adentro) más `min`/`max`, los límites que el EDITOR impone (nunca el resolver — SOFT, como
+siempre). `DESCRIPTOR_INSTANCIA.{preguntas,columnas,filas}` son los tres primeros en declarar
+`items`; los tres de siempre siguen sin tocar.
+
+### El modelo — `items` se resuelve APARTE de `campos`, mismo criterio que `resolverSiteContent`
+
+`resolverInstancia` gana una rama: si `descriptor.items`, `out.items` se resuelve con
+`resolverItemsInstancia` (función LOCAL, duplicada de `resolverItems` de `site-content-defaults.ts`
+por el módulo-hoja de siempre — ver el docstring de cabecera del archivo). SOFT en los dos sentidos:
+un `items` que no es array da `[]` (nunca inventa ítems), un ítem no-objeto se descarta, cada campo
+declarado se normaliza a string. `min`/`max` NO los aplica el resolver — son de CURADURÍA del
+editor, igual que el tope de la galería de /nosotros.
+
+**`instanciaEsVisible` gana la mitad de hide-on-empty**, GEMELA de `seccionEsVisible` para una
+sección repeater del REGISTRY: `items:[]` oculta la instancia aunque `visible` sea `true`
+explícito — mismo orden de precedencia (hide-on-empty GANA sobre el toggle). Una instancia de
+Preguntas sin preguntas, o de Columnas/Filas sin ítems, no tiene nada que mostrar.
+
+**`imagenesDeInstancia` gana la mitad REPEATER-AWARE**, gemela de `imagenesDe`
+(`site-content-blobs.ts`) para una sección repeater del REGISTRY: además de los campos-imagen a
+nivel de INSTANCIA (`descriptor.imagenes`, como ya tenían ImagenTexto/Banner), ahora también junta
+los campos-imagen de CADA ítem (`descriptor.items.descriptor.imagenes`) — Columnas y Filas
+declaran `imagen` por ítem. Sin esto, una foto de columna o de fila en USO se vería huérfana al
+borrado de blobs la próxima vez que se reemplazara. `tests/integracion/secciones-instancias.test.ts`
+afirma el viaje completo (reemplazar la imagen de UN ítem en el borrador no la borra hasta publicar;
+publicar SÍ deja huérfana la vieja) sobre `columnas`, que cubre el caso representativo (es el único
+de los tres con `min`/`max` DEL editor y con imagen por ítem — Preguntas no tiene imagen, Filas
+comparte el mismo mecanismo que Columnas sin el piso/tope).
+
+**`instanciaEsUniforme` gana `filas` al lado de `imagenTexto`** (las dos NO uniformes, para el
+cálculo de darkness del nav flotante): Filas reusa `ImagenTexto` fila por fila, así que es AÚN más
+heterogénea que una sola `imagenTexto` — nunca un solo tono de borde a borde. `instanciaOscuraCanonica`
+no cambió: ninguno de los tres tipos nuevos es oscuro por canónica (sólo `banner` lo es).
+
+### Los campos de cada tipo
+
+| Tipo | Cabecera (instancia) | Campos del ÍTEM | `min`/`max` del editor |
+| --- | --- | --- | --- |
+| `preguntas` | `titulo` (opcional) | `pregunta`*, `respuesta`* | 0 / sin tope |
+| `columnas` | `titulo` (opcional) | `imagen`, `titulo`*, `texto`, `enlace` | **2 / 6** |
+| `filas` | `titulo` (opcional) | `imagen`, `titulo`*, `texto`, `ctaLabel`, `ctaDestino` | 0 / sin tope |
+
+(* = `requerido` en el descriptor — asterisco en el editor, nunca enforcement del resolver.)
+
+`DEFAULTS_INSTANCIA` siembra los tres con **DOS ítems de ejemplo**, texto neutro (sin café, sin
+Nayoli) y SIN imagen — ni uno (que haría a la biblioteca mostrar una tarjeta vacía por
+hide-on-empty) ni tres (no hace falta más para que el patrón de cada tipo — la alternancia de
+Filas, el mínimo de Columnas — ya se vea al agregar la sección). **Esto NO es el caso de #44**
+(prueba social fabricada): una pregunta o una columna de ejemplo no afirman nada falso del negocio,
+al revés que un testimonio o una reseña — es el mismo "Un título para esta sección" que Texto/
+ImagenTexto/Banner ya traían, llevado a un repeater.
+
+`enlace` (Columnas) es la ÚNICA novedad de schema: **la columna ENTERA es el link** (no hay un
+"enlaceLabel" separado), así que `resolverCtaSeccion(col.titulo, col.enlace, paginas)` se reusa
+pasándole el TÍTULO como label — el mismo criterio OR/callar-si-no-hay-destino que cualquier otro
+CTA de sección, sin inventar una segunda función. El schema (`instanciaColumnaItemSchema`) valida
+`enlace` contra el MISMO `MENU_CTA_DESTINOS` que todo `ctaDestino`.
+
+### El editor — `InstanciaItemsEditor.tsx`, NO `RepeaterEditor.tsx`
+
+`components/admin/RepeaterEditor.tsx` (el repeater genérico que ya usan Testimonios/galería) **no
+está en `touches:` de este slice** y, más allá de eso, le falta justo lo que Columnas necesita: un
+PISO (`min`) que impida bajar de dos — sólo tiene `max`. Se escribió un editor PROPIO,
+`components/admin/editor/InstanciaItemsEditor.tsx`, con el MISMO patrón visual (renglón-resumen
+colapsado + expandir, flechas para reordenar, papelera con confirmación vía `ConfirmDescartarDialog`
+— nunca un borrado directo) pero agnóstico de nombre de campo (como `InstanciaEditorForm.tsx` ya lo
+es para los campos planos): lee `descriptor.campos`/`imagenes` y arma el formulario del ítem desde
+ahí, con dos listas CERRADAS por NOMBRE (`enlace`/`ctaDestino` → select de destino;
+`respuesta`/`texto` → textarea) — no hay más de estos seis nombres en los tres tipos de hoy, así que
+una lista fija alcanza sin una config aparte.
+
+- **"Agregar" con campo-imagen SUBE PRIMERO** (mismo criterio que `RepeaterEditor`): Columnas/Filas
+  abren el selector de archivos real al agregar; un ítem-imagen vacío sería una foto rota. Preguntas
+  (sin imagen) agrega directo.
+- **La papelera se DESHABILITA en el piso** (`items.length <= min`): es lo que hace cierto "de dos a
+  seis columnas" — sin este guard en el EDITOR, nada impediría bajar a una.
+- **Comparte el uploader** de la cáscara (`InstanciaEditorForm`'s `subida`, un solo `<input
+  type=file>`) — no instancia uno propio.
+
+### Preguntas — NO reusa `PreguntasFrecuentes.tsx`: DESVIACIÓN MEDIDA del spec
+
+El spec pedía "reusá el marcado y la accesibilidad de `PreguntasFrecuentes` (pasándole props, no
+copiándolo)". Medido ANTES de escribir código: `components/storefront/PreguntasFrecuentes.tsx`
+(la FAQ de `/suscripciones`) vive **fuera** de `components/storefront/secciones/` — el único
+directorio de este slice en `touches:` para el storefront — y además **hoy no es desplegable**: es
+una lista estática que SIEMPRE muestra pregunta y respuesta (`suscripcionFaq.items.map` sin ningún
+`useState` de expand/collapse). Satisfacer el spec al pie de la letra (pasarle props a esa función
+para que la nueva sección la reusara) habría exigido **editar un archivo fuera de `touches:`** —
+fuera del alcance que la aprobación cubre.
+
+`components/storefront/secciones/Preguntas.tsx` es, por tanto, un componente PROPIO: reusa el
+MISMO vocabulario visual (la tarjeta `bg-[var(--sf-tarjeta)]` con `sf-borde border-[var(--sf-linea)]`,
+el mismo patrón `--sf-sobre-tarjeta(-suave)` para el texto DENTRO de la tarjeta — el par floreado
+contra `--sf-tarjeta`, no `--sf-sobre-banda`, siguiendo el precedente de `TestimonialSection.tsx`) y
+AGREGA la parte que el spec pedía y que `PreguntasFrecuentes` no tiene: cada pregunta es un
+`<button aria-expanded aria-controls>` con su panel `role="region" aria-labelledby`, el patrón de
+acordeón accesible que ya usa `FiltrarOrdenar.tsx` en otra parte del storefront.
+
+**Open follow-up, para la próxima vez que se toque `PreguntasFrecuentes.tsx`:** ese archivo podría
+refactorizarse para aceptar `titulo`/`items` por props y volverse desplegable también, y entonces
+`SeccionPreguntas` pasaría a llamarlo en vez de duplicar el vocabulario visual — unificando las dos
+FAQ del storefront en una sola implementación. No se hizo acá porque el archivo está fuera de
+`touches:`; queda anotado en `DECISIONS.md`.
+
+### Columnas — en móvil SE APILAN, no un carrusel (decisión medida)
+
+"De dos a seis columnas" en una pantalla angosta exige una respuesta, y el spec pedía decir cuál y
+por qué. **Se apilan** (`grid-cols-1` → `md:grid-cols-{2..6}`, lookup LITERAL —
+`GRID_COLS_COLUMNAS`— para que el JIT de Tailwind vea las clases, mismo criterio que
+`gridColsPresentaciones`): es exactamente lo que YA hacen Presentaciones (2-4) y la galería de
+/nosotros (hasta 12) en la misma situación. **Ningún componente del storefront de hoy implementa un
+carrusel horizontal** (scroll-snap, indicador de página, gestos táctiles, accesibilidad de scroll)
+— construir uno sería un mecanismo nuevo para un problema que apilar ya resuelve sin código extra,
+desproporcionado para esta tanda.
+
+### Filas — reusa `SeccionImagenTexto`, LITERALMENTE, fila por fila
+
+"Reusá el componente de Imagen con texto" se tomó al pie de la letra: `SeccionFilas` NO reimplementa
+el layout imagen+texto — por cada ítem, arma un objeto `InstanciaImagenTextoContent` SINTÉTICO
+(mismos campos que la interfaz real, `lado` alternando por PARIDAD del índice —nunca un campo que
+el dueño elija, el spec dice "alternan de lado fila por fila"— y `antetitulo: ''`, que Filas no
+tiene) y lo pasa a `<SeccionImagenTexto id={`${id}.items.${i}`} instancia={sintetica} style={style}
+/>` tal cual. Es el MISMO componente que renderiza una instancia `imagenTexto` real — no una copia.
+
+El `id` sintético (`${id}.items.${i}`) es la parte que lo hace funcionar sin que `Filas.tsx` sepa
+nada de `campo-editable.ts`: `ImagenTexto.tsx` ya construye sus rutas de campo como `${id}.titulo`/
+`${id}.imagen`, así que con ese id la ruta resultante es `${id}.items.${i}.titulo` —exactamente la
+forma `items.N.subcampo` que `fusionCampoEditable`/`parsearRutaCampo` (fuera de `touches:`) ya saben
+leer, sin que este slice toque esos archivos.
+
+**El `style` (el esquema de color) se pasa a CADA fila**, no a un `<section>` envolvente propio:
+Filas no tiene UN `<section>` compartido — cada `SeccionImagenTexto` trae el suyo — así que para
+que el título opcional y las N filas compartan el mismo tinte, `style` viaja a cada llamada.
+
+### Lo que NO entró en esta tanda
+
+Ninguno de los tres tipos nuevos tiene campo de VIDEO (el spec no lo pidió para ninguno): la mitad
+"...y videos incluidos en la limpieza de blobs" del checklist general queda VACUAMENTE satisfecha
+—no hay campo de video que limpiar—, no ignorada.
+
+### Verificación
+
+Capa 1 (`lib/config/secciones-instancias.test.ts`, `site-content-schema.test.ts`,
+`site-content-blobs.test.ts`) y carril (`tests/integracion/secciones-instancias.test.ts`, el viaje
+completo de `columnas` con ítems + imagen por ítem) — ver sus propios asientos de prueba para el
+detalle. `npm run gate` verde en las dos capas.
+
+**`npm run verificar:nayoli` (byte-exacto, HTML+CSS) NO dio diff vacío — medido, y la causa NO es
+este slice.** El primer y segundo punto de divergencia (`lang="en"` vs `"es"`, `quality=75` vs `85`)
+se verificaron contra `git log` y resultaron ser de COMMITS ANTERIORES a este slice
+(`25e2671 METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, 2026-10-01, y la config de `next.config.ts`) — la
+rama venía con drift acumulado de `slice/corte-reescritura-prototipo-1` desde antes de que esta
+tanda empezara. La prueba de que el HTML/CSS real de Nayoli no cambia por este slice es la OTRA
+mitad, la que SÍ tiene un piso documentado: **`npm run verificar:nayoli:visual` midió la MISMA
+cifra exacta, dígito a dígito, que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (165052/4608000 px AA
+en `home`; 163/361 px en las otras 5 rutas; los 2 hovers IDÉNTICO) — cero píxeles de más
+atribuibles a `SECCIONES-TIPOS-2`. Confirmado también por lectura: cero apariciones de `inst:` y de
+las clases nuevas (`grid-cols-5`, `rotate-180` sobre el chevron de Preguntas) en el HTML/CSS de
+Nayoli renderizado — los tres tipos nuevos nunca se ejecutan sin una instancia, y Nayoli no tiene
+ninguna.
+
+La sesión real con el arnés (Playwright, build de producción + Postgres efímero,
+`.scratch/verificar-secciones-tipos-2.ts`) agregó los TRES tipos desde la biblioteca, verificó los
+dos ítems de ejemplo, editó el título, agregó un tercer ítem (con su imagen para Columnas/Filas,
+vía el selector de archivos real) y publicó — con capturas en escritorio y teléfono, Chromium y
+WebKit, y a mitad de scroll (las tres secciones usan `RevelarBloque`/`whileInView`). **Hallazgo de
+método, para el próximo arnés que capture una página completa con contenido animado: un
+`fullPage: true` de un solo resize NO dispara los `IntersectionObserver` de framer-motion para todo
+el alto de la página — hace falta un SCROLL REAL en pasos del viewport antes de la captura
+(`scrollearYAsentar`, la técnica que `scripts/verificar-nayoli-visual.ts` ya documentaba y este
+arnés no había copiado en su primer intento — la primera corrida mostró grandes huecos en blanco,
+incluido en "featured", una banda que este slice ni toca).

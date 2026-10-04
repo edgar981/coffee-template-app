@@ -164,3 +164,76 @@ test('PUBLICAR una imagen de instancia nueva deja la VIEJA huérfana (ya sin ref
   const { blobsABorrar } = await publicarSeccion('seccionesHome');
   assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
 });
+
+// ─── § SECCIONES-TIPOS-2 — EL VIAJE COMPLETO DE LOS TRES TIPOS REPEATER ─────────────────────────
+//
+// `site-content-schema.test.ts` ya afirma que el schema real acepta los tres (preguntas/columnas/
+// filas) con sus `items`, y `secciones-instancias.test.ts` que el resolver los resuelve bien — pero
+// eso no prueba que el VIAJE real (PUT con el schema real → borrador en la base → publicar →
+// releer con `readSiteContent`) los conserve de punta a punta. Un sólo tipo representativo
+// (`columnas`, el único con `min`/`max` del editor Y con imagen por ítem) cubre la cadena completa;
+// los otros dos ya están cubiertos campo-a-campo por el schema y el resolver.
+
+test('crear una instancia "columnas" con dos ítems (uno con imagen, uno sin), publicar: el storefront la relee con sus items intactos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:col': {
+        tipo: 'columnas',
+        titulo: 'Nuestras categorías',
+        items: [
+          { imagen: 'https://blob/col-a.jpg', titulo: 'Categoría A', texto: 'Cuerpo A', enlace: '/tienda' },
+          { imagen: '', titulo: 'Categoría B', texto: '', enlace: '' },
+        ],
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const col = publicado.seccionesHome['inst:col'] as unknown as { titulo: string; items: Record<string, string>[] };
+  assert.equal(col.titulo, 'Nuestras categorías');
+  assert.deepEqual(col.items, [
+    { imagen: 'https://blob/col-a.jpg', titulo: 'Categoría A', texto: 'Cuerpo A', enlace: '/tienda' },
+    { imagen: '', titulo: 'Categoría B', texto: '', enlace: '' },
+  ]);
+});
+
+test('"columnas" — ocultar con `visible:false` sobrevive el viaje completo, igual que los tipos de campos planos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:col': { tipo: 'columnas', visible: false, items: [{ titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:col'] as { visible: boolean }).visible, false);
+});
+
+test('"columnas" — reemplazar la imagen de UN ítem en el borrador deja la vieja PUBLICADA, no huérfana todavía', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:col': { tipo: 'columnas', items: [{ imagen: 'https://blob/A.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const { blobsABorrar } = await guardarBorrador(
+    siteContentEditableSchema.parse({
+      seccionesHome: { 'inst:col': { tipo: 'columnas', items: [{ imagen: 'https://blob/X.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+    }),
+  );
+  assert.deepEqual(blobsABorrar, [], 'A sigue publicada; X es sólo del borrador');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:col'] as { items: { imagen: string }[] }).items[0].imagen, 'https://blob/A.jpg');
+});
+
+test('"columnas" — PUBLICAR la imagen nueva de un ítem deja la VIEJA huérfana (nadie más la referencia) — SÍ se borra', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:col': { tipo: 'columnas', items: [{ imagen: 'https://blob/A.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:col': { tipo: 'columnas', items: [{ imagen: 'https://blob/X.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+  });
+
+  const { blobsABorrar } = await publicarSeccion('seccionesHome');
+  assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
+});

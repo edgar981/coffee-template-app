@@ -208,7 +208,7 @@ test('seccionesHome: "imagenTexto" y "banner" también sobreviven, cada uno con 
   assert.equal((parsed.seccionesHome!['inst:ban'] as { alto: string }).alto, 'pantalla');
 });
 
-test('seccionesHome: un `tipo` que no es ninguno de los tres se rechaza (unión discriminada)', () => {
+test('seccionesHome: un `tipo` que no es ninguno de los seis se rechaza (unión discriminada)', () => {
   assert.throws(() => siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'carrusel', titulo: 'x' } } }));
 });
 
@@ -246,4 +246,65 @@ test('seccionesHome: `visible: false` SOBREVIVE al parse, en los tres tipos — 
 test('seccionesHome: sin `visible` en el body, el parse no inventa la clave — el resolver (no el schema) decide el default', () => {
   const parsed = siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T' } } });
   assert.equal('visible' in (parsed.seccionesHome!['inst:a'] as Record<string, unknown>), false);
+});
+
+// ─── § SECCIONES-TIPOS-2 — LOS TRES TIPOS REPEATER (Preguntas/Columnas/Filas) ───────────────────
+
+test('seccionesHome: "preguntas" sobrevive completa, con su array de items', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:faq': { tipo: 'preguntas', titulo: 'Preguntas', items: [{ pregunta: '¿Hay envío?', respuesta: 'Sí.' }] },
+    },
+  });
+  assert.deepEqual(parsed.seccionesHome!['inst:faq'], {
+    tipo: 'preguntas', titulo: 'Preguntas', items: [{ pregunta: '¿Hay envío?', respuesta: 'Sí.' }],
+  });
+});
+
+test('seccionesHome: "columnas" sobrevive completa, y `enlace` valida contra MENU_CTA_DESTINOS como cualquier ctaDestino', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:col': { tipo: 'columnas', items: [{ imagen: '/a.jpg', titulo: 'A', texto: 'texto A', enlace: '/tienda' }] },
+    },
+  });
+  assert.equal((parsed.seccionesHome!['inst:col'] as { items: { enlace: string }[] }).items[0].enlace, '/tienda');
+
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:col2': { tipo: 'columnas', items: [{ titulo: 'A', enlace: '/ruta-inventada' }] } },
+  }), 'un enlace fuera del set cerrado se rechaza, igual que ctaDestino en los otros tipos');
+});
+
+test('seccionesHome: "filas" sobrevive completa, con imagen/ctaLabel/ctaDestino por ítem', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:filas': { tipo: 'filas', items: [{ imagen: '/f.jpg', titulo: 'Fila 1', texto: 'cuerpo', ctaLabel: 'Ver', ctaDestino: '/tienda' }] },
+    },
+  });
+  assert.deepEqual((parsed.seccionesHome!['inst:filas'] as { items: unknown[] }).items, [
+    { imagen: '/f.jpg', titulo: 'Fila 1', texto: 'cuerpo', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+  ]);
+});
+
+test('seccionesHome: los tres REPEATER sin `items` no rompen el parse — campo opcional, como el resto (loader SOFT)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:a': { tipo: 'preguntas' },
+      'inst:b': { tipo: 'columnas' },
+      'inst:c': { tipo: 'filas' },
+    },
+  });
+  assert.equal('items' in (parsed.seccionesHome!['inst:a'] as Record<string, unknown>), false);
+});
+
+test('seccionesHome: "preguntas"/"columnas"/"filas" también llevan `visible`, mismo contrato que los otros tres (§ SECCIONES-INSTANCIAS-VIVO-1)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:a': { tipo: 'preguntas', visible: false },
+      'inst:b': { tipo: 'columnas', visible: false },
+      'inst:c': { tipo: 'filas', visible: false },
+    },
+  });
+  assert.equal((parsed.seccionesHome!['inst:a'] as { visible: boolean }).visible, false);
+  assert.equal((parsed.seccionesHome!['inst:b'] as { visible: boolean }).visible, false);
+  assert.equal((parsed.seccionesHome!['inst:c'] as { visible: boolean }).visible, false);
 });

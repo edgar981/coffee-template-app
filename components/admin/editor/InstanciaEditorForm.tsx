@@ -6,6 +6,7 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { OPCIONES_CTA_DESTINO } from '@/components/admin/tienda-secciones';
 import { MAX_SUBIDA_DIRECTA_MB } from '@/constants/upload';
+import { InstanciaItemsEditor } from '@/components/admin/editor/InstanciaItemsEditor';
 import {
   DESCRIPTOR_INSTANCIA, type InstanciaContent, type SeccionInstanciaTipo,
 } from '@/lib/config/secciones-instancias';
@@ -50,6 +51,14 @@ const LABEL_VALOR_ESCALAR: Record<string, Record<string, string>> = {
   alineacion: { izquierda: 'Izquierda', centro: 'Centro', derecha: 'Derecha' },
   lado: { izquierda: 'Izquierda', derecha: 'Derecha' },
   alto: { justo: 'Justo', alto: 'Alto', pantalla: 'Pantalla completa' },
+};
+// § SECCIONES-TIPOS-2 — el nombre SINGULAR de un ítem de cada tipo REPEATER, para
+// `InstanciaItemsEditor` (sus botones: "Agregar pregunta", "¿Eliminar esta columna?"). Sólo cubre
+// los tipos con `descriptor.items`; los otros tres nunca llegan al bloque que lo consume.
+const ITEM_LABEL: Partial<Record<SeccionInstanciaTipo, string>> = {
+  preguntas: 'pregunta',
+  columnas: 'columna',
+  filas: 'fila',
 };
 
 export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
@@ -156,6 +165,27 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
           );
         })}
       </div>
+
+      {/* § SECCIONES-TIPOS-2 — el REPEATER (Preguntas/Columnas/Filas): el array `items` vive
+          APARTE de los campos planos de arriba (que acá sólo son la cabecera — `titulo`), en su
+          propio bloque, como en `TiendaSeccionEditor` una sección repeater separa su encabezado de
+          su `RepeaterEditor`. El uploader es el MISMO `subida` de arriba (un solo `<input>`). */}
+      {descriptor.items && (
+        <div className="admin-bloque" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
+          <InstanciaItemsEditor
+            items={(instancia as unknown as { items?: Record<string, string>[] }).items ?? []}
+            descriptor={descriptor.items.descriptor}
+            min={descriptor.items.min}
+            max={descriptor.items.max}
+            itemLabel={ITEM_LABEL[tipo] ?? 'ítem'}
+            pedirImagen={subida.pedir}
+            subiendo={subida.subiendo}
+            progreso={subida.progreso}
+            onCambiar={(nuevos) => onCambiar({ ...instancia, items: nuevos } as unknown as InstanciaContent)}
+          />
+          {errorSubida && <span className="duna-field__error" role="alert">{errorSubida}</span>}
+        </div>
+      )}
     </div>
   );
 }

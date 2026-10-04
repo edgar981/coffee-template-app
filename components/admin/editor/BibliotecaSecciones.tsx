@@ -10,6 +10,9 @@ import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import SeccionTexto from '@/components/storefront/secciones/Texto';
 import SeccionImagenTexto from '@/components/storefront/secciones/ImagenTexto';
 import SeccionBanner from '@/components/storefront/secciones/Banner';
+import SeccionPreguntas from '@/components/storefront/secciones/Preguntas';
+import SeccionColumnas from '@/components/storefront/secciones/Columnas';
+import SeccionFilas from '@/components/storefront/secciones/Filas';
 import {
   CATALOGO_INSTANCIAS, DEFAULTS_INSTANCIA, type InstanciaContent, type SeccionInstanciaTipo,
 } from '@/lib/config/secciones-instancias';
@@ -48,6 +51,9 @@ const COMPONENTE_INSTANCIA: Record<SeccionInstanciaTipo, ComponenteInstancia> = 
   texto: SeccionTexto as ComponenteInstancia,
   imagenTexto: SeccionImagenTexto as ComponenteInstancia,
   banner: SeccionBanner as ComponenteInstancia,
+  preguntas: SeccionPreguntas as ComponenteInstancia,
+  columnas: SeccionColumnas as ComponenteInstancia,
+  filas: SeccionFilas as ComponenteInstancia,
 };
 
 const ALTO_PREVIEW = 104;

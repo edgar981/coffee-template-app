@@ -21,16 +21,30 @@ test('DESCRIPTOR_INSTANCIA: cada tipo tiene EXACTAMENTE sus campos cubiertos en 
     // `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) se excluye como `tipo`: es un escalar de INSTANCIA
     // resuelto a mano en `resolverInstancia`, nunca parte de `descriptor.campos`/`escalares` — misma
     // razón que `visible` de una banda no pertenece a `def.campos` en `site-content-defaults.ts`.
-    const camposDefault = new Set(Object.keys(DEFAULTS_INSTANCIA[tipo]).filter((k) => k !== 'tipo' && k !== 'visible'));
+    // `items` (§ SECCIONES-TIPOS-2) se excluye por la MISMA razón: es el array REPEATER, resuelto
+    // aparte por `resolverItemsInstancia`, nunca parte de `campos`/`escalares` (que son sólo la
+    // cabecera plana de la instancia).
+    const camposDefault = new Set(Object.keys(DEFAULTS_INSTANCIA[tipo]).filter((k) => k !== 'tipo' && k !== 'visible' && k !== 'items'));
     const esperado = new Set([...camposDescriptor, ...escalares]);
     assert.deepEqual(camposDefault, esperado, `defaults de "${tipo}" deben cubrir exactamente campos+escalares del descriptor`);
   }
 });
 
-test('esSeccionInstanciaTipo: acepta los tres, rechaza basura', () => {
+test('DESCRIPTOR_INSTANCIA: un tipo REPEATER (`items` presente) siempre tiene `items` como array en DEFAULTS_INSTANCIA, y un tipo de campos planos NUNCA lo tiene', () => {
+  for (const tipo of SECCION_INSTANCIA_TIPOS) {
+    const esRepeater = !!DESCRIPTOR_INSTANCIA[tipo].items;
+    const tieneItemsEnDefault = Array.isArray((DEFAULTS_INSTANCIA[tipo] as unknown as { items?: unknown }).items);
+    assert.equal(tieneItemsEnDefault, esRepeater, `"${tipo}": items en DEFAULTS_INSTANCIA debe coincidir con si el descriptor declara items`);
+  }
+});
+
+test('esSeccionInstanciaTipo: acepta los seis del catálogo, rechaza basura', () => {
   assert.equal(esSeccionInstanciaTipo('texto'), true);
   assert.equal(esSeccionInstanciaTipo('imagenTexto'), true);
   assert.equal(esSeccionInstanciaTipo('banner'), true);
+  assert.equal(esSeccionInstanciaTipo('preguntas'), true);
+  assert.equal(esSeccionInstanciaTipo('columnas'), true);
+  assert.equal(esSeccionInstanciaTipo('filas'), true);
   assert.equal(esSeccionInstanciaTipo('hero'), false);
   assert.equal(esSeccionInstanciaTipo(''), false);
   assert.equal(esSeccionInstanciaTipo(123), false);
@@ -191,10 +205,72 @@ test('imagenesDeInstancia: sólo los campos declarados como imagen, no strings v
   assert.deepEqual(imagenesDeInstancia(null), []);
 });
 
+// ─── § SECCIONES-TIPOS-2 — LOS TRES REPEATER (Preguntas/Columnas/Filas) ─────────────────────────
+
+test('resolverInstancia: "preguntas" — items se resuelve como array, descarta ítems no-objeto, normaliza a string', () => {
+  const r = resolverInstancia({
+    tipo: 'preguntas',
+    items: [
+      { pregunta: '¿Hay envío?', respuesta: 'Sí.' },
+      'basura',
+      { pregunta: 42, respuesta: null },
+    ],
+  }) as unknown as { items: { pregunta: string; respuesta: string }[] };
+  assert.deepEqual(r.items, [
+    { pregunta: '¿Hay envío?', respuesta: 'Sí.' },
+    { pregunta: '', respuesta: '' },
+  ], 'el ítem-string se descarta; el no-string se coerciona a vacío, nunca se inventa');
+});
+
+test('resolverInstancia: "columnas" — items ausente o no-array da []  (nunca lanza, nunca inventa ítems)', () => {
+  assert.deepEqual((resolverInstancia({ tipo: 'columnas' }) as unknown as { items: unknown[] }).items, []);
+  assert.deepEqual((resolverInstancia({ tipo: 'columnas', items: 'no es un array' }) as unknown as { items: unknown[] }).items, []);
+  assert.deepEqual((resolverInstancia({ tipo: 'columnas', items: null }) as unknown as { items: unknown[] }).items, []);
+});
+
+test('resolverInstancia: "filas" — un ítem sin `imagen` en stored la normaliza a vacío (nunca inventa una foto)', () => {
+  const r = resolverInstancia({ tipo: 'filas', items: [{ titulo: 'Fila 1' }] }) as unknown as { items: Record<string, string>[] };
+  assert.deepEqual(r.items, [{ imagen: '', titulo: 'Fila 1', texto: '', ctaLabel: '', ctaDestino: '' }]);
+});
+
+test('instanciaEsVisible: REPEATER — hide-on-empty GANA sobre `visible:true` (items vacío = sin nada que mostrar)', () => {
+  const vacia = resolverInstancia({ tipo: 'preguntas', visible: true, items: [] })!;
+  const conItems = resolverInstancia({ tipo: 'preguntas', visible: true, items: [{ pregunta: 'x', respuesta: 'y' }] })!;
+  assert.equal(instanciaEsVisible(vacia), false, 'items:[] oculta aunque visible sea true explícito');
+  assert.equal(instanciaEsVisible(conItems), true);
+});
+
+test('instanciaEsVisible: REPEATER — `visible:false` sigue ocultando aunque haya items', () => {
+  const r = resolverInstancia({ tipo: 'columnas', visible: false, items: [{ titulo: 'A' }, { titulo: 'B' }] })!;
+  assert.equal(instanciaEsVisible(r), false);
+});
+
+test('imagenesDeInstancia: REPEATER — junta las imágenes de CADA ítem, no strings vacíos, nunca del campo "titulo"', () => {
+  assert.deepEqual(
+    imagenesDeInstancia({ tipo: 'columnas', items: [{ imagen: '/a.jpg', titulo: 'A' }, { imagen: '', titulo: 'B' }, { imagen: '/c.jpg', titulo: 'C' }] }),
+    ['/a.jpg', '/c.jpg'],
+  );
+  assert.deepEqual(imagenesDeInstancia({ tipo: 'preguntas', items: [{ pregunta: 'x', respuesta: 'y' }] }), [], '"preguntas" no declara imagenes por ítem');
+  assert.deepEqual(imagenesDeInstancia({ tipo: 'filas', items: 'no es un array' }), []);
+});
+
+test('DESCRIPTOR_INSTANCIA.columnas: "de dos a seis columnas" es el min/max del editor, y el default nace con exactamente 2', () => {
+  assert.equal(DESCRIPTOR_INSTANCIA.columnas.items?.min, 2);
+  assert.equal(DESCRIPTOR_INSTANCIA.columnas.items?.max, 6);
+  assert.equal(DEFAULTS_INSTANCIA.columnas.items.length, 2);
+});
+
+test('DESCRIPTOR_INSTANCIA.preguntas/filas: sin tope (repeater puro, como Testimonios) — min 0', () => {
+  assert.equal(DESCRIPTOR_INSTANCIA.preguntas.items?.min, 0);
+  assert.equal(DESCRIPTOR_INSTANCIA.preguntas.items?.max, undefined);
+  assert.equal(DESCRIPTOR_INSTANCIA.filas.items?.min, 0);
+  assert.equal(DESCRIPTOR_INSTANCIA.filas.items?.max, undefined);
+});
+
 // ─── LA DERIVACIÓN, SEGUNDA MITAD: el SCHEMA cubre EXACTAMENTE los campos del DESCRIPTOR ──────────
 //
 // `site-content-schema.test.ts` ya afirma la derivación modelo→schema para las secciones del
-// REGISTRY (`camposDelSchema`, introspección de `.shape`); acá, por ROUND-TRIP, para las tres del
+// REGISTRY (`camposDelSchema`, introspección de `.shape`); acá, por ROUND-TRIP, para los tipos del
 // catálogo de instancias — más robusto frente a la forma interna de `z.discriminatedUnion`
 // (record→unión discriminada, sin un `.unwrap()` de una sola sección que reusar). Si el DESCRIPTOR
 // declara un campo que el schema de ESE tipo no tiene, el parse lo STRIPPEA en silencio y este test
@@ -207,11 +283,28 @@ test('DESCRIPTOR_INSTANCIA ⊆ schema: cada campo+escalar de cada tipo SOBREVIVE
     const muestra: Record<string, unknown> = { tipo };
     for (const campo of Object.keys(descriptor.campos)) muestra[campo] = campo.toLowerCase().includes('destino') ? '' : 'x';
     for (const campo of Object.keys(descriptor.escalares ?? {})) muestra[campo] = 'x';
+    // § SECCIONES-TIPOS-2 — un tipo REPEATER agrega `items` a lo esperado, con UN ítem de muestra
+    // que cubre cada campo de `items.descriptor.campos` — mismo criterio round-trip, un nivel más
+    // adentro: si el sub-schema del ÍTEM no declara un campo, el strip se ve en ESE array.
+    if (descriptor.items) {
+      camposEsperados.add('items');
+      const itemCampos = Object.keys(descriptor.items.descriptor.campos);
+      const itemMuestra: Record<string, unknown> = {};
+      for (const campo of itemCampos) itemMuestra[campo] = campo.toLowerCase().includes('destino') || campo === 'enlace' ? '' : 'x';
+      muestra.items = [itemMuestra];
+    }
 
     const parsed = siteContentEditableSchema.parse({ seccionesHome: { 'inst:muestra': muestra } });
     const resultado = parsed.seccionesHome!['inst:muestra'] as Record<string, unknown>;
     assert.deepEqual(new Set(Object.keys(resultado)), camposEsperados,
       `"${tipo}": el schema y el descriptor deben declarar EXACTAMENTE los mismos campos (faltantes o sobrantes = un campo se perdería en silencio al guardar)`);
+
+    if (descriptor.items) {
+      const itemCampos = Object.keys(descriptor.items.descriptor.campos);
+      const itemResultado = (resultado.items as Record<string, unknown>[])[0];
+      assert.deepEqual(new Set(Object.keys(itemResultado)), new Set(itemCampos),
+        `"${tipo}": el sub-schema del ÍTEM debe declarar EXACTAMENTE los mismos campos que items.descriptor.campos`);
+    }
   }
 });
 
@@ -233,6 +326,9 @@ test('nombreInstancia: el nombre en palabras del catálogo, "Sección" para un t
   assert.equal(nombreInstancia('texto'), 'Texto');
   assert.equal(nombreInstancia('imagenTexto'), 'Imagen con texto');
   assert.equal(nombreInstancia('banner'), 'Banner');
+  assert.equal(nombreInstancia('preguntas'), 'Preguntas');
+  assert.equal(nombreInstancia('columnas'), 'Columnas');
+  assert.equal(nombreInstancia('filas'), 'Filas');
   assert.equal(nombreInstancia('inventado' as unknown as 'texto'), 'Sección');
 });
 
@@ -275,11 +371,17 @@ test('crearInstancia: una copia de los defaults, NO la misma referencia', () => 
   assert.equal(DEFAULTS_INSTANCIA.texto.titulo, 'Un título para esta sección', 'mutar la copia no debe tocar el default');
 });
 
-test('instanciaOscuraCanonica / instanciaEsUniforme: banner oscuro y uniforme, imagenTexto no-uniforme, texto claro y uniforme', () => {
+test('instanciaOscuraCanonica / instanciaEsUniforme: banner oscuro y uniforme, imagenTexto/filas no-uniformes, texto/preguntas/columnas claros y uniformes', () => {
   assert.equal(instanciaOscuraCanonica('banner'), true);
   assert.equal(instanciaOscuraCanonica('texto'), false);
   assert.equal(instanciaOscuraCanonica('imagenTexto'), false);
+  assert.equal(instanciaOscuraCanonica('preguntas'), false);
+  assert.equal(instanciaOscuraCanonica('columnas'), false);
+  assert.equal(instanciaOscuraCanonica('filas'), false);
   assert.equal(instanciaEsUniforme('banner'), true);
   assert.equal(instanciaEsUniforme('texto'), true);
   assert.equal(instanciaEsUniforme('imagenTexto'), false);
+  assert.equal(instanciaEsUniforme('preguntas'), true);
+  assert.equal(instanciaEsUniforme('columnas'), true);
+  assert.equal(instanciaEsUniforme('filas'), false, 'filas reusa ImagenTexto por fila, alternando — igual de bi-tonal (o más) que una sola imagenTexto');
 });

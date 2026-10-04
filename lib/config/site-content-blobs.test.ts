@@ -73,6 +73,16 @@ test('imagenesDe: junta la imagen de una instancia "imagenTexto"/"banner" en sec
   assert.deepEqual(imagenesDe(doc, REG).sort(), ['/a.jpg', '/b.jpg']);
 });
 
+test('imagenesDe: § SECCIONES-TIPOS-2 — junta las imágenes de CADA ÍTEM de una instancia "columnas"/"filas" (REPEATER)', () => {
+  const doc = {
+    seccionesHome: {
+      'inst:col': { tipo: 'columnas', items: [{ imagen: '/c1.jpg', titulo: 'A' }, { imagen: '', titulo: 'B' }, { imagen: '/c2.jpg', titulo: 'C' }] },
+      'inst:fil': { tipo: 'filas', items: [{ imagen: '/f1.jpg', titulo: 'Fila' }] },
+    },
+  };
+  assert.deepEqual(imagenesDe(doc, REG).sort(), ['/c1.jpg', '/c2.jpg', '/f1.jpg']);
+});
+
 test('imagenesDe: una instancia "texto" no aporta ninguna imagen (no tiene campo imagen)', () => {
   const doc = { seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'x' } } };
   assert.deepEqual(imagenesDe(doc, REG), []);

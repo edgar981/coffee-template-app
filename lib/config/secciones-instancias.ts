@@ -1,8 +1,9 @@
-// LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1) — el mecanismo que deja que el
-// contenido declare INSTANCIAS de un catálogo CURADO de tres tipos genéricos (Texto, Imagen con
-// texto, Banner) y las mezcle en `orden` con las bandas de siempre. Sin UI de agregar todavía: lo
-// que entra acá es el modelo, el resolver y el schema — la pieza que hace POSIBLE agregar una
-// sección, no el botón "+ Agregar sección" (ver `docs/editor-tienda/AGREGAR-SECCIONES.md`).
+// LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2) —
+// el mecanismo que deja que el contenido declare INSTANCIAS de un catálogo CURADO de seis tipos
+// genéricos: tres de campos planos (Texto, Imagen con texto, Banner) y tres REPEATER (Preguntas,
+// Columnas, Filas, § InstanciaItemsDef más abajo) — y las mezcle en `orden` con las bandas de
+// siempre. Lo que entra acá es el modelo, el resolver y el schema; la UI de agregar vive en
+// `components/admin/editor/` (ver `docs/editor-tienda/AGREGAR-SECCIONES.md`).
 //
 // MÓDULO HOJA A PROPÓSITO: no importa NADA de `site-content-defaults.ts`. Ese archivo SÍ importa
 // de acá (`resolverSeccionesHome`, `resolverOrdenCompleto`, tipos) para resolver la clave meta
@@ -16,7 +17,7 @@
 // costo de evitarlo —un ciclo entre los dos archivos más grandes de `lib/config/`— es mayor).
 //
 // DEFAULTS NEUTROS DE VERTICAL (§ CLAUDE.md, "El código compartido no NACE siendo Nayoli/demo"):
-// los tres tipos son un catálogo CURADO que cualquier tienda puede usar, café o no — sus textos de
+// los seis tipos son un catálogo CURADO que cualquier tienda puede usar, café o no — sus textos de
 // ejemplo son genéricos, sin una sola palabra de café, y ninguna imagen trae un valor por defecto
 // (el hueco "Agregar foto" del editor es el estado inicial correcto, no un placeholder robado de
 // otra sección).
@@ -35,7 +36,7 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 
 // ─── EL TIPO Y SU PREFIJO DE ID ─────────────────────────────────────────────────────────────────
 
-export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner'] as const;
+export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas'] as const;
 export type SeccionInstanciaTipo = (typeof SECCION_INSTANCIA_TIPOS)[number];
 
 const TIPOS_SET: ReadonlySet<string> = new Set(SECCION_INSTANCIA_TIPOS);
@@ -69,15 +70,43 @@ export interface EscalarInstanciaDef {
   canonica: string;
 }
 
+/** El descriptor de los campos de CADA ÍTEM de un tipo REPEATER (§ SECCIONES-TIPOS-2: Preguntas,
+ *  Columnas, Filas) — MISMA forma que `InstanciaDescriptor.campos`/`.imagenes`, un nivel más
+ *  adentro. Sin `escalares` propio: ningún ítem de los tres tipos curados de esta tanda necesita un
+ *  set cerrado por-ítem (a diferencia de la INSTANCIA, que sí puede tenerlo — `lado`/`alto`). */
+export interface InstanciaItemDescriptor {
+  campos: Record<string, CampoInstanciaTipo>;
+  imagenes?: readonly string[];
+}
+
+/** La declaración REPEATER de un tipo (§ SECCIONES-TIPOS-2) — gemela de `RepeaterConfig`
+ *  (`components/admin/tienda-secciones.ts`) pero del lado del MODELO, no del editor: ese archivo
+ *  no se importa acá (módulo hoja, § el docstring de cabecera). `min`/`max` son de CURADURÍA/
+ *  FORMA, no técnicos — los impone el EDITOR (no deja agregar sobre `max` ni quitar bajo `min`); el
+ *  RESOLVER no los enforce (SOFT: resuelve lo que haya, igual que `resolverItems` no trunca ni
+ *  rellena un repeater de sección). `min:0` es el repeater "puro" (Preguntas, Filas): hide-on-empty
+ *  sin piso, como Testimonios. `min:2` (Columnas) es la ÚNICA razón por la que "de dos a seis
+ *  columnas" es cierto — sin el `min` en el editor, nada impediría una sola columna. */
+export interface InstanciaItemsDef {
+  descriptor: InstanciaItemDescriptor;
+  min: number;
+  max?: number;
+}
+
 export interface InstanciaDescriptor {
-  /** Campos de TEXTO plano (incluye los destinos de CTA, que son texto libre acá — el set cerrado
-   *  de destinos válidos lo valida el SCHEMA de escritura, no el descriptor ni el resolver; mismo
-   *  criterio que `brandStory.ctaDestino` en `site-content-schema.ts`). */
+  /** Campos de TEXTO plano de la INSTANCIA (no de sus ítems) — incluye los destinos de CTA, que son
+   *  texto libre acá — el set cerrado de destinos válidos lo valida el SCHEMA de escritura, no el
+   *  descriptor ni el resolver; mismo criterio que `brandStory.ctaDestino` en `site-content-
+   *  schema.ts`). */
   campos: Record<string, CampoInstanciaTipo>;
   /** Cuáles de los campos de arriba son URLs de imagen (para `imagenesDe`/el borrado de blobs). */
   imagenes?: readonly string[];
   /** Escalares clampados a un set cerrado (alineación, lado, alto). */
   escalares?: Record<string, EscalarInstanciaDef>;
+  /** Presente ⇒ el tipo es un REPEATER (Preguntas/Columnas/Filas): además de `campos` (la cabecera
+   *  de la instancia, p. ej. su `titulo`), guarda un array `items` cuyo contenido describe este
+   *  campo. Ausente ⇒ el tipo es de campos planos nomás (Texto/ImagenTexto/Banner). */
+  items?: InstanciaItemsDef;
 }
 
 const ALINEACIONES_TEXTO = { claves: ['izquierda', 'centro', 'derecha'], canonica: 'centro' } as const;
@@ -124,6 +153,38 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
     },
     imagenes: ['imagen'],
     escalares: { alto: ALTURAS_BANNER },
+  },
+  // § SECCIONES-TIPOS-2 — los tres REPEATER: la cabecera es sólo `titulo` (opcional, como el resto)
+  // y el contenido real vive en `items`. `min`/`max` son sólo del EDITOR (§ `InstanciaItemsDef`).
+  preguntas: {
+    campos: { titulo: 'opcional' },
+    items: {
+      descriptor: { campos: { pregunta: 'requerido', respuesta: 'requerido' } },
+      min: 0,
+    },
+  },
+  columnas: {
+    campos: { titulo: 'opcional' },
+    items: {
+      descriptor: {
+        campos: { imagen: 'opcional', titulo: 'requerido', texto: 'opcional', enlace: 'opcional' },
+        imagenes: ['imagen'],
+      },
+      // "de dos a seis columnas" (§ el spec) — el PISO es lo que hace la frase cierta, no una
+      // casualidad del seed. Ver el default de abajo, que nace con exactamente 2.
+      min: 2,
+      max: 6,
+    },
+  },
+  filas: {
+    campos: { titulo: 'opcional' },
+    items: {
+      descriptor: {
+        campos: { imagen: 'opcional', titulo: 'requerido', texto: 'opcional', ctaLabel: 'opcional', ctaDestino: 'opcional' },
+        imagenes: ['imagen'],
+      },
+      min: 0,
+    },
   },
 };
 
@@ -172,7 +233,54 @@ export interface InstanciaBannerContent {
   visible: boolean;
 }
 
-export type InstanciaContent = InstanciaTextoContent | InstanciaImagenTextoContent | InstanciaBannerContent;
+// § SECCIONES-TIPOS-2 — los tres REPEATER. Cada ítem es su propia interfaz (no un `Record<string,
+// unknown>` crudo): quien lea `instancia.items[i].pregunta` en un componente del storefront lo hace
+// con el tipo correcto, igual que cualquier otro campo de instancia.
+export interface InstanciaPreguntaItem {
+  pregunta: string;
+  respuesta: string;
+}
+export interface InstanciaPreguntasContent {
+  tipo: 'preguntas';
+  titulo: string;
+  items: InstanciaPreguntaItem[];
+  visible: boolean;
+}
+
+export interface InstanciaColumnaItem {
+  imagen: string;
+  titulo: string;
+  texto: string;
+  enlace: string;
+}
+export interface InstanciaColumnasContent {
+  tipo: 'columnas';
+  titulo: string;
+  items: InstanciaColumnaItem[];
+  visible: boolean;
+}
+
+export interface InstanciaFilaItem {
+  imagen: string;
+  titulo: string;
+  texto: string;
+  ctaLabel: string;
+  ctaDestino: string;
+}
+export interface InstanciaFilasContent {
+  tipo: 'filas';
+  titulo: string;
+  items: InstanciaFilaItem[];
+  visible: boolean;
+}
+
+export type InstanciaContent =
+  | InstanciaTextoContent
+  | InstanciaImagenTextoContent
+  | InstanciaBannerContent
+  | InstanciaPreguntasContent
+  | InstanciaColumnasContent
+  | InstanciaFilasContent;
 
 // Tipado POR CLAVE (no `Record<SeccionInstanciaTipo, InstanciaContent>`): así `DEFAULTS_INSTANCIA.texto`
 // sigue siendo `InstanciaTextoContent` para quien lo lea (p. ej. un test que compara
@@ -181,6 +289,9 @@ export const DEFAULTS_INSTANCIA: {
   texto: InstanciaTextoContent;
   imagenTexto: InstanciaImagenTextoContent;
   banner: InstanciaBannerContent;
+  preguntas: InstanciaPreguntasContent;
+  columnas: InstanciaColumnasContent;
+  filas: InstanciaFilasContent;
 } = {
   texto: {
     tipo: 'texto',
@@ -215,6 +326,41 @@ export const DEFAULTS_INSTANCIA: {
     alto: ALTURAS_BANNER.canonica,
     visible: true,
   },
+  // § SECCIONES-TIPOS-2 — los tres REPEATER nacen con DOS ítems de ejemplo, texto neutro y SIN
+  // imagen (ninguna imagen trae default — mismo criterio que arriba). No es el estado "vacío" de
+  // Testimonios/#44 (eso es para prueba social FABRICADA; una pregunta de ejemplo o una columna de
+  // ejemplo no afirman nada falso del negocio) — es el mismo "Un título para esta sección" que ya
+  // traen Texto/ImagenTexto/Banner, llevado a un repeater: sin esto, la biblioteca mostraría una
+  // tarjeta vacía (hide-on-empty) y una instancia recién agregada aparecería en blanco. Dos ítems,
+  // no uno, para que la tarjeta recién agregada YA muestre el patrón (la alternancia de Filas, el
+  // mínimo de dos de Columnas) sin que el dueño tenga que agregar un segundo antes de verlo.
+  preguntas: {
+    tipo: 'preguntas',
+    titulo: '',
+    items: [
+      { pregunta: 'Una pregunta frecuente', respuesta: 'Escribe acá la respuesta a esta pregunta.' },
+      { pregunta: 'Otra pregunta frecuente', respuesta: 'Escribe acá la respuesta a esta pregunta.' },
+    ],
+    visible: true,
+  },
+  columnas: {
+    tipo: 'columnas',
+    titulo: '',
+    items: [
+      { imagen: '', titulo: 'Una columna', texto: 'Escribe acá el texto de esta columna.', enlace: '' },
+      { imagen: '', titulo: 'Otra columna', texto: 'Escribe acá el texto de esta columna.', enlace: '' },
+    ],
+    visible: true,
+  },
+  filas: {
+    tipo: 'filas',
+    titulo: '',
+    items: [
+      { imagen: '', titulo: 'Un título para esta fila', texto: 'Escribe acá el texto de esta fila.', ctaLabel: '', ctaDestino: '' },
+      { imagen: '', titulo: 'Otro título para esta fila', texto: 'Escribe acá el texto de esta fila.', ctaLabel: '', ctaDestino: '' },
+    ],
+    visible: true,
+  },
 };
 
 // ─── EL RESOLVER — SOFT, por el MISMO contrato que `resolverSiteContent` (requerido vacío → el
@@ -222,6 +368,28 @@ export const DEFAULTS_INSTANCIA: {
 
 function resolverEscalarInstancia(def: EscalarInstanciaDef, v: unknown): string {
   return typeof v === 'string' && def.claves.includes(v) ? v : def.canonica;
+}
+
+/** Resuelve el ARRAY `items` de un tipo REPEATER — gemela LOCAL de `resolverItems`
+ *  (`site-content-defaults.ts`), duplicada por el módulo-hoja (§ el docstring de cabecera): un
+ *  valor que no es array da `[]` (nunca inventa ítems); cada ítem no-objeto se descarta; cada
+ *  campo declarado se normaliza a string, sin passthrough de campos no declarados (a diferencia de
+ *  su gemela, ningún ítem de este catálogo tiene un campo no-string como `stars`, así que no hace
+ *  falta preservarlo). SOFT, nunca lanza — `min`/`max` del `InstanciaItemsDef` son del EDITOR, no
+ *  de este resolver. */
+function resolverItemsInstancia(itemCampos: Record<string, CampoInstanciaTipo>, storedItems: unknown): Record<string, string>[] {
+  if (!Array.isArray(storedItems)) return [];
+  const out: Record<string, string>[] = [];
+  for (const item of storedItems) {
+    if (!esObj(item)) continue;
+    const resuelto: Record<string, string> = {};
+    for (const campo of Object.keys(itemCampos)) {
+      const val = item[campo];
+      resuelto[campo] = typeof val === 'string' ? val : '';
+    }
+    out.push(resuelto);
+  }
+  return out;
 }
 
 /** Resuelve UNA instancia guardada. `null` si `stored` no es un objeto o su `tipo` no es uno de
@@ -247,6 +415,13 @@ export function resolverInstancia(stored: unknown): InstanciaContent | null {
     for (const [campo, def] of Object.entries(descriptor.escalares)) {
       out[campo] = resolverEscalarInstancia(def, stored[campo]);
     }
+  }
+
+  // § SECCIONES-TIPOS-2 — REPEATER: el array `items` se resuelve APARTE del loop de `campos` de
+  // arriba (que es sólo la cabecera plana de la instancia, p. ej. `titulo`), igual que
+  // `resolverSiteContent` resuelve `sec[def.repeater.itemsKey]` aparte de su loop de campos.
+  if (descriptor.items) {
+    out.items = resolverItemsInstancia(descriptor.items.descriptor.campos, stored.items);
   }
 
   // `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) — MISMO mecanismo que `resolverSiteContent` para una
@@ -341,6 +516,9 @@ export const CATALOGO_INSTANCIAS: readonly CatalogoInstanciaEntry[] = [
   { tipo: 'texto', nombre: 'Texto', frase: 'Un bloque de texto, con un botón opcional.' },
   { tipo: 'imagenTexto', nombre: 'Imagen con texto', frase: 'Una foto a un lado y el texto al otro.' },
   { tipo: 'banner', nombre: 'Banner', frase: 'Una foto de fondo a sangre con un mensaje encima.' },
+  { tipo: 'preguntas', nombre: 'Preguntas', frase: 'Una lista de preguntas que se abren al tocarlas.' },
+  { tipo: 'columnas', nombre: 'Columnas', frase: 'De dos a seis columnas, cada una con foto, título y texto.' },
+  { tipo: 'filas', nombre: 'Filas', frase: 'Filas de foto y texto que alternan de lado.' },
 ];
 
 /** El nombre en palabras de un tipo — la MISMA fuente que la biblioteca, para que la tarjeta de la
@@ -381,11 +559,28 @@ export function crearInstancia(tipo: SeccionInstanciaTipo): InstanciaContent {
 export function imagenesDeInstancia(inst: unknown): string[] {
   const out: string[] = [];
   if (!esObj(inst) || !esSeccionInstanciaTipo(inst.tipo)) return out;
-  const campos = DESCRIPTOR_INSTANCIA[inst.tipo].imagenes;
-  if (!campos) return out;
-  for (const campo of campos) {
-    const v = inst[campo];
-    if (typeof v === 'string' && v.trim() !== '') out.push(v);
+  const descriptor = DESCRIPTOR_INSTANCIA[inst.tipo];
+  if (descriptor.imagenes) {
+    for (const campo of descriptor.imagenes) {
+      const v = inst[campo];
+      if (typeof v === 'string' && v.trim() !== '') out.push(v);
+    }
+  }
+  // § SECCIONES-TIPOS-2 — REPEATER-AWARE, MISMA forma que `imagenesDe` (site-content-blobs.ts) para
+  // una sección repeater del REGISTRY: la imagen vive en CADA ítem (Columnas/Filas), no al nivel de
+  // la instancia. Sin esto, una foto de columna/fila en USO se vería huérfana al borrado de blobs.
+  const camposItem = descriptor.items?.descriptor.imagenes;
+  if (camposItem) {
+    const items = inst.items;
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        if (!esObj(item)) continue;
+        for (const campo of camposItem) {
+          const v = item[campo];
+          if (typeof v === 'string' && v.trim() !== '') out.push(v);
+        }
+      }
+    }
   }
   return out;
 }
@@ -399,21 +594,30 @@ export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
   return tipo === 'banner';
 }
 
-/** ¿Un `imagenTexto` es una banda UNIFORME (un solo tono) para el nav flotante? NO — es bi-tonal
- *  por LAYOUT (imagen a un lado, fondo de página al otro), la misma razón que vuelve no-uniforme
- *  al hero 'ficha' (§ `bandaUniforme`, `site-content-defaults.ts`). `texto`/`banner` son UN solo
- *  fondo de un extremo al otro → uniformes. */
+/** ¿Un `imagenTexto`/`filas` es una banda UNIFORME (un solo tono) para el nav flotante? NO — las
+ *  dos son bi-tonales por LAYOUT (imagen a un lado, fondo de página al otro), la misma razón que
+ *  vuelve no-uniforme al hero 'ficha' (§ `bandaUniforme`, `site-content-defaults.ts`). `filas` es
+ *  ADEMÁS más heterogénea que `imagenTexto` (§ SECCIONES-TIPOS-2: reusa su componente fila por
+ *  fila, alternando de lado — nunca un solo tono de borde a borde). `texto`/`banner`/`preguntas`/
+ *  `columnas` son UN solo fondo de un extremo al otro → uniformes. */
 export function instanciaEsUniforme(tipo: SeccionInstanciaTipo): boolean {
-  return tipo !== 'imagenTexto';
+  return tipo !== 'imagenTexto' && tipo !== 'filas';
 }
 
 // ─── EL OJO (§ SECCIONES-INSTANCIAS-VIVO-1) ──────────────────────────────────────────────────────
 
 /** ¿Debe renderizarse esta instancia para el VISITANTE? Gemela de `seccionEsVisible`
- *  (`site-content-defaults.ts`) pero sin la mitad de repeater — ninguna instancia del catálogo es
- *  un repeater, así que no hay hide-on-empty que considerar; sólo el toggle. El dispatcher
+ *  (`site-content-defaults.ts`), AHORA CON la mitad de repeater (§ SECCIONES-TIPOS-2: Preguntas/
+ *  Columnas/Filas) — mismo orden de precedencia que su gemela: hide-on-empty GANA sobre el toggle
+ *  (un `visible:true` con `items:[]` sigue sin mostrarse; no hay nada que mostrar). El dispatcher
  *  (`SeccionInstancia.tsx`) la usa para su self-gate, igual que `BrandStory.tsx`/`SubscriptionCTA.tsx`
  *  usan `seccionEsVisible` para el suyo. */
 export function instanciaEsVisible(instancia: InstanciaContent): boolean {
-  return instancia.visible !== false;
+  if (instancia.visible === false) return false;
+  const items = DESCRIPTOR_INSTANCIA[instancia.tipo].items;
+  if (items) {
+    const arr = (instancia as unknown as Record<string, unknown>).items;
+    return Array.isArray(arr) && arr.length > 0;
+  }
+  return true;
 }
