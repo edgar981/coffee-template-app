@@ -3,11 +3,11 @@
 import { ChevronLeft } from 'lucide-react';
 
 // LAS MIGAS (§ EDITOR-TIENDA-SHELL-1, REDISENO.md § 3): «‹ volver» que nombra el nivel de ARRIBA, no
-// un breadcrumb genérico con toda la cadena — hoy sólo hay DOS niveles reales bajo «Secciones»
-// (Inicio → sección; «elemento» es EDITOR-TIENDA-ZONAS-1, slice 5, todavía sin construir), así que lo
-// único que hace falta nombrar es el nivel inmediatamente anterior. Cuando el nivel «elemento» exista,
-// este mismo componente sirve sin cambios: `nivelAnterior` pasa a ser el título de la SECCIÓN en vez
-// de «Inicio».
+// un breadcrumb genérico con toda la cadena. `TiendaPaginas.tsx` la monta para «‹ Inicio» (Inicio →
+// sección); desde § EDITOR-VISUAL-NIVELES-1, `TiendaSeccionEditor.tsx` monta una SEGUNDA instancia,
+// LOCAL al hero, para «‹ Hero» (Hero → Titular/Subtítulo/Botones/Indicador) — EXACTAMENTE el uso que
+// este componente ya preveía ("cuando el nivel «elemento» exista, este mismo componente sirve sin
+// cambios"): sólo cambia `nivelAnterior`, nunca el componente.
 //
 // Sólo se renderiza cuando HAY un nivel de arriba (`TiendaPaginas.tsx` no lo monta en Inicio) — un
 // «‹ volver» sin a dónde volver sería un botón muerto.

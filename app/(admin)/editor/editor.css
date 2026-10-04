@@ -168,3 +168,65 @@
 .editor-add-sec:hover:not(:disabled) { color: var(--duna-ink); border-color: var(--duna-faint); background: var(--duna-surface-2); }
 .editor-add-sec:disabled { opacity: .55; cursor: default; }
 .editor-add-sec svg { width: 15px; height: 15px; }
+
+/* ─── EDITOR-VISUAL-NIVELES-1 ────────────────────────────────────────────────────────────────────
+   El NIVEL de sección/elemento se ve como el prototipo (docs/editor-tienda/REDISENO.md § 3, los
+   capítulos del hero): una columna, zonas como filas, Alto/Oscurecer como segmentado, el nivel de
+   elemento con «‹ Hero» + campo a lo ancho + los MISMOS controles de la barra flotante + Quitar. */
+
+/* UNA SOLA COLUMNA (el spec: "el panel mide lo que el prototipo (~308 px) y dos campos lado a lado
+   ahí cortan el texto"). `.duna-form` (packages/design-system) es `repeat(2, minmax(0,1fr))` — la
+   primitiva SE QUEDA así para sus otros ~15 consumidores (drawers del admin, que sí tienen ancho para
+   dos columnas); acá se la angosta LOCAL, con el scope de `.editor-panel` que `TiendaPaginas.tsx`
+   pone al contenedor del panel de 308px — nunca tocando la primitiva compartida. */
+.editor-panel .duna-form { grid-template-columns: minmax(0, 1fr); }
+
+/* EL «?» DE AYUDA LARGA (`AyudaCampo.tsx`, el spec: "lo largo pasa a un «?» con detalle al pasar el
+   mouse o tocar"). Chip mínimo, inline con el texto corto — no es un ícono de acción, es parte de la
+   línea de ayuda. */
+.editor-ayuda-mas { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+                     border-radius: 50%; border: 1px solid var(--duna-border-2); color: var(--duna-faint);
+                     flex-shrink: 0; background: none; cursor: pointer; transition: color var(--duna-dur-fast) var(--duna-ease),
+                     border-color var(--duna-dur-fast) var(--duna-ease); }
+.editor-ayuda-mas:hover, .editor-ayuda-mas:focus-visible { color: var(--duna-ink); border-color: var(--duna-faint); }
+.editor-ayuda-mas svg { width: 10px; height: 10px; }
+
+/* UN SEGMENTADO A TODO EL ANCHO (prototipo: `.seg.full` — "Alto" y "Oscurecer para leer mejor"). La
+   primitiva `.duna-seg` es `inline-flex` con ítems de ancho natural (el picker de dispositivo de la
+   barra, tres íconos); acá hacen falta TRES/CUATRO palabras repartiendo el ancho del panel. */
+.editor-seg-full { display: flex; width: 100%; }
+.editor-seg-full .duna-seg__item { flex: 1 1 0; }
+
+/* LA ZONA DEL HERO (prototipo: `.zr`/`.zi`/`.zt`/`.zadd` — "Zonas como filas... con su valor en gris
+   y, si están vacías, «+ Agregar»"). Reemplaza al renglón "Mostrar los botones / Quitar" (switch +
+   frase) que el owner señaló como "el formulario viejo". */
+.editor-zr { display: flex; align-items: center; gap: var(--duna-space-1); border-radius: var(--duna-r-m);
+             border: 1px solid transparent; margin-bottom: 2px; transition: background var(--duna-dur-fast) var(--duna-ease),
+             border-color var(--duna-dur-fast) var(--duna-ease); }
+.editor-zr:hover { background: var(--duna-surface-2); border-color: var(--duna-border); }
+.editor-zr__main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--duna-space-3);
+                    padding: var(--duna-space-2) var(--duna-space-1) var(--duna-space-2) var(--duna-space-2);
+                    background: none; border: 0; text-align: left; cursor: pointer; border-radius: var(--duna-r-m); }
+.editor-zr__icon { width: 28px; height: 28px; border-radius: var(--duna-r-s); background: var(--duna-surface-2);
+                    display: grid; place-items: center; color: var(--duna-ink-2); flex-shrink: 0;
+                    font: 500 13px var(--duna-font-mono); }
+.editor-zr.is-empty .editor-zr__icon { background: none; border: 1px dashed var(--duna-border-2); color: var(--duna-faint); }
+.editor-zr__text { flex: 1 1 auto; min-width: 0; }
+.editor-zr__text b { display: block; font-weight: 500; font-size: 12.5px; line-height: 1.3; color: var(--duna-ink); }
+.editor-zr__text span { display: block; color: var(--duna-muted); font-size: 12px; white-space: nowrap;
+                         overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
+.editor-zr.is-empty .editor-zr__text span { color: var(--duna-faint); }
+.editor-zr__add { height: 28px; padding: 0 var(--duna-space-3) 0 7px; margin-right: var(--duna-space-2);
+                   border-radius: var(--duna-r-full); border: 1px solid var(--duna-border-2); font-size: 12px;
+                   font-weight: 600; color: var(--duna-ink); display: inline-flex; align-items: center; gap: 3px;
+                   background: var(--duna-surface); flex-shrink: 0; transition: background var(--duna-dur-fast) var(--duna-ease),
+                   color var(--duna-dur-fast) var(--duna-ease), border-color var(--duna-dur-fast) var(--duna-ease); }
+.editor-zr__add:hover { background: var(--duna-ink); color: var(--duna-paper); border-color: var(--duna-ink); }
+.editor-zr__add svg { width: 13px; height: 13px; }
+
+/* EL NIVEL DE ELEMENTO (prototipo: «‹ Hero» · título · campo a lo ancho · los controles de la barra
+   flotante · «Quitar» al pie). La miga local es la MISMA forma que `.editor-pv-back` (Migas.tsx usa
+   la de TiendaPaginas para «‹ Inicio»; ésta es una SEGUNDA, local a esta sección, para bajar un nivel
+   más sin que `TiendaPaginas` tenga que aprender de zonas — § el docstring de `elementoActivo` en
+   TiendaSeccionEditor.tsx). */
+.editor-elemento-quitar { margin-top: var(--duna-space-4); }

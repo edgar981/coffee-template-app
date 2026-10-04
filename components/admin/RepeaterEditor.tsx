@@ -6,6 +6,7 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import PosterScrubber from '@/components/admin/PosterScrubber';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
+import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import type { Dims } from '@/components/admin/useSubidaImagen';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import {
@@ -289,9 +290,7 @@ export default function RepeaterEditor({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
       {items.length === 0 && (
-        <p className="duna-field__hint" style={{ margin: 0 }}>
-          No hay {itemLabel.toLowerCase()}s todavía. Agrega el primero — mientras la lista esté vacía, la sección no se muestra en la tienda.
-        </p>
+        <AyudaCampo texto={`No hay ${itemLabel.toLowerCase()}s todavía. Agrega el primero — mientras la lista esté vacía, la sección no se muestra en la tienda.`} />
       )}
 
       {items.map((item, i) => {
@@ -398,7 +397,7 @@ export default function RepeaterEditor({
                       ) : (
                         <input id={id} className="duna-input" value={String(valor ?? '')} onChange={e => editar(i, d.name, e.target.value)} aria-describedby={d.hint ? `${id}-hint` : undefined} />
                       )}
-                      {d.hint && !(esVideo && d.tipo === 'imagen') && <p className="duna-field__hint" id={`${id}-hint`}>{d.hint}</p>}
+                      {d.hint && !(esVideo && d.tipo === 'imagen') && <AyudaCampo texto={d.hint} id={`${id}-hint`} />}
                     </div>
                   );
                 })}
@@ -443,10 +442,10 @@ export default function RepeaterEditor({
         )}
 
         {alMaxFoto && (
-          <p className="duna-field__hint" style={{ margin: 0 }}>Llegaste al máximo de {max} {itemLabel.toLowerCase()}s. Quita alguno para agregar otro.</p>
+          <AyudaCampo texto={`Llegaste al máximo de ${max} ${itemLabel.toLowerCase()}s. Quita alguno para agregar otro.`} />
         )}
         {aceptaVideo && alMaxVideo && (
-          <p className="duna-field__hint" style={{ margin: 0 }}>Llegaste al máximo de {maxVideo} vídeos. Quita alguno para agregar otro.</p>
+          <AyudaCampo texto={`Llegaste al máximo de ${maxVideo} vídeos. Quita alguno para agregar otro.`} />
         )}
       </div>
 

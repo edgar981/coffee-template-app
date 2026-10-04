@@ -1355,7 +1355,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         flex: '1 1 auto',
         minHeight: 0,
       }}>
-        <div style={{
+        {/* § EDITOR-VISUAL-NIVELES-1 — `.editor-panel` scopea el angostamiento de `.duna-form` a UNA
+            columna (editor.css): la primitiva compartida se queda en dos columnas para sus otros
+            consumidores (drawers con ancho de sobra); acá, a 308px, dos columnas cortan el texto. */}
+        <div className="editor-panel" style={{
           display: 'grid',
           gap: 'var(--duna-space-4)',
           minWidth: 0,

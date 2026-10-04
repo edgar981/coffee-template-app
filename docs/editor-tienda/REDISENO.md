@@ -814,6 +814,71 @@ real.
 
 ---
 
+**OCTAVO PEDIDO FUERA DE ESTA NUMERACIÓN: `EDITOR-VISUAL-NIVELES-1` — los niveles de sección y de
+elemento del panel se ven como el prototipo (2026-10-04).** (El SEXTO pedido cronológico,
+`EDITOR-VISUAL-PANEL-1` — el panel pasa de tarjetas a filas —, no sumó su propia entrada acá; su
+asiento completo vive sólo en DECISIONS.md. Se numera éste OCTAVO para no perder la cuenta de los
+pedidos fuera de la numeración original, no para implicar que el sexto está documentado en esta
+sección.) `EDITOR-VISUAL-MARCO-1` hizo la barra/riel/lienzo; `EDITOR-VISUAL-PANEL-1` hizo la lista de
+Inicio; `EDITOR-VISUAL-LIENZO-1` hizo lo que el editor dibuja SOBRE la página real. Ninguno de los
+tres tocó el FORMULARIO de una sección abierta — seguía siendo "el formulario viejo" (owner, pedido
+textual): *"ayudas de varias líneas, dos columnas a ~290 px que cortan los campos, «Mostrar los
+botones / Quitar»"*. Éste es ese cuarto tercio, y además construye el nivel «elemento» (Inicio › Hero
+› Titular) que `EDITOR-VISUAL-PANEL-1` había dejado explícitamente para después.
+
+**UNA SOLA COLUMNA** — `.duna-form` (el paquete) se queda en dos columnas para sus ~15 consumidores
+con ancho de sobra; `.editor-panel .duna-form` (nuevo, `editor.css`, scope-only) la angosta a una,
+SÓLO en este panel de 308px.
+
+**LA AYUDA CORTA** — `components/admin/editor/AyudaCampo.tsx` (nuevo) DERIVA la versión corta de cada
+hint existente (corte en fin de oración o por palabra, con elipsis, dentro de 70 caracteres) en vez de
+reescribir los ~150 hints a mano; un «?» (`DunaTooltip`) abre el texto completo cuando hace falta.
+Reemplaza el `<p className="duna-field__hint">` de los cinco editores del panel (genérico +
+Encabezado/Menú/Pie/Repeater), nunca los avisos dinámicos (progreso de subida, destino inexistente).
+
+**LAS ZONAS DEL HERO** pasan de un switch con el hint largo del booleano ("Mostrar los botones" +
+su párrafo + "Quitar") a las filas `.zr` del prototipo: ícono + nombre + valor en gris, «+ Agregar»
+sólo si está vacía. "Fondo" sale de las zonas —ni el prototipo lo trata como zona navegable (medido:
+`K.ZONES` nunca incluye `'fondo'`)— y gana su propio bloque junto a "Alto", los dos como
+`.duna-seg`/`.duna-seg__item` (la MISMA primitiva del picker de dispositivo de la barra) en vez de un
+`<select>` nativo — "Alto" (3 pasos) y "Oscurecer" (4 pasos) caben en un segmentado; "Punto focal" (9)
+se queda `<select>`.
+
+**EL NIVEL DE ELEMENTO** (Inicio › Hero › Titular/Subtítulo/Botones/Indicador) — el tercer nivel que
+no existía — vive LOCAL a `TiendaSeccionEditor.tsx` (`elementoActivo`, nuevo estado), sin tocar el
+mecanismo de migas globales de `TiendaPaginas`: «‹ Hero» REUSA `Migas.tsx` (su propio docstring, de
+`EDITOR-VISUAL-PANEL-1`, ya preveía este uso exacto), el campo a lo ancho REUSA `renderCampo` tal
+cual (con su `EstiloElementoControles` cuando el campo es estilizable — "los MISMOS controles de la
+barra flotante", el spec), y «Quitar» al pie apaga el booleano de la zona. "Botones" agrupa DOS
+campos reales (`ctaPrimarioLabel`/`ctaSecundarioLabel`) contra el botón único del prototipo —
+desviación medida y declarada, DECISIONS.md. Tocar una zona EN LA PÁGINA (el lienzo) también abre su
+nivel de elemento, sin tocar `EditorPuenteVivo.tsx`/`editor-puente.ts`: el mensaje que el puente YA
+manda (`escribirCampo`, cada tecla o cada "+Titular"/"Quitar") ya trae el nombre del campo, que un
+mapa nuevo (`ZONA_HERO_DE_CAMPO`) resuelve a su zona.
+
+**`EDITOR-VISUAL-ESTILO-FILA-1` (el follow-up de `EDITOR-VISUAL-PANEL-1`) CIERRA EN ESTE SLICE**:
+`PaletaSeccion.tsx`, en el embed (`enEditor`), entra DIRECTO a sus controles — nace "editando" y
+pierde el botón "Cerrar" (sin lectura a la que volver), con el título "Estilo de la tienda" del
+prototipo. El STANDALONE (sin consumidor real hoy) no se tocó.
+
+**DEVIACIONES**, con su detalle completo en DECISIONS.md: "Botones" agrupa dos campos; "Fondo" es un
+bloque inline del nivel Hero, no un nivel de elemento propio; `RepeaterEditor.tsx` ganó la ayuda corta
+pero NO el "asa" de arrastre (sus flechas ↑/↓ siguen siendo el mecanismo — funcional y accesible por
+teclado; cambiarlas a drag-and-drop es una pieza de interacción nueva, no una pasada visual).
+
+**VERIFICADO POR EJECUCIÓN.** `.scratch/arnes-niveles.ts` (no comiteado): Postgres efímero, `migrate
+deploy` + seed canónico, `next build`/`next start`, Playwright con sesión real, viewport 1440×900.
+Nueve capturas comparadas contra el prototipo; medido por consola que el panel mide 308px, que los
+tres `.duna-form` del nivel de elemento resuelven a una columna, que Quitar/Agregar/deshacer siguen
+funcionando, y que ningún elemento del panel tiene `scrollWidth > clientWidth` (cero cortes) salvo el
+comportamiento NATIVO de un `<input>` de una línea con texto largo (scroll interno, no corte visual).
+
+`npm run verificar:nayoli:visual` reproduce el MISMO piso heredado de la rama, dígito a dígito — cero
+píxeles nuevos en la tienda pública, porque este slice no toca un solo archivo de
+`components/storefront/` ni `app/(storefront)/`.
+
+---
+
 ## 10 · Lo que este documento NO decide
 
 - ~~Si «Alto» gana un tercer valor (campo nuevo) o se queda en dos.~~ DECIDIDO (slice 5, 2026-10-03):

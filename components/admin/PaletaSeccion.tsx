@@ -290,7 +290,15 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
   const [origenTexto, setOrigenTexto]     = useState<OrigenTexto | null>(null);
   const [origenAccion, setOrigenAccion]   = useState<OrigenAccion | null>(null);
   const [hayBorrador, setHayBorrador]     = useState(false);
-  const [editando, setEditando]           = useState(false);
+  // § EDITOR-VISUAL-NIVELES-1/EDITOR-VISUAL-ESTILO-FILA-1 (follow-up de EDITOR-VISUAL-PANEL-1) — EN
+  // EL EMBED (`enEditor`), "Estilo" ya es su propia herramienta del riel (§ REDISENO.md § 6: "no es
+  // un modo aparte"), así que entra DIRECTO a sus controles — nunca la tarjeta de lectura "Colores y
+  // tipografía · Editar" que el prototipo tampoco dibuja (su pantalla «Estilo de la tienda» no tiene
+  // paso de lectura). El STANDALONE (`enEditor=false`, sin consumidor real hoy — ver el docstring de
+  // `PaletaSeccionProps.enEditor`) conserva el ciclo lectura↔edición tal cual: sigue arrancando en
+  // `false`. `editando` NUNCA vuelve a `false` mientras `enEditor` sea `true` —"Cerrar" (abajo, en
+  // `cabeceraContenido`) se oculta para el embed, que es el único sitio que podía volver a apagarlo—.
+  const [editando, setEditando]           = useState(enEditor);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [procesando, setProcesando]       = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
@@ -603,10 +611,17 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-            <h2 className="duna-title">Colores y tipografía</h2>
+            {/* § EDITOR-VISUAL-NIVELES-1 — el EMBED usa el título del prototipo (`pv.est`, "Estilo de
+                la tienda") — es el título de la HERRAMIENTA del riel, no de un campo; el STANDALONE
+                conserva "Colores y tipografía" (describe lo que YA está mostrando ahí mismo, sin
+                riel que lo enmarque). */}
+            <h2 className="duna-title">{enEditor ? 'Estilo de la tienda' : 'Colores y tipografía'}</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
-          {!editando && (
+          {/* El SUBTÍTULO (el spec: "¿Cómo se ve mi tienda?" explicado en una línea) se queda SIEMPRE
+              a la vista en el embed —ahí NO hay un paso de lectura que lo muestre antes (§ arriba);
+              el standalone sigue mostrándolo sólo en lectura, como siempre. */}
+          {(enEditor || !editando) && (
             <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
               El color y las fuentes — la piel de todo el storefront. Eliges el fondo, la tinta y el
               acento (el resto de la paleta se calcula sola) y un par tipográfico; publica cuando esté listo.
@@ -629,7 +644,12 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
                 Usar el tema por defecto
               </button>
             )}
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+            {/* "Cerrar" sólo existe en el STANDALONE: ahí vuelve a la tarjeta de lectura. En el embed
+                no hay lectura a la que volver (§ el docstring de `editando`, arriba) — es la ÚNICA
+                acción que podía apagarlo, así que ocultarla es lo que lo deja `true` para siempre. */}
+            {!enEditor && (
+              <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+            )}
             {hayBorrador && (
               <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
                 Descartar

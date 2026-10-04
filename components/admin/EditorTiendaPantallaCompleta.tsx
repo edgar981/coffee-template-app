@@ -20,6 +20,7 @@ import { Riel, type HerramientaRiel } from '@/components/admin/editor/Riel';
 import { VistaNueva } from '@/components/admin/editor/VistaNueva';
 import { ResumenPublicar } from '@/components/admin/editor/ResumenPublicar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
 
 // ─── EL EDITOR DE PANTALLA COMPLETA (§ EDITOR-TIENDA-DISPOSITIVOS-1) ───────────────────────────────
@@ -198,6 +199,13 @@ export default function EditorTiendaPantallaCompleta() {
   const paginaActualLabel = LABEL_PAGINA_SELECTOR[pagina] ?? PAGINAS.find(p => p.key === pagina)?.label ?? pagina;
 
   return (
+    // § EDITOR-VISUAL-NIVELES-1 — UN SOLO `TooltipProvider` para toda esta pantalla (el «?» de
+    // `AyudaCampo.tsx`, montado dentro de `TiendaPaginas` más abajo): este grupo de rutas NO monta
+    // `AdminChrome` (§ el docstring de `editor/layout.tsx`, "sin sidebar, sin topbar"), que es donde
+    // vive el ÚNICO `TooltipProvider` de `/admin/*` — sin éste, un `Tooltip` acá se queda sin su
+    // contexto. Mismo `delayDuration` que `AdminChrome.tsx`, para que el hover se sienta igual en las
+    // dos superficies del panel.
+    <TooltipProvider delayDuration={300}>
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--duna-bg)', zIndex: 0 }}>
       {/* EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3) — la barra calcada del prototipo: ‹ volver · tienda
           | Página ▾ · dispositivo | deshacer/rehacer · estado · Vista previa · Publicar. Tres
@@ -373,5 +381,6 @@ export default function EditorTiendaPantallaCompleta() {
         </p>
       </VistaNueva>
     </div>
+    </TooltipProvider>
   );
 }

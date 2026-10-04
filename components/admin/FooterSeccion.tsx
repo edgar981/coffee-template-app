@@ -10,6 +10,7 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
+import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { FooterContent } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
@@ -318,44 +319,44 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-col-tienda">Encabezado — Tienda</label>
               <input id="footer-col-tienda" className="duna-input" value={form.columnaTienda} onChange={(e) => cambiar({ columnaTienda: e.target.value })} />
-              <p className="duna-field__hint">Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Vacío: se usa el texto por defecto." />
             </div>
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-link-tienda">Enlace — Todos los productos</label>
               <input id="footer-link-tienda" className="duna-input" value={form.linkTienda} onChange={(e) => cambiar({ linkTienda: e.target.value })} />
-              <p className="duna-field__hint">Va a /tienda. Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Va a /tienda. Vacío: se usa el texto por defecto." />
             </div>
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-link-suscripciones">Enlace — Suscripciones</label>
               <input id="footer-link-suscripciones" className="duna-input" value={form.linkSuscripciones} onChange={(e) => cambiar({ linkSuscripciones: e.target.value })} />
-              <p className="duna-field__hint">Va a /suscripciones (se oculta si esa página está apagada). Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Va a /suscripciones (se oculta si esa página está apagada). Vacío: se usa el texto por defecto." />
             </div>
 
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-col-ayuda">Encabezado — Ayuda</label>
               <input id="footer-col-ayuda" className="duna-input" value={form.columnaAyuda} onChange={(e) => cambiar({ columnaAyuda: e.target.value })} />
-              <p className="duna-field__hint">Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Vacío: se usa el texto por defecto." />
             </div>
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-link-rastrear">Enlace — Rastrear Pedido</label>
               <input id="footer-link-rastrear" className="duna-input" value={form.linkRastrearPedido} onChange={(e) => cambiar({ linkRastrearPedido: e.target.value })} />
-              <p className="duna-field__hint">Va a /rastrear-pedido. Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Va a /rastrear-pedido. Vacío: se usa el texto por defecto." />
             </div>
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-link-faq">Enlace — Preguntas Frecuentes</label>
               <input id="footer-link-faq" className="duna-input" value={form.linkPreguntasFrecuentes} onChange={(e) => cambiar({ linkPreguntasFrecuentes: e.target.value })} />
-              <p className="duna-field__hint">Va a /preguntas-frecuentes (se oculta si la FAQ está vacía). Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Va a /preguntas-frecuentes (se oculta si la FAQ está vacía). Vacío: se usa el texto por defecto." />
             </div>
 
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-col-empresa">Encabezado — Empresa</label>
               <input id="footer-col-empresa" className="duna-input" value={form.columnaEmpresa} onChange={(e) => cambiar({ columnaEmpresa: e.target.value })} />
-              <p className="duna-field__hint">Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Vacío: se usa el texto por defecto." />
             </div>
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-link-nosotros">Enlace — Nuestra Historia</label>
               <input id="footer-link-nosotros" className="duna-input" value={form.linkNuestraHistoria} onChange={(e) => cambiar({ linkNuestraHistoria: e.target.value })} />
-              <p className="duna-field__hint">Va a /nosotros (se oculta si esa página está apagada). Vacío: se usa el texto por defecto.</p>
+              <AyudaCampo texto="Va a /nosotros (se oculta si esa página está apagada). Vacío: se usa el texto por defecto." />
             </div>
 
             {/* LA TARJETA DE IMAGEN opcional (§ MUESTRARIO-FOOTER-TARJETA-IMAGEN-1): en el muestrario
@@ -364,9 +365,7 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
                 Misma miniatura + botón "Subir" que la tarjeta promocional del menú (§ MenuSeccion.tsx). */}
             <div className="duna-field">
               <span className="duna-field__label">Tarjeta de imagen (opcional)</span>
-              <p className="duna-field__hint" style={{ marginTop: 0 }}>
-                Sólo se ve con la composición &quot;Marca arriba, columnas debajo&quot;. Vacía: no se muestra.
-              </p>
+              <AyudaCampo texto={'Sólo se ve con la composición "Marca arriba, columnas debajo". Vacía: no se muestra.'} />
               <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-2)' }}>
                 <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
                   {form.tarjetaImagen
@@ -393,7 +392,7 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-tarjeta-texto">Tarjeta de imagen — pie de texto</label>
               <input id="footer-tarjeta-texto" className="duna-input" value={form.tarjetaTexto} onChange={(e) => cambiar({ tarjetaTexto: e.target.value })} />
-              <p className="duna-field__hint">Ej. &quot;San Adolfo, Huila&quot;. Vacío: sin pie de texto.</p>
+              <AyudaCampo texto={'Ej. "San Adolfo, Huila". Vacío: sin pie de texto.'} />
             </div>
 
             {/* § PIE-HECHO-POR-DUNA-1: el crédito de la plataforma, en la franja baja del pie — el
@@ -409,9 +408,7 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
               </button>
               <div>
                 <span className="duna-field__label" style={{ margin: 0 }}>Mostrar &quot;Hecho por Duna&quot;</span>
-                <p className="duna-field__hint" style={{ margin: 0 }}>
-                  Una línea discreta en la franja más baja del pie, con un enlace a duna.solutions.
-                </p>
+                <AyudaCampo texto="Una línea discreta en la franja más baja del pie, con un enlace a duna.solutions." />
               </div>
             </div>
 

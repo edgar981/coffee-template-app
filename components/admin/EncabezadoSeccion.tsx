@@ -9,6 +9,7 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
+import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/upload';
 import { modoLogoResuelto } from '@/lib/config/marca-logo';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
@@ -537,11 +538,9 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
             una decisión distinta ("¿tengo un logo?"), no un ajuste más del nav. */}
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <h3 className="duna-field__label" style={{ margin: 0, fontSize: '0.9375rem' }}>Imagen del logo</h3>
-          <p className="duna-field__hint" style={{ marginTop: '4px' }}>
-            Reemplaza el nombre en texto del encabezado, el pie de página y el menú móvil. Sin ninguna imagen,
-            se muestra el nombre de tu negocio (o la flor, si tu despliegue la tiene). SVG o PNG con fondo
-            transparente, máx {MAX_SUBIDA_DIRECTA_MB} MB. Si subes sólo una versión, se usa también para la otra.
-          </p>
+          <div style={{ marginTop: '4px' }}>
+            <AyudaCampo texto={`Reemplaza el nombre en texto del encabezado, el pie de página y el menú móvil. Sin ninguna imagen, se muestra el nombre de tu negocio (o la flor, si tu despliegue la tiene). SVG o PNG con fondo transparente, máx ${MAX_SUBIDA_DIRECTA_MB} MB. Si subes sólo una versión, se usa también para la otra.`} />
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-4)', marginTop: 'var(--duna-space-3)' }}>
             {([
               { cual: 'oscuro' as const, url: form.logoOscuro, titulo: 'Versión oscura', hint: 'Para fondos claros — páginas internas, encabezado sólido.' },
@@ -595,7 +594,7 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
               value={form.logoAlt} onChange={(e) => cambiar({ logoAlt: e.target.value })}
               placeholder="Ej. Logo de Café Las Chamisas"
             />
-            <p className="duna-field__hint">Vacío: se usa el nombre de tu negocio.</p>
+            <AyudaCampo texto="Vacío: se usa el nombre de tu negocio." />
           </div>
           {/* CÓMO SE MUESTRA LA MARCA EN EL NAV (§ NAV-LOGO-Y-NOMBRE-1) — DENTRO de esta tarjeta,
               no de los switches de abajo: sigue siendo la MISMA decisión ("¿cómo se ve mi marca?"),
@@ -613,11 +612,9 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
               <option value="soloLogo">Sólo logo</option>
               <option value="logoYNombre">Logo en el teléfono, logo y nombre en escritorio</option>
             </select>
-            <p className="duna-field__hint">
-              {tieneLogoImagen
-                ? 'Sin elegir, se usa sólo el logo en todos los anchos — el comportamiento de hoy.'
-                : 'Sin una imagen subida arriba, siempre se muestra el nombre, sea cual sea esta opción.'}
-            </p>
+            <AyudaCampo texto={tieneLogoImagen
+              ? 'Sin elegir, se usa sólo el logo en todos los anchos — el comportamiento de hoy.'
+              : 'Sin una imagen subida arriba, siempre se muestra el nombre, sea cual sea esta opción.'} />
           </div>
           <input ref={subidaImagen.inputHoldRef} type="file" onChange={subidaImagen.alElegirHold} hidden />
         </div>
@@ -627,11 +624,9 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
             ícono propio, la tienda usa los de Café Nayoli (§ `lib/config/metadata-tienda.ts`). */}
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <h3 className="duna-field__label" style={{ margin: 0, fontSize: '0.9375rem' }}>Ícono de la pestaña</h3>
-          <p className="duna-field__hint" style={{ marginTop: '4px' }}>
-            El ícono de la pestaña del navegador, de la vista previa al compartir y de la pantalla de
-            inicio si tu tienda se instala como app. Sin uno propio, se usa el de Café Nayoli. Cuadrado,
-            SVG o PNG, máx {MAX_SUBIDA_DIRECTA_MB} MB.
-          </p>
+          <div style={{ marginTop: '4px' }}>
+            <AyudaCampo texto={`El ícono de la pestaña del navegador, de la vista previa al compartir y de la pantalla de inicio si tu tienda se instala como app. Sin uno propio, se usa el de Café Nayoli. Cuadrado, SVG o PNG, máx ${MAX_SUBIDA_DIRECTA_MB} MB.`} />
+          </div>
           <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-3)' }}>
             <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
               {form.logoIcono
@@ -682,7 +677,7 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
                     </button>
                     <span className="duna-field__label" style={{ margin: 0 }}>{c.label}</span>
                   </div>
-                  <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{c.hint}</p>
+                  <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={c.hint} /></div>
                   {/* Sub-control de "Botón Comprar y badge del menú" (§ RIEL-SCROLL-Y-BADGE-
                       DORADO-1): sólo tiene efecto con ESE switch encendido — el badge fijo es lo
                       que este color pinta. Anidado bajo su hint, no una entrada más de
@@ -713,9 +708,9 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
                       {form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) ? (
                         <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #f5b36a.</p>
                       ) : (
-                        <p className="duna-field__hint" style={{ marginTop: '6px', marginBottom: 0 }}>
-                          Vacío: el badge sigue con el color de acento cálido de siempre.
-                        </p>
+                        <div style={{ marginTop: '6px' }}>
+                          <AyudaCampo texto="Vacío: el badge sigue con el color de acento cálido de siempre." />
+                        </div>
                       )}
                     </div>
                   )}
@@ -739,10 +734,9 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
                         </button>
                         <span className="duna-field__label" style={{ margin: 0 }}>Mostrar buscar en la barra del teléfono</span>
                       </div>
-                      <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
-                        En el teléfono, el ícono de buscar aparece en la barra del encabezado. Apágalo para
-                        quitarlo de ahí — sigue disponible dentro del menú.
-                      </p>
+                      <div style={{ marginTop: 'var(--duna-space-2)' }}>
+                        <AyudaCampo texto="En el teléfono, el ícono de buscar aparece en la barra del encabezado. Apágalo para quitarlo de ahí — sigue disponible dentro del menú." />
+                      </div>
                     </div>
                   )}
                 </div>

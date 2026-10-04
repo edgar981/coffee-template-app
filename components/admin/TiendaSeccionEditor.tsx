@@ -23,6 +23,8 @@ import { gatePorCampo, SECCIONES_TIENDA } from '@/components/admin/tienda-seccio
 import { ComposicionHero } from '@/components/admin/editor/ComposicionHero';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
+import { Migas } from '@/components/admin/editor/Migas';
+import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
 import { metaElementoEstilo, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
@@ -344,6 +346,46 @@ interface TiendaSeccionEditorProps {
   onEscribirCruzado?: (seccion: SeccionVista, campo: string, valor: string) => void;
 }
 
+// ── EL NIVEL «elemento», SÓLO HERO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3/§ 4) ────────────────
+//
+// Las CUATRO zonas de texto del hero de hoy (§ `ZONA_HERO_NOMBRES`, más abajo) — Titular, Subtítulo,
+// Botones, Indicador. «Fondo» NO es una de ellas a propósito: el prototipo tampoco la trata como
+// zona navegable (`K.ZONES` nunca incluye `'fondo'`, medido en `prototipo-editor.html`) — tiene su
+// propio bloque inline en el nivel Hero (miniatura + Cambiar + punto focal + Oscurecer), nunca un
+// nivel de elemento con texto/estilo/Quitar, porque no tiene texto que estilizar.
+type ZonaHeroKey = 'titular' | 'subtitulo' | 'botones' | 'indicador';
+
+/** campo (texto o booleano) → la zona a la que pertenece, para que un clic en el LIENZO (un mensaje
+ *  `campo-cambio` del puente, § `escribirCampo`) abra el mismo nivel que un clic en el PANEL —
+ *  "al tocar una zona en el panel o en la página", el spec. `titularVisible` gatea DOS campos
+ *  (`titulo`/`tituloEnfasis`), y `ctasVisibles` otros dos (`ctaPrimarioLabel`/`ctaSecundarioLabel`):
+ *  el prototipo trata "Botón" como una zona con un solo texto; acá son dos campos reales del modelo,
+ *  así que la zona "Botones" los agrupa a los dos — la desviación medida que el spec anticipa
+ *  ("cuando difieren en QUÉ hace… se conserva la función con el estilo del prototipo"). */
+const ZONA_HERO_DE_CAMPO: Record<string, ZonaHeroKey> = {
+  titularVisible: 'titular', titulo: 'titular', tituloEnfasis: 'titular',
+  subtituloVisible: 'subtitulo', subtitulo: 'subtitulo',
+  ctasVisibles: 'botones', ctaPrimarioLabel: 'botones', ctaSecundarioLabel: 'botones',
+  cueDesliza: 'indicador',
+};
+
+/** El nivel de elemento de cada zona: su título, su ayuda, QUÉ campos de `config.campos` muestra
+ *  (reusando `renderCampo` tal cual — label, input/textarea, `AyudaCampo`, y el control de estilo
+ *  gemelo de la barra flotante cuando el campo lo declara, § `metaElementoEstilo`) y qué booleano
+ *  apaga "Quitar". `indicador` no tiene campos — no hay texto que mostrar, sólo el interruptor —,
+ *  igual que el prototipo (`hasText: sel !== 'cue'`). */
+const ELEMENTO_HERO_DEFS: Record<ZonaHeroKey, {
+  titulo: string;
+  hint: string;
+  campos: string[];
+  boolName: 'titularVisible' | 'subtituloVisible' | 'ctasVisibles' | 'cueDesliza';
+}> = {
+  titular: { titulo: 'Titular', hint: 'El mensaje principal del hero.', campos: ['titulo', 'tituloEnfasis'], boolName: 'titularVisible' },
+  subtitulo: { titulo: 'Subtítulo', hint: 'El texto bajo el titular.', campos: ['subtitulo'], boolName: 'subtituloVisible' },
+  botones: { titulo: 'Botones', hint: 'Los dos botones del hero, juntos.', campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], boolName: 'ctasVisibles' },
+  indicador: { titulo: 'Indicador', hint: 'La línea animada al pie que invita a bajar, con la etiqueta «Desliza».', campos: [], boolName: 'cueDesliza' },
+};
+
 const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCerrar, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
@@ -369,6 +411,16 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // la sección completa (`abrirEdicion`), igual que tocar la fila misma. No se persiste ni se resetea
   // al cerrar: es un detalle de la lista, no del documento.
   const [zonasAbiertas, setZonasAbiertas] = useState(false);
+  // § EDITOR-VISUAL-NIVELES-1 — EL NIVEL «elemento», SÓLO HERO (REDISENO.md § 3: "Inicio › Hero ›
+  // Titular"). `null` = nivel Hero (composición/zonas/alto/fondo); una de las cuatro claves = el
+  // panel baja a mostrar SÓLO ese campo + sus controles de estilo + «Quitar» (§ `renderElementoHero`,
+  // más abajo). Vive ACÁ y no en `TiendaPaginas` a propósito: `TiendaPaginas` sólo conoce
+  // secciones/cromo/instancias (§ `nivelActivo`), no zonas de una sección en particular — hacerle
+  // aprender de zonas habría significado tocar su mecanismo de migas globales («‹ Inicio») por un
+  // nivel que sólo existe DENTRO del hero. La miga local «‹ Hero» (`Migas`, reusada tal cual) vive
+  // bajo esta misma cáscara; la miga global «‹ Inicio» de `TiendaPaginas` sigue arriba, sin cambios,
+  // y sigue cerrando la sección entera (su `cerrar()` también resetea esto, ver `cerrarEdicion`).
+  const [elementoActivo, setElementoActivo] = useState<'titular' | 'subtitulo' | 'botones' | 'indicador' | null>(null);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   // El CONTROL al que pertenece `errorServidor` —el nombre del campo-imagen (hero, brandStory…), o
   // `null` para un error SIN control propio en este editor (publicar/descartar, o un ítem del
@@ -830,8 +882,8 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // debe dejarlo apuntando a un control de una sesión de edición anterior.
   // `onAbrir` (§ EDITOR-TIENDA-IFRAME-VISTA-1): abrir NO muta nada —ni autoguardado ni borrador—,
   // así que notificar al padre acá es seguro incluso si el iframe todavía no cargó.
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onCerrar?.(seccion); };
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setElementoActivo(null); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setElementoActivo(null); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onCerrar?.(seccion); };
 
   // EL VALOR REMOTO (iframe→lista) es SIEMPRE un string en el mensaje (§ `MensajeCampoCambio.valor`,
   // editor-puente.ts) — nunca cambia de forma para no tocar `VistaTiendaIframe.tsx`/`TiendaPaginas.
@@ -859,6 +911,16 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // IGNORA — el próximo mensaje (la próxima tecla) lo reintenta igual.
   const escribirCampo = (campo: string, valor: string) => {
     if (!editando) abrirEdicion();
+    // § EDITOR-VISUAL-NIVELES-1 — "al tocar una zona… EN LA PÁGINA" (el spec) abre su nivel de
+    // elemento, SIN tocar el puente del iframe (`EditorPuenteVivo.tsx`/`editor-puente.ts`, fuera de
+    // `touches:` de este slice): un clic en el titular DENTRO del lienzo ya llega acá como el PRIMER
+    // `TIPO_MENSAJE_CAMPO_CAMBIO` de esa zona (una tecla, o el "+Titular"/"Quitar" del lienzo —
+    // § `mensajesVisibilidadZona`, que postea el mismo canal con el nombre del booleano), así que
+    // basta con leer QUÉ campo llegó para saber a qué zona pertenece — ningún mensaje nuevo.
+    if (seccion === 'hero') {
+      const zona = ZONA_HERO_DE_CAMPO[campo];
+      if (zona) setElementoActivo(zona);
+    }
     const parcial = parcialDeCampoRemoto(campo, valor);
     if (parcial) cambiar(parcial);
   };
@@ -1247,7 +1309,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
             → {etiquetaEjesSpotlight(ejesProducto)}
           </p>
         )}
-        <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+        <AyudaCampo texto={campo.hint} id={`${id}-hint`} />
         {/* § EDITOR-TIENDA-BARRA-FLOTANTE-1 — "el panel muestra lo mismo con más espacio": el MISMO
             control que la barra flotante del iframe, debajo del campo al que pertenece. Sin
             `rolesLegibles` (el panel no conoce el fondo real de la zona del storefront, a diferencia
@@ -1293,7 +1355,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         ) : (
           <input id={id} className="duna-input" value={value} onChange={onChange} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         )}
-        <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+        <AyudaCampo texto={campo.hint} id={`${id}-hint`} />
       </div>
     );
   };
@@ -1320,44 +1382,161 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           </button>
           <span className="duna-field__label" style={{ margin: 0 }}>{campo.label}</span>
         </div>
-        {campo.hint && <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{campo.hint}</p>}
+        {campo.hint && <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={campo.hint} /></div>}
       </div>
     );
   };
 
-  // LA LISTA DE ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 2/§ 4) — reemplaza a
-  // `config.booleanos.map(renderBooleano)` SÓLO para `seccion === 'hero'`. Cada fila es una zona de
-  // la página (Titular · Subtítulo · Botones · Indicador): su nombre, su estado en palabras, y
-  // "Agregar"/"Quitar" en vez de un switch — "una vacía ofrece «+ …» en su lugar; una llena se quita
-  // desde su barra" (la BARRA acá es esta fila, no una barra flotante sobre el lienzo). MISMO
-  // `cambiar({[name]: !on})` que `renderBooleano` ya usaba: el dato no cambia, sólo la presentación.
+  // LA LISTA DE ZONAS DEL HERO (§ EDITOR-VISUAL-NIVELES-1, antes EDITOR-TIENDA-ZONAS-1, REDISENO.md
+  // § 2/§ 4) — filas al estilo del prototipo (`.zr`/`.zi`/`.zt`/`.zadd`): ícono + nombre + VALOR en
+  // gris, y «+ Agregar» sólo cuando está vacía. Reemplaza al renglón "Mostrar los botones / Quitar"
+  // (switch + frase larga) que el owner señaló en la aprobación como "el formulario viejo" — mismo
+  // dato (`cambiar({[boolName]: …})`), sólo cambia la presentación Y agrega la navegación al nivel de
+  // elemento (abajo, `renderElementoHero`): una zona LLENA se TOCA para editarla; una VACÍA se agrega
+  // Y se abre a la vez, para que el dueño pueda escribir de inmediato.
   //
   // `alturaLlena`/`veloVisible` NO entran a esta lista — § el pedido del spec los REEMPLAZA por el
-  // select de `alto` ("Justo·Alto·Pantalla completa") y el de `veloCombo` ("Nada·Suave·Medio·Fuerte"),
-  // ya en el flujo de `renderCampo`/`bloque.campos` más abajo. `config.booleanos` SIGUE declarando
-  // los seis nombres (bookkeeping de `panel-controles.ts`); esta lista sólo filtra CUÁLES pinta.
-  const ZONA_HERO_NOMBRES = new Set(['titularVisible', 'subtituloVisible', 'ctasVisibles', 'cueDesliza']);
-  const renderZonasHero = () => {
-    const zonas = (config.booleanos ?? []).filter((c) => ZONA_HERO_NOMBRES.has(c.name));
+  // segmentado de `alto` ("Justo·Alto·Pantalla completa") y el de `veloCombo` ("Nada·Suave·Medio·
+  // Fuerte"), § `renderAltoYFondo` más abajo. `config.booleanos` SIGUE declarando los seis nombres
+  // (bookkeeping de `panel-controles.ts`); esta lista sólo filtra CUÁLES pinta.
+  const ZONA_HERO_ORDEN: { key: ZonaHeroKey; gl: string }[] = [
+    { key: 'titular', gl: 'T' },
+    { key: 'subtitulo', gl: '¶' },
+    { key: 'botones', gl: '▭' },
+    { key: 'indicador', gl: '↓' },
+  ];
+  /** El estado de UNA zona a partir del `form` actual — compartido entre esta lista y el chevron de
+   *  la fila colapsada (`!editando`, más abajo), para que las dos lecturas del mismo dato no puedan
+   *  divergir. */
+  const zonaHeroEstado = (key: ZonaHeroKey): { on: boolean; valor: string } => {
+    const on = form[ELEMENTO_HERO_DEFS[key].boolName] !== false;
+    if (key === 'titular') return { on, valor: on ? (String(form.titulo ?? '').trim() || '—') : 'Vacío' };
+    if (key === 'subtitulo') return { on, valor: on ? (String(form.subtitulo ?? '').trim() || '—') : 'Vacío' };
+    if (key === 'botones') return { on, valor: on ? (String(form.ctaPrimarioLabel ?? '').trim() || '—') : 'Vacíos' };
+    return { on, valor: on ? 'Desliza' : 'Vacío' }; // indicador: sin texto propio (§ ELEMENTO_HERO_DEFS)
+  };
+  const renderZonasHero = () => (
+    <div className="admin-bloque">
+      <span className="duna-field__label" style={{ display: 'block', marginBottom: 'var(--duna-space-2)' }}>Zonas</span>
+      {ZONA_HERO_ORDEN.map(({ key, gl }) => {
+        const def = ELEMENTO_HERO_DEFS[key];
+        const { on, valor } = zonaHeroEstado(key);
+        // Vacía → el switch pasa a 'true' Y se abre el elemento, en el MISMO click: el dueño quiere
+        // escribir, no sólo encender un interruptor y tener que tocar de nuevo. Llena → sólo abre.
+        const abrir = () => { if (!on) cambiar({ [def.boolName]: true }); setElementoActivo(key); };
+        return (
+          <div key={key} className={`editor-zr${on ? '' : ' is-empty'}`}>
+            <button type="button" className="editor-zr__main" onClick={abrir}>
+              <span className="editor-zr__icon" aria-hidden>{gl}</span>
+              <span className="editor-zr__text"><b>{def.titulo}</b><span>{valor}</span></span>
+            </button>
+            {!on && (
+              <button type="button" className="editor-zr__add" onClick={abrir}>
+                <Plus className="h-3.5 w-3.5" aria-hidden /> Agregar
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // EL NIVEL DE ELEMENTO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3: "«‹ Hero», el campo de texto a
+  // lo ancho, y debajo los MISMOS controles de la barra flotante… y «Quitar» al pie"). REUSA
+  // `renderCampo` tal cual —no una segunda forma de pintar un campo—: cada campo de la zona ya trae
+  // su label, su `AyudaCampo`, y (cuando `metaElementoEstilo` lo declara) el control de estilo gemelo
+  // de la barra flotante. `Migas` es la MISMA primitiva que `TiendaPaginas` usa para «‹ Inicio» —su
+  // propio docstring ya preveía este uso ("cuando el nivel «elemento» exista, este mismo componente
+  // sirve sin cambios")—, con `nivelAnterior="Hero"` en vez de "Inicio": la miga GLOBAL de arriba
+  // (TiendaPaginas) sigue diciendo «‹ Inicio» sin cambios — cierra la SECCIÓN entera; ésta es una
+  // SEGUNDA miga, local a esta cáscara, que sólo sube un nivel dentro del hero.
+  const renderElementoHero = () => {
+    const key = elementoActivo as ZonaHeroKey;
+    const def = ELEMENTO_HERO_DEFS[key];
+    const camposElemento = def.campos
+      .map((n) => config.campos.find((c) => c.name === n))
+      .filter((c): c is CampoTexto => !!c);
     return (
-      <div className="admin-bloque">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
-          {zonas.map((campo) => {
-            const on = form[campo.name] !== false;
-            return (
-              <div key={campo.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}>
-                <div>
-                  <span className="duna-field__label" style={{ margin: 0 }}>{campo.label}</span>
-                  {campo.hint && <p className="duna-field__hint" style={{ margin: 0 }}>{campo.hint}</p>}
-                </div>
-                <button type="button" onClick={() => cambiar({ [campo.name]: !on })} className="duna-btn duna-btn--ghost duna-btn--sm">
-                  {on ? 'Quitar' : 'Agregar'}
-                </button>
-              </div>
-            );
-          })}
+      <>
+        <Migas nivelAnterior="Hero" actual={def.titulo} onVolver={() => setElementoActivo(null)} />
+        <h2 className="editor-pv-title">{def.titulo}</h2>
+        <p className="editor-pv-sub">{def.hint}</p>
+        {camposElemento.length > 0 ? (
+          <div className="duna-form" style={{ marginTop: 'var(--duna-space-4)' }}>{camposElemento.map(renderCampo)}</div>
+        ) : (
+          // El Indicador no tiene texto propio (§ ELEMENTO_HERO_DEFS) — mismo caso que el prototipo
+          // (`hasText: sel !== 'cue'`): sólo el interruptor, sin campo que ofrecer.
+          <p className="duna-sub" style={{ marginTop: 'var(--duna-space-4)' }}>
+            No tiene texto propio — sólo se agrega o se quita del hero.
+          </p>
+        )}
+        <div className="editor-elemento-quitar">
+          <button
+            type="button"
+            className="duna-btn duna-btn--danger duna-btn--sm"
+            onClick={() => { cambiar({ [def.boolName]: false }); setElementoActivo(null); }}
+          >
+            Quitar {def.titulo.toLowerCase()}
+          </button>
         </div>
+      </>
+    );
+  };
+
+  // "ALTO" Y "FONDO" DEL HERO, COMO SEGMENTADO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3: "Alto
+  // (segmentado Justo · Alto · Pantalla completa), Fondo (miniatura + Cambiar + punto focal +
+  // «Oscurecer para leer mejor» segmentado)"). Un segmentado GENÉRICO —reusado para los dos ejes— en
+  // vez del `<select>` nativo que `renderCampo` sigue dando a cualquier OTRO campo de opciones: acá
+  // el set es chico (3 y 4) y el valor es el MISMO «modo, no conteo» que ya justifica `.duna-seg` en
+  // la barra (dispositivo, § CLAUDE.md "el segmentado cambia el MODO de ver lo mismo"). `puntoFocal`
+  // NO se vuelve segmentado —nueve opciones no caben en una fila de palabras— y se queda con
+  // `renderCampo` (select nativo, la regla general de siempre).
+  const renderSegmentadoHero = (etiqueta: string, hint: string | undefined, opciones: { value: string; label: string }[], valor: string, onElegir: (v: string) => void) => (
+    <div className="duna-field">
+      <span className="duna-field__label">{etiqueta}</span>
+      <div className="duna-seg editor-seg-full" role="group" aria-label={etiqueta}>
+        {opciones.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={valor === o.value}
+            onClick={() => onElegir(o.value)}
+            className={`duna-seg__item${valor === o.value ? ' is-on' : ''}`}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
+      <AyudaCampo texto={hint} />
+    </div>
+  );
+  const renderAltoYFondo = () => {
+    const campoAlto = config.campos.find((c) => c.name === 'alto');
+    const campoVeloCombo = config.campos.find((c) => c.name === 'veloCombo');
+    const campoPuntoFocal = config.campos.find((c) => c.name === 'puntoFocal');
+    const campoImagen = config.imagenes.find((i) => i.name === 'imagen');
+    const campoImagenMovil = config.imagenes.find((i) => i.name === 'imagenMovil');
+    const valorAlto = String(form.alto ?? campoAlto?.opciones?.[0]?.value ?? 'justo');
+    const valorVelo = veloComboDeCampos(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'));
+    return (
+      <>
+        {campoAlto?.opciones && (
+          <div className="admin-bloque">
+            {renderSegmentadoHero(campoAlto.label, campoAlto.hint, campoAlto.opciones, valorAlto, (v) => cambiar({ alto: v, alturaLlena: v === 'pantalla' }))}
+          </div>
+        )}
+        <div className="admin-bloque">
+          <span className="duna-field__label" style={{ display: 'block', marginBottom: 'var(--duna-space-2)' }}>Fondo</span>
+          {campoImagen && renderMiniatura(campoImagen)}
+          {campoImagenMovil && renderMiniatura(campoImagenMovil)}
+          {campoPuntoFocal && <div className="duna-form" style={{ marginTop: 'var(--duna-space-3)' }}>{renderCampo(campoPuntoFocal)}</div>}
+          {campoVeloCombo?.opciones && (
+            <div style={{ marginTop: 'var(--duna-space-3)' }}>
+              {renderSegmentadoHero(campoVeloCombo.label, campoVeloCombo.hint, campoVeloCombo.opciones, valorVelo, (v) => cambiar(camposDeVeloCombo(v)))}
+            </div>
+          )}
+        </div>
+      </>
     );
   };
 
@@ -1744,7 +1923,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     return (
       <div>
         <span className="duna-field__label">{label}s</span>
-        {hint && <p className="duna-field__hint" style={{ marginTop: 0 }}>{hint}</p>}
+        {hint && <AyudaCampo texto={hint} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)' }}>
           {Array.from({ length: mostrados }, (_, i) => (
             <div key={slots[i]} style={{ display: 'flex', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
@@ -1777,9 +1956,23 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // campos — los cruzados incluidos) — se renderiza aparte, en su propio grupo (§ `gruposCruzados`,
   // arriba), nunca los dos a la vez. Sólo el `seccion` necesita el filtro: ningún `tarjeta`/`lista`/
   // `collage` de hoy declara un campo `seccionCruzada` entre los suyos.
-  const bloques = bloquesResueltos(config).map((b) =>
-    b.tipo === 'seccion' ? { ...b, campos: b.campos.filter((c) => !c.seccionCruzada) } : b,
-  );
+  // § EDITOR-VISUAL-NIVELES-1 — PARA EL HERO, además, los campos/imágenes que `renderZonasHero`/
+  // `renderAltoYFondo` (arriba) YA dibujan por su cuenta se SACAN del bloque `seccion` genérico — sin
+  // este filtro, `titulo`/`alto`/`imagen`… se pintarían DOS VECES (una en su bloque propio, otra en
+  // el `.duna-form` genérico de abajo). Las demás secciones no declaran ninguno de estos nombres
+  // (son propios de `HERO.campos`/`HERO.imagenes`), así que el filtro es un no-op para ellas.
+  const CAMPOS_HERO_YA_DIBUJADOS = new Set(['titulo', 'tituloEnfasis', 'subtitulo', 'ctaPrimarioLabel', 'ctaSecundarioLabel', 'alto', 'veloCombo', 'puntoFocal']);
+  const IMAGENES_HERO_YA_DIBUJADAS = new Set(['imagen', 'imagenMovil', 'imagenMovilPoster']);
+  const bloques = bloquesResueltos(config).map((b) => {
+    if (b.tipo !== 'seccion') return b;
+    let campos = b.campos.filter((c) => !c.seccionCruzada);
+    let imagenes = b.imagenes;
+    if (seccion === 'hero') {
+      campos = campos.filter((c) => !CAMPOS_HERO_YA_DIBUJADOS.has(c.name));
+      imagenes = imagenes.filter((i) => !IMAGENES_HERO_YA_DIBUJADAS.has(i.name));
+    }
+    return { ...b, campos, imagenes };
+  });
   const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
   const agregarTarjeta = () => { const primera = tarjetasColapsadas[0]; if (primera) expandir(primera.slot); };
 
@@ -1806,21 +1999,26 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   //    vista — DESVIACIÓN declarada: sigue completa dentro de la edición (abajo, `noSeMuestra`).
   if (!editando) {
     const esHero = seccion === 'hero';
-    // § EDITOR-VISUAL-PANEL-1 — las ZONAS del hero, para el chevron de la fila (el spec: "el hero
-    // desplegable en sus zonas y el valor de cada una"). Los NOMBRES de zona del prototipo (Fondo ·
-    // Marquesina · Producto · Leyenda · Indicador) son de OTRA composición (`sticky`); acá se muestran
-    // las piezas reales que el hero de HOY tiene, con el MISMO dato que ya gobierna `renderZonasHero`
-    // (`ZONA_HERO_NOMBRES`) más el fondo — cinco filas, mismo recuento que el prototipo, distinto
-    // rótulo porque el dato es distinto. Tocar cualquiera abre la sección completa: no existe (todavía)
-    // un nivel "elemento" por zona (§ REDISENO.md § 3, "«elemento» es EDITOR-TIENDA-ZONAS-1... sin
-    // construir").
+    // § EDITOR-VISUAL-PANEL-1/EDITOR-VISUAL-NIVELES-1 — las ZONAS del hero, para el chevron de la
+    // fila (el spec: "el hero desplegable en sus zonas y el valor de cada una"). El "Fondo" se queda
+    // como glifo propio (▣, no navega a un elemento — § ELEMENTO_HERO_DEFS, no tiene uno); las CUATRO
+    // zonas de TEXTO reusan `ZONA_HERO_ORDEN`/`zonaHeroEstado` (la MISMA fuente que `renderZonasHero`,
+    // abajo, usa dentro de la sección abierta) para que el valor mostrado acá y ahí no puedan
+    // divergir. Tocar una de las cuatro zonas de texto ABRE la sección Y baja directo a su nivel de
+    // elemento (§ EDITOR-VISUAL-NIVELES-1: "al tocar una zona en el panel… abre su propio nivel");
+    // "Fondo" sólo abre la sección (no tiene nivel de elemento propio, vive inline en "Alto y Fondo").
     const zonasHero = esHero ? [
-      { key: 'fondo', gl: '▣', nombre: 'Fondo', valor: form.imagenTipo === 'video' ? 'Video' : 'Foto' },
-      { key: 'titular', gl: 'T', nombre: 'Titular', valor: form.titularVisible === false ? 'Oculto' : (String(form.titulo ?? '').trim() || '—') },
-      { key: 'subtitulo', gl: '¶', nombre: 'Subtítulo', valor: form.subtituloVisible === false ? 'Oculto' : (String(form.subtitulo ?? '').trim() || '—') },
-      { key: 'botones', gl: '▭', nombre: 'Botones', valor: form.ctasVisibles === false ? 'Ocultos' : (String(form.ctaPrimarioLabel ?? '').trim() || '—') },
-      { key: 'indicador', gl: '↓', nombre: 'Indicador', valor: form.cueDesliza === false ? 'Oculto' : 'Desliza' },
+      { key: 'fondo' as const, gl: '▣', nombre: 'Fondo', valor: form.imagenTipo === 'video' ? 'Video' : 'Foto' },
+      ...ZONA_HERO_ORDEN.map(({ key, gl }) => {
+        const def = ELEMENTO_HERO_DEFS[key];
+        const { valor } = zonaHeroEstado(key);
+        return { key, gl, nombre: def.titulo, valor };
+      }),
     ] : [];
+    const abrirZonaDesdeChevron = (key: string) => {
+      abrirEdicion();
+      if (key !== 'fondo') setElementoActivo(key as ZonaHeroKey);
+    };
     return (
       <div ref={rootRef}>
         <FilaSeccion
@@ -1839,7 +2037,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         {esHero && zonasAbiertas && (
           <div className="editor-kids">
             {zonasHero.map((z) => (
-              <button key={z.key} type="button" className="editor-kid" onClick={abrirEdicion}>
+              <button key={z.key} type="button" className="editor-kid" onClick={() => abrirZonaDesdeChevron(z.key)}>
                 <span className="editor-kid__gl" aria-hidden>{z.gl}</span>
                 <span className="editor-kid__nm">{z.nombre}</span>
                 <span className="editor-kid__sb">{z.valor}</span>
@@ -1853,6 +2051,56 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
 
   // ── EDICIÓN: sólo el form — la vista en vivo es el iframe compartido de `TiendaPaginas`, no una
   //    columna local. El hero conserva su comportamiento exacto.
+  //
+  // Las DOS piezas que se montan en CUALQUIERA de las dos ramas de abajo (nivel de elemento, o la
+  // sección completa) — calculadas UNA vez para que las dos ramas no puedan divergir en su copy/props.
+  const dialogoDescarte = (
+    <ConfirmDescartarDialog
+      abierto={confirmandoDescarte}
+      onDescartar={() => { setConfirmandoDescarte(false); accionBorrador('descartar'); }}
+      onSeguir={() => setConfirmandoDescarte(false)}
+      titulo="¿Descartar los cambios sin publicar?"
+      descripcion="Volverás a lo que está publicado. El borrador se perderá y no se puede recuperar."
+      confirmLabel="Descartar borrador"
+      seguirLabel="Conservar"
+    />
+  );
+  // § EDITOR-TIENDA-COMPOSICION-1 — `valores` funde el form de ESTA sección con los dos campos
+  // cruzados de la marquesina (`texto`/`productoSlug`, § CampoTexto.seccionCruzada): viven en
+  // `valoresCruzados.marquesina`, no en `form`, y la zona "Marquesina" los necesita para decidir si
+  // "Se guarda" aplica al cambiar de composición.
+  const dialogoComposicion = seccion === 'hero' && config.composiciones && (
+    <ComposicionHero
+      abierto={composicionAbierta}
+      onCerrar={() => setComposicionAbierta(false)}
+      opciones={config.composiciones}
+      activa={String(form.variante ?? config.composiciones[0]?.value ?? '')}
+      valores={{
+        ...form,
+        texto: valoresCruzados?.marquesina?.texto,
+        productoSlug: valoresCruzados?.marquesina?.productoSlug,
+      }}
+      onElegir={(valor) => { cambiar({ variante: valor }); setComposicionAbierta(false); }}
+    />
+  );
+
+  // § EDITOR-VISUAL-NIVELES-1 — CON `elementoActivo` (sólo hero), el nivel de ELEMENTO REEMPLAZA a
+  // todo lo de abajo (título de sección, Cerrar/Publicar/Descartar, el aviso "No se muestra", los
+  // bloques) — igual que en el prototipo, donde cada `pv.*` es una pantalla aparte, no un acordeón
+  // dentro de otra. Las acciones de PUBLICAR siguen disponibles: viven en la barra superior GLOBAL
+  // (`EditorTiendaPantallaCompleta.tsx`, el botón "Publicar" con su resumen), no por sección — nada
+  // se pierde al no repetirlas acá. `rootRef` se mueve al wrapper que esté montado en cada rama (la
+  // "selección en contexto", § su docstring grande, sólo necesita apuntar a ALGO de esta sección).
+  if (seccion === 'hero' && elementoActivo) {
+    return (
+      <>
+        <div ref={rootRef}>{renderElementoHero()}</div>
+        {dialogoDescarte}
+        {dialogoComposicion}
+      </>
+    );
+  }
+
   return (
     <>
       <div ref={rootRef} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
@@ -1933,7 +2181,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                       sólo Marquesina, § EDITOR-TIENDA-MARQUESINA-EN-HERO-1): el switch por sí solo no
                       basta para entender qué hace, porque otra tarjeta ya muestra su texto/producto. */}
                   {config.notaVisibilidad && (
-                    <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{config.notaVisibilidad}</p>
+                    <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={config.notaVisibilidad} /></div>
                   )}
                 </div>
               )}
@@ -1977,6 +2225,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   </div>
                 )
               )}
+
+              {/* § EDITOR-VISUAL-NIVELES-1 — "Alto" (segmentado) y "Fondo" (miniatura + Cambiar +
+                  punto focal + Oscurecer segmentado), en ese orden, DESPUÉS de las zonas — el spec. */}
+              {seccion === 'hero' && renderAltoYFondo()}
 
               {/* Cada bloque es una PIEZA. La `tarjeta` YA es su propia caja (`.bloque-tarjeta`), así
                   que no se re-envuelve —doble caja—; los demás van en la pieza genérica. */}
@@ -2060,34 +2312,8 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
             </div>
       </div>
 
-      <ConfirmDescartarDialog
-        abierto={confirmandoDescarte}
-        onDescartar={() => { setConfirmandoDescarte(false); accionBorrador('descartar'); }}
-        onSeguir={() => setConfirmandoDescarte(false)}
-        titulo="¿Descartar los cambios sin publicar?"
-        descripcion="Volverás a lo que está publicado. El borrador se perderá y no se puede recuperar."
-        confirmLabel="Descartar borrador"
-        seguirLabel="Conservar"
-      />
-
-      {/* § EDITOR-TIENDA-COMPOSICION-1 — `valores` funde el form de ESTA sección con los dos campos
-          cruzados de la marquesina (`texto`/`productoSlug`, § CampoTexto.seccionCruzada): viven en
-          `valoresCruzados.marquesina`, no en `form`, y la zona "Marquesina" los necesita para decidir
-          si "Se guarda" aplica al cambiar de composición. */}
-      {seccion === 'hero' && config.composiciones && (
-        <ComposicionHero
-          abierto={composicionAbierta}
-          onCerrar={() => setComposicionAbierta(false)}
-          opciones={config.composiciones}
-          activa={String(form.variante ?? config.composiciones[0]?.value ?? '')}
-          valores={{
-            ...form,
-            texto: valoresCruzados?.marquesina?.texto,
-            productoSlug: valoresCruzados?.marquesina?.productoSlug,
-          }}
-          onElegir={(valor) => { cambiar({ variante: valor }); setComposicionAbierta(false); }}
-        />
-      )}
+      {dialogoDescarte}
+      {dialogoComposicion}
     </>
   );
 });

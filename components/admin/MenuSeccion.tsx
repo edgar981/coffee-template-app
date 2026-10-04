@@ -10,6 +10,7 @@ import BarraProgreso from '@/components/admin/BarraProgreso';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
+import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import { MENU_ITEM_IDS, MENU_CTA_DESTINOS, resolverOrdenMenu, type MenuContent, type MenuItemId } from '@/lib/config/site-content-defaults';
 import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, parAMedias, type CampoPosicionMenu } from '@/lib/config/menu-editor';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
@@ -397,7 +398,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                     value={form[campoLabel]}
                     onChange={(e) => cambiar({ [campoLabel]: e.target.value } as Partial<Form>)}
                   />
-                  <p className="duna-field__hint">Vacío: se usa el texto por defecto.</p>
+                  <AyudaCampo texto="Vacío: se usa el texto por defecto." />
                 </div>
               );
             })}
@@ -423,7 +424,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                   </div>
                 ))}
               </div>
-              <p className="duna-field__hint">Así se ve hoy: {resumenOrden}</p>
+              <AyudaCampo texto={`Así se ve hoy: ${resumenOrden}`} />
             </div>
 
             {/* EL CTA — opcional, apagado por defecto. Su destino es del SET CERRADO
@@ -437,7 +438,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 onChange={(e) => cambiar({ ctaLabel: e.target.value })}
                 placeholder="Ej. Contáctanos"
               />
-              <p className="duna-field__hint">Vacío: no se muestra ningún botón.</p>
+              <AyudaCampo texto="Vacío: no se muestra ningún botón." />
             </div>
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="menu-cta-destino">Destino del botón</label>
@@ -472,7 +473,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 <option value="">Ninguno</option>
                 {MENU_ITEM_IDS.map((id) => <option key={id} value={id}>{etiquetaOpcionMenu(form, id)}</option>)}
               </select>
-              <p className="duna-field__hint">Ninguno: no se muestra ningún badge.</p>
+              <AyudaCampo texto="Ninguno: no se muestra ningún badge." />
             </div>
             <div className="duna-field" style={badgeTextoAtenuado ? { opacity: 0.6 } : undefined}>
               <label className="duna-field__label" htmlFor="menu-badge-texto">Texto del badge</label>
@@ -482,9 +483,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 onChange={(e) => cambiar({ badgeTexto: e.target.value })}
                 placeholder="Ej. Cosecha 2026"
               />
-              <p className="duna-field__hint">
-                {badgeTextoAtenuado ? 'Elige un ítem arriba para que este texto se muestre.' : 'Vacío: no se muestra ningún badge.'}
-              </p>
+              <AyudaCampo texto={badgeTextoAtenuado ? 'Elige un ítem arriba para que este texto se muestre.' : 'Vacío: no se muestra ningún badge.'} />
             </div>
 
             {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el
@@ -505,7 +504,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 <option value="">Ninguno</option>
                 {MENU_ITEM_IDS.map((id) => <option key={id} value={id}>{etiquetaOpcionMenu(form, id)}</option>)}
               </select>
-              <p className="duna-field__hint">Ninguno: el ítem sigue siendo un enlace simple, sin desplegable.</p>
+              <AyudaCampo texto="Ninguno: el ítem sigue siendo un enlace simple, sin desplegable." />
             </div>
 
             <div style={panelAtenuado ? { opacity: 0.6 } : undefined}>
@@ -515,7 +514,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                   id="menu-panel-intro" className="duna-input" rows={2}
                   value={form.panelIntro ?? ''} onChange={setCampo('panelIntro')}
                 />
-                <p className="duna-field__hint">Vacío: no se muestra ningún texto.</p>
+                <AyudaCampo texto="Vacío: no se muestra ningún texto." />
               </div>
               <div style={{ display: 'flex', gap: 'var(--duna-space-3)', flexWrap: 'wrap' }}>
                 <div className="duna-field" style={{ flex: '1 1 200px' }}>
@@ -617,9 +616,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                   ⚠ Falta {(form.panelTarjetaCtaLabel ?? '').trim() !== '' ? 'el destino' : 'el texto'} — el botón no se muestra hasta completar los dos.
                 </p>
               )}
-              <p className="duna-field__hint">
-                {panelAtenuado ? 'Elige un ítem arriba para que este panel se muestre.' : 'El panel se muestra cuando tenga al menos un texto, un enlace o la tarjeta completos.'}
-              </p>
+              <AyudaCampo texto={panelAtenuado ? 'Elige un ítem arriba para que este panel se muestre.' : 'El panel se muestra cuando tenga al menos un texto, un enlace o la tarjeta completos.'} />
             </div>
 
             <input ref={subidaImagen.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subidaImagen.alElegir} hidden disabled={subidaImagen.subiendo} />
