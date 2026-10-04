@@ -8,6 +8,7 @@ import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden, datosDeTema,
+  datosDeEncabezado,
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
   mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
@@ -467,6 +468,19 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
         if (!vars) return;
         const raiz = document.documentElement.style;
         for (const [clave, valor] of Object.entries(vars)) raiz.setProperty(clave, valor);
+        return;
+      }
+
+      // § EDITOR-TIENDA-CROMO-1 — el octavo mensaje: 'encabezado' es clave META COMBINADA (como
+      // 'orden'/'tema'), fuera del REGISTRY a propósito, pero a diferencia de esas dos SÍ necesita
+      // re-renderizar React — `StoreNav.tsx` lee `cromo`/`navWordmark`/`navTratamiento`/
+      // `navDrawerMovil` por `useSiteContent()`, no por CSS ni por el DOM directo. `logo` —la quinta
+      // pieza de esta misma tarjeta, pero SÍ sección del REGISTRY— llega por su propio mensaje
+      // (`seccion: 'logo'`), sin pasar por acá.
+      if (seccion === 'encabezado') {
+        const partes = datosDeEncabezado(datos);
+        if (!partes) return;
+        actualizar((prev) => ({ ...prev, ...partes }) as typeof prev);
         return;
       }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
@@ -9,6 +9,33 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/upload';
 import { modoLogoResuelto, type ModoLogo } from '@/lib/config/marca-logo';
+import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
+import type { EstadoAutoguardado } from '@/lib/autoguardado';
+
+// § EDITOR-TIENDA-CROMO-1 — gemelo de `MenuSeccionHandle`. Sin `escribirCampo`: el Encabezado no
+// gana marcadores `CampoEditable` en esta tanda (§ el asiento de este slice en DECISIONS.md — la
+// "tagline" que el spec nombra es `SiteSetting.tagline`, otro modelo, fuera de alcance de este
+// mecanismo).
+export interface EncabezadoSeccionHandle {
+  abrir: () => void;
+  cerrar: () => void;
+  marcarPublicado: () => void;
+  restaurarDesdePublicado: (valor: Record<string, unknown>) => void;
+}
+
+export interface EncabezadoSeccionProps {
+  /** Ver el docstring de `MenuSeccionProps.enEditor` — mismo contrato. */
+  enEditor?: boolean;
+  onAbrir?: () => void;
+  onCerrar?: () => void;
+  /** A DIFERENCIA de `MenuSeccionProps.onCambio`: esta tarjeta edita DOS cosas de naturaleza
+   *  distinta — las CUATRO metas combinadas (`seccion:'encabezado'`, § `datosDeEncabezado`,
+   *  `lib/storefront/editor-puente.ts`) y la sección `logo` del REGISTRY (`seccion:'logo'`) — así
+   *  que el callback lleva CUÁL de las dos cambió, en vez de asumir una sola. */
+  onCambio?: (seccion: 'encabezado' | 'logo', datos: Record<string, unknown>) => void;
+  onPaso?: (paso: PasoHistorial) => void;
+  onEstado?: (info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
+}
 
 // ─── Bloque ENCABEZADO — vive en /admin/tienda, junto a Colores y el Menú ────────────────────────
 //
@@ -176,7 +203,48 @@ const LABEL_MODO: Record<ModoLogo, string> = {
   logoYNombre: 'Logo en el teléfono, logo y nombre en escritorio',
 };
 
-export default function EncabezadoSeccion() {
+// § EDITOR-TIENDA-CROMO-1 — la extracción contenido→{form,navBadge,taglineColor} de `cargar()`
+// (abajo), de vuelta en una función PROPIA: `restaurarDesdePublicado` (el handle imperativo tras
+// un "Descartar" EN LOTE) necesita la MISMA traducción sobre un `contenido` que YA tiene en mano
+// (el refetch único de `TiendaPaginas`), sin volver a pedirlo por su cuenta. Una sola definición
+// de la traducción — dos llamadores no pueden divergir sobre qué significa cada clave.
+type ContenidoEncabezado = {
+  cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
+  navWordmark?: { activo?: unknown; taglineColor?: unknown };
+  navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown; buscarMovil?: unknown };
+  navDrawerMovil?: { variante?: unknown };
+  logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown; icono?: unknown; modo?: unknown };
+};
+
+function estadoDesdeContenido(contenido: ContenidoEncabezado): { form: Form; navBadge: string; taglineColor: string } {
+  return {
+    form: {
+      logo: !!contenido.navWordmark?.activo,
+      subEncabezado: !!contenido.cromo?.navSubtitulo,
+      colorNav: !!contenido.cromo?.navTinta,
+      tratamientoNav: !!contenido.navTratamiento?.activo,
+      drawerMovil: contenido.navDrawerMovil?.variante === 'pantallaCompleta',
+      direccionScroll: !!contenido.navTratamiento?.direccion,
+      filete: !!contenido.navTratamiento?.filete,
+      ctaBadge: !!contenido.navTratamiento?.cta,
+      posicion: !!contenido.navTratamiento?.posicion,
+      subrayado: !!contenido.navTratamiento?.subrayado,
+      badgeColor: typeof contenido.navTratamiento?.badgeColor === 'string' ? contenido.navTratamiento.badgeColor : '',
+      buscarMovil: contenido.navTratamiento?.buscarMovil !== false,
+      logoOscuro: typeof contenido.logo?.oscuro === 'string' ? contenido.logo.oscuro : '',
+      logoClaro: typeof contenido.logo?.claro === 'string' ? contenido.logo.claro : '',
+      logoAlt: typeof contenido.logo?.alt === 'string' ? contenido.logo.alt : '',
+      logoIcono: typeof contenido.logo?.icono === 'string' ? contenido.logo.icono : '',
+      logoModo: typeof contenido.logo?.modo === 'string' ? contenido.logo.modo : '',
+    },
+    navBadge: String(contenido.cromo?.navBadge ?? ''),
+    taglineColor: typeof contenido.navWordmark?.taglineColor === 'string' ? contenido.navWordmark.taglineColor : 'atenuado',
+  };
+}
+
+const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionProps>(function EncabezadoSeccion({
+  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado,
+}, ref) {
   const [cargando, setCargando]           = useState(true);
   const [errorCarga, setErrorCarga]       = useState<string | null>(null);
   const [form, setForm]                   = useState<Form | null>(null);
@@ -238,37 +306,11 @@ export default function EncabezadoSeccion() {
       const r = await fetch('/api/site-content');
       if (!r.ok) throw new Error();
       const d = await r.json();
-      const contenido = (d.contenido ?? {}) as {
-        cromo?: { navTinta?: unknown; navSubtitulo?: unknown; navBadge?: unknown };
-        navWordmark?: { activo?: unknown; taglineColor?: unknown };
-        navTratamiento?: { activo?: unknown; direccion?: unknown; filete?: unknown; cta?: unknown; posicion?: unknown; subrayado?: unknown; badgeColor?: unknown; buscarMovil?: unknown };
-        navDrawerMovil?: { variante?: unknown };
-        logo?: { oscuro?: unknown; claro?: unknown; alt?: unknown; icono?: unknown; modo?: unknown };
-      };
-      setForm({
-        logo: !!contenido.navWordmark?.activo,
-        subEncabezado: !!contenido.cromo?.navSubtitulo,
-        colorNav: !!contenido.cromo?.navTinta,
-        tratamientoNav: !!contenido.navTratamiento?.activo,
-        drawerMovil: contenido.navDrawerMovil?.variante === 'pantallaCompleta',
-        direccionScroll: !!contenido.navTratamiento?.direccion,
-        filete: !!contenido.navTratamiento?.filete,
-        ctaBadge: !!contenido.navTratamiento?.cta,
-        posicion: !!contenido.navTratamiento?.posicion,
-        subrayado: !!contenido.navTratamiento?.subrayado,
-        badgeColor: typeof contenido.navTratamiento?.badgeColor === 'string' ? contenido.navTratamiento.badgeColor : '',
-        // § NAV-MOVIL-SIN-BUSCAR-1 — `resolverNavTratamiento` SIEMPRE devuelve un boolean concreto
-        // (default `true`); `!== false` es sólo la red defensiva de siempre (§ los demás campos de
-        // este objeto), nunca la fuente del default.
-        buscarMovil: contenido.navTratamiento?.buscarMovil !== false,
-        logoOscuro: typeof contenido.logo?.oscuro === 'string' ? contenido.logo.oscuro : '',
-        logoClaro: typeof contenido.logo?.claro === 'string' ? contenido.logo.claro : '',
-        logoAlt: typeof contenido.logo?.alt === 'string' ? contenido.logo.alt : '',
-        logoIcono: typeof contenido.logo?.icono === 'string' ? contenido.logo.icono : '',
-        logoModo: typeof contenido.logo?.modo === 'string' ? contenido.logo.modo : '',
-      });
-      setNavBadge(String(contenido.cromo?.navBadge ?? ''));
-      setTaglineColor(typeof contenido.navWordmark?.taglineColor === 'string' ? contenido.navWordmark.taglineColor : 'atenuado');
+      const contenido = (d.contenido ?? {}) as ContenidoEncabezado;
+      const estado = estadoDesdeContenido(contenido);
+      setForm(estado.form);
+      setNavBadge(estado.navBadge);
+      setTaglineColor(estado.taglineColor);
       setHayBorrador(!!d.sinPublicar?.encabezado);
       if (inicial) setCargando(false);
     } catch {
@@ -287,14 +329,79 @@ export default function EncabezadoSeccion() {
     return () => window.removeEventListener('beforeunload', h);
   }, [auto.estado]);
 
-  const cambiar = (parcial: Partial<Form>) => {
-    const nf = { ...(formRef.current as Form), ...parcial };
+  // § EDITOR-TIENDA-CROMO-1 — EL PUNTO ÚNICO de mutación del form, mismo patrón que
+  // `MenuSeccion.tsx`/`FooterSeccion.tsx`/`TiendaSeccionEditor.tsx`. `onCambio` manda las DOS
+  // mitades que esta tarjeta posee, cada una por su propia clave (§ el docstring de
+  // `EncabezadoSeccionProps.onCambio`): el Wire completo ya las separa, así que basta con
+  // desestructurar `logo` afuera del resto.
+  const loteAntesRef = useRef<Form | null>(null);
+  const aplicandoHistorialRef = useRef(false);
+  const aplicarCambioForm = (nf: Form) => {
+    if (loteAntesRef.current === null) loteAntesRef.current = formRef.current as Form;
     setForm(nf);
     setHayBorrador(true);
-    auto.marcarSucio(wireDe(nf, navBadgeRef.current, taglineColorRef.current));
+    const wire = wireDe(nf, navBadgeRef.current, taglineColorRef.current);
+    auto.marcarSucio(wire);
+    const { logo: logoWire, ...encabezadoWire } = wire;
+    onCambio?.('encabezado', encabezadoWire);
+    onCambio?.('logo', logoWire);
   };
 
+  const cambiar = (parcial: Partial<Form>) => {
+    aplicarCambioForm({ ...(formRef.current as Form), ...parcial });
+  };
+
+  // Deshacer/rehacer, mismo criterio que `MenuSeccion.restaurarForm`.
+  const restaurarForm = (valor: Form) => {
+    aplicandoHistorialRef.current = true;
+    aplicarCambioForm(valor);
+    auto.flush();
+  };
+
+  const prevEstadoAutoRef = useRef(auto.estado);
+  useEffect(() => {
+    const prevEstado = prevEstadoAutoRef.current;
+    prevEstadoAutoRef.current = auto.estado;
+    if (prevEstado === auto.estado || auto.estado !== 'guardado') return;
+    const antes = loteAntesRef.current;
+    loteAntesRef.current = null;
+    const fueHistorial = aplicandoHistorialRef.current;
+    aplicandoHistorialRef.current = false;
+    if (fueHistorial || antes === null) return;
+    const despues = formRef.current as Form;
+    if (sonIguales(antes, despues)) return;
+    onPaso?.({ deshacer: () => restaurarForm(antes), rehacer: () => restaurarForm(despues) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mismo criterio que `MenuSeccion.tsx`.
+  }, [auto.estado]);
+
+  useEffect(() => {
+    onEstado?.({ hayBorrador, estado: auto.estado });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mismo criterio que `MenuSeccion.tsx`.
+  }, [hayBorrador, auto.estado]);
+
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
+
+  const prevEditandoRef = useRef(editando);
+  useEffect(() => {
+    if (!enEditor) return;
+    if (prevEditandoRef.current === editando) return;
+    prevEditandoRef.current = editando;
+    if (editando) onAbrir?.(); else onCerrar?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mismo criterio que `MenuSeccion.tsx`.
+  }, [editando, enEditor]);
+
+  useImperativeHandle(ref, () => ({
+    abrir: () => setEditando(true),
+    cerrar: cerrarEdicion,
+    marcarPublicado: () => setHayBorrador(false),
+    restaurarDesdePublicado: (valor: Record<string, unknown>) => {
+      const estado = estadoDesdeContenido(valor as ContenidoEncabezado);
+      setForm(estado.form);
+      setNavBadge(estado.navBadge);
+      setTaglineColor(estado.taglineColor);
+      setHayBorrador(false);
+    },
+  }));
 
   // EL CAMPO del form que cada variante escribe (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1 suma
   // 'icono' a las dos de § MARCA-LOGO-IMAGEN-1) — una tabla, no un ternario de dos ramas que ya no
@@ -417,12 +524,14 @@ export default function EncabezadoSeccion() {
         ) : (
           <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
             <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {hayBorrador && (
+            {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
+                de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
+            {!enEditor && hayBorrador && (
               <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
                 Descartar
               </button>
             )}
-            {hayBorrador && (
+            {!enEditor && hayBorrador && (
               <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
                 {procesando ? 'Publicando…' : 'Publicar'}
               </button>
@@ -673,4 +782,6 @@ export default function EncabezadoSeccion() {
       />
     </>
   );
-}
+});
+
+export default EncabezadoSeccion;

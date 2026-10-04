@@ -17,6 +17,8 @@ import {
 } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
+import CampoEditable from "@/components/storefront/CampoEditable";
 import { columnasDeFooter, type FooterContent, type LogoContent } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 
@@ -98,6 +100,9 @@ function CreditoDuna() {
 }
 
 export default function StoreFooter() {
+  // § EDITOR-TIENDA-CROMO-1 — el PIE entra al editor como el resto de las secciones: marcado con
+  // `data-editor-seccion` SÓLO en modo editor, mismo contrato que `StoreNav.tsx`.
+  const enModoEditor = useModoEditorActivo();
   const settings = useSiteSettings();
   const content = useSiteContent();
   const { footer, navTratamiento, logo } = content;
@@ -109,8 +114,8 @@ export default function StoreFooter() {
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return footer.variante === "apilado"
-    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} />
-    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} />;
+    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} enModoEditor={enModoEditor} />
+    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} enModoEditor={enModoEditor} />;
 }
 
 type SettingsFooter = ReturnType<typeof useSiteSettings>;
@@ -125,13 +130,16 @@ interface VariantProps {
   /** El logo SUBIDO del dueño (§ MARCA-LOGO-IMAGEN-1). Sin ninguna versión subida, `Logo` ignora
    *  la prop y renderiza el wordmark apilado de siempre — byte a byte, las dos variantes. */
   logo: LogoContent;
+  /** § EDITOR-TIENDA-CROMO-1 — `data-editor-seccion="footer"` va DIRECTO en el `<footer>` de cada
+   *  variante (sin wrapper nuevo); `undefined` fuera de modo editor, byte-idéntico. */
+  enModoEditor: boolean;
 }
 
 // VARIANTE 'franjas' — LA CANÓNICA: el pie de HOY, VERBATIM (byte-idéntico a antes de este slice;
 // sólo cambió DE DÓNDE salen los textos — de `siteConfig.footerNav`/`legalNav` a `content.footer`).
-function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo }: VariantProps) {
+function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo, enModoEditor }: VariantProps) {
   return (
-    <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
+    <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]" data-editor-seccion={enModoEditor ? 'footer' : undefined}>
       <div className={`mx-auto ${contenedorClase} py-16`}>
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
@@ -174,7 +182,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
           {/* Tienda */}
           <div>
             <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
-              {footer.columnaTienda}
+              <CampoEditable campo="footer.columnaTienda">{footer.columnaTienda}</CampoEditable>
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
@@ -194,7 +202,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
           {/* Ayuda */}
           <div>
             <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
-              {footer.columnaAyuda}
+              <CampoEditable campo="footer.columnaAyuda">{footer.columnaAyuda}</CampoEditable>
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
@@ -228,7 +236,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
           {/* Empresa */}
           <div>
             <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
-              {footer.columnaEmpresa}
+              <CampoEditable campo="footer.columnaEmpresa">{footer.columnaEmpresa}</CampoEditable>
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
@@ -273,13 +281,13 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
 
           {footer.items.length > 0 && (
             <div className="flex gap-4">
-              {footer.items.map((link) => (
+              {footer.items.map((link, i) => (
                 <Link
                   key={link.label}
                   href={link.href}
                   className="transition-colors hover:text-[var(--sf-sobre)]/60"
                 >
-                  {link.label}
+                  <CampoEditable campo={`footer.items.${i}.label`}>{link.label}</CampoEditable>
                 </Link>
               ))}
             </div>
@@ -305,11 +313,15 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
 // SIN wrapper de grid extra (byte-idéntico); con imagen, la marca pasa a la columna izquierda de un
 // grid `1.1fr 1fr` (§ `.footer-top` del prototipo) y la tarjeta ocupa la derecha. `tarjetaTexto`
 // SOLO, sin `tarjetaImagen`, NO rinde nada — sería un pie de foto flotando sobre nada.
-function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo }: VariantProps) {
-  const columnas: { titulo: string; links: { label: string; href: string }[] }[] = [
-    { titulo: footer.columnaTienda, links: tienda },
-    { titulo: footer.columnaAyuda, links: ayuda },
-    ...(empresa.length > 0 ? [{ titulo: footer.columnaEmpresa, links: empresa }] : []),
+function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo, enModoEditor }: VariantProps) {
+  // `campo` nombra el campo de `FooterContent` que `titulo` muestra (§ EDITOR-TIENDA-CROMO-1) —
+  // la posición en este array es FIJA (Tienda · Ayuda · Empresa condicional), así que no hace
+  // falta un cuarto campo "nombre de la clave" aparte: se declara acá, una vez, en el mismo literal
+  // que ya arma el título.
+  const columnas: { titulo: string; campo: string; links: { label: string; href: string }[] }[] = [
+    { titulo: footer.columnaTienda, campo: 'footer.columnaTienda', links: tienda },
+    { titulo: footer.columnaAyuda, campo: 'footer.columnaAyuda', links: ayuda },
+    ...(empresa.length > 0 ? [{ titulo: footer.columnaEmpresa, campo: 'footer.columnaEmpresa', links: empresa }] : []),
   ];
   const tieneTarjeta = footer.tarjetaImagen.trim() !== "";
 
@@ -345,7 +357,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
   );
 
   return (
-    <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
+    <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]" data-editor-seccion={enModoEditor ? 'footer' : undefined}>
       <div className={`mx-auto ${contenedorClase} py-16`}>
         {/* La marca ocupa el ancho completo arriba (§ `.footer-mark`/`.footer-top .tag` del
             prototipo) — mismo `Logo`/`descripcionFooter` que la canónica, sólo reordenado. Con
@@ -364,7 +376,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
                 />
                 {footer.tarjetaTexto && (
                   <p className="absolute bottom-4 left-4 bg-[var(--sf-tarjeta)] px-3 py-1.5 text-xs text-[var(--sf-sobre-tarjeta,var(--sf-tinta))]">
-                    {footer.tarjetaTexto}
+                    <CampoEditable campo="footer.tarjetaTexto">{footer.tarjetaTexto}</CampoEditable>
                   </p>
                 )}
               </div>
@@ -377,7 +389,9 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
         <div className="grid grid-cols-1 gap-10 pt-10 sm:grid-cols-3">
           {columnas.map((col) => (
             <div key={col.titulo}>
-              <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">{col.titulo}</h4>
+              <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
+                <CampoEditable campo={col.campo}>{col.titulo}</CampoEditable>
+              </h4>
               <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
                 {col.links.map((link) => {
                   const external = link.href.startsWith("http");
@@ -425,13 +439,13 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
 
           {footer.items.length > 0 && (
             <div className="flex gap-4">
-              {footer.items.map((link) => (
+              {footer.items.map((link, i) => (
                 <Link
                   key={link.label}
                   href={link.href}
                   className="transition-colors hover:text-[var(--sf-sobre)]/60"
                 >
-                  {link.label}
+                  <CampoEditable campo={`footer.items.${i}.label`}>{link.label}</CampoEditable>
                 </Link>
               ))}
             </div>

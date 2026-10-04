@@ -5,6 +5,9 @@ import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import TogglePagina from '@/components/admin/TogglePagina';
+import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
+import MenuSeccion from '@/components/admin/MenuSeccion';
+import FooterSeccion from '@/components/admin/FooterSeccion';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
@@ -30,6 +33,29 @@ import type { EstadoAutoguardado } from '@/lib/autoguardado';
 const SECCIONES_CON_CAMPOS_CRUZADOS = new Set<SeccionVista>(
   SECCIONES_TIENDA.flatMap((c) => c.campos.filter((f) => f.seccionCruzada).map((f) => f.seccionCruzada!)),
 );
+
+// § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO, el MENÚ y el PIE entran a «Secciones» como tres filas
+// MÁS, store-wide (se ven igual en cualquier página del selector) — nunca como `SeccionVista`:
+// ese tipo vive en `tienda-secciones.ts` (fuera de `touches:` de este slice) y es un union CERRADO
+// sin un valor "global"/"toda página". Un tipo LOCAL, paralelo, con sus editores BESPOKE
+// (`EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`, patrón `PaletaSeccion`) evita tocar ese
+// archivo — exactamente la misma razón por la que esos tres editores YA eran bespoke en
+// `/admin/tienda` (§ sus propios docstrings: "el pipeline genérico... exigiría tocar
+// `VistaTiendaEnVivo.tsx`, fuera de `touches:`").
+export type CromoKey = 'encabezado' | 'menu' | 'footer';
+const CROMO_TITULOS: Record<CromoKey, string> = { encabezado: 'Encabezado', menu: 'Menú', footer: 'Pie' };
+function esCromoKey(v: string): v is CromoKey {
+  return v === 'encabezado' || v === 'menu' || v === 'footer';
+}
+// El handle COMÚN que los tres exponen — `escribirCampo` es OPCIONAL porque sólo `FooterSeccion`
+// gana marcadores `CampoEditable` en esta tanda (§ su propio docstring).
+interface CromoHandle {
+  abrir: () => void;
+  cerrar: () => void;
+  marcarPublicado: () => void;
+  restaurarDesdePublicado: (valor: Record<string, unknown>) => void;
+  escribirCampo?: (campo: string, valor: string) => void;
+}
 
 export interface TiendaPaginasProps {
   /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
@@ -60,8 +86,9 @@ export interface TiendaPaginasProps {
 /** § EDITOR-TIENDA-DESHACER-1 — ver el docstring de `onEstadoGlobal`, arriba. */
 export interface EstadoGlobalEditor {
   estado: EstadoAutoguardado;
-  /** Secciones de la página activa con borrador + `'orden'` (home) + `'tema'` (store-wide), todas
-   *  juntas — el número que la píldora de la barra muestra. */
+  /** Secciones de la página activa con borrador + `'orden'` (home) + `'tema'` (store-wide) +
+   *  `'encabezado'`/`'menu'`/`'footer'` (store-wide, § EDITOR-TIENDA-CROMO-1), todas juntas — el
+   *  número que la píldora de la barra muestra. */
   pendientes: number;
   puedeDeshacer: boolean;
   puedeRehacer: boolean;
@@ -92,7 +119,8 @@ export interface TiendaPaginasHandle {
    *  dentro de una tarjeta); una `SeccionVista` abre su nivel y desplaza el lienzo, igual que un
    *  clic en la fila de la lista (`abrirNivelSeccion`). `'tema'` NO se resuelve acá — ese `modo` lo
    *  posee `EditorTiendaPantallaCompleta`, no este componente; el padre cambia de `modo` antes de
-   *  llamar, y para 'tema' ni siquiera llama. */
+   *  llamar, y para 'tema' ni siquiera llama. § EDITOR-TIENDA-CROMO-1 — `'encabezado'`/`'menu'`/
+   *  `'footer'` abren su nivel de cromo (`abrirNivelCromo`), gemelo de `abrirNivelSeccion`. */
   irAItem: (clave: string) => void;
 }
 
@@ -130,20 +158,40 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // flotante) — este componente sólo escucha esos dos eventos para decidir el nivel; no hace falta
   // un tercer camino de navegación.
   const [seccionActiva, setSeccionActiva] = useState<SeccionVista | null>(null);
+  // § EDITOR-TIENDA-CROMO-1 — el GEMELO de `seccionActiva` para el ENCABEZADO/MENÚ/PIE: un nivel
+  // MÁS en el mismo panel, nunca los dos a la vez (abrir uno cierra al otro, § `abrirNivelCromo`/
+  // `abrirNivelSeccion`). `nivelActivo` unifica los dos para las decisiones que no les importa
+  // CUÁL de los dos tipos está activo —las migas, ocultar las demás filas de Inicio—.
+  const [cromoActivo, setCromoActivo] = useState<CromoKey | null>(null);
+  const nivelActivo: string | null = seccionActiva ?? cromoActivo;
+  const cromoRefs = useRef<Map<CromoKey, CromoHandle>>(new Map());
   const abrirNivelSeccion = useCallback((seccion: SeccionVista) => {
     irASeccion(seccion);
+    setCromoActivo(null);
     setSeccionActiva(seccion);
   }, [irASeccion]);
   const cerrarNivelSeccion = useCallback((seccion: SeccionVista) => {
     setSeccionActiva((actual) => (actual === seccion ? null : actual));
   }, []);
-  // El «‹ Inicio» de las migas: colapsa la edición de la sección activa (como su "Cerrar") Y vuelve
-  // al nivel de arriba — las DOS salidas (el botón interno, éstas migas) deben terminar en el mismo
-  // sitio, nunca una tarjeta a medio abrir detrás de la lista.
+  // Gemelos de `abrirNivelSeccion`/`cerrarNivelSeccion`, para el cromo — sin `irASeccion`: el
+  // Encabezado/Menú/Pie no tienen una `SeccionVista` que desplazar dentro del iframe (ya son
+  // visibles en CUALQUIER página que esté mostrando el lienzo).
+  const abrirNivelCromo = useCallback((key: CromoKey) => {
+    setSeccionActiva(null);
+    setCromoActivo(key);
+  }, []);
+  const cerrarNivelCromo = useCallback((key: CromoKey) => {
+    setCromoActivo((actual) => (actual === key ? null : actual));
+  }, []);
+  // El «‹ Inicio» de las migas: colapsa la edición de lo que esté activo (sección o cromo) Y
+  // vuelve al nivel de arriba — las DOS salidas (el botón interno, éstas migas) deben terminar en
+  // el mismo sitio, nunca una tarjeta a medio abrir detrás de la lista.
   const volverAInicio = useCallback(() => {
     if (seccionActiva) seccionRefs.current.get(seccionActiva)?.cerrar();
+    if (cromoActivo) cromoRefs.current.get(cromoActivo)?.cerrar();
     setSeccionActiva(null);
-  }, [seccionActiva]);
+    setCromoActivo(null);
+  }, [seccionActiva, cromoActivo]);
   // § EDITOR-TIENDA-POSTMESSAGE-1 — el cambio EN VIVO de cada editor llega acá y se reenvía al
   // iframe compartido por `postMessage`, sin recargar (reemplaza el reload-tras-autoguardado de
   // `onCambioPublicado`, que ahora sólo corre tras Publicar/Descartar).
@@ -151,6 +199,19 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     (seccion: SeccionVista, datos: Record<string, unknown>) => iframeRef.current?.enviarCambio(seccion, datos),
     [],
   );
+  // § EDITOR-TIENDA-CROMO-1 — EL ENVÍO EN VIVO del cromo al iframe compartido, MISMO cruce que
+  // 'orden'/'tema' (§ `enviarOrdenIframe`/`enviarTemaIframe`, abajo): `VistaTiendaIframe.tsx` sigue
+  // fuera de `touches:`, su `enviarCambio` ya es genérico en runtime, y ninguna de las claves del
+  // cromo (`encabezado`, `logo`, `menu`, `footer`) es una `SeccionVista` real. `logo`/`menu`/
+  // `footer` SÍ son secciones del REGISTRY, así que el lado del iframe (`fusionarContenidoSeccion`)
+  // las fusiona sin código nuevo; `encabezado` es la clave META combinada que `EditorPuenteVivo.tsx`
+  // reconoce ANTES de esa fusión (§ `datosDeEncabezado`, `lib/storefront/editor-puente.ts`).
+  const enviarCromoIframe = useCallback((seccion: string, datos: Record<string, unknown>) => {
+    const enviar = iframeRef.current?.enviarCambio as
+      | ((seccion: string, datos: Record<string, unknown>) => void)
+      | undefined;
+    enviar?.(seccion, datos);
+  }, []);
 
   // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — EL VALOR EN VIVO de las secciones que son destino de un
   // campo cruzado (hoy, `marquesina`): capturado del MISMO `onCambio` que cada `TiendaSeccionEditor`
@@ -198,7 +259,32 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     callbacksRefSeccion.current.set(seccion, nuevo);
     return nuevo;
   }, []);
+  // Gemelo de `registrarRefSeccion`, para el cromo — mismo motivo (un callback ref ESTABLE por
+  // clave, para que React no lo reinvoque `null`→`handle` en cada render de este componente).
+  const callbacksRefCromo = useRef<Map<CromoKey, (handle: CromoHandle | null) => void>>(new Map());
+  const registrarRefCromo = useCallback((key: CromoKey) => {
+    const existente = callbacksRefCromo.current.get(key);
+    if (existente) return existente;
+    const nuevo = (handle: CromoHandle | null) => {
+      if (handle) cromoRefs.current.set(key, handle);
+      else cromoRefs.current.delete(key);
+    };
+    callbacksRefCromo.current.set(key, nuevo);
+    return nuevo;
+  }, []);
   const manejarSeleccionDesdeIframe = useCallback((marcador: string) => {
+    // § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO/MENÚ/PIE se revisan ANTES de resolver contra
+    // `SECCIONES_TIENDA`: sus marcadores (`'encabezado'`/`'menu'`/`'footer'`) no son `SeccionVista`,
+    // y `seccionDesdeMarcador` los devuelve tal cual (identidad) — resolverían a un candidato que
+    // NUNCA está en `secciones` y se ignorarían en silencio si no se interceptan acá.
+    //
+    // `cromoRefs.get(marcador)?.abrir()`, NUNCA `abrirNivelCromo(marcador)` directo — mismo
+    // criterio que `seccionRefs.get(candidato)?.seleccionar()` abajo: el handle es quien decide
+    // abrirse (pone `editando=true` adentro), y ESO es lo que dispara `onAbrir` hacia este
+    // componente (§ el efecto `prevEditandoRef` de cada cromo). Llamar `abrirNivelCromo` a mano
+    // acá sólo movería `cromoActivo` (deja de estar `display:none`) sin que el editor INTERNO de
+    // la tarjeta saliera de su vista de lectura — el bug que el arnés de este slice atrapó.
+    if (esCromoKey(marcador)) { cromoRefs.current.get(marcador)?.abrir(); return; }
     const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
     if (!secciones.some(c => c.seccion === candidato)) return;
     seccionRefs.current.get(candidato)?.seleccionar();
@@ -214,6 +300,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // marquesina dibujada por el hero sticky, ES la tarjeta del hero) vía `manejarSeleccionDesdeIframe`;
   // abrir TAMBIÉN la de `candidato` sería una segunda tarjeta expandiéndose sin que nadie la pidiera.
   const manejarCampoCambioDesdeIframe = useCallback((marcador: string, campo: string, valor: string) => {
+    // § EDITOR-TIENDA-CROMO-1 — SÓLO `footer` gana marcadores `CampoEditable` en esta tanda
+    // (§ `FooterSeccion.escribirCampo`); el clic ya abrió el nivel por el `TIPO_MENSAJE_SECCION_
+    // CLICK` del MISMO clic, vía `manejarSeleccionDesdeIframe` — acá sólo queda escribir el campo.
+    if (marcador === 'footer') { cromoRefs.current.get('footer')?.escribirCampo?.(campo, valor); return; }
     const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
     if (!secciones.some(c => c.seccion === candidato)) return;
     const handle = seccionRefs.current.get(candidato);
@@ -341,6 +431,22 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
       if (actual && actual.hayBorrador === info.hayBorrador && actual.estado === info.estado) return prev; // sin cambio real
       const siguiente = new Map(prev);
       siguiente.set(seccion, info);
+      return siguiente;
+    });
+  }, []);
+
+  // § EDITOR-TIENDA-CROMO-1 — gemelo de `seccionesEstado`, para el ENCABEZADO/MENÚ/PIE: a
+  // diferencia de 'tema' (que sólo tiene el HUECO CONOCIDO de `doc.sinPublicar.tema`, § abajo,
+  // porque `PaletaSeccion` no está en `touches:`), los tres SÍ pueden reportar en vivo —son
+  // editores nuevos de este slice—, así que el agregado de pendientes puede ser EXACTO en vez de
+  // depender del último refetch de `doc`.
+  const [cromoEstado, setCromoEstado] = useState<Map<CromoKey, { hayBorrador: boolean; estado: EstadoAutoguardado }>>(new Map());
+  const manejarEstadoCromo = useCallback((key: CromoKey, info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => {
+    setCromoEstado((prev) => {
+      const actual = prev.get(key);
+      if (actual && actual.hayBorrador === info.hayBorrador && actual.estado === info.estado) return prev;
+      const siguiente = new Map(prev);
+      siguiente.set(key, info);
       return siguiente;
     });
   }, []);
@@ -585,20 +691,62 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     for (const c of secciones) if (seccionesEstado.get(c.seccion)?.hayBorrador) secs.push(c.seccion);
     if (ordenLocal && hayBorradorOrden) secs.push('orden');
     if (doc?.sinPublicar.tema) secs.push('tema');
+    // § EDITOR-TIENDA-CROMO-1 — a diferencia de 'tema' (que depende del refetch de `doc`, § el
+    // HUECO CONOCIDO de arriba), el ENCABEZADO/MENÚ/PIE SÍ reportan en vivo (`cromoEstado`, §
+    // `manejarEstadoCromo`) — son editores nuevos de este slice, así que el agregado puede ser
+    // exacto en vez de depender del último refetch.
+    if (cromoEstado.get('encabezado')?.hayBorrador) secs.push('encabezado');
+    if (cromoEstado.get('menu')?.hayBorrador) secs.push('menu');
+    if (cromoEstado.get('footer')?.hayBorrador) secs.push('footer');
     return secs;
   };
+
+  // § EDITOR-TIENDA-CROMO-1 — 'encabezado' NO es 'orden'/'tema'/una clave del REGISTRY: el
+  // endpoint GENÉRICO de lote (`app/api/site-content/route.ts`, fuera de `touches:`) valida
+  // `secciones.every(s => s === 'orden' || s === 'tema' || s in REGISTRY)` y RECHAZARÍA el lote
+  // entero si 'encabezado' viajara ahí (medido leyendo ese archivo antes de escribir esto — nunca
+  // asumido). Por eso el Encabezado se publica/descarta por SU PROPIA ruta
+  // (`/api/site-content/encabezado`, la MISMA que ya usa `EncabezadoSeccion.accionBorrador`),
+  // en paralelo con el lote genérico que sigue llevando 'orden'/'tema'/'menu'/'footer'/páginas
+  // ('menu'/'footer' SÍ son claves del REGISTRY, así que el lote las acepta sin cambio).
+  const publicarEncabezado = () => fetch('/api/site-content/encabezado', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accion: 'publicar' }),
+  });
+  const descartarEncabezado = () => fetch('/api/site-content/encabezado', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accion: 'descartar' }),
+  });
 
   const publicarPendientes = async () => {
     const secs = listaPendientes();
     if (secs.length === 0) return;
-    const res = await fetch('/api/site-content', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'publicarVarias', secciones: secs }),
-    });
-    if (!res.ok) throw new Error('No se pudo publicar.');
+    // § EDITOR-TIENDA-CROMO-1 — SECUENCIAL, nunca `Promise.all`: el lote genérico y la ruta
+    // propia del Encabezado son DOS TRANSACCIONES INDEPENDIENTES sobre la MISMA fila de
+    // `SiteContent` (cada una hace su propio `findUnique` → computa `nuevoContent`/
+    // `nuevoBorrador` → `update`), sin lock cross-operación (§ CLAUDE.md, "SIN lock
+    // cross-operación" — ya documentado para el race humano guardar↔publicar, pero ACÁ el
+    // riesgo lo crea este mismo código al disparar dos escrituras a la vez). En paralelo, la que
+    // COMMITEA SEGUNDO lee el estado de ANTES de la primera y la PISA completa — medido: el
+    // arnés de este slice vio `menu`/`footer` publicados-y-luego-revertidos por la escritura de
+    // `encabezado` corriendo en paralelo. Secuencial cuesta una ida y vuelta más de red (rara vez
+    // más de una docena de ms en este despliegue), nunca una carrera.
+    const generico = secs.filter((s) => s !== 'encabezado');
+    if (generico.length > 0) {
+      const r = await fetch('/api/site-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'publicarVarias', secciones: generico }),
+      });
+      if (!r.ok) throw new Error('No se pudo publicar.');
+    }
+    if (secs.includes('encabezado')) {
+      const r = await publicarEncabezado();
+      if (!r.ok) throw new Error('No se pudo publicar.');
+    }
     for (const s of secs) {
       if (s === 'orden') { setHayBorradorOrden(false); continue; }
       if (s === 'tema') { setTemaReloadKey((k) => k + 1); continue; }
+      if (esCromoKey(s)) { cromoRefs.current.get(s)?.marcarPublicado(); continue; }
       seccionRefs.current.get(s as SeccionVista)?.marcarPublicado();
     }
     recargarIframe();
@@ -607,17 +755,36 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   const descartarPendientes = async () => {
     const secs = listaPendientes();
     if (secs.length === 0) return;
-    const res = await fetch('/api/site-content', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'descartarVarias', secciones: secs }),
-    });
-    if (!res.ok) throw new Error('No se pudo descartar.');
+    // SECUENCIAL, nunca `Promise.all` — mismo motivo que `publicarPendientes`, arriba: dos
+    // transacciones independientes sobre la MISMA fila de `SiteContent` en paralelo pueden
+    // pisarse (medido, § el comentario grande de `publicarPendientes`).
+    const generico = secs.filter((s) => s !== 'encabezado');
+    if (generico.length > 0) {
+      const r = await fetch('/api/site-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'descartarVarias', secciones: generico }),
+      });
+      if (!r.ok) throw new Error('No se pudo descartar.');
+    }
+    if (secs.includes('encabezado')) {
+      const r = await descartarEncabezado();
+      if (!r.ok) throw new Error('No se pudo descartar.');
+    }
     // UN SOLO refetch para TODAS las secciones descartadas (nunca N) — mismo mecanismo que
     // `publicarOrDescartarOrden('descartar')` ya usa para 'orden'.
     const fresco = await recargarDoc();
     for (const s of secs) {
       if (s === 'orden') { setOrdenLocal(resolverOrden(fresco.contenido?.orden)); setHayBorradorOrden(false); continue; }
       if (s === 'tema') { setTemaReloadKey((k) => k + 1); continue; }
+      if (s === 'encabezado') {
+        cromoRefs.current.get('encabezado')?.restaurarDesdePublicado({
+          cromo: fresco.contenido?.cromo, navWordmark: fresco.contenido?.navWordmark,
+          navTratamiento: fresco.contenido?.navTratamiento, navDrawerMovil: fresco.contenido?.navDrawerMovil,
+          logo: fresco.contenido?.logo,
+        } as Record<string, unknown>);
+        continue;
+      }
+      if (esCromoKey(s)) { cromoRefs.current.get(s)?.restaurarDesdePublicado((fresco.contenido?.[s] ?? {}) as Record<string, unknown>); continue; }
       seccionRefs.current.get(s as SeccionVista)?.restaurarDesdePublicado((fresco.contenido?.[s] ?? {}) as Record<string, unknown>);
     }
     recargarIframe();
@@ -642,9 +809,17 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   };
 
   // § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — ver el docstring de `TiendaPaginasHandle.irAItem`.
+  // § EDITOR-TIENDA-CROMO-1 — 'encabezado'/'menu'/'footer' abren su nivel de cromo, como
+  // cualquier otro ítem del resumen (aunque `resumenCambios`, fuera de `touches:`, no produzca
+  // filas EN PALABRAS para ellos todavía — § el open follow-up en DECISIONS.md — este camino
+  // sigue sirviendo al deep-link del aviso de configuración y a un resumen futuro que sí los liste).
   const irAItem = useCallback((clave: string) => {
     if (clave === 'orden') { setSeccionActiva(null); return; }
     if (clave === 'tema') return; // el padre cambia de `modo`; este componente no tiene nada que hacer
+    // `cromoRefs.get(clave)?.abrir()`, no `abrirNivelCromo(clave)` directo — mismo motivo que
+    // `manejarSeleccionDesdeIframe`, arriba: el handle es quien pone `editando=true` adentro, lo
+    // que dispara `onAbrir` y recién ahí mueve `cromoActivo`.
+    if (esCromoKey(clave)) { cromoRefs.current.get(clave)?.abrir(); return; }
     const candidato = clave as SeccionVista;
     if (!secciones.some((c) => c.seccion === candidato)) return;
     abrirNivelSeccion(candidato);
@@ -671,9 +846,15 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   const ultimoEstadoGlobalRef = useRef<EstadoGlobalEditor | null>(null);
   useEffect(() => {
     const pendientesSecciones = secciones.filter((c) => seccionesEstado.get(c.seccion)?.hayBorrador).length;
-    const pendientes = pendientesSecciones + (ordenLocal && hayBorradorOrden ? 1 : 0) + (doc?.sinPublicar.tema ? 1 : 0);
+    // § EDITOR-TIENDA-CROMO-1 — las TRES claves de cromo, contadas con el MISMO criterio que
+    // `listaPendientes()` (en vivo, vía `cromoEstado` — nunca `doc.sinPublicar`, que acá sería el
+    // HUECO CONOCIDO que 'tema' sí tiene por estar fuera de `touches:`).
+    const pendientesCromo = (['encabezado', 'menu', 'footer'] as const)
+      .filter((k) => cromoEstado.get(k)?.hayBorrador).length;
+    const pendientes = pendientesSecciones + pendientesCromo + (ordenLocal && hayBorradorOrden ? 1 : 0) + (doc?.sinPublicar.tema ? 1 : 0);
     const estadosSecciones = secciones.map((c) => seccionesEstado.get(c.seccion)?.estado ?? 'guardado');
-    const todosLosEstados: EstadoAutoguardado[] = [...estadosSecciones, autoOrden.estado];
+    const estadosCromo = (['encabezado', 'menu', 'footer'] as const).map((k) => cromoEstado.get(k)?.estado ?? 'guardado');
+    const todosLosEstados: EstadoAutoguardado[] = [...estadosSecciones, ...estadosCromo, autoOrden.estado];
     const estado: EstadoAutoguardado = todosLosEstados.includes('guardando') ? 'guardando'
       : todosLosEstados.includes('error') ? 'error' : 'guardado';
     const nuevo: EstadoGlobalEditor = {
@@ -686,7 +867,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         && anterior.puedeDeshacer === nuevo.puedeDeshacer && anterior.puedeRehacer === nuevo.puedeRehacer) return;
     ultimoEstadoGlobalRef.current = nuevo;
     onEstadoGlobal?.(nuevo);
-  }, [secciones, seccionesEstado, ordenLocal, hayBorradorOrden, doc, autoOrden.estado, historialVersion, onEstadoGlobal]);
+  }, [secciones, seccionesEstado, cromoEstado, ordenLocal, hayBorradorOrden, doc, autoOrden.estado, historialVersion, onEstadoGlobal]);
 
   // § EDITOR-TIENDA-DESHACER-1 — el handle que `EditorTiendaPantallaCompleta` usa para los atajos de
   // teclado y los botones de la barra. NO memoizado (como `escribirCampo`/`abrirSelectorImagen` de
@@ -703,14 +884,17 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* § EDITOR-TIENDA-SHELL-1 — LAS MIGAS: sólo existen cuando hay un nivel de arriba al que
-          volver, así que sólo se montan con `seccionActiva` puesta (nunca en Inicio). Las dos
-          secciones de abajo (el toggle/nota de página, la barra de orden) son del nivel «Inicio» —
-          decisiones de LISTA, no de una sección puntual— y se ocultan al bajar de nivel por la misma
-          razón que `orden`/`ojo` sólo viven en la tarjeta colapsada (§ TiendaSeccionEditor.tsx). */}
-      {modo === 'paginas' && seccionActiva && (
+          volver, así que sólo se montan con algo activo (nunca en Inicio). Las dos secciones de
+          abajo (el toggle/nota de página, la barra de orden) son del nivel «Inicio» — decisiones de
+          LISTA, no de una sección puntual— y se ocultan al bajar de nivel por la misma razón que
+          `orden`/`ojo` sólo viven en la tarjeta colapsada (§ TiendaSeccionEditor.tsx).
+          § EDITOR-TIENDA-CROMO-1 — `nivelActivo` unifica `seccionActiva`/`cromoActivo`: migas e
+          «Inicio» no les importa CUÁL de los dos tipos de nivel está abierto, sólo que ALGO lo
+          esté. */}
+      {modo === 'paginas' && nivelActivo && (
         <Migas
           nivelAnterior="Inicio"
-          actual={secciones.find(c => c.seccion === seccionActiva)?.titulo ?? seccionActiva}
+          actual={seccionActiva ? (secciones.find(c => c.seccion === seccionActiva)?.titulo ?? seccionActiva) : CROMO_TITULOS[cromoActivo as CromoKey]}
           onVolver={volverAInicio}
         />
       )}
@@ -720,7 +904,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           completa (§ EDITOR-TIENDA-DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). SÓLO en modo
           'paginas' (§ EDITOR-TIENDA-TEMA-1) Y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1): son
           cosas de LA PÁGINA, no del tema store-wide ni de una sección puntual. */}
-      {modo === 'paginas' && !seccionActiva && (paginaMeta.apagable || paginaMeta.nota) && (
+      {modo === 'paginas' && !nivelActivo && (paginaMeta.apagable || paginaMeta.nota) && (
         <div style={{ flexShrink: 0, marginBottom: 'var(--duna-space-5)' }}>
           {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
           {paginaMeta.nota && (
@@ -735,7 +919,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           duna-btn) para que no se lea como un control distinto. SÓLO en modo 'paginas' (§ EDITOR-
           TIENDA-TEMA-1) y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1): el orden es de LA PÁGINA
           home, no del tema ni de una sección puntual. */}
-      {modo === 'paginas' && !seccionActiva && hayBorradorOrden && (
+      {modo === 'paginas' && !nivelActivo && hayBorradorOrden && (
         <div style={{
           flexShrink: 0, marginBottom: 'var(--duna-space-4)', display: 'flex', alignItems: 'center',
           flexWrap: 'wrap', gap: 'var(--duna-space-3)', padding: 'var(--duna-space-3) var(--duna-space-4)',
@@ -792,39 +976,84 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             // nada más (ni al teclear, ni al cambiar de página).
             <PaletaSeccion key={temaReloadKey} enEditor onCambioEnVivo={enviarTemaIframe} />
           ) : (
-            seccionesOrdenadas.map(config => (
-              // § EDITOR-TIENDA-SHELL-1 — el PANEL CON NIVELES oculta por CSS las secciones que no
-              // son la activa (nunca las desmonta, § el docstring grande de `seccionActiva` arriba).
-              // En Inicio (`seccionActiva === null`) las muestra TODAS, como siempre.
-              <div
-                key={config.seccion}
-                style={seccionActiva && seccionActiva !== config.seccion ? { display: 'none' } : undefined}
-              >
-                <TiendaSeccionEditor
-                  ref={registrarRefSeccion(config.seccion)}
-                  config={config}
-                  categorias={categorias}
-                  categoriasListas={categoriasListas}
-                  resaltar={resaltar}
-                  onAbrir={abrirNivelSeccion}
-                  onCerrar={cerrarNivelSeccion}
-                  onCambioPublicado={recargarIframe}
-                  onCambio={manejarCambioSeccion}
+            <>
+              {/* § EDITOR-TIENDA-CROMO-1 — ENCABEZADO y MENÚ, ARRIBA de las secciones de la
+                  página (§ el spec): son de TODA la tienda, no de la página activa, así que se ven
+                  igual en cualquier pestaña del selector — nunca se filtran por `pagina` como
+                  `seccionesOrdenadas`. MISMA regla de ocultar-nunca-desmontar que las secciones de
+                  página (§ el docstring grande de `seccionActiva`, arriba): perderían sus propios
+                  pasos de historial si se desmontaran al bajar a OTRO nivel. */}
+              <div style={nivelActivo && nivelActivo !== 'encabezado' ? { display: 'none' } : undefined}>
+                <EncabezadoSeccion
+                  ref={registrarRefCromo('encabezado')}
+                  enEditor
+                  onAbrir={() => abrirNivelCromo('encabezado')}
+                  onCerrar={() => cerrarNivelCromo('encabezado')}
+                  onCambio={enviarCromoIframe}
                   onPaso={onPasoSeccion}
-                  onEstado={manejarEstadoSeccion}
-                  orden={asaDeSeccion(config.bandaId, config.titulo)}
-                  valoresCruzados={valoresCruzados}
-                  onEscribirCruzado={escribirCruzado}
-                  carga={{
-                    valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
-                    sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
-                    listo: !!doc,
-                    error: errorDoc,
-                    recargar: recargarDoc,
-                  }}
+                  onEstado={(info) => manejarEstadoCromo('encabezado', info)}
                 />
               </div>
-            ))
+              <div style={nivelActivo && nivelActivo !== 'menu' ? { display: 'none' } : undefined}>
+                <MenuSeccion
+                  ref={registrarRefCromo('menu')}
+                  enEditor
+                  onAbrir={() => abrirNivelCromo('menu')}
+                  onCerrar={() => cerrarNivelCromo('menu')}
+                  onCambio={(datos) => enviarCromoIframe('menu', datos)}
+                  onPaso={onPasoSeccion}
+                  onEstado={(info) => manejarEstadoCromo('menu', info)}
+                />
+              </div>
+
+              {seccionesOrdenadas.map(config => (
+                // § EDITOR-TIENDA-SHELL-1 — el PANEL CON NIVELES oculta por CSS las secciones que no
+                // son la activa (nunca las desmonta, § el docstring grande de `seccionActiva` arriba).
+                // En Inicio (`nivelActivo === null`) las muestra TODAS, como siempre.
+                <div
+                  key={config.seccion}
+                  style={nivelActivo && nivelActivo !== config.seccion ? { display: 'none' } : undefined}
+                >
+                  <TiendaSeccionEditor
+                    ref={registrarRefSeccion(config.seccion)}
+                    config={config}
+                    categorias={categorias}
+                    categoriasListas={categoriasListas}
+                    resaltar={resaltar}
+                    onAbrir={abrirNivelSeccion}
+                    onCerrar={cerrarNivelSeccion}
+                    onCambioPublicado={recargarIframe}
+                    onCambio={manejarCambioSeccion}
+                    onPaso={onPasoSeccion}
+                    onEstado={manejarEstadoSeccion}
+                    orden={asaDeSeccion(config.bandaId, config.titulo)}
+                    valoresCruzados={valoresCruzados}
+                    onEscribirCruzado={escribirCruzado}
+                    carga={{
+                      valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
+                      sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
+                      listo: !!doc,
+                      error: errorDoc,
+                      recargar: recargarDoc,
+                    }}
+                  />
+                </div>
+              ))}
+
+              {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
+                  la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}
+              <div style={nivelActivo && nivelActivo !== 'footer' ? { display: 'none' } : undefined}>
+                <FooterSeccion
+                  ref={registrarRefCromo('footer')}
+                  enEditor
+                  onAbrir={() => abrirNivelCromo('footer')}
+                  onCerrar={() => cerrarNivelCromo('footer')}
+                  onCambio={(datos) => enviarCromoIframe('footer', datos)}
+                  onPaso={onPasoSeccion}
+                  onEstado={(info) => manejarEstadoCromo('footer', info)}
+                />
+              </div>
+            </>
           )}
         </div>
         <div style={{

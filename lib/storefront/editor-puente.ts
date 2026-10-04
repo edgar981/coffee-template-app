@@ -52,6 +52,14 @@ export function esMensajeContenidoSeccion(data: unknown): data is MensajeConteni
  * SEGUNDA EXCEPCIÓN (§ EDITOR-TIENDA-TEMA-1): `'tema'` es la MISMA clase de caso que `'orden'` —
  * reusa `TIPO_MENSAJE_CONTENIDO_SECCION`, `EditorPuenteVivo.tsx` la reconoce ANTES de esta función,
  * y por tanto nunca llega acá con `seccion === 'tema'` tampoco.
+ *
+ * TERCERA EXCEPCIÓN (§ EDITOR-TIENDA-CROMO-1): `'encabezado'` es la MISMA clase de caso — las
+ * CUATRO metas (`cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil`) que `EncabezadoSeccion.tsx`
+ * posee viajan juntas bajo esta clave combinada, `EditorPuenteVivo.tsx` la reconoce ANTES de esta
+ * función (§ `datosDeEncabezado`, abajo), y por tanto nunca llega acá con `seccion === 'encabezado'`
+ * tampoco. `logo` —la QUINTA pieza del Encabezado, pero SÍ sección del REGISTRY (§
+ * EncabezadoSeccion.tsx, "logo SÍ es una SECCIÓN de verdad")— viaja APARTE, por el canal genérico:
+ * nunca necesitó esta excepción.
  */
 export function esSeccionDelRegistro(seccion: string): seccion is keyof typeof REGISTRY {
   return Object.prototype.hasOwnProperty.call(REGISTRY, seccion);
@@ -115,6 +123,39 @@ export function datosDeTema(datos: Record<string, unknown>): Record<string, stri
     if (typeof clave !== 'string' || typeof valor !== 'string') return null;
   }
   return vars as Record<string, string>;
+}
+
+// ─── EL OCTAVO MENSAJE — REUTILIZADO (§ EDITOR-TIENDA-CROMO-1) ─────────────────────────────────
+//
+// panel→iframe: "el Encabezado cambió" — las CUATRO metas (`cromo`/`navWordmark`/`navTratamiento`/
+// `navDrawerMovil`) que `EncabezadoSeccion.tsx` posee, viajando JUNTAS. Mismo patrón que 'orden'/
+// 'tema': NO es un mensaje nuevo — reusa `TIPO_MENSAJE_CONTENIDO_SECCION` con `seccion:
+// 'encabezado'`, documentado como TERCERA excepción en `esSeccionDelRegistro` (arriba).
+//
+// A DIFERENCIA de 'orden' (DOM directo) y 'tema' (CSS por cascada), el Encabezado SÍ necesita
+// re-renderizar React: `StoreNav.tsx` lee `cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil`
+// por `useSiteContent()` — contenido de React, no presentación que CSS resuelva sola ni DOM que
+// reordenar. Por eso `EditorPuenteVivo.tsx` fusiona estas cuatro claves DIRECTO sobre el contexto
+// (`actualizar`), sin pasar por `fusionarContenidoSeccion` (que sólo conoce secciones DEL
+// REGISTRY). `logo` —la quinta pieza que esta misma tarjeta edita, pero SÍ sección del REGISTRY—
+// viaja APARTE, por el canal genérico de siempre (`seccion: 'logo'`), sin tocar esta función.
+
+/** `datos` del mensaje, cuando `seccion === 'encabezado'` — las CUATRO claves META completas, cada
+ *  una con la forma que `wireDe` (`EncabezadoSeccion.tsx`) ya construye para el PUT. Validación
+ *  ESTRUCTURAL únicamente (¿cada clave está presente y es un objeto plano?) — el contenido
+ *  semántico no se re-valida acá: el mensaje sale de un `cambiar()` que siempre arma el Wire
+ *  COMPLETO (nunca un parcial a medias), igual que `varsDeTemaEnVivo` arriba. `null` si falta
+ *  alguna de las cuatro o si alguna no es un objeto — preferir callar a fusionar tres de cuatro y
+ *  dejar la cuarta congelada en su valor viejo. */
+export function datosDeEncabezado(datos: Record<string, unknown>): Record<string, Record<string, unknown>> | null {
+  const CLAVES = ['cromo', 'navWordmark', 'navTratamiento', 'navDrawerMovil'] as const;
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const clave of CLAVES) {
+    const valor = datos[clave];
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return null;
+    out[clave] = valor as Record<string, unknown>;
+  }
+  return out;
 }
 
 // ─── LOS DOS MENSAJES NUEVOS (§ EDITOR-TIENDA-SELECCION-1) ─────────────────────────────────────

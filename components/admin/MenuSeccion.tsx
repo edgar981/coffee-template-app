@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import type { ChangeEvent } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Upload, ImageIcon } from 'lucide-react';
@@ -11,6 +11,43 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import { MENU_ITEM_IDS, MENU_CTA_DESTINOS, resolverOrdenMenu, type MenuContent, type MenuItemId } from '@/lib/config/site-content-defaults';
 import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, parAMedias, type CampoPosicionMenu } from '@/lib/config/menu-editor';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
+import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
+import type { EstadoAutoguardado } from '@/lib/autoguardado';
+
+// § EDITOR-TIENDA-CROMO-1 — el contrato que `TiendaPaginas.tsx` necesita para montar este editor
+// dentro del PANEL CON NIVELES (como «Menú» de «Secciones»), gemelo de `TiendaSeccionEditorHandle`
+// pero para un editor BESPOKE: abrir/cerrar el nivel desde AFUERA (clic en el `<nav>` real dentro
+// del iframe, el popover de «Publicar»), y re-sincronizar tras un Publicar/Descartar EN LOTE.
+export interface MenuSeccionHandle {
+  abrir: () => void;
+  cerrar: () => void;
+  marcarPublicado: () => void;
+  restaurarDesdePublicado: (valor: Record<string, unknown>) => void;
+}
+
+export interface MenuSeccionProps {
+  /** `false` (default) = el comportamiento de SIEMPRE en `/admin/tienda`, byte a byte: sin estas
+   *  props, sin historial compartido, con sus propios botones Publicar/Descartar. `true` = montado
+   *  dentro de `/editor/tienda` (§ EDITOR-TIENDA-CROMO-1): el borrador, el deshacer/rehacer y el
+   *  Publicar/Descartar en lote los posee `TiendaPaginas`, así que esta tarjeta deja de dibujar sus
+   *  propios botones de borrador y en cambio REPORTA cada cambio por los callbacks de abajo. */
+  enEditor?: boolean;
+  /** Llamado cuando ESTE nivel se abre (clic en "Editar" local, o por el `abrir()` del handle). */
+  onAbrir?: () => void;
+  /** Gemelo de `onAbrir` para cerrar — mismo "Cerrar" de siempre, ahora también avisando afuera. */
+  onCerrar?: () => void;
+  /** El `form` COMPLETO en cada cambio real — para el push en vivo al iframe compartido
+   *  (`TiendaPaginas` lo reenvía por `postMessage`, § `enviarCambioIframe`/`TIPO_MENSAJE_
+   *  CONTENIDO_SECCION` con `seccion:'menu'` — `menu` YA es una sección del REGISTRY, así que el
+   *  lado del iframe la fusiona sin código nuevo). */
+  onCambio?: (datos: Record<string, unknown>) => void;
+  /** Un paso de historial YA CONFIRMADO (el autoguardado se asentó) — mismo contrato que
+   *  `TiendaSeccionEditorHandle.onPaso`, para el deshacer/rehacer COMPARTIDO. */
+  onPaso?: (paso: PasoHistorial) => void;
+  /** El agregado "N cambios sin publicar" de la barra — mismo contrato que `TiendaSeccionEditor.
+   *  onEstado`. */
+  onEstado?: (info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
+}
 
 // ─── Bloque MENÚ DEL NAV — vive en /admin/tienda, editor BESPOKE SIN vista previa ────────────────
 //
@@ -80,7 +117,9 @@ const COLUMNAS_PANEL: readonly CampoColumnaPanel[] = [
   },
 ];
 
-export default function MenuSeccion() {
+const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function MenuSeccion({
+  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado,
+}, ref) {
   const [cargando, setCargando]           = useState(true);
   const [errorCarga, setErrorCarga]       = useState<string | null>(null);
   const [form, setForm]                   = useState<Form | null>(null);
@@ -133,18 +172,89 @@ export default function MenuSeccion() {
     return () => window.removeEventListener('beforeunload', h);
   }, [auto.estado]);
 
-  const cambiar = (parcial: Partial<Form>) => {
-    if (Object.keys(parcial).length === 0) return; // el swap-no-op de `intercambiarPosicionMenu`
-    const nf = { ...(formRef.current as Form), ...parcial };
+  // § EDITOR-TIENDA-CROMO-1 — EL PUNTO ÚNICO de mutación del form, mismo patrón que
+  // `TiendaSeccionEditor.aplicarCambioForm`/`TiendaPaginas.aplicarNuevoOrden`: `loteAntesRef`
+  // guarda el valor de ANTES del PRIMER cambio desde el último asentamiento; el efecto sobre
+  // `auto.estado` lo consume para empujar UN paso de historial por lote, nunca uno por tecla.
+  const loteAntesRef = useRef<Form | null>(null);
+  const aplicandoHistorialRef = useRef(false);
+  const aplicarCambioForm = (nf: Form) => {
+    if (loteAntesRef.current === null) loteAntesRef.current = formRef.current as Form;
     setForm(nf);
     setHayBorrador(true);
     auto.marcarSucio(nf);
+    onCambio?.(nf as unknown as Record<string, unknown>);
+  };
+
+  const cambiar = (parcial: Partial<Form>) => {
+    if (Object.keys(parcial).length === 0) return; // el swap-no-op de `intercambiarPosicionMenu`
+    aplicarCambioForm({ ...(formRef.current as Form), ...parcial });
   };
 
   const cambiarPosicion = (campo: CampoPosicionMenu, nuevoId: MenuItemId) =>
     cambiar(intercambiarPosicionMenu(formRef.current as Form, campo, nuevoId));
 
+  // Deshacer/rehacer: aplica un valor COMPLETO por el MISMO camino que cualquier edición y lo
+  // persiste YA (`auto.flush()`) — mismo criterio que `TiendaSeccionEditor.restaurarForm`.
+  const restaurarForm = (valor: Form) => {
+    aplicandoHistorialRef.current = true;
+    aplicarCambioForm(valor);
+    auto.flush();
+  };
+
+  // EL PASO DE HISTORIAL — mismo mecanismo que `TiendaSeccionEditor`/`TiendaPaginas` (orden): se
+  // empuja cuando el autoguardado se ASIENTA y el lote abierto cambió algo de verdad.
+  const prevEstadoAutoRef = useRef(auto.estado);
+  useEffect(() => {
+    const prevEstado = prevEstadoAutoRef.current;
+    prevEstadoAutoRef.current = auto.estado;
+    if (prevEstado === auto.estado || auto.estado !== 'guardado') return;
+    const antes = loteAntesRef.current;
+    loteAntesRef.current = null;
+    const fueHistorial = aplicandoHistorialRef.current;
+    aplicandoHistorialRef.current = false;
+    if (fueHistorial || antes === null) return;
+    const despues = formRef.current as Form;
+    if (sonIguales(antes, despues)) return;
+    onPaso?.({ deshacer: () => restaurarForm(antes), rehacer: () => restaurarForm(despues) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo importa CUÁNDO `auto.estado`
+    // cambia; `onPaso`/`restaurarForm` leen refs y no memoizan (mismo criterio que el resto del
+    // archivo y que `TiendaSeccionEditor.tsx`).
+  }, [auto.estado]);
+
+  // EL AGREGADO "N cambios sin publicar" (§ EDITOR-TIENDA-DESHACER-1) — reporta en cada cambio
+  // real de `hayBorrador`/`auto.estado`, mismo contrato que `TiendaSeccionEditor.onEstado`.
+  useEffect(() => {
+    onEstado?.({ hayBorrador, estado: auto.estado });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `onEstado` no memoiza; sólo importa
+    // CUÁNDO `hayBorrador`/`auto.estado` cambian.
+  }, [hayBorrador, auto.estado]);
+
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
+
+  // § EDITOR-TIENDA-CROMO-1 — abrir/cerrar este nivel desde AFUERA avisa al padre, para que
+  // `TiendaPaginas` sepa qué migas mostrar y oculte las demás filas (mismo contrato que `onAbrir`/
+  // `onCerrar` de `TiendaSeccionEditor`). Corre con cualquier disparador de `editando` (el botón
+  // local "Editar"/"Cerrar", o el `abrir()`/`cerrar()` del handle) — un solo sitio, nunca dos.
+  const prevEditandoRef = useRef(editando);
+  useEffect(() => {
+    if (!enEditor) return;
+    if (prevEditandoRef.current === editando) return;
+    prevEditandoRef.current = editando;
+    if (editando) onAbrir?.(); else onCerrar?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `onAbrir`/`onCerrar` no memoizan;
+    // sólo importa CUÁNDO `editando` cambia.
+  }, [editando, enEditor]);
+
+  useImperativeHandle(ref, () => ({
+    abrir: () => setEditando(true),
+    cerrar: cerrarEdicion,
+    marcarPublicado: () => setHayBorrador(false),
+    restaurarDesdePublicado: (valor: Record<string, unknown>) => {
+      setForm(valor as unknown as Form);
+      setHayBorrador(false);
+    },
+  }));
 
   // Helpers GENÉRICOS para los 27 campos planos del panel (§ MUESTRARIO-MEGA-MENU-1): leer/escribir
   // por CLAVE, en vez de repetir `form.panelX ?? ''` / `cambiar({panelX: …})` a mano en cada campo.
@@ -247,12 +357,16 @@ export default function MenuSeccion() {
         ) : (
           <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
             <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {hayBorrador && (
+            {/* § EDITOR-TIENDA-CROMO-1 — dentro del editor de pantalla completa, "Publicar"/
+                "Descartar" viven en la barra GLOBAL (el mismo botón que publica el resto de las
+                secciones en lote) — esta tarjeta deja de dibujar los suyos, como ya hace
+                `TiendaSeccionEditor` para cada sección de página. */}
+            {!enEditor && hayBorrador && (
               <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
                 Descartar
               </button>
             )}
-            {hayBorrador && (
+            {!enEditor && hayBorrador && (
               <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
                 {procesando ? 'Publicando…' : 'Publicar'}
               </button>
@@ -529,4 +643,6 @@ export default function MenuSeccion() {
       />
     </>
   );
-}
+});
+
+export default MenuSeccion;

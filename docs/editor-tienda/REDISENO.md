@@ -544,6 +544,104 @@ en su mayoría (ver abajo), y las mejoras futuras que cada slice fue anotando en
 `open_followups` (`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`, `PANEL-EDITOR-VARIANTES-
 COMPOSICION-2`, entre otras) — ninguna bloquea el cierre de este plan.
 
+**CUARTO PEDIDO FUERA DE ESTA NUMERACIÓN: `EDITOR-TIENDA-CROMO-1` — el Encabezado, el Menú y el Pie
+entran al editor (2026-10-04).** Pedido textual del owner tras ver el editor de pantalla completa
+construido por los ocho slices numerados: *"De acuerdo, agrega el encabezado, el menú y el pie al
+editor."* Hasta este slice, `EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion` eran editores BESPOKE
+que vivían SÓLO en `/admin/tienda` (patrón `PaletaSeccion`, decisión original de § EDICION-
+INLINE.md § 5: "Nav y pie quedan FUERA de este diseño por alcance... viven fuera de
+`SECCIONES_TIENDA`/el iframe por completo"). Ese alcance se amplía ahora, sobre el MISMO
+razonamiento que ya desbloqueó Colores (§ EDITOR-TIENDA-TEMA-1): el lienzo nuevo es el `<iframe>` a
+la tienda REAL, con su árbol de providers completo — la razón original para mantenerlos bespoke
+("montar `StoreNav`/`StoreFooter` en el árbol del admin lanza fuera de su árbol de providers") ya
+no aplica al LIENZO (sí sigue aplicando a `/admin/tienda`, que no cambió).
+
+**LO QUE CAMBIÓ: los TRES editores entran a «Secciones» del panel con niveles, store-wide (Encabezado
+y Menú arriba de las secciones de la página, Pie al final) — se ven igual en cualquier pestaña del
+selector, nunca filtrados por `pagina`. `StoreNav.tsx`/`StoreFooter.tsx` ganan marcadores
+`data-editor-seccion="encabezado"/"menu"/"footer"` (gateados a `useModoEditorActivo()`, cero bytes
+fuera de modo editor — el MISMO contrato que `data-editor-seccion` ya cumple en `page.tsx`) para que
+un clic en el nav o el pie DENTRO del iframe abra su nivel, igual que cualquier sección. Un cuarto
+mensaje reutilizado del puente (`seccion:'encabezado'`, § `datosDeEncabezado`,
+`lib/storefront/editor-puente.ts`) empuja las CUATRO metas combinadas del Encabezado al contexto de
+React — a diferencia de 'orden'/'tema' (DOM directo / CSS), el Encabezado SÍ necesita re-renderizar
+`StoreNav`, que las lee por `useSiteContent()`. `logo` (la quinta pieza que edita esa misma tarjeta)
+viaja aparte, por el canal genérico — SÍ es sección del REGISTRY.**
+
+**LOS TRES EDITORES SE ADAPTARON CON UN `enEditor` BOOLEANO (default `false`, patrón
+`PaletaSeccion`), no se copiaron**: reportan `onPaso`/`onEstado` al historial y al agregado
+compartidos (mismo contrato que `TiendaSeccionEditor`), dejan de dibujar sus propios botones
+Publicar/Descartar (la barra GLOBAL los publica en lote), y exponen un handle imperativo
+(`abrir`/`cerrar`/`marcarPublicado`/`restaurarDesdePublicado`) para que `TiendaPaginas` los integre
+exactamente como integra cada `TiendaSeccionEditor`. `/admin/tienda` los sigue montando SIN esa
+prop — comportamiento byte a byte igual al de antes de este slice.
+
+**DEVIACIÓN MEDIDA — 'encabezado' se publica por SU PROPIA ruta, no en el lote genérico.** El
+endpoint `POST /api/site-content` (`accion:'publicarVarias'/'descartarVarias'`) valida
+`secciones.every(s => s==='orden' || s==='tema' || s in REGISTRY)` — 'encabezado' no es ninguna de
+las tres (sus cuatro metas están deliberadamente EXCLUIDAS del REGISTRY, § EncabezadoSeccion.tsx) y
+el lote ENTERO se rechazaría si viajara ahí. `TiendaPaginas.publicarPendientes`/`descartarPendientes`
+publican 'encabezado' por su ruta dedicada (`/api/site-content/encabezado`, la misma que
+`EncabezadoSeccion.accionBorrador` ya usaba), **SECUENCIAL con el lote genérico** que sigue llevando
+'orden'/'tema'/'menu'/'footer'/las secciones de página ('menu'/'footer' SÍ son claves del REGISTRY).
+
+**EL HALLAZGO QUE EL ARNÉS DE ESTE SLICE ATRAPÓ: las dos NO pueden ir en `Promise.all`.** El primer
+intento disparaba el lote genérico y la ruta del Encabezado EN PARALELO — dos transacciones
+INDEPENDIENTES sobre la MISMA fila de `SiteContent` (cada una con su propio `findUnique` → computa
+`nuevoContent`/`nuevoBorrador` → `update`), sin lock cross-operación (§ CLAUDE.md, "SIN lock
+cross-operación" — ya documentado para el race HUMANO guardar↔publicar; esto es el mismo riesgo,
+creado por ESTE código al disparar dos escrituras a la vez). Medido contra la base real
+(`.scratch/verificar-cromo-sesion.ts`): "Publicar 3" devolvía `200 {"ok":true}` en las dos llamadas,
+pero `content.menu` seguía SIN el valor nuevo — la transacción de 'encabezado', que leyó la fila
+ANTES de que el lote genérico commiteara, pisó el content completo al escribir la suya. Se corrigió
+SECUENCIANDO los dos `fetch` (`await` uno, después el otro) — el costo es una ida y vuelta de red
+más, nunca una carrera. **No volver a `Promise.all` estas dos llamadas.**
+
+**EL PIE GANA MARCADORES `CampoEditable` SOBRE SUS TEXTOS SIMPLES** (encabezados de columna,
+`tarjetaTexto`, las etiquetas de los enlaces legales) — un clic en esos textos DENTRO del iframe abre
+el campo flotante de siempre, enrutado a `FooterSeccion.escribirCampo` (mismo `fusionCampoEditable`
+que ya usa `TiendaSeccionEditor`, nunca una segunda fusión a mano). **El Encabezado y el Menú NO
+ganan `CampoEditable` en esta tanda — deviación medida y declarada:** la "tagline" que el pedido del
+owner podría sugerir es `SiteSetting.tagline` (identidad del negocio, Configuración, otro modelo —
+§ CLAUDE.md "negocio≠tienda"), no `SiteContent`; el mecanismo de campo flotante está arquitecturado
+para secciones de `SiteContent`, así que tejerlo a `SiteSetting` sería una pieza nueva, no una
+reutilización. Las etiquetas del Menú se renombran desde su PANEL (que ya lo permitía, sin cambios),
+y el Encabezado ofrece color/visibilidad del sub-encabezado desde el suyo — ambos alcanzables desde
+«Secciones», que es lo que este slice pedía construir.
+
+**SEGUNDO HALLAZGO DEL ARNÉS: abrir desde el lienzo necesita el `abrir()` del HANDLE, no mover
+`cromoActivo` a mano.** El primer intento de `manejarSeleccionDesdeIframe`/`irAItem` llamaba
+`abrirNivelCromo(marcador)` directo al reconocer un marcador de cromo — eso sólo mueve el estado
+`cromoActivo` de `TiendaPaginas` (deja de estar `display:none`), pero NO le dice al editor BESPOKE
+que está adentro que salga de su vista de lectura (`editando` sigue en `false`): el nivel se
+"abría" mostrando el resumen colapsado, nunca el formulario. Se corrigió llamando
+`cromoRefs.get(marcador)?.abrir()` — el MISMO camino que `seccionRefs.get(candidato)?.seleccionar()`
+ya usa para una `SeccionVista`: el handle decide abrirse (pone `editando=true` adentro), y ESO es lo
+que dispara `onAbrir` hacia el padre.
+
+**VERIFICADO POR EJECUCIÓN — sesión real, de punta a punta.** `.scratch/verificar-cromo-sesion.ts`
+(no comiteado): Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`,
+Playwright con sesión real (`admin@sierranativa.co`). Abrió Encabezado desde la fila de «Secciones»
+y, por separado, desde un clic en el logo del nav DENTRO del iframe (las dos vías llegan al mismo
+nivel); encendió «Tratamiento del menú» y vio el `text-transform` del link cambiar de `none` a
+`uppercase` EN VIVO, sin recargar el iframe (marca de `window` que un reload habría borrado, intacta);
+abrió Menú y renombró el primer ítem — el `<nav>` real del iframe mostró el nuevo texto al instante;
+hizo clic en el pie DENTRO del iframe (abrió su nivel), apagó «Mostrar "Hecho por Duna"» y vio el
+crédito desaparecer en vivo; hizo clic en el campo editable `footer.columnaTienda` y escribió un
+texto nuevo que apareció en el `<h4>` real del pie; publicó — la tienda PÚBLICA (pestaña nueva, sin
+sesión de editor) mostró el ítem de menú renombrado, el crédito apagado y el texto del pie editado;
+capturas en escritorio (1440×900) y teléfono (390×844), incluido el cajón móvil del menú. Los DOS
+hallazgos de arriba (la carrera de publicar, el `abrir()` del handle) se encontraron y cerraron
+DENTRO de esta misma corrida del arnés, antes de reportar nada como verde.
+
+**OPEN FOLLOW-UP — `RESUMEN-CAMBIOS-CROMO-PENDIENTE-1`:** `lib/admin/resumen-cambios.ts` (fuera de
+`touches:` de este slice) no tiene una rama para 'encabezado'/'menu'/'footer' — un cambio pendiente
+en cualquiera de los tres se cuenta en el badge ámbar de "Publicar" (`TiendaPaginas.listaPendientes`,
+en vivo, nunca el HUECO CONOCIDO de 'tema') y SE PUBLICA de verdad al tocar el botón, pero el popover
+de `ResumenPublicar` no imprime una fila EN PALABRAS para ellos (cae al "Sin detalle para mostrar."
+que ese componente ya maneja con 0 filas). El día que `resumen-cambios.ts` entre a `touches:` de un
+slice, las tres ramas se agregan ahí.
+
 ---
 
 ## 10 · Lo que este documento NO decide

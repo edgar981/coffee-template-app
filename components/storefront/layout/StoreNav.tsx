@@ -12,6 +12,7 @@ import { altoLogoNavMovilClase, altoLogoMenuLateralClase } from '@/lib/config/ma
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
+import { useModoEditorActivo } from '@/components/storefront/ModoEditor';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
 import {
@@ -75,6 +76,11 @@ function BloqueaClicksAlSalir({ children }: { children: ReactNode }) {
 }
 
 export default function StoreNav() {
+  // § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO y el MENÚ entran al editor como el resto de las
+  // secciones: marcados con `data-editor-seccion` SÓLO en modo editor (el mismo contrato que ya
+  // cumple `data-editor-seccion` vía `bandaNodo()` en `app/(storefront)/page.tsx`) — fuera de él
+  // (el 99.99% del tráfico), cero bytes de más.
+  const enModoEditor = useModoEditorActivo();
   const { nombre, tagline } = useSiteSettings();
   // El MENÚ es DATO (§ CROMO-MENU-COMO-DATO-1): `itemsDeMenu` resuelve las etiquetas + el orden
   // editables sobre el set CERRADO de tres ítems, y sigue gateando "Nosotros"/"Suscripciones" por
@@ -669,6 +675,28 @@ export default function StoreNav() {
     </Link>
   );
 
+  // § EDITOR-TIENDA-CROMO-1 — la MISMA marca, para la cabecera del drawer móvil de pantalla
+  // completa: mismo `logo`/`cromo.navSubtitulo`, pero su PROPIO alto de logo
+  // (`altoLogoMenuLateralClase`, § NAV-LOGO-TAMANOS-FINOS-1 — esta fila no tiene un alto de barra
+  // que heredar) y `onClick` propio (cierra el drawer al navegar). Separada de `logoLink` por eso
+  // —no es la misma instancia reusada, es la MISMA decisión de marca en una monta distinta— y
+  // extraída a variable (en vez de inline en el JSX de abajo) para que el wrapper de modo editor
+  // no tenga que duplicar este bloque una segunda vez.
+  const logoLinkMovil = (
+    <Link href="/" onClick={() => setMobileOpen(false)} aria-label={`${nombre} — inicio`} className="min-w-0">
+      <Logo
+        nombre={nombre}
+        variant="light"
+        conMark={STOREFRONT_TIENE_MARK}
+        subtitle={cromo.navSubtitulo ? tagline : undefined}
+        wordmarkTratado={navWordmark.activo}
+        taglineColor={navWordmark.taglineColor}
+        logo={logo}
+        altoBarraClase={altoLogoMenuLateralClase()}
+      />
+    </Link>
+  );
+
   return (
     <>
       <header
@@ -690,10 +718,18 @@ export default function StoreNav() {
                 byte-idéntico a hoy para TODO tenant, incluido CORTE (que ya no lo declara acá).
                 `cromo.navBadge` queda DORMIDO: sigue en el modelo/schema (§ CromoContent,
                 site-content-defaults.ts), pero ningún componente lo lee. */}
-            {logoLink}
+            {/* § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO: el `display:contents` deja que `logoLink`
+                siga siendo el flex item real (mismo truco que `CampoEditable tipo="imagen"`, § su
+                docstring) — el wrapper nunca aparece fuera de modo editor. */}
+            {enModoEditor ? (
+              <div data-editor-seccion="encabezado" style={{ display: 'contents' }}>{logoLink}</div>
+            ) : (
+              logoLink
+            )}
 
-            {/* Desktop Nav */}
-            <nav className="relative hidden lg:flex items-center gap-8">
+            {/* Desktop Nav — § EDITOR-TIENDA-CROMO-1: el MENÚ, marcado directo sobre el `<nav>` que
+                ya existe (sin wrapper nuevo). */}
+            <nav className="relative hidden lg:flex items-center gap-8" data-editor-seccion={enModoEditor ? 'menu' : undefined}>
               {links.map(l => {
                 const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${navHoverClase} ${pathname.startsWith(l.path) ? colorActivo : ''}`;
                 // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1): un ítem CON panel es un
@@ -1089,23 +1125,15 @@ export default function StoreNav() {
               className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-[var(--sf-fondo)]"
             >
               <div className="flex items-center justify-between border-b border-[var(--sf-linea)] px-6 py-5">
-                <Link href="/" onClick={() => setMobileOpen(false)} aria-label={`${nombre} — inicio`} className="min-w-0">
-                  <Logo
-                    nombre={nombre}
-                    variant="light"
-                    conMark={STOREFRONT_TIENE_MARK}
-                    subtitle={cromo.navSubtitulo ? tagline : undefined}
-                    wordmarkTratado={navWordmark.activo}
-                    taglineColor={navWordmark.taglineColor}
-                    logo={logo}
-                    // § NAV-LOGO-TAMANOS-FINOS-1 — el gate del owner pidió el logo de ESTA
-                    // cabecera "un poco más grande" (antes `h-7` por no recibir el prop, § el
-                    // docstring de `altoBarraClase`, Logo.tsx). Literal propio, no derivado del
-                    // alto de la barra del header (`altoLogoNavMovilClase`): esta fila no tiene
-                    // un alto de barra que heredar.
-                    altoBarraClase={altoLogoMenuLateralClase()}
-                  />
-                </Link>
+                {/* § EDITOR-TIENDA-CROMO-1 — mismo ENCABEZADO que la cabecera de escritorio, marcado
+                    sólo en modo editor (el `display:contents` deja intacto el layout de siempre:
+                    la misma técnica que ya envuelve a `logoLink` arriba, en vez de duplicar el JSX
+                    del logo una segunda vez para esta rama). */}
+                {enModoEditor ? (
+                  <div data-editor-seccion="encabezado" style={{ display: 'contents' }}>{logoLinkMovil}</div>
+                ) : (
+                  logoLinkMovil
+                )}
                 {/* "buscar si existe, carrito, cerrar" — § CARRITO-Y-MENU-MOVIL-CAFEONE-1, sin
                     cambio de alcance: "Cuenta" sigue sin entrar (`/cuenta` oculta, v1). */}
                 {/* § RADIOS-UN-SOLO-RITMO-1 — mismo swap que las dos de arriba (desktop): el círculo
@@ -1154,7 +1182,9 @@ export default function StoreNav() {
                   </button>
                 </div>
               </div>
-              <nav className="flex flex-col">
+              {/* § EDITOR-TIENDA-CROMO-1 — el MENÚ del cajón móvil, mismo marcador que la versión
+                  de escritorio. */}
+              <nav className="flex flex-col" data-editor-seccion={enModoEditor ? 'menu' : undefined}>
                 {links.map((l, i) => {
                   const filaClase = `flex w-full items-center justify-between gap-2 px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`;
                   if (l.panel) {

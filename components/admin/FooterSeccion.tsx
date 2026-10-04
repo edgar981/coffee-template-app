@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
@@ -11,6 +11,33 @@ import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { FooterContent } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
+import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
+import type { EstadoAutoguardado } from '@/lib/autoguardado';
+import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
+
+// § EDITOR-TIENDA-CROMO-1 — gemelo de `MenuSeccionHandle` (mismo contrato). `escribirCampo` es
+// EXTRA sobre `MenuSeccionHandle`: el Pie es el único de los tres cromo que gana marcadores
+// `CampoEditable` sobre textos simples (`columnaTienda`/`columnaAyuda`/`columnaEmpresa`,
+// `tarjetaTexto`, `items.N.label`, § `StoreFooter.tsx`) — un clic ahí dentro del iframe manda
+// `{seccion:'footer', campo, valor}` y `TiendaPaginas` lo resuelve a ESTE método, nunca a
+// `escribirCampo` de una `SeccionVista` (que no existe para `footer`).
+export interface FooterSeccionHandle {
+  abrir: () => void;
+  cerrar: () => void;
+  marcarPublicado: () => void;
+  restaurarDesdePublicado: (valor: Record<string, unknown>) => void;
+  escribirCampo: (campo: string, valor: string) => void;
+}
+
+export interface FooterSeccionProps {
+  /** Ver el docstring de `MenuSeccionProps.enEditor` — mismo contrato. */
+  enEditor?: boolean;
+  onAbrir?: () => void;
+  onCerrar?: () => void;
+  onCambio?: (datos: Record<string, unknown>) => void;
+  onPaso?: (paso: PasoHistorial) => void;
+  onEstado?: (info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
+}
 
 // ─── Bloque PIE DE PÁGINA — vive en /admin/tienda, editor BESPOKE SIN vista previa ─────────────
 //
@@ -42,7 +69,9 @@ const DESCRIPTORES_ITEM: CampoItem[] = [
   { name: 'href', label: 'Destino (URL o ruta)', tipo: 'texto', resumen: 'detalle', hint: 'Ej. "/legal/privacidad".' },
 ];
 
-export default function FooterSeccion() {
+const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(function FooterSeccion({
+  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado,
+}, ref) {
   const [cargando, setCargando]           = useState(true);
   const [errorCarga, setErrorCarga]       = useState<string | null>(null);
   const [form, setForm]                   = useState<Form | null>(null);
@@ -93,17 +122,84 @@ export default function FooterSeccion() {
     return () => window.removeEventListener('beforeunload', h);
   }, [auto.estado]);
 
-  const cambiar = (parcial: Partial<Form>) => {
-    const nf = { ...(formRef.current as Form), ...parcial };
+  // § EDITOR-TIENDA-CROMO-1 — EL PUNTO ÚNICO de mutación del form, mismo patrón que
+  // `MenuSeccion.tsx`/`TiendaSeccionEditor.tsx`.
+  const loteAntesRef = useRef<Form | null>(null);
+  const aplicandoHistorialRef = useRef(false);
+  const aplicarCambioForm = (nf: Form) => {
+    if (loteAntesRef.current === null) loteAntesRef.current = formRef.current as Form;
     setForm(nf);
     setHayBorrador(true);
     auto.marcarSucio(nf);
+    onCambio?.(nf as unknown as Record<string, unknown>);
+  };
+
+  const cambiar = (parcial: Partial<Form>) => {
+    aplicarCambioForm({ ...(formRef.current as Form), ...parcial });
   };
 
   const cambiarItems = (items: Record<string, unknown>[]) =>
     cambiar({ items: items as unknown as Form['items'] });
 
+  // Deshacer/rehacer, mismo criterio que `MenuSeccion.restaurarForm`.
+  const restaurarForm = (valor: Form) => {
+    aplicandoHistorialRef.current = true;
+    aplicarCambioForm(valor);
+    auto.flush();
+  };
+
+  const prevEstadoAutoRef = useRef(auto.estado);
+  useEffect(() => {
+    const prevEstado = prevEstadoAutoRef.current;
+    prevEstadoAutoRef.current = auto.estado;
+    if (prevEstado === auto.estado || auto.estado !== 'guardado') return;
+    const antes = loteAntesRef.current;
+    loteAntesRef.current = null;
+    const fueHistorial = aplicandoHistorialRef.current;
+    aplicandoHistorialRef.current = false;
+    if (fueHistorial || antes === null) return;
+    const despues = formRef.current as Form;
+    if (sonIguales(antes, despues)) return;
+    onPaso?.({ deshacer: () => restaurarForm(antes), rehacer: () => restaurarForm(despues) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mismo criterio que `MenuSeccion.tsx`.
+  }, [auto.estado]);
+
+  useEffect(() => {
+    onEstado?.({ hayBorrador, estado: auto.estado });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mismo criterio que `MenuSeccion.tsx`.
+  }, [hayBorrador, auto.estado]);
+
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
+
+  const prevEditandoRef = useRef(editando);
+  useEffect(() => {
+    if (!enEditor) return;
+    if (prevEditandoRef.current === editando) return;
+    prevEditandoRef.current = editando;
+    if (editando) onAbrir?.(); else onCerrar?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mismo criterio que `MenuSeccion.tsx`.
+  }, [editando, enEditor]);
+
+  useImperativeHandle(ref, () => ({
+    abrir: () => setEditando(true),
+    cerrar: cerrarEdicion,
+    marcarPublicado: () => setHayBorrador(false),
+    restaurarDesdePublicado: (valor: Record<string, unknown>) => {
+      setForm(valor as unknown as Form);
+      setHayBorrador(false);
+    },
+    // § EDITOR-TIENDA-CROMO-1 — el campo flotante del iframe (§ `StoreFooter.tsx`, `CampoEditable`):
+    // mismo `fusionCampoEditable` que ya usa `TiendaSeccionEditor.escribirCampo` — nunca reimplementa
+    // la fusión de un ítem de repeater a mano una segunda vez. Abre la edición si estaba cerrada
+    // (SIN desplazar — el dueño ya está mirando el campo dentro del iframe), mismo criterio que
+    // `TiendaSeccionEditorHandle.escribirCampo`.
+    escribirCampo: (campo: string, valor: string) => {
+      const parcial = fusionCampoEditable(formRef.current as unknown as Record<string, unknown>, campo, valor);
+      if (!parcial) return;
+      if (!editando) setEditando(true);
+      aplicarCambioForm({ ...(formRef.current as Form), ...(parcial as Partial<Form>) });
+    },
+  }));
 
   // Publicar / Descartar el borrador de esta sección (POST /api/site-content, el mismo camino que
   // TiendaSeccionEditor usa para cada sección).
@@ -181,12 +277,14 @@ export default function FooterSeccion() {
         ) : (
           <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
             <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {hayBorrador && (
+            {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
+                de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
+            {!enEditor && hayBorrador && (
               <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
                 Descartar
               </button>
             )}
-            {hayBorrador && (
+            {!enEditor && hayBorrador && (
               <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
                 {procesando ? 'Publicando…' : 'Publicar'}
               </button>
@@ -344,4 +442,6 @@ export default function FooterSeccion() {
       />
     </>
   );
-}
+});
+
+export default FooterSeccion;
