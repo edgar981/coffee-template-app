@@ -81,10 +81,13 @@ test('hero: `ctasVisibles`/`fraseAlPie`/`cueDesliza` SOBREVIVEN al parse', () =>
 // repo no tiene"). `HeroSection` es el DISPATCHER real de `app/(storefront)/page.tsx`; con
 // `hero.variante:'media'` enruta a `HeroMedia`, así que esto ejercita el árbol real de ESA variante
 // — no una copia —, aunque YA NO sea la de CORTE: § CORTE-USA-HERO-STICKY-1 pasó CORTE a
-// `hero:'sticky'` (`HeroMediaMarquesina`). De los TRES agregados de este archivo, esa variante NO
-// lee `ctasVisibles` ni `fraseAlPie` (siguen exclusivos de `HeroMedia`), pero SÍ lee `cueDesliza`
-// desde § CORTE-HERO-STICKY-RONDA-2-1 (el owner pidió el cue "Desliza" visible sobre el prototipo
-// aplicado; § `hero-marquesina.test.ts` afirma ese render, no este archivo). `media`
+// `hero:'sticky'` (`HeroMediaMarquesina`). De los TRES agregados de este archivo, `cueDesliza` lo
+// lee TAMBIÉN 'sticky' desde § CORTE-HERO-STICKY-RONDA-2-1 (el owner pidió el cue "Desliza" visible
+// sobre el prototipo aplicado; § `hero-marquesina.test.ts` afirma ese render, no este archivo), y
+// —DESDE § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1— `ctasVisibles` TAMBIÉN (su propia zona de titular/
+// subtítulo/botón, § el docstring de cabecera de `HeroMediaMarquesina.tsx`); `fraseAlPie` ya era
+// compartido desde antes (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1). De los tres, ninguno sigue "exclusivo
+// de HeroMedia" — la frase vieja de este comentario describía un estado que ya no es cierto. `media`
 // sigue siendo una variante real y completa del catálogo (§ `hero.variantes.claves`), sólo que hoy
 // ningún preset la usa — estos tests afirman su mecanismo, no el hero actual de CORTE.
 function renderHeroMedia(hero: HeroContent, opts: { preview?: boolean } = {}): string {

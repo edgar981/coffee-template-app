@@ -109,6 +109,16 @@ function MiniaturaComposicion({ valor }: { valor: string }) {
           <div style={barra(60, 4)} />
           <div style={barra(40, 4)} />
         </div>
+        {/* LA ZONA «TITULAR/SUBTÍTULO/BOTÓN» (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1) — abajo a la
+            izquierda, sobre el indicador "Desliza". Nace APAGADA (§ el docstring de cabecera de
+            `HeroMediaMarquesina.tsx`): esta miniatura muestra la FORMA que la zona toma cuando el
+            dueño la enciende, no su estado por defecto — "fiel a la POSICIÓN de cada zona", como el
+            resto de este componente. */}
+        <div style={{ position: 'absolute', left: '6%', bottom: '8%', width: '26%', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={barra(85, 5)} />
+          <div style={barra(60, 3)} />
+          <div style={{ width: '45%', height: 2, background: 'var(--duna-ink)', opacity: 0.3 }} />
+        </div>
       </div>
     );
   }

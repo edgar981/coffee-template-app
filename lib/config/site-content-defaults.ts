@@ -67,7 +67,9 @@ export interface HeroContent {
   // `ctasVisibles` (booleano, default `true` = los dos CTA de HOY). El prototipo no lleva botones
   // en el hero; acá se generaliza como un APAGADOR de los dos juntos —el prototipo trata "sin
   // botones" como un bloque, no un botón sí y el otro no— para que un preset que quiera esa lectura
-  // minimalista no tenga que apagar cada CTA por separado.
+  // minimalista no tenga que apagar cada CTA por separado. `HeroMedia` lo lee desde siempre;
+  // `HeroMediaMarquesina` ('sticky') TAMBIÉN desde § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1 (ver el
+  // docstring de `titularVisible`, abajo, para el alcance completo de la nueva zona).
   ctasVisibles: boolean;
   // `fraseAlPie` (string, OPCIONAL — como `eyebrow`/`tituloEnfasis`: default `''` → SE OMITE, no
   // cae a ningún texto de relleno). Es el `.hero-caption` del prototipo («Hay algo profundamente
@@ -92,9 +94,18 @@ export interface HeroContent {
   // juntos.
   //
   // `titularVisible` (booleano, default `true` = el titular de HOY, `titulo`+`tituloEnfasis` juntos).
-  // SÓLO `HeroMedia` lo lee — curtina y ficha no (mismo alcance que `ctasVisibles`, ver arriba).
+  // `HeroMedia` lo lee desde siempre — curtina y ficha no (mismo alcance que `ctasVisibles`, ver
+  // arriba). **`HeroMediaMarquesina` ('sticky') TAMBIÉN lo lee desde § EDITOR-TIENDA-ZONAS-STICKY-
+  // TITULAR-1**: la composición "sticky" gana su propia zona de titular/subtítulo/botón, abajo a la
+  // izquierda sobre el indicador "Desliza" — los MISMOS tres campos/booleanos de `media`, sin
+  // duplicar contenido (la marquesina NO es el titular; eso vive en `MarquesinaContent.texto`,
+  // aparte). CORTE —el único preset con `hero:'sticky'`— ya declaraba `heroTitularVisible:false`
+  // desde su era 'media' (§ CORTE-HERO-TITULAR-OCULTABLE-1), así que la zona nace APAGADA para todo
+  // tenant real sin que este slice toque `themes.ts`.
   titularVisible: boolean;
-  // `subtituloVisible` (booleano, default `true` = el `subtitulo` de HOY). SÓLO `HeroMedia` lo lee.
+  // `subtituloVisible` (booleano, default `true` = el `subtitulo` de HOY). `HeroMedia` y, desde
+  // § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1, `HeroMediaMarquesina` ('sticky') lo leen — mismo alcance
+  // que `titularVisible`, arriba.
   subtituloVisible: boolean;
   // `alturaLlena` (§ CORTE-HERO-VIEWPORT-LLENO-1, booleano, default `false` = `min-h-[92vh]` de HOY,
   // byte-idéntico). El owner, gateando `?tema=CORTE` contra el prototipo (2026-09-23): «el hero no

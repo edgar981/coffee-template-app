@@ -26,6 +26,8 @@ import {
   MARQUEE_TITULO_LETTER_SPACING, MARQUEE_MASCARA_RELLENO_EM,
   UMBRAL_ENTRADA_TARJETA_MARQUESINA,
 } from '@/lib/animation';
+import { CORTE, PRESETS } from './themes';
+import { contenidoConPresetDeVista } from './theme-mirador';
 
 // MUESTRARIO-HERO-MARQUESINA-STICKY-1 — la CUARTA variante del hero (tras curtina/ficha/media,
 // § HeroSection.tsx): el hero y la marquesina dejan de ser DOS bandas apiladas y pasan a ser UNA
@@ -112,16 +114,21 @@ test('hero·sticky es OSCURA por canónica y UNIFORME — mismo trato que hero·
 
 // ─── EL RENDER — lee marquesina.texto/.productoSlug, NUNCA un campo propio del hero ──────────────
 
-test('el texto del loop viene de `marquesina.texto`, NO de ningún campo del hero (eyebrow/titulo no rinden)', () => {
+// `titularVisible: false` — EXPLÍCITO desde § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1: `hero.titulo`
+// SÍ rinde en esta composición cuando la zona está encendida (default `true`, § el docstring de
+// `HeroContent.titularVisible`), así que afirmar "titulo no rinde" exige apagar la zona primero —
+// lo que este test afirma de verdad es que `eyebrow` NUNCA rinde (no tiene zona en 'sticky') y que
+// el LOOP lee `marquesina.texto`, no `hero.titulo`, sea cual sea el estado de la zona.
+test('el texto del loop viene de `marquesina.texto`, NO de ningún campo del hero (eyebrow nunca rinde; titulo no rinde con la zona apagada)', () => {
   const content = {
     ...DEFAULTS,
-    hero: { ...DEFAULTS.hero, variante: 'sticky' as const, eyebrow: 'ESTO NO DEBE VERSE', titulo: 'NI ESTO' },
+    hero: { ...DEFAULTS.hero, variante: 'sticky' as const, eyebrow: 'ESTO NO DEBE VERSE', titulo: 'NI ESTO', titularVisible: false },
     marquesina: { ...DEFAULTS.marquesina, texto: 'Café fresco todos los días' },
   } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);
   assert.ok(html.includes('Café fresco todos los días'), 'debe rendir el texto de `marquesina.texto`');
-  assert.ok(!html.includes('ESTO NO DEBE VERSE'), 'no debe rendir el eyebrow del hero');
-  assert.ok(!html.includes('NI ESTO'), 'no debe rendir el titulo del hero');
+  assert.ok(!html.includes('ESTO NO DEBE VERSE'), 'no debe rendir el eyebrow del hero — sticky nunca lo lee');
+  assert.ok(!html.includes('NI ESTO'), 'no debe rendir el titulo del hero con titularVisible:false');
 });
 
 test('el texto del loop rinde DOS VECES dentro del track (cinta continua), más la 3ª aparición del `aria-label` de la sección', () => {
@@ -439,11 +446,19 @@ test('hero.estilos.fraseAlPie con alinear/color declarados: emite su `style` sob
   assert.match(html, /<p[^>]*style="[^"]*color:var\(--sf-texto-suave\)/);
 });
 
+// LAS TRES ZONAS NUEVAS SE APAGAN EXPLÍCITO (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1): sin esto, el
+// default `true` de `titularVisible`/`subtituloVisible`/`ctasVisibles` haría que la zona titular
+// rindiera DE PASO (su wrapper hereda `--sf-sobre-banda-suave`, igual que el cue; su CTA secundario
+// usa `font-medium`), contaminando las dos aserciones GLOBALES de abajo — que son sobre la FRASE,
+// no sobre la zona nueva. Apagar las tres aísla el test al elemento que afirma.
 test('hero.fraseAlPie: rol PLENO (--sf-sobre-banda), NUNCA el suave translúcido — el mismo rol que ya usa el texto del marquee', () => {
-  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.', titularVisible: false, subtituloVisible: false, ctasVisibles: false },
+  } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);
   assert.match(html, /text-\[var\(--sf-sobre-banda,white\)\]/, 'debe pintar con el rol pleno, fallback white — igual que el marquee y el cue');
-  assert.doesNotMatch(html, /--sf-sobre-banda-suave/, 'sin `cueDesliza` (default false) el único --sf-sobre-banda-suave posible era esta frase; no debe quedar rastro');
+  assert.doesNotMatch(html, /--sf-sobre-banda-suave/, 'sin `cueDesliza` (default false) ni la zona titular (apagada acá), el único --sf-sobre-banda-suave posible era esta frase; no debe quedar rastro');
 });
 
 // § CORTE-CUERPO-FIGTREE-PESO-1: `font-normal` (literal 400, ciego al par) pasa a `sf-peso-normal`
@@ -451,11 +466,14 @@ test('hero.fraseAlPie: rol PLENO (--sf-sobre-banda), NUNCA el suave translúcido
 // cualquier otro par cae al mismo 400 de siempre (byte-idéntico). El nombre de la clase cambia; el
 // COMPORTAMIENTO de "regular, no font-medium" para todo tenant que no declare peso propio, no.
 test('hero.fraseAlPie: peso REGULAR (sf-peso-normal, no font-medium) — sigue a --sf-peso-cuerpo del par, 400 por defecto', () => {
-  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.', titularVisible: false, subtituloVisible: false, ctasVisibles: false },
+  } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);
   assert.match(html, /text-right[^"]*sf-peso-normal[^"]*leading-relaxed/, 'sf-peso-normal debe ir junto al resto de la tipografía de la frase');
   assert.doesNotMatch(html, /font-normal/, 'ya no es el 400 fijo de Tailwind — ahora sigue al par vía sf-peso-normal');
-  assert.doesNotMatch(html, /font-medium/, 'la subida de peso de CROMO-NAV-EXACTO-PROTOTIPO-1 se revierte — la causa real era el color');
+  assert.doesNotMatch(html, /font-medium/, 'la subida de peso de CROMO-NAV-EXACTO-PROTOTIPO-1 se revierte — la causa real era el color; la zona titular (su CTA secundario usa font-medium) está apagada acá');
 });
 
 test('hero.fraseAlPie: el tamaño sigue los DOS tokens del muestrario por breakpoint — 13px bajo 640px (--text-body-xs), 14px desde 640px (--text-body-s, = text-sm, sin cambio)', () => {
@@ -644,4 +662,143 @@ test('Marquesina.tsx, CON modo editor: el ticker duplicado marca UN SOLO `<span>
   assert.equal((html.match(new RegExp(DEFAULTS.marquesina.fraseBanda, 'g')) ?? []).length, 3);
   assert.equal(contarMarcador(html, 'marquesina.fraseBanda'), 1);
   assert.equal(contarMarcador(html, 'marquesina.texto'), 0, 'la banda suelta ya no marca el campo del hero');
+});
+
+// ─── LA ZONA «TITULAR/SUBTÍTULO/BOTÓN» — § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1 ────────────────────
+//
+// Revierte la Desviación 1 de EDITOR-TIENDA-ZONAS-1 (§ el docstring de cabecera de
+// `HeroMediaMarquesina.tsx`, mismo id): `titularVisible`/`subtituloVisible`/`ctasVisibles` ahora
+// TAMBIÉN tienen efecto bajo `hero.variante === 'sticky'`, leyendo los MISMOS campos que `media`
+// (sin campos nuevos). Todo contenido ANTERIOR a este bloque que ejercita la zona por casualidad
+// (el default `true` de los tres toggles) la apaga explícito para no contaminar su propia
+// aserción — ver las dos excepciones arregladas arriba, § "LAS TRES ZONAS NUEVAS SE APAGAN
+// EXPLÍCITO".
+
+test('DEFAULT (titularVisible/subtituloVisible/ctasVisibles en su true de siempre): la zona rinde titulo+tituloEnfasis, subtitulo y los DOS CTA', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.ok(html.includes(DEFAULTS.hero.titulo), 'el titulo debe rendir');
+  assert.ok(html.includes(DEFAULTS.hero.tituloEnfasis), 'el énfasis debe rendir junto al titulo');
+  assert.ok(html.includes(DEFAULTS.hero.subtitulo), 'el subtitulo debe rendir');
+  assert.ok(html.includes(DEFAULTS.hero.ctaPrimarioLabel), 'el CTA primario debe rendir');
+  assert.ok(html.includes(DEFAULTS.hero.ctaSecundarioLabel), 'el CTA secundario debe rendir');
+  assert.match(html, /<h2\b/, 'el titular de la zona es un <h2> — nunca el <h1> que usa HeroMedia para SU titular dominante');
+});
+
+test('titularVisible:false — sin titulo ni tituloEnfasis, pero subtitulo y CTA se conservan (apagadores independientes)', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, titularVisible: false } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.ok(!html.includes(DEFAULTS.hero.titulo));
+  assert.ok(!html.includes(DEFAULTS.hero.tituloEnfasis));
+  assert.ok(html.includes(DEFAULTS.hero.subtitulo), 'subtituloVisible sigue en su default true');
+  assert.ok(html.includes(DEFAULTS.hero.ctaPrimarioLabel), 'ctasVisibles sigue en su default true');
+});
+
+test('subtituloVisible:false — sin subtitulo, titulo y CTA se conservan', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, subtituloVisible: false } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.ok(!html.includes(DEFAULTS.hero.subtitulo));
+  assert.ok(html.includes(DEFAULTS.hero.titulo));
+  assert.ok(html.includes(DEFAULTS.hero.ctaPrimarioLabel));
+});
+
+test('ctasVisibles:false — sin los DOS botones, titulo y subtitulo se conservan', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, ctasVisibles: false } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.ok(!html.includes(DEFAULTS.hero.ctaPrimarioLabel));
+  assert.ok(!html.includes(DEFAULTS.hero.ctaSecundarioLabel));
+  assert.ok(html.includes(DEFAULTS.hero.titulo));
+  assert.ok(html.includes(DEFAULTS.hero.subtitulo));
+});
+
+test('los TRES apagados a la vez: la zona entera no rinde nada de hero.titulo/subtitulo/ctaPrimarioLabel/ctaSecundarioLabel', () => {
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, titularVisible: false, subtituloVisible: false, ctasVisibles: false },
+  } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.ok(!html.includes(DEFAULTS.hero.titulo));
+  assert.ok(!html.includes(DEFAULTS.hero.subtitulo));
+  assert.ok(!html.includes(DEFAULTS.hero.ctaPrimarioLabel));
+  assert.ok(!html.includes(DEFAULTS.hero.ctaSecundarioLabel));
+  assert.doesNotMatch(html, /<h2\b/, 'sin nada que mostrar, el <h2> ni se monta');
+});
+
+// ─── NACE APAGADA EN TODA TIENDA EXISTENTE — MEDIDO contra CORTE, el único preset con 'sticky' ────
+
+test('CORTE (Onix/Las Chamisas, el único preset con hero:"sticky") sigue declarando los tres en false — la zona nace APAGADA sin tocar themes.ts', () => {
+  assert.equal(CORTE.heroTitularVisible, false);
+  assert.equal(CORTE.heroSubtituloVisible, false);
+  assert.equal(CORTE.heroCtasVisibles, false);
+});
+
+test('ningún OTRO preset del catálogo declara `hero: "sticky"` — el riesgo de "nace apagada" está acotado a CORTE', () => {
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.notEqual(preset.variantes.hero, 'sticky', `${preset.clave} no debería usar hero:'sticky'`);
+  }
+});
+
+test('?tema=CORTE sobre Nayoli: la zona titular/subtítulo/botón NO rinde — "ninguna tienda cambia" para el único tenant real de sticky', () => {
+  const nayoli = resolverSiteContent({});
+  const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
+  assert.equal(conCorte.hero.variante, 'sticky');
+  assert.equal(conCorte.hero.titularVisible, false);
+  assert.equal(conCorte.hero.subtituloVisible, false);
+  assert.equal(conCorte.hero.ctasVisibles, false);
+
+  const html = renderHeroMediaMarquesina(conCorte);
+  assert.doesNotMatch(html, /<h2\b/, 'sin titularVisible, el <h2> de la zona no se monta bajo CORTE');
+  assert.ok(!html.includes(DEFAULTS.hero.ctaPrimarioLabel));
+});
+
+// ─── LA POSICIÓN — la zona queda ARRIBA del cue, ambas en el MISMO wrapper absolute ──────────────
+
+test('con titularVisible Y cueDesliza encendidos: el <h2> de la zona aparece ANTES de `data-hero-cue` en el HTML (apilados en el mismo wrapper, titular arriba)', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, cueDesliza: true } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  const iTitular = html.indexOf('<h2');
+  const iCue = html.indexOf('data-hero-cue');
+  assert.ok(iTitular > -1 && iCue > -1, 'los dos deben estar presentes');
+  assert.ok(iTitular < iCue, 'el titular debe aparecer ANTES del cue en el documento — "sobre el indicador Desliza"');
+});
+
+test('con titularVisible encendido y cueDesliza apagado (el default): el wrapper rinde SÓLO la zona, en el mismo lugar — "en su lugar si el indicador está apagado"', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, /data-hero-cue/, 'cueDesliza sigue en su default false');
+  assert.match(html, /<h2\b/, 'la zona rinde igual, sin el cue');
+});
+
+// ─── EL CTA SECUNDARIO RESPETA EL GATE DE SUSCRIPCIONES, igual que HeroMedia.tsx ──────────────────
+
+test('ctaSecundarioLabel NO rinde si la página de suscripciones está apagada — mismo guard que HeroMedia.tsx', () => {
+  const content = {
+    ...DEFAULTS,
+    hero: { ...DEFAULTS.hero, ctaSecundarioLabel: 'Suscríbete' },
+    paginas: { ...DEFAULTS.paginas, suscripciones: { visible: false } },
+  } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.ok(!html.includes('Suscríbete'), 'sin la página de suscripciones, el CTA que apunta ahí no debe rendir');
+  assert.ok(html.includes(DEFAULTS.hero.ctaPrimarioLabel), 'el primario no depende de ese gate');
+});
+
+// ─── SIN ANIMACIÓN DE ENTRADA — "la misma entrada de bloque que usa la leyenda del hero" ─────────
+
+test('EN PREVIEW (movimiento reducido): la zona sigue rindiendo — texto estático, nunca depende del scroll ni de `estatico`', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData, { preview: true });
+  assert.ok(html.includes(DEFAULTS.hero.titulo), 'a diferencia del cue, la zona NO se gatea por preview — es texto estático, como la leyenda');
+});
+
+// ─── EL ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) TAMBIÉN APLICA ACÁ — MISMOS roles ──
+
+test('hero.estilos.titulo con tamano declarado: la zona titular de sticky TAMBIÉN respeta el estilo por elemento, mismo mecanismo que HeroMedia.tsx', () => {
+  const content = {
+    ...DEFAULTS,
+    hero: {
+      ...DEFAULTS.hero,
+      estilos: { ...DEFAULTS.hero.estilos, titulo: { fuente: null, tamano: 'enorme' as const, color: 'acento' as const, alinear: null } },
+    },
+  } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.match(html, /<h2[^>]*style="[^"]*font-size:clamp\(72px/, 'el paso "enorme" de ESTILO-ELEMENTO debe aplicar al <h2> de la zona');
+  assert.match(html, /<h2[^>]*style="[^"]*color:var\(--sf-acento\)/, 'el color por rol también debe aplicar');
 });

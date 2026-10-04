@@ -115,12 +115,19 @@ test('LA INVARIANTE: sin ?tema= (Nayoli), el hero rinde con los dos CTA y sin cu
 // § CORTE-USA-HERO-STICKY-1 REESCRIBIÓ este caso: CORTE pasó `variantes.hero` de 'media' a 'sticky',
 // así que `HeroSection` (el dispatcher) ya NO enruta a `HeroMedia` sino a `HeroMediaMarquesina`
 // (§ HeroSection.tsx, `VARIANTES.sticky`). `heroCtasVisibles`/`heroCueDesliza` SIGUEN declarados en
-// CORTE (`themes.ts` no los toca), pero desde entonces los dos divergieron: `ctasVisibles` sigue sin
-// efecto (`HeroMediaMarquesina` no rinde CTA en NINGÚN caso); `cueDesliza`, en cambio, VOLVIÓ a tener
-// efecto en § CORTE-HERO-STICKY-RONDA-2-1 — el owner pidió el cue VISIBLE sobre el prototipo
-// aplicado, y la variante pasó a leer el MISMO campo (§ `hero-marquesina.test.ts`, el caso que ESE
-// slice invirtió: "la variante RINDE el cue, mismo marcado que HeroMedia"). La ausencia de CTA sigue
-// siendo cierta (nunca rinden, con o sin el toggle); el cue "Desliza" SÍ rinde bajo CORTE de nuevo.
+// CORTE (`themes.ts` no los toca).
+//
+// "`ctasVisibles` sigue sin efecto (HeroMediaMarquesina no rinde CTA en NINGÚN caso)" DEJÓ DE SER
+// CIERTO (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1): `HeroMediaMarquesina` gana su propia zona de
+// titular/subtítulo/botón que SÍ lee `ctasVisibles` (y `titularVisible`/`subtituloVisible`) —
+// ver `hero-marquesina.test.ts`, § "LA ZONA «TITULAR/SUBTÍTULO/BOTÓN»". La ausencia de CTA que este
+// test afirma SIGUE siendo cierta PARA CORTE específicamente — no porque sticky ignore el campo en
+// general, sino porque CORTE declara `heroCtasVisibles:false` (la misma razón por la que la zona
+// nace apagada para todo tenant real, § el docstring de cabecera de `HeroMediaMarquesina.tsx`).
+// `cueDesliza`, por su lado, tiene efecto desde § CORTE-HERO-STICKY-RONDA-2-1 — el owner pidió el
+// cue VISIBLE sobre el prototipo aplicado, y la variante pasó a leer el MISMO campo (§
+// `hero-marquesina.test.ts`, el caso que ESE slice invirtió: "la variante RINDE el cue, mismo
+// marcado que HeroMedia"). El cue "Desliza" SÍ rinde bajo CORTE de nuevo.
 test('?tema=CORTE sobre Nayoli: el hero pasa a sticky — sin CTA (como antes) y CON el cue "Desliza" (§ CORTE-HERO-STICKY-RONDA-2-1)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');

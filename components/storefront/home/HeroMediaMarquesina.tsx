@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { preload } from "react-dom";
 import Image from "next/image";
+import Link from "next/link";
 
 import { motion, useReducedMotion, useTransform } from "framer-motion";
 
@@ -10,7 +11,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable, { useRutaEnEdicion } from "@/components/storefront/CampoEditable";
-import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
   useProgresoScrollDesdeTope, veloOpacidad, rangoVeloDeIntensidad,
@@ -543,6 +544,56 @@ import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 // el revelado enmascarado sigue siendo tres elementos, sin cambio — el defecto era específico de
 // envolver una FOTO con el mismo mecanismo pensado para una LÍNEA de texto.
 
+// LA ZONA «TITULAR/SUBTÍTULO/BOTÓN» — § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1 (2026-10-04), follow-up
+// explícito de EDITOR-TIENDA-ZONAS-1: aquel slice midió que `titularVisible`/`subtituloVisible`/
+// `ctasVisibles` SÓLO tenían efecto en 'media' y dejó agregarlos a 'sticky' como una decisión de
+// producto pendiente (Desviación 1, § su docstring en `tienda-secciones.ts`). El owner la resolvió:
+// «Agrégalo, la frase no debería tratarse como el titular» — pedido de origen: «si alguien quiere
+// agregar un título o subtítulo, aparezca un cuadro de texto en la sección que se supone es para el
+// título o subtítulo».
+//
+// LEE LOS MISMOS CAMPOS/BOOLEANOS QUE `HeroMedia.tsx`, SIN CAMPOS NUEVOS (instrucción explícita del
+// spec): `hero.titulo`/`.tituloEnfasis`/`.subtitulo`/`.ctaPrimarioLabel`/`.ctaSecundarioLabel` +
+// `titularVisible`/`subtituloVisible`/`ctasVisibles`. La marquesina (`marquesina.texto`, el loop
+// gigante de arriba) NO es el titular — son dos zonas de texto DISTINTAS, cada una con su propio
+// apagador, viviendo en el mismo hero.
+//
+// POSICIÓN: abajo a la izquierda, ENCIMA del indicador "Desliza" (comparten el mismo wrapper
+// `absolute`, ver más abajo en el cuerpo — `flex-col`, así que el primer hijo queda arriba del
+// segundo sin necesitar dos anclajes `bottom` distintos): si el indicador está apagado, el bloque
+// cae exactamente en su lugar, porque el wrapper se encoge al contenido que SÍ tiene.
+//
+// ESCALA: el titular de esta zona es un `<h2>` (nunca el `<h1>` que `HeroMedia.tsx` usa para EL
+// titular dominante de esa variante — acá la frase de la marquesina sigue siendo lo grande, § el
+// docstring de `HeroMedia.tsx`, "LAS ZONAS": "sticky no rinde titular/subtítulo/botones EN NINGÚN
+// CASO" describía el estado ANTES de este slice, no después) con clases Tailwind FIJAS, nunca
+// `fontSizeDisplay`/`tema.escalaDisplay` (el eje que puede inflar el titular de `media` hasta
+// 168px bajo CORTE/'amplia') — así la zona se mantiene "claramente menor" que la marquesina SIN
+// importar qué escala declare el tema.
+//
+// ENTRADA: SIN animación de entrada — "la misma entrada de bloque que usa la leyenda del hero"
+// (`hero.fraseAlPie`, el elemento de tipo 'leyenda', § estilo-elemento.ts): esa leyenda nunca animó
+// ("vive FUERA del loop de texto/tarjeta, así que no comparte su stagger ni su revelado", § el
+// docstring de "LA FRASE AL PIE" arriba) — un bloque ESTÁTICO ya cumple "movimiento reducido =
+// quieto" trivialmente, sin un gate propio de `estatico`/`reduce` que mantener.
+//
+// NACE APAGADA EN TODA TIENDA EXISTENTE — MEDIDO, no construido: el ÚNICO preset del catálogo con
+// `hero:'sticky'` es CORTE, y CORTE ya declaraba `heroTitularVisible:false`/`heroSubtituloVisible:
+// false`/`heroCtasVisibles:false` desde su era 'media' (§ CORTE-HERO-TITULAR-OCULTABLE-1/TEMAS-
+// HERO-TOGGLES-PRESET-1, antes de que `sticky` existiera) — nunca se retiraron al cambiar de
+// variante. Ningún otro preset del catálogo declara `hero:'sticky'` (`grep -n "hero: '" themes.ts`).
+// Por tanto Onix/Café Las Chamisas (los dos tenants reales de CORTE) ven la zona APAGADA sin que
+// este slice toque `themes.ts` — "ninguna tienda cambia hasta que alguien toque «+ Titular»" es una
+// propiedad YA CIERTA del preset existente. El riesgo residual —un tenant que cambie `hero.variante`
+// a 'sticky' desde el picker del panel (`ComposicionHero.tsx`, § EDITOR-TIENDA-COMPOSICION-1) SIN
+// pasar por `aplicarPreset`— queda anotado en el asiento de este slice (`DECISIONS.md`): ese picker
+// sólo escribe `variante`, nunca los tres booleanos, así que un tenant que los tuviera en `true`
+// antes de ese cambio (el default de `DEFAULTS.hero`, § arriba) vería la zona encenderse de
+// inmediato. No se cierra en este slice —no hay evidencia de que ese camino se haya usado nunca
+// para llegar a 'sticky'— y es un riesgo PREEXISTENTE de esa otra capacidad (EDITOR-TIENDA-
+// COMPOSICION-1 ya podía cambiar la variante entera sin preguntar qué se pierde en los campos que
+// SÍ comparten nombre con `media`), no algo que este slice introduzca.
+//
 // LAS ZONAS (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4) — misma pieza LOCAL que
 // `HeroMedia.tsx` (duplicada a propósito, no un módulo compartido: § el docstring de esa copia, el
 // mismo criterio ya aceptado en este repo para piezas chicas entre las 4 variantes del hero).
@@ -567,11 +618,15 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
 }
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, marquesina, tema } = useSiteContent();
+  const { hero, marquesina, tema, paginas } = useSiteContent();
   const preview = useIsPreview();
   // LAS ZONAS — `useModoEditorActivo()`, NO `useIsPreview()` (§ el docstring equivalente en
   // `HeroMedia.tsx`, el mismo desvío medido del texto literal del spec).
   const activoEditor = useModoEditorActivo();
+  // LA ZONA TITULAR/SUBTÍTULO/BOTÓN (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1, el docstring de arriba
+  // con este mismo id) — MISMO guard que `HeroMedia.tsx` para el 2º CTA: se oculta si suscripciones
+  // está apagada y ese es su destino.
+  const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
   // EL CAMPO `marquesina.texto` SE ESTÁ EDITANDO AHORA MISMO (§ EDITOR-TIENDA-CAMPO-ANCLADO-1,
@@ -873,25 +928,104 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           </p>
         )}
 
-        {/* CUE ANIMADO "DESLIZA" — RONDA 2 (§ el docstring de cabecera): MISMO marcado que
-            `HeroMedia.tsx` (data-hero-cue, la línea + el segmento que la recorre + la etiqueta),
-            leyendo el MISMO campo `hero.cueDesliza`. Se OMITE en preview (scrollear no significa
-            nada en un marco de vista previa); reduced-motion lo congela vía `ReducedMotionProvider`
-            (global), sin guard propio. */}
-        {hero.cueDesliza && !preview && (
-          <div
-            data-hero-cue="desliza"
-            className="absolute bottom-8 left-4 z-10 flex flex-col items-start gap-3 sm:bottom-10 sm:left-6 lg:bottom-12 lg:left-8 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
-          >
-            <div className="relative h-14 w-px overflow-hidden bg-[var(--sf-linea-sobre,white)]/30">
-              <motion.span
-                aria-hidden="true"
-                className="absolute inset-x-0 top-0 h-1/2 w-full bg-[var(--sf-sobre-banda,white)]"
-                animate={{ y: ['-100%', '220%'] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-              />
-            </div>
-            <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
+        {/* EL GRUPO «TITULAR/SUBTÍTULO/BOTÓN + DESLIZA» — § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1 (el
+            docstring de cabecera con este mismo id). UN SOLO wrapper `absolute` (los mismos offsets
+            que el cue ya tenía: bottom-8/left-4, sm:bottom-10/left-6, lg:bottom-12/left-8 — y el
+            MISMO color heredado `--sf-sobre-banda-suave`, que el `<span>Desliza</span>` sin color
+            propio ya dependía de heredar) en vez de dos. `flex-col` hace el resto: el PRIMER hijo
+            (la zona titular, si tiene algo que mostrar) queda ARRIBA; el cue, SEGUNDO hijo, se queda
+            donde siempre — "sobre el indicador «Desliza»". Si la zona titular está vacía (todo
+            apagado, fuera del editor) ese primer hijo no existe y el cue ocupa solo el wrapper,
+            exactamente en su posición de HOY: "en su lugar si el indicador está apagado" se cumple
+            por construcción (el wrapper se encoge al contenido real), sin una segunda rama de
+            posicionamiento que mantener. Ancho acotado (`max-w-[48vw] sm:max-w-xs`) para no
+            alcanzar a "LA FRASE AL PIE" (arriba, bottom-right) en un viewport angosto. */}
+        {(hero.titularVisible || hero.subtituloVisible || hero.ctasVisibles || activoEditor || (hero.cueDesliza && !preview)) && (
+          <div className="absolute bottom-8 left-4 z-10 flex max-w-[48vw] flex-col items-start gap-4 sm:bottom-10 sm:left-6 sm:max-w-xs lg:bottom-12 lg:left-8 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
+            {(hero.titularVisible || hero.subtituloVisible || hero.ctasVisibles || activoEditor) && (
+              <div className="flex flex-col items-start gap-2">
+                {hero.titularVisible ? (
+                  <>
+                    <h2
+                      className="font-playfair text-xl leading-[1.15] text-[var(--sf-sobre-banda,white)] sm:text-2xl"
+                      style={estiloInlineDeElemento(hero.estilos.titulo, 'titular', tema.fuentePar)}
+                    >
+                      <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
+                      {hero.tituloEnfasis && (
+                        <>
+                          <br />
+                          <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">
+                            <CampoEditable campo="hero.tituloEnfasis">{hero.tituloEnfasis}</CampoEditable>
+                          </em>
+                        </>
+                      )}
+                    </h2>
+                    {activoEditor && <ZonaChip onClic={{ campo: 'titularVisible', valor: 'false' }}>Quitar Titular</ZonaChip>}
+                  </>
+                ) : activoEditor && (
+                  <ZonaChip onClic={{ campo: 'titularVisible', valor: 'true' }}>+ Titular</ZonaChip>
+                )}
+
+                {hero.subtituloVisible ? (
+                  <>
+                    <p
+                      className="max-w-[28ch] text-xs leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))] sm:text-sm"
+                      style={estiloInlineDeElemento(hero.estilos.subtitulo, 'subtitulo', tema.fuentePar)}
+                    >
+                      <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
+                    </p>
+                    {activoEditor && <ZonaChip onClic={{ campo: 'subtituloVisible', valor: 'false' }}>Quitar Subtítulo</ZonaChip>}
+                  </>
+                ) : activoEditor && (
+                  <ZonaChip onClic={{ campo: 'subtituloVisible', valor: 'true' }}>+ Subtítulo</ZonaChip>
+                )}
+
+                {hero.ctasVisibles ? (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={HERO_HREFS.primario}
+                        className="sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity duration-200 hover:opacity-90"
+                        style={estiloInlineDeElemento(hero.estilos.ctaPrimarioLabel, 'boton', tema.fuentePar)}
+                      >
+                        <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
+                      </Link>
+                      {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
+                        <Link
+                          href={HERO_HREFS.secundario}
+                          className="sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-4 py-2 text-xs font-medium text-[var(--sf-sobre-banda,white)] transition-colors duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                          style={estiloInlineDeElemento(hero.estilos.ctaSecundarioLabel, 'boton', tema.fuentePar)}
+                        >
+                          <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
+                        </Link>
+                      )}
+                    </div>
+                    {activoEditor && <ZonaChip onClic={{ campo: 'ctasVisibles', valor: 'false' }}>Quitar Botones</ZonaChip>}
+                  </>
+                ) : activoEditor && (
+                  <ZonaChip onClic={{ campo: 'ctasVisibles', valor: 'true' }}>+ Botón</ZonaChip>
+                )}
+              </div>
+            )}
+
+            {/* CUE ANIMADO "DESLIZA" — RONDA 2 (§ el docstring de cabecera): MISMO marcado que
+                `HeroMedia.tsx` (data-hero-cue, la línea + el segmento que la recorre + la etiqueta),
+                leyendo el MISMO campo `hero.cueDesliza`. Se OMITE en preview (scrollear no significa
+                nada en un marco de vista previa); reduced-motion lo congela vía `ReducedMotionProvider`
+                (global), sin guard propio. */}
+            {hero.cueDesliza && !preview && (
+              <div data-hero-cue="desliza" className="flex flex-col items-start gap-3">
+                <div className="relative h-14 w-px overflow-hidden bg-[var(--sf-linea-sobre,white)]/30">
+                  <motion.span
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-1/2 w-full bg-[var(--sf-sobre-banda,white)]"
+                    animate={{ y: ['-100%', '220%'] }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                </div>
+                <span className="text-xs font-normal uppercase tracking-[0.11em]">Desliza</span>
+              </div>
+            )}
           </div>
         )}
         {/* LA ZONA «INDICADOR» (§ EDITOR-TIENDA-ZONAS-1) — mismo criterio que `HeroMedia.tsx`:

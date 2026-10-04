@@ -148,27 +148,30 @@ test('WIRING — hero.estilos.titulo.tamano GANA sobre tema.escalaDisplay cuando
 });
 
 // § CORTE-USA-HERO-STICKY-1 — el hero REAL de CORTE hoy (`hero:'sticky'` → `HeroMediaMarquesina`).
-// `HeroMediaMarquesina` no rinde NINGÚN `<h1>` (no tiene titular propio; su contenido es el marquee
-// + la tarjeta de producto, § su docstring de cabecera) — así que `escalaDisplay` no tiene un h1 al
-// que aplicarse en esta composición. ESTO NO ES UNA PÉRDIDA DE ESTE SLICE: el h1 de `HeroMedia` YA
-// no rendía bajo CORTE desde `CORTE-HERO-TITULAR-OCULTABLE-1` — CORTE declara
-// `heroTitularVisible:false`, así que `{hero.titularVisible && <motion.h1 …>}` (HeroMedia.tsx)
-// tampoco montaba el h1 con la variante vieja ('media'). El resultado observable para el visitante
-// —CERO h1 con font-size inline en el hero de CORTE— es IDÉNTICO antes y después de este slice; sólo
-// cambió el MECANISMO (antes: h1 existía en el árbol pero oculto por el gate; ahora: el componente
-// nunca declara un h1). `escalaDisplay:'amplia'` de CORTE SIGUE aplicando en las OTRAS bandas que sí
-// leen este eje (`presentaciones·riel`, abajo, y featured/brandStory/subscriptionCTA/testimonials/
-// origen — fuera del alcance de este archivo, afirmado en sus propios tests) — "la escala aplica"
-// sigue siendo cierto para CORTE, sólo que nunca fue observable en el hero, ni antes ni ahora.
-test('bajo `?tema=CORTE` (hero real, "sticky"): ningún h1 lleva font-size inline — HeroMediaMarquesina no rinde h1, igual que antes (titularVisible:false ya lo ocultaba)', () => {
+// "`HeroMediaMarquesina` no rinde NINGÚN `<h1>` (no tiene titular propio)" DEJÓ DE SER CIERTO EN
+// GENERAL (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1): la composición gana su propia zona de titular/
+// subtítulo/botón, abajo a la izquierda sobre el indicador "Desliza" — pero ese titular es un
+// `<h2>` (nunca un `<h1>`, a propósito: la frase de la marquesina sigue siendo lo grande, § el
+// docstring de cabecera de `HeroMediaMarquesina.tsx`, "ESCALA"), así que el enunciado "ningún h1"
+// SIGUE siendo cierto, por una razón distinta a la de antes (antes: el componente no declaraba
+// titular en absoluto; ahora: lo declara, pero como h2, nunca como h1 — `escalaDisplay` sólo se
+// aplica a un `<h1>` vía `fontSizeDisplay`, § HeroMedia.tsx/HeroCurtina.tsx/HeroFicha.tsx, y esta
+// variante nunca llama a esa función para su zona). Bajo CORTE específicamente, la zona TAMPOCO
+// rinde ningún `<h2>` propio: CORTE declara `heroTitularVisible:false` (§ CORTE-HERO-TITULAR-
+// OCULTABLE-1), así que el resultado observable para el visitante —CERO h1 con font-size inline en
+// el hero de CORTE— sigue IDÉNTICO. `escalaDisplay:'amplia'` de CORTE SIGUE aplicando en las OTRAS
+// bandas que sí leen este eje (`presentaciones·riel`, abajo, y featured/brandStory/subscriptionCTA/
+// testimonials/origen — fuera del alcance de este archivo, afirmado en sus propios tests).
+test('bajo `?tema=CORTE` (hero real, "sticky"): ningún h1 lleva font-size inline — ni la marquesina ni la zona titular (un <h2>, con titularVisible:false bajo CORTE) usan escalaDisplay', () => {
   const conCorte = contenidoConPresetDeVista(resolverSiteContent({}), 'CORTE');
   assert.equal(conCorte.hero.variante, 'sticky');
+  assert.equal(conCorte.hero.titularVisible, false, 'CORTE apaga la zona titular — su <h2> ni se monta');
   assert.equal(conCorte.tema.escalaDisplay, 'amplia', 'CORTE sigue declarando la escala — no se tocó por este slice');
 
   const html = renderToStaticMarkup(
     React.createElement(SiteContentProvider, { value: conCorte, children: React.createElement(HeroSection) }),
   );
-  assert.doesNotMatch(html, /<h1\b/, 'HeroMediaMarquesina no rinde ningún h1');
+  assert.doesNotMatch(html, /<h1\b/, 'ni HeroMediaMarquesina ni su zona titular (un <h2>) rinden un h1');
 });
 
 test('WIRING — HeroSection (variante "curtina", la canónica/Nayoli): sin escala, byte-idéntica; con "amplia", el MISMO clamp del hero (independiente de la variante)', () => {

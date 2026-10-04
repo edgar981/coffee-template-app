@@ -73,11 +73,19 @@ const OPCIONES_ALTURA_HERO: { value: string; label: string }[] =
 // `hero.variante`, el hueco que `PENDIENTE_PANEL` venía nombrando como `PANEL-EDITOR-VARIANTES-
 // COMPOSICION-1` (§ panel-controles.ts). Las ZONAS de cada composición están MEDIDAS contra el
 // código real de cada variante (HeroCurtina.tsx/HeroFicha.tsx/HeroMedia.tsx/
-// HeroMediaMarquesina.tsx) — NO copiadas de la tabla de REDISENO.md § 4, escrita ANTES de que
-// `EDITOR-TIENDA-ZONAS-1` midiera la Desviación 1: `titularVisible`/`subtituloVisible`/
-// `ctasVisibles` SÓLO tienen efecto en 'media'; 'sticky' NO rinde titular/subtítulo/botones EN
-// NINGÚN CASO (grep de los tres da cero en `HeroMediaMarquesina.tsx`). Repetir esa tabla tal cual
-// habría anunciado en el panel tres zonas que la composición "Marquesina" nunca muestra.
+// HeroMediaMarquesina.tsx).
+//
+// `titularVisible`/`subtituloVisible`/`ctasVisibles` SÓLO TENÍAN EFECTO EN 'media' — ESO CAMBIÓ
+// (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1): la composición "sticky" gana su PROPIA zona de
+// titular/subtítulo/botón, abajo a la izquierda sobre el indicador "Desliza", leyendo los MISMOS
+// tres booleanos y los MISMOS campos de texto que 'media' (sin campos nuevos — § el pedido del
+// owner sobre EDITOR-TIENDA-ZONAS-1: "la frase [de la marquesina] no debería tratarse como el
+// titular"). `ZONAS_MARQUESINA` (abajo) ya refleja esto. MEDIDO antes de escribir: CORTE —el único
+// preset que usa `hero:'sticky'` hoy— declara `heroTitularVisible:false`/`heroSubtituloVisible:
+// false`/`heroCtasVisibles:false` desde la era 'media' de ese preset (§ CORTE-HERO-TITULAR-
+// OCULTABLE-1/TEMAS-HERO-TOGGLES-PRESET-1), así que la zona nace APAGADA para Onix/Las Chamisas
+// sin que este slice toque `themes.ts` — "ninguna tienda cambia hasta que alguien toque «+
+// Titular»" es una propiedad MEDIDA del preset ya existente, no algo que haya que construir.
 //
 // `textoVisible: false` marca una zona de FEATURE (el indicador "Desliza", el velo) en vez de
 // TEXTO: sólo las de texto alimentan el aviso "Se guarda: …" del picker — un booleano que deja de
@@ -115,13 +123,19 @@ const ZONAS_PORTADA: ZonaComposicion[] = [
   { campos: ['cueDesliza'], label: 'Indicador', textoVisible: false },
   { campos: ['imagen'], label: 'Fondo' },
 ];
-// 'sticky' (Marquesina) NO lee titular/subtítulo/botones en ningún caso (Desviación 1,
-// EDITOR-TIENDA-ZONAS-1, REDISENO.md § 9): sus zonas de texto son la frase del loop y el producto
-// pineado (`texto`/`productoSlug`, § `seccionCruzada: 'marquesina'` en `HERO.campos` abajo), no el
-// titular genérico.
+// 'sticky' (Marquesina) GANA titular/subtítulo/botones (§ EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1,
+// revierte la Desviación 1 de EDITOR-TIENDA-ZONAS-1/REDISENO.md § 9, que las había dejado fuera por
+// ser decisión de producto pendiente — ya la tomó el owner). Siguen siendo zonas APARTE de la frase
+// del loop y el producto pineado (`texto`/`productoSlug`, § `seccionCruzada: 'marquesina'` en
+// `HERO.campos` abajo): la marquesina NO es el titular. Orden calcado de `REDISENO.md § 4` (Titular
+// · Subtítulo · Marquesina · Leyenda · Botón · Indicador · Fondo, con "Velo" sumado después de esa
+// tabla por CORTE-HERO-VELO-OFF-Y-TICKER-1).
 const ZONAS_MARQUESINA: ZonaComposicion[] = [
+  { campos: ['titulo', 'tituloEnfasis'], label: 'Titular' },
+  { campos: ['subtitulo'], label: 'Subtítulo' },
   { campos: ['texto', 'productoSlug'], label: 'Marquesina' },
   { campos: ['fraseAlPie'], label: 'Leyenda' },
+  { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
   { campos: ['cueDesliza'], label: 'Indicador', textoVisible: false },
   { campos: ['veloVisible', 'veloIntensidad'], label: 'Velo', textoVisible: false },
   { campos: ['imagen'], label: 'Fondo' },
@@ -377,20 +391,24 @@ const HERO: SeccionConfig = {
   // `veloVisible` SÍ gatea desde RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1): con el velo apagado, su
   // intensidad no tiene efecto, así que `veloIntensidad` (abajo, en `campos`) se atenúa junto con él —
   // MISMO mecanismo que `titularVisible`→`titulo`, no uno nuevo. `titularVisible`/`subtituloVisible`/
-  // `ctasVisibles`/`alturaLlena` SÓLO tienen efecto visible con `hero.variante === 'media'` (curtina/
-  // ficha no los leen, § HeroMedia.tsx); `cueDesliza` lo lee TAMBIÉN `hero.variante === 'sticky'`
-  // (§ HeroMediaMarquesina.tsx, RONDA 2); `veloVisible` (§ CORTE-HERO-VELO-OFF-Y-TICKER-1) lo lee
-  // SÓLO `hero.variante === 'sticky'` — el overlay que `HeroMedia` no tiene (su propio velo es un
-  // degradado fijo, no toggleable). El eje `variante` mismo GANA su control de panel en
+  // `ctasVisibles` tienen efecto visible con `hero.variante === 'media'` **Y, desde
+  // § EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1, TAMBIÉN con `'sticky'`** (curtina/ficha siguen sin
+  // leerlos — rinden titular/subtítulo/botones sin condición, § HeroCurtina.tsx/HeroFicha.tsx);
+  // `alturaLlena` SIGUE exclusivo de `'media'` (sticky no lo lee, § el docstring de cabecera de
+  // `HeroMediaMarquesina.tsx`, "ALTURALLENA sigue SIN leerse acá"); `cueDesliza` lo lee TAMBIÉN
+  // `hero.variante === 'sticky'` (§ HeroMediaMarquesina.tsx, RONDA 2); `veloVisible` (§ CORTE-HERO-
+  // VELO-OFF-Y-TICKER-1) lo lee SÓLO `hero.variante === 'sticky'` — el overlay que `HeroMedia` no
+  // tiene (su propio velo es un degradado fijo, no toggleable). El eje `variante` mismo GANA su
+  // control de panel en
   // § EDITOR-TIENDA-COMPOSICION-1 (`composiciones`, abajo) — cierra, PARA EL HERO, el hueco
   // `PANEL-EDITOR-VARIANTES-COMPOSICION-1`; `brandStory`/`presentaciones`/`subscriptionCTA` siguen
   // sin control de panel, re-etiquetados a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`
   // (§ panel-controles.ts, `PENDIENTE_PANEL`).
   composiciones: OPCIONES_COMPOSICION_HERO,
   booleanos: [
-    { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque.', gatedFields: ['titulo', 'tituloEnfasis'] },
-    { name: 'subtituloVisible', label: 'Mostrar subtítulo',   gatedFields: ['subtitulo'] },
-    { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos.', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
+    { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque. Con la composición "sticky", vive en su propia zona sobre el indicador "Desliza".', gatedFields: ['titulo', 'tituloEnfasis'] },
+    { name: 'subtituloVisible', label: 'Mostrar subtítulo',   hint: 'Con la composición "sticky", vive junto al titular, sobre el indicador "Desliza".', gatedFields: ['subtitulo'] },
+    { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos. Con la composición "sticky", viven junto al titular, sobre el indicador "Desliza".', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
     { name: 'cueDesliza',       label: 'Mostrar el indicador "Desliza"', hint: 'La línea animada al pie que invita a bajar, con la etiqueta "Desliza".' },
     { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto del viewport, en vez de dejar asomar el siguiente bloque.' },
     { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "sticky". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.', gatedFields: ['veloIntensidad'] },

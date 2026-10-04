@@ -51043,3 +51043,126 @@ arnés antes de reportar nada como verde. Commiteado en `slice/corte-reescritura
 de `66b0b9f`.
 
 **Cierra `EDITOR-TIENDA-CROMO-1`.**
+
+## 2026-10-04 — El hero·sticky gana su zona de Titular/Subtítulo/Botón, abajo a la izquierda sobre "Desliza" (`EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1`)
+
+**Cierra el follow-up coined por `EDITOR-TIENDA-ZONAS-1`** (§ ese asiento, "Open follow-ups") y
+re-confirmado pendiente por `EDITOR-TIENDA-COMPOSICION-1` — los dos lo dejaron como RULING del owner:
+"¿Titular/Subtítulo/Botón deben existir también en 'sticky'?". El owner, sobre ese mismo párrafo:
+*"Agrégalo, la frase no debería tratarse como el titular"* — pedido de origen: *"si alguien quiere
+agregar un título o subtítulo, aparezca un cuadro de texto en la sección que se supone es para el
+título o subtítulo"*.
+
+### El mecanismo
+
+`HeroMediaMarquesina.tsx` lee los MISMOS tres booleanos y los MISMOS cinco campos que `HeroMedia.tsx`
+(`titularVisible`/`subtituloVisible`/`ctasVisibles`, `hero.titulo`/`.tituloEnfasis`/`.subtitulo`/
+`.ctaPrimarioLabel`/`.ctaSecundarioLabel`) — sin campos nuevos, instrucción explícita del spec. La
+zona vive abajo a la izquierda, en el MISMO wrapper `absolute` que ya usaba el cue "Desliza"
+(mismos offsets `bottom-8/left-4`, `sm:`/`lg:` sin cambio): un `flex-col` apila la zona ARRIBA del
+cue cuando ambos están encendidos, y deja al cue en su posición de HOY cuando la zona está vacía —
+"en su lugar si el indicador está apagado" se cumple por construcción, sin una segunda rama de
+posicionamiento. El titular es un `<h2>` (clases Tailwind fijas, NUNCA `fontSizeDisplay`/
+`tema.escalaDisplay`) para que la zona se mantenga "claramente menor" que la frase de la marquesina
+sin importar qué escala declare el tema. Sin animación de entrada — "la misma entrada de bloque que
+usa la leyenda del hero" (`hero.fraseAlPie`, que nunca animó).
+
+**"NACE APAGADA" ES UNA PROPIEDAD MEDIDA DEL PRESET YA EXISTENTE, NO ALGO QUE ESTE SLICE CONSTRUYE.**
+CORTE —el ÚNICO preset del catálogo con `hero:'sticky'`— ya declaraba `heroTitularVisible:false`/
+`heroSubtituloVisible:false`/`heroCtasVisibles:false` desde su era 'media' (`CORTE-HERO-TITULAR-
+OCULTABLE-1`/`TEMAS-HERO-TOGGLES-PRESET-1`), y esos tres campos nunca se retiraron al pasar a
+'sticky'. Medido: ningún otro preset del catálogo declara `hero:'sticky'` (afirmado en
+`hero-marquesina.test.ts`). Por tanto Onix/Café Las Chamisas —los dos tenants reales de CORTE— ven la
+zona apagada sin que este slice toque `themes.ts`.
+
+**EL ESTILO POR ELEMENTO (titulo/subtitulo/ctaPrimarioLabel/ctaSecundarioLabel) LLEGA GRATIS.** Como
+la zona reusa los MISMOS nombres de campo que `media` ya tenía en `ELEMENTOS_ESTILO['hero']`
+(`estilo-elemento.ts`), la barra flotante y su control gemelo del panel (`EstiloElementoControles`)
+ya funcionan para la zona nueva sin tocar ninguno de los dos — confirmado por el test de
+`hero-marquesina.test.ts` que aplica `hero.estilos.titulo.tamano:'enorme'`/`color:'acento'` y ve el
+`<h2>` de la zona respetarlo, mismo mecanismo que `HeroMedia.tsx`.
+
+### Lo que se DEJÓ FUERA — `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1` sigue sin construir
+
+El spec de este slice también pedía "estilo por elemento en la frase de la marquesina"
+(`marquesina.texto`, el loop gigante), nombrando ese id de follow-up. **Medido ANTES de construir:
+las DOS ubicaciones posibles para esa entrada en `ELEMENTOS_ESTILO` rompen `lib/config/
+estilo-elemento.test.ts` (fuera de `touches:` de este slice), que afirma EXHAUSTIVAMENTE el
+conjunto de claves de `hero` (`elementosEstiloDeSeccion('hero') === ['titulo','subtitulo',
+'fraseAlPie','ctaPrimarioLabel','ctaSecundarioLabel']`, línea ~20) y de `marquesina`
+(`elementosEstiloDeSeccion('marquesina') === []`, línea ~26).** Cualquiera de las dos ubicaciones
+agrega una sexta/primera clave y hace fallar esa aserción. A diferencia del ajuste de
+`ComposicionHero.tsx` (miniatura, cosmético, sin riesgo), esto es un cambio de FORMA de un archivo
+que el spec no declaró — se sigue la instrucción del dispatch ("si el trabajo necesita un archivo
+fuera de `touches:`, parar y decirlo, no ensancharlo") y se deja sin construir. Sigue coined
+`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1` (§ Open follow-ups).
+
+### `customer_bytes`
+
+**`changed: true`** — mismo eje que el resto de esta tanda (la RAMA, no el commit). La nueva zona es
+código storefront nuevo en `components/storefront/home/HeroMediaMarquesina.tsx`, aunque INERTE para
+todo tenant real medido hoy (CORTE la declara apagada). **`strings`**: ninguno nuevo — la zona
+reusa el copy que el dueño ya escribe en "Hero de la home" (`hero.titulo`/`.subtitulo`/`.ctaPrimarioLabel`/
+`.ctaSecundarioLabel`); no se agregó un literal de UI nuevo salvo los labels de los tres `ZonaChip`
+("+ Titular"/"Quitar Titular", etc.), que son chrome del EDITOR (sólo bajo `useModoEditorActivo()`),
+no bytes del visitante.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma. **`site-content-schema.ts` NO se
+tocó** — los tres booleanos y los cinco campos de texto ya estaban declarados en `heroEditableSchema`
+desde que `media` los usa; esta zona no agrega ninguna clave nueva al JSON de `SiteContent`.
+
+### Residuo medido, no cerrado por este slice
+
+- **El riesgo de `ComposicionHero.tsx` (picker de composición) sigue sin gate propio.** Su
+  `onElegir` escribe SOLO `hero.variante` — si un tenant (no CORTE) cambiara a 'sticky' desde el
+  panel con `titularVisible`/`subtituloVisible`/`ctasVisibles` en su default `true` (nunca tocados
+  porque 'sticky' los ignoraba hasta este slice), la zona se encendería de inmediato. Medido: no hay
+  evidencia de que ese camino se haya usado para llegar a 'sticky' en ningún tenant real; es un
+  riesgo PREEXISTENTE de `EDITOR-TIENDA-COMPOSICION-1` (que ya podía cambiar la variante entera sin
+  avisar qué campos compartidos cambian de comportamiento), no algo que este slice introduzca. Sin
+  id nuevo — vive documentado en el docstring de cabecera de `HeroMediaMarquesina.tsx`.
+- **`cueDesliza` vs `fraseAlPie` YA se superponían en viewports ≤360px, ANTES de este slice** —
+  medido con Playwright contra HTML estático + el CSS compilado real: a 320px, `gap = -49.5px` entre
+  el cue y la frase, EN AISLAMIENTO (sin la zona nueva). A 390px+ (el grueso de los teléfonos reales)
+  no hay choque. La zona nueva (titulo/subtitulo/CTA) NO agrega ningún choque adicional con la
+  frase en ningún ancho medido (320/360/390/414px) — verificado por bounding-box real, no por ojo: el
+  titulo/subtitulo/CTA se apilan POR ENCIMA del cue (mismo flex-col), nunca a la misma altura que la
+  frase. Afecta también a `HeroMedia.tsx` (misma posición del cue/frase), fuera de `touches:` de
+  este slice — no se corrige acá.
+- **La colisión con la TARJETA de producto (centrada) NO se pudo medir** — el harness SSR de este
+  repo no resuelve `producto` sin un catálogo real (mismo límite documentado en
+  `hero-marquesina.test.ts`, "con productoSlug pero SIN catálogo real… la tarjeta tampoco rinde").
+  Queda para el gate visual del owner, con un producto real configurado.
+
+### Open follow-ups
+
+- **`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`** — sigue sin construir (§ arriba, "Lo que se dejó
+  fuera"). Necesita que `lib/config/estilo-elemento.test.ts` entre a `touches:` del slice que lo
+  cierre, para poder actualizar sus dos aserciones exhaustivas junto con la nueva entrada.
+- `HeroMedia.tsx` (fuera de `touches:`) sigue con el comentario *"sticky no rinde titular/subtítulo/
+  botones EN NINGÚN CASO"* (§ su docstring, "LAS ZONAS") — ya no es cierto en general (sigue siendo
+  cierto SÓLO bajo CORTE, por `heroTitularVisible:false`). No corregido: archivo fuera de `touches:`.
+  Coined `HEROMEDIA-COMENTARIO-STICKY-STALE-1`.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — no re-medido por este slice (no toca ninguna ruta del
+  storefront que Nayoli renderice con contenido distinto; Nayoli usa `curtina`, nunca `sticky`).
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que el resto de esta tanda (el
+eje es la rama, no el commit; sigue sin mergear). "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL
+MERGE". Gate verde en las dos capas obligatorias (`npm run gate`): `tsc --noEmit` sin errores,
+`npm test` 3546/3546 (siete tests revertidos/reescritos, catorce agregados — ver
+`hero-marquesina.test.ts`, `hero-toggles-preset.test.ts`, `hero-agregados.test.ts`,
+`escala-display.test.ts`), `npm run test:integracion` 328/328 (sin cambios, ninguno de estos
+archivos toca el carril). `next build` compila sin error. `npx eslint` sobre los 8 archivos
+tocados: CERO problemas nuevos (los 13 errores/3 warnings pre-existentes de
+`react/no-children-prop`/`jsx-a11y` en los tests y en `HeroMediaMarquesina.tsx` se verificaron
+línea por línea contra `HEAD` — mismo conteo, sólo desplazados). Verificación visual con Playwright
+contra HTML renderizado a estático + el CSS compilado real del build de producción (sin dev
+server/Postgres — ver "Residuo medido" arriba para el límite de esa vía): la zona apagada (CORTE)
+es byte-idéntica a hoy; la zona encendida no choca con la frase al pie en ningún ancho ≥390px.
+Commiteado en `slice/corte-reescritura-prototipo-1`, encima de `bbd2772`.
+
+**Cierra `EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1`.**

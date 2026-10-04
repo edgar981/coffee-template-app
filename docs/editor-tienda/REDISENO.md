@@ -242,9 +242,11 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) — **ENTREGADO** (2026-10-03) | panel + hoja: `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `components/admin/editor/ComposicionHero.tsx` (nuevo), `panel-controles.ts` | 2 |
 | 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento — **ENTREGADO** (2026-10-04) | esquema + storefront (los 4 heros, el puente) + panel: `estilo-elemento.ts` (nuevo), `palette-derive.ts`, `fuentes.ts`, `site-content-{defaults,schema}.ts`, `campo-editable.ts`, `editor-puente.ts`, `EditorPuenteVivo.tsx`, HeroSection/Media/Curtina/Ficha/MediaMarquesina, `TiendaSeccionEditor.tsx`, `EstiloElementoControles.tsx` (nuevo) | **1** |
 | 8 | `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — el popover de publicar en palabras — **ENTREGADO** (2026-10-04) | barra superior | 2 |
+| 9 | `EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1` — follow-up de la Desviación 1 del slice 5: la composición "sticky" gana su propia zona de titular/subtítulo/botón — **AWAITING_APPROVAL** (2026-10-04) | `HeroMediaMarquesina.tsx`, `tienda-secciones.ts`, `site-content-defaults.ts` (comentarios), `components/admin/editor/ComposicionHero.tsx` (miniatura) + 4 archivos de test | **1** |
 
 Los slices 1 a 3 cierran los cinco errores sin esperar el rediseño. Del 4 al 8 son el rediseño
-en sí, en el orden en que cada uno se ve por su cuenta.
+en sí, en el orden en que cada uno se ve por su cuenta. El 9 es un follow-up pedido por el owner
+sobre una decisión que el slice 5 dejó pendiente (ver su "DESVIACIÓN 1", abajo).
 
 **SLICE 4 ENTREGADO, con UNA desviación medida y declarada (§ DECISIONS.md).** El riel (Secciones ·
 Estilo · Medios), el panel con niveles (Inicio → sección, con migas «‹ Inicio»), la «vista nueva»
@@ -277,6 +279,13 @@ Ficha) o el de Velo (Sticky). El spec de REDISENO.md § 4 listaba Titular/Subtí
 "Marquesina" (sticky) — eso no coincide con lo que el código de hoy renderiza, y agregar esos tres
 campos a `HeroMediaMarquesina` sería una decisión de producto (dónde viven, cómo conviven con el
 ticker/tarjeta) fuera de este slice.
+
+**RESUELTA por `EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1` (slice 9, 2026-10-04):** el owner, sobre este
+mismo párrafo: «Agrégalo, la frase no debería tratarse como el titular». `HeroMediaMarquesina` gana
+la zona abajo a la izquierda, sobre el indicador "Desliza" — leyendo los MISMOS tres booleanos y los
+MISMOS campos que `media`, sin duplicar contenido. Medido antes de construir (§ el docstring de
+cabecera de `HeroMediaMarquesina.tsx`): CORTE ya declaraba los tres en `false` desde su era 'media',
+así que la zona nace apagada para Onix/Las Chamisas sin tocar `themes.ts`.
 
 **DESVIACIÓN 2 — `useModoEditorActivo()`, no `useIsPreview()`.** El spec pedía "igual que los
 marcadores de hoy"; los marcadores de hoy (`data-editor-seccion`/`data-editor-campo`) usan
