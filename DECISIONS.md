@@ -52129,3 +52129,124 @@ follow-up: `EDITOR-BARRA-ESTILO-QUITAR-WEBKIT-RACE-1`** — el mecanismo vivo (`
 de `EDITOR-TIENDA-BARRA-FLOTANTE-1`, fuera de `touches:` de este slice; no se toca acá.
 
 **Cierra `EDITOR-BARRA-ESTILO-CLIC-1`.**
+
+## 2026-10-04 — El marco del editor se ve como el prototipo: barra, riel y lienzo (`EDITOR-VISUAL-MARCO-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el pedido textual del
+owner del 2026-10-04 al revisar el editor contra el prototipo aprobado (`docs/editor-tienda/
+REDISENO.md`, `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`): *"veo que sí se han agregado
+cosas nuevas, pero también noto que aún luce como antes del rediseño en mayor parte"*. La
+aprobación autoriza la escritura, nunca el merge. Sigue `slice/editor-secciones-1` (no corta rama
+propia — el dispatch lo pide explícito). Detalle completo en `docs/editor-tienda/REDISENO.md`
+(nueva sección "QUINTO PEDIDO FUERA DE ESTA NUMERACIÓN"); este asiento es el resumen.
+
+**Lo que se hizo, y lo que NO:** una pasada VISUAL, acotada a lo que el propio spec nombra —barra
+superior, riel, lienzo—, nunca el panel (filas/tarjetas/migas/niveles, ya construidos en
+`EDITOR-TIENDA-SHELL-1`). Sin cambio de esquema, sin cambio de qué se guarda ni de cómo se publica,
+y sin tocar un solo byte de la tienda pública (`components/storefront/`, `app/(storefront)/` NO
+están en `touches:` y no se tocaron).
+
+- **`docs/editor-tienda/prototipo/`** — los cuatro archivos del prototipo (`prototipo-editor.html`,
+  `sistema-editor.html`, las dos capturas `.webp`) se copiaron desde `.scratch/prototipo-editor/`
+  (gitignored) a `docs/`, byte-idénticos (verificado por tamaño de archivo, los cuatro). Antes de
+  este slice sólo existían en el scratch de la sesión que los generó.
+- **`app/(admin)/editor/editor.css`** (nuevo) — admin-level, prefijo `editor-` (no `duna-`, regla del
+  segundo consumidor: hoy sólo `/editor/tienda`), importado desde `app/(admin)/editor/layout.tsx`
+  con el mismo patrón que `app/(admin)/duna.css`. Cero tokens `--duna-*` nuevos.
+- **La barra** (`EditorTiendaPantallaCompleta.tsx`): tres secciones `flex:1`/auto/`flex:1` (el truco
+  del prototipo para centrar el grupo del medio) — `‹ volver` sólo-ícono · separador · avatar de
+  iniciales + nombre de la tienda; al centro el selector de PÁGINA (de `role="tablist"` a un
+  Popover "Página: Inicio ▾" — mismo mecanismo que `ResumenPublicar`, `useContenedorDunaPortal`) y
+  el segmentado de DISPOSITIVO (de tres `duna-pill` con texto a `.duna-seg`/`.duna-seg__item`, ya
+  en el paquete — la primitiva correcta por doctrina: el pill filtra un conjunto, el segmentado
+  cambia el modo de ver lo mismo); a la derecha deshacer/rehacer sólo-ícono, el punto de estado,
+  "Vista previa", y `ResumenPublicar` sin tocar.
+- **El riel** (`Riel.tsx`): gana "Ayuda" al fondo (espaciador `flex:1`), deshabilitado con el motivo
+  en `title` — no existe hoy un artículo de ayuda para el operador del panel (`docs/editor-tienda/`
+  es documentación de ingeniería).
+- **El lienzo** (`VistaTiendaIframe.tsx`): `.editor-stage` (fondo punteado vía
+  `radial-gradient(color-mix(in oklab, var(--duna-ink) 16%, transparent)…)`, sigue el tema sin una
+  segunda regla oscura) → `.editor-st-meta` (pastilla "● Borrador · /ruta" en mono + el dispositivo
+  + "Navegar"/"Actualizar" AHORA ÍCONOS CHICOS, el spec: "no se pierden") → `.editor-canvas` (el
+  MISMO `canvasRef`/ResizeObserver de siempre) → `.editor-st-frame` (radio + `--duna-shadow-3` +
+  fondo blanco; el teléfono con radio mayor, `--duna-r-xl`, como bisel).
+- **`TiendaPaginas.tsx`**: el panel pasa de `minmax(0,1fr)` elástico a `308px` fijo (§ 3 del
+  REDISENO, "Panel (308 px)") — SÓLO el ancho de la columna; ninguna fila/tarjeta/miga se tocó.
+
+### Deviaciones medidas y declaradas
+
+- **El label "Inicio" para `home` es LOCAL a `EditorTiendaPantallaCompleta.tsx`**
+  (`LABEL_PAGINA_SELECTOR`), no un cambio a `PAGINAS` (`tienda-secciones.ts`, fuera de `touches:`):
+  ese array sigue con `label:'Home'`, consumido también por `TogglePagina` para Nosotros/
+  Suscripciones. El spec pedía el texto "Inicio" (§ 3, la anatomía); se logró sin tocar un archivo
+  fuera de alcance.
+- **El dispositivo gana un mapa de labels LOCAL en `VistaTiendaIframe.tsx`** (`LABEL_DISPOSITIVO`):
+  `lib/admin/editor-iframe.ts` (fuera de `touches:`) sólo declara el ancho en px, no el nombre
+  legible que la pastilla necesita.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3669/3669** — sin cambio (ningún archivo de `touches:` es un `.test.ts`; `lib/admin/editor-iframe.test.ts`/`historial-editor.test.ts` corridos sueltos primero, 41/41, antes del gate completo) |
+| `npm run test:integracion` | **346/346**, sin cambio (ningún archivo de `tests/integracion/` toca este diff) |
+| `npm run gate` | GREEN |
+| `npx next build` | compiló sin error (`/editor/tienda` sigue listado como ruta dinámica) |
+| `npx eslint` (6 archivos de `touches:` tocados) | 3 warnings, 0 errores — **las TRES pre-existentes**, confirmado contra `git show HEAD:<archivo> \| npx eslint --stdin` sobre cada uno de los tres antes de este slice: `EditorTiendaPantallaCompleta.tsx` (`set-state-in-effect` del lector de `localStorage`, sin tocar), `TiendaPaginas.tsx` (`titulo` sin usar, línea ajena a este diff), `VistaTiendaIframe.tsx` (eslint-disable sobrante del `onLoad`, sin tocar) |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta del piso heredado** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, ya citado por `EDITOR-BARRA-ESTILO-CLIC-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 c/u; los 2 hovers IDÉNTICOS — exit 1 esperado (drift heredado, no de este slice; `components/storefront/`/`app/(storefront)/` no están en `touches:` y no se tocaron) |
+
+### Verificado por ejecución — `.scratch/arnes-marco.ts` (no comiteado)
+
+Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`, Playwright con sesión
+real (`admin@sierranativa.co`), viewport 1440×900. **20/20 verificaciones:** el marco nuevo está
+presente (avatar, selector de página, segmentado de 3 ítems, "Ayuda" al fondo del riel, lienzo
+punteado, pastilla de estado, página enmarcada); el selector de página SIGUE cambiando de página
+(Inicio↔Nosotros, confirmado por el texto del botón Y por la pastilla "Borrador · /nosotros");
+el segmentado SIGUE angostando el lienzo a Teléfono (ancho medido 393px < 500px); "Navegar" SIGUE
+togglando (`aria-pressed` true/false) y "Actualizar" SIGUE recargando sin romper el lienzo;
+editar el titular del hero (clic dentro del iframe → "Editar" → escribir) habilita "Deshacer" y
+hace aparecer "Publicar 2" — se deshizo el cambio de prueba antes de cerrar la sesión; "Vista
+previa" sigue presente. Capturas 1440×900 ("Inicio") y Teléfono en `.capturas/` (gitignored, no
+comiteadas); compuesta lado a lado contra `captura-prototipo-inicio.webp` — comparación visual
+directa, sin diferencias estructurales (la anatomía de barra/riel/lienzo coincide; las diferencias
+de CONTENIDO —el hero real de la tienda sembrada contra la maqueta "Finca San Adolfo" del
+prototipo, el badge "Publicar" ausente sin pendientes— son esperadas, no defectos).
+
+**Lo que el prototipo dibuja como «recorrido» (la barra negra de capítulos abajo del lienzo) NO se
+construyó** — el propio spec lo excluye explícitamente ("es del prototipo").
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths tocados por el diff, grepeados contra `CLAUDE.md`: `EditorTiendaPantallaCompleta`,
+`VistaTiendaIframe`, `TiendaPaginas`, `Riel.tsx`, `editor.css`, `.duna-seg`, `.duna-pill`,
+`.duna-btn--icon`, `useContenedorDunaPortal`: **CERO resultados** salvo `.duna-seg`/`.duna-pill`/
+`.duna-btn--icon`, que SÍ aparecen (documentando esas primitivas del design system, § "EL PAR
+SUPERFICIE + BARRA-DE-TINTA…", "Un solo primario sólido por vista", y el bloque de `.duna-seg`
+citado arriba) — ninguna sentencia sobre ellas queda falsa: este diff las CONSUME tal como están
+documentadas (el pill para un toggle booleano, el segmentado para "elegir uno de un puñado de
+modos", el icon-button ghost ya existente), no las redefine.
+
+### `customer_bytes`
+
+**`changed: true`**, mismo eje que el resto de esta rama (la RAMA contra `main`, no el commit).
+Nada de esto llega a un visitante del storefront —medido: cero archivos de `components/storefront/`
+o `app/(storefront)/` en el diff, y `verificar:nayoli:visual` reproduce el piso heredado exacto—,
+pero SÍ cambia bytes que el OWNER/MANAGER lee en `/editor/tienda`: la forma de la barra, el riel, y
+el lienzo. **`strings`**: "Página" (label del selector), "Inicio"/"Nosotros"/"Suscripciones" (ya
+existían como labels de pestaña; ahora como ítems del menú), "Ayuda" (nuevo, inerte), "Editor de
+tienda" (ya existía, ahora en el bloque del avatar) — ningún string nuevo de cara al visitante.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado (nada de este
+diff es consumido por otro repo).
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
+completo verde (`npm run gate`: typecheck 0 · 3669/3669 · 346/346); `next build` compiló; eslint sin
+problemas nuevos; `verificar:nayoli:visual` reproduce el piso heredado exacto. Arnés real de punta a
+punta en verde (20/20). Commiteado en `slice/editor-secciones-1`, encima de `8cc3e0d`.
+
+**Cierra `EDITOR-VISUAL-MARCO-1`.**
