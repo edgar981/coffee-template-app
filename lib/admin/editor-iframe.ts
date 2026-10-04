@@ -185,3 +185,24 @@ export function calcularEscalaDispositivo(anchoDisponible: number, anchoDisposit
   if (!(anchoDisponible > 0) || !(anchoDispositivo > 0)) return 1;
   return anchoDisponible >= anchoDispositivo ? 1 : anchoDisponible / anchoDispositivo;
 }
+
+// ─── EL RESALTE DE HOVER (§ EDITOR-TIENDA-SHELL-1) ─────────────────────────────────────────────────
+//
+// "Pasar el mouse sobre el lienzo resalta la sección con su nombre" (REDISENO.md § 2). El dashed-
+// outline al hover YA existe (CSS del propio storefront, `EditorPuenteVivo.tsx` — Tier 1, fuera de
+// `touches:` de este slice); lo que falta es el RÓTULO con el nombre, que `VistaTiendaIframe.tsx`
+// dibuja por FUERA del iframe (mismo mecanismo de acceso directo al DOM que `irASeccion` ya usa,
+// mismo origen). Esta función es la mitad PURA: convierte el `getBoundingClientRect()` del nodo
+// marcado (en coordenadas SIN escalar, las del propio documento del iframe) a la caja que hay que
+// dibujar SOBRE el stage ya escalado (`transform: scale(escala)`, § VistaTiendaIframe.tsx) — el
+// mismo factor que ya posiciona/dimensiona el propio `<iframe>` dentro de su envoltorio.
+export interface CajaRect { top: number; left: number; width: number; height: number }
+
+export function cajaDeHover(rect: CajaRect, escala: number): CajaRect {
+  return {
+    top: rect.top * escala,
+    left: rect.left * escala,
+    width: rect.width * escala,
+    height: rect.height * escala,
+  };
+}

@@ -237,7 +237,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | 1 | `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — «Tema» deja de caerse — **ENTREGADO** (2026-10-03) | `app/(admin)/editor/layout.tsx` | 2 |
 | 2 | `EDITOR-TIENDA-CAMPO-ANCLADO-1` — campo anclado al documento, mide el bloque, gemelos ocultos (errores 1, 3, 4) — **ENTREGADO** (2026-10-03) | `EditorPuenteVivo.tsx`, `campo-editable.ts`, marcadores de gemelo en el hero y la marquesina | **1** |
 | 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) — **ENTREGADO** (2026-10-03) | `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `TiendaPaginas.tsx`, `panel-controles.ts` | 2 |
-| 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx` | 2 |
+| 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta — **ENTREGADO** (2026-10-03) | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx`, `TiendaSeccionEditor.tsx`, `VistaTiendaIframe.tsx`, `components/admin/editor/` (nuevo), `lib/admin/editor-iframe.ts` | 2 |
 | 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas | variantes del hero (`data-editor-zona`), panel del hero | **1** |
 | 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) | panel + hoja | 2 |
 | 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento | esquema (gate) + storefront + puente | **1** |
@@ -245,6 +245,17 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 
 Los slices 1 a 3 cierran los cinco errores sin esperar el rediseño. Del 4 al 8 son el rediseño
 en sí, en el orden en que cada uno se ve por su cuenta.
+
+**SLICE 4 ENTREGADO, con UNA desviación medida y declarada (§ DECISIONS.md).** El riel (Secciones ·
+Estilo · Medios), el panel con niveles (Inicio → sección, con migas «‹ Inicio»), la «vista nueva»
+(`components/admin/editor/VistaNueva.tsx`, usada para Medios — no existe «Agregar sección» que
+ofrecer, medido) y el rótulo de hover sobre el lienzo están construidos tal como pide este
+documento. **«Combinaciones» (§ 6) aplica SÓLO raíces + par + forma, nunca el `PresetTema` completo**
+(esquemas/orden/variantes/toggles quedan afuera): aplicar la composición completa desde el panel del
+cliente contradice una decisión YA tomada y escrita (DECISIONS.md, "EL CLIENTE EDITA SU CONTENIDO, NO
+SU COMPOSICIÓN" — el retiro de `EJE-5-ORDEN-EDITOR-1`/`EJE-5-VARIANTES-EDITOR`), así que cada tarjeta
+de Combinaciones es un ATAJO sobre los tres ejes que esta pantalla YA deja editar, no una puerta nueva
+a la composición. El nivel «elemento» (zonas del hero) queda para el slice 5, como estaba planeado.
 
 **FUERA DE ESTA NUMERACIÓN (pedido aparte del owner, no del plan de rediseño de arriba):**
 `EDITOR-TIENDA-MARQUESINA-SECCION-1` — la banda suelta «Marquesina» pasa de interruptor-sin-contenido

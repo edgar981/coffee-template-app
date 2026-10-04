@@ -49641,3 +49641,129 @@ inspeccionaron visualmente, confirmando que las cinco transiciones se ven distin
 coherentes con su descripción. Commiteado en `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`.**
+
+---
+
+## 2026-10-03 — El editor gana su shell nueva: riel, panel con niveles, Estilo como herramienta (`EDITOR-TIENDA-SHELL-1`)
+
+Slice 4 de `docs/editor-tienda/REDISENO.md` § 9. Tier 2, `writes: yes`, aprobado sobre el documento y
+el prototipo ("el nuevo diseño está rozando la perfección").
+
+**Construido, tal como pide el documento:**
+- **Riel** (`components/admin/editor/Riel.tsx`, nuevo): Secciones · Estilo · Medios, reemplaza al pill
+  «Tema» del tablist de páginas. Por debajo sigue siendo el MISMO `modo` de siempre (`'paginas'`/
+  `'tema'`) — el riel es la fachada, no un tercer estado.
+- **Panel con niveles**: `TiendaPaginas.tsx` gana `seccionActiva`. Inicio muestra todas las secciones
+  (como hoy); abrir una (por "Editar", por el campo flotante, por deep-link, o por clic DENTRO del
+  iframe) baja el panel a su nivel — las OTRAS secciones se ocultan con `display:none`, NUNCA se
+  desmontan (desmontar perdería los pasos de historial que cada instancia ya empujó — closures sobre
+  un `setForm` de una instancia que ya no existe). Las migas (`components/admin/editor/Migas.tsx`)
+  muestran «‹ Inicio» y el título de la sección. `TiendaSeccionEditorHandle` gana `cerrar()` y
+  `onCerrar` (gemelos de `seleccionar()`/`onAbrir`), para que el botón "Cerrar" de ADENTRO del form y
+  las migas de AFUERA lleven al mismo sitio.
+- **El rótulo de hover sobre el lienzo**: el outline punteado al :hover YA existía (CSS del propio
+  storefront, Tier 1, fuera de `touches:`); lo que faltaba era el NOMBRE. Se agregó en
+  `VistaTiendaIframe.tsx`, leyendo el DOM del iframe DIRECTO (mismo mecanismo de acceso same-origin
+  que ya usa `irASeccion`) — sin tocar un solo archivo de `components/storefront/`. `cajaDeHover`
+  (`lib/admin/editor-iframe.ts`, pura, testeada) convierte el `getBoundingClientRect()` sin escalar a
+  la caja que hay que dibujar sobre el stage ya escalado.
+- **La «vista nueva»** (`components/admin/editor/VistaNueva.tsx`, nuevo): `DunaSheet` `anclaje="lado"`
+  — NO una primitiva nueva, la misma costura que los 5 form-sheets del admin ya usan. «Agregar
+  sección» no existe (medido: censo por grep, cero resultados), así que se ejercita con «Medios»: un
+  lugar que DECLARA que todavía no hay de dónde leer un catálogo de medios, en vez de fingir uno.
+- **Barra**: nombre de la tienda (`useSiteSettings().nombre`, el layout de `/editor` ya monta el
+  provider desde `EDITOR-TIENDA-TEMA-PROVEEDOR-1`), botón «Vista previa» (la ruta real publicada, en
+  pestaña nueva — gemelo de "Ver la tienda" que ya vivía dentro de cada tarjeta). El resto (deshacer/
+  rehacer, dispositivo, publicar/descartar con conteo) no cambió de mecanismo.
+
+**La desviación medida: Combinaciones NO aplica el `PresetTema` completo.** El spec (§ 6) describe
+«tarjetas con la paleta y el par de letras reales de cada preset… un clic recolorea la tienda
+entera». `PresetTema` (`lib/config/themes.ts`) es MÁS que eso — también carga esquema por banda, orden
+de bandas, variante de sección, toggles de hero/nav — y ese archivo declara, en su propio encabezado,
+una decisión YA ESCRITA en este libro: **"EL CLIENTE EDITA SU CONTENIDO, NO SU COMPOSICIÓN"** (ver la
+entrada del retiro de `EJE-5-ORDEN-EDITOR-1`/`EJE-5-VARIANTES-EDITOR`, § CLAUDE.md "§ El REPEATER" /
+el programa THEMES) — "la rigidez es la garantía de que ninguna tienda de Duna se ve mal", y la
+composición se arma en onboarding, nunca desde un picker del panel del cliente. Un botón que aplicara
+el preset COMPLETO desde `/editor/tienda` reabriría EXACTAMENTE esa capacidad retirada.
+**Opciones:** (a) aplicar el `PresetTema` completo, literal al spec; (b) aplicar sólo los TRES ejes
+que esta pantalla YA deja editar uno por uno (raíces, par tipográfico, forma) — el mismo alcance que
+`PaletaSeccion` ya escribe, empaquetado como atajo. **Se tomó (b)**: no tocar `themes.ts` ni
+`site-content-write.ts` (ninguno de los dos está en `touches:` de este slice, así que tampoco había
+forma de llamar a `aplicarPreset` sin salirme del alcance), y porque (a) es, literalmente, la
+capacidad que el libro ya cerró con su propio argumento. `aplicarCombinacion` (`PaletaSeccion.tsx`)
+hace UNA sola escritura de estado con los tres valores juntos — nunca `cambiar()`+`cambiarFuente()`+
+`cambiarForma()` en secuencia, que leerían refs TODAVÍA viejos (no se sincronizan hasta el próximo
+render) y mandarían al autoguardado un wire a medio aplicar.
+
+**«Letras»/«Sin aviso de contraste» — gateados a `enEditor`, el standalone no cambia.**
+`PaletaSeccion.tsx` conserva su promesa de siempre ("AUSENTE/`false` reproduce EXACTAMENTE el render
+de siempre, para no mover ni un byte de `admin-tienda-preset.test.ts`"): el relabel "Tipografía" →
+"Letras", las dos captions de rol ("Fondo: el papel de tus páginas · Tinta: títulos y textos",
+"Botones y detalles de marca") y la supresión de los tres avisos de contraste (decisión del owner,
+2026-10-02, "SIN aviso de contraste") sólo aplican con `enEditor=true` — `/admin/tienda` standalone
+queda byte-idéntico. Medido: `admin-tienda-preset.test.ts` (21/21) y `preview-colores.test.ts`
+(108/108) pasan sin tocar.
+
+### Gate
+
+`tsc --noEmit` 0 errores · `npm test` 3430/3430 · `npm run test:integracion` 328/328 ·
+`npx next build` compiló sin error (la autoridad de JSX/SWC, no sólo `tsc`, § CLAUDE.md). Lint: 0
+errores NUEVOS — las 16+4 fallas de `react-hooks/refs`/`react-hooks/set-state-in-effect` que reporta
+`eslint` en `TiendaSeccionEditor.tsx`/`PaletaSeccion.tsx`/`EditorTiendaPantallaCompleta.tsx` son
+PRE-EXISTENTES (confirmado línea por línea contra `git show HEAD:<archivo>` — ninguna cae dentro de mi
+diff); se corrigió una SÍ nueva (deps faltantes del `onLoad` de `VistaTiendaIframe.tsx` tras agregar
+`engancharHoverRotulo`, § el comentario del archivo).
+
+**`npm run verificar:nayoli:visual` — CERO drift nuevo, confirmado contra la cifra YA reconciliada.**
+Mi diff toca CERO archivos de `app/(storefront)`, `components/storefront`, `lib/storefront` o del
+paquete `@duna/core` (medido: `git diff --stat HEAD -- 'app/(storefront)' components/storefront
+lib/storefront lib/config packages/core app/api` da vacío) — es estructuralmente imposible que cambie
+un píxel del tráfico público. El script reportó: `ruta:home` DIFIERE 165052/4608000 px (AA),
+174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas DIFIEREN 163/… px (AA), 361 crudo cada
+una; los 2 hovers IDÉNTICO. **Es la MISMA cifra, dígito por dígito, que `PIE-HECHO-POR-DUNA-1` dejó en
+`HEAD` (línea 46165 de este archivo)** — el piso ya reconciliado de `NAYOLI-HOME-DRIFT-RAMA-
+PREEXISTENTE-1` (el collage de Historia + la postal de Suscripción en la home) más el crédito "Hecho
+por Duna" del pie, heredados de las ~68 archivos de storefront que esta RAMA ya diverge de `main`
+desde antes de que este slice empezara (medido: `git diff --stat main..HEAD` sobre esos mismos
+directorios, 68 archivos, +13534/-985). No se re-generó el fixture — no hacía falta, el número no se movió.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` / el crédito de `PIE-HECHO-POR-DUNA-1` — sigue abierto,
+  re-confirmado con la MISMA cifra exacta (§ arriba). Ajeno a `touches:` de este slice.
+- `PANEL-EDITOR-VARIANTES-COMPOSICION-1` — sin cambios, ajeno a este slice.
+- `PANEL-COMBINACIONES-COMPOSICION-COMPLETA-1` (coined acá): si algún día el owner pide que
+  "Combinaciones" aplique la composición ENTERA del preset (esquemas/orden/variantes) desde el panel
+  del cliente, eso es una RULING — reabre, con nombre y con dato nuevo, la decisión "EL CLIENTE EDITA
+  SU CONTENIDO, NO SU COMPOSICIÓN" que este mismo slice cita para no hacerlo. No se construye por
+  default de un spec que lista nombres de preset; necesita una aprobación explícita que la nombre.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA contra `main`, que ya cargaba `customer_bytes.changed:true` de
+los tres slices anteriores de esta misma tanda. Este slice en particular es la pantalla ENTERA de
+`/editor/tienda` — todo lo que el OWNER/MANAGER ve ahí es nuevo o se movió: el riel, las migas, el
+rótulo de hover, "Vista previa", el nombre de la tienda en la barra, la sección Combinaciones, las
+dos captions de rol, "Letras" en vez de "Tipografía", la ausencia de los avisos de contraste, el panel
+"Medios". Ningún byte de `app/(storefront)` cambió (§ el gate, arriba) — es exclusivamente la
+herramienta del dueño, no lo que ve un visitante.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma, cero contrato cross-repo. No se tocó
+`site-content-schema.ts` ni `site-content-write.ts` — Combinaciones no persiste ningún campo nuevo,
+escribe exactamente los mismos tres (`paletaFondo/Tinta/Acento`, `fuentePar`, `forma`) que el PUT de
+`/api/site-content/tema` ya aceptaba.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que los tres slices anteriores de
+esta tanda (el eje es la rama, no el commit; sigue sin mergear). "LA APROBACION AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE". Gate verde en las dos capas obligatorias; `verificar:nayoli:visual` confirma CERO
+drift nuevo (cifra idéntica, dígito a dígito, al piso ya reconciliado por `PIE-HECHO-POR-DUNA-1`). La
+sesión en el arnés (`.scratch/arnes-shell.ts`, no comiteado) corrió login real → Inicio → abrir una
+sección → volver → selección desde el lienzo → Estilo + Combinación → Medios → Teléfono: 9/9
+verificaciones, 5 capturas inspeccionadas visualmente. Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-SHELL-1`.**

@@ -205,6 +205,12 @@ export interface TiendaSeccionEditorHandle {
   /** Abre esta sección si está cerrada (como "Editar") y la desplaza a la vista dentro de la
    *  columna de la lista — REPETIBLE: cada llamada vuelve a desplazar, a diferencia del deep-link. */
   seleccionar: () => void;
+  /** § EDITOR-TIENDA-SHELL-1 — gemelo de `seleccionar` para el PANEL CON NIVELES: cierra la edición
+   *  como lo haría el botón "Cerrar" de esta misma cáscara (mismo `cerrarEdicion`, mismo `auto.flush`),
+   *  pero llamado desde AFUERA — el «‹ volver» de las migas del nivel «Inicio» (`TiendaPaginas.tsx`)
+   *  necesita poder colapsar la sección activa al salir de su nivel, para que volver a Inicio no deje
+   *  una tarjeta a medio abrir en la lista. */
+  cerrar: () => void;
   /** § EDITOR-TIENDA-CAMPO-EDITABLE-1 — llamado por cada tecla del campo flotante que resuelve a
    *  ESTA sección. Abre la edición si está cerrada (SIN desplazar — a diferencia de `seleccionar`,
    *  el dueño ya está mirando el campo DENTRO del iframe, no hace falta llevarle la vista a la
@@ -293,6 +299,12 @@ interface TiendaSeccionEditorProps {
    *  sección (§ EDITOR-TIENDA-IFRAME-VISTA-1). Ausente = sin iframe que notificar (no debería ocurrir
    *  fuera de un test). */
   onAbrir?: (seccion: SeccionVista) => void;
+  /** § EDITOR-TIENDA-SHELL-1 — gemelo de `onAbrir`: se llama al CERRAR la edición (botón "Cerrar" de
+   *  esta cáscara, o el `cerrar()` del handle llamado por el padre). El panel con niveles
+   *  (`TiendaPaginas.tsx`) lo usa para volver al nivel «Inicio» cuando el dueño cierra la sección
+   *  desde ADENTRO del form, sin pasar por las migas — las dos salidas deben llevar al mismo sitio.
+   *  Ausente = sin nivel que avisar (no debería ocurrir fuera de un test). */
+  onCerrar?: (seccion: SeccionVista) => void;
   /** Se llama tras Publicar/Descartar exitosos — el padre recarga el iframe compartido preservando
    *  el scroll. YA NO se llama al asentar el autoguardado (§ `onCambio`, abajo, lo reemplaza para el
    *  contenido en vivo) — recargar en CADA asentamiento era el "refresca con cada cambio" que el
@@ -326,7 +338,7 @@ interface TiendaSeccionEditorProps {
   onEscribirCruzado?: (seccion: SeccionVista, campo: string, valor: string) => void;
 }
 
-const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado }, ref) {
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCerrar, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -805,7 +817,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // `onAbrir` (§ EDITOR-TIENDA-IFRAME-VISTA-1): abrir NO muta nada —ni autoguardado ni borrador—,
   // así que notificar al padre acá es seguro incluso si el iframe todavía no cargó.
   const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onCerrar?.(seccion); };
 
   // ── EL CAMPO FLOTANTE (§ EDITOR-TIENDA-CAMPO-EDITABLE-1) — iframe→lista, un campo por tecla ────
   // Llamado desde `TiendaPaginas` cuando un `TIPO_MENSAJE_CAMPO_CAMBIO` resuelve a ESTA sección
@@ -939,8 +951,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // closures que ya de por sí se redefinen cada render.
   useImperativeHandle(
     ref,
-    () => ({ seleccionar, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
+    () => ({ seleccionar, cerrar: cerrarEdicion, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
     [seleccionar, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado],
+    // `cerrarEdicion` no está en las deps (igual que `abrirEdicion`, ya excluida arriba): se redefine
+    // en cada render y el handle se recompone en cada render igual (ver el comentario de arriba).
   );
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────

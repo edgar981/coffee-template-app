@@ -21,6 +21,7 @@ import {
   CLAVE_DISPOSITIVO_EDITOR,
   dispositivoDesdeStorage,
   calcularEscalaDispositivo,
+  cajaDeHover,
 } from './editor-iframe';
 
 test('urlDePagina: home es la raíz; las demás páginas, su propia ruta', () => {
@@ -191,4 +192,19 @@ test('app/(admin)/editor/layout.tsx reusa getSiteSettings() — no una segunda l
     /getSiteSettings\(\)/,
     'getSiteSettings() debe invocarse de verdad, no sólo importarse',
   );
+});
+
+// § EDITOR-TIENDA-SHELL-1 — el rótulo de hover del lienzo (VistaTiendaIframe.tsx): la caja medida en
+// coordenadas del documento del iframe (sin escalar) escala por el MISMO factor que ya posiciona el
+// propio <iframe> dentro de su envoltorio.
+test('cajaDeHover: escala 1 devuelve la misma caja', () => {
+  assert.deepEqual(cajaDeHover({ top: 10, left: 20, width: 300, height: 150 }, 1), { top: 10, left: 20, width: 300, height: 150 });
+});
+
+test('cajaDeHover: escala < 1 reduce las cuatro medidas por igual', () => {
+  assert.deepEqual(cajaDeHover({ top: 100, left: 40, width: 200, height: 80 }, 0.5), { top: 50, left: 20, width: 100, height: 40 });
+});
+
+test('cajaDeHover: escala 0 colapsa la caja a un punto en el origen trasladado', () => {
+  assert.deepEqual(cajaDeHover({ top: 100, left: 40, width: 200, height: 80 }, 0), { top: 0, left: 0, width: 0, height: 0 });
 });

@@ -12,8 +12,12 @@ import {
   CLAVE_DISPOSITIVO_EDITOR,
   DISPOSITIVO_DEFECTO,
   dispositivoDesdeStorage,
+  urlDePagina,
   type DispositivoKey,
 } from '@/lib/admin/editor-iframe';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
+import { Riel, type HerramientaRiel } from '@/components/admin/editor/Riel';
+import { VistaNueva } from '@/components/admin/editor/VistaNueva';
 
 // ─── EL EDITOR DE PANTALLA COMPLETA (§ EDITOR-TIENDA-DISPOSITIVOS-1) ───────────────────────────────
 //
@@ -25,14 +29,22 @@ import {
 // al `role="tablist"` que antes vivía dentro de `TiendaPaginas` — ahora ese selector vive ACÁ, y
 // `TiendaPaginas` lo recibe por prop (controlado), junto con el dispositivo elegido.
 //
-// LA PESTAÑA «TEMA» (§ EDITOR-TIENDA-TEMA-1) — ganada JUNTO a las de página, como el pedido del
-// spec ("como «Configuración del tema» de Shopify"): es un MODO del editor, no una página — el
+// LA PESTAÑA «TEMA» (§ EDITOR-TIENDA-TEMA-1) sigue siendo un MODO del editor, no una página — el
 // `<iframe>` de `VistaTiendaIframe` sigue mostrando la MISMA `pagina` que ya estaba activa (el tema
 // es store-wide, se ve en cualquier página), lo único que cambia es qué columna de la izquierda
 // monta `TiendaPaginas` (la lista de secciones, o `PaletaSeccion` en modo `enEditor`). Por eso es un
 // estado APARTE (`modo`), no un valor más de `PaginaKey`: `pagina` sigue siendo SIEMPRE una de las
 // tres páginas reales —nunca 'tema'— para que el resto del árbol (el `<iframe key={pagina}>`, el
 // deep-link, el dispositivo) no tenga que aprender un cuarto valor que no es una página de verdad.
+//
+// § EDITOR-TIENDA-SHELL-1 (REDISENO.md § 3) — EL RIEL REEMPLAZA AL PILL «TEMA» del tablist de arriba.
+// «Estilo» deja de ser una PESTAÑA junto a las páginas y pasa a ser una HERRAMIENTA con su propio
+// carril (`components/admin/editor/Riel.tsx`): elegirla sigue siendo, por debajo, el MISMO `modo`
+// de siempre (`'tema'`) — el riel es sólo la fachada nueva sobre el mecanismo que ya existía, no un
+// tercer estado. «Medios» NO es un `modo` persistente: abre la «vista nueva»
+// (`components/admin/editor/VistaNueva.tsx`, una hoja sobre el lienzo) y vuelve sola al cerrarse —
+// hoy sin «Agregar sección» que ofrecer (medido: no existe, § Combinaciones.tsx/VistaNueva.tsx), así
+// que la ejercita con el segundo caso que el spec ofrece.
 //
 // EL DEEP-LINK DEL AVISO DE CONFIGURACIÓN (§ El AVISO DE CONFIGURACIÓN del Dashboard, CLAUDE.md) —
 // `?seccion=&tarjeta=` — se movió ACÁ desde `TiendaPaginas` (que antes lo leía con su propio
@@ -134,6 +146,23 @@ export default function EditorTiendaPantallaCompleta() {
     try { localStorage.setItem(CLAVE_DISPOSITIVO_EDITOR, d); } catch { /* no-op, ver arriba */ }
   }, []);
 
+  // EL NOMBRE DE LA TIENDA en la barra (§ EDITOR-TIENDA-SHELL-1, REDISENO.md § 3: "nombre de la
+  // tienda" junto al volver). `useSiteSettings()` ya tiene provider acá — lo monta
+  // `app/(admin)/editor/layout.tsx` desde `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — así que no hace falta
+  // un fetch propio.
+  const settings = useSiteSettings();
+
+  // § EDITOR-TIENDA-SHELL-1 — EL RIEL (Secciones · Estilo · Medios). «Secciones»/«Estilo» son el
+  // `modo` de siempre, vestido con la fachada nueva; «Medios» es un overlay momentáneo
+  // (`medioAbierto`), no un tercer `modo` — cerrarlo vuelve a lo que ya estaba, sin tener que
+  // recordar a qué `modo` regresar.
+  const [medioAbierto, setMedioAbierto] = useState(false);
+  const herramientaActiva: HerramientaRiel = medioAbierto ? 'medios' : modo === 'tema' ? 'estilo' : 'secciones';
+  const elegirHerramienta = useCallback((h: HerramientaRiel) => {
+    if (h === 'medios') { setMedioAbierto(true); return; }
+    setModo(h === 'estilo' ? 'tema' : 'paginas');
+  }, []);
+
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--duna-bg)', zIndex: 0 }}>
       <div
@@ -149,11 +178,19 @@ export default function EditorTiendaPantallaCompleta() {
           background: 'var(--duna-surface)',
         }}
       >
-        <Link href="/admin/tienda" className="duna-btn duna-btn--ghost duna-btn--sm" style={{ flexShrink: 0 }}>
-          <ArrowLeft /> Volver al panel
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexShrink: 0, minWidth: 0 }}>
+          <Link href="/admin/tienda" className="duna-btn duna-btn--ghost duna-btn--sm" style={{ flexShrink: 0 }}>
+            <ArrowLeft /> Volver al panel
+          </Link>
+          {/* § EDITOR-TIENDA-SHELL-1 — el nombre de la tienda (REDISENO.md § 3). */}
+          <span className="duna-title" style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {settings.nombre} · Editor
+          </span>
+        </div>
 
-        <div role="tablist" aria-label="Página y tema del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
+        {/* § EDITOR-TIENDA-SHELL-1 — SÓLO las páginas: «Tema» ya no es una pestaña de esta fila, es
+            la herramienta «Estilo» del riel (§ el comentario grande de arriba). */}
+        <div role="tablist" aria-label="Página del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
           {PAGINAS.map(p => (
             <button
               key={p.key}
@@ -165,17 +202,6 @@ export default function EditorTiendaPantallaCompleta() {
               {p.label}
             </button>
           ))}
-          {/* § EDITOR-TIENDA-TEMA-1 — «Tema» junto a las páginas, no la propia página: elegirla no
-              cambia qué `pagina` muestra el iframe (store-wide, se ve en cualquiera), sólo qué
-              columna monta la lista de la izquierda (§ el comentario grande, arriba). */}
-          <button
-            role="tab"
-            aria-selected={modo === 'tema'}
-            onClick={() => setModo('tema')}
-            className={`duna-pill${modo === 'tema' ? ' is-on' : ''}`}
-          >
-            Tema
-          </button>
         </div>
 
         {/* § EDITOR-TIENDA-DESHACER-1 — el cluster de estado: deshacer/rehacer, el indicador de
@@ -210,6 +236,15 @@ export default function EditorTiendaPantallaCompleta() {
               : estadoGlobal.estado === 'error' ? 'No se pudo guardar'
               : 'Guardado'}
           </span>
+
+          {/* § EDITOR-TIENDA-SHELL-1 — «Vista previa» (REDISENO.md § 3): la ruta REAL publicada de la
+              página activa, en pestaña nueva — gemela de "Ver la tienda" que ya vive dentro de cada
+              tarjeta en edición (`TiendaSeccionEditor.tsx`), generalizada a cualquier página del
+              editor. SÓLO en modo 'paginas': el tema es store-wide y no tiene una página propia a la
+              que apuntar — con él puesto, la página activa de abajo sigue siendo la referencia. */}
+          <a href={urlDePagina(pagina)} target="_blank" rel="noreferrer" className="duna-btn duna-btn--ghost duna-btn--sm">
+            Vista previa
+          </a>
 
           {estadoGlobal.pendientes > 0 && (
             <>
@@ -250,16 +285,39 @@ export default function EditorTiendaPantallaCompleta() {
         </div>
       </div>
 
-      <div style={{ flex: '1 1 auto', minHeight: 0, padding: 'var(--duna-space-6)' }}>
-        <TiendaPaginas
-          ref={tiendaPaginasRef}
-          pagina={pagina}
-          resaltar={resaltar}
-          dispositivo={dispositivo}
-          modo={modo}
-          onEstadoGlobal={setEstadoGlobal}
-        />
+      {/* § EDITOR-TIENDA-SHELL-1 (REDISENO.md § 3) — EL RIEL a la izquierda de todo el cuerpo:
+          Secciones · Estilo · Medios. Es una fila MÁS ancha que la barra superior (Riel | Panel |
+          Lienzo), por eso vive en este `flex` separado y no dentro de la barra. */}
+      <div style={{ flex: '1 1 auto', minHeight: 0, display: 'flex' }}>
+        <Riel activo={herramientaActiva} onElegir={elegirHerramienta} />
+        <div style={{ flex: '1 1 auto', minHeight: 0, padding: 'var(--duna-space-6)' }}>
+          <TiendaPaginas
+            ref={tiendaPaginasRef}
+            pagina={pagina}
+            resaltar={resaltar}
+            dispositivo={dispositivo}
+            modo={modo}
+            onEstadoGlobal={setEstadoGlobal}
+          />
+        </div>
       </div>
+
+      {/* § EDITOR-TIENDA-SHELL-1 — «Medios» abre la VISTA NUEVA: hoy no hay de dónde leer un
+          listado real de imágenes/videos de la tienda (medido — censo por grep, cero resultados de
+          `.list()` sobre el storage), así que el lugar queda listo y lo dice, en vez de fingir un
+          catálogo que no existe. */}
+      <VistaNueva
+        abierto={medioAbierto}
+        onCerrar={() => setMedioAbierto(false)}
+        titulo="Medios"
+        descripcion="Las imágenes y videos de la tienda — todavía sin un listado que mostrar."
+      >
+        <p className="duna-sub">
+          Todavía no hay un catálogo de medios que mostrar acá: cada imagen o video se sube desde el
+          campo de la sección que la usa. Cuando la tienda tenga de dónde leer todo lo subido, este
+          lugar lista ese catálogo.
+        </p>
+      </VistaNueva>
     </div>
   );
 }

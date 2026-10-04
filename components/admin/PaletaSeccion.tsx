@@ -18,8 +18,10 @@ import { derivarPaleta, contraste, RAICES_DEFECTO, type EjesPaleta, type OrigenT
 import { varsDeTienda, varsDeTemaEnVivo } from '@/lib/config/esquema-style';
 import { PARES_FUENTES, linkFuentesTodas, resolverFuentePar, type ClaveFuentePar } from '@/lib/config/fuentes';
 import { FORMAS, resolverForma, type ClaveForma } from '@/lib/config/formas';
+import type { PresetTema } from '@/lib/config/themes';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
+import { Combinaciones } from '@/components/admin/editor/Combinaciones';
 
 // ─── Bloque COLORES DE LA TIENDA — vive en /admin/tienda, SOBRE el selector de página ────────────
 //
@@ -458,6 +460,27 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
   };
 
   const elegirBase = (b: (typeof BASES)[number]) => cambiar({ fondo: b.fondo, tinta: b.tinta });
+
+  // COMBINACIONES (§ EDITOR-TIENDA-SHELL-1, `components/admin/editor/Combinaciones.tsx` — ver su
+  // docstring para el ALCANCE acotado y por qué: sólo raíces + par + forma, nunca la composición
+  // completa del `PresetTema`). UNA sola escritura de estado con los TRES valores NUEVOS juntos —no
+  // `cambiar()` + `cambiarFuente()` + `cambiarForma()` en secuencia, que leerían `formRef`/
+  // `fuenteParRef`/`formaRef` TODAVÍA VIEJOS (los refs se sincronizan en el render, no dentro del
+  // mismo handler síncrono) y mandarían al autoguardado un wire a medio aplicar la combinación.
+  // `resolverFuentePar`/`resolverForma` normalizan la clave CANÓNICA del preset ('editorial'/'suave')
+  // a `null`, igual que hace `mergePresetEnContent` — "Editorial nunca se guarda" (§ fuentes.ts).
+  const aplicarCombinacion = (preset: PresetTema) => {
+    const nf: Form = { ...preset.raices };
+    const fp = resolverFuentePar(preset.fuentePar);
+    const fm = resolverForma(preset.forma);
+    setForm(nf);
+    setEsFabrica(false);
+    setFuentePar(fp);
+    setForma(fm);
+    setHayBorrador(true);
+    auto.marcarSucio(wireDe(nf, false, fp, fm));
+  };
+
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
 
   // Publicar / Descartar el borrador del tema (POST /api/site-content/tema). Publicar deja lo editado
@@ -539,9 +562,14 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
   const razon = (a: string, b: string) => contraste(a, b).toFixed(1); // "8.4" — la razón que contraste() calcula
   // Los AVISOS de contraste van PEGADOS al control que los causa (§ Fix 3), no en una pila bajo el
   // preview. Base → texto sobre fondo; Acento → texto del botón (auto-flip) y acento contra fondo.
-  const avisoBaseTexto   = !acentoInvalido && contraste(form.tinta, form.fondo) < 4.5;
-  const avisoBotonTexto  = !acentoInvalido && contraste(acentoTxt, form.acento) < 4.5;
-  const avisoAcentoFondo = !acentoInvalido && contraste(form.acento, form.fondo) < 1.35;
+  // § EDITOR-TIENDA-SHELL-1 — SIN AVISO DE CONTRASTE en el editor nuevo (decisión del owner,
+  // 2026-10-02, § la aprobación de este slice: "Colores por rol… y SIN aviso de contraste"). Se
+  // apaga en la FUENTE (`!enEditor &&`), no en cada sitio que lo consume (la pastilla de la pestaña
+  // Y los tres `<Aviso>`): un solo interruptor no puede quedar la mitad prendida. El standalone
+  // (`/admin/tienda`, `enEditor=false`) conserva el aviso tal cual.
+  const avisoBaseTexto   = !enEditor && !acentoInvalido && contraste(form.tinta, form.fondo) < 4.5;
+  const avisoBotonTexto  = !enEditor && !acentoInvalido && contraste(acentoTxt, form.acento) < 4.5;
+  const avisoAcentoFondo = !enEditor && !acentoInvalido && contraste(form.acento, form.fondo) < 1.35;
 
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
@@ -630,10 +658,13 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
     <div className="tienda-regleta" data-grupo={grupoActivo}>
       <div className="tienda-regleta__tabs" role="tablist" aria-label="Eje a editar">
         {([
-          { clave: 'base',   label: 'Base',       aviso: avisoBaseTexto },
-          { clave: 'acento', label: 'Acento',     aviso: avisoBotonTexto || avisoAcentoFondo },
-          { clave: 'tipo',   label: 'Tipografía', aviso: false },
-          { clave: 'forma',  label: 'Forma',      aviso: false },
+          { clave: 'base',   label: 'Base',                         aviso: avisoBaseTexto },
+          { clave: 'acento', label: 'Acento',                       aviso: avisoBotonTexto || avisoAcentoFondo },
+          // § EDITOR-TIENDA-SHELL-1 — "› Letras" es el nombre que pide REDISENO.md § 6 para el editor
+          // nuevo; el standalone conserva "Tipografía" (mismo criterio que el aviso de arriba: un
+          // solo sitio decide por `enEditor`, nunca dos copias del rótulo que puedan divergir).
+          { clave: 'tipo',   label: enEditor ? 'Letras' : 'Tipografía', aviso: false },
+          { clave: 'forma',  label: 'Forma',                        aviso: false },
         ] as const).map(t => {
           const on = grupoActivo === t.clave;
           return (
@@ -660,6 +691,13 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
           (el de la base activa), no por-chip; el aviso se pega ACÁ. */}
       <div className="tienda-regleta__pieza tienda-regleta__pieza--base">
         <span className="duna-field__label">Base (fondo y texto)</span>
+        {/* § EDITOR-TIENDA-SHELL-1 — "las tres raíces en palabras" (REDISENO.md § 6), sólo en el
+            editor nuevo: el nombre del rol, no el mecanismo (la base curada + el picker de acento se
+            quedan intactos — ver Combinaciones.tsx para por qué no se reemplazan por tres pickers
+            libres). Fondo y Tinta comparten esta pieza porque la base elegida fija los dos juntos. */}
+        {enEditor && (
+          <p className="duna-caption" style={{ margin: '2px 0 0' }}>Fondo: el papel de tus páginas · Tinta: títulos y textos</p>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
           {BASES.map(b => {
             const activa = baseActiva?.label === b.label;
@@ -691,6 +729,7 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
       {/* PIEZA · ACENTO (picker libre): con el auto-flip del texto del botón DECLARADO. */}
       <div className="tienda-regleta__pieza tienda-regleta__pieza--acento">
         <label className="duna-field__label" htmlFor="pal-acento">Acento de marca</label>
+        {enEditor && <p className="duna-caption" style={{ margin: '2px 0 0' }}>Botones y detalles de marca</p>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
           <input
             id="pal-acento" type="color"
@@ -721,7 +760,7 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
       {/* PIEZA · TIPOGRAFÍA: "Ag" en la fuente DISPLAY del par + el nombre, del SET CERRADO (§ fuentes).
           En el strip la muestra es compacta (sin la descripción del cuerpo); el control es el mismo. */}
       <div className="tienda-regleta__pieza tienda-regleta__pieza--tipo">
-        <span className="duna-field__label">Tipografía</span>
+        <span className="duna-field__label">{enEditor ? 'Letras' : 'Tipografía'}</span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
           {PARES_FUENTES.map(par => {
             const activo = (fuentePar ?? 'editorial') === par.clave;
@@ -812,13 +851,37 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
 
       {editando ? (
         enEditor ? (
-          // EDICIÓN EMBEBIDA: SÓLO la regleta — la página REAL ya está al lado, en el iframe
-          // compartido de `VistaTiendaIframe` (§ el spec: "con la página real al lado reflejando
-          // el cambio al instante"); repetir el fragmento sintético acá sería la duplicación que
-          // el spec pide evitar (§ "/admin/tienda deja de duplicar la paleta si queda en el
-          // editor"). "Ampliar"/"Lo que se calcula solo" quedan fuera del embed a propósito: el
-          // iframe real ya resuelve lo que esos dos chips existían para suplir.
-          <div style={{ marginTop: 'var(--duna-space-4)' }}>{regleta}</div>
+          // EDICIÓN EMBEBIDA: la página REAL ya está al lado, en el iframe compartido de
+          // `VistaTiendaIframe` (§ el spec: "con la página real al lado reflejando el cambio al
+          // instante"); repetir el fragmento sintético acá sería la duplicación que el spec pide
+          // evitar (§ "/admin/tienda deja de duplicar la paleta si queda en el editor"). "Ampliar"
+          // queda fuera a propósito: el iframe real ya resuelve lo que ese chip existía para suplir.
+          //
+          // § EDITOR-TIENDA-SHELL-1 agrega DOS piezas que antes no vivían acá, ambas pedidas por
+          // REDISENO.md § 6: las COMBINACIONES arriba de la regleta (`aplicarCombinacion`, ver su
+          // docstring para el alcance), y «Se calculan solos» EN SOLO LECTURA debajo — antes sólo
+          // existía en el standalone, como capa sobre el `tienda-escena__pane` que el embed no tiene;
+          // acá es un `<details>` simple con la MISMA grilla de derivados, reusando `verCalculado`.
+          <div style={{ marginTop: 'var(--duna-space-4)', display: 'grid', gap: 'var(--duna-space-4)' }}>
+            <Combinaciones onElegir={aplicarCombinacion} />
+            {regleta}
+            {!acentoInvalido && (
+              <details open={verCalculado} onToggle={(e) => setVerCalculado(e.currentTarget.open)}>
+                <summary className="duna-field__label" style={{ cursor: 'pointer' }}>Se calculan solos</summary>
+                <p className="duna-caption" style={{ marginTop: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-2)' }}>
+                  El resto de la paleta se deriva de tus tres colores. No se edita.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 'var(--duna-space-2)' }}>
+                  {derivados.map(nombre => (
+                    <div key={nombre} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span aria-hidden style={{ width: 18, height: 18, borderRadius: 5, background: derivada[nombre], border: '1px solid var(--duna-border)', flexShrink: 0 }} />
+                      <span className="duna-caption" style={{ margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
         ) : (
           // EDICIÓN STANDALONE (sin cambios frente a antes de este slice): EL ESCENARIO — el
           // preview a ANCHO COMPLETO con los controles como REGLETA acoplada a su borde inferior,

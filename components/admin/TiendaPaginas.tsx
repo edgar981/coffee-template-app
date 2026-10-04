@@ -9,7 +9,8 @@ import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista } from '@/
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
-import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, type DispositivoKey } from '@/lib/admin/editor-iframe';
+import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, marcadorDeSeccion, type DispositivoKey } from '@/lib/admin/editor-iframe';
+import { Migas } from '@/components/admin/editor/Migas';
 import { esMensajeCampoImagenClick } from '@/lib/storefront/editor-puente';
 // `TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer` NO vienen de `lib/storefront/editor-puente.ts`: viven
 // en el COMPONENTE que las define (`EditorPuenteVivo.tsx`, § su docstring grande — desviación
@@ -95,6 +96,39 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   const iframeRef = useRef<VistaTiendaIframeHandle>(null);
   const irASeccion = useCallback((seccion: SeccionVista) => iframeRef.current?.irASeccion(seccion), []);
   const recargarIframe = useCallback(() => iframeRef.current?.recargar(), []);
+
+  // ── § EDITOR-TIENDA-SHELL-1 — EL PANEL CON NIVELES (Inicio → sección → elemento, REDISENO.md § 3).
+  // «Elemento» es el nivel de las zonas del hero (`EDITOR-TIENDA-ZONAS-1`, slice 5, no construido
+  // todavía): este slice entrega los DOS niveles de arriba, con la estructura lista para que el
+  // tercero se agregue sin rehacer la navegación.
+  //
+  // `seccionActiva` es la sección a cuyo nivel bajó el panel, o `null` en Inicio. NO dispara un
+  // (des)montaje de `TiendaSeccionEditor`: TODAS las secciones de la página siguen montadas siempre
+  // (abajo, cada una se oculta con `display:none` cuando no es la activa) — desmontar perdería los
+  // PASOS de historial que cada instancia ya empujó (sus closures cierran sobre el `setForm` de ESA
+  // instancia; una remontada sería una instancia nueva, y "deshacer" sobre un paso viejo sería un
+  // no-op silencioso). Es la misma razón por la que `seccionesEstado` (abajo) deja sueltas, a
+  // propósito, las entradas de secciones de otra página.
+  //
+  // CADA TiendaSeccionEditor YA AVISA `onAbrir`/`onCerrar` en cualquier camino que abra/cierre su
+  // edición (el botón "Editar"/"Cerrar" de la tarjeta, la selección desde el iframe, el campo
+  // flotante) — este componente sólo escucha esos dos eventos para decidir el nivel; no hace falta
+  // un tercer camino de navegación.
+  const [seccionActiva, setSeccionActiva] = useState<SeccionVista | null>(null);
+  const abrirNivelSeccion = useCallback((seccion: SeccionVista) => {
+    irASeccion(seccion);
+    setSeccionActiva(seccion);
+  }, [irASeccion]);
+  const cerrarNivelSeccion = useCallback((seccion: SeccionVista) => {
+    setSeccionActiva((actual) => (actual === seccion ? null : actual));
+  }, []);
+  // El «‹ Inicio» de las migas: colapsa la edición de la sección activa (como su "Cerrar") Y vuelve
+  // al nivel de arriba — las DOS salidas (el botón interno, éstas migas) deben terminar en el mismo
+  // sitio, nunca una tarjeta a medio abrir detrás de la lista.
+  const volverAInicio = useCallback(() => {
+    if (seccionActiva) seccionRefs.current.get(seccionActiva)?.cerrar();
+    setSeccionActiva(null);
+  }, [seccionActiva]);
   // § EDITOR-TIENDA-POSTMESSAGE-1 — el cambio EN VIVO de cada editor llega acá y se reenvía al
   // iframe compartido por `postMessage`, sin recargar (reemplaza el reload-tras-autoguardado de
   // `onCambioPublicado`, que ahora sólo corre tras Publicar/Descartar).
@@ -260,6 +294,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     historialRef.current?.limpiar();
     tocarHistorial();
   }, [pagina, modo, tocarHistorial]);
+
+  // § EDITOR-TIENDA-SHELL-1 — `seccionActiva` vuelve a Inicio al cambiar de PÁGINA (una sección de
+  // Home no existe en Nosotros; dejarla puesta ocultaría TODAS las filas de `seccionesOrdenadas`,
+  // porque ninguna coincidiría con un `seccionActiva` de otra página). NO depende de `modo`, a
+  // propósito: "Abrir Estilo no pierde la selección" (REDISENO.md § 3) — ir y volver entre Secciones
+  // y Estilo debe conservar el nivel donde se estaba.
+  useEffect(() => { setSeccionActiva(null); }, [pagina]);
 
   const deshacerGlobal = useCallback(() => { historialRef.current?.deshacer(); tocarHistorial(); }, [tocarHistorial]);
   const rehacerGlobal = useCallback(() => { historialRef.current?.rehacer(); tocarHistorial(); }, [tocarHistorial]);
@@ -496,6 +537,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     valoresCruzados[s] = valoresCruzadosEnVivo[s] ?? (doc ? (doc.contenido[s] as Record<string, unknown> | undefined) : undefined);
   }
 
+  // § EDITOR-TIENDA-SHELL-1 — marcador→título, para el RÓTULO de hover del lienzo
+  // (`VistaTiendaIframe.tsx`): ese componente no tiene `SECCIONES_TIENDA` (§ su docstring), así que
+  // este componente —que sí lo tiene— le baja el mapa. De `secciones` (la página ACTIVA), no de todo
+  // el registro: un marcador de otra página no debería rotular nada en ESTE iframe.
+  const tituloPorMarcador: Record<string, string> = {};
+  for (const c of secciones) tituloPorMarcador[marcadorDeSeccion(c.seccion)] = c.titulo;
+
   // § EDITOR-TIENDA-DESHACER-1 — "Publicar"/"Descartar" DE LA BARRA actúan sobre TODAS las secciones
   // con borrador de la página activa + 'orden' (home) + 'tema' (store-wide) de una vez. `tema` SE
   // RE-SINCRONIZA REMONTANDO `PaletaSeccion` (§ `temaReloadKey`, abajo) en vez de leer/escribir su
@@ -610,11 +658,25 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* § EDITOR-TIENDA-SHELL-1 — LAS MIGAS: sólo existen cuando hay un nivel de arriba al que
+          volver, así que sólo se montan con `seccionActiva` puesta (nunca en Inicio). Las dos
+          secciones de abajo (el toggle/nota de página, la barra de orden) son del nivel «Inicio» —
+          decisiones de LISTA, no de una sección puntual— y se ocultan al bajar de nivel por la misma
+          razón que `orden`/`ojo` sólo viven en la tarjeta colapsada (§ TiendaSeccionEditor.tsx). */}
+      {modo === 'paginas' && seccionActiva && (
+        <Migas
+          nivelAnterior="Inicio"
+          actual={secciones.find(c => c.seccion === seccionActiva)?.titulo ?? seccionActiva}
+          onVolver={volverAInicio}
+        />
+      )}
+
       {/* El toggle de encender/apagar y la nota de la página apagable (Nosotros · Suscripciones) — el
           selector de PÁGINA en sí ya no vive acá, subió a la barra superior del editor de pantalla
           completa (§ EDITOR-TIENDA-DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). SÓLO en modo
-          'paginas' (§ EDITOR-TIENDA-TEMA-1): son cosas de LA PÁGINA, no del tema store-wide. */}
-      {modo === 'paginas' && (paginaMeta.apagable || paginaMeta.nota) && (
+          'paginas' (§ EDITOR-TIENDA-TEMA-1) Y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1): son
+          cosas de LA PÁGINA, no del tema store-wide ni de una sección puntual. */}
+      {modo === 'paginas' && !seccionActiva && (paginaMeta.apagable || paginaMeta.nota) && (
         <div style={{ flexShrink: 0, marginBottom: 'var(--duna-space-5)' }}>
           {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
           {paginaMeta.nota && (
@@ -627,8 +689,9 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           es una tarjeta de la lista: no hay un bloque único donde mostrar este estado, así que vive
           en su propia barra, arriba de la lista. Mismo vocabulario que cada tarjeta (duna-badge/
           duna-btn) para que no se lea como un control distinto. SÓLO en modo 'paginas' (§ EDITOR-
-          TIENDA-TEMA-1): el orden es de LA PÁGINA home, no del tema. */}
-      {modo === 'paginas' && hayBorradorOrden && (
+          TIENDA-TEMA-1) y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1): el orden es de LA PÁGINA
+          home, no del tema ni de una sección puntual. */}
+      {modo === 'paginas' && !seccionActiva && hayBorradorOrden && (
         <div style={{
           flexShrink: 0, marginBottom: 'var(--duna-space-4)', display: 'flex', alignItems: 'center',
           flexWrap: 'wrap', gap: 'var(--duna-space-3)', padding: 'var(--duna-space-3) var(--duna-space-4)',
@@ -686,29 +749,37 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             <PaletaSeccion key={temaReloadKey} enEditor onCambioEnVivo={enviarTemaIframe} />
           ) : (
             seccionesOrdenadas.map(config => (
-              <TiendaSeccionEditor
+              // § EDITOR-TIENDA-SHELL-1 — el PANEL CON NIVELES oculta por CSS las secciones que no
+              // son la activa (nunca las desmonta, § el docstring grande de `seccionActiva` arriba).
+              // En Inicio (`seccionActiva === null`) las muestra TODAS, como siempre.
+              <div
                 key={config.seccion}
-                ref={registrarRefSeccion(config.seccion)}
-                config={config}
-                categorias={categorias}
-                categoriasListas={categoriasListas}
-                resaltar={resaltar}
-                onAbrir={irASeccion}
-                onCambioPublicado={recargarIframe}
-                onCambio={manejarCambioSeccion}
-                onPaso={onPasoSeccion}
-                onEstado={manejarEstadoSeccion}
-                orden={asaDeSeccion(config.bandaId, config.titulo)}
-                valoresCruzados={valoresCruzados}
-                onEscribirCruzado={escribirCruzado}
-                carga={{
-                  valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
-                  sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
-                  listo: !!doc,
-                  error: errorDoc,
-                  recargar: recargarDoc,
-                }}
-              />
+                style={seccionActiva && seccionActiva !== config.seccion ? { display: 'none' } : undefined}
+              >
+                <TiendaSeccionEditor
+                  ref={registrarRefSeccion(config.seccion)}
+                  config={config}
+                  categorias={categorias}
+                  categoriasListas={categoriasListas}
+                  resaltar={resaltar}
+                  onAbrir={abrirNivelSeccion}
+                  onCerrar={cerrarNivelSeccion}
+                  onCambioPublicado={recargarIframe}
+                  onCambio={manejarCambioSeccion}
+                  onPaso={onPasoSeccion}
+                  onEstado={manejarEstadoSeccion}
+                  orden={asaDeSeccion(config.bandaId, config.titulo)}
+                  valoresCruzados={valoresCruzados}
+                  onEscribirCruzado={escribirCruzado}
+                  carga={{
+                    valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
+                    sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
+                    listo: !!doc,
+                    error: errorDoc,
+                    recargar: recargarDoc,
+                  }}
+                />
+              </div>
             ))
           )}
         </div>
@@ -724,6 +795,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             dispositivo={dispositivo}
             onSeccionSeleccionada={manejarSeleccionDesdeIframe}
             onCampoCambio={manejarCampoCambioDesdeIframe}
+            tituloPorMarcador={tituloPorMarcador}
           />
         </div>
       </div>

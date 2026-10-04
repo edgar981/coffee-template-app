@@ -12,6 +12,8 @@ import {
   ANCHOS_DISPOSITIVO,
   DISPOSITIVO_DEFECTO,
   calcularEscalaDispositivo,
+  ATRIBUTO_EDITOR_SECCION,
+  cajaDeHover,
   type DispositivoKey,
 } from '@/lib/admin/editor-iframe';
 // EL AUTÓMATA DE ESTABILIZACIÓN DE ALTURA (§ EDITOR-TIENDA-POSTMESSAGE-1, §1 del spec) — REUSADO,
@@ -122,10 +124,18 @@ interface VistaTiendaIframeProps {
    *  `onSeccionSeleccionada`, sin resolver todavía) y el campo/valor tal cual. El padre resuelve la
    *  sección y llama a `TiendaSeccionEditorHandle.escribirCampo(campo, valor)`. */
   onCampoCambio?: (seccion: string, campo: string, valor: string) => void;
+  /** § EDITOR-TIENDA-SHELL-1 — marcador→título legible (`config.titulo`), para el RÓTULO del resalte
+   *  de hover (abajo). Lo arma el padre (`TiendaPaginas.tsx`, que tiene `SECCIONES_TIENDA`) — este
+   *  componente no importa ese registro, mismo criterio que `seccionDesdeMarcador` en
+   *  `lib/admin/editor-iframe.ts` ("liviano, el registro lo resuelve quien lo tiene"). Un marcador
+   *  ausente del mapa (home/nosotros siempre completan todas sus secciones; un residuo futuro) no
+   *  rotula — el outline punteado del storefront sigue mostrándose igual, sólo sin nombre.
+   */
+  tituloPorMarcador?: Record<string, string>;
 }
 
 const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeProps>(
-  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio }, ref) {
+  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, tituloPorMarcador }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
     // TOKEN de la restauración EN VUELO (§ el docstring de `onLoad`, abajo): el poll de
@@ -164,6 +174,11 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
     // que el ResizeObserver reporte — un sub-frame, no un estado visible de verdad).
     const anchoVisible = medido ? Math.round(anchoDispositivo * escala) : anchoDispositivo;
     const altoInterno = medido ? medida.alto / escala : undefined;
+    // Espejo síncrono de `escala`, para el listener de hover de abajo: se adjunta UNA vez por carga
+    // (`onLoad`, § su comentario grande) y lee este ref en CADA evento — nunca la `escala` cerrada
+    // por closure en el momento en que `onLoad` se definió, que quedaría vieja tras cualquier resize.
+    const escalaRef = useRef(escala);
+    escalaRef.current = escala;
     // EL resalte ACTIVO (nodo + su timer de limpieza), no sólo el timer: con sólo el timer, resaltar
     // una SEGUNDA sección mientras la primera seguía iluminada cancelaría el timer de la primera sin
     // limpiar su outline (queda pegado para siempre), y resaltar la MISMA sección dos veces seguidas
@@ -189,6 +204,48 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       activo.nodo.style.outlineOffset = '';
       resaltadoRef.current = null;
     };
+
+    // ── EL RÓTULO DE HOVER (§ EDITOR-TIENDA-SHELL-1) ──────────────────────────────────────────────
+    // "Pasar el mouse sobre el lienzo resalta la sección con su nombre" (REDISENO.md § 2). El outline
+    // punteado al :hover YA lo pinta el storefront (CSS de `EditorPuenteVivo.tsx`, Tier 1, fuera de
+    // `touches:`); lo único que falta es el NOMBRE, y eso se dibuja ACÁ, por FUERA del documento del
+    // iframe — mismo acceso directo (mismo origen, § `irASeccion` arriba) que ya usa esta vista para
+    // desplazar/resaltar. `tituloPorMarcador` llega como prop porque este componente no tiene el
+    // registro de secciones (§ su docstring, arriba).
+    const [hover, setHover] = useState<{ marcador: string; caja: ReturnType<typeof cajaDeHover> } | null>(null);
+    const hoverNodoRef = useRef<HTMLElement | null>(null);
+    const tituloPorMarcadorRef = useRef(tituloPorMarcador);
+    tituloPorMarcadorRef.current = tituloPorMarcador;
+
+    // Adjuntado UNA vez por carga del documento (§ `onLoad`, abajo) — el documento VIEJO se descarta
+    // entero en cada `load`/`recargar()`/cambio de página, así que sus listeners se van con él sin
+    // limpieza manual (mismo criterio ya aceptado por el resto de este archivo: `onLoad` no desengancha
+    // nada de la carga anterior). Lee `escalaRef`/`tituloPorMarcadorRef` en el momento del EVENTO, no
+    // en el momento en que el listener se adjuntó, para no quedar con un factor de escala o un mapa de
+    // títulos viejo tras un resize o un cambio de página que no recarga el iframe.
+    const engancharHoverRotulo = useCallback((doc: Document) => {
+      const onOver = (e: Event) => {
+        const destino = e.target instanceof HTMLElement ? e.target : null;
+        const nodo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_SECCION}]`) ?? null;
+        if (nodo === hoverNodoRef.current) return; // mismo nodo que ya se está mostrando — sin cambio
+        hoverNodoRef.current = nodo;
+        if (!nodo) { setHover(null); return; }
+        const marcador = nodo.getAttribute(ATRIBUTO_EDITOR_SECCION)!;
+        const rect = nodo.getBoundingClientRect();
+        setHover({ marcador, caja: cajaDeHover(rect, escalaRef.current) });
+      };
+      // `mouseout` con chequeo de `relatedTarget`: moverse DENTRO de la misma sección marcada no debe
+      // apagar el rótulo — `closest()` en `onOver` ya filtra eso, pero `mouseout` dispara también al
+      // salir de un hijo hacia OTRO hijo del mismo marcador, y sin el chequeo parpadearía.
+      const onOut = (e: MouseEvent) => {
+        const hacia = e.relatedTarget instanceof Node ? e.relatedTarget : null;
+        if (hacia && hoverNodoRef.current?.contains(hacia)) return;
+        hoverNodoRef.current = null;
+        setHover(null);
+      };
+      doc.addEventListener('mouseover', onOver);
+      doc.addEventListener('mouseout', onOut);
+    }, []);
 
     // § EDITOR-TIENDA-CAMPO-ANCLADO-1 — la MITAD de VistaTiendaIframe.tsx del error 4
     // (REDISENO.md § 1): "un clic que nace en el iframe no vuelve a desplazar el iframe". El
@@ -235,6 +292,8 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       const win = iframeRef.current?.contentWindow;
       if (!win) return;
       limpiarResalte();
+      hoverNodoRef.current = null;
+      setHover(null); // el documento se va a descartar — su rótulo, si había uno, ya no aplica
       // Invalida cualquier restauración todavía en vuelo de un `recargar()` anterior (§ el token,
       // arriba): ese poll, si siguiera corriendo, aplicaría un `scrollTo` viejo DESPUÉS del de esta
       // recarga nueva.
@@ -401,6 +460,7 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       window.setTimeout(reenviarNavegar, 1500);
 
       const win = iframeRef.current?.contentWindow;
+      if (win) { hoverNodoRef.current = null; setHover(null); engancharHoverRotulo(win.document); }
       const guardado = scrollPendiente.current;
       scrollPendiente.current = null;
       if (!win || guardado == null) {
@@ -444,9 +504,10 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
         window.requestAnimationFrame(intentar);
       };
       window.requestAnimationFrame(intentar);
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- `enviarModoNavegar` es estable
-      // (deps `[]`, § su propia definición) y `navegandoRef` es un ref: ninguno de los dos cambia
-      // de identidad entre renders, así que agregarlos no cambia cuándo corre este callback.
+      // `enviarModoNavegar`/`engancharHoverRotulo` son estables (deps `[]`, § sus propias
+      // definiciones) y `navegandoRef` es un ref: ninguno de los tres cambia de identidad entre
+      // renders, así que agregarlos no cambia cuándo corre este callback.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Invalida cualquier restauración en vuelo si el componente se desmonta (cambio de página, que
@@ -512,6 +573,34 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
                 style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
               />
             </div>
+            {/* EL RÓTULO DE HOVER (§ arriba): vive DENTRO del envoltorio ya escalado (`anchoVisible`,
+                `position:relative`), nunca dentro del stage que lleva el `transform` — `cajaDeHover`
+                ya aplicó la escala a la caja medida, así que una SEGUNDA transformación la deformaría.
+                `pointer-events:none`: el rótulo no debe robarle el clic al iframe de abajo. */}
+            {hover && (() => {
+              const titulo = tituloPorMarcadorRef.current?.[hover.marcador];
+              if (!titulo) return null;
+              return (
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    left: hover.caja.left,
+                    top: Math.max(0, hover.caja.top - 24),
+                    pointerEvents: 'none',
+                    background: 'var(--duna-ink)',
+                    color: 'var(--duna-bg)',
+                    font: '600 11px var(--duna-font-ui, inherit)',
+                    padding: '2px 8px',
+                    borderRadius: 'var(--duna-r-full, 999px)',
+                    whiteSpace: 'nowrap',
+                    zIndex: 1,
+                  }}
+                >
+                  {titulo}
+                </div>
+              );
+            })()}
           </div>
           {cargando && (
             <div className="duna-skel" aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 0 }} />
