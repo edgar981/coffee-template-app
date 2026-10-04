@@ -9,6 +9,7 @@ import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import PosterScrubber from '@/components/admin/PosterScrubber';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
+import { SelectorTransicion } from '@/components/admin/SelectorTransicion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from '@/components/ui/command';
 import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
@@ -1185,6 +1186,20 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         ) : campo.producto ? (
           <ProductoCombobox id={id} value={value} productos={catalogoReal} productosListos={productosListos}
                              onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
+        ) : campo.transicionMarquesina && campo.opciones ? (
+          // § EDITOR-TIENDA-TRANSICIONES-TARJETAS-1 — fila de tarjetas con mini animación en vez del
+          // `<select>` nativo (que la rama de abajo sigue dando a todo OTRO campo con `opciones`).
+          // `campo.opciones` (NO el `opciones` ya resuelto arriba, que también cubre `opcionesDinamicas`
+          // — rama que `transicionMarquesina` nunca toma) porque es el único de los dos cuyo TIPO
+          // garantiza el `hint` por opción que esta tarjeta necesita.
+          <SelectorTransicion
+            id={id}
+            opciones={campo.opciones.map((o) => ({ value: o.value, label: o.label, hint: o.hint ?? '' }))}
+            valor={value}
+            onElegir={(v) => cambiar({ [campo.name]: v })}
+            ariaDescribedby={`${id}-hint`}
+            ariaLabel={etiqueta}
+          />
         ) : opciones ? (
           // SELECT NATIVO (§ Controles de formulario) — `destacadoSlot`, con opciones derivadas.
           // `alto`/`veloCombo` (§ EDITOR-TIENDA-ZONAS-1) escriben MÁS de un campo real a la vez —

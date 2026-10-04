@@ -332,6 +332,33 @@ reemplazarlo por un control compuesto (el criterio que sí justificó `Categoria
 del campo describe las cinco en una frase cada una; la vista real es la vista previa en vivo o la
 tienda publicada.
 
+**TERCER PEDIDO FUERA DE ESTA NUMERACIÓN:** `EDITOR-TIENDA-TRANSICIONES-TARJETAS-1` — el `<select>`
+nativo de arriba pasa a una FILA DE TARJETAS, una por transición, cada una con mini animación en
+bucle — **ENTREGADO** (2026-10-04). El owner encoló explícitamente este reemplazo el 2026-10-03
+("Encolala"), justo después de aceptar la desviación "sin vista previa" de `EDITOR-TIENDA-
+MARQUESINA-TRANSICIONES-1`. Componente nuevo `components/admin/SelectorTransicion.tsx`
+(`role="radiogroup"`/`role="radio"`, roving tabindex, flechas mueven foco+elección, `<button>` nativo
+da Enter/Espacio gratis). La mini animación NO copia valores: `estiloTarjetaTransicion` (nuevo,
+`lib/animation.ts`) es un envoltorio delgado sobre `transformTransicionMarquesinaItem`/
+`filterTransicionMarquesinaItem`/`opacidadEntradaSalidaItem` (las MISMAS tres funciones de la banda
+real) con una ventana de demo fija; `progresoLoopTarjetaTransicion` hace avanzar el progreso solo,
+vía `requestAnimationFrame` en el componente. "En reposo, cada tarjeta muestra el cuadro final" y
+"con movimiento reducido, nunca se anima" son el MISMO interruptor: `estatico = prefiereReducido ||
+!activa` — con `estatico=true` las tres funciones devuelven su identidad sin mirar el progreso.
+`CampoTexto` gana el discriminador `transicionMarquesina?: boolean` (tan específico como
+`producto`/`categoria` a propósito — generalizarlo antes de un segundo caso sería diseñar para un
+requisito que nadie pidió) y `opciones` gana un `hint?` por opción (antes un solo párrafo
+concatenado en el `hint` del campo). Toca `lib/animation.ts`, `lib/animation.test.ts`,
+`components/admin/tienda-secciones.ts`, `components/admin/TiendaSeccionEditor.tsx`,
+`components/admin/SelectorTransicion.tsx` (nuevo). Tier 2 (no toca `components/storefront/` ni
+`site-content-schema.ts`: el campo `transicion` ya existía, sólo cambia el WIDGET que lo edita).
+Verificado de punta a punta con sesión real (`.scratch/arnes-transiciones-tarjetas.ts`, no
+comiteado): 5 tarjetas con `role="radio"`, hover anima sola (dos muestras del estilo difieren),
+reposo fijo en el cuadro final, clic escribe el borrador (confirmado contra `GET /api/site-content`
+por polling), ArrowLeft mueve foco+elección juntos, y la elección sobrevive a un reload de la
+página (persistida en el borrador del servidor, no sólo en memoria). Capturas en
+`.scratch/capturas-transiciones-tarjetas/` (no comiteadas).
+
 **SLICE 6 ENTREGADO (2026-10-03).** El botón «Composición: <nombre>» (`TiendaSeccionEditor.tsx`,
 sólo `seccion==='hero'`) abre la vista nueva «¿Cómo se arma tu hero?» (`components/admin/editor/
 ComposicionHero.tsx`, nuevo — monta `VistaNueva`, la hoja ya construida por el slice 4): las CUATRO
@@ -508,9 +535,11 @@ warnings que aparecen son PRE-EXISTENTES, confirmado por posición fuera de los 
 archivo de `components/storefront/` ni `app/(storefront)/`, así que no hay drift visual público que
 medir.
 
-**CIERRA EL PLAN POR SLICES DE § 9.** Los ocho numerados están ENTREGADOS, más los dos pedidos
+**CIERRA EL PLAN POR SLICES DE § 9.** Los ocho numerados están ENTREGADOS, más los TRES pedidos
 aparte del owner sobre la sección Marquesina (`EDITOR-TIENDA-MARQUESINA-SECCION-1`,
-`EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`). Lo que queda de este documento es § 10, ya resuelto
+`EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`, y `EDITOR-TIENDA-TRANSICIONES-TARJETAS-1` — el reemplazo
+del `<select>` por tarjetas que el owner encoló el mismo día que aceptó la desviación "sin vista
+previa" del segundo). Lo que queda de este documento es § 10, ya resuelto
 en su mayoría (ver abajo), y las mejoras futuras que cada slice fue anotando en su propio
 `open_followups` (`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`, `PANEL-EDITOR-VARIANTES-
 COMPOSICION-2`, entre otras) — ninguna bloquea el cierre de este plan.

@@ -1359,6 +1359,55 @@ export function filterTransicionMarquesinaItem(
   return 'none';
 }
 
+// ── LA MINI ANIMACIÓN DE LA TARJETA DE TRANSICIÓN — § EDITOR-TIENDA-TRANSICIONES-TARJETAS-1 ───────
+//
+// El selector «Cómo salen los productos» pasó de `<select>` nativo a una fila de tarjetas
+// (`SelectorTransicion.tsx`), cada una con una mini animación en bucle que muestra CÓMO se ve esa
+// transición sobre una tarjeta de producto genérica. Esta función NO inventa una sexta coreografía:
+// es un envoltorio DELGADO sobre `transformTransicionMarquesinaItem`/`filterTransicionMarquesinaItem`/
+// `opacidadEntradaSalidaItem` (arriba) — las MISMAS tres funciones que `MarquesinaTarjetaMotor.tsx`
+// llama para la banda real—, con una ventana de entrada/salida FIJA (una sola tarjeta de demo, sin
+// depender de cuántos productos tenga el catálogo del dueño) en vez de la ventana derivada de
+// `ventanasBandaMarquesina` (que varía con el número real de productos).
+//
+// POR QUÉ "ESTÁTICO" TAMBIÉN RESUELVE EL REPOSO, SIN UNA VENTANA/PROGRESO PROPIOS PARA ESE CASO: con
+// `estatico=true` las tres funciones devuelven su identidad SIN mirar `progreso` ni las ventanas
+// (`translateY(0%)`/`scale(1)`/`blur(0px)`/`rotate(0deg)`, opacidad en `techo`) — es la MISMA rama
+// que ya usan para `prefers-reduced-motion`/el preview del editor. El llamador (`SelectorTransicion`)
+// pasa `estatico = prefersReducedMotion || !activa` — así "en reposo, cada tarjeta muestra el cuadro
+// final" y "con movimiento reducido, nunca se anima" son UN SOLO interruptor, no dos casos a mano.
+export const TARJETA_TRANSICION_VENTANA_ENTRADA = { desde: 0, hasta: 0.35 };
+export const TARJETA_TRANSICION_VENTANA_SALIDA = { desde: 0.65, hasta: 1 };
+
+export interface EstiloTarjetaTransicion { transform: string; opacity: number; filter: string }
+
+export function estiloTarjetaTransicion(tipo: string, progreso: number, estatico: boolean): EstiloTarjetaTransicion {
+  return {
+    transform: transformTransicionMarquesinaItem(
+      tipo, progreso, estatico, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA, 0,
+    ),
+    opacity: opacidadEntradaSalidaItem(
+      progreso, estatico, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA, 1,
+    ),
+    filter: filterTransicionMarquesinaItem(
+      tipo, progreso, estatico, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA,
+    ),
+  };
+}
+
+// "UN PROGRESO QUE AVANZA SOLO" (el spec, literal): un ciclo de `TARJETA_TRANSICION_DURACION_S`
+// segundos que recorre 0→1 y vuelve a arrancar en 0 — nunca ping-pong, porque las cinco transiciones
+// "siguen de largo" al salir (§ el docstring de cada una, arriba); un progreso que retrocediera
+// haría que la salida se revierta en vez de completarse. Pura: el componente sólo le da los
+// milisegundos transcurridos desde que arrancó el bucle (`requestAnimationFrame`), nunca el reloj.
+export const TARJETA_TRANSICION_DURACION_S = 2.4;
+
+export function progresoLoopTarjetaTransicion(elapsedMs: number): number {
+  const duracionMs = TARJETA_TRANSICION_DURACION_S * 1000;
+  if (elapsedMs <= 0) return 0;
+  return (elapsedMs % duracionMs) / duracionMs;
+}
+
 // EL PRESUPUESTO DE LA SECCIÓN SUELTA, EN VH ADITIVOS — NO en fracción del total, a diferencia de
 // `claseAlturaAncestroMarquesina` (arriba). Esa función resuelve "¿qué `H` hace que el punto de
 // despineo caiga en `pUnpin`?", y esa ecuación (`H = VH/(1-pUnpin)`) EXPLOTA cuando `pUnpin→1` — con

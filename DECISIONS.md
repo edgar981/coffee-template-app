@@ -50645,3 +50645,153 @@ de `25235ce`.
 
 **Cierra `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — y con él, el plan por slices de `docs/editor-tienda/
 REDISENO.md` § 9 (los 8 numerados, más los dos pedidos aparte del owner sobre Marquesina).**
+
+---
+
+## 2026-10-04 — El `<select>` de transiciones de la Marquesina pasa a tarjetas con mini animación (`EDITOR-TIENDA-TRANSICIONES-TARJETAS-1`)
+
+Tier 2, `writes: yes`, aprobado sobre el spec citado en el dispatch. Sigue a `EDITOR-TIENDA-
+MARQUESINA-TRANSICIONES-1` (2026-10-03), que dejó el campo «Cómo salen los productos» como `<select>`
+nativo con una DESVIACIÓN MEDIDA Y DECLARADA: "el panel NO ofrece una vista mínima al pasar el mouse
+… no hay dónde montar una miniatura dentro de la lista abierta sin reemplazar el control nativo". El
+owner, el mismo día, pidió encolar exactamente ese reemplazo ("Encolala"). Este slice lo entrega.
+
+### Qué se construyó
+
+**`components/admin/SelectorTransicion.tsx` (nuevo).** Fila de cinco tarjetas —`role="radiogroup"` +
+`role="radio"` por tarjeta, roving `tabIndex` (sólo la elegida es alcanzable por Tab), flechas mueven
+foco Y elección a la vez (el patrón APG de un grupo de radios), `<button>` real para que Enter/Espacio
+activen por conducta nativa—. Cada tarjeta: nombre, badge "Actual" si es la elegida, mini animación en
+bucle, y su frase de una línea (antes concatenada en el único `hint` del `<select>`, ahora una por
+opción). Mismo vocabulario visual que `ComposicionHero.tsx` (`.bloque-tarjeta`, badge "Actual"
+idéntico) — layout distinto a propósito (fila inline donde vivía el `<select>`, no una hoja aparte con
+tarjetas apiladas verticalmente): se documentó en el componente por qué no se reusó el componente
+literal y qué pieza quedaría reusable si una composición futura quisiera filas de tarjetas.
+
+**La mini animación REUSA, no copia valores.** `estiloTarjetaTransicion` (nuevo, `lib/animation.ts`)
+es un envoltorio delgado sobre `transformTransicionMarquesinaItem`/`filterTransicionMarquesinaItem`/
+`opacidadEntradaSalidaItem` —las MISMAS tres funciones que `MarquesinaTarjetaMotor.tsx` usa para la
+banda real— con una ventana de entrada/salida FIJA (`TARJETA_TRANSICION_VENTANA_ENTRADA={0,0.35}`,
+`...SALIDA={0.65,1}`, una sola tarjeta de demo, sin depender del catálogo real). "En reposo, cada
+tarjeta muestra el cuadro final" y "con movimiento reducido, nunca se anima" (el spec, literal) son
+el MISMO interruptor: con `estatico=true` las tres funciones devuelven su identidad SIN mirar el
+progreso (la rama que ya usan para `prefers-reduced-motion`), así que no hace falta una ventana de
+"reposo" separada — `estatico = prefiereReducido || !activa` (hover u foco) alcanza. El progreso
+"avanza solo" vía `requestAnimationFrame` (`progresoLoopTarjetaTransicion`, nuevo, pura: recorre 0→1
+en `TARJETA_TRANSICION_DURACION_S=2.4` s y vuelve a 0 — nunca ping-pong, porque las cinco transiciones
+"siguen de largo" al salir).
+
+**El wiring.** `CampoTexto` (`tienda-secciones.ts`) gana `transicionMarquesina?: boolean` —tan
+específico como `producto`/`categoria` a propósito (generalizar a "cualquier campo con tarjetas" antes
+de un segundo caso sería diseñar para un requisito hipotético, § CLAUDE.md)— y el tipo de `opciones`
+gana `hint?` por opción. `renderCampo` (`TiendaSeccionEditor.tsx`) rama sobre ese flag ANTES del
+`<select>` genérico, usando `campo.opciones` directo (no el `opciones` ya resuelto que también cubre
+`opcionesDinamicas`, cuyo tipo no garantiza `hint`). El radiogroup lleva `aria-label` propio (un
+`<div role="radiogroup">` no es "labelable" por `<label htmlFor>` como sí lo es un `<select>`).
+
+### Deviation — ninguna del spec; una de tipos, resuelta sin tocar el contrato
+
+El primer intento leía `.hint` sobre el `opciones` YA resuelto por `renderCampo` (que también cubre
+`opcionesDinamicas:'destaquePlanes'`, cuyo retorno es `{value,label}[]` sin `hint`), y TypeScript
+rechazó el acceso por la unión de tipos. Se resolvió leyendo `campo.opciones` directo en la rama
+`transicionMarquesina` (que nunca coexiste con `opcionesDinamicas` en el REGISTRY de hoy) — no fue
+necesario ensanchar el tipo de retorno de `opcionesDestaque` ni inventar un cast.
+
+### Gate — medido, las tres capas obligatorias, en el árbol final
+
+```
+npx tsc --noEmit                        → 0 errores
+npm test                                → 3533/3533  (piso previo: 3528/3528, § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — +5 tests nuevos de este slice)
+npm run test:integracion                → 328/328    (sin cambio — este slice no toca ninguna de las rutas/tablas que ese carril ejercita)
+npx next build                          → compila (SWC), sin error
+npx eslint <5 archivos de touches:>     → 0 problemas nuevos
+```
+
+El `npx eslint` sobre el árbol completo reporta 12 errores + 26 warnings preexistentes en
+`TiendaSeccionEditor.tsx`/`lib/animation.ts` (refs de React en el repeater, un `setState` síncrono en
+un efecto) — verificado que son PRE-EXISTENTES, no introducidos: `git diff HEAD` sobre esos dos
+archivos es PURAMENTE ADITIVO (0 líneas borradas, 15 y 49 insertadas respectivamente) y ninguna línea
+flaggeada cae dentro de un hunk de este diff — es código sin tocar que el insert sólo desplazó de
+número de línea.
+
+### Verificación de punta a punta — sesión real, 5/5
+
+`.scratch/arnes-transiciones-tarjetas.ts` (no comiteado, mismo mecanismo que `arnes-composicion.ts`:
+Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`, Playwright con sesión
+real `admin@sierranativa.co`), contra `/editor/tienda?seccion=marquesina` (el deep-link que auto-abre
+la tarjeta Marquesina en edición):
+
+1. El `<select>` murió — 5 tarjetas `role="radio"` en un `role="radiogroup"`, nombres Subir·Deslizar·
+   Acercar·Enfocar·Girar en orden; "Subir" elegida al abrir (el default canónico).
+2. Con el mouse sobre "Girar", dos muestras del `style.transform`/`.filter` de la mini animación,
+   300ms aparte, DIFIEREN (`scale(0.901) rotate(-2.65deg)` → `scale(0.99) rotate(-0.27deg)`) — el
+   progreso avanza solo. Fuera del hover, dos muestras COINCIDEN en el cuadro final fijo
+   (`scale(1) rotate(0deg)`).
+3. Clic en "Girar" → `aria-checked`/badge "Actual" se mueven; el borrador en el servidor (polling de
+   `GET /api/site-content` hasta 5s, no un timeout fijo contra el debounce de 1s) queda en
+   `transicion:"girar"` — el MISMO campo de siempre.
+4. `ArrowLeft` desde "Girar" mueve FOCO y ELECCIÓN juntos a "Enfocar" — confirmado también en el
+   borrador del servidor.
+5. Recargar la página: "Enfocar" sigue elegida — persistió en el borrador real, no sólo en memoria
+   del cliente.
+
+5 capturas en `.scratch/capturas-transiciones-tarjetas/` (no comiteadas); una de ellas (`4-teclado-
+enfocar.png`) muestra además el anillo de foco del teclado y la barra superior en "Guardando…" +
+"Publicar 1", confirmando que el cambio quedó pendiente de publicar como cualquier otro campo.
+
+### Open follow-ups
+
+Ninguno coined por este slice.
+
+### `customer_bytes`
+
+**`changed: true`** — el eje es la RAMA contra `main` (§ CLAUDE.md, "ORCH-CUSTOMER-BYTES-EJE-1"), que
+ya cargaba `customer_bytes.changed:true` de los slices anteriores de esta rama (la banda Marquesina en
+sí, que SÍ toca `components/storefront/`). **Este commit en particular NO toca un solo archivo de
+`components/storefront/` ni `app/(storefront)/`** — el cambio visible de ESTE commit es exclusivamente
+del PANEL (lo que el OWNER/operador lee al configurar, nunca el visitante de la tienda):
+
+- la tarjeta «Marquesina»: el campo «Cómo salen los productos» pasa de `<select>` a 5 tarjetas, cada
+  una con su frase de una línea (antes un solo párrafo concatenado en el `hint`): "De abajo hacia
+  arriba — la de hoy.", "Desde un costado, alternando.", "Un zoom suave.", "De desenfocado a nítido.",
+  "Un giro leve que se endereza."; el `hint` del campo se acorta a "El efecto con que cada producto
+  aparece y desaparece al hacer scroll."
+
+Para un visitante de la tienda, sin que el owner toque nada: CERO bytes distintos — la banda sigue
+`visible:false` por default y el valor de `transicion` no cambia (sigue resolviendo `'subir'` sin
+fila); este slice no escribió ni leyó `MarquesinaMotor.tsx`/`Marquesina.tsx`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno aplica. Sin migración, sin modelo Prisma, sin `site-content-schema.ts` tocado (el campo
+`transicion` ya existía con su schema desde `EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`; este slice
+sólo cambia el WIDGET del panel que lo edita, no el contrato de datos). Sin DTO compartido con otro
+repo.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Símbolos/rutas que este diff introdujo o cambió, grepeados contra `CLAUDE.md`: `SelectorTransicion`,
+`transicionMarquesina`, `estiloTarjetaTransicion`, `progresoLoopTarjetaTransicion`,
+`TARJETA_TRANSICION_VENTANA_ENTRADA`/`_SALIDA`/`_DURACION_S`, `OPCIONES_TRANSICION_MARQUESINA`, la
+frase "Cómo salen los productos", y el id `MARQUESINA-TRANSICIONES` — **CERO apariciones** en los
+ocho (medido con `grep -c`, uno por uno). La sección más cercana en espíritu, § "Controles de
+formulario — el select es NATIVO" (`CLAUDE.md:5946`), no nombra este campo y no queda contradicha:
+documenta el CRITERIO general (nativo, salvo que exista una segunda forma del mismo control YA
+visible en el panel — el caso que justificó el date-picker sobre `<input type=date>`), y este slice
+agrega una excepción nueva por el MISMO tipo de razón —acá, la imposibilidad medida de una vista
+previa dentro de un `<select>` nativo, ya declarada por el slice anterior, más el pedido explícito del
+owner de resolverla— no la contradice. `components/admin/tienda-secciones.ts`,
+`components/admin/TiendaSeccionEditor.tsx`, `lib/animation.ts` SÍ aparecen citados por otras
+secciones de `CLAUDE.md` (TiendaSeccionEditor: 6 veces, bloques/uploader/categoría — ninguna describe
+el campo `transicion` ni el mecanismo de este slice); se leyeron las seis y ninguna queda falsa.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo y mismo gate que las rondas
+anteriores de esta rama (el eje es la rama, no el commit; sigue sin mergear). El dispatch pide parar
+antes del merge ("LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). Gate verde en las tres capas
+(`tsc` 0 errores, `npm test` 3533/3533, `npm run test:integracion` 328/328); `next build` compila;
+`npx eslint` sin problemas nuevos. Verificado de punta a punta con sesión real (5/5, § arriba).
+Commiteado en `slice/corte-reescritura-prototipo-1`, encima de `5454d2a`.
+
+**Cierra `EDITOR-TIENDA-TRANSICIONES-TARJETAS-1`.**

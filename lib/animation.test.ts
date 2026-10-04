@@ -30,6 +30,8 @@ import {
   filterEnfocarItem, MARQUESINA_ENFOCAR_DESENFOQUE_PX,
   transformGirarItem, MARQUESINA_GIRAR_ESCALA_INICIAL, MARQUESINA_GIRAR_GRADOS,
   transformTransicionMarquesinaItem, filterTransicionMarquesinaItem,
+  estiloTarjetaTransicion, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA,
+  progresoLoopTarjetaTransicion, TARJETA_TRANSICION_DURACION_S,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -1322,6 +1324,63 @@ test('filterTransicionMarquesinaItem: SÓLO "enfocar" devuelve un blur — las o
   for (const tipo of ['subir', 'deslizar', 'acercar', 'girar', 'basura']) {
     assert.equal(filterTransicionMarquesinaItem(tipo, p, false, ENTRADA, SALIDA), 'none');
   }
+});
+
+// ─── LA TARJETA DE LA MINI ANIMACIÓN — estiloTarjetaTransicion / progresoLoopTarjetaTransicion ─────
+// § EDITOR-TIENDA-TRANSICIONES-TARJETAS-1
+
+test('estiloTarjetaTransicion: REUSA el dispatch — mismos valores que llamar las tres funciones de siempre con la ventana fija de la tarjeta', () => {
+  for (const tipo of ['subir', 'deslizar', 'acercar', 'enfocar', 'girar']) {
+    for (const p of [0, 0.15, 0.5, 0.8, 1]) {
+      const estilo = estiloTarjetaTransicion(tipo, p, false);
+      assert.equal(estilo.transform, transformTransicionMarquesinaItem(tipo, p, false, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA, 0));
+      assert.equal(estilo.filter, filterTransicionMarquesinaItem(tipo, p, false, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA));
+      assert.equal(estilo.opacity, opacidadEntradaSalidaItem(p, false, TARJETA_TRANSICION_VENTANA_ENTRADA, TARJETA_TRANSICION_VENTANA_SALIDA, 1));
+    }
+  }
+});
+
+test('estiloTarjetaTransicion: estatico=true devuelve el CUADRO FINAL (identidad) para las cinco, SIN mirar el progreso — "en reposo" y "movimiento reducido" son el mismo interruptor', () => {
+  for (const tipo of ['subir', 'deslizar', 'acercar', 'enfocar', 'girar']) {
+    for (const p of [0, 0.3, 0.7, 1]) {
+      const estilo = estiloTarjetaTransicion(tipo, p, true);
+      assert.equal(estilo.opacity, 1);
+      assert.equal(estilo.filter, tipo === 'enfocar' ? 'blur(0px)' : 'none');
+      if (tipo === 'subir') assert.equal(estilo.transform, 'translateY(0%)');
+      if (tipo === 'deslizar') assert.equal(estilo.transform, 'translateX(0%)');
+      if (tipo === 'acercar') assert.equal(estilo.transform, 'scale(1)');
+      if (tipo === 'enfocar') assert.equal(estilo.transform, 'none');
+      if (tipo === 'girar') assert.equal(estilo.transform, 'scale(1) rotate(0deg)');
+    }
+  }
+});
+
+test('estiloTarjetaTransicion: en el HOLD (entre las dos ventanas, progreso no estático) las cinco quedan a plena opacidad — la ventana fija deja un tramo asentado antes de salir', () => {
+  const pHold = (TARJETA_TRANSICION_VENTANA_ENTRADA.hasta + TARJETA_TRANSICION_VENTANA_SALIDA.desde) / 2;
+  for (const tipo of ['subir', 'deslizar', 'acercar', 'enfocar', 'girar']) {
+    const estilo = estiloTarjetaTransicion(tipo, pHold, false);
+    assert.equal(estilo.opacity, 1);
+    // "enfocar" calcula el blur a partir de entra/sale (nunca cae a 'none' fuera de estatico), así
+    // que en el hold da 0px NUMÉRICO — equivalente visual a 'none', pero no el mismo string. Las
+    // otras cuatro SÍ devuelven 'none' literal para el filter (sólo "enfocar" toca `filter`).
+    assert.equal(estilo.filter, tipo === 'enfocar' ? 'blur(0.0px)' : 'none');
+  }
+});
+
+test('progresoLoopTarjetaTransicion: recorre 0→1 dentro del ciclo y vuelve a arrancar en 0 — nunca ping-pong', () => {
+  const duracionMs = TARJETA_TRANSICION_DURACION_S * 1000;
+  assert.equal(progresoLoopTarjetaTransicion(0), 0);
+  assert.equal(progresoLoopTarjetaTransicion(duracionMs / 2), 0.5);
+  // justo antes de completar el ciclo: cerca de 1, nunca retrocede.
+  assert.ok(progresoLoopTarjetaTransicion(duracionMs - 1) > 0.99);
+  // al cruzar el ciclo completo, vuelve a 0 — no sigue subiendo ni se devuelve.
+  assert.equal(progresoLoopTarjetaTransicion(duracionMs), 0);
+  assert.equal(progresoLoopTarjetaTransicion(duracionMs + duracionMs / 4), 0.25);
+});
+
+test('progresoLoopTarjetaTransicion: negativo o cero siempre 0 (arranque)', () => {
+  assert.equal(progresoLoopTarjetaTransicion(0), 0);
+  assert.equal(progresoLoopTarjetaTransicion(-50), 0);
 });
 
 // ── ventanasBandaMarquesina / claseAlturaAncestroBandaMarquesina ──────────────────────────────────

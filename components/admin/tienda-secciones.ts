@@ -201,7 +201,14 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // (`TiendaPaginas`) resuelve al handle de la sección REAL — así sigue habiendo un único escritor/
 // autoguardado de `seccionCruzada`, sea cual sea la tarjeta desde la que se edite. Ausente = el campo
 // es de ESTA sección, el caso de siempre.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista };
+// `transicionMarquesina: true` (§ EDITOR-TIENDA-TRANSICIONES-TARJETAS-1) → el campo se renderiza con
+// `SelectorTransicion` (fila de tarjetas, una por opción, con mini animación en bucle) en vez del
+// `<select>` nativo que `opciones` dispara por defecto. Exige `opciones` con su `hint` POR OPCIÓN
+// (una frase de una línea por tarjeta, no el párrafo único que el `<select>` concatenaba). Es un
+// marcador tan ESPECÍFICO como `producto`/`categoria` a propósito — hoy sólo lo usa `marquesina.
+// transicion`, y generalizarlo a "cualquier campo con tarjetas" antes de que exista un segundo caso
+// sería diseñar para un requisito que nadie pidió (§ CLAUDE.md).
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -474,28 +481,25 @@ const OPCIONES_IMAGEN_TIPO_MARQUESINA: { value: string; label: string }[] = [
   { value: 'video', label: 'Video' },
 ];
 
-// El select de la transición de salida de los productos (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1)
-// — MISMO patrón que `OPCIONES_IMAGEN_TIPO_MARQUESINA`/`OPCIONES_VELO_INTENSIDAD` arriba: las claves
-// salen del set cerrado del resolver (`REGISTRY.marquesina.escalares.transicion`, site-content-
-// defaults.ts, `TRANSICIONES_MARQUESINA`), este archivo sólo agrega la etiqueta legible. En el MISMO
-// orden que ese array (el pedido del owner, 1 a 5).
+// Las tarjetas de la transición de salida de los productos (§ EDITOR-TIENDA-TRANSICIONES-
+// TARJETAS-1, reemplaza al `<select>` de § EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) — MISMO patrón
+// que `OPCIONES_IMAGEN_TIPO_MARQUESINA`/`OPCIONES_VELO_INTENSIDAD` arriba: las claves salen del set
+// cerrado del resolver (`REGISTRY.marquesina.escalares.transicion`, site-content-defaults.ts,
+// `TRANSICIONES_MARQUESINA`), este archivo sólo agrega la etiqueta legible. En el MISMO orden que
+// ese array (el pedido del owner, 1 a 5).
 //
-// SIN VISTA PREVIA EN MINIATURA AL PASAR EL MOUSE — DESVIACIÓN MEDIDA del spec, declarada: el spec
-// pedía "una vista mínima de cada una al pasar el mouse si el panel lo permite sin otra dependencia
-// (si no, solo los nombres y decilo)". Es un `<select>` NATIVO (§ CLAUDE.md, "el select es NATIVO" —
-// Controles de formulario): "la lista desplegada la pinta el sistema operativo y no se puede
-// tipografiar", así que no hay dónde montar una miniatura dentro de la lista abierta sin reemplazar
-// el control nativo por uno compuesto (Popover+Command, como `CategoriaCombobox`) — ese reemplazo es
-// la "otra dependencia" que el spec permite esquivar, y acá NO hay una segunda forma ya visible en
-// el panel para la misma tarea (el criterio que sí justificó el combobox de categoría) que lo
-// justifique. Por eso: SÓLO LOS NOMBRES, en el `<select>`, y el `hint` del campo describe cada uno en
-// una frase — la vista real es la vista previa en vivo del editor o la tienda publicada.
-const OPCIONES_TRANSICION_MARQUESINA: { value: string; label: string }[] = [
-  { value: 'subir', label: 'Subir' },
-  { value: 'deslizar', label: 'Deslizar' },
-  { value: 'acercar', label: 'Acercar' },
-  { value: 'enfocar', label: 'Enfocar' },
-  { value: 'girar', label: 'Girar' },
+// LA VISTA PREVIA QUE § EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1 DECLARÓ IMPOSIBLE SIN REEMPLAZAR EL
+// `<select>` ES EXACTAMENTE LO QUE ESTE SLICE CONSTRUYE: `SelectorTransicion` (componente propio,
+// § su docstring) reemplaza el nativo por una fila de tarjetas, cada una con su mini animación en
+// bucle — la "otra dependencia" que esa ronda se permitió esquivar ya no hace falta esquivarla.
+// `hint` pasa de UN párrafo concatenado (las cinco frases juntas, para el único `hint` del `<select>`)
+// a UNA frase POR OPCIÓN — lo que cada tarjeta muestra debajo de su mini animación.
+const OPCIONES_TRANSICION_MARQUESINA: { value: string; label: string; hint: string }[] = [
+  { value: 'subir', label: 'Subir', hint: 'De abajo hacia arriba — la de hoy.' },
+  { value: 'deslizar', label: 'Deslizar', hint: 'Desde un costado, alternando.' },
+  { value: 'acercar', label: 'Acercar', hint: 'Un zoom suave.' },
+  { value: 'enfocar', label: 'Enfocar', hint: 'De desenfocado a nítido.' },
+  { value: 'girar', label: 'Girar', hint: 'Un giro leve que se endereza.' },
 ];
 
 // La banda MARQUESINA (§ MARQUESINA-BANDA-1, ampliada por § EDITOR-TIENDA-MARQUESINA-SECCION-1 — ver
@@ -534,9 +538,12 @@ const OPCIONES_TRANSICION_MARQUESINA: { value: string; label: string }[] = [
 // `productoSlug`. Los seis son opcionales: el hint de cada uno dice qué pasa si queda vacío, y el
 // de `producto1` explica el fallback al catálogo que cubre a los seis.
 //
-// `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) es el SÉPTIMO campo: el select de las
-// CINCO transiciones de salida de los productos (`OPCIONES_TRANSICION_MARQUESINA`, arriba) — pedido
-// aparte del owner, no de esta ronda de MARQUESINA-SECCION-1.
+// `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1, pasado a tarjetas por § EDITOR-TIENDA-
+// TRANSICIONES-TARJETAS-1) es el SÉPTIMO campo: las CINCO tarjetas de transición de salida de los
+// productos (`OPCIONES_TRANSICION_MARQUESINA`, arriba) — pedido aparte del owner, no de esta ronda
+// de MARQUESINA-SECCION-1. `transicionMarquesina: true` es lo que le dice a la cáscara
+// (`TiendaSeccionEditor.tsx`) que renderice `SelectorTransicion` en vez del `<select>` genérico que
+// `opciones` dispara por defecto.
 const MARQUESINA: SeccionConfig = {
   seccion: 'marquesina',
   pagina: 'home',
@@ -549,7 +556,8 @@ const MARQUESINA: SeccionConfig = {
     { name: 'imagenTipo', label: 'Tipo de fondo', opciones: OPCIONES_IMAGEN_TIPO_MARQUESINA,
       hint: 'Si la imagen de fondo de arriba es una foto o un video.' },
     { name: 'transicion', label: 'Cómo salen los productos', opciones: OPCIONES_TRANSICION_MARQUESINA,
-      hint: 'El efecto con que cada producto aparece y desaparece al hacer scroll. Subir: de abajo hacia arriba (la de hoy). Deslizar: desde un costado, alternando. Acercar: un zoom suave. Enfocar: de desenfocado a nítido. Girar: un giro leve que se endereza. Sin vista previa en miniatura — mira el resultado en la vista previa de la página.' },
+      transicionMarquesina: true,
+      hint: 'El efecto con que cada producto aparece y desaparece al hacer scroll.' },
     { name: 'fraseBanda', label: 'Frase de la marquesina', textarea: true,
       hint: 'La frase que se repite desplazándose por la banda. Vacío: se usa el texto por defecto.' },
     { name: 'producto1', label: 'Producto 1', opcional: true, producto: true,
