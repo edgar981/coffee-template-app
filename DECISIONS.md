@@ -51657,3 +51657,177 @@ Gate verde en las dos capas obligatorias y en el pixel-diff. Arnés real de punt
 con capturas. Commiteado en `slice/editor-secciones-1`, encima de `e949030`.
 
 **Cierra `EDITOR-AGREGAR-SECCION-LIENZO-1`.**
+
+## 2026-10-04 — Las secciones agregadas se ven EN VIVO, el ojo persiste, y el nav sabe de instancias (`SECCIONES-INSTANCIAS-VIVO-1`)
+
+Pedido del owner: cierra los TRES open follow-ups que `EDITOR-AGREGAR-SECCION-1` y
+`SECCIONES-INSTANCIAS-1` dejaron abiertos sobre las secciones agregadas al home —
+`SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`, `STOREFRONT-NAV-DARKNESS-INSTANCIA-1`, y el "ojo" que
+`EDITOR-AGREGAR-SECCION-1` describió en prosa sin coinearlo (§ su "Lo construido": "el 'ojo'… no
+se construyó"). Ese tercero se coina ACÁ, retroactivo, como `SECCION-INSTANCIA-VISIBLE-TOGGLE-1` —
+el dispatch de este slice ya lo nombraba así, pero el grep contra este archivo dio CERO antes de
+este asiento (medido, abajo en "Chequeo mecánico"); se cierra con el mismo nombre que el dispatch
+ya usaba, no con uno nuevo.
+
+### 1 · EN VIVO
+
+`SeccionInstancia.tsx` (el dispatcher, gemelo de `BANDAS` en `page.tsx`) lee
+`useSiteContent().seccionesHome[id]` — el contexto que `EditorPuenteVivo.tsx` ya actualizaba en
+cada tecla desde `SECCIONES-INSTANCIAS-1` (`fusionarContenidoInstancia`, nunca tocado) — con la
+prop del servidor (`instancia`, resuelta por `page.tsx`) como SEMILLA (`seccionesHome[id] ??
+instancia`). Antes el componente sólo leía la prop fija, así que el puente en vivo actualizaba un
+contexto que nada consumía — exactamente el defecto que el asiento de `EDITOR-AGREGAR-SECCION-1`
+dejó confirmado por lectura de código. `Texto.tsx`/`ImagenTexto.tsx`/`Banner.tsx` NO cambiaron: el
+dispatcher resuelve una vez y pasa el valor YA VIVO como de costumbre — mismo patrón que
+`BrandStory.tsx` resolviendo `brandStory` antes de elegir su variante.
+
+El ojo también vive acá: `if (!instanciaEsVisible(actual)) return null;`, mismo contrato que
+`seccionEsVisible` para una banda ocultable, sin la mitad de repeater (ninguna instancia es un
+repeater).
+
+### 2 · EL OJO (`SECCION-INSTANCIA-VISIBLE-TOGGLE-1`)
+
+`visible: boolean` entra a las tres interfaces de `secciones-instancias.ts`
+(`InstanciaTextoContent`/`InstanciaImagenTextoContent`/`InstanciaBannerContent`), a
+`DEFAULTS_INSTANCIA` (`true` en los tres), y se resuelve en `resolverInstancia` con el MISMO
+mecanismo que `resolverSiteContent` usa para `visible` de banda ("sólo se sobreescribe con un
+booleano explícito") — leído de `defaults.visible`, no hardcodeado, para que un tipo futuro del
+catálogo pudiera nacer oculto sin tocar el resolver. `instanciaEsVisible` (gemela de
+`seccionEsVisible`, sin repeater) es el único punto de lectura del gate.
+
+Y en `site-content-schema.ts`: `visible: z.boolean().optional()` en los tres sub-schemas de la
+unión discriminada. Sin esto el PUT lo habría STRIPPEADO en silencio (§ CLAUDE.md, "El schema
+editable STRIPPEA lo no declarado") — el defecto exacto que impidió construir el ojo en
+`EDITOR-AGREGAR-SECCION-1`.
+
+`InstanciaTarjeta.tsx` gana el botón Eye/EyeOff (mismo ícono, mismo `aria-label`, misma posición
+—ANTES del `<h2>`— que el ojo de una banda en `TiendaSeccionEditor.tsx`) + el badge "Oculta".
+`TiendaPaginas.tsx` lo cablea con `cambiarInstancia(id, { ...instancia, visible: instancia.visible
+=== false })` — el MISMO `cambiarInstancia` que ya escribe cualquier otro campo (mismo
+autoguardado, mismo lote de historial, mismo envío en vivo al iframe). **No hizo falta código
+nuevo en `historial-editor.ts` ni en `resumen-cambios.ts`**: el primero es genérico sobre
+snapshots del mapa completo; el segundo (`cambiosSeccionesHome`) ya diffea la instancia COMPLETA
+vía `sonIguales`, así que un cambio de `visible` cae en la misma rama "cambiado"/"editada" que
+cualquier otro campo — afirmado con un test nuevo en `resumen-cambios.test.ts`, no con código.
+
+### 3 · EL NAV (`STOREFRONT-NAV-DARKNESS-INSTANCIA-1`)
+
+`StoreNav.tsx` dejó de re-filtrar `content.orden` con la `resolverOrden` VIEJA (sólo-`BANDA_IDS`) —
+`orden` YA LLEGA resuelto completo por `resolverOrdenCompleto` (dentro de `resolverSiteContent`),
+bandas ∪ instancias; re-filtrarlo con la vieja DESCARTABA cualquier instancia primera y dejaba caer
+el tratamiento del nav sobre la primera BANDA real en su lugar. Ahora lee `orden[0]` directo,
+decide con `esInstanciaId` si es una instancia, y si lo es pasa `seccionesHome[primera]?.tipo` como
+séptimo argumento de `tratamientoNav` — el mecanismo que `bandaOscuraCanonica`/`bandaUniforme`/
+`bandaEsOscura`/`tratamientoNav` ya tenían construido y TESTEADO desde `SECCIONES-INSTANCIAS-1`
+(`esquema-style.test.ts`, `site-content-defaults.test.ts`): sólo faltaba que este archivo lo
+invocara. `varianteDeBanda` se salta para una instancia (ninguna instancia declara `variantes`).
+
+**MEDIDO, no supuesto, que el bug existía:**
+```
+orden real (ya resuelto, con instancia primera): inst:banner-x
+si StoreNav volviera a filtrar con resolverOrden (el bug viejo): hero
+```
+(`npx tsx -e` contra `resolverOrden`/`BANDA_IDS` reales, antes de tocar `StoreNav.tsx`.)
+
+### Verificación
+
+- **Capa 1**: `secciones-instancias.test.ts` (+9: `resolverInstancia` con `visible` explícito/
+  ausente/basura, `instanciaEsVisible`; la paridad `DESCRIPTOR_INSTANCIA↔DEFAULTS_INSTANCIA` se
+  ajustó para excluir `visible` del conjunto comparado, igual que excluye `tipo` — `visible` es
+  escalar de INSTANCIA, no `campos`/`escalares` del descriptor). `site-content-schema.test.ts`
+  (+2: `visible:false` sobrevive el parse en los TRES tipos; ausente no inventa la clave — zod
+  confirmado por ejecución: un campo opcional ausente no aparece como key en el resultado, ni
+  siquiera `undefined`). `resumen-cambios.test.ts` (+1: ocultar con el ojo se resume "editada").
+- **Capa 2** (`tests/integracion/secciones-instancias.test.ts`, +3): `visible:false` y
+  `visible:true` explícitos, y la ausencia (nace `true`), los tres por el VIAJE completo
+  (`guardarComoElRoute` → `publicarSeccion` → `readSiteContent`) — el mismo patrón que el resto de
+  este archivo, nunca construyendo el objeto a mano.
+- **Gate**: `npx tsc --noEmit` 0 errores · `npm test` 3646/3646 · `npm run test:integracion`
+  342/342 — los tres en el árbol FINAL (el commit de código, antes de este asiento).
+- **Arnés real** (`.scratch/verificar-secciones-instancias-vivo.ts`, gitignored; Postgres efímero +
+  `next build`+`next start` + Playwright, sesión OWNER real, puertos 55490/3590): agregar "Texto"
+  desde el pie de lista → el editor se abre solo (`abrirNivelInstancia`) → teclear el título →
+  **confirmado por lectura del DOM del iframe, SIN ningún `esperarReloadIframe`, que el título
+  cambia en vivo** ("Un título para esta sección" → "Hola en vivo — editado SIN recargar") → Cerrar
+  → tocar el ojo ("Ocultar…") → **confirmado que el `<section>` desaparece del wrapper
+  `[data-editor-seccion]`, sin recargar** → tocar el ojo otra vez ("Mostrar…") → **confirmado que
+  reaparece** → Publicar (vía el popover de `ResumenPublicar`) → `GET /api/site-content/publicado`
+  confirma `titulo` y `visible:true` publicados. Después, vía Prisma directo (no la UI de
+  reordenar, fuera de alcance): dos siembras de `orden[0]` sobre el MISMO servidor — un `banner`
+  (oscuro/uniforme, el escenario LITERAL del spec) da `header` con
+  `bg-transparent text-[var(--sf-sobre)]` (texto claro, correcto); un `texto` (claro/uniforme, **lo
+  OPUESTO de `hero`** — el escenario DECISIVO, porque Nayoli·hero·curtina es TAMBIÉN oscuro+
+  uniforme y "Banner primero" solo no distingue el fix del bug) da
+  `bg-transparent text-[var(--sf-tinta)]` (texto oscuro, correcto — el bug viejo habría dado
+  `text-[var(--sf-sobre)]`, claro sobre claro, porque habría tratado a "hero" como la banda
+  primera). Las dos corridas del arnés (una con un bug de selector PROPIO del script — "Publicar"
+  exacto no era único en la página, ambiguo contra el de `TiendaSeccionEditor.tsx`/
+  `PaletaSeccion.tsx`, montados pero fuera de vista — corregido escopeando por el contenedor de
+  "Descartar todo") confirmaron 1 y 2 en verde las DOS veces; la segunda corrida, ya con el fix del
+  selector, confirmó también 3 (PASO 4/5). Capturas en `.scratch/capturas-secciones-instancias-vivo/`
+  (gitignored).
+- **`npm run verificar:nayoli:visual`** (pixel-diff, main vs. rama, doble build): reproduce la
+  MISMA cifra exacta, dígito a dígito, que el piso YA documentado
+  (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, re-confirmado por 8+ asientos previos de esta rama):
+  `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5
+  rutas 163/361 px c/u; los 2 hovers IDÉNTICO (0px). Cero píxeles de más atribuibles a este slice —
+  exit code 1 es el comportamiento esperado (diff heredado, clasificado), no una falla. Prueba
+  RIGUROSA de que, con `seccionesHome` vacío (Nayoli, todo tenant real hoy), el storefront es
+  byte/píxel-idéntico: ni la lectura por contexto ni el cambio de `StoreNav.tsx` mueven un píxel
+  cuando no hay instancias.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths tocados por el diff, grepeados contra `CLAUDE.md`: `InstanciaTarjeta`,
+`instanciaEsVisible`, `SeccionInstancia`, `resolverOrden`, `secciones-instancias`,
+`site-content-schema`, `TiendaPaginas`, `cambiarInstancia`, `seccionesHome`,
+`SECCIONES-INSTANCIAS-1`, `EDITOR-AGREGAR-SECCION`, `STOREFRONT-NAV-DARKNESS`,
+`SECCION-INSTANCIA-SIN-LIVE-UPDATE`, `SECCION-INSTANCIA-VISIBLE-TOGGLE`: **CERO resultados en los
+15**. `CLAUDE.md` no documenta el mecanismo de secciones agregadas en absoluto (vive en código y en
+este archivo) — no hay una sentencia que este diff pueda volver falsa, y no hay un pointer que
+cerrar. Confirma, de paso, que `SECCION-INSTANCIA-VISIBLE-TOGGLE-1` nunca estuvo coineado en
+ningún lado accesible por grep antes de este asiento (el dispatch lo daba por existente; es la
+DEVIATION registrada en el resumen).
+
+### `customer_bytes`
+
+**`changed: true`** sobre la RAMA contra `main` (mismo eje de siempre en esta rama — la rama es la
+que se aterriza, no el commit). **Medido que este slice específico no mueve el storefront de
+Nayoli ni un píxel** (`verificar:nayoli:visual` arriba, cifra idéntica al piso heredado). Lo que SÍ
+cambia, y por eso `changed:true`: texto nuevo del PANEL (`InstanciaTarjeta.tsx` — "Ocultar/Mostrar
+… en la tienda", el badge "Oculta") que el DUEÑO/operador lee al administrar una sección agregada
+— gateado a sesión OWNER/MANAGER en `/editor/tienda`, cero bytes para un visitante. **`strings`**:
+"Ocultar {título} en la tienda", "Mostrar {título} en la tienda", "Oculta" (el badge) — las tres
+sólo visibles para quien administra el panel, nunca para un visitante del storefront.
+
+### `schema`/`cross-repo-contract`
+
+Sin migraciones ni cambio de modelo Prisma. `site-content-schema.ts` (el schema de CONTENIDO,
+JSON de `SiteContent`) gana `visible` en las tres uniones de `seccionesHome` — aprobado
+explícitamente por el dispatch ("El esquema de CONTENIDO… SÍ cambia: aprobado"). Ningún contrato
+cruzado (no hay otro repo consumiendo este JSON).
+
+### DEVIATION — `SECCION-INSTANCIA-VISIBLE-TOGGLE-1` no estaba coineado
+
+El dispatch de este slice pedía cerrar `SECCION-INSTANCIA-VISIBLE-TOGGLE-1` "de
+`EDITOR-AGREGAR-SECCION-1`". **Medido: ese id no aparece en ningún lugar de este archivo antes de
+este asiento** (`grep -n "SECCION-INSTANCIA-VISIBLE-TOGGLE-1" DECISIONS.md` → cero resultados,
+corrido antes de escribir esta sección). Lo que SÍ existe es la prosa sin id, en el "Lo construido"
+de `EDITOR-AGREGAR-SECCION-1`: "el 'ojo' (toggle de visibilidad por instancia) **no se
+construyó**". Se coina el id retroactivamente, con el MISMO nombre que el dispatch ya usaba (no
+uno inventado acá), y se cierra en el mismo asiento que lo nombra por primera vez — igual que
+cualquier id que una decisión abre y cierra en la misma tanda.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama (la
+RAMA, no el commit, es lo que se gatea) MÁS el hallazgo propio de este slice: texto nuevo de panel
+que el operador lee (arriba). Gate verde en las tres capas obligatorias (`tsc` 0 errores · `npm
+test` 3646/3646 · `npm run test:integracion` 342/342), medidas en el árbol del commit de código.
+Arnés real de punta a punta en verde (en vivo · ojo · publicar/releer · nav con banner primero ·
+nav con texto primero — el escenario DECISIVO), con capturas. `npm run verificar:nayoli:visual`
+reproduce el piso heredado exacto, cero píxeles de más. Commiteado en `slice/editor-secciones-1`,
+commit `88b501e`, encima de `4cded62`.
+
+**Cierra `SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`, `STOREFRONT-NAV-DARKNESS-INSTANCIA-1`, y
+`SECCION-INSTANCIA-VISIBLE-TOGGLE-1` (coineado y cerrado en este mismo asiento).**
