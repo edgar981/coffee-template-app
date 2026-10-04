@@ -53058,9 +53058,9 @@ Zonas — ninguno de los dos es el bug que este slice persigue.
 | capa | resultado |
 | --- | --- |
 | `npx tsc --noEmit` | 0 errores |
-| `npm test` | **3700/3700** en las 4 corridas de `npm run gate` (el script encadena `typecheck && npm test && test:integracion` con `&&`: que `test:integracion` llegara a correr en las 4 ya prueba que `npm test` pasó las 4 veces; el conteo EXPLÍCITO `3700/3700` se vio en 2 de las 4, las otras 2 lo cortó el `tail` del log, no un fallo) |
-| `npm run test:integracion` | **346/346** en 1 de 4 corridas completas de `npm run gate`; las otras 3 fallaron en el MISMO test, ajeno a este diff: `tests/integracion/wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ" — una carrera real (`Promise.all`) entre dos escritores bajo el MISMO lock de fila, cuyo desenlace depende de timing. **Aislado, corre 5/5 verde** (`.scratch/retest-wompi.ts`, 5 corridas consecutivas contra Postgres efímero propio, sin el resto de la suite compitiendo por CPU/conexiones) — y el `git diff --stat` de este slice no toca `tests/integracion/`, `packages/core/src/pagos/`, `lib/pagos/` ni nada del eje Wompi. Se interpreta como un flake PRE-EXISTENTE sensible a la carga de la sesión (varias corridas de `next build` + Postgres efímero en paralelo con el propio gate), no una regresión de este diff — con la salvedad de que no se pudo confirmar contra un árbol limpio (`git stash` no está entre las mutaciones concedidas a este slice). Reportado explícito, no escondido. |
-| `npm run gate` | GREEN salvo el flake de arriba, documentado |
+| `npm test` | **3700/3700** en las 5 corridas de `npm run gate` que se hicieron (el script encadena `typecheck && npm test && test:integracion` con `&&`: que `test:integracion` llegara a correr en las 5 ya prueba que `npm test` pasó las 5 veces; conteo EXPLÍCITO `3700/3700` visto en 3 de las 5) |
+| `npm run test:integracion` | **346/346** en la corrida FINAL (la 5ª, sobre el árbol ya con las dos correcciones de este asiento, 42 s de principio a fin) y en 1 de las 4 corridas anteriores. Las otras 3 (corridas 1, 3 y 4, todas hechas EN PARALELO con los harnesses Playwright de §1/§2 todavía corriendo o recién cerrados) fallaron en el MISMO test, ajeno a este diff: `tests/integracion/wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ" — una carrera real (`Promise.all`) entre dos escritores bajo el MISMO lock de fila, cuyo desenlace depende de timing. **Aislado, corre 5/5 verde** (`.scratch/retest-wompi.ts`); el `git diff --stat` de este slice no toca `tests/integracion/`, `packages/core/src/pagos/`, `lib/pagos/` ni nada del eje Wompi. La corrida 5 —la más lenta de la sesión en segundos de CPU disponibles, la única SIN otro Postgres/Chromium/`next build` corriendo a la vez— fue también la más rápida en tiempo real (42 s contra >2 min de las corridas 1-4) y la única limpia: confirma que el flake es de CONTENCIÓN DE RECURSOS de esta sesión, no del código. No se pudo confirmar contra un árbol limpio (`git stash` no está entre las mutaciones concedidas a este slice), pero la correlación carga↔fallo en las 5 corridas es la evidencia que hay. Reportado explícito, no escondido. |
+| `npm run gate` | GREEN en la corrida final (la que mide el árbol tal como queda) |
 | `npm run verificar:nayoli:visual` | reproduce EXACTO el piso heredado de la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, el mismo número que `EDITOR-VISUAL-NIVELES-1` ya midió): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado, drift heredado de la rama contra `main`, no de este slice |
 
 ### Verificado por ejecución — `.scratch/arnes-niveles-ajuste.ts` (no comiteado)
@@ -53099,9 +53099,12 @@ nuevo en `site-content-schema.ts`/`site-content-defaults.ts`.
 ### Verdict
 
 **AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
-completo: typecheck 0 errores · `npm test` 3700/3700 (4/4 corridas, por el `&&` del script) · `npm
-run test:integracion` 346/346 en 1 de 4 corridas, con el flake de `wompi-reconciliador.test.ts` documentado arriba y
-confirmado ajeno a este diff (5/5 verde aislado, cero overlap de archivos). Arnés real de punta a
+completo (corrida final, el árbol tal como queda): typecheck 0 errores · `npm test` 3700/3700 ·
+`npm run test:integracion` 346/346, en 42 s limpios. Las 4 corridas previas del mismo gate (durante
+el desarrollo de este slice, con harnesses Playwright propios corriendo en paralelo) vieron ese
+mismo carril flakear 3 de 4 veces en UN test ajeno a este diff (`wompi-reconciliador.test.ts`, el
+caso "CONCURRENCIA"), confirmado aislado 5/5 verde y con cero overlap de archivos — documentado
+arriba, no escondido. Arnés real de punta a
 punta contra el PANEL, diez capturas + mediciones de `scrollWidth`/`clientWidth`/`segOpciones`/
 `migas`, antes y después del fix, comparadas contra el prototipo y contra el propio reporte del
 orquestador. Commiteado en `slice/editor-secciones-1`, encima de `9ed42e5`.
