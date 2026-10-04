@@ -33,6 +33,7 @@ import {
 // puente.ts`, pura): una sola definición del nombre de cada mensaje, no dos que puedan divergir.
 import {
   TIPO_MENSAJE_CONTENIDO_SECCION, TIPO_MENSAJE_MODO_NAVEGAR, esMensajeSeccionClick, esMensajeCampoCambio,
+  esMensajeAgregarSeccion,
 } from '@/lib/storefront/editor-puente';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
@@ -131,6 +132,13 @@ interface VistaTiendaIframeProps {
    *  `onSeccionSeleccionada`, sin resolver todavía) y el campo/valor tal cual. El padre resuelve la
    *  sección y llama a `TiendaSeccionEditorHandle.escribirCampo(campo, valor)`. */
   onCampoCambio?: (seccion: string, campo: string, valor: string) => void;
+  /** § EDITOR-AGREGAR-SECCION-LIENZO-1 — llamado cuando llega un `postMessage` de "el dueño
+   *  clickeó el «+» entre dos secciones" válido (`esMensajeAgregarSeccion`), con el marcador
+   *  `despuesDe` tal cual (YA es el id que `TiendaPaginas.tsx` necesita para `abrirBiblioteca`,
+   *  § el docstring del mensaje en `editor-puente.ts` — nunca se resuelve con
+   *  `seccionDesdeMarcador` acá, eso daría el valor equivocado). Ausente = sin padre que
+   *  notificar (no debería ocurrir fuera de un test). */
+  onAgregarSeccion?: (despuesDe: string) => void;
   /** § EDITOR-TIENDA-SHELL-1 — marcador→título legible (`config.titulo`), para el RÓTULO del resalte
    *  de hover (abajo). Lo arma el padre (`TiendaPaginas.tsx`, que tiene `SECCIONES_TIENDA`) — este
    *  componente no importa ese registro, mismo criterio que `seccionDesdeMarcador` en
@@ -142,7 +150,9 @@ interface VistaTiendaIframeProps {
 }
 
 const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeProps>(
-  function VistaTiendaIframe({ pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, tituloPorMarcador }, ref) {
+  function VistaTiendaIframe({
+    pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, onAgregarSeccion, tituloPorMarcador,
+  }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
     // TOKEN de la restauración EN VUELO (§ el docstring de `onLoad`, abajo): el poll de
@@ -376,10 +386,14 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
         // chequeo de origen/fuente que el de arriba; `seccion` llega como MARCADOR, sin resolver
         // todavía (lo hace `TiendaPaginas.tsx`, igual que con la selección).
         if (esMensajeCampoCambio(e.data)) { onCampoCambio?.(e.data.seccion, e.data.campo, e.data.valor); return; }
+        // § EDITOR-AGREGAR-SECCION-LIENZO-1 — el «+» entre dos secciones. Mismo chequeo de
+        // origen/fuente; `despuesDe` viaja YA RESUELTO al id que `abrirBiblioteca` necesita
+        // (§ el docstring del mensaje en `editor-puente.ts`) — este componente no lo toca.
+        if (esMensajeAgregarSeccion(e.data)) { onAgregarSeccion?.(e.data.despuesDe); return; }
       };
       window.addEventListener('message', onMessage);
       return () => window.removeEventListener('message', onMessage);
-    }, [onSeccionSeleccionada, onCampoCambio]);
+    }, [onSeccionSeleccionada, onCampoCambio, onAgregarSeccion]);
 
     useImperativeHandle(ref, () => ({ irASeccion, recargar, enviarCambio }), [irASeccion, recargar, enviarCambio]);
 

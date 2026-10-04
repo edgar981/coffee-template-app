@@ -208,3 +208,60 @@ test('cajaDeHover: escala < 1 reduce las cuatro medidas por igual', () => {
 test('cajaDeHover: escala 0 colapsa la caja a un punto en el origen trasladado', () => {
   assert.deepEqual(cajaDeHover({ top: 100, left: 40, width: 200, height: 80 }, 0), { top: 0, left: 0, width: 0, height: 0 });
 });
+
+// ─── EDITOR-AGREGAR-SECCION-LIENZO-1 — el «+» entre secciones, mismo límite de arnés que arriba ──
+//
+// `EditorPuenteVivo.tsx`/`VistaTiendaIframe.tsx`/`TiendaPaginas.tsx` son `.tsx` sin jsdom
+// (§ CLAUDE.md, "El glob NO incluye *.test.tsx"), así que el "ida y vuelta" del DÉCIMO mensaje
+// (iframe→panel→`abrirBiblioteca`) se afirma como ARRIBA: leyendo el ARCHIVO FUENTE que de verdad
+// se despliega y comprobando, por su contenido, que la cadena de wiring existe de punta a punta —
+// no por ejecución (eso lo cubre la sesión del arnés real, § docs/editor-tienda/
+// AGREGAR-SECCIONES.md). La forma/validación del mensaje en sí (`esMensajeAgregarSeccion`) tiene
+// su test de capa 1 propio en `lib/storefront/editor-puente.test.ts`; esto es sólo el CABLEADO.
+
+test('EditorPuenteVivo.tsx inserta el separador «+» y lo despacha por el MISMO canal del puente (TIPO_MENSAJE_AGREGAR_SECCION), nunca un onClick de React', () => {
+  const fuente = leerFuente('../../components/storefront/EditorPuenteVivo.tsx');
+  assert.match(
+    fuente,
+    /TIPO_MENSAJE_AGREGAR_SECCION,\s*ATRIBUTO_EDITOR_AGREGAR_SECCION,?\s*\n\}\s*from\s*["']@\/lib\/storefront\/editor-puente["']/,
+    'debe importar el discriminador y el atributo desde el puente — una sola definición, no un literal repetido',
+  );
+  assert.match(
+    fuente,
+    /window\.parent\.postMessage\(\{\s*tipo:\s*TIPO_MENSAJE_AGREGAR_SECCION,\s*despuesDe\s*\}/,
+    'el clic en el «+» debe postear el mensaje leyendo el atributo del nodo, dentro del listener de captura — nunca un onClick de React (§ el docstring grande del archivo, por qué el clic no pasa por React)',
+  );
+  assert.doesNotMatch(
+    fuente,
+    /crearSeparadorAgregar[\s\S]{0,400}onClick/,
+    'el botón insertado no debe llevar onClick — el listener de captura ya lo resuelve, un segundo camino podría divergir',
+  );
+});
+
+test('VistaTiendaIframe.tsx reenvía TIPO_MENSAJE_AGREGAR_SECCION a onAgregarSeccion, sin resolver el marcador', () => {
+  const fuente = leerFuente('../../components/admin/VistaTiendaIframe.tsx');
+  assert.match(
+    fuente,
+    /esMensajeAgregarSeccion/,
+    'debe importar y usar el validador del décimo mensaje',
+  );
+  assert.match(
+    fuente,
+    /esMensajeAgregarSeccion\(e\.data\)\)\s*\{\s*onAgregarSeccion\?\.\(e\.data\.despuesDe\)/,
+    'debe reenviar despuesDe TAL CUAL — seccionDesdeMarcador resolvería "featured" al nombre de SeccionVista equivocado (§ el docstring del mensaje en editor-puente.ts)',
+  );
+  assert.doesNotMatch(
+    fuente,
+    /seccionDesdeMarcador\(e\.data\.despuesDe\)/,
+    'despuesDe no debe pasar por seccionDesdeMarcador: ese paso daría el id equivocado para abrirBiblioteca',
+  );
+});
+
+test('TiendaPaginas.tsx conecta el «+» del lienzo a abrirBiblioteca — la MISMA función que el separador de la lista', () => {
+  const fuente = leerFuente('../../components/admin/TiendaPaginas.tsx');
+  assert.match(
+    fuente,
+    /onAgregarSeccion=\{abrirBiblioteca\}/,
+    'VistaTiendaIframe debe recibir abrirBiblioteca directo — nunca un segundo manejador que pudiera divergir de los separadores de la lista',
+  );
+});

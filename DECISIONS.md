@@ -51539,3 +51539,121 @@ heredado exacto, cero píxeles de más. Commiteado en `slice/editor-secciones-1`
 
 **Cierra `EDITOR-AGREGAR-SECCION-1` y `ORDEN-SECCIONES-TIPO-INSTANCIA-1`. Corrige el estado de
 `STOREFRONT-NAV-DARKNESS-INSTANCIA-1` (sigue abierto). Abre `SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`.**
+
+## 2026-10-04 — El «+» entre secciones del LIENZO: el mismo gesto que la lista, desde la vista previa (`EDITOR-AGREGAR-SECCION-LIENZO-1`)
+
+Pedido del owner, continuación directa de `EDITOR-AGREGAR-SECCION-1`: "al pasar el mouse por el
+borde entre dos secciones aparece un «+» (como en Shopify)". `EDITOR-AGREGAR-SECCION-1` dejó el
+gesto sólo en la LISTA (el separador entre tarjetas); esta tanda lo agrega sobre el LIENZO —el
+`<iframe>` con la vista previa real.
+
+### Lo construido
+
+Un DÉCIMO mensaje del puente (`TIPO_MENSAJE_AGREGAR_SECCION`, `{tipo, despuesDe}`, iframe→panel),
+el único de los diez que NO reusa `TIPO_MENSAJE_CONTENIDO_SECCION` — no hay contenido que fusionar,
+sólo una posición que abrir. `EditorPuenteVivo.tsx` inserta un separador («línea + pastilla "+
+Agregar sección"») como SIBLING real entre cada `[data-editor-seccion]` de home (descubiertos por
+DOM, ancla en `hero` — nunca por `useSiteContent().orden`, rancio tras un reorden en vivo), re-
+sincronizado al activarse el puente, tras cada reorder en vivo, y al alternar Navegar (que los
+retira — un visitante real no debe ver afordancias de edición). El clic NO pasa por React: lo
+resuelve el MISMO listener de captura sobre `document` que ya intercepta zona/campo-imagen/campo,
+leyendo `ATRIBUTO_EDITOR_AGREGAR_SECCION` del nodo — consistente con cómo funciona todo lo demás
+que este componente inserta.
+
+`VistaTiendaIframe.tsx` gana `onAgregarSeccion?: (despuesDe: string) => void` y reenvía el mensaje
+TAL CUAL; `TiendaPaginas.tsx` lo conecta directo a `abrirBiblioteca` — la MISMA función que ya usan
+el separador y el botón de la lista. El contrato completo, el porqué de cada decisión, y por qué
+`despuesDe` NUNCA pasa por `seccionDesdeMarcador` (resolvería `'featured'` al nombre de
+`SeccionVista` `'spotlight'`, el valor EQUIVOCADO — el marcador YA es el `bandaId`/id de instancia
+que `abrirBiblioteca` necesita) viven en `docs/editor-tienda/AGREGAR-SECCIONES.md`
+(§ "El «+» del LIENZO"), no se repiten acá.
+
+### Lo que NO se tocó
+
+`BibliotecaSecciones.tsx` y `agregarSeccion` (`TiendaPaginas.tsx`) quedan intactos: el «+» del
+lienzo es un SEGUNDO disparador hacia el mecanismo que `EDITOR-AGREGAR-SECCION-1` ya construyó, no
+una segunda implementación. `SeparadorAgregar.tsx` (el de la lista) tampoco cambió — conviven.
+
+### La DESVIACIÓN MEDIDA del texto del dispatch: "hero" y "featured" NO son adyacentes
+
+El escenario del spec de cierre decía "«+» entre hero y featured". **Medido antes de escribir el
+arnés**: en el home real de Nayoli, entre `hero` y `featured` están `marquesina` y `trustBadges`
+(`BANDA_IDS`, `site-content-defaults.ts`) — no son vecinos. El arnés y esta verificación usan el
+borde que SÍ existe inmediatamente antes de `featured` (`trustBadges`→`featured`), el mismo
+espíritu del escenario pedido ("el «+» que aterriza justo antes de Destacado") contra el DOM real
+en vez de una adyacencia asumida. Ningún código se escribió contra la premisa falsa — el mecanismo
+es agnóstico de CUÁLES dos secciones son vecinas.
+
+### El censo que el arnés forzó: `encabezado`/`menu`/`footer` comparten el atributo, pero no el contenedor
+
+El primer intento del arnés asumió que el ÚLTIMO `[data-editor-seccion]` del documento era la
+última banda de home — y falló: es `footer`, que comparte el mismo atributo (§ EDITOR-TIENDA-
+CROMO-1) pero vive en OTRO contenedor DOM (fuera de `<main>`), así que `sincronizarSeparadoresAgregar`
+correctamente NO le pone separador. Confirma, por ejecución, que el mecanismo (ancla en `hero`,
+filtra por `contenedor.children`) excluye el chrome como estaba diseñado — no fue un bug del
+componente, fue una premisa floja del arnés, corregida ahí.
+
+### Verificación
+
+- **Capa 1** (`lib/storefront/editor-puente.test.ts`, +6; `lib/admin/editor-iframe.test.ts`, +3 —
+  "ida y vuelta" leyendo el ARCHIVO FUENTE real de los tres `.tsx` por el límite de siempre, sin
+  jsdom, § CLAUDE.md "El glob NO incluye `*.test.tsx`", mismo patrón que ya usan los tests de
+  `app/(admin)/editor/layout.tsx` en ese archivo).
+- **`npm run gate`**, árbol FINAL: `tsc --noEmit` 0 errores · `npm test` 3638/3638 (3629 + 9 nuevos)
+  · `npm run test:integracion` 339/339 (sin cambio — este slice no toca DB).
+- **`npm run verificar:nayoli:visual`** (pixel-diff, main vs. rama, doble build): reproduce la
+  MISMA cifra exacta, dígito a dígito, que el piso ya documentado
+  (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo,
+  caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO (0px). Cero
+  píxeles de más atribuibles a esta tanda — exit code 1 del script es el comportamiento esperado
+  (diff heredado, clasificado), no una falla.
+- **Arnés real** (`.scratch/verificar-agregar-seccion-lienzo.ts`, Postgres efímero + `next build` +
+  `next start`, Playwright, sesión OWNER real, dos rondas — la primera destapó las dos premisas
+  flojas de arriba, corregidas; la segunda en verde completo): 9 separadores «+» de arranque (uno
+  por banda de home, cero en encabezado/menu/footer) → hover sobre `trustBadges`→`featured` →
+  pastilla visible (captura) → clic → biblioteca abierta (3 tarjetas, captura) → elegir Banner →
+  insertado EXACTAMENTE entre `trustBadges` y `featured` (captura) → Navegar ON retira los 10
+  separadores, Navegar OFF los repone → separador después de `testimonials` (última banda de home)
+  existe, después de `footer` NO existe → el botón es un `<button>` real que recibe foco por
+  teclado → tráfico público (fuera de `/editor/tienda`): CERO marcadores `data-editor-seccion` y
+  CERO separadores (captura de la home pública completa).
+- **Capturas**: 5 en `.scratch/verificar-agregar-seccion-lienzo/` (gitignored) — sin hover, pastilla
+  visible en hover, biblioteca abierta desde el lienzo, Banner insertado entre `trustBadges` y
+  `featured` (con el editor de la instancia ya abierto y "Publicar · 2" en la barra), home pública
+  sin rastro.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/paths del diff (`EditorPuenteVivo`, `VistaTiendaIframe`, `TiendaPaginas`,
+`editor-puente.ts`, `editor-iframe.ts`, `abrirBiblioteca`, `SeparadorAgregar`,
+`BibliotecaSecciones`, `data-editor-seccion`, `EDITOR-AGREGAR-SECCION-1`, `SECCIONES-INSTANCIAS-1`,
+`editor-tienda`, `Shopify`, `lienzo`): **nada en `CLAUDE.md` nombra lo que este slice cambió** —
+esa doctrina no documenta el puente postMessage del editor de tienda (vive sólo en
+`docs/editor-tienda/*.md` y `DECISIONS.md`); los hits de `TiendaPaginas`/`TiendaSeccionEditor`/
+`Shopify` que SÍ aparecen son sobre mecanismos no tocados por este diff (el fetch único, el
+selector de página, los bloques, el logo) y siguen siendo ciertos. `AGREGAR-SECCIONES.md` es el
+único `.md` tocado por el diff además de este; su propio título y los pointers internos
+(§ "El plan", § "La UI") se ensancharon para nombrar esta tanda, ningún pointer quedó apuntando a
+un estado vencido.
+
+### `customer_bytes`
+
+**`changed: true`** sobre la RAMA (contra su base, `main`) — mismo eje que el resto de esta rama
+(ORCH-CUSTOMER-BYTES-EJE-1: el eje es la rama que se va a aterrizar, no el commit), heredado de
++333 commits previos, no de este slice. **Medido que este slice específico no agrega ninguno
+nuevo**: `verificar:nayoli:visual` reproduce el piso exacto heredado (arriba) y el propio arnés
+confirmó por ejecución CERO marcadores/separadores en tráfico fuera de `/editor/tienda` — el
+mecanismo entero vive detrás de `activo` (gate de modo editor, server-side, gateado a sesión
+OWNER/MANAGER). **`strings`**: ninguno visible para un visitante real.
+
+### `schema`/`cross-repo-contract`
+
+Sin tocar — ningún modelo Prisma, migración, ni contrato cruzado.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama.
+Gate verde en las dos capas obligatorias y en el pixel-diff. Arnés real de punta a punta en verde,
+con capturas. Commiteado en `slice/editor-secciones-1`, encima de `e949030`.
+
+**Cierra `EDITOR-AGREGAR-SECCION-LIENZO-1`.**

@@ -25,6 +25,9 @@ import {
   mensajeEstiloElemento,
   mensajesQuitarEstiloElemento,
   fusionarContenidoInstancia,
+  TIPO_MENSAJE_AGREGAR_SECCION,
+  esMensajeAgregarSeccion,
+  ATRIBUTO_EDITOR_AGREGAR_SECCION,
 } from './editor-puente';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 
@@ -480,4 +483,55 @@ test('mensajesQuitarEstiloElemento: los CUATRO subcampos, cada uno con "" — el
 
 test('mensajesQuitarEstiloElemento: cada mensaje que produce es un MensajeCampoCambio válido (esMensajeCampoCambio)', () => {
   for (const m of mensajesQuitarEstiloElemento('hero', 'subtitulo')) assert.equal(esMensajeCampoCambio(m), true);
+});
+
+// ─── EL DÉCIMO MENSAJE (§ EDITOR-AGREGAR-SECCION-LIENZO-1) ─────────────────────────────────────
+
+test('esMensajeAgregarSeccion acepta la forma correcta — una banda y una instancia', () => {
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: 'hero' }), true);
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: 'inst:a1b2' }), true);
+  // El borde 'featured' viaja TAL CUAL — es el bandaId de spotlight, no la SeccionVista
+  // 'spotlight' que produciría `seccionDesdeMarcador('featured')` (§ el docstring del mensaje).
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: 'featured' }), true);
+});
+
+test('esMensajeAgregarSeccion rechaza tipo ausente o distinto (no se confunde con sus hermanos)', () => {
+  assert.equal(esMensajeAgregarSeccion({ despuesDe: 'hero' }), false);
+  assert.equal(esMensajeAgregarSeccion({ tipo: 'otra-cosa', despuesDe: 'hero' }), false);
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_SECCION_CLICK, seccion: 'hero' }), false);
+});
+
+test('esMensajeAgregarSeccion rechaza despuesDe ausente, vacío, en blanco o no-string', () => {
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION }), false);
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: '' }), false);
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: '   ' }), false);
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: null }), false);
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: 3 }), false);
+});
+
+test('esMensajeAgregarSeccion rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeAgregarSeccion(null), false);
+  assert.equal(esMensajeAgregarSeccion(undefined), false);
+  assert.equal(esMensajeAgregarSeccion('hola'), false);
+  assert.equal(esMensajeAgregarSeccion(42), false);
+});
+
+test('ATRIBUTO_EDITOR_AGREGAR_SECCION: el literal que EditorPuenteVivo.tsx escribe y lee', () => {
+  assert.equal(ATRIBUTO_EDITOR_AGREGAR_SECCION, 'data-editor-agregar-seccion');
+});
+
+// IDA Y VUELTA: el marcador que llega en `despuesDe` es exactamente el id que
+// `TiendaPaginas.tsx` (`abrirBiblioteca`/`ordenLocal`) necesita — SIN pasar por
+// `seccionDesdeMarcador` (que resolvería 'featured' a la SeccionVista 'spotlight', el valor
+// EQUIVOCADO para este propósito). Afirmado contra las ocho bandas reales de `BANDA_IDS`
+// (site-content-defaults.ts) + el caso spotlight/featured.
+test('esMensajeAgregarSeccion + el despuesDe de cada banda real: el marcador ES el bandaId, nunca la SeccionVista', () => {
+  for (const bandaId of ['hero', 'marquesina', 'trustBadges', 'brandStory', 'origen', 'presentaciones', 'subscriptionCTA', 'testimonials']) {
+    const m = { tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: bandaId };
+    assert.equal(esMensajeAgregarSeccion(m), true, bandaId);
+    assert.equal(esMensajeAgregarSeccion(m) && m.despuesDe, bandaId);
+  }
+  // spotlight ocupa el slot 'featured' (§ tienda-secciones.ts, SPOTLIGHT.bandaId); el mensaje
+  // lleva ese bandaId tal cual, no 'spotlight'.
+  assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: 'featured' }), true);
 });

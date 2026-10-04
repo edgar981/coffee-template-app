@@ -450,3 +450,60 @@ export function fusionarContenidoInstancia(
   if (!resuelto) return actual;
   return { ...actual, seccionesHome: { ...actual.seccionesHome, [instanciaId]: resuelto } };
 }
+
+// ─── EL DÉCIMO MENSAJE — NUEVO (§ EDITOR-AGREGAR-SECCION-LIENZO-1) ─────────────────────────────
+//
+// iframe→panel: "el dueño clickeó el «+» que aparece entre dos secciones (o después de la
+// última)". A diferencia de los nueve mensajes de arriba, éste NO reusa `TIPO_MENSAJE_CONTENIDO_
+// SECCION` — no hay contenido que fusionar, sólo una POSICIÓN que abrir en la biblioteca
+// (`EDITOR-AGREGAR-SECCION-1`, `TiendaPaginas.tsx` → `abrirBiblioteca(despuesDe)`). Es del mismo
+// linaje que `TIPO_MENSAJE_SECCION_CLICK` (§ EDITOR-TIENDA-SELECCION-1, arriba): un discriminador
+// PROPIO, nunca el de otro mensaje por casualidad.
+//
+// `despuesDe` viaja como el MARCADOR `data-editor-seccion` de la sección que precede al borde
+// clickeado — NUNCA `null`: todo borde tiene una sección antes (no hay «+» antes de la primera,
+// § el spec: "al pasar el mouse por el borde entre dos secciones... también después de la
+// última"), así que el caso "al final" es sencillamente el borde después de la ÚLTIMA sección,
+// con su propio marcador — no una variante con `despuesDe: null` que el llamador tendría que
+// distinguir.
+//
+// Y ESE MARCADOR YA ES EL ID QUE `abrirBiblioteca`/`ordenLocal` necesitan, sin resolver — a
+// diferencia de `TIPO_MENSAJE_SECCION_CLICK` (que SÍ necesita `seccionDesdeMarcador`, porque viaja
+// hacia una `SeccionVista` de `SECCIONES_TIENDA`). Medido contra `components/admin/tienda-
+// secciones.ts`: para las ocho bandas con `bandaId` (todas salvo `spotlight`), `bandaId ===
+// seccion`, y `marcadorDeSeccion(seccion) = seccion === 'spotlight' ? 'featured' : seccion` — por
+// lo que `marcadorDeSeccion(seccion) === bandaId` para TODA banda, incluida `spotlight`
+// (`bandaId: 'featured'`, el marcador que comparte con `featured`). Para una INSTANCIA, el
+// marcador es directamente su id (`inst:…`), que es también lo que `ordenLocal`/`seccionesHomeLocal`
+// usan. `seccionDesdeMarcador('featured')` en cambio resolvería a `'spotlight'` — el nombre de
+// `SeccionVista`, NO el `bandaId` que `abrirBiblioteca` necesita — así que pasarlo por ahí
+// introduciría el bug que esta nota previene, no lo evitaría.
+export const TIPO_MENSAJE_AGREGAR_SECCION = 'editor-tienda:agregar-seccion' as const;
+
+export interface MensajeAgregarSeccion {
+  tipo: typeof TIPO_MENSAJE_AGREGAR_SECCION;
+  /** El marcador `data-editor-seccion` de la sección que precede al borde clickeado — una banda de
+   *  `BANDA_IDS` o un id de instancia (`inst:…`). Nunca vacío. */
+  despuesDe: string;
+}
+
+export function esMensajeAgregarSeccion(data: unknown): data is MensajeAgregarSeccion {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  return (
+    m.tipo === TIPO_MENSAJE_AGREGAR_SECCION &&
+    typeof m.despuesDe === 'string' && m.despuesDe.trim() !== ''
+  );
+}
+
+/**
+ * El atributo que el BOTÓN «+» (insertado por `EditorPuenteVivo.tsx`, no por el storefront —
+ * § su docstring grande) lleva con el marcador a mandar como `despuesDe`. Vive ACÁ, junto al
+ * mensaje que arma, por la MISMA razón que `ATRIBUTO_EDITOR_ZONA_CAMPO` (arriba): el módulo que
+ * declara el marcador que lo escribe (acá, el propio `EditorPuenteVivo.tsx`) no es un archivo
+ * ajeno fuera de `touches:` — es el mismo componente —, así que podría vivir ahí también; se deja
+ * acá para que TODOS los atributos/constantes de este mecanismo (el discriminador, la interfaz,
+ * el validador, el atributo) estén en el mismo sitio, sin que alguien tenga que buscar el cuarto
+ * en otro archivo.
+ */
+export const ATRIBUTO_EDITOR_AGREGAR_SECCION = 'data-editor-agregar-seccion';

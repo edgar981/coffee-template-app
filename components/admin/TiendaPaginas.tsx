@@ -1539,6 +1539,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             dispositivo={dispositivo}
             onSeccionSeleccionada={manejarSeleccionDesdeIframe}
             onCampoCambio={manejarCampoCambioDesdeIframe}
+            // § EDITOR-AGREGAR-SECCION-LIENZO-1 — el «+» del lienzo abre la MISMA biblioteca que el
+            // separador de la lista (§ `abrirBiblioteca`, arriba), en la MISMA posición: `despuesDe`
+            // ya llega resuelto al id que esa función espera (una banda o una instancia), sin
+            // traducción acá.
+            onAgregarSeccion={abrirBiblioteca}
             tituloPorMarcador={tituloPorMarcador}
           />
         </div>

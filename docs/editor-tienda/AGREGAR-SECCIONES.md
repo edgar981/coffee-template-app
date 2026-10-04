@@ -1,10 +1,12 @@
-# Agregar secciones al home — el mecanismo (§ SECCIONES-INSTANCIAS-1) y la UI (§ EDITOR-AGREGAR-SECCION-1)
+# Agregar secciones al home — el mecanismo (§ SECCIONES-INSTANCIAS-1), la UI de la LISTA (§ EDITOR-AGREGAR-SECCION-1) y la del LIENZO (§ EDITOR-AGREGAR-SECCION-LIENZO-1)
 
 Este documento describe el MECANISMO que SECCIONES-INSTANCIAS-1 construyó (el modelo, el
-resolver, el schema, el render y el plumbing del editor en vivo) y la UI que EDITOR-AGREGAR-
-SECCION-1 le agregó encima: el botón "Agregar sección", la biblioteca con vista previa, las
-tarjetas con asa/menú, y el formulario de edición. El estado "sin UI de admin todavía" quedó
-cerrado — lo que sigue describe el mecanismo (sin cambios) y, en su propia sección, la UI.
+resolver, el schema, el render y el plumbing del editor en vivo), la UI que EDITOR-AGREGAR-
+SECCION-1 le agregó encima en la LISTA (el botón "Agregar sección", la biblioteca con vista
+previa, las tarjetas con asa/menú, y el formulario de edición), y el segundo disparador hacia el
+MISMO mecanismo que EDITOR-AGREGAR-SECCION-LIENZO-1 agregó sobre el LIENZO (el «+» entre
+secciones de la vista previa real). El estado "sin UI de admin todavía" quedó cerrado — lo que
+sigue describe el mecanismo (sin cambios) y, en sus propias secciones, las dos UI.
 
 ## El contrato
 
@@ -231,3 +233,109 @@ se queda como la mitad VISIBLE (tarjetas deshabilitadas + "Agregando…") para `
 `duplicarInstancia` no la necesita porque el ítem de menú que la dispara se cierra solo al
 elegirse (§ CLAUDE.md, "La FRONTERA del patrón: guarda donde el silencio invita al reintento" —
 un control que ya desapareció de la pantalla no invita a un segundo click).
+
+## El «+» del LIENZO (§ EDITOR-AGREGAR-SECCION-LIENZO-1) — el mismo gesto, desde la vista previa
+
+`EDITOR-AGREGAR-SECCION-1` dejó el «+ Agregar sección» como un control de la LISTA (el separador
+entre tarjetas y el botón de pie). Este slice agrega el mismo gesto sobre el LIENZO —la vista
+previa real dentro del `<iframe>`, al estilo Shopify—: acercar el mouse al borde entre dos
+secciones (o después de la última) revela una línea con una pastilla «+», que abre la MISMA
+biblioteca en la MISMA posición.
+
+**Dibujado DENTRO del documento del iframe, por `EditorPuenteVivo.tsx` — nunca por el storefront
+ni por `VistaTiendaIframe.tsx`.** Es chrome EFÍMERO superpuesto por JS, la misma familia que la
+selección en contexto, el campo flotante y la barra de estilo que ese archivo ya construye —
+nunca un marcado que `app/(storefront)/page.tsx` (fuera de `touches:`) tenga que emitir.
+
+### Insertado como SIBLING real — no un overlay medido
+
+A diferencia del campo flotante o la barra de estilo (que SÍ necesitan `getBoundingClientRect` +
+`ResizeObserver` porque flotan SOBRE un nodo ajeno), el separador «+» se inserta DIRECTO en el DOM
+como hermano entre dos `[data-editor-seccion]` (`nodo.insertAdjacentElement('afterend', …)`). Sigue
+el flujo del documento gratis — sin medir, sin `ResizeObserver`, sin listeners de `scroll`/`resize`:
+si una sección crece o la ventana cambia de ancho, el separador se mueve solo porque es parte del
+layout.
+
+Es seguro por la MISMA razón que el branch `seccion === 'orden'` ya reordena nodos con
+`appendChild`: `Home` es un Server Component, su árbol nunca se reconcilia del lado del cliente, así
+que insertar nodos ajenos a React en ese contenedor no entra en conflicto con ningún re-render
+futuro — no hay ninguno.
+
+**Descubierto por DOM, no por `useSiteContent().orden`.** El context queda RANCIO tras un reorden
+en vivo (el branch `'orden'` mueve nodos sin tocar el context, por diseño — ningún band lee
+`content.orden` reactivamente). `hero` (`ocultable:false`, siempre presente en home) es el ANCLA
+para encontrar el contenedor compartido — el MISMO truco que ya usa el branch de reorden para saber
+dónde mover. En `nosotros`/`suscripciones` (sin `hero`, sin `orden`/`seccionesHome`) no hay
+contenedor que encontrar, y el mecanismo no pone nada — no hay biblioteca que ofrecer ahí.
+
+`sincronizarSeparadoresAgregar(navegando)` retira TODOS los separadores viejos y, si el modo
+Navegar está apagado, los vuelve a poner en el orden actual del DOM. Se llama en tres momentos: al
+activarse el puente, tras cada reordenamiento en vivo (`seccion === 'orden'`, las posiciones
+cambiaron), y al alternar el modo Navegar (que los retira del todo — un visitante real, aunque sea
+el propio dueño probando la tienda, no debe ver afordancias de edición).
+
+### El clic no pasa por React — mismo mecanismo que la zona del hero y el campo-imagen
+
+El botón insertado NO lleva `onClick`. Lo resuelve el MISMO listener de captura sobre `document`
+que ya intercepta todo clic en modo selección (`[data-editor-zona-campo]`/
+`[data-editor-campo-imagen]`/`[data-editor-campo]`), leyendo el atributo
+`ATRIBUTO_EDITOR_AGREGAR_SECCION` (`lib/storefront/editor-puente.ts`) directo del nodo clickeado y
+posteando el mensaje — consistente con cómo YA funciona todo lo demás que este componente inserta o
+marca. Se revisa PRIMERO en la cadena (antes de zona/campo-imagen/campo): el separador vive FUERA
+de cualquier sección marcada, así que nunca ambigua con los otros, pero documentar el orden deja
+claro que es la capa más externa del lienzo.
+
+### El DÉCIMO mensaje del puente — `despuesDe` YA es el id que `abrirBiblioteca` necesita
+
+`TIPO_MENSAJE_AGREGAR_SECCION` (`{ tipo, despuesDe }`, iframe→panel) es el único de los diez
+mensajes del puente que NO reusa `TIPO_MENSAJE_CONTENIDO_SECCION` — no hay contenido que fusionar,
+sólo una posición que abrir. `despuesDe` viaja como el marcador `data-editor-seccion` de la sección
+que precede al borde clickeado, y es EXACTAMENTE el id que `TiendaPaginas.tsx` (`abrirBiblioteca`/
+`ordenLocal`) necesita, sin traducir: medido contra `tienda-secciones.ts`,
+`marcadorDeSeccion(seccion) === bandaId` para las ocho bandas con `bandaId` (todas salvo
+`spotlight`, cuyo `bandaId` es `'featured'`, el mismo marcador que comparte). `seccionDesdeMarcador
+('featured')` en cambio resolvería a `'spotlight'` —el nombre de `SeccionVista`, no el
+`bandaId`—, así que este mensaje NO pasa por esa función: hacerlo introduciría el bug que esta
+nota previene.
+
+`VistaTiendaIframe.tsx` gana el prop `onAgregarSeccion?: (despuesDe: string) => void` y reenvía el
+mensaje TAL CUAL (sin resolver); `TiendaPaginas.tsx` lo conecta directo a `abrirBiblioteca` — la
+MISMA función que ya usan el separador y el botón de la lista, así que el «+» del lienzo nunca
+puede abrir la biblioteca en una posición distinta de la que su equivalente de lista abriría.
+
+### Teclado y afordancia
+
+El botón es un `<button>` real insertado en el flujo normal del documento: alcanzable con Tab
+igual que cualquier otro control de la página, sin tabindex especial. Visible en hover O foco
+(`:hover`/`:focus-within` sobre el envoltorio, `:focus-visible` sobre el propio botón) — la misma
+regla de revelado que `SeparadorAgregar.tsx` (el separador de la lista) aplica con estado de React,
+acá con CSS puro inyectado por el propio componente (el mismo `<style>` que ya pinta el outline
+punteado de la selección). Sólo existe mientras el modo Navegar está apagado: con Navegar encendido
+la tienda se usa como un visitante real, y el afordance desaparece con el resto de la selección en
+contexto.
+
+### Lo que NO cambió
+
+Ni `BibliotecaSecciones.tsx` ni `agregarSeccion` (`TiendaPaginas.tsx`) se tocaron: el «+» del
+lienzo es un SEGUNDO disparador hacia el MISMO mecanismo que `EDITOR-AGREGAR-SECCION-1` ya
+construyó, no una segunda implementación. `SeparadorAgregar.tsx` (el de la lista) tampoco cambió —
+los dos separadores conviven, cada uno en su superficie.
+
+### Verificación
+
+Capa 1: `esMensajeAgregarSeccion` (forma/validación) en `lib/storefront/editor-puente.test.ts`. El
+"ida y vuelta" (iframe→panel→`abrirBiblioteca`, sin resolver el marcador) no se puede ejercitar por
+ejecución sin jsdom (mismo límite que el resto de este mecanismo, § CLAUDE.md "El glob NO incluye
+`*.test.tsx`") — se afirma leyendo el ARCHIVO FUENTE real de los tres componentes
+(`EditorPuenteVivo.tsx`/`VistaTiendaIframe.tsx`/`TiendaPaginas.tsx`) en
+`lib/admin/editor-iframe.test.ts`, el mismo patrón que ya usan los tests de
+`app/(admin)/editor/layout.tsx` en ese archivo.
+
+**`npm run verificar:nayoli:visual` midió la MISMA cifra exacta, dígito a dígito, que el piso ya
+documentado como `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (165052/4608000 px AA en `home`, caja
+`[105,862]–[1183,3581]`; 163/361 px en las otras 5 rutas; los 2 hovers IDÉNTICO) — cero píxeles de
+más atribuibles a este slice. Todo lo que este slice construye vive detrás de `activo` (el gate de
+modo editor, server-side), así que un visitante real no ejecuta ni un byte de este mecanismo. La
+sesión real con el arnés (Playwright, build de producción + Postgres efímero) ejercitó el escenario
+completo — hover entre Hero y Destacado, clic en el «+», biblioteca abierta, Banner insertado justo
+ahí — con capturas.

@@ -12,6 +12,7 @@ import {
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
   mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
+  TIPO_MENSAJE_AGREGAR_SECCION, ATRIBUTO_EDITOR_AGREGAR_SECCION,
 } from '@/lib/storefront/editor-puente';
 // `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
 // (que importa el módulo completo para `REGISTRY`/`DEFAULTS`/`resolverSiteContent`), así que
@@ -178,6 +179,81 @@ export function esMensajeDeshacer(data: unknown): data is MensajeDeshacer {
 }
 
 const CLASE_SELECCION_ACTIVA = 'duna-editor-seleccion';
+
+// ─── EL «+» ENTRE SECCIONES (§ EDITOR-AGREGAR-SECCION-LIENZO-1, docs/editor-tienda/
+// AGREGAR-SECCIONES.md) — insertado por ESTE componente, NO por el storefront (que no está en
+// `touches:` de este slice y, aunque lo estuviera, el afordance es editor-only: una banda SSR'd no
+// debe nacer con un botón que un visitante real jamás ve). Mismo criterio que la selección en
+// contexto y el campo flotante: chrome EFÍMERO superpuesto por JS, visible SÓLO mientras `activo`
+// es `true` y el modo Navegar está apagado — con Navegar encendido la tienda se usa como un
+// visitante real (§ el comentario grande de arriba), y estos botones desaparecen con el resto del
+// afordance de selección.
+//
+// INSERCIÓN DIRECTA EN EL DOM, no un overlay posicionado-y-medido (como el campo flotante o la
+// barra de estilo): un separador es un SIBLING real entre dos `<div data-editor-seccion>` —
+// `nodo.insertAdjacentElement('afterend', …)` — así que sigue el FLUJO del documento sin
+// `ResizeObserver` ni listeners de `scroll`/`resize`: si una sección crece o la ventana cambia de
+// ancho, el separador se mueve solo, gratis, porque es parte del layout. Es seguro por la MISMA
+// razón que el branch `seccion === 'orden'` de abajo puede reordenar nodos con `appendChild`:
+// `Home` es un Server Component, su árbol de bandas nunca se reconcilia del lado del cliente
+// (§ el comentario de ese branch), así que insertar nodos AJENOS a React en ese mismo contenedor
+// no entra en conflicto con ningún re-render futuro — no hay ninguno.
+//
+// EL CLIC NO PASA POR REACT: igual que `[data-editor-zona-campo]`/`[data-editor-campo-imagen]`
+// (§ el listener de clic, abajo), el botón no lleva `onClick` — lo reconoce el MISMO listener de
+// captura sobre `document` que ya intercepta todo clic en modo selección, leyendo el atributo
+// `ATRIBUTO_EDITOR_AGREGAR_SECCION` (editor-puente.ts) directo del nodo. Es consistente con cómo
+// ya funciona TODO lo demás que este componente inserta/marca — nunca un segundo mecanismo.
+const CLASE_SEPARADOR_AGREGAR = 'duna-editor-separador-agregar';
+const CLASE_SEPARADOR_AGREGAR_LINEA = 'duna-editor-separador-agregar__linea';
+const CLASE_SEPARADOR_AGREGAR_BOTON = 'duna-editor-separador-agregar__boton';
+
+/** El nodo de UN separador — línea + pastilla «+», ninguno con `onClick` (§ arriba: el clic lo
+ *  resuelve el listener de captura, leyendo `ATRIBUTO_EDITOR_AGREGAR_SECCION` del botón). */
+function crearSeparadorAgregar(despuesDe: string): HTMLElement {
+  const envoltorio = document.createElement('div');
+  envoltorio.className = CLASE_SEPARADOR_AGREGAR;
+  const linea = document.createElement('div');
+  linea.className = CLASE_SEPARADOR_AGREGAR_LINEA;
+  const boton = document.createElement('button');
+  boton.type = 'button';
+  boton.className = CLASE_SEPARADOR_AGREGAR_BOTON;
+  boton.textContent = '+ Agregar sección';
+  boton.setAttribute('aria-label', 'Agregar sección aquí');
+  boton.setAttribute(ATRIBUTO_EDITOR_AGREGAR_SECCION, despuesDe);
+  envoltorio.appendChild(linea);
+  envoltorio.appendChild(boton);
+  return envoltorio;
+}
+
+/**
+ * Pone (o repone) un separador después de cada sección del HOME — la única página con `orden`/
+ * `seccionesHome` (§ CLAUDE.md, "SÓLO 'home' tiene content.orden"). El ancla para encontrar el
+ * contenedor compartido es `hero` (`ocultable:false`, siempre presente): el MISMO truco que ya
+ * usa el branch `seccion === 'orden'` de abajo para localizar dónde reordenar — leído por DOM, no
+ * por `useSiteContent().orden`, que queda RANCIO tras un reorden en vivo (ese branch mueve nodos
+ * sin tocar el context, § su propio comentario). En `nosotros`/`suscripciones` (sin `hero`, sin
+ * `orden`) `contenedor` sale `null` y esta función no pone nada — no hay biblioteca que ofrecer
+ * ahí.
+ *
+ * SIEMPRE retira los separadores viejos primero (recrear, no diffear: son ≤10 nodos vacíos, el
+ * costo de recrearlos en cada 'orden'/toggle de Navegar es nulo frente a reconciliar posiciones a
+ * mano) — `navegando=true` los deja retirados y no pone nada nuevo.
+ */
+function sincronizarSeparadoresAgregar(navegando: boolean) {
+  document.querySelectorAll(`.${CLASE_SEPARADOR_AGREGAR}`).forEach((n) => n.remove());
+  if (navegando) return;
+  const hero = document.querySelector<HTMLElement>(`[${ATRIBUTO_EDITOR_SECCION}="hero"]`);
+  const contenedor = hero?.parentElement;
+  if (!contenedor) return;
+  const nodos = Array.from(contenedor.children).filter(
+    (n): n is HTMLElement => n instanceof HTMLElement && n.hasAttribute(ATRIBUTO_EDITOR_SECCION),
+  );
+  for (const nodo of nodos) {
+    const marcador = nodo.getAttribute(ATRIBUTO_EDITOR_SECCION);
+    if (marcador) nodo.insertAdjacentElement('afterend', crearSeparadorAgregar(marcador));
+  }
+}
 
 /**
  * Posta una LISTA de mensajes al panel, ESCALONADOS — nunca en un `for` síncrono. MEDIDO por
@@ -410,6 +486,9 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
 
     // Selección activa de ARRANQUE (el default, § arriba) — antes de que llegue ningún mensaje.
     document.documentElement.classList.add(CLASE_SELECCION_ACTIVA);
+    // § EDITOR-AGREGAR-SECCION-LIENZO-1 — los separadores «+» de ARRANQUE, con el mismo default
+    // (selección activa) que la clase de arriba.
+    sincronizarSeparadoresAgregar(navegarRef.current);
 
     const onMessage = (e: MessageEvent) => {
       // Mismo origen SIEMPRE — el panel y la tienda son el MISMO despliegue (§ MODO-EDITOR-SOLO-EN-
@@ -419,6 +498,9 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       if (esMensajeModoNavegar(e.data)) {
         navegarRef.current = e.data.navegar;
         document.documentElement.classList.toggle(CLASE_SELECCION_ACTIVA, !e.data.navegar);
+        // § EDITOR-AGREGAR-SECCION-LIENZO-1 — Navegar ON retira los «+» (visitante real, § arriba);
+        // Navegar OFF los repone.
+        sincronizarSeparadoresAgregar(e.data.navegar);
         return;
       }
 
@@ -464,6 +546,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
           const nodo = document.querySelector<HTMLElement>(`[data-editor-seccion="${id}"]`);
           if (nodo) contenedor.appendChild(nodo);
         }
+        // § EDITOR-AGREGAR-SECCION-LIENZO-1 — las secciones se movieron: los separadores «+»
+        // (descubiertos por DOM, § `sincronizarSeparadoresAgregar`) se reponen en las posiciones
+        // nuevas. Sin esto quedarían pegados a los ids viejos que ya no son sus vecinos.
+        sincronizarSeparadoresAgregar(navegarRef.current);
         return;
       }
 
@@ -543,6 +629,9 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     return () => {
       window.removeEventListener('message', onMessage);
       document.documentElement.classList.remove(CLASE_SELECCION_ACTIVA);
+      // § EDITOR-AGREGAR-SECCION-LIENZO-1 — retira los separadores «+» insertados a mano (nunca
+      // deja un nodo huérfano en un documento que ya no tiene este efecto vivo para limpiarlo).
+      document.querySelectorAll(`.${CLASE_SEPARADOR_AGREGAR}`).forEach((n) => n.remove());
     };
   }, [activo, actualizar]);
 
@@ -591,45 +680,63 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       e.preventDefault();
       e.stopPropagation();
 
-      // § EDITOR-TIENDA-ZONAS-1 — se revisa ANTES que campo-imagen/campo (§ `mensajesDeZonaHero`,
-      // `lib/storefront/editor-puente.ts`): un botón de zona ("+ Titular", "Quitar", Alto, Velo)
-      // nunca abre el overlay de texto ni el selector de archivos — escribe el/los campo(s) que su
-      // propio marcador declara, directo.
-      const nodoZona = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_ZONA_CAMPO}]`);
-      if (nodoZona) {
+      // § EDITOR-AGREGAR-SECCION-LIENZO-1 — se revisa PRIMERO, antes de zona/campo-imagen/campo: el
+      // «+» insertado por `sincronizarSeparadoresAgregar` (arriba) vive FUERA de cualquier sección
+      // marcada (es un sibling entre dos `[data-editor-seccion]`, nunca su descendiente), así que no
+      // puede ambiguar con ninguno de los otros marcadores — pero revisarlo primero documenta que es
+      // la capa MÁS externa del lienzo, la misma razón por la que una zona del hero se revisa antes
+      // que su campo de texto.
+      const nodoAgregar = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_AGREGAR_SECCION}]`);
+      if (nodoAgregar) {
         if (campoAbiertoRef.current) cerrarCampo();
-        const mensajes = mensajesDeZonaHero(
-          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO),
-          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR),
-          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO2),
-          nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR2),
-        );
-        // ESCALONADOS, no en un `for` síncrono — § `postarEscalonado`, arriba, para el porqué.
-        postarEscalonado(mensajes);
+        const despuesDe = nodoAgregar.getAttribute(ATRIBUTO_EDITOR_AGREGAR_SECCION);
+        if (despuesDe) {
+          window.parent.postMessage({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe }, window.location.origin);
+        }
       } else {
-        // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
-        // arriba): un campo-imagen nunca abre el overlay de texto.
-        const nodoCampoImagen = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO_IMAGEN}]`);
-        if (nodoCampoImagen) {
+        // § EDITOR-TIENDA-ZONAS-1 — se revisa ANTES que campo-imagen/campo (§ `mensajesDeZonaHero`,
+        // `lib/storefront/editor-puente.ts`): un botón de zona ("+ Titular", "Quitar", Alto, Velo)
+        // nunca abre el overlay de texto ni el selector de archivos — escribe el/los campo(s) que su
+        // propio marcador declara, directo.
+        const nodoZona = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_ZONA_CAMPO}]`);
+        if (nodoZona) {
           if (campoAbiertoRef.current) cerrarCampo();
-          const rutaAtributo = nodoCampoImagen.getAttribute(ATRIBUTO_EDITOR_CAMPO_IMAGEN);
-          const ruta = rutaAtributo ? parsearRutaCampo(rutaAtributo) : null;
-          if (ruta) {
-            window.parent.postMessage(
-              { tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: ruta.seccion, campo: ruta.campo },
-              window.location.origin,
-            );
-          }
+          const mensajes = mensajesDeZonaHero(
+            nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO),
+            nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR),
+            nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO2),
+            nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR2),
+          );
+          // ESCALONADOS, no en un `for` síncrono — § `postarEscalonado`, arriba, para el porqué.
+          postarEscalonado(mensajes);
         } else {
-          const nodoCampo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO}]`);
-          if (nodoCampo) {
-            abrirCampo(nodoCampo);
-          } else if (campoAbiertoRef.current) {
-            cerrarCampo();
+          // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
+          // arriba): un campo-imagen nunca abre el overlay de texto.
+          const nodoCampoImagen = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO_IMAGEN}]`);
+          if (nodoCampoImagen) {
+            if (campoAbiertoRef.current) cerrarCampo();
+            const rutaAtributo = nodoCampoImagen.getAttribute(ATRIBUTO_EDITOR_CAMPO_IMAGEN);
+            const ruta = rutaAtributo ? parsearRutaCampo(rutaAtributo) : null;
+            if (ruta) {
+              window.parent.postMessage(
+                { tipo: TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, seccion: ruta.seccion, campo: ruta.campo },
+                window.location.origin,
+              );
+            }
+          } else {
+            const nodoCampo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_CAMPO}]`);
+            if (nodoCampo) {
+              abrirCampo(nodoCampo);
+            } else if (campoAbiertoRef.current) {
+              cerrarCampo();
+            }
           }
         }
       }
 
+      // § EDITOR-AGREGAR-SECCION-LIENZO-1 — el separador «+» vive FUERA de cualquier sección
+      // marcada: `closest([data-editor-seccion])` sobre su nodo da `null` acá, así que el clic en
+      // el «+» NUNCA dispara TAMBIÉN un `TIPO_MENSAJE_SECCION_CLICK` de paso.
       const nodo = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_SECCION}]`);
       const seccion = nodo?.getAttribute(ATRIBUTO_EDITOR_SECCION);
       if (!seccion) return; // clic fuera de cualquier sección marcada (nav/pie/chrome): sólo se frena
@@ -649,6 +756,26 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       <style>{`
         .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}] { cursor: pointer; }
         .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}]:hover { outline: 2px dashed #f59e0b; outline-offset: -2px; }
+        .${CLASE_SEPARADOR_AGREGAR} {
+          position: relative; height: 24px; margin: 0; display: flex; align-items: center;
+          cursor: pointer;
+        }
+        .${CLASE_SEPARADOR_AGREGAR_LINEA} {
+          flex: 1; height: 1px; background: transparent; transition: background 120ms ease;
+        }
+        .${CLASE_SEPARADOR_AGREGAR}:hover .${CLASE_SEPARADOR_AGREGAR_LINEA},
+        .${CLASE_SEPARADOR_AGREGAR}:focus-within .${CLASE_SEPARADOR_AGREGAR_LINEA} { background: #f59e0b; }
+        .${CLASE_SEPARADOR_AGREGAR_BOTON} {
+          position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+          opacity: 0; transition: opacity 120ms ease;
+          display: inline-flex; align-items: center; gap: 4px;
+          background: #ffffff; color: #1d4ed8; border: 1px solid #2563eb; border-radius: 999px;
+          padding: 4px 10px; font: 600 12px system-ui, sans-serif; cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0,0,0,.18);
+        }
+        .${CLASE_SEPARADOR_AGREGAR}:hover .${CLASE_SEPARADOR_AGREGAR_BOTON},
+        .${CLASE_SEPARADOR_AGREGAR}:focus-within .${CLASE_SEPARADOR_AGREGAR_BOTON},
+        .${CLASE_SEPARADOR_AGREGAR_BOTON}:focus-visible { opacity: 1; }
       `}</style>
       {campoAbierto && createPortal(
         (() => {
