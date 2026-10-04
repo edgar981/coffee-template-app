@@ -52866,3 +52866,86 @@ de punta a punta contra el PANEL, nueve capturas + una medición de overflow (`s
 `slice/editor-secciones-1`, encima de `da3ab6f`.
 
 **Cierra `EDITOR-VISUAL-NIVELES-1` y su follow-up `EDITOR-VISUAL-ESTILO-FILA-1`.**
+
+---
+
+## 2026-10-04 — La pestaña «Ayuda» del editor gana un centro de ayuda (`EDITOR-AYUDA-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el pedido textual del
+owner del 2026-10-04 (*"necesito que me ayudes a construir la sección del editor que dice 'Ayuda'…
+porque seguramente no van a recordar todo cuando se les enseñe a usar o se haga la capacitación"*),
+`observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. La aprobación autoriza la escritura, nunca
+el merge. Sigue `slice/editor-secciones-1`, encima de `c98e5a8` (`EDITOR-VISUAL-NIVELES-1`).
+
+**Lo que se hizo:** `Riel.tsx` tenía «Ayuda» DESHABILITADA desde `EDITOR-VISUAL-MARCO-1` ("no
+existe hoy documentación del editor para el dueño de la tienda"). Este slice le da ese destino: un
+buscador, nueve guías cortas por tema, nueve preguntas frecuentes y los dos atajos de teclado
+REALES (verificados en el código, no inventados), más un «?» en cada nivel del panel que abre
+directo la guía de ese tema. El detalle de arquitectura completo (dónde vive cada pieza, por qué
+`temaDeNivel` deriva en vez de mapear a mano, los tres sitios donde vive el «?») está en
+`docs/editor-tienda/AYUDA.md` (nuevo) y en la entrada de `docs/editor-tienda/REDISENO.md` § 9
+("NOVENO PEDIDO FUERA DE ESTA NUMERACIÓN") — no se repite acá.
+
+**Sin cambio de esquema, sin cambio de qué se guarda ni de cómo se publica, y sin tocar un solo
+byte de la tienda pública** — verificado por `git status`: cero archivos de
+`components/storefront/`/`app/(storefront)/` en el diff.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths del diff grepeados contra CLAUDE.md: `ayuda-editor`/`AyudaCentro`/
+`IlustracionAyuda`/`Riel.tsx`/`Migas`/`EditorTiendaPantallaCompleta`/`editor.css` — CERO
+resultados cada uno (CLAUDE.md, doctrina de `main`, no tiene todavía ninguna sección sobre el
+riel/los niveles del editor — toda esa arquitectura vive sólo en esta rama, sin mergear). `Secciones
+· Estilo · Medios` (la enumeración de herramientas del riel que mi diff extiende a un cuarto ítem)
+tampoco aparece en CLAUDE.md — nada que falsear ahí.
+
+`TiendaPaginas` (4 resultados), `TiendaSeccionEditor` (6) y `PaletaSeccion` (3): los MISMOS trece
+que `EDITOR-VISUAL-NIVELES-1` ya catalogó línea por línea en su propio asiento (arriba) — ninguno
+describe el mecanismo del «?»/`onAyuda`/`modo:'ayuda'` que este diff agrega, así que ninguno queda
+falso por este cambio. La única ya-stale (línea 2260 de `PaletaSeccion`, la topología pre-`EDITOR-
+TIENDA-SHELL-1`) seguía stale ANTES de este slice — no es un hallazgo nuevo.
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (`slice/editor-secciones-1` contra `main`), mismo eje que el
+resto de esta rama. Cero bytes para un VISITANTE del storefront (medido: cero archivos de
+`components/storefront/`/`app/(storefront)/` en el diff). **Sí** cambia bytes que el OWNER/MANAGER
+lee dentro de `/editor/tienda`: el botón «Ayuda» pasa de deshabilitado a funcional, y aparece texto
+nuevo de cara al operador en todo el centro — los nueve títulos de guía, sus pasos, las nueve
+preguntas frecuentes y sus respuestas, los dos atajos, y los `aria-label`/`title` de los botones
+«?» ("Ayuda de esta sección", "Ayuda: Secciones", "Ayuda: Estilo"). Ninguno de cara al visitante.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado. Ningún
+campo nuevo en `site-content-schema.ts`/`site-content-defaults.ts` — el centro de ayuda no lee ni
+escribe `SiteContent`, es contenido estático del propio código.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
+completo verde (`npm run gate`: typecheck 0 errores · capa 1 3700/3700 · integración 346/346);
+`next build` compiló sin error (54 rutas, incluida `/editor/tienda`); eslint sobre los 5 archivos
+`.ts`/`.tsx` modificados (`editor.css` no es objeto de eslint) y los 4 nuevos
+(`AyudaCentro.tsx`, `IlustracionAyuda.tsx`, `ayuda-editor.ts`, `ayuda-editor.test.ts`) — CERO
+problemas nuevos: los 5 modificados dan el MISMO `errorCount`/`warningCount` exacto contra
+`git show HEAD:<archivo>` vía `eslint --stdin`, archivo por archivo (incluido `TiendaSeccionEditor.
+tsx`, 13 errores/23 warnings pre-existentes, idénticos antes y después); los 4 nuevos, 0/0 los
+cuatro.
+
+Arnés real de punta a punta (`.scratch/arnes-ayuda.ts`, no comiteado): Postgres efímero, `migrate
+deploy` + seed canónico, `next build`/`next start`, Playwright con sesión real
+(`admin@sierranativa.co`), viewport 1440×900. 12/12 verificaciones: el botón «Ayuda» ya no está
+deshabilitado; el centro abre con las 9 guías + FAQ + atajos; buscar «foto» encuentra la guía
+«Fotos y videos» (por palabra clave) y dos preguntas frecuentes (por texto de la respuesta); abrir
+esa guía muestra la miga «‹ Ayuda» y sus 5 pasos; el «?» del nivel Hero cambia el riel a «Ayuda»
+activo y abre directo la guía «El hero», saltando la lista. 4 capturas en `.scratch/capturas-ayuda/`
+(no comiteadas): el centro recién abierto, la búsqueda «foto», una guía abierta, y la guía que abre
+el «?» del hero — comparadas a ojo contra el lenguaje visual de `docs/editor-tienda/prototipo/`:
+coinciden (chrome tinta/blanco, Hanken Grotesk, filas/migas reusadas, nada nuevo que desentone).
+
+`npm run verificar:nayoli:visual` NO corrido — fuera de alcance: este diff no toca un solo archivo
+de `components/storefront/` ni `app/(storefront)/`, así que no hay drift visual público que medir.
+Commiteado en `slice/editor-secciones-1`, encima de `c98e5a8`.
+
+**Cierra `EDITOR-AYUDA-1`.**
