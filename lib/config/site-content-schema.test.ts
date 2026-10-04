@@ -76,6 +76,26 @@ test('hero: el mensaje del rechazo nombra el póster, no un "invalid input" gen�
   if (!r.success) assert.match(r.error.issues[0].message, /póster/i);
 });
 
+// ─── EL ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): `hero.estilos` SOBREVIVE al parse ──
+test('hero: `estilos` SOBREVIVE al parse (si no, zod lo descartaría al guardar, § #65-B)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    hero: { estilos: { titulo: { fuente: 'robusta', tamano: 'enorme', color: 'tostado', alinear: 'centro' } } },
+  });
+  assert.deepEqual(parsed.hero!.estilos, {
+    titulo: { fuente: 'robusta', tamano: 'enorme', color: 'tostado', alinear: 'centro' },
+  });
+});
+
+test('hero.estilos: una clave de SUBCAMPO no declarada en el ítem SÍ se descarta (confirma que el strip está activo dentro de cada elemento)', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { estilos: { titulo: { tamano: 'grande', basura: 'x' } } } });
+  assert.deepEqual(parsed.hero!.estilos, { titulo: { tamano: 'grande' } });
+});
+
+test('hero.estilos: un ELEMENTO con nombre arbitrario sobrevive el PARSE (el write es key-agnóstico, § esquemasEditableSchema) — el RESOLVER es quien filtra a los cinco reales', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { estilos: { unElementoInventado: { color: 'acento' } } } });
+  assert.deepEqual(parsed.hero!.estilos, { unElementoInventado: { color: 'acento' } });
+});
+
 // ─── NOSOTROS-COMPOSICION-1: la imagen de la historia y el CTA de cierre SOBREVIVEN al parse ─────
 test('nosotrosHistoria: `imagen` SOBREVIVE al parse (si no, zod la descartaría al guardar)', () => {
   const parsed = siteContentEditableSchema.parse({ nosotrosHistoria: { imagen: '/x.jpg' } });

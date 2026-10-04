@@ -5,6 +5,8 @@ import HeroCurtina from "@/components/storefront/home/HeroCurtina";
 import HeroFicha from "@/components/storefront/home/HeroFicha";
 import HeroMedia from "@/components/storefront/home/HeroMedia";
 import HeroMediaMarquesina from "@/components/storefront/home/HeroMediaMarquesina";
+import { paresFuenteReferenciados } from "@/lib/config/estilo-elemento";
+import { urlGoogle, parDeFuentePar } from "@/lib/config/fuentes";
 
 // La Portada — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO). Segunda
 // sección con `variantes` tras Presentaciones (§ eje 5e); mismo patrón: este componente sólo elige
@@ -33,5 +35,28 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
   // `?? HeroCurtina` es la red: una `variante` inesperada (no debería ocurrir — el resolver ya la
   // clampa al set cerrado, § `resolverVariante`) cae a la canónica en vez de no renderizar nada.
   const Layout = VARIANTES[hero.variante] ?? HeroCurtina;
-  return <Layout style={style} />;
+
+  // LOS <link> DE FUENTE REFERENCIADA (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): un elemento de texto del
+  // hero puede pedir, por su cuenta, un par de la colección curada DISTINTO del par activo del tema
+  // (`content.tema.fuentePar`) — y ESE par no viaja en el `<link>` que el layout ya inyecta para el
+  // tema (sólo carga las dos familias del par activo). Sin esto, la fuente elegida no tendría
+  // archivo que descargar y el navegador caería a su fallback genérico — "la letra elegida se carga
+  // en la tienda pública… sin esperar a publicar" (§ REDISENO.md § 5) exige que ESTE componente,
+  // montado para TODO visitante (Hero es `ocultable:false`), la pida.
+  //
+  // Mismo patrón EXACTO que `app/(storefront)/layout.tsx` ya usa para el par activo
+  // (`<link rel="stylesheet" href={fuentesLink} />`, renderizado directo en JSX — React/Next lo
+  // HOISTEA a `<head>`, en servidor y cliente, sin useEffect): acá se repite por cada par
+  // REFERENCIADO, no uno fijo. `paresFuenteReferenciados` ya deduplica; un par que resulte ser el
+  // mismo que el activo simplemente repite una URL que el navegador ya dedupe por `href`.
+  const paresReferenciados = paresFuenteReferenciados(hero.estilos ?? {});
+
+  return (
+    <>
+      {paresReferenciados.map((clave) => (
+        <link key={clave} rel="stylesheet" href={urlGoogle(parDeFuentePar(clave))} />
+      ))}
+      <Layout style={style} />
+    </>
+  );
 }

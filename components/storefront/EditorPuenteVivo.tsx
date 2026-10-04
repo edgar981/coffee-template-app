@@ -1,19 +1,23 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { useSiteContentActualizador } from '@/components/storefront/SiteContentProvider';
+import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { useSiteContent, useSiteContentActualizador } from '@/components/storefront/SiteContentProvider';
 import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden, datosDeTema,
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
+  mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
 } from '@/lib/storefront/editor-puente';
 // `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
 // (que importa el módulo completo para `REGISTRY`/`DEFAULTS`/`resolverSiteContent`), así que
 // importarla acá directo no agrega peso nuevo — ninguna razón para pasarla por un re-export.
-import { resolverOrden } from '@/lib/config/site-content-defaults';
+// `bandaOscuraCanonica` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) decide el fondo real de la zona del
+// hero para el filtro "se leen bien" de la barra flotante — MISMO motivo, ya viaja en el bundle.
+import { resolverOrden, bandaOscuraCanonica } from '@/lib/config/site-content-defaults';
 // `ATRIBUTO_EDITOR_SECCION`/`ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` son admin-level por
 // historia (nacieron junto a `proxy.ts`/`modo-editor-gate.ts`, § su docstring), pero son literales
 // PUROS —sin `next/headers` ni Prisma—, así que importarlos acá no arrastra nada pesado: una sola
@@ -25,6 +29,16 @@ import {
   parsearRutaCampo, estiloCampoFlotante, ATRIBUTO_EDITOR_CAMPO_IMAGEN, ATRIBUTO_RUTA_EN_EDICION,
   type RutaCampo,
 } from '@/lib/storefront/campo-editable';
+// LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, docs/editor-tienda/REDISENO.md § 5) — el
+// módulo nuevo de este slice, ya PÚBLICO vía `site-content-defaults.ts` (que lo importa para
+// resolver `hero.estilos`), así que importarlo acá tampoco agrega peso nuevo.
+import {
+  metaElementoEstilo, TAMANOS_ELEMENTO, LABEL_TAMANO_ELEMENTO,
+  ESTILO_ELEMENTO_VACIO, rolesColorLegibles,
+  type EstiloElementoResuelto, type AlineacionElemento,
+} from '@/lib/config/estilo-elemento';
+import { derivarPaleta, RAICES_DEFECTO, ROLES_COLOR_ELEMENTO, type RolColorElemento } from '@/lib/config/palette-derive';
+import { PARES_FUENTES } from '@/lib/config/fuentes';
 
 // EL PUENTE panel→iframe, mitad IMPURA (§ EDITOR-TIENDA-POSTMESSAGE-1). La lógica de forma/fusión
 // vive en `lib/storefront/editor-puente.ts` (pura, testeada sin DOM); este componente es el
@@ -159,6 +173,26 @@ export function esMensajeDeshacer(data: unknown): data is MensajeDeshacer {
 
 const CLASE_SELECCION_ACTIVA = 'duna-editor-seleccion';
 
+/**
+ * Posta una LISTA de mensajes al panel, ESCALONADOS — nunca en un `for` síncrono. MEDIDO por
+ * ejecución (§ EDITOR-TIENDA-ZONAS-1): el panel (`TiendaSeccionEditor.escribirCampo`) mergea cada
+ * mensaje sobre `formRef.current`, que sólo se re-sincroniza en el RENDER siguiente a un `setForm`.
+ * Dos `postMessage` posteados en la MISMA pila se procesan como dos eventos `message` separados,
+ * pero si React no alcanza a re-renderizar entre uno y otro, el segundo mergea sobre el `formRef`
+ * TODAVÍA viejo y PISA el resultado del primero — confirmado contra la base real: con el velo
+ * combinado, `alto` quedaba en su valor viejo y sólo `alturaLlena` sobrevivía. Un `setTimeout` de
+ * por medio le da tiempo a React a confirmar el primer `setForm` (un commit tarda microsegundos;
+ * 80ms es generoso) antes de que llegue el siguiente. Usado por las zonas del hero (§ abajo) y por
+ * "Quitar estilo" de la barra flotante (§ `mensajesQuitarEstiloElemento`, los CUATRO subcampos a la
+ * vez) — la MISMA clase de problema, factorizada en un solo sitio en vez de reimplementada dos veces.
+ */
+function postarEscalonado(mensajes: MensajeCampoCambio[]) {
+  mensajes.forEach((m, i) => {
+    if (i === 0) window.parent.postMessage(m, window.location.origin);
+    else window.setTimeout(() => window.parent.postMessage(m, window.location.origin), 80 * i);
+  });
+}
+
 /** El estado del ÚNICO campo flotante que puede estar abierto a la vez. `ruta` ya viene PARSEADA
  *  (`parsearRutaCampo`) — sección + campo relativo — para no volver a parsear el atributo en cada
  *  tecla. `bloque` es el elemento que de verdad se mide (§ `elementoDeBloque`, abajo) — se guarda
@@ -234,8 +268,32 @@ function medirGeometriaDocumento(bloque: HTMLElement) {
 
 export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   const actualizar = useSiteContentActualizador();
+  // LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) necesita LEER el contenido en vivo —el
+  // valor actual del elemento abierto (para resaltar la selección) y la paleta derivada del tenant
+  // (para el filtro "se leen bien sobre el fondo de esta zona", § `rolesColorLegibles`,
+  // estilo-elemento.ts) — algo que ningún otro mensaje de este componente necesitaba hasta ahora
+  // (el resto sólo ESCRIBE, vía `actualizar`/`postMessage`). Seguro siempre: este componente vive
+  // SIEMPRE dentro de `<SiteContentProvider>` (§ app/(storefront)/layout.tsx).
+  const { hero, tema } = useSiteContent();
   const schemaRef = useRef<typeof import('@/lib/config/site-content-schema') | null>(null);
   const navegarRef = useRef(false);
+
+  // LOS ROLES LEGIBLES (§ el filtro de `estilo-elemento.ts`): derivados UNA VEZ por cambio de
+  // paleta/variante, no en cada tecla — la barra los usa sólo mientras hay un campo de TEXTO
+  // abierto, pero calcularlos siempre es más simple que gatearlos, y el costo es matemática pura
+  // (sin red, sin DOM) sobre, como mucho, un puñado de hex.
+  const derivado = useMemo(
+    () => derivarPaleta(
+      { fondo: tema.fondo ?? RAICES_DEFECTO.fondo, tinta: tema.tinta ?? RAICES_DEFECTO.tinta, acento: tema.acento ?? RAICES_DEFECTO.acento },
+      { origenTexto: tema.origenTexto ?? undefined, origenAccion: tema.origenAccion ?? undefined },
+    ),
+    [tema.fondo, tema.tinta, tema.acento, tema.origenTexto, tema.origenAccion],
+  );
+  // Hoy el ÚNICO llamador declara elementos estilizables en `hero` (§ ELEMENTOS_ESTILO,
+  // estilo-elemento.ts) — `bandaOscuraCanonica('hero', …)` es por tanto la zona correcta sin
+  // necesitar leer `ruta.seccion` (que todavía no existe en este punto del render).
+  const oscura = bandaOscuraCanonica('hero', hero.variante);
+  const rolesLegibles = useMemo(() => rolesColorLegibles(derivado, oscura), [derivado, oscura]);
 
   // ── EL CAMPO FLOTANTE (§ arriba) ───────────────────────────────────────────────────────────────
   const [campoAbierto, setCampoAbierto] = useState<EstadoCampoAbierto | null>(null);
@@ -261,6 +319,13 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   // sigue siendo la fuente de verdad del estado real.
   const [avisoSesion, setAvisoSesion] = useState<string | null>(null);
 
+  // LA PREVISUALIZACIÓN AL PASAR EL MOUSE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, REDISENO.md § 5: "al
+  // pasar el mouse se previsualiza en la página"): un `color` CSS temporal —nunca posteado, nunca
+  // guardado— que `BarraEstiloElemento` enciende en `onMouseEnter` de un swatch de rol y apaga en
+  // `onMouseLeave`. Vive ACÁ (no dentro de la barra) porque tiene que mezclarse en el `style` del
+  // OVERLAY, que es otro componente — la barra no puede tocar el DOM del overlay directamente.
+  const [previewColorCss, setPreviewColorCss] = useState<string | null>(null);
+
   const cerrarCampo = () => {
     const abierto = campoAbiertoRef.current;
     if (abierto) abierto.nodo.style.visibility = '';
@@ -269,6 +334,7 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     document.documentElement.removeAttribute(ATRIBUTO_RUTA_EN_EDICION);
     setCampoAbierto(null);
     setAvisoSesion(null);
+    setPreviewColorCss(null);
   };
 
   const abrirCampo = (nodo: HTMLElement) => {
@@ -291,6 +357,7 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     const rutaCompleta = `${ruta.seccion}.${ruta.campo}`;
     document.documentElement.setAttribute(ATRIBUTO_RUTA_EN_EDICION, rutaCompleta);
     setAvisoSesion(null); // un campo nuevo nace sin el aviso del campo anterior
+    setPreviewColorCss(null); // ídem: la previsualización de hover no debe sobrevivir a OTRO campo
     setCampoAbierto({ nodo, bloque, ruta, multilinea, valor: nodo.textContent ?? '', estilo });
 
     // EL RE-MEDIDO (§ el docstring de `limpiarMedicionRef`): cada disparo recalcula la geometría
@@ -493,22 +560,8 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
           nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO2),
           nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR2),
         );
-        // ESCALONADOS, no en un `for` síncrono — MEDIDO por ejecución: el panel
-        // (`TiendaSeccionEditor.escribirCampo`) mergea cada mensaje sobre `formRef.current`, que
-        // sólo se re-sincroniza en el RENDER siguiente a un `setForm`. Dos `postMessage` posteados
-        // en la MISMA pila se procesan como dos eventos `message` separados, pero si React no
-        // alcanza a re-renderizar entre uno y otro, el segundo mergea sobre el `formRef` TODAVÍA
-        // viejo y PISA el resultado del primero — confirmado contra la base real: con el velo
-        // combinado, `alto` quedaba en su valor viejo y sólo `alturaLlena` sobrevivía. Un
-        // `setTimeout` de por medio le da tiempo a React a confirmar el primer `setForm` (un
-        // commit tarda microsegundos; 50ms es generoso) antes de que llegue el segundo — arreglar
-        // la causa de raíz (que `cambiar()` mergeara con el `setState` FUNCIONAL en vez de sobre
-        // un snapshot) tocaría el merge genérico que usan TODOS los campos de texto, fuera del
-        // alcance de esta zona nueva.
-        mensajes.forEach((m, i) => {
-          if (i === 0) window.parent.postMessage(m, window.location.origin);
-          else window.setTimeout(() => window.parent.postMessage(m, window.location.origin), 80 * i);
-        });
+        // ESCALONADOS, no en un `for` síncrono — § `postarEscalonado`, arriba, para el porqué.
+        postarEscalonado(mensajes);
       } else {
         // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
         // arriba): un campo-imagen nunca abre el overlay de texto.
@@ -574,7 +627,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
             ref: (n: HTMLInputElement | HTMLTextAreaElement | null) => { overlayNodoRef.current = n; },
             autoFocus: true,
             value: campoAbierto.valor,
-            style: campoAbierto.estilo,
+            // La previsualización de hover (§ arriba) GANA sobre el color real mientras está
+            // activa — se aplica DESPUÉS en el spread, nunca se guarda, se apaga sola al salir del
+            // swatch (`onMouseLeave`, `BarraEstiloElemento`).
+            style: previewColorCss ? { ...campoAbierto.estilo, color: previewColorCss } : campoAbierto.estilo,
             onChange: manejarCambio,
             onKeyDown: manejarTecla,
             // Marcador de DIAGNÓSTICO/arnés —no lo lee ningún otro código de producto (el gate de
@@ -624,6 +680,132 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
         })(),
         document.body,
       )}
+      {/* LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) — SÓLO cuando el campo abierto es uno
+          de los elementos declarados en `ELEMENTOS_ESTILO` (estilo-elemento.ts, hoy sólo `hero`).
+          Portal PROPIO, sibling del de arriba: la barra no es parte del campo, es un control
+          aparte que lo acompaña — separarlos deja a cada uno con su propia key/ciclo de vida. */}
+      {campoAbierto && metaElementoEstilo(campoAbierto.ruta.seccion, campoAbierto.ruta.campo) && (
+        <BarraEstiloElemento
+          key={`${campoAbierto.ruta.seccion}.${campoAbierto.ruta.campo}`}
+          seccion={campoAbierto.ruta.seccion}
+          elemento={campoAbierto.ruta.campo}
+          estilo={(hero.estilos as Record<string, EstiloElementoResuelto>)[campoAbierto.ruta.campo] ?? ESTILO_ELEMENTO_VACIO}
+          rolesLegibles={rolesLegibles}
+          anclaje={{
+            top: Number(campoAbierto.estilo.top), left: Number(campoAbierto.estilo.left), height: Number(campoAbierto.estilo.height),
+          }}
+          onPreviewColor={setPreviewColorCss}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * LA BARRA FLOTANTE — letra, tamaño, alineación, color por rol y quitar (§ EDITOR-TIENDA-BARRA-
+ * FLOTANTE-1, REDISENO.md § 5). Anclada al DOCUMENTO (mismo sistema de coordenadas que el campo
+ * flotante, § `GeometriaCampo`) — ARRIBA del elemento si hay lugar, ABAJO si no (`anclaje.top` bajo
+ * para el campo abierto, p. ej. un titular pegado al borde superior del viewport tras un scroll).
+ * Componente de MÓDULO (no anidado dentro de `EditorPuenteVivo`) para que no se redefina en cada
+ * render de ese componente — se identifica entre aperturas con `key` (arriba), así que React la
+ * remonta limpia al cambiar de campo.
+ *
+ * REUTILIZA `mensajeEstiloElemento`/`mensajesQuitarEstiloElemento` (editor-puente.ts) — el MISMO
+ * tipo de mensaje que cualquier campo de texto, nunca un canal nuevo. Estilo LITERAL, no tokens
+ * `--duna-*`/`--sf-*` — mismo criterio que el resto del chrome efímero de este archivo (el aviso de
+ * sesión, `ZonaChip` de los 4 heros): este documento es el storefront público, no el panel.
+ */
+function BarraEstiloElemento({
+  seccion, elemento, estilo, rolesLegibles, anclaje, onPreviewColor,
+}: {
+  seccion: string;
+  elemento: string;
+  estilo: EstiloElementoResuelto;
+  rolesLegibles: readonly RolColorElemento[];
+  anclaje: { top: number; left: number; height: number };
+  onPreviewColor: (cssColor: string | null) => void;
+}) {
+  const enviar = (sub: 'fuente' | 'tamano' | 'color' | 'alinear', valor: string) => {
+    window.parent.postMessage(mensajeEstiloElemento(seccion, elemento, sub, valor), window.location.origin);
+  };
+  const quitar = () => postarEscalonado(mensajesQuitarEstiloElemento(seccion, elemento));
+
+  // ARRIBA por default; si no hay suficiente espacio sobre el campo (p. ej. un titular casi pegado
+  // al borde superior tras un scroll), ABAJO — mismo criterio de "dónde cabe" que cualquier popover.
+  const arriba = anclaje.top > 140;
+  const estiloBarra: Record<string, string | number> = {
+    position: 'absolute',
+    left: anclaje.left,
+    ...(arriba ? { top: anclaje.top - 8, transform: 'translateY(-100%)' } : { top: anclaje.top + anclaje.height + 8 }),
+    zIndex: 2147483647,
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+    background: '#ffffff', border: '1px solid #2563eb', borderRadius: 8,
+    padding: '6px 8px', boxShadow: '0 4px 16px rgba(0,0,0,.22)',
+    fontFamily: 'system-ui, sans-serif', fontSize: 12, color: '#1d4ed8', maxWidth: 380,
+  };
+  const estiloSelect: Record<string, string | number> = {
+    font: 'inherit', color: 'inherit', border: '1px solid #2563eb', borderRadius: 4,
+    background: '#fff', padding: '2px 4px', maxWidth: 150,
+  };
+  const estiloBotonAlinear = (activo: boolean): Record<string, string | number> => ({
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 22, height: 22, border: '1px solid #2563eb', borderRadius: 4, cursor: 'pointer',
+    background: activo ? '#2563eb' : '#fff', color: activo ? '#fff' : '#1d4ed8',
+  });
+
+  return createPortal(
+    <div style={estiloBarra} data-editor-barra-estilo={`${seccion}.${elemento}`}>
+      <select aria-label="Letra" value={estilo.fuente ?? ''} onChange={(e) => enviar('fuente', e.target.value)} style={estiloSelect}>
+        <option value="">Letra: por defecto</option>
+        <option value="otra-del-par">Letra: la otra del par</option>
+        {PARES_FUENTES.map((p) => <option key={p.clave} value={p.clave}>Letra: {p.label}</option>)}
+      </select>
+      <select aria-label="Tamaño" value={estilo.tamano ?? ''} onChange={(e) => enviar('tamano', e.target.value)} style={estiloSelect}>
+        <option value="">Tamaño: por defecto</option>
+        {TAMANOS_ELEMENTO.map((t) => <option key={t} value={t}>Tamaño: {LABEL_TAMANO_ELEMENTO[t]}</option>)}
+      </select>
+      <div role="group" aria-label="Alineación" style={{ display: 'flex', gap: 2 }}>
+        {(
+          [
+            { v: 'izquierda' as AlineacionElemento, Icon: AlignLeft, label: 'Izquierda' },
+            { v: 'centro' as AlineacionElemento, Icon: AlignCenter, label: 'Centro' },
+            { v: 'derecha' as AlineacionElemento, Icon: AlignRight, label: 'Derecha' },
+          ] as const
+        ).map(({ v, Icon, label }) => (
+          <button key={v} type="button" title={label} onClick={() => enviar('alinear', v)} style={estiloBotonAlinear(estilo.alinear === v)}>
+            <Icon size={13} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <button
+          type="button"
+          title="Color por defecto"
+          onClick={() => enviar('color', '')}
+          style={{ ...estiloBotonAlinear(estilo.color === null), width: 'auto', padding: '0 6px' }}
+        >
+          Por defecto
+        </button>
+        {ROLES_COLOR_ELEMENTO.filter((r) => rolesLegibles.includes(r.clave)).map((r) => (
+          <button
+            key={r.clave}
+            type="button"
+            title={r.label}
+            onClick={() => enviar('color', r.clave)}
+            onMouseEnter={() => onPreviewColor(`var(${r.variable})`)}
+            onMouseLeave={() => onPreviewColor(null)}
+            style={{
+              width: 16, height: 16, borderRadius: '50%', padding: 0, cursor: 'pointer',
+              background: `var(${r.variable})`,
+              border: estilo.color === r.clave ? '2px solid #1d4ed8' : '1px solid rgba(0,0,0,.25)',
+            }}
+          />
+        ))}
+      </div>
+      <button type="button" onClick={quitar} title="Quitar estilo" style={{ ...estiloBotonAlinear(false), width: 'auto', padding: '0 6px' }}>
+        Quitar
+      </button>
+    </div>,
+    document.body,
   );
 }

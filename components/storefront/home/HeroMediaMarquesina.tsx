@@ -19,6 +19,7 @@ import {
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/storefront/home/MarquesinaMotor";
+import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 
 // EL COMPONENTE DE LA VARIANTE "STICKY" DEL HERO (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1) — la
 // CUARTA composición (tras curtina/ficha/media, § HeroSection.tsx: `VARIANTES.sticky`), y la que
@@ -566,7 +567,7 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
 }
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
-  const { hero, marquesina } = useSiteContent();
+  const { hero, marquesina, tema } = useSiteContent();
   const preview = useIsPreview();
   // LAS ZONAS — `useModoEditorActivo()`, NO `useIsPreview()` (§ el docstring equivalente en
   // `HeroMedia.tsx`, el mismo desvío medido del texto literal del spec).
@@ -864,7 +865,10 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             cabecera "EL PESO"): sigue al `--sf-peso-cuerpo` del par ('prensa'/440 en CORTE), en vez de
             un 400 fijo — fallback 400 para cualquier otro tenant. */}
         {hero.fraseAlPie && (
-          <p className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-[13px] sf-peso-normal leading-relaxed text-balance text-[var(--sf-sobre-banda,white)] sm:bottom-10 sm:right-6 sm:text-sm lg:bottom-12 lg:right-8">
+          <p
+            className="absolute bottom-8 right-4 z-10 max-w-[34ch] text-right text-[13px] sf-peso-normal leading-relaxed text-balance text-[var(--sf-sobre-banda,white)] sm:bottom-10 sm:right-6 sm:text-sm lg:bottom-12 lg:right-8"
+            style={estiloInlineDeElemento(hero.estilos.fraseAlPie, 'leyenda', tema.fuentePar)}
+          >
             <CampoEditable campo="hero.fraseAlPie" multilinea>{hero.fraseAlPie}</CampoEditable>
           </p>
         )}

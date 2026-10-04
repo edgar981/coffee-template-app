@@ -107,6 +107,45 @@ test('LA INVARIANTE: HeroMedia con los tres agregados en su default rinde EXACTA
   assert.ok(!html.includes('Desliza'), 'la etiqueta del cue no debe aparecer');
 });
 
+// ─── EL ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) ────────────────────────────────────
+
+test('hero.estilos ausente/vacío (DEFAULTS): NINGÚN elemento de HeroMedia lleva un `style` de override — byte-idéntico', () => {
+  const html = renderHeroMedia({ ...DEFAULTS.hero, variante: 'media', ctasVisibles: true, fraseAlPie: 'x' });
+  // Ninguna de las claves que `estiloInlineDeElemento` podría emitir aparece en el HTML.
+  assert.ok(!html.includes('font-family'));
+  assert.ok(!/style="[^"]*color:var\(--sf-/.test(html));
+  assert.ok(!html.includes('text-align'));
+});
+
+test('hero.estilos.titulo: tamano/color/alinear declarados emiten su `style` sobre el h1', () => {
+  const hero = {
+    ...DEFAULTS.hero, variante: 'media',
+    estilos: { ...DEFAULTS.hero.estilos, titulo: { fuente: null, tamano: 'enorme', color: 'tostado', alinear: 'centro' } },
+  } as HeroContent;
+  const html = renderHeroMedia(hero);
+  assert.match(html, /<h1[^>]*style="[^"]*font-size:clamp\(72px/);
+  assert.match(html, /<h1[^>]*style="[^"]*color:var\(--sf-tostado\)/);
+  assert.match(html, /<h1[^>]*style="[^"]*text-align:center/);
+});
+
+test('hero.estilos.ctaPrimarioLabel: un color PERSONALIZADO (custom:#rrggbb) emite el hex crudo sobre el <a>', () => {
+  const hero = {
+    ...DEFAULTS.hero, variante: 'media',
+    estilos: { ...DEFAULTS.hero.estilos, ctaPrimarioLabel: { fuente: null, tamano: null, color: 'custom:#ff5500', alinear: null } },
+  } as HeroContent;
+  const html = renderHeroMedia(hero);
+  assert.match(html, /<a[^>]*style="[^"]*color:#ff5500/);
+});
+
+test('hero.estilos aplica IGUAL en las OTRAS variantes (curtina/ficha), no sólo en media — el titular en "robusta" (clave del catálogo) resuelve a Oswald, Y el <link> del par referenciado se inyecta', () => {
+  const estilos = { ...DEFAULTS.hero.estilos, titulo: { fuente: 'robusta', tamano: null, color: null, alinear: null } };
+  const curtina = renderHeroMedia({ ...DEFAULTS.hero, variante: 'curtina', estilos } as HeroContent);
+  assert.match(curtina, /<h1[^>]*style="[^"]*font-family:[^"]*Oswald/);
+  assert.match(curtina, /family=Oswald/, 'el <link> de Google Fonts del par "robusta" se inyecta aunque NO sea el par activo del tema');
+  const ficha = renderHeroMedia({ ...DEFAULTS.hero, variante: 'ficha', estilos } as HeroContent);
+  assert.match(ficha, /<h1[^>]*style="[^"]*font-family:[^"]*Oswald/);
+});
+
 test('agregado (a) — ctasVisibles:false OCULTA los dos CTA juntos (no uno sí y otro no)', () => {
   const conCtas = renderHeroMedia({ ...DEFAULTS.hero, variante: 'media', ctasVisibles: true });
   assert.equal(nEnlaces(conCtas), 2);

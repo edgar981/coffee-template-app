@@ -416,6 +416,29 @@ test('hero.fraseAlPie con texto: rinde el párrafo, alineado a la derecha, ENFRE
 // fuente. La frase pasa al rol PLENO y el peso VUELVE a regular (`font-normal`): el muestrario no
 // declara peso propio en `.hero-caption`, hereda el 400 del body — el "cuerpo" que faltaba lo daba el
 // color, no el peso, así que la subida de la ronda anterior se revierte.
+// § EDITOR-TIENDA-BARRA-FLOTANTE-1 — hero.estilos.fraseAlPie aplica TAMBIÉN en esta variante
+// (sticky), no sólo en HeroMedia: `HeroMediaMarquesina.tsx` ganó `tema` en su destructuring
+// SÓLO para poder leer `tema.fuentePar` acá.
+test('hero.estilos.fraseAlPie ausente (DEFAULTS): el párrafo NO lleva ningún `style` de override — byte-idéntico', () => {
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.doesNotMatch(html, /text-align/);
+  assert.doesNotMatch(html, /color:var\(--sf-/);
+});
+
+test('hero.estilos.fraseAlPie con alinear/color declarados: emite su `style` sobre el párrafo', () => {
+  const content = {
+    ...DEFAULTS,
+    hero: {
+      ...DEFAULTS.hero, fraseAlPie: 'Café de altura.',
+      estilos: { ...DEFAULTS.hero.estilos, fraseAlPie: { fuente: null, tamano: null, color: 'suave', alinear: 'izquierda' } },
+    },
+  } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  assert.match(html, /<p[^>]*style="[^"]*text-align:left/);
+  assert.match(html, /<p[^>]*style="[^"]*color:var\(--sf-texto-suave\)/);
+});
+
 test('hero.fraseAlPie: rol PLENO (--sf-sobre-banda), NUNCA el suave translúcido — el mismo rol que ya usa el texto del marquee', () => {
   const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, fraseAlPie: 'Café de altura.' } } as SiteContentData;
   const html = renderHeroMediaMarquesina(content);

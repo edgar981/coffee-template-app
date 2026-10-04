@@ -208,6 +208,20 @@ export function linkFuentesTodas(): string {
   return `https://fonts.googleapis.com/css2?${[...specs].map((s) => `family=${s}`).join('&')}&display=swap`;
 }
 
+// EL ROL TIPOGRÁFICO DE UN ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): un elemento de texto del
+// storefront es, por naturaleza, DISPLAY (`'titulo'` — un h1/h2, lo que hoy pinta `font-playfair`/
+// `.font-display`) o CUERPO (`'cuerpo'` — un párrafo/label, lo que hoy pinta `font-inter`/
+// `.font-cuerpo`). `fontFamilyDeRol` es el ÚNICO punto que traduce "qué fuente de ESTE par pinta
+// este rol" — para que la barra flotante («Por defecto» = el rol correcto del par activo; «la otra
+// del par» = el rol CONTRARIO del mismo par) y la colección curada (un par ENTERO, resuelto a su
+// fuente de ESE rol) usen la MISMA regla, en vez de que cada llamador repita el `? :` a mano.
+export type RolTipografico = 'titulo' | 'cuerpo';
+
+/** La fuente CSS de `par` para el rol pedido — `par.titulo` o `par.cuerpo`, nunca un tercer valor. */
+export function fontFamilyDeRol(par: ParFuentes, rol: RolTipografico): string {
+  return rol === 'titulo' ? par.titulo : par.cuerpo;
+}
+
 /**
  * Las vars `--sf-fuente-*`/`--sf-peso-cuerpo` para un par, para un `style` INLINE (la vista previa
  * del panel, que no pasa por el `<style>` server de cssFuentes — la usa `FragmentoTienda`,

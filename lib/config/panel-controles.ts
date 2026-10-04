@@ -53,6 +53,7 @@
 
 import { REGISTRY, DEFAULTS, type SeccionKey } from './site-content-defaults';
 import { SECCIONES_TIENDA, type SeccionConfig } from '@/components/admin/tienda-secciones';
+import { elementosEstiloDeSeccion } from './estilo-elemento';
 
 // ─── LADO A: lo que la tienda LEE ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,12 @@ function camposDeSeccion(key: SeccionKey): string[] {
   if (def.variantes) campos.add('variante');
   for (const e of Object.keys(def.escalares ?? {})) campos.add(e);
   if (def.ocultable) campos.add('visible');
+  // ESTILOS POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): `def.estilos` declara los elementos de
+  // texto de la sección con estilo propio — cada uno es, para este chequeo, un "campo" más,
+  // granularidad `estilos.<elemento>` (no se baja a los cuatro subcampos: el control de la barra
+  // flotante/del panel es POR ELEMENTO, no por subcampo suelto — mismo criterio que
+  // `camposDeItemsRepeater` trata cada campo de ítem, no cada letra).
+  for (const el of def.estilos ?? []) campos.add(`estilos.${el}`);
   return [...campos].sort().map((c) => `${key}.${c}`);
 }
 
@@ -270,12 +277,22 @@ const CONTROLADOS_ENCABEZADO_SECCION = ['navWordmark.activo', 'cromo.navSubtitul
  *  claves a esta declaración. */
 const CONTROLADOS_DETALLES_SECCION = ['volverArriba.visible', 'rielSocial.visible', 'carritoEnvio.visible', 'carrito.variante'];
 
+/** DECLARACIÓN EXPLÍCITA de lo que la barra flotante + su control gemelo del panel
+ *  (`components/admin/editor/EstiloElementoControles.tsx`, montado DENTRO de `TiendaSeccionEditor.
+ *  tsx` bajo cada campo estilizable — NO vía `SeccionConfig`/`camposDeSeccionEditor`, porque ese
+ *  control es HARDCODEADO al nombre de sección 'hero' y no un dato declarativo de
+ *  `tienda-secciones.ts`, § EDITOR-TIENDA-BARRA-FLOTANTE-1) controlan: los CINCO elementos
+ *  estilizables de hero, derivados de la MISMA fuente que `REGISTRY.hero.estilos`
+ *  (`elementosEstiloDeSeccion`, estilo-elemento.ts) — nunca una sexta lista a mano que pudiera
+ *  divergir de las otras dos. */
+const CONTROLADOS_ESTILO_ELEMENTO_HERO: string[] = elementosEstiloDeSeccion('hero').map((el) => `hero.estilos.${el}`);
+
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {
   return [
     ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_FOOTER_SECCION,
     ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
-    ...CONTROLADOS_DETALLES_SECCION,
+    ...CONTROLADOS_DETALLES_SECCION, ...CONTROLADOS_ESTILO_ELEMENTO_HERO,
   ].sort();
 }
 

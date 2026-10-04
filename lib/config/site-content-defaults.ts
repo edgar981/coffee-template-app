@@ -10,6 +10,7 @@ import { resolverFuentePar, type ClaveFuentePar } from './fuentes';
 import { resolverForma, type ClaveForma } from './formas';
 import type { EsquemaId, OrigenTexto, OrigenAccion } from './palette-derive';
 import { resolverEscalaDisplay, type ClaveEscalaDisplay } from './escala-display';
+import { resolverEstilosSeccion, elementosEstiloDeSeccion, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from './estilo-elemento';
 
 // Alias con el vocabulario de esta capa (§ eje 5b, mitad B — el EFECTO en el home). Es EL MISMO
 // tipo que `EsquemaId` de `palette-derive.ts` (el MOTOR ya lo declaró): 'crema' | 'superficie' |
@@ -178,6 +179,20 @@ export interface HeroContent {
   // que agregar `center center` explícito sería un byte que hoy no existe, sin cambiar un solo
   // píxel — Nayoli (que no declara este campo) queda BYTE-IDÉNTICA.
   puntoFocal: PuntoFocal;
+  // `estilos` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, docs/editor-tienda/REDISENO.md § 5/§ 8): el mapa
+  // elemento→estilo (letra/tamaño/color/alineación) de los CINCO elementos de texto del hero que la
+  // barra flotante puede estilizar — `titulo`, `subtitulo`, `fraseAlPie`, `ctaPrimarioLabel`,
+  // `ctaSecundarioLabel` (la lista viene de `elementosEstiloDeSeccion('hero')`,
+  // `estilo-elemento.ts` — fuente ÚNICA, no una segunda lista acá). Cada valor es un
+  // `EstiloElementoResuelto`: los CUATRO subcampos nacen en `null` ("por defecto") y un `null` NUNCA
+  // emite una clave de `style` (§ `estiloInlineDeElemento`) — byte-idéntico sin fila. Resuelto por
+  // `resolverEstilosSeccion` vía `REGISTRY.hero.estilos` (gemelo de `escalares`/`booleanos`, §
+  // `SeccionDef.estilos` abajo), NO por el loop `campos` requerido/opcional —no es un string—. El
+  // COLOR se guarda como ROL (una clave de `ROLES_COLOR_ELEMENTO`, palette-derive.ts) o como hex
+  // personalizado (`custom:#rrggbb`): guardar el ROL es lo que hace que el color SIGA A LA PALETA al
+  // cambiar de combinación (§ REDISENO.md § 5, "se guarda el rol… cambiar de Corte a Pliego recolorea
+  // el titular sin tocarlo").
+  estilos: Record<string, EstiloElementoResuelto>;
 }
 
 // EL SET CERRADO de posiciones del punto focal del hero (§ el docstring de `HeroContent.puntoFocal`,
@@ -1869,6 +1884,16 @@ export const DEFAULTS: SiteContentData = {
     // declara 'suave'/'lenta' (§ themes.ts).
     veloIntensidad: 'media',
     tickerVelocidad: 'media',
+    // `estilos` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): el default es "sin ningún override" para los
+    // CINCO elementos — byte-idéntico, ningún subcampo se traduce a `style` en `null`
+    // (§ `estiloInlineDeElemento`, estilo-elemento.ts).
+    estilos: {
+      titulo: ESTILO_ELEMENTO_VACIO,
+      subtitulo: ESTILO_ELEMENTO_VACIO,
+      fraseAlPie: ESTILO_ELEMENTO_VACIO,
+      ctaPrimarioLabel: ESTILO_ELEMENTO_VACIO,
+      ctaSecundarioLabel: ESTILO_ELEMENTO_VACIO,
+    },
   },
   // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
   // NACE OFF (`visible:false`) por la MISMA razón mecánica que `origen`: `resolverOrden` completa
@@ -2412,6 +2437,14 @@ export interface SeccionDef {
    *  nuevo campo booleano de sección exigiría un `if (key === 'hero')` hardcodeado en el loop, el
    *  mismo hardcoding que `escalares` existe para evitar del lado de los strings clampados. */
   booleanos?: string[];
+  /** Nombres de ELEMENTOS DE TEXTO de la sección con estilo propio (letra/tamaño/color/alineación),
+   *  § EDITOR-TIENDA-BARRA-FLOTANTE-1. Resuelto por NOMBRE vía `resolverEstilosSeccion`
+   *  (estilo-elemento.ts) — gemelo de `booleanos`/`escalares`: declarar la lista es lo único que
+   *  hace falta para que un elemento EXISTA como superficie de estilo; el componente decide si lo
+   *  aplica. DERIVADA de `elementosEstiloDeSeccion(key)` en el REGISTRY (nunca una segunda lista a
+   *  mano — § el docstring de `ELEMENTOS_ESTILO`, estilo-elemento.ts). Ausente = sin ningún elemento
+   *  estilizable en esta sección (byte-idéntico: `estilos` no se escribe en absoluto). */
+  estilos?: readonly string[];
   campos: Record<string, CampoTipo>;
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
@@ -2501,6 +2534,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // la media de `HeroMediaMarquesina`, la variante `'sticky'`). El séptimo agregado (`fraseAlPie`)
     // es un `campos` normal, abajo.
     booleanos: ['ctasVisibles', 'cueDesliza', 'titularVisible', 'subtituloVisible', 'alturaLlena', 'veloVisible'],
+    // `estilos` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): DERIVADO de `elementosEstiloDeSeccion('hero')`,
+    // nunca una lista escrita a mano acá — ver el docstring de `SeccionDef.estilos` arriba.
+    estilos: elementosEstiloDeSeccion('hero'),
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -3127,6 +3163,15 @@ export function resolverSiteContent(
       for (const campo of def.booleanos) {
         if (typeof storedSec[campo] === 'boolean') sec[campo] = storedSec[campo];
       }
+    }
+
+    // ESTILOS POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): el mapa elemento→estilo, por NOMBRE —
+    // gemelo de ESCALARES/BOOLEANOS arriba. `resolverEstilosSeccion` (estilo-elemento.ts) ya es SOFT
+    // (nunca lanza) y ya produce una entrada por CADA clave declarada, así que esta rama es sólo el
+    // cableado: sin `def.estilos`, `sec.estilos` queda como estuviera en `defaults` (ausente para
+    // toda sección que no declare el eje).
+    if (def.estilos) {
+      sec.estilos = resolverEstilosSeccion(storedSec.estilos, def.estilos);
     }
 
     out[key] = sec;

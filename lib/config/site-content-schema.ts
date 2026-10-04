@@ -1,6 +1,20 @@
 import { z } from 'zod';
 import { BANDA_IDS, MENU_ITEM_IDS, MENU_CTA_DESTINOS } from './site-content-defaults';
 
+// EL ESTILO DE UN ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, ver el docstring de
+// `EstiloElementoResuelto` en `estilo-elemento.ts`): los CUATRO subcampos son `z.string()` SOFT, NO
+// `z.enum` — MISMO motivo que `variante`/`imagenTipo`/`puntoFocal` en el resto de este archivo: el
+// resolver SOFT (`resolverEstiloElemento`) ya clampa cada uno a su set cerrado (o a un hex
+// `custom:#rrggbb` para el color) y cae a `null` sobre cualquier basura; el schema sólo evita que
+// zod STRIPPEE el campo al guardar (§ #65-B). `nullable()` porque "Quitar" (o el estado inicial)
+// manda `''`/`null` explícito, no simplemente omite la clave.
+const estiloElementoSchema = z.object({
+  fuente: z.string().nullable().optional(),
+  tamano: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  alinear: z.string().nullable().optional(),
+});
+
 // Forma EDITABLE del contenido del storefront. La corren el PATCH (la que MANDA) y el editor
 // (aviso temprano) — como el schema de SiteSetting.
 //
@@ -72,6 +86,12 @@ const heroEditableSchema = z.object({
   // STRIPPEARÍA al guardar (§ #65-B).
   veloIntensidad: z.string().optional(),
   tickerVelocidad: z.string().optional(),
+  // `estilos` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, ver el docstring de `HeroContent.estilos` en
+  // site-content-defaults.ts). `z.record` acepta CUALQUIER clave de elemento —key-agnóstico, como
+  // `esquemasEditableSchema`/`variantesBandasEditableSchema` más abajo—: el resolver SOFT
+  // (`resolverEstilosSeccion`) es quien decide cuáles claves son reales (`REGISTRY.hero.estilos`),
+  // ignorando las demás; el schema sólo evita que zod STRIPPEE el objeto entero al guardar (§ #65-B).
+  estilos: z.record(z.string(), estiloElementoSchema).optional(),
 }).refine(
   // LA ÚNICA REGLA DURA de este schema (§ HERO-VIDEO-COMO-DATO-1, decisión del owner). NO exige que
   // `imagenPoster` ESTÉ —un hero de IMAGEN sigue pasando con todo vacío, como siempre—: exige que

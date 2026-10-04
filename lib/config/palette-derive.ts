@@ -570,6 +570,64 @@ function sobreTarjetaDe(tarjeta: string, tinta: string): string {
 // tenant que asigne `neutro` a una banda obtiene la MISMA mecánica, con SU fondo/tinta.
 const PESO_NEUTRO = 0.045;
 
+// ── LOS SEIS ROLES «POR TU PALETA» DEL ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) ──────
+//
+// La barra flotante (y el panel) ofrecen, para el color de UN elemento de texto, el ROL en palabras
+// —nunca el hex— para que cambiar de combinación (Corte→Pliego→…) recoloree el elemento SIN tocar su
+// dato guardado (§ REDISENO.md § 5: «se guarda el rol, no el hex»). El catálogo de SEIS es un
+// SUBCONJUNTO curado de los ~32 tokens que este motor deriva —no todos tienen sentido como color de
+// texto suelto (p. ej. `linea`, un borde, o `acento-4`, un matiz de hover sin nombre propio)—, elegido
+// por lo que REDISENO.md § 5 pidió textual: Acento, Tinta, Suave, Fondo, Superficie, Tostado.
+//
+// Vive ACÁ, en el MOTOR, y no en `estilo-elemento.ts` (el módulo nuevo de este slice) por el mismo
+// criterio que ya fija el resto del archivo: es este módulo el que declara el VOCABULARIO de roles
+// del storefront (las raíces + la RECETA); un catálogo de "qué roles existen" es parte de esa
+// declaración, no de la capa que los consume. `estilo-elemento.ts` IMPORTA esto — no lo redeclara.
+export type RolColorElemento = 'acento' | 'tinta' | 'suave' | 'fondo' | 'superficie' | 'tostado';
+
+export interface DefRolColorElemento {
+  clave: RolColorElemento;
+  label: string;
+  /** La frase corta que el picker muestra junto al label (§ REDISENO.md § 5: "cada uno con su frase
+   *  corta"). */
+  descripcion: string;
+  /** El nombre de la variable `--sf-*` que este rol lee — la clave INTERNA de `PaletaDerivada` puede
+   *  diferir del nombre público (`suave` lee `texto-suave`, § `CLAVE_DERIVADA_POR_ROL` abajo). */
+  variable: string;
+}
+
+export const ROLES_COLOR_ELEMENTO: readonly DefRolColorElemento[] = [
+  { clave: 'acento', label: 'Acento', descripcion: 'El color de tu marca.', variable: '--sf-acento' },
+  { clave: 'tinta', label: 'Tinta', descripcion: 'Títulos y textos.', variable: '--sf-tinta' },
+  { clave: 'suave', label: 'Suave', descripcion: 'Textos secundarios.', variable: '--sf-texto-suave' },
+  { clave: 'fondo', label: 'Fondo', descripcion: 'El papel de tus páginas.', variable: '--sf-fondo' },
+  { clave: 'superficie', label: 'Superficie', descripcion: 'Paneles y tarjetas.', variable: '--sf-superficie' },
+  { clave: 'tostado', label: 'Tostado', descripcion: 'Un tono cálido decorativo.', variable: '--sf-tostado' },
+];
+
+const CLAVES_ROL_COLOR_ELEMENTO = new Set<string>(ROLES_COLOR_ELEMENTO.map((r) => r.clave));
+
+/** ¿`v` es una de las SEIS claves del catálogo? Guard de tipo, para que el resolver SOFT de
+ *  `estilo-elemento.ts` pueda clampar sin importar la lista completa. */
+export function esRolColorElemento(v: unknown): v is RolColorElemento {
+  return typeof v === 'string' && CLAVES_ROL_COLOR_ELEMENTO.has(v);
+}
+
+/** El nombre de variable CSS pública (`--sf-*`) de un rol — lo que la barra flotante escribe como
+ *  `color: var(--sf-...)`. */
+export function varDeRolColorElemento(rol: RolColorElemento): string {
+  return ROLES_COLOR_ELEMENTO.find((r) => r.clave === rol)!.variable;
+}
+
+/** La clave INTERNA de `PaletaDerivada` que corresponde a un rol — sólo `suave` difiere del nombre
+ *  público (lee `texto-suave`, no `suave`: ese token no existe con ese nombre en la RECETA). Usado
+ *  para resolver el HEX real de un rol contra la paleta derivada del tenant (§ el filtro de
+ *  legibilidad de `estilo-elemento.ts`), sin que esa capa tenga que conocer esta irregularidad.
+ */
+export function claveDerivadaDeRolColorElemento(rol: RolColorElemento): string {
+  return rol === 'suave' ? 'texto-suave' : rol;
+}
+
 /**
  * Deriva el set de tokens `--sf-*` de UN ESQUEMA, de las MISMAS 3 raíces (cero color nuevo).
  * `crema` es EXACTO al output de `derivarPaleta` de hoy —byte-idéntico, es literalmente el

@@ -50215,3 +50215,245 @@ en todo el recorrido. Commiteado en `slice/corte-reescritura-prototipo-1`, encim
 (§ Pre-flight, la desviación de base medida a mitad de sesión).
 
 **Cierra `EDITOR-TIENDA-COMPOSICION-1`.**
+
+## 2026-10-04 — Letra, tamaño, color por rol y alineación por elemento: la barra flotante (`EDITOR-TIENDA-BARRA-FLOTANTE-1`)
+
+Slice 7 de `docs/editor-tienda/REDISENO.md` § 9. Tier 1, `writes: yes`, aprobado sobre el documento
+y la decisión de colores del owner del 2026-10-02 (citada en el `approval-reason` del dispatch).
+La aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1`, al ARRANCAR | sí (`git status` vacío; `HEAD` = `eea6b78`, el commit de `EDITOR-TIENDA-COMPOSICION-1`) |
+| `main` local — merge-base con la rama | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf`, IDÉNTICO a `origin/main` |
+| rama adelante de `origin/main`, al arrancar | 324 commits |
+
+**DESVIACIÓN DE PRE-FLIGHT, medida al cierre: la base se movió bajo este slice, por segunda vez en
+esta tanda.** Al terminar el trabajo, `HEAD` ya no era `eea6b78` sino `36fd61e`
+("`PANEL-REDISENO-PROPUESTA-3`: Pedidos con lo tuyo primero…") — un commit de una sesión hermana
+sobre el mismo checkout, no un `git pull`/`fetch` de este slice. Verificado sin solapamiento:
+`git show --stat 36fd61e` toca un único archivo, `docs/panel/REDISENO.md` (un documento DISTINTO
+de `docs/editor-tienda/REDISENO.md`, el de este slice) — cero intersección con `touches:`. El
+trabajo de este slice se commitea ENCIMA de `36fd61e`, como el siguiente commit de la secuencia.
+
+### El modelo — `lib/config/estilo-elemento.ts` (nuevo, puro)
+
+`ELEMENTOS_ESTILO` es la fuente ÚNICA de qué elemento de qué sección es estilizable — hoy
+`hero.{titulo,subtitulo,fraseAlPie,ctaPrimarioLabel,ctaSecundarioLabel}`, los CINCO que el spec
+nombra («titular, subtítulo, leyenda, botón» — los DOS CTA cuentan como "botón"). `REGISTRY.hero.
+estilos` (site-content-defaults.ts) se DERIVA de `elementosEstiloDeSeccion('hero')` — nunca una
+segunda lista a mano (misma doctrina que ya cerró el defecto `CATEGORIAS ≠ CATEGORIA_LABELS`).
+
+Cada elemento guarda `EstiloElementoResuelto = {fuente, tamano, color, alinear}`, los CUATRO en
+`null` por defecto. `estiloInlineDeElemento` es el único traductor a `style`: con los cuatro en
+`null` devuelve `{}` — byte-idéntico, afirmado en capa 1 (26 tests en `estilo-elemento.test.ts`) y
+por SSR real de los 4 heros (`hero-agregados.test.ts`, `hero-marquesina.test.ts`).
+
+- **LETRA** (`fontFamilyDeEstilo`): `null` ("Por defecto", el rol correcto —titulo/cuerpo— del par
+  activo) → `'otra-del-par'` (el rol CONTRARIO del MISMO par — nunca descarga nada nuevo: las dos
+  fuentes del par activo ya viajan en el mismo `<link>`) → una `ClaveFuentePar` de la colección
+  curada COMPLETA (los DIEZ pares, `fuentes.ts` — cierra la pregunta abierta de REDISENO.md § 10).
+  `fontFamilyDeRol(par, rol)` (nuevo en `fuentes.ts`) centraliza el `rol==='titulo'?par.titulo:
+  par.cuerpo` que antes se habría repetido en cada llamador.
+- **TAMAÑO** (`fontSizeDeEstilo`): cinco pasos con nombre (`TAMANOS_ELEMENTO`/
+  `LABEL_TAMANO_ELEMENTO`), mapeados a un `clamp()` propio por tipo de elemento
+  (titular/subtitulo/leyenda/boton) — el ajuste al ancho lo hace el propio `clamp()`, sin JS de
+  breakpoints. El techo de `titular.enorme` es LITERALMENTE `CLAMP_XL` de `escala-display.ts`
+  ('amplia') — el titular más grande que el repo ya calibró, reusado por diseño, no por
+  coincidencia. Un `tamano` de elemento GANA sobre `tema.escalaDisplay` cuando los dos aplican a la
+  vez (orden del spread en el `style` del h1 — afirmado en `escala-display.test.ts`, visto
+  comparar `clamp(28px…)` contra `clamp(72px…)`).
+- **COLOR** (`colorCSSDeEstilo`, decisión del owner 2026-10-02): `null` ("Por defecto", sin
+  `style` — la zona pinta lo de siempre) → un `RolColorElemento` de SEIS roles en palabras
+  (`ROLES_COLOR_ELEMENTO`, nuevo en `palette-derive.ts` — Acento·Tinta·Suave·Fondo·Superficie·
+  Tostado, los que el spec nombró textual, cierra la otra pregunta de § 10), cada uno con su frase
+  corta y filtrado a los que SE LEEN BIEN sobre el fondo real de la zona (`rolesColorLegibles`,
+  `estilo-elemento.ts`: contraste ≥3 contra `derivarPaleta(tema)`; el umbral es relajado A
+  PROPÓSITO —3, no 4.5 AA— porque roles decorativos como Tostado/Superficie no tienen por qué
+  pasar el piso de texto de lectura; documentado en el código, no inventado sin rastro) → "Avanzado
+  › Personalizado" (`custom:#rrggbb`, un hex fijo que NO sigue a la paleta — por eso vive aparte).
+  **SIN aviso visible de contraste en ningún punto** — el filtro recorta la LISTA en silencio,
+  nunca avisa sobre la opción ya elegida (la decisión del owner, respetada literal). El ROL se
+  guarda (`'tostado'`), nunca el hex — cambiar de combinación de paleta recolorea el elemento sin
+  tocar su dato: afirmado por ejecución (el mismo `color:'tostado'` resuelve a un
+  `var(--sf-tostado)` distinto bajo cualquier paleta, porque `--sf-tostado` es la que cambia).
+- **ALINEACIÓN** (`textAlignDeEstilo`): izquierda/centro/derecha, traducidos a `left`/`center`/
+  `right`.
+
+### El mecanismo — un tercer tipo de ruta para `fusionCampoEditable`
+
+La barra flotante reusa `TIPO_MENSAJE_CAMPO_CAMBIO` (nunca un canal nuevo) con una ruta de TRES
+partes, `estilos.<elemento>.<subcampo>` — la TERCERA forma que `fusionCampoEditable`
+(`lib/storefront/campo-editable.ts`) sabe aplicar, junto a la plana y la de ítem de repeater.
+`campo-editable.test.ts` ganó 7 tests nuevos para esta forma, viéndola fallar con las formas
+inválidas (la forma-con-dos-partes y el `estilos` previo no-objeto). Dos funciones puras nuevas en
+`editor-puente.ts` (`mensajeEstiloElemento`/`mensajesQuitarEstiloElemento`) construyen los
+mensajes; "Quitar" manda los CUATRO subcampos con `''` (`resolverEstiloElemento` los normaliza a
+`null`), ESCALONADOS vía `postarEscalonado` (`EditorPuenteVivo.tsx`, nuevo helper de módulo) — el
+MISMO fix de `EDITOR-TIENDA-ZONAS-1` para el defecto de dos `postMessage` en la misma pila
+pisándose en `formRef` (el velo combinado); el click handler de las zonas del hero se refactorizó
+para usar el mismo helper (DRY, sin cambio de comportamiento — mismo 80ms de escalón).
+
+El control del panel (`components/admin/editor/EstiloElementoControles.tsx`, nuevo) NO pasa por
+este canal: `TiendaSeccionEditor.tsx` ya tiene el `form` en memoria, así que escribe el objeto
+directo (`escribirEstiloElemento`/`quitarEstiloElemento`, dos helpers locales) con el MISMO
+`cambiar()` partial-merge que cualquier otro campo. Se monta debajo de cada campo de texto que
+`metaElementoEstilo('hero', campo.name)` declara estilizable — gate derivado de la MISMA fuente
+que `REGISTRY.hero.estilos`, no un `if (seccion==='hero')` repetido. **SIN `fuenteParActivo`**: el
+panel no recibe el par activo del tenant por prop (threadearlo tocaría `TiendaPaginas.tsx`, fuera
+de `touches:`) — la lista de letras del panel muestra los DIEZ pares siempre, sin excluir el
+activo (inocuo: elegirlo explícitamente da el mismo resultado que "Por defecto"). La barra
+flotante, dentro del iframe, SÍ excluye el par activo de verdad (lee `tema.fuentePar` vía
+`useSiteContent()`).
+
+**LA PREVISUALIZACIÓN AL PASAR EL MOUSE** (REDISENO.md § 5): un estado local en
+`EditorPuenteVivo.tsx` (`previewColorCss`), nunca posteado — un swatch de rol la enciende en
+`onMouseEnter` y la apaga en `onMouseLeave`; se limpia también al cerrar o cambiar de campo
+(`cerrarCampo`/`abrirCampo`). Se mezcla en el `style` del overlay (gana sobre el color real
+mientras está activa) sin tocar el mecanismo de medición/anclaje existente.
+
+**LOS `<link>` DE FUENTE REFERENCIADA** (REDISENO.md § 5, "se carga en la tienda pública… sin
+esperar a publicar"): `HeroSection.tsx` (el dispatcher, montado SIEMPRE, sin gate de `activo`)
+renderiza un `<link rel="stylesheet">` por cada `ClaveFuentePar` referenciada en `hero.estilos`
+(`paresFuenteReferenciados`, estilo-elemento.ts) — el MISMO patrón declarativo que
+`app/(storefront)/layout.tsx` ya usa para el par activo del tema (`<link>` renderizado directo en
+JSX, hoisteado por React/Next a `<head>`). Sin esto, elegir un par distinto del activo no tendría
+archivo que descargar. Afirmado por SSR real: `hero-agregados.test.ts` ve el `<link
+…family=Oswald…>` en el HTML junto al `font-family` con `Oswald` del h1, para la variante curtina
+Y ficha (no sólo media).
+
+### Deviación de `touches:` medida y declarada — `lib/storefront/campo-editable.ts`
+
+El spec listaba `lib/storefront/campo-editable.test.ts` pero NO `lib/storefront/campo-editable.ts`
+(el archivo fuente) — la ÚNICA asimetría de todo el `touches:` de este slice: cada otro módulo del
+puente/esquema aparece con su `.ts` Y su `.test.ts` juntos (`estilo-elemento.ts`/`.test.ts`,
+`editor-puente.ts`/`.test.ts`, `site-content-schema.ts`/`.test.ts`, `site-content-defaults.ts`/
+`.test.ts`). Extender `fusionCampoEditable` para la ruta de tres partes `estilos.*.*` era
+NECESARIO para que la barra flotante —que sí debía construirse, por `touches:` y por el propio
+texto del spec ("Barra flotante… anclada al documento")— funcionara de punta a punta: sin esto,
+cada mensaje de la barra se habría perdido en silencio contra `TiendaSeccionEditor.escribirCampo`,
+que ya llama a `fusionCampoEditable` genéricamente para cualquier `campo` que llegue por
+`postMessage`. Medido el patrón de pares antes de decidir (cada OTRO módulo del touches: aparece
+con su .ts+.test.ts), se concluyó que la ausencia del `.ts` era casi con certeza una omisión del
+spec, no una restricción deliberada — se procedió, y se declara acá en vez de silenciarlo o
+construir la barra flotante sin su mecanismo de persistencia funcionando.
+
+### Fuera de alcance, medido y declarado — `marquesina.texto` ("frase de la marquesina")
+
+El spec nombra "frase de la marquesina" entre los elementos estilizables. Su render vive en
+`components/storefront/home/MarquesinaMotor.tsx` (`MarquesinaFraseMotor`, el
+`<CampoEditable campo={campo}>` del loop de texto), un archivo FUERA de `touches:` de este slice
+— ninguna variante de `MarquesinaFraseMotor` acepta un prop de `style`. `ELEMENTOS_ESTILO` no
+declara `marquesina.texto`: construir el modelo/schema/resolver para un elemento cuyo estilo nunca
+se aplicaría visualmente habría sido una barra flotante que MIENTE —cambia un dato que no cambia
+nada en la página—, y ese costo se juzgó peor que no ofrecer el control. Coined
+`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1` (sin trabajo hecho) para el día que
+`MarquesinaMotor.tsx` entre a `touches:` de algún slice — extender `MarquesinaFraseMotor` con un
+prop `style` y aplicar `estiloInlineDeElemento` ahí es, en ese punto, mecánico: el modelo/resolver
+de este slice ya soportaría `marquesina.estilos.texto` agregando una entrada a
+`ELEMENTOS_ESTILO.marquesina` y `REGISTRY.marquesina.estilos`.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3506/3506** (+53 sobre los 3453 previos a este slice — § `EDITOR-TIENDA-COMPOSICION-1`: `estilo-elemento.test.ts` +26 nuevo, `site-content-defaults.test.ts` +6, `site-content-schema.test.ts` +3, `campo-editable.test.ts` +7, `editor-puente.test.ts` +3, `panel-controles.test.ts` +1, `hero-agregados.test.ts` +4, `hero-marquesina.test.ts` +2, `escala-display.test.ts` +1, `guarda-color-lista.test.ts` 0 netos (1 test renombrado, mismo conteo) — reconciliado por conteo directo de `git diff` línea por línea, no estimado) |
+| `npm run test:integracion` | **328/328**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` (typecheck+test+integración, un comando) | GREEN |
+| `npx next build` | compiló sin error (la autoridad de JSX/SWC, § CLAUDE.md) |
+| `npx eslint` sobre los 24 archivos de código de `touches:` (más `EstiloElementoControles.tsx`, nuevo) | 0 errores/warnings NUEVOS — confirmado conteo IDÉNTICO antes/después contra `git show HEAD:<archivo>` vía stdin para `TiendaSeccionEditor.tsx` (35/35 problemas, mismo texto), `EditorPuenteVivo.tsx` (4/4 tras retirar un import sin uso que mi propio diff había dejado), `HeroMedia.tsx`/`HeroMediaMarquesina.tsx` (2/2 c/u), `escala-display.test.ts` (4/4), `hero-agregados.test.ts` (2/2), `hero-marquesina.test.ts` (7/7), `site-content-defaults.test.ts` (3/3), `campo-editable.test.ts` (7/7) — todos PRE-EXISTENTES, ninguno en líneas de este diff; `HeroCurtina.tsx`/`HeroFicha.tsx`/`HeroSection.tsx` y los 15 archivos puros/nuevos: CERO, limpios |
+| `npm run guarda:color` (diff visual vs. fixture de Nayoli) | **MISMA cifra exacta, dígito a dígito**, que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja [105,862]–[1183,3581]; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | **MISMA cifra exacta**, idéntica a la de arriba |
+
+### `customer_bytes`
+
+**`changed: true`, con `strings: []`.** El eje es la RAMA, no el commit — sigue sin mergear, igual
+que los seis slices anteriores de esta tanda. Este diff toca `HeroSection.tsx`/`HeroCurtina.tsx`/
+`HeroFicha.tsx`/`HeroMedia.tsx`/`HeroMediaMarquesina.tsx`/`EditorPuenteVivo.tsx` (bajo
+`components/storefront/`) — los bytes compilados que se sirven a CUALQUIER visitante cambian
+(funciones/imports nuevos, el `<link>` condicional de `HeroSection.tsx`). Pero TODO lo nuevo está
+gateado por `estilo.fuente/tamano/color/alinear === null` (el default de TODO tenant existente,
+incluida Nayoli) o por `useModoEditorActivo()` (la barra flotante, `false` para el 99.99% del
+tráfico) — **ningún texto ni píxel visible cambia para un visitante real**, confirmado por
+EJECUCIÓN: `npm run verificar:nayoli:visual`/`guarda:color` dieron la cifra IDÉNTICA al piso ya
+reconciliado, y `estilo-elemento.test.ts`/`hero-agregados.test.ts`/`hero-marquesina.test.ts` lo
+afirman en memoria (SSR con `hero.estilos` vacío → `{}` → cero `style` nuevo en el HTML).
+
+### `schema`/`cross-repo-contract`
+
+`schema` NO aplica en el sentido de Tier 1 del título de la sección (sin migración, sin modelo
+Prisma) — pero SÍ hay un cambio de ESQUEMA DE CONTENIDO: `estilos` es un campo NUEVO en
+`heroEditableSchema` (`site-content-schema.ts`, `z.record(z.string(), estiloElementoSchema)`) y en
+`HeroContent`/`REGISTRY.hero.estilos`/`DEFAULTS.hero.estilos` (`site-content-defaults.ts`). Es
+EXACTAMENTE el cambio que el spec anticipaba y el owner aprobó ("SIN CAMBIO DE ESQUEMA de base de
+datos... El esquema de CONTENIDO SÍ cambia... aprobado por el owner"). Sin `cross-repo-contract`:
+ningún DTO compartido con otro repo.
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff cambió o introdujo, grepeados contra `CLAUDE.md`:
+`estilo-elemento`, `HeroContent`, `SeccionDef`, `resolverEstilosSeccion`, `fusionCampoEditable`,
+`ROLES_COLOR_ELEMENTO`, `RolColorElemento`, `fontFamilyDeRol`, `RolTipografico`,
+`mensajeEstiloElemento`, `mensajesQuitarEstiloElemento`, `EstiloElementoControles`,
+`camposDeSeccion`, `hero.estilos`, `BARRA-FLOTANTE` — **CERO apariciones** en ninguno de los
+quince. `HeroCurtina`/`HeroFicha`/`EditorPuenteVivo`/`TiendaSeccionEditor`/`campo-editable.ts`/
+`editor-puente.ts`/`palette-derive.ts`/`fuentes.ts`/`panel-controles.ts`/`site-content-defaults.
+ts`/`site-content-schema.ts` SÍ aparecen, ninguna mencionando el eje de estilo por elemento —
+leídas completas, todas siguen siendo VERDAD tras este diff:
+
+- Línea 39 (la lista de superficies Tier 1): nombra `site-content-schema.ts`/`site-content-
+  defaults.ts` como superficies protegidas — siguen siéndolo; este diff es precisamente la
+  segunda etapa de esa protección (el visto bueno del owner), no la invalida.
+- Líneas 51-52 (`components/storefront/` gana subárboles): `HeroCurtina.tsx`/`HeroFicha.tsx`
+  siguen siendo "variantes del hero" viviendo en ese árbol — este diff no cambió su rol, sólo
+  agregó `style` condicional e imports (mismo hallazgo que `EDITOR-TIENDA-ZONAS-1` ya verificó
+  para el mismo par de archivos).
+- Líneas 89-90, 1806-1807, 1876, 1928, 2238, 2261, 2319, 2341, 2361, 2379, 2387, 2719, 2759, 2938,
+  4351: describen OTROS ejes de esos mismos archivos (footerNav/legalNav, el menú, los pesos de
+  fuentes.ts, el modelo de bloques de TiendaSeccionEditor, el uploader compartido, el combobox de
+  categoría) — ninguno de los cuales este diff tocó. Siguen siendo verdad.
+- **Línea 1919 — `CLAUDE-MD-LINEA-411-VENCIDA-1` SIGUE AVANZANDO, no por este diff sino por la
+  tanda entera.** `CLAUDE.md` cita `lib/config/site-content-defaults.ts:411` para `hero.titulo`.
+  Medido a `HEAD` antes de este slice (`EDITOR-TIENDA-COMPOSICION-1` la reportó en 1829); medido
+  AHORA, tras este diff: **1844** — este slice agregó 15 líneas antes de ese punto (el docstring +
+  campo `HeroContent.estilos`). `CLAUDE.md` no está en `touches:` de este slice — no se corrige
+  acá, sólo se re-mide.
+
+Ningún grep devuelve un símbolo de este slice; la única sentencia que un re-cálculo mueve es la
+que YA estaba vencida antes de que este slice arrancara.
+
+### Open follow-ups
+
+- **`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`** (coined acá): `marquesina.texto` ("frase de la
+  marquesina") queda SIN estilo por elemento — su render vive en `MarquesinaMotor.tsx`, fuera de
+  `touches:`. El día que ese archivo entre a `touches:` de un slice, extender
+  `MarquesinaFraseMotor` con un prop `style` + `ELEMENTOS_ESTILO.marquesina = {texto: {tipo:
+  'titular', label: 'Frase'}}` + `REGISTRY.marquesina.estilos = ['texto']` cierra el hueco con el
+  modelo YA construido.
+- **`CLAUDE-MD-LINEA-411-VENCIDA-2`** (coined acá, re-etiquetando el seguimiento de
+  `EDITOR-TIENDA-ZONAS-1`): la cita de `CLAUDE.md` a `lib/config/site-content-defaults.ts:411`
+  para `hero.titulo` avanzó de 1829 a 1844. `CLAUDE.md` no está en `touches:` — no se corrige acá.
+- El "panel sin `fuenteParActivo`" (§ el docstring de `EstiloElementoControles.tsx`): si el owner
+  reporta confusión por ver el par activo listado dos veces (una como "Por defecto" y otra por su
+  nombre) en el selector de Letra del PANEL (no de la barra flotante, que sí lo excluye), la
+  solución es threadear `tema.fuentePar` desde `TiendaPaginas.tsx` — fuera de `touches:` de este
+  slice, sin evidencia todavía de que moleste en uso real.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` / el crédito de `PIE-HECHO-POR-DUNA-1` — sigue abierto,
+  re-confirmado con la MISMA cifra exacta, vía `guarda:color` Y `verificar:nayoli:visual`. Ajeno a
+  `touches:`.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que los seis slices
+anteriores de esta tanda (el eje es la rama, no el commit; sigue sin mergear). "LA APROBACION
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE". Gate verde en las dos capas obligatorias (`npm run gate`:
+typecheck + 3506/3506 + 328/328); `next build` compila; `npx eslint` sin problemas nuevos en
+ningún archivo tocado (confirmado conteo idéntico contra HEAD); `guarda:color` y
+`verificar:nayoli:visual` confirman CERO drift nuevo (cifra idéntica, dígito a dígito, al piso ya
+reconciliado, corrida en las dos herramientas). Commiteado en `slice/corte-reescritura-prototipo-1`,
+encima de `36fd61e` (§ Pre-flight, la desviación de base medida al cierre).
+
+**Cierra `EDITOR-TIENDA-BARRA-FLOTANTE-1`.**

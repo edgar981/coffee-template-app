@@ -113,6 +113,48 @@ test('fusionCampoEditable: índice negativo o no entero se ignora', () => {
   assert.equal(fusionCampoEditable(form, 'items.1.5.text', 'x'), null);
 });
 
+// ─── fusionCampoEditable: ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) ───────────────────
+
+test('fusionCampoEditable: estilos.elemento.subcampo — reemplaza SÓLO ese subcampo de ESE elemento, sin tocar otros elementos ni otros subcampos del mismo', () => {
+  const form = { estilos: { titulo: { tamano: 'enorme', color: 'tostado' }, subtitulo: { alinear: 'centro' } } };
+  const resultado = fusionCampoEditable(form, 'estilos.titulo.color', 'acento');
+  assert.deepEqual(resultado, { estilos: { titulo: { tamano: 'enorme', color: 'acento' }, subtitulo: { alinear: 'centro' } } });
+  // NO muta el original — mismo criterio de inmutabilidad que el repeater.
+  assert.deepEqual(form.estilos.titulo, { tamano: 'enorme', color: 'tostado' });
+});
+
+test('fusionCampoEditable: estilos — un elemento NUEVO (sin entrada previa en el mapa) se crea con sólo ese subcampo', () => {
+  const resultado = fusionCampoEditable({}, 'estilos.titulo.fuente', 'robusta');
+  assert.deepEqual(resultado, { estilos: { titulo: { fuente: 'robusta' } } });
+});
+
+test('fusionCampoEditable: estilos — "Quitar" manda "" por subcampo; se aplica tal cual (el resolver, no esta función, normaliza "" a null)', () => {
+  const form = { estilos: { titulo: { tamano: 'enorme' } } };
+  const resultado = fusionCampoEditable(form, 'estilos.titulo.tamano', '');
+  assert.deepEqual(resultado, { estilos: { titulo: { tamano: '' } } });
+});
+
+test('fusionCampoEditable: estilos — un segundo elemento no se toca al editar el primero', () => {
+  const form = { estilos: { titulo: { color: 'acento' }, subtitulo: { color: 'tinta' } } };
+  const resultado = fusionCampoEditable(form, 'estilos.titulo.color', 'tostado');
+  assert.equal((resultado!.estilos as Record<string, unknown>).subtitulo, form.estilos.subtitulo); // misma referencia
+});
+
+test('fusionCampoEditable: estilos — un mapa `estilos` previo con forma inválida (no-objeto) se trata como vacío, nunca lanza', () => {
+  const resultado = fusionCampoEditable({ estilos: 'basura' }, 'estilos.titulo.color', 'acento');
+  assert.deepEqual(resultado, { estilos: { titulo: { color: 'acento' } } });
+});
+
+test('fusionCampoEditable: estilos — un elemento previo con forma inválida (no-objeto) se trata como vacío para ESE elemento, sin tocar los demás', () => {
+  const form = { estilos: { titulo: 'basura', subtitulo: { color: 'tinta' } } };
+  const resultado = fusionCampoEditable(form, 'estilos.titulo.color', 'acento');
+  assert.deepEqual(resultado, { estilos: { titulo: { color: 'acento' }, subtitulo: { color: 'tinta' } } });
+});
+
+test('fusionCampoEditable: una ruta "estilos.elemento" de SÓLO dos partes (sin subcampo) se ignora', () => {
+  assert.equal(fusionCampoEditable({}, 'estilos.titulo', 'x'), null);
+});
+
 test('estiloCampoFlotante: geometría ABSOLUTA (documento, § EDITOR-TIENDA-CAMPO-ANCLADO-1) + tipografía spread (incluido whiteSpace) + z-index al tope + sin scrollbar', () => {
   const estilo = estiloCampoFlotante(
     { top: 10, left: 20, width: 300, height: 40 },

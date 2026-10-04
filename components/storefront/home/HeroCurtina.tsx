@@ -16,6 +16,7 @@ import CampoEditable from "@/components/storefront/CampoEditable";
 import { HERO_HREFS, claseAlturaHero } from "@/lib/config/site-content-defaults";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 
 // LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4/§ 8). La
 // curtina/ficha nunca leyeron `alturaLlena` (§ el docstring de `HeroContent.alturaLlena`,
@@ -245,7 +246,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
           <motion.h1
             variants={fadeUp}
             className="mb-6 font-playfair text-5xl leading-[1.08] text-[var(--sf-sobre-banda,white)] sm:text-6xl lg:text-7xl"
-            style={displayXl ? { fontSize: displayXl } : undefined}
+            style={{ ...(displayXl ? { fontSize: displayXl } : undefined), ...estiloInlineDeElemento(hero.estilos.titulo, 'titular', tema.fuentePar) }}
           >
             <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
             {hero.tituloEnfasis && (
@@ -261,6 +262,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
           <motion.p
             variants={fadeUp}
             className="mb-10 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+            style={estiloInlineDeElemento(hero.estilos.subtitulo, 'subtitulo', tema.fuentePar)}
           >
             <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
           </motion.p>
@@ -272,6 +274,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
             <Link
               href={HERO_HREFS.primario}
               className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
+              style={estiloInlineDeElemento(hero.estilos.ctaPrimarioLabel, 'boton', tema.fuentePar)}
             >
               <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
 
@@ -282,6 +285,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
               <Link
                 href={HERO_HREFS.secundario}
                 className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                style={estiloInlineDeElemento(hero.estilos.ctaSecundarioLabel, 'boton', tema.fuentePar)}
               >
                 <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
               </Link>

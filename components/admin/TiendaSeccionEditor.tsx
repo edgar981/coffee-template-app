@@ -20,6 +20,8 @@ import { cn } from '@duna/core/utils';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano, SeccionVista } from '@/components/admin/tienda-secciones';
 import { gatePorCampo, SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 import { ComposicionHero } from '@/components/admin/editor/ComposicionHero';
+import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
+import { metaElementoEstilo, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -1112,10 +1114,35 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   //    su miniatura y sus campos, direccionada por SLOT (el destino del puente). Los encabezados de
   //    grupo se retiraron: la agrupación por tarjeta la da el bloque, no un `grupo` declarado dos veces.
 
+  // EL ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) — "el panel muestra lo mismo con más
+  // espacio": estos dos helpers escriben el MISMO `form.estilos` que la barra flotante escribe vía
+  // `postMessage` → `fusionCampoEditable` (campo-editable.ts), pero DIRECTO — el panel ya tiene el
+  // `form` en memoria, así que pasar por la ruta con puntos (pensada para un mensaje con un `campo`
+  // STRING) sería una vuelta innecesaria. Construyen el objeto a mano, con el MISMO `cambiar()`
+  // partial-merge que usa cualquier otro campo.
+  const escribirEstiloElemento = (elemento: string, sub: 'fuente' | 'tamano' | 'color' | 'alinear', valorCrudo: string) => {
+    const estilosActuales = (form.estilos as Record<string, EstiloElementoResuelto> | undefined) ?? {};
+    const actual = estilosActuales[elemento] ?? ESTILO_ELEMENTO_VACIO;
+    // '' (la opción "Por defecto"/"Quitar") se normaliza a `null` ACÁ — así `form.estilos` siempre
+    // tiene la MISMA forma que `resolverEstiloElemento` produciría, y el chequeo "¿hay algo puesto?"
+    // (`EstiloElementoControles`, "Quitar estilo") no se engaña con una cadena vacía que no es `null`.
+    const valor = valorCrudo === '' ? null : valorCrudo;
+    cambiar({ estilos: { ...estilosActuales, [elemento]: { ...actual, [sub]: valor } } });
+  };
+  const quitarEstiloElemento = (elemento: string) => {
+    const estilosActuales = (form.estilos as Record<string, EstiloElementoResuelto> | undefined) ?? {};
+    cambiar({ estilos: { ...estilosActuales, [elemento]: ESTILO_ELEMENTO_VACIO } });
+  };
+
   // UN CAMPO de texto/destino. El combobox de destino vive DONDE su campo esté declarado (dentro de la
   // tarjeta, con bloques). Sin encabezado de grupo.
   const renderCampo = (campo: CampoTexto) => {
     const id = `${seccion}-${campo.name}`;
+    // § EDITOR-TIENDA-BARRA-FLOTANTE-1: ¿este campo es un elemento de texto ESTILIZABLE? Sólo
+    // `seccion==='hero'` hoy declara alguno — `metaElementoEstilo` ya lo acota, así que no hace
+    // falta repetir el `if (seccion === 'hero')` acá.
+    const metaEstilo = metaElementoEstilo(seccion, campo.name);
+    const estiloActual = (form.estilos as Record<string, EstiloElementoResuelto> | undefined)?.[campo.name] ?? ESTILO_ELEMENTO_VACIO;
     // `veloCombo` (§ EDITOR-TIENDA-ZONAS-1) NO es un campo real: su VALOR se COMPONE de
     // `veloVisible`+`veloIntensidad` (`veloComboDeCampos`) para mostrar «Nada·Suave·Medio·Fuerte» en
     // vez de los dos controles viejos. Detectado por NOMBRE, mismo criterio que
@@ -1198,6 +1225,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           </p>
         )}
         <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+        {/* § EDITOR-TIENDA-BARRA-FLOTANTE-1 — "el panel muestra lo mismo con más espacio": el MISMO
+            control que la barra flotante del iframe, debajo del campo al que pertenece. Sin
+            `rolesLegibles` (el panel no conoce el fondo real de la zona del storefront, a diferencia
+            del iframe) — se muestran los seis roles siempre. */}
+        {metaEstilo && (
+          <EstiloElementoControles
+            valor={estiloActual}
+            onCambiar={(sub, v) => escribirEstiloElemento(campo.name, sub, v)}
+            onQuitar={() => quitarEstiloElemento(campo.name)}
+          />
+        )}
       </div>
     );
   };

@@ -18,6 +18,7 @@ import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, f
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 
 // LA VARIANTE "MEDIA" (§ eje 5, EJE-5-VARIANTES-HERO, TEMAS-HERO-MEDIA-1; SIN TARJETA desde
 // HERO-MEDIA-SIN-TARJETA-1) — la TERCERA composición: donde curtina y ficha tratan la foto/video como
@@ -371,7 +372,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
               <motion.h1
                 variants={fadeUp}
                 className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
-                style={displayXl ? { fontSize: displayXl } : undefined}
+                style={{ ...(displayXl ? { fontSize: displayXl } : undefined), ...estiloInlineDeElemento(hero.estilos.titulo, 'titular', tema.fuentePar) }}
               >
                 <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
                 {hero.tituloEnfasis && (
@@ -396,6 +397,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
               <motion.p
                 variants={fadeUp}
                 className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+                style={estiloInlineDeElemento(hero.estilos.subtitulo, 'subtitulo', tema.fuentePar)}
               >
                 <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
               </motion.p>
@@ -417,6 +419,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
                 <Link
                   href={HERO_HREFS.primario}
                   className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
+                  style={estiloInlineDeElemento(hero.estilos.ctaPrimarioLabel, 'boton', tema.fuentePar)}
                 >
                   <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
 
@@ -427,6 +430,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
                   <Link
                     href={HERO_HREFS.secundario}
                     className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                    style={estiloInlineDeElemento(hero.estilos.ctaSecundarioLabel, 'boton', tema.fuentePar)}
                   >
                     <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
                   </Link>
@@ -445,7 +449,10 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             FUERA del `motion.div` de arriba (no comparte su stagger), como un elemento aparte al pie
             de la sección — igual que el cue, abajo. */}
         {hero.fraseAlPie && (
-          <p className="mt-8 ml-auto max-w-[34ch] text-right text-sm leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
+          <p
+            className="mt-8 ml-auto max-w-[34ch] text-right text-sm leading-relaxed text-balance text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
+            style={estiloInlineDeElemento(hero.estilos.fraseAlPie, 'leyenda', tema.fuentePar)}
+          >
             <CampoEditable campo="hero.fraseAlPie" multilinea>{hero.fraseAlPie}</CampoEditable>
           </p>
         )}

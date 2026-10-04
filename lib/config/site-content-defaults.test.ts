@@ -1905,3 +1905,41 @@ test('navWordmark.taglineColor convive con navWordmark.activo sin pisarse — ej
   assert.equal(r.navWordmark.activo, true);
   assert.equal(r.navWordmark.taglineColor, 'acento');
 });
+
+// ─── hero.estilos (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) ───────────────────────────────────────────────
+
+test('REGISTRY.hero.estilos declara los CINCO elementos del spec, derivados de estilo-elemento.ts', () => {
+  assert.deepEqual(REGISTRY.hero.estilos, ['titulo', 'subtitulo', 'fraseAlPie', 'ctaPrimarioLabel', 'ctaSecundarioLabel']);
+});
+
+test('DEFAULTS.hero.estilos: los CINCO elementos nacen "sin override" (byte-idéntico)', () => {
+  for (const el of REGISTRY.hero.estilos!) {
+    assert.deepEqual(DEFAULTS.hero.estilos[el], { fuente: null, tamano: null, color: null, alinear: null });
+  }
+});
+
+test('resolverSiteContent({}): sin fila, hero.estilos resuelve a los CINCO elementos vacíos', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(Object.keys(r.hero.estilos).sort(), ['ctaPrimarioLabel', 'ctaSecundarioLabel', 'fraseAlPie', 'subtitulo', 'titulo']);
+  assert.deepEqual(r.hero.estilos.titulo, { fuente: null, tamano: null, color: null, alinear: null });
+});
+
+test('hero.estilos: un valor guardado para UN elemento se respeta; los demás quedan vacíos', () => {
+  const r = resolverSiteContent({ hero: { estilos: { titulo: { tamano: 'enorme', color: 'tostado' } } } });
+  assert.deepEqual(r.hero.estilos.titulo, { fuente: null, tamano: 'enorme', color: 'tostado', alinear: null });
+  assert.deepEqual(r.hero.estilos.subtitulo, { fuente: null, tamano: null, color: null, alinear: null });
+});
+
+test('hero.estilos: basura en el guardado (no-objeto, un elemento inventado) NUNCA lanza — SOFT', () => {
+  assert.doesNotThrow(() => resolverSiteContent({ hero: { estilos: 'basura' } }));
+  const r = resolverSiteContent({ hero: { estilos: 'basura' } });
+  assert.deepEqual(r.hero.estilos.titulo, { fuente: null, tamano: null, color: null, alinear: null });
+
+  const r2 = resolverSiteContent({ hero: { estilos: { intruso: { color: 'acento' } } } });
+  assert.deepEqual(Object.keys(r2.hero.estilos).sort(), ['ctaPrimarioLabel', 'ctaSecundarioLabel', 'fraseAlPie', 'subtitulo', 'titulo']);
+});
+
+test('una sección SIN `estilos` declarado (p. ej. marquesina) no gana la clave — no se escribe en absoluto', () => {
+  const r = resolverSiteContent({});
+  assert.ok(!('estilos' in r.marquesina), 'marquesina no declara estilos en REGISTRY — queda fuera a propósito');
+});

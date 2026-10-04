@@ -63,21 +63,31 @@ export function parsearRutaCampo(ruta: string): RutaCampo | null {
 /**
  * El PARCIAL que `TiendaSeccionEditor.cambiar()` espera (un objeto que se mezcla por encima del
  * `form` actual de la sección), dado el campo RELATIVO (ya sin la sección — `parsearRutaCampo` la
- * separó) y el `valor` tecleado. Dos formas, las DOS que `CampoEditable` puede marcar (§ EDICION-
- * INLINE.md § 2.3):
+ * separó) y el `valor` tecleado. TRES formas, las TRES que algo del puente puede marcar:
  *
  *  - PLANO ('titulo') → `{ titulo: valor }`, igual que cualquier `set(name)` de la lista.
- *  - DE ÍTEM DE REPEATER ('items.N.subcampo') → relee el array `items` del `formActual` (lo
- *    necesita para no pisar los demás ítems ni los demás campos del MISMO ítem — el mensaje sólo
- *    trae el valor de UN campo) y devuelve `{ items: nuevoArray }` con SÓLO ese ítem reemplazado
- *    por una copia con el subcampo nuevo. El array y el ítem se COPIAN (nunca se muta el original):
- *    mismo criterio de inmutabilidad que ya usa `cambiar`/`RepeaterEditor`.
+ *  - DE ÍTEM DE REPEATER ('items.N.subcampo', § EDICION-INLINE.md § 2.3) → relee el array `items`
+ *    del `formActual` (lo necesita para no pisar los demás ítems ni los demás campos del MISMO
+ *    ítem — el mensaje sólo trae el valor de UN campo) y devuelve `{ items: nuevoArray }` con SÓLO
+ *    ese ítem reemplazado por una copia con el subcampo nuevo.
+ *  - DE ESTILO POR ELEMENTO ('estilos.elemento.subcampo', § EDITOR-TIENDA-BARRA-FLOTANTE-1) → relee
+ *    el mapa `estilos` del `formActual` (mismo motivo que el de arriba: no pisar los demás
+ *    elementos ni los demás subcampos del MISMO elemento) y devuelve `{ estilos: nuevoMapa }` con
+ *    SÓLO ese elemento reemplazado por una copia con el subcampo nuevo. Lo manda tanto la barra
+ *    flotante (`EditorPuenteVivo.tsx`, vía `mensajeEstiloElemento`/`mensajesQuitarEstiloElemento`,
+ *    `lib/storefront/editor-puente.ts`) como el control del panel
+ *    (`components/admin/editor/EstiloElementoControles.tsx`, que llama a esta MISMA función
+ *    directo, sin pasar por `postMessage` — está en el mismo documento que `formRef`).
  *
- * `null` si la ruta no se puede aplicar con seguridad — un índice fuera de rango, un `items` que no
- * es array todavía (la sección no cargó, o no es un repeater), un ítem que no es un objeto, o
- * cualquier forma que no sea ni "plano" ni "items.N.subcampo" (dos puntos exactos). Preferir callar
- * a escribir un parcial que corrompa el form: el próximo mensaje (la próxima tecla) lo reintenta
- * igual, así que perder uno no pierde el tecleo.
+ * El mapa/array/ítem se COPIAN siempre (nunca se muta el original): mismo criterio de
+ * inmutabilidad que ya usa `cambiar`/`RepeaterEditor`.
+ *
+ * `null` si la ruta no se puede aplicar con seguridad — un índice fuera de rango, un `items`/
+ * `estilos` que todavía no es la forma esperada, un ítem/elemento que no es un objeto, un nombre de
+ * elemento o de subcampo vacío, o cualquier forma que no sea "plano", "items.N.subcampo" o
+ * "estilos.elemento.subcampo" (los dos de tres partes). Preferir callar a escribir un parcial que
+ * corrompa el form: el próximo mensaje (la próxima tecla, el próximo clic) lo reintenta igual, así
+ * que perder uno no pierde el cambio.
  */
 export function fusionCampoEditable(
   formActual: Record<string, unknown>,
@@ -92,20 +102,37 @@ export function fusionCampoEditable(
     return { [nombre]: valor };
   }
 
-  if (partes.length !== 3 || partes[0] !== 'items') return null;
-  const indice = Number(partes[1]);
-  const subcampo = partes[2];
-  if (!Number.isInteger(indice) || indice < 0 || !subcampo) return null;
+  if (partes.length !== 3) return null;
+  const [raiz, clave, subcampo] = partes;
+  if (!clave || !subcampo) return null;
 
-  const items = formActual.items;
-  if (!Array.isArray(items) || indice >= items.length) return null;
-  const item = items[indice];
-  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  if (raiz === 'items') {
+    const indice = Number(clave);
+    if (!Number.isInteger(indice) || indice < 0) return null;
+    const items = formActual.items;
+    if (!Array.isArray(items) || indice >= items.length) return null;
+    const item = items[indice];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
 
-  const nuevoItem = { ...(item as Record<string, unknown>), [subcampo]: valor };
-  const nuevosItems = items.slice();
-  nuevosItems[indice] = nuevoItem;
-  return { items: nuevosItems };
+    const nuevoItem = { ...(item as Record<string, unknown>), [subcampo]: valor };
+    const nuevosItems = items.slice();
+    nuevosItems[indice] = nuevoItem;
+    return { items: nuevosItems };
+  }
+
+  if (raiz === 'estilos') {
+    const estilos = formActual.estilos;
+    const estilosActuales = (estilos && typeof estilos === 'object' && !Array.isArray(estilos))
+      ? (estilos as Record<string, unknown>) : {};
+    const elementoActual = estilosActuales[clave];
+    const elementoActualObj = (elementoActual && typeof elementoActual === 'object' && !Array.isArray(elementoActual))
+      ? (elementoActual as Record<string, unknown>) : {};
+
+    const nuevoElemento = { ...elementoActualObj, [subcampo]: valor };
+    return { estilos: { ...estilosActuales, [clave]: nuevoElemento } };
+  }
+
+  return null;
 }
 
 // ─── EL CAMPO FLOTANTE — geometría y tipografía, formateadas sin DOM ──────────────────────────────

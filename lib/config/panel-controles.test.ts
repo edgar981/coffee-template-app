@@ -386,6 +386,23 @@ test('calibración: hero.fraseAlPie está controlado, sin exención — el hueco
   assert.ok(!huecos.includes('hero.fraseAlPie'));
 });
 
+// § EDITOR-TIENDA-BARRA-FLOTANTE-1: `hero.estilos.<elemento>` (los CINCO elementos estilizables)
+// nacen CONTROLADOS en este mismo slice — la barra flotante + su control gemelo del panel
+// (`EstiloElementoControles.tsx`) — así que nunca pasan por `PENDIENTE_PANEL`.
+test('calibración: hero.estilos.<elemento> está LEÍDO y CONTROLADO para los CINCO elementos, sin exención', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  for (const el of ['titulo', 'subtitulo', 'fraseAlPie', 'ctaPrimarioLabel', 'ctaSecundarioLabel']) {
+    const campo = `hero.estilos.${el}`;
+    assert.ok(leidos.includes(campo), `${campo} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(campo), `${campo} debería estar en camposControladosPorPanel()`);
+    assert.ok(!pendientes.has(campo), `${campo} no debería estar en PENDIENTE_PANEL`);
+  }
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.some((h) => h.startsWith('hero.estilos.')));
+});
+
 // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1: `marquesina.texto`/`.productoSlug` dejaron de declararse en
 // `MARQUESINA.campos` y pasaron a `HERO.campos` (con `seccionCruzada: 'marquesina'`, § el docstring
 // de `CampoTexto` en tienda-secciones.ts) — se editan ahora desde la tarjeta del hero, porque la

@@ -128,6 +128,25 @@ test('WIRING — HeroSection (variante "media"): sin escala, el h1 NO lleva font
   assert.match(conEscala, /<h1[^>]*style="[^"]*font-size:clamp\(72px, ?9vw, ?168px\)/);
 });
 
+// § EDITOR-TIENDA-BARRA-FLOTANTE-1 — LA PRECEDENCIA: un `hero.estilos.titulo.tamano` declarado
+// GANA sobre `tema.escalaDisplay`, porque es una elección MÁS ESPECÍFICA (de ESTE elemento, de ESTE
+// dueño) que el eje de tema (de TODO titular de display del tenant). El mecanismo es el orden del
+// spread en el `style` del h1 (`{...(displayXl && {fontSize}), ...estiloInlineDeElemento(...)}` —
+// las claves de `estiloInlineDeElemento` van AL FINAL, así que una `fontSize` ahí sobreescribe la de
+// `displayXl` si las dos aplican a la vez. Sin `tamano` declarado (el caso de arriba), la clave ni
+// aparece y `displayXl` manda solo, sin cambio.
+test('WIRING — hero.estilos.titulo.tamano GANA sobre tema.escalaDisplay cuando los dos aplican a la vez', () => {
+  const seccion = {
+    hero: {
+      ...DEFAULTS.hero, variante: 'media',
+      estilos: { ...DEFAULTS.hero.estilos, titulo: { fuente: null, tamano: 'pequeno' as const, color: null, alinear: null } },
+    },
+  };
+  const html = renderConEscala(HeroSection, seccion, 'amplia');
+  assert.match(html, /<h1[^>]*style="[^"]*font-size:clamp\(28px/, 'el paso "pequeno" de ESTILO-ELEMENTO debe ganar, no el clamp(72px…) de escalaDisplay');
+  assert.doesNotMatch(html, /clamp\(72px/);
+});
+
 // § CORTE-USA-HERO-STICKY-1 — el hero REAL de CORTE hoy (`hero:'sticky'` → `HeroMediaMarquesina`).
 // `HeroMediaMarquesina` no rinde NINGÚN `<h1>` (no tiene titular propio; su contenido es el marquee
 // + la tarjeta de producto, § su docstring de cabecera) — así que `escalaDisplay` no tiene un h1 al

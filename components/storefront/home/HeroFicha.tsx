@@ -16,6 +16,7 @@ import CampoEditable from "@/components/storefront/CampoEditable";
 import { HERO_HREFS, claseAlturaHero } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
 import { fontSizeDisplay } from "@/lib/config/escala-display";
+import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 
 // LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1) — ver el docstring equivalente en
 // `HeroCurtina.tsx`: misma pieza LOCAL duplicada, mismo argumento de riesgo bajo/aditivo.
@@ -171,7 +172,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
           <motion.h1
             variants={fadeUp}
             className="font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-5xl lg:text-6xl"
-            style={displayXl ? { fontSize: displayXl } : undefined}
+            style={{ ...(displayXl ? { fontSize: displayXl } : undefined), ...estiloInlineDeElemento(hero.estilos.titulo, 'titular', tema.fuentePar) }}
           >
             <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>
             {hero.tituloEnfasis && (
@@ -190,6 +191,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
           <motion.p
             variants={fadeUp}
             className="mb-10 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,var(--sf-texto))]"
+            style={estiloInlineDeElemento(hero.estilos.subtitulo, 'subtitulo', tema.fuentePar)}
           >
             <CampoEditable campo="hero.subtitulo" multilinea>{hero.subtitulo}</CampoEditable>
           </motion.p>
@@ -198,6 +200,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
             <Link
               href={HERO_HREFS.primario}
               className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
+              style={estiloInlineDeElemento(hero.estilos.ctaPrimarioLabel, 'boton', tema.fuentePar)}
             >
               <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>
 
@@ -208,6 +211,7 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
               <Link
                 href={HERO_HREFS.secundario}
                 className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea)] px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-tinta))] transition-all duration-200 hover:bg-[var(--sf-linea)]/40"
+                style={estiloInlineDeElemento(hero.estilos.ctaSecundarioLabel, 'boton', tema.fuentePar)}
               >
                 <CampoEditable campo="hero.ctaSecundarioLabel">{hero.ctaSecundarioLabel}</CampoEditable>
               </Link>

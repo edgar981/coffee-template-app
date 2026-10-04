@@ -22,6 +22,8 @@ import {
   datosDeOrden,
   datosDeTema,
   mensajesDeZonaHero,
+  mensajeEstiloElemento,
+  mensajesQuitarEstiloElemento,
 } from './editor-puente';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
@@ -404,4 +406,30 @@ test('mensajesDeZonaHero: el segundo par A MEDIAS (sólo el campo, o sólo el va
   assert.deepEqual(soloCampo2, [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'alto', valor: 'pantalla' }]);
   const soloValor2 = mensajesDeZonaHero('alto', 'pantalla', null, 'true');
   assert.deepEqual(soloValor2, [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'alto', valor: 'pantalla' }]);
+});
+
+// ─── LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, `mensajeEstiloElemento`/
+// `mensajesQuitarEstiloElemento`) ───────────────────────────────────────────────────────────────
+
+test('mensajeEstiloElemento: construye la ruta "estilos.<elemento>.<subcampo>" sobre el MISMO tipo de mensaje que cualquier campo de texto', () => {
+  assert.deepEqual(mensajeEstiloElemento('hero', 'titulo', 'tamano', 'enorme'), {
+    tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.tamano', valor: 'enorme',
+  });
+  assert.deepEqual(mensajeEstiloElemento('hero', 'ctaPrimarioLabel', 'color', 'acento'), {
+    tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.ctaPrimarioLabel.color', valor: 'acento',
+  });
+});
+
+test('mensajesQuitarEstiloElemento: los CUATRO subcampos, cada uno con "" — el orden es estable', () => {
+  const mensajes = mensajesQuitarEstiloElemento('hero', 'titulo');
+  assert.deepEqual(mensajes, [
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.fuente', valor: '' },
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.tamano', valor: '' },
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.color', valor: '' },
+    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.alinear', valor: '' },
+  ]);
+});
+
+test('mensajesQuitarEstiloElemento: cada mensaje que produce es un MensajeCampoCambio válido (esMensajeCampoCambio)', () => {
+  for (const m of mensajesQuitarEstiloElemento('hero', 'subtitulo')) assert.equal(esMensajeCampoCambio(m), true);
 });

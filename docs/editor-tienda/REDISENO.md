@@ -240,7 +240,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 | 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta — **ENTREGADO** (2026-10-03) | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx`, `TiendaSeccionEditor.tsx`, `VistaTiendaIframe.tsx`, `components/admin/editor/` (nuevo), `lib/admin/editor-iframe.ts` | 2 |
 | 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas — **ENTREGADO** (2026-10-03) | las 4 variantes del hero (`data-editor-zona-campo`/`-valor`), `EditorPuenteVivo.tsx`, `editor-puente.ts`, `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`, `site-content-defaults.ts`, `site-content-schema.ts` | **1** |
 | 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) — **ENTREGADO** (2026-10-03) | panel + hoja: `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `components/admin/editor/ComposicionHero.tsx` (nuevo), `panel-controles.ts` | 2 |
-| 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento | esquema (gate) + storefront + puente | **1** |
+| 7 | `EDITOR-TIENDA-BARRA-FLOTANTE-1` — letra, tamaño, color por rol y alineación por elemento — **ENTREGADO** (2026-10-04) | esquema + storefront (los 4 heros, el puente) + panel: `estilo-elemento.ts` (nuevo), `palette-derive.ts`, `fuentes.ts`, `site-content-{defaults,schema}.ts`, `campo-editable.ts`, `editor-puente.ts`, `EditorPuenteVivo.tsx`, HeroSection/Media/Curtina/Ficha/MediaMarquesina, `TiendaSeccionEditor.tsx`, `EstiloElementoControles.tsx` (nuevo) | **1** |
 | 8 | `EDITOR-TIENDA-PUBLICAR-RESUMEN-1` — el popover de publicar en palabras | barra superior | 2 |
 
 Los slices 1 a 3 cierran los cinco errores sin esperar el rediseño. Del 4 al 8 son el rediseño
@@ -373,14 +373,96 @@ titular) → de vuelta a Cortina (el titular reaparece en el canvas; el campo de
 que cuentan"— nunca cambió de valor en todo el recorrido). 5 capturas en
 `.scratch/capturas-composicion/` (no comiteadas).
 
+**SLICE 7 ENTREGADO (2026-10-04).** Letra/tamaño/color/alineación por elemento, con la barra
+flotante ANCLADA AL DOCUMENTO (§ 5/§ 7, el mismo mecanismo que `EDITOR-TIENDA-CAMPO-ANCLADO-1`) y
+el control gemelo en el panel («el panel muestra lo mismo con más espacio»).
+
+**EL MODELO** (`lib/config/estilo-elemento.ts`, nuevo, puro): `ELEMENTOS_ESTILO` es la fuente
+ÚNICA de qué elemento de qué sección es estilizable — hoy `hero.{titulo,subtitulo,fraseAlPie,
+ctaPrimarioLabel,ctaSecundarioLabel}`, los CINCO del spec («titular, subtítulo, leyenda, botón» —
+los DOS CTA cuentan como «botón»). `REGISTRY.hero.estilos` (site-content-defaults.ts) se DERIVA de
+esa misma lista (`elementosEstiloDeSeccion('hero')`), nunca una segunda lista a mano. Cada
+elemento guarda `{fuente, tamano, color, alinear}`, los CUATRO en `null` por defecto — un `null`
+NUNCA emite una clave de `style`, byte-idéntico sin fila (afirmado en capa 1 y por SSR real de los
+4 heros).
+
+**LETRA**: `null` ("Por defecto", el rol correcto del par activo) → `'otra-del-par'` (el rol
+contrario del MISMO par — nunca descarga nada nuevo, las dos fuentes del par activo ya viajan
+juntas) → una `ClaveFuentePar` de la colección curada completa (`fuentes.ts`, los DIEZ pares —
+§ 10 quedaba abierto si eran los diez o un subconjunto: SON LOS DIEZ). Elegir un par DISTINTO del
+activo inyecta su `<link>` de Google Fonts — `HeroSection.tsx` (el dispatcher, montado siempre)
+renderiza un `<link rel="stylesheet">` por cada par REFERENCIADO en `hero.estilos`
+(`paresFuenteReferenciados`), el MISMO patrón declarativo que `app/(storefront)/layout.tsx` ya usa
+para el par activo del tema — sin esto, un par ajeno al tema no tendría archivo que descargar.
+
+**TAMAÑO**: cinco pasos con nombre (`TAMANOS_ELEMENTO`/`LABEL_TAMANO_ELEMENTO`), mapeados a una
+escala de `clamp()` PROPIA por tipo de elemento (titular/subtítulo/leyenda/botón) — el ajuste al
+ancho del dispositivo lo hace el propio `clamp()`, sin JS de breakpoints. El techo de
+`titular.enorme` es literalmente el `CLAMP_XL` de `escala-display.ts` ('amplia'): el titular más
+grande que el repo ya calibró, reusado por una razón de diseño, no por coincidencia. Un `tamano`
+de elemento GANA sobre `tema.escalaDisplay` cuando los dos aplican (orden del spread en el
+`style`) — afirmado en `escala-display.test.ts`.
+
+**COLOR** (decisión del owner, 2026-10-02, citada en el ledger_id): «Por defecto» primero (sin
+`color` → sin `style`, la zona pinta lo de siempre); después SEIS roles de la paleta en palabras
+—Acento·Tinta·Suave·Fondo·Superficie·Tostado (`ROLES_COLOR_ELEMENTO`, palette-derive.ts — § 10
+quedaba abierto cuántos roles: SON SEIS, los que el spec nombró textual)—, cada uno con su frase
+corta, filtrados a los que SE LEEN BIEN sobre el fondo real de la zona (`rolesColorLegibles`,
+contraste ≥3 contra `derivarPaleta(tema)` — un umbral relajado a propósito, documentado, no AA:
+roles decorativos como Tostado/Superficie no tienen por qué pasar 4.5); «Avanzado › Personalizado»
+abre un `<input type="color">` nativo + guarda `custom:#rrggbb`. **SIN aviso visible de contraste**
+en ningún punto — el filtro recorta la LISTA en silencio, nunca avisa sobre la opción elegida.
+**Se guarda el ROL** (`'tostado'`), nunca el hex — cambiar de combinación de paleta recolorea el
+elemento sin tocar su dato (afirmado: el mismo `color:'tostado'` resuelve a un `var(--sf-tostado)`
+distinto bajo cada paleta). Al pasar el mouse sobre un swatch de rol, la barra previsualiza el
+color EN LA PÁGINA (un estado local en `EditorPuenteVivo.tsx`, nunca posteado) — se apaga solo al
+salir o al cambiar de campo.
+
+**EL MECANISMO**: la barra flotante reusa `TIPO_MENSAJE_CAMPO_CAMBIO` (nunca un canal nuevo) con
+una ruta de TRES partes, `estilos.<elemento>.<subcampo>` — la tercera forma que `fusionCampoEditable`
+(`lib/storefront/campo-editable.ts`) sabe aplicar, junto a la plana y la de ítem de repeater.
+«Quitar» manda los CUATRO subcampos con `''` (= `null`), ESCALONADOS (`postarEscalonado`, el mismo
+fix de `EDITOR-TIENDA-ZONAS-1` para el defecto de dos `postMessage` en la misma pila pisándose en
+`formRef`). El control del panel (`EstiloElementoControles.tsx`, nuevo) NO pasa por este canal —
+`TiendaSeccionEditor.tsx` ya tiene el `form` en memoria, así que escribe el objeto directo con el
+mismo `cambiar()` partial-merge que cualquier otro campo.
+
+**DESVIACIÓN DE `touches:` MEDIDA Y DECLARADA — `lib/storefront/campo-editable.ts`.** El spec
+listaba `campo-editable.test.ts` pero NO `campo-editable.ts` (el archivo fuente), la ÚNICA
+asimetría de todo el `touches:` de este slice — cada otro módulo aparece con su `.ts` Y su
+`.test.ts` juntos. Extender `fusionCampoEditable` para la ruta de tres partes `estilos.*.*` era
+necesario para que la barra flotante (que SÍ debía construirse, por `touches:` y por el propio
+texto del spec) funcionara de punta a punta — sin esto, cada mensaje de la barra se habría
+perdido en silencio contra `escribirCampo`. Medido el patrón de pares en el resto de la lista
+antes de decidir: se procedió, y se declara acá en vez de silenciarlo.
+
+**FUERA DE ALCANCE, medido y declarado — `marquesina.texto` ("frase de la marquesina del hero
+sticky"):** su render vive en `components/storefront/home/MarquesinaMotor.tsx`
+(`MarquesinaFraseMotor`, el `<CampoEditable campo={campo}>` del loop), un archivo FUERA de
+`touches:`. `ELEMENTOS_ESTILO` no lo declara — construir el modelo/schema para un elemento cuyo
+estilo nunca se aplicaría visualmente habría sido una barra flotante que miente. Coined
+`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1` para el día que `MarquesinaMotor.tsx` entre a
+`touches:` de algún slice.
+
+**VERIFICADO**: `npm run gate` (typecheck + 3506/3506 + 328/328 integración) GREEN; `next build`
+compiló sin error; `npx eslint` sobre los 24 archivos de `touches:` tocados — CERO problemas
+nuevos (confirmado línea por línea contra `git show HEAD:<archivo>`, mismo conteo antes/después en
+cada archivo con hallazgos pre-existentes); `npm run verificar:nayoli:visual` y `npm run
+guarda:color` — la MISMA cifra exacta, dígito a dígito, del piso heredado
+(`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja
+[105,862]–[1183,3581]; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO. Ver DECISIONS.md
+para la verificación de ejecución completa.
+
 ---
 
 ## 10 · Lo que este documento NO decide
 
 - ~~Si «Alto» gana un tercer valor (campo nuevo) o se queda en dos.~~ DECIDIDO (slice 5, 2026-10-03):
   gana el tercer valor, con la aprobación del owner citada en el ledger_id de ese slice.
-- Qué roles se ofrecen en el selector de color. El prototipo usa seis; la capa derivada tiene más.
-- Si la colección de letras por elemento es la de los diez pares o un subconjunto.
+- ~~Qué roles se ofrecen en el selector de color.~~ DECIDIDO (slice 7, 2026-10-04): los SEIS que el
+  spec nombró textual — Acento·Tinta·Suave·Fondo·Superficie·Tostado (`ROLES_COLOR_ELEMENTO`).
+- ~~Si la colección de letras por elemento es la de los diez pares o un subconjunto.~~ DECIDIDO
+  (slice 7, 2026-10-04): los DIEZ pares completos de `fuentes.ts`.
 - Los nombres finales de las composiciones («Marquesina», «Portada», «Ficha», «Cortina»).
 - Las páginas sin secciones editables (catálogo, ficha de producto); sigue valiendo
   `DISENO.md` § 4.4.

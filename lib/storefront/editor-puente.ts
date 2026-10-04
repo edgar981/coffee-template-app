@@ -311,6 +311,35 @@ export function esMensajeSesionVencida(data: unknown): data is MensajeSesionVenc
   );
 }
 
+// ─── LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, docs/editor-tienda/REDISENO.md § 5) ─────
+//
+// NO son mensajes nuevos — REUTILIZAN `TIPO_MENSAJE_CAMPO_CAMBIO` (arriba), mismo criterio que
+// `mensajesDeZonaHero`: "letra"/"tamaño"/"alinear"/"color"/"quitar" son, los cinco, la MISMA
+// operación que ya existe ("escribir un campo de la sección que el overlay tiene abierto"),
+// disparada por un control de la barra en vez de por una TECLA en el campo flotante. Lo único nuevo
+// es la RUTA que se escribe: `estilos.<elemento>.<subcampo>` — la TERCERA forma que
+// `fusionCampoEditable` (`lib/storefront/campo-editable.ts`) ya sabe aplicar.
+
+/** UN control de la barra ("Letra: Robusta", "Tamaño: Enorme"…) → el mensaje que lo escribe. */
+export function mensajeEstiloElemento(
+  seccion: string,
+  elemento: string,
+  subcampo: 'fuente' | 'tamano' | 'color' | 'alinear',
+  valor: string,
+): MensajeCampoCambio {
+  return { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion, campo: `estilos.${elemento}.${subcampo}`, valor };
+}
+
+/** "Quitar" — los CUATRO subcampos a la vez, cada uno con `''` (que `resolverEstiloElemento`,
+ *  estilo-elemento.ts, normaliza a `null` = "por defecto", igual que trata cualquier otro `''` de
+ *  este repo como "sin dato"). Devuelve la LISTA; el llamador (`EditorPuenteVivo.tsx`) es quien
+ *  decide CÓMO postearla —escalonada, como ya hace con `mensajesDeZonaHero`, por el mismo defecto
+ *  medido de dos `postMessage` en la misma pila pisándose en `formRef` (§ EDITOR-TIENDA-ZONAS-1)—,
+ *  así que esta función se queda PURA, sin `window`/`setTimeout`. */
+export function mensajesQuitarEstiloElemento(seccion: string, elemento: string): MensajeCampoCambio[] {
+  return (['fuente', 'tamano', 'color', 'alinear'] as const).map((sub) => mensajeEstiloElemento(seccion, elemento, sub, ''));
+}
+
 /**
  * Fusiona el borrador EN VUELO de UNA sección sobre el contenido YA RESUELTO que el storefront
  * tiene en memoria (lo que `getSiteContent()` mandó en el render del servidor, o el resultado de

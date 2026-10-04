@@ -54,8 +54,14 @@ test('sistemaDeColorDerivado(): contiene los 5 archivos del HUECO medido por GUA
   }
 });
 
-test('archivosDelSistemaDeColor(): el conjunto EXACTO son los 12 conocidos + email-colors.ts (justificado en el código, importa el motor directo)', () => {
-  const esperado = [...CONOCIDOS_YA_ESTABAN, ...CONOCIDOS_HUECO_MEDIDO, 'lib/config/email-colors.ts'].sort();
+// § EDITOR-TIENDA-BARRA-FLOTANTE-1: `lib/config/estilo-elemento.ts` (el módulo nuevo de este slice)
+// importa DIRECTAMENTE `palette-derive.ts` (los seis roles de color por elemento, § ROLES_COLOR_
+// ELEMENTO) y `fuentes.ts` (la letra por elemento) — cumple la MISMA propiedad que `email-colors.ts`
+// ya cumplía (§ el comentario de cabecera de `scripts/guarda-color.ts`: "importa el motor
+// directamente"), así que el conjunto derivado crece en UNO, por la razón correcta — no es un
+// archivo ajeno coleado por error, es un consumidor nuevo y legítimo del motor.
+test('archivosDelSistemaDeColor(): el conjunto EXACTO son los 12 conocidos + email-colors.ts + estilo-elemento.ts (los dos justificados en el código, importan el motor directo)', () => {
+  const esperado = [...CONOCIDOS_YA_ESTABAN, ...CONOCIDOS_HUECO_MEDIDO, 'lib/config/email-colors.ts', 'lib/config/estilo-elemento.ts'].sort();
   assert.deepEqual(archivosDelSistemaDeColor(), esperado);
 });
 
