@@ -603,18 +603,22 @@ test('sticky, CON modo editor: `hero.fraseAlPie` vacío (DEFAULTS) — el párra
 
 // `DEFAULTS.marquesina.visible` es `false` ("nace OFF", § CLAUDE.md) — `Marquesina.tsx` no rinde
 // NADA contra los DEFAULTS crudos (`seccionEsVisible` la apaga antes de llegar a ningún campo). Para
-// ejercitar el marcador hace falta `visible:true`, igual que cualquier test de esta banda que quiera
-// ver su cuerpo (§ `marquesina-banda.test.ts`, fuera de `touches:` de este slice, hace lo mismo).
+// ejercitar el marcador hace falta `visible:true`, igual que `marquesina-banda.test.ts` (§ EDITOR-
+// TIENDA-MARQUESINA-SECCION-1, sí en `touches:` de este slice) hace lo mismo.
 test('Marquesina.tsx, SIN modo editor: cero `data-editor-campo` — byte-idéntico', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
   assert.doesNotMatch(html, new RegExp(ATRIBUTO_EDITOR_CAMPO));
 });
 
-test('Marquesina.tsx, CON modo editor: el ticker duplicado marca UN SOLO `<span>` con "marquesina.texto" — el MISMO campo que la variante sticky, cada composición con su propio marcador independiente', () => {
+// § EDITOR-TIENDA-MARQUESINA-SECCION-1: la banda suelta ya NO usa `marquesina.texto` (el campo del
+// HERO) — tiene su PROPIA frase, `marquesina.fraseBanda`, con el MISMO motor de ticker
+// (`MarquesinaFraseMotor`, § MarquesinaMotor.tsx) que `HeroMediaMarquesina` ya ejercita arriba.
+test('Marquesina.tsx, CON modo editor: el ticker duplicado marca UN SOLO `<span>` con "marquesina.fraseBanda" — campo PROPIO de la banda, distinto del `texto` del hero', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content, { activo: true });
   // Mismo patrón que la variante sticky: DOS en el loop + UNA en el `aria-label` de la sección.
-  assert.equal((html.match(new RegExp(DEFAULTS.marquesina.texto, 'g')) ?? []).length, 3);
-  assert.equal(contarMarcador(html, 'marquesina.texto'), 1);
+  assert.equal((html.match(new RegExp(DEFAULTS.marquesina.fraseBanda, 'g')) ?? []).length, 3);
+  assert.equal(contarMarcador(html, 'marquesina.fraseBanda'), 1);
+  assert.equal(contarMarcador(html, 'marquesina.texto'), 0, 'la banda suelta ya no marca el campo del hero');
 });

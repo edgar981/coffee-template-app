@@ -68,6 +68,21 @@ que no abriera TAMBIÉN la tarjeta suelta. Esa tarjeta se queda —con su `banda
 pedía el owner— mostrando sólo el interruptor de la banda SUELTA + un `notaVisibilidad` explicando el
 porqué (nuevo campo opcional de `SeccionConfig`, sin romper ninguna otra sección que no lo declare).
 
+**LA TARJETA «MARQUESINA» DEJA DE SER "SÓLO EL INTERRUPTOR" — `EDITOR-TIENDA-MARQUESINA-SECCION-1`
+(2026-10-03).** El párrafo de arriba describía el estado DESPUÉS de `EDITOR-TIENDA-MARQUESINA-EN-
+HERO-1`: la tarjeta suelta sólo tenía el switch de visibilidad + una nota explicando por qué no había
+nada más que configurar — era, literalmente, «la zona que se elimina» del hero (no tenía contenido
+propio, sólo apagaba una duplicación). Este slice le da contenido PROPIO: su propia frase
+(`fraseBanda`), su propio fondo (foto o video, `imagenTipo`) y hasta seis productos propios
+(`producto1..6`) que van REEMPLAZÁNDOSE uno al otro a medida que se hace scroll — el MISMO motor de
+revelado que el hero·sticky ya usaba para su frase y su tarjeta única, extraído a
+`components/storefront/home/MarquesinaMotor.tsx` y generalizado de UN producto a HASTA SEIS. `texto`/
+`productoSlug` (editados desde «Hero de la home», sin cambios de esta ronda) siguen siendo
+EXCLUSIVAMENTE del hero·sticky; la banda suelta es hoy una SECCIÓN REUTILIZABLE —con lugar propio en
+el orden de secciones, como cualquier otra—, no la cáscara de un interruptor. Sigue naciendo apagada
+(`visible:false`); el owner la enciende cuando quiera mostrar un catálogo de productos con este
+efecto, en cualquier punto de la home.
+
 ---
 
 ## 2 · Lo que pidió el owner, y dónde queda en el diseño
@@ -230,6 +245,17 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 
 Los slices 1 a 3 cierran los cinco errores sin esperar el rediseño. Del 4 al 8 son el rediseño
 en sí, en el orden en que cada uno se ve por su cuenta.
+
+**FUERA DE ESTA NUMERACIÓN (pedido aparte del owner, no del plan de rediseño de arriba):**
+`EDITOR-TIENDA-MARQUESINA-SECCION-1` — la banda suelta «Marquesina» pasa de interruptor-sin-contenido
+a sección reutilizable (frase + fondo + hasta seis productos con el motor del hero·sticky,
+generalizado) — **ENTREGADO** (2026-10-03). Toca `MarquesinaMotor.tsx` (nuevo),
+`HeroMediaMarquesina.tsx`, `Marquesina.tsx`, `lib/animation.ts`, `tienda-secciones.ts`,
+`site-content-defaults.ts`, `site-content-schema.ts`. Tier 1 (toca `components/storefront/` y
+`site-content-schema.ts`). Actualiza la fila "Marquesina dentro del hero" de § 8: sigue siendo cierto
+que `content.marquesina.texto`/`.productoSlug` no se movieron, pero la sección ganó SEIS campos
+nuevos propios (`fraseBanda`, `imagenTipo`, `producto1..6`) — ninguno toca el modelo de un cliente
+existente (todos opcionales o con default que preserva el comportamiento de hoy).
 
 ---
 

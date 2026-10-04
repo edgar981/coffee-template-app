@@ -22,6 +22,9 @@ import {
   revelaMascaraVertical, transicionTituloPostal, transicionFadePostal,
   transicionDestacadoFoto, transicionDestacadoTexto, TRANSICION_DESTACADO_EASE,
   TRANSICION_DESTACADO_FOTO_DURACION_S, TRANSICION_DESTACADO_TEXTO_DURACION_S,
+  transformEntradaSalidaItem, opacidadEntradaSalidaItem,
+  ventanasBandaMarquesina, claseAlturaAncestroBandaMarquesina,
+  MARQUESINA_BANDA_TEXTO_VH, MARQUESINA_BANDA_ITEM_VH, MAX_ITEMS_BANDA_MARQUESINA,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -1124,4 +1127,162 @@ test('transicionDestacadoFoto/Texto: estatico=true colapsa la duración a 0 — 
   // la curva se conserva (irrelevante a duration:0, pero no debe mutar la forma del objeto devuelto)
   assert.deepEqual(transicionDestacadoFoto(true).ease, TRANSICION_DESTACADO_EASE);
   assert.deepEqual(transicionDestacadoTexto(true).ease, TRANSICION_DESTACADO_EASE);
+});
+
+// ─── EDITOR-TIENDA-MARQUESINA-SECCION-1 — el motor generalizado a N ítems, § lib/animation.ts
+// "LA SECCIÓN SUELTA" ────────────────────────────────────────────────────────────────────────────
+
+test('transformEntradaSalidaItem: SIN ventanaSalida, delega BYTE A BYTE en transformRevelaTextoDisplay — el hero no cambia un valor', () => {
+  const ventana = UMBRAL_ENTRADA_TARJETA_MARQUESINA;
+  for (const p of [0, 0.1, ventana.desde, (ventana.desde + ventana.hasta) / 2, ventana.hasta, 1]) {
+    assert.equal(
+      transformEntradaSalidaItem(p, false, ventana),
+      transformRevelaTextoDisplay(p, false, ventana),
+    );
+  }
+  assert.equal(transformEntradaSalidaItem(0.3, true, ventana), transformRevelaTextoDisplay(0.3, true, ventana));
+});
+
+test('opacidadEntradaSalidaItem: SIN ventanaSalida, delega BYTE A BYTE en opacidadRevelaTextoDisplay (con el mismo techo)', () => {
+  const ventana = UMBRAL_ENTRADA_TARJETA_MARQUESINA;
+  for (const p of [0, ventana.desde, ventana.hasta, 1]) {
+    assert.equal(
+      opacidadEntradaSalidaItem(p, false, ventana, undefined, 1),
+      opacidadRevelaTextoDisplay(p, false, ventana, 1),
+    );
+  }
+  assert.equal(opacidadEntradaSalidaItem(0.3, true, ventana, undefined, 1), opacidadRevelaTextoDisplay(0.3, true, ventana, 1));
+});
+
+test('CON ventanaSalida: antes de entrar — oculto (100%, opacidad 0)', () => {
+  const entrada = { desde: 0.2, hasta: 0.3 };
+  const salida = { desde: 0.3, hasta: 0.4 };
+  assert.equal(transformEntradaSalidaItem(0.1, false, entrada, salida), 'translateY(100.0%)');
+  assert.equal(opacidadEntradaSalidaItem(0.1, false, entrada, salida), 0);
+});
+
+test('CON ventanaSalida: a mitad de la entrada — a medio camino de aparecer', () => {
+  const entrada = { desde: 0.2, hasta: 0.3 };
+  const salida = { desde: 0.3, hasta: 0.4 };
+  assert.equal(transformEntradaSalidaItem(0.25, false, entrada, salida), 'translateY(50.0%)');
+  assert.equal(opacidadEntradaSalidaItem(0.25, false, entrada, salida), 0.5);
+});
+
+test('CON ventanaSalida: entre las dos ventanas — EN SU LUGAR y PLENO (el "hold")', () => {
+  const entrada = { desde: 0.2, hasta: 0.3 };
+  const salida = { desde: 0.5, hasta: 0.6 };
+  assert.equal(transformEntradaSalidaItem(0.4, false, entrada, salida), 'translateY(0.0%)');
+  assert.equal(opacidadEntradaSalidaItem(0.4, false, entrada, salida), 1);
+});
+
+test('CON ventanaSalida: a mitad de la salida — a medio camino de IRSE (sube, no se devuelve)', () => {
+  const entrada = { desde: 0.2, hasta: 0.3 };
+  const salida = { desde: 0.5, hasta: 0.6 };
+  assert.equal(transformEntradaSalidaItem(0.55, false, entrada, salida), 'translateY(-50.0%)');
+  assert.ok(Math.abs(opacidadEntradaSalidaItem(0.55, false, entrada, salida) - 0.5) < 1e-9);
+});
+
+test('CON ventanaSalida: después de salir — oculto del todo, por el lado opuesto (-100%, opacidad 0)', () => {
+  const entrada = { desde: 0.2, hasta: 0.3 };
+  const salida = { desde: 0.5, hasta: 0.6 };
+  assert.equal(transformEntradaSalidaItem(0.9, false, entrada, salida), 'translateY(-100.0%)');
+  assert.equal(opacidadEntradaSalidaItem(0.9, false, entrada, salida), 0);
+});
+
+test('EL RELEVO: la salida del producto i y la entrada del producto i+1 pueden coincidir exactamente — en ese límite, uno ya se fue y el otro ya llegó', () => {
+  const salidaDelUno = { desde: 0.3, hasta: 0.4 };
+  const entradaDelDos = { desde: 0.4, hasta: 0.5 };
+  const entradaDelUno = { desde: 0.2, hasta: 0.3 };
+  assert.equal(opacidadEntradaSalidaItem(0.4, false, entradaDelUno, salidaDelUno), 0, 'el uno ya terminó de irse');
+  assert.equal(opacidadEntradaSalidaItem(0.4, false, entradaDelDos), 0, 'el dos recién empieza a entrar (sin salida propia en este ejemplo)');
+});
+
+test('CON ventanaSalida: estatico=true SIEMPRE en su lugar y al techo, sin importar el progreso', () => {
+  const entrada = { desde: 0.2, hasta: 0.3 };
+  const salida = { desde: 0.5, hasta: 0.6 };
+  for (const p of [0, 0.25, 0.55, 1]) {
+    assert.equal(transformEntradaSalidaItem(p, true, entrada, salida), 'translateY(0%)');
+    assert.equal(opacidadEntradaSalidaItem(p, true, entrada, salida, 0.9), 0.9);
+  }
+});
+
+// ── ventanasBandaMarquesina / claseAlturaAncestroBandaMarquesina ──────────────────────────────────
+
+test('ventanasBandaMarquesina(0): sin productos — sólo texto, extraVh es el de SIEMPRE del texto', () => {
+  const v = ventanasBandaMarquesina(0);
+  assert.deepEqual(v.items, []);
+  assert.equal(v.extraVh, MARQUESINA_BANDA_TEXTO_VH);
+});
+
+test('ventanasBandaMarquesina: la cantidad se acota a [0, MAX_ITEMS_BANDA_MARQUESINA] — ni negativa ni más de 6', () => {
+  assert.equal(ventanasBandaMarquesina(-3).items.length, 0);
+  assert.equal(ventanasBandaMarquesina(9).items.length, MAX_ITEMS_BANDA_MARQUESINA);
+  assert.equal(ventanasBandaMarquesina(3.9).items.length, 3, 'se trunca, no se redondea');
+});
+
+test('ventanasBandaMarquesina: extraVh = TEXTO + N*ITEM + ITEM/2 (el "respiro" final, media pieza) — para N=1..6', () => {
+  for (let n = 1; n <= MAX_ITEMS_BANDA_MARQUESINA; n++) {
+    const esperado = MARQUESINA_BANDA_TEXTO_VH + n * MARQUESINA_BANDA_ITEM_VH + MARQUESINA_BANDA_ITEM_VH / 2;
+    assert.equal(ventanasBandaMarquesina(n).extraVh, esperado, `N=${n}`);
+  }
+});
+
+test('ventanasBandaMarquesina: el último producto NO tiene ventanaSalida — se queda, como la tarjeta del hero', () => {
+  for (let n = 1; n <= MAX_ITEMS_BANDA_MARQUESINA; n++) {
+    const v = ventanasBandaMarquesina(n);
+    assert.equal(v.items[n - 1].salida, undefined, `N=${n}: el último (índice ${n - 1}) no debe tener salida`);
+    for (let i = 0; i < n - 1; i++) {
+      assert.ok(v.items[i].salida, `N=${n}: el producto ${i} (no el último) SÍ debe tener salida`);
+    }
+  }
+});
+
+test('ventanasBandaMarquesina: la salida del producto i TERMINA justo donde EMPIEZA la entrada del producto i+1 — el relevo es continuo, sin hueco ni superposición', () => {
+  for (let n = 2; n <= MAX_ITEMS_BANDA_MARQUESINA; n++) {
+    const v = ventanasBandaMarquesina(n);
+    for (let i = 0; i < n - 1; i++) {
+      const salida = v.items[i].salida;
+      assert.ok(salida, `N=${n}: el producto ${i} (no el último) debe tener salida`);
+      assert.ok(
+        Math.abs(salida!.hasta - v.items[i + 1].entrada.desde) < 1e-9,
+        `N=${n}, producto ${i}→${i + 1}: salida.hasta (${salida!.hasta}) debe == entrada siguiente.desde (${v.items[i + 1].entrada.desde})`,
+      );
+    }
+  }
+});
+
+test('ventanasBandaMarquesina: las ventanas de texto y de cada producto son crecientes y caben en [0,1]', () => {
+  for (let n = 1; n <= MAX_ITEMS_BANDA_MARQUESINA; n++) {
+    const v = ventanasBandaMarquesina(n);
+    assert.ok(v.texto.desde === 0 && v.texto.hasta > v.texto.desde && v.texto.hasta <= 1);
+    let anterior = v.texto.hasta;
+    for (const item of v.items) {
+      assert.ok(item.entrada.desde >= anterior - 1e-9, `N=${n}: la entrada no debe retroceder sobre lo anterior`);
+      assert.ok(item.entrada.hasta <= 1 && item.entrada.hasta > item.entrada.desde);
+      if (item.salida) {
+        assert.ok(item.salida.desde >= item.entrada.hasta - 1e-9);
+        assert.ok(item.salida.hasta <= 1 && item.salida.hasta > item.salida.desde);
+        anterior = item.salida.hasta;
+      } else {
+        anterior = item.entrada.hasta;
+      }
+    }
+    assert.ok(anterior < 1, `N=${n}: debe quedar respiro antes de 1 (el presupuesto incluye el descanso final)`);
+  }
+});
+
+test('claseAlturaAncestroBandaMarquesina: LOOKUP LITERAL para N=1..6 — las clases existen literal en el archivo (visibles al JIT)', () => {
+  assert.equal(claseAlturaAncestroBandaMarquesina(1), 'min-h-[calc(100svh+140vh)]');
+  assert.equal(claseAlturaAncestroBandaMarquesina(2), 'min-h-[calc(100svh+200vh)]');
+  assert.equal(claseAlturaAncestroBandaMarquesina(3), 'min-h-[calc(100svh+260vh)]');
+  assert.equal(claseAlturaAncestroBandaMarquesina(4), 'min-h-[calc(100svh+320vh)]');
+  assert.equal(claseAlturaAncestroBandaMarquesina(5), 'min-h-[calc(100svh+380vh)]');
+  assert.equal(claseAlturaAncestroBandaMarquesina(6), 'min-h-[calc(100svh+440vh)]');
+});
+
+test('claseAlturaAncestroBandaMarquesina: coincide con el extraVh que ventanasBandaMarquesina calcula, para cada N', () => {
+  for (let n = 1; n <= MAX_ITEMS_BANDA_MARQUESINA; n++) {
+    const extra = ventanasBandaMarquesina(n).extraVh;
+    assert.equal(claseAlturaAncestroBandaMarquesina(n), `min-h-[calc(100svh+${extra}vh)]`);
+  }
 });

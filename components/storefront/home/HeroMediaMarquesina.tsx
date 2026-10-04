@@ -8,21 +8,16 @@ import { motion, useReducedMotion, useTransform } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import CampoEditable, { CampoEditableGemelo, useRutaEnEdicion } from "@/components/storefront/CampoEditable";
+import CampoEditable, { useRutaEnEdicion } from "@/components/storefront/CampoEditable";
 import { objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
   useProgresoScrollDesdeTope, veloOpacidad, rangoVeloDeIntensidad,
-  transformRevelaTextoDisplay, opacidadRevelaTextoDisplay,
   claseAlturaAncestroMarquesina, UMBRAL_ENTRADA_TARJETA_MARQUESINA,
-  duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
-  MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
-  MARQUEE_MASCARA_RELLENO_EM,
 } from "@/lib/animation";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
-import { imagenPortada } from "@/lib/producto-imagen";
-import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } from "@/lib/storefront/marquesina-tarjeta";
+import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/storefront/home/MarquesinaMotor";
 
 // EL COMPONENTE DE LA VARIANTE "STICKY" DEL HERO (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1) — la
 // CUARTA composición (tras curtina/ficha/media, § HeroSection.tsx: `VARIANTES.sticky`), y la que
@@ -566,91 +561,19 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   }, []);
   const producto = productoMarquesina(catalog, marquesina.productoSlug);
 
-  // EL MODO DE LA TARJETA — § MARQUESINA-TARJETA-PRODUCTO-1 (lib/storefront/marquesina-tarjeta.ts,
-  // el docstring de cabecera para el porqué): se mide la proporción REAL de la foto en el
-  // navegador (`naturalWidth`/`naturalHeight` del `<img>` ya decodificado) — nunca se asume. Antes
-  // de medir (o con un slug que cambia a mitad de sesión), `tamanoImagenTarjeta` es `null` y
-  // `modoTarjetaMarquesina` cae a `'tile'`, el modo que NUNCA recorta — exactamente el tile que este
-  // componente ya rendía antes de ese slice. Se reinicia al cambiar de producto para que la
-  // proporción de la foto VIEJA no sobreviva un frame en el producto NUEVO mientras la foto nueva
-  // decodifica.
-  //
-  // DOS VÍAS DE MEDICIÓN, NO UNA SOLA — § MARQUESINA-TARJETA-SECUENCIA-1 (lib/storefront/
-  // marquesina-tarjeta.ts, el docstring de `tamanoSiCompleta`, para el porqué completo): medir
-  // SÓLO en el `onLoad` del `<Image>` dejaba el modo pegado a `'tile'` para sesiones enteras cuando
-  // ese evento no llegaba a dispararse para React — el "a veces sale con bordes, a veces sin" que
-  // el owner reportó en recargas sucesivas. `imgTarjetaRef` apunta al `<img>` real; el efecto de
-  // abajo —que YA reiniciaba la medición al cambiar de producto— ahora TAMBIÉN intenta leerla de
-  // inmediato con `tamanoSiCompleta` (la imagen puede haber llegado a la caché del navegador antes
-  // de que este componente exista). `onLoad` se queda como la segunda vía, para cuando la imagen
-  // TODAVÍA está cargando en ese instante.
-  const imgTarjetaRef = useRef<HTMLImageElement>(null);
-  const [tamanoImagenTarjeta, setTamanoImagenTarjeta] = useState<{ w: number; h: number } | null>(null);
-  useEffect(() => {
-    setTamanoImagenTarjeta(tamanoSiCompleta(imgTarjetaRef.current));
-  }, [producto?.slug]);
-  const modoTarjeta = modoTarjetaMarquesina(tamanoImagenTarjeta?.w, tamanoImagenTarjeta?.h);
-
-  // El TICKER (§ el docstring de cabecera, "EL TICKER — RONDA 3", ampliado por RONDA 4): `trackRef`
-  // apunta al `<motion.div>` con las dos copias del texto; se mide el ancho de la PRIMERA
-  // (`children[0]`) para derivar la duración de un ciclo a la velocidad ELEGIDA por el tema
-  // (`hero.tickerVelocidad`, § RONDA 4 — 'media' es la medida contra el tema real, byte-idéntica;
-  // 'lenta' es la preferencia del owner). Re-medido al montar y en cada resize — el ancho depende del
-  // texto y de un tamaño de fuente `clamp(...)` responsive.
-  const velocidadTicker = velocidadTickerPxS(hero.tickerVelocidad);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [duracionTicker, setDuracionTicker] = useState(() => duracionTickerFallbackS(velocidadTicker));
-  useEffect(() => {
-    // CONGELADO mientras se edita (§ el comentario de `editandoTicker`, arriba): ni medir ni
-    // recalcular — es lo que mantiene a `duracionTicker` (y por tanto a `key={duracionTicker}` del
-    // track, abajo) QUIETO durante la edición, para que el nodo marcado no se reemplace a mitad de
-    // una tecla.
-    if (editandoTicker) return;
-    function medir() {
-      const primero = trackRef.current?.children[0] as HTMLElement | undefined;
-      if (!primero) return;
-      const ancho = primero.getBoundingClientRect().width;
-      if (ancho > 0) setDuracionTicker(duracionTickerS(ancho, velocidadTicker));
-    }
-    medir();
-    window.addEventListener('resize', medir);
-    return () => window.removeEventListener('resize', medir);
-  }, [marquesina.texto, velocidadTicker, editandoTicker]);
+  // EL MODO DE LA TARJETA Y EL TICKER — § EDITOR-TIENDA-MARQUESINA-SECCION-1 EXTRAE las dos piezas a
+  // `MarquesinaMotor.tsx` (`MarquesinaFraseMotor`/`MarquesinaTarjetaMotor`): la medición de proporción
+  // de la foto (`modoTarjetaMarquesina`/`tamanoSiCompleta`, § su propio módulo) y la medición del
+  // ancho del ticker (`duracionTickerS`, § su docstring en `lib/animation.ts`) ahora viven DENTRO de
+  // esos componentes — este `HeroMediaMarquesina` ya no necesita sus propios `imgTarjetaRef`/
+  // `tamanoImagenTarjeta`/`trackRef`/`duracionTicker`. El comportamiento no cambia (mismas funciones
+  // puras, mismas dos vías de medición, mismo congelamiento con `editandoTicker`): sólo se movió de
+  // dónde vive el `useRef`/`useState`.
 
   // El ANCESTRO del sticky (§ el docstring de cabecera) — el target de `useProgresoScrollDesdeTope`,
   // nunca la `<section>` pineada.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const progreso = useProgresoScrollDesdeTope(wrapperRef);
-  // EL REVELADO ENMASCARADO (§ el docstring de cabecera de `lib/animation.ts`, "EL REVELADO DEL
-  // TEXTO"): SÓLO el eje VERTICAL — el `transform` COMPLETO del div que se traslada DENTRO de la
-  // máscara (`overflow-hidden`, montada por el JSX de abajo). El CENTRADO (`top-1/2 -translate-y-1/2`)
-  // ya NO vive acá: es ESTÁTICO (Tailwind, sin `useTransform`), en el div de AFUERA que hace de
-  // máscara — sólo el revelado en sí necesita seguir el scroll. El eje HORIZONTAL vive aparte, en el
-  // ticker (arriba) — no en este `transform`.
-  const transformRevelaTexto = useTransform(progreso, (p) => transformRevelaTextoDisplay(p, estatico));
-  // EL PESO — § CORTE-MARQUEE-REVELADO-CON-FADE-1 (`lib/animation.ts`, "EL PESO — LA RAMPA DE
-  // OPACIDAD VUELVE"): SEGUNDA capa sobre el MISMO `progreso`, aplicada al MISMO elemento que
-  // `transformRevelaTexto` (§ el JSX de abajo, el `motion.div` del MEDIO) — nunca a la máscara. Ambas
-  // comparten `UMBRAL_REVELADO_TEXTO` por construcción (las dos derivan del `progresoRevelado`
-  // privado de `lib/animation.ts`), así que terminan de subir y de aclarar en el MISMO instante.
-  const opacidadRevelaTexto = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico));
-  // LA ENTRADA DE LA TARJETA — "EL EFECTO DE LAS LETRAS", § MARQUESINA-TARJETA-COMO-LETRAS-1
-  // (2026-10-02, `lib/animation.ts`, los docstrings de `transformRevelaTextoDisplay`/
-  // `opacidadRevelaTextoDisplay`/`UMBRAL_ENTRADA_TARJETA_MARQUESINA` para la derivación completa).
-  // Las dos rondas anteriores (MARQUESINA-TARJETA-PRODUCTO-1, -SECUENCIA-1) le daban a la tarjeta su
-  // propio mecanismo —`transformMarquesinaTarjeta` (escala+rotación) y `opacidadEntradaTarjetaMarquesina`
-  // (su aparición)— secuenciado tras la frase. El owner, sobre esa versión: «el efecto [de la
-  // tarjeta] no es el mismo de las letras, debería ser el de las letras, desde abajo y el
-  // desvanecido quitarse progresivamente». Las DOS capas de abajo pasan ahora a las MISMAS funciones
-  // que ya revelan la frase —`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay`—,
-  // parametrizadas por `UMBRAL_ENTRADA_TARJETA_MARQUESINA` (la ventana, con la PAUSA que esa misma
-  // ronda agregó: ya no arranca apenas termina la frase, § su docstring) sobre el MISMO `progreso`
-  // que ya mueve la frase. El `techo` de la opacidad es `1` (PLENO, no `OPACIDAD_REVELADO_TECHO`):
-  // una foto de producto no tiene la razón de legibilidad-sobre-texto-blanco que recorta la de la
-  // frase. `transformMarquesinaTarjeta` sigue viva para `Marquesina.tsx` (su ventana [0.12,0.57] sin
-  // tocar); este componente ya no la llama.
-  const transformTarjeta = useTransform(progreso, (p) => transformRevelaTextoDisplay(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA));
-  const opacidadTarjeta = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico, UMBRAL_ENTRADA_TARJETA_MARQUESINA, 1));
   // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
   // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
   // par piso/techo que `veloOpacidad` ya sabía usar con su DEFAULT — acá se lo pasamos explícito.
@@ -805,76 +728,20 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           )}
         </div>
 
-        {/* EL LOOP DE TEXTO — TRES ELEMENTOS DESDE RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1, el
-            docstring de cabecera de `lib/animation.ts`, "EL REVELADO ENMASCARADO"): el de AFUERA es
-            un `<div>` PLANO (sin motion — nunca se anima) que sólo CENTRA (`top-1/2 -translate-y-1/2`,
-            estático) y RECORTA (`overflow-hidden`) — la máscara, del alto EXACTO de una línea de este
-            texto (`leading-none` fija line-height:1 = font-size; un transform del hijo no cambia esa
-            altura, sólo su posición pintada). El del MEDIO (`motion.div`) es el MOTOR DEL REVELADO,
-            scroll-driven: traslada un PORCENTAJE de su propia caja — 100% (fuera de la máscara) en
-            reposo, 0% (en su lugar) al completar la ventana — Y, desde § CORTE-MARQUEE-REVELADO-CON-
-            FADE-1, lleva TAMBIÉN la rampa de opacidad (`opacidadRevelaTexto`) en el MISMO `style`: las
-            dos capas se COMPONEN sobre el mismo nodo (transform y opacity son propiedades CSS
-            independientes), sin tocar la máscara ni el ticker. El de ADENTRO (`trackRef`) es el
-            TICKER, SIN CAMBIOS de eje: desplaza por TIEMPO, continuo, independiente del scroll.
-            Decorativo (el nombre accesible vive en el `aria-label` de la sección, como
-            `Marquesina.tsx`); el texto se repite dos veces para el efecto de cinta continua —
-            trasladar el track la mitad de su ancho total (`-50%`) mueve exactamente el ancho de UNA
-            copia, cerrando el loop sin salto. */}
-        {/* `inset-x-0` reemplaza a `left-0` a secas — § HERO-MOVIL-SIN-FRANJA-VERDE-1: la máscara ya
-            no puede apoyarse en el `overflow-hidden` de la SECCIÓN (retirado arriba, para que la
-            media pueda pintar más allá del marco) para su recorte horizontal; sin ancho propio su
-            caja crecía tan ancha como el texto sin envolver. Con `inset-x-0` queda acotada al 100%
-            del marco por sí sola, y su `overflow-hidden` PROPIO (sin cambios) hace el recorte. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap font-playfair text-[var(--sf-sobre-banda,white)]"
-          style={{
-            fontSize: MARQUEE_TITULO_FONT_SIZE,
-            lineHeight: MARQUEE_TITULO_LINE_HEIGHT,
-            letterSpacing: MARQUEE_TITULO_LETTER_SPACING,
-            paddingBottom: `${MARQUEE_MASCARA_RELLENO_EM}em`,
-            marginBottom: `${-MARQUEE_MASCARA_RELLENO_EM}em`,
-          }}
-        >
-          <motion.div style={{ transform: transformRevelaTexto, opacity: opacidadRevelaTexto }}>
-            <motion.div
-              // `key={duracionTicker}` — § RONDA 5 arriba: fuerza un remount cuando `medir()`
-              // corrige la duración (target `x` idéntico entre renders, así que sin esta key
-              // framer-motion nunca reinicia la animación con el `transition` nuevo).
-              key={duracionTicker}
-              ref={trackRef}
-              // `w-max` — § MARQUEE-TICKER-ANCHO-1: sin él la caja del track mide el ancho del
-              // contenedor, no el de sus dos copias, y el `-50%` de abajo recorría media PANTALLA
-              // en el tiempo calculado para UNA COPIA entera (`duracionTicker`): con una frase más
-              // ancha que la pantalla, la cinta iba a una fracción de la velocidad elegida y el
-              // loop saltaba en vez de empalmar.
-              className="flex w-max whitespace-nowrap"
-              initial={{ x: '0%' }}
-              animate={estatico || editandoTicker ? { x: '0%' } : { x: ['0%', '-50%'] }}
-              transition={estatico || editandoTicker ? { duration: 0 } : { duration: duracionTicker, repeat: Infinity, ease: 'linear' }}
-            >
-              {/* SIN RAYA, ESPACIO CORTO — § MARQUEE-SIN-RAYA-1 (2026-09-29) retiró la raya (—) del
-                  prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;") y dejó
-                  el hueco como espacio + un spacer de 1em (para preservar el ancho del glifo
-                  retirado) + el espacio de texto + `&nbsp;`: tres mecanismos sumados que, juntos,
-                  se leían como un hueco. § MARQUEE-ESPACIO-MENOR-1 (gate visual del owner tras esa
-                  entrega) los colapsa a UN solo mecanismo — `pr-[0.5em]` — así la separación total
-                  es de media letra y escala con `MARQUEE_TITULO_FONT_SIZE`, en vez de quedar fija
-                  en píxeles como el `pr-8` de antes. */}
-              {/* SÓLO el PRIMER <span> lleva el marcador editable (§ EDITOR-TIENDA-CAMPO-EDITABLE-
-                  HERO-1, docs/editor-tienda/EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados"): el
-                  segundo es la copia gemela que cierra el loop sin salto, y se actualiza solo desde
-                  el MISMO `useSiteContent()` cuando el overlay del primero escribe en el form — nunca
-                  los dos a la vez (un segundo overlay sobre el mismo campo sería redundante).
-                  `CampoEditableGemelo` (§ EDITOR-TIENDA-CAMPO-ANCLADO-1) la deja de renderizar POR
-                  COMPLETO mientras `marquesina.texto` se edita — ya no basta con que sea "la que no
-                  lleva overlay": sin esto quedaba VISIBLE detrás del overlay abierto. */}
-              <span className="pr-[0.5em]"><CampoEditable campo="marquesina.texto">{marquesina.texto}</CampoEditable></span>
-              <span className="pr-[0.5em]"><CampoEditableGemelo campo="marquesina.texto">{marquesina.texto}</CampoEditableGemelo></span>
-            </motion.div>
-          </motion.div>
-        </div>
+        {/* EL LOOP DE TEXTO — EXTRAÍDO a `MarquesinaMotor.tsx` (`MarquesinaFraseMotor`), §
+            EDITOR-TIENDA-MARQUESINA-SECCION-1. Mismo JSX de siempre (máscara + motor + ticker, tres
+            elementos — ver su docstring en `MarquesinaMotor.tsx` y "EL REVELADO ENMASCARADO"/"EL
+            TICKER HORIZONTAL" en `lib/animation.ts` para la derivación completa), parametrizado por
+            el campo (`marquesina.texto`, el de SIEMPRE del hero) y sin `ventanaSalida` — el hero
+            nunca hace que su frase "se vaya". */}
+        <MarquesinaFraseMotor
+          campo="marquesina.texto"
+          texto={marquesina.texto}
+          progreso={progreso}
+          estatico={estatico}
+          tickerVelocidad={hero.tickerVelocidad}
+          editando={editandoTicker}
+        />
 
         {/* LA TARJETA — MEDIDO: "encima" del texto y del velo. `z-20` (por encima del `z-10` del
             loop). Hide-on-empty de UN elemento (el pin), como en `Marquesina.tsx`: sin `productoSlug`,
@@ -922,33 +789,24 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
 
             MISMA VENTANA/CURVA, SIN CAMBIO — sólo se retira el envoltorio de dos elementos; las
             funciones (`transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay` con
-            `UMBRAL_ENTRADA_TARJETA_MARQUESINA`/`techo=1`, § `transformTarjeta`/`opacidadTarjeta`
-            arriba) y el momento en que la tarjeta arranca/completa NO cambian — el `translateY(N%)`
-            sigue relativo a la PROPIA CAJA del elemento (ahora la única caja que existe), así que el
-            recorrido en píxeles es idéntico al de antes de esta ronda. El loop de texto (arriba,
-            § "EL LOOP DE TEXTO") SIGUE con su máscara+motor de tres elementos — ahí el efecto
-            enmascarado es el deseado y no se toca. */}
+            `UMBRAL_ENTRADA_TARJETA_MARQUESINA`/`techo=1`) y el momento en que la tarjeta
+            arranca/completa NO cambian — el `translateY(N%)` sigue relativo a la PROPIA CAJA del
+            elemento (ahora la única caja que existe), así que el recorrido en píxeles es idéntico al
+            de antes de esta ronda. El loop de texto (arriba, § "EL LOOP DE TEXTO") SIGUE con su
+            máscara+motor de tres elementos — ahí el efecto enmascarado es el deseado y no se toca.
+
+            EXTRAÍDO a `MarquesinaMotor.tsx` (`MarquesinaTarjetaMotor`), § EDITOR-TIENDA-MARQUESINA-
+            SECCION-1 — mismo JSX de siempre, SIN `ventanaSalida` (la tarjeta del hero nunca se va:
+            una vez revelada, se queda) y `posicion="relativa"` (el default de ese componente — ESTE
+            `<section>` centra con flex, no apila tarjetas una sobre otra como la sección suelta). */}
         {producto && (
-          <motion.div
-            className={`relative z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden sf-radio-tile ${modoTarjeta === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
-            style={{ transform: transformTarjeta, opacity: opacidadTarjeta }}
-          >
-            <div className="relative h-full w-full">
-              <Image
-                key={producto.slug}
-                ref={imgTarjetaRef}
-                src={imagenPortada(producto.imagen)}
-                alt={producto.nombre}
-                fill
-                sizes={SIZES_TARJETA_MARQUESINA}
-                className={modoTarjeta === 'completa' ? 'object-cover' : 'object-contain'}
-                onLoad={(e) => {
-                  const img = e.currentTarget;
-                  setTamanoImagenTarjeta(tamanoSiCompleta(img));
-                }}
-              />
-            </div>
-          </motion.div>
+          <MarquesinaTarjetaMotor
+            producto={producto}
+            progreso={progreso}
+            estatico={estatico}
+            ventanaEntrada={UMBRAL_ENTRADA_TARJETA_MARQUESINA}
+            techo={1}
+          />
         )}
 
         {/* FRASE AL PIE (§ HERO-FRASE-AL-PIE-Y-PREVIEW-1, § el docstring de cabecera "LA FRASE AL

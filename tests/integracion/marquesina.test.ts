@@ -62,3 +62,49 @@ test('sin fila: marquesina resuelve byte-idéntico a DEFAULTS.marquesina (visibl
   const publicado = await readSiteContent();
   assert.deepEqual(publicado.marquesina, DEFAULTS.marquesina, 'sin fila, marquesina debe ser byte-idéntico al default');
 });
+
+// § EDITOR-TIENDA-MARQUESINA-SECCION-1 — los SEIS campos nuevos de la banda SUELTA (fraseBanda,
+// imagenTipo, producto1..6) viajan por el MISMO camino genérico que texto/imagen/productoSlug. Sin
+// esto en `marquesinaEditableSchema`, zod los STRIPPEA en silencio al guardar (§ CLAUDE.md, "El
+// schema editable STRIPPEA lo no declarado") — exactamente el defecto que cerró #65-B.
+test('fraseBanda + imagenTipo + producto1..6 sobreviven borrador→publicar→releer', async () => {
+  await guardarComoElRoute({
+    visible: true,
+    texto: 'Tueste fresco cada semana',
+    imagen: '/images/finca-1-v1.jpg',
+    productoSlug: 'cafe-narino-500g',
+    fraseBanda: 'Seis productos, una historia',
+    imagenTipo: 'video',
+    producto1: 'cafe-huila-250g',
+    producto2: 'cafe-narino-500g',
+    producto3: '',
+    producto4: '',
+    producto5: '',
+    producto6: '',
+  });
+  await publicarSeccion('marquesina');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.marquesina.fraseBanda, 'Seis productos, una historia');
+  assert.equal(publicado.marquesina.imagenTipo, 'video');
+  assert.equal(publicado.marquesina.producto1, 'cafe-huila-250g');
+  assert.equal(publicado.marquesina.producto2, 'cafe-narino-500g');
+  assert.equal(publicado.marquesina.producto3, '');
+  // Lo de SIEMPRE (texto/imagen/productoSlug, el hero) sigue viajando igual, sin interferencia.
+  assert.equal(publicado.marquesina.texto, 'Tueste fresco cada semana');
+  assert.equal(publicado.marquesina.productoSlug, 'cafe-narino-500g');
+});
+
+test('imagenTipo basura cae a la canónica "imagen" al releer — el resolver clampa, el schema no valida el set cerrado', async () => {
+  await guardarComoElRoute({
+    visible: true,
+    texto: 'Café de origen único',
+    imagen: '/images/finca-1-v1.jpg',
+    fraseBanda: 'Frase de la banda',
+    imagenTipo: 'no-es-ni-imagen-ni-video',
+  });
+  await publicarSeccion('marquesina');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.marquesina.imagenTipo, 'imagen');
+});

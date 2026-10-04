@@ -8,7 +8,7 @@ import { MotionConfig, useScroll, useSpring, useTransform } from "framer-motion"
 // ahí—): este archivo sólo traduce esos valores a MAGNITUD (el rango de opacidad, los px/s). Un tipo
 // re-declarado acá con las mismas claves sería la clase de doble-lista que ya mordió en este repo
 // (§ CLAUDE.md, "CATEGORIAS ≠ CATEGORIA_LABELS").
-import { BANDA_IDS, type VeloIntensidad, type TickerVelocidad } from "./config/site-content-defaults";
+import { BANDA_IDS, MAX_PRODUCTOS_BANDA_MARQUESINA, type VeloIntensidad, type TickerVelocidad } from "./config/site-content-defaults";
 
 // fadeUp — la variante compartida de entrada (opacity 0→1, y 24→0) que usan las
 // animaciones de scroll-in del storefront (`whileInView`/`initial+animate` + `variants`).
@@ -1130,6 +1130,132 @@ export const VELOCIDAD_TICKER_LENTA_PX_S = VELOCIDAD_TICKER_PX_S * 0.7;
 // escalares.tickerVelocidad`) ya clampa el valor guardado antes de que llegue acá.
 export function velocidadTickerPxS(velocidad: string): number {
   return velocidad === 'lenta' ? VELOCIDAD_TICKER_LENTA_PX_S : VELOCIDAD_TICKER_PX_S;
+}
+
+// ── LA SECCIÓN SUELTA — EL MOTOR GENERALIZADO A N ITEMS, § EDITOR-TIENDA-MARQUESINA-SECCION-1 ─────
+//
+// El hero (arriba) sólo revela UN producto: entra y se queda. La sección suelta reutilizable
+// necesita que varios productos (hasta 6) se REEMPLACEN uno al otro a medida que se scrollea — el
+// anterior tiene que IRSE, no sólo el siguiente tiene que APARECER. `transformRevelaTextoDisplay`/
+// `opacidadRevelaTextoDisplay` (arriba) sólo saben ENTRAR (monótonas, se quedan en el estado final
+// para siempre); estas dos las generalizan con una SEGUNDA ventana opcional de salida, reusando la
+// MISMA `progresoEnVentana` — cuando no hay `ventanaSalida`, delegan byte a byte en sus hermanas de
+// sólo-entrada (mismo `ventana`/`techo`), así que el HERO (que nunca pasa `ventanaSalida`) no cambia
+// un solo valor al adoptar este motor compartido.
+//
+// LA COMPOSICIÓN: el traslado total es la SUMA de dos rampas independientes —"cuánto falta para
+// entrar" (100% en reposo, 0% ya entrado) MENOS "cuánto se lleva saliendo" (0% quieto, 100% ya
+// afuera)— sobre la MISMA caja del elemento. Antes de entrar: 100%-0%=100% (oculto abajo). Entre las
+// dos ventanas: 0%-0%=0% (en su lugar). Después de salir: 0%-100%=-100% (oculto arriba, afuera por el
+// lado opuesto a por donde entró — "sube y se va", no "se devuelve"). La opacidad es MULTIPLICATIVA
+// en vez de aditiva (0 antes de entrar, techo en el medio, 0 después de salir) porque una resta
+// podría dar negativo; un producto de entrada×(1-salida) no puede.
+export function transformEntradaSalidaItem(
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida?: { desde: number; hasta: number },
+): string {
+  if (!ventanaSalida) return transformRevelaTextoDisplay(progreso, estatico, ventanaEntrada);
+  if (estatico) return 'translateY(0%)';
+  const entra = progresoEnVentana(progreso, ventanaEntrada);
+  const sale = progresoEnVentana(progreso, ventanaSalida);
+  const pct = REVELADO_TRASLADO_PCT * ((1 - entra) - sale);
+  return `translateY(${pct.toFixed(1)}%)`;
+}
+
+export function opacidadEntradaSalidaItem(
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida?: { desde: number; hasta: number },
+  techo: number = 1,
+): number {
+  if (!ventanaSalida) return opacidadRevelaTextoDisplay(progreso, estatico, ventanaEntrada, techo);
+  if (estatico) return techo;
+  const entra = progresoEnVentana(progreso, ventanaEntrada);
+  const sale = progresoEnVentana(progreso, ventanaSalida);
+  return techo * entra * (1 - sale);
+}
+
+// EL PRESUPUESTO DE LA SECCIÓN SUELTA, EN VH ADITIVOS — NO en fracción del total, a diferencia de
+// `claseAlturaAncestroMarquesina` (arriba). Esa función resuelve "¿qué `H` hace que el punto de
+// despineo caiga en `pUnpin`?", y esa ecuación (`H = VH/(1-pUnpin)`) EXPLOTA cuando `pUnpin→1` — con
+// hasta 6 productos secuenciados, `pUnpin` cruza ese borde. Acá el extra se declara DIRECTO en vh
+// por pieza (el texto, cada producto) y las VENTANAS se derivan dividiendo por el total — la relación
+// inversa de la del hero, elegida porque para N variable es la que no se vuelve inestable.
+//
+// CADA PRODUCTO tiene un bloque de `MARQUESINA_BANDA_ITEM_VH` vh, partido en cuartos: entra en el
+// primer cuarto, se queda quieto dos cuartos, sale en el último — EXCEPTO el último producto, que
+// sólo entra y se queda (como la tarjeta del hero: no tiene a quién cederle el lugar). La salida del
+// producto i TERMINA justo donde EMPIEZA la entrada del producto i+1 (el mismo punto de progreso es
+// el `hasta` de una y el `desde` de la otra) — sin hueco (nunca hay un tramo de scroll sin nada
+// visible) y sin superposición (nunca hay dos productos parcialmente visibles a la vez): el relevo
+// es secuencial, uno termina de irse justo cuando el siguiente empieza a llegar. El descanso final
+// (media pieza) es la MISMA convención que el "respiro" del hero (§ UMBRAL_ENTRADA_TARJETA_
+// MARQUESINA, la mitad del ancho de la ventana) antes de que el `sticky` se despinee.
+export const MARQUESINA_BANDA_TEXTO_VH = 50;
+export const MARQUESINA_BANDA_ITEM_VH = 60;
+// EL TOPE ES EL MISMO QUE EL DEL MODELO (`MAX_PRODUCTOS_BANDA_MARQUESINA`, site-content-defaults.ts) —
+// re-exportado acá (no re-declarado) para que el tope de la COREOGRAFÍA y el tope del DATO no puedan
+// divergir: dos constantes con el mismo valor en dos archivos es cómo una de las dos queda rancia el
+// día que alguien sube el tope sin acordarse de la otra.
+export const MAX_ITEMS_BANDA_MARQUESINA = MAX_PRODUCTOS_BANDA_MARQUESINA;
+
+export interface VentanaItemBandaMarquesina {
+  entrada: { desde: number; hasta: number };
+  salida?: { desde: number; hasta: number };
+}
+
+export interface VentanasBandaMarquesina {
+  texto: { desde: number; hasta: number };
+  items: VentanaItemBandaMarquesina[];
+  /** El extra de scroll (vh) que `claseAlturaAncestroBandaMarquesina` convierte a clase literal. */
+  extraVh: number;
+}
+
+/**
+ * Las ventanas de progreso [0,1] para el texto + hasta `MAX_ITEMS_BANDA_MARQUESINA` productos de la
+ * sección suelta, y el extra de vh que las produce. `n<=0` → sin productos, sólo el texto (la
+ * sección entera no debería montarse en ese caso — hide-on-empty vive en el componente, no acá).
+ */
+export function ventanasBandaMarquesina(n: number): VentanasBandaMarquesina {
+  const cantidad = Math.max(0, Math.min(MAX_ITEMS_BANDA_MARQUESINA, Math.floor(n)));
+  if (cantidad === 0) {
+    return { texto: { desde: 0, hasta: 1 }, items: [], extraVh: MARQUESINA_BANDA_TEXTO_VH };
+  }
+  const extraVh = MARQUESINA_BANDA_TEXTO_VH + cantidad * MARQUESINA_BANDA_ITEM_VH + MARQUESINA_BANDA_ITEM_VH / 2;
+  const h = 100 + extraVh;
+  const texto = { desde: 0, hasta: MARQUESINA_BANDA_TEXTO_VH / h };
+  const cuarto = MARQUESINA_BANDA_ITEM_VH / 4;
+  const items: VentanaItemBandaMarquesina[] = Array.from({ length: cantidad }, (_, idx) => {
+    const i = idx + 1;
+    const itemStart = MARQUESINA_BANDA_TEXTO_VH + (i - 1) * MARQUESINA_BANDA_ITEM_VH;
+    const entrada = { desde: itemStart / h, hasta: (itemStart + cuarto) / h };
+    const salida = i < cantidad
+      ? { desde: (itemStart + 3 * cuarto) / h, hasta: (itemStart + MARQUESINA_BANDA_ITEM_VH) / h }
+      : undefined;
+    return { entrada, salida };
+  });
+  return { texto, items, extraVh };
+}
+
+// LOOKUP POR LITERAL, NO INTERPOLACIÓN — mismo criterio que `claseAlturaAncestroMarquesina`/
+// `gridColsPresentaciones`: Tailwind escanea el TEXTO de los archivos, así que una clase armada por
+// template literal es invisible para el JIT. Con `n` acotado a 0..6 (7 estados), un lookup explícito
+// es tan barato como el `if` de dos ramas del hero.
+export function claseAlturaAncestroBandaMarquesina(n: number): string {
+  const extraVh = ventanasBandaMarquesina(n).extraVh;
+  switch (extraVh) {
+    case 50: return 'min-h-[calc(100svh+50vh)]';
+    case 140: return 'min-h-[calc(100svh+140vh)]';
+    case 200: return 'min-h-[calc(100svh+200vh)]';
+    case 260: return 'min-h-[calc(100svh+260vh)]';
+    case 320: return 'min-h-[calc(100svh+320vh)]';
+    case 380: return 'min-h-[calc(100svh+380vh)]';
+    case 440: return 'min-h-[calc(100svh+440vh)]';
+    default: return 'min-h-[calc(100svh+140vh)]';
+  }
 }
 
 // ── EL CONTADOR — el count-up de la banda ORIGEN, § ORIGEN-BANDA-1 ───────────────────────────────

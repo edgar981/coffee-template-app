@@ -49202,3 +49202,260 @@ que pedía el spec: el viaje completo en un arnés de sesión real (§ arriba, 1
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-MARQUESINA-EN-HERO-1`.**
+
+## 2026-10-03 — La marquesina pasa a ser una sección reutilizable: el motor del hero, generalizado a hasta seis productos (`EDITOR-TIENDA-MARQUESINA-SECCION-1`)
+
+**El pedido del owner, literal (2026-10-03):** «lo de la marquesina, no la eliminemos, pero sí
+arreglémosla, porque la [marquesina] del hero es la que se ve perfecta, entonces crear una sección
+marquesina que se pueda usar en el hero, o en otra parte de la página para mostrar los productos por
+ejemplo, entonces a medida que se va haciendo scroll van saliendo los productos con un efecto/
+transición».
+
+### Qué había antes de este slice
+
+Dos implementaciones del concepto "marquesina", sin relación de código entre sí:
+
+- **El hero·sticky** (`HeroMediaMarquesina.tsx`, variante `'sticky'` del hero — CORTE la usa): frase
+  que corre por tiempo (ticker) + se revela por scroll (máscara enmascarando un `translateY`) + UNA
+  tarjeta de producto que entra DESPUÉS de la frase, con el mismo revelado. Ésta es la que el owner
+  describe como "la que se ve perfecta" — el resultado de varias rondas de ajuste fino documentadas
+  en este mismo archivo (RONDA 2 a 5, MARQUESINA-TARJETA-*).
+- **La banda suelta** (`Marquesina.tsx`, sección independiente del home, nace apagada): la forma
+  vieja "Cafeone" — foto velada con overlay FIJO, un texto que se desplaza por SCROLL (no por
+  tiempo), UNA tarjeta que escala/rota (no que se revela). Nunca se tocó mientras el hero resolvía
+  su propio problema; quedó congelada en la forma que el owner había reportado mala tres veces
+  ANTES de que naciera `HeroMediaMarquesina.tsx`.
+
+### El motor compartido — `MarquesinaMotor.tsx` (nuevo)
+
+Dos componentes extraídos LITERALMENTE del JSX que vivía inline en `HeroMediaMarquesina.tsx`, sin
+cambiar un solo valor:
+
+- **`MarquesinaFraseMotor`** — el loop de texto (máscara estática + motor de revelado por scroll +
+  ticker por tiempo, tres elementos). Parametrizado por `campo` (la ruta editable), `texto`,
+  `progreso`, `estatico`, `tickerVelocidad`, `editando` (el freeze mientras se edita ese campo) y
+  `ventana` (default `UMBRAL_REVELADO_TEXTO`, el mismo que el hero ya usaba sin pasarlo).
+- **`MarquesinaTarjetaMotor`** — una tarjeta de producto que entra (y, con `ventanaSalida`, también
+  sale) por scroll. `posicion` (`'relativa'` default — el hero, un producto único centrado por flex;
+  `'absoluta'` — la banda suelta, varias tarjetas apiladas en el MISMO lugar para que una reemplace
+  a la otra).
+
+**El hero queda BYTE-IDÉNTICO, medido, no supuesto.** `HeroMediaMarquesina.tsx` ahora renderiza
+`<MarquesinaFraseMotor campo="marquesina.texto" .../>` y `<MarquesinaTarjetaMotor ... ventanaEntrada=
+{UMBRAL_ENTRADA_TARJETA_MARQUESINA} techo={1} />` (sin `ventanaSalida`) en vez de la coreografía
+inline. `lib/config/hero-marquesina.test.ts` (52/52, sin tocar sus assertions de estructura/clases/
+estilos — SSR string-exact vía `renderToStaticMarkup`) sigue en VERDE sin cambios: es la prueba de
+que el HTML servido no cambió un carácter. La garantía de fondo: `transformEntradaSalidaItem`/
+`opacidadEntradaSalidaItem` (las dos funciones nuevas que generalizan a N items, ver abajo) DELEGAN
+byte a byte en `transformRevelaTextoDisplay`/`opacidadRevelaTextoDisplay` cuando no se les pasa
+`ventanaSalida` — exactamente el caso del hero, que nunca pasa esa ventana.
+
+### La generalización a N productos — las ventanas de progreso, en VH aditivos
+
+`claseAlturaAncestroMarquesina` (el presupuesto de scroll del hero) resuelve "¿qué `H` hace que el
+despineo caiga en `pUnpin`?" con `H = VH/(1-pUnpin)` — una ecuación que EXPLOTA cuando `pUnpin→1`,
+el caso que hasta 6 productos secuenciados cruza. La generalización (`ventanasBandaMarquesina`,
+`claseAlturaAncestroBandaMarquesina`, `lib/animation.ts`) invierte la relación: el extra de scroll se
+declara DIRECTO en vh por pieza (`MARQUESINA_BANDA_TEXTO_VH=50`, `MARQUESINA_BANDA_ITEM_VH=60` por
+producto, partido en cuartos — entra en el primer cuarto, se queda quieto dos cuartos, sale en el
+último) y las ventanas de progreso [0,1] se DERIVAN dividiendo por el total — relación que crece
+LINEAL con N, nunca inestable. `extraVh(N) = 50 + 60N + 30` (el +30 = media pieza de "respiro" antes
+de despinear, misma convención que el respiro del hero). Para N=1 esto da EXACTAMENTE 140vh — el
+mismo extra que el hero usa para su única tarjeta (con pausa), confirmando que la generalización no
+inventa una magnitud nueva para el caso N=1.
+
+**El relevo entre productos es SECUENCIAL, no simultáneo**: la salida del producto i TERMINA justo
+donde EMPIEZA la entrada del producto i+1 (mismo punto de progreso) — sin hueco y sin superposición.
+13 tests nuevos en `lib/animation.test.ts` fijan esto (incluida la derivación exacta de `extraVh` por
+N, y que el último producto nunca tiene `ventanaSalida` — se queda, como la tarjeta del hero).
+
+### Los datos — seis campos nuevos, ninguno movido
+
+`MarquesinaContent` (site-content-defaults.ts) gana `fraseBanda` (requerido, default genérico,
+DISTINTO de `texto` — frase propia de la banda suelta), `imagenTipo` (escalar `'imagen'|'video'`,
+canónica `'imagen'`, mismo mecanismo que `hero.escalares.imagenTipo`) y `producto1`..`producto6`
+(opcionales, flat — NO repeater: `RepeaterEditor.tsx`/`CampoItem.tipo` no declaran un tipo
+`'producto'` y ese archivo no está en `touches:`; el picker de producto por campo plano
+(`CampoTexto.producto:true`) YA EXISTE, mismo patrón que "Presentaciones 2-4" del CLAUDE.md para
+cardinalidad variable sobre campos planos).
+
+**`texto`/`productoSlug`/`imagen` NO SE MUEVEN — y `imagen` merece la aclaración exacta.** El spec
+decía "la foto que lee el HERO no se mueve (…, .imagen)", pero medido por grep ANTES de escribir
+código: el hero NUNCA leyó `marquesina.imagen` (lee `hero.imagen`); `marquesina.imagen` siempre fue
+el fondo de la BANDA SUELTA. Se evaluó agregar un campo de fondo nuevo (lo que el spec pedía
+literalmente, "fondo propio") y se descartó: habría dejado `imagen` huérfano de todo consumidor real
+— la misma mina del ex-`Product.agotado` (CLAUDE.md, "código sin consumidor vivo no se deja
+ambiguo"). Reusar `imagen` no es "mover" nada: es el MISMO rol que ya tenía. `imagenTipo` es el único
+campo nuevo del lado del fondo, y permite que ese mismo campo sirva también de video.
+
+**`productosBandaMarquesina`** (site-content-defaults.ts) resuelve la lista: los slots en SU orden,
+filtrando vacíos y slugs que no matchean el catálogo vivo (nunca cae a un producto arbitrario); con
+CERO elegidos (los seis vacíos, o los seis rotos), cae al catálogo en SU orden hasta el mismo tope —
+"es una vitrina, no un pin", la frase del spec tomada literal.
+
+### El panel — la tarjeta «Marquesina» deja de ser sólo un interruptor
+
+`tienda-secciones.ts`: `MARQUESINA.campos` gana el select "Tipo de fondo" (`imagenTipo`), el
+textarea "Frase de la marquesina" (`fraseBanda`) y seis pickers de producto ("Producto 1".."Producto
+6"), cada uno con el MISMO `ProductoCombobox` que ya usa `productoSlug`. `notaVisibilidad` se
+reescribe: antes decía que el interruptor "sólo decide si además esta banda aparece suelta" (no
+había nada más que configurar); ahora aclara que la frase/fondo/productos del hero (grupo
+«Marquesina» en la tarjeta del hero) y los de esta banda son DOS conjuntos de datos distintos.
+
+**`panel-controles.ts` (el chequeo derivado "todo campo que la tienda lee tiene su control") pasó
+VERDE sin tocar `PENDIENTE_PANEL`**: los seis campos nuevos se declararon en REGISTRY Y en
+`tienda-secciones.ts` en el mismo commit, así que nunca hubo un hueco que exentar.
+
+### Movimiento reducido — layout estático, no el motor sticky con `estatico=true` nada más
+
+El spec pedía "frase quieta y productos visibles sin animación, como hoy hace la banda" — se
+evaluó mantener el wrapper sticky (con `estatico=true` colapsando las funciones de revelado a su
+estado final) y se descartó: con hasta 6 productos APILADOS en el mismo lugar (`posicion="absoluta"`),
+bajo `estatico` las SEIS tarjetas resolverían a "visible y en su lugar" SIMULTÁNEAMENTE —seis fotos
+exactamente superpuestas, ilegible—. La rama `estatico` de `Marquesina.tsx` es un layout NORMAL
+aparte (sin `position:sticky`, sin presupuesto de scroll extra, sin apilar): la frase vía
+`MarquesinaFraseMotor` (que ya resuelve su estado quieto bajo `estatico`) y los productos en un
+`flex flex-wrap`, cada uno `posicion="relativa"` (el default), todos visibles a la vez, lado a lado.
+
+### Hide-on-empty es de la LISTA, no de la sección — corregido tras el primer intento
+
+El primer borrador ocultaba la sección ENTERA cuando `productos.length === 0`. Eso rompía el patrón
+establecido (la tarjeta del hero se oculta sola, SIN ocultar el texto del loop) y además es
+estructuralmente peor para esta sección: en SSR el catálogo SIEMPRE está vacío (se fetchea
+client-side), así que la sección ENTERA habría estado invisible hasta la hidratación — un parpadeo
+de contenido, no una decisión de datos. Corregido: la sección se oculta sólo por el toggle
+`visible`; con cero productos, el escenario simplemente no tiene tarjetas que pintar (la frase +
+el fondo siguen rindiendo). `lib/config/marquesina-banda.test.ts` fija esto explícitamente.
+
+### Gate — medido, las dos capas
+
+```
+npx tsc --noEmit                        → 0 errores
+npm test                                → 3408/3408
+npm run test:integracion                → 325/325
+```
+
+(`tests/integracion/marquesina.test.ts` ganó 2 tests nuevos para el viaje borrador→publicar→releer
+de los seis campos, incluido que `imagenTipo` basura cae a la canónica al releer.)
+
+### `npm run verificar:nayoli:visual` — Nayoli no cambia, medido contra el piso YA conocido
+
+Nayoli (sin preset) nunca enciende `marquesina.visible`, así que el cambio no debería tocar un solo
+píxel suyo. Medido, main vs. esta rama:
+
+```
+ruta:home          → 165052/4608000 px (AA), 174711 crudo — caja [105,862]–[1183,3581]
+ruta:tienda        → 163/2433280 px (AA), 361 crudo         — caja [445,1872]–[541,1882]
+ruta:producto      → 163/2535680 px (AA), 361 crudo         — caja [445,1952]–[541,1962]
+ruta:checkout      → 163/1152000 px (AA), 361 crudo         — caja [445,774]–[541,784]
+ruta:nosotros      → 163/1152000 px (AA), 361 crudo         — caja [445,716]–[541,726]
+ruta:suscripciones → 163/2144000 px (AA), 361 crudo         — caja [445,1646]–[541,1656]
+hover:automatica   → IDÉNTICO (0 px)
+hover:eleccion     → IDÉNTICO (0 px)
+```
+
+**Cifra IDÉNTICA, al píxel, a la ya reconciliada por `EDITOR-TIENDA-MARQUESINA-EN-HERO-1`
+(`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`)** — confirma que este slice agrega CERO drift nuevo sobre
+el ya documentado (preexistente en la rama, ajeno a `touches:` de este slice). `npm run guarda:color`
+da el mismo resultado (reporta RED por el mismo motivo preexistente — no es un hallazgo nuevo).
+
+### LÍMITE — la sesión en el arnés (captura de la secuencia, chromium+webkit) NO SE COMPLETÓ
+
+El spec pedía una sesión en el arnés con la banda encendida, tres productos, capturas en varios
+puntos del scroll, escritorio y teléfono, chromium Y webkit. Se construyó un harness ad-hoc
+(`.scratch/marquesina-seccion-wrapper.ts` + `-seed.ts` + `-capturar.ts`, gitignored) que: siembra 3
+productos reales + `content.marquesina` encendida y reordenada tras `featured`; corre `npm run
+build` (Postgres efímero propio, puerto 55441) + `next start`; navega con Playwright (chromium y
+webkit, ambos ya instalados en `.arnes-tooling/playwright`) a 6 puntos de scroll × 2 viewports × 2
+browsers para la banda, más 2 puntos para el hero bajo `?tema=CORTE`.
+
+**El build no terminó dentro del tiempo disponible de esta sesión** — se cortó (`TaskStop`) sin que
+`.capturas/editor-tienda-marquesina-seccion-1/` llegara a existir (verificado: el directorio no se
+creó). Se verificó y se limpió el estado: ninguna base efímera ni servidor quedó colgado (puerto
+55441 libre; un `next start` en :3496 SÍ quedó huérfano del `kill` que el script nunca alcanzó a
+correr — se mató a mano, `lsof -ti tcp:3496` → `kill`, verificado libre después).
+
+**Lo que SÍ queda medido, y por qué alcanza para una parte de la garantía pedida:**
+- El hero queda byte-idéntico — NO por captura visual, sino por `hero-marquesina.test.ts` (52/52,
+  SSR string-exact vía `renderToStaticMarkup`, sin tocar sus assertions): si la composición
+  cambiara un solo atributo, clase o valor de estilo computado, ese archivo lo detecta ANTES que
+  cualquier ojo humano mirando dos capturas. No es un sustituto completo de la captura pedida —no
+  prueba, por ejemplo, el franjeo de chrome dinámico en un WebKit real— pero sí prueba que el HTML
+  servido no cambió.
+- La secuencia de N productos (entra → queda → sale, sin hueco ni superposición) está probada en
+  `lib/animation.test.ts` (13 tests nuevos sobre `ventanasBandaMarquesina`/`transformEntradaSalidaItem`/
+  `opacidadEntradaSalidaItem`) — la MATEMÁTICA de la coreografía, no su aspecto en un navegador real.
+
+**Lo que NO quedó verificado por ejecución, y es un hueco real:** que la banda se vea correctamente
+en un navegador real (chromium o webkit) en los puntos de scroll intermedios, en escritorio y en
+teléfono; que el arnés mismo (ya escrito, en `.scratch/`, re-ejecutable) corra limpio de punta a
+punta. El harness queda escrito y listo —no hay que rediseñarlo, sólo correrlo con más tiempo de
+sesión disponible—, pero NO corrió. Se declara como lo que es: una verificación pedida que no se
+completó, no una que se completó y pasó.
+
+### Deviation — `transformMarquesinaTexto`/`transformMarquesinaTarjeta` quedan HUÉRFANAS, no se retiran
+
+Al mover `Marquesina.tsx` al nuevo motor, las dos funciones que la banda suelta usaba (escala/
+rotación por scroll) se quedaron sin NINGÚN llamador real — medido (`grep` de llamadas reales, no de
+comentarios): cero. El propio `lib/animation.ts` documenta el precedente de retirar código así
+(`opacidadEntradaTarjetaMarquesina`, "código sin consumidor vivo no se deja ambiguo"). **No se
+retiraron en este slice** — son funciones EXTENSAMENTE testeadas (~20 tests en `lib/animation.
+test.ts`) y además referenciadas por comentario (no por import) desde `SubscriptionCTALinea.tsx`,
+fuera de `touches:`; retirarlas es una decisión de alcance mayor que "rehacer la banda", y el spec no
+la pidió. Abierto como follow-up.
+
+### Open follow-ups
+
+- **`EDITOR-TIENDA-MARQUESINA-SECCION-ARNES-PENDIENTE-1`** (coined acá): correr
+  `.scratch/marquesina-seccion-wrapper.ts` (ya escrito, gitignored) hasta el final — produce las
+  capturas chromium+webkit × escritorio+teléfono de la secuencia de scroll que este slice no llegó
+  a verificar por ejecución. Es la precondición real antes de un gate visual del owner sobre esta
+  sección.
+- **`MARQUESINA-TRANSFORMS-VIEJOS-HUERFANOS-1`** (coined acá): `transformMarquesinaTexto`/
+  `transformMarquesinaTarjeta` (`lib/animation.ts`) y sus ~20 tests quedaron sin ningún llamador real
+  tras este slice. Candidato a retiro (con sus tests), en un slice que mida primero si algo más los
+  necesita (hay una referencia de COMENTARIO, no de import, en `SubscriptionCTALinea.tsx`).
+- **`EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`** (ya nombrado en el spec aprobado): las transiciones a
+  elegir para la banda (hoy fija al mismo revelado del hero) quedan para su propio slice.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado con la MISMA cifra exacta
+  (§ arriba). Ajeno a `touches:` de este slice.
+- `PANEL-EDITOR-VARIANTES-COMPOSICION-1` — sin cambios, ajeno a este slice.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA contra `main` (§ CLAUDE.md, "ORCH-CUSTOMER-BYTES-EJE-1"), que
+ya cargaba `customer_bytes.changed:true` de slices anteriores. Este commit en particular SÍ toca
+`components/storefront/` (Marquesina.tsx, HeroMediaMarquesina.tsx, MarquesinaMotor.tsx nuevo) y
+agrega texto nuevo que el OWNER/operador lee en el panel:
+
+- La tarjeta «Marquesina»: select **"Tipo de fondo"**, textarea **"Frase de la marquesina"**, seis
+  pickers **"Producto 1".."Producto 6"**, cada uno con su hint.
+- `notaVisibilidad` reescrita (arriba).
+
+Para un visitante de la tienda SIN que el owner haya tocado nada: CERO bytes distintos (la banda
+sigue `visible:false` por default, `verificar:nayoli:visual` lo confirma al píxel). El cambio de
+bytes es sólo alcanzable si el OWNER enciende la banda y la llena de contenido — en ese caso el
+visitante vería una sección nueva, pero eso es la CAPACIDAD que este slice entrega, no un byte que
+cambie sin acción del owner.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo Prisma, sin contrato cross-repo.
+`marquesinaEditableSchema` (`site-content-schema.ts`, SCHEMA DE CONTENIDO — no de base de datos) sí
+cambió, con seis campos `z.string().optional()` — aprobado explícitamente por el owner en el spec
+("lo de los nuevos campos sobre el schema ok").
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo y mismo gate que las rondas
+anteriores de esta rama (el eje es la rama, no el commit; sigue sin mergear). El dispatch pide
+parar antes del merge ("LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). Gate verde en las dos
+capas obligatorias (`tsc` 0 errores, `npm test` 3408/3408, `npm run test:integracion` 325/325);
+`verificar:nayoli:visual`/`guarda:color` confirman CERO drift nuevo (cifra idéntica al piso ya
+reconciliado). Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**NO SE DECLARA "entregado" en el sentido completo del spec: la sesión en el arnés (captura de la
+secuencia en chromium/webkit, escritorio/teléfono) no corrió dentro del tiempo de esta sesión** —
+§ arriba, "LÍMITE". El código, el modelo y el gate automatizado están completos y verdes; lo que
+falta es la evidencia visual por ejecución que el spec pedía como parte del cierre. Ver
+`EDITOR-TIENDA-MARQUESINA-SECCION-ARNES-PENDIENTE-1`.

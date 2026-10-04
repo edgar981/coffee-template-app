@@ -14,21 +14,25 @@ import {
   REGISTRY,
   resolverSiteContent,
   seccionEsVisible,
+  productosBandaMarquesina,
+  MAX_PRODUCTOS_BANDA_MARQUESINA,
   type SiteContentData,
 } from './site-content-defaults';
 import { CORTE, PATIO, mergePresetEnContent, validarPreset, presetCompleto } from './themes';
 import { contenidoConPresetDeVista } from './theme-mirador';
 
-// MARQUESINA-BANDA-1 (medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto de fondo velada + un
-// LOOP de texto a gran escala + una tarjeta de producto flotante (el PIN de spotlight reusado). A
-// DIFERENCIA de spotlight (variante de `featured`), `marquesina` ES miembro de `BANDA_IDS`, 2ª tras
-// `hero` — coexiste con `featured`/`spotlight`, no lo reemplaza (§ MARQUESINA-BANDA-CENSO-1: son tres
-// secciones distintas del prototipo). Este archivo afirma el modelo (REGISTRY/DEFAULTS), el gate de
-// visibilidad, el cableado del preset (CORTE la enciende, PATIO no la toca), el render por
-// `renderToStaticMarkup` (sin jsdom, § CLAUDE.md) — incluida la mitad verificable del scroll (el
-// gate estático; el `useScroll` real es capa 3, mismo límite que `historia-direccion-arte.test.ts`
-// documenta para el otro motor de movimiento) — y el pin del producto (`productoMarquesina`, § HERO-
-// SIN-TARJETA-Y-PDP-IMAGEN-1 — SIN el fallback al primer producto que tenía `productoSpotlight`).
+// MARQUESINA-BANDA-1 (medido: MARQUESINA-BANDA-CENSO-1), REHECHA por § EDITOR-TIENDA-MARQUESINA-
+// SECCION-1 — ya no es la forma "Cafeone" (foto velada + UN texto por scroll + UNA tarjeta que
+// escala/rota): usa el MISMO motor que el hero·sticky (`MarquesinaMotor.tsx`), generalizado a HASTA
+// SEIS productos que se van reemplazando uno al otro a medida que se hace scroll. `marquesina` sigue
+// siendo miembro de `BANDA_IDS`, 2ª tras `hero` — coexiste con `featured`/`spotlight`.
+//
+// Este archivo afirma: el modelo (REGISTRY/DEFAULTS, los tres campos de SIEMPRE Y los seis nuevos);
+// el gate de visibilidad (nace OFF); el cableado del preset (CORTE la apaga, PATIO no la toca, sin
+// cambios — § CORTE-USA-HERO-STICKY-1 no se tocó en esta ronda); la resolución de la lista de
+// productos (`productosBandaMarquesina`); y el render — SIN catálogo real (SSR, mismo límite que
+// `hero-marquesina.test.ts`) la frase SIEMPRE rinde (hide-on-empty es de la LISTA, no de la
+// sección) y la tarjeta/el escenario de productos NO, porque no hay nada que mostrar todavía.
 
 function renderMarquesina(content: SiteContentData, opts: { preview?: boolean } = {}): string {
   const arbol = React.createElement(SiteContentProvider, { value: content, children: React.createElement(Marquesina) });
@@ -51,10 +55,22 @@ test('DEFAULTS.marquesina nace OFF (visible:false) — la banda no se enciende s
   assert.equal(DEFAULTS.marquesina.visible, false);
 });
 
-test('DEFAULTS.marquesina: `texto`/`imagen` tienen valor (REQUERIDOS); `productoSlug` nace VACÍO (sin pin)', () => {
+test('DEFAULTS.marquesina: `texto`/`imagen`/`fraseBanda` tienen valor (REQUERIDOS); `productoSlug` y los seis `producto1..6` nacen VACÍOS', () => {
   assert.notEqual(DEFAULTS.marquesina.texto.trim(), '');
   assert.notEqual(DEFAULTS.marquesina.imagen.trim(), '');
+  assert.notEqual(DEFAULTS.marquesina.fraseBanda.trim(), '');
   assert.equal(DEFAULTS.marquesina.productoSlug, '');
+  for (let i = 1; i <= 6; i++) {
+    assert.equal((DEFAULTS.marquesina as unknown as Record<string, string>)[`producto${i}`], '');
+  }
+});
+
+test('DEFAULTS.marquesina.fraseBanda es DISTINTA de `texto` — la banda suelta y el hero no comparten frase', () => {
+  assert.notEqual(DEFAULTS.marquesina.fraseBanda, DEFAULTS.marquesina.texto);
+});
+
+test('DEFAULTS.marquesina.imagenTipo es "imagen" — la canónica, byte-idéntica sin fila', () => {
+  assert.equal(DEFAULTS.marquesina.imagenTipo, 'imagen');
 });
 
 test('REGISTRY.marquesina: ocultable, sin variantes, sin repeater, con el campo-imagen declarado para el borrado de blobs', () => {
@@ -64,11 +80,17 @@ test('REGISTRY.marquesina: ocultable, sin variantes, sin repeater, con el campo-
   assert.deepEqual(REGISTRY.marquesina.imagenes, ['imagen']);
 });
 
-test('REGISTRY.marquesina: `texto`/`imagen` son requeridos; `productoSlug` es opcional', () => {
+test('REGISTRY.marquesina: `texto`/`imagen`/`fraseBanda` son requeridos; `productoSlug` y `producto1..6` son opcionales', () => {
   const c = REGISTRY.marquesina.campos;
   assert.equal(c.texto, 'requerido');
   assert.equal(c.imagen, 'requerido');
+  assert.equal(c.fraseBanda, 'requerido');
   assert.equal(c.productoSlug, 'opcional');
+  for (let i = 1; i <= 6; i++) assert.equal(c[`producto${i}`], 'opcional');
+});
+
+test('REGISTRY.marquesina.escalares.imagenTipo: set cerrado ["imagen","video"], canónica "imagen"', () => {
+  assert.deepEqual(REGISTRY.marquesina.escalares, { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } });
 });
 
 test('sin fila (Nayoli), marquesina resuelve OFF — DEFAULTS y el gate coinciden', () => {
@@ -83,6 +105,56 @@ test('con visible explícito en true, la sección deja de ocultarse — la garan
   assert.equal(seccionEsVisible(REGISTRY.marquesina, resuelto.marquesina), true);
 });
 
+test('resolverSiteContent: `imagenTipo` guardado "video" se respeta; basura cae a la canónica "imagen"', () => {
+  assert.equal(resolverSiteContent({ marquesina: { imagenTipo: 'video' } }).marquesina.imagenTipo, 'video');
+  assert.equal(resolverSiteContent({ marquesina: { imagenTipo: 'basura' } }).marquesina.imagenTipo, 'imagen');
+});
+
+test('resolverSiteContent: los seis `producto1..6` guardados se respetan, en orden, sin tocarse entre sí', () => {
+  const resuelto = resolverSiteContent({ marquesina: { producto1: 'a', producto3: 'c', producto6: 'f' } });
+  assert.equal(resuelto.marquesina.producto1, 'a');
+  assert.equal(resuelto.marquesina.producto2, '');
+  assert.equal(resuelto.marquesina.producto3, 'c');
+  assert.equal(resuelto.marquesina.producto6, 'f');
+});
+
+// ─── LA LISTA DE PRODUCTOS — `productosBandaMarquesina` ──────────────────────────────────────────
+
+const CATALOGO = [
+  { slug: 'uno' }, { slug: 'dos' }, { slug: 'tres' }, { slug: 'cuatro' },
+  { slug: 'cinco' }, { slug: 'seis' }, { slug: 'siete' },
+] as const;
+
+test('productosBandaMarquesina: los seis slots vacíos (o un catálogo vacío) caen al CATÁLOGO, en SU orden, hasta el tope — es una VITRINA, no un pin', () => {
+  const r = productosBandaMarquesina(CATALOGO, ['', '', '', '', '', '']);
+  assert.deepEqual(r.map((p) => p.slug), ['uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis']);
+  assert.equal(r.length, MAX_PRODUCTOS_BANDA_MARQUESINA);
+});
+
+test('productosBandaMarquesina: con slugs elegidos, resuelve EN SU ORDEN — nunca el orden del catálogo', () => {
+  const r = productosBandaMarquesina(CATALOGO, ['tres', 'uno', '', '', '', '']);
+  assert.deepEqual(r.map((p) => p.slug), ['tres', 'uno']);
+});
+
+test('productosBandaMarquesina: un slug que NO matchea ningún producto se FILTRA — nunca cae a un producto arbitrario', () => {
+  const r = productosBandaMarquesina(CATALOGO, ['no-existe', 'dos', '', '', '', '']);
+  assert.deepEqual(r.map((p) => p.slug), ['dos']);
+});
+
+test('productosBandaMarquesina: TODOS los slugs rotos o vacíos → cae al catálogo igual que la lista vacía', () => {
+  const r = productosBandaMarquesina(CATALOGO, ['no-existe', 'tampoco', '', '', '', '']);
+  assert.deepEqual(r.map((p) => p.slug), ['uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis']);
+});
+
+test('productosBandaMarquesina: catálogo vacío → lista vacía (hide-on-empty del escenario, no hay nada que mostrar)', () => {
+  assert.deepEqual(productosBandaMarquesina([], ['uno', 'dos', '', '', '', '']), []);
+});
+
+test('productosBandaMarquesina: la elegida se recorta al tope aunque se pasen más de seis slugs', () => {
+  const r = productosBandaMarquesina(CATALOGO, ['uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete']);
+  assert.equal(r.length, MAX_PRODUCTOS_BANDA_MARQUESINA);
+});
+
 // ─── EL RENDER — LA INVARIANTE: Nayoli queda BYTE-IDÉNTICA ─────────────────────────────────────
 
 test('LA INVARIANTE: Nayoli (resolverSiteContent({}), sin fila) rinde la banda VACÍA — ni un nodo', () => {
@@ -90,72 +162,53 @@ test('LA INVARIANTE: Nayoli (resolverSiteContent({}), sin fila) rinde la banda V
   assert.equal(html, '');
 });
 
-test('con `marquesina.visible:true` y los DEFAULTS (sin pin): rinde el texto del loop, pero SIN la tarjeta — hide-on-empty de la tarjeta, no de la sección', () => {
+test('con `marquesina.visible:true` y los DEFAULTS (sin productos configurados, SIN catálogo real en SSR): la FRASE rinde igual — hide-on-empty es de la LISTA, no de la sección', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
   assert.ok(html !== '');
-  assert.ok(html.includes(DEFAULTS.marquesina.texto), 'el texto del loop debe rendir aunque no haya pin');
-  assert.ok(!/aspect-\[3\/4\]/.test(html), 'sin pin (catálogo vacío en SSR), la tarjeta flotante no debe rendir');
+  assert.ok(html.includes(DEFAULTS.marquesina.fraseBanda), 'la frase propia de la banda debe rendir');
+  assert.ok(!html.includes(DEFAULTS.marquesina.texto), 'el texto del HERO no debe aparecer en la banda suelta — son campos distintos');
+  assert.ok(!html.includes('sf-radio-tile'), 'sin catálogo real en SSR, ninguna tarjeta de producto debe rendir todavía');
 });
 
-test('el texto del loop rinde DOS VECES dentro del track (el efecto de cinta continua, § `.marquee-track` del prototipo) — MÁS la 3ª aparición del `aria-label` de la sección', () => {
+test('la frase rinde DOS VECES dentro del track (la cinta continua) MÁS la 3ª aparición del `aria-label` de la sección', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
-  // 3 = las 2 del loop (`<span class="pr-[0.5em]">…`) + 1 del `aria-label` de la <section> (el
-  // nombre accesible, para que el lector de pantalla anuncie la frase una vez — el loop visual es
-  // `aria-hidden`). Un total de 2 significaría que el `aria-label` se perdió; de 1, que el loop dejó
-  // de duplicarse.
-  const apariciones = html.split(DEFAULTS.marquesina.texto).length - 1;
+  const apariciones = html.split(DEFAULTS.marquesina.fraseBanda).length - 1;
   assert.equal(apariciones, 3);
-  const enSpans = (html.match(/<span class="pr-\[0\.5em\]">/g) || []).length;
-  assert.equal(enSpans, 2, 'el loop debe repetir el texto en exactamente DOS <span>');
 });
 
-// § MARQUEE-SIN-RAYA-1 — la raya (—) que separaba cada repetición se retira (decisión del owner,
-// apartándose de `docs/prototipos/cafeone/index.html:149`).
-// § MARQUEE-ESPACIO-MENOR-1 — gate visual del owner tras esa entrega: el hueco resultante (espacio
-// de texto + spacer de 1em + `&nbsp;` + el `pr-8` fijo) se leía como un hueco. Colapsa a UN solo
-// mecanismo, `pr-[0.5em]` — sin espacio de texto, sin spacer, sin `&nbsp;` — así la separación total
-// es de media letra, no la suma de cuatro.
-test('el loop NO rinde la raya (—), y la separación es UN solo mecanismo (`pr-[0.5em]`), no la suma de espacio+spacer+nbsp+padding', () => {
+test('visible:true SIN scroll real (SSR, progreso=0): la sección pineada rinde `sticky`, no el layout estático', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
-  assert.ok(!html.includes('—'), 'ningún guion largo debe sobrevivir en el texto del loop');
-  assert.ok(!html.includes(' '), 'el `&nbsp;` del mecanismo viejo no debe sobrevivir');
-  assert.ok(!html.includes('inline-block w-[1em]'), 'el spacer de 1em del mecanismo viejo no debe sobrevivir');
-  const enPad = (html.match(/<span class="pr-\[0\.5em\]">/g) || []).length;
-  assert.equal(enPad, 2, 'las DOS repeticiones deben llevar el padding de 0.5em');
+  assert.ok(html.includes('sticky'), 'fuera de preview/reduced-motion, el motor sticky debe montarse');
 });
 
-// ─── EL SCROLL — el gate ESTÁTICO (§ lib/animation.test.ts para la matemática pura) ──────────────
-//
-// LO QUE SE PUEDE AFIRMAR SIN NAVEGADOR (mismo límite que `historia-direccion-arte.test.ts`): el
-// PROXY de movimiento reducido es la VISTA PREVIA (`PreviewProvider`) — las dos razones colapsan al
-// MISMO `estatico` en `Marquesina.tsx`, así que ejercer una prueba la otra. `prefers-reduced-motion`
-// en tiempo real depende de `matchMedia`, que no existe en este carril.
-
-test('EN PREVIEW (proxy de movimiento reducido): el texto queda CENTRADO y QUIETO — sin desplazamiento horizontal', () => {
+test('EN PREVIEW (proxy de movimiento reducido): layout ESTÁTICO, sin `sticky` — todos los productos visibles a la vez, sin animación', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content, { preview: true });
-  assert.ok(html.includes('transform:translateY(-50%)'), 'el texto debe rendir su transform QUIETO bajo el gate estático');
-  assert.ok(!/translate\(-?\d/.test(html), 'ningún transform de desplazamiento horizontal debe sobrevivir bajo el gate estático');
+  assert.ok(!html.includes('sticky'), 'en preview no hay scroll que revelar, así que no hay sticky');
+  assert.ok(html.includes(DEFAULTS.marquesina.fraseBanda));
 });
 
-test('SIN el gate estático (SSR, sin scroll real: progreso arranca en 0) — el texto arranca SIN desplazamiento (progreso=0 → -0*travel=0)', () => {
+test('imagenTipo "imagen" (default): el fondo es una <Image> (next/image, srcset) — nunca un <video>', () => {
   const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true } } as SiteContentData;
   const html = renderMarquesina(content);
-  assert.ok(html.includes('transform:translate(0.0px, -50%)'), 'a progreso=0, sin el gate estático, el texto no debe desplazarse todavía');
-  assert.ok(!html.includes('transform:translateY(-50%)'), 'sin el gate estático, el texto NO debe rendir la forma "quieta"');
+  assert.ok(!html.includes('<video'));
+});
+
+test('imagenTipo "video": el fondo es un <video muted loop playsInline>, con la MISMA imagen como src', () => {
+  const content = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, visible: true, imagenTipo: 'video' as const } } as SiteContentData;
+  const html = renderMarquesina(content);
+  assert.ok(html.includes('<video'));
+  assert.ok(html.includes(`src="${DEFAULTS.marquesina.imagen}"`));
 });
 
 // ─── CORTE la APAGA (§ CORTE-USA-HERO-STICKY-1); los demás presets no tocan `content.marquesina` ─
 //
-// HASTA ESTE SLICE, CORTE la ENCENDÍA (`bandasVisibles.marquesina:true`): el hero usaba la variante
-// 'media' y la marquesina era una banda suelta, DEBAJO de él. § CORTE-USA-HERO-STICKY-1 pasó
-// `variantes.hero` a 'sticky' (`HeroMediaMarquesina`, que lee `marquesina.texto`/`.productoSlug`
-// DIRECTO — el dato no se movió — y los rinde DENTRO del hero, pineado). Con el contenido ya
-// rindiendo dentro del hero, dejar la banda suelta encendida duplicaría el mismo marquee dos veces
-// (una vez arriba, en el hero; otra vez abajo, en su propia banda) — así que CORTE ahora la APAGA.
+// SIN CAMBIOS en esta ronda: CORTE sigue apagando la banda suelta porque el hero·sticky ya muestra
+// su propio texto/pin (`marquesina.texto`/`.productoSlug`, intactos) — este slice no tocó `themes.ts`
+// ni esa decisión.
 
 test('CORTE declara bandasVisibles.marquesina:false (§ CORTE-USA-HERO-STICKY-1, era true) y NO le asigna esquema propio — sigue validando COMPLETO', () => {
   assert.equal(CORTE.bandasVisibles?.marquesina, false);
@@ -171,11 +224,12 @@ test('mergePresetEnContent(_, CORTE): APAGA marquesina.visible — su contenido 
 });
 
 test('mergePresetEnContent(_, CORTE): preserva cualquier copy/pin que el dueño ya hubiera puesto, sólo apaga `visible`', () => {
-  const antes = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, texto: 'Mi propio texto', productoSlug: 'mi-slug' } };
+  const antes = { ...DEFAULTS, marquesina: { ...DEFAULTS.marquesina, texto: 'Mi propio texto', fraseBanda: 'Mi propia frase', productoSlug: 'mi-slug' } };
   const despues = mergePresetEnContent(antes as unknown as Record<string, unknown>, CORTE);
   const marquesina = despues.marquesina as Record<string, unknown>;
   assert.equal(marquesina.visible, false);
   assert.equal(marquesina.texto, 'Mi propio texto');
+  assert.equal(marquesina.fraseBanda, 'Mi propia frase');
   assert.equal(marquesina.productoSlug, 'mi-slug');
 });
 
@@ -194,9 +248,8 @@ test('sin ?tema= (mirador con clave undefined): Nayoli no cambia — marquesina 
   assert.equal(renderMarquesina(sinTema), '');
 });
 
-// § CORTE-USA-HERO-STICKY-1 REESCRIBE este caso: bajo el hero·sticky, la banda suelta queda
-// apagada — su texto/pin ya no rinden AQUÍ, sino dentro del hero (§ `hero-marquesina.test.ts`, que
-// afirma en detalle que `HeroMediaMarquesina` lee `marquesina.texto`/`.productoSlug` y los rinde).
+// § CORTE-USA-HERO-STICKY-1: bajo el hero·sticky, la banda suelta queda apagada — su texto/pin ya no
+// rinden AQUÍ, sino dentro del hero (§ `hero-marquesina.test.ts`).
 test('?tema=CORTE sobre Nayoli: la banda suelta queda APAGADA — no renderiza nada (su contenido ya vive dentro del hero·sticky)', () => {
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
@@ -215,6 +268,7 @@ test('?tema=CORTE NO toca ningún texto/dato de la sección — sólo `visible` 
   const nayoli = resolverSiteContent({});
   const conCorte = contenidoConPresetDeVista(nayoli, 'CORTE');
   assert.equal(conCorte.marquesina.texto, nayoli.marquesina.texto);
+  assert.equal(conCorte.marquesina.fraseBanda, nayoli.marquesina.fraseBanda);
   assert.equal(conCorte.marquesina.imagen, nayoli.marquesina.imagen);
   assert.equal(conCorte.marquesina.productoSlug, nayoli.marquesina.productoSlug);
 });

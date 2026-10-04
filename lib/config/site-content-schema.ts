@@ -89,16 +89,27 @@ const heroEditableSchema = z.object({
   { message: 'Un video para teléfono necesita su propio póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenMovilPoster'] },
 );
 
-// MARQUESINA (§ MARQUESINA-BANDA-1): texto del loop + foto de fondo + el pin del producto de la
-// tarjeta flotante (`productoSlug`, MISMO patrón que `spotlightEditableSchema.productoSlug` —
-// `z.string()` sin `z.enum`, valida contra el catálogo VIVO en tiempo de LECTURA, no al guardar).
-// Todo opcional/SOFT: el resolver aplica el default a `texto`/`imagen` (requeridos) y omite
-// `productoSlug` vacío (opcional).
+// MARQUESINA (§ MARQUESINA-BANDA-1, ampliada por § EDITOR-TIENDA-MARQUESINA-SECCION-1): texto del
+// loop + foto de fondo + el pin del producto de la tarjeta flotante (`productoSlug`, MISMO patrón
+// que `spotlightEditableSchema.productoSlug` — `z.string()` sin `z.enum`, valida contra el catálogo
+// VIVO en tiempo de LECTURA, no al guardar) — los TRES de siempre, sin cambios. `fraseBanda`/
+// `imagenTipo`/`producto1..6` son los SEIS nuevos de la sección suelta (§ `MarquesinaContent`,
+// site-content-defaults.ts) — `producto1..6` son `z.string()`, mismo criterio que `productoSlug`.
+// Todo opcional/SOFT: el resolver aplica el default a los campos REQUERIDOS (`texto`/`imagen`/
+// `fraseBanda`) y omite los opcionales vacíos.
 const marquesinaEditableSchema = z.object({
   visible: z.boolean().optional(),
   texto: z.string().optional(),
   imagen: z.string().optional(),
   productoSlug: z.string().optional(),
+  fraseBanda: z.string().optional(),
+  imagenTipo: z.string().optional(),
+  producto1: z.string().optional(),
+  producto2: z.string().optional(),
+  producto3: z.string().optional(),
+  producto4: z.string().optional(),
+  producto5: z.string().optional(),
+  producto6: z.string().optional(),
 });
 
 // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de

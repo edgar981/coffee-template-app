@@ -341,20 +341,28 @@ const HERO: SeccionConfig = {
   ],
 };
 
-// La banda MARQUESINA (§ MARQUESINA-BANDA-1, § el docstring de `MarquesinaContent` en
-// site-content-defaults.ts): foto de fondo velada + un texto en loop + el pin opcional de la tarjeta
-// flotante — como SECCIÓN independiente, que el dueño puede mostrar SUELTA más abajo en la home
-// (`visible:true`, nace OFF).
+// El select del fondo de la banda MARQUESINA (§ EDITOR-TIENDA-MARQUESINA-SECCION-1) — MISMO patrón
+// que `OPCIONES_VELO_INTENSIDAD`/`OPCIONES_TICKER_VELOCIDAD` arriba: las claves salen del set cerrado
+// del resolver (`REGISTRY.marquesina.escalares.imagenTipo`, site-content-defaults.ts), este archivo
+// sólo agrega la etiqueta legible.
+const OPCIONES_IMAGEN_TIPO_MARQUESINA: { value: string; label: string }[] = [
+  { value: 'imagen', label: 'Foto' },
+  { value: 'video', label: 'Video' },
+];
+
+// La banda MARQUESINA (§ MARQUESINA-BANDA-1, ampliada por § EDITOR-TIENDA-MARQUESINA-SECCION-1 — ver
+// el docstring de `MarquesinaContent` en site-content-defaults.ts para el porqué de cada campo
+// nuevo): fondo (foto o video) velado + un texto propio en loop + hasta seis productos que van
+// saliendo uno tras otro a medida que se hace scroll — SECCIÓN REUTILIZABLE que el dueño puede
+// mostrar SUELTA en cualquier punto de la home (`visible:true`, nace OFF).
 //
-// `texto`/`productoSlug` SE FUERON de `campos` (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, cierra el
-// error 5 de docs/editor-tienda/REDISENO.md). Siguen siendo `content.marquesina.texto`/
-// `.productoSlug` — SIN MIGRACIÓN, el schema y el resolver no se tocaron — pero se EDITAN desde
-// «Hero de la home» (`HERO.campos`, arriba, vía `seccionCruzada`) porque la composición "sticky" del
-// hero YA los dibuja; editarlos desde acá Y desde ahí sería el mismo dato con dos controles
-// divergentes. La tarjeta de esta sección se queda con el único control que le pertenece de verdad:
-// el interruptor de si la banda SUELTA se muestra, más `notaVisibilidad` explicando el porqué —
-// antes decía apenas "No se muestra en la tienda" mientras el hero sticky mostraba esos mismos datos,
-// la contradicción que el owner reportó.
+// `texto`/`productoSlug` SIGUEN sin estar acá (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, cierra el error
+// 5 de docs/editor-tienda/REDISENO.md): son EXCLUSIVAMENTE del hero·sticky, y se editan desde «Hero
+// de la home» → grupo «Marquesina» (`HERO.campos`, arriba, vía `seccionCruzada`) porque esa
+// composición ya los dibuja. Editarlos TAMBIÉN acá sería el mismo dato con dos controles
+// divergentes. Lo que SÍ vive acá, de nuevo, es el contenido PROPIO de esta banda — su propia frase,
+// sus propios productos, su propio fondo — y por eso `notaVisibilidad` deja de decir sólo "esta
+// banda se enciende suelta": ahora hay algo que configurar además del interruptor.
 //
 // EL VELO (`--sf-velo`) NO se toca — fuera de alcance por decisión del owner. Ya es un rol DERIVADO
 // de `--sf-tinta`, compartido con el pie del velo de HeroMedia (`globals.css`, `color-mix(in oklab,
@@ -362,26 +370,42 @@ const HERO: SeccionConfig = {
 // acá: el fondo/velo sigue el mismo mecanismo de siempre, sin campo editable propio.
 //
 // `ocultable: true` — la banda nace OFF (`DEFAULTS.marquesina.visible: false`); el dueño la enciende
-// si además quiere esta banda SUELTA (la imagen de fondo sigue siendo SUYA, § `imagenes` abajo — el
-// hero no la lee). SIN `bloques`: la única imagen alcanza para el bloque `seccion` derivado por
-// defecto, mismo criterio que SPOTLIGHT (sin bloques propios, sección chica).
+// si además quiere esta banda SUELTA. SIN `bloques`: los campos planos alcanzan para el bloque
+// `seccion` derivado por defecto, mismo criterio que ORIGEN (slots fijos, sin bloques propios).
 //
-// `productoSlug`/`texto` (hoy editados desde HERO, arriba) resuelven igual que siempre: `productoSlug`
-// es el PIN de la tarjeta flotante, MISMO mecanismo que `spotlight.productoSlug` (puntero al catálogo,
-// texto libre, validado en LECTURA contra el catálogo vivo — nunca contra un set fijo al guardar, §
-// el docstring de `MarquesinaContent`/`SpotlightContent`), OPCIONAL: sin pin la tarjeta simplemente no
-// se muestra (hide-on-empty de UN elemento, no de la sección entera). SIN el fallback de `spotlight`
+// `productoSlug`/`texto` (editados desde HERO, arriba) resuelven igual que siempre, sin cambios de
+// esta ronda: `productoSlug` es el PIN de la tarjeta flotante del hero·sticky, MISMO mecanismo que
+// `spotlight.productoSlug` (puntero al catálogo, validado en LECTURA, nunca contra un set fijo al
+// guardar) — OPCIONAL, sin pin la tarjeta simplemente no se muestra. SIN el fallback de `spotlight`
 // (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1): `marquesina.productoSlug` resuelve con `productoMarquesina`,
 // que NUNCA cae al primer producto del catálogo si el slug no matchea.
+//
+// `fraseBanda` es la frase PROPIA de esta banda (distinta de `texto`, que es del hero). `producto1..
+// producto6` son los SEIS slots de la lista — flat, no repeater (§ el docstring de
+// `MarquesinaContent`), cada uno con el MISMO picker de catálogo (`producto: true`) que ya usa
+// `productoSlug`. Los seis son opcionales: el hint de cada uno dice qué pasa si queda vacío, y el
+// de `producto1` explica el fallback al catálogo que cubre a los seis.
 const MARQUESINA: SeccionConfig = {
   seccion: 'marquesina',
   pagina: 'home',
   titulo: 'Marquesina',
   ocultable: true,
   bandaId: 'marquesina',
-  notaVisibilidad: 'El texto y el producto destacado de esta banda se editan ahora desde «Hero de la home» → grupo «Marquesina» — porque cuando el hero usa esa composición ya los muestra ahí. Este interruptor sólo decide si, además, esta banda aparece SUELTA más abajo en la página.',
-  imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
-  campos: [],
+  notaVisibilidad: 'El texto y el producto destacado del HERO (cuando usa la composición "sticky") se editan desde «Hero de la home» → grupo «Marquesina». Esta tarjeta es la banda SUELTA: su propia frase, su propio fondo y su propia lista de productos, que puedes mostrar en cualquier punto de la página con el interruptor de abajo.',
+  imagenes: [{ name: 'imagen', label: 'Imagen o video de fondo' }],
+  campos: [
+    { name: 'imagenTipo', label: 'Tipo de fondo', opciones: OPCIONES_IMAGEN_TIPO_MARQUESINA,
+      hint: 'Si la imagen de fondo de arriba es una foto o un video.' },
+    { name: 'fraseBanda', label: 'Frase de la marquesina', textarea: true,
+      hint: 'La frase que se repite desplazándose por la banda. Vacío: se usa el texto por defecto.' },
+    { name: 'producto1', label: 'Producto 1', opcional: true, producto: true,
+      hint: 'El primer producto que aparece al hacer scroll por la banda. Si dejas los seis productos vacíos, se muestran los del catálogo en su propio orden, hasta 6.' },
+    { name: 'producto2', label: 'Producto 2', opcional: true, producto: true, hint: 'Vacío: se omite este lugar de la lista.' },
+    { name: 'producto3', label: 'Producto 3', opcional: true, producto: true, hint: 'Vacío: se omite este lugar de la lista.' },
+    { name: 'producto4', label: 'Producto 4', opcional: true, producto: true, hint: 'Vacío: se omite este lugar de la lista.' },
+    { name: 'producto5', label: 'Producto 5', opcional: true, producto: true, hint: 'Vacío: se omite este lugar de la lista.' },
+    { name: 'producto6', label: 'Producto 6', opcional: true, producto: true, hint: 'Vacío: se omite este lugar de la lista.' },
+  ],
 };
 
 // La banda de INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, § el docstring de

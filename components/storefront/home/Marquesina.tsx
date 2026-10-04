@@ -4,50 +4,59 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion, useTransform } from "framer-motion";
 
-import { useProgresoScroll, transformMarquesinaTexto, transformMarquesinaTarjeta } from "@/lib/animation";
+import {
+  useProgresoScrollDesdeTope, veloOpacidad, claseAlturaAncestroBandaMarquesina,
+  ventanasBandaMarquesina, UMBRAL_REVELADO_TEXTO,
+} from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import CampoEditable, { CampoEditableGemelo } from "@/components/storefront/CampoEditable";
-import { REGISTRY, seccionEsVisible, productoMarquesina } from "@/lib/config/site-content-defaults";
+import CampoEditable from "@/components/storefront/CampoEditable";
+import { REGISTRY, seccionEsVisible, productosBandaMarquesina } from "@/lib/config/site-content-defaults";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
-import { imagenPortada } from "@/lib/producto-imagen";
+import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/storefront/home/MarquesinaMotor";
 
-// LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
-// de fondo velada con overlay oscuro, un LOOP de texto a gran escala que se desplaza con el scroll
-// de la sección, y una tarjeta de producto flotante que escala/rota con el mismo progreso. Ver el
-// docstring de `MarquesinaContent` (site-content-defaults.ts) para el porqué mecánico de que NAZCA
-// APAGADA y de su posición 2ª (justo tras el hero). El gate de visibilidad vive ACÁ (como
-// brandStory/origen/spotlight), no en `page.tsx`.
+// LA BANDA MARQUESINA, REHECHA — § EDITOR-TIENDA-MARQUESINA-SECCION-1. El pedido del owner, literal:
+// «lo de la marquesina, no la eliminemos, pero sí arreglémosla, porque la [marquesina] del hero es
+// la que se ve perfecta, entonces crear una sección marquesina que se pueda usar en el hero, o en
+// otra parte de la página para mostrar los productos… a medida que se va haciendo scroll van
+// saliendo los productos con un efecto/transición».
 //
-// EL PIN — `productoSlug` resuelto con `productoMarquesina` (site-content-defaults.ts, § HERO-SIN-
-// TARJETA-Y-PDP-IMAGEN-1): puntero al `Product` vivo, nunca copia de su nombre/precio/imagen
-// (§ SpotlightContent, "la decisión es PUNTERO no copia"). Sin pin, con el catálogo vacío, O con un
-// slug que no matchea NINGÚN producto, la tarjeta flotante simplemente NO se muestra —
-// hide-on-empty de UN elemento, no de toda la sección: el texto del loop no depende del producto.
-// A DIFERENCIA de `Spotlight.tsx` (que usa `productoSpotlight`, con fallback al primer producto del
-// catálogo), acá NUNCA hay fallback: un pin roto o vacío no debe mostrar un producto arbitrario.
+// ANTES de este slice, esta banda era la forma "Cafeone" (foto velada + texto que se desplaza por
+// SCROLL + UNA tarjeta que escala/rota) — la forma que el owner reportó mala TRES veces para el
+// hero antes de que naciera `HeroMediaMarquesina.tsx` (§ su docstring de cabecera). Esta banda
+// quedaba apagada por default y nunca se tocó mientras el hero resolvía su propio problema — hasta
+// ahora: usa el MISMO motor (`MarquesinaMotor.tsx`, extraído del hero), generalizado de UN producto a
+// HASTA SEIS que se van REEMPLAZANDO uno al otro a medida que se hace scroll por la sección (§ "LA
+// SECCIÓN SUELTA" en `lib/animation.ts`, la derivación de las ventanas de progreso).
 //
-// EL SCROLL — reusa `useScroll`/`useTransform` de `lib/animation.ts` (§ TEMAS-BRANDSTORY-DIRECCION-
-// ARTE-1, el motor que ese slice construyó, no un listener propio): `useProgresoScroll` da el
-// progreso CRUDO 0..1 de la sección (mismo offset que mide `FSA.scrub`,
-// `docs/prototipos/cafeone/js/app.js:190-197`), y `transformMarquesinaTexto`/
-// `transformMarquesinaTarjeta` (puras, `lib/animation.ts`) reproducen el desplazamiento del texto y
-// la escala/rotación de la tarjeta de `js/home.js:259-282`.
+// SIGUE NACIENDO APAGADA (`DEFAULTS.marquesina.visible: false`) — es capacidad OPCIONAL, no un
+// reemplazo de ninguna otra sección; el hero·sticky de CORTE no cambia (sigue leyendo `marquesina.
+// texto`/`.productoSlug`, § HeroMediaMarquesina.tsx, sin tocar en este slice).
 //
-// MOVIMIENTO REDUCIDO, NO NEGOCIABLE: con `prefers-reduced-motion` (o en la vista previa del editor,
-// que tampoco puede scrollear de verdad — mismo criterio que `BrandStoryCentrada`/`Origen`) el texto
-// queda QUIETO —centrado, legible, sin desplazarse— y la tarjeta sin transformar (su estado
-// acomodado: escala 1, sin rotar). `useReducedMotion()` es el detector: un valor de scroll ligado
-// directo vía `useScroll`+`useTransform` no pasa por `ReducedMotionProvider` (`MotionConfig` sólo
-// congela animaciones DECLARATIVAS disparadas por `.start()`), así que el guard acá SÍ hace falta —
-// mismo razonamiento que el comentario de `BrandStoryCentrada.tsx`.
+// LOS DATOS SON PROPIOS, NO LOS DEL HERO (§ MarquesinaContent, site-content-defaults.ts): `texto`/
+// `productoSlug`/`imagen` siguen siendo del hero (`imagen` ya era, desde antes de este slice, el
+// fondo de ESTA banda — nunca del hero; no se mueve, sigue siendo el mismo rol). `fraseBanda`/
+// `producto1..6`/`imagenTipo` son NUEVOS, propios de esta banda.
 //
-// EL TRAVEL (cuánto se desplaza el texto) se mide del viewport REAL tras montar
-// (`window.innerWidth * 1.6`, § `js/home.js:270`) — en un `useEffect`, nunca en el primer render
-// (SSR no tiene `window`). Antes de esa medición se usa un fallback razonable; con `estatico` el
-// travel no se usa (el texto no se desplaza), así que el fallback nunca llega a verse.
-const TRAVEL_FALLBACK_PX = 1600;
+// EL FONDO ES FOTO O VIDEO (`imagenTipo`), CON EL VELO DEL HERO — el MISMO token (`--sf-velo`) y la
+// MISMA función (`veloOpacidad`, sin rango propio: usa el default 'media', como el velo de esta
+// banda ya usaba antes de este slice) para que la densidad del velo responda al scroll igual que en
+// el hero·sticky, en vez del overlay FIJO que tenía antes.
+//
+// LISTA VACÍA → EL CATÁLOGO, NO UN HUECO (`productosBandaMarquesina`, site-content-defaults.ts): es
+// una VITRINA, no un pin — con la banda encendida y ningún producto elegido todavía, mostrar los
+// cafés que YA existen es más honesto que una banda sin nada que mostrar. Sin NINGÚN producto
+// (catálogo también vacío) la sección entera se oculta — no hay "efecto de scroll" que mostrar sobre
+// cero productos.
+//
+// MOVIMIENTO REDUCIDO (preview del editor, o `prefers-reduced-motion`): NO hay sticky ni scroll que
+// revelar — la sección cae a un layout NORMAL (sin pin, sin presupuesto de scroll extra): la frase
+// queda quieta y los productos se muestran TODOS a la vez, sin animación, en una fila que envuelve —
+// "como hoy hace la banda" (el pedido explícito del spec). `MarquesinaFraseMotor`/
+// `MarquesinaTarjetaMotor` ya saben rendir su estado final bajo `estatico`; lo que cambia es el
+// ANDAMIAJE alrededor (sin wrapper de altura extra, sin `position:sticky`, cards en flujo normal en
+// vez de apiladas una sobre otra).
 
 export default function Marquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { marquesina } = useSiteContent();
@@ -59,83 +68,140 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
   useEffect(() => {
     getCatalog().then(setCatalog).catch(() => setCatalog([]));
   }, []);
-  const producto = productoMarquesina(catalog, marquesina.productoSlug);
+  const productos = productosBandaMarquesina(catalog, [
+    marquesina.producto1, marquesina.producto2, marquesina.producto3,
+    marquesina.producto4, marquesina.producto5, marquesina.producto6,
+  ]);
 
-  const [travelPx, setTravelPx] = useState(TRAVEL_FALLBACK_PX);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const progreso = useProgresoScrollDesdeTope(wrapperRef);
+  const opacidadVelo = useTransform(progreso, (p) => veloOpacidad(p, estatico));
+  const ventanas = ventanasBandaMarquesina(productos.length);
+
+  const esVideo = marquesina.imagenTipo === 'video';
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const reproducir = esVideo && !preview && !reduce;
   useEffect(() => {
-    setTravelPx(window.innerWidth * 1.6);
-  }, []);
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    if (reproducir) v.play().catch(() => {});
+    else v.pause();
+  }, [reproducir]);
 
-  const sectionRef = useRef<HTMLElement>(null);
-  const progreso = useProgresoScroll(sectionRef);
-  const transformTexto = useTransform(progreso, (p) => transformMarquesinaTexto(p, travelPx, estatico));
-  const transformTarjeta = useTransform(progreso, (p) => transformMarquesinaTarjeta(p, estatico));
-
+  // HIDE-ON-EMPTY ES DE LA LISTA, NO DE LA SECCIÓN ENTERA — igual que el pin de la tarjeta del hero
+  // (§ HeroMediaMarquesina.tsx: el texto del loop nunca depende del producto). `productos` puede
+  // quedar vacío en SSR (el catálogo se fetchea client-side, § `catalog` arriba) aunque el dueño SÍ
+  // haya elegido productos o el catálogo SÍ tenga — ocultar la banda ENTERA en ese instante sería
+  // un parpadeo (texto+fondo apareciendo recién tras hidratar), no una decisión de contenido. Con
+  // cero productos, el escenario de abajo simplemente no tiene tarjetas que pintar.
   if (!seccionEsVisible(REGISTRY.marquesina, marquesina)) return null;
 
+  const fondo = esVideo ? (
+    <CampoEditable campo="marquesina.imagen" tipo="imagen">
+      <video
+        ref={videoRef}
+        src={marquesina.imagen}
+        muted
+        loop
+        playsInline
+        preload={reproducir ? 'auto' : 'none'}
+        controls={!!reduce && !preview}
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+    </CampoEditable>
+  ) : (
+    <CampoEditable campo="marquesina.imagen" tipo="imagen">
+      <Image src={marquesina.imagen} alt="" fill sizes="100vw" className="object-cover" />
+    </CampoEditable>
+  );
+
+  // ─── MOVIMIENTO REDUCIDO — layout NORMAL, sin sticky, todos los productos visibles a la vez ──────
+  if (estatico) {
+    return (
+      <section
+        aria-label={marquesina.fraseBanda}
+        className="relative flex min-h-[70vh] flex-col items-center justify-center gap-10 overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] px-6 py-24"
+        style={style}
+      >
+        <div className="absolute inset-0">
+          {fondo}
+          <motion.div className="absolute inset-0 bg-[var(--sf-velo)]" style={{ opacity: opacidadVelo }} />
+        </div>
+
+        <div className="relative z-10 flex h-[1.1em] w-full items-center justify-center overflow-hidden">
+          <MarquesinaFraseMotor
+            campo="marquesina.fraseBanda"
+            texto={marquesina.fraseBanda}
+            progreso={progreso}
+            estatico={estatico}
+            tickerVelocidad="media"
+            editando={false}
+            ventana={UMBRAL_REVELADO_TEXTO}
+          />
+        </div>
+
+        <div className="relative z-20 flex flex-wrap items-center justify-center gap-6">
+          {productos.map((producto) => (
+            <MarquesinaTarjetaMotor
+              key={producto.slug}
+              producto={producto}
+              progreso={progreso}
+              estatico={estatico}
+              ventanaEntrada={{ desde: 0, hasta: 1 }}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  // ─── EL MOTOR DEL HERO, GENERALIZADO A N PRODUCTOS — sticky + presupuesto de scroll derivado ──────
   return (
-    <section
-      ref={sectionRef}
-      aria-label={marquesina.texto}
-      className="relative flex min-h-[70vh] items-center justify-center overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))] py-24"
+    <div
+      ref={wrapperRef}
+      data-marquesina-banda=""
+      className={`relative ${claseAlturaAncestroBandaMarquesina(productos.length)} overflow-clip bg-[var(--sf-banda,var(--sf-tinta))]`}
       style={style}
     >
-      <div className="absolute inset-0">
-        <CampoEditable campo="marquesina.imagen" tipo="imagen">
-          <Image src={marquesina.imagen} alt="" fill sizes="100vw" className="object-cover opacity-55" />
-        </CampoEditable>
-        {/* EL VELO lee `--sf-velo` (§ CORTE-MARQUESINA-VELO-1, `app/globals.css`), la MISMA variable
-            que el PIE del velo de HeroMedia.tsx, para que la banda se lea continua con el hero justo
-            arriba — una sola superficie oscura, sin costura. Antes era un literal propio (`/70`,
-            distinto del `/80` del hero) que ya derivaba de `--sf-tinta` pero no coincidía con el
-            hero; ahora los dos VALEN lo mismo porque LEEN lo mismo. */}
-        <div className="absolute inset-0 bg-[var(--sf-velo)]" />
-      </div>
-
-      {/* EL LOOP — decorativo (el texto accesible vive en el `aria-label` de la sección); se repite
-          dos veces, como `.marquee-track` del prototipo, para el efecto de cinta continua. */}
-      <motion.div
-        aria-hidden="true"
-        className="absolute left-0 top-1/2 flex whitespace-nowrap font-playfair text-[clamp(3rem,10vw,10rem)] leading-none text-[var(--sf-sobre-banda,white)]"
-        style={{ transform: transformTexto }}
+      <section
+        aria-label={marquesina.fraseBanda}
+        className="sticky top-0 flex h-[100svh] items-center justify-center bg-[var(--sf-banda,var(--sf-tinta))]"
       >
-        {/* SIN RAYA, ESPACIO CORTO — § MARQUEE-SIN-RAYA-1 (2026-09-29) retiró la raya (—) del
-            prototipo (`docs/prototipos/cafeone/index.html:149`, que SÍ usa "—&nbsp;") y dejó el
-            hueco como espacio + un spacer de 1em (para preservar el ancho del glifo retirado) + el
-            espacio de texto + `&nbsp;`: tres mecanismos sumados que, juntos, se leían como un
-            hueco. § MARQUEE-ESPACIO-MENOR-1 (gate visual del owner tras esa entrega) los colapsa a
-            UN solo mecanismo — `pr-[0.5em]` — así la separación total es de media letra y escala
-            con el tamaño de fuente del propio loop (`text-[clamp(...)]`), en vez de quedar fija en
-            píxeles como el `pr-8` de antes. */}
-        {/* SÓLO el PRIMER <span> lleva el marcador editable (§ EDITOR-TIENDA-CAMPO-EDITABLE-HERO-1,
-            docs/editor-tienda/EDICION-INLINE.md § 2.2, punto 1 "Nodos duplicados" — el MISMO campo
-            vive también en `HeroMediaMarquesina.tsx`, otra composición): el segundo `<span>` es la
-            copia gemela que cierra el loop sin salto, y se actualiza sola desde el MISMO
-            `useSiteContent()` cuando el overlay del primero escribe en el form.
-            `CampoEditableGemelo` (§ EDITOR-TIENDA-CAMPO-ANCLADO-1) deja de renderizarla POR
-            COMPLETO mientras `marquesina.texto` se edita — queda sin congelar el movimiento propio
-            de esta banda (`transformTexto` es scroll-driven, no por tiempo, así que no hay nada que
-            remonte ni corra "detrás" mientras no se scrollea). */}
-        <span className="pr-[0.5em]"><CampoEditable campo="marquesina.texto">{marquesina.texto}</CampoEditable></span>
-        <span className="pr-[0.5em]"><CampoEditableGemelo campo="marquesina.texto">{marquesina.texto}</CampoEditableGemelo></span>
-      </motion.div>
+        <div className="absolute inset-0">
+          {fondo}
+          <motion.div className="absolute inset-0 bg-[var(--sf-velo)] pointer-events-none" style={{ opacity: opacidadVelo }} />
+        </div>
 
-      {producto && (
-        <motion.div
-          className="relative z-10 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center rounded-2xl bg-[var(--sf-tarjeta,white)] p-8"
-          style={{ transform: transformTarjeta }}
-        >
-          <div className="relative h-full w-full">
-            <Image
-              src={imagenPortada(producto.imagen)}
-              alt={producto.nombre}
-              fill
-              sizes="340px"
-              className="object-contain"
+        <MarquesinaFraseMotor
+          campo="marquesina.fraseBanda"
+          texto={marquesina.fraseBanda}
+          progreso={progreso}
+          estatico={estatico}
+          tickerVelocidad="media"
+          editando={false}
+          ventana={ventanas.texto}
+        />
+
+        {/* EL ESCENARIO — todas las tarjetas ocupan el MISMO lugar (`posicion="absoluta"`, § su
+            docstring en MarquesinaMotor.tsx: `inset-0` + márgenes automáticos centra cada tarjeta,
+            del mismo tamaño que el hero, dentro de este contenedor). Sólo UNA está visible en cada
+            punto del scroll — la ventana de cada producto decide cuál. */}
+        <div className="relative z-20 aspect-[3/4] w-[min(340px,62vw)]">
+          {productos.map((producto, i) => (
+            <MarquesinaTarjetaMotor
+              key={producto.slug}
+              producto={producto}
+              progreso={progreso}
+              estatico={estatico}
+              ventanaEntrada={ventanas.items[i].entrada}
+              ventanaSalida={ventanas.items[i].salida}
+              posicion="absoluta"
             />
-          </div>
-        </motion.div>
-      )}
-    </section>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }

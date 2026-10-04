@@ -258,11 +258,53 @@ export type TickerVelocidad = (typeof TICKER_VELOCIDADES)[number];
 // productoSlug` (§ su docstring, arriba en este archivo, para el porqué completo: puntero, nunca
 // copia de nombre/precio/imagen). OPCIONAL: sin pin, la tarjeta simplemente no se muestra (hide-on-
 // empty de UN elemento, no de la sección — el texto del loop no depende del producto).
+//
+// LOS SEIS CAMPOS DE ABAJO SON NUEVOS, § EDITOR-TIENDA-MARQUESINA-SECCION-1 — la sección pasa de
+// "dibuja lo que el hero·sticky ya muestra, apagada" a SECCIÓN REUTILIZABLE con su PROPIA frase y su
+// PROPIA lista de productos, con el mismo motor de revelado que el hero (`MarquesinaMotor.tsx`,
+// generalizado a varios productos en vez de uno).
+//
+// `texto`/`productoSlug`/`imagen` NO SE TOCAN — siguen siendo EXCLUSIVAMENTE lo que el hero·sticky
+// lee (§ `HeroMediaMarquesina.tsx`, `productoMarquesina` abajo). `imagen` en particular YA ERA, desde
+// antes de este slice, el fondo de la banda SUELTA (nunca del hero: el hero lee `hero.imagen`, no
+// `marquesina.imagen` — medido por grep antes de decidir esto) — así que NO es un campo que "se
+// mueve": sigue siendo el fondo de la banda suelta, exactamente el rol que ya tenía. Se evaluó
+// agregar un campo de fondo PROPIO nuevo y se descartó: habría dejado `imagen` sin un solo
+// consumidor real (un campo REQUERIDO huérfano es la misma mina que el ex-`Product.agotado`, § CLAUDE.md)
+// por satisfacer la letra de "fondo propio" en vez de su espíritu (que la banda tenga de dónde sacar
+// su fondo, cosa que YA tenía).
+//
+// `fraseBanda` es la frase PROPIA de la sección suelta — REQUERIDA con default genérico, MISMA razón
+// que `texto` (nunca una frase fabricada sobre el negocio del tenant). Independiente de `texto`: el
+// hero y la banda pueden decir cosas distintas si el dueño así lo quiere.
+//
+// `imagenTipo` ('imagen'|'video') es un ESCALAR clampado (mismo mecanismo que `hero.escalares.
+// imagenTipo`, § su docstring arriba) — permite que el fondo de la banda sea un video, no sólo una
+// foto, sin tocar el campo `imagen` (la URL sirve para los dos casos; el componente decide el tag
+// según este escalar).
+//
+// `producto1`..`producto6` son la lista de productos de la banda — SEIS CAMPOS PLANOS, no un
+// repeater: mismo criterio que "Presentaciones 2-4" (§ CLAUDE.md, "La BIFURCACIÓN de cardinalidad")
+// — un repeater con tipo de ítem `'producto'` no existe (`RepeaterEditor.tsx`/`CampoItem.tipo` no lo
+// declaran, y ese componente no está en `touches:` de este slice), mientras que el picker de
+// producto por campo plano (`CampoTexto.producto:true`) YA EXISTE y ya lo usa `productoSlug`. Todos
+// OPCIONALES, en orden: el primero vacío no "corta" la lista — cada slot se resuelve de forma
+// independiente (como `presentaciones.categoria1..4`), y el componente filtra los vacíos al armar el
+// orden final. Lista vacía (los seis sin pin) → el componente cae al catálogo, en su orden, hasta el
+// mismo tope (§ `productosBandaMarquesina`, abajo).
 export interface MarquesinaContent {
   visible: boolean;
   texto: string;
   imagen: string;
   productoSlug: string;
+  fraseBanda: string;
+  imagenTipo: 'imagen' | 'video';
+  producto1: string;
+  producto2: string;
+  producto3: string;
+  producto4: string;
+  producto5: string;
+  producto6: string;
 }
 
 // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1) — ya era MIEMBRO de
@@ -1733,11 +1775,25 @@ export const DEFAULTS: SiteContentData = {
   // no hay urgencia de una foto propia (mismo criterio que `origen.imagen1/2` reusando imágenes de
   // brandStory). `productoSlug` vacío: sin pin, la tarjeta flotante simplemente no se muestra
   // (§ `productoSpotlight`, el MISMO mecanismo que ya resuelve el pin de `spotlight`).
+  //
+  // LOS SEIS NUEVOS (§ EDITOR-TIENDA-MARQUESINA-SECCION-1, ver el docstring de `MarquesinaContent`):
+  // `fraseBanda` es GENÉRICA, misma razón que `texto` arriba — DISTINTA de `texto` a propósito (para
+  // que el test de byte-identidad detecte si algún día alguien copia una en la otra por error).
+  // `imagenTipo` canónico 'imagen' — byte-idéntico (sin `escalares` guardado, el resolver clampa a
+  // la canónica). `producto1..6` vacíos — sin lista propia, el componente cae al catálogo.
   marquesina: {
     visible: false,
     texto: 'Calidad que se nota en cada entrega',
     imagen: '/images/historia-4-v1.jpg',
     productoSlug: '',
+    fraseBanda: 'Hecho con cuidado, pensado para ti',
+    imagenTipo: 'imagen',
+    producto1: '',
+    producto2: '',
+    producto3: '',
+    producto4: '',
+    producto5: '',
+    producto6: '',
   },
   // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
   // `TrustBadgesContent` arriba). `visible: true` = HOY, byte a byte: la banda se monta siempre hoy
@@ -2346,17 +2402,31 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       fraseAlPie: 'opcional',
     },
   },
-  // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ver el docstring de `MarquesinaContent` arriba).
-  // `ocultable: true`, sin `variantes` (una sola composición). `productoSlug` es OPCIONAL —sin pin
-  // la tarjeta flotante no se muestra, el texto del loop no depende de ella—.
+  // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ampliada por § EDITOR-TIENDA-MARQUESINA-SECCION-1 —
+  // ver el docstring de `MarquesinaContent` arriba para el porqué de cada campo nuevo). `ocultable:
+  // true`, sin `variantes` (una sola composición). `productoSlug` es OPCIONAL —sin pin la tarjeta
+  // flotante no se muestra, el texto del loop no depende de ella—.
+  //
+  // `imagenTipo` es un ESCALAR (como `hero.escalares.imagenTipo`): 'imagen'/'video', canónica
+  // 'imagen' — byte-idéntica sin fila.
   marquesina: {
     label: 'Marquesina',
     ocultable: true,
     imagenes: ['imagen'],
+    escalares: {
+      imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
+    },
     campos: {
       texto: 'requerido',
       imagen: 'requerido',
       productoSlug: 'opcional',
+      fraseBanda: 'requerido',
+      producto1: 'opcional',
+      producto2: 'opcional',
+      producto3: 'opcional',
+      producto4: 'opcional',
+      producto5: 'opcional',
+      producto6: 'opcional',
     },
   },
   // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
@@ -3669,4 +3739,34 @@ export function productoOtraTalla<T extends { slug: string }>(catalog: readonly 
 export function productoMarquesina<T extends { slug: string }>(catalog: readonly T[], slug: string): T | null {
   if (!slug) return null;
   return catalog.find((p) => p.slug === slug) ?? null;
+}
+
+/** El tope de la LISTA de productos de la sección suelta Marquesina (§ EDITOR-TIENDA-MARQUESINA-
+ *  SECCION-1) — `producto1..producto6` son SEIS slots, y el fallback al catálogo (abajo) respeta el
+ *  mismo tope. Re-exportado por `lib/animation.ts` (`MAX_ITEMS_BANDA_MARQUESINA`) para que el tope
+ *  de la coreografía y el tope del dato no puedan divergir — ver su docstring. */
+export const MAX_PRODUCTOS_BANDA_MARQUESINA = 6;
+
+/**
+ * La lista de productos de la sección SUELTA Marquesina (§ EDITOR-TIENDA-MARQUESINA-SECCION-1),
+ * resuelta a partir de los SEIS slots (`producto1..producto6`) — en el ORDEN de los slots, filtrando
+ * los vacíos y los que ya no matchean ningún producto del catálogo VIVO (mismo criterio que
+ * `productoMarquesina`: un slot roto se filtra, nunca cae a un producto arbitrario).
+ *
+ * LISTA VACÍA (los seis slots vacíos, o los seis rotos) → cae al CATÁLOGO, en SU orden, hasta el
+ * mismo tope — es una VITRINA, no un PIN: con la sección encendida y nada elegido todavía, mostrar
+ * "nada" sería peor que mostrar los cafés que SÍ existen. Catálogo vacío → `[]` (hide-on-empty de
+ * toda la sección, decisión del componente, no de esta función).
+ */
+export function productosBandaMarquesina<T extends { slug: string }>(
+  catalog: readonly T[],
+  slugs: readonly string[],
+): T[] {
+  const elegidos = slugs
+    .map((s) => s.trim())
+    .filter((s) => s !== '')
+    .map((s) => catalog.find((p) => p.slug === s))
+    .filter((p): p is T => !!p);
+  if (elegidos.length > 0) return elegidos.slice(0, MAX_PRODUCTOS_BANDA_MARQUESINA);
+  return catalog.slice(0, MAX_PRODUCTOS_BANDA_MARQUESINA);
 }
