@@ -50795,3 +50795,251 @@ antes del merge ("LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). Gate ve
 Commiteado en `slice/corte-reescritura-prototipo-1`, encima de `5454d2a`.
 
 **Cierra `EDITOR-TIENDA-TRANSICIONES-TARJETAS-1`.**
+
+---
+
+## 2026-10-04 — El Encabezado, el Menú y el Pie entran al editor como el resto de las secciones (`EDITOR-TIENDA-CROMO-1`)
+
+Tier 1 (toca `components/storefront/`), `writes: yes`, aprobado sobre el pedido textual del owner
+("De acuerdo, agrega el encabezado, el menú y el pie al editor"), dentro del rediseño ya aprobado de
+`docs/editor-tienda/REDISENO.md`. `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. La
+aprobación autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| árbol limpio, en `slice/corte-reescritura-prototipo-1` | sí (`git status` vacío antes de empezar; HEAD = `66b0b9f`) |
+| base — merge-base con `main` | `9a7ab97e2ab8aad3e78a104186c62c8674fdc4cf`; la rama 328 commits adelante; `main` sin mover |
+| los 21 archivos de `touches:` que ya existían | sí — confirmados por `ls` antes de escribir. `components/admin/editor/` wildcard: 7 archivos (Combinaciones/ComposicionHero/EstiloElementoControles/Migas/ResumenPublicar/Riel/VistaNueva), ninguno de ellos necesitó edición |
+| archivos de `touches:` que NO hizo falta tocar | `components/storefront/Logo.tsx`, `lib/storefront/editor-puente.test.ts`, `lib/storefront/campo-editable.test.ts`, `lib/admin/editor-iframe.test.ts`, `lib/admin/historial-editor.ts`/`.test.ts`, `lib/config/panel-controles.ts`/`.test.ts`, `lib/config/admin-tienda-preset.test.ts`, `tests/integracion/panel-encabezado.test.ts` — ninguno necesitó un cambio de comportamiento: no se agregó/quitó ningún campo de `SiteContent`, sólo se agregó UN sitio nuevo donde los editores YA existentes se montan |
+| base efímera para la verificación por ejecución (nunca `development`/producción) | sí, Postgres `:55443`, seed canónico (`admin@sierranativa.co`) |
+
+### Lo medido ANTES de escribir, contra lo que `/admin/tienda` ya documentaba
+
+`EncabezadoSeccion.tsx`/`MenuSeccion.tsx`/`FooterSeccion.tsx` eran editores BESPOKE (patrón
+`PaletaSeccion`), "SIN vista previa en vivo" por una razón escrita en sus propios docstrings: montar
+`StoreNav`/`StoreFooter` en el árbol del ADMIN lanza fuera de su árbol de providers (§ CLAUDE.md,
+"Montar un componente en OTRO árbol de providers"). Esa razón es de `/admin/tienda` (que renderiza
+componentes sintéticos en el árbol del panel) — el LIENZO del editor de pantalla completa es un
+`<iframe>` a la tienda REAL, con su árbol de providers completo, así que la razón original NO
+aplica ahí (la misma lógica que ya desbloqueó Colores en `EDITOR-TIENDA-TEMA-1`). Medido, no
+asumido: `StoreNav`/`StoreFooter` ya se renderizaban dentro del iframe del editor sin marcadores —
+sólo faltaba el marcador `data-editor-seccion` para que el puente los reconociera.
+
+### Lo que se construyó
+
+- **`lib/storefront/editor-puente.ts`** — `datosDeEncabezado(datos)`, el OCTAVO mensaje reutilizado
+  (mismo patrón que 'orden'/'tema': reusa `TIPO_MENSAJE_CONTENIDO_SECCION` con `seccion:'encabezado'`,
+  documentado como tercera excepción en `esSeccionDelRegistro`). Validación estructural de las
+  CUATRO claves meta (`cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil`) que `EncabezadoSeccion`
+  posee; `logo` (la quinta pieza, pero SÍ sección del REGISTRY) viaja por el canal genérico, sin
+  tocar esta función.
+- **`components/storefront/EditorPuenteVivo.tsx`** — una rama más en el handler de `message`
+  (`seccion === 'encabezado'`), ANTES de `esSeccionDelRegistro`: aplica las cuatro metas DIRECTO al
+  contexto de React (`actualizar`) — a diferencia de 'orden'/'tema' (DOM/CSS), el Encabezado SÍ
+  necesita re-render porque `StoreNav` las lee por `useSiteContent()`.
+- **`components/storefront/layout/StoreNav.tsx`** — `useModoEditorActivo()`; el logo (desktop Y el
+  del cajón móvil, extraído a una variable `logoLinkMovil` para no duplicar el JSX) se envuelve en
+  `data-editor-seccion="encabezado"` con `display:contents` (mismo truco que `CampoEditable
+  tipo="imagen"`) SÓLO en modo editor; el `<nav>` de escritorio y el del cajón móvil llevan
+  `data-editor-seccion="menu"` directo (sin wrapper, son elementos reales). Byte-idéntico fuera de
+  modo editor (atributo `undefined` → React lo omite).
+- **`components/storefront/StoreFooter.tsx`** — `data-editor-seccion="footer"` directo en el
+  `<footer>` de las DOS variantes (franjas/apilado, sin wrapper nuevo). `<CampoEditable>` sobre
+  `columnaTienda`/`columnaAyuda`/`columnaEmpresa` (las dos variantes), `tarjetaTexto` (apilado), y
+  `items.N.label` (los enlaces legales, las dos variantes).
+- **`EncabezadoSeccion.tsx`/`MenuSeccion.tsx`/`FooterSeccion.tsx`** — `forwardRef` + prop `enEditor`
+  (default `false`, byte a byte igual que antes de este slice): historial (`loteAntesRef`/
+  `aplicandoHistorialRef`/el efecto sobre `auto.estado`, MISMO patrón que `TiendaSeccionEditor.tsx`/
+  `TiendaPaginas.aplicarNuevoOrden` — tercera y cuarta/quinta réplica del mismo idioma, nunca
+  reinventado), reporte de `onEstado`/`onCambio`, ocultan sus propios botones Publicar/Descartar
+  cuando `enEditor` (la barra global los publica en lote), y exponen
+  `{abrir, cerrar, marcarPublicado, restaurarDesdePublicado}` — `FooterSeccion` suma `escribirCampo`
+  (único de los tres con marcadores `CampoEditable`, vía el MISMO `fusionCampoEditable` que ya usa
+  `TiendaSeccionEditor`). `EncabezadoSeccion` extrajo `estadoDesdeContenido(contenido)` —la traducción
+  contenido→`{form,navBadge,taglineColor}` que `cargar()` ya tenía inline— para que
+  `restaurarDesdePublicado` la reuse sin duplicarla.
+- **`components/admin/TiendaPaginas.tsx`** — `CromoKey`/`CROMO_TITULOS`/`esCromoKey` (tipo LOCAL,
+  paralelo a `SeccionVista`: ese tipo vive en `tienda-secciones.ts`, fuera de `touches:`, y es un
+  union cerrado sin valor "global"); `cromoActivo` (gemelo de `seccionActiva`) + `nivelActivo`
+  (unifica los dos para migas/ocultar-las-demás-filas); `cromoRefs`/`registrarRefCromo` (mismo patrón
+  que `seccionRefs`/`registrarRefSeccion`); `cromoEstado`/`manejarEstadoCromo` (gemelo de
+  `seccionesEstado` — a diferencia de 'tema', que depende del HUECO CONOCIDO de `doc.sinPublicar`
+  porque `PaletaSeccion` no está en `touches:`, los tres cromo SÍ reportan en vivo, así que el
+  agregado de pendientes es EXACTO). Los TRES se montan SIEMPRE (Encabezado y Menú arriba de
+  `seccionesOrdenadas.map`, Pie al final), ocultos con `display:none` vía `nivelActivo` — nunca
+  desmontados, mismo criterio que las `SeccionVista`.
+
+### DEVIACIÓN 1 — 'encabezado' se publica por su propia ruta, medida contra el código antes de escribir
+
+`app/api/site-content/route.ts` (fuera de `touches:`) valida `secciones.every(s => s==='orden' ||
+s==='tema' || s in REGISTRY)` para el lote `publicarVarias`/`descartarVarias` — 'encabezado' no es
+ninguna de las tres (sus cuatro metas están deliberadamente excluidas del REGISTRY) y el lote
+ENTERO se habría rechazado si viajara ahí. Se publica/descarta por su propia ruta
+(`/api/site-content/encabezado`, la misma que `EncabezadoSeccion.accionBorrador` ya usaba).
+
+### DEVIACIÓN 2 (el PRIMER hallazgo del arnés) — las dos rutas NO pueden ir en `Promise.all`
+
+El primer intento disparaba el lote genérico y la ruta de 'encabezado' EN PARALELO (`Promise.all`).
+Medido contra la base real: las DOS llamadas devolvían `200 {"ok":true}`, pero `content.menu`
+seguía SIN el valor publicado — la transacción de 'encabezado' leía la fila (`findUnique`) ANTES de
+que el lote genérico commiteara su `update`, y al escribir la SUYA pisaba el `content` completo con
+una versión que no incluía el cambio de 'menu'/'footer'. Es el MISMO riesgo que CLAUDE.md ya
+documenta para el flujo guardar↔publicar HUMANO ("SIN lock cross-operación... el race necesita dos
+writes en la ventana de milisegundos entre el read y el write"), pero ACÁ el riesgo lo creaba este
+mismo código, disparando dos escrituras sobre la MISMA fila a propósito. Se corrigió SECUENCIANDO
+los dos `fetch` (`await` uno, después el otro) — el costo es una ida y vuelta de red más (bajo en
+este despliegue), nunca una carrera. Re-medido tras el fix: `content.menu`/`footer.creditoDunaVisible`/
+`footer.columnaTienda` quedan publicados correctamente, confirmado contra la base real y contra la
+tienda pública sin sesión.
+
+### DEVIACIÓN 3 (el SEGUNDO hallazgo del arnés) — abrir desde el lienzo necesita `abrir()` del handle
+
+El primer intento de `manejarSeleccionDesdeIframe`/`irAItem` llamaba `abrirNivelCromo(marcador)`
+directo al reconocer un marcador de cromo — eso sólo mueve `cromoActivo` (deja de estar
+`display:none`), pero no le dice al editor BESPOKE que está adentro que salga de su vista de
+lectura (`editando` seguía en `false`): un clic en el nav/pie del lienzo "abría" el nivel mostrando
+el resumen colapsado, nunca el formulario — medido con el arnés (el switch "Sub-encabezado"/
+"Tratamiento del menú" no aparecía tras el clic). Se corrigió llamando
+`cromoRefs.current.get(marcador)?.abrir()` — el MISMO camino que `seccionRefs.current.get(candidato)
+?.seleccionar()` ya usa para una `SeccionVista`: el handle decide abrirse (pone `editando=true`
+adentro), y ESO dispara `onAbrir` hacia el padre (vía el efecto `prevEditandoRef` de cada cromo).
+
+### DEVIACIÓN 4 — "cambiar el tagline" no es literal: `SiteSetting.tagline`, otro modelo
+
+El cierre del dispatch pide, textual, "cambiar el tagline" como parte de la verificación. Medido
+antes de construir: `EncabezadoSeccion.tsx` nunca editó el TEXTO del tagline —sólo su visibilidad
+(`cromo.navSubtitulo`) y su color (`navWordmark.taglineColor`)—; el texto mismo es
+`SiteSetting.tagline`, identidad del negocio (§ CLAUDE.md, "negocio≠tienda"), editable sólo desde
+Configuración, instant-write, sin `SiteContent` de por medio. El mecanismo de campo flotante
+(`CampoEditable`/`fusionCampoEditable`) está arquitecturado para secciones de `SiteContent` — tejerlo
+a `SiteSetting` sería una pieza NUEVA, no una reutilización de lo que ya existe, y `DatosNegocioSeccion.tsx`
+(donde vive esa edición) no está en `touches:`. Se interpretó "cambiar el tagline" como ejercitar los
+controles que EncabezadoSeccion YA ofrece sobre el tagline (su visibilidad/color) — verificado con el
+switch "Sub-encabezado" primero; cuando el seed NEUTRO (§ HIGIENE-SEED-Y-DOCTRINA-1) deja
+`SiteSetting.tagline` vacío, mostrar/ocultar una cadena vacía no deja diferencia de TEXTO que medir
+(medido: dos lecturas idénticas del `textContent` del nav), así que la verificación final se hizo con
+«Tratamiento del menú» (cambia el `text-transform` computado de un link, efecto visual que no
+depende de qué trajo el seed) — mismo MECANISMO (push en vivo de las cuatro metas del Encabezado),
+control distinto por ser medible con el dato disponible.
+
+### DEVIACIÓN 5 — el Encabezado y el Menú no ganan `CampoEditable` en esta tanda
+
+Consecuencia de la Deviación 4: sin un campo de `SiteContent` que sea "el tagline", no hay ruta de
+campo flotante que construir ahí. Las etiquetas del Menú se renombran desde su PANEL (ya lo
+permitía, sin cambios de alcance). El Pie SÍ gana `CampoEditable` (§ "Lo que se construyó") porque
+sus textos simples SÍ son campos de `SiteContent`.
+
+### Verificado por ejecución (Playwright, sesión real, DB efímera)
+
+`.scratch/verificar-cromo-sesion.ts` (no comiteado, mismo criterio que `verificar-tema-sesion.ts`/
+`verificar-orden-sesion.ts`): Postgres efímero (`:55443`), `migrate deploy` + seed canónico, `next
+build`/`next start`, Playwright con sesión real (`admin@sierranativa.co`). Cinco iteraciones del
+arnés antes de llegar a verde — dos corrigieron fallas DEL ARNÉS (un locator ambiguo resuelto con
+`.filter({has}).last()`, y `role="switch"` ≠ accessible role `button` — ARIA override, no bug de
+producto) y dos atraparon las Deviaciones 2 y 3 (reales, de producto). Verificaciones, TODAS en
+verde en la corrida final:
+
+| verificación | resultado |
+| --- | --- |
+| `[data-editor-seccion="encabezado"]` presente en el DOM del iframe, en modo editor | 1 |
+| abrir Encabezado desde «Secciones» (botón «Editar»), llega al formulario (switches visibles) | sí |
+| encender «Tratamiento del menú»: `text-transform` del link, ANTES/DESPUÉS | `none` → `uppercase`, EN VIVO, sin reload (marca de `window` intacta) |
+| abrir Encabezado desde un CLIC en el logo del nav DENTRO del iframe | abre el mismo formulario |
+| abrir Menú, renombrar el primer ítem (`Tienda` → `Tienda Verificada`) | el `<nav>` real del iframe muestra el label nuevo al instante |
+| clic en el pie DENTRO del iframe | abre el nivel Pie |
+| apagar «Mostrar "Hecho por Duna"»: visible ANTES/DESPUÉS | `true` → `false`, EN VIVO |
+| clic en el campo editable `footer.columnaTienda`, escribir "Catálogo Verificado" | el `<h4>` real del pie lo muestra al instante |
+| publicar (popover «Publicar 3») | 3 pendientes (encabezado/menu/footer), 0 tras publicar |
+| tienda PÚBLICA (pestaña nueva, sin sesión de editor): menú renombrado, crédito apagado, columna del pie editada | las TRES presentes |
+| capturas en escritorio (1440×900) y teléfono (390×844), incluido el cajón móvil del menú | 12 capturas en `.scratch/verificar-cromo-sesion/` (no comiteadas) |
+| fila publicada en Postgres (`content.cromo`/`.menu`/`.footer`) | `{"navBadge":"","navTinta":false,"navSubtitulo":false}` · `"Tienda Verificada"` · `false` · `"Catálogo Verificado"` |
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run gate` (typecheck + `npm test` + `npm run test:integracion`, UN comando en el árbol final) | GREEN |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3533/3533** (sin tests nuevos — este slice no agrega capa 1; reusa `fusionCampoEditable`/`sonIguales` ya probados) |
+| `npm run test:integracion` | **328/328**, sin cambio (ningún archivo de `tests/integracion/` en `touches:`; `panel-encabezado.test.ts`, preexistente, sigue pasando sin tocarlo) |
+| `npx next build` | compiló sin error (autoridad de JSX/SWC) |
+| `npx eslint` sobre los 9 archivos tocados | **0 problemas NUEVOS** — los 3 errores `react-hooks/refs` de `EditorPuenteVivo.tsx` (líneas 302/636/641) y los 3 `react-hooks/set-state-in-effect` de `StoreNav.tsx` (líneas 154/159/160) son PRE-EXISTENTES, confirmado por `git diff HEAD` (ninguno cae dentro de este diff); las nuevas instancias de `react-hooks/exhaustive-deps`/"Unused eslint-disable directive" en `MenuSeccion.tsx`/`FooterSeccion.tsx`/`EncabezadoSeccion.tsx` replican el MISMO patrón (comentario `eslint-disable-next-line` seguido de más líneas de comentario antes del código, que el linter no asocia) ya presente y aceptado en `TiendaSeccionEditor.tsx` (confirmado línea por línea con `npx eslint` sobre ese archivo, no tocado por este diff) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta, dígito a dígito, que el piso YA reconciliado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO |
+
+**Cero píxeles de drift nuevo**: todos los marcadores (`data-editor-seccion`, `<CampoEditable>`)
+devuelven `children`/omiten el atributo fuera de modo editor — confirmado por el diff de píxeles
+(cifra heredada exacta) y por la propia sesión de ejecución (la home pública, sin `?editor`,
+verificada en la última fase del arnés).
+
+### Chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff cambió, grepeados contra `CLAUDE.md`: `EncabezadoSeccion`/`MenuSeccion`/
+`FooterSeccion` (0), `CampoEditable`/`data-editor-seccion`/`data-editor-campo`/`escribirCampo`/
+`fusionCampoEditable` (0), `editor-puente`/`EditorPuenteVivo` (0), `CromoKey`/`cromoActivo` (0,
+símbolos nuevos). `StoreNav` (4), `StoreFooter` (8) y `TiendaPaginas` (4) SÍ aparecen — las 16
+líneas leídas una por una, ninguna describe lo que este diff tocó (todas hablan de `footerNav`/
+`legalNav`/`columnasDeFooter` —fuente de datos, no tocada—, del proveedor de `SiteSettings`, del
+selector de página, o del fetch de categorías) — ninguna sentencia de `CLAUDE.md` quedó falsa por
+este cambio.
+
+### Segundo grep — `docs/editor-tienda/REDISENO.md` (el documento que SÍ cambió)
+
+Los identificadores agregados (`EDITOR-TIENDA-CROMO-1`, `RESUMEN-CAMBIOS-CROMO-PENDIENTE-1`) no
+tenían ningún pointer previo en el repo (son nuevos). **Hallazgo, fuera de `touches:` —
+`docs/editor-tienda/EDICION-INLINE.md` § 5 queda PARCIALMENTE desactualizado por este commit**: esa
+sección afirma "Nav y pie quedan FUERA de este diseño por alcance... viven fuera de
+`SECCIONES_TIENDA`/el iframe por completo" — la segunda mitad ("fuera... del iframe por completo")
+ya NO es cierta para el mecanismo de SELECCIÓN (un clic en el nav/pie dentro del iframe SÍ abre su
+nivel, desde este slice); la primera mitad sigue siendo cierta (ninguno de los tres es una
+`SeccionVista` de `SECCIONES_TIENDA`) y la exclusión del CAMPO FLOTANTE para la tagline del
+Encabezado también sigue vigente (§ Deviación 4/5, arriba). No se corrige: `EDICION-INLINE.md` no
+está en `touches:` de este slice. Coined `EDICION-INLINE-NAV-PIE-ALCANCE-STALE-1` para el open
+follow-up.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA contra `main`, que ya cargaba `customer_bytes.changed:true`
+de los slices anteriores de esta tanda. Este slice en particular: todo lo que el OWNER/MANAGER ve en
+`/editor/tienda` cambia — tres filas nuevas en «Secciones» (Encabezado/Menú/Pie), el resalte de
+hover sobre el nav/pie del lienzo, el campo flotante sobre los textos del pie. **Ningún byte de
+`app/(storefront)` cambió fuera de modo editor** (§ el gate, arriba, cifra heredada exacta) — es
+exclusivamente la herramienta del dueño, no lo que ve un visitante.
+
+**`strings`**: "Encabezado" (título de la tarjeta), "Menú del nav", las migas y rótulos de hover
+existentes reutilizados sin texto nuevo propio — no se introdujo ningún string de producto nuevo;
+los TRES editores reusan EXACTAMENTE los mismos textos que ya mostraban en `/admin/tienda`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma, cero contrato cross-repo. No se
+tocó `site-content-schema.ts` ni `site-content-write.ts` — ningún campo nuevo de `SiteContent`; los
+tres editores siguen escribiendo EXACTAMENTE las mismas claves que ya escribían desde
+`/admin/tienda` (`cromo`/`navWordmark`/`navTratamiento`/`navDrawerMovil`/`logo`/`menu`/`footer`).
+
+### Open follow-ups
+
+- **`RESUMEN-CAMBIOS-CROMO-PENDIENTE-1`** (coined acá): `lib/admin/resumen-cambios.ts` (fuera de
+  `touches:`) no tiene rama para 'encabezado'/'menu'/'footer' — el conteo y la publicación son
+  correctos, pero el popover de «Publicar» no lista sus cambios EN PALABRAS (cae a "Sin detalle para
+  mostrar."). Se agrega cuando ese archivo entre a `touches:` de un slice futuro.
+- **`EDICION-INLINE-NAV-PIE-ALCANCE-STALE-1`** (coined acá): `docs/editor-tienda/EDICION-INLINE.md`
+  § 5 queda parcialmente falso (§ el segundo grep, arriba) — no corregido, ese archivo fuera de
+  `touches:`.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado con la MISMA cifra exacta
+  (§ Gate). Ajeno a `touches:` de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo que el resto de esta tanda (el
+eje es la rama, no el commit; sigue sin mergear). "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL
+MERGE". Gate verde en las tres capas (`tsc` 0 errores, `npm test` 3533/3533, `npm run
+test:integracion` 328/328); `next build` compila; `npx eslint` sin problemas nuevos;
+`verificar:nayoli:visual` con la MISMA cifra exacta del piso heredado. Verificado de punta a punta
+con sesión real — 12/12 verificaciones en verde en la corrida final, con DOS hallazgos reales de
+producto (la carrera de publicar, el `abrir()` del handle) encontrados y cerrados por el propio
+arnés antes de reportar nada como verde. Commiteado en `slice/corte-reescritura-prototipo-1`, encima
+de `66b0b9f`.
+
+**Cierra `EDITOR-TIENDA-CROMO-1`.**
