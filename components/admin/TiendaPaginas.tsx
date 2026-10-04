@@ -21,6 +21,14 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { crearHistorialEditor, sonIguales, type HistorialEditor, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 
+// § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — las secciones que son DESTINO de algún `seccionCruzada`
+// (§ `CampoTexto.seccionCruzada`, tienda-secciones.ts) — hoy sólo `marquesina` (sus campos `texto`/
+// `productoSlug` se muestran en la tarjeta del hero). Derivado de `SECCIONES_TIENDA`, no una lista a
+// mano: una sección cruzada nueva entra sola, sin tocar este archivo salvo por el cómputo de abajo.
+const SECCIONES_CON_CAMPOS_CRUZADOS = new Set<SeccionVista>(
+  SECCIONES_TIENDA.flatMap((c) => c.campos.filter((f) => f.seccionCruzada).map((f) => f.seccionCruzada!)),
+);
+
 export interface TiendaPaginasProps {
   /** La página activa — CONTROLADA desde `EditorTiendaPantallaCompleta` (§ EDITOR-TIENDA-
    *  DISPOSITIVOS-1): el selector de página subió a la barra superior del editor de pantalla
@@ -95,6 +103,27 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     [],
   );
 
+  // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — EL VALOR EN VIVO de las secciones que son destino de un
+  // campo cruzado (hoy, `marquesina`): capturado del MISMO `onCambio` que cada `TiendaSeccionEditor`
+  // ya reporta en cada cambio real de su `form` (§ el docstring de esa prop, TiendaSeccionEditor.tsx)
+  // — no un fetch nuevo, no un segundo canal. Antes del primer cambio (o si la sección cruzada aún no
+  // montó/sembró), el valor cae al `doc.contenido` ya cargado — el mismo piso que usa cada sección
+  // para sembrar su propio `form`. `manejarCambioSeccion` reemplaza a `enviarCambioIframe` como
+  // `onCambio` de CADA `TiendaSeccionEditor` (sigue reenviando al iframe, además de capturar acá).
+  const [valoresCruzadosEnVivo, setValoresCruzadosEnVivo] = useState<Partial<Record<SeccionVista, Record<string, unknown>>>>({});
+  const manejarCambioSeccion = useCallback((seccion: SeccionVista, datos: Record<string, unknown>) => {
+    enviarCambioIframe(seccion, datos);
+    if (!SECCIONES_CON_CAMPOS_CRUZADOS.has(seccion)) return;
+    setValoresCruzadosEnVivo((prev) => (prev[seccion] === datos ? prev : { ...prev, [seccion]: datos }));
+  }, [enviarCambioIframe]);
+  // Escribe UN campo de OTRA sección (§ `TiendaSeccionEditorHandle.escribirCampoSinAbrir`): el ÚNICO
+  // camino de datos para un grupo cruzado del panel (el hero escribiendo `marquesina.texto`) — nunca
+  // toca el `form` de quien lo muestra, siempre el de la sección REAL, así que sigue habiendo un solo
+  // escritor/autoguardado por sección sin importar desde qué tarjeta se edite.
+  const escribirCruzado = useCallback((seccionDestino: SeccionVista, campo: string, valor: string) => {
+    seccionRefs.current.get(seccionDestino)?.escribirCampoSinAbrir(campo, valor);
+  }, []);
+
   // LA SELECCIÓN EN CONTEXTO, dirección iframe→lista (§ EDITOR-TIENDA-SELECCION-1): un `Map` de
   // handles, UNO por sección montada —callback ref que se registra/retira con cada
   // `TiendaSeccionEditor`, nunca una lista de `RefObject` creada por adelantado (las secciones de
@@ -129,10 +158,19 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // selección de arriba (un campo vive DENTRO de una sección marcada, así que su mensaje trae el
   // MISMO marcador de sección). Un marcador que no resuelve a una sección de la página activa se
   // ignora, nunca lanza — mismo criterio que `manejarSeleccionDesdeIframe`.
+  // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — si `campo` es un campo CRUZADO (p. ej. `marquesina.texto`,
+  // declarado con `seccionCruzada:'marquesina'` en HERO.campos), la escritura va SIN abrir la tarjeta
+  // de `candidato` (`escribirCampoSinAbrir`): el `TIPO_MENSAJE_SECCION_CLICK` del MISMO clic ya abrió
+  // la tarjeta REAL (la del ancestro `[data-editor-seccion]` del DOM, § editor-iframe.ts — para la
+  // marquesina dibujada por el hero sticky, ES la tarjeta del hero) vía `manejarSeleccionDesdeIframe`;
+  // abrir TAMBIÉN la de `candidato` sería una segunda tarjeta expandiéndose sin que nadie la pidiera.
   const manejarCampoCambioDesdeIframe = useCallback((marcador: string, campo: string, valor: string) => {
     const candidato = seccionDesdeMarcador(marcador) as SeccionVista;
     if (!secciones.some(c => c.seccion === candidato)) return;
-    seccionRefs.current.get(candidato)?.escribirCampo(campo, valor);
+    const handle = seccionRefs.current.get(candidato);
+    const esCruzado = secciones.some(c => c.campos.some(f => f.seccionCruzada === candidato && f.name === campo));
+    if (esCruzado) handle?.escribirCampoSinAbrir(campo, valor);
+    else handle?.escribirCampo(campo, valor);
   }, [secciones]);
 
   // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — el clic en una imagen/video DENTRO del iframe. Mensaje
@@ -449,6 +487,15 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   const seccionesOrdenadas = ordenLocal ? ordenarPorBanda(secciones, ordenLocal) : secciones;
   const puedePublicarOrden = autoOrden.estado === 'guardado' && !procesandoOrden;
 
+  // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — el valor que cada `TiendaSeccionEditor` recibe para pintar
+  // SUS campos cruzados (§ `valoresCruzadosEnVivo`, arriba): lo EN VIVO si ya llegó, si no el `doc`
+  // crudo (el mismo piso que usaría la sección REAL para sembrar su propio `form`). Se pasa a TODAS
+  // las secciones por igual —barato, y sólo las que declaran `seccionCruzada` lo leen.
+  const valoresCruzados: Partial<Record<SeccionVista, Record<string, unknown>>> = {};
+  for (const s of SECCIONES_CON_CAMPOS_CRUZADOS) {
+    valoresCruzados[s] = valoresCruzadosEnVivo[s] ?? (doc ? (doc.contenido[s] as Record<string, unknown> | undefined) : undefined);
+  }
+
   // § EDITOR-TIENDA-DESHACER-1 — "Publicar"/"Descartar" DE LA BARRA actúan sobre TODAS las secciones
   // con borrador de la página activa + 'orden' (home) + 'tema' (store-wide) de una vez. `tema` SE
   // RE-SINCRONIZA REMONTANDO `PaletaSeccion` (§ `temaReloadKey`, abajo) en vez de leer/escribir su
@@ -648,10 +695,12 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                 resaltar={resaltar}
                 onAbrir={irASeccion}
                 onCambioPublicado={recargarIframe}
-                onCambio={enviarCambioIframe}
+                onCambio={manejarCambioSeccion}
                 onPaso={onPasoSeccion}
                 onEstado={manejarEstadoSeccion}
                 orden={asaDeSeccion(config.bandaId, config.titulo)}
+                valoresCruzados={valoresCruzados}
+                onEscribirCruzado={escribirCruzado}
                 carga={{
                   valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
                   sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,

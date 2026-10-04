@@ -49028,3 +49028,177 @@ por ejecución explícita que pedía el spec (19/19 en el arnés dedicado). Comm
 `slice/corte-reescritura-prototipo-1`.
 
 **Cierra `EDITOR-TIENDA-CAMPO-ANCLADO-1`.**
+
+## 2026-10-03 — La marquesina se edita desde el hero; la tarjeta suelta deja de mentir (error 5)
+`EDITOR-TIENDA-MARQUESINA-EN-HERO-1` (slice 3 del plan de `docs/editor-tienda/REDISENO.md` § 9)
+
+**El error (§ 1, fila 5 de `REDISENO.md`):** con `hero.variante:'sticky'`, el hero dibuja la cinta de
+texto + la tarjeta flotante leyendo `content.marquesina.texto`/`.productoSlug` — pero esos dos campos
+sólo se editaban desde la tarjeta suelta «Marquesina», que además decía «No se muestra en la tienda»
+(porque `marquesina.visible` nace en `false` y CORTE la deja así: el hero sticky ya la dibuja, mostrar
+la banda suelta también sería redundante). El owner veía la marquesina en el preview mientras su única
+tarjeta de edición afirmaba que estaba apagada.
+
+### El mecanismo: `CampoTexto.seccionCruzada`, no una migración de datos
+
+`texto`/`productoSlug` se movieron de `MARQUESINA.campos` a `HERO.campos` (`components/admin/
+tienda-secciones.ts`), marcados con un campo nuevo del tipo, `seccionCruzada: 'marquesina'` — **el
+dato sigue viviendo en `content.marquesina`, sin tocar el schema ni el resolver** (tal como pedía el
+spec, "sin migración"). La tarjeta del hero los MUESTRA; quien los POSEE sigue siendo el handle de
+`marquesina` — su `form`, su autoguardado, su "Sin publicar". Esto evita por construcción el peligro
+obvio de "dos tarjetas editando la misma sección": nunca hay DOS `form` compitiendo por el mismo
+`content.marquesina`, sólo una tarjeta "de más" que REENVÍA la escritura al único dueño.
+
+- **Lectura:** `TiendaPaginas` captura el `form` que CADA sección ya reporta por `onCambio` (el canal
+  que existía para refrescar el iframe) en un nuevo estado (`valoresCruzadosEnVivo`), y lo baja como
+  prop `valoresCruzados` a TODAS las tarjetas (barato; sólo HERO la usa hoy). Antes del primer cambio
+  —`onCambio` se salta la siembra inicial a propósito, § su propio comentario— cae al `doc.contenido`
+  ya cargado, el mismo piso que usa cualquier sección para sembrar su `form`.
+- **Escritura:** un nuevo método del handle, `TiendaSeccionEditorHandle.escribirCampoSinAbrir` —
+  gemelo de `escribirCampo` (el que ya usa el puente iframe→panel) SIN su `abrirEdicion()`—, porque
+  quien dispara la escritura YA decidió qué tarjeta abrir; abrir TAMBIÉN la de `marquesina` sería una
+  segunda tarjeta expandiéndose sola. `TiendaPaginas.escribirCruzado` lo resuelve por `seccionRefs`
+  (el mismo Map que ya usa toda la selección en contexto).
+- **El render:** `camposDeSeccionEditor` (dentro de `TiendaSeccionEditor.tsx`) filtra los campos
+  `seccionCruzada` del bloque `seccion` derivado por defecto (la "red de seguridad" de `bloques.ts`,
+  que los sigue incluyendo porque no sabe de esto) y los pinta aparte, en un grupo nuevo titulado con
+  el `titulo` REAL de la sección destino (derivado de `SECCIONES_TIENDA`, nunca un literal que
+  pudiera divergir si esa sección cambia de nombre).
+
+### La parte que NO hizo falta tocar — medida, no asumida
+
+**El clic DENTRO de la composición `sticky` del hero YA abre la tarjeta del hero, sin cambiar
+`editor-puente.ts`.** `EditorPuenteVivo.tsx` (fuera de `touches:`, componente storefront) resuelve
+`TIPO_MENSAJE_SECCION_CLICK` por el ANCESTRO DOM `[data-editor-seccion]` del nodo clickeado
+(`EditorPuenteVivo.tsx:503-506`) — y como la marquesina vive DENTRO del `<div data-editor-
+seccion="hero">` que envuelve toda la composición sticky (no tiene su propio wrapper), ese ancestro
+YA es `'hero'`. Confirmado por ejecución en el arnés de sesión (abajo): un clic sobre la marquesina
+abre y resalta la tarjeta del hero sin que se tocara una sola línea de `editor-puente.ts`.
+
+Lo único que SÍ hacía falta re-enrutar era la escritura REMOTA del tecleo dentro del overlay flotante
+del iframe (`TIPO_MENSAJE_CAMPO_CAMBIO`, que SIEMPRE trae `seccion:'marquesina'` porque se parsea del
+atributo `data-editor-campo="marquesina.texto"`, no del ancestro DOM) — eso vive enteramente en
+`TiendaPaginas.manejarCampoCambioDesdeIframe` (ya en `touches:`): si el campo es cruzado, llama
+`escribirCampoSinAbrir` en vez de `escribirCampo`, para no abrir TAMBIÉN la tarjeta suelta.
+
+### El censo `panel-controles.ts` — un campo cruzado se atribuye a su sección REAL
+
+`camposDeSeccionEditor` atribuía todo campo de `config.campos` a `config.seccion` — con `texto`/
+`productoSlug` ahora declarados en `HERO.campos`, eso los habría contado como `hero.texto`/
+`hero.productoSlug` (dos claves FANTASMA que `REGISTRY.hero` no tiene) y habría dejado a
+`marquesina.texto`/`marquesina.productoSlug` (lo que la tienda REALMENTE lee) como huecos FALSOS. Se
+corrigió: un campo con `seccionCruzada` se atribuye a `${seccionCruzada}.${name}`, no a la sección
+que lo declara en el editor. Afirmado con una calibración nueva en `panel-controles.test.ts`
+("marquesina.texto/productoSlug siguen controlados vía seccionCruzada… `!controlados.includes
+('hero.texto')`"), que se vio pasar y que habría fallado sin el fix (confirmado leyendo el código
+antes de corregirlo: con la atribución vieja, `hero.texto` aparecía en `camposControladosPorPanel()`
+y `marquesina.texto` desaparecía). El trinquete de `PENDIENTE_PANEL` NO se movió — ningún campo pasó
+a exención, sólo cambió de tarjeta.
+
+### La tarjeta suelta: el interruptor se queda, con un porqué en palabras simples
+
+`MARQUESINA.campos` pasa a `[]`. `SeccionConfig` gana un campo nuevo, `notaVisibilidad?: string`
+(análogo al `nota` que ya tenía `PaginaKey`), que `TiendaSeccionEditor` pinta como un hint debajo del
+switch de visibilidad SÓLO si la sección lo declara — ninguna otra sección lo declara, así que esto
+es aditivo y byte-idéntico para TRUSTBADGES/ORIGEN/etc. La sección conserva su `bandaId:'marquesina'`
+y su `ocultable:true`: no se borró nada, tal como pedía el spec.
+
+### Verificado por ejecución — el viaje completo, no sólo la config
+
+Un arnés ad-hoc (`.scratch/verificar-marquesina-en-hero-sesion.ts`, NO comiteado — gitignored, mismo
+criterio que `.scratch/verificar-orden-sesion.ts`), reusando el bootstrap de `scripts/verificar-
+nayoli-visual.ts` (Postgres efímero, migrate+seed, build+start) contra el árbol ACTUAL (sin
+worktree — esto no compara ramas, verifica la función). Puso `hero.variante:'sticky'` y
+`marquesina.texto` en una frase conocida directo contra la base (el panel todavía no tiene control
+de `hero.variante`, § `PANEL-EDITOR-VARIANTES-COMPOSICION-1`, hueco preexistente y ajeno a este
+slice), y con Playwright:
+
+| paso | medido |
+| --- | --- |
+| 0 — tienda pública, antes de tocar nada | muestra la frase ORIGINAL (confirma la siembra y que el hero sticky dibuja la marquesina) |
+| 1-2 — login OWNER, abrir `/editor/tienda` | OK |
+| 3 — clic DENTRO del hero (sticky), en el iframe | el campo `#hero-cruzado-marquesina-texto` queda VISIBLE (la tarjeta del hero se abrió y muestra el grupo) con el valor ORIGINAL |
+| 3b — la tarjeta SUELTA «Marquesina» | sigue COLAPSADA (su botón "Editar" visible) — NO se abrió también |
+| 4 — editar el campo EN EL PANEL (desde la tarjeta del hero) | el autoguardado marca "1 sin publicar" |
+| 5 — el iframe (vista en vivo) | ya muestra la frase NUEVA, sin publicar |
+| 5b — la tienda pública (otra pestaña) | TODAVÍA muestra la frase vieja (no se filtró sin publicar) |
+| 6 — Publicar | el botón se habilita tras el asentamiento del autoguardado |
+| 6b — la tienda pública, tras publicar | muestra la frase NUEVA |
+| 6c — Postgres directo (`psql`) | `content.marquesina.texto` = la frase nueva |
+
+**TODAS las verificaciones en verde.** Capturas en `.scratch/verificar-marquesina-en-hero-sesion/`
+(`0-publico-antes.png` … `5-publico-despues.png`), no comiteadas.
+
+### Deviation medida — tres archivos de `touches:` quedaron SIN tocar
+
+El spec listaba `lib/storefront/editor-puente.ts`, `lib/storefront/editor-puente.test.ts` y
+`lib/tienda/puente-tarjetas.test.ts`, anticipando que el enrutamiento del puente necesitaría cambios
+de forma de mensaje. Medido (§ arriba, "la parte que NO hizo falta tocar"): el ancestro DOM ya
+resuelve la sección correcta para el CLIC; sólo el mensaje de CAMPO-CAMBIO necesitaba redirección, y
+eso vive en `TiendaPaginas.tsx` (sí tocado). Los tres se corrieron en el gate final y están verdes
+sin modificación: `editor-puente.test.ts` (39/39), `puente-tarjetas.test.ts` (6/6, incluida `'una
+sección SIN bloques-tarjeta → null'` contra `hero` — sigue siendo cierto, HERO no declara bloques
+`tipo:'tarjeta'`). `lib/config/hero-marquesina.test.ts` (52/52, el storefront no se tocó),
+`panel-hero-toggles.test.ts` (16/16) y `tests/integracion/marquesina.test.ts` (3/3, el schema/
+resolver de `marquesina` no cambió, corrido dentro del `npm run test:integracion` 323/323 completo)
+tampoco necesitaron cambios — verificados verdes igual.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA contra `main`, no este commit: la rama sigue cargando los
+cambios bajo `components/storefront/` de `EDITOR-TIENDA-CAMPO-ANCLADO-1` (ya reportados por ESE
+slice con `customer_bytes.changed:true`/`strings:[]`, sin publicar bytes visibles distintos — el
+`verificar:nayoli:visual` de este slice reconfirma la MISMA cifra exacta, § abajo). ESTE commit, en
+cambio, toca CERO archivos bajo `components/storefront/`/`app/(storefront)/` — es puramente del
+panel admin — pero sí introduce texto NUEVO que el OWNER/OPERADOR lee en `/editor/tienda` (el
+esquema de este reporte cuenta "customer, operator o OWNER" como una sola categoría), así que
+`strings` lo nombra:
+
+- El grupo nuevo **"Marquesina"** dentro de la tarjeta «Hero de la home» (sólo visible editando).
+- Los dos campos movidos ahí, con label actualizado: **"Texto del loop (marquesina)"** y
+  **"Producto destacado en la marquesina (opcional)"**, cada uno con su hint ("Sólo con la
+  composición 'sticky'…").
+- La tarjeta suelta «Marquesina» pierde esos dos campos y gana una nota bajo su switch: *"El texto y
+  el producto destacado de esta banda se editan ahora desde «Hero de la home» → grupo «Marquesina»
+  — porque cuando el hero usa esa composición ya los muestra ahí. Este interruptor sólo decide si,
+  además, esta banda aparece SUELTA más abajo en la página."*
+
+`approved: false` — propuesto, a la espera de revisión. Re-confirmado por ejecución
+(`npm run verificar:nayoli:visual`, doble build Nayoli sin preset, main vs. esta rama): **la misma
+cifra exacta** que el piso ya reconciliado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`) — `ruta-home`
+165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px
+c/u; los 2 hovers IDÉNTICO (0px). Cero drift NUEVO introducido por este commit — consistente con que
+no toca ningún archivo de storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin modelo Prisma, sin contrato cross-repo. `marquesinaEditableSchema`
+no se tocó — el dato sigue siendo `content.marquesina.{texto,productoSlug,imagen,visible}`, sólo
+cambió qué tarjeta del panel lo edita.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-SECCIONCRUZADA-SIN-DOCUMENTAR-1`** (coined acá): `CLAUDE.md` § "El editor de la
+  tienda dibuja por BLOQUES" documenta bloques/`BloqueConfig`, pero no el mecanismo nuevo
+  `CampoTexto.seccionCruzada` (un campo que una tarjeta MUESTRA pero que POSEE otra, vía
+  `escribirCampoSinAbrir`) — generalizable para el día que una segunda sección lo necesite.
+  `CLAUDE.md` no está en `touches:` de este slice — no se corrige acá.
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — sigue abierto, re-confirmado sin cambio de figura
+  (§ `customer_bytes` arriba). Ajeno a `touches:` de este slice.
+- `PANEL-EDITOR-VARIANTES-COMPOSICION-1` — hueco preexistente (sin mencionar en este slice): el
+  grupo «Marquesina» del hero se muestra SIEMPRE, no sólo con `hero.variante:'sticky'` — mismo trato
+  que sus vecinos `veloIntensidad`/`tickerVelocidad`, que ya viven con esa misma limitación porque el
+  panel no tiene control de `variante` todavía.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo y mismo gate que
+`EDITOR-TIENDA-CAMPO-ANCLADO-1` (el eje es la rama, no el commit; esta rama sigue sin mergear). El
+dispatch pide explícitamente parar antes del merge y el spec lo confirma ("LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE"). Gate verde en las dos capas obligatorias (`tsc --noEmit` 0 errores,
+`npm test` 3379/3379, `npm run test:integracion` 323/323) más las DOS verificaciones por ejecución
+que pedía el spec: el viaje completo en un arnés de sesión real (§ arriba, 10/10 pasos verdes) y
+`npm run verificar:nayoli:visual` (cifra idéntica al piso heredado, cero drift nuevo). Commiteado en
+`slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-MARQUESINA-EN-HERO-1`.**

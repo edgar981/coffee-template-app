@@ -18,7 +18,7 @@ import { getProducts } from '@/lib/api/products';
 import type { Product } from '@/types/product';
 import { cn } from '@duna/core/utils';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano, SeccionVista } from '@/components/admin/tienda-secciones';
-import { gatePorCampo } from '@/components/admin/tienda-secciones';
+import { gatePorCampo, SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -212,6 +212,14 @@ export interface TiendaSeccionEditorHandle {
    *  `fusionCampoEditable` (soporta tanto un campo PLANO como uno de ítem de repeater). Un `campo`
    *  que `fusionCampoEditable` no puede aplicar (ruta inválida, índice fuera de rango) se IGNORA. */
   escribirCampo: (campo: string, valor: string) => void;
+  /** § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — gemelo de `escribirCampo` SIN el `abrirEdicion()`: lo usa
+   *  OTRA sección para escribir un campo propio (§ `CampoTexto.seccionCruzada`, tienda-secciones.ts)
+   *  sin que esta tarjeta se expanda sola. Quien dispara el clic real (p. ej. el hero, por sección-
+   *  click DOM o por su propio grupo «Marquesina» en el panel) ya decidió qué tarjeta abrir; abrir
+   *  TAMBIÉN la de esta sección sería una segunda tarjeta expandiéndose sin que nadie lo pidiera.
+   *  Aplica el MISMO `cambiar()` vía `fusionCampoEditable` — un único escritor/autoguardado de esta
+   *  sección, sea cual sea la tarjeta desde la que se edite. */
+  escribirCampoSinAbrir: (campo: string, valor: string) => void;
   /** § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — llamado por el clic en una imagen/video marcada que
    *  resuelve a ESTA sección. Abre la edición si está cerrada (SIN desplazar, mismo criterio que
    *  `escribirCampo`) y dispara el MISMO flujo de subida que el control equivalente de la lista
@@ -305,9 +313,20 @@ interface TiendaSeccionEditorProps {
    *  estado está su autoguardado — el padre agrega esto con las demás secciones + 'orden' para el
    *  "N cambios sin publicar"/"Guardando…" de la barra. Ausente = sin agregado que alimentar. */
   onEstado?: (seccion: SeccionVista, info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
+  /** § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — el valor EN VIVO de las secciones ajenas que esta
+   *  declara vía `CampoTexto.seccionCruzada` (hoy, sólo `hero` lee `valoresCruzados.marquesina`
+   *  para mostrar su grupo «Marquesina»). El padre (`TiendaPaginas`) lo arma con el `form` que la
+   *  sección REAL ya reporta por `onCambio`, con el doc inicial como piso antes del primer cambio.
+   *  Ausente/sin la clave = sin valor que mostrar (campo vacío) — no debería ocurrir fuera de un test. */
+  valoresCruzados?: Partial<Record<SeccionVista, Record<string, unknown>>>;
+  /** § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — escribe UN campo de OTRA sección (`seccionCruzada`). El
+   *  padre lo resuelve al handle real (`seccionRefs.current.get(seccion)?.escribirCampoSinAbrir(...)`)
+   *  — esta cáscara nunca toca su propio `form` para un campo cruzado. Ausente = sin a dónde escribir
+   *  (no debería ocurrir fuera de un test). */
+  onEscribirCruzado?: (seccion: SeccionVista, campo: string, valor: string) => void;
 }
 
-const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio, onPaso, onEstado, orden }, ref) {
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -802,6 +821,15 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     if (parcial) cambiar(parcial);
   };
 
+  // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — gemelo SIN `abrirEdicion()` (§ el docstring del handle,
+  // arriba): la escritura remota de un campo `seccionCruzada` no debe expandir ESTA tarjeta — quien
+  // disparó el clic ya decidió abrir la OTRA (la que declara el campo visible). El mismo
+  // `fusionCampoEditable` + `cambiar()` de siempre: un único escritor/autoguardado de esta sección.
+  const escribirCampoSinAbrir = (campo: string, valor: string) => {
+    const parcial = fusionCampoEditable((formRef.current ?? {}) as Datos, campo, valor);
+    if (parcial) cambiar(parcial);
+  };
+
   // ── EL CLIC EN IMAGEN/VIDEO (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1) — iframe→lista ───────────
   // Nunca una segunda implementación de "elegir y subir": dispara el MISMO flujo que su botón
   // equivalente en la lista (`ponerImagen`/`agregarVideoHero`/`agregarVideoMovilHero`, ya definidos
@@ -911,8 +939,8 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // closures que ya de por sí se redefinen cada render.
   useImperativeHandle(
     ref,
-    () => ({ seleccionar, escribirCampo, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
-    [seleccionar, escribirCampo, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado],
+    () => ({ seleccionar, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
+    [seleccionar, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado],
   );
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
@@ -1116,6 +1144,41 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           <p className="duna-field__hint" style={{ marginBottom: 0 }}>
             → {etiquetaEjesSpotlight(ejesProducto)}
           </p>
+        )}
+        <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+      </div>
+    );
+  };
+
+  // ── CAMPOS CRUZADOS (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, `CampoTexto.seccionCruzada`) ──────────
+  // Un campo declarado con `seccionCruzada` vive en OTRA sección del REGISTRY: se MUESTRA en esta
+  // tarjeta, agrupado por la sección a la que pertenece de verdad, pero su valor y su escritura NUNCA
+  // pasan por el `form`/autoguardado de ESTA sección — se leen de `valoresCruzados` y se escriben vía
+  // `onEscribirCruzado`, que el padre (`TiendaPaginas`) resuelve al handle REAL
+  // (`escribirCampoSinAbrir`). Así sigue habiendo un único escritor de la sección destino, sea cual
+  // sea la tarjeta desde la que se edite. Deliberadamente SIMPLE (label + hint + input/textarea): los
+  // campos cruzados de hoy (`marquesina.texto`/`.productoSlug`) son texto llano, sin categoria/
+  // producto/opciones — si alguno los ganara, se amplía acá, no se duplica `renderCampo` entero.
+  const camposCruzados = config.campos.filter((c) => c.seccionCruzada);
+  const gruposCruzados = new Map<SeccionVista, CampoTexto[]>();
+  for (const c of camposCruzados) {
+    const destino = c.seccionCruzada!;
+    const lista = gruposCruzados.get(destino) ?? [];
+    lista.push(c);
+    gruposCruzados.set(destino, lista);
+  }
+  const renderCampoCruzado = (destino: SeccionVista, campo: CampoTexto) => {
+    const id = `${seccion}-cruzado-${destino}-${campo.name}`;
+    const value = String(valoresCruzados?.[destino]?.[campo.name] ?? '');
+    const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      onEscribirCruzado?.(destino, campo.name, e.target.value);
+    return (
+      <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
+        <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
+        {campo.textarea ? (
+          <textarea id={id} className="duna-input" rows={2} value={value} onChange={onChange} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
+        ) : (
+          <input id={id} className="duna-input" value={value} onChange={onChange} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         )}
         <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
       </div>
@@ -1560,7 +1623,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   };
 
   // Los bloques resueltos, y las tarjetas OPCIONALES aún colapsadas → la oferta "+ Agregar tarjeta".
-  const bloques = bloquesResueltos(config);
+  // UN CAMPO `seccionCruzada` SE QUITA del bloque `seccion` que `bloquesResueltos` ya resolvió (§ la
+  // red de seguridad, lib/tienda/bloques.ts: sin `bloques` declarados, ese bloque único trae TODOS los
+  // campos — los cruzados incluidos) — se renderiza aparte, en su propio grupo (§ `gruposCruzados`,
+  // arriba), nunca los dos a la vez. Sólo el `seccion` necesita el filtro: ningún `tarjeta`/`lista`/
+  // `collage` de hoy declara un campo `seccionCruzada` entre los suyos.
+  const bloques = bloquesResueltos(config).map((b) =>
+    b.tipo === 'seccion' ? { ...b, campos: b.campos.filter((c) => !c.seccionCruzada) } : b,
+  );
   const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
   const agregarTarjeta = () => { const primera = tarjetasColapsadas[0]; if (primera) expandir(primera.slot); };
 
@@ -1711,8 +1781,13 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                     </button>
                     <span className="duna-field__label" style={{ margin: 0 }}>Mostrar en la tienda</span>
                   </div>
-                  {/* Sin hint: el operador apaga y ve el resultado en la vista en vivo. El label + el
-                      switch bastan (mismo criterio que el toggle de página). */}
+                  {/* Sin `notaVisibilidad`: el operador apaga y ve el resultado en la vista en vivo. El
+                      label + el switch bastan (mismo criterio que el toggle de página). CON ella (hoy,
+                      sólo Marquesina, § EDITOR-TIENDA-MARQUESINA-EN-HERO-1): el switch por sí solo no
+                      basta para entender qué hace, porque otra tarjeta ya muestra su texto/producto. */}
+                  {config.notaVisibilidad && (
+                    <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{config.notaVisibilidad}</p>
+                  )}
                 </div>
               )}
 
@@ -1741,6 +1816,21 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                     )}
                 </Fragment>
               ))}
+              {/* Los GRUPOS CRUZADOS (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, arriba): una pieza por
+                  sección destino, titulada con SU `titulo` real (derivado de SECCIONES_TIENDA, nunca
+                  un literal que pudiera divergir si esa sección cambia de nombre). Van DESPUÉS de los
+                  bloques propios de esta sección — son un agregado, no la identidad de la tarjeta. */}
+              {Array.from(gruposCruzados.entries()).map(([destino, campos]) => {
+                const tituloGrupo = SECCIONES_TIENDA.find((s) => s.seccion === destino)?.titulo ?? destino;
+                return (
+                  <div className="admin-bloque" key={destino}>
+                    <p className="duna-field__label" style={{ margin: 0, marginBottom: 'var(--duna-space-3)' }}>{tituloGrupo}</p>
+                    <div className="duna-form">
+                      {campos.map((c) => renderCampoCruzado(destino, c))}
+                    </div>
+                  </div>
+                );
+              })}
               {/* La oferta de la pieza opcional (rule 3): agrega la PRIMERA tarjeta colapsada. Se
                   esconde cuando no queda ninguna (las 4 visibles). Sólo Presentaciones tiene tarjetas. */}
               {tarjetasColapsadas.length > 0 && (

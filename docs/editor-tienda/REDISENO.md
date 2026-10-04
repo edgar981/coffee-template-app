@@ -52,6 +52,22 @@ tres cerraron con el mismo arnés, re-ejecutado sobre el código arreglado: 19/1
 | 4 | Con el campo abierto, al bajar hasta Galería el texto se mueve con el scroll | El overlay es `position:fixed` con coordenadas leídas **una vez** al abrir (`campo-editable.ts:147-152`, sin escucha de scroll ni de resize). A eso se suma que el mismo clic dispara `scrollIntoView` (`VistaTiendaIframe.tsx:195`), así que la página se mueve justo después de medir. | El campo se ancla en **coordenadas del documento**: `absolute` dentro del iframe, o re-medido en `scroll`/`resize`/`ResizeObserver` por cuadro. Un clic que nace en el iframe no vuelve a desplazar el iframe. |
 | 5 | Aparece una sección «Marquesina» aparte que «no se muestra en la tienda» | `SECCIONES_TIENDA` declara `MARQUESINA` como sección propia del home (`tienda-secciones.ts:343-354`), y CORTE la apaga (`bandasVisibles.marquesina:false`) porque el hero `sticky` ya la dibuja. La tarjeta lo dice literal (`TiendaSeccionEditor.tsx:1015-1022`). | La marquesina pasa a ser **una zona del hero**: la lista de secciones sale de lo que la página dibuja. **Ojo:** el texto y el producto de la marquesina viven en `content.marquesina`, y las ediciones en la página solo llegan a secciones con tarjeta montada (`TiendaPaginas.tsx:132-136`). Hay que re-enrutar `marquesina.*` al editor del hero antes de quitar la tarjeta, no después. |
 
+**ERROR 5 ENTREGADO por `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` (2026-10-03), por un camino MÁS ACOTADO
+que «zona del hero»** (esa palabra es de § 4, la vista por zonas de `data-editor-zona` — slice 5, no
+construida todavía): `texto`/`productoSlug` pasaron de `MARQUESINA.campos` a `HERO.campos`, marcados
+con un nuevo `CampoTexto.seccionCruzada: 'marquesina'` — la tarjeta del hero los MUESTRA y los
+ESCRIBE, pero el handle/autoguardado que los posee sigue siendo el de `marquesina` (vía
+`TiendaSeccionEditorHandle.escribirCampoSinAbrir`, que el padre resuelve), así que sigue habiendo un
+único escritor de esa sección sea cual sea la tarjeta desde la que se edite — sin tocar el schema ni
+el resolver, "sin migración" tal como pedía el spec. El RE-ENRUTAMIENTO que el "Ojo" de arriba
+advertía resultó innecesario en la dirección que importaba: un clic dentro de la composición `sticky`
+del hero YA resuelve a la tarjeta del hero por el `[data-editor-seccion="hero"]` ancestro del DOM
+(medido contra `EditorPuenteVivo.tsx`, fuera de `touches:` — no hace falta tocarlo), así que sólo
+hubo que re-enrutar la escritura REMOTA (el mensaje de campo-cambio del tecleo dentro del iframe) para
+que no abriera TAMBIÉN la tarjeta suelta. Esa tarjeta se queda —con su `bandaId` y su sección, como
+pedía el owner— mostrando sólo el interruptor de la banda SUELTA + un `notaVisibilidad` explicando el
+porqué (nuevo campo opcional de `SeccionConfig`, sin romper ninguna otra sección que no lo declare).
+
 ---
 
 ## 2 · Lo que pidió el owner, y dónde queda en el diseño
@@ -205,7 +221,7 @@ Nada de esto se escribe en las bases de los clientes sin el owner.
 |---|---|---|---|
 | 1 | `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — «Tema» deja de caerse — **ENTREGADO** (2026-10-03) | `app/(admin)/editor/layout.tsx` | 2 |
 | 2 | `EDITOR-TIENDA-CAMPO-ANCLADO-1` — campo anclado al documento, mide el bloque, gemelos ocultos (errores 1, 3, 4) — **ENTREGADO** (2026-10-03) | `EditorPuenteVivo.tsx`, `campo-editable.ts`, marcadores de gemelo en el hero y la marquesina | **1** |
-| 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) | `tienda-secciones.ts`, enrutamiento del puente | 2 (+1 si toca storefront) |
+| 3 | `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` — la marquesina como zona del hero; fuera la tarjeta suelta (error 5) — **ENTREGADO** (2026-10-03) | `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`, `TiendaPaginas.tsx`, `panel-controles.ts` | 2 |
 | 4 | `EDITOR-TIENDA-SHELL-1` — riel + panel con niveles + Estilo como herramienta | `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`, `PaletaSeccion.tsx` | 2 |
 | 5 | `EDITOR-TIENDA-ZONAS-1` — zonas del hero sobre la página, «+» en su lugar, booleanos escritos desde las zonas | variantes del hero (`data-editor-zona`), panel del hero | **1** |
 | 6 | `EDITOR-TIENDA-COMPOSICION-1` — vista nueva «¿Cómo se arma tu hero?» (`hero.variante`) | panel + hoja | 2 |

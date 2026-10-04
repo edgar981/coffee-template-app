@@ -98,7 +98,15 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // combobox, la cáscara muestra la combinación (presentación · tamaño) DERIVADA del producto elegido
 // (`ejesSpotlight`, lib/config/spotlight.ts) — "con la combinación de cada uno visible" del spec de
 // ese slice. Sin esto el picker no anuncia qué celda de la matriz ocupa cada producto.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
+// `seccionCruzada` (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1) — este campo se MUESTRA en la tarjeta de
+// ESTA sección pero LEE/ESCRIBE el `content.<seccionCruzada>.<name>` de OTRA (p. ej. `marquesina.
+// texto`, mostrado como grupo dentro de «Hero de la home» porque la composición `sticky` del hero ya
+// lo dibuja). La cáscara (`TiendaSeccionEditor`) nunca mezcla su valor con el `form` local de esta
+// sección: lo lee de `valoresCruzados` y lo escribe vía `onEscribirCruzado`, que el padre
+// (`TiendaPaginas`) resuelve al handle de la sección REAL — así sigue habiendo un único escritor/
+// autoguardado de `seccionCruzada`, sea cual sea la tarjeta desde la que se edite. Ausente = el campo
+// es de ESTA sección, el caso de siempre.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -182,6 +190,11 @@ export interface SeccionConfig {
   imagenes: CampoImagen[];
   /** Si la sección expone el toggle de visibilidad (§ REGISTRY.ocultable). El hero es false. */
   ocultable: boolean;
+  /** Texto OPCIONAL junto al interruptor de visibilidad, para una sección cuyo switch por sí solo no
+   *  basta para entender qué hace (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1: la banda Marquesina, cuyo
+   *  texto/producto se editan ahora desde «Hero de la home»). Ausente = sin hint, el comportamiento de
+   *  siempre ("el operador apaga y ve el resultado en la vista en vivo", § el toggle de abajo). */
+  notaVisibilidad?: string;
   /** Los INTERRUPTORES (switches) de sección — capacidades que se prenden/apagan, aparte del toggle
    *  de visibilidad de TODA la sección (`ocultable`). Ausente = sin interruptores (la mayoría de las
    *  secciones hoy). § `CampoBooleano` para el mecanismo de atenuación que cada uno puede activar. */
@@ -308,16 +321,40 @@ const HERO: SeccionConfig = {
       hint: 'Sólo con la composición "sticky" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
     { name: 'tickerVelocidad', label: 'Velocidad del texto en movimiento', opciones: OPCIONES_TICKER_VELOCIDAD,
       hint: 'Sólo con la composición "sticky". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
+    // EL GRUPO «MARQUESINA» (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, docs/editor-tienda/REDISENO.md § 1
+    // error 5): la composición "sticky" dibuja la cinta de texto + la tarjeta flotante leyendo
+    // `content.marquesina.texto`/`.productoSlug` (HeroMediaMarquesina.tsx) — los MISMOS dos campos que
+    // la banda independiente `MARQUESINA` (abajo) ya declaraba. Antes de este slice el dueño tenía que
+    // ir a la tarjeta suelta «Marquesina» para editarlos, que además decía "no se muestra en la
+    // tienda" (porque esa banda nace apagada, § `DEFAULTS.marquesina.visible`) mientras el hero los
+    // mostraba — la contradicción que el error 5 reporta. `seccionCruzada: 'marquesina'` los declara
+    // ACÁ, visibles y editables desde el hero, sin moverlos de `content.marquesina` (sin migración,
+    // § el spec): la cáscara los lee/escribe por el handle de `marquesina`, nunca por el `form` de
+    // `hero` (ver el docstring de `CampoTexto.seccionCruzada`, arriba). `name` es literal el mismo
+    // nombre de campo que `MARQUESINA.campos` solía declarar —'texto'/'productoSlug'—, no un alias: es
+    // lo que permite que `panel-controles.ts` los siga contando como `marquesina.texto`/
+    // `marquesina.productoSlug`, no como `hero.texto`/`hero.productoSlug`.
+    { name: 'texto', label: 'Texto del loop (marquesina)', seccionCruzada: 'marquesina',
+      hint: 'Sólo con la composición "sticky". La frase que se repite desplazándose por la marquesina sobre el video — el mismo texto que usa la banda «Marquesina» si además la muestras suelta más abajo. Vacío: se usa el texto por defecto.' },
+    { name: 'productoSlug', label: 'Producto destacado en la marquesina (opcional)', opcional: true, seccionCruzada: 'marquesina',
+      hint: 'Sólo con la composición "sticky". El slug del producto que aparece en la tarjeta flotante de la marquesina. Vacío: la tarjeta no se muestra.' },
   ],
 };
 
 // La banda MARQUESINA (§ MARQUESINA-BANDA-1, § el docstring de `MarquesinaContent` en
 // site-content-defaults.ts): foto de fondo velada + un texto en loop + el pin opcional de la tarjeta
-// flotante. ALCANCE DE ESTE SLICE (PANEL-EDITOR-MARQUESINA-1, orden del owner, item 7 de 8 del
-// programa "el panel refleja la tienda"): SOLO el panel — texto, imagen, productoSlug y visible, con
-// el MISMO patrón que origen/spotlight. NO toca tokens ni preset: `marquesina` YA ES sección del
-// REGISTRY (su schema declara los tres campos + `visible`), así que el route genérico de secciones
-// ya la guarda y publica — este slice sólo la vuelve CONTROLADA declarándola acá.
+// flotante — como SECCIÓN independiente, que el dueño puede mostrar SUELTA más abajo en la home
+// (`visible:true`, nace OFF).
+//
+// `texto`/`productoSlug` SE FUERON de `campos` (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, cierra el
+// error 5 de docs/editor-tienda/REDISENO.md). Siguen siendo `content.marquesina.texto`/
+// `.productoSlug` — SIN MIGRACIÓN, el schema y el resolver no se tocaron — pero se EDITAN desde
+// «Hero de la home» (`HERO.campos`, arriba, vía `seccionCruzada`) porque la composición "sticky" del
+// hero YA los dibuja; editarlos desde acá Y desde ahí sería el mismo dato con dos controles
+// divergentes. La tarjeta de esta sección se queda con el único control que le pertenece de verdad:
+// el interruptor de si la banda SUELTA se muestra, más `notaVisibilidad` explicando el porqué —
+// antes decía apenas "No se muestra en la tienda" mientras el hero sticky mostraba esos mismos datos,
+// la contradicción que el owner reportó.
 //
 // EL VELO (`--sf-velo`) NO se toca — fuera de alcance por decisión del owner. Ya es un rol DERIVADO
 // de `--sf-tinta`, compartido con el pie del velo de HeroMedia (`globals.css`, `color-mix(in oklab,
@@ -325,32 +362,26 @@ const HERO: SeccionConfig = {
 // acá: el fondo/velo sigue el mismo mecanismo de siempre, sin campo editable propio.
 //
 // `ocultable: true` — la banda nace OFF (`DEFAULTS.marquesina.visible: false`); el dueño la enciende
-// cuando tenga su propia frase e imagen. SIN `bloques`: tres campos alcanzan para el bloque `seccion`
-// derivado por defecto (imagen + texto + productoSlug), mismo criterio que SPOTLIGHT (sin bloques
-// propios, sección chica).
+// si además quiere esta banda SUELTA (la imagen de fondo sigue siendo SUYA, § `imagenes` abajo — el
+// hero no la lee). SIN `bloques`: la única imagen alcanza para el bloque `seccion` derivado por
+// defecto, mismo criterio que SPOTLIGHT (sin bloques propios, sección chica).
 //
-// `productoSlug` es el PIN de la tarjeta flotante — MISMO mecanismo que `spotlight.productoSlug`
-// (puntero al catálogo, texto libre, validado en LECTURA contra el catálogo vivo — nunca contra un
-// set fijo al guardar, § el docstring de `MarquesinaContent`/`SpotlightContent`). OPCIONAL: sin pin
-// la tarjeta simplemente no se muestra (hide-on-empty de UN elemento, no de la sección entera).
-//
-// SIN el fallback de `spotlight` (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1): `spotlight.productoSlug`
-// resuelve con `productoSpotlight`, que cae al PRIMER producto del catálogo si el slug no matchea
-// —correcto ahí, la banda ENTERA es de un producto—; `marquesina.productoSlug` resuelve con
-// `productoMarquesina`, que NUNCA cae a un producto arbitrario. Por eso el hint de arriba ("Vacío:
-// la tarjeta no se muestra") es literal: un pin vacío o roto oculta la tarjeta, no muestra el
-// primer café del catálogo.
+// `productoSlug`/`texto` (hoy editados desde HERO, arriba) resuelven igual que siempre: `productoSlug`
+// es el PIN de la tarjeta flotante, MISMO mecanismo que `spotlight.productoSlug` (puntero al catálogo,
+// texto libre, validado en LECTURA contra el catálogo vivo — nunca contra un set fijo al guardar, §
+// el docstring de `MarquesinaContent`/`SpotlightContent`), OPCIONAL: sin pin la tarjeta simplemente no
+// se muestra (hide-on-empty de UN elemento, no de la sección entera). SIN el fallback de `spotlight`
+// (§ HERO-SIN-TARJETA-Y-PDP-IMAGEN-1): `marquesina.productoSlug` resuelve con `productoMarquesina`,
+// que NUNCA cae al primer producto del catálogo si el slug no matchea.
 const MARQUESINA: SeccionConfig = {
   seccion: 'marquesina',
   pagina: 'home',
   titulo: 'Marquesina',
   ocultable: true,
   bandaId: 'marquesina',
+  notaVisibilidad: 'El texto y el producto destacado de esta banda se editan ahora desde «Hero de la home» → grupo «Marquesina» — porque cuando el hero usa esa composición ya los muestra ahí. Este interruptor sólo decide si, además, esta banda aparece SUELTA más abajo en la página.',
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
-  campos: [
-    { name: 'texto', label: 'Texto del loop', hint: 'La frase que se repite desplazándose por la banda, p. ej. una línea de marca. Vacío: se usa el texto por defecto.' },
-    { name: 'productoSlug', label: 'Producto destacado (opcional)', opcional: true, hint: 'El slug del producto que aparece en la tarjeta flotante. Vacío: la tarjeta no se muestra.' },
-  ],
+  campos: [],
 };
 
 // La banda de INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, § el docstring de

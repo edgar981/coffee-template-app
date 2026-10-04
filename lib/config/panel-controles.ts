@@ -122,11 +122,23 @@ export function camposLeidosPorTienda(): string[] {
  *  `'seccion'` sólo AGRUPA campos que ya están en `campos`/`imagenes` (doctrina: "el bloque sólo los
  *  AGRUPA") — unirlos de nuevo es inofensivo (un Set no duplica); sólo `'lista'` aporta nombres NUEVOS.
  *  Fue midiendo el gate en rojo con `suscripcionPlanes.ben1_1..ben4_4` como se descubrió esta fuente —
- *  no estaba anticipada al diseñar la derivación. */
+ *  no estaba anticipada al diseñar la derivación.
+ *
+ *  UN CAMPO con `seccionCruzada` (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, `CampoTexto.seccionCruzada`)
+ *  se atribuye a SU SECCIÓN REAL (`${c.seccionCruzada}.${c.name}`), no a la que lo declara en el
+ *  editor: `HERO.campos` declara `texto`/`productoSlug` para mostrarlos dentro de la tarjeta del
+ *  hero, pero lo que la tienda LEE (lado A, `camposLeidosPorTienda`) sigue siendo
+ *  `marquesina.texto`/`marquesina.productoSlug` — atribuirlos a `hero.*` dejaría esos dos campos
+ *  reales SIN control (huecos falsos) y agregaría dos claves fantasma (`hero.texto`/
+ *  `hero.productoSlug`) que `REGISTRY.hero` no tiene. */
 function camposDeSeccionEditor(config: SeccionConfig): string[] {
   const s = config.seccion;
   const campos = new Set<string>();
-  for (const c of config.campos) campos.add(c.name);
+  const cruzados = new Set<string>();
+  for (const c of config.campos) {
+    if (c.seccionCruzada) cruzados.add(`${c.seccionCruzada}.${c.name}`);
+    else campos.add(c.name);
+  }
   for (const im of config.imagenes) campos.add(im.name);
   if (config.ocultable) campos.add('visible');
   for (const b of config.booleanos ?? []) campos.add(b.name);
@@ -135,7 +147,7 @@ function camposDeSeccionEditor(config: SeccionConfig): string[] {
   }
   const planos = [...campos].sort().map((c) => `${s}.${c}`);
   const items = config.repeater ? [...config.repeater.campos].map((c) => `${s}.items.${c.name}`).sort() : [];
-  return [...planos, ...items];
+  return [...planos, ...[...cruzados].sort(), ...items];
 }
 
 /** Lo que las DIEZ secciones de `SECCIONES_TIENDA` cubren, vía el editor genérico. */

@@ -349,6 +349,28 @@ test('calibración: hero.fraseAlPie está controlado, sin exención — el hueco
   assert.ok(!huecos.includes('hero.fraseAlPie'));
 });
 
+// § EDITOR-TIENDA-MARQUESINA-EN-HERO-1: `marquesina.texto`/`.productoSlug` dejaron de declararse en
+// `MARQUESINA.campos` y pasaron a `HERO.campos` (con `seccionCruzada: 'marquesina'`, § el docstring
+// de `CampoTexto` en tienda-secciones.ts) — se editan ahora desde la tarjeta del hero, porque la
+// composición "sticky" ya los dibuja. Siguen CONTROLADOS, atribuidos a su sección REAL
+// (`camposDeSeccionEditor`, § panel-controles.ts), nunca a la que los declara en el editor — si se
+// atribuyeran a `hero.*`, `marquesina.texto`/`.productoSlug` reales quedarían como huecos falsos, y
+// `hero.texto`/`hero.productoSlug` (que `REGISTRY.hero` no tiene) aparecerían como control fantasma.
+// El trinquete de PENDIENTE_PANEL no se mueve: ningún campo pasó a exención, sólo cambió de tarjeta.
+test('calibración: marquesina.texto/productoSlug siguen controlados vía seccionCruzada (declarados hoy en HERO.campos, atribuidos a marquesina)', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('marquesina.texto'));
+  assert.ok(controlados.includes('marquesina.productoSlug'));
+  assert.ok(!controlados.includes('hero.texto'), 'un campo cruzado no debe quedar TAMBIÉN atribuido a la sección que lo declara en el editor');
+  assert.ok(!controlados.includes('hero.productoSlug'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('marquesina.texto'));
+  assert.ok(!pendientes.has('marquesina.productoSlug'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('marquesina.texto'));
+  assert.ok(!huecos.includes('marquesina.productoSlug'));
+});
+
 test('calibración: SIN exenciones, el chequeo marca EXACTAMENTE el conjunto de PENDIENTE_PANEL (ni más ni menos)', () => {
   const huecos = huecosDelPanel({ conExenciones: false });
   const esperado = PENDIENTE_PANEL.map((e) => e.campo).sort();
