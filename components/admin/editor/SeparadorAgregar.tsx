@@ -13,6 +13,11 @@ import { Plus } from 'lucide-react';
 // visual, sin tocar un archivo fuera de alcance. El botón SIGUE en el orden de tabulación siempre
 // (nunca `tabIndex={-1}`): "con foco" tiene que poder alcanzarlo desde el teclado aunque el mouse
 // nunca haya pasado por ahí.
+//
+// § EDITOR-VISUAL-PANEL-1 — el alto bajó de 28 a 10: entre las FILAS compactas del prototipo
+// (38px, `.editor-row`) un separador de 28px se leía como un hueco, no como una costura — el mismo
+// ritmo apretado que el prototipo usa entre sus `.row` (`gap:1px`). La afordancia (línea + botón al
+// pasar el mouse) no cambió, sólo el espacio que ocupa en reposo.
 export function SeparadorAgregar({ onClick, etiqueta = 'Agregar sección' }: {
   onClick: () => void;
   etiqueta?: string;
@@ -21,7 +26,7 @@ export function SeparadorAgregar({ onClick, etiqueta = 'Agregar sección' }: {
 
   return (
     <div
-      style={{ position: 'relative', height: 28, display: 'flex', alignItems: 'center' }}
+      style={{ position: 'relative', height: 10, display: 'flex', alignItems: 'center' }}
       onMouseEnter={() => setActivo(true)}
       onMouseLeave={() => setActivo(false)}
     >

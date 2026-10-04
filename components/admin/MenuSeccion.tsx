@@ -3,11 +3,13 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import type { ChangeEvent } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, ImageIcon } from 'lucide-react';
+import { Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
+import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
+import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { MENU_ITEM_IDS, MENU_CTA_DESTINOS, resolverOrdenMenu, type MenuContent, type MenuItemId } from '@/lib/config/site-content-defaults';
 import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, parAMedias, type CampoPosicionMenu } from '@/lib/config/menu-editor';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
@@ -311,8 +313,6 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
   const orden = resolverOrdenMenu([form.posicion1, form.posicion2, form.posicion3]);
   const resumenOrden = orden.map((id) => etiquetaOpcionMenu(form, id)).join(' · ');
   const ctaLabelPresente = form.ctaLabel.trim() !== '';
-  const ctaDestinoPresente = (MENU_CTA_DESTINOS as readonly string[]).includes(form.ctaDestino);
-  const ctaCompleto = ctaLabelPresente && ctaDestinoPresente;
   const ctaAMedias = parAMedias(form.ctaLabel, form.ctaDestino);
   const badgeTextoAtenuado = (form.badgeItem ?? '') === ''; // sin ítem elegido, el texto no se muestra
   const panelAtenuado = (form.panelItem ?? '') === ''; // sin ítem elegido, el panel no se muestra
@@ -334,6 +334,21 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
     </div>
   ) : null;
 
+  // § EDITOR-VISUAL-PANEL-1 — LECTURA: una FILA compacta, no la tarjeta grande con el resumen del
+  // orden del menú en prosa ("Tienda · Suscripciones · Nosotros · botón «…»", § CLAUDE.md "sin
+  // tarjetas grandes con botón Editar"). El resumen (`resumenOrden`) SIGUE vivo dentro de la edición
+  // ("Así se ve hoy: …", más abajo) — sólo se retira de la fila colapsada.
+  if (!editando) {
+    return (
+      <FilaSeccion
+        icono={<IconoFila tipo="menu" />}
+        titulo="Menú del nav"
+        hayBorrador={hayBorrador}
+        onAbrir={() => setEditando(true)}
+      />
+    );
+  }
+
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
@@ -342,51 +357,31 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
             <h2 className="duna-title">Menú del nav</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
-          {!editando && (
-            <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-              Los enlaces de la barra de navegación: renombra cada uno, cambia el orden, y agrega un
-              botón adicional si quieres.
-            </p>
-          )}
-          {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
-        {!editando ? (
-          <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
-            <Pencil /> Editar
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {/* § EDITOR-TIENDA-CROMO-1 — dentro del editor de pantalla completa, "Publicar"/
-                "Descartar" viven en la barra GLOBAL (el mismo botón que publica el resto de las
-                secciones en lote) — esta tarjeta deja de dibujar los suyos, como ya hace
-                `TiendaSeccionEditor` para cada sección de página. */}
-            {!enEditor && hayBorrador && (
-              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
-                Descartar
-              </button>
-            )}
-            {!enEditor && hayBorrador && (
-              <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
-                {procesando ? 'Publicando…' : 'Publicar'}
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+          {/* § EDITOR-TIENDA-CROMO-1 — dentro del editor de pantalla completa, "Publicar"/
+              "Descartar" viven en la barra GLOBAL (el mismo botón que publica el resto de las
+              secciones en lote) — esta tarjeta deja de dibujar los suyos, como ya hace
+              `TiendaSeccionEditor` para cada sección de página. */}
+          {!enEditor && hayBorrador && (
+            <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+              Descartar
+            </button>
+          )}
+          {!enEditor && hayBorrador && (
+            <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
+              {procesando ? 'Publicando…' : 'Publicar'}
+            </button>
+          )}
+        </div>
       </div>
-      {editando && errorServidor && (
+      {errorServidor && (
         <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)', marginBottom: 0 }}>{errorServidor}</p>
       )}
 
-      {!editando ? (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <p className="duna-sub" style={{ margin: 0 }}>
-            {resumenOrden}
-            {ctaCompleto && <> · botón «{form.ctaLabel}»</>}
-          </p>
-        </div>
-      ) : (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
+      <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div className="duna-form">
             {/* Las TRES etiquetas — el destino de cada una es ESTRUCTURA (fijo), sólo el texto se
                 edita. `posicionX` (abajo) hace las tres COLGABLES en el orden que se muestran. */}
@@ -630,7 +625,6 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
             <input ref={subidaImagen.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subidaImagen.alElegir} hidden disabled={subidaImagen.subiendo} />
           </div>
         </div>
-      )}
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}

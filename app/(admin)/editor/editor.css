@@ -71,3 +71,100 @@
    consumidor (teléfono = bisel más redondeado), por eso no va acá. */
 .editor-st-frame { position: relative; flex-shrink: 0; overflow: hidden; background: var(--duna-surface);
                     border: 1px solid var(--duna-border); box-shadow: var(--duna-shadow-3); }
+
+/* ── EDITOR-VISUAL-PANEL-1 ───────────────────────────────────────────────────────────────────────
+   El PANEL de niveles (REDISENO.md § 3: "Inicio (lista de secciones con asa y ojo...) → Hero →
+   Titular"), calcado del prototipo (.pv/.grp/.rows/.row/.kids/.kid/.add-sec/.pv-back). Reemplaza la
+   fila gruesa de tarjetas (`.tienda-tarjeta`, duna.css — sigue existiendo, la usan otras pantallas
+   fuera de `touches:`) por una lista compacta; la fila la pinta `FilaSeccion.tsx`
+   (components/admin/editor/), este archivo sólo le da forma. */
+
+.editor-pv-title { font: 600 18px/1.2 var(--duna-font-display); letter-spacing: -0.012em; margin: 0; color: var(--duna-ink); }
+.editor-pv-sub   { color: var(--duna-muted); font-size: 12.5px; margin: 5px 0 0; line-height: 1.45; }
+
+/* La MIGA «‹ Inicio» (REDISENO.md § 3: "Siempre hay un «‹ volver» que nombra el nivel de arriba") —
+   restyling de `Migas.tsx`, que YA tenía el mecanismo (un solo nivel de vuelta); esto sólo cambia la
+   forma del botón al estilo `.pv-back` del prototipo. */
+.editor-pv-back { display: inline-flex; align-items: center; gap: 3px; color: var(--duna-muted);
+                   font-size: 12px; font-weight: 500; padding: 4px 8px 4px 2px; border-radius: var(--duna-r-s);
+                   flex-shrink: 0; transition: color var(--duna-dur-fast) var(--duna-ease), background var(--duna-dur-fast) var(--duna-ease); }
+.editor-pv-back:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
+.editor-pv-back svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* Los rótulos de GRUPO del nivel Inicio — «ARRIBA» · «CONTENIDO» · «ABAJO» (el spec). Mono
+   mayúsculas, el ÚNICO sitio de este slice donde se adopta ese tratamiento del prototipo (§ el
+   asiento del slice: no se re-estilizó `.duna-field__label` en todo el panel — acá sólo hace falta
+   para los TRES rótulos nuevos que este slice agrega). SIN margin-top: cada grupo (rótulo + sus
+   filas) va envuelto en UN `<div>` por `TiendaPaginas.tsx`, así que es UN solo ítem del grid externo
+   (`gap: var(--duna-space-4)`) — ese gap ya separa un grupo del siguiente; un margin-top acá
+   duplicaría el espacio. */
+.editor-grp { font: 500 10.5px/1 var(--duna-font-mono); letter-spacing: .08em; text-transform: uppercase;
+              color: var(--duna-faint); margin: 0 2px var(--duna-space-2); }
+
+.editor-rows { display: flex; flex-direction: column; gap: 1px; }
+
+/* LA FILA (`FilaSeccion.tsx`): icono + nombre siempre a la vista; asa/ojo/chevron sólo al pasar el
+   mouse (`opacity:0` → `1`), igual que el prototipo — sacar el ruido de la lista hasta que haga
+   falta. `is-dim` atenúa el nombre cuando la sección no se muestra en la tienda (§ el ojo, no un
+   párrafo). */
+.editor-row { display: flex; align-items: center; gap: 4px; min-height: 38px; padding: 0 4px 0 2px;
+              border-radius: var(--duna-r-m); color: var(--duna-ink-2);
+              transition: background var(--duna-dur-fast) var(--duna-ease); }
+.editor-row:hover { background: var(--duna-wash-hover); }
+
+.editor-row__grip { width: 16px; height: 16px; color: var(--duna-faint); opacity: 0;
+                     transition: opacity var(--duna-dur-fast) var(--duna-ease); flex-shrink: 0;
+                     display: grid; place-items: center; background: none; border: 0; padding: 0; cursor: grab; }
+.editor-row:hover .editor-row__grip, .editor-row__grip:focus-visible { opacity: 1; }
+.editor-row__grip svg { width: 14px; height: 14px; }
+
+.editor-row__main { flex: 1 1 auto; min-width: 0; height: 100%; min-height: 36px; display: flex;
+                     align-items: center; gap: 9px; padding-left: 2px; background: none; border: 0;
+                     text-align: left; color: inherit; cursor: pointer; }
+.editor-row__icon { flex-shrink: 0; display: grid; place-items: center; width: 15px; height: 15px; color: var(--duna-muted); }
+.editor-row__icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6;
+                         stroke-linecap: round; stroke-linejoin: round; }
+.editor-row__nm { flex: 1 1 auto; min-width: 0; font-weight: 500; font-size: 13px; white-space: nowrap;
+                   overflow: hidden; text-overflow: ellipsis; }
+.editor-row__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--duna-sol); flex-shrink: 0; }
+
+.editor-row__chevron { width: 28px; height: 28px; border-radius: var(--duna-r-s); display: grid; place-items: center;
+                        color: var(--duna-muted); flex-shrink: 0; background: none; border: 0; cursor: pointer;
+                        transition: background var(--duna-dur-fast) var(--duna-ease); }
+.editor-row__chevron:hover { background: var(--duna-wash-hover); color: var(--duna-ink); }
+.editor-row__chevron svg { width: 15px; height: 15px; transition: transform var(--duna-dur-fast) var(--duna-ease); }
+.editor-row__chevron.is-open svg { transform: rotate(90deg); }
+
+.editor-row__eye { width: 28px; height: 28px; border-radius: var(--duna-r-s); display: grid; place-items: center;
+                    color: var(--duna-muted); flex-shrink: 0; opacity: 0; background: none; border: 0; cursor: pointer;
+                    transition: opacity var(--duna-dur-fast) var(--duna-ease), background var(--duna-dur-fast) var(--duna-ease); }
+.editor-row:hover .editor-row__eye, .editor-row.is-dim .editor-row__eye, .editor-row__eye:focus-visible { opacity: 1; }
+.editor-row__eye:hover { background: var(--duna-wash-hover); color: var(--duna-ink); }
+.editor-row__eye svg { width: 15px; height: 15px; }
+
+.editor-row.is-dim .editor-row__main { opacity: .5; }
+
+.editor-row__menu { flex-shrink: 0; }
+
+/* LAS ZONAS del hero, desplegadas bajo su fila (el spec: "el hero desplegable en sus zonas y el
+   valor de cada una") — indentadas con un filete, como los párrafos de Nosotros en el prototipo. */
+.editor-kids { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px 16px; padding-left: 10px;
+               border-left: 1px solid var(--duna-border); }
+.editor-kid { height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 8px; border-radius: var(--duna-r-s);
+              color: var(--duna-ink-2); font-size: 12.5px; width: 100%; background: none; border: 0;
+              text-align: left; cursor: pointer; transition: background var(--duna-dur-fast) var(--duna-ease); }
+.editor-kid:hover { background: var(--duna-wash-hover); }
+.editor-kid__gl { width: 18px; text-align: center; color: var(--duna-muted); font: 500 12px var(--duna-font-mono); flex-shrink: 0; }
+.editor-kid__nm { white-space: nowrap; flex-shrink: 0; }
+.editor-kid__sb { flex: 1 1 auto; min-width: 0; color: var(--duna-faint); white-space: nowrap;
+                   overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+
+/* «+ Agregar sección» — borde punteado, el pie de la lista de Contenido (el spec). */
+.editor-add-sec { margin-top: var(--duna-space-3); min-height: 40px; border: 1px dashed var(--duna-border-2);
+                   border-radius: var(--duna-r-m); color: var(--duna-muted); display: flex; align-items: center;
+                   justify-content: center; gap: var(--duna-space-2); font-weight: 500; width: 100%;
+                   transition: color var(--duna-dur-fast) var(--duna-ease), border-color var(--duna-dur-fast) var(--duna-ease),
+                               background var(--duna-dur-fast) var(--duna-ease); }
+.editor-add-sec:hover:not(:disabled) { color: var(--duna-ink); border-color: var(--duna-faint); background: var(--duna-surface-2); }
+.editor-add-sec:disabled { opacity: .55; cursor: default; }
+.editor-add-sec svg { width: 15px; height: 15px; }

@@ -11,16 +11,19 @@ import { ChevronLeft } from 'lucide-react';
 //
 // Sólo se renderiza cuando HAY un nivel de arriba (`TiendaPaginas.tsx` no lo monta en Inicio) — un
 // «‹ volver» sin a dónde volver sería un botón muerto.
-export function Migas({ nivelAnterior, actual, onVolver }: { nivelAnterior: string; actual: string; onVolver: () => void }) {
+//
+// § EDITOR-VISUAL-PANEL-1 — LA FORMA pasa a ser `.editor-pv-back` (prototipo `.pv-back`): SÓLO
+// «‹ {nivelAnterior}», sin el segundo tramo "› {actual}" que esta miga mostraba antes. No es pérdida
+// de información — el nivel actual ya lo dice el `<h2 class="duna-title">` que cada editor pinta
+// debajo (TiendaSeccionEditor.tsx, EncabezadoSeccion.tsx…), así que el segundo tramo repetía el
+// mismo texto dos veces en la misma pantalla. `actual` SIGUE siendo parte de la firma (se recibe,
+// no se usa en el render) para no tocar los ~4 call sites que ya lo pasan.
+export function Migas({ nivelAnterior, onVolver }: { nivelAnterior: string; actual: string; onVolver: () => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexShrink: 0, marginBottom: 'var(--duna-space-3)' }}>
-      <button type="button" onClick={onVolver} className="duna-btn duna-btn--ghost duna-btn--sm" style={{ flexShrink: 0 }}>
+    <div style={{ flexShrink: 0, marginBottom: 'var(--duna-space-1)' }}>
+      <button type="button" onClick={onVolver} className="editor-pv-back">
         <ChevronLeft aria-hidden /> {nivelAnterior}
       </button>
-      <span className="duna-caption" aria-hidden style={{ margin: 0 }}>›</span>
-      <span className="duna-caption" style={{ margin: 0, fontWeight: 600, color: 'var(--duna-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {actual}
-      </span>
     </div>
   );
 }

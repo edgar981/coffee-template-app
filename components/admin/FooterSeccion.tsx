@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, ImageIcon } from 'lucide-react';
+import { Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
+import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
+import { IconoFila } from '@/components/admin/editor/IconoFila';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { FooterContent } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
@@ -253,7 +255,21 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
     </div>
   ) : null;
 
-  const resumen = `${form.columnaTienda} · ${form.columnaAyuda} · ${form.columnaEmpresa}${form.items.length > 0 ? ` · ${form.items.length} legal` : ''}`;
+  // § EDITOR-VISUAL-PANEL-1 — LECTURA: una FILA compacta, no la tarjeta grande con el resumen de
+  // columnas en prosa (§ CLAUDE.md "sin tarjetas grandes con botón Editar"). El resumen que mostraba
+  // (`resumen`, columnas + conteo de enlaces legales) no tenía otro consumidor dentro de la edición
+  // —a diferencia de `resumenOrden` en `MenuSeccion.tsx`— así que se retira entero con la fila, no
+  // sólo de su render.
+  if (!editando) {
+    return (
+      <FilaSeccion
+        icono={<IconoFila tipo="footer" />}
+        titulo="Pie de página"
+        hayBorrador={hayBorrador}
+        onAbrir={() => setEditando(true)}
+      />
+    );
+  }
 
   return (
     <>
@@ -263,45 +279,29 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
             <h2 className="duna-title">Pie de página</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
-          {!editando && (
-            <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-              Los encabezados y enlaces del pie, y la composición con la que se muestran.
-            </p>
-          )}
-          {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
-        {!editando ? (
-          <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
-            <Pencil /> Editar
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
-                de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
-            {!enEditor && hayBorrador && (
-              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
-                Descartar
-              </button>
-            )}
-            {!enEditor && hayBorrador && (
-              <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
-                {procesando ? 'Publicando…' : 'Publicar'}
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+          {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
+              de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
+          {!enEditor && hayBorrador && (
+            <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+              Descartar
+            </button>
+          )}
+          {!enEditor && hayBorrador && (
+            <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
+              {procesando ? 'Publicando…' : 'Publicar'}
+            </button>
+          )}
+        </div>
       </div>
-      {editando && errorServidor && (
+      {errorServidor && (
         <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)', marginBottom: 0 }}>{errorServidor}</p>
       )}
 
-      {!editando ? (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <p className="duna-sub" style={{ margin: 0 }}>{resumen}</p>
-        </div>
-      ) : (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
+      <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div className="duna-form">
             <div>
               <span className="duna-field__label">Composición</span>
@@ -429,7 +429,6 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
             <input ref={subidaImagen.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subidaImagen.alElegir} hidden disabled={subidaImagen.subiendo} />
           </div>
         </div>
-      )}
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}

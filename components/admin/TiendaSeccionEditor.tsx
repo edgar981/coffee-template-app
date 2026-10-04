@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown, Eye, EyeOff, GripVertical } from 'lucide-react';
+import { Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
@@ -21,6 +21,8 @@ import { cn } from '@duna/core/utils';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano, SeccionVista } from '@/components/admin/tienda-secciones';
 import { gatePorCampo, SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 import { ComposicionHero } from '@/components/admin/editor/ComposicionHero';
+import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
+import { IconoFila } from '@/components/admin/editor/IconoFila';
 import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
 import { metaElementoEstilo, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
@@ -361,6 +363,12 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
   const [editando, setEditando]       = useState(false);
+  // § EDITOR-VISUAL-PANEL-1 — el CHEVRON de la fila del Hero en el nivel Inicio (el spec: "el hero
+  // desplegable en sus zonas y el valor de cada una"). SÓLO presentación: no toca `form` ni dispara
+  // autoguardado — despliega una vista previa de las zonas con su valor ACTUAL, y tocar una zona abre
+  // la sección completa (`abrirEdicion`), igual que tocar la fila misma. No se persiste ni se resetea
+  // al cerrar: es un detalle de la lista, no del documento.
+  const [zonasAbiertas, setZonasAbiertas] = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   // El CONTROL al que pertenece `errorServidor` —el nombre del campo-imagen (hero, brandStory…), o
   // `null` para un error SIN control propio en este editor (publicar/descartar, o un ítem del
@@ -1775,72 +1783,70 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
   const agregarTarjeta = () => { const primera = tarjetasColapsadas[0]; if (primera) expandir(primera.slot); };
 
-  // ── LECTURA: la sección es una FILA compacta (asa de orden + ojo + título + estado + Editar),
-  //    SIN miniatura propia (§ EDITOR-TIENDA-IFRAME-VISTA-1): la vista en vivo es el iframe
-  //    compartido de `TiendaPaginas`, no una reconstrucción por sección. Publicar/Descartar viven
-  //    en la vista expandida. El asa (§ EDITOR-TIENDA-ORDEN-1, prop `orden`) y el ojo
-  //    (`config.ocultable`) SÓLO viven en esta fila colapsada — reordenar/ocultar es una acción de
-  //    LISTA, no de edición; con la sección abierta, el switch de "Mostrar en la tienda" de la
-  //    vista expandida (más abajo) sigue siendo el único control de visibilidad.
+  // ── LECTURA: la sección es una FILA compacta (§ EDITOR-VISUAL-PANEL-1, REDISENO.md § 3: "lista
+  //    compacta... sin tarjetas grandes con botón Editar"), SIN miniatura propia (§ EDITOR-TIENDA-
+  //    IFRAME-VISTA-1): la vista en vivo es el iframe compartido de `TiendaPaginas`, no una
+  //    reconstrucción por sección. Publicar/Descartar viven en la vista expandida. El asa (§
+  //    EDITOR-TIENDA-ORDEN-1, prop `orden`) y el ojo (`config.ocultable`) SÓLO viven en esta fila
+  //    colapsada — reordenar/ocultar es una acción de LISTA, no de edición; con la sección abierta,
+  //    el switch de "Mostrar en la tienda" de la vista expandida (más abajo) sigue siendo el único
+  //    control de visibilidad.
+  //
+  //    `FilaSeccion` reemplaza a `.tienda-tarjeta` (la tarjeta grande con borde + párrafo + botón) —
+  //    el MISMO componente que usan `InstanciaTarjeta.tsx`/`EncabezadoSeccion.tsx`/`MenuSeccion.tsx`/
+  //    `FooterSeccion.tsx`, para que las filas de Encabezado, las bandas, las secciones agregadas y
+  //    el Pie se vean como UNA sola lista (§ CLAUDE.md, "las secciones... con el hero desplegable en
+  //    sus zonas... «+ Agregar sección»... Pie de página" — todas filas iguales).
+  //
+  //    El indicador de ESTADO (`indicadorEstado`) y el badge "Oculta" se retiran de esta fila: el
+  //    primero sólo aplica mientras una subida está EN VUELO desde esta misma tarjeta, cosa que ya no
+  //    puede pasar colapsada (la subida vive dentro de la edición); el segundo lo reemplaza el ojo
+  //    tachado + la fila atenuada (`dim`, § CLAUDE.md "se dicen con el ojo, no con frases"). La
+  //    distinción FINA de `avisoNoSeMuestra` (toggle apagado vs. lista vacía) se pierde en esta
+  //    vista — DESVIACIÓN declarada: sigue completa dentro de la edición (abajo, `noSeMuestra`).
   if (!editando) {
+    const esHero = seccion === 'hero';
+    // § EDITOR-VISUAL-PANEL-1 — las ZONAS del hero, para el chevron de la fila (el spec: "el hero
+    // desplegable en sus zonas y el valor de cada una"). Los NOMBRES de zona del prototipo (Fondo ·
+    // Marquesina · Producto · Leyenda · Indicador) son de OTRA composición (`sticky`); acá se muestran
+    // las piezas reales que el hero de HOY tiene, con el MISMO dato que ya gobierna `renderZonasHero`
+    // (`ZONA_HERO_NOMBRES`) más el fondo — cinco filas, mismo recuento que el prototipo, distinto
+    // rótulo porque el dato es distinto. Tocar cualquiera abre la sección completa: no existe (todavía)
+    // un nivel "elemento" por zona (§ REDISENO.md § 3, "«elemento» es EDITOR-TIENDA-ZONAS-1... sin
+    // construir").
+    const zonasHero = esHero ? [
+      { key: 'fondo', gl: '▣', nombre: 'Fondo', valor: form.imagenTipo === 'video' ? 'Video' : 'Foto' },
+      { key: 'titular', gl: 'T', nombre: 'Titular', valor: form.titularVisible === false ? 'Oculto' : (String(form.titulo ?? '').trim() || '—') },
+      { key: 'subtitulo', gl: '¶', nombre: 'Subtítulo', valor: form.subtituloVisible === false ? 'Oculto' : (String(form.subtitulo ?? '').trim() || '—') },
+      { key: 'botones', gl: '▭', nombre: 'Botones', valor: form.ctasVisibles === false ? 'Ocultos' : (String(form.ctaPrimarioLabel ?? '').trim() || '—') },
+      { key: 'indicador', gl: '↓', nombre: 'Indicador', valor: form.cueDesliza === false ? 'Oculto' : 'Desliza' },
+    ] : [];
     return (
-      <div
-        className="tienda-tarjeta"
-        ref={rootRef}
-        style={orden?.arrastrando ? { opacity: 0.4 } : undefined}
-        onDragOver={orden ? (e) => e.preventDefault() : undefined}
-        onDrop={orden ? (e) => e.preventDefault() : undefined}
-      >
-        {/* § EDITOR-TIENDA-ORDEN-1 — el ASA: mouse (drag nativo) Y teclado (flechas, con el foco acá).
-            Sólo para las bandas de la home (`orden` ausente en nosotros/suscripciones). Un botón, no
-            un `<div draggable>`: tiene que ser tabulable para que las flechas de teclado alcancen. */}
-        {orden && (
-          <button
-            type="button"
-            draggable
-            onDragStart={orden.onDragStart}
-            onDragEnter={orden.onDragEnter}
-            onDragEnd={orden.onDragEnd}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowUp') { e.preventDefault(); orden.onMoverArriba(); }
-              else if (e.key === 'ArrowDown') { e.preventDefault(); orden.onMoverAbajo(); }
-            }}
-            className="duna-btn duna-btn--ghost duna-btn--icon"
-            style={{ flexShrink: 0, cursor: 'grab', alignSelf: 'center' }}
-            aria-label={`Mover ${config.titulo} — posición ${orden.posicion} de ${orden.total}. Arrastra con el mouse o usa las flechas arriba/abajo.`}
-          >
-            <GripVertical />
-          </button>
-        )}
-        <div className="tienda-tarjeta__meta">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-            {config.ocultable && (
-              <button
-                type="button"
-                onClick={() => cambiar({ visible: form.visible === false })}
-                className="duna-btn duna-btn--ghost duna-btn--icon"
-                aria-pressed={form.visible === false}
-                aria-label={form.visible === false ? `Mostrar ${config.titulo} en la tienda` : `Ocultar ${config.titulo} en la tienda`}
-              >
-                {form.visible === false ? <EyeOff /> : <Eye />}
+      <div ref={rootRef}>
+        <FilaSeccion
+          icono={<IconoFila tipo={esHero ? 'hero' : 'generico'} />}
+          titulo={config.titulo}
+          hayBorrador={hayBorrador}
+          dim={noSeMuestra}
+          ocultable={config.ocultable}
+          visible={form.visible !== false}
+          onCambiarVisible={() => cambiar({ visible: form.visible === false })}
+          orden={orden}
+          onAbrir={abrirEdicion}
+          chevronAbierto={esHero ? zonasAbiertas : undefined}
+          onChevron={esHero ? () => setZonasAbiertas((v) => !v) : undefined}
+        />
+        {esHero && zonasAbiertas && (
+          <div className="editor-kids">
+            {zonasHero.map((z) => (
+              <button key={z.key} type="button" className="editor-kid" onClick={abrirEdicion}>
+                <span className="editor-kid__gl" aria-hidden>{z.gl}</span>
+                <span className="editor-kid__nm">{z.nombre}</span>
+                <span className="editor-kid__sb">{z.valor}</span>
               </button>
-            )}
-            <h2 className="duna-title">{config.titulo}</h2>
-            {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
-            {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
+            ))}
           </div>
-          {noSeMuestra && (
-            <p className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda — {avisoNoSeMuestra}</p>
-          )}
-          {/* El estado va ENTRE el título y la acción: se lee qué es → cómo está → qué hacer. En el
-              caso normal ('guardado') no renderiza nada y la tarjeta queda idéntica a antes. */}
-          {indicadorEstado}
-          <div>
-            <button type="button" onClick={abrirEdicion} className="duna-btn duna-btn--secondary">
-              <Pencil /> Editar
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     );
   }

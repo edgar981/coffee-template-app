@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, ImageIcon } from 'lucide-react';
+import { Upload, ImageIcon } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import BarraProgreso from '@/components/admin/BarraProgreso';
+import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
+import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/upload';
-import { modoLogoResuelto, type ModoLogo } from '@/lib/config/marca-logo';
+import { modoLogoResuelto } from '@/lib/config/marca-logo';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 
@@ -193,15 +195,6 @@ const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logo
   { name: 'posicion', label: 'Posición del encabezado', hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.' },
   { name: 'subrayado', label: 'Subrayado al pasar el mouse', hint: 'Los enlaces del menú dibujan una línea debajo al pasar el mouse por encima.' },
 ];
-
-// CÓMO SE MUESTRA LA MARCA (§ NAV-LOGO-Y-NOMBRE-1) — las tres etiquetas del `<select>`, en el
-// MISMO orden que `ModoLogo` declara el set cerrado (marca-logo.ts), y el label que el resumen de
-// lectura usa cuando el dueño elige explícitamente uno de los tres (§ `resumenActivos`, abajo).
-const LABEL_MODO: Record<ModoLogo, string> = {
-  soloNombre: 'Sólo nombre',
-  soloLogo: 'Sólo logo',
-  logoYNombre: 'Logo en el teléfono, logo y nombre en escritorio',
-};
 
 // § EDITOR-TIENDA-CROMO-1 — la extracción contenido→{form,navBadge,taglineColor} de `cargar()`
 // (abajo), de vuelta en una función PROPIA: `restaurarDesdePublicado` (el handle imperativo tras
@@ -484,23 +477,30 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
     </div>
   ) : null;
 
-  // § MARCA-LOGO-IMAGEN-1 — el resumen de lectura nombra el logo subido ANTES que los switches:
-  // es el cambio de mayor impacto visual del bloque (reemplaza mark+wordmark enteros). El ícono de
-  // pestaña (§ METADATA-ICONOS-Y-LANG-POR-TIENDA-1) va justo después — mismo criterio, otra pieza
-  // de identidad fuera de la página.
+  // § MARCA-LOGO-IMAGEN-1 — `tieneLogoImagen` sigue viva: la lee la vista de edición (más abajo) para
+  // decidir el valor por defecto del modo de logo. `tieneIconoPropio`/`resumenActivos` SE RETIRARON
+  // (§ EDITOR-VISUAL-PANEL-1, arriba): eran sólo del resumen de lectura, que ya no existe.
   const tieneLogoImagen = form.logoOscuro.trim() !== '' || form.logoClaro.trim() !== '';
-  const tieneIconoPropio = form.logoIcono.trim() !== '';
-  // § NAV-LOGO-Y-NOMBRE-1 — el modo sólo entra al resumen cuando el dueño lo ELIGIÓ (`form.logoModo
-  // !== ''`): mientras sigue en el default condicional, "Imagen de logo" de arriba ya cuenta la
-  // historia completa, y repetir "Sólo logo" ahí sería afirmar una elección que nadie hizo.
+  // § NAV-LOGO-Y-NOMBRE-1 — el modo resuelto lo usa el `value` del select de la vista de edición
+  // (nunca `form.logoModo` crudo, § su propio comentario más abajo).
   const logoComoObjeto = { visible: true, oscuro: form.logoOscuro, claro: form.logoClaro, alt: form.logoAlt, icono: form.logoIcono, modo: form.logoModo };
   const modoActual = modoLogoResuelto(logoComoObjeto);
-  const resumenActivos = [
-    ...(tieneLogoImagen ? ['Imagen de logo'] : []),
-    ...(tieneIconoPropio ? ['Ícono de pestaña propio'] : []),
-    ...(form.logoModo !== '' ? [LABEL_MODO[modoActual]] : []),
-    ...CONTROLES.filter((c) => form[c.name]).map((c) => c.label),
-  ];
+
+  // § EDITOR-VISUAL-PANEL-1 — LECTURA: una FILA compacta (icono + «Encabezado»), no la tarjeta
+  // grande con resumen en prosa ("Imagen de logo · Ícono de pestaña propio · …", § CLAUDE.md "sin
+  // tarjetas grandes con botón Editar"). El resumen en palabras SE RETIRA —no se mueve a ningún
+  // otro sitio—: los switches de la vista de edición YA muestran su propio estado, así que la frase
+  // sólo repetía, en otra forma, lo que el formulario dice al abrirlo.
+  if (!editando) {
+    return (
+      <FilaSeccion
+        icono={<IconoFila tipo="nav" />}
+        titulo="Encabezado"
+        hayBorrador={hayBorrador}
+        onAbrir={() => setEditando(true)}
+      />
+    );
+  }
 
   return (
     <>
@@ -510,47 +510,29 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
             <h2 className="duna-title">Encabezado</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
-          {!editando && (
-            <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-              El logo, el sub-encabezado y cómo se ve la navegación de tu tienda.
-            </p>
-          )}
-          {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
-        {!editando ? (
-          <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
-            <Pencil /> Editar
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
-                de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
-            {!enEditor && hayBorrador && (
-              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
-                Descartar
-              </button>
-            )}
-            {!enEditor && hayBorrador && (
-              <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
-                {procesando ? 'Publicando…' : 'Publicar'}
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+          {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
+              de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
+          {!enEditor && hayBorrador && (
+            <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+              Descartar
+            </button>
+          )}
+          {!enEditor && hayBorrador && (
+            <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
+              {procesando ? 'Publicando…' : 'Publicar'}
+            </button>
+          )}
+        </div>
       </div>
-      {editando && errorServidor && (
+      {errorServidor && (
         <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)', marginBottom: 0 }}>{errorServidor}</p>
       )}
 
-      {!editando ? (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <p className="duna-sub" style={{ margin: 0 }}>
-            {resumenActivos.length > 0 ? resumenActivos.join(' · ') : 'Sin ajustes activos — el encabezado de siempre.'}
-          </p>
-        </div>
-      ) : (
-        <>
+      <>
         {/* LA IMAGEN DEL LOGO (§ MARCA-LOGO-IMAGEN-1) — tarjeta PROPIA, antes de los switches: es
             una decisión distinta ("¿tengo un logo?"), no un ajuste más del nav. */}
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
@@ -768,8 +750,7 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
             })}
           </div>
         </div>
-        </>
-      )}
+      </>
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}

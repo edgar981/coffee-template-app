@@ -1364,6 +1364,19 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           alignContent: 'start',
           ...(angosto ? { flex: '1 1 auto', minHeight: 0 } : { height: '100%' }),
         }}>
+          {/* § EDITOR-VISUAL-PANEL-1 — EL TÍTULO «Inicio» (el spec: "título «Inicio» y una línea
+              «Toca cualquier cosa en la vista para editarla, o elígela aquí»"). SÓLO en modo
+              'paginas' (§ EDITOR-TIENDA-TEMA-1) Y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1) —
+              con una sección/el cromo abiertos, el título de ESA sección ya lo pinta su propio
+              editor (`duna-title`, § TiendaSeccionEditor.tsx/EncabezadoSeccion.tsx…), y repetirlo acá
+              sería la misma redundancia que la `Migas` restyleada ya evita (§ su docstring). */}
+          {modo === 'paginas' && !nivelActivo && (
+            <div style={{ marginBottom: 'var(--duna-space-2)' }}>
+              <h2 className="editor-pv-title">Inicio</h2>
+              <p className="editor-pv-sub">Toca cualquier cosa en la vista para editarla, o elígela aquí.</p>
+            </div>
+          )}
+
           {/* § EDITOR-TIENDA-TEMA-1 — en modo 'tema' la columna monta `PaletaSeccion` (en vez de la
               lista de secciones de `pagina`): es la pestaña «Tema», store-wide, ortogonal a qué
               página se está viendo. `enEditor` le quita la vista previa sintética propia —la PÁGINA
@@ -1377,35 +1390,54 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             <PaletaSeccion key={temaReloadKey} enEditor onCambioEnVivo={enviarTemaIframe} />
           ) : (
             <>
-              {/* § EDITOR-TIENDA-CROMO-1 — ENCABEZADO y MENÚ, ARRIBA de las secciones de la
-                  página (§ el spec): son de TODA la tienda, no de la página activa, así que se ven
-                  igual en cualquier pestaña del selector — nunca se filtran por `pagina` como
-                  `seccionesOrdenadas`. MISMA regla de ocultar-nunca-desmontar que las secciones de
-                  página (§ el docstring grande de `seccionActiva`, arriba): perderían sus propios
-                  pasos de historial si se desmontaran al bajar a OTRO nivel. */}
-              <div style={nivelActivo && nivelActivo !== 'encabezado' ? { display: 'none' } : undefined}>
-                <EncabezadoSeccion
-                  ref={registrarRefCromo('encabezado')}
-                  enEditor
-                  onAbrir={() => abrirNivelCromo('encabezado')}
-                  onCerrar={() => cerrarNivelCromo('encabezado')}
-                  onCambio={enviarCromoIframe}
-                  onPaso={onPasoSeccion}
-                  onEstado={(info) => manejarEstadoCromo('encabezado', info)}
-                />
-              </div>
-              <div style={nivelActivo && nivelActivo !== 'menu' ? { display: 'none' } : undefined}>
-                <MenuSeccion
-                  ref={registrarRefCromo('menu')}
-                  enEditor
-                  onAbrir={() => abrirNivelCromo('menu')}
-                  onCerrar={() => cerrarNivelCromo('menu')}
-                  onCambio={(datos) => enviarCromoIframe('menu', datos)}
-                  onPaso={onPasoSeccion}
-                  onEstado={(info) => manejarEstadoCromo('menu', info)}
-                />
+              {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «ARRIBA» (el spec), envuelto ENTERO (rótulo +
+                  filas) en UN `<div>`: es UN solo ítem del grid externo (gap uniforme entre
+                  grupos, § editor.css) — nunca dos ítems que dupliquen el espacio entre el rótulo y
+                  su primera fila. Sólo el RÓTULO es condicional a Inicio (`!nivelActivo`) — las dos
+                  filas de abajo se quedan SIEMPRE montadas, cada una oculta por su propio
+                  `display:none` cuando no es la activa (§ el comentario de cabecera de
+                  `seccionActiva`: nunca desmontar). Con un nivel abierto, el rótulo desaparece y
+                  sólo queda a la vista la fila (o el editor) de la sección activa. */}
+              <div>
+                {!nivelActivo && <div className="editor-grp">Arriba</div>}
+                <div className="editor-rows">
+                  {/* § EDITOR-TIENDA-CROMO-1 — ENCABEZADO y MENÚ, ARRIBA de las secciones de la
+                      página (§ el spec): son de TODA la tienda, no de la página activa, así que se ven
+                      igual en cualquier pestaña del selector — nunca se filtran por `pagina` como
+                      `seccionesOrdenadas`. MISMA regla de ocultar-nunca-desmontar que las secciones de
+                      página (§ el docstring grande de `seccionActiva`, arriba): perderían sus propios
+                      pasos de historial si se desmontaran al bajar a OTRO nivel. */}
+                  <div style={nivelActivo && nivelActivo !== 'encabezado' ? { display: 'none' } : undefined}>
+                    <EncabezadoSeccion
+                      ref={registrarRefCromo('encabezado')}
+                      enEditor
+                      onAbrir={() => abrirNivelCromo('encabezado')}
+                      onCerrar={() => cerrarNivelCromo('encabezado')}
+                      onCambio={enviarCromoIframe}
+                      onPaso={onPasoSeccion}
+                      onEstado={(info) => manejarEstadoCromo('encabezado', info)}
+                    />
+                  </div>
+                  <div style={nivelActivo && nivelActivo !== 'menu' ? { display: 'none' } : undefined}>
+                    <MenuSeccion
+                      ref={registrarRefCromo('menu')}
+                      enEditor
+                      onAbrir={() => abrirNivelCromo('menu')}
+                      onCerrar={() => cerrarNivelCromo('menu')}
+                      onCambio={(datos) => enviarCromoIframe('menu', datos)}
+                      onPaso={onPasoSeccion}
+                      onEstado={(info) => manejarEstadoCromo('menu', info)}
+                    />
+                  </div>
+                </div>
               </div>
 
+              {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «CONTENIDO» (el spec): envuelve las secciones de
+                  la página, las agregadas, y el botón «+ Agregar sección» — mismo criterio de rótulo
+                  condicional y de envoltorio único que «Arriba». */}
+              <div>
+              {!nivelActivo && <div className="editor-grp">Contenido</div>}
+              <div className="editor-rows">
               {/* § EDITOR-AGREGAR-SECCION-1 — los separadores "+ Agregar sección" van DESPUÉS de cada
                   fila (el spec: "entre tarjetas al pasar el mouse") — nunca antes de la primera: ese
                   caso lo cubre el botón de PIE DE LISTA (abajo), que es el punto de entrada principal
@@ -1501,34 +1533,43 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                   </div>
                 );
               })}
-              {/* El botón de PIE DE LISTA (§ el spec: "al final de la lista del nivel Inicio") —
+              {/* El botón de PIE DE LISTA (§ el spec: "«+ Agregar sección» con borde punteado") —
                   idéntico mecanismo que los separadores (inserta "después de null" = al final), pero
                   SIEMPRE visible (no sólo al pasar el mouse): es el punto de entrada PRINCIPAL, el
-                  que un dueño que nunca agregó una sección va a encontrar primero. */}
+                  que un dueño que nunca agregó una sección va a encontrar primero. `.editor-add-sec`
+                  (§ EDITOR-VISUAL-PANEL-1) reemplaza al botón sólido `duna-btn--secondary`. */}
               {!nivelActivo && ordenLocal && seccionesHomeLocal && (
                 <button
                   type="button"
                   onClick={() => abrirBiblioteca(null)}
                   disabled={alTopeDeInstancias}
-                  className="duna-btn duna-btn--secondary"
-                  style={{ alignSelf: 'flex-start' }}
+                  className="editor-add-sec"
                 >
                   <Plus /> {alTopeDeInstancias ? `Llegaste al máximo de ${TOPE_INSTANCIAS_HOME} secciones agregadas` : 'Agregar sección'}
                 </button>
               )}
+              </div>
+              </div>
 
-              {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
-                  la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}
-              <div style={nivelActivo && nivelActivo !== 'footer' ? { display: 'none' } : undefined}>
-                <FooterSeccion
-                  ref={registrarRefCromo('footer')}
-                  enEditor
-                  onAbrir={() => abrirNivelCromo('footer')}
-                  onCerrar={() => cerrarNivelCromo('footer')}
-                  onCambio={(datos) => enviarCromoIframe('footer', datos)}
-                  onPaso={onPasoSeccion}
-                  onEstado={(info) => manejarEstadoCromo('footer', info)}
-                />
+              {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «ABAJO» (el spec), mismo criterio de rótulo
+                  condicional y de envoltorio único que «Arriba»/«Contenido». */}
+              <div>
+                {!nivelActivo && <div className="editor-grp">Abajo</div>}
+                <div className="editor-rows">
+                  {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
+                      la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}
+                  <div style={nivelActivo && nivelActivo !== 'footer' ? { display: 'none' } : undefined}>
+                    <FooterSeccion
+                      ref={registrarRefCromo('footer')}
+                      enEditor
+                      onAbrir={() => abrirNivelCromo('footer')}
+                      onCerrar={() => cerrarNivelCromo('footer')}
+                      onCambio={(datos) => enviarCromoIframe('footer', datos)}
+                      onPaso={onPasoSeccion}
+                      onEstado={(info) => manejarEstadoCromo('footer', info)}
+                    />
+                  </div>
+                </div>
               </div>
             </>
           )}
