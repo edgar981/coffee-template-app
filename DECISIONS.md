@@ -52250,3 +52250,182 @@ problemas nuevos; `verificar:nayoli:visual` reproduce el piso heredado exacto. A
 punta en verde (20/20). Commiteado en `slice/editor-secciones-1`, encima de `8cc3e0d`.
 
 **Cierra `EDITOR-VISUAL-MARCO-1`.**
+
+## 2026-10-04 — El panel de Inicio se ve como el prototipo: filas, no tarjetas (`EDITOR-VISUAL-PANEL-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el mismo pedido textual
+del owner del 2026-10-04 que aprobó `EDITOR-VISUAL-MARCO-1` (*"veo que sí se han agregado cosas
+nuevas, pero también noto que aún luce como antes del rediseño en mayor parte"*), `observed-report:
+EDITOR-TIENDA-REDISENO-PROPUESTA-1`. La aprobación autoriza la escritura, nunca el merge. Sigue
+`slice/editor-secciones-1` (no corta rama propia — el dispatch lo pide explícito), encima de
+`3524efd` (este slice) sobre `a2e13e7` (`EDITOR-VISUAL-MARCO-1`).
+
+**Lo que se hizo, y lo que NO:** una pasada VISUAL del PANEL (REDISENO.md § 3: "Panel con niveles" —
+`EDITOR-VISUAL-MARCO-1` ya hizo la barra/riel/lienzo; éste era el "nunca el panel" que ese asiento
+declaró explícitamente fuera de su alcance). El mecanismo de navegación por niveles (Inicio → sección,
+`seccionActiva`/`cromoActivo`/`instanciaActiva`, ocultar-nunca-desmontar) YA EXISTÍA —construido por
+`EDITOR-TIENDA-SHELL-1` y sucesores— y no se tocó: este slice es puramente de RENDERIZADO, dentro de
+ese mecanismo. Sin cambio de esquema, sin cambio de qué se guarda ni de cómo se publica, y sin tocar
+un solo byte de la tienda pública (`components/storefront/`, `app/(storefront)/` no están en
+`touches:` y no se tocaron — verificado por `git diff --stat` del commit: cero archivos ahí).
+
+- **`components/admin/editor/FilaSeccion.tsx` (nuevo)** — la fila compacta compartida (icono + nombre;
+  asa/ojo/chevron sólo al pasar el mouse) que reemplaza a `.tienda-tarjeta` (la tarjeta grande con
+  borde + párrafo + botón "Editar", § CLAUDE.md "sin tarjetas grandes con botón Editar") en los CINCO
+  sitios que la usaban: `TiendaSeccionEditor.tsx` (una banda), `InstanciaTarjeta.tsx` (una sección
+  agregada), `EncabezadoSeccion.tsx`/`MenuSeccion.tsx`/`FooterSeccion.tsx` (el cromo). Un componente,
+  no cinco copias — el mismo criterio que ya motivó extraer `useAccionGuardada` (CLAUDE.md, "escribirla
+  a mano salía mal").
+- **`components/admin/editor/IconoFila.tsx` (nuevo)** — los cinco glifos de fila (hero/nav/menu/footer/
+  genérico), calcados PATH POR PATH del `<svg>` del prototipo (mismo `viewBox`, mismos `<rect>`/`<path>`)
+  — fidelidad pixel, no un ícono de lucide-react parecido.
+- **`app/(admin)/editor/editor.css`** — `.editor-rows`/`.editor-row` (+ `__grip`/`__main`/`__icon`/`__nm`/
+  `__dot`/`__chevron`/`__eye`), `.editor-kids`/`.editor-kid` (+ `__gl`/`__nm`/`__sb`), `.editor-grp`
+  (mono mayúsculas — el ÚNICO sitio donde este slice adopta ese tratamiento; ver Deviaciones),
+  `.editor-add-sec`, `.editor-pv-title`/`.editor-pv-sub`/`.editor-pv-back`. Cero tokens `--duna-*`
+  nuevos — mismo criterio que `EDITOR-VISUAL-MARCO-1`.
+- **`TiendaPaginas.tsx`** — el nivel Inicio gana su título ("Inicio" + "Toca cualquier cosa en la
+  vista para editarla, o elígela aquí.") y los TRES grupos del spec (Arriba: Encabezado + Menú;
+  Contenido: las secciones + las agregadas + "+ Agregar sección"; Abajo: Pie), cada uno envuelto ENTERO
+  (rótulo + filas) en un solo `<div>` — así es UN ítem del grid externo y el `gap` no se duplica entre
+  el rótulo y su primera fila (medido visualmente, corregido ANTES del gate — ver Deviaciones). El
+  rótulo de cada grupo es condicional a `!nivelActivo`; las filas de abajo NUNCA se desmontan (mismo
+  invariante de `seccionActiva` de siempre) — sólo el rótulo desaparece cuando se abre un nivel.
+- **`TiendaSeccionEditor.tsx`** — el Hero gana el CHEVRON del spec ("el hero desplegable en sus zonas y
+  el valor de cada una"): cinco "kids" con su valor actual (Fondo: Foto/Video; Titular/Subtítulo/
+  Botones: el texto o "Oculto" según el booleano de zona; Indicador: "Desliza"/"Oculto"). Tocar un kid
+  abre la sección completa (`abrirEdicion`) — no existe todavía un nivel "elemento" por zona
+  (`EDITOR-TIENDA-ZONAS-1`, sin construir, § REDISENO.md § 3). Sólo se tocó la rama `!editando`
+  (la fila colapsada); la rama `editando` (los campos, los bloques) NO se tocó.
+- **`Migas.tsx`** — `.editor-pv-back`: sólo "‹ {nivelAnterior}", sin el segundo tramo "› {actual}" que
+  mostraba antes — el título de la sección ya lo dice debajo (`duna-title`), así que el segundo tramo
+  repetía el mismo texto dos veces en la misma pantalla.
+- **`SeparadorAgregar.tsx`** — el alto bajó de 28 a 10px: entre filas de 38px (vs. las tarjetas grandes
+  de antes) un separador de 28px se leía como un hueco, no una costura.
+
+### Deviaciones medidas y declaradas
+
+- **El badge "Sin publicar" y el aviso "No se muestra en la tienda — …" se retiran de la fila
+  colapsada, no se mueven.** El primero se reemplaza por un punto ámbar junto al nombre (función
+  conservada, forma compacta); el segundo lo reemplaza el ojo tachado + la fila atenuada (`dim`,
+  § CLAUDE.md "se dicen con el ojo, no con frases") — la distinción FINA que ese aviso hacía (toggle
+  apagado vs. lista vacía) se pierde EN LA FILA; sigue completa dentro de la edición (`noSeMuestra`/
+  `avisoNoSeMuestra`, sin tocar).
+- **El badge de TIPO de `InstanciaTarjeta` se retira** ("Historia", "Testimonios"…): el prototipo no
+  muestra una etiqueta de tipo en la fila, sólo ícono + nombre; el tipo se sigue leyendo al abrir la
+  edición.
+- **Las ZONAS del hero no usan los nombres del prototipo** (Fondo · Marquesina · Producto · Leyenda ·
+  Indicador — de la composición "sticky"): Nayoli usa la composición "Cortina" (medido en la captura,
+  § abajo), así que se muestran las piezas REALES de hoy (Fondo/Titular/Subtítulo/Botones/Indicador),
+  mismo recuento (5), rótulo distinto porque el dato es distinto — exactamente el caso que el spec
+  previó ("cuando difieren en QUÉ hace… se conserva la función con el estilo del prototipo y se dice").
+- **`.duna-field__label` NO se re-estilizó a mono-mayúsculas en todo el panel.** El prototipo usa ese
+  tratamiento (`.lbl`) también como rótulo de campo/grupo dentro de una sección abierta; aplicarlo
+  globalmente arriesgaba legibilidad en etiquetas largas y dinámicas no auditadas (p. ej. "Etiqueta —
+  {valor elegido}" en `MenuSeccion.tsx`). Se aplicó SÓLO a los tres rótulos nuevos de este slice
+  (Arriba/Contenido/Abajo, `.editor-grp`), que es donde el spec lo pide explícitamente.
+- **`PaletaSeccion.tsx` (fuera de `touches:`) no se tocó.** Su propio encabezado ("Colores y
+  tipografía", lectura/Editar) sigue envuelto en `.tienda-tarjeta`/`.tienda-tarjeta__meta` — la
+  MISMA clase que este slice dejó de usar en los otros cinco sitios, pero esta sexta instancia vive en
+  un archivo fuera de alcance. La clase CSS sigue viva en `duna.css` (sin tocar) porque este
+  consumidor la sigue usando — nada se rompió. El spec pide "Estilo" sólo para el ESTILO DE CAMPOS
+  (`.duna-field__label`/`.duna-input`/`.duna-form`), que `PaletaSeccion.tsx` ya comparte con el resto
+  del panel sin cambio alguno (confirmado por captura, § abajo) — así que el pedido del spec para
+  "Estilo" queda cumplido; lo que NO se tocó es su propia fila de lectura/Editar, que el spec no pedía
+  explícitamente. Follow-up nombrado por si se decide parejo con el resto:
+  `EDITOR-VISUAL-ESTILO-FILA-1` — llevar el encabezado de `PaletaSeccion.tsx` (lectura/Editar) a
+  `FilaSeccion`/el estilo del prototipo (que no muestra ese paso de lectura para "Estilo" en absoluto:
+  es una herramienta del riel, se edita directo).
+- **El grid externo duplicaba el espacio entre un rótulo de grupo y su primera fila** en el primer
+  intento (grid `gap` + el `margin-top` propio de `.editor-grp`, dos ítems de grid separados) —
+  CORREGIDO antes del gate: cada grupo se envolvió ENTERO (rótulo + `.editor-rows`) en un `<div>` (un
+  solo ítem de grid) y `.editor-grp` perdió su `margin-top` (el gap externo ya separa un grupo del
+  siguiente). No llegó a verificación visual con el defecto — se corrigió por inspección del CSS antes
+  de montar el arnés.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3669/3669** — sin cambio (ningún archivo de `touches:` es un `.test.ts`); `lib/admin/orden-secciones.test.ts` + `lib/config/panel-controles.test.ts` + `lib/config/admin-tienda-preset.test.ts` corridos sueltos primero, **72/72**, antes del gate completo (estos tres SÍ nombran `touches:` pero ninguno cambió — se afirma que el diff no los rompió) |
+| `npm run test:integracion` | **346/346**, sin cambio (ningún archivo de `tests/integracion/` toca este diff) |
+| `npm run gate` | GREEN |
+| `npx eslint` (10 archivos de `touches:` tocados) | 12 errores (`react-hooks/refs`, "Cannot access refs during render") + 38 warnings — **TODOS pre-existentes**, confirmado línea por línea contra `git show HEAD~1:<archivo>` (el commit `a2e13e7`, la punta de la rama antes de este slice): el texto exacto de cada línea señalada (`formRef.current = form`, los `<input ref=…>` de la subida, `subida.pedir`/`.elegir`/`.subir` pasados al repeater, el `useEffect` sin `onPaso`/`onEstado` en deps de `MenuSeccion.tsx`/`FooterSeccion.tsx`, el param `titulo` sin usar de `asaDeSeccion`) ya existía, idéntico, antes de este slice — sólo se desplazó de línea por inserciones AJENAS a esas zonas. `npm run gate` (el comando real del gate) **no corre eslint** (`package.json`: `"gate": "typecheck && test && test:integracion"`), así que esto no bloquea — se corrió igual, por higiene, y se reconcilió contra el `HEAD` anterior para no reportar deuda ajena como propia |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta del piso heredado de la rama** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` + `PIE-HECHO-POR-DUNA-1`, citado por `EDITOR-VISUAL-MARCO-1` y una docena de slices más de esta rama): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u, cajas `[445,Y]–[541,Y+10]`; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado (drift heredado de la rama contra `main`, no de este slice; cero archivos de storefront en `touches:` y cero en el diff real) |
+
+### Verificado por ejecución — `.scratch/capturar-editor-visual.ts` (no comiteado)
+
+Mismo mecanismo que el arnés de `EDITOR-VISUAL-MARCO-1` (reusa las funciones exportadas de
+`scripts/verificar-nayoli-visual.ts` — `levantarPostgres`/`migrarYSembrar`/`entornoArbol`/`construir`/
+`arrancar`/`esperarListo`/`detener`/`cargarPlaywright` — en vez de reescribir el bootstrap): Postgres
+efímero propio (`:5591`), `migrate deploy` + seed canónico, `next build`/`next start` (`:4601`),
+Playwright con sesión real (`admin@sierranativa.co`), viewport 1440×900.
+
+Tres capturas: **Inicio** (el panel completo — Arriba/Contenido/Abajo, las filas compactas, los ojos
+tachados en Marquesina/Confianza/Destacado/Origen —las secciones que Nayoli trae apagadas—, "+ Agregar
+sección" punteado); **Inicio con el Hero desplegado** (el chevron abre Fondo·Foto / Titular·"Productos
+que cuentan" / Subtítulo·"Cuidamos cada pedido…" / Botones·"Ver Catálogo" / Indicador·"Oculto" —
+Nayoli tiene `cueDesliza` apagado, y la fila lo dice); **la sección Hero abierta** (la miga "‹ Inicio",
+el título "Hero de la home" + su línea, "Cerrar", la composición "Cortina", los switches de zona con
+"Quitar"/"Agregar", y bajando, el campo "Imagen de fondo" + "Punto focal" + "Línea superior" + "Titular"
++ "Énfasis del titular" + "Letra" — labels arriba, campos de borde fino y radio, hints cortos debajo:
+el estilo de campo YA coincidía con el prototipo antes de este slice, sin tocar nada).
+
+Comparadas a ojo contra `docs/editor-tienda/prototipo/captura-prototipo-inicio.webp`: la anatomía
+coincide (grupos ARRIBA/CONTENIDO/ABAJO, filas compactas con ícono+nombre, chevron del Hero, kids con
+valor, "+ Agregar sección" punteado); las diferencias son de CONTENIDO —Nayoli trae más secciones que
+la maqueta "Finca San Adolfo" del prototipo (Marquesina/Confianza/Destacado/Origen/Presentaciones/
+Suscripción/Testimonios, ninguna existe en la maqueta), y el botón "Publicar" de la barra está ausente
+porque no hay nada pendiente— y son esperadas, no defectos.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths del diff grepeados contra CLAUDE.md: `TiendaSeccionEditor` (6 resultados), `TiendaPaginas`
+(4), `EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`/`InstanciaTarjeta`/`Migas`/`SeparadorAgregar`/
+`FilaSeccion`/`IconoFila`/`editor-row`/`editor-grp`/`LABEL_MODO`/`resumenActivos` (0 cada uno),
+`tienda-tarjeta` (1).
+
+- Los 6 de `TiendaSeccionEditor` describen el renderizado por BLOQUES (§ "El editor de la tienda dibuja
+  por BLOQUES"), el uploader compartido, y el paso de `categorias`/`categoriasListas` — TODOS de la
+  rama `editando`, que este slice NO tocó. Ninguna sentencia queda falsa.
+- 3 de los 4 de `TiendaPaginas` (la cascada lazy-mount, el fetch 6→1, el selector de página SIN GATE)
+  describen comportamiento intacto. **La 4ª (línea 2884, "`TiendaPaginas` agrupa `SECCIONES_TIENDA` por
+  `pagina` en pestañas (pill con semántica de tab)") YA ESTABA FALSA antes de este slice** — el selector
+  de página se mudó de `TiendaPaginas` a `EditorTiendaPantallaCompleta.tsx` (un Popover, no pestañas) en
+  `EDITOR-VISUAL-MARCO-1`, el slice INMEDIATAMENTE anterior en esta misma rama. No es una sentencia que
+  ESTE diff vuelva falsa — ya lo estaba; se nombra para que quede escrito, no para atribuirla a este
+  slice. `open_followups` no aplica: no es un id nuevo, es staleness ya producida por otro slice, fuera
+  de `touches:` de éste (tocar `tienda-secciones.ts`/el propio `CLAUDE.md` para corregirla está fuera de
+  alcance).
+- El único `tienda-tarjeta` (línea 2796, sobre `.tienda-tarjeta__thumb`) describe `VistaTiendaEnVivo.tsx`
+  (el placeholder lazy-mount de la CASCADA de `/admin/tienda`) — un consumidor DISTINTO de la clase
+  (`__thumb`/`__mini`, no `.tienda-tarjeta`/`__meta` a secas que este slice dejó de usar), archivo fuera
+  de `touches:`, sin tocar. Sentencia intacta.
+
+### `customer_bytes`
+
+**`changed: true`**, mismo eje que el resto de esta rama (la RAMA contra `main`, no el commit). Nada de
+esto llega a un visitante del storefront —medido: cero archivos de `components/storefront/`/
+`app/(storefront)/` en el diff de este commit, y `verificar:nayoli:visual` reproduce el piso heredado
+exacto—, pero SÍ cambia bytes que el OWNER/MANAGER lee en `/editor/tienda`: la forma de la lista de
+secciones (filas en vez de tarjetas), los textos nuevos "Inicio"/"Toca cualquier cosa en la vista para
+editarla, o elígela aquí."/"Arriba"/"Contenido"/"Abajo", y la desaparición del resumen en prosa de
+Encabezado/Menú/Pie/el aviso "No se muestra en la tienda — …" de la fila colapsada. **`strings`**:
+"Inicio" (ya existía como label de página; ahora también como título del panel), "Toca cualquier cosa en
+la vista para editarla, o elígela aquí." (nuevo), "Arriba"/"Contenido"/"Abajo" (nuevos, rótulos de
+grupo) — ninguno de cara al VISITANTE del storefront, los cuatro de cara al OWNER/MANAGER en el panel.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que `EDITOR-VISUAL-MARCO-1` y el
+resto de esta rama. Gate completo verde (`npm run gate`: typecheck 0 · 3669/3669 · 346/346); eslint sin
+problemas nuevos (los 12 errores + 38 warnings son el mismo conjunto pre-existente, confirmado línea por
+línea); `verificar:nayoli:visual` reproduce el piso heredado exacto. Arnés real de punta a punta con tres
+capturas comparadas contra el prototipo. Commiteado en `slice/editor-secciones-1`, encima de `a2e13e7`.
+
+**Cierra `EDITOR-VISUAL-PANEL-1`.**
