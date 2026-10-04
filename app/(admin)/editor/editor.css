@@ -193,9 +193,15 @@
 
 /* UN SEGMENTADO A TODO EL ANCHO (prototipo: `.seg.full` — "Alto" y "Oscurecer para leer mejor"). La
    primitiva `.duna-seg` es `inline-flex` con ítems de ancho natural (el picker de dispositivo de la
-   barra, tres íconos); acá hacen falta TRES/CUATRO palabras repartiendo el ancho del panel. */
-.editor-seg-full { display: flex; width: 100%; }
-.editor-seg-full .duna-seg__item { flex: 1 1 0; }
+   barra, tres íconos); acá hacen falta TRES/CUATRO palabras repartiendo el ancho del panel.
+   § EDITOR-VISUAL-NIVELES-AJUSTE-1 — `min-width: 0` en el CONTENEDOR y en cada ÍTEM: sin esto, el
+   mínimo automático de un flex item es el de su CONTENIDO (acá, "Pantalla completa" sin cortar), y
+   con `flex:1 1 0` eso empuja al contenedor entero más allá del ancho disponible en vez de repartir
+   —medido: los tres ítems de Alto daban 240px cada uno (720px el segmentado) dentro de un panel de
+   308px—. Con el mínimo en cero, cada ítem se reparte el ancho REAL y el texto que no cabe en una
+   línea se envuelve (el botón ya no tiene `white-space:nowrap`), en vez de desbordar. */
+.editor-seg-full { display: flex; width: 100%; min-width: 0; }
+.editor-seg-full .duna-seg__item { flex: 1 1 0; min-width: 0; text-align: center; }
 
 /* LA ZONA DEL HERO (prototipo: `.zr`/`.zi`/`.zt`/`.zadd` — "Zonas como filas... con su valor en gris
    y, si están vacías, «+ Agregar»"). Reemplaza al renglón "Mostrar los botones / Quitar" (switch +

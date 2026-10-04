@@ -207,6 +207,17 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   const [instanciaActiva, setInstanciaActiva] = useState<string | null>(null);
   const nivelActivo: string | null = seccionActiva ?? cromoActivo ?? instanciaActiva;
 
+  // § EDITOR-VISUAL-NIVELES-AJUSTE-1 — el TERCER nivel (elemento del hero, § `elementoActivo` en
+  // `TiendaSeccionEditor.tsx`) es LOCAL a esa instancia; este componente no lo conocía, así que la
+  // miga «‹ Inicio» de abajo se dibujaba SIEMPRE que `nivelActivo` estuviera puesto, sin importar
+  // que el hero ya estuviera mostrando SU PROPIA miga «‹ Hero» (dos migas a la vez — medido,
+  // `.scratch/capturas-niveles-ajuste/1440x900-02-nivel-elemento-titular.png`: `migas` daba
+  // `["Inicio","Hero"]`). `onElementoActivoChange` es el MISMO patrón que `onAbrir`/`onCerrar`
+  // (arriba): la instancia avisa, este componente sólo escucha. Se pasa a TODAS las secciones (la
+  // única que lo usa hoy es el hero, único con un nivel de elemento) para no bifurcar el mount por
+  // `config.seccion === 'hero'`.
+  const [hayElementoActivo, setHayElementoActivo] = useState(false);
+
   // § EDITOR-AYUDA-1 — QUÉ GUÍA muestra el centro de ayuda, dueño de ESTE componente (no de
   // `EditorTiendaPantallaCompleta`, que sólo es dueño de `modo`): así un «?» puede fijar la guía
   // sin depender de que `AyudaCentro` ya esté montado — si `modo` todavía es `'paginas'`/`'tema'`
@@ -1315,8 +1326,12 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           los tres de cromo, de UNA sola vez: `temaDeNivel` resuelve el nivel ACTIVO a su guía
           (hero→'hero', encabezado/menu/footer→'cromo', cualquier otra sección→'secciones'
           genérica). Una sección AGREGADA (`instanciaActiva`, un id dinámico) cae en la genérica por
-          el mismo mecanismo — `temaDeNivel` nunca lanza sobre un nivel que no reconoce. */}
-      {modo === 'paginas' && nivelActivo && (
+          el mismo mecanismo — `temaDeNivel` nunca lanza sobre un nivel que no reconoce.
+          § EDITOR-VISUAL-NIVELES-AJUSTE-1 — `&& !hayElementoActivo`: con el nivel de ELEMENTO del
+          hero abierto, `TiendaSeccionEditor` ya dibuja su PROPIA miga local «‹ Hero» (§ su
+          docstring); esta miga global se CALLA en vez de sumarse — "una sola miga que nombra el
+          nivel de arriba", nunca las dos a la vez. */}
+      {modo === 'paginas' && nivelActivo && !hayElementoActivo && (
         <Migas
           nivelAnterior="Inicio"
           actual={seccionActiva ? (secciones.find(c => c.seccion === seccionActiva)?.titulo ?? seccionActiva) : CROMO_TITULOS[cromoActivo as CromoKey]}
@@ -1387,9 +1402,18 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
       }}>
         {/* § EDITOR-VISUAL-NIVELES-1 — `.editor-panel` scopea el angostamiento de `.duna-form` a UNA
             columna (editor.css): la primitiva compartida se queda en dos columnas para sus otros
-            consumidores (drawers con ancho de sobra); acá, a 308px, dos columnas cortan el texto. */}
+            consumidores (drawers con ancho de sobra); acá, a 308px, dos columnas cortan el texto.
+            § EDITOR-VISUAL-NIVELES-AJUSTE-1 — `gridTemplateColumns: 'minmax(0, 1fr)'` es la causa
+            RAÍZ del desborde del nivel Hero (medido: `panel.scrollWidth` 803 contra `clientWidth`
+            308 — las cajas se cortaban por la derecha, § CLAUDE.md "la causa"). Sin columna
+            explícita, el grid de una sola pista implícita usa `grid-auto-columns: auto`, que NO
+            trae el mínimo-cero de CSS Grid — un descendiente con contenido ancho (acá, el
+            segmentado de Alto/Oscurecer, § editor.css) empuja la pista más allá de los 308px fijos
+            del padre en vez de encogerse. `minWidth: 0` en ESTE div protege al PADRE (ya estaba);
+            esto protege a los HIJOS, que es lo que faltaba. */}
         <div className="editor-panel" style={{
           display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr)',
           gap: 'var(--duna-space-4)',
           minWidth: 0,
           order: angosto ? 2 : 1,
@@ -1576,6 +1600,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                         valoresCruzados={valoresCruzados}
                         onEscribirCruzado={escribirCruzado}
                         onAyuda={abrirAyuda}
+                        onElementoActivoChange={setHayElementoActivo}
                         carga={{
                           valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
                           sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,

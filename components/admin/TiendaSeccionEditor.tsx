@@ -351,6 +351,14 @@ interface TiendaSeccionEditorProps {
    *  fijo — nunca con el nombre de la zona, porque las cuatro comparten la misma guía. Ausente =
    *  sin «?» (no debería ocurrir fuera de un test). */
   onAyuda?: (tema: TemaAyudaId) => void;
+  /** § EDITOR-VISUAL-NIVELES-AJUSTE-1 — avisa al padre cuando el nivel de ELEMENTO (sólo hero,
+   *  `elementoActivo` más abajo) se abre/cierra, para que `TiendaPaginas.tsx` pueda CALLAR su
+   *  propia miga global «‹ Inicio» mientras ésta dibuja la suya («‹ Hero») — medido: las dos
+   *  migas convivían a la vez (`.scratch/capturas-niveles-ajuste`, el nivel Titular). MISMO
+   *  patrón que `onAbrir`/`onCerrar`: la instancia avisa, el padre sólo escucha. Se monta para
+   *  TODAS las secciones (sólo el hero lo dispara; las demás nunca tienen `elementoActivo`).
+   *  Ausente = el padre no puede enterarse (no debería ocurrir fuera de un test). */
+  onElementoActivoChange?: (activo: boolean) => void;
 }
 
 // ── EL NIVEL «elemento», SÓLO HERO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3/§ 4) ────────────────
@@ -393,7 +401,7 @@ const ELEMENTO_HERO_DEFS: Record<ZonaHeroKey, {
   indicador: { titulo: 'Indicador', hint: 'La línea animada al pie que invita a bajar, con la etiqueta «Desliza».', campos: [], boolName: 'cueDesliza' },
 };
 
-const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCerrar, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado, onAyuda }, ref) {
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCerrar, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado, onAyuda, onElementoActivoChange }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -425,9 +433,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // secciones/cromo/instancias (§ `nivelActivo`), no zonas de una sección en particular — hacerle
   // aprender de zonas habría significado tocar su mecanismo de migas globales («‹ Inicio») por un
   // nivel que sólo existe DENTRO del hero. La miga local «‹ Hero» (`Migas`, reusada tal cual) vive
-  // bajo esta misma cáscara; la miga global «‹ Inicio» de `TiendaPaginas` sigue arriba, sin cambios,
-  // y sigue cerrando la sección entera (su `cerrar()` también resetea esto, ver `cerrarEdicion`).
+  // bajo esta misma cáscara; la miga global «‹ Inicio» de `TiendaPaginas` sigue arriba, y sigue
+  // cerrando la sección entera (su `cerrar()` también resetea esto, ver `cerrarEdicion`) — PERO
+  // (§ EDITOR-VISUAL-NIVELES-AJUSTE-1) deja de DIBUJARSE mientras ésta muestra la suya: las dos a
+  // la vez eran "dos migas", medido. `TiendaPaginas` sigue sin aprender de ZONAS — sólo se entera
+  // de si HAY un elemento activo o no, vía `onElementoActivoChange` abajo.
   const [elementoActivo, setElementoActivo] = useState<'titular' | 'subtitulo' | 'botones' | 'indicador' | null>(null);
+  // Avisa al padre en cada cambio — mismo patrón que `onAbrir`/`onCerrar` (§ arriba): la instancia
+  // avisa, el padre sólo escucha. No se llama a mano en cada `setElementoActivo(...)` (hay siete
+  // call sites: abrir/cerrar edición, el puente del lienzo, cada zona, Quitar, la miga local) —
+  // un efecto sobre el VALOR cubre los siete sin tener que tocar cada uno.
+  useEffect(() => { onElementoActivoChange?.(elementoActivo !== null); }, [elementoActivo, onElementoActivoChange]);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   // El CONTROL al que pertenece `errorServidor` —el nombre del campo-imagen (hero, brandStory…), o
   // `null` para un error SIN control propio en este editor (publicar/descartar, o un ítem del
