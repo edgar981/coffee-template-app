@@ -52949,3 +52949,161 @@ de `components/storefront/` ni `app/(storefront)/`, así que no hay drift visual
 Commiteado en `slice/editor-secciones-1`, encima de `c98e5a8`.
 
 **Cierra `EDITOR-AYUDA-1`.**
+
+---
+
+## 2026-10-04 — Ajuste de los niveles del editor: el desborde del Hero y las dos migas (`EDITOR-VISUAL-NIVELES-AJUSTE-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el pedido textual del
+owner del 2026-10-04 (el mismo que aprobó `EDITOR-VISUAL-NIVELES-1`), `observed-report: EDITOR-
+TIENDA-REDISENO-PROPUESTA-1`. La aprobación autoriza la escritura, nunca el merge. Sigue
+`slice/editor-secciones-1`, encima de `9ed42e5` (`EDITOR-AYUDA-1`).
+
+**Lo que se hizo:** tres ajustes puntuales sobre lo que `EDITOR-VISUAL-NIVELES-1` dejó construido,
+a partir de capturas que el orquestador midió contra ese slice: el nivel Hero desbordaba el panel a
+la derecha, el nivel de elemento mostraba DOS migas a la vez, y la bajada del nivel Hero se cortaba
+por el mismo desborde. Sin cambio de esquema, sin cambio de qué se guarda ni de cómo se publica, y
+sin tocar un solo byte de la tienda pública (verificado: `git diff --stat` da sólo
+`app/(admin)/editor/editor.css`, `components/admin/TiendaPaginas.tsx` y
+`components/admin/TiendaSeccionEditor.tsx` — cero archivos de `components/storefront/`/
+`app/(storefront)/`).
+
+### 1 · El desborde — la causa era el panel, no el segmentado
+
+**MEDIDO antes de tocar nada** (arnés Playwright propio, `.scratch/arnes-niveles-ajuste.ts`, no
+comiteado, mismo mecanismo que `scripts/verificar-nayoli-visual.ts`: Postgres efímero, `migrate
+deploy` + seed, `next build`/`next start`, sesión real `admin@sierranativa.co`): en el nivel Hero,
+`.editor-panel.scrollWidth` daba **803px contra 308px de `clientWidth`** — 495px de desborde real,
+no cosmético. El segmentado de "Alto" medía **240px por ítem** (720px el control entero, dentro de
+un panel de 308px); el de "Oscurecer" (Fondo), **180px por ítem** (720px también).
+
+**La causa NO era el segmentado: era que `.editor-panel` (`TiendaPaginas.tsx`) es un `display:grid`
+SIN `gridTemplateColumns` explícito.** Sin una columna declarada, el grid usa `grid-auto-columns:
+auto` — una pista que NO trae el mínimo-cero de CSS Grid. Un descendiente con contenido ancho (acá,
+el segmentado reusado de `.duna-seg` con `flex:1 1 0` y sin `min-width:0`, cuyo mínimo automático es
+el de su CONTENIDO sin cortar) empuja esa pista más allá de los 308px fijos del padre, en vez de
+encogerse — el padre no crece (su propio ancho es un literal `308px` en el grid de arriba), así que
+el exceso se desborda VISUALMENTE por la derecha, pintado encima por el lienzo vecino: "se corta".
+El `minWidth: 0` que `.editor-panel` ya llevaba protegía al PADRE de este mismo problema; no
+protegía a sus HIJOS, que es lo que faltaba.
+
+**El fix, en la raíz, no con `overflow:hidden`:**
+- `TiendaPaginas.tsx`: `.editor-panel` gana `gridTemplateColumns: 'minmax(0, 1fr)'` — la pista
+  ahora tiene mínimo CERO, así que ningún hijo puede empujarla más allá de los 308px.
+- `editor.css`: `.editor-seg-full` y `.editor-seg-full .duna-seg__item` ganan `min-width: 0`
+  (cinturón-y-tirantes sobre el mismo eje, directamente en el control) + `text-align: center` en el
+  ítem (antes centrado por el `justify-content` del flex, que deja de alcanzar una vez que el texto
+  envuelve a dos líneas).
+
+**MEDIDO después:** `.editor-panel.scrollWidth === clientWidth === 308` en los dos niveles (Hero y
+sección con repeater) y en los dos viewports (1440×900, 1280×800). El segmentado de "Alto" pasa a
+**75px por ítem** (225px el control, cabe en el panel con su padding); "Oscurecer", a **56px por
+ítem** (224px). "Pantalla completa" ENVUELVE a dos líneas ("Pantalla" / "completa") en vez de
+desbordar — las TRES opciones de Alto y las CUATRO de Oscurecer quedan visibles, capturado en
+`.scratch/capturas-niveles-ajuste/*-01-nivel-hero.png` y `*-01b-nivel-hero-fondo.png` ("Cambiar" /
+"Usar un video" completos, sin cortar).
+
+**Consecuencia gratis: la bajada del nivel Hero deja de cortarse** (ítem 3 del spec) — es el MISMO
+texto ("Edita y los cambios se guardan solos; publica cuando estén listos. Mira el resultado en la
+vista de la tienda. Ver la tienda"), compartido por las DIEZ secciones del REGISTRY (confirmado:
+aparece idéntico en la captura de Testimonios), así que acortarlo sería un cambio de COPY
+transversal a toda la pantalla, no un ajuste del Hero — y el checklist de cierre de este slice
+("ningún elemento del panel más ancho que la columna, el segmentado con sus opciones visibles, una
+sola miga") no lo pide. Se deja sin tocar.
+
+### 2 · Las dos migas — `TiendaPaginas` no sabía del nivel de elemento
+
+**MEDIDO antes de tocar nada:** en el nivel de elemento (Titular), `document.querySelectorAll
+('.editor-pv-back')` devolvía DOS textos: `["Inicio", "Hero"]`. La causa: la miga global «‹ Inicio»
+(`TiendaPaginas.tsx`) se dibuja siempre que `nivelActivo` esté puesto (la SECCIÓN hero está
+abierta), sin saber que `TiendaSeccionEditor.tsx` tiene un TERCER nivel local (`elementoActivo`,
+sólo hero) que ya dibuja su PROPIA miga «‹ Hero» — las dos migas conviven porque viven en
+componentes distintos que no se comunicaban sobre este nivel.
+
+**El fix, mismo patrón que `onAbrir`/`onCerrar` (ya existente para el nivel de SECCIÓN):**
+`TiendaSeccionEditor` gana un prop opcional `onElementoActivoChange?: (activo: boolean) => void`,
+invocado desde un `useEffect` sobre `elementoActivo` (cubre los SIETE call sites de
+`setElementoActivo` sin tocar ninguno). `TiendaPaginas` gana el estado `hayElementoActivo` y lo pasa
+a TODAS las instancias de `TiendaSeccionEditor` (sólo el hero lo dispara; las demás nunca tienen
+`elementoActivo`, así que llaman con `false` sin efecto). La miga global pasa de `nivelActivo &&
+(...)` a `nivelActivo && !hayElementoActivo && (...)` — se CALLA en vez de sumarse mientras el hero
+dibuja la suya.
+
+**MEDIDO después:** `migas` da `["Hero"]` — una sola, exactamente lo que el spec pide ("una sola
+miga que nombra el nivel de arriba"). Capturado en
+`.scratch/capturas-niveles-ajuste/*-02-nivel-elemento-titular.png`. No se construyó la ruta
+completa opcional ("Inicio › Hero › Titular", "si se quiere" dice el spec): el nivel actual ya lo
+dice el `<h2>` que el propio `renderElementoHero` pinta debajo de la miga ("‹ Hero" + "Titular"), y
+el checklist de cierre no la exige.
+
+### 3 · Los demás niveles — cero desborde, nada que ajustar ahí
+
+Medido (ítem 4 del spec, "revisá el MISMO desborde en los demás niveles"): Testimonios (sección con
+repeater), Encabezado (cromo) y Estilo (`PaletaSeccion`, vía el riel) dan **cero** elementos con
+`scrollWidth > clientWidth` dentro de `.editor-panel`, antes y después del fix — nunca tuvieron el
+problema (ninguno monta el segmentado reusado ni depende de la pista sin `minmax(0,1fr)` de una
+forma que lo dispare). El fix de `gridTemplateColumns` en `.editor-panel` es universal (aplica a los
+DIEZ niveles, no sólo al hero) y no cambió su layout — medido, no asumido.
+
+**El detector de desborde necesitó TRES exclusiones para no mentir**, y quedan documentadas en el
+arnés para quien lo retome: `.duna-sr-only` (`width:1px` A PROPÓSITO, el patrón de accesibilidad —
+`scrollWidth > clientWidth` es su DISEÑO, no un defecto), un truncado por `text-overflow:ellipsis`
+declarado (`.editor-zr__text span`, recorta a propósito), e `INPUT`/`TEXTAREA` (su `scrollWidth`
+interno crece con el VALOR tecleado, no con el layout del panel). Sin esas tres exclusiones el
+primer barrido reportaba "desbordes" en los roles de color de Estilo y en el subtítulo truncado de
+Zonas — ninguno de los dos es el bug que este slice persigue.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3700/3700**, dos corridas idénticas |
+| `npm run test:integracion` | **346/346** en 2 de 4 corridas completas de `npm run gate`; las otras 2 fallaron en el MISMO test, ajeno a este diff: `tests/integracion/wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ" — una carrera real (`Promise.all`) entre dos escritores bajo el MISMO lock de fila, cuyo desenlace depende de timing. **Aislado, corre 5/5 verde** (`.scratch/retest-wompi.ts`, 5 corridas consecutivas contra Postgres efímero propio, sin el resto de la suite compitiendo por CPU/conexiones) — y el `git diff --stat` de este slice no toca `tests/integracion/`, `packages/core/src/pagos/`, `lib/pagos/` ni nada del eje Wompi. Se interpreta como un flake PRE-EXISTENTE sensible a la carga de la sesión (varias corridas de `next build` + Postgres efímero en paralelo con el propio gate), no una regresión de este diff — con la salvedad de que no se pudo confirmar contra un árbol limpio (`git stash` no está entre las mutaciones concedidas a este slice). Reportado explícito, no escondido. |
+| `npm run gate` | GREEN salvo el flake de arriba, documentado |
+| `npm run verificar:nayoli:visual` | reproduce EXACTO el piso heredado de la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, el mismo número que `EDITOR-VISUAL-NIVELES-1` ya midió): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado, drift heredado de la rama contra `main`, no de este slice |
+
+### Verificado por ejecución — `.scratch/arnes-niveles-ajuste.ts` (no comiteado)
+
+Mismo mecanismo que los arneses anteriores de esta rama: Postgres efímero (`:55442`), `migrate
+deploy` + seed canónico, `next build`/`next start` (`:3498`), Playwright con sesión real
+(`admin@sierranativa.co`), viewports 1440×900 y 1280×800. Diez capturas en
+`.scratch/capturas-niveles-ajuste/` (gitignored) por viewport: nivel Hero (antes y después de
+scrollear a Fondo), nivel de elemento Titular, Testimonios, Encabezado, Estilo. Los números crudos
+(`panelBoxHero`, `segOpciones`, `migas`) quedan en `.scratch/capturas-niveles-ajuste/resultados.json`.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths del diff grepeados contra CLAUDE.md: `TiendaSeccionEditor` (6), `TiendaPaginas` (4) —
+los MISMOS que `EDITOR-VISUAL-NIVELES-1`/`EDITOR-AYUDA-1` ya catalogaron línea por línea en sus
+propios asientos (arriba); ninguno describe el mecanismo que este diff toca (el `gridTemplateColumns`
+del panel, la miga global condicionada a `hayElementoActivo`) — ninguna sentencia queda falsa.
+`editor-panel`/`editor-seg-full`/`onElementoActivoChange`/`hayElementoActivo`/`duna-seg__item` — CERO
+resultados cada uno (esta arquitectura vive sólo en esta rama, sin mergear; CLAUDE.md no tiene
+todavía ninguna sección sobre el panel de niveles del editor).
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (`slice/editor-secciones-1` contra `main`), mismo eje que el
+resto de esta rama. Cero bytes para un VISITANTE del storefront (medido: cero archivos de
+`components/storefront/`/`app/(storefront)/` en el diff, y `verificar:nayoli:visual` reproduce el
+piso heredado exacto). **Sí** cambia bytes que el OWNER/MANAGER lee dentro de `/editor/tienda`: el
+nivel Hero ya no se corta (las mismas palabras, mejor layout) y el nivel de elemento muestra una
+miga en vez de dos. Ningún texto NUEVO de cara al operador — es forma, no contenido.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado. Ningún campo
+nuevo en `site-content-schema.ts`/`site-content-defaults.ts`.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
+completo: typecheck 0 errores · `npm test` 3700/3700 (2/2 corridas) · `npm run test:integracion`
+346/346 en 2 de 4 corridas, con el flake de `wompi-reconciliador.test.ts` documentado arriba y
+confirmado ajeno a este diff (5/5 verde aislado, cero overlap de archivos). Arnés real de punta a
+punta contra el PANEL, diez capturas + mediciones de `scrollWidth`/`clientWidth`/`segOpciones`/
+`migas`, antes y después del fix, comparadas contra el prototipo y contra el propio reporte del
+orquestador. Commiteado en `slice/editor-secciones-1`, encima de `9ed42e5`.
+
+**Cierra `EDITOR-VISUAL-NIVELES-AJUSTE-1`.**
