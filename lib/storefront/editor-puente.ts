@@ -507,3 +507,50 @@ export function esMensajeAgregarSeccion(data: unknown): data is MensajeAgregarSe
  * en otro archivo.
  */
 export const ATRIBUTO_EDITOR_AGREGAR_SECCION = 'data-editor-agregar-seccion';
+
+// ─── EL CHROME PROPIO DEL EDITOR, UN ATRIBUTO COMPARTIDO (§ EDITOR-BARRA-ESTILO-CLIC-1) ────────
+//
+// El listener de clic en captura de `EditorPuenteVivo.tsx` intercepta TODO clic de la página
+// (`preventDefault`+`stopPropagation`, § el comentario grande del componente) salvo el que cae
+// DENTRO de un control PROPIO del editor — hasta este slice, esa excepción cubría SÓLO el overlay
+// de texto, por un REF (`overlayNodoRef.current.contains(destino)`), no por atributo. La barra
+// flotante (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) vive en SU PROPIO portal, aparte del overlay, así
+// que ese ref no la alcanzaba: ningún clic en sus botones/selects llegaba nunca al `onClick` de
+// React (la intercepción lo frenaba antes con `preventDefault`/`stopPropagation`) y, al no
+// matchear ninguno de los `[data-editor-*]` que las ramas de abajo ya conocen, cada clic en ella
+// caía en la rama "clic afuera de cualquier campo" y CERRABA el campo abierto — el defecto de
+// `EDITOR-TIENDA-BARRA-FLOTANTE-1` que este slice arregla (§ CLAUDE.md, el `approval-reason` de
+// este dispatch).
+//
+// LA RESPUESTA ES UN ATRIBUTO COMPARTIDO, no una excepción más por control (el pedido textual del
+// spec: "marcalos con un atributo común en vez de sumar excepciones una por una"). Cualquier nodo
+// del chrome propio del editor —hoy el overlay del campo de texto, el aviso de sesión vencida, y
+// la barra flotante entera— lleva `ATRIBUTO_EDITOR_CHROME`; el listener hace `closest()` contra
+// ESE selector ANTES de decidir cualquier otra cosa (antes incluso de `preventDefault`/
+// `stopPropagation`): si lo encuentra, el clic sigue su curso NATIVO —el `onClick` de React del
+// control dispara normal, y ni el campo abierto ni la selección se tocan—. Un control nuevo del
+// editor (futuro) sólo necesita este atributo para heredar el mismo comportamiento, sin que haya
+// que volver a tocar el listener.
+//
+// NO CUBRE a los controles que el listener SÍ necesita seguir interceptando para despachar su
+// propio mensaje — el separador «+» (`ATRIBUTO_EDITOR_AGREGAR_SECCION`), las zonas del hero
+// (`ATRIBUTO_EDITOR_ZONA_CAMPO`), el campo-imagen (`ATRIBUTO_EDITOR_CAMPO_IMAGEN`), el campo de
+// texto SIN ABRIR (`ATRIBUTO_EDITOR_CAMPO`, de `lib/admin/editor-iframe.ts`) — esos viven DESPUÉS
+// del `preventDefault`/`stopPropagation`, en sus propias ramas ya existentes, porque su
+// comportamiento correcto ES ser interceptado y traducido a un `postMessage`, no dejarlos pasar
+// tal cual. `ATRIBUTO_EDITOR_CHROME` es exclusivamente para chrome que debe comportarse como si el
+// listener de captura no existiera.
+export const ATRIBUTO_EDITOR_CHROME = 'data-editor-chrome';
+
+/**
+ * ¿El clic cayó dentro de un nodo marcado `ATRIBUTO_EDITOR_CHROME`? Recibe el DESTINO del clic
+ * (cualquier objeto con `.closest`, nunca el DOM query en sí — eso es impuro, lo hace el
+ * llamador) para que la decisión quede testeable sin jsdom (el repo no lo tiene, § CLAUDE.md "el
+ * glob NO incluye *.test.tsx"): un test pasa un objeto mínimo con `closest()`, sin montar nada en
+ * un navegador. `null`/`undefined` (no hubo clic, o el target no es un `Element`) se trata como
+ * "no es chrome del editor" — preferir interceptar de más (el comportamiento de HOY) a dejar pasar
+ * un clic que no se pudo clasificar.
+ */
+export function esClicEnChromeEditor(destino: { closest(selectores: string): unknown } | null | undefined): boolean {
+  return !!destino?.closest(`[${ATRIBUTO_EDITOR_CHROME}]`);
+}

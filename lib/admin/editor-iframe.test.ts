@@ -265,3 +265,61 @@ test('TiendaPaginas.tsx conecta el «+» del lienzo a abrirBiblioteca — la MIS
     'VistaTiendaIframe debe recibir abrirBiblioteca directo — nunca un segundo manejador que pudiera divergir de los separadores de la lista',
   );
 });
+
+// ─── EDITOR-BARRA-ESTILO-CLIC-1 — el chrome del editor deja de ser interceptado ─────────────────
+//
+// `EditorPuenteVivo.tsx` es `.tsx` sin jsdom (§ arriba): el cableado real —que el listener de clic
+// consulte la excepción ANTES de `preventDefault`/`stopPropagation`, y que los TRES nodos de
+// chrome (overlay, aviso de sesión, barra flotante) lleven el atributo que esa excepción busca—
+// se afirma leyendo el ARCHIVO FUENTE, igual que el separador «+» arriba. La DECISIÓN pura
+// (`esClicEnChromeEditor`) tiene su propio test en `lib/storefront/editor-puente.test.ts`; esto es
+// sólo el CABLEADO.
+
+test('EditorPuenteVivo.tsx importa la excepción del chrome del editor desde el puente — no una copia local', () => {
+  const fuente = leerFuente('../../components/storefront/EditorPuenteVivo.tsx');
+  const bloqueImport = fuente.match(/import\s*\{([^}]*)\}\s*from\s*["']@\/lib\/storefront\/editor-puente["']/);
+  assert.ok(bloqueImport, 'debe existir un import desde el puente');
+  assert.match(
+    bloqueImport![1],
+    /\bATRIBUTO_EDITOR_CHROME\b/,
+    'debe importar el atributo desde el puente, no reinventarlo acá',
+  );
+  assert.match(
+    bloqueImport![1],
+    /\besClicEnChromeEditor\b/,
+    'debe importar el discriminador desde el puente, no reinventarlo acá',
+  );
+});
+
+test('EditorPuenteVivo.tsx consulta esClicEnChromeEditor ANTES de preventDefault/stopPropagation en el listener de clic', () => {
+  const fuente = leerFuente('../../components/storefront/EditorPuenteVivo.tsx');
+  const iOnClick = fuente.indexOf('const onClick = (e: MouseEvent)');
+  assert.notEqual(iOnClick, -1, 'debe existir el listener de clic');
+  const iExcepcion = fuente.indexOf('esClicEnChromeEditor(destino)', iOnClick);
+  const iPreventDefault = fuente.indexOf('e.preventDefault();', iOnClick);
+  assert.notEqual(iExcepcion, -1, 'el listener debe llamar a esClicEnChromeEditor');
+  assert.notEqual(iPreventDefault, -1, 'el listener debe seguir llamando a preventDefault para el resto de los clics');
+  assert.ok(
+    iExcepcion < iPreventDefault,
+    'la excepción del chrome debe resolverse ANTES de preventDefault/stopPropagation — si corriera después, un clic en la barra ya habría sido cancelado',
+  );
+});
+
+test('EditorPuenteVivo.tsx marca los TRES nodos de su propio chrome con ATRIBUTO_EDITOR_CHROME (overlay, aviso de sesión, barra flotante)', () => {
+  const fuente = leerFuente('../../components/storefront/EditorPuenteVivo.tsx');
+  // El overlay (el objeto `comun` que se spreadea sobre el <input>/<textarea>).
+  assert.match(
+    fuente,
+    /\[ATRIBUTO_EDITOR_CHROME\]:\s*'',\s*\n\s*\};/,
+    'el objeto `comun` del overlay debe llevar el atributo vía clave computada',
+  );
+  // Las TRES apariciones de ATRIBUTO_EDITOR_CHROME como ATRIBUTO (fuera del import y de la
+  // declaración en editor-puente.ts, que no está en este archivo): overlay, aviso de sesión,
+  // barra flotante.
+  const apariciones = fuente.match(/\[ATRIBUTO_EDITOR_CHROME\]:\s*''/g) ?? [];
+  assert.equal(
+    apariciones.length,
+    3,
+    `debe marcar exactamente 3 nodos (overlay, aviso de sesión, barra flotante) — encontró ${apariciones.length}`,
+  );
+});

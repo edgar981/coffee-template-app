@@ -12,6 +12,7 @@ import {
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
   mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
+  ATRIBUTO_EDITOR_CHROME, esClicEnChromeEditor,
   TIPO_MENSAJE_AGREGAR_SECCION, ATRIBUTO_EDITOR_AGREGAR_SECCION,
 } from '@/lib/storefront/editor-puente';
 // `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
@@ -111,10 +112,16 @@ import { PARES_FUENTES } from '@/lib/config/fuentes';
 // panel aplica el MISMO setter (`cambiar()`) que ya usa el input de la lista — el nodo contentEditable
 // nunca es la fuente de verdad, el `form` del panel sí (§ el principio de § 2.1 del diseño).
 //
-// EL CLIC DENTRO DEL OVERLAY NO SE INTERCEPTA (`overlayNodoRef`): el listener de arriba corre sobre
-// TODO `document`, incluido el `<input>`/`<textarea>` portaleado a `document.body` — sin esa guarda,
-// cada clic para mover el caret o seleccionar texto DENTRO del campo abierto se leería como "clic en
-// otro sitio" y cerraría/reabriría el mismo campo sin sentido.
+// EL CLIC DENTRO DE CUALQUIER CONTROL PROPIO DEL EDITOR NO SE INTERCEPTA (§ EDITOR-BARRA-ESTILO-
+// CLIC-1, `ATRIBUTO_EDITOR_CHROME`/`esClicEnChromeEditor`, `lib/storefront/editor-puente.ts`): el
+// listener de arriba corre sobre TODO `document`, incluidos el `<input>`/`<textarea>` del overlay
+// Y la barra flotante (§ EDITOR-TIENDA-BARRA-FLOTANTE-1) — los dos portaleados a `document.body`,
+// cada uno en SU PROPIO portal. Sin esta guarda, cada clic para mover el caret DENTRO del campo
+// abierto, o cada clic en un botón/select de la barra, se leería como "clic en otro sitio" y
+// cerraría el campo sin aplicar nada (el defecto medido de este slice: la barra nunca recibía el
+// `onClick` de React porque la intercepción corría primero). Un atributo COMPARTIDO —no un ref por
+// control— es lo que hace que un control nuevo del editor herede esta excepción sin tocar el
+// listener.
 //
 // UN SOLO CAMPO ABIERTO A LA VEZ (`campoAbierto`, estado): clickear OTRO campo marcado cierra el
 // anterior (restaura `visibility`) antes de abrir el nuevo; clickear FUERA de cualquier campo
@@ -384,10 +391,6 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   const [campoAbierto, setCampoAbierto] = useState<EstadoCampoAbierto | null>(null);
   const campoAbiertoRef = useRef<EstadoCampoAbierto | null>(null);
   campoAbiertoRef.current = campoAbierto;
-  // El nodo DOM del overlay EN VUELO (el `<input>`/`<textarea>` portaleado) — lo pone el `ref`
-  // callback del elemento renderizado abajo; lo lee el listener de clic para no interceptarse a sí
-  // mismo (§ el comentario grande, "EL CLIC DENTRO DEL OVERLAY").
-  const overlayNodoRef = useRef<HTMLElement | null>(null);
   // EL RE-MEDIDO del campo abierto (§ EDITOR-TIENDA-CAMPO-ANCLADO-1, cierra el error 3 y la mitad
   // de resize/contenido del error 4): un `ResizeObserver` sobre el BLOQUE (cambia de alto cuando el
   // contenido crece — incluida la propia tecla que se está tipeando, porque el bloque real sigue
@@ -674,8 +677,9 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     const onClick = (e: MouseEvent) => {
       if (navegarRef.current) return; // modo Navegar: comportamiento normal, no se intercepta nada
       const destino = e.target as HTMLElement | null;
-      // Un clic DENTRO del overlay ya abierto no se intercepta (§ el comentario grande).
-      if (overlayNodoRef.current && destino && overlayNodoRef.current.contains(destino)) return;
+      // Un clic DENTRO de cualquier control propio del editor (overlay, barra flotante, aviso de
+      // sesión…) no se intercepta (§ el comentario grande, § EDITOR-BARRA-ESTILO-CLIC-1).
+      if (esClicEnChromeEditor(destino)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -795,7 +799,6 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
             if (e.key === 'Tab') cerrarCampo(); // no se previene: el tab-order real sigue su curso
           };
           const comun = {
-            ref: (n: HTMLInputElement | HTMLTextAreaElement | null) => { overlayNodoRef.current = n; },
             autoFocus: true,
             value: campoAbierto.valor,
             // La previsualización de hover (§ arriba) GANA sobre el color real mientras está
@@ -804,11 +807,16 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
             style: previewColorCss ? { ...campoAbierto.estilo, color: previewColorCss } : campoAbierto.estilo,
             onChange: manejarCambio,
             onKeyDown: manejarTecla,
-            // Marcador de DIAGNÓSTICO/arnés —no lo lee ningún otro código de producto (el gate de
-            // "clic dentro del overlay" ya usa `overlayNodoRef.contains()`, no este atributo)—, pero
-            // sin él no hay forma de `querySelector` el overlay desde fuera (un test de ejecución,
-            // una herramienta de inspección) sin depender de estilos inline frágiles.
+            // Marcador de DIAGNÓSTICO/arnés —no lo lee ningún código de producto—, pero sin él no
+            // hay forma de `querySelector` el overlay desde fuera (un test de ejecución, una
+            // herramienta de inspección) sin depender de estilos inline frágiles.
             'data-editor-overlay': ruta.seccion + '.' + ruta.campo,
+            // § EDITOR-BARRA-ESTILO-CLIC-1 — el overlay ES chrome propio del editor: el listener de
+            // captura lo deja pasar sin interceptar (`esClicEnChromeEditor`, editor-puente.ts), para
+            // que mover el caret o seleccionar texto DENTRO del campo abierto no se lea como "clic
+            // en otro sitio" y lo cierre. Reemplaza al `overlayNodoRef` (un ref por control) que
+            // esta misma excepción usaba antes de generalizarse a un atributo compartido.
+            [ATRIBUTO_EDITOR_CHROME]: '',
           };
           // `key` por RUTA: fuerza un nodo NUEVO (con `autoFocus` real) al abrir un campo distinto —
           // sin esto, pasar de un campo de una línea a otro TAMBIÉN de una línea reusaría el MISMO
@@ -845,7 +853,16 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
           return (
             <>
               {campo}
-              <div role="alert" style={avisoEstilo} data-editor-aviso-sesion="">{avisoSesion}</div>
+              {/* § EDITOR-BARRA-ESTILO-CLIC-1 — chrome propio del editor, no se intercepta
+                  (`ATRIBUTO_EDITOR_CHROME`, mismo motivo que el overlay de arriba). */}
+              <div
+                role="alert"
+                style={avisoEstilo}
+                data-editor-aviso-sesion=""
+                {...{ [ATRIBUTO_EDITOR_CHROME]: '' }}
+              >
+                {avisoSesion}
+              </div>
             </>
           );
         })(),
@@ -925,7 +942,15 @@ function BarraEstiloElemento({
   });
 
   return createPortal(
-    <div style={estiloBarra} data-editor-barra-estilo={`${seccion}.${elemento}`}>
+    // § EDITOR-BARRA-ESTILO-CLIC-1 — `ATRIBUTO_EDITOR_CHROME` es lo que hace que el listener de
+    // captura de `EditorPuenteVivo` deje pasar sin interceptar TODO clic dentro de esta barra —
+    // antes de este atributo, cada clic en un botón/select de acá se leía como "clic afuera" y
+    // cerraba el campo sin aplicar nada (el defecto que este slice arregla).
+    <div
+      style={estiloBarra}
+      data-editor-barra-estilo={`${seccion}.${elemento}`}
+      {...{ [ATRIBUTO_EDITOR_CHROME]: '' }}
+    >
       <select aria-label="Letra" value={estilo.fuente ?? ''} onChange={(e) => enviar('fuente', e.target.value)} style={estiloSelect}>
         <option value="">Letra: por defecto</option>
         <option value="otra-del-par">Letra: la otra del par</option>

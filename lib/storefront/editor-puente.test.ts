@@ -28,6 +28,8 @@ import {
   TIPO_MENSAJE_AGREGAR_SECCION,
   esMensajeAgregarSeccion,
   ATRIBUTO_EDITOR_AGREGAR_SECCION,
+  ATRIBUTO_EDITOR_CHROME,
+  esClicEnChromeEditor,
 } from './editor-puente';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 
@@ -534,4 +536,36 @@ test('esMensajeAgregarSeccion + el despuesDe de cada banda real: el marcador ES 
   // spotlight ocupa el slot 'featured' (§ tienda-secciones.ts, SPOTLIGHT.bandaId); el mensaje
   // lleva ese bandaId tal cual, no 'spotlight'.
   assert.equal(esMensajeAgregarSeccion({ tipo: TIPO_MENSAJE_AGREGAR_SECCION, despuesDe: 'featured' }), true);
+});
+
+// ─── EDITOR-BARRA-ESTILO-CLIC-1 — la excepción que deja pasar el chrome propio del editor ────────
+//
+// `destino` nunca es un DOM real acá (el repo no tiene jsdom, § CLAUDE.md "el glob NO incluye
+// *.test.tsx") — un objeto mínimo con `.closest()` basta para afirmar la DECISIÓN sin montar nada
+// en un navegador; `EditorPuenteVivo.tsx` es quien hace el `closest()` real contra `e.target`.
+
+test('ATRIBUTO_EDITOR_CHROME: el literal que EditorPuenteVivo.tsx marca en su chrome (overlay, aviso de sesión, barra flotante) y lee en el listener de clic', () => {
+  assert.equal(ATRIBUTO_EDITOR_CHROME, 'data-editor-chrome');
+});
+
+test('esClicEnChromeEditor: un clic con destino DENTRO de un control del editor NO se intercepta', () => {
+  const destino = { closest: (sel: string) => (sel === `[${ATRIBUTO_EDITOR_CHROME}]` ? ({} as unknown) : null) };
+  assert.equal(esClicEnChromeEditor(destino), true);
+});
+
+test('esClicEnChromeEditor: un clic en la PÁGINA (fuera de todo chrome del editor) SÍ se intercepta', () => {
+  const destino = { closest: () => null };
+  assert.equal(esClicEnChromeEditor(destino), false);
+});
+
+test('esClicEnChromeEditor: busca EXACTAMENTE el selector del atributo — no cualquier closest truthy', () => {
+  let selectorRecibido: string | null = null;
+  const destino = { closest: (sel: string) => { selectorRecibido = sel; return null; } };
+  esClicEnChromeEditor(destino);
+  assert.equal(selectorRecibido, `[${ATRIBUTO_EDITOR_CHROME}]`);
+});
+
+test('esClicEnChromeEditor: sin destino (null/undefined) se intercepta — preferir interceptar de más a dejar pasar un clic sin clasificar', () => {
+  assert.equal(esClicEnChromeEditor(null), false);
+  assert.equal(esClicEnChromeEditor(undefined), false);
 });
