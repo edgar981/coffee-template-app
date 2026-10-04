@@ -879,6 +879,55 @@ píxeles nuevos en la tienda pública, porque este slice no toca un solo archivo
 
 ---
 
+**NOVENO PEDIDO FUERA DE ESTA NUMERACIÓN: `EDITOR-AYUDA-1` — la pestaña «Ayuda» del riel gana
+destino (2026-10-04).** Pedido textual del owner: *"necesito que me ayudes a construir la sección
+del editor que dice 'Ayuda'… porque seguramente no van a recordar todo cuando se les enseñe a
+usar o se haga la capacitación."* `Riel.tsx` tenía el botón «Ayuda» DESHABILITADO desde
+`EDITOR-VISUAL-MARCO-1` ("no existe hoy documentación del editor para el dueño de la tienda");
+este slice le da ese destino.
+
+**EL CENTRO DE AYUDA ES DATO PURO + UN CUARTO `modo`, no una pieza nueva de arquitectura.**
+`lib/admin/ayuda-editor.ts` (sin React) declara las nueve guías, las nueve preguntas frecuentes y
+los dos atajos reales (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z — los ÚNICOS que el código implementa,
+verificados en `EditorTiendaPantallaCompleta.tsx` y `EditorPuenteVivo.tsx` antes de documentarlos).
+`AyudaCentro.tsx` (nuevo, `components/admin/editor/`) sólo lo renderiza: buscador arriba, las
+guías como filas (`FilaSeccion`, reusada), preguntas frecuentes como `<details>`, atajos abajo; una
+guía abierta es un nivel más, con «‹ Ayuda» (`Migas.tsx` reusado) en vez de «‹ Inicio». `'ayuda'` se
+sumó a `ModoEditor` (`EditorTiendaPantallaCompleta.tsx`) exactamente como ya convivía `'tema'`: el
+riel elige la herramienta, el `modo` decide qué monta la columna del panel, el lienzo sigue
+mostrando la página real al costado — la ayuda nunca tapa el contexto de lo que se está editando.
+
+**EL «?» POR NIVEL NO ES UN COMPONENTE NUEVO REPETIDO TRES VECES — es tres mecanismos existentes,
+cada uno con un callback más.** La miga GLOBAL «‹ Inicio» (`TiendaPaginas.tsx`, una instancia para
+las ~15 secciones/cromo) y la miga LOCAL «‹ Hero» (`TiendaSeccionEditor.tsx`, el nivel de
+elemento) ganaron un `onAyuda?` opcional en `Migas.tsx`; Inicio y Estilo (los dos niveles SIN
+miga, porque no hay "arriba" al que volver) montan su propio botón icon-only junto al título. Los
+tres llaman a la MISMA función (`temaDeNivel`, derivada de `GuiaAyuda.niveles`, nunca un mapa a
+mano aparte) — el detalle completo, con la tabla de las cuatro fuentes de `NIVELES_PANEL` y la
+regla de mantenimiento ("quien cambie el editor actualiza la guía en el mismo slice"), vive en
+`docs/editor-tienda/AYUDA.md` (nuevo).
+
+**DEVIACIÓN DE `touches:` MEDIDA Y DECLARADA — la ayuda de «Estilo» NO vive dentro de
+`PaletaSeccion.tsx`.** Ese archivo no está en `touches:` de este slice (sigue siendo bespoke, igual
+que `EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`, fuera también). El «?» de Estilo vive en un
+envoltorio `position:relative` que `TiendaPaginas.tsx` pone ALREDEDOR del mount de `PaletaSeccion`,
+nunca dentro — el mismo criterio por el que esos tres editores de cromo ya eran bespoke.
+
+**VERIFICADO POR EJECUCIÓN — sesión real, 12/12.** `.scratch/arnes-ayuda.ts` (no comiteado):
+Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`, Playwright con
+sesión real (`admin@sierranativa.co`), viewport 1440×900. El botón «Ayuda» del riel YA NO está
+deshabilitado; el centro abre con las 9 guías, preguntas frecuentes y atajos visibles; buscar
+«foto» encuentra «Fotos y videos» (por palabra clave) y dos preguntas frecuentes (por texto de la
+respuesta); abrir esa guía muestra «‹ Ayuda» y sus 5 pasos; volver a Secciones, abrir «Hero de la
+home», tocar el «?» de su miga — el riel pasa a «Ayuda» activo y abre directo la guía «El hero»,
+sin pasar por la lista. 4 capturas en `.scratch/capturas-ayuda/` (no comiteadas): el centro recién
+abierto, la búsqueda «foto», una guía abierta, y la guía que abre el «?» del hero.
+
+`npm run verificar:nayoli:visual` NO corrido — fuera de alcance: este diff no toca un solo archivo
+de `components/storefront/` ni `app/(storefront)/`, así que no hay drift visual público que medir.
+
+---
+
 ## 10 · Lo que este documento NO decide
 
 - ~~Si «Alto» gana un tercer valor (campo nuevo) o se queda en dos.~~ DECIDIDO (slice 5, 2026-10-03):

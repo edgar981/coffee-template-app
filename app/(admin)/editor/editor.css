@@ -230,3 +230,33 @@
    más sin que `TiendaPaginas` tenga que aprender de zonas — § el docstring de `elementoActivo` en
    TiendaSeccionEditor.tsx). */
 .editor-elemento-quitar { margin-top: var(--duna-space-4); }
+
+/* EL CENTRO DE AYUDA (§ EDITOR-AYUDA-1, AyudaCentro.tsx) — una guía abierta es una lista numerada
+   de pasos cortos, con una mini ilustración opcional por paso (`IlustracionAyuda.tsx`), y las
+   preguntas frecuentes son `<details>` nativos (foco/teclado gratis, sin reimplementar un
+   disclosure). */
+.editor-ayuda-pasos { list-style: none; margin: var(--duna-space-4) 0 0; padding: 0; display: flex;
+                       flex-direction: column; gap: var(--duna-space-4); }
+.editor-ayuda-paso { display: flex; gap: var(--duna-space-3); align-items: flex-start; }
+.editor-ayuda-paso__n { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+                         background: var(--duna-surface-2); color: var(--duna-ink-2);
+                         font: 600 11px var(--duna-font-mono); display: grid; place-items: center; }
+
+.editor-ayuda-secuencia { display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+                           margin-top: var(--duna-space-2); }
+.editor-ayuda-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 var(--duna-space-2);
+                      border-radius: var(--duna-r-full); border: 1px solid var(--duna-border);
+                      background: var(--duna-surface); font-size: 11px; font-weight: 500; color: var(--duna-ink-2);
+                      white-space: nowrap; }
+
+.editor-ayuda-faq { border: 1px solid var(--duna-border); border-radius: var(--duna-r-m);
+                     padding: var(--duna-space-3); background: var(--duna-surface); }
+.editor-ayuda-faq summary { cursor: pointer; font-weight: 500; font-size: 13px; color: var(--duna-ink);
+                             list-style: none; }
+.editor-ayuda-faq summary::-webkit-details-marker { display: none; }
+
+.editor-ayuda-atajo { display: flex; align-items: center; justify-content: space-between; gap: var(--duna-space-3);
+                       min-height: 30px; }
+.editor-ayuda-kbd { font: 500 11px var(--duna-font-mono); background: var(--duna-surface-2); color: var(--duna-ink-2);
+                     border: 1px solid var(--duna-border); border-radius: var(--duna-r-s);
+                     padding: 2px var(--duna-space-2); white-space: nowrap; flex-shrink: 0; }

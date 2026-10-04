@@ -27,6 +27,7 @@ import { Migas } from '@/components/admin/editor/Migas';
 import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
 import { metaElementoEstilo, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
+import type { TemaAyudaId } from '@/lib/admin/ayuda-editor';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -344,6 +345,12 @@ interface TiendaSeccionEditorProps {
    *  — esta cáscara nunca toca su propio `form` para un campo cruzado. Ausente = sin a dónde escribir
    *  (no debería ocurrir fuera de un test). */
   onEscribirCruzado?: (seccion: SeccionVista, campo: string, valor: string) => void;
+  /** § EDITOR-AYUDA-1 — el «?» de la miga local «‹ Hero» (sólo el nivel de elemento la muestra;
+   *  el nivel «sección» de esta misma cáscara usa la miga GLOBAL de `TiendaPaginas`, que no pasa
+   *  por acá). El padre ya resolvió el tema de ayuda; esta cáscara sólo lo invoca con `'hero'`
+   *  fijo — nunca con el nombre de la zona, porque las cuatro comparten la misma guía. Ausente =
+   *  sin «?» (no debería ocurrir fuera de un test). */
+  onAyuda?: (tema: TemaAyudaId) => void;
 }
 
 // ── EL NIVEL «elemento», SÓLO HERO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3/§ 4) ────────────────
@@ -386,7 +393,7 @@ const ELEMENTO_HERO_DEFS: Record<ZonaHeroKey, {
   indicador: { titulo: 'Indicador', hint: 'La línea animada al pie que invita a bajar, con la etiqueta «Desliza».', campos: [], boolName: 'cueDesliza' },
 };
 
-const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCerrar, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado }, ref) {
+const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionEditorProps>(function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga, onAbrir, onCerrar, onCambioPublicado, onCambio, onPaso, onEstado, orden, valoresCruzados, onEscribirCruzado, onAyuda }, ref) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -1458,7 +1465,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
       .filter((c): c is CampoTexto => !!c);
     return (
       <>
-        <Migas nivelAnterior="Hero" actual={def.titulo} onVolver={() => setElementoActivo(null)} />
+        <Migas nivelAnterior="Hero" actual={def.titulo} onVolver={() => setElementoActivo(null)} onAyuda={onAyuda ? () => onAyuda('hero') : undefined} />
         <h2 className="editor-pv-title">{def.titulo}</h2>
         <p className="editor-pv-sub">{def.hint}</p>
         {camposElemento.length > 0 ? (

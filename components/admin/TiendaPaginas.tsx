@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Plus, HelpCircle } from 'lucide-react';
 import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
 import VistaTiendaIframe, { type VistaTiendaIframeHandle } from '@/components/admin/VistaTiendaIframe';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
@@ -16,6 +16,8 @@ import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, marcadorDeSeccion, type DispositivoKey } from '@/lib/admin/editor-iframe';
 import { Migas } from '@/components/admin/editor/Migas';
+import { AyudaCentro } from '@/components/admin/editor/AyudaCentro';
+import { temaDeNivel, type TemaAyudaId } from '@/lib/admin/ayuda-editor';
 import { VistaNueva } from '@/components/admin/editor/VistaNueva';
 import { BibliotecaSecciones } from '@/components/admin/editor/BibliotecaSecciones';
 import { InstanciaTarjeta } from '@/components/admin/editor/InstanciaTarjeta';
@@ -93,11 +95,19 @@ export interface TiendaPaginasProps {
    *  usable sin que el consumidor tenga que decidir un dispositivo. */
   dispositivo?: DispositivoKey;
   /** § EDITOR-TIENDA-TEMA-1 — qué monta la columna de la izquierda: la lista de secciones de
-   *  `pagina` (`'paginas'`, el default) o el editor de tema (`'tema'`, `PaletaSeccion` en modo
-   *  `enEditor`). El `<iframe>` de la derecha NO cambia con esto — sigue mostrando `pagina`, el
-   *  tema es store-wide y se ve en cualquier página (§ el comentario grande de
-   *  `EditorTiendaPantallaCompleta.tsx`). */
-  modo?: 'paginas' | 'tema';
+   *  `pagina` (`'paginas'`, el default), el editor de tema (`'tema'`, `PaletaSeccion` en modo
+   *  `enEditor`), o el centro de ayuda (`'ayuda'`, § EDITOR-AYUDA-1, `AyudaCentro`). El `<iframe>`
+   *  de la derecha NO cambia con esto — sigue mostrando `pagina`, igual que en modo `'tema'` (§ el
+   *  comentario grande de `EditorTiendaPantallaCompleta.tsx`): la ayuda no tapa el contexto de lo
+   *  que se está editando. */
+  modo?: 'paginas' | 'tema' | 'ayuda';
+  /** § EDITOR-AYUDA-1 — se llama cuando un «?» DENTRO de este componente (el de la miga de una
+   *  sección, o el del nivel «Inicio»/«Estilo») pide abrir el centro de ayuda. Este componente ya
+   *  decidió QUÉ guía mostrar (su propio estado, `ayudaAbierta`) — lo único que el padre necesita
+   *  hacer es poner `modo: 'ayuda'`, porque `modo` es suyo, no de este componente (§ el docstring
+   *  de `ModoEditor` en `EditorTiendaPantallaCompleta.tsx`). Ausente = sin padre al que avisar (no
+   *  debería ocurrir fuera de un test). */
+  onAbrirAyuda?: () => void;
   /** § EDITOR-TIENDA-DESHACER-1 — el AGREGADO de toda la página abierta (+ el tema, store-wide):
    *  cuántos cambios sin publicar, en qué estado está el autoguardado, y si hay algo que deshacer/
    *  rehacer en este momento. El padre (`EditorTiendaPantallaCompleta`) lo usa para dibujar la
@@ -151,7 +161,7 @@ export interface TiendaPaginasHandle {
 // pantalla completa (§ EDITOR-TIENDA-DISPOSITIVOS-1 — antes vivía directo en `/admin/tienda`). El
 // selector de página y el de dispositivo ya no son responsabilidad de este componente: los dos
 // llegan por prop desde `EditorTiendaPantallaCompleta`, que los pone en su barra superior.
-const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas', onEstadoGlobal }, ref) {
+const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas', onAbrirAyuda, onEstadoGlobal }, ref) {
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
@@ -196,6 +206,20 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // `seccionesHomeLocal`, así que abrir/cerrar es sólo mover este estado, sin un ref que avisar.
   const [instanciaActiva, setInstanciaActiva] = useState<string | null>(null);
   const nivelActivo: string | null = seccionActiva ?? cromoActivo ?? instanciaActiva;
+
+  // § EDITOR-AYUDA-1 — QUÉ GUÍA muestra el centro de ayuda, dueño de ESTE componente (no de
+  // `EditorTiendaPantallaCompleta`, que sólo es dueño de `modo`): así un «?» puede fijar la guía
+  // sin depender de que `AyudaCentro` ya esté montado — si `modo` todavía es `'paginas'`/`'tema'`
+  // en este mismo render, el estado de abajo ya queda listo para cuando `modo` pase a `'ayuda'`.
+  const [ayudaAbierta, setAyudaAbierta] = useState<TemaAyudaId | null>(null);
+  const abrirAyuda = useCallback((tema: TemaAyudaId) => {
+    setAyudaAbierta(tema);
+    onAbrirAyuda?.();
+  }, [onAbrirAyuda]);
+  // Al salir de la ayuda (el riel vuelve a «Secciones»/«Estilo»), la próxima vez que se entre
+  // arranca en la lista de temas — no en la última guía que alguien miró hace rato.
+  useEffect(() => { if (modo !== 'ayuda') setAyudaAbierta(null); }, [modo]);
+
   const cromoRefs = useRef<Map<CromoKey, CromoHandle>>(new Map());
   const abrirNivelSeccion = useCallback((seccion: SeccionVista) => {
     irASeccion(seccion);
@@ -1286,12 +1310,18 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           `orden`/`ojo` sólo viven en la tarjeta colapsada (§ TiendaSeccionEditor.tsx).
           § EDITOR-TIENDA-CROMO-1 — `nivelActivo` unifica `seccionActiva`/`cromoActivo`: migas e
           «Inicio» no les importa CUÁL de los dos tipos de nivel está abierto, sólo que ALGO lo
-          esté. */}
+          esté.
+          § EDITOR-AYUDA-1 — el «?» de esta miga cubre TODA sección de contenido (hero incluido) y
+          los tres de cromo, de UNA sola vez: `temaDeNivel` resuelve el nivel ACTIVO a su guía
+          (hero→'hero', encabezado/menu/footer→'cromo', cualquier otra sección→'secciones'
+          genérica). Una sección AGREGADA (`instanciaActiva`, un id dinámico) cae en la genérica por
+          el mismo mecanismo — `temaDeNivel` nunca lanza sobre un nivel que no reconoce. */}
       {modo === 'paginas' && nivelActivo && (
         <Migas
           nivelAnterior="Inicio"
           actual={seccionActiva ? (secciones.find(c => c.seccion === seccionActiva)?.titulo ?? seccionActiva) : CROMO_TITULOS[cromoActivo as CromoKey]}
           onVolver={volverAInicio}
+          onAyuda={() => abrirAyuda(temaDeNivel(nivelActivo))}
         />
       )}
 
@@ -1374,9 +1404,16 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
               editor (`duna-title`, § TiendaSeccionEditor.tsx/EncabezadoSeccion.tsx…), y repetirlo acá
               sería la misma redundancia que la `Migas` restyleada ya evita (§ su docstring). */}
           {modo === 'paginas' && !nivelActivo && (
-            <div style={{ marginBottom: 'var(--duna-space-2)' }}>
-              <h2 className="editor-pv-title">Inicio</h2>
-              <p className="editor-pv-sub">Toca cualquier cosa en la vista para editarla, o elígela aquí.</p>
+            <div style={{ marginBottom: 'var(--duna-space-2)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-2)' }}>
+              <div>
+                <h2 className="editor-pv-title">Inicio</h2>
+                <p className="editor-pv-sub">Toca cualquier cosa en la vista para editarla, o elígela aquí.</p>
+              </div>
+              {/* § EDITOR-AYUDA-1 — el «?» de «Inicio» abre la guía de «Secciones»: es el nivel del
+                  spec que no tiene miga propia (no hay «‹ volver» que mostrar en la raíz). */}
+              <button type="button" onClick={() => abrirAyuda('secciones')} className="duna-btn duna-btn--ghost duna-btn--icon" aria-label="Ayuda: Secciones" title="Ayuda: Secciones">
+                <HelpCircle aria-hidden />
+              </button>
             </div>
           )}
 
@@ -1386,11 +1423,32 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
               REAL de la derecha ya hace ese trabajo (§ el spec)— y `onCambioEnVivo` reenvía al MISMO
               iframe compartido por el puente (`enviarTemaIframe`, arriba). */}
           {modo === 'tema' ? (
-            // `key={temaReloadKey}` (§ EDITOR-TIENDA-DESHACER-1): remonta el editor de tema tras un
-            // Publicar/Descartar EN LOTE que lo incluyó, para que vuelva a leer `/api/site-content`
-            // por su cuenta (§ el comentario grande de `temaReloadKey`, arriba) — nunca cambia por
-            // nada más (ni al teclear, ni al cambiar de página).
-            <PaletaSeccion key={temaReloadKey} enEditor onCambioEnVivo={enviarTemaIframe} />
+            // § EDITOR-AYUDA-1 — el «?» de «Estilo» vive en un envoltorio APARTE, no dentro de
+            // `PaletaSeccion.tsx` (fuera de `touches:` de este slice, el mismo criterio que ya
+            // justificaba que fuera bespoke): un wrapper `position:relative` con el botón ANCLADO
+            // arriba a la derecha, igual que la miga de cualquier otro nivel. `key={temaReloadKey}`
+            // (§ EDITOR-TIENDA-DESHACER-1): remonta el editor de tema tras un Publicar/Descartar EN
+            // LOTE que lo incluyó, para que vuelva a leer `/api/site-content` por su cuenta (§ el
+            // comentario grande de `temaReloadKey`, arriba) — nunca cambia por nada más (ni al
+            // teclear, ni al cambiar de página).
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => abrirAyuda('estilo')}
+                className="duna-btn duna-btn--ghost duna-btn--icon"
+                aria-label="Ayuda: Estilo"
+                title="Ayuda: Estilo"
+                style={{ position: 'absolute', top: 0, right: 0, zIndex: 1 }}
+              >
+                <HelpCircle aria-hidden />
+              </button>
+              <PaletaSeccion key={temaReloadKey} enEditor onCambioEnVivo={enviarTemaIframe} />
+            </div>
+          ) : modo === 'ayuda' ? (
+            // § EDITOR-AYUDA-1 — «Ayuda» del riel. `ayudaAbierta` ya está resuelto ANTES de que
+            // `modo` llegue a valer 'ayuda' (§ `abrirAyuda`, arriba), así que este componente nunca
+            // monta con una guía a medio decidir.
+            <AyudaCentro abierta={ayudaAbierta} onAbrir={abrirAyuda} onVolver={() => setAyudaAbierta(null)} />
           ) : (
             <>
               {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «ARRIBA» (el spec), envuelto ENTERO (rótulo +
@@ -1517,6 +1575,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                         orden={asaDeSeccion(config.bandaId, config.titulo)}
                         valoresCruzados={valoresCruzados}
                         onEscribirCruzado={escribirCruzado}
+                        onAyuda={abrirAyuda}
                         carga={{
                           valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
                           sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,

@@ -74,7 +74,10 @@ const LABEL_PAGINA_SELECTOR: Record<PaginaKey, string> = {
   suscripciones: 'Suscripciones',
 };
 
-type ModoEditor = 'paginas' | 'tema';
+// § EDITOR-AYUDA-1 — 'ayuda' se agrega al MISMO patrón que 'tema': una herramienta del riel que es,
+// por debajo, el `modo` de siempre. Igual que 'tema', es store-wide/sin página propia — no borra
+// el deep-link de arriba (que siempre arranca en `'paginas'`, nunca en ayuda).
+type ModoEditor = 'paginas' | 'tema' | 'ayuda';
 
 export default function EditorTiendaPantallaCompleta() {
   const params = useSearchParams();
@@ -180,16 +183,22 @@ export default function EditorTiendaPantallaCompleta() {
   // un fetch propio.
   const settings = useSiteSettings();
 
-  // § EDITOR-TIENDA-SHELL-1 — EL RIEL (Secciones · Estilo · Medios). «Secciones»/«Estilo» son el
-  // `modo` de siempre, vestido con la fachada nueva; «Medios» es un overlay momentáneo
-  // (`medioAbierto`), no un tercer `modo` — cerrarlo vuelve a lo que ya estaba, sin tener que
-  // recordar a qué `modo` regresar.
+  // § EDITOR-TIENDA-SHELL-1 — EL RIEL (Secciones · Estilo · Medios · Ayuda, § EDITOR-AYUDA-1).
+  // «Secciones»/«Estilo»/«Ayuda» son el `modo` de siempre, vestido con la fachada nueva; «Medios»
+  // es un overlay momentáneo (`medioAbierto`), no un cuarto `modo` — cerrarlo vuelve a lo que ya
+  // estaba, sin tener que recordar a qué `modo` regresar.
   const [medioAbierto, setMedioAbierto] = useState(false);
-  const herramientaActiva: HerramientaRiel = medioAbierto ? 'medios' : modo === 'tema' ? 'estilo' : 'secciones';
+  const herramientaActiva: HerramientaRiel = medioAbierto ? 'medios' : modo === 'tema' ? 'estilo' : modo === 'ayuda' ? 'ayuda' : 'secciones';
   const elegirHerramienta = useCallback((h: HerramientaRiel) => {
     if (h === 'medios') { setMedioAbierto(true); return; }
-    setModo(h === 'estilo' ? 'tema' : 'paginas');
+    setModo(h === 'estilo' ? 'tema' : h === 'ayuda' ? 'ayuda' : 'paginas');
   }, []);
+  // § EDITOR-AYUDA-1 — un «?» DENTRO de `TiendaPaginas` (la miga de una sección, «Inicio», «Estilo»)
+  // ya decidió QUÉ guía mostrar en su propio estado; lo único que falta es que ESTE componente
+  // ponga `modo: 'ayuda'`, porque `modo` es suyo. Nunca toca `medioAbierto` — abrir ayuda desde una
+  // sección no debería cerrar una hoja de Medios que, de hecho, no puede estar abierta a la vez
+  // (son overlays/modos mutuamente excluyentes en la práctica, pero esta función no lo asume).
+  const abrirAyudaDesdeHijo = useCallback(() => setModo('ayuda'), []);
 
   // EDITOR-VISUAL-MARCO-1 — el selector de página pasó de `role="tablist"` a un desplegable
   // (§ REDISENO.md § 3), MISMO mecanismo que `ResumenPublicar` (Popover + `useContenedorDunaPortal`,
@@ -359,6 +368,7 @@ export default function EditorTiendaPantallaCompleta() {
             resaltar={resaltar}
             dispositivo={dispositivo}
             modo={modo}
+            onAbrirAyuda={abrirAyudaDesdeHijo}
             onEstadoGlobal={setEstadoGlobal}
           />
         </div>

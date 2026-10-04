@@ -14,13 +14,57 @@ import { LayoutList, Palette, Image as ImageIcon, HelpCircle } from 'lucide-reac
 // `EditorTiendaPantallaCompleta`): abre la «vista nueva» (una hoja sobre el lienzo, § VistaNueva.tsx)
 // y vuelve sola al cerrarse. El riel igual lo pinta ACTIVO mientras esa hoja está abierta — quien
 // mira el riel no debe preguntarse "¿dónde estoy?" mientras la hoja sigue sobre la pantalla.
-export type HerramientaRiel = 'secciones' | 'estilo' | 'medios';
+//
+// `ayuda` SÍ es un `modo` persistente, igual que `secciones`/`estilo` — § EDITOR-AYUDA-1: el centro
+// de ayuda reemplaza el panel (como «Estilo» ya hace con `PaletaSeccion`), no una hoja efímera sobre
+// el lienzo como «Medios». Dejó de estar deshabilitado: ya existe destino (§ AyudaCentro.tsx).
+export type HerramientaRiel = 'secciones' | 'estilo' | 'medios' | 'ayuda';
 
 const ITEMS: { clave: HerramientaRiel; label: string; Icon: ComponentType<{ 'aria-hidden'?: boolean }> }[] = [
   { clave: 'secciones', label: 'Secciones', Icon: LayoutList },
   { clave: 'estilo', label: 'Estilo', Icon: Palette },
   { clave: 'medios', label: 'Medios', Icon: ImageIcon },
 ];
+
+// UN SOLO botón, parametrizado por `on` — el que ya pintaba los tres de siempre, ahora también
+// pinta «Ayuda» (antes era una segunda copia a mano, deshabilitada). La barra de posición y el
+// resaltado son IDÉNTICOS para los cuatro: «Ayuda» activa se ve exactamente como «Secciones»/
+// «Estilo» activas, no como un cuarto estado visual distinto.
+function ItemRiel({ label, Icon, on, onClick }: { label: string; Icon: ComponentType<{ 'aria-hidden'?: boolean }>; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 4,
+        padding: '10px 4px',
+        borderRadius: 'var(--duna-r-m)',
+        border: 'none',
+        cursor: 'pointer',
+        fontSize: 11,
+        fontWeight: on ? 600 : 500,
+        background: on ? 'var(--duna-bg)' : 'transparent',
+        color: on ? 'var(--duna-ink)' : 'var(--duna-muted)',
+        boxShadow: on ? 'var(--duna-shadow-1)' : 'none',
+      }}
+    >
+      {/* La barra de posición es de TINTA, no ámbar (§ el comentario de arriba). */}
+      {on && (
+        <span
+          aria-hidden
+          style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, borderRadius: 'var(--duna-r-full)', background: 'var(--duna-ink)' }}
+        />
+      )}
+      <Icon aria-hidden />
+      <span>{label}</span>
+    </button>
+  );
+}
 
 export function Riel({ activo, onElegir }: { activo: HerramientaRiel; onElegir: (h: HerramientaRiel) => void }) {
   return (
@@ -37,72 +81,14 @@ export function Riel({ activo, onElegir }: { activo: HerramientaRiel; onElegir: 
         background: 'var(--duna-surface)',
       }}
     >
-      {ITEMS.map(({ clave, label, Icon }) => {
-        const on = activo === clave;
-        return (
-          <button
-            key={clave}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onElegir(clave)}
-            style={{
-              position: 'relative',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4,
-              padding: '10px 4px',
-              borderRadius: 'var(--duna-r-m)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: on ? 600 : 500,
-              background: on ? 'var(--duna-bg)' : 'transparent',
-              color: on ? 'var(--duna-ink)' : 'var(--duna-muted)',
-              boxShadow: on ? 'var(--duna-shadow-1)' : 'none',
-            }}
-          >
-            {/* La barra de posición es de TINTA, no ámbar (§ el comentario de arriba). */}
-            {on && (
-              <span
-                aria-hidden
-                style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, borderRadius: 'var(--duna-r-full)', background: 'var(--duna-ink)' }}
-              />
-            )}
-            <Icon aria-hidden />
-            <span>{label}</span>
-          </button>
-        );
-      })}
-      {/* EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3, prototipo: "Ayuda" abajo, separado por un espaciador
-          — `.rail-sp` en el prototipo). SIN DESTINO: no existe hoy documentación del editor para el
-          dueño de la tienda —`docs/editor-tienda/` es documentación de INGENIERÍA, no un artículo de
-          ayuda para quien opera el panel—, así que el botón se deja DESHABILITADO con el motivo en el
-          `title`, en vez de fingir un enlace que no lleva a ningún lado (§ CLAUDE.md, "un botón
-          deshabilitado no promete nada"). */}
+      {ITEMS.map(({ clave, label, Icon }) => (
+        <ItemRiel key={clave} label={label} Icon={Icon} on={activo === clave} onClick={() => onElegir(clave)} />
+      ))}
+      {/* EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3, prototipo: "Ayuda" abajo, separado por un
+          espaciador — `.rail-sp` en el prototipo). § EDITOR-AYUDA-1 le da destino: el centro de
+          ayuda (`AyudaCentro.tsx`) ya existe, así que deja de estar deshabilitado. */}
       <div aria-hidden style={{ flex: '1 1 auto' }} />
-      <button
-        type="button"
-        disabled
-        title="Documentación del editor — todavía no existe"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 4,
-          padding: '10px 4px',
-          borderRadius: 'var(--duna-r-m)',
-          border: 'none',
-          cursor: 'default',
-          fontSize: 11,
-          fontWeight: 500,
-          background: 'transparent',
-          color: 'var(--duna-faint)',
-        }}
-      >
-        <HelpCircle aria-hidden />
-        <span>Ayuda</span>
-      </button>
+      <ItemRiel label="Ayuda" Icon={HelpCircle} on={activo === 'ayuda'} onClick={() => onElegir('ayuda')} />
     </nav>
   );
 }
