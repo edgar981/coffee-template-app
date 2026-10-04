@@ -52606,3 +52606,263 @@ la escritura medida como segura (gateada a modo editor, cero drift visual) pero 
 clasificación se resuelva acá.** Queda para quien revise este asiento junto con el resto de la rama.
 
 **Cierra `EDITOR-VISUAL-LIENZO-1`.**
+
+## 2026-10-04 — Los niveles de sección y de elemento del panel se ven como el prototipo (`EDITOR-VISUAL-NIVELES-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el pedido textual del owner
+del 2026-10-04 que aprobó los tres slices visuales anteriores de esta rama (*"veo que sí se han
+agregado cosas nuevas, pero también noto que aún luce como antes del rediseño en mayor parte"*),
+`observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. La aprobación autoriza la escritura, nunca el
+merge. Sigue `slice/editor-secciones-1`, encima de `e73a8cf`/`da3ab6f` (`EDITOR-VISUAL-LIENZO-1`).
+
+**Lo que se hizo:** la cuarta pasada VISUAL de esta rama, esta vez sobre el PANEL — lo que
+`EDITOR-VISUAL-PANEL-1` dejó explícitamente afuera ("el hero desplegable en sus zonas… no existe
+todavía un nivel «elemento» por zona"). El owner lo señaló con precisión: *"el nivel de sección del
+hero sigue siendo el formulario viejo (ayudas de varias líneas, dos columnas a ~290 px que cortan los
+campos, «Mostrar los botones / Quitar»)"*. Sin cambio de esquema, sin cambio de qué se guarda ni de
+cómo se publica, y sin tocar un solo byte de la tienda pública (`components/storefront/`,
+`app/(storefront)/` no están en `touches:` y no se tocaron — verificado por `git diff --stat`: cero
+archivos ahí).
+
+### 1 · Una sola columna, scopeada sin tocar la primitiva compartida
+
+`.duna-form` (`packages/design-system/primitives/primitives.css`) es `grid-template-columns:
+repeat(2, minmax(0,1fr))` — la causa medida de "dos columnas a ~290 px que cortan los campos": a 308px
+de panel, cada columna quedaba en ~140px. La primitiva **no se tocó** (sus otros ~15 consumidores, los
+drawers del admin, sí tienen ancho de sobra para dos columnas). En su lugar, `TiendaPaginas.tsx` le
+puso la clase `editor-panel` al `<div>` que YA envuelve todo el contenido del panel (el mismo `<div
+style={{display:'grid', width: angosto? ... : 308px}}>` de `EDITOR-VISUAL-MARCO-1`), y `editor.css`
+angosta `.editor-panel .duna-form` a `minmax(0,1fr)` — una sola columna, sólo ahí. **Medido**:
+`document.querySelectorAll('.editor-panel .duna-form')` da `gridTemplateColumns` de UN solo track en
+los tres `.duna-form` de la pantalla de Titular (arnés, abajo); `panel.getBoundingClientRect().width
+=== 308`.
+
+### 2 · La ayuda corta — `AyudaCampo.tsx`, deriva de los ~150 hints existentes, no los reescribe
+
+El spec pedía "una línea gris corta; lo largo pasa a un «?»". Reescribir a mano los ~150 `hint` de
+`tienda-secciones.ts` (+ los de los cuatro editores bespoke) habría sido cambiar CONTENIDO para
+resolver un problema de FORMA, y 150 reescrituras no se pueden auditar contra "sigue diciendo lo
+mismo". En su lugar, `components/admin/editor/AyudaCampo.tsx` (nuevo) **deriva** la versión corta de
+la que ya existe: `partirAyuda(hint)` — puro — corta al final de la primera oración si cae dentro de
+70 caracteres, o por palabra con elipsis si no hay una cerca; `completa` queda `null` cuando el hint
+YA cabe en una línea (sin «?» que mostrar). El componente `AyudaCampo` reemplaza, uno a uno, cada
+`<p className="duna-field__hint">{hint}</p>` de `TiendaSeccionEditor.tsx` (14 sitios),
+`EncabezadoSeccion.tsx` (7), `MenuSeccion.tsx` (8), `FooterSeccion.tsx` (9) y `RepeaterEditor.tsx` (4)
+— nunca los `<span>` de progreso de subida ni los avisos `role="status"` dinámicos (destino
+inexistente, badge a medias), que son HECHOS del momento, no ayuda de campo. El «?» usa
+`DunaTooltip` (ya existente, admin-level); como `/editor/tienda` NO monta `AdminChrome` (§ su propio
+`layout.tsx`, "sin sidebar, sin topbar"), que es donde vive el único `TooltipProvider` de `/admin/*`,
+`EditorTiendaPantallaCompleta.tsx` gana el suyo (`delayDuration={300}`, igual que `AdminChrome.tsx`).
+
+**`AyudaCampo.test.ts` (nuevo, capa 1, 6 casos)** afirma `partirAyuda`: corto sin «?», vacío sin
+reventar, corte en fin de oración, corte por palabra con elipsis cuando no hay oración cerca, el borde
+exacto de 70 caracteres (sin «?»), y 71 caracteres sin espacios (corta a 70 + elipsis). Verificado que
+importar desde un `.test.ts` un módulo `.tsx` con JSX/lucide-react/DunaTooltip no revienta bajo
+`node --test` (no toca DOM en tiempo de módulo): 6/6 en aislamiento antes de integrarlo al gate.
+
+### 3 · Las ZONAS del hero — filas del prototipo, no "Mostrar los botones / Quitar"
+
+`renderZonasHero` (antes: `config.booleanos.map` con un switch disfrazado de "Quitar"/"Agregar" y el
+hint largo del booleano) pasa a las filas `.zr`/`.zi`/`.zt`/`.zadd` del prototipo: ícono + nombre +
+VALOR en gris (el texto actual, o "Vacío"/"Vacíos" si está apagada) + «+ Agregar» SÓLO cuando está
+vacía. Una zona LLENA se toca para abrir su nivel de elemento; una VACÍA se agrega Y se abre a la vez
+(mismo click) — el dueño quiere escribir, no sólo prender un interruptor. `zonaHeroEstado(key)` es la
+ÚNICA fuente del valor mostrado, compartida entre esta lista y el chevron de la fila colapsada
+(`!editando`, § EDITOR-VISUAL-PANEL-1) — las dos lecturas del mismo dato no pueden divergir.
+
+**Las CUATRO zonas son las mismas que fijó `EDITOR-VISUAL-PANEL-1`** (Titular/Subtítulo/Botones/
+Indicador, NO los nombres del prototipo — Marquesina/Producto/Leyenda/Cinta son de otras
+composiciones que Nayoli no usa hoy): no se re-litiga ese conjunto. "Fondo" SALE de las zonas
+—ganó su propio bloque, § 4— porque el prototipo TAMPOCO lo trata como zona navegable (medido:
+`K.ZONES` en `prototipo-editor.html` nunca incluye `'fondo'`).
+
+### 4 · "Alto" y "Fondo" — segmentado reusando `.duna-seg`, no un `<select>` nativo
+
+`renderSegmentadoHero` (nuevo, genérico) reemplaza al `<select>` nativo de `alto`/`veloCombo` por
+`.duna-seg`/`.duna-seg__item` — LA MISMA primitiva que ya usa el segmentado de dispositivo de la barra
+superior (§ EDITOR-VISUAL-MARCO-1), con el modificador nuevo `.editor-seg-full` (`display:flex` +
+`flex:1` por ítem) para que las 3/4 palabras repartan el ancho del panel en vez de quedar centradas
+como el picker de 3 íconos. La lógica de escritura es la MISMA que `renderCampo` ya tenía para estos
+dos campos (`alto` escribe `{alto, alturaLlena}` a la vez; `veloCombo` decompone con
+`camposDeVeloCombo`, ya existente) — sólo cambió el CONTROL, no el dato. `puntoFocal` (9 opciones) se
+QUEDA como `<select>` nativo vía `renderCampo` — nueve palabras no caben en un segmentado, y el spec
+sólo llama "segmentado" a Alto y a Oscurecer, no al punto focal.
+
+"Fondo" agrupa, en un solo bloque con su propio rótulo: la miniatura + Cambiar/Usar un video
+(`renderMiniatura` para `imagen`, YA existente — `renderMediaHero`/`renderMediaHeroMovil` sin tocar),
+el video de teléfono si aplica, el `<select>` de punto focal, y el segmentado de Oscurecer. Los campos
+`alto`/`veloCombo`/`puntoFocal`/`imagen`/`imagenMovil`/`imagenMovilPoster` se SACAN del bloque
+`seccion` genérico que `bloquesResueltos` deriva por defecto para el hero (`CAMPOS_HERO_YA_DIBUJADOS`/
+`IMAGENES_HERO_YA_DIBUJADAS`, los dos Sets nuevos en `TiendaSeccionEditor.tsx`) — sin este filtro se
+habrían dibujado DOS VECES. `eyebrow`/`fraseAlPie`/`veloIntensidad`/`tickerVelocidad` (no mencionados
+por el spec, y SIN zona/segmentado propio) siguen rindiendo por el flujo genérico de siempre, como un
+bloque más después de Fondo — ninguno perdió su control.
+
+### 5 · El NIVEL DE ELEMENTO — el tercer nivel del panel (Inicio → Hero → Titular), sólo hero
+
+No existía ningún tercer nivel en el panel (`TiendaPaginas` sólo conoce Inicio↔sección,
+`nivelActivo`); este slice lo agrega COMPLETO, LOCAL a `TiendaSeccionEditor.tsx`, sin tocar el
+mecanismo de migas global («‹ Inicio»): `elementoActivo` (nuevo estado, `'titular'|'subtitulo'|
+'botones'|'indicador'|null`) decide si el hero muestra su nivel normal (Composición/Zonas/Alto/Fondo)
+o REEMPLAZA todo eso por `renderElementoHero()` — «‹ Hero» (vía `Migas`, § abajo) + título + ayuda +
+el/los campo(s) de la zona (reusando `renderCampo` TAL CUAL, con su label/input-textarea/`AyudaCampo`/
+`EstiloElementoControles` cuando el campo lo declara) + «Quitar {zona}» al pie
+(`duna-btn duna-btn--danger`, el mismo tono tinte-rojo que la doctrina ya reserva para destructivo de
+fila).
+
+**`ELEMENTO_HERO_DEFS`** (nuevo, módulo) mapea cada zona a sus campos reales: `titular` →
+`['titulo','tituloEnfasis']` (dos campos — `titularVisible` gatea los dos); `subtitulo` →
+`['subtitulo']`; `botones` → `['ctaPrimarioLabel','ctaSecundarioLabel']` (DOS botones reales contra el
+botón ÚNICO del prototipo — desviación medida y declarada, § abajo); `indicador` → `[]` (sin texto
+propio, como el prototipo: `hasText: sel !== 'cue'`). "Quitar" apaga el booleano de la zona
+(`titularVisible`/etc. → `false`) y vuelve al nivel Hero.
+
+**`Migas` se REUSA, no se copia** — su propio docstring, escrito en `EDITOR-VISUAL-PANEL-1`, ya
+preveía exactamente este uso: *"cuando el nivel «elemento» exista, este mismo componente sirve sin
+cambios: `nivelAnterior` pasa a ser el título de la SECCIÓN"*. Se montó una SEGUNDA instancia, LOCAL a
+esta cáscara, con `nivelAnterior="Hero"` — la miga GLOBAL de `TiendaPaginas` (`"‹ Inicio"`) sigue
+arriba sin cambios, cerrando la sección entera; ésta sólo sube un nivel DENTRO del hero. Se actualizó
+el docstring de `Migas.tsx` para que deje de decir "todavía sin construir" (quedaba falso desde este
+commit).
+
+**"Al tocar una zona en el panel o en la página" (el spec) — las DOS vías, sin tocar el puente del
+iframe.** En el PANEL: la fila de zona y el kid del chevron colapsado (`!editando`) llaman a
+`setElementoActivo(key)` directo. En la PÁGINA (el lienzo): `escribirCampo(campo, valor)` —el método
+del handle que YA recibe cada `TIPO_MENSAJE_CAMPO_CAMBIO` del puente, sea una tecla o un "+Titular"/
+"Quitar" de zona (`mensajesVisibilidadZona`, reusa el mismo canal)— ahora también resuelve
+`ZONA_HERO_DE_CAMPO[campo]` (nuevo mapa `campo→zona`, incluye los 4 booleanos Y los 6 campos de
+texto) y llama a `setElementoActivo`. CERO cambios en `EditorPuenteVivo.tsx`/`editor-puente.ts`
+—fuera de `touches:`—: el mensaje que YA llegaba trae, por construcción, el nombre del campo que hace
+falta.
+
+### Deviaciones medidas y declaradas
+
+- **"Botones" agrupa DOS campos reales** (`ctaPrimarioLabel`/`ctaSecundarioLabel`) bajo una sola zona,
+  contra el "Botón" singular del prototipo (su modelo sólo tiene un botón). Es el caso que el propio
+  spec anticipa ("cuando difieren en QUÉ hace… se conserva la función con el estilo del prototipo y se
+  dice"): los dos campos se muestran, cada uno con su label y su `EstiloElementoControles` si aplica
+  (los dos SÍ están en `ELEMENTOS_ESTILO.hero`), y "Quitar" apaga la zona entera (`ctasVisibles`).
+- **"Fondo" NO es un nivel de elemento navegable, es un bloque inline del nivel Hero** — decisión de
+  lectura del spec, no omisión: el texto del spec lista "Alto… Fondo…" dentro de la MISMA viñeta del
+  "Nivel Hero", separado de la viñeta "Nivel de elemento" (que habla de Titular/Subtítulo/Botón). El
+  prototipo tampoco navega a Fondo desde una zona — lo alcanza por un botón aparte sobre el lienzo
+  (`.fondo-tag`/`.alto-h`), fuera de alcance de `touches:` (son del lienzo, `EDITOR-VISUAL-LIENZO-1`).
+- **`RepeaterEditor.tsx` ganó `AyudaCampo` pero NO el "asa" de arrastre** que el spec pide
+  ("filas compactas con asa, igual que la lista de Inicio"): sus flechas ↑/↓ (`mover(i,±1)`) son el
+  mecanismo de reordenar YA EXISTENTE y FUNCIONAL —y accesible por teclado, lo que un asa de arrastre
+  puro no es—; reemplazarlas por drag-and-drop es una pieza de interacción nueva (no una pasada
+  visual) y arriesga romper "lo que hoy funciona" (§ el Cierre común de este slice: "orden" es uno de
+  los seis mecanismos a re-verificar). El renglón-resumen (`.duna-card` con padding chico, icono+
+  título+fragmento+flechas+basurero) ya era razonablemente compacto antes de este slice; no se tocó
+  su forma, sólo su ayuda.
+- **"Estilo" (riel) entra directo — `PaletaSeccion.tsx`, el follow-up `EDITOR-VISUAL-ESTILO-FILA-1`
+  de `EDITOR-VISUAL-PANEL-1`.** `editando` pasa de `useState(false)` a `useState(enEditor)` —nace
+  editando cuando está embebido en el riel— y el botón "Cerrar" (la única acción que podía volver a
+  `false`) se oculta para `enEditor` (se queda para el STANDALONE, sin consumidor real hoy —
+  `enEditor=false` no se monta en ningún sitio del árbol, verificado por grep). El título pasa a
+  "Estilo de la tienda" (el `pv.est` del prototipo) SÓLO en el embed; el STANDALONE conserva "Colores
+  y tipografía". El subtítulo, antes sólo en lectura, ahora se queda SIEMPRE a la vista en el embed —
+  no hay paso de lectura que lo muestre antes.
+- **El eje "dibuja por BLOQUES, no por tipo de campo"** (CLAUDE.md, § El editor de la tienda dibuja
+  por BLOQUES) sigue siendo la descripción correcta de la arquitectura GENERAL y de 9 de las 10
+  secciones del REGISTRY sin cambio; el HERO gana una EXCEPCIÓN parcial (Composición/Zonas/Alto/Fondo
+  se dibujan fuera de `bloquesResueltos`, los 4 campos restantes del hero siguen por el bloque
+  genérico). No se juzga que la sentencia general quede FALSA —sigue siendo cierta como descripción
+  del mecanismo dominante—, se declara la excepción para que quien lea esa sección sepa que el hero
+  ya no es 100% bloques.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3682/3682** — suma 6 sobre el piso de `EDITOR-VISUAL-LIENZO-1` (3676), los 6 nuevos de `partirAyuda` en `components/admin/editor/AyudaCampo.test.ts` |
+| `npm run test:integracion` | **346/346**, sin cambio (ningún archivo de `tests/integracion/` toca este diff) |
+| `npm run gate` | GREEN |
+| `npx eslint` (10 archivos de `touches:` + 2 nuevos) | 13 errores + 23 warnings en `TiendaSeccionEditor.tsx` (antes 12+23 — **+1 error NUEVO**, línea `{seccion === 'hero' && renderAltoYFondo()}`, MISMA categoría `react-hooks/refs` que los 12 pre-existentes: `renderAltoYFondo` llama a `renderMiniatura`→`renderMediaHero`, que YA existía y YA se llamaba — vía el loop genérico de `bloques` — desde antes de este slice; el lint simplemente lo flaguea en un SEGUNDO call site); `TiendaPaginas.tsx`/`EditorTiendaPantallaCompleta.tsx`/`EncabezadoSeccion.tsx`/`MenuSeccion.tsx`/`FooterSeccion.tsx`/`PaletaSeccion.tsx`/`RepeaterEditor.tsx`/`editor/Migas.tsx` — CERO delta, confirmado línea por línea contra `git show HEAD:<archivo> \| npx eslint --stdin` en cada uno; `editor/AyudaCampo.tsx`/`.test.ts` (nuevos) — 0 problemas. `npm run gate` no corre eslint — se corrió igual, por higiene |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta del piso heredado de la rama** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado (drift heredado de la rama contra `main`, no de este slice; cero archivos de storefront en `touches:` y cero en el diff real) |
+
+### Verificado por ejecución — `.scratch/arnes-niveles.ts` (no comiteado)
+
+Mismo mecanismo que los arneses anteriores de esta rama (reusa `scripts/verificar-nayoli-visual.ts`):
+Postgres efímero (`:5593`), `migrate deploy` + seed canónico, `next build`/`next start` (`:4603`),
+Playwright con sesión real (`admin@sierranativa.co`), viewport 1440×900.
+
+Nueve capturas en `.scratch/capturas-niveles/` (gitignored): **01-inicio**; **02/03-nivel-hero**
+(Composición/Zonas/Alto/Fondo, una columna); **04-nivel-elemento-titular** («‹ Hero», el campo a lo
+ancho, Letra/Tamaño/Alineación/Color, «Quitar titular», los dos hints con «?» donde el hint excede 70
+caracteres y sin «?» donde no); **05/06** (tras Quitar, la zona vuelve a "Vacío" con «+ Agregar»; tras
+Agregar, vuelve al nivel de elemento); **07-seccion-testimonios** (repeater vacío, una columna);
+**08-encabezado** (ayuda corta, una columna); **09-estilo** (riel, directo a los controles, SIN
+tarjeta de lectura/Editar).
+
+Confirmado por consola (no sólo por captura): `COLUMNAS_DUNA_FORM_EN_PANEL=[1,1,1]` (los tres
+`.duna-form` del nivel de elemento, una sola columna cada uno); `MIGA_HERO_PRESENTE=true`;
+`BOTON_QUITAR_PRESENTE=true`; `ZONA_VACIA_CON_AGREGAR_TRAS_QUITAR=true`; `DESHACER_HABILITADO=true`
+(el historial compartido sigue intacto tras escribir/quitar/agregar dentro del nivel de elemento);
+`ESTILO_SIN_BOTON_EDITAR=true`; `ESTILO_TITULO_PRESENTE=true` ("Estilo de la tienda"). Un script
+AUXILIAR (`.scratch/_check_overflow.ts`, no comiteado) midió, con un valor largo escrito en el campo
+Titular, `scrollWidth`/`clientWidth` de TODO botón/`.admin-bloque`/`.editor-zr` del panel:
+`OVERFLOW_ELEMENTS=[]` — cero elementos con `scrollWidth > clientWidth`, y `PANEL_BOX.width === 308`.
+(El input de texto en sí SÍ da `scrollWidth(475) > clientWidth(306)` con un valor largo — es el
+comportamiento NATIVO de un `<input>` de una sola línea, el mismo de cualquier campo de texto del
+panel; no es el "corte" que el spec señala, que era el de la caja de DOS COLUMNAS, ya cerrado.)
+
+Comparadas a ojo contra `docs/editor-tienda/prototipo/captura-prototipo-inicio.webp`: el nivel Hero
+(Composición/Zonas/Alto/Fondo) y el nivel de elemento Titular (migas, campo a lo ancho, controles de
+estilo, Quitar) coinciden en anatomía y lenguaje visual con el prototipo; las diferencias de CONTENIDO
+(Nayoli real vs. la maqueta "Finca San Adolfo") son esperadas, no defectos.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths del diff grepeados contra CLAUDE.md: `TiendaSeccionEditor` (6), `TiendaPaginas` (4),
+`PaletaSeccion` (3), `RepeaterEditor` (4) — todos con resultados; `EditorTiendaPantallaCompleta`/
+`EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`/`Migas`/`AyudaCampo`/`ZONA_HERO_NOMBRES` (el nombre
+viejo, retirado)/`renderZonasHero`/`editor-panel`/`editor-zr`/`EstiloElementoControles` (0 cada uno).
+
+- Los 6 de `TiendaSeccionEditor` y los 4 de `RepeaterEditor` describen comportamiento que este slice
+  NO tocó (el contrato de borrador que adopta `PaletaSeccion`, el renderizado por bloques como
+  arquitectura GENERAL —ver la deviación declarada arriba—, `bloquesRef`/el puente, la extracción del
+  uploader, `categoriasListas`, y el mecanismo de agregar/quitar/editar/reordenar del repeater). Ninguna
+  sentencia queda falsa.
+- Los 4 de `TiendaPaginas`: 3 describen comportamiento intacto (la cascada lazy-mount, el fetch 6→1, la
+  carga del catálogo). La 4ª (línea 2884, "agrupa SECCIONES_TIENDA por `pagina` en pestañas") YA ESTABA
+  FALSA antes de este slice —medido y declarado por `EDITOR-VISUAL-PANEL-1`, que la atribuye a
+  `EDITOR-VISUAL-MARCO-1`—; no es un hallazgo nuevo de este diff.
+- Los 3 de `PaletaSeccion`: la línea 2260 ("vive en `/admin/tienda` SOBRE el selector de página")
+  describe la topología PRE-`EDITOR-TIENDA-SHELL-1` (antes de que el componente se embebiera en
+  `/editor/tienda`) — staleness PRE-EXISTENTE a este slice, no causada por él (no se corrige acá:
+  tocar esa sección de CLAUDE.md está fuera de `touches:`). Las líneas 56 y 2808 describen hechos sin
+  relación con lo que este slice tocó (la lista Tier 1, el GET propio de la paleta): intactas.
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (`slice/editor-secciones-1` contra `main`), mismo eje que el
+resto de esta rama. Nada de esto llega a un VISITANTE del storefront —medido: cero archivos de
+`components/storefront/`/`app/(storefront)/` en el diff de este commit, y `verificar:nayoli:visual`
+reproduce el piso heredado exacto—, pero SÍ cambia bytes que el OWNER/MANAGER lee dentro de
+`/editor/tienda`: la forma de todo el panel de niveles (una columna, zonas-fila, segmentados, el
+nivel de elemento nuevo), y texto nuevo de cara al operador. **`strings`**: "Estilo de la tienda"
+(el título del embed de Estilo, antes "Colores y tipografía" también en ese modo); los títulos de
+zona ya existían como labels de campo/booleano en el panel (Titular/Subtítulo/Botones/Indicador) —
+ahora también aparecen como título del nivel de elemento; "Quitar titular"/"Quitar subtítulo"/"Quitar
+botones"/"Quitar indicador" (nuevos, al pie del nivel de elemento). Ninguno de cara al VISITANTE del
+storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado. Ningún campo
+nuevo en `site-content-schema.ts`/`site-content-defaults.ts` — los cuatro booleanos y los seis campos
+de texto que el nivel de elemento edita ya existían (§ `tienda-secciones.ts`, sin tocar).
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
+completo verde (`npm run gate`: typecheck 0 · 3682/3682 · 346/346); eslint con UN delta nuevo
+declarado (misma categoría pre-existente, en un segundo call site, sin riesgo de runtime nuevo —
+`npm run gate` no lo corre); `verificar:nayoli:visual` reproduce el piso heredado exacto. Arnés real
+de punta a punta contra el PANEL, nueve capturas + una medición de overflow (`scrollWidth`/
+`clientWidth`, cero elementos cortados), comparadas contra el prototipo. Commiteado en
+`slice/editor-secciones-1`, encima de `da3ab6f`.
+
+**Cierra `EDITOR-VISUAL-NIVELES-1` y su follow-up `EDITOR-VISUAL-ESTILO-FILA-1`.**
