@@ -43,9 +43,45 @@ test('crear una instancia, guardar y publicar: el storefront la ve resuelta, y s
     ctaLabel: '',
     ctaDestino: '',
     alineacion: 'centro',
+    visible: true,
   });
   // Nunca se publicó `orden` explícitamente -> el resolver la agrega AL FINAL de las 9 bandas.
   assert.deepEqual(publicado.orden, [...BANDA_IDS, 'inst:a']);
+});
+
+// ─── EL OJO (§ SECCIONES-INSTANCIAS-VIVO-1) — EL VIAJE COMPLETO DE `visible` ─────────────────────
+//
+// El schema puede declarar `visible` y el resolver puede resolverlo correctamente SIN que eso
+// pruebe que el viaje real (el PUT que valida con el schema real → el borrador en la base → publicar
+// → el storefront releyendo) lo conserve de punta a punta — exactamente la razón por la que esta
+// carpeta existe (§ el docstring de cabecera de este archivo). Por eso va por `guardarComoElRoute`
+// (el schema real) como el resto de los tests de aquí, nunca construyendo el objeto a mano.
+
+test('ocultar una instancia (`visible:false`) en borrador y publicar: el storefront la relee oculta — el ojo sobrevive el viaje completo', async () => {
+  await guardarComoElRoute({ seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T', visible: false } } });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:a'] as { visible: boolean }).visible, false);
+});
+
+test('una instancia creada SIN decir `visible` nace visible (true) tras el viaje completo', async () => {
+  await guardarComoElRoute({ seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T' } } });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:a'] as { visible: boolean }).visible, true);
+});
+
+test('re-mostrar una instancia ya oculta: `visible:true` explícito también sobrevive el viaje', async () => {
+  await guardarComoElRoute({ seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T', visible: false } } });
+  await publicarSeccion('seccionesHome');
+
+  await guardarComoElRoute({ seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T', visible: true } } });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:a'] as { visible: boolean }).visible, true);
 });
 
 test('una instancia Y un orden que la posiciona EN MEDIO de las bandas: el storefront la monta exactamente ahí', async () => {

@@ -1438,11 +1438,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                           <InstanciaTarjeta
                             tipo={instancia.tipo}
                             titulo={instancia.titulo}
+                            visible={instancia.visible !== false}
                             hayBorrador={hayBorradorSeccionesHome}
                             orden={asaDeSeccion(id, instancia.titulo)}
                             onAbrir={() => abrirNivelInstancia(id)}
                             onDuplicar={() => duplicarInstancia(id)}
                             onEliminar={() => setInstanciaAEliminar(id)}
+                            onCambiarVisible={() => cambiarInstancia(id, { ...instancia, visible: instancia.visible === false })}
                           />
                         )}
                       </div>

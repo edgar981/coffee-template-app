@@ -4,7 +4,7 @@ import {
   SECCION_INSTANCIA_TIPOS, DESCRIPTOR_INSTANCIA, DEFAULTS_INSTANCIA,
   esSeccionInstanciaTipo, esInstanciaId, INSTANCIA_PREFIJO,
   resolverInstancia, resolverSeccionesHome, resolverOrdenCompleto,
-  imagenesDeInstancia, instanciaOscuraCanonica, instanciaEsUniforme,
+  imagenesDeInstancia, instanciaOscuraCanonica, instanciaEsUniforme, instanciaEsVisible,
   CATALOGO_INSTANCIAS, nombreInstancia, nuevoIdInstancia, crearInstancia, TOPE_INSTANCIAS_HOME,
 } from './secciones-instancias';
 import { siteContentEditableSchema } from './site-content-schema';
@@ -18,7 +18,10 @@ test('DESCRIPTOR_INSTANCIA: cada tipo tiene EXACTAMENTE sus campos cubiertos en 
   for (const tipo of SECCION_INSTANCIA_TIPOS) {
     const camposDescriptor = new Set(Object.keys(DESCRIPTOR_INSTANCIA[tipo].campos));
     const escalares = new Set(Object.keys(DESCRIPTOR_INSTANCIA[tipo].escalares ?? {}));
-    const camposDefault = new Set(Object.keys(DEFAULTS_INSTANCIA[tipo]).filter((k) => k !== 'tipo'));
+    // `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) se excluye como `tipo`: es un escalar de INSTANCIA
+    // resuelto a mano en `resolverInstancia`, nunca parte de `descriptor.campos`/`escalares` — misma
+    // razón que `visible` de una banda no pertenece a `def.campos` en `site-content-defaults.ts`.
+    const camposDefault = new Set(Object.keys(DEFAULTS_INSTANCIA[tipo]).filter((k) => k !== 'tipo' && k !== 'visible'));
     const esperado = new Set([...camposDescriptor, ...escalares]);
     assert.deepEqual(camposDefault, esperado, `defaults de "${tipo}" deben cubrir exactamente campos+escalares del descriptor`);
   }
@@ -60,7 +63,37 @@ test('resolverInstancia: "texto" — requerido vacío cae al default, opcional p
     ctaLabel: '',
     ctaDestino: '',
     alineacion: 'centro',
+    visible: true,
   });
+});
+
+// ─── `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) — EL OJO ─────────────────────────────────────────
+
+test('resolverInstancia: sin `visible` en stored, cae al default del tipo (true)', () => {
+  const r = resolverInstancia({ tipo: 'texto', titulo: 'T' }) as { visible: boolean };
+  assert.equal(r.visible, true);
+});
+
+test('resolverInstancia: `visible: false` explícito se respeta', () => {
+  const r = resolverInstancia({ tipo: 'banner', titulo: 'B', visible: false }) as { visible: boolean };
+  assert.equal(r.visible, false);
+});
+
+test('resolverInstancia: `visible: true` explícito se respeta (no es sólo "ausente -> true")', () => {
+  const r = resolverInstancia({ tipo: 'banner', titulo: 'B', visible: true }) as { visible: boolean };
+  assert.equal(r.visible, true);
+});
+
+test('resolverInstancia: `visible` basura (no booleano) se ignora y cae al default — "sólo se sobreescribe con un booleano explícito"', () => {
+  const r = resolverInstancia({ tipo: 'texto', titulo: 'T', visible: 'no' }) as { visible: boolean };
+  assert.equal(r.visible, true);
+});
+
+test('instanciaEsVisible: true por default, false sólo con visible===false explícito', () => {
+  const visible = resolverInstancia({ tipo: 'texto', titulo: 'T' })!;
+  const oculta = resolverInstancia({ tipo: 'texto', titulo: 'T', visible: false })!;
+  assert.equal(instanciaEsVisible(visible), true);
+  assert.equal(instanciaEsVisible(oculta), false);
 });
 
 test('resolverInstancia: "texto" — opcional AUSENTE cae al default; opcional PRESENTE-vacío se respeta', () => {

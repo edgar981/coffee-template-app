@@ -20,6 +20,16 @@
 // ejemplo son genéricos, sin una sola palabra de café, y ninguna imagen trae un valor por defecto
 // (el hueco "Agregar foto" del editor es el estado inicial correcto, no un placeholder robado de
 // otra sección).
+//
+// EL CONTENIDO SE VE EN VIVO (§ SECCIONES-INSTANCIAS-VIVO-1) — REGLA PARA EL PRÓXIMO TIPO: cualquier
+// componente de `components/storefront/secciones/` lee su instancia de `useSiteContent().
+// seccionesHome[id]`, NUNCA sólo de una prop fija — `EditorPuenteVivo.tsx` actualiza ESE contexto en
+// cada tecla del panel (vía `fusionarContenidoInstancia`, `lib/storefront/editor-puente.ts`), y un
+// componente que sólo mirara su prop del servidor (`page.tsx`, resuelta UNA vez) quedaría mudo hasta
+// el siguiente reload — exactamente el defecto que este slice cierra. El dispatcher
+// (`SeccionInstancia.tsx`) hace esa lectura UNA vez, por eso los tres tipos de hoy no repiten el
+// mecanismo cada uno — mismo patrón que `BrandStory.tsx` leyendo `brandStory` antes de elegir su
+// variante, en vez de cada variante leyendo el contexto por su cuenta.
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -119,6 +129,13 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
 
 // ─── LOS DEFAULTS — NEUTROS, sin café, sin imagen ───────────────────────────────────────────────
 
+// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) es un ESCALAR DE INSTANCIA, como `visible` lo es de
+// SECCIÓN en `site-content-defaults.ts` ("Escalar de SECCIÓN —como `visible`—, no un `campos`"): NO
+// vive en `InstanciaDescriptor.campos` (ese mapa es sólo para los campos de TEXTO/CTA que
+// `resolverInstancia` resuelve requerido/opcional) ni en `escalares` (ésos clampan a un set cerrado
+// de strings) — es un booleano aparte, resuelto a mano en `resolverInstancia`, igual que
+// `resolverSiteContent` resuelve `visible` de una banda ANTES de entrar al loop de `campos`.
+
 export interface InstanciaTextoContent {
   tipo: 'texto';
   antetitulo: string;
@@ -127,6 +144,7 @@ export interface InstanciaTextoContent {
   ctaLabel: string;
   ctaDestino: string;
   alineacion: string;
+  visible: boolean;
 }
 
 export interface InstanciaImagenTextoContent {
@@ -138,6 +156,7 @@ export interface InstanciaImagenTextoContent {
   ctaDestino: string;
   imagen: string;
   lado: string;
+  visible: boolean;
 }
 
 export interface InstanciaBannerContent {
@@ -150,6 +169,7 @@ export interface InstanciaBannerContent {
   ctaSecundarioDestino: string;
   imagen: string;
   alto: string;
+  visible: boolean;
 }
 
 export type InstanciaContent = InstanciaTextoContent | InstanciaImagenTextoContent | InstanciaBannerContent;
@@ -170,6 +190,7 @@ export const DEFAULTS_INSTANCIA: {
     ctaLabel: '',
     ctaDestino: '',
     alineacion: ALINEACIONES_TEXTO.canonica,
+    visible: true,
   },
   imagenTexto: {
     tipo: 'imagenTexto',
@@ -180,6 +201,7 @@ export const DEFAULTS_INSTANCIA: {
     ctaDestino: '',
     imagen: '',
     lado: LADOS_IMAGEN_TEXTO.canonica,
+    visible: true,
   },
   banner: {
     tipo: 'banner',
@@ -191,6 +213,7 @@ export const DEFAULTS_INSTANCIA: {
     ctaSecundarioDestino: '',
     imagen: '',
     alto: ALTURAS_BANNER.canonica,
+    visible: true,
   },
 };
 
@@ -225,6 +248,12 @@ export function resolverInstancia(stored: unknown): InstanciaContent | null {
       out[campo] = resolverEscalarInstancia(def, stored[campo]);
     }
   }
+
+  // `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) — MISMO mecanismo que `resolverSiteContent` para una
+  // banda ("visible sólo se sobreescribe con un booleano explícito"): sin un booleano explícito en
+  // `stored`, cae al default del TIPO (siempre `true` hoy, pero leído de `defaults` y no
+  // hardcodeado, por si algún tipo futuro del catálogo necesitara nacer oculto).
+  out.visible = typeof stored.visible === 'boolean' ? stored.visible : defaults.visible;
 
   return out as unknown as InstanciaContent;
 }
@@ -376,4 +405,15 @@ export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
  *  fondo de un extremo al otro → uniformes. */
 export function instanciaEsUniforme(tipo: SeccionInstanciaTipo): boolean {
   return tipo !== 'imagenTexto';
+}
+
+// ─── EL OJO (§ SECCIONES-INSTANCIAS-VIVO-1) ──────────────────────────────────────────────────────
+
+/** ¿Debe renderizarse esta instancia para el VISITANTE? Gemela de `seccionEsVisible`
+ *  (`site-content-defaults.ts`) pero sin la mitad de repeater — ninguna instancia del catálogo es
+ *  un repeater, así que no hay hide-on-empty que considerar; sólo el toggle. El dispatcher
+ *  (`SeccionInstancia.tsx`) la usa para su self-gate, igual que `BrandStory.tsx`/`SubscriptionCTA.tsx`
+ *  usan `seccionEsVisible` para el suyo. */
+export function instanciaEsVisible(instancia: InstanciaContent): boolean {
+  return instancia.visible !== false;
 }

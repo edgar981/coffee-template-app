@@ -14,7 +14,8 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { useModoEditorActivo } from '@/components/storefront/ModoEditor';
 import { tratamientoNav } from '@/lib/config/esquema-style';
-import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId } from '@/lib/config/site-content-defaults';
+import { varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId, type BandaId } from '@/lib/config/site-content-defaults';
+import { esInstanciaId } from '@/lib/config/secciones-instancias';
 import {
   direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll,
   DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE,
@@ -90,7 +91,7 @@ export default function StoreNav() {
   // Cada ítem puede llevar además un `panel` (§ MUESTRARIO-MEGA-MENU-1) — AUSENTE para todo tenant
   // que no lo declare (Nayoli), así que el `.map` de abajo sigue byte-idéntico sin tocar nada.
   const content = useSiteContent();
-  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil, logo } = content;
+  const { esquemas, tema, orden, cromo, navTratamiento, navWordmark, navDrawerMovil, logo, seccionesHome } = content;
   const links = itemsDeMenu(content);
   const ctaHref = menuCtaHref(content);
   // § MENU-MOVIL-CIERRE-DESLIZANDO-1 — el total de filas de la cascada del drawer móvil
@@ -274,8 +275,28 @@ export default function StoreNav() {
   // visual del owner lo encontró (texto oscuro del nav ilegible sobre la foto). `tratamientoNav`
   // pregunta PRIMERO si la banda es uniforme (`bandaUniforme`, § site-content-defaults.ts): si no lo
   // es, el nav cae a SÓLIDO desde el primer render, sin importar scroll ni esquema.
-  const primera = resolverOrden(orden)[0];
-  const t = tratamientoNav(primera, varianteDeBanda(content, primera), esquemas, tema.fondo, tema.tinta, tema.acento);
+  //
+  // MINA CERRADA #4 (§ SECCIONES-INSTANCIAS-VIVO-1): `orden` YA LLEGA RESUELTO COMPLETO desde el
+  // contexto —`resolverOrdenCompleto` corre DENTRO de `resolverSiteContent` (§ site-content-
+  // defaults.ts), bandas ∪ instancias de `seccionesHome`—, así que NO hay que volver a filtrarlo con
+  // `resolverOrden` (la vieja, sólo-bandas): hacerlo DESCARTARÍA cualquier instancia que resultara
+  // primera, y `primera` caería al primer BANDA real en su lugar — el nav trataría una sección
+  // agregada puesta primera como si no existiera. `orden[0]` puede ser una `BandaId` o el id de una
+  // instancia (`inst:…`); `varianteDeBanda` sólo sabe de bandas (su índice es `SiteContentData` por
+  // clave fija), así que se salta para una instancia —ninguna instancia declara `variantes`, § su
+  // descriptor— y se pasa su `tipo` en su lugar: `bandaOscuraCanonica`/`bandaUniforme` (vía
+  // `tratamientoNav`) ya saben delegar a `instanciaOscuraCanonica`/`instanciaEsUniforme` cuando
+  // reciben ese séptimo argumento (§ esquema-style.ts, el mecanismo ya construido y testeado por
+  // SECCIONES-INSTANCIAS-1 — esto era su único open follow-up).
+  const primera = orden[0];
+  const primeraEsInstancia = esInstanciaId(primera);
+  const tipoInstanciaPrimera = primeraEsInstancia ? seccionesHome[primera]?.tipo : undefined;
+  const t = tratamientoNav(
+    primera,
+    primeraEsInstancia ? undefined : varianteDeBanda(content, primera as BandaId),
+    esquemas, tema.fondo, tema.tinta, tema.acento,
+    tipoInstanciaPrimera,
+  );
   // `cromo.navTinta` (§ CORTE-NAV-TRANSPARENTE-HERO-1, resemantizado — antes CROMO-NAV-FOOTER-
   // TEMATIZABLE-1 lo declaraba "banda SÓLIDA SIEMPRE, nunca transparente"). El prototipo
   // (`docs/prototipos/cafeone/css/app.css:172-191`, `.site-header`) hace lo CONTRARIO de esa lectura

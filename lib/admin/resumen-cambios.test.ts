@@ -200,6 +200,21 @@ test('seccionesHome: editar un campo de una instancia existente se resume "edita
   }]);
 });
 
+// EL OJO (§ SECCIONES-INSTANCIAS-VIVO-1): esta función diffea la instancia COMPLETA (§ el docstring
+// de `cambiosSeccionesHome`, arriba) — ningún código nuevo hacía falta para que apagar/encender el
+// ojo entrara al resumen, pero eso es justo lo que hay que afirmar: que `visible` SÍ es parte del
+// objeto que se compara, igual que cualquier otro campo.
+test('seccionesHome: ocultar una instancia (sólo `visible` cambia) también se resume "editada" — el ojo entra al resumen de Publicar', () => {
+  const base = { tipo: 'texto', antetitulo: '', titulo: 'T', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro', visible: true };
+  const publicado = { 'inst:a': base };
+  const borrador = { 'inst:a': { ...base, visible: false } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Texto', tipo: 'cambiado',
+    etiqueta: 'Inicio · Texto · editada',
+  }]);
+});
+
 test('seccionesHome: dos instancias cambiadas a la vez producen DOS filas, una por id', () => {
   const baseTexto = { tipo: 'texto', antetitulo: '', titulo: 'T', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro' };
   const publicado = { 'inst:a': baseTexto };

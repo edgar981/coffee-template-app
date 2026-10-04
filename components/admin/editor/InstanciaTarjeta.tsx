@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, GripVertical } from 'lucide-react';
+import { Pencil, GripVertical, Eye, EyeOff } from 'lucide-react';
 import type { AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
 import { InstanciaAccionesMenu } from '@/components/admin/editor/InstanciaAccionesMenu';
 import { nombreInstancia, type SeccionInstanciaTipo } from '@/lib/config/secciones-instancias';
@@ -12,26 +12,30 @@ import { nombreInstancia, type SeccionInstanciaTipo } from '@/lib/config/seccion
 // vecinas por ser instancia en vez de banda sería el propio defecto que esta tanda existe para no
 // tener.
 //
-// EL "OJO" NO ENTRÓ A ESTA TANDA, Y ESTÁ DICHO ACÁ PARA QUE NO SE LEA COMO UN OLVIDO: la banda sí lo
-// tiene (`config.ocultable` → `form.visible`, persistido por el schema de ESA sección) pero
-// persistir un `visible` por instancia exige declararlo en `lib/config/site-content-schema.ts`
-// —fuera de `touches:` de este slice— porque `z.object` sin ese campo lo STRIPPEA en silencio al
-// guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado"): un botón que pareciera
-// ocultar la sección sin que el valor sobreviva un refresh sería peor que no tenerlo. Ver el open
-// follow-up de este slice en DECISIONS.md.
+// EL "OJO" ENTRÓ EN § SECCIONES-INSTANCIAS-VIVO-1 — cierra el open follow-up que esta misma nota
+// dejaba pendiente: `visible` ya está declarado en `lib/config/site-content-schema.ts` (las tres
+// uniones de `seccionesHome`) y resuelto en `resolverInstancia` (`secciones-instancias.ts`), así
+// que el botón de abajo persiste de verdad — ya no se pierde al refrescar. MISMO ícono/afordancia
+// que el ojo de una banda (`TiendaSeccionEditor.tsx`, `Eye`/`EyeOff`), MISMO mecanismo de escritura
+// que el resto de una instancia: `onCambiarVisible` llama a `cambiarInstancia` con el objeto
+// COMPLETO (`TiendaPaginas.tsx`), nunca un parche — el mismo contrato que `InstanciaEditorForm`.
 //
 // EL TÍTULO ES EL CONTENIDO, NO EL TIPO: a diferencia de una banda (nombre fijo, "Hero de la
 // home"), dos instancias del mismo tipo serían indistinguibles por nombre — así que la fila muestra
 // el `titulo` QUE EL DUEÑO ESCRIBIÓ (o el nombre del tipo, de respaldo, si el título está vacío
 // porque la sección se acaba de agregar) y el TIPO como una etiqueta neutra aparte.
-export function InstanciaTarjeta({ tipo, titulo, hayBorrador, orden, onAbrir, onDuplicar, onEliminar }: {
+export function InstanciaTarjeta({ tipo, titulo, visible, hayBorrador, orden, onAbrir, onDuplicar, onEliminar, onCambiarVisible }: {
   tipo: SeccionInstanciaTipo;
   titulo: string;
+  /** `instancia.visible !== false` — ya resuelto por el llamador (§ CLAUDE.md, "visible sólo se
+   *  sobreescribe con un booleano explícito"), esta tarjeta no decide el default. */
+  visible: boolean;
   hayBorrador: boolean;
   orden?: AsaOrdenProps;
   onAbrir: () => void;
   onDuplicar: () => void;
   onEliminar: () => void;
+  onCambiarVisible: () => void;
 }) {
   const nombreTipo = nombreInstancia(tipo);
   const nombreFila = titulo.trim() || nombreTipo;
@@ -63,9 +67,19 @@ export function InstanciaTarjeta({ tipo, titulo, hayBorrador, orden, onAbrir, on
       )}
       <div className="tienda-tarjeta__meta">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={onCambiarVisible}
+            className="duna-btn duna-btn--ghost duna-btn--icon"
+            aria-pressed={!visible}
+            aria-label={visible ? `Ocultar ${nombreFila} en la tienda` : `Mostrar ${nombreFila} en la tienda`}
+          >
+            {visible ? <Eye /> : <EyeOff />}
+          </button>
           <h2 className="duna-title">{nombreFila}</h2>
           <span className="duna-badge duna-badge--neutral">{nombreTipo}</span>
           {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+          {!visible && <span className="duna-badge duna-badge--neutral">Oculta</span>}
         </div>
         <div style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
           <button type="button" onClick={onAbrir} className="duna-btn duna-btn--secondary">

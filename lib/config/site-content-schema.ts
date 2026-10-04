@@ -435,6 +435,12 @@ const ordenEditableSchema = z.array(
 // mismos campos que estos tres sub-schemas; `secciones-instancias.test.ts` afirma la paridad). Todo
 // opcional/SOFT como el resto de este archivo: el resolver (`resolverInstancia`) decide requerido-
 // vacío→default / opcional-presente→se respeta, igual que cualquier sección.
+// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS TRES: el ojo de la lista (`InstanciaTarjeta.tsx`)
+// escribe este booleano con el MISMO autoguardado que cualquier otro campo de la instancia
+// (`cambiarInstancia`, `TiendaPaginas.tsx`) — sin declararlo acá, `z.object` lo STRIPPEA en silencio
+// al guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado") y el ojo parecería
+// ocultar la sección sin que el valor sobreviva un refresh. Opcional, como el resto de este
+// archivo: `resolverInstancia` decide el default (`true`) cuando está ausente.
 const instanciaTextoEditableSchema = z.object({
   tipo: z.literal('texto'),
   antetitulo: z.string().optional(),
@@ -446,6 +452,7 @@ const instanciaTextoEditableSchema = z.object({
   // resolver SOFT (`resolverInstancia`, vía `DESCRIPTOR_INSTANCIA.texto.escalares.alineacion`) ya
   // clampa al set cerrado o a la canónica.
   alineacion: z.string().optional(),
+  visible: z.boolean().optional(),
 });
 const instanciaImagenTextoEditableSchema = z.object({
   tipo: z.literal('imagenTexto'),
@@ -458,6 +465,7 @@ const instanciaImagenTextoEditableSchema = z.object({
   // foto" del editor — sin default (§ DEFAULTS_INSTANCIA.imagenTexto, secciones-instancias.ts).
   imagen: z.string().optional(),
   lado: z.string().optional(),
+  visible: z.boolean().optional(),
 });
 const instanciaBannerEditableSchema = z.object({
   tipo: z.literal('banner'),
@@ -471,6 +479,7 @@ const instanciaBannerEditableSchema = z.object({
   // `z.string()` — el resolver (vía `DESCRIPTOR_INSTANCIA.banner.escalares.alto`) clampa al mismo
   // set cerrado de tres pasos que `hero.alto` ('justo'|'alto'|'pantalla').
   alto: z.string().optional(),
+  visible: z.boolean().optional(),
 });
 const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaTextoEditableSchema,

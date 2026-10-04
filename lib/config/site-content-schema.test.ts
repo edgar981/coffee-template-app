@@ -229,3 +229,21 @@ test('seccionesHome: ausente no rompe el parse (es opcional, como las otras meta
   const parsed = siteContentEditableSchema.parse({});
   assert.equal(parsed.seccionesHome, undefined);
 });
+
+test('seccionesHome: `visible: false` SOBREVIVE al parse, en los tres tipos — § SECCIONES-INSTANCIAS-VIVO-1, el ojo (sin esto, el toggle se STRIPPEARÍA en silencio al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:a': { tipo: 'texto', titulo: 'T', visible: false },
+      'inst:b': { tipo: 'imagenTexto', titulo: 'T', visible: false },
+      'inst:c': { tipo: 'banner', titulo: 'T', visible: false },
+    },
+  });
+  assert.equal((parsed.seccionesHome!['inst:a'] as { visible: boolean }).visible, false);
+  assert.equal((parsed.seccionesHome!['inst:b'] as { visible: boolean }).visible, false);
+  assert.equal((parsed.seccionesHome!['inst:c'] as { visible: boolean }).visible, false);
+});
+
+test('seccionesHome: sin `visible` en el body, el parse no inventa la clave — el resolver (no el schema) decide el default', () => {
+  const parsed = siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'texto', titulo: 'T' } } });
+  assert.equal('visible' in (parsed.seccionesHome!['inst:a'] as Record<string, unknown>), false);
+});
