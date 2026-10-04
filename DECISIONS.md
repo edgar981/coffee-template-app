@@ -53058,8 +53058,8 @@ Zonas — ninguno de los dos es el bug que este slice persigue.
 | capa | resultado |
 | --- | --- |
 | `npx tsc --noEmit` | 0 errores |
-| `npm test` | **3700/3700**, dos corridas idénticas |
-| `npm run test:integracion` | **346/346** en 2 de 4 corridas completas de `npm run gate`; las otras 2 fallaron en el MISMO test, ajeno a este diff: `tests/integracion/wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ" — una carrera real (`Promise.all`) entre dos escritores bajo el MISMO lock de fila, cuyo desenlace depende de timing. **Aislado, corre 5/5 verde** (`.scratch/retest-wompi.ts`, 5 corridas consecutivas contra Postgres efímero propio, sin el resto de la suite compitiendo por CPU/conexiones) — y el `git diff --stat` de este slice no toca `tests/integracion/`, `packages/core/src/pagos/`, `lib/pagos/` ni nada del eje Wompi. Se interpreta como un flake PRE-EXISTENTE sensible a la carga de la sesión (varias corridas de `next build` + Postgres efímero en paralelo con el propio gate), no una regresión de este diff — con la salvedad de que no se pudo confirmar contra un árbol limpio (`git stash` no está entre las mutaciones concedidas a este slice). Reportado explícito, no escondido. |
+| `npm test` | **3700/3700** en las 4 corridas de `npm run gate` (el script encadena `typecheck && npm test && test:integracion` con `&&`: que `test:integracion` llegara a correr en las 4 ya prueba que `npm test` pasó las 4 veces; el conteo EXPLÍCITO `3700/3700` se vio en 2 de las 4, las otras 2 lo cortó el `tail` del log, no un fallo) |
+| `npm run test:integracion` | **346/346** en 1 de 4 corridas completas de `npm run gate`; las otras 3 fallaron en el MISMO test, ajeno a este diff: `tests/integracion/wompi-reconciliador.test.ts`, "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ" — una carrera real (`Promise.all`) entre dos escritores bajo el MISMO lock de fila, cuyo desenlace depende de timing. **Aislado, corre 5/5 verde** (`.scratch/retest-wompi.ts`, 5 corridas consecutivas contra Postgres efímero propio, sin el resto de la suite compitiendo por CPU/conexiones) — y el `git diff --stat` de este slice no toca `tests/integracion/`, `packages/core/src/pagos/`, `lib/pagos/` ni nada del eje Wompi. Se interpreta como un flake PRE-EXISTENTE sensible a la carga de la sesión (varias corridas de `next build` + Postgres efímero en paralelo con el propio gate), no una regresión de este diff — con la salvedad de que no se pudo confirmar contra un árbol limpio (`git stash` no está entre las mutaciones concedidas a este slice). Reportado explícito, no escondido. |
 | `npm run gate` | GREEN salvo el flake de arriba, documentado |
 | `npm run verificar:nayoli:visual` | reproduce EXACTO el piso heredado de la rama (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, el mismo número que `EDITOR-VISUAL-NIVELES-1` ya midió): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado, drift heredado de la rama contra `main`, no de este slice |
 
@@ -53099,8 +53099,8 @@ nuevo en `site-content-schema.ts`/`site-content-defaults.ts`.
 ### Verdict
 
 **AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
-completo: typecheck 0 errores · `npm test` 3700/3700 (2/2 corridas) · `npm run test:integracion`
-346/346 en 2 de 4 corridas, con el flake de `wompi-reconciliador.test.ts` documentado arriba y
+completo: typecheck 0 errores · `npm test` 3700/3700 (4/4 corridas, por el `&&` del script) · `npm
+run test:integracion` 346/346 en 1 de 4 corridas, con el flake de `wompi-reconciliador.test.ts` documentado arriba y
 confirmado ajeno a este diff (5/5 verde aislado, cero overlap de archivos). Arnés real de punta a
 punta contra el PANEL, diez capturas + mediciones de `scrollWidth`/`clientWidth`/`segOpciones`/
 `migas`, antes y después del fix, comparadas contra el prototipo y contra el propio reporte del
