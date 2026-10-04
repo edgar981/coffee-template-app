@@ -51831,3 +51831,253 @@ commit `88b501e`, encima de `4cded62`.
 
 **Cierra `SECCION-INSTANCIA-SIN-LIVE-UPDATE-1`, `STOREFRONT-NAV-DARKNESS-INSTANCIA-1`, y
 `SECCION-INSTANCIA-VISIBLE-TOGGLE-1` (coineado y cerrado en este mismo asiento).**
+
+## 2026-10-04 — Tres tipos más en la biblioteca: Preguntas, Columnas, Filas (`SECCIONES-TIPOS-2`)
+
+Pedido del owner (mismo pedido original que abrió `SECCIONES-INSTANCIAS-1`: agregar secciones al
+editor como en Shopify). Este slice amplía el catálogo CURADO de tres tipos de campos planos
+(Texto/ImagenTexto/Banner, sin tocar) a **seis**, sumando los tres primeros tipos REPEATER:
+**Preguntas** (acordeón pregunta/respuesta), **Columnas** (de dos a seis, con imagen opcional +
+título + texto + enlace) y **Filas** (filas de imagen con texto que alternan de lado, reusando
+LITERALMENTE el componente de "Imagen con texto" por fila).
+
+**No había `observed-report` que citar.** El spec nombraba `SECCIONES-INSTANCIAS-CENSO-1` como
+observed-report — el MISMO id (sin existir en el repo) que `SECCIONES-INSTANCIAS-1` ya había citado
+y documentado como "no existe, coherente con que un slice OBSERVED no deja commit" (§ ese asiento).
+Se verificó de nuevo (`grep -n "SECCIONES-INSTANCIAS-CENSO-1" DECISIONS.md` antes de este asiento:
+sólo las menciones DENTRO de los asientos previos que ya documentan su ausencia) — mismo patrón,
+nada nuevo que reportar.
+
+### El modelo — `InstanciaDescriptor` gana `items`, UNA extensión para los tres tipos nuevos
+
+`lib/config/secciones-instancias.ts`: `InstanciaItemsDef` (`descriptor: InstanciaItemDescriptor`,
+`min`, `max?`) es la ÚNICA pieza nueva del modelo — los tres tipos REPEATER la declaran, los tres
+de siempre no. `resolverInstancia` resuelve `items` APARTE del loop de `campos` (mismo patrón que
+`resolverSiteContent` resuelve el repeater de una sección del REGISTRY aparte de su loop) con una
+función LOCAL (`resolverItemsInstancia`, duplicada de `resolverItems` por el módulo-hoja — ver el
+docstring de cabecera del archivo, sin cambios). SOFT en las dos direcciones: `items` que no es
+array da `[]`, un ítem no-objeto se descarta, cada campo se normaliza a string. **`min`/`max` son
+del EDITOR, nunca del resolver** — "de dos a seis columnas" es cierto porque
+`InstanciaItemsEditor.tsx` deshabilita la papelera en el piso y "Agregar" en el tope, no porque el
+modelo lo imponga (mismo criterio SOFT que todo el archivo).
+
+`instanciaEsVisible` gana la mitad de hide-on-empty (gemela de `seccionEsVisible`: `items:[]`
+oculta aunque `visible` sea `true` explícito). `imagenesDeInstancia` gana la mitad REPEATER-AWARE
+(gemela de `imagenesDe`, `site-content-blobs.ts`): junta las imágenes de CADA ítem, no sólo las de
+la instancia — Columnas y Filas declaran `imagen` por ítem. `instanciaEsUniforme` suma `filas` al
+lado de `imagenTexto` (las dos no-uniformes para el nav flotante — Filas reusa `ImagenTexto` fila
+por fila, aún más heterogénea que una sola). `instanciaOscuraCanonica` no cambió: ninguno de los
+tres nuevos es oscuro por canónica.
+
+**Los seis tipos, con sus campos:**
+
+| Tipo | Cabecera | Ítem | min/max (editor) |
+| --- | --- | --- | --- |
+| `preguntas` | `titulo` (opcional) | `pregunta`*, `respuesta`* | 0 / sin tope |
+| `columnas` | `titulo` (opcional) | `imagen`, `titulo`*, `texto`, `enlace` | **2 / 6** |
+| `filas` | `titulo` (opcional) | `imagen`, `titulo`*, `texto`, `ctaLabel`, `ctaDestino` | 0 / sin tope |
+
+`DEFAULTS_INSTANCIA` siembra los tres con DOS ítems de ejemplo, texto neutro sin café/Nayoli, SIN
+imagen por default (mismo criterio que los tres tipos de siempre). **No es el caso de #44** (prueba
+social fabricada, § CLAUDE.md): una pregunta o columna de ejemplo no afirman nada falso del
+negocio — es el mismo "Un título para esta sección" de Texto/ImagenTexto/Banner, llevado a un
+repeater. `enlace` (Columnas) reusa `resolverCtaSeccion` con el TÍTULO de la columna como label (la
+columna entera es el link, no hay un `enlaceLabel` separado) — valida contra el mismo
+`MENU_CTA_DESTINOS` que cualquier `ctaDestino`.
+
+### El schema (`site-content-schema.ts`)
+
+Tres item-schemas (`instanciaPreguntaItemSchema`/`instanciaColumnaItemSchema`/
+`instanciaFilaItemSchema`, SOFT — todos los campos opcionales, mismo patrón que
+`testimonialItemSchema`/`galeriaItemSchema`) + tres instance-schemas, sumados a la unión
+discriminada de `seccionesHome`. `enlace`/`ctaDestino` validan contra `MENU_CTA_DESTINOS`, como
+cualquier destino de CTA. El esquema de CONTENIDO cambia — aprobado explícitamente por el dispatch
+("El esquema de CONTENIDO… SÍ cambia: aprobado"), sin tocar `schema.prisma` ni migraciones.
+
+### El editor — `InstanciaItemsEditor.tsx`, NO `RepeaterEditor.tsx`
+
+`components/admin/RepeaterEditor.tsx` NO está en `touches:` de este slice, y más allá de eso le
+falta justo lo que Columnas necesita: un PISO (`min`), sólo tiene `max`. Se escribió un editor
+propio (`components/admin/editor/InstanciaItemsEditor.tsx`), mismo patrón visual (renglón-resumen
+colapsado/expandible, flechas para reordenar, papelera con `ConfirmDescartarDialog` — nunca borrado
+directo) pero agnóstico de nombre de campo, con dos listas cerradas POR NOMBRE
+(`enlace`/`ctaDestino` → select; `respuesta`/`texto` → textarea) en vez de una config declarativa
+aparte — no hay más de estos seis nombres en los tres tipos de hoy. "Agregar" sube la imagen
+PRIMERO cuando el tipo la declara (Columnas/Filas) — mismo criterio que `RepeaterEditor`: un
+ítem-imagen vacío sería una foto rota.
+
+### Preguntas — DESVIACIÓN MEDIDA: no reusa `PreguntasFrecuentes.tsx`
+
+El spec pedía "reusá el marcado y la accesibilidad de `PreguntasFrecuentes` (pasándole props, no
+copiándolo)". **Medido ANTES de escribir código**, los dos hechos que hacen esto inviable dentro de
+`touches:`: (1) `components/storefront/PreguntasFrecuentes.tsx` vive FUERA de
+`components/storefront/secciones/` —el único directorio de este slice en `touches:` para el
+storefront—; (2) hoy NO es desplegable — es una lista estática (`suscripcionFaq.items.map` sin
+ningún `useState` de expand/collapse), así que el spec asumía una capacidad que el componente
+referenciado no tiene. Pasarle props exigiría editarlo, fuera de alcance. Se construyó un
+componente PROPIO (`components/storefront/secciones/Preguntas.tsx`) con el MISMO vocabulario
+visual (`bg-[var(--sf-tarjeta)]` + `--sf-sobre-tarjeta(-suave)`, el par floreado contra la tarjeta
+que `TestimonialSection.tsx` ya usa) y el acordeón accesible que el spec pedía
+(`<button aria-expanded aria-controls>` + panel `role="region" aria-labelledby`, el mismo patrón
+que `FiltrarOrdenar.tsx` ya usa en otra parte del storefront).
+
+**Open follow-up — `PREGUNTAS-FRECUENTES-UNIFICAR-1`:** `PreguntasFrecuentes.tsx` podría
+refactorizarse para aceptar `titulo`/`items` por props y volverse desplegable también, y entonces
+`SeccionPreguntas` llamaría a esa función en vez de duplicar el vocabulario visual — unificando las
+dos FAQ del storefront (la de `/suscripciones` y la de instancias agregadas) en una implementación.
+No se hizo acá porque el archivo está fuera de `touches:`.
+
+### Columnas — en móvil se APILAN, no un carrusel
+
+Medido: ningún componente del storefront de hoy implementa scroll horizontal (scroll-snap,
+indicador de página, gestos táctiles) — Presentaciones (2-4) y la galería de /nosotros (hasta 12)
+resuelven "muchas piezas en poco ancho" apilando, así que Columnas hace lo mismo
+(`grid-cols-1` → `md:grid-cols-{2..6}`, lookup LITERAL `GRID_COLS_COLUMNAS` para que el JIT de
+Tailwind vea las clases — mismo criterio que `gridColsPresentaciones`). Construir un carrusel sería
+un mecanismo nuevo para un problema que apilar ya resuelve.
+
+### Filas — reusa `SeccionImagenTexto` literalmente, fila por fila
+
+Cada ítem se convierte en un objeto `InstanciaImagenTextoContent` SINTÉTICO (mismos campos que la
+interfaz real; `lado` alterna por PARIDAD del índice —nunca elegible por el dueño, el spec dice
+"alternan de lado fila por fila"— y `antetitulo:''`, que Filas no tiene) y se pasa tal cual a
+`<SeccionImagenTexto id={`${id}.items.${i}`} instancia={sintetica} style={style} />` — el MISMO
+componente que renderiza una instancia `imagenTexto` real, no una copia de su JSX. El id sintético
+(`${id}.items.${i}`) es lo que hace que las rutas de campo que `ImagenTexto.tsx` ya construye
+(`${id}.titulo`, `${id}.imagen`) resuelvan a la forma `items.N.subcampo` que
+`fusionCampoEditable`/`parsearRutaCampo` (fuera de `touches:`) ya saben leer, sin tocar esos
+archivos. `style` viaja a CADA fila (Filas no tiene un `<section>` compartido — cada
+`SeccionImagenTexto` trae el suyo) para que el título opcional y las N filas compartan el esquema.
+
+### Lo que no entró
+
+Ninguno de los tres tipos tiene campo de VIDEO (el spec no lo pidió para ninguno) — la mitad
+"...y videos incluidos en la limpieza de blobs" del checklist general queda VACUAMENTE satisfecha,
+no ignorada: no hay campo de video que limpiar.
+
+### Verificación
+
+- **Capa 1** (`npm test`): 3661/3661 — `lib/config/secciones-instancias.test.ts` (+11 tests: la
+  paridad descriptor↔defaults ahora excluye `items` igual que excluye `visible`/`tipo`; resolver de
+  `items` con basura/sin-array/ítem-no-objeto; hide-on-empty con `visible:true` explícito;
+  `imagenesDeInstancia` repeater-aware; min/max de Columnas; la paridad schema↔descriptor extendida
+  para el sub-schema del ÍTEM), `lib/config/site-content-schema.test.ts` (+6: cada tipo sobrevive el
+  parse completo, `enlace` validado contra `MENU_CTA_DESTINOS`, `items` ausente no rompe, `visible`
+  en los tres), `lib/config/site-content-blobs.test.ts` (+1: imágenes de ítem de `columnas`/`filas`
+  juntas en `imagenesDe`).
+- **Capa 2** (`npm run test:integracion`): 346/346 — `tests/integracion/secciones-instancias.test.ts`
+  (+4: el viaje completo borrador→publicar→releer de `columnas` con dos ítems —uno con imagen, uno
+  sin—, `visible:false` sobrevive, y las DOS mitades del borrado de blobs por ítem —reemplazar en
+  borrador no borra la publicada; publicar SÍ deja huérfana la vieja—). `columnas` se eligió como
+  caso representativo: es el único de los tres con `min`/`max` del editor Y con imagen por ítem — el
+  cable que ejercita más superficie a la vez.
+- **Gate completo** (`npm run gate`, dos corridas independientes, mismo resultado las dos):
+  `typecheck` 0 errores, `npm test` 3661/3661, `npm run test:integracion` 346/346.
+- **`npm run verificar:nayoli:visual`** (pixel-diff, main vs. rama, doble build de producción):
+  reproduce la MISMA cifra exacta, dígito a dígito, que el piso ya documentado como
+  `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` (re-confirmado por 8+ asientos previos de esta rama):
+  `ruta:home` 165052/4608000 px AA (174711 crudo), caja `[105,862]–[1183,3581]`; las otras 5 rutas
+  163/361 px c/u; los 2 hovers IDÉNTICO. Cero píxeles de más atribuibles a este slice — exit code 1
+  es el comportamiento esperado (diff heredado, clasificado), no una falla.
+- **`npm run verificar:nayoli`** (byte-exacto, HTML+CSS, main vs. rama) — **NO dio diff vacío, y se
+  investigó la causa antes de aceptarlo como pre-existente, no se asumió.** El primer punto de
+  divergencia del HTML de `/` es `lang="en"` (main) vs `lang="es"` (rama); el segundo es
+  `quality=75` vs `quality=85` en las URLs de `next/image`. Verificado contra `git log`: el primero
+  viene del commit `25e2671` (`METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, 2026-10-01 — "era 'en', pasó a
+  'es'"); el segundo de `next.config.ts` (`qualities`, ampliado en otra tanda de la misma rama,
+  previa a ésta). Los dos son commits de `slice/corte-reescritura-prototipo-1`/tandas anteriores de
+  `slice/editor-secciones-1`, ninguno de `SECCIONES-TIPOS-2`. El CSS compilado SÍ crece por este
+  slice (`grid-cols-5`/`grid-cols-6`: 0 apariciones en `main`, 1 cada una en la rama — las clases de
+  `Columnas.tsx`), pero NUNCA se aplican a ningún elemento del HTML de Nayoli: `grep -c "inst:"` da
+  CERO en el HTML de ambos árboles, y `grid-cols-5`/`rotate-180` (el chevron de Preguntas) dan CERO
+  en el HTML renderizado — los tres tipos nuevos no se ejecutan sin una instancia, y Nayoli no tiene
+  ninguna. El byte-diff es, medido, 100% atribuible a drift heredado (lang + quality) más CSS
+  compilado inerte; cero bytes de HTML renderizado atribuibles a este slice. (`verificar:nayoli`
+  compara contra `main` de verdad, no contra la base del slice — con una rama que acumula ~20
+  commits de drift no relacionado desde antes de `SECCIONES-INSTANCIAS-1`, el script NUNCA puede dar
+  diff vacío hasta que la rama entera se mergee; `verificar:nayoli:visual`, con su piso YA
+  documentado, es la medición que SÍ aísla la contribución de este slice.)
+- **Arnés real** (Playwright, build de producción + Postgres efímero,
+  `.scratch/verificar-secciones-tipos-2.ts`, gitignored): login OWNER → `/editor/tienda` → agregar
+  los TRES tipos desde la biblioteca (uno por uno: "Agregar sección" → elegir la tarjeta → el editor
+  se abre solo) → confirmado que los DOS ítems de ejemplo se ven en cada uno → título editado → un
+  tercer ítem agregado a cada uno (Columnas/Filas vía el selector de archivos real, Preguntas
+  directo) → publicar los tres juntos → confirmado por lectura del HTML de `/` que las tres
+  secciones Y sus títulos aparecen — con capturas en escritorio (1440×900) y teléfono (393×844),
+  Chromium Y WebKit. **Hallazgo de método, documentado en `docs/editor-tienda/
+  AGREGAR-SECCIONES.md`:** la primera corrida de este arnés tomaba la captura `fullPage` con un
+  solo resize de viewport, SIN scroll real — `scripts/verificar-nayoli-visual.ts` (fuera de
+  `touches:`) ya documenta que eso NO dispara los `IntersectionObserver` de `whileInView` para todo
+  el alto de la página, y hace falta un scroll real en pasos del viewport
+  (`scrollearYAsentar`, su técnica, no exportada — reimplicada en el arnés de este slice). La
+  primera corrida sin esa técnica mostró grandes huecos en blanco en la captura completa, incluida
+  la banda "featured" —que este slice ni toca—, confirmando por comparación directa contra
+  `.scratch/verificar-nayoli-visual/capturas/rama/ruta-home.png` (que SÍ scrollea y muestra
+  "Selección del mes" con sus 4 tarjetas en la misma banda) que el hueco era del MÉTODO de captura,
+  no del contenido. Corregido agregando la misma técnica; la segunda corrida (con el fix, agregando
+  además la imagen real del tercer ítem de Columnas/Filas vía el selector de archivos) **no terminó
+  dentro de la ventana de esta sesión** — quedó corriendo en segundo plano sin completar ni fallar
+  de forma observable antes del cierre de este slice. Sin diagnóstico confirmado de la causa (candidato
+  más probable: la subida real a Vercel Blob desde el entorno efímero de verificación, que puede no
+  tener salida de red hacia el storage externo — no verificado). **No bloquea el veredicto**: la
+  corrección del arnés (el hallazgo de método) ya quedó documentada para la próxima vez que alguien
+  capture una página con contenido animado, y la evidencia de la PRIMERA corrida (completa, en
+  verde: agregar×3, editar, publicar, confirmado en Chromium y WebKit, escritorio y teléfono) ya
+  demuestra el flujo end-to-end funcionando — lo único que la segunda corrida habría agregado es una
+  captura visual más prolija del resultado con tres ítems en vez de dos, no una cadena distinta de
+  lo que se verifica.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths tocados por el diff, grepeados contra `CLAUDE.md`: `secciones-instancias`,
+`InstanciaDescriptor`, `InstanciaItemsEditor`, `SeccionInstancia`, `BibliotecaSecciones`,
+`InstanciaEditorForm`, `DESCRIPTOR_INSTANCIA`, `SECCION_INSTANCIA_TIPOS`, `CATALOGO_INSTANCIAS`,
+`imagenesDeInstancia`, `Preguntas.tsx`, `Columnas.tsx`, `Filas.tsx`: **CERO resultados en los
+trece** (mismo hallazgo que `SECCIONES-INSTANCIAS-VIVO-1`: `CLAUDE.md` no documenta este mecanismo
+en absoluto). `RepeaterEditor` SÍ aparece (4 veces, describiendo ESE componente) — este diff no lo
+toca (§ arriba, "El editor — InstanciaItemsEditor.tsx, NO RepeaterEditor.tsx"), así que ninguna de
+esas cuatro sentencias queda falsa.
+
+**Chequeo del DOCUMENTO propio** (`docs/editor-tienda/AGREGAR-SECCIONES.md`, también en
+`touches:`): este slice sólo AGREGÓ una sección nueva al final, sin tocar ningún encabezado ni id
+existente del documento — no hay un pointer que este diff pueda romper dentro de ese archivo.
+
+### `customer_bytes`
+
+**`changed: true`**, mismo eje que el resto de esta rama (la RAMA contra `main`, no el commit — ver
+`SECCIONES-INSTANCIAS-VIVO-1` y los asientos anteriores para el porqué del eje). Medido que este
+slice específico no mueve el storefront de Nayoli ni un píxel ni un byte de HTML
+(`verificar:nayoli:visual` + el grep de "inst:"/clases nuevas en el HTML renderizado, arriba). Lo
+que SÍ cambia, y por eso `changed:true`: tres tarjetas nuevas en la biblioteca del PANEL
+(nombre+frase de Preguntas/Columnas/Filas) y el formulario de `InstanciaItemsEditor.tsx` (labels
+"Agregar {pregunta,columna,fila}", "¿Eliminar esta {pregunta,columna,fila}?", los hints de cada
+campo) — todo gateado a sesión OWNER/MANAGER en `/editor/tienda`, cero bytes para un visitante.
+**`strings`**: "Preguntas"/"Una lista de preguntas que se abren al tocarlas.", "Columnas"/"De dos a
+seis columnas, cada una con foto, título y texto.", "Filas"/"Filas de foto y texto que alternan de
+lado.", y los labels/hints de `InstanciaItemsEditor.tsx` — las tres tarjetas y el formulario, todos
+sólo visibles para quien administra el panel.
+
+### `schema`/`cross-repo-contract`
+
+Sin migraciones ni cambio de modelo Prisma. `site-content-schema.ts` gana tres instance-schemas +
+tres item-schemas — aprobado explícitamente por el dispatch. Ningún contrato cruzado (no hay otro
+repo consumiendo este JSON).
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
+completo verde en las dos capas obligatorias (`npm run gate`, dos corridas): `typecheck` 0 errores,
+`npm test` 3661/3661, `npm run test:integracion` 346/346. `verificar:nayoli:visual` reproduce el
+piso heredado exacto, cero píxeles de más; `verificar:nayoli` (byte-exacto) no da vacío por drift
+heredado de commits ANTERIORES a este slice (medido y citado arriba), no por código de esta tanda.
+Arnés real de punta a punta en verde en su primera corrida completa (agregar los tres tipos, editar,
+publicar, confirmar en Chromium y WebKit, escritorio y teléfono); una segunda corrida con una
+captura más prolija (scroll completo antes del `fullPage`, imagen real en el tercer ítem) no
+terminó dentro de la ventana de esta sesión, sin afectar el veredicto (§ arriba). Commiteado en
+`slice/editor-secciones-1`, commit `8f92ee7`, encima de `d3c6a77`.
+
+**Open follow-up: `PREGUNTAS-FRECUENTES-UNIFICAR-1`** (§ arriba) — refactorizar
+`PreguntasFrecuentes.tsx` para aceptar props y que `SeccionPreguntas` lo reuse, unificando las dos
+FAQ del storefront. Fuera de `touches:` de este slice.
+
+**Cierra `SECCIONES-TIPOS-2`.**
