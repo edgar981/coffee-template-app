@@ -7,7 +7,8 @@ import { motion, useTransform, type MotionValue } from "framer-motion";
 import CampoEditable, { CampoEditableGemelo } from "@/components/storefront/CampoEditable";
 import {
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay,
-  transformEntradaSalidaItem, opacidadEntradaSalidaItem,
+  opacidadEntradaSalidaItem,
+  transformTransicionMarquesinaItem, filterTransicionMarquesinaItem,
   UMBRAL_REVELADO_TEXTO,
   duracionTickerS, duracionTickerFallbackS, velocidadTickerPxS,
   MARQUEE_TITULO_FONT_SIZE, MARQUEE_TITULO_LINE_HEIGHT, MARQUEE_TITULO_LETTER_SPACING,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/animation";
 import { imagenPortada } from "@/lib/producto-imagen";
 import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } from "@/lib/storefront/marquesina-tarjeta";
+import type { TransicionMarquesina } from "@/lib/config/site-content-defaults";
 import type { Product } from "@/types/product";
 
 // EL MOTOR COMPARTIDO (§ EDITOR-TIENDA-MARQUESINA-SECCION-1) — la coreografía que
@@ -31,6 +33,11 @@ import type { Product } from "@/types/product";
 // llamaba antes de esta extracción. El JSX de las dos piezas de abajo es el mismo que vivía en
 // `HeroMediaMarquesina.tsx`, con los valores fijos (el campo `marquesina.texto`, la ventana
 // `UMBRAL_ENTRADA_TARJETA_MARQUESINA`, el techo `1`) vueltos PROPS.
+//
+// SIGUE SIENDO CIERTO tras § EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1: `MarquesinaTarjetaMotor` ganó
+// `transicion` (default `'subir'`), que el HERO nunca pasa — `transformTransicionMarquesinaItem
+// ('subir', …)` (`lib/animation.ts`) delega en la MISMA `transformEntradaSalidaItem` de siempre, así
+// que el párrafo de arriba sigue describiendo exactamente lo que el hero recibe.
 
 /**
  * El loop de texto a gran escala: MÁSCARA (centra + recorta, estática) → MOTOR (traslada/aclara por
@@ -105,10 +112,17 @@ export function MarquesinaFraseMotor({
  * ELEMENTO, sin máscara (§ MARQUESINA-TARJETA-SIN-MASCARA-1: el `transform`/`opacity` van en el
  * mismo elemento que ya tiene su tamaño final y su `overflow-hidden`, para que recorte y movimiento
  * viajen juntos y la tarjeta nunca se vea cortada a medio camino).
+ *
+ * `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1, default `'subir'`) decide CUÁL de las
+ * cinco funciones de `lib/animation.ts` produce el `transform`/`filter` — el HERO (que nunca pasa
+ * esta prop) queda BYTE-IDÉNTICO: `transformTransicionMarquesinaItem('subir', …)` delega en la MISMA
+ * `transformEntradaSalidaItem` que ya llamaba antes de este slice, y `filterTransicionMarquesinaItem`
+ * devuelve `'none'` para cualquier transición que no sea `'enfocar'`. `indice` (default 0) sólo lo
+ * usa `'deslizar'`, para alternar el lado por el que entra cada producto (§ `direccionDeslizarItem`).
  */
 export function MarquesinaTarjetaMotor({
   producto, progreso, estatico, ventanaEntrada, ventanaSalida, techo = 1,
-  posicion = 'relativa',
+  posicion = 'relativa', transicion = 'subir', indice = 0,
 }: {
   producto: Product;
   progreso: MotionValue<number>;
@@ -119,6 +133,8 @@ export function MarquesinaTarjetaMotor({
   /** 'relativa' (el hero, un producto único centrado en su `<section>` flex) o 'absoluta' (la banda
    *  suelta: varias tarjetas apiladas en el MISMO lugar, para que una reemplace a la otra). */
   posicion?: 'relativa' | 'absoluta';
+  transicion?: TransicionMarquesina;
+  indice?: number;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [tamanoImagen, setTamanoImagen] = useState<{ w: number; h: number } | null>(null);
@@ -127,15 +143,16 @@ export function MarquesinaTarjetaMotor({
   }, [producto.slug]);
   const modo = modoTarjetaMarquesina(tamanoImagen?.w, tamanoImagen?.h);
 
-  const transform = useTransform(progreso, (p) => transformEntradaSalidaItem(p, estatico, ventanaEntrada, ventanaSalida));
+  const transform = useTransform(progreso, (p) => transformTransicionMarquesinaItem(transicion, p, estatico, ventanaEntrada, ventanaSalida, indice));
   const opacidad = useTransform(progreso, (p) => opacidadEntradaSalidaItem(p, estatico, ventanaEntrada, ventanaSalida, techo));
+  const filtro = useTransform(progreso, (p) => filterTransicionMarquesinaItem(transicion, p, estatico, ventanaEntrada, ventanaSalida));
 
   const posicionClase = posicion === 'absoluta' ? 'absolute inset-0 m-auto' : 'relative';
 
   return (
     <motion.div
       className={`${posicionClase} z-20 grid aspect-[3/4] w-[min(340px,62vw)] place-items-center overflow-hidden sf-radio-tile ${modo === 'tile' ? 'bg-[var(--sf-tarjeta,white)] p-8' : ''}`}
-      style={{ transform, opacity: opacidad }}
+      style={{ transform, opacity: opacidad, filter: filtro }}
     >
       <div className="relative h-full w-full">
         <Image

@@ -25,6 +25,11 @@ import {
   transformEntradaSalidaItem, opacidadEntradaSalidaItem,
   ventanasBandaMarquesina, claseAlturaAncestroBandaMarquesina,
   MARQUESINA_BANDA_TEXTO_VH, MARQUESINA_BANDA_ITEM_VH, MAX_ITEMS_BANDA_MARQUESINA,
+  direccionDeslizarItem, transformDeslizarItem,
+  transformAcercarItem, MARQUESINA_ACERCAR_ESCALA_INICIAL,
+  filterEnfocarItem, MARQUESINA_ENFOCAR_DESENFOQUE_PX,
+  transformGirarItem, MARQUESINA_GIRAR_ESCALA_INICIAL, MARQUESINA_GIRAR_GRADOS,
+  transformTransicionMarquesinaItem, filterTransicionMarquesinaItem,
 } from './animation';
 import { BANDA_IDS } from './config/site-content-defaults';
 
@@ -1203,6 +1208,119 @@ test('CON ventanaSalida: estatico=true SIEMPRE en su lugar y al techo, sin impor
   for (const p of [0, 0.25, 0.55, 1]) {
     assert.equal(transformEntradaSalidaItem(p, true, entrada, salida), 'translateY(0%)');
     assert.equal(opacidadEntradaSalidaItem(p, true, entrada, salida, 0.9), 0.9);
+  }
+});
+
+// ─── EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1 — las CUATRO transiciones nuevas ────────────────────
+//
+// Mismos checkpoints que la suite de `transformEntradaSalidaItem` arriba, para las CINCO (inicio,
+// mitad de la entrada, en su lugar/hold, mitad de la salida, después de salir): `entrada = {desde:
+// 0.2, hasta:0.3}`, `salida = {desde:0.5, hasta:0.6}` — p=0.1 (antes de entrar), p=0.25 (a mitad de
+// entrar), p=0.4 (hold), p=0.55 (a mitad de salir), p=0.9 (ya salió).
+const ENTRADA = { desde: 0.2, hasta: 0.3 };
+const SALIDA = { desde: 0.5, hasta: 0.6 };
+
+test('direccionDeslizarItem: alterna por índice — par=+1 (derecha), impar=-1 (izquierda)', () => {
+  assert.equal(direccionDeslizarItem(0), 1);
+  assert.equal(direccionDeslizarItem(1), -1);
+  assert.equal(direccionDeslizarItem(2), 1);
+  assert.equal(direccionDeslizarItem(3), -1);
+});
+
+test('transformDeslizarItem (índice 0, dir +1): recorrido completo, derecha→centro→sigue a la izquierda', () => {
+  assert.equal(transformDeslizarItem(0.1, false, ENTRADA, SALIDA, 0), 'translateX(100.0%)');
+  assert.equal(transformDeslizarItem(0.25, false, ENTRADA, SALIDA, 0), 'translateX(50.0%)');
+  assert.equal(transformDeslizarItem(0.4, false, ENTRADA, SALIDA, 0), 'translateX(0.0%)');
+  assert.equal(transformDeslizarItem(0.55, false, ENTRADA, SALIDA, 0), 'translateX(-50.0%)');
+  assert.equal(transformDeslizarItem(0.9, false, ENTRADA, SALIDA, 0), 'translateX(-100.0%)');
+});
+
+test('transformDeslizarItem (índice 1, dir -1): el ESPEJO — izquierda→centro→sigue a la derecha', () => {
+  assert.equal(transformDeslizarItem(0.1, false, ENTRADA, SALIDA, 1), 'translateX(-100.0%)');
+  assert.equal(transformDeslizarItem(0.9, false, ENTRADA, SALIDA, 1), 'translateX(100.0%)');
+});
+
+test('transformDeslizarItem: SIN ventanaSalida (el último producto) — se asienta en 0% y se queda', () => {
+  assert.equal(transformDeslizarItem(0.4, false, ENTRADA, undefined, 0), 'translateX(0.0%)');
+  assert.equal(transformDeslizarItem(0.9, false, ENTRADA, undefined, 0), 'translateX(0.0%)');
+});
+
+test('transformDeslizarItem: estatico=true SIEMPRE 0%, sin importar el progreso ni el índice', () => {
+  for (const p of [0, 0.25, 0.55, 1]) assert.equal(transformDeslizarItem(p, true, ENTRADA, SALIDA, 0), 'translateX(0%)');
+});
+
+test('transformAcercarItem: arranca en la escala inicial, se asienta en 1, sigue creciendo al salir', () => {
+  assert.equal(transformAcercarItem(0.1, false, ENTRADA, SALIDA), `scale(${MARQUESINA_ACERCAR_ESCALA_INICIAL.toFixed(3)})`);
+  assert.equal(transformAcercarItem(0.25, false, ENTRADA, SALIDA), 'scale(0.960)');
+  assert.equal(transformAcercarItem(0.4, false, ENTRADA, SALIDA), 'scale(1.000)');
+  assert.equal(transformAcercarItem(0.55, false, ENTRADA, SALIDA), 'scale(1.040)');
+  assert.equal(transformAcercarItem(0.9, false, ENTRADA, SALIDA), 'scale(1.080)');
+});
+
+test('transformAcercarItem: SIN ventanaSalida — se asienta en 1 y se queda (nunca sigue creciendo)', () => {
+  assert.equal(transformAcercarItem(0.4, false, ENTRADA, undefined), 'scale(1.000)');
+  assert.equal(transformAcercarItem(0.9, false, ENTRADA, undefined), 'scale(1.000)');
+});
+
+test('transformAcercarItem: estatico=true SIEMPRE scale(1)', () => {
+  for (const p of [0, 0.25, 0.9]) assert.equal(transformAcercarItem(p, true, ENTRADA, SALIDA), 'scale(1)');
+});
+
+test('filterEnfocarItem: desenfocado al arrancar, nítido en el hold, SE DESENFOCA OTRA VEZ al salir (blur no puede ser negativo)', () => {
+  assert.equal(filterEnfocarItem(0.1, false, ENTRADA, SALIDA), `blur(${MARQUESINA_ENFOCAR_DESENFOQUE_PX.toFixed(1)}px)`);
+  assert.equal(filterEnfocarItem(0.25, false, ENTRADA, SALIDA), 'blur(5.0px)');
+  assert.equal(filterEnfocarItem(0.4, false, ENTRADA, SALIDA), 'blur(0.0px)');
+  assert.equal(filterEnfocarItem(0.55, false, ENTRADA, SALIDA), 'blur(5.0px)');
+  assert.equal(filterEnfocarItem(0.9, false, ENTRADA, SALIDA), `blur(${MARQUESINA_ENFOCAR_DESENFOQUE_PX.toFixed(1)}px)`);
+});
+
+test('filterEnfocarItem: SIN ventanaSalida — se queda nítido (0px) para siempre, nunca vuelve a desenfocarse', () => {
+  assert.equal(filterEnfocarItem(0.4, false, ENTRADA, undefined), 'blur(0.0px)');
+  assert.equal(filterEnfocarItem(0.9, false, ENTRADA, undefined), 'blur(0.0px)');
+});
+
+test('filterEnfocarItem: estatico=true SIEMPRE blur(0px) — nítido, nunca a medio desenfocar', () => {
+  for (const p of [0, 0.25, 0.9]) assert.equal(filterEnfocarItem(p, true, ENTRADA, SALIDA), 'blur(0px)');
+});
+
+test('transformGirarItem: MISMA MAGNITUD que transformMarquesinaTarjeta (0.85→1, -4°→0°) al entrar; continúa girando hacia el signo OPUESTO al salir', () => {
+  assert.equal(transformGirarItem(0.1, false, ENTRADA, SALIDA), `scale(${MARQUESINA_GIRAR_ESCALA_INICIAL.toFixed(3)}) rotate(-${MARQUESINA_GIRAR_GRADOS.toFixed(2)}deg)`);
+  assert.equal(transformGirarItem(0.25, false, ENTRADA, SALIDA), 'scale(0.925) rotate(-2.00deg)');
+  assert.equal(transformGirarItem(0.4, false, ENTRADA, SALIDA), 'scale(1.000) rotate(0.00deg)');
+  assert.equal(transformGirarItem(0.55, false, ENTRADA, SALIDA), 'scale(1.075) rotate(2.00deg)');
+  assert.equal(transformGirarItem(0.9, false, ENTRADA, SALIDA), `scale(1.150) rotate(${MARQUESINA_GIRAR_GRADOS.toFixed(2)}deg)`);
+});
+
+test('transformGirarItem: SIN ventanaSalida — se endereza en scale(1) rotate(0deg) y se queda', () => {
+  assert.equal(transformGirarItem(0.4, false, ENTRADA, undefined), 'scale(1.000) rotate(0.00deg)');
+  assert.equal(transformGirarItem(0.9, false, ENTRADA, undefined), 'scale(1.000) rotate(0.00deg)');
+});
+
+test('transformGirarItem: estatico=true SIEMPRE scale(1) rotate(0deg)', () => {
+  for (const p of [0, 0.25, 0.9]) assert.equal(transformGirarItem(p, true, ENTRADA, SALIDA), 'scale(1) rotate(0deg)');
+});
+
+// ─── EL DISPATCH — transformTransicionMarquesinaItem / filterTransicionMarquesinaItem ─────────────
+
+test('transformTransicionMarquesinaItem: cada nombre despacha a SU función, byte a byte', () => {
+  const p = 0.25;
+  assert.equal(transformTransicionMarquesinaItem('subir', p, false, ENTRADA, SALIDA, 0), transformEntradaSalidaItem(p, false, ENTRADA, SALIDA));
+  assert.equal(transformTransicionMarquesinaItem('deslizar', p, false, ENTRADA, SALIDA, 1), transformDeslizarItem(p, false, ENTRADA, SALIDA, 1));
+  assert.equal(transformTransicionMarquesinaItem('acercar', p, false, ENTRADA, SALIDA, 0), transformAcercarItem(p, false, ENTRADA, SALIDA));
+  assert.equal(transformTransicionMarquesinaItem('enfocar', p, false, ENTRADA, SALIDA, 0), 'none');
+  assert.equal(transformTransicionMarquesinaItem('girar', p, false, ENTRADA, SALIDA, 0), transformGirarItem(p, false, ENTRADA, SALIDA));
+});
+
+test('transformTransicionMarquesinaItem: un nombre fuera del set cerrado cae al comportamiento de "subir" (guarda defensiva, como velocidadTickerPxS)', () => {
+  const p = 0.25;
+  assert.equal(transformTransicionMarquesinaItem('basura', p, false, ENTRADA, SALIDA, 0), transformEntradaSalidaItem(p, false, ENTRADA, SALIDA));
+});
+
+test('filterTransicionMarquesinaItem: SÓLO "enfocar" devuelve un blur — las otras cuatro (y la basura) dan "none"', () => {
+  const p = 0.25;
+  assert.equal(filterTransicionMarquesinaItem('enfocar', p, false, ENTRADA, SALIDA), filterEnfocarItem(p, false, ENTRADA, SALIDA));
+  for (const tipo of ['subir', 'deslizar', 'acercar', 'girar', 'basura']) {
+    assert.equal(filterTransicionMarquesinaItem(tipo, p, false, ENTRADA, SALIDA), 'none');
   }
 });
 

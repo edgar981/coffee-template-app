@@ -350,6 +350,30 @@ const OPCIONES_IMAGEN_TIPO_MARQUESINA: { value: string; label: string }[] = [
   { value: 'video', label: 'Video' },
 ];
 
+// El select de la transición de salida de los productos (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1)
+// — MISMO patrón que `OPCIONES_IMAGEN_TIPO_MARQUESINA`/`OPCIONES_VELO_INTENSIDAD` arriba: las claves
+// salen del set cerrado del resolver (`REGISTRY.marquesina.escalares.transicion`, site-content-
+// defaults.ts, `TRANSICIONES_MARQUESINA`), este archivo sólo agrega la etiqueta legible. En el MISMO
+// orden que ese array (el pedido del owner, 1 a 5).
+//
+// SIN VISTA PREVIA EN MINIATURA AL PASAR EL MOUSE — DESVIACIÓN MEDIDA del spec, declarada: el spec
+// pedía "una vista mínima de cada una al pasar el mouse si el panel lo permite sin otra dependencia
+// (si no, solo los nombres y decilo)". Es un `<select>` NATIVO (§ CLAUDE.md, "el select es NATIVO" —
+// Controles de formulario): "la lista desplegada la pinta el sistema operativo y no se puede
+// tipografiar", así que no hay dónde montar una miniatura dentro de la lista abierta sin reemplazar
+// el control nativo por uno compuesto (Popover+Command, como `CategoriaCombobox`) — ese reemplazo es
+// la "otra dependencia" que el spec permite esquivar, y acá NO hay una segunda forma ya visible en
+// el panel para la misma tarea (el criterio que sí justificó el combobox de categoría) que lo
+// justifique. Por eso: SÓLO LOS NOMBRES, en el `<select>`, y el `hint` del campo describe cada uno en
+// una frase — la vista real es la vista previa en vivo del editor o la tienda publicada.
+const OPCIONES_TRANSICION_MARQUESINA: { value: string; label: string }[] = [
+  { value: 'subir', label: 'Subir' },
+  { value: 'deslizar', label: 'Deslizar' },
+  { value: 'acercar', label: 'Acercar' },
+  { value: 'enfocar', label: 'Enfocar' },
+  { value: 'girar', label: 'Girar' },
+];
+
 // La banda MARQUESINA (§ MARQUESINA-BANDA-1, ampliada por § EDITOR-TIENDA-MARQUESINA-SECCION-1 — ver
 // el docstring de `MarquesinaContent` en site-content-defaults.ts para el porqué de cada campo
 // nuevo): fondo (foto o video) velado + un texto propio en loop + hasta seis productos que van
@@ -385,6 +409,10 @@ const OPCIONES_IMAGEN_TIPO_MARQUESINA: { value: string; label: string }[] = [
 // `MarquesinaContent`), cada uno con el MISMO picker de catálogo (`producto: true`) que ya usa
 // `productoSlug`. Los seis son opcionales: el hint de cada uno dice qué pasa si queda vacío, y el
 // de `producto1` explica el fallback al catálogo que cubre a los seis.
+//
+// `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) es el SÉPTIMO campo: el select de las
+// CINCO transiciones de salida de los productos (`OPCIONES_TRANSICION_MARQUESINA`, arriba) — pedido
+// aparte del owner, no de esta ronda de MARQUESINA-SECCION-1.
 const MARQUESINA: SeccionConfig = {
   seccion: 'marquesina',
   pagina: 'home',
@@ -396,6 +424,8 @@ const MARQUESINA: SeccionConfig = {
   campos: [
     { name: 'imagenTipo', label: 'Tipo de fondo', opciones: OPCIONES_IMAGEN_TIPO_MARQUESINA,
       hint: 'Si la imagen de fondo de arriba es una foto o un video.' },
+    { name: 'transicion', label: 'Cómo salen los productos', opciones: OPCIONES_TRANSICION_MARQUESINA,
+      hint: 'El efecto con que cada producto aparece y desaparece al hacer scroll. Subir: de abajo hacia arriba (la de hoy). Deslizar: desde un costado, alternando. Acercar: un zoom suave. Enfocar: de desenfocado a nítido. Girar: un giro leve que se endereza. Sin vista previa en miniatura — mira el resultado en la vista previa de la página.' },
     { name: 'fraseBanda', label: 'Frase de la marquesina', textarea: true,
       hint: 'La frase que se repite desplazándose por la banda. Vacío: se usa el texto por defecto.' },
     { name: 'producto1', label: 'Producto 1', opcional: true, producto: true,

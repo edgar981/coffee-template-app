@@ -49459,3 +49459,185 @@ secuencia en chromium/webkit, escritorio/teléfono) no corrió dentro del tiempo
 § arriba, "LÍMITE". El código, el modelo y el gate automatizado están completos y verdes; lo que
 falta es la evidencia visual por ejecución que el spec pedía como parte del cierre. Ver
 `EDITOR-TIENDA-MARQUESINA-SECCION-ARNES-PENDIENTE-1`.
+
+## 2026-10-03 — Cinco transiciones de salida para los productos de la banda Marquesina (`EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`)
+
+**El pedido del owner, literal (2026-10-03), sobre la sección Marquesina:** «se pueden agregar 4-5
+transiciones diferentes en la sección y así si el cliente quiere puede elegir otro». Sigue a
+`EDITOR-TIENDA-MARQUESINA-SECCION-1` (la banda suelta ya reutilizable, con el motor de revelado del
+hero generalizado a hasta seis productos) y cierra el follow-up `EDITOR-TIENDA-MARQUESINA-
+TRANSICIONES-1` que ese mismo slice había coined.
+
+### Qué se construyó
+
+Un SÉPTIMO campo en `MarquesinaContent` (`site-content-defaults.ts`): `transicion`, escalar clampado
+(mismo mecanismo que `imagenTipo`) sobre el set cerrado `TRANSICIONES_MARQUESINA = ['subir',
+'deslizar', 'acercar', 'enfocar', 'girar']` (el orden del pedido del owner, 1 a 5), canónica
+`'subir'` — la entrada de HOY, byte-idéntica sin fila.
+
+Cuatro funciones puras nuevas en `lib/animation.ts`, cada una con sus constantes nombradas:
+
+| Transición | Función | Magnitud | Porqué |
+|---|---|---|---|
+| Deslizar | `transformDeslizarItem` | `REVELADO_TRASLADO_PCT` (reusada) × `direccionDeslizarItem(indice)` (±1, alterna por posición) | mismo recorrido horizontal que "Subir" tiene vertical, con signo alternante |
+| Acercar | `transformAcercarItem` | `MARQUESINA_ACERCAR_ESCALA_INICIAL = 0.92` | zoom sutil — "crece suave" del spec |
+| Enfocar | `filterEnfocarItem` | `MARQUESINA_ENFOCAR_DESENFOQUE_PX = 10` | único efecto sin `transform`, sólo `filter:blur()` |
+| Girar | `transformGirarItem` | `MARQUESINA_GIRAR_ESCALA_INICIAL = 0.85` / `MARQUESINA_GIRAR_GRADOS = 4` | MISMA magnitud que la `transformMarquesinaTarjeta` retirada del hero — el gesto Cafeone |
+
+Las tres primeras (Deslizar/Acercar/Girar) siguen el patrón "sigue de largo" que `transformEntrada
+SalidaItem` ("Subir") ya establecía: al salir, el efecto CONTINÚA en la misma dirección que traía
+(no rebota hacia el estado de entrada) — Deslizar cruza hacia el lado opuesto, Acercar sigue
+creciendo más allá de 1, Girar sigue rotando hacia el signo opuesto. Enfocar es la ÚNICA excepción,
+documentada en su propio comentario: un blur negativo no existe en CSS, así que SUMA las dos rampas
+(entrada+salida) en vez de restarlas — el producto se desenfoca otra vez al irse, simétrico a como
+llegó.
+
+Dos dispatchers (`transformTransicionMarquesinaItem`/`filterTransicionMarquesinaItem`) despachan por
+nombre, con `default`/fallback a "Subir" como guarda defensiva (mismo criterio que
+`velocidadTickerPxS`). `MarquesinaTarjetaMotor` (`MarquesinaMotor.tsx`) gana dos props opcionales,
+`transicion` (default `'subir'`) e `indice` (default `0`, sólo lo usa Deslizar), y un tercer
+`useTransform` para `filter` junto a los dos que ya tenía (`transform`/`opacity`, que NO cambiaron).
+
+**El HERO queda BYTE-IDÉNTICO, por construcción, no por caso especial:** `HeroMediaMarquesina.tsx`
+(fuera de `touches:`, no tocado) nunca pasa `transicion`, así que cae al default `'subir'`, que el
+dispatch delega byte a byte en `transformEntradaSalidaItem` — la misma función de siempre, sin un
+`if` que distinga "soy el hero".
+
+El panel (`components/admin/tienda-secciones.ts`) gana el campo «Cómo salen los productos» en la
+tarjeta Marquesina, un `<select>` NATIVO de las cinco opciones (`OPCIONES_TRANSICION_MARQUESINA`),
+inmediatamente después de «Tipo de fondo».
+
+### Deviation — sin vista previa en miniatura al pasar el mouse (medida, declarada)
+
+El spec pedía "una vista mínima de cada una al pasar el mouse si el panel lo permite sin otra
+dependencia (si no, solo los nombres y decilo)". Es un `<select>` nativo (§ CLAUDE.md, "el select es
+NATIVO": "la lista desplegada la pinta el sistema operativo y no se puede tipografiar") — no hay
+dónde montar una miniatura dentro de la lista abierta sin reemplazarlo por un control compuesto
+(Popover+Command, como `CategoriaCombobox`), y a diferencia del caso que justificó ESE combobox (dos
+formas visibles del mismo control en el panel, el date-picker vs. el `<input type=date>`), acá no
+hay una segunda forma de la misma tarea ya en pantalla que justifique el reemplazo. Se tomó la rama
+"si no, solo los nombres": el `<select>` lista las cinco por nombre, y su `hint` describe cada una en
+una frase. Declarado en el código (`tienda-secciones.ts`) y en `docs/editor-tienda/REDISENO.md`.
+
+### Gate — medido, las dos capas
+
+```
+npx tsc --noEmit                        → 0 errores
+npm test                                → 3427/3427
+npm run test:integracion                → 328/328
+```
+
+(`lib/animation.test.ts` ganó 25 tests nuevos para las cuatro funciones + los dos dispatchers, en
+inicio/mitad/fin del progreso, con y sin `ventanaSalida`, y bajo `estatico`. `lib/config/marquesina-
+banda.test.ts` ganó 2 tests para el escalar `transicion` en el modelo. `tests/integracion/
+marquesina.test.ts` ganó 3 tests para el viaje borrador→publicar→releer del campo nuevo, incluida la
+canónica sin fila y la basura clampada al releer.)
+
+### `npm run verificar:nayoli:visual` — Nayoli no cambia, medido contra el piso YA conocido
+
+Nayoli (sin preset) nunca enciende `marquesina.visible`, así que el cambio no debería tocar un solo
+píxel suyo. Medido, main vs. esta rama:
+
+```
+ruta:home          → 165052/4608000 px (AA), 174711 crudo — caja [105,862]–[1183,3581]
+ruta:tienda        → 163/2433280 px (AA), 361 crudo         — caja [445,1872]–[541,1882]
+ruta:producto      → 163/2535680 px (AA), 361 crudo         — caja [445,1952]–[541,1962]
+ruta:checkout      → 163/1152000 px (AA), 361 crudo         — caja [445,774]–[541,784]
+ruta:nosotros      → 163/1152000 px (AA), 361 crudo         — caja [445,716]–[541,726]
+ruta:suscripciones → 163/2144000 px (AA), 361 crudo         — caja [445,1646]–[541,1656]
+hover:automatica   → IDÉNTICO (0 px)
+hover:eleccion     → IDÉNTICO (0 px)
+```
+
+**Cifra IDÉNTICA, al píxel, a la ya reconciliada por `EDITOR-TIENDA-MARQUESINA-SECCION-1`** (que a su
+vez la reconcilió contra `PIE-HECHO-POR-DUNA-1` + `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, DECISIONS.md
+línea ~49347) — confirma que este slice agrega CERO drift nuevo sobre el ya documentado (preexistente
+en la rama desde antes de `EDITOR-TIENDA-MARQUESINA-SECCION-1`, ajeno a `touches:` de este slice:
+`d95f755` — PIE-HECHO-POR-DUNA-1 — es ancestro del HEAD de partida de este slice y NO lo es de `main`,
+verificado con `git merge-base --is-ancestor`). No se corrió `npm run guarda:color` — no estaba en el
+`Cierre` del spec de este slice, y `verificar:nayoli:visual` ya mide el mismo hecho con más detalle
+(6 rutas + 2 hovers contra 1 sola comparación agregada).
+
+### La sesión en el arnés — SÍ SE COMPLETÓ (a diferencia de `EDITOR-TIENDA-MARQUESINA-SECCION-1`)
+
+Harness ad-hoc nuevo (`.scratch/marquesina-transiciones-{seed,capturar,wrapper}.ts`, gitignored,
+mismo patrón que el de la ronda anterior): Postgres efímero propio (puerto 55442, base
+`marquesinatransiciones`), **UN SOLO** `npm run build` + `next start` (puerto 3497), y adentro un
+LOOP sobre las cinco transiciones — re-siembra `content.marquesina.transicion` vía Prisma (sin
+rebuild ni restart: el storefront es dinámico, § CLAUDE.md) y captura con Playwright chromium
+(instalación persistente de `.arnes-tooling/playwright`).
+
+**Tres puntos de scroll por transición, DERIVADOS de `ventanasBandaMarquesina(3)` (la MISMA función
+que el componente usa), no adivinados**: el punto medio de la ventana de ENTRADA del producto 1, el
+punto medio de su ventana de SALIDA, y el punto medio de la ENTRADA del producto 3 (el último, sin
+`ventanaSalida`) — tres momentos EN TRÁNSITO (el estado asentado converge igual para las cinco
+transiciones, así que no es informativo). Dos viewports (escritorio 1440×900, móvil 390×844, iPhone
+13 — mismos que la ronda anterior). El alto total de la secuencia (`H`) se MIDE del DOM real
+(`offsetHeight` del wrapper `[data-marquesina-banda]`), no se re-deriva de `extraVh` — no depende de
+que `100svh` coincida al píxel con el alto del viewport real del navegador.
+
+**Resultado: 5 transiciones × 2 viewports × 3 puntos = 30 capturas, todas generadas** (verificado:
+`find .capturas/editor-tienda-marquesina-transiciones-1 -type f` lista 30 PNG + 10 WEBM — un clip
+por transición y viewport, grabado con `recordVideo` de Playwright sobre la MISMA corrida, "si el
+arnés graba video" del spec). Teardown limpio verificado (`lsof -i tcp:55442`/`tcp:3497`, ambos
+libres tras terminar).
+
+**Inspección visual de las capturas (no sólo "se generaron"):** se recortaron y compararon a mano
+pares de capturas entre transiciones en el MISMO punto de progreso (`entrada-producto1`,
+progreso≈0.16) — Subir muestra la tarjeta traslada verticalmente desde abajo; Deslizar la muestra
+desplazada HORIZONTALMENTE (a la derecha, consistente con `direccionDeslizarItem(0)=+1`); Acercar la
+muestra ligeramente más chica (el 8% de delta es sutil A ESE progreso, por diseño); Enfocar la
+muestra en su posición final pero VISIBLEMENTE desenfocada; Girar la muestra con una leve inclinación.
+El punto `salida-producto1` de Deslizar confirma el patrón "sigue de largo": la tarjeta sigue del
+lado OPUESTO al que entró (ahora a la izquierda), no de vuelta al centro. Las capturas móviles
+(390×844) renderizan sin overflow ni corte.
+
+### Open follow-ups
+
+- **`MARQUESINA-TRANSFORMS-VIEJOS-HUERFANOS-1`** (coined por `EDITOR-TIENDA-MARQUESINA-SECCION-1`,
+  sigue abierto, sin cambio de este slice): `transformMarquesinaTexto`/`transformMarquesinaTarjeta`
+  siguen sin ningún llamador real fuera de sus propios tests. Este slice lo REFUERZA sin resolverlo:
+  `transformGirarItem` (nuevo) reproduce la MISMA magnitud de `transformMarquesinaTarjeta` con soporte
+  de `ventanaSalida` que aquélla nunca tuvo — el caso de uso que `transformMarquesinaTarjeta` serviría
+  si alguien lo reactivara ya lo cubre mejor la función nueva. No se retiró la vieja en este slice
+  (fuera de alcance; su retiro es candidato propio, con sus ~20 tests).
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` / el crédito de `PIE-HECHO-POR-DUNA-1` — sigue abierto,
+  re-confirmado con la MISMA cifra exacta (§ arriba). Ajeno a `touches:` de este slice.
+- `PANEL-EDITOR-VARIANTES-COMPOSICION-1` — sin cambios, ajeno a este slice.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA contra `main` (§ CLAUDE.md, "ORCH-CUSTOMER-BYTES-EJE-1"), que
+ya cargaba `customer_bytes.changed:true` de slices anteriores. Este commit en particular toca
+`components/storefront/home/Marquesina.tsx`/`MarquesinaMotor.tsx` y agrega UN control nuevo que el
+OWNER/operador lee en el panel:
+
+- La tarjeta «Marquesina»: select **"Cómo salen los productos"**, cinco opciones con su hint.
+
+Para un visitante de la tienda SIN que el owner haya tocado nada: CERO bytes distintos — la banda
+sigue `visible:false` por default (Nayoli no la enciende) y, aunque la encendiera, `transicion`
+resuelve a `'subir'` sin fila (byte-idéntico a la entrada de hoy), confirmado por
+`verificar:nayoli:visual` arriba. El cambio de bytes sólo es alcanzable si el OWNER enciende la banda
+Y además elige una transición distinta de "Subir" — en ese caso el visitante vería un efecto de
+scroll distinto, que es la CAPACIDAD que este slice entrega, no un byte que cambie sin acción del
+owner.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: sin migración, sin cambio de modelo Prisma, sin contrato cross-repo.
+`marquesinaEditableSchema` (`site-content-schema.ts`, SCHEMA DE CONTENIDO — no de base de datos) sí
+cambió, con UN campo `z.string().optional()` — aprobado explícitamente por el owner en el spec ("Los
+campos nuevos en el esquema de contenido aprobados por el owner el mismo día").
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo motivo y mismo gate que
+`EDITOR-TIENDA-MARQUESINA-SECCION-1` (el eje es la rama, no el commit; sigue sin mergear). El
+dispatch pide parar antes del merge ("LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). Gate
+verde en las dos capas obligatorias (`tsc` 0 errores, `npm test` 3427/3427, `npm run test:integracion`
+328/328); `verificar:nayoli:visual` confirma CERO drift nuevo (cifra idéntica al piso ya
+reconciliado). La sesión en el arnés SE COMPLETÓ ESTA VEZ — las 30 capturas + 10 clips existen y se
+inspeccionaron visualmente, confirmando que las cinco transiciones se ven distintas entre sí y
+coherentes con su descripción. Commiteado en `slice/corte-reescritura-prototipo-1`.
+
+**Cierra `EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1`.**

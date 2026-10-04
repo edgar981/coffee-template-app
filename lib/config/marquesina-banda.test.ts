@@ -89,8 +89,25 @@ test('REGISTRY.marquesina: `texto`/`imagen`/`fraseBanda` son requeridos; `produc
   for (let i = 1; i <= 6; i++) assert.equal(c[`producto${i}`], 'opcional');
 });
 
-test('REGISTRY.marquesina.escalares.imagenTipo: set cerrado ["imagen","video"], canónica "imagen"', () => {
-  assert.deepEqual(REGISTRY.marquesina.escalares, { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } });
+test('REGISTRY.marquesina.escalares: dos escalares — imagenTipo ["imagen","video"]/"imagen" y transicion (las cinco)/"subir"', () => {
+  assert.deepEqual(REGISTRY.marquesina.escalares, {
+    imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
+    transicion: { claves: ['subir', 'deslizar', 'acercar', 'enfocar', 'girar'], canonica: 'subir' },
+  });
+});
+
+// ─── EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1 — el escalar `transicion` ───────────────────────────
+
+test('DEFAULTS.marquesina.transicion es "subir" — la canónica, byte-idéntica sin fila (la entrada de hoy)', () => {
+  assert.equal(DEFAULTS.marquesina.transicion, 'subir');
+});
+
+test('resolverSiteContent: `transicion` guardada se respeta para cada una de las cinco; basura cae a la canónica "subir"', () => {
+  for (const t of ['subir', 'deslizar', 'acercar', 'enfocar', 'girar']) {
+    assert.equal(resolverSiteContent({ marquesina: { transicion: t } }).marquesina.transicion, t);
+  }
+  assert.equal(resolverSiteContent({ marquesina: { transicion: 'basura' } }).marquesina.transicion, 'subir');
+  assert.equal(resolverSiteContent({}).marquesina.transicion, 'subir');
 });
 
 test('sin fila (Nayoli), marquesina resuelve OFF — DEFAULTS y el gate coinciden', () => {

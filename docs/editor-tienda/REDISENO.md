@@ -257,6 +257,32 @@ que `content.marquesina.texto`/`.productoSlug` no se movieron, pero la sección 
 nuevos propios (`fraseBanda`, `imagenTipo`, `producto1..6`) — ninguno toca el modelo de un cliente
 existente (todos opcionales o con default que preserva el comportamiento de hoy).
 
+**TAMBIÉN FUERA DE ESTA NUMERACIÓN:** `EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1` — las cinco
+transiciones de salida de los productos de la banda suelta — **ENTREGADO** (2026-10-03). Pedido del
+owner sobre la sección Marquesina, literal: «se pueden agregar 4-5 transiciones diferentes en la
+sección y así si el cliente quiere puede elegir otro». El SÉPTIMO campo de `MarquesinaContent`,
+`transicion` (escalar clampado, canónica `'subir'` — la entrada de HOY, byte-idéntica), con CINCO
+valores: Subir (la de hoy) · Deslizar (desde un costado, alternando por producto) · Acercar (zoom
+suave) · Enfocar (de desenfocado a nítido) · Girar (el gesto de la tarjeta Cafeone — escala+rotación,
+misma magnitud que la `transformMarquesinaTarjeta` retirada del hero). Las cuatro nuevas viven como
+funciones puras en `lib/animation.ts` (`transformDeslizarItem`, `transformAcercarItem`,
+`filterEnfocarItem`, `transformGirarItem`), despachadas por `transformTransicionMarquesinaItem`/
+`filterTransicionMarquesinaItem` — `MarquesinaTarjetaMotor` las consume vía dos `useTransform`
+(`transform`/`filter`, propiedades CSS independientes sobre el mismo nodo). El HERO queda
+BYTE-IDÉNTICO: nunca pasa la prop `transicion`, así que cae al default `'subir'`, que el dispatch
+delega byte a byte en `transformEntradaSalidaItem` (la función de siempre).
+
+Toca `lib/animation.ts`, `components/storefront/home/MarquesinaMotor.tsx`,
+`components/storefront/home/Marquesina.tsx`, `lib/config/site-content-defaults.ts`,
+`lib/config/site-content-schema.ts`, `components/admin/tienda-secciones.ts`. Tier 1 (toca
+`components/storefront/` y `site-content-schema.ts`). **Desviación medida y declarada** del spec: el
+panel NO ofrece una vista mínima al pasar el mouse sobre cada opción — el control es un `<select>`
+NATIVO (§ CLAUDE.md, "el select es NATIVO"; "la lista desplegada la pinta el sistema operativo y no
+se puede tipografiar"), y no hay otra forma de la misma tarea YA visible en el panel que justifique
+reemplazarlo por un control compuesto (el criterio que sí justificó `CategoriaCombobox`). El `hint`
+del campo describe las cinco en una frase cada una; la vista real es la vista previa en vivo o la
+tienda publicada.
+
 ---
 
 ## 10 · Lo que este documento NO decide

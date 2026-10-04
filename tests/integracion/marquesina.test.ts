@@ -108,3 +108,47 @@ test('imagenTipo basura cae a la canónica "imagen" al releer — el resolver cl
   const publicado = await readSiteContent();
   assert.equal(publicado.marquesina.imagenTipo, 'imagen');
 });
+
+// § EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1 — el SÉPTIMO campo nuevo (`transicion`) viaja por el
+// MISMO camino genérico. Sin esto en `marquesinaEditableSchema`, zod lo STRIPPEARÍA en silencio al
+// guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado" — el defecto que cerró #65-B).
+test('transicion "girar" sobrevive borrador→publicar→releer', async () => {
+  await guardarComoElRoute({
+    visible: true,
+    texto: 'Tueste fresco cada semana',
+    imagen: '/images/finca-1-v1.jpg',
+    fraseBanda: 'Seis productos, una historia',
+    transicion: 'girar',
+  });
+  await publicarSeccion('marquesina');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.marquesina.transicion, 'girar');
+});
+
+test('transicion basura cae a la canónica "subir" al releer — el resolver clampa, el schema no valida el set cerrado', async () => {
+  await guardarComoElRoute({
+    visible: true,
+    texto: 'Café de origen único',
+    imagen: '/images/finca-1-v1.jpg',
+    fraseBanda: 'Frase de la banda',
+    transicion: 'no-es-ninguna-de-las-cinco',
+  });
+  await publicarSeccion('marquesina');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.marquesina.transicion, 'subir');
+});
+
+test('sin `transicion` en el body: resuelve a la canónica "subir" (Nayoli, que no la edita, no cambia)', async () => {
+  await guardarComoElRoute({
+    visible: true,
+    texto: 'Café de origen único',
+    imagen: '/images/finca-1-v1.jpg',
+    fraseBanda: 'Frase de la banda',
+  });
+  await publicarSeccion('marquesina');
+
+  const publicado = await readSiteContent();
+  assert.equal(publicado.marquesina.transicion, 'subir');
+});

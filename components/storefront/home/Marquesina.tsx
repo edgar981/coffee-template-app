@@ -57,6 +57,15 @@ import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/store
 // `MarquesinaTarjetaMotor` ya saben rendir su estado final bajo `estatico`; lo que cambia es el
 // ANDAMIAJE alrededor (sin wrapper de altura extra, sin `position:sticky`, cards en flujo normal en
 // vez de apiladas una sobre otra).
+//
+// CINCO TRANSICIONES ELEGIBLES (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) — pedido aparte del
+// owner: «se pueden agregar 4-5 transiciones diferentes en la sección y así si el cliente quiere
+// puede elegir otro». `marquesina.transicion` (escalar clampado, `TRANSICIONES_MARQUESINA`,
+// site-content-defaults.ts; canónica `'subir'` — la entrada de HOY, byte-idéntica) viaja a cada
+// `MarquesinaTarjetaMotor` junto con su ÍNDICE en la lista (`i`, 0-based) — el índice sólo lo usa la
+// transición `'deslizar'`, para alternar el lado por el que entra cada producto. Las magnitudes de
+// cada efecto (distancias, escala, desenfoque, grados) viven como constantes nombradas en
+// `lib/animation.ts`, nunca sueltas acá.
 
 export default function Marquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { marquesina } = useSiteContent();
@@ -143,13 +152,15 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
         </div>
 
         <div className="relative z-20 flex flex-wrap items-center justify-center gap-6">
-          {productos.map((producto) => (
+          {productos.map((producto, i) => (
             <MarquesinaTarjetaMotor
               key={producto.slug}
               producto={producto}
               progreso={progreso}
               estatico={estatico}
               ventanaEntrada={{ desde: 0, hasta: 1 }}
+              transicion={marquesina.transicion}
+              indice={i}
             />
           ))}
         </div>
@@ -198,6 +209,8 @@ export default function Marquesina({ style }: { style?: React.CSSProperties } = 
               ventanaEntrada={ventanas.items[i].entrada}
               ventanaSalida={ventanas.items[i].salida}
               posicion="absoluta"
+              transicion={marquesina.transicion}
+              indice={i}
             />
           ))}
         </div>

@@ -228,6 +228,20 @@ export type VeloIntensidad = (typeof VELO_INTENSIDADES)[number];
 export const TICKER_VELOCIDADES = ['media', 'lenta'] as const;
 export type TickerVelocidad = (typeof TICKER_VELOCIDADES)[number];
 
+// EL SET CERRADO de transiciones de salida de la banda MARQUESINA (§ EDITOR-TIENDA-MARQUESINA-
+// TRANSICIONES-1), ver el docstring de `MarquesinaContent.transicion` más abajo para el porqué de
+// cada nombre. MISMA FORMA que `PUNTOS_FOCALES`/`VELO_INTENSIDADES`/`TICKER_VELOCIDADES` arriba: una
+// tupla `as const` + el tipo derivado — este archivo sólo declara el VOCABULARIO de contenido;
+// `lib/animation.ts` lo traduce a magnitud (distancias, escala, desenfoque, grados).
+//
+// EL ORDEN ES EL DEL PEDIDO DEL OWNER (1 a 5, § el spec), que además es el orden de presentación en
+// el `<select>` del panel (`OPCIONES_TRANSICION_MARQUESINA`, tienda-secciones.ts, que mapea este
+// array `.map()`) — 'subir' primero porque es la canónica Y la entrada de hoy, no una posición
+// arbitraria. `resolverVariante` (§ `escalares.transicion` más abajo) no asume que la canónica sea
+// el primer elemento, pero acá sí lo es.
+export const TRANSICIONES_MARQUESINA = ['subir', 'deslizar', 'acercar', 'enfocar', 'girar'] as const;
+export type TransicionMarquesina = (typeof TRANSICIONES_MARQUESINA)[number];
+
 // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, medido: MARQUESINA-BANDA-CENSO-1) — tres capas: foto
 // de fondo velada con overlay oscuro, un LOOP de texto a gran escala que se desplaza con el scroll
 // de la sección, y una tarjeta de producto flotante que escala/rota con el mismo progreso. Es la
@@ -292,6 +306,17 @@ export type TickerVelocidad = (typeof TICKER_VELOCIDADES)[number];
 // independiente (como `presentaciones.categoria1..4`), y el componente filtra los vacíos al armar el
 // orden final. Lista vacía (los seis sin pin) → el componente cae al catálogo, en su orden, hasta el
 // mismo tope (§ `productosBandaMarquesina`, abajo).
+//
+// `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) — EL SÉPTIMO campo nuevo, ESCALAR
+// clampado (mismo mecanismo que `imagenTipo`, dos líneas arriba): CINCO efectos de salida para los
+// productos de la banda (`TRANSICIONES_MARQUESINA`, arriba), elegibles desde el panel con nombres en
+// palabras. Pedido del owner, literal: «se pueden agregar 4-5 transiciones diferentes en la sección
+// y así si el cliente quiere puede elegir otro». `'subir'` es la CANÓNICA — la entrada de HOY
+// (`transformEntradaSalidaItem`, `lib/animation.ts`), byte-idéntica sin fila: Nayoli no cambia. Las
+// otras cuatro (`'deslizar'`, `'acercar'`, `'enfocar'`, `'girar'`) son NUEVAS; sus magnitudes
+// (distancias, escala, desenfoque, grados) viven como constantes nombradas en `lib/animation.ts`,
+// nunca sueltas en el componente — mismo criterio que `VELOCIDAD_TICKER_PX_S`/`OPACIDAD_REVELADO_
+// TECHO` ya siguen para los otros efectos de esta misma banda.
 export interface MarquesinaContent {
   visible: boolean;
   texto: string;
@@ -305,6 +330,7 @@ export interface MarquesinaContent {
   producto4: string;
   producto5: string;
   producto6: string;
+  transicion: TransicionMarquesina;
 }
 
 // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1) — ya era MIEMBRO de
@@ -1781,6 +1807,9 @@ export const DEFAULTS: SiteContentData = {
   // que el test de byte-identidad detecte si algún día alguien copia una en la otra por error).
   // `imagenTipo` canónico 'imagen' — byte-idéntico (sin `escalares` guardado, el resolver clampa a
   // la canónica). `producto1..6` vacíos — sin lista propia, el componente cae al catálogo.
+  //
+  // `transicion` canónica 'subir' (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) — byte-idéntica sin
+  // fila: es la ENTRADA DE HOY (§ `MarquesinaContent.transicion`, arriba).
   marquesina: {
     visible: false,
     texto: 'Calidad que se nota en cada entrega',
@@ -1794,6 +1823,7 @@ export const DEFAULTS: SiteContentData = {
     producto4: '',
     producto5: '',
     producto6: '',
+    transicion: 'subir',
   },
   // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
   // `TrustBadgesContent` arriba). `visible: true` = HOY, byte a byte: la banda se monta siempre hoy
@@ -2408,13 +2438,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // flotante no se muestra, el texto del loop no depende de ella—.
   //
   // `imagenTipo` es un ESCALAR (como `hero.escalares.imagenTipo`): 'imagen'/'video', canónica
-  // 'imagen' — byte-idéntica sin fila.
+  // 'imagen' — byte-idéntica sin fila. `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) es el
+  // SEGUNDO escalar de esta sección: el set cerrado de `TRANSICIONES_MARQUESINA`, canónica 'subir' —
+  // byte-idéntica sin fila (ver el docstring de `MarquesinaContent.transicion`, arriba).
   marquesina: {
     label: 'Marquesina',
     ocultable: true,
     imagenes: ['imagen'],
     escalares: {
       imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
+      transicion: { claves: TRANSICIONES_MARQUESINA, canonica: 'subir' },
     },
     campos: {
       texto: 'requerido',

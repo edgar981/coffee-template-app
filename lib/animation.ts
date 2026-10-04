@@ -1178,6 +1178,187 @@ export function opacidadEntradaSalidaItem(
   return techo * entra * (1 - sale);
 }
 
+// ── LAS CINCO TRANSICIONES DE LA BANDA SUELTA — § EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1 ──────────
+//
+// Pedido del owner, literal: «se pueden agregar 4-5 transiciones diferentes en la sección y así si
+// el cliente quiere puede elegir otro». `'subir'` (arriba, `transformEntradaSalidaItem`) es la
+// CANÓNICA — la entrada de HOY, sin cambios. Las otras CUATRO son NUEVAS; las cuatro COMPARTEN la
+// opacidad con `'subir'` (`opacidadEntradaSalidaItem`, arriba — el fundido de entrada/salida es el
+// mismo para las cinco, sólo cambia el EFECTO visual que lo acompaña) y las cuatro reciben la MISMA
+// `ventanaSalida` OPCIONAL que ya usa `transformEntradaSalidaItem` (el último producto de la banda no
+// tiene a quién cederle el lugar, § `ventanasBandaMarquesina` abajo). TODAS devuelven el estado YA
+// ASENTADO bajo `estatico` (reduced-motion/preview) — "Movimiento reducido: todas colapsan a
+// aparecer sin desplazamiento" (el spec, literal): ninguna deja un desplazamiento, escala, giro o
+// desenfoque a medio camino bajo esa preferencia.
+//
+// REGLA DEL OWNER PARA LAS CINCO: sin máscara, sin recortes, sin bordes extra — el producto entra
+// ENTERO. Las que mueven la caja (deslizar/acercar/girar) aplican su `transform` al MISMO elemento
+// que ya tiene su tamaño final y su `overflow-hidden` (§ MARQUESINA-TARJETA-SIN-MASCARA-1, el
+// docstring de `MarquesinaTarjetaMotor` en `MarquesinaMotor.tsx`) — nunca una máscara estática aparte
+// que recorte el producto a medio camino. Enfocar no mueve la caja en absoluto (sólo `filter`), así
+// que no hay nada que recortar.
+//
+// ── DESLIZAR — entra desde un costado, alternando izquierda/derecha POR ÍTEM ───────────────────────
+//
+// MISMA FÓRMULA que `transformEntradaSalidaItem` (arriba) — "cuánto falta para entrar" menos "cuánto
+// se lleva saliendo", sobre la MISMA caja del elemento — pero en el eje HORIZONTAL (`translateX`) y
+// con un SIGNO que alterna por ítem. Reusa `REVELADO_TRASLADO_PCT` (100% de la propia caja,
+// "totalmente afuera de la máscara") en vez de declarar una magnitud propia: la distancia es la
+// MISMA "fuera de la caja", sólo cambia el EJE.
+//
+// `direccionDeslizarItem(indice)` alterna por POSICIÓN (0-based) en la lista de productos, no por
+// azar — así dos cargas de la misma página, con el mismo orden de productos, deslizan IGUAL. `+1`:
+// el ítem arranca desplazado a la DERECHA (`translateX` positivo) y entra viniendo de ahí; al salir,
+// SIGUE en la misma dirección de recorrido (`translateX` se vuelve negativo) y termina de cruzar
+// hacia la IZQUIERDA — el mismo "sigue de largo, nunca rebota" que `transformEntradaSalidaItem` ya
+// tiene en vertical (entra por abajo, sale por arriba). `-1` es el espejo: entra por la izquierda,
+// sale por la derecha.
+export function direccionDeslizarItem(indice: number): 1 | -1 {
+  return indice % 2 === 0 ? 1 : -1;
+}
+
+export function transformDeslizarItem(
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida: { desde: number; hasta: number } | undefined,
+  indice: number,
+): string {
+  if (estatico) return 'translateX(0%)';
+  const entra = progresoEnVentana(progreso, ventanaEntrada);
+  const sale = ventanaSalida ? progresoEnVentana(progreso, ventanaSalida) : 0;
+  const dir = direccionDeslizarItem(indice);
+  const pct = dir * REVELADO_TRASLADO_PCT * ((1 - entra) - sale);
+  return `translateX(${pct.toFixed(1)}%)`;
+}
+
+// ── ACERCAR — crece suave desde un poco más chico mientras aparece ──────────────────────────────────
+//
+// `MARQUESINA_ACERCAR_ESCALA_INICIAL` es el tamaño de ARRANQUE — SUAVE a propósito ("crece suave", el
+// spec): ni un salto imperceptible (demasiado cerca de 1) ni uno brusco. Es una magnitud ELEGIDA, no
+// medida de ningún prototipo (el gesto de zoom-puro no existe en Cafeone — a diferencia de Girar,
+// abajo, que SÍ reproduce una magnitud medida). Al SALIR, la escala sigue creciendo más allá de 1
+// (mismo patrón "sigue de largo" que Deslizar/Subir: el producto se sigue acercando mientras se
+// desvanece, en vez de encogerse de vuelta hacia donde llegó) — del último producto (sin
+// `ventanaSalida`) esto nunca se ejerce: `sale` queda en 0 y la escala se asienta en 1 para siempre.
+export const MARQUESINA_ACERCAR_ESCALA_INICIAL = 0.92;
+
+export function transformAcercarItem(
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida?: { desde: number; hasta: number },
+): string {
+  if (estatico) return 'scale(1)';
+  const entra = progresoEnVentana(progreso, ventanaEntrada);
+  const sale = ventanaSalida ? progresoEnVentana(progreso, ventanaSalida) : 0;
+  const delta = 1 - MARQUESINA_ACERCAR_ESCALA_INICIAL;
+  const scale = 1 - delta * ((1 - entra) - sale);
+  return `scale(${scale.toFixed(3)})`;
+}
+
+// ── ENFOCAR — pasa de desenfocado a nítido mientras aparece ─────────────────────────────────────────
+//
+// `MARQUESINA_ENFOCAR_DESENFOQUE_PX` es el desenfoque de ARRANQUE, en píxeles de `filter:blur()` —
+// visible pero NO irreconocible: el producto se adivina detrás del desenfoque, no desaparece. Magnitud
+// ELEGIDA (el gesto no existe en Cafeone: es NUEVO, pedido del owner).
+//
+// SIN `transform` propio (§ la regla de las cinco, arriba): Enfocar es el ÚNICO efecto que no mueve
+// ni escala la caja — sólo cambia `filter`, así que no hay nada que la caja `overflow-hidden` pudiera
+// recortar.
+//
+// A DIFERENCIA de las otras tres, esta función NO usa el patrón "sigue de largo": un blur NEGATIVO no
+// existe en CSS, así que la rampa de SALIDA no puede continuar más allá de 0 en la misma dirección
+// que trae. En vez de restar "cuánto falta para entrar" menos "cuánto se lleva saliendo" (la resta
+// que usan Subir/Deslizar/Acercar/Girar), esta SUMA las dos: el producto se desenfoca otra vez
+// mientras se va, simétrico a como llegó.
+export const MARQUESINA_ENFOCAR_DESENFOQUE_PX = 10;
+
+export function filterEnfocarItem(
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida?: { desde: number; hasta: number },
+): string {
+  if (estatico) return 'blur(0px)';
+  const entra = progresoEnVentana(progreso, ventanaEntrada);
+  const sale = ventanaSalida ? progresoEnVentana(progreso, ventanaSalida) : 0;
+  const blur = MARQUESINA_ENFOCAR_DESENFOQUE_PX * ((1 - entra) + sale);
+  return `blur(${blur.toFixed(1)}px)`;
+}
+
+// ── GIRAR — entra con un giro leve y se endereza, el gesto de la tarjeta Cafeone ────────────────────
+//
+// MISMA MAGNITUD que `transformMarquesinaTarjeta` (arriba, medida del prototipo Cafeone,
+// `js/home.js:274-279`): escala 0.85→1, rotación -4°→0°. Esta función NO llama a esa — necesita
+// `ventanaSalida` OPCIONAL (el relevo de hasta seis productos, § "LA SECCIÓN SUELTA" abajo), que
+// `transformMarquesinaTarjeta` no tiene —, así que repite la MAGNITUD con el patrón "sigue de largo"
+// de `transformEntradaSalidaItem`/Deslizar/Acercar: al salir, la tarjeta CONTINÚA girando —hacia el
+// signo OPUESTO del que trajo— y agrandándose más allá de 1, en vez de rebotar hacia el ángulo con
+// que llegó.
+export const MARQUESINA_GIRAR_ESCALA_INICIAL = 0.85;
+export const MARQUESINA_GIRAR_GRADOS = 4;
+
+export function transformGirarItem(
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida?: { desde: number; hasta: number },
+): string {
+  if (estatico) return 'scale(1) rotate(0deg)';
+  const entra = progresoEnVentana(progreso, ventanaEntrada);
+  const sale = ventanaSalida ? progresoEnVentana(progreso, ventanaSalida) : 0;
+  const offset = (1 - entra) - sale;
+  const delta = 1 - MARQUESINA_GIRAR_ESCALA_INICIAL;
+  const scale = 1 - delta * offset;
+  const rot = -MARQUESINA_GIRAR_GRADOS * offset;
+  return `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
+}
+
+// ── EL DISPATCH — una función por NOMBRE de transición, nunca un `if` repetido en el componente ───
+//
+// `tipo` llega YA CLAMPADO por el resolver de contenido (`REGISTRY.marquesina.escalares.transicion`,
+// site-content-defaults.ts) — nunca basura en producción —, pero estas dos funciones son PURAS y se
+// llaman también desde tests con valores arbitrarios, así que el `default` cae a 'subir' (la
+// canónica), MISMA guarda defensiva que `velocidadTickerPxS` ya hace para `tickerVelocidad`.
+// `string`, no `TransicionMarquesina` (ese tipo narrow vive en `site-content-defaults.ts`, el
+// VOCABULARIO de contenido — acá sólo se TRADUCE a magnitud, § el comentario de cabecera de este
+// archivo).
+//
+// DOS funciones, no una que devuelva un objeto: `transform`/`filter` son propiedades CSS
+// INDEPENDIENTES sobre el mismo nodo, y `MarquesinaTarjetaMotor` las anima cada una con su propio
+// `useTransform` (framer-motion no interpola un objeto arbitrario como lo hace con un string/
+// número). Las CUATRO que no son 'enfocar' devuelven `'none'` para `filter` — el valor CSS neutro,
+// para que un cambio de `transicion` en caliente (vista previa del editor) no deje un blur viejo
+// pegado al nodo.
+export function transformTransicionMarquesinaItem(
+  tipo: string,
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida: { desde: number; hasta: number } | undefined,
+  indice: number,
+): string {
+  switch (tipo) {
+    case 'deslizar': return transformDeslizarItem(progreso, estatico, ventanaEntrada, ventanaSalida, indice);
+    case 'acercar': return transformAcercarItem(progreso, estatico, ventanaEntrada, ventanaSalida);
+    case 'enfocar': return 'none';
+    case 'girar': return transformGirarItem(progreso, estatico, ventanaEntrada, ventanaSalida);
+    default: return transformEntradaSalidaItem(progreso, estatico, ventanaEntrada, ventanaSalida);
+  }
+}
+
+export function filterTransicionMarquesinaItem(
+  tipo: string,
+  progreso: number,
+  estatico: boolean,
+  ventanaEntrada: { desde: number; hasta: number },
+  ventanaSalida?: { desde: number; hasta: number },
+): string {
+  if (tipo === 'enfocar') return filterEnfocarItem(progreso, estatico, ventanaEntrada, ventanaSalida);
+  return 'none';
+}
+
 // EL PRESUPUESTO DE LA SECCIÓN SUELTA, EN VH ADITIVOS — NO en fracción del total, a diferencia de
 // `claseAlturaAncestroMarquesina` (arriba). Esa función resuelve "¿qué `H` hace que el punto de
 // despineo caiga en `pUnpin`?", y esa ecuación (`H = VH/(1-pUnpin)`) EXPLOTA cuando `pUnpin→1` — con

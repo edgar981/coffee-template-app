@@ -95,6 +95,11 @@ const heroEditableSchema = z.object({
 // VIVO en tiempo de LECTURA, no al guardar) — los TRES de siempre, sin cambios. `fraseBanda`/
 // `imagenTipo`/`producto1..6` son los SEIS nuevos de la sección suelta (§ `MarquesinaContent`,
 // site-content-defaults.ts) — `producto1..6` son `z.string()`, mismo criterio que `productoSlug`.
+// `transicion` (§ EDITOR-TIENDA-MARQUESINA-TRANSICIONES-1) es el SÉPTIMO campo nuevo: `z.string()`
+// —no `z.enum`—, MISMO motivo que `imagenTipo`: el resolver SOFT (`resolverVariante`, vía
+// `REGISTRY.marquesina.escalares.transicion`) ya clampa al set cerrado de
+// `TRANSICIONES_MARQUESINA`/la canónica 'subir'; sin declararlo acá, zod lo STRIPPEARÍA al guardar
+// (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado" — el defecto que cerró #65-B).
 // Todo opcional/SOFT: el resolver aplica el default a los campos REQUERIDOS (`texto`/`imagen`/
 // `fraseBanda`) y omite los opcionales vacíos.
 const marquesinaEditableSchema = z.object({
@@ -110,6 +115,7 @@ const marquesinaEditableSchema = z.object({
   producto4: z.string().optional(),
   producto5: z.string().optional(),
   producto6: z.string().optional(),
+  transicion: z.string().optional(),
 });
 
 // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
