@@ -52081,3 +52081,51 @@ terminó dentro de la ventana de esta sesión, sin afectar el veredicto (§ arri
 FAQ del storefront. Fuera de `touches:` de este slice.
 
 **Cierra `SECCIONES-TIPOS-2`.**
+
+## 2026-10-04 — La barra flotante deja de ser inalcanzable: un atributo compartido, no una excepción por control (`EDITOR-BARRA-ESTILO-CLIC-1`)
+
+Tier 1, `writes: yes`, aprobado sobre el defecto de `EDITOR-TIENDA-BARRA-FLOTANTE-1` que el propio
+orquestador confirmó leyendo el código (el `approval-reason` del dispatch). La aprobación autoriza
+la escritura, nunca el merge. Detalle completo en `docs/editor-tienda/EDICION-INLINE.md` § 15; este
+asiento es el resumen.
+
+**El defecto:** el listener de clic en captura de `EditorPuenteVivo.tsx` dejaba pasar el overlay de
+texto por un REF puntual (`overlayNodoRef`), pero `BarraEstiloElemento` vive en su PROPIO portal —
+ningún clic en sus botones/selects llegaba al `onClick` de React, y al no matchear ningún
+`[data-editor-*]` conocido, cada clic en la barra se leía como "clic afuera" y CERRABA el campo.
+
+**El arreglo:** `ATRIBUTO_EDITOR_CHROME`/`esClicEnChromeEditor` (nuevos, `lib/storefront/editor-
+puente.ts`) — un atributo COMPARTIDO que el listener consulta ANTES de `preventDefault`/
+`stopPropagation`; si el clic cae dentro de un nodo marcado, sigue su curso nativo y nada se
+intercepta. Reemplaza a `overlayNodoRef` (retirado, dead code) y se suma a los TRES nodos de chrome
+propio del editor: el overlay, el aviso de sesión vencida, y la barra flotante entera. Un control
+futuro hereda la excepción con sólo llevar el atributo.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3669/3669** (+8: `editor-puente.test.ts` +5, `editor-iframe.test.ts` +3 — todo capa 1, la excepción pura y el cableado por source-grep, § el patrón ya establecido para `.tsx` sin jsdom) |
+| `npm run test:integracion` | **346/346**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` | GREEN |
+| `npx next build` | compiló sin error |
+| `npx eslint` (archivos de `touches:` tocados) | `editor-puente.ts`/`.test.ts`, `editor-iframe.test.ts`: 0 nuevos; `EditorPuenteVivo.tsx`: 2 errores + 2 warnings PRE-EXISTENTES (confirmado contra `git show HEAD:…`) — **uno MENOS** que antes (el `ref` callback muerto de `overlayNodoRef` se retiró con él) |
+| `npm run verificar:nayoli:visual` (main vs. rama, doble build) | MISMA cifra exacta que el piso heredado (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta-home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS |
+
+### Verificado por ejecución — `.scratch/verificar-barra-estilo-clic.ts` (no committed), CHROMIUM y WEBKIT
+
+Clic REAL (`.click()`) en Alinear-Centro, un color por rol, y Quitar; Letra/Tamaño abiertos con
+`.click()` real (no sólo `selectOption()`, que no dispara un clic nativo y por eso "funcionaba" aun
+con el defecto presente) y elegidos con `selectOption()` (clickear una opción del popover nativo del
+SO no es automatizable de forma confiable en headless). **31/32 en verde en los dos motores** — cada
+control responde y el campo nunca se cierra, el defecto que este slice arregla.
+
+**El único fallo es un hallazgo DISTINTO, no una regresión de este fix:** en WEBKIT, "Quitar" limpia
+`fuente` pero no `tamano`/`color`/`alinear` — una carrera de `postarEscalonado` (los 4 mensajes
+escalonados de "Quitar") con el round-trip del panel, específica de WebKit, nunca antes expuesta
+porque pre-fix el clic en "Quitar" jamás llegaba a disparar `quitar()` en ningún motor. **Open
+follow-up: `EDITOR-BARRA-ESTILO-QUITAR-WEBKIT-RACE-1`** — el mecanismo vivo (`postarEscalonado`) es
+de `EDITOR-TIENDA-BARRA-FLOTANTE-1`, fuera de `touches:` de este slice; no se toca acá.
+
+**Cierra `EDITOR-BARRA-ESTILO-CLIC-1`.**
