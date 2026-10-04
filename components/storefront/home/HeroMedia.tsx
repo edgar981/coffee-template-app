@@ -127,6 +127,12 @@ import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 // entre las 4 variantes del hero (§ el efecto del video, idéntico en los 4 archivos) en vez de
 // crear un módulo nuevo fuera de `touches:`—. SÓLO EN MODO EDITOR (`useModoEditorActivo()`): fuera
 // de él, `null` — cero bytes, cero nodos nuevos, byte-idéntico al hero de siempre.
+// § EDITOR-VISUAL-LIENZO-1 — EL «GHOST» DEL PROTOTIPO (`.ghost`, `prototipo-editor.html`): pastilla
+// translúcida blanca sobre la foto/video del hero, con el texto en Hanken Grotesk — reemplaza el
+// chip azul punteado de antes. Sirve a las DOS caras de una zona (vacía → «+ Titular»; llena →
+// «Quitar Titular»): el prototipo no dibuja un «Quitar» propio en el lienzo (sólo en su barra
+// flotante/panel, fuera de `touches:`), así que se mantiene como la MISMA pastilla por consistencia
+// visual en vez de inventar una segunda forma para el estado lleno.
 function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
   return (
     <button
@@ -136,9 +142,12 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
       {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
       {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
-        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
-        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
+        display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, marginRight: 8,
+        height: 36, padding: '0 14px 0 10px', borderRadius: 999,
+        background: 'rgba(255,255,255,.16)', border: '1px solid rgba(255,255,255,.45)',
+        color: '#fff', fontFamily: "'Hanken Grotesk', system-ui, sans-serif",
+        fontSize: 12.5, fontWeight: 600, lineHeight: 1,
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         cursor: 'pointer', position: 'relative', zIndex: 20,
       }}
     >
@@ -146,6 +155,39 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
     </button>
   );
 }
+
+// EL SEGMENTADO COMPACTO de «Alto» (§ EDITOR-VISUAL-LIENZO-1) — ver el docstring completo en
+// `HeroCurtina.tsx` (misma pieza, duplicada entre las 4 variantes).
+function SegmentoZona({
+  onClic, activo, children,
+}: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; activo: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-editor-zona-campo={onClic.campo}
+      data-editor-zona-valor={onClic.valor}
+      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
+      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, minWidth: 36, padding: '0 10px', borderRadius: 8, border: 'none',
+        fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
+        lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer',
+        color: activo ? '#141311' : 'rgba(244,243,239,.72)',
+        background: activo ? '#ffffff' : 'transparent',
+        boxShadow: activo ? '0 1px 2px rgba(20,19,17,.08)' : 'none',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+const TRACK_SEGMENTADO: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 11,
+  background: 'rgba(20,19,17,.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 8px 22px -6px rgba(0,0,0,.45)',
+};
 
 export default function HeroMedia({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, paginas, tema, navTratamiento } = useSiteContent();
@@ -239,6 +281,13 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
   // porqué de `svh` en vez de `vh`/`dvh`). `alto` manda cuando es explícito (`'alto'`/`'pantalla'`);
   // en su canónica cae a `alturaLlena` — AUSENTE los dos → byte-idéntico a HOY (`min-h-[92vh]`).
   const alturaClase = claseAlturaHero(hero.alto, hero.alturaLlena);
+  // § EDITOR-VISUAL-LIENZO-1 — el PASO activo del segmentado de Alto, MISMA precedencia que
+  // `claseAlturaHero` (arriba): `alto` explícito manda; si no, `alturaLlena` decide entre
+  // Justo/Pantalla. Derivado una sola vez para que los tres `SegmentoZona` de abajo no repitan la
+  // regla tres veces de forma que pudiera divergir.
+  const pasoAlto: 'justo' | 'alto' | 'pantalla' = hero.alto === 'alto'
+    ? 'alto'
+    : hero.alto === 'pantalla' || hero.alturaLlena ? 'pantalla' : 'justo';
 
   return (
     <section className={`relative flex ${alturaClase} items-end overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]`} style={style}>
@@ -327,18 +376,14 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-velo)] pointer-events-none" />
       </div>
 
-      {/* ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1): tres chips, uno por paso. Cada uno
-          escribe `hero.alto` Y `hero.alturaLlena` juntos (§ `claseAlturaHero`) para que el control
-          del canvas y el select del panel nunca queden en valores inconsistentes. Esquina superior
-          izquierda, lejos del texto (que vive al pie, § `items-end` de la sección). */}
-      {/* `top-24`, no `top-3` — el `<header>` fijo (z-50, StoreNav.tsx) cubre el borde superior
-          del hero; medido por ejecución, con `top-3` el clic no llegaba al chip. */}
+      {/* ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1, § EDITOR-VISUAL-LIENZO-1): un control
+          compacto anclado al pie del hero (como `.alto-h` del prototipo), cada paso escribe
+          `hero.alto` Y `hero.alturaLlena` juntos (§ `claseAlturaHero`). */}
       {activoEditor && (
-        <div className="absolute top-24 left-3 z-20 flex flex-wrap">
-          <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Alto</span>
-          <ZonaChip onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</ZonaChip>
-          <ZonaChip onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</ZonaChip>
-          <ZonaChip onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</ZonaChip>
+        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2" style={TRACK_SEGMENTADO}>
+          <SegmentoZona activo={pasoAlto === 'justo'} onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</SegmentoZona>
+          <SegmentoZona activo={pasoAlto === 'alto'} onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</SegmentoZona>
+          <SegmentoZona activo={pasoAlto === 'pantalla'} onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</SegmentoZona>
         </div>
       )}
 

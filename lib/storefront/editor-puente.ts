@@ -1,5 +1,7 @@
 import { REGISTRY, DEFAULTS, resolverSiteContent, type SiteContentData, type SeccionDef } from '@/lib/config/site-content-defaults';
-import { esInstanciaId, resolverInstancia } from '@/lib/config/secciones-instancias';
+import {
+  esInstanciaId, resolverInstancia, nombreInstancia, esSeccionInstanciaTipo, type InstanciaContent,
+} from '@/lib/config/secciones-instancias';
 
 // § EDITOR-TIENDA-POSTMESSAGE-1 — EL PUENTE panel→iframe para los cambios EN VIVO (texto/imagen),
 // sin recargar el documento. Dos mitades, como todo mecanismo delicado de este repo: ésta es la
@@ -553,4 +555,71 @@ export const ATRIBUTO_EDITOR_CHROME = 'data-editor-chrome';
  */
 export function esClicEnChromeEditor(destino: { closest(selectores: string): unknown } | null | undefined): boolean {
   return !!destino?.closest(`[${ATRIBUTO_EDITOR_CHROME}]`);
+}
+
+// ─── EL RÓTULO DE SECCIÓN AL PASAR EL MOUSE (§ EDITOR-VISUAL-LIENZO-1, docs/editor-tienda/
+// prototipo/prototipo-editor.html § `.sec::after{content:attr(data-label)}`) ────────────────────
+//
+// El prototipo escribe el rótulo humano ("Encabezado", "Producto insignia"…) directo en un
+// `data-label` LITERAL del HTML, porque es una maqueta estática. En el storefront real el marcador
+// `[data-editor-seccion]` lleva el valor DE MÁQUINA (una clave del REGISTRY, `'encabezado'`/`'menu'`/
+// `'footer'`, `'suscripciones'`, o un id de instancia `inst:…`) — `EditorPuenteVivo.tsx` no puede
+// escribir un `data-label` en el JSX de `page.tsx`/`StoreNav.tsx`/`StoreFooter.tsx` (ninguno está en
+// `touches:` de este slice), así que resuelve el rótulo ACÁ (puro, testeable sin DOM) y lo aplica él
+// mismo sobre el nodo ya marcado, vía `querySelectorAll` — el MISMO patrón que
+// `sincronizarSeparadoresAgregar` ya usa para el «+» entre secciones.
+//
+// EL ATRIBUTO ES PROPIO DE ESTE MECANISMO, no `data-label` del prototipo: un atributo que
+// `EditorPuenteVivo.tsx` escribe y lee él mismo no puede confundirse con un `data-label` que algún
+// componente del storefront pusiera por otra razón (ninguno lo hace hoy, pero nombrarlo distinto lo
+// deja imposible en vez de improbable).
+export const ATRIBUTO_EDITOR_ETIQUETA = 'data-editor-etiqueta';
+
+/** Rótulos de las claves META que NO están en el REGISTRY (§ `esSeccionDelRegistro`, arriba) — las
+ *  únicas tres que `[data-editor-seccion]` puede llevar fuera del REGISTRY y de un id de instancia:
+ *  `'encabezado'` (la tarjeta combinada de `EncabezadoSeccion.tsx`, § EDITOR-TIENDA-CROMO-1) y
+ *  `'suscripciones'` (el marcador de PÁGINA que envuelve `/suscripciones`, `app/(storefront)/
+ *  suscripciones/page.tsx` — ninguno de los dos archivos que los escriben está en `touches:`).
+ *  `'menu'`/`'footer'` NO viven acá: son claves REALES del REGISTRY (`REGISTRY.menu.label === 'Menú'`,
+ *  `REGISTRY.footer.label === 'Pie de página'`), así que `esSeccionDelRegistro` ya los resuelve antes
+ *  de llegar a este mapa — duplicarlos acá sería la misma etiqueta en dos sitios que podrían divergir
+ *  (§ CLAUDE.md, "cuando dos declaraciones describen el mismo conjunto, o una DERIVA de la otra o hay
+ *  un test que las ata"). Los valores coinciden a propósito con `CROMO_TITULOS`/el nombre de página
+ *  que ya usa el panel (`TiendaPaginas.tsx`, fuera de `touches:`) — ese archivo no se importa (no es
+ *  público: arrastraría el panel entero al bundle del storefront), así que es una SEGUNDA lista
+ *  deliberada, no una con intención de fuente única. */
+const ETIQUETAS_SECCION_META: Record<string, string> = {
+  encabezado: 'Encabezado',
+  suscripciones: 'Suscripciones',
+};
+
+/**
+ * El rótulo HUMANO de un marcador `[data-editor-seccion]` — lo que el hover del lienzo muestra
+ * (§ el prototipo, `.sec::after`). Tres casos, en el orden en que un marcador real puede caer:
+ *
+ *  1. Una sección DEL REGISTRY (`'hero'`, `'historia'`, `'menu'`, `'footer'`…) → `REGISTRY[m].label`,
+ *     la MISMA fuente que ya usa el panel para nombrar cada fila — nunca una segunda lista a mano.
+ *  2. Un id de INSTANCIA (`'inst:…'`, § SECCIONES-INSTANCIAS-1) → el nombre de su TIPO
+ *     (`nombreInstancia`, `secciones-instancias.ts` — la MISMA fuente que la biblioteca de agregar
+ *     usa para nombrar sus tarjetas), resuelto contra `seccionesHome` (el mapa de instancias EN VIVO
+ *     del propio documento, para que una instancia reordenada o recién creada resuelva igual). Sin
+ *     entrada en `seccionesHome` (un marcador huérfano, o el mapa aún no llegó) → `'Sección'`, nunca
+ *     el id crudo (`inst:a1b2c3` no es un rótulo).
+ *  3. Cualquier otra clave META (`ETIQUETAS_SECCION_META`, arriba) → su rótulo fijo.
+ *
+ * `marcador` sin match en NINGUNO de los tres casos (un valor futuro que esta función no conoce
+ * todavía) devuelve el propio `marcador` — preferir mostrar la clave de máquina a no mostrar nada:
+ * un rótulo "hero" feo en el hover es menos grave que un hover mudo que no dice de qué sección se
+ * trata.
+ */
+export function etiquetaDeSeccion(
+  marcador: string,
+  seccionesHome: Record<string, InstanciaContent> = {},
+): string {
+  if (esSeccionDelRegistro(marcador)) return REGISTRY[marcador].label;
+  if (esInstanciaId(marcador)) {
+    const tipo = seccionesHome[marcador]?.tipo;
+    return esSeccionInstanciaTipo(tipo) ? nombreInstancia(tipo) : 'Sección';
+  }
+  return ETIQUETAS_SECCION_META[marcador] ?? marcador;
 }

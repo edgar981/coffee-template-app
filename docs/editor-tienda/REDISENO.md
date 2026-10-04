@@ -716,6 +716,104 @@ los 2 hovers IDÉNTICOS — cero píxeles nuevos, porque este slice no toca un s
 
 ---
 
+**SÉPTIMO PEDIDO FUERA DE ESTA NUMERACIÓN: `EDITOR-VISUAL-LIENZO-1` — lo que el editor DIBUJA
+sobre la página se ve como el prototipo (2026-10-04).** `EDITOR-VISUAL-MARCO-1` hizo la barra/riel/
+lienzo (el CHROME del panel); `EDITOR-VISUAL-PANEL-1` hizo el panel (filas, no tarjetas). Ninguno de
+los dos tocó lo que el editor SUPERPONE sobre la página real dentro del `<iframe>` — el hover, las
+zonas del hero, los controles de Alto/Oscurecer, la barra flotante de estilo, el «+» entre secciones
+— que seguía con la capa visual de antes del rediseño (chips azules punteados, `<select>`s nativos
+sin estilo, un outline ámbar sin nombre). Éste es ese tercer tercio.
+
+**`components/storefront/EditorPuenteVivo.tsx`** — el componente que SE MONTA DENTRO del storefront
+real (nunca en el panel) y dibuja todo el chrome efímero del editor:
+
+- **Hover + rótulo** (`.sec::before`/`.sec::after` del prototipo): el `outline: 2px dashed #f59e0b`
+  sin nombre pasó a `box-shadow: inset` en tinta (blanco sobre el hero, que es la banda oscura por
+  defecto) + un rótulo oscuro mono-chico en la esquina superior izquierda con el nombre HUMANO de la
+  sección («Portada», «Historia», «Menú»…). Ese nombre no existía en ningún `data-*` del DOM — lo
+  resuelve `etiquetaDeSeccion` (nuevo, `lib/storefront/editor-puente.ts`, puro): `REGISTRY[clave]
+  .label` para toda clave del REGISTRY (incluidas `menu`/`footer`, que SÍ son claves reales),
+  `nombreInstancia(tipo)` para una instancia agregada (resuelto contra `seccionesHome` EN VIVO), y un
+  mapa fijo de dos entradas (`encabezado`/`suscripciones`) para las claves META que no están en
+  ninguna de las dos fuentes. `EditorPuenteVivo` escribe el resultado como atributo
+  (`ATRIBUTO_EDITOR_ETIQUETA`, nuevo) sobre cada `[data-editor-seccion]` del documento —el mismo
+  patrón imperativo que ya usa `sincronizarSeparadoresAgregar` para el «+»—, y el CSS lo lee con
+  `content: attr(...)`.
+- **El «+» entre secciones** — de pastilla azul con borde discontinuo a la línea + pastilla blanca
+  del lenguaje del prototipo (tinta/blanco, Hanken Grotesk, sombra suave).
+- **La barra flotante de estilo** (`BarraEstiloElemento`) — reescrita sobre el popover del prototipo
+  (`.ftb`/`.tbb`/`.pop`/`.cdef`/`.crole`/`.cadv`/`.ccust`): Letra pasó de `<select>` a un trigger
+  "Aa + nombre" que abre una lista con muestra tipográfica real + hint por par; Tamaño pasó de
+  `<select>` numérico al stepper −/palabra/+ del prototipo (`.tbsz`); Alineación se quedó de ícono,
+  restilizada; Color gana el disclosure completo — «Por defecto» primero, los seis roles en chips con
+  su muestra y su frase (`ROLES_COLOR_ELEMENTO[].descripcion`, ya existía y no se usaba), y «Avanzado
+  ›» con el picker de hex personalizado (`custom:#rrggbb` — el modelo YA lo soportaba desde
+  `EDITOR-TIENDA-BARRA-FLOTANTE-1`, pero no tenía UI hasta acá). **Sin aviso de contraste**, como pide
+  el spec — no se agregó ninguno.
+- **Las zonas del hero** (`ZonaChip`, duplicado local en los 4 archivos `Hero*.tsx`) — de chip azul
+  punteado a la pastilla «ghost» translúcida del prototipo (fondo blanco al 16%, borde blanco al 45%,
+  `backdrop-filter: blur`), para «+ Titular»/«+ Subtítulo»/«+ Botón»/«Quitar …» por igual.
+- **Alto y Oscurecer** — de un grupo de label + tres/cuatro chips sueltos apilados en la esquina
+  superior izquierda a UN control compacto segmentado (`SegmentoZona`/`TRACK_SEGMENTADO`, duplicado
+  local en los 4 `Hero*.tsx`), anclado al PIE del hero —dentro del área visible, a diferencia del
+  `.alto-h` del prototipo, que asoma a caballo del borde porque su `.hero` no recorta; la sección real
+  SÍ lleva `overflow-hidden`—, con el paso activo resaltado en blanco sobre el track oscuro. `Alto`
+  deriva su paso activo con la MISMA precedencia que `claseAlturaHero` (`alto` explícito manda, si no
+  decide `alturaLlena`); `Oscurecer` (sólo en la composición Marquesina) reusa `veloComboDeCampos`
+  (ya existente en `site-content-defaults.ts`) para que el paso resaltado nunca pueda discrepar del
+  que ya calcula el panel para el mismo par de campos.
+
+**DEVIACIONES MEDIDAS Y DECLARADAS:**
+
+- **El popover de la barra flotante abre SIEMPRE hacia abajo del trigger** — el prototipo invierte
+  según dónde cae `.ftb` en el viewport (`.ftb.at-cap .pop` abre hacia arriba), pero decidir esa
+  inversión bien exige la altura del VIEWPORT, que `anclaje` no trae (sólo coordenadas de DOCUMENTO,
+  § `GeometriaCampo`, `lib/storefront/campo-editable.ts`, sin tocar). Simplificado a "siempre abajo"
+  en vez de construir una inversión sin el dato que la decidiría.
+- **Letra y Tamaño no son el `<select>`/popover exactos del prototipo en los DOS sentidos**: Letra SÍ
+  se construyó como popover con lista (fiel); Tamaño se construyó como stepper −/palabra/+ (también
+  del prototipo, pero reemplaza al `<select>` numérico con una pieza DISTINTA, no un popover).
+- **Las zonas Titular/Subtítulo/Botones/Indicador siguen en flujo normal del documento, no en
+  rectángulos absolutos con posición fija** como el prototipo (que puede fijarlas en % porque es una
+  maqueta de una composición ESTÁTICA): los componentes reales flexionan con el contenido. Cuando
+  varias zonas están vacías a la vez, sus pastillas «+X» quedan en columna vertical dentro del flujo
+  —ya no apiladas en una esquina fija, pero tampoco repartidas por el lienzo como el prototipo—.
+  Reconstruir el modelo de "zona con geometría propia" es alcance mayor, fuera de una pasada visual.
+- **El rótulo de hover de `[data-editor-seccion="encabezado"]` no se ve**: ese marcador vive en un
+  `<div style="display:contents">` (§ `StoreNav.tsx`, fuera de `touches:`), y `display:contents` no
+  genera caja — ni `position:relative` ni un `::after` absoluto tienen dónde anclarse ahí. El resto
+  de los marcadores (incluido `menu`, un `<nav>` real) no tiene este problema.
+- **`position:relative` es NUEVO sobre todo `[data-editor-seccion]`** (antes ninguno lo llevaba) —
+  necesario para anclar el rótulo de hover. Verificado contra el único `position:fixed` del árbol (el
+  `<header>` de `StoreNav.tsx`, que nunca lleva este atributo) y contra los nodos con hijos
+  `position:absolute` que sí existen (el `<footer>`, la media de fondo del hero): ninguno depende de
+  quedar SIN contexto de posicionamiento propio.
+
+**VERIFICADO POR EJECUCIÓN — sesión real.** `.scratch/arnes-lienzo-visual.ts` (no comiteado, adaptado
+de `.scratch/capturar-editor-visual.ts` de `EDITOR-VISUAL-PANEL-1`): Postgres efímero, `migrate
+deploy` + seed canónico, `next build`/`next start`, Playwright con sesión real
+(`admin@sierranativa.co`), viewport 1440×900, apuntando al `<iframe title="Vista previa de la
+tienda">` (`frameLocator`), no al panel. Capturado y confirmado: el hover sobre `brandStory` muestra
+el rótulo «Historia» (`ETIQUETA_HERO=Portada` leído por ejecución contra el atributo real, para
+`hero`); el «+» entre secciones muestra la línea + pastilla blanca al pasar el mouse; el control
+segmentado «Justo · Alto · Pantalla completa» aparece siempre al pie del hero, con «Justo» resaltado;
+un clic en el titular abre el overlay de texto Y la barra flotante restilizada encima; el popover de
+Letra abre con las diez muestras tipográficas reales + hints; un clic en «Alineación: Izquierda»
+cambia el alinear del titular en vivo (confirmado por el badge «Sin publicar» apareciendo en el
+panel) — la escritura real sigue intacta. Capturas en `.scratch/capturas-lienzo-visual/` (gitignored,
+no comiteadas), comparadas a ojo contra `captura-prototipo-inicio.webp`: anatomía y lenguaje visual
+coinciden (chrome tinta/blanco, Hanken Grotesk, pastillas y popovers con sombra); las diferencias de
+CONTENIDO (Nayoli real vs. la maqueta «Finca San Adolfo») son esperadas, no defectos.
+
+`npm run verificar:nayoli:visual` reproduce el MISMO piso heredado de la rama, dígito a dígito
+(`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja
+`[105,862]–[1183,3581]`; las otras 5 rutas 163/361 c/u; los 2 hovers IDÉNTICOS — ningún píxel nuevo en
+la tienda PÚBLICA, porque todo lo que este slice dibuja está gateado tras `useModoEditorActivo()`
+(los 4 `Hero*.tsx`) o tras `activo` (`EditorPuenteVivo.tsx`), cero bytes para cualquier visitante
+real.
+
+---
+
 ## 10 · Lo que este documento NO decide
 
 - ~~Si «Alto» gana un tercer valor (campo nuevo) o se queda en dos.~~ DECIDIDO (slice 5, 2026-10-03):

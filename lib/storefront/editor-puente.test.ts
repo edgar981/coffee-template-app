@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, REGISTRY } from '@/lib/config/site-content-defaults';
 import { varsDeTemaEnVivo } from '@/lib/config/esquema-style';
 import { varsDeForma, FORMA_DEFECTO } from '@/lib/config/formas';
 import { varsDeFuentePar, PAR_DEFECTO } from '@/lib/config/fuentes';
@@ -30,8 +30,11 @@ import {
   ATRIBUTO_EDITOR_AGREGAR_SECCION,
   ATRIBUTO_EDITOR_CHROME,
   esClicEnChromeEditor,
+  ATRIBUTO_EDITOR_ETIQUETA,
+  etiquetaDeSeccion,
 } from './editor-puente';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
+import { DEFAULTS_INSTANCIA } from '@/lib/config/secciones-instancias';
 
 // Capa 1 del puente panel→iframe (§ EDITOR-TIENDA-POSTMESSAGE-1). Puro, sin `window`/`postMessage`/
 // zod — lo que se afirma es la forma del mensaje, la membresía en el REGISTRY, y que la fusión de
@@ -568,4 +571,43 @@ test('esClicEnChromeEditor: busca EXACTAMENTE el selector del atributo — no cu
 test('esClicEnChromeEditor: sin destino (null/undefined) se intercepta — preferir interceptar de más a dejar pasar un clic sin clasificar', () => {
   assert.equal(esClicEnChromeEditor(null), false);
   assert.equal(esClicEnChromeEditor(undefined), false);
+});
+
+// ─── EDITOR-VISUAL-LIENZO-1 — el rótulo de sección al pasar el mouse (§ el hover del prototipo) ──
+
+test('ATRIBUTO_EDITOR_ETIQUETA: el literal que EditorPuenteVivo.tsx escribe sobre cada [data-editor-seccion]', () => {
+  assert.equal(ATRIBUTO_EDITOR_ETIQUETA, 'data-editor-etiqueta');
+});
+
+test('etiquetaDeSeccion: una clave DEL REGISTRY devuelve su REGISTRY[clave].label, la misma fuente que el panel', () => {
+  assert.equal(etiquetaDeSeccion('hero'), REGISTRY.hero.label);
+  assert.equal(etiquetaDeSeccion('hero'), 'Portada');
+  assert.equal(etiquetaDeSeccion('brandStory'), 'Historia');
+  assert.equal(etiquetaDeSeccion('presentaciones'), 'Presentaciones');
+  assert.equal(etiquetaDeSeccion('testimonials'), 'Testimonios');
+});
+
+test('etiquetaDeSeccion: menu/footer son claves REALES del REGISTRY, no del mapa de metas', () => {
+  assert.equal(etiquetaDeSeccion('menu'), 'Menú');
+  assert.equal(etiquetaDeSeccion('footer'), 'Pie de página');
+});
+
+test('etiquetaDeSeccion: las claves META fuera del REGISTRY (encabezado, suscripciones) usan el mapa fijo', () => {
+  assert.equal(etiquetaDeSeccion('encabezado'), 'Encabezado');
+  assert.equal(etiquetaDeSeccion('suscripciones'), 'Suscripciones');
+});
+
+test('etiquetaDeSeccion: un id de instancia resuelve el NOMBRE de su tipo contra seccionesHome', () => {
+  const seccionesHome = { 'inst:a1': DEFAULTS_INSTANCIA.texto, 'inst:b2': DEFAULTS_INSTANCIA.banner };
+  assert.equal(etiquetaDeSeccion('inst:a1', seccionesHome), 'Texto');
+  assert.equal(etiquetaDeSeccion('inst:b2', seccionesHome), 'Banner');
+});
+
+test('etiquetaDeSeccion: un id de instancia SIN entrada en seccionesHome cae a "Sección", nunca al id crudo', () => {
+  assert.equal(etiquetaDeSeccion('inst:huerfano', {}), 'Sección');
+  assert.equal(etiquetaDeSeccion('inst:huerfano'), 'Sección');
+});
+
+test('etiquetaDeSeccion: un marcador totalmente desconocido devuelve el marcador tal cual — preferir mostrar la clave de máquina a un hover mudo', () => {
+  assert.equal(etiquetaDeSeccion('algo-que-no-existe'), 'algo-que-no-existe');
 });

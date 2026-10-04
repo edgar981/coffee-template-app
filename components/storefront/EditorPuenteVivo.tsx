@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { AlignLeft, AlignCenter, AlignRight, ChevronDown, Minus, Plus, Trash2, Check } from 'lucide-react';
 import { useSiteContent, useSiteContentActualizador } from '@/components/storefront/SiteContentProvider';
 import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
@@ -13,6 +13,7 @@ import {
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
   mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
   ATRIBUTO_EDITOR_CHROME, esClicEnChromeEditor,
+  ATRIBUTO_EDITOR_ETIQUETA, etiquetaDeSeccion,
   TIPO_MENSAJE_AGREGAR_SECCION, ATRIBUTO_EDITOR_AGREGAR_SECCION,
 } from '@/lib/storefront/editor-puente';
 // `resolverOrden` (§ EDITOR-TIENDA-ORDEN-1): YA viaja en el bundle público por `editor-puente.ts`
@@ -25,7 +26,7 @@ import { BANDA_IDS, bandaOscuraCanonica } from '@/lib/config/site-content-defaul
 // `resolverOrden` arriba — `secciones-instancias.ts` ya viaja en el bundle público vía
 // `site-content-defaults.ts` (que la importa para resolver `seccionesHome`/`orden`), así que
 // importarla acá directo no agrega peso nuevo.
-import { resolverOrdenCompleto, esInstanciaId } from '@/lib/config/secciones-instancias';
+import { resolverOrdenCompleto, esInstanciaId, type InstanciaContent } from '@/lib/config/secciones-instancias';
 // `ATRIBUTO_EDITOR_SECCION`/`ATRIBUTO_EDITOR_CAMPO`/`ATRIBUTO_EDITOR_LINEA` son admin-level por
 // historia (nacieron junto a `proxy.ts`/`modo-editor-gate.ts`, § su docstring), pero son literales
 // PUROS —sin `next/headers` ni Prisma—, así que importarlos acá no arrastra nada pesado: una sola
@@ -43,7 +44,7 @@ import {
 import {
   metaElementoEstilo, TAMANOS_ELEMENTO, LABEL_TAMANO_ELEMENTO,
   ESTILO_ELEMENTO_VACIO, rolesColorLegibles,
-  type EstiloElementoResuelto, type AlineacionElemento,
+  type EstiloElementoResuelto, type AlineacionElemento, type TamanoElemento,
 } from '@/lib/config/estilo-elemento';
 import { derivarPaleta, RAICES_DEFECTO, ROLES_COLOR_ELEMENTO, type RolColorElemento } from '@/lib/config/palette-derive';
 import { PARES_FUENTES } from '@/lib/config/fuentes';
@@ -260,6 +261,25 @@ function sincronizarSeparadoresAgregar(navegando: boolean) {
     const marcador = nodo.getAttribute(ATRIBUTO_EDITOR_SECCION);
     if (marcador) nodo.insertAdjacentElement('afterend', crearSeparadorAgregar(marcador));
   }
+}
+
+/**
+ * El RÓTULO al pasar el mouse (§ EDITOR-VISUAL-LIENZO-1, `.sec::after{content:attr(data-label)}`
+ * del prototipo) — escribe `ATRIBUTO_EDITOR_ETIQUETA` sobre TODO `[data-editor-seccion]` del
+ * documento (nav, pie, home, nosotros, suscripciones: a diferencia de los separadores «+», el
+ * rótulo aplica a TODAS las páginas, no sólo al home con `orden`), con el valor que
+ * `etiquetaDeSeccion` (puro, `lib/storefront/editor-puente.ts`) resuelve para cada marcador. El CSS
+ * lee ese atributo con `content: attr(...)` — ver el `<style>` del render, abajo.
+ *
+ * Recorre TODOS los nodos marcados cada vez que se llama (como `sincronizarSeparadoresAgregar`): son
+ * a lo sumo un puñado por página, así que recalcular es más simple que diferenciar cuáles cambiaron.
+ */
+function sincronizarEtiquetasSeccion(seccionesHome: Record<string, InstanciaContent>) {
+  document.querySelectorAll<HTMLElement>(`[${ATRIBUTO_EDITOR_SECCION}]`).forEach((nodo) => {
+    const marcador = nodo.getAttribute(ATRIBUTO_EDITOR_SECCION);
+    if (!marcador) return;
+    nodo.setAttribute(ATRIBUTO_EDITOR_ETIQUETA, etiquetaDeSeccion(marcador, seccionesHome));
+  });
 }
 
 /**
@@ -492,6 +512,9 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     // § EDITOR-AGREGAR-SECCION-LIENZO-1 — los separadores «+» de ARRANQUE, con el mismo default
     // (selección activa) que la clase de arriba.
     sincronizarSeparadoresAgregar(navegarRef.current);
+    // § EDITOR-VISUAL-LIENZO-1 — los rótulos de ARRANQUE (el hover ya debe tener nombre desde el
+    // primer frame, no recién tras el primer mensaje del panel).
+    sincronizarEtiquetasSeccion(seccionesHome);
 
     const onMessage = (e: MessageEvent) => {
       // Mismo origen SIEMPRE — el panel y la tienda son el MISMO despliegue (§ MODO-EDITOR-SOLO-EN-
@@ -553,6 +576,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
         // (descubiertos por DOM, § `sincronizarSeparadoresAgregar`) se reponen en las posiciones
         // nuevas. Sin esto quedarían pegados a los ids viejos que ya no son sus vecinos.
         sincronizarSeparadoresAgregar(navegarRef.current);
+        // § EDITOR-VISUAL-LIENZO-1 — reordenar NO cambia ningún rótulo (los nodos se MUEVEN, no se
+        // recrean), pero una instancia nueva recién agregada podría no tener el suyo todavía si el
+        // mensaje de 'orden' llegó antes que la primera sincronización — barato de re-correr.
+        sincronizarEtiquetasSeccion(seccionesHome);
         return;
       }
 
@@ -757,25 +784,49 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   if (!activo) return null;
   return (
     <>
+      {/* § EDITOR-VISUAL-LIENZO-1 — EL HOVER/SELECCIÓN Y EL «+» ENTRE SECCIONES, con la anatomía del
+          prototipo (`docs/editor-tienda/prototipo/prototipo-editor.html`, `.sec`/`.sec::before`/
+          `.sec::after`, `.add-sec`): borde en tinta (blanco sobre el hero, que es la banda OSCURA
+          por defecto — `.hero.sec:hover::before` del prototipo usa el mismo contraste invertido) +
+          rótulo oscuro mono-chico en la esquina superior izquierda, en vez del outline punteado
+          ámbar sin nombre que había antes. `position:relative` es NUEVO sobre estos nodos —lo que
+          hace posible anclar el rótulo (`::after`, `position:absolute`)—: se verificó que ninguno
+          de los wrappers marcados (los `<div data-editor-seccion>` de `page.tsx`, el `<nav>` de
+          `menu` —ya `relative` por su propia clase—, el `<footer>`) depende de quedar SIN contexto
+          de posicionamiento propio; el único `position:fixed` del árbol (el `<header>` de
+          `StoreNav.tsx`) nunca lleva este atributo. */}
       <style>{`
-        .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}] { cursor: pointer; }
-        .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}]:hover { outline: 2px dashed #f59e0b; outline-offset: -2px; }
+        .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}] { cursor: pointer; position: relative; }
+        .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}]:hover {
+          box-shadow: inset 0 0 0 1.5px rgba(20,19,17,.55);
+        }
+        .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}="hero"]:hover {
+          box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.8);
+        }
+        .${CLASE_SELECCION_ACTIVA} [${ATRIBUTO_EDITOR_SECCION}]:hover::after {
+          content: attr(${ATRIBUTO_EDITOR_ETIQUETA});
+          position: absolute; left: 10px; top: 10px; z-index: 2147483000;
+          font: 600 11px/1 'Hanken Grotesk', system-ui, sans-serif;
+          color: #fff; background: #141311; padding: 6px 8px; border-radius: 6px;
+          pointer-events: none; white-space: nowrap;
+        }
         .${CLASE_SEPARADOR_AGREGAR} {
           position: relative; height: 24px; margin: 0; display: flex; align-items: center;
           cursor: pointer;
         }
         .${CLASE_SEPARADOR_AGREGAR_LINEA} {
-          flex: 1; height: 1px; background: transparent; transition: background 120ms ease;
+          flex: 1; height: 1px; background: rgba(20,19,17,.18); transition: background 120ms ease;
         }
         .${CLASE_SEPARADOR_AGREGAR}:hover .${CLASE_SEPARADOR_AGREGAR_LINEA},
-        .${CLASE_SEPARADOR_AGREGAR}:focus-within .${CLASE_SEPARADOR_AGREGAR_LINEA} { background: #f59e0b; }
+        .${CLASE_SEPARADOR_AGREGAR}:focus-within .${CLASE_SEPARADOR_AGREGAR_LINEA} { background: #141311; }
         .${CLASE_SEPARADOR_AGREGAR_BOTON} {
           position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
           opacity: 0; transition: opacity 120ms ease;
           display: inline-flex; align-items: center; gap: 4px;
-          background: #ffffff; color: #1d4ed8; border: 1px solid #2563eb; border-radius: 999px;
-          padding: 4px 10px; font: 600 12px system-ui, sans-serif; cursor: pointer;
-          box-shadow: 0 2px 8px rgba(0,0,0,.18);
+          background: #ffffff; color: #141311; border: 1px solid #ddd9cd; border-radius: 999px;
+          padding: 4px 10px 4px 8px;
+          font: 600 12px 'Hanken Grotesk', system-ui, sans-serif; cursor: pointer;
+          box-shadow: 0 2px 8px rgba(20,19,17,.18);
         }
         .${CLASE_SEPARADOR_AGREGAR}:hover .${CLASE_SEPARADOR_AGREGAR_BOTON},
         .${CLASE_SEPARADOR_AGREGAR}:focus-within .${CLASE_SEPARADOR_AGREGAR_BOTON},
@@ -889,19 +940,49 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   );
 }
 
+// § EDITOR-VISUAL-LIENZO-1 — LA ESCALERA DE TAMAÑO como STEPPER −/+ con PALABRA en el medio
+// (`.tbsz`/`.tbsz-w` del prototipo), no un `<select>` numérico. El PRIMER paso es "Por defecto"
+// (`''`/`null`) — un sexto escalón por debajo de "Pequeño", no uno de los cinco de
+// `TAMANOS_ELEMENTO` (`estilo-elemento.ts`, fuera de `touches:`): así "Por defecto" se alcanza
+// bajando desde "Pequeño" en vez de ser un caso aparte que el stepper no sabe visitar.
+const PASOS_TAMANO: readonly (TamanoElemento | '')[] = ['', ...TAMANOS_ELEMENTO];
+
+function labelPaso(paso: TamanoElemento | ''): string {
+  return paso === '' ? 'Por defecto' : LABEL_TAMANO_ELEMENTO[paso];
+}
+
+/** Es un hex de 6 dígitos (`#rrggbb`), sin el prefijo `custom:` — lo que el `<input type=color>`
+ *  nativo necesita como `value`. `estilo-elemento.ts` (fuera de `touches:`) ya valida la forma
+ *  completa (`custom:#rrggbb`) al RESOLVER; acá sólo hay que leerla de vuelta para el picker. */
+function hexDeColorPersonalizado(color: EstiloElementoResuelto['color']): string {
+  return typeof color === 'string' && color.startsWith('custom:#') ? color.slice('custom:'.length) : '#000000';
+}
+
 /**
  * LA BARRA FLOTANTE — letra, tamaño, alineación, color por rol y quitar (§ EDITOR-TIENDA-BARRA-
- * FLOTANTE-1, REDISENO.md § 5). Anclada al DOCUMENTO (mismo sistema de coordenadas que el campo
+ * FLOTANTE-1, REDISENO.md § 5; restilizada en § EDITOR-VISUAL-LIENZO-1 sobre el popover del
+ * prototipo — `docs/editor-tienda/prototipo/prototipo-editor.html`, `.ftb`/`.tbb`/`.pop`/`.cdef`/
+ * `.crole`/`.cadv`/`.ccust`). Anclada al DOCUMENTO (mismo sistema de coordenadas que el campo
  * flotante, § `GeometriaCampo`) — ARRIBA del elemento si hay lugar, ABAJO si no (`anclaje.top` bajo
  * para el campo abierto, p. ej. un titular pegado al borde superior del viewport tras un scroll).
  * Componente de MÓDULO (no anidado dentro de `EditorPuenteVivo`) para que no se redefina en cada
  * render de ese componente — se identifica entre aperturas con `key` (arriba), así que React la
- * remonta limpia al cambiar de campo.
+ * remonta limpia al cambiar de campo (lo que también resetea `fontAbierto`/`colorAbierto`/
+ * `avanzadoAbierto`, abajo, sin que haga falta un efecto de limpieza propio).
  *
  * REUTILIZA `mensajeEstiloElemento`/`mensajesQuitarEstiloElemento` (editor-puente.ts) — el MISMO
  * tipo de mensaje que cualquier campo de texto, nunca un canal nuevo. Estilo LITERAL, no tokens
  * `--duna-*`/`--sf-*` — mismo criterio que el resto del chrome efímero de este archivo (el aviso de
  * sesión, `ZonaChip` de los 4 heros): este documento es el storefront público, no el panel.
+ *
+ * DEVIACIÓN MEDIDA — LETRA Y TAMAÑO SIGUEN SIENDO CONTROLES NATIVOS/LINEALES, no los dos popovers
+ * anidados del prototipo (`.fo`/`.flist` para letra como lista desplegable; el stepper es NUEVO acá,
+ * no un `<select>`). El prototipo abre "Letra" en un popover con una lista `.flist` de muestras —se
+ * construyó acá COMO POPOVER (ver `fontAbierto` abajo), pero el stepper de tamaño reemplaza al
+ * `<select>` numérico por el `.tbsz` del prototipo (−/palabra/+), que SÍ es fiel. Lo que NO se
+ * reconstruyó es el aviso de contraste del prototipo —no existe, y el spec lo pide explícitamente
+ * ausente— y el label "Avanzado ›" SÍ se construyó, con el picker de color personalizado
+ * (`custom:#rrggbb`, ya soportado por `estilo-elemento.ts` pero sin UI hasta este slice).
  */
 function BarraEstiloElemento({
   seccion, elemento, estilo, rolesLegibles, anclaje, onPreviewColor,
@@ -913,6 +994,10 @@ function BarraEstiloElemento({
   anclaje: { top: number; left: number; height: number };
   onPreviewColor: (cssColor: string | null) => void;
 }) {
+  const [fontAbierto, setFontAbierto] = useState(false);
+  const [colorAbierto, setColorAbierto] = useState(false);
+  const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
+
   const enviar = (sub: 'fuente' | 'tamano' | 'color' | 'alinear', valor: string) => {
     window.parent.postMessage(mensajeEstiloElemento(seccion, elemento, sub, valor), window.location.origin);
   };
@@ -926,20 +1011,56 @@ function BarraEstiloElemento({
     left: anclaje.left,
     ...(arriba ? { top: anclaje.top - 8, transform: 'translateY(-100%)' } : { top: anclaje.top + anclaje.height + 8 }),
     zIndex: 2147483647,
-    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
-    background: '#ffffff', border: '1px solid #2563eb', borderRadius: 8,
-    padding: '6px 8px', boxShadow: '0 4px 16px rgba(0,0,0,.22)',
-    fontFamily: 'system-ui, sans-serif', fontSize: 12, color: '#1d4ed8', maxWidth: 380,
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2,
+    background: '#ffffff', color: '#141311', borderRadius: 12,
+    padding: 4, boxShadow: '0 12px 34px -8px rgba(20,19,17,.42), 0 0 0 1px rgba(20,19,17,.08)',
+    fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, maxWidth: 420,
   };
-  const estiloSelect: Record<string, string | number> = {
-    font: 'inherit', color: 'inherit', border: '1px solid #2563eb', borderRadius: 4,
-    background: '#fff', padding: '2px 4px', maxWidth: 150,
-  };
-  const estiloBotonAlinear = (activo: boolean): Record<string, string | number> => ({
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    width: 22, height: 22, border: '1px solid #2563eb', borderRadius: 4, cursor: 'pointer',
-    background: activo ? '#2563eb' : '#fff', color: activo ? '#fff' : '#1d4ed8',
+  const botonBarra = (activo = false): Record<string, string | number> => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    height: 36, padding: '0 10px', border: 'none', borderRadius: 9,
+    background: activo ? '#141311' : 'transparent', color: activo ? '#f4f3ef' : '#141311',
+    fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
+    cursor: 'pointer', whiteSpace: 'nowrap',
   });
+  const botonCuadrado = (activo = false): Record<string, string | number> => ({
+    ...botonBarra(activo), width: 34, padding: 0, justifyContent: 'center',
+  });
+  const separador: Record<string, string | number> = {
+    width: 1, height: 22, background: '#e9e6dd', margin: '0 3px', flex: 'none',
+  };
+  // SIEMPRE hacia ABAJO del trigger (§ `.pop` del prototipo, que SÍ invierte según la posición de
+  // `.ftb` en el viewport — `.ftb.at-cap .pop`/etc abren hacia arriba). Acá no se replica esa
+  // inversión: decidirla bien exige la altura del VIEWPORT, que `anclaje` no trae (sólo coordenadas
+  // de DOCUMENTO, § `GeometriaCampo`) — abrir siempre abajo es la opción segura en los dos casos de
+  // `arriba` (el trigger nunca está pegado al borde inferior real de la ventana, sólo bajo o sobre
+  // el campo), así que simplificar acá evita una inversión construida sin el dato que la decidiría.
+  const estiloPopover = (ancho: number): Record<string, string | number> => ({
+    position: 'absolute', left: 0, top: 'calc(100% + 10px)',
+    width: ancho, background: '#fff', color: '#141311', borderRadius: 14,
+    boxShadow: '0 22px 56px -12px rgba(20,19,17,.45), 0 0 0 1px rgba(20,19,17,.08)',
+    padding: 8, zIndex: 5, fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 13,
+  });
+
+  const fuenteActual = estilo.fuente === 'otra-del-par'
+    ? 'La otra del par'
+    : estilo.fuente
+      ? PARES_FUENTES.find((p) => p.clave === estilo.fuente)?.label ?? 'Por defecto'
+      : 'Por defecto';
+  const pasoActual = PASOS_TAMANO.indexOf(estilo.tamano ?? '');
+  const colorActualHex = hexDeColorPersonalizado(estilo.color);
+  const esColorPersonalizado = typeof estilo.color === 'string' && estilo.color.startsWith('custom:#');
+  const rolActual = esColorPersonalizado ? null : (estilo.color as RolColorElemento | null);
+  const colorActualLabel = esColorPersonalizado
+    ? 'Personalizado'
+    : rolActual
+      ? ROLES_COLOR_ELEMENTO.find((r) => r.clave === rolActual)?.label ?? 'Por defecto'
+      : 'Por defecto';
+  const colorActualSwatch = esColorPersonalizado
+    ? colorActualHex
+    : rolActual
+      ? `var(${ROLES_COLOR_ELEMENTO.find((r) => r.clave === rolActual)?.variable})`
+      : 'transparent';
 
   return createPortal(
     // § EDITOR-BARRA-ESTILO-CLIC-1 — `ATRIBUTO_EDITOR_CHROME` es lo que hace que el listener de
@@ -951,15 +1072,65 @@ function BarraEstiloElemento({
       data-editor-barra-estilo={`${seccion}.${elemento}`}
       {...{ [ATRIBUTO_EDITOR_CHROME]: '' }}
     >
-      <select aria-label="Letra" value={estilo.fuente ?? ''} onChange={(e) => enviar('fuente', e.target.value)} style={estiloSelect}>
-        <option value="">Letra: por defecto</option>
-        <option value="otra-del-par">Letra: la otra del par</option>
-        {PARES_FUENTES.map((p) => <option key={p.clave} value={p.clave}>Letra: {p.label}</option>)}
-      </select>
-      <select aria-label="Tamaño" value={estilo.tamano ?? ''} onChange={(e) => enviar('tamano', e.target.value)} style={estiloSelect}>
-        <option value="">Tamaño: por defecto</option>
-        {TAMANOS_ELEMENTO.map((t) => <option key={t} value={t}>Tamaño: {LABEL_TAMANO_ELEMENTO[t]}</option>)}
-      </select>
+      {/* LETRA — trigger "Aa + nombre" que abre un popover con la lista curada (§ `.fo`/`.flist`
+          del prototipo). «Por defecto» y «La otra del par» primero, después la colección. */}
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => { setFontAbierto((v) => !v); setColorAbierto(false); }}
+          style={botonBarra(fontAbierto)}
+        >
+          <span style={{ width: 20, textAlign: 'center', fontSize: 15 }}>Aa</span>
+          <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis' }}>{fuenteActual}</span>
+          <ChevronDown size={13} aria-hidden="true" />
+        </button>
+        {fontAbierto && (
+          <div style={estiloPopover(260)}>
+            <FilaFuente seleccionado={estilo.fuente === null} onClick={() => { enviar('fuente', ''); setFontAbierto(false); }}>
+              Por defecto
+            </FilaFuente>
+            <FilaFuente seleccionado={estilo.fuente === 'otra-del-par'} onClick={() => { enviar('fuente', 'otra-del-par'); setFontAbierto(false); }}>
+              La otra del par
+            </FilaFuente>
+            {PARES_FUENTES.map((p) => (
+              <FilaFuente
+                key={p.clave}
+                familia={p.titulo}
+                hint={p.descripcion}
+                seleccionado={estilo.fuente === p.clave}
+                onClick={() => { enviar('fuente', p.clave); setFontAbierto(false); }}
+              >
+                {p.label}
+              </FilaFuente>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={separador} />
+
+      {/* TAMAÑO — stepper −/palabra/+ (§ `.tbsz` del prototipo), no un `<select>` numérico. */}
+      <button
+        type="button"
+        aria-label="Más pequeño"
+        onClick={() => enviar('tamano', PASOS_TAMANO[Math.max(0, pasoActual - 1)])}
+        style={botonCuadrado()}
+      >
+        <Minus size={13} aria-hidden="true" />
+      </button>
+      <span style={{ minWidth: 86, textAlign: 'center', fontWeight: 600, padding: '0 4px', whiteSpace: 'nowrap' }}>
+        {labelPaso(PASOS_TAMANO[pasoActual])}
+      </span>
+      <button
+        type="button"
+        aria-label="Más grande"
+        onClick={() => enviar('tamano', PASOS_TAMANO[Math.min(PASOS_TAMANO.length - 1, pasoActual + 1)])}
+        style={botonCuadrado()}
+      >
+        <Plus size={13} aria-hidden="true" />
+      </button>
+      <div style={separador} />
+
+      {/* ALINEACIÓN — tres íconos cuadrados, mismo trío de siempre, chrome ink/blanco. */}
       <div role="group" aria-label="Alineación" style={{ display: 'flex', gap: 2 }}>
         {(
           [
@@ -968,40 +1139,135 @@ function BarraEstiloElemento({
             { v: 'derecha' as AlineacionElemento, Icon: AlignRight, label: 'Derecha' },
           ] as const
         ).map(({ v, Icon, label }) => (
-          <button key={v} type="button" title={label} onClick={() => enviar('alinear', v)} style={estiloBotonAlinear(estilo.alinear === v)}>
+          <button key={v} type="button" aria-label={label} onClick={() => enviar('alinear', v)} style={botonCuadrado(estilo.alinear === v)}>
             <Icon size={13} aria-hidden="true" />
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      <div style={separador} />
+
+      {/* COLOR — trigger con la muestra + nombre, abre «Por defecto» primero, los roles en chips
+          con su muestra (§ `.crole`), y «Avanzado ›» para el hex personalizado. SIN aviso de
+          contraste (§ el pedido del spec, REDISENO.md § 5 — no se agrega uno). */}
+      <div style={{ position: 'relative' }}>
         <button
           type="button"
-          title="Color por defecto"
-          onClick={() => enviar('color', '')}
-          style={{ ...estiloBotonAlinear(estilo.color === null), width: 'auto', padding: '0 6px' }}
+          onClick={() => { setColorAbierto((v) => !v); setFontAbierto(false); }}
+          style={botonBarra(colorAbierto)}
         >
-          Por defecto
-        </button>
-        {ROLES_COLOR_ELEMENTO.filter((r) => rolesLegibles.includes(r.clave)).map((r) => (
-          <button
-            key={r.clave}
-            type="button"
-            title={r.label}
-            onClick={() => enviar('color', r.clave)}
-            onMouseEnter={() => onPreviewColor(`var(${r.variable})`)}
-            onMouseLeave={() => onPreviewColor(null)}
-            style={{
-              width: 16, height: 16, borderRadius: '50%', padding: 0, cursor: 'pointer',
-              background: `var(${r.variable})`,
-              border: estilo.color === r.clave ? '2px solid #1d4ed8' : '1px solid rgba(0,0,0,.25)',
-            }}
+          <span style={{
+            width: 18, height: 18, borderRadius: '50%', boxShadow: 'inset 0 0 0 1px rgba(20,19,17,.2)',
+            background: colorActualSwatch,
+          }}
           />
-        ))}
+          <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>{colorActualLabel}</span>
+          <ChevronDown size={13} aria-hidden="true" />
+        </button>
+        {colorAbierto && (
+          <div style={estiloPopover(290)}>
+            <button
+              type="button"
+              onClick={() => { enviar('color', ''); setColorAbierto(false); setAvanzadoAbierto(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: 8,
+                borderRadius: 11, border: `1px solid ${estilo.color === null ? '#141311' : '#e9e6dd'}`,
+                background: '#fbfaf7', cursor: 'pointer', marginBottom: 10, textAlign: 'left',
+              }}
+            >
+              <span style={{ width: 30, height: 30, borderRadius: 9, boxShadow: 'inset 0 0 0 1px rgba(20,19,17,.15)', background: '#fff', flex: 'none' }} />
+              <span>
+                <b style={{ display: 'block', fontWeight: 600, fontSize: 12.5 }}>Por defecto</b>
+                <small style={{ display: 'block', color: '#746f64', fontSize: 11.5 }}>Lo que pide esta zona</small>
+              </span>
+            </button>
+            <p style={{ font: "500 10px/1 'Spline Sans Mono', monospace", letterSpacing: '.08em', textTransform: 'uppercase', color: '#746f64', margin: '0 0 7px 4px' }}>
+              De tu paleta
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 4 }} onMouseLeave={() => onPreviewColor(null)}>
+              {ROLES_COLOR_ELEMENTO.filter((r) => rolesLegibles.includes(r.clave)).map((r) => (
+                <button
+                  key={r.clave}
+                  type="button"
+                  onClick={() => { enviar('color', r.clave); setColorAbierto(false); }}
+                  onMouseEnter={() => onPreviewColor(`var(${r.variable})`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 9, padding: '7px 8px', borderRadius: 10,
+                    border: `1px solid ${rolActual === r.clave ? '#141311' : 'transparent'}`,
+                    background: 'transparent', cursor: 'pointer', textAlign: 'left', width: '100%',
+                  }}
+                >
+                  <span style={{ width: 24, height: 24, borderRadius: '50%', boxShadow: 'inset 0 0 0 1px rgba(20,19,17,.14)', background: `var(${r.variable})`, flex: 'none' }} />
+                  <span>
+                    <b style={{ display: 'block', fontWeight: 500, fontSize: 12.5 }}>{r.label}</b>
+                    <small style={{ display: 'block', color: '#746f64', fontSize: 11 }}>{r.descripcion}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setAvanzadoAbierto((v) => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                marginTop: 8, padding: '9px 8px', border: 'none', borderTop: '1px solid #e9e6dd',
+                background: 'transparent', color: '#3d3a34', fontWeight: 500,
+                fontSize: 12.5, cursor: 'pointer',
+              }}
+            >
+              <span>Avanzado</span>
+              <ChevronDown size={13} aria-hidden="true" style={{ transform: avanzadoAbierto ? 'rotate(180deg)' : undefined }} />
+            </button>
+            {avanzadoAbierto && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 6px' }}>
+                <span style={{ flex: 1, fontWeight: 500, fontSize: 12.5 }}>Personalizado</span>
+                <label style={{ position: 'relative', width: 30, height: 30, borderRadius: 9, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(20,19,17,.15)', cursor: 'pointer', flex: 'none' }}>
+                  <input
+                    type="color"
+                    value={colorActualHex}
+                    onChange={(e) => enviar('color', `custom:${e.target.value}`)}
+                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 0, padding: 0 }}
+                    aria-label="Elegir un color personalizado"
+                  />
+                  <span style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: colorActualHex }} />
+                </label>
+                <span style={{ fontFamily: "'Spline Sans Mono', monospace", fontSize: 11.5, color: '#746f64' }}>{colorActualHex}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <button type="button" onClick={quitar} title="Quitar estilo" style={{ ...estiloBotonAlinear(false), width: 'auto', padding: '0 6px' }}>
-        Quitar
+      <div style={separador} />
+
+      <button type="button" onClick={quitar} aria-label="Quitar estilo" title="Quitar estilo" style={botonCuadrado()}>
+        <Trash2 size={13} aria-hidden="true" />
       </button>
     </div>,
     document.body,
+  );
+}
+
+/** Una fila del popover de LETRA — "Aa" en la familia real + nombre + hint, con el check a la
+ *  derecha cuando está seleccionada (§ `.fo` del prototipo). `familia`/`hint` ausentes para "Por
+ *  defecto"/"La otra del par" (no tienen una tipografía propia que mostrar en miniatura). */
+function FilaFuente({
+  familia, hint, seleccionado, onClick, children,
+}: { familia?: string; hint?: string; seleccionado: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '7px 9px',
+        borderRadius: 9, border: 'none', background: seleccionado ? '#f4f3ef' : 'transparent',
+        cursor: 'pointer', textAlign: 'left',
+      }}
+    >
+      <span style={{ fontSize: 19, width: 30, textAlign: 'center', lineHeight: 1, flex: 'none', fontFamily: familia }}>Aa</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <b style={{ display: 'block', fontWeight: 500, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</b>
+        {hint && <small style={{ display: 'block', color: '#746f64', fontSize: 11.5 }}>{hint}</small>}
+      </span>
+      {seleccionado && <Check size={14} aria-hidden="true" style={{ flex: 'none' }} />}
+    </button>
   );
 }

@@ -20,7 +20,13 @@ import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 
 // LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1) — ver el docstring equivalente en
 // `HeroCurtina.tsx`: misma pieza LOCAL duplicada, mismo argumento de riesgo bajo/aditivo.
-function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
+//
+// § EDITOR-VISUAL-LIENZO-1 — EL SEGMENTADO COMPACTO: ver el docstring completo en
+// `HeroCurtina.tsx` (la misma pieza, duplicada). Reemplaza el label + tres pastillas azules sueltas
+// por un único control anclado al pie, con el paso activo resaltado.
+function SegmentoZona({
+  onClic, activo, children,
+}: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; activo: boolean; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -29,16 +35,25 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
       {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
       {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
-        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
-        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
-        cursor: 'pointer', position: 'relative', zIndex: 20,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, minWidth: 36, padding: '0 10px', borderRadius: 8, border: 'none',
+        fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
+        lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer',
+        color: activo ? '#141311' : 'rgba(244,243,239,.72)',
+        background: activo ? '#ffffff' : 'transparent',
+        boxShadow: activo ? '0 1px 2px rgba(20,19,17,.08)' : 'none',
       }}
     >
       {children}
     </button>
   );
 }
+
+const TRACK_SEGMENTADO: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 11,
+  background: 'rgba(20,19,17,.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 8px 22px -6px rgba(0,0,0,.45)',
+};
 
 // LA VARIANTE "FICHA" (§ eje 5, EJE-5-VARIANTES-HERO): deja de ser una cortina fotográfica y pasa a
 // ser una FICHA PARTIDA — tipografía en TINTA sobre CREMA, foto a sangre a la derecha SIN degradado
@@ -107,17 +122,13 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
     >
       {/* Foto a sangre, SIN degradado encima — banda superior en móvil, mitad derecha en desktop. */}
       <div className="relative h-[42vh] w-full shrink-0 lg:h-auto lg:w-1/2">
-        {/* LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1): § el docstring de cabecera.
-            `top-24`, no `top-3` — el `<header>` del storefront es `fixed … z-50` sobre TODO el
-            viewport (StoreNav.tsx), así que un chip cerca del borde superior queda TAPADO: el
-            clic real (hit-test del navegador, no la caja que Playwright apunta) cae en el nav,
-            no en el chip. Medido por ejecución: con `top-3` el clic no producía ningún mensaje. */}
+        {/* LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1, § EDITOR-VISUAL-LIENZO-1): un
+            control compacto anclado al pie de la foto, no cuatro pastillas azules sueltas. */}
         {activoEditor && (
-          <div className="absolute top-24 left-3 z-20 flex flex-wrap">
-            <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Alto</span>
-            <ZonaChip onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</ZonaChip>
-            <ZonaChip onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</ZonaChip>
-            <ZonaChip onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</ZonaChip>
+          <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2" style={TRACK_SEGMENTADO}>
+            <SegmentoZona activo={(hero.alto ?? 'justo') === 'justo'} onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</SegmentoZona>
+            <SegmentoZona activo={hero.alto === 'alto'} onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</SegmentoZona>
+            <SegmentoZona activo={hero.alto === 'pantalla'} onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</SegmentoZona>
           </div>
         )}
         {esVideo ? (

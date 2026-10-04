@@ -24,7 +24,19 @@ import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 // vez acá, ADITIVO y de riesgo bajo: `claseAlturaHero('justo', false)` sin tocar (la canónica) sigue
 // dando `min-h-[92vh]`, byte-idéntico al de siempre. Pieza LOCAL duplicada entre las 4 variantes
 // (mismo criterio ya aceptado en este repo, § el efecto de video de cada hero).
-function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
+//
+// § EDITOR-VISUAL-LIENZO-1 — EL SEGMENTADO COMPACTO reemplaza el label + tres pastillas azules
+// sueltas (§ `docs/editor-tienda/prototipo/prototipo-editor.html`, `.seg`/`.seg button.on`): un
+// único control, anclado al PIE del hero (como `.alto-h`, el pill del prototipo), con el paso
+// activo resaltado en vez de tres botones indistinguibles. `.alto-h` del prototipo asoma A CABALLO
+// del borde (`bottom:-17px`) porque su `.hero` no recorta; el de acá queda ADENTRO del área visible
+// (`bottom-4`) porque la sección real SÍ lleva `overflow-hidden` — un pill fuera de ese borde se
+// recortaría, invisible. Track oscuro translúcido (el tono del propio `.alto-h`, `#141311`) con el
+// paso activo en blanco — el inverso en valor del `.seg` CLARO del panel (`var(--paper)` con `.on`
+// blanco), adaptado a un chrome que vive SOBRE una foto, no sobre el fondo claro del panel.
+function SegmentoZona({
+  onClic, activo, children,
+}: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; activo: boolean; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -33,16 +45,26 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
       {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
       {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
-        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
-        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
-        cursor: 'pointer', position: 'relative', zIndex: 20,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, minWidth: 36, padding: '0 10px', borderRadius: 8, border: 'none',
+        fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
+        lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer',
+        color: activo ? '#141311' : 'rgba(244,243,239,.72)',
+        background: activo ? '#ffffff' : 'transparent',
+        boxShadow: activo ? '0 1px 2px rgba(20,19,17,.08)' : 'none',
       }}
     >
       {children}
     </button>
   );
 }
+
+/** El track oscuro que agrupa los pasos — mismo tono que `.alto-h` del prototipo. */
+const TRACK_SEGMENTADO: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 11,
+  background: 'rgba(20,19,17,.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 8px 22px -6px rgba(0,0,0,.45)',
+};
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -186,17 +208,14 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80 pointer-events-none" />
       </div>
 
-      {/* LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1): § el docstring de cabecera.
-          `top-24`, no `top-3` — el `<header>` del storefront es `fixed … z-50` sobre TODO el
-          viewport (StoreNav.tsx), así que un chip cerca del borde superior queda TAPADO: el
-          clic real (hit-test del navegador) cae en el nav, no en el chip. Medido por ejecución:
-          con `top-3` el clic no producía ningún mensaje. */}
+      {/* LA ZONA «FONDO» — EL ALTO (§ EDITOR-TIENDA-ZONAS-1, § EDITOR-VISUAL-LIENZO-1): un control
+          compacto anclado al PIE del hero (como `.alto-h` del prototipo), no cuatro pastillas
+          azules sueltas arriba a la izquierda. */}
       {activoEditor && (
-        <div className="absolute top-24 left-3 z-20 flex flex-wrap">
-          <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Alto</span>
-          <ZonaChip onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</ZonaChip>
-          <ZonaChip onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</ZonaChip>
-          <ZonaChip onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</ZonaChip>
+        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2" style={TRACK_SEGMENTADO}>
+          <SegmentoZona activo={(hero.alto ?? 'justo') === 'justo'} onClic={{ campo: 'alto', valor: 'justo', campo2: 'alturaLlena', valor2: 'false' }}>Justo</SegmentoZona>
+          <SegmentoZona activo={hero.alto === 'alto'} onClic={{ campo: 'alto', valor: 'alto', campo2: 'alturaLlena', valor2: 'false' }}>Alto</SegmentoZona>
+          <SegmentoZona activo={hero.alto === 'pantalla'} onClic={{ campo: 'alto', valor: 'pantalla', campo2: 'alturaLlena', valor2: 'true' }}>Pantalla completa</SegmentoZona>
         </div>
       )}
 

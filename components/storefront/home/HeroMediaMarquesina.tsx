@@ -11,7 +11,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable, { useRutaEnEdicion } from "@/components/storefront/CampoEditable";
-import { HERO_HREFS, objectPositionDePuntoFocal, productoMarquesina } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, objectPositionDePuntoFocal, productoMarquesina, veloComboDeCampos } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
   useProgresoScrollDesdeTope, veloOpacidad, rangoVeloDeIntensidad,
@@ -597,6 +597,8 @@ import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
 // LAS ZONAS (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4) — misma pieza LOCAL que
 // `HeroMedia.tsx` (duplicada a propósito, no un módulo compartido: § el docstring de esa copia, el
 // mismo criterio ya aceptado en este repo para piezas chicas entre las 4 variantes del hero).
+// § EDITOR-VISUAL-LIENZO-1 — EL «GHOST» DEL PROTOTIPO: ver el docstring completo en
+// `HeroMedia.tsx` (misma pieza, duplicada entre las 4 variantes).
 function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; children: React.ReactNode }) {
   return (
     <button
@@ -606,9 +608,12 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
       {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
       {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, marginRight: 8,
-        padding: '3px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.4, borderRadius: 999,
-        border: '1px dashed #2563eb', background: 'rgba(255,255,255,.94)', color: '#1d4ed8',
+        display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, marginRight: 8,
+        height: 36, padding: '0 14px 0 10px', borderRadius: 999,
+        background: 'rgba(255,255,255,.16)', border: '1px solid rgba(255,255,255,.45)',
+        color: '#fff', fontFamily: "'Hanken Grotesk', system-ui, sans-serif",
+        fontSize: 12.5, fontWeight: 600, lineHeight: 1,
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         cursor: 'pointer', position: 'relative', zIndex: 20,
       }}
     >
@@ -616,6 +621,40 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
     </button>
   );
 }
+
+// EL SEGMENTADO COMPACTO de «Oscurecer para leer mejor» (§ EDITOR-VISUAL-LIENZO-1) — ver el
+// docstring completo en `HeroCurtina.tsx` (misma pieza, duplicada; acá con CUATRO pasos en vez de
+// tres, porque esta composición escribe `veloVisible`+`veloIntensidad`, no `alto`).
+function SegmentoZona({
+  onClic, activo, children,
+}: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; activo: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-editor-zona-campo={onClic.campo}
+      data-editor-zona-valor={onClic.valor}
+      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
+      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, minWidth: 36, padding: '0 10px', borderRadius: 8, border: 'none',
+        fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
+        lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer',
+        color: activo ? '#141311' : 'rgba(244,243,239,.72)',
+        background: activo ? '#ffffff' : 'transparent',
+        boxShadow: activo ? '0 1px 2px rgba(20,19,17,.08)' : 'none',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+const TRACK_SEGMENTADO: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 11,
+  background: 'rgba(20,19,17,.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 8px 22px -6px rgba(0,0,0,.45)',
+};
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina, tema, paginas } = useSiteContent();
@@ -811,23 +850,27 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           )}
         </div>
 
-        {/* LA ZONA «FONDO» — EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1): «Oscurecer para leer
-            mejor» — Nada · Suave · Medio · Fuerte. Escribe `veloVisible`+`veloIntensidad` juntos
-            (§ `camposDeVeloCombo`, site-content-defaults.ts) — el MISMO par que decide
-            `PaletaSeccion`/el select del panel, nunca una tercera fuente. SÓLO esta composición lee
-            estos dos campos (§ el docstring de cabecera, "EL VELO ES OPT-IN"), así que el control
-            vive SÓLO acá, no en `HeroMedia.tsx`. */}
-        {/* `top-24`, no `top-3` — el `<header>` fijo (z-50, StoreNav.tsx) cubre el borde superior
-            del hero; medido por ejecución, con `top-3` el clic no llegaba al chip. */}
-        {activoEditor && (
-          <div className="absolute top-24 left-3 z-20 flex flex-wrap">
-            <span style={{ display: 'block', width: '100%', marginBottom: 2, fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#1d4ed8' }}>Fondo · Oscurecer para leer mejor</span>
-            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'false' }}>Nada</ZonaChip>
-            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'suave' }}>Suave</ZonaChip>
-            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'intermedia' }}>Medio</ZonaChip>
-            <ZonaChip onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'media' }}>Fuerte</ZonaChip>
-          </div>
-        )}
+        {/* LA ZONA «FONDO» — EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1, § EDITOR-VISUAL-LIENZO-1):
+            «Oscurecer para leer mejor» — Nada · Suave · Medio · Fuerte, ahora un control compacto
+            anclado al pie del hero en vez de cuatro pastillas azules sueltas arriba a la izquierda.
+            Escribe `veloVisible`+`veloIntensidad` juntos — el MISMO par que decide `PaletaSeccion`/
+            el select del panel, nunca una tercera fuente. El paso ACTIVO se deriva con
+            `veloComboDeCampos` (site-content-defaults.ts) — la MISMA función que ya traduce estos
+            dos campos al paso combinado en el panel, para que los dos lados nunca puedan discrepar
+            sobre qué paso está encendido. SÓLO esta composición lee estos dos campos (§ el
+            docstring de cabecera, "EL VELO ES OPT-IN"), así que el control vive SÓLO acá, no en
+            `HeroMedia.tsx`. */}
+        {activoEditor && (() => {
+          const paso = veloComboDeCampos(hero.veloVisible, hero.veloIntensidad);
+          return (
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2" style={TRACK_SEGMENTADO}>
+              <SegmentoZona activo={paso === 'nada'} onClic={{ campo: 'veloVisible', valor: 'false' }}>Nada</SegmentoZona>
+              <SegmentoZona activo={paso === 'suave'} onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'suave' }}>Suave</SegmentoZona>
+              <SegmentoZona activo={paso === 'medio'} onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'intermedia' }}>Medio</SegmentoZona>
+              <SegmentoZona activo={paso === 'fuerte'} onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'media' }}>Fuerte</SegmentoZona>
+            </div>
+          );
+        })()}
 
         {/* EL LOOP DE TEXTO — EXTRAÍDO a `MarquesinaMotor.tsx` (`MarquesinaFraseMotor`), §
             EDITOR-TIENDA-MARQUESINA-SECCION-1. Mismo JSX de siempre (máscara + motor + ticker, tres
