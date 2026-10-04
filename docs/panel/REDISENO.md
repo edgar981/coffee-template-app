@@ -92,20 +92,39 @@ son las que el prototipo trata a fondo.
 - **Personalizar** muestra un modo de edición sobre las mismas tarjetas, sin hoja aparte.
 
 ### Pedidos
-- **Titular:** «5 pedidos necesitan tu atención», con la línea «3 en camino · 6 por preparar · hoy
-  entraron 23».
-- **Buscador** por número, cliente o teléfono, y **cinco pestañas** con su cuenta: Necesitan
-  atención · Por preparar · En camino · Por cobrar · Todos. Entregados, cancelados, canal y fecha
-  pasan a «Más filtros».
-- **Detalle, en orden:**
-  1. Cabecera: cliente, número y total.
-  2. **«Siguiente paso»**: la razón y un solo botón principal (Registrar pago, Verificar
-     comprobante, Programar entrega, Marcar en camino, Marcar entregado). En ámbar si es atención.
-  3. El recorrido de cuatro pasos.
-  4. Tres resúmenes: Pago · Entrega · Cliente.
-  5. Productos, Recorrido y Notas internas.
-- **Vista Tablero:** las mismas filas agrupadas por etapa (Por preparar · Preparando · En camino ·
-  Entregados hoy), para quien despacha.
+
+La pantalla deja de ser un feed cronológico con la atención salpicada entre filas. Se ordena por
+**lo que le toca al operador**, y el camino del pedido pasa a ser el filtro.
+
+- **Titular:** «5 pedidos necesitan tu atención». Debajo, un dato de la mesa: «13 pedidos en la
+  mesa por $1.131.000 · el más antiguo sin preparar lleva 7 h». No repite las cuentas de abajo.
+- **Barra:** buscador (número, cliente o teléfono) y dos facetas que cruzan etapas: **Piden tu
+  acción** y **Sin cobrar**. Con un filtro puesto aparece «Mostrando N de 13 · Ver todos».
+- **El camino (cuatro etapas):** Por preparar → Preparando → En camino → Entregados hoy. Cada
+  etapa muestra su cuenta, su plata y cuántos piden tu acción (o, si ninguno, un dato tranquilo:
+  «Ninguno estancado», «Todos cobrados»). En Lista, tocar una etapa la filtra. En Tablero, la misma
+  franja se parte en cuatro y queda como encabezado de cada columna.
+- **Lista agrupada:** primero «Piden tu acción», con el botón que lo resuelve en la misma fila
+  (Verificar, Registrar pago, Programar, Reprogramar). Después una sección por etapa, cada una con
+  su cuenta y su total; «Entregados hoy» va atenuada.
+  - **La fila:** número y hora a la izquierda (el número es como se nombra un pedido, no las
+    iniciales del cliente); cliente con lo que pidió debajo, o el motivo en ámbar si pide acción;
+    pago con punto de color y quién lo lleva; total alineado a la derecha.
+  - **Teclado:** ↑ ↓ (o j / k) mueve la selección y Enter hace el siguiente paso.
+- **Detalle como ficha:**
+  1. «Pedido #1041 · WhatsApp · 2:05 p. m.», el cliente con teléfono, ciudad y un enlace a su
+     historial («5 pedidos desde febrero»), y el total con su estado de pago.
+  2. **Siguiente paso** con un solo botón principal (ámbar si es atención).
+  3. **Recorrido con horas**: Recibido, Preparando, En camino y Entregado, cada uno con su hora; el
+     que falló, en rojo.
+  4. **Hechos en tres filas** sin cajas: Pago, Entrega, Dirección (con la zona).
+  5. **Recibo**: productos, subtotal, envío y total. Luego el historial, las notas internas y,
+     al pie, Cancelar pedido, Imprimir guía y Escribir al cliente.
+  - El detalle queda fijo al hacer scroll y desplaza su propio contenido.
+- **Tablero:** columnas sin caja bajo el encabezado de cada etapa. Lo que pide acción va primero
+  en cada columna, con una línea ámbar a la izquierda, el motivo y su botón. Las demás tarjetas
+  dicen número, tiempo, cliente, total, lo que pidió, pago y quién lo lleva. Con «Piden tu acción»
+  o «Sin cobrar» puesto, el tablero no esconde nada: atenúa lo que no aplica.
 - **Formularios:**
   - Registrar pago: método con un toque, «¿Cuándo entró?» (Hoy, Ayer, Otra fecha) y comprobante
     opcional.
@@ -202,8 +221,8 @@ interfaz que llama a las puertas de dinero; las puertas mismas no se tocan.
 |---|---|---|---|
 | 1 | `PANEL-ANALITICA-COPIA-1` — quitar el texto de desarrollo y nombrar distinto «Cartera» y «Por cobrar» | `analitica/` | Solo texto. Se ve el mismo día. |
 | 2 | `PANEL-ROLES-HONESTOS-1` — sacar STAFF de la leyenda y de «Cambiar rol», confirmar promociones y ocultar el menú a quien no es dueño | `configuracion/page.tsx`, `InviteUserModal.tsx` | Cierra un camino que deja a alguien sin acceso. |
-| 3 | `PANEL-PEDIDOS-BUSCADOR-1` — buscador y 5 pestañas con «Más filtros»; «En camino» en todas partes | `pedidos/`, `lib/pedidos/filtros.ts` | |
-| 4 | `PANEL-PEDIDOS-SIGUIENTE-PASO-1` — reordenar el detalle con siguiente paso y resúmenes; pasar los modales a Duna | `pedidos/`, `NewOrderModal.tsx`, `ScheduleDeliveryModal.tsx`, `RegisterPaymentModal.tsx` | |
+| 3 | `PANEL-PEDIDOS-CAMINO-1` — buscador, facetas «Piden tu acción» y «Sin cobrar», franja de cuatro etapas y lista agrupada con la acción en la fila; «En camino» en todas partes | `pedidos/`, `lib/pedidos/filtros.ts` | Reemplaza los nueve carriles de hoy (§ Backlog #35). Las etapas y las facetas reusan los predicados que ya existen (`motivosDeAtencion`, `isPorCobrar`); no hay definición nueva. |
+| 4 | `PANEL-PEDIDOS-FICHA-1` — el detalle como ficha: siguiente paso, recorrido con horas, hechos en filas y recibo; tablero con encabezado por etapa; pasar los modales a Duna | `pedidos/`, `NewOrderModal.tsx`, `ScheduleDeliveryModal.tsx`, `RegisterPaymentModal.tsx` | |
 | 5 | `PANEL-INVENTARIO-EXISTENCIAS-1` — pestaña Existencias y ajuste con vista previa, «Llegó más» por defecto y motivos | `inventario/`, `AdjustStockModal.tsx` | El motivo sigue siendo texto: los chips solo lo escriben. |
 | 6 | `PANEL-CONFIG-POR-BLOQUES-1` — subsecciones con edición por bloque | `configuracion/`, `DatosNegocioSeccion.tsx` | |
 | 7 | `PANEL-HOY-FRASE-1` — titular del brief, duna con comparación e indicadores con tope | `dashboard/`, `CurvaPedidosHoy.tsx`, `Indicador.tsx` | La comparación necesita una lectura nueva (mismo día de la semana pasada), sin cambio de esquema. |
@@ -230,4 +249,10 @@ interfaz que llama a las puertas de dinero; las puertas mismas no se tocan.
   - El tope de efectivo.
   - El tipo «Otro medio».
   Cualquiera que no exista es un campo nuevo (gate del owner).
+- La **fila y la tarjeta de pedido**: en agosto se decidió no tocar la tarjeta hasta medirla en
+  la pantalla donde se trabaja (§ «un número de layout sólo vale si viene de la pantalla donde se
+  TRABAJA»). Esta propuesta la cambia. Antes de construirla hay que medir en esa pantalla cuántas
+  filas caben con la fila nueva (unos 58 px).
+- **Teclado en la lista** (↑ ↓, Enter): es capacidad nueva. Enter dispara el siguiente paso, así
+  que necesita la misma guarda de doble envío que los botones (`useAccionGuardada`).
 - Las **cifras del prototipo** son de una tienda de ejemplo (Finca San Adolfo); no son datos reales.
