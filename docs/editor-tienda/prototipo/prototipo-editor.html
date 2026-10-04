@@ -1,0 +1,2093 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor de tienda — prototipo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;family=Roboto+Serif:ital,wght@0,400;1,400&amp;family=Figtree:wght@400;500;600&amp;family=Oswald:wght@400&amp;family=Archivo:wght@400;500;600&amp;family=Quicksand:wght@500;600&amp;family=Mulish:wght@400;600&amp;family=Playfair+Display:ital,wght@0,400;1,400&amp;family=Inter:wght@400;500;600&amp;family=Fraunces:ital,wght@0,400;1,400&amp;family=Nunito+Sans:wght@400;600&amp;family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#F7F6F2}
+*{box-sizing:border-box}
+.ed{--bg:#F7F6F2;--surface:#FFFFFF;--s2:#FBFAF7;--paper:#F4F3EF;--ink:#141311;--ink2:#3D3A34;--muted:#746F64;--faint:#A8A399;--line:#E9E6DD;--line2:#DDD9CD;--sol:#F59E0B;--ok:#4C7A5A;--ease:cubic-bezier(.2,.8,.2,1);--glide:cubic-bezier(.7,0,.2,1);position:relative;height:100vh;min-height:720px;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:400 13px/1.45 'Hanken Grotesk',system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+:where(.ed) button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:inherit}
+.ed button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.ed svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ed svg.i.s{width:15px;height:15px}
+.mono{font-family:'Spline Sans Mono',ui-monospace,monospace}
+
+/* ── paletas reales de los presets (raíces fondo / tinta / acento) ── */
+.pal-corte{--c-fondo:#fdfbf7;--c-tinta:#102407;--c-acento:#a70004;--c-tostado:#c79a55;--ff-d:'Roboto Serif',Georgia,serif;--ff-b:'Figtree',system-ui,sans-serif}
+.pal-pliego{--c-fondo:#f6f1e6;--c-tinta:#17120e;--c-acento:#b3200f;--c-tostado:#c08a4a;--ff-d:'Oswald',Impact,sans-serif;--ff-b:'Archivo',system-ui,sans-serif}
+.pal-patio{--c-fondo:#fdf6e9;--c-tinta:#2a1c10;--c-acento:#c8662b;--c-tostado:#d9a35c;--ff-d:'Quicksand',system-ui,sans-serif;--ff-b:'Mulish',system-ui,sans-serif}
+.pal-vitrina{--c-fondo:#ffffff;--c-tinta:#12100f;--c-acento:#6f6558;--c-tostado:#b89f7e;--ff-d:'Playfair Display',Georgia,serif;--ff-b:'Inter',system-ui,sans-serif}
+.pal-corte,.pal-pliego,.pal-patio,.pal-vitrina{--c-texto:color-mix(in oklab,var(--c-tinta) 84%,var(--c-fondo));--c-suave:color-mix(in oklab,var(--c-tinta) 56%,var(--c-fondo));--c-sup:color-mix(in oklab,var(--c-tinta) 6%,var(--c-fondo));--c-linea:color-mix(in oklab,var(--c-tinta) 13%,var(--c-fondo))}
+.fp-prensa{--ff-d:'Roboto Serif',Georgia,serif;--ff-b:'Figtree',system-ui,sans-serif}
+.fp-robusta{--ff-d:'Oswald',Impact,sans-serif;--ff-b:'Archivo',system-ui,sans-serif}
+.fp-calido{--ff-d:'Fraunces',Georgia,serif;--ff-b:'Nunito Sans',system-ui,sans-serif}
+.fp-editorial{--ff-d:'Playfair Display',Georgia,serif;--ff-b:'Inter',system-ui,sans-serif}
+.fp-cercano{--ff-d:'Quicksand',system-ui,sans-serif;--ff-b:'Mulish',system-ui,sans-serif}
+.fp-tecnico{--ff-d:'IBM Plex Mono',monospace;--ff-b:'IBM Plex Sans',system-ui,sans-serif}
+.fo-recta{--r:0px;--rb:0px}
+.fo-suave{--r:14px;--rb:999px}
+.fo-minima{--r:4px;--rb:5px}
+
+/* ── barra superior ── */
+.tb{height:56px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px 0 10px;background:var(--surface);border-bottom:1px solid var(--line);position:relative;z-index:30}
+.tb-l,.tb-r{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.tb-r{justify-content:flex-end}
+.tb-c{display:flex;align-items:center;gap:10px}
+.rel{position:relative}
+.ib{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink2);transition:background .15s,color .15s;flex:none}
+.ib:hover{background:var(--paper);color:var(--ink)}
+.ib.off{color:var(--faint);pointer-events:none}
+.store{display:flex;align-items:center;gap:10px;min-width:0}
+.store-av{width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);display:grid;place-items:center;font:600 13px 'Space Grotesk',sans-serif;flex:none}
+.store-t{min-width:0}
+.store-t b{display:block;font-weight:600;font-size:13px;white-space:nowrap;line-height:1.2}
+.store-t small{display:block;color:var(--muted);font-size:11.5px;white-space:nowrap}
+.vr{width:1px;height:22px;background:var(--line);flex:none}
+.pgsw{height:36px;display:inline-flex;align-items:center;gap:8px;padding:0 10px 0 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:500;transition:border-color .15s}
+.pgsw:hover{border-color:var(--line2)}
+.pgsw .k{color:var(--muted);font-weight:400}
+.seg{display:inline-flex;padding:3px;gap:2px;background:var(--paper);border-radius:11px;border:1px solid var(--line)}
+.seg button{height:30px;min-width:36px;padding:0 9px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12.5px;font-weight:500;transition:background .2s,color .2s,box-shadow .2s}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(20,19,17,.08),0 0 0 1px rgba(20,19,17,.05)}
+.seg.full{display:flex}
+.seg.full button{flex:1}
+.status{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;white-space:nowrap;margin-right:4px}
+.status .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);transition:background .3s}
+.status.saving .dot{background:var(--faint);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.btn{height:36px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;border-radius:10px;font-weight:600;white-space:nowrap;transition:background .25s,transform .1s,border-color .15s}
+.btn-ghost{border:1px solid var(--line);background:var(--surface)}
+.btn-ghost:hover{border-color:var(--line2);background:var(--s2)}
+.btn-ink{background:var(--ink);color:var(--paper)}
+.btn-ink:hover{background:#2c2a25}
+.btn-ink:active{transform:scale(.98)}
+.btn-ink.done{background:var(--ok)}
+.btn .count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:rgba(244,243,239,.18);font-size:11.5px;display:inline-grid;place-items:center}
+.btn.full{width:100%;height:40px}
+.btn.sm{height:30px;padding:0 11px;font-size:12px;border-radius:9px}
+
+.menu{position:absolute;z-index:60;background:var(--surface);border-radius:14px;box-shadow:0 20px 50px -12px rgba(20,19,17,.35),0 0 0 1px rgba(20,19,17,.07);padding:6px;animation:menuIn .18s var(--ease)}
+@keyframes menuIn{from{opacity:0;transform:translateY(-4px)}}
+.pgmenu{top:44px;left:0;width:240px}
+.pgm{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 10px;border-radius:9px;font-weight:500}
+.pgm:hover{background:var(--paper)}
+.pgm.on{background:var(--paper)}
+.pgm small{color:var(--muted);font:400 11px 'Spline Sans Mono',monospace}
+.pubpop{top:50px;right:0;width:330px;padding:16px}
+.pp-k{font:500 10.5px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.pp-t{font:600 17px/1.25 'Space Grotesk',sans-serif;margin:8px 0 12px;letter-spacing:-.01em}
+.pp-list{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.pp-it{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:var(--s2);border:1px solid var(--line)}
+.pp-it span{color:var(--muted);font-size:12px;width:62px;flex:none}
+.pp-it b{font-weight:500}
+.pp-empty{color:var(--muted);margin:0 0 14px}
+.pp-fine{color:var(--muted);font-size:11.5px;margin:10px 0 0;text-align:center}
+
+/* ── cuerpo ── */
+.bd{flex:1;display:flex;min-height:0}
+.rail{width:66px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0}
+.rail-b{width:54px;padding:9px 0 7px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--muted);font-size:10.5px;font-weight:500;border:1px solid transparent;transition:color .2s,background .2s,border-color .2s,box-shadow .2s}
+.rail-b:hover{color:var(--ink);background:var(--s2)}
+.rail-b.on{color:var(--ink);background:var(--surface);border-color:var(--line);box-shadow:0 2px 8px rgba(20,19,17,.07)}
+.rail-sp{flex:1}
+.panel{width:308px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative;overflow:hidden}
+.ed.preview .rail,.ed.preview .panel{display:none}
+.pv{flex:1;overflow-y:auto;padding:16px 16px 28px;animation:pushIn .34s var(--ease)}
+.pv.back{animation-name:popIn}
+@keyframes pushIn{from{opacity:0;transform:translateX(16px)}}
+@keyframes popIn{from{opacity:0;transform:translateX(-16px)}}
+.pv::-webkit-scrollbar{width:0}
+.pv-back{display:inline-flex;align-items:center;gap:3px;color:var(--muted);font-size:12px;font-weight:500;padding:4px 8px 4px 2px;border-radius:8px;margin:-4px 0 10px -2px}
+.pv-back:hover{color:var(--ink);background:var(--paper)}
+.pv-title{font:600 18px/1.2 'Space Grotesk',sans-serif;letter-spacing:-.012em;margin:0}
+.pv-sub{color:var(--muted);font-size:12.5px;margin:5px 0 0;line-height:1.45}
+.lbl{font:500 10.5px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:24px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lbl .w{font:500 12px 'Hanken Grotesk',sans-serif;letter-spacing:0;text-transform:none;color:var(--ink)}
+.hint{color:var(--muted);font-size:12px;margin:10px 0 0;line-height:1.5;display:flex;gap:7px}
+.hint svg{margin-top:1px;color:var(--faint)}
+.grp{font:500 10.5px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:20px 6px 8px}
+.rows{display:flex;flex-direction:column;gap:1px}
+.row{height:38px;display:flex;align-items:center;gap:4px;padding:0 4px 0 2px;border-radius:9px;color:var(--ink2);transition:background .15s,color .15s}
+.row:hover,.row.hov{background:var(--paper)}
+.row.on{background:var(--ink);color:var(--paper)}
+.row.on .grip,.row.on .eye,.row.on .tg{color:rgba(244,243,239,.6)}
+.row.dim .row-main{opacity:.45}
+.grip{width:16px;height:16px;color:var(--faint);opacity:0;transition:opacity .15s;flex:none;display:grid;place-items:center}
+.row:hover .grip{opacity:1}
+.row-main{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:9px;padding-left:2px}
+.row-main .nm{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .eye,.row .tg{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted);flex:none}
+.row .eye{opacity:0}
+.row:hover .eye,.row.dim .eye{opacity:1}
+.row .eye:hover,.row .tg:hover{background:rgba(20,19,17,.06)}
+.kids{display:flex;flex-direction:column;gap:1px;margin:2px 0 4px 16px;padding-left:10px;border-left:1px solid var(--line)}
+.kid{height:32px;display:flex;align-items:center;gap:9px;padding:0 8px;border-radius:8px;color:var(--ink2);font-size:12.5px;width:100%;transition:background .15s}
+.kid:hover{background:var(--paper)}
+.kid.on{background:var(--paper);color:var(--ink);font-weight:500;box-shadow:inset 2px 0 0 var(--ink)}
+.kid .gl{width:18px;text-align:center;color:var(--muted);font:500 12px 'Spline Sans Mono',monospace;flex:none}
+.kid .nm{white-space:nowrap}
+.kid .sb{flex:1;min-width:0;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.add-sec{margin-top:10px;height:40px;border:1px dashed var(--line2);border-radius:10px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px;font-weight:500;width:100%;transition:all .15s}
+.add-sec:hover{color:var(--ink);border-color:var(--ink2);background:var(--s2)}
+
+/* panel del hero */
+.cc{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;gap:12px;align-items:center;background:var(--s2);margin-top:16px}
+.cc-t{flex:1;min-width:0}
+.cc-t b{display:block;font-weight:600}
+.cc-t span{display:block;color:var(--muted);font-size:12px}
+.mini{position:relative;width:92px;height:60px;border-radius:7px;overflow:hidden;flex:none;background:radial-gradient(90% 90% at 68% 40%,#466a2a,#13240e 70%)}
+.mini .z{position:absolute;border:1px solid rgba(255,255,255,.75);background:rgba(255,255,255,.14);border-radius:2px}
+.mini .z-marq{background:rgba(255,255,255,.55);border:0}
+.mini .z-card{background:#cfa774;border:0;transform:none}
+.mini .h-panel{position:absolute;top:0;bottom:0;left:0;width:44%;background:#f2ede2;opacity:0;transition:opacity .4s}
+.mini.cf .h-panel{opacity:1}
+.mini.cf .z{border-color:rgba(20,19,17,.45);background:rgba(20,19,17,.06)}
+.mini.lg{width:100%;height:auto;aspect-ratio:16/10;border-radius:10px}
+.mini.lg .z::after{content:attr(data-zone);position:absolute;left:5px;top:4px;font:500 8.5px/1 'Spline Sans Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.9)}
+.mini.lg.cf .z::after{color:rgba(20,19,17,.6)}
+.mini.lg .z-marq::after,.mini.lg .z-card::after{color:rgba(20,19,17,.65)}
+.zr{display:flex;align-items:center;gap:6px;border-radius:11px;border:1px solid transparent;transition:background .15s,border-color .15s;margin-bottom:2px}
+.zr:hover,.zr.on{background:var(--s2);border-color:var(--line)}
+.zr.on{border-color:var(--ink);background:var(--surface)}
+.zr-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 4px 8px 8px}
+.zi{width:28px;height:28px;border-radius:8px;background:var(--paper);display:grid;place-items:center;color:var(--ink2);flex:none;font:500 13px 'Spline Sans Mono',monospace}
+.zr.empty .zi{background:transparent;border:1px dashed var(--line2);color:var(--faint)}
+.zt{flex:1;min-width:0}
+.zt b{display:block;font-weight:500;font-size:12.5px;line-height:1.3}
+.zt span{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.zr.empty .zt span{color:var(--faint)}
+.zadd{height:28px;padding:0 10px 0 7px;margin-right:8px;border-radius:999px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;gap:3px;background:var(--surface);flex:none;transition:background .15s,border-color .15s}
+.zadd:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.opt{border:1px solid var(--line);border-radius:12px;padding:7px 7px 9px;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:11.5px;font-weight:500;color:var(--ink2);background:var(--surface);transition:border-color .2s,box-shadow .2s;text-align:center;line-height:1.2}
+.opt:hover{border-color:var(--line2)}
+.opt.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink);color:var(--ink)}
+.opt .pic{width:100%;height:46px;border-radius:7px;background:var(--paper);position:relative;overflow:hidden}
+.opt .pic i{position:absolute;left:0;right:0;top:0;background:linear-gradient(160deg,#3f6128,#12210d);border-radius:0 0 3px 3px}
+.opt .pic i::after{content:"";position:absolute;left:8px;right:8px;bottom:-6px;height:2px;background:var(--faint)}
+
+/* panel de elemento */
+.fld{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.45;color:var(--ink);background:var(--surface);resize:none;outline:none;transition:border-color .2s,box-shadow .2s;display:block}
+.fld:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(20,19,17,.07)}
+.flist{display:flex;flex-direction:column;gap:1px;border:1px solid var(--line);border-radius:12px;padding:4px;max-height:232px;overflow-y:auto}
+.fo{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;border-radius:9px;transition:background .12s}
+.fo:hover,.fo.hv{background:var(--paper)}
+.fo .smp{font-size:21px;width:34px;color:var(--ink);line-height:1;flex:none;text-align:center}
+.fo .fot{flex:1;min-width:0}
+.fo .fot b{display:block;font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fo .fot small{display:block;color:var(--muted);font-size:11.5px}
+.fo .ck{color:var(--ink);opacity:0}
+.fo.on .ck{opacity:1}
+.sz{display:flex;align-items:center;gap:10px}
+.sz-a{font:500 12px 'Spline Sans Mono',monospace;color:var(--muted)}
+.sz-a.big{font-size:17px}
+.sz-track{flex:1;display:flex;align-items:center;justify-content:space-between;position:relative;height:28px}
+.sz-track::before{content:"";position:absolute;left:6px;right:6px;top:50%;height:2px;margin-top:-1px;background:var(--line);border-radius:2px}
+.sz-step{position:relative;width:22px;height:22px;display:grid;place-items:center}
+.sz-step i{width:8px;height:8px;border-radius:50%;background:var(--line2);transition:all .2s var(--ease)}
+.sz-step.past i{background:var(--ink2)}
+.sz-step.on i{width:16px;height:16px;background:var(--ink);box-shadow:0 0 0 4px rgba(20,19,17,.08)}
+.sz-step:hover i{transform:scale(1.3)}
+.danger{margin-top:22px;display:inline-flex;align-items:center;gap:7px;color:#A0472F;font-weight:500;padding:6px 8px 6px 4px;border-radius:8px}
+.danger:hover{background:rgba(181,83,60,.08)}
+.cgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.crole{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:10px;border:1px solid transparent;transition:background .12s,border-color .12s;width:100%}
+.crole:hover,.crole.hv{background:var(--paper)}
+.crole.on{border-color:var(--ink);background:var(--surface)}
+.crole b{display:block;font-weight:500;font-size:12.5px;line-height:1.2}
+.crole small{display:block;color:var(--muted);font-size:11px;line-height:1.25}
+.csw{width:24px;height:24px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(20,19,17,.14);transition:background-color .7s}
+.cdef{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border-radius:11px;border:1px solid var(--line);background:var(--s2);transition:border-color .15s}
+.cdef:hover{border-color:var(--line2)}
+.cdef.on{border-color:var(--ink);background:var(--surface)}
+.cdef-t{flex:1;min-width:0}
+.cdef-t b{display:block;font-weight:600;font-size:12.5px}
+.cdef-t small{display:block;color:var(--muted);font-size:11.5px}
+.plbl{font:500 10px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:12px 4px 7px}
+.cadv{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:8px;padding:9px 8px;border-top:1px solid var(--line);color:var(--ink2);font-weight:500;font-size:12.5px}
+.cadv svg{transition:transform .2s}
+.cadv.open svg{transform:rotate(180deg)}
+.ccust{display:flex;align-items:center;gap:10px;padding:4px 8px 6px;animation:menuIn .2s var(--ease)}
+.ccust-l{flex:1;font-weight:500;font-size:12.5px}
+.ccust-pick{position:relative;width:30px;height:30px;border-radius:9px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(20,19,17,.15);cursor:pointer;flex:none}
+.ccust-pick input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+.ccust-pick i{position:absolute;inset:0;pointer-events:none}
+.ccust .mono{font-size:11.5px;color:var(--muted)}
+
+/* estilo */
+.pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);transition:border-color .2s,box-shadow .2s,transform .2s var(--ease);position:relative;display:block;width:100%}
+.pcard:hover{transform:translateY(-1px);border-color:var(--line2)}
+.pcard.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.pc-top{height:86px;background:var(--c-fondo);padding:11px 12px;display:flex;flex-direction:column;justify-content:space-between;border-bottom:1px solid var(--line)}
+.pc-aa{font-family:var(--ff-d);font-size:30px;line-height:1;color:var(--c-tinta)}
+.pc-row{display:flex;align-items:center;justify-content:space-between}
+.pc-btn{font-family:var(--ff-b);font-size:9.5px;background:var(--c-acento);color:#fff;padding:4px 8px;border-radius:var(--rb,0px)}
+.pc-sws{display:flex;gap:3px}
+.pc-sws i{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
+.pc-b{padding:9px 11px 10px;text-align:left}
+.pc-b b{display:block;font-weight:600;font-size:12.5px}
+.pc-b small{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-ck{position:absolute;right:8px;top:8px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;animation:menuIn .2s}
+.pc-ck svg.i{width:12px;height:12px;stroke-width:2.4}
+.adj{display:flex;align-items:center;gap:12px;width:100%;padding:11px 10px;border-radius:11px;border:1px solid var(--line);margin-bottom:6px;transition:border-color .15s,background .15s}
+.adj:hover{border-color:var(--line2);background:var(--s2)}
+.adj-t{flex:1;text-align:left}
+.adj-t b{display:block;font-weight:500}
+.adj-t small{display:block;color:var(--muted);font-size:11.5px}
+.adj-sw{display:flex}
+.adj-sw i{width:18px;height:18px;border-radius:50%;margin-left:-5px;box-shadow:0 0 0 2px var(--surface),inset 0 0 0 1px rgba(0,0,0,.1);transition:background-color .7s}
+.adj-aa{font-family:var(--ff-d);font-size:19px;width:30px;text-align:center}
+.root{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--line);border-radius:12px;margin-bottom:6px}
+.root .big{width:40px;height:40px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(20,19,17,.12);flex:none;transition:background-color .7s}
+.root-t{flex:1}
+.root-t b{display:block;font-weight:600}
+.root-t small{display:block;color:var(--muted);font-size:12px}
+.root .mono{font-size:11px;color:var(--muted)}
+.derived{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.der{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--ink2)}
+.der i{height:34px;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(20,19,17,.1);transition:background-color .7s}
+.pair{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);margin-bottom:6px;text-align:left;transition:border-color .15s}
+.pair:hover{border-color:var(--line2)}
+.pair.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.pair .aa{font-size:26px;width:44px;text-align:center;line-height:1}
+.pair-t{flex:1;min-width:0}
+.pair-t b{display:block;font-weight:600}
+.pair-t small{display:block;color:var(--muted);font-size:11.5px}
+.shape{display:flex;flex-direction:column;align-items:center;gap:8px}
+.shape i{display:block;width:62px;height:24px;background:var(--ink)}
+.medias{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.medias .ph{aspect-ratio:1;border-radius:10px}
+.upl{aspect-ratio:1;border:1px dashed var(--line2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-weight:500;font-size:12px}
+.upl:hover{border-color:var(--ink2);color:var(--ink)}
+
+/* ── lienzo ── */
+.stage{flex:1;min-width:0;position:relative;background-color:#ECEAE3;background-image:radial-gradient(rgba(20,19,17,.12) 1px,transparent 1.3px);background-size:18px 18px;display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.st-meta{height:44px;flex:none;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11.5px}
+.st-pill{height:26px;display:inline-flex;align-items:center;gap:8px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid var(--line);font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--ink2)}
+.st-pill i{width:6px;height:6px;border-radius:50%;background:var(--sol)}
+.frame{position:relative;flex:1 1 0;min-height:0;margin-bottom:116px;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(20,19,17,.06),0 14px 44px -10px rgba(20,19,17,.24),0 0 0 1px rgba(20,19,17,.07);transition:width .75s var(--glide),border-radius .75s var(--glide);container-type:size;container-name:frame}
+.frame.d-desk{width:calc(100% - 44px)}
+.frame.d-tab{width:768px}
+.frame.d-phone{width:390px;border-radius:30px;box-shadow:0 0 0 9px #1c1b18,0 0 0 10px #3a3833,0 24px 60px -12px rgba(20,19,17,.4)}
+.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;container-type:inline-size;container-name:page;background:var(--c-fondo);transition:background-color .7s}
+.page::-webkit-scrollbar{width:0}
+.pg{--k:1;--hc:var(--c-tinta);min-height:100%;color:var(--c-texto);font-family:var(--ff-b);transition:color .7s}
+
+/* director */
+.dir{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);width:min(720px,calc(100% - 40px));background:rgba(20,19,17,.95);color:var(--paper);border-radius:18px;padding:13px 16px 12px 13px;display:flex;align-items:center;gap:14px;box-shadow:0 22px 50px -14px rgba(20,19,17,.55),0 0 0 1px rgba(255,255,255,.05);z-index:25}
+.dir-pp{width:40px;height:40px;border-radius:50%;background:var(--paper);color:var(--ink);display:grid;place-items:center;flex:none;transition:transform .15s}
+.dir-pp:hover{transform:scale(1.06)}
+.dir-pp svg{width:16px;height:16px;fill:currentColor;stroke:none}
+.dir-tx{flex:1;min-width:0}
+.dir-top{display:flex;align-items:baseline;gap:10px}
+.dir-n{font:500 11px/1 'Spline Sans Mono',monospace;color:rgba(244,243,239,.5);flex:none}
+.dir-t{font:600 15.5px/1.25 'Space Grotesk',sans-serif;letter-spacing:-.008em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dir-st{font:500 10px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,243,239,.5);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
+.dir-st i{width:6px;height:6px;border-radius:50%;background:var(--sol);animation:pulse 1.4s infinite}
+.dir-l{font-size:12.5px;color:rgba(244,243,239,.7);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dir-segs{display:flex;gap:4px;margin-top:10px}
+.dseg{flex:1;height:12px;display:flex;align-items:center;padding:0}
+.dseg span{display:block;width:100%;height:3px;border-radius:2px;background:rgba(244,243,239,.16);overflow:hidden;transition:height .15s}
+.dseg:hover span{height:5px}
+.dseg b{display:block;height:100%;width:0;background:var(--paper);border-radius:2px}
+.dseg.done b{width:100%}
+.dseg.run b{animation:segfill linear forwards}
+.dseg.paused b{animation-play-state:paused}
+@keyframes segfill{to{width:100%}}
+
+/* cursor del recorrido */
+.cur{position:absolute;left:0;top:0;z-index:200;pointer-events:none;transition:transform .78s cubic-bezier(.45,.05,.15,1),opacity .35s;will-change:transform}
+.cur svg{display:block;width:24px;height:24px;margin:-3px 0 0 -5px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.28));transition:transform .12s;transform-origin:5px 3px}
+.cur.press svg{transform:scale(.84)}
+.cur.hide{opacity:0}
+.ripw{position:absolute;left:0;top:0;z-index:199;pointer-events:none}
+.rip{position:absolute;width:46px;height:46px;left:-23px;top:-23px;border-radius:50%;border:2px solid rgba(20,19,17,.5);background:rgba(255,255,255,.25);animation:rip .52s ease-out forwards}
+@keyframes rip{from{transform:scale(.25);opacity:1}to{transform:scale(1.1);opacity:0}}
+
+/* vista nueva (sheet) */
+.sheet-bg{position:absolute;inset:0;z-index:40;background:rgba(236,234,227,.6);backdrop-filter:blur(6px);animation:fade .25s}
+@keyframes fade{from{opacity:0}}
+.sheet{position:absolute;z-index:41;left:50%;top:22px;bottom:22px;width:min(980px,calc(100% - 44px));transform:translateX(-50%);background:var(--surface);border-radius:20px;box-shadow:0 30px 80px -20px rgba(20,19,17,.45),0 0 0 1px rgba(20,19,17,.07);display:flex;flex-direction:column;animation:sheetIn .45s var(--ease)}
+@keyframes sheetIn{from{opacity:0;transform:translate(-50%,28px) scale(.985)}}
+.sh-h{display:flex;align-items:flex-start;gap:16px;padding:24px 26px 6px}
+.sh-h > div{flex:1}
+.sh-k{font:500 10.5px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.sh-t{font:600 26px/1.15 'Space Grotesk',sans-serif;letter-spacing:-.02em;margin:9px 0 6px}
+.sh-s{color:var(--muted);font-size:13.5px;margin:0;max-width:60ch}
+.sh-grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:20px 26px;align-content:start}
+.sh-grid.six{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cc2{border:1px solid var(--line);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:12px;text-align:left;transition:border-color .2s,box-shadow .2s,transform .25s var(--ease);background:var(--surface);width:100%}
+.cc2:hover{border-color:var(--line2);transform:translateY(-2px)}
+.cc2.on{border-color:var(--ink);box-shadow:0 0 0 1.5px var(--ink)}
+.cc2-t{padding:0 4px 2px}
+.cc2-t b{display:flex;align-items:center;gap:8px;font:600 15px 'Space Grotesk',sans-serif}
+.cc2-t b em{font:500 10px 'Spline Sans Mono',monospace;font-style:normal;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 7px}
+.cc2-t span{display:block;color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.45}
+.keeps{display:flex;flex-wrap:wrap;gap:5px;padding:0 4px 4px}
+.keeps span{font-size:11px;color:var(--ink2);background:var(--paper);border-radius:999px;padding:4px 9px}
+.sh-f{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 26px;border-top:1px solid var(--line)}
+.sh-f .grow{flex:1;color:var(--muted);font-size:12.5px}
+.sk{height:120px;border-radius:10px;background:var(--paper);position:relative;overflow:hidden;padding:14px;display:flex;flex-direction:column;gap:7px}
+.sk i{display:block;height:7px;border-radius:4px;background:var(--line2)}
+.sk i.t{height:12px;width:55%;background:var(--faint)}
+.sk .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;flex:1}
+.sk .row3 i{height:auto;border-radius:6px}
+
+/* ═══ la tienda (bytes del visitante, simulados) ═══ */
+.sec{position:relative}
+.sec::before{content:"";position:absolute;inset:0;z-index:34;pointer-events:none;box-shadow:inset 0 0 0 0 transparent;transition:box-shadow .2s}
+.sec::after{content:attr(data-label);position:absolute;left:10px;top:10px;z-index:36;font:600 11px/1 'Hanken Grotesk',sans-serif;color:#fff;background:#141311;padding:6px 8px;border-radius:6px;opacity:0;transform:translateY(-3px);transition:opacity .18s,transform .18s;pointer-events:none;white-space:nowrap}
+.ed:not(.touring) .sec:hover::before,.sec.hov::before{box-shadow:inset 0 0 0 1.5px rgba(20,19,17,.55)}
+.ed:not(.touring) .sec:hover::after,.sec.hov::after,.sec.sel::after{opacity:1;transform:none}
+.sec.sel::before{box-shadow:inset 0 0 0 2px #141311}
+.ed:not(.touring) .hero.sec:hover::before,.hero.sec.hov::before{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8)}
+.hero.sec.sel::before,.hero.sec.zon::before{box-shadow:inset 0 0 0 2px #fff,inset 0 0 0 3.5px rgba(20,19,17,.45)}
+.hero.sec.zon::after{opacity:1;transform:none}
+.ed.preview .sec::before,.ed.preview .sec::after{display:none}
+.sec.hid{display:none}
+.esq-sup{background:var(--c-sup)}
+.esq-tinta{background:var(--c-tinta);--hc:var(--c-fondo);color:color-mix(in oklab,var(--c-fondo) 82%,var(--c-tinta))}
+.esq-sup,.esq-tinta,.esq-fondo{transition:background-color .7s,color .7s}
+.eb{font-family:var(--ff-b);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--c-acento);margin:0 0 14px;transition:color .7s}
+.esq-tinta .eb{color:var(--c-tostado)}
+.d2{font-family:var(--ff-d);font-weight:400;font-size:calc(46px * var(--k));line-height:1.06;letter-spacing:-.015em;color:var(--hc);margin:0;transition:color .7s;text-wrap:balance}
+.d3{font-family:var(--ff-d);font-weight:400;font-size:calc(25px * var(--k));line-height:1.15;color:var(--hc);margin:0;transition:color .7s}
+.mut{color:var(--c-suave);font-size:14.5px;line-height:1.6;margin:12px 0 0;transition:color .7s}
+.sbtn{height:40px;padding:0 20px;display:inline-flex;align-items:center;justify-content:center;background:var(--c-acento);color:#fff;font-family:var(--ff-b);font-size:13.5px;font-weight:500;border-radius:var(--rb);white-space:nowrap;transition:background-color .7s,border-radius .4s}
+.sbtn.block{display:flex;width:100%;margin-top:18px;height:46px}
+.ph{position:relative;overflow:hidden;border-radius:var(--r);transition:border-radius .4s}
+.ph::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 70px rgba(0,0,0,.32);pointer-events:none}
+.ph-hills{background:radial-gradient(120% 60% at 12% 108%,#1d3417 57%,transparent 58%),radial-gradient(110% 52% at 92% 106%,#2c4a20 57%,transparent 58%),radial-gradient(150% 62% at 50% 122%,#3c5f28 60%,transparent 61%),radial-gradient(70% 40% at 72% 30%,rgba(255,240,210,.9),transparent 70%),linear-gradient(180deg,#e8dbc0 0%,#d2d1ad 42%,#93a46d 66%,#3a5a26 100%)}
+.ph-beans{background:radial-gradient(7px 5px at 50% 50%,#3e2411 62%,transparent 70%) 0 0/17px 13px,radial-gradient(7px 5px at 50% 50%,#6a4021 62%,transparent 70%) 8px 6px/17px 13px,linear-gradient(135deg,#86603a,#3b2614)}
+.ph-cup{background:radial-gradient(circle at 50% 52%,#2e180b 0 16%,#5e3517 16.5% 18%,#efe5d8 18.5% 26%,rgba(0,0,0,.28) 26.5% 28.5%,transparent 29%),linear-gradient(160deg,#d3bfa1,#86664a)}
+.ph-cherry{background:radial-gradient(circle at 40% 44%,#ff9c86 0 1.2%,#c4161c 3.6%,#5a0407 7.4%,transparent 7.9%),radial-gradient(circle at 53% 50%,#ff9c86 0 1.2%,#b0121a 3.6%,#4a0306 7.4%,transparent 7.9%),radial-gradient(circle at 45% 60%,#ffa58e 0 1.2%,#d02a1c 3.6%,#5a0407 7.4%,transparent 7.9%),radial-gradient(circle at 60% 39%,#e8e39a 0 1%,#8aa33a 3.4%,#33480f 7%,transparent 7.5%),radial-gradient(circle at 34% 56%,#ffb08a 0 1%,#e0742c 3.4%,#7a2a06 7%,transparent 7.5%),radial-gradient(120% 90% at 50% 40%,#3c5d24,#0d190a)}
+.ph-hands{background:radial-gradient(58% 44% at 50% 64%,#b77b52,#7f4c2c 62%,transparent 63%),radial-gradient(circle at 44% 57%,#c4161c 0 2.2%,transparent 2.6%),radial-gradient(circle at 51% 59%,#a50f14 0 2.2%,transparent 2.6%),radial-gradient(circle at 47% 65%,#d02a1c 0 2.2%,transparent 2.6%),radial-gradient(circle at 56% 64%,#8e0a0e 0 2.2%,transparent 2.6%),radial-gradient(circle at 41% 63%,#b3161a 0 2.2%,transparent 2.6%),linear-gradient(160deg,#33402a,#121a0c)}
+
+/* nav */
+.s-nav{position:sticky;top:0;z-index:40;height:64px;display:flex;align-items:center;gap:28px;padding:0 4%;background:var(--c-fondo);border-bottom:1px solid var(--c-linea);transition:background-color .7s,border-color .7s}
+.wm{font-family:var(--ff-d);font-size:20px;line-height:1;color:var(--c-tinta);white-space:nowrap;transition:color .7s}
+.wm small{display:block;font-family:var(--ff-b);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--c-suave);margin-top:5px}
+.nl{display:flex;gap:22px;font-size:13.5px;color:var(--c-tinta);align-items:center;flex:1;transition:color .7s}
+.nl span{white-space:nowrap;display:inline-flex;align-items:center}
+.bdg{font-size:9px;letter-spacing:.14em;text-transform:uppercase;background:var(--c-acento);color:#fff;padding:4px 7px;border-radius:var(--rb);margin-left:7px;transition:background-color .7s}
+.na{display:flex;align-items:center;gap:14px;color:var(--c-tinta);margin-left:auto;transition:color .7s}
+.na .loc{font-size:12px;color:var(--c-suave);white-space:nowrap}
+.na svg.i{width:19px;height:19px}
+.na .sbtn{height:36px;padding:0 16px;font-size:13px}
+.hamb{display:none}
+
+/* hero */
+.hero{position:relative;color:#fff;transition:height .65s var(--ease)}
+.hero.al-pantalla{height:calc(100cqh - 64px)}
+.hero.al-alto{height:76cqh}
+.hero.al-justo{height:58cqh}
+.h-bg{position:absolute;top:0;bottom:0;left:0;width:100%;overflow:hidden;background:#0b1508;transition:left .85s var(--glide),width .85s var(--glide)}
+.h-bg svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.h-velo{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,12,4,.42) 0%,rgba(6,12,4,.06) 38%,rgba(6,12,4,.62) 100%);transition:opacity .5s}
+.v0 .h-velo{opacity:0}
+.v1 .h-velo{opacity:.55}
+.v2 .h-velo{opacity:.85}
+.v3 .h-velo{opacity:1}
+.v3 .h-bg::after{content:"";position:absolute;inset:0;background:rgba(6,12,4,.32)}
+.h-panel{position:absolute;top:0;bottom:0;left:0;width:44%;background:var(--c-fondo);opacity:0;transform:translateX(-24px);transition:opacity .6s,transform .85s var(--glide),background-color .7s;pointer-events:none}
+.cf .h-panel{opacity:1;transform:none}
+.cf .h-bg{left:44%;width:56%}
+.z{position:absolute;transition:left .85s var(--glide),top .85s var(--glide),width .85s var(--glide),height .85s var(--glide),opacity .45s,transform .85s var(--glide)}
+.cm .z-tit{left:6%;top:12%;width:54%;height:26%}
+.cm .z-sub{left:6%;top:39.5%;width:46%;height:6.5%}
+.cm .z-marq{left:0;top:49%;width:100%;height:17%}
+.cm .z-card{left:71%;top:25%;width:15%;height:52%}
+.cm .z-cap{left:6%;top:78%;width:36%;height:13%}
+.cm .z-btn{left:64%;top:81%;width:30%;height:9%}
+.cm .z-cue{left:46%;top:84%;width:8%;height:11%}
+.cp .z-tit{left:14%;top:20%;width:72%;height:26%}
+.cp .z-sub{left:22%;top:48%;width:56%;height:7%}
+.cp .z-btn{left:34%;top:58%;width:32%;height:10%}
+.cp .z-marq{left:0;top:91%;width:100%;height:9%}
+.cp .z-card{left:71%;top:30%;width:15%;height:52%;opacity:0;transform:translateY(26px) scale(.94);pointer-events:none}
+.cp .z-cap{left:6%;top:80%;width:36%;height:10%;opacity:0;pointer-events:none}
+.cp .z-cue{left:46%;top:73%;width:8%;height:11%}
+.cf .z-tit{left:5%;top:14%;width:35%;height:32%}
+.cf .z-sub{left:5%;top:48%;width:34%;height:8%}
+.cf .z-btn{left:5%;top:60%;width:30%;height:9%}
+.cf .z-cap{left:5%;top:77%;width:33%;height:13%}
+.cf .z-marq{left:44%;top:49%;width:56%;height:17%;opacity:0;pointer-events:none}
+.cf .z-card{left:72%;top:26%;width:15%;height:50%;opacity:0;transform:scale(.94);pointer-events:none}
+.cf .z-cue{left:68%;top:84%;width:8%;height:11%;opacity:0;pointer-events:none}
+.z-tit{z-index:12}
+.z-sub,.z-cap,.z-btn,.z-cue{z-index:11}
+.z-marq{z-index:6;overflow:hidden}
+.z-card{z-index:8}
+.hero .z::before{content:"";position:absolute;inset:-7px;border:1px dashed var(--zl,rgba(255,255,255,.62));border-radius:10px;opacity:0;transform:scale(.985);transition:opacity .35s,transform .35s var(--ease);pointer-events:none}
+.hero .z::after{content:attr(data-zone);position:absolute;left:-7px;top:-9px;transform:translateY(-100%);font:500 9.5px/1 'Spline Sans Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:rgba(20,19,17,.66);padding:5px 7px;border-radius:6px;opacity:0;transition:opacity .35s;pointer-events:none;white-space:nowrap}
+.hero .z-marq::before{inset:3px 0}
+.hero .z-marq::after{left:6%;top:12px;transform:none}
+.hero.zon .z::before,.hero.zon .z::after{opacity:1;transform:none}
+.hero.zon .z-marq::after{transform:none}
+.hero.zon .z-sub::before,.hero.zon .z-sub::after{transition-delay:.05s}
+.hero.zon .z-marq::before,.hero.zon .z-marq::after{transition-delay:.1s}
+.hero.zon .z-card::before,.hero.zon .z-card::after{transition-delay:.15s}
+.hero.zon .z-cap::before,.hero.zon .z-cap::after{transition-delay:.2s}
+.hero.zon .z-btn::before,.hero.zon .z-btn::after{transition-delay:.25s}
+.hero.zon .z-cue::before,.hero.zon .z-cue::after{transition-delay:.3s}
+.cf{--zl:rgba(20,19,17,.3)}
+.ghost{position:absolute;left:0;top:50%;transform:translateY(-50%);height:40px;padding:0 16px 0 12px;display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;font:600 13px 'Hanken Grotesk',sans-serif;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap;transition:opacity .3s,background .2s,transform .2s var(--ease)}
+.ghost:hover{background:rgba(255,255,255,.26)}
+.hero:not(.zon) .ghost{opacity:0;pointer-events:none}
+.cp .z-tit .ghost,.cp .z-sub .ghost,.cp .z-btn .ghost,.cp .z-cue .ghost,.cm .z-cue .ghost{left:50%;transform:translate(-50%,-50%)}
+.cf .ghost{color:var(--ink);background:rgba(20,19,17,.04);border-color:rgba(20,19,17,.22)}
+.cf .ghost:hover{background:rgba(20,19,17,.08)}
+.h-tit{margin:0;font-weight:400;line-height:1.02;letter-spacing:-.018em;outline:none;transition:color .5s,font-size .45s var(--ease);text-wrap:balance;min-height:1em;border-radius:3px}
+.h-sub{margin:0;line-height:1.35;outline:none;transition:color .5s,font-size .45s var(--ease);border-radius:3px}
+.h-cap{margin:0;line-height:1.45;max-width:36ch;outline:none;transition:color .5s,font-size .45s var(--ease);border-radius:3px}
+.cp .h-tit,.cp .h-sub{margin-inline:auto}
+.esel{box-shadow:0 0 0 6px transparent;outline:2px solid #fff;outline-offset:6px}
+.esel.dk,.cf .esel{outline-color:#141311}
+.typing::after{content:"";display:inline-block;width:2px;height:.88em;background:currentColor;margin-left:3px;vertical-align:-.06em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.selall{background:rgba(255,255,255,.28);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.marq-run{position:absolute;inset:0;display:flex;align-items:center;transition:opacity .2s}
+.marq-track{display:flex;white-space:nowrap;animation:marq var(--dur,60s) linear infinite;will-change:transform}
+.marq-track span{padding-right:.28em;line-height:1}
+@keyframes marq{to{transform:translateX(-50%)}}
+.sp-lenta{--dur:64s}
+.sp-normal{--dur:40s}
+.sp-rapida{--dur:22s}
+.marq-edit{position:absolute;inset:0;display:flex;align-items:center;padding-left:6%;opacity:0;visibility:hidden;transition:opacity .2s}
+.z-marq.editing .marq-run{opacity:0;visibility:hidden}
+.z-marq.editing .marq-edit{opacity:1;visibility:visible}
+.marq-line{white-space:nowrap;outline:none;line-height:1}
+.z-marq.editing .marq-line{outline:2px solid #fff;outline-offset:10px;border-radius:2px}
+.cp .z-marq{font-size:13px !important;font-family:var(--ff-b) !important;letter-spacing:.24em;text-transform:uppercase;background:rgba(6,12,4,.5);border-top:1px solid rgba(255,255,255,.18)}
+.bag{position:absolute;inset:0;border-radius:5px 5px 10px 10px;background:linear-gradient(90deg,#a98055 0%,#d6b182 16%,#cfa774 50%,#b4895a 84%,#98704a 100%);box-shadow:0 34px 60px -22px rgba(0,0,0,.65),inset 0 0 0 1px rgba(0,0,0,.08);transform:rotate(-4deg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 9%;color:#2a1a0c;transition:transform .5s var(--ease)}
+.bag::before{content:"";position:absolute;left:0;right:0;top:0;height:8%;background:repeating-linear-gradient(90deg,rgba(0,0,0,.14) 0 2px,transparent 2px 5px);border-radius:5px 5px 0 0}
+.bag.flat{transform:none}
+.bag-l{width:100%;background:var(--c-fondo);padding:14% 8% 16%;text-align:center;box-shadow:0 1px 0 rgba(0,0,0,.06);transition:background-color .7s}
+.bag-l b{font-family:var(--ff-d);font-weight:400;font-size:calc(15px * var(--k));display:block;color:var(--c-tinta);line-height:1.08;transition:color .7s}
+.bag-l small{font-family:var(--ff-b);font-size:7.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--c-acento);display:block;margin-top:7px;transition:color .7s}
+.bag-l em{display:block;width:26px;height:1px;background:var(--c-tostado);margin:8px auto 0}
+.z-card.zsel .bag{outline:2px solid #fff;outline-offset:6px}
+.cue{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:rgba(255,255,255,.85);font-family:var(--ff-b)}
+.cue i{width:1px;height:34px;background:linear-gradient(rgba(255,255,255,0),#fff);animation:cueA 2.2s var(--ease) infinite;transform-origin:top}
+@keyframes cueA{0%{transform:scaleY(0)}50%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
+.hb{position:absolute;left:0;top:50%;transform:translateY(-50%)}
+.cp .hb{left:50%;transform:translate(-50%,-50%)}
+.fondo-tag{position:absolute;right:16px;top:16px;z-index:14;height:32px;display:inline-flex;align-items:center;gap:7px;padding:0 12px 0 9px;border-radius:999px;background:rgba(20,19,17,.62);color:#fff;font:600 12px 'Hanken Grotesk',sans-serif;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .3s}
+.fondo-tag:hover{background:rgba(20,19,17,.8)}
+.hero.zon .fondo-tag{opacity:1;pointer-events:auto}
+.alto-h{position:absolute;left:50%;bottom:-17px;transform:translateX(-50%);z-index:38;height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 13px 0 10px;border-radius:999px;background:#141311;color:#fff;font:600 12px 'Hanken Grotesk',sans-serif;box-shadow:0 8px 22px -6px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .3s,transform .2s var(--ease)}
+.alto-h:hover{transform:translateX(-50%) scale(1.04)}
+.hero.zon .alto-h{opacity:1;pointer-events:auto}
+
+/* barra flotante */
+.ftb{position:absolute;z-index:30;display:flex;align-items:center;gap:2px;height:44px;padding:4px;background:#fff;color:#141311;border-radius:12px;box-shadow:0 12px 34px -8px rgba(20,19,17,.42),0 0 0 1px rgba(20,19,17,.08);font:500 12.5px/1 'Hanken Grotesk',sans-serif;white-space:nowrap;transition:left .85s var(--glide),top .85s var(--glide);animation:tbIn .28s var(--ease);letter-spacing:0;text-transform:none}
+@keyframes tbIn{from{opacity:0;transform:translateY(8px)}}
+.cm .ftb.at-tit{left:6%;top:calc(12% - 58px)}
+.cm .ftb.at-sub{left:6%;top:calc(39.5% - 58px)}
+.cm .ftb.at-marq{left:6%;top:calc(49% - 58px)}
+.cm .ftb.at-cap{left:6%;top:calc(78% - 58px)}
+.cm .ftb.at-btn{left:64%;top:calc(81% - 58px)}
+.cm .ftb.at-cue{left:44%;top:calc(84% - 58px)}
+.cp .ftb.at-tit{left:14%;top:calc(20% - 58px)}
+.cp .ftb.at-sub{left:22%;top:calc(48% - 58px)}
+.cp .ftb.at-btn{left:34%;top:calc(58% - 58px)}
+.cp .ftb.at-marq{left:6%;top:calc(91% - 58px)}
+.cp .ftb.at-cue{left:44%;top:calc(73% - 58px)}
+.cf .ftb.at-tit{left:5%;top:calc(14% - 58px)}
+.cf .ftb.at-sub{left:5%;top:calc(48% - 58px)}
+.cf .ftb.at-btn{left:5%;top:calc(60% - 58px)}
+.cf .ftb.at-cap{left:5%;top:calc(77% - 58px)}
+.ftb.np{left:0;top:-60px}
+.tbw{position:relative;display:flex}
+.tbb{height:36px;display:inline-flex;align-items:center;gap:7px;padding:0 10px;border-radius:9px;color:#141311;transition:background .12s}
+.tbb:hover,.tbb.open{background:#F4F3EF}
+.tbb.sq{width:34px;padding:0;justify-content:center}
+.tbb.on{background:#141311;color:#F4F3EF}
+.tb-aa{font-size:17px;line-height:1;width:22px;text-align:center}
+.tb-fn{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.tbsep{width:1px;height:22px;background:#E9E6DD;margin:0 3px;flex:none}
+.tbsz{display:flex;align-items:center}
+.tbsz-w{min-width:74px;text-align:center;font-weight:600}
+.tb-sw{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(20,19,17,.2);transition:background-color .5s}
+.pop{position:absolute;top:calc(100% + 10px);left:0;width:290px;background:#fff;color:#141311;border-radius:14px;box-shadow:0 22px 56px -12px rgba(20,19,17,.45),0 0 0 1px rgba(20,19,17,.08);padding:8px;z-index:5;animation:menuIn .2s var(--ease);white-space:normal;font:400 13px/1.4 'Hanken Grotesk',sans-serif;cursor:default}
+.ftb.at-cap .pop,.ftb.at-btn .pop,.ftb.at-cue .pop,.cp .ftb.at-marq .pop{top:auto;bottom:calc(100% + 10px)}
+.pop-f{width:300px}
+.pop-f .flist{border:0;padding:0;max-height:300px}
+
+/* secciones de la tienda */
+.s-spot{padding:calc(92px * var(--k)) 6%}
+.spot-g{display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:5%;align-items:center}
+.spot-st{display:flex;flex-direction:column;align-items:center;gap:14px}
+.spot-bag{position:relative;width:62%;aspect-ratio:3/4.2}
+.spot-bag .bdg{position:absolute;left:-8px;top:14px;z-index:2;margin:0}
+.spot-lab{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--c-suave)}
+.notes{display:flex;gap:6px;margin-top:16px;flex-wrap:wrap}
+.notes span{font-size:12px;padding:5px 11px;border:1px solid var(--c-linea);border-radius:var(--rb);color:var(--c-tinta)}
+.var{margin-top:16px}
+.var .eb{color:var(--c-suave);margin-bottom:8px;font-size:10px}
+.opts2{display:flex;gap:6px}
+.opts2 span{flex:1;text-align:center;font-size:13px;padding:9px;border:1px solid var(--c-linea);border-radius:var(--rb);color:var(--c-tinta)}
+.opts2 span.on{border-color:var(--c-tinta);box-shadow:inset 0 0 0 1px var(--c-tinta)}
+.price{margin:18px 0 0;display:flex;align-items:baseline;gap:8px;color:var(--c-tinta)}
+.price b{font-family:var(--ff-d);font-weight:400;font-size:26px}
+.price small{color:var(--c-suave);font-size:12px}
+.s-pres{padding:calc(84px * var(--k)) 6%}
+.pres-h{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.pres-r{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:34px}
+.pres-c .ph{aspect-ratio:4/5}
+.pres-c b{display:block;font-family:var(--ff-d);font-weight:400;font-size:17px;color:var(--hc);margin-top:12px}
+.pres-c span{font-size:13px;color:var(--c-suave)}
+.s-hist{padding:calc(96px * var(--k)) 6%;text-align:center}
+.coll{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:40px auto 0;max-width:900px}
+.coll .ph{aspect-ratio:3/4}
+.coll .ph:nth-child(2){transform:translateY(28px)}
+.hist-copy{max-width:520px;margin:70px auto 0}
+.hist-copy p{font-size:16px;line-height:1.65;margin:0 0 22px}
+.s-orig{padding:calc(96px * var(--k)) 6%}
+.orig-g{display:grid;grid-template-columns:1fr 1fr;gap:7%;align-items:center}
+.orig-m{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.orig-m .ph{aspect-ratio:3/4.4}
+.orig-m .ph:nth-child(2){margin-top:56px}
+.lede{font-size:16px;line-height:1.65;margin:20px 0 0}
+.spec{display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;margin:30px 0 0;padding:24px 0 0;border-top:1px solid var(--c-linea)}
+.spec dt{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--c-suave)}
+.spec dd{margin:5px 0 0;font-family:var(--ff-d);font-size:18px;color:var(--hc)}
+.s-cta{position:relative;height:calc(220px * var(--k) + 80px);display:flex;align-items:center;justify-content:center;gap:12px;overflow:hidden}
+.s-cta .ph{position:absolute;inset:0;border-radius:0}
+.s-cta .on-l{position:relative;z-index:2;height:44px;padding:0 22px;display:inline-flex;align-items:center;background:var(--c-fondo);color:var(--c-tinta);font-size:14px;border-radius:var(--rb);transition:background-color .7s,color .7s}
+.s-foot{background:var(--c-tinta);color:color-mix(in oklab,var(--c-fondo) 75%,var(--c-tinta));padding:60px 6% 30px;transition:background-color .7s,color .7s}
+.s-foot .wm{color:var(--c-fondo);font-size:34px}
+.s-foot .wm small{color:color-mix(in oklab,var(--c-fondo) 60%,var(--c-tinta))}
+.ftag{max-width:340px;font-size:14px;line-height:1.6;margin:18px 0 0}
+.fcols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:40px;max-width:560px}
+.fcols div{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.fcols b{font-weight:600;color:var(--c-fondo);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
+.fine{margin:40px 0 0;font-size:11.5px;opacity:.6}
+
+/* nosotros */
+.n-hero{padding:calc(100px * var(--k)) 6% 0}
+.n-h1{font-family:var(--ff-d);font-weight:400;font-size:calc(84px * var(--k));line-height:1;letter-spacing:-.025em;color:var(--hc);margin:0;max-width:11ch;transition:color .7s}
+.n-banner{height:calc(200px * var(--k) + 120px);margin-top:calc(56px * var(--k))}
+.n-hist{padding:calc(96px * var(--k)) 6%}
+.nh-g{display:grid;grid-template-columns:.8fr 1.2fr;gap:8%}
+.nh-ph{aspect-ratio:3/4;margin-top:6px}
+.nh-copy{display:flex;flex-direction:column;gap:22px;max-width:560px}
+.n-p{margin:0;font-size:calc(19px * var(--k));line-height:1.62;color:var(--c-texto);transition:color .7s}
+.p3w{position:relative}
+.p3{outline:none;border-radius:2px;cursor:text}
+.p3.esel{outline:2px solid #141311;outline-offset:8px}
+.n-gal{padding:calc(80px * var(--k)) 6%}
+.ng-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:calc(110px * var(--k) + 40px);gap:14px;margin-top:10px}
+.ng-grid .g1{grid-column:span 3;grid-row:span 2}
+.ng-grid .g2{grid-column:span 3}
+.ng-grid .g3{grid-column:span 2}
+.ng-grid .g4{grid-column:span 1}
+.ng-grid .g5{grid-column:span 6}
+.n-cierre{padding:calc(90px * var(--k)) 6%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:26px}
+
+@container page (max-width: 860px){
+  .pg{--k:.8}
+  .nl,.na .loc{display:none}
+  .spot-g{grid-template-columns:1fr 1fr}
+  .spot-h{grid-column:1/-1}
+  .pres-r{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container page (max-width: 560px){
+  .pg{--k:.58}
+  .na .hs,.na .sbtn{display:none}
+  .hamb{display:inline-flex}
+  .s-nav{gap:12px}
+  .spot-g,.orig-g,.nh-g{grid-template-columns:1fr;gap:28px}
+  .coll .ph:nth-child(3){display:none}
+  .coll{grid-template-columns:1fr 1fr}
+  .cm .z-tit,.cm .z-sub{left:7%;width:86%}
+  .cm .z-card{left:62%;top:58%;width:30%;height:24%}
+  .cm .z-cap{width:64%;left:7%}
+  .cm .z-btn{left:7%;width:70%;top:68%}
+  .fcols{grid-template-columns:1fr 1fr}
+  .ng-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ng-grid .g1,.ng-grid .g2,.ng-grid .g3,.ng-grid .g4,.ng-grid .g5{grid-column:span 1;grid-row:span 1}
+  .n-h1{font-size:44px}
+}
+@media (max-width: 980px){
+  .bd{flex-wrap:wrap;overflow-y:auto}
+  .rail{width:100%;flex-direction:row;justify-content:center;padding:6px;border-right:0;border-bottom:1px solid var(--line)}
+  .rail-sp{display:none}
+  .stage{flex:1 1 100%;min-height:640px}
+  .panel{width:100%;border-right:0;min-height:420px}
+  .tb-c .seg,.status,.tb-r .btn-ghost{display:none}
+}
+</style>
+</helmet>
+<div class="ed {{edCls}}" data-ed="1" onPointerDown="{{h.userDown}}">
+
+  <header class="tb">
+    <div class="tb-l">
+      <button class="ib" aria-label="Volver al panel"><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <div class="vr"></div>
+      <div class="store">
+        <div class="store-av">F</div>
+        <div class="store-t"><b>Finca San Adolfo</b><small>Editor de tienda</small></div>
+      </div>
+    </div>
+    <div class="tb-c">
+      <div class="rel">
+        <button class="pgsw" data-t="page-switch" onClick="{{h.pageMenu}}"><svg class="i s" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"></path><path d="M14 3v5h5"></path></svg><span class="k">Página</span><span>{{tb.pageName}}</span><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></button>
+        <sc-if value="{{menu.page}}" hint-placeholder-val="{{ false }}">
+          <div class="menu pgmenu">
+            <button class="pgm {{tb.pgIni}}" data-t="pg-inicio" onClick="{{h.pgInicio}}"><span>Inicio</span><small>/</small></button>
+            <button class="pgm {{tb.pgNos}}" data-t="pg-nosotros" onClick="{{h.pgNos}}"><span>Nosotros</span><small>/nosotros</small></button>
+          </div>
+        </sc-if>
+      </div>
+      <div class="seg" role="group" aria-label="Dispositivo">
+        <button class="{{dev.desk}}" data-t="dev-desk" onClick="{{h.devDesk}}" aria-label="Escritorio"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg></button>
+        <button class="{{dev.tab}}" data-t="dev-tab" onClick="{{h.devTab}}" aria-label="Tableta"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M11 18h2"></path></svg></button>
+        <button class="{{dev.phone}}" data-t="dev-phone" onClick="{{h.devPhone}}" aria-label="Teléfono"><svg class="i" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"></rect><path d="M11 18h2"></path></svg></button>
+      </div>
+    </div>
+    <div class="tb-r">
+      <button class="ib {{tb.undoCls}}" onClick="{{h.undo}}" aria-label="Deshacer"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 010 11H11"></path></svg></button>
+      <button class="ib {{tb.redoCls}}" onClick="{{h.redo}}" aria-label="Rehacer"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"></path><path d="M20 9H9.5a5.5 5.5 0 000 11H13"></path></svg></button>
+      <span class="status {{tb.statusCls}}"><i class="dot"></i>{{tb.savedTxt}}</span>
+      <button class="btn btn-ghost" onClick="{{h.preview}}"><svg class="i s" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>{{tb.previewLabel}}</button>
+      <div class="rel">
+        <button class="btn btn-ink {{tb.pubCls}}" data-t="btn-publish" onClick="{{h.pubMenu}}">
+          <sc-if value="{{tb.pubDone}}" hint-placeholder-val="{{ false }}"><svg class="i s" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
+          <span>{{tb.pubLabel}}</span>
+          <sc-if value="{{tb.hasCount}}" hint-placeholder-val="{{ false }}"><span class="count">{{tb.pubCount}}</span></sc-if>
+        </button>
+        <sc-if value="{{menu.pub}}" hint-placeholder-val="{{ false }}">
+          <div class="menu pubpop" onClick="{{h.stop}}">
+            <p class="pp-k">Listo para publicar</p>
+            <h3 class="pp-t">{{pub.title}}</h3>
+            <div class="pp-list">
+              <sc-for list="{{pub.items}}" as="it" hint-placeholder-count="3">
+                <div class="pp-it"><span>{{it.a}}</span><b>{{it.b}}</b></div>
+              </sc-for>
+            </div>
+            <sc-if value="{{pub.none}}" hint-placeholder-val="{{ false }}"><p class="pp-empty">Todo lo que ves ya está publicado.</p></sc-if>
+            <sc-if value="{{pub.some}}" hint-placeholder-val="{{ true }}"><button class="btn btn-ink full" data-t="pub-confirm" onClick="{{h.publish}}">{{pub.cta}}</button></sc-if>
+            <p class="pp-fine">Los visitantes lo ven al instante.</p>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </header>
+
+  <div class="bd">
+    <nav class="rail" aria-label="Herramientas">
+      <button class="rail-b {{rail.sec}}" data-t="rail-secciones" onClick="{{h.railSec}}"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"></path><path d="M3 13l9 5 9-5"></path></svg>Secciones</button>
+      <button class="rail-b {{rail.est}}" data-t="rail-estilo" onClick="{{h.railEst}}"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 100 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.5-1.2-.3-.4-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 005-5c0-4-4-7.4-9-7.4z"></path><circle cx="7.5" cy="11" r="1"></circle><circle cx="10" cy="7.2" r="1"></circle><circle cx="14.5" cy="7.2" r="1"></circle></svg>Estilo</button>
+      <button class="rail-b {{rail.med}}" data-t="rail-medios" onClick="{{h.railMed}}"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M21 16l-5-5-9 9"></path></svg>Medios</button>
+      <div class="rail-sp"></div>
+      <button class="rail-b" aria-label="Ayuda"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2M12 17h.01"></path></svg>Ayuda</button>
+    </nav>
+
+    <aside class="panel">
+
+      <sc-if value="{{pv.listHome}}" hint-placeholder-val="{{ true }}">
+        <div class="pv {{pv.dir}}">
+          <h2 class="pv-title">Inicio</h2>
+          <p class="pv-sub">Toca cualquier cosa en la vista para editarla, o elígela aquí.</p>
+          <div class="grp">Arriba</div>
+          <div class="rows">
+            <div class="row {{rows.nav}}"><span class="grip"></span><button class="row-main" onClick="{{h.selNav}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"></rect><path d="M3 13h18M3 17h12"></path></svg><span class="nm">Encabezado</span></button></div>
+          </div>
+          <div class="grp">Contenido</div>
+          <div class="rows">
+            <div class="row {{rows.hero}}" data-t="row-hero" onMouseEnter="{{h.hovHero}}" onMouseLeave="{{h.leave}}">
+              <span class="grip"><svg class="i s" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.2" fill="currentColor"></circle><circle cx="15" cy="6" r="1.2" fill="currentColor"></circle><circle cx="9" cy="12" r="1.2" fill="currentColor"></circle><circle cx="15" cy="12" r="1.2" fill="currentColor"></circle><circle cx="9" cy="18" r="1.2" fill="currentColor"></circle><circle cx="15" cy="18" r="1.2" fill="currentColor"></circle></svg></span>
+              <button class="row-main" onClick="{{h.selHero}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 15l5-4 4 3 3-2 6 4"></path></svg><span class="nm">Hero</span></button>
+              <button class="tg" onClick="{{h.heroToggle}}" aria-label="Mostrar contenido del hero"><svg class="i s" viewBox="0 0 24 24"><path d="{{rows.heroChev}}"></path></svg></button>
+            </div>
+            <sc-if value="{{heroOpen}}" hint-placeholder-val="{{ true }}">
+              <div class="kids">
+                <sc-for list="{{kids}}" as="kd" hint-placeholder-count="4">
+                  <button class="kid {{kd.cls}}" data-t="{{kd.t}}" onClick="{{kd.pick}}"><span class="gl">{{kd.gl}}</span><span class="nm">{{kd.name}}</span><span class="sb">{{kd.sub}}</span></button>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-for list="{{homeRows}}" as="r" hint-placeholder-count="5">
+              <div class="row {{r.cls}}" data-t="{{r.t}}" onMouseEnter="{{r.enter}}" onMouseLeave="{{r.leave}}">
+                <span class="grip"><svg class="i s" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.2" fill="currentColor"></circle><circle cx="15" cy="6" r="1.2" fill="currentColor"></circle><circle cx="9" cy="12" r="1.2" fill="currentColor"></circle><circle cx="15" cy="12" r="1.2" fill="currentColor"></circle><circle cx="9" cy="18" r="1.2" fill="currentColor"></circle><circle cx="15" cy="18" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="row-main" onClick="{{r.pick}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 10h6M7 14h10"></path></svg><span class="nm">{{r.name}}</span></button>
+                <button class="eye" onClick="{{r.toggle}}" aria-label="{{r.eyeLabel}}">
+                  <sc-if value="{{r.off}}" hint-placeholder-val="{{ false }}"><svg class="i s" viewBox="0 0 24 24"><path d="M3 3l18 18"></path><path d="M10.6 5.1A10 10 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6A17 17 0 002 12s3.5 7 10 7a9.7 9.7 0 005.4-1.6"></path></svg></sc-if>
+                  <sc-if value="{{r.onn}}" hint-placeholder-val="{{ true }}"><svg class="i s" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></sc-if>
+                </button>
+              </div>
+            </sc-for>
+            <button class="add-sec" onClick="{{h.addSecOpen}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Agregar sección</button>
+          </div>
+          <div class="grp">Abajo</div>
+          <div class="rows">
+            <div class="row {{rows.foot}}"><span class="grip"></span><button class="row-main" onClick="{{h.selFoot}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="15" width="18" height="5" rx="1.5"></rect><path d="M3 7h18M3 11h12"></path></svg><span class="nm">Pie de página</span></button></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.listNos}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <h2 class="pv-title">Nosotros</h2>
+          <p class="pv-sub">La historia de la finca. Toca un párrafo para escribir sobre él.</p>
+          <div class="grp">Arriba</div>
+          <div class="rows"><div class="row {{rows.nav}}"><span class="grip"></span><button class="row-main" onClick="{{h.selNav}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"></rect><path d="M3 13h18M3 17h12"></path></svg><span class="nm">Encabezado</span></button></div></div>
+          <div class="grp">Contenido</div>
+          <div class="rows">
+            <sc-for list="{{nosRows}}" as="r" hint-placeholder-count="4">
+              <div class="row {{r.cls}}" data-t="{{r.t}}" onMouseEnter="{{r.enter}}" onMouseLeave="{{r.leave}}">
+                <span class="grip"></span>
+                <button class="row-main" onClick="{{r.pick}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 10h6M7 14h10"></path></svg><span class="nm">{{r.name}}</span></button>
+              </div>
+              <sc-if value="{{r.kids}}" hint-placeholder-val="{{ false }}">
+                <div class="kids">
+                  <button class="kid" onClick="{{r.pick}}"><span class="gl">T</span><span class="nm">Título</span><span class="sb">Nacido de la tradición.</span></button>
+                  <button class="kid" onClick="{{r.pick}}"><span class="gl">¶</span><span class="nm">Párrafo 1</span><span class="sb">La finca es de la familia…</span></button>
+                  <button class="kid" onClick="{{r.pick}}"><span class="gl">¶</span><span class="nm">Párrafo 2</span><span class="sb">San Adolfo está al sur…</span></button>
+                  <button class="kid {{r.p3cls}}" data-t="kid-p3" onClick="{{r.selP3}}"><span class="gl">¶</span><span class="nm">Párrafo 3</span><span class="sb">{{r.p3text}}</span></button>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+          <div class="grp">Abajo</div>
+          <div class="rows"><div class="row {{rows.foot}}"><span class="grip"></span><button class="row-main" onClick="{{h.selFoot}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="15" width="18" height="5" rx="1.5"></rect><path d="M3 7h18M3 11h12"></path></svg><span class="nm">Pie de página</span></button></div></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.hero}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.back}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Inicio</button>
+          <h2 class="pv-title">Hero</h2>
+          <p class="pv-sub">La primera pantalla de tu tienda. Cada cosa tiene su zona: si la quieres, la agregas; si no, la quitas.</p>
+          <div class="cc">
+            <div class="mini {{hz.mcls}}"><i class="h-panel"></i><i class="z z-tit"></i><i class="z z-sub"></i><i class="z z-marq"></i><i class="z z-card"></i><i class="z z-cap"></i><i class="z z-btn"></i></div>
+            <div class="cc-t"><b>{{hz.compName}}</b><span>Composición</span></div>
+            <button class="btn btn-ghost sm" data-t="comp-change" onClick="{{h.compOpen}}">Cambiar</button>
+          </div>
+          <div class="lbl">Zonas</div>
+          <sc-for list="{{zrows}}" as="z" hint-placeholder-count="6">
+            <div class="zr {{z.cls}}" data-t="{{z.t}}">
+              <button class="zr-main" onClick="{{z.pick}}"><span class="zi">{{z.gl}}</span><span class="zt"><b>{{z.name}}</b><span>{{z.sub}}</span></span></button>
+              <sc-if value="{{z.empty}}" hint-placeholder-val="{{ false }}"><button class="zadd" onClick="{{z.add}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Agregar</button></sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{hz.hasKeeps}}" hint-placeholder-val="{{ false }}">
+            <p class="hint"><svg class="i s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg><span>{{hz.keeps}} no tiene lugar en esta composición. Se guarda tal cual, por si vuelves.</span></p>
+          </sc-if>
+          <div class="lbl">Alto<span class="w">{{hz.altoWord}}</span></div>
+          <div class="opts">
+            <sc-for list="{{altos}}" as="o" hint-placeholder-count="3">
+              <button class="opt {{o.cls}}" onClick="{{o.pick}}"><span class="pic"><i style="height: {{o.h}}"></i></span>{{o.name}}</button>
+            </sc-for>
+          </div>
+          <p class="hint"><svg class="i s" viewBox="0 0 24 24"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"></path></svg><span>También desde la vista: el botón del borde inferior cambia el alto.</span></p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.fondo}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.back}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Hero</button>
+          <h2 class="pv-title">Fondo</h2>
+          <p class="pv-sub">La foto detrás de todo el hero.</p>
+          <div class="ph ph-cherry" style="height: 150px; border-radius: 12px; margin-top: 16px"></div>
+          <div style="display: flex; gap: 8px; margin-top: 10px">
+            <button class="btn btn-ghost sm" onClick="{{h.railMed}}">Cambiar foto</button>
+            <button class="btn btn-ghost sm" onClick="{{h.railMed}}">Foto para teléfono</button>
+          </div>
+          <div class="lbl">Oscurecer para leer mejor<span class="w">{{hz.veloWord}}</span></div>
+          <div class="seg full">
+            <sc-for list="{{velos}}" as="o" hint-placeholder-count="4"><button class="{{o.cls}}" onClick="{{o.pick}}">{{o.name}}</button></sc-for>
+          </div>
+          <div class="lbl">Qué parte de la foto se ve<span class="w">{{hz.focalWord}}</span></div>
+          <div class="seg full">
+            <sc-for list="{{focals}}" as="o" hint-placeholder-count="3"><button class="{{o.cls}}" onClick="{{o.pick}}">{{o.name}}</button></sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.el}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.back}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>{{elv.parent}}</button>
+          <h2 class="pv-title">{{elv.name}}</h2>
+          <p class="pv-sub">{{elv.hint}}</p>
+          <sc-if value="{{elv.hasText}}" hint-placeholder-val="{{ true }}">
+            <div class="lbl">Texto</div>
+            <textarea class="fld" rows="3" value="{{elv.text}}" onChange="{{h.fldText}}" aria-label="Texto"></textarea>
+          </sc-if>
+          <sc-if value="{{elv.hasType}}" hint-placeholder-val="{{ true }}">
+            <div class="lbl">Tamaño<span class="w">{{elv.sizeWord}}</span></div>
+            <div class="sz">
+              <span class="sz-a">A</span>
+              <div class="sz-track">
+                <sc-for list="{{elv.steps}}" as="st" hint-placeholder-count="5"><button class="sz-step {{st.cls}}" onClick="{{st.pick}}" aria-label="{{st.word}}"><i></i></button></sc-for>
+              </div>
+              <span class="sz-a big">A</span>
+            </div>
+            <div class="lbl">Letra</div>
+            <div class="flist">
+              <sc-for list="{{elv.fonts}}" as="f" hint-placeholder-count="5">
+                <button class="fo {{f.cls}}" data-t="{{f.pt}}" onClick="{{f.pick}}"><span class="smp" style="font-family: {{f.fam}}">Aa</span><span class="fot"><b>{{f.name}}</b><small>{{f.hint}}</small></span><svg class="i s ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{elv.hasAlign}}" hint-placeholder-val="{{ false }}">
+            <div class="lbl">Alineación</div>
+            <div class="seg full">
+              <button class="{{elv.alL}}" onClick="{{h.alL}}" aria-label="A la izquierda"><svg class="i s" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"></path></svg></button>
+              <button class="{{elv.alC}}" onClick="{{h.alC}}" aria-label="Al centro"><svg class="i s" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"></path></svg></button>
+              <button class="{{elv.alR}}" onClick="{{h.alR}}" aria-label="A la derecha"><svg class="i s" viewBox="0 0 24 24"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"></path></svg></button>
+            </div>
+          </sc-if>
+          <sc-if value="{{elv.hasSpeed}}" hint-placeholder-val="{{ false }}">
+            <div class="lbl">Velocidad</div>
+            <div class="seg full">
+              <button class="{{elv.spL}}" onClick="{{h.spLenta}}">Lenta</button>
+              <button class="{{elv.spN}}" onClick="{{h.spNormal}}">Normal</button>
+              <button class="{{elv.spR}}" onClick="{{h.spRapida}}">Rápida</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{elv.hasColor}}" hint-placeholder-val="{{ true }}">
+            <div class="lbl">Color</div>
+            <button class="cdef {{cm.defCls}}" onClick="{{h.colDef}}"><i class="csw" style="background: {{cm.defSw}}"></i><span class="cdef-t"><b>Por defecto</b><small>{{cm.defHint}}</small></span></button>
+            <p class="plbl">De tu paleta</p>
+            <div class="cgrid" onMouseLeave="{{h.cprevOff}}">
+              <sc-for list="{{cm.roles}}" as="r" hint-placeholder-count="6">
+                <button class="crole {{r.cls}}" data-t="{{r.pt}}" onClick="{{r.pick}}" onMouseEnter="{{r.enter}}"><i class="csw" style="background: {{r.css}}"></i><span><b>{{r.name}}</b><small>{{r.hint}}</small></span></button>
+              </sc-for>
+            </div>
+            <button class="cadv {{cm.advCls}}" onClick="{{h.advToggle}}"><span>Avanzado</span><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></button>
+            <sc-if value="{{cm.adv}}" hint-placeholder-val="{{ false }}">
+              <div class="ccust"><span class="ccust-l">Personalizado</span><label class="ccust-pick"><input type="color" value="{{cm.hex}}" onChange="{{h.custom}}" aria-label="Elegir un color personalizado"><i style="background: {{cm.hex}}"></i></label><span class="mono">{{cm.hex}}</span></div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{elv.canRemove}}" hint-placeholder-val="{{ true }}">
+            <button class="danger" onClick="{{h.remove}}"><svg class="i s" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"></path></svg>Quitar {{elv.lower}}</button>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.sec}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.back}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>{{secv.parent}}</button>
+          <h2 class="pv-title">{{secv.name}}</h2>
+          <p class="pv-sub">{{secv.hint}}</p>
+          <sc-if value="{{secv.hasEsq}}" hint-placeholder-val="{{ false }}">
+            <div class="lbl">Fondo de la banda</div>
+            <div class="opts">
+              <sc-for list="{{secv.esqs}}" as="o" hint-placeholder-count="3">
+                <button class="opt {{o.cls}}" onClick="{{o.pick}}"><span class="pic" style="background: {{o.bg}}; box-shadow: inset 0 0 0 1px rgba(20,19,17,.08)"></span>{{o.name}}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div class="lbl">Contenido</div>
+          <sc-for list="{{secv.parts}}" as="p" hint-placeholder-count="3">
+            <div class="zr"><span class="zr-main"><span class="zi">{{p.gl}}</span><span class="zt"><b>{{p.name}}</b><span>{{p.sub}}</span></span></span></div>
+          </sc-for>
+          <p class="hint"><svg class="i s" viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.3 1.4-3.2 6.1z"></path></svg><span>Los textos se editan tocándolos en la vista.</span></p>
+          <sc-if value="{{secv.canHide}}" hint-placeholder-val="{{ false }}">
+            <button class="danger" style="color: var(--ink2)" onClick="{{h.secHide}}"><svg class="i s" viewBox="0 0 24 24"><path d="M3 3l18 18"></path><path d="M10.6 5.1A10 10 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6A17 17 0 002 12s3.5 7 10 7a9.7 9.7 0 005.4-1.6"></path></svg>{{secv.hideLabel}}</button>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.est}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <h2 class="pv-title">Estilo de la tienda</h2>
+          <p class="pv-sub">Colores, letras y forma para todas las páginas a la vez.</p>
+          <div class="lbl">Combinaciones</div>
+          <div class="pgrid">
+            <sc-for list="{{pcards}}" as="p" hint-placeholder-count="4">
+              <button class="pcard {{p.cls}}" data-t="{{p.t}}" onClick="{{p.pick}}">
+                <span class="pc-top"><span class="pc-row"><span class="pc-aa">Aa</span><span class="pc-sws"><i style="background: var(--c-tinta)"></i><i style="background: var(--c-acento)"></i><i style="background: var(--c-tostado)"></i></span></span><span class="pc-row"><span class="pc-btn">Comprar</span></span></span>
+                <span class="pc-b"><b>{{p.name}}</b><small>{{p.fonts}}</small></span>
+                <sc-if value="{{p.on}}" hint-placeholder-val="{{ false }}"><span class="pc-ck"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+              </button>
+            </sc-for>
+          </div>
+          <div class="lbl">Ajustar</div>
+          <button class="adj" onClick="{{h.estCol}}"><span class="adj-sw"><i style="background: var(--c-fondo); margin-left: 0"></i><i style="background: var(--c-tinta)"></i><i style="background: var(--c-acento)"></i></span><span class="adj-t"><b>Colores</b><small>Fondo, tinta y acento</small></span><svg class="i s" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"></path></svg></button>
+          <button class="adj" onClick="{{h.estLet}}"><span class="adj-aa">Aa</span><span class="adj-t"><b>Letras</b><small>{{est.pairLabel}}</small></span><svg class="i s" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"></path></svg></button>
+          <button class="adj" onClick="{{h.estFor}}"><span class="adj-aa" style="font-family: 'Spline Sans Mono', monospace; font-size: 16px">◰</span><span class="adj-t"><b>Forma</b><small>{{est.formaLabel}}</small></span><svg class="i s" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"></path></svg></button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.estCol}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.estBack}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Estilo</button>
+          <h2 class="pv-title">Colores</h2>
+          <p class="pv-sub">Tres colores deciden toda la tienda. Los demás se calculan solos a partir de ellos.</p>
+          <div class="lbl">Los tres de tu tienda</div>
+          <div class="root"><i class="big" style="background: var(--c-fondo)"></i><span class="root-t"><b>Fondo</b><small>El papel de tus páginas</small></span><span class="mono">{{est.hexF}}</span></div>
+          <div class="root"><i class="big" style="background: var(--c-tinta)"></i><span class="root-t"><b>Tinta</b><small>Títulos y textos</small></span><span class="mono">{{est.hexT}}</span></div>
+          <div class="root"><i class="big" style="background: var(--c-acento)"></i><span class="root-t"><b>Acento</b><small>Botones y detalles de marca</small></span><span class="mono">{{est.hexA}}</span></div>
+          <div class="lbl">Se calculan solos</div>
+          <div class="derived">
+            <span class="der"><i style="background: var(--c-texto)"></i>Texto</span>
+            <span class="der"><i style="background: var(--c-suave)"></i>Suave</span>
+            <span class="der"><i style="background: var(--c-sup)"></i>Superficie</span>
+            <span class="der"><i style="background: var(--c-linea)"></i>Línea</span>
+            <span class="der"><i style="background: var(--c-tostado)"></i>Tostado</span>
+            <span class="der"><i style="background: #ffffff"></i>Sobre foto</span>
+          </div>
+          <p class="hint"><svg class="i s" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"></path></svg><span>Todo lo que pintaste «por rol» —un titular en Tostado, un botón en Acento— cambia junto con estos tres.</span></p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.estLet}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.estBack}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Estilo</button>
+          <h2 class="pv-title">Letras</h2>
+          <p class="pv-sub">Una para títulos y otra para textos, elegidas para ir juntas.</p>
+          <div class="lbl">Pares</div>
+          <sc-for list="{{pairs}}" as="p" hint-placeholder-count="5">
+            <button class="pair {{p.cls}}" onClick="{{p.pick}}"><span class="aa" style="font-family: {{p.fd}}">Aa</span><span class="pair-t"><b>{{p.name}}</b><small>{{p.desc}}</small></span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.estFor}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <button class="pv-back" onClick="{{h.estBack}}"><svg class="i s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Estilo</button>
+          <h2 class="pv-title">Forma</h2>
+          <p class="pv-sub">Las esquinas de botones, fotos y etiquetas.</p>
+          <div class="lbl">Esquinas</div>
+          <div class="opts">
+            <sc-for list="{{formas}}" as="o" hint-placeholder-count="3">
+              <button class="opt {{o.cls}}" onClick="{{o.pick}}"><span class="shape"><i style="border-radius: {{o.r}}"></i></span>{{o.name}}</button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pv.med}}" hint-placeholder-val="{{ false }}">
+        <div class="pv {{pv.dir}}">
+          <h2 class="pv-title">Medios</h2>
+          <p class="pv-sub">Fotos y videos de tu tienda. Arrastra uno sobre la vista para usarlo.</p>
+          <div class="lbl">Tus archivos</div>
+          <div class="medias">
+            <button class="upl"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"></path></svg>Subir</button>
+            <div class="ph ph-cherry"></div><div class="ph ph-hills"></div><div class="ph ph-hands"></div><div class="ph ph-beans"></div><div class="ph ph-cup"></div>
+          </div>
+        </div>
+      </sc-if>
+
+    </aside>
+
+    <main class="stage" data-t="stage" onClick="{{h.stageClick}}">
+      <div class="st-meta" data-t="stage-meta"><span class="st-pill"><i></i>Borrador · {{fr.path}}</span><span class="mono">{{fr.dev}}</span></div>
+      <div class="frame {{fr.cls}}" data-frame="1" data-t="frame">
+        <div class="page" data-t="page">
+          <div class="pg">
+
+            <header class="sec s-nav {{secs.nav}}" data-label="Encabezado" onClick="{{h.selNav}}">
+              <div class="wm">Finca San Adolfo<small>San Adolfo · Huila</small></div>
+              <nav class="nl" data-t="nav-links"><span>Nuestro café<i class="bdg">Cosecha 2026</i></span><span>La finca</span><span>Historia</span><span>Contacto</span></nav>
+              <div class="na">
+                <span class="loc">Colombia (COP $)</span>
+                <svg class="i hs" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4.2-4.2"></path></svg>
+                <svg class="i hs" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+                <svg class="i" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"></path><path d="M9 8a3 3 0 016 0"></path></svg>
+                <span class="sbtn">Comprar</span>
+                <svg class="i hamb" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+              </div>
+            </header>
+
+            <sc-if value="{{pg.home}}" hint-placeholder-val="{{ true }}">
+              <div>
+                <section class="sec hero {{hero.cls}}" data-label="{{hero.label}}" data-t="hero" onClick="{{h.selHero}}">
+                  <div class="h-bg">
+                    <svg viewBox="0 0 1200 800" preserveAspectRatio="{{hero.focal}}" aria-hidden="true">
+                      <defs>
+                        <radialGradient id="hbg" cx="66%" cy="40%" r="85%"><stop offset="0" stop-color="#4f7230"></stop><stop offset=".34" stop-color="#22411a"></stop><stop offset=".72" stop-color="#0c1a0a"></stop><stop offset="1" stop-color="#040903"></stop></radialGradient>
+                        <radialGradient id="ch" cx="36%" cy="30%" r="78%"><stop offset="0" stop-color="#ffa18c"></stop><stop offset=".18" stop-color="#e3382c"></stop><stop offset=".58" stop-color="#9a0a10"></stop><stop offset="1" stop-color="#360205"></stop></radialGradient>
+                        <radialGradient id="chd" cx="36%" cy="30%" r="78%"><stop offset="0" stop-color="#e3707a"></stop><stop offset=".2" stop-color="#9c1528"></stop><stop offset=".6" stop-color="#5e0614"></stop><stop offset="1" stop-color="#220107"></stop></radialGradient>
+                        <radialGradient id="cho" cx="36%" cy="30%" r="78%"><stop offset="0" stop-color="#ffd09a"></stop><stop offset=".2" stop-color="#ec8a35"></stop><stop offset=".62" stop-color="#a5450d"></stop><stop offset="1" stop-color="#3e1503"></stop></radialGradient>
+                        <radialGradient id="chg" cx="36%" cy="30%" r="78%"><stop offset="0" stop-color="#eef0a0"></stop><stop offset=".22" stop-color="#a4b84a"></stop><stop offset=".62" stop-color="#536d1d"></stop><stop offset="1" stop-color="#1e2c08"></stop></radialGradient>
+                        <linearGradient id="lf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5f8f35"></stop><stop offset="1" stop-color="#173010"></stop></linearGradient>
+                        <radialGradient id="vg" cx="50%" cy="48%" r="72%"><stop offset=".5" stop-color="#000" stop-opacity="0"></stop><stop offset="1" stop-color="#000" stop-opacity=".62"></stop></radialGradient>
+                        <filter id="b2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2"></feGaussianBlur></filter>
+                        <filter id="b7" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"></feGaussianBlur></filter>
+                        <filter id="b18" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"></feGaussianBlur></filter>
+                        <filter id="b36" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="36"></feGaussianBlur></filter>
+                        <filter id="gr"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .075 0"></feColorMatrix></filter>
+                      </defs>
+                      <rect width="1200" height="800" fill="url(#hbg)"></rect>
+                      <g filter="url(#b18)" opacity=".55">
+                        <circle cx="170" cy="150" r="76" fill="#76a242"></circle>
+                        <circle cx="420" cy="80" r="44" fill="#a6c862" opacity=".6"></circle>
+                        <circle cx="1050" cy="130" r="96" fill="#5a8531"></circle>
+                        <circle cx="1130" cy="540" r="64" fill="#80aa48" opacity=".6"></circle>
+                        <circle cx="80" cy="560" r="86" fill="#3e6223"></circle>
+                        <circle cx="560" cy="200" r="30" fill="#c9df8a" opacity=".45"></circle>
+                      </g>
+                      <g filter="url(#b7)" opacity=".92">
+                        <path d="M-40 300C120 180 360 200 470 320C340 360 120 380-40 300Z" fill="url(#lf)"></path>
+                        <path d="M1240 250C1080 150 880 180 800 290C930 330 1110 330 1240 250Z" fill="url(#lf)" opacity=".8"></path>
+                        <path d="M520 830C560 670 700 610 820 620C780 730 680 810 520 830Z" fill="url(#lf)" opacity=".85"></path>
+                      </g>
+                      <path d="M630 128C750 44 960 64 1060 156C940 218 758 216 630 128Z" fill="url(#lf)"></path>
+                      <path d="M640 130C790 124 935 134 1050 156" stroke="#b3cf74" stroke-width="2" fill="none" opacity=".5"></path>
+                      <path d="M300 830C420 650 560 510 760 428C900 372 1020 336 1240 304" stroke="#251f12" stroke-width="16" fill="none" stroke-linecap="round"></path>
+                      <path d="M300 830C420 650 560 510 760 428C900 372 1020 336 1240 304" stroke="#6a5832" stroke-width="3" fill="none" opacity=".45" transform="translate(-2,-5)"></path>
+                      <circle cx="660" cy="414" r="30" fill="url(#ch)"></circle>
+                      <circle cx="690" cy="456" r="34" fill="url(#chd)"></circle>
+                      <circle cx="728" cy="420" r="38" fill="url(#ch)"></circle>
+                      <circle cx="742" cy="482" r="33" fill="url(#chd)"></circle>
+                      <circle cx="770" cy="452" r="36" fill="url(#ch)"></circle>
+                      <circle cx="806" cy="412" r="35" fill="url(#ch)"></circle>
+                      <circle cx="842" cy="444" r="32" fill="url(#cho)"></circle>
+                      <circle cx="874" cy="400" r="28" fill="url(#chg)"></circle>
+                      <circle cx="706" cy="506" r="28" fill="url(#ch)"></circle>
+                      <circle cx="790" cy="498" r="30" fill="url(#chd)"></circle>
+                      <circle cx="1010" cy="354" r="24" fill="url(#ch)"></circle>
+                      <circle cx="1040" cy="374" r="22" fill="url(#chd)"></circle>
+                      <circle cx="1068" cy="348" r="20" fill="url(#chg)"></circle>
+                      <circle cx="1030" cy="332" r="19" fill="url(#cho)"></circle>
+                      <circle cx="500" cy="592" r="26" fill="url(#ch)"></circle>
+                      <circle cx="530" cy="616" r="24" fill="url(#chd)"></circle>
+                      <circle cx="474" cy="620" r="22" fill="url(#cho)"></circle>
+                      <g fill="#fff" filter="url(#b2)" opacity=".7">
+                        <ellipse cx="716" cy="404" rx="9" ry="6"></ellipse>
+                        <ellipse cx="759" cy="437" rx="8" ry="5"></ellipse>
+                        <ellipse cx="795" cy="397" rx="8" ry="5"></ellipse>
+                        <ellipse cx="650" cy="401" rx="6" ry="4"></ellipse>
+                        <ellipse cx="832" cy="431" rx="6" ry="4"></ellipse>
+                        <ellipse cx="697" cy="494" rx="6" ry="4"></ellipse>
+                        <ellipse cx="1002" cy="344" rx="5" ry="3"></ellipse>
+                        <ellipse cx="492" cy="582" rx="6" ry="4"></ellipse>
+                      </g>
+                      <g filter="url(#b36)">
+                        <circle cx="130" cy="770" r="124" fill="#8e0a0e" opacity=".85"></circle>
+                        <circle cx="300" cy="850" r="94" fill="#b3161a" opacity=".55"></circle>
+                        <circle cx="1180" cy="770" r="116" fill="#1e3a12" opacity=".9"></circle>
+                      </g>
+                      <rect width="1200" height="800" fill="url(#vg)"></rect>
+                      <rect width="1200" height="800" filter="url(#gr)"></rect>
+                    </svg>
+                    <i class="h-velo"></i>
+                  </div>
+                  <i class="h-panel"></i>
+
+                  <div class="z z-marq {{zc.marq}}" data-zone="Marquesina" data-t="z-marq" onClick="{{h.selMarq}}" style="font-size: {{els.marq.fs}}; color: {{els.marq.col}}; font-family: {{els.marq.ff}}">
+                    <sc-if value="{{els.marq.on}}" hint-placeholder-val="{{ true }}">
+                      <div class="marq-run {{marq.sp}}"><div class="marq-track"><sc-for list="{{marq.copies}}" as="c" hint-placeholder-count="4"><span>{{c.t}}</span></sc-for></div></div>
+                      <div class="marq-edit"><span class="marq-line {{els.marq.cls}}" data-ce="marq" contentEditable="{{els.marq.ce}}" spellCheck="false" onBlur="{{h.blurEl}}" onKeyDown="{{h.keyEl}}">{{els.marq.text}}</span></div>
+                    </sc-if>
+                    <sc-if value="{{els.marq.off}}" hint-placeholder-val="{{ false }}"><button class="ghost" style="left: 6%" onClick="{{h.addMarq}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Marquesina</button></sc-if>
+                  </div>
+
+                  <div class="z z-card {{zc.card}}" data-zone="Producto" onClick="{{h.selCard}}">
+                    <div class="bag"><div class="bag-l"><b>Finca San Adolfo</b><small>Cosecha 2026</small><em></em></div></div>
+                  </div>
+
+                  <div class="z z-tit {{zc.tit}}" data-zone="Titular">
+                    <sc-if value="{{els.tit.on}}" hint-placeholder-val="{{ false }}"><h1 class="h-tit {{els.tit.cls}}" data-t="h-tit" data-ce="tit" contentEditable="{{els.tit.ce}}" spellCheck="false" onClick="{{h.selTit}}" onBlur="{{h.blurEl}}" onKeyDown="{{h.keyEl}}" style="font-family: {{els.tit.ff}}; font-size: {{els.tit.fs}}; color: {{els.tit.col}}; text-align: {{els.tit.al}}">{{els.tit.text}}</h1></sc-if>
+                    <sc-if value="{{els.tit.off}}" hint-placeholder-val="{{ true }}"><button class="ghost" data-t="ghost-tit" onClick="{{h.addTit}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Titular</button></sc-if>
+                  </div>
+
+                  <div class="z z-sub {{zc.sub}}" data-zone="Subtítulo">
+                    <sc-if value="{{els.sub.on}}" hint-placeholder-val="{{ false }}"><p class="h-sub {{els.sub.cls}}" data-ce="sub" contentEditable="{{els.sub.ce}}" spellCheck="false" onClick="{{h.selSub}}" onBlur="{{h.blurEl}}" onKeyDown="{{h.keyEl}}" style="font-family: {{els.sub.ff}}; font-size: {{els.sub.fs}}; color: {{els.sub.col}}; text-align: {{els.sub.al}}">{{els.sub.text}}</p></sc-if>
+                    <sc-if value="{{els.sub.off}}" hint-placeholder-val="{{ true }}"><button class="ghost" data-t="ghost-sub" onClick="{{h.addSub}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Subtítulo</button></sc-if>
+                  </div>
+
+                  <div class="z z-cap {{zc.cap}}" data-zone="Leyenda">
+                    <sc-if value="{{els.cap.on}}" hint-placeholder-val="{{ true }}"><p class="h-cap {{els.cap.cls}}" data-ce="cap" contentEditable="{{els.cap.ce}}" spellCheck="false" onClick="{{h.selCap}}" onBlur="{{h.blurEl}}" onKeyDown="{{h.keyEl}}" style="font-family: {{els.cap.ff}}; font-size: {{els.cap.fs}}; color: {{els.cap.col}}; text-align: {{els.cap.al}}">{{els.cap.text}}</p></sc-if>
+                    <sc-if value="{{els.cap.off}}" hint-placeholder-val="{{ false }}"><button class="ghost" onClick="{{h.addCap}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Leyenda</button></sc-if>
+                  </div>
+
+                  <div class="z z-btn {{zc.btn}}" data-zone="Botones">
+                    <sc-if value="{{els.btn.on}}" hint-placeholder-val="{{ false }}"><span class="sbtn hb {{els.btn.cls}}" onClick="{{h.selBtn}}">{{els.btn.text}}</span></sc-if>
+                    <sc-if value="{{els.btn.off}}" hint-placeholder-val="{{ true }}"><button class="ghost" data-t="ghost-btn" onClick="{{h.addBtn}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Botón</button></sc-if>
+                  </div>
+
+                  <div class="z z-cue {{zc.cue}}" data-zone="Indicador">
+                    <sc-if value="{{els.cue.on}}" hint-placeholder-val="{{ true }}"><div class="cue {{els.cue.cls}}" onClick="{{h.selCue}}"><span>Desliza</span><i></i></div></sc-if>
+                    <sc-if value="{{els.cue.off}}" hint-placeholder-val="{{ false }}"><button class="ghost" onClick="{{h.addCue}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Indicador</button></sc-if>
+                  </div>
+
+                  <button class="fondo-tag" onClick="{{h.selFondo}}"><svg class="i s" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M21 16l-5-5-9 9"></path></svg>Fondo · foto</button>
+                  <button class="alto-h" onClick="{{h.cycleAlto}}"><svg class="i s" viewBox="0 0 24 24"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"></path></svg>{{hz.altoWord}}</button>
+
+                  <sc-if value="{{tbx.hero}}" hint-placeholder-val="{{ false }}">
+                    <div class="ftb {{tbx.at}}" data-t="ftb" onClick="{{h.stop}}">
+                      <sc-if value="{{tbx.font}}" hint-placeholder-val="{{ true }}">
+                        <div class="tbw">
+                          <button class="tbb {{tbx.fontOpen}}" data-t="tb-font" onClick="{{h.tbFont}}"><span class="tb-aa" style="font-family: {{tbx.ff}}">Aa</span><span class="tb-fn">{{tbx.fontName}}</span><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></button>
+                          <sc-if value="{{tbx.menuFont}}" hint-placeholder-val="{{ false }}">
+                            <div class="pop pop-f" onMouseLeave="{{h.fprevOff}}">
+                              <p class="plbl">Letra</p>
+                              <div class="flist">
+                                <sc-for list="{{elv.fonts}}" as="f" hint-placeholder-count="6">
+                                  <button class="fo {{f.cls}}" data-t="{{f.t}}" onClick="{{f.pick}}" onMouseEnter="{{f.enter}}"><span class="smp" style="font-family: {{f.fam}}">Aa</span><span class="fot"><b>{{f.name}}</b><small>{{f.hint}}</small></span><svg class="i s ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+                                </sc-for>
+                              </div>
+                            </div>
+                          </sc-if>
+                        </div>
+                        <i class="tbsep"></i>
+                      </sc-if>
+                      <sc-if value="{{tbx.size}}" hint-placeholder-val="{{ true }}">
+                        <div class="tbsz">
+                          <button class="tbb sq" data-t="tb-minus" onClick="{{h.tbMinus}}" aria-label="Más pequeño"><svg class="i s" viewBox="0 0 24 24"><path d="M5 12h14"></path></svg></button>
+                          <span class="tbsz-w">{{tbx.sizeWord}}</span>
+                          <button class="tbb sq" data-t="tb-plus" onClick="{{h.tbPlus}}" aria-label="Más grande"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></button>
+                        </div>
+                        <i class="tbsep"></i>
+                      </sc-if>
+                      <sc-if value="{{tbx.align}}" hint-placeholder-val="{{ false }}">
+                        <button class="tbb sq {{elv.alL}}" onClick="{{h.alL}}" aria-label="A la izquierda"><svg class="i s" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"></path></svg></button>
+                        <button class="tbb sq {{elv.alC}}" onClick="{{h.alC}}" aria-label="Al centro"><svg class="i s" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"></path></svg></button>
+                        <i class="tbsep"></i>
+                      </sc-if>
+                      <sc-if value="{{tbx.speed}}" hint-placeholder-val="{{ false }}">
+                        <button class="tbb {{elv.spL}}" onClick="{{h.spLenta}}">Lenta</button>
+                        <button class="tbb {{elv.spN}}" onClick="{{h.spNormal}}">Normal</button>
+                        <button class="tbb {{elv.spR}}" onClick="{{h.spRapida}}">Rápida</button>
+                        <i class="tbsep"></i>
+                      </sc-if>
+                      <sc-if value="{{tbx.color}}" hint-placeholder-val="{{ true }}">
+                        <div class="tbw">
+                          <button class="tbb {{tbx.colorOpen}}" data-t="tb-color" onClick="{{h.tbColor}}"><i class="tb-sw" style="background: {{tbx.colSw}}"></i><span>{{tbx.colName}}</span><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></button>
+                          <sc-if value="{{tbx.menuColor}}" hint-placeholder-val="{{ false }}">
+                            <div class="pop">
+                              <button class="cdef {{cm.defCls}}" onClick="{{h.colDef}}"><i class="csw" style="background: {{cm.defSw}}"></i><span class="cdef-t"><b>Por defecto</b><small>{{cm.defHint}}</small></span></button>
+                              <p class="plbl">De tu paleta</p>
+                              <div class="cgrid" onMouseLeave="{{h.cprevOff}}">
+                                <sc-for list="{{cm.roles}}" as="r" hint-placeholder-count="6">
+                                  <button class="crole {{r.cls}}" data-t="{{r.t}}" onClick="{{r.pick}}" onMouseEnter="{{r.enter}}"><i class="csw" style="background: {{r.css}}"></i><span><b>{{r.name}}</b><small>{{r.hint}}</small></span></button>
+                                </sc-for>
+                              </div>
+                              <button class="cadv {{cm.advCls}}" data-t="adv-toggle" onClick="{{h.advToggle}}"><span>Avanzado</span><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></button>
+                              <sc-if value="{{cm.adv}}" hint-placeholder-val="{{ false }}">
+                                <div class="ccust"><span class="ccust-l">Personalizado</span><label class="ccust-pick"><input type="color" value="{{cm.hex}}" onChange="{{h.custom}}" aria-label="Elegir un color personalizado"><i style="background: {{cm.hex}}"></i></label><span class="mono">{{cm.hex}}</span></div>
+                              </sc-if>
+                            </div>
+                          </sc-if>
+                        </div>
+                        <i class="tbsep"></i>
+                      </sc-if>
+                      <button class="tbb sq" onClick="{{h.remove}}" aria-label="Quitar"><svg class="i s" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"></path></svg></button>
+                    </div>
+                  </sc-if>
+                </section>
+
+                <section class="sec s-spot {{secs.spot}}" data-label="Producto insignia" data-t="sec-spot" onClick="{{h.selSpot}}">
+                  <div class="spot-g">
+                    <div class="spot-h"><p class="eb">Nuestro café</p><h2 class="d2">Un solo origen, cuidado de principio a fin.</h2></div>
+                    <div class="spot-st"><div class="spot-bag"><i class="bdg">Cosecha 2026</i><div class="bag flat"><div class="bag-l"><b>Finca San Adolfo</b><small>Molido · 250 g</small><em></em></div></div></div><span class="spot-lab">Molido · 250 g</span></div>
+                    <div class="spot-buy">
+                      <h3 class="d3">Café Finca San Adolfo</h3>
+                      <p class="mut">Cultivamos entre 1.500 y 1.800 msnm, recogemos solo el grano maduro y lo secamos al sol sobre marquesinas. Una taza limpia y dulce.</p>
+                      <div class="notes"><span>Panela</span><span>Frutos rojos</span><span>Chocolate</span></div>
+                      <div class="var"><p class="eb">Presentación</p><div class="opts2"><span class="on">Molido</span><span>En grano</span></div></div>
+                      <div class="var"><p class="eb">Tamaño</p><div class="opts2"><span class="on">250 g</span><span>500 g</span></div></div>
+                      <p class="price"><b>$38.000</b><small>COP · impuestos incluidos</small></p>
+                      <span class="sbtn block">Agregar al carrito</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sec s-hist {{secs.hist}}" data-label="Historia" onClick="{{h.selHist}}">
+                  <p class="eb">Historia</p>
+                  <h2 class="d2">Nacido de la tradición.</h2>
+                  <div class="coll"><div class="ph ph-hills"></div><div class="ph ph-hands"></div><div class="ph ph-beans"></div></div>
+                  <div class="hist-copy"><p>La finca es de la familia desde 1974. Tres generaciones han trabajado las mismas laderas: sembramos, recogemos y beneficiamos nosotros mismos. Nada sale de aquí sin haber pasado por nuestras manos.</p><span class="sbtn">Nuestra historia</span></div>
+                </section>
+
+                <section class="sec s-orig {{secs.orig}}" data-label="El origen" onClick="{{h.selOrig}}">
+                  <div class="orig-g">
+                    <div class="orig-m"><div class="ph ph-cherry"></div><div class="ph ph-cup"></div></div>
+                    <div>
+                      <p class="eb">El origen</p>
+                      <h2 class="d2">Cultivado a mano en las montañas de San Adolfo, Huila.</h2>
+                      <p class="lede">San Adolfo está al sur del Huila, en el corredor del macizo. Recogemos entre marzo y junio, fermentamos en tanque y secamos al sol hasta llegar al punto. El lote se empaca completo, sin mezclas.</p>
+                      <dl class="spec"><div><dt>Altitud</dt><dd>1.500 – 1.800 msnm</dd></div><div><dt>Variedad</dt><dd>Caturra y Colombia</dd></div><div><dt>Proceso</dt><dd>Lavado, secado al sol</dd></div><div><dt>Cosecha</dt><dd>Marzo – junio</dd></div></dl>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="sec s-pres {{secs.pres}}" data-label="Presentaciones" onClick="{{h.selPres}}">
+                  <div class="pres-h"><div><p class="eb">Más de una forma de disfrutarlo</p><h2 class="d2">Nuestro café. 4 presentaciones.</h2></div><span class="sbtn">Comprar</span></div>
+                  <div class="pres-r">
+                    <div class="pres-c"><div class="ph ph-beans"></div><b>Molido 250 g</b><span>$38.000 COP</span></div>
+                    <div class="pres-c"><div class="ph ph-cup"></div><b>Molido 500 g</b><span>$68.000 COP</span></div>
+                    <div class="pres-c"><div class="ph ph-cherry"></div><b>En grano 250 g</b><span>$38.000 COP</span></div>
+                    <div class="pres-c"><div class="ph ph-hands"></div><b>En grano 500 g</b><span>$68.000 COP</span></div>
+                  </div>
+                </section>
+
+                <section class="sec s-cta {{secs.cta}}" data-label="Suscripción" onClick="{{h.selCta}}">
+                  <div class="ph ph-hands"></div>
+                  <span class="on-l">Únete al club</span><span class="on-l">Explorar</span>
+                </section>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{pg.nos}}" hint-placeholder-val="{{ false }}">
+              <div>
+                <section class="sec n-hero {{secs.nhero}}" data-label="Portada" onClick="{{h.selNHero}}">
+                  <p class="eb">Nosotros</p>
+                  <h1 class="n-h1">Nacido de la tradición.</h1>
+                  <div class="ph ph-hills n-banner"></div>
+                </section>
+                <section class="sec n-hist {{secs.nhist}}" data-label="Historia" data-t="n-hist" onClick="{{h.selNHist}}">
+                  <div class="nh-g">
+                    <div><p class="eb">Desde 1974</p><div class="ph ph-hands nh-ph"></div></div>
+                    <div class="nh-copy">
+                      <p class="n-p">La finca es de la familia desde 1974. Tres generaciones han trabajado las mismas laderas: sembramos, recogemos y beneficiamos nosotros mismos.</p>
+                      <p class="n-p">San Adolfo está al sur del Huila, en el corredor del macizo. Recogemos entre marzo y junio, fermentamos en tanque y secamos al sol hasta llegar al punto.</p>
+                      <div class="p3w">
+                        <p class="n-p p3 {{els.p3.cls}}" data-t="p3" data-ce="p3" contentEditable="{{els.p3.ce}}" spellCheck="false" onClick="{{h.selP3}}" onBlur="{{h.blurEl}}" onKeyDown="{{h.keyEl}}" style="font-family: {{els.p3.ff}}; font-size: {{els.p3.fs}}; color: {{els.p3.col}}; text-align: {{els.p3.al}}">{{els.p3.text}}</p>
+                        <sc-if value="{{tbx.p3}}" hint-placeholder-val="{{ false }}">
+                          <div class="ftb np" onClick="{{h.stop}}">
+                            <div class="tbsz">
+                              <button class="tbb sq" onClick="{{h.tbMinus}}" aria-label="Más pequeño"><svg class="i s" viewBox="0 0 24 24"><path d="M5 12h14"></path></svg></button>
+                              <span class="tbsz-w">{{tbx.sizeWord}}</span>
+                              <button class="tbb sq" onClick="{{h.tbPlus}}" aria-label="Más grande"><svg class="i s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></button>
+                            </div>
+                            <i class="tbsep"></i>
+                            <div class="tbw">
+                              <button class="tbb {{tbx.colorOpen}}" onClick="{{h.tbColor}}"><i class="tb-sw" style="background: {{tbx.colSw}}"></i><span>{{tbx.colName}}</span><svg class="i s" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></button>
+                              <sc-if value="{{tbx.menuColor}}" hint-placeholder-val="{{ false }}">
+                                <div class="pop">
+                                  <button class="cdef {{cm.defCls}}" onClick="{{h.colDef}}"><i class="csw" style="background: {{cm.defSw}}"></i><span class="cdef-t"><b>Por defecto</b><small>{{cm.defHint}}</small></span></button>
+                                  <p class="plbl">De tu paleta</p>
+                                  <div class="cgrid" onMouseLeave="{{h.cprevOff}}">
+                                    <sc-for list="{{cm.roles}}" as="r" hint-placeholder-count="6">
+                                      <button class="crole {{r.cls}}" onClick="{{r.pick}}" onMouseEnter="{{r.enter}}"><i class="csw" style="background: {{r.css}}"></i><span><b>{{r.name}}</b><small>{{r.hint}}</small></span></button>
+                                    </sc-for>
+                                  </div>
+                                </div>
+                              </sc-if>
+                            </div>
+                            <i class="tbsep"></i>
+                            <span class="tbb" style="color: #746F64; cursor: default">Escribe sobre el texto</span>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+                <section class="sec n-gal {{secs.ngal}}" data-label="Galería" data-t="n-gal" onClick="{{h.selNGal}}">
+                  <p class="eb">Galería</p>
+                  <div class="ng-grid"><div class="ph ph-cherry g1"></div><div class="ph ph-beans g2"></div><div class="ph ph-cup g3"></div><div class="ph ph-hills g4"></div><div class="ph ph-hands g5"></div></div>
+                </section>
+                <section class="sec n-cierre {{secs.ncierre}}" data-label="Cierre" onClick="{{h.selNCierre}}">
+                  <h2 class="d2">Un solo origen, cuidado de principio a fin.</h2>
+                  <span class="sbtn">Comprar</span>
+                </section>
+              </div>
+            </sc-if>
+
+            <footer class="sec s-foot {{secs.foot}}" data-label="Pie de página" onClick="{{h.selFoot}}">
+              <div class="wm">Finca San Adolfo<small>San Adolfo · Huila</small></div>
+              <p class="ftag">Más que una buena taza. Café de familia, desde el Huila para el mundo.</p>
+              <div class="fcols"><div><b>Tienda</b><span>Nuestro café</span><span>Presentaciones</span></div><div><b>La finca</b><span>Historia</span><span>El origen</span></div><div><b>Ayuda</b><span>Envíos</span><span>Contacto</span></div></div>
+              <p class="fine">© 2026 Finca San Adolfo</p>
+            </footer>
+
+          </div>
+        </div>
+      </div>
+
+      <sc-if value="{{sheet.comp}}" hint-placeholder-val="{{ false }}">
+        <div class="sheet-bg" data-sheet="1" onClick="{{h.closeSheet}}"></div>
+        <div class="sheet" data-sheet="1" onClick="{{h.stop}}">
+          <div class="sh-h">
+            <div><p class="sh-k">Hero · composición</p><h2 class="sh-t">¿Cómo se arma tu hero?</h2><p class="sh-s">Cada composición reparte la pantalla en zonas. Tus textos se mudan a la zona equivalente; lo que no tenga lugar se guarda, no se borra.</p></div>
+            <button class="ib" onClick="{{h.closeSheet}}" aria-label="Cerrar"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </div>
+          <div class="sh-grid">
+            <sc-for list="{{sheet.comps}}" as="c" hint-placeholder-count="3">
+              <button class="cc2 {{c.cls}}" data-t="{{c.t}}" onClick="{{c.pick}}">
+                <span class="mini lg {{c.mcls}}"><i class="h-panel"></i><i class="z z-tit" data-zone="Titular"></i><i class="z z-sub" data-zone="Subtítulo"></i><i class="z z-marq" data-zone="Marquesina"></i><i class="z z-card" data-zone="Producto"></i><i class="z z-cap" data-zone="Leyenda"></i><i class="z z-btn" data-zone="Botones"></i></span>
+                <span class="cc2-t"><b>{{c.name}}<sc-if value="{{c.isCur}}" hint-placeholder-val="{{ false }}"><em>Actual</em></sc-if></b><span>{{c.desc}}</span></span>
+                <sc-if value="{{c.hasKeeps}}" hint-placeholder-val="{{ false }}"><span class="keeps"><sc-for list="{{c.keeps}}" as="k" hint-placeholder-count="2"><span>Se guarda: {{k.x}}</span></sc-for></span></sc-if>
+              </button>
+            </sc-for>
+          </div>
+          <div class="sh-f">
+            <span class="grow">Puedes volver a la anterior cuando quieras: nada se pierde.</span>
+            <button class="btn btn-ghost" onClick="{{h.closeSheet}}">Cancelar</button>
+            <button class="btn btn-ink" data-t="sheet-apply" onClick="{{h.applyComp}}">Usar «{{sheet.pickName}}»</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{sheet.add}}" hint-placeholder-val="{{ false }}">
+        <div class="sheet-bg" data-sheet="1" onClick="{{h.closeSheet}}"></div>
+        <div class="sheet" data-sheet="1" onClick="{{h.stop}}">
+          <div class="sh-h">
+            <div><p class="sh-k">Inicio · agregar</p><h2 class="sh-t">¿Qué quieres sumar a tu página?</h2><p class="sh-s">Cada sección llega con tus colores y tus letras. Después la acomodas arrastrándola en la lista.</p></div>
+            <button class="ib" onClick="{{h.closeSheet}}" aria-label="Cerrar"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </div>
+          <div class="sh-grid six">
+            <sc-for list="{{addItems}}" as="a" hint-placeholder-count="6">
+              <button class="cc2" onClick="{{a.pick}}">
+                <span class="sk"><i class="t"></i><i style="width: 80%"></i><span class="row3"><i></i><i></i><i></i></span></span>
+                <span class="cc2-t"><b>{{a.name}}</b><span>{{a.desc}}</span></span>
+              </button>
+            </sc-for>
+          </div>
+          <div class="sh-f"><span class="grow">Se agrega al final; la mueves con el asa.</span><button class="btn btn-ghost" onClick="{{h.closeSheet}}">Cerrar</button></div>
+        </div>
+      </sc-if>
+
+      <div class="dir" data-dir="1">
+        <button class="dir-pp" onClick="{{h.togglePlay}}" aria-label="{{dir.ppLabel}}">
+          <sc-if value="{{dir.playing}}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></sc-if>
+          <sc-if value="{{dir.paused}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"></path></svg></sc-if>
+        </button>
+        <div class="dir-tx">
+          <div class="dir-top"><span class="dir-n">{{dir.num}}/10</span><span class="dir-t">{{dir.title}}</span><span class="dir-st"><sc-if value="{{dir.playing}}" hint-placeholder-val="{{ true }}"><i></i></sc-if>{{dir.state}}</span></div>
+          <div class="dir-l">{{dir.line}}</div>
+          <div class="dir-segs">
+            <sc-for list="{{dir.segs}}" as="g" hint-placeholder-count="10">
+              <button class="dseg {{g.cls}}" onClick="{{g.go}}" aria-label="{{g.label}}"><span><b style="animation-duration: {{g.dur}}"></b></span></button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="cur {{cur.cls}}" style="transform: translate({{cur.x}}px, {{cur.y}}px)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.3 1.4-3.2 6.1z" fill="#141311" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"></path></svg></div>
+  <sc-if value="{{ripple}}" hint-placeholder-val="{{ false }}"><div class="ripw" style="transform: translate({{cur.x}}px, {{cur.y}}px)"><i class="rip"></i></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900},"autoplay":{"editor":"boolean","default":true,"section":"Recorrido"}}'>
+class Component extends DCLogic {
+  constructor(...a) {
+    super(...a);
+    this.tt = [];
+    this.si = 0;
+    var s = this.fresh(1);
+    s.tour = false;
+    s.cur = { x: 760, y: 560, show: false, press: false };
+    s.ripple = false;
+    this.state = Object.assign({}, this.state || {}, s);
+  }
+
+  K() {
+    if (this._k) return this._k;
+    this._k = {
+      PALS: [
+        { k: 'corte', name: 'Corte', d: 'Roboto Serif', b: 'Figtree', f: '#fdfbf7', t: '#102407', a: '#a70004' },
+        { k: 'pliego', name: 'Pliego', d: 'Oswald', b: 'Archivo', f: '#f6f1e6', t: '#17120e', a: '#b3200f' },
+        { k: 'patio', name: 'Patio', d: 'Quicksand', b: 'Mulish', f: '#fdf6e9', t: '#2a1c10', a: '#c8662b' },
+        { k: 'vitrina', name: 'Vitrina', d: 'Playfair Display', b: 'Inter', f: '#ffffff', t: '#12100f', a: '#6f6558' }
+      ],
+      PAIRS: [
+        { k: 'auto', name: 'La de tu combinación', fd: 'var(--ff-d)' },
+        { k: 'prensa', name: 'Prensa', d: 'Roboto Serif', b: 'Figtree', fd: "'Roboto Serif', serif" },
+        { k: 'robusta', name: 'Robusta', d: 'Oswald', b: 'Archivo', fd: "'Oswald', sans-serif" },
+        { k: 'calido', name: 'Cálido', d: 'Fraunces', b: 'Nunito Sans', fd: "'Fraunces', serif" },
+        { k: 'editorial', name: 'Editorial', d: 'Playfair Display', b: 'Inter', fd: "'Playfair Display', serif" },
+        { k: 'cercano', name: 'Cercano', d: 'Quicksand', b: 'Mulish', fd: "'Quicksand', sans-serif" },
+        { k: 'tecnico', name: 'Técnico', d: 'IBM Plex Mono', b: 'IBM Plex Sans', fd: "'IBM Plex Mono', monospace" }
+      ],
+      ROLES: [
+        { k: 'acento', name: 'Acento', hint: 'el color de tu marca', css: 'var(--c-acento)' },
+        { k: 'tinta', name: 'Tinta', hint: 'tus títulos', css: 'var(--c-tinta)' },
+        { k: 'suave', name: 'Suave', hint: 'textos secundarios', css: 'var(--c-suave)' },
+        { k: 'fondo', name: 'Fondo', hint: 'el papel', css: 'var(--c-fondo)' },
+        { k: 'sup', name: 'Superficie', hint: 'bandas y tarjetas', css: 'var(--c-sup)' },
+        { k: 'tostado', name: 'Tostado', hint: 'un detalle cálido', css: 'var(--c-tostado)' }
+      ],
+      FONTS: [
+        { k: 'fraunces', name: 'Fraunces', hint: 'Serif suave, cercana', fam: "'Fraunces', Georgia, serif" },
+        { k: 'playfair', name: 'Playfair Display', hint: 'Serif clásica, editorial', fam: "'Playfair Display', Georgia, serif" },
+        { k: 'oswald', name: 'Oswald', hint: 'Condensada de impacto', fam: "'Oswald', Impact, sans-serif" },
+        { k: 'quicksand', name: 'Quicksand', hint: 'Redonda y dulce', fam: "'Quicksand', sans-serif" },
+        { k: 'plex', name: 'IBM Plex Mono', hint: 'De hoja de cata', fam: "'IBM Plex Mono', monospace" }
+      ],
+      SIZES: { tit: [34, 44, 56, 72, 92], sub: [15, 17, 20, 24, 28], marq: [72, 100, 128, 156, 190], cap: [14, 16, 18, 21, 24], p3: [15, 17, 19, 22, 26] },
+      WORDS: ['Pequeño', 'Mediano', 'Grande', 'Muy grande', 'Enorme'],
+      NAMES: { tit: 'Titular', sub: 'Subtítulo', btn: 'Botón', marq: 'Marquesina', cap: 'Leyenda', cue: 'Indicador «Desliza»', p3: 'Párrafo 3', card: 'Producto', fondo: 'Fondo' },
+      LOWER: { tit: 'el titular', sub: 'el subtítulo', btn: 'el botón', marq: 'la marquesina', cap: 'la leyenda', cue: 'el indicador', p3: 'el párrafo' },
+      HINTS: {
+        tit: 'La frase grande del hero. Escríbela directo sobre la vista o aquí.',
+        sub: 'Una línea que acompaña al titular.',
+        btn: 'Lleva a tus visitantes a comprar.',
+        marq: 'La frase que corre de lado a lado. Al tocarla se detiene para que la edites.',
+        cap: 'Una frase corta al pie del hero.',
+        cue: 'Invita a bajar. Solo se ve en la primera pantalla.',
+        p3: 'Escribe sobre la página: el párrafo conserva su forma mientras lo editas.'
+      },
+      KIND: { tit: 'd', sub: 'b', marq: 'd', cap: 'b', p3: 'b' },
+      GL: { tit: 'T', sub: 't', marq: '↔', card: '▭', cap: '¶', btn: '◯', cue: '↓', fondo: '▦' },
+      ZONES: { marquesina: ['tit', 'sub', 'marq', 'card', 'cap', 'btn', 'cue'], portada: ['tit', 'sub', 'btn', 'marq', 'cue'], ficha: ['tit', 'sub', 'btn', 'cap'] },
+      COMPS: [
+        { k: 'marquesina', name: 'Marquesina', desc: 'Foto a pantalla completa; la frase corre por el centro y el producto flota encima.', keeps: [] },
+        { k: 'portada', name: 'Portada', desc: 'Titular y botón al centro. La marquesina baja a una cinta delgada.', keeps: ['Leyenda', 'Producto'] },
+        { k: 'ficha', name: 'Ficha', desc: 'Texto sobre el papel a la izquierda, la foto a la derecha.', keeps: ['Marquesina', 'Producto', 'Indicador'] }
+      ],
+      CH: [
+        { t: 'La tienda completa, en escritorio', l: 'Se edita sobre la página real. Escritorio por defecto; teléfono a un clic.' },
+        { t: 'El hero, por zonas', l: 'Al tocarlo aparece su estructura: cada cosa tiene un lugar con nombre.' },
+        { t: '¿Un titular? Va en su zona', l: 'Nada de interruptores: si lo quieres, aparece su caja y escribes ahí mismo.' },
+        { t: 'Letra y tamaño, en el mismo lugar', l: 'Sin ir a Tema y volver. El tamaño se dice con palabras.' },
+        { t: 'Colores con nombre, no con código', l: 'Sugerencias de tu paleta por rol. Por defecto siempre primero; lo libre, en Avanzado.' },
+        { t: 'La marquesina se detiene para editarla', l: 'Queda una sola línea, quieta. Nada se encima. Al salir vuelve a correr.' },
+        { t: 'Un estilo para toda la tienda', l: 'Cambias la combinación y lo que pintaste por rol la sigue.' },
+        { t: 'Lo que no cabe, en una vista nueva', l: 'Elegir composición necesita espacio: se abre encima, como en Shopify.' },
+        { t: 'Nosotros: editar no mueve nada', l: 'El párrafo conserva su forma y su sitio, aunque bajes hasta Galería.' },
+        { t: 'Publicar sabiendo qué cambia', l: 'Un resumen en palabras y un clic. Sin sorpresas.' }
+      ],
+      P3NEW: 'Nada sale de aquí sin haber pasado por nuestras manos. El lote se empaca completo, sin mezclas. Así ha sido desde 1974.'
+    };
+    return this._k;
+  }
+
+  doc0() {
+    return {
+      pal: 'corte', fp: 'auto', forma: 'recta', comp: 'marquesina', alto: 'pantalla', velo: 1, focal: 'centro',
+      hidden: { spot: false, hist: false, orig: false, pres: false, cta: false, ngal: false, ncierre: false },
+      esq: { spot: 'fondo', hist: 'sup', orig: 'fondo', pres: 'fondo', ngal: 'sup', ncierre: 'fondo', nhist: 'fondo' },
+      els: {
+        tit: { on: false, text: '', size: 2, font: 'def', color: 'def', align: 'left' },
+        sub: { on: false, text: '', size: 1, font: 'def', color: 'def', align: 'left' },
+        btn: { on: false, text: 'Comprar café' },
+        marq: { on: true, text: 'Café fresco de San Adolfo — Huila — Colombia — ', size: 2, font: 'def', color: 'def', speed: 'lenta' },
+        cap: { on: true, text: 'Hay algo profundamente meditativo en preparar un café cultivado a 1.600 msnm.', size: 1, font: 'def', color: 'def', align: 'left' },
+        cue: { on: true },
+        p3: { on: true, text: 'Nada sale de aquí sin haber pasado por nuestras manos. El lote se empaca completo, sin mezclas.', size: 2, font: 'def', color: 'def', align: 'left' }
+      }
+    };
+  }
+
+  fresh(n) {
+    var K = this.K(), d = this.doc0();
+    var s = { doc: d, pubDoc: this.doc0(), past: [], future: [], page: 'inicio', device: 'desk', rail: 'secciones', est: null, sel: null, hov: null, menu: null, adv: false, cprev: null, fprev: null, sheet: null, pick: null, heroOpen: true, saved: 'ok', pubState: 'idle', typing: null, selAll: false, preview: false, dir: 'fwd', ch: n };
+    if (n >= 4) d.els.tit = { on: true, text: 'Café de altura, tostado en la finca.', size: 2, font: 'def', color: 'def', align: 'left' };
+    if (n >= 5) { d.els.tit.size = 3; d.els.tit.font = 'fraunces'; }
+    if (n >= 6) d.els.tit.color = 'tostado';
+    if (n >= 7) d.els.marq.text = 'Cosecha 2026 — Huila — Colombia — ';
+    if (n >= 9) d.comp = 'portada';
+    if (n >= 10) { d.els.p3.text = K.P3NEW; s.page = 'nosotros'; }
+    if (n === 3) s.sel = 'hero';
+    if (n === 4 || n === 5) s.sel = 'tit';
+    return s;
+  }
+
+  /* ───────── documento ───────── */
+  clone(o) { return JSON.parse(JSON.stringify(o)); }
+  change(fn, opt) {
+    var cur = this.state.doc, d = this.clone(cur);
+    fn(d);
+    var patch = { doc: d, saved: 'saving', pubState: 'idle' };
+    if (!opt || opt.hist !== false) { patch.past = this.state.past.concat([cur]).slice(-60); patch.future = []; }
+    this.setState(patch);
+    this.flashSaved();
+  }
+  flashSaved() {
+    clearTimeout(this.saveT);
+    this.saveT = setTimeout(() => this.setState({ saved: 'ok' }), 800);
+  }
+  setEl(k, patch, opt) { if (!k || !this.state.doc.els[k]) return; this.change(d => { Object.assign(d.els[k], patch); }, opt); }
+  undo() {
+    var p = this.state.past; if (!p.length) return;
+    this.setState({ doc: p[p.length - 1], past: p.slice(0, -1), future: [this.state.doc].concat(this.state.future), saved: 'saving', pubState: 'idle' });
+    this.flashSaved();
+  }
+  redo() {
+    var f = this.state.future; if (!f.length) return;
+    this.setState({ doc: f[0], future: f.slice(1), past: this.state.past.concat([this.state.doc]), saved: 'saving', pubState: 'idle' });
+    this.flashSaved();
+  }
+
+  /* ───────── selección y edición ───────── */
+  q(sel) { var r = this.root || document.querySelector('[data-ed]'); return r ? r.querySelector(sel) : null; }
+  depth(k) {
+    if (!k) return 0;
+    if (['tit', 'sub', 'btn', 'marq', 'cap', 'cue', 'p3', 'fondo'].indexOf(k) >= 0) return 2;
+    return 1;
+  }
+  commitEditing() {
+    var k = this.state.sel;
+    if (['tit', 'sub', 'marq', 'cap', 'p3'].indexOf(k) < 0) return;
+    var el = this.q('[data-ce="' + k + '"]');
+    if (!el) return;
+    var t = (el.textContent || '').replace(/\s+/g, ' ');
+    if (k !== 'marq') t = t.trim();
+    if (t && t !== this.state.doc.els[k].text) this.setEl(k, { text: t });
+  }
+  select(k) {
+    var prev = this.state.sel;
+    if (k === prev) { if (this.state.menu) this.setState({ menu: null, adv: false }); return; }
+    this.commitEditing();
+    var st = { sel: k, menu: null, adv: false, cprev: null, fprev: null, selAll: false, dir: this.depth(k) >= this.depth(prev) ? 'fwd' : 'back' };
+    if (k) { st.rail = 'secciones'; st.est = null; }
+    this.setState(st);
+    if (!this.state.tour && ['tit', 'sub', 'marq', 'cap', 'p3'].indexOf(k) >= 0) setTimeout(() => this.focusEl(k, false), 40);
+  }
+  focusEl(k, all) {
+    var el = this.q('[data-ce="' + k + '"]');
+    if (!el || !el.isContentEditable) return;
+    el.focus();
+    try {
+      var r = document.createRange(); r.selectNodeContents(el); if (!all) r.collapse(false);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    } catch (e) {}
+  }
+  back() {
+    var s = this.state.sel;
+    if (['tit', 'sub', 'btn', 'marq', 'cap', 'cue', 'fondo', 'card'].indexOf(s) >= 0) this.select('hero');
+    else this.select(null);
+  }
+  addEl(k, quiet) {
+    var DEF = { tit: 'Escribe tu titular', sub: 'Una línea que acompañe al titular', btn: 'Comprar café', cap: 'Una frase corta al pie', marq: 'Café fresco de San Adolfo — Huila — Colombia — ' };
+    this.change(d => { d.els[k].on = true; if (k !== 'cue') d.els[k].text = quiet ? '' : (d.els[k].text || DEF[k]); });
+    this.select(k);
+    if (!quiet && !this.state.tour) setTimeout(() => this.focusEl(k, true), 60);
+  }
+  removeEl(k) {
+    if (!k || !this.state.doc.els[k]) return;
+    this.change(d => { d.els[k].on = false; });
+    this.select(k === 'p3' ? null : 'hero');
+  }
+  sizeStep(k, dlt) { var e = this.state.doc.els[k]; if (!e || e.size == null) return; var n = Math.max(0, Math.min(4, e.size + dlt)); if (n !== e.size) this.setEl(k, { size: n }); }
+  setFont(k, f) { this.setEl(k, { font: f }); this.setState({ menu: null, fprev: null }); }
+  setColor(k, c) { this.setEl(k, { color: c }); this.setState({ cprev: null }); }
+  defColor(k) {
+    var comp = this.state.doc.comp;
+    if (k === 'p3') return 'var(--c-texto)';
+    if (comp === 'ficha') return k === 'tit' ? 'var(--c-tinta)' : 'var(--c-suave)';
+    return k === 'cap' ? 'rgba(255,255,255,.88)' : '#ffffff';
+  }
+  colCss(k, ck) {
+    if (!ck || ck === 'def') return this.defColor(k);
+    if (ck[0] === '#') return ck;
+    var r = this.K().ROLES.find(x => x.k === ck);
+    return r ? r.css : this.defColor(k);
+  }
+  toggleMenu(m) { this.setState({ menu: this.state.menu === m ? null : m, adv: false, cprev: null, fprev: null }); }
+  setDevice(dv) { this.setState({ device: dv }); }
+  setPage(p) {
+    this.commitEditing();
+    this.setState({ page: p, sel: null, menu: null, dir: 'back' });
+    setTimeout(() => { var pg = this.q('[data-t="page"]'); if (pg) pg.scrollTop = 0; }, 30);
+  }
+  setRail(r) { this.commitEditing(); this.setState({ rail: r, est: null, sel: null, menu: null, dir: 'fwd' }); }
+  setPal(k) { this.change(d => { d.pal = k; }); }
+  openSheet(w) { this.setState({ sheet: w, pick: this.state.doc.comp, menu: null }); }
+  applyComp() { var p = this.state.pick || this.state.doc.comp; this.setState({ sheet: null }); if (p !== this.state.doc.comp) this.change(d => { d.comp = p; }); }
+  publish() {
+    this.setState({ pubState: 'busy' });
+    setTimeout(() => this.setState({ pubState: 'done', pubDoc: this.clone(this.state.doc), menu: null }), 900);
+  }
+  diffs() {
+    var a = this.state.pubDoc, b = this.state.doc, K = this.K(), out = [];
+    var J = x => JSON.stringify(x);
+    if (a.pal !== b.pal) out.push({ a: 'Estilo', b: 'Combinación «' + K.PALS.find(p => p.k === b.pal).name + '»' });
+    if (a.fp !== b.fp) out.push({ a: 'Estilo', b: 'Letras' });
+    if (a.forma !== b.forma) out.push({ a: 'Estilo', b: 'Forma' });
+    if (a.comp !== b.comp) out.push({ a: 'Hero', b: 'Composición «' + K.COMPS.find(c => c.k === b.comp).name + '»' });
+    if (a.alto !== b.alto) out.push({ a: 'Hero', b: 'Alto' });
+    if (a.velo !== b.velo || a.focal !== b.focal) out.push({ a: 'Hero', b: 'Foto de fondo' });
+    ['tit', 'sub', 'btn', 'marq', 'cap', 'cue'].forEach(k => {
+      if (J(a.els[k]) === J(b.els[k])) return;
+      var n = K.NAMES[k];
+      out.push({ a: 'Hero', b: (b.els[k].on && !a.els[k].on) ? n + ' · nuevo' : (!b.els[k].on && a.els[k].on ? n + ' · quitado' : n) });
+    });
+    if (J(a.els.p3) !== J(b.els.p3)) out.push({ a: 'Nosotros', b: 'Párrafo 3' });
+    var SN = { spot: 'Producto insignia', hist: 'Historia', orig: 'El origen', pres: 'Presentaciones', cta: 'Suscripción', ngal: 'Galería', ncierre: 'Cierre', nhist: 'Historia' };
+    Object.keys(SN).forEach(k => {
+      if (a.hidden[k] !== b.hidden[k]) out.push({ a: k[0] === 'n' ? 'Nosotros' : 'Inicio', b: SN[k] + (b.hidden[k] ? ' · oculta' : ' · visible') });
+      else if (a.esq[k] !== b.esq[k]) out.push({ a: k[0] === 'n' ? 'Nosotros' : 'Inicio', b: SN[k] + ' · fondo' });
+    });
+    return out;
+  }
+
+  /* ───────── recorrido ───────── */
+  componentDidMount() {
+    if (super.componentDidMount) super.componentDidMount();
+    this.root = document.querySelector('[data-ed]');
+    if (this.props.autoplay !== false) this.tl(1500, () => this.jump(1));
+  }
+  componentWillUnmount() { if (super.componentWillUnmount) super.componentWillUnmount(); this.halt(); clearTimeout(this.saveT); }
+  tl(ms, fn) { var id = setTimeout(() => { this.tt = this.tt.filter(x => x !== id); fn(); }, ms); this.tt.push(id); }
+  halt() {
+    this.tt.forEach(clearTimeout); this.tt = [];
+    if (this.typer) { var f = this.typeDone; clearInterval(this.typer); this.typer = null; if (f) f(); }
+  }
+  userDown(e) {
+    if (!this.state.tour) return;
+    if (e && e.target && e.target.closest && e.target.closest('[data-dir]')) return;
+    this.pause();
+  }
+  pause() { this.halt(); this.setState({ tour: false, hov: null, typing: null, selAll: false, cur: Object.assign({}, this.state.cur, { show: false, press: false }) }); }
+  togglePlay() { if (this.state.tour) this.pause(); else this.jump(this.state.ch || 1); }
+  jump(n) {
+    this.halt();
+    if (!this.script) this.script = this.buildScript();
+    var idx = this.script.findIndex(x => x.ch === n);
+    this.si = idx < 0 ? 0 : idx;
+    var s = this.fresh(n);
+    s.tour = true; s.ripple = false;
+    s.cur = Object.assign({}, this.state.cur, { show: true, press: false });
+    this.setState(s);
+    this.tl(40, () => { var pg = this.q('[data-t="page"]'); if (pg) pg.scrollTop = 0; });
+    this.tl(500, () => this.run());
+  }
+  run() {
+    var s = this.script[this.si];
+    if (!s) { this.tl(1800, () => this.jump(1)); return; }
+    this.si++;
+    if (s.ch) { this.setState({ ch: s.ch }); this.run(); return; }
+    this.tl(s.t, () => { try { s.f(); } catch (e) {} this.run(); });
+  }
+  chDur(n) { if (!this.script) this.script = this.buildScript(); return this.durs[n] || 6000; }
+  pt(key, ox, oy) {
+    if (!this.root) this.root = document.querySelector('[data-ed]');
+    var el = this.q('[data-t="' + key + '"]');
+    if (!el || !this.root) return null;
+    var R = this.root.getBoundingClientRect(), r = el.getBoundingClientRect();
+    var sc = this.root.offsetWidth ? R.width / this.root.offsetWidth : 1;
+    if (!sc) sc = 1;
+    return { x: (r.left - R.left + r.width * (ox == null ? .5 : ox)) / sc, y: (r.top - R.top + r.height * (oy == null ? .5 : oy)) / sc };
+  }
+  mv(key, ox, oy) { var p = this.pt(key, ox, oy); if (p) this.setState({ cur: { x: Math.round(p.x), y: Math.round(p.y), show: true, press: false } }); }
+  clk() {
+    this.setState({ cur: Object.assign({}, this.state.cur, { press: true }), ripple: true });
+    this.tl(150, () => this.setState({ cur: Object.assign({}, this.state.cur, { press: false }) }));
+    this.tl(520, () => this.setState({ ripple: false }));
+  }
+  scrollTo(key, off) {
+    var pg = this.q('[data-t="page"]'), el = this.q('[data-t="' + key + '"]');
+    if (!pg || !el) return;
+    var y = pg.scrollTop + el.getBoundingClientRect().top - pg.getBoundingClientRect().top - (off || 0);
+    pg.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  }
+  scrollTop() { var pg = this.q('[data-t="page"]'); if (pg) pg.scrollTo({ top: 0, behavior: 'smooth' }); }
+  typeInto(k, text, speed, base) {
+    var i = 0, pre = base || '';
+    this.setEl(k, { text: pre }); this.setState({ typing: k });
+    var done = () => { if (this.typer) clearInterval(this.typer); this.typer = null; this.typeDone = null; this.setEl(k, { text: pre + text }, { hist: false }); this.setState({ typing: null }); };
+    this.typeDone = done;
+    this.typer = setInterval(() => {
+      i++;
+      if (i >= text.length) { done(); return; }
+      this.setEl(k, { text: pre + text.slice(0, i) }, { hist: false });
+    }, speed || 50);
+  }
+  buildScript() {
+    var S = [], ch = n => S.push({ ch: n }), at = (t, f) => S.push({ t: t, f: f });
+    ch(1);
+    at(700, () => this.mv('nav-links', .45, .5));
+    at(1000, () => { this.mv('hero', .5, .3); this.setState({ hov: 'hero' }); });
+    at(1200, () => { this.scrollTo('sec-spot', 30); this.setState({ hov: 'spot' }); this.mv('frame', .55, .5); });
+    at(1700, () => { this.scrollTop(); this.setState({ hov: null }); this.mv('dev-phone'); });
+    at(900, () => { this.clk(); this.setDevice('phone'); });
+    at(1900, () => this.mv('dev-desk'));
+    at(800, () => { this.clk(); this.setDevice('desk'); });
+    at(1300, () => {});
+    ch(2);
+    at(400, () => { this.mv('hero', .64, .3); this.setState({ hov: 'hero' }); });
+    at(900, () => { this.clk(); this.setState({ hov: null }); this.select('hero'); });
+    at(1600, () => this.mv('zr-tit', .35, .5));
+    at(1300, () => this.mv('ghost-tit', .5, .5));
+    at(700, () => {});
+    ch(3);
+    at(500, () => { this.clk(); this.addEl('tit', true); });
+    at(500, () => this.typeInto('tit', 'Café de altura, tostado en la finca.', 52));
+    at(2500, () => this.mv('tb-plus'));
+    at(600, () => {});
+    ch(4);
+    at(500, () => { this.clk(); this.sizeStep('tit', 1); });
+    at(1000, () => this.mv('tb-font', .4, .5));
+    at(800, () => { this.clk(); this.setState({ menu: 'font' }); });
+    at(900, () => { this.mv('fo-fraunces', .3, .5); this.setState({ fprev: 'fraunces' }); });
+    at(1100, () => { this.clk(); this.setFont('tit', 'fraunces'); });
+    at(1000, () => {});
+    ch(5);
+    at(400, () => this.mv('tb-color', .4, .5));
+    at(800, () => { this.clk(); this.setState({ menu: 'color' }); });
+    at(900, () => { this.mv('cr-acento', .3, .5); this.setState({ cprev: 'acento' }); });
+    at(1100, () => { this.mv('cr-tostado', .3, .5); this.setState({ cprev: 'tostado' }); });
+    at(1000, () => { this.clk(); this.setColor('tit', 'tostado'); });
+    at(900, () => this.mv('adv-toggle', .25, .5));
+    at(700, () => { this.clk(); this.setState({ adv: true }); });
+    at(1700, () => this.mv('hero', .95, .42));
+    at(800, () => { this.clk(); this.select('hero'); });
+    at(700, () => {});
+    ch(6);
+    at(500, () => this.mv('z-marq', .2, .5));
+    at(900, () => { this.clk(); this.select('marq'); this.setState({ selAll: true }); });
+    at(1100, () => { this.setState({ selAll: false }); this.typeInto('marq', 'Cosecha 2026 — Huila — Colombia — ', 48); });
+    at(2300, () => this.mv('stage-meta', .5, .5));
+    at(800, () => { this.clk(); this.select(null); });
+    at(1800, () => {});
+    ch(7);
+    at(400, () => this.mv('rail-estilo'));
+    at(800, () => { this.clk(); this.setRail('estilo'); });
+    at(1000, () => this.mv('pc-pliego', .5, .35));
+    at(800, () => { this.clk(); this.setPal('pliego'); });
+    at(1900, () => this.mv('pc-patio', .5, .35));
+    at(800, () => { this.clk(); this.setPal('patio'); });
+    at(1900, () => this.mv('pc-corte', .5, .35));
+    at(800, () => { this.clk(); this.setPal('corte'); });
+    at(1300, () => {});
+    ch(8);
+    at(400, () => this.mv('rail-secciones'));
+    at(700, () => { this.clk(); this.setRail('secciones'); });
+    at(800, () => this.mv('hero', .95, .42));
+    at(700, () => { this.clk(); this.select('hero'); });
+    at(1000, () => this.mv('comp-change'));
+    at(800, () => { this.clk(); this.openSheet('comp'); });
+    at(1200, () => this.mv('sc-ficha', .5, .35));
+    at(700, () => { this.clk(); this.setState({ pick: 'ficha' }); });
+    at(1100, () => this.mv('sc-portada', .5, .35));
+    at(700, () => { this.clk(); this.setState({ pick: 'portada' }); });
+    at(900, () => this.mv('sheet-apply'));
+    at(700, () => { this.clk(); this.applyComp(); });
+    at(2700, () => {});
+    ch(9);
+    at(400, () => this.mv('page-switch'));
+    at(700, () => { this.clk(); this.setState({ menu: 'page' }); });
+    at(700, () => this.mv('pg-nosotros', .3, .5));
+    at(600, () => { this.clk(); this.setPage('nosotros'); });
+    at(1200, () => this.scrollTo('n-hist', 30));
+    at(1100, () => this.mv('p3', .3, .5));
+    at(800, () => { this.clk(); this.select('p3'); });
+    at(700, () => this.typeInto('p3', ' Así ha sido desde 1974.', 55, this.state.doc.els.p3.text));
+    at(1900, () => { this.scrollTo('n-gal', 30); this.mv('frame', .6, .55); });
+    at(2000, () => this.scrollTo('n-hist', 30));
+    at(1700, () => {});
+    ch(10);
+    at(400, () => this.mv('btn-publish'));
+    at(800, () => { this.clk(); this.setState({ menu: 'pub' }); });
+    at(1700, () => this.mv('pub-confirm'));
+    at(800, () => { this.clk(); this.publish(); });
+    at(2800, () => {});
+    this.durs = {};
+    var cur = 0;
+    S.forEach(x => { if (x.ch) cur = x.ch; else this.durs[cur] = (this.durs[cur] || 0) + x.t; });
+    return S;
+  }
+
+  /* ───────── manejadores estables ───────── */
+  handlers() {
+    if (this._h) return this._h;
+    var m = this, stop = e => { if (e && e.stopPropagation) e.stopPropagation(); };
+    var sel = k => e => { stop(e); m.select(k); };
+    var add = k => e => { stop(e); m.addEl(k); };
+    this._h = {
+      stop: stop,
+      userDown: e => m.userDown(e),
+      togglePlay: e => { stop(e); m.togglePlay(); },
+      undo: () => m.undo(), redo: () => m.redo(),
+      devDesk: () => m.setDevice('desk'), devTab: () => m.setDevice('tab'), devPhone: () => m.setDevice('phone'),
+      pageMenu: e => { stop(e); m.toggleMenu('page'); },
+      pgInicio: () => m.setPage('inicio'), pgNos: () => m.setPage('nosotros'),
+      pubMenu: e => { stop(e); m.toggleMenu('pub'); },
+      publish: e => { stop(e); m.publish(); },
+      preview: () => { m.commitEditing(); m.setState({ preview: !m.state.preview, sel: null, menu: null }); },
+      railSec: () => m.setRail('secciones'), railEst: () => m.setRail('estilo'), railMed: () => m.setRail('medios'),
+      stageClick: e => { var t = e && e.target; if (t && t.closest && !t.closest('[data-frame]') && !t.closest('[data-sheet]') && !t.closest('[data-dir]')) m.select(null); },
+      selHero: sel('hero'), selNav: sel('nav'), selFoot: sel('foot'), selSpot: sel('spot'), selHist: sel('hist'), selOrig: sel('orig'), selPres: sel('pres'), selCta: sel('cta'),
+      selNHero: sel('nhero'), selNHist: sel('nhist'), selNGal: sel('ngal'), selNCierre: sel('ncierre'),
+      selTit: sel('tit'), selSub: sel('sub'), selBtn: sel('btn'), selMarq: sel('marq'), selCap: sel('cap'), selCue: sel('cue'), selCard: sel('card'), selFondo: sel('fondo'), selP3: sel('p3'),
+      addTit: add('tit'), addSub: add('sub'), addBtn: add('btn'), addCap: add('cap'), addCue: add('cue'), addMarq: add('marq'),
+      hovHero: () => m.setState({ hov: 'hero' }), leave: () => m.setState({ hov: null }),
+      back: () => m.back(),
+      fldText: e => m.setEl(m.state.sel, { text: e.target.value }),
+      blurEl: () => m.commitEditing(),
+      keyEl: e => { if (e.key === 'Enter') { e.preventDefault(); if (e.target && e.target.blur) e.target.blur(); } },
+      tbFont: e => { stop(e); m.toggleMenu('font'); },
+      tbColor: e => { stop(e); m.toggleMenu('color'); },
+      tbMinus: e => { stop(e); m.sizeStep(m.state.sel, -1); },
+      tbPlus: e => { stop(e); m.sizeStep(m.state.sel, 1); },
+      alL: e => { stop(e); m.setEl(m.state.sel, { align: 'left' }); },
+      alC: e => { stop(e); m.setEl(m.state.sel, { align: 'center' }); },
+      alR: e => { stop(e); m.setEl(m.state.sel, { align: 'right' }); },
+      spLenta: e => { stop(e); m.setEl('marq', { speed: 'lenta' }); },
+      spNormal: e => { stop(e); m.setEl('marq', { speed: 'normal' }); },
+      spRapida: e => { stop(e); m.setEl('marq', { speed: 'rapida' }); },
+      remove: e => { stop(e); m.removeEl(m.state.sel); },
+      advToggle: e => { stop(e); m.setState({ adv: !m.state.adv }); },
+      custom: e => m.setColor(m.state.sel, e.target.value),
+      colDef: e => { stop(e); m.setColor(m.state.sel, 'def'); },
+      cprevOff: () => m.setState({ cprev: null }),
+      fprevOff: () => m.setState({ fprev: null }),
+      heroToggle: e => { stop(e); m.setState({ heroOpen: !m.state.heroOpen }); },
+      compOpen: e => { stop(e); m.openSheet('comp'); },
+      addSecOpen: () => m.setState({ sheet: 'add', menu: null }),
+      closeSheet: e => { stop(e); m.setState({ sheet: null }); },
+      applyComp: e => { stop(e); m.applyComp(); },
+      cycleAlto: e => { stop(e); var o = ['justo', 'alto', 'pantalla']; var i = o.indexOf(m.state.doc.alto); m.change(d => { d.alto = o[(i + 1) % 3]; }); },
+      estCol: () => m.setState({ est: 'colores', dir: 'fwd' }),
+      estLet: () => m.setState({ est: 'letras', dir: 'fwd' }),
+      estFor: () => m.setState({ est: 'forma', dir: 'fwd' }),
+      estBack: () => m.setState({ est: null, dir: 'back' }),
+      secHide: () => { var k = m.state.sel; m.change(d => { d.hidden[k] = !d.hidden[k]; }); }
+    };
+    return this._h;
+  }
+
+  renderVals() {
+    var K = this.K(), s = this.state, d = s.doc, sel = s.sel, H = this.handlers(), m = this;
+    var HEROK = ['hero', 'tit', 'sub', 'btn', 'marq', 'cap', 'cue', 'fondo', 'card'];
+    var TEXTK = ['tit', 'sub', 'marq', 'cap', 'p3'];
+    var inHero = HEROK.indexOf(sel) >= 0;
+    var pal = K.PALS.find(p => p.k === d.pal) || K.PALS[0];
+    var pair = d.fp === 'auto' ? null : K.PAIRS.find(p => p.k === d.fp);
+    var dName = pair ? pair.d : pal.d, bName = pair ? pair.b : pal.b;
+    var stopE = e => { if (e && e.stopPropagation) e.stopPropagation(); };
+
+    var el = k => {
+      var e = d.els[k], isSel = sel === k;
+      var fk = (isSel && s.fprev) || e.font || 'def';
+      var ff = 'var(--ff-b)';
+      if (fk === 'def') ff = K.KIND[k] === 'd' ? 'var(--ff-d)' : 'var(--ff-b)';
+      else if (fk === 'alt') ff = K.KIND[k] === 'd' ? 'var(--ff-b)' : 'var(--ff-d)';
+      else { var fo = K.FONTS.find(f => f.k === fk); if (fo) ff = fo.fam; }
+      var ck = (isSel && s.cprev) || e.color || 'def';
+      var px = K.SIZES[k] ? K.SIZES[k][e.size] : 16;
+      var al = (d.comp === 'portada' && (k === 'tit' || k === 'sub')) ? 'center' : (e.align || 'left');
+      var editable = isSel && !s.tour && TEXTK.indexOf(k) >= 0;
+      return {
+        on: !!e.on, off: !e.on, text: e.text || '',
+        ff: ff, fs: 'calc(' + px + 'px * var(--k))', col: this.colCss(k, ck), al: al,
+        ce: editable ? 'true' : 'false',
+        cls: (isSel ? 'esel' : '') + (s.typing === k ? ' typing' : '') + (isSel && s.selAll ? ' selall' : '')
+      };
+    };
+    var els = {};
+    ['tit', 'sub', 'btn', 'marq', 'cap', 'cue', 'p3'].forEach(k => { els[k] = el(k); });
+
+    var zc = {};
+    ['tit', 'sub', 'marq', 'card', 'cap', 'btn', 'cue'].forEach(k => { zc[k] = (sel === k ? 'zsel' : '') + (k === 'marq' && sel === 'marq' ? ' editing' : ''); });
+
+    var altoW = { justo: 'Justo', alto: 'Alto', pantalla: 'Pantalla completa' };
+    var veloW = ['Nada', 'Suave', 'Medio', 'Fuerte'];
+    var focalW = { arriba: 'Arriba', centro: 'Centro', abajo: 'Abajo' };
+    var hero = {
+      cls: 'c' + d.comp[0] + ' al-' + d.alto + ' v' + d.velo + (inHero ? ' zon' : '') + (s.hov === 'hero' && !inHero ? ' hov' : '') + (sel === 'hero' ? ' sel' : ''),
+      label: (inHero && sel !== 'hero') ? 'Hero › ' + K.NAMES[sel] : 'Hero',
+      focal: 'xMidY' + ({ arriba: 'Min', centro: 'Mid', abajo: 'Max' })[d.focal] + ' slice'
+    };
+    var compObj = K.COMPS.find(c => c.k === d.comp);
+    var hz = {
+      mcls: 'c' + d.comp[0], compName: compObj.name, altoWord: altoW[d.alto], veloWord: veloW[d.velo], focalWord: focalW[d.focal],
+      hasKeeps: compObj.keeps.length > 0, keeps: compObj.keeps.join(' y ')
+    };
+    var marq = { sp: 'sp-' + d.els.marq.speed, copies: [1, 2, 3, 4].map(() => ({ t: d.els.marq.text })) };
+
+    var secCls = k => 'esq-' + (d.esq[k] || 'fondo') + (sel === k ? ' sel' : '') + (s.hov === k ? ' hov' : '') + (d.hidden[k] ? ' hid' : '');
+    var secs = {};
+    ['nav', 'spot', 'hist', 'orig', 'pres', 'cta', 'foot', 'nhero', 'nhist', 'ngal', 'ncierre'].forEach(k => { secs[k] = secCls(k); });
+    secs.nav = (sel === 'nav' ? 'sel' : '');
+    secs.foot = (sel === 'foot' ? 'sel' : '');
+
+    var pv = {
+      list: s.rail === 'secciones' && !sel,
+      hero: s.rail === 'secciones' && (sel === 'hero' || sel === 'card'),
+      fondo: s.rail === 'secciones' && sel === 'fondo',
+      el: s.rail === 'secciones' && ['tit', 'sub', 'btn', 'marq', 'cap', 'cue', 'p3'].indexOf(sel) >= 0,
+      sec: s.rail === 'secciones' && ['nav', 'spot', 'hist', 'orig', 'pres', 'cta', 'foot', 'nhero', 'nhist', 'ngal', 'ncierre'].indexOf(sel) >= 0,
+      est: s.rail === 'estilo' && !s.est,
+      estCol: s.rail === 'estilo' && s.est === 'colores',
+      estLet: s.rail === 'estilo' && s.est === 'letras',
+      estFor: s.rail === 'estilo' && s.est === 'forma',
+      med: s.rail === 'medios',
+      dir: s.dir === 'back' ? 'back' : ''
+    };
+    pv.listHome = pv.list && s.page === 'inicio';
+    pv.listNos = pv.list && s.page === 'nosotros';
+
+    var rowOf = (k, name) => ({
+      k: k, name: name, t: 'row-' + k,
+      cls: (sel === k ? 'on' : '') + (s.hov === k ? ' hov' : '') + (d.hidden[k] ? ' dim' : ''),
+      pick: () => m.select(k), enter: () => m.setState({ hov: k }),
+      toggle: e => { stopE(e); m.change(dd => { dd.hidden[k] = !dd.hidden[k]; }); },
+      off: !!d.hidden[k], onn: !d.hidden[k], eyeLabel: d.hidden[k] ? 'Mostrar sección' : 'Ocultar sección', leave: H.leave
+    });
+    var homeRows = [rowOf('spot', 'Producto insignia'), rowOf('hist', 'Historia'), rowOf('orig', 'El origen'), rowOf('pres', 'Presentaciones'), rowOf('cta', 'Suscripción')];
+    var nosRows = [rowOf('nhero', 'Portada'), rowOf('nhist', 'Historia'), rowOf('ngal', 'Galería'), rowOf('ncierre', 'Cierre')];
+    nosRows.forEach(r => { r.kids = r.k === 'nhist'; r.p3cls = sel === 'p3' ? 'on' : ''; r.p3text = d.els.p3.text; r.selP3 = H.selP3; });
+    var rows = {
+      nav: sel === 'nav' ? 'on' : '', foot: sel === 'foot' ? 'on' : '',
+      hero: (inHero ? 'on' : '') + (s.hov === 'hero' ? ' hov' : ''),
+      heroChev: s.heroOpen ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6',
+      p3: sel === 'p3' ? 'on' : ''
+    };
+    var kid = (k, name, sub) => ({ name: name, sub: sub, gl: K.GL[k], cls: sel === k ? 'on' : '', pick: () => m.select(k), t: 'kid-' + k });
+    var kids = [kid('fondo', 'Fondo', 'Foto del cafetal')];
+    var zl = K.ZONES[d.comp];
+    zl.forEach(k => {
+      if (k === 'card') { kids.push(kid('card', 'Producto', 'Café Finca San Adolfo')); return; }
+      var e = d.els[k];
+      if (e && e.on) kids.push(kid(k, K.NAMES[k].replace(' «Desliza»', ''), e.text || 'Desliza'));
+    });
+
+    var ZD = { tit: 'Vacío', sub: 'Vacío', btn: 'Vacío', cap: 'Vacío', marq: 'Vacía', cue: 'Vacío' };
+    var zrows = zl.map(k => {
+      var e = k === 'card' ? { on: true, text: 'Café Finca San Adolfo · 250 g' } : d.els[k];
+      var on = !!e.on;
+      return {
+        name: K.NAMES[k].replace(' «Desliza»', ' «Desliza»'), gl: K.GL[k], t: 'zr-' + k,
+        sub: on ? (e.text || 'Invita a bajar') : ZD[k],
+        cls: (sel === k ? 'on' : '') + (on ? '' : ' empty'), empty: !on,
+        pick: () => { if (on) m.select(k); else m.addEl(k); },
+        add: e2 => { stopE(e2); m.addEl(k); }
+      };
+    });
+    var altos = [{ k: 'justo', name: 'Justo', h: '46%' }, { k: 'alto', name: 'Alto', h: '72%' }, { k: 'pantalla', name: 'Pantalla completa', h: '100%' }].map(o => ({ name: o.name, h: o.h, cls: d.alto === o.k ? 'on' : '', pick: () => m.change(dd => { dd.alto = o.k; }) }));
+    var velos = veloW.map((w, i) => ({ name: w, cls: d.velo === i ? 'on' : '', pick: () => m.change(dd => { dd.velo = i; }) }));
+    var focals = ['arriba', 'centro', 'abajo'].map(f => ({ name: focalW[f], cls: d.focal === f ? 'on' : '', pick: () => m.change(dd => { dd.focal = f; }) }));
+
+    var elv = { fonts: [], steps: [] };
+    if (['tit', 'sub', 'btn', 'marq', 'cap', 'cue', 'p3'].indexOf(sel) >= 0) {
+      var e = d.els[sel], isD = K.KIND[sel] === 'd';
+      var curF = e.font || 'def';
+      var flist = [
+        { k: 'def', name: isD ? dName : bName, hint: 'Por defecto · ' + (isD ? 'títulos' : 'textos') + ' de tu estilo', fam: isD ? 'var(--ff-d)' : 'var(--ff-b)' },
+        { k: 'alt', name: isD ? bName : dName, hint: (isD ? 'Textos' : 'Títulos') + ' de tu estilo', fam: isD ? 'var(--ff-b)' : 'var(--ff-d)' }
+      ].concat(K.FONTS.filter(f => f.name !== dName && f.name !== bName));
+      elv = {
+        name: K.NAMES[sel], parent: sel === 'p3' ? 'Nosotros' : 'Hero', hint: K.HINTS[sel] || '', lower: K.LOWER[sel] || '',
+        hasText: sel !== 'cue', text: e.text || '',
+        hasType: TEXTK.indexOf(sel) >= 0, hasColor: TEXTK.indexOf(sel) >= 0,
+        hasAlign: ['tit', 'sub', 'cap', 'p3'].indexOf(sel) >= 0 && !(d.comp === 'portada' && (sel === 'tit' || sel === 'sub')),
+        hasSpeed: sel === 'marq', canRemove: true,
+        sizeWord: e.size != null ? K.WORDS[e.size] : '',
+        steps: [0, 1, 2, 3, 4].map(i => ({ word: K.WORDS[i], cls: i === e.size ? 'on' : (i < e.size ? 'past' : ''), pick: () => m.setEl(sel, { size: i }) })),
+        fonts: flist.map(f => ({ name: f.name, hint: f.hint, fam: f.fam, t: 'fo-' + f.k, pt: 'pfo-' + f.k, cls: (f.k === curF ? 'on' : '') + (s.fprev === f.k ? ' hv' : ''), pick: ev => { stopE(ev); m.setFont(sel, f.k); }, enter: () => m.setState({ fprev: f.k }) })),
+        alL: e.align === 'left' ? 'on' : '', alC: e.align === 'center' ? 'on' : '', alR: e.align === 'right' ? 'on' : '',
+        spL: e.speed === 'lenta' ? 'on' : '', spN: e.speed === 'normal' ? 'on' : '', spR: e.speed === 'rapida' ? 'on' : ''
+      };
+    }
+    var curC = (d.els[sel] && d.els[sel].color) || 'def';
+    var cm = {
+      defCls: curC === 'def' ? 'on' : '', defSw: TEXTK.indexOf(sel) >= 0 ? this.defColor(sel) : '#ffffff',
+      defHint: sel === 'p3' ? 'El color de tus textos' : (d.comp === 'ficha' ? 'Tinta sobre el papel' : 'Claro, para leerse sobre la foto'),
+      roles: K.ROLES.map(r => ({ name: r.name, hint: r.hint, css: r.css, t: 'cr-' + r.k, pt: 'pcr-' + r.k, cls: (curC === r.k ? 'on' : '') + (s.cprev === r.k ? ' hv' : ''), pick: ev => { stopE(ev); m.setColor(sel, r.k); }, enter: () => m.setState({ cprev: r.k }) })),
+      adv: s.adv, advCls: s.adv ? 'open' : '', hex: (curC && curC[0] === '#') ? curC : '#c79a55'
+    };
+    var roleName = curC === 'def' ? 'Por defecto' : (curC[0] === '#' ? 'Personalizado' : (K.ROLES.find(r => r.k === curC) || {}).name);
+    var showTb = TEXTK.indexOf(sel) >= 0 || sel === 'btn' || sel === 'cue';
+    var curFont = sel && d.els[sel] ? (s.fprev || d.els[sel].font || 'def') : 'def';
+    var fontName = curFont === 'def' ? (K.KIND[sel] === 'd' ? dName : bName) : curFont === 'alt' ? (K.KIND[sel] === 'd' ? bName : dName) : ((K.FONTS.find(f => f.k === curFont) || {}).name || '');
+    var tbx = {
+      hero: showTb && sel !== 'p3' && s.page === 'inicio', p3: sel === 'p3' && s.page === 'nosotros',
+      at: 'at-' + sel,
+      font: TEXTK.indexOf(sel) >= 0, size: TEXTK.indexOf(sel) >= 0, color: TEXTK.indexOf(sel) >= 0,
+      align: ['tit', 'sub', 'cap'].indexOf(sel) >= 0 && d.comp !== 'portada', speed: sel === 'marq',
+      ff: els[sel] ? els[sel].ff : 'inherit', fontName: fontName,
+      sizeWord: d.els[sel] && d.els[sel].size != null ? K.WORDS[d.els[sel].size] : '',
+      colSw: els[sel] ? els[sel].col : '#fff', colName: roleName,
+      menuFont: s.menu === 'font', menuColor: s.menu === 'color',
+      fontOpen: s.menu === 'font' ? 'open' : '', colorOpen: s.menu === 'color' ? 'open' : ''
+    };
+
+    var SECV = {
+      nav: { name: 'Encabezado', hint: 'Tu nombre, el menú y el carrito. Se repite en todas las páginas.', parts: [['W', 'Nombre de la tienda', 'Finca San Adolfo'], ['≡', 'Menú', 'Nuestro café, La finca, Historia, Contacto'], ['◆', 'Etiqueta', 'Cosecha 2026']] },
+      spot: { name: 'Producto insignia', hint: 'Tu café estrella, con todo para comprarlo sin salir del inicio.', parts: [['T', 'Título', 'Un solo origen, cuidado de principio a fin.'], ['▭', 'Producto', 'Café Finca San Adolfo'], ['¶', 'Descripción', 'Cultivamos entre 1.500 y 1.800 msnm…']] },
+      hist: { name: 'Historia', hint: 'De dónde viene tu café, en tres fotos y un párrafo.', parts: [['T', 'Título', 'Nacido de la tradición.'], ['▦', 'Fotos', '3 fotos'], ['¶', 'Texto', 'La finca es de la familia desde 1974…']] },
+      orig: { name: 'El origen', hint: 'Los datos del lote: altitud, variedad, proceso y cosecha.', parts: [['T', 'Título', 'Cultivado a mano en las montañas…'], ['¶', 'Texto', 'San Adolfo está al sur del Huila…'], ['#', 'Datos', '4 datos']] },
+      pres: { name: 'Presentaciones', hint: 'Cada forma de comprar tu café, con su precio.', parts: [['T', 'Título', 'Nuestro café. 4 presentaciones.'], ['▭', 'Tarjetas', '4 presentaciones del catálogo']] },
+      cta: { name: 'Suscripción', hint: 'Una invitación a volver cada mes.', parts: [['▦', 'Foto', 'Manos con cerezas'], ['◯', 'Botones', 'Únete al club · Explorar']] },
+      foot: { name: 'Pie de página', hint: 'Se repite en todas las páginas.', parts: [['¶', 'Frase', 'Más que una buena taza…'], ['≡', 'Enlaces', '3 columnas']] },
+      nhero: { name: 'Portada', hint: 'Lo primero que se ve en Nosotros.', parts: [['T', 'Título', 'Nacido de la tradición.'], ['▦', 'Foto', 'Las laderas']] },
+      nhist: { name: 'Historia', hint: 'Tres párrafos sobre la finca. Toca cualquiera para escribir sobre él.', parts: [['¶', 'Párrafo 1', 'La finca es de la familia…'], ['¶', 'Párrafo 2', 'San Adolfo está al sur…'], ['¶', 'Párrafo 3', d.els.p3.text]] },
+      ngal: { name: 'Galería', hint: 'Fotos de la finca, de cerca.', parts: [['▦', 'Fotos', '5 fotos']] },
+      ncierre: { name: 'Cierre', hint: 'Una última invitación a comprar.', parts: [['T', 'Título', 'Un solo origen…'], ['◯', 'Botón', 'Comprar']] }
+    };
+    var secv = { parts: [], esqs: [] };
+    if (SECV[sel]) {
+      var sv = SECV[sel], hasEsq = ['nav', 'foot', 'cta', 'nhero'].indexOf(sel) < 0;
+      secv = {
+        name: sv.name, hint: sv.hint, parent: sel[0] === 'n' && sel !== 'nav' ? 'Nosotros' : 'Inicio',
+        parts: sv.parts.map(p => ({ gl: p[0], name: p[1], sub: p[2] })),
+        hasEsq: hasEsq, canHide: ['nav', 'foot', 'nhero'].indexOf(sel) < 0,
+        hideLabel: d.hidden[sel] ? 'Mostrar esta sección' : 'Ocultar esta sección',
+        esqs: [{ k: 'fondo', name: 'Fondo', bg: 'var(--c-fondo)' }, { k: 'sup', name: 'Superficie', bg: 'var(--c-sup)' }, { k: 'tinta', name: 'Tinta', bg: 'var(--c-tinta)' }].map(o => ({ name: o.name, bg: o.bg, cls: (d.esq[sel] || 'fondo') === o.k ? 'on' : '', pick: () => m.change(dd => { dd.esq[sel] = o.k; }) }))
+      };
+    }
+
+    var pcards = K.PALS.map(p => ({ name: p.name, fonts: p.d + ' + ' + p.b, t: 'pc-' + p.k, on: d.pal === p.k, cls: 'pal-' + p.k + ' fo-' + d.forma + (d.pal === p.k ? ' on' : ''), pick: () => m.setPal(p.k) }));
+    var pairs = K.PAIRS.map(p => ({ name: p.name, fd: p.fd, desc: p.k === 'auto' ? pal.d + ' + ' + pal.b : p.d + ' + ' + p.b, cls: d.fp === p.k ? 'on' : '', pick: () => m.change(dd => { dd.fp = p.k; }) }));
+    var formas = [{ k: 'recta', name: 'Recta', r: '0px' }, { k: 'minima', name: 'Mínima', r: '5px' }, { k: 'suave', name: 'Suave', r: '999px' }].map(o => ({ name: o.name, r: o.r, cls: d.forma === o.k ? 'on' : '', pick: () => m.change(dd => { dd.forma = o.k; }) }));
+    var est = {
+      pairLabel: pair ? pair.name + ' · ' + pair.d + ' + ' + pair.b : dName + ' + ' + bName,
+      formaLabel: ({ recta: 'Recta', minima: 'Mínima', suave: 'Suave' })[d.forma],
+      hexF: pal.f, hexT: pal.t, hexA: pal.a
+    };
+
+    var df = this.diffs(), n = df.length;
+    var tb = {
+      undoCls: s.past.length ? '' : 'off', redoCls: s.future.length ? '' : 'off',
+      savedTxt: s.saved === 'saving' ? 'Guardando…' : 'Borrador guardado', statusCls: s.saved === 'saving' ? 'saving' : '',
+      pubLabel: s.pubState === 'busy' ? 'Publicando…' : (n ? 'Publicar' : (s.pubState === 'done' ? 'Publicado' : 'Publicar')),
+      pubCount: n, hasCount: n > 0 && s.pubState !== 'busy', pubDone: s.pubState === 'done' && !n, pubCls: (s.pubState === 'done' && !n) ? 'done' : '',
+      pageName: s.page === 'inicio' ? 'Inicio' : 'Nosotros', previewLabel: s.preview ? 'Salir de la vista previa' : 'Vista previa',
+      pgIni: s.page === 'inicio' ? 'on' : '', pgNos: s.page === 'nosotros' ? 'on' : ''
+    };
+    var pub = { items: df, none: n === 0, some: n > 0, title: n ? (n === 1 ? '1 cambio en tu tienda' : n + ' cambios en tu tienda') : 'Nada pendiente', cta: n === 1 ? 'Publicar 1 cambio' : 'Publicar ' + n + ' cambios' };
+    var DEVW = { desk: 'Escritorio', tab: 'Tableta · 768 px', phone: 'Teléfono · 390 px' };
+    var fr = { cls: 'd-' + s.device, path: s.page === 'inicio' ? '/' : '/nosotros', dev: DEVW[s.device] };
+
+    var sheet = {
+      comp: s.sheet === 'comp', add: s.sheet === 'add',
+      pickName: (K.COMPS.find(c => c.k === (s.pick || d.comp)) || {}).name,
+      comps: K.COMPS.map(c => ({
+        name: c.name, desc: c.desc, t: 'sc-' + c.k, mcls: 'c' + c.k[0], isCur: d.comp === c.k,
+        keeps: c.keeps.map(x => ({ x: x })), hasKeeps: c.keeps.length > 0,
+        cls: (s.pick || d.comp) === c.k ? 'on' : '', pick: ev => { stopE(ev); m.setState({ pick: c.k }); }
+      }))
+    };
+    var addItems = [
+      { name: 'Testimonios', desc: 'Lo que dicen quienes ya probaron tu café.' },
+      { name: 'Sellos de confianza', desc: 'Envío, pago seguro y cambios, en una franja.' },
+      { name: 'Preguntas frecuentes', desc: 'Las dudas de siempre, respondidas una vez.' },
+      { name: 'Boletín', desc: 'Un correo para avisar de cada cosecha.' },
+      { name: 'Texto con foto', desc: 'Una idea, una imagen, lado a lado.' },
+      { name: 'Galería', desc: 'Varias fotos en una cuadrícula.' }
+    ].map(a => Object.assign(a, { pick: H.closeSheet }));
+
+    var CH = K.CH, nch = s.ch || 1;
+    if (!this.script) this.script = this.buildScript();
+    var dir = {
+      playing: s.tour, paused: !s.tour, ppLabel: s.tour ? 'Pausar el recorrido' : 'Reanudar el recorrido',
+      num: (nch < 10 ? '0' : '') + nch, title: CH[nch - 1].t, line: CH[nch - 1].l,
+      state: s.tour ? 'Recorrido' : 'En pausa · explora tú',
+      segs: CH.map((c, i) => ({
+        label: (i + 1) + '. ' + c.t, dur: (this.durs[i + 1] || 6000) + 'ms',
+        cls: i + 1 < nch ? 'done' : (i + 1 === nch ? 'run' + (s.tour ? '' : ' paused') : ''),
+        go: ev => { stopE(ev); m.jump(i + 1); }
+      }))
+    };
+
+    return {
+      h: H,
+      edCls: 'pal-' + d.pal + (d.fp !== 'auto' ? ' fp-' + d.fp : '') + ' fo-' + d.forma + (s.tour ? ' touring' : '') + (s.preview ? ' preview' : ''),
+      tb: tb, pub: pub, fr: fr,
+      menu: { page: s.menu === 'page', pub: s.menu === 'pub' },
+      dev: { desk: s.device === 'desk' ? 'on' : '', tab: s.device === 'tab' ? 'on' : '', phone: s.device === 'phone' ? 'on' : '' },
+      rail: { sec: s.rail === 'secciones' ? 'on' : '', est: s.rail === 'estilo' ? 'on' : '', med: s.rail === 'medios' ? 'on' : '' },
+      pv: pv, rows: rows, kids: kids, homeRows: homeRows, nosRows: nosRows, heroOpen: s.heroOpen,
+      zrows: zrows, altos: altos, velos: velos, focals: focals, hz: hz,
+      elv: elv, cm: cm, tbx: tbx, secv: secv,
+      pcards: pcards, pairs: pairs, formas: formas, est: est,
+      pg: { home: s.page === 'inicio', nos: s.page === 'nosotros' },
+      hero: hero, els: els, zc: zc, marq: marq, secs: secs,
+      sheet: sheet, addItems: addItems, dir: dir,
+      cur: { x: s.cur.x, y: s.cur.y, cls: (s.cur.show && s.tour ? '' : 'hide') + (s.cur.press ? ' press' : '') },
+      ripple: s.ripple && s.tour
+    };
+  }
+}
+</script>
+</body>
+</html>

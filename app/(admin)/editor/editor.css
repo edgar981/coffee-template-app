@@ -1,0 +1,73 @@
+/* ─── EDITOR-VISUAL-MARCO-1 ──────────────────────────────────────────────────────────────────────
+   El marco visual del editor de pantalla completa (docs/editor-tienda/REDISENO.md § 3), calcado del
+   prototipo navegable (`docs/editor-tienda/prototipo/prototipo-editor.html`). ADMIN-LEVEL —prefijo
+   `editor-`, no `duna-`— por la regla del segundo consumidor (§ CLAUDE.md, "una clase entra al
+   paquete con nombre `duna-` cuando hay un SEGUNDO consumidor, no antes"): hoy un solo consumidor,
+   `/editor/tienda`. Importado desde `app/(admin)/editor/layout.tsx`, mismo patrón que
+   `app/(admin)/duna.css` importado desde `app/(admin)/layout.tsx` — un solo sitio, no uno por ruta.
+
+   Lo que NO cambia acá: ningún `--duna-*` nuevo. Todo color/espaciado/radio/sombra sale de
+   `packages/design-system/tokens/tokens.css`, ya cargado por el grupo `(admin)` — este archivo sólo
+   COMPONE esos tokens en la forma que pide el prototipo (barra, segmentado de dispositivo via
+   `.duna-seg` ya existente, lienzo punteado, marco de página). */
+
+/* ── barra superior (§ REDISENO.md § 3, la fila ‹ volver · tienda · página/dispositivo · estado) ── */
+.editor-tb { height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: var(--duna-space-3);
+             padding: 0 var(--duna-space-3) 0 var(--duna-space-2);
+             background: var(--duna-surface); border-bottom: 1px solid var(--duna-border);
+             position: relative; z-index: 2; }
+.editor-tb-l, .editor-tb-r { flex: 1 1 0; display: flex; align-items: center; gap: var(--duna-space-2); min-width: 0; }
+.editor-tb-r { justify-content: flex-end; }
+.editor-tb-c { display: flex; align-items: center; gap: var(--duna-space-3); flex-shrink: 0; }
+.editor-vr { width: 1px; height: 22px; background: var(--duna-border); flex-shrink: 0; }
+
+.editor-store { display: flex; align-items: center; gap: var(--duna-space-2); min-width: 0; }
+.editor-store-av { width: 30px; height: 30px; border-radius: var(--duna-r-s); background: var(--duna-ink);
+                    color: var(--duna-paper); display: grid; place-items: center; flex-shrink: 0;
+                    font: 600 13px var(--duna-font-display); }
+.editor-store-t { min-width: 0; }
+.editor-store-t b { display: block; font-weight: 600; font-size: 13px; line-height: 1.2; color: var(--duna-ink);
+                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.editor-store-t small { display: block; color: var(--duna-muted); font-size: 11.5px; white-space: nowrap; }
+
+/* el selector de página (§ REDISENO.md § 3: "Página: Inicio ▾" — reemplaza el role=tablist viejo) */
+.editor-pgsw { height: 36px; display: inline-flex; align-items: center; gap: var(--duna-space-2);
+               padding: 0 var(--duna-space-3) 0 10px; border: 1px solid var(--duna-border);
+               border-radius: var(--duna-r-m); background: var(--duna-surface); font-weight: 500;
+               color: var(--duna-ink); font-size: var(--duna-text-label); cursor: pointer;
+               transition: border-color var(--duna-dur-fast) var(--duna-ease); }
+.editor-pgsw:hover { border-color: var(--duna-border-2); }
+.editor-pgsw .k { color: var(--duna-muted); font-weight: 400; }
+.editor-pgsw svg { width: 15px; height: 15px; flex-shrink: 0; }
+.editor-pgmenu { display: flex; flex-direction: column; gap: 1px; width: 15rem; padding: var(--duna-space-1); }
+.editor-pgm { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 38px;
+              padding: 0 var(--duna-space-3); border-radius: var(--duna-r-s); font-weight: 500;
+              color: var(--duna-ink); }
+.editor-pgm:hover, .editor-pgm.is-on { background: var(--duna-wash-hover); }
+.editor-pgm small { color: var(--duna-muted); font: 400 11px var(--duna-font-mono); }
+
+/* ── lienzo (§ REDISENO.md § 3: "fondo punteado, la página enmarcada y la pastilla de estado") ── */
+.editor-stage { height: 100%; min-height: 0; min-width: 0; position: relative; display: flex;
+                flex-direction: column; align-items: center; overflow: hidden;
+                /* El dot NO es un literal rgba: `color-mix` sobre `--duna-ink` sigue al tema
+                   (claro/oscuro) sin necesitar una segunda regla bajo [data-theme="dark"]. */
+                background-color: var(--duna-surface-2);
+                background-image: radial-gradient(color-mix(in oklab, var(--duna-ink) 16%, transparent) 1px, transparent 1.3px);
+                background-size: 18px 18px; }
+.editor-st-meta { flex-shrink: 0; height: 44px; display: flex; align-items: center; gap: var(--duna-space-2); }
+.editor-st-pill { height: 26px; display: inline-flex; align-items: center; gap: var(--duna-space-2);
+                   padding: 0 var(--duna-space-3); border-radius: var(--duna-r-full);
+                   background: color-mix(in oklab, var(--duna-surface) 70%, transparent);
+                   border: 1px solid var(--duna-border); font-family: var(--duna-font-mono);
+                   font-size: 11px; color: var(--duna-ink-2); }
+.editor-st-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--duna-sol); flex-shrink: 0; }
+
+/* El contenedor que el ResizeObserver de VistaTiendaIframe mide — su tamaño decide la escala del
+   dispositivo (§ `calcularEscalaDispositivo`, lib/admin/editor-iframe.ts, fuera de `touches:`). */
+.editor-canvas { flex: 1 1 auto; min-height: 0; width: 100%; position: relative; display: flex;
+                  justify-content: center; overflow: hidden; }
+
+/* La página enmarcada: radio + sombra, blanca — el "frame" del prototipo. El radio lo decide el
+   consumidor (teléfono = bisel más redondeado), por eso no va acá. */
+.editor-st-frame { position: relative; flex-shrink: 0; overflow: hidden; background: var(--duna-surface);
+                    border: 1px solid var(--duna-border); box-shadow: var(--duna-shadow-3); }

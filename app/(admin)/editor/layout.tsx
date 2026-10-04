@@ -4,6 +4,9 @@ import type { ReactNode } from "react";
 import { requerirSesionAdmin } from "@/lib/admin/acceso-admin";
 import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteSettingsProvider } from "@/components/admin/SiteSettingsProvider";
+// EDITOR-VISUAL-MARCO-1 — el marco visual (barra, riel, lienzo) calcado del prototipo navegable,
+// mismo patrón que `app/(admin)/duna.css` importado desde `app/(admin)/layout.tsx`: un solo sitio.
+import "./editor.css";
 
 // EL EDITOR DE PANTALLA COMPLETA (§ EDITOR-TIENDA-DISPOSITIVOS-1) — su propia rama de rutas,
 // hermana de `app/(admin)/admin/`, DENTRO del mismo grupo `(admin)` (hereda tema Duna, fuentes y

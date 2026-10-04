@@ -651,6 +651,69 @@ de `ResumenPublicar` no imprime una fila EN PALABRAS para ellos (cae al "Sin det
 que ese componente ya maneja con 0 filas). El día que `resumen-cambios.ts` entre a `touches:` de un
 slice, las tres ramas se agregan ahí.
 
+**QUINTO PEDIDO FUERA DE ESTA NUMERACIÓN: `EDITOR-VISUAL-MARCO-1` — el marco se ve como el
+prototipo (2026-10-04).** Pedido textual del owner tras comparar el editor construido por los ocho
+slices numerados + `EDITOR-TIENDA-CROMO-1`/`EDITOR-BARRA-ESTILO-CLIC-1` contra las capturas del
+prototipo (`docs/editor-tienda/prototipo/`, traídas a `docs/` en este mismo slice —antes vivían en
+`.scratch/`, gitignored—): *"veo que sí se han agregado cosas nuevas, pero también noto que aún
+luce como antes del rediseño en mayor parte"*. Los ocho slices + los cuatro pedidos aparte
+construyeron la FUNCIÓN sobre la capa visual VIEJA (la de antes del prototipo); éste es el primer
+slice que ataca la capa visual en sí, acotado a lo que el propio spec nombra: la barra superior, el
+riel, y el lienzo — NUNCA el panel (sus filas/tarjetas, migas, niveles: eso ya se construyó en
+`EDITOR-TIENDA-SHELL-1` y no es parte de este programa).
+
+**LA BARRA** pasa de una fila de `duna-pill`/`duna-btn` sueltos a la anatomía del prototipo (§ 3):
+tres secciones `flex:1`/auto/`flex:1` (izquierda/centro/derecha) para que el grupo central quede
+SIEMPRE centrado — `‹ volver` (ahora sólo ícono) · un separador vertical · el avatar de iniciales de
+la tienda + su nombre, al centro el selector de PÁGINA (de `role="tablist"` con tres pestañas a UN
+desplegable "Página: Inicio ▾", Popover + `useContenedorDunaPortal` — el MISMO mecanismo que
+`ResumenPublicar` ya usaba, no uno nuevo) y el segmentado de DISPOSITIVO (de tres `duna-pill` con
+ícono+texto a `.duna-seg`/`.duna-seg__item`, ya en el paquete — la primitiva correcta por doctrina:
+"el pill FILTRA un conjunto; el segmentado cambia el MODO de ver lo mismo", § CLAUDE.md), y a la
+derecha deshacer/rehacer (ahora sólo ícono) · el punto de estado · "Vista previa" · "Publicar"
+(`ResumenPublicar`, sin tocar — ya hecho en el slice 8).
+
+**EL RIEL** gana "Ayuda" al fondo (empujado por un espaciador `flex:1`), DESHABILITADO con el motivo
+en el `title`: no existe hoy un artículo de ayuda para quien opera el panel (`docs/editor-tienda/`
+es documentación de INGENIERÍA, no del producto) — se deja la afordancia sin fingir un destino, como
+pide el propio spec ("si no, sin destino y decilo").
+
+**EL LIENZO** pasa de un `<div>` con borde simple a `.editor-stage` (fondo punteado vía
+`radial-gradient(color-mix(in oklab, var(--duna-ink) 16%, transparent) …)` — sigue al tema sin una
+segunda regla `[data-theme="dark"]`) → `.editor-st-meta` (la franja: la pastilla "● Borrador ·
+/ruta" en mono + el nombre del dispositivo + "Navegar"/"Actualizar", AHORA ÍCONOS CHICOS en vez de
+pill-con-texto y botón-con-texto — el spec: "pasan a ser íconos chicos… no se pierden") →
+`.editor-canvas` (el MISMO `canvasRef`/ResizeObserver de siempre: la escala del dispositivo no se
+tocó) → `.editor-st-frame` (la página enmarcada: radio + `--duna-shadow-3` + fondo blanco; el
+teléfono gana un radio mayor, `--duna-r-xl`, como bisel). El panel pasa de `1fr` elástico a
+`308px` fijo (§ 3, "Panel (308 px)") — SÓLO el ancho; ninguna fila/tarjeta se tocó.
+
+**LO QUE EL PROTOTIPO DIBUJA COMO «RECORRIDO» (la barra negra de capítulos abajo) NO SE
+CONSTRUYÓ** — es del prototipo, como el propio spec aclara.
+
+**NUEVO ARCHIVO: `app/(admin)/editor/editor.css`**, importado desde `app/(admin)/editor/layout.tsx`
+con el MISMO patrón que `app/(admin)/duna.css` desde `app/(admin)/layout.tsx` — admin-level
+(prefijo `editor-`, no `duna-`) por la regla del segundo consumidor: hoy un solo consumidor,
+`/editor/tienda`. Cero tokens `--duna-*` nuevos — todo color/espaciado/radio/sombra sale de
+`packages/design-system/tokens/tokens.css`, ya cargado por el grupo `(admin)`.
+
+**VERIFICADO POR EJECUCIÓN — sesión real, 20/20.** `.scratch/arnes-marco.ts` (no comiteado):
+Postgres efímero, `migrate deploy` + seed canónico, `next build`/`next start`, Playwright con sesión
+real (`admin@sierranativa.co`), viewport 1440×900. El marco nuevo está (avatar, selector de página,
+segmentado, "Ayuda", lienzo punteado, pastilla, marco de página); el selector de página SIGUE
+cambiando de página (Inicio↔Nosotros, el lienzo sigue a `/nosotros`); el segmentado SIGUE angostando
+el lienzo a Teléfono (ancho medido < 500px); "Navegar" SIGUE togglando (`aria-pressed`) y
+"Actualizar" SIGUE recargando sin romper el lienzo; deshacer/Publicar SIGUEN funcionando (editar el
+titular del hero habilita "Deshacer" y hace aparecer "Publicar 2", después se deshizo el cambio de
+prueba); "Vista previa" sigue presente. Capturas 1440×900 y Teléfono en `.capturas/` (gitignored),
+compuestas lado a lado con `captura-prototipo-inicio.webp`.
+
+**`npm run verificar:nayoli:visual` reproduce el MISMO piso heredado, dígito a dígito**
+(`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, ya citado por `EDITOR-BARRA-ESTILO-CLIC-1`): `ruta:home`
+165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 c/u;
+los 2 hovers IDÉNTICOS — cero píxeles nuevos, porque este slice no toca un solo archivo de
+`components/storefront/` ni `app/(storefront)/`.
+
 ---
 
 ## 10 · Lo que este documento NO decide

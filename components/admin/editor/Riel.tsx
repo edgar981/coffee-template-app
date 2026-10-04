@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentType } from 'react';
-import { LayoutList, Palette, Image as ImageIcon } from 'lucide-react';
+import { LayoutList, Palette, Image as ImageIcon, HelpCircle } from 'lucide-react';
 
 // EL RIEL (§ EDITOR-TIENDA-SHELL-1, REDISENO.md § 3): Secciones · Estilo · Medios. Reemplaza al pill
 // «Tema» que vivía dentro del tablist de página (§ EditorTiendaPantallaCompleta.tsx) — «Estilo» deja
@@ -74,6 +74,35 @@ export function Riel({ activo, onElegir }: { activo: HerramientaRiel; onElegir: 
           </button>
         );
       })}
+      {/* EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3, prototipo: "Ayuda" abajo, separado por un espaciador
+          — `.rail-sp` en el prototipo). SIN DESTINO: no existe hoy documentación del editor para el
+          dueño de la tienda —`docs/editor-tienda/` es documentación de INGENIERÍA, no un artículo de
+          ayuda para quien opera el panel—, así que el botón se deja DESHABILITADO con el motivo en el
+          `title`, en vez de fingir un enlace que no lleva a ningún lado (§ CLAUDE.md, "un botón
+          deshabilitado no promete nada"). */}
+      <div aria-hidden style={{ flex: '1 1 auto' }} />
+      <button
+        type="button"
+        disabled
+        title="Documentación del editor — todavía no existe"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 4,
+          padding: '10px 4px',
+          borderRadius: 'var(--duna-r-m)',
+          border: 'none',
+          cursor: 'default',
+          fontSize: 11,
+          fontWeight: 500,
+          background: 'transparent',
+          color: 'var(--duna-faint)',
+        }}
+      >
+        <HelpCircle aria-hidden />
+        <span>Ayuda</span>
+      </button>
     </nav>
   );
 }

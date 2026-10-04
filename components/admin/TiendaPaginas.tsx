@@ -1346,7 +1346,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
       <div style={{
         display: angosto ? 'flex' : 'grid',
         flexDirection: angosto ? 'column' : undefined,
-        gridTemplateColumns: angosto ? undefined : 'minmax(0, 1fr) minmax(360px, 1fr)',
+        // EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3, la anatomía: "Panel (308 px)") — el panel pasa de
+        // 1fr elástico a un ancho FIJO, como en el prototipo; el lienzo toma todo lo que sobra. Sólo
+        // el ANCHO cambia acá — ninguna fila/tarjeta del panel se tocó (fuera de `surface:` de este
+        // slice).
+        gridTemplateColumns: angosto ? undefined : '308px minmax(0, 1fr)',
         gap: 'var(--duna-space-6)',
         flex: '1 1 auto',
         minHeight: 0,

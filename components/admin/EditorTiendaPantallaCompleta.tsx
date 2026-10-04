@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Monitor, Redo2, Smartphone, Tablet, Undo2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Eye, FileText, Monitor, Redo2, Smartphone, Tablet, Undo2 } from 'lucide-react';
 import TiendaPaginas, { type EstadoGlobalEditor, type TiendaPaginasHandle } from '@/components/admin/TiendaPaginas';
 import { PAGINAS, SECCIONES_TIENDA, type PaginaKey } from '@/components/admin/tienda-secciones';
 import {
@@ -19,6 +19,8 @@ import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { Riel, type HerramientaRiel } from '@/components/admin/editor/Riel';
 import { VistaNueva } from '@/components/admin/editor/VistaNueva';
 import { ResumenPublicar } from '@/components/admin/editor/ResumenPublicar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
 
 // ─── EL EDITOR DE PANTALLA COMPLETA (§ EDITOR-TIENDA-DISPOSITIVOS-1) ───────────────────────────────
 //
@@ -60,6 +62,16 @@ const DISPOSITIVOS: { key: DispositivoKey; label: string; Icon: typeof Monitor }
   { key: 'tablet', label: 'Tablet', Icon: Tablet },
   { key: 'telefono', label: 'Teléfono', Icon: Smartphone },
 ];
+
+// EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3: "Página: Inicio ▾" — el prototipo nombra "home" como
+// "Inicio"). `PAGINAS` (tienda-secciones.ts, fuera de `touches:`) sigue con `label: 'Home'` — lo
+// consume también `TogglePagina` para nosotros/suscripciones, así que no se toca esa fuente; esto
+// es sólo el texto de DISPLAY del selector de esta barra, local a este componente.
+const LABEL_PAGINA_SELECTOR: Record<PaginaKey, string> = {
+  home: 'Inicio',
+  nosotros: 'Nosotros',
+  suscripciones: 'Suscripciones',
+};
 
 type ModoEditor = 'paginas' | 'tema';
 
@@ -178,56 +190,98 @@ export default function EditorTiendaPantallaCompleta() {
     setModo(h === 'estilo' ? 'tema' : 'paginas');
   }, []);
 
+  // EDITOR-VISUAL-MARCO-1 — el selector de página pasó de `role="tablist"` a un desplegable
+  // (§ REDISENO.md § 3), MISMO mecanismo que `ResumenPublicar` (Popover + `useContenedorDunaPortal`,
+  // para que el menú porteleado herede la tipografía de `.admin-shell`).
+  const contenedorPopover = useContenedorDunaPortal();
+  const [menuPaginaAbierto, setMenuPaginaAbierto] = useState(false);
+  const paginaActualLabel = LABEL_PAGINA_SELECTOR[pagina] ?? PAGINAS.find(p => p.key === pagina)?.label ?? pagina;
+
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--duna-bg)', zIndex: 0 }}>
-      <div
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 'var(--duna-space-4)',
-          flexWrap: 'wrap',
-          padding: 'var(--duna-space-3) var(--duna-space-6)',
-          borderBottom: '1px solid var(--duna-border)',
-          background: 'var(--duna-surface)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexShrink: 0, minWidth: 0 }}>
-          <Link href="/admin/tienda" className="duna-btn duna-btn--ghost duna-btn--sm" style={{ flexShrink: 0 }}>
-            <ArrowLeft /> Volver al panel
+      {/* EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3) — la barra calcada del prototipo: ‹ volver · tienda
+          | Página ▾ · dispositivo | deshacer/rehacer · estado · Vista previa · Publicar. Tres
+          secciones `flex:1` (izq/der) con el centro de ancho natural — así el grupo central queda
+          SIEMPRE centrado, sea cual sea el ancho de los otros dos (el mismo truco del prototipo:
+          `.tb-l,.tb-r{flex:1}`, `.tb-c` sin flex). */}
+      <div className="editor-tb">
+        <div className="editor-tb-l">
+          <Link href="/admin/tienda" className="duna-btn duna-btn--ghost duna-btn--icon" style={{ flexShrink: 0 }} aria-label="Volver al panel" title="Volver al panel">
+            <ArrowLeft aria-hidden />
           </Link>
-          {/* § EDITOR-TIENDA-SHELL-1 — el nombre de la tienda (REDISENO.md § 3). */}
-          <span className="duna-title" style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {settings.nombre} · Editor
-          </span>
+          <div className="editor-vr" aria-hidden />
+          {/* § EDITOR-TIENDA-SHELL-1 — el nombre de la tienda (REDISENO.md § 3), ahora con el avatar
+              de iniciales del prototipo («store-av»). */}
+          <div className="editor-store">
+            <span className="editor-store-av" aria-hidden>{(settings.nombre.trim().charAt(0) || '·').toUpperCase()}</span>
+            <span className="editor-store-t">
+              <b>{settings.nombre}</b>
+              <small>Editor de tienda</small>
+            </span>
+          </div>
         </div>
 
-        {/* § EDITOR-TIENDA-SHELL-1 — SÓLO las páginas: «Tema» ya no es una pestaña de esta fila, es
-            la herramienta «Estilo» del riel (§ el comentario grande de arriba). */}
-        <div role="tablist" aria-label="Página del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)' }}>
-          {PAGINAS.map(p => (
-            <button
-              key={p.key}
-              role="tab"
-              aria-selected={modo === 'paginas' && p.key === pagina}
-              onClick={() => { setPagina(p.key); setModo('paginas'); }}
-              className={`duna-pill${modo === 'paginas' && p.key === pagina ? ' is-on' : ''}`}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="editor-tb-c">
+          {/* § EDITOR-TIENDA-SHELL-1 — SÓLO las páginas: «Tema» ya no es una pestaña de esta fila, es
+              la herramienta «Estilo» del riel (§ el comentario grande de arriba). EDITOR-VISUAL-
+              MARCO-1 cambia la FORMA: de `role="tablist"` a un desplegable único — "Página: Inicio ▾"
+              (REDISENO.md § 3) — que ABRE la MISMA acción de siempre (`setPagina` + `setModo
+              ('paginas')`), sólo que detrás de un Popover en vez de tres pestañas sueltas. */}
+          <Popover open={menuPaginaAbierto} onOpenChange={setMenuPaginaAbierto}>
+            <PopoverTrigger asChild>
+              <button type="button" className="editor-pgsw" aria-haspopup="menu" aria-expanded={menuPaginaAbierto}>
+                <FileText aria-hidden />
+                <span className="k">Página</span>
+                <span>{paginaActualLabel}</span>
+                <ChevronDown aria-hidden />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" container={contenedorPopover} className="editor-pgmenu">
+              {PAGINAS.map(p => (
+                <button
+                  key={p.key}
+                  type="button"
+                  aria-current={modo === 'paginas' && p.key === pagina}
+                  onClick={() => { setPagina(p.key); setModo('paginas'); setMenuPaginaAbierto(false); }}
+                  className={`editor-pgm${modo === 'paginas' && p.key === pagina ? ' is-on' : ''}`}
+                >
+                  <span>{LABEL_PAGINA_SELECTOR[p.key] ?? p.label}</span>
+                  <small>{urlDePagina(p.key)}</small>
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+
+          {/* EDITOR-VISUAL-MARCO-1 — el segmentado de dispositivo: de tres `.duna-pill` con ícono+texto
+              a `.duna-seg`/`.duna-seg__item` (ya en el paquete, § CLAUDE.md "el pill FILTRA un
+              conjunto; el segmentado cambia el MODO de ver lo mismo — exactamente uno"), SÓLO ícono
+              como el prototipo. El `title` conserva el nombre + ancho que el label visible daba. */}
+          <div className="duna-seg" role="group" aria-label="Dispositivo">
+            {DISPOSITIVOS.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                aria-label={label}
+                aria-pressed={dispositivo === key}
+                title={`${label} · ${ANCHOS_DISPOSITIVO[key]}px`}
+                onClick={() => elegirDispositivo(key)}
+                className={`duna-seg__item${dispositivo === key ? ' is-on' : ''}`}
+              >
+                <Icon aria-hidden />
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* § EDITOR-TIENDA-DESHACER-1 — el cluster de estado: deshacer/rehacer, el indicador de
             autoguardado AGREGADO, y el botón de `ResumenPublicar` (§ EDITOR-TIENDA-PUBLICAR-
             RESUMEN-1, abajo) — que se oculta solo cuando no hay nada pendiente: un botón "Publicar"
             sin nada que publicar no le dice nada al dueño que no sepa ya. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexShrink: 0 }}>
+        <div className="editor-tb-r">
           <div role="group" aria-label="Deshacer y rehacer" style={{ display: 'flex', gap: 'var(--duna-space-1)' }}>
             <button
               type="button"
-              className="duna-btn duna-btn--ghost duna-btn--sm"
+              className="duna-btn duna-btn--ghost duna-btn--icon"
               onClick={deshacer}
               disabled={!estadoGlobal.puedeDeshacer}
               aria-label="Deshacer"
@@ -237,7 +291,7 @@ export default function EditorTiendaPantallaCompleta() {
             </button>
             <button
               type="button"
-              className="duna-btn duna-btn--ghost duna-btn--sm"
+              className="duna-btn duna-btn--ghost duna-btn--icon"
               onClick={rehacer}
               disabled={!estadoGlobal.puedeRehacer}
               aria-label="Rehacer"
@@ -247,7 +301,14 @@ export default function EditorTiendaPantallaCompleta() {
             </button>
           </div>
 
-          <span className="duna-caption" role="status" aria-live="polite">
+          <span className="duna-caption" role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--duna-space-1)' }}>
+            <span
+              aria-hidden
+              style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                background: estadoGlobal.estado === 'error' ? 'var(--duna-bad)' : 'var(--duna-ok)',
+              }}
+            />
             {estadoGlobal.estado === 'guardando' ? 'Guardando…'
               : estadoGlobal.estado === 'error' ? 'No se pudo guardar'
               : 'Guardado'}
@@ -259,7 +320,7 @@ export default function EditorTiendaPantallaCompleta() {
               editor. SÓLO en modo 'paginas': el tema es store-wide y no tiene una página propia a la
               que apuntar — con él puesto, la página activa de abajo sigue siendo la referencia. */}
           <a href={urlDePagina(pagina)} target="_blank" rel="noreferrer" className="duna-btn duna-btn--ghost duna-btn--sm">
-            Vista previa
+            <Eye aria-hidden /> Vista previa
           </a>
 
           {/* § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — "Descartar" y "Publicar" dejaron de ser dos
@@ -275,21 +336,6 @@ export default function EditorTiendaPantallaCompleta() {
             onDescartar={descartarTodo}
             onIrAItem={irAItemResumen}
           />
-        </div>
-
-        <div role="group" aria-label="Dispositivo" style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
-          {DISPOSITIVOS.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={dispositivo === key}
-              title={`${label} · ${ANCHOS_DISPOSITIVO[key]}px`}
-              onClick={() => elegirDispositivo(key)}
-              className={`duna-pill${dispositivo === key ? ' is-on' : ''}`}
-            >
-              <Icon aria-hidden /> {label}
-            </button>
-          ))}
         </div>
       </div>
 

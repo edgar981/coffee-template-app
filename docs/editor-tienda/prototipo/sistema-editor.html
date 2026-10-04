@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>El sistema del editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;family=Roboto+Serif:ital,wght@0,400;1,400&amp;family=Fraunces:wght@400&amp;family=Oswald:wght@400&amp;display=swap">
+<style>
+body{margin:0;background:#F7F6F2}
+*{box-sizing:border-box}
+.sy{width:1440px;height:1080px;padding:60px 64px;background:#F7F6F2;color:#141311;font:400 13px/1.45 'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:28px}
+.k{font:500 11px/1 'Spline Sans Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#746F64;margin:0}
+.h1{font:600 44px/1.05 'Space Grotesk',sans-serif;letter-spacing:-.03em;margin:14px 0 0;max-width:22ch}
+.lead{color:#746F64;font-size:15px;margin:12px 0 0}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:40px}
+.legend{display:flex;gap:18px;color:#746F64;font-size:12px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:9px;height:9px;border-radius:50%;background:#141311}
+.legend i.sol{background:#F59E0B}
+.g{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:20px;flex:1;min-height:0}
+.card{background:#fff;border:1px solid #E9E6DD;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px;min-height:0}
+.n{font:500 11px/1 'Spline Sans Mono',monospace;color:#A8A399;letter-spacing:.06em}
+.ct{font:600 19px/1.2 'Space Grotesk',sans-serif;letter-spacing:-.015em;margin:6px 0 0}
+.cs{color:#746F64;font-size:12.5px;margin:6px 0 0;line-height:1.5}
+.minis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mini{position:relative;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:radial-gradient(90% 90% at 68% 40%,#466a2a,#13240e 70%)}
+.mini i{position:absolute;border:1px dashed rgba(255,255,255,.75);border-radius:3px;background:rgba(255,255,255,.08)}
+.mini i b{position:absolute;left:4px;top:3px;font:500 7.5px/1 'Spline Sans Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.92)}
+.mini .solid{background:rgba(255,255,255,.5);border:0}
+.mini .solid b{color:rgba(20,19,17,.7)}
+.mini .bag{background:#cfa774;border:0}
+.mini .bag b{color:rgba(20,19,17,.7)}
+.mini .pap{border:0;background:#f2ede2;border-radius:0}
+.mini.f i.d{border-color:rgba(20,19,17,.4)}
+.mini.f i.d b{color:rgba(20,19,17,.6)}
+.mlab{font:600 12px 'Hanken Grotesk',sans-serif;margin-top:7px;display:block}
+.tr{display:flex;flex-direction:column;gap:6px}
+.trr{display:grid;grid-template-columns:1fr 18px 1.15fr;align-items:center;gap:8px;font-size:12.5px}
+.old{color:#A8A399;text-decoration:line-through;text-decoration-color:#B5533C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arr{color:#A8A399;text-align:center}
+.new{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.new em{font-style:normal;font-family:'Spline Sans Mono',monospace;font-size:11px;background:#F4F3EF;border-radius:6px;padding:2px 6px;margin-right:4px}
+.pal-corte{--c-fondo:#fdfbf7;--c-tinta:#102407;--c-acento:#a70004;--c-tostado:#c79a55}
+.pal-pliego{--c-fondo:#f6f1e6;--c-tinta:#17120e;--c-acento:#b3200f;--c-tostado:#c08a4a}
+.pal-corte,.pal-pliego{--c-suave:color-mix(in oklab,var(--c-tinta) 56%,var(--c-fondo));--c-sup:color-mix(in oklab,var(--c-tinta) 6%,var(--c-fondo))}
+.pops{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pop{border:1px solid #E9E6DD;border-radius:14px;padding:8px;background:#fff;box-shadow:0 14px 30px -18px rgba(20,19,17,.35)}
+.pop-h{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 8px;font:500 10px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#746F64}
+.def{display:flex;align-items:center;gap:8px;padding:7px;border-radius:10px;border:1px solid #141311;margin-bottom:6px}
+.def b{font-weight:600;font-size:12px}
+.sw{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(20,19,17,.15);flex:none}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.chip{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:8px;font-size:11.5px;font-weight:500}
+.chip.on{background:#F4F3EF;box-shadow:inset 0 0 0 1px #141311}
+.adv{display:flex;justify-content:space-between;margin-top:6px;padding:7px 6px 2px;border-top:1px solid #E9E6DD;font-size:11.5px;color:#3D3A34}
+.note{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#3D3A34;line-height:1.5;background:#FBFAF7;border:1px solid #E9E6DD;border-radius:12px;padding:10px 12px}
+.note svg{flex:none;margin-top:2px}
+.spec{display:flex;flex-direction:column;gap:10px;flex:1;justify-content:center}
+.spr{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #F0EDE6;padding-bottom:8px;white-space:nowrap;overflow:hidden}
+.spr span{font:500 10.5px 'Spline Sans Mono',monospace;color:#746F64;width:74px;flex:none;letter-spacing:.03em}
+.spr b{font-family:'Roboto Serif',Georgia,serif;font-weight:400;line-height:1;color:#102407}
+.flow{display:flex;align-items:center;gap:10px}
+.crumb{flex:1;border:1px solid #E9E6DD;border-radius:12px;padding:10px 12px;background:#FBFAF7}
+.crumb b{display:block;font-weight:600;font-size:12.5px}
+.crumb small{display:block;color:#746F64;font-size:11.5px;line-height:1.35;margin-top:2px}
+.crumb.on{background:#141311;color:#F4F3EF;border-color:#141311}
+.crumb.on small{color:rgba(244,243,239,.65)}
+.chev{color:#A8A399;flex:none}
+.sheet{border:1px dashed #DDD9CD;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.sheet-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#3D3A34}
+.sheet-h b{font-weight:600}
+.sheet-l{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sheet-l span{border-radius:10px;background:#F4F3EF;padding:10px;font-size:11.5px;font-weight:500;display:flex;flex-direction:column;gap:6px}
+.sheet-l span i{display:block;height:34px;border-radius:6px;background:linear-gradient(160deg,#3f6128,#12210d)}
+.bugs{display:flex;flex-direction:column;gap:0;flex:1}
+.bh,.br{display:grid;grid-template-columns:22px 150px 1fr 1fr;gap:16px;align-items:start}
+.bh{font:500 10px/1 'Spline Sans Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#A8A399;padding:0 0 10px;border-bottom:1px solid #E9E6DD}
+.br{padding:11px 0;border-bottom:1px solid #F0EDE6;font-size:12.5px;line-height:1.45}
+.br:last-child{border-bottom:0}
+.br .bn{font:500 11px 'Spline Sans Mono',monospace;color:#A8A399;padding-top:1px}
+.br .bs{font-weight:600}
+.br .bc{color:#746F64}
+.br .ba{color:#141311}
+.br .ba::before{content:"→ ";color:#4C7A5A;font-weight:600}
+</style>
+</helmet>
+<div class="sy">
+  <div class="top">
+    <div>
+      <p class="k">Propuesta · editor de tienda · sin código todavía</p>
+      <h1 class="h1">Cinco ideas que lo hacen fácil para quien no diseña</h1>
+      <p class="lead">El prototipo de al lado las muestra andando. Aquí, cada una por separado.</p>
+    </div>
+    <div class="legend"><span><i></i>Tinta: la acción y la selección</span><span><i class="sol"></i>Ámbar: solo lo que espera publicarse</span></div>
+  </div>
+
+  <div class="g">
+    <section class="card" style="grid-column: span 5">
+      <div><span class="n">01</span><h2 class="ct">Zonas, no interruptores</h2><p class="cs">Cada composición reparte el hero en zonas con nombre. Lo que no está, se ofrece en su lugar con un «+».</p></div>
+      <div class="minis">
+        <div>
+          <div class="mini"><i style="left: 6%; top: 12%; width: 54%; height: 26%"><b>Titular</b></i><i class="solid" style="left: 0; top: 49%; width: 100%; height: 17%"><b>Marquesina</b></i><i class="bag" style="left: 71%; top: 25%; width: 15%; height: 52%"><b></b></i><i style="left: 6%; top: 78%; width: 36%; height: 13%"><b>Leyenda</b></i><i style="left: 64%; top: 81%; width: 30%; height: 9%"><b>Botón</b></i></div>
+          <span class="mlab">Marquesina</span>
+        </div>
+        <div>
+          <div class="mini"><i style="left: 14%; top: 20%; width: 72%; height: 26%"><b>Titular</b></i><i style="left: 22%; top: 48%; width: 56%; height: 7%"><b>Subtítulo</b></i><i style="left: 34%; top: 58%; width: 32%; height: 10%"><b>Botón</b></i><i class="solid" style="left: 0; top: 91%; width: 100%; height: 9%"><b></b></i></div>
+          <span class="mlab">Portada</span>
+        </div>
+        <div>
+          <div class="mini f"><i class="pap" style="left: 0; top: 0; width: 44%; height: 100%"></i><i class="d" style="left: 5%; top: 14%; width: 35%; height: 32%"><b>Titular</b></i><i class="d" style="left: 5%; top: 48%; width: 34%; height: 8%"><b>Sub</b></i><i class="d" style="left: 5%; top: 60%; width: 30%; height: 9%"><b>Botón</b></i><i class="d" style="left: 5%; top: 77%; width: 33%; height: 13%"><b>Leyenda</b></i></div>
+          <span class="mlab">Ficha</span>
+        </div>
+      </div>
+      <div class="tr">
+        <div class="trr"><span class="old">Mostrar titular</span><span class="arr">→</span><span class="new"><em>+ Titular</em>en su zona</span></div>
+        <div class="trr"><span class="old">Mostrar subtítulo</span><span class="arr">→</span><span class="new"><em>+ Subtítulo</em>en su zona</span></div>
+        <div class="trr"><span class="old">Mostrar los botones</span><span class="arr">→</span><span class="new"><em>+ Botón</em>en su zona</span></div>
+        <div class="trr"><span class="old">Mostrar el indicador «Desliza»</span><span class="arr">→</span><span class="new"><em>+ Indicador</em>en su zona</span></div>
+        <div class="trr"><span class="old">Ocupar toda la pantalla</span><span class="arr">→</span><span class="new">Alto: Justo · Alto · Pantalla completa</span></div>
+        <div class="trr"><span class="old">Mostrar el velo sobre el video</span><span class="arr">→</span><span class="new">Oscurecer para leer: Nada → Fuerte</span></div>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: span 4">
+      <div><span class="n">02</span><h2 class="ct">Color por rol, en palabras</h2><p class="cs">«Por defecto» siempre primero. Después, la paleta por su nombre. Lo libre, guardado en Avanzado.</p></div>
+      <div class="pops">
+        <div class="pop pal-corte">
+          <div class="pop-h"><span>Corte</span><span>Titular</span></div>
+          <div class="def"><i class="sw" style="background: #ffffff"></i><b>Por defecto</b></div>
+          <div class="chips">
+            <span class="chip"><i class="sw" style="background: var(--c-acento)"></i>Acento</span>
+            <span class="chip"><i class="sw" style="background: var(--c-tinta)"></i>Tinta</span>
+            <span class="chip"><i class="sw" style="background: var(--c-suave)"></i>Suave</span>
+            <span class="chip"><i class="sw" style="background: var(--c-fondo)"></i>Fondo</span>
+            <span class="chip"><i class="sw" style="background: var(--c-sup)"></i>Superficie</span>
+            <span class="chip on"><i class="sw" style="background: var(--c-tostado)"></i>Tostado</span>
+          </div>
+          <div class="adv"><span>Avanzado</span><span>›</span></div>
+        </div>
+        <div class="pop pal-pliego">
+          <div class="pop-h"><span>Pliego</span><span>Titular</span></div>
+          <div class="def" style="border-color: #E9E6DD"><i class="sw" style="background: #ffffff"></i><b>Por defecto</b></div>
+          <div class="chips">
+            <span class="chip"><i class="sw" style="background: var(--c-acento)"></i>Acento</span>
+            <span class="chip"><i class="sw" style="background: var(--c-tinta)"></i>Tinta</span>
+            <span class="chip"><i class="sw" style="background: var(--c-suave)"></i>Suave</span>
+            <span class="chip"><i class="sw" style="background: var(--c-fondo)"></i>Fondo</span>
+            <span class="chip"><i class="sw" style="background: var(--c-sup)"></i>Superficie</span>
+            <span class="chip on"><i class="sw" style="background: var(--c-tostado)"></i>Tostado</span>
+          </div>
+          <div class="adv"><span>Avanzado</span><span>›</span></div>
+        </div>
+      </div>
+      <div class="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#141311" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"></path></svg><span>Se guarda el <b>rol</b>, no el color. Un titular en Tostado sigue en Tostado cuando la tienda cambia de Corte a Pliego. Sin avisos de contraste en pantalla.</span></div>
+    </section>
+
+    <section class="card" style="grid-column: span 3">
+      <div><span class="n">03</span><h2 class="ct">Tamaño con palabras</h2><p class="cs">Cinco pasos con nombre. Nadie tiene que saber qué es un píxel.</p></div>
+      <div class="spec">
+        <div class="spr"><span>Pequeño</span><b style="font-size: 18px">Café de altura</b></div>
+        <div class="spr"><span>Mediano</span><b style="font-size: 23px">Café de altura</b></div>
+        <div class="spr"><span>Grande</span><b style="font-size: 29px">Café de altura</b></div>
+        <div class="spr"><span>Muy grande</span><b style="font-size: 37px">Café de altura</b></div>
+        <div class="spr" style="border-bottom: 0"><span>Enorme</span><b style="font-size: 46px">Café de</b></div>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: span 5">
+      <div><span class="n">04</span><h2 class="ct">El panel baja de nivel; lo grande abre una vista nueva</h2><p class="cs">Un solo panel que se adentra paso a paso, con migas para volver. Si algo no cabe en 308 px, se abre encima del lienzo, como en Shopify.</p></div>
+      <div class="flow">
+        <div class="crumb"><b>Inicio</b><small>Todas las secciones</small></div>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"></path></svg>
+        <div class="crumb"><b>Hero</b><small>Composición, zonas, alto</small></div>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"></path></svg>
+        <div class="crumb on"><b>Titular</b><small>Texto, letra, tamaño, color</small></div>
+      </div>
+      <div class="sheet">
+        <div class="sheet-h"><b>Vista nueva</b><span>se abre sobre el lienzo</span></div>
+        <div class="sheet-l"><span><i></i>Composición del hero</span><span><i style="background: #F0EDE6"></i>Agregar sección</span><span><i style="background: linear-gradient(135deg,#86603a,#3b2614)"></i>Medios</span></div>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: span 7">
+      <div><span class="n">05</span><h2 class="ct">Los cinco errores, cerrados de raíz</h2><p class="cs">Cada uno nació de una pieza del diseño actual; el rediseño quita la pieza, no solo el síntoma.</p></div>
+      <div class="bugs">
+        <div class="bh"><span>#</span><span>Lo que se ve</span><span>Por qué pasa hoy</span><span>Lo que cambia</span></div>
+        <div class="br"><span class="bn">1</span><span class="bs">Marquesina encimada al editarla</span><span class="bc">Solo se oculta la primera de las dos copias del texto que corre; la otra sigue pasando detrás del campo transparente.</span><span class="ba">Al tocarla se detiene y queda una sola línea quieta; todas las copias se ocultan.</span></div>
+        <div class="br"><span class="bn">2</span><span class="bs">«Tema» no carga</span><span class="bc">El panel de colores pide los datos de la tienda y la vista de pantalla completa nunca se los entrega.</span><span class="ba">Estilo vive dentro del editor y recibe esos datos desde su propio marco.</span></div>
+        <div class="br"><span class="bn">3</span><span class="bs">El párrafo cambia de forma</span><span class="bc">Se pone encima una caja de texto con otras reglas para espacios y saltos de línea.</span><span class="ba">Se escribe sobre el mismo párrafo. No hay caja encima que pueda verse distinta.</span></div>
+        <div class="br"><span class="bn">4</span><span class="bs">El texto viaja con el scroll</span><span class="bc">La caja se fija a la pantalla con coordenadas medidas una sola vez, al abrirla.</span><span class="ba">La edición vive dentro de la página y se mueve con ella.</span></div>
+        <div class="br"><span class="bn">5</span><span class="bs">Sección «Marquesina» suelta</span><span class="bc">La lista nombra la banda independiente, que en Corte está apagada porque el hero ya dibuja la marquesina.</span><span class="ba">La marquesina es una zona del hero. La lista muestra solo lo que la página dibuja.</span></div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

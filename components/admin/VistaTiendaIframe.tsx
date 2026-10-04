@@ -87,6 +87,17 @@ import {
 // encendido, SE APAGA — si no, el vigía deshacía en 400ms exactamente lo que el interruptor
 // prometía permitir.
 const INTERVALO_VIGIA_RUTA_MS = 400;
+
+// EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3) — el rótulo de dispositivo de la franja de estado
+// («● Borrador · /ruta   Escritorio») necesita el NOMBRE legible, que `lib/admin/editor-iframe.ts`
+// (fuera de `touches:`) no declara (sólo el ancho en px, § `ANCHOS_DISPOSITIVO`). Mapa LOCAL, tres
+// strings — no vale la pena una segunda exportación de ese archivo para esto.
+const LABEL_DISPOSITIVO: Record<DispositivoKey, string> = {
+  escritorio: 'Escritorio',
+  tablet: 'Tablet',
+  telefono: 'Teléfono',
+};
+
 export interface VistaTiendaIframeHandle {
   /** Desplaza el iframe hasta la sección y la resalta brevemente. No hace nada si el documento
    *  todavía no cargó, o si esta sección no tiene marcador resoluble (§ `selectorDeSeccion`).
@@ -539,48 +550,63 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
     // ya remonta por `key={pagina}` — esto cierra el caso de un desmontaje por cualquier otra vía).
     useEffect(() => () => { restauracionTokenRef.current += 1; }, []);
 
+    // EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3: "el lienzo con fondo punteado, la página enmarcada y
+    // la pastilla de estado arriba"). El árbol pasa de "fila de controles + canvas con borde" a
+    // `.editor-stage` (fondo punteado, raíz del componente) → `.editor-st-meta` (la franja de
+    // estado: pastilla "Borrador · /ruta", el dispositivo en mono, y «Navegar»/«Actualizar» ahora
+    // como íconos chicos — EL SPEC: "pasan a ser íconos chicos en esa franja, no se pierden") →
+    // `.editor-canvas` (el MISMO `canvasRef` de siempre — el ResizeObserver que decide la escala no
+    // se tocó, sólo su envoltorio visual) → `.editor-st-frame` (la página enmarcada: radio + sombra,
+    // antes un simple `overflow:hidden` transparente).
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 'var(--duna-space-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+      <div className="editor-stage">
+        <div className="editor-st-meta">
+          <span className="editor-st-pill">
+            <i aria-hidden />
+            Borrador · {rutaPagina}
+          </span>
+          <span className="duna-mono">{LABEL_DISPOSITIVO[dispositivo]}</span>
           {/* "Navegar" (§ EDITOR-TIENDA-SELECCION-1): apagado por defecto —un clic adentro SELECCIONA
-              la sección, nunca navega—; encendido, la tienda se usa como un visitante real. Mismo
-              patrón de pill-toggle que las pestañas de página/dispositivo de la barra superior. */}
+              la sección, nunca navega—; encendido, la tienda se usa como un visitante real. Sigue
+              siendo `.duna-pill` (ya soporta `.is-on`) — sólo perdió el texto, § arriba. */}
           <button
             type="button"
             aria-pressed={navegando}
             onClick={alternarNavegar}
             className={`duna-pill${navegando ? ' is-on' : ''}`}
+            aria-label="Navegar"
             title={navegando
               ? 'Los clics navegan de verdad, como un visitante — desactiva para volver a seleccionar secciones'
               : 'Los clics seleccionan la sección que tocás — activa para usar la tienda como un visitante'}
           >
-            <Navigation aria-hidden /> Navegar
+            <Navigation aria-hidden />
           </button>
-          <button type="button" onClick={recargar} className="duna-btn duna-btn--ghost duna-btn--sm" title="Volver a cargar la vista con los últimos cambios">
-            <RotateCw /> Actualizar
+          <button
+            type="button"
+            onClick={recargar}
+            className="duna-btn duna-btn--ghost duna-btn--icon"
+            aria-label="Actualizar"
+            title="Volver a cargar la vista con los últimos cambios"
+          >
+            <RotateCw aria-hidden />
           </button>
         </div>
-        <div
-          ref={canvasRef}
-          style={{
-            position: 'relative',
-            flex: '1 1 auto',
-            minHeight: 0,
-            border: '1px solid var(--duna-border)',
-            borderRadius: 'var(--duna-r-l)',
-            overflow: 'hidden',
-            background: 'var(--duna-bg)',
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
+        <div ref={canvasRef} className="editor-canvas">
           {/* EL STAGE DEL DISPOSITIVO: ancho LITERAL del dispositivo elegido (así se activan los
               breakpoints reales de la tienda — § 4.3 de DISENO.md), reducido ENTERO con
               `transform: scale` sólo si no cabe en el canvas — nunca recortado, nunca con scroll
               horizontal. El `<iframe>` ve su propio tamaño REAL (anchoDispositivo × altoInterno)
               ANTES de la transformación: el scale es puramente visual, no cambia qué CSS responsivo
-              corre adentro. */}
-          <div style={{ width: anchoVisible, height: '100%', overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
+              corre adentro. Esta es LA PÁGINA ENMARCADA del spec: radio+sombra+fondo blanco vía
+              `.editor-st-frame` — el radio del teléfono es mayor (bisel), como en el prototipo. */}
+          <div
+            className="editor-st-frame"
+            style={{
+              width: anchoVisible,
+              height: '100%',
+              borderRadius: dispositivo === 'telefono' ? 'var(--duna-r-xl)' : 'var(--duna-r-l)',
+            }}
+          >
             <div
               style={{
                 width: anchoDispositivo,
@@ -599,9 +625,10 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
               />
             </div>
             {/* EL RÓTULO DE HOVER (§ arriba): vive DENTRO del envoltorio ya escalado (`anchoVisible`,
-                `position:relative`), nunca dentro del stage que lleva el `transform` — `cajaDeHover`
-                ya aplicó la escala a la caja medida, así que una SEGUNDA transformación la deformaría.
-                `pointer-events:none`: el rótulo no debe robarle el clic al iframe de abajo. */}
+                `position:relative`, ahora `.editor-st-frame`), nunca dentro del stage que lleva el
+                `transform` — `cajaDeHover` ya aplicó la escala a la caja medida, así que una SEGUNDA
+                transformación la deformaría. `pointer-events:none`: el rótulo no debe robarle el
+                clic al iframe de abajo. */}
             {hover && (() => {
               const titulo = tituloPorMarcadorRef.current?.[hover.marcador];
               if (!titulo) return null;
