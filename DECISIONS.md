@@ -52429,3 +52429,180 @@ línea); `verificar:nayoli:visual` reproduce el piso heredado exacto. Arnés rea
 capturas comparadas contra el prototipo. Commiteado en `slice/editor-secciones-1`, encima de `a2e13e7`.
 
 **Cierra `EDITOR-VISUAL-PANEL-1`.**
+
+## 2026-10-04 — Lo que el editor DIBUJA sobre la página se ve como el prototipo (`EDITOR-VISUAL-LIENZO-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el mismo pedido textual
+del owner del 2026-10-04 que aprobó `EDITOR-VISUAL-MARCO-1`/`EDITOR-VISUAL-PANEL-1` (*"veo que sí se
+han agregado cosas nuevas, pero también noto que aún luce como antes del rediseño en mayor parte"*),
+`observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. La aprobación autoriza la escritura, nunca el
+merge. Sigue `slice/editor-secciones-1` (no corta rama propia — el dispatch lo pide explícito),
+encima de `c1494cc` (`EDITOR-VISUAL-PANEL-1`).
+
+**Lo que se hizo, y lo que NO:** una pasada VISUAL de lo que el editor DIBUJA SOBRE LA PÁGINA REAL —
+el hover y el rótulo de sección, las zonas del hero, los controles de Alto/Oscurecer, la barra
+flotante de estilo, y el «+» entre secciones. `EDITOR-VISUAL-MARCO-1` hizo el chrome del panel
+(barra/riel/lienzo); `EDITOR-VISUAL-PANEL-1` hizo el panel (filas). Ninguno de los dos tocó este
+tercer tercio, que vive DENTRO del `<iframe>`, superpuesto sobre el storefront real por
+`EditorPuenteVivo.tsx` y los cuatro `Hero*.tsx`. Sin cambio de esquema, sin cambio de qué se guarda ni
+de cómo se publica. El detalle completo, con las deviaciones y lo verificado por ejecución, vive en
+`docs/editor-tienda/REDISENO.md` (nueva sección "SÉPTIMO PEDIDO FUERA DE ESTA NUMERACIÓN"); este
+asiento es el resumen.
+
+- **`lib/storefront/editor-puente.ts`** — `etiquetaDeSeccion` (nueva, pura) resuelve el rótulo humano
+  de un marcador `[data-editor-seccion]`: `REGISTRY[clave].label` para toda clave del REGISTRY
+  (incluidas `menu`/`footer`, que SÍ son claves reales — no una segunda lista), `nombreInstancia(tipo)`
+  para una instancia agregada (resuelto contra `seccionesHome`), y un mapa fijo de dos entradas
+  (`encabezado`/`suscripciones`) para las claves META que no están en ninguna de las dos. `ATRIBUTO_
+  EDITOR_ETIQUETA` (nueva constante) es el atributo donde `EditorPuenteVivo.tsx` escribe ese rótulo.
+  Siete tests nuevos en `editor-puente.test.ts` (69 totales en ese archivo, antes 62).
+- **`components/storefront/EditorPuenteVivo.tsx`** — el `<style>` del hover pasó de `outline: 2px
+  dashed #f59e0b` sin nombre a `box-shadow: inset` en tinta (blanco sobre el hero) + un rótulo oscuro
+  mono-chico en la esquina superior izquierda (`content: attr(data-editor-etiqueta)`, sincronizado por
+  una función nueva, `sincronizarEtiquetasSeccion`, con el MISMO patrón imperativo que ya usa
+  `sincronizarSeparadoresAgregar` para el «+»). El «+» entre secciones pasó de pastilla azul a la línea
+  + pastilla blanca del lenguaje del prototipo. `BarraEstiloElemento` se reescribió entera sobre el
+  popover del prototipo: Letra pasó de `<select>` a un trigger que abre una lista con muestra
+  tipográfica real + hint por par (diez pares, cada uno con su `Aa` en su propia familia); Tamaño pasó
+  del `<select>` numérico al stepper −/palabra/+; Color gana el disclosure completo —"Por defecto"
+  primero, los seis roles en chips con su muestra y su frase (`ROLES_COLOR_ELEMENTO[].descripcion`, ya
+  existía sin usarse), y «Avanzado ›» con el picker de hex personalizado (`custom:#rrggbb` — el modelo
+  ya lo soportaba desde `EDITOR-TIENDA-BARRA-FLOTANTE-1`, sin UI hasta acá). Sin aviso de contraste, tal
+  como pide el spec.
+- **Los 4 `Hero*.tsx`** (`HeroCurtina`, `HeroFicha`, `HeroMedia`, `HeroMediaMarquesina`) — `ZonaChip`
+  (las pastillas "+ X"/"Quitar X") pasó de chip azul punteado a la pastilla "ghost" translúcida del
+  prototipo. Un segundo componente local nuevo, `SegmentoZona` + `TRACK_SEGMENTADO`, reemplaza el
+  grupo de label + 3/4 chips sueltos apilados arriba-izquierda por UN control compacto segmentado,
+  anclado al PIE del hero (dentro del área visible — el `.alto-h` del prototipo asoma a caballo del
+  borde porque su `.hero` no recorta; la sección real sí lleva `overflow-hidden`). `Alto` (Curtina,
+  Ficha, Media) deriva su paso activo con la MISMA precedencia que `claseAlturaHero`; `Oscurecer`
+  (sólo Marquesina) reusa `veloComboDeCampos` (ya existente) para que el paso resaltado nunca pueda
+  discrepar del que calcula el panel.
+
+### Deviaciones medidas y declaradas
+
+- **El popover de la barra flotante abre SIEMPRE hacia abajo del trigger** — el prototipo invierte
+  según dónde cae `.ftb` en el viewport, pero decidir esa inversión bien exige la altura del VIEWPORT,
+  que `anclaje` (`GeometriaCampo`, `lib/storefront/campo-editable.ts`, sin tocar) no trae — sólo
+  coordenadas de documento. Simplificado a "siempre abajo" en vez de construir una inversión sin el
+  dato que la decidiría.
+- **Tamaño es un stepper, no el `<select>`/popover del prototipo** — SÍ es una pieza del prototipo
+  (`.tbsz`), pero distinta de Letra (que sí se construyó como popover-lista).
+- **Las zonas Titular/Subtítulo/Botones/Indicador siguen en flujo normal**, no en rectángulos
+  absolutos con posición fija por composición como el prototipo (una maqueta de UNA composición
+  estática puede fijar porcentajes; los componentes reales flexionan con el contenido). Con varias
+  zonas vacías a la vez, sus pastillas quedan en columna vertical dentro del flujo — ya no apiladas en
+  una esquina fija, pero tampoco repartidas por el lienzo como el prototipo.
+- **El rótulo de hover de `encabezado` no se ve**: ese marcador vive en un `<div style="display:
+  contents">` (`StoreNav.tsx`, fuera de `touches:`), que no genera caja — ni `position:relative` ni un
+  `::after` absoluto tienen dónde anclarse ahí.
+- **`position:relative` es NUEVO sobre todo `[data-editor-seccion]`** (antes ninguno lo llevaba),
+  necesario para anclar el rótulo de hover. Verificado contra el único `position:fixed` del árbol (el
+  `<header>` de `StoreNav.tsx`, que nunca lleva este atributo) y contra los nodos con hijos
+  `position:absolute` que sí existen (el `<footer>`, la media de fondo del hero): ninguno depende de
+  quedar SIN contexto de posicionamiento propio.
+- **TENSIÓN DE PROCESO, DECLARADA Y NO RESUELTA ACÁ — `components/storefront/` es un subárbol Tier 1
+  (CLAUDE.md, § "LA LISTA TAMBIÉN GANA SUBÁRBOLES": "son los bytes del visitante"), y este dispatch
+  llegó marcado `tier: 2`.** `EDITOR-VISUAL-MARCO-1` y `EDITOR-VISUAL-PANEL-1`, los dos slices
+  anteriores de esta misma cadena, declararon explícitamente "cero archivos de `components/
+  storefront/`" en su diff — nunca entraron a esta tensión. Este slice es el PRIMERO de la cadena
+  cuyo `touches:` pone archivos DENTRO de ese subárbol (`EditorPuenteVivo.tsx` y los 4 `Hero*.tsx`).
+  **Lo que hace que la escritura sea segura, medido y no asumido:** todo lo que estos archivos
+  agregan está gateado tras `useModoEditorActivo()` (los 4 `Hero*.tsx`) o tras la prop `activo`
+  (`EditorPuenteVivo.tsx`) — ninguno de los dos existe fuera del modo editor —, y `npm run
+  verificar:nayoli:visual` lo confirma por EJECUCIÓN: reproduce el piso heredado de la rama dígito a
+  dígito, cero píxeles nuevos. El `approval-reason` de este dispatch, además, cita la MISMA
+  autorización textual del owner que ya sirvió de "segunda etapa" a los dos slices anteriores — la
+  forma de una autorización Tier 1 (escribir tras el visto bueno explícito), aunque la etiqueta del
+  dispatch diga Tier 2. **No se resuelve acá si `components/storefront/` necesita una excepción
+  tipo-`timezone.ts` para chrome editor-only gateado (alcance acotado, conexión indirecta con el
+  visitante real) o si el protocolo de slicing debe tratarlo como Tier 1 siempre, sin importar el
+  gate.** Se deja nombrado como pregunta de proceso para quien gestiona `tier1_puertas`/el criterio
+  de la lista — el mismo tipo de hallazgo que `TIER1-LISTA-VENCIDA-2`/`TIER1-SUBARBOL-NO-DISPARABA-1`
+  ya documentaron para la ruta del dinero, ahora del lado de "bytes del visitante".
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3676/3676** — suma 7 sobre el piso de `EDITOR-VISUAL-PANEL-1` (3669), los 7 nuevos de `etiquetaDeSeccion`/`ATRIBUTO_EDITOR_ETIQUETA` en `lib/storefront/editor-puente.test.ts` |
+| `npm run test:integracion` | **346/346**, sin cambio (ningún archivo de `tests/integracion/` toca este diff) |
+| `npm run gate` | GREEN |
+| `npx next build` | compiló sin error (SWC — la autoridad para JSX/TSX, § CLAUDE.md; `/editor/tienda` sigue listado) |
+| `npx eslint` (7 archivos de `touches:` tocados) | 8 problemas (2 errores + 6 warnings) — 2 errores + 2 warnings en `EditorPuenteVivo.tsx`, 2 warnings en `HeroMedia.tsx`, 2 warnings en `HeroMediaMarquesina.tsx` — **TODOS pre-existentes**, confirmado línea por línea contra `git show HEAD:<archivo> \| npx eslint --stdin` sobre cada uno de los tres antes de este slice: mismo texto exacto (`campoAbiertoRef.current = campoAbierto` / "Cannot access refs during render"; `cerrarCampo()` pasado a `manejarTecla`; la dependencia faltante `seccionesHome`; el `aria-hidden` sobre `<source>`), sólo desplazado de línea por inserciones ajenas a esas zonas. `npm run gate` no corre eslint — se corrió igual, por higiene |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta del piso heredado de la rama** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado (drift heredado de la rama contra `main`, no de este slice) |
+
+### Verificado por ejecución — `.scratch/arnes-lienzo-visual.ts` (no comiteado)
+
+Adaptado de `.scratch/capturar-editor-visual.ts` (`EDITOR-VISUAL-PANEL-1`), apuntando al `<iframe
+title="Vista previa de la tienda">` (`frameLocator`) en vez de al panel. Postgres efímero propio
+(`:5592`), `migrate deploy` + seed canónico, `next build`/`next start` (`:4602`), Playwright con
+sesión real (`admin@sierranativa.co`), viewport 1440×900.
+
+Ocho capturas en `.scratch/capturas-lienzo-visual/` (gitignored): **01-inicio** (el lienzo recién
+cargado, el segmentado "Justo · Alto · Pantalla completa" siempre visible al pie del hero);
+**03-hover-brandStory** (el rótulo oscuro "Historia" en la esquina superior izquierda de la sección,
+al pasar el mouse — confirmado por ejecución que `etiquetaDeSeccion` resuelve igual en el navegador
+real: `ETIQUETA_HERO=Portada` leído contra el atributo `data-editor-etiqueta` del nodo `hero`
+real); **04-separador-agregar** (la línea + pastilla blanca "+ Agregar sección" al pasar el mouse
+por el borde entre dos secciones); **05-barra-estilo** (clic en el titular del hero: el overlay de
+texto + la barra flotante restilizada, con el segmentado de Alto visible debajo a la vez);
+**06-barra-popover-letra** (el popover de Letra abierto: las diez muestras tipográficas reales +
+hint, con el check en "Por defecto"); **07** (clic en "Alineación: Izquierda" desde la barra:
+confirmado que la escritura real sigue intacta — el panel muestra "Sin publicar"/"Guardando..." y el
+titular cambia de alineación en vivo, sin recargar el iframe).
+
+Comparadas a ojo contra `docs/editor-tienda/prototipo/captura-prototipo-inicio.webp`: el lenguaje
+visual coincide (chrome tinta/blanco, Hanken Grotesk, pastillas y popovers con sombra, el track
+oscuro del segmentado); las diferencias de CONTENIDO (Nayoli real vs. la maqueta "Finca San Adolfo")
+son esperadas, no defectos.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths del diff grepeados contra CLAUDE.md: `EditorPuenteVivo` (0), `editor-puente` (0),
+`HeroMedia`/`HeroMediaMarquesina` (0), `ZonaChip`/`BarraEstiloElemento`/`etiquetaDeSeccion`/
+`ATRIBUTO_EDITOR_ETIQUETA`/`SegmentoZona`/`claseAlturaHero`/`veloComboDeCampos`/`ELEMENTOS_ESTILO`/
+`ROLES_COLOR_ELEMENTO` (0 cada uno — CLAUDE.md no documenta ninguno de estos mecanismos; viven en
+REDISENO.md/este ledger), `HeroCurtina`/`HeroFicha` (1 cada uno, la MISMA línea — § "LA LISTA TAMBIÉN
+GANA SUBÁRBOLES", los cita como ejemplo de archivos que viven bajo `components/storefront/home/`).
+
+Esa línea sigue siendo CIERTA sin cambio: no afirma qué contienen esos dos archivos ni qué dibujan,
+sólo que existen bajo ese árbol — y siguen existiendo ahí. Ninguna sentencia de CLAUDE.md queda
+falsa. La TENSIÓN real que el diff sí abre —`components/storefront/` es Tier 1 y este dispatch llegó
+Tier 2— está declarada arriba, en Deviaciones, no acá: no es una sentencia que el diff vuelva falsa,
+es una pregunta de clasificación de proceso sobre el propio diff.
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (`slice/editor-secciones-1` contra `main`), no el commit, mismo
+eje que el resto de esta rama. Lo nuevo de ESTE commit: cero archivos de `app/(storefront)/`, y
+`verificar:nayoli:visual` reproduce el piso heredado exacto — nada de esto llega a un VISITANTE del
+storefront. Pero sí cambia bytes que el OWNER/MANAGER lee dentro del `<iframe>` de `/editor/tienda`:
+el color/forma del hover y su rótulo, las pastillas de zona, el segmentado de Alto/Oscurecer, y la
+barra flotante entera. **`strings`**: ningún string de cara al VISITANTE cambia; de cara al
+OWNER/MANAGER, los nombres de sección que ahora se leen en el hover ("Portada", "Historia", "Menú",
+"Pie de página"…, derivados de `REGISTRY[clave].label`, que ya existían como texto en el panel — no
+son strings nuevos, es la primera vez que se MUESTRAN en el lienzo) y las etiquetas ya existentes de
+la barra ("Por defecto", "La otra del par", los nombres de los diez pares, "Avanzado", "Personalizado")
+reorganizadas en el popover nuevo — sin texto nuevo que no existiera ya en algún lado del panel.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que `EDITOR-VISUAL-MARCO-1`/
+`EDITOR-VISUAL-PANEL-1` y el resto de esta rama. Gate completo verde (`npm run gate`: typecheck 0 ·
+3676/3676 · 346/346); `next build` compiló; eslint sin problemas nuevos (confirmado línea por línea
+contra el `HEAD` anterior); `verificar:nayoli:visual` reproduce el piso heredado exacto. Arnés real
+de punta a punta contra el LIENZO (no el panel), ocho capturas, comparadas contra el prototipo.
+Commiteado en `slice/editor-secciones-1`, encima de `c1494cc`.
+
+**TENSIÓN DE PROCESO declarada arriba (Deviaciones): este slice es el primero de la cadena cuyo
+`touches:` entra al subárbol Tier 1 `components/storefront/`, bajo un dispatch marcado Tier 2 — con
+la escritura medida como segura (gateada a modo editor, cero drift visual) pero sin que esa
+clasificación se resuelva acá.** Queda para quien revise este asiento junto con el resto de la rama.
+
+**Cierra `EDITOR-VISUAL-LIENZO-1`.**
