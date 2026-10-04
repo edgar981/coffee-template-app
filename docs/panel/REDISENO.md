@@ -162,8 +162,24 @@ son las que el prototipo trata a fondo.
 ### Configuración
 - Subsecciones a la izquierda: Negocio · Contacto y redes · Correos · Pagos y cobros · Equipo.
   **Cada bloque tiene su propio Editar**, con Cancelar y Guardar a la derecha.
-- **Pagos y cobros** lleva interruptores con nombres humanos: «Pagan antes de recibir», «Pagan al
-  recibir» y la pasarela con Tarjeta · PSE · Nequi en vez de códigos.
+- **Pagos y cobros** (rehecho en la v2 del prototipo):
+  - Una sola lista, **«Cómo te pueden pagar»**, en el orden en que el cliente la ve, con asa para
+    reordenar. Cada medio muestra su ícono, nombre, el dato clave (número, llave, cuenta ···· 4821,
+    tope de efectivo), su estado (Activo · Apagado · Falta configurar) y un interruptor.
+  - **Editar** abre el medio en el mismo lugar, con los campos de su tipo:
+    - Nequi y Daviplata: número y a nombre de quién.
+    - Bre-B: tipo de llave y la llave.
+    - Transferencia: banco, ahorros o corriente, número, titular y NIT.
+    - Efectivo: dónde aplica y hasta qué monto.
+    - Todos llevan «Lo que le dices a tu cliente al elegirlo» y, si aplica, «Pedirle la foto del
+      comprobante». Abajo están Quitar, Cancelar y Guardar.
+  - Un medio sin datos no se puede encender: su interruptor abre «Configurar».
+  - **Agregar medio** abre una hoja con los tipos. Los que ya existen aparecen como «Ya lo tienes»;
+    transferencia permite **varias cuentas**. Después pide el formulario del tipo y termina en
+    «Agregar y activar».
+  - Al lado, **«Así lo ve tu cliente»**: el selector de pago de la tienda, que se actualiza en vivo
+    con lo que se enciende, se apaga o se agrega.
+  - El pago en línea (Wompi) va aparte, con sus medios en chips y «Abrir Wompi ↗».
 - **Equipo:** dos roles explicados en una línea cada uno. El cambio de rol pide confirmación («¿Hacer
   dueña a Natalia Mejía? Podrá ver y cambiar los medios de pago…»). Las invitaciones pendientes van
   con «Reenviar».
@@ -206,4 +222,12 @@ interfaz que llama a las puertas de dinero; las puertas mismas no se tocan.
   dónde se configura.
 - **Duna sugiere**: depende de que exista la IA en el panel. El texto del prototipo es ilustrativo.
 - Las **descripciones finales de los roles**: tienen que salir de una sola fuente, no de tres.
+- Partes de **Pagos y cobros** que pueden no existir hoy en el modelo:
+  - Varias cuentas de transferencia.
+  - El orden en que el cliente ve los medios.
+  - Un texto de instrucciones por medio.
+  - «Pedir comprobante» por medio.
+  - El tope de efectivo.
+  - El tipo «Otro medio».
+  Cualquiera que no exista es un campo nuevo (gate del owner).
 - Las **cifras del prototipo** son de una tienda de ejemplo (Finca San Adolfo); no son datos reales.
