@@ -54452,3 +54452,117 @@ punta con ocho capturas comparadas contra el pedido del owner y `captura-prototi
 Commiteado en `slice/editor-secciones-1`, sobre `7db2c69`.
 
 **Cierra `EDITOR-PANEL-PIEL-1`.**
+
+## EDITOR-PANEL-ANCHO-1 — el panel del editor se ensancha/angosta arrastrando su borde
+
+Pedido del owner, textual (2026-10-05, revisando el editor): *"El ancho del side debería ser
+variable como hace vercel con el suyo… La zona de editar está muy angosta por eso creo que
+necesitamos que sea ajustable ese side."*
+
+### Lo construido
+
+- **`lib/admin/ancho-panel.ts`** (puro, capa 1): `ANCHO_PANEL_DEFECTO=308` (el de nacimiento, §
+  EDITOR-VISUAL-MARCO-1), `ANCHO_PANEL_MIN=280` (el piso de legibilidad ya fijado por
+  EDITOR-VISUAL-PANEL-1), `ANCHO_PANEL_MAX=640` (tope absoluto) y
+  `ANCHO_PANEL_MAX_FRACCION_VENTANA=0.6` (el panel nunca se come más del 60% de la ventana, para que
+  el lienzo siga siendo más ancho que lo que lo edita). `clampAnchoPanel`, `anchoPanelMaximo`,
+  `anchoPanelDesdeStorage`, `siguienteAnchoPorTeclado` (paso de 16px). 15 tests, los tres ejes que
+  pide el spec: recortes, teclado, valor guardado inválido/ausente.
+- **`TiendaPaginas.tsx`**: `anchoGuardado` (la preferencia cruda de `localStorage`,
+  `admin:editor-tienda:ancho-panel`) separado de `anchoPanel` (el valor APLICADO, recortado en vivo
+  contra `window.innerWidth`) — así "se recorta al achicar la ventana pero vuelve al crecer" sale
+  gratis, sin sobreescribir nunca la preferencia guardada. `gridTemplateColumns` pasa de `'308px
+  minmax(0,1fr)'` a `` `${anchoPanel}px minmax(0,1fr)` ``. La manija (`role="separator"`,
+  `aria-orientation="vertical"`, los tres `aria-value*`, enfocable) es `position:absolute` sobre el
+  div `position:relative` de la grilla — centrada en el borde panel|lienzo, SIN columna de grid
+  propia (eso habría reintroducido el gap entre panel y lienzo que EDITOR-PANEL-PIEL-1 quitó a
+  propósito). Arrastre por `pointermove`/`pointerup` en la VENTANA (no en la manija), con
+  `userSelect:none` mientras dura y una capa `position:fixed` transparente que evita que el
+  `<iframe>` del lienzo se coma el mouse. Doble clic y Enter resetean a 308. Sólo cuando `!angosto`
+  (bajo ese umbral el editor apila y no hay borde vertical que arrastrar).
+- **`editor.css`**: `.editor-panel-manija` (franja de agarre de 8px, línea visible de 2px al
+  centro/hover, mismo criterio que `.editor-row__grip`) y `.editor-panel-manija-overlay` (la capa de
+  arrastre).
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grepeados contra `CLAUDE.md`: `TiendaPaginas` (4 resultados — fetch-once, lazy-mount, selector de
+página, catálogo de categorías; ninguno sobre ancho/grid, ninguno queda falso), `editor-panel`/
+`.editor-panel`/`EditorTiendaPantallaCompleta`/`gridTemplateColumns`/`EDITOR-VISUAL-MARCO-1`/
+`EDITOR-PANEL-PIEL-1`/`EDITOR-VISUAL-NIVELES-AJUSTE-1`/`EDITOR-VISUAL-PANEL-1`/`ancho-panel`/
+`editor-iframe`/`recorrido-editor`/`data-tour`/`ANCHO_PANEL`/`useSheetDesdeAbajo` → **0
+coincidencias cada uno** (el único "308" que aparece en el archivo es `schema.prisma:308` y "307,
+no 308" de un redirect — ninguno es este panel). **Nada en `CLAUDE.md` nombra lo que este diff
+cambió.**
+
+### `customer_bytes`
+
+**`changed: true`** (el eje es la RAMA, no el commit). Nada toca el storefront — confirmado por
+`verificar:nayoli:visual`, abajo — pero sí cambia lo que el OWNER/MANAGER ve en `/editor/tienda`:
+aparece una manija nueva en el borde del panel (línea al pasar el mouse), y el panel puede quedar en
+cualquier ancho entre 280 y 640px en vez de fijo en 308. **`strings`**: ninguno visible a simple
+vista (el único texto nuevo es el `aria-label="Ajustar el ancho del panel"`, para lector de
+pantalla).
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado — el ancho se
+guarda en `localStorage` del navegador, nunca en la base.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm run gate` (typecheck && test && test:integracion) | GREEN — **3827/3827** (capa 1, incluye los 15 tests nuevos de `ancho-panel.test.ts`) · **356/356** (capa 2, carril de integración, 30.65 s) |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta del piso heredado de la rama** (idéntica a la de `EDITOR-PANEL-PIEL-1`: `ruta:home` 165052/4608000 px AA · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 c/u, caja `[445,Y]–[541,Y+10]`; los 2 hovers IDÉNTICOS) — exit 1 esperado, cero drift nuevo: ningún archivo de storefront en `touches:` ni en el diff real |
+
+### LÍMITE DEL ARNÉS, declarado — no se completó la verificación "por ejecución" con sesión real
+
+Se intentó un arnés Playwright real de punta a punta (`.scratch/verificar-ancho-panel.ts`, no
+comiteado) contra `next dev` + la base de desarrollo YA configurada (sin Postgres efímero propio:
+este slice no escribe datos, sólo `localStorage` del navegador). Tres obstáculos de infraestructura
+se diagnosticaron y resolvieron en el camino —ninguno del diff de este slice—: (1) Next 16 bloquea
+cross-origin los recursos de dev (y, de hecho, la hidratación) cuando el Host es `127.0.0.1` en vez
+de `localhost` — con el host correcto, la hidratación funcionó (confirmado con un toggle que sólo
+cambia por `onClick` de React); (2) Better Auth rechaza con 403 "Invalid origin" un puerto que no es
+el `:3000` configurado como origen de confianza; con `:3000` el origen pasó y el login HTTP llegó a
+`POST /api/auth/sign-in/email`. (3) Ahí se topó el límite real: la base de desarrollo conectada
+(`ep-still-sound-acfmedf2`, la `development` de Neon — confirmado por hostname contra la tabla de
+`CLAUDE.md`, § Bases de datos) devolvió `401 User not found` para `admin@sierranativa.co`, y un
+intento de `npm run db:seed` para crearlo falló con `P2021: The table "public.user" does not exist
+in the current database` — pese a que `npm run db:deploy -w @duna/core`, corrido inmediatamente
+antes, reportó **"No pending migrations to apply"** sobre 57 migraciones. Esa contradicción (schema
+"al día" según `migrate deploy`, pero sin la tabla que Better Auth necesita) no se investigó más:
+seguir indagando significaba seguir escribiendo contra la base COMPARTIDA del equipo para un
+problema que no es de este slice. **Ningún dato se escribió** — las dos operaciones que fallaron
+(`signUpEmail`, `prisma.user.update`) fallaron ANTES de comprometer ninguna fila; `db:deploy` no
+aplicó nada (0 pendientes). Verificado al cerrar: puertos 3000/3417 libres, sin proceso `next dev`
+colgado.
+
+**Consecuencia:** los seis ítems de "por ejecución en el arnés" del spec (arrastrar 308→520, ver
+reescalar, recargar y ver 520, doble clic→308, teclado, ventana 1280 con panel al máximo + las dos
+capturas 1440×900) **no se verificaron contra un navegador real** en esta sesión. Lo que SÍ cubre su
+lugar: la lógica de recorte/teclado/storage está probada exhaustivamente en capa 1
+(`ancho-panel.test.ts`, 15/15), y el cableado (grid, manija, handlers) se revisó por LECTURA contra
+el código real de `TiendaPaginas.tsx`/`editor.css` — no por ejecución. Es la capa 3 de
+`CLAUDE.md` (§ Las tres capas de verificación: "UI y flujos completos... checklist manual del
+owner") la que queda pendiente, declarada y no escondida.
+
+**Open follow-up, NO de este slice** (`EDITOR-BETTER-AUTH-TABLA-FALTANTE-DEV-1`): la base
+`development` de Neon (`ep-still-sound-acfmedf2`) parece no tener la tabla `public.user` que Better
+Auth necesita, pese a que `prisma migrate deploy` la reporta sin migraciones pendientes — contradicción
+medida el 2026-10-05, no investigada más por el motivo de arriba (evitar seguir escribiendo contra la
+base compartida sin necesidad). Si alguien construye el próximo arnés autenticado contra esta base,
+empieza por ahí.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama (ver
+EDITOR-PANEL-PIEL-1, arriba). `npm run gate` GREEN de punta a punta (typecheck · 3827/3827 ·
+356/356); `verificar:nayoli:visual` reproduce el piso heredado exacto, cero drift nuevo. La
+verificación de capa 3 (arrastre/teclado/persistencia real en navegador) NO se completó — ver
+"LÍMITE DEL ARNÉS" arriba — y queda para el gate visual del owner. Commiteado en
+`slice/editor-secciones-1`.
+
+**Cierra `EDITOR-PANEL-ANCHO-1`.**

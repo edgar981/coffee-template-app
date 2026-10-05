@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import { Plus, HelpCircle } from 'lucide-react';
 import TiendaSeccionEditor, { type TiendaSeccionEditorHandle, type AsaOrdenProps } from '@/components/admin/TiendaSeccionEditor';
@@ -15,6 +16,10 @@ import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { DISPOSITIVO_DEFECTO, seccionDesdeMarcador, marcadorDeSeccion, type DispositivoKey } from '@/lib/admin/editor-iframe';
+import {
+  ANCHO_PANEL_DEFECTO, ANCHO_PANEL_MIN, ANCHO_PANEL_MAX, CLAVE_ANCHO_PANEL,
+  anchoPanelMaximo, clampAnchoPanel, anchoPanelDesdeStorage, siguienteAnchoPorTeclado,
+} from '@/lib/admin/ancho-panel';
 import { Migas } from '@/components/admin/editor/Migas';
 import { AyudaCentro } from '@/components/admin/editor/AyudaCentro';
 import { temaDeNivel, type TemaAyudaId } from '@/lib/admin/ayuda-editor';
@@ -493,6 +498,84 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // la MISMA pregunta —hay rail, no hay espacio para dos columnas anchas— así que comparte el
   // umbral en vez de abrir un segundo listener de `matchMedia` para lo mismo.
   const angosto = useSheetDesdeAbajo();
+
+  // ── § EDITOR-PANEL-ANCHO-1 — EL ANCHO DEL PANEL, ajustable arrastrando su borde (pedido del owner,
+  //    2026-10-05: "como hace vercel con el suyo"). SÓLO aplica cuando NO es `angosto`: bajo ese
+  //    umbral el editor apila (panel arriba, lienzo abajo) y no hay borde vertical que arrastrar.
+  //
+  //    `anchoGuardado` es la PREFERENCIA cruda del dueño (lo que `localStorage` recuerda); `anchoPanel`
+  //    es el valor APLICADO, recortado en vivo contra el ancho de ventana ACTUAL (`clampAnchoPanel`).
+  //    Separar los dos es lo que hace que "al achicar la ventana el ancho se recorta, pero vuelve si
+  //    la ventana crece" (§ el spec) sea gratis: nunca se SOBREESCRIBE la preferencia guardada por
+  //    culpa de una ventana angosta momentánea, sólo se recalcula el recorte en cada render.
+  const [anchoGuardado, setAnchoGuardado] = useState<number>(ANCHO_PANEL_DEFECTO);
+  const [anchoVentana, setAnchoVentana] = useState(0); // 0 = todavía no medido (SSR-safe)
+  useEffect(() => {
+    try { setAnchoGuardado(anchoPanelDesdeStorage(localStorage.getItem(CLAVE_ANCHO_PANEL))); } catch { /* arranca en el default */ }
+  }, []);
+  useEffect(() => {
+    const medir = () => setAnchoVentana(window.innerWidth);
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, []);
+  const anchoPanelMax = anchoVentana > 0 ? anchoPanelMaximo(anchoVentana) : ANCHO_PANEL_MAX;
+  const anchoPanel = anchoVentana > 0 ? clampAnchoPanel(anchoGuardado, anchoVentana) : ANCHO_PANEL_DEFECTO;
+  const guardarAnchoPanel = useCallback((valor: number) => {
+    setAnchoGuardado(valor);
+    try { localStorage.setItem(CLAVE_ANCHO_PANEL, String(valor)); } catch { /* no-op, § dispositivoDesdeStorage */ }
+  }, []);
+
+  // EL ARRASTRE: `arrastrandoPanel` dispara el efecto de abajo, que escucha `pointermove`/`pointerup`
+  // en la VENTANA (no en la manija) — así el arrastre sigue funcionando aunque el puntero se mueva
+  // más rápido que el ancho de la franja de 8px (§ editor.css, `.editor-panel-manija`). `arrastreRef`
+  // guarda el punto de partida en una ref (no en estado) porque se lee en cada `pointermove` sin
+  // necesitar un re-render por sí solo — sólo `guardarAnchoPanel` lo dispara.
+  const [arrastrandoPanel, setArrastrandoPanel] = useState(false);
+  const arrastreRef = useRef<{ x: number; anchoInicial: number } | null>(null);
+  const iniciarArrastrePanel = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // sólo el botón principal
+    e.preventDefault();
+    arrastreRef.current = { x: e.clientX, anchoInicial: anchoPanel };
+    setArrastrandoPanel(true);
+  }, [anchoPanel]);
+  useEffect(() => {
+    if (!arrastrandoPanel) return;
+    const alMover = (e: PointerEvent) => {
+      const inicio = arrastreRef.current;
+      if (!inicio) return;
+      guardarAnchoPanel(clampAnchoPanel(inicio.anchoInicial + (e.clientX - inicio.x), window.innerWidth));
+    };
+    const alSoltar = () => { arrastreRef.current = null; setArrastrandoPanel(false); };
+    window.addEventListener('pointermove', alMover);
+    window.addEventListener('pointerup', alSoltar);
+    return () => {
+      window.removeEventListener('pointermove', alMover);
+      window.removeEventListener('pointerup', alSoltar);
+    };
+  }, [arrastrandoPanel, guardarAnchoPanel]);
+  // SIN selección de texto mientras se arrastra — un drag horizontal sobre texto del panel/lienzo
+  // seleccionaría la página entera si no se corta acá.
+  useEffect(() => {
+    if (!arrastrandoPanel) return;
+    const previo = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    return () => { document.body.style.userSelect = previo; };
+  }, [arrastrandoPanel]);
+
+  // TECLADO (§ el spec: "enfocable, y las flechas izquierda/derecha lo mueven de a 16px. Doble clic
+  // (o Enter con el foco) vuelve al ancho por defecto") y el doble clic — comparten el mismo destino,
+  // `guardarAnchoPanel`.
+  const resetearAnchoPanel = useCallback(() => guardarAnchoPanel(ANCHO_PANEL_DEFECTO), [guardarAnchoPanel]);
+  const onKeyDownManijaPanel = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      guardarAnchoPanel(siguienteAnchoPorTeclado(anchoPanel, e.key, window.innerWidth));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      resetearAnchoPanel();
+    }
+  }, [anchoPanel, guardarAnchoPanel, resetearAnchoPanel]);
 
   // Las categorías DERIVADAS del catálogo, para el campo-destino de Presentaciones (el combobox + el
   // aviso de destino inexistente). Se cargan UNA vez —misma fuente que /admin/productos
@@ -1450,21 +1533,26 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         display: angosto ? 'flex' : 'grid',
         flexDirection: angosto ? 'column' : undefined,
         // EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3, la anatomía: "Panel (308 px)") — el panel pasa de
-        // 1fr elástico a un ancho FIJO, como en el prototipo; el lienzo toma todo lo que sobra. Sólo
-        // el ANCHO cambia acá — ninguna fila/tarjeta del panel se tocó (fuera de `surface:` de este
-        // slice).
-        gridTemplateColumns: angosto ? undefined : '308px minmax(0, 1fr)',
+        // 1fr elástico a un ancho FIJO; el lienzo toma todo lo que sobra. § EDITOR-PANEL-ANCHO-1 — el
+        // fijo ya NO es el literal `308px`: es `anchoPanel`, la preferencia del dueño recortada en
+        // vivo contra la ventana actual (arriba). Sin manija (angosto), el panel sigue sin columna
+        // fija — apila, como siempre.
+        gridTemplateColumns: angosto ? undefined : `${anchoPanel}px minmax(0, 1fr)`,
         // § EDITOR-PANEL-PIEL-1 — SIN gap: el panel y el lienzo quedan PEGADOS, como el riel y el
         // panel (arriba). El panel ya trae su propio `border-right` (editor.css) para separarse del
         // lienzo — un gap acá dejaría crema entre los dos otra vez, la misma costura que se cerró
-        // entre riel y panel.
+        // entre riel y panel. § EDITOR-PANEL-ANCHO-1 — `position: relative`: ancla la manija
+        // (`.editor-panel-manija`, `position: absolute`) al borde panel|lienzo sin reservarle una
+        // columna propia, que reintroduciría el gap que esta misma nota acaba de descartar.
         gap: 0,
         flex: '1 1 auto',
         minHeight: 0,
+        position: 'relative',
       }}>
         {/* § EDITOR-VISUAL-NIVELES-1 — `.editor-panel` scopea el angostamiento de `.duna-form` a UNA
             columna (editor.css): la primitiva compartida se queda en dos columnas para sus otros
-            consumidores (drawers con ancho de sobra); acá, a 308px, dos columnas cortan el texto.
+            consumidores (drawers con ancho de sobra); acá, a 308px (su ancho de NACIMIENTO — hoy
+            ajustable, § EDITOR-PANEL-ANCHO-1), dos columnas cortan el texto.
             § EDITOR-VISUAL-NIVELES-AJUSTE-1 — `gridTemplateColumns: 'minmax(0, 1fr)'` es la causa
             RAÍZ del desborde del nivel Hero (medido: `panel.scrollWidth` 803 contra `clientWidth`
             308 — las cajas se cortaban por la derecha, § CLAUDE.md "la causa"). Sin columna
@@ -1743,6 +1831,35 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             </>
           )}
         </div>
+        {/* § EDITOR-PANEL-ANCHO-1 — LA MANIJA: arrastrar ensancha/angosta el panel, como el pedido del
+            owner ("como vercel con el suyo"). `position: absolute` sobre el div `position: relative`
+            de arriba, centrada en el borde panel|lienzo (`left: anchoPanel`, `translateX(-50%)` en
+            CSS) — así NO necesita su propia columna de grid, que habría reintroducido el gap que
+            EDITOR-PANEL-PIEL-1 quitó entre panel y lienzo. SÓLO cuando no es `angosto`: bajo ese
+            umbral el panel y el lienzo se apilan y no hay borde VERTICAL que arrastrar. `role=
+            "separator"` + `aria-orientation="vertical"` + los tres `aria-value*` (el spec: "role=
+            separator... enfocable"); el doble clic y Enter comparten destino con las flechas
+            (`resetearAnchoPanel`/`onKeyDownManijaPanel`, arriba). */}
+        {!angosto && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Ajustar el ancho del panel"
+            aria-valuenow={Math.round(anchoPanel)}
+            aria-valuemin={ANCHO_PANEL_MIN}
+            aria-valuemax={anchoPanelMax}
+            tabIndex={0}
+            className="editor-panel-manija"
+            style={{ left: anchoPanel }}
+            onPointerDown={iniciarArrastrePanel}
+            onKeyDown={onKeyDownManijaPanel}
+            onDoubleClick={resetearAnchoPanel}
+          />
+        )}
+        {/* La capa transparente que, SÓLO mientras dura el arrastre, evita que el mouse quede
+            "atrapado" por el `<iframe>` del lienzo (§ el spec: "el iframe no se come el mouse") — otro
+            documento, que no reenvía sus propios eventos de puntero a esta ventana. */}
+        {arrastrandoPanel && <div className="editor-panel-manija-overlay" />}
         {/* § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="lienzo"`: el objetivo del paso «El lienzo».
             Siempre presente, sea cual sea `modo` — es el hermano FIJO del panel de arriba, nunca
             condicional a `modo`/`pagina`. */}

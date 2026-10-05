@@ -410,6 +410,34 @@
                        padding: var(--duna-space-3) var(--duna-space-4); border-radius: var(--duna-r-l);
                        background: var(--duna-surface); box-shadow: var(--duna-shadow-3); border: 1px solid var(--duna-border); }
 
+/* ─── EDITOR-PANEL-ANCHO-1 ───────────────────────────────────────────────────────────────────────
+   LA MANIJA que ensancha/angosta el panel (pedido del owner, 2026-10-05: "como hace vercel con el
+   suyo"). Una franja de agarre más ancha que la línea que se ve —8px de agarre, 2px de línea
+   centrada— mismo criterio que `.editor-row__grip` (opacity:0→1 al hover): el blanco de agarre debe
+   ser más generoso que lo que el ojo ve, o la manija es imposible de atinar con el mouse. Posicionada
+   por el COMPONENTE (`left: anchoPanel`, TiendaPaginas.tsx) y centrada acá con `translateX(-50%)`,
+   para no necesitar su propia columna de grid (§ el comentario de ese archivo: eso reintroduciría el
+   gap que EDITOR-PANEL-PIEL-1 quitó entre panel y lienzo). */
+.editor-panel-manija {
+  position: absolute; top: 0; bottom: 0; width: 8px; transform: translateX(-50%);
+  z-index: 3; cursor: col-resize; background: none; border: 0; padding: 0;
+  display: flex; align-items: stretch; justify-content: center;
+}
+.editor-panel-manija::before {
+  content: ''; width: 2px; height: 100%; background: transparent;
+  transition: background var(--duna-dur-fast) var(--duna-ease);
+}
+.editor-panel-manija:hover::before, .editor-panel-manija:focus-visible::before {
+  background: var(--duna-ink);
+}
+.editor-panel-manija:focus-visible { outline: none; }
+
+/* La capa transparente que, SÓLO mientras dura el arrastre, cubre TODO el cuerpo del editor —
+   incluido el `<iframe>` del lienzo, otro documento que de otro modo se quedaría con los eventos de
+   puntero apenas el mouse lo sobrevuela. `cursor: col-resize` se queda puesto aunque el mouse ya no
+   esté sobre la manija en sí, mientras dure el arrastre. */
+.editor-panel-manija-overlay { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
+
 /* MOVIMIENTO REDUCIDO: sin animaciones (el spec). Ninguna de estas clases anima hoy —el salto entre
    pasos es instantáneo, sin transición—, pero la regla queda ESCRITA para que una futura transición
    de entrada no se cuele sin su guarda, mismo criterio que `.curva-ahora-pulso` (duna.css). */
