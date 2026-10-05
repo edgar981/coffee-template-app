@@ -11,6 +11,14 @@ import {
 } from './estilo-elemento';
 import { derivarPaleta, RAICES_DEFECTO } from './palette-derive';
 import { PARES_FUENTES } from './fuentes';
+// § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1: `MARQUEE_TITULO_FONT_SIZE` (lib/animation.ts) es el
+// tamaño de HOY de la frase SIN override — el techo/piso que `ESCALA_TAMANO.ticker.grande` se
+// ACERCA pero no iguala byte a byte (§ su comentario en estilo-elemento.ts: ese literal usa
+// `calc()`, incompatible con el extractor de tres números que la monotonía ya comparte con las
+// otras cuatro escalas). Sólo el TEST puede importar `lib/animation.ts` sin ciclo —
+// `estilo-elemento.ts` no puede, ese archivo importa `site-content-defaults.ts`, que importa a
+// éste—, así que el rango se afirma acá, contra el original, en vez de against un literal copiado.
+import { MARQUEE_TITULO_FONT_SIZE } from '@/lib/animation';
 
 // § EDITOR-TIENDA-BARRA-FLOTANTE-1 — capa 1, sin DOM.
 
@@ -22,15 +30,17 @@ test('elementosEstiloDeSeccion: hero declara los CINCO elementos del spec (titul
   ]);
 });
 
-test('elementosEstiloDeSeccion: una sección sin entrada (p. ej. marquesina) da [] — NUNCA lanza', () => {
-  assert.deepEqual(elementosEstiloDeSeccion('marquesina'), []);
+test('elementosEstiloDeSeccion: marquesina declara UN elemento ("texto", § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1); una sección sin entrada da [] — NUNCA lanza', () => {
+  assert.deepEqual(elementosEstiloDeSeccion('marquesina'), ['texto']);
   assert.deepEqual(elementosEstiloDeSeccion('nada-de-eso'), []);
 });
 
-test('metaElementoEstilo: hero.titulo es "titular"; un campo no declarado da null', () => {
+test('metaElementoEstilo: hero.titulo es "titular"; un campo no declarado da null; marquesina.texto es "ticker" con alineación omitida', () => {
   assert.equal(metaElementoEstilo('hero', 'titulo')?.tipo, 'titular');
   assert.equal(metaElementoEstilo('hero', 'eyebrow'), null);
-  assert.equal(metaElementoEstilo('marquesina', 'texto'), null, 'marquesina.texto queda fuera a propósito — ver el docstring del módulo');
+  assert.equal(metaElementoEstilo('marquesina', 'texto')?.tipo, 'ticker');
+  assert.equal(metaElementoEstilo('marquesina', 'texto')?.sinAlinear, true, 'la frase en bucle no tiene espacio sobrante que alinear — el control se omite');
+  assert.equal(metaElementoEstilo('hero', 'titulo')?.sinAlinear, undefined, 'los cinco elementos del hero siguen con alineación disponible, sin cambios');
 });
 
 test('ELEMENTOS_ESTILO: cada entrada declara un label no vacío', () => {
@@ -138,7 +148,7 @@ test('fontSizeDeEstilo: tamano null → undefined; cada tamano da el clamp decla
 
 test('ESCALA_TAMANO (vía fontSizeDeEstilo): monótona creciente, por tipo — pequeno < mediano < … < enorme en los TRES números del clamp', () => {
   const numeros = (clamp: string) => clamp.match(/-?[\d.]+/g)!.map(Number);
-  for (const tipo of ['titular', 'subtitulo', 'leyenda', 'boton'] as const) {
+  for (const tipo of ['titular', 'subtitulo', 'leyenda', 'boton', 'ticker'] as const) {
     let anterior = [-Infinity, -Infinity, -Infinity];
     for (const t of TAMANOS_ELEMENTO) {
       const actual = numeros(fontSizeDeEstilo({ ...ESTILO_ELEMENTO_VACIO, tamano: t }, tipo)!);
@@ -146,6 +156,15 @@ test('ESCALA_TAMANO (vía fontSizeDeEstilo): monótona creciente, por tipo — p
       anterior = actual;
     }
   }
+});
+
+test('ESCALA_TAMANO.ticker: el piso y el techo del rango (pequeno…enorme) encierran a MARQUEE_TITULO_FONT_SIZE (lib/animation.ts, el tamaño de HOY sin override) — la escala no puede "Por defecto"-achicar la frase', () => {
+  const numeros = (clamp: string) => clamp.match(/-?[\d.]+/g)!.map(Number);
+  const [pisoHoy, , techoHoy] = numeros(MARQUEE_TITULO_FONT_SIZE); // clamp(piso, calc(...), techo)
+  const [pisoPequeno] = numeros(fontSizeDeEstilo({ ...ESTILO_ELEMENTO_VACIO, tamano: 'pequeno' }, 'ticker')!);
+  const [, , techoEnorme] = numeros(fontSizeDeEstilo({ ...ESTILO_ELEMENTO_VACIO, tamano: 'enorme' }, 'ticker')!);
+  assert.ok(pisoPequeno <= pisoHoy, 'ni "Pequeño" debe partir por encima del piso de hoy');
+  assert.ok(techoEnorme >= techoHoy, 'ni "Enorme" debe quedar por debajo del techo de hoy');
 });
 
 test('LABEL_TAMANO_ELEMENTO: los cinco pasos tienen nombre en palabras, no un id técnico', () => {

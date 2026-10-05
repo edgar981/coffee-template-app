@@ -36,6 +36,10 @@ const leer = (rel: string) => readFileSync(path.join(RAIZ, rel), 'utf8');
 // nace con el patrón VIEJO es justo lo que este censo existe para atrapar; nacer ya migrado evita
 // la migración futura, pero el censo sigue siendo exhaustivo: hay que nombrarlos acá para que el
 // barrido de abajo no los vea como "fuera de lista".
+//
+// `HeroMediaMarquesina.tsx` SE SUMÓ (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1): el botón primario
+// de la zona «titular» del hero·sticky usaba `hover:opacity-90` (genérico, sin marca) — pasó a esta
+// MISMA familia, como el botón equivalente de `HeroMedia.tsx` (el hero "Portada").
 const CONSUMIDORES = [
   'components/storefront/BackToTop.tsx',
   'components/storefront/CartDrawer.tsx',
@@ -44,6 +48,7 @@ const CONSUMIDORES = [
   'components/storefront/home/SubscriptionCTABloque.tsx',
   'components/storefront/home/SubscriptionCTALinea.tsx',
   'components/storefront/home/HeroMedia.tsx',
+  'components/storefront/home/HeroMediaMarquesina.tsx',
   'components/storefront/home/HeroCurtina.tsx',
   'components/storefront/home/HeroFicha.tsx',
   'components/storefront/nosotros/NosotrosCierre.tsx',
@@ -175,7 +180,7 @@ test('barrido: ningún .tsx de components/storefront/ o app/(storefront)/ conser
   assert.deepEqual(ofensores, [], `patrón viejo aún presente en: ${ofensores.join(', ')}`);
 });
 
-test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 19 archivos + palette-derive.ts', () => {
+test('barrido: `CONSUMIDORES` + `CONSUMIDORES_HOVER_ACTIVE` son EXHAUSTIVAS — ningún .tsx del storefront usa `--sf-accion-hover` fuera de esos 23 archivos + palette-derive.ts', () => {
   const conAccionHover: string[] = [];
   for (const raiz of RAICES_STOREFRONT) {
     for (const archivo of walkTsx(path.join(RAIZ, raiz))) {

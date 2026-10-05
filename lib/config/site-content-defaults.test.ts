@@ -2059,7 +2059,34 @@ test('hero.estilos: basura en el guardado (no-objeto, un elemento inventado) NUN
   assert.deepEqual(Object.keys(r2.hero.estilos).sort(), ['ctaPrimarioLabel', 'ctaSecundarioLabel', 'fraseAlPie', 'subtitulo', 'titulo']);
 });
 
-test('una sección SIN `estilos` declarado (p. ej. marquesina) no gana la clave — no se escribe en absoluto', () => {
+test('una sección SIN `estilos` declarado (p. ej. trustBadges) no gana la clave — no se escribe en absoluto', () => {
   const r = resolverSiteContent({});
-  assert.ok(!('estilos' in r.marquesina), 'marquesina no declara estilos en REGISTRY — queda fuera a propósito');
+  assert.ok(!('estilos' in r.trustBadges), 'trustBadges no declara ningún elemento en ELEMENTOS_ESTILO — queda fuera');
+});
+
+// ─── marquesina.estilos (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1) — gemelo de hero.estilos ─────
+// `marquesina` DEJÓ de ser la sección-sin-`estilos` que el test de arriba usaba como ejemplo (de ahí
+// que ese test migrara a `trustBadges`): la frase del loop del hero·sticky (`marquesina.texto`) gana
+// su propia entrada, UN solo elemento en vez de los cinco de hero.
+
+test('REGISTRY.marquesina.estilos declara el ÚNICO elemento del spec ("texto"), derivado de estilo-elemento.ts', () => {
+  assert.deepEqual(REGISTRY.marquesina.estilos, ['texto']);
+});
+
+test('DEFAULTS.marquesina.estilos: "texto" nace "sin override" (byte-idéntico)', () => {
+  assert.deepEqual(DEFAULTS.marquesina.estilos.texto, { fuente: null, tamano: null, color: null, alinear: null });
+});
+
+test('resolverSiteContent({}): sin fila, marquesina.estilos resuelve a UN elemento vacío ("texto")', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(Object.keys(r.marquesina.estilos), ['texto']);
+  assert.deepEqual(r.marquesina.estilos.texto, { fuente: null, tamano: null, color: null, alinear: null });
+});
+
+test('marquesina.estilos.texto: un valor guardado se respeta; basura NUNCA lanza — SOFT', () => {
+  const r = resolverSiteContent({ marquesina: { estilos: { texto: { tamano: 'enorme', color: 'tostado' } } } });
+  assert.deepEqual(r.marquesina.estilos.texto, { fuente: null, tamano: 'enorme', color: 'tostado', alinear: null });
+
+  const r2 = resolverSiteContent({ marquesina: { estilos: 'basura' } });
+  assert.deepEqual(r2.marquesina.estilos.texto, { fuente: null, tamano: null, color: null, alinear: null });
 });

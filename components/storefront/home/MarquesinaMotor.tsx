@@ -18,6 +18,8 @@ import { imagenPortada } from "@/lib/producto-imagen";
 import { modoTarjetaMarquesina, tamanoSiCompleta, SIZES_TARJETA_MARQUESINA } from "@/lib/storefront/marquesina-tarjeta";
 import type { TransicionMarquesina } from "@/lib/config/site-content-defaults";
 import type { Product } from "@/types/product";
+import { estiloInlineDeElemento, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from "@/lib/config/estilo-elemento";
+import type { ClaveFuentePar } from "@/lib/config/fuentes";
 
 // EL MOTOR COMPARTIDO (§ EDITOR-TIENDA-MARQUESINA-SECCION-1) — la coreografía que
 // `HeroMediaMarquesina.tsx` construyó para la marquesina del hero (frase que corre por tiempo +
@@ -48,6 +50,8 @@ import type { Product } from "@/types/product";
 export function MarquesinaFraseMotor({
   campo, texto, progreso, estatico, tickerVelocidad, editando,
   ventana = UMBRAL_REVELADO_TEXTO,
+  estilo = ESTILO_ELEMENTO_VACIO,
+  fuenteParActivo = null,
 }: {
   /** La ruta editable ("marquesina.texto" en el hero, "marquesina.fraseBanda" en la banda suelta). */
   campo: string;
@@ -58,6 +62,12 @@ export function MarquesinaFraseMotor({
   /** Congela el ticker mientras ESTE campo se edita en vivo (§ EDITOR-TIENDA-CAMPO-ANCLADO-1). */
   editando: boolean;
   ventana?: { desde: number; hasta: number };
+  /** El estilo por elemento de ESTA frase (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1) — sólo
+   *  `marquesina.texto` lo declara en `ELEMENTOS_ESTILO` (estilo-elemento.ts); `marquesina.
+   *  fraseBanda` (la banda suelta) NO, así que su llamador nunca pasa esta prop. Default
+   *  `ESTILO_ELEMENTO_VACIO` ("sin override") deja a quien no la pasa BYTE-IDÉNTICO. */
+  estilo?: EstiloElementoResuelto;
+  fuenteParActivo?: ClaveFuentePar | null;
 }) {
   const velocidadTicker = velocidadTickerPxS(tickerVelocidad);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -73,7 +83,12 @@ export function MarquesinaFraseMotor({
     medir();
     window.addEventListener('resize', medir);
     return () => window.removeEventListener('resize', medir);
-  }, [texto, velocidadTicker, editando]);
+    // `estilo.fuente`/`estilo.tamano` en las deps (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1): los
+    // dos cambian el ancho real del texto (una fuente distinta tiene otras métricas; un tamaño
+    // distinto escala el glifo), así que un cambio de estilo debe re-medir el track — sin esto, la
+    // duración del ciclo quedaría calculada contra el ancho ANTERIOR al cambio hasta el próximo
+    // resize. `estilo.color`/`.alinear` no afectan el ancho: no hace falta repetir el objeto entero.
+  }, [texto, velocidadTicker, editando, estilo.fuente, estilo.tamano]);
 
   const transformRevelaTexto = useTransform(progreso, (p) => transformRevelaTextoDisplay(p, estatico, ventana));
   const opacidadRevelaTexto = useTransform(progreso, (p) => opacidadRevelaTextoDisplay(p, estatico, ventana));
@@ -88,6 +103,11 @@ export function MarquesinaFraseMotor({
         letterSpacing: MARQUEE_TITULO_LETTER_SPACING,
         paddingBottom: `${MARQUEE_MASCARA_RELLENO_EM}em`,
         marginBottom: `${-MARQUEE_MASCARA_RELLENO_EM}em`,
+        // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — sólo las claves PRESENTES en el estilo
+        // declarado sobreescriben lo de arriba (`estiloInlineDeElemento` devuelve `{}` sin ningún
+        // override, § estilo-elemento.ts): con ESTILO_ELEMENTO_VACIO (el default de todo llamador
+        // que no pasa `estilo`, y de `marquesina.texto` sin fila) el objeto queda BYTE-IDÉNTICO.
+        ...estiloInlineDeElemento(estilo, 'ticker', fuenteParActivo),
       }}
     >
       <motion.div style={{ transform: transformRevelaTexto, opacity: opacidadRevelaTexto }}>

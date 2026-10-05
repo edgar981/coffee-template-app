@@ -26,7 +26,7 @@ import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { Migas } from '@/components/admin/editor/Migas';
 import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
-import { metaElementoEstilo, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
+import { metaElementoEstilo, resolverEstiloElemento, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import type { TemaAyudaId } from '@/lib/admin/ayuda-editor';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
@@ -820,6 +820,13 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const aplicandoHistorialRef = useRef(false);
   const aplicarCambioForm = (nf: Datos) => {
     if (loteAntesRef.current === null) loteAntesRef.current = formRef.current as Datos;
+    // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — `formRef.current` se actualiza ACÁ, no sólo en
+    // el cuerpo del render (`formRef.current = form`, más abajo): esa asignación sólo corre en el
+    // PRÓXIMO render, así que dos llamadas SÍNCRONAS a `cambiar()`/`escribirCampoSinAbrir()` en el
+    // mismo tick (p. ej. "Quitar estilo" de un campo cruzado, cuatro escrituras de subcampo
+    // seguidas vía `onEscribirCruzado`) leerían la MISMA base vieja y la segunda pisaría a la
+    // primera — sólo la ÚLTIMA sobreviviría. Con esto, cada llamada ve el resultado de la anterior.
+    formRef.current = nf;
     setForm(nf);
     setHayBorrador(true);
     auto.marcarSucio(nf);
@@ -1277,6 +1284,27 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     cambiar({ estilos: { ...estilosActuales, [elemento]: ESTILO_ELEMENTO_VACIO } });
   };
 
+  // GEMELO de los dos de arriba, para un elemento estilizable que vive en una sección CRUZADA
+  // (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — hoy, `marquesina.texto` dentro de la tarjeta del
+  // hero). NO puede armar el objeto a mano como `escribirEstiloElemento` — el `form` de ESA sección
+  // no es éste —, así que va por el MISMO canal que la barra flotante usa para CUALQUIER sección:
+  // `onEscribirCruzado` con la ruta de tres partes `estilos.<elemento>.<subcampo>`, la que
+  // `fusionCampoEditable` (campo-editable.ts) ya sabe aplicar — sin pasar por `postMessage` (están
+  // en el mismo documento, como el resto de `onEscribirCruzado`).
+  const escribirEstiloCruzado = (destino: SeccionVista, elemento: string, sub: 'fuente' | 'tamano' | 'color' | 'alinear', valorCrudo: string) => {
+    onEscribirCruzado?.(destino, `estilos.${elemento}.${sub}`, valorCrudo);
+  };
+  // "Quitar" manda los CUATRO subcampos, uno por llamada — el canal cruzado no tiene un mensaje
+  // COMPUESTO como `mensajesQuitarEstiloElemento` (ese vive del lado del iframe). Es seguro porque
+  // `aplicarCambioForm` (arriba) sincroniza `formRef.current` en CADA llamada —de la sección
+  // DESTINO, no de ésta—, así que la segunda escritura ve el resultado de la primera en vez de
+  // pisarlo; sin esa sincronización, sólo la ÚLTIMA de las cuatro habría sobrevivido.
+  const quitarEstiloCruzado = (destino: SeccionVista, elemento: string) => {
+    for (const sub of ['fuente', 'tamano', 'color', 'alinear'] as const) {
+      onEscribirCruzado?.(destino, `estilos.${elemento}.${sub}`, '');
+    }
+  };
+
   // UN CAMPO de texto/destino. El combobox de destino vive DONDE su campo esté declarado (dentro de la
   // tarjeta, con bloques). Sin encabezado de grupo.
   const renderCampo = (campo: CampoTexto) => {
@@ -1389,6 +1417,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         {metaEstilo && (
           <EstiloElementoControles
             valor={estiloActual}
+            sinAlinear={!!metaEstilo.sinAlinear}
             onCambiar={(sub, v) => escribirEstiloElemento(campo.name, sub, v)}
             onQuitar={() => quitarEstiloElemento(campo.name)}
           />
@@ -1419,6 +1448,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     const value = String(valoresCruzados?.[destino]?.[campo.name] ?? '');
     const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onEscribirCruzado?.(destino, campo.name, e.target.value);
+    // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — ¿este campo cruzado es TAMBIÉN un elemento
+    // estilizable? `metaElementoEstilo` se consulta contra `destino` (la sección DUEÑA real, p. ej.
+    // `marquesina`), nunca contra `seccion` (la que lo muestra, `hero`) — la misma distinción que
+    // `camposDeSeccionEditor` (panel-controles.ts) ya usa para atribuir el campo a su dueño.
+    const metaEstiloCruzado = metaElementoEstilo(destino, campo.name);
+    const estilosCruzados = valoresCruzados?.[destino]?.estilos;
+    const estiloCruzadoActual = resolverEstiloElemento(
+      estilosCruzados && typeof estilosCruzados === 'object' && !Array.isArray(estilosCruzados)
+        ? (estilosCruzados as Record<string, unknown>)[campo.name]
+        : undefined,
+    );
     return (
       <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
         <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
@@ -1428,6 +1468,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           <input id={id} className="duna-input" value={value} onChange={onChange} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         )}
         <AyudaCampo texto={campo.hint} id={`${id}-hint`} />
+        {metaEstiloCruzado && (
+          <EstiloElementoControles
+            valor={estiloCruzadoActual}
+            sinAlinear={!!metaEstiloCruzado.sinAlinear}
+            onCambiar={(sub, v) => escribirEstiloCruzado(destino, campo.name, sub, v)}
+            onQuitar={() => quitarEstiloCruzado(destino, campo.name)}
+          />
+        )}
       </div>
     );
   };

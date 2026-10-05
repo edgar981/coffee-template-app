@@ -57,7 +57,7 @@
 
 import { REGISTRY, DEFAULTS, type SeccionKey } from './site-content-defaults';
 import { SECCIONES_TIENDA, type SeccionConfig } from '@/components/admin/tienda-secciones';
-import { elementosEstiloDeSeccion } from './estilo-elemento';
+import { elementosEstiloDeSeccion, ELEMENTOS_ESTILO } from './estilo-elemento';
 
 // ─── LADO A: lo que la tienda LEE ──────────────────────────────────────────────────────────────────
 
@@ -284,20 +284,26 @@ const CONTROLADOS_DETALLES_SECCION = ['volverArriba.visible', 'rielSocial.visibl
 
 /** DECLARACIÓN EXPLÍCITA de lo que la barra flotante + su control gemelo del panel
  *  (`components/admin/editor/EstiloElementoControles.tsx`, montado DENTRO de `TiendaSeccionEditor.
- *  tsx` bajo cada campo estilizable — NO vía `SeccionConfig`/`camposDeSeccionEditor`, porque ese
- *  control es HARDCODEADO al nombre de sección 'hero' y no un dato declarativo de
- *  `tienda-secciones.ts`, § EDITOR-TIENDA-BARRA-FLOTANTE-1) controlan: los CINCO elementos
- *  estilizables de hero, derivados de la MISMA fuente que `REGISTRY.hero.estilos`
- *  (`elementosEstiloDeSeccion`, estilo-elemento.ts) — nunca una sexta lista a mano que pudiera
- *  divergir de las otras dos. */
-const CONTROLADOS_ESTILO_ELEMENTO_HERO: string[] = elementosEstiloDeSeccion('hero').map((el) => `hero.estilos.${el}`);
+ *  tsx` bajo cada campo estilizable —incluido un campo CRUZADO, § `renderCampoCruzado`— NO vía
+ *  `SeccionConfig`/`camposDeSeccionEditor`, porque ese control se deriva de `ELEMENTOS_ESTILO`
+ *  directo y no de un dato declarativo de `tienda-secciones.ts`, § EDITOR-TIENDA-BARRA-FLOTANTE-1)
+ *  controlan: TODAS las secciones con entrada en `ELEMENTOS_ESTILO` (estilo-elemento.ts) — hoy
+ *  `hero` (los CINCO de siempre) y `marquesina` (`texto`, § EDITOR-TIENDA-ESTILO-MARQUESINA-
+ *  TICKER-1) —, derivadas de `Object.keys(ELEMENTOS_ESTILO)` + `elementosEstiloDeSeccion`, la MISMA
+ *  fuente que ya alimenta `REGISTRY.<seccion>.estilos` — nunca una lista a mano que pudiera
+ *  divergir. Antes de este slice sólo existía `hero`, así que iterar sobre las claves reales de
+ *  `ELEMENTOS_ESTILO` en vez de nombrar 'hero' a mano es lo que evita que la TERCERA sección que
+ *  gane un elemento estilizable necesite tocar este archivo para no quedar "leída y sin control". */
+const CONTROLADOS_ESTILO_ELEMENTO: string[] = Object.keys(ELEMENTOS_ESTILO).flatMap(
+  (seccion) => elementosEstiloDeSeccion(seccion).map((el) => `${seccion}.estilos.${el}`),
+);
 
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {
   return [
     ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_FOOTER_SECCION,
     ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
-    ...CONTROLADOS_DETALLES_SECCION, ...CONTROLADOS_ESTILO_ELEMENTO_HERO,
+    ...CONTROLADOS_DETALLES_SECCION, ...CONTROLADOS_ESTILO_ELEMENTO,
   ].sort();
 }
 

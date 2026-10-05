@@ -877,7 +877,11 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             elementos — ver su docstring en `MarquesinaMotor.tsx` y "EL REVELADO ENMASCARADO"/"EL
             TICKER HORIZONTAL" en `lib/animation.ts` para la derivación completa), parametrizado por
             el campo (`marquesina.texto`, el de SIEMPRE del hero) y sin `ventanaSalida` — el hero
-            nunca hace que su frase "se vaya". */}
+            nunca hace que su frase "se vaya".
+
+            `estilo`/`fuenteParActivo` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1): la frase gana
+            letra/tamaño/color por elemento, como el resto del hero — `tema.fuentePar` ya viajaba en
+            este destructuring para `hero.fraseAlPie` (§ "LA FRASE AL PIE" en la cabecera). */}
         <MarquesinaFraseMotor
           campo="marquesina.texto"
           texto={marquesina.texto}
@@ -885,6 +889,8 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           estatico={estatico}
           tickerVelocidad={hero.tickerVelocidad}
           editando={editandoTicker}
+          estilo={marquesina.estilos.texto}
+          fuenteParActivo={tema.fuentePar}
         />
 
         {/* LA TARJETA — MEDIDO: "encima" del texto y del velo. `z-20` (por encima del `z-10` del
@@ -1028,7 +1034,11 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
                     <div className="flex flex-wrap gap-2">
                       <Link
                         href={HERO_HREFS.primario}
-                        className="sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity duration-200 hover:opacity-90"
+                        // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — el hover pasa de
+                        // `hover:opacity-90` (genérico, sin marca) a la familia `--sf-accion-hover`
+                        // que ya usa este MISMO botón en `HeroMedia.tsx` (el hero "Portada") y el
+                        // resto de la familia de CTA primario (§ `lib/config/cta-primario.test.ts`).
+                        className="sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))]"
                         style={estiloInlineDeElemento(hero.estilos.ctaPrimarioLabel, 'boton', tema.fuentePar)}
                       >
                         <CampoEditable campo="hero.ctaPrimarioLabel">{hero.ctaPrimarioLabel}</CampoEditable>

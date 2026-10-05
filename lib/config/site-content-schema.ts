@@ -142,6 +142,11 @@ const marquesinaEditableSchema = z.object({
   producto5: z.string().optional(),
   producto6: z.string().optional(),
   transicion: z.string().optional(),
+  // `estilos` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1) — gemelo EXACTO de `hero.estilos`
+  // arriba: el resolver SOFT (`resolverEstilosSeccion`, vía `REGISTRY.marquesina.estilos`) decide
+  // cuáles claves son reales (hoy, sólo `texto`); el schema sólo evita que zod STRIPPEE el objeto
+  // entero al guardar (§ #65-B).
+  estilos: z.record(z.string(), estiloElementoSchema).optional(),
 });
 
 // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de

@@ -53466,3 +53466,194 @@ componentes del panel.
 
 **Cierra el follow-up `EDITOR-BARRA-ESTILO-QUITAR-WEBKIT-RACE-1` (de `EDITOR-BARRA-ESTILO-CLIC-1`).
 Cierra `EDITOR-BARRA-ESTILO-ESCALONADO-1`.**
+
+## 2026-10-04 — La frase de la marquesina del hero·sticky gana estilo por elemento (`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`)
+
+Tier 1 (toca `components/storefront/home/MarquesinaMotor.tsx`/`HeroMediaMarquesina.tsx`,
+`components/storefront/EditorPuenteVivo.tsx`), `writes: yes`, `base: main` (policy: current-main),
+`observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. Aprobado por el owner (2026-10-03: el
+rediseño del editor; la aprobación autoriza la escritura, nunca el merge). Sigue
+`slice/editor-secciones-1` (no corta rama nueva).
+
+### Lo medido — el follow-up que esto cierra
+
+`EDITOR-TIENDA-ZONAS-STICKY-TITULAR-1` coined este id (DECISIONS.md, § "Lo que se DEJÓ FUERA"):
+el spec de aquel slice también pedía estilo por elemento en `marquesina.texto`, pero las dos
+ubicaciones posibles en `ELEMENTOS_ESTILO` rompían `lib/config/estilo-elemento.test.ts` —archivo
+fuera de su `touches:`—, que afirmaba EXHAUSTIVAMENTE `elementosEstiloDeSeccion('marquesina') ===
+[]`. Este slice sí tiene ese archivo (y `MarquesinaMotor.tsx`, donde vive el render del loop) en
+`touches:`.
+
+### El cambio
+
+- **`marquesina.texto` entra a `ELEMENTOS_ESTILO`** (`estilo-elemento.ts`) con `tipo: 'ticker'` —
+  NO `'titular'`: el tamaño de HOY de la frase (`MARQUEE_TITULO_FONT_SIZE`, `lib/animation.ts`,
+  `clamp(76px, calc(17.25vw + 7px), 214px)`) ya EXCEDE el techo de 'titular' (168px, `ESCALA_
+  TAMANO.titular.enorme`), así que compartir la escala habría hecho que "Enorme" ACHICARA la frase
+  respecto a su default sin override. `ESCALA_TAMANO.ticker` es una progresión PROPIA (pequeño
+  44–100px … enorme 110–320px), con `grande` ACERCÁNDOSE al rango de hoy (76–214px) sin igualarlo
+  byte a byte —`MARQUEE_TITULO_FONT_SIZE` usa `calc(17.25vw + 7px)` en el medio, una expresión
+  compuesta que el extractor de tres números del test de monotonía (compartido por las cinco
+  escalas) no puede comparar—; "Por defecto" (sin override) sigue siendo la única garantía de
+  byte-identidad, no "grande".
+- **`sinAlinear: true`** en la metadata de `marquesina.texto` (`MetaElementoEstilo` gana este campo
+  OPCIONAL): la frase corre en un `<div>` `white-space:nowrap` del ancho EXACTO de su contenido
+  (`w-max`), sin espacio sobrante que un `text-align` pueda desplazar — ofrecer el control sería un
+  botón sin efecto visible. La barra flotante (`EditorPuenteVivo.tsx`) y el control del panel
+  (`EstiloElementoControles.tsx`) OMITEN el grupo de alineación cuando `sinAlinear` es `true`, cada
+  uno manteniendo UN separador (no dos) para no dejar un hueco doble en la fila de controles.
+- **`MarquesinaFraseMotor` (`MarquesinaMotor.tsx`) gana `estilo`/`fuenteParActivo` OPCIONALES**
+  (default = `ESTILO_ELEMENTO_VACIO`/`null`, sin override — byte-idéntico para `Marquesina.tsx`, la
+  banda suelta, que NO los pasa: su propio campo del loop es `fraseBanda`, que `ELEMENTOS_ESTILO` no
+  declara). `estiloInlineDeElemento(estilo, 'ticker', fuenteParActivo)` se mezcla en el MISMO objeto
+  `style` que ya lleva `fontSize`/`lineHeight`/`letterSpacing` literales — las claves del override
+  pisan a las literales sólo cuando están presentes. El efecto `useEffect` que mide el ancho del
+  track para calcular la duración del ticker gana `estilo.fuente`/`estilo.tamano` en sus deps: un
+  cambio de letra o tamaño cambia el ancho real del texto, así que debe re-medir — `color`/`alinear`
+  no afectan el ancho y no entran a esas deps.
+- **La barra flotante dejó de leer `hero.estilos` a secas.** Antes de este slice, `ELEMENTOS_ESTILO`
+  sólo tenía `hero`, así que `EditorPuenteVivo.tsx` leía `hero.estilos[campoAbierto.ruta.campo]` sin
+  mirar `ruta.seccion` — funcionaba por COINCIDENCIA (la única sección posible). Con `marquesina`
+  sumada, esa lectura hardcodeada habría mostrado "Por defecto" siempre para la frase (aunque la
+  ESCRITURA sí llegaba a la sección correcta, vía `mensajeEstiloElemento(seccion,...)` — sólo la
+  LECTURA estaba mal). Pasa a un mapa `{hero: hero.estilos, marquesina: marquesina.estilos}`
+  indexado por `campoAbierto.ruta.seccion` — las DOS secciones que hoy declaran algo en
+  `ELEMENTOS_ESTILO`, no un acceso dinámico sobre `SiteContentData` completo. `oscura` (la zona de
+  contraste para el filtro "se leen bien") se queda en `bandaOscuraCanonica('hero', hero.variante)`
+  sin cambio de VALOR —sólo se corrigió el comentario que decía "el único llamador es hero"—: la
+  frase de la marquesina SÓLO rinde dentro de la composición hero·sticky, nunca en la banda suelta,
+  así que su zona de contraste real sigue siendo la del hero.
+- **El PANEL necesitó una segunda vía de escritura.** `marquesina.texto` no se renderiza como campo
+  NATIVO en ninguna tarjeta propia — la sección "Marquesina" suelta dejó de declarar `texto`/
+  `productoSlug` en `EDITOR-TIENDA-MARQUESINA-EN-HERO-1`; hoy sólo se MUESTRA como campo CRUZADO
+  dentro de la tarjeta del hero (`seccionCruzada: 'marquesina'`). `renderCampoCruzado`
+  (`TiendaSeccionEditor.tsx`) ganó `escribirEstiloCruzado`/`quitarEstiloCruzado`, sobre el MISMO
+  canal `onEscribirCruzado` que ya existía, con la ruta de tres partes `estilos.<elemento>.
+  <subcampo>` que `fusionCampoEditable` (`lib/storefront/campo-editable.ts`, fuera de `touches:`,
+  no tocado) ya sabe aplicar — sin tocar `tienda-secciones.ts` ni `TiendaPaginas.tsx` (los dos fuera
+  de `touches:` de este slice).
+- **El "Quitar" del campo cruzado expuso una RACE pre-existente del canal `onEscribirCruzado`.** Ese
+  canal (`escribirCampoSinAbrir` en la sección DESTINO) nunca se había llamado dos veces en el MISMO
+  tick —hoy sólo escribe campos de texto plano, un `onChange` por vez—; el "Quitar estilo" manda los
+  CUATRO subcampos en llamadas SEPARADAS (el canal cruzado no tiene el mensaje COMPUESTO que sí tiene
+  la barra flotante, `TIPO_MENSAJE_CAMPOS_CAMBIO`). MEDIDO por lectura del código ANTES de construir:
+  `aplicarCambioForm` sólo sincronizaba `formRef.current` en el render SIGUIENTE (`formRef.current =
+  form` vive en el cuerpo del render, no en la función), así que dos llamadas síncronas a `cambiar()`
+  en el mismo tick leerían la MISMA base vieja y la segunda pisaría a la primera —sólo el ÚLTIMO de
+  los cuatro subcampos habría sobrevivido—. `aplicarCambioForm` gana una línea (`formRef.current =
+  nf;`, antes de `setForm`) que sincroniza el ref EN EL MOMENTO de la escritura: aditivo, no cambia
+  ningún comportamiento de una sola llamada por tick (el caso de SIEMPRE), sólo hace correcto el caso
+  de llamadas múltiples que este slice introduce por primera vez.
+- **`panel-controles.ts` generalizó `CONTROLADOS_ESTILO_ELEMENTO_HERO` → `CONTROLADOS_ESTILO_
+  ELEMENTO`**, derivado de `Object.keys(ELEMENTOS_ESTILO)` (antes, la sección `'hero'` nombrada a
+  mano). El chequeo derivado (`huecosDelPanel`) HABRÍA atrapado el hueco si no se generaliza —
+  medido: `marquesina.estilos.texto` apareció LEÍDO y no CONTROLADO en la primera corrida del test,
+  antes de este cambio.
+- **`HeroMediaMarquesina.tsx` — el botón primario de la zona titular pasa de `hover:opacity-90`
+  (genérico, sin marca) a la familia `--sf-accion-hover`**, la misma que ya usa el botón equivalente
+  de `HeroMedia.tsx` (el hero "Portada") y el resto de los 13 CTA primarios del storefront
+  (`lib/config/cta-primario.test.ts`, que sumó el archivo a su censo — 14 de 14 en `CONSUMIDORES`,
+  el "19 archivos" del barrido exhaustivo pasa a 23).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3741/3741** |
+| `npm run test:integracion` | **346/346** |
+| `npm run gate` | GREEN, corrida única sobre el árbol final (typecheck + 3741 + 346) |
+| `npx next build` | compiló sin error, 54 rutas |
+| `npx eslint` (los 16 archivos de `touches:` tocados) | CERO nuevos — verificado archivo por
+archivo contra `git show HEAD:<archivo> \| eslint --stdin`: mismo conteo antes/después en cada uno
+con hallazgos pre-existentes (ref-durante-render en `EditorPuenteVivo.tsx`/`TiendaSeccionEditor.tsx`,
+warnings de `react/no-children-prop` en los tests que usan `React.createElement`), los demás en 0 |
+
+**DEVIACIÓN MEDIDA — el PUERTO EFÍMERO de `test:integracion` quedó ocupado por un cluster huérfano
+de una corrida anterior de este mismo slice** (el trap de teardown de `postgres-efimero.sh` no
+alcanzó a correr; medido: `lsof -i :55432` mostraba un `postgres` vivo bajo el scratchpad de esta
+sesión). El remedio que el propio script imprime (`pg_ctl -D <datadir> stop -m immediate`) y `kill`
+requieren una shell no cubierta por los grants de este dispatch (`node`/`npm`/`npx` únicamente); se
+resolvió con `node -e "process.kill(<pid>, 'SIGTERM')"` — el mismo efecto, una herramienta ya
+concedida. Documentado para que el próximo slice que tope el mismo puerto ocupado sepa que no es un
+cluster ajeno: es el patrón de limpieza de ESTE repo cuando una corrida se corta a mitad camino.
+
+`npm run guarda:color` → `ruta-home` DIFIERE — **MISMA cifra EXACTA que `NAYOLI-HOME-DRIFT-RAMA-
+PREEXISTENTE-1`** (165.052/4.608.000 px consciente de AA, 174.711 crudo, caja
+`[105,862]–[1183,3581]`, idéntica a la medida por `EDITOR-COPY-TUTEO-1` dos commits atrás en esta
+misma rama); las otras 5 rutas + 2 hovers **IDÉNTICO (0px)**. Nayoli usa `hero.variante:'curtina'`
+siempre (nunca `'sticky'`) y su `marquesina.estilos.texto` es `ESTILO_ELEMENTO_VACIO` por default —
+ninguno de los archivos de `touches:` puede ser la causa de un drift que ya venía arrastrándose.
+
+### Verificado por ejecución — `.scratch/arnes-estilo-marquesina-ticker.ts` (no comiteado)
+
+Build de PRODUCCIÓN real, Postgres efímero, `hero.variante:'sticky'` + `marquesina.texto`/
+`.estilos.texto = {tamano:'enorme', color:'acento'}` + `tema.{fondo,tinta,acento}` custom, medido
+contra el DOM real vía Playwright (no sólo SSR):
+
+- **Escritorio (1280px): `font-size:307.2px`** — el paso "enorme" de `ESCALA_TAMANO.ticker`
+  (`clamp(110px,24vw,320px)` evaluado a 1280px = 320×0.96 = 307.2, dentro del rango), **NO** el techo
+  de 'titular' (168px) — confirma que el tipo `'ticker'` propio gobierna, no una reutilización de la
+  escala del titular.
+- **Teléfono (390px): `font-size:110px`** — el PISO del mismo clamp (24vw a 390px = 93.6px < 110px).
+- **`color:rgb(34,102,204)` = `#2266CC`**, el acento declarado — confirmado contra `section.sticky`
+  con `position:sticky` real (la composición correcta) y el nodo exacto (`bloqueClase` = la máscara
+  del loop, `absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 overflow-hidden whitespace-nowrap
+  font-playfair text-[var(--sf-sobre-banda,white)]`).
+- **Cambiando SÓLO `tema.acento` a `#CC6622`** (sin tocar `marquesina.estilos.texto`), el color
+  medido pasó a `rgb(204,102,34)` = `#CC6622` — el color SIGUE AL ROL de la paleta, no quedó fijo al
+  hex de la primera escritura. Ésta es la garantía que justifica "se guarda el rol" (§ REDISENO.md
+  § 5), verificada contra un navegador real, no sólo contra la función pura.
+- **BUG DEL PROPIO ARNÉS, encontrado y corregido antes de confiar en el resultado:** la primera
+  corrida puso `tema.fondo`/`tema.tinta` en `null` (sólo `acento` custom) y el color medido NUNCA
+  siguió al acento — no porque el mecanismo de este slice fallara, sino porque `cssPaleta()`
+  (`lib/config/palette-style.ts:45`) exige las TRES raíces no-null para inyectar CUALQUIER `:root`
+  custom; con cualquiera en `null` cae entero a los defaults de `globals.css`. Corregido escribiendo
+  las tres raíces.
+- **LÍMITE DEL ARNÉS, declarado sin resolver:** la captura "a mitad del scroll" no logró asentar el
+  REVELADO visual de la frase (`opacity`/`translateY`, atados a `useScroll` de framer-motion vía
+  `useProgresoScrollDesdeTope`) dentro del tiempo de espera fijo del arnés — en dos intentos (scroll
+  a 40% del documento completo, y luego a 30% del viewport) la captura siguió mostrando la frase
+  oculta (`translateY(100%)`, el estado de reposo). El MECANISMO de revelado no lo toca este slice
+  (`hero-marquesina.test.ts` ya lo cubre sin cambios, incluida la aserción de que arranca oculto en
+  progreso=0); lo que este arnés mide y confirma es el ESTILO aplicado al nodo real en un navegador
+  real — tamaño, color, y que sigue a la paleta —, no el timing de la animación de scroll. Capturas
+  en `.scratch/capturas-estilo-marquesina-ticker/` (no comiteadas): `*-reposo.png` muestra
+  correctamente la zona titular pequeña (`titularVisible` default) con el fondo/velo del hero; la
+  frase gigante no asienta visible en ninguna captura por el límite de arriba.
+- **La interacción de UI del panel (clic en la barra flotante / el control cruzado del hero en
+  `/admin/tienda`) NO se ejerció vía sesión autenticada en vivo** — fuera del alcance medible de este
+  arnés (exige login OWNER real). Verificado en su lugar por: (a) el mecanismo de escritura es el
+  MISMO canal (`onEscribirCruzado` → `escribirCampoSinAbrir` → `fusionCampoEditable`) que la barra
+  flotante y `EstiloElementoControles` nativo ya ejercitan hoy para `hero.*`, sin un camino nuevo que
+  inventar; (b) `panel-controles.test.ts` afirma que el campo queda LEÍDO y CONTROLADO sin exención;
+  (c) el render final (lo que CUALQUIER mecanismo de escritura termina produciendo) está confirmado
+  arriba contra el DOM real. Queda como el checklist manual del owner (capa 3, § CLAUDE.md).
+
+### Open follow-ups
+
+Ninguno coined por este slice.
+
+### `customer_bytes`
+
+**`changed: true`** (el eje es la RAMA, no el commit — § CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1).
+Dos cambios tocan código que un visitante puede ejecutar: (1) `MarquesinaMotor.tsx`/
+`HeroMediaMarquesina.tsx` ganan la capacidad de estilo-por-elemento para la frase del hero·sticky —
+INERTE para todo tenant medido hoy (Nayoli usa `'curtina'`; `marquesina.estilos.texto` nace
+`ESTILO_ELEMENTO_VACIO`, sin override, byte-idéntico sin que el dueño toque el panel); (2) el hover
+del botón primario de la zona titular del hero·sticky cambia de `opacity-90` a
+`translateY+--sf-accion-hover` — también INERTE para Nayoli (que no usa `'sticky'`), pero es un
+cambio de COMPORTAMIENTO real en el código que SÍ corre para cualquier tenant que active esa
+composición. **`strings: []`** — ningún texto nuevo: la zona reusa el copy que el dueño ya escribe
+en "Hero de la home", y el cambio de hover es puramente de comportamiento/CSS, sin copy.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma (`marquesina.estilos`/
+`hero.estilos` viven dentro del `Json` de `SiteContent`, ya existente), sin contrato cruzado.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama.
+
+**Cierra `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`.**

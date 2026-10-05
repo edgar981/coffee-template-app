@@ -480,6 +480,60 @@ estilo nunca se aplicaría visualmente habría sido una barra flotante que mient
 `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1` para el día que `MarquesinaMotor.tsx` entre a
 `touches:` de algún slice.
 
+**`EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1` ENTREGADO (2026-10-04).** `marquesina.texto` ganó su
+entrada en `ELEMENTOS_ESTILO` (`tipo: 'ticker'`, label "Frase", `sinAlinear: true` — la frase corre
+en un `<div>` `white-space:nowrap` del ancho exacto de su contenido, sin espacio sobrante que un
+`text-align` pueda desplazar, así que la barra y el control del panel OMITEN ese grupo para este
+elemento en vez de ofrecer un botón sin efecto). `'ticker'` es un TIPO PROPIO, no 'titular': el
+tamaño de HOY de la frase (`MARQUEE_TITULO_FONT_SIZE`, 76–214px) ya excede el techo de 'titular'
+(168px), así que compartir la escala habría hecho que "Enorme" ACHICARA la frase respecto a su
+default. `MarquesinaFraseMotor` (MarquesinaMotor.tsx) ganó `estilo`/`fuenteParActivo` OPCIONALES
+(default = sin override, byte-idéntico para `Marquesina.tsx`, la banda suelta, que NO los pasa —
+su propio campo, `fraseBanda`, no está en `ELEMENTOS_ESTILO`) y los mezcla en el `style` del `<div>`
+MÁSCARA del loop, encima del `fontSize`/`lineHeight`/`letterSpacing` literales de siempre.
+
+La BARRA FLOTANTE necesitó generalizarse: leía `hero.estilos` a secas (`EditorPuenteVivo.tsx`,
+comentario "hoy el ÚNICO llamador declara... hero" — ya no cierto), así que pasó a un mapa
+`{hero: hero.estilos, marquesina: marquesina.estilos}` indexado por `campoAbierto.ruta.seccion`. El
+PANEL necesitó una segunda vía de escritura: `marquesina.texto` sólo se renderiza en el panel como
+CAMPO CRUZADO dentro de la tarjeta del hero (`seccionCruzada: 'marquesina'`, § arriba) — la sección
+"Marquesina" suelta ya no declara `texto` en su propio `SeccionConfig` — así que `renderCampoCruzado`
+(`TiendaSeccionEditor.tsx`) ganó su propio par `escribirEstiloCruzado`/`quitarEstiloCruzado`, sobre el
+MISMO canal `onEscribirCruzado` con la ruta de tres partes `estilos.<elemento>.<subcampo>` que
+`fusionCampoEditable` ya entiende — sin tocar `tienda-secciones.ts` ni `TiendaPaginas.tsx` (fuera de
+`touches:`). El "Quitar" del campo cruzado manda los CUATRO subcampos en llamadas SEPARADAS (el canal
+cruzado no tiene el mensaje COMPUESTO que sí tiene la barra flotante), lo que exigió que
+`aplicarCambioForm` (TiendaSeccionEditor.tsx) sincronice `formRef.current` en el momento de la
+escritura —antes sólo se sincronizaba en el render siguiente—, para que la segunda llamada de las
+cuatro no pisara el resultado de la primera.
+
+`panel-controles.ts` generalizó `CONTROLADOS_ESTILO_ELEMENTO_HERO` (nombre viejo, hardcodeado a
+'hero') a `CONTROLADOS_ESTILO_ELEMENTO`, derivado de `Object.keys(ELEMENTOS_ESTILO)` en vez de la
+sección literal — así una TERCERA sección que gane un elemento estilizable no necesita tocar este
+archivo para no quedar "leída y sin control" (el chequeo derivado, § su propio docstring, ya lo
+habría atrapado si no se generaliza).
+
+`HeroMediaMarquesina.tsx` ganó de paso el fix del botón primario de su zona titular: usaba
+`hover:opacity-90` (genérico, sin marca) en vez de la familia `--sf-accion-hover` que ya usa el
+mismo botón en `HeroMedia.tsx` (el hero "Portada") y el resto de la familia de CTA primario
+(`lib/config/cta-primario.test.ts`, que sumó el archivo a su censo de 13→14 consumidores).
+
+**VERIFICADO POR EJECUCIÓN** (`.scratch/arnes-estilo-marquesina-ticker.ts`, no comiteado): build de
+producción real, Postgres efímero, `tema.{fondo,tinta,acento}` custom + `hero.variante:'sticky'` +
+`marquesina.texto`/`estilos.texto={tamano:'enorme',color:'acento'}`. Medido contra el DOM real vía
+Playwright — escritorio (1280px): `font-size:307.2px` (el paso "enorme" de la escala `ticker`,
+`clamp(110px,24vw,320px)` evaluado a 1280px; NO el techo de 'titular', 168px) y `color:rgb(34,102,204)`
+(= `#2266CC`, el acento declarado); teléfono (390px): `font-size:110px` (el PISO del mismo clamp).
+Cambiando SÓLO `tema.acento` a `#CC6622` (sin tocar `marquesina.estilos.texto`) el color medido pasó a
+`rgb(204,102,34)` — el color SIGUE AL ROL de la paleta, no quedó fijo al hex viejo. `section.sticky`
+con `position:sticky` confirma la composición correcta. **LÍMITE DEL ARNÉS, declarado:** la captura "a
+mitad del scroll" no logró asentar el REVELADO visual de la frase (`opacity`/`translateY` atados a
+`useScroll` de framer-motion) dentro del tiempo de espera fijo del arnés — el MECANISMO de revelado
+no lo toca este slice (sigue con sus propios tests en `hero-marquesina.test.ts`, sin cambios); lo que
+este arnés mide y confirma es el ESTILO aplicado al nodo real en un navegador real, no el timing de la
+animación de scroll. Las capturas viven en `.scratch/capturas-estilo-marquesina-ticker/` (no
+comiteadas).
+
 **VERIFICADO**: `npm run gate` (typecheck + 3506/3506 + 328/328 integración) GREEN; `next build`
 compiló sin error; `npx eslint` sobre los 24 archivos de `touches:` tocados — CERO problemas
 nuevos (confirmado línea por línea contra `git show HEAD:<archivo>`, mismo conteo antes/después en

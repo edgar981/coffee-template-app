@@ -802,3 +802,36 @@ test('hero.estilos.titulo con tamano declarado: la zona titular de sticky TAMBI�
   assert.match(html, /<h2[^>]*style="[^"]*font-size:clamp\(72px/, 'el paso "enorme" de ESTILO-ELEMENTO debe aplicar al <h2> de la zona');
   assert.match(html, /<h2[^>]*style="[^"]*color:var\(--sf-acento\)/, 'el color por rol también debe aplicar');
 });
+
+// ─── § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — marquesina.estilos.texto, el seguimiento que
+// EDITOR-TIENDA-BARRA-FLOTANTE-1 dejó abierto (su `touches:` no alcanzaba `MarquesinaMotor.tsx`) ───
+
+test('DEFAULTS (marquesina.estilos.texto sin override): la máscara sigue sin ningún `color`/`font-family` de override — byte-idéntico', () => {
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.doesNotMatch(html, /color:var\(--sf-/, 'sin override, ningún color por rol debe emitirse en la máscara del loop');
+});
+
+test('marquesina.estilos.texto con tamano/color declarados: la MÁSCARA del loop (el `<div>` de afuera) emite el override, por encima del font-size/color literal de siempre', () => {
+  const content = {
+    ...DEFAULTS,
+    marquesina: {
+      ...DEFAULTS.marquesina,
+      estilos: { ...DEFAULTS.marquesina.estilos, texto: { fuente: null, tamano: 'enorme' as const, color: 'acento' as const, alinear: null } },
+    },
+  } as SiteContentData;
+  const html = renderHeroMediaMarquesina(content);
+  // El override va DESPUÉS de las claves literales en el mismo objeto `style` (§ MarquesinaMotor.tsx):
+  // `font-size` termina siendo el del paso "enorme" de la escala `ticker`, no `MARQUEE_TITULO_FONT_SIZE`.
+  assert.doesNotMatch(html, new RegExp(`font-size:${MARQUEE_TITULO_FONT_SIZE.replace(/[().]/g, '\\$&')}`), 'con tamano declarado, el literal de siempre debe quedar reemplazado');
+  assert.match(html, /font-size:clamp\(110px/, 'el paso "enorme" de la escala `ticker` debe aplicar — NO la de "titular" (168px), que es menor que el default de hoy');
+  assert.match(html, /color:var\(--sf-acento\)/, 'el color por rol debe aplicar sobre la máscara del loop');
+});
+
+test('marquesina.estilos.texto: "Por defecto" (tamano:null) sigue dando el tamaño de HOY — MARQUEE_TITULO_FONT_SIZE, sin recortar al techo de "titular"', () => {
+  // La razón de ser de un tipo "ticker" PROPIO (§ ELEMENTOS_ESTILO, estilo-elemento.ts): si la
+  // frase compartiera la escala de "titular", "Por defecto" seguiría dando el literal de siempre
+  // (null nunca emite override) — lo que este test afirma es justamente eso, para que nadie lo lea
+  // como evidencia de que daría igual compartir la escala.
+  const html = renderHeroMediaMarquesina(DEFAULTS as SiteContentData);
+  assert.ok(html.includes(`font-size:${MARQUEE_TITULO_FONT_SIZE}`), 'sin override, el tamaño sigue siendo el literal medido de siempre');
+});

@@ -96,6 +96,15 @@ test('hero.estilos: un ELEMENTO con nombre arbitrario sobrevive el PARSE (el wri
   assert.deepEqual(parsed.hero!.estilos, { unElementoInventado: { color: 'acento' } });
 });
 
+// § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — gemelo de `hero.estilos` arriba, para el único
+// elemento de marquesina (`texto`, la frase del loop del hero·sticky).
+test('marquesina: `estilos` SOBREVIVE al parse (si no, zod lo descartaría al guardar, § #65-B)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    marquesina: { estilos: { texto: { tamano: 'enorme', color: 'acento' } } },
+  });
+  assert.deepEqual(parsed.marquesina!.estilos, { texto: { tamano: 'enorme', color: 'acento' } });
+});
+
 // ─── NOSOTROS-COMPOSICION-1: la imagen de la historia y el CTA de cierre SOBREVIVEN al parse ─────
 test('nosotrosHistoria: `imagen` SOBREVIVE al parse (si no, zod la descartaría al guardar)', () => {
   const parsed = siteContentEditableSchema.parse({ nosotrosHistoria: { imagen: '/x.jpg' } });

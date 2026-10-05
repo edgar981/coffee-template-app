@@ -403,6 +403,22 @@ test('calibración: hero.estilos.<elemento> está LEÍDO y CONTROLADO para los C
   assert.ok(!huecos.some((h) => h.startsWith('hero.estilos.')));
 });
 
+// § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — `marquesina.estilos.texto` nace CONTROLADO, en el
+// MISMO slice que lo suma al lado "leído" (`REGISTRY.marquesina.estilos`) — nunca pasa por
+// `PENDIENTE_PANEL`. Es la SEGUNDA sección de `ELEMENTOS_ESTILO`; `CONTROLADOS_ESTILO_ELEMENTO`
+// (panel-controles.ts) se generalizó a iterar `Object.keys(ELEMENTOS_ESTILO)` en vez de nombrar
+// 'hero' a mano — este test es lo que habría fallado si esa generalización no se hubiera hecho.
+test('calibración: marquesina.estilos.texto está LEÍDO y CONTROLADO, sin exención', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(leidos.includes('marquesina.estilos.texto'));
+  assert.ok(controlados.includes('marquesina.estilos.texto'));
+  assert.ok(!pendientes.has('marquesina.estilos.texto'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('marquesina.estilos.texto'));
+});
+
 // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1: `marquesina.texto`/`.productoSlug` dejaron de declararse en
 // `MARQUESINA.campos` y pasaron a `HERO.campos` (con `seccionCruzada: 'marquesina'`, § el docstring
 // de `CampoTexto` en tienda-secciones.ts) — se editan ahora desde la tarjeta del hero, porque la

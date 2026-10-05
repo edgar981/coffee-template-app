@@ -442,6 +442,12 @@ export interface MarquesinaContent {
   producto5: string;
   producto6: string;
   transicion: TransicionMarquesina;
+  // `estilos` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1) — gemelo de `HeroContent.estilos`
+  // (§ su docstring arriba), con UN elemento: `texto`, la frase del loop del hero·sticky
+  // (`elementosEstiloDeSeccion('marquesina')`, estilo-elemento.ts — fuente ÚNICA, no una segunda
+  // lista acá). Nace `ESTILO_ELEMENTO_VACIO` = sin override = byte-idéntico (§ `MarquesinaFraseMotor`,
+  // MarquesinaMotor.tsx).
+  estilos: Record<string, EstiloElementoResuelto>;
 }
 
 // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1) — ya era MIEMBRO de
@@ -1979,6 +1985,11 @@ export const DEFAULTS: SiteContentData = {
     producto5: '',
     producto6: '',
     transicion: 'subir',
+    // `estilos` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1): el default es "sin ningún override"
+    // para el único elemento — byte-idéntico, mismo criterio que `hero.estilos` arriba.
+    estilos: {
+      texto: ESTILO_ELEMENTO_VACIO,
+    },
   },
   // LA BANDA DE INSIGNIAS DE CONFIANZA (§ CORTE-TRUSTBADGES-OCULTABLE-1, ver el docstring de
   // `TrustBadgesContent` arriba). `visible: true` = HOY, byte a byte: la banda se monta siempre hoy
@@ -2626,6 +2637,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' },
       transicion: { claves: TRANSICIONES_MARQUESINA, canonica: 'subir' },
     },
+    // `estilos` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1): DERIVADO de
+    // `elementosEstiloDeSeccion('marquesina')`, nunca una lista escrita a mano acá — mismo criterio
+    // que `hero.estilos` arriba.
+    estilos: elementosEstiloDeSeccion('marquesina'),
     campos: {
       texto: 'requerido',
       imagen: 'requerido',

@@ -376,7 +376,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
   // `seccionesHome` (§ SECCIONES-INSTANCIAS-1): necesario para que el branch de 'orden' (abajo)
   // sepa qué ids de instancia EXISTEN de verdad al re-resolver el DOM — mismo contrato que
   // `resolverOrdenCompleto` en todo el resto del mecanismo.
-  const { hero, tema, seccionesHome } = useSiteContent();
+  // `marquesina` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1): la frase del loop del hero·sticky
+  // gana su propio estilo por elemento — segunda sección con entradas en `ELEMENTOS_ESTILO`, así
+  // que la barra necesita leer `marquesina.estilos`, no sólo `hero.estilos`.
+  const { hero, marquesina, tema, seccionesHome } = useSiteContent();
   const schemaRef = useRef<typeof import('@/lib/config/site-content-schema') | null>(null);
   const navegarRef = useRef(false);
 
@@ -391,11 +394,22 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     ),
     [tema.fondo, tema.tinta, tema.acento, tema.origenTexto, tema.origenAccion],
   );
-  // Hoy el ÚNICO llamador declara elementos estilizables en `hero` (§ ELEMENTOS_ESTILO,
-  // estilo-elemento.ts) — `bandaOscuraCanonica('hero', …)` es por tanto la zona correcta sin
-  // necesitar leer `ruta.seccion` (que todavía no existe en este punto del render).
+  // `bandaOscuraCanonica('hero', …)` sigue siendo la zona correcta aunque `ELEMENTOS_ESTILO` ya NO
+  // declare sólo `hero` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1, sumó `marquesina.texto`): esa
+  // frase SÓLO rinde dentro de la composición hero·sticky —comparte fondo/velo con el hero, nunca
+  // el de la banda SUELTA `Marquesina.tsx`, que no es un `metaElementoEstilo` real—, así que su
+  // zona de contraste sigue siendo la del hero, sea cual sea `ruta.seccion` del campo abierto.
   const oscura = bandaOscuraCanonica('hero', hero.variante);
   const rolesLegibles = useMemo(() => rolesColorLegibles(derivado, oscura), [derivado, oscura]);
+  // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — el estilo guardado de un elemento vive en SU
+  // sección, no siempre en `hero`: un mapa explícito (las DOS secciones que hoy declaran algo en
+  // `ELEMENTOS_ESTILO`), no un acceso dinámico sobre `SiteContentData` completo — ninguna tercera
+  // sección existe todavía, y un acceso genérico por string sobre el content entero sería más
+  // difícil de tipar sin ganar nada hoy.
+  const estilosPorSeccion: Record<string, Record<string, EstiloElementoResuelto>> = {
+    hero: hero.estilos as Record<string, EstiloElementoResuelto>,
+    marquesina: marquesina.estilos as Record<string, EstiloElementoResuelto>,
+  };
 
   // ── EL CAMPO FLOTANTE (§ arriba) ───────────────────────────────────────────────────────────────
   const [campoAbierto, setCampoAbierto] = useState<EstadoCampoAbierto | null>(null);
@@ -771,6 +785,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     // listener) en cada tecla del campo flotante, sin ganar nada.
   }, [activo]);
 
+  // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — calculado UNA vez, no dos veces en el JSX de abajo
+  // (el gate de si la barra aparece, y el `sinAlinear` que decide si ofrece alineación).
+  const metaElementoEstiloAbierto = campoAbierto ? metaElementoEstilo(campoAbierto.ruta.seccion, campoAbierto.ruta.campo) : null;
+
   if (!activo) return null;
   return (
     <>
@@ -913,13 +931,14 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
           de los elementos declarados en `ELEMENTOS_ESTILO` (estilo-elemento.ts, hoy sólo `hero`).
           Portal PROPIO, sibling del de arriba: la barra no es parte del campo, es un control
           aparte que lo acompaña — separarlos deja a cada uno con su propia key/ciclo de vida. */}
-      {campoAbierto && metaElementoEstilo(campoAbierto.ruta.seccion, campoAbierto.ruta.campo) && (
+      {campoAbierto && metaElementoEstiloAbierto && (
         <BarraEstiloElemento
           key={`${campoAbierto.ruta.seccion}.${campoAbierto.ruta.campo}`}
           seccion={campoAbierto.ruta.seccion}
           elemento={campoAbierto.ruta.campo}
-          estilo={(hero.estilos as Record<string, EstiloElementoResuelto>)[campoAbierto.ruta.campo] ?? ESTILO_ELEMENTO_VACIO}
+          estilo={estilosPorSeccion[campoAbierto.ruta.seccion]?.[campoAbierto.ruta.campo] ?? ESTILO_ELEMENTO_VACIO}
           rolesLegibles={rolesLegibles}
+          sinAlinear={!!metaElementoEstiloAbierto.sinAlinear}
           anclaje={{
             top: Number(campoAbierto.estilo.top), left: Number(campoAbierto.estilo.left), height: Number(campoAbierto.estilo.height),
           }}
@@ -976,12 +995,16 @@ function hexDeColorPersonalizado(color: EstiloElementoResuelto['color']): string
  * (`custom:#rrggbb`, ya soportado por `estilo-elemento.ts` pero sin UI hasta este slice).
  */
 function BarraEstiloElemento({
-  seccion, elemento, estilo, rolesLegibles, anclaje, onPreviewColor,
+  seccion, elemento, estilo, rolesLegibles, sinAlinear = false, anclaje, onPreviewColor,
 }: {
   seccion: string;
   elemento: string;
   estilo: EstiloElementoResuelto;
   rolesLegibles: readonly RolColorElemento[];
+  /** § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — `metaElementoEstilo(seccion,elemento)?.sinAlinear`
+   *  del llamador: oculta el grupo de alineación (sin efecto visible para este elemento, p. ej. la
+   *  frase en bucle de la marquesina) en vez de ofrecer un control que no cambia nada. */
+  sinAlinear?: boolean;
   anclaje: { top: number; left: number; height: number };
   onPreviewColor: (cssColor: string | null) => void;
 }) {
@@ -1121,21 +1144,29 @@ function BarraEstiloElemento({
       </button>
       <div style={separador} />
 
-      {/* ALINEACIÓN — tres íconos cuadrados, mismo trío de siempre, chrome ink/blanco. */}
-      <div role="group" aria-label="Alineación" style={{ display: 'flex', gap: 2 }}>
-        {(
-          [
-            { v: 'izquierda' as AlineacionElemento, Icon: AlignLeft, label: 'Izquierda' },
-            { v: 'centro' as AlineacionElemento, Icon: AlignCenter, label: 'Centro' },
-            { v: 'derecha' as AlineacionElemento, Icon: AlignRight, label: 'Derecha' },
-          ] as const
-        ).map(({ v, Icon, label }) => (
-          <button key={v} type="button" aria-label={label} onClick={() => enviar('alinear', v)} style={botonCuadrado(estilo.alinear === v)}>
-            <Icon size={13} aria-hidden="true" />
-          </button>
-        ))}
-      </div>
-      <div style={separador} />
+      {/* ALINEACIÓN — tres íconos cuadrados, mismo trío de siempre, chrome ink/blanco. SE OMITE con
+          `sinAlinear` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1, p. ej. la frase de la marquesina,
+          sin espacio sobrante que un `text-align` pueda desplazar) — junto con su separador
+          TRAILING, no el que viene antes del stepper de tamaño: así el resultado queda
+          [Letra][sep][Tamaño][sep][Color], nunca un separador doble. */}
+      {!sinAlinear && (
+        <>
+          <div role="group" aria-label="Alineación" style={{ display: 'flex', gap: 2 }}>
+            {(
+              [
+                { v: 'izquierda' as AlineacionElemento, Icon: AlignLeft, label: 'Izquierda' },
+                { v: 'centro' as AlineacionElemento, Icon: AlignCenter, label: 'Centro' },
+                { v: 'derecha' as AlineacionElemento, Icon: AlignRight, label: 'Derecha' },
+              ] as const
+            ).map(({ v, Icon, label }) => (
+              <button key={v} type="button" aria-label={label} onClick={() => enviar('alinear', v)} style={botonCuadrado(estilo.alinear === v)}>
+                <Icon size={13} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <div style={separador} />
+        </>
+      )}
 
       {/* COLOR — trigger con la muestra + nombre, abre «Por defecto» primero, los roles en chips
           con su muestra (§ `.crole`), y «Avanzado ›» para el hex personalizado. SIN aviso de

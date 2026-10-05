@@ -35,28 +35,40 @@ const ROLES_COLOR_ELEMENTO_INTERNO: readonly RolColorElemento[] = ROLES_COLOR_EL
 // naturaleza (`ROL_TIPOGRAFICO_POR_TIPO` — un titular es DISPLAY, un botón es CUERPO), que a su vez
 // decide qué fuente es "Por defecto" (§ `fontFamilyDeEstilo`).
 //
-// SÓLO `hero` declara elementos hoy. `marquesina.texto` (la frase de la marquesina del hero·sticky,
-// nombrada en el spec de este slice) QUEDA FUERA A PROPÓSITO — desviación medida, no omisión: su
-// render vive en `components/storefront/home/MarquesinaMotor.tsx`
-// (`MarquesinaFraseMotor`, el `<CampoEditable campo={campo}>` del loop), un archivo FUERA de
-// `touches:` de este slice. Sin poder tocarlo, cablear un estilo que nunca se aplica visualmente
-// sería una barra flotante que miente —cambia algo que no cambia nada en la página—, y ese costo es
-// peor que no ofrecer el control. Ver DECISIONS.md para el seguimiento (coined
-// `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`).
-export type TipoElementoEstilo = 'titular' | 'subtitulo' | 'leyenda' | 'boton';
+// `hero` declara los CINCO de siempre; `marquesina` declara UNO —`texto`, la frase del loop del
+// hero·sticky— desde `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`. `EDITOR-TIENDA-BARRA-FLOTANTE-1`
+// lo había dejado fuera a propósito porque su render vive en
+// `components/storefront/home/MarquesinaMotor.tsx` (`MarquesinaFraseMotor`), un archivo que ese
+// slice no tenía en `touches:` — cablear un estilo que nunca se aplica visualmente habría sido una
+// barra flotante que miente. Este slice sí toca ese archivo.
+export type TipoElementoEstilo = 'titular' | 'subtitulo' | 'leyenda' | 'boton' | 'ticker';
 
 export interface MetaElementoEstilo {
   tipo: TipoElementoEstilo;
   /** El nombre en palabras que la barra flotante/el panel usan para este elemento (p. ej. "Titular",
    *  "Botón secundario") — nunca el nombre técnico del campo. */
   label: string;
+  /** `true` si la ALINEACIÓN no tiene ningún efecto visible para este elemento — p. ej. una frase
+   *  en bucle horizontal (`white-space:nowrap`) dentro de una caja del ancho exacto de su contenido,
+   *  sin espacio sobrante que un `text-align` pueda desplazar (§ EDITOR-TIENDA-ESTILO-MARQUESINA-
+   *  TICKER-1). Ausente/`false` = alineación disponible, el comportamiento de HOY para los cinco
+   *  elementos del hero. La barra flotante y el control del panel OMITEN el control de alineación
+   *  cuando esto es `true` — ofrecerlo igual sería un botón sin efecto, peor que no tenerlo. */
+  sinAlinear?: boolean;
 }
 
 /** Sección → elemento → metadata. Es la ÚNICA lista a mano de este eje: `REGISTRY.<seccion>.estilos`
  *  (site-content-defaults.ts) se DERIVA de `Object.keys(ELEMENTOS_ESTILO[seccion])`, nunca al revés
  *  — así "qué elemento existe" y "qué elemento resuelve el resolver" no pueden divergir (la misma
  *  clase de defecto que ya mordió dos veces en este repo, § CLAUDE.md "cuando dos declaraciones
- *  describen el mismo conjunto…"). */
+ *  describen el mismo conjunto…").
+ *
+ *  `marquesina.texto` (§ EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1) ENTRA con este slice — el
+ *  seguimiento que `EDITOR-TIENDA-BARRA-FLOTANTE-1` dejó abierto porque su `touches:` no alcanzaba
+ *  `MarquesinaMotor.tsx` (el archivo donde vive el render del loop). `tipo: 'ticker'`, no 'titular':
+ *  su escala natural (76–214px, `MARQUEE_TITULO_FONT_SIZE`, `lib/animation.ts`) es MAYOR que el
+ *  techo de 'titular' ('enorme' = 168px, § `ESCALA_TAMANO` abajo) — reusar 'titular' habría hecho
+ *  que elegir el paso más grande ACHICARA la frase respecto a su default. */
 export const ELEMENTOS_ESTILO: Record<string, Record<string, MetaElementoEstilo>> = {
   hero: {
     titulo: { tipo: 'titular', label: 'Titular' },
@@ -64,6 +76,13 @@ export const ELEMENTOS_ESTILO: Record<string, Record<string, MetaElementoEstilo>
     fraseAlPie: { tipo: 'leyenda', label: 'Leyenda' },
     ctaPrimarioLabel: { tipo: 'boton', label: 'Botón principal' },
     ctaSecundarioLabel: { tipo: 'boton', label: 'Botón secundario' },
+  },
+  marquesina: {
+    // `sinAlinear: true` (§ MetaElementoEstilo.sinAlinear, abajo): la frase corre en un `<div>`
+    // `white-space:nowrap` del ancho EXACTO de su contenido (`w-max`, MarquesinaMotor.tsx) — no hay
+    // espacio sobrante dentro de esa caja para que un `text-align` desplace nada. Omitir el control
+    // es más honesto que ofrecer un botón sin efecto visible.
+    texto: { tipo: 'ticker', label: 'Frase', sinAlinear: true },
   },
 };
 
@@ -84,6 +103,9 @@ const ROL_TIPOGRAFICO_POR_TIPO: Record<TipoElementoEstilo, RolTipografico> = {
   subtitulo: 'cuerpo',
   leyenda: 'cuerpo',
   boton: 'cuerpo',
+  // 'ticker' es el mismo rol que 'titular' (Playfair/el DISPLAY del par) — es la MISMA frase grande
+  // del hero, sólo que corriendo en loop en vez de estática.
+  ticker: 'titulo',
 };
 
 // ─── (b) LA FORMA — tamaño, alineación, letra, color, y el resolver SOFT ───────────────────────────
@@ -132,6 +154,25 @@ const ESCALA_TAMANO: Record<TipoElementoEstilo, Record<TamanoElemento, string>> 
     grande: 'clamp(40px, 5.5vw, 56px)',
     'muy-grande': 'clamp(52px, 7vw, 96px)',
     enorme: 'clamp(72px, 9vw, 168px)', // = CLAMP_XL de escala-display.ts ('amplia')
+  },
+  // LA ESCALA DEL TICKER — § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1. Progresión PROPIA, no la de
+  // 'titular': el tamaño de HOY de la frase (`MARQUEE_TITULO_FONT_SIZE`, `lib/animation.ts`,
+  // `clamp(76px, calc(17.25vw + 7px), 214px)`) ya EXCEDE el techo de 'titular' ('enorme' = 168px),
+  // así que compartir la escala habría hecho que "Enorme" ACHICARA la frase respecto a su default
+  // sin override — el defecto opuesto al que "Por defecto = el de hoy" existe para evitar.
+  // `grande` se ACERCA a ese piso/techo (76px/214px, el MISMO rango) pero NO es byte-idéntico al
+  // literal: `MARQUEE_TITULO_FONT_SIZE` usa `calc(17.25vw + 7px)` en el medio —una expresión
+  // compuesta, no un `Nvw` plano—, y las otras CUATRO escalas (más el test de monotonía que las
+  // recorre a las cinco con el mismo extractor de tres números) asumen la forma plana
+  // `clamp(pxA, Nvw, pxB)`. No se persiguió la igualdad byte a byte a costa de esa forma; "Por
+  // defecto" (tamano:null, sin override) sigue siendo la única garantía de byte-identidad — ésta es
+  // sólo la nombrada "Grande" de la escalera.
+  ticker: {
+    pequeno: 'clamp(44px, 8vw, 100px)',
+    mediano: 'clamp(58px, 12vw, 150px)',
+    grande: 'clamp(76px, 17vw, 214px)',
+    'muy-grande': 'clamp(90px, 20vw, 260px)',
+    enorme: 'clamp(110px, 24vw, 320px)',
   },
   subtitulo: {
     pequeno: 'clamp(13px, 1.2vw, 14px)',

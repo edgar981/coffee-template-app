@@ -35,6 +35,7 @@ import { ROLES_COLOR_ELEMENTO } from "@/lib/config/palette-derive";
 export default function EstiloElementoControles({
   valor,
   rolesLegibles,
+  sinAlinear = false,
   onCambiar,
   onQuitar,
 }: {
@@ -43,6 +44,10 @@ export default function EstiloElementoControles({
    *  `undefined` muestra los SEIS (el panel no conoce el fondo real de la zona, a diferencia de la
    *  barra flotante dentro del iframe; mostrar todos es la red segura, nunca ocultar de más). */
   rolesLegibles?: readonly string[];
+  /** § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — `metaElementoEstilo(seccion,elemento)?.sinAlinear`
+   *  del llamador: oculta el grupo de alineación cuando no tiene efecto visible (p. ej. la frase en
+   *  bucle de la marquesina, sin espacio sobrante que un `text-align` pueda desplazar). */
+  sinAlinear?: boolean;
   onCambiar: (sub: "fuente" | "tamano" | "color" | "alinear", valor: string) => void;
   onQuitar: () => void;
 }) {
@@ -87,26 +92,30 @@ export default function EstiloElementoControles({
         </label>
       </div>
 
-      <div role="group" aria-label="Alineación" style={{ display: "flex", gap: 6 }}>
-        {(
-          [
-            { v: "izquierda" as AlineacionElemento, Icon: AlignLeft, label: "Izquierda" },
-            { v: "centro" as AlineacionElemento, Icon: AlignCenter, label: "Centro" },
-            { v: "derecha" as AlineacionElemento, Icon: AlignRight, label: "Derecha" },
-          ] as const
-        ).map(({ v, Icon, label }) => (
-          <button
-            key={v}
-            type="button"
-            aria-pressed={valor.alinear === v}
-            title={label}
-            onClick={() => onCambiar("alinear", v)}
-            className={`duna-btn duna-btn--ghost duna-btn--sm${valor.alinear === v ? " is-on" : ""}`}
-          >
-            <Icon aria-hidden size={14} />
-          </button>
-        ))}
-      </div>
+      {/* § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — SE OMITE con `sinAlinear`: un control sin
+          efecto visible es peor que no ofrecerlo. */}
+      {!sinAlinear && (
+        <div role="group" aria-label="Alineación" style={{ display: "flex", gap: 6 }}>
+          {(
+            [
+              { v: "izquierda" as AlineacionElemento, Icon: AlignLeft, label: "Izquierda" },
+              { v: "centro" as AlineacionElemento, Icon: AlignCenter, label: "Centro" },
+              { v: "derecha" as AlineacionElemento, Icon: AlignRight, label: "Derecha" },
+            ] as const
+          ).map(({ v, Icon, label }) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={valor.alinear === v}
+              title={label}
+              onClick={() => onCambiar("alinear", v)}
+              className={`duna-btn duna-btn--ghost duna-btn--sm${valor.alinear === v ? " is-on" : ""}`}
+            >
+              <Icon aria-hidden size={14} />
+            </button>
+          ))}
+        </div>
+      )}
 
       <div>
         <span style={{ fontSize: 11, color: "var(--duna-muted)", display: "block", marginBottom: 4 }}>Color</span>
