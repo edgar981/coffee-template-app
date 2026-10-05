@@ -53860,3 +53860,187 @@ capacidad nueva es real código que corre para cualquier tenant que agregue una 
 hoy esté inerte para Nayoli.
 
 **Cierra `SECCIONES-TIPOS-3`.**
+
+## 2026-10-05 — UN tipo más en la biblioteca: Carrusel (`SECCIONES-CARRUSEL-1`)
+
+Tier 1 (toca `lib/config/site-content-schema.ts`, el esquema de CONTENIDO — § CLAUDE.md, aprobado
+para escritura), `writes: yes`, `base: main` (policy: current-main), `observed-report:
+SECCIONES-INSTANCIAS-CENSO-1`. Aprobado por el owner (2026-10-03: el pedido explícito de poder
+agregar secciones "como Shopify" + la delegación "confío en que tomarás las mejores decisiones…
+esos ajustes los haces en otra rama y mañana revisamos"). Sigue `slice/editor-secciones-1` (no
+corta rama nueva).
+
+### El cambio
+
+El catálogo curado de instancias (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2 y
+§ SECCIONES-TIPOS-3) pasa de ocho tipos a **nueve**: **Carrusel**, de DOS a SEIS diapositivas (foto
+de fondo con velo, título, texto y botón por diapositiva), con flechas, puntos, deslizar con el
+dedo, teclado, y avance automático OPCIONAL (apagado por defecto) que se pausa al interactuar y
+NUNCA corre con `prefers-reduced-motion`. Usa `embla-carousel-react` (ya instalado) vía
+`components/ui/carousel.tsx` — sin dependencias nuevas. El detalle completo del modelo, el editor y
+el componente vive en `docs/editor-tienda/AGREGAR-SECCIONES.md` § "UN tipo más — Carrusel"
+(actualizado por este slice); acá sólo las decisiones que no caben ahí.
+
+- **`InstanciaDescriptor.booleanos` es mecanismo NUEVO** (`secciones-instancias.ts`), el PRIMER
+  booleano de INSTANCIA del catálogo (`carrusel.autoplay`) — gemelo de `SeccionDef.booleanos`
+  (`site-content-defaults.ts`) un nivel más adentro. `resolverInstancia` gana una rama corta; los
+  DOS tests GENÉRICOS que ya derivaban la paridad descriptor↔defaults↔schema (`DESCRIPTOR_INSTANCIA:
+  cada tipo tiene EXACTAMENTE sus campos cubiertos…` y `DESCRIPTOR_INSTANCIA ⊆ schema`) se
+  ensancharon para sumar `descriptor.booleanos` al conjunto esperado — cualquier tipo futuro que
+  declare un booleano queda cubierto sin tocar esos tests otra vez, la misma inversión que
+  § SECCIONES-INSTANCIAS-1 ya pagó para `campos`/`escalares`/`items`.
+- **`npm run typecheck` destapó una asunción de `components/admin/TiendaPaginas.tsx` (fuera de
+  `touches:`) no documentada en ningún descriptor: TODA `InstanciaContent` tiene `.titulo` a nivel
+  de instancia.** El diseño original de "carrusel" era `campos: {}` (sin cabecera: título/texto/
+  botón viven por diapositiva). `tsc` falló en CUATRO sitios de ese archivo (el label de la tarjeta/
+  asa de orden, el encabezado del panel de edición). Es la **tercera** vez que agregar un tipo sin
+  esa cabecera la destapa (la precedente, implícita, ya la cumplían los ocho tipos anteriores sin
+  que nadie la escribiera). Se agregó `campos: { titulo: 'opcional' }` — la MISMA cabecera opcional
+  que ya tienen Preguntas/Columnas/Filas/Collage —, y el storefront la renderiza de verdad (un
+  título centrado ANTES del carrusel a sangre) en vez de dejarla como campo sin escritor visible.
+  **Deviation medida contra el plan original, corregida ANTES de reportar verde, documentada en el
+  descriptor y en AGREGAR-SECCIONES.md** — no se amplió `touches:` para tocar `TiendaPaginas.tsx`.
+- **UN BUG REAL, encontrado por el arnés y corregido antes de reportar verde** — misma familia que
+  el de § SECCIONES-TIPOS-3 (la caja de Collage/Video colapsando sin media), pero del lado del
+  COLOR, no del alto: el wrapper EXTERIOR del carrusel (que también envuelve la cabecera opcional,
+  clara) usa `bg-[var(--sf-banda,var(--sf-fondo))]` —el fallback CLARO de Columnas/Collage—, y la
+  primera versión de `Carrusel.tsx` dejaba que ESE MISMO fallback claro llegara también a la zona
+  del `<Carousel>` (texto BLANCO, como Banner, sobre lo que fuera que heredara). Con las DOS
+  diapositivas de ejemplo del default (sin foto, el estado inicial de todo el catálogo), el texto
+  quedaba invisible. Capturado por el arnés real (ver abajo) ANTES de cerrar: la primera captura
+  `fullPage` publicada mostraba el carrusel como un bloque oscuro vacío, sin texto legible. Fix:
+  un wrapper INTERIOR propio, sólo alrededor del `<Carousel>`, con el fallback OSCURO de Banner
+  (`bg-[var(--sf-banda,var(--sf-tinta))]`) — `instanciaOscuraCanonica('carrusel')` ya daba `true`
+  desde el primer commit del descriptor; lo que faltaba era que el COMPONENTE lo honrara.
+- **El CTA primario usa el patrón OUTLINE de Banner.tsx**, no el de relleno (`--sf-accion`/
+  `--sf-accion-hover`) — MISMO motivo y MISMA decisión que § SECCIONES-TIPOS-3 para "video": el
+  censo exhaustivo de `lib/config/cta-primario.test.ts` (fuera de `touches:`) vigila ese token por
+  `string.includes`, y un consumidor nuevo lo rompe sin nombrarlo en su lista. Medido dos veces: la
+  primera versión con el patrón de relleno rompió el censo (`npm test`); un segundo intento dejó la
+  EXPLICACIÓN de por qué no se usaba el token mencionándolo LITERAL dentro de un comentario, y
+  **también** rompió el censo (es un grep de substring sobre el archivo entero, no distingue código
+  de comentario). El comentario final describe la decisión sin deletrear el token completo —mismo
+  recurso que ya usa el comentario de `Video.tsx` para el mismo censo.
+- **`components/ui/carousel.tsx` gana DOS ediciones mínimas, ninguna de las dos con consumidor
+  previo que notara la diferencia** (el archivo no tenía NINGÚN importador antes de este slice,
+  medido por grep): `useCarousel` pasa a EXPORTADO (para que `Carrusel.tsx` lea `api` con controles
+  PROPIOS en `--sf-*`, nunca `CarouselPrevious`/`CarouselNext`, que son shadcn/admin-level con
+  `Button`), y `h-full` se suma al wrapper `overflow-hidden` de `CarouselContent` (no-op sin un
+  ancestro de altura definida; con `<Carousel className="absolute inset-0">` dentro de un wrapper
+  con `min-h-[…]`, es lo que deja que una foto de fondo a sangre llene el alto completo).
+- **`BibliotecaSecciones.tsx`: `COMPONENTE_INSTANCIA` es un `Record<SeccionInstanciaTipo, …>`
+  exhaustivo por TIPO** — TypeScript rechaza el build sin la entrada nueva, igual que en
+  § SECCIONES-TIPOS-3.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3769/3769** (piso previo en esta rama, `SECCIONES-TIPOS-3`: 3757/3757 — +12 por los tests nuevos/ampliados de este slice) |
+| `npm run test:integracion` | **356/356** (piso previo: 351/351 — +5, el viaje completo de "carrusel") |
+| `npm run verificar:nayoli` (HTML+CSS byte-exacto) | NO vacío — medido y caracterizado, la causa NO es este slice (ver abajo) |
+| `npm run verificar:nayoli:visual` | diff de píxeles idéntico, DÍGITO A DÍGITO, al piso ya documentado `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` — cero píxeles de más atribuibles a este slice (ver abajo) |
+| `npx eslint` (los 10 archivos de `touches:` tocados + el 1 nuevo) | CERO nuevos — verificado por `git diff` línea a línea: los 10 errores `react-hooks/refs` y 1 warning `set-state-in-effect` de `InstanciaEditorForm.tsx`/`carousel.tsx` caen en líneas que mi diff NO toca (confirmado, no sólo asumido); el 1 warning `no-unused-vars` de `tests/integracion/secciones-instancias.test.ts` es el import `descartarVariasSecciones` de la cabecera, tampoco tocado; `Carrusel.tsx`/`SeccionInstancia.tsx`/`BibliotecaSecciones.tsx`/`secciones-instancias.ts`/`site-content-schema.ts` (nuevos o editados): CERO hallazgos |
+
+### Verificado por ejecución — `.scratch/verificar-secciones-carrusel.ts` (no comiteado)
+
+Build de PRODUCCIÓN real, Postgres efímero (puerto 55900, base `seccionescarrusel`, distinto de
+todos los arneses anteriores), sesión completa de ADMIN vía Playwright. Agregó "Carrusel" desde la
+biblioteca; verificó las DOS diapositivas de ejemplo del default; escribió el título de cabecera;
+cambió `alto` a "Pantalla completa"; encendió "Avance automático" (confirmado `aria-checked`
+`false→true`); agregó una TERCERA diapositiva con foto (selector de archivos real); publicó. Sobre
+lo PUBLICADO: el `[role=region][aria-roledescription=carousel]` único; 3 puntos de navegación; la
+flecha "Siguiente" y un clic en un punto navegan de verdad (`aria-current`); el avance automático
+mueve el índice solo tras ~7 s (con `autoplay` encendido, fuera de `prefers-reduced-motion` y de
+`preview`); pasar el mouse por encima lo PAUSA (mismo índice tras otros 7 s de espera). Capturas en
+escritorio (1440×900) y teléfono (393×844), CHROMIUM y WEBKIT (cross-engine, sólo el resultado
+publicado), `fullPage` y a mitad de scroll.
+
+**El bug del fondo claro (arriba) se encontró y se corrigió ACÁ**, no en revisión de código: la
+primera corrida mostró el carrusel publicado como un bloque vacío en la captura `fullPage`. El
+diagnóstico pasó por tres hipótesis antes de la correcta —(1) altura no resuelta: descartada,
+`getComputedStyle` dio `min-height:900px` y un `getBoundingClientRect` de 900px de alto, coincidente
+con el viewport de 900px; (2) el `whileInView` de `RevelarBloque` nunca disparó para la diapositiva
+activa: descartada, `getComputedStyle` del `<h2>` dio `opacity:1`/`transform:none` tras el paso de
+scroll del arnés; (3) la CAPTURA (no el componente) es la que miente—. La (3) se confirmó con una
+captura `fullPage:false`, scrolleada DIRECTO con `behavior:'instant'`: ahí el texto SÍ se veía, en
+BLANCO, sobre fondo oscuro de respaldo — pero sobre el fondo oscuro YA HABÍA llegado por el
+`style` heredado del esquema, no por el fallback propio; cuando no hay esquema asignado (el caso de
+este arnés), el fallback era CLARO (`--sf-fondo`) y el texto blanco quedaba realmente invisible. El
+fix (el wrapper interior con fallback oscuro) se verificó con una CUARTA corrida completa, visible
+en las capturas `3b-carrusel-viewport-real-escritorio.png` / `5b-…telefono.png` /
+`7b-webkit-…escritorio.png` / `9b-webkit-…telefono.png` (no comiteadas).
+
+**HALLAZGO DE MÉTODO, documentado en `AGREGAR-SECCIONES.md` para el próximo arnés:** `page.
+screenshot({fullPage:true})` redimensiona el viewport para capturar toda la página de una sola vez,
+y mientras lo hace cualquier unidad `vh`/`svh` se recalcula contra ESE alto artificial — una
+sección de altura "Pantalla completa" sale como un bloque vacío en ESA captura puntual, SIN que el
+componente esté roto. No es nuevo de este slice: la MISMA foto-fantasma ya existe en
+`.scratch/verificar-agregar-seccion/8-home-publica-escritorio.png` (§ SECCIONES-INSTANCIAS-1, un
+Banner/Texto de altura `vh`, sin que esa tanda lo documentara). La evidencia FIEL de lo que un
+visitante real ve es una captura SIN `fullPage`, scrolleada con `behavior:'instant'` —
+`scroll-behavior:smooth` es GLOBAL (`app/globals.css:313`, el mismo gotcha que
+`app/(admin)/duna.css:96` ya anota para `scrollIntoView`/`focus`—. El arnés quedó con AMBAS
+capturas: la `fullPage` (consistente con el precedente de los arneses anteriores de esta familia,
+con su artefacto conocido) y una captura dedicada, instantánea, por combinación escritorio/
+teléfono × chromium/webkit, como evidencia AUTORITATIVA.
+
+**LÍMITE DEL ARNÉS, declarado:** el swipe táctil se simuló con `TouchEvent` sintéticos
+(`touchstart`/`touchmove`/`touchend` despachados a mano) y NO movió el índice del carrusel —
+registrado como AVISO, no como fallo: Embla puede exigir una distancia/velocidad de arrastre que un
+evento sintético no reproduce fielmente, y las flechas y los puntos (interacción REAL de clic) ya
+confirmaron que la navegación funciona. El "deslizar con el dedo" del spec lo da Embla de fábrica
+(manejo de puntero/táctil nativo de la librería, sin código propio de este slice) y no se pudo
+verificar por EJECUCIÓN automatizada con el método intentado; sí se verificó visualmente que el
+carrusel responde al toque en las capturas de teléfono (el layout, los controles y el texto se ven
+correctos a 393px, mismo render que escritorio).
+
+### Open follow-ups
+
+- Ninguno nuevo de alcance — el límite conocido de `StoreNav.tsx`/darkness del nav para una
+  instancia que termine primera en `orden` (§ AGREGAR-SECCIONES.md, "Darkness/uniformidad para el
+  nav") sigue igual que para los ocho tipos anteriores; "carrusel" no lo cambia.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grep de los símbolos/archivos que este diff cambia (`secciones-instancias`, `SECCION_INSTANCIA_TIPOS`,
+`DESCRIPTOR_INSTANCIA`, `CATALOGO_INSTANCIAS`, `InstanciaEditorForm`, `BibliotecaSecciones`,
+`SeccionInstancia`, `carousel.tsx`, `useCarousel`, `site-content-schema`, `cta-primario`) contra
+`CLAUDE.md`: **sin coincidencias** para los símbolos propios del catálogo de instancias ni para
+`components/ui/carousel.tsx`/`useCarousel` — nada en la doctrina los nombra (es boilerplate de
+shadcn sin consumidor previo; CLAUDE.md no lo menciona ni antes ni después de este slice).
+Coincidencias para `site-content-schema` (línea ~39, la lista de superficies Tier 1 — consistente
+con que este slice es Tier 1 aprobado sobre ese mismo archivo) y para `cta-primario` (§ "El CTA
+primario de video…", ya citando la MISMA decisión que este slice repite para "carrusel" — no queda
+falsa, describe el precedente que este slice sigue). **Ningún resultado del grep queda falsificado
+por este diff.**
+
+### `customer_bytes`
+
+**`changed: true`** (el eje es la RAMA, no el commit — § CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1). Un
+componente nuevo (`Carrusel.tsx`) + el dispatcher ampliado le dan al storefront la CAPACIDAD de
+renderizar un tipo de sección más — INERTE para Nayoli hoy (medido: `seccionesHome` sigue `{}` en
+todo tenant real salvo que el dueño agregue una instancia desde el panel; confirmado además por
+`npm run verificar:nayoli`/`:visual`, cero diferencia atribuible). **`strings: []`** del lado del
+storefront que un visitante de Nayoli vería hoy (byte-idéntico, medido). Del lado del ADMIN (lo que
+el OWNER lee al usar el panel) sí hay texto nuevo visible: el nombre/frase del catálogo
+("Carrusel", "De dos a seis diapositivas que se deslizan…"), las etiquetas de campo/escalar/booleano
+("Alto", "Avance automático" + su hint), y el nombre singular del ítem ("diapositiva") en los
+botones del repeater — todo DENTRO del panel de administración, nunca en el storefront público.
+
+### `schema`/`cross-repo-contract`
+
+**`schema`: no** en el sentido de Prisma/migración — sin cambios a `packages/core/prisma/
+schema.prisma` ni migraciones nuevas; `seccionesHome`/`instanciaEditableSchema` viven dentro del
+`Json` de `SiteContent`, ya existente. El sub-schema nuevo (`instanciaCarruselEditableSchema`) es
+un miembro más de la unión discriminada que ya existía. **Sin cross-repo-contract**: ningún DTO ni
+contrato compartido con otro repo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama: la
+capacidad nueva es real código que corre para cualquier tenant que agregue una instancia, aunque
+hoy esté inerte para Nayoli.
+
+**Cierra `SECCIONES-CARRUSEL-1`.**
