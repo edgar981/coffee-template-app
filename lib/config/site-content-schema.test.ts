@@ -217,8 +217,10 @@ test('seccionesHome: "imagenTexto" y "banner" también sobreviven, cada uno con 
   assert.equal((parsed.seccionesHome!['inst:ban'] as { alto: string }).alto, 'pantalla');
 });
 
-test('seccionesHome: un `tipo` que no es ninguno de los seis se rechaza (unión discriminada)', () => {
-  assert.throws(() => siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'carrusel', titulo: 'x' } } }));
+test('seccionesHome: un `tipo` que no es ninguno de los nueve se rechaza (unión discriminada)', () => {
+  // § SECCIONES-CARRUSEL-1 — este test usaba 'carrusel' como el tipo INVENTADO de muestra; ahora
+  // es uno de los nueve del catálogo, así que el ejemplo pasó a un nombre que de verdad no existe.
+  assert.throws(() => siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'mosaico-inventado', titulo: 'x' } } }));
 });
 
 test('seccionesHome: un campo NO declarado para ese tipo se descarta (el strip sigue activo dentro de la unión)', () => {
@@ -377,4 +379,55 @@ test('seccionesHome: "video" CON video pero SIN póster se rechaza — el póste
 test('seccionesHome: "video" SIN video no exige póster (el hueco "Agregar video", como un hero de imagen sin video)', () => {
   const parsed = siteContentEditableSchema.parse({ seccionesHome: { 'inst:vid': { tipo: 'video', titulo: 'T' } } });
   assert.equal((parsed.seccionesHome!['inst:vid'] as { imagen: string }).imagen, undefined);
+});
+
+// ─── § SECCIONES-CARRUSEL-1 — "carrusel": cabecera `titulo` opcional + items + alto + autoplay ──
+
+test('seccionesHome: "carrusel" sobrevive completo, con `titulo` de cabecera, `alto`, `autoplay` y sus diapositivas', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:car': {
+        tipo: 'carrusel',
+        titulo: 'Lo que ofrecemos',
+        alto: 'pantalla',
+        autoplay: true,
+        items: [
+          { imagen: '/a.jpg', titulo: 'Primera', texto: 'Cuerpo A', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+          { imagen: '/b.jpg', titulo: 'Segunda' },
+        ],
+      },
+    },
+  });
+  assert.deepEqual(parsed.seccionesHome!['inst:car'], {
+    tipo: 'carrusel',
+    titulo: 'Lo que ofrecemos',
+    alto: 'pantalla',
+    autoplay: true,
+    items: [
+      { imagen: '/a.jpg', titulo: 'Primera', texto: 'Cuerpo A', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+      { imagen: '/b.jpg', titulo: 'Segunda' },
+    ],
+  });
+});
+
+test('seccionesHome: "carrusel" — un `ctaDestino` de ítem fuera del set cerrado se rechaza, igual que en columnas/filas', () => {
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ titulo: 'A', ctaDestino: '/ruta-inventada' }] } },
+  }));
+});
+
+test('seccionesHome: "carrusel" sin `titulo`/`autoplay`/`alto`/`visible` en el body, el parse no inventa las claves — el resolver decide el default', () => {
+  const parsed = siteContentEditableSchema.parse({ seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ titulo: 'A' }] } } });
+  const inst = parsed.seccionesHome!['inst:car'] as Record<string, unknown>;
+  assert.equal('titulo' in inst, false);
+  assert.equal('autoplay' in inst, false);
+  assert.equal('alto' in inst, false);
+  assert.equal('visible' in inst, false);
+});
+
+test('seccionesHome: "carrusel" también lleva `visible`, mismo contrato que los demás tipos (§ SECCIONES-INSTANCIAS-VIVO-1)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', visible: false, items: [{ titulo: 'A' }] } },
+  });
+  assert.equal((parsed.seccionesHome!['inst:car'] as { visible: boolean }).visible, false);
 });

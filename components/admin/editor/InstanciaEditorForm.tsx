@@ -65,14 +65,24 @@ const LABEL_VALOR_ESCALAR: Record<string, Record<string, string>> = {
   disposicion: { dos: 'Dos chicas', cuatro: 'Cuatro chicas' },
   modo: { fondo: 'Fondo, con texto encima', reproducir: 'Reproducir al tocar' },
 };
-// § SECCIONES-TIPOS-2/3 — el nombre SINGULAR de un ítem de cada tipo REPEATER, para
-// `InstanciaItemsEditor` (sus botones: "Agregar pregunta", "¿Eliminar esta columna?"). Sólo cubre
-// los tipos con `descriptor.items`; los demás nunca llegan al bloque que lo consume.
+// § SECCIONES-CARRUSEL-1 — el PRIMER (y hoy único) booleano de INSTANCIA del catálogo
+// (`DESCRIPTOR_INSTANCIA.carrusel.booleanos`). Mismo patrón de mapas por NOMBRE que los de arriba:
+// una lista fija alcanza porque no hay más de un booleano de instancia hoy.
+const LABEL_BOOLEANO: Record<string, string> = {
+  autoplay: 'Avance automático',
+};
+const HINT_BOOLEANO: Record<string, string> = {
+  autoplay: 'Avanza solo cada pocos segundos. Se pausa al pasar el mouse, con foco o al tocar. Apagado por defecto.',
+};
+// § SECCIONES-TIPOS-2/3/SECCIONES-CARRUSEL-1 — el nombre SINGULAR de un ítem de cada tipo REPEATER,
+// para `InstanciaItemsEditor` (sus botones: "Agregar pregunta", "¿Eliminar esta columna?"). Sólo
+// cubre los tipos con `descriptor.items`; los demás nunca llegan al bloque que lo consume.
 const ITEM_LABEL: Partial<Record<SeccionInstanciaTipo, string>> = {
   preguntas: 'pregunta',
   columnas: 'columna',
   filas: 'fila',
   collage: 'foto',
+  carrusel: 'diapositiva',
 };
 
 export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
@@ -195,6 +205,34 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
               <select id={id} className="duna-input duna-select" value={value} onChange={(e) => set(campo, e.target.value)}>
                 {def.claves.map((v) => <option key={v} value={v}>{labelesValor[v] ?? v}</option>)}
               </select>
+            </div>
+          );
+        })}
+
+        {/* § SECCIONES-CARRUSEL-1 — BOOLEANOS de instancia (hoy, sólo `carrusel.autoplay`): el
+            MISMO patrón visual `.duna-switch` que ya usa `TiendaSeccionEditor.renderBooleano` para
+            los booleanos de SECCIÓN, no un checkbox nativo — dos formas para el mismo control
+            sería la misma trampa que el resto de este archivo evita por nombre. */}
+        {descriptor.booleanos && descriptor.booleanos.map((campo) => {
+          const on = (datos as unknown as Record<string, unknown>)[campo] === true;
+          return (
+            <div key={campo} className="duna-field">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  aria-label={LABEL_BOOLEANO[campo] ?? campo}
+                  onClick={() => onCambiar({ ...instancia, [campo]: !on } as InstanciaContent)}
+                  className={`duna-switch${on ? ' is-on' : ''}`}
+                >
+                  <span className="duna-switch__thumb" />
+                </button>
+                <span className="duna-field__label" style={{ margin: 0 }}>{LABEL_BOOLEANO[campo] ?? campo}</span>
+              </div>
+              {HINT_BOOLEANO[campo] && (
+                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{HINT_BOOLEANO[campo]}</p>
+              )}
             </div>
           );
         })}

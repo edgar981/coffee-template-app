@@ -23,7 +23,14 @@ type CarouselContextType = {
 
 const CarouselContext = React.createContext<CarouselContextType | null>(null)
 
-function useCarousel() {
+// EXPORTADO (§ SECCIONES-CARRUSEL-1): antes sólo lo consumían `CarouselPrevious`/`CarouselNext`
+// de este mismo archivo. La sección "Carrusel" del catálogo curado de instancias
+// (`components/storefront/secciones/Carrusel.tsx`) necesita `api` (para el autoplay con
+// `scrollNext`/`scrollTo` y para escuchar `select`) desde FUERA de este archivo, con sus propios
+// controles estilados con tokens `--sf-*` — nunca `CarouselPrevious`/`CarouselNext` (esos son
+// shadcn/admin-level, con `Button`). Exportar el hook es más barato que ensanchar el contexto con
+// cada dato que un consumidor futuro pueda necesitar.
+export function useCarousel() {
   const context = React.useContext(CarouselContext)
   if (!context) {
     throw new Error("useCarousel must be used within a <Carousel />")
@@ -150,8 +157,16 @@ const CarouselContent = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const { carouselRef, orientation } = useCarousel()
 
+  // `h-full` acá (§ SECCIONES-CARRUSEL-1): sin el ancestro con una altura DEFINIDA (el root de
+  // `Carousel` con `className="absolute inset-0"`, § el consumidor de "Carrusel"), esto resuelve a
+  // 'auto' — un no-op para todo consumidor de ANTES de este slice (`CarouselPrevious`/
+  // `CarouselNext` no lo necesitaban porque nunca hubo un consumidor real). Con esa altura definida
+  // arriba, es lo que deja que el `flex` de abajo (con `className="h-full"` pasado por el
+  // consumidor) herede una altura resoluble, y de ahí cada `CarouselItem` (align-items:stretch por
+  // defecto) estire al alto completo — la cadena que una foto de fondo a sangre por diapositiva
+  // necesita.
   return (
-    <div ref={carouselRef} className="overflow-hidden">
+    <div ref={carouselRef} className="h-full overflow-hidden">
       <div
         ref={ref}
         className={cn(

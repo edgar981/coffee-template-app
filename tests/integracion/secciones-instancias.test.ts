@@ -344,3 +344,89 @@ test('"video" — ocultar con `visible:false` sobrevive el viaje completo, igual
   const publicado = await readSiteContent();
   assert.equal((publicado.seccionesHome['inst:v'] as { visible: boolean }).visible, false);
 });
+
+// ─── § SECCIONES-CARRUSEL-1 — EL VIAJE COMPLETO DE "carrusel" ───────────────────────────────────
+
+test('crear una instancia "carrusel" con título de cabecera, alto, autoplay y tres diapositivas (una con imagen), publicar: el storefront la relee con todo intacto', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:car': {
+        tipo: 'carrusel',
+        titulo: 'Nuestras colecciones',
+        alto: 'pantalla',
+        autoplay: true,
+        items: [
+          { imagen: 'https://blob/slide-a.jpg', titulo: 'Primera', texto: 'Cuerpo A', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+          { imagen: '', titulo: 'Segunda', texto: '', ctaLabel: '', ctaDestino: '' },
+          { imagen: 'https://blob/slide-c.jpg', titulo: 'Tercera', texto: 'Cuerpo C', ctaLabel: '', ctaDestino: '' },
+        ],
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const car = publicado.seccionesHome['inst:car'] as unknown as {
+    titulo: string; alto: string; autoplay: boolean; items: Record<string, string>[];
+  };
+  assert.equal(car.titulo, 'Nuestras colecciones');
+  assert.equal(car.alto, 'pantalla');
+  assert.equal(car.autoplay, true);
+  assert.deepEqual(car.items, [
+    { imagen: 'https://blob/slide-a.jpg', titulo: 'Primera', texto: 'Cuerpo A', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+    { imagen: '', titulo: 'Segunda', texto: '', ctaLabel: '', ctaDestino: '' },
+    { imagen: 'https://blob/slide-c.jpg', titulo: 'Tercera', texto: 'Cuerpo C', ctaLabel: '', ctaDestino: '' },
+  ]);
+});
+
+test('"carrusel" — sin decir nada, nace con `autoplay:false` y SIN `titulo` de cabecera tras el viaje completo', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const car = publicado.seccionesHome['inst:car'] as unknown as { titulo: string; autoplay: boolean };
+  assert.equal(car.autoplay, false);
+  assert.equal(car.titulo, '');
+});
+
+test('"carrusel" — ocultar con `visible:false` sobrevive el viaje completo, igual que los demás tipos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', visible: false, items: [{ titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:car'] as { visible: boolean }).visible, false);
+});
+
+test('"carrusel" — reemplazar la imagen de UNA diapositiva en el borrador deja la vieja PUBLICADA, no huérfana todavía', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ imagen: 'https://blob/A.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const { blobsABorrar } = await guardarBorrador(
+    siteContentEditableSchema.parse({
+      seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ imagen: 'https://blob/X.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+    }),
+  );
+  assert.deepEqual(blobsABorrar, [], 'A sigue publicada; X es sólo del borrador');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:car'] as { items: { imagen: string }[] }).items[0].imagen, 'https://blob/A.jpg');
+});
+
+test('"carrusel" — PUBLICAR la imagen nueva de una diapositiva deja la VIEJA huérfana (ya sin referencias) — SÍ se borra', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ imagen: 'https://blob/A.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:car': { tipo: 'carrusel', items: [{ imagen: 'https://blob/X.jpg', titulo: 'A' }, { titulo: 'B' }] } },
+  });
+
+  const { blobsABorrar } = await publicarSeccion('seccionesHome');
+  assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
+});

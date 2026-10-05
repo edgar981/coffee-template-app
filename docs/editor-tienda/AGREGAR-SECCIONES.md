@@ -664,3 +664,147 @@ real) y una quinta como VIDEO (un MP4 H.264 real generado con `ffmpeg`, vía "Ag
 video de prueba por el bloque bespoke del campo plano y alternó entre los dos modos — con capturas
 en escritorio y teléfono, Chromium y WebKit, y a mitad de scroll. El detalle de la corrida (verde/
 rojo, hallazgos) vive en el asiento de `DECISIONS.md`.
+
+## UN tipo más — Carrusel, el PRIMER booleano de INSTANCIA del catálogo (§ SECCIONES-CARRUSEL-1)
+
+El catálogo pasa de ocho tipos a **nueve**: **Carrusel**, de DOS a SEIS diapositivas (foto de fondo
+con velo, título, texto y botón por diapositiva — cada una, en forma, una copia de "Banner"), con
+flechas, puntos, deslizar con el dedo, teclado, y avance automático OPCIONAL (apagado por defecto)
+que se pausa al interactuar (mouse encima, foco o toque) y NUNCA corre con `prefers-reduced-motion`.
+Usa `embla-carousel-react` (ya instalado) vía `components/ui/carousel.tsx` — sin dependencias
+nuevas.
+
+### El modelo — el PRIMER booleano de INSTANCIA, y una cabecera que el spec no pedía
+
+`DESCRIPTOR_INSTANCIA.carrusel` declara `items` (repeater: `imagen` opcional, `titulo` requerido,
+`texto`/`ctaLabel`/`ctaDestino` opcionales — min 2, max 6, el PISO es lo que hace cierta "de dos a
+seis"), `escalares: { alto: ALTURAS_BANNER }` (REUSA el objeto tal cual, mismos tres pasos y misma
+canónica 'justo' que "banner" — el spec: "alto Justo/Alto/Pantalla como el banner") y
+`booleanos: ['autoplay']`.
+
+**`InstanciaDescriptor.booleanos` es mecanismo NUEVO**, gemelo de `SeccionDef.booleanos`
+(`site-content-defaults.ts`) un nivel más adentro — duplicado por el módulo-hoja de siempre (ver el
+docstring de cabecera de `secciones-instancias.ts`): sólo se sobreescribe con un booleano EXPLÍCITO
+guardado, ausente/basura cae al default del tipo, mismo mecanismo que ya rige `visible`.
+`resolverInstancia` gana una rama corta para resolverlo; el test de paridad
+(`DESCRIPTOR_INSTANCIA: cada tipo tiene EXACTAMENTE sus campos cubiertos en DEFAULTS_INSTANCIA`) y
+el round-trip con el schema (`DESCRIPTOR_INSTANCIA ⊆ schema`) se ensancharon para sumar
+`descriptor.booleanos` al conjunto esperado, genéricamente — cualquier tipo futuro que declare un
+booleano queda cubierto sin tocar esos tests de nuevo.
+
+**`campos: { titulo: 'opcional' }` — una cabecera que el spec NO pedía, agregada por una asunción
+estructural medida con `npm run typecheck`.** El diseño original era `campos: {}` (sin cabecera: el
+título/texto/botón viven por diapositiva, no en la instancia). `npm run typecheck` falló en CUATRO
+sitios de `components/admin/TiendaPaginas.tsx` (fuera de `touches:` de este slice): ese archivo
+asume que **TODA** `InstanciaContent` tiene `.titulo` a nivel de instancia —lo usa como label de la
+tarjeta/asa de orden y como encabezado del panel de edición, con fallback a `nombreInstancia` si
+está vacío—, una invariante que los OCHO tipos anteriores cumplían sin que nadie la declarara
+explícita. Agregar la MISMA cabecera opcional que ya tienen Preguntas/Columnas/Filas/Collage es más
+consistente con el catálogo que inventar un caso especial fuera de `touches:`, y el storefront
+(`Carrusel.tsx`) la renderiza de verdad —un título centrado ANTES del carrusel a sangre, nunca
+dentro de una diapositiva— en vez de dejarla como un campo sin escritor visible (la misma mina
+inerte que el repo ya evita en otros lados). Es la **tercera** vez que este mecanismo destapa una
+asunción de `TiendaPaginas.tsx` sobre "todo tipo tiene X" al agregar un tipo nuevo sin esa X —
+documentado para que el PRÓXIMO tipo sin cabecera sepa buscarla primero, antes de diseñar
+`campos: {}`.
+
+### El componente — reusa a Banner por diapositiva, con el fondo oscuro de respaldo EXPLÍCITO
+
+`components/storefront/secciones/Carrusel.tsx`: `Diapositiva` es, literalmente, el vocabulario de
+`Banner.tsx` (foto `fill` + velo `from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80`,
+título/texto/CTA centrados) montado una vez por ítem dentro de `<CarouselItem>`. El CTA usa el
+patrón OUTLINE de Banner (`border-white/70` + `hover:bg-white/10`), NO el de relleno con el token de
+hover del primario — mismo motivo que ya fijó Video.tsx: ese token tiene un censo exhaustivo en
+`lib/config/cta-primario.test.ts` (fuera de `touches:`), y sumarle un consumidor nuevo lo rompe.
+Medido con `npm test`: la primera versión con el token de relleno hizo fallar ese censo por el
+nombre literal del token apareciendo incluso DENTRO de un comentario explicando por qué no se
+usaba — el censo es un `string.includes`, no distingue código de comentario.
+
+**EL FONDO OSCURO DE RESPALDO ES EXPLÍCITO, y es un bug real que el arnés atrapó antes de cerrar.**
+Cada diapositiva pinta texto BLANCO (como Banner); sin foto —el estado inicial de los dos ejemplos
+del default, igual que ningún tipo del catálogo trae imagen por defecto— ese texto queda sobre lo
+que sea que herede el contenedor. El wrapper EXTERIOR del carrusel (que también envuelve la
+cabecera, clara) usa `bg-[var(--sf-banda,var(--sf-fondo))]` —el mismo fallback CLARO que Columnas/
+Collage—, así que un wrapper INTERIOR propio, sólo alrededor del `<Carousel>`, lleva el fallback
+OSCURO de Banner (`bg-[var(--sf-banda,var(--sf-tinta))]`): mismo `--sf-banda` (cascade heredado del
+`style` del esquema, si hay uno asignado), fallback distinto según la zona. Capturado por el arnés
+de verificación (ver abajo): la primera versión tenía los DOS wrappers con el fallback claro, y las
+dos diapositivas de ejemplo (sin foto) mostraban texto blanco invisible sobre fondo claro.
+`instanciaOscuraCanonica('carrusel')` ya daba `true` desde el primer commit del descriptor —lo que
+faltaba era que el COMPONENTE lo honrara con un fallback real, no sólo el valor que alimenta el
+cálculo de darkness del nav.
+
+### `components/ui/carousel.tsx` gana DOS cambios mínimos, ambos no-op para quien ya lo usaba
+
+Nadie importaba este archivo antes de este slice (`grep` daba cero consumidores) — es boilerplate
+de shadcn instalado pero nunca cableado. Dos ediciones, las dos backward-compatible por construcción
+(nunca había un consumidor que pudiera notar la diferencia):
+
+- **`useCarousel` pasa a EXPORTADO.** `Carrusel.tsx` lo necesita para leer `api` (autoplay vía
+  `scrollNext`, `scrollTo` de los puntos, `canScrollPrev/Next` de las flechas) con controles PROPIOS
+  estilados en `--sf-*` — nunca `CarouselPrevious`/`CarouselNext` de este archivo, que son
+  shadcn/admin-level (usan `Button`) y no encajan en una foto a sangre con velo.
+- **`h-full` se suma al wrapper `overflow-hidden` de `CarouselContent`.** Sin ancestro de altura
+  DEFINIDA es un no-op (`height:100%` de un padre `auto` resuelve a `auto`); con el `<Carousel
+  className="absolute inset-0">` de `Carrusel.tsx` dentro de un wrapper con `min-h-[…]` (`alturaClase`,
+  los mismos tres pasos de Banner), la cadena `h-full` → `h-full` (el flex row, pasado por el
+  consumidor) → `align-items:stretch` (default, cada `CarouselItem`) deja que una foto de fondo a
+  sangre por diapositiva llene el alto completo sin que `Carrusel.tsx` tenga que medir nada a mano.
+
+### Lo que NO entró en esta tanda
+
+Sin campo de VIDEO para las diapositivas (el spec no lo pidió: "foto de fondo"); el ítem foto-o-video
+que SÍ tiene Collage (§ SECCIONES-TIPOS-3) no se generalizó acá. Sin loop infinito configurable —
+`opts={{ loop: true }}` es FIJO, para que el avance automático (y las flechas) no se queden mudos al
+llegar al último; no hay escalar que lo apague.
+
+### Verificación
+
+Capa 1 (`lib/config/secciones-instancias.test.ts`, `site-content-schema.test.ts` — los tests
+GENÉRICOS de paridad descriptor↔defaults↔schema y el round-trip ya existentes cubrieron "carrusel"
+con CERO código de test nuevo para esa parte, incluido el mecanismo nuevo de `booleanos`; se
+agregaron además casos explícitos por campo) y carril (`tests/integracion/secciones-instancias.test.ts`:
+el viaje completo con cabecera+alto+autoplay+tres diapositivas, con su caso de blob huérfano) — ver
+sus propios asientos de prueba para el detalle. `npm run gate` verde en las dos capas (cifra exacta
+en el asiento de `DECISIONS.md`).
+
+La sesión real con el arnés (Playwright, build de producción + Postgres efímero,
+`.scratch/verificar-secciones-carrusel.ts`, clon en forma de los arneses anteriores de esta
+familia) agregó "Carrusel" desde la biblioteca: verificó las DOS diapositivas de ejemplo, escribió
+el título de cabecera, cambió `alto` a "Pantalla completa", encendió "Avance automático", agregó
+una TERCERA diapositiva con foto (selector de archivos real), publicó, y sobre lo PUBLICADO
+verificó: el `[role=region][aria-roledescription=carousel]` único, los 3 puntos de navegación, que
+la flecha "Siguiente" y un clic en un punto navegan de verdad (vía `aria-current`), que el avance
+automático mueve el índice solo tras ~7 s y que pasar el mouse por encima lo PAUSA (sigue en el
+mismo índice tras otros 7 s) — con capturas en escritorio y teléfono, Chromium y WebKit, y a mitad
+de scroll.
+
+**HALLAZGO DE MÉTODO, para el próximo arnés que capture `fullPage` una sección de altura `vh`/`svh`:**
+`page.screenshot({fullPage:true})` de Playwright REDIMENSIONA el viewport para capturar toda la
+página de una sola vez, y mientras lo hace cualquier unidad `vh`/`svh` se recalcula contra ESE alto
+artificial — el carrusel (y cualquier sección con `alturaClase` tipo "Pantalla completa") sale como
+un bloque vacío en esa captura puntual. **No es un defecto de este slice ni del componente**: la
+MISMA foto-fantasma ya existe en `.scratch/verificar-agregar-seccion/8-home-publica-escritorio.png`
+(SECCIONES-INSTANCIAS-1, un Banner/Texto de altura `vh` igual de "vacío" en su propia captura
+`fullPage`, sin que esa tanda lo documentara). La evidencia FIEL de lo que un visitante real ve es
+una captura SIN `fullPage`, scrolleada con `behavior:'instant'` — `scroll-behavior:smooth` es
+GLOBAL (`app/globals.css:313`, el mismo gotcha ya anotado en `app/(admin)/duna.css:96`), así que un
+`scrollIntoView`/`scrollTo` sin `instant` anima y una espera corta puede capturar a mitad de camino.
+Confirmado con `getComputedStyle` antes de cambiar nada: con la captura "a mitad de camino" la
+opacidad del texto YA era `1` (el `whileInView` de `RevelarBloque` sí había disparado) — el bloque
+vacío era enteramente del redimensionado de `fullPage`, no de la animación de entrada.
+
+**`npm run verificar:nayoli` (byte-exacto, HTML+CSS) NO dio diff vacío — medido, y la causa NO es
+este slice**, mismo patrón que § SECCIONES-TIPOS-2: los puntos de divergencia del HTML (lang `en`
+vs `es`, `quality=75` vs `85`, el hash del archivo CSS, un reordenamiento de clases en el header, y
+el crédito "Hecho por Duna" del footer) son TODOS de drift acumulado de
+`slice/corte-reescritura-prototipo-1`, ANTERIOR a esta tanda — verificado por lectura: cero
+apariciones de "carrusel"/"diapositiva"/"Carousel"/`aria-roledescription="carousel"` en el HTML
+renderizado de las 4 rutas de Nayoli (que no tiene ninguna instancia de este tipo). El CSS crece en
+tamaño (nuevas clases de Tailwind descubiertas en todo el estado de la rama, no sólo este slice) —
+aditivo, nunca referenciado por el HTML de Nayoli. La prueba de que el HTML/CSS real de Nayoli no
+cambia POR ESTE SLICE es la otra mitad, la que sí tiene un piso documentado: **`npm run
+verificar:nayoli:visual` midió la MISMA cifra exacta, dígito a dígito, que
+`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (165052/4608000 px AA en `home`, caja
+`[105,862]–[1183,3581]`; 163/361 px en las otras 5 rutas; los 2 hovers IDÉNTICO) — cero píxeles de
+más atribuibles a `SECCIONES-CARRUSEL-1`.

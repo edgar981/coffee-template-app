@@ -15,6 +15,7 @@ import SeccionColumnas from '@/components/storefront/secciones/Columnas';
 import SeccionFilas from '@/components/storefront/secciones/Filas';
 import SeccionCollage from '@/components/storefront/secciones/Collage';
 import SeccionVideo from '@/components/storefront/secciones/Video';
+import SeccionCarrusel from '@/components/storefront/secciones/Carrusel';
 import {
   CATALOGO_INSTANCIAS, DEFAULTS_INSTANCIA, type InstanciaContent, type SeccionInstanciaTipo,
 } from '@/lib/config/secciones-instancias';
@@ -45,7 +46,7 @@ import {
 
 // `as ComponentType<...>`: cada componente real exige su propio sub-tipo de `InstanciaContent`
 // (`InstanciaTextoContent`/`InstanciaImagenTextoContent`/`InstanciaBannerContent`), no la unión —
-// el Record necesita un tipo COMÚN para las ocho entradas, y en runtime cada una SIEMPRE recibe
+// el Record necesita un tipo COMÚN para las nueve entradas, y en runtime cada una SIEMPRE recibe
 // `DEFAULTS_INSTANCIA[tipo]` (la forma correcta para ESE tipo, nunca mezclada) desde el `.map` de
 // abajo, que indexa por la MISMA clave `entrada.tipo` que eligió el componente.
 type ComponenteInstancia = ComponentType<{ id: string; instancia: InstanciaContent; style?: CSSProperties }>;
@@ -58,6 +59,7 @@ const COMPONENTE_INSTANCIA: Record<SeccionInstanciaTipo, ComponenteInstancia> = 
   filas: SeccionFilas as ComponenteInstancia,
   collage: SeccionCollage as ComponenteInstancia,
   video: SeccionVideo as ComponenteInstancia,
+  carrusel: SeccionCarrusel as ComponenteInstancia,
 };
 
 const ALTO_PREVIEW = 104;

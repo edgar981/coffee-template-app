@@ -18,6 +18,10 @@ test('DESCRIPTOR_INSTANCIA: cada tipo tiene EXACTAMENTE sus campos cubiertos en 
   for (const tipo of SECCION_INSTANCIA_TIPOS) {
     const camposDescriptor = new Set(Object.keys(DESCRIPTOR_INSTANCIA[tipo].campos));
     const escalares = new Set(Object.keys(DESCRIPTOR_INSTANCIA[tipo].escalares ?? {}));
+    // § SECCIONES-CARRUSEL-1 — BOOLEANOS (`carrusel.autoplay`) se suman al conjunto esperado, misma
+    // razón que `escalares`: son campos de cabecera resueltos a mano por NOMBRE, no por el loop de
+    // `campos` string.
+    const booleanos = new Set(DESCRIPTOR_INSTANCIA[tipo].booleanos ?? []);
     // `visible` (§ SECCIONES-INSTANCIAS-VIVO-1) se excluye como `tipo`: es un escalar de INSTANCIA
     // resuelto a mano en `resolverInstancia`, nunca parte de `descriptor.campos`/`escalares` — misma
     // razón que `visible` de una banda no pertenece a `def.campos` en `site-content-defaults.ts`.
@@ -25,8 +29,8 @@ test('DESCRIPTOR_INSTANCIA: cada tipo tiene EXACTAMENTE sus campos cubiertos en 
     // aparte por `resolverItemsInstancia`, nunca parte de `campos`/`escalares` (que son sólo la
     // cabecera plana de la instancia).
     const camposDefault = new Set(Object.keys(DEFAULTS_INSTANCIA[tipo]).filter((k) => k !== 'tipo' && k !== 'visible' && k !== 'items'));
-    const esperado = new Set([...camposDescriptor, ...escalares]);
-    assert.deepEqual(camposDefault, esperado, `defaults de "${tipo}" deben cubrir exactamente campos+escalares del descriptor`);
+    const esperado = new Set([...camposDescriptor, ...escalares, ...booleanos]);
+    assert.deepEqual(camposDefault, esperado, `defaults de "${tipo}" deben cubrir exactamente campos+escalares+booleanos del descriptor`);
   }
 });
 
@@ -38,7 +42,7 @@ test('DESCRIPTOR_INSTANCIA: un tipo REPEATER (`items` presente) siempre tiene `i
   }
 });
 
-test('esSeccionInstanciaTipo: acepta los ocho del catálogo, rechaza basura', () => {
+test('esSeccionInstanciaTipo: acepta los nueve del catálogo, rechaza basura', () => {
   assert.equal(esSeccionInstanciaTipo('texto'), true);
   assert.equal(esSeccionInstanciaTipo('imagenTexto'), true);
   assert.equal(esSeccionInstanciaTipo('banner'), true);
@@ -47,6 +51,7 @@ test('esSeccionInstanciaTipo: acepta los ocho del catálogo, rechaza basura', ()
   assert.equal(esSeccionInstanciaTipo('filas'), true);
   assert.equal(esSeccionInstanciaTipo('collage'), true);
   assert.equal(esSeccionInstanciaTipo('video'), true);
+  assert.equal(esSeccionInstanciaTipo('carrusel'), true);
   assert.equal(esSeccionInstanciaTipo('hero'), false);
   assert.equal(esSeccionInstanciaTipo(''), false);
   assert.equal(esSeccionInstanciaTipo(123), false);
@@ -344,13 +349,16 @@ test('imagenesDeInstancia: "video" — junta imagen Y poster a nivel de instanci
 // declara un campo que el schema de ESE tipo no tiene, el parse lo STRIPPEA en silencio y este test
 // lo detecta por su AUSENCIA en el resultado; si el schema declara un campo que el descriptor no
 // tiene, sobra una clave en el resultado que el descriptor nunca predijo.
-test('DESCRIPTOR_INSTANCIA ⊆ schema: cada campo+escalar de cada tipo SOBREVIVE el parse (sin strip silencioso)', () => {
+test('DESCRIPTOR_INSTANCIA ⊆ schema: cada campo+escalar+booleano de cada tipo SOBREVIVE el parse (sin strip silencioso)', () => {
   for (const tipo of SECCION_INSTANCIA_TIPOS) {
     const descriptor = DESCRIPTOR_INSTANCIA[tipo];
-    const camposEsperados = new Set(['tipo', ...Object.keys(descriptor.campos), ...Object.keys(descriptor.escalares ?? {})]);
+    const camposEsperados = new Set(['tipo', ...Object.keys(descriptor.campos), ...Object.keys(descriptor.escalares ?? {}), ...(descriptor.booleanos ?? [])]);
     const muestra: Record<string, unknown> = { tipo };
     for (const campo of Object.keys(descriptor.campos)) muestra[campo] = campo.toLowerCase().includes('destino') ? '' : 'x';
     for (const campo of Object.keys(descriptor.escalares ?? {})) muestra[campo] = 'x';
+    // § SECCIONES-CARRUSEL-1 — BOOLEANOS: muestra con `true`, mismo round-trip que cualquier otro
+    // campo — si el sub-schema de ESE tipo no declara el booleano, el strip se ve en su ausencia.
+    for (const campo of descriptor.booleanos ?? []) muestra[campo] = true;
     // § SECCIONES-TIPOS-2 — un tipo REPEATER agrega `items` a lo esperado, con UN ítem de muestra
     // que cubre cada campo de `items.descriptor.campos` — mismo criterio round-trip, un nivel más
     // adentro: si el sub-schema del ÍTEM no declara un campo, el strip se ve en ESE array.
@@ -399,6 +407,7 @@ test('nombreInstancia: el nombre en palabras del catálogo, "Sección" para un t
   assert.equal(nombreInstancia('filas'), 'Filas');
   assert.equal(nombreInstancia('collage'), 'Collage');
   assert.equal(nombreInstancia('video'), 'Video');
+  assert.equal(nombreInstancia('carrusel'), 'Carrusel');
   assert.equal(nombreInstancia('inventado' as unknown as 'texto'), 'Sección');
 });
 
@@ -462,3 +471,63 @@ test('§ SECCIONES-TIPOS-3 — instanciaOscuraCanonica/instanciaEsUniforme: vide
   assert.equal(instanciaEsUniforme('video'), true);
   assert.equal(instanciaEsUniforme('collage'), true);
 });
+
+// ─── § SECCIONES-CARRUSEL-1 — "carrusel": items, alto, autoplay, oscura/uniforme ───────────────
+
+test('DESCRIPTOR_INSTANCIA.carrusel: "de dos a seis diapositivas" es el min/max del editor, y el default nace con exactamente 2', () => {
+  assert.equal(DESCRIPTOR_INSTANCIA.carrusel.items?.min, 2);
+  assert.equal(DESCRIPTOR_INSTANCIA.carrusel.items?.max, 6);
+  assert.equal(DEFAULTS_INSTANCIA.carrusel.items.length, 2);
+});
+
+test('resolverInstancia: "carrusel" — items normaliza imagen/titulo/texto/ctaLabel/ctaDestino a string, titulo requerido cae al default vacío', () => {
+  const r = resolverInstancia({
+    tipo: 'carrusel',
+    items: [
+      { imagen: '/a.jpg', titulo: 'Diapositiva real', texto: 'Cuerpo', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+      { titulo: '' },
+      'basura',
+    ],
+  }) as unknown as { items: Record<string, string>[] };
+  assert.deepEqual(r.items, [
+    { imagen: '/a.jpg', titulo: 'Diapositiva real', texto: 'Cuerpo', ctaLabel: 'Ver', ctaDestino: '/tienda' },
+    { imagen: '', titulo: '', texto: '', ctaLabel: '', ctaDestino: '' },
+  ], 'el ítem-string se descarta; "titulo" requerido es del EDITOR, no del resolver de ítems — igual que columnas/filas, se normaliza a string tal cual venga');
+});
+
+test('resolverInstancia: "carrusel" — items ausente o no-array da [] (nunca lanza, nunca inventa diapositivas)', () => {
+  assert.deepEqual((resolverInstancia({ tipo: 'carrusel' }) as unknown as { items: unknown[] }).items, []);
+  assert.deepEqual((resolverInstancia({ tipo: 'carrusel', items: 'no es un array' }) as unknown as { items: unknown[] }).items, []);
+});
+
+test('resolverInstancia: "carrusel" — alto clampa al set cerrado de tres pasos, igual que banner', () => {
+  assert.equal((resolverInstancia({ tipo: 'carrusel', alto: 'alto' }) as unknown as { alto: string }).alto, 'alto');
+  assert.equal((resolverInstancia({ tipo: 'carrusel', alto: 'gigante' }) as unknown as { alto: string }).alto, 'justo');
+});
+
+test('resolverInstancia: "carrusel" — autoplay sólo se sobreescribe con un booleano EXPLÍCITO, default false', () => {
+  assert.equal((resolverInstancia({ tipo: 'carrusel' }) as unknown as { autoplay: boolean }).autoplay, false, 'ausente -> default (apagado)');
+  assert.equal((resolverInstancia({ tipo: 'carrusel', autoplay: true }) as unknown as { autoplay: boolean }).autoplay, true);
+  assert.equal((resolverInstancia({ tipo: 'carrusel', autoplay: false }) as unknown as { autoplay: boolean }).autoplay, false);
+  assert.equal((resolverInstancia({ tipo: 'carrusel', autoplay: 'sí' }) as unknown as { autoplay: boolean }).autoplay, false, 'basura (no booleano) cae al default, igual que `visible`');
+});
+
+test('instanciaEsVisible: "carrusel" — hide-on-empty gana sobre `visible:true`, igual que los otros repeater', () => {
+  const vacia = resolverInstancia({ tipo: 'carrusel', visible: true, items: [] })!;
+  const conItems = resolverInstancia({ tipo: 'carrusel', visible: true, items: [{ titulo: 'x' }] })!;
+  assert.equal(instanciaEsVisible(vacia), false);
+  assert.equal(instanciaEsVisible(conItems), true);
+});
+
+test('imagenesDeInstancia: "carrusel" — junta la imagen de CADA diapositiva, no strings vacíos', () => {
+  assert.deepEqual(
+    imagenesDeInstancia({ tipo: 'carrusel', items: [{ imagen: '/a.jpg', titulo: 'A' }, { imagen: '', titulo: 'B' }, { imagen: '/c.jpg', titulo: 'C' }] }),
+    ['/a.jpg', '/c.jpg'],
+  );
+});
+
+test('§ SECCIONES-CARRUSEL-1 — instanciaOscuraCanonica/instanciaEsUniforme: carrusel oscuro (como banner) y uniforme (foto de fondo a sangre en cada diapositiva)', () => {
+  assert.equal(instanciaOscuraCanonica('carrusel'), true);
+  assert.equal(instanciaEsUniforme('carrusel'), true);
+});
+

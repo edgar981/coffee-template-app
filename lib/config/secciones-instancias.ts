@@ -1,9 +1,9 @@
-// LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2 y
-// § SECCIONES-TIPOS-3) — el mecanismo que deja que el contenido declare INSTANCIAS de un catálogo
-// CURADO de OCHO tipos genéricos: cuatro de campos planos (Texto, Imagen con texto, Banner, Video) y
-// cuatro REPEATER (Preguntas, Columnas, Filas, Collage, § InstanciaItemsDef más abajo) — y las
-// mezcle en `orden` con las bandas de siempre. Lo que entra acá es el modelo, el resolver y el
-// schema; la UI de agregar vive en `components/admin/editor/` (ver
+// LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2,
+// § SECCIONES-TIPOS-3 y § SECCIONES-CARRUSEL-1) — el mecanismo que deja que el contenido declare
+// INSTANCIAS de un catálogo CURADO de NUEVE tipos genéricos: cuatro de campos planos (Texto, Imagen
+// con texto, Banner, Video) y cinco REPEATER (Preguntas, Columnas, Filas, Collage, Carrusel, §
+// InstanciaItemsDef más abajo) — y las mezcle en `orden` con las bandas de siempre. Lo que entra acá
+// es el modelo, el resolver y el schema; la UI de agregar vive en `components/admin/editor/` (ver
 // `docs/editor-tienda/AGREGAR-SECCIONES.md`).
 //
 // MÓDULO HOJA A PROPÓSITO: no importa NADA de `site-content-defaults.ts`. Ese archivo SÍ importa
@@ -37,7 +37,7 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 
 // ─── EL TIPO Y SU PREFIJO DE ID ─────────────────────────────────────────────────────────────────
 
-export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video'] as const;
+export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video', 'carrusel'] as const;
 export type SeccionInstanciaTipo = (typeof SECCION_INSTANCIA_TIPOS)[number];
 
 const TIPOS_SET: ReadonlySet<string> = new Set(SECCION_INSTANCIA_TIPOS);
@@ -104,7 +104,15 @@ export interface InstanciaDescriptor {
   imagenes?: readonly string[];
   /** Escalares clampados a un set cerrado (alineación, lado, alto). */
   escalares?: Record<string, EscalarInstanciaDef>;
-  /** Presente ⇒ el tipo es un REPEATER (Preguntas/Columnas/Filas): además de `campos` (la cabecera
+  /** Campos BOOLEANOS de instancia (§ SECCIONES-CARRUSEL-1) — gemelo de `SeccionDef.booleanos`
+   *  (site-content-defaults.ts) un nivel más adentro, duplicado por el módulo-hoja de siempre (§ el
+   *  docstring de cabecera): sólo se sobreescriben con un booleano EXPLÍCITO guardado — ausente,
+   *  `null` o basura caen al default del TIPO, el MISMO mecanismo que ya rige `visible` más abajo
+   *  (`resolverInstancia`). Sin esto, cada campo booleano de instancia (p. ej. `carrusel.autoplay`)
+   *  exigiría un `if (tipo === 'carrusel')` hardcodeado en el resolver — el mismo hardcoding que
+   *  `escalares` evita del lado de los strings clampados. */
+  booleanos?: readonly string[];
+  /** Presente ⇒ el tipo es un REPEATER (Preguntas/Columnas/Filas/Collage/Carrusel): además de `campos` (la cabecera
    *  de la instancia, p. ej. su `titulo`), guarda un array `items` cuyo contenido describe este
    *  campo. Ausente ⇒ el tipo es de campos planos nomás (Texto/ImagenTexto/Banner). */
   items?: InstanciaItemsDef;
@@ -236,6 +244,38 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
     imagenes: ['imagen', 'poster'],
     escalares: { modo: MODOS_VIDEO },
   },
+  // § SECCIONES-CARRUSEL-1 — "carrusel": de DOS a SEIS diapositivas (el PISO es lo que hace cierta
+  // "de dos a seis" — con una sola no hay nada que deslizar). `campos: { titulo: 'opcional' }` —
+  // UN cabecera opcional, MISMO patrón que Preguntas/Columnas/Filas/Collage (título/texto/botón de
+  // CADA diapositiva viven en `items`; la cabecera es sólo una etiqueta del BLOQUE entero, no una
+  // sexta diapositiva). NO estaba en el plan original (el spec no la pide) — se agregó porque
+  // `components/admin/TiendaPaginas.tsx` (fuera de `touches:`) asume que TODA `InstanciaContent`
+  // tiene `.titulo` a nivel de instancia (lo usa como label de la tarjeta/asa de orden y como
+  // encabezado del panel de edición, con fallback a `nombreInstancia` si está vacío) — medido con
+  // `npm run typecheck`, que sin este campo falla en CUATRO sitios de ese archivo. Agregar la MISMA
+  // cabecera opcional que ya tienen los otros cuatro repeater es más consistente con el catálogo
+  // que inventar un caso especial, y la render el storefront (`Carrusel.tsx`) como un título
+  // centrado ANTES del carrusel a sangre — nunca dentro de una diapositiva. `alto` REUSA
+  // `ALTURAS_BANNER` tal cual (mismos tres pasos, misma canónica 'justo'; el spec: "alto Justo/Alto/
+  // Pantalla como el banner") — es el MISMO objeto, no una copia, porque ya vive en este módulo (no
+  // hay ciclo de imports que evitar reusándolo directo). `autoplay` es el PRIMER booleano de
+  // INSTANCIA del catálogo (§ `InstanciaDescriptor.booleanos`, arriba): apagado por defecto (el
+  // spec), y la lógica de PAUSA (hover/foco/toque) y de nunca correr con `prefers-reduced-motion`
+  // vive en el COMPONENTE (`Carrusel.tsx`) — este descriptor sólo declara que el campo EXISTE y se
+  // persiste como booleano explícito, igual que `visible`.
+  carrusel: {
+    campos: { titulo: 'opcional' },
+    booleanos: ['autoplay'],
+    escalares: { alto: ALTURAS_BANNER },
+    items: {
+      descriptor: {
+        campos: { imagen: 'opcional', titulo: 'requerido', texto: 'opcional', ctaLabel: 'opcional', ctaDestino: 'opcional' },
+        imagenes: ['imagen'],
+      },
+      min: 2,
+      max: 6,
+    },
+  },
 };
 
 // ─── LOS DEFAULTS — NEUTROS, sin café, sin imagen ───────────────────────────────────────────────
@@ -356,6 +396,27 @@ export interface InstanciaVideoContent {
   visible: boolean;
 }
 
+// § SECCIONES-CARRUSEL-1 — "carrusel": SIN `titulo` de cabecera (ver el descriptor, arriba) — el
+// título/texto/botón de CADA diapositiva viven en `InstanciaCarruselItem`; `titulo` acá es la
+// CABECERA opcional del bloque entero (§ el descriptor, arriba — agregada por la asunción de
+// `TiendaPaginas.tsx`), NUNCA una séptima diapositiva. `autoplay` es un booleano DE INSTANCIA (no
+// de ítem): avanza el carrusel entero, no cada diapositiva por separado.
+export interface InstanciaCarruselItem {
+  imagen: string;
+  titulo: string;
+  texto: string;
+  ctaLabel: string;
+  ctaDestino: string;
+}
+export interface InstanciaCarruselContent {
+  tipo: 'carrusel';
+  titulo: string;
+  items: InstanciaCarruselItem[];
+  alto: string;
+  autoplay: boolean;
+  visible: boolean;
+}
+
 export type InstanciaContent =
   | InstanciaTextoContent
   | InstanciaImagenTextoContent
@@ -364,7 +425,8 @@ export type InstanciaContent =
   | InstanciaColumnasContent
   | InstanciaFilasContent
   | InstanciaCollageContent
-  | InstanciaVideoContent;
+  | InstanciaVideoContent
+  | InstanciaCarruselContent;
 
 // Tipado POR CLAVE (no `Record<SeccionInstanciaTipo, InstanciaContent>`): así `DEFAULTS_INSTANCIA.texto`
 // sigue siendo `InstanciaTextoContent` para quien lo lea (p. ej. un test que compara
@@ -378,6 +440,7 @@ export const DEFAULTS_INSTANCIA: {
   filas: InstanciaFilasContent;
   collage: InstanciaCollageContent;
   video: InstanciaVideoContent;
+  carrusel: InstanciaCarruselContent;
 } = {
   texto: {
     tipo: 'texto',
@@ -474,6 +537,20 @@ export const DEFAULTS_INSTANCIA: {
     modo: MODOS_VIDEO.canonica,
     visible: true,
   },
+  // § SECCIONES-CARRUSEL-1 — "carrusel" nace con DOS diapositivas de ejemplo (el PISO, como
+  // Columnas): sin media (ninguna imagen trae default) y `autoplay: false` (apagado por defecto,
+  // § el spec) — el dueño lo enciende si quiere avance automático.
+  carrusel: {
+    tipo: 'carrusel',
+    titulo: '',
+    items: [
+      { imagen: '', titulo: 'Una diapositiva', texto: 'Escribe acá el texto de esta diapositiva.', ctaLabel: '', ctaDestino: '' },
+      { imagen: '', titulo: 'Otra diapositiva', texto: 'Escribe acá el texto de esta diapositiva.', ctaLabel: '', ctaDestino: '' },
+    ],
+    alto: ALTURAS_BANNER.canonica,
+    autoplay: false,
+    visible: true,
+  },
 };
 
 // ─── EL RESOLVER — SOFT, por el MISMO contrato que `resolverSiteContent` (requerido vacío → el
@@ -527,6 +604,14 @@ export function resolverInstancia(stored: unknown): InstanciaContent | null {
   if (descriptor.escalares) {
     for (const [campo, def] of Object.entries(descriptor.escalares)) {
       out[campo] = resolverEscalarInstancia(def, stored[campo]);
+    }
+  }
+
+  // § SECCIONES-CARRUSEL-1 — BOOLEANOS de instancia: MISMO mecanismo que `visible` más abajo (sólo
+  // se sobreescriben con un booleano EXPLÍCITO guardado; ausente/basura cae al default del tipo).
+  if (descriptor.booleanos) {
+    for (const campo of descriptor.booleanos) {
+      out[campo] = typeof stored[campo] === 'boolean' ? stored[campo] : defaults[campo];
     }
   }
 
@@ -634,6 +719,7 @@ export const CATALOGO_INSTANCIAS: readonly CatalogoInstanciaEntry[] = [
   { tipo: 'filas', nombre: 'Filas', frase: 'Filas de foto y texto que alternan de lado.' },
   { tipo: 'collage', nombre: 'Collage', frase: 'Un mosaico de fotos y videos: una pieza grande y varias chicas.' },
   { tipo: 'video', nombre: 'Video', frase: 'Un video de fondo con mensaje, o un video con botón de reproducir.' },
+  { tipo: 'carrusel', nombre: 'Carrusel', frase: 'De dos a seis diapositivas que se deslizan, cada una con foto, título, texto y botón.' },
 ];
 
 /** El nombre en palabras de un tipo — la MISMA fuente que la biblioteca, para que la tarjeta de la
@@ -702,14 +788,16 @@ export function imagenesDeInstancia(inst: unknown): string[] {
 
 // ─── DARKNESS/UNIFORMIDAD — para el día que el nav sepa de instancias (§ DECISIONS.md, abierto) ──
 
-/** ¿Un `banner`/`video` cuenta como banda OSCURA cuando no tiene esquema asignado? SÍ — las dos son
- *  foto/video de fondo con velo, la MISMA forma que el hero 'curtina' (fondo oscuro por
- *  construcción). `texto`/`imagenTexto`/`collage` son CLAROS por default (fondo de página, como el
- *  resto de las bandas claras). § SECCIONES-TIPOS-3: `video` usa SIEMPRE su canónica ('fondo', con
- *  velo) acá — esta función, como para `banner`/su `alto`, no bifurca por el escalar propio de la
- *  instancia (`modo`), la misma simplificación aceptada que ya rige `alto` de banner. */
+/** ¿Un `banner`/`video`/`carrusel` cuenta como banda OSCURA cuando no tiene esquema asignado? SÍ —
+ *  las tres son foto/video de fondo con velo, la MISMA forma que el hero 'curtina' (fondo oscuro
+ *  por construcción). `texto`/`imagenTexto`/`collage` son CLAROS por default (fondo de página,
+ *  como el resto de las bandas claras). § SECCIONES-TIPOS-3: `video` usa SIEMPRE su canónica
+ *  ('fondo', con velo) acá — esta función, como para `banner`/su `alto`, no bifurca por el escalar
+ *  propio de la instancia (`modo`), la misma simplificación aceptada que ya rige `alto` de banner.
+ *  § SECCIONES-CARRUSEL-1: `carrusel` es SIEMPRE foto de fondo con velo, en CADA diapositiva — no
+ *  hay una variante "clara" que bifurcar, así que entra sin matiz, como `banner`. */
 export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
-  return tipo === 'banner' || tipo === 'video';
+  return tipo === 'banner' || tipo === 'video' || tipo === 'carrusel';
 }
 
 /** ¿Un `imagenTexto`/`filas` es una banda UNIFORME (un solo tono) para el nav flotante? NO — las
@@ -717,10 +805,13 @@ export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
  *  vuelve no-uniforme al hero 'ficha' (§ `bandaUniforme`, `site-content-defaults.ts`). `filas` es
  *  ADEMÁS más heterogénea que `imagenTexto` (§ SECCIONES-TIPOS-2: reusa su componente fila por
  *  fila, alternando de lado — nunca un solo tono de borde a borde). `texto`/`banner`/`preguntas`/
- *  `columnas`/`collage`/`video` son UN solo fondo de un extremo al otro → uniformes: `collage` es
- *  una grilla de celdas de MEDIA sobre un único fondo de sección (como `columnas`, no como
- *  `imagenTexto`, que parte el fondo mismo en dos mitades de color distinto); `video` es siempre un
- *  único plano, en sus dos modos (§ SECCIONES-TIPOS-3). */
+ *  `columnas`/`collage`/`video`/`carrusel` son UN solo fondo de un extremo al otro → uniformes:
+ *  `collage` es una grilla de celdas de MEDIA sobre un único fondo de sección (como `columnas`, no
+ *  como `imagenTexto`, que parte el fondo mismo en dos mitades de color distinto); `video` es
+ *  siempre un único plano, en sus dos modos (§ SECCIONES-TIPOS-3). `carrusel` (§ SECCIONES-
+ *  CARRUSEL-1) es el MISMO caso que `banner`, repetido por diapositiva: cada una es foto a sangre
+ *  con velo, nunca dos mitades de color — por eso cae en el default `true` sin necesitar su propia
+ *  excepción, igual que `preguntas`/`columnas`/`collage`/`video` ya caen ahí. */
 export function instanciaEsUniforme(tipo: SeccionInstanciaTipo): boolean {
   return tipo !== 'imagenTexto' && tipo !== 'filas';
 }
