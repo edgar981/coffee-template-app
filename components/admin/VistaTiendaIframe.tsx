@@ -33,7 +33,7 @@ import {
 // puente.ts`, pura): una sola definición del nombre de cada mensaje, no dos que puedan divergir.
 import {
   TIPO_MENSAJE_CONTENIDO_SECCION, TIPO_MENSAJE_MODO_NAVEGAR, esMensajeSeccionClick, esMensajeCampoCambio,
-  esMensajeAgregarSeccion,
+  esMensajeAgregarSeccion, esMensajeCamposCambio,
 } from '@/lib/storefront/editor-puente';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
@@ -143,6 +143,14 @@ interface VistaTiendaIframeProps {
    *  `onSeccionSeleccionada`, sin resolver todavía) y el campo/valor tal cual. El padre resuelve la
    *  sección y llama a `TiendaSeccionEditorHandle.escribirCampo(campo, valor)`. */
   onCampoCambio?: (seccion: string, campo: string, valor: string) => void;
+  /** § EDITOR-BARRA-ESTILO-ESCALONADO-1 — gemelo PLURAL de `onCampoCambio`: llamado cuando llega un
+   *  `postMessage` de "VARIOS campos cambiaron a la vez, por UN SOLO gesto" válido
+   *  (`esMensajeCamposCambio` — zonas del hero, "Quitar" de la barra de estilo), con el MARCADOR de
+   *  sección (sin resolver, igual que `onCampoCambio`) y el lote `campos` tal cual. El padre resuelve
+   *  la sección y llama a `TiendaSeccionEditorHandle.escribirCampos(campos)` — UNA sola escritura
+   *  para todo el lote, nunca una por campo (§ el docstring del mensaje en `editor-puente.ts`, el
+   *  escalonado por tiempo que esto reemplaza). */
+  onCamposCambio?: (seccion: string, campos: Array<{ campo: string; valor: string }>) => void;
   /** § EDITOR-AGREGAR-SECCION-LIENZO-1 — llamado cuando llega un `postMessage` de "el dueño
    *  clickeó el «+» entre dos secciones" válido (`esMensajeAgregarSeccion`), con el marcador
    *  `despuesDe` tal cual (YA es el id que `TiendaPaginas.tsx` necesita para `abrirBiblioteca`,
@@ -162,7 +170,7 @@ interface VistaTiendaIframeProps {
 
 const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeProps>(
   function VistaTiendaIframe({
-    pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, onAgregarSeccion, tituloPorMarcador,
+    pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, onCamposCambio, onAgregarSeccion, tituloPorMarcador,
   }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
@@ -397,6 +405,11 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
         // chequeo de origen/fuente que el de arriba; `seccion` llega como MARCADOR, sin resolver
         // todavía (lo hace `TiendaPaginas.tsx`, igual que con la selección).
         if (esMensajeCampoCambio(e.data)) { onCampoCambio?.(e.data.seccion, e.data.campo, e.data.valor); return; }
+        // § EDITOR-BARRA-ESTILO-ESCALONADO-1 — el UNDÉCIMO mensaje, el gemelo COMPUESTO del campo
+        // flotante en vivo (zonas del hero, "Quitar" de la barra de estilo): VARIOS campos de UN
+        // solo gesto, nunca escalonados. Mismo chequeo de origen/fuente; `seccion` sin resolver,
+        // igual que el campo singular.
+        if (esMensajeCamposCambio(e.data)) { onCamposCambio?.(e.data.seccion, e.data.campos); return; }
         // § EDITOR-AGREGAR-SECCION-LIENZO-1 — el «+» entre dos secciones. Mismo chequeo de
         // origen/fuente; `despuesDe` viaja YA RESUELTO al id que `abrirBiblioteca` necesita
         // (§ el docstring del mensaje en `editor-puente.ts`) — este componente no lo toca.
@@ -404,7 +417,7 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
       };
       window.addEventListener('message', onMessage);
       return () => window.removeEventListener('message', onMessage);
-    }, [onSeccionSeleccionada, onCampoCambio, onAgregarSeccion]);
+    }, [onSeccionSeleccionada, onCampoCambio, onCamposCambio, onAgregarSeccion]);
 
     useImperativeHandle(ref, () => ({ irASeccion, recargar, enviarCambio }), [irASeccion, recargar, enviarCambio]);
 

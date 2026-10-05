@@ -35,6 +35,7 @@ import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
 import {
   TIPO_MENSAJE_SESION_VENCIDA, esMensajeSeccionClick, esMensajeCampoCambio, esMensajeCampoImagenClick,
+  esMensajeCamposCambio,
 } from '@/lib/storefront/editor-puente';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
@@ -227,6 +228,14 @@ export interface TiendaSeccionEditorHandle {
    *  `fusionCampoEditable` (soporta tanto un campo PLANO como uno de ítem de repeater). Un `campo`
    *  que `fusionCampoEditable` no puede aplicar (ruta inválida, índice fuera de rango) se IGNORA. */
   escribirCampo: (campo: string, valor: string) => void;
+  /** § EDITOR-BARRA-ESTILO-ESCALONADO-1 — gemelo PLURAL de `escribirCampo`: llamado por un
+   *  `TIPO_MENSAJE_CAMPOS_CAMBIO` que resuelve a ESTA sección (zonas del hero, "Quitar" de la barra
+   *  de estilo — un solo gesto que escribe VARIOS campos reales a la vez). Abre la edición igual que
+   *  `escribirCampo`, encadena `fusionCampoEditable` sobre un acumulador local (el segundo campo del
+   *  lote funde sobre el resultado del primero, nunca sobre el `form` de ANTES del gesto) y aplica
+   *  el resultado completo con UNA sola escritura — un lote, un paso de deshacer, nunca uno por
+   *  campo. Un `campo` del lote que no se puede aplicar se IGNORA, igual que `escribirCampo`. */
+  escribirCampos: (campos: Array<{ campo: string; valor: string }>) => void;
   /** § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — gemelo de `escribirCampo` SIN el `abrirEdicion()`: lo usa
    *  OTRA sección para escribir un campo propio (§ `CampoTexto.seccionCruzada`, tienda-secciones.ts)
    *  sin que esta tarjeta se expanda sola. Quien dispara el clic real (p. ej. el hero, por sección-
@@ -707,7 +716,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin || !e.source) return;
-      if (esMensajeSeccionClick(e.data) || esMensajeCampoCambio(e.data) || esMensajeCampoImagenClick(e.data)) {
+      if (
+        esMensajeSeccionClick(e.data) || esMensajeCampoCambio(e.data) || esMensajeCampoImagenClick(e.data)
+        // § EDITOR-BARRA-ESTILO-ESCALONADO-1 — el mensaje COMPUESTO (zonas del hero, "Quitar" de la
+        // barra de estilo) es TAMBIÉN un mensaje iframe→panel del campo flotante; sin esta rama, un
+        // gesto compuesto no re-capturaría la ventana y el aviso de sesión vencida quedaría mandando
+        // al `source` de un mensaje singular ANTERIOR (o a ninguno, tras un cambio de página).
+        || esMensajeCamposCambio(e.data)
+      ) {
         iframeVentanaRef.current = e.source as Window;
       }
     };
@@ -919,9 +935,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // booleanos, no una segunda—, así que sirve para CUALQUIER sección futura que postee un booleano
   // por este canal, no sólo para el hero de hoy. Los demás campos (texto, escalares como `alto`/
   // `veloIntensidad`) siguen por `fusionCampoEditable`, sin tocar.
-  const parcialDeCampoRemoto = (campo: string, valor: string): Datos | null => {
+  //
+  // `base` es OPCIONAL (default `formRef.current`, § EDITOR-TIENDA-CAMPO-EDITABLE-1) — lo pasa
+  // EXPLÍCITO `escribirCampos` (§ EDITOR-BARRA-ESTILO-ESCALONADO-1, abajo) para encadenar el
+  // SEGUNDO campo de un lote sobre el resultado del PRIMERO: `formRef.current` sólo se
+  // re-sincroniza en el render SIGUIENTE a un `setForm` (§ el docstring retirado de
+  // `postarEscalonado`, `EditorPuenteVivo.tsx`), así que leerlo dos veces en el MISMO tick para dos
+  // campos del mismo mensaje pisaría el primero con el segundo — el defecto que el mensaje
+  // compuesto existe para cerrar.
+  const parcialDeCampoRemoto = (campo: string, valor: string, base: Datos = (formRef.current ?? {}) as Datos): Datos | null => {
     if (config.booleanos?.some((b) => b.name === campo)) return { [campo]: valor === 'true' };
-    return fusionCampoEditable((formRef.current ?? {}) as Datos, campo, valor);
+    return fusionCampoEditable(base, campo, valor);
   };
 
   // ── EL CAMPO FLOTANTE (§ EDITOR-TIENDA-CAMPO-EDITABLE-1) — iframe→lista, un campo por tecla ────
@@ -946,6 +970,31 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     }
     const parcial = parcialDeCampoRemoto(campo, valor);
     if (parcial) cambiar(parcial);
+  };
+
+  // ── EL CAMBIO COMPUESTO (§ EDITOR-BARRA-ESTILO-ESCALONADO-1) — iframe→lista, UN gesto/VARIOS
+  // campos a la vez ───────────────────────────────────────────────────────────────────────────────
+  // Gemelo PLURAL de `escribirCampo`, llamado cuando un `TIPO_MENSAJE_CAMPOS_CAMBIO` resuelve a
+  // ESTA sección (zonas del hero, "Quitar" de la barra de estilo — § `TiendaSeccionEditorHandle.
+  // escribirCampos`, arriba). Encadena `parcialDeCampoRemoto` sobre un ACUMULADOR LOCAL —nunca sobre
+  // `formRef.current` repetido— para que el segundo campo del lote funda sobre el resultado del
+  // primero, y aplica el RESULTADO COMPLETO con UNA sola llamada a `aplicarCambioForm`: un lote, un
+  // paso de historial, sin depender de que React re-renderice entre un campo y el siguiente (el
+  // defecto que motivó el `setTimeout` escalonado que este mensaje reemplaza). Un `campo` del lote
+  // que no se puede aplicar se IGNORA y el resto sigue — mismo criterio que `escribirCampo`.
+  const escribirCampos = (campos: Array<{ campo: string; valor: string }>) => {
+    if (campos.length === 0) return;
+    if (!editando) abrirEdicion();
+    let acumulado = (formRef.current ?? {}) as Datos;
+    for (const { campo, valor } of campos) {
+      if (seccion === 'hero') {
+        const zona = ZONA_HERO_DE_CAMPO[campo];
+        if (zona) setElementoActivo(zona);
+      }
+      const parcial = parcialDeCampoRemoto(campo, valor, acumulado);
+      if (parcial) acumulado = { ...acumulado, ...parcial };
+    }
+    aplicarCambioForm(acumulado);
   };
 
   // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — gemelo SIN `abrirEdicion()` (§ el docstring del handle,
@@ -1066,8 +1115,8 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // closures que ya de por sí se redefinen cada render.
   useImperativeHandle(
     ref,
-    () => ({ seleccionar, cerrar: cerrarEdicion, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
-    [seleccionar, escribirCampo, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado],
+    () => ({ seleccionar, cerrar: cerrarEdicion, escribirCampo, escribirCampos, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado }),
+    [seleccionar, escribirCampo, escribirCampos, escribirCampoSinAbrir, abrirSelectorImagen, marcarPublicado, restaurarDesdePublicado],
     // `cerrarEdicion` no está en las deps (igual que `abrirEdicion`, ya excluida arriba): se redefine
     // en cada render y el handle se recompone en cada render igual (ver el comentario de arriba).
   );

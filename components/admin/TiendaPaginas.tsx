@@ -367,6 +367,14 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // sólo DENTRO del cuerpo (en tiempo de LLAMADA, siempre después de que el render entero terminó),
   // y se actualiza con una asignación plana justo debajo de la función real, más abajo en el archivo.
   const cambiarCampoInstanciaRef = useRef<(id: string, campo: string, valor: string) => void>(() => {});
+  // Gemelo PLURAL (§ EDITOR-BARRA-ESTILO-ESCALONADO-1), MISMA indirección y MISMO motivo: su función
+  // real (`cambiarCamposInstancia`) se declara más abajo, junto al resto de `seccionesHome`. Hoy
+  // NINGÚN productor del mensaje compuesto (`mensajesDeZonaHero`/`mensajesQuitarEstiloElemento`,
+  // § editor-puente.ts) apunta a una instancia —las zonas del hero son siempre `seccion:'hero'`, y
+  // `ELEMENTOS_ESTILO` (estilo-elemento.ts) sólo declara elementos de `hero`—, así que esta rama
+  // existe por SIMETRÍA con la singular, lista para el día en que una instancia agregada declare
+  // elementos estilizables o zonas propias.
+  const cambiarCamposInstanciaRef = useRef<(id: string, campos: Array<{ campo: string; valor: string }>) => void>(() => {});
   const manejarSeleccionDesdeIframe = useCallback((marcador: string) => {
     // § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO/MENÚ/PIE se revisan ANTES de resolver contra
     // `SECCIONES_TIENDA`: sus marcadores (`'encabezado'`/`'menu'`/`'footer'`) no son `SeccionVista`,
@@ -420,6 +428,32 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     const esCruzado = secciones.some(c => c.campos.some(f => f.seccionCruzada === candidatoSeccion && f.name === campo));
     if (esCruzado) handle?.escribirCampoSinAbrir(campo, valor);
     else handle?.escribirCampo(campo, valor);
+  }, [secciones]);
+
+  // § EDITOR-BARRA-ESTILO-ESCALONADO-1 — gemelo PLURAL de `manejarCampoCambioDesdeIframe`: el mismo
+  // árbol de resolución (footer / instancia / cruzado / sección regular), pero para el mensaje
+  // COMPUESTO (zonas del hero, "Quitar" de la barra de estilo) — UN SOLO lote, nunca un campo por
+  // vez. Las ramas footer/instancia/cruzado existen por SIMETRÍA con la singular y hoy NO las
+  // ejerce ningún productor real (§ el docstring de `cambiarCamposInstanciaRef`, arriba: las zonas
+  // del hero y los elementos estilizables de `ELEMENTOS_ESTILO` son siempre `seccion:'hero'`, nunca
+  // footer/instancia/cruzado) — por eso aplican el lote con un LOOP sobre el método SINGULAR de
+  // cada rama (comportamiento idéntico al de antes de este slice para esos casos, nunca ejercido en
+  // la práctica), mientras que la rama real (sección regular) usa `escribirCampos` — UNA sola
+  // escritura para todo el lote, que es lo que este slice existe para garantizar.
+  const manejarCamposCambioDesdeIframe = useCallback((marcador: string, campos: Array<{ campo: string; valor: string }>) => {
+    if (campos.length === 0) return;
+    if (marcador === 'footer') {
+      for (const { campo, valor } of campos) cromoRefs.current.get('footer')?.escribirCampo?.(campo, valor);
+      return;
+    }
+    const candidato = seccionDesdeMarcador(marcador);
+    if (esInstanciaId(candidato)) { cambiarCamposInstanciaRef.current(candidato, campos); return; }
+    const candidatoSeccion = candidato as SeccionVista;
+    if (!secciones.some(c => c.seccion === candidatoSeccion)) return;
+    const handle = seccionRefs.current.get(candidatoSeccion);
+    const esCruzado = secciones.some(c => c.campos.some(f => f.seccionCruzada === candidatoSeccion && campos.some(cc => cc.campo === f.name)));
+    if (esCruzado) { for (const { campo, valor } of campos) handle?.escribirCampoSinAbrir(campo, valor); return; }
+    handle?.escribirCampos(campos);
   }, [secciones]);
 
   // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — el clic en una imagen/video DENTRO del iframe. Mensaje
@@ -871,6 +905,18 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // Mantiene viva la REF que `manejarCampoCambioDesdeIframe` (declarado arriba, antes de que esta
   // función existiera en este render) necesita llamar — § el docstring de `cambiarCampoInstanciaRef`.
   cambiarCampoInstanciaRef.current = cambiarCampoInstancia;
+  // Gemelo PLURAL (§ EDITOR-BARRA-ESTILO-ESCALONADO-1): funde TODOS los campos del lote sobre el
+  // valor ACTUAL en UN SOLO `cambiarInstancia` — nunca uno por campo (eso reabriría, a nivel de
+  // instancia, la misma race que `TiendaSeccionEditor.escribirCampos` cierra para las secciones
+  // regulares: `cambiarCampoInstancia` lee `seccionesHomeLocalRef.current`, que sólo se re-sincroniza
+  // en el render siguiente a un `setSeccionesHomeLocal`).
+  const cambiarCamposInstancia = useCallback((id: string, campos: Array<{ campo: string; valor: string }>) => {
+    const actual = seccionesHomeLocalRef.current?.[id];
+    if (!actual) return;
+    const siguiente = campos.reduce((acc, { campo, valor }) => ({ ...acc, [campo]: valor }), { ...actual });
+    cambiarInstancia(id, siguiente as InstanciaContent);
+  }, [cambiarInstancia]);
+  cambiarCamposInstanciaRef.current = cambiarCamposInstancia;
 
   // ── § EDITOR-AGREGAR-SECCION-1 — AGREGAR / DUPLICAR / ELIMINAR una sección ─────────────────────
   //
@@ -1696,6 +1742,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             dispositivo={dispositivo}
             onSeccionSeleccionada={manejarSeleccionDesdeIframe}
             onCampoCambio={manejarCampoCambioDesdeIframe}
+            onCamposCambio={manejarCamposCambioDesdeIframe}
             // § EDITOR-AGREGAR-SECCION-LIENZO-1 — el «+» del lienzo abre la MISMA biblioteca que el
             // separador de la lista (§ `abrirBiblioteca`, arriba), en la MISMA posición: `despuesDe`
             // ya llega resuelto al id que esa función espera (una banda o una instancia), sin

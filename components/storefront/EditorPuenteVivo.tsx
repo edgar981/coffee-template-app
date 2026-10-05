@@ -11,7 +11,7 @@ import {
   datosDeEncabezado, fusionarContenidoInstancia,
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
-  mensajeEstiloElemento, mensajesQuitarEstiloElemento, type MensajeCampoCambio,
+  mensajeEstiloElemento, mensajesQuitarEstiloElemento,
   ATRIBUTO_EDITOR_CHROME, esClicEnChromeEditor,
   ATRIBUTO_EDITOR_ETIQUETA, etiquetaDeSeccion,
   TIPO_MENSAJE_AGREGAR_SECCION, ATRIBUTO_EDITOR_AGREGAR_SECCION,
@@ -282,25 +282,15 @@ function sincronizarEtiquetasSeccion(seccionesHome: Record<string, InstanciaCont
   });
 }
 
-/**
- * Posta una LISTA de mensajes al panel, ESCALONADOS — nunca en un `for` síncrono. MEDIDO por
- * ejecución (§ EDITOR-TIENDA-ZONAS-1): el panel (`TiendaSeccionEditor.escribirCampo`) mergea cada
- * mensaje sobre `formRef.current`, que sólo se re-sincroniza en el RENDER siguiente a un `setForm`.
- * Dos `postMessage` posteados en la MISMA pila se procesan como dos eventos `message` separados,
- * pero si React no alcanza a re-renderizar entre uno y otro, el segundo mergea sobre el `formRef`
- * TODAVÍA viejo y PISA el resultado del primero — confirmado contra la base real: con el velo
- * combinado, `alto` quedaba en su valor viejo y sólo `alturaLlena` sobrevivía. Un `setTimeout` de
- * por medio le da tiempo a React a confirmar el primer `setForm` (un commit tarda microsegundos;
- * 80ms es generoso) antes de que llegue el siguiente. Usado por las zonas del hero (§ abajo) y por
- * "Quitar estilo" de la barra flotante (§ `mensajesQuitarEstiloElemento`, los CUATRO subcampos a la
- * vez) — la MISMA clase de problema, factorizada en un solo sitio en vez de reimplementada dos veces.
- */
-function postarEscalonado(mensajes: MensajeCampoCambio[]) {
-  mensajes.forEach((m, i) => {
-    if (i === 0) window.parent.postMessage(m, window.location.origin);
-    else window.setTimeout(() => window.parent.postMessage(m, window.location.origin), 80 * i);
-  });
-}
+// `postarEscalonado` SE RETIRÓ (§ EDITOR-BARRA-ESTILO-ESCALONADO-1). Posteaba una LISTA de
+// mensajes separados por `setTimeout` —80ms por campo— para darle tiempo a React a confirmar el
+// `setForm` del panel entre uno y otro (el `formRef` de `TiendaSeccionEditor` sólo se re-sincroniza
+// en el render SIGUIENTE a un `setForm`, § EDITOR-TIENDA-ZONAS-1, el defecto que lo motivó). MEDIDO
+// en WebKit: de los CUATRO mensajes de "Quitar" (`mensajesQuitarEstiloElemento`), sólo el PRIMERO
+// llegaba — los `message` encolados por `setTimeout` sobre un `window.parent` cross-document no
+// llegan todos a ese motor. Las zonas del hero y la barra de estilo mandan ahora UN SOLO mensaje
+// compuesto (`TIPO_MENSAJE_CAMPOS_CAMBIO`, § `mensajesDeZonaHero`/`mensajesQuitarEstiloElemento`,
+// `editor-puente.ts`) — sin tanda que escalonar, nada que un motor pueda partir a la mitad.
 
 /** El estado del ÚNICO campo flotante que puede estar abierto a la vez. `ruta` ya viene PARSEADA
  *  (`parsearRutaCampo`) — sección + campo relativo — para no volver a parsear el atributo en cada
@@ -732,14 +722,14 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
         const nodoZona = destino?.closest<HTMLElement>(`[${ATRIBUTO_EDITOR_ZONA_CAMPO}]`);
         if (nodoZona) {
           if (campoAbiertoRef.current) cerrarCampo();
-          const mensajes = mensajesDeZonaHero(
+          const mensaje = mensajesDeZonaHero(
             nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO),
             nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR),
             nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_CAMPO2),
             nodoZona.getAttribute(ATRIBUTO_EDITOR_ZONA_VALOR2),
           );
-          // ESCALONADOS, no en un `for` síncrono — § `postarEscalonado`, arriba, para el porqué.
-          postarEscalonado(mensajes);
+          // UN SOLO mensaje compuesto, § `postarEscalonado` (retirado, arriba) para el porqué.
+          if (mensaje) window.parent.postMessage(mensaje, window.location.origin);
         } else {
           // § EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1 — se revisa PRIMERO (§ el comentario grande de
           // arriba): un campo-imagen nunca abre el overlay de texto.
@@ -970,8 +960,9 @@ function hexDeColorPersonalizado(color: EstiloElementoResuelto['color']): string
  * remonta limpia al cambiar de campo (lo que también resetea `fontAbierto`/`colorAbierto`/
  * `avanzadoAbierto`, abajo, sin que haga falta un efecto de limpieza propio).
  *
- * REUTILIZA `mensajeEstiloElemento`/`mensajesQuitarEstiloElemento` (editor-puente.ts) — el MISMO
- * tipo de mensaje que cualquier campo de texto, nunca un canal nuevo. Estilo LITERAL, no tokens
+ * REUTILIZA `mensajeEstiloElemento` (editor-puente.ts) — el MISMO tipo de mensaje que cualquier
+ * campo de texto, nunca un canal nuevo — y `mensajesQuitarEstiloElemento` (§ EDITOR-BARRA-ESTILO-
+ * ESCALONADO-1, el COMPUESTO: los cuatro subcampos de "Quitar" en un solo mensaje). Estilo LITERAL, no tokens
  * `--duna-*`/`--sf-*` — mismo criterio que el resto del chrome efímero de este archivo (el aviso de
  * sesión, `ZonaChip` de los 4 heros): este documento es el storefront público, no el panel.
  *
@@ -1001,7 +992,7 @@ function BarraEstiloElemento({
   const enviar = (sub: 'fuente' | 'tamano' | 'color' | 'alinear', valor: string) => {
     window.parent.postMessage(mensajeEstiloElemento(seccion, elemento, sub, valor), window.location.origin);
   };
-  const quitar = () => postarEscalonado(mensajesQuitarEstiloElemento(seccion, elemento));
+  const quitar = () => window.parent.postMessage(mensajesQuitarEstiloElemento(seccion, elemento), window.location.origin);
 
   // ARRIBA por default; si no hay suficiente espacio sobre el campo (p. ej. un titular casi pegado
   // al borde superior tras un scroll), ABAJO — mismo criterio de "dónde cabe" que cualquier popover.

@@ -15,6 +15,8 @@ import {
   esMensajeModoNavegar,
   TIPO_MENSAJE_CAMPO_CAMBIO,
   esMensajeCampoCambio,
+  TIPO_MENSAJE_CAMPOS_CAMBIO,
+  esMensajeCamposCambio,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK,
   esMensajeCampoImagenClick,
   TIPO_MENSAJE_SESION_VENCIDA,
@@ -435,33 +437,97 @@ test('fusionarContenidoSeccion resuelve un REPEATER (testimonials) igual que el 
   ]);
 });
 
-// ─── LAS ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, `mensajesDeZonaHero`) ────────────────────────
+// ─── EL MENSAJE COMPUESTO (§ EDITOR-BARRA-ESTILO-ESCALONADO-1, `esMensajeCamposCambio`) ────────
 
-test('mensajesDeZonaHero: un solo par produce UN mensaje, siempre para la sección "hero"', () => {
-  const mensajes = mensajesDeZonaHero('titularVisible', 'true', null, null);
-  assert.deepEqual(mensajes, [
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'titularVisible', valor: 'true' },
-  ]);
+test('esMensajeCamposCambio acepta la forma correcta — uno o varios campos', () => {
+  assert.equal(
+    esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'titulo', valor: 'X' }] }),
+    true,
+  );
+  assert.equal(
+    esMensajeCamposCambio({
+      tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero',
+      campos: [{ campo: 'veloVisible', valor: 'true' }, { campo: 'veloIntensidad', valor: 'suave' }],
+    }),
+    true,
+  );
 });
 
-test('mensajesDeZonaHero: el segundo par (opcional) agrega un SEGUNDO mensaje — el caso del velo combinado', () => {
-  const mensajes = mensajesDeZonaHero('veloVisible', 'true', 'veloIntensidad', 'suave');
-  assert.deepEqual(mensajes, [
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'veloVisible', valor: 'true' },
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'veloIntensidad', valor: 'suave' },
-  ]);
+test('esMensajeCamposCambio acepta un valor vacío por campo — el caso de "Quitar"', () => {
+  assert.equal(
+    esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'estilos.titulo.fuente', valor: '' }] }),
+    true,
+  );
+});
+
+test('esMensajeCamposCambio rechaza tipo ausente o distinto', () => {
+  assert.equal(esMensajeCamposCambio({ seccion: 'hero', campos: [{ campo: 'titulo', valor: 'X' }] }), false);
+  assert.equal(esMensajeCamposCambio({ tipo: 'otra-cosa', seccion: 'hero', campos: [{ campo: 'titulo', valor: 'X' }] }), false);
+});
+
+test('esMensajeCamposCambio rechaza seccion ausente, vacía o no-string', () => {
+  assert.equal(esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, campos: [{ campo: 'titulo', valor: 'X' }] }), false);
+  assert.equal(esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: '', campos: [{ campo: 'titulo', valor: 'X' }] }), false);
+  assert.equal(esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 3, campos: [{ campo: 'titulo', valor: 'X' }] }), false);
+});
+
+test('esMensajeCamposCambio rechaza `campos` ausente, vacío, no-array o con un elemento inválido', () => {
+  assert.equal(esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero' }), false);
+  assert.equal(esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [] }), false, 'un lote vacío no es un mensaje');
+  assert.equal(esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: 'x' }), false);
+  assert.equal(
+    esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'titulo', valor: 'X' }, { campo: '', valor: 'Y' }] }),
+    false,
+    'un elemento del lote con campo vacío invalida el mensaje entero',
+  );
+  assert.equal(
+    esMensajeCamposCambio({ tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'titulo', valor: 3 }] }),
+    false,
+    'valor no-string',
+  );
+});
+
+test('esMensajeCamposCambio rechaza cosas que no son objetos', () => {
+  assert.equal(esMensajeCamposCambio(null), false);
+  assert.equal(esMensajeCamposCambio(undefined), false);
+  assert.equal(esMensajeCamposCambio('hola'), false);
+});
+
+// ─── LAS ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, `mensajesDeZonaHero`) ────────────────────────
+// Devuelven el mensaje COMPUESTO (§ EDITOR-BARRA-ESTILO-ESCALONADO-1) — antes devolvían una LISTA
+// de `MensajeCampoCambio` que el llamador posteaba escalonados; ver el docstring del mensaje en
+// `editor-puente.ts` para el porqué del cambio.
+
+test('mensajesDeZonaHero: un solo par produce UN mensaje con UN campo, siempre para la sección "hero"', () => {
+  const mensaje = mensajesDeZonaHero('titularVisible', 'true', null, null);
+  assert.deepEqual(mensaje, {
+    tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'titularVisible', valor: 'true' }],
+  });
+});
+
+test('mensajesDeZonaHero: el segundo par (opcional) agrega un SEGUNDO campo al MISMO mensaje — el caso del velo combinado', () => {
+  const mensaje = mensajesDeZonaHero('veloVisible', 'true', 'veloIntensidad', 'suave');
+  assert.deepEqual(mensaje, {
+    tipo: TIPO_MENSAJE_CAMPOS_CAMBIO,
+    seccion: 'hero',
+    campos: [{ campo: 'veloVisible', valor: 'true' }, { campo: 'veloIntensidad', valor: 'suave' }],
+  });
 });
 
 test('mensajesDeZonaHero: sin el campo principal (o sin su valor), no manda NADA — un nodo mal marcado no es un mensaje a medias', () => {
-  assert.deepEqual(mensajesDeZonaHero(null, 'true', null, null), []);
-  assert.deepEqual(mensajesDeZonaHero('alto', null, null, null), []);
+  assert.equal(mensajesDeZonaHero(null, 'true', null, null), null);
+  assert.equal(mensajesDeZonaHero('alto', null, null, null), null);
 });
 
-test('mensajesDeZonaHero: el segundo par A MEDIAS (sólo el campo, o sólo el valor) se ignora en silencio — nunca un mensaje con `campo: null`', () => {
+test('mensajesDeZonaHero: el segundo par A MEDIAS (sólo el campo, o sólo el valor) se ignora en silencio — nunca un campo con `valor: null`', () => {
   const soloCampo2 = mensajesDeZonaHero('alto', 'pantalla', 'alturaLlena', null);
-  assert.deepEqual(soloCampo2, [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'alto', valor: 'pantalla' }]);
+  assert.deepEqual(soloCampo2, { tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'alto', valor: 'pantalla' }] });
   const soloValor2 = mensajesDeZonaHero('alto', 'pantalla', null, 'true');
-  assert.deepEqual(soloValor2, [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'alto', valor: 'pantalla' }]);
+  assert.deepEqual(soloValor2, { tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos: [{ campo: 'alto', valor: 'pantalla' }] });
+});
+
+test('mensajesDeZonaHero: el mensaje que produce es un MensajeCamposCambio válido (esMensajeCamposCambio)', () => {
+  assert.equal(esMensajeCamposCambio(mensajesDeZonaHero('veloVisible', 'true', 'veloIntensidad', 'suave')), true);
 });
 
 // ─── LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, `mensajeEstiloElemento`/
@@ -476,18 +542,48 @@ test('mensajeEstiloElemento: construye la ruta "estilos.<elemento>.<subcampo>" s
   });
 });
 
-test('mensajesQuitarEstiloElemento: los CUATRO subcampos, cada uno con "" — el orden es estable', () => {
-  const mensajes = mensajesQuitarEstiloElemento('hero', 'titulo');
-  assert.deepEqual(mensajes, [
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.fuente', valor: '' },
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.tamano', valor: '' },
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.color', valor: '' },
-    { tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: 'estilos.titulo.alinear', valor: '' },
-  ]);
+test('mensajesQuitarEstiloElemento: los CUATRO subcampos, cada uno con "", en UN SOLO mensaje compuesto — el orden es estable', () => {
+  const mensaje = mensajesQuitarEstiloElemento('hero', 'titulo');
+  assert.deepEqual(mensaje, {
+    tipo: TIPO_MENSAJE_CAMPOS_CAMBIO,
+    seccion: 'hero',
+    campos: [
+      { campo: 'estilos.titulo.fuente', valor: '' },
+      { campo: 'estilos.titulo.tamano', valor: '' },
+      { campo: 'estilos.titulo.color', valor: '' },
+      { campo: 'estilos.titulo.alinear', valor: '' },
+    ],
+  });
 });
 
-test('mensajesQuitarEstiloElemento: cada mensaje que produce es un MensajeCampoCambio válido (esMensajeCampoCambio)', () => {
-  for (const m of mensajesQuitarEstiloElemento('hero', 'subtitulo')) assert.equal(esMensajeCampoCambio(m), true);
+test('mensajesQuitarEstiloElemento: el mensaje que produce es un MensajeCamposCambio válido (esMensajeCamposCambio)', () => {
+  assert.equal(esMensajeCamposCambio(mensajesQuitarEstiloElemento('hero', 'subtitulo')), true);
+});
+
+// ─── IDA Y VUELTA DEL MENSAJE COMPUESTO — producir → validar → extraer, un solo lote ───────────
+// (§ EDITOR-BARRA-ESTILO-ESCALONADO-1, "Test del mensaje compuesto, ida y vuelta". El "un solo paso
+// de historial" que depende de React/`TiendaSeccionEditor` se verifica por EJECUCIÓN, en el arnés
+// — este repo no tiene jsdom para un test de componente, § CLAUDE.md.)
+
+test('ida y vuelta: "Quitar" produce un mensaje que, validado y leído, trae los CUATRO campos exactos que limpia', () => {
+  const mensaje = mensajesQuitarEstiloElemento('hero', 'titulo');
+  assert.equal(esMensajeCamposCambio(mensaje), true);
+  if (!esMensajeCamposCambio(mensaje)) throw new Error('no debería llegar acá');
+  assert.equal(mensaje.seccion, 'hero');
+  assert.deepEqual(mensaje.campos.map((c) => c.campo), [
+    'estilos.titulo.fuente', 'estilos.titulo.tamano', 'estilos.titulo.color', 'estilos.titulo.alinear',
+  ]);
+  assert.ok(mensaje.campos.every((c) => c.valor === ''));
+});
+
+test('ida y vuelta: el velo combinado produce un mensaje que, validado y leído, trae los DOS campos exactos del paso elegido', () => {
+  const mensaje = mensajesDeZonaHero('veloVisible', 'true', 'veloIntensidad', 'medio');
+  assert.equal(esMensajeCamposCambio(mensaje), true);
+  if (!esMensajeCamposCambio(mensaje)) throw new Error('no debería llegar acá');
+  assert.deepEqual(mensaje.campos, [
+    { campo: 'veloVisible', valor: 'true' },
+    { campo: 'veloIntensidad', valor: 'medio' },
+  ]);
 });
 
 // ─── EL DÉCIMO MENSAJE (§ EDITOR-AGREGAR-SECCION-LIENZO-1) ─────────────────────────────────────

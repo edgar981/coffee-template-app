@@ -53363,3 +53363,106 @@ Commiteado en `slice/editor-secciones-1` (`9152451`), encima de `9f07268`
 (`EDITOR-AYUDA-RECORRIDO-1`).
 
 **Cierra `EDITOR-COPY-TUTEO-1`.**
+
+## 2026-10-04 — El mensaje compuesto reemplaza el escalonado por tiempo (`EDITOR-BARRA-ESTILO-ESCALONADO-1`)
+
+Tier 1 (toca `components/storefront/EditorPuenteVivo.tsx`), `writes: yes`, `base: main` (policy:
+current-main), `observed-report: EDITOR-BARRA-ESTILO-CLIC-1`. Aprobado por el owner (la aprobación
+autoriza la escritura, nunca el merge). Sigue `slice/editor-secciones-1` (no corta rama nueva).
+
+### Lo medido — el follow-up que esto cierra
+
+`EDITOR-BARRA-ESTILO-QUITAR-WEBKIT-RACE-1` (coined por `EDITOR-BARRA-ESTILO-CLIC-1`,
+`.scratch/verificar-barra-estilo-clic.ts`, § arriba): en WEBKIT, "Quitar" de la barra de estilo
+limpiaba `fuente` (el PRIMERO de los 4 mensajes `postarEscalonado`) pero NO `tamano`/`color`/
+`alinear` — los `message` encolados por `setTimeout` sobre un `window.parent` cross-document no
+llegaban todos a ese motor. El mismo `postarEscalonado` alimentaba también "Oscurecer para leer
+mejor" (el velo del hero, § `EDITOR-TIENDA-ZONAS-1`) con el mismo riesgo, nombrado como frágil en
+su propio asiento.
+
+### El cambio
+
+- **`editor-puente.ts` gana el mensaje COMPUESTO**: `TIPO_MENSAJE_CAMPOS_CAMBIO`/
+  `MensajeCamposCambio`/`esMensajeCamposCambio` — gemelo de `TIPO_MENSAJE_CAMPO_CAMBIO` que lleva
+  un LOTE (`campos: {campo,valor}[]`) en un solo `postMessage`. `mensajesDeZonaHero` y
+  `mensajesQuitarEstiloElemento` (los DOS únicos productores de un cambio de VARIOS campos a la
+  vez) pasan de devolver una lista de mensajes singulares a devolver UN mensaje compuesto.
+- **`postarEscalonado` se RETIRÓ entero** de `EditorPuenteVivo.tsx` — sus DOS call sites postean
+  ahora el mensaje único directo (`window.parent.postMessage(mensaje, …)`), sin `setTimeout`.
+- **El panel aplica el lote en UNA sola escritura**: `TiendaSeccionEditor.escribirCampos` (gemelo
+  plural de `escribirCampo`) encadena `fusionCampoEditable` sobre un ACUMULADOR LOCAL —nunca sobre
+  `formRef.current` repetido, que sólo se resincroniza en el render siguiente a un `setForm` (la
+  causa raíz tanto del defecto de WebKit como de la fragilidad nombrada por
+  `EDITOR-TIENDA-ZONAS-1`)— y llama a `aplicarCambioForm` UNA vez: un lote, un paso de historial.
+  `VistaTiendaIframe` gana `onCamposCambio` (gemelo de `onCampoCambio`); `TiendaPaginas.
+  manejarCamposCambioDesdeIframe` espeja el árbol de resolución de la singular (footer / instancia
+  / cruzado / sección regular). Las tres ramas no-`sección regular` NO las ejerce hoy ningún
+  productor real (zonas del hero y `ELEMENTOS_ESTILO` sólo declaran la sección `'hero'`, nunca
+  footer/instancia/cruzado) y quedan resueltas por un LOOP sobre el método singular de cada rama
+  —comportamiento idéntico al de antes de este slice para esos casos, documentado como tal, no una
+  implementación plural completa sin caso real que la ejerza.
+- `esMensajeCamposCambio` se sumó a la captura de ventana del aviso de sesión vencida
+  (`TiendaSeccionEditor.tsx`, `iframeVentanaRef`): sin esto, un gesto compuesto no reseteaba esa
+  captura.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3728/3728** (+9: 6 `esMensajeCamposCambio` + 1 `mensajesDeZonaHero`→válido + 2 "ida y vuelta"; los 7 tests viejos de zonas/barra se EDITARON en el sitio, no se duplicaron) |
+| `npm run test:integracion` | **346/346**, sin cambio (ningún archivo de `tests/integracion/` está en `touches:`) |
+| `npm run gate` | GREEN, corrida única sobre el árbol final |
+| `npx next build` | compiló sin error |
+| `npx eslint` (los 6 archivos de `touches:` tocados) | CERO nuevos — verificado archivo por archivo contra `git show HEAD:<archivo> | eslint --stdin`: mismos errores/warnings pre-existentes (ref-durante-render en `EditorPuenteVivo.tsx`/`TiendaSeccionEditor.tsx`, el `titulo` sin usar y el eslint-disable sobrante en `TiendaPaginas.tsx`/`VistaTiendaIframe.tsx`), sólo desplazados de línea |
+
+**`npm run verificar:nayoli:visual` NO se corrió — deviation medida, no omisión.** A diferencia de
+`EDITOR-COPY-TUTEO-1`/`EDITOR-VISUAL-MARCO-1`, este slice SÍ toca un archivo de
+`components/storefront/` (`EditorPuenteVivo.tsx`), pero las únicas líneas que cambian viven dentro
+de `if (!activo) return null;` (el componente entero) y dentro de closures de eventos que sólo
+corren con el editor abierto — nada en el camino de render de un visitante normal. Medido por
+lectura: el único cambio fuera de una función/evento es el retiro del import de un TYPE
+(`MensajeCampoCambio`, borrado en compilación, cero efecto en runtime). Correr el diff visual
+completo (dos builds, Postgres efímero, 6 rutas) para un cambio que no puede tocar el DOM del
+visitante es el costo que el arnés dedicado de abajo ya paga mejor, en el camino exacto que importa.
+
+### Verificado por ejecución — `.scratch/verificar-barra-estilo-escalonado.ts` (no committed), CHROMIUM y WEBKIT
+
+Build de PRODUCCIÓN real (`next build` + `next start`), Postgres efímero, sesión OWNER real.
+**18/18 en verde en los DOS motores** (antes: en WebKit, 1 de 4 campos de "Quitar" llegaba):
+
+- "Quitar" (ensuciado por PUT directo de los 4 subcampos, para no depender de selectores de UI que
+  ya cambiaron desde el arnés de `EDITOR-BARRA-ESTILO-CLIC-1` — popover/stepper en vez de
+  `<select>`) limpia `fuente`/`tamano`/`color`/`alinear` LOS CUATRO, en UN clic, en los DOS
+  motores — leído por `GET /api/site-content` (el borrador real), no por estilo computado.
+- UN solo clic en "Deshacer" restaura los CUATRO subcampos a sus valores de antes — la prueba
+  directa de que el gesto quedó en UN SOLO paso de historial, no cuatro.
+- La zona compuesta del hero ("Pantalla completa", `alto`+`alturaLlena`) escribe los DOS campos en
+  el MISMO gesto, y un solo "Deshacer" los revierte juntos.
+- Capturas en `.scratch/capturas-barra-estilo-escalonado/` (no committed): antes/después de
+  "Quitar", después de un Deshacer, zona "Pantalla completa" — por motor.
+
+### Open follow-ups
+
+Ninguno coined por este slice.
+
+### `customer_bytes`
+
+**`changed: true`, `strings: []`.** El byte que cambia es COMPILADO (el formato del mensaje entre
+iframe y panel, y cómo el panel lo aplica) — el OWNER percibe la diferencia (en WebKit, "Quitar"
+ahora funciona de verdad; antes dejaba 3 de 4 campos a medio limpiar), pero ningún TEXTO visible
+cambia. Es la robustez, no el producto — mismo patrón que la nota del schema de reporte describe
+para un `changed:true` sin `strings`.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado — los seis
+archivos de `touches:` tocados son dos módulos de mensajería (uno storefront, uno puro) y cuatro
+componentes del panel.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`.
+
+**Cierra el follow-up `EDITOR-BARRA-ESTILO-QUITAR-WEBKIT-RACE-1` (de `EDITOR-BARRA-ESTILO-CLIC-1`).
+Cierra `EDITOR-BARRA-ESTILO-ESCALONADO-1`.**

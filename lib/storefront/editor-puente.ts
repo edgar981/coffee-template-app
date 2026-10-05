@@ -271,12 +271,61 @@ export function esMensajeCampoImagenClick(data: unknown): data is MensajeCampoIm
   );
 }
 
+// ─── EL UNDÉCIMO MENSAJE — EL CAMBIO COMPUESTO (§ EDITOR-BARRA-ESTILO-ESCALONADO-1) ────────────
+//
+// iframe→panel: "ESTOS campos de la sección cambiaron A LA VEZ, por UN SOLO gesto" — el gemelo
+// COMPUESTO de `TIPO_MENSAJE_CAMPO_CAMBIO` (arriba), para cuando un solo clic escribe VARIOS campos
+// reales (nunca una tecla sola: eso sigue siendo el mensaje singular). Reemplaza al escalonado por
+// TIEMPO (`postarEscalonado`, retirado de `EditorPuenteVivo.tsx` en este mismo slice) que mandaba
+// cada campo en su propio `postMessage`, separado del siguiente por un `setTimeout` de 80ms.
+//
+// MEDIDO EN WEBKIT (§ EDITOR-BARRA-ESTILO-CLIC-1, el follow-up que abre este slice): de los CUATRO
+// mensajes que «Quitar» posteaba para limpiar `estilos.<elemento>.*`, sólo el PRIMERO se aplicaba —
+// los `message` encolados por `setTimeout` sobre un `window.parent` cross-document no llegan todos
+// a ese motor. Con UN SOLO mensaje no hay tanda que ese modo de falla pueda partir.
+//
+// Y no era sólo WebKit lo que el escalonado comprometía: aun en los motores donde los CUATRO
+// mensajes llegaban, cada uno disparaba su propio lote de historial en el panel
+// (`TiendaSeccionEditor.aplicarCambioForm`) salvo que React alcanzara a re-renderizar entre uno y
+// otro (§ el docstring viejo de `postarEscalonado`, el `setTimeout` existía SÓLO para darle ese
+// tiempo) — cuatro campos de UN gesto podían quedar en dos o más pasos de deshacer. Con un mensaje
+// compuesto el panel aplica los `campos` sobre un ACUMULADOR LOCAL (§ `TiendaSeccionEditor.
+// escribirCampos`, fuera de este módulo) y llama a `aplicarCambioForm` UNA sola vez: un lote, un
+// paso de deshacer, sin depender de que React re-renderice a tiempo.
+export const TIPO_MENSAJE_CAMPOS_CAMBIO = 'editor-tienda:campos-cambio' as const;
+
+export interface MensajeCamposCambio {
+  tipo: typeof TIPO_MENSAJE_CAMPOS_CAMBIO;
+  /** La sección del REGISTRY a la que pertenecen TODOS los campos del lote — igual que
+   *  `MensajeCampoCambio.seccion`, un solo mensaje no puede repartir sus campos entre dos secciones. */
+  seccion: string;
+  /** El lote, en el ORDEN en que deben aplicarse (§ `TiendaSeccionEditor.escribirCampos`: cada
+   *  campo se funde sobre el resultado del anterior, nunca sobre el form de ANTES del gesto). Nunca
+   *  vacío — un gesto que no cambia nada no manda mensaje. */
+  campos: Array<{ campo: string; valor: string }>;
+}
+
+export function esMensajeCamposCambio(data: unknown): data is MensajeCamposCambio {
+  if (!data || typeof data !== 'object') return false;
+  const m = data as Record<string, unknown>;
+  if (m.tipo !== TIPO_MENSAJE_CAMPOS_CAMBIO) return false;
+  if (typeof m.seccion !== 'string' || m.seccion.trim() === '') return false;
+  if (!Array.isArray(m.campos) || m.campos.length === 0) return false;
+  return m.campos.every((c) => {
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return false;
+    const cc = c as Record<string, unknown>;
+    return typeof cc.campo === 'string' && cc.campo.trim() !== '' && typeof cc.valor === 'string';
+  });
+}
+
 // ─── LAS ZONAS DEL HERO (§ EDITOR-TIENDA-ZONAS-1, docs/editor-tienda/REDISENO.md § 4) ──────────
 //
-// NO es un mensaje nuevo — REUTILIZA `TIPO_MENSAJE_CAMPO_CAMBIO` (arriba): "+ Titular"/"Quitar"/los
-// botones de Alto y de Velo son, los cuatro, la MISMA operación que ya existe ("escribir un campo
-// de la sección que el clic marcó"), disparada por un CLIC en un botón en vez de por una TECLA en
-// el campo flotante. Lo único nuevo es DE DÓNDE sale el mensaje: en vez de leer `nodo.textContent`
+// NO es un mensaje nuevo — REUTILIZA `TIPO_MENSAJE_CAMPOS_CAMBIO` (arriba, § EDITOR-BARRA-ESTILO-
+// ESCALONADO-1 — antes reusaba el SINGULAR, `TIPO_MENSAJE_CAMPO_CAMBIO`, posteado escalonado; ver
+// el docstring de ese mensaje para el porqué del cambio): "+ Titular"/"Quitar"/los botones de Alto
+// y de Velo son, los cuatro, la MISMA operación que ya existe ("escribir uno o más campos de la
+// sección que el clic marcó"), disparada por un CLIC en un botón en vez de por una TECLA en el
+// campo flotante. Lo único nuevo es DE DÓNDE sale el mensaje: en vez de leer `nodo.textContent`
 // tras cada tecla (§ `abrirCampo`, `EditorPuenteVivo.tsx`), lee DOS atributos fijos del nodo
 // clickeado — el campo y el valor a escribir, declarados por el HERO en el JSX, nunca calculados—.
 //
@@ -288,31 +337,30 @@ export function esMensajeCampoImagenClick(data: unknown): data is MensajeCampoIm
 //
 // UN SEGUNDO PAR OPCIONAL (`_CAMPO2`/`_VALOR2`) cubre el VELO: «Oscurecer para leer mejor» escribe
 // DOS campos reales a la vez (`veloVisible`+`veloIntensidad`, § `camposDeVeloCombo`,
-// site-content-defaults.ts) — un solo botón, dos mensajes en secuencia, nunca un mensaje compuesto
-// nuevo (el panel ya sabe aplicar `TIPO_MENSAJE_CAMPO_CAMBIO` uno por uno; inventar una forma de
-// mensaje "con dos campos" sería una SEGUNDA manera de decir lo mismo).
+// site-content-defaults.ts) — los DOS entran al MISMO mensaje compuesto, nunca dos mensajes
+// separados (eso es justo lo que este slice retira).
 export const ATRIBUTO_EDITOR_ZONA_CAMPO = 'data-editor-zona-campo';
 export const ATRIBUTO_EDITOR_ZONA_VALOR = 'data-editor-zona-valor';
 export const ATRIBUTO_EDITOR_ZONA_CAMPO2 = 'data-editor-zona-campo2';
 export const ATRIBUTO_EDITOR_ZONA_VALOR2 = 'data-editor-zona-valor2';
 
 /**
- * De los CUATRO atributos ya leídos (`null` si el nodo no los trae), los mensajes
- * `TIPO_MENSAJE_CAMPO_CAMBIO` a postear — SIEMPRE para la sección `'hero'` (hoy la única que declara
- * zonas; § REDISENO.md § 4, "el hero por zonas"). Pura: no lee el DOM, sólo valida/arma la forma —
- * `EditorPuenteVivo.tsx` hace el `getAttribute` y le pasa los cuatro strings-o-null acá.
+ * De los CUATRO atributos ya leídos (`null` si el nodo no los trae), el mensaje COMPUESTO
+ * (`TIPO_MENSAJE_CAMPOS_CAMBIO`) a postear — SIEMPRE para la sección `'hero'` (hoy la única que
+ * declara zonas; § REDISENO.md § 4, "el hero por zonas"). Pura: no lee el DOM, sólo valida/arma la
+ * forma — `EditorPuenteVivo.tsx` hace el `getAttribute` y le pasa los cuatro strings-o-null acá.
  *
- * Devuelve `[]` si el primer par (campo/valor) no es válido — un nodo marcado sin su campo principal
- * es una declaración rota, no hay nada que mandar; el segundo par es estrictamente OPCIONAL (sólo el
- * velo lo usa) y se ignora en silencio si falta la mitad.
+ * Devuelve `null` si el primer par (campo/valor) no es válido — un nodo marcado sin su campo
+ * principal es una declaración rota, no hay nada que mandar; el segundo par es estrictamente
+ * OPCIONAL (sólo el velo lo usa) y se ignora en silencio si falta la mitad.
  */
 export function mensajesDeZonaHero(
   campo: string | null, valor: string | null, campo2: string | null, valor2: string | null,
-): MensajeCampoCambio[] {
-  if (!campo || valor === null) return [];
-  const out: MensajeCampoCambio[] = [{ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo, valor }];
-  if (campo2 && valor2 !== null) out.push({ tipo: TIPO_MENSAJE_CAMPO_CAMBIO, seccion: 'hero', campo: campo2, valor: valor2 });
-  return out;
+): MensajeCamposCambio | null {
+  if (!campo || valor === null) return null;
+  const campos: Array<{ campo: string; valor: string }> = [{ campo, valor }];
+  if (campo2 && valor2 !== null) campos.push({ campo: campo2, valor: valor2 });
+  return { tipo: TIPO_MENSAJE_CAMPOS_CAMBIO, seccion: 'hero', campos };
 }
 
 // ─── EL QUINTO MENSAJE (§ EDITOR-TIENDA-CAMPO-EDITABLE-SESION-1) ───────────────────────────────
@@ -357,12 +405,18 @@ export function esMensajeSesionVencida(data: unknown): data is MensajeSesionVenc
 
 // ─── LA BARRA FLOTANTE (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, docs/editor-tienda/REDISENO.md § 5) ─────
 //
-// NO son mensajes nuevos — REUTILIZAN `TIPO_MENSAJE_CAMPO_CAMBIO` (arriba), mismo criterio que
-// `mensajesDeZonaHero`: "letra"/"tamaño"/"alinear"/"color"/"quitar" son, los cinco, la MISMA
-// operación que ya existe ("escribir un campo de la sección que el overlay tiene abierto"),
-// disparada por un control de la barra en vez de por una TECLA en el campo flotante. Lo único nuevo
-// es la RUTA que se escribe: `estilos.<elemento>.<subcampo>` — la TERCERA forma que
-// `fusionCampoEditable` (`lib/storefront/campo-editable.ts`) ya sabe aplicar.
+// `mensajeEstiloElemento` (un solo control: "Letra: Robusta", "Tamaño: Enorme"…) NO es un mensaje
+// nuevo — REUTILIZA `TIPO_MENSAJE_CAMPO_CAMBIO` (arriba): es la MISMA operación que ya existe
+// ("escribir un campo de la sección que el overlay tiene abierto"), disparada por un control de la
+// barra en vez de por una TECLA en el campo flotante. Lo único nuevo es la RUTA que se escribe:
+// `estilos.<elemento>.<subcampo>` — la TERCERA forma que `fusionCampoEditable`
+// (`lib/storefront/campo-editable.ts`) ya sabe aplicar.
+//
+// `mensajesQuitarEstiloElemento` ("Quitar", los CUATRO subcampos a la vez) SÍ usa el COMPUESTO
+// (`TIPO_MENSAJE_CAMPOS_CAMBIO`, § EDITOR-BARRA-ESTILO-ESCALONADO-1 — antes devolvía una LISTA de
+// cuatro `MensajeCampoCambio` que el llamador posteaba escalonados; ver el docstring de ese mensaje
+// para el porqué del cambio): los cuatro subcampos son UN solo gesto del dueño ("volver este
+// elemento a su estilo por defecto"), así que viajan en UN mensaje.
 
 /** UN control de la barra ("Letra: Robusta", "Tamaño: Enorme"…) → el mensaje que lo escribe. */
 export function mensajeEstiloElemento(
@@ -376,12 +430,14 @@ export function mensajeEstiloElemento(
 
 /** "Quitar" — los CUATRO subcampos a la vez, cada uno con `''` (que `resolverEstiloElemento`,
  *  estilo-elemento.ts, normaliza a `null` = "por defecto", igual que trata cualquier otro `''` de
- *  este repo como "sin dato"). Devuelve la LISTA; el llamador (`EditorPuenteVivo.tsx`) es quien
- *  decide CÓMO postearla —escalonada, como ya hace con `mensajesDeZonaHero`, por el mismo defecto
- *  medido de dos `postMessage` en la misma pila pisándose en `formRef` (§ EDITOR-TIENDA-ZONAS-1)—,
- *  así que esta función se queda PURA, sin `window`/`setTimeout`. */
-export function mensajesQuitarEstiloElemento(seccion: string, elemento: string): MensajeCampoCambio[] {
-  return (['fuente', 'tamano', 'color', 'alinear'] as const).map((sub) => mensajeEstiloElemento(seccion, elemento, sub, ''));
+ *  este repo como "sin dato"), en UN SOLO mensaje compuesto — nunca cuatro mensajes separados que
+ *  alguien tenga que postear escalonados. */
+export function mensajesQuitarEstiloElemento(seccion: string, elemento: string): MensajeCamposCambio {
+  return {
+    tipo: TIPO_MENSAJE_CAMPOS_CAMBIO,
+    seccion,
+    campos: (['fuente', 'tamano', 'color', 'alinear'] as const).map((sub) => ({ campo: `estilos.${elemento}.${sub}`, valor: '' })),
+  };
 }
 
 /**
