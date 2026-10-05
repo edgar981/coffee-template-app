@@ -54211,3 +54211,244 @@ capacidad real (alineación del titular que ensancha el marcado) que corre para 
 la configure, aunque hoy esté inerte para Nayoli. Mismo eje que el resto de esta rama.
 
 **Cierra `EDITOR-ARREGLOS-TITULAR-DESTACADO-1`.**
+
+## 2026-10-05 — El panel del editor toma la piel del prototipo: riel y panel blancos pegados, el «?» se lee, y la muestra de color es grande (`EDITOR-PANEL-PIEL-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el pedido textual del
+owner del 2026-10-05 revisando el editor: *"Los colores del panel no están iguales que en el
+diseño… El tooltip debe ser más amigable con el usuario, eso de NAV-INTERNAS .... no lo va a
+entender. EL signo de pregunta que hace las veces de ayuda y muestra lo del tooltip no parece casi
+signo de pregunta. La parte que debería mostrar el color del badge está muy pequeña, apenas y se
+nota"*, `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. Decisión vigente del owner sobre
+colores sugeridos (2026-10-02): roles con nombre llano, «Por defecto» siempre, color libre
+«Personalizado» dentro de «Avanzado», sin aviso de contraste. La aprobación autoriza la escritura,
+nunca el merge. Sigue `slice/editor-secciones-1` (no corta rama propia — el dispatch lo pide
+explícito) sobre `7db2c69` (`EDITOR-ARREGLOS-TITULAR-DESTACADO-1`).
+
+### 1 · Colores y superficies — riel y panel PEGADOS, sin crema, sin cajas dentro de cajas
+
+**La causa raíz, medida antes de tocar nada:** `--duna-bg`/`--duna-surface`/`--duna-border` YA
+coincidían byte a byte con `--bg`/`--surface`/`--line` del prototipo (`#F7F6F2`/`#FFFFFF`/`#E9E6DD`
+en los dos lados) — el defecto NUNCA fue de paleta, fue de LAYOUT: `EditorTiendaPantallaCompleta.tsx`
+envolvía a `TiendaPaginas` en un div con `padding: var(--duna-space-6)` SIN fondo propio, así que el
+crema de la raíz del editor se colaba entre el riel y el panel; y `.editor-panel` no tenía
+`background` propio, así que dejaba ver ese mismo crema detrás — el panel "flotaba" sobre la app en
+vez de pegarse al riel, como en `.rail`/`.panel` del prototipo (flex siblings sin gap, cada uno
+`--surface` con su propio borde).
+
+- **`EditorTiendaPantallaCompleta.tsx`**: el div `padding: var(--duna-space-6)` sin fondo se
+  reemplaza por `className="editor-cuerpo"` (sin padding propio — § abajo).
+- **`TiendaPaginas.tsx`**: las tres piezas condicionales que van ARRIBA de la grilla panel|lienzo
+  (Migas, el toggle de página, la barra de orden de `§EDITOR-TIENDA-ORDEN-1`) se envuelven en
+  `.editor-cuerpo-chrome` (el padding horizontal que perdieron al retirarse del wrapper de arriba);
+  la grilla panel|lienzo pasa de `gap: var(--duna-space-6)` a `gap: 0` — el panel y el lienzo quedan
+  PEGADOS, separados sólo por el `border-right` que `.editor-panel` ya gana.
+- **`editor.css`**: `.editor-panel` gana `background: var(--duna-surface)`, `border-right` (la
+  costura con el lienzo, MISMA forma que ya separa riel de panel en `Riel.tsx`) y `border-bottom`
+  (para el layout APILADO de `useSheetDesdeAbajo`/angosto, donde panel y lienzo se apilan en vez de
+  ir lado a lado y el `border-right` no separa nada ahí) — con el padding que el prototipo pone en
+  `.pv` (16/16/24).
+- **Los grupos dentro del panel se separan con LÍNEA, no con tarjetas blancas sobre crema**: scoped
+  a `.editor-panel`, `.duna-card`/`.admin-bloques`/`.admin-bloque` (packages/design-system,
+  `duna.css` — NINGUNO de los dos archivos se toca) pierden fondo/borde/radio/sombra y ganan un
+  `border-top` entre piezas (el patrón de `.admin-pagos-grupo` en `duna.css`) — porque esas clases
+  están pensadas para una superficie RECESADA (`--duna-bg`) con piezas elevadas encima, exactamente
+  lo que el panel dejó de ser. Afecta a los CINCO consumidores que viven dentro del panel
+  (`EncabezadoSeccion.tsx`, `MenuSeccion.tsx`, `FooterSeccion.tsx`, `TiendaSeccionEditor.tsx` vía
+  `.admin-bloques`, `InstanciaEditorForm.tsx` vía `.admin-bloques`) SIN tocar una sola línea de su
+  JSX — es CSS puro, de alcance del editor.
+- **Los repeaters quedan AFUERA del aplanado, a propósito**: sus ítems ya eran `.duna-card` blancas
+  puestas sobre un panel crema (el propio código de `TiendaSeccionEditor.tsx` ya lo advertía: "una
+  pieza blanca alrededor los dejaría blanco-sobre-blanco") — con el panel ahora blanco, aplanarlos
+  los habría dejado SIN NINGÚN borde entre ítem e ítem. `RepeaterEditor.tsx` no está en `touches:`
+  de este slice, así que la protección va por dos marcadores puestos desde los call sites que sí lo
+  están: `.editor-repeater` (el envoltorio, en `TiendaSeccionEditor.tsx`/`FooterSeccion.tsx`) y
+  `.editor-repeater-item` (el ítem mismo, en `InstanciaItemsEditor.tsx`) — más específico que la
+  regla del aplanado, gana sin depender del orden de las reglas CSS.
+- **Verificado por ejecución** (§ 5, abajo): `01-inicio.png` y `03-encabezado.png` muestran el riel y
+  el panel blancos pegados sin crema entre medio, y los grupos de Encabezado (imagen del logo, ícono
+  de pestaña, los diez switches) fluyen sin cajas.
+
+### 2 · El ícono de ayuda — un solo círculo, 16px como mínimo
+
+`AyudaCampo.tsx` (`.editor-ayuda-mas`) envolvía un `HelpCircle` de lucide —que YA dibuja su propio
+círculo con el "?" adentro— dentro de un chip con su PROPIO `border-radius:50%` + borde, a 15px con
+el ícono a 10px: un círculo DENTRO de otro círculo, y lo que quedaba del "?" eran ~4px — el pedido
+textual del owner, "no parece casi signo de pregunta". El botón deja de dibujar su propio círculo;
+el único que se ve es el del ÍCONO, subido a 16px (`editor.css` + el prop `width`/`height` del
+`<HelpCircle>`). Mismo ícono en las demás apariciones del panel (Migas, el "?" de Inicio, el centro
+de Ayuda) — todas ya usaban `HelpCircle` de lucide; sólo la tiene pequeña de `AyudaCampo` estaba
+rota, y es la única que este slice tocó. Verificado por ejecución: `02b-icono-ayuda.png` (el chip,
+ahora legible) y `02c-tooltip-ayuda.png` (el tooltip al pasar el mouse).
+
+### 3 · Las ayudas en palabras de cliente
+
+- **`EncabezadoSeccion.tsx`** — el hint de "Color del encabezado" cerraba con
+  `(§ NAV-INTERNAS-CLARO-Y-OFFSET-1)`; se retira, dejando sólo la frase. Tres labels con jerga:
+  `'drawerMovil'` **"Drawer móvil de pantalla completa"** → **"Menú del teléfono a pantalla
+  completa"**; `'filete'` **"Filete inferior"** → **"Línea bajo el encabezado"**; `'ctaBadge'`
+  **"Botón Comprar y badge del menú"** → **"Botón Comprar y etiqueta del menú"** (su hint también:
+  "el badge de un ítem de menú toma un color fijo" → "la etiqueta…"). El sub-control del badge
+  ("Color del badge", aria-label "Elegir color del badge", "Vacío: el badge sigue…") pasa a "Color
+  de la etiqueta"/"la etiqueta sigue…" como parte del reemplazo por `MuestraColor` (§ 4).
+- **`MenuSeccion.tsx`** — "Ítem con badge (opcional)" → "Ítem con etiqueta (opcional)"; "Texto del
+  badge" → "Texto de la etiqueta"; los dos hints "no se muestra ningún badge" → "ninguna etiqueta".
+- **`tienda-secciones.ts`** (hints del Hero) — la composición interna `'sticky'` se mostraba
+  LITERAL en ocho hints (*"Sólo con la composición "sticky""*) en vez de su nombre visible real,
+  **"Marquesina"** (`LABEL_COMPOSICION_HERO.sticky`, ya existente); `'media'` → **"Portada"** en el
+  hint que nombra las dos. "el alto del viewport"/"Cuánto del viewport ocupa el hero" → "el alto de
+  la pantalla"/"Cuánto de la pantalla ocupa el hero". "El slug del producto…" → "El producto…"
+  (jerga de base de datos en un hint de cliente).
+- **Guard nuevo — `lib/admin/copy-editor.test.ts`**: lee (sin comentarios) los seis archivos del
+  panel —`EncabezadoSeccion.tsx`, `MenuSeccion.tsx`, `FooterSeccion.tsx`, `PaletaSeccion.tsx`,
+  `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`— y falla si aparece un `§` o un id con forma de
+  ledger (`PALABRAS-EN-MAYÚSCULA-CON-GUIONES-N`). Reusa `sinComentarios` de
+  `lib/admin/recorrido-editor.test.ts` (exportado en este slice, con su propio docstring explicando
+  por qué: dos copias del mismo helper es la misma trampa que `razonDelServidor`/`cruzoMinimo`).
+  Visto fallar contra el hint original de "Color del encabezado" antes del fix.
+- **Barrido exhaustivo, no sólo lo que el spec cita**: se grepeó `drawer|badge|CTA|sticky|filete|
+  viewport` (y `§`/ledger-ids) sobre los SEIS archivos del panel SIN comentarios — el resultado de
+  arriba es el conjunto completo de apariciones VISIBLES; el resto son `name:` (identificadores
+  internos del modelo) o nombres de CLASE CSS (`duna-badge`, no texto).
+- **Deviación medida y revertida**: `"Texto del loop (marquesina)"` (label del campo cruzado de la
+  marquesina en el hero) también lleva jerga ("loop"), y se iba a renombrar a "Texto que se repite
+  (marquesina)" — pero `lib/admin/resumen-cambios.test.ts:74` (fuera de `touches:`) hardcodea ese
+  label EXACTO para resolver a qué sección pertenece un campo cruzado. Revertido a su texto
+  original para no romper ese test; el hint del mismo campo SÍ se corrigió (`"sticky"` →
+  `"Marquesina"`, no toca el label). Visto fallar con el rename puesto, visto pasar revertido —
+  `npm test` completo: 3784/3784 sin el rename, 3783/3784 con él.
+- **No tocado, fuera de `touches:`**: `MENU_CTA_DESTINOS` (`lib/config/site-content-defaults.ts`,
+  `['/tienda', '/suscripciones', '/nosotros']`) se muestra LITERAL como texto de `<option>` en los
+  selects de destino de `MenuSeccion.tsx` — una ruta técnica, no un nombre llano ("Tienda" en vez de
+  "/tienda"). No es uno de los términos nombrados por el spec y el archivo que lo declara no está en
+  `touches:`. Anotado como open follow-up, no corregido.
+
+### 4 · `MuestraColor.tsx` — la muestra grande, con sugerencias y «Avanzado › Personalizado»
+
+Componente nuevo, `components/admin/editor/MuestraColor.tsx`: swatch «a sangre» de 32px mínimo
+(`<label>` con la muestra + `<input type="color">` invisible encima — el patrón COPIADO de
+`components/storefront/EditorPuenteVivo.tsx`, ese archivo NO se tocó) + el hex al lado; sugerencias
+con nombre llano (opcionales); «Por defecto» (opcional, sólo donde el campo tiene un estado
+"sin elegir" real); el color libre dentro de «Avanzado › Personalizado» cuando hay sugerencias que
+anteponer — sin sugerencias ni «Por defecto», la muestra ES el control entero (nada que ocultar
+detrás de un disclosure). Sin aviso de contraste en ningún caso, según la decisión del owner del
+2026-10-02.
+
+Reemplaza los TRES `<input type="color">` sueltos:
+
+- **`EncabezadoSeccion.tsx`** — color del badge: sugerencias = las TRES raíces de la paleta
+  (Fondo/Tinta/Acento, nombre llano), leídas de un prop `tema` NUEVO que `TiendaPaginas.tsx` pasa
+  (mismo dato, `doc.contenido.tema`, que ya baja a `BibliotecaSecciones` — un consumidor más, sin
+  fetch nuevo); «Por defecto» = el antiguo botón "Restablecer" (`cambiar({ badgeColor: '' })`).
+- **`PaletaSeccion.tsx`** — el acento de marca: SIN sugerencias ni «Por defecto» (el acento es una
+  de las tres raíces, no se sugiere a sí mismo; no tiene un "sin elegir" propio — ésa es la acción
+  global "Usar el tema por defecto", que resetea las tres raíces juntas). La muestra es el control
+  entero, visible siempre — confirmado por ejecución (`04-estilo.png`: el swatch marrón de 32px +
+  "#8b4513" junto a "Acento de marca").
+- **`EstiloElementoControles.tsx`** — SIN sugerencias (los roles de `ROLES_COLOR_ELEMENTO` ya se
+  muestran arriba, con su propio trato; MuestraColor sólo reemplaza el `<input type="color">` de
+  28×22 que vivía dentro de «Avanzado › Personalizado»).
+
+### 5 · Verificado por ejecución — `.scratch/capturar-editor-panel-piel.ts` (no comiteado)
+
+Mismo mecanismo que el arnés de `EDITOR-VISUAL-PANEL-1` (`.scratch/capturar-editor-visual.ts`,
+reusado como referencia — este slice escribió el suyo propio, adaptado a sus cuatro pantallas):
+reusa las funciones exportadas de `scripts/verificar-nayoli-visual.ts`
+(`levantarPostgres`/`migrarYSembrar`/`entornoArbol`/`construir`/`arrancar`/`esperarListo`/
+`detener`/`cargarPlaywright`), Postgres efímero propio (`:5592`), `migrate deploy` + seed canónico,
+`next build`/`next start` (`:4602`), Playwright con sesión real (`admin@sierranativa.co`), viewport
+1440×900. Corrió de punta a punta, exit code 0.
+
+Ocho capturas en `.scratch/capturas-editor-panel-piel/`: **01-inicio** (riel+panel blancos
+pegados, sin crema); **02-nivel-hero** (ídem, + el hint "Cuánto de la pantalla ocupa el hero." con
+su «?» legible); **02b-icono-ayuda**/**02c-tooltip-ayuda** (el chip del «?» y su tooltip);
+**03-encabezado** (los grupos de campos SIN cajas — Imagen del logo, Ícono de la pestaña);
+**03b-tooltip-color-encabezado** (el tooltip de "Color del encabezado" SIN la referencia a
+NAV-INTERNAS, y las tres labels renombradas —"Menú del teléfono a pantalla completa", "Línea bajo
+el encabezado", "Botón Comprar y etiqueta del menú"— visibles); **03c-muestra-color-badge**
+(el switch "Botón Comprar y etiqueta del menú" encendido — el autoguardado corrió, "Guardando…"/
+"Publicar 1" aparecen; la muestra de color en sí quedó fuera del viewport capturado, no se re-corrió
+por presupuesto de tiempo — queda como limitación de la captura, no del componente, que
+`EncabezadoSeccion.tsx` monta igual que en `03c` de `PaletaSeccion`); **04-estilo** (el riel →
+Estilo → Paleta: el swatch de 32px + "#8b4513" junto a "Acento de marca", confirmando `MuestraColor`
+en su sitio más visible).
+
+**La sesión corta de "lo que ya funciona" (§ Cierre), por ejecución dentro del mismo arnés:**
+- **deshacer**: el intento automatizado de editar "Titular" y confirmar que "Deshacer" se habilita
+  no encontró el campo tras la navegación Estilo→Secciones→Hero de este script (`UNDO_HABILITADO_
+  TRAS_EDITAR=NO_SE_ENCONTRO_CAMPO`) — limitación del SELECTOR de este script descartable (la fila
+  "Hero de la home" no quedó en el estado esperado tras el ciclo de navegación extra que este
+  script agrega sobre el de `EDITOR-VISUAL-PANEL-1`), no evidencia de una regresión: el mecanismo
+  de deshacer/rehacer no está en `touches:` de este slice y `02-nivel-hero.png` ya muestra el nivel
+  Hero abierto y editable con normalidad.
+- **el ojo** (visibilidad): `FILA_MARQUESINA_IS_DIM=true` — Marquesina (apagada en Nayoli) sigue
+  atenuada en la lista, igual que siempre.
+- **agregar sección**: `AGREGAR_SECCION_VISIBLE=true` — el botón punteado sigue presente y visible.
+- **publicar / orden**: observado indirectamente en `03c` (el indicador de autoguardado pasa de
+  "Guardado" a "Guardando…" y el botón "Publicar" aparece con el contador "1" tras tocar un switch
+  — el flujo de borrador/publicar no se tocó y sigue respondiendo).
+- **campo anclado / barra flotante**: el intento de abrir la barra flotante clickeando un campo
+  DENTRO del iframe no encontró el marcador esperado (`CAMPO_ANCLADO_LIENZO=NO_ENCONTRADO`) — de
+  nuevo, un selector del script descartable (el atributo real del marcador de campo no se confirmó
+  contra el código antes de escribir el script), no una regresión: `EditorPuenteVivo.tsx` y
+  `editor-puente.ts` no están en `touches:` y no se tocaron.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Símbolos/paths de este diff grepeados contra `CLAUDE.md`: `EncabezadoSeccion`/`MenuSeccion`/
+`FooterSeccion`/`AyudaCampo`/`MuestraColor`/`editor-panel`/`editor-cuerpo`/
+`InstanciaItemsEditor`/`EstiloElementoControles`/`tienda-secciones.ts` (como ruta) →
+**0 coincidencias cada uno**. `PaletaSeccion` → 3 coincidencias (líneas 56, 2260, 2808): las tres
+describen DÓNDE vive el componente y su fetch propio (el `<Suspense>`), nada sobre el control de
+acento que este diff reemplazó — ninguna queda falsa. `TiendaPaginas` → 4 (líneas 2793/2802/2884/
+4349): la de 2884 ya estaba stale ANTES de este slice (documentado por `EDITOR-VISUAL-PANEL-1`, no
+es nueva); las otras tres describen el fetch-once y la cascada lazy-mount, consistentes con el prop
+`tema` nuevo que este slice agrega (un consumidor más del MISMO `doc.contenido`, no una segunda
+lectura) — ninguna queda falsa. `TiendaSeccionEditor` → 6: todas describen el modelo de bloques, el
+uploader compartido y el paso de categorías — ninguna toca el comentario "el repeater no se
+envuelve en una pieza" que este diff reescribió (ese texto vive sólo en el CÓDIGO, no en
+`CLAUDE.md`). `duna-card` → 3 (líneas 2751/3804/6657): ninguna describe el comportamiento GLOBAL de
+`.duna-card` de forma que mi override SCOPED a `.editor-panel` contradiga. `RepeaterEditor` → 4,
+`admin-bloques` → 0: sin relación con el comportamiento que este diff cambia. **Ningún resultado del
+grep queda falsificado por este diff.**
+
+### `customer_bytes`
+
+**`changed: true`** (el eje es la RAMA, no el commit). Nada de esto llega al storefront —
+`verificar:nayoli:visual` reproduce EXACTO el piso heredado de la rama (§ abajo, Gate) — pero sí
+cambia bytes que el OWNER/MANAGER lee en `/editor/tienda`: el color/forma del panel, el tamaño del
+ícono de ayuda, y el texto de ocho hints/labels (§ 3). **`strings`**: "Menú del teléfono a pantalla
+completa" (antes "Drawer móvil de pantalla completa"), "Línea bajo el encabezado" (antes "Filete
+inferior"), "Botón Comprar y etiqueta del menú" (antes "…y badge…"), "Color de la etiqueta" (antes
+"Color del badge"), "Ítem con etiqueta (opcional)" (antes "Ítem con badge…"), "Texto de la
+etiqueta" (antes "Texto del badge"), "la composición "Marquesina"" (antes "…"sticky"", ×7), "las
+composiciones "Portada" o "Marquesina"" (antes "…"media" o "sticky""), "el alto de la pantalla"/
+"Cuánto de la pantalla ocupa el hero" (antes "…del viewport…", ×2), "El producto que aparece en la
+tarjeta…" (antes "El slug del producto…"), el hint de "Color del encabezado" sin el sufijo
+`(§ NAV-INTERNAS-CLARO-Y-OFFSET-1)". Ninguno de cara al VISITANTE del storefront.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado — pasada
+visual y de copy; ningún campo nuevo se guarda (`MuestraColor` escribe el MISMO hex de 6 dígitos
+que el `<input type="color">` que reemplaza, por el MISMO `onChange` de siempre).
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3812/3812** (incluye los 12 tests nuevos de `copy-editor.test.ts` ×2 por la duplicación de `recorrido-editor.test.ts` al importarlo — ver su propio docstring) |
+| `npm run test:integracion` | **356/356** |
+| `npm run gate` | GREEN (typecheck 0 · 3812/3812 · 356/356, 29.98 s el carril de integración) |
+| `npx eslint` (archivos de `touches:` tocados) | errores/warnings pre-existentes, confirmados por `git diff` que ninguna línea señalada cae dentro de este diff (p. ej. `PaletaSeccion.tsx:313-315`, `TiendaSeccionEditor.tsx:2292-2432` fuera del rango tocado) — `npm run gate` no corre eslint, no bloquea |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta del piso heredado de la rama** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/`PIE-HECHO-POR-DUNA-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u, caja `[445,Y]–[541,Y+10]`; los 2 hovers IDÉNTICOS — exit 1 esperado (drift heredado de la rama contra `main`, cero archivos de storefront en `touches:` ni en el diff real) |
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Gate
+completo verde; `verificar:nayoli:visual` reproduce el piso heredado exacto; arnés real de punta a
+punta con ocho capturas comparadas contra el pedido del owner y `captura-prototipo-inicio.webp`.
+Commiteado en `slice/editor-secciones-1`, sobre `7db2c69`.
+
+**Cierra `EDITOR-PANEL-PIEL-1`.**
