@@ -317,3 +317,64 @@ test('seccionesHome: "preguntas"/"columnas"/"filas" también llevan `visible`, m
   assert.equal((parsed.seccionesHome!['inst:b'] as { visible: boolean }).visible, false);
   assert.equal((parsed.seccionesHome!['inst:c'] as { visible: boolean }).visible, false);
 });
+// ─── § SECCIONES-TIPOS-3 — "collage" y "video" ──────────────────────────────────────────────────
+
+test('seccionesHome: "collage" sobrevive completo, con `tipo`/`poster` por ítem (video dentro de un mosaico) y `enlace` validado contra MENU_CTA_DESTINOS', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:col': {
+        tipo: 'collage',
+        titulo: 'Nuestra finca',
+        disposicion: 'cuatro',
+        lado: 'derecha',
+        items: [
+          { url: '/grande.mp4', tipo: 'video', poster: '/poster.jpg', enlace: '/tienda', leyenda: 'La cosecha' },
+          { url: '/chica.jpg', leyenda: 'Un detalle' },
+        ],
+      },
+    },
+  });
+  assert.deepEqual(parsed.seccionesHome!['inst:col'], {
+    tipo: 'collage',
+    titulo: 'Nuestra finca',
+    disposicion: 'cuatro',
+    lado: 'derecha',
+    items: [
+      { url: '/grande.mp4', tipo: 'video', poster: '/poster.jpg', enlace: '/tienda', leyenda: 'La cosecha' },
+      { url: '/chica.jpg', leyenda: 'Un detalle' },
+    ],
+  });
+
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:col2': { tipo: 'collage', items: [{ url: '/a.jpg', enlace: '/ruta-inventada' }] } },
+  }), 'un enlace de ítem fuera del set cerrado se rechaza, igual que en columnas/filas');
+});
+
+test('seccionesHome: "video" sobrevive completo, con `modo` y `visible`', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:vid': {
+        tipo: 'video', titulo: 'Mira cómo trabajamos', texto: 'Un vistazo detrás de cámaras',
+        ctaLabel: 'Ver más', ctaDestino: '/tienda', imagen: '/v.mp4', poster: '/p.jpg', modo: 'reproducir', visible: false,
+      },
+    },
+  });
+  assert.deepEqual(parsed.seccionesHome!['inst:vid'], {
+    tipo: 'video', titulo: 'Mira cómo trabajamos', texto: 'Un vistazo detrás de cámaras',
+    ctaLabel: 'Ver más', ctaDestino: '/tienda', imagen: '/v.mp4', poster: '/p.jpg', modo: 'reproducir', visible: false,
+  });
+});
+
+test('seccionesHome: "video" CON video pero SIN póster se rechaza — el póster es obligatorio para no dejar la portada sin nada que mostrar', () => {
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:vid': { tipo: 'video', imagen: '/v.mp4' } },
+  }));
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:vid': { tipo: 'video', imagen: '/v.mp4', poster: '' } },
+  }));
+});
+
+test('seccionesHome: "video" SIN video no exige póster (el hueco "Agregar video", como un hero de imagen sin video)', () => {
+  const parsed = siteContentEditableSchema.parse({ seccionesHome: { 'inst:vid': { tipo: 'video', titulo: 'T' } } });
+  assert.equal((parsed.seccionesHome!['inst:vid'] as { imagen: string }).imagen, undefined);
+});

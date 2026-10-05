@@ -430,7 +430,8 @@ const ordenEditableSchema = z.array(
 );
 
 // META de SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado a seis tipos por
-// § SECCIONES-TIPOS-2): el mapa id→instancia de un catálogo CURADO. NO es una sección del REGISTRY
+// § SECCIONES-TIPOS-2, a ocho por § SECCIONES-TIPOS-3): el mapa id→instancia de un catálogo CURADO.
+// NO es una sección del REGISTRY
 // —`SeccionKey` la excluye, igual que `esquemas`/`orden`/`variantesBandas`— pero a diferencia de
 // esas metas SÍ pasa por el flujo borrador/publicar genérico (como cualquier clave del REGISTRY —
 // ver `app/api/site-content/route.ts`, que la suma a la lista de claves publicables junto a
@@ -441,7 +442,7 @@ const ordenEditableSchema = z.array(
 // mismos campos que estos sub-schemas; `secciones-instancias.test.ts` afirma la paridad). Todo
 // opcional/SOFT como el resto de este archivo: el resolver (`resolverInstancia`) decide requerido-
 // vacío→default / opcional-presente→se respeta, igual que cualquier sección.
-// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS SEIS: el ojo de la lista (`InstanciaTarjeta.tsx`)
+// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS OCHO: el ojo de la lista (`InstanciaTarjeta.tsx`)
 // escribe este booleano con el MISMO autoguardado que cualquier otro campo de la instancia
 // (`cambiarInstancia`, `TiendaPaginas.tsx`) — sin declararlo acá, `z.object` lo STRIPPEA en silencio
 // al guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado") y el ojo parecería
@@ -532,6 +533,43 @@ const instanciaFilasEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
+// § SECCIONES-TIPOS-3 — "collage": `tipo`/`poster` del ÍTEM son `z.string()` SOFT (NO `z.enum`,
+// mismo motivo que `alineacion`/`imagenTipo` en el resto de este archivo: el resolver SOFT, vía
+// `DESCRIPTOR_INSTANCIA.collage.items.descriptor.campos`, ya trata cualquier valor que no sea
+// exactamente 'video' como imagen — un `z.enum` acá prometería un clamp que el resolver no hace).
+const instanciaCollageItemSchema = z.object({
+  url: z.string().optional(),
+  tipo: z.string().optional(),
+  poster: z.string().optional(),
+  enlace: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  leyenda: z.string().optional(),
+});
+const instanciaCollageEditableSchema = z.object({
+  tipo: z.literal('collage'),
+  titulo: z.string().optional(),
+  items: z.array(instanciaCollageItemSchema).optional(),
+  // `z.string()` — el resolver (vía `DESCRIPTOR_INSTANCIA.collage.escalares`) clampa cada uno a su
+  // propio set cerrado (disposicion: dos|cuatro; lado: izquierda|derecha).
+  disposicion: z.string().optional(),
+  lado: z.string().optional(),
+  visible: z.boolean().optional(),
+});
+
+// § SECCIONES-TIPOS-3 — "video": `imagen`/`poster` son path estático o URL de Blob, como cualquier
+// otra imagen/video de sección (vacíos = el hueco "Agregar video" del editor, sin default). `modo`
+// es `z.string()` SOFT, mismo motivo que arriba.
+const instanciaVideoEditableSchema = z.object({
+  tipo: z.literal('video'),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  imagen: z.string().optional(),
+  poster: z.string().optional(),
+  modo: z.string().optional(),
+  visible: z.boolean().optional(),
+});
+
 const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaTextoEditableSchema,
   instanciaImagenTextoEditableSchema,
@@ -539,10 +577,23 @@ const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaPreguntasEditableSchema,
   instanciaColumnasEditableSchema,
   instanciaFilasEditableSchema,
-]);
+  instanciaCollageEditableSchema,
+  instanciaVideoEditableSchema,
+]).refine(
+  // PÓSTER OBLIGATORIO para "video" (§ SECCIONES-TIPOS-3, el spec: "póster obligatorio para
+  // teléfono y modo ahorro") — MISMO criterio que `heroEditableSchema` para `imagen`/`imagenPoster`
+  // más arriba en este archivo: sin video (`imagen` vacío) no hay nada que mostrar, así que el
+  // póster no se exige; CON video, sin póster la portada queda sin nada que mostrar mientras el
+  // video carga (o bajo el modo ahorro de datos del teléfono, que nunca descarga el video).
+  (v) => {
+    if (v.tipo !== 'video') return true;
+    return !v.imagen || !!(v.poster && v.poster.trim() !== '');
+  },
+  { message: 'Un video necesita un póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga, o en el modo ahorro de datos del teléfono.', path: ['poster'] },
+);
 // `z.record(z.string(), …)`, KEY-AGNÓSTICO como `esquemasEditableSchema`: el dominio de ids lo
 // decide el dueño, no hay un enum que enumerarlo acá. Una clave sin el prefijo de instancia, o un
-// valor cuyo `tipo` no matchea ninguno de los seis, falla la unión discriminada y el PUT entero se
+// valor cuyo `tipo` no matchea ninguno de los ocho, falla la unión discriminada y el PUT entero se
 // rechaza con 400 — el mismo criterio "el WRITE puede ser más estricto que el loader" de `orden`.
 const seccionesHomeEditableSchema = z.record(z.string(), instanciaEditableSchema);
 

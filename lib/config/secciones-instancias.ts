@@ -1,9 +1,10 @@
-// LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2) —
-// el mecanismo que deja que el contenido declare INSTANCIAS de un catálogo CURADO de seis tipos
-// genéricos: tres de campos planos (Texto, Imagen con texto, Banner) y tres REPEATER (Preguntas,
-// Columnas, Filas, § InstanciaItemsDef más abajo) — y las mezcle en `orden` con las bandas de
-// siempre. Lo que entra acá es el modelo, el resolver y el schema; la UI de agregar vive en
-// `components/admin/editor/` (ver `docs/editor-tienda/AGREGAR-SECCIONES.md`).
+// LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2 y
+// § SECCIONES-TIPOS-3) — el mecanismo que deja que el contenido declare INSTANCIAS de un catálogo
+// CURADO de OCHO tipos genéricos: cuatro de campos planos (Texto, Imagen con texto, Banner, Video) y
+// cuatro REPEATER (Preguntas, Columnas, Filas, Collage, § InstanciaItemsDef más abajo) — y las
+// mezcle en `orden` con las bandas de siempre. Lo que entra acá es el modelo, el resolver y el
+// schema; la UI de agregar vive en `components/admin/editor/` (ver
+// `docs/editor-tienda/AGREGAR-SECCIONES.md`).
 //
 // MÓDULO HOJA A PROPÓSITO: no importa NADA de `site-content-defaults.ts`. Ese archivo SÍ importa
 // de acá (`resolverSeccionesHome`, `resolverOrdenCompleto`, tipos) para resolver la clave meta
@@ -36,7 +37,7 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 
 // ─── EL TIPO Y SU PREFIJO DE ID ─────────────────────────────────────────────────────────────────
 
-export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas'] as const;
+export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video'] as const;
 export type SeccionInstanciaTipo = (typeof SECCION_INSTANCIA_TIPOS)[number];
 
 const TIPOS_SET: ReadonlySet<string> = new Set(SECCION_INSTANCIA_TIPOS);
@@ -117,6 +118,15 @@ const LADOS_IMAGEN_TEXTO = { claves: ['izquierda', 'derecha'], canonica: 'izquie
 // esa función SÍ se importa desde el componente (`components/storefront/secciones/Banner.tsx`),
 // que no es leído de vuelta por `site-content-defaults.ts`, así que ahí no hay ciclo que evitar.
 const ALTURAS_BANNER = { claves: ['justo', 'alto', 'pantalla'], canonica: 'justo' } as const;
+// § SECCIONES-TIPOS-3 — los DOS escalares de "collage" (una grande + una grilla de chicas): cuántas
+// columnas usa la grilla de chicas ('dos' = una fila de dos, 'cuatro' = 2×2) y de qué lado va la
+// grande. `lado` REUSA `LADOS_IMAGEN_TEXTO` a propósito (mismas dos claves, misma canónica) — dos
+// constantes idénticas para el mismo concepto ("¿la pieza principal va a la izquierda o a la
+// derecha?") habrían sido la misma trampa que `CATEGORIAS ≠ CATEGORIA_LABELS` (§ CLAUDE.md).
+const DISPOSICIONES_COLLAGE = { claves: ['dos', 'cuatro'], canonica: 'dos' } as const;
+// El escalar de "video": fondo en bucle silenciado (con título/texto/botón ENCIMA, como un Banner
+// de video) o un reproductor contenido con botón de Reproducir (sin autoplay, con sonido al tocar).
+const MODOS_VIDEO = { claves: ['fondo', 'reproducir'], canonica: 'fondo' } as const;
 
 export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescriptor> = {
   texto: {
@@ -185,6 +195,46 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       },
       min: 0,
     },
+  },
+  // § SECCIONES-TIPOS-3 — "collage": una pieza grande + una grilla de chicas (§ DISPOSICIONES_COLLAGE
+  // arriba), de tres a seis ítems (el PISO de 3 es lo que hace cierta "una grande y dos o cuatro
+  // chicas" — con menos no hay ni para la disposición más chica). Cada ítem es foto O VIDEO (`url` +
+  // `tipo` + `poster`, los TRES campos declarados como string PLANO — a diferencia de
+  // `GaleriaItem`/`w`/`h` de `site-content-defaults.ts`, acá NO se preserva proporción natural: cada
+  // celda del mosaico tiene un alto FIJO por su rol (grande/chica) y recorta con `object-cover`, así
+  // que no hace falta leer dimensiones al subir ni cargar el resolver con passthrough. `tipo` queda
+  // SIN clampar a 'imagen'|'video' —ningún escalar de ÍTEM de este catálogo se clampa, sólo los de
+  // INSTANCIA (`escalares`, arriba)— y el componente trata cualquier valor que no sea exactamente
+  // 'video' como imagen, la misma red soft que el resto del archivo.
+  collage: {
+    campos: { titulo: 'opcional' },
+    items: {
+      descriptor: {
+        campos: { url: 'opcional', tipo: 'opcional', poster: 'opcional', enlace: 'opcional', leyenda: 'opcional' },
+        imagenes: ['url', 'poster'],
+      },
+      min: 3,
+      max: 6,
+    },
+    escalares: { disposicion: DISPOSICIONES_COLLAGE, lado: LADOS_IMAGEN_TEXTO },
+  },
+  // § SECCIONES-TIPOS-3 — "video": UN campo plano, `imagen` (reusa el mismo nombre que el resto del
+  // catálogo para una media subida — § `imagenesDeInstancia`, que no necesita saber que acá siempre
+  // es un video) + su `poster` (obligatorio al escribir, § el `.refine()` de `site-content-
+  // schema.ts` — sin él la portada queda sin nada que mostrar mientras el video carga, o en el modo
+  // ahorro de datos del teléfono). `ctaLabel`/`ctaDestino` sólo rinden en modo 'fondo' (el botón
+  // ENCIMA del video); en 'reproducir' el "botón" es el de Reproducir, no un CTA.
+  video: {
+    campos: {
+      titulo: 'opcional',
+      texto: 'opcional',
+      ctaLabel: 'opcional',
+      ctaDestino: 'opcional',
+      imagen: 'opcional',
+      poster: 'opcional',
+    },
+    imagenes: ['imagen', 'poster'],
+    escalares: { modo: MODOS_VIDEO },
   },
 };
 
@@ -274,13 +324,47 @@ export interface InstanciaFilasContent {
   visible: boolean;
 }
 
+// § SECCIONES-TIPOS-3 — "collage" y "video" (ver DESCRIPTOR_INSTANCIA arriba para el porqué de cada
+// campo). `InstanciaCollageItem.tipo`/`.poster` son strings PLANOS, sin clampar — NUNCA
+// `'imagen' | 'video'` como `GaleriaItem.tipo`: ningún escalar de ÍTEM de este catálogo se clampa, y
+// declararlo acá como union prometería una garantía que `resolverItemsInstancia` no da.
+export interface InstanciaCollageItem {
+  url: string;
+  tipo: string;
+  poster: string;
+  enlace: string;
+  leyenda: string;
+}
+export interface InstanciaCollageContent {
+  tipo: 'collage';
+  titulo: string;
+  items: InstanciaCollageItem[];
+  disposicion: string;
+  lado: string;
+  visible: boolean;
+}
+
+export interface InstanciaVideoContent {
+  tipo: 'video';
+  titulo: string;
+  texto: string;
+  ctaLabel: string;
+  ctaDestino: string;
+  imagen: string;
+  poster: string;
+  modo: string;
+  visible: boolean;
+}
+
 export type InstanciaContent =
   | InstanciaTextoContent
   | InstanciaImagenTextoContent
   | InstanciaBannerContent
   | InstanciaPreguntasContent
   | InstanciaColumnasContent
-  | InstanciaFilasContent;
+  | InstanciaFilasContent
+  | InstanciaCollageContent
+  | InstanciaVideoContent;
 
 // Tipado POR CLAVE (no `Record<SeccionInstanciaTipo, InstanciaContent>`): así `DEFAULTS_INSTANCIA.texto`
 // sigue siendo `InstanciaTextoContent` para quien lo lea (p. ej. un test que compara
@@ -292,6 +376,8 @@ export const DEFAULTS_INSTANCIA: {
   preguntas: InstanciaPreguntasContent;
   columnas: InstanciaColumnasContent;
   filas: InstanciaFilasContent;
+  collage: InstanciaCollageContent;
+  video: InstanciaVideoContent;
 } = {
   texto: {
     tipo: 'texto',
@@ -359,6 +445,33 @@ export const DEFAULTS_INSTANCIA: {
       { imagen: '', titulo: 'Un título para esta fila', texto: 'Escribe acá el texto de esta fila.', ctaLabel: '', ctaDestino: '' },
       { imagen: '', titulo: 'Otro título para esta fila', texto: 'Escribe acá el texto de esta fila.', ctaLabel: '', ctaDestino: '' },
     ],
+    visible: true,
+  },
+  // § SECCIONES-TIPOS-3 — "collage" nace con TRES ítems de ejemplo (el PISO, no dos como los demás
+  // repeaters): con menos, una instancia recién agregada no cumpliría su propio mínimo. Sin media
+  // (ninguna imagen/video trae default, § el docstring de cabecera) — sólo la leyenda, para que la
+  // tarjeta recién agregada muestre el patrón de caption sin que el dueño tenga que escribir nada.
+  collage: {
+    tipo: 'collage',
+    titulo: '',
+    items: [
+      { url: '', tipo: '', poster: '', enlace: '', leyenda: 'Una leyenda corta' },
+      { url: '', tipo: '', poster: '', enlace: '', leyenda: 'Otra leyenda corta' },
+      { url: '', tipo: '', poster: '', enlace: '', leyenda: 'Una leyenda más' },
+    ],
+    disposicion: DISPOSICIONES_COLLAGE.canonica,
+    lado: LADOS_IMAGEN_TEXTO.canonica,
+    visible: true,
+  },
+  video: {
+    tipo: 'video',
+    titulo: 'Un título para este video',
+    texto: '',
+    ctaLabel: '',
+    ctaDestino: '',
+    imagen: '',
+    poster: '',
+    modo: MODOS_VIDEO.canonica,
     visible: true,
   },
 };
@@ -519,6 +632,8 @@ export const CATALOGO_INSTANCIAS: readonly CatalogoInstanciaEntry[] = [
   { tipo: 'preguntas', nombre: 'Preguntas', frase: 'Una lista de preguntas que se abren al tocarlas.' },
   { tipo: 'columnas', nombre: 'Columnas', frase: 'De dos a seis columnas, cada una con foto, título y texto.' },
   { tipo: 'filas', nombre: 'Filas', frase: 'Filas de foto y texto que alternan de lado.' },
+  { tipo: 'collage', nombre: 'Collage', frase: 'Un mosaico de fotos y videos: una pieza grande y varias chicas.' },
+  { tipo: 'video', nombre: 'Video', frase: 'Un video de fondo con mensaje, o un video con botón de reproducir.' },
 ];
 
 /** El nombre en palabras de un tipo — la MISMA fuente que la biblioteca, para que la tarjeta de la
@@ -587,11 +702,14 @@ export function imagenesDeInstancia(inst: unknown): string[] {
 
 // ─── DARKNESS/UNIFORMIDAD — para el día que el nav sepa de instancias (§ DECISIONS.md, abierto) ──
 
-/** ¿Un `banner` cuenta como banda OSCURA cuando no tiene esquema asignado? SÍ — es foto de fondo
- *  con velo, la MISMA forma que el hero 'curtina' (fondo oscuro por construcción). `texto`/
- *  `imagenTexto` son CLAROS por default (fondo de página, como el resto de las bandas claras). */
+/** ¿Un `banner`/`video` cuenta como banda OSCURA cuando no tiene esquema asignado? SÍ — las dos son
+ *  foto/video de fondo con velo, la MISMA forma que el hero 'curtina' (fondo oscuro por
+ *  construcción). `texto`/`imagenTexto`/`collage` son CLAROS por default (fondo de página, como el
+ *  resto de las bandas claras). § SECCIONES-TIPOS-3: `video` usa SIEMPRE su canónica ('fondo', con
+ *  velo) acá — esta función, como para `banner`/su `alto`, no bifurca por el escalar propio de la
+ *  instancia (`modo`), la misma simplificación aceptada que ya rige `alto` de banner. */
 export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
-  return tipo === 'banner';
+  return tipo === 'banner' || tipo === 'video';
 }
 
 /** ¿Un `imagenTexto`/`filas` es una banda UNIFORME (un solo tono) para el nav flotante? NO — las
@@ -599,7 +717,10 @@ export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
  *  vuelve no-uniforme al hero 'ficha' (§ `bandaUniforme`, `site-content-defaults.ts`). `filas` es
  *  ADEMÁS más heterogénea que `imagenTexto` (§ SECCIONES-TIPOS-2: reusa su componente fila por
  *  fila, alternando de lado — nunca un solo tono de borde a borde). `texto`/`banner`/`preguntas`/
- *  `columnas` son UN solo fondo de un extremo al otro → uniformes. */
+ *  `columnas`/`collage`/`video` son UN solo fondo de un extremo al otro → uniformes: `collage` es
+ *  una grilla de celdas de MEDIA sobre un único fondo de sección (como `columnas`, no como
+ *  `imagenTexto`, que parte el fondo mismo en dos mitades de color distinto); `video` es siempre un
+ *  único plano, en sus dos modos (§ SECCIONES-TIPOS-3). */
 export function instanciaEsUniforme(tipo: SeccionInstanciaTipo): boolean {
   return tipo !== 'imagenTexto' && tipo !== 'filas';
 }

@@ -38,13 +38,15 @@ test('DESCRIPTOR_INSTANCIA: un tipo REPEATER (`items` presente) siempre tiene `i
   }
 });
 
-test('esSeccionInstanciaTipo: acepta los seis del catálogo, rechaza basura', () => {
+test('esSeccionInstanciaTipo: acepta los ocho del catálogo, rechaza basura', () => {
   assert.equal(esSeccionInstanciaTipo('texto'), true);
   assert.equal(esSeccionInstanciaTipo('imagenTexto'), true);
   assert.equal(esSeccionInstanciaTipo('banner'), true);
   assert.equal(esSeccionInstanciaTipo('preguntas'), true);
   assert.equal(esSeccionInstanciaTipo('columnas'), true);
   assert.equal(esSeccionInstanciaTipo('filas'), true);
+  assert.equal(esSeccionInstanciaTipo('collage'), true);
+  assert.equal(esSeccionInstanciaTipo('video'), true);
   assert.equal(esSeccionInstanciaTipo('hero'), false);
   assert.equal(esSeccionInstanciaTipo(''), false);
   assert.equal(esSeccionInstanciaTipo(123), false);
@@ -267,6 +269,72 @@ test('DESCRIPTOR_INSTANCIA.preguntas/filas: sin tope (repeater puro, como Testim
   assert.equal(DESCRIPTOR_INSTANCIA.filas.items?.max, undefined);
 });
 
+// ─── § SECCIONES-TIPOS-3 — "collage" y "video" ──────────────────────────────────────────────────
+
+test('DESCRIPTOR_INSTANCIA.collage: "de tres a seis ítems" es el min/max del editor, y el default nace con exactamente 3', () => {
+  assert.equal(DESCRIPTOR_INSTANCIA.collage.items?.min, 3);
+  assert.equal(DESCRIPTOR_INSTANCIA.collage.items?.max, 6);
+  assert.equal(DEFAULTS_INSTANCIA.collage.items.length, 3);
+});
+
+test('resolverInstancia: "collage" — items normaliza url/tipo/poster/enlace/leyenda a string, sin clampar `tipo` del ítem', () => {
+  const r = resolverInstancia({
+    tipo: 'collage',
+    items: [
+      { url: '/grande.mp4', tipo: 'video', poster: '/poster.jpg', enlace: '/tienda', leyenda: 'La grande' },
+      { url: '/chica.jpg', titulo: 'ignorado', leyenda: 'Una chica' },
+      { url: 42, tipo: null },
+    ],
+  }) as unknown as { items: Record<string, string>[] };
+  assert.deepEqual(r.items, [
+    { url: '/grande.mp4', tipo: 'video', poster: '/poster.jpg', enlace: '/tienda', leyenda: 'La grande' },
+    { url: '/chica.jpg', tipo: '', poster: '', enlace: '', leyenda: 'Una chica' },
+    { url: '', tipo: '', poster: '', enlace: '', leyenda: '' },
+  ]);
+});
+
+test('resolverInstancia: "collage" — disposicion/lado clampan a su set cerrado, igual que cualquier escalar', () => {
+  assert.equal((resolverInstancia({ tipo: 'collage', disposicion: 'cuatro' }) as unknown as { disposicion: string }).disposicion, 'cuatro');
+  assert.equal((resolverInstancia({ tipo: 'collage', disposicion: 'ocho' }) as unknown as { disposicion: string }).disposicion, 'dos');
+  assert.equal((resolverInstancia({ tipo: 'collage', lado: 'derecha' }) as unknown as { lado: string }).lado, 'derecha');
+  assert.equal((resolverInstancia({ tipo: 'collage', lado: 'arriba' }) as unknown as { lado: string }).lado, 'izquierda');
+});
+
+test('instanciaEsVisible: "collage" — hide-on-empty gana sobre `visible:true`, igual que los otros repeater', () => {
+  const vacia = resolverInstancia({ tipo: 'collage', visible: true, items: [] })!;
+  const conItems = resolverInstancia({ tipo: 'collage', visible: true, items: [{ leyenda: 'x' }] })!;
+  assert.equal(instanciaEsVisible(vacia), false);
+  assert.equal(instanciaEsVisible(conItems), true);
+});
+
+test('imagenesDeInstancia: "collage" — junta url Y poster de cada ítem, nunca de "leyenda"/"enlace"', () => {
+  assert.deepEqual(
+    imagenesDeInstancia({
+      tipo: 'collage',
+      items: [
+        { url: '/a.mp4', tipo: 'video', poster: '/a-poster.jpg', leyenda: 'A' },
+        { url: '', tipo: '', poster: '', leyenda: 'B vacía' },
+        { url: '/c.jpg', leyenda: 'C' },
+      ],
+    }),
+    ['/a.mp4', '/a-poster.jpg', '/c.jpg'],
+  );
+});
+
+test('resolverInstancia: "video" — imagen/poster opcionales sin default (nunca inventa un video), modo clampa a "fondo"/"reproducir"', () => {
+  const r = resolverInstancia({ tipo: 'video', titulo: 'T' }) as unknown as { imagen: string; poster: string; modo: string };
+  assert.equal(r.imagen, '');
+  assert.equal(r.poster, '');
+  assert.equal(r.modo, 'fondo');
+  assert.equal((resolverInstancia({ tipo: 'video', modo: 'reproducir' }) as unknown as { modo: string }).modo, 'reproducir');
+  assert.equal((resolverInstancia({ tipo: 'video', modo: 'basura' }) as unknown as { modo: string }).modo, 'fondo');
+});
+
+test('imagenesDeInstancia: "video" — junta imagen Y poster a nivel de instancia (no repeater)', () => {
+  assert.deepEqual(imagenesDeInstancia({ tipo: 'video', imagen: '/v.mp4', poster: '/p.jpg' }), ['/v.mp4', '/p.jpg']);
+  assert.deepEqual(imagenesDeInstancia({ tipo: 'video', imagen: '', poster: '' }), []);
+});
+
 // ─── LA DERIVACIÓN, SEGUNDA MITAD: el SCHEMA cubre EXACTAMENTE los campos del DESCRIPTOR ──────────
 //
 // `site-content-schema.test.ts` ya afirma la derivación modelo→schema para las secciones del
@@ -329,6 +397,8 @@ test('nombreInstancia: el nombre en palabras del catálogo, "Sección" para un t
   assert.equal(nombreInstancia('preguntas'), 'Preguntas');
   assert.equal(nombreInstancia('columnas'), 'Columnas');
   assert.equal(nombreInstancia('filas'), 'Filas');
+  assert.equal(nombreInstancia('collage'), 'Collage');
+  assert.equal(nombreInstancia('video'), 'Video');
   assert.equal(nombreInstancia('inventado' as unknown as 'texto'), 'Sección');
 });
 
@@ -384,4 +454,11 @@ test('instanciaOscuraCanonica / instanciaEsUniforme: banner oscuro y uniforme, i
   assert.equal(instanciaEsUniforme('preguntas'), true);
   assert.equal(instanciaEsUniforme('columnas'), true);
   assert.equal(instanciaEsUniforme('filas'), false, 'filas reusa ImagenTexto por fila, alternando — igual de bi-tonal (o más) que una sola imagenTexto');
+});
+
+test('§ SECCIONES-TIPOS-3 — instanciaOscuraCanonica/instanciaEsUniforme: video oscuro y uniforme (como banner), collage claro y uniforme (como columnas)', () => {
+  assert.equal(instanciaOscuraCanonica('video'), true);
+  assert.equal(instanciaOscuraCanonica('collage'), false);
+  assert.equal(instanciaEsUniforme('video'), true);
+  assert.equal(instanciaEsUniforme('collage'), true);
 });

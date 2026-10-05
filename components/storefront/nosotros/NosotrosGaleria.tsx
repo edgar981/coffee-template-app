@@ -27,7 +27,12 @@ import CampoEditable from "@/components/storefront/CampoEditable";
 //   auto-reproduce —se queda en el póster con `controls`, para que el usuario reproduzca si QUIERE
 //   (un play iniciado por el usuario es legítimo aun con reduced-motion)—. En el preview del editor,
 //   el póster sin controls (vista limpia).
-function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: string }) {
+// EXPORTADO (§ SECCIONES-TIPOS-3): la sección "Collage" del catálogo de instancias
+// (`components/storefront/secciones/Collage.tsx`) reusa este MISMO manejo de video —el
+// IntersectionObserver play/pause, el `muted` por ref, la señal persistente "esto es un video", el
+// fallback a póster+controls bajo `prefers-reduced-motion`— pasándole sus propias props, en vez de
+// reimplementar la lógica. Es el "reusá lo que sirva de NosotrosGaleria" del spec de ese slice.
+export function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: string }) {
   const ref = useRef<HTMLVideoElement>(null);
   const preview = useIsPreview();
   const reduce = useReducedMotion();

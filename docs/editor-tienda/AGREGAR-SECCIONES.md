@@ -520,3 +520,147 @@ el alto de la página — hace falta un SCROLL REAL en pasos del viewport antes 
 (`scrollearYAsentar`, la técnica que `scripts/verificar-nayoli-visual.ts` ya documentaba y este
 arnés no había copiado en su primer intento — la primera corrida mostró grandes huecos en blanco,
 incluido en "featured", una banda que este slice ni toca).
+
+## DOS tipos más — Collage y Video, el primero con MEDIA (foto o video) en un repeater (§ SECCIONES-TIPOS-3)
+
+El catálogo pasa de seis tipos a **ocho**: **Collage** (una pieza grande + una grilla de chicas,
+foto o video, con enlace y leyenda corta por ítem) y **Video** (un video subido, modo fondo con
+texto encima o modo contenido con botón de reproducir). Ningún mecanismo nuevo a nivel de
+`InstanciaDescriptor`/`resolverInstancia`: los dos declaran `campos`/`escalares`/`items` con la
+MISMA forma que ya usaban Texto/Banner/Columnas — la extensión real está en el EDITOR, que gana la
+capacidad de subir VIDEO (antes sólo fotos).
+
+### El modelo — sin cambios en `resolverItemsInstancia`, a propósito
+
+El ítem de "collage" declara `url`/`tipo`/`poster`/`enlace`/`leyenda`, los CINCO como campos
+STRING planos en `descriptor.campos` — NO passthrough, a diferencia de `GaleriaItem` en
+`site-content-defaults.ts` (que preserva `w`/`h`/`tipo`/`poster` SIN declararlos en su
+`itemCampos`). La diferencia es deliberada: `resolverItemsInstancia` normaliza TODO campo
+declarado a string por igual (no distingue requerido/opcional para ítems, y nunca clampa un
+escalar de ítem), así que declarar `tipo`/`poster` como campos de más no cuesta nada y evita
+tocar la función — el día que un tipo futuro necesite dimensiones naturales por ítem (`w`/`h`
+numéricos), ESE es el que forzaría la generalización a passthrough, no éste.
+
+**Por qué Collage NO preserva proporción natural (`w`/`h`) como la galería de /nosotros**, aunque
+el spec dijera "reusá lo que sirva de NosotrosGaleria (sus dimensiones y su manejo de video)":
+medido antes de construir — la galería es un MASONRY libre (cada celda toma la foto como venga);
+Collage es un mosaico ESTRUCTURADO ("una grande + una grilla de chicas"), con celdas de alto FIJO
+por su ROL que recortan con `object-cover` — preservar `w`/`h` no tendría ningún consumidor. Lo
+que SÍ se reusó, literal, es el manejo de VIDEO: `VideoCelda` se EXPORTÓ de
+`components/storefront/nosotros/NosotrosGaleria.tsx` (antes función local) y
+`components/storefront/secciones/Collage.tsx` la importa con sus propias props — el
+IntersectionObserver play/pause, el `muted` por ref, la señal "esto es un video" y el fallback a
+póster+controls bajo `prefers-reduced-motion` son UN código, no dos.
+
+`DESCRIPTOR_INSTANCIA.video` reusa el mismo campo `imagen` (+ `poster`) que YA usan
+Banner/ImagenTexto para su media — "video" simplemente no tiene campo de foto aparte, así que no
+hace falta un nombre nuevo. `instanciaOscuraCanonica` gana `video` junto a `banner` (foto/video de
+fondo con velo, oscura por canónica — sin bifurcar por el `modo` propio de la instancia, la MISMA
+simplificación que `banner` ya acepta para su `alto`); `instanciaEsUniforme` no cambia (el default
+`true` ya cubre a los dos tipos nuevos, ninguno parte el fondo en dos mitades de color).
+
+### Los campos de cada tipo
+
+| Tipo | Cabecera (instancia) | Campos del ÍTEM | `min`/`max` del editor | Escalares |
+| --- | --- | --- | --- | --- |
+| `collage` | `titulo` (opcional) | `url`, `tipo`, `poster`, `enlace`, `leyenda` (los cinco string, sin requeridos) | **3 / 6** | `disposicion` (dos/cuatro chicas), `lado` (izquierda/derecha — REUSA el set de `imagenTexto`) |
+| `video` | `titulo`, `texto`, `ctaLabel`, `ctaDestino`, `imagen`, `poster` (todos opcionales) | — (no es repeater) | — | `modo` (fondo/reproducir) |
+
+**El póster de "video" es OBLIGATORIO al escribir** (`.refine()` sobre la unión discriminada
+completa en `site-content-schema.ts` — un ZodObject miembro de un `discriminatedUnion` no puede
+llevar su propio `.refine()`, zod necesita leer su `.shape` directo para el discriminante; el
+refine va en la UNIÓN, con narrowing por `if (v.tipo !== 'video') return true;` antes de leer
+`v.imagen`/`v.poster`, para que TypeScript angoste el tipo del resto de los miembros). MISMA regla
+y MISMO mensaje que `heroEditableSchema` para `imagenTipo:'video'` sin `imagenPoster` — "sin
+video" (imagen vacía) no exige nada, "con video" sí.
+
+### El editor gana VIDEO — `conVideo` en `InstanciaItemsEditor`, un bloque bespoke en `InstanciaEditorForm`
+
+Dos superficies distintas necesitaban subir video, por razones distintas:
+
+- **"video" (campo plano, no repeater):** `InstanciaEditorForm.tsx` excluye `imagen`/`poster` del
+  loop genérico de campos-imagen (que los trataría como DOS fotos sueltas) y los sube como PAR con
+  un bloque propio — MISMA secuencia que el video del hero en `TiendaSeccionEditor.tsx` (elegir
+  video → RETENER hasta elegir el póster → remux si es `.mov` → el PÓSTER SUBE PRIMERO → sube el
+  video), con el MISMO tope (`MAX_VIDEO_HERO_BYTES`, 8 MB — el spec: "mismo tope y mismo pipeline
+  de subida que el hero"). No se extrajo un hook compartido con `TiendaSeccionEditor.tsx`: ese
+  archivo no está en `touches:`, y duplicar ~60 líneas de flujo es más barato que abrir una
+  refactorización fuera de alcance — queda anotado como posible unificación futura, no como
+  descuido.
+- **"collage" (ítem de repeater, foto O video):** `InstanciaItemsEditor.tsx` gana el prop
+  `conVideo?: boolean` (encendido sólo para "collage"): con él aparece "Agregar video" junto a
+  "Agregar foto" —AMBOS cuentan contra el MISMO tope de 3-6 ítems, sin un tope de videos
+  separado, a diferencia de la galería de /nosotros (que sí separa `max`/`maxVideo`)—, y el
+  renglón de un ítem con `tipo:'video'` muestra su PÓSTER como miniatura con "Cambiar vídeo"/
+  "Cambiar póster" en vez del "Cambiar imagen" genérico. El flujo (elegir → RETENER → scrubber de
+  póster → subir póster → subir video) es el MISMO patrón que `components/admin/RepeaterEditor.tsx`
+  ya usa para la galería de /nosotros (fuera de `touches:`, no reusado como componente — duplicado
+  como patrón, por la misma razón que `InstanciaItemsEditor.tsx` nació sin reusar
+  `RepeaterEditor.tsx` en § SECCIONES-TIPOS-2: ese archivo no está en `touches:` y le falta el
+  PISO (`min`) que este catálogo necesita). El tope de TAMAÑO del video de un ítem de collage es
+  el de la GALERÍA (`MAX_VIDEO_GALERIA_BYTES`, 20 MB) — ya aplicado por `useSubidaImagen.elegir`
+  internamente, sin un chequeo propio: collage no está siempre en el viewport como el hero/"video"
+  en modo fondo, así que no necesita el presupuesto más chico.
+- **El segundo `<input type=file hidden>`** (`subida.inputHoldRef`/`alElegirHold`, el que sirve al
+  flujo "elegir sin subir") **faltaba en `InstanciaEditorForm.tsx`** — hasta este slice sólo tenía
+  el de `pedir`/`alElegir` (foto suelta). Sin él, `subida.elegir(...)` no tiene ningún `<input>`
+  al que hacerle `.click()`, y el picker de video nunca se abre. Es el MISMO par de inputs que
+  `TiendaSeccionEditor.tsx` ya monta para el video del hero.
+
+### Collage, la composición — una grande (siempre `items[0]`) + una grilla de chicas
+
+`disposicion` ('dos'/'cuatro') decide las COLUMNAS de la grilla de chicas (1 o 2 en escritorio,
+vía lookup literal `COLS_CHICAS` — mismo criterio que `GRID_COLS_COLUMNAS`), NO cuántos ítems
+existen: eso lo fija "de tres a seis" (el min/max del editor). `lado` decide si la grande va a la
+izquierda o a la derecha de esa grilla (`md:order-1`/`md:order-2`, mismo mecanismo que
+`ImagenTexto.lado`). **En MÓVIL siempre una sola columna**, la grande primero y las chicas en el
+orden del array — mismo criterio ya fijado por Columnas/Filas/la galería: apilar es lo que este
+storefront hace con "muchas piezas en poco ancho", nunca un carrusel nuevo.
+
+La LEYENDA de cada ítem se muestra como caption sobre un scrim (`bg-linear-to-t from-black/60`) en
+la esquina inferior de su celda, y dobla como `alt` del medio (con el título de la sección como
+fallback) — no hay un campo `alt` separado, mismo criterio que Columnas usa `titulo` como alt.
+`enlace` es el CTA de la celda entera (`resolverCtaSeccion(leyenda, enlace, paginas)`, el label
+sale de la leyenda) — mismo mecanismo que `enlace` en Columnas.
+
+### Video, los dos modos
+
+- **'fondo' (canónica):** MISMA forma que `Banner.tsx` —sección a sangre, velo
+  `from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80`, título/texto/CTA
+  centrados— con un `<video muted loop playsInline>` en vez de una `<Image>`. Reusa
+  `claseAlturaHero('justo', false)` para el alto en vez de declarar un escalar `alto` propio —el
+  spec no lo pidió para "video", y la canónica de Banner ("justo") es un tamaño razonable sin
+  inventar una cuarta opción.
+- **'reproducir':** el video vive CONTENIDO (`aspect-video`) sobre el fondo normal de la sección
+  (claro, como Columnas), con el póster a la vista y un botón de Reproducir centrado encima
+  (ícono `Play` de lucide-react). Al tocarlo, arranca con sus controles nativos y CON sonido —es
+  un gesto del visitante, no autoplay, así que no hace falta silenciarlo. Embeber YouTube/Vimeo
+  queda FUERA (el spec): el `src` del `<video>` es siempre el archivo subido, nunca un iframe de
+  un tercero.
+
+### Lo que NO entró en esta tanda
+
+Ningún `alto` para "video" (ver arriba), ninguna proporción natural (`w`/`h`) para los ítems de
+"collage" (ver arriba), y ningún tope de video SEPARADO del de foto en "collage" (ambos cuentan
+contra el mismo 3-6). Los tres son decisiones medidas, no huecos.
+
+### Verificación
+
+Capa 1 (`lib/config/secciones-instancias.test.ts`, `site-content-schema.test.ts`,
+`site-content-blobs.test.ts` — los tests GENÉRICOS de paridad descriptor↔defaults↔schema que ya
+existían iteran `SECCION_INSTANCIA_TIPOS`, así que cubrieron "collage"/"video" con CERO código
+nuevo de test; se agregaron además casos explícitos por tipo) y carril
+(`tests/integracion/secciones-instancias.test.ts`: el viaje completo de "collage" con un ítem-video
++ dos ítems-foto, y de "video" con su par imagen+poster — las dos con su caso de blob huérfano) —
+ver sus propios asientos de prueba para el detalle. `npm run gate` verde en las dos capas (ver el
+asiento de DECISIONS.md para la cifra exacta).
+
+La sesión real con el arnés (Playwright, build de producción + Postgres efímero,
+`.scratch/verificar-secciones-tipos-3.ts`, clon en forma de `.scratch/verificar-secciones-tipos-2.ts`)
+agregó los DOS tipos desde la biblioteca: para "Collage", verificó los TRES ítems de ejemplo, editó
+el título, cambió `disposicion`/`lado`, agregó una cuarta pieza como FOTO (selector de archivos
+real) y una quinta como VIDEO (un MP4 H.264 real generado con `ffmpeg`, vía "Agregar video" →
+`PosterScrubber` → "Usar este frame" → subida real a Vercel Blob); para "Video", subió el mismo
+video de prueba por el bloque bespoke del campo plano y alternó entre los dos modos — con capturas
+en escritorio y teléfono, Chromium y WebKit, y a mitad de scroll. El detalle de la corrida (verde/
+rojo, hallazgos) vive en el asiento de `DECISIONS.md`.

@@ -88,6 +88,27 @@ test('imagenesDe: una instancia "texto" no aporta ninguna imagen (no tiene campo
   assert.deepEqual(imagenesDe(doc, REG), []);
 });
 
+test('imagenesDe: § SECCIONES-TIPOS-3 — "video" aporta imagen Y poster a nivel de instancia (no repeater)', () => {
+  const doc = { seccionesHome: { 'inst:v': { tipo: 'video', imagen: '/v.mp4', poster: '/p.jpg' } } };
+  assert.deepEqual(imagenesDe(doc, REG).sort(), ['/p.jpg', '/v.mp4']);
+});
+
+test('imagenesDe: § SECCIONES-TIPOS-3 — "collage" junta url Y poster de CADA ítem (un video dentro del mosaico deja los dos)', () => {
+  const doc = {
+    seccionesHome: {
+      'inst:c': {
+        tipo: 'collage',
+        items: [
+          { url: '/grande.mp4', tipo: 'video', poster: '/grande-poster.jpg', leyenda: 'A' },
+          { url: '/chica.jpg', leyenda: 'B' },
+          { url: '', leyenda: 'C sin media' },
+        ],
+      },
+    },
+  };
+  assert.deepEqual(imagenesDe(doc, REG).sort(), ['/chica.jpg', '/grande-poster.jpg', '/grande.mp4']);
+});
+
 test('imagenesDe: seccionesHome ausente, con basura, o con una instancia sin imagen (vacía) no rompe ni aporta nada', () => {
   assert.deepEqual(imagenesDe({}, REG), []);
   assert.deepEqual(imagenesDe({ seccionesHome: 'no-obj' }, REG), []);

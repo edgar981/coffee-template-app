@@ -1712,6 +1712,45 @@ test('EL HOME CON DOS INSTANCIAS ENTRE BANDAS: "imagenTexto" SIN imagen muestra 
   assert.ok(!sinModoEditor.includes('src=""'), 'nunca un src vacío');
 });
 
+// ── § SECCIONES-TIPOS-3 — LA CAJA de un ítem SIN media sobrevive fuera de modo editor ────────────
+//
+// El test de arriba confirma que "imagenTexto" sin foto no rinde un <img> roto — correcto, pero no
+// afirma que la CAJA (el wrapper con el aspect-ratio) siga ahí. Para "imagenTexto" eso no importa
+// (el aspect-ratio vive en `RevelarBloque`, siempre montado); para el `Media()` ORIGINAL de
+// `Collage.tsx` SÍ importaba — delegaba la caja entera a `HuecoImagenOpcional`, que devuelve `null`
+// fuera de modo editor (§ CampoEditable.tsx), así que un ítem default (sin media, el estado de
+// fábrica) colapsaba a alto CERO en el storefront publicado: la celda desaparecía del mosaico y su
+// `<Leyenda>` (position:absolute) quedaba flotando sin una caja `relative` de la que colgar — medido
+// con el arnés de este slice (`.scratch/verificar-secciones-tipos-3.ts`) antes del fix. Mismo riesgo
+// en "video"·reproducir, con el mismo fix: el aspect-ratio pasa al WRAPPER siempre montado.
+test('"collage": un ítem SIN media (el default de fábrica) sigue reservando su caja (aspect-ratio) fuera de modo editor — no colapsa a alto cero', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SeccionInstancia, { id: 'inst:a', instancia: DEFAULTS_INSTANCIA_FIXTURE.collage }),
+    }),
+  );
+  // Los TRES ítems default no tienen `url` — ninguno debe producir un <img>/<video>, pero los TRES
+  // deben dejar su caja `aspect-[...]` en el HTML (grande `aspect-[4/5]`, chicas `aspect-square`).
+  assert.ok(!html.includes('<img'), 'sin media, no debe haber ningún <img>');
+  assert.ok(!html.includes('<video'), 'sin media, no debe haber ningún <video>');
+  const cajasGrande = (html.match(/aspect-\[4\/5\]/g) ?? []).length;
+  const cajasChica = (html.match(/aspect-square/g) ?? []).length;
+  assert.equal(cajasGrande, 1, 'la caja de la pieza GRANDE debe estar, aunque no tenga media');
+  assert.equal(cajasChica, 2, 'las cajas de las DOS chicas (el default trae 3 ítems: 1 grande + 2 chicas) deben estar, aunque no tengan media');
+});
+
+test('"video"·reproducir: SIN video subido, la caja (aspect-video) sigue montada fuera de modo editor — no colapsa a alto cero', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SeccionInstancia, { id: 'inst:a', instancia: { ...DEFAULTS_INSTANCIA_FIXTURE.video, modo: 'reproducir' } }),
+    }),
+  );
+  assert.ok(!html.includes('<video'), 'sin video, no debe haber ningún <video>');
+  assert.ok(html.includes('aspect-video'), 'la caja del reproductor debe estar, aunque no tenga video todavía');
+});
+
 // ── resolverOrdenNosotros / BANDA_NOSOTROS_IDS (§ NOSOTROS-SISTEMA-DE-BANDAS-1) — GEMELA reducida ──
 // de la suite de `resolverOrden` de arriba: la página /nosotros no tiene (todavía) un campo
 // persistido que reordenar, así que el resolver no toma `stored` — no hay "garbage" que limpiar, ni

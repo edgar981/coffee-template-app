@@ -237,3 +237,110 @@ test('"columnas" — PUBLICAR la imagen nueva de un ítem deja la VIEJA huérfan
   const { blobsABorrar } = await publicarSeccion('seccionesHome');
   assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
 });
+
+// ─── § SECCIONES-TIPOS-3 — EL VIAJE COMPLETO DE "collage" y "video" ─────────────────────────────
+
+test('crear una instancia "collage" con tres ítems (uno video, dos foto), publicar: el storefront la relee con sus items intactos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:mosaico': {
+        tipo: 'collage',
+        titulo: 'La finca',
+        disposicion: 'cuatro',
+        lado: 'derecha',
+        items: [
+          { url: 'https://blob/grande.mp4', tipo: 'video', poster: 'https://blob/grande-poster.jpg', enlace: '/tienda', leyenda: 'La cosecha' },
+          { url: 'https://blob/chica-a.jpg', leyenda: 'Secado' },
+          { url: 'https://blob/chica-b.jpg', leyenda: 'Empaque' },
+        ],
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const col = publicado.seccionesHome['inst:mosaico'] as unknown as {
+    titulo: string; disposicion: string; lado: string; items: Record<string, string>[];
+  };
+  assert.equal(col.titulo, 'La finca');
+  assert.equal(col.disposicion, 'cuatro');
+  assert.equal(col.lado, 'derecha');
+  assert.deepEqual(col.items, [
+    { url: 'https://blob/grande.mp4', tipo: 'video', poster: 'https://blob/grande-poster.jpg', enlace: '/tienda', leyenda: 'La cosecha' },
+    { url: 'https://blob/chica-a.jpg', tipo: '', poster: '', enlace: '', leyenda: 'Secado' },
+    { url: 'https://blob/chica-b.jpg', tipo: '', poster: '', enlace: '', leyenda: 'Empaque' },
+  ]);
+});
+
+test('"collage" — PUBLICAR el video nuevo de un ítem deja el video Y el póster VIEJOS huérfanos — SÍ se borran los dos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:mosaico': {
+        tipo: 'collage',
+        items: [
+          { url: 'https://blob/A.mp4', tipo: 'video', poster: 'https://blob/A-poster.jpg', leyenda: 'A' },
+          { url: 'https://blob/B.jpg', leyenda: 'B' },
+          { url: 'https://blob/C.jpg', leyenda: 'C' },
+        ],
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:mosaico': {
+        tipo: 'collage',
+        items: [
+          { url: 'https://blob/X.mp4', tipo: 'video', poster: 'https://blob/X-poster.jpg', leyenda: 'A' },
+          { url: 'https://blob/B.jpg', leyenda: 'B' },
+          { url: 'https://blob/C.jpg', leyenda: 'C' },
+        ],
+      },
+    },
+  });
+
+  const { blobsABorrar } = await publicarSeccion('seccionesHome');
+  assert.deepEqual(blobsABorrar.sort(), ['https://blob/A-poster.jpg', 'https://blob/A.mp4']);
+});
+
+test('crear una instancia "video" (modo fondo, con video+póster), publicar: el storefront la relee intacta', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:v': {
+        tipo: 'video', titulo: 'Mira cómo trabajamos', texto: 'Un vistazo detrás de cámaras',
+        ctaLabel: 'Ver más', ctaDestino: '/tienda', imagen: 'https://blob/v.mp4', poster: 'https://blob/p.jpg', modo: 'fondo',
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.deepEqual(publicado.seccionesHome['inst:v'], {
+    tipo: 'video', titulo: 'Mira cómo trabajamos', texto: 'Un vistazo detrás de cámaras',
+    ctaLabel: 'Ver más', ctaDestino: '/tienda', imagen: 'https://blob/v.mp4', poster: 'https://blob/p.jpg', modo: 'fondo',
+    visible: true,
+  });
+});
+
+test('"video" — PUBLICAR el par video+póster nuevo deja los DOS viejos huérfanos — SÍ se borran', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:v': { tipo: 'video', imagen: 'https://blob/A.mp4', poster: 'https://blob/A-poster.jpg' } },
+  });
+  await publicarSeccion('seccionesHome');
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:v': { tipo: 'video', imagen: 'https://blob/X.mp4', poster: 'https://blob/X-poster.jpg' } },
+  });
+
+  const { blobsABorrar } = await publicarSeccion('seccionesHome');
+  assert.deepEqual(blobsABorrar.sort(), ['https://blob/A-poster.jpg', 'https://blob/A.mp4']);
+});
+
+test('"video" — ocultar con `visible:false` sobrevive el viaje completo, igual que los demás tipos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:v': { tipo: 'video', visible: false } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:v'] as { visible: boolean }).visible, false);
+});

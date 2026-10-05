@@ -8,14 +8,16 @@ import SeccionBanner from "@/components/storefront/secciones/Banner";
 import SeccionPreguntas from "@/components/storefront/secciones/Preguntas";
 import SeccionColumnas from "@/components/storefront/secciones/Columnas";
 import SeccionFilas from "@/components/storefront/secciones/Filas";
+import SeccionCollage from "@/components/storefront/secciones/Collage";
+import SeccionVideo from "@/components/storefront/secciones/Video";
 
 // EL DISPATCHER de instancias (§ SECCIONES-INSTANCIAS-1) — gemelo de `BANDAS` (el registro
 // bandaId→render de `app/(storefront)/page.tsx`), pero por TIPO en vez de por id fijo: una
 // instancia de catálogo lleva su propio `tipo` guardado, así que no hace falta un registro externo
 // id→componente (el id es arbitrario, el tipo no). `instancia.tipo` ya viene CLAMPADO por
-// `resolverInstancia` (secciones-instancias.ts) a uno de los SEIS del catálogo (§ SECCIONES-TIPOS-2
-// amplió de tres a seis), así que el switch es exhaustivo por construcción — ninguna rama
-// "desconocida" puede llegar acá con datos reales.
+// `resolverInstancia` (secciones-instancias.ts) a uno de los OCHO del catálogo (§ SECCIONES-TIPOS-2
+// amplió de tres a seis, § SECCIONES-TIPOS-3 de seis a ocho), así que el switch es exhaustivo por
+// construcción — ninguna rama "desconocida" puede llegar acá con datos reales.
 //
 // EN VIVO (§ SECCIONES-INSTANCIAS-VIVO-1, ver el docstring de cabecera de `secciones-instancias.ts`
 // para la regla general): lee `seccionesHome[id]` del CONTEXTO —el mismo que `EditorPuenteVivo.tsx`
@@ -23,7 +25,7 @@ import SeccionFilas from "@/components/storefront/secciones/Filas";
 // que `page.tsx` resuelve en el SERVIDOR una sola vez. La prop queda como SEMILLA: fuera del editor
 // (o antes de que el id exista en el contexto) coincide byte a byte con lo que trae el contexto —
 // `SiteContentProvider` nace con el MISMO `content` que resolvió la prop—, así que sólo gana cuando
-// el contexto todavía no conoce ese id. Las SEIS variantes reciben el
+// el contexto todavía no conoce ese id. Las OCHO variantes reciben el
 // valor YA resuelto como antes — este componente es el ÚNICO punto que lee el contexto por id,
 // mismo criterio que `BrandStory.tsx` leyendo `brandStory` una vez antes de elegir su variante.
 //
@@ -56,5 +58,9 @@ export default function SeccionInstancia({
       return <SeccionColumnas id={id} instancia={actual} style={style} />;
     case "filas":
       return <SeccionFilas id={id} instancia={actual} style={style} />;
+    case "collage":
+      return <SeccionCollage id={id} instancia={actual} style={style} />;
+    case "video":
+      return <SeccionVideo id={id} instancia={actual} style={style} />;
   }
 }
