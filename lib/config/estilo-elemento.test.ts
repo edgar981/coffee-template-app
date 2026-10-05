@@ -6,7 +6,7 @@ import {
   TAMANOS_ELEMENTO, LABEL_TAMANO_ELEMENTO, ALINEACIONES_ELEMENTO,
   ESTILO_ELEMENTO_VACIO, resolverEstiloElemento, resolverEstilosSeccion,
   fontFamilyDeEstilo, fontSizeDeEstilo, colorCSSDeEstilo, textAlignDeEstilo, estiloInlineDeElemento,
-  paresFuenteReferenciados, rolesColorLegibles,
+  paresFuenteReferenciados, rolesColorLegibles, necesitaAnchoCompleto,
   type EstiloElementoResuelto,
 } from './estilo-elemento';
 import { derivarPaleta, RAICES_DEFECTO } from './palette-derive';
@@ -191,6 +191,22 @@ test('estiloInlineDeElemento: con los cuatro ejes declarados, da las CUATRO clav
   const estilo: EstiloElementoResuelto = { fuente: 'robusta', tamano: 'grande', color: 'tostado', alinear: 'centro' };
   const out = estiloInlineDeElemento(estilo, 'titular', 'editorial');
   assert.deepEqual(Object.keys(out).sort(), ['color', 'fontFamily', 'fontSize', 'textAlign']);
+});
+
+// § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — bug 1 (el titular se alinea a medias).
+
+test('necesitaAnchoCompleto: sin alinear (ESTILO_ELEMENTO_VACIO) → false — byte-idéntico, nada que ensanchar', () => {
+  assert.equal(necesitaAnchoCompleto(ESTILO_ELEMENTO_VACIO), false);
+});
+
+test('necesitaAnchoCompleto: los TRES valores de alinear → true, aunque sea "izquierda" (ensanchar no mueve nada ahí, pero tampoco rompe)', () => {
+  assert.equal(necesitaAnchoCompleto({ ...ESTILO_ELEMENTO_VACIO, alinear: 'izquierda' }), true);
+  assert.equal(necesitaAnchoCompleto({ ...ESTILO_ELEMENTO_VACIO, alinear: 'centro' }), true);
+  assert.equal(necesitaAnchoCompleto({ ...ESTILO_ELEMENTO_VACIO, alinear: 'derecha' }), true);
+});
+
+test('necesitaAnchoCompleto: otros ejes (fuente/tamano/color) sin alinear → false — el gate es SÓLO la alineación', () => {
+  assert.equal(necesitaAnchoCompleto({ fuente: 'robusta', tamano: 'grande', color: 'tostado', alinear: null }), false);
 });
 
 // ─── LOS <link> DE FUENTE REFERENCIADA ──────────────────────────────────────────────────────────

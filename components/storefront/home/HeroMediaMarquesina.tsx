@@ -20,7 +20,7 @@ import {
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/storefront/home/MarquesinaMotor";
-import { estiloInlineDeElemento } from "@/lib/config/estilo-elemento";
+import { estiloInlineDeElemento, necesitaAnchoCompleto } from "@/lib/config/estilo-elemento";
 
 // EL COMPONENTE DE LA VARIANTE "STICKY" DEL HERO (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1) — la
 // CUARTA composición (tras curtina/ficha/media, § HeroSection.tsx: `VARIANTES.sticky`), y la que
@@ -666,6 +666,14 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // con este mismo id) — MISMO guard que `HeroMedia.tsx` para el 2º CTA: se oculta si suscripciones
   // está apagada y ese es su destino.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
+  // § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — bug 1 del owner: alinear el titular sólo movía la MITAD
+  // de la frase. La zona titular/subtítulo/botón es un ítem flex bajo `items-start` (§ el docstring
+  // de `necesitaAnchoCompleto`, estilo-elemento.ts): su caja se encoge a la línea más larga de
+  // `hero.titulo`+`hero.tituloEnfasis`, así que `text-align` sólo tenía espacio para mover la línea
+  // más corta. `w-full` en los TRES niveles (zona → cluster → `<h2>`) le da al titular el ancho REAL
+  // de la zona — condicionado a que haya alineación guardada, para que sin ella (el caso de hoy,
+  // Nayoli) el marcado siga byte-idéntico.
+  const titularAlineado = necesitaAnchoCompleto(hero.estilos.titulo);
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
   // EL CAMPO `marquesina.texto` SE ESTÁ EDITANDO AHORA MISMO (§ EDITOR-TIENDA-CAMPO-ANCLADO-1,
@@ -988,15 +996,18 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
             exactamente en su posición de HOY: "en su lugar si el indicador está apagado" se cumple
             por construcción (el wrapper se encoge al contenido real), sin una segunda rama de
             posicionamiento que mantener. Ancho acotado (`max-w-[48vw] sm:max-w-xs`) para no
-            alcanzar a "LA FRASE AL PIE" (arriba, bottom-right) en un viewport angosto. */}
+            alcanzar a "LA FRASE AL PIE" (arriba, bottom-right) en un viewport angosto — `w-full`
+            (§ `titularAlineado`, EDITOR-ARREGLOS-TITULAR-DESTACADO-1) sólo hace que esta zona
+            ALCANCE ese mismo tope, nunca que lo supere, así que el margen ya calculado contra "la
+            frase al pie" sigue siendo válido. */}
         {(hero.titularVisible || hero.subtituloVisible || hero.ctasVisibles || activoEditor || (hero.cueDesliza && !preview)) && (
-          <div className="absolute bottom-8 left-4 z-10 flex max-w-[48vw] flex-col items-start gap-4 sm:bottom-10 sm:left-6 sm:max-w-xs lg:bottom-12 lg:left-8 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
+          <div className={`absolute bottom-8 left-4 z-10 flex max-w-[48vw] flex-col items-start gap-4 sm:bottom-10 sm:left-6 sm:max-w-xs lg:bottom-12 lg:left-8 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]${titularAlineado ? ' w-full' : ''}`}>
             {(hero.titularVisible || hero.subtituloVisible || hero.ctasVisibles || activoEditor) && (
-              <div className="flex flex-col items-start gap-2">
+              <div className={`flex flex-col items-start gap-2${titularAlineado ? ' w-full' : ''}`}>
                 {hero.titularVisible ? (
                   <>
                     <h2
-                      className="font-playfair text-xl leading-[1.15] text-[var(--sf-sobre-banda,white)] sm:text-2xl"
+                      className={`font-playfair text-xl leading-[1.15] text-[var(--sf-sobre-banda,white)] sm:text-2xl${titularAlineado ? ' w-full' : ''}`}
                       style={estiloInlineDeElemento(hero.estilos.titulo, 'titular', tema.fuentePar)}
                     >
                       <CampoEditable campo="hero.titulo">{hero.titulo}</CampoEditable>

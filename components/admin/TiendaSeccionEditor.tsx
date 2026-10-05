@@ -38,7 +38,7 @@ import {
   esMensajeCamposCambio,
 } from '@/lib/storefront/editor-puente';
 import { remuxMovAMp4 } from '@/lib/video-remux';
-import { ejesSpotlight, etiquetaEjesSpotlight } from '@/lib/config/spotlight';
+import { ejesSpotlight, etiquetaEjesSpotlight, parcialAlCambiarPinSpotlight } from '@/lib/config/spotlight';
 import { DEFAULTS, veloComboDeCampos, camposDeVeloCombo, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
@@ -1355,7 +1355,20 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                              onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
         ) : campo.producto ? (
           <ProductoCombobox id={id} value={value} productos={catalogoReal} productosListos={productosListos}
-                             onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
+                             onChange={v => {
+                               // § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — bug 2 del owner: cambiar el
+                               // PIN de Destacado (`productoSlug`) limpia `nombreCafe` DE PASO — ese
+                               // nombre editorial pertenece al café con el que se escribió, no al
+                               // campo a secas (§ `parcialAlCambiarPinSpotlight`, spotlight.ts). Los
+                               // otros tres punteros del grupo (presentación/tamaño/cuarto) son el
+                               // MISMO café en otra talla y NO disparan esto — `nombreCafe` está
+                               // diseñado para no cambiar ahí.
+                               if (seccion === 'spotlight' && campo.name === 'productoSlug') {
+                                 cambiar(parcialAlCambiarPinSpotlight(v));
+                               } else {
+                                 cambiar({ [campo.name]: v });
+                               }
+                             }} ariaDescribedby={`${id}-hint`} />
         ) : campo.transicionMarquesina && campo.opciones ? (
           // § EDITOR-TIENDA-TRANSICIONES-TARJETAS-1 — fila de tarjetas con mini animación en vez del
           // `<select>` nativo (que la rama de abajo sigue dando a todo OTRO campo con `opciones`).

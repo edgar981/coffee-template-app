@@ -803,6 +803,76 @@ test('hero.estilos.titulo con tamano declarado: la zona titular de sticky TAMBI�
   assert.match(html, /<h2[^>]*style="[^"]*color:var\(--sf-acento\)/, 'el color por rol también debe aplicar');
 });
 
+// ─── § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — bug 1 del owner: alinear sólo movía MEDIA frase ──────
+//
+// El titular (`<h2>`) es un ítem flex bajo `items-start`, dos niveles (la zona + el cluster), así
+// que sin ensanchar su caja se encoge a la línea más larga de `titulo`+`tituloEnfasis` y `text-
+// align` sólo tiene espacio para mover la línea MÁS CORTA (§ `necesitaAnchoCompleto`, estilo-
+// elemento.ts, y la medición empírica con Playwright contra el markup real, documentada en su
+// docstring). Esta suite afirma la MITAD que `renderToStaticMarkup` puede ver — qué clases emite el
+// marcado— no la geometría resultante (eso es capa 3/el arnés de medición, fuera de este carril).
+
+function contenidoSticky(tituloEstilo: { alinear: 'izquierda' | 'centro' | 'derecha' | null }): SiteContentData {
+  return {
+    ...DEFAULTS,
+    hero: {
+      ...DEFAULTS.hero,
+      titulo: 'Café que cuenta',
+      tituloEnfasis: 'una historia distinta',
+      estilos: { ...DEFAULTS.hero.estilos, titulo: { fuente: null, tamano: null, color: null, ...tituloEstilo } },
+    },
+  } as SiteContentData;
+}
+
+test('sin alinear (default, Nayoli): NINGÚN nivel de la zona titular lleva `w-full` — byte-idéntico a hoy', () => {
+  const html = renderHeroMediaMarquesina(contenidoSticky({ alinear: null }));
+  assert.doesNotMatch(html, /w-full/, 'sin alineación configurada, el marcado no debe ganar ninguna clase nueva');
+});
+
+test('con alinear "centro": la zona (OUTER), el cluster (INNER) Y el `<h2>` ganan `w-full` — los TRES niveles, o el ensanche no llega al titular', () => {
+  const html = renderHeroMediaMarquesina(contenidoSticky({ alinear: 'centro' }));
+  const matches = html.match(/class="[^"]*w-full[^"]*"/g) ?? [];
+  assert.equal(matches.length, 3, `se esperaban 3 elementos con w-full (zona/cluster/h2), se vieron ${matches.length}: ${JSON.stringify(matches)}`);
+  assert.match(html, /<h2[^>]*class="[^"]*w-full[^"]*"[^>]*style="[^"]*text-align:center/, 'el propio <h2> debe llevar w-full Y el text-align');
+});
+
+test('con alinear "izquierda"/"derecha": TAMBIÉN ganan w-full los tres niveles — el gate es "hay alineación", no "cuál de las tres"', () => {
+  for (const alinear of ['izquierda', 'derecha'] as const) {
+    const html = renderHeroMediaMarquesina(contenidoSticky({ alinear }));
+    const matches = html.match(/class="[^"]*w-full[^"]*"/g) ?? [];
+    assert.equal(matches.length, 3, `alinear="${alinear}": se esperaban 3, se vieron ${matches.length}`);
+  }
+});
+
+test('las OTRAS variantes (curtina/ficha/media) NO cambian de marcado por esto — alinear sólo mueve el `style`, nunca agrega una clase (su titular ya es bloque normal, sin el bug)', () => {
+  // Nota: estos tres heroes YA emiten `w-full` en OTRO sitio (el contenedor del gutter,
+  // `relative z-10 mx-auto w-full max-w-6xl …`) — una afirmación ciega de "no debe aparecer
+  // w-full en ningún lado" sería falsa por un motivo AJENO a este fix. Lo que de verdad importa es
+  // que el HTML con y sin alineación sea el MISMO salvo el `text-align` del propio <h1> — ninguna
+  // clase nueva, en ningún nivel.
+  for (const variante of ['curtina', 'ficha', 'media'] as const) {
+    const base = (alinear: 'izquierda' | 'centro' | 'derecha' | null) => ({
+      ...DEFAULTS,
+      hero: {
+        ...DEFAULTS.hero,
+        variante,
+        titulo: 'Café que cuenta',
+        tituloEnfasis: 'una historia distinta',
+        estilos: { ...DEFAULTS.hero.estilos, titulo: { fuente: null, tamano: null, color: null, alinear } },
+      },
+    } as SiteContentData);
+    const render = (content: SiteContentData) => renderToStaticMarkup(
+      React.createElement(SiteContentProvider, { value: content, children: React.createElement(HeroSection) }),
+    );
+    const sinAlinear = render(base(null));
+    const conAlinear = render(base('centro'));
+    // Quitar el ÚNICO fragmento que el estilo por elemento puede variar (el `style=` del <h1>, que
+    // ya se afirma en el test de arriba) y comparar el resto debe dar IDÉNTICO.
+    const sinStyle = (html: string) => html.replace(/<h1[^>]*style="[^"]*"/, '<h1 STYLE_OMITIDO');
+    assert.equal(sinStyle(conAlinear), sinStyle(sinAlinear), `variante "${variante}": alinear no debe tocar nada fuera del style del <h1>`);
+  }
+});
+
 // ─── § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — marquesina.estilos.texto, el seguimiento que
 // EDITOR-TIENDA-BARRA-FLOTANTE-1 dejó abierto (su `touches:` no alcanzaba `MarquesinaMotor.tsx`) ───
 

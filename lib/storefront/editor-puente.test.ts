@@ -34,7 +34,9 @@ import {
   esClicEnChromeEditor,
   ATRIBUTO_EDITOR_ETIQUETA,
   etiquetaDeSeccion,
+  contenidoDivergeDeCampoAbierto,
 } from './editor-puente';
+import { parcialAlCambiarPinSpotlight, nombreCafeSpotlight } from '@/lib/config/spotlight';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { DEFAULTS_INSTANCIA } from '@/lib/config/secciones-instancias';
 
@@ -265,6 +267,61 @@ test('el patrón de extracción que usa EditorPuenteVivo.tsx — shape.secciones
   // Y el rechazo también se propaga de punta a punta: un tipo inválido no produce datos que fusionar.
   const rechazado = subSchema.safeParse({ tipo: 'carrusel-inventado', titulo: 'x' });
   assert.equal(rechazado.success, false);
+});
+
+// ─── contenidoDivergeDeCampoAbierto (§ EDITOR-ARREGLOS-TITULAR-DESTACADO-1, bug 2) ────────────────
+//
+// El gate que decide si el campo flotante tiene que CERRARSE al llegar un `TIPO_MENSAJE_CONTENIDO_
+// SECCION` — nunca sobre la sola presencia del mensaje (el panel reenvía el form ENTERO tras cada
+// tecla, así que el campo abierto recibe un ECO de sí mismo en cada una), sino sobre si el valor
+// que trae PARA SU PROPIO CAMPO difiere de lo que ya muestra.
+
+test('contenidoDivergeDeCampoAbierto: el ECO de la propia tecla (mismo valor) NUNCA diverge — así no se cierra en la primera tecla', () => {
+  assert.equal(contenidoDivergeDeCampoAbierto({ nombreCafe: 'Café Nayoli' }, 'nombreCafe', 'Café Nayoli'), false);
+});
+
+test('contenidoDivergeDeCampoAbierto: un valor AJENO (otro campo del panel cambió el mismo campo) SÍ diverge', () => {
+  // El caso real: el picker de producto limpió `nombreCafe` a '' mientras el overlay seguía
+  // mostrando el nombre del café anterior.
+  assert.equal(contenidoDivergeDeCampoAbierto({ nombreCafe: '' }, 'nombreCafe', 'Café Nayoli'), true);
+});
+
+test('contenidoDivergeDeCampoAbierto: el campo abierto AUSENTE del payload (cambió OTRO campo de la sección) no diverge', () => {
+  assert.equal(contenidoDivergeDeCampoAbierto({ eyebrow: 'x' }, 'nombreCafe', 'Café Nayoli'), false);
+});
+
+test('contenidoDivergeDeCampoAbierto: un valor que no es string (un repeater, un booleano) nunca diverge — sólo campos de texto viven en el overlay', () => {
+  assert.equal(contenidoDivergeDeCampoAbierto({ items: [1, 2] }, 'items', 'x'), false);
+  assert.equal(contenidoDivergeDeCampoAbierto({ visible: false }, 'visible', 'x'), false);
+});
+
+// ─── LA CADENA COMPLETA, de punta a punta (bug 2 del owner) ───────────────────────────────────────
+//
+// Reconstruye la secuencia real: el dueño escribió un nombre editorial mientras el café A estaba
+// pineado; abre el campo flotante de "nombreCafe" (lo ve, aunque no lo toca); en el PANEL elige el
+// café B en el picker de "Producto destacado" — el picker aplica `parcialAlCambiarPinSpotlight`
+// (TiendaSeccionEditor.tsx), que viaja como `TIPO_MENSAJE_CONTENIDO_SECCION` y se funde con
+// `fusionarContenidoSeccion` (el mismo camino que cualquier cambio del panel). Afirma las DOS
+// mitades juntas: (1) el campo flotante abierto DEBE cerrarse (el valor que llega para su propio
+// campo ya no es el que muestra), y (2) una vez fundido, el nombre visible deriva del café NUEVO.
+test('la cadena completa: elegir otro café limpia nombreCafe en el documento fundido, Y el campo flotante abierto sobre ese valor viejo debe cerrarse', () => {
+  const conCafeA = { ...DEFAULTS, spotlight: { ...DEFAULTS.spotlight, productoSlug: 'cafe-a', nombreCafe: 'Café Especial A' } };
+
+  // El campo flotante de nombreCafe está abierto, mostrando "Café Especial A" (lo que capturó al
+  // abrirse) — el dueño NO lo tocó.
+  const valorEnElOverlay = 'Café Especial A';
+
+  // El panel aplica el parcial del picker y lo manda como contenido de sección.
+  const parcial = parcialAlCambiarPinSpotlight('cafe-b');
+  const resultado = fusionarContenidoSeccion(conCafeA, 'spotlight', parcial);
+
+  // (1) el mensaje que llega para "nombreCafe" (ahora '') diverge de lo que el overlay muestra.
+  assert.equal(contenidoDivergeDeCampoAbierto(parcial, 'nombreCafe', valorEnElOverlay), true);
+
+  // (2) el documento fundido ya no carga el override viejo — el nombre deriva del café B.
+  assert.equal(resultado.spotlight.productoSlug, 'cafe-b');
+  assert.equal(resultado.spotlight.nombreCafe, '');
+  assert.equal(nombreCafeSpotlight({ nombre: 'Café B — En grano 250 g' }, resultado.spotlight.nombreCafe), 'Café B');
 });
 
 // § EDITOR-TIENDA-SELECCION-1 — los dos mensajes nuevos de la selección en contexto (§ 4.1).

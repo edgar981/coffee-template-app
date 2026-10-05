@@ -193,3 +193,24 @@ export function nombreCafeSpotlight(principal: ProductoNombreSpotlight, nombreCa
   const resto = nombre.slice(0, idx).trim();
   return resto || nombre;
 }
+
+// ── EL NOMBRE PERTENECE AL PRINCIPAL — § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 ──────────────────────
+//
+// Bug 2 del owner: eligió otro producto para destacar, la descripción cambió, y el NOMBRE se quedó
+// siendo el del producto ANTERIOR. La causa está arriba, en el propio diseño de `nombreCafeSpotlight`:
+// `nombreCafe` es un override que GANA sobre lo que se deriva del `principal` — correcto mientras el
+// `principal` sea EL MISMO café (es justo lo que permite que el nombre "no cambie al elegir otra
+// presentación o tamaño", § su hint en `components/admin/tienda-secciones.ts`), pero si el PIN mismo
+// cambia a OTRO café, ese override sigue "ganando" con el nombre de un café que ya no es el que se
+// muestra. El nombre editorial pertenece al producto CON EL QUE SE ESCRIBIÓ, no a la sección entera.
+//
+// Por eso el PIN (`productoSlug`) es el ÚNICO de los cuatro punteros del grupo que dispara esto — los
+// otros tres (`presentacionSlug`/`otroTamanoSlug`/`cuartoSlug`) son el MISMO café en otra talla, y
+// `nombreCafe` está diseñado a propósito para NO cambiar ahí.
+/** El PARCIAL a aplicar cuando el picker de `productoSlug` (el PIN de Destacado) cambia de valor:
+ *  el slug nuevo, y `nombreCafe` LIMPIO — nunca el override del café anterior sobreviviendo al
+ *  cambio de café. Deshacer (`TiendaSeccionEditor.tsx`, el mismo paso de historial que cualquier
+ *  cambio de campo) lo devuelve igual que cualquier otro campo. */
+export function parcialAlCambiarPinSpotlight(nuevoSlug: string): { productoSlug: string; nombreCafe: string } {
+  return { productoSlug: nuevoSlug, nombreCafe: '' };
+}

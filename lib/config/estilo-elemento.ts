@@ -319,6 +319,33 @@ export function textAlignDeEstilo(estilo: EstiloElementoResuelto): string | unde
 }
 
 /**
+ * § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — `true` si ESTE elemento necesita que su llamador lo
+ * ensanche al ancho REAL de su zona (p. ej. con `w-full` en los contenedores intermedios) para que
+ * `text-align` mueva la frase COMPLETA, no sólo su línea más corta.
+ *
+ * El síntoma (reportado por el owner, hero·sticky): un titular de DOS líneas (`titulo` +
+ * `tituloEnfasis` tras un `<br/>`) alineado a la izquierda/centro/derecha sólo desplazaba la línea
+ * MÁS CORTA — la más larga se quedaba fija. La causa es de LAYOUT, no de este módulo: cuando el
+ * elemento es un ítem flex bajo `items-start` (el patrón de zona de `HeroMediaMarquesina.tsx`), su
+ * caja se ENCOGE al ancho de su línea más larga (CSS Flexbox §9.4: un ítem no-`stretch` trata
+ * `width:auto` como `fit-content`, SIEMPRE, sin importar cuán ancho sea su contenedor) — así que
+ * `text-align` no tiene espacio sobrante donde mover esa línea. Medido con Playwright contra el
+ * markup real: la caja quedaba exactamente del ancho de la línea más larga, y sólo la más corta se
+ * desplazaba dentro de ella.
+ *
+ * El arreglo vive en el LLAMADOR (cada composición del hero decide cómo ensancharse — `w-full`
+ * encadenado por los contenedores intermedios, § HeroMediaMarquesina.tsx), porque es de ahí de
+ * donde sale el layout; esta función sólo decide CUÁNDO hace falta, para que el arreglo no se
+ * aplique — y no cambie ni un byte — cuando no hay alineación configurada (`alinear === null`,
+ * el default byte-idéntico de hoy). Las otras tres composiciones (`HeroCurtina`/`HeroMedia`/
+ * `HeroFicha`) ya rinden el titular como bloque normal (sin `items-start` de por medio) y por tanto
+ * YA ocupan el ancho completo de su zona sin necesitar esto — medido igual, sin diferencia.
+ */
+export function necesitaAnchoCompleto(estilo: EstiloElementoResuelto): boolean {
+  return estilo.alinear !== null;
+}
+
+/**
  * El `style` COMPLETO de un elemento — sólo las claves que SÍ tienen override (§ los cuatro
  * traductores arriba). Con `estilo === ESTILO_ELEMENTO_VACIO` (o cualquier estilo todo-`null`)
  * devuelve `{}`: spreadearlo sobre un `style` existente no cambia ni un byte — la garantía de

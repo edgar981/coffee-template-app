@@ -8,7 +8,7 @@ import {
   esMensajeContenidoSeccion, esSeccionDelRegistro, fusionarContenidoSeccion,
   esMensajeModoNavegar, TIPO_MENSAJE_SECCION_CLICK, TIPO_MENSAJE_CAMPO_CAMBIO,
   TIPO_MENSAJE_CAMPO_IMAGEN_CLICK, esMensajeSesionVencida, datosDeOrden, datosDeTema,
-  datosDeEncabezado, fusionarContenidoInstancia,
+  datosDeEncabezado, fusionarContenidoInstancia, contenidoDivergeDeCampoAbierto,
   ATRIBUTO_EDITOR_ZONA_CAMPO, ATRIBUTO_EDITOR_ZONA_VALOR, ATRIBUTO_EDITOR_ZONA_CAMPO2,
   ATRIBUTO_EDITOR_ZONA_VALOR2, mensajesDeZonaHero,
   mensajeEstiloElemento, mensajesQuitarEstiloElemento,
@@ -501,6 +501,23 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
     document.documentElement.removeAttribute(ATRIBUTO_RUTA_EN_EDICION);
   }, []);
 
+  // § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — la MITAD del bug 2 que la divergencia de valor
+  // (arriba, `aplicar`) no cubre: el dueño abre el campo flotante y, SIN tocarlo, clickea algo del
+  // PANEL (el picker de producto, otro campo del sidebar) — el foco sale de ESTE documento (el del
+  // iframe) hacia el PADRE, y eso dispara un `blur` NATIVO de `window` (nunca al escribir DENTRO del
+  // overlay: ahí el foco se queda en este mismo `window`). Cierra el campo (comiteando lo tecleado
+  // hasta ahora, como cualquier cierre) para que no quede abierto mostrando un valor que el dueño ya
+  // dejó de mirar — el mismo criterio que el clic-afuera ya aplicaba DENTRO del documento.
+  useEffect(() => {
+    if (!activo) return;
+    const onBlur = () => { if (campoAbiertoRef.current) cerrarCampo(); };
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `cerrarCampo` se redefine en cada
+    // render pero sólo lee/escribe REFS y los setters de React (§ el mismo motivo en el efecto de
+    // mensajes y en el de clics).
+  }, [activo]);
+
   useEffect(() => {
     if (!activo) return;
     let vivo = true;
@@ -644,6 +661,17 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
         // guardado tampoco aceptaría. El próximo mensaje (la próxima tecla) lo intenta de nuevo.
         if (!parsed || !parsed.success) return;
         const datosValidados = parsed.data as Record<string, unknown>;
+        // § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — bug 2 del owner: el campo flotante NUNCA debe
+        // quedar mostrando un valor que ya no es el del nodo real. Si lo que acaba de llegar es de
+        // la MISMA sección que el campo abierto y trae, para SU campo, algo distinto de lo que el
+        // overlay ya muestra, cierra (guardando lo tecleado hasta ahora) — el discriminador es el
+        // VALOR, no la sección a secas (§ el docstring de `contenidoDivergeDeCampoAbierto`): un eco
+        // de la propia tecla trae siempre el mismo valor, así que nunca dispara esto.
+        const abierto = campoAbiertoRef.current;
+        if (abierto && abierto.ruta.seccion === seccion
+          && contenidoDivergeDeCampoAbierto(datosValidados, abierto.ruta.campo, abierto.valor)) {
+          cerrarCampo();
+        }
         actualizar((prev) => (esInstancia
           ? fusionarContenidoInstancia(prev, seccion, datosValidados)
           : fusionarContenidoSeccion(prev, seccion, datosValidados)));
@@ -667,6 +695,10 @@ export default function EditorPuenteVivo({ activo }: { activo: boolean }) {
       // deja un nodo huérfano en un documento que ya no tiene este efecto vivo para limpiarlo).
       document.querySelectorAll(`.${CLASE_SEPARADOR_AGREGAR}`).forEach((n) => n.remove());
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `cerrarCampo` se redefine en cada
+    // render pero sólo lee/escribe REFS y los setters de React (mismo motivo que el efecto de
+    // clics, abajo); incluirla reharía correr este efecto —y reinstalar el listener— en cada
+    // render sin ganar nada.
   }, [activo, actualizar]);
 
   // DESHACER/REHACER (§ el comentario grande, arriba) — efecto PROPIO, independiente del de clics:

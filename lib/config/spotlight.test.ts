@@ -7,6 +7,7 @@ import {
   productoDeCombinacion,
   etiquetaEjesSpotlight,
   nombreCafeSpotlight,
+  parcialAlCambiarPinSpotlight,
 } from './spotlight';
 
 // ─── ejesSpotlight — DATO del producto, nunca un literal inventado ────────────────────────────────
@@ -132,4 +133,26 @@ test('nombreCafeSpotlight: sin el separador " — ", el nombre entero — nunca 
 
 test('nombreCafeSpotlight: un guion simple "-" no es el separador — sólo el em dash " — " exacto corta', () => {
   assert.equal(nombreCafeSpotlight({ nombre: 'Café Nayoli - Molido 250 g' }, ''), 'Café Nayoli - Molido 250 g');
+});
+
+// ─── parcialAlCambiarPinSpotlight — § EDITOR-ARREGLOS-TITULAR-DESTACADO-1, bug 2 del owner ────────
+// (el nombre se quedaba siendo el del producto anterior al elegir otro en el panel)
+
+test('parcialAlCambiarPinSpotlight: devuelve el slug nuevo Y `nombreCafe` LIMPIO — nunca el override sobreviviendo al cambio de café', () => {
+  assert.deepEqual(parcialAlCambiarPinSpotlight('cafe-onix-grano-250g'), { productoSlug: 'cafe-onix-grano-250g', nombreCafe: '' });
+});
+
+test('parcialAlCambiarPinSpotlight: limpia aunque el nombre editorial ya estuviera vacío — idempotente', () => {
+  assert.deepEqual(parcialAlCambiarPinSpotlight(''), { productoSlug: '', nombreCafe: '' });
+});
+
+test('EL INVARIANTE que esto cierra: aplicado el parcial, nombreCafeSpotlight YA NO lee el override viejo — deriva del producto nuevo', () => {
+  // Reconstruye la secuencia real: (1) el owner escribió un nombre editorial mientras el pin era
+  // el café A; (2) elige el café B en el panel — el picker aplica `parcialAlCambiarPinSpotlight`.
+  const trasElegirB = parcialAlCambiarPinSpotlight('cafe-b');
+  assert.equal(
+    nombreCafeSpotlight({ nombre: 'Café B — En grano 250 g' }, trasElegirB.nombreCafe),
+    'Café B',
+    'sin el override (limpio por el cambio de pin), el nombre deriva del producto NUEVO',
+  );
 });

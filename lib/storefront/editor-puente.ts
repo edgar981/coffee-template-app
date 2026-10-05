@@ -509,6 +509,41 @@ export function fusionarContenidoInstancia(
   return { ...actual, seccionesHome: { ...actual.seccionesHome, [instanciaId]: resuelto } };
 }
 
+// ─── § EDITOR-ARREGLOS-TITULAR-DESTACADO-1 — EL CAMPO FLOTANTE NO PUEDE MOSTRAR UN VALOR AJENO ───
+//
+// Bug 2 del owner (Destacado): cambiar el PIN del grupo en el panel actualizaba la descripción
+// pero el NOMBRE seguía siendo el del producto anterior. La causa de FONDO es que `nombreCafe`
+// (§ `nombreCafeSpotlight`, lib/config/spotlight.ts) es un override que persiste a propósito —
+// pero si el campo flotante de `spotlight.nombreCafe` está ABIERTO justo cuando ese override se
+// limpia desde el panel (§ el picker de producto, `TiendaSeccionEditor.tsx`), el overlay sigue
+// mostrando el valor VIEJO que capturó al abrirse (`EditorPuenteVivo.tsx`, `abrirCampo`): el nodo
+// real ya cambió (React lo re-renderiza aunque esté `visibility:hidden`), pero el `<input>` flotante
+// no se re-sincroniza solo.
+//
+// NO basta con cerrar el campo apenas llega CUALQUIER mensaje de su sección: el panel reenvía el
+// FORM ENTERO de la sección tras cada cambio de `form` (`TiendaSeccionEditor.tsx`, el efecto
+// `onCambio`) — INCLUIDO el eco de la propia tecla del campo abierto. Cerrar sobre ese eco cerraría
+// el campo en la PRIMERA tecla que alguien escriba. El discriminador tiene que ser el VALOR: un eco
+// de la propia tecla siempre trae, para la ruta abierta, EXACTAMENTE lo que el overlay ya muestra;
+// un cambio AJENO (otro campo del panel, como este picker limpiando `nombreCafe`) trae algo
+// DISTINTO — y ahí es cuando el overlay está mostrando un valor que ya no es el del nodo real.
+/**
+ * `true` si `datos` (el payload de un `TIPO_MENSAJE_CONTENIDO_SECCION` recién llegado) trae, para
+ * `campo`, un valor DISTINTO del que el campo flotante abierto está mostrando (`valorActual`) — el
+ * gate para CERRARLO (§ el comentario de arriba). `campo` ausente en `datos`, o con un valor que no
+ * es `string` (un repeater, un booleano), NUNCA diverge: sólo los campos de TEXTO plano viven en el
+ * overlay, así que un `campo` de otra forma no puede ser "su" ruta en primer lugar.
+ */
+export function contenidoDivergeDeCampoAbierto(
+  datos: Record<string, unknown>,
+  campo: string,
+  valorActual: string,
+): boolean {
+  if (!Object.prototype.hasOwnProperty.call(datos, campo)) return false;
+  const entrante = datos[campo];
+  return typeof entrante === 'string' && entrante !== valorActual;
+}
+
 // ─── EL DÉCIMO MENSAJE — NUEVO (§ EDITOR-AGREGAR-SECCION-LIENZO-1) ─────────────────────────────
 //
 // iframe→panel: "el dueño clickeó el «+» que aparece entre dos secciones (o después de la
