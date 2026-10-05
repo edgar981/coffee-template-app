@@ -22,6 +22,7 @@ import type { PresetTema } from '@/lib/config/themes';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { Combinaciones } from '@/components/admin/editor/Combinaciones';
+import { MuestraColor } from '@/components/admin/editor/MuestraColor';
 
 // ─── Bloque COLORES DE LA TIENDA — vive en /admin/tienda, SOBRE el selector de página ────────────
 //
@@ -750,18 +751,18 @@ export default function PaletaSeccion({ enEditor = false, onCambioEnVivo }: Pale
       <div className="tienda-regleta__pieza tienda-regleta__pieza--acento">
         <label className="duna-field__label" htmlFor="pal-acento">Acento de marca</label>
         {enEditor && <p className="duna-caption" style={{ margin: '2px 0 0' }}>Botones y detalles de marca</p>}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-          <input
-            id="pal-acento" type="color"
+        <div style={{ marginTop: '6px' }}>
+          {/* § EDITOR-PANEL-PIEL-1 — SIN `sugerencias` ni `onPorDefecto`: el acento es una de las TRES
+              raíces de la paleta, así que no se sugiere a sí mismo, y siempre es un hex concreto (no
+              tiene un estado "sin elegir" propio — volver a fábrica es la acción global de arriba,
+              "Usar el tema por defecto", que resetea las tres raíces juntas). La muestra ES el
+              control entero acá. */}
+          <MuestraColor
+            id="pal-acento"
             value={HEX6.test(form.acento) ? form.acento : '#8b4513'}
-            onChange={e => cambiar({ acento: e.target.value })}
-            style={{ width: 34, height: 30, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
-            aria-label="Elegir color de acento"
-          />
-          <input
-            className="duna-input" style={{ width: 110, fontFamily: 'var(--duna-font-mono)' }}
-            value={form.acento} onChange={e => cambiar({ acento: e.target.value })}
-            aria-invalid={acentoInvalido || undefined}
+            onChange={(hex) => cambiar({ acento: hex })}
+            ariaLabel="Acento de marca"
+            invalido={acentoInvalido}
           />
         </div>
         {acentoInvalido ? (

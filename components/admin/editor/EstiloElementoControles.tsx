@@ -8,6 +8,7 @@ import {
 } from "@/lib/config/estilo-elemento";
 import { PARES_FUENTES } from "@/lib/config/fuentes";
 import { ROLES_COLOR_ELEMENTO } from "@/lib/config/palette-derive";
+import { MuestraColor } from "@/components/admin/editor/MuestraColor";
 
 // EL CONTROL GEMELO DE LA BARRA FLOTANTE, del lado del PANEL (§ EDITOR-TIENDA-BARRA-FLOTANTE-1,
 // docs/editor-tienda/REDISENO.md § 3: "el panel muestra lo mismo con más espacio"). Se monta DENTRO
@@ -147,15 +148,16 @@ export default function EstiloElementoControles({
         </div>
         <details style={{ marginTop: 6 }} open={colorEsCustom}>
           <summary style={{ fontSize: 11, color: "var(--duna-muted)", cursor: "pointer" }}>Avanzado</summary>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-            <span style={{ fontSize: 11, color: "var(--duna-muted)" }}>Personalizado</span>
-            <input
-              type="color"
+          {/* § EDITOR-PANEL-PIEL-1 — SIN `sugerencias`: los roles de arriba (ROLES_COLOR_ELEMENTO) YA
+              son las sugerencias de este control; acá sólo falta el color libre, a 32px en vez del
+              `<input type="color">` de 28×22 de antes. */}
+          <div style={{ marginTop: 6 }}>
+            <MuestraColor
               value={colorEsCustom ? (valor.color as string).slice("custom:".length) : "#000000"}
-              onChange={(e) => onCambiar("color", `custom:${e.target.value}`)}
-              style={{ width: 28, height: 22, padding: 0, border: "none", background: "none" }}
+              onChange={(hex) => onCambiar("color", `custom:${hex}`)}
+              ariaLabel="Color personalizado"
             />
-          </label>
+          </div>
         </details>
       </div>
 

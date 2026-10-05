@@ -464,7 +464,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 apagado, § gatePorCampo/campoAtenuado en tienda-secciones.ts), el dato se conserva
                 editable para cuando se elija un ítem. */}
             <div className="duna-field">
-              <label className="duna-field__label" htmlFor="menu-badge-item">Ítem con badge (opcional)</label>
+              <label className="duna-field__label" htmlFor="menu-badge-item">Ítem con etiqueta (opcional)</label>
               <select
                 id="menu-badge-item" className="duna-input duna-select"
                 value={form.badgeItem ?? ''}
@@ -473,17 +473,17 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 <option value="">Ninguno</option>
                 {MENU_ITEM_IDS.map((id) => <option key={id} value={id}>{etiquetaOpcionMenu(form, id)}</option>)}
               </select>
-              <AyudaCampo texto="Ninguno: no se muestra ningún badge." />
+              <AyudaCampo texto="Ninguno: no se muestra ninguna etiqueta." />
             </div>
             <div className="duna-field" style={badgeTextoAtenuado ? { opacity: 0.6 } : undefined}>
-              <label className="duna-field__label" htmlFor="menu-badge-texto">Texto del badge</label>
+              <label className="duna-field__label" htmlFor="menu-badge-texto">Texto de la etiqueta</label>
               <input
                 id="menu-badge-texto" className="duna-input"
                 value={form.badgeTexto ?? ''}
                 onChange={(e) => cambiar({ badgeTexto: e.target.value })}
                 placeholder="Ej. Cosecha 2026"
               />
-              <AyudaCampo texto={badgeTextoAtenuado ? 'Elige un ítem arriba para que este texto se muestre.' : 'Vacío: no se muestra ningún badge.'} />
+              <AyudaCampo texto={badgeTextoAtenuado ? 'Elige un ítem arriba para que este texto se muestre.' : 'Vacío: no se muestra ninguna etiqueta.'} />
             </div>
 
             {/* EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1) — medido contra el

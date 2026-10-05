@@ -14,6 +14,8 @@ import { TIPOS_LOGO, ACCEPT_LOGO, MAX_SUBIDA_DIRECTA_MB } from '@/constants/uplo
 import { modoLogoResuelto } from '@/lib/config/marca-logo';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
+import { MuestraColor } from '@/components/admin/editor/MuestraColor';
+import { RAICES_DEFECTO } from '@/lib/config/palette-derive';
 
 // § EDITOR-TIENDA-CROMO-1 — gemelo de `MenuSeccionHandle`. Sin `escribirCampo`: el Encabezado no
 // gana marcadores `CampoEditable` en esta tanda (§ el asiento de este slice en DECISIONS.md — la
@@ -38,6 +40,12 @@ export interface EncabezadoSeccionProps {
   onCambio?: (seccion: 'encabezado' | 'logo', datos: Record<string, unknown>) => void;
   onPaso?: (paso: PasoHistorial) => void;
   onEstado?: (info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
+  /** § EDITOR-PANEL-PIEL-1 — las raíces de la paleta de la tienda (fondo/tinta/acento), para
+   *  sugerir el color del badge sobre el tema REAL del cliente, no el de fábrica. `null` en una
+   *  raíz = fábrica (§ `RAICES_DEFECTO`, misma resolución que `PaletaSeccion.tsx`); `undefined`
+   *  (doc aún sin cargar) cae al mismo fallback. Llega de `TiendaPaginas.tsx` (`doc.contenido.tema`),
+   *  que ya lo pasa a `BibliotecaSecciones` — el mismo dato, un consumidor más. */
+  tema?: { fondo: string | null; tinta: string | null; acento: string | null } | null;
 }
 
 // ─── Bloque ENCABEZADO — vive en /admin/tienda, junto a Colores y el Menú ────────────────────────
@@ -187,12 +195,12 @@ const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
 const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt' | 'logoIcono' | 'logoModo'>; label: string; hint: string }[] = [
   { name: 'logo', label: 'Estilo del nombre', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido, y sólo si no subiste una imagen de logo abajo — con imagen, este interruptor no tiene efecto.' },
   { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
-  { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).' },
+  { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro.' },
   { name: 'tratamientoNav', label: 'Tratamiento del menú', hint: 'Los enlaces del menú van en mayúscula, con más espacio entre letras.' },
-  { name: 'drawerMovil', label: 'Drawer móvil de pantalla completa', hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.' },
+  { name: 'drawerMovil', label: 'Menú del teléfono a pantalla completa', hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.' },
   { name: 'direccionScroll', label: 'Ocultar al bajar', hint: 'Al bajar, el encabezado se oculta; al subir, reaparece con su color sólido. Arriba del todo se ve como siempre.' },
-  { name: 'filete', label: 'Filete inferior', hint: 'Una línea fina separa el encabezado del contenido, sin llegar a los bordes de la pantalla.' },
-  { name: 'ctaBadge', label: 'Botón Comprar y badge del menú', hint: 'El botón Comprar se ve sólido y se muda al final del encabezado, después del carrito; el badge de un ítem de menú toma un color fijo.' },
+  { name: 'filete', label: 'Línea bajo el encabezado', hint: 'Una línea fina separa el encabezado del contenido, sin llegar a los bordes de la pantalla.' },
+  { name: 'ctaBadge', label: 'Botón Comprar y etiqueta del menú', hint: 'El botón Comprar se ve sólido y se muda al final del encabezado, después del carrito; la etiqueta de un ítem de menú toma un color fijo.' },
   { name: 'posicion', label: 'Posición del encabezado', hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.' },
   { name: 'subrayado', label: 'Subrayado al pasar el mouse', hint: 'Los enlaces del menú dibujan una línea debajo al pasar el mouse por encima.' },
 ];
@@ -237,8 +245,16 @@ function estadoDesdeContenido(contenido: ContenidoEncabezado): { form: Form; nav
 }
 
 const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionProps>(function EncabezadoSeccion({
-  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado,
+  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado, tema,
 }, ref) {
+  // § EDITOR-PANEL-PIEL-1 — las sugerencias de `MuestraColor` para el color del badge: las TRES
+  // raíces de la paleta, con nombre llano (el spec: "fondo, tinta, acento… con nombre llano"). Null
+  // en una raíz cae al mismo default que ya usa `PaletaSeccion.tsx` para esos casos.
+  const sugerenciasBadge = [
+    { nombre: 'Fondo', hex: tema?.fondo ?? RAICES_DEFECTO.fondo },
+    { nombre: 'Tinta', hex: tema?.tinta ?? RAICES_DEFECTO.tinta },
+    { nombre: 'Acento', hex: tema?.acento ?? RAICES_DEFECTO.acento },
+  ];
   const [cargando, setCargando]           = useState(true);
   const [errorCarga, setErrorCarga]       = useState<string | null>(null);
   const [form, setForm]                   = useState<Form | null>(null);
@@ -684,32 +700,24 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
                       `CONTROLES` (no es un booleano ON/OFF). */}
                   {c.name === 'ctaBadge' && form.ctaBadge && (
                     <div style={{ marginTop: 'var(--duna-space-3)', marginLeft: 'calc(2.5rem + var(--duna-space-3))' }}>
-                      <label className="duna-field__label" htmlFor="enc-badge-color">Color del badge</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-                        <input
-                          id="enc-badge-color" type="color"
+                      <span className="duna-field__label">Color de la etiqueta</span>
+                      <div style={{ marginTop: '6px' }}>
+                        <MuestraColor
+                          id="enc-badge-color"
                           value={HEX6_BADGE.test(form.badgeColor) ? form.badgeColor : '#d8a378'}
-                          onChange={(e) => cambiar({ badgeColor: e.target.value })}
-                          style={{ width: 34, height: 30, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
-                          aria-label="Elegir color del badge"
+                          onChange={(hex) => cambiar({ badgeColor: hex })}
+                          ariaLabel="Color de la etiqueta"
+                          invalido={form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor)}
+                          sugerencias={sugerenciasBadge}
+                          onPorDefecto={() => cambiar({ badgeColor: '' })}
+                          esPorDefecto={form.badgeColor === ''}
                         />
-                        <input
-                          className="duna-input" style={{ width: 110, fontFamily: 'var(--duna-font-mono)' }}
-                          value={form.badgeColor} onChange={(e) => cambiar({ badgeColor: e.target.value })}
-                          placeholder="#d8a378"
-                          aria-invalid={form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) || undefined}
-                        />
-                        {form.badgeColor !== '' && (
-                          <button type="button" onClick={() => cambiar({ badgeColor: '' })} className="duna-btn duna-btn--ghost duna-btn--sm">
-                            Restablecer
-                          </button>
-                        )}
                       </div>
                       {form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) ? (
                         <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #f5b36a.</p>
                       ) : (
                         <div style={{ marginTop: '6px' }}>
-                          <AyudaCampo texto="Vacío: el badge sigue con el color de acento cálido de siempre." />
+                          <AyudaCampo texto="Vacío: la etiqueta sigue con el color de acento cálido de siempre." />
                         </div>
                       )}
                     </div>

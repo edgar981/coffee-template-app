@@ -1382,6 +1382,12 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           hero abierto, `TiendaSeccionEditor` ya dibuja su PROPIA miga local «‹ Hero» (§ su
           docstring); esta miga global se CALLA en vez de sumarse — "una sola miga que nombra el
           nivel de arriba", nunca las dos a la vez. */}
+      {/* § EDITOR-PANEL-PIEL-1 — estas tres piezas (migas, toggle de página, barra de orden) siguen
+          viviendo ARRIBA de la grilla panel|lienzo, full-width del cuerpo — ESO no cambió. Lo que
+          cambió es que ya no heredan el padding de un envoltorio externo (§ `EditorTiendaPantallaCompleta.
+          tsx`, retirado): `.editor-cuerpo-chrome` les da el mismo respiro horizontal de siempre, sin
+          que la grilla de abajo (panel|lienzo, que SÍ debe quedar pegada al riel) lo herede también. */}
+      <div className="editor-cuerpo-chrome">
       {modo === 'paginas' && nivelActivo && !hayElementoActivo && (
         <Migas
           nivelAnterior="Inicio"
@@ -1430,6 +1436,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           </div>
         </div>
       )}
+      </div>
 
       {/* LA COMPOSICIÓN (§ EDITOR-TIENDA-IFRAME-VISTA-1): la lista de secciones a un costado, la
           página REAL al centro — nunca secciones aisladas (decisión del owner). Columnas lado a lado
@@ -1447,7 +1454,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         // el ANCHO cambia acá — ninguna fila/tarjeta del panel se tocó (fuera de `surface:` de este
         // slice).
         gridTemplateColumns: angosto ? undefined : '308px minmax(0, 1fr)',
-        gap: 'var(--duna-space-6)',
+        // § EDITOR-PANEL-PIEL-1 — SIN gap: el panel y el lienzo quedan PEGADOS, como el riel y el
+        // panel (arriba). El panel ya trae su propio `border-right` (editor.css) para separarse del
+        // lienzo — un gap acá dejaría crema entre los dos otra vez, la misma costura que se cerró
+        // entre riel y panel.
+        gap: 0,
         flex: '1 1 auto',
         minHeight: 0,
       }}>
@@ -1555,6 +1566,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                       onCambio={enviarCromoIframe}
                       onPaso={onPasoSeccion}
                       onEstado={(info) => manejarEstadoCromo('encabezado', info)}
+                      // § EDITOR-PANEL-PIEL-1 — las raíces de la paleta REAL de la tienda, para que
+                      // `MuestraColor` sugiera el color del badge sobre el tema del cliente, no uno
+                      // fijo. Mismo dato que ya baja a `BibliotecaSecciones` más abajo
+                      // (`doc.contenido.tema`), un consumidor más — sin fetch nuevo.
+                      tema={doc ? (doc.contenido.tema as TemaContent) : null}
                     />
                   </div>
                   <div style={nivelActivo && nivelActivo !== 'menu' ? { display: 'none' } : undefined}>

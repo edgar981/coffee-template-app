@@ -410,12 +410,12 @@ const HERO: SeccionConfig = {
   // (§ panel-controles.ts, `PENDIENTE_PANEL`).
   composiciones: OPCIONES_COMPOSICION_HERO,
   booleanos: [
-    { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque. Con la composición "sticky", vive en su propia zona sobre el indicador "Desliza".', gatedFields: ['titulo', 'tituloEnfasis'] },
-    { name: 'subtituloVisible', label: 'Mostrar subtítulo',   hint: 'Con la composición "sticky", vive junto al titular, sobre el indicador "Desliza".', gatedFields: ['subtitulo'] },
-    { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos. Con la composición "sticky", viven junto al titular, sobre el indicador "Desliza".', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
+    { name: 'titularVisible',   label: 'Mostrar titular',     hint: 'El titular y su énfasis, como un solo bloque. Con la composición "Marquesina", vive en su propia zona sobre el indicador "Desliza".', gatedFields: ['titulo', 'tituloEnfasis'] },
+    { name: 'subtituloVisible', label: 'Mostrar subtítulo',   hint: 'Con la composición "Marquesina", vive junto al titular, sobre el indicador "Desliza".', gatedFields: ['subtitulo'] },
+    { name: 'ctasVisibles',     label: 'Mostrar los botones', hint: 'Los dos botones del hero, juntos. Con la composición "Marquesina", viven junto al titular, sobre el indicador "Desliza".', gatedFields: ['ctaPrimarioLabel', 'ctaSecundarioLabel'] },
     { name: 'cueDesliza',       label: 'Mostrar el indicador "Desliza"', hint: 'La línea animada al pie que invita a bajar, con la etiqueta "Desliza".' },
-    { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto del viewport, en vez de dejar asomar el siguiente bloque.' },
-    { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "sticky". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.', gatedFields: ['veloIntensidad'] },
+    { name: 'alturaLlena',      label: 'Ocupar toda la pantalla', hint: 'El hero llena el alto de la pantalla, en vez de dejar asomar el siguiente bloque.' },
+    { name: 'veloVisible',      label: 'Mostrar el velo sobre el video', hint: 'Sólo con la composición "Marquesina". Oscurece el video para que el texto se lea; apagarlo exige un video ya oscuro de por sí.', gatedFields: ['veloIntensidad'] },
   ],
   // `imagenMovil`/`imagenMovilPoster` (§ HERO-VIDEO-MOVIL-1) SE DECLARAN ACÁ —no se dejan pendientes
   // como `imagenPoster` arriba— para que `camposDeSeccionEditor` (lib/config/panel-controles.ts) los
@@ -448,14 +448,14 @@ const HERO: SeccionConfig = {
     // ficha no lo leen); el hint lo dice para que el dueño no lo cargue esperando verlo en la
     // canónica.
     { name: 'fraseAlPie', label: 'Frase al pie', opcional: true, textarea: true,
-      hint: 'Sólo con las composiciones "media" o "sticky". Aparece al pie del hero, alineada a la derecha, junto al indicador "Desliza". Vacío: no se muestra.' },
+      hint: 'Sólo con las composiciones "Portada" o "Marquesina". Aparece al pie del hero, alineada a la derecha, junto al indicador "Desliza". Vacío: no se muestra.' },
     // LOS DOS ESCALARES DE RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) — sólo aplican a la composición
     // "sticky" (§ HeroMediaMarquesina.tsx). Selects de opciones fijas, como `puntoFocal`: siempre
     // tienen un valor (la canónica si nadie lo tocó), así que ninguno lleva `opcional`.
     { name: 'veloIntensidad', label: 'Intensidad del velo', opciones: OPCIONES_VELO_INTENSIDAD,
-      hint: 'Sólo con la composición "sticky" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
+      hint: 'Sólo con la composición "Marquesina" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
     { name: 'tickerVelocidad', label: 'Velocidad del texto en movimiento', opciones: OPCIONES_TICKER_VELOCIDAD,
-      hint: 'Sólo con la composición "sticky". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
+      hint: 'Sólo con la composición "Marquesina". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
     // EL ALTO (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 4/§ 8) — reemplaza al interruptor "Ocupar toda
     // la pantalla" por un select de TRES pasos en palabras. `TiendaSeccionEditor.tsx` escribe SIEMPRE
     // `alto` junto con `alturaLlena` (derivado: `pantalla` → `true`, los otros dos → `false`) para que
@@ -463,7 +463,7 @@ const HERO: SeccionConfig = {
     // docstring de `HeroContent.alto`. SIEMPRE tiene un valor (la canónica si nadie lo tocó), sin
     // `opcional`.
     { name: 'alto', label: 'Alto', opciones: OPCIONES_ALTURA_HERO,
-      hint: 'Cuánto del viewport ocupa el hero. "Justo" deja asomar el siguiente bloque; "Pantalla completa" lo llena entero.' },
+      hint: 'Cuánto de la pantalla ocupa el hero. "Justo" deja asomar el siguiente bloque; "Pantalla completa" lo llena entero.' },
     // EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1) — reemplaza AL MISMO TIEMPO al interruptor "Mostrar
     // el velo sobre el video" y al select "Intensidad del velo" por UNA sola pregunta de cuatro pasos
     // («Oscurecer para leer mejor»). `name:'veloCombo'` NO es un campo real de `REGISTRY.hero` — es
@@ -473,7 +473,7 @@ const HERO: SeccionConfig = {
     // y lo recompone con `veloComboDeCampos` al leer. Sólo tiene efecto con la composición "sticky"
     // —el hint lo dice, como `veloIntensidad`/`tickerVelocidad` arriba—.
     { name: 'veloCombo', label: 'Fondo: oscurecer para leer mejor', opciones: OPCIONES_VELO_COMBO_HERO,
-      hint: 'Sólo con la composición "sticky". Qué tan oscuro se pone el velo sobre el video para que el texto se lea.' },
+      hint: 'Sólo con la composición "Marquesina". Qué tan oscuro se pone el velo sobre el video para que el texto se lea.' },
     // EL GRUPO «MARQUESINA» (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, docs/editor-tienda/REDISENO.md § 1
     // error 5): la composición "sticky" dibuja la cinta de texto + la tarjeta flotante leyendo
     // `content.marquesina.texto`/`.productoSlug` (HeroMediaMarquesina.tsx) — los MISMOS dos campos que
@@ -488,9 +488,9 @@ const HERO: SeccionConfig = {
     // lo que permite que `panel-controles.ts` los siga contando como `marquesina.texto`/
     // `marquesina.productoSlug`, no como `hero.texto`/`hero.productoSlug`.
     { name: 'texto', label: 'Texto del loop (marquesina)', seccionCruzada: 'marquesina',
-      hint: 'Sólo con la composición "sticky". La frase que se repite desplazándose por la marquesina sobre el video — el mismo texto que usa la banda «Marquesina» si además la muestras suelta más abajo. Vacío: se usa el texto por defecto.' },
+      hint: 'Sólo con la composición "Marquesina". La frase que se repite desplazándose por la marquesina sobre el video — el mismo texto que usa la banda «Marquesina» si además la muestras suelta más abajo. Vacío: se usa el texto por defecto.' },
     { name: 'productoSlug', label: 'Producto destacado en la marquesina (opcional)', opcional: true, seccionCruzada: 'marquesina',
-      hint: 'Sólo con la composición "sticky". El slug del producto que aparece en la tarjeta flotante de la marquesina. Vacío: la tarjeta no se muestra.' },
+      hint: 'Sólo con la composición "Marquesina". El producto que aparece en la tarjeta flotante de la marquesina. Vacío: la tarjeta no se muestra.' },
   ],
 };
 

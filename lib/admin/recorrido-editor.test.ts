@@ -81,7 +81,10 @@ test('ningún paso del dato quedó sin su patrón en el mapa del test, y vicever
 /** Quita los comentarios de LÍNEA (`// …`) y de BLOQUE (`/* … *\/`) de una fuente TS/TSX — tosco
  *  (no entiende un `//` dentro de un string), pero suficiente para este archivo: ninguna de las
  *  líneas con `data-tour` real de este slice tiene un `//`/`/* `*\/` dentro de un string. */
-function sinComentarios(fuente: string): string {
+// § EDITOR-PANEL-PIEL-1 — EXPORTADO: `lib/admin/copy-editor.test.ts` lo reusa para su propio barrido
+// de jerga/ledger-ids — un segundo `sinComentarios` local habría sido la MISMA trampa que
+// `razonDelServidor`/`cruzoMinimo` ya duplicados y divergentes (§ CLAUDE.md).
+export function sinComentarios(fuente: string): string {
   return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 }
 

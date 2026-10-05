@@ -228,8 +228,11 @@ export function InstanciaItemsEditor({
         const abierto = expandido === i;
         const { titulo, fragmento } = resumenDe(item, i, itemLabel);
         const subiendoEste = subiendo && subiendoDesde === i;
+        // § EDITOR-PANEL-PIEL-1 — `editor-repeater-item`: protege este `.duna-card` del aplanado que
+        // `.editor-panel` aplica a los demás grupos (editor.css) — el panel es blanco ahora, así que
+        // sin este marcador el ítem quedaría sin borde, blanco sobre blanco.
         return (
-          <div key={i} className="duna-card" style={{ padding: 'var(--duna-space-3)' }}>
+          <div key={i} className="duna-card editor-repeater-item" style={{ padding: 'var(--duna-space-3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
               <button
                 type="button"

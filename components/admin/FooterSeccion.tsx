@@ -412,7 +412,10 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
               </div>
             </div>
 
-            <div>
+            {/* § EDITOR-PANEL-PIEL-1 — `.editor-repeater`: protege los ítems de `RepeaterEditor` (no
+                está en `touches:` de este slice) del aplanado de `.duna-card` que el panel blanco
+                exige para los demás grupos (editor.css). */}
+            <div className="editor-repeater">
               <span className="duna-field__label">Enlaces legales (opcional)</span>
               <RepeaterEditor
                 items={form.items as unknown as Record<string, unknown>[]}

@@ -46,6 +46,20 @@
 .editor-pgm:hover, .editor-pgm.is-on { background: var(--duna-wash-hover); }
 .editor-pgm small { color: var(--duna-muted); font: 400 11px var(--duna-font-mono); }
 
+/* ─── EDITOR-PANEL-PIEL-1 ────────────────────────────────────────────────────────────────────────
+   EL CUERPO (riel | panel | lienzo) deja de llevar padding/gap PROPIO: el prototipo pega el riel al
+   panel y el panel al lienzo (`.rail`/`.panel`/`.stage`, los tres `--surface`/`--bg` directos, sin
+   espacio entre ellos — § prototipo-editor.html). Antes `EditorTiendaPantallaCompleta.tsx` envolvía
+   a `TiendaPaginas` en un div con `padding: var(--duna-space-6)` SIN fondo propio, así que el crema
+   de la app (`--duna-bg`, puesto en la raíz del editor) se colaba entre el riel y el panel — y el
+   panel, sin su propio `--duna-surface`, dejaba ver ese mismo crema detrás. El padding que SÍ hace
+   falta (16/16/24, calcado de `.pv` del prototipo) se mueve DENTRO de `.editor-panel`, abajo. */
+.editor-cuerpo { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+/* Las piezas que van ARRIBA de la grilla panel|lienzo (migas, el toggle de página, la barra de orden
+   de §EDITOR-TIENDA-ORDEN-1) son condicionales y pueden estar las tres ausentes — un padding
+   horizontal no les agrega alto cuando el div queda vacío, así que no hace falta un `:not(:empty)`. */
+.editor-cuerpo-chrome { padding: 0 var(--duna-space-6); }
+
 /* ── lienzo (§ REDISENO.md § 3: "fondo punteado, la página enmarcada y la pastilla de estado") ── */
 .editor-stage { height: 100%; min-height: 0; min-width: 0; position: relative; display: flex;
                 flex-direction: column; align-items: center; overflow: hidden;
@@ -174,6 +188,21 @@
    capítulos del hero): una columna, zonas como filas, Alto/Oscurecer como segmentado, el nivel de
    elemento con «‹ Hero» + campo a lo ancho + los MISMOS controles de la barra flotante + Quitar. */
 
+/* EL PANEL ES SUPERFICIE (§ EDITOR-PANEL-PIEL-1): blanco (`--duna-surface`), pegado al riel (ver
+   `.editor-cuerpo` arriba), con el padding que el prototipo pone en `.pv` (16/16/24) y un borde a la
+   derecha que lo separa del lienzo — la MISMA costura que ya separa riel de panel (`Riel.tsx`,
+   `border-right: 1px solid var(--duna-border)`), no un gap. EL BORDE DE ABAJO es para el otro
+   LAYOUT: bajo `useSheetDesdeAbajo` (angosto) panel y lienzo se APILAN (`flexDirection:'column'`,
+   `TiendaPaginas.tsx`) y el `border-right` no separa nada ahí — sin él, sin gap, los dos quedarían
+   pegados sin ninguna línea entre ellos. En el layout de grilla (≥960) este borde cae en el borde
+   inferior del panel, donde no hay nada debajo: inocuo. */
+.editor-panel {
+  background: var(--duna-surface);
+  border-right: 1px solid var(--duna-border);
+  border-bottom: 1px solid var(--duna-border);
+  padding: var(--duna-space-4) var(--duna-space-4) var(--duna-space-6);
+}
+
 /* UNA SOLA COLUMNA (el spec: "el panel mide lo que el prototipo (~308 px) y dos campos lado a lado
    ahí cortan el texto"). `.duna-form` (packages/design-system) es `repeat(2, minmax(0,1fr))` — la
    primitiva SE QUEDA así para sus otros ~15 consumidores (drawers del admin, que sí tienen ancho para
@@ -181,15 +210,64 @@
    pone al contenedor del panel de 308px — nunca tocando la primitiva compartida. */
 .editor-panel .duna-form { grid-template-columns: minmax(0, 1fr); }
 
-/* EL «?» DE AYUDA LARGA (`AyudaCampo.tsx`, el spec: "lo largo pasa a un «?» con detalle al pasar el
-   mouse o tocar"). Chip mínimo, inline con el texto corto — no es un ícono de acción, es parte de la
-   línea de ayuda. */
-.editor-ayuda-mas { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
-                     border-radius: 50%; border: 1px solid var(--duna-border-2); color: var(--duna-faint);
-                     flex-shrink: 0; background: none; cursor: pointer; transition: color var(--duna-dur-fast) var(--duna-ease),
-                     border-color var(--duna-dur-fast) var(--duna-ease); }
-.editor-ayuda-mas:hover, .editor-ayuda-mas:focus-visible { color: var(--duna-ink); border-color: var(--duna-faint); }
-.editor-ayuda-mas svg { width: 10px; height: 10px; }
+/* LOS GRUPOS DENTRO DEL PANEL SE SEPARAN CON LÍNEA, no con tarjetas blancas sobre crema (el spec:
+   "no como tarjetas blancas sobre crema"). `.duna-card`/`.admin-bloques` (packages/design-system,
+   app/(admin)/duna.css — NINGUNO de los dos se toca) están pensados para una superficie RECESADA
+   (`--duna-bg`) con piezas elevadas (`--duna-surface`) encima — exactamente lo que el panel dejó de
+   ser arriba. Scoped a `.editor-panel`: en cualquier otra pantalla del admin (Configuración, el
+   editor de una sección fuera de este árbol) esas clases siguen intactas. El spread `+` apila la
+   línea sólo ENTRE piezas (la primera no la lleva), como ya hace `.admin-pagos-grupo` en duna.css. */
+.editor-panel .duna-card {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.editor-panel .duna-card__pad { padding: var(--duna-space-4) 0; }
+.editor-panel .duna-card + .duna-card { border-top: 1px solid var(--duna-border); }
+.editor-panel .admin-bloques {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+}
+.editor-panel .admin-bloque {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: var(--duna-space-4) 0;
+}
+.editor-panel .admin-bloque + .admin-bloque { border-top: 1px solid var(--duna-border); }
+
+/* LOS REPEATERS QUEDAN AFUERA del aplanado de arriba, a propósito: sus ítems YA eran `.duna-card`
+   blancas puestas sobre un panel crema (§ el docstring de `TiendaSeccionEditor.tsx`, "sus ítems ya
+   son .duna-card (blancas), y una pieza blanca alrededor los dejaría blanco-sobre-blanco") — ahora
+   que el panel ES blanco, aplanarlas también las dejaría SIN NINGÚN borde entre ítem e ítem, que es
+   peor que el "blanco sobre blanco" que esa nota ya advertía. `RepeaterEditor.tsx` no está en
+   `touches:` de este slice, así que la protección va por DOS marcadores puestos desde los call sites
+   que sí lo están: `.editor-repeater` (el envoltorio, en `TiendaSeccionEditor.tsx`/`FooterSeccion.tsx`)
+   y `.editor-repeater-item` (el ítem mismo, en `InstanciaItemsEditor.tsx`). Más específico que la
+   regla de arriba (tres clases contra dos), así que gana sin depender del orden de las reglas. */
+.editor-panel .editor-repeater .duna-card,
+.editor-panel .editor-repeater-item.duna-card {
+  background: var(--duna-surface-2);
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-l);
+}
+
+/* ─── EDITOR-PANEL-PIEL-1 ────────────────────────────────────────────────────────────────────────
+   EL «?» DE AYUDA LARGA (`AyudaCampo.tsx`, el spec: "lo largo pasa a un «?» con detalle al pasar el
+   mouse o tocar"), inline con el texto corto. UN SOLO CÍRCULO: `HelpCircle` de lucide YA dibuja su
+   propio círculo con el "?" adentro — un `border-radius:50%` + borde en el BOTÓN, alrededor de un
+   ícono que de por sí es un círculo, dibujaba un círculo DENTRO de otro círculo a 15/10px, y lo que
+   quedaba del "?" eran unos 4px, ilegible (el pedido del owner: "no parece casi signo de pregunta").
+   El botón ya NO dibuja su propio círculo — el único que se ve es el del ÍCONO, a 16px como mínimo. */
+.editor-ayuda-mas { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+                     border-radius: 50%; border: 0; color: var(--duna-muted);
+                     flex-shrink: 0; background: none; cursor: pointer; transition: color var(--duna-dur-fast) var(--duna-ease); }
+.editor-ayuda-mas:hover, .editor-ayuda-mas:focus-visible { color: var(--duna-ink); }
+.editor-ayuda-mas svg { width: 16px; height: 16px; }
 
 /* UN SEGMENTADO A TODO EL ANCHO (prototipo: `.seg.full` — "Alto" y "Oscurecer para leer mejor"). La
    primitiva `.duna-seg` es `inline-flex` con ítems de ancho natural (el picker de dispositivo de la
@@ -236,6 +314,41 @@
    más sin que `TiendaPaginas` tenga que aprender de zonas — § el docstring de `elementoActivo` en
    TiendaSeccionEditor.tsx). */
 .editor-elemento-quitar { margin-top: var(--duna-space-4); }
+
+/* ─── EDITOR-PANEL-PIEL-1 ────────────────────────────────────────────────────────────────────────
+   LA MUESTRA DE COLOR (`MuestraColor.tsx`) — swatch «a sangre» de 32px, hex al lado, sugerencias y
+   «Avanzado › Personalizado» (ver el docstring del componente). */
+.editor-muestra-color { display: flex; flex-direction: column; gap: var(--duna-space-2); }
+.editor-muestra-color__fila { display: flex; align-items: center; gap: var(--duna-space-2); }
+.editor-muestra-color__swatch {
+  position: relative; display: block; width: 32px; height: 32px; min-width: 32px; flex-shrink: 0;
+  border-radius: var(--duna-r-m); box-shadow: inset 0 0 0 1px var(--duna-border-2);
+  overflow: hidden; cursor: pointer;
+}
+.editor-muestra-color__swatch input {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; cursor: pointer;
+}
+.editor-muestra-color__swatch span { position: absolute; inset: 0; pointer-events: none; }
+.editor-muestra-color__hex { width: 112px; font-family: var(--duna-font-mono); }
+.editor-muestra-color__sugerencias { display: flex; flex-wrap: wrap; gap: var(--duna-space-2); }
+.editor-muestra-color__sugerencia {
+  display: inline-flex; align-items: center; gap: var(--duna-space-2);
+  height: 30px; padding: 0 var(--duna-space-3) 0 6px; border-radius: var(--duna-r-full);
+  border: 1px solid var(--duna-border); background: var(--duna-surface); font-size: 12px; font-weight: 500;
+  color: var(--duna-ink-2); cursor: pointer; transition: border-color var(--duna-dur-fast) var(--duna-ease);
+}
+.editor-muestra-color__sugerencia:hover { border-color: var(--duna-border-2); }
+.editor-muestra-color__sugerencia.is-on { border-color: var(--duna-ink); color: var(--duna-ink); font-weight: 600; }
+.editor-muestra-color__sugerencia-sw {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--duna-border-2);
+}
+.editor-muestra-color__sugerencia-sw--defecto { background: var(--duna-surface-2); }
+.editor-muestra-color__avanzado summary {
+  cursor: pointer; font-size: 12px; font-weight: 500; color: var(--duna-muted); list-style: none; margin-top: 2px;
+}
+.editor-muestra-color__avanzado summary::-webkit-details-marker { display: none; }
+.editor-muestra-color__personalizado { display: flex; flex-direction: column; gap: var(--duna-space-2); margin-top: var(--duna-space-2); }
+.editor-muestra-color__personalizado-label { font-size: 12px; color: var(--duna-muted); }
 
 /* EL CENTRO DE AYUDA (§ EDITOR-AYUDA-1, AyudaCentro.tsx) — una guía abierta es una lista numerada
    de pasos cortos, con una mini ilustración opcional por paso (`IlustracionAyuda.tsx`), y las

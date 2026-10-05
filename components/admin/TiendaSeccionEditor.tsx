@@ -2405,11 +2405,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
 
               {/* Sección de LISTA (repeater): cada cambio del RepeaterEditor —editar, agregar, quitar,
                   mover— pasa por `cambiar`, el mismo marcar-sucio + autoguardado que un campo plano. */}
-              {/* El repeater NO se envuelve en una pieza: sus ítems ya son `.duna-card` (blancos), y
-                  una pieza blanca alrededor los dejaría blanco-sobre-blanco. Va sobre el panel, sus
-                  ítems son las piezas. */}
+              {/* El repeater NO se envuelve en una PIEZA (`.admin-bloque`): sus ítems ya son
+                  `.duna-card`, y una pieza alrededor los dejaría pieza-dentro-de-pieza. Lo que SÍ
+                  lleva, desde § EDITOR-PANEL-PIEL-1, es el marcador `.editor-repeater` — protege esos
+                  ítems del aplanado que el panel blanco exige para los DEMÁS grupos (editor.css): sin
+                  él, sus `.duna-card` quedarían sin borde, blanco sobre el panel ahora también
+                  blanco. */}
               {config.repeater && (
-                <div>
+                <div className="editor-repeater">
                   <RepeaterEditor
                     items={Array.isArray(form[config.repeater.itemsKey]) ? (form[config.repeater.itemsKey] as Record<string, unknown>[]) : []}
                     descriptores={config.repeater.campos}

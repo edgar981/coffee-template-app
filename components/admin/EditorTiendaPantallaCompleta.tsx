@@ -407,7 +407,12 @@ export default function EditorTiendaPantallaCompleta() {
           Lienzo), por eso vive en este `flex` separado y no dentro de la barra. */}
       <div style={{ flex: '1 1 auto', minHeight: 0, display: 'flex' }}>
         <Riel activo={herramientaActiva} onElegir={elegirHerramienta} />
-        <div style={{ flex: '1 1 auto', minHeight: 0, padding: 'var(--duna-space-6)' }}>
+        {/* § EDITOR-PANEL-PIEL-1 — SIN padding propio: el riel y el panel quedan PEGADOS, como en el
+            prototipo (`.rail`/`.panel`, sin espacio entre ellos). Antes este div tenía
+            `padding: var(--duna-space-6)` sin fondo propio, así que el crema de la raíz del editor
+            (`--duna-bg`, arriba) se colaba entre el riel y el panel; el padding que el panel SÍ
+            necesita ahora vive DENTRO de `.editor-panel` (editor.css). */}
+        <div className="editor-cuerpo">
           <TiendaPaginas
             ref={tiendaPaginasRef}
             pagina={pagina}

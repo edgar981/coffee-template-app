@@ -53,7 +53,7 @@ export function AyudaCampo({ texto, id }: { texto: string | undefined; id?: stri
       {completa && (
         <DunaTooltip content={completa}>
           <button type="button" className="editor-ayuda-mas" aria-label="Ver la ayuda completa de este campo">
-            <HelpCircle aria-hidden width={12} height={12} />
+            <HelpCircle aria-hidden width={16} height={16} />
           </button>
         </DunaTooltip>
       )}
