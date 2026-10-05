@@ -53240,3 +53240,126 @@ pidiera habría sido ruido sin motivo.
 Commiteado en `slice/editor-secciones-1`, encima de `e1205c2`.
 
 **Cierra `EDITOR-AYUDA-RECORRIDO-1`.**
+
+---
+
+## 2026-10-04 — El copy del editor y de la Ayuda pasa de voseo a tuteo colombiano (`EDITOR-COPY-TUTEO-1`)
+
+Tier 1, `writes: yes`, `base: main` (policy: current-main), aprobado por el owner citando la regla
+vigente de CLAUDE.md (§ "El COPY va en TUTEO colombiano", cazada tres tandas seguidas antes de
+ésta): el orquestador midió voseo en las capturas de `EDITOR-AYUDA-1` ("Tocá la foto…", "Podés
+tomarla…") y un barrido encontró más formas en `lib/admin/ayuda-editor.ts` y otros archivos del
+editor y de las secciones nuevas, `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`. La
+aprobación autoriza la escritura, nunca el merge. Sigue `slice/editor-secciones-1`, encima de
+`9f07268` (`EDITOR-AYUDA-RECORRIDO-1`); el commit de este slice es `9152451`.
+
+**Lo que se barrió, archivo por archivo, contando sólo strings de cara al usuario (nunca
+comentarios de código, por regla explícita del spec):**
+
+| Archivo | Strings cambiados |
+| --- | --- |
+| `lib/admin/ayuda-editor.ts` | 9 de 9 guías (`GUIAS_AYUDA`) + 7 de 9 preguntas frecuentes (`PREGUNTAS_FRECUENTES`) |
+| `lib/admin/recorrido-editor.ts` | 4 de 7 frases (`PASOS_RECORRIDO`) |
+| `components/admin/TiendaSeccionEditor.tsx` | 1 (el hint "producto ya no existe en el catálogo") |
+| `components/admin/VistaTiendaIframe.tsx` | 1 (el `title` del toggle "navegando de verdad") |
+| `docs/editor-tienda/AYUDA.md` | 1 (el ejemplo de copy «elegís un archivo» dentro de "Qué NO hacer") |
+
+`ATAJOS_TECLADO` (`ayuda-editor.ts`) no tenía voseo — verificado, no cambiado. `components/admin/
+editor/` (directorio completo en `touches:`), `components/admin/DatosNegocioSeccion.tsx`,
+`components/admin/EncabezadoSeccion.tsx`, `components/admin/ProductFormModal.tsx`, `components/
+admin/tienda-secciones.ts`, `components/storefront/secciones/`, `HeroMediaMarquesina.tsx`,
+`SubscriptionCTALinea.tsx`, `StoreNav.tsx`, `lib/config/secciones-instancias.ts`, `lib/config/
+site-content-defaults.ts`(`.test.ts`), `lib/config/themes.ts` — barridos con el mismo método y
+**cero** instancias de voseo en copy real; las únicas coincidencias eran comentarios de código
+citando texto ajeno (el spec del owner en prosa, docstrings que ejemplifican con las frases viejas
+de `ayuda-editor.ts` antes de corregirse) o falsos positivos del propio patrón de acentos ("más",
+"además", "detrás", "después", "estás"/"estés" de `estar`, que son idénticos en tuteo y voseo).
+
+**El discriminador de "comentario vs. copy" se aplicó estricto**: `DatosNegocioSeccion.tsx:786`
+("no tenés métodos", dentro de un comentario que cita qué NO mostrar), `TiendaSeccionEditor.tsx:897`
+("que abrí a mano", 1ª persona dentro de un comentario), `themes.ts:1524` ("si agregás un campo",
+cita textual de un spec anterior dentro de un comentario) — los tres son código, no texto
+renderizado; no se tocaron.
+
+**El test nuevo (`ayuda-editor.test.ts`) recorre TODO el texto de guías/preguntas/atajos** —título,
+resumen, cada paso y su secuencia, palabras clave, pregunta/respuesta— contra una lista de formas
+acentuadas típicas de voseo. **`\b` no sirve para este regex**: en JS una vocal acentuada (á/é/í)
+no es `\w`, así que `\btocá\b` matcheaba adentro de "tocándolos" o "escribía" (26 falsos positivos
+en la primera corrida). Se reemplazó por lookaround explícito de letras
+(`(?<![a-zA-ZáéíóúñÁÉÍÓÚÑ])(…)(?![a-zA-ZáéíóúñÁÉÍÓÚÑ])`). **Visto fallar 19/21 → 2 tests rojos**
+(`ninguna guía usa voseo`, `ninguna pregunta frecuente usa voseo`) contra el contenido ORIGINAL de
+`ayuda-editor.ts` — restaurado con `git checkout -- lib/admin/ayuda-editor.ts` (el repo no tiene
+`git stash` concedido en este dispatch) y vuelto a aplicar el fix con `Write` tras releer el
+archivo; **21/21 verde** después. `recorrido-editor.test.ts` (16/16) no se tocó — no necesitaba un
+test nuevo, el spec no lo pidió para ese archivo.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Símbolos/paths del diff grepeados contra CLAUDE.md, cada uno por separado: `ayuda-editor` → 0,
+`recorrido-editor` → 0, `VistaTiendaIframe` → 0, `AYUDA.md` → 0, `GUIAS_AYUDA` → 0,
+`PASOS_RECORRIDO` → 0. `TiendaSeccionEditor` → 6 (líneas 2261, 2387, 2719, 2759, 2938, 4351) —
+las seis describen hechos ARQUITECTÓNICOS del componente (el modelo de bloques, el uploader
+compartido, `categoriasListas` como prop); ninguna nombra el hint de "producto inexistente" que
+este slice tocó, así que ninguna queda falsa. `voseo`/`tuteo` → 3/2, las dos en la sección que
+ESTE slice cumple (§ "El COPY va en TUTEO colombiano") — no las vuelve falsas, las satisface.
+`EDITOR-AYUDA-1`/`EDITOR-AYUDA-RECORRIDO-1`/`EDITOR-COPY-TUTEO-1` → 0 cada uno (ningún id de slice
+de esta rama vive en CLAUDE.md, que es doctrina, no bitácora).
+
+### `customer_bytes`
+
+**`changed: true`.** A diferencia de `EDITOR-AYUDA-RECORRIDO-1` (texto nuevo, cero storefront), acá
+el byte que cambia es la REESCRITURA de texto YA existente que el dueño de la tienda lee en el
+panel admin — las 9 guías, 7 preguntas, 4 frases del recorrido, 1 hint y 1 tooltip listados arriba.
+`strings`: los 22 textos de la tabla de arriba, cada uno con su forma vieja (voseo) y nueva
+(tuteo) — ejemplo: "Tocá cualquier texto de la página para cambiarlo." → "Toca cualquier texto de
+la página para cambiarlo."; "Fijate que estés mirando…" → "Fíjate que estés mirando…". Ninguno
+toca `components/storefront/` ni `app/(storefront)/` — medido, `git show --stat` del commit sólo
+lista los 6 archivos de `touches:`, los seis bajo `lib/admin/`, `components/admin/` o `docs/`.
+Como con los slices anteriores de esta rama, la RAMA entera (`slice/editor-secciones-1` contra
+`main`) sigue cargando además los customer-bytes de storefront de los commits previos sin
+mergear — no aprobados todavía.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado. Los seis
+archivos de `touches:` son dato puro (guías/recorrido), un componente (hint/tooltip) y un test.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama.
+
+Gate completo verde, corrida única sobre el árbol final: `npm run typecheck` 0 errores · `npm test`
+3719/3719 · `npm run test:integracion` 346/346.
+
+`npm run verificar:nayoli:visual` — corrido DOS veces (el mismo árbol, sin reconstruir la segunda
+vez) para distinguir ruido del arnés de un hallazgo real, siguiendo el método que
+`VERIFICAR-NAYOLI-VISUAL-RUIDO-1` ya fijó en esta rama. Las dos corridas dieron la cifra IDÉNTICA,
+al píxel:
+
+```
+ruta:home          → 165052/4608000 px (AA), 174711 crudo — caja [105,862]–[1183,3581]
+ruta:tienda        → 163/2433280 px (AA), 361 crudo         — caja [445,1872]–[541,1882]
+ruta:producto      → 163/2535680 px (AA), 361 crudo         — caja [445,1952]–[541,1962]
+ruta:checkout      → 163/1152000 px (AA), 361 crudo         — caja [445,774]–[541,784]
+ruta:nosotros      → 163/1152000 px (AA), 361 crudo         — caja [445,716]–[541,726]
+ruta:suscripciones → 163/2144000 px (AA), 361 crudo         — caja [445,1646]–[541,1656]
+hover:automatica   → IDÉNTICO (0 px)
+hover:eleccion     → IDÉNTICO (0 px)
+```
+
+**Cifra y cajas IDÉNTICAS a `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`**, ya reconciliada en el asiento
+de `EDITOR-TIENDA-MARQUESINA-EN-HERO-1` con estos mismos números exactos para `ruta:tienda`/
+`producto`/`checkout`/`nosotros`/`suscripciones`, y con `ruta:home` creciendo de forma consistente
+con los slices intermedios (164.889 → 165.052 px, la misma progresión que ya venía). Confirma que
+este slice agrega **CERO drift nuevo**: ninguno de los 6 archivos de `touches:` importa ni renderiza
+nada de `components/storefront/`/`app/(storefront)/` — medido por lectura directa de cada uno.
+
+### Open follow-ups
+
+Ninguno coined por este slice. `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` sigue abierto, re-confirmado
+sin cambio (ajeno a `touches:` de este slice).
+
+Commiteado en `slice/editor-secciones-1` (`9152451`), encima de `9f07268`
+(`EDITOR-AYUDA-RECORRIDO-1`).
+
+**Cierra `EDITOR-COPY-TUTEO-1`.**
