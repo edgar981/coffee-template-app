@@ -1,6 +1,8 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { listarInvitacionesPendientes, cancelarInvitacion } from '@/lib/invitations';
+import {
+  listarInvitacionesPendientes, cancelarInvitacion, invitacionParaRenovar, confirmarRenovacion,
+} from '@/lib/invitations';
 import { prisma } from './fixtures';
 
 // UNA INVITACIÓN PENDIENTE ES SIN ACEPTAR *Y* SIN VENCER — las dos condiciones.
@@ -93,4 +95,68 @@ test('cancelar NO toca una ya aceptada: el registro de que se usó se conserva',
 
 test('cancelar un id inexistente devuelve false, no revienta', async () => {
   assert.equal(await cancelarInvitacion('no-existe'), false);
+});
+
+// REENVIAR (§ PANEL-CONFIG-BLOQUES-1): `invitacionParaRenovar` + `confirmarRenovacion` son las
+// dos mitades de "Reenviar" — la primera trae lo que hace falta para armar el correo (ANTES de
+// mandarlo), la segunda persiste el token/vencimiento nuevos (DESPUÉS de que el correo salió). El
+// `where` de las dos comparte la guarda `usedAt: null` con `cancelarInvitacion`/
+// `listarInvitacionesPendientes` — una invitación ACEPTADA no se puede "revivir" por ninguna vía.
+
+test('invitacionParaRenovar: trae email/name/role de una pendiente', async () => {
+  const inv = await crearInvitacion({ email: 'renovar@x.com', expiresAt: enFuturo() });
+
+  const encontrada = await invitacionParaRenovar(inv.id);
+  assert.ok(encontrada);
+  assert.equal(encontrada!.email, 'renovar@x.com');
+  assert.equal(encontrada!.role, 'MANAGER');
+});
+
+test('invitacionParaRenovar: una ACEPTADA no se puede renovar', async () => {
+  const inv = await crearInvitacion({ email: 'yaacepto2@x.com', expiresAt: enFuturo(), usedAt: new Date() });
+  assert.equal(await invitacionParaRenovar(inv.id), null);
+});
+
+test('invitacionParaRenovar: un id inexistente devuelve null', async () => {
+  assert.equal(await invitacionParaRenovar('no-existe'), null);
+});
+
+test('confirmarRenovacion: renueva token y vencimiento de una pendiente', async () => {
+  const inv = await crearInvitacion({ email: 'confirmar@x.com', expiresAt: enPasado() }); // casi vencida
+
+  const nuevoVencimiento = enFuturo();
+  const ok = await confirmarRenovacion(inv.id, 'nuevo-hash-renovado', nuevoVencimiento);
+  assert.equal(ok, true);
+
+  const fila = await prisma.invitation.findUnique({ where: { id: inv.id } });
+  assert.equal(fila!.tokenHash, 'nuevo-hash-renovado');
+  assert.equal(fila!.expiresAt.getTime(), nuevoVencimiento.getTime());
+});
+
+test('confirmarRenovacion: NO toca una ya aceptada — devuelve false y el token viejo sobrevive', async () => {
+  const inv = await crearInvitacion({ email: 'aceptada3@x.com', expiresAt: enFuturo(), usedAt: new Date() });
+  const tokenHashOriginal = (await prisma.invitation.findUnique({ where: { id: inv.id } }))!.tokenHash;
+
+  const ok = await confirmarRenovacion(inv.id, 'hash-que-no-deberia-quedar', enFuturo());
+  assert.equal(ok, false);
+
+  const fila = await prisma.invitation.findUnique({ where: { id: inv.id } });
+  assert.equal(fila!.tokenHash, tokenHashOriginal, 'el token de una aceptada se sobrescribió');
+});
+
+test('confirmarRenovacion: un id inexistente devuelve false, no revienta', async () => {
+  assert.equal(await confirmarRenovacion('no-existe', 'hash', enFuturo()), false);
+});
+
+test('reenviar DEJA la invitación pendiente — listarInvitacionesPendientes la sigue viendo con el vencimiento nuevo', async () => {
+  const inv = await crearInvitacion({ email: 'viajecompleto@x.com', expiresAt: enPasado() });
+
+  await invitacionParaRenovar(inv.id); // la mitad "antes de mandar"
+  const nuevoVencimiento = enFuturo();
+  await confirmarRenovacion(inv.id, 'hash-viaje-completo', nuevoVencimiento);
+
+  const pendientes = await listarInvitacionesPendientes();
+  const encontrada  = pendientes.find(p => p.email === 'viajecompleto@x.com');
+  assert.ok(encontrada, 'la invitación renovada debe seguir pendiente');
+  assert.equal(encontrada!.expiresAt.getTime(), nuevoVencimiento.getTime());
 });

@@ -1,6 +1,11 @@
 import prisma from '@duna/core';
 import type { Role } from '@duna/core';
 
+// LA DURACIÓN de una invitación — UNA fuente para crear (`POST /api/users/invite`) y renovar
+// (`POST /api/users/invite/[id]`, "Reenviar"): dos copias del mismo número es cómo una de las dos
+// queda desactualizada el día que cambie.
+export const INVITE_EXPIRY_MS = 48 * 60 * 60 * 1000;
+
 // ─── Invitaciones pendientes: LISTAR y CANCELAR ──────────────────────────────
 //
 // El POST de `/api/users/invite` crea la fila y hasta acá no había forma de VERLA
@@ -61,5 +66,50 @@ export async function listarInvitacionesPendientes(ahora: Date = new Date()): Pr
  */
 export async function cancelarInvitacion(id: string): Promise<boolean> {
   const { count } = await prisma.invitation.deleteMany({ where: { id, usedAt: null } });
+  return count > 0;
+}
+
+// ─── Reenviar — "renueva el vencimiento" (§ PANEL-CONFIG-BLOQUES-1) ─────────────────────────
+//
+// `POST /api/users/invite` RECHAZA invitar si ya hay una viva para ese correo (§ el route, el
+// `existingInvite` del gate). Así que un correo mal recibido —spam, borrado sin querer— no se
+// puede "re-invitar": hay que RENOVAR la fila que ya existe, con un token nuevo (el viejo deja de
+// servir) y 48 h más desde ahora. Son DOS pasos separados a propósito, y el ORDEN es la decisión:
+// primero se manda el correo con el link nuevo, y sólo si el envío funciona se persiste el nuevo
+// token — igual que el POST (`invitation.create` → enviar → si falla, borrar la fila fresca). Acá
+// no hay fila fresca que borrar (la invitación YA EXISTÍA), así que invertir el orden —persistir
+// primero— dejaría, si el correo fallara, una invitación VIVA cuyo ÚNICO token válido nadie
+// recibió: ni el viejo (ya rotado) ni el nuevo (nunca llegó). Mandar primero evita ese hueco; el
+// costo es una ventana angosta —entre que el correo sale y la fila se actualiza— en la que una
+// cancelación concurrente dejaría un correo con un link que no persiste. Documentado, no resuelto:
+// la misma clase de ventana que ya acepta el resto del repo en flujos de un solo request.
+
+export interface InvitacionParaRenovar {
+  id:    string;
+  email: string;
+  name:  string | null;
+  role:  Role;
+}
+
+/** La invitación PENDIENTE (`usedAt: null`) con ese id — o `null` si no hay una viva, el mismo
+ *  caso que ya traduce `cancelarInvitacion` a 404. Se usa ANTES de mandar el correo: hace falta
+ *  el `email`/`name` para armarlo. */
+export async function invitacionParaRenovar(id: string): Promise<InvitacionParaRenovar | null> {
+  return prisma.invitation.findFirst({
+    where:  { id, usedAt: null },
+    select: { id: true, email: true, name: true, role: true },
+  });
+}
+
+/**
+ * Persiste el token/vencimiento NUEVOS de una renovación cuyo correo YA SALIÓ. Misma guarda que
+ * `cancelarInvitacion` —`updateMany` con `usedAt: null` en el `where`, una sola sentencia—: si la
+ * invitación se aceptó o canceló mientras el correo viajaba, esto no toca nada y devuelve `false`.
+ */
+export async function confirmarRenovacion(id: string, tokenHash: string, expiresAt: Date): Promise<boolean> {
+  const { count } = await prisma.invitation.updateMany({
+    where: { id, usedAt: null },
+    data:  { tokenHash, expiresAt },
+  });
   return count > 0;
 }

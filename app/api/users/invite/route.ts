@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@duna/core";
 import { sendInvitationEmail } from "@/lib/email";
-import { listarInvitacionesPendientes } from "@/lib/invitations";
+import { listarInvitacionesPendientes, INVITE_EXPIRY_MS } from "@/lib/invitations";
 import { headers } from "next/headers";
 import { randomBytes, createHash } from "crypto";
-
-const INVITE_EXPIRY_MS = 48 * 60 * 60 * 1000;
 
 // Listar las invitaciones VIVAS (sin aceptar, sin vencer). Sólo OWNER, el mismo
 // gate que invitar y cancelar: quién puede tocar el equipo es una sola decisión.

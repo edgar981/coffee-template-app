@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ROLES_INVITABLES } from '@duna/core/usuarios';
+import { DESCRIPCION_ROL } from '@/lib/admin/configuracion-partes';
 import RoleBadge from '@/components/admin/RoleBadge';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
@@ -26,12 +27,6 @@ import { toast } from 'sonner';
 // conducta que los otros cuatro form-sheets.
 
 type Role = 'OWNER' | 'MANAGER' | 'STAFF';
-
-const roleDescriptions: Record<Role, string> = {
-  OWNER:   'Acceso total: configuración, datos críticos y gestión del equipo.',
-  MANAGER: 'Operaciones, inventario, clientes y reportes. Sin configuración crítica.',
-  STAFF:   'Solo gestión de órdenes y operaciones del día a día.',
-};
 
 export default function InviteUserModal({ open, onClose, onSuccess }: {
   open:      boolean;
@@ -183,7 +178,7 @@ function Cuerpo({ guarda, marcarCambios, intentarCerrar, onSuccess }: {
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <RoleBadge role={r} />
                   <span className="duna-sub" style={{ display: 'block', marginTop: '3px' }}>
-                    {roleDescriptions[r]}
+                    {DESCRIPCION_ROL[r]}
                   </span>
                 </span>
               </label>

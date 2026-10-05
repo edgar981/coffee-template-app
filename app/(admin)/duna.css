@@ -886,3 +886,77 @@ html.admin {
 html.admin:not(.dark) .admin-preauth-lineas path:nth-child(n+5) {
   stroke: var(--duna-ink);
 }
+
+/* ─── CONFIGURACIÓN POR BLOQUES (§ PANEL-CONFIG-BLOQUES-1) ─────────────────────────────────────
+   El nav de subsecciones a la izquierda (Negocio · Contacto y redes · Correos · Pagos y cobros ·
+   Equipo), admin-level — un solo consumidor (`/admin/configuracion`), mismo criterio que
+   `.admin-nav-seccion`: con un segundo consumidor se promueve a `duna-`.
+
+   Desktop: columna fija (`.admin-config-layout`, grid de dos columnas) con la activa marcada
+   "esto está puesto" — superficie elevada + barra de tinta a la izquierda, la MISMA afirmación que
+   el activo del rail principal (`Sidebar.tsx` → `NavRow`, inline styles ahí porque ese componente
+   ya vive en Tailwind; acá va en CSS porque el resto de esta pantalla ya habla `duna-*`/admin-*).
+
+   Angosto (<768px, el breakpoint de contenido del admin — no el 960/1080 de layout fijo: esta
+   pantalla es document-scroll, § CLAUDE.md "Los DOS modelos de scroll… conviven A PROPÓSITO"):
+   la columna se vuelve una fila horizontal desplazable de pestañas — la bajada se OCULTA (no cabe
+   en una pestaña angosta) y queda sólo el label, como pide el spec ("arriba como pestañas
+   desplazables"). */
+.admin-config-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--duna-space-6);
+  align-items: start;
+}
+.admin-config-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: var(--duna-space-4);
+}
+.admin-config-nav__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--duna-space-3);
+  border: none;
+  border-radius: var(--duna-r-m);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--duna-ink);
+}
+.admin-config-nav__item:hover { background: var(--duna-wash-hover); }
+.admin-config-nav__item.is-activo {
+  background: var(--duna-surface);
+  box-shadow: var(--duna-shadow-1);
+}
+.admin-config-nav__item.is-activo::before {
+  content: '';
+  position: absolute;
+  left: 0; top: var(--duna-space-2); bottom: var(--duna-space-2);
+  width: 2px;
+  border-radius: 2px;
+  background: var(--duna-ink);
+}
+.admin-config-nav__label {
+  font-weight: var(--duna-w-semi);
+  font-size: var(--duna-text-body);
+}
+
+@media (max-width: 767.98px) {
+  .admin-config-layout { grid-template-columns: 1fr; }
+  .admin-config-nav {
+    position: static;
+    flex-direction: row;
+    gap: var(--duna-space-2);
+    overflow-x: auto;
+    padding-bottom: var(--duna-space-2);
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-config-nav__item { flex: 0 0 auto; white-space: nowrap; }
+  .admin-config-nav__item .duna-sub { display: none; }
+}

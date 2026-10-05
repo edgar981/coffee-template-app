@@ -54790,3 +54790,213 @@ rota que `EDITOR-PANEL-ANCHO-1` ya reportó el mismo día — y queda para el ga
 Commiteado en `slice/editor-secciones-1`.
 
 **Cierra `PANEL-ESTRUCTURA-TIENDA-1`.**
+
+## PANEL-CONFIG-BLOQUES-1 — Configuración se parte en cinco subsecciones, cada una con su Editar/Cancelar/Guardar
+
+**Fecha:** 2026-10-05. **Rama:** `slice/editor-secciones-1` (continúa). **Tier:** 2.
+**Spec:** aprobado por el owner el 2026-10-05 sobre `docs/panel/REDISENO.md` § 2-3 "Configuración",
+filas `PANEL-CONFIG-POR-BLOQUES-1` y `PANEL-ROLES-HONESTOS-1` del plan (la segunda toca la MISMA
+pantalla y cierra el camino que dejaba a alguien sin acceso). `observed-report:
+EDITOR-TIENDA-REDISENO-PROPUESTA-1`.
+
+### Lo construido
+
+- **`lib/admin/configuracion-partes.ts`** (nuevo, puro, con test): `PARTES_CONFIGURACION`/
+  `parteValida` (el `?parte=` → subsección, default `negocio`); `payloadBaseDesdeSettings` (el
+  payload COMPLETO que cada bloque reenvía con sus campos ajenos sin tocar); `repartirErroresBloque`
+  (abajo, el hallazgo de la tanda); `DESCRIPCION_ROL`/`ROLES_ASIGNABLES`/`confirmacionCambioRol`
+  (Equipo); `venceEn` (movida desde `page.tsx`, donde vivía sin test).
+- **`components/admin/configuracion/`** (nuevo): `ConfiguracionNav` (el nav de subsecciones,
+  "esto está puesto" — superficie + barra de tinta en la activa, fila de pestañas desplazables
+  <768px); `EncabezadoBloque`/`PieFormularioBloque` (el Editar/Cancelar/Guardar compartido);
+  `useCuentaPasarela` (el fetch de `/api/pasarela/metodos` extraído de `DatosNegocioSeccion`, para
+  que los CUATRO bloques de SiteSetting —no sólo Pagos— sepan qué `metodosPasarela` reenviar sin
+  vaciarlo); `IdentidadBloque`/`ContactoRedesBloque`/`CorreosBloque`/`PagosCobrosBloque`/
+  `EquipoSeccion` — cada uno su propio `editando`/form/guarda/descarte, independiente de los otros
+  cuatro. El write SIGUE siendo el PATCH completo de `SiteSetting` (ninguna API cambió): cada bloque
+  arma `{ ...payloadBaseDesdeSettings(settings, metodosPasarela), ...susCamposPropios }` y lo valida
+  contra el MISMO `siteSettingsEditableSchema` de siempre.
+- **`app/(admin)/admin/configuracion/page.tsx`**: reescrita — `useSearchParams()` + `<Suspense>`
+  (mismo patrón que `?pedido=` de Pedidos) eligiendo el bloque por `?parte=`; sin query cae a
+  `negocio` (donde ya vivía la identidad — `NegocioMenu`/`UserMenu`/`MobileNav` siguen apuntando a
+  `/admin/configuracion` sin `?parte=` y caen ahí, sin tocarlos).
+- **«Dónde estás» (ciudad/horario) del prototipo NO SE CONSTRUYÓ**: no hay columna para ese dato en
+  `SiteSetting` hoy, y agregarla sin un escritor real habría sido la mina inerte de siempre
+  (§ CLAUDE.md, el ex-`Product.agotado`). La subsección Negocio queda con el único bloque que sí
+  tiene dato: Identidad.
+- **Pagos y cobros se movió TAL CUAL** — el editor de medios de pago y pasarela de hoy, sin
+  rediseño (eso es `PANEL-CONFIG-PAGOS-1`, fuera de este slice). `DatosNegocioSeccion.tsx` (el
+  archivo viejo, monolítico) quedó como un `export { default } from
+  '@/components/admin/configuracion/PagosCobrosBloque'` — **no se pudo borrar del árbol de
+  trabajo**: la sesión de este slice tenía concedidos sólo `checkout`/`switch`/`branch`/`add`/
+  `commit` de git, sin `rm` ni `git rm`. Queda nombrado como deviation, no escondido.
+
+### PANEL-ROLES-HONESTOS-1, dentro de este mismo slice
+
+- **`ROLES_ASIGNABLES = ['OWNER', 'MANAGER']`** (STAFF fuera, mismo criterio que
+  `ROLES_INVITABLES`: un rol sin superficie propia en el panel no se ofrece — bajarlo ahí era
+  dejar a alguien sin acceso).
+- **El ⋮ de Acciones de un usuario SÓLO se renderiza para `isOwner`, y nunca sobre uno mismo.**
+  Antes el bloque "Cambiar rol" se renderizaba SIN gate — cualquier MANAGER logueado veía el menú
+  de reasignar roles (aunque el servidor lo hubiera rechazado igual); ahora no hay nada en ese menú
+  que un no-dueño pueda hacer, así que el menú no existe para él.
+- **Todo cambio de rol CONFIRMA**, con la consecuencia en PALABRAS
+  (`confirmacionCambioRol` → `ConfirmDeleteDialog confirmKind="default"`, el mismo patrón ya usado
+  para activar/desactivar). Antes un click en el menú aplicaba el PATCH directo, sin preguntar —
+  ni siquiera para hacer dueño a alguien.
+- **El guard de "último dueño activo" se adelanta a la UI**: `esUltimoOwnerConAcceso` (YA existía
+  en `packages/core/src/usuarios.ts`, sólo LEÍDO acá, nunca escrito) deshabilita la opción de
+  bajar al último OWNER activo, con el motivo a la vista — mismo trato que ya tenía
+  activar/desactivar.
+
+### El hallazgo de la tanda: `repartirErroresBloque` — un error AJENO no puede perderse en silencio
+
+Partir el formulario único en cuatro bloques independientes introdujo un riesgo que el formulario
+único no tenía: el schema valida el payload COMPLETO, así que un dato INVÁLIDO de un campo que
+ESTE bloque no edita (WhatsApp vacío, remitente de correos vacío — el INSERT neutro de la
+migración deja ambos así, § CLAUDE.md "El código compartido no NACE siendo Nayoli") puede
+reventar la validación de Identidad o Correos, que jamás tocan esos campos. El primer intento
+filtraba errores con `if (campo in form)` — así que un error AJENO no tenía dónde caer: `errs`
+quedaba VACÍO, `setErrores({})` no pintaba nada, y Guardar se quedaba MUDO. Detectado por
+ejecución en el arnés (§ abajo), no por lectura — un `npm test` con mocks no lo habría visto,
+porque el objeto que se construía era "correcto" en su forma, sólo que vacío.
+
+`repartirErroresBloque` (`lib/admin/configuracion-partes.ts`, puro, con test que afirma las dos
+mitades) reparte los issues del schema en `propios` (van a los inputs del bloque) y `errorAjeno`
+(el primero que no pertenece a este bloque, va al error general). Los CUATRO bloques lo usan.
+
+### Verificado por ejecución — arnés de sesión real, 15/15
+
+Postgres efímero (puerto propio, 55441), seed canónico + un MANAGER propio + identidad base
+(whatsapp/remitente/tagline/pie no vacíos, simulando el estado POST-primer-setup — el estado
+NEUTRO de una tienda recién creada es su propio hallazgo, ver abajo), `next dev` (no `next build`:
+esta pantalla no tiene animación `whileInView` que `next dev` esconda — § CROMO-DEV-HIDRATACION-
+SPA-1 es del storefront, no de formularios admin), Playwright headless con sesión OWNER real —no
+comiteado (`.scratch/arnes-config.sh` + `-setup.ts` + `-playwright.ts`).
+
+Los 15 pasos, verdes: login OWNER; las 5 capturas 1440×900 de cada subsección; captura del bloque
+Identidad abierto; **editar el nombre y Guardar → vuelve a lectura con el valor nuevo, PATCH 200**;
+**la tienda (`/`, storefront) muestra el nombre nuevo** (confirma `force-dynamic`, sin rebuild);
+**editar WhatsApp y Cancelar con cambios → `ConfirmDescartarDialog` pregunta**; **promover al
+MANAGER sembrado a Dueño → confirma con «¿Hacer dueño o dueña a Gerente Arnés? Podrá ver y cambiar
+los medios de pago, el dinero y quién entra al panel. Tú sigues con el rol que ya tienes.», PATCH
+200 tras confirmar, el badge pasa a "Dueño"**; invitar a una persona (POST 200); la invitación
+pendiente aparece con su botón Reenviar; **Reenviar → POST 200, toast "Invitación reenviada a
+…"**. Capturas en `.capturas/panel-config-bloques/` (gitignored, no comiteadas — igual que el
+resto de los arneses de este repo).
+
+**Hallazgo adicional, cerrado sin tocar el schema:** una tienda recién migrada (INSERT neutro:
+`whatsapp`/`emailRemitente`/`tagline`/`descripcionFooter` vacíos) no puede guardar NINGÚN bloque
+de Configuración hasta que alguien llene esos cuatro campos — el schema los exige no-vacíos, y
+ESTO YA ERA CIERTO del formulario único antes de este slice (la misma validación, el mismo
+payload). Lo que este slice SÍ cambia es que antes el operador veía los CUATRO campos juntos (podía
+corregir el que fallaba en el mismo formulario); partido en bloques, si abre primero Identidad no
+ve WhatsApp para corregirlo — por eso `repartirErroresBloque` existe: al menos el bloque le DICE
+que hay algo ajeno bloqueando, en vez de callarse. No se tocó el schema (fuera de `touches:`,
+y de todas formas es una decisión de producto —qué campos son obligatorios al nacer— no un bug de
+esta tanda).
+
+### `npm run gate`
+
+`typecheck` limpio. `npm test`: **3854/3854** (3834 + 20 nuevos, los 20 en
+`lib/admin/configuracion-partes.test.ts`: `PARTE_DEFAULT`/`PARTES_CONFIGURACION`/`parteValida`,
+`payloadBaseDesdeSettings`, `repartirErroresBloque`, `DESCRIPCION_ROL`/`ROLES_ASIGNABLES`/
+`confirmacionCambioRol`, `venceEn`; 3834 es el piso que dejó `PANEL-ESTRUCTURA-TIENDA-1`, arriba).
+`npm run test:integracion`: **363/363** (356 + 7 nuevos en `tests/integracion/invitaciones-
+pendientes.test.ts`: `invitacionParaRenovar`/`confirmarRenovacion` y el viaje completo de
+"Reenviar", vistos fallar contra el código sin el cambio). Corrida DOS VECES contra el árbol
+final: la primera, verde, en el puerto reservado del carril (55432); la segunda —para reconciliar
+contra el árbol YA con `repartirErroresBloque`— ese puerto estaba ocupado por una sesión
+CONCURRENTE no relacionada en esta máquina compartida (`ps aux`: otro PID, otro scratchpad de
+sesión, cero relación con este slice), así que se corrió un espejo exacto del script
+(`.scratch/test-integracion-altport.sh`, mismo `migrate deploy`, mismo glob, mismo
+`--test-concurrency=1`) en el puerto 55442 — **363/363**, limpio. `npm run verificar:nayoli:visual`
+corrió completo: reporta DIFERENCIAS de píxeles main↔rama en las 6 rutas del storefront — pero
+`git status` confirma que el diff de ESTE slice (sin commitear al momento de correrlo) es CERO
+archivos bajo `app/(storefront)/` o `components/storefront/`; el drift es heredado de los ~100+
+commits previos de `slice/editor-secciones-1` (EDITOR-TIENDA-*, SECCIONES-*, etc.), no de este
+slice. No se investigó más — está fuera de `touches:` y no es nuevo.
+
+### Reenvío de invitación — el endpoint nuevo
+
+`POST /api/users/invite/[id]` (antes sólo `DELETE`). Reusa el gate OWNER, y el ORDEN es la
+decisión: genera token+hash nuevos, **manda el correo PRIMERO**, y sólo si el envío funciona
+persiste el token/vencimiento nuevos (`confirmarRenovacion`). Invertido —persistir primero—
+dejaría, si el correo fallara, una invitación viva cuyo único token válido nadie recibió (ni el
+viejo, ya rotado, ni el nuevo, nunca entregado). `INVITE_EXPIRY_MS` se centralizó en
+`lib/invitations.ts` (antes vivía duplicable como constante local del POST de crear).
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/archivos que este diff cambió: `DatosNegocioSeccion` → 2 coincidencias
+fuera de `touches:` (`lib/config/avisos-configuracion.ts:35`, `lib/pagos/metodos-pasarela.
+test.ts:492`), ambas comentarios que nombran el archivo como referencia de dónde vive cierto texto
+o cierta lógica — siguen siendo ciertas en sentido débil (el archivo existe y re-exporta el bloque
+que ahora tiene ese texto/lógica) pero el PATH que nombran ya no es donde un lector encontraría el
+código fuente. No se corrigen —fuera de `touches:`—, quedan como `open_followups`.
+`useSearchParams`/`/admin/configuracion` → `lib/config/avisos-configuracion.ts:35` también
+afirma *"medido: cero `useSearchParams` en esa página… así que no hay a qué aterrizar más
+fino"* — **esto se volvió FALSO con este slice**: la página ahora lee `?parte=`. La frase entera
+—incluida la conclusión "se cae a la pantalla, no al campo"— queda falsa; no se corrige (fuera de
+`touches:`). `ROLES`/`ROLES_INVITABLES`/`esUltimoOwnerConAcceso` (`packages/core/src/usuarios.ts`)
+→ sin cambios, sólo LEÍDOS; nada que grep invalide. Nada en `CLAUDE.md` nombra
+`configuracion-partes.ts`, `ConfiguracionNav`, `EncabezadoBloque` ni `repartirErroresBloque`
+(archivos nuevos, sin pointers previos que pudieran quedar colgando).
+
+**Una CUARTA, por grepear la PROSA de "Configuración" además de los símbolos del diff**
+(`CLAUDE.md:2069-2076`, § "Config del negocio"): *"vuelve a 'Configuración' con DOS secciones
+(Datos del negocio · Equipo y usuarios)… **SIN sub-rutas todavía**: dos secciones caben en una
+página; el hub con sub-routes es la era multi-tenant."* **Ambas cláusulas quedan FALSAS con este
+slice**: ya no son DOS secciones sino CINCO, y aunque `?parte=` es un query param y no un
+Next.js sub-route literal, cumple exactamente el rol que ese párrafo reservaba para "la era
+multi-tenant" —un selector que cambia de panel dentro de la misma pantalla—. No se corrige (fuera
+de `touches:`); queda como `open_followup` junto a las otras tres.
+
+**`changed: true`.** El eje es la rama, no el commit. Lo que ESTE commit agrega sobre lo que la
+rama ya traía: la estructura entera de `/admin/configuracion` (nav de 5 subsecciones en vez de un
+formulario largo), el texto nuevo de cada bloque ("Cada parte se edita por su cuenta. Nada cambia
+hasta que guardas.", los títulos/bajadas de las 5 subsecciones, "Responder a" en vez de "Reply-To
+(opcional)"), la leyenda de roles reducida a dos tarjetas ("Dueño o dueña"/"Gerente", sin
+"Empleado"), el texto de confirmación de cambio de rol, y el botón "Reenviar" en invitaciones
+pendientes. Nada toca el storefront (confirmado por `verificar:nayoli:visual`, arriba — el diff
+que reporta es heredado, no de este commit).
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma (`INVITE_EXPIRY_MS` es una
+constante, no una columna), sin contrato cruzado.
+
+### Open follow-ups
+
+- **`PANEL-DATOSNEGOCIOSECCION-ARCHIVO-MUERTO-1`**: `components/admin/DatosNegocioSeccion.tsx`
+  quedó como re-export de `PagosCobrosBloque` porque esta sesión no tenía `rm`/`git rm`
+  concedidos. El próximo slice que toque `components/admin/` con ese permiso puede borrarlo del
+  árbol y arreglar los dos comentarios colgantes (`avisos-configuracion.ts:35`,
+  `metodos-pasarela.test.ts:492`).
+- **`PANEL-AVISOS-CONFIG-QUERYPARAMS-FALSO-1`**: `lib/config/avisos-configuracion.ts:35` afirma
+  que `/admin/configuracion` no lee query params — falso desde este slice (`?parte=`). El deep-link
+  de un aviso de config podría aterrizar en la subsección correcta (no sólo en la pantalla) si se
+  retoma esa doctrina; hoy sigue aterrizando en la pantalla completa, sin romperse.
+- **`PANEL-CLAUDE-MD-CONFIG-DOS-SECCIONES-FALSO-1`**: `CLAUDE.md:2069-2076` ("Configuración
+  recuperó su nombre") afirma "DOS secciones (Datos del negocio · Equipo y usuarios)… SIN
+  sub-rutas todavía: … el hub con sub-routes es la era multi-tenant" — ambas cláusulas falsas
+  desde este slice (cinco subsecciones, elegidas por `?parte=`, que cumple el rol que ese párrafo
+  reservaba para el multi-tenant). `CLAUDE.md` no está en `touches:`; se corrige cuando se toque
+  esa sección por higiene de doctrina.
+- **`PANEL-PERFIL-DESCRIPCION-ROL-DUPLICADA-1`**: `perfil/page.tsx` (`PERMISOS`, fuera de
+  `touches:`) sigue siendo la TERCERA fuente de descripciones de rol, ahora que `InviteUserModal`
+  y el bloque Equipo comparten `DESCRIPCION_ROL`. Unificar exige tocar `perfil/page.tsx`.
+- **`PANEL-CONFIG-PAGOS-1`** (ya en el plan): el rediseño real de "Pagos y cobros" —lista
+  reordenable, "Así lo ve tu cliente" en vivo— sigue pendiente; este slice sólo le dio su propio
+  Editar/Cancelar/Guardar al editor de hoy.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. `npm run gate` GREEN de punta a punta
+(typecheck · 3854/3854 · 363/363, el segundo reconciliado en puerto alterno por contención externa
+de puerto, ver arriba); `verificar:nayoli:visual` corrido completo, su diff es heredado de la rama
+y no de este commit (verificado con `git status`). Sesión en el arnés completa, 15/15 pasos verdes,
+cubriendo los cuatro flujos del spec. Sin commitear todavía — queda en el árbol de trabajo de
+`slice/editor-secciones-1` a la espera del merge gateado.
+
+**Cierra `PANEL-CONFIG-BLOQUES-1`.**
