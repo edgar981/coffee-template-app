@@ -53657,3 +53657,206 @@ Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma (`marquesina.es
 **AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama.
 
 **Cierra `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`.**
+
+## 2026-10-04 — Dos tipos más en la biblioteca: Collage y Video (`SECCIONES-TIPOS-3`)
+
+Tier 1 (toca `lib/config/site-content-schema.ts`, el esquema de CONTENIDO — § CLAUDE.md, aprobado
+para escritura), `writes: yes`, `base: main` (policy: current-main), `observed-report:
+SECCIONES-INSTANCIAS-CENSO-1`. Aprobado por el owner (2026-10-03: el pedido explícito de poder
+agregar secciones "como Shopify" + la delegación "confío en que tomarás las mejores decisiones").
+Sigue `slice/editor-secciones-1` (no corta rama nueva).
+
+### El cambio
+
+El catálogo curado de instancias (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2) pasa
+de seis tipos a **ocho**: **Collage** (una pieza grande + una grilla de chicas, foto o video, con
+enlace y leyenda corta por ítem) y **Video** (un video subido, modo fondo con texto encima o modo
+contenido con botón de reproducir). El detalle completo del modelo, el editor y los componentes
+vive en `docs/editor-tienda/AGREGAR-SECCIONES.md` § "DOS tipos más — Collage y Video" (actualizado
+por este slice); acá sólo las decisiones que no caben ahí.
+
+- **Ningún cambio en `resolverItemsInstancia`/el mecanismo genérico.** Los cinco campos del ítem de
+  "collage" (`url`/`tipo`/`poster`/`enlace`/`leyenda`) se declaran como string PLANOS en
+  `descriptor.campos` — NO passthrough como `GaleriaItem.w/h/tipo/poster` en
+  `site-content-defaults.ts`. La derivación existente (`DESCRIPTOR_INSTANCIA ⊆ DEFAULTS_INSTANCIA
+  ⊆ schema`, los tests GENÉRICOS que iteran `SECCION_INSTANCIA_TIPOS`) cubrió los dos tipos nuevos
+  con CERO código de test nuevo para la paridad — la inversión que § SECCIONES-INSTANCIAS-1 hizo en
+  derivar en vez de enumerar a mano pagó exactamente acá.
+- **El editor gana VIDEO** (`InstanciaEditorForm.tsx` para el campo plano de "video",
+  `InstanciaItemsEditor.tsx` con el prop nuevo `conVideo` para los ítems de "collage"), con el MISMO
+  pipeline que el video del hero en `TiendaSeccionEditor.tsx` (elegir → RETENER hasta elegir el
+  póster → remux si es `.mov` → el PÓSTER SUBE PRIMERO → sube el video) — NO extraído a un hook
+  compartido con ese archivo, que no está en `touches:` de este slice (anotado como open
+  follow-up). `InstanciaEditorForm.tsx` le faltaba el SEGUNDO `<input type=file hidden>`
+  (`subida.inputHoldRef`/`alElegirHold`, el del flujo "elegir sin subir") — sin él, `subida.elegir`
+  no tiene a qué hacerle `.click()` y el picker de video nunca se abre; se agregó junto al primero.
+- **`BibliotecaSecciones.tsx`: `COMPONENTE_INSTANCIA` es un `Record<SeccionInstanciaTipo, …>`
+  exhaustivo por TIPO** — TypeScript rechaza el build sin las dos entradas nuevas, así que esa
+  actualización no fue opcional ni se pudo olvidar.
+- **UN BUG REAL, encontrado por el arnés y corregido antes de reportar verde:** `Media()` (Collage)
+  y el bloque de video de "video"·reproducir delegaban su CAJA (el alto/aspect-ratio de la celda)
+  enteramente a `HuecoImagenOpcional`, que devuelve `null` FUERA de modo editor (§ CampoEditable.tsx:
+  "+Agregar foto" es sólo una affordance del panel). Resultado medido con el arnés: los TRES ítems
+  default de "collage" (sin media, el estado de fábrica) colapsaban a ALTO CERO en el storefront
+  PUBLICADO — la celda desaparecía del mosaico y su `<Leyenda>` (`position:absolute`) quedaba
+  flotando sin una caja `relative` de la que colgar; la pieza GRANDE (también sin media por
+  default) se veía del mismo tamaño que las chicas en vez de más alta. Capturado en
+  `.scratch/verificar-secciones-tipos-3/DEBUG-no-volvio-a-inicio-collage.png` (screenshot de
+  diagnóstico de otro fallo del arnés que de pasada mostró el defecto) y en la primera corrida
+  completa (capturas `1`/`2`/`6` de esa tanda, no conservadas en el repo). **El fix: la caja
+  (`relative ${className}`, con `bg-[var(--sf-linea)]` de respaldo) pasa a vivir en un wrapper
+  SIEMPRE montado**, igual al patrón que `ImagenTexto.tsx` YA usa (el aspect-ratio en
+  `RevelarBloque`/el wrapper, nunca en la rama condicional de `HuecoImagenOpcional`) — no se inventó
+  un patrón nuevo, se copió el que el propio catálogo ya tenía para este problema exacto. Verificado
+  visualmente con una CUARTA corrida del arnés (capturas finales, § abajo): la pieza grande ahora se
+  ve claramente más alta que las chicas, a la DERECHA (como se configuró), y ningún cuadro colapsa.
+  **Capa 1 ganó dos tests de regresión** (`site-content-defaults.test.ts`) que afirman por
+  `renderToStaticMarkup` que la caja (`aspect-[4/5]`/`aspect-square`/`aspect-video`) sigue presente
+  en el HTML aunque el ítem no tenga media, FUERA de modo editor — el discriminador que el test
+  previo de este mismo archivo ("imagenTexto sin imagen no rinde `<img>` roto") no cubría: confirmar
+  la AUSENCIA del `<img>` no afirma nada sobre si la CAJA que lo habría contenido sigue ahí.
+- **El CTA primario de "video" (modo fondo) usa el patrón OUTLINE de Banner.tsx** (`border-white/70`
+  + `hover:bg-white/10`), no el patrón de RELLENO (`--sf-accion`/`--sf-accion-hover`) que Banner
+  también tiene como CTA primario. Medido ANTES de decidir: `lib/config/cta-primario.test.ts` (fuera
+  de `touches:`) mantiene un censo EXHAUSTIVO por source-grep de todo `.tsx` del storefront que usa
+  `--sf-accion-hover`, y un archivo nuevo con ese patrón —aunque correctamente migrado— rompe el
+  barrido si no se lo nombra en su lista `CONSUMIDORES` (ese archivo documenta el precedente exacto:
+  `HeroMediaMarquesina.tsx` se sumó ahí en `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`, el slice
+  anterior en esta misma rama). Con `Video.tsx` usando el patrón de relleno, `npm test` daba
+  3754/3755 — UN fallo, exactamente ese barrido. Se evaluó añadir la línea a `CONSUMIDORES` y se
+  DESCARTÓ: ese archivo no está en `touches:` de este slice, y la instrucción del dispatch es
+  explícita ("no widen it yourself"). En su lugar, el CTA de "video" pasó al patrón OUTLINE —que el
+  censo NO vigila (sólo seguimiento de `--sf-accion-hover`/`-active`, no del patrón outline)—, una
+  elección que además es defendible por sí misma: un botón translúcido lee mejor sobre un video en
+  movimiento que un relleno sólido. **Gate verde SIN tocar ningún archivo fuera de `touches:`.**
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3757/3757** (piso previo en esta rama, `EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1`: 3741/3741 — +16 por los tests nuevos/ampliados de este slice) |
+| `npm run test:integracion` | **351/351** (piso previo: 346/346 — +5, el viaje completo de "collage"/"video") |
+| `npm run gate` | GREEN, corrida COMPLETA dos veces sobre el árbol final (typecheck + 3757 + 351 las dos veces, mismos números) |
+| `npx next build` | compiló sin error, 54 rutas — confirmado por el arnés (§ abajo), que corre `next build` real en cada invocación |
+| `npx eslint` (los 13 archivos de `touches:` tocados + los 2 nuevos) | CERO nuevos — verificado archivo por archivo contra `git show HEAD:<archivo> \| eslint --stdin`: `InstanciaEditorForm.tsx` hereda 6 errores `react-hooks/refs` pre-existentes en el MISMO patrón (`TiendaSeccionEditor.tsx`, fuera de `touches:`, tiene 24 del mismo error por el mismo uso de `useSubidaImagen`); `InstanciaItemsEditor.tsx` hereda 1 warning `set-state-in-effect` pre-existente en el mismo patrón (`RepeaterEditor.tsx` tiene el mismo); `site-content-blobs.test.ts`/`tests/integracion/secciones-instancias.test.ts` conservan sus warnings `no-unused-vars` pre-existentes sin cambio de conteo; `site-content-defaults.test.ts` sube de 5 a 7 `react/no-children-prop` — DOS más, de los DOS tests nuevos, mismo patrón pre-existente de `React.createElement(Component, {value, children})` que ya generaba 5; `Collage.tsx`/`Video.tsx` (nuevos): CERO hallazgos |
+
+### Verificado por ejecución — `.scratch/verificar-secciones-tipos-3.ts` (no comiteado)
+
+Build de PRODUCCIÓN real, Postgres efímero, sesión completa de ADMIN vía Playwright —CUATRO
+corridas, las tres primeras cazando y arreglando defectos reales del propio ARNÉS (no de la app),
+la cuarta con el fix del bug real de arriba ya aplicado:
+
+- **Corrida 1 — FALLÓ**, diagnóstico insuficiente: "tras agregar la 4ª foto, no hay ningún campo de
+  texto abierto". Causa real (medida con un screenshot de depuración agregado en la corrida 2): la
+  4ª foto y el ítem-VIDEO (la 5ª pieza) **sí se habían subido correctamente** —el screenshot mostró
+  el póster verde con "Cambiar vídeo"/"Cambiar póster"—, el fallo era del PRÓXIMO paso del arnés.
+- **Corrida 2 — FALLÓ** en "volviendo a Inicio": el locator `getByRole("button",{name:"Inicio"})`
+  matcheaba el selector de PÁGINA ("Página Inicio ▾", un control más nuevo que el precedente de
+  `verificar-secciones-tipos-2.ts` no tenía) en vez de la miga «‹ Inicio» — las dos comparten
+  "Inicio" en su nombre accesible. Fix: `.editor-pv-back` (la clase de `Migas.tsx`), no por rol.
+- **Corrida 3 — PASÓ, pero con un dato FALSO**: el check `videoTags < 1` dio 1 en vez de 2 (faltaba
+  el `<video>` de la sección "Video"). Causa: el arnés esperaba la AUSENCIA del texto "Subiendo" en
+  el body como señal de éxito, pero hay una ventana real (entre el click en "Usar este frame" y el
+  primer re-render con `setSubiendoPaso`) donde ese texto AÚN no apareció — un `waitForFunction` que
+  sólo mira su ausencia puede resolver en ese hueco. Confirmado con un screenshot: el video seguía
+  en "Subiendo vídeo… 0%" cuando el arnés ya había avanzado a cambiar el modo. Fix: esperar la señal
+  INEQUÍVOCA de éxito (el botón pasa de "Agregar video" a "Cambiar video"/"Cambiar vídeo").
+- **Corrida 4 — VERDE, de punta a punta, con el fix del bug de layout ya aplicado**:
+  - **Collage**: agregado desde la biblioteca; los TRES ítems default (leyendas, sin media)
+    visibles; título editado; `disposicion→'cuatro'`, `lado→'derecha'`; 4ª pieza agregada como FOTO
+    (selector de archivos real, un PNG); 5ª pieza agregada como VIDEO (un MP4 H.264 REAL generado
+    con `ffmpeg`, vía "Agregar video" → `PosterScrubber` → "Usar este frame" → **subida real a
+    Vercel Blob**, confirmada por la señal de éxito).
+  - **Video**: agregado desde la biblioteca; título/texto editados; video subido por el mismo
+    pipeline del hero (**misma subida real a Blob**); modo alternado de 'fondo' a 'reproducir'.
+  - **Publicado**: las DOS instancias se publicaron juntas; la home pública (fetch directo,
+    `networkidle`) trae los CUATRO fingerprints de texto (título/leyenda/texto de las dos
+    secciones) y **2 `<video>` en el DOM** (uno por sección) — confirmado por lectura de HTML, no
+    sólo por captura.
+  - **Capturas**: escritorio (1440×900) y teléfono (393×844), CHROMIUM (la ronda de admin) y WEBKIT
+    (sólo el resultado publicado, cross-engine — mismo criterio que `verificar-secciones-tipos-2`:
+    la edición es tarea de admin, el render cross-browser es lo que le llega al cliente real), full
+    page y a mitad de scroll. **La captura final (`6-home-publica-escritorio-full.png`) confirma
+    visualmente el fix del bug**: la pieza grande del collage es claramente MÁS ALTA que las cuatro
+    chicas y está a la DERECHA; el reproductor de "Video" muestra el póster verde con el botón de
+    Reproducir centrado, en una caja contenida de proporción 16:9.
+  - **Postgres efímero propio** (puerto 55466, base `seccionestipos3`, distinto del gate y de
+    `verificar-secciones-tipos-2.ts`), `next build` + `next start` reales (nunca `next dev`).
+
+**LÍMITE DEL ARNÉS, declarado:** la interacción de UI quedó enteramente en CHROMIUM (como el
+precedente); WEBKIT sólo verifica el resultado publicado. El `BLOB_READ_WRITE_TOKEN` real que hizo
+posible la subida de video de punta a punta vive en `.env.local`, cargado por `next start` — **esta
+sesión no inspeccionó ese archivo** (instrucción explícita del dispatch), confirmando su validez
+sólo por el EFECTO observable (la subida completó y el video sirvió por Blob en el `<video src>`
+publicado).
+
+### Open follow-ups
+
+- `SECCIONES-TIPOS-3-VIDEO-SUBIDA-HOOK-COMPARTIDO-1`: el pipeline de subida de video+póster
+  (elegir → retener → scrubber → subir póster → subir video) está escrito TRES VECES hoy —
+  `TiendaSeccionEditor.tsx` (hero, fuera de `touches:`), `InstanciaEditorForm.tsx` (campo plano
+  "video", este slice) e `InstanciaItemsEditor.tsx` (ítem de "collage", este slice, que a su vez
+  ya duplicaba el patrón de `RepeaterEditor.tsx`/galería de /nosotros). Extraer un hook compartido
+  (`useSubidaVideoConPoster` o similar) uniría las cuatro. No se hizo acá: tocar
+  `TiendaSeccionEditor.tsx`/`RepeaterEditor.tsx` está fuera de `touches:`, y el PATRÓN (no el
+  mecanismo) ya se venía repitiendo desde antes de este slice (§ SECCIONES-TIPOS-2 lo anotó para
+  `InstanciaItemsEditor.tsx` vs `RepeaterEditor.tsx`).
+- No se coined ningún id para que `StoreNav.tsx` pase `tipoInstancia` al calcular darkness/
+  uniformidad del nav cuando "collage"/"video" terminan primeros en `orden` — es el MISMO límite
+  conocido ya documentado para los seis tipos anteriores (§ `docs/editor-tienda/
+  AGREGAR-SECCIONES.md`, "Darkness/uniformidad para el nav"), no uno nuevo que este slice abra.
+
+**Observación menor, sin acción:** CLAUDE.md usa la palabra "collage" en sentido INFORMAL en varios
+lugares (`§ CORTE-BRANDSTORY-COLLAGE-1`, el grid de 4 fotos de BrandStory) — ninguna de esas frases
+queda falsificada por el nuevo TIPO formal "Collage" de este slice (son conceptos distintos, sin
+relación de código), pero un lector futuro que busque "collage" en la doctrina encontrará las dos
+cosas. No se tocó ninguna frase: describen correctamente lo que describían antes de este slice.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grep de los símbolos/archivos que este diff cambia (`secciones-instancias`, `SECCION_INSTANCIA_TIPOS`,
+`DESCRIPTOR_INSTANCIA`, `CATALOGO_INSTANCIAS`, `InstanciaEditorForm`, `InstanciaItemsEditor`,
+`BibliotecaSecciones`, `NosotrosGaleria`, `VideoCelda`, `SeccionInstancia`, `site-content-schema`,
+`cta-primario`) contra `CLAUDE.md`: **sin coincidencias** para los símbolos propios del catálogo de
+instancias (`secciones-instancias`/`SECCION_INSTANCIA_TIPOS`/`DESCRIPTOR_INSTANCIA`/
+`CATALOGO_INSTANCIAS`/`InstanciaEditorForm`/`InstanciaItemsEditor`/`BibliotecaSecciones`/
+`VideoCelda`/`SeccionInstancia`/`cta-primario`) — nada en la doctrina los nombra. Dos coincidencias
+para `NosotrosGaleria` (líneas ~2472/2932, el patrón "`{negocio}` llega por PROP"): ambas describen
+ese componente tal cual sigue siendo tras este slice (sólo se le agregó un export, `VideoCelda`, sin
+tocar su prop `negocio`) — **ninguna queda falsa**. Coincidencias para `site-content-schema` (línea
+39, la lista de superficies Tier 1 — consistente con que este slice es Tier 1 aprobado sobre ese
+mismo archivo; líneas ~1928/1936/2534, sobre el Backlog #67 y `siteContentEditableSchema`/
+`presentacionesEditableSchema`, el schema del REGISTRY de SECCIONES — un archivo DISTINTO del
+`instanciaEditableSchema` que este slice tocó; **ninguna queda falsa**, son sobre otro sub-schema
+del mismo archivo).
+
+### `customer_bytes`
+
+**`changed: true`** (el eje es la RAMA, no el commit — § CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1). Dos
+componentes nuevos (`Collage.tsx`, `Video.tsx`) + el dispatcher ampliado le dan al storefront la
+CAPACIDAD de renderizar dos tipos de sección más — INERTE para Nayoli hoy (`seccionesHome` sigue
+`{}` en todo tenant real; medido: ningún default instancia ninguno de los ocho tipos a menos que el
+dueño agregue uno desde el panel). **`strings: []`** del lado del storefront que un visitante vería
+hoy (sin instancias agregadas, byte-idéntico). Del lado del ADMIN (lo que el OWNER lee al usar el
+panel, no un visitante) sí hay texto nuevo visible: los nombres/frases del catálogo ("Collage", "Un
+mosaico de fotos y videos…", "Video", "Un video de fondo…"), las etiquetas de campo/escalar
+("Chicas", "Modo", "Dos chicas", "Cuatro chicas", "Fondo, con texto encima", "Reproducir al tocar",
+"Leyenda", "Agregar video", "Cambiar video"/"Cambiar vídeo", "Cambiar póster") y los hints de ayuda
+del formulario — todo DENTRO del panel de administración, nunca en el storefront público.
+
+### `schema`/`cross-repo-contract`
+
+**`schema`: no** en el sentido de Prisma/migración — sin cambios a `packages/core/prisma/
+schema.prisma` ni migraciones nuevas; `seccionesHome`/`instanciaEditableSchema` viven dentro del
+`Json` de `SiteContent`, ya existente. El `.refine()` nuevo en `instanciaEditableSchema` (el póster
+obligatorio de "video") es una regla de VALIDACIÓN sobre ese JSON, no un cambio de columna. **Sin
+cross-repo-contract**: ningún DTO ni contrato compartido con otro repo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama: la
+capacidad nueva es real código que corre para cualquier tenant que agregue una instancia, aunque
+hoy esté inerte para Nayoli.
+
+**Cierra `SECCIONES-TIPOS-3`.**
