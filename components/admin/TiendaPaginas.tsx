@@ -11,6 +11,7 @@ import TogglePagina from '@/components/admin/TogglePagina';
 import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
 import MenuSeccion from '@/components/admin/MenuSeccion';
 import FooterSeccion from '@/components/admin/FooterSeccion';
+import DetallesSitioSeccion from '@/components/admin/DetallesSitioSeccion';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista, type SeccionConfig } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
@@ -1813,6 +1814,20 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
               <div>
                 {!nivelActivo && <div className="editor-grp">Abajo</div>}
                 <div className="editor-rows">
+                  {/* § PANEL-ESTRUCTURA-TIENDA-1 — DETALLES DEL SITIO, store-wide como Encabezado/
+                      Menú/Pie, pero AUTÓNOMO: a diferencia de esos tres, NO se integró al sistema de
+                      niveles/deshacer/iframe-en-vivo de esta grilla (`enEditor`/`onAbrir`/`onCerrar`/
+                      `onEstado`) — tiene su PROPIO flujo de publicar/descartar
+                      (`/api/site-content/detalles`, ajeno al lote genérico de `listaPendientes()`) y
+                      su propio estado de lectura↔edición interno, así que basta con ocultarlo cuando
+                      CUALQUIER OTRO nivel está activo (nunca tiene nivel propio que mostrar — por eso
+                      la condición es `nivelActivo` a secas, no `nivelActivo !== 'detalles'` como las
+                      otras tres filas). Integrarlo al lote habría tocado `CromoKey`/`cromoRefs`/
+                      `manejarEstadoCromo` y el puente del iframe — superficie fuera de lo que este
+                      slice necesita para mudar la fila (§ el reporte de este slice, deviations). */}
+                  <div style={nivelActivo ? { display: 'none' } : undefined}>
+                    <DetallesSitioSeccion />
+                  </div>
                   {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
                       la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}
                   <div style={nivelActivo && nivelActivo !== 'footer' ? { display: 'none' } : undefined}>

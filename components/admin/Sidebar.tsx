@@ -10,9 +10,9 @@ import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from '@/components/admin/UserMenu';
+import { NegocioMenu } from '@/components/admin/NegocioMenu';
 import { useAtencion } from '@/hooks/useAtencion';
 import { atencionDeRuta, type MapaAtencion } from '@/lib/atencion/registro';
-import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 
 // ─── EL PUNTO SOL ─────────────────────────────────────────────────────────────
 //
@@ -184,16 +184,17 @@ function UserFooter({ compact }: { compact: boolean }) {
 // `-horizontal-v1.svg` hornea mark+lettering en un archivo, así que achicar las
 // letras achica el mark; por eso el wordmark va como texto y el mark va suelto
 // —`duna-mark-v1.svg`, el mismo que el rail colapsado, con su negativo en oscuro—.
-// El negocio (`SiteSetting.nombre`, vía `useSiteSettings()`) debajo, muted, para que
-// el wordmark no domine. Antes era el nombre del negocio hardcodeado en texto plano —
-// el admin ya monta `SiteSettingsProvider` (app/(admin)/admin/layout.tsx) y este
-// componente no lo leía.
+//
+// EL NEGOCIO YA NO VIVE ACÁ (§ PANEL-ESTRUCTURA-TIENDA-1): era texto muted debajo
+// del lockup, informativo; ahora es la tarjeta clickeable de `NegocioMenu`, un
+// bloque PROPIO bajo este header (§ el render de `Sidebar`, abajo) — dos roles
+// distintos (identidad de Duna vs. identidad del negocio) que no deben competir
+// por el mismo bloque.
 //
 // EL ÁMBAR DEL MARK (#F59E0B = `--duna-sol`) ES MARCA, NO ESTADO — excepción
 // declarada (§ CLAUDE.md, "El ámbar del logo es marca, no atención"). Un logo es la
 // firma del producto, no un semáforo; ya vivía en el mark colapsado.
 function BrandLockup() {
-  const { nombre } = useSiteSettings();
   return (
     <div className="min-w-0 overflow-hidden">
       {/* EL LOCKUP HORIZONTAL real (mark + "DUNA" con su lettering propio), no texto:
@@ -208,12 +209,6 @@ function BrandLockup() {
       <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block h-5 w-auto max-w-full object-contain object-left dark:hidden" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden h-5 w-auto max-w-full object-contain object-left dark:block" />
-      <p
-        className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
-        style={{ fontSize: '.8rem', fontFamily: 'var(--duna-font-ui)' }}
-      >
-        {nombre}
-      </p>
     </div>
   );
 }
@@ -258,14 +253,13 @@ export default function Sidebar({ collapsed }: SidebarProps) {
           collapsed && 'duna:w-18',
         )}
       >
-        {/* Header — SÓLO la marca. Buscar y el toggle de colapsar se unificaron en la
-            topbar (§ TopBar): el rail de la maqueta no lleva controles, sólo marca y
-            navegación. SIN divisoria (la separación la da el espacio).
+        {/* Header — SÓLO la marca de Duna. Buscar y el toggle de colapsar se unificaron
+            en la topbar (§ TopBar): el rail de la maqueta no lleva controles, sólo marca
+            y navegación. SIN divisoria (la separación la da el espacio).
 
             El alto se queda en 64px (`h-16`) en los DOS estados, para que el borde
-            superior alinee con la topbar. El bloque de marca (lockup 20px + negocio,
-            ~37px) se CENTRA VERTICALMENTE en esos 64px con `items-center` —queda ~13px
-            de aire arriba y abajo, no pegado arriba—; colapsado centra el mark. */}
+            superior alinee con la topbar. El lockup (20px) se CENTRA VERTICALMENTE en
+            esos 64px con `items-center`; colapsado centra el mark. */}
         <div className={cn(
           'relative flex h-16 shrink-0 items-center px-3',
           collapsed && 'duna:justify-center',
@@ -283,6 +277,20 @@ export default function Sidebar({ collapsed }: SidebarProps) {
             <img src="/brand/duna-mark-negative-v1.svg" alt="Duna" className="hidden h-6 w-6 object-contain dark:block" />
           </div>
         </div>
+
+        {/* La TARJETA DEL NEGOCIO (§ PANEL-ESTRUCTURA-TIENDA-1) — debajo del lockup de Duna,
+            como su propio bloque: «Editar tienda · Ver tienda · Datos del negocio». Mismo
+            patrón doble-render que el footer de usuario (abajo) y que `SidebarNav`: la
+            versión normal SIEMPRE está en el DOM (oculta por `duna:hidden` si colapsa), la
+            compacta sólo existe cuando `collapsed` es verdadero. */}
+        <div className={cn('px-3 pb-3', collapsed && 'duna:hidden')}>
+          <NegocioMenu compact={false} />
+        </div>
+        {collapsed && (
+          <div className="hidden px-2 pb-3 duna:block">
+            <NegocioMenu compact />
+          </div>
+        )}
 
         {/* Nav — icon-only + tooltips on the collapsed rail, labelled otherwise.
             `onNavigate` ya no cierra nada (el drawer murió), pero la prop se

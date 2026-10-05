@@ -10,6 +10,8 @@ import {
 import { authClient } from '@/lib/auth-client';
 import { cn, getInitials } from '@duna/core/utils';
 
+const LABEL_ROL: Record<string, string> = { OWNER: 'Dueño', MANAGER: 'Gerente', STAFF: 'Empleado' };
+
 // ─── Menú de usuario ─────────────────────────────────────────────────────────
 // UNA definición de las acciones de cuenta (perfil, configuración, cerrar
 // sesión) para las dos ubicaciones donde aparece. Vive acá y no duplicada
@@ -17,13 +19,16 @@ import { cn, getInitials } from '@duna/core/utils';
 // una divergencia entre ellas dejaría la acción más importante del panel
 // funcionando en un breakpoint y no en el otro.
 //
-// DÓNDE SE MONTA (ver la nota de mobile en Sidebar/TopBar):
-//   • `sidebar`  — footer del rail expandido y del drawer móvil.
+// DÓNDE SE MONTA:
+//   • `sidebar`  — footer del rail expandido.
 //   • `compact`  — rail colapsado de escritorio: solo el avatar.
-//   • `topbar`   — SOLO por debajo de `lg`, donde el sidebar es un drawer
-//     oculto y el footer no está a la vista.
+//
+// LA VARIANTE `topbar` SE RETIRÓ (§ PANEL-ESTRUCTURA-TIENDA-1, REDISENO.md § 3: "El avatar de la
+// barra superior se retira — un solo lugar para el usuario"). Por debajo del breakpoint `duna` el
+// rail no existe, pero la identidad y el logout ya no dependen de un segundo disparador en la
+// topbar: viven en la hoja «Más» de `MobileNav`, igual que las entradas del negocio.
 
-type UserMenuVariant = 'sidebar' | 'compact' | 'topbar';
+type UserMenuVariant = 'sidebar' | 'compact';
 
 export function UserMenu({ variant }: { variant: UserMenuVariant }) {
   const router = useRouter();
@@ -38,64 +43,56 @@ export function UserMenu({ variant }: { variant: UserMenuVariant }) {
   const iniciales = getInitials(user?.name);
   const nombre    = isPending ? '…' : user?.name ?? 'Usuario';
   const correo    = isPending ? '' : user?.email ?? '';
+  const rol       = isPending || !user?.role ? '' : (LABEL_ROL[user.role] ?? user.role);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {variant === 'topbar' ? (
-          <button
-            aria-label="Menú de usuario"
-            className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        {/* El bloque de usuario ENTERO es el disparador — el mismo contenido que antes
+            era informativo, ahora accionable. */}
+        <button
+          aria-label="Menú de usuario"
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors',
+            'hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+            variant === 'compact' && 'justify-center',
+          )}
+        >
+          {/* INICIALES EN TINTA, NO ÁMBAR (§ CLAUDE.md, Amber Minimal): `--sidebar-primary` no
+              tiene remapeo a `--duna-*` (reservado para los controles, § "El CHROME del panel ES
+              del design-system"), así que `bg-sidebar-primary` seguía siendo ámbar dentro del
+              admin. El mismo par ink/paper que `.duna-btn--primary` y que `NegocioMenu`. */}
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+            style={{ background: 'var(--duna-ink)', color: 'var(--duna-paper)' }}
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-              <span className="text-xs font-semibold text-primary">{iniciales}</span>
-            </span>
-            <span className="hidden max-w-20 truncate text-xs font-medium text-foreground sm:block">
-              {nombre.split(' ')[0]}
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-        ) : (
-          // Sidebar: el bloque de usuario ENTERO es el disparador — el mismo
-          // contenido que antes era informativo, ahora accionable.
-          <button
-            aria-label="Menú de usuario"
-            className={cn(
-              'flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors',
-              'hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-              variant === 'compact' && 'justify-center',
-            )}
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/20">
-              <span className="text-xs font-semibold text-sidebar-primary">{iniciales}</span>
-            </span>
-            {variant === 'sidebar' && (
-              <>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate whitespace-nowrap text-xs font-medium text-sidebar-foreground">
-                    {nombre}
-                  </span>
-                  <span className="block truncate whitespace-nowrap text-xs text-sidebar-foreground/40">
-                    {correo}
-                  </span>
+            <span className="text-xs font-semibold">{iniciales}</span>
+          </span>
+          {variant === 'sidebar' && (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate whitespace-nowrap text-xs font-medium text-sidebar-foreground">
+                  {nombre}
                 </span>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/40" />
-              </>
-            )}
-          </button>
-        )}
+                <span className="block truncate whitespace-nowrap text-xs text-sidebar-foreground/40">
+                  {rol}
+                </span>
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/40" />
+            </>
+          )}
+        </button>
       </DropdownMenuTrigger>
 
-      {/* En el sidebar el disparador está abajo del todo, así que el menú abre
-          hacia ARRIBA; en la topbar, hacia abajo y alineado a la derecha. */}
+      {/* El disparador está abajo del todo del rail, así que el menú abre hacia ARRIBA. */}
       <DropdownMenuContent
-        align={variant === 'topbar' ? 'end' : 'start'}
-        side={variant === 'topbar' ? 'bottom' : 'top'}
+        align="start"
+        side="top"
         sideOffset={8}
         className="w-56"
       >
-        {/* Identidad: en el rail colapsado y en la topbar el disparador no la
-            muestra, así que el menú es el único lugar donde se lee. */}
+        {/* Identidad: en el rail colapsado el disparador no la muestra, así que el
+            menú es el único lugar donde se lee. */}
         <div className="border-b border-border px-3 py-2.5">
           <p className="truncate text-sm font-semibold text-foreground">{nombre}</p>
           {correo && <p className="truncate text-xs text-muted-foreground">{correo}</p>}

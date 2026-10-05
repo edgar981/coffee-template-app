@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tituloAdmin, SUFIJO_PANEL } from './admin-titulo';
-import { ADMIN_NAV } from '@/constants/admin-nav';
+import { ADMIN_NAV, DESTINOS_FUERA_DEL_MENU } from '@/constants/admin-nav';
 
 // EL INVARIANTE de esta tanda: la pestaña dice lo que dice el menú. No se afirma
 // una lista de nueve strings —eso sería la segunda lista que el diseño evita—
@@ -21,15 +21,16 @@ test('renombrar una sección en el menú arrastra la pestaña — no hay copia q
   // sigue pasando pero el de arriba se rompe al primer renombre. Éste fija la
   // otra mitad: que la fuente sea EXACTAMENTE la del menú y no un subconjunto.
   const rutasDelNav = ADMIN_NAV.map(i => i.path);
-  // NUEVE: entró `/admin/tienda` —el CONTENIDO del storefront (la home)—, un ítem SUELTO
-  // (sin `seccion`) tras Crecimiento. Antes ocho, cuando se retiró `/admin/entregas` (su
-  // fulfillment vive en Pedidos).
+  // OCHO: `/admin/tienda` SALIÓ del rail (§ PANEL-ESTRUCTURA-TIENDA-1) — se entra desde el
+  // nombre del negocio (`NegocioMenu`), no desde una fila del menú; su título sigue viniendo
+  // de `DESTINOS_FUERA_DEL_MENU` (ver el test de abajo). Antes nueve, cuando entró Tienda;
+  // antes de eso ocho, cuando se retiró `/admin/entregas` (su fulfillment vive en Pedidos).
   //
   // El conteo es un tripwire a propósito: obliga a que agregar o quitar una sección sea una
-  // decisión visible y no un efecto lateral. Ya cumplió cinco veces —al entrar la vertical de
-  // Clientes, al salir Órdenes, al salir la Clientes vieja, al salir Entregas, y al entrar
-  // Tienda—, que es exactamente lo que se le pide.
-  assert.equal(rutasDelNav.length, 9, 'el menú tiene nueve entradas — una por sección + Tienda suelto');
+  // decisión visible y no un efecto lateral. Ya cumplió seis veces —al entrar la vertical de
+  // Clientes, al salir Órdenes, al salir la Clientes vieja, al salir Entregas, al entrar
+  // Tienda, y al sacarla del rail—, que es exactamente lo que se le pide.
+  assert.equal(rutasDelNav.length, 8, 'el menú tiene ocho entradas — una por sección, sin Tienda');
   assert.ok(rutasDelNav.every(p => tituloAdmin(p) !== null));
 });
 
@@ -39,6 +40,15 @@ test('las secciones fuera del menú traen el texto de su propia pantalla', () =>
   // eso era todo lo que hacía — la promesa vacía que el rediseño evitaba).
   assert.equal(tituloAdmin('/admin/configuracion'), 'Configuración');
   assert.equal(tituloAdmin('/admin/perfil'), 'Mi perfil');
+  // "Tienda": sale de `ADMIN_NAV` en esta tanda y se entra desde el nombre del negocio
+  // (§ PANEL-ESTRUCTURA-TIENDA-1) — su pestaña no puede quedar sin título por eso.
+  assert.equal(tituloAdmin('/admin/tienda'), 'Tienda');
+});
+
+test('toda ruta de DESTINOS_FUERA_DEL_MENU titula su pestaña — la misma fuente que alimenta el ⌘K', () => {
+  for (const d of DESTINOS_FUERA_DEL_MENU) {
+    assert.equal(tituloAdmin(d.path), d.label, `${d.path} debería decir lo mismo que su entrada fuera del menú`);
+  }
 });
 
 test('la subruta retirada de usuarios ya no declara título: redirige a la ruta padre', () => {

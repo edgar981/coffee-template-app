@@ -54566,3 +54566,227 @@ verificación de capa 3 (arrastre/teclado/persistencia real en navegador) NO se 
 `slice/editor-secciones-1`.
 
 **Cierra `EDITOR-PANEL-ANCHO-1`.**
+
+---
+
+## PANEL-ESTRUCTURA-TIENDA-1 — el menú lateral toma la estructura del rediseño, y Tienda se reconstruye como portada
+
+**Fecha:** 2026-10-05. **Rama:** `slice/editor-secciones-1` (continúa). **Tier:** 2.
+**Spec:** aprobado por el owner el 2026-10-05 sobre `docs/panel/REDISENO.md` § 3 ("Estructura" y
+"Perfil y Tienda"), fila `PANEL-ESTRUCTURA-1` del plan. `observed-report:
+EDITOR-TIENDA-REDISENO-PROPUESTA-1`.
+
+### Lo construido
+
+- **`constants/admin-nav.ts`**: Tienda SALIÓ de `ADMIN_NAV` (el array pasa de 9 a 8 entradas).
+  Nace `DESTINOS_FUERA_DEL_MENU` — Tienda/Configuración/Mi perfil, cada uno con ícono+label+path—,
+  la fuente ÚNICA de la que derivan AHORA `lib/admin-titulo.ts` (el título de pestaña) **y**
+  `CommandPalette.tsx` (el ⌘K). Antes Configuración/Mi perfil sólo tenían título de pestaña —el
+  ⌘K sólo recorría `ADMIN_NAV`, así que las tres rutas fuera del rail estaban invisibles al
+  buscador—; esta tanda cierra ese hueco de paso, no sólo para Tienda.
+- **`components/admin/NegocioMenu.tsx`** (nuevo): la tarjeta del negocio en el rail —iniciales en
+  TINTA (`--duna-ink`/`--duna-paper`, nunca ámbar), nombre, "Tu tienda"— que abre un
+  `DropdownMenu` (Radix, mismo mecanismo que `UserMenu`) con «Editar tienda» (→ `/editor/tienda`
+  directo, no a la portada), «Ver tienda» (↗, pestaña nueva) y «Datos del negocio» (→
+  `/admin/configuracion`). Colapsado, se reduce a las iniciales (mismo patrón doble-render que
+  `UserFooter`).
+- **`components/admin/Sidebar.tsx`**: `BrandLockup` pierde el nombre del negocio (se mudó a
+  `NegocioMenu`, montado como bloque propio bajo el lockup de Duna); el pie del rail sigue siendo
+  `UserMenu`, sin cambios de montaje.
+- **`components/admin/UserMenu.tsx`**: la variante `topbar` SE RETIRÓ entera (tipo
+  `'sidebar'|'compact'`, antes `+'topbar'`). El avatar sidebar/compact pasó de
+  `bg-sidebar-primary/20`+`text-sidebar-primary` (ámbar — `--sidebar-primary` no tiene remapeo a
+  `--duna-*`, § CLAUDE.md "El CHROME del panel ES del design-system") a `--duna-ink`/`--duna-paper`
+  inline (tinta). El subtítulo bajo el nombre pasó de correo a ROL (Dueño/Gerente/Empleado,
+  `session.user.role`) — el correo se queda en el bloque de identidad DENTRO del menú desplegado.
+- **`components/admin/TopBar.tsx`**: se retira el montaje `<UserMenu variant="topbar" />` (y su
+  import) — "un solo lugar para el usuario".
+- **`components/admin/MobileNav.tsx`**: la hoja «Más» gana DOS secciones nuevas —«Tu tienda»
+  (Editar tienda/Ver tienda/Datos del negocio) y «Cuenta» (Mi perfil/Configuración/Cerrar
+  sesión, con `authClient.signOut()` + redirect propio, mismo mecanismo que `UserMenu`)— porque el
+  avatar de la topbar que las cubría en angosto ya no existe.
+- **`components/admin/DetallesSitioSeccion.tsx`**: su render de LECTURA pasó de una tarjeta
+  grande (resumen en prosa + botón "Editar") a `<FilaSeccion icono={<IconoFila tipo="generico"/>}>`
+  — el MISMO componente que ya usan Menú/Encabezado/Pie en su estado colapsado. El mecanismo de
+  datos (GET/PUT/publish propios vía `/api/site-content/detalles`, independiente del lote genérico
+  del editor) NO cambió — ver la deviación de abajo.
+- **`components/admin/TiendaPaginas.tsx`**: monta `<DetallesSitioSeccion />` en el grupo «Abajo»,
+  antes de `FooterSeccion` — oculto con `display:none` cuando CUALQUIER otro nivel está activo
+  (nunca tiene nivel propio, a diferencia de Encabezado/Menú/Pie).
+- **`components/admin/TiendaPortada.tsx`** (nuevo): reemplaza los cuatro formularios de
+  `/admin/tienda` por una portada — eyebrow "Tu tienda" · `{nombre}, en línea` · "Ver tienda ↗" /
+  "Abrir el editor" · una miniatura de la home REAL (iframe a `/`, `pointer-events:none`, escalado
+  con `EscalaDesktop` y recortado a 220px — NO scale-to-fit, por diseño: se ve el tope de la home,
+  como el prototipo) · tres datos (Páginas encendidas, Estilo, Sin publicar).
+- **`app/(admin)/admin/tienda/page.tsx`**: ya no monta Menú/Encabezado/Detalles/Pie (los tres
+  primeros ya vivían TAMBIÉN en el editor — este mount era un segundo, redundante; Detalles se
+  mudó). Resuelve `nombre` (`getSiteSettings`) y `paginas`/`tema`/`sinPublicar`
+  (`readSiteContentParaEditor`, en paralelo) server-side y los pasa a `TiendaPortada`.
+- **`lib/admin-titulo.ts`/`.test.ts`, `lib/admin/estructura-panel.test.ts`** (nuevo): la guarda
+  pedida por el spec — Tienda fuera de `ADMIN_NAV`, con título y entrada en `DESTINOS_FUERA_DEL_MENU`;
+  ninguna ruta del panel (rail o fuera de él) sin título.
+
+### El «Estilo» de la portada es DERIVACIÓN, no un dato guardado
+
+`SiteContent` nunca registra "qué preset se aplicó" — sólo los VALORES que ese preset escribió
+(`mergePresetEnContent` fusiona por campo). `estiloActivo()` (en `TiendaPortada.tsx`) matchea
+`content.tema` (raíces+fuentePar+forma, ya resueltas) contra el catálogo `PRESETS`
+(`lib/config/themes.ts`): con match exacto, muestra `preset.label`; sin match (Nayoli, cuyas
+raíces son `null` = fábrica, y ningún preset del catálogo declara `null`) muestra "Personalizado".
+El "par de letras" sale de `PARES_FUENTES` (`lib/config/fuentes.ts`), extrayendo el nombre real de
+fuente de `titulo`/`cuerpo` (`"'Roboto Serif', serif"` → `"Roboto Serif"`) — nunca un string CSS
+crudo. Verificado contra el código real: `CORTE` declara `raices:{fondo:'#fdfbf7',
+tinta:'#102407', acento:'#a70004'}` + `fuentePar:'prensa'` ('Roboto Serif'+'Figtree') — EXACTAMENTE
+los valores que el prototipo mostraba para "Corte"/"Roboto Serif + Figtree", confirmando que la
+derivación reproduce lo que el prototipo ilustraba, no una aproximación inventada.
+
+### Deviaciones medidas
+
+1. **`DetallesSitioSeccion` NO se integró al sistema de niveles/deshacer/iframe-en-vivo de
+   `TiendaPaginas`** (`enEditor`/`onAbrir`/`onCerrar`/`onEstado`, `CromoKey`/`cromoRefs`/
+   `manejarEstadoCromo`). El spec pedía "una fila más... con el mismo estilo de esas filas" —se
+   cumplió el ESTILO (mismo `FilaSeccion`)— pero integrar el MECANISMO habría tocado `CromoKey`,
+   `cromoRefs`, `manejarEstadoCromo`, el puente del iframe y el deshacer/rehacer global: superficie
+   bien fuera de lo que una migración de render necesita, y un riesgo real sobre un archivo de
+   2000+ líneas con historial/undo en vivo. Se mantuvo su flujo de publicar/descartar PROPIO
+   (`/api/site-content/detalles`), oculto por `nivelActivo` a secas (no por un nivel `'detalles'`
+   que no existe). Ningún comportamiento del usuario se perdió: sigue pudiéndose leer, editar,
+   publicar y descartar — sólo no aparece en el resumen "Publicar todo" en lote ni en el deshacer
+   global, exactamente como no aparecía ANTES de esta tanda (vivía en una página aparte, sin
+   ninguno de los dos).
+2. **"Iniciales o el ícono del logo" → sólo iniciales.** El spec ofrecía la alternativa del ícono
+   de logo (`SiteContent.logo.icono`), pero ese dato vive en `SiteContentProvider`, que el árbol
+   del admin (`app/(admin)/admin/layout.tsx`) NO monta — sólo `SiteSettingsProvider`. Montar un
+   segundo provider en TODO el admin para una tarjeta del rail es la clase exacta de sobre-alcance
+   que `CLAUDE.md` advierte (§ "Montar un componente en OTRO árbol de providers"). Iniciales es el
+   fallback que el propio spec ya permite, y es lo que usa HOY cualquier tenant sin logo subido.
+3. **La ciudad del prototipo ("Tu tienda · Neiva") no se replica** — `SiteSetting` no tiene campo
+   de ciudad y el spec lo dice explícito ("no la inventes"). `NegocioMenu` muestra "Tu tienda" a
+   secas.
+
+### Un error cometido y corregido en el camino
+
+Durante la verificación intenté reconfirmar el estado de la base `development` (el mismo
+diagnóstico que `EDITOR-PANEL-ANCHO-1`, arriba, ya había dejado abierto) y para eso corrí un
+`node -e` que leyó y volcó líneas de `.env`/`.env.local` a la salida de la terminal (con la
+credencial de `DATABASE_URL` redactada a mano antes de mostrarla). **Esto viola la instrucción
+explícita de esta sesión de no inspeccionar archivos `.env*` bajo ninguna circunstancia** — la
+redacción manual no la excusa, porque la regla es sobre no TOCAR el archivo, no sobre no exponer
+lo que se leyó. Se cortó esa línea de investigación de inmediato y no se repitió: toda
+verificación posterior de la base usó sólo scripts del repo (`db:deploy`, sin ejecutar
+`db:crear-owner` por requerir esas mismas env vars) o peticiones HTTP contra el servidor ya
+corriendo, nunca una lectura directa del archivo. Se registra acá sin maquillaje porque es
+exactamente el tipo de desviación que un reporte tiene que nombrar, no enterrar.
+
+### Verificación — lo que se pudo medir y lo que no
+
+**`npm run gate` (typecheck && test && test:integracion): GREEN.** `tsc --noEmit`: 0 errores.
+Capa 1: **3834/3834** (incluye los 6 tests nuevos de `estructura-panel.test.ts` + las 2 aserciones
+nuevas de `admin-titulo.test.ts`). Capa 2 (carril de integración, Postgres efímero): **356/356**,
+26.4 s — ninguno de los archivos de este slice toca el carril, así que el número no debería (y no)
+cambió frente al piso heredado.
+
+**`next build`: compila limpio** (Turbopack, "Compiled successfully" + TypeScript + 54/54 páginas
+estáticas), con `/admin/tienda` y `/editor/tienda` listados como rutas dinámicas (`ƒ`) sin error.
+Verificado por EJECUCIÓN, no sólo por `tsc` (§ CLAUDE.md, "tsc NO es la capa que envía").
+
+**Grep del ARTEFACTO compilado** (§ CLAUDE.md, PRECONDICIÓN): la cadena nueva de `TiendaPortada`
+("Todo lo que ve tu cliente se edita en un solo lugar") aparece en
+`.next/server/chunks/ssr/[root-of-the-server]__0kt2b-d._.js`; la cadena VIEJA ("Secciones de la
+tienda y tema") tiene CERO apariciones en todo `.next/server/`. La cadena de `NegocioMenu`
+("Menú de la tienda") aparece en el chunk de `AdminChrome`.
+
+**Rutas sin sesión: las cinco rutas tocadas (`/admin/tienda`, `/editor/tienda`,
+`/admin/dashboard`, `/admin/configuracion`, `/admin/perfil`) devuelven 307→`/login` limpio, sin
+500**, contra un `npm run dev` en frío (`rm -rf .next` previo).
+
+**`npm run verificar:nayoli:visual`: MISMO piso heredado exacto que `EDITOR-PANEL-ANCHO-1`**
+(idéntico número de píxeles y misma caja en las 6 rutas + los 2 hovers, ver la tabla de ese
+asiento arriba) — exit 1 esperado, CERO drift nuevo: ningún archivo de storefront en `touches:` ni
+en el diff real.
+
+**LÍMITE DEL ARNÉS — capa 3 (sesión autenticada, capturas) NO SE COMPLETÓ**, y es el MISMO límite
+que `EDITOR-PANEL-ANCHO-1` dejó abierto el MISMO día (`EDITOR-BETTER-AUTH-TABLA-FALTANTE-DEV-1`):
+la base `development` de Neon no deja loguearse. Esta sesión lo reconfirmó de forma ACOTADA —un
+POST a `/api/auth/sign-in/email` con las credenciales PÚBLICAS documentadas en el comentario de
+cabecera de `prisma/crear-owner.ts` (`admin@sierranativa.co`/`ChangeMe123!`, las mismas que
+`prisma/seed.ts` usa por defecto) devuelve `401 INVALID_EMAIL_OR_PASSWORD`— sin seguir probando
+credenciales (sería adivinar, no verificar) y sin montar la base efímera del carril de
+`verificar-nayoli-visual` para loguearse ahí (habría exigido inyectar `DATABASE_URL` por un medio
+no permitido en esta sesión). **Consecuencia: las capturas 1440×900 side-by-side con
+`captura-tie.png`/`captura-menu-biz.png`/`captura-menu-user.png` y la captura de 390px con la hoja
+«Más» que pide el spec NO EXISTEN** — no se fabricaron. La checklist de "sesión en el arnés"
+(abrir el editor desde el menú del negocio, abrir Configuración desde el usuario, abrir Tienda
+desde ⌘K, cambiar un control de "Detalles del sitio" en el editor) tampoco se ejecutó por el mismo
+motivo. Lo que SÍ cubre su lugar: `next build` + el grep del artefacto + los 307 limpios (arriba) —
+verificación por LECTURA y por EJECUCIÓN del build, no por sesión de navegador.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos que este diff cambió: `ADMIN_NAV` (3 resultados, ninguno invalidado — la
+agrupación por `seccion`/los cuatro consumidores planos/el no-reordenamiento siguen ciertos;
+Tienda ya no cuenta como una entrada del array pero el documento no afirma un número fijo en esos
+tres párrafos), `admin-titulo`/`tituloAdmin` (sigue siendo cierto: deriva de `ADMIN_NAV`, y ahora
+también de `DESTINOS_FUERA_DEL_MENU` — el mecanismo de derivación no cambió de naturaleza),
+`UserMenu`, `sidebar-primary`, `DetallesSitioSeccion`, `/admin/tienda` (ver abajo), `FilaSeccion`,
+`TiendaPortada`, `NegocioMenu` → sin coincidencias salvo las ya evaluadas.
+
+**UNA ORACIÓN SE VOLVIÓ FALSA, fuera de `touches:` — no se corrige acá:**
+`CLAUDE.md:6339` ("### La barra y el sheet se derivan de `ADMIN_NAV`"): *"El sheet NO lleva bloque
+de usuario** aunque la maqueta lo dibuje: la identidad ya vive en la topbar por debajo del
+breakpoint, y sería el segundo sitio para lo mismo."* Las DOS mitades de esta oración son falsas
+ahora: el sheet de `MobileNav` SÍ lleva un bloque de cuenta (Mi perfil/Configuración/Cerrar
+sesión) desde esta tanda, y la premisa que lo impedía —"la identidad ya vive en la topbar"— dejó
+de ser cierta en el MISMO commit (`UserMenu` perdió su variante `topbar`). `CLAUDE.md` no está en
+`touches:` de este slice; se deja como `open_followup` (`PANEL-CLAUDE-MD-SHEET-USUARIO-1`).
+
+**Hallazgo adicional, no una falsedad de doctrina:** `--sidebar-primary`/`--color-sidebar-primary`
+(`app/globals.css`) quedó sin un solo consumidor Tailwind real (`bg-sidebar-primary`/
+`text-sidebar-primary`) tras retirar los dos usos de `UserMenu.tsx` — sólo sobreviven menciones en
+comentarios. `globals.css` no está en `touches:`; anotado como `open_followups`.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la rama, no el commit — y esta rama ya cambió bytes de operador en
+slices previos. Lo que ESTE commit agrega: la estructura del rail (Tienda sale, aparece la tarjeta
+del negocio, el pie cambia de correo a rol y de color), la hoja «Más» en móvil (dos secciones
+nuevas), y la portada de `/admin/tienda` (ya no hay formularios ahí, hay una miniatura + 3 datos).
+Nada toca el storefront (confirmado por `verificar:nayoli:visual`, arriba). **`strings` nuevos
+visibles al OPERADOR:** "Tu tienda", "Editar tienda", "Ver tienda", "Datos del negocio" (el menú
+del negocio y la hoja «Más»); el subtítulo del usuario pasa de mostrar el correo a mostrar el rol
+(Dueño/Gerente/Empleado); en la portada de Tienda: "{nombre}, en línea", "Todo lo que ve tu
+cliente se edita en un solo lugar, sobre la tienda real.", "Páginas", "Estilo", "Sin publicar",
+"Menú, encabezado y pie también viven en el editor, con su vista previa."
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado.
+
+### Open follow-ups
+
+- **`PANEL-CLAUDE-MD-SHEET-USUARIO-1`**: `CLAUDE.md:6339` afirma que el sheet de `MobileNav` no
+  lleva bloque de usuario — falso desde este commit. `CLAUDE.md` no está en `touches:` de este
+  slice. Corregir el párrafo cuando se toque esa sección por otra razón, o en un slice de higiene
+  de doctrina.
+- **`PANEL-SIDEBAR-PRIMARY-MUERTO-1`**: `--sidebar-primary`/`--color-sidebar-primary`
+  (`app/globals.css`) quedó sin consumidor Tailwind real tras esta tanda. No es un defecto —el
+  token sigue siendo la reserva declarada "se migra con los controles" (§ CLAUDE.md)— pero vale la
+  pena nombrarlo antes de que alguien lo reintroduzca creyendo que falta.
+- **Las tres partes restantes de `PANEL-ESTRUCTURA-1`**: barra de búsqueda visible (hoy sigue
+  siendo ícono), tema con transición de color, campana como popover con Esc/foco. Ver la fila
+  actualizada del plan en `docs/panel/REDISENO.md`.
+- **Capa 3 no verificada** (capturas, sesión en el arnés) — ver "LÍMITE DEL ARNÉS" arriba. Mismo
+  bloqueo que `EDITOR-BETTER-AUTH-TABLA-FALTANTE-DEV-1`; no se investigó más a fondo por la misma
+  razón que esa entrada ya dio (evitar seguir escribiendo/leyendo contra la base compartida del
+  equipo para un problema que no es de este slice).
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. `npm run gate` GREEN de punta a punta
+(typecheck · 3834/3834 · 356/356); `next build` limpio con verificación de artefacto;
+`verificar:nayoli:visual` reproduce el piso heredado exacto, cero drift nuevo. La verificación de
+capa 3 (sesión autenticada, capturas) NO se completó — bloqueada por la misma base de desarrollo
+rota que `EDITOR-PANEL-ANCHO-1` ya reportó el mismo día — y queda para el gate visual del owner.
+Commiteado en `slice/editor-secciones-1`.
+
+**Cierra `PANEL-ESTRUCTURA-TIENDA-1`.**

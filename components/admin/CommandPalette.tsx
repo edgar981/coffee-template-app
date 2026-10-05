@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
-import { ADMIN_NAV } from '@/constants/admin-nav';
+import { ADMIN_NAV, DESTINOS_FUERA_DEL_MENU } from '@/constants/admin-nav';
 import { searchAdmin } from '@/lib/api/search';
 import { SEARCH_MIN_CHARS } from '@/types/search';
 import type { AdminSearchResults, SearchEntity } from '@/types/search';
@@ -103,9 +103,16 @@ export function CommandPalette({ open, onOpenChange }: {
   const hasServerResults =
     displayResults.ordenes.length + displayResults.clientes.length + displayResults.productos.length > 0;
 
-  // Icon for a recent row: reuse the section icon for nav, else the entity icon.
+  // Icon for a recent row: reuse the section icon for nav, else the entity icon. Busca en las DOS
+  // fuentes de navegación —`ADMIN_NAV` (el rail) y `DESTINOS_FUERA_DEL_MENU` (Tienda/Configuración/
+  // Mi perfil, § PANEL-ESTRUCTURA-TIENDA-1)— porque un reciente de cualquiera de las dos puede
+  // persistir en `localStorage` y las dos deben poder resolver su ícono.
   const recentIcon = useMemo(() => (r: RecentItem): LucideIcon => {
-    if (r.type === 'nav') return ADMIN_NAV.find(n => n.path === r.href)?.icon ?? ArrowRight;
+    if (r.type === 'nav') {
+      return ADMIN_NAV.find(n => n.path === r.href)?.icon
+        ?? DESTINOS_FUERA_DEL_MENU.find(d => d.path === r.href)?.icon
+        ?? ArrowRight;
+    }
     return ENTITY_ICON[r.type];
   }, []);
 
@@ -148,9 +155,11 @@ export function CommandPalette({ open, onOpenChange }: {
         )}
 
         {/* Static nav index — instant, fuzzy via cmdk (diacritic-insensitive
-            through the normalized keyword). */}
+            through the normalized keyword). `ADMIN_NAV` (el rail) + `DESTINOS_FUERA_DEL_MENU`
+            (Tienda/Configuración/Mi perfil, § PANEL-ESTRUCTURA-TIENDA-1): esas tres salieron del
+            rail pero siguen siendo rutas de verdad, y sin esto el ⌘K las dejaría invisibles. */}
         <CommandGroup heading="Ir a">
-          {ADMIN_NAV.map(item => {
+          {[...ADMIN_NAV, ...DESTINOS_FUERA_DEL_MENU].map(item => {
             const Icon = item.icon;
             return (
               <CommandItem

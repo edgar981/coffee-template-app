@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Warehouse,
-  CreditCard, BarChart3, Zap, Store,
+  CreditCard, BarChart3, Zap, Store, Settings, User,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { IconAnim } from '@/components/admin/AnimatedIcon';
@@ -49,11 +49,35 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { icon: CreditCard,      label: 'Pagos',            path: '/admin/pagos',            anim: 'lift', seccion: 'Operación' },
   { icon: BarChart3,       label: 'Analítica',        path: '/admin/analitica',        anim: 'lift', seccion: 'Crecimiento' },
   { icon: Zap,             label: 'Automatizaciones', path: '/admin/automatizaciones', anim: 'lift', seccion: 'Crecimiento' },
-  // "Tienda" — el CONTENIDO del storefront (la home). SUELTO, sin `seccion`: un grupo de un
-  // ítem es un encabezado que no agrupa (regla del owner). Semilla de un grupo "Tienda"
-  // futuro cuando exista una 2ª pantalla de storefront-admin (las páginas legales son el
-  // candidato — § legalNav vacío). RESERVA para el gate: un ítem suelto DESPUÉS de dos grupos
-  // etiquetados puede leerse como sobrante ("Hoy" funciona porque va primero); si no cuadra,
-  // la salida es el grupo de un ítem.
-  { icon: Store,           label: 'Tienda',           path: '/admin/tienda',           anim: 'lift' },
+];
+
+/**
+ * Un destino del panel que NO vive en el rail/la barra inferior, pero que sigue siendo una ruta de
+ * verdad: tiene que titular su pestaña y aparecer en el ⌘K, igual que cualquier entrada de
+ * `ADMIN_NAV` (§ PANEL-ESTRUCTURA-TIENDA-1, REDISENO.md § 3). Sin `seccion`/`ownerOnly`/`anim`: no
+ * se pinta en el rail ni en la barra inferior, así que esos campos no tienen nada que gobernar acá.
+ */
+export interface DestinoFueraDelMenu {
+  icon:  LucideIcon;
+  label: string;
+  path:  string;
+}
+
+/**
+ * LOS DESTINOS FUERA DEL RAIL — la fuente ÚNICA de la que derivan `lib/admin-titulo.ts` (el título
+ * de pestaña) y `CommandPalette.tsx` (el ⌘K), para que ninguno de los dos tenga su propia lista a
+ * mano que pueda quedarse atrás de la otra (§ CLAUDE.md, el mismo criterio que ya rige `ADMIN_NAV`
+ * para el resto del menú).
+ *
+ * - **Tienda** se entra desde el nombre del negocio en el rail (`NegocioMenu`), no desde una fila
+ *   del menú — salió de `ADMIN_NAV` en esta tanda (§ PANEL-ESTRUCTURA-TIENDA-1).
+ * - **Configuración** y **Mi perfil** ya vivían fuera del rail desde antes (se entran por el menú
+ *   de usuario, `UserMenu`) — venían declaradas SÓLO en `lib/admin-titulo.ts` (`FUERA_DEL_NAV`) y
+ *   AUSENTES del ⌘K, que sólo recorría `ADMIN_NAV`. Esta lista cierra ese hueco de una vez para
+ *   las tres.
+ */
+export const DESTINOS_FUERA_DEL_MENU: DestinoFueraDelMenu[] = [
+  { icon: Store,    label: 'Tienda',        path: '/admin/tienda' },
+  { icon: Settings, label: 'Configuración', path: '/admin/configuracion' },
+  { icon: User,     label: 'Mi perfil',     path: '/admin/perfil' },
 ];

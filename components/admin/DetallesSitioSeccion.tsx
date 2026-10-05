@@ -2,11 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
+import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
+import { IconoFila } from '@/components/admin/editor/IconoFila';
 
-// ─── Bloque DETALLES DEL SITIO — vive en /admin/tienda, junto a Colores/Menú/Encabezado/Pie ─────────
+// ─── Bloque DETALLES DEL SITIO — vive en el editor, junto a Menú/Encabezado/Pie ──────────────────
+//
+// MUDADO de `/admin/tienda` al editor de pantalla completa en § PANEL-ESTRUCTURA-TIENDA-1
+// (REDISENO.md § 3): esa portada dejó de tener formularios sueltos, y éste era el único de los
+// cuatro ejes store-wide (Menú/Encabezado/Detalles/Pie) que no vivía ya en `TiendaPaginas.tsx`. Se
+// mudó SÓLO el render de lectura (a `FilaSeccion`, § el render de abajo) — el mecanismo de datos
+// (su GET/PUT/publish propios, independientes del lote genérico del editor) no cambió.
 //
 // § PANEL-DETALLES-SITIO-1: el nombre que el owner le dio (2026-09-23) a "volver arriba y redes
 // sociales" — los DOS ejes de chrome que `PANEL-EDITOR-ENCABEZADO-1` dejó explícitamente FUERA de su
@@ -202,7 +209,21 @@ export default function DetallesSitioSeccion() {
     </div>
   ) : null;
 
-  const resumenActivos = CONTROLES.filter((c) => form[c.name]).map((c) => c.label);
+  // § EDITOR-VISUAL-PANEL-1 — LECTURA: una FILA compacta, igual que Menú/Encabezado/Pie
+  // (§ PANEL-ESTRUCTURA-TIENDA-1: "se muda al editor como una fila más junto a Encabezado y Pie,
+  // con el mismo estilo de esas filas"), no la tarjeta grande con el resumen en prosa y el botón
+  // "Editar" de la era `/admin/tienda`. El resumen en prosa (qué interruptores están prendidos)
+  // sale ENTERO de la fila colapsada — mismo recorte que `resumenOrden` en `MenuSeccion.tsx`.
+  if (!editando) {
+    return (
+      <FilaSeccion
+        icono={<IconoFila tipo="generico" />}
+        titulo="Detalles del sitio"
+        hayBorrador={hayBorrador}
+        onAbrir={() => setEditando(true)}
+      />
+    );
+  }
 
   return (
     <>
@@ -212,67 +233,48 @@ export default function DetallesSitioSeccion() {
             <h2 className="duna-title">Detalles del sitio</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
-          {!editando && (
-            <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-              El botón para volver arriba y el riel de redes sociales.
-            </p>
-          )}
-          {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
-        {!editando ? (
-          <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
-            <Pencil /> Editar
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {hayBorrador && (
-              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
-                Descartar
-              </button>
-            )}
-            {hayBorrador && (
-              <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
-                {procesando ? 'Publicando…' : 'Publicar'}
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+          {hayBorrador && (
+            <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+              Descartar
+            </button>
+          )}
+          {hayBorrador && (
+            <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
+              {procesando ? 'Publicando…' : 'Publicar'}
+            </button>
+          )}
+        </div>
       </div>
-      {editando && errorServidor && (
+      {errorServidor && (
         <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)', marginBottom: 0 }}>{errorServidor}</p>
       )}
 
-      {!editando ? (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <p className="duna-sub" style={{ margin: 0 }}>
-            {resumenActivos.length > 0 ? resumenActivos.join(' · ') : 'Sin ajustes activos — el sitio de siempre.'}
-          </p>
-        </div>
-      ) : (
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
-            {CONTROLES.map((c) => {
-              const on = form[c.name];
-              return (
-                <div key={c.name}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-                    <button
-                      type="button" role="switch" aria-checked={on} aria-label={c.label}
-                      onClick={() => cambiar({ [c.name]: !on } as Partial<Form>)}
-                      className={`duna-switch${on ? ' is-on' : ''}`}
-                    >
-                      <span className="duna-switch__thumb" />
-                    </button>
-                    <span className="duna-field__label" style={{ margin: 0 }}>{c.label}</span>
-                  </div>
-                  <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{c.hint}</p>
+      <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
+          {CONTROLES.map((c) => {
+            const on = form[c.name];
+            return (
+              <div key={c.name}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+                  <button
+                    type="button" role="switch" aria-checked={on} aria-label={c.label}
+                    onClick={() => cambiar({ [c.name]: !on } as Partial<Form>)}
+                    className={`duna-switch${on ? ' is-on' : ''}`}
+                  >
+                    <span className="duna-switch__thumb" />
+                  </button>
+                  <span className="duna-field__label" style={{ margin: 0 }}>{c.label}</span>
                 </div>
-              );
-            })}
-          </div>
+                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{c.hint}</p>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}

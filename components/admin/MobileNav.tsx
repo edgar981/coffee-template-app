@@ -1,8 +1,8 @@
 "use client";
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Store, ExternalLink, SlidersHorizontal, User, Settings, LogOut } from 'lucide-react';
 
 import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
 import { DunaSheet } from '@/components/admin/DunaSheet';
@@ -67,8 +67,19 @@ function Slot({ item, activa, atencion }: { item: AdminNavItem; activa: boolean;
 
 export function MobileNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const [masAbierto, setMasAbierto] = useState(false);
+
+  // § PANEL-ESTRUCTURA-TIENDA-1 — el logout ya no tiene disparador propio en la topbar (§
+  // TopBar.tsx: "el avatar de la barra superior se retira"). Por debajo del breakpoint `duna`
+  // esta hoja es la ÚNICA salida de sesión, así que la trae ella misma — mismo mecanismo que
+  // `UserMenu.tsx` (signOut + redirect a /login), sin reusar ese componente: es un dropdown
+  // pensado para un disparador propio, y acá ya estamos DENTRO de una hoja abierta.
+  const cerrarSesion = async () => {
+    await authClient.signOut();
+    router.push('/login');
+  };
 
   // UNA sola consulta para toda la navegación de esta superficie. El rail hace lo
   // mismo por el mismo motivo (§ Sidebar: con el rail colapsado hay dos
@@ -155,8 +166,50 @@ export function MobileNav() {
             estos tres botones eran una SEGUNDA forma del mismo control —redundancia
             que además colapsaba en el ancho de un teléfono—. El de la topbar se
             queda: es el único camino de vuelta a `system` para quien pineó un
-            override en ese navegador. Tampoco va bloque de usuario: la identidad
-            ya vive en la topbar por debajo del breakpoint (`UserMenu`). */}
+            override en ese navegador. */}
+
+        {/* § PANEL-ESTRUCTURA-TIENDA-1 — TU TIENDA y CUENTA. El avatar de la topbar se retiró
+            (§ TopBar.tsx), así que esta hoja gana las dos entradas que antes vivían SÓLO detrás
+            de un disparador de escritorio (`NegocioMenu`/`UserMenu`, § Sidebar.tsx) — un solo
+            lugar para cada una, no dos copias que puedan divergir en el texto o el destino. */}
+        <div className="duna-title" style={{ marginTop: 'var(--duna-space-5)', marginBottom: 'var(--duna-space-3)' }}>
+          Tu tienda
+        </div>
+        <div className="duna-sheet__grid">
+          <Link href="/editor/tienda" onClick={() => setMasAbierto(false)} className="duna-sheet__item">
+            <Store aria-hidden="true" />
+            Editar tienda
+          </Link>
+          <a href="/" target="_blank" rel="noreferrer" className="duna-sheet__item">
+            <ExternalLink aria-hidden="true" />
+            Ver tienda
+          </a>
+          <Link href="/admin/configuracion" onClick={() => setMasAbierto(false)} className="duna-sheet__item">
+            <SlidersHorizontal aria-hidden="true" />
+            Datos del negocio
+          </Link>
+        </div>
+
+        <div className="duna-title" style={{ marginTop: 'var(--duna-space-5)', marginBottom: 'var(--duna-space-3)' }}>
+          Cuenta
+        </div>
+        <div className="duna-sheet__grid">
+          <Link href="/admin/perfil" onClick={() => setMasAbierto(false)} className="duna-sheet__item">
+            <User aria-hidden="true" />
+            Mi perfil
+          </Link>
+          <Link href="/admin/configuracion" onClick={() => setMasAbierto(false)} className="duna-sheet__item">
+            <Settings aria-hidden="true" />
+            Configuración
+          </Link>
+          {/* `.duna-sheet__item` está escrita pensando en `<a>`/`<Link>` (§ primitives.css, fuera
+              de `touches:`): no resetea `font`/`cursor` de un `<button>` nativo, así que se
+              declaran inline acá — el único consumidor-botón de la clase. */}
+          <button type="button" onClick={cerrarSesion} className="duna-sheet__item" style={{ font: 'inherit', cursor: 'pointer' }}>
+            <LogOut aria-hidden="true" />
+            Cerrar sesión
+          </button>
+        </div>
       </div>
       </DunaSheet>
     </>

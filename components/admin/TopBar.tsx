@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@duna/core/utils';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
-import { UserMenu } from '@/components/admin/UserMenu';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,16 +144,11 @@ export default function TopBar({
         {/* Notifications (tooltip + animation live inside the component) */}
         <NotificationBell />
 
-        {/* Menú de usuario — SOLO en angosto. En ancho vive en el footer del
-            rail, que está siempre a la vista; en angosto el rail NO EXISTE (no
-            está escondido: no se renderiza), así que ésta es la única salida de
-            sesión. Es el mismo componente, no una copia — y es la razón por la
-            que el sheet de "Más" NO lleva bloque de usuario, aunque la maqueta lo
-            dibuje: sería el segundo sitio para la misma identidad. */}
-        <div className="duna:hidden">
-          <UserMenu variant="topbar" />
-        </div>
-
+        {/* EL AVATAR DE USUARIO SE RETIRÓ DE ACÁ (§ PANEL-ESTRUCTURA-TIENDA-1, REDISENO.md § 3:
+            "El avatar de la barra superior se retira — un solo lugar para el usuario"). Por
+            debajo del breakpoint `duna` el rail no existe, pero la identidad y el logout ya no
+            necesitan un segundo disparador en la topbar: viven en la hoja «Más» de `MobileNav`,
+            junto a las entradas del negocio. */}
       </div>
     </header>
   );
