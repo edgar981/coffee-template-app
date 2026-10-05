@@ -23,6 +23,7 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 import { sugerirZona } from '@duna/core/zona-config';
 import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
+import { mensajeWhatsappPedido, momentoDePedido, rastreoUrl } from '@/lib/admin/mensajes-whatsapp';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 
 // The modal takes the Shipping — it fetches the order's delivery context
@@ -336,10 +337,26 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
   }
 
   const nombre  = ctx.cliente_nombre?.trim();
-  const saludo  = nombre ? `Hola ${nombre}` : 'Hola';
+  // El mensaje sigue el momento del ENVÍO —acá no hay `estado` de la orden a la
+  // mano (`DeliveryContext` no lo trae, § arriba), pero `shipping.estado` solo
+  // ya alcanza: preparando/en_ruta/entregado/fallido/cancelado cubren los cinco
+  // casos de `momentoDePedido` sin que haga falta el pago. El enlace de rastreo
+  // sólo se arma si el momento es "en camino".
+  const waMomento = momentoDePedido({ shippingEstado: shipping.estado });
+  const waOrigen  = typeof window !== 'undefined' ? window.location.origin : '';
   const waHref  = customerWhatsappHref(
     ctx.telefono,
-    `${saludo}, te escribimos de ${settings.nombre} por tu pedido ${ctx.numero_orden}`,
+    mensajeWhatsappPedido(
+      { shippingEstado: shipping.estado },
+      {
+        nombreCompleto: ctx.cliente_nombre,
+        tienda: settings.nombre,
+        numeroOrden: ctx.numero_orden,
+        rastreo: waMomento === 'en_camino'
+          ? rastreoUrl(waOrigen, ctx.numero_orden, ctx.cliente_email)
+          : null,
+      },
+    ),
   );
   const mailHref = ctx.cliente_email
     ? `mailto:${ctx.cliente_email}?subject=${encodeURIComponent(`Tu pedido ${ctx.numero_orden} — ${settings.nombre}`)}`

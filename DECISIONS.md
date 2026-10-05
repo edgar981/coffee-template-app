@@ -8869,3 +8869,141 @@ lo estuvo, así que se usó la vía alternativa de Node descrita en §4 en vez d
 
 Ninguno nuevo. Esta tanda no encontró patrones faltantes en el gate ni deuda adicional en el módulo de
 la guarda.
+
+## 2026-10-05 — El mensaje de WhatsApp al cliente sigue el MOMENTO del pedido, y «Avisar por WhatsApp» acompaña el cambio a pagado/en camino/entregado (`PEDIDOS-WHATSAPP-MENSAJES-1`)
+
+**Pedido del owner (2026-10-04):** que el mensaje de WhatsApp fijo que el panel arma hoy —«Hola {nombre
+completo}, te escribimos de {tienda} por tu pedido {número}»— cambie según en qué va el pedido (pago
+pendiente, pago confirmado, en camino con el enlace de rastreo, entregado), y que salude con el PRIMER
+nombre, no el nombre completo. Sin Meta y sin costo: sigue siendo `wa.me`, el panel sólo arma el texto
+mejor. La parte de que el dueño EDITE los textos queda para
+`PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1`, aparte.
+
+### 1 · Lo medido antes de escribir
+
+El texto fijo se armaba en TRES lugares —el detalle del pedido
+(`app/(admin)/admin/pedidos/page.tsx`), el modal de agendar entrega
+(`components/admin/ScheduleDeliveryModal.tsx`) y la ficha del cliente sin pedido
+(`app/(admin)/admin/clientes/page.tsx`)—, los tres armando el STRING a mano y pasándolo a
+`customerWhatsappHref` (`packages/core/src/whatsapp-link.ts`, que sólo construye el link `wa.me` —
+nunca tocado en su lógica, sólo ganó su primer test, § 4). Ninguno de los tres tenía tests propios de
+mensaje.
+
+**El dato disponible NO es el mismo en los tres lugares — eso decidió la forma del módulo nuevo:**
+`ScheduleDeliveryModal` recibe `DeliveryContext` (sin el `estado` de la orden) pero SÍ tiene
+`shipping.estado` completo (preparando/en_ruta/entregado/fallido/cancelado); el detalle de Pedidos
+tiene la orden completa (`estado` + `shipping.estado`); la ficha del cliente no tiene pedido. Por eso
+`momentoDePedido` (`lib/admin/mensajes-whatsapp.ts`) acepta los dos campos COMO OPCIONALES — el envío
+manda sobre el pago cuando los dos están disponibles (una orden CONTRAENTREGA puede estar `pendiente`
+y ya `en_ruta`: ahí el mensaje correcto es "va en camino", no "falta el pago") — y cada llamador pasa
+lo que tiene.
+
+**No existe hoy un "enlace de pago" que compartir.** Se buscó (`/api/checkout/reintento`, el widget de
+Wompi) y es un mecanismo del CHECKOUT del storefront, no algo que el admin pueda generar para una orden
+pendiente y mandar por WhatsApp. El hueco `{pago}` de las plantillas queda declarado y sin usar — listo
+para el slice de mensajes editables, sin inventar un enlace que no existe.
+
+**El enlace de rastreo YA existía** como `trackOrderUrl` en `packages/core/src/notifications/data.ts`
+(usado por el canal email de automatizaciones), pero ese archivo importa `prisma` — no se puede
+reusar desde los TRES llamadores, que son `'use client'`. Se reimplementó la parte PURA
+(`rastreoUrl(origen, numeroOrden, email?)`) en el módulo nuevo; el `origen` lo trae cada llamador
+(`window.location.origin`, con guarda `typeof window !== 'undefined'` para el paso SSR — precedente ya
+en el repo: `NewOrderModal.tsx`, `TiendaSeccionEditor.tsx`, `packages/core/src/utils.ts`).
+
+### 2 · La forma: un módulo puro, tres llamadores que no arman texto
+
+`lib/admin/mensajes-whatsapp.ts` (puro, sin DOM/fetch) es la ÚNICA fuente del texto. Exporta
+`momentoDePedido` (deriva el momento de `{estado?, shippingEstado?}`), `primerNombre` (la primera
+palabra, mayúscula inicial + resto en minúscula — «CAMILO moya» → «Camilo»; vacío sin nombre),
+`mensajeWhatsappPedido` (interpola la plantilla del momento) y `mensajeWhatsappCliente` (la ficha sin
+pedido) y `rastreoUrl`. Las plantillas viven como texto con huecos con NOMBRE (`{nombre}`, `{tienda}`,
+`{pedido}`, `{rastreo}`, `{pago}`), para que el slice de mensajes editables las lea desde configuración
+sin tocar a ninguno de los tres llamadores.
+
+**La interpolación limpia el hueco vacío** (`interpolar`): sustituye `{clave}` y colapsa el espacio que
+deja un hueco vacío pegado a una coma ("Hola , te escribimos" → "Hola, te escribimos") — así un pedido
+sin nombre de cliente no deja un hueco huérfano a la vista.
+
+**El momento "otro" (cancelado / entrega fallida) conserva, byte a byte, la estructura del texto de
+hoy** —«Hola {nombre}, te escribimos de {tienda} por tu pedido {pedido}.»—, sólo con primer nombre en
+vez de nombre completo. No se inventó un sexto momento para esos casos: el spec pedía cinco, y el
+texto de hoy ya cubre "ninguno de los cuatro anteriores" sin necesitar redacción nueva.
+
+`AvisarWhatsapp.tsx` (`components/admin/`) es la pieza de UI: `avisarWhatsapp(href)` dispara un toast
+(`sonner`, el mismo mecanismo `action: {label, onClick}` que ya usan Automatizaciones y el Dashboard
+para "Reintentar") con el botón "Abrir WhatsApp". `href` null (teléfono inválido) → no-op, sin botón
+muerto.
+
+### 3 · «Avisar por WhatsApp» es un SEGUNDO toast, no el mismo — medido, no elegido
+
+El spec pedía que el botón aparezca "junto al aviso de éxito" al marcar un pedido pagado/en
+camino/entregado. **Medido:** esos avisos de éxito viven en DOS archivos fuera de `touches:` de este
+slice — `toast.success('Pago registrado…')` en `components/admin/RegisterPaymentModal.tsx` y
+`toast.success('Estado actualizado')` en `hooks/useTransicionEntrega.ts` (el hook compartido de
+despachar/marcarEntregado/marcarFallido) — y el slice no puede editarlos para agregarles un `action`.
+
+La salida: `app/(admin)/admin/pedidos/page.tsx` —en `touches:`— recibe el callback (`onUpdated` del
+hook, `onSaved` del modal) DESPUÉS de que esos avisos ya se mostraron, y ahí dispara un SEGUNDO toast,
+propio, con el botón. Las dos notificaciones se apilan (sonner las stackea) en vez de compartir una
+sola superficie — no es lo que el texto del spec sugiere literalmente ("junto al"), pero es lo que
+`touches:` permite sin tocar un archivo fuera de alcance. Documentado como DEVIATION (§ 6).
+
+**Qué dispara el segundo toast, y qué no:**
+- `useTransicionEntrega`'s `onUpdated`: sólo si `sh.estado` es `en_ruta` o `entregado` — `fallido` NO
+  es uno de los tres momentos que el spec pide, así que marcar una entrega fallida no ofrece avisar.
+  `sh.order` (que trae `/api/shippings/[id]` en su PATCH, con `cliente_nombre`/`cliente_telefono`/
+  `numero_orden`) es la fuente del mensaje; sin él (no debería pasar, pero por si acaso) el href sale
+  `null` y `avisarWhatsapp` no hace nada.
+- `RegisterPaymentModal`'s `onSaved`: las DOS ramas (pago directo, verificar comprobante) terminan con
+  la orden pagada, así que siempre dispara con momento `pago_confirmado`, usando `cobrando` (la orden
+  abierta en el modal) — capturado en el closure ANTES de que `onClose` lo limpie, porque el modal
+  llama `onSaved` antes de `onClose` (medido en `RegisterPaymentModal.tsx:223-226`).
+
+### 4 · El gap de tests cerrado de paso
+
+`packages/core/src/whatsapp-link.ts` no tenía test propio (medido: ningún archivo lo importaba en
+`*.test.ts`). Se le agregó `whatsapp-link.test.ts` (14 casos) sin cambiar su lógica — cierra el hueco
+que apareció al releer el módulo que los tres llamadores comparten.
+
+### 5 · Gate
+
+`npm test`: **1521/1521** (1476 + 31 de `mensajes-whatsapp.test.ts` + 14 de `whatsapp-link.test.ts`).
+`npm run test:integracion`: **208/208**, sin cambio (el slice no tocó ninguna cadena del motor).
+`npx next build`: compiló limpio, 51/51 páginas, ninguna ruta de `app/(storefront)/` cambió de tipo
+(`ƒ`/`○` idénticos a antes de la tanda). `npx eslint` sobre los 7 archivos tocados: limpio. Arnés
+manual: `.scratch/verificar-mensajes-whatsapp.ts` (no commiteado) construyó los 8 estados de pedido +
+la ficha de cliente + el caso sin teléfono, imprimiendo el mensaje y el `href` DECODIFICADO de cada
+uno — confirma que el momento, el primer nombre y el enlace de rastreo salen correctos para
+`pago_pendiente`, `pago_confirmado` (con y sin envío), `en_camino` (incluida la contraentrega
+despachada sin pago), `entregado`, `otro` (cancelado y fallido) y la ficha sin pedido.
+
+### 6 · Deviations
+
+- **`npm run verificar:nayoli` no existe.** El spec lo pedía para confirmar que la tienda pública no
+  cambia; medido en `package.json`, ese script no está (ni ningún `verificar:*`). Sustituido por la
+  evidencia más fuerte disponible: `git status --porcelain` contra la rama entera muestra que NINGÚN
+  archivo bajo `app/(storefront)/` ni `components/storefront/` cambió — los 7 archivos del diff son
+  exactamente los de `touches:`, los otros seis de `packages/core`, `lib/admin`, `app/(admin)/` y
+  `components/admin/`. Más `next build` mostrando la misma lista de rutas del storefront, sin cambio
+  de tipo (`ƒ`/`○`).
+- **«Avisar por WhatsApp» es un SEGUNDO toast, no el MISMO** que el aviso de éxito — § 3, por la
+  frontera de `touches:` (los dos archivos que ya muestran el aviso de éxito quedan fuera del slice).
+  No es una desviación del CONTRATO (el botón sigue apareciendo al cambiar el estado), sólo de la
+  forma literal "junto al [mismo] aviso".
+- **La verificación visual en vivo del spec ("capturas") no se corrió.** Esta sesión no tiene
+  herramienta de navegador/captura de pantalla disponible; se sustituyó por el arnés de texto
+  (§ 5) que exhibe el mismo resultado —mensaje y `href` decodificado por momento— sin la interacción
+  visual del toast. El gate visual real queda para el owner, como con cualquier cambio de UI de este
+  repo (§ CLAUDE.md, Las tres capas de verificación).
+
+### 7 · `stopped_on: customer-bytes`, no se mergea
+
+El texto del mensaje de WhatsApp lo lee el CLIENTE, y las dos cadenas nuevas de UI ("Avisar por
+WhatsApp", "Abrir WhatsApp", "El mensaje ya quedó armado para este momento del pedido.") las lee el
+OPERADOR — las dos cuentan como bytes que alguien lee, por la definición amplia de merge policy A. El
+slice para en `AWAITING_APPROVAL`; no mergea.
+
+### Open follow-ups
+
+Ninguno nuevo encolado. `PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1` ya estaba nombrado por el owner y no
+se repite acá.

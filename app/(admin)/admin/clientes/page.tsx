@@ -11,6 +11,7 @@ import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
+import { mensajeWhatsappCliente } from '@/lib/admin/mensajes-whatsapp';
 import { toast } from 'sonner';
 import { getCustomers, getCustomer, deleteCustomer } from '@/lib/api/customers';
 import { ChipCanal } from '@/components/admin/ChipCanal';
@@ -481,9 +482,9 @@ function Detalle({ cliente, detalle, cargando, error, onEditar, onEliminar }: {
   const porAtender = cliente.pedidosPorAtender ?? 0;
   const badge = badgeAtencion(porAtender);
 
-  const nombre   = cliente.nombre?.trim();
-  const saludo   = nombre ? `Hola ${nombre}` : 'Hola';
-  const waHref   = customerWhatsappHref(cliente.telefono, `${saludo}, te escribimos de ${settings.nombre}.`);
+  // Ficha del cliente: sin pedido de por medio, así que es el saludo simple —
+  // sólo el primer nombre (`mensajeWhatsappCliente`, § lib/admin/mensajes-whatsapp).
+  const waHref   = customerWhatsappHref(cliente.telefono, mensajeWhatsappCliente(cliente.nombre, settings.nombre));
   const mailHref = cliente.email ? `mailto:${cliente.email}?subject=${encodeURIComponent(settings.nombre)}` : null;
 
   const contacto: { label: string; valor?: string | null }[] = [

@@ -40,6 +40,8 @@ import { NewOrderModal } from '@/components/admin/NewOrderModal';
 import { DateRangePicker, rangoLabel } from '@/components/admin/DateRangePicker';
 import { findSlotLabel } from '@duna/core/shipping-config';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
+import { mensajeWhatsappPedido, momentoDePedido, rastreoUrl } from '@/lib/admin/mensajes-whatsapp';
+import { avisarWhatsapp } from '@/components/admin/AvisarWhatsapp';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -124,6 +126,11 @@ function Pedidos() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  // El nombre de la tienda para el «Avisar por WhatsApp» que acompaña el cambio
+  // a pagado/en camino/entregado — ver `transicion` y el `onSaved` de
+  // `RegisterPaymentModal` más abajo. `Detalle` pide el suyo propio aparte: son
+  // dos componentes distintos, no un valor compartido.
+  const settings = useSiteSettings();
 
   const [pedidos, setPedidos]   = useState<Order[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -320,6 +327,25 @@ function Pedidos() {
       setPedidos(prev => prev.map(o => o.shipping?.id === sh.id ? { ...o, shipping: sh } : o));
       setDetalle(prev => prev && prev.shipping?.id === sh.id ? { ...prev, shipping: sh } : prev);
       repreguntar();
+      // «Avisar por WhatsApp», ACOMPAÑANDO el "Estado actualizado" que ya pone
+      // el hook (`useTransicionEntrega`, fuera de los archivos de este slice) —
+      // sólo en las dos transiciones que son un momento nuevo para el cliente
+      // (en camino, entregado). "fallido" no entra: no es uno de los tres que
+      // pide el spec. `sh.order` lo trae el PATCH de `/api/shippings/[id]`.
+      if (sh.estado === 'en_ruta' || sh.estado === 'entregado') {
+        const origen = typeof window !== 'undefined' ? window.location.origin : '';
+        const numeroOrden = sh.order?.numero_orden ?? '';
+        const mensaje = mensajeWhatsappPedido(
+          { shippingEstado: sh.estado },
+          {
+            nombreCompleto: sh.order?.cliente_nombre ?? null,
+            tienda: settings.nombre,
+            numeroOrden,
+            rastreo: sh.estado === 'en_ruta' && numeroOrden ? rastreoUrl(origen, numeroOrden) : null,
+          },
+        );
+        avisarWhatsapp(customerWhatsappHref(sh.order?.cliente_telefono ?? null, mensaje));
+      }
     },
     onError: (e) => errorAccion.mostrar(e, 'No se pudo actualizar la entrega'),
   });
@@ -806,6 +832,20 @@ function Pedidos() {
             // pagada, envío auto-creado, comprobante VERIFICADO— la trae el servidor.
             repreguntar();
           }
+          // «Avisar por WhatsApp», ACOMPAÑANDO el "Pago registrado…" que ya puso
+          // el modal (fuera de `touches:` de este slice). Las DOS ramas de arriba
+          // terminan con la orden pagada, así que el momento es siempre el mismo
+          // — se usa `cobrando` (la orden abierta en el modal, capturada antes de
+          // que `onClose` la limpie) para el teléfono y el nombre del cliente.
+          if (cobrando) {
+            avisarWhatsapp(customerWhatsappHref(
+              cobrando.cliente_telefono ?? null,
+              mensajeWhatsappPedido(
+                { estado: 'pagado' },
+                { nombreCompleto: cobrando.cliente_nombre, tienda: settings.nombre, numeroOrden: cobrando.numero_orden },
+              ),
+            ));
+          }
         }}
       />
       <ConfirmDeleteDialog
@@ -925,9 +965,26 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   // abre el número al que el cliente pidió que se le escribiera por ESTE pedido.
   // `null` si el teléfono no es un celular válido: sin acción que ofrecer, no se
   // pinta un botón muerto.
+  //
+  // El MENSAJE sigue el momento del pedido (pago pendiente/confirmado, en
+  // camino con el enlace de rastreo, entregado) — `fuente` porque el envío
+  // puede llegar recién con el detalle, no con la lista. El enlace de rastreo
+  // sólo se arma si hace falta (en camino): no cuesta nada en los demás casos.
+  const momentoOrigen = typeof window !== 'undefined' ? window.location.origin : '';
+  const waMomento = momentoDePedido({ estado: fuente.estado, shippingEstado: fuente.shipping?.estado ?? null });
   const waHref = customerWhatsappHref(
     orden.cliente_telefono,
-    `Hola ${orden.cliente_nombre}, te escribimos de ${settings.nombre} por tu pedido ${orden.numero_orden}`,
+    mensajeWhatsappPedido(
+      { estado: fuente.estado, shippingEstado: fuente.shipping?.estado ?? null },
+      {
+        nombreCompleto: orden.cliente_nombre,
+        tienda: settings.nombre,
+        numeroOrden: orden.numero_orden,
+        rastreo: waMomento === 'en_camino'
+          ? rastreoUrl(momentoOrigen, orden.numero_orden, orden.cliente_email ?? null)
+          : null,
+      },
+    ),
   );
 
   // El método REAL manda sobre el previsto: el pago que existe gana sobre la
