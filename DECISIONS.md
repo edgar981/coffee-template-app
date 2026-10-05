@@ -54044,3 +54044,170 @@ capacidad nueva es real código que corre para cualquier tenant que agregue una 
 hoy esté inerte para Nayoli.
 
 **Cierra `SECCIONES-CARRUSEL-1`.**
+
+## 2026-10-05 — Dos errores del owner en el editor: el titular alinea a medias, Destacado se queda con el café anterior (`EDITOR-ARREGLOS-TITULAR-DESTACADO-1`)
+
+### El cambio
+
+**Bug 1 — el titular se alinea a medias (hero·sticky).** Reproducido ANTES de tocar código con
+Playwright contra el markup real (`.scratch/titular-repro.html` + `.scratch/medir-titular.mjs`, no
+comiteados): en `HeroMediaMarquesina.tsx` el `<h2>` del titular es un ítem flex bajo `items-start`
+en DOS niveles (la zona + el cluster), así que su caja se encoge a la línea MÁS LARGA de
+`titulo`+`tituloEnfasis` (CSS Flexbox §9.4: un ítem no-`stretch` trata `width:auto` como
+`fit-content`, sin importar cuán ancho sea su contenedor) — `text-align` sólo tenía espacio para
+mover la línea más CORTA. Medido: con alineación "centro", la línea larga quedaba fija en
+`left:32` (el borde de la caja, igual a su propio ancho) mientras la corta se desplazaba a `left:64`
+— exactamente "sólo la mitad de la frase".
+
+El arreglo: `necesitaAnchoCompleto(estilo)` (`lib/config/estilo-elemento.ts`) decide SI hace falta
+ensanchar (`alinear !== null`); `w-full` ENCADENADO en los tres niveles (zona → cluster → `<h2>`)
+—condicionado a ese booleano— le da al titular el ancho real de su zona (hasta el tope
+`max-w-[48vw] sm:max-w-xs` que ya existía, puesto a propósito para no alcanzar "la frase al pie").
+Re-medido tras el fix: las dos líneas centran/alinean alrededor del MISMO punto de la caja ensanchada.
+**Sin alineación guardada (Nayoli hoy), CERO clases nuevas — byte-idéntico**, afirmado por test y
+por el gate visual (abajo). **Subtítulo y botones SE REVISARON y NO comparten el bug** (pedido
+explícito del spec): el subtítulo usa `max-w-[28ch]` SIN `<br/>` forzado, así que su wrap natural ya
+da una caja de ancho CONSISTENTE entre líneas (medido: tres líneas envueltas centran alrededor del
+mismo punto, sin el fix); los botones son texto de una sola línea en una píldora `inline-flex`, sin
+caso multi-línea que alinear. **Las otras tres composiciones (curtina/ficha/media) se midieron y NO
+tienen el bug**: su titular es un `<h1>` BLOQUE normal (no flex), hijo de un contenedor cuyo ancho
+YA es definido (no shrink-to-fit) — confirmado por test (`renderToStaticMarkup`, HTML idéntico con y
+sin alineación salvo el `style` del propio `<h1>`).
+
+### Bug 2 — Destacado: el nombre se queda en el producto anterior
+
+Dos causas, las DOS confirmadas por lectura de código y cerradas:
+
+- **(b), la causa DIRECTA y suficiente para el síntoma reportado:** `nombreCafeSpotlight`
+  (`lib/config/spotlight.ts`) da preferencia A PROPÓSITO al override editorial `spotlight.nombreCafe`
+  sobre el nombre derivado del producto — correcto mientras el PIN (`productoSlug`) sea el MISMO
+  café (es lo que permite que el nombre "no cambie al elegir otra presentación o tamaño", su propio
+  hint en `tienda-secciones.ts`). Pero el picker "Producto destacado" (`ProductoCombobox` dentro de
+  `TiendaSeccionEditor.tsx`) sólo escribía `{ productoSlug: v }` — nunca limpiaba `nombreCafe` — así
+  que al cambiar a OTRO café el override del café VIEJO seguía ganando. `parcialAlCambiarPinSpotlight`
+  (`spotlight.ts`) ahora devuelve `{ productoSlug, nombreCafe: '' }`; el picker lo aplica SÓLO para
+  `seccion==='spotlight' && campo.name==='productoSlug'` — los otros tres punteros del grupo
+  (presentación/tamaño/cuarto, el MISMO café en otra talla) NO lo disparan, por diseño declarado.
+- **(a), un defecto RELACIONADO que el spec pidió revisar y arreglar igual:** el campo flotante
+  (`EditorPuenteVivo.tsx`) captura `nodo.textContent` UNA vez al abrirse; si el panel cambia el
+  contenido de esa MISMA sección mientras el campo sigue abierto (p. ej. el picker de arriba
+  limpiando `nombreCafe`), el overlay queda mostrando el valor VIEJO aunque el nodo real (oculto
+  detrás) ya se actualizó. **NO se puede cerrar sobre la sola llegada de un mensaje de la sección**:
+  el panel reenvía el FORM ENTERO tras CADA cambio (`TiendaSeccionEditor.tsx`, el efecto `onCambio`),
+  incluido el ECO de la propia tecla del campo abierto — cerrar ahí rompería el tecleo en la primera
+  tecla. `contenidoDivergeDeCampoAbierto` (`lib/storefront/editor-puente.ts`) sólo compara el VALOR:
+  si lo que llega para la ruta abierta coincide con lo que el overlay ya muestra (el eco), no hace
+  nada; si difiere (un cambio ajeno), cierra. Se sumó además un cierre por `blur` de `window` (el
+  foco saliendo del iframe hacia el panel) — el otro camino por el que el dueño puede dejar el campo
+  abierto y mirando a otro lado.
+
+### Tests nuevos, vistos fallar sin el arreglo
+
+`git stash` de los 6 archivos de implementación (dejando los tests nuevos en pie) → **12/208
+fallan** en `estilo-elemento.test.ts`/`spotlight.test.ts`/`hero-marquesina.test.ts`/
+`editor-puente.test.ts` (funciones inexistentes, y el conteo de `w-full` da 0 en vez de 3) →
+`git stash pop` → **255/255** (el set de 6 archivos de `touches:`) y **3784/3784** (`npm test`
+completo). Nombrados: `necesitaAnchoCompleto` (3 tests), 4 tests de render de hero-marquesina (sin
+alinear / centro / izquierda-derecha / las otras 3 variantes intactas), `parcialAlCambiarPinSpotlight`
+(3 tests) + el invariante que encadena con `nombreCafeSpotlight`, `contenidoDivergeDeCampoAbierto`
+(4 tests) + la cadena completa que encadena con `fusionarContenidoSeccion` + `parcialAlCambiarPinSpotlight`.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores |
+| `npm test` | **3784/3784** |
+| `npm run test:integracion` | **356/356** |
+| `npm run verificar:nayoli:visual` | ver abajo — hallazgo AJENO a este diff, medido y atribuido |
+
+### `npm run verificar:nayoli:visual` — hallazgo medido, NO atribuible a este slice
+
+Corrido DOS veces (una junto al carril de integración, otra en AISLAMIENTO total tras confirmar que
+no quedaba ningún proceso concurrente) — **las DOS corridas dieron la MISMA cifra exacta**, lo que
+descarta ruido de contención como causa:
+
+- `ruta:home` → DIFIERE 165.052/4.608.000 px (consciente de AA), 174.711 crudo, caja
+  `[105,862]–[1183,3581]`.
+- `ruta:tienda`/`producto`/`checkout`/`nosotros`/`suscripciones` → cada una DIFIERE exactamente
+  163/… px (consciente), 361 crudo, caja de 96×10px, **la MISMA cifra en las cinco**.
+- `hover:automatica`/`hover:eleccion` → IDÉNTICO (0px).
+
+**Esto NO es el piso documentado `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (164.889/174.350,
+`[105,862]–[1183,3166]`) — es ESE piso MÁS un incremento UNIFORME de +163/+361 en las SEIS rutas.
+Recortada y ampliada la caja de `ruta:tienda` (`.scratch/verificar-nayoli-visual/capturas/{main,
+rama}/ruta-tienda.png`, no comiteadas): el texto que aparece en `rama` y NO en `main` es
+**"…rvados. · Hecho por Duna"** — el crédito del pie de página.
+
+**Confirmado por lectura de árbol, no por sospecha:** `git show origin/main:components/storefront/
+StoreFooter.tsx | grep "Hecho por Duna"` → CERO coincidencias (el crédito no existe en `main`
+todavía). `git show b6826a2:components/storefront/StoreFooter.tsx | grep "Hecho por Duna"` → **SÍ
+existe** — `b6826a2` es la punta de `slice/editor-secciones-1` ANTES de este commit (el `HEAD` de
+`SECCIONES-CARRUSEL-1`, el slice inmediatamente anterior). El crédito lo sumó `§
+PIE-HECHO-POR-DUNA-1` (2026-10-02, su propio comentario de cabecera en `StoreFooter.tsx:79`), una
+tanda ANTERIOR en esta misma rama — `touches:` de este slice no incluye `StoreFooter.tsx` ni
+`lib/config/site-content-defaults.ts` (donde vive el default del crédito), y ninguno de los 10
+archivos que sí toco se renderiza en `/tienda`, `/checkout`, `/nosotros` ni `/suscripciones` para un
+visitante normal (ninguno de los dos componentes de storefront que toco —`HeroMediaMarquesina.tsx`,
+`EditorPuenteVivo.tsx`— aparece en esas rutas; el segundo además hace `return null` de inmediato
+fuera de modo editor, el 99.99% del tráfico).
+
+**El piso `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` está VENCIDO** (§ CLAUDE.md, "esta lista vence…
+no confunde a quien lee, deja pasar", la misma familia de defecto aplicada acá a un piso de
+verificación en vez de a una lista de superficies): quedó documentado antes de que
+`PIE-HECHO-POR-DUNA-1` aterrizara en esta rama, y ningún slice posterior lo re-midió contra el
+crédito nuevo pese a reportar "idéntico, dígito a dígito" (`SECCIONES-TIPOS-3`, `SECCIONES-
+CARRUSEL-1`) — esos reportes probablemente corrieron el arnés ANTES de que el crédito se mergeara a
+la rama, o lo corrieron y no notaron el incremento uniforme de +163px por no cotejarlo pixel a pixel
+contra la cifra exacta. **No se re-mide ni se cierra acá** — está fuera de `touches:` de este slice
+(no toco `StoreFooter.tsx` ni su default) y no es category del bug que vine a arreglar. Queda como
+open follow-up nombrado abajo.
+
+### Open follow-ups
+
+- `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1-ACTUALIZAR`: el piso documentado de `verificar:nayoli:
+visual` quedó vencido por `PIE-HECHO-POR-DUNA-1` (+163/+361 px uniforme en las 6 rutas, el crédito
+"Hecho por Duna" del pie). Re-medir y re-documentar la cifra nueva como el piso vigente — o decidir
+si el crédito debe excluirse del scope de "Nayoli byte-idéntico" por ser presentación nueva
+aceptada. No es trabajo de este slice (no toca `StoreFooter.tsx`).
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grep de los símbolos/archivos que este diff cambia (`HeroMediaMarquesina`, `estilo-elemento`,
+`necesitaAnchoCompleto`, `nombreCafeSpotlight`, `editor-puente`, `EditorPuenteVivo`,
+`TiendaSeccionEditor`, `ProductoCombobox`, `titularAlineado`, `parcialAlCambiarPinSpotlight`,
+`contenidoDivergeDeCampoAbierto`, `Spotlight.tsx`, `CampoEditable`) contra `CLAUDE.md`: **sin
+coincidencias** para los símbolos propios de este slice ni para `estilo-elemento.ts`/
+`editor-puente.ts`/`EditorPuenteVivo.tsx`/`Spotlight.tsx`/`CampoEditable` — ninguno aparece en la
+doctrina (es arquitectura del editor de secciones que nació DESPUÉS de la última vez que esa
+sección de CLAUDE.md se tocó). `TiendaSeccionEditor` SÍ aparece (6 líneas), pero las seis describen
+mecanismos AJENOS a lo que este diff toca (el contrato de borrador de Paleta, el modelo de bloques,
+el puente vista→formulario de Presentaciones, el uploader de imágenes, `categoriasListas`/
+`CategoriaCombobox`) — ninguna queda falsificada por este diff, que sólo agrega una rama en el
+`onChange` del picker de producto (`campo.producto`), un control DISTINTO del que esas seis líneas
+describen. **Ningún resultado del grep queda falsificado por este diff.**
+
+### `customer_bytes`
+
+**`changed: true`** (el eje es la RAMA, no el commit — § CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1).
+`HeroMediaMarquesina.tsx` gana una rama condicional (`titularAlineado`) que, SI un tenant configura
+`hero.estilos.titulo.alinear`, cambia el HTML servido a un visitante real (clases `w-full` nuevas +
+el `text-align` que ya existía). **`strings: []`** — no hay texto nuevo, es un cambio de ROBUSTEZ
+(arregla el layout de un dato que YA se podía guardar, no agrega copy). Para Nayoli, HOY,
+**byte-idéntico** (medido: `necesitaAnchoCompleto` da `false` sin alineación guardada, y Nayoli no
+tiene ninguna configurada — confirmado por el gate visual de arriba, el ÚNICO drift medido es el
+crédito del pie, ajeno a este diff). El resto del diff (`EditorPuenteVivo.tsx`,
+`TiendaSeccionEditor.tsx`, los módulos `lib/` puros) es admin-only o inerte fuera de modo editor.
+
+### `schema`/`cross-repo-contract`
+
+**`schema`: no** — sin cambios a `packages/core/prisma/schema.prisma` ni migraciones. **Sin
+cross-repo-contract**: ningún DTO ni contrato compartido con otro repo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — `HeroMediaMarquesina.tsx` gana una
+capacidad real (alineación del titular que ensancha el marcado) que corre para cualquier tenant que
+la configure, aunque hoy esté inerte para Nayoli. Mismo eje que el resto de esta rama.
+
+**Cierra `EDITOR-ARREGLOS-TITULAR-DESTACADO-1`.**
