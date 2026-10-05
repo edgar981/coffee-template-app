@@ -577,7 +577,7 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
             aria-label="Navegar"
             title={navegando
               ? 'Los clics navegan de verdad, como un visitante — desactiva para volver a seleccionar secciones'
-              : 'Los clics seleccionan la sección que tocás — activa para usar la tienda como un visitante'}
+              : 'Los clics seleccionan la sección que tocas — activa para usar la tienda como un visitante'}
           >
             <Navigation aria-hidden />
           </button>

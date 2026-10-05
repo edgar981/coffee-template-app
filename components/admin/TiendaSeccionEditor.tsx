@@ -1324,7 +1324,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         )}
         {productoInexistente && (
           <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
-            Este producto ya no existe en el catálogo — elegí uno de la lista.
+            Este producto ya no existe en el catálogo — elige uno de la lista.
           </p>
         )}
         {ejesProducto && (

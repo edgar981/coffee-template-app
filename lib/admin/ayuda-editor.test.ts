@@ -116,3 +116,74 @@ test('buscarAyuda sin coincidencias devuelve listas vacías, no lanza', () => {
   const r = buscarAyuda('xyzxyzxyz-no-existe');
   assert.deepEqual(r, { guias: [], preguntas: [] });
 });
+
+// EL COPY VA EN TUTEO COLOMBIANO, NUNCA VOSEO (§ CLAUDE.md, "El COPY va en TUTEO colombiano").
+// Este test recorre TODO el texto de cara al dueño de la tienda —título, resumen, cada paso y su
+// secuencia, palabras clave, preguntas/respuestas y atajos— y falla si encuentra una forma de
+// voseo. La lista son las formas acentuadas típicas que ya mordieron tres tandas seguidas (§
+// CLAUDE.md, el barrido de grep de esa sección) más las que este mismo archivo tuvo en voseo
+// antes de corregirse (tocá, podés, elegí, cambiás, fijate, agregá…).
+const FORMAS_VOSEO = [
+  'tocá', 'tocás', 'podés', 'elegí', 'elegís', 'usá', 'usás', 'subí', 'subís',
+  'abrí', 'abrís', 'escribí', 'escribís', 'mirá', 'mirás', 'volvé', 'volvés',
+  'hacé', 'hacés', 'poné', 'ponés', 'pasá', 'pasás', 'cambiá', 'cambiás',
+  'quitá', 'quitás', 'agregá', 'agregás', 'publicá', 'publicás', 'descartá',
+  'descartás', 'buscá', 'buscás', 'querés', 'necesitás', 'sabés', 'tenés',
+  'probá', 'probás', 'dejá', 'dejás', 'mandá', 'mandás', 'arrastrá', 'arrastrás',
+  'editá', 'editás', 'guardá', 'guardás', 'iniciá', 'iniciás', 'apretá', 'apretás',
+  'seguís', 'arrepentís', 'fijate', 'acordate', 'revisá', 'revisás',
+] as const;
+// `\b` NO sirve acá: en JS una vocal acentuada (á/é/í) no es `\w`, así que `\btocá\b` matchea
+// adentro de "tocándolos" o "escribía" — el límite real es "no hay otra LETRA (acentuada o no)
+// antes/después", no el límite de palabra ASCII de `\b`.
+const LETRA = 'a-zA-ZáéíóúñÁÉÍÓÚÑ';
+const REGEX_VOSEO = new RegExp(`(?<![${LETRA}])(${FORMAS_VOSEO.join('|')})(?![${LETRA}])`, 'i');
+
+function textosDeGuia(g: (typeof GUIAS_AYUDA)[number]): { campo: string; texto: string }[] {
+  const textos = [
+    { campo: 'titulo', texto: g.titulo },
+    { campo: 'resumen', texto: g.resumen },
+    ...g.palabrasClave.map((k) => ({ campo: 'palabrasClave', texto: k })),
+  ];
+  g.pasos.forEach((p, i) => {
+    textos.push({ campo: `pasos[${i}].texto`, texto: p.texto });
+    (p.secuencia ?? []).forEach((s, j) => textos.push({ campo: `pasos[${i}].secuencia[${j}]`, texto: s }));
+  });
+  return textos;
+}
+
+test('ninguna guía usa voseo — todo el texto va en tuteo colombiano', () => {
+  for (const g of GUIAS_AYUDA) {
+    for (const { campo, texto } of textosDeGuia(g)) {
+      const m = texto.match(REGEX_VOSEO);
+      assert.equal(m, null, `guía "${g.id}" (${campo}) usa voseo ("${m?.[0]}"): "${texto}"`);
+    }
+  }
+});
+
+test('ninguna pregunta frecuente usa voseo', () => {
+  for (const p of PREGUNTAS_FRECUENTES) {
+    const campos = [
+      { campo: 'pregunta', texto: p.pregunta },
+      { campo: 'respuesta', texto: p.respuesta },
+      ...(p.palabrasClave ?? []).map((k) => ({ campo: 'palabrasClave', texto: k })),
+    ];
+    for (const { campo, texto } of campos) {
+      const m = texto.match(REGEX_VOSEO);
+      assert.equal(m, null, `pregunta "${p.id}" (${campo}) usa voseo ("${m?.[0]}"): "${texto}"`);
+    }
+  }
+});
+
+test('ningún atajo de teclado usa voseo', () => {
+  for (const a of ATAJOS_TECLADO) {
+    const campos = [
+      { campo: 'combinacion', texto: a.combinacion },
+      { campo: 'accion', texto: a.accion },
+    ];
+    for (const { campo, texto } of campos) {
+      const m = texto.match(REGEX_VOSEO);
+      assert.equal(m, null, `atajo "${a.id}" (${campo}) usa voseo ("${m?.[0]}"): "${texto}"`);
+    }
+  }
+});

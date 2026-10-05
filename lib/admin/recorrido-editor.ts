@@ -42,7 +42,7 @@ export const PASOS_RECORRIDO: PasoRecorrido[] = [
   {
     id: 'lienzo',
     titulo: 'El lienzo',
-    frase: 'Acá ves tu tienda real. Tocá cualquier texto o foto para editarla directo, donde está.',
+    frase: 'Acá ves tu tienda real. Toca cualquier texto o foto para editarla directo, donde está.',
   },
   {
     id: 'panel',
@@ -52,7 +52,7 @@ export const PASOS_RECORRIDO: PasoRecorrido[] = [
   {
     id: 'hero',
     titulo: 'El hero y sus zonas',
-    frase: 'Es la portada de tu tienda. Tiene zonas con nombre —Titular, Subtítulo, Botones— que podés llenar o vaciar sin perder el resto.',
+    frase: 'Es la portada de tu tienda. Tiene zonas con nombre —Titular, Subtítulo, Botones— que puedes llenar o vaciar sin perder el resto.',
   },
   {
     id: 'agregar-seccion',
@@ -62,7 +62,7 @@ export const PASOS_RECORRIDO: PasoRecorrido[] = [
   {
     id: 'estilo',
     titulo: 'Estilo',
-    frase: 'Acá cambiás los colores y las letras de TODA tu tienda, de un solo lugar.',
+    frase: 'Acá cambias los colores y las letras de TODA tu tienda, de un solo lugar.',
   },
   {
     id: 'telefono',
@@ -72,7 +72,7 @@ export const PASOS_RECORRIDO: PasoRecorrido[] = [
   {
     id: 'publicar',
     titulo: 'Publicar',
-    frase: 'Cuando termines, tocá «Publicar»: te muestra en palabras qué va a cambiar antes de que se vea en tu tienda real.',
+    frase: 'Cuando termines, toca «Publicar»: te muestra en palabras qué va a cambiar antes de que se vea en tu tienda real.',
   },
 ];
 

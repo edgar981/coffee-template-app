@@ -215,7 +215,7 @@ velo SÍ pinta, más allá de lo que un ojo humano puede jurar mirando una captu
   nadie va a mantener sincronizadas.
 - **No escribir tecnicismos del código** («iframe», «borrador JSON», «slug», «modo editor»). El
   lector de esto es quien VENDE, no quien programa — «se guarda solo», «lo que ve un cliente»,
-  «elegís un archivo».
+  «eliges un archivo».
 - **No inventar un atajo, un formato aceptado o un tope de peso que no esté en el código.** Cada
   afirmación de este archivo (JPG/PNG/WebP, MP4/WebM/.mov, los dos atajos, el tope de video) se
   verificó contra `constants/upload.ts` y los dos `onKeyDown` reales antes de escribirse — no se
