@@ -19,6 +19,9 @@ import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { Riel, type HerramientaRiel } from '@/components/admin/editor/Riel';
 import { VistaNueva } from '@/components/admin/editor/VistaNueva';
 import { ResumenPublicar } from '@/components/admin/editor/ResumenPublicar';
+import { RecorridoEditor } from '@/components/admin/editor/RecorridoEditor';
+import { OfertaRecorrido } from '@/components/admin/editor/OfertaRecorrido';
+import { CLAVE_RECORRIDO_VISTO, recorridoEstaVisto } from '@/lib/admin/recorrido-editor';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
@@ -177,6 +180,45 @@ export default function EditorTiendaPantallaCompleta() {
     try { localStorage.setItem(CLAVE_DISPOSITIVO_EDITOR, d); } catch { /* no-op, ver arriba */ }
   }, []);
 
+  // § EDITOR-AYUDA-RECORRIDO-1 — EL RECORRIDO GUIADO. `ofertaVisible` es el banner "¿Ves un
+  // recorrido de un minuto?" (sólo la PRIMERA VEZ que esta cuenta abre el editor, § el spec);
+  // `recorridoActivo` es el overlay de pasos en sí (`RecorridoEditor.tsx`). Los dos viven acá, no
+  // en `TiendaPaginas`, por la misma razón que `modo`: son del EDITOR entero, no de una página.
+  //
+  // LA MARCA DE "VISTO" SE ESCRIBE AL OFRECER, no al elegir un botón — una vez que el banner
+  // apareció, no vuelve a aparecer en esta cuenta, elija "Ver" o "Ahora no" (§ el spec: "se ofrece
+  // la PRIMERA VEZ"). `try/catch` alrededor de las dos operaciones de `localStorage` —leer y
+  // escribir—, mismo patrón que `elegirDispositivo`/`dispositivoDesdeStorage` arriba: sin storage
+  // (modo privado), se ofrece de nuevo la próxima vez y nada se rompe.
+  const [ofertaVisible, setOfertaVisible] = useState(false);
+  const [recorridoActivo, setRecorridoActivo] = useState(false);
+  useEffect(() => {
+    try {
+      if (recorridoEstaVisto(localStorage.getItem(CLAVE_RECORRIDO_VISTO))) return;
+      setOfertaVisible(true);
+      localStorage.setItem(CLAVE_RECORRIDO_VISTO, '1');
+    } catch {
+      // Modo privado / storage inaccesible: no se marca nada, así que se ofrece de nuevo la
+      // próxima vez — nunca revienta por esto.
+    }
+  }, []);
+
+  // AL INICIAR (desde la oferta o desde "Ver el recorrido" de Ayuda, § `AyudaCentro.tsx`), el
+  // recorrido normaliza el punto de partida a lo que SUS PRIMEROS DOS pasos necesitan —`modo:
+  // 'paginas'` y `pagina: 'home'`, para que el lienzo y el panel muestren la lista de secciones de
+  // Inicio en vez de Estilo/Ayuda—, pero NO toca `nivelActivo` (interno de `TiendaPaginas`, sin
+  // forma de resetearlo desde acá): si una sección ya estaba abierta, los pasos "hero"/"agregar
+  // sección" se saltan solos (§ RecorridoEditor.tsx, el mismo mecanismo que cualquier otra vez que
+  // un objetivo no está disponible) — el recorrido REFLEJA el editor, nunca lo reconfigura a fondo.
+  const iniciarRecorrido = useCallback(() => {
+    setModo('paginas');
+    setPagina('home');
+    setOfertaVisible(false);
+    setRecorridoActivo(true);
+  }, []);
+  const cerrarOferta = useCallback(() => setOfertaVisible(false), []);
+  const cerrarRecorrido = useCallback(() => setRecorridoActivo(false), []);
+
   // EL NOMBRE DE LA TIENDA en la barra (§ EDITOR-TIENDA-SHELL-1, REDISENO.md § 3: "nombre de la
   // tienda" junto al volver). `useSiteSettings()` ya tiene provider acá — lo monta
   // `app/(admin)/editor/layout.tsx` desde `EDITOR-TIENDA-TEMA-PROVEEDOR-1` — así que no hace falta
@@ -283,6 +325,10 @@ export default function EditorTiendaPantallaCompleta() {
                 title={`${label} · ${ANCHOS_DISPOSITIVO[key]}px`}
                 onClick={() => elegirDispositivo(key)}
                 className={`duna-seg__item${dispositivo === key ? ' is-on' : ''}`}
+                // § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="telefono"`: el objetivo del paso «Ver en
+                // el teléfono» del recorrido guiado. Sólo el botón de esta key lo lleva; en los
+                // demás el atributo queda `undefined` y React lo omite del DOM.
+                data-tour={key === 'telefono' ? 'telefono' : undefined}
               >
                 <Icon aria-hidden />
               </button>
@@ -370,6 +416,7 @@ export default function EditorTiendaPantallaCompleta() {
             modo={modo}
             onAbrirAyuda={abrirAyudaDesdeHijo}
             onEstadoGlobal={setEstadoGlobal}
+            onIniciarRecorrido={iniciarRecorrido}
           />
         </div>
       </div>
@@ -390,6 +437,14 @@ export default function EditorTiendaPantallaCompleta() {
           lugar lista ese catálogo.
         </p>
       </VistaNueva>
+
+      {/* § EDITOR-AYUDA-RECORRIDO-1 — la oferta y el recorrido en sí, nunca los dos a la vez: la
+          oferta se cierra (`cerrarOferta` vía `onCerrar`, o `iniciarRecorrido` vía `onVer`) antes de
+          que el recorrido pueda estar activo. */}
+      {ofertaVisible && !recorridoActivo && (
+        <OfertaRecorrido onVer={iniciarRecorrido} onCerrar={cerrarOferta} />
+      )}
+      <RecorridoEditor activo={recorridoActivo} onCerrar={cerrarRecorrido} />
     </div>
     </TooltipProvider>
   );

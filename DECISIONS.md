@@ -53110,3 +53110,133 @@ punta contra el PANEL, diez capturas + mediciones de `scrollWidth`/`clientWidth`
 orquestador. Commiteado en `slice/editor-secciones-1`, encima de `9ed42e5`.
 
 **Cierra `EDITOR-VISUAL-NIVELES-AJUSTE-1`.**
+
+---
+
+## 2026-10-04 — El editor gana un recorrido guiado de un minuto (`EDITOR-AYUDA-RECORRIDO-1`)
+
+Tier 2, `writes: yes`, `base: main` (policy: current-main), aprobado sobre el mismo pedido textual
+del owner del 2026-10-04 que ya autorizó `EDITOR-AYUDA-1` (*"necesito que me ayudes a construir la
+sección del editor que dice 'Ayuda'… porque seguramente no van a recordar todo cuando se les
+enseñe a usar o se haga la capacitación"*), `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`.
+La aprobación autoriza la escritura, nunca el merge. Sigue `slice/editor-secciones-1`, encima de
+`e1205c2` (`EDITOR-VISUAL-NIVELES-AJUSTE-1`). Complementa `EDITOR-AYUDA-1`: el centro de ayuda es
+la REFERENCIA (se busca), el recorrido es el REPASO (se sigue de principio a fin) — § el docstring
+nuevo en `docs/editor-tienda/AYUDA.md`.
+
+**Lo que se hizo:** siete pasos (lienzo, panel, el hero y sus zonas, agregar sección, estilo,
+teléfono, publicar), uno a la vez — el resto de la pantalla se atenúa con cuatro franjas que rodean
+el objetivo (técnica de "hueco por sustracción", nunca `clip-path`), un anillo marca el contorno, y
+un globo da título + frase corta + «N de 7» + Siguiente/Anterior/Saltar. Se ofrece una sola vez
+("¿Ves un recorrido de un minuto? Ver / Ahora no", marcado en `localStorage` AL OFRECER, no al
+elegir) y siempre está disponible como "Ver el recorrido (1 min)" dentro del centro de ayuda. Un
+paso cuyo objetivo no mide nada en ese momento (`display:none` o ausente del DOM) se salta solo —
+es el ÚNICO mecanismo de salto; el recorrido nunca fuerza `modo`/`pagina`/`nivelActivo` del editor
+para que un paso aparezca. Teclado: flecha derecha/izquierda, Esc. Movimiento reducido: las cuatro
+clases quedan sin animación bajo `prefers-reduced-motion: reduce` (hoy el salto entre pasos ya es
+instantáneo — la regla es una guarda para una futura entrada animada, no el fix de algo que hoy se
+mueve). El detalle completo —dónde vive cada pieza, por qué el "hueco" es por sustracción y no por
+recorte, los dos casos reales donde un paso se salta ("agregar sección"/"el hero" fuera de Inicio
+de home; "publicar" sin nada pendiente, porque `ResumenPublicar` sólo existe en el DOM con
+`pendientes > 0`)— vive en `docs/editor-tienda/AYUDA.md` § "El recorrido guiado", no se repite acá.
+
+**Archivos nuevos:** `lib/admin/recorrido-editor.ts` (dato puro: los 7 pasos + la geometría pura
+del resaltado — `objetivoDisponible`, `calcularFranjas`, `posicionGlobo`) y su test; `components/
+admin/editor/RecorridoEditor.tsx` (la mitad impura: busca `[data-tour]`, mide, dibuja) y
+`OfertaRecorrido.tsx` (el banner "¿Ves…?"). **Archivos modificados:** `TiendaPaginas.tsx` (los
+`data-tour` de lienzo/panel/hero/agregar-sección + el prop `onIniciarRecorrido` reenviado a
+`AyudaCentro`), `Riel.tsx` (el `data-tour` de Estilo, vía un prop `tour?: string` en `ItemRiel`),
+`ResumenPublicar.tsx` (el `data-tour` de Publicar), `EditorTiendaPantallaCompleta.tsx` (el estado
+del recorrido/oferta, el `data-tour` del dispositivo teléfono, normaliza `modo`/`pagina` al
+iniciar), `AyudaCentro.tsx` (la fila "Ver el recorrido (1 min)", reusando `FilaSeccion`). **`lib/
+admin/ayuda-editor.ts`/`.test.ts` estaban en `touches:` y NO se tocaron** — el recorrido no
+necesitó agregar ni cambiar ninguna guía existente (desviación del `touches:`, documentada abajo).
+
+**El test (`recorrido-editor.test.ts`) verifica CONTRA EL CÓDIGO, no contra el DOM renderizado**
+(el repo no tiene jsdom para `*.test.tsx`, § CLAUDE.md): cada paso tiene un patrón (`RegExp`) atado
+a la forma REAL en que su archivo escribe el atributo — literal (`data-tour="lienzo"`), condicional
+(`data-tour={cond ? 'hero' : undefined}`), o por indirección vía prop (`tour: 'estilo'` +
+`data-tour={tour}` en `Riel.tsx`) — sobre el código SIN COMENTARIOS. Se verificó que el test
+FALLA de verdad: corrompido el atributo de `panel` a mano (`data-tour="panelXX"`), el test lo
+atrapó con el mensaje exacto; revertido, vuelve a verde. Los comentarios del propio diff citan la
+forma literal del atributo en prosa (p. ej. `` `data-tour="hero"` `` dentro de un docstring) — si el
+test hubiera grepeado el archivo CRUDO (con comentarios), ese texto habría bastado para pasar sin
+que el código real wireara nada; por eso el test quita comentarios antes de buscar.
+
+### Chequeo mecánico contra CLAUDE.md
+
+Symbols/paths del diff grepeados contra CLAUDE.md (`grep -c`, cada uno por separado):
+`recorrido-editor`, `RecorridoEditor`, `OfertaRecorrido`, `data-tour`, `Riel.tsx`,
+`ResumenPublicar`, `AyudaCentro`, `EditorTiendaPantallaCompleta`, `editor.css`, `ayuda-editor`,
+`Ver el recorrido`, `CLAVE_RECORRIDO_VISTO`, `editor-tour` — **CERO** resultados cada uno (misma
+razón que `EDITOR-AYUDA-1` ya documentó arriba: toda esta arquitectura vive sólo en esta rama, sin
+mergear). `TiendaPaginas` da 4 resultados (líneas 2793, 2802, 2884, 4349) — los mismos cuatro que
+ya describían el lazy-mount de `/admin/tienda`, la consolidación del fetch a una sola lectura, el
+selector de página sin gate, y la carga del catálogo para categorías; ninguno describe el prop
+`onIniciarRecorrido` ni los atributos `data-tour` que este diff agrega — ninguno queda falso.
+
+### `customer_bytes`
+
+**`changed: true`** — la RAMA entera (`slice/editor-secciones-1` contra `main`) sigue teniendo
+73 archivos de `components/storefront/`/`app/(storefront)/` modificados (medido:
+`git diff --stat main...HEAD -- "app/(storefront)/" "components/storefront/"`, 12.365 inserciones),
+mismo eje que el resto de esta rama — **ninguno de ellos lo tocó ESTE commit**. `strings`: el texto
+visible que ESTE commit introduce es, de punta a punta, admin-only —los 7 títulos/frases del
+recorrido, "¿Ves un recorrido de un minuto? Ver / Ahora no", "Ver el recorrido (1 min)", "Anterior/
+Siguiente/Terminar/Saltar", el contador "N de 7"— ninguno de cara a un visitante del storefront; lo
+que hace que `changed` sea `true` para la rama es contenido introducido por commits ANTERIORES de
+la misma rama (CORTE-*, EDITOR-*), no por éste.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado. El
+recorrido no lee ni escribe `SiteContent`/`SiteSetting` — es contenido estático del propio código
+más una marca de `localStorage`.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama (§
+arriba). Gate completo verde, corrida única sobre el árbol final: `npm run typecheck` 0 errores ·
+`npm test` 3716/3716 (3700 de antes + 16 nuevos de `recorrido-editor.test.ts`) · `npm run
+test:integracion` 346/346, en ~24,5 s. `next build` compiló sin error (54 rutas, mismo conteo que
+antes — este slice no agrega páginas). eslint sobre los 10 archivos tocados: **0 errores, 5
+warnings** — 2 pre-existentes sin cambio (`TiendaPaginas.tsx:767` var no usada,
+`EditorTiendaPantallaCompleta.tsx` el efecto de `dispositivoDesdeStorage` que ya estaba) + 2 NUEVAS
+instancias del MISMO patrón ya aceptado en este repo para leer `localStorage` dentro de un efecto
+(`EditorTiendaPantallaCompleta.tsx` la oferta, `RecorridoEditor.tsx` el arranque de paso) +
+`editor.css` "file ignored" (no es objeto de eslint, mismo que siempre). Verificado contra
+`git show HEAD:<archivo> | eslint --stdin` archivo por archivo — ninguna categoría de warning nueva,
+sólo más instancias de una ya conocida.
+
+Arnés real de punta a punta (`.scratch/arnes-recorrido.ts`, no comiteado): Postgres efímero,
+`migrate deploy` + seed canónico, `next build`/`next start`, Playwright con sesión real
+(`admin@sierranativa.co`), viewport 1440×900. **16/16 verificaciones**: el ofrecimiento aparece la
+primera vez y NO reaparece tras recargar (la marca de "visto" se escribió al ofrecer); los 7 pasos
+se recorren con flecha derecha mostrando su título correcto, incluidos "El hero y sus zonas"/
+"Agregar sección" (sólo existen en Inicio de home — el recorrido arranca ahí porque
+`iniciarRecorrido` normaliza `modo`/`pagina`); "Anterior" retrocede un paso real; avanzar desde el
+último paso disponible SIN "Publicar" en pantalla (sin cambios pendientes, el botón no existe)
+cierra el recorrido solo — el mismo camino que "Terminar"; "Ver el recorrido" desde Ayuda reabre en
+el paso 1; Esc cierra a mitad de camino; "Saltar" cierra desde el principio. 4 capturas en
+`.scratch/capturas-recorrido/` (no comiteadas): el ofrecimiento, el paso 1 (lienzo), el paso 3
+(hero, el ring sobre la fila del panel) y el paso 5 (estilo, el globo cayendo a la derecha del riel
+angosto de 72px). El velo se verificó además por PÍXEL, no sólo al ojo: sampleado el PNG del paso 1
+con `pngjs` en `(200,400)` (dentro de la franja izquierda) dio `rgb(122,121,118)` — consistente con
+55% de opacidad oscura sobre el fondo crema del panel (`≈(249,246,240)·0.45`), confirmando que el
+velo pinta de verdad y no es sólo geometría correcta sin pintar (se verificó también la geometría
+cruda vía `getBoundingClientRect`/`getComputedStyle` antes de confiar en el ojo).
+
+`npm run verificar:nayoli:visual` NO corrido — fuera de alcance: este diff no toca un solo archivo
+de `components/storefront/` ni `app/(storefront)/` (medido, `git status` del commit).
+
+### Desviación de `touches:`
+
+`lib/admin/ayuda-editor.ts`/`.test.ts` estaban declarados en `touches:` y no se modificaron: el
+recorrido es una pieza PARALELA al centro de ayuda (comparten tono y la pestaña "Ayuda" del riel,
+pero no comparten dato) y no necesitó agregar, editar ni referenciar ninguna `GuiaAyuda` existente.
+Dejarlos sin tocar es la medida — tocar un archivo "porque estaba permitido" sin que el trabajo lo
+pidiera habría sido ruido sin motivo.
+
+Commiteado en `slice/editor-secciones-1`, encima de `e1205c2`.
+
+**Cierra `EDITOR-AYUDA-RECORRIDO-1`.**

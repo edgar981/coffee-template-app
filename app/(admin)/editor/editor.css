@@ -266,3 +266,42 @@
 .editor-ayuda-kbd { font: 500 11px var(--duna-font-mono); background: var(--duna-surface-2); color: var(--duna-ink-2);
                      border: 1px solid var(--duna-border); border-radius: var(--duna-r-s);
                      padding: 2px var(--duna-space-2); white-space: nowrap; flex-shrink: 0; }
+
+/* ─── EDITOR-AYUDA-RECORRIDO-1 ───────────────────────────────────────────────────────────────────
+   EL RECORRIDO GUIADO (`RecorridoEditor.tsx`): cuatro franjas opacas rodean el objetivo —arriba,
+   abajo, izquierda, derecha, § `calcularFranjas` (lib/admin/recorrido-editor.ts)— y dejan, por
+   SUSTRACCIÓN, el rectángulo resaltado sin nada encima: ahí se ve la parte real de la pantalla, a
+   brillo completo, sin tocar el z-index del elemento ni de su árbol. El anillo es sólo un borde
+   (`pointer-events:none`) que dibuja el contorno del hueco; el globo es el tooltip con título,
+   frase y Siguiente/Anterior/Saltar. */
+.editor-tour-franja { position: fixed; z-index: 70;
+                       background: color-mix(in oklab, var(--duna-ink) 55%, transparent);
+                       pointer-events: auto; }
+.editor-tour-anillo { position: fixed; z-index: 71; border: 2px solid var(--duna-ink); border-radius: var(--duna-r-m);
+                       box-shadow: 0 0 0 1px color-mix(in oklab, var(--duna-paper) 60%, transparent);
+                       pointer-events: none; }
+
+.editor-tour-globo { position: fixed; z-index: 72; padding: var(--duna-space-4); border-radius: var(--duna-r-l);
+                      background: var(--duna-surface); box-shadow: var(--duna-shadow-3); border: 1px solid var(--duna-border); }
+.editor-tour-globo:focus-visible { outline: none; box-shadow: var(--duna-shadow-3), var(--duna-ring); }
+.editor-tour-globo h3 { margin: 0; font: 600 14.5px/1.3 var(--duna-font-display); color: var(--duna-ink); }
+.editor-tour-globo p  { margin: var(--duna-space-2) 0 0; color: var(--duna-muted); font-size: 12.5px; line-height: 1.5; }
+.editor-tour-globo__contador { font: 500 11px var(--duna-font-mono); color: var(--duna-faint); }
+.editor-tour-globo__pie { margin-top: var(--duna-space-4); display: flex; align-items: center;
+                           justify-content: space-between; gap: var(--duna-space-2); }
+.editor-tour-globo__nav { display: flex; gap: var(--duna-space-2); }
+
+/* LA OFERTA (`OfertaRecorrido.tsx`) — abajo a la derecha, lejos de la barra superior y del riel. */
+.editor-tour-oferta { position: fixed; right: var(--duna-space-5); bottom: var(--duna-space-5); z-index: 60;
+                       display: flex; align-items: center; gap: var(--duna-space-3); max-width: 22rem;
+                       padding: var(--duna-space-3) var(--duna-space-4); border-radius: var(--duna-r-l);
+                       background: var(--duna-surface); box-shadow: var(--duna-shadow-3); border: 1px solid var(--duna-border); }
+
+/* MOVIMIENTO REDUCIDO: sin animaciones (el spec). Ninguna de estas clases anima hoy —el salto entre
+   pasos es instantáneo, sin transición—, pero la regla queda ESCRITA para que una futura transición
+   de entrada no se cuele sin su guarda, mismo criterio que `.curva-ahora-pulso` (duna.css). */
+@media (prefers-reduced-motion: reduce) {
+  .editor-tour-franja, .editor-tour-anillo, .editor-tour-globo, .editor-tour-oferta {
+    animation: none !important; transition: none !important;
+  }
+}

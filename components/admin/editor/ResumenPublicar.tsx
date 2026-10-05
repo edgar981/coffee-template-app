@@ -77,7 +77,12 @@ export function ResumenPublicar({
   return (
     <Popover open={abierto} onOpenChange={alAbrir}>
       <PopoverTrigger asChild>
-        <button type="button" className="duna-btn duna-btn--primary duna-btn--sm" disabled={deshabilitado}>
+        {/* § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="publicar"`: el objetivo del paso «Publicar» del
+            recorrido guiado (`RecorridoEditor.tsx`). Este botón sólo existe mientras `pendientes>0`
+            (`return null` arriba), así que ese paso se SALTA SOLO en un editor recién abierto sin
+            cambios sin publicar — comportamiento correcto, no un hueco: resaltar un botón que no
+            está en pantalla sería peor que no mostrarlo. */}
+        <button type="button" className="duna-btn duna-btn--primary duna-btn--sm" disabled={deshabilitado} data-tour="publicar">
           {procesando ? 'Publicando…' : (
             <>
               Publicar <span className="duna-badge duna-badge--attention">{pendientes}</span>

@@ -20,9 +20,12 @@ import { LayoutList, Palette, Image as ImageIcon, HelpCircle } from 'lucide-reac
 // el lienzo como «Medios». Dejó de estar deshabilitado: ya existe destino (§ AyudaCentro.tsx).
 export type HerramientaRiel = 'secciones' | 'estilo' | 'medios' | 'ayuda';
 
-const ITEMS: { clave: HerramientaRiel; label: string; Icon: ComponentType<{ 'aria-hidden'?: boolean }> }[] = [
+// `tour` (§ EDITOR-AYUDA-RECORRIDO-1, opcional): el valor del atributo `data-tour` que ubica este
+// ítem para el recorrido guiado (`RecorridoEditor.tsx`). Sólo «Estilo» lo lleva — es el único ítem
+// del riel que el recorrido resalta; los demás no lo necesitan.
+const ITEMS: { clave: HerramientaRiel; label: string; Icon: ComponentType<{ 'aria-hidden'?: boolean }>; tour?: string }[] = [
   { clave: 'secciones', label: 'Secciones', Icon: LayoutList },
-  { clave: 'estilo', label: 'Estilo', Icon: Palette },
+  { clave: 'estilo', label: 'Estilo', Icon: Palette, tour: 'estilo' },
   { clave: 'medios', label: 'Medios', Icon: ImageIcon },
 ];
 
@@ -30,12 +33,13 @@ const ITEMS: { clave: HerramientaRiel; label: string; Icon: ComponentType<{ 'ari
 // pinta «Ayuda» (antes era una segunda copia a mano, deshabilitada). La barra de posición y el
 // resaltado son IDÉNTICOS para los cuatro: «Ayuda» activa se ve exactamente como «Secciones»/
 // «Estilo» activas, no como un cuarto estado visual distinto.
-function ItemRiel({ label, Icon, on, onClick }: { label: string; Icon: ComponentType<{ 'aria-hidden'?: boolean }>; on: boolean; onClick: () => void }) {
+function ItemRiel({ label, Icon, on, onClick, tour }: { label: string; Icon: ComponentType<{ 'aria-hidden'?: boolean }>; on: boolean; onClick: () => void; tour?: string }) {
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={onClick}
+      data-tour={tour}
       style={{
         position: 'relative',
         display: 'flex',
@@ -81,8 +85,8 @@ export function Riel({ activo, onElegir }: { activo: HerramientaRiel; onElegir: 
         background: 'var(--duna-surface)',
       }}
     >
-      {ITEMS.map(({ clave, label, Icon }) => (
-        <ItemRiel key={clave} label={label} Icon={Icon} on={activo === clave} onClick={() => onElegir(clave)} />
+      {ITEMS.map(({ clave, label, Icon, tour }) => (
+        <ItemRiel key={clave} label={label} Icon={Icon} on={activo === clave} onClick={() => onElegir(clave)} tour={tour} />
       ))}
       {/* EDITOR-VISUAL-MARCO-1 (§ REDISENO.md § 3, prototipo: "Ayuda" abajo, separado por un
           espaciador — `.rail-sp` en el prototipo). § EDITOR-AYUDA-1 le da destino: el centro de

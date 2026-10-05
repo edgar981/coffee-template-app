@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Search, Sparkles, Type, Image as ImageIcon, LayoutList, Palette, Smartphone, UploadCloud } from 'lucide-react';
+import { Search, Sparkles, Type, Image as ImageIcon, LayoutList, Palette, Smartphone, UploadCloud, Compass } from 'lucide-react';
 import { Migas } from '@/components/admin/editor/Migas';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
@@ -23,6 +23,10 @@ export interface AyudaCentroProps {
   abierta: TemaAyudaId | null;
   onAbrir: (tema: TemaAyudaId) => void;
   onVolver: () => void;
+  /** § EDITOR-AYUDA-RECORRIDO-1 — "Ver el recorrido" (el spec: "desde Ayuda: «Ver el recorrido»
+   *  siempre"). Ausente = sin padre al que avisar (no debería ocurrir fuera de un test); en ese
+   *  caso la fila simplemente no se dibuja, en vez de un botón que no hace nada. */
+  onIniciarRecorrido?: () => void;
 }
 
 // Un ícono por tema — los mismos glifos que ya identifican «Secciones»/«Estilo» en el riel
@@ -61,7 +65,7 @@ function GuiaVista({ guia, onVolver }: { guia: GuiaAyuda; onVolver: () => void }
   );
 }
 
-export function AyudaCentro({ abierta, onAbrir, onVolver }: AyudaCentroProps) {
+export function AyudaCentro({ abierta, onAbrir, onVolver, onIniciarRecorrido }: AyudaCentroProps) {
   const [busqueda, setBusqueda] = useState('');
   const guia = abierta ? GUIAS_AYUDA.find((g) => g.id === abierta) ?? null : null;
 
@@ -125,6 +129,18 @@ export function AyudaCentro({ abierta, onAbrir, onVolver }: AyudaCentroProps) {
         </>
       ) : (
         <>
+          {/* § EDITOR-AYUDA-RECORRIDO-1 — "Ver el recorrido" (el spec: "desde Ayuda: «Ver el
+              recorrido» siempre"), ARRIBA de las guías: es el repaso de la capacitación, el primer
+              lugar al que alguien que se olvidó todo va a querer ir. Reusa `FilaSeccion` —el MISMO
+              componente que ya pinta cada guía abajo— en vez de inventar una fila nueva. */}
+          {onIniciarRecorrido && (
+            <div>
+              <div className="editor-rows">
+                <FilaSeccion icono={<Compass aria-hidden />} titulo="Ver el recorrido (1 min)" onAbrir={onIniciarRecorrido} />
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="editor-grp">Guías</div>
             <div className="editor-rows">

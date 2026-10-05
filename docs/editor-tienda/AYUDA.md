@@ -1,9 +1,15 @@
-# El centro de ayuda del editor (§ EDITOR-AYUDA-1)
+# El centro de ayuda del editor (§ EDITOR-AYUDA-1, § EDITOR-AYUDA-RECORRIDO-1)
 
 Este documento es para quien TOQUE el editor después de hoy, no para el dueño de la tienda — las
 guías mismas ya están escritas en su idioma (`lib/admin/ayuda-editor.ts`). Lo que sigue es el
 contrato: dónde vive el contenido, cómo se conecta a los niveles del panel, y qué hacer cuando el
 editor cambie para que una guía no quede describiendo algo que ya no existe.
+
+**Dos piezas, dos propósitos.** El centro de ayuda (§ arriba) es la REFERENCIA — se consulta
+cuando algo puntual se olvidó. El recorrido guiado (§ más abajo, "El recorrido guiado") es el
+REPASO de la capacitación — un paseo corto, de principio a fin, para quien recién abrió el editor
+o quiere refrescar el panorama completo. No son la misma pieza con dos entradas: una se busca, la
+otra se sigue.
 
 ## Por qué existe
 
@@ -95,6 +101,112 @@ Casos concretos, para que sea mecánico y no haya que redescubrir el criterio ca
   zonas) → `ayuda-editor.test.ts` falla solo si la guía sigue nombrando un nivel que ya no está en
   `NIVELES_PANEL` — córralo (`npm test -- lib/admin/ayuda-editor.test.ts`) antes de dar el cambio
   por terminado.
+
+## El recorrido guiado (§ EDITOR-AYUDA-RECORRIDO-1)
+
+Pedido del owner (2026-10-04, el mismo pedido que abrió `EDITOR-AYUDA-1`): quien capacita a alguien
+en el editor no puede repetir la capacitación cada vez que esa persona vuelve a abrirlo. El
+recorrido es ese repaso — siete partes, una a la vez, con una frase corta cada una — pensado para
+durar alrededor de un minuto si se lee sin apurarse.
+
+### Dónde vive el contenido
+
+**`lib/admin/recorrido-editor.ts`** — dato puro (sin React) + la geometría pura del resaltado:
+
+- **`PASOS_RECORRIDO`** — los siete pasos, EN ORDEN: lienzo, panel, el hero y sus zonas, agregar
+  sección, estilo, teléfono, publicar. Cada uno es `{ id, titulo, frase }`; `id` ES el valor del
+  atributo que lo ubica en el DOM (§ abajo) — no hay un segundo campo que pudiera divergir.
+- **`ATRIBUTO_RECORRIDO`** (`'data-tour'`) — el nombre del atributo. Un solo nombre, compartido por
+  quien lo ESCRIBE (`TiendaPaginas.tsx`, `Riel.tsx`, `ResumenPublicar.tsx`,
+  `EditorTiendaPantallaCompleta.tsx`) y quien lo LEE (`RecorridoEditor.tsx`).
+- **`objetivoDisponible`**, **`calcularFranjas`**, **`posicionGlobo`** — la geometría del
+  resaltado: si un objetivo mide algo, dónde van las cuatro franjas que lo rodean, y dónde cae el
+  globo sin salirse de la pantalla. Puras, testeadas sin montar nada (`recorrido-editor.test.ts`).
+- **`CLAVE_RECORRIDO_VISTO`** + **`recorridoEstaVisto`** — la marca de "ya se ofreció", en
+  `localStorage` por navegador. El `get`/`set` real vive en el componente
+  (`EditorTiendaPantallaCompleta.tsx`), envuelto en `try/catch` — mismo patrón que
+  `CLAVE_DISPOSITIVO_EDITOR`/`dispositivoDesdeStorage` (`editor-iframe.ts`): sin storage (modo
+  privado), se ofrece de nuevo la próxima vez y nada se rompe.
+
+### Cómo se resalta una parte — el "hueco" por sustracción, no por recorte
+
+`RecorridoEditor.tsx` busca `[data-tour="<id del paso>"]`, mide su `getBoundingClientRect()`, y
+dibuja CUATRO franjas opacas (arriba/abajo/izquierda/derecha del objetivo) que rodean ese
+rectángulo. Lo que queda SIN franja encima es, por construcción, la parte real de la pantalla —
+nunca se toca el z-index del elemento resaltado ni el de su árbol. Un anillo (sólo borde, sin
+relleno) marca el contorno; el globo (título + frase + «N de M» + Siguiente/Anterior/Saltar) se
+coloca abajo del objetivo si entra, si no arriba, si no a la derecha, si no a la izquierda, y si
+ninguno entra, centrado.
+
+### Un paso SIN objetivo disponible se salta SOLO
+
+Es el ÚNICO mecanismo de salto — el recorrido nunca fuerza `modo`/`pagina`/`nivelActivo` para que
+un paso aparezca; refleja el editor tal como está. `objetivoDisponible` trata un rect 0×0 igual
+que un elemento ausente del DOM (`display:none` colapsa el rect, no lo retira del árbol) — las dos
+cosas cuentan como "no disponible ahora". Dos casos reales, nombrados para que no se re-diagnostiquen:
+
+- **"El hero y sus zonas" / "Agregar sección"** no existen fuera de Inicio de la página home (sin
+  un nivel abierto). Si el recorrido arranca con una sección ya abierta, estos dos pasos se saltan.
+- **"Publicar"** (`ResumenPublicar.tsx`) sólo EXISTE en el DOM cuando hay algo pendiente de
+  publicar (`if (pendientes === 0) return null`). En un editor recién abierto, sin cambios, ese
+  paso se salta siempre — comportamiento CORRECTO, no un hueco: resaltar un botón ausente sería
+  peor que omitirlo. Verificado de punta a punta en el arnés real (§ abajo): avanzar desde el
+  último paso disponible, sin "Publicar" en pantalla, cierra el recorrido solo — el mismo camino
+  que el botón "Terminar".
+
+Al agregar un OCTAVO punto al recorrido algún día, la pregunta no es "¿existe siempre?" sino
+"¿qué pasa cuando no existe?" — si la respuesta es "se salta y no rompe nada", ya está cubierto por
+este mecanismo; si la respuesta es "hay que forzar el estado del editor", es una decisión nueva que
+no existe hoy.
+
+### Los dos puntos de entrada
+
+1. **La oferta** (`OfertaRecorrido.tsx`, "¿Ves un recorrido de un minuto? Ver / Ahora no") — SÓLO
+   la primera vez que una cuenta abre el editor en ESE navegador. La marca de "visto" se escribe al
+   OFRECER, no al elegir un botón: una vez que el banner apareció, no vuelve a aparecer, elija lo
+   que elija el dueño.
+2. **"Ver el recorrido (1 min)"** dentro del centro de ayuda (`AyudaCentro.tsx`, arriba de las
+   guías) — SIEMPRE disponible, sin condición. Reusa `FilaSeccion`, el mismo componente que ya
+   pinta cada guía.
+
+Los dos llaman al MISMO `iniciarRecorrido` (`EditorTiendaPantallaCompleta.tsx`), que normaliza el
+punto de partida a `modo: 'paginas'` / `pagina: 'home'` — para que el lienzo y el panel muestren la
+lista de Inicio en vez de Estilo/Ayuda — sin tocar `nivelActivo` (interno de `TiendaPaginas`, sin
+forma de resetearlo desde afuera): si una sección ya estaba abierta, los pasos que la necesitan se
+saltan solos (§ arriba), nunca se fuerza a cerrarla.
+
+### Teclado y movimiento reducido
+
+Flecha derecha/izquierda avanzan/retroceden (saltando los pasos sin objetivo); Esc cierra desde
+cualquier punto, igual que "Saltar". `@media (prefers-reduced-motion: reduce)` en `editor.css`
+apaga cualquier animación/transición de las cuatro clases del recorrido — hoy el salto entre pasos
+ya es instantáneo (sin transición), así que la regla es una guarda para una futura entrada animada,
+no un fix de algo que hoy se mueve.
+
+### Cuándo actualizar — la misma regla que las guías
+
+**Un paso que resalta algo que ya no existe, o cuyo `id`/archivo se renombró, lo atrapa
+`recorrido-editor.test.ts`** (corre contra el CÓDIGO de cada archivo, sin comentarios — el repo no
+tiene jsdom para `*.test.tsx`, así que no se puede verificar contra el DOM renderizado). Si un
+`data-tour` se mueve de archivo o cambia de idioma de escritura (literal / `{cond ? 'id' :
+undefined}` / por indirección vía prop), actualizar el mapa `PATRON_DEL_PASO` del test en el MISMO
+commit — no basta con que el atributo siga existiendo en ALGÚN lado del repo.
+
+### Verificación de sesión real
+
+Arnés de punta a punta (`.scratch/arnes-recorrido.ts`, no comiteado): Postgres efímero, `migrate
+deploy` + seed canónico, `next build`/`next start`, Playwright con sesión real
+(`admin@sierranativa.co`), viewport 1440×900. 16/16 verificaciones: el ofrecimiento aparece la
+primera vez y no reaparece tras recargar; los siete pasos (con sus títulos) se recorren con flecha
+derecha, incluidos "Agregar sección"/"El hero y sus zonas" (sólo existen en Inicio de home);
+"Anterior" retrocede; avanzar sin "Publicar" disponible cierra solo; "Ver el recorrido" desde Ayuda
+reabre en el paso 1; Esc cierra a mitad de camino; "Saltar" cierra desde el principio. Capturas en
+`.scratch/capturas-recorrido/` (no comiteadas): el ofrecimiento, el paso 1 (lienzo), el paso 3
+(hero, con su ring sobre la fila del panel) y el paso 5 (estilo, con el globo cayendo a la derecha
+del riel angosto). La dimensión del resaltado (franjas/geometría) se verificó además por PÍXEL,
+no sólo visualmente: sampleado el PNG del paso 1, el área fuera del objetivo da un gris medio
+(`rgb(122,121,118)`) consistente con 55% de opacidad oscura sobre el fondo crema — confirma que el
+velo SÍ pinta, más allá de lo que un ojo humano puede jurar mirando una captura comprimida.
 
 ## Qué NO hacer
 

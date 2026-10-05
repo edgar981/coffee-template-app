@@ -108,6 +108,11 @@ export interface TiendaPaginasProps {
    *  de `ModoEditor` en `EditorTiendaPantallaCompleta.tsx`). Ausente = sin padre al que avisar (no
    *  debería ocurrir fuera de un test). */
   onAbrirAyuda?: () => void;
+  /** § EDITOR-AYUDA-RECORRIDO-1 — se llama cuando «Ver el recorrido» (dentro del centro de ayuda,
+   *  `AyudaCentro.tsx`) pide iniciar el recorrido guiado. Igual que `onAbrirAyuda`: el recorrido es
+   *  del PADRE (`EditorTiendaPantallaCompleta`, dueño del overlay y de normalizar `modo`/`pagina`
+   *  al arrancar), no de este componente — este sólo reenvía el pedido. */
+  onIniciarRecorrido?: () => void;
   /** § EDITOR-TIENDA-DESHACER-1 — el AGREGADO de toda la página abierta (+ el tema, store-wide):
    *  cuántos cambios sin publicar, en qué estado está el autoguardado, y si hay algo que deshacer/
    *  rehacer en este momento. El padre (`EditorTiendaPantallaCompleta`) lo usa para dibujar la
@@ -161,7 +166,7 @@ export interface TiendaPaginasHandle {
 // pantalla completa (§ EDITOR-TIENDA-DISPOSITIVOS-1 — antes vivía directo en `/admin/tienda`). El
 // selector de página y el de dispositivo ya no son responsabilidad de este componente: los dos
 // llegan por prop desde `EditorTiendaPantallaCompleta`, que los pone en su barra superior.
-const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas', onAbrirAyuda, onEstadoGlobal }, ref) {
+const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas', onAbrirAyuda, onIniciarRecorrido, onEstadoGlobal }, ref) {
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
@@ -1411,7 +1416,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             segmentado de Alto/Oscurecer, § editor.css) empuja la pista más allá de los 308px fijos
             del padre en vez de encogerse. `minWidth: 0` en ESTE div protege al PADRE (ya estaba);
             esto protege a los HIJOS, que es lo que faltaba. */}
-        <div className="editor-panel" style={{
+        {/* § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="panel"`: el objetivo del paso «El panel» del
+            recorrido guiado. Siempre presente, sea cual sea `modo` (Secciones/Estilo/Ayuda) — este
+            div es uno de los DOS hijos fijos de la grilla de arriba, nunca condicional. */}
+        <div className="editor-panel" data-tour="panel" style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1fr)',
           gap: 'var(--duna-space-4)',
@@ -1472,7 +1480,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             // § EDITOR-AYUDA-1 — «Ayuda» del riel. `ayudaAbierta` ya está resuelto ANTES de que
             // `modo` llegue a valer 'ayuda' (§ `abrirAyuda`, arriba), así que este componente nunca
             // monta con una guía a medio decidir.
-            <AyudaCentro abierta={ayudaAbierta} onAbrir={abrirAyuda} onVolver={() => setAyudaAbierta(null)} />
+            <AyudaCentro abierta={ayudaAbierta} onAbrir={abrirAyuda} onVolver={() => setAyudaAbierta(null)} onIniciarRecorrido={onIniciarRecorrido} />
           ) : (
             <>
               {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «ARRIBA» (el spec), envuelto ENTERO (rótulo +
@@ -1583,7 +1591,15 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                   // son la activa (nunca las desmonta, § el docstring grande de `seccionActiva` arriba).
                   // En Inicio (`nivelActivo === null`) las muestra TODAS, como siempre.
                   <div key={config.seccion}>
-                    <div style={nivelActivo && nivelActivo !== config.seccion ? { display: 'none' } : undefined}>
+                    {/* § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="hero"` SÓLO en la banda del hero: el
+                        objetivo del paso «El hero y sus zonas». Visible cuando `nivelActivo` es
+                        `null` (Inicio, fila colapsada) o `'hero'` (ya abierto, con sus zonas a la
+                        vista) — en cualquier OTRA sección/página sin hero, este `data-tour` nunca
+                        se renderiza y el paso se salta solo (§ RecorridoEditor.tsx). */}
+                    <div
+                      style={nivelActivo && nivelActivo !== config.seccion ? { display: 'none' } : undefined}
+                      data-tour={config.seccion === 'hero' ? 'hero' : undefined}
+                    >
                       <TiendaSeccionEditor
                         ref={registrarRefSeccion(config.seccion)}
                         config={config}
@@ -1631,6 +1647,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                   onClick={() => abrirBiblioteca(null)}
                   disabled={alTopeDeInstancias}
                   className="editor-add-sec"
+                  // § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="agregar-seccion"`: el objetivo del
+                  // paso «Agregar sección». Sólo existe en Inicio de la página home (misma guarda
+                  // que el botón); fuera de ahí, ese paso se salta solo.
+                  data-tour="agregar-seccion"
                 >
                   <Plus /> {alTopeDeInstancias ? `Llegaste al máximo de ${TOPE_INSTANCIAS_HOME} secciones agregadas` : 'Agregar sección'}
                 </button>
@@ -1661,7 +1681,10 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
             </>
           )}
         </div>
-        <div style={{
+        {/* § EDITOR-AYUDA-RECORRIDO-1 — `data-tour="lienzo"`: el objetivo del paso «El lienzo».
+            Siempre presente, sea cual sea `modo` — es el hermano FIJO del panel de arriba, nunca
+            condicional a `modo`/`pagina`. */}
+        <div data-tour="lienzo" style={{
           minWidth: 0,
           minHeight: 0,
           order: angosto ? 1 : 2,
