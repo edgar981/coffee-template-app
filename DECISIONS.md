@@ -55000,3 +55000,183 @@ cubriendo los cuatro flujos del spec. Sin commitear todavía — queda en el ár
 `slice/editor-secciones-1` a la espera del merge gateado.
 
 **Cierra `PANEL-CONFIG-BLOQUES-1`.**
+
+## 2026-10-05 — Pagos y cobros se rehace como el prototipo: lista plana, Editar inline, vista previa en vivo (`PANEL-CONFIG-PAGOS-1`)
+
+Rediseño real de «Pagos y cobros», el que `PANEL-CONFIG-BLOQUES-1` dejó explícitamente declarado
+como pendiente ("Pagos y cobros se movió TAL CUAL — eso es `PANEL-CONFIG-PAGOS-1`"). Sigue
+`slice/editor-secciones-1`, encima de `87d62b3`.
+
+### Lo que cambió
+
+- **«Cómo te pueden pagar»** deja de ser UN form que edita los cinco métodos a la vez y pasa a una
+  LISTA en el orden canónico del checkout (`METODOS_PAGO_ORDEN`), cada fila con su chip de
+  iniciales (par `--duna-ink`/`--duna-paper`, el mismo del avatar de usuario/negocio — NUNCA color
+  por tipo, § CLAUDE.md "La serie NUNCA se usa donde haya estado"), su nombre (transferencia con el
+  banco pegado), su "dato clave" (número, llave, o la cuenta enmascarada a los últimos 4 dígitos —
+  `lib/admin/medios-pago-vista.ts`, nuevo, puro) y su estado (`Activo`/`Falta configurar`, reusando
+  `metodoIncompleto` — nunca redefinida). **Editar abre SOLO esa fila in situ** — ya no el array
+  entero — con los campos de `CAMPOS_METODO[tipo]`, tal como existen hoy. Sin asa de arrastre ni
+  interruptor en la lista: piden un campo de orden propio y un segundo eje "apagado" que no existen
+  en el modelo (§5 del spec, `docs/panel/REDISENO.md`); en su lugar, el estado como etiqueta y
+  «Quitar» dentro de Editar.
+- **«Agregar medio»** abre una hoja (`DunaSheet anclaje="lado"`) con el set cerrado de cinco tipos;
+  los ya guardados aparecen «Ya lo tienes» (deshabilitados); elegir uno pide sus campos y termina en
+  «Agregar y activar» — un PATCH inmediato, no una cola.
+- **«Así lo ve tu cliente»** es una vista FIEL, no el componente real: el selector de pago vive
+  inline dentro de `app/(storefront)/checkout/page.tsx` (sin extraer a un componente propio, cientos
+  de líneas con estado de carrito/Wompi/comprobante) y extraerlo es tocar storefront, fuera de
+  `touches:`. Se arma con las MISMAS funciones puras que usa el checkout real —
+  `metodosDisponibles`/`subtituloPagoPasarela` (`lib/checkout/metodos-pago.ts`,
+  `lib/pagos/metodos-pasarela.ts`, sin tocar) envueltas en `lib/admin/medios-pago-vista.ts`—, así que
+  si el checkout cambia su criterio de "¿qué se muestra?" esta vista lo hereda sola. **Actualizada en
+  VIVO**: mientras se edita una fila o se llena el formulario de «Agregar medio», la vista previa
+  computa sobre el array CON el borrador superpuesto (`conMedio`), no sólo tras guardar — verificado
+  por ejecución (abajo): Daviplata aparece en la vista en cuanto se teclea el número, ANTES de
+  guardar.
+- **«Pago en línea» queda de SOLO LECTURA** (estado de conexión — `Conectado`/`No se pudo
+  conectar`/`Consultando…`, derivado de `useCuentaPasarela` — + chips neutros de lo guardado en
+  `metodosPasarela` + «Abrir Wompi ↗», enlace al panel público de Wompi, `https://comercios.wompi.co`).
+  **DEVIATION DECLARADA**: el toggle encender/apagar un método de pasarela por chip que
+  `PANEL-CONFIG-BLOQUES-1` había construido (dentro del form único viejo) NO sobrevive a este
+  rediseño — el "Lo que se hace" del spec de este slice describe el bloque como "estado de la
+  conexión, los medios… en chips… y «Abrir Wompi ↗». Sin tocar llaves ni la conexión", sin
+  mencionar edición, a diferencia del paso 1 que sí detalla Editar/Quitar/Guardar explícitamente.
+  El modelo y la validación de `metodosPasarela` NO cambiaron — `payloadBaseDesdeSettings` lo
+  reenvía tal cual en cada escritura de este bloque, nunca se vacía ni se pierde — sólo dejó de
+  haber una UI para tocarlo desde Pagos y cobros. Si el owner lo quiere de vuelta, es una adición
+  chica y acotada (reusar `cruzarMetodosPasarela`/`paraElPanel`, ya sin tocar).
+- El orden de la lista es el CANÓNICO real (`METODOS_PAGO_ORDEN`: nequi, daviplata, breb,
+  transferencia, efectivo), no el orden aparente del prototipo (`.scratch/prototipo-panel/
+  captura-cfg-pag.png`, que no documenta su criterio y no coincide con ningún orden del modelo) —
+  se prefirió la realidad del checkout sobre el mockup.
+- `.admin-pagos-grupo` (el divisor punteado "Pagan antes"/"Pagan al recibir" del form viejo) quedó
+  SIN CONSUMIDOR con la lista plana y se retiró de `app/(admin)/duna.css`, con su razón en el
+  comentario de la sección. Queda una mención en PROSA (no en código) en
+  `app/(admin)/editor/editor.css:219`, citándolo como precedente del mismo patrón de divisor —
+  fuera de `touches:` de este slice, anotada como open-followup.
+
+### Las pre-flight asumidas por el spec que no coincidieron con el repo
+
+El spec citaba capturas del prototipo en `docs/panel/prototipo/` (`captura-cfg-pag.png`,
+`captura-cfg-pag-editar.png`, `captura-cfg-pag-agregar.png`) — esa carpeta sólo tiene
+`captura-menu-biz.png`/`captura-menu-user.png`/`captura-tie.png`. Las tres capturas de Pagos existen
+en `.scratch/prototipo-panel/` (no comiteado), con esos nombres exactos — se usaron desde ahí. No
+bloqueó el slice; se registra porque el spec afirmaba una ruta que no existe.
+
+### Verificado por ejecución — arnés de sesión real, Postgres efímero propio
+
+`.scratch/arnes-pagos.ts` + `.scratch/arnes-pagos-playwright.ts` (no comiteados): Postgres efímero
+propio (puerto 55447, distinto del 55432 del gate), `migrate deploy` + el seed canónico
+(`prisma/seed.ts`), un UPDATE directo sobre la base EFÍMERA completando `tagline`/
+`descripcionFooter`/`whatsapp`/`emailRemitente` (el seed los deja vacíos por diseño — defaults
+neutros, § CLAUDE.md "El código compartido no NACE siendo Nayoli/demo" — y los cuatro son
+REQUERIDOS por `siteSettingsEditableSchema`; sin esto NINGÚN bloque de Configuración puede guardar,
+no sólo Pagos), **`next build` + `next start`** (no `next dev`: medido con un script de diagnóstico
+aparte que `next dev` en este arnés deja el websocket de HMR en handshake roto —
+`ERR_INVALID_HTTP_RESPONSE`— y con él la hidratación de React nunca corre: el toggle "mostrar
+contraseña" no cambiaba nada y el submit del login cae a un GET nativo con `email`/`password` en la
+URL), con `BETTER_AUTH_URL` sobreescrita a `http://localhost:4137` (Better Auth rechaza el origen si
+no matchea exacto), Playwright (instalación aislada ya cacheada en `.arnes-tooling/playwright`),
+sesión real (`admin@sierranativa.co` / `ChangeMe123!`, 1440×900).
+
+| # | Paso | Resultado |
+| --- | --- | --- |
+| 1 | Login + navegar a `/admin/configuracion?parte=pagos` | ✔ — lista completa visible |
+| 2 | Editar Daviplata (guardado sin número, `Falta configurar`) | ✔ — abre SOLO esa fila |
+| 3 | Daviplata en «Así lo ve tu cliente» antes de escribir el número | ✔ — 0 apariciones (no se muestra) |
+| 4 | Escribir el número, ANTES de Guardar | ✔ — 1 aparición en la vista previa (en vivo, sin guardar) |
+| 5 | Guardar | ✔ — sale de edición, sin error (whatsapp/tagline ya completados) |
+| 6 | Vista previa tras Guardar | ✔ — 1 aparición |
+| 7 | Recargar la página completa | ✔ — badge "Activo" (persistido de verdad, no sólo optimista) |
+| 8 | Quitar Daviplata (con datos → confirma) | ✔ — toast "Daviplata quitado." |
+| 9 | Quitar Nequi y Transferencia Bancaria (quedando sólo Efectivo) | ✔ — los dos toast de quitado |
+| 10 | Con un solo método: "Quitar este medio" | ✔ — `disabled: true`, aviso "No puedes quitar el último medio de pago. Agrega otro primero." visible |
+| 11 | Abrir «Agregar medio» | ✔ — hoja con los 5 tipos, "Contra entrega" marcado "Ya lo tienes", el resto "Agregar" |
+
+**11/11.** Seis capturas 1440×900 en `.capturas/panel-config-pagos/` (`mio-01-lista.png` ·
+`mio-02-editando-sin-numero.png` · `mio-03-con-numero-antes-guardar.png` · `mio-04-guardado.png` ·
+`mio-05-ultimo-no-se-puede-quitar.png` · `mio-06-agregar.png`), al lado de las tres del prototipo en
+`.scratch/prototipo-panel/`. Diferencias con el prototipo, nombradas: (a) sin asa de arrastre ni
+interruptor por fila (§ arriba, campo nuevo); (b) el orden de la lista es el canónico real, no el del
+mockup; (c) "Pago en línea" es de sólo lectura, sin los botones "Desconectar"/chips-toggle del
+mockup; (d) el chip de iniciales es neutro (tinta/papel), no coloreado por tipo como el mockup — las
+tres últimas son decisiones de ESTE slice, documentadas arriba, no omisiones.
+
+**HALLAZGO DE MÉTODO DEL ARNÉS** (dos, los dos de la FIXTURE, no del código bajo prueba): (1) el
+seed canónico deja `whatsapp`/`tagline`/`descripcionFooter`/`emailRemitente` vacíos, y los cuatro son
+requeridos por `siteSettingsEditableSchema` — sin completarlos, `repartirErroresBloque` bloquea
+CUALQUIER guardado de CUALQUIER bloque con un error "ajeno" correctamente mostrado (se vio pasar
+primero por `whatsapp`, después por `tagline`, tras corregir el primero) — comportamiento CORRECTO,
+no un bug de este slice. (2) `next dev` no hidrata en este arnés (sandbox, sin terminal real) por el
+HMR roto — `next build`+`next start` sí. Los dos quedan en el comentario del propio arnés para que el
+próximo no los repita.
+
+### Gate
+
+| Capa | Resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npx eslint` sobre los 5 archivos tocados/nuevos | limpio, sin salida |
+| `npm test` (capa 1) | **3871/3871** |
+| `npm run test:integracion` | **363/363** — en PUERTO ALTERNO (55448): el 55432 estándar estaba ocupado por una sesión CONCURRENTE en esta misma máquina (medido: `ps aux` mostró un `postgres … -p 55432` de otro directorio de sesión). Replicado el mecanismo exacto de `scripts/test-integracion.sh` (mismo `postgres-efimero.sh`, mismo `migrate deploy`, mismo comando `node --test --test-concurrency=1`) en el puerto 55448. **363/363 reconcilia EXACTO contra el piso ya citado por `PANEL-CONFIG-BLOQUES-1`** ("363/363, el segundo reconciliado en puerto alterno por contención externa de puerto") — mismo número, misma causa. |
+| `npm run verificar:nayoli:visual` | Drift medido, **IDÉNTICO byte-a-byte al piso ya citado por `EDITOR-VISUAL-PANEL-1`** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px AA · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u, cajas `[445,Y]–[541,Y+10]`; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado, drift HEREDADO de la rama contra `main`, no de este commit: `git diff --stat` de este slice tiene CERO archivos bajo `app/(storefront)/` o `components/storefront/` (los 6 tocados son `app/(admin)/duna.css`, `components/admin/configuracion/PagosCobrosBloque.tsx`, `docs/panel/REDISENO.md`, `lib/pagos/metodos-pasarela.test.ts`, `lib/admin/medios-pago-vista.{ts,test.ts}`). |
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/paths que este diff cambió: `PagosCobrosBloque` → cero coincidencias en
+CLAUDE.md. `DatosNegocioSeccion` → las MISMAS dos coincidencias que ya encontró y dejó como
+open-followup `PANEL-CONFIG-BLOQUES-1` (`lib/config/avisos-configuracion.ts:35`,
+`lib/pagos/metodos-pasarela.test.ts:492` histórico) — la segunda vive en un archivo que SÍ está en
+`touches:` de este slice, así que se corrigió DENTRO de esta misma tanda (ver arriba, "Lo que
+cambió"); la primera sigue fuera de `touches:`, sin tocar. `Pagos y cobros` (la frase) → cero
+coincidencias en CLAUDE.md (la sección vive en `docs/panel/REDISENO.md`, no en CLAUDE.md).
+`admin-pagos-grupo` → cero coincidencias en CLAUDE.md. `metodosPasarela` → cero coincidencias en
+CLAUDE.md. `metodoIncompleto`/`CAMPOS_METODO`/`METODOS_PAGO_ORDEN` → UNA, CLAUDE.md:2169 ("Un método
+sin datos se DECLARA en el editor — `metodoIncompleto` devuelve la frase «Falta …» — no se calla…
+Copy + estado visual, no estructura.") — sigue siendo CIERTA: la fila en lectura muestra el badge
+"Falta configurar" + la frase específica de `metodoIncompleto` debajo del nombre, sin cambiar la
+regla, sólo su presentación.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato cruzado — `metodosPago`/
+`metodosPasarela` ya existían en el schema y no se tocaron.
+
+### `changed` (bytes de cliente/operador/dueño)
+
+**`false`.** Los 6 archivos de este commit son `app/(admin)/duna.css`,
+`components/admin/configuracion/PagosCobrosBloque.tsx`, `docs/panel/REDISENO.md` (doc interno),
+`lib/pagos/metodos-pasarela.test.ts` (comentario), `lib/admin/medios-pago-vista.ts`,
+`lib/admin/medios-pago-vista.test.ts`. Todo vive bajo `/admin/configuracion`, gateado a OWNER/
+MANAGER — ningún cliente del storefront ve esta pantalla. Cero archivos bajo `app/(storefront)/` o
+`components/storefront/` en el diff (confirmado arriba, en el gate de `verificar:nayoli:visual`).
+
+### Open follow-ups
+
+- **`PANEL-CONFIG-PAGOS-PASARELA-TOGGLE-PERDIDO-1`**: el toggle de encender/apagar un método de
+  pasarela por chip (construido en `PANEL-CONFIG-BLOQUES-1`) no tiene UI en el rediseño de este
+  slice — el modelo/validación siguen intactos, es sólo la superficie la que se retiró (§ arriba,
+  "Lo que cambió"). Si el owner lo quiere de vuelta, es una adición chica.
+- **`PANEL-EDITOR-CSS-MENCION-GRUPO-OBSOLETA-1`**: `app/(admin)/editor/editor.css:219` cita
+  `.admin-pagos-grupo` como precedente de un patrón de divisor — esa clase se retiró en este slice
+  (§ arriba). Fuera de `touches:`; se corrige cuando se toque `editor.css` por higiene.
+- Las piezas de `docs/panel/REDISENO.md` §5 que siguen sin construirse: varias cuentas de
+  transferencia, el orden de arrastre, un texto de instrucciones por medio, «Pedir comprobante» por
+  medio, el tope de efectivo, el tipo «Otro medio» — cada una es un campo nuevo, gate del owner. Ya
+  estaban anotadas antes de este slice; no cambia nada.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [owner-gate-requested]` — el spec de este slice pidió
+explícitamente pararse ahí ("PARÁS EN AWAITING_APPROVAL. NO MERGEES.") y ninguna de las otras tres
+razones de merge policy A aplica (sin schema, sin bytes de cliente — `changed: false`, medido arriba
+—, sin contrato cruzado), así que es la ÚNICA de las cuatro que puede ir sola. `npm run gate` GREEN de
+punta a punta (typecheck 0 · 3871/3871 · 363/363, el segundo reconciliado en puerto alterno 55448 por
+contención externa — mismo mecanismo y mismo número que ya citó `PANEL-CONFIG-BLOQUES-1`);
+`verificar:nayoli:visual` corrido completo, su drift es IDÉNTICO al piso ya citado por
+`EDITOR-VISUAL-PANEL-1` y heredado de la rama, no de este commit (cero archivos de storefront en el
+diff). Sesión en el arnés completa, 11/11 pasos verdes. Commiteado en `slice/editor-secciones-1`
+(`e0f66bd`), sin pushear — queda a la espera del merge gateado.
+
+**Cierra `PANEL-CONFIG-PAGOS-1`.**
