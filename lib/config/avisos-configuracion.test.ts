@@ -45,6 +45,10 @@ const AJUSTES_SANOS: SiteSettings = {
   whatsapp: '+573155766064', instagram: '', emailRemitente: '',
   emailReplyTo: null, adminEmail: null,
   metodosPago: METODOS_SANOS,
+  // Campo agregado por PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1: este módulo no lo mira (igual que
+  // no mira `metodoPasarelaDesalineado`), pero el fixture es COMPLETO a propósito (ver el
+  // comentario de arriba) — por eso rompió acá, como debía.
+  mensajesWhatsapp: {},
   metodoPasarelaDesalineado: null,
 };
 const conWhatsapp = (whatsapp: string): SiteSettings => ({ ...AJUSTES_SANOS, whatsapp });

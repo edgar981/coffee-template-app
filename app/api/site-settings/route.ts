@@ -58,6 +58,10 @@ export async function PATCH(req: NextRequest) {
       adminEmail:        d.adminEmail || null,
       metodosPago:       d.metodosPago,
       metodosPasarela:   d.metodosPasarela,
+      // Los mensajes de WhatsApp al cliente (§ PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1):
+      // misma semántica de write COMPLETO que el resto — la clave siempre llega, y una
+      // propiedad ausente dentro de ella es lo que significa "usa la de fábrica".
+      mensajesWhatsapp:  d.mensajesWhatsapp,
     },
   });
   return NextResponse.json({ ok: true });

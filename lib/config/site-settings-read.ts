@@ -1,5 +1,6 @@
 import prisma from '@duna/core';
 import { parseMetodosPago, type MetodoPagoGuardado } from '../checkout/metodos-pago';
+import { parseMensajesWhatsapp, type MensajesWhatsappGuardados } from '../admin/mensajes-whatsapp';
 
 /**
  * Config EDITABLE del negocio, resuelta a un objeto plano (serializable, para pasar
@@ -19,6 +20,10 @@ export interface SiteSettings {
   // `parseMetodosPago` (SOFT): nadie fuera de este loader lee el JSON crudo de la columna.
   // Reemplaza los 9 campos viejos (los 4 booleanos + el número móvil + los 4 de banco).
   metodosPago: MetodoPagoGuardado[];
+  // Los mensajes de WhatsApp al cliente (§ PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1), ya pasados
+  // por `parseMensajesWhatsapp` (SOFT, como `metodosPago`): un override PARCIAL por momento —
+  // la clave ausente cae a la plantilla de fábrica en `lib/admin/mensajes-whatsapp.ts`.
+  mensajesWhatsapp: MensajesWhatsappGuardados;
   // La PALETA ya no está acá: se mudó a `SiteContent.content.tema` (§ Backlog #55). El storefront
   // la lee de `getSiteContent()`, no de este loader.
   //
@@ -95,6 +100,7 @@ export async function readSiteSettings(): Promise<SiteSettings> {
     emailReplyTo:      s.emailReplyTo,
     adminEmail:        s.adminEmail,
     metodosPago:       parseMetodosPago(s.metodosPago),
+    mensajesWhatsapp:  parseMensajesWhatsapp(s.mensajesWhatsapp),
     metodoPasarelaDesalineado,
   };
 }

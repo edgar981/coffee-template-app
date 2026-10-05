@@ -9007,3 +9007,130 @@ slice para en `AWAITING_APPROVAL`; no mergea.
 
 Ninguno nuevo encolado. `PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1` ya estaba nombrado por el owner y no
 se repite acá.
+
+## 2026-10-05 — «Mensajes al cliente» en Configuración: los textos de WhatsApp se editan, no se compilan (`PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1`)
+
+**Pedido del owner (2026-10-04):** que el dueño/administrador pueda editar el texto de WhatsApp de
+cada momento del pedido (§ `PEDIDOS-WHATSAPP-MENSAJES-1`, arriba) desde Configuración, con huecos
+insertables, vista previa de ejemplo y "Restaurar el texto por defecto". Aprobación explícita de la
+columna nueva («Apruebo la parte 2 también»): una columna JSON con default en `SiteSetting`, aditiva.
+Incluye además el pedido del mismo día de renombrar «Reply-To (opcional)» a «Responder a».
+
+### 1 · El esquema: `SiteSetting.mensajesWhatsapp`, aditiva, sin backfill
+
+Migración `20261005120000_add_site_setting_mensajes_whatsapp`:
+`ALTER TABLE "SiteSetting" ADD COLUMN "mensajesWhatsapp" JSONB NOT NULL DEFAULT '{}'::jsonb;` — mismo
+patrón que `20260916120000_add_site_setting_metodos_pasarela`. Objeto PARCIAL por los cinco
+`MOMENTOS_EDITABLES` (`pago_pendiente · pago_confirmado · en_camino · entregado · saludo_cliente`);
+una clave ausente (o `{}` entero) es, por diseño, "usa la plantilla de fábrica de
+`lib/admin/mensajes-whatsapp.ts`" — el mismo texto de `PEDIDOS-WHATSAPP-MENSAJES-1`.
+
+**El quinto momento (`'otro'`, orden cancelada/envío fallido) se dejó FUERA a propósito**: no tiene
+un hecho positivo que anunciar, así que no se le ofrece un campo para editar — `plantillaPedido`
+nunca mira `overrides` para ese momento, con test que lo afirma.
+
+### 2 · El radio completo, y por qué el write sigue siendo COMPLETO
+
+`site-settings-schema.ts` (`mensajesWhatsappSchema`, `z.object({...5 campos...}).partial()`) — la
+CLAVE `mensajesWhatsapp` es requerida en cada PATCH (el write de este endpoint es COMPLETO, no
+parcial, por diseño anterior a este slice); sus cinco propiedades son opcionales. `site-settings-
+read.ts` la parsea SOFT (`parseMensajesWhatsapp`, mismo criterio que `parseMetodosPago`: un JSON
+ajeno o corrupto no tumba el loader). `app/api/site-settings/route.ts` la escribe sin condición,
+igual que `metodosPasarela`.
+
+**Consecuencia del write COMPLETO, medida al escribir `MensajesClienteSeccion`:** `metodosPasarela`
+NO viaja en `useSiteSettings()` (vive aparte, cross-referenciado contra la cuenta del proveedor en
+`DatosNegocioSeccion`), así que una sección que sólo quiere tocar `mensajesWhatsapp` no puede
+construir un payload válido sin conocer el resto. Se resolvió pidiendo un snapshot FRESCO por
+`GET /api/site-settings` justo antes de guardar (no durante toda la vida del componente), y
+echoeando todo lo demás tal cual. `DatosNegocioSeccion.tsx` ganó la misma línea en sentido inverso:
+pasa `mensajesWhatsapp: settings.mensajesWhatsapp` sin tocarlo, porque omitir la clave en ESE
+endpoint no significa "no toques esto" — significa "pisa esto con nada".
+
+### 3 · El hueco DESCONOCIDO queda LITERAL, no desaparece
+
+`interpolar` (antes privada, ahora exportada) sustituía cualquier `{clave}` no reconocida por `''`
+(`huecos[clave] ?? ''`). Con huecos ahora escritos por un humano (no sólo por los tres llamadores de
+`PEDIDOS-WHATSAPP-MENSAJES-1`, que siempre pasaban el set completo), un typo —`{nombr}`, o un hueco
+que no aplica a ese momento, `{pedido}` en el saludo sin pedido— desaparecía en silencio. Se cambió el
+discriminador a presencia de la clave (`Object.prototype.hasOwnProperty`), no a su valor: un hueco
+CONOCIDO-sin-valor sustituye por vacío (como siempre); uno AUSENTE del mapa de ESE llamado queda
+literal (`{foo}` se queda `{foo}`), visible en la vista previa — el spec lo pedía explícito ("para que
+se note").
+
+### 4 · `lib/config/panel-controles.ts` — insertar en el CURSOR, no al final
+
+Nuevo módulo genérico (no es de WhatsApp ni de ningún dominio): `insertarEnCursor(valor, start, end,
+texto)` reemplaza la selección activa o inserta en la posición del cursor, devolviendo dónde debe
+quedar el cursor después. Sin esto, el botón "{nombre}" habría escrito siempre al final del textarea,
+rompiendo el caso real de insertar un hueco a mitad de una frase ya escrita.
+
+### 5 · "Restaurar el texto por defecto" = AUSENCIA, no un valor escrito
+
+El payload que `MensajesClienteSeccion` manda omite cualquier momento cuyo texto, al guardar, sea
+IGUAL (trim) al de fábrica (`plantillaPorDefecto`, la misma fuente que usa el renderer) — tanto si el
+dueño pulsó "Restaurar" como si tecleó a mano el mismo texto de siempre. Las dos rutas colapsan al
+mismo resultado: la clave queda ausente en la base, que es literalmente "usa la fábrica".
+
+### 6 · El rótulo de `emailReplyTo`: "Reply-To (opcional)" → "Responder a"
+
+Pedido aparte del mismo día. Sólo cambia el TEXTO (`DatosNegocioSeccion.tsx`, el array
+`CAMPOS_CORREOS`) y su hint, ahora explicando la consecuencia de dejarlo vacío. La VALIDACIÓN
+(`siteSettingsEditableSchema.emailReplyTo`) no cambió: sigue opcional.
+
+### 7 · Dos fixtures FUERA de `touches:`, rotas por el campo requerido nuevo
+
+`mensajesWhatsapp` es una clave requerida de `siteSettingsEditableSchema` y de la interfaz
+`SiteSettings` — dos fixtures existentes construían esos tipos a mano, sin ella, y dejaron de
+compilar/validar:
+
+- `lib/pagos/metodos-pasarela.test.ts` (`payloadDeSiteSettings`, el payload que afirma qué acepta y
+  qué rechaza `siteSettingsEditableSchema` para `metodosPasarela`) — el test "ACEPTA NEQUI" fallaba
+  (`success: false`) por una razón AJENA a lo que el archivo prueba: la clave requerida faltaba.
+- `lib/config/avisos-configuracion.test.ts` (`AJUSTES_SANOS: SiteSettings`) — este fixture se declara
+  COMPLETO a propósito ("para que agregar un campo al tipo rompa acá y no en silencio", su propio
+  comentario) — rompió exactamente como su diseño preveía.
+
+Las dos se arreglaron agregando `mensajesWhatsapp: {}` al fixture, sin tocar ninguna aserción de
+esos archivos. Son DEVIATIONS de `touches:` — mecánicas, forzadas por el cambio de esquema aprobado,
+no una ampliación de alcance.
+
+### 8 · Gate
+
+`npm test`: **1544/1544** (1521 + 16 nuevos en `mensajes-whatsapp.test.ts`, de 31→47, + 7 nuevos de
+`panel-controles.test.ts` — neto +23 sobre 1521).
+`npm run test:integracion`: **216/216** (208 + 4 de `mensajes-cliente.test.ts` + 4 de
+`detalles-sitio.test.ts`). `npx tsc --noEmit`: limpio. `npx eslint` sobre los 17 archivos tocados/
+creados: limpio (0 errores; 2 warnings preexistentes en `configuracion/page.tsx:98-99`, líneas que
+este slice no tocó). `npx prisma migrate diff --from-empty --to-schema` confirma que el datamodel
+renderiza `"mensajesWhatsapp" JSONB NOT NULL DEFAULT '{}'` — el mismo valor que el `ALTER TABLE` de la
+migración.
+
+### 9 · Deviations
+
+- **Dos fixtures fuera de `touches:` necesitaron un campo agregado** — § 7.
+- **`npm run verificar:nayoli` sigue sin existir** (medido en `package.json`: no hay ningún
+  `verificar:*`). Mismo hueco que documentó `PEDIDOS-WHATSAPP-MENSAJES-1`.
+- **La sesión en el arnés con navegador (editar, vista previa, guardar, abrir un pedido) NO se
+  corrió, y `npx next build` tampoco pudo completarse — medido, no omitido por comodidad.** `next
+  build` prerenderiza `/aceptar-invitacion` contra la base real de `.env` (`development`, por
+  doctrina) y falló con `P2022: The column SiteSetting.mensajesWhatsapp does not exist in the
+  current database` — la migración de este slice NO se aplicó ahí, y el contrato de este dispatch
+  prohíbe correrla contra ninguna base que no sea el Postgres efímero del carril. Es exactamente el
+  caso que `migrate deploy` por entorno (§ CLAUDE.md, Migraciones y deploy) existe para resolver: la
+  columna llega con el PRÓXIMO build de cada entorno, en el momento del merge/deploy, no en esta
+  sesión. Sustituido por `.scratch/verificar-mensajes-editables.ts` (no commiteado): imprime el
+  mensaje resuelto de los cinco momentos sin override, con override, y con un hueco desconocido —
+  mismo patrón que el arnés de `PEDIDOS-WHATSAPP-MENSAJES-1`.
+
+### 10 · `stopped_on: schema, customer-bytes` — no se mergea
+
+Columna nueva en `SiteSetting` (schema/migración) — por sí sola ya exige owner-gate. Además, el texto
+que el cliente recibe por WhatsApp pasa a depender de lo que el dueño escriba (antes era fijo en
+código): cuenta como bytes que el cliente lee, igual que `PEDIDOS-WHATSAPP-MENSAJES-1`. El slice para
+en `AWAITING_APPROVAL`; no mergea, siguiendo `slice/pedidos-whatsapp-mensajes-1`.
+
+### Open follow-ups
+
+Ninguno nuevo. El quinto momento (`'otro'`) y la frecuencia/formato de futuros canales (email, etc.)
+no se tocaron — fuera de alcance de este slice.

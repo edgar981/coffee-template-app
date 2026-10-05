@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
 import DatosNegocioSeccion from '@/components/admin/DatosNegocioSeccion';
+import MensajesClienteSeccion from '@/components/admin/MensajesClienteSeccion';
 import { normalize } from '@duna/core/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
@@ -208,6 +209,13 @@ export default function Configuracion() {
           es la piel del storefront —contenido que se PUBLICA, no identidad del negocio— y pasó al flujo
           borrador/publicar (§ Backlog #55, la frontera es de PANTALLA). Configuración quedó instant-save
           puro (identidad + equipo). */}
+
+      {/* ── Sección: Mensajes al cliente (§ PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1) ──────
+          MISMO permiso que el resto de Configuración (OWNER/MANAGER, § app/(admin)/admin/layout.tsx):
+          sin gate propio, igual que `DatosNegocioSeccion`. */}
+      <section style={{ marginTop: 'var(--duna-space-8)' }}>
+        <MensajesClienteSeccion />
+      </section>
 
       {/* ── Sección: Equipo y usuarios ────────────────────────────────────── */}
       <section style={{ marginTop: 'var(--duna-space-8)' }}>

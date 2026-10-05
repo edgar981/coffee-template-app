@@ -18,6 +18,18 @@
 // EDITABLES (PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1) pueda leerlas desde
 // configuración sin tocar a ninguno de los tres llamadores — ellos siguen
 // pidiendo "el mensaje de este momento", no un texto concreto.
+//
+// ─── MENSAJES EDITABLES (PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1) ─────────────
+//
+// El dueño/administrador puede reemplazar CINCO de las plantillas de arriba desde
+// Configuración › «Mensajes al cliente»: los CUATRO momentos del pedido que tienen
+// sentido para el cliente ('otro' queda FIJO — una orden cancelada/fallida no
+// necesita un mensaje que alguien redacte) más el saludo sin pedido de la ficha del
+// cliente. El override vive en `SiteSetting.mensajesWhatsapp` (JSON, § schema.prisma),
+// y se pasa a `mensajeWhatsappPedido`/`mensajeWhatsappCliente` como tercer argumento
+// — AUSENTE o vacío en una clave = el texto de fábrica de esta misma plantilla. Los
+// tres llamadores no cambiaron de forma: siguen pidiendo "el mensaje de este
+// momento", ahora con la config de por medio.
 
 /**
  * Lo mínimo del pedido que decide el MOMENTO del mensaje. Son strings sueltos
@@ -89,17 +101,86 @@ const PLANTILLAS: Record<MomentoPedido, string> = {
 const PLANTILLA_SIN_PEDIDO = 'Hola {nombre}, te escribimos de {tienda}.';
 
 /**
- * Sustituye `{clave}` por su valor (vacío si no hay) y limpia el residuo de un
- * hueco vacío: un espacio que quedó pegado a una coma ("Hola , te escribimos")
- * o un espacio doble. Sin esto, un pedido sin nombre de cliente leería el
- * hueco como un espacio huérfano en vez de desaparecer limpio.
+ * Los CINCO momentos que Configuración deja editar — los cuatro momentos del
+ * pedido con mensaje propio ('otro' queda FIJO: una orden cancelada o con envío
+ * fallido/cancelado no tiene un hecho positivo que anunciar) más el saludo sin
+ * pedido de la ficha del cliente.
  */
-function interpolar(plantilla: string, huecos: Record<string, string>): string {
+export const MOMENTOS_EDITABLES = ['pago_pendiente', 'pago_confirmado', 'en_camino', 'entregado', 'saludo_cliente'] as const;
+export type MomentoEditable = typeof MOMENTOS_EDITABLES[number];
+
+/** El nombre EN PALABRAS de cada momento editable, para el campo de Configuración. */
+export const MOMENTO_EDITABLE_LABEL: Record<MomentoEditable, string> = {
+  pago_pendiente:  'Pago pendiente',
+  pago_confirmado: 'Pago confirmado',
+  en_camino:       'En camino',
+  entregado:       'Entregado',
+  saludo_cliente:  'Saludo en la ficha del cliente',
+};
+
+/** `SiteSetting.mensajesWhatsapp` ya resuelto: un override PARCIAL — la clave ausente
+ *  (o con texto vacío) cae a la plantilla de fábrica de ese mismo momento. */
+export type MensajesWhatsappGuardados = Partial<Record<MomentoEditable, string>>;
+
+/** Tope de caracteres de un mensaje editable — "razonable" para un mensaje de WhatsApp.
+ *  Ningún texto de fábrica llega ni a la mitad; vive ACÁ (no en el schema de validación)
+ *  porque es la misma regla que corren el aviso temprano del panel y el PATCH que manda —
+ *  una sola definición, dos alcances, como `MIN_ORDENES_INSIGHT`. */
+export const MAX_LARGO_MENSAJE_WHATSAPP = 600;
+
+/** La plantilla de FÁBRICA de un momento editable — la fuente única que tanto el
+ *  renderer (abajo) como el editor de Configuración (para "Restaurar el texto por
+ *  defecto") deben leer, para que las dos superficies no puedan divergir sobre cuál
+ *  es "el texto por defecto". */
+export function plantillaPorDefecto(momento: MomentoEditable): string {
+  return momento === 'saludo_cliente' ? PLANTILLA_SIN_PEDIDO : PLANTILLAS[momento];
+}
+
+/**
+ * SOFT: nunca lanza (§ CLAUDE.md, `parseMetodosPago` es el mismo criterio). Una fila
+ * con JSON ajeno —manual, corrupto, de una versión futura— no debe tumbar el loader:
+ * se descartan las claves que no son uno de los `MOMENTOS_EDITABLES`, y los valores
+ * que no son un string no-vacío.
+ */
+export function parseMensajesWhatsapp(valor: unknown): MensajesWhatsappGuardados {
+  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return {};
+  const out: MensajesWhatsappGuardados = {};
+  for (const momento of MOMENTOS_EDITABLES) {
+    const v = (valor as Record<string, unknown>)[momento];
+    if (typeof v === 'string' && v.trim()) out[momento] = v;
+  }
+  return out;
+}
+
+/**
+ * Sustituye `{clave}` por su valor y limpia el residuo de un hueco vacío: un
+ * espacio que quedó pegado a una coma ("Hola , te escribimos") o un espacio doble.
+ * Sin esto, un pedido sin nombre de cliente leería el hueco como un espacio
+ * huérfano en vez de desaparecer limpio.
+ *
+ * Un hueco CONOCIDO-PERO-SIN-VALOR (la clave está en `huecos`, con '') sustituye
+ * por vacío — es el caso de `{rastreo}` fuera del momento "en camino". Un hueco
+ * DESCONOCIDO (la clave NO está en `huecos` — un nombre que no es ninguno de los
+ * cinco que este módulo declara, típicamente un typo del dueño al editar) se deja
+ * LITERAL: `{foo}` queda `{foo}` en el mensaje, para que el error se note en la
+ * vista previa en vez de desaparecer en silencio.
+ */
+export function interpolar(plantilla: string, huecos: Record<string, string>): string {
   return plantilla
-    .replace(/\{(\w+)\}/g, (_match, clave: string) => huecos[clave] ?? '')
+    .replace(/\{(\w+)\}/g, (match, clave: string) =>
+      Object.prototype.hasOwnProperty.call(huecos, clave) ? huecos[clave] : match)
     .replace(/ +,/g, ',')
     .replace(/ {2,}/g, ' ')
     .trim();
+}
+
+/** La plantilla a usar para el momento `momento` del PEDIDO: el override guardado si
+ *  existe y no está vacío, la de fábrica si no. `'otro'` NUNCA mira `overrides` — no es
+ *  uno de los `MOMENTOS_EDITABLES`, así que no tiene override que ofrecer. */
+function plantillaPedido(momento: MomentoPedido, overrides?: MensajesWhatsappGuardados): string {
+  if (momento === 'otro') return PLANTILLAS.otro;
+  const custom = overrides?.[momento];
+  return custom && custom.trim() ? custom : PLANTILLAS[momento];
 }
 
 /**
@@ -109,6 +190,10 @@ function interpolar(plantilla: string, huecos: Record<string, string>): string {
  * que ese hueco queda sin usar en las plantillas de hoy — está declarado para
  * que el slice de mensajes editables pueda ofrecerlo sin tocar este módulo ni
  * a sus llamadores.
+ *
+ * `overrides` es `SiteSetting.mensajesWhatsapp` ya resuelto (§ `parseMensajesWhatsapp`) —
+ * opcional para no romper a nadie que todavía no lo tenga a mano (ningún llamador de
+ * PEDIDOS-WHATSAPP-MENSAJES-1 lo pasaba).
  */
 export function mensajeWhatsappPedido(
   pedido: PedidoParaMensaje,
@@ -121,9 +206,10 @@ export function mensajeWhatsappPedido(
     /** Reservado para el enlace de pago, cuando exista (ver comentario arriba). */
     pago?: string | null;
   },
+  overrides?: MensajesWhatsappGuardados,
 ): string {
   const momento = momentoDePedido(pedido);
-  return interpolar(PLANTILLAS[momento], {
+  return interpolar(plantillaPedido(momento, overrides), {
     nombre: primerNombre(datos.nombreCompleto),
     tienda: datos.tienda,
     pedido: datos.numeroOrden,
@@ -132,9 +218,16 @@ export function mensajeWhatsappPedido(
   });
 }
 
-/** El saludo sin pedido de por medio — la ficha del cliente. */
-export function mensajeWhatsappCliente(nombreCompleto: string | null | undefined, tienda: string): string {
-  return interpolar(PLANTILLA_SIN_PEDIDO, { nombre: primerNombre(nombreCompleto), tienda });
+/** El saludo sin pedido de por medio — la ficha del cliente. `overrides`, igual que en
+ *  `mensajeWhatsappPedido`. */
+export function mensajeWhatsappCliente(
+  nombreCompleto: string | null | undefined,
+  tienda: string,
+  overrides?: MensajesWhatsappGuardados,
+): string {
+  const custom = overrides?.saludo_cliente;
+  const plantilla = custom && custom.trim() ? custom : PLANTILLA_SIN_PEDIDO;
+  return interpolar(plantilla, { nombre: primerNombre(nombreCompleto), tienda });
 }
 
 /**

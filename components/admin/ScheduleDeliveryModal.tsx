@@ -356,6 +356,7 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
           ? rastreoUrl(waOrigen, ctx.numero_orden, ctx.cliente_email)
           : null,
       },
+      settings.mensajesWhatsapp,
     ),
   );
   const mailHref = ctx.cliente_email

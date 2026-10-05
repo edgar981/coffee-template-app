@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { METODOS_PAGO_ORDEN, type MetodoPagoTipo } from '../checkout/metodos-pago';
 import { checkoutSabeDibujar, esNoCobrable } from '../pagos/metodos-pasarela';
+import { MOMENTOS_EDITABLES, MAX_LARGO_MENSAJE_WHATSAPP } from '../admin/mensajes-whatsapp';
 
 // Validación de los campos EDITABLES de SiteSetting (los planos). UNA definición que
 // corren el PATCH (la que MANDA) y el editor de Configuración (aviso temprano) — como
@@ -22,6 +23,20 @@ const metodoPagoSchema = z.object({
   datos: z.record(z.string(), z.string()),
 });
 
+// Los MENSAJES de WhatsApp al cliente (§ PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1): un objeto
+// PARCIAL por los `MOMENTOS_EDITABLES` (`lib/admin/mensajes-whatsapp.ts`, fuente única de ESE
+// conjunto — no una segunda lista acá). La CLAVE `mensajesWhatsapp` es REQUERIDA en cada PATCH
+// (el write de este endpoint es COMPLETO, § arriba) — pero sus cinco propiedades son todas
+// `.partial()`: una clave ausente significa "usa la plantilla de fábrica de ese momento", no
+// "no toqué nada". Un texto PRESENTE no puede quedar vacío ni exceder el tope — el mismo
+// `MAX_LARGO_MENSAJE_WHATSAPP` que el editor usa para el aviso temprano.
+const MENSAJE_SCHEMA = z.string().trim()
+  .min(1, 'El mensaje no puede quedar vacío')
+  .max(MAX_LARGO_MENSAJE_WHATSAPP, `El mensaje no puede superar los ${MAX_LARGO_MENSAJE_WHATSAPP} caracteres`);
+const mensajesWhatsappSchema = z.object(
+  Object.fromEntries(MOMENTOS_EDITABLES.map(m => [m, MENSAJE_SCHEMA])) as Record<typeof MOMENTOS_EDITABLES[number], typeof MENSAJE_SCHEMA>,
+).partial();
+
 export const siteSettingsEditableSchema = z.object({
   nombre:            z.string().trim().min(1, 'El nombre del negocio es obligatorio'),
   tagline:           z.string().trim().min(1, 'El tagline es obligatorio'),
@@ -42,6 +57,9 @@ export const siteSettingsEditableSchema = z.object({
   // capacidad de DESPLIEGUE que puede estar apagada, y `[]` es un estado legítimo — a
   // diferencia de `metodosPago`, el checkout no depende de que esta lista tenga algo.
   metodosPasarela: z.array(z.string().trim().min(1)),
+  // Los mensajes de WhatsApp al cliente (§ arriba) — REQUERIDO como clave (el write es
+  // COMPLETO), con sus cinco propiedades todas opcionales (§ `mensajesWhatsappSchema`).
+  mensajesWhatsapp: mensajesWhatsappSchema,
 }).refine(
   d => new Set(d.metodosPago.map(m => m.tipo)).size === d.metodosPago.length,
   { message: 'No puedes repetir un método de pago', path: ['metodosPago'] },

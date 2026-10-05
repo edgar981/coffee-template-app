@@ -484,7 +484,7 @@ function Detalle({ cliente, detalle, cargando, error, onEditar, onEliminar }: {
 
   // Ficha del cliente: sin pedido de por medio, así que es el saludo simple —
   // sólo el primer nombre (`mensajeWhatsappCliente`, § lib/admin/mensajes-whatsapp).
-  const waHref   = customerWhatsappHref(cliente.telefono, mensajeWhatsappCliente(cliente.nombre, settings.nombre));
+  const waHref   = customerWhatsappHref(cliente.telefono, mensajeWhatsappCliente(cliente.nombre, settings.nombre, settings.mensajesWhatsapp));
   const mailHref = cliente.email ? `mailto:${cliente.email}?subject=${encodeURIComponent(settings.nombre)}` : null;
 
   const contacto: { label: string; valor?: string | null }[] = [

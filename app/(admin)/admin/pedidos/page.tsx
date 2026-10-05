@@ -343,6 +343,7 @@ function Pedidos() {
             numeroOrden,
             rastreo: sh.estado === 'en_ruta' && numeroOrden ? rastreoUrl(origen, numeroOrden) : null,
           },
+          settings.mensajesWhatsapp,
         );
         avisarWhatsapp(customerWhatsappHref(sh.order?.cliente_telefono ?? null, mensaje));
       }
@@ -843,6 +844,7 @@ function Pedidos() {
               mensajeWhatsappPedido(
                 { estado: 'pagado' },
                 { nombreCompleto: cobrando.cliente_nombre, tienda: settings.nombre, numeroOrden: cobrando.numero_orden },
+                settings.mensajesWhatsapp,
               ),
             ));
           }
@@ -984,6 +986,7 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           ? rastreoUrl(momentoOrigen, orden.numero_orden, orden.cliente_email ?? null)
           : null,
       },
+      settings.mensajesWhatsapp,
     ),
   );
 

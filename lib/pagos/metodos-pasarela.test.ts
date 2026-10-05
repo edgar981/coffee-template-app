@@ -595,6 +595,10 @@ function payloadDeSiteSettings(metodosPasarela: string[]) {
     nombre: 'x', tagline: 'x', descripcionFooter: 'x', whatsapp: '+573000000000', instagram: 'x',
     emailRemitente: 'a@b.com', metodosPago: [{ tipo: 'efectivo' as const, datos: {} }],
     metodosPasarela,
+    // Campo agregado por PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1: la CLAVE es requerida (el write
+    // de este endpoint es COMPLETO), aunque sus propiedades sean todas opcionales — así que un
+    // payload sin ella falla el parseo por una razón AJENA a lo que este archivo prueba.
+    mensajesWhatsapp: {},
   };
 }
 

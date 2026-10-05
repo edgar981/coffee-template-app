@@ -95,7 +95,10 @@ const CAMPO_INSTAGRAM: Campo = { name: 'instagram', label: 'Instagram', hint: 'E
 
 const CAMPOS_CORREOS: Campo[] = [
   { name: 'emailRemitente', label: 'Remitente de correos', full: true, hint: 'Cómo firman los correos de la tienda: "Nombre <correo@dominio>".' },
-  { name: 'emailReplyTo',   label: 'Reply-To (opcional)', hint: 'A dónde responden los clientes. Vacío = sin reply-to propio.' },
+  // Rótulo en español, SIN "(opcional)" (pedido del owner, 2026-10-04): sigue siendo opcional
+  // en la VALIDACIÓN (`siteSettingsEditableSchema.emailReplyTo` no cambió) — sólo cambió el
+  // texto. El hint dice la consecuencia de dejarlo vacío, no sólo que "no hay reply-to propio".
+  { name: 'emailReplyTo',   label: 'Responder a', hint: 'El correo donde te llegan las respuestas de tus clientes. Si lo dejas vacío, sus respuestas no te llegan.' },
   // adminEmail: el ÚNICO campo cuyo nombre no se explica solo — la etiqueta dice para qué sirve.
   { name: 'adminEmail',     label: 'Correo donde llegan los reportes del equipo', hint: 'Destinatario por defecto del resumen diario y el reporte semanal. Vacío = cada reporte usa los suyos.' },
 ];
@@ -464,6 +467,10 @@ export default function DatosNegocioSeccion() {
       adminEmail:        form.adminEmail,
       metodosPago:       form.metodosPago,
       metodosPasarela:   form.metodosPasarela,
+      // Esta sección no edita los mensajes de WhatsApp (§ MensajesClienteSeccion, aparte) —
+      // se pasan TAL CUAL, porque el write de este endpoint es COMPLETO: omitir la clave no
+      // significa "no toques esto", significa "pisa esto con nada".
+      mensajesWhatsapp:  settings.mensajesWhatsapp,
     };
 
     const parsed = siteSettingsEditableSchema.safeParse(payload);

@@ -1,0 +1,12 @@
+-- MENSAJES de WhatsApp al cliente (§ PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1): un objeto PARCIAL
+-- con una clave por momento editable del pedido ('pago_pendiente' · 'pago_confirmado' ·
+-- 'en_camino' · 'entregado') más el saludo sin pedido de la ficha del cliente
+-- ('saludo_cliente'). Una clave AUSENTE (o la fila entera `{}`) = el texto de fábrica que ya
+-- vive en `lib/admin/mensajes-whatsapp.ts` (PEDIDOS-WHATSAPP-MENSAJES-1) — por diseño: "sin
+-- editar, todo sale igual".
+--
+-- ADITIVA PURA, SIN BACKFILL: la capacidad es NUEVA, ningún tenant tenía esto configurado
+-- antes de este slice. `{}` es el único estado posible hoy y es LEGÍTIMO — a diferencia de
+-- `metodosPago` (que exige al menos uno), un mensaje sin personalizar no es un error de
+-- configuración, es el caso normal.
+ALTER TABLE "SiteSetting" ADD COLUMN "mensajesWhatsapp" JSONB NOT NULL DEFAULT '{}'::jsonb;

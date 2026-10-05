@@ -772,6 +772,14 @@ model SiteSetting {
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.
+  // MENSAJES de WhatsApp al cliente (§ PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1): un objeto PARCIAL,
+  // una clave por MOMENTO editable ('pago_pendiente' · 'pago_confirmado' · 'en_camino' · 'entregado'
+  // · 'saludo_cliente') con el texto que reemplaza la plantilla de fábrica de
+  // `lib/admin/mensajes-whatsapp.ts`. Una clave AUSENTE (o la fila entera `{}`) = el texto de fábrica
+  // — por diseño, no hay backfill: la capacidad es NUEVA, ningún tenant tenía esto configurado antes.
+  // Parseado SOFT por `parseMensajesWhatsapp` (mismo criterio que `parseMetodosPago`): un JSON ajeno
+  // o corrupto no debe tumbar el loader.
+  mensajesWhatsapp  Json     @default("{}")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

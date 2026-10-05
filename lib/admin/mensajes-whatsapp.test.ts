@@ -6,6 +6,10 @@ import {
   mensajeWhatsappPedido,
   mensajeWhatsappCliente,
   rastreoUrl,
+  interpolar,
+  parseMensajesWhatsapp,
+  plantillaPorDefecto,
+  MOMENTOS_EDITABLES,
 } from './mensajes-whatsapp';
 
 // ── momentoDePedido ──────────────────────────────────────────────────────────
@@ -183,4 +187,120 @@ test('rastreoUrl sin email: sólo el número de orden', () => {
 
 test('rastreoUrl con email null: igual que sin email', () => {
   assert.equal(rastreoUrl('https://nayoli.com', 'CN-123456', null), 'https://nayoli.com/rastrear-pedido?orden=CN-123456');
+});
+
+// ── overrides editables (PEDIDOS-WHATSAPP-MENSAJES-EDITABLES-1) ─────────────
+
+test('mensajeWhatsappPedido SIN overrides: el texto de fábrica, igual que antes de este slice', () => {
+  const msg = mensajeWhatsappPedido(
+    { estado: 'pendiente' },
+    { nombreCompleto: 'Camilo Moya', tienda: 'Café Nayoli', numeroOrden: 'CN-1' },
+  );
+  assert.match(msg, /^Hola Camilo, te escribimos de Café Nayoli por tu pedido CN-1\. Quedó pendiente/);
+});
+
+test('mensajeWhatsappPedido con override para el momento activo: usa el texto guardado', () => {
+  const msg = mensajeWhatsappPedido(
+    { shippingEstado: 'en_ruta' },
+    { nombreCompleto: 'Camilo', tienda: 'Café Nayoli', numeroOrden: 'CN-1', rastreo: 'https://x/y' },
+    { en_camino: 'Oye {nombre}, tu {pedido} va rumbo a ti: {rastreo}' },
+  );
+  assert.equal(msg, 'Oye Camilo, tu CN-1 va rumbo a ti: https://x/y');
+});
+
+test('mensajeWhatsappPedido con override de OTRO momento: no aplica (cada momento mira su propia clave)', () => {
+  const msg = mensajeWhatsappPedido(
+    { estado: 'pendiente' },
+    { nombreCompleto: 'Camilo', tienda: 'Café Nayoli', numeroOrden: 'CN-1' },
+    { en_camino: 'Esto no debería aparecer' },
+  );
+  assert.ok(!msg.includes('no debería aparecer'));
+  assert.match(msg, /Quedó pendiente/);
+});
+
+test('mensajeWhatsappPedido: override en BLANCO cae a la fábrica, igual que ausente', () => {
+  const msg = mensajeWhatsappPedido(
+    { estado: 'pendiente' },
+    { nombreCompleto: 'Camilo', tienda: 'Café Nayoli', numeroOrden: 'CN-1' },
+    { pago_pendiente: '   ' },
+  );
+  assert.match(msg, /Quedó pendiente/);
+});
+
+test("mensajeWhatsappPedido: el momento 'otro' (orden cancelada) NUNCA mira overrides", () => {
+  const msg = mensajeWhatsappPedido(
+    { estado: 'cancelado' },
+    { nombreCompleto: 'Camilo', tienda: 'Café Nayoli', numeroOrden: 'CN-1' },
+    // 'otro' no es una clave de MensajesWhatsappGuardados — no hay cómo pasarle un
+    // override a este momento, por diseño.
+    {},
+  );
+  assert.equal(msg, 'Hola Camilo, te escribimos de Café Nayoli por tu pedido CN-1.');
+});
+
+test('mensajeWhatsappCliente con override del saludo: usa el texto guardado', () => {
+  const msg = mensajeWhatsappCliente('Camilo Moya', 'Café Nayoli', { saludo_cliente: 'Qué tal {nombre}, somos {tienda}.' });
+  assert.equal(msg, 'Qué tal Camilo, somos Café Nayoli.');
+});
+
+test('mensajeWhatsappCliente sin override del saludo: la fábrica de siempre', () => {
+  const msg = mensajeWhatsappCliente('Camilo Moya', 'Café Nayoli', { en_camino: 'Esto es de otro momento' });
+  assert.equal(msg, 'Hola Camilo, te escribimos de Café Nayoli.');
+});
+
+// ── interpolar: hueco desconocido queda LITERAL ──────────────────────────────
+
+test('interpolar: un hueco conocido pero sin valor sustituye por vacío (y limpia el espacio)', () => {
+  assert.equal(interpolar('Hola {nombre}, bienvenido', { nombre: '' }), 'Hola, bienvenido');
+});
+
+test('interpolar: un hueco DESCONOCIDO (no está en el mapa) queda literal, no desaparece', () => {
+  assert.equal(interpolar('Hola {nombre}, tu código es {foo}', { nombre: 'Camilo' }), 'Hola Camilo, tu código es {foo}');
+});
+
+test('interpolar: insertar {pedido} en un texto sin ese hueco declarado lo deja literal', () => {
+  // Es el caso real: el saludo de la ficha del cliente sólo declara {nombre}/{tienda}; si el
+  // dueño inserta {pedido} ahí, debe VERSE en la vista previa, no desaparecer.
+  const msg = mensajeWhatsappCliente('Camilo', 'Café Nayoli', { saludo_cliente: 'Hola {nombre}, tu pedido {pedido} de {tienda}' });
+  assert.equal(msg, 'Hola Camilo, tu pedido {pedido} de Café Nayoli');
+});
+
+// ── parseMensajesWhatsapp: SOFT, nunca lanza ─────────────────────────────────
+
+test('parseMensajesWhatsapp: objeto con las cinco claves válidas, todas sobreviven', () => {
+  const entrada: Record<string, string> = {};
+  for (const m of MOMENTOS_EDITABLES) entrada[m] = `texto de ${m}`;
+  assert.deepEqual(parseMensajesWhatsapp(entrada), entrada);
+});
+
+test('parseMensajesWhatsapp: descarta claves desconocidas y valores no-string', () => {
+  assert.deepEqual(
+    parseMensajesWhatsapp({ en_camino: 'Custom', clave_inventada: 'x', pago_pendiente: 42 }),
+    { en_camino: 'Custom' },
+  );
+});
+
+test('parseMensajesWhatsapp: descarta strings vacíos/blancos', () => {
+  assert.deepEqual(parseMensajesWhatsapp({ en_camino: '   ', entregado: 'Real' }), { entregado: 'Real' });
+});
+
+test('parseMensajesWhatsapp: null, array o string crudo → {} (nunca lanza)', () => {
+  assert.deepEqual(parseMensajesWhatsapp(null), {});
+  assert.deepEqual(parseMensajesWhatsapp(['no', 'es', 'un', 'objeto']), {});
+  assert.deepEqual(parseMensajesWhatsapp('texto suelto'), {});
+  assert.deepEqual(parseMensajesWhatsapp(undefined), {});
+});
+
+// ── plantillaPorDefecto: la MISMA fuente que el renderer ────────────────────
+
+test('plantillaPorDefecto: saludo_cliente es la plantilla sin pedido', () => {
+  assert.equal(mensajeWhatsappCliente('Camilo', 'Café Nayoli', { saludo_cliente: plantillaPorDefecto('saludo_cliente') }),
+    mensajeWhatsappCliente('Camilo', 'Café Nayoli'));
+});
+
+test('plantillaPorDefecto de un momento de pedido: pasarla como override da el MISMO mensaje que no pasar nada', () => {
+  const datos = { nombreCompleto: 'Camilo', tienda: 'Café Nayoli', numeroOrden: 'CN-1', rastreo: 'https://x' };
+  const sinOverride = mensajeWhatsappPedido({ shippingEstado: 'en_ruta' }, datos);
+  const conElMismoTextoComoOverride = mensajeWhatsappPedido({ shippingEstado: 'en_ruta' }, datos, { en_camino: plantillaPorDefecto('en_camino') });
+  assert.equal(sinOverride, conElMismoTextoComoOverride);
 });
