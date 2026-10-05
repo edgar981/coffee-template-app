@@ -744,20 +744,20 @@ html.admin {
 
 /* ─── PAGOS — LISTA, no sub-piezas apiladas (§ PAGOS-METODOS-UI-1, mockup adoptado) ─────────────
    Reemplaza a `.admin-metodo` (retirado: cinco tarjetas con borde y sombra pesaban cinco veces;
-   cinco filas con un divisor entre ellas pesan una sola). Todo admin-level, un solo consumidor
-   (`DatosNegocioSeccion`) — el disparador de siempre para no promoverlo a `duna-`.
+   cinco filas con un divisor entre ellas pesan una sola). Admin-level; `.admin-pagos-fila`/
+   `.admin-pagos-vacio` hoy sólo los consume `ContactoRedesBloque` (redes sociales) —
+   `PagosCobrosBloque` migró a `.admin-medio-fila` (abajo) con el rediseño de
+   § PANEL-CONFIG-PAGOS-1, que necesitaba más que una fila de label+input (chip, dato clave,
+   badge de estado, edición inline). `.admin-pagos-dato`/`--regla` los siguen compartiendo los
+   dos — el dato/la regla de una fila es la misma forma la pinte quien la pinte.
 
-   DOS GRUPOS por NATURALEZA del pago ("Pagan antes" / "Pagan al recibir"), separados por un
-   divisor PUNTEADO — Contra entrega se lee como lo que es (otra ruta del dinero) sin gritarlo
-   con color. Dentro de un grupo, las filas se separan por un divisor SIMPLE; la primera no lo
-   lleva porque el combinador `+` sólo aplica entre hermanos. SIN barra de tinta por fila: el par
-   "esto está puesto" (§ Amber Minimal) es para lo que VARÍA entre estados; acá cada fila de la
-   lista YA está puesta — la marca no informaría nada. */
-.admin-pagos-grupo + .admin-pagos-grupo {
-  border-top: 1px dashed var(--duna-border);
-  margin-top: var(--duna-space-4);
-  padding-top: var(--duna-space-4);
-}
+   LOS DOS GRUPOS "Pagan antes"/"Pagan al recibir" (con su divisor PUNTEADO) SE RETIRARON
+   (§ PANEL-CONFIG-PAGOS-1): el rediseño de «Cómo te pueden pagar» es una lista PLANA en el
+   orden CANÓNICO del checkout, sin agrupar por naturaleza del pago — Contra entrega lleva su
+   propia nota de regla en la fila (`.admin-pagos-dato--regla`, abajo), que ya dice lo que la
+   agrupación decía. `.admin-pagos-grupo` quedó SIN CONSUMIDOR y se retiró con su regla. (Queda
+   UNA mención en prosa, como precedente citado, en `app/(admin)/editor/editor.css` — fuera de
+   `touches:` de este slice, anotada en el reporte.) */
 .admin-pagos-fila { padding: var(--duna-space-3) 0; }
 .admin-pagos-fila + .admin-pagos-fila { border-top: 1px solid var(--duna-border); }
 
@@ -777,6 +777,64 @@ html.admin {
   background: var(--duna-surface-2);
   padding: var(--duna-space-4);
   text-align: center;
+}
+
+/* ─── «Cómo te pueden pagar» + «Así lo ve tu cliente» (§ PANEL-CONFIG-PAGOS-1) ──────────────────
+   Dos columnas en escritorio — la lista + Pago en línea a la izquierda, la vista previa del
+   checkout a la derecha, fija (`sticky`) mientras el bloque scrollea document-scroll (esta
+   pantalla no opta al alto fijo, § CLAUDE.md "Los DOS modelos de scroll… conviven A PROPÓSITO").
+   Colapsa a una columna cuando ya no entran las dos cómodas — 1100px es una medida de PANTALLA
+   PROPIA (no el 960/1080 del split de otras verticales): acá el ancho disponible ya restó los
+   240px + gap del nav de Configuración (`.admin-config-layout`), así que el umbral es del
+   CONTENEDOR de este bloque, no del viewport del admin. */
+.admin-medios-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--duna-space-6);
+  align-items: start;
+}
+.admin-medios-main { display: flex; flex-direction: column; gap: var(--duna-space-4); min-width: 0; }
+.admin-medios-preview { position: sticky; top: var(--duna-space-4); }
+
+@media (max-width: 1099.98px) {
+  .admin-medios-layout { grid-template-columns: 1fr; }
+  .admin-medios-preview { position: static; }
+}
+
+/* La fila de «Cómo te pueden pagar» — chip + nombre/dato + badge de estado + Editar, o (en
+   edición) los campos de ESE tipo solo. Reemplaza al checkbox+fila de la tanda anterior
+   (§ arriba, "PagosCobrosBloque migró"). */
+.admin-medio-fila { padding: var(--duna-space-3) 0; }
+.admin-medio-fila + .admin-medio-fila { border-top: 1px solid var(--duna-border); }
+
+/* El chip de iniciales — MISMO par que el avatar de usuario/negocio (`NegocioMenu.tsx`,
+   `UserMenu.tsx`: `--duna-ink`/`--duna-paper`), NUNCA un color propio por tipo. La serie
+   categórica (`--duna-serie-*`) está reservada a gráficos con categorías (§ CLAUDE.md "La serie
+   NUNCA se usa donde haya estado… sólo en gráficos con categorías") y esto es una lista, no un
+   chart — lo que distingue una fila de otra es el texto (NQ/DP/BB/TR/EF), no el color. */
+.admin-medio-chip {
+  width: 36px; height: 36px; border-radius: var(--duna-r-full);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  background: var(--duna-ink); color: var(--duna-paper);
+  font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); letter-spacing: 0.02em;
+}
+
+/* Los chips de «Pago en línea» (lectura) — un pill neutro, el mismo rol que una categoría
+   (Amber Minimal: "categorías van neutras, nunca color semántico"). No es un badge de ESTADO
+   (eso ya lo dice "Conectado"/"No se pudo conectar" arriba del bloque). */
+.admin-gw-chip {
+  display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--duna-r-full);
+  font-size: var(--duna-text-caption); font-weight: var(--duna-w-medium);
+  background: var(--duna-surface-2); box-shadow: inset 0 0 0 1px var(--duna-border); color: var(--duna-ink-2);
+}
+
+/* Una opción inerte de «Así lo ve tu cliente» (y, reusada, cada tarjeta de tipo de la hoja
+   «Agregar medio»): una caja recesada, SIN estado seleccionado — es un catálogo de lo
+   disponible, no la elección de un comprador real. */
+.admin-ck-opcion {
+  display: block; width: 100%; text-align: left;
+  padding: var(--duna-space-3); border-radius: var(--duna-r-m);
+  background: var(--duna-bg); box-shadow: inset 0 0 0 1px var(--duna-border);
 }
 
 /* El BLOQUE-tarjeta del FORM (sólo /admin/tienda): la PIEZA (miniatura + campos) de una tarjeta.

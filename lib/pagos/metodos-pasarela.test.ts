@@ -490,8 +490,16 @@ test('checkoutSabeDibujar: un tipo cualquiera que el registro no conoce → fals
 // no al banco. Con ese banco SÍ se cobra, por identificadores hermanos (con sufijo) que un
 // re-spike (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`) vio crear la transacción con éxito — ningún
 // hermano tiene descriptor ni entra a este registro todavía, así que no hay una aserción nueva que
-// escribir acá; la corrección vive en el docstring de `TIPOS_NO_COBRABLES` y en el texto del panel
-// (`components/admin/DatosNegocioSeccion.tsx`).
+// escribir acá; la corrección vive en el docstring de `TIPOS_NO_COBRABLES`.
+//
+// EL TEXTO DEL PANEL QUE ESTE COMENTARIO CITABA YA NO EXISTE (§ PANEL-CONFIG-PAGOS-1,
+// 2026-10-05): `components/admin/DatosNegocioSeccion.tsx` sigue siendo el re-export de
+// `PagosCobrosBloque.tsx`, pero ese bloque dejó de mostrar el cruce editable por-tipo
+// (`EXPLICACION_NO_ENCENDIBLE`, con su frase "Es una etiqueta agregadora del proveedor…") — el
+// bloque «Pago en línea» del rediseño es de SOLO LECTURA (chips de lo guardado + el estado de
+// conexión), sin la clasificación fina `disponible`/`no_implementado`/`no_cobrable` por tipo que
+// esa frase explicaba. La clasificación sigue viva acá, en `paraElPanel`/`TIPOS_NO_COBRABLES` —
+// lo que se fue es su explicación en el panel, no la regla.
 test('TIPOS_NO_COBRABLES: BANCOLOMBIA, y sólo BANCOLOMBIA — el identificador nombrado por API-DIRECTA-CATALOGO-NOMBRA-TIPO-1 (§ el docstring)', () => {
   assert.deepEqual([...TIPOS_NO_COBRABLES], ['BANCOLOMBIA']);
 });
