@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Diagnóstico del panel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#F7F6F2}
+*{box-sizing:border-box}
+.dg{width:1440px;height:1580px;padding:56px 64px;background:#F7F6F2;color:#141311;font:400 13px/1.45 'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:26px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:40px}
+.k{font:500 11px/1 'Spline Sans Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#746F64;margin:0}
+.h1{font:600 42px/1.05 'Space Grotesk',sans-serif;letter-spacing:-.03em;margin:14px 0 0}
+.lead{color:#746F64;font-size:15px;margin:10px 0 0;max-width:62ch}
+.mark{display:flex;align-items:center;gap:10px;color:#141311}
+.mark svg{width:40px;height:40px}
+.mark b{font:600 17px 'Space Grotesk',sans-serif;letter-spacing:.24em}
+.pr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.pc{background:#fff;border:1px solid #E9E6DD;border-radius:16px;padding:14px 14px 15px}
+.pc span{font:500 11px 'Spline Sans Mono',monospace;color:#A8A399}
+.pc b{display:block;font:600 15px/1.2 'Space Grotesk',sans-serif;margin-top:8px}
+.pc p{margin:6px 0 0;color:#746F64;font-size:12.5px;line-height:1.45}
+.tab{background:#fff;border:1px solid #E9E6DD;border-radius:20px;overflow:hidden;flex:1}
+.row{display:grid;grid-template-columns:200px 170px minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:center;padding:12px 22px;border-top:1px solid #F0EDE6}
+.row.hd{border-top:0;padding-top:14px;padding-bottom:10px;font:500 10px 'Spline Sans Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#A8A399;background:#FBFAF7}
+.nm b{display:block;font:600 15px 'Space Grotesk',sans-serif}
+.nm span{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:11.5px;color:#746F64}
+.nm span i{width:7px;height:7px;border-radius:50%;background:#141311}
+.nm span.deep i{background:#F59E0B;box-shadow:0 0 0 3px rgba(245,158,11,.14)}
+.sc{display:flex;align-items:center;gap:10px}
+.sc b{font:600 22px 'Space Grotesk',sans-serif;width:28px}
+.bar{display:flex;gap:3px;flex:1}
+.bar i{flex:1;height:10px;border-radius:2px;background:#EDEAE2}
+.bar i.f{background:#141311}
+.now{color:#3D3A34;font-size:12.5px;line-height:1.45}
+.new{color:#141311;font-size:12.5px;line-height:1.45;font-weight:500}
+.new::before{content:"→ ";color:#4C7A5A;font-weight:600}
+.foot{display:flex;justify-content:space-between;color:#746F64;font-size:12px}
+</style>
+</helmet>
+<div class="dg">
+  <div class="top">
+    <div>
+      <p class="k">Propuesta · panel de Duna · 12 superficies revisadas en el código</p>
+      <h1 class="h1">Dónde duele, y qué cambia</h1>
+      <p class="lead">La nota va de 1 a 10: cuánto necesita el rediseño cada sección. El prototipo de al lado trata a fondo las que más lo necesitan, y le da una vuelta a todas las demás.</p>
+    </div>
+    <div class="mark"><svg viewBox="0 0 128 128" aria-hidden="true"><g transform="translate(64 64) scale(1.28) translate(-66 -60)"><line x1="40" y1="28" x2="40" y2="92" stroke="#141311" stroke-width="7" stroke-linecap="round"></line><path d="M40 28 C86 28 101 38 99 55 C97 79 73 92 40 92" stroke="#141311" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"></path><path d="M30 85 C46 83 57 76 68 65 C73 60 77 61 90 84" stroke="#141311" stroke-width="3.4" opacity="0.5" stroke-linecap="round" fill="none"></path><circle cx="40" cy="28" r="6.5" fill="#141311"></circle><circle cx="40" cy="92" r="6.5" fill="#141311"></circle><circle cx="81" cy="53" r="8" fill="#F59E0B"></circle></g></svg><b>DUNA</b></div>
+  </div>
+
+  <div class="pr">
+    <div class="pc"><span>01</span><b>Una frase arriba</b><p>Cada pantalla abre respondiendo su pregunta, con los números dentro.</p></div>
+    <div class="pc"><span>02</span><b>Un siguiente paso</b><p>Donde hay trabajo, un solo botón principal que lo hace.</p></div>
+    <div class="pc"><span>03</span><b>El sol, solo para lo urgente</b><p>El ámbar marca lo que espera de ti. Nada decorativo lo usa.</p></div>
+    <div class="pc"><span>04</span><b>Estados como posición</b><p>Recibido, preparando, en camino, entregado: un recorrido, no colores.</p></div>
+    <div class="pc"><span>05</span><b>Editar donde se lee</b><p>Ajustes dentro de la frase y bloques por separado. Nada de formularios gigantes.</p></div>
+    <div class="pc"><span>06</span><b>Un solo idioma</b><p>Pedidos, nunca órdenes. En camino, nunca en ruta. Tú, nunca vos.</p></div>
+  </div>
+
+  <div class="tab">
+    <div class="row hd"><span>Sección</span><span>Necesita rediseño</span><span>Lo que duele hoy</span><span>Lo que propongo</span></div>
+    <div class="row"><div class="nm"><b>Analítica</b><span class="deep"><i></i>A fondo en el prototipo</span></div><div class="sc"><b>8</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span></div><p class="now">Notas de desarrollo a la vista del dueño («dato del seed», «SN-», «provisional»). El período cambia 3 de 7 bloques sin decirlo.</p><p class="new">Cuatro preguntas, cada una respondida en una frase. Cada bloque dice qué período mira; «Cómo se calcula» queda plegado.</p></div>
+    <div class="row"><div class="nm"><b>Configuración</b><span class="deep"><i></i>A fondo en el prototipo</span></div><div class="sc"><b>8</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span></div><p class="now">Editar un correo abre los seis bloques a la vez. Ofrece el rol Empleado, que deja sin acceso. Hacer dueño a alguien no pide confirmación.</p><p class="new">Subsecciones con su propio Editar. Medios de pago que se agregan, editan y ordenan, con «Así lo ve tu cliente» al lado. Confirmación al cambiar un rol.</p></div>
+    <div class="row"><div class="nm"><b>Pedidos</b><span class="deep"><i></i>A fondo en el prototipo</span></div><div class="sc"><b>6</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span></div><p class="now">Nueve filtros y ningún buscador. El detalle es una columna de diez secciones; «Registrar pago» parece parte de Entrega.</p><p class="new">Arriba, lo que pide tu acción con su botón. Debajo, el camino del pedido en cuatro etapas que también filtran. Un historial por días, con período, estado y búsqueda en todo. El detalle es una ficha: siguiente paso, recorrido con horas y recibo.</p></div>
+    <div class="row"><div class="nm"><b>Inventario</b><span class="deep"><i></i>A fondo en el prototipo</span></div><div class="sc"><b>6</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span></div><p class="now">Muestra lo que pasó, nunca lo que tienes. Ajustar arranca en «fijar cantidad» y no muestra el resultado antes de guardar.</p><p class="new">Existencias primero. Ajustar arranca en «Llegó más», dice «quedará en» antes de guardar y pide el motivo con un toque.</p></div>
+    <div class="row"><div class="nm"><b>Productos</b><span><i></i>En el prototipo</span></div><div class="sc"><b>6</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span></div><p class="now">Trece campos y las moliendas apretados en 480 px. Pausar la venta está escondido dentro de Eliminar.</p><p class="new">Ficha ancha por pestañas, «Publicado» en la cabecera y «Pausar venta» a la vista. Lo que te queda por unidad, calculado.</p></div>
+    <div class="row"><div class="nm"><b>Pagos</b><span><i></i>En el prototipo</span></div><div class="sc"><b>6</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span></div><p class="now">Ocho controles en una fila, con tres formas escondidas de filtrar. Los comprobantes por verificar no se ven en la lista.</p><p class="new">La franja «Por verificar» va arriba, con Verificar en un toque. Un solo selector de período y la gráfica por método.</p></div>
+    <div class="row"><div class="nm"><b>Tienda</b><span><i></i>En el prototipo</span></div><div class="sc"><b>6</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span></div><p class="now">Cuatro formularios largos antes del botón del editor, sin vista previa. Está suelta en el menú, contra el brief.</p><p class="new">Sale del menú lateral: se entra desde el nombre del negocio. Menú, encabezado y pie pasan al editor, con su vista previa.</p></div>
+    <div class="row"><div class="nm"><b>Perfil</b><span><i></i>En el prototipo</span></div><div class="sc"><b>6</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span></div><p class="now">Nombre, correo y rol aparecen dos veces. La «sesión activa» es texto fijo. Hay dos formularios de contraseña que se comportan distinto.</p><p class="new">Tres bloques cortos: tu nombre, tu contraseña y tus sesiones reales. Guardar se apaga si no hay cambios.</p></div>
+    <div class="row"><div class="nm"><b>Hoy</b><span class="deep"><i></i>A fondo en el prototipo</span></div><div class="sc"><b>5</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i></span></div><p class="now">La cifra principal es más chica que las tarjetas de abajo. Los indicadores mezclan hoy, el mes y el saldo bajo un mismo título.</p><p class="new">La frase del brief en grande y la duna con el sol en el ahora, con el viernes pasado detrás. Cada aviso trae su botón.</p></div>
+    <div class="row"><div class="nm"><b>Clientes</b><span><i></i>En el prototipo</span></div><div class="sc"><b>5</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i></span></div><p class="now">El historial no abre los pedidos. No hay «nuevo pedido» para ese cliente: hay que ir a Pedidos y volver a escribir su teléfono.</p><p class="new">Historial que abre cada pedido. «Nuevo pedido para Laura» en el detalle, con su dirección de siempre.</p></div>
+    <div class="row"><div class="nm"><b>Menú y barra</b><span><i></i>En el prototipo</span></div><div class="sc"><b>4</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div><p class="now">La búsqueda es un ícono. El cambio de tema no tiene movimiento. El avatar usa el ámbar de forma decorativa.</p><p class="new">Barra de búsqueda visible (⌘K), tema con transición, avatar en tinta. «Pedidos» en todas partes.</p></div>
+    <div class="row"><div class="nm"><b>Automatizaciones</b><span><i></i>En el prototipo</span></div><div class="sc"><b>4</b><span class="bar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div><p class="now">El diálogo de ajustes no valida y se cierra al guardar. Si una falla, no dice por qué ni lleva a la tarjeta.</p><p class="new">Se ajustan dentro de la frase. La que falla explica qué pasó y se reintenta desde ahí mismo.</p></div>
+  </div>
+  <div class="foot"><span>Notas medidas leyendo el código de cada pantalla, rama slice/corte-reescritura-prototipo-1.</span><span>Datos del prototipo: tienda de ejemplo Finca San Adolfo.</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1580}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
