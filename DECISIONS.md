@@ -55145,12 +55145,18 @@ Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma, sin contrato c
 
 ### `changed` (bytes de cliente/operador/dueño)
 
-**`false`.** Los 6 archivos de este commit son `app/(admin)/duna.css`,
-`components/admin/configuracion/PagosCobrosBloque.tsx`, `docs/panel/REDISENO.md` (doc interno),
-`lib/pagos/metodos-pasarela.test.ts` (comentario), `lib/admin/medios-pago-vista.ts`,
-`lib/admin/medios-pago-vista.test.ts`. Todo vive bajo `/admin/configuracion`, gateado a OWNER/
-MANAGER — ningún cliente del storefront ve esta pantalla. Cero archivos bajo `app/(storefront)/` o
-`components/storefront/` en el diff (confirmado arriba, en el gate de `verificar:nayoli:visual`).
+**`true`.** El eje es "¿lee esto un cliente, un operador o el dueño?", no "¿es storefront?" — y
+`/admin/configuracion` lo lee el OPERADOR/DUEÑO en cada sesión. Cero archivos bajo
+`app/(storefront)/` o `components/storefront/` en el diff (confirmado en el gate de
+`verificar:nayoli:visual`), pero eso sólo dice que no hay bytes de CLIENTE — `PagosCobrosBloque.tsx`
+reescribe TODO el texto visible de la subsección: títulos ("Cómo te pueden pagar", "Pago en línea",
+"Así lo ve tu cliente"), estados ("Activo"/"Falta configurar"/"Conectado"/"No se pudo conectar"),
+botones ("Agregar medio", "Agregar y activar", "Quitar este medio", "Ya lo tienes"), y avisos ("No
+puedes quitar el último medio de pago. Agrega otro primero."). Mismo eje que
+`PANEL-CONFIG-BLOQUES-1` (la propia entrada de arriba: "**`changed: true`**… Nada toca el
+storefront… el diff que reporta es heredado, no de este commit" — ahí también era admin-only) y que
+el resto de esta rama (`EDITOR-VISUAL-MARCO-1`/`PANEL-1`/`LIENZO-1`, todos `stopped_on:
+[customer-bytes]` sobre superficie puramente admin).
 
 ### Open follow-ups
 
@@ -55168,15 +55174,17 @@ MANAGER — ningún cliente del storefront ve esta pantalla. Cero archivos bajo 
 
 ### Verdict
 
-**AWAITING_APPROVAL**, `stopped_on: [owner-gate-requested]` — el spec de este slice pidió
-explícitamente pararse ahí ("PARÁS EN AWAITING_APPROVAL. NO MERGEES.") y ninguna de las otras tres
-razones de merge policy A aplica (sin schema, sin bytes de cliente — `changed: false`, medido arriba
-—, sin contrato cruzado), así que es la ÚNICA de las cuatro que puede ir sola. `npm run gate` GREEN de
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que `PANEL-CONFIG-BLOQUES-1` y el
+resto de esta rama (§ arriba, "`changed`"): `/admin/configuracion` lo lee el operador/dueño, y este
+diff reescribe su texto visible entero. Sin schema, sin contrato cruzado. `npm run gate` GREEN de
 punta a punta (typecheck 0 · 3871/3871 · 363/363, el segundo reconciliado en puerto alterno 55448 por
 contención externa — mismo mecanismo y mismo número que ya citó `PANEL-CONFIG-BLOQUES-1`);
 `verificar:nayoli:visual` corrido completo, su drift es IDÉNTICO al piso ya citado por
 `EDITOR-VISUAL-PANEL-1` y heredado de la rama, no de este commit (cero archivos de storefront en el
 diff). Sesión en el arnés completa, 11/11 pasos verdes. Commiteado en `slice/editor-secciones-1`
-(`e0f66bd`), sin pushear — queda a la espera del merge gateado.
+(`e0f66bd`), sin pushear — queda a la espera del merge gateado. (`stopped_on: [owner-gate-requested]`
+habría sido la clasificación si `customer-bytes` NO aplicara — el dispatch además pidió
+explícitamente pararse en `AWAITING_APPROVAL`, pero esa instrucción resultó redundante con la razón
+real medida.)
 
 **Cierra `PANEL-CONFIG-PAGOS-1`.**
