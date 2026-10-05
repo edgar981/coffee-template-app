@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
 
 // El toggle de ENCENDER/APAGAR una página del storefront (`content.paginas[pagina].visible`). Va
 // DIRECTO a lo publicado —no por el flujo borrador/publicar de secciones—: encender o apagar una
@@ -43,21 +44,15 @@ export default function TogglePagina({ pagina, label }: { pagina: string; label:
 
   const on = visible === true;
   return (
-    <div className="duna-card duna-card__pad" style={{ marginBottom: 'var(--duna-space-5)', display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexWrap: 'wrap' }}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={`Mostrar la página ${label} en la tienda`}
+    <div className="duna-card duna-card__pad" style={{ marginBottom: 'var(--duna-space-5)' }}>
+      {/* Sin hint: el operador apaga y ve el resultado (nav + storefront). El toast confirma la
+          acción. Mismo criterio que el toggle de sección. */}
+      <MostrarOcultar
+        etiqueta={`${label} en la tienda`}
+        visible={on}
         disabled={visible === null || guardando}
-        onClick={alternar}
-        className={`duna-switch${on ? ' is-on' : ''}`}
-      >
-        <span className="duna-switch__thumb" />
-      </button>
-      {/* Sin hint: el operador apaga y ve el resultado (nav + storefront). El label + el switch
-          bastan; el toast confirma la acción. Mismo criterio que el toggle de sección. */}
-      <span className="duna-field__label" style={{ margin: 0 }}>Mostrar la página en la tienda</span>
+        onCambiar={alternar}
+      />
     </div>
   );
 }

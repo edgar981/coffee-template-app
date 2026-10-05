@@ -6,6 +6,8 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
+import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
+import { EleccionVisual, type OpcionEleccionVisual } from '@/components/admin/editor/EleccionVisual';
 
 // ─── Bloque DETALLES DEL SITIO — vive en el editor, junto a Menú/Encabezado/Pie ──────────────────
 //
@@ -73,11 +75,37 @@ interface Wire {
   carrito: { variante: 'anclado' | 'flotante' };
 }
 
-const CONTROLES: { name: keyof Form; label: string; hint: string }[] = [
+// § EDITOR-PANEL-CONTROLES-1 — LOS TRES PRIMEROS son MOSTRAR/OCULTAR (el spec los nombra textual:
+// "volver arriba, las redes, la barra de envío"): el elemento existe siempre, lo que cambia es si
+// aparece. `carritoFlotante` es distinto —cambia CÓMO se ve el cajón, no si existe— así que queda
+// FUERA de esta lista y usa `EleccionVisual` (abajo, en el render), con su propia miniatura.
+const MOSTRAR_CONTROLES: { name: Exclude<keyof Form, 'carritoFlotante'>; label: string; hint: string }[] = [
   { name: 'volverArriba', label: 'Botón "volver arriba"', hint: 'Un botón flotante que aparece al bajar por la página y lleva de vuelta al inicio.' },
   { name: 'rielSocial', label: 'Riel social', hint: 'Un riel fijo a un lado de la pantalla con tus redes sociales — usa las que ya cargaste en Configuración. Sólo se ve en pantallas anchas, y sólo si hay al menos una red cargada.' },
   { name: 'carritoEnvio', label: 'Barra de progreso de envío gratis', hint: 'En el carrito, muestra una barra que se llena a medida que el cliente se acerca al envío gratis, en vez del texto fijo de siempre.' },
-  { name: 'carritoFlotante', label: 'Cajón del carrito flotante', hint: 'El cajón del carrito se separa de los bordes de la pantalla, con esquinas redondeadas y su propio fondo, en vez de ir pegado al borde como hoy.' },
+];
+
+// LA MINIATURA del cajón del carrito: pegado al borde (ancho completo, sin radio) contra separado
+// con margen y esquinas redondeadas — la diferencia que `carritoFlotante` decide.
+function MiniCarrito({ flotante }: { flotante: boolean }) {
+  const x = flotante ? 58 : 64;
+  return (
+    <svg viewBox="0 0 96 46" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="96" height="46" fill="var(--duna-surface-2)" />
+      {flotante ? (
+        <rect x={x} y="6" width="32" height="34" rx="8" fill="var(--duna-surface)" stroke="var(--duna-border-2)" />
+      ) : (
+        <rect x={x} y="0" width="32" height="46" fill="var(--duna-surface)" stroke="var(--duna-border-2)" />
+      )}
+      <rect x={x + 6} y={flotante ? 15 : 10} width="18" height="3" rx="1" fill="var(--duna-ink)" />
+      <rect x={x + 6} y={flotante ? 22 : 17} width="18" height="3" rx="1" fill="var(--duna-ink)" opacity={0.6} />
+    </svg>
+  );
+}
+
+const OPCIONES_CARRITO_FLOTANTE: OpcionEleccionVisual[] = [
+  { value: 'off', label: 'Anclado', miniatura: <MiniCarrito flotante={false} /> },
+  { value: 'on', label: 'Flotante', miniatura: <MiniCarrito flotante /> },
 ];
 
 export default function DetallesSitioSeccion() {
@@ -255,24 +283,28 @@ export default function DetallesSitioSeccion() {
 
       <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
-          {CONTROLES.map((c) => {
-            const on = form[c.name];
-            return (
-              <div key={c.name}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-                  <button
-                    type="button" role="switch" aria-checked={on} aria-label={c.label}
-                    onClick={() => cambiar({ [c.name]: !on } as Partial<Form>)}
-                    className={`duna-switch${on ? ' is-on' : ''}`}
-                  >
-                    <span className="duna-switch__thumb" />
-                  </button>
-                  <span className="duna-field__label" style={{ margin: 0 }}>{c.label}</span>
-                </div>
-                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{c.hint}</p>
-              </div>
-            );
-          })}
+          {MOSTRAR_CONTROLES.map((c) => (
+            <div key={c.name}>
+              <MostrarOcultar
+                etiqueta={c.label}
+                visible={form[c.name]}
+                onCambiar={() => cambiar({ [c.name]: !form[c.name] } as Partial<Form>)}
+              />
+              <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{c.hint}</p>
+            </div>
+          ))}
+          <div>
+            <span className="duna-field__label" style={{ display: 'block', marginBottom: 'var(--duna-space-2)' }}>Cajón del carrito</span>
+            <EleccionVisual
+              etiqueta="Cajón del carrito"
+              opciones={OPCIONES_CARRITO_FLOTANTE}
+              valor={form.carritoFlotante ? 'on' : 'off'}
+              onElegir={(v) => cambiar({ carritoFlotante: v === 'on' })}
+            />
+            <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
+              El cajón del carrito se separa de los bordes de la pantalla, con esquinas redondeadas y su propio fondo, en vez de ir pegado al borde como hoy.
+            </p>
+          </div>
         </div>
       </div>
 

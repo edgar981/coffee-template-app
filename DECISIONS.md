@@ -55188,3 +55188,201 @@ explícitamente pararse en `AWAITING_APPROVAL`, pero esa instrucción resultó r
 real medida.)
 
 **Cierra `PANEL-CONFIG-PAGOS-1`.**
+
+## 2026-10-05 — Los interruptores del editor se vuelven interactivos: elección visual, mostrar/ocultar, comportamiento (`EDITOR-PANEL-CONTROLES-1`)
+
+Pedido del owner del 2026-10-05 revisando el editor: *"Los indicadores de apagar encender no me
+gusta como se ven. Siento que se siente más como que habilito, que un editor… el panel debería
+sentirse más interactivo y no solo activo desactivo, prendo apago."* Delegación vigente del owner
+para las decisiones de diseño de esta rama, `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`.
+La aprobación autoriza la escritura, nunca el merge. Sigue `slice/editor-secciones-1`, encima de
+`b84d6da` (`PANEL-CONFIG-PAGOS-1`).
+
+**EL CENSO ANTES DE EMPEZAR, el número que pedía el spec:** 8 ubicaciones de código `.duna-switch`
+en el editor, correspondientes a **19 controles distintos** (un noveno patrón, el `renderBooleano`
+genérico de `TiendaSeccionEditor.tsx`, no tenía NINGÚN llamador vivo — el hero, el único que
+declara `booleanos`, ya los reemplazó por `renderZonasHero` en `EDITOR-VISUAL-NIVELES-1` — así que
+se migró igual, por higiene, sin contar como control "vivo"): `EncabezadoSeccion.tsx` (10 en
+`CONTROLES` + 1 anidado, `buscarMovil`), `DetallesSitioSeccion.tsx` (4: volverArriba · rielSocial ·
+carritoEnvio · carritoFlotante), `FooterSeccion.tsx` (1: creditoDunaVisible), `TogglePagina.tsx` (1,
+reusado por Nosotros y Suscripciones), `TiendaSeccionEditor.tsx` (1 vivo: `config.ocultable` de
+cualquier sección, reusado por ~6 secciones + 1 muerto: `renderBooleano`), y
+`components/admin/editor/InstanciaEditorForm.tsx` (1: `carrusel.autoplay`). `MenuSeccion.tsx`
+—en `touches:`— no tenía ningún switch; no se tocó.
+
+### Las TRES formas, por lo que el rasgo ES
+
+El spec pedía tres formas distintas y la pregunta que decide cuál usar no es "¿es un booleano?"
+—los 19 lo son— sino **qué está preguntando el campo**:
+
+- **`EleccionVisual`** (`components/admin/editor/EleccionVisual.tsx`, lógica pura en
+  `lib/admin/eleccion-visual.ts`) — un rasgo de ASPECTO: dos o tres opciones lado a lado, cada una
+  con una miniatura SVG dibujada y un rótulo corto (nunca "Activado"/"Desactivado"), la elegida con
+  el borde de tinta del prototipo (`docs/editor-tienda/prototipo/prototipo-editor.html`,
+  `.opts`/`.opt`/`.pic`) — que es el MISMO signo que ya usa `.duna-tile.is-selected`
+  (`packages/design-system/primitives/primitives.css`: borde + aro de 1px de tinta, "el idioma del
+  sistema para ésta es la que estás viendo"), reusado, no reinventado. Accesible como
+  `role="radiogroup"`/`role="radio"` con roving-tabindex: la aritmética de flechas (Izq/Arriba
+  retrocede, Der/Abajo avanza, las dos ENVUELVEN, Home/End saltan a los extremos) vive en
+  `lib/admin/eleccion-visual.ts` —`siguienteIndiceEleccion`, `indiceDeValor`, `esTeclaDeEleccion`—,
+  afirmada sin montar nada (16 tests, `eleccion-visual.test.ts`): es la parte que se rompe en
+  silencio (una opción inalcanzable con teclado) si se escribe a mano en el componente.
+  **Las 10 elecciones del Encabezado + `carritoFlotante` de Detalles del sitio.**
+- **`MostrarOcultar`** (`components/admin/editor/MostrarOcultar.tsx`) — el elemento EXISTE siempre;
+  lo que cambia es si aparece: el mismo ojo (`Eye`/`EyeOff`, lucide) que ya usa
+  `FilaSeccion.tsx` para la lista de secciones, pero con la PALABRA siempre al lado
+  («Se muestra» / «Oculto») — a diferencia del ojo de la lista (icono solo, sin texto, porque ahí
+  la repetición ya enseñó qué significa, § su propio docstring, "se dicen con el ojo, no con
+  frases"); acá es un control de formulario visto una vez por rasgo, sin esa repetición que vuelve
+  al icono legible solo. **volverArriba · rielSocial · carritoEnvio (Detalles del sitio) ·
+  creditoDunaVisible (Pie) · `config.ocultable` de cualquier sección (TiendaSeccionEditor) ·
+  `renderBooleano` genérico** (semánticamente "Mostrar X" en sus seis labels de hero, aunque hoy sin
+  llamador vivo).
+- **Segmentado con palabras** (`.duna-seg`/`.duna-seg__item`, primitiva YA existente —
+  `packages/design-system/primitives/primitives.css`— reusada tal cual, sin componente nuevo) — un
+  COMPORTAMIENTO: `carrusel.autoplay` → "A mano" / "Solo" (`InstanciaEditorForm.tsx`,
+  `OPCIONES_SEGMENTO_BOOLEANO`). Mismo patrón visual que `renderSegmentadoHero` ya usa para "Alto"/
+  "Oscurecer" del hero (`TiendaSeccionEditor.tsx`, sin tocar — otro campo, no booleano) — no se
+  inventó una cuarta forma.
+
+### El Encabezado se agrupa en CUATRO — Nombre · Menú · Al bajar · En el teléfono
+
+`GRUPOS_ENCABEZADO` (`EncabezadoSeccion.tsx`): **Nombre** (logo, subEncabezado) · **Menú**
+(tratamientoNav, subrayado, ctaBadge) · **Al bajar** (colorNav, direccionScroll, filete, posicion) ·
+**En el teléfono** (drawerMovil, con `buscarMovil` anidado — `MostrarOcultar`, no elección visual:
+es presencia/ausencia de un ícono, no un rasgo de aspecto con miniatura que dibujar).
+
+**`filete` y `posicion` en "Al bajar" es una DECISIÓN DE DISEÑO de este slice, no un hallazgo del
+spec** — queda escrito para que no se re-litigue sin este razonamiento. El spec nombra 6 de los 10
+pares con su propio texto ("Simple/Con estilo", "Como está/En mayúsculas espaciadas", "Se queda/Se
+esconde", "Sin línea/Con línea", "Panel lateral/Pantalla completa", "Discreto/Sólido al final") pero
+NO ata "la línea bajo el encabezado" (filete) a un grupo explícito. Ni filete ni posicion tocan el
+Nombre, el Menú ni el teléfono — son la forma/el comportamiento del encabezado EN SÍ, el mismo
+terreno que `colorNav`/`direccionScroll` (el fondo y la fuga al desplazarse); a falta de un quinto
+grupo, se agrupan con esos dos. Si el owner prefiere otra partición, es un cambio de UNA línea
+(`GRUPOS_ENCABEZADO`), sin tocar ni las opciones ni las miniaturas.
+
+### Las miniaturas: una SVG paramétrica, no 20 bespoke
+
+`MiniEncabezado` (local a `EncabezadoSeccion.tsx`) dibuja un diagrama abstracto del nav —barra +
+bloque de nombre + 2-3 trazos de menú— parametrizado por el ÚNICO rasgo que cada par decide
+(`nombreAncho`, `subEncabezado`, `fondoSolido`, `menuAncho`, `subrayado`, `cta`, `filete`, `oculto`,
+`amplio`); los otros nueve quedan en su valor neutro. `MiniDrawerMovil` (teléfono: panel lateral con
+contenido visible al lado vs. pantalla completa opaca) y `MiniCarrito` (`DetallesSitioSeccion.tsx`:
+anclado a sangre vs. flotante con margen y esquinas) son las dos composiciones que `MiniEncabezado`
+no podía dibujar (son de PANTALLA, no del nav). Las tres son SVG inline, sin librería — "SVG simple"
+del spec.
+
+### Verificado por EJECUCIÓN: la data no cambió, sólo cómo se elige
+
+**La guarda mecánica** (`lib/admin/copy-editor.test.ts`, extendida): 9 archivos sin un solo
+`.duna-switch` fuera de comentario (`sinComentarios`, ya usado por el guard de copy del mismo
+archivo — necesario porque varios de estos archivos EXPLICAN la migración citando "duna-switch" por
+nombre en un comentario, y el chequeo contra el archivo crudo habría fallado por la prosa, no por una
+clase real). Visto fallar antes del fix de `InstanciaEditorForm.tsx`/`TiendaSeccionEditor.tsx` (el
+primer intento chequeaba el archivo CRUDO, sin `sinComentarios`, y los propios comentarios
+explicativos lo hacían fallar — corregido reusando la misma función).
+
+**Sesión en el arnés** (`.scratch/arnes-panel-controles.ts`, no comiteado): Postgres efímero propio
+(55452) + seed canónico + `next build`+`next start` (MEDIDO: `next dev` NO hidrata en este sandbox
+—el WebSocket de HMR falla el handshake, "net::ERR_INVALID_HTTP_RESPONSE", y sin HMR React nunca
+adjunta los manejadores de evento, el click de login no hace nada— el MISMO defecto que
+`PANEL-CONFIG-PAGOS-1` ya documentó para otro arnés sandbox) + Chromium headless (instalación
+aislada ya cacheada). 9/9 pasos verdes:
+
+| Paso | Medido |
+| --- | --- |
+| Grupos del Encabezado | `["Nombre","Menú","Al bajar","En el teléfono"]`, 0 `.duna-switch` en el DOM |
+| "Al bajar" → "Se esconde" | el radio queda `aria-checked=true`; el borrador en base escribe `navTratamiento.direccion:true` — EXACTO lo que el switch viejo escribía (SQL directo: `borrador.encabezado.navTratamiento.direccion`) |
+| El lienzo (iframe real, `?editor=1`) | `<header>` pasa de `translate-y-0` a `-translate-y-full` al scrollear — el encabezado se esconde de verdad en la vista en vivo |
+| Ocultar "Historia" con el ojo | `MostrarOcultar`: "Se muestra" → "Oculto" |
+| Agregar un Carrusel + "Solo" | el segmentado existe, `aria-label="Avance automático"`, la opción "Solo" queda `is-on`; 0 `.duna-switch` |
+| Detalles del sitio | 0 `.duna-switch`; "Botón volver arriba" se ve `Oculto` (default) con `MostrarOcultar` |
+| Publicar | el botón real vive en la BARRA SUPERIOR (`ResumenPublicar`, EDITOR-VISUAL-MARCO-1), no inline en cada bloque — un primer click abre el resumen ("N cambios sin publicar"), un segundo click (el "Publicar" DENTRO del resumen) publica de verdad: el badge "Publicar N" desaparece del todo tras el click, sin error en pantalla |
+
+Capturas 1440×900 en `.capturas/panel-controles/` (gitignored): `02-encabezado.png` (los cuatro
+grupos, scrolleado), `03-al-bajar-se-esconde.png` (la elección con "Se esconde" elegida),
+`05-historia-antes.png`/`06-historia-oculta.png` (mostrar/ocultar), `07-carrusel-agregado.png`/
+`08-carrusel-autoplay-solo.png` (el segmentado), `09a-pie-abierto.png`/`09-tras-publicar.png`
+(publicar), `10-detalles-del-sitio.png`, `11-miniatura-cerca.png` (close-up de una miniatura).
+
+**Deshacer — lo que se verificó y lo que no.** Se verificó REVERTIR un cambio clickeando la opción
+contraria de nuevo (Historia: oculto → mostrar otra vez) y dejando una sección sin publicar
+(Carrusel sobrevive a un `goto` de recarga completa — vive en el borrador, no se pierde). **No** se
+ejerció el ícono «↶» de deshacer/rehacer de la barra superior (existe en la UI, visible en las
+capturas, pero esta sesión no lo clickeó) — no es parte de lo que este slice construyó, así que no
+se le dedicó un paso aparte.
+
+### Gate
+
+| Capa | Resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npx eslint` sobre los 10 archivos tocados/nuevos | limpio en los 8 nuevos/tocados por este slice (`EleccionVisual.tsx`, `MostrarOcultar.tsx`, `eleccion-visual.ts`/`.test.ts`, `copy-editor.test.ts`, `TogglePagina.tsx`, `DetallesSitioSeccion.tsx` salvo 2 líneas PRE-EXISTENTES fuera del diff); **35 errores `react-hooks/refs` PRE-EXISTENTES** en `TiendaSeccionEditor.tsx`/`EncabezadoSeccion.tsx`/`InstanciaEditorForm.tsx`, confirmados contra `git show HEAD:<archivo>` vía `eslint --stdin` — están en líneas que este diff NO toca (el patrón `useSubidaImagen().inputRef`/`.progreso` accedido en render, en los tres archivos desde antes de este slice). `npm run gate` NO corre eslint (`package.json`: `"gate": "typecheck && test && test:integracion"`), así que esto no bloquea el gate — se deja anotado porque el chequeo manual de esta tanda sí lo corrió. |
+| `npm test` (capa 1) | **3896/3896** — suma 25 sobre el piso de `PANEL-CONFIG-PAGOS-1` (3871): 16 de `eleccion-visual.test.ts` + 9 del guard nuevo de `copy-editor.test.ts` (9 archivos × 1 test) |
+| `npm run test:integracion` | **363/363** — en PUERTO ALTERNO (55448): el 55432 estándar estaba OCCUPIED por una sesión CONCURRENTE en esta misma máquina (medido: conexión TCP directa con `node net`, sin usar el mecanismo roto de abajo). Reconcilia EXACTO contra el piso ya citado por `PANEL-CONFIG-PAGOS-1`/`PANEL-CONFIG-BLOQUES-1` ("363/363, el segundo reconciliado en puerto alterno por contención externa de puerto"). **HALLAZGO DE MÉTODO, fuera de `touches:` — `scripts/postgres-efimero.sh` tiene un bug real, no sólo en este sandbox:** la línea `exec 3<&- 2>/dev/null \|\| true` (cierre del fd del chequeo de puerto) es un `exec` SIN comando — en bash eso redirige PERMANENTEMENTE el fd 2 (stderr) del shell ENTERO a partir de ahí, no sólo de esa línea. Cuando el puerto SÍ está ocupado, el script entra a esa rama, se auto-silencia el stderr, y el mensaje "✗ El puerto … está ocupado" que la misma rama imprime dos líneas después NUNCA SE VE — el script muere con exit 1 y CERO salida, en cualquier entorno donde el puerto esté ocupado, no sólo en sandbox. Medido bisecando el minimal repro (`local`, `exec 3<&-`, `2>/dev/null`, `\|\| true`, `exit 1` uno por uno): la combinación exacta `exec 3<&- 2>/dev/null` es la que calla el shell; sin el `2>/dev/null` en ESA línea el mensaje si aparece. No se tocó (`scripts/postgres-efimero.sh` fuera de `touches:`); se replicó el mecanismo en `.scratch/test-integracion-altport.sh` (no comiteado) siguiendo la puerta que ya usaron los slices anteriores. |
+| `npm run verificar:nayoli:visual` | Drift medido, **IDÉNTICO byte-a-byte al piso ya citado por `EDITOR-VISUAL-PANEL-1`/`PANEL-CONFIG-PAGOS-1`** (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u, cajas `[445,Y]–[541,Y+10]`; los 2 hovers IDÉNTICOS (0px) — exit 1 esperado, drift HEREDADO de la rama contra `main`, no de este slice: `git status --porcelain` de este diff tiene CERO archivos bajo `app/(storefront)/` o `components/storefront/` (los 12 tocados/nuevos son admin-only: 8 `components/admin/**`, 2 `lib/admin/**`, 1 `app/(admin)/editor/editor.css`, 1 `DECISIONS.md`). |
+
+### Chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/paths que este diff cambió: `EncabezadoSeccion`/`FooterSeccion`/
+`DetallesSitioSeccion` → CERO coincidencias en CLAUDE.md. `TogglePagina` → UNA
+(`§ La SUSCRIPCIÓN es una capacidad APAGABLE`, "el render GENÉRICO de página... NO como un
+interruptor flotando arriba del selector") — sigue CIERTA: esa frase describe DÓNDE se monta
+`<TogglePagina>` (dentro del render genérico de página, no un interruptor suelto), no CÓMO se ve por
+dentro; este slice sólo cambió el interior (switch → `MostrarOcultar`), no el sitio de montaje.
+`duna-switch` → UNA (§ La PANTALLA del Dashboard de Automatizaciones, "la tarjeta: nombre + switch…
+`.duna-switch`") — sigue CIERTA: Automatizaciones está explícitamente FUERA del alcance de este
+slice (el spec: "fuera del editor, p. ej. Automatizaciones, no se toca"), y no se tocó.
+`TiendaSeccionEditor` → SEIS, todas sobre bloques/uploaders/categoria/contrato de borrador —
+arquitectura que este slice no tocó (el cambio fue sólo en las ~40 líneas de `renderBooleano` y el
+switch de `config.ocultable`); ninguna cita el mecanismo de renderizado de `CampoBooleano`/
+`config.ocultable` que sí cambió. `EleccionVisual`/`MostrarOcultar`/`renderBooleano`/
+`InstanciaEditorForm`/`eleccion-visual` → CERO (símbolos nuevos o internos, nunca citados en
+doctrina). `MoliendasOpcionesEditor.tsx` (el único OTRO consumidor real de `.duna-switch` en
+`components/admin/`, fuera de `touches:`) no aparece citado por símbolo en CLAUDE.md tampoco — sin
+riesgo de mención rota.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma — los campos que cada control
+escribe (`navTratamiento.*`, `volverArriba.visible`, `rielSocial.visible`, `carritoEnvio.visible`,
+`carrito.variante`, `creditoDunaVisible`, `visible` de sección, `carrusel.autoplay`) ya existían y
+se siguen escribiendo con el MISMO `cambiar({...})`/`wireDe` de antes — cero cambio de forma de
+dato, sólo de qué JSX lo dispara.
+
+### `changed` (bytes de cliente/operador/dueño)
+
+**`true`.** Mismo eje que el resto de esta rama: `/editor/tienda` lo lee el OPERADOR/DUEÑO en cada
+sesión de edición, y este diff reescribe su interacción entera (10+ miniaturas nuevas, los rótulos
+de cada opción, los 4 encabezados de grupo, la palabra "Se muestra"/"Oculto" junto al ojo, el
+segmentado "A mano"/"Solo"). Cero archivos bajo `app/(storefront)/`/`components/storefront/` en el
+diff (confirmado arriba), pero eso sólo dice que no hay bytes de CLIENTE final — el criterio es
+"¿lee esto un cliente, un operador o el dueño?", no "¿es storefront?" (mismo argumento que
+`PANEL-CONFIG-PAGOS-1`/`PANEL-CONFIG-BLOQUES-1`).
+
+### Open follow-ups
+
+- **`EDITOR-PANEL-CONTROLES-POSTGRES-EFIMERO-EXEC-BUG-1`**: `scripts/postgres-efimero.sh` calla su
+  propio mensaje de "puerto ocupado" por un `exec 3<&- 2>/dev/null` sin comando (redirige el stderr
+  del shell ENTERO, no de esa línea) — § el hallazgo de método del gate, arriba. Reproducible en
+  CUALQUIER entorno donde 55432 esté ocupado, no sólo sandbox. Fuera de `touches:` de este slice.
+- **`EDITOR-PANEL-CONTROLES-GRUPO-FILETE-POSICION-1`**: `filete` y `posicion` se agruparon bajo "Al
+  bajar" por decisión de este slice (§ arriba), sin que el spec los atara a un grupo. Si el owner
+  prefiere otra partición, es una edición de una línea (`GRUPOS_ENCABEZADO`).
+- Las piezas que `docs/editor-tienda/REDISENO.md`/`docs/panel/REDISENO.md` siguen sin construir
+  (fuera de `touches:` de este slice, ya anotadas por slices anteriores de esta rama) no cambiaron.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama
+(§ arriba, "`changed`"): `/editor/tienda` lo lee el operador/dueño, y este diff reescribe su
+interacción visible entera. Sin schema, sin contrato cruzado. `npm run gate` GREEN de punta a punta
+(typecheck 0 · 3896/3896 · 363/363, el segundo reconciliado en puerto alterno 55448 por contención
+externa — mismo mecanismo y mismo número que ya citó `PANEL-CONFIG-PAGOS-1`/
+`PANEL-CONFIG-BLOQUES-1`); `verificar:nayoli:visual` corrido completo, su drift es IDÉNTICO al piso
+ya citado por `EDITOR-VISUAL-PANEL-1` y heredado de la rama, no de este commit (cero archivos de
+storefront en el diff). Sesión en el arnés completa, 9/9 pasos verdes. Commiteado en
+`slice/editor-secciones-1`, sin pushear — queda a la espera del merge gateado.
+
+**Cierra `EDITOR-PANEL-CONTROLES-1`.**

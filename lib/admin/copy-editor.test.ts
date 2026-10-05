@@ -53,3 +53,34 @@ for (const archivo of ARCHIVOS_PANEL) {
     );
   });
 }
+
+// § EDITOR-PANEL-CONTROLES-1 — CERO `.duna-switch` DENTRO DEL EDITOR (el spec: "el panel debería
+// sentirse más interactivo... no solo activo desactivo, prendo apago" — pedido del owner, revisando
+// el editor). El interruptor se reemplazó por `EleccionVisual` (el rasgo de ASPECTO: dos o tres
+// opciones con miniatura), `MostrarOcultar` (mostrar/ocultar algo que existe siempre) o un
+// segmentado con palabras (un COMPORTAMIENTO, p. ej. el carrusel). El guard es una lista PROPIA, más
+// amplia que `ARCHIVOS_PANEL` de arriba: incluye las piezas de detalles del sitio, el toggle de
+// página y la pieza genérica de instancia, que `ARCHIVOS_PANEL` no cubre porque su contrato es
+// distinto (ESE busca copy sin `§`/ledger-id; ÉSTE busca la AUSENCIA de una clase CSS).
+// `MoliendasOpcionesEditor.tsx` NO entra: vive en el modal de PRODUCTO, fuera del editor de la
+// tienda — "fuera del editor, p. ej. Automatizaciones, no se toca" (el spec).
+const ARCHIVOS_SIN_SWITCH = [
+  ...ARCHIVOS_PANEL,
+  '../../components/admin/DetallesSitioSeccion.tsx',
+  '../../components/admin/TogglePagina.tsx',
+  '../../components/admin/editor/InstanciaEditorForm.tsx',
+];
+
+for (const archivo of ARCHIVOS_SIN_SWITCH) {
+  test(`${archivo}: ningún panel del editor pinta duna-switch`, () => {
+    // `sinComentarios` (no `leerFuente` a secas): varios de estos archivos EXPLICAN la migración en
+    // un comentario que cita "duna-switch" por nombre — un chequeo contra el archivo crudo fallaría
+    // por la prosa, no por una clase que el componente de verdad pinte (el mismo riesgo que el
+    // guard de "§"/ledger-id de arriba ya resuelve con la misma función).
+    const codigo = sinComentarios(leerFuente(archivo));
+    assert.ok(
+      !codigo.includes('duna-switch'),
+      `${archivo} todavía pinta un .duna-switch — el editor usa EleccionVisual/MostrarOcultar/un segmentado, nunca un interruptor`,
+    );
+  });
+}

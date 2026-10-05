@@ -15,6 +15,8 @@ import { modoLogoResuelto } from '@/lib/config/marca-logo';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import { MuestraColor } from '@/components/admin/editor/MuestraColor';
+import { EleccionVisual, type OpcionEleccionVisual } from '@/components/admin/editor/EleccionVisual';
+import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
 import { RAICES_DEFECTO } from '@/lib/config/palette-derive';
 
 // § EDITOR-TIENDA-CROMO-1 — gemelo de `MenuSeccionHandle`. Sin `escribirCampo`: el Encabezado no
@@ -192,17 +194,192 @@ interface Wire {
 
 const HEX6_BADGE = /^#[0-9a-fA-F]{6}$/;
 
-const CONTROLES: { name: Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt' | 'logoIcono' | 'logoModo'>; label: string; hint: string }[] = [
-  { name: 'logo', label: 'Estilo del nombre', hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido, y sólo si no subiste una imagen de logo abajo — con imagen, este interruptor no tiene efecto.' },
-  { name: 'subEncabezado', label: 'Sub-encabezado', hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.' },
-  { name: 'colorNav', label: 'Color del encabezado', hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro.' },
-  { name: 'tratamientoNav', label: 'Tratamiento del menú', hint: 'Los enlaces del menú van en mayúscula, con más espacio entre letras.' },
-  { name: 'drawerMovil', label: 'Menú del teléfono a pantalla completa', hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.' },
-  { name: 'direccionScroll', label: 'Ocultar al bajar', hint: 'Al bajar, el encabezado se oculta; al subir, reaparece con su color sólido. Arriba del todo se ve como siempre.' },
-  { name: 'filete', label: 'Línea bajo el encabezado', hint: 'Una línea fina separa el encabezado del contenido, sin llegar a los bordes de la pantalla.' },
-  { name: 'ctaBadge', label: 'Botón Comprar y etiqueta del menú', hint: 'El botón Comprar se ve sólido y se muda al final del encabezado, después del carrito; la etiqueta de un ítem de menú toma un color fijo.' },
-  { name: 'posicion', label: 'Posición del encabezado', hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.' },
-  { name: 'subrayado', label: 'Subrayado al pasar el mouse', hint: 'Los enlaces del menú dibujan una línea debajo al pasar el mouse por encima.' },
+// § EDITOR-PANEL-CONTROLES-1 — LA MINIATURA del nav (`MiniEncabezado`): un diagrama abstracto del
+// encabezado (barra + nombre + menú) que cada par de `EleccionVisual` dibuja con UN rasgo distinto,
+// para que el dueño VEA la diferencia antes de elegir, en vez de leer "Activado"/"Desactivado". Los
+// otros nueve rasgos quedan en su valor NEUTRO (el de "como hoy") — la miniatura no intenta simular
+// la combinación completa de los diez switches a la vez, sólo el ÚNICO que ese par decide.
+function MiniEncabezado({
+  nombreAncho = 16,
+  subEncabezado = false,
+  fondoSolido = false,
+  menuAncho = 7,
+  subrayado = false,
+  cta,
+  filete = false,
+  oculto = false,
+  amplio = false,
+}: {
+  nombreAncho?: number;
+  subEncabezado?: boolean;
+  fondoSolido?: boolean;
+  menuAncho?: number;
+  subrayado?: boolean;
+  cta?: 'discreto' | 'solido';
+  filete?: boolean;
+  oculto?: boolean;
+  amplio?: boolean;
+}) {
+  const barX = amplio ? 2 : 8;
+  const barW = 96 - barX * 2;
+  const barH = amplio ? 18 : 14;
+  const barY = oculto ? -9 : 6;
+  const tinta = fondoSolido ? 'var(--duna-surface)' : 'var(--duna-ink)';
+  const menuY = barY + barH / 2 - 1.5;
+  const nMenu = cta ? 2 : 3;
+  const menuGap = 4;
+  const menuTotalW = nMenu * menuAncho + (nMenu - 1) * menuGap;
+  const rightPad = cta ? 19 : 6;
+  const menuStartX = barX + barW - rightPad - menuTotalW;
+  return (
+    <svg viewBox="0 0 96 46" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="96" height="46" fill="var(--duna-surface-2)" />
+      <rect x={barX} y={barY} width={barW} height={barH} rx="2"
+        fill={fondoSolido ? 'var(--duna-ink)' : 'var(--duna-surface)'}
+        stroke={fondoSolido ? 'none' : 'var(--duna-border-2)'} />
+      <rect x={barX + 6} y={barY + barH / 2 - 2} width={nombreAncho} height="4" rx="1" fill={tinta} />
+      {subEncabezado && (
+        <rect x={barX + 6} y={barY + barH / 2 + 3} width={nombreAncho * 0.65} height="2" rx="1" fill={tinta} opacity={0.55} />
+      )}
+      {Array.from({ length: nMenu }, (_, i) => menuStartX + i * (menuAncho + menuGap)).map((x, i) => (
+        <g key={i}>
+          <rect x={x} y={menuY} width={menuAncho} height="3" rx="1" fill={tinta} opacity={i === 1 ? 1 : 0.75} />
+          {subrayado && i === 1 && <rect x={x} y={menuY + 4.5} width={menuAncho} height="1" fill={tinta} />}
+        </g>
+      ))}
+      {cta && (
+        <rect x={barX + barW - 13} y={barY + barH / 2 - 3} width="9" height="6" rx="3"
+          fill={cta === 'solido' ? tinta : 'none'}
+          stroke={cta === 'discreto' ? tinta : 'none'} />
+      )}
+      {filete && <rect x={barX} y={barY + barH + 1.5} width={barW} height="1" fill="var(--duna-border-2)" />}
+    </svg>
+  );
+}
+
+// LA MINIATURA del drawer móvil: un marco de teléfono con el panel lateral angosto (se ve el
+// contenido de al lado) contra la pantalla completa opaca — la diferencia que `drawerMovil` decide,
+// y que `MiniEncabezado` no puede dibujar (es una composición de PANTALLA, no un rasgo del nav).
+function MiniDrawerMovil({ pantallaCompleta }: { pantallaCompleta: boolean }) {
+  return (
+    <svg viewBox="0 0 96 46" xmlns="http://www.w3.org/2000/svg">
+      <rect x="28" y="2" width="40" height="42" rx="6" fill="var(--duna-surface-2)" stroke="var(--duna-border-2)" />
+      <rect x="32" y="7" width="32" height="4" rx="1" fill="var(--duna-border-2)" />
+      {pantallaCompleta ? (
+        <rect x="30" y="13" width="36" height="29" rx="2" fill="var(--duna-ink)" />
+      ) : (
+        <>
+          <rect x="34" y="17" width="10" height="2" fill="var(--duna-border-2)" />
+          <rect x="34" y="21" width="10" height="2" fill="var(--duna-border-2)" />
+          <rect x="34" y="25" width="7" height="2" fill="var(--duna-border-2)" />
+          <rect x="50" y="13" width="16" height="29" rx="1" fill="var(--duna-ink)" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+type ControlAspecto = Exclude<keyof Form, 'badgeColor' | 'logoOscuro' | 'logoClaro' | 'logoAlt' | 'logoIcono' | 'logoModo' | 'buscarMovil'>;
+
+// § EDITOR-PANEL-CONTROLES-1 — EL par de OPCIONES por rasgo, no un switch. `off`/`on` son los dos
+// valores internos del campo booleano; el `label` es la palabra que el dueño lee, nunca
+// "Activado"/"Desactivado" (el pedido del owner: "no solo activo desactivo, prendo apago").
+const DEF_CONTROLES: Record<ControlAspecto, { etiqueta: string; hint: string; opciones: [OpcionEleccionVisual, OpcionEleccionVisual] }> = {
+  logo: {
+    etiqueta: 'Estilo del nombre',
+    hint: 'El nombre y el sub-encabezado del logo cambian de estilo. Sólo se nota con el sub-encabezado encendido, y sólo si no subiste una imagen de logo abajo — con imagen, esta elección no tiene efecto.',
+    opciones: [
+      { value: 'off', label: 'Simple', miniatura: <MiniEncabezado nombreAncho={14} /> },
+      { value: 'on', label: 'Con estilo', miniatura: <MiniEncabezado nombreAncho={24} subEncabezado /> },
+    ],
+  },
+  subEncabezado: {
+    etiqueta: 'Sub-encabezado',
+    hint: 'Muestra el eslogan de tu negocio bajo el nombre, en el encabezado.',
+    opciones: [
+      { value: 'off', label: 'Sin sub-encabezado', miniatura: <MiniEncabezado /> },
+      { value: 'on', label: 'Con sub-encabezado', miniatura: <MiniEncabezado subEncabezado /> },
+    ],
+  },
+  colorNav: {
+    etiqueta: 'Color del encabezado',
+    hint: 'En la portada, al bajar el encabezado se ve con un fondo de color sólido en vez del que usa hoy. En las demás páginas de la tienda el encabezado siempre queda claro.',
+    opciones: [
+      { value: 'off', label: 'Como hoy', miniatura: <MiniEncabezado /> },
+      { value: 'on', label: 'Color sólido al bajar', miniatura: <MiniEncabezado fondoSolido /> },
+    ],
+  },
+  tratamientoNav: {
+    etiqueta: 'Tratamiento del menú',
+    hint: 'Los enlaces del menú van en mayúscula, con más espacio entre letras.',
+    opciones: [
+      { value: 'off', label: 'Como está', miniatura: <MiniEncabezado menuAncho={6} /> },
+      { value: 'on', label: 'En mayúsculas espaciadas', miniatura: <MiniEncabezado menuAncho={10} /> },
+    ],
+  },
+  drawerMovil: {
+    etiqueta: 'Menú del teléfono',
+    hint: 'En el teléfono, el menú se abre a pantalla completa en vez del panel angosto de hoy.',
+    opciones: [
+      { value: 'off', label: 'Panel lateral', miniatura: <MiniDrawerMovil pantallaCompleta={false} /> },
+      { value: 'on', label: 'Pantalla completa', miniatura: <MiniDrawerMovil pantallaCompleta /> },
+    ],
+  },
+  direccionScroll: {
+    etiqueta: 'Al bajar',
+    hint: 'Al bajar, el encabezado se oculta; al subir, reaparece con su color sólido. Arriba del todo se ve como siempre.',
+    opciones: [
+      { value: 'off', label: 'Se queda', miniatura: <MiniEncabezado /> },
+      { value: 'on', label: 'Se esconde', miniatura: <MiniEncabezado oculto /> },
+    ],
+  },
+  filete: {
+    etiqueta: 'Línea bajo el encabezado',
+    hint: 'Una línea fina separa el encabezado del contenido, sin llegar a los bordes de la pantalla.',
+    opciones: [
+      { value: 'off', label: 'Sin línea', miniatura: <MiniEncabezado /> },
+      { value: 'on', label: 'Con línea', miniatura: <MiniEncabezado filete /> },
+    ],
+  },
+  ctaBadge: {
+    etiqueta: 'Botón Comprar y etiqueta del menú',
+    hint: 'El botón Comprar se ve sólido y se muda al final del encabezado, después del carrito; la etiqueta de un ítem de menú toma un color fijo.',
+    opciones: [
+      { value: 'off', label: 'Discreto', miniatura: <MiniEncabezado cta="discreto" /> },
+      { value: 'on', label: 'Sólido al final', miniatura: <MiniEncabezado cta="solido" /> },
+    ],
+  },
+  posicion: {
+    etiqueta: 'Posición del encabezado',
+    hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.',
+    opciones: [
+      { value: 'off', label: 'Como hoy', miniatura: <MiniEncabezado /> },
+      { value: 'on', label: 'Más espacio', miniatura: <MiniEncabezado amplio /> },
+    ],
+  },
+  subrayado: {
+    etiqueta: 'Subrayado al pasar el mouse',
+    hint: 'Los enlaces del menú dibujan una línea debajo al pasar el mouse por encima.',
+    opciones: [
+      { value: 'off', label: 'Sin subrayado', miniatura: <MiniEncabezado /> },
+      { value: 'on', label: 'Subrayado al pasar el mouse', miniatura: <MiniEncabezado subrayado /> },
+    ],
+  },
+};
+
+// § EDITOR-PANEL-CONTROLES-1 — LOS CUATRO GRUPOS del spec (Nombre · Menú · Al bajar · En el
+// teléfono): cada rasgo se agrupa por lo que TOCA. `filete` y `posicion` no tocan el nombre, el menú
+// ni el teléfono — son la forma/el comportamiento del encabezado EN SÍ, el mismo terreno que
+// `colorNav`/`direccionScroll` (el fondo y la fuga al desplazarse) — así que, a falta de un quinto
+// grupo, se agrupan con esos dos bajo "Al bajar". Es una decisión de diseño de este slice, no un
+// hallazgo del spec: los seis ejemplos que el spec SÍ nombra (Simple/Con estilo, Como está/En
+// mayúsculas, Se queda/Se esconde, Sin línea/Con línea, Panel lateral/Pantalla completa, Discreto/
+// Sólido) quedan en la posición que ahí se lee.
+const GRUPOS_ENCABEZADO: { titulo: string; controles: ControlAspecto[] }[] = [
+  { titulo: 'Nombre', controles: ['logo', 'subEncabezado'] },
+  { titulo: 'Menú', controles: ['tratamientoNav', 'subrayado', 'ctaBadge'] },
+  { titulo: 'Al bajar', controles: ['colorNav', 'direccionScroll', 'filete', 'posicion'] },
+  { titulo: 'En el teléfono', controles: ['drawerMovil'] },
 ];
 
 // § EDITOR-TIENDA-CROMO-1 — la extracción contenido→{form,navBadge,taglineColor} de `cargar()`
@@ -678,78 +855,77 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
           </div>
         </div>
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
-            {CONTROLES.map((c) => {
-              const on = form[c.name];
-              return (
-                <div key={c.name}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-                    <button
-                      type="button" role="switch" aria-checked={on} aria-label={c.label}
-                      onClick={() => cambiar({ [c.name]: !on } as Partial<Form>)}
-                      className={`duna-switch${on ? ' is-on' : ''}`}
-                    >
-                      <span className="duna-switch__thumb" />
-                    </button>
-                    <span className="duna-field__label" style={{ margin: 0 }}>{c.label}</span>
-                  </div>
-                  <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={c.hint} /></div>
-                  {/* Sub-control de "Botón Comprar y badge del menú" (§ RIEL-SCROLL-Y-BADGE-
-                      DORADO-1): sólo tiene efecto con ESE switch encendido — el badge fijo es lo
-                      que este color pinta. Anidado bajo su hint, no una entrada más de
-                      `CONTROLES` (no es un booleano ON/OFF). */}
-                  {c.name === 'ctaBadge' && form.ctaBadge && (
-                    <div style={{ marginTop: 'var(--duna-space-3)', marginLeft: 'calc(2.5rem + var(--duna-space-3))' }}>
-                      <span className="duna-field__label">Color de la etiqueta</span>
-                      <div style={{ marginTop: '6px' }}>
-                        <MuestraColor
-                          id="enc-badge-color"
-                          value={HEX6_BADGE.test(form.badgeColor) ? form.badgeColor : '#d8a378'}
-                          onChange={(hex) => cambiar({ badgeColor: hex })}
-                          ariaLabel="Color de la etiqueta"
-                          invalido={form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor)}
-                          sugerencias={sugerenciasBadge}
-                          onPorDefecto={() => cambiar({ badgeColor: '' })}
-                          esPorDefecto={form.badgeColor === ''}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-5)' }}>
+            {GRUPOS_ENCABEZADO.map((grupo) => (
+              <div key={grupo.titulo}>
+                <p className="editor-grp">{grupo.titulo}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
+                  {grupo.controles.map((name) => {
+                    const def = DEF_CONTROLES[name];
+                    const on = form[name];
+                    return (
+                      <div key={name}>
+                        <span className="duna-field__label" style={{ display: 'block', marginBottom: 'var(--duna-space-2)' }}>{def.etiqueta}</span>
+                        <EleccionVisual
+                          etiqueta={def.etiqueta}
+                          opciones={def.opciones}
+                          valor={on ? 'on' : 'off'}
+                          onElegir={(v) => cambiar({ [name]: v === 'on' } as Partial<Form>)}
                         />
+                        <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={def.hint} /></div>
+                        {/* Sub-control de "Botón Comprar y badge del menú" (§ RIEL-SCROLL-Y-BADGE-
+                            DORADO-1): sólo tiene efecto con ESA elección en "Sólido al final" — el
+                            badge fijo es lo que este color pinta. Anidado bajo su hint, no una
+                            entrada más de `DEF_CONTROLES` (no es un rasgo de dos opciones). */}
+                        {name === 'ctaBadge' && on && (
+                          <div style={{ marginTop: 'var(--duna-space-3)' }}>
+                            <span className="duna-field__label">Color de la etiqueta</span>
+                            <div style={{ marginTop: '6px' }}>
+                              <MuestraColor
+                                id="enc-badge-color"
+                                value={HEX6_BADGE.test(form.badgeColor) ? form.badgeColor : '#d8a378'}
+                                onChange={(hex) => cambiar({ badgeColor: hex })}
+                                ariaLabel="Color de la etiqueta"
+                                invalido={form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor)}
+                                sugerencias={sugerenciasBadge}
+                                onPorDefecto={() => cambiar({ badgeColor: '' })}
+                                esPorDefecto={form.badgeColor === ''}
+                              />
+                            </div>
+                            {form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) ? (
+                              <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #f5b36a.</p>
+                            ) : (
+                              <div style={{ marginTop: '6px' }}>
+                                <AyudaCampo texto="Vacío: la etiqueta sigue con el color de acento cálido de siempre." />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Sub-control de "Drawer móvil de pantalla completa" (§ NAV-MOVIL-SIN-
+                            BUSCAR-1): SÓLO tiene efecto con "Pantalla completa" elegido — es el
+                            ÚNICO drawer móvil que trae su propio buscar en la cabecera (verificado
+                            leyendo `StoreNav.tsx`); el drawer "Panel lateral" no lo tiene, así que
+                            ahí apagarlo dejaría al visitante sin ninguna vía de búsqueda en el
+                            teléfono. Mostrar/ocultar, no una elección de aspecto — no hay una
+                            miniatura que dibujar para "el ícono de buscar está o no está". */}
+                        {name === 'drawerMovil' && on && (
+                          <div style={{ marginTop: 'var(--duna-space-3)' }}>
+                            <MostrarOcultar
+                              etiqueta="Buscar en la barra del teléfono"
+                              visible={form.buscarMovil}
+                              onCambiar={() => cambiar({ buscarMovil: !form.buscarMovil })}
+                            />
+                            <div style={{ marginTop: 'var(--duna-space-2)' }}>
+                              <AyudaCampo texto="En el teléfono, el ícono de buscar aparece en la barra del encabezado. Ocúltalo para quitarlo de ahí — sigue disponible dentro del menú." />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {form.badgeColor !== '' && !HEX6_BADGE.test(form.badgeColor) ? (
-                        <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #f5b36a.</p>
-                      ) : (
-                        <div style={{ marginTop: '6px' }}>
-                          <AyudaCampo texto="Vacío: la etiqueta sigue con el color de acento cálido de siempre." />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Sub-control de "Drawer móvil de pantalla completa" (§ NAV-MOVIL-SIN-BUSCAR-1):
-                      SÓLO tiene efecto con ESE switch encendido — es el ÚNICO drawer móvil que trae
-                      su propio buscar en la cabecera (verificado leyendo `StoreNav.tsx`); el drawer
-                      `'dropdown'` de hoy no lo tiene, así que ahí apagarlo dejaría al visitante sin
-                      ninguna vía de búsqueda en el teléfono. Por eso NO es una entrada más de
-                      `CONTROLES` (quedaría encendida/ofrecida también para `'dropdown'`): se anida
-                      bajo su hint, mismo patrón que `badgeColor` bajo `ctaBadge`. */}
-                  {c.name === 'drawerMovil' && form.drawerMovil && (
-                    <div style={{ marginTop: 'var(--duna-space-3)', marginLeft: 'calc(2.5rem + var(--duna-space-3))' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-                        <button
-                          type="button" role="switch" aria-checked={form.buscarMovil}
-                          aria-label="Mostrar buscar en la barra del teléfono"
-                          onClick={() => cambiar({ buscarMovil: !form.buscarMovil })}
-                          className={`duna-switch${form.buscarMovil ? ' is-on' : ''}`}
-                        >
-                          <span className="duna-switch__thumb" />
-                        </button>
-                        <span className="duna-field__label" style={{ margin: 0 }}>Mostrar buscar en la barra del teléfono</span>
-                      </div>
-                      <div style={{ marginTop: 'var(--duna-space-2)' }}>
-                        <AyudaCampo texto="En el teléfono, el ícono de buscar aparece en la barra del encabezado. Apágalo para quitarlo de ahí — sigue disponible dentro del menú." />
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       </>

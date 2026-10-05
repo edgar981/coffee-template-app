@@ -446,3 +446,44 @@
     animation: none !important; transition: none !important;
   }
 }
+
+/* ─── EDITOR-PANEL-CONTROLES-1 ───────────────────────────────────────────────────────────────────
+   LA ELECCIÓN VISUAL (`EleccionVisual.tsx`, el spec: "dos o tres opciones lado a lado, cada una con
+   una miniatura dibujada... y un rótulo corto; la elegida con el borde de tinta del prototipo" —
+   prototipo `.opts`/`.opt`/`.pic`). Reemplaza al `.duna-switch` de cada rasgo de ASPECTO. El borde
+   de SELECCIÓN es el MISMO signo que `.duna-tile.is-selected` (primitives.css): tinta + aro de 1px —
+   "el idioma del sistema para ésta es la que estás viendo", reusado, no reinventado. */
+.editor-eleccion { display: grid; gap: var(--duna-space-2); }
+.editor-eleccion__opt {
+  border: 1px solid var(--duna-border); border-radius: var(--duna-r-m);
+  padding: var(--duna-space-2) var(--duna-space-2) var(--duna-space-3);
+  display: flex; flex-direction: column; align-items: center; gap: var(--duna-space-2);
+  font-size: var(--duna-text-caption); font-weight: 500; color: var(--duna-ink-2);
+  background: var(--duna-surface); text-align: center; line-height: 1.25; cursor: pointer;
+  transition: border-color var(--duna-dur-fast) var(--duna-ease), box-shadow var(--duna-dur-fast) var(--duna-ease), color var(--duna-dur-fast) var(--duna-ease);
+}
+.editor-eleccion__opt:hover { border-color: var(--duna-border-2); }
+.editor-eleccion__opt.is-on { border-color: var(--duna-ink); box-shadow: 0 0 0 1px var(--duna-ink); color: var(--duna-ink); }
+.editor-eleccion__opt:focus-visible { outline: none; box-shadow: var(--duna-ring); }
+.editor-eleccion__opt.is-on:focus-visible { box-shadow: 0 0 0 1px var(--duna-ink), var(--duna-ring); }
+.editor-eleccion__pic {
+  width: 100%; height: 46px; border-radius: var(--duna-r-s); background: var(--duna-bg);
+  position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+}
+.editor-eleccion__pic svg { width: 100%; height: 100%; display: block; }
+
+/* MOSTRAR U OCULTAR (`MostrarOcultar.tsx`, el spec: "el mismo ojo de la lista de secciones con la
+   palabra al lado («Se muestra» / «Oculto»), no un interruptor"). Gemelo de `.editor-row__eye` en el
+   ÍCONO, pero acá la palabra va SIEMPRE al lado — ver el docstring del componente para el porqué. */
+.editor-mostrar {
+  display: inline-flex; align-items: center; gap: var(--duna-space-2); background: none;
+  border: 0; padding: 0; cursor: pointer; color: var(--duna-ink); font: inherit; text-align: left;
+}
+.editor-mostrar svg { width: 16px; height: 16px; color: var(--duna-muted); flex-shrink: 0;
+                       transition: color var(--duna-dur-fast) var(--duna-ease); }
+.editor-mostrar:hover svg { color: var(--duna-ink); }
+.editor-mostrar:disabled { cursor: default; opacity: .6; }
+.editor-mostrar__nm { font-weight: 500; font-size: var(--duna-text-body-sm); }
+.editor-mostrar__estado { font-size: var(--duna-text-caption); color: var(--duna-muted); }
+.editor-mostrar.is-oculto .editor-mostrar__estado { color: var(--duna-faint); }
+.editor-mostrar:focus-visible { outline: none; box-shadow: var(--duna-ring); border-radius: var(--duna-r-s); }

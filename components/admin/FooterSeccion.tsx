@@ -11,6 +11,7 @@ import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
+import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { FooterContent } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
@@ -396,18 +397,15 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
             </div>
 
             {/* § PIE-HECHO-POR-DUNA-1: el crédito de la plataforma, en la franja baja del pie — el
-                texto y el destino (https://duna.solutions) son fijos, este switch sólo lo apaga. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-              <button
-                type="button" role="switch" aria-checked={form.creditoDunaVisible}
-                aria-label="Mostrar &quot;Hecho por Duna&quot;"
-                onClick={() => cambiar({ creditoDunaVisible: !form.creditoDunaVisible })}
-                className={`duna-switch${form.creditoDunaVisible ? ' is-on' : ''}`}
-              >
-                <span className="duna-switch__thumb" />
-              </button>
-              <div>
-                <span className="duna-field__label" style={{ margin: 0 }}>Mostrar &quot;Hecho por Duna&quot;</span>
+                texto y el destino (https://duna.solutions) son fijos, este control sólo lo
+                muestra u oculta (§ EDITOR-PANEL-CONTROLES-1: "el crédito del pie" del spec). */}
+            <div>
+              <MostrarOcultar
+                etiqueta='"Hecho por Duna"'
+                visible={form.creditoDunaVisible}
+                onCambiar={() => cambiar({ creditoDunaVisible: !form.creditoDunaVisible })}
+              />
+              <div style={{ marginTop: 'var(--duna-space-2)' }}>
                 <AyudaCampo texto="Una línea discreta en la franja más baja del pie, con un enlace a duna.solutions." />
               </div>
             </div>

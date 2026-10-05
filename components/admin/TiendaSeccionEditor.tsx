@@ -25,6 +25,7 @@ import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { Migas } from '@/components/admin/editor/Migas';
 import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
+import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
 import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
 import { metaElementoEstilo, resolverEstiloElemento, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import type { TemaAyudaId } from '@/lib/admin/ayuda-editor';
@@ -1493,28 +1494,23 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     );
   };
 
-  // UN INTERRUPTOR de sección (§ CampoBooleano) — switch, mismo patrón visual que el toggle de
+  // UN INTERRUPTOR de sección (§ CampoBooleano) — mismo patrón mostrar/ocultar que el toggle de
   // visibilidad de abajo (`config.ocultable`), pero gatea UNA capacidad en vez de la sección entera.
   // El valor inicial ya lo trae el form (sembrado del preset, o del default si el preset no lo tocó —
   // `resolverSiteContent` resuelve todo booleano declarado a un valor real): el preset pone el punto
-  // de partida, el dueño lo overridea con el switch.
+  // de partida, el dueño lo overridea con el control (§ EDITOR-PANEL-CONTROLES-1: cero `.duna-switch`
+  // dentro del editor). Hoy NINGUNA sección no-hero declara `booleanos` (el hero los reemplazó por
+  // la lista de zonas, § `renderZonasHero` más abajo), así que esta función está sin llamador vivo —
+  // se migra igual, para el día que una sección nueva declare los suyos.
   const renderBooleano = (campo: CampoBooleano) => {
     const on = form[campo.name] !== false;
     return (
       <div key={campo.name}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={campo.label}
-            onClick={() => cambiar({ [campo.name]: !on })}
-            className={`duna-switch${on ? ' is-on' : ''}`}
-          >
-            <span className="duna-switch__thumb" />
-          </button>
-          <span className="duna-field__label" style={{ margin: 0 }}>{campo.label}</span>
-        </div>
+        <MostrarOcultar
+          etiqueta={campo.label}
+          visible={on}
+          onCambiar={() => cambiar({ [campo.name]: !on })}
+        />
         {campo.hint && <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={campo.hint} /></div>}
       </div>
     );
@@ -2296,22 +2292,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
 
               {config.ocultable && (
                 <div className="admin-bloque">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={form.visible !== false}
-                      aria-label="Mostrar esta sección en la tienda"
-                      onClick={() => cambiar({ visible: form.visible === false })}
-                      className={`duna-switch${form.visible !== false ? ' is-on' : ''}`}
-                    >
-                      <span className="duna-switch__thumb" />
-                    </button>
-                    <span className="duna-field__label" style={{ margin: 0 }}>Mostrar en la tienda</span>
-                  </div>
+                  <MostrarOcultar
+                    etiqueta="esta sección en la tienda"
+                    visible={form.visible !== false}
+                    onCambiar={() => cambiar({ visible: form.visible === false })}
+                  />
                   {/* Sin `notaVisibilidad`: el operador apaga y ve el resultado en la vista en vivo. El
-                      label + el switch bastan (mismo criterio que el toggle de página). CON ella (hoy,
-                      sólo Marquesina, § EDITOR-TIENDA-MARQUESINA-EN-HERO-1): el switch por sí solo no
+                      ojo + la palabra bastan (mismo criterio que el toggle de página). CON ella (hoy,
+                      sólo Marquesina, § EDITOR-TIENDA-MARQUESINA-EN-HERO-1): el control por sí solo no
                       basta para entender qué hace, porque otra tarjeta ya muestra su texto/producto. */}
                   {config.notaVisibilidad && (
                     <div style={{ marginTop: 'var(--duna-space-2)' }}><AyudaCampo texto={config.notaVisibilidad} /></div>

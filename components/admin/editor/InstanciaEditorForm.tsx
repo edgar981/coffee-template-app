@@ -74,6 +74,12 @@ const LABEL_BOOLEANO: Record<string, string> = {
 const HINT_BOOLEANO: Record<string, string> = {
   autoplay: 'Avanza solo cada pocos segundos. Se pausa al pasar el mouse, con foco o al tocar. Apagado por defecto.',
 };
+// § EDITOR-PANEL-CONTROLES-1 — un COMPORTAMIENTO, no un ON/OFF: el spec lo nombra textual ("el
+// carrusel que avanza solo" → segmentado "Solo" / "A mano"). `[false, true]`: el índice 0 es la
+// palabra para `false`, el 1 para `true` — el orden que lee `OPCIONES_SEGMENTO_BOOLEANO[campo]`.
+const OPCIONES_SEGMENTO_BOOLEANO: Record<string, [string, string]> = {
+  autoplay: ['A mano', 'Solo'],
+};
 // § SECCIONES-TIPOS-2/3/SECCIONES-CARRUSEL-1 — el nombre SINGULAR de un ítem de cada tipo REPEATER,
 // para `InstanciaItemsEditor` (sus botones: "Agregar pregunta", "¿Eliminar esta columna?"). Sólo
 // cubre los tipos con `descriptor.items`; los demás nunca llegan al bloque que lo consume.
@@ -209,26 +215,33 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
           );
         })}
 
-        {/* § SECCIONES-CARRUSEL-1 — BOOLEANOS de instancia (hoy, sólo `carrusel.autoplay`): el
-            MISMO patrón visual `.duna-switch` que ya usa `TiendaSeccionEditor.renderBooleano` para
-            los booleanos de SECCIÓN, no un checkbox nativo — dos formas para el mismo control
-            sería la misma trampa que el resto de este archivo evita por nombre. */}
+        {/* § EDITOR-PANEL-CONTROLES-1 — BOOLEANOS de instancia (hoy, sólo `carrusel.autoplay`): un
+            COMPORTAMIENTO, no un ON/OFF — segmentado con palabras (`.duna-seg`, ya primitiva del
+            sistema), no `.duna-switch`. Dos formas para el mismo control sería la misma trampa que
+            el resto de este archivo evita por nombre. */}
         {descriptor.booleanos && descriptor.booleanos.map((campo) => {
           const on = (datos as unknown as Record<string, unknown>)[campo] === true;
+          const [labelOff, labelOn] = OPCIONES_SEGMENTO_BOOLEANO[campo] ?? ['No', 'Sí'];
           return (
             <div key={campo} className="duna-field">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+              <span className="duna-field__label">{LABEL_BOOLEANO[campo] ?? campo}</span>
+              <div className="duna-seg editor-seg-full" role="group" aria-label={LABEL_BOOLEANO[campo] ?? campo} style={{ marginTop: 'var(--duna-space-2)' }}>
                 <button
                   type="button"
-                  role="switch"
-                  aria-checked={on}
-                  aria-label={LABEL_BOOLEANO[campo] ?? campo}
-                  onClick={() => onCambiar({ ...instancia, [campo]: !on } as InstanciaContent)}
-                  className={`duna-switch${on ? ' is-on' : ''}`}
+                  aria-pressed={!on}
+                  onClick={() => onCambiar({ ...instancia, [campo]: false } as InstanciaContent)}
+                  className={`duna-seg__item${!on ? ' is-on' : ''}`}
                 >
-                  <span className="duna-switch__thumb" />
+                  {labelOff}
                 </button>
-                <span className="duna-field__label" style={{ margin: 0 }}>{LABEL_BOOLEANO[campo] ?? campo}</span>
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onCambiar({ ...instancia, [campo]: true } as InstanciaContent)}
+                  className={`duna-seg__item${on ? ' is-on' : ''}`}
+                >
+                  {labelOn}
+                </button>
               </div>
               {HINT_BOOLEANO[campo] && (
                 <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{HINT_BOOLEANO[campo]}</p>
